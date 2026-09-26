@@ -151,10 +151,10 @@ edbdf14c3009aa22e3c38d7502342bbaf1c560354cc0caba51f0b77f62276502  hooks/target/e
 5777614d9d6f32f603d8d212d00bcbf1c5e526f591b9e58b4b60fd86da317880  hooks/target/etc/apparmor.d/compz
 a8e8fba190c12bd77dfaef16ea28dd52824bf899a7a695535b925e6ad9e51174  hooks/target/etc/apparmor.d/crun
 3b08f576ec2de3eeb73bc94e5df23b9cfb18ccf91a65075bc9a970f6980c4c7e  hooks/target/etc/apparmor.d/desktop-utilities
-504024b0d4a57070a1d9230af3b3efa9958418827f0af8598b0280aa297147cf  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
+224c1b2bc8a4469e29247176255e270f01a40d5a86f8c319c3ef260a80746d51  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
 693dfdea71e1964fa9e701f11588d2c3a7e53af4297bda99facf207313f21a20  hooks/target/etc/apparmor.d/document-applications
 97c8db71a2720a7f8417500bfa373b429c14a8b41b3b4d4097d31fa13df6d006  hooks/target/etc/apparmor.d/hardware-tuning
-5b2c498e300fd8744aa7f9a1448330ee9989b78565f979ed61057372ccd2730c  hooks/target/etc/apparmor.d/labwc-session
+faa8307ca7fe39695e551cca3761cf1bca167f98405c6d54a0b59e188d155988  hooks/target/etc/apparmor.d/labwc-session
 640695ed0166259e580e36fd196d9d0de191ea794e2d4fbeaedb8e9ba339e917  hooks/target/etc/apparmor.d/local/chromium
 8b39cee2348ed071764528d8bb6646ff16016c315b983ce49cd05d7afee3a8a5  hooks/target/etc/apparmor.d/local/code
 c0e5db31a4d46f24dd1be5982ffb848c1f8d540e732e43a37c81c74c112abc2c  hooks/target/etc/apparmor.d/local/desktop-application
@@ -568,7 +568,7 @@ a694376c90825f3ea1dfccaa5ae9133896baae52afe490fbf7bc59f5b23ee733  hooks/target/e
 32f620ab5566a15f08399bee352cbf8cb4398a21192a89abcef69a83f15cf181  hooks/target/etc/skel-desktop/.config/systemd/user/labwc-wlsunset-start.service
 ac33789825c002088c8657738f8e69840836a432bb5413e0a4381e1e8f577ad9  hooks/target/etc/skel-desktop/.config/systemd/user/llama-server.service
 1692ba4f49906b7b92aa15719be918d3fa85cdb588aab8b14c57eef00493b3d7  hooks/target/etc/skel-desktop/.config/systemd/user/session.slice.d/60-resources.conf.tmpl
-ce22a47b2d00ea6f91ac7f6a3baaf1029358cd135c7d4d51591c4618b3da7b34  hooks/target/etc/skel-desktop/.config/systemd/user/swaybg.service
+b9a27cdb1f541835f7620dc595de7f5f6424fc7c788223b95ad17b95500a98cc  hooks/target/etc/skel-desktop/.config/systemd/user/swaybg.service
 1c4177391430440a2f5aa0c2f7279a89c4ffad608b887946a396395bb6714d1d  hooks/target/etc/skel-desktop/.config/systemd/user/swayidle.service
 697ba74dccad97c9f37b7a71dbc89cad39897d41827ab8a2ea3421e7e7717ae4  hooks/target/etc/skel-desktop/.config/systemd/user/swayidle.service.d/60-resource-class.conf
 c0e44cdf098db1d1024d47531685108e480767f36cc48982164beaa8f7857cbc  hooks/target/etc/skel-desktop/.config/systemd/user/waybar.service
@@ -600,7 +600,7 @@ a1ed2a675aa15446e1e97a7b42ac432efba25ecebdce95c816db1f30cb330d83  hooks/target/e
 a861c9ed75485cae9e6941eb4ba79ec05983c1f435a1cb319a84f08e6ad1ab6f  hooks/target/etc/skel-desktop/.config/waybar/power-menu.xml.tmpl
 56d44492b0853a32ef95881131dde83ae8c62d4719f1e53e61c9fc3038d6087b  hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl
 4defa93b593f7ffb3b8d20de0e1c9ab1773f19d15b928ebd746b08243aa05233  hooks/target/etc/skel-desktop/.config/waybar/tomat-menu.xml.tmpl
-9bc7085180cf5a0fcf0fa02a3c71a236c9bfc64846738454a8c39ecde7100da3  hooks/target/etc/skel-desktop/.config/waypaper/config.ini.tmpl
+5ecfd77ca99785e5af94bd01ec72e275d7f6049b8aa967ebf10b1569462ac2d4  hooks/target/etc/skel-desktop/.config/waypaper/config.ini.tmpl
 84382107f2579e44746eed2e5148649e476904cf56fad0bb573abf6b7a15b8f5  hooks/target/etc/skel-desktop/.config/waypaper/keybindings.ini
 931b45fb19e85f8693a41ec34b064bd7d7e86d429c6c6d8b0a8760eae4c84b3f  hooks/target/etc/skel-desktop/.config/waypaper/style.css
 828e53b9dbddb06ab0b6f885f0a699527b5a78209ef222a974c80d1c5c867c3a  hooks/target/etc/skel-desktop/.config/wayscriber/config.toml.tmpl
@@ -1178,7 +1178,7 @@ f89632f47ab25bc303bedbbb4f92ccc5f7eddd435c56c2b6126f39240fee6659  hooks/target/u
 3e9f1a2ba7f009912c461f31034c0f0d80da7fd7c2929fad4bbf7f7afe786592  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/electron.py
 6d2f829cbecd3de09f47ab3c50c03f4b88dd4ea835f77c1365cdaadad8fc98dd  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/environment.py
 bd4507f48c6b1ecc52607c01a97ef5dcf7bcc9fa47b45f150ccedd68a1fdb8ca  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/events.py
-48e012e12d108fc9aac447ae62004295ebe8021328e2256089363c72591d60a6  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py
+b6417087094698bd9a09b13ddecba4be8b919c7b6a24b5b9ca4fb75b939552d9  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py
 6029417c6944a2ae15955786548aa70cfc5a296a7169b81a9a505930a4e23196  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/identity.py
 aeeab4e328bcbc4b9c95e64f2154d1648e122612d66e0c67ee00633b0b430001  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/integrity.py
 7b871043df09c576fc948f33774b11362b978dd4afc178fee6d56bb0aa6d4d97  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/mounts.py
@@ -1392,7 +1392,7 @@ d19c7aaadda19ef4e5090d3fe1befd82adc3120f16ca1a2cb7481cbeb41785a6  hosts/profiles
 192bcf5862bdc749117818716bc3f2acafa883710e430e2db93e46809436992d  hosts/profiles/f2fs-de-x360.env
 8d31c5c5ff3c4ac5e30a18a4b77bc7e34ca39183507774b5780135670d0c463c  hosts/themes/README.md
 b0d3ba489aeabed48ae86754fced48e7cd21184b3e899f7eb06cc4445ad558d7  hosts/themes/apps.env
-6ce308c28178927dff4eccae07074040e3556b2535d26a9cba1c28a1743862e4  hosts/themes/base.env
+c394838205f68116b4d7baa185eaf244e9a99f8034350fa1f0a4c53f9f7678b8  hosts/themes/base.env
 5240c1e3e6a5915148728a55803d5cf0a4bf6e2b23c849cb9611117d8ad4297d  hosts/themes/office.env
 769937368267c03f40dcc4096047c0c74ba96ccf3a3e7e6b5933d5e762192220  hosts/themes/theme-schema.tsv
 34b025528d5f3271e58cd80b2e97a00b10c014df460da65fce4a2dc01d0343f1  repo.env

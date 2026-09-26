@@ -113,9 +113,11 @@ profile waypaper /{usr/local/bin/waypaper,opt/waypaper/bin/waypaper,opt/waypaper
   /opt/waypaper/bin/waypaper rix,
   /opt/waypaper/pipx/venvs/waypaper/bin/waypaper rix,
   /opt/waypaper/pipx/venvs/waypaper/bin/python* rix,
-  # The session supervisor owns swaybg. A changed Waypaper backend must not
-  # start a second renderer alongside its post-command state handoff.
-  deny /usr/bin/swaybg x,
+  # Confine the native swaybg backend separately from the session renderer.
+  # Waypaper's kill helper may retire its own child, never the supervisor's.
+  /usr/bin/swaybg rPx -> waypaper-swaybg,
+  signal (send) set=(kill term) peer=waypaper-swaybg,
+  signal (receive) set=(chld) peer=waypaper-swaybg,
   /opt/waypaper/ r,
   /opt/waypaper/** mr,
   /usr/bin/bwrap rCx -> waypaper-bwrap,
@@ -187,6 +189,19 @@ profile waypaper /{usr/local/bin/waypaper,opt/waypaper/bin/waypaper,opt/waypaper
     ptrace (read) peer=labwc-session,
     ptrace (read) peer=labwc-output-watch,
     ptrace (read) peer=labwc-plans,
+    # ps enumerates the session; read only the peers seen in the supplied
+    # audit. This never grants signal/trace access to the supervisor renderer.
+    ptrace (read) peer=waypaper-swaybg,
+    ptrace (read) peer=labwc-compositor,
+    ptrace (read) peer=ksecretd,
+    ptrace (read) peer=labwc-swaybg,
+    ptrace (read) peer=waybar,
+    ptrace (read) peer=labwc-tomat,
+    ptrace (read) peer=tomat,
+    ptrace (read) peer=labwc-panel-run,
+    ptrace (read) peer=crystal-dock,
+    ptrace (read) peer=desktop-launcher,
+    ptrace (read) peer=session-glycin-bwrap,
 
     /usr/bin/ps mr,
     / r,
@@ -210,7 +225,7 @@ profile waypaper /{usr/local/bin/waypaper,opt/waypaper/bin/waypaper,opt/waypaper
     #include <abstractions/base>
 
     /usr/bin/kill mr,
-    signal (send) set=(kill term) peer=unconfined,
+    signal (send) set=(kill term) peer=waypaper-swaybg,
   }
 
   profile waypaper-ldconfig flags=(attach_disconnected) {
@@ -222,6 +237,33 @@ profile waypaper /{usr/local/bin/waypaper,opt/waypaper/bin/waypaper,opt/waypaper
   }
 
   include if exists <local/usr.local.bin.waypaper>
+}
+
+# Waypaper's renderer lives only while its transient GUI unit is active. The
+# session-owned renderer retains its separate session-controls label, so the
+# native backend cannot kill it while changing the selected wallpaper.
+profile waypaper-swaybg flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/wrapper-gui>
+  /usr/bin/swaybg mr,
+  /usr/lib/** mr,
+  /usr/share/backgrounds/ r,
+  /usr/share/backgrounds/** r,
+  owner @{HOME}/Pictures/ r,
+  owner @{HOME}/Pictures/** r,
+  /usr/share/glycin-loaders/2+/conf.d/{,**} r,
+  /usr/share/mime/mime.cache r,
+  /usr/share/zoneinfo/** r,
+  /proc/filesystems r,
+  /proc/meminfo r,
+  /proc/sys/vm/overcommit_memory r,
+  @{sys}/fs/cgroup/**/cgroup.controllers r,
+  owner /dev/shm/swaybg-* rwk,
+  owner @{HOME}/.cache/glycin/{,**} rwkl,
+  signal (receive) set=(kill term) peer=waypaper//waypaper-kill,
+  signal (receive) set=(kill term) peer=waypaper,
+  signal (send) set=(kill term) peer=session-glycin-bwrap,
+  ptrace (readby) peer=waypaper//waypaper-ps,
+  /usr/bin/bwrap rPx -> session-glycin-bwrap,
 }
 
 profile waypaper-glycin-loader flags=(attach_disconnected, mediate_deleted) {

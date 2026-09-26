@@ -227,7 +227,9 @@ class IntegrationContractTests(unittest.TestCase):
             self.assertIn('LABWC_WAYLAND_APP_DEFAULT_EXEC "$LABWC_WAYLAND_APP_DEFAULT_EXEC"',
                           render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop' / source)))
         config = render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/waypaper/config.ini'))
-        self.assertIn('labwc-wallpaper-save --apply', config)
+        self.assertIn('\nbackend = swaybg\n', config)
+        self.assertIn('post_command = /usr/local/bin/labwc-wallpaper-save $wallpaper', config)
+        self.assertNotIn('labwc-wallpaper-save --apply', config)
         self.assertIn('labwc-wallpaper-control save', render_theme_defaults(payload_read_text(TARGET / 'usr/local/bin/labwc-wallpaper-save')))
         self.assertIn('swaybg.service', render_theme_defaults(payload_read_text(TARGET / 'usr/local/libexec/labwc-wallpaper-control')))
         policy = render_theme_defaults(payload_read_text(TARGET / 'etc/apparmor.d/desktop-wrappers'))

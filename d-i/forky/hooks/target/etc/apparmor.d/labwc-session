@@ -229,6 +229,7 @@ profile session-glycin-bwrap flags=(attach_disconnected, mediate_deleted) {
 
   signal (receive) set=(kill, term) peer=waybar,
   signal (receive) set=(kill, term) peer=session-controls,
+  signal (receive) set=(kill, term) peer=waypaper-swaybg,
   /dev/rfkill r,
   /usr/bin/true rix,
   # Bubblewrap has already set no_new_privs; image loaders inherit this domain.

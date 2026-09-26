@@ -186,13 +186,21 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         "/usr/local/bin/waypaper",
     }) or (kind == "electron" and arguments[0] == "/opt/Mullvad VPN/mullvad-vpn")
     is_foot = kind == "wayland" and arguments[0] == "/usr/bin/foot"
+    is_waypaper = kind == "wayland" and arguments[0] == "/usr/local/bin/waypaper"
     return [
         "/usr/bin/systemd-run", "--user", "--quiet", "--collect",
         *menu_action_wait_arguments(),
         "--service-type=exec", "--expand-environment=no", "--slice=app.slice",
         f"--unit={unit}", f"--description=Labwc {kind} application: {label}",
         "--property=Requisite=labwc-session.target", "--property=After=labwc-session.target",
-        "--property=PartOf=labwc-session.target", "--property=ExitType=cgroup",
+        "--property=PartOf=labwc-session.target",
+        # Waypaper temporarily owns swaybg while its GUI is open. Stop the
+        # supervisor before native backend startup, then restore the saved
+        # selection after the GUI and all its renderers have exited. This
+        # handoff is independent of AppArmor's enforce/complain setting.
+        *(["--property=ExecStartPre=/usr/bin/systemctl --user stop swaybg.service",
+           "--property=ExecStopPost=/usr/bin/systemctl --user start swaybg.service"] if is_waypaper else []),
+        "--property=ExitType=" + ("main" if is_waypaper else "cgroup"),
         f"--property=ConditionPathExists=!/run/user/{os.getuid()}/labwc-session-closing",
         "--property=KillMode=" + ("mixed" if is_foot else "control-group"),
         # Bound preparation/exec failure without limiting application runtime.
