@@ -330,9 +330,9 @@ def redirect_native_from_private_users(
             # The host-side launcher will apply the authoritative fragment.
             environment["DEVOPS_DE_ACTIVE"] = "0"
             environment["DEVOPS_DE_ENVIRONMENT_READY"] = "0"
+    # ChatGPT owns its bundled Codex stdio child. The separately socket-activated
+    # CLI backend must not become a startup or failure dependency of the GUI.
     startup_dependencies = dependencies
-    if app_name == "chatgpt":
-        startup_dependencies += " codex-app-server.socket codex-app-server-proxy.service"
     argv = [
         systemd_run, "--user", "--quiet", "--collect",
         *(["--pipe", "--wait"] if app_name == "chatgpt" else [
@@ -349,10 +349,7 @@ def redirect_native_from_private_users(
         f"--property=After={startup_dependencies}",
         # Never pull the desktop/compositor back up during teardown. The
         # Secret Service provider is already session-owned; Requisite verifies
-        # readiness without starting it. Only the independent Codex backend
-        # needs activation here.
-        *(["--property=Requires=codex-app-server.socket codex-app-server-proxy.service"]
-          if app_name == "chatgpt" else []),
+        # readiness without starting it.
         f"--property=Requisite={startup_dependencies}",
         f"--property=PartOf={dependencies}",
         f"--property=ConditionPathExists=!/run/user/{os.getuid()}/labwc-session-closing",

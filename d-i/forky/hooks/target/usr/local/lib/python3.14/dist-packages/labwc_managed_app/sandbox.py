@@ -1510,10 +1510,8 @@ def _run_persistent_sandbox(
             if stale_cleanup_allowed:
                 remove_stale_chatgpt_singletons(home_dir)
                 fcntl.flock(lifecycle_lock_fd, fcntl.LOCK_SH)
-            add_synthetic_codex_installation_id_mount(
-                command,
-                synthetic_identity["installation_id"],
-            )
+            # CODEX_HOME owns its persistent installation_id just as auth.json.
+            # Do not shadow it with a different identity for the GUI process.
         for key, value in env.items():
             command.extend(["--setenv", key, value])
         validate_private_procfs(command)

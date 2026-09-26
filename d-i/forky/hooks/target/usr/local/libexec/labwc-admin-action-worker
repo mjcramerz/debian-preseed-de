@@ -304,11 +304,11 @@ def ready() -> None:
         notifier.sendall(b"READY=1\nSTATUS=Authorized desktop power request accepted")
 
 
-def check_shutdown_inhibitors() -> None:
-    """Keep blocking inhibitors meaningful before the explicit single-force path.
+def check_shutdown_inhibitors(*, force: bool = False) -> None:
+    """Validate inhibitors; a prepared, explicitly forced action logs overrides.
 
-    Query while the system bus is alive. This is a veto check, not logind's
-    PrepareForShutdown/delay-inhibitor protocol, which --force bypasses.
+    Package-lock reservations, save-dialog cancellation and other-account
+    guards remain mandatory. This is not logind's delay-inhibitor protocol.
     """
     raw = run(["/usr/bin/busctl", "--system", "--json=short", "--timeout=5s",
                "call", "org.freedesktop.login1", "/org/freedesktop/login1",
@@ -328,11 +328,48 @@ def check_shutdown_inhibitors() -> None:
                     or any(type(value) is not int or not 0 <= value < 2**32 for value in item[4:])):
                 raise ValueError("invalid inhibitor record")
             if "shutdown" in item[0].split(":") and item[3] != "delay":
-                # Includes block-weak: do not use root to bypass another user's
-                # veto. Unknown shutdown modes also fail closed.
-                raise Error("shutdown is inhibited; release the inhibitor before retrying")
+                if item[3] not in {"block", "block-weak"}:
+                    raise Error("unrecognized shutdown inhibitor mode")
+                if not force:
+                    raise Error("shutdown is inhibited; release the inhibitor before retrying")
+                # Do not log caller-supplied inhibitor strings or sensitive data.
+                print(f"power preparation: authorized force overrides shutdown inhibitor "
+                      f"uid={item[4]} pid={item[5]}", file=sys.stderr, flush=True)
     except (ValueError, RecursionError) as exc:
         raise Error("cannot verify shutdown inhibitors") from exc
+
+
+def login_sessions() -> list[tuple[str, int]]:
+    """Read bounded, typed logind records rather than presentation columns."""
+    raw = run(["/usr/bin/busctl", "--system", "--json=short", "--timeout=5s",
+               "call", "org.freedesktop.login1", "/org/freedesktop/login1",
+               "org.freedesktop.login1.Manager", "ListSessions"], timeout=7, max_output=131_072)
+    try:
+        if len(raw) > 131_072:
+            raise ValueError("oversized session response")
+        result = json.loads(raw)
+        if not isinstance(result, dict) or result.get("type") != "a(susso)":
+            raise ValueError("unexpected session signature")
+        data = result.get("data")
+        if (not isinstance(data, list) or len(data) != 1
+                or not isinstance(data[0], list) or len(data[0]) > 1024):
+            raise ValueError("invalid session array")
+        sessions = []
+        seen = set()
+        for row in data[0]:
+            if (not isinstance(row, list) or len(row) != 5
+                    or not isinstance(row[0], str)
+                    or re.fullmatch(r"[A-Za-z0-9_-]{1,64}", row[0]) is None
+                    or type(row[1]) is not int or not 0 <= row[1] < 2**32
+                    or any(not isinstance(value, str) or len(value) > 4096 for value in row[2:])
+                    or not row[4].startswith("/org/freedesktop/login1/session/")
+                    or row[0] in seen):
+                raise ValueError("invalid session record")
+            seen.add(row[0])
+            sessions.append((row[0], row[1]))
+        return sessions
+    except (ValueError, RecursionError) as exc:
+        raise Error("cannot verify login sessions") from exc
 
 
 class Worker:
@@ -412,17 +449,11 @@ class Worker:
     def protect_other_sessions(self) -> None:
         if self.action == "logout":
             return
-        listing = run(["/usr/bin/loginctl", "list-sessions", "--no-legend", "--no-pager"],
-                      timeout=10, max_output=131_072)
-        lines = listing.splitlines()
-        if len(lines) > 1024:
-            raise Error("excessive login session listing")
+        sessions = login_sessions()
         interactive = {"user", "user-early", "user-light", "user-early-light", "user-incomplete"}
         greeters = []
-        for line in lines:
-            fields = line.split()
-            if len(fields) < 2 or not fields[1].isdigit() or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", fields[0]):
-                raise Error("unexpected login session listing")
+        for session_id, session_uid in sessions:
+            fields = (session_id, str(session_uid))
             if int(fields[1]) == self.uid:
                 if not self.greeter:
                     continue
@@ -636,14 +667,18 @@ class Worker:
             raise Error("forced handoff requires a quiesced desktop and may run only once")
         self.require_package_reservation()
         self.protect_other_sessions()
-        check_shutdown_inhibitors()
+        check_shutdown_inhibitors(force=True)
+        self.require_package_reservation()
+        # Clients have accepted close/save, the desktop is stopped, and guest
+        # hooks have completed. Flush their writes before the single-force call.
+        os.sync()
         self.require_package_reservation()
         self.committed = True
         self.handoff_attempted = True
         print(f"power handoff: systemctl --force {self.action}; desktop stop verified",
               file=sys.stderr, flush=True)
-        # stdout/stderr are opened by PID 1 directly in the per-request power
-        # log. Do not replay/export the journal or delay handoff for a snapshot.
+        # PID 1 opens stdout in the per-request power log and stderr in the
+        # journal. Do not replay/export logs or delay handoff for a snapshot.
         self.require_package_reservation()
         # Exactly ONE --force contacts PID 1; two would bypass its final
         # process/filesystem teardown. No target is started as an intermediate
@@ -691,7 +726,7 @@ class Worker:
                     if self.action not in {"poweroff", "reboot"}:
                         raise Error("invalid greeter power action")
                     self.require_package_reservation()
-                    check_shutdown_inhibitors()
+                    check_shutdown_inhibitors(force=True)
                     # No desktop belongs to this greeter request; the account
                     # guard above has excluded other interactive users. Share
                     # the guest-stop and single-force finalization path.
@@ -716,7 +751,7 @@ class Worker:
                     self.committed = True
                     self.terminate_user()
                 else:
-                    check_shutdown_inhibitors()
+                    check_shutdown_inhibitors(force=True)
                     # An optional guest hook can fail or time out. Complete
                     # those checks while the desktop is still available.
                     self.stop_optional_guests()

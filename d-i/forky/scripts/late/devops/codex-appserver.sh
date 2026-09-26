@@ -77,12 +77,21 @@ devops_stage_codex_app_server() {
     'ExecStart=/data/codex/lib/codex app-server --listen unix:///data/codex/sockets/app-server-backend.sock' \
     "$service_tmp" ||
     devops_fatal "Codex app-server backend does not use the managed wrapper command"
-  grep -Fqx 'StopWhenUnneeded=yes' "$service_tmp" ||
-    devops_fatal "Codex app-server backend does not stop after its proxy exits"
+  grep -Fqx 'PartOf=codex-app-server.socket' "$service_tmp" ||
+    devops_fatal "Codex app-server backend is not owned by its listener"
+  grep -Fqx 'StopWhenUnneeded=no' "$service_tmp" ||
+    devops_fatal "Codex app-server backend must survive proxy idle exits"
+  grep -Fqx 'PartOf=codex-app-server.socket' "$proxy_tmp" ||
+    devops_fatal "Codex app-server proxy is not owned by its listener"
+  grep -Fqx 'Environment=CODEX_APP_SERVER_SECRET_ENV_NAMES=CODEX_MCP_API_KEY' "$service_tmp" ||
+    devops_fatal "Codex app-server unit is missing its safe default secret-name policy"
+  if grep -Fq 'ExecStartPre=/usr/bin/test -r /etc/codex/app-server.env' "$service_tmp"; then
+    devops_fatal "Codex app-server optional environment policy must not block startup"
+  fi
   grep -Fqx 'ExecStartPost=/usr/local/libexec/codex-app-server-wait-ready' "$service_tmp" ||
     devops_fatal "Codex app-server backend does not wait for its private socket"
   grep -Fqx 'SuccessExitStatus=143 SIGTERM' "$service_tmp" ||
-    devops_fatal "Codex app-server backend does not treat managed idle shutdown as successful"
+    devops_fatal "Codex app-server backend does not treat managed listener shutdown as successful"
   grep -Fqx 'EnvironmentFile=-/etc/codex/app-server.env' "$service_tmp" ||
     devops_fatal "Codex app-server unit is missing its non-secret environment policy"
   grep -Fqx 'LoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env' "$service_tmp" ||

@@ -2,6 +2,7 @@
 Description=On-demand proxy for the managed Codex app server
 Documentation=man:systemd-socket-proxyd(8)
 Requires=codex-app-server.socket codex-app-server.service
+PartOf=codex-app-server.socket
 After=codex-app-server.socket codex-app-server.service
 ConditionFileIsExecutable=/usr/lib/systemd/systemd-socket-proxyd
 StartLimitIntervalSec=60

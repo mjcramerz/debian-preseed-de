@@ -35,6 +35,8 @@ def worker_module():
     path = base.TARGET / 'usr/local/libexec/labwc-admin-action-worker'
     result = types.ModuleType('r6_power_worker'); result.__file__ = str(path)
     exec(compile(payload_read_bytes(path), str(path), 'exec'), result.__dict__)
+    if hasattr(result, 'Worker'):
+        result.os = types.SimpleNamespace(**{**vars(result.os), 'sync': mock.Mock()})
     return result
 
 
@@ -219,7 +221,7 @@ class HandoffTests(unittest.TestCase):
              mock.patch.object(self.power, 'PackageLocks'), \
              mock.patch.object(self.power, 'hold_reservation', side_effect=lambda: events.append('hold')), \
              mock.patch.object(self.worker, 'protect_other_sessions', side_effect=lambda: events.append('accounts')), \
-             mock.patch.object(self.power, 'check_shutdown_inhibitors', side_effect=lambda: events.append('inhibitors')), \
+             mock.patch.object(self.power, 'check_shutdown_inhibitors', side_effect=lambda **kwargs: events.append('inhibitors')), \
              mock.patch.object(self.power, 'ready', side_effect=lambda: events.append('ready')), \
              mock.patch.object(self.worker, 'helper', side_effect=lambda a: events.append(a)), \
              mock.patch.object(self.worker, 'quiesce_desktop', side_effect=lambda: events.append('quiesce')), \

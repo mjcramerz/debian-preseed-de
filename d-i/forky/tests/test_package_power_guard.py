@@ -282,7 +282,7 @@ class WorkerFlowTests(LockFixture):
         worker = self.power.Worker(1000, 'desktop', action, greeter=greeter)
         self.events = []
         self.stack.enter_context(mock.patch.object(self.power, 'check_shutdown_inhibitors',
-            side_effect=lambda: self.events.append(('inhibitors', ()))))
+            side_effect=lambda **kwargs: self.events.append(('inhibitors', ()))))
         for name in ('lock', 'protect_other_sessions', 'helper', 'terminate_user',
                      'quiesce_desktop', 'stop_optional_guests', 'final_power_action'):
             self.stack.enter_context(mock.patch.object(worker, name,

@@ -18,6 +18,8 @@ def module():
     path = TARGET / 'usr/local/libexec/labwc-admin-action-worker'
     result = types.ModuleType('quiescence_worker'); result.__file__ = str(path)
     exec(compile(payload_read_bytes(path), str(path), 'exec'), result.__dict__)
+    if hasattr(result, 'Worker'):
+        result.os = types.SimpleNamespace(**{**vars(result.os), 'sync': mock.Mock()})
     return result
 
 

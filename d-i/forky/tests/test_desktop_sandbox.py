@@ -635,13 +635,16 @@ class SessionAndIntegrationTests(unittest.TestCase):
         self.assertIn('LoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env\n',data)
         self.assertIn('EnvironmentFile=-%d/codex-mcp.env\n',data)
 
-    def test_codex_app_server_is_socket_activated_and_idle_stopped(self):
+    def test_codex_app_server_is_socket_owned_and_survives_proxy_idle(self):
         unit_dir = DESKTOP / 'etc/skel-desktop/.config/systemd/user'
         backend = render_theme_defaults(payload_read_text(unit_dir / 'codex-app-server.service'))
         proxy = render_theme_defaults(payload_read_text(unit_dir / 'codex-app-server-proxy.service'))
         socket_unit = render_theme_defaults(payload_read_text(unit_dir / 'codex-app-server.socket'))
 
-        self.assertIn('StopWhenUnneeded=yes\n', backend)
+        self.assertIn('StopWhenUnneeded=no\n', backend)
+        self.assertIn('PartOf=codex-app-server.socket\n', backend)
+        self.assertIn('PartOf=codex-app-server.socket\n', proxy)
+        self.assertNotIn('ExecStartPre=/usr/bin/test -r /etc/codex/app-server.env', backend)
         self.assertIn(
             'ExecStart=/data/codex/lib/codex app-server --listen '
             'unix:///data/codex/sockets/app-server-backend.sock\n',
@@ -690,6 +693,7 @@ class SessionAndIntegrationTests(unittest.TestCase):
             endpoint = Path(tmp) / 'backend.sock'
             with socket.socket(socket.AF_UNIX) as listener:
                 listener.bind(str(endpoint))
+                listener.listen(1)
                 endpoint.chmod(0o600)
                 with mock.patch.object(self.codex_ready, 'BACKEND_SOCKET', str(endpoint)):
                     self.assertEqual(self.codex_ready.main([]), 0)

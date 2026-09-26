@@ -29,7 +29,18 @@ WORKER = TARGET / 'usr/local/libexec/labwc-admin-action-worker'
 def module():
     result = types.ModuleType('greeter_power_followup')
     exec(compile(payload_read_text(WORKER), str(WORKER), 'exec'), result.__dict__)
+    if hasattr(result, 'Worker'):
+        result.os = types.SimpleNamespace(**{**vars(result.os), 'sync': mock.Mock()})
     return result
+
+
+def session_listing(text):
+    records = []
+    for line in text.splitlines():
+        fields = line.split()
+        records.append([fields[0], int(fields[1]), fields[2], fields[3],
+                        '/org/freedesktop/login1/session/' + fields[0]])
+    return json.dumps({'type': 'a(susso)', 'data': [records]})
 
 
 def session(**overrides):
@@ -50,9 +61,10 @@ class GreeterIdentityTests(unittest.TestCase):
         self.addCleanup(self.transport.stop)
 
     def run_command(self, argv, **kwargs):
+        if argv[-1] == 'ListSessions':
+            self.assertEqual(argv[0], '/usr/bin/busctl')
+            return session_listing(self.listing)
         self.assertEqual(argv[0], '/usr/bin/loginctl')
-        if 'list-sessions' in argv:
-            return self.listing
         if '--property=Class' in argv:
             return 'user\n'
         self.assertIn('show-session', argv)
@@ -143,9 +155,9 @@ class DesktopAfterLogoutTests(unittest.TestCase):
         self.properties = session()
 
     def transport(self, argv, **kwargs):
-        if 'list-sessions' in argv:
-            return ('c2 1000 desktop seat0 900 user tty2 no -\n'
-                    'c1 109 greeter seat0 321 greeter tty1 no -\n')
+        if argv[-1] == 'ListSessions':
+            return session_listing('c2 1000 desktop seat0 900 user tty2 no -\n'
+                                   'c1 109 greeter seat0 321 greeter tty1 no -\n')
         if '--property=Class' in argv:
             return 'user-light\n'
         return self.properties
@@ -189,9 +201,9 @@ class GreeterFlowTests(unittest.TestCase):
         self.calls.append(argv)
         if self.fail_on and self.fail_on(argv):
             raise self.power.Error('injected transport failure')
+        if argv[-1] == 'ListSessions':
+            return session_listing('c1 109 greeter seat0 321 greeter tty1 no -\n')
         if argv[0] == '/usr/bin/loginctl':
-            if 'list-sessions' in argv:
-                return 'c1 109 greeter seat0 321 greeter tty1 no -\n'
             return self.greeter_properties
         if argv[0] == '/usr/bin/busctl':
             return json.dumps(dict(type='a(ssssuu)', data=[self.inhibitors]))
@@ -242,11 +254,11 @@ class GreeterFlowTests(unittest.TestCase):
         self.assertEqual(sum('--force' in c for c in self.calls), 1)
         self.assertEqual(self.calls[-1], ['/usr/bin/systemctl', '--force', '--no-ask-password', 'reboot'])
 
-    def test_block_inhibitor_never_reaches_guest_or_runtime_stop(self):
+    def test_known_inhibitor_does_not_veto_authorized_greeter_force(self):
         self.inhibitors = [['shutdown', 'editor', 'unsaved', 'block', 1000, 900]]
-        with self.assertRaisesRegex(self.power.Error, 'inhibited'):
-            self.execute()
-        self.assertFalse(any('--force' in c or 'stop' in c for c in self.calls))
+        self.execute()
+        self.assertEqual(sum('--force' in c for c in self.calls), 1)
+        self.assertFalse(any('stop' in c for c in self.calls))
 
     def test_identity_change_after_package_wait_never_stops_a_session(self):
         self.reservation.return_value.__enter__.side_effect = lambda: self.change_identity()

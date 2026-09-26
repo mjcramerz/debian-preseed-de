@@ -31,6 +31,8 @@ def module(name):
     result = types.ModuleType(name.replace('-', '_'))
     result.__file__ = str(path)
     exec(compile(payload_read_bytes(path), str(path), 'exec'), result.__dict__)
+    if hasattr(result, 'Worker'):
+        result.os = types.SimpleNamespace(**{**vars(result.os), 'sync': mock.Mock()})
     return result
 
 
@@ -286,7 +288,7 @@ class PowerWorkerTests(unittest.TestCase):
         events = []
         stack.enter_context(mock.patch.object(self.power, 'PackageLocks'))
         stack.enter_context(mock.patch.object(self.power, 'check_shutdown_inhibitors',
-            side_effect=lambda: events.append(('inhibitors', ()))))
+            side_effect=lambda **kwargs: events.append(('inhibitors', ()))))
         stack.enter_context(mock.patch.object(self.power, 'hold_reservation', side_effect=lambda: events.append(('hold', ()))))
         stack.enter_context(mock.patch.object(self.worker, 'session_identity',
             side_effect=lambda: (self.worker.userctl('identity'), 'a' * 32)[1]))

@@ -19,6 +19,8 @@ WORKER = TARGET / 'usr/local/libexec/labwc-admin-action-worker'
 def module():
     result = types.ModuleType('runtime_power_test')
     exec(compile(payload_read_text(WORKER), str(WORKER), 'exec'), result.__dict__)
+    if hasattr(result, 'Worker'):
+        result.os = types.SimpleNamespace(**{**vars(result.os), 'sync': mock.Mock()})
     return result
 
 
@@ -40,7 +42,7 @@ class InhibitorsTests(unittest.TestCase):
 
     def test_block_and_weak_and_unknown_shutdown_modes_veto(self):
         for mode in ('block', 'block-weak', 'future-mode', ''):
-            with self.subTest(mode=mode), self.assertRaisesRegex(self.power.Error, 'inhibited'):
+            with self.subTest(mode=mode), self.assertRaisesRegex(self.power.Error, 'inhibited|unrecognized'):
                 self.check([['shutdown:sleep', 'application', 'unsaved', mode, 1000, 123]])
 
     def test_delay_is_not_misrepresented_as_blocking(self):
@@ -127,7 +129,7 @@ class DirectHandoffTests(unittest.TestCase):
                     self.assertTrue(self.worker.committed and self.worker.handoff_attempted)
                     self.assertGreaterEqual(self.worker.package_locks.verify.call_count, 2)
 
-    def test_other_account_or_blocking_inhibitor_vetoes_before_force(self):
+    def test_other_account_vetoes_but_known_inhibitor_does_not_veto_force(self):
         with mock.patch.object(self.worker, 'protect_other_sessions', side_effect=self.power.Error('other account')):
             with self.assertRaisesRegex(self.power.Error, 'other account'):
                 self.worker.final_power_action()
@@ -137,11 +139,10 @@ class DirectHandoffTests(unittest.TestCase):
             self.events.append(argv)
             return json.dumps({'type': 'a(ssssuu)',
                                'data': [[['shutdown', 'editor', 'unsaved', 'block', 1000, 1]]]})
-        with mock.patch.object(self.power, 'run', side_effect=blocked), \
-             self.assertRaisesRegex(self.power.Error, 'inhibited'):
+        with mock.patch.object(self.power, 'run', side_effect=blocked):
             self.worker.final_power_action()
-        self.assertFalse(any('--force' in c for c in self.events))
-        self.assertFalse(self.worker.handoff_attempted)
+        self.assertEqual(sum('--force' in c for c in self.events), 1)
+        self.assertTrue(self.worker.handoff_attempted)
 
     def test_missing_reservation_or_unprepared_session_fails_without_commands(self):
         self.worker.package_locks = None

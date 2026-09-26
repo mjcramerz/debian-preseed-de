@@ -94,7 +94,7 @@ fde996e76845076f996a29a564a6ea31061a98966c9ef0c718bca6497bf5a704  hooks/installe
 7175a0cbb6ec8aa9226c475ae30258f07268c58d9371fa443c7e6dad431ce857  hooks/installer/pre-pkgsel.d/90secure-boot-dkms.sh
 5ce028a902c6e37ca3f13908fccd3e5aa40418d4eec89d340df30955ec73a23b  hooks/installer/pre-pkgsel.d/91cuda-legacy-apt.sh
 f52c1f1fc571f3cef9ad14bcd7c61c2a6cfef7d0056b580ddb83d224465ddfa4  hooks/installer/pre-pkgsel.d/92nvidia-legacy-dkms.sh
-f3ab0b3311213e241defe9c9129f2ccb7dbdb76f508eb2eafafb7f54aa44bcf9  hooks/target/data/codex/lib/codex.tmpl
+327f21d4ae89a780774807f7e143f88af7ca6615b279b0704ed4c8314451ded3  hooks/target/data/codex/lib/codex.tmpl
 174fc87ce762db4afeea30fd383807a4dd3478ccef3f888d1686e259b285b2c4  hooks/target/data/config/podman/templates/devops/client.conf
 c237af08d26fe538cc709b7917638c53d5d90d69b5ec9e51b88ad95c902b6e89  hooks/target/data/config/podman/templates/devops/containers.conf.tmpl
 309c8d432bb1367f4a605a1607070cb0d56afb39917f7adfad7b6d01e73464a9  hooks/target/data/config/podman/templates/devops/podman-devops-restart.service.tmpl
@@ -530,8 +530,8 @@ df35affd5bd6ff09924ee402b7f2738b4f03a33889046ed9487650d6f4a25d40  hooks/target/e
 37a0067190117b1f2a1306f7a774e53258238ccb9aa2b0f7a3aea5de21aa764e  hooks/target/etc/skel-desktop/.config/systemd/user/apt-repo-local-software-notify.path
 6d9598a5ae3cee087af054af05ab415f0fcf6cd0962427145d988b5c6b5f3aee  hooks/target/etc/skel-desktop/.config/systemd/user/apt-repo-local-software-notify.service
 ae7b180ee94aa1015d43672b0d6b395f99bf70b2ab54f460f05182399bd67ae5  hooks/target/etc/skel-desktop/.config/systemd/user/background.slice.d/60-resources.conf.tmpl
-26e1369a9bd7e5c4d1a2516a2ec4890d39b02444b5269cf30a0c0392dee58d45  hooks/target/etc/skel-desktop/.config/systemd/user/codex-app-server-proxy.service
-0a0f037a8dcff525a2b57b48e85b86d2d497450ce9faeeed39049f94cf410f9e  hooks/target/etc/skel-desktop/.config/systemd/user/codex-app-server.service
+533780214c8e188d41a06f6d990552283d06ba7d3f7939d161a846e66ce88657  hooks/target/etc/skel-desktop/.config/systemd/user/codex-app-server-proxy.service
+3975c84601e0ceffcc140cf7f50feb0cf875055473e99dc2416fce7ca57f491f  hooks/target/etc/skel-desktop/.config/systemd/user/codex-app-server.service
 71ebe6dcf9e590af125845ece6795ea9d34efc7c2480c2f44027612d82dcc833  hooks/target/etc/skel-desktop/.config/systemd/user/codex-app-server.socket
 99f5e29878b1fecfb2f0ae9ce4a1b16536a6969c72f838342a221da54ecad1a8  hooks/target/etc/skel-desktop/.config/systemd/user/crystal-dock.service
 1572b0cc5f8dbeb78b2410ccb65a1d427ef4938ab2dfebe0897906319c63f95d  hooks/target/etc/skel-desktop/.config/systemd/user/crystal-dock.service.d/60-resource-class.conf
@@ -726,7 +726,7 @@ ba4d5142e7c290ad800fbc655be8efd8c72b40308e792f824f74a75ec0a5d696  hooks/target/e
 a67ef0a24fb6744a8e19baa61a71e9b9edd542abc0fb5108eb15deebf5dee944  hooks/target/etc/systemd/system/incus-host.service
 5c98a7ccb954c99d878ae8d57d7e8a506f0ac440e95d7ecd2974e50c33fac554  hooks/target/etc/systemd/system/incus-user.service.d/20-bootstrap.conf
 7a1db25b6cea741cfcc9c49304d9f21cd7d838ca8195e5a34018944165dc681d  hooks/target/etc/systemd/system/journal-sealing.service
-585c30554db03bc1d37f4439a8fe664fb634d30361f5dcb86e6b18b269a46f6f  hooks/target/etc/systemd/system/labwc-admin-action@.service.tmpl
+d552f3cb26d0549dae4bed41a689999ef9908733c103be80afead6cd0851a9fe  hooks/target/etc/systemd/system/labwc-admin-action@.service.tmpl
 b214d86147e57b6626bf41ee921bdb28a9d69a20a8571acf3a78876bfdebc3b7  hooks/target/etc/systemd/system/labwc-apparmor-boot-recover.service
 36d279000344e2e02e43d09c1eda2a44da4663a76705d93ff55c099eaa4c2062  hooks/target/etc/systemd/system/labwc-apparmor-policy@.service
 fd7b9c21bdb8cfb708a8f66e9a0681904dbfeace2ef374f56f50c3622ce12393  hooks/target/etc/systemd/system/labwc-package-sleep-guard.service.tmpl
@@ -1186,8 +1186,8 @@ aeeab4e328bcbc4b9c95e64f2154d1648e122612d66e0c67ee00633b0b430001  hooks/target/u
 39324b5f72c631495a3d218e2f8b5550ea14a3043c7ef46cdfc6be7788169d03  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py.tmpl
 7fa92bf26e88e9711c18cfa692f62f1c69566dc824ba118249da274e2b78c08d  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/recovery.py
 7aa540a8117255a44defee431ede78c5d7dbc011bc12f8f98c4d9c9c46d34e93  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/runtime.py
-ecf172df997618a1c1c99ad08583ce73627f494e4555b5102295ae76885c70d2  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/sandbox.py
-39111c9b8040210d5c821776f088555471db6b04300c3e6225c48f6099ba1087  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py
+c4aa12edc9178cb01e9804e0b55c0bf568400dd618a5552aa1f3b0fd6f137a5e  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/sandbox.py
+d6a3428ad82152c0f1a6a2fe091297d27f3674989a320b4adc90ceb09267583a  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py
 079f08df43785665889a22dcd63367415fa8ddccdc8868f0e5f82b2fadb0cdd3  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/user_state.py
 d975c575ff90d215731039a768dcc0f66d4a48d5b9b293620d76a41a93d0a77a  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat.py
 d2a5eb45025f6ca4dbecbcc598ea51d0244de71d6106941d1852fe32d4e2ffdc  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat_runtime.py
@@ -1203,7 +1203,7 @@ fd2fee53b83f82ec7c17c99e7c18c9cfd1acf188633e3855f913516aafce9f1e  hooks/target/u
 0a5dfcd31d5efa6c5d7a7d673a4c0c2b56f82ba328fc7557fa28bdd41c326210  hooks/target/usr/local/libexec/augenrules-quiet
 2150b0896dd94f4eb02deafe84703ead7402f1ab18ca9af66f4b08f55ec5b693  hooks/target/usr/local/libexec/bluetooth-controller-init
 c7274f5d4ba6dc9df97b902393f72a133519d95bc8c5885970f01715a4813d7f  hooks/target/usr/local/libexec/clamav-signature-update
-5b3dc008b5d38e989ff36d2b2753c1a6affe21f6e59e7e2029f3e1c1f094813b  hooks/target/usr/local/libexec/codex-app-server-wait-ready
+7cb663b6582d85ee2637013b32b4acfc14bb97caf716ee5bff38647b2eea90fd  hooks/target/usr/local/libexec/codex-app-server-wait-ready
 f78a58db353a402ae54f97502720ca982f9b54d64b09180ce0eb30126e6af3c7  hooks/target/usr/local/libexec/compz-pipeline
 ae51af52a98a0a5a78880fa68a874ff67cedb0e25feec18f1193dd439bef68f0  hooks/target/usr/local/libexec/compz-sandbox
 85d63372342e598019a6fc670f94b994dce478d45987fc2eb7c200b68bcbc52f  hooks/target/usr/local/libexec/compz-worker
@@ -1224,7 +1224,7 @@ d99dbfd49a7692db963ef4ee8807109f236c7471cf34465ba4ef1da8f90ccda1  hooks/target/u
 db2ed763644e77d9b083c0dca443c7f3e649a8d921899a8158a3b3394fc69a09  hooks/target/usr/local/libexec/journal-sealing
 ecc69a59950185c470c3efb406d32c9a71ba63652d911fce61328817cb2d0132  hooks/target/usr/local/libexec/journal-snapshot.tmpl
 1551811c7217239749b1d732846296ceac00e5f557089f203734999ca8bcc8e7  hooks/target/usr/local/libexec/labwc-admin-action-root
-0a153db92c6f050d0c1b44d1a284d4b178aa8bd8a32dfbebee534f353f15ead9  hooks/target/usr/local/libexec/labwc-admin-action-worker
+62f42bd34b8713a912d41aceaa230203a795578c70e1b145cf8feb2e91f35c7f  hooks/target/usr/local/libexec/labwc-admin-action-worker
 3959bd12f12e37d53f27a2f47d62d5eb6190005989e70ddf42fdb6c963805c4b  hooks/target/usr/local/libexec/labwc-ai-llama-server
 e4cd0f7546c15b9cb082a4368503c05646f2a0e034167400c3763eafaa24de91  hooks/target/usr/local/libexec/labwc-ai-model-info
 5d2323e9a23ba28084034f732666c89886b9c243694dec7bd6faefb9d5ff51cb  hooks/target/usr/local/libexec/labwc-ai-model-install-root
@@ -1508,10 +1508,10 @@ f848ec73ba1b90c16be1e337244098adf1070baa0529f498d8f6c5b1643bf139  scripts/late/c
 7e8a5b96332fdaddbd7e210b5a1d314527787eb32df39eb04e6e183d838aa15c  scripts/late/desktop.sh
 2913a2fd63736345c7b493706c280d32e808bcd961c19bd5720a66e75db4d874  scripts/late/devops/account-execution.sh
 408c8e2386fd9727f373823e208b4e6dbc07e882df8b7b18c3d7736701b7cceb  scripts/late/devops/bazelisk-node.sh
-772a4b8452ed62e5d8e49c586e9540bbb57c43b9834333ebb5c7530669b77b6a  scripts/late/devops/codex-appserver.sh
+c8a08f7ed8ea2e2bfbc1fdc44ab52ae1fd02dd2dbf58a99611fbe18716546746  scripts/late/devops/codex-appserver.sh
 4125455580d64c202cabbd28aff58c22366b3399c050b81af1ca95cdbdfcb406  scripts/late/devops/codex-layout.sh
 bb87507ab3d54e28d9459096be9ec3279533feaceccef0d8fcb0871a06f76737  scripts/late/devops/codex-release.sh
-a5028eee98ed3c7db98f30489d93bde7568291af8d9c8e6315878fdbbcb95523  scripts/late/devops/main-orchestration.sh
+426b26f8911d8a7e62b3096de98e465c755cbad9f3867e124fbe26f5e8a563d4  scripts/late/devops/main-orchestration.sh
 4531cf515f603dccc1fd8229e853b33985cbde8266f08267ea50d7ecbda18234  scripts/late/devops/policy-resolution.sh.tmpl
 bf5db826a50d1b40ff3ff727f782a07b6e17376616a31a193742bf5802bdc046  scripts/late/devops/publication-layout.sh
 651270ad9573729de73e970b8f1fe6866b2f6cbe7314d32adbc208b3624aacfc  scripts/late/devops/publication-services.sh

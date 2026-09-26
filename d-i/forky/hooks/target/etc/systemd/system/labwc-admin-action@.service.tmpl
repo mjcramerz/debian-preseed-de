@@ -24,7 +24,8 @@ RuntimeDirectoryPreserve=yes
 TimeoutStopSec=5s
 KillMode=control-group
 StandardOutput=append:__INSTALLER_LOG_POWER_DIR__/action-%i.log
-StandardError=inherit
+# Record early preflight failures where journalctl can actually diagnose them.
+StandardError=journal
 SyslogIdentifier=labwc-admin-action
 UMask=0077
 AppArmorProfile=labwc-admin-action-worker
