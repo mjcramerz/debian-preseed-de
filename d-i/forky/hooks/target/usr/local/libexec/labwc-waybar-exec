@@ -3,13 +3,14 @@
 
 This executable shares waybar's AppArmor attachment. It does not
 widen the destination helper profiles to accept inherited rfkill, procfs or
-menu-file descriptors. Only the six configured read-only status calls exist.
+menu-file descriptors. Only the seven configured read-only status calls exist.
 """
 from __future__ import annotations
 import os
 import sys
 
 COMMANDS = {
+    ("/usr/local/libexec/labwc-waybar-battery",),
     ("/usr/local/libexec/labwc-tomat", "watch"),
     ("/usr/local/libexec/labwc-notifications", "status"),
     ("/usr/local/bin/labwc-capture", "status"),
@@ -20,12 +21,12 @@ COMMANDS = {
 
 
 def command(arguments: list[str]) -> tuple[str, ...]:
-    if len(arguments) != 2:
+    if not arguments:
         raise ValueError("exactly one managed status command is required")
-    executable, action = arguments
+    executable, *parameters = arguments
     if "/" not in executable:
         executable = "/usr/local/bin/" + executable
-    result = (executable, action)
+    result = (executable, *parameters)
     if result not in COMMANDS:
         raise ValueError("unapproved Waybar status command")
     return result

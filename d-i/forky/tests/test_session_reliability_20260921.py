@@ -123,6 +123,7 @@ class SaveVeto(unittest.TestCase):
         self.assertEqual(kw['env']['LABWC_MENU_BACKEND'], 'fuzzel')
         self.assertEqual(kw['env']['LABWC_FUZZEL_MANAGED_ICONS'], '0')
         self.assertIn('--no-sort', run.call_args.args[0])
+        self.assertIn('power-confirm', run.call_args.args[0])
         self.assertTrue(kw['close_fds'])
 
     def test_cancel_default_escape_and_timeout_are_vetoes(self):
@@ -149,6 +150,38 @@ class SaveVeto(unittest.TestCase):
         apps={'labwc-wayland-foot-'+'a'*32+'.service':{'LABWC_SESSION_APP':'1'},
               'labwc-wayland-featherpad-invalid.service':{'LABWC_SESSION_APP':'1'}}
         self.assertEqual(self.m.protected_services(apps), set())
+
+    def test_save_prompt_detects_managed_and_unmanaged_document_windows(self):
+        self.assertFalse(self.m.needs_save_prompt('', set()))
+        for visible in ('foot: shell', 'thunar: Downloads'):
+            self.assertFalse(self.m.needs_save_prompt(visible, set()))
+        for visible in ('org.mozilla.firefox: form', 'featherpad: draft',
+                        'code-insiders: project', 'gnumeric: sheet'):
+            self.assertTrue(self.m.needs_save_prompt(visible, set()))
+        self.assertFalse(self.m.needs_save_prompt('', {'labwc-native-featherpad-fixture.service'}))
+        self.assertTrue(self.m.needs_save_prompt('(unidentified toplevel)', set()))
+        self.assertTrue(self.m.needs_save_prompt('(unidentified toplevel)',
+                                                {'labwc-native-featherpad-fixture.service'}))
+        self.assertFalse(self.m.needs_save_prompt('foot: source code', set()))
+        self.assertTrue(self.m.needs_save_prompt('foot: source code',
+                                                {'labwc-native-featherpad-fixture.service'}))
+
+    def test_plain_windows_close_without_power_confirmation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); state = root/'state'; runtime = root/'runtime'
+            state.mkdir(); runtime.mkdir()
+            with mock.patch.object(self.m, 'ctl'), \
+                 mock.patch.object(self.m, 'services', return_value={}), \
+                 mock.patch.object(self.m, 'windows', side_effect=['foot: shell', '', '']), \
+                 mock.patch.object(self.m, 'confirm_close') as confirm, \
+                 mock.patch.object(self.m, 'clear_clipboard'), \
+                 mock.patch.object(self.m.time, 'sleep'), \
+                 mock.patch.object(self.m, 'run', return_value='') as commands:
+                self.m.prepare(state, runtime)
+            confirm.assert_not_called()
+            commands.assert_called_once_with(['/usr/bin/wlrctl', 'toplevel', 'close'],
+                                             timeout=5, accepted=(0, 1))
+            self.assertTrue(payload_source_exists(state/'resume.json'))
 
     def test_protected_background_saves_require_terminal_state(self):
         for value in ({}, {'LoadState':'loaded','ActiveState':'active'},

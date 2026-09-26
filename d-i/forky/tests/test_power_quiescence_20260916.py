@@ -70,6 +70,28 @@ class QuiescenceTests(unittest.TestCase):
         self.assertEqual([c.args[0] for c in userctl.call_args_list], ['show', 'stop', 'show', 'show'])
         self.assertEqual(userctl.call_args_list[1].kwargs['timeout'], 120)
 
+    def test_closed_user_bus_requires_pid1_to_confirm_manager_exited(self):
+        gone = ('LoadState=loaded\nActiveState=inactive\nJob=0\n'
+                'MainPID=0\nControlPID=0\n')
+        for reply, expected in ((gone, True),
+                                (gone.replace('MainPID=0', 'MainPID=481'), False),
+                                (gone + 'ActiveState=inactive\n', False),
+                                ('', False)):
+            with self.subTest(reply=reply):
+                self.worker.quiesced = self.worker.committed = False
+                with mock.patch.object(self.worker, 'desktop_members', return_value=self.members), \
+                     mock.patch.object(self.worker, 'userctl',
+                                       side_effect=['', self.power.Error('user bus closed')]), \
+                     mock.patch.object(self.power, 'run', return_value=reply) as system:
+                    if expected:
+                        self.worker.quiesce_desktop()
+                        self.assertTrue(self.worker.quiesced)
+                    else:
+                        with self.assertRaises(self.power.Error):
+                            self.worker.quiesce_desktop()
+                        self.assertFalse(self.worker.quiesced)
+                    self.assertEqual(system.call_args.args[0][2], 'user@1000.service')
+
     def test_active_deactivating_pending_job_and_live_pids_prevent_handoff(self):
         for change in ({'ActiveState': 'active'}, {'ActiveState': 'deactivating'},
                        {'Job': '243'}, {'MainPID': '832'}, {'ControlPID': '122'}, {'ActiveState': ''}):

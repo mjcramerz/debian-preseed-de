@@ -499,6 +499,8 @@ install_target_firstboot_logger() {
   unset firstboot_stage
   stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT import-initramfs.py)" \
     "${DIR_FIRSTBOOT_LIB}/import-initramfs.py" 0644
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT service-account-processes.py)" \
+    "${DIR_FIRSTBOOT_LIB}/service-account-processes.py" 0644
 
   stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/etc/initramfs-tools/scripts/installer-health-common)" "${FILE_INITRAMFS_HEALTH_COMMON}" 0644
   stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/etc/initramfs-tools/scripts/init-top/90-installer-health)" "${FILE_INITRAMFS_HEALTH_INIT_TOP}" 0755

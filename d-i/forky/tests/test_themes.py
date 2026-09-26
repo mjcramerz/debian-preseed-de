@@ -32,6 +32,33 @@ Q = shlex.quote
 
 
 class ThemeValidationTests(unittest.TestCase):
+    def test_default_theme_is_light_and_requested_accents_match(self):
+        self.assertEqual(VALUES['LABWC_DESKTOP_GTK_PREFER_DARK'], '0')
+        self.assertEqual(VALUES['LABWC_DESKTOP_QT_COLOR_SCHEME_PATH'],
+                         '/usr/share/qt6ct/colors/airy.conf')
+        self.assertEqual(VALUES['LABWC_DESKTOP_QT_STYLE_OVERRIDE'], 'adwaita')
+        self.assertEqual(VALUES['LABWC_DESKTOP_QT_THEME'], 'Adwaita')
+        self.assertEqual(VALUES['GNOTE_COLOR_SCHEME'], 'light')
+        active = VALUES['WAYBAR_BUTTON_WORKSPACES_ACTIVE_OUTLINE_COLOR']
+        for button in ('TOMAT', 'WAYSCRIBER', 'TASKVIEW', 'APPS'):
+            self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_NORMAL_OUTLINE_COLOR'], active)
+        self.assertEqual(VALUES['WAYBAR_BUTTON_CLOCK_NORMAL_TEXT_COLOR'],
+                         VALUES['WAYBAR_BUTTON_MENU_NORMAL_TEXT_COLOR'])
+        for button in ('FILES', 'NOTES', 'SLEEK', 'TERMINAL', 'TUTANOTA', 'TRAY', 'TASKBAR'):
+            self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_NORMAL_OUTLINE_COLOR'],
+                             'rgba(99, 135, 255, 0.48)')
+        for button in ('BLUETOOTH', 'KEYBOARD', 'NETWORK', 'SCREENSHOT'):
+            self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_NORMAL_OUTLINE_COLOR'],
+                             'rgba(99, 135, 255, 0.34)')
+        self.assertEqual(VALUES['WAYBAR_BUTTON_TASKBAR_ACTIVE_OUTLINE_COLOR'], active)
+        for button in ('AUDIO', 'BACKLIGHT', 'BATTERY', 'CPU', 'DISK', 'MEMORY'):
+            self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_HOVER_SHADOW_COLOR'],
+                             'rgba(109, 196, 237, 0.30)')
+        for menu in ('MENU', 'COMPUTER_MANAGEMENT_MENU'):
+            self.assertEqual(VALUES[f'FUZZEL_{menu}_INPUT_TEXT_COLOR'], 'c4a4efff')
+            self.assertEqual(VALUES[f'FUZZEL_{menu}_PROMPT_TEXT_COLOR'], 'c4a4efff')
+            self.assertEqual(VALUES[f'FUZZEL_{menu}_SELECTED_BACKGROUND_COLOR'], '6387ffff')
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='theme-contract-')
         self.addCleanup(self.temp.cleanup)

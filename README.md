@@ -5,6 +5,10 @@ Wayland desktop. The deployment target is Debian Forky with systemd 261.2.
 Review the selected host profile, disk identifiers and credentials before use;
 installation repartitions the selected disks.
 
+The [2026-09-26 firstboot and AppArmor repair](docs/validation/firstboot-audit-20260926/README.md)
+records the reproduced audit delivery failure, focused fixes, validation results,
+and remaining installed-host checks for this snapshot.
+
 The [2026-09-24 logging repair](docs/validation/history/LOGGING-REPAIR-20260924.md) documents the
 shared tmpfiles prerequisite fix, unified `apps.log`, 2 MiB writer-driven rotation,
 and current validation limits. It supersedes older logging descriptions.
@@ -65,6 +69,24 @@ owns the desktop lifecycle and is bound to the compositor. Session clients
 require an already-active target and stop with it rather than starting a new
 compositor themselves. Private Xwayland remains limited to Zoom and Discord.
 Firefox, Blender and Kdenlive are excluded by the pre-pkgsel APT policy.
+
+### Archive menu and Packer plugins
+
+Run `compz` as the desktop user from the directory containing the files or
+archives. Its menu selects compression, extraction, verification or listing;
+extraction creates a folder named for each archive, resolves split volumes and
+can unpack nested archives. It keeps source files and refuses to replace an
+existing destination. Compression uses a tar container, with an optional GPG
+AES-256 envelope. `compz --check` reports missing managed prerequisites, which
+prevent the interactive menu from starting. RAR creation is offered
+only where Debian provides the `rar` archiver; RAR extraction remains available
+on arm64. The archive worker requires its AppArmor profile and an active systemd
+user manager.
+
+The DevOps installer authenticates the exact Packer plugin releases, installs
+their binaries into the account's private plugin directory, then checks local
+checksums and the managed HCL constraints. The installation does not invoke
+`packer init`, which would repeat remote plugin discovery.
 
 ## Build and verify
 

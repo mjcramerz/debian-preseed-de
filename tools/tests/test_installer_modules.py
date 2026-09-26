@@ -31,7 +31,7 @@ class ModuleContracts(unittest.TestCase):
 
     def test_inventory_is_explicit_complete_and_read_only(self):
         before = {p: p.read_bytes() for p in self.seed.rglob('*') if p.is_file()}
-        self.assertEqual(checker.check(self.seed), 46)
+        self.assertEqual(checker.check(self.seed), 47)
         self.assertEqual(before, {p: p.read_bytes() for p in before})
         self.assertFalse((ROOT / 'src').exists())
         self.assertFalse((ROOT / 'tools/generate_installer.py').exists())

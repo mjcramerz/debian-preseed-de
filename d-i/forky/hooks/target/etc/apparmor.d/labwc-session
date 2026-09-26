@@ -126,7 +126,8 @@ profile labwc-waybar-battery /usr/local/libexec/labwc-waybar-battery flags=(atta
   /usr/local/libexec/labwc-waybar-battery r,
   /sys/class/power_supply/ r,
   /sys/devices/**/power_supply/ r,
-  /sys/devices/**/power_supply/{type,online,capacity,status,energy_now,energy_full,energy_full_design,charge_full,charge_full_design,cycle_count} r,
+  /sys/devices/**/power_supply/*/ r,
+  /sys/devices/**/power_supply/*/{type,online,capacity,status,energy_now,energy_full,energy_full_design,charge_full,charge_full_design,cycle_count} r,
   /proc/sys/vm/overcommit_memory r,
   owner /proc/[0-9]*/maps r,
   include if exists <local/usr.local.libexec.labwc-waybar-battery>

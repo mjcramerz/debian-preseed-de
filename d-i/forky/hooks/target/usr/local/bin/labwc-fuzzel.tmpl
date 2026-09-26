@@ -48,6 +48,7 @@ config_root=${XDG_CONFIG_HOME:-${HOME}/.config}
 fuzzel_config_dir="${config_root}/fuzzel"
 mode=launcher
 config_mode=launcher
+power_confirmation=false
 managed_icons=${LABWC_FUZZEL_MANAGED_ICONS:-0}
 managed_root_menu=${LABWC_FUZZEL_ROOT_MENU:-0}
 managed_log_scope=${LABWC_FUZZEL_LOG_SCOPE:-desktop}
@@ -109,6 +110,7 @@ case "$managed_palette" in
 esac
 case "${1:-}" in
   launcher|menu|computer-management) config_mode=$1; shift ;;
+  power-confirm) config_mode=menu; power_confirmation=true; shift ;;
 esac
 [ "$config_mode" = launcher ] || mode=menu
 
@@ -221,6 +223,14 @@ for geometry_spec in FONT_SIZE:8:32 HORIZONTAL_PADDING:0:64 VERTICAL_PADDING:0:6
   # Assignment expansion does not re-evaluate the expanded value as shell code.
   eval "selected_${geometry_key}=\$geometry_value"
 done
+# One fixed, narrowly scoped menu for the desktop's save-before-power
+# confirmation. All other menus retain their validated output/profile geometry;
+# arbitrary caller-supplied Fuzzel width/line switches stay forbidden.
+if [ "$power_confirmation" = true ]; then
+  [ "$mode" = menu ] || fatal 'power confirmation requires a dmenu'
+  selected_WIDTH=68
+  selected_LINES=4
+fi
 fuzzel_font="__THEME_FUZZEL_MENU_TEXT_FONT_FAMILY__:size=${selected_FONT_SIZE},__THEME_FUZZEL_MENU_EMOJI_FONT_FAMILY__:size=${selected_FONT_SIZE},__THEME_FUZZEL_MENU_ICON_FONT_FAMILY__:size=${selected_FONT_SIZE},__THEME_FUZZEL_MENU_NERD_FONT_FAMILY__:size=${selected_FONT_SIZE}"
 set -- "--config=${fuzzel_config_dir}/${config_name}" "--font=${fuzzel_font}" \
   "--width=${selected_WIDTH}" "--lines=${selected_LINES}" \

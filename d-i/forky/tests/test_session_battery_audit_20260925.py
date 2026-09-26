@@ -95,6 +95,9 @@ class IntegrationContracts(unittest.TestCase):
         battery = profile.split('profile labwc-waybar-battery ', 1)[1].split('\n}', 1)[0]
         self.assertIn('#include <abstractions/wrapper-python>', battery)
         self.assertIn('/sys/devices/**/power_supply/', battery)
+        self.assertIn('/sys/devices/**/power_supply/*/ r,', battery)
+        self.assertIn('/sys/devices/**/power_supply/*/{type,online,capacity,status,', battery)
+        self.assertNotIn('/sys/devices/**/power_supply/{type,online,capacity,status,', battery)
         self.assertNotIn('network inet', battery)
         self.assertNotIn('/sys/devices/** rw', battery)
 
@@ -104,6 +107,17 @@ class IntegrationContracts(unittest.TestCase):
         self.assertIn('After=local-fs.target systemd-tmpfiles-setup.service systemd-journald.socket journal-sealing.service', unit)
         firstboot = (ROOT / 'scripts/firstboot/04-validation.sh.tmpl').read_text()
         self.assertIn('check_command journal-sealing-status /usr/local/libexec/journal-sealing --status', firstboot)
+        policy = (ROOT / 'scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl').read_text()
+        firstboot_policy = policy.split('profile firstboot ', 1)[1].split('\n}', 1)[0]
+        for grant in ('/usr/local/libexec/journal-sealing rix,',
+                      '/usr/local/libexec/journal-check rix,',
+                      '/var/lib/journal-sealing/lock rwk,',
+                      '/var/lib/journal-sealing/status.json r,'):
+            self.assertIn(grant, firstboot_policy)
+        self.assertNotIn('/var/lib/journal-sealing/** rw', firstboot_policy)
+        self.assertIn('check_command apparmor-log-delivery apparmor_log_delivery', firstboot)
+        self.assertIn('module(load="imfile" mode="polling" pollingInterval="2")',
+                      source('etc/rsyslog.d/30-apparmor.conf'))
 
     def test_secret_service_readiness_does_not_dump_bus_introspection(self):
         checker = source('usr/local/libexec/labwc-session-check')

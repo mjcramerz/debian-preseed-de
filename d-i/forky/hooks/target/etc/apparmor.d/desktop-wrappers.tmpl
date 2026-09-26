@@ -448,9 +448,6 @@ profile labwc-admin-action-worker /usr/local/libexec/labwc-admin-action-worker f
   dbus (receive) bus=system peer=(label=unconfined),
   # PID 1/logind signal the selected UID's cgroups. No cross-profile ptrace
   # grants or unconfined pkill subprocesses are needed by this controller.
-  # Read-only recursive population checks; never cgroup.procs or /proc scans.
-  /sys/fs/cgroup/cgroup.controllers r,
-  /sys/fs/cgroup/user.slice/user-[0-9]*.slice/user@[0-9]*.service/cgroup.events r,
   /run/labwc-power/ r,
   /run/labwc-power/action.lock rwk,
   signal (send, receive) set=(kill chld) peer=labwc-admin-action-worker,

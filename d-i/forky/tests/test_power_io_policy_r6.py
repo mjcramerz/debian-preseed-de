@@ -73,7 +73,10 @@ desktop_install_user_resource_policy
                         self.assertEqual(sorted(found), sorted(['200', '100', '30', '300', '30', '50'])
                                          if weights == 'true' else [])
                         self.assertEqual(directives(target / WIRE), ['[Service]', 'Slice=session.slice'])
-                        self.assertIn('CPUWeight=300', payload_read_text(target / f'{base.USER_BASE}/labwc-compositor.service.d/60-resources.conf'))
+                        compositor = payload_read_text(target / f'{base.USER_BASE}/labwc-compositor.service.d/60-resources.conf')
+                        cpu_weight_enabled = bool(re.search(r'^SYSTEMD_CPUWEIGHT_ENABLE="true"$',
+                                                            payload_read_text(profile), re.M))
+                        self.assertEqual('CPUWeight=300' in compositor, cpu_weight_enabled)
                         self.assertFalse(list(target.rglob('.installer-asset.*')))
                         self.assertFalse(list(target.rglob('*.wants')))
 
@@ -170,11 +173,11 @@ class HandoffTests(unittest.TestCase):
             worker = self.power.Worker(1000, 'desktop', action)
             worker.package_locks = mock.Mock()  # acquired gate fixture; real locks tested separately
             worker.quiesced = True
-            with mock.patch.object(worker, 'stop_shutdown_runtime') as cleanup, \
+            with mock.patch.object(worker, 'protect_other_sessions'), \
+                    mock.patch.object(self.power, 'check_shutdown_inhibitors'), \
                     mock.patch.object(self.power, 'run', return_value='') as run, \
                     contextlib.redirect_stderr(io.StringIO()) as output:
                 worker.final_power_action()
-            cleanup.assert_called_once_with()
             self.assertEqual(run.call_args_list, [
                 mock.call(['/usr/bin/systemctl', '--force', '--no-ask-password', action], timeout=20)])
             self.assertTrue(worker.committed)
@@ -190,7 +193,8 @@ class HandoffTests(unittest.TestCase):
 
     def test_uncertain_submission_never_retries_or_cancels(self):
         self.worker.quiesced = True
-        with mock.patch.object(self.worker, 'stop_shutdown_runtime'), \
+        with mock.patch.object(self.worker, 'protect_other_sessions'), \
+                mock.patch.object(self.power, 'check_shutdown_inhibitors'), \
                 mock.patch.object(self.power, 'run', side_effect=self.power.Error('lost reply')) as run, \
                 contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaisesRegex(self.power.Error, 'status uncertain'):
@@ -222,7 +226,7 @@ class HandoffTests(unittest.TestCase):
              mock.patch.object(self.worker, 'stop_optional_guests', side_effect=lambda: events.append('guests')), \
              mock.patch.object(self.worker, 'final_power_action', side_effect=lambda: events.append('handoff')):
             self.worker.execute()
-        self.assertEqual(events, ['active', 'accounts', 'ready', 'active', 'accounts', 'prepare', 'accounts', 'inhibitors', 'quiesce', 'guests', 'handoff', 'hold'])
+        self.assertEqual(events, ['active', 'accounts', 'ready', 'active', 'accounts', 'prepare', 'accounts', 'inhibitors', 'guests', 'quiesce', 'handoff', 'hold'])
 
 
 if __name__ == '__main__':

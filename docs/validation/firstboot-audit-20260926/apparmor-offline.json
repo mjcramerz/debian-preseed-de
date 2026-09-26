@@ -1,0 +1,16 @@
+[
+  {
+    "profile": "firstboot",
+    "returncode": 0,
+    "kernel_load": false,
+    "parser_package": "4.1.8-2",
+    "features_sha256": "5a4df9b37600bf147c293d73fa6a284eee99267e270e9608225919ef4713664a"
+  },
+  {
+    "profile": "labwc-session",
+    "returncode": 0,
+    "kernel_load": false,
+    "parser_package": "4.1.8-2",
+    "features_sha256": "5a4df9b37600bf147c293d73fa6a284eee99267e270e9608225919ef4713664a"
+  }
+]

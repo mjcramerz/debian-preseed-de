@@ -24,12 +24,13 @@ import uuid
 
 TARGET = "labwc-session.target"
 MAX_STATE = 1024 * 1024
-DOCUMENT_APPS = {"__THEME_MAKO_SESSION_STATE_FEATHERPAD_ICON_NAME__", "fpad", "__THEME_MAKO_SESSION_STATE_FOCUSWRITER_ICON_NAME__", "__THEME_MAKO_SESSION_STATE_GNUMERIC_ICON_NAME__", "code", "code-insiders",
+DOCUMENT_APPS = {"__THEME_MAKO_SESSION_STATE_FEATHERPAD_ICON_NAME__", "featherpad", "fpad", "__THEME_MAKO_SESSION_STATE_FOCUSWRITER_ICON_NAME__", "focuswriter", "__THEME_MAKO_SESSION_STATE_GNUMERIC_ICON_NAME__", "gnumeric", "code", "code-insiders",
                  "libreoffice", "lowriter", "localc", "soffice", "gedit", "kate", "mousepad"}
-BROWSER_APPS = {"chromium", "google-chrome", "google-chrome-stable",
+BROWSER_APPS = {"chromium", "firefox", "firefox-esr", "org.mozilla.firefox", "google-chrome", "google-chrome-stable",
                 "microsoft-edge", "microsoft-edge-stable", "msedge", "vivaldi", "vivaldi-stable",
                 "mullvad-browser", "brave-browser", "librewolf", "floorp"}
 PROTECTED_APPS = DOCUMENT_APPS | BROWSER_APPS
+PROTECTED_APP_IDS = {app.casefold() for app in PROTECTED_APPS}
 WRAPPERS = {"/usr/local/bin/labwc-wayland-app", "/usr/local/bin/labwc-electron-app",
             "/usr/local/bin/labwc-app", "/usr/local/bin/labwc-wayland-compat-app"}
 
@@ -196,6 +197,30 @@ def protected_services(apps: dict[str, dict[str, str]]) -> set[str]:
     return result
 
 
+def needs_save_prompt(visible: str, protected: set[str]) -> bool:
+    # An unmanaged browser/editor may still expose its app ID in wlrctl's
+    # toplevel listing. A stray terminal, panel or file manager should not
+    # require a pre-close confirmation. Unknown windows receive a conservative
+    # confirmation; all windows still block shutdown until they close.
+    if not visible:
+        return False
+    if protected:
+        # Managed browser/editor units can use a desktop-specific app ID;
+        # do not risk closing their windows without confirmation.
+        return True
+    if visible == "(unidentified toplevel)":
+        return True
+    for line in visible.splitlines():
+        app_id, separator, _ = line.partition(": ")
+        if not separator:
+            # A malformed listing cannot prove that an editor/browser has no
+            # window. Keep confirmation in this ambiguous case.
+            return True
+        if app_id.strip().casefold() in PROTECTED_APP_IDS:
+            return True
+    return False
+
+
 def protected_still_running(units: set[str]) -> bool:
     for unit in sorted(units):
         state = properties(unit)
@@ -262,10 +287,10 @@ def confirm_close() -> None:
     # explicit chance to return and save browser forms/downloads, even when a
     # browser would otherwise close without a beforeunload prompt. Cancel is
     # the default; the only affirmative answer is the second exact index.
-    choices = "Cancel - return to applications and save first\nContinue - browser work is saved; ask editors to close\n"
+    choices = "Cancel - return to applications\nContinue - close apps and save open work\n"
     try:
         result = subprocess.run(
-            ["/usr/local/bin/labwc-fuzzel", "--dmenu", "--index", "--no-sort", "--prompt", "Save before closing: "],
+            ["/usr/local/bin/labwc-fuzzel", "power-confirm", "--dmenu", "--index", "--no-sort", "--prompt", "Save open work: "],
             input=choices, capture_output=True, text=True, timeout=120, check=False, close_fds=True,
             env={**os.environ, "LABWC_MENU_BACKEND": "fuzzel", "LABWC_FUZZEL_MANAGED_ICONS": "0"})
     except subprocess.TimeoutExpired:
@@ -287,9 +312,12 @@ def prepare(state: Path, runtime: Path, *, timeout: float = 120) -> None:
         saved = collect(initial, load(state / "pending.json"))
         atomic(state / "pending.json", {"format": 1, "apps": saved})
         visible = windows()
-        if visible:
+        prompt = needs_save_prompt(visible, protected)
+        if prompt:
             confirm_close()
-            notify("Save changes in FeatherPad, FocusWriter and Gnumeric, and finish browser forms/downloads. Applications will receive one normal close request. Save or Cancel in their own dialogs; any remaining window or protected application blocks poweroff/reboot.")
+        if visible:
+            if prompt:
+                notify("Applications will receive one normal close request. Save or Cancel in any application dialog; a remaining window or browser/editor blocks shutdown.")
             # A single protocol round-trip closes only the currently advertised
             # toplevels. Never simulate shortcuts, click Discard, or send SIGTERM.
             run(["/usr/bin/wlrctl", "toplevel", "close"], timeout=5, accepted=(0, 1))

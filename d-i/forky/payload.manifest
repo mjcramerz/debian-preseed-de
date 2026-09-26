@@ -151,10 +151,10 @@ edbdf14c3009aa22e3c38d7502342bbaf1c560354cc0caba51f0b77f62276502  hooks/target/e
 5777614d9d6f32f603d8d212d00bcbf1c5e526f591b9e58b4b60fd86da317880  hooks/target/etc/apparmor.d/compz
 a8e8fba190c12bd77dfaef16ea28dd52824bf899a7a695535b925e6ad9e51174  hooks/target/etc/apparmor.d/crun
 ee1e91c7a83bf06af1f57b474c2f36fdbb20d8931b01b423a347418f028eaf5b  hooks/target/etc/apparmor.d/desktop-utilities
-20755d6e71b671a87731580c687f9639d4259859bcc9851e14bfe00bee9c03ad  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
+a443601964585ccc27ceeeed2c18a90cfbefa437ffdf47e93d4646f0cfd9e112  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
 693dfdea71e1964fa9e701f11588d2c3a7e53af4297bda99facf207313f21a20  hooks/target/etc/apparmor.d/document-applications
 97c8db71a2720a7f8417500bfa373b429c14a8b41b3b4d4097d31fa13df6d006  hooks/target/etc/apparmor.d/hardware-tuning
-3a108e542b29e749c992e9a3adb0028787e1ddcffe1d1cc0bf694df6fff31dc4  hooks/target/etc/apparmor.d/labwc-session
+1b3476ae9fbf5bfd0f063ab86195e66f3846393ccfd94ee7adbb760c8fda58f1  hooks/target/etc/apparmor.d/labwc-session
 640695ed0166259e580e36fd196d9d0de191ea794e2d4fbeaedb8e9ba339e917  hooks/target/etc/apparmor.d/local/chromium
 8b39cee2348ed071764528d8bb6646ff16016c315b983ce49cd05d7afee3a8a5  hooks/target/etc/apparmor.d/local/code
 c0e5db31a4d46f24dd1be5982ffb848c1f8d540e732e43a37c81c74c112abc2c  hooks/target/etc/apparmor.d/local/desktop-application
@@ -439,7 +439,7 @@ aff09a9699d16e19f9c1532402a0fbadd7eb2fb3eadc658b519e21496a18b062  hooks/target/e
 f6558c7b7819eb56ceea453ababed84134e5f1fb4b31e5b70c85dbae1b91f18c  hooks/target/etc/rsyslog.d/20-auth.conf.tmpl
 70cd9447211bf57d7fc1fa5870f509a0bddbe2cad3947831022ad0888b0a3333  hooks/target/etc/rsyslog.d/21-apps.conf.tmpl
 56e2fea9602cafda0221ea26e482f7482011b9869d66a6119461b6e939d61d60  hooks/target/etc/rsyslog.d/25-usb.conf.tmpl
-da78dd7c24870a6286fb3d312d19d607edc72a5e6211c069aa248cece58cec46  hooks/target/etc/rsyslog.d/30-apparmor.conf.tmpl
+671579be93fcfb3ffd141d7a1aba163d8f09b5eaa2f7dd404f47c8df070eb406  hooks/target/etc/rsyslog.d/30-apparmor.conf.tmpl
 630f9c2442aae894323faaf723902417356c4078748db8e706fa468e1dbfa4ba  hooks/target/etc/rsyslog.d/31-apparmor-modes.conf.tmpl
 7cbe2bc2e1a379d873b02d65b03601928a2465bf1a42cbee219adcdb886a6535  hooks/target/etc/rsyslog.d/35-storage.conf.tmpl
 e2e6424c0e431bcdcb7694031f7fb8f786784c5cdea1fa6627eac97a7fbc316e  hooks/target/etc/rsyslog.d/36-zram.conf.tmpl
@@ -593,7 +593,7 @@ bdb2de8f2981c5581b40f505691ed69625e6061afee1fdeb7ef4693987fa85d8  hooks/target/e
 cf09238e3d43aa14506b2dff223927fe4ac4d18eb6887bc1cd6b348fea158e46  hooks/target/etc/skel-desktop/.config/vivaldi/Default/Preferences
 cf8da30c1636a7d8ecbc952bbf03443cc421c8e59214a727f12987ff180d145c  hooks/target/etc/skel-desktop/.config/waybar/audio-menu.xml.tmpl
 ea5564e492836e500ade442eea1c76cbb6dc0080b478ed35e4c210dcdb75bf52  hooks/target/etc/skel-desktop/.config/waybar/calendar-menu.xml.tmpl
-590c5f4534e699d7ec383413ff4776e87b830243ae88b62ef4975b569f364b21  hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
+e0e57fc7335f69888d2c64e9f9d43d6b3777d8d78e23a6acc1115ea45fabfdc7  hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
 759d92ba19dc5cc136c14a05a061fdbc6270da5c335fe587c8d8eb2d6f244e54  hooks/target/etc/skel-desktop/.config/waybar/icons/apps-symbolic.svg.tmpl
 a1ed2a675aa15446e1e97a7b42ac432efba25ecebdce95c816db1f30cb330d83  hooks/target/etc/skel-desktop/.config/waybar/icons/wayscriber-symbolic.svg.tmpl
 98e8f91bf48e2b3a48278a19782febdb1073d78145ec0094355d491087ed97db  hooks/target/etc/skel-desktop/.config/waybar/notifications-menu.xml.tmpl
@@ -944,7 +944,7 @@ e57f63a8d5d33c84cd8123cf0a71c92bc2f3d5d48a3f07d14fcffa60d16fd244  hooks/target/u
 9c2aeba305282418af998d7be4d552686b86f5510c2ddf4baea719ddd52ba65c  hooks/target/usr/local/bin/labwc-focuswriter-import
 ae97e674e27627010a77ff54174e328572f9ef14e40eed48c8da3b092b8b312b  hooks/target/usr/local/bin/labwc-freerdp-askpass
 0163c82a18c5df9c7e29febd59d6dc786323af1b4d80a34a1b416145bc1ef679  hooks/target/usr/local/bin/labwc-fuzzel-log
-909b7fb1c4f4e6a8fe0153b8266a852dc951cc2549a1f7d199cd291e081bdc5c  hooks/target/usr/local/bin/labwc-fuzzel.tmpl
+73a2c7519bfdf1be1f6161ba66ae0b2ccfc16794939a7cb81ed2555e96d00c9e  hooks/target/usr/local/bin/labwc-fuzzel.tmpl
 9e491010b73efb178b80f7a0b76236f5f10e0c4ccf7dc7b44a15b3630009ebea  hooks/target/usr/local/bin/labwc-fzf-menu.tmpl
 e0385bfa4819a47bbb119e9ab38ce0dc72bb21d2da8af4a79ab7918952fe1fbe  hooks/target/usr/local/bin/labwc-greeter-output
 ad2b80c25533650017f518811289dfb942e56318a476758b02ae44b6f2a2b3b6  hooks/target/usr/local/bin/labwc-greeter-power
@@ -1178,7 +1178,7 @@ f89632f47ab25bc303bedbbb4f92ccc5f7eddd435c56c2b6126f39240fee6659  hooks/target/u
 3e9f1a2ba7f009912c461f31034c0f0d80da7fd7c2929fad4bbf7f7afe786592  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/electron.py
 6d2f829cbecd3de09f47ab3c50c03f4b88dd4ea835f77c1365cdaadad8fc98dd  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/environment.py
 bd4507f48c6b1ecc52607c01a97ef5dcf7bcc9fa47b45f150ccedd68a1fdb8ca  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/events.py
-23530cd1bfc12be53484eb61eed0efff5e607ad3f037274dbddc34493db02755  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py
+dc5a86b0251e01ea8b705531a432685b86662437b4f6b4ded8c763a8fe848765  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py
 6029417c6944a2ae15955786548aa70cfc5a296a7169b81a9a505930a4e23196  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/identity.py
 aeeab4e328bcbc4b9c95e64f2154d1648e122612d66e0c67ee00633b0b430001  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/integrity.py
 7b871043df09c576fc948f33774b11362b978dd4afc178fee6d56bb0aa6d4d97  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/mounts.py
@@ -1224,7 +1224,7 @@ d99dbfd49a7692db963ef4ee8807109f236c7471cf34465ba4ef1da8f90ccda1  hooks/target/u
 db2ed763644e77d9b083c0dca443c7f3e649a8d921899a8158a3b3394fc69a09  hooks/target/usr/local/libexec/journal-sealing
 ecc69a59950185c470c3efb406d32c9a71ba63652d911fce61328817cb2d0132  hooks/target/usr/local/libexec/journal-snapshot.tmpl
 1551811c7217239749b1d732846296ceac00e5f557089f203734999ca8bcc8e7  hooks/target/usr/local/libexec/labwc-admin-action-root
-0a4833975d3c2a42a182ad172b4e0a15620485046f4a0382d5280b5c57bf55ce  hooks/target/usr/local/libexec/labwc-admin-action-worker
+0a153db92c6f050d0c1b44d1a284d4b178aa8bd8a32dfbebee534f353f15ead9  hooks/target/usr/local/libexec/labwc-admin-action-worker
 3959bd12f12e37d53f27a2f47d62d5eb6190005989e70ddf42fdb6c963805c4b  hooks/target/usr/local/libexec/labwc-ai-llama-server
 e4cd0f7546c15b9cb082a4368503c05646f2a0e034167400c3763eafaa24de91  hooks/target/usr/local/libexec/labwc-ai-model-info
 5d2323e9a23ba28084034f732666c89886b9c243694dec7bd6faefb9d5ff51cb  hooks/target/usr/local/libexec/labwc-ai-model-install-root
@@ -1250,7 +1250,7 @@ b751d26a13b6897e8ef6a2d1d00116113038c19aa8966cf3edf0687eb01e1fb1  hooks/target/u
 2a21b96dbdb2ffed9506e79de816cdc4bce2ea64a318f93a86c8b8a6eae1fdc0  hooks/target/usr/local/libexec/labwc-samsung-firmware-extract
 146b60b03255b7a4ed738e82a35e08b4fd7a9b046d7afac967a671733ea9b58f  hooks/target/usr/local/libexec/labwc-security-action-root
 7276048701f2dabcb5ada21d1400a1aab85261b6d6202ab36f6a8a725b51b4b7  hooks/target/usr/local/libexec/labwc-session-check
-96feac4a62b07d7a6b7467fc1cf8cf6d8a80a8365dd6baf8ae66f1dbc5acc9f6  hooks/target/usr/local/libexec/labwc-session-state.tmpl
+110cebf4e45bc1ae556d48f550aea2ce1dff421435c4763aa130a97ce733dd2c  hooks/target/usr/local/libexec/labwc-session-state.tmpl
 a39d8f3affb81afcf40c45e08aec39168ac7dba410305d4186127c507ecf09fb  hooks/target/usr/local/libexec/labwc-ssh-gpg-askpass
 0f4408f63d38636e3c184bf11dca26a15fbee8ca895752ea04b49fc450fc88b0  hooks/target/usr/local/libexec/labwc-ssh-key-load
 fa4c86a1338813680cf80b3d9783bc3eea493e549c70da9bac6c74dc0b96b372  hooks/target/usr/local/libexec/labwc-swaybg.tmpl
@@ -1261,7 +1261,7 @@ f803dce3b6e55bd34c00c903eb9cd0cccc8929ea4de05f992c1a565abba1e23f  hooks/target/u
 1a71498966ddd5802e74e4dd61cd5996076d46f974a1186390b7bad3f3e5f207  hooks/target/usr/local/libexec/labwc-tomat.tmpl
 6ee69c2d2e5de9b4719685d7161aba7fadad212300162ef5913bc01933f50fb5  hooks/target/usr/local/libexec/labwc-wallpaper-control
 bcb41c13a16bb3fccab65b2b727846a74df66d2a016ef56104572431fc6d8d97  hooks/target/usr/local/libexec/labwc-waybar-battery
-f7b19e5e6e6739945dd9a863da5744bc4b5e6b43d6bc25772483ab38e72df1b6  hooks/target/usr/local/libexec/labwc-waybar-exec
+bbed7514a083cda2cfc7ef94fe7d9c26a41e95daefa4b19f4fc38f56e1130bb2  hooks/target/usr/local/libexec/labwc-waybar-exec
 c379a18f4c8f1029d0b5c5e4e5699a03375890e07b0a865faf5f921523f8e2a7  hooks/target/usr/local/libexec/labwc-wrap-desktop-files
 71924415f611006700e6f65daab47d77dd81f73b17be0a47928c1e35f85d940b  hooks/target/usr/local/libexec/labwc-zoom-discord-compat-runtime
 b009da67e87d2e4b38835564e9466ed14d7e3862c645818fb769ca19a169dd26  hooks/target/usr/local/libexec/log-layout.tmpl
@@ -1388,8 +1388,8 @@ d19c7aaadda19ef4e5090d3fe1befd82adc3120f16ca1a2cb7481cbeb41785a6  hosts/profiles
 9791673fb1e21c47269b3ac649c42d28d66bb37f1967afeea07cf008e178355d  hosts/profiles/f2fs-de-x360-duo.env
 192bcf5862bdc749117818716bc3f2acafa883710e430e2db93e46809436992d  hosts/profiles/f2fs-de-x360.env
 8d31c5c5ff3c4ac5e30a18a4b77bc7e34ca39183507774b5780135670d0c463c  hosts/themes/README.md
-b0d3ba489aeabed48ae86754fced48e7cd21184b3e899f7eb06cc4445ad558d7  hosts/themes/apps.env
-72d2b347a0588e6c6cb028050119ee8e3c3a5f6c599c5c1e3cd9f5268b67dc82  hosts/themes/base.env
+2aad282e4b9ecf49817ec8bc48df500659a3b079e4e43af888b671f80ded4fb1  hosts/themes/apps.env
+3f8b3c4c3cf0c5f847ba7ee74c74af67dba7e1c266a8c32f4a47cf73778f145e  hosts/themes/base.env
 5240c1e3e6a5915148728a55803d5cf0a4bf6e2b23c849cb9611117d8ad4297d  hosts/themes/office.env
 769937368267c03f40dcc4096047c0c74ba96ccf3a3e7e6b5933d5e762192220  hosts/themes/theme-schema.tsv
 34b025528d5f3271e58cd80b2e97a00b10c014df460da65fce4a2dc01d0343f1  repo.env
@@ -1459,9 +1459,9 @@ ad237fd2352441859a96e1ccf950aac6ed4705dc3d68baa83bf69cf6308142d4  scripts/deskto
 9aa4b78fc07008f37a979e3f1b2b5b334178b582063f9e26e58986be94a5df9b  scripts/firstboot/01-early.sh
 b77e3edc96a63684ad2ab08f784cc1a6b36e9a927e5ef61c810dcf919dc81988  scripts/firstboot/02-collect.sh.tmpl
 55617636c7b650c48ceaefd005278e6d9fc3d31e68c55fc931d266dc190b689a  scripts/firstboot/03-network.sh
-8aa997a3fdcb71cbeb5fe5b897b127fb56c6ef8bf3efaabb39c3dc383c57852d  scripts/firstboot/04-validation.sh.tmpl
+8cd26f06914baf88d1446a7822e5bda874e320994c5ea99c6866032955860c4d  scripts/firstboot/04-validation.sh.tmpl
 12ad994a1f2b039bb693e889731d1402309562d9e40a2125e269d2ac9ce0582b  scripts/firstboot/05-cleanup.sh
-67ecbe44c0f8d9f5f9edf305a17c781123d8a36f8c23ceea2c1a1da0dfaba57d  scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl
+8da354f4491e4d7a7e3ea792b7be8257615745f1be573656af0447c465d156df  scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl
 12ffdb848f62b8db7850bd35298c1d4a7692466b9210b032609a30f55cb3cd5e  scripts/firstboot/assets/etc/initramfs-tools/scripts/init-bottom/90-installer-health
 5fa070d13c84b8e83354970048ae703a2d44bad7a1ec6f7b13ddaabe3d8407b7  scripts/firstboot/assets/etc/initramfs-tools/scripts/init-premount/90-installer-health
 ce2048d3ce254651ba95684705f67ad253fbcec1f5fcc5016e116dfd46311191  scripts/firstboot/assets/etc/initramfs-tools/scripts/init-top/90-installer-health
@@ -1472,7 +1472,7 @@ ce2048d3ce254651ba95684705f67ad253fbcec1f5fcc5016e116dfd46311191  scripts/firstb
 6cf2a967386a95ea8becab42334f0b910455544732c1c5e1f9c43790bfcee2a2  scripts/firstboot/assets/etc/initramfs-tools/scripts/local-top/90-installer-health
 71476bedf2709445483cce9991966b5e923eb5b13543485b66669a40e01f2ced  scripts/firstboot/assets/etc/profile.d/tpm2-enroll-prompt.sh
 918c245399c4c0f15601bfcb6ee2b06ded1d61070555e5312d5b236a49f13705  scripts/firstboot/assets/etc/systemd/system/crowdsec-firstboot.service.tmpl
-a087254f1bfa9a6803132291eeb2b58333648591e262aff875d51a302821a7af  scripts/firstboot/assets/etc/systemd/system/firstboot.service
+6bfe5d93baaf7cf74ea9fbc5b778f8b01152be4d7c631ecb2e6ad772a68b9082  scripts/firstboot/assets/etc/systemd/system/firstboot.service
 2b15f220faedb25195bcf409588d7bd543b76e6d30b542bf32533d3fc4403aca  scripts/firstboot/assets/etc/systemd/system/secondboot.service
 885b053132b465851b347213eac6fde007598c06496bfaa04a19d20a9d98e3e5  scripts/firstboot/assets/etc/systemd/system/tailscale-bootstrap.service.tmpl
 2f2ca88c4bfbaac9ed9c5a6ff63f27caee5c5c43d254f2fa6b58a800b72e7b75  scripts/firstboot/assets/etc/xdg/autostart/tpm2-enroll.desktop
@@ -1485,6 +1485,7 @@ a0de6735090cec378e2a7d171cb63821b5548a6368ccd71e5e2dcb27701f4a09  scripts/firstb
 ff9e1ecc95d816ce3c06b23827aebf13f2359d52cb26b1d96cfa630b8e2b0220  scripts/firstboot/firstboot.sh
 1fbcac13862a82d9a53376a61b012fdaf1d340bf045f49c93ab175496a97b310  scripts/firstboot/import-initramfs.py.tmpl
 63542530f8d55e421be3b803ed844d42f8ffa1542d815b51cd11a62da391ce9c  scripts/firstboot/logging.sh
+d75990479b854df682055cf2281746cd21f8f5cabb5ebb998622f582f01d1570  scripts/firstboot/service-account-processes.py
 690ed204000283ec45de08fe8753823f39da5883cd3d12d2afc2d2cb02732f04  scripts/late/account.sh
 e799f12f3a9a0db0984ec3c8be57996d70d2e747f3a0ed4ee8908ce4f8b54b56  scripts/late/ai-runtime-archive.py
 0dde8b159ce54dcf3e9446c9412bdd419d01bebf5b4f311dd672fa8fe9022c20  scripts/late/assets/etc/apt/listchanges.conf.installer-base
@@ -1496,7 +1497,7 @@ b1eecf32bde0febbbbd35a2910e7e7dfdc6ff763ddc4ad577018829fa27cb81f  scripts/late/a
 c94b606a82993d57bd86b8dfb230d53fe6d708c1ee831eda0f00f0384c4fd1d8  scripts/late/codex-archive.py
 c1b2f2a835456b33096d27473c4c3b1de93b6a90fe655bda14ae503516d8e9c1  scripts/late/codex-installer-session.py
 77a332d731f65f212771ffba2b77f788948eaeeadcb007310f097324d0b5eb91  scripts/late/codex-state.py
-7b48333f7292376b1e575fc4e9eaa0d6c21b19821415da31ff8e0fcd01e9da84  scripts/late/core.sh
+18cc8251598094433179bf0a5fb0078fd0bfef3baa3b1a5db791d67496a94679  scripts/late/core.sh
 8a58c2b7c00fddc841141d1863b3bd91f0f6a14b8277694c315bef9986ed4de3  scripts/late/crowdsec.sh
 5a7b50dcda9777ed6310a216009224f64bef4fec21a5fae4c1e398d295df71a1  scripts/late/crypto.sh
 f848ec73ba1b90c16be1e337244098adf1070baa0529f498d8f6c5b1643bf139  scripts/late/cuda-legacy.sh

@@ -95,6 +95,62 @@ check_command() {
 # This also checks its state without exposing the off-host verification key.
 check_command journal-sealing-status /usr/local/libexec/journal-sealing --status
 
+# auditd retains the native security audit trail. Confirm that rsyslog also
+# delivered AppArmor records to the dedicated log before firstboot succeeds.
+apparmor_log_delivery() {
+  audit_file=__INSTALLER_LOG_AUDIT_FILE__
+  apparmor_file=__INSTALLER_LOG_APPARMOR_FILE__
+  apparmor_sample=
+  apparmor_poll_attempts=0
+  while :; do
+    # Snapshot one real record, newest available first. Native auditd rotation
+    # may already have moved boot records into its bounded archive set.
+    if [ -z "$apparmor_sample" ]; then
+      audit_index=0
+      while [ "$audit_index" -lt __INSTALLER_LOG_AUDIT_FILE_COUNT__ ]; do
+        audit_candidate=$audit_file
+        [ "$audit_index" -eq 0 ] || audit_candidate=${audit_file}.${audit_index}
+        [ ! -L "$audit_candidate" ] || return 1
+        if [ -e "$audit_candidate" ]; then
+          [ -f "$audit_candidate" ] && [ -r "$audit_candidate" ] || return 1
+          apparmor_sample=$(sed -n '/apparmor=/h; /type=1400/h; /type=APPARMOR/h; ${g;p;}' "$audit_candidate") || return 1
+          [ -z "$apparmor_sample" ] || break
+        fi
+        audit_index=$((audit_index + 1))
+      done
+    fi
+    if [ -n "$apparmor_sample" ]; then
+      apparmor_index=0
+      while [ "$apparmor_index" -le __INSTALLER_LOG_ROTATE_COUNT__ ]; do
+        apparmor_candidate=$apparmor_file
+        [ "$apparmor_index" -eq 0 ] || apparmor_candidate=${apparmor_file}.${apparmor_index}
+        [ ! -L "$apparmor_candidate" ] || return 1
+        if [ -e "$apparmor_candidate" ]; then
+          [ -f "$apparmor_candidate" ] && [ -r "$apparmor_candidate" ] || return 1
+          if grep -Fqx -- "$apparmor_sample" "$apparmor_candidate"; then
+            printf '%s\n' 'apparmor_log_delivery=verified matching_native_record=true'
+            return 0
+          else
+            apparmor_grep_status=$?
+            [ "$apparmor_grep_status" -eq 1 ] || return "$apparmor_grep_status"
+          fi
+        fi
+        apparmor_index=$((apparmor_index + 1))
+      done
+    fi
+    [ "$apparmor_poll_attempts" -lt 10 ] || break
+    sleep 2
+    apparmor_poll_attempts=$((apparmor_poll_attempts + 1))
+  done
+  if [ -z "$apparmor_sample" ]; then
+    printf '%s\n' 'apparmor_log_delivery=failed reason=no-native-apparmor-record'
+  else
+    printf '%s\n' 'apparmor_log_delivery=failed reason=native-record-not-delivered'
+  fi
+  return 1
+}
+check_command apparmor-log-delivery apparmor_log_delivery
+
 bool_is_true() {
   case "${1:-}" in
     1|true|TRUE|yes|YES|on|ON) return 0 ;;
@@ -631,7 +687,7 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
         [ ! -e "/etc/systemd/system/user-${uid}.slice.d/50-podman-devops.conf" ]
         [ ! -L "/etc/systemd/system/user-${uid}.slice.d/50-podman-devops.conf" ]
         ! systemctl is-active --quiet "user@${uid}.service"
-        devops_processes=$(ps -U "$uid" -o comm=)
+        devops_processes=$(/usr/bin/python3 -I /var/lib/firstboot/lib/service-account-processes.py "$uid")
         ! printf "%s\n" "$devops_processes" | grep -Eq "^(pipewire|pipewire-pulse|wireplumber|mako|gpg-agent|ssh-agent|dbus-broker|dbus-daemon|hyprpolkitagen|xdg-desktop-por)$"
         for runtime_user_state in bus systemd
         do
@@ -1184,7 +1240,10 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
   check_desktop_command_optional_any sdl-freerdp sdl-freerdp3
 
   if command -v systemctl >/dev/null 2>&1; then
-    capture desktop-units.txt systemctl status greetd.service seatd.service NetworkManager.service pipewire.socket pipewire-pulse.socket wireplumber.service xdg-desktop-portal.service --no-pager --lines=40
+    capture desktop-units.txt systemctl status greetd.service seatd.service NetworkManager.service --no-pager --lines=40
+    # Packaged desktop clients are user units. Inspect their files without
+    # contacting or starting a desktop user's bus from root firstboot.
+    capture desktop-user-unit-files.txt systemctl --global list-unit-files pipewire.socket pipewire-pulse.socket wireplumber.service xdg-desktop-portal.service --no-pager
     log_line validation info desktop "desktop_unit_status_collected=true"
   fi
   if [ -n "${WAYLAND_DISPLAY:-}" ] &&

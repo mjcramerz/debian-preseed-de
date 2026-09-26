@@ -786,7 +786,8 @@ class IntegrationContractTests(unittest.TestCase):
         self.assertIn('def reject_service_account_home()', source)
         self.assertIn("raise Failure('/pool must be root:devops mode 3775')", source)
         firstboot = payload_read_text(FORKY / 'scripts/firstboot/04-validation.sh')
-        self.assertIn('devops_processes=$(ps -U "$uid" -o comm=)', firstboot)
+        self.assertIn('devops_processes=$(/usr/bin/python3 -I /var/lib/firstboot/lib/service-account-processes.py "$uid")', firstboot)
+        self.assertNotIn('ps -U', firstboot)
         for process in ('pipewire', 'wireplumber', 'mako', 'gpg-agent', 'ssh-agent',
                         'dbus-broker', 'hyprpolkitagen', 'xdg-desktop-por'):
             self.assertIn(process, firstboot)

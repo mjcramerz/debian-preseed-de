@@ -3,8 +3,8 @@ Description=First boot provisioning and validation wrapper
 Documentation=man:systemd.service(5)
 
 Wants=network-online.target apparmor-modes.service
-Requires=local-fs.target systemd-tmpfiles-setup.service journal-sealing.service
-After=local-fs.target systemd-tmpfiles-setup.service systemd-journald.socket journal-sealing.service network-online.target apparmor-modes.service
+Requires=local-fs.target systemd-tmpfiles-setup.service journal-sealing.service auditd.service rsyslog.service
+After=local-fs.target systemd-tmpfiles-setup.service systemd-journald.socket journal-sealing.service network-online.target apparmor-modes.service auditd.service rsyslog.service
 
 # The wrapper skips a successful marker under its lock. Failed legacy markers
 # must not suppress a fresh validation attempt.

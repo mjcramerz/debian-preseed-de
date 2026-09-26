@@ -198,9 +198,11 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         "--property=LimitCORE=0", "--property=NoNewPrivileges=no",
         # Signal Foot itself first so it can close/reap its PTY client.
         # systemd still owns final cgroup cleanup. Only the argument-free
-        # default shell gets the observed close-window HUP status (1).
-        # Explicit commands/options and Foot internal errors (230) stay errors.
-        *(["--property=SuccessExitStatus=1"] if is_foot and len(arguments) == 1 else []),
+        # default shell or btop gets the observed close-window HUP status (1).
+        # Other commands/options and Foot internal errors (230) stay errors.
+        *(["--property=SuccessExitStatus=1"] if is_foot and (
+            len(arguments) == 1 or arguments == ["/usr/bin/foot", "-e", "btop"]
+        ) else []),
         # Preserve the main process status. Record the actual failure after the
         # transient unit exits, including exec/namespace and Foot/parser errors.
         *(["--property=ExecStopPost=/usr/local/libexec/labwc-terminal-result"] if is_foot else []),

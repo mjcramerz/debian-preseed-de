@@ -76,10 +76,11 @@ def check(seed: Path = SEED) -> dict[str, int]:
                 # AppArmor side log; broad journal or category mirrors remain
                 # forbidden.
                 if rel == 'hooks/target/etc/rsyslog.d/30-apparmor.conf.tmpl':
-                    if (active.count('module(load="imfile")') != 1 or
+                    module = 'module(load="imfile" mode="polling" pollingInterval="2")'
+                    if (active.count(module) != 1 or
                             active.count('input(type="imfile" File="__INSTALLER_LOG_AUDIT_FILE__"') != 1):
                         raise ValueError(f'invalid native audit file input: {rel}')
-                    active = active.replace('module(load="imfile")', '').replace('input(type="imfile"', 'input(type="managed-audit"')
+                    active = active.replace(module, '').replace('input(type="imfile"', 'input(type="managed-audit"')
                 if re.search(r'\bimfile\b|/(?:vendor|runtime)\.log', active):
                     raise ValueError(f'obsolete file mirroring or category log: {rel}')
     references.update(re.findall(r'\$\{(LOG_[A-Z0-9_]+)\}', (seed/'hosts/logging/observability.env').read_text()))

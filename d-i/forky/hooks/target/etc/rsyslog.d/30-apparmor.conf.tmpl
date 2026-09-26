@@ -1,6 +1,7 @@
 # Consume only AppArmor records from auditd's authoritative file. The audit
 # syslog plugin is disabled so the full audit stream never enters journald.
-module(load="imfile")
+# Poll the single fixed input to recover file updates/rotation.
+module(load="imfile" mode="polling" pollingInterval="2")
 template(
   name="ManagedAppArmorAuditLine"
   type="string"
@@ -52,6 +53,10 @@ ruleset(name="managed_apparmor_from_audit" queue.type="LinkedList"
 }
 
 input(type="imfile" File="__INSTALLER_LOG_AUDIT_FILE__" Tag="managed-audit:"
-      Ruleset="managed_apparmor_from_audit" PersistStateInterval="1")
+      Ruleset="managed_apparmor_from_audit" PersistStateInterval="1"
+      MaxSubmitAtOnce="64")
+# imfile's default 1024-record submission exceeds this route's 1000-record
+# queue and can stall the producer before waking its worker (rsyslog 8.2608).
+# Keep the batch below even the logging schema's minimum queue capacity.
 # Kernel copies remain in the managed kernel log. Auditd's file is the sole
 # input to this AppArmor mirror, so one action/worker owns size rotation.

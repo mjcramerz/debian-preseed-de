@@ -17,6 +17,7 @@ import stat
 import subprocess
 import tempfile
 import types
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -133,21 +134,49 @@ class GreeterIdentityTests(unittest.TestCase):
             self.worker.protect_other_sessions()
 
 
+class DesktopAfterLogoutTests(unittest.TestCase):
+    """An automatically respawned greetd seat cannot turn power into logout."""
+
+    def setUp(self):
+        self.power = module()
+        self.worker = self.power.Worker(1000, 'desktop', 'poweroff')
+        self.properties = session()
+
+    def transport(self, argv, **kwargs):
+        if 'list-sessions' in argv:
+            return ('c2 1000 desktop seat0 900 user tty2 no -\n'
+                    'c1 109 greeter seat0 321 greeter tty1 no -\n')
+        if '--property=Class' in argv:
+            return 'user-light\n'
+        return self.properties
+
+    def test_verified_local_greetd_session_does_not_block_desktop_power(self):
+        with mock.patch.object(self.power, 'run', side_effect=self.transport) as calls, \
+             mock.patch.object(self.power.pwd, 'getpwuid',
+                               return_value=SimpleNamespace(pw_name='greeter')):
+            self.worker.protect_other_sessions()
+        self.assertEqual(calls.call_count, 3)
+
+    def test_other_login_or_spoofed_greeter_still_vetoes(self):
+        for changes in (dict(Service='sshd'), dict(Remote='yes'), dict(User='1001'),
+                        dict(Name='desktop'), dict(Class='user'), dict(Leader='0')):
+            with self.subTest(changes=changes):
+                self.properties = session(**changes)
+                with mock.patch.object(self.power, 'run', side_effect=self.transport), \
+                     mock.patch.object(self.power.pwd, 'getpwuid',
+                                       return_value=SimpleNamespace(pw_name='greeter')), \
+                     self.assertRaisesRegex(self.power.Error, 'another interactive'):
+                    self.worker.protect_other_sessions()
+
+
 class GreeterFlowTests(unittest.TestCase):
     def setUp(self):
         self.power = module()
         self.stack = contextlib.ExitStack()
         self.addCleanup(self.stack.close)
         self.stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
-        self.root = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
-        (self.root / 'cgroup.controllers').write_text('cpu memory io\n')
-        group = self.root / 'user.slice/user-109.slice/user@109.service'
-        group.mkdir(parents=True)
-        self.events = group / 'cgroup.events'
-        self.events.write_text('populated 1\nfrozen 0\n')
-        self.stack.enter_context(mock.patch.object(self.power, 'CGROUP_ROOT', self.root))
         self.calls = []
-        self.stopped = False
+        self.active_guest = False
         self.fail_on = None
         self.greeter_properties = session()
         self.inhibitors = []
@@ -168,25 +197,16 @@ class GreeterFlowTests(unittest.TestCase):
             return json.dumps(dict(type='a(ssssuu)', data=[self.inhibitors]))
         self.assertEqual(argv[0], '/usr/bin/systemctl')
         if '--property=LoadState,ActiveState' in argv:
+            if self.active_guest and 'podman-devops-restart.service' in argv:
+                return 'LoadState=loaded\nActiveState=active\n'
             return 'LoadState=not-found\nActiveState=inactive\n'
-        if '--property=' + self.power.RUNTIME_PROPERTIES in argv:
-            return ('Id=user@109.service\nLoadState=loaded\nActiveState=' +
-                    ('inactive' if self.stopped else 'active') + '\nJob=0\nMainPID=' +
-                    ('0' if self.stopped else '400') + '\nControlPID=0\nControlGroup=' +
-                    self.power.runtime_cgroup('user@109.service') + '\n')
-        if 'stop' in argv and 'user@109.service' in argv:
-            self.stopped = True
-            self.events.write_text('populated 0\nfrozen 0\n')
-            return ''
-        if argv[-2:] == ['stop', 'greetd.service']:
-            self.assertIn('--no-block', argv)
+        if 'stop' in argv and 'podman-devops-restart.service' in argv:
             return ''
         if argv == ['/usr/bin/systemctl', '--no-ask-password', 'start', 'power-log-capture.service']:
             self.assertTrue(self.stopped)
             self.assertEqual(kwargs, {'timeout': 95})
             return ''
         if '--force' in argv:
-            self.assertTrue(self.stopped)
             self.assertEqual(argv.count('--force'), 1)
             self.assertIn(argv[-1], ('reboot', 'poweroff'))
             self.assertGreater(self.reservation.return_value.__enter__.return_value.verify.call_count, 0)
@@ -202,16 +222,14 @@ class GreeterFlowTests(unittest.TestCase):
     def test_both_greeter_actions_reach_exactly_one_verified_force_handoff(self):
         for action in ('reboot', 'poweroff'):
             with self.subTest(action=action):
-                self.calls.clear(); self.stopped = False
-                self.events.write_text('populated 1\nfrozen 0\n')
+                self.calls.clear()
                 worker = self.execute(action)
                 final = ['/usr/bin/systemctl', '--force', '--no-ask-password', action]
                 self.assertEqual(self.calls[-1], final)
                 self.assertEqual(sum('--force' in call for call in self.calls), 1)
                 capture = ['/usr/bin/systemctl', '--no-ask-password', 'start', 'power-log-capture.service']
                 self.assertEqual(self.calls.count(capture), 0)
-                last_stop = max(i for i, call in enumerate(self.calls) if 'stop' in call)
-                self.assertLess(last_stop, self.calls.index(final))
+                self.assertFalse(any('stop' in call for call in self.calls))
                 self.assertTrue(worker.committed and worker.handoff_attempted)
                 self.assertGreaterEqual(sum('show-session' in call for call in self.calls), 3)
                 self.assertFalse(any('--user' in call or 'kill' in call for call in self.calls))
@@ -240,8 +258,9 @@ class GreeterFlowTests(unittest.TestCase):
         self.greeter_properties = session(Leader='999')
         return mock.Mock()
 
-    def test_runtime_stop_failure_never_escalates_force(self):
-        self.fail_on = lambda argv: 'stop' in argv and 'user@109.service' in argv
+    def test_guest_stop_failure_never_escalates_force(self):
+        self.active_guest = True
+        self.fail_on = lambda argv: 'stop' in argv and 'podman-devops-restart.service' in argv
         with self.assertRaises(self.power.Error):
             self.execute()
         self.assertFalse(any('--force' in c for c in self.calls))

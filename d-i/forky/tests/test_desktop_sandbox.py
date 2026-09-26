@@ -219,6 +219,16 @@ class FuzzelOutputSizingTests(unittest.TestCase):
         self.assertNotIn('--width=40', arguments)
         self.assertNotIn('--font=Noto Sans:size=16', arguments)
 
+    def test_power_confirmation_has_fixed_wide_short_geometry(self):
+        result, arguments = self.invoke('power-confirm', '--dmenu', '--index', output='eDP-1')
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertIn('--width=68', arguments)
+        self.assertIn('--lines=4', arguments)
+        self.assertIn(f'--config={self.config}/menu.ini', arguments)
+        failure, arguments = self.invoke('power-confirm', '--dmenu', '--width=200')
+        self.assertEqual(failure.returncode, 2)
+        self.assertFalse(arguments)
+
     def test_untrusted_waybar_output_is_rejected_before_fuzzel(self):
         result, arguments = self.invoke('launcher', output='eDP-1;touch')
         self.assertEqual(result.returncode, 2)
@@ -968,7 +978,7 @@ class InstalledFailureRegressionTests(unittest.TestCase):
         firstboot_unit = render_theme_defaults(payload_read_text(DESKTOP / 'etc/systemd/system/firstboot.service'))
         self.assertIn('Requires=local-fs.target systemd-tmpfiles-setup.service', firstboot_unit)
         self.assertIn('Wants=network-online.target apparmor-modes.service', firstboot_unit)
-        self.assertIn('After=local-fs.target systemd-tmpfiles-setup.service systemd-journald.socket network-online.target apparmor-modes.service', firstboot_unit)
+        self.assertIn('After=local-fs.target systemd-tmpfiles-setup.service systemd-journald.socket journal-sealing.service network-online.target apparmor-modes.service', firstboot_unit)
         self.assertIn('WantedBy=multi-user.target', firstboot_unit)
         self.assertNotIn('Before=sysinit.target', firstboot_unit)
 

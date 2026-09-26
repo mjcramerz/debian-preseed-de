@@ -1,0 +1,19 @@
+test_battery_uses_existing_descriptor_boundary (test_firstboot_audit_20260926.AuditWiringTests.test_battery_uses_existing_descriptor_boundary) ... ok
+test_input_batch_fits_the_smallest_permitted_queue (test_firstboot_audit_20260926.AuditWiringTests.test_input_batch_fits_the_smallest_permitted_queue) ... ok
+test_delayed_creation_and_rotation_are_observed (test_firstboot_audit_20260926.FirstbootDeliveryTests.test_delayed_creation_and_rotation_are_observed) ... ok
+test_desktop_diagnostics_distinguish_system_and_user_units (test_firstboot_audit_20260926.FirstbootDeliveryTests.test_desktop_diagnostics_distinguish_system_and_user_units) ... ok
+test_exact_native_record_is_required (test_firstboot_audit_20260926.FirstbootDeliveryTests.test_exact_native_record_is_required) ... ok
+test_last_native_record_and_enriched_bytes_are_preserved (test_firstboot_audit_20260926.FirstbootDeliveryTests.test_last_native_record_and_enriched_bytes_are_preserved) ... ok
+test_missing_or_empty_native_logs_never_pass (test_firstboot_audit_20260926.FirstbootDeliveryTests.test_missing_or_empty_native_logs_never_pass) ... ok
+test_required_services_are_ordered_before_firstboot (test_firstboot_audit_20260926.FirstbootDeliveryTests.test_required_services_are_ordered_before_firstboot) ... ok
+test_symlinked_log_is_rejected (test_firstboot_audit_20260926.FirstbootDeliveryTests.test_symlinked_log_is_rejected) ... ok
+test_backlog_live_append_rotation_and_restart (test_firstboot_audit_20260926.NativeAuditDeliveryTests.test_backlog_live_append_rotation_and_restart) ... ok
+test_exit_race_is_ignored_but_malformed_identity_fails (test_firstboot_audit_20260926.ServiceAccountProcessesTests.test_exit_race_is_ignored_but_malformed_identity_fails) ... ok
+test_invalid_uids_fail_and_helper_is_staged_and_confined (test_firstboot_audit_20260926.ServiceAccountProcessesTests.test_invalid_uids_fail_and_helper_is_staged_and_confined) ... ok
+test_real_uid_is_checked_even_when_effective_uid_differs (test_firstboot_audit_20260926.ServiceAccountProcessesTests.test_real_uid_is_checked_even_when_effective_uid_differs) ... ok
+test_unreadable_status_is_not_treated_as_an_exited_process (test_firstboot_audit_20260926.ServiceAccountProcessesTests.test_unreadable_status_is_not_treated_as_an_exited_process) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 5.978s
+
+OK
