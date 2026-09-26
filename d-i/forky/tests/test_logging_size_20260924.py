@@ -62,12 +62,17 @@ class SizeRotationTests(unittest.TestCase):
     def full(self, value: bytes = b'A'):
         return self.write(value * rotation.LIMIT)
 
-    def test_below_threshold_is_not_rotated(self):
+    def test_callback_makes_room_for_next_record_below_threshold(self):
         self.write(b'a' * (rotation.LIMIT - 1))
         inode = self.active.stat().st_ino
+        self.assertTrue(rotation.rotate(APP, root=self.root))
+        self.assertFalse(self.active.exists())
+        self.assertEqual(self.active.with_name('apps.log.1').stat().st_ino, inode)
+
+    def test_empty_callback_is_noop(self):
+        self.write(b'')
         self.assertFalse(rotation.rotate(APP, root=self.root))
-        self.assertEqual(self.active.stat().st_ino, inode)
-        self.assertFalse(self.active.with_name('apps.log.1').exists())
+        self.assertTrue(self.active.exists())
 
     def test_exact_threshold_renames_without_inventing_or_copying_records(self):
         self.full()

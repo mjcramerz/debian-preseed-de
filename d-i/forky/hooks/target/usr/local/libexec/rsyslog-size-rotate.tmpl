@@ -108,7 +108,9 @@ def rotate(absolute: str, *, root: Path = Path('/')) -> bool:
         # invocation. A failure is reported to omfile; it must not truncate data.
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         current = _file(parent, path.name, gid, mode)
-        if current is None or current.st_size < LIMIT:
+        # omfile calls before the next record would exceed its limit. The
+        # active file can therefore still be below LIMIT; it must make room.
+        if current is None or current.st_size == 0:
             return False
         # Validate the entire bounded set before deleting/renaming even one file.
         present = {}

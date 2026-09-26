@@ -71,6 +71,25 @@ class MullvadNamespaceTests(unittest.TestCase):
                 for prop in ('PrivateTmp=yes', 'PrivateIPC=yes', 'ProtectSystem=full'):
                     self.assertIn('--property=' + prop, cmd)
 
+    def test_wallpaper_state_handoff_keeps_host_ownership_view(self):
+        waypaper = self.command('wayland', '/usr/local/bin/waypaper')
+        self.assertIn('--property=PrivateUsers=no', waypaper)
+        self.assertNotIn('--property=PrivateTmp=yes', waypaper)
+        untrusted = self.command('wayland', '/tmp/waypaper')
+        self.assertIn('--property=PrivateTmp=yes', untrusted)
+        policy = profile('waypaper')
+        self.assertIn('deny /usr/bin/swaybg x,', policy)
+
+    def test_argument_free_footclient_uses_standalone_foot_lifecycle(self):
+        footclient = self.command('wayland', '/usr/bin/footclient')
+        self.assertEqual(footclient[-1], '/usr/bin/foot')
+        self.assertIn('--property=PrivateUsers=no', footclient)
+        self.assertIn('--property=KillMode=mixed', footclient)
+        self.assertIn('--property=SuccessExitStatus=1', footclient)
+        # Do not reinterpret footclient's distinct option syntax.
+        with_option = self.command('wayland', '/usr/bin/footclient', '--server-socket=custom')
+        self.assertEqual(with_option[-2:], ['/usr/bin/footclient', '--server-socket=custom'])
+
     def test_mullvad_electron_keeps_native_wayland_and_rejects_sandbox_bypass(self):
         cmd = generic.electron_command(['/opt/Mullvad VPN/mullvad-vpn'])
         self.assertIn('--ozone-platform=wayland', cmd)

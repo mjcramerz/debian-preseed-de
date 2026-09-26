@@ -721,6 +721,7 @@ class SessionAndIntegrationTests(unittest.TestCase):
         data = render_theme_defaults(payload_read_text(DESKTOP/'etc/skel-desktop/.config/zathura/zathurarc'))
         self.assertIn('set selection-clipboard clipboard',data)
         self.assertIn('set recolor false',data)
+        self.assertNotIn('window-icon-document',data)
 
     def test_docx_default_remains_focuswriter(self):
         data = render_theme_defaults(payload_read_text(DESKTOP/'etc/skel-desktop/.config/mimeapps.list'))

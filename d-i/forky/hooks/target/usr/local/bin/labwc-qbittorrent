@@ -694,7 +694,6 @@ def build_command(
     if acceleration_mode == "intel":
         environment.update(
             {
-                "DRI_PRIME": "0",
                 "LIBVA_DRIVER_NAME": "iHD",
             }
         )

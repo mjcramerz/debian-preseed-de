@@ -20,6 +20,18 @@ SYSTEM_APPLICATION_DIR = "/usr/share/applications"
 TUTA_DESKTOP_ID = "tutanota-desktop.desktop"
 TUTA_MANAGED_DESKTOP_SOURCE = "/etc/skel-desktop/.local/share/applications/tutanota-desktop.desktop"
 TUTA_SCHEMES = ("x-scheme-handler/mailto", "x-scheme-handler/tuta")
+CODE_EXECUTABLE = "/usr/bin/code"
+# Code's package may expose its executable before either desktop entry is
+# available. Keep its managed launcher usable during that packaging gap.
+CODE_FALLBACK_DESKTOP = """[Desktop Entry]
+Type=Application
+Name=Visual Studio Code
+Exec=/usr/bin/code %F
+TryExec=/usr/bin/code
+Icon=code
+Terminal=false
+Categories=Development;IDE;TextEditor;
+"""
 DEFAULTS_PATH = "/etc/labwc/desktop.conf"
 MANAGED_DIRECTORY_MODE = 0o700
 MANAGED_FILE_MODE = 0o600
@@ -693,6 +705,25 @@ def find_desktop_file(desktop_names: tuple[str, ...]) -> tuple[str, str] | None:
     return None
 
 
+def code_runtime_available() -> bool:
+    try:
+        metadata = os.stat(CODE_EXECUTABLE)
+    except FileNotFoundError:
+        return False
+    return (stat.S_ISREG(metadata.st_mode) and metadata.st_uid == 0
+            and not metadata.st_mode & 0o022 and bool(metadata.st_mode & 0o111))
+
+
+def desktop_source(config: dict) -> tuple[str, str] | None:
+    resolved = find_desktop_file(config["desktop_names"])
+    if resolved is not None:
+        name, path = resolved
+        return name, read_system_desktop_text(path)
+    if config["action_app"] == "code" and code_runtime_available():
+        return "code.desktop", CODE_FALLBACK_DESKTOP
+    return None
+
+
 def synchronize_tuta_mime_defaults(account_home: str, uid: int, gid: int) -> bool:
     """Repair managed mail defaults without rewriting other associations/comments."""
     directory = os.path.join(account_home, ".config")
@@ -814,19 +845,19 @@ def main() -> int:
     synchronized_bitwarden_autostart = 0
 
     for config in APP_CONFIG:
-        resolved_desktop = find_desktop_file(config["desktop_names"])
+        resolved_desktop = desktop_source(config)
         if resolved_desktop is None:
             skipped_missing += 1
             missing_apps.append(config["action_app"])
             continue
-        desktop_name, source_path = resolved_desktop
+        desktop_name, source_text = resolved_desktop
         if config["action_app"] == "tutanota":
             desktop_name = TUTA_DESKTOP_ID
         destination_path = os.path.join(desktop_dir, desktop_name)
 
         parser = configparser.ConfigParser(interpolation=None, strict=False)
         parser.optionxform = str
-        parser.read_string(read_system_desktop_text(source_path))
+        parser.read_string(source_text)
         if not parser.has_section("Desktop Entry"):
             print(f"warning: skipped {desktop_name}: missing [Desktop Entry]", file=sys.stderr)
             invalid_apps.append(config["action_app"])

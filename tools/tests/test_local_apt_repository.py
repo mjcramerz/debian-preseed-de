@@ -272,5 +272,40 @@ class RepositoryTests(unittest.TestCase):
                 pass
 
 
+@unittest.skipUnless(os.geteuid() == 0, 'root-owned package fixture requires root')
+class DiscordPackageModeTests(unittest.TestCase):
+    def test_only_verified_discord_sandbox_gets_setuid_in_deb(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tree = root / 'discord'
+            tree.mkdir()
+            for name in ('Discord', 'chrome-sandbox', 'other-helper'):
+                path = tree / name
+                path.write_bytes(b'fixture payload')
+                path.chmod(0o6755)
+            repo.normalize_staged_tree(tree)
+            output = root / 'discord.deb'
+            fields = {'Package': 'discord', 'Version': '1.0+localrepo1',
+                      'Architecture': 'amd64', 'Maintainer': 'Offline Test <test@localhost>',
+                      'Description': 'Prebuilt fixture'}
+            repo.assemble_binary_package(output, tree, '/opt/discord', fields,
+                                         {'discord.installed.json': '{}\n'}, 'discord')
+            with output.open('rb') as stream:
+                for name, size, offset in repo.ar_members(stream):
+                    if name != 'data.tar.xz':
+                        continue
+                    stream.seek(offset)
+                    with tarfile.open(fileobj=io.BytesIO(stream.read(size)), mode='r:xz') as archive:
+                        self.assertEqual(archive.getmember('./opt/discord/chrome-sandbox').mode, 0o4755)
+                        for other in ('Discord', 'other-helper'):
+                            self.assertEqual(archive.getmember('./opt/discord/' + other).mode, 0o755)
+                    break
+                else:
+                    self.fail('packaged data archive is missing')
+            if shutil.which('dpkg-deb'):
+                listing = subprocess.check_output(['dpkg-deb', '-c', str(output)], text=True)
+                self.assertRegex(listing, r'(?m)^-rwsr-xr-x\s+root/root\s+.*\./opt/discord/chrome-sandbox$')
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

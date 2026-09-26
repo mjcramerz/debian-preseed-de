@@ -1148,7 +1148,15 @@ def assemble_binary_package(output: Path, tree: Path, install_root: str, control
                 elif info.issym():
                     info.mode = 0o777
                 else:
-                    info.mode = 0o755 if info.mode & 0o111 else 0o644
+                    # The verified Discord runtime requires this one root-owned
+                    # Chromium sandbox to retain setuid in the packaged payload.
+                    # Every other staged special bit remains stripped.
+                    if app == "discord" and install_root == "/opt/discord" and name == "./opt/discord/chrome-sandbox":
+                        if not info.isfile() or not info.mode & 0o111 or path.lstat().st_gid != 0:
+                            raise Error("unsafe staged Discord Chromium sandbox")
+                        info.mode = 0o4755
+                    else:
+                        info.mode = 0o755 if info.mode & 0o111 else 0o644
                 if info.isfile():
                     with os.fdopen(checked_file(path, limit=2 * MAX_DEB, single_link=False), "rb") as stream:
                         archive.addfile(info, stream)

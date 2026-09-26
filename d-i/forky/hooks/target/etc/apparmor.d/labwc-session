@@ -188,6 +188,7 @@ profile session-controls /usr/bin/{kanshi,swaybg,swayidle,swaylock,wlr-randr,wlr
   owner @{PROC}/[0-9]*/mountinfo r,
   signal (receive) set=(hup) peer=desktop-launcher,
   signal (receive) set=(term kill) peer=labwc-swaybg,
+  ptrace (readby) peer=waypaper//waypaper-ps,
   signal (send) set=(chld) peer=labwc-swaybg,
   # Read-only inherited Bluetooth status descriptor; never rfkill writes.
   /dev/rfkill r,

@@ -162,7 +162,7 @@ def original_generic_exec(value: str) -> str | None:
 
 
 def repair_known_vendor_entry(name: str, text: str) -> str:
-    """Repair only the two vendor defects observed in the September 19 log.
+    """Repair only the known vendor desktop entry defects.
 
     Desktop Exec quoting is not shell quoting. Do not run a shell parser over
     arbitrary entries or relax desktop-file-validate for unknown syntax.
@@ -182,7 +182,9 @@ def repair_known_vendor_entry(name: str, text: str) -> str:
             ending = '\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else ''
             if name == 'lynis.desktop' and key.strip() == 'Exec' and value.strip() == (
                     "su-to-root -c '/usr/sbin/lynis audit system --no-colors'"):
-                line = key + '=su-to-root -c "/usr/sbin/lynis audit system --no-colors"' + ending
+                # Terminal=true is wrapped below; --run avoids spawning a
+                # second terminal in the managed action client.
+                line = key + '=/usr/local/bin/labwc-security-action --run audit-security-posture' + ending
             elif name == 'sdl-freerdp-file.desktop' and key.strip() == 'Actions' and not has_edit:
                 # An undeclared action is unusable; retain every other action.
                 actions = value.strip().split(';')

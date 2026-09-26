@@ -225,6 +225,10 @@ desktop_render_note_app_defaults() {
     /usr/share/glib-2.0/schemas/90-desktop-window-buttons.gschema.override \
     0644
   desktop_stage_role_asset \
+    usr/share/glib-2.0/schemas/90-desktop-appearance.gschema.override \
+    /usr/share/glib-2.0/schemas/90-desktop-appearance.gschema.override \
+    0644
+  desktop_stage_role_asset \
     usr/share/glib-2.0/schemas/90-desktop-liferea.gschema.override \
     /usr/share/glib-2.0/schemas/90-desktop-liferea.gschema.override \
     0644
@@ -470,4 +474,3 @@ printf "desktop_greeter_access user=%s requested=%s current=%s\n" \
 ' sh "$LABWC_GREETER_USER"
   desktop_log "configured_greeter_access user=${LABWC_GREETER_USER}"
 }
-

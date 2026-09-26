@@ -164,6 +164,11 @@ def session_environment() -> dict[str, str]:
 
 def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict[str, str]) -> list[str]:
     assert_launch_allowed()
+    # The package's argument-free footclient entry has no server readiness
+    # dependency; a transient unit can outrun foot-server and lose the launch.
+    # Use the already managed standalone Foot path for this exact invocation.
+    if kind == "wayland" and arguments == ["/usr/bin/footclient"]:
+        arguments = ["/usr/bin/foot"]
     environment["LABWC_SESSION_APP"] = "1"
     environment["LABWC_SESSION_RESTORE"] = restart_token([WRAPPERS[kind], mode, "--", *arguments])
     label = re.sub(r"[^A-Za-z0-9_-]", "-", Path(arguments[0]).name)[:48] or "app"
@@ -171,12 +176,14 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
     # These canonical administration launchers need host UID semantics.
     # User-manager filesystem/IPC namespaces implicitly enable PrivateUsers:
     # pkexec cannot become host root and Mullvad sees its root-owned daemon
-    # socket as owned by nobody. The vendor GUI must also keep the host UID
-    # view to verify that socket. Polkit, AppArmor, Electron's own sandbox and
-    # all session lifetime properties remain in place.
+    # socket as owned by nobody. Waypaper's post-command also validates the
+    # root-owned ancestors of the user's wallpaper state; the user namespace
+    # maps those ancestors to nobody and rejects every selection. These apps
+    # retain their AppArmor profiles and session lifetime properties.
     host_administration = (kind == "wayland" and arguments[0] in {
         "/usr/bin/foot", "/usr/bin/kitty", "/usr/bin/terminal-emulator",
         "/usr/bin/timeshift-launcher", "/usr/local/bin/mullvad-vpn",
+        "/usr/local/bin/waypaper",
     }) or (kind == "electron" and arguments[0] == "/opt/Mullvad VPN/mullvad-vpn")
     is_foot = kind == "wayland" and arguments[0] == "/usr/bin/foot"
     return [

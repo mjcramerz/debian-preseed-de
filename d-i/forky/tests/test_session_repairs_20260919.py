@@ -127,13 +127,15 @@ class VendorDesktopIncidentTests(unittest.TestCase):
     def setUp(self):
         self.helper = desktop_overrides.load_helper('incident_desktop_fixture')
 
-    def test_only_exact_lynis_command_is_requoted_and_terminal_is_preserved(self):
+    def test_only_exact_lynis_command_uses_managed_privileged_action(self):
         value = "su-to-root -c '/usr/sbin/lynis audit system --no-colors'"
         source = '[Desktop Entry]\nType=Application\nName=Lynis\nTerminal=true\nExec=' + value + '\n'
         repaired = self.helper.repair_known_vendor_entry('lynis.desktop', source)
-        self.assertIn('Exec=su-to-root -c "/usr/sbin/lynis audit system --no-colors"', repaired)
+        self.assertIn('Exec=/usr/local/bin/labwc-security-action --run audit-security-posture', repaired)
         output = self.helper.rewrite_desktop(repaired, '/usr/local/bin/labwc-wayland-app intel')
-        self.assertIn('Exec=/usr/local/bin/labwc-terminal -e su-to-root -c "', output)
+        self.assertIn('Exec=/usr/local/bin/labwc-terminal -e /usr/local/bin/labwc-security-action --run audit-security-posture', output)
+        self.assertIn('Terminal=false', output)
+        self.assertNotIn('su-to-root', output)
         self.assertEqual(self.helper.repair_known_vendor_entry('other.desktop', source), source)
         altered = source.replace('--no-colors', '--other-option')
         self.assertEqual(self.helper.repair_known_vendor_entry('lynis.desktop', altered), altered)

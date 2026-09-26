@@ -22,6 +22,8 @@ profile telegram-desktop /usr/bin/telegram-desktop flags=(attach_disconnected, m
   /usr/share/{TelegramDesktop,telegram-desktop}/** r,
   /usr/share/qt6ct/colors/ r,
   /usr/share/qt6ct/colors/** r,
+  /sys/devices/virtual/dmi/id/{bios_vendor,board_vendor} r,
+  owner @{PROC}/[0-9]*/task/[0-9]*/comm rw,
 
   owner @{HOME}/.cache/telegram-desktop/ rw,
   owner @{HOME}/.cache/telegram-desktop/** rwk,

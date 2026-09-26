@@ -22,6 +22,7 @@ profile sqlitebrowser /usr/bin/sqlitebrowser flags=(attach_disconnected, mediate
   # AppArmor's short-form write permission covers the audit operations for
   # creation and deletion; link and lock remain explicit.
   owner @{HOME}/.config/QtProject.conf rwkl,
+  owner @{HOME}/.config/QtProject.conf.* rwkl,
   owner @{HOME}/.config/QtProject.conf.lock rwkl,
   owner @{HOME}/.config/#[0-9]* rwkl,
   owner @{HOME}/.cache/sqlitebrowser/ rw,

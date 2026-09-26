@@ -113,6 +113,9 @@ profile waypaper /{usr/local/bin/waypaper,opt/waypaper/bin/waypaper,opt/waypaper
   /opt/waypaper/bin/waypaper rix,
   /opt/waypaper/pipx/venvs/waypaper/bin/waypaper rix,
   /opt/waypaper/pipx/venvs/waypaper/bin/python* rix,
+  # The session supervisor owns swaybg. A changed Waypaper backend must not
+  # start a second renderer alongside its post-command state handoff.
+  deny /usr/bin/swaybg x,
   /opt/waypaper/ r,
   /opt/waypaper/** mr,
   /usr/bin/bwrap rCx -> waypaper-bwrap,
@@ -180,12 +183,14 @@ profile waypaper /{usr/local/bin/waypaper,opt/waypaper/bin/waypaper,opt/waypaper
     ptrace (read) peer=unconfined,
     ptrace (read) peer=waypaper,
     ptrace (read) peer=waypaper//waypaper-bwrap,
+    ptrace (read) peer=session-controls,
     ptrace (read) peer=labwc-session,
     ptrace (read) peer=labwc-output-watch,
     ptrace (read) peer=labwc-plans,
 
     /usr/bin/ps mr,
     / r,
+    /dev/tty r,
     /dev/pts/[0-9]* r,
     /dev/tty[0-9]* r,
     /etc/{ld.so.cache,nsswitch.conf,passwd} r,
@@ -2265,6 +2270,8 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   profile app-bwrap flags=(attach_disconnected, mediate_deleted) {
     #include <abstractions/bwrap-common>
     #include <abstractions/bwrap-desktop-runtime>
+    # Preserve the no_new_privs domain for application-owned namespace probes.
+    /usr/bin/unshare rix,
     # The installed xdg-open handler dispatches through labwc-wayland-app.
     # Do not add Px/Ux transitions after Bubblewrap has set no_new_privs.
     #include <abstractions/wrapper-python>

@@ -183,6 +183,31 @@ class LocalLauncherPrecedence(unittest.TestCase):
         with mock.patch.object(self.module.os, 'lstat', side_effect=PermissionError), self.assertRaises(PermissionError):
             self.module.find_desktop_file(('app.desktop',))
 
+    def test_code_fallback_requires_trusted_executable_and_absent_sources(self):
+        config = next(config for config in self.module.APP_CONFIG if config['action_app'] == 'code')
+        self.assertIsNone(self.module.find_desktop_file(('code.desktop',)))
+        executable = self.root / 'code'
+        self.module.CODE_EXECUTABLE = str(executable)
+        self.assertIsNone(self.module.desktop_source(config))
+        executable.write_bytes(b'fixture')
+        executable.chmod(0o755)
+        if os.geteuid() == 0:
+            self.assertEqual(self.module.desktop_source(config),
+                             ('code.desktop', self.module.CODE_FALLBACK_DESKTOP))
+        else:
+            self.assertIsNone(self.module.desktop_source(config))
+        executable.chmod(0o775)
+        self.assertIsNone(self.module.desktop_source(config))
+        self.assertIn('Exec=/usr/bin/code %F', self.module.CODE_FALLBACK_DESKTOP)
+
+    def test_named_code_transition_and_waypaper_second_renderer_denial(self):
+        launcher = (TARGET / 'etc/apparmor.d/desktop-utilities').read_text()
+        profiles = (TARGET / 'etc/apparmor.d/desktop-wrappers.tmpl').read_text()
+        self.assertIn('/usr/share/code/{bin/code,code} rpx -> code,', launcher)
+        self.assertIn('profile code flags=(attach_disconnected)', profiles)
+        self.assertIn('include if exists <local/code>', profiles)
+        self.assertIn('deny /usr/bin/swaybg x,', profiles)
+
 
 class SessionReadiness(unittest.TestCase):
     def setUp(self):

@@ -22,6 +22,7 @@ profile desktop-editors /usr/bin/{featherpad,qimgv,kdiff3,gnumeric,xournalpp,gno
   /usr/share/** r,
   owner @{HOME}/.config/{featherpad,FeatherPad,kdiff3*,gnumeric,xournalpp,gnote,qalculate,qimgv}/ rw,
   owner @{HOME}/.config/{featherpad,FeatherPad,kdiff3*,gnumeric,xournalpp,gnote,qalculate,qimgv}/** rwklm,
+  owner @{HOME}/.config/wayscriber/config.toml r,
   owner @{HOME}/.config/{kdiff3rc,qalculaterc}* rwkl,
   # Tomat menu opens only this application-specific configuration directory.
   owner @{HOME}/.config/tomat/ rw,
@@ -192,6 +193,7 @@ profile desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exe
   ptrace (read) peer=tomat,
   ptrace (read) peer=labwc-notifications,
   ptrace (read) peer=labwc-plans,
+  ptrace (read) peer=labwc-tomat,
   ptrace (read) peer=labwc-session,
   ptrace (read) peer=session-controls,
   ptrace (read) peer=session-glycin-bwrap,
@@ -207,6 +209,10 @@ profile desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exe
   ptrace (read) peer=mullvad,
   ptrace (read) peer=obsidian,
   ptrace (read) peer=desktop-editors,
+  # A terminal can launch Code through its package shell trampoline. Transition
+  # before the first script exec instead of building null learning descendants.
+  /usr/bin/code rpx -> code,
+  /usr/share/code/{bin/code,code} rpx -> code,
   /usr/bin/** rPix,
   /usr/local/{bin,sbin,libexec}/** rPix,
   /usr/libexec/** rPix,
