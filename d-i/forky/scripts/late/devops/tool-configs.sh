@@ -326,59 +326,32 @@ devops_write_packer_config() {
   rm -f -- "$packer_config_tmp"
 }
 
-devops_initialize_packer_plugins() {
-  # shellcheck disable=SC2016
+devops_initialize_packer_plugins() (
+  set -eu
+  # Fetch through the authenticated installer payload, then run without root.
+  # Keep GitHub source identities in HCL; official binaries live at HashiCorp; Proxmox retains its pinned GitHub release.
+  packer_helper=/tmp/installer-packer-plugins.py
+  packer_helper_host="${target_root}${packer_helper}"
+  [ ! -e "$packer_helper_host" ] && [ ! -L "$packer_helper_host" ] ||
+    devops_fatal "temporary Packer plugin helper path already exists"
+  trap 'rm -f -- "$packer_helper_host"' EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  trap 'exit 129' HUP
+  bootstrap_fetch_seed_file \
+    "$seed_base" \
+    "$(installer_repo_join_var DIR_SCRIPTS_LATE packer-plugins.py)" \
+    "$packer_helper_host" 0644 "signed Packer plugin initializer"
+  chown root:root "$packer_helper_host"
+  packer_init_status=0
   devops_run_as_account \
     "initialize exact-version Packer plugins from the managed HCL template" \
-    /usr/bin/timeout \
-      --signal=TERM \
-      --kill-after=30s \
+    /usr/bin/timeout --signal=TERM --kill-after=30s \
       "${DEVOPS_PACKER_INIT_TIMEOUT_SECONDS}s" \
-      /bin/sh -eu -c '
-template_dir=$1
-packer_binary=$2
-plugin_root=$3
-template_file="${template_dir}/template.pkr.hcl"
-
-[ -d "$template_dir" ] && [ ! -L "$template_dir" ] || {
-  printf "fatal: managed Packer template directory is unavailable or unsafe: %s\n" "$template_dir" >&2
-  exit 1
-}
-[ -f "$template_file" ] && [ ! -L "$template_file" ] && [ -r "$template_file" ] || {
-  printf "fatal: managed Packer template is unavailable or unsafe: %s\n" "$template_file" >&2
-  exit 1
-}
-[ -x "$packer_binary" ] || {
-  printf "fatal: managed Packer executable is unavailable: %s\n" "$packer_binary" >&2
-  exit 1
-}
-[ -d "$plugin_root" ] && [ ! -L "$plugin_root" ] || {
-  printf "fatal: managed Packer plugin root is unavailable or unsafe: %s\n" "$plugin_root" >&2
-  exit 1
-}
-cd "$template_dir"
-"$packer_binary" init .
-installed_plugins=$("$packer_binary" plugins installed)
-for plugin in amazon ansible azure docker googlecompute proxmox qemu; do
-  printf "%s\n" "$installed_plugins" |
-    grep -Fq "github.com/hashicorp/${plugin}" || {
-      printf "fatal: required Packer plugin is missing after init: %s\n" "$plugin" >&2
-      exit 1
-    }
-  plugin_dir="${plugin_root}/github.com/hashicorp/${plugin}"
-  [ -d "$plugin_dir" ] && [ ! -L "$plugin_dir" ] || {
-    printf "fatal: required Packer plugin directory is missing: %s\n" "$plugin_dir" >&2
-    exit 1
-  }
-  find "$plugin_dir" -type f -name "packer-plugin-${plugin}_v*" -perm /0111 -print -quit |
-    grep -q . || {
-      printf "fatal: required Packer plugin executable is missing: %s\n" "$plugin" >&2
-      exit 1
-    }
-done
-' sh \
-      "${ACCOUNT_HOME}/.config/packer" \
-      "$DEVOPS_PACKER_BINARY_PATH" \
-      "$PACKER_PLUGIN_PATH"
-}
-
+    /usr/bin/python3 -I -B "$packer_helper" \
+      "${ACCOUNT_HOME}/.config/packer/template.pkr.hcl" \
+      "$DEVOPS_PACKER_BINARY_PATH" "$PACKER_PLUGIN_PATH" || packer_init_status=$?
+  rm -f -- "$packer_helper_host"
+  [ "$packer_init_status" -eq 0 ] ||
+    devops_fatal "signed exact-version Packer plugin initialization failed (${packer_init_status})"
+)

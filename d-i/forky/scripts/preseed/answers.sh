@@ -553,7 +553,7 @@ pkgsel_include_word_supported_for_selected_arch() {
   arch_class=$(selected_arch_class)
 
   case "$package_name" in
-    microsoft-edge-stable)
+    microsoft-edge-stable|rar)
       [ "$arch_class" = amd64 ]
       ;;
     *)

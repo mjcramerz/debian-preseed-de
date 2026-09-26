@@ -153,6 +153,7 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/bin/labwc-network-control-action /usr/local/bin/labwc-network-control-action 0755
   desktop_stage_role_asset usr/local/bin/labwc-firewall-menu /usr/local/bin/labwc-firewall-menu 0755
   desktop_stage_labwc_firewall_python_modules
+  desktop_stage_compz
   desktop_stage_role_asset usr/local/bin/labwc-firewall-action /usr/local/bin/labwc-firewall-action 0755
   desktop_stage_role_asset usr/local/bin/labwc-network-scan-menu /usr/local/bin/labwc-network-scan-menu 0755
   desktop_stage_labwc_network_scan_action_perl_modules

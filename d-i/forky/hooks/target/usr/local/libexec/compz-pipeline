@@ -1,0 +1,25 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib '/usr/local/lib/perl5/site_perl/labwc-compz';
+use CompzArchives::Pipeline;
+use JSON::PP ();
+%ENV = (PATH => '/usr/bin:/bin', HOME => '/nonexistent', LC_ALL => 'C.UTF-8',
+        TMPDIR => '/tmp', LRZIP => 'NOCONFIG');
+
+# Only the isolated worker calls this helper. Refuse a host-side invocation.
+open(my $profile, '<', '/proc/self/attr/current') or die "AppArmor is required\n";
+my $label = <$profile>;
+close($profile);
+die "compz worker confinement is required\n" unless $label =~ /^compz-worker \((?:enforce|complain)\)/;
+my $input = '';
+while (1) {
+    my $got = read(STDIN, my $block, 65536);
+    die "pipeline specification read failed\n" unless defined $got;
+    last unless $got;
+    $input .= $block;
+    die "pipeline specification too large\n" if length($input) > 1048576;
+}
+my $spec = JSON::PP->new->utf8->decode($input);
+die "invalid pipeline specification\n" unless ref($spec) eq 'HASH';
+exit CompzArchives::Pipeline->new(%$spec)->run();

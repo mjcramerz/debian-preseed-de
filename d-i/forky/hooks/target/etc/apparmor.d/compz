@@ -1,0 +1,39 @@
+# Managed by unattended-installer. The interactive frontend does not run codecs.
+# Only the transient service enters this profile; bubblewrap exports selected
+# input objects read-only and a private same-filesystem work directory writable.
+#include <tunables/global>
+
+profile compz-worker flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+  #include <abstractions/bwrap-common>
+
+  # During namespace construction bwrap must inspect caller-selected paths.
+  # After construction the only host data visible is /input and /work; all
+  # capabilities are dropped and further user namespaces are disabled.
+  /** r,
+  /usr/** mr,
+  /{,usr/}lib{,32,64}/** mr,
+  /usr/bin/python3{,.[0-9],.[0-9][0-9]} ix,
+  /usr/bin/perl{,5.[0-9]*} ix,
+  /usr/bin/bwrap ix,
+  /usr/bin/{gzip,bzip2,bzip3,xz,zstd,lz4,lzip,lrzip,rzip,kanzi,zpaq,zpaqfranz,rar,unrar,unrar-nonfree} ix,
+  /usr/bin/{gpg,gpgconf,gpg-agent} ix,
+  /usr/local/lib/compz/7zz ix,
+  /usr/local/libexec/compz-{worker,sandbox,pipeline} r,
+
+  /work/ rw,
+  /work/** rwk,
+  /tmp/ rw,
+  /tmp/** rwk,
+  # memfd arguments contain no secrets. bwrap consumes them before decoder exec.
+  /memfd:compz-args rw,
+  owner @{PROC}/@{pid}/fd/** rw,
+  owner @{PROC}/[0-9]*/{gid_map,setgroups,uid_map} rw,
+  @{PROC}/sys/user/max_user_namespaces rw,
+  # GnuPG's private agent uses sockets only inside the private /tmp tmpfs.
+  network unix stream,
+  signal (send, receive) peer=compz-worker,
+  signal (receive) peer=unconfined,
+  ptrace (read, trace) peer=compz-worker,
+  # No inet/inet6, user bus, Wayland, X11, SSH agent or host GPG agent access.
+}

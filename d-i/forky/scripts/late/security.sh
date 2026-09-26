@@ -677,6 +677,7 @@ EOF
 apparmor_managed_desktop_profile_files() {
   cat <<'EOF'
 desktop-wrappers
+compz
 document-applications
 labwc-session
 tomat

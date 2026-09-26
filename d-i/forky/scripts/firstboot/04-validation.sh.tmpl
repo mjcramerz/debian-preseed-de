@@ -369,7 +369,12 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     /usr/local/bin/labwc-recovery-action \
     /usr/local/bin/labwc-network-control-menu \
     /usr/local/bin/labwc-network-control-action \
-    /usr/local/bin/labwc-firewall-menu \
+    /usr/local/bin/compz \
+  /usr/local/libexec/compz-worker \
+  /usr/local/libexec/compz-sandbox \
+  /usr/local/libexec/compz-pipeline \
+  /usr/local/lib/compz/7zz \
+  /usr/local/bin/labwc-firewall-menu \
     /usr/local/bin/labwc-firewall-action \
     /usr/local/bin/labwc-network-scan-menu \
     /usr/local/bin/labwc-network-scan-action \
@@ -941,7 +946,8 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     labwc-recovery-action \
     labwc-network-control-menu \
     labwc-network-control-action \
-    labwc-firewall-menu \
+    compz \
+  labwc-firewall-menu \
     labwc-firewall-action \
     labwc-network-scan-menu \
     labwc-network-scan-action \
