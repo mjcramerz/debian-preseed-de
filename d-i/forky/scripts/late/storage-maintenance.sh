@@ -25,6 +25,7 @@ $1 == "install ok installed" {
     if (name != "") present[name] = 1
   }
 }
+
 END {
   n = split(requested, pkgs, /[ \t\n]+/)
   for (i = 1; i <= n; i++) {
@@ -93,6 +94,35 @@ END {
   [ "$repair_status" -eq 0 ] || return "$repair_status"
   [ "$cleanup_status" -eq 0 ] || return "$cleanup_status"
   [ -n "$missing_packages" ] || return 0
+}
+
+configure_target_xanmod_regulatory_database() {
+  # The selected XanMod kernels trust the upstream wireless-regdb signing
+  # certificates, not Debian's separate database signing certificate. Keep
+  # Debian's package and its paired signature under update-alternatives control.
+  case " ${INSTALLER_PKGSEL_INCLUDE:-} " in
+    *" linux-xanmod-x64v2 "*|*" linux-xanmod-x64v3 "*) ;;
+    *) return 0 ;;
+  esac
+  require_in_target "XanMod wireless regulatory database selection"
+  run_in_target "select packaged upstream wireless regulatory database for XanMod" /bin/sh -eu -c '
+    [ "$(dpkg-query -W -f="\${db:Status-Status}" wireless-regdb)" = installed ]
+    choice=
+    for candidate in /usr/lib/firmware/regulatory.db-upstream /lib/firmware/regulatory.db-upstream; do
+      if update-alternatives --query regulatory.db | grep -Fxq "Alternative: $candidate"; then
+        choice=$candidate
+        break
+      fi
+    done
+    [ -n "$choice" ]
+    [ -s "$choice" ]
+    [ -s "${choice%-upstream}.p7s-upstream" ]
+    update-alternatives --set regulatory.db "$choice"
+    [ -L /usr/lib/firmware/regulatory.db ]
+    [ -L /usr/lib/firmware/regulatory.db.p7s ]
+    [ "$(readlink -e /usr/lib/firmware/regulatory.db)" = "$(readlink -e "$choice")" ]
+    [ "$(readlink -e /usr/lib/firmware/regulatory.db.p7s)" = "$(readlink -e "${choice%-upstream}.p7s-upstream")" ]
+  '
 }
 
 managed_target_policy_assets() {

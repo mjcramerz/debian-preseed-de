@@ -61,7 +61,7 @@ class ThemeValidationTests(unittest.TestCase):
                              VALUES['WAYBAR_BUTTON_TERMINAL_HOVER_SHADOW_COLOR'])
         self.assertEqual(VALUES['WAYBAR_BUTTON_CLOCK_NORMAL_TEXT_COLOR'],
                          VALUES['WAYBAR_BUTTON_MENU_NORMAL_TEXT_COLOR'])
-        for button in ('FILES', 'NOTES', 'SLEEK', 'TERMINAL', 'TUTANOTA', 'TRAY', 'TASKBAR'):
+        for button in ('FILES', 'NOTES', 'SLEEK', 'TERMINAL', 'TUTANOTA', 'TASKBAR'):
             self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_NORMAL_OUTLINE_COLOR'],
                              'rgba(99, 135, 255, 0.48)')
         for button in ('BLUETOOTH', 'KEYBOARD', 'NETWORK', 'SCREENSHOT'):
@@ -76,14 +76,12 @@ class ThemeValidationTests(unittest.TestCase):
                              VALUES['WAYBAR_BUTTON_AUDIO_HOVER_SHADOW_COLOR'])
             self.assertNotEqual(VALUES[f'WAYBAR_BUTTON_{button}_HOVER_SHADOW_COLOR'],
                                 'rgba(0, 0, 0, 0)')
-            self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_NORMAL_OUTLINE_COLOR'],
-                             VALUES['WAYBAR_BUTTON_MENU_NORMAL_OUTLINE_COLOR'])
-            self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_HOVER_OUTLINE_COLOR'],
-                             VALUES['WAYBAR_BUTTON_WORKSPACES_HOVER_OUTLINE_COLOR'])
-            self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_NORMAL_BACKGROUND_COLOR'],
-                             VALUES['WAYBAR_BUTTON_AUDIO_NORMAL_BACKGROUND_COLOR'])
-            self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_HOVER_BACKGROUND_COLOR'],
-                             VALUES[f'WAYBAR_BUTTON_{button}_NORMAL_BACKGROUND_COLOR'])
+        for button in ('AUDIO', 'BACKLIGHT', 'BATTERY', 'CPU', 'DISK', 'MEMORY', 'SYSTEM'):
+            for state, background, outline in (
+                    ('NORMAL', 'rgba(14, 22, 42, 0.96)', 'rgba(123, 93, 183, 0.42)'),
+                    ('HOVER', 'rgba(30, 39, 71, 0.98)', 'rgba(177, 144, 246, 0.92)')):
+                self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_{state}_BACKGROUND_COLOR'], background)
+                self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_{state}_OUTLINE_COLOR'], outline)
         for menu in ('MENU', 'COMPUTER_MANAGEMENT_MENU'):
             self.assertEqual(VALUES[f'FUZZEL_{menu}_INPUT_TEXT_COLOR'], 'c4a4efff')
             self.assertEqual(VALUES[f'FUZZEL_{menu}_PROMPT_TEXT_COLOR'], 'c4a4efff')
