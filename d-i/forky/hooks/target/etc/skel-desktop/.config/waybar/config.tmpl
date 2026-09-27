@@ -41,7 +41,7 @@
   "custom/launcher": {
     "format": "Menu",
     "tooltip": false,
-    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --setenv=WAYBAR_OUTPUT_NAME -- labwc-main-menu"
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --setenv=LABWC_FUZZEL_OUTPUT_CLASS=INTERNAL -- labwc-main-menu"
   },
   "group/apps": {
     "orientation": "inherit",
@@ -418,7 +418,7 @@
   "custom/launcher": {
     "format": "Menu",
     "tooltip": false,
-    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --setenv=WAYBAR_OUTPUT_NAME -- labwc-main-menu"
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --setenv=LABWC_FUZZEL_OUTPUT_CLASS=EXTERNAL -- labwc-main-menu"
   },
   "group/apps": {
     "orientation": "inherit",

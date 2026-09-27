@@ -93,8 +93,11 @@ border width and border radius. `FUZZEL_LAUNCHER_<CLASS>_{WIDTH,LINES}` and
 `FUZZEL_MENU_<CLASS>_{WIDTH,LINES}` own mode dimensions. Management menus reuse
 menu geometry. DEFAULT is used only when no actual output is known.
 
-`labwc-fuzzel` selects explicit `--output`, then `WAYBAR_OUTPUT_NAME`, then
-DEFAULT with no output argument. All geometry is passed to the native binary;
+`labwc-fuzzel` selects explicit `--output`, then `WAYBAR_OUTPUT_NAME`. Named
+Waybar bars pass their INTERNAL or EXTERNAL class through the click service
+because Waybar does not provide `WAYBAR_OUTPUT_NAME` to click handlers. Without
+either an output or a bar class, the wrapper uses DEFAULT. A class hint selects
+geometry without inventing an output name. All geometry is passed to the native binary;
 the four configuration files share nested imports rather than monitor copies.
 Fonts and line heights use points with `dpi-aware=yes`.
 

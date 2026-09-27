@@ -179,9 +179,10 @@ class IntegrationContractTests(unittest.TestCase):
             for argument in ('--user', '--collect', '--service-type=exec', '--expand-environment=no',
                              '--property=Requisite=labwc-session.target', '--property=After=labwc-session.target',
                              '--property=PartOf=labwc-session.target', '--property=ExitType=cgroup',
-                             '--property=KillMode=control-group', '--property=TimeoutStopSec=20s',
-                             '--setenv=WAYBAR_OUTPUT_NAME'):
+                             '--property=KillMode=control-group', '--property=TimeoutStopSec=20s'):
                 self.assertIn(argument, click)
+        self.assertIn('--setenv=LABWC_FUZZEL_OUTPUT_CLASS=INTERNAL', clicks[0])
+        self.assertIn('--setenv=LABWC_FUZZEL_OUTPUT_CLASS=EXTERNAL', clicks[1])
         rc = render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/labwc/rc.xml.tmpl'))
         self.assertIn('labwc-run', rc)
         import xml.etree.ElementTree as ET

@@ -209,8 +209,8 @@ class FuzzelOutputSizingTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         self.assertIn(f'--config={self.config}/menu.ini', arguments)
-        self.assertIn('--width=28', arguments)
-        self.assertIn('--lines=10', arguments)
+        self.assertIn('--width=48', arguments)
+        self.assertIn('--lines=16', arguments)
         self.assertIn(
             '--font=Noto Sans:size=9,Noto Color Emoji:size=9,'
             'Font Awesome 6 Free:size=9,Symbols Nerd Font Mono:size=9',
@@ -235,10 +235,10 @@ class FuzzelOutputSizingTests(unittest.TestCase):
         self.assertFalse(arguments)
         self.assertIn(b'unsupported characters', result.stderr)
 
-    def test_profiles_and_renderer_define_compact_internal_dimensions(self):
+    def test_profiles_and_renderer_define_wide_internal_dimensions(self):
         expected = {
-            'FUZZEL_MENU_INTERNAL_WIDTH': '28',
-            'FUZZEL_MENU_INTERNAL_LINES': '10',
+            'FUZZEL_MENU_INTERNAL_WIDTH': '48',
+            'FUZZEL_MENU_INTERNAL_LINES': '16',
             'FUZZEL_INTERNAL_FONT_SIZE': '9',
             'FUZZEL_INTERNAL_HORIZONTAL_PADDING': '10',
             'FUZZEL_INTERNAL_VERTICAL_PADDING': '6',

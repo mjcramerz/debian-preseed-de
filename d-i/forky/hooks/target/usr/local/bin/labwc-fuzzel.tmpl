@@ -188,6 +188,13 @@ if [ -n "$fuzzel_output" ]; then
   output_class=EXTERNAL
   if fuzzel_output_is_internal "$fuzzel_output"; then output_class=INTERNAL; fi
   set -- "$@" "--output=${fuzzel_output}"
+elif [ -n "${LABWC_FUZZEL_OUTPUT_CLASS:-}" ]; then
+  # Waybar's click handlers do not export their output name. Each named bar
+  # supplies its fixed class; the compositor still chooses the actual output.
+  case "$LABWC_FUZZEL_OUTPUT_CLASS" in
+    INTERNAL|EXTERNAL) output_class=$LABWC_FUZZEL_OUTPUT_CLASS ;;
+    *) fatal 'invalid Fuzzel output class' ;;
+  esac
 fi
 
 if [ "$mode" = menu ]; then

@@ -49,6 +49,32 @@ class FuzzelSelectionTests(unittest.TestCase):
         self.assertFalse(any(arg.startswith('--output=') for arg in args))
         self.assertIn(':size=11',next(arg for arg in args if arg.startswith('--font=')))
 
+    def test_named_waybar_class_selects_geometry_without_fabricating_output(self):
+        for mode, prefix in (('launcher','LAUNCHER'),('menu','MENU'),
+                             ('computer-management','MENU')):
+            for cls in ('INTERNAL','EXTERNAL'):
+                with self.subTest(mode=mode, cls=cls):
+                    result,args=self.invoke(mode,extra_environment={'LABWC_FUZZEL_OUTPUT_CLASS':cls})
+                    self.assertEqual(result.returncode,0,result.stderr.decode())
+                    self.assertIn('--width='+self.environment[f'FUZZEL_{prefix}_{cls}_WIDTH'],args)
+                    self.assertIn('--lines='+self.environment[f'FUZZEL_{prefix}_{cls}_LINES'],args)
+                    self.assertIn(':size='+self.environment[f'FUZZEL_{cls}_FONT_SIZE'],
+                                  next(arg for arg in args if arg.startswith('--font=')))
+                    self.assertFalse(any(arg.startswith('--output=') for arg in args))
+
+    def test_actual_output_wins_over_bar_class_and_invalid_classes_fail_closed(self):
+        for options, output in (((), 'eDP-1'), (('--output=DP-1',), None)):
+            result,args=self.invoke('launcher',*options,output=output,
+                                    extra_environment={'LABWC_FUZZEL_OUTPUT_CLASS':'EXTERNAL' if output else 'INTERNAL'})
+            self.assertEqual(result.returncode,0,result.stderr.decode())
+            cls='INTERNAL' if output else 'EXTERNAL'
+            self.assertIn('--width='+self.environment[f'FUZZEL_LAUNCHER_{cls}_WIDTH'],args)
+        for value in ('external', 'INTERNAL;id', 'INTERNAL\nEXTERNAL'):
+            with self.subTest(value=value):
+                result,args=self.invoke('launcher',extra_environment={'LABWC_FUZZEL_OUTPUT_CLASS':value})
+                self.assertEqual(result.returncode,2)
+                self.assertEqual(args,[])
+
     def test_canonical_prefixes_and_external_connectors(self):
         for output, cls in (('eDP-1','INTERNAL'),('LVDS-1','INTERNAL'),('DSI-1','INTERNAL'),
                             ('DP-1','EXTERNAL'),('HDMI-A-1','EXTERNAL')):
@@ -142,10 +168,23 @@ class NativeLayoutTests(unittest.TestCase):
                 self.assertNotIn('*',internal['output'])
                 self.assertEqual(external['output'],['!'+name for name in internal['output']]+['*'])
                 self.assertEqual(len(internal['output']),len(set(internal['output'])))
-                for bar in (internal,external):
+                for bar, cls in ((internal,'INTERNAL'),(external,'EXTERNAL')):
                     self.assertIn('group/quick-controls',bar)
                     self.assertNotIn('group/quick-controls-internal',bar)
+                    click=bar['custom/launcher']['on-click']
+                    self.assertIn('--setenv=LABWC_FUZZEL_OUTPUT_CLASS='+cls,click)
+                    self.assertNotIn('--setenv=WAYBAR_OUTPUT_NAME',click)
                 self.assertNotIn('@import',assets['style.css'])
+
+    def test_every_profile_has_wide_internal_and_larger_external_fuzzel(self):
+        for profile in profiles():
+            with self.subTest(profile=profile.name):
+                values=geometry_environment(profile.name)
+                for mode in ('LAUNCHER','MENU'):
+                    self.assertEqual([int(values[f'FUZZEL_{mode}_{cls}_WIDTH']) for cls in
+                                      ('INTERNAL','EXTERNAL','DEFAULT')],[48,72,48])
+                    self.assertEqual([int(values[f'FUZZEL_{mode}_{cls}_LINES']) for cls in
+                                      ('INTERNAL','EXTERNAL','DEFAULT')],[16,22,16])
 
     def test_nonstandard_detected_internal_name_is_not_lost_to_the_wildcard(self):
         with tempfile.TemporaryDirectory() as tmp:

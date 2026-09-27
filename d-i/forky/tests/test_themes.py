@@ -32,6 +32,20 @@ Q = shlex.quote
 
 
 class ThemeValidationTests(unittest.TestCase):
+    def test_dock_and_waybar_render_dark_navy_surfaces(self):
+        dock = CHECKER['render_text']((TARGET / 'etc/skel-desktop/.config/crystal-dock/labwc/appearance.conf.tmpl').read_text(), VALUES)
+        css = CHECKER['render_text']((TARGET / 'etc/skel-desktop/.config/waybar/style.css.tmpl').read_text(), VALUES)
+        for key in ('DOCK_BACKGROUND_COLOR', 'DOCK_BACKGROUND_2D_COLOR',
+                    'DOCK_BACKGROUND_METAL_2D_COLOR'):
+            self.assertEqual(VALUES[key], '#e0081933')
+        for key in ('DOCK_ACTIVE_INDICATOR_COLOR', 'DOCK_INACTIVE_INDICATOR_COLOR',
+                    'DOCK_BORDER_COLOR'):
+            self.assertIn(VALUES[key], dock)
+        for native_key in ('backgroundColor', 'backgroundColor2D', 'backgroundColorMetal2D'):
+            self.assertIn(native_key + '=#e0081933', dock)
+        self.assertEqual(VALUES['WAYBAR_PANEL_BACKGROUND_COLOR'], 'rgba(3, 8, 19, 0.98)')
+        self.assertIn('background: rgba(3, 8, 19, 0.98);', css)
+
     def test_default_theme_is_light_and_requested_accents_match(self):
         self.assertEqual(VALUES['LABWC_DESKTOP_GTK_PREFER_DARK'], '0')
         self.assertEqual(VALUES['LABWC_DESKTOP_GTK_THEME'], 'Adwaita')
