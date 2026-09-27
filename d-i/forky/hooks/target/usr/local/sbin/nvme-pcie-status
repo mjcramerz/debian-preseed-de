@@ -1,0 +1,82 @@
+#!/usr/bin/python3 -I
+"""Read-only evidence for the device-specific NVMe link-idle policy."""
+from __future__ import annotations
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import sys
+
+PCI_ROOT = Path('/sys/bus/pci/devices')
+DEVICE_ROOT = Path('/sys/devices')
+CONTROLS = ('l0s_aspm', 'l1_aspm', 'clkpm')
+
+
+def read_attribute(path: Path) -> str | None:
+    """Absent means unavailable, never zero errors or a verified disable."""
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except FileNotFoundError:
+        return None
+    with os.fdopen(fd, 'r', encoding='ascii', errors='strict') as stream:
+        meta = os.fstat(stream.fileno())
+        if not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0:
+            raise ValueError('unsafe sysfs attribute')
+        text = stream.read(8193)
+    if len(text) > 8192:
+        raise ValueError('oversized sysfs attribute')
+    return text.strip()
+
+
+def snapshot() -> list[dict]:
+    devices = []
+    entries = sorted(PCI_ROOT.iterdir())
+    if len(entries) > 65536:
+        raise ValueError('oversized PCI device listing')
+    for entry in entries:
+        if not re.fullmatch(r'[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]', entry.name):
+            raise ValueError('invalid PCI device address')
+        # /sys/bus/pci/devices contains kernel-owned symlinks. Permit those
+        # only into the kernel device tree; all final attribute opens are nofollow.
+        device = entry.resolve(strict=True)
+        if not device.is_relative_to(DEVICE_ROOT.resolve(strict=True)) or device.name != entry.name:
+            raise ValueError('PCI device escapes the kernel device tree')
+        if (read_attribute(device / 'vendor'), read_attribute(device / 'device'),
+                read_attribute(device / 'class')) != ('0x15b7', '0x5006', '0x010802'):
+            continue
+        link = device / 'link'
+        if link.is_symlink():
+            raise ValueError('unexpected symlink for PCI link attributes')
+        controls = {}
+        for name in CONTROLS:
+            value = read_attribute(link / name)
+            if value not in {None, '0', '1'}:
+                raise ValueError('invalid link control value')
+            controls[name] = None if value is None else value == '1'
+        available = [v for v in controls.values() if v is not None]
+        state = ('unavailable-kernel-or-firmware-owned' if not available else
+                 'available-controls-disabled' if not any(available) else 'link-idle-still-enabled')
+        # Correctable counts are cumulative; their presence is not a media
+        # health verdict. No serial numbers or namespace contents are read.
+        devices.append({'pci_address': entry.name, 'pci_id': '15b7:5006',
+                        'policy_state': state, 'link_idle_enabled': controls,
+                        'aer_correctable': read_attribute(device / 'aer_dev_correctable'),
+                        'current_link_speed': read_attribute(device / 'current_link_speed'),
+                        'current_link_width': read_attribute(device / 'current_link_width')})
+    return devices
+
+
+def main(argv: list[str]) -> int:
+    if argv:
+        raise ValueError('usage: nvme-pcie-status (read-only, no arguments)')
+    print(json.dumps({'devices': snapshot(), 'hardware_health_verified': False}, sort_keys=True))
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except (OSError, ValueError, UnicodeError) as exc:
+        print(f'nvme-pcie-status: {exc}', file=sys.stderr)
+        sys.exit(1)

@@ -893,6 +893,10 @@ do
   require_absent "/etc/systemd/user/${legacy_user_unit}"
 done
 
+require_executable /usr/libexec/hyprpolkitagent
+require_executable /usr/local/libexec/labwc-hyprpolkit-agent
+/usr/local/libexec/labwc-hyprpolkit-agent --check
+
 require_executable /usr/local/lib/android-sdk/platform-tools/adb
 require_executable /usr/local/lib/android-sdk/platform-tools/fastboot
 require_readable /usr/local/lib/android-sdk/platform-tools/source.properties

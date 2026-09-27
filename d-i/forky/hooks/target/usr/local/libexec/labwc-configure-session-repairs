@@ -214,11 +214,21 @@ def main():
     if len(text) > 65536:
         raise RuntimeError('oversized sudo-i PAM configuration')
     line = 'session optional pam_env.so conffile=/etc/security/sudo-i.conf readenv=0 user_readenv=0'
-    if line not in text.splitlines():
-        pattern = r'(?m)^(@include[ \t]+common-session[ \t]*)$'
-        if len(re.findall(pattern, text)) != 1:
-            raise RuntimeError('unexpected sudo-i session stack; refusing to change PAM')
-        text = re.sub(pattern, '# Managed: root shell uses user-early-light (systemd >=258).\n' + line + '\n' + r'\1', text)
+    old_text = text
+    text = text.replace('# Managed: root shell uses user-early-light (systemd >=258).',
+                        '# Managed: sudo-i stays in the invoking session (systemd >=258).')
+    pattern = r'(?m)^(@include[ \t]+common-session[ \t]*)$'
+    matches = list(re.finditer(pattern, text))
+    active_lines = [item for item in text.splitlines() if not item.lstrip().startswith('#')]
+    managed_lines = [item for item in active_lines if '/etc/security/sudo-i.conf' in item]
+    managed_match = re.search(r'(?m)^' + re.escape(line) + r'$', text)
+    if (len(matches) != 1 or managed_lines not in ([], [line])
+            or (managed_lines and (managed_match is None
+                                   or managed_match.start() >= matches[0].start()))):
+        raise RuntimeError('unexpected sudo-i session stack; refusing to change PAM')
+    if not managed_lines:
+        text = re.sub(pattern, '# Managed: sudo-i stays in the invoking session (systemd >=258).\n' + line + '\n' + r'\1', text)
+    if text != old_text:
         replace(path, text, meta)
     cron = Path('/etc/pam.d/cron')
     if cron.exists() or cron.is_symlink():

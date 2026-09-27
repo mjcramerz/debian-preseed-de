@@ -290,6 +290,8 @@ desktop_stage_target_assets() {
   # activate the desktop secret-service stack. Debian's D-Bus activation owns
   # the on-demand kwalletd6 compatibility daemon.
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-kwallet-portal.service /etc/skel-desktop/.config/systemd/user/labwc-kwallet-portal.service 0644
+  desktop_stage_role_asset usr/local/libexec/labwc-hyprpolkit-agent /usr/local/libexec/labwc-hyprpolkit-agent 0755 || return 1
+  run_in_target "verify packaged Hyprpolkit Labwc compatibility" /usr/local/libexec/labwc-hyprpolkit-agent --check || return 1
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-output-watch.service /etc/skel-desktop/.config/systemd/user/labwc-output-watch.service 0644
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/codex-app-server.service /etc/skel-desktop/.config/systemd/user/codex-app-server.service 0644
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/codex-app-server-proxy.service /etc/skel-desktop/.config/systemd/user/codex-app-server-proxy.service 0644

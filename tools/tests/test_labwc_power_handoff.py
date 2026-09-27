@@ -11,6 +11,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'd-i/forky/tests'))
 from payload_fixture import read_text as payload_read_text, installed_script as payload_installed_script, python_library as payload_python_library
 from theme_fixture import render_theme_defaults
+from power_handoff_fixture import handoff_argv, is_handoff
 import stat
 import subprocess
 import tempfile
@@ -39,7 +40,8 @@ class PowerWorkerTests(unittest.TestCase):
     def setUp(self):
         self.calls = []
         self.failure = None
-        self.runtime_stopped = False
+        self.active_guest = False
+        self.guest_stopped = False
         self.stack = contextlib.ExitStack()
         self.addCleanup(self.stack.close)
         self.stack.enter_context(mock.patch.object(power, 'run', side_effect=self.mock_run))
@@ -49,36 +51,34 @@ class PowerWorkerTests(unittest.TestCase):
         self.stack.enter_context(mock.patch.object(power, 'hold_reservation'))
         self.stack.enter_context(mock.patch.object(power, 'PackageLocks'))
         self.stack.enter_context(mock.patch.object(power.Worker, 'session_identity', return_value='a' * 32))
-        hierarchy = self.stack.enter_context(mock.patch.object(power, 'CGROUP_ROOT'))
-        (hierarchy / 'cgroup.controllers').is_file.return_value = True
-        self.stack.enter_context(mock.patch.object(power, 'cgroup_populated', return_value=False))
 
     def mock_run(self, argv, **kwargs):
         self.calls.append(argv)
         if self.failure and self.failure(argv):
             raise power.Error('injected failure')
-        if argv[0] == '/usr/bin/busctl':
+        if argv[-1] == 'ListSessions':
+            return json.dumps({'type': 'a(susso)', 'data': [[
+                ['c1', 1000, 'desktop', 'seat0', '/org/freedesktop/login1/session/c1']]]})
+        if argv[-1] == 'ListInhibitors':
             return json.dumps({'type': 'a(ssssuu)', 'data': [[]]})
-        if 'stop' in argv and 'user@1000.service' in argv:
-            self.runtime_stopped = True
-        if '--property=' + power.RUNTIME_PROPERTIES in argv:
-            return '\n\n'.join('\n'.join((
-                'Id=' + name, 'LoadState=loaded',
-                'ActiveState=' + ('inactive' if self.runtime_stopped else 'active'),
-                'Job=0', 'MainPID=' + ('0' if self.runtime_stopped or name.endswith('.socket') else '123'),
-                'ControlPID=0', 'ControlGroup=' + power.runtime_cgroup(name)))
-                for name in (*power.RUNTIME_FIXED_UNITS, 'user@1000.service'))
+        if '--property=Class' in argv:
+            return 'user\n'
         if '--property=ActiveState,SubState,Result,ExecMainStatus' in argv:
             return 'ActiveState=active\nSubState=exited\nResult=success\nExecMainStatus=0\n'
-        if '--property=ConsistsOf' in argv:
-            return ''
-        if '--property=Id,LoadState,ActiveState,Job,MainPID,ControlPID' in argv:
-            return '\n\n'.join('Id=' + name + '\nLoadState=loaded\nActiveState=inactive\nJob=0\nMainPID=0\nControlPID=0'
-                                for name in ('labwc-session.target','labwc-compositor.service'))
         if '--property=LoadState,ActiveState' in argv:
+            if self.active_guest and 'podman-devops-restart.service' in argv:
+                return 'LoadState=loaded\nActiveState=active\n'
             return 'LoadState=not-found\nActiveState=inactive\n'
+        if 'stop' in argv and 'podman-devops-restart.service' in argv:
+            self.guest_stopped = True
+        if '--property=ActiveState,Result' in argv:
+            self.assertTrue(self.guest_stopped)
+            return 'ActiveState=inactive\nResult=success\n'
         if '--property=ActiveState' in argv:
             return 'inactive\n'
+        if is_handoff(argv):
+            self.assertEqual(argv, handoff_argv(argv[-1]))
+            self.assertEqual(kwargs, {'timeout': 25, 'max_output': 4096})
         return ''
 
     def execute(self, action):
@@ -86,26 +86,30 @@ class PowerWorkerTests(unittest.TestCase):
         worker.execute()
         return worker
 
-    def test_reboot_and_poweroff_wait_for_quiescence_then_clean_runtime_cgroups(self):
+    def test_both_actions_prepare_and_drain_guests_before_single_force(self):
         for action in ('reboot', 'poweroff'):
             with self.subTest(action=action):
                 self.calls.clear()
-                self.runtime_stopped = False
+                self.active_guest = True
+                self.guest_stopped = False
                 self.execute(action)
-                prepare = next(i for i, c in enumerate(self.calls) if c[-2:] == ['start', 'labwc-session-state@prepare.service'])
-                stop = next(i for i, c in enumerate(self.calls) if c[-3:] == ['stop', 'labwc-session.target', 'labwc-compositor.service'])
-                final = self.calls.index(['/usr/bin/systemctl', '--force', '--no-ask-password', action])
-                self.assertLess(prepare, stop)
-                self.assertLess(stop, final)
-                runtime = next(i for i,c in enumerate(self.calls) if '--no-block' in c and 'greetd.service' in c)
-                managers = next(i for i,c in enumerate(self.calls) if 'stop' in c and 'user@1000.service' in c)
-                self.assertLess(stop, runtime)
-                self.assertLess(runtime, managers)
-                self.assertLess(managers, final)
-                self.assertFalse(any(c[0] != '/usr/bin/systemctl' or '--user' in c for c in self.calls[managers:]))
-                self.assertFalse(any('kill' in c or 'dbus-broker.service' in c for c in self.calls))
-                self.assertFalse(any('terminate-user' in c or c[0].endswith(('/pkill','/pgrep')) for c in self.calls))
-                self.assertFalse(any(command.count('--force') > 1 for command in self.calls))
+                prepare = next(i for i, c in enumerate(self.calls)
+                               if c[-2:] == ['start', 'labwc-session-state@prepare.service'])
+                guests = next(i for i, c in enumerate(self.calls)
+                              if 'stop' in c and 'podman-devops-restart.service' in c)
+                final = self.calls.index(['/usr/bin/systemctl', '--force', action])
+                self.assertLess(prepare, guests)
+                self.assertLess(guests, final)
+                self.assertEqual(final, len(self.calls) - 1)
+                self.assertEqual(sum(is_handoff(c) for c in self.calls), 1)
+                self.assertEqual(sum(c.count('--force') for c in self.calls), 1)
+                self.assertFalse(any('kill' in c or 'terminate-user' in c
+                                     or 'labwc-compositor.service' in c
+                                     or 'greetd.service' in c or 'seatd.service' in c
+                                     or 'dbus-broker.service' in c for c in self.calls))
+                self.assertFalse(any('RebootWithFlags' in c or 'PowerOffWithFlags' in c
+                                     for c in self.calls))
+        self.assertEqual(self.sync.call_count, 2)
 
     def test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps(self):
         self.execute('suspend')
@@ -127,8 +131,9 @@ class PowerWorkerTests(unittest.TestCase):
             self.execute('poweroff')
         self.assertFalse(any(('stop' in c and c[-1] != 'labwc-session-state@prepare.service') or '--force' in c or c[0].endswith('/pkill') for c in self.calls))
 
-    def test_failed_target_stop_never_reaches_forced_power(self):
-        self.failure = lambda command: command[-2:] == ['labwc-session.target', 'labwc-compositor.service']
+    def test_failed_guest_stop_never_reaches_forced_power(self):
+        self.active_guest = True
+        self.failure = lambda command: 'stop' in command and 'podman-devops-restart.service' in command
         with self.assertRaises(power.Error):
             self.execute('reboot')
         self.assertFalse(any('--force' in c or 'terminate-user' in c for c in self.calls))
@@ -140,14 +145,8 @@ class PowerWorkerTests(unittest.TestCase):
         self.assertFalse(any('--force' in c for c in self.calls))
 
     def test_other_interactive_account_blocks_machine_action(self):
-        def run(argv, **kwargs):
-            self.calls.append(argv)
-            if 'list-sessions' in argv:
-                return 'c1 1000 desktop - -\nc2 1001 other - -\n'
-            if 'show-session' in argv:
-                return 'user\n'
-            return ''
-        with mock.patch.object(power, 'run', side_effect=run), self.assertRaisesRegex(power.Error, 'another interactive'):
+        with mock.patch.object(power, 'login_sessions', return_value=[('c1', 1000), ('c2', 1001)]), \
+             self.assertRaisesRegex(power.Error, 'another interactive'):
             self.execute('poweroff')
         self.assertFalse(any(c[-1] == 'labwc-session-state@prepare.service' or '--force' in c for c in self.calls))
 
@@ -285,7 +284,7 @@ class WiringTests(unittest.TestCase):
     def test_root_worker_keeps_nnp_with_inherited_command_confinement(self):
         unit = payload_read_text(TARGET / 'etc/systemd/system/labwc-admin-action@.service')
         self.assertIn('NoNewPrivileges=yes', unit)
-        self.assertIn('CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_KILL\n', unit)
+        self.assertIn('CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_KILL CAP_SYS_BOOT\n', unit)
         profiles = payload_read_text(TARGET / 'etc/apparmor.d/desktop-wrappers')
         worker = profiles.split('profile labwc-admin-action-worker ', 1)[1].split('\n}', 1)[0]
         self.assertIn('/usr/bin/{systemctl,systemd-run,loginctl,busctl,sync} rix,', worker)

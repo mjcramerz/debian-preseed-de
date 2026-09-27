@@ -52,11 +52,12 @@ class SourceLayout(unittest.TestCase):
         self.assertNotIn('power-log-capture',worker)
         unit=read_text(TARGET/'etc/systemd/system/labwc-admin-action@.service')
         self.assertIn('StandardOutput=append:/var/lib/journal/power/action-%i.log',unit)
-        self.assertIn('StandardError=inherit',unit)
+        self.assertIn('StandardError=journal',unit)
         self.assertIn('sync="on"',read_text(TARGET/'etc/rsyslog.d/19-power.conf'))
     def test_firstboot_import_is_after_real_mounts(self):
         unit=read_text(FORKY/'scripts/firstboot/assets/etc/systemd/system/firstboot.service')
-        self.assertIn('After=local-fs.target systemd-tmpfiles-setup.service',unit)
+        after = next(line.split('=', 1)[1].split() for line in unit.splitlines() if line.startswith('After='))
+        self.assertLessEqual({'apparmor.service', 'local-fs.target', 'systemd-tmpfiles-setup.service'}, set(after))
         self.assertIn('/var/lib/firstboot/lib/import-initramfs.py',read_text(FORKY/'scripts/firstboot/02-collect.sh'))
         cleanup=read_text(FORKY/'scripts/firstboot/assets/var/lib/firstboot/bin/secondboot-cleanup')
         for name in ('/var/lib/firstboot/lib','/etc/apparmor.d/firstboot','/run/initramfs-health'):

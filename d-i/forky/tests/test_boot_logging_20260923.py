@@ -240,7 +240,7 @@ class BootLogTests(unittest.TestCase):
     def test_power_action_output_is_native_append_with_private_mode(self):
         unit = read_text(TARGET / 'etc/systemd/system/labwc-admin-action@.service')
         self.assertIn('StandardOutput=append:/var/lib/journal/power/action-%i.log', unit)
-        self.assertIn('StandardError=inherit', unit)
+        self.assertIn('StandardError=journal', unit)
         self.assertIn('UMask=0077', unit)
         self.assertIn('RequiresMountsFor=/var/lib/journal/power', unit)
         self.assertNotIn('journal-snapshot', unit)

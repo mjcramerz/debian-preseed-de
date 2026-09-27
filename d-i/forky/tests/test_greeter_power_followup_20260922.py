@@ -4,6 +4,7 @@ Shell fixtures change only absolute executable paths to isolated test adapters.
 Worker tests execute production flow with every host transport intercepted.
 """
 from __future__ import annotations
+from power_handoff_fixture import handoff_argv, is_handoff
 from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists
 from payload_fixture import read_text as payload_read_text
 import ast
@@ -205,8 +206,14 @@ class GreeterFlowTests(unittest.TestCase):
             return session_listing('c1 109 greeter seat0 321 greeter tty1 no -\n')
         if argv[0] == '/usr/bin/loginctl':
             return self.greeter_properties
-        if argv[0] == '/usr/bin/busctl':
+        if argv[-1] == 'ListInhibitors':
             return json.dumps(dict(type='a(ssssuu)', data=[self.inhibitors]))
+        if is_handoff(argv):
+            action = argv[-1]
+            self.assertEqual(argv, handoff_argv(action))
+            self.assertEqual(kwargs, {'timeout': 25, 'max_output': 4096})
+            self.assertGreater(self.reservation.return_value.__enter__.return_value.verify.call_count, 0)
+            return ''
         self.assertEqual(argv[0], '/usr/bin/systemctl')
         if '--property=LoadState,ActiveState' in argv:
             if self.active_guest and 'podman-devops-restart.service' in argv:
@@ -217,11 +224,6 @@ class GreeterFlowTests(unittest.TestCase):
         if argv == ['/usr/bin/systemctl', '--no-ask-password', 'start', 'power-log-capture.service']:
             self.assertTrue(self.stopped)
             self.assertEqual(kwargs, {'timeout': 95})
-            return ''
-        if '--force' in argv:
-            self.assertEqual(argv.count('--force'), 1)
-            self.assertIn(argv[-1], ('reboot', 'poweroff'))
-            self.assertGreater(self.reservation.return_value.__enter__.return_value.verify.call_count, 0)
             return ''
         self.fail(f'unexpected host transport: {argv}')
 
@@ -236,9 +238,9 @@ class GreeterFlowTests(unittest.TestCase):
             with self.subTest(action=action):
                 self.calls.clear()
                 worker = self.execute(action)
-                final = ['/usr/bin/systemctl', '--force', '--no-ask-password', action]
+                final = handoff_argv(action)
                 self.assertEqual(self.calls[-1], final)
-                self.assertEqual(sum('--force' in call for call in self.calls), 1)
+                self.assertEqual(sum(is_handoff(call) for call in self.calls), 1)
                 capture = ['/usr/bin/systemctl', '--no-ask-password', 'start', 'power-log-capture.service']
                 self.assertEqual(self.calls.count(capture), 0)
                 self.assertFalse(any('stop' in call for call in self.calls))
@@ -251,20 +253,21 @@ class GreeterFlowTests(unittest.TestCase):
         self.fail_on = lambda argv: 'power-log-capture.service' in argv
         self.execute()
         self.assertEqual(sum('power-log-capture.service' in c for c in self.calls), 0)
-        self.assertEqual(sum('--force' in c for c in self.calls), 1)
-        self.assertEqual(self.calls[-1], ['/usr/bin/systemctl', '--force', '--no-ask-password', 'reboot'])
+        self.assertEqual(sum(is_handoff(c) for c in self.calls), 1)
+        self.assertEqual(self.calls[-1], handoff_argv('reboot'))
 
-    def test_known_inhibitor_does_not_veto_authorized_greeter_force(self):
+    def test_known_inhibitor_vetoes_authorized_greeter_handoff(self):
         self.inhibitors = [['shutdown', 'editor', 'unsaved', 'block', 1000, 900]]
-        self.execute()
-        self.assertEqual(sum('--force' in c for c in self.calls), 1)
+        with self.assertRaisesRegex(self.power.Error, 'inhibited'):
+            self.execute()
+        self.assertEqual(sum(is_handoff(c) for c in self.calls), 0)
         self.assertFalse(any('stop' in c for c in self.calls))
 
     def test_identity_change_after_package_wait_never_stops_a_session(self):
         self.reservation.return_value.__enter__.side_effect = lambda: self.change_identity()
         with self.assertRaisesRegex(self.power.Error, 'greeter session changed'):
             self.execute()
-        self.assertFalse(any('--force' in c or 'stop' in c for c in self.calls))
+        self.assertFalse(any(is_handoff(c) or 'stop' in c for c in self.calls))
 
     def change_identity(self):
         self.greeter_properties = session(Leader='999')
@@ -275,14 +278,14 @@ class GreeterFlowTests(unittest.TestCase):
         self.fail_on = lambda argv: 'stop' in argv and 'podman-devops-restart.service' in argv
         with self.assertRaises(self.power.Error):
             self.execute()
-        self.assertFalse(any('--force' in c for c in self.calls))
+        self.assertFalse(any(is_handoff(c) for c in self.calls))
         self.hold.assert_not_called()
 
     def test_uncertain_handoff_is_not_retried(self):
-        self.fail_on = lambda argv: '--force' in argv
+        self.fail_on = lambda argv: is_handoff(argv)
         with self.assertRaisesRegex(self.power.Error, 'do not retry automatically'):
             self.execute()
-        self.assertEqual(sum('--force' in c for c in self.calls), 1)
+        self.assertEqual(sum(is_handoff(c) for c in self.calls), 1)
         self.hold.assert_not_called()
 
 
@@ -375,7 +378,7 @@ class WiringTests(unittest.TestCase):
         source = payload_read_text(ROOT / 'd-i/forky/scripts/firstboot/04-validation.sh')
         for expected in ('desktop-greeter-power-handoff', 'ProtectHome=read-only',
                          'InaccessiblePaths=/home /root', 'greeter_identity',
-                         '--force", "--no-ask-password", self.action'):
+                         'run(["/usr/bin/systemctl", "--force", self.action],'):
             self.assertIn(expected, source)
 
     @unittest.skipUnless(shutil.which('node'), 'node is required to exercise polkit JavaScript')

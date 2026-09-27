@@ -23,142 +23,88 @@ def module():
     return result
 
 
-class QuiescenceTests(unittest.TestCase):
+class OrderlyLifecycleTests(unittest.TestCase):
     def setUp(self):
         self.power = module()
         self.worker = self.power.Worker(1000, 'desktop', 'reboot')
-        self.worker.package_locks = mock.Mock()  # acquired gate fixture; real locks tested separately
-        self.members = {'labwc-session.target', 'labwc-compositor.service',
-                        'labwc-wayland-foot-0123456789.service', 'waybar.service', 'labwc-swayidle.service'}
-        self.addCleanup(mock.patch.stopall)
-        mock.patch.object(self.power, 'run', side_effect=AssertionError('unexpected unmocked command')).start()
-        self.sink = contextlib.redirect_stderr(io.StringIO()); self.sink.__enter__()
-        self.addCleanup(self.sink.__exit__, None, None, None)
+        self.events = []
+        self.stack = contextlib.ExitStack()
+        self.addCleanup(self.stack.close)
+        self.stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+        self.stack.enter_context(mock.patch.object(self.power, 'ready'))
+        self.stack.enter_context(mock.patch.object(self.power, 'PackageLocks'))
+        self.stack.enter_context(mock.patch.object(self.power, 'hold_reservation',
+                                                   side_effect=lambda: self.events.append('hold')))
+        self.stack.enter_context(mock.patch.object(self.power, 'run',
+                                                   side_effect=AssertionError('unmocked host command')))
+        self.stack.enter_context(mock.patch.object(self.power, 'check_shutdown_inhibitors',
+                                                   side_effect=lambda: self.events.append('inhibitors')))
+        self.stack.enter_context(mock.patch.object(self.worker, 'session_identity', return_value='a'*32))
+        for name in ('protect_other_sessions', 'helper', 'stop_optional_guests'):
+            self.stack.enter_context(mock.patch.object(self.worker, name,
+                side_effect=lambda *args, method=name: self.events.append((method, args))))
+        self.stack.enter_context(mock.patch.object(self.worker, 'userctl',
+                                                   side_effect=AssertionError('premature user teardown')))
+        self.final = self.stack.enter_context(mock.patch.object(self.worker, 'final_power_action',
+                                               side_effect=self.handoff))
 
-    def states(self, *, change=None, omit=None):
-        blocks = []
-        for name in sorted(self.members):
-            if name == omit:
-                continue
-            props = dict(Id=name, LoadState='loaded', ActiveState='inactive', Job='0', MainPID='0', ControlPID='0')
-            if name == 'labwc-wayland-foot-0123456789.service' and change:
-                props.update(change)
-            blocks.append('\n'.join(k + '=' + v for k, v in props.items()))
-        return '\n\n'.join(blocks) + '\n'
+    def handoff(self):
+        self.assertTrue(self.worker.prepared)
+        self.assertFalse(self.worker.committed)
+        self.assertIsNotNone(self.worker.package_locks)
+        self.events.append('handoff')
 
-    def transport(self, states=None, stop_error=None):
-        def call(*args, **kwargs):
-            self.assertFalse(set(args) & BARRIERS)
-            self.assertNotIn('dbus.service', args)
-            self.assertNotIn('dbus-broker.service', args)
-            self.assertNotIn('dbus.socket', args)
-            if args[0] == 'stop':
-                self.assertTrue(self.worker.committed)
-                self.assertNotIn('--no-block', args)
-                self.assertEqual(set(args[1:]), {'labwc-session.target','labwc-compositor.service'})
-                if stop_error:
-                    raise stop_error
-                return ''
-            if '--property=ConsistsOf' in args:
-                return ' '.join(sorted(self.members - {'labwc-session.target', 'labwc-compositor.service'}))
-            self.assertEqual(args[:3], ('show', '--property=Id,LoadState,ActiveState,Job,MainPID,ControlPID', '--'))
-            return self.states() if states is None else states
-        return mock.patch.object(self.worker, 'userctl', side_effect=call)
-
-    def test_stop_waits_for_every_client_and_compositor_and_verifies_before_handoff(self):
-        with self.transport() as userctl:
-            self.worker.quiesce_desktop()
-        self.assertTrue(self.worker.quiesced)
-        self.assertEqual([c.args[0] for c in userctl.call_args_list], ['show', 'stop', 'show', 'show'])
-        self.assertEqual(userctl.call_args_list[1].kwargs['timeout'], 120)
-
-    def test_closed_user_bus_requires_pid1_to_confirm_manager_exited(self):
-        gone = ('LoadState=loaded\nActiveState=inactive\nJob=0\n'
-                'MainPID=0\nControlPID=0\n')
-        for reply, expected in ((gone, True),
-                                (gone.replace('MainPID=0', 'MainPID=481'), False),
-                                (gone + 'ActiveState=inactive\n', False),
-                                ('', False)):
-            with self.subTest(reply=reply):
-                self.worker.quiesced = self.worker.committed = False
-                with mock.patch.object(self.worker, 'desktop_members', return_value=self.members), \
-                     mock.patch.object(self.worker, 'userctl',
-                                       side_effect=['', self.power.Error('user bus closed')]), \
-                     mock.patch.object(self.power, 'run', return_value=reply) as system:
-                    if expected:
-                        self.worker.quiesce_desktop()
-                        self.assertTrue(self.worker.quiesced)
-                    else:
-                        with self.assertRaises(self.power.Error):
-                            self.worker.quiesce_desktop()
-                        self.assertFalse(self.worker.quiesced)
-                    self.assertEqual(system.call_args.args[0][2], 'user@1000.service')
-
-    def test_active_deactivating_pending_job_and_live_pids_prevent_handoff(self):
-        for change in ({'ActiveState': 'active'}, {'ActiveState': 'deactivating'},
-                       {'Job': '243'}, {'MainPID': '832'}, {'ControlPID': '122'}, {'ActiveState': ''}):
-            with self.subTest(change=change):
-                self.worker.quiesced = False
-                with self.transport(self.states(change=change)), self.assertRaises(self.power.Error):
-                    self.worker.quiesce_desktop()
-                self.assertFalse(self.worker.quiesced)
-                with self.assertRaises(self.power.Error):
-                    self.worker.final_power_action()
+    def test_prepared_desktop_is_not_stopped_before_native_handoff(self):
+        self.worker.execute()
+        self.assertEqual(self.events[-2:], ['handoff', 'hold'])
+        self.assertLess(self.events.index(('helper', ('prepare',))), self.events.index('handoff'))
+        self.assertLess(self.events.index(('stop_optional_guests', ())), self.events.index('handoff'))
+        self.worker.userctl.assert_not_called()
         self.power.run.assert_not_called()
 
-    def test_terminal_failure_without_processes_is_not_misread_as_running(self):
-        # Genuine historical failure stays visible; no reset-failed or blanket
-        # SuccessExitStatus is used to hide it. Teardown only tests quiescence.
-        with self.transport(self.states(change={'ActiveState': 'failed'})):
-            self.worker.quiesce_desktop()
-        self.assertTrue(self.worker.quiesced)
+    def test_session_replacement_during_preparation_never_hands_off(self):
+        self.worker.session_identity.side_effect = ['a'*32, 'a'*32, 'b'*32]
+        with self.assertRaisesRegex(self.power.Error, 'session changed'):
+            self.worker.execute()
+        self.final.assert_not_called()
+        self.assertFalse(self.worker.committed)
 
-    def test_missing_duplicate_or_empty_property_block_fails_closed(self):
-        for states in ('', self.states(omit='waybar.service'), self.states() + '\n' + self.states()):
-            with self.subTest(states=states), self.transport(states), self.assertRaises(self.power.Error):
-                self.worker.quiesce_desktop()
-            self.assertFalse(self.worker.quiesced)
+    def test_prepare_cancel_never_stops_guests_or_desktop(self):
+        self.worker.helper.side_effect = self.power.Cancelled('documents not saved')
+        with self.assertRaises(self.power.Cancelled):
+            self.worker.execute()
+        self.assertFalse(self.worker.prepared)
+        self.worker.stop_optional_guests.assert_not_called()
+        self.final.assert_not_called()
+        self.worker.userctl.assert_not_called()
 
-    def test_stop_timeout_is_committed_but_never_forces_or_restarts(self):
-        with self.transport(stop_error=self.power.Error('timeout')), self.assertRaises(self.power.Error):
-            self.worker.quiesce_desktop()
-        self.assertTrue(self.worker.committed)
-        self.assertFalse(self.worker.quiesced)
-        self.power.run.assert_not_called()
+    def test_guest_stop_failure_leaves_compositor_available(self):
+        self.worker.stop_optional_guests.side_effect = self.power.Error('guest stop timed out')
+        with self.assertRaises(self.power.Error):
+            self.worker.execute()
+        self.final.assert_not_called()
+        self.worker.userctl.assert_not_called()
+        self.assertFalse(self.worker.committed)
 
-    def test_membership_failure_before_stop_is_cancellable(self):
-        for name in ('../../host.service', '--force', 'bad name.service', 'a\n--system', 'x'*300 + '.service'):
-            with self.subTest(name=name), mock.patch.object(self.worker, 'userctl', return_value=name) as ctl:
-                with self.assertRaises(self.power.Error):
-                    self.worker.quiesce_desktop()
-                self.assertEqual(ctl.call_count, 1)
-                self.assertFalse(self.worker.committed)
-
-    def test_new_member_after_stop_must_also_be_inactive(self):
-        extra = 'labwc-late.service'
-        with mock.patch.object(self.worker, 'desktop_members', side_effect=[self.members, self.members | {extra}]), \
-                mock.patch.object(self.worker, 'userctl', side_effect=['', self.states() +
-                        '\nId=' + extra + '\nActiveState=activating\n']), self.assertRaises(self.power.Error):
-            self.worker.quiesce_desktop()
-        self.assertFalse(self.worker.quiesced)
+    def test_handoff_environment_cannot_redirect_bus_or_select_soft_reboot(self):
+        self.assertFalse({'DBUS_SYSTEM_BUS_ADDRESS', 'DBUS_SESSION_BUS_ADDRESS'} & self.power.ENV.keys())
+        source = payload_read_text(TARGET/'usr/local/libexec/labwc-admin-action-worker')
+        self.assertNotIn('"--force"', source)
+        self.assertNotIn('self.quiesce_desktop()', source)
+        self.assertIn('"--allow-interactive-authorization=no"', source)
+        self.assertIn('"org.freedesktop.login1.Manager", method, "t", "1"', source)
 
     def test_successfully_drained_transport_is_not_killed(self):
-        # This is only a disposable Python print process, never a power command.
         original = module()
         with mock.patch.object(original.os, 'killpg') as kill:
             self.assertEqual(original.run([sys.executable, '-c', 'print("ok")']), 'ok\n')
         kill.assert_not_called()
 
-    def test_handoff_environment_cannot_redirect_bus_or_select_soft_reboot(self):
-        self.assertEqual(self.power.ENV['SYSTEMCTL_FORCE_BUS'], '0')
-        self.assertEqual(self.power.ENV['SYSTEMCTL_SKIP_AUTO_KEXEC'], '1')
-        self.assertEqual(self.power.ENV['SYSTEMCTL_SKIP_AUTO_SOFT_REBOOT'], '1')
-        self.assertFalse({'DBUS_SYSTEM_BUS_ADDRESS', 'DBUS_SESSION_BUS_ADDRESS'} & self.power.ENV.keys())
-
 
 class GuestHookTests(unittest.TestCase):
     def setUp(self):
         self.power = module(); self.worker = self.power.Worker(1000, 'desktop', 'poweroff')
+        self.worker.package_locks = mock.Mock()
 
     def test_optional_missing_and_inactive_hooks_do_not_start_or_stop_anything(self):
         with mock.patch.object(self.power, 'run', side_effect=[

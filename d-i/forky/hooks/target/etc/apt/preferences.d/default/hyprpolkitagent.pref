@@ -1,0 +1,19 @@
+# Labwc compatibility policy for the SAME authentication agent.
+# The hyprtoolkit rewrite binds zwlr_layer_shell_v1 at version 5 even when
+# Labwc advertises version 4; the disconnect then cascades into GBM failure.
+# Use Debian's Qt implementation (0.1.3), not another polkit agent and not a
+# source build. Keep Debian packaging/security revisions within that series.
+# Review this gate only with an agent/toolkit whose protocol negotiation is
+# verified on Labwc. Qt environment variables cannot repair hyprtoolkit.
+# Do not let this specific version pin re-enable the optional OBS archive.
+Package: hyprpolkitagent:any
+Pin: release o=obs://build.opensuse.org/home:cramerz:debian/Debian_Unstable,l=home:cramerz:debian,n=Debian_Unstable
+Pin-Priority: -1
+
+Package: hyprpolkitagent:any
+Pin: version 0.1.3-*
+Pin-Priority: 1001
+
+Package: hyprpolkitagent:any
+Pin: version *
+Pin-Priority: -1

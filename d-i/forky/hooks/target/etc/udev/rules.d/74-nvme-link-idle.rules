@@ -1,0 +1,15 @@
+# Link-idle mitigation for the reported 15b7:5006 NVMe endpoint only.
+# Let the kernel coordinate both ends of the link; never write PCI config
+# registers, reset a controller, mask AER, or force OS ownership from firmware.
+# Disabling L1 through this ABI also disables its ASPM substates. A kernel that
+# withholds ASPM control (including FADT/firmware ownership) exposes no knobs:
+# in that case this rule deliberately does nothing, not a claimed repair.
+ACTION!="add|bind|change", GOTO="installer_nvme_link_idle_end"
+SUBSYSTEM!="pci", GOTO="installer_nvme_link_idle_end"
+ATTR{vendor}!="0x15b7", GOTO="installer_nvme_link_idle_end"
+ATTR{device}!="0x5006", GOTO="installer_nvme_link_idle_end"
+ATTR{class}!="0x010802", GOTO="installer_nvme_link_idle_end"
+TEST=="link/l0s_aspm", ATTR{link/l0s_aspm}="0"
+TEST=="link/l1_aspm", ATTR{link/l1_aspm}="0"
+TEST=="link/clkpm", ATTR{link/clkpm}="0"
+LABEL="installer_nvme_link_idle_end"

@@ -163,15 +163,16 @@ def migrate_legacy_key(machine: str) -> None:
     sync_directory(LEGACY_RUNTIME)
 
 
-def check_record_key(record: dict) -> None:
+def check_record_key(record: dict, *, cleanup: bool = False) -> None:
     if record['exported']:
-        # An interrupted acknowledgement may have committed the attestation
-        # before removing the local copy. Finish that unlink idempotently.
+        # Only a mutating operation may finish an interrupted acknowledgement.
+        # Status/release readers verify the bytes but never unlink evidence.
         if KEY.exists() or KEY.is_symlink():
             if hashlib.sha256(verification_key()).hexdigest() != record['verification_sha256']:
                 raise ValueError('acknowledged verification key does not match this generation')
-            KEY.unlink()
-            sync_directory(STATE)
+            if cleanup:
+                KEY.unlink()
+                sync_directory(STATE)
     else:
         if not KEY.exists() and not KEY.is_symlink():
             raise ValueError('unexported verification key is missing; the existing FSS generation cannot be recovered automatically')
@@ -221,7 +222,7 @@ def setup(machine: str, fss: Path) -> dict:
         record = {'version': 1, 'machine_id': machine, 'exported': False, 'rotated': False,
                   'verification_sha256': hashlib.sha256(seed).hexdigest()}
         write_record(record)
-    check_record_key(record)
+    check_record_key(record, cleanup=True)
     if not record['rotated']:
         command(['/usr/bin/journalctl', '--rotate', '--no-pager'])
         record['rotated'] = True
@@ -243,20 +244,23 @@ def main(argv: list[str]) -> int:
             raise ValueError('sealing is disabled for this logging policy')
         print('journal sealing: disabled (RAM/volatile policy; no FSS assurance claimed)')
         return 0
-    directory(STATE, private=True, create=True)
+    mutating = action in ('--setup', '--acknowledge-export')
+    directory(STATE, private=True, create=mutating)
     machine = Path('/etc/machine-id').read_text(encoding='ascii').strip()
     if not re.fullmatch('[0-9a-f]{32}', machine) or int(machine, 16) == 0:
         raise ValueError('final machine-id is required')
     directory(JOURNAL / machine)
     fss = JOURNAL / machine / 'fss'
-    lock = os.open(STATE / 'lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    lock_access = os.O_RDWR | os.O_CREAT if mutating else os.O_RDONLY
+    lock = os.open(STATE / 'lock', lock_access | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, 0o600)
     with os.fdopen(lock, 'rb') as stream:
         info = os.fstat(stream.fileno())
         if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1
                 or stat.S_IMODE(info.st_mode) != 0o600):
             raise ValueError('unsafe journal sealing lock')
-        fcntl.flock(stream, fcntl.LOCK_EX)
-        migrate_legacy_key(machine)
+        fcntl.flock(stream, fcntl.LOCK_EX if mutating else fcntl.LOCK_SH)
+        if mutating:
+            migrate_legacy_key(machine)
         if action == '--setup':
             record = setup(machine, fss)
         else:
@@ -272,7 +276,7 @@ def main(argv: list[str]) -> int:
             if argv[1] != record['verification_sha256'] or not record['rotated']:
                 raise ValueError('export fingerprint mismatch or journal rotation incomplete')
             # Commit the operator's off-host attestation before unlink. A
-            # crash between these steps is completed at the next invocation.
+            # crash between these steps is completed by the next setup/acknowledgement.
             if not record['exported']:
                 record['exported'] = True
                 write_record(record)

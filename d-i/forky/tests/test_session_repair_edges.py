@@ -129,11 +129,44 @@ class InstallerPolicyTests(unittest.TestCase):
         self.assertFalse(payload_source_exists(self.root/'etc/geoclue'))
         self.assertEqual(first,render_theme_defaults(payload_read_text(self.pam)))
 
+    def test_existing_light_root_policy_is_migrated_without_changing_authentication(self):
+        managed = 'session optional pam_env.so conffile=/etc/security/sudo-i.conf readenv=0 user_readenv=0'
+        self.pam.write_text('@include common-auth\n@include common-account\n'
+                            '# Managed: root shell uses user-early-light (systemd >=258).\n'
+                            + managed + '\n@include common-session\n')
+        before = self.pam.stat()
+        self.invoke()
+        text = self.pam.read_text()
+        self.assertNotIn('user-early-light', text)
+        self.assertEqual(text.count(managed), 1)
+        self.assertIn('@include common-auth\n@include common-account\n', text)
+        self.assertLess(text.index(managed), text.index('@include common-session'))
+        self.assertEqual(self.pam.stat().st_mode, before.st_mode)
+        self.invoke()
+        self.assertEqual(self.pam.read_text(), text)
+        policy = (TARGET / 'etc/security/sudo-i.conf').read_text()
+        self.assertIn('XDG_SESSION_CLASS DEFAULT=none OVERRIDE=none', policy)
+        # This scoped policy changes session registration, not authentication.
+        self.assertNotIn('pam_permit', text)
+
     def test_unknown_pam_stack_fails_without_replacing_it(self):
         self.pam.write_text('@include custom-session\n')
         with self.assertRaisesRegex(RuntimeError,'unexpected sudo-i'):
             self.invoke()
         self.assertEqual(render_theme_defaults(payload_read_text(self.pam)),'@include custom-session\n')
+
+    def test_existing_managed_line_cannot_bypass_pam_stack_validation(self):
+        managed = 'session optional pam_env.so conffile=/etc/security/sudo-i.conf readenv=0 user_readenv=0'
+        for text in (managed + '\n' + managed + '\n@include common-session\n',
+                     '@include common-session\n' + managed + '\n',
+                     '# ' + managed + '\n@include common-session\n' + managed + '\n',
+                     managed + '\n@include unknown-session\n',
+                     managed.replace('user_readenv=0', 'user_readenv=1') + '\n@include common-session\n'):
+            with self.subTest(text=text):
+                self.pam.write_text(text)
+                with self.assertRaisesRegex(RuntimeError, 'unexpected sudo-i'):
+                    self.invoke()
+                self.assertEqual(self.pam.read_text(), text)
 
     def test_redirected_pam_stack_is_rejected(self):
         victim=self.root/'victim'

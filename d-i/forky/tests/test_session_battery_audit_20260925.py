@@ -59,13 +59,13 @@ class BatteryOutputTests(unittest.TestCase):
 
 
 class IntegrationContracts(unittest.TestCase):
-    def test_greeter_and_root_shell_are_light_without_desktop_bus(self):
+    def test_greeter_is_light_and_sudo_does_not_create_another_session(self):
         greeter = source('etc/pam.d/greetd-greeter')
         self.assertLess(greeter.index('conffile=/etc/security/greetd-greeter.conf'),
                         greeter.index('pam_systemd.so class=user-light'))
         self.assertIn('XDG_SESSION_CLASS DEFAULT=user-light OVERRIDE=user-light',
                       source('etc/security/greetd-greeter.conf'))
-        self.assertIn('XDG_SESSION_CLASS DEFAULT=user-early-light OVERRIDE=user-early-light',
+        self.assertIn('XDG_SESSION_CLASS DEFAULT=none OVERRIDE=none',
                       source('etc/security/sudo-i.conf'))
         self.assertIn('XDG_SESSION_CLASS DEFAULT=background-light OVERRIDE=background-light',
                       source('etc/security/cron-session.conf'))
@@ -103,15 +103,15 @@ class IntegrationContracts(unittest.TestCase):
 
     def test_firstboot_requires_sealing_provisioning(self):
         unit = (ROOT / 'scripts/firstboot/assets/etc/systemd/system/firstboot.service').read_text()
-        self.assertIn('Requires=local-fs.target systemd-tmpfiles-setup.service journal-sealing.service', unit)
-        self.assertIn('After=local-fs.target systemd-tmpfiles-setup.service systemd-journald.socket journal-sealing.service', unit)
+        self.assertIn('Requires=apparmor.service local-fs.target systemd-tmpfiles-setup.service journal-sealing.service', unit)
+        self.assertIn('After=apparmor.service local-fs.target systemd-tmpfiles-setup.service systemd-journald.socket journal-sealing.service', unit)
         firstboot = (ROOT / 'scripts/firstboot/04-validation.sh.tmpl').read_text()
         self.assertIn('check_command journal-sealing-status /usr/local/libexec/journal-sealing --status', firstboot)
         policy = (ROOT / 'scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl').read_text()
         firstboot_policy = policy.split('profile firstboot ', 1)[1].split('\n}', 1)[0]
         for grant in ('/usr/local/libexec/journal-sealing rix,',
                       '/usr/local/libexec/journal-check rix,',
-                      '/var/lib/journal-sealing/lock rwk,',
+                      '/var/lib/journal-sealing/lock rk,',
                       '/var/lib/journal-sealing/status.json r,',
                       '/var/lib/journal-sealing/verification-key r,'):
             self.assertIn(grant, firstboot_policy)

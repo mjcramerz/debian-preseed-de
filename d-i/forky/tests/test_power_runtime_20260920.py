@@ -1,5 +1,6 @@
 """Power finalization regressions: all host commands are mocked, never executed."""
 from __future__ import annotations
+from power_handoff_fixture import handoff_argv, is_handoff
 from payload_fixture import read_text as payload_read_text
 import contextlib
 import io
@@ -47,7 +48,7 @@ class InhibitorsTests(unittest.TestCase):
 
     def test_delay_is_not_misrepresented_as_blocking(self):
         self.check([['shutdown', 'application', 'flush', 'delay', 1000, 123]])
-        self.assertIn('not logind', self.power.check_shutdown_inhibitors.__doc__)
+        self.assertIn('bypasses logind delay handling', self.power.check_shutdown_inhibitors.__doc__)
 
     def test_unrelated_inhibitors_are_not_shutdown_vetoes(self):
         self.check([['sleep:idle', 'player', 'playing', 'block', 1000, 123]])
@@ -83,107 +84,94 @@ class InhibitorsTests(unittest.TestCase):
 
 
 class DirectHandoffTests(unittest.TestCase):
-    """The committed desktop and greeter requests skip system-wide unit stops."""
-
+    """One single-force handoff after reservation and block-inhibitor checks."""
     def setUp(self):
         self.power = module()
         self.worker = self.power.Worker(1000, 'desktop', 'poweroff')
-        self.worker.quiesced = True
+        self.worker.prepared = True
         self.worker.package_locks = mock.Mock()
         self.events = []
-        self.sink = contextlib.redirect_stderr(io.StringIO())
-        self.sink.__enter__()
-        self.addCleanup(self.sink.__exit__, None, None, None)
-        self.transport = mock.patch.object(self.power, 'run', side_effect=self.command)
-        self.transport.start()
-        self.addCleanup(self.transport.stop)
-        self.sessions = mock.patch.object(self.worker, 'protect_other_sessions',
-                                          side_effect=lambda: self.events.append('accounts'))
-        self.sessions.start()
-        self.addCleanup(self.sessions.stop)
+        self.stack = contextlib.ExitStack()
+        self.addCleanup(self.stack.close)
+        self.stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+        self.stack.enter_context(mock.patch.object(self.power, 'run', side_effect=self.command))
+        self.stack.enter_context(mock.patch.object(self.worker, 'protect_other_sessions',
+                                                   side_effect=lambda: self.events.append('accounts')))
 
     def command(self, argv, **kwargs):
         self.events.append(argv)
-        if argv[0] == '/usr/bin/busctl':
+        if argv[-1] == 'ListInhibitors':
             return json.dumps({'type': 'a(ssssuu)', 'data': [[]]})
-        if argv == ['/usr/bin/systemctl', '--force', '--no-ask-password', self.worker.action]:
-            return ''
-        raise AssertionError('unexpected system command: ' + repr(argv))
+        self.assertEqual(argv, handoff_argv(self.worker.action))
+        self.assertEqual(kwargs, {'timeout': 25, 'max_output': 4096})
+        return ''
 
-    def test_desktop_and_greeter_both_submit_one_force_after_preflight(self):
+    def test_desktop_and_greeter_both_submit_one_single_force_handoff(self):
         for action in ('poweroff', 'reboot'):
             for greeter in (False, True):
                 with self.subTest(action=action, greeter=greeter):
                     self.events.clear()
                     self.worker.action = action
                     self.worker.greeter = greeter
-                    self.worker.quiesced = not greeter
+                    self.worker.prepared = not greeter
                     self.worker.handoff_attempted = False
                     self.worker.final_power_action()
-                    self.assertEqual([event if isinstance(event, str) else event[0]
-                                      for event in self.events],
-                                     ['accounts', '/usr/bin/busctl', '/usr/bin/systemctl'])
-                    self.assertEqual(self.events[-1],
-                                     ['/usr/bin/systemctl', '--force', '--no-ask-password', action])
-                    self.assertEqual(sum('--force' in c for c in self.events if isinstance(c, list)), 1)
+                    self.assertEqual(self.events[-1], handoff_argv(action))
+                    commands = [e for e in self.events if isinstance(e, list)]
+                    self.assertEqual(sum(is_handoff(c) for c in commands), 1)
+                    self.assertFalse(any('stop' in c for c in commands))
+                    self.assertEqual(sum(c.count('--force') for c in commands), 1)
                     self.assertTrue(self.worker.committed and self.worker.handoff_attempted)
                     self.assertGreaterEqual(self.worker.package_locks.verify.call_count, 2)
 
-    def test_other_account_vetoes_but_known_inhibitor_does_not_veto_force(self):
+    def test_other_account_and_known_inhibitor_both_veto(self):
         with mock.patch.object(self.worker, 'protect_other_sessions', side_effect=self.power.Error('other account')):
             with self.assertRaisesRegex(self.power.Error, 'other account'):
                 self.worker.final_power_action()
         self.assertFalse(self.events)
         self.assertFalse(self.worker.handoff_attempted)
-        def blocked(argv, **kwargs):
-            self.events.append(argv)
-            return json.dumps({'type': 'a(ssssuu)',
-                               'data': [[['shutdown', 'editor', 'unsaved', 'block', 1000, 1]]]})
-        with mock.patch.object(self.power, 'run', side_effect=blocked):
-            self.worker.final_power_action()
-        self.assertEqual(sum('--force' in c for c in self.events), 1)
-        self.assertTrue(self.worker.handoff_attempted)
+        raw = json.dumps({'type':'a(ssssuu)',
+                          'data':[[['shutdown', 'editor', 'unsaved', 'block', 1000, 1]]]})
+        with mock.patch.object(self.power, 'run', return_value=raw) as run:
+            with self.assertRaisesRegex(self.power.Error, 'inhibited'):
+                self.worker.final_power_action()
+        self.assertFalse(self.worker.handoff_attempted)
+        self.assertFalse(any(is_handoff(c.args[0]) for c in run.call_args_list))
 
     def test_missing_reservation_or_unprepared_session_fails_without_commands(self):
         self.worker.package_locks = None
         with self.assertRaisesRegex(self.power.Error, 'reservation'):
             self.worker.final_power_action()
         self.worker.package_locks = mock.Mock()
-        self.worker.quiesced = False
-        with self.assertRaisesRegex(self.power.Error, 'quiesced'):
+        self.worker.prepared = False
+        with self.assertRaisesRegex(self.power.Error, 'prepared'):
             self.worker.final_power_action()
         self.assertFalse(self.events)
 
-    def test_reservation_loss_after_announcement_never_submits_force(self):
-        import builtins
-        original = builtins.print
-        def lose_lock(*args, **kwargs):
-            result = original(*args, **kwargs)
-            if args and str(args[0]).startswith('power handoff:'):
-                self.worker.package_locks.verify.side_effect = self.power.Error('reservation lost')
-            return result
-        with mock.patch('builtins.print', side_effect=lose_lock), \
-             self.assertRaisesRegex(self.power.Error, 'reservation lost'):
-            self.worker.final_power_action()
-        self.assertFalse(any('--force' in c for c in self.events if isinstance(c, list)))
-        self.assertTrue(self.worker.handoff_attempted)
-        with self.assertRaisesRegex(self.power.Error, 'only once'):
-            self.worker.final_power_action()
+    def test_reservation_loss_after_announcement_never_submits(self):
+        def lose_lock(message):
+            self.worker.package_locks.verify.side_effect = self.power.Error('reservation lost')
+        with mock.patch.object(self.power, 'status', side_effect=lose_lock):
+            with self.assertRaisesRegex(self.power.Error, 'reservation lost'):
+                self.worker.final_power_action()
+        self.assertFalse(any(is_handoff(c) for c in self.events if isinstance(c, list)))
+        self.assertFalse(self.worker.handoff_attempted)
 
     def test_uncertain_submission_never_retries_or_stops_root_services(self):
         def failed(argv, **kwargs):
-            self.events.append(argv)
-            if '--force' in argv:
+            if is_handoff(argv):
+                self.events.append(argv)
                 raise self.power.Error('lost reply')
-            return json.dumps({'type': 'a(ssssuu)', 'data': [[]]})
+            return self.command(argv, **kwargs)
         with mock.patch.object(self.power, 'run', side_effect=failed):
             with self.assertRaisesRegex(self.power.Error, 'uncertain'):
                 self.worker.final_power_action()
             with self.assertRaisesRegex(self.power.Error, 'only once'):
                 self.worker.final_power_action()
-        commands = [entry for entry in self.events if isinstance(entry, list)]
-        self.assertEqual(sum('--force' in c for c in commands), 1)
+        commands = [e for e in self.events if isinstance(e, list)]
+        self.assertEqual(sum(is_handoff(c) for c in commands), 1)
         self.assertFalse(any('stop' in c or 'start' in c for c in commands))
+        self.assertEqual(sum(c.count('--force') for c in commands), 1)
 
 
 class BoundedTransportTests(unittest.TestCase):
@@ -219,16 +207,53 @@ class BoundedTransportTests(unittest.TestCase):
             self.power.run([sys.executable,'-c','raise SystemExit(3)'],max_output=1024,timeout=3)
 
 
+class OtherSessionTests(unittest.TestCase):
+    """Scoped sudo repair must not exempt real root or other-user logins."""
+    def setUp(self):
+        self.power = module()
+
+    def check(self, uid, session_class):
+        power = self.power
+        worker = power.Worker(1000, 'desktop', 'reboot')
+        with mock.patch.object(power, 'login_sessions', return_value=[('c1', 1000), ('c2', uid)]), \
+             mock.patch.object(power, 'run', return_value=session_class + '\n') as run:
+            try:
+                worker.protect_other_sessions()
+            finally:
+                run.assert_called_once_with(['/usr/bin/loginctl', 'show-session', 'c2',
+                    '--property=Class', '--value'], timeout=5, max_output=256)
+
+    def test_real_root_and_other_interactive_accounts_still_veto(self):
+        for uid in (0, 1001):
+            for session_class in ('user', 'user-early', 'user-early-light', 'user-incomplete', 'lock-screen'):
+                with self.subTest(uid=uid, session_class=session_class), \
+                     self.assertRaisesRegex(self.power.Error, f'another interactive.*uid={uid}, session=c2'):
+                    self.check(uid, session_class)
+
+    def test_background_and_manager_sessions_do_not_veto(self):
+        for uid in (0, 999):
+            for session_class in ('background', 'background-light', 'manager', 'manager-early'):
+                with self.subTest(uid=uid, session_class=session_class):
+                    self.check(uid, session_class)
+
+    def test_unknown_other_session_classes_fail_closed(self):
+        for session_class in ('', 'future-session-class'):
+            with self.subTest(session_class=session_class), \
+                 self.assertRaisesRegex(self.power.Error, 'class is unknown'):
+                self.check(1001, session_class)
+
+
 class HardeningTests(unittest.TestCase):
-    def test_broker_free_transport_and_no_privilege_expansion(self):
+    def test_broker_free_transport_and_pid1_only_boot_capability(self):
         power=module()
         self.assertEqual(power.ENV['SYSTEMCTL_FORCE_BUS'],'0')
         self.assertFalse(any(key.startswith('DBUS_') for key in power.ENV))
         unit=payload_read_text(TARGET/'etc/systemd/system/labwc-admin-action@.service')
-        self.assertIn('\nCapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_KILL\n',unit)
+        self.assertIn('\nCapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_KILL CAP_SYS_BOOT\n',unit)
         self.assertIn('\nAmbientCapabilities=\n',unit)
         self.assertIn('NoNewPrivileges=yes',unit)
         self.assertIn('ProtectControlGroups=yes',unit)
+        self.assertIn('Before=apt-daily.service apt-daily-upgrade.service unattended-upgrades.service packagekit.service', unit)
         source=payload_read_text(WORKER)
         self.assertNotIn('/usr/bin/pkill',source);self.assertNotIn('/usr/bin/pgrep',source)
         profile=payload_read_text(TARGET/'etc/apparmor.d/desktop-wrappers').split('profile labwc-admin-action-worker ',1)[1].split('\n}',1)[0]

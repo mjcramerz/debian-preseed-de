@@ -1,5 +1,6 @@
 """Focused regressions; no host power, user-manager, or mount operations."""
 from __future__ import annotations
+from power_handoff_fixture import handoff_argv, is_handoff
 import contextlib
 import io
 import json
@@ -207,7 +208,7 @@ class PowerRegressionTests(unittest.TestCase):
 
     def test_force_occurs_only_after_sync_and_reservation_recheck(self):
         events = []
-        w = self.p.Worker(1000, 'desktop', 'reboot'); w.quiesced = True
+        w = self.p.Worker(1000, 'desktop', 'reboot'); w.prepared = True
         w.package_locks = mock.Mock()
         w.package_locks.verify.side_effect = lambda: events.append('verify')
         with mock.patch.object(w, 'protect_other_sessions', side_effect=lambda: events.append('accounts')), \
@@ -216,14 +217,14 @@ class PowerRegressionTests(unittest.TestCase):
              mock.patch.object(self.p, 'run', side_effect=lambda argv, **kw: events.append(argv)), \
              contextlib.redirect_stderr(io.StringIO()):
             w.final_power_action()
-            self.assertEqual(events[-1], ['/usr/bin/systemctl','--force','--no-ask-password','reboot'])
-            self.assertIn(('inhibitors', {'force':True}), events)
+            self.assertEqual(events[-1], handoff_argv('reboot'))
+            self.assertIn(('inhibitors', {}), events)
             self.assertEqual(events[events.index('sync')+1], 'verify')
             with self.assertRaises(self.p.Error): w.final_power_action()
-        self.assertEqual(sum(isinstance(e,list) and '--force' in e for e in events), 1)
+        self.assertEqual(sum(isinstance(e,list) and is_handoff(e) for e in events), 1)
 
     def test_sync_failure_never_submits_force(self):
-        w = self.p.Worker(1000, 'desktop', 'poweroff'); w.quiesced = True
+        w = self.p.Worker(1000, 'desktop', 'poweroff'); w.prepared = True
         w.package_locks = mock.Mock()
         with mock.patch.object(w, 'protect_other_sessions'), \
              mock.patch.object(self.p, 'check_shutdown_inhibitors'), \

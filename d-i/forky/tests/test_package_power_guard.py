@@ -6,6 +6,7 @@ All power, session, and readiness endpoints are intercepted at explicit test
 boundaries; the actual production lock implementation is executed unchanged.
 """
 from __future__ import annotations
+from power_handoff_fixture import handoff_argv, is_handoff
 from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file
 from payload_fixture import installed_script
 from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
@@ -284,7 +285,7 @@ class WorkerFlowTests(LockFixture):
         self.stack.enter_context(mock.patch.object(self.power, 'check_shutdown_inhibitors',
             side_effect=lambda **kwargs: self.events.append(('inhibitors', ()))))
         for name in ('lock', 'protect_other_sessions', 'helper', 'terminate_user',
-                     'quiesce_desktop', 'stop_optional_guests', 'final_power_action'):
+                     'stop_optional_guests', 'final_power_action'):
             self.stack.enter_context(mock.patch.object(worker, name,
                 side_effect=lambda *a, _name=name, **kw: self.events.append((_name, a))))
         self.stack.enter_context(mock.patch.object(worker, 'session_identity', return_value='a'*32))
@@ -300,7 +301,7 @@ class WorkerFlowTests(LockFixture):
                 def wait():
                     self.assertIsNone(child.poll())
                     self.assertIn(('ready', ()), self.events)
-                    forbidden = {'terminate_user', 'quiesce_desktop', 'final_power_action', 'run'}
+                    forbidden = {'terminate_user', 'stop_optional_guests', 'final_power_action', 'run'}
                     self.assertFalse(any(e[0] in forbidden or e == ('helper', ('prepare',)) for e in self.events))
                     self.release(child)
                 def action_run(argv, **kwargs):
@@ -325,7 +326,7 @@ class WorkerFlowTests(LockFixture):
             with mock.patch.object(worker, 'package_waiting', side_effect=lambda: self.release(child)), \
                  mock.patch.object(self.power, 'run', return_value='') as run:
                 worker.execute()
-            worker.helper.assert_not_called(); worker.quiesce_desktop.assert_not_called()
+            worker.helper.assert_not_called()
             worker.terminate_user.assert_not_called(); worker.session_identity.assert_not_called()
             run.assert_not_called()  # Guest/final helpers are boundary mocks here.
             worker.stop_optional_guests.assert_called_once_with()
@@ -347,7 +348,7 @@ class WorkerFlowTests(LockFixture):
         worker = self.worker('reboot')
         worker.helper.side_effect=self.power.Error('unsaved document')
         with self.assertRaises(self.power.Error): worker.execute()
-        worker.quiesce_desktop.assert_not_called(); worker.final_power_action.assert_not_called()
+        worker.stop_optional_guests.assert_not_called(); worker.final_power_action.assert_not_called()
         for path in self.paths: self.assert_writer(path, blocked=False)
 
     def test_missing_package_lock_never_prepares_suspends_or_tears_down(self):
@@ -357,9 +358,9 @@ class WorkerFlowTests(LockFixture):
 
     def test_destructive_methods_cannot_be_called_without_reservation(self):
         worker = self.power.Worker(1000,'desktop','logout')
-        for method in (worker.terminate_user, worker.quiesce_desktop, worker.final_power_action):
+        for method in (worker.terminate_user, worker.stop_optional_guests, worker.final_power_action):
             worker.action = 'logout' if method == worker.terminate_user else 'reboot'
-            worker.quiesced = True
+            worker.prepared = True
             with self.assertRaisesRegex(self.power.Error, 'reservation'):
                 method()
         self.power.run.assert_not_called()

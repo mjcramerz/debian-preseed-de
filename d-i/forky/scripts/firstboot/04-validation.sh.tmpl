@@ -295,6 +295,8 @@ validate_desktop_role() {
       esac
       ;;
   esac
+  check_command desktop-hyprpolkit-compatibility /usr/local/libexec/labwc-hyprpolkit-agent --check
+
   check_command desktop-kanshi-policy /bin/sh -eu -c '
 
 set -eu
@@ -1169,7 +1171,11 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
   if grep -Fqx 'exec /usr/bin/pkexec --disable-internal-agent /usr/local/libexec/greetd-power-action-root "$action"' /usr/local/sbin/greetd-power-action 2>/dev/null &&
      grep -Fqx '  poweroff|reboot) exec /usr/local/libexec/labwc-admin-action-root "greeter-$1" ;;' /usr/local/libexec/greetd-power-action-root 2>/dev/null &&
      grep -Fqx '  greeter-*) exec /usr/bin/systemctl --wait start "$worker_unit" ;;' /usr/local/libexec/labwc-admin-action-root 2>/dev/null &&
-     grep -Fq 'run(["/usr/bin/systemctl", "--force", "--no-ask-password", self.action], timeout=20)' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
+     grep -Fq 'if self.action not in {"reboot", "poweroff"}:' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
+     grep -Fq 'run(["/usr/bin/systemctl", "--force", self.action],' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
+     grep -Fqx 'CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_KILL CAP_SYS_BOOT' /etc/systemd/system/labwc-admin-action@.service 2>/dev/null &&
+     grep -Fqx 'SystemCallFilter=~@reboot' /etc/systemd/system/labwc-admin-action@.service 2>/dev/null &&
+     grep -Fqx 'XDG_SESSION_CLASS DEFAULT=none OVERRIDE=none' /etc/security/sudo-i.conf 2>/dev/null &&
      grep -Fq 'self.greeter_identity' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
      grep -Fqx 'ProtectHome=read-only' /etc/systemd/system/labwc-admin-action@.service 2>/dev/null &&
      grep -Fqx 'InaccessiblePaths=/home /root' /etc/systemd/system/labwc-admin-action@.service 2>/dev/null; then

@@ -1,0 +1,23 @@
+#!/bin/sh
+# Managed by unattended-installer. LAN access, not a VPN/kill-switch bypass.
+set -eu
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+LC_ALL=C
+export PATH LC_ALL
+
+# The vendor daemon is Type=simple, not readiness-notifying. Its management
+# socket can appear after ExecStartPost begins. Bound both each RPC and the
+# overall retry count; never report success without the setting being accepted.
+attempt=1
+error=
+while [ "$attempt" -le 10 ]; do
+  if error=$(/usr/bin/timeout --kill-after=1s 2s /usr/bin/mullvad lan set allow 2>&1); then
+    exit 0
+  fi
+  if [ "$attempt" -lt 10 ]; then
+    /usr/bin/sleep 1
+  fi
+  attempt=$((attempt + 1))
+done
+printf 'mullvad-lan-allow: failed to enable LAN access: %s\n' "$error" >&2
+exit 1

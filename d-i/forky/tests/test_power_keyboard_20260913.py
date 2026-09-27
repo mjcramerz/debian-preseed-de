@@ -4,6 +4,7 @@ All power-manager calls are mocked. Real subprocess tests use disposable helpers
 only. Audit checks cover source-rule intent, not kernel AppArmor enforcement.
 """
 from __future__ import annotations
+from power_handoff_fixture import handoff_argv, is_handoff
 from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists
 from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import contextlib
@@ -297,20 +298,20 @@ class PowerWorkerTests(unittest.TestCase):
         for name in ('userctl', 'protect_other_sessions', 'helper', 'terminate_user', 'final_power_action', 'lock', 'stop_optional_guests'):
             stack.enter_context(mock.patch.object(self.worker, name,
                 side_effect=lambda *args, _name=name, **kwargs: events.append((_name, args))))
-        def quiesce():
-            events.append(('quiesce_desktop', ()))
-            self.worker.committed = True
-            self.worker.quiesced = True
-        stack.enter_context(mock.patch.object(self.worker, 'quiesce_desktop', side_effect=quiesce))
+        def accepted_handoff():
+            self.assertTrue(self.worker.prepared or self.worker.greeter)
+            self.worker.committed = self.worker.handoff_attempted = True
+            events.append(('final_power_action', ()))
+        self.worker.final_power_action.side_effect = accepted_handoff
         stack.enter_context(mock.patch.object(self.power, 'ready', side_effect=lambda: events.append(('ready', ()))))
         stack.enter_context(mock.patch.object(self.power, 'run', side_effect=lambda *args, **kwargs: events.append(('run', args))))
         return events
 
-    def test_readiness_and_prepare_precede_orderly_power_transaction(self):
+    def test_readiness_and_prepare_precede_single_force_handoff(self):
         events = self.execution()
         self.worker.execute()
         self.assertEqual([e[0] for e in events], ['userctl', 'protect_other_sessions', 'ready', 'userctl', 'protect_other_sessions',
-                         'helper', 'protect_other_sessions', 'inhibitors', 'stop_optional_guests', 'quiesce_desktop', 'final_power_action', 'hold'])
+                         'helper', 'protect_other_sessions', 'inhibitors', 'stop_optional_guests', 'userctl', 'final_power_action', 'hold'])
         self.assertEqual(events[5][1], ('prepare',))
         self.assertTrue(self.worker.committed)
 
@@ -341,7 +342,8 @@ class PowerWorkerTests(unittest.TestCase):
 
     def test_power_submission_failure_keeps_teardown_committed(self):
         self.execution()
-        self.worker.final_power_action.side_effect = self.power.Error('bus unavailable')
+        self.worker.final_power_action.side_effect = lambda: self.power.Worker.final_power_action(self.worker)
+        self.power.run.side_effect = self.power.Error('bus unavailable')
         with self.assertRaises(self.power.Error):
             self.worker.execute()
         self.assertTrue(self.worker.committed)
@@ -398,19 +400,19 @@ class PowerWorkerTests(unittest.TestCase):
             with self.subTest(action=action):
                 self.worker = self.power.Worker(1000, 'testuser', action)
                 self.worker.package_locks = mock.Mock()  # acquired gate fixture; real locks tested separately
-                self.worker.quiesced = True
+                self.worker.prepared = True
                 with mock.patch.object(self.worker, 'protect_other_sessions'), \
                      mock.patch.object(self.power, 'check_shutdown_inhibitors'), \
                      mock.patch.object(self.power, 'run', return_value='') as run, \
                      contextlib.redirect_stderr(io.StringIO()) as output:
                     self.worker.final_power_action()
                 self.assertEqual(run.call_args_list, [
-                    mock.call(['/usr/bin/systemctl', '--force', '--no-ask-password', action], timeout=20)])
+                    mock.call(handoff_argv(action), timeout=25, max_output=4096)])
                 self.assertIn('systemctl --force ' + action, output.getvalue())
                 self.assertTrue(self.worker.committed)
 
     def test_uncertain_final_submission_is_not_retried_or_cancelled(self):
-        self.worker.quiesced = True
+        self.worker.prepared = True
         with mock.patch.object(self.worker, 'protect_other_sessions'), \
              mock.patch.object(self.power, 'check_shutdown_inhibitors'), \
              mock.patch.object(self.power, 'run', side_effect=self.power.Error('bus failed')) as run, \
@@ -418,9 +420,9 @@ class PowerWorkerTests(unittest.TestCase):
             with self.assertRaisesRegex(self.power.Error, 'handoff status uncertain'):
                 self.worker.final_power_action()
         self.assertEqual(run.call_count, 1)
-        self.assertEqual(sum('--force' in c.args[0] for c in run.call_args_list), 1)
+        self.assertEqual(sum(is_handoff(c.args[0]) for c in run.call_args_list), 1)
         self.assertEqual(run.call_args_list[0], mock.call(
-            ['/usr/bin/systemctl', '--force', '--no-ask-password', self.worker.action], timeout=20))
+            handoff_argv(self.worker.action), timeout=25, max_output=4096))
         self.assertTrue(self.worker.committed)
         self.assertTrue(self.worker.handoff_attempted)
 

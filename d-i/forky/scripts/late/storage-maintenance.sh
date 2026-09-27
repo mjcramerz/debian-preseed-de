@@ -324,6 +324,10 @@ validate_target_journal_storage_policy() (
 )
 
 stage_target_common_storage_maintenance_assets() {
+  # Shared by both storage families. Install rules only; never retrigger live
+  # installer devices or modify their PCI configuration while staging /target.
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/udev/rules.d/74-nvme-link-idle.rules)" "/etc/udev/rules.d/74-nvme-link-idle.rules" 0644 || return 1
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/sbin/nvme-pcie-status)" "/usr/local/sbin/nvme-pcie-status" 0755 || return 1
   stage_target_systemd_resource_policy_assets || return 1
   stage_target_runtime_storage_root_policy
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/tmpfiles.d/tmp.conf)" "/etc/tmpfiles.d/tmp.conf" 0644

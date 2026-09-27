@@ -41,6 +41,7 @@ class Field:
     label: str
     keys: tuple[str, ...]
     kind: str
+    group: str = 'GENERAL'
 
 
 @dataclass(frozen=True)
@@ -101,6 +102,21 @@ def parse_base(data: bytes) -> tuple[list[str], dict[str, str]]:
     return lines, values
 
 
+def color_group(role: str) -> str:
+    # Match whole state tokens, with severity and compound states first.
+    # In particular, UNAVAILABLE is not AVAILABLE, NOT_CHARGING is not
+    # CHARGING, and a charging-warning icon still belongs to WARNING.
+    states = (
+        'CRITICAL', 'WARNING', 'ERROR', 'URGENT', 'ACTIVE_HOVER', 'HOVER',
+        'MICROPHONE_MUTED', 'MICROPHONE_NORMAL', 'NOT_CHARGING', 'CHARGING',
+        'FULL', 'PLUGGED', 'UNAVAILABLE', 'AVAILABLE', 'MUTED',
+        'DISCONNECTED', 'DISABLED', 'CONNECTED', 'ENABLED', 'DND',
+        'PAUSED', 'PAUSE', 'LONG_BREAK', 'BREAK', 'WORK', 'IDLE', 'PLAY',
+        'STOP', 'RECORDING', 'MINIMIZED', 'HIDDEN', 'ACTIVE', 'NORMAL',
+    )
+    return next((state for state in states if f'_{state}_' in f'_{role}_'), 'GENERAL')
+
+
 def catalog(schema: Path, values: dict[str, str]) -> OrderedDict[str, Section]:
     kinds: dict[str, str] = {}
     for line in schema.read_text(encoding='utf-8').splitlines():
@@ -116,7 +132,7 @@ def catalog(schema: Path, values: dict[str, str]) -> OrderedDict[str, Section]:
     used: set[str] = set()
 
     def section(identifier: str, title: str, prefixes: tuple[str, ...], *, shared: bool = False) -> None:
-        groups: OrderedDict[tuple[str, str], list[str]] = OrderedDict()
+        groups: OrderedDict[tuple[str, str, str], list[str]] = OrderedDict()
         for name, kind in kinds.items():
             prefix = next((prefix for prefix in prefixes if name.startswith(prefix)), None)
             if prefix is None:
@@ -124,25 +140,19 @@ def catalog(schema: Path, values: dict[str, str]) -> OrderedDict[str, Section]:
             if name in used:
                 raise ThemeError('overlapping color sections: ' + name)
             role = name[len(prefix):] if shared else name.removeprefix(prefixes[0])
+            group = color_group(role) if name.startswith('WAYBAR_') else 'GENERAL'
             if shared and name.startswith('WAYBAR_BUTTON_') and role.endswith(('_ICON_COLOR', '_TEXT_COLOR')):
-                # Shared semantic foreground roles keep warning/critical states
-                # meaningful while asking only once per color across a unit.
-                if 'HOVER' in role:
-                    role = 'HOVER_FOREGROUND_COLOR'
-                elif any(word in role for word in ('CRITICAL', 'ERROR')):
-                    role = 'CRITICAL_FOREGROUND_COLOR'
-                elif any(word in role for word in ('WARNING', 'MUTED', 'UNAVAILABLE', 'PAUSED', 'PAUSE_')):
-                    role = 'WARNING_FOREGROUND_COLOR'
-                elif any(word in role for word in ('CHARGING', 'FULL', 'BREAK')) and 'NOT_CHARGING' not in role:
-                    role = 'POSITIVE_FOREGROUND_COLOR'
-                else:
-                    role = 'NORMAL_FOREGROUND_COLOR'
-            groups.setdefault((role, kind), []).append(name)
+                # Ask once for a state's icon/text color, not once per button.
+                # Only explicit WARNING/CRITICAL variants share severity colors;
+                # muted, unavailable, microphone and positive states stay separate.
+                state = group if group in ('WARNING', 'CRITICAL') else role.rsplit('_', 2)[0]
+                role = state + '_FOREGROUND_COLOR'
+            groups.setdefault((group, role, kind), []).append(name)
             used.add(name)
         if not groups:
             raise ThemeError('empty color section: ' + identifier)
-        fields = tuple(Field(role.removesuffix('_COLOR').replace('_', ' ').title(), tuple(keys), kind)
-                       for (role, kind), keys in groups.items())
+        fields = tuple(Field(role.removesuffix('_COLOR').replace('_', ' ').title(), tuple(keys), kind, group)
+                       for (group, role, kind), keys in groups.items())
         result[identifier] = Section(title, fields)
 
     section('waybar-panel', 'Waybar Panel', ('WAYBAR_PANEL_',))
@@ -187,7 +197,7 @@ def fingerprint(info: os.stat_result) -> tuple[int, ...]:
 
 
 class Editor:
-    """Serialize editors on a pinned directory inode, not a replaceable file."""
+    """Edit with caller filesystem access; lock a pinned directory inode."""
     def __init__(self, root: Path = ROOT):
         self.root = root
         self.seed = root/'d-i/forky'
@@ -198,9 +208,8 @@ class Editor:
     def directory(self, path: str | Path, parent: int | None = None) -> int:
         fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent)
         self.stack.callback(os.close, fd)
-        info = os.fstat(fd)
-        if info.st_uid != os.geteuid() or info.st_mode & 0o022:
-            raise ThemeError('theme directories must be owned by this account and not group/world writable')
+        # Shared checkouts need not be owned by the editor or have private
+        # modes. The kernel enforces access; retain no-follow/type checks.
         return fd
 
     def __enter__(self):
@@ -238,9 +247,8 @@ class Editor:
         fd = os.open('base.env', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=self.themes_fd)
         with os.fdopen(fd, 'rb') as stream:
             info = os.fstat(stream.fileno())
-            if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_uid != os.geteuid()
-                    or info.st_mode & 0o022 or info.st_size > MAX_SOURCE):
-                raise ThemeError('unsafe base.env type, owner, permissions, hardlink count or size')
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > MAX_SOURCE:
+                raise ThemeError('unsafe base.env type, hardlink count or size')
             data = stream.read(MAX_SOURCE+1)
             if len(data) > MAX_SOURCE or fingerprint(info) != fingerprint(os.fstat(stream.fileno())):
                 raise ThemeError('base.env changed while reading')
@@ -312,8 +320,18 @@ class Editor:
             with os.fdopen(fd, 'wb') as stream:
                 stream.write(rendered)
                 stream.flush()
-                os.fchown(stream.fileno(), self.info.st_uid, self.info.st_gid)
-                os.fchmod(stream.fileno(), stat.S_IMODE(self.info.st_mode))
+                # Atomic replacement needs directory access, not ownership of
+                # the old file. Preserve ownership when permitted; otherwise
+                # keep caller ownership and the old group only when allowed.
+                try:
+                    os.fchown(stream.fileno(), self.info.st_uid, self.info.st_gid)
+                except PermissionError:
+                    try:
+                        os.fchown(stream.fileno(), -1, self.info.st_gid)
+                    except PermissionError:
+                        pass
+                # Preserve access bits, not set-id/sticky bits on a new inode.
+                os.fchmod(stream.fileno(), stat.S_IMODE(self.info.st_mode) & 0o777)
                 os.fsync(stream.fileno())
             self.validate(candidate)
             self.unchanged()
@@ -327,28 +345,68 @@ class Editor:
         return backup
 
 
+def grouped_sections(section: Section) -> OrderedDict[str, Section]:
+    groups: OrderedDict[str, list[Field]] = OrderedDict()
+    for field in section.fields:
+        groups.setdefault(field.group, []).append(field)
+    order = dict.fromkeys(('NORMAL', 'HOVER', 'WARNING', 'CRITICAL', *groups))
+    return OrderedDict((name, Section(section.name + ' / ' + name.replace('_', ' '), tuple(groups[name])))
+                       for name in order if name in groups)
+
+
+def edit_groups(editor: Editor, section: Section, read: Callable[[str], str] = input) -> None:
+    groups = list(grouped_sections(section).values())
+    if len(groups) == 1:
+        edit_section(editor, section, read)
+        return
+    while True:
+        print('\n' + section.name)
+        print('Choose a color state. Other states are not edited.')
+        for index, group in enumerate(groups, 1):
+            settings = sum(len(field.keys) for field in group.fields)
+            name = group.fields[0].group.replace('_', ' ')
+            print(f' {index:2d}. {name} ({len(group.fields)} color prompt(s), {settings} setting(s))')
+        print('  0. Back')
+        choice = read('Color state (Enter goes back): ').strip()
+        if choice in ('0', 'q', 'Q', '', ':cancel'):
+            return
+        if len(choice) > 3 or not choice.isascii() or not choice.isdigit() or not 1 <= int(choice) <= len(groups):
+            print('Choose a displayed color-state number.')
+            continue
+        edit_section(editor, groups[int(choice)-1], read)
+
+
 def edit_section(editor: Editor, section: Section, read: Callable[[str], str] = input) -> None:
     print('\n'+section.name)
-    print('Only colors change. Enter keeps the displayed value; :cancel abandons this section.')
+    print('Only colors change. Enter preserves every existing value; :cancel abandons this section.')
+    print('An entered color applies only to the setting(s) listed for that prompt.')
     changes: dict[str, str] = {}
     for field in section.fields:
         current = editor.values[field.keys[0]]
         mixed = len({editor.values[key] for key in field.keys}) > 1
         shown = '#'+current if field.kind == 'hex8' else current
         print(f'\n{field.label} | {FORMATS[field.kind]} | {len(field.keys)} setting(s)')
+        for key in field.keys:
+            print(f'  {key}: {editor.values[key]}')
         if mixed:
-            print('Existing colors differ. Enter applies the displayed color to this entire group.')
+            print('Existing values differ. Enter keeps each one unchanged.')
+            shown = 'keep each existing value'
         while True:
             value = read(f'[{shown}] > ').strip()
             if value == ':cancel':
                 print('Cancelled; no files changed.')
                 return
-            try:
-                normalized = current if not value else normalize(value, field.kind)
+            if not value:
+                # No assignment and no normalization: preserve each original
+                # byte, even when keys in this group have different colors.
                 break
+            try:
+                normalized = normalize(value, field.kind)
             except ThemeError as exc:
                 print(str(exc))
-        changes.update(dict.fromkeys(field.keys, normalized))
+                continue
+            changes.update(dict.fromkeys(field.keys, normalized))
+            break
     modified = {name: value for name, value in changes.items() if value != editor.values[name]}
     if not modified:
         print('No color changes.')
@@ -388,7 +446,7 @@ def main(argv: list[str] | None = None) -> int:
             if len(choice) > 3 or not choice.isascii() or not choice.isdigit() or not 1 <= int(choice) <= len(sections):
                 print('Choose a displayed section number.')
                 continue
-            edit_section(editor, sections[int(choice)-1])
+            edit_groups(editor, sections[int(choice)-1], input)
 
 
 if __name__ == '__main__':

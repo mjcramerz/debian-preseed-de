@@ -31,7 +31,12 @@ profile firstboot /var/lib/firstboot/bin/firstboot.sh flags=(attach_disconnected
 
   /var/lib/firstboot/bin/firstboot.sh rix,
   /usr/local/libexec/dbus-broker-check rix,
-  # Validation reads the provisioned FSS generation and takes its lock.
+  # Read-only package check; never execute an authentication dialog as root.
+  /usr/local/libexec/labwc-hyprpolkit-agent rix,
+  /usr/libexec/ r,
+  /usr/libexec/hyprpolkitagent r,
+  # --status is read-only: journal-sealing.service owns generation/migration.
+  # Keep the verification seed readable only at its exact path; no key writes.
   /usr/local/libexec/journal-sealing rix,
   /usr/local/libexec/journal-check rix,
   # firstboot invokes the read-only --check path; do not grant /dev writes.
@@ -85,7 +90,7 @@ profile firstboot /var/lib/firstboot/bin/firstboot.sh flags=(attach_disconnected
   /var/lib/dpkg/ r,
   /var/lib/dpkg/** r,
   /var/lib/journal-sealing/ r,
-  /var/lib/journal-sealing/lock rwk,
+  /var/lib/journal-sealing/lock rk,
   /var/lib/journal-sealing/status.json r,
   /var/lib/journal-sealing/verification-key r,
   /var/lib/firstboot/ r,

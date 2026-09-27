@@ -79,6 +79,7 @@ dns-client
 docker
 egress
 kdeconnect
+lan-share
 mdns
 ntp-client
 ollama
@@ -104,7 +105,7 @@ nftables_service_asset_supported() {
   candidate=$1
 
   case "$candidate" in
-    backup-restic|crowdsec|cups|dhcp-client|dns-client|docker|egress|kdeconnect|mdns|ntp-client|ollama|openvpn|podman|qemu|qbittorrent|rsync|samba|smtp-client|ssdp|ssh-client|ssh-server|syncthing|tailscale|wazuh-agent|wireguard|zerotier)
+    backup-restic|crowdsec|cups|dhcp-client|dns-client|docker|egress|kdeconnect|lan-share|mdns|ntp-client|ollama|openvpn|podman|qemu|qbittorrent|rsync|samba|smtp-client|ssdp|ssh-client|ssh-server|syncthing|tailscale|wazuh-agent|wireguard|zerotier)
       return 0
       ;;
   esac
@@ -199,6 +200,7 @@ late_command_nftables_effective_services() {
 stage_target_nftables_service_assets() {
   for service_asset in "$@"; do
     case "$service_asset" in
+      lan-share) placeholder_map=nftables_lan_share_service_placeholder_map ;;
       ssh-server) placeholder_map=nftables_ssh_service_placeholder_map ;;
       syncthing) placeholder_map=nftables_syncthing_service_placeholder_map ;;
       tailscale) placeholder_map=nftables_tailscale_service_placeholder_map ;;
@@ -573,6 +575,55 @@ nftables_ssh_allow_ipv6_cidrs() {
 fc00::/7
 fe80::/10
 EOF
+}
+
+# Never use the broad lan_ipv4/lan_ipv6 groups here. Only the networks
+# calculated from this host's managed address configuration may reach a share.
+# Empty families remain empty; sensitive-service validation rejects an overlay
+# selected without any configured subnet instead of opening a public listener.
+nftables_lan_share_service_placeholder_map() {
+  lan_share_ipv4=
+  lan_share_ipv6=
+  if [ "${MANAGED_NETWORK_IPV4_ENABLED:-false}" = true ]; then
+    lan_share_ipv4=$(nftables_merge_unique_tokens ${MANAGED_NETWORK_IPV4_NETWORK_CIDRS:-})
+  fi
+  if [ "${MANAGED_NETWORK_IPV6_ENABLED:-false}" = true ]; then
+    lan_share_ipv6=$(nftables_merge_unique_tokens ${MANAGED_NETWORK_IPV6_NETWORK_CIDRS:-})
+  fi
+  for cidr in $lan_share_ipv4 $lan_share_ipv6; do
+    nftables_validate_cidr_token LAN_share_subnet "$cidr"
+    case "$cidr" in
+      */0) installer_fatal "LAN sharing must not allow a default-route subnet" ;;
+    esac
+  done
+  ethernet_iface=$(nftables_managed_iface_value MANAGED_NETWORK_ETHERNET_IFACE "${MANAGED_NETWORK_ETHERNET_IFACE:-}" eth0)
+  wifi_iface=$(nftables_managed_iface_value MANAGED_NETWORK_WIFI_IFACE "${MANAGED_NETWORK_WIFI_IFACE:-}" wifi0)
+  [ "$ethernet_iface" != "$wifi_iface" ] ||
+    installer_fatal "LAN sharing requires distinct managed interface names"
+  printf 'NFTABLES_LAN_SHARE_ALLOW_IPV4=%s\n' "$(nftables_yaml_inline_list $lan_share_ipv4)"
+  printf 'NFTABLES_LAN_SHARE_ALLOW_IPV6=%s\n' "$(nftables_yaml_inline_list $lan_share_ipv6)"
+  printf 'NFTABLES_LAN_SHARE_ALLOW_INTERFACES=%s\n' "$(nftables_yaml_inline_list "$ethernet_iface" "$wifi_iface")"
+}
+
+# Mullvad owns a separate filter table, which must not be flushed or bypassed.
+# Use its supported LAN setting only for hosts selecting the LAN-share policy;
+# the daemon remains demand-started by the existing application policy.
+stage_target_nftables_mullvad_lan_policy() {
+  case " $1 " in
+    *" lan-share "*)
+      if [ -x /target/usr/bin/mullvad ]; then
+        stage_target_asset \
+          "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/mullvad-lan-allow)" \
+          /usr/local/libexec/mullvad-lan-allow 0755
+        stage_target_asset \
+          "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/mullvad-daemon.service.d/25-lan-sharing.conf)" \
+          /etc/systemd/system/mullvad-daemon.service.d/25-lan-sharing.conf 0644
+        return 0
+      fi
+      ;;
+  esac
+  rm -f /target/etc/systemd/system/mullvad-daemon.service.d/25-lan-sharing.conf \
+    /target/usr/local/libexec/mullvad-lan-allow
 }
 
 nftables_ssh_service_placeholder_map() {
@@ -1216,6 +1267,7 @@ nftables_default_placeholder_map() {
 }
 
 clear_target_nftables_assets() {
+  stage_target_nftables_mullvad_lan_policy ""
   if [ -r /target/etc/nftables.conf ] &&
      grep -E -q 'Managed by (unattended-installer|nft-policy-generate[.]py)' /target/etc/nftables.conf; then
     rm -f /target/etc/nftables.conf
@@ -1365,6 +1417,7 @@ configure_target_nftables() {
   set -- "$@" --write --summary
   run_in_target "generate ${requested_profile} nftables policy (${selected_profile} profile)" "$@"
 
+  stage_target_nftables_mullvad_lan_policy "$selected_services"
   stage_target_systemd_unit_enabled nftables.service system
 
   [ -x /target/usr/local/sbin/nft-policy-generate ] || installer_fatal "staged nftables generator is missing"

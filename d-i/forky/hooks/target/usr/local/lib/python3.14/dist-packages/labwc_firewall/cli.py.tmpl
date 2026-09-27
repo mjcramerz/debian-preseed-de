@@ -226,7 +226,7 @@ def _status(paths: FirewallPaths, runner: CommandRunner) -> int:
             "list",
             "chain",
             "inet",
-            "filter",
+            "labwc_filter",
             "local_input",
         )
         print("\n=== nftables local_output chain ===")
@@ -236,7 +236,7 @@ def _status(paths: FirewallPaths, runner: CommandRunner) -> int:
             "list",
             "chain",
             "inet",
-            "filter",
+            "labwc_filter",
             "local_output",
         )
     return 0

@@ -1,7 +1,11 @@
 [Unit]
 Description=Execute authorized Labwc desktop power action (%i)
-Documentation=man:systemd.service(5) man:systemctl(1)
+Documentation=man:systemd.service(5) man:systemctl(1) man:org.freedesktop.login1(5)
 After=systemd-logind.service systemd-tmpfiles-setup.service
+# Normal stop ordering only; the single-force handoff skips unit stop jobs.
+# Its package reservation stays held until PID 1 terminates the worker.
+# Ordering does not pull any of these optional units into startup.
+Before=apt-daily.service apt-daily-upgrade.service unattended-upgrades.service packagekit.service
 RequiresMountsFor=__INSTALLER_LOG_POWER_DIR__
 Wants=systemd-logind.service systemd-tmpfiles-setup.service
 ConditionFileIsExecutable=/usr/local/libexec/labwc-admin-action-worker
@@ -49,7 +53,9 @@ ProtectKernelTunables=yes
 ProtectProc=default
 ProtectSystem=strict
 ProcSubset=pid
-CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_KILL
+# PID 1 authenticates its direct Reboot/PowerOff methods with CAP_SYS_BOOT.
+# Grant it only here; seccomp below still forbids direct reboot/kexec.
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_KILL CAP_SYS_BOOT
 AmbientCapabilities=
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
@@ -59,3 +65,5 @@ RestrictRealtime=yes
 RestrictSUIDSGID=yes
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
+# Only PID 1 may perform the actual reboot, not this worker or its children.
+SystemCallFilter=~@reboot

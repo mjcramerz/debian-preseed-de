@@ -184,7 +184,7 @@ def action_lock(*, wait: bool = False):
 
 
 def hold_reservation() -> None:
-    # PowerOff/Reboot/Suspend APIs enqueue work; their return is not completion.
+    # A successful systemctl request is not completed shutdown or sleep.
     # Keep the reservation alive until PID 1 stops this service. For the sleep
     # guard, StopWhenUnneeded releases it only after the sleep/resume job ends.
     while True:
@@ -304,11 +304,11 @@ def ready() -> None:
         notifier.sendall(b"READY=1\nSTATUS=Authorized desktop power request accepted")
 
 
-def check_shutdown_inhibitors(*, force: bool = False) -> None:
-    """Validate inhibitors; a prepared, explicitly forced action logs overrides.
+def check_shutdown_inhibitors() -> None:
+    """Veto known block locks; single --force bypasses logind delay handling.
 
-    Package-lock reservations, save-dialog cancellation and other-account
-    guards remain mandatory. This is not logind's delay-inhibitor protocol.
+    This snapshot is not an atomic inhibitor reservation. The final PID 1
+    handoff does not emit logind PrepareForShutdown or wait for delay locks.
     """
     raw = run(["/usr/bin/busctl", "--system", "--json=short", "--timeout=5s",
                "call", "org.freedesktop.login1", "/org/freedesktop/login1",
@@ -330,11 +330,9 @@ def check_shutdown_inhibitors(*, force: bool = False) -> None:
             if "shutdown" in item[0].split(":") and item[3] != "delay":
                 if item[3] not in {"block", "block-weak"}:
                     raise Error("unrecognized shutdown inhibitor mode")
-                if not force:
-                    raise Error("shutdown is inhibited; release the inhibitor before retrying")
                 # Do not log caller-supplied inhibitor strings or sensitive data.
-                print(f"power preparation: authorized force overrides shutdown inhibitor "
-                      f"uid={item[4]} pid={item[5]}", file=sys.stderr, flush=True)
+                raise Error(f"shutdown is inhibited by uid={item[4]} pid={item[5]}; "
+                            "release the inhibitor before retrying")
     except (ValueError, RecursionError) as exc:
         raise Error("cannot verify shutdown inhibitors") from exc
 
@@ -379,7 +377,7 @@ class Worker:
         self.greeter_identity: tuple[str, str] | None = None
         self.package_locks = None
         self.committed = False
-        self.quiesced = False
+        self.prepared = False
         self.handoff_attempted = False
 
     def user_run(self, argv: list[str], **kwargs) -> str:
@@ -452,7 +450,7 @@ class Worker:
         if self.action == "logout":
             return
         sessions = login_sessions()
-        interactive = {"user", "user-early", "user-light", "user-early-light", "user-incomplete"}
+        interactive = {"user", "user-early", "user-light", "user-early-light", "user-incomplete", "lock-screen"}
         greeters = []
         for session_id, session_uid in sessions:
             fields = (session_id, str(session_uid))
@@ -495,7 +493,10 @@ class Worker:
                         and int(props["Leader"]) < 2**31):
                     continue
             if session_class in interactive:
-                raise Error("another interactive account is logged in; ask that user to save and log out first")
+                raise Error(f"another interactive account is logged in (uid={session_uid}, "
+                            f"session={session_id}); ask that user to save and log out first")
+            if session_class not in {"background", "background-light", "manager", "manager-early", "greeter"}:
+                raise Error(f"cannot verify other login session {session_id}; class is unknown")
         if self.greeter:
             if len(greeters) != 1:
                 raise Error("cannot identify one active local greeter session")
@@ -546,8 +547,8 @@ class Worker:
             time.sleep(0.2)
 
     def terminate_user(self) -> None:
-        # Logout is account-local. Machine power instead waits for desktop
-        # stop jobs and contacts PID 1 directly, without a shutdown transaction.
+        # Logout is account-local. Machine power uses the separate single-
+        # force handoff; do not tear down its IPC or seat before submitting.
         if self.action != "logout":
             raise Error("account teardown is only valid for logout")
         self.require_package_reservation()
@@ -571,71 +572,8 @@ class Worker:
                 return
         raise Error("user slice did not stop; inspect the power action log")
 
-    def desktop_members(self) -> set[str]:
-        text = self.userctl("show", DESKTOP_TARGET, "--property=ConsistsOf", "--value", timeout=10)
-        names = text.split()
-        if len(names) > 1024 or any(not re.fullmatch(
-                r"[A-Za-z0-9_][A-Za-z0-9_.@:\\-]{0,240}\.(service|scope|socket|timer|path|target)",
-                name) for name in names):
-            raise Error("invalid desktop membership from user manager")
-        return {DESKTOP_TARGET, COMPOSITOR, *names}
-
-    def quiesce_desktop(self) -> None:
-        self.require_package_reservation()
-        members = self.desktop_members()
-        # Commit BEFORE enqueueing stop jobs. A lost reply must not clear the
-        # launch gate or restart a half-torn-down desktop. Stop is synchronous:
-        # never --no-block and never kill the user's slice under running clients.
-        self.committed = True
-        # Stop the authoritative boundary, not a stale ConsistsOf snapshot.
-        # PartOf propagates the stop with reverse dependency ordering. A
-        # collected transient (e.g. Tomat) is not a StopUnit operand at all.
-        self.userctl("stop", DESKTOP_TARGET, COMPOSITOR, timeout=120)
-        # Include units loaded during preparation, and wait for/verify every
-        # member, not merely the target (which may finish before its compositor).
-        try:
-            members |= self.desktop_members()
-            text = self.userctl("show", "--property=Id,LoadState,ActiveState,Job,MainPID,ControlPID",
-                                "--", *sorted(members), timeout=15, accepted=(0, 1))
-        except (Error, OSError, subprocess.SubprocessError):
-            # Stopping the compositor can close the PAM session and collect
-            # its user manager before the final user-bus query. Accept that
-            # race only if PID 1 confirms the entire manager has exited.
-            raw = run(["/usr/bin/systemctl", "show", f"user@{self.uid}.service",
-                       "--property=LoadState,ActiveState,Job,MainPID,ControlPID"], timeout=5)
-            fields = ("LoadState", "ActiveState", "Job", "MainPID", "ControlPID")
-            lines = raw.splitlines()
-            if len(lines) != len(fields) or any("=" not in line for line in lines):
-                raise Error("incomplete user manager stop result") from None
-            props = dict(line.split("=", 1) for line in lines)
-            if (set(props) != set(fields)
-                    or props.get("LoadState") not in {"loaded", "not-found"}
-                    or props.get("ActiveState") not in {"inactive", "failed"}
-                    or props.get("Job") not in {"", "0"}
-                    or props.get("MainPID") != "0" or props.get("ControlPID") != "0"):
-                raise Error("cannot verify desktop stop after the user manager exited") from None
-            self.quiesced = True
-            print("power cleanup: desktop stopped with its user manager", file=sys.stderr, flush=True)
-            return
-        observed = set()
-        for block in text.strip().split("\n\n"):
-            props = dict(line.split("=", 1) for line in block.splitlines() if "=" in line)
-            name = props.get("Id", "")
-            if name not in members or name in observed:
-                raise Error("cannot verify desktop stop results")
-            observed.add(name)
-            if (props.get("LoadState") not in {"loaded", "not-found"}
-                    or props.get("ActiveState") not in {"inactive", "failed"}
-                    or props.get("Job", "") not in {"", "0"}
-                    or props.get("MainPID", "0") != "0"
-                    or props.get("ControlPID", "0") != "0"):
-                raise Error(f"desktop unit has not quiesced: {name}")
-        if observed != members:
-            raise Error("incomplete desktop stop results; forced power cancelled")
-        self.quiesced = True
-        print("power cleanup: desktop clients and compositor stopped", file=sys.stderr, flush=True)
-
     def stop_optional_guests(self) -> None:
+        self.require_package_reservation()
         # These fixed names are optional when the corresponding addon is not
         # installed. An installed, running hook must complete successfully.
         # Stopping a oneshot with RemainAfterExit runs its vendor ExecStop. It
@@ -665,31 +603,32 @@ class Worker:
     def final_power_action(self) -> None:
         if self.action not in {"reboot", "poweroff"}:
             raise Error("invalid machine shutdown action")
-        if not (self.quiesced or self.greeter) or self.handoff_attempted:
-            raise Error("forced handoff requires a quiesced desktop and may run only once")
+        if not (self.prepared or self.greeter) or self.handoff_attempted:
+            raise Error("handoff requires a prepared desktop and may run only once")
         self.require_package_reservation()
         self.protect_other_sessions()
-        check_shutdown_inhibitors(force=True)
+        check_shutdown_inhibitors()
         self.require_package_reservation()
-        # Clients have accepted close/save, the desktop is stopped, and guest
-        # hooks have completed. Flush their writes before the single-force call.
+        # Preparation and managed guest ExecStop hooks have already completed.
+        # Keep the compositor, seat and buses alive until PID 1 takes over: do
+        # not add a shutdown.target transaction or a pre-handoff seat teardown.
         os.sync()
+        self.require_package_reservation()
+        status(f"Power handoff: systemctl --force {self.action}; single-force PID 1 shutdown")
         self.require_package_reservation()
         self.committed = True
         self.handoff_attempted = True
-        print(f"power handoff: systemctl --force {self.action}; desktop stop verified",
-              file=sys.stderr, flush=True)
-        # PID 1 opens stdout in the per-request power log and stderr in the
-        # journal. Do not replay/export logs or delay handoff for a snapshot.
-        self.require_package_reservation()
-        # Exactly ONE --force contacts PID 1; two would bypass its final
-        # process/filesystem teardown. No target is started as an intermediate
-        # barrier. PID 1 handles process termination and filesystem teardown;
-        # system-wide service stop jobs are intentionally skipped. No root
-        # service stop or wait is performed after this boundary.
+        # Exactly ONE --force is the selected path, not a failure fallback. It
+        # bypasses the ordinary unit-stop transaction and logind delay handling;
+        # PID 1 still terminates processes and unmounts/remounts filesystems.
+        # Never use double force, reboot(2), a raw reboot/poweroff utility, or a
+        # shell command. The fixed environment disables auto kexec/soft-reboot.
         try:
-            run(["/usr/bin/systemctl", "--force", "--no-ask-password", self.action], timeout=20)
+            run(["/usr/bin/systemctl", "--force", self.action],
+                timeout=25, max_output=4096)
         except (Error, OSError, subprocess.SubprocessError) as exc:
+            # A lost acknowledgement may follow an accepted request. Do not
+            # resend, escalate force, start another target, or revive the desktop.
             raise Error(f"{self.action} handoff status uncertain; do not retry automatically: {exc}") from exc
 
     def require_package_reservation(self) -> None:
@@ -728,10 +667,10 @@ class Worker:
                     if self.action not in {"poweroff", "reboot"}:
                         raise Error("invalid greeter power action")
                     self.require_package_reservation()
-                    check_shutdown_inhibitors(force=True)
+                    check_shutdown_inhibitors()
                     # No desktop belongs to this greeter request; the account
                     # guard above has excluded other interactive users. Share
-                    # the guest-stop and single-force finalization path.
+                    # the guest-stop and single-force PID 1 handoff path.
                     self.stop_optional_guests()
                     self.final_power_action()
                     hold_reservation()
@@ -747,17 +686,21 @@ class Worker:
                          "--no-ask-password", "suspend"], timeout=60)
                     return
                 self.helper("prepare")
+                self.prepared = True
                 self.protect_other_sessions()
                 self.require_package_reservation()
                 if self.action == "logout":
                     self.committed = True
                     self.terminate_user()
                 else:
-                    check_shutdown_inhibitors(force=True)
+                    check_shutdown_inhibitors()
                     # An optional guest hook can fail or time out. Complete
                     # those checks while the desktop is still available.
                     self.stop_optional_guests()
-                    self.quiesce_desktop()
+                    # Detect session replacement before the single-force
+                    # handoff; keep the authorized seat alive until then.
+                    if self.session_identity() != identity:
+                        raise Error("desktop session changed during power preparation")
                     self.final_power_action()
                     # Never release locks just because the enqueue call returned.
                     hold_reservation()

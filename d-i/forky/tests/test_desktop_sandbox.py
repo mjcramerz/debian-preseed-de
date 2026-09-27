@@ -982,9 +982,18 @@ class InstalledFailureRegressionTests(unittest.TestCase):
         self.assertIn('desktop-public-xwayland-package-absent', firstboot)
         self.assertIn('desktop-wallpaper-config', firstboot)
         firstboot_unit = render_theme_defaults(payload_read_text(DESKTOP / 'etc/systemd/system/firstboot.service'))
-        self.assertIn('Requires=local-fs.target systemd-tmpfiles-setup.service', firstboot_unit)
-        self.assertIn('Wants=network-online.target apparmor-modes.service', firstboot_unit)
-        self.assertIn('After=local-fs.target systemd-tmpfiles-setup.service systemd-journald.socket journal-sealing.service network-online.target apparmor-modes.service', firstboot_unit)
+        # Additional AppArmor dependencies must not make this unrelated
+        # lifecycle assertion depend on the serialization order of unit names.
+        properties = dict(line.split('=', 1) for line in firstboot_unit.splitlines()
+                          if line.startswith(('Requires=', 'Wants=', 'After=')))
+        self.assertLessEqual({'apparmor.service', 'local-fs.target',
+                              'systemd-tmpfiles-setup.service'}, set(properties['Requires'].split()))
+        self.assertLessEqual({'network-online.target', 'apparmor-modes.service'},
+                             set(properties['Wants'].split()))
+        self.assertLessEqual({'apparmor.service', 'local-fs.target', 'systemd-tmpfiles-setup.service',
+                              'systemd-journald.socket', 'journal-sealing.service',
+                              'network-online.target', 'apparmor-modes.service'},
+                             set(properties['After'].split()))
         self.assertIn('WantedBy=multi-user.target', firstboot_unit)
         self.assertNotIn('Before=sysinit.target', firstboot_unit)
 

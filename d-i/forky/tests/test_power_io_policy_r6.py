@@ -1,9 +1,10 @@
-"""R6: staged policy, synchronous single-force handoff, and mocked handoff.
+"""R6: staged policy, single-force PID 1 handoff, and mocked handoff.
 
 Never run a power command. systemd checks use verify only; calls from the
 production worker are mocked. Fixture units are not host units.
 """
 from __future__ import annotations
+from power_handoff_fixture import handoff_argv, is_handoff
 from payload_fixture import copyfile as payload_copyfile, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
 from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import contextlib
@@ -170,31 +171,31 @@ class HandoffTests(unittest.TestCase):
         self.worker = self.power.Worker(1000, 'desktop', 'reboot')
         self.worker.package_locks = mock.Mock()  # acquired gate fixture; real locks tested separately
 
-    def test_both_actions_submit_exactly_one_force_after_quiescence(self):
+    def test_both_actions_submit_exactly_one_single_force_request_after_preparation(self):
         for action in ('reboot', 'poweroff'):
             worker = self.power.Worker(1000, 'desktop', action)
             worker.package_locks = mock.Mock()  # acquired gate fixture; real locks tested separately
-            worker.quiesced = True
+            worker.prepared = True
             with mock.patch.object(worker, 'protect_other_sessions'), \
                     mock.patch.object(self.power, 'check_shutdown_inhibitors'), \
                     mock.patch.object(self.power, 'run', return_value='') as run, \
                     contextlib.redirect_stderr(io.StringIO()) as output:
                 worker.final_power_action()
             self.assertEqual(run.call_args_list, [
-                mock.call(['/usr/bin/systemctl', '--force', '--no-ask-password', action], timeout=20)])
+                mock.call(handoff_argv(action), timeout=25, max_output=4096)])
             self.assertTrue(worker.committed)
             self.assertTrue(worker.handoff_attempted)
             self.assertIn('systemctl --force ' + action, output.getvalue())
 
-    def test_unquiesced_desktop_never_submits_power(self):
+    def test_unprepared_desktop_never_submits_power(self):
         with mock.patch.object(self.power, 'run') as run:
-            with self.assertRaisesRegex(self.power.Error, 'quiesced'):
+            with self.assertRaisesRegex(self.power.Error, 'prepared'):
                 self.worker.final_power_action()
             run.assert_not_called()
         self.assertFalse(self.worker.committed)
 
     def test_uncertain_submission_never_retries_or_cancels(self):
-        self.worker.quiesced = True
+        self.worker.prepared = True
         with mock.patch.object(self.worker, 'protect_other_sessions'), \
                 mock.patch.object(self.power, 'check_shutdown_inhibitors'), \
                 mock.patch.object(self.power, 'run', side_effect=self.power.Error('lost reply')) as run, \
@@ -205,7 +206,7 @@ class HandoffTests(unittest.TestCase):
                 self.worker.final_power_action()
         self.assertTrue(self.worker.committed)
         self.assertEqual(run.call_count, 1)
-        self.assertEqual(sum('--force' in c.args[0] for c in run.call_args_list), 1)
+        self.assertEqual(sum(is_handoff(c.args[0]) for c in run.call_args_list), 1)
 
     def test_unaccepted_actions_cannot_form_a_unit_name(self):
         for action in ('logout', 'suspend', 'reboot;id', '../poweroff', 'reboot --force'):
@@ -224,11 +225,10 @@ class HandoffTests(unittest.TestCase):
              mock.patch.object(self.power, 'check_shutdown_inhibitors', side_effect=lambda **kwargs: events.append('inhibitors')), \
              mock.patch.object(self.power, 'ready', side_effect=lambda: events.append('ready')), \
              mock.patch.object(self.worker, 'helper', side_effect=lambda a: events.append(a)), \
-             mock.patch.object(self.worker, 'quiesce_desktop', side_effect=lambda: events.append('quiesce')), \
              mock.patch.object(self.worker, 'stop_optional_guests', side_effect=lambda: events.append('guests')), \
              mock.patch.object(self.worker, 'final_power_action', side_effect=lambda: events.append('handoff')):
             self.worker.execute()
-        self.assertEqual(events, ['active', 'accounts', 'ready', 'active', 'accounts', 'prepare', 'accounts', 'inhibitors', 'guests', 'quiesce', 'handoff', 'hold'])
+        self.assertEqual(events, ['active', 'accounts', 'ready', 'active', 'accounts', 'prepare', 'accounts', 'inhibitors', 'guests', 'active', 'handoff', 'hold'])
 
 
 if __name__ == '__main__':
