@@ -350,16 +350,64 @@ class AppArmorCoverageTests(unittest.TestCase):
         self.assertIn('/usr/local/bin/labwc-wayland-app rPx -> labwc-generic-app,', wrapper)
         self.assertNotIn('/dev/** rw', wrapper + root)
 
-    def test_terminal_metadata_rules_do_not_grant_dpkg_or_system_subtree_writes(self):
+    def test_terminal_repository_edits_stay_account_owned_and_system_paths_read_only(self):
         text = payload_read_text(TARGET / 'etc/apparmor.d/desktop-utilities')
         text = text.split('profile desktop-launcher ', 1)[1].split('\nprofile ', 1)[0]
         self.assertIn('/usr/lib/git-core/git rix,', text)
         self.assertIn('/var/lib/apt/lists/** r,', text)
-        self.assertIn('owner /data/codex/usr/.git/** rwkl,', text)
+        self.assertIn('owner /data/codex/usr/ rw,', text)
+        self.assertIn('owner /data/codex/usr/** rwklm,', text)
         self.assertIn('/data/codex/usr/** r,', text)
-        self.assertNotIn('/data/codex/usr/** rw', text)
+        self.assertNotIn('/data/codex/share/** rw', text)
         self.assertNotRegex(text, r'/var/lib/(apt|dpkg)/[^\n]*\s+[a-z]*w')
-        self.assertNotIn('/.system/', text)
+        runtime = payload_read_text(TARGET / 'etc/apparmor.d/abstractions/codex-runtime')
+        self.assertNotIn('deny /data/codex/usr/etc/', runtime)
+        self.assertIn('deny /data/codex/{lib,share}/** wkl,', runtime)
+
+    def test_only_selected_gtk_apps_keep_dark_and_thunar_disables_gl(self):
+        with mock.patch.object(generic, 'assert_launch_allowed'), \
+             mock.patch.object(generic, 'restart_token', return_value='fixture'), \
+             mock.patch.object(generic, 'menu_action_wait_arguments', return_value=[]):
+            for executable, expected in (('/usr/bin/thunar', '--setenv=GDK_DEBUG'),
+                                         ('/usr/bin/labwc-tweaks', '--setenv=GTK_THEME')):
+                environment = {}
+                argv = generic.transient_argv('wayland', 'auto', [executable], environment)
+                self.assertIn(expected, argv)
+                self.assertIn(expected.split('=')[1], environment)
+            environment = {}
+            argv = generic.transient_argv('wayland', 'auto', ['/usr/bin/gnumeric'], environment)
+            self.assertNotIn('--setenv=GTK_THEME', argv)
+            self.assertNotIn('--setenv=GDK_DEBUG', argv)
+        self.assertEqual(profiles.APPS['bitwarden']['env']['GTK_THEME'], 'Adwaita:dark')
+        skel = TARGET / 'etc/skel-desktop/.config'
+        menu = payload_read_text(skel / 'labwc/menu.xml')
+        shortcuts = payload_read_text(skel / 'labwc/rc.xml')
+        waybar = payload_read_text(skel / 'waybar/config')
+        self.assertIn('command="env GDK_DEBUG=nogl thunar"', menu)
+        self.assertEqual(shortcuts.count('command="env GDK_DEBUG=nogl thunar"'), 2)
+        self.assertEqual(waybar.count('-- /usr/bin/env GDK_DEBUG=nogl __INSTALLER_LABWC_FILE_MANAGER_COMMAND__'), 2)
+        for profile in (FORKY / 'hosts/profiles').glob('*.env'):
+            self.assertIn('LABWC_FILE_MANAGER_COMMAND="thunar"', profile.read_text())
+
+    def test_codex_source_etc_is_editable_but_deployed_etc_is_root_owned(self):
+        release = payload_read_text(FORKY / 'scripts/late/devops/codex-release.sh')
+        layout = payload_read_text(FORKY / 'scripts/late/devops/codex-layout.sh')
+        wrapper = payload_read_text(TARGET / 'data/codex/lib/codex')
+        self.assertIn('codex_chmod_without_special_bits 0750 "$repository_staging/etc"', release)
+        self.assertIn('find "$repository_staging" -xdev -type d -exec chmod u+rwx,a-s,go-w -- {} +', release)
+        self.assertIn('find "$repository_staging" -xdev -type f -exec chmod u+rw,a-s,go-w -- {} +', release)
+        self.assertIn('codex_verify_stat "${account_uid}:${devops_gid}:750" "$user_root/etc"', layout)
+        self.assertIn('chown -R root:root "$config_staging"', release)
+        self.assertNotIn('f"{CODEX_USER_ROOT}/etc"):', wrapper)
+        self.assertIn('f"{CODEX_STORAGE_ROOT}/share"):', wrapper)
+
+    def test_vivaldi_file_read_keeps_bwrap_inherited_host_socket_denied(self):
+        local = payload_read_text(TARGET / 'etc/apparmor.d/local/vivaldi-bin')
+        self.assertIn('owner @{HOME}/Workspace/codex-home.zip r,', local)
+        child = local.split('profile vivaldi-bwrap ', 1)[1]
+        self.assertIn('deny network inet dgram,', child)
+        self.assertNotRegex(child, r'(?m)^\s*network inet dgram,')
+        self.assertNotIn('network (send, receive) inet dgram,', child)
 
     def test_crashpad_memory_is_owner_read_only_and_shm_already_permitted(self):
         local = payload_read_text(TARGET / 'etc/apparmor.d/local/chromium')

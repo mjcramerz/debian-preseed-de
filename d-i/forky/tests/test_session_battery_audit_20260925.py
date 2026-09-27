@@ -112,7 +112,8 @@ class IntegrationContracts(unittest.TestCase):
         for grant in ('/usr/local/libexec/journal-sealing rix,',
                       '/usr/local/libexec/journal-check rix,',
                       '/var/lib/journal-sealing/lock rwk,',
-                      '/var/lib/journal-sealing/status.json r,'):
+                      '/var/lib/journal-sealing/status.json r,',
+                      '/var/lib/journal-sealing/verification-key r,'):
             self.assertIn(grant, firstboot_policy)
         self.assertNotIn('/var/lib/journal-sealing/** rw', firstboot_policy)
         self.assertIn('check_command apparmor-log-delivery apparmor_log_delivery', firstboot)

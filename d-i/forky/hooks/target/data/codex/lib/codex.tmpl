@@ -1834,9 +1834,9 @@ def codex_build_bwrap_args(uid: int, gid: int) -> list[str]:
     )
     # Never expose credential sources, including for interactive invocations.
     BWRAP_ARGS.extend(("--tmpfs", f"{CODEX_STORAGE_ROOT}/credentials"))
-    # Release code and administrator policy stay immutable even though the
-    # requested work/storage roots are writable. DAC is still enforced.
-    for protected in (f"{CODEX_STORAGE_ROOT}/lib", f"{CODEX_STORAGE_ROOT}/share", f"{CODEX_USER_ROOT}/etc"):
+    # Release code stays immutable. The checked-out usr/etc is account-owned;
+    # the deployed administrator configuration is separately rooted at /etc/codex.
+    for protected in (f"{CODEX_STORAGE_ROOT}/lib", f"{CODEX_STORAGE_ROOT}/share"):
         codex_append_ro_bind_if_present(protected, protected)
     for protected in (f"{CODEX_STORAGE_ROOT}/config.schema.json", f"{CODEX_STORAGE_ROOT}/.codex-release"):
         codex_append_ro_bind_if_present(protected, protected)

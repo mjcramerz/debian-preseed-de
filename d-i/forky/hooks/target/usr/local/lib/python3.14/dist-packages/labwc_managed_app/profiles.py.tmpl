@@ -153,6 +153,7 @@ APPS = {
         "required_runtime_files": ("/opt/Bitwarden/libffmpeg.so",),
         "env": {
             "ELECTRON_OZONE_PLATFORM_HINT": "wayland",
+            "GTK_THEME": "Adwaita:dark",
         },
         "args": electron_args("bitwarden", "launch"),
         "intel_env": {},

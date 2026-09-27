@@ -158,7 +158,9 @@ esac
             keyboard = configuration['custom/keyboard']
             self.assertFalse(keyboard['exec-on-event'])
             self.assertEqual(keyboard['signal'], 7)
-            self.assertIn('labwc-keyboard-layout waybar-toggle', keyboard['on-click'])
+            self.assertNotIn('on-click', keyboard)
+            self.assertIn('--no-block', keyboard['on-click-release'])
+            self.assertIn('labwc-keyboard-layout waybar-toggle', keyboard['on-click-release'])
         text = payload_read_text(TARGET / 'usr/local/bin/labwc-keyboard-layout')
         self.assertIn('sleep 0.03', text)
         self.assertIn('flock -w 5 9', text)

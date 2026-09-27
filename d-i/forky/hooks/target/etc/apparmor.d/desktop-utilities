@@ -250,12 +250,12 @@ profile desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exe
   /usr/lib/@{multiarch}/glib-2.0/gio-launch-desktop rix,
   # udevadm queries device metadata, not block/USB device contents.
   /run/udev/data/{b[0-9]*:[0-9]*,c189:[0-9]*,+usb:*} r,
-  # The managed configuration repository is intentionally browsable from the
-  # user's terminal. Only Git metadata and the recorded account-edit files
-  # gain writes; the Codex .system subtree receives no write/execute grant.
+  # The account owns the checked-out configuration tree. Edits from a terminal
+  # are confined to that account's files; release and system configuration
+  # under /data/codex/{lib,share} and /etc/codex stay separate.
   /data/codex/usr/** r,
-  owner /data/codex/usr/.git/** rwkl,
-  owner /data/codex/usr/home/{auth.json,config.toml,.config.toml.swp} rw,
+  owner /data/codex/usr/ rw,
+  owner /data/codex/usr/** rwklm,
 
   # A terminal's mail check may read its user's traditional mail spool.
   owner /var/mail/* r,

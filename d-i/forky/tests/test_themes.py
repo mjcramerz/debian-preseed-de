@@ -32,8 +32,12 @@ Q = shlex.quote
 
 
 class ThemeValidationTests(unittest.TestCase):
-    def test_default_theme_is_dark_and_requested_accents_match(self):
-        self.assertEqual(VALUES['LABWC_DESKTOP_GTK_PREFER_DARK'], '1')
+    def test_default_theme_is_light_and_requested_accents_match(self):
+        self.assertEqual(VALUES['LABWC_DESKTOP_GTK_PREFER_DARK'], '0')
+        self.assertEqual(VALUES['LABWC_DESKTOP_GTK_THEME'], 'Adwaita')
+        appearance = (SEED / 'hooks/target/usr/share/glib-2.0/schemas/90-desktop-appearance.gschema.override').read_text()
+        self.assertIn("color-scheme='prefer-light'", appearance)
+        self.assertIn("gtk-theme='Adwaita'", appearance)
         self.assertEqual(VALUES['LABWC_DESKTOP_QT_COLOR_SCHEME_PATH'],
                          '/usr/share/qt6ct/colors/darker.conf')
         self.assertEqual(VALUES['LABWC_DESKTOP_QT_STYLE_OVERRIDE'], 'adwaita')

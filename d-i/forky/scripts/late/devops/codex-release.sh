@@ -512,13 +512,12 @@ unset unsafe_repository_git_entry
 candidate_home_path="$repository_staging/home"
 candidate_memories_path="${candidate_home_path}/memories"
 chown -R "$account_user:devops" "$repository_staging"
-find "$repository_staging" -xdev -type d -exec chmod a-s,go-w -- {} +
-find "$repository_staging" -xdev -type f -exec chmod a-s,go-w -- {} +
+find "$repository_staging" -xdev -type d -exec chmod u+rwx,a-s,go-w -- {} +
+find "$repository_staging" -xdev -type f -exec chmod u+rw,a-s,go-w -- {} +
 chown -R "$account_user:devops" "$repository_git_path"
 find "$repository_git_path" -xdev -type d -exec chmod 0750 -- {} +
 find "$repository_git_path" -xdev -type f -exec chmod 0640 -- {} +
-chown -R root:root "$repository_staging/etc"
-codex_chmod_without_special_bits 0755 "$repository_staging/etc"
+codex_chmod_without_special_bits 0750 "$repository_staging/etc"
 
 install -d -m 2770 -o "$account_user" -g devops \
   "$candidate_home_path/sessions" \

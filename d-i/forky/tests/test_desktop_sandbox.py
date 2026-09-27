@@ -365,8 +365,9 @@ class CodexTests(unittest.TestCase):
                      '/data/codex/usr/home', '/home/test/Workspace']:
             self.assertIn([path, path], binds)
         readonly = [args[i+1:i+3] for i, value in enumerate(args) if value == '--ro-bind']
-        for path in ['/data/codex/lib', '/data/codex/share', '/data/codex/usr/etc']:
+        for path in ['/data/codex/lib', '/data/codex/share']:
             self.assertIn([path, path], readonly)
+        self.assertNotIn(['/data/codex/usr/etc', '/data/codex/usr/etc'], readonly)
         self.assertIn(['--cap-drop', 'ALL'], [args[i:i+2] for i in range(len(args)-1)])
         self.assertEqual(args.count('/proc'), 1)
         self.assertFalse(any('/usr/bin/uname' == x for x in args))

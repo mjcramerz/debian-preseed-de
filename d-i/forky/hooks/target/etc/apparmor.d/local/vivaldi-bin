@@ -80,6 +80,7 @@ owner @{HOME}/@{XDG_DOWNLOAD_DIR}/** rwkl,
 owner @{HOME}/Documents/ rw,
 owner @{HOME}/Documents/** rwkl,
 owner @{HOME}/Workspace/llama-labwc/output/llama-{cuda,ram}.tar.gz r,
+owner @{HOME}/Workspace/codex-home.zip r,
 /pool/build/whisper-labwc/artifacts/whisper-{cuda,ram}.tar.gz r,
 
 # Vivaldi invokes Bubblewrap from a worker thread. Keep namespace construction,
@@ -97,6 +98,9 @@ profile vivaldi-bwrap flags=(attach_disconnected, mediate_deleted) {
   #include <abstractions/bwrap-common>
   #include <abstractions/electron-runtime>
 
+  # A parent browser mDNS socket can reach exec as an inherited descriptor.
+  # Bubblewrap must not use host UDP sockets while constructing its namespace.
+  deny network inet dgram,
   signal (receive) set=(kill) peer=vivaldi-bin,
 
   /opt/vivaldi/ r,

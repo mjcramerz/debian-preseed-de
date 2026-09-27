@@ -87,6 +87,7 @@ profile firstboot /var/lib/firstboot/bin/firstboot.sh flags=(attach_disconnected
   /var/lib/journal-sealing/ r,
   /var/lib/journal-sealing/lock rwk,
   /var/lib/journal-sealing/status.json r,
+  /var/lib/journal-sealing/verification-key r,
   /var/lib/firstboot/ r,
   /var/lib/firstboot/state/ rw,
   /var/lib/firstboot/state/** rwkl,

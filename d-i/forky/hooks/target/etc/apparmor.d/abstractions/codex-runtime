@@ -48,14 +48,12 @@ deny /data/codex/{lib,share}/** wkl,
 /data/codex/usr/ r,
 /data/codex/usr/agents/ r,
 /data/codex/usr/agents/** mrix,
-# Git metadata is mutable account state. Permit only owner-scoped repository
-# traversal, file updates, locks, links, and mappings; root-owned etc/ remains denied.
+# Git metadata is mutable account state. The checked-out etc/ is account-owned;
+# deployed administrator policy under /etc/codex remains root-owned.
 owner /data/codex/usr/.git/ rw,
 owner /data/codex/usr/.git/**/ rw,
 owner /data/codex/usr/.git/** rwklm,
-/data/codex/usr/etc/ r,
-deny /data/codex/usr/etc/ wkl,
-deny /data/codex/usr/etc/** wkl,
+/data/codex/usr/etc/ rw,
 # Prompts, model catalogs, and instruction fragments are nested and versioned.
 /data/codex/usr/instructions/ r,
 /data/codex/usr/instructions/** r,

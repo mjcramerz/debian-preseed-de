@@ -94,7 +94,7 @@ fde996e76845076f996a29a564a6ea31061a98966c9ef0c718bca6497bf5a704  hooks/installe
 7175a0cbb6ec8aa9226c475ae30258f07268c58d9371fa443c7e6dad431ce857  hooks/installer/pre-pkgsel.d/90secure-boot-dkms.sh
 5ce028a902c6e37ca3f13908fccd3e5aa40418d4eec89d340df30955ec73a23b  hooks/installer/pre-pkgsel.d/91cuda-legacy-apt.sh
 f52c1f1fc571f3cef9ad14bcd7c61c2a6cfef7d0056b580ddb83d224465ddfa4  hooks/installer/pre-pkgsel.d/92nvidia-legacy-dkms.sh
-327f21d4ae89a780774807f7e143f88af7ca6615b279b0704ed4c8314451ded3  hooks/target/data/codex/lib/codex.tmpl
+74de04daf1bec8e55d8e5b6a3143298b330b3cf1dc6528ac6bda456ee2701a16  hooks/target/data/codex/lib/codex.tmpl
 174fc87ce762db4afeea30fd383807a4dd3478ccef3f888d1686e259b285b2c4  hooks/target/data/config/podman/templates/devops/client.conf
 c237af08d26fe538cc709b7917638c53d5d90d69b5ec9e51b88ad95c902b6e89  hooks/target/data/config/podman/templates/devops/containers.conf.tmpl
 309c8d432bb1367f4a605a1607070cb0d56afb39917f7adfad7b6d01e73464a9  hooks/target/data/config/podman/templates/devops/podman-devops-restart.service.tmpl
@@ -119,7 +119,7 @@ c973e06aca2da47f90e45454dbf9cce8840a4a5dfd50448bf9dcb9f1a3a40732  hooks/target/e
 311ecbec9697360ac29ba52da77c9e180c1f025d8826089047a67c11915d7fa2  hooks/target/etc/apparmor.d/abstractions/audio.d/no-raw-audio
 691510e8412fe0eea69905cebe052e2058135e832b94fbea29297194bdbf51e5  hooks/target/etc/apparmor.d/abstractions/bwrap-common
 14494f90e2538c1343f29b898c796094ac7a1e4f422f3bc12746223866756e7b  hooks/target/etc/apparmor.d/abstractions/bwrap-desktop-runtime
-ba5e82c54d97cc29694ae41fc33ac0b6b6b0395704b7f8e0e2a8a40337ac841c  hooks/target/etc/apparmor.d/abstractions/codex-runtime
+99c5d0ef389dd1f1ef9163cc303e98b1b27549227c0b7740e9b09e07e972a8d3  hooks/target/etc/apparmor.d/abstractions/codex-runtime
 c739dac83abbcf3aef0f7e5bacdcf178b37cbfce9cff4c870320e4ce761a1c7a  hooks/target/etc/apparmor.d/abstractions/crun-runtime
 f09c9df3b0858ca7b20c3749cc1fea1dcdf8c9e1f1ccd469829bc585c216f8c1  hooks/target/etc/apparmor.d/abstractions/desktop-application
 fa3e2c91709d090150feb59f83abc9aa11ab511674ef9d7d75007f383342b3b2  hooks/target/etc/apparmor.d/abstractions/desktop-graphics
@@ -150,7 +150,7 @@ ca90aaa595a1a5c4da9321facd921c9d817b902f2ca5143f651529e8a0a6ed7b  hooks/target/e
 edbdf14c3009aa22e3c38d7502342bbaf1c560354cc0caba51f0b77f62276502  hooks/target/etc/apparmor.d/chatgpt
 5777614d9d6f32f603d8d212d00bcbf1c5e526f591b9e58b4b60fd86da317880  hooks/target/etc/apparmor.d/compz
 a8e8fba190c12bd77dfaef16ea28dd52824bf899a7a695535b925e6ad9e51174  hooks/target/etc/apparmor.d/crun
-3b08f576ec2de3eeb73bc94e5df23b9cfb18ccf91a65075bc9a970f6980c4c7e  hooks/target/etc/apparmor.d/desktop-utilities
+b2f5f3d26d8af9fba7b79d157a49603068d098f273aa70a1fe1dc2246df349f0  hooks/target/etc/apparmor.d/desktop-utilities
 ffc0bcbf037be962a02e6796a6450d3758eb93e80eabb4d50a907f5d93339ebf  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
 693dfdea71e1964fa9e701f11588d2c3a7e53af4297bda99facf207313f21a20  hooks/target/etc/apparmor.d/document-applications
 97c8db71a2720a7f8417500bfa373b429c14a8b41b3b4d4097d31fa13df6d006  hooks/target/etc/apparmor.d/hardware-tuning
@@ -167,7 +167,7 @@ c0e5db31a4d46f24dd1be5982ffb848c1f8d540e732e43a37c81c74c112abc2c  hooks/target/e
 83e6952a434da71a5bdfa52d87471c94f91b7b48402c0cfc3fabfef6eecc671d  hooks/target/etc/apparmor.d/local/usr.bin.freshclam.tmpl
 00d49415c476a81de8710d048e839a35709f523802349671bbfe1dcabc67412c  hooks/target/etc/apparmor.d/local/usr.bin.pasta
 1e188132710c96068a7fbc8c63e07e55ff318742a3b58db4e7837cedbade5273  hooks/target/etc/apparmor.d/local/usr.sbin.clamd.tmpl
-b595052b3b75b46599f6cdfbfbe1a6d8ba1e380053f20073d31fa1592ce8eabc  hooks/target/etc/apparmor.d/local/vivaldi-bin
+5c1e03b0564c9e20d359dee895d526c6642aafaa72d71c0f98a0e6dc1fda6284  hooks/target/etc/apparmor.d/local/vivaldi-bin
 b56993434c3bdddd28af55b894b421f0a69cbfbfc2e77bed5185b223b78bc249  hooks/target/etc/apparmor.d/local/vivaldi-stable
 207ef2d2cc043b555ed1b8824777fbf624d4181c4382829e029997d33a49ec9f  hooks/target/etc/apparmor.d/obsidian
 75af5e819545fa634ae8ba106a3e0b7c88ecd147b272ee0b9ba6ae41c762912a  hooks/target/etc/apparmor.d/opt.Bitwarden.bitwarden
@@ -494,8 +494,8 @@ f9a36c40ee620d298e60b1b75d4a562abf987291e9c5d3cc4bb0610e97b6d249  hooks/target/e
 b9dfe671082ad086b779862a6ef73410e24a4a840193c3c01d7db1b6649885fb  hooks/target/etc/skel-desktop/.config/labwc/autostart
 73e27cb9d58dd5369e9d3089cf89b2914b237b32438f5122a136e93db48e7424  hooks/target/etc/skel-desktop/.config/labwc/environment.d/10-wayland.env.tmpl
 9474a63af5ca9f73ab4cdead93815fd2f89377d4aca413f299f8479df83f3704  hooks/target/etc/skel-desktop/.config/labwc/environment.tmpl
-f051982d6a4aa7672bdef7708a5fd0e02938921ea00212d42e20fa3eef3050bb  hooks/target/etc/skel-desktop/.config/labwc/menu.xml.tmpl
-30bbdecdb6c55432abac2a4f3cd312341bdde76fc3b2811928eda9b7d4d9f4aa  hooks/target/etc/skel-desktop/.config/labwc/rc.xml.tmpl
+b5f9063ff4b00e4673408cb45e685c657808d9d3894ce0bb9459a5fb8bc51ee7  hooks/target/etc/skel-desktop/.config/labwc/menu.xml.tmpl
+d51eb091fb7ee0dd303be10851f7cc7f3282738dab63dc8f2d79aa1b1c36b77d  hooks/target/etc/skel-desktop/.config/labwc/rc.xml.tmpl
 124722631f375e267a8f3abd344007810064e075a2499725a70d7e123ff2879e  hooks/target/etc/skel-desktop/.config/labwc/shutdown
 dae46c69bcdbd8abd4fa91eaef344e2545306f5719cf91dd66a56bbb27820054  hooks/target/etc/skel-desktop/.config/labwc/themerc-override.tmpl
 a2cbb5fa4e0366c15c889fdd1f72901bf77f44381725482018b008312944923f  hooks/target/etc/skel-desktop/.config/mako/config.tmpl
@@ -593,7 +593,7 @@ bdb2de8f2981c5581b40f505691ed69625e6061afee1fdeb7ef4693987fa85d8  hooks/target/e
 cf09238e3d43aa14506b2dff223927fe4ac4d18eb6887bc1cd6b348fea158e46  hooks/target/etc/skel-desktop/.config/vivaldi/Default/Preferences
 cf8da30c1636a7d8ecbc952bbf03443cc421c8e59214a727f12987ff180d145c  hooks/target/etc/skel-desktop/.config/waybar/audio-menu.xml.tmpl
 ea5564e492836e500ade442eea1c76cbb6dc0080b478ed35e4c210dcdb75bf52  hooks/target/etc/skel-desktop/.config/waybar/calendar-menu.xml.tmpl
-e0e57fc7335f69888d2c64e9f9d43d6b3777d8d78e23a6acc1115ea45fabfdc7  hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
+f83555f2d0693e6098c6f847436aa22db4d4c40115709b442d2ee74ea2a93ba0  hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
 759d92ba19dc5cc136c14a05a061fdbc6270da5c335fe587c8d8eb2d6f244e54  hooks/target/etc/skel-desktop/.config/waybar/icons/apps-symbolic.svg.tmpl
 a1ed2a675aa15446e1e97a7b42ac432efba25ecebdce95c816db1f30cb330d83  hooks/target/etc/skel-desktop/.config/waybar/icons/wayscriber-symbolic.svg.tmpl
 98e8f91bf48e2b3a48278a19782febdb1073d78145ec0094355d491087ed97db  hooks/target/etc/skel-desktop/.config/waybar/notifications-menu.xml.tmpl
@@ -1178,12 +1178,12 @@ f89632f47ab25bc303bedbbb4f92ccc5f7eddd435c56c2b6126f39240fee6659  hooks/target/u
 3e9f1a2ba7f009912c461f31034c0f0d80da7fd7c2929fad4bbf7f7afe786592  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/electron.py
 6d2f829cbecd3de09f47ab3c50c03f4b88dd4ea835f77c1365cdaadad8fc98dd  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/environment.py
 bd4507f48c6b1ecc52607c01a97ef5dcf7bcc9fa47b45f150ccedd68a1fdb8ca  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/events.py
-b6417087094698bd9a09b13ddecba4be8b919c7b6a24b5b9ca4fb75b939552d9  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py
+e3b9ead293f10e57e315fcbe5ae368af97a7c6703274fbaf1a58007c93cacd9c  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py
 6029417c6944a2ae15955786548aa70cfc5a296a7169b81a9a505930a4e23196  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/identity.py
 aeeab4e328bcbc4b9c95e64f2154d1648e122612d66e0c67ee00633b0b430001  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/integrity.py
 7b871043df09c576fc948f33774b11362b978dd4afc178fee6d56bb0aa6d4d97  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/mounts.py
 57dd5cabb262e4b3dc952a4b58f5ea8c1736c47ee2d9f59ccf4c078442ec16a9  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_namespace.py
-39324b5f72c631495a3d218e2f8b5550ea14a3043c7ef46cdfc6be7788169d03  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py.tmpl
+55a769765fca10c05f823b087dcee27a0dc9922a4f6c373f0f248a0a91f0134c  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py.tmpl
 7fa92bf26e88e9711c18cfa692f62f1c69566dc824ba118249da274e2b78c08d  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/recovery.py
 7aa540a8117255a44defee431ede78c5d7dbc011bc12f8f98c4d9c9c46d34e93  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/runtime.py
 c4aa12edc9178cb01e9804e0b55c0bf568400dd618a5552aa1f3b0fd6f137a5e  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/sandbox.py
@@ -1358,7 +1358,7 @@ aab6e344c128a98e0b1ac6ab8558ef50d48463a0b9ebd0217ab8d04cf721a0fe  hooks/target/u
 82e0d8bbfa729f7c7271ab38a058108b17107c8fe37c7310971b156b5c9cf317  hooks/target/usr/share/backgrounds/other/wallpaper-1920x1080-org.png
 62fd4a1c9b9a3efdd5c1d7b21a3fe176484eee3fde90e180a6da1f4b61c2513f  hooks/target/usr/share/backgrounds/other/wallpaper-1920x1080.png
 729f2d741bc956eac5e2a87ec18de5b17b1b3d5080c570c482a71570683c8d57  hooks/target/usr/share/backgrounds/other/wp2653774-black-and-blue-wallpaper-hd.png
-57f34b0ee89b573f259b0d858553d1816242e2a4f1448f1fb166d2f653a1acf2  hooks/target/usr/share/glib-2.0/schemas/90-desktop-appearance.gschema.override
+b16da83139f6ba13f47356153c4dd39531aa91591cc7bad0ad92ae44490d93b4  hooks/target/usr/share/glib-2.0/schemas/90-desktop-appearance.gschema.override
 cedd680fcad7cdaf89add1831e7ce5013e48cb6b26645e8c71ae67d3b4b94be0  hooks/target/usr/share/glib-2.0/schemas/90-desktop-gnote.gschema.override.tmpl
 b6645614b7c5f412539aace53e731ed7916f3dbdd5d48f482139cddd581523d1  hooks/target/usr/share/glib-2.0/schemas/90-desktop-liferea.gschema.override
 8b39e9434a5f5fc865ff718d705b0c7551f69fe22bbeaf8eb688ba311d4274b5  hooks/target/usr/share/glib-2.0/schemas/90-desktop-window-buttons.gschema.override
@@ -1384,7 +1384,7 @@ a7052fb781fd1c55c4a2347e0c7a02860b51ca855d259d827af37a2cf0748d4b  hosts/installe
 df316a31326e686f6815bb4f88fb3a86ee91a5f248b85289597a489e0e8143f1  hosts/profiles/btrfs-de-flex-duo.env
 f0998dcb0447536d181379cc31188dd48eab89381c16b6336a6109813c6ac557  hosts/profiles/btrfs-de-flex.env
 c6128dabd48bbac03ff9071475784f4d018432dde6e8b28a8ae111ecc9bd7811  hosts/profiles/btrfs-de-p15s-duo.env
-e0b56b35f93e07ebd00816b1a6729dcf078bbf0e5426f915dc87861b7a34c063  hosts/profiles/btrfs-de-p15s.env
+78bc506bb4545e21cef18b63aaa422ed2b6e3820e6f3d4131a70e54627e140f8  hosts/profiles/btrfs-de-p15s.env
 792ab1495887e8f188d3c9abae20140d58eaf0d8987d8f1c356a183158310c78  hosts/profiles/btrfs-de.env
 d19c7aaadda19ef4e5090d3fe1befd82adc3120f16ca1a2cb7481cbeb41785a6  hosts/profiles/f2fs-de-hp14-duo.env
 33169856796ba24211f980deea6e1bb681d613aa4d74cda3523d2d334020b6c0  hosts/profiles/f2fs-de-hp14.env
@@ -1392,7 +1392,7 @@ d19c7aaadda19ef4e5090d3fe1befd82adc3120f16ca1a2cb7481cbeb41785a6  hosts/profiles
 192bcf5862bdc749117818716bc3f2acafa883710e430e2db93e46809436992d  hosts/profiles/f2fs-de-x360.env
 8d31c5c5ff3c4ac5e30a18a4b77bc7e34ca39183507774b5780135670d0c463c  hosts/themes/README.md
 b0d3ba489aeabed48ae86754fced48e7cd21184b3e899f7eb06cc4445ad558d7  hosts/themes/apps.env
-c394838205f68116b4d7baa185eaf244e9a99f8034350fa1f0a4c53f9f7678b8  hosts/themes/base.env
+45ea4e8d9e20e95a2f62cb45bd7de366b6c0c15d21e7aea327d1fc5817804b2e  hosts/themes/base.env
 5240c1e3e6a5915148728a55803d5cf0a4bf6e2b23c849cb9611117d8ad4297d  hosts/themes/office.env
 769937368267c03f40dcc4096047c0c74ba96ccf3a3e7e6b5933d5e762192220  hosts/themes/theme-schema.tsv
 34b025528d5f3271e58cd80b2e97a00b10c014df460da65fce4a2dc01d0343f1  repo.env
@@ -1464,7 +1464,7 @@ b77e3edc96a63684ad2ab08f784cc1a6b36e9a927e5ef61c810dcf919dc81988  scripts/firstb
 55617636c7b650c48ceaefd005278e6d9fc3d31e68c55fc931d266dc190b689a  scripts/firstboot/03-network.sh
 8cd26f06914baf88d1446a7822e5bda874e320994c5ea99c6866032955860c4d  scripts/firstboot/04-validation.sh.tmpl
 12ad994a1f2b039bb693e889731d1402309562d9e40a2125e269d2ac9ce0582b  scripts/firstboot/05-cleanup.sh
-8da354f4491e4d7a7e3ea792b7be8257615745f1be573656af0447c465d156df  scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl
+ac1097bb15a2707ed347d005ba04428cb7fbf9462cdd7d784ce282a82489ee5c  scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl
 12ffdb848f62b8db7850bd35298c1d4a7692466b9210b032609a30f55cb3cd5e  scripts/firstboot/assets/etc/initramfs-tools/scripts/init-bottom/90-installer-health
 5fa070d13c84b8e83354970048ae703a2d44bad7a1ec6f7b13ddaabe3d8407b7  scripts/firstboot/assets/etc/initramfs-tools/scripts/init-premount/90-installer-health
 ce2048d3ce254651ba95684705f67ad253fbcec1f5fcc5016e116dfd46311191  scripts/firstboot/assets/etc/initramfs-tools/scripts/init-top/90-installer-health
@@ -1509,8 +1509,8 @@ f848ec73ba1b90c16be1e337244098adf1070baa0529f498d8f6c5b1643bf139  scripts/late/c
 2913a2fd63736345c7b493706c280d32e808bcd961c19bd5720a66e75db4d874  scripts/late/devops/account-execution.sh
 408c8e2386fd9727f373823e208b4e6dbc07e882df8b7b18c3d7736701b7cceb  scripts/late/devops/bazelisk-node.sh
 c8a08f7ed8ea2e2bfbc1fdc44ab52ae1fd02dd2dbf58a99611fbe18716546746  scripts/late/devops/codex-appserver.sh
-4125455580d64c202cabbd28aff58c22366b3399c050b81af1ca95cdbdfcb406  scripts/late/devops/codex-layout.sh
-bb87507ab3d54e28d9459096be9ec3279533feaceccef0d8fcb0871a06f76737  scripts/late/devops/codex-release.sh
+a8fc3040518e88aa3af6659e5ef20260fc9177f9f4a1de3f846ca9baf3101d35  scripts/late/devops/codex-layout.sh
+d61f4d0852644966eee57cc8676f97a0e92c783c5c5e9ba6e5a8578daa579d46  scripts/late/devops/codex-release.sh
 426b26f8911d8a7e62b3096de98e465c755cbad9f3867e124fbe26f5e8a563d4  scripts/late/devops/main-orchestration.sh
 4531cf515f603dccc1fd8229e853b33985cbde8266f08267ea50d7ecbda18234  scripts/late/devops/policy-resolution.sh.tmpl
 bf5db826a50d1b40ff3ff727f782a07b6e17376616a31a193742bf5802bdc046  scripts/late/devops/publication-layout.sh

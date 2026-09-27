@@ -208,7 +208,7 @@ misconfigured_repository_git_entry=$(find "$repository_git_path" -xdev \
 [ -z "$misconfigured_repository_git_entry" ] ||
   codex_fatal "Codex repository metadata has an unexpected installed mode: $misconfigured_repository_git_entry"
 unset misconfigured_repository_git_entry
-codex_verify_stat "0:0:755" "$user_root/etc"
+codex_verify_stat "${account_uid}:${devops_gid}:750" "$user_root/etc"
 codex_verify_stat "${account_uid}:${devops_gid}:2770" "$home_path"
 codex_verify_stat "${account_uid}:${devops_gid}:2770" "$home_path/memories"
 for shared_home_path in sessions shell_snapshots archived_sessions; do
@@ -252,15 +252,16 @@ codex_verify_stat \
   codex_fatal "default app-server socket link does not target the managed listener"
 codex_verify_stat "0:0:755" "$system_config_dir"
 
-non_root_repository_etc_entry=$(find "$user_root/etc" -xdev \
-  \( ! -uid 0 -o ! -gid 0 \) -print)
-[ -z "$non_root_repository_etc_entry" ] ||
-  codex_fatal "Codex repository etc subtree is not fully root-owned: $non_root_repository_etc_entry"
+misowned_repository_etc_entry=$(find "$user_root/etc" -xdev \
+  \( ! -uid "$account_uid" -o ! -gid "$devops_gid" \) -print -quit)
+[ -z "$misowned_repository_etc_entry" ] ||
+  codex_fatal "Codex repository etc subtree is not fully account-owned: $misowned_repository_etc_entry"
 
 for writable_path in \
   "$codex_root" \
   "$user_root" \
   "$repository_git_path" \
+  "$user_root/etc" \
   "$home_path" \
   "$home_path/memories" \
   "$log_dir" \

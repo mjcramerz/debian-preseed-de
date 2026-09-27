@@ -119,7 +119,7 @@
     "align": 0.5,
     "tooltip": true,
     "tooltip-format": "Thunar",
-    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_FILE_MANAGER_COMMAND__"
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/bin/env GDK_DEBUG=nogl __INSTALLER_LABWC_FILE_MANAGER_COMMAND__"
   },
   "custom/app-tuta": {
     "format": " ",
@@ -224,7 +224,7 @@
     "signal": 7,
     "tooltip": true,
     "exec-on-event": false,
-    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-keyboard-layout waybar-toggle"
+    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- labwc-keyboard-layout waybar-toggle"
   },
   "custom/screenshot": {
     "exec": "/usr/local/libexec/labwc-waybar-exec __INSTALLER_LABWC_CAPTURE_COMMAND__ status",
@@ -496,7 +496,7 @@
     "align": 0.5,
     "tooltip": true,
     "tooltip-format": "Thunar",
-    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_FILE_MANAGER_COMMAND__"
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/bin/env GDK_DEBUG=nogl __INSTALLER_LABWC_FILE_MANAGER_COMMAND__"
   },
   "custom/app-tuta": {
     "format": " ",
@@ -601,7 +601,7 @@
     "signal": 7,
     "tooltip": true,
     "exec-on-event": false,
-    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-keyboard-layout waybar-toggle"
+    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- labwc-keyboard-layout waybar-toggle"
   },
   "custom/screenshot": {
     "exec": "/usr/local/libexec/labwc-waybar-exec __INSTALLER_LABWC_CAPTURE_COMMAND__ status",
