@@ -212,21 +212,32 @@ first-boot validation. A profile explicitly selecting volatile journal storage
 renders Seal=no because RAM-only journal files cannot provide durable FSS.
 Effective logging configuration is checked for drift.
 
-The helper verifies a disk-backed journal and RAM-backed `/run`, provisions keys
-only when absent, never forces replacement, rotates to begin a sealed generation,
-and stores the verification seed **only under root-private `/run/journal-sealing`**.
-Persistent evidence contains its fingerprint, not the verification secret. Transfer
+The helper verifies a disk-backed journal, provisions keys only when absent,
+never forces replacement, and rotates to begin a sealed generation. It retains
+the unexported verification key in root-private `/var/lib/journal-sealing`
+(mode 0700; key mode 0600) so a reboot before export does not destroy it.
+Persistent evidence records its fingerprint separately. Transfer
 the output of `sudo /usr/local/libexec/journal-sealing --show-verification-key`
-directly to an independently protected off-host destination **before reboot**.
+directly to an independently protected off-host destination as soon as possible.
 Compute SHA-256 over that exact output, including its newline, then run
 `sudo /usr/local/libexec/journal-sealing --acknowledge-export <sha256>`.
-This explicit operator attestation removes the on-host RAM copy.
+This explicit operator attestation removes the on-host copy. Until then, the
+same host holds both the sealing state and verification key; it does not provide
+independent off-host tamper evidence.
 `--release-check` refuses an unexported/unacknowledged generation. A lost seed or
 preexisting unmatched FSS state requires administrator recovery; the helper will
 not silently destroy/replace an existing sealing generation. Export is an operator
 attestation, not proof of remote durability. Existing journals are not retroactively
 sealed. Validate an archived journal with the independently retained verification
 key on the acceptance system.
+
+For an older installation that rebooted while its only key was in `/run`, an
+independently retained copy can be restored to
+`/var/lib/journal-sealing/verification-key` as a root-owned mode 0600 file.
+Restart `journal-sealing.service`: it validates the key against the recorded
+SHA-256 before proceeding. If no copy exists, the original verification key
+cannot be reconstructed from the FSS file; do not replace that generation
+automatically or claim that its journals can be verified.
 
 ## A09 and validation boundaries
 

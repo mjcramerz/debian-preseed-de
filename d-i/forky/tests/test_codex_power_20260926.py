@@ -169,6 +169,20 @@ class PowerRegressionTests(unittest.TestCase):
     def setUp(self):
         self.p = power_tests.module()
 
+    def test_greeter_properties_use_separate_loginctl_filters(self):
+        fields = {'User': '989', 'Name': '_greetd', 'Class': 'user-light',
+                  'Active': 'yes', 'Remote': 'no', 'Service': 'greetd-greeter',
+                  'Leader': '10113'}
+        with mock.patch.object(self.p, 'run', return_value=''.join(
+                f'{key}={value}\n' for key, value in fields.items())) as run:
+            self.assertEqual(self.p.Worker.session_properties('5'), fields)
+        argv = run.call_args.args[0]
+        self.assertEqual(argv[:4], ['/usr/bin/loginctl', 'show-session', '5', '--all'])
+        self.assertEqual(argv[4:], ['--property=' + key for key in fields])
+        with mock.patch.object(self.p, 'run', return_value='User=989\n'):
+            with self.assertRaisesRegex(self.p.Error, 'incomplete greeter'):
+                self.p.Worker.session_properties('5')
+
     def test_typed_session_list_and_exact_transport(self):
         raw = json.dumps({'type': 'a(susso)', 'data': [[['c1', 1000, 'desktop', 'seat0',
                           '/org/freedesktop/login1/session/c1']]]})

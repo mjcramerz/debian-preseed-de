@@ -65,7 +65,7 @@ class GreeterIdentityTests(unittest.TestCase):
             self.assertEqual(argv[0], '/usr/bin/busctl')
             return session_listing(self.listing)
         self.assertEqual(argv[0], '/usr/bin/loginctl')
-        if '--property=Class' in argv:
+        if '--property=Class' in argv and '--value' in argv:
             return 'user\n'
         self.assertIn('show-session', argv)
         return self.properties
@@ -158,7 +158,7 @@ class DesktopAfterLogoutTests(unittest.TestCase):
         if argv[-1] == 'ListSessions':
             return session_listing('c2 1000 desktop seat0 900 user tty2 no -\n'
                                    'c1 109 greeter seat0 321 greeter tty1 no -\n')
-        if '--property=Class' in argv:
+        if '--property=Class' in argv and '--value' in argv:
             return 'user-light\n'
         return self.properties
 

@@ -151,7 +151,7 @@ edbdf14c3009aa22e3c38d7502342bbaf1c560354cc0caba51f0b77f62276502  hooks/target/e
 5777614d9d6f32f603d8d212d00bcbf1c5e526f591b9e58b4b60fd86da317880  hooks/target/etc/apparmor.d/compz
 a8e8fba190c12bd77dfaef16ea28dd52824bf899a7a695535b925e6ad9e51174  hooks/target/etc/apparmor.d/crun
 3b08f576ec2de3eeb73bc94e5df23b9cfb18ccf91a65075bc9a970f6980c4c7e  hooks/target/etc/apparmor.d/desktop-utilities
-224c1b2bc8a4469e29247176255e270f01a40d5a86f8c319c3ef260a80746d51  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
+ffc0bcbf037be962a02e6796a6450d3758eb93e80eabb4d50a907f5d93339ebf  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
 693dfdea71e1964fa9e701f11588d2c3a7e53af4297bda99facf207313f21a20  hooks/target/etc/apparmor.d/document-applications
 97c8db71a2720a7f8417500bfa373b429c14a8b41b3b4d4097d31fa13df6d006  hooks/target/etc/apparmor.d/hardware-tuning
 faa8307ca7fe39695e551cca3761cf1bca167f98405c6d54a0b59e188d155988  hooks/target/etc/apparmor.d/labwc-session
@@ -725,7 +725,7 @@ de30b4431b83027fda7dae2b9ec3f2fecc97edd09eab8c162b103d71a11311c9  hooks/target/e
 ba4d5142e7c290ad800fbc655be8efd8c72b40308e792f824f74a75ec0a5d696  hooks/target/etc/systemd/system/hardware-tuning.socket.tmpl
 a67ef0a24fb6744a8e19baa61a71e9b9edd542abc0fb5108eb15deebf5dee944  hooks/target/etc/systemd/system/incus-host.service
 5c98a7ccb954c99d878ae8d57d7e8a506f0ac440e95d7ecd2974e50c33fac554  hooks/target/etc/systemd/system/incus-user.service.d/20-bootstrap.conf
-7a1db25b6cea741cfcc9c49304d9f21cd7d838ca8195e5a34018944165dc681d  hooks/target/etc/systemd/system/journal-sealing.service
+fa8b860824644ab141803b7c89fb3879885213e79af79e463032cb76be2e57d0  hooks/target/etc/systemd/system/journal-sealing.service
 d552f3cb26d0549dae4bed41a689999ef9908733c103be80afead6cd0851a9fe  hooks/target/etc/systemd/system/labwc-admin-action@.service.tmpl
 b214d86147e57b6626bf41ee921bdb28a9d69a20a8571acf3a78876bfdebc3b7  hooks/target/etc/systemd/system/labwc-apparmor-boot-recover.service
 36d279000344e2e02e43d09c1eda2a44da4663a76705d93ff55c099eaa4c2062  hooks/target/etc/systemd/system/labwc-apparmor-policy@.service
@@ -1221,10 +1221,10 @@ a12060f1f857d50f113e605c64a6f845b7ae415d023f4aab14b04881b872c0a3  hooks/target/u
 d99dbfd49a7692db963ef4ee8807109f236c7471cf34465ba4ef1da8f90ccda1  hooks/target/usr/local/libexec/incus-host
 46266bcaffefc8869a1d26b66f5355ae59c9ec966d2450d1ad9f9c9f53b52dcb  hooks/target/usr/local/libexec/install-browser-imports
 0cb17dcefcae28181b8871948dae4da4e2795d0c65fc3a7bd4b5ac4907475edc  hooks/target/usr/local/libexec/journal-check
-db2ed763644e77d9b083c0dca443c7f3e649a8d921899a8158a3b3394fc69a09  hooks/target/usr/local/libexec/journal-sealing
+a86dee5ec8ca3fce3bb4648ea12a46c893f50af07c49b70ca6a61387697d0d21  hooks/target/usr/local/libexec/journal-sealing
 ecc69a59950185c470c3efb406d32c9a71ba63652d911fce61328817cb2d0132  hooks/target/usr/local/libexec/journal-snapshot.tmpl
 1551811c7217239749b1d732846296ceac00e5f557089f203734999ca8bcc8e7  hooks/target/usr/local/libexec/labwc-admin-action-root
-62f42bd34b8713a912d41aceaa230203a795578c70e1b145cf8feb2e91f35c7f  hooks/target/usr/local/libexec/labwc-admin-action-worker
+83a339fb62e67f7b960f528431d01870d968300a60c626202a754c0d35c85b32  hooks/target/usr/local/libexec/labwc-admin-action-worker
 3959bd12f12e37d53f27a2f47d62d5eb6190005989e70ddf42fdb6c963805c4b  hooks/target/usr/local/libexec/labwc-ai-llama-server
 e4cd0f7546c15b9cb082a4368503c05646f2a0e034167400c3763eafaa24de91  hooks/target/usr/local/libexec/labwc-ai-model-info
 5d2323e9a23ba28084034f732666c89886b9c243694dec7bd6faefb9d5ff51cb  hooks/target/usr/local/libexec/labwc-ai-model-install-root

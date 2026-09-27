@@ -175,6 +175,8 @@ profile waypaper /{usr/local/bin/waypaper,opt/waypaper/bin/waypaper,opt/waypaper
     owner @{HOME}/.cache/fontconfig/** r,
     owner @{HOME}/.cache/glycin/ rw,
     owner @{HOME}/.cache/glycin/** rwkl,
+    # The loader inherits Waypaper's already-open cached image descriptor.
+    owner @{HOME}/.cache/waypaper/** r,
   }
 
   profile waypaper-ps flags=(attach_disconnected) {
@@ -245,6 +247,7 @@ profile waypaper /{usr/local/bin/waypaper,opt/waypaper/bin/waypaper,opt/waypaper
 profile waypaper-swaybg flags=(attach_disconnected, mediate_deleted) {
   #include <abstractions/wrapper-gui>
   /usr/bin/swaybg mr,
+  / r,
   /usr/lib/** mr,
   /usr/share/backgrounds/ r,
   /usr/share/backgrounds/** r,

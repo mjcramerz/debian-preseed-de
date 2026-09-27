@@ -237,7 +237,11 @@ class IntegrationContractTests(unittest.TestCase):
             section = policy.split(f'profile {profile} ', 1)[1].split('\nprofile ', 1)[0]
             self.assertIn('owner @{HOME}/Pictures/** r,', section, profile)
         waypaper = policy.split('profile waypaper ', 1)[1].split('\nprofile ', 1)[0]
-        self.assertIn('owner @{HOME}/Pictures/** r,', waypaper.split('profile waypaper-bwrap ', 1)[1])
+        bwrap = waypaper.split('profile waypaper-bwrap ', 1)[1].split('profile waypaper-ps ', 1)[0]
+        self.assertIn('owner @{HOME}/Pictures/** r,', bwrap)
+        self.assertIn('owner @{HOME}/.cache/waypaper/** r,', bwrap)
+        swaybg = policy.split('profile waypaper-swaybg ', 1)[1].split('\nprofile ', 1)[0]
+        self.assertIn('\n  / r,\n', swaybg)
         tree = ET.parse(payload_source_path(TARGET / 'etc/skel-desktop/.config/labwc/menu.xml'))
         self.assertEqual(tree.getroot().tag, 'openbox_menu')
         self.assertTrue(any('labwc-wayland-app auto -- /usr/local/bin/waypaper' in item.attrib.get('command', '')

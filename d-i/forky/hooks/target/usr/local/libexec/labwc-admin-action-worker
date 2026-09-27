@@ -432,9 +432,11 @@ class Worker:
 
     @staticmethod
     def session_properties(session_id: str) -> dict[str, str]:
-        keys = {"User", "Name", "Class", "Active", "Remote", "Service", "Leader"}
+        keys = ("User", "Name", "Class", "Active", "Remote", "Service", "Leader")
+        # loginctl takes one property name per option; a comma-separated value
+        # requests a nonexistent property and silently omits the real fields.
         raw = run(["/usr/bin/loginctl", "show-session", session_id, "--all",
-                   "--property=User,Name,Class,Active,Remote,Service,Leader"],
+                   *("--property=" + key for key in keys)],
                   timeout=5, max_output=8192)
         props = {}
         for item in raw.splitlines():
@@ -442,7 +444,7 @@ class Worker:
             if not separator or key not in keys or key in props:
                 raise Error("invalid greeter session properties")
             props[key] = value
-        if set(props) != keys:
+        if set(props) != set(keys):
             raise Error("incomplete greeter session properties")
         return props
 

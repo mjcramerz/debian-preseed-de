@@ -580,9 +580,10 @@ class JournalSealing(unittest.TestCase):
     def setUp(self):
         self.m=module(LIBEXEC/'journal-sealing')
         self.temp=tempfile.TemporaryDirectory(dir='/root');self.addCleanup(self.temp.cleanup)
-        root=Path(self.temp.name);self.m.STATE=root/'state';self.m.RUNTIME=root/'run'
-        self.m.STATE.mkdir(mode=0o700);self.m.RUNTIME.mkdir(mode=0o700)
-        self.m.KEY=self.m.RUNTIME/'verification-key';self.m.RECORD=self.m.STATE/'status.json'
+        root=Path(self.temp.name);self.m.STATE=root/'state';self.m.LEGACY_RUNTIME=root/'run'
+        self.m.STATE.mkdir(mode=0o700);self.m.LEGACY_RUNTIME.mkdir(mode=0o700)
+        self.m.KEY=self.m.STATE/'verification-key';self.m.LEGACY_KEY=self.m.LEGACY_RUNTIME/'verification-key'
+        self.m.RECORD=self.m.STATE/'status.json'
         self.fss=root/'fss';self.key=b'aaaaaa-bbbbbb-cccccc-dddddd-eeeeee-ff/1234-abcd\n'
 
     def fake_setup(self,argv,**kwargs):
@@ -604,8 +605,51 @@ class JournalSealing(unittest.TestCase):
             self.m.setup('machine',self.fss)
         self.m.KEY.unlink()
         with mock.patch.object(self.m.subprocess,'run') as setup:
-            with self.assertRaises(OSError):self.m.setup('machine',self.fss)
+            with self.assertRaisesRegex(ValueError,'cannot be recovered automatically'):
+                self.m.setup('machine',self.fss)
             setup.assert_not_called()
+
+    def test_unexported_key_survives_runtime_recreation(self):
+        with mock.patch.object(self.m.subprocess,'run',side_effect=self.fake_setup) as setup,mock.patch.object(self.m,'command') as command:
+            self.m.setup('machine',self.fss)
+            self.m.LEGACY_RUNTIME.rmdir()
+            self.m.LEGACY_RUNTIME.mkdir(mode=0o700)
+            self.assertFalse(self.m.setup('machine',self.fss)['exported'])
+            self.assertEqual(self.m.verification_key(),self.key)
+            setup.assert_called_once();command.assert_called_once()
+
+    def test_valid_legacy_key_is_migrated_without_replacing_generation(self):
+        with mock.patch.object(self.m.subprocess,'run',side_effect=self.fake_setup),mock.patch.object(self.m,'command'):
+            self.m.setup('machine',self.fss)
+        self.m.KEY.replace(self.m.LEGACY_KEY)
+        with mock.patch.object(self.m,'command',return_value='tmpfs') as command,mock.patch.object(self.m.subprocess,'run') as setup:
+            self.m.migrate_legacy_key('machine')
+            self.assertEqual(self.m.verification_key(),self.key)
+            self.assertFalse(self.m.LEGACY_KEY.exists())
+            self.m.setup('machine',self.fss)
+            command.assert_called_once();setup.assert_not_called()
+
+    def test_acknowledgement_deletes_persistent_key_and_survives_reboot(self):
+        machine='a'*32
+        real_path=Path
+        self.m.JOURNAL=self.m.STATE.parent/'journal'
+        (self.m.JOURNAL/machine).mkdir(parents=True)
+        fss=self.m.JOURNAL/machine/'fss'
+        fss.write_bytes(b'fixture-fss');fss.chmod(0o640)
+        self.m.KEY.write_bytes(self.key);self.m.KEY.chmod(0o600)
+        digest=hashlib.sha256(self.key).hexdigest()
+        self.m.write_record({'version':1,'machine_id':machine,'exported':False,
+                             'rotated':True,'verification_sha256':digest})
+        with mock.patch.object(self.m,'enabled_policy',return_value=True), \
+             mock.patch.object(self.m,'Path',side_effect=lambda path: self.m.STATE.parent/'machine-id' if path == '/etc/machine-id' else real_path(path)), \
+             mock.patch.object(self.m,'command') as command:
+            (self.m.STATE.parent/'machine-id').write_text(machine)
+            self.assertEqual(self.m.main(['--acknowledge-export',digest]),0)
+            self.assertFalse(self.m.KEY.exists())
+            self.assertTrue(self.m.read_record(machine)['exported'])
+            self.assertEqual(self.m.main(['--setup']),0)
+            self.assertEqual(self.m.main(['--release-check']),0)
+            command.assert_not_called()
 
     def test_foreign_preexisting_state_requires_recovery(self):
         self.fss.write_bytes(b'existing');self.fss.chmod(0o600)

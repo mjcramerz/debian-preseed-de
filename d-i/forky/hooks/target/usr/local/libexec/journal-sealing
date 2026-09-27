@@ -1,9 +1,9 @@
 #!/usr/bin/python3 -I
-"""Provision disk-backed journal FSS; never persist its verification seed.
+"""Provision disk-backed journal FSS and retain its pending verification key.
 
 --setup is idempotent, but never replaces an existing sealing generation.
-The verification seed is sensitive. It exists only in a root-private /run file
-until explicitly exported off-host and acknowledged by its SHA-256.
+The key remains in root-private persistent state until an off-host export is
+acknowledged; it must survive reboots before that attestation.
 """
 from __future__ import annotations
 import fcntl
@@ -20,8 +20,9 @@ import sys
 import tempfile
 
 STATE = Path('/var/lib/journal-sealing')
-RUNTIME = Path('/run/journal-sealing')
-KEY = RUNTIME / 'verification-key'
+KEY = STATE / 'verification-key'
+LEGACY_RUNTIME = Path('/run/journal-sealing')
+LEGACY_KEY = LEGACY_RUNTIME / 'verification-key'
 RECORD = STATE / 'status.json'
 JOURNAL = Path('/var/log/journal')
 ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C',
@@ -128,6 +129,56 @@ def read_record(machine: str) -> dict:
     return record
 
 
+def migrate_legacy_key(machine: str) -> None:
+    """Preserve an unexported key from installations updated before reboot."""
+    if not LEGACY_KEY.exists() and not LEGACY_KEY.is_symlink():
+        return
+    if command(['/usr/bin/findmnt', '--noheadings', '--output', 'FSTYPE', '--target', '/run']) not in ('tmpfs', 'ramfs'):
+        raise ValueError('legacy verification key must reside on RAM-backed /run')
+    directory(LEGACY_RUNTIME, private=True)
+    seed = private_bytes(LEGACY_KEY, 512)
+    if not KEY_PATTERN.fullmatch(seed):
+        raise ValueError('invalid legacy verification key')
+    if RECORD.exists() or RECORD.is_symlink():
+        record = read_record(machine)
+        if record['exported'] or hashlib.sha256(seed).hexdigest() != record['verification_sha256']:
+            raise ValueError('legacy verification key conflicts with sealing evidence')
+    if KEY.exists() or KEY.is_symlink():
+        if verification_key() != seed:
+            raise ValueError('persistent verification key conflicts with legacy key')
+    else:
+        fd, temporary = tempfile.mkstemp(prefix='.verification-', dir=STATE)
+        try:
+            with os.fdopen(fd, 'wb') as stream:
+                stream.write(seed)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.link(temporary, KEY, follow_symlinks=False)
+            sync_directory(STATE)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+                sync_directory(STATE)
+    LEGACY_KEY.unlink()
+    sync_directory(LEGACY_RUNTIME)
+
+
+def check_record_key(record: dict) -> None:
+    if record['exported']:
+        # An interrupted acknowledgement may have committed the attestation
+        # before removing the local copy. Finish that unlink idempotently.
+        if KEY.exists() or KEY.is_symlink():
+            if hashlib.sha256(verification_key()).hexdigest() != record['verification_sha256']:
+                raise ValueError('acknowledged verification key does not match this generation')
+            KEY.unlink()
+            sync_directory(STATE)
+    else:
+        if not KEY.exists() and not KEY.is_symlink():
+            raise ValueError('unexported verification key is missing; the existing FSS generation cannot be recovered automatically')
+        if hashlib.sha256(verification_key()).hexdigest() != record['verification_sha256']:
+            raise ValueError('verification key does not match this generation')
+
+
 def enabled_policy() -> bool:
     command(['/usr/local/libexec/journal-check'])
     checker = runpy.run_path('/usr/local/libexec/journal-check')
@@ -160,6 +211,7 @@ def setup(machine: str, fss: Path) -> dict:
             os.fsync(stream.fileno())
         if result.returncode:
             raise ValueError('journalctl key setup failed; generation left intact for recovery')
+        sync_directory(STATE)
     sealing_file(fss)
     if RECORD.exists() or RECORD.is_symlink():
         record = read_record(machine)
@@ -169,11 +221,7 @@ def setup(machine: str, fss: Path) -> dict:
         record = {'version': 1, 'machine_id': machine, 'exported': False, 'rotated': False,
                   'verification_sha256': hashlib.sha256(seed).hexdigest()}
         write_record(record)
-    if not record['exported']:
-        if hashlib.sha256(verification_key()).hexdigest() != record['verification_sha256']:
-            raise ValueError('verification seed does not match this generation')
-    elif KEY.exists() or KEY.is_symlink():
-        raise ValueError('acknowledged verification seed must not remain on this host')
+    check_record_key(record)
     if not record['rotated']:
         command(['/usr/bin/journalctl', '--rotate', '--no-pager'])
         record['rotated'] = True
@@ -195,10 +243,7 @@ def main(argv: list[str]) -> int:
             raise ValueError('sealing is disabled for this logging policy')
         print('journal sealing: disabled (RAM/volatile policy; no FSS assurance claimed)')
         return 0
-    if command(['/usr/bin/findmnt', '--noheadings', '--output', 'FSTYPE', '--target', '/run']) not in ('tmpfs', 'ramfs'):
-        raise ValueError('/run must be RAM-backed for verification-key handling')
     directory(STATE, private=True, create=True)
-    directory(RUNTIME, private=True, create=True)
     machine = Path('/etc/machine-id').read_text(encoding='ascii').strip()
     if not re.fullmatch('[0-9a-f]{32}', machine) or int(machine, 16) == 0:
         raise ValueError('final machine-id is required')
@@ -211,29 +256,29 @@ def main(argv: list[str]) -> int:
                 or stat.S_IMODE(info.st_mode) != 0o600):
             raise ValueError('unsafe journal sealing lock')
         fcntl.flock(stream, fcntl.LOCK_EX)
+        migrate_legacy_key(machine)
         if action == '--setup':
             record = setup(machine, fss)
         else:
             sealing_file(fss)
             record = read_record(machine)
+            check_record_key(record)
         if action == '--show-verification-key':
-            seed = verification_key()
-            if hashlib.sha256(seed).hexdigest() != record['verification_sha256'] or record['exported']:
+            if record['exported']:
                 raise ValueError('verification key is unavailable for this generation')
-            sys.stdout.buffer.write(seed)
+            sys.stdout.buffer.write(verification_key())
             return 0
         if action == '--acknowledge-export':
             if argv[1] != record['verification_sha256'] or not record['rotated']:
                 raise ValueError('export fingerprint mismatch or journal rotation incomplete')
-            # The operator attests an independently retained off-host copy. A
-            # crash after unlink is recoverable by repeating the same attestation.
+            # Commit the operator's off-host attestation before unlink. A
+            # crash between these steps is completed at the next invocation.
+            if not record['exported']:
+                record['exported'] = True
+                write_record(record)
             if KEY.exists() or KEY.is_symlink():
-                if hashlib.sha256(verification_key()).hexdigest() != argv[1]:
-                    raise ValueError('verification-key generation mismatch')
                 KEY.unlink()
-                sync_directory(RUNTIME)
-            record['exported'] = True
-            write_record(record)
+                sync_directory(STATE)
         if action == '--release-check' and (not record['exported'] or not record['rotated'] or KEY.exists() or KEY.is_symlink()):
             raise ValueError('FSS release gate: export, acknowledge and remove the verification seed first')
         print(json.dumps(record, sort_keys=True))
