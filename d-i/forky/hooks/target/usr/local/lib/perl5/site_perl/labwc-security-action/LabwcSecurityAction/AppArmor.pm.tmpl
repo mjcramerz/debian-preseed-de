@@ -110,6 +110,18 @@ has profile_draft_dir => (
     default => sub { '/var/lib/apparmor/drafts' },
 );
 
+has profile_loader => (
+    is      => 'ro',
+    isa     => Str,
+    default => sub { '/lib/apparmor/apparmor.systemd' },
+);
+
+has profile_teardown => (
+    is      => 'ro',
+    isa     => Str,
+    default => sub { '/usr/sbin/aa-teardown' },
+);
+
 has rule_generator => (
     is      => 'ro',
     isa     => Str,
@@ -119,6 +131,11 @@ has rule_generator => (
 has kernel_enabled_path => (
     is => 'ro', isa => Str,
     default => sub { '/sys/module/apparmor/parameters/enabled' },
+);
+
+has loaded_profiles_path => (
+    is => 'ro', isa => Str,
+    default => sub { '/sys/kernel/security/apparmor/profiles' },
 );
 
 sub _policy_service {
@@ -1128,6 +1145,68 @@ sub set_boot_state {
         or die "AppArmor boot changes require explicit confirmation\n";
     $mode =~ /\A(?:enable|disable)\z/ or die "unsupported AppArmor boot state\n";
     return $self->_policy_service("boot-$mode");
+}
+
+sub _profiles_loaded {
+    my ($self) = @_;
+    open my $profiles, '<', $self->loaded_profiles_path()
+        or die "cannot read loaded AppArmor profiles: $!\n";
+    my $bytes = read $profiles, my $first_byte, 1;
+    defined($bytes) or die "cannot inspect loaded AppArmor profiles: $!\n";
+    close $profiles or die "cannot close loaded AppArmor profiles: $!\n";
+    return $bytes != 0;
+}
+
+sub set_profile_state {
+    my ($self, $action, $confirmation) = @_;
+    $confirmation eq 'confirmed-apparmor-profile-state-change'
+        or die "AppArmor profile changes require explicit confirmation\n";
+    $action =~ /\A(?:load|unload)\z/
+        or die "unsupported AppArmor profile action\n";
+
+    my $policy_lock = $self->_policy_lock();
+    my $enabled = $self->_read_small_file($self->kernel_enabled_path(), 16, 'AppArmor kernel enablement');
+    $enabled =~ s/\s+\z//;
+    $enabled eq 'Y' or die "AppArmor is not enabled in the running kernel; profiles cannot be changed\n";
+    my $loaded = $self->_profiles_loaded();
+
+    if ($action eq 'unload') {
+        if (!$loaded) {
+            print "No AppArmor profiles are loaded. Nothing to unload.\n";
+            return 0;
+        }
+        my $teardown = $self->profile_teardown();
+        $self->_validate_root_owned_file('AppArmor teardown command', $teardown);
+        -x $teardown or die "AppArmor teardown command is not executable\n";
+        print "Unloading all AppArmor profiles with aa-teardown...\n";
+        STDOUT->flush();
+        my $status = $self->command()->run($teardown);
+        $status == 0 or die "aa-teardown failed with status $status; check the live profile state\n";
+        !$self->_profiles_loaded()
+            or die "aa-teardown returned success but AppArmor profiles remain loaded\n";
+        print "All AppArmor profiles were unloaded. The boot setting was not changed.\n";
+        print "Restart affected processes after loading profiles to restore their confinement.\n";
+        return 0;
+    }
+
+    # apparmor.service remains active after aa-teardown, so a systemctl start
+    # would not restore policy. Invoke Debian's package-owned loader directly.
+    my $loader = $self->profile_loader();
+    $self->_validate_root_owned_file('AppArmor loader', $loader);
+    -x $loader or die "AppArmor loader is not executable\n";
+    my $verb = $loaded ? 'reload' : 'start';
+    print "AppArmor profiles are " . ($loaded ? 'loaded' : 'unloaded') . "; running $loader $verb...\n";
+    STDOUT->flush();
+    my $status = $self->command()->run($loader, $verb);
+    $status == 0 or die "AppArmor $verb failed with status $status; check the live profile state\n";
+    $self->_profiles_loaded() or die "AppArmor $verb returned success but no profiles are loaded\n";
+    print "Reconciling managed AppArmor application and wrapper modes...\n";
+    STDOUT->flush();
+    $status = $self->_reconcile_modes();
+    $status == 0 or die "AppArmor profiles loaded but managed mode reconciliation failed with status $status\n";
+    print "AppArmor profiles loaded and managed modes verified.\n";
+    print "Processes that lost confinement during an unload may need restarting.\n";
+    return 0;
 }
 
 sub set_application_audit {

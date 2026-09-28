@@ -269,7 +269,9 @@ desktop_verify_native_menus
 
     def test_menu_event_ids_and_lifecycle_checks_still_fail_closed(self):
         changes = (
-            ('native menu event conflict', lambda entry: entry.update({'on-click-right': '/usr/bin/true'})),
+            ('native menu event conflict', lambda entry: entry.update({'on-click': '/usr/bin/true'})),
+            ('wrong secondary click action', lambda entry: entry.update({'on-click-right':
+                entry['on-click-right'].replace('labwc-tomat toggle', 'labwc-tomat stop')})),
             ('menu/action IDs differ', lambda entry: entry['menu-actions'].pop('tomat_stop')),
             ('blocking/unscoped/unresolved', lambda entry: entry['menu-actions'].update({
                 'tomat_stop': entry['menu-actions']['tomat_stop'].replace('--no-block ', '')})),

@@ -281,9 +281,9 @@ class MenuAndHookTests(unittest.TestCase):
     def test_xml_ids_match_every_bar_action_and_no_fuzzel_power_binding(self):
         import xml.etree.ElementTree as ET
         for bar in bars():
-            for module, name, event in [('custom/tomat','tomat','on-click-right'), ('pulseaudio','audio','on-click-right'),
+            for module, name, event in [('custom/tomat','tomat','on-click'), ('pulseaudio','audio','on-click'),
                                        ('custom/notifications','notifications','on-click'), ('custom/power','power','on-click'),
-                                       ('clock','calendar','on-click-right')]:
+                                       ('clock','calendar','on-click')]:
                 entry = bar[module]
                 self.assertEqual(entry['menu'], event); self.assertNotIn(event, entry)
                 tree = ET.parse(payload_source_path(SKEL / 'waybar' / (name + '-menu.xml')))

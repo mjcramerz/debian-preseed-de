@@ -208,6 +208,12 @@ sub _validate_request_shape {
             or die "set-apparmor-boot-state requires a mode and explicit confirmation\n";
         return;
     }
+    if ($action eq 'set-apparmor-profile-state') {
+        @args == 2 && $args[0] =~ /\A(?:load|unload)\z/
+            && $args[1] eq 'confirmed-apparmor-profile-state-change'
+            or die "set-apparmor-profile-state requires an action and explicit confirmation\n";
+        return;
+    }
     if ($action eq 'set-apparmor-desktop-state') {
         @args == 2 && $args[0] =~ /\A(?:enforce|complain|disable)\z/
             && $args[1] eq 'confirmed-apparmor-desktop-state-change'

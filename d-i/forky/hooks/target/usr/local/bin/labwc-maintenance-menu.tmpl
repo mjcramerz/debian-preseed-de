@@ -662,20 +662,20 @@ set_all_apparmor_desktop_profiles_mode() {
     confirmed-apparmor-desktop-state-change
 }
 
-set_apparmor_boot_state() {
-  boot_mode=$1
-  case "$boot_mode" in
-    enable) boot_warning='Enable AppArmor on the next normal reboot; live policy is unchanged' ;;
-    disable) boot_warning='Disable ALL AppArmor protection after reboot; live profiles stay loaded; no automatic reboot' ;;
-    *) fatal "unsupported AppArmor boot state: $boot_mode" ;;
+set_apparmor_profile_state() {
+  profile_action=$1
+  case "$profile_action" in
+    load) profile_warning='Load or reload AppArmor profiles now; running processes may need restarting to regain confinement' ;;
+    unload) profile_warning='Unload ALL AppArmor profiles now; running processes lose their confinement until restarted after loading' ;;
+    *) fatal "unsupported AppArmor profile action: $profile_action" ;;
   esac
   confirmation=$(
-    choose_lines "$boot_warning" \
+    choose_lines "$profile_warning" \
       'Cancel' \
-      'Stage AppArmor boot change'
+      'Continue with AppArmor profile change'
   )
-  [ "$confirmation" = 'Stage AppArmor boot change' ] || return 0
-  run_security_action set-apparmor-boot-state "$boot_mode" confirmed-apparmor-boot-state-change
+  [ "$confirmation" = 'Continue with AppArmor profile change' ] || return 0
+  run_security_action set-apparmor-profile-state "$profile_action" confirmed-apparmor-profile-state-change
 }
 
 set_apparmor_application_audit() {
@@ -863,8 +863,8 @@ apparmor_managed_modes_menu() {
         'Generate New Rules' \
         'Enforce All' \
         'Complain All' \
-        'Disable AppArmor After Reboot' \
-        'Enable AppArmor After Reboot' \
+        'Unload AppArmor Profiles' \
+        'Load AppArmor Profiles' \
         'Set App Mode' \
         'Set App Audit Logging' \
         'Reload Modes & Clear Audit' \
@@ -884,11 +884,11 @@ apparmor_managed_modes_menu() {
       'Complain All')
         set_all_apparmor_desktop_profiles_mode complain
         ;;
-      'Disable AppArmor After Reboot')
-        set_apparmor_boot_state disable
+      'Unload AppArmor Profiles')
+        set_apparmor_profile_state unload
         ;;
-      'Enable AppArmor After Reboot')
-        set_apparmor_boot_state enable
+      'Load AppArmor Profiles')
+        set_apparmor_profile_state load
         ;;
       'Set App Mode')
         set_apparmor_application_mode

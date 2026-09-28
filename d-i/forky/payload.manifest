@@ -153,7 +153,7 @@ edbdf14c3009aa22e3c38d7502342bbaf1c560354cc0caba51f0b77f62276502  hooks/target/e
 a8e8fba190c12bd77dfaef16ea28dd52824bf899a7a695535b925e6ad9e51174  hooks/target/etc/apparmor.d/crun
 40f1a283b872d244d01dbad5b01bd52a3b9d9cbcacd8c359a2ebed438dde586c  hooks/target/etc/apparmor.d/debugsys
 b2f5f3d26d8af9fba7b79d157a49603068d098f273aa70a1fe1dc2246df349f0  hooks/target/etc/apparmor.d/desktop-utilities
-db2876bebf68b3228de7c0a1579e94a9b82ed738ea9dfbc6cc9c4bda1aad1c8a  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
+0e0ca3c01936fbf68767185298b4a675175da49d45c4937d2b0e000252bec8b5  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
 693dfdea71e1964fa9e701f11588d2c3a7e53af4297bda99facf207313f21a20  hooks/target/etc/apparmor.d/document-applications
 cdb9e039cbbbe809126673a7351807ed8db1c3b23618cb89d474c803a485da45  hooks/target/etc/apparmor.d/gitbuild
 f4ca1013031c0a890345a7f7c806604ba45bfd8f0ab1a2f3a65f4d0de1c5de0e  hooks/target/etc/apparmor.d/gitbuild-worker
@@ -602,7 +602,7 @@ bdb2de8f2981c5581b40f505691ed69625e6061afee1fdeb7ef4693987fa85d8  hooks/target/e
 cf09238e3d43aa14506b2dff223927fe4ac4d18eb6887bc1cd6b348fea158e46  hooks/target/etc/skel-desktop/.config/vivaldi/Default/Preferences
 cf8da30c1636a7d8ecbc952bbf03443cc421c8e59214a727f12987ff180d145c  hooks/target/etc/skel-desktop/.config/waybar/audio-menu.xml.tmpl
 ea5564e492836e500ade442eea1c76cbb6dc0080b478ed35e4c210dcdb75bf52  hooks/target/etc/skel-desktop/.config/waybar/calendar-menu.xml.tmpl
-ab98ccfdc8d0a0484627381ecc54746dd167c85652b9e55174958a5438e7e375  hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
+393ba81e66c786815222f540e231a382120216cdf2dc24715fecbee0d31cb4cc  hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
 759d92ba19dc5cc136c14a05a061fdbc6270da5c335fe587c8d8eb2d6f244e54  hooks/target/etc/skel-desktop/.config/waybar/icons/apps-symbolic.svg.tmpl
 a1ed2a675aa15446e1e97a7b42ac432efba25ecebdce95c816db1f30cb330d83  hooks/target/etc/skel-desktop/.config/waybar/icons/wayscriber-symbolic.svg.tmpl
 98e8f91bf48e2b3a48278a19782febdb1073d78145ec0094355d491087ed97db  hooks/target/etc/skel-desktop/.config/waybar/notifications-menu.xml.tmpl
@@ -968,7 +968,7 @@ a910f7c931a5192c4d9b0d8370ffee58a354288bf7b04f0ddb6840bf4bd317e4  hooks/target/u
 f98c00b60050ba3952c85819e8a930fba3a1f9e7992a5ad31ee315cbc6cdea88  hooks/target/usr/local/bin/labwc-lock.tmpl
 6d0ff770bf95a6ec0721498c743041c83e5d1a35acea253376e0d047bc634759  hooks/target/usr/local/bin/labwc-logout
 3b133f34b566a2547059dbe4f643af20c8258fed33b84f7922bfbabc9f0b2d7b  hooks/target/usr/local/bin/labwc-main-menu.tmpl
-0e8dd61c640c2dc913a00b5a320a845b0eb32b69537c213530ade66c5151c6b4  hooks/target/usr/local/bin/labwc-maintenance-menu.tmpl
+cd09c71ba6f1968385b39696b40308dda377bc3255affb27b896c810e48417bc  hooks/target/usr/local/bin/labwc-maintenance-menu.tmpl
 410ba1759534862ed9bf5560603692c817c9e9b7af94a45e476ae6f864025b3a  hooks/target/usr/local/bin/labwc-network-control-action
 a1a69d67b607808632893d224be13c9240a6dfc1b6adb42342d5b69ca6dbac8f  hooks/target/usr/local/bin/labwc-network-control-menu
 5bb09f5eff72ea5781a58f8e344a586e0d0af069ab32e9e4b1683b9b7cec578b  hooks/target/usr/local/bin/labwc-network-scan-action
@@ -1091,11 +1091,11 @@ a58380bd47494f2ddbeea9932b5b67aed212e7bc79dc9b1ca1ba3c3e5e0f872b  hooks/target/u
 3d7e1b8d7697462b10a49164dff2037baa54da2eba968e8210f4adefcc282641  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor/ProfileIndex.pm
 0a619e361b334d6b16176fb1515f9e88a023895c4d486a96de308cd50bbe6541  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor/RuleGenerator.pm.tmpl
 cf2fc864eb98a5ca467fb38a2139626e00fdea5e84595992f3c4340b40d0bf94  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor/RuleRenderer.pm
-62817640a54701eeada4a9776aa364a8a5e1ebc1b6af391debf9948299f39426  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor.pm.tmpl
-929de98d059b961f580a73738a708c6cab926a95ef4ae003883e2a12c50eabbf  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Client.pm.tmpl
+4bd6c47c6f7d117bdde3470ff3a19ad697a906fd70451992aa52a0cab82c962d  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor.pm.tmpl
+83126758ab25080f645e88fcdaea64f0f7efb56985abebbbc408e86c28dd91ba  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Client.pm.tmpl
 daed2a6aa39bfcb4f9bd5fae653532c2e820c958062b1c24c5940915a6a595d4  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Command.pm
 59b9fe9127ea8b9c754a5e83c40be3cfe2205d147b4440767586fc4ab6360b24  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Logger.pm
-686334ec7de6052d13c499f8d710379a8c440a2df7f122ef937360fe554d7ffb  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Root.pm.tmpl
+0b13afc20f5662b6a5bf94707fb1856f3842ae8629feb2ddc757a1bf121d19c5  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Root.pm.tmpl
 3ba6c828583118827b3e544cffc087a22ad3086d5bfc3a26e13939eaf282371d  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/ScannerLog.pm.tmpl
 25857a6abbbd7c345ae8bf2d051166a03555b8ed3e26f0d9b4592588258f9e1d  hooks/target/usr/local/lib/perl5/site_perl/network/ManagedNetwork/CLI.pm
 ae7527278a7e19b7c074316ed62e5bdf2b9d7f008c778bda814d96bb4451a9a3  hooks/target/usr/local/lib/perl5/site_perl/network/ManagedNetwork/Config.pm
@@ -1504,7 +1504,7 @@ be83ae80d77d1d47604af88b92be6cf70316fb8c8917a3abc56a42704ffe4aa1  scripts/deskto
 8ef0d54e9fcf9516ad0df4724738464f00750f90279f3d60e3c360b660389425  scripts/desktop/templates/pam-wtmpdb.fragment
 b26b034b097f7057121554596475ff4f2c1b843b58d29900ad97f05024ab88b5  scripts/desktop/templates/recording-reconfigure.xml.fragment
 2ad262651f844bf110f28f47ea4a954d662dbca8c6ff1e230cc26f32e59b0013  scripts/desktop/templates/recording-whisper.xml.fragment
-2c2d41643a7198fa25e06f6230545705f1e2d6a794c91b29d18d124ac85c8128  scripts/desktop/verify.sh.tmpl
+bfaed72b26bf737bf0a5adafcf505e9b710c828d56e6df2bbf83a42f791b0ee0  scripts/desktop/verify.sh.tmpl
 6210193fe8aaab0a0731a6fbba6dd5076fd593a4a5445e38a16ab850f2b5f9c5  scripts/desktop/waybar-geometry.tsv
 ad237fd2352441859a96e1ccf950aac6ed4705dc3d68baa83bf69cf6308142d4  scripts/desktop/waypaper.sh
 33977e223d38797f75c0deb5c4b327dd0b7a5a95cbe5b06795a16419197ec903  scripts/desktop/xwayland.sh

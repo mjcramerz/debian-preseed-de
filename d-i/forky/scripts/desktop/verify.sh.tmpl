@@ -2119,15 +2119,36 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
         controls = "group/quick-controls"
         require(right[-4:] == [controls, "custom/notifications", "custom/lock", "custom/power"]
                 and right.count("custom/notifications") == 1, "wrong notification button order")
-        for module, name, event in (("custom/tomat", "tomat", "on-click-right"),
-                                    ("pulseaudio", "audio", "on-click-right"),
+        for module, name, event in (("custom/tomat", "tomat", "on-click"),
+                                    ("pulseaudio", "audio", "on-click"),
                                     ("custom/notifications", "notifications", "on-click"),
                                     ("custom/power", "power", "on-click"),
-                                    ("clock", "calendar", "on-click-right")):
+                                    ("clock", "calendar", "on-click")):
             entry = bar[module]
             require(entry.get("menu") == event and event not in entry
                     and event + "-release" not in entry
                     and event not in entry.get("actions", {}), "native menu event conflict: " + name)
+            if name in ("tomat", "audio", "calendar"):
+                click = shlex.split(entry.get("on-click-right", ""))
+                require(click and click[0] == "/usr/bin/systemd-run" and "--" in click,
+                        "missing scoped secondary click: " + name)
+                required_click_options = {"--user", "--collect", "--service-type=exec",
+                    "--expand-environment=no", "--slice=app.slice",
+                    "--property=Requisite=labwc-session.target",
+                    "--property=After=labwc-session.target",
+                    "--property=PartOf=labwc-session.target",
+                    "--property=ExitType=cgroup", "--property=KillMode=control-group",
+                    "--property=TimeoutStopSec=20s"}
+                require(required_click_options <= set(click[1:click.index("--")])
+                        and "__INSTALLER_" not in entry["on-click-right"],
+                        "unscoped secondary click: " + name)
+                expected_click = {"tomat": ["/usr/local/libexec/labwc-tomat", "toggle"],
+                                  "calendar": ["labwc-calendar"]}.get(name)
+                if name == "audio":
+                    open_action = shlex.split(entry["menu-actions"]["audio_open"])
+                    expected_click = open_action[open_action.index("--") + 1:]
+                require(click[click.index("--") + 1:] == expected_click,
+                        "wrong secondary click action: " + name)
             require(entry.get("menu-file") == "~/.config/waybar/" + name + "-menu.xml", "wrong menu path")
             path = config / "waybar" / (name + "-menu.xml")
             info = path.lstat()

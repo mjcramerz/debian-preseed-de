@@ -35,11 +35,11 @@ CALENDAR = {
     'calendar_edit_task': 'edit-task', 'calendar_done_task': 'done-task',
     'calendar_delete_task': 'delete-task', 'calendar_sync': 'sync-ui',
 }
-MODULES = (('custom/tomat', 'tomat', 'on-click-right'),
-           ('pulseaudio', 'audio', 'on-click-right'),
+MODULES = (('custom/tomat', 'tomat', 'on-click'),
+           ('pulseaudio', 'audio', 'on-click'),
            ('custom/notifications', 'notifications', 'on-click'),
            ('custom/power', 'power', 'on-click'),
-           ('clock', 'calendar', 'on-click-right'))
+           ('clock', 'calendar', 'on-click'))
 
 
 class MenuContractTests(unittest.TestCase):
@@ -81,7 +81,7 @@ class MenuContractTests(unittest.TestCase):
                     count += 1
         self.assertEqual(count, 84)
 
-    def test_calendar_mapping_and_legacy_primary_clicks(self):
+    def test_calendar_mapping_and_secondary_clicks(self):
         for bar in bars():
             entry = bar['clock']
             self.assertEqual(entry['menu-file'], '~/.config/waybar/calendar-menu.xml')
@@ -89,9 +89,14 @@ class MenuContractTests(unittest.TestCase):
             for key, action in CALENDAR.items():
                 argv = shlex.split(entry['menu-actions'][key])
                 self.assertEqual(argv[argv.index('--') + 1:], ['/usr/local/bin/labwc-calendar', action])
-            self.assertIn('on-click', entry)
+            self.assertTrue(entry['on-click-right'].endswith(' -- labwc-calendar'))
             self.assertTrue(entry['on-click-middle'].endswith(' -- labwc-calendar tasks'))
             self.assertNotIn('labwc-calendar menu', json.dumps(entry))
+
+    def test_secondary_clicks_preserve_previous_primary_actions(self):
+        for bar in bars():
+            self.assertTrue(bar['custom/tomat']['on-click-right'].endswith(' -- /usr/local/libexec/labwc-tomat toggle'))
+            self.assertTrue(bar['pulseaudio']['on-click-right'].endswith(' -- pavucontrol'))
 
     def test_notification_mapping_is_the_controller_allowlist(self):
         helper = load('labwc-notifications')

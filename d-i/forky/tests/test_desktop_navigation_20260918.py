@@ -217,7 +217,7 @@ class NavigationTests(unittest.TestCase):
             for label in labels:
                 self.assertIn("'"+label+"')", source)
         for confirmation in ('confirmed-system-action', 'confirmed-recovery-action',
-                             'confirmed-apparmor-profile-tool', 'confirmed-apparmor-boot-state-change'):
+                             'confirmed-apparmor-profile-tool', 'confirmed-apparmor-profile-state-change'):
             self.assertIn(confirmation, source)
 
     def test_custom_data_prompts_explicitly_opt_in_not_all_action_menus(self):
