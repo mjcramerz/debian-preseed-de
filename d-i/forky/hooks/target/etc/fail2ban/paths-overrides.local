@@ -1,0 +1,4 @@
+# Only paths used by installer-owned jails belong here. Keep the packaged
+# paths-common.conf and paths-debian.conf for Debian's current service defaults.
+[DEFAULT]
+nginx_error_log = /var/log/nginx/error.log

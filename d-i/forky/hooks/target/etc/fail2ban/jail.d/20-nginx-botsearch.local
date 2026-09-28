@@ -4,4 +4,4 @@
 enabled = true
 backend = auto
 port = http,https
-logpath = /var/log/nginx/error.log
+logpath = %(nginx_error_log)s

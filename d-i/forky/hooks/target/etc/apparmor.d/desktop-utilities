@@ -187,6 +187,7 @@ profile desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exe
   ptrace (read) peer=labwc-health-notify,
   ptrace (read) peer=labwc-app,
   ptrace (read) peer=labwc-app//app-bwrap,
+  ptrace (read) peer=labwc-capture,
   ptrace (read) peer=labwc-output-watch,
   # Observed btop proc-stat reads; never authorize trace/attach/write here.
   ptrace (read) peer=labwc-swaybg,

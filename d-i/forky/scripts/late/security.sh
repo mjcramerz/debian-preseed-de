@@ -661,6 +661,11 @@ EOF
 }
 
 fail2ban_jail_placeholder_map() {
+  # Keep the jail independent of package/class selection. A configured
+  # ssh_port still wins, with port 22 as the fallback for later installs.
+  if [ -z "${SSH_PORT_DEFAULT:-}" ]; then
+    SSH_PORT_DEFAULT=22
+  fi
   runtime_apply_ssh_from_cmdline
   nftables_validate_port_value SSH_PORT "$SSH_PORT"
   printf 'SSH_PORT=%s\n' "$SSH_PORT"
@@ -1491,10 +1496,11 @@ security_mask_target_systemd_unit_if_available() {
 }
 
 configure_target_fail2ban() {
-  fail2ban_jail_count=0
-
   install -d -m 0755 \
     /target/etc/fail2ban \
+    /target/etc/fail2ban/action.d \
+    /target/etc/fail2ban/fail2ban.d \
+    /target/etc/fail2ban/filter.d \
     /target/etc/fail2ban/jail.d \
     /target/etc/logrotate.d \
     /target/etc/systemd/system/fail2ban.service.d \
@@ -1504,22 +1510,29 @@ configure_target_fail2ban() {
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/fail2ban/fail2ban.local)" \
     /etc/fail2ban/fail2ban.local \
     0644
-  # Only installer-owned remote authentication or abuse logs receive jails.
-  # Tailscale uses tailnet identity controls, and Syncthing's GUI is loopback-only.
-  if [ "${SSH_SERVER_ENABLED:-false}" = true ]; then
-    render_target_asset_with_placeholder_map \
-      "$(installer_repo_join_var DIR_HOOKS_TARGET etc/fail2ban/jail.d/10-sshd.local.tmpl)" \
-      /etc/fail2ban/jail.d/10-sshd.local \
-      0644 \
-      fail2ban_jail_placeholder_map
-    fail2ban_jail_count=$((fail2ban_jail_count + 1))
-  fi
+  for fail2ban_managed_asset in \
+    action.d/nftables.local \
+    fail2ban.d/10-managed.local \
+    filter.d/sshd.local \
+    paths-overrides.local; do
+    stage_target_asset \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/fail2ban/$fail2ban_managed_asset")" \
+      "/etc/fail2ban/$fail2ban_managed_asset" \
+      0644
+  done
+  # Monitor the SSH journal even before OpenSSH is installed. Its absence
+  # yields no matches. Tailscale SSH has its own identity and log pipeline;
+  # CrowdSec keeps its separate SSH acquisition and nftables bouncer.
+  render_target_asset_with_placeholder_map \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/fail2ban/jail.d/10-sshd.local.tmpl)" \
+    /etc/fail2ban/jail.d/10-sshd.local \
+    0644 \
+    fail2ban_jail_placeholder_map
   if installer_selected_class_reference_is_selected service/web 2>/dev/null; then
     stage_target_asset \
       "$(installer_repo_join_var DIR_HOOKS_TARGET etc/fail2ban/jail.d/20-nginx-botsearch.local)" \
       /etc/fail2ban/jail.d/20-nginx-botsearch.local \
       0644
-    fail2ban_jail_count=$((fail2ban_jail_count + 1))
   fi
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/fail2ban.service.d/40-runtime.conf)" \
@@ -1552,11 +1565,7 @@ configure_target_fail2ban() {
     --debug \
     /etc/logrotate.d/fail2ban
 
-  if [ "$fail2ban_jail_count" -gt 0 ]; then
-    stage_target_systemd_unit_enabled fail2ban.service system
-  else
-    unstage_target_systemd_unit_enabled fail2ban.service system
-  fi
+  stage_target_systemd_unit_enabled fail2ban.service system
 }
 
 configure_target_apparmor_auditd() {

@@ -18,6 +18,8 @@ profile firstboot /var/lib/firstboot/bin/firstboot.sh flags=(attach_disconnected
   capability setuid,
   capability sys_admin,
   capability syslog,
+  # systemctl and networkctl inspect PID 1 and unconfined service metadata.
+  ptrace (read) peer=unconfined,
 
   /var/lib/firstboot/bin/firstboot.sh rix,
   /usr/local/libexec/dbus-broker-check rix,

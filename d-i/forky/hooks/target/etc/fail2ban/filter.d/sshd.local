@@ -1,0 +1,4 @@
+# Accept only messages attributed by journald to the managed SSH service.
+# The packaged sshd.conf supplies the regexes, including sshd-session support.
+[Definition]
+journalmatch = _SYSTEMD_UNIT=ssh.service

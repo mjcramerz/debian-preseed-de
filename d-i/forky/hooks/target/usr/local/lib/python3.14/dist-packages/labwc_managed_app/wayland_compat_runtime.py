@@ -36,11 +36,13 @@ XWAYLAND_PROTOCOL = f"{PRIVATE_RUNTIME_ROOT}/usr/lib/xorg/protocol.txt"
 XKBCOMP_BINARY = "/usr/bin/xkbcomp"
 WL_COPY_BINARY = "/usr/bin/wl-copy"
 WL_PASTE_BINARY = "/usr/bin/wl-paste"
+XCLIP_BINARY = "/usr/bin/xclip"
 OUTER_WAYLAND_DISPLAY_ENVIRONMENT = "LABWC_MANAGED_OUTER_WAYLAND_DISPLAY"
 CLIPBOARD_SINK_MODE = "--copy-host-text-to-cage"
 CLIPBOARD_REVERSE_SINK_MODE = "--copy-cage-text-to-host"
 MASKED_APPLICATION_MODE = "--run-masked-application"
 CLIPBOARD_POLL_INTERVAL_SECONDS = 0.05
+CAGE_CLIPBOARD_POLL_INTERVAL_SECONDS = 0.25
 MAX_CLIPBOARD_TEXT_BYTES = 8 * 1024 * 1024
 CLIPBOARD_OPERATION_TIMEOUT_SECONDS = 10
 PRIVATE_RUNTIME_LIBRARY_NAMES = (
@@ -282,6 +284,22 @@ def require_user_wayland_socket(runtime_directory: str, socket_name: str) -> Non
         fail("private compatibility Wayland socket is unsafe")
 
 
+def private_clipboard_x11_environment() -> dict[str, str]:
+    # DISPLAY comes only from the already validated Cage supervisor and is
+    # rechecked in each bridge child. Never inherit an Xauthority or host X11
+    # endpoint from the launcher environment.
+    display = os.environ.get("DISPLAY", "")
+    match = re.fullmatch(r":(0|[1-9][0-9]{0,4})", display)
+    if match is None or int(match.group(1)) > MAX_DISPLAY_NUMBER:
+        fail("private clipboard bridge received an invalid Cage DISPLAY")
+    require_private_x11_socket_directory()
+    require_private_x11_socket(match.group(1))
+    return {
+        "PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
+        "DISPLAY": display,
+    }
+
+
 def require_outer_cage_environment() -> None:
     runtime_directory = f"/run/user/{os.getuid()}"
     if os.environ.get("XDG_RUNTIME_DIR") != runtime_directory:
@@ -345,6 +363,12 @@ def clipboard_bridge_argv(cage_wayland_display: str, *, reverse: bool = False) -
         "Cage clipboard Wayland socket name",
         cage_wayland_display,
     )
+    # Cage does not provide the data-control protocol required by --watch.
+    # Its private Xwayland server exposes the same selection to native Wayland
+    # clients, so poll that selection only for the reverse direction.
+    if reverse:
+        return [SANDBOX_LIFECYCLE_HELPER, CLIPBOARD_REVERSE_SINK_MODE,
+                cage_wayland_display]
     return [
         WL_PASTE_BINARY,
         "--no-newline",
@@ -352,7 +376,7 @@ def clipboard_bridge_argv(cage_wayland_display: str, *, reverse: bool = False) -
         "text",
         "--watch",
         SANDBOX_LIFECYCLE_HELPER,
-        CLIPBOARD_REVERSE_SINK_MODE if reverse else CLIPBOARD_SINK_MODE,
+        CLIPBOARD_SINK_MODE,
         cage_wayland_display,
     ]
 
@@ -398,10 +422,16 @@ def clipboard_lock(cage_wayland_display: str) -> int:
     return fd
 
 
-def destination_clipboard_text(environment: dict[str, str]) -> bytes | None:
+def destination_clipboard_text(
+    environment: dict[str, str], *, x11: bool = False,
+) -> bytes | None:
     """Read only enough of the target selection to decide whether it matches."""
+    command = (
+        [XCLIP_BINARY, "-selection", "clipboard", "-out", "-target", "UTF8_STRING"]
+        if x11 else [WL_PASTE_BINARY, "--no-newline", "--type", "text"]
+    )
     reader = subprocess.Popen(
-        [WL_PASTE_BINARY, "--no-newline", "--type", "text"],
+        command,
         env=environment, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL, close_fds=True,
     )
@@ -676,24 +706,32 @@ def run_clipboard_sink(arguments: list[str]) -> int:
         "Wayland clipboard reader", WL_PASTE_BINARY,
         system_owner=system_owner, executable=True,
     )
+    require_system_owned_file(
+        "private X11 clipboard tool", XCLIP_BINARY,
+        system_owner=system_owner, executable=True,
+    )
     register_signal_handlers()
+    x11_environment = private_clipboard_x11_environment()
+    if reverse:
+        return watch_cage_clipboard(
+            cage_wayland_display, outer_wayland_display, x11_environment,
+        )
     payload = sys.stdin.buffer.read(MAX_CLIPBOARD_TEXT_BYTES + 1)
     if len(payload) > MAX_CLIPBOARD_TEXT_BYTES:
         fail("private clipboard text exceeds the bridge limit")
     if not payload:
         return 0
-    destination = outer_wayland_display if reverse else cage_wayland_display
     lock_fd = clipboard_lock(cage_wayland_display)
     try:
-        destination_env = clipboard_process_environment(destination)
-        current = destination_clipboard_text(destination_env)
+        current = destination_clipboard_text(x11_environment, x11=True)
         # A mirrored selection becomes a new owner. Suppress the echo watcher
         # by comparing its content, including an explicitly empty selection.
         if current == payload:
             return 0
         writer = subprocess.run(
-            [WL_COPY_BINARY, "--type", "text/plain;charset=utf-8"],
-            env=destination_env, input=payload, stdout=subprocess.DEVNULL,
+            [XCLIP_BINARY, "-selection", "clipboard", "-in"],
+            env=x11_environment, input=payload, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             timeout=CLIPBOARD_OPERATION_TIMEOUT_SECONDS, check=False,
         )
         if _received_signal is not None:
@@ -701,6 +739,40 @@ def run_clipboard_sink(arguments: list[str]) -> int:
         return process_exit_status(writer.returncode)
     finally:
         os.close(lock_fd)
+
+
+def watch_cage_clipboard(
+    cage_wayland_display: str,
+    outer_wayland_display: str,
+    x11_environment: dict[str, str],
+) -> int:
+    """Mirror changed private X selections to the host without Cage data-control."""
+    host_environment = clipboard_process_environment(outer_wayland_display)
+    last_seen: bytes | None = None
+    while _received_signal is None:
+        # Xwayland bridges the native Cage selection. A missing selection (or
+        # an unsupported/oversized type) is not a fatal clipboard event.
+        payload = destination_clipboard_text(x11_environment, x11=True)
+        if payload is not None and payload != last_seen:
+            last_seen = payload
+            if payload:
+                lock_fd = clipboard_lock(cage_wayland_display)
+                try:
+                    current = destination_clipboard_text(host_environment)
+                    if current != payload:
+                        writer = subprocess.run(
+                            [WL_COPY_BINARY, "--type", "text/plain;charset=utf-8"],
+                            env=host_environment, input=payload,
+                            stdout=subprocess.DEVNULL,
+                            timeout=CLIPBOARD_OPERATION_TIMEOUT_SECONDS,
+                            check=False,
+                        )
+                        if writer.returncode != 0:
+                            fail("Cage-to-host clipboard write failed")
+                finally:
+                    os.close(lock_fd)
+        time.sleep(CAGE_CLIPBOARD_POLL_INTERVAL_SECONDS)
+    return 128 + _received_signal
 
 
 def run_cage_supervisor(arguments: list[str]) -> int:
@@ -800,6 +872,10 @@ def run(arguments: list[str]) -> int:
         executable=True,
     )
     require_system_owned_file(
+        "private X11 clipboard tool", XCLIP_BINARY,
+        system_owner=system_owner, executable=True,
+    )
+    require_system_owned_file(
         "application mount namespace helper", "/usr/bin/bwrap",
         system_owner=system_owner, executable=True,
     )
@@ -822,12 +898,14 @@ def run(arguments: list[str]) -> int:
         clipboard_environment[OUTER_WAYLAND_DISPLAY_ENVIRONMENT] = (
             outer_wayland_display
         )
+        clipboard_environment["DISPLAY"] = f":{display_number}"
         for reverse in (False, True):
             source_environment = (
                 clipboard_process_environment(cage_wayland_display)
                 if reverse else clipboard_environment
             )
             source_environment[OUTER_WAYLAND_DISPLAY_ENVIRONMENT] = outer_wayland_display
+            source_environment["DISPLAY"] = f":{display_number}"
             bridge = subprocess.Popen(
                 clipboard_bridge_argv(cage_wayland_display, reverse=reverse),
                 env=source_environment, stdin=subprocess.DEVNULL,

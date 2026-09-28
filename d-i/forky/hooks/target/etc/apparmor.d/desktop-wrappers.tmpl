@@ -2701,7 +2701,7 @@ profile labwc-wayland-compat-app /usr/local/bin/labwc-wayland-compat-app flags=(
     # Compatibility payloads may inherit only these observed fixed helpers;
     # rix keeps every helper inside this already-confined Bubblewrap child.
     /usr/bin/{gsettings,ls,lscpu,lspci,pgrep,pipewire} rix,
-    /usr/bin/{wl-copy,wl-paste} rix,
+    /usr/bin/{wl-copy,wl-paste,xclip} rix,
     /usr/bin/{env,expr,xdg-open} rix,
     /usr/{bin,sbin}/ip rix,
     /usr/{bin/pidof,sbin/killall5} rix,

@@ -76,6 +76,25 @@ require an already-active target and stop with it rather than starting a new
 compositor themselves. Private Xwayland remains limited to Zoom and Discord.
 Firefox, Blender and Kdenlive are excluded by the pre-pkgsel APT policy.
 
+Zoom and Discord bridge text selections between the host and their private
+Cage session. The host uses `wl-paste --watch`; Cage does not expose the
+data-control protocol, so the reverse direction polls the selection through
+its already-private Xwayland socket with the packaged `xclip` tool. The bridge
+validates both compositor sockets, caps text at 8 MiB, suppresses echoes and
+stops with the managed application service. Native Cage clipboard behavior
+still requires a logged-in desktop acceptance test.
+
+Fail2ban uses Debian's packaged `fail2ban.conf`, `jail.conf`, paths, filters and
+nftables action, with installer-owned `.local` overrides under
+`hooks/target/etc/fail2ban/`. Both security profiles install `nftables` and
+`fail2ban`. The SSH journal jail runs even before OpenSSH is installed; it uses
+the selected OpenSSH port or port 22 by default. Repeat bans increase up to
+one week using the persistent database. CrowdSec, when selected, acquires the
+SSH journal independently and owns separate nftables sets. Tailscale SSH uses
+tailnet identity controls and does not produce OpenSSH authentication failures
+for the SSH jail. Installation validates the effective configuration with
+`fail2ban-client -t` in the target.
+
 ### Archive menu and Packer plugins
 
 Run `compz` as the desktop user from a directory under `/home`, `/data` or
