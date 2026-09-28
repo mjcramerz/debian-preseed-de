@@ -18,7 +18,8 @@ Before=shutdown.target
 Type=exec
 # Reload the staged source, not a possibly older boot/cache generation. This
 # runs outside the firstboot attachment and must succeed before validation.
-ExecStartPre=/usr/sbin/apparmor_parser --replace --skip-cache /etc/apparmor.d/firstboot
+# Rebuild the cache; --skip-cache conflicts with parser.conf's write-cache.
+ExecStartPre=/usr/sbin/apparmor_parser --replace --skip-read-cache --write-cache /etc/apparmor.d/firstboot
 ExecStart=/var/lib/firstboot/bin/firstboot.sh
 
 StandardOutput=journal

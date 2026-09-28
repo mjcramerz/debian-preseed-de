@@ -32,6 +32,33 @@ Q = shlex.quote
 
 
 class ThemeValidationTests(unittest.TestCase):
+    def test_quick_controls_share_a_visible_outline_on_both_outputs(self):
+        color = VALUES['WAYBAR_QUICK_CONTROLS_CONTAINER_NORMAL_OUTLINE_COLOR']
+        self.assertEqual(color, VALUES['WAYBAR_BUTTON_SYSTEM_HOVER_OUTLINE_COLOR'])
+        self.assertNotEqual(color, VALUES['WAYBAR_PANEL_OUTLINE_COLOR'])
+        expected = ['custom/system', 'network', 'custom/bluetooth',
+                    'custom/keyboard', 'custom/screenshot']
+        for profile in profiles():
+            with self.subTest(profile=profile.name):
+                assets = rendered_assets(profile)
+                css = assets['style.css']
+                group = re.search(r'(?m)^#quick-controls \{([^}]*)\}', css)
+                self.assertIsNotNone(group)
+                self.assertIn(f'border-color: {color};', group.group(1))
+                for bar in json.loads(assets['config']):
+                    self.assertEqual(bar['group/quick-controls']['modules'], expected)
+                    output = bar['name']
+                    outer = re.search(rf'window#waybar\.{output} #quick-controls \{{([^}}]*)\}}', css)
+                    self.assertIsNotNone(outer)
+                    self.assertRegex(outer.group(1), r'border-width: [1-9][0-9]*px;')
+                    inner = re.findall(
+                        rf'window#waybar\.{output} #quick-controls #custom-system,.*?'
+                        rf'window#waybar\.{output} #quick-controls #custom-screenshot \{{([^}}]*)\}}',
+                        css, re.S)
+                    geometry = [block for block in inner if 'border-width:' in block]
+                    self.assertEqual(len(geometry), 1)
+                    self.assertIn('border-width: 0px;', geometry[0])
+
     def test_dock_and_waybar_render_dark_navy_surfaces(self):
         dock = CHECKER['render_text']((TARGET / 'etc/skel-desktop/.config/crystal-dock/labwc/appearance.conf.tmpl').read_text(), VALUES)
         css = CHECKER['render_text']((TARGET / 'etc/skel-desktop/.config/waybar/style.css.tmpl').read_text(), VALUES)

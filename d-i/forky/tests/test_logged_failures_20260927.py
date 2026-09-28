@@ -300,7 +300,12 @@ class AppArmorWiringTests(unittest.TestCase):
         unit = (SEED / 'scripts/firstboot/assets/etc/systemd/system/firstboot.service').read_text()
         self.assertIn('Requires=apparmor.service ', unit)
         self.assertIn('After=apparmor.service ', unit)
-        self.assertIn('ExecStartPre=/usr/sbin/apparmor_parser --replace --skip-cache /etc/apparmor.d/firstboot', unit)
+        self.assertIn('ExecStartPre=/usr/sbin/apparmor_parser --replace --skip-read-cache --write-cache /etc/apparmor.d/firstboot', unit)
+        parser_config = read_text(TARGET / 'etc/apparmor/parser.conf')
+        self.assertIn('write-cache\n', parser_config)
+        self.assertIn('cache-loc=/var/cache/apparmor', parser_config)
+        cache_unit = read_text(TARGET / 'etc/systemd/system/apparmor.service.d/20-cache.conf')
+        self.assertIn('ExecStartPre=/usr/bin/install -d -o root -g root -m 0755 /var/cache/apparmor', cache_unit)
 
     @unittest.skipUnless(shutil.which('apparmor_parser'), 'AppArmor parser is unavailable')
     def test_firstboot_profile_parses_offline_with_shipped_abstractions(self):
