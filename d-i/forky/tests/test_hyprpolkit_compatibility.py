@@ -6,6 +6,8 @@ synthetic local indexes and simulated transactions in an isolated state tree.
 from __future__ import annotations
 
 import contextlib
+from email.utils import formatdate
+import hashlib
 import importlib.machinery
 import importlib.util
 import io
@@ -161,11 +163,16 @@ class AgentGuardTests(unittest.TestCase):
 
 class AgentWiringTests(unittest.TestCase):
     def test_hyprpolkit_remains_the_only_selected_agent(self):
-        packages = (SEED / 'classes/class-select/role/desktop.cfg').read_text().split()
+        desktop = (SEED / 'classes/class-select/role/desktop.cfg').read_text()
+        packages = desktop.split()
         self.assertIn('hyprpolkitagent', packages)
         self.assertNotIn('hyprpolkitagent/forky', packages)
         self.assertNotIn('mate-polkit', packages)
         self.assertIn('qt6-wayland', packages)
+        self.assertIn('d-i apt-setup/local28/repository string https://deb.debian.org/debian trixie-backports main\n', desktop)
+        self.assertIn('d-i apt-setup/local28/key string https://ftp-master.debian.org/keys/archive-key-13.asc\n', desktop)
+        self.assertIn('d-i apt-setup/local28/source boolean false\n', desktop)
+        self.assertNotIn('trixie-backports', (SEED / 'fragments/apt.cfg').read_text())
         for base in (TARGET / 'etc/systemd/user', TARGET / 'etc/skel-desktop/.config/systemd/user',
                      TARGET / 'usr/local/share/applications'):
             self.assertFalse(list(base.glob('*labwc-polkit-agent*')))
@@ -183,6 +190,8 @@ class AgentWiringTests(unittest.TestCase):
         self.assertIn('Group: role\nName: desktop\n', text)
         self.assertIn('DebianAptPreferences: hyprpolkitagent', text)
         self.assertIn('Pin: version 0.1.3-*', PIN.read_text())
+        self.assertIn('Pin: release a=experimental,n=rc-buggy\nPin-Priority: -1', PIN.read_text())
+        self.assertIn('Pin: release n=sid\nPin-Priority: -1', PIN.read_text())
         self.assertNotIn('Package: *\n', PIN.read_text())
         self.assertNotIn('trusted=yes', PIN.read_text())
 
@@ -283,8 +292,11 @@ class AgentAptPolicyTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         sources = []
         for name, origin, versions in (
-                ('forky', 'Debian', ('0.1.3-2', '0.1.3-3', '0.2.0-1', '0.1.3+git20260927-1')),
-                ('obs', 'obs://build.opensuse.org/home:cramerz:debian/Debian_Unstable', ('0.1.3-99',))):
+                ('forky', 'Debian', ('0.2.0-1', '0.1.3+git20260927-1')),
+                ('trixie-backports', 'Debian', ('0.1.3-2~bpo13+1',)),
+                ('sid', 'Debian', ('0.1.3-99',)),
+                ('experimental', 'Debian', ('0.1.3-100',)),
+                ('obs', 'obs://build.opensuse.org/home:cramerz:debian/Debian_Unstable', ('0.1.3-200',))):
             repo = self.root / name
             repo.mkdir()
             records = []
@@ -293,13 +305,26 @@ class AgentAptPolicyTests(unittest.TestCase):
                     records.append(self.record('hyprpolkitagent', version, arch))
                 if name == 'forky':
                     records.append(self.record('unrelated-package', '10.0-1', arch))
-            (repo / 'Packages').write_text('\n'.join(records))
-            codename = 'Debian_Unstable' if name == 'obs' else 'forky'
+                if name == 'trixie-backports':
+                    records.append(self.record('unrelated-package', '11.0-1', arch))
+            package_index = '\n'.join(records).encode()
+            (repo / 'Packages').write_bytes(package_index)
+            codename = {'obs': 'Debian_Unstable', 'experimental': 'rc-buggy'}.get(name, name)
+            suite = 'experimental' if name == 'experimental' else codename
             label = 'home:cramerz:debian' if name == 'obs' else 'Debian'
-            (repo / 'Release').write_text(f'Origin: {origin}\nLabel: {label}\nSuite: {codename}\nCodename: {codename}\nArchitectures: amd64 i386\n')
+            backports_policy = 'NotAutomatic: yes\nButAutomaticUpgrades: yes\n' if name == 'trixie-backports' else ''
+            (repo / 'Release').write_text(f'Origin: {origin}\nLabel: {label}\nSuite: {suite}\n'
+                                          f'Codename: {codename}\nArchitectures: amd64 i386\n'
+                                          f'Date: {formatdate(usegmt=True)}\n{backports_policy}'
+                                          f'SHA256:\n {hashlib.sha256(package_index).hexdigest()} '
+                                          f'{len(package_index)} Packages\n')
             # Trust bypass is confined to inert local TEST indexes, never payload policy.
             sources.append(f'deb [trusted=yes] file:{repo} ./')
         (self.root / 'sources.list').write_text('\n'.join(sources) + '\n')
+        (self.root / 'empty-etc').mkdir()
+        (self.root / 'apt.conf').write_text(
+            f'Dir::Etc::parts "{self.root / "empty-etc"}";\n'
+            f'Dir::Etc::main "{self.root / "empty.conf"}";\n')
         (self.root / 'status').touch()
         for directory in ('lists/partial', 'archives/partial', 'log', 'trusted'):
             (self.root / directory).mkdir(parents=True)
@@ -326,34 +351,56 @@ class AgentAptPolicyTests(unittest.TestCase):
                 f'Filename: pool/{name}_{version}_{arch}.deb\nSize: 1\nSHA256: ' + 'a' * 64 +
                 '\nDescription: Inert offline policy fixture\n')
 
+    def replace_index(self, name, content):
+        repo = self.root / name
+        index = content.encode()
+        (repo / 'Packages').write_bytes(index)
+        release = repo / 'Release'
+        header = release.read_text().split('SHA256:\n', 1)[0]
+        release.write_text(f'{header}SHA256:\n {hashlib.sha256(index).hexdigest()} '
+                           f'{len(index)} Packages\n')
+
     def apt(self, tool, *args):
         return subprocess.run([tool, *self.options, *args], capture_output=True, text=True,
-                              env={**os.environ, 'LC_ALL': 'C', 'APT_CONFIG': '/dev/null'}, timeout=20)
+                              env={**os.environ, 'LC_ALL': 'C', 'APT_CONFIG': str(self.root / 'apt.conf'),
+                                   'TMPDIR': str(self.root)}, timeout=20)
 
     def test_reviewed_qt_series_wins_on_both_architectures(self):
         for arch in ('amd64', 'i386'):
             result = self.apt('apt-cache', 'policy', f'hyprpolkitagent:{arch}')
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn('Candidate: 0.1.3-3', result.stdout)
+            self.assertIn('Candidate: 0.1.3-2~bpo13+1', result.stdout)
             self.assertRegex(result.stdout, r'0\.2\.0-1\s+-1\b')
             self.assertRegex(result.stdout, r'0\.1\.3\+git20260927-1\s+-1\b')
             self.assertRegex(result.stdout, r'0\.1\.3-99\s+-1\b')
+            self.assertRegex(result.stdout, r'0\.1\.3-100\s+-1\b')
+            self.assertRegex(result.stdout, r'0\.1\.3-200\s+-1\b')
 
     def test_pkgsel_plain_package_request_respects_compatibility_pin(self):
         result = self.apt('apt-get', '--simulate', 'install', 'hyprpolkitagent')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn('Inst hyprpolkitagent (0.1.3-3 ', result.stdout)
+        self.assertIn('Inst hyprpolkitagent (0.1.3-2~bpo13+1 ', result.stdout)
         self.assertNotIn('Inst hyprpolkitagent (0.2.', result.stdout)
+
+    def test_compatible_forky_revision_takes_precedence_when_available(self):
+        packages = self.root / 'forky/Packages'
+        self.replace_index('forky', packages.read_text() + self.record('hyprpolkitagent', '0.1.3-3', 'amd64') + '\n')
+        shutil.rmtree(self.root / 'lists')
+        (self.root / 'lists/partial').mkdir(parents=True)
+        self.assertEqual(self.apt('apt-get', 'update').returncode, 0)
+        result = self.apt('apt-get', '--simulate', 'install', 'hyprpolkitagent')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('Inst hyprpolkitagent (0.1.3-3 ', result.stdout)
 
     def test_package_pin_does_not_change_unrelated_packages(self):
         result = self.apt('apt-cache', 'policy', 'unrelated-package')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('Candidate: 10.0-1', result.stdout)
         self.assertRegex(result.stdout, r'10\.0-1\s+500\b')
+        self.assertRegex(result.stdout, r'11\.0-1\s+100\b')
 
     def test_missing_compatible_series_does_not_fallback_to_toolkit(self):
-        packages = self.root / 'forky/Packages'
-        packages.write_text(self.record('hyprpolkitagent', '0.2.0-1', 'amd64'))
+        self.replace_index('trixie-backports', self.record('hyprpolkitagent', '0.2.0-1', 'amd64'))
         # This intentionally tiny unsigned fixture has no Release checksum:
         # discard ONLY its private indexes so APT cannot retain the prior list.
         shutil.rmtree(self.root / 'lists')

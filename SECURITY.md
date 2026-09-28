@@ -99,6 +99,12 @@ package lock. Repository availability, dependency resolution and package scripts
 must be accepted against the particular deployment snapshot. Serve immutable
 source snapshots and retain resolved package versions with deployment evidence.
 
+The desktop role also enables signed Debian Trixie Backports for the
+`hyprpolkitagent` 0.1.3 Qt package while Forky carries the incompatible 0.2.0
+hyprtoolkit build. Its package-specific preference is staged before pkgsel and
+rejects the agent from Sid, Experimental and the optional OBS archive. The
+installed-package compatibility check still rejects an unexpected build.
+
 ## Terminal failures and privileged publication
 
 `common/lifecycle.sh` is the single fatal-state implementation, embedded before
