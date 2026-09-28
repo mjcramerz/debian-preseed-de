@@ -151,6 +151,13 @@ credentials fail before early disk planning; a blank root_password parameter is
 an explicit invalid override, not an instruction to fall back. The implementation and precedence checks are in
 `d-i/forky/scripts/common/credentials.sh` and the bootstrap tests.
 
+When the selected profile uses `SECURE_BOOT_STATE_MODE=luks`, the installer
+requires `PRESEED_SHIM_SIGNED_PASSPHRASE` in its private `/preseed.env` to format
+and open `/var/lib/shim-signed`. It does not use the account name or a command-line
+fallback. The passphrase is not installed in the target; `luks-mok-open` prompts
+for it when opening the partition after installation. An existing LUKS partition
+with a different key must be rekeyed deliberately before reusing that state.
+
 Normalized bookmarks, contextual site grants and coverage reports are private
 information even after tracking histories and the NoScript instance UUID are
 removed. Restrict access to the personalized repository and installation server.

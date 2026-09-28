@@ -85,9 +85,9 @@ class TorrentIntegrationTests(unittest.TestCase):
                     if line.startswith("FUZZEL_") and "=" in line
                 )
                 for mode in ("LAUNCHER", "MENU"):
-                    self.assertEqual(assignments[f"FUZZEL_{mode}_EXTERNAL_WIDTH"], '"96"')
-                self.assertEqual(assignments["FUZZEL_EXTERNAL_FONT_SIZE"], '"18"')
-                self.assertEqual(assignments["FUZZEL_EXTERNAL_LINE_HEIGHT"], '"28"')
+                    self.assertEqual(assignments[f"FUZZEL_{mode}_EXTERNAL_WIDTH"], '"60"')
+                self.assertEqual(assignments["FUZZEL_EXTERNAL_FONT_SIZE"], '"19"')
+                self.assertEqual(assignments["FUZZEL_EXTERNAL_LINE_HEIGHT"], '"32"')
 
 
 if __name__ == "__main__":

@@ -798,22 +798,27 @@ apparmor_apply_desktop_state() {
         if (NF != 4) {
           exit 40
         }
-        if ($1 != "__DESKTOP_APPARMOR_STATE__" ||
-            $2 !~ /^(required|optional|if-executable)$/ ||
+        if ($2 !~ /^(required|optional|if-executable)$/ ||
             $3 !~ /^[A-Za-z0-9._+-]+$/ ||
             ($2 == "if-executable" && $4 !~ /^\//) ||
             ($2 != "if-executable" && $4 != "-")) {
+          exit 41
+        }
+        if ($3 == "hardware-tuning") {
+          if ($1 != "enforce" || $2 != "optional" || $4 != "-") exit 41
+          hardware_seen++
+        } else if ($1 != "__DESKTOP_APPARMOR_STATE__") {
           exit 41
         }
         if (++seen[$3] != 1) {
           exit 42
         }
         rows++
-        $1 = selected_state
+        if ($3 != "hardware-tuning") $1 = selected_state
         print
       }
       END {
-        if (rows == 0) {
+        if (rows == 0 || hardware_seen != 1) {
           exit 43
         }
       }
@@ -829,7 +834,7 @@ apparmor_apply_desktop_state() {
     return 1
   }
   rm -f -- "$desktop_apparmor_tmp"
-  installer_info "all declared managed AppArmor profile state: ${desktop_apparmor_state}"
+  installer_info "managed desktop AppArmor profile state: ${desktop_apparmor_state}; hardware tuning: enforce"
 }
 
 security_nvidia_acceleration_enabled() {

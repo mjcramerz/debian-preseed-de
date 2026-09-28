@@ -235,7 +235,7 @@ done
 # arbitrary caller-supplied Fuzzel width/line switches stay forbidden.
 if [ "$power_confirmation" = true ]; then
   [ "$mode" = menu ] || fatal 'power confirmation requires a dmenu'
-  selected_WIDTH=68
+  selected_WIDTH=60
   selected_LINES=4
 fi
 fuzzel_font="__THEME_FUZZEL_MENU_TEXT_FONT_FAMILY__:size=${selected_FONT_SIZE},__THEME_FUZZEL_MENU_EMOJI_FONT_FAMILY__:size=${selected_FONT_SIZE},__THEME_FUZZEL_MENU_ICON_FONT_FAMILY__:size=${selected_FONT_SIZE},__THEME_FUZZEL_MENU_NERD_FONT_FAMILY__:size=${selected_FONT_SIZE}"

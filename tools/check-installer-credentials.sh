@@ -26,17 +26,17 @@ if [ ! -r "$INSTALLER_CMDLINE_FILE" ]; then
   exit 2
 fi
 check_result=0
-for check_key in root_password primary_user primary_password primary_gpg_passphrase git_ssh_passphrase \
+for check_key in root_password primary_user primary_password primary_gpg_passphrase git_ssh_passphrase shim_signed_passphrase \
   netcfg/wireless_wpa fruux_username fruux_password crowdsec_token tailscale_authkey \
   telegram_chat_id telegram_api_key cf_r2_access_key cf_r2_secret_key obs_username obs_password
 do
-  if [ "$check_key" != git_ssh_passphrase ] && installer_cmdline_parameter_present "$check_key"; then
+  if [ "$check_key" != git_ssh_passphrase ] && [ "$check_key" != shim_signed_passphrase ] && installer_cmdline_parameter_present "$check_key"; then
     check_source=command-line
   else
     check_source=initrd-env
   fi
   if check_value=$(
-    if [ "$check_key" = git_ssh_passphrase ]; then
+    if [ "$check_key" = git_ssh_passphrase ] || [ "$check_key" = shim_signed_passphrase ]; then
       preseed_env_read_value "$check_key"
     else
       installer_cmdline_value "$check_key"

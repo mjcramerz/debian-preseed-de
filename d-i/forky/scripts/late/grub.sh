@@ -1396,6 +1396,8 @@ open_luks_mapping_with_passphrase() {
 }
 
 ensure_target_secure_boot_state_mount() {
+  set +x
+  set +v
   secure_boot_state_mode=$(target_secure_boot_state_mode)
   mountpoint="/target${DIR_VAR_LIB_SHSIGNED}"
   mapper_path=
@@ -1410,6 +1412,21 @@ ensure_target_secure_boot_state_mount() {
       ;;
     luks)
       validate_target_secure_boot_luks_contract
+      # Preserve any trailing newline in the value so validation rejects it
+      # instead of silently changing the LUKS key during command substitution.
+      secure_boot_luks_read=$(preseed_env_read_value shim_signed_passphrase && printf '.') ||
+        installer_fatal "SECURE_BOOT_STATE_MODE=luks requires PRESEED_SHIM_SIGNED_PASSPHRASE in the private initrd /preseed.env"
+      case "$secure_boot_luks_read" in
+        *'
+'.) ;;
+        *) installer_fatal "PRESEED_SHIM_SIGNED_PASSPHRASE could not be read as a single value" ;;
+      esac
+      secure_boot_luks_passphrase=${secure_boot_luks_read%.}
+      secure_boot_luks_passphrase=${secure_boot_luks_passphrase%?}
+      unset secure_boot_luks_read
+      case "$secure_boot_luks_passphrase" in
+        *[![:print:]]*) installer_fatal "PRESEED_SHIM_SIGNED_PASSPHRASE must be a single printable line" ;;
+      esac
       ;;
     *)
       fatal "unsupported Secure Boot state mode: ${secure_boot_state_mode}"
@@ -1419,7 +1436,8 @@ ensure_target_secure_boot_state_mount() {
   [ -b "${DEV_PART_VAR_LIB_SHSIGNED}" ] || fatal "Secure Boot state partition is missing: ${DEV_PART_VAR_LIB_SHSIGNED}"
 
   install -d -m 0700 "$mountpoint"
-  open_luks_mapping_with_passphrase "${DEV_PART_VAR_LIB_SHSIGNED}" "${LUKS_NAME_VAR_LIB_SHSIGNED}" "${ACCOUNT_USERNAME}"
+  open_luks_mapping_with_passphrase "${DEV_PART_VAR_LIB_SHSIGNED}" "${LUKS_NAME_VAR_LIB_SHSIGNED}" "$secure_boot_luks_passphrase"
+  unset passphrase secure_boot_luks_passphrase
   mapper_path=${ACTIVE_TARGET_SECURE_BOOT_MAPPER:-$LUKS_MAPPER_VAR_LIB_SHSIGNED}
   ensure_target_mount "$mapper_path" "$mountpoint" ext4 "${MNT_VAR_LIB_SHSIGNED_OPTS}" "/var/lib/shim-signed"
   chmod 0700 "$mountpoint"

@@ -86,6 +86,11 @@ sub load_config {
                 "configuration line $line_number has an invalid profile file: "
                 . $profile_name
             );
+        # The broker and privileged helpers reject a complain-mode label.
+        # Reject a stale or administrator-edited policy before any transition.
+        !($profile_name eq 'hardware-tuning' &&
+          ($mode ne 'enforce' || $presence ne 'optional' || $executable_probe ne '-')) ||
+            fatal('hardware-tuning policy must remain optional and enforced');
         # These files contain mandatory Px/AppArmorProfile launch targets and
         # the policy worker itself. Never replay a legacy global live unload.
         my %launch_sources = map { $_ => 1 } qw(

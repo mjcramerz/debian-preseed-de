@@ -3,7 +3,6 @@ abi "/usr/share/apparmor-features/features",
 #include <tunables/global>
 
 profile firstboot /var/lib/firstboot/bin/firstboot.sh flags=(attach_disconnected) {
-  ptrace (read) peer=labwc-wrap-desktop-files,
   #include <abstractions/wrapper-base>
 
   unix,
@@ -18,16 +17,7 @@ profile firstboot /var/lib/firstboot/bin/firstboot.sh flags=(attach_disconnected
   capability setgid,
   capability setuid,
   capability sys_admin,
-  capability sys_ptrace,
   capability syslog,
-
-  ptrace (read) peer=unconfined,
-  ptrace (read) peer=firstboot,
-  ptrace (read) peer=crowdsec-firstboot,
-  ptrace (read) peer=labwc-compositor,
-  ptrace (read) peer=labwc-greeter-session,
-  ptrace (read) peer=zram-writeback,
-  ptrace (read) peer=usr.sbin.tailscaled,
 
   /var/lib/firstboot/bin/firstboot.sh rix,
   /usr/local/libexec/dbus-broker-check rix,

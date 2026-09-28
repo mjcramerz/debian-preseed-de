@@ -209,20 +209,20 @@ class FuzzelOutputSizingTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         self.assertIn(f'--config={self.config}/menu.ini', arguments)
-        self.assertIn('--width=48', arguments)
-        self.assertIn('--lines=16', arguments)
+        self.assertIn('--width=60', arguments)
+        self.assertIn('--lines=18', arguments)
         self.assertIn(
-            '--font=Noto Sans:size=9,Noto Color Emoji:size=9,'
-            'Font Awesome 6 Free:size=9,Symbols Nerd Font Mono:size=9',
+            '--font=Noto Sans:size=19,Noto Color Emoji:size=19,'
+            'Font Awesome 6 Free:size=19,Symbols Nerd Font Mono:size=19',
             arguments,
         )
         self.assertNotIn('--width=40', arguments)
         self.assertNotIn('--font=Noto Sans:size=16', arguments)
 
-    def test_power_confirmation_has_fixed_wide_short_geometry(self):
+    def test_power_confirmation_has_fixed_compact_geometry(self):
         result, arguments = self.invoke('power-confirm', '--dmenu', '--index', output='eDP-1')
         self.assertEqual(result.returncode, 0, result.stderr.decode())
-        self.assertIn('--width=68', arguments)
+        self.assertIn('--width=60', arguments)
         self.assertIn('--lines=4', arguments)
         self.assertIn(f'--config={self.config}/menu.ini', arguments)
         failure, arguments = self.invoke('power-confirm', '--dmenu', '--width=200')
@@ -235,15 +235,20 @@ class FuzzelOutputSizingTests(unittest.TestCase):
         self.assertFalse(arguments)
         self.assertIn(b'unsupported characters', result.stderr)
 
-    def test_profiles_and_renderer_define_wide_internal_dimensions(self):
+    def test_profiles_and_renderer_define_shared_dimensions(self):
         expected = {
-            'FUZZEL_MENU_INTERNAL_WIDTH': '48',
-            'FUZZEL_MENU_INTERNAL_LINES': '16',
-            'FUZZEL_INTERNAL_FONT_SIZE': '9',
-            'FUZZEL_INTERNAL_HORIZONTAL_PADDING': '10',
-            'FUZZEL_INTERNAL_VERTICAL_PADDING': '6',
-            'FUZZEL_INTERNAL_INNER_PADDING': '4',
-            'FUZZEL_INTERNAL_LINE_HEIGHT': '16',
+            'FUZZEL_LAUNCHER_INTERNAL_WIDTH': '60',
+            'FUZZEL_LAUNCHER_EXTERNAL_WIDTH': '60',
+            'FUZZEL_LAUNCHER_DEFAULT_WIDTH': '60',
+            'FUZZEL_MENU_INTERNAL_WIDTH': '60',
+            'FUZZEL_MENU_EXTERNAL_WIDTH': '60',
+            'FUZZEL_MENU_DEFAULT_WIDTH': '60',
+            'FUZZEL_MENU_INTERNAL_LINES': '18',
+            'FUZZEL_INTERNAL_FONT_SIZE': '19',
+            'FUZZEL_INTERNAL_HORIZONTAL_PADDING': '16',
+            'FUZZEL_INTERNAL_VERTICAL_PADDING': '12',
+            'FUZZEL_INTERNAL_INNER_PADDING': '8',
+            'FUZZEL_INTERNAL_LINE_HEIGHT': '32',
         }
         for profile in (ROOT / 'hosts/profiles').glob('*.env'):
             values = {}

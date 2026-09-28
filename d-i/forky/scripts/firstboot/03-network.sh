@@ -105,7 +105,9 @@ if command -v networkctl >/dev/null 2>&1; then
   capture_networkctl_status
 fi
 if command -v ss >/dev/null 2>&1; then
-  capture sockets-listening.txt ss -ltnup
+  # Socket ownership (-p) walks unrelated desktop processes and requires
+  # cross-profile ptrace reads; the network inventory needs only endpoints.
+  capture sockets-listening.txt ss -ltnu
 fi
 if command -v systemctl >/dev/null 2>&1; then
   capture network-targets.txt systemctl status network-online.target networking.service network.service wpa_supplicant.service systemd-networkd.service NetworkManager.service NetworkManager-dispatcher.service --no-pager --lines=40

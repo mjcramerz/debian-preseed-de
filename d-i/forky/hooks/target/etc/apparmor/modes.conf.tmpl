@@ -6,20 +6,19 @@
 # This tracked modes.conf.tmpl is installed as
 # /etc/apparmor/modes.conf only after MODE has been rendered from
 # __DESKTOP_APPARMOR_STATE__ to the selected enforce or complain value. The
-# installed administrative action may later write enforce or complain. Full
+# installed administrative action may later write enforce or complain for the
+# desktop profiles. The hardware control plane always requires enforce. Full
 # disablement is a separately confirmed next-boot setting, never a live unload.
 # PRESENCE is required, optional, or if-executable.
 # PROFILE_FILE is relative to /etc/apparmor.d and must not contain slashes.
 # EXECUTABLE_PROBE is "-" unless PRESENCE is if-executable.
 #
 # Repository-owned wrapper, control-plane, application, service, browser,
-# container, and vendor profile sources use the managed policy below. This
-# tracked template is a pre-render baseline only. During desktop target staging,
-# DESKTOP_APPARMOR_STATE rewrites the MODE field of every declared row to the
-# selected enforce or complain state. No profile-specific mode exception is
-# retained. The privileged Fuzzel global AppArmor action updates the same
-# complete declared set until the user deliberately selects another global
-# state.
+# container, and vendor profile sources use the managed policy below. During
+# desktop target staging, DESKTOP_APPARMOR_STATE selects the MODE of desktop
+# rows. The hardware control plane stays enforced even on a complain desktop:
+# its broker, worker and policy helper refuse any other loaded mode. The
+# privileged Fuzzel global action updates only the desktop rows.
 #
 # apparmor-modes reconciles only this declared profile policy. Kernel
 # selection, kernel configuration, boot command-line flags, LSM ordering, and
@@ -44,7 +43,7 @@ __DESKTOP_APPARMOR_STATE__ required desktop-utilities -
 __DESKTOP_APPARMOR_STATE__ required system-wrappers -
 __DESKTOP_APPARMOR_STATE__ optional usr.local.sbin.tpm2-enroll.sh -
 __DESKTOP_APPARMOR_STATE__ optional firstboot -
-__DESKTOP_APPARMOR_STATE__ optional hardware-tuning -
+enforce optional hardware-tuning -
 
 # Repository-managed status reader used by the privileged security launcher.
 __DESKTOP_APPARMOR_STATE__ required usr.sbin.aa-status -

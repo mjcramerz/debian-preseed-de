@@ -652,8 +652,11 @@ desktop_validate_policy_env() {
   esac
 }
 
-# Shared launcher/menu geometry. DEFAULT is deliberate, never an alias for an
-# unknown output being misclassified as external. Only fixed keys reach eval.
+# The compositor does not pass an output name to keyboard-launched processes.
+# Keep all visual dimensions identical across menu types and output classes so
+# the keyboard, Waybar and management entry points always render alike. An
+# explicitly supplied output still controls placement. Only fixed keys reach
+# eval.
 desktop_validate_fuzzel_geometry() (
   for fz_class in INTERNAL EXTERNAL DEFAULT; do
     for fz_spec in FONT_SIZE:8:32 HORIZONTAL_PADDING:0:64 VERTICAL_PADDING:0:64 \
@@ -671,6 +674,25 @@ desktop_validate_fuzzel_geometry() (
       esac
       [ "${#fz_value}" -le 3 ] || desktop_fatal "Fuzzel geometry exceeds numeric budget: $fz_name"
       desktop_validate_uint_range "$fz_name" "$fz_value" "${fz_bounds%%:*}" "${fz_bounds#*:}"
+    done
+  done
+  for fz_key in FONT_SIZE HORIZONTAL_PADDING VERTICAL_PADDING INNER_PADDING \
+      LINE_HEIGHT BORDER_WIDTH BORDER_RADIUS; do
+    eval "fz_reference=\${FUZZEL_EXTERNAL_${fz_key}}"
+    for fz_class in INTERNAL DEFAULT; do
+      fz_name="FUZZEL_${fz_class}_${fz_key}"
+      eval "fz_value=\${${fz_name}}"
+      [ "$fz_value" = "$fz_reference" ] || desktop_fatal "Fuzzel geometry differs from EXTERNAL: $fz_name"
+    done
+  done
+  for fz_key in WIDTH LINES; do
+    eval "fz_reference=\${FUZZEL_MENU_EXTERNAL_${fz_key}}"
+    for fz_mode in LAUNCHER MENU; do
+      for fz_class in INTERNAL EXTERNAL DEFAULT; do
+        fz_name="FUZZEL_${fz_mode}_${fz_class}_${fz_key}"
+        eval "fz_value=\${${fz_name}}"
+        [ "$fz_value" = "$fz_reference" ] || desktop_fatal "Fuzzel geometry differs from MENU_EXTERNAL: $fz_name"
+      done
     done
   done
 )

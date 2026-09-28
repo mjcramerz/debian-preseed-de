@@ -1,7 +1,7 @@
 [Unit]
 Description=Hardware tuning lifecycle broker (no direct hardware access)
-Requires=hardware-tuning.socket apparmor.service
-After=hardware-tuning.socket apparmor.service systemd-logind.service systemd-modules-load.service
+Requires=hardware-tuning.socket apparmor.service apparmor-modes.service
+After=hardware-tuning.socket apparmor.service apparmor-modes.service systemd-logind.service systemd-modules-load.service
 Wants=systemd-logind.service
 StartLimitIntervalSec=120s
 StartLimitBurst=3

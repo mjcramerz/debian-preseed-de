@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from fuzzel_fixture import geometry_environment
 from payload_fixture import installed_argv, read_text
+from theme_fixture import render_theme_defaults
 from test_desktop_sandbox import FuzzelOutputSizingTests as _Fixture
 from waybar_fixture import FORKY, TARGET, profiles, rendered_assets
 
@@ -38,6 +39,43 @@ class FuzzelSelectionTests(unittest.TestCase):
                                         for part in font.removeprefix('--font=').split(',')))
                     self.assertEqual([arg for arg in args if arg.startswith('--output=')],
                                      [] if output is None else ['--output='+output])
+
+    def test_keyboard_bar_and_management_have_identical_visual_arguments(self):
+        visual_flags=('--font=', '--width=', '--lines=', '--horizontal-pad=',
+                      '--vertical-pad=', '--inner-pad=', '--line-height=',
+                      '--border-width=', '--border-radius=')
+        reference=None
+        for mode in ('launcher','menu','computer-management'):
+            for output in (None,'eDP-1','DP-1'):
+                with self.subTest(mode=mode,output=output):
+                    result,args=self.invoke(mode,output=output)
+                    self.assertEqual(result.returncode,0,result.stderr.decode())
+                    visual=tuple(arg for arg in args if arg.startswith(visual_flags))
+                    self.assertEqual(len(visual),len(visual_flags))
+                    if reference is None:
+                        reference=visual
+                    self.assertEqual(visual,reference)
+
+    def test_install_validation_rejects_drift_between_entry_points(self):
+        source=render_theme_defaults(read_text(FORKY/'scripts/desktop/detect.sh'))
+        start=source.index('desktop_validate_fuzzel_geometry() (\n')
+        end=source.index('\n)\n',start)+3
+        function=source[start:end]
+        script='''set -eu
+desktop_fatal() { printf '%s\\n' "$*" >&2; exit 2; }
+desktop_validate_uint_range() { [ "$2" -ge "$3" ] && [ "$2" -le "$4" ]; }
+'''+function+'\ndesktop_validate_fuzzel_geometry\n'
+        environment={'PATH':'/usr/bin:/bin',**geometry_environment()}
+        for change, expected in (({},0),
+                                 ({'FUZZEL_DEFAULT_FONT_SIZE':'15'},2),
+                                 ({'FUZZEL_LAUNCHER_INTERNAL_WIDTH':'48'},2),
+                                 ({'FUZZEL_MENU_EXTERNAL_LINES':'22'},2)):
+            with self.subTest(change=change):
+                result=subprocess.run(installed_argv(['/bin/sh','-c',script]),
+                                      env=environment|change,capture_output=True,text=True)
+                self.assertEqual(result.returncode,expected,result.stderr)
+                if change:
+                    self.assertIn('Fuzzel geometry differs',result.stderr)
 
     def test_unknown_is_deliberately_default_not_external(self):
         result,args=self.invoke('launcher',extra_environment={
@@ -176,15 +214,21 @@ class NativeLayoutTests(unittest.TestCase):
                     self.assertNotIn('--setenv=WAYBAR_OUTPUT_NAME',click)
                 self.assertNotIn('@import',assets['style.css'])
 
-    def test_every_profile_has_wide_internal_and_larger_external_fuzzel(self):
+    def test_every_profile_gives_all_entry_points_identical_geometry(self):
         for profile in profiles():
             with self.subTest(profile=profile.name):
                 values=geometry_environment(profile.name)
+                for key, expected in {'FONT_SIZE':'19','HORIZONTAL_PADDING':'16',
+                                      'VERTICAL_PADDING':'12','INNER_PADDING':'8',
+                                      'LINE_HEIGHT':'32','BORDER_WIDTH':'2',
+                                      'BORDER_RADIUS':'14'}.items():
+                    self.assertEqual({values[f'FUZZEL_{cls}_{key}'] for cls in
+                                      ('INTERNAL','EXTERNAL','DEFAULT')},{expected})
                 for mode in ('LAUNCHER','MENU'):
                     self.assertEqual([int(values[f'FUZZEL_{mode}_{cls}_WIDTH']) for cls in
-                                      ('INTERNAL','EXTERNAL','DEFAULT')],[48,72,48])
+                                      ('INTERNAL','EXTERNAL','DEFAULT')],[86,86,86])
                     self.assertEqual([int(values[f'FUZZEL_{mode}_{cls}_LINES']) for cls in
-                                      ('INTERNAL','EXTERNAL','DEFAULT')],[16,22,16])
+                                      ('INTERNAL','EXTERNAL','DEFAULT')],[18,18,18])
 
     def test_nonstandard_detected_internal_name_is_not_lost_to_the_wildcard(self):
         with tempfile.TemporaryDirectory() as tmp:

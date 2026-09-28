@@ -716,9 +716,8 @@ sub _application_profiles {
 sub _desktop_profiles {
     my ($self) = @_;
 
-    # The global state owns every declared managed profile source. Individual
-    # application actions remain limited to their application-specific rows.
-    return map { $_->[2] } $self->_mode_rows();
+    # Hardware tuning requires enforce even when the desktop is in complain.
+    return map { $_->[2] } grep { $_->[2] ne 'hardware-tuning' } $self->_mode_rows();
 }
 
 sub _mode_rows {
@@ -1039,6 +1038,8 @@ sub _update_modes {
     -x $self->mode_helper()
         or die "managed AppArmor mode helper is unavailable: " . $self->mode_helper() . "\n";
     my %wanted = map { $_ => 1 } @{$profiles};
+    !$wanted{'hardware-tuning'}
+        or die "hardware tuning requires an enforced AppArmor profile\n";
     my $content = $self->_read_small_file($self->mode_config(), $self->maximum_config_bytes(), 'managed AppArmor mode configuration');
     my %found;
     my @rendered;

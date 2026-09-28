@@ -100,7 +100,10 @@ class MasterModeInventoryTests(unittest.TestCase):
         rows = [line.split() for line in template.splitlines()
                 if line.strip() and not line.lstrip().startswith('#')]
         self.assertTrue(rows)
-        self.assertTrue(all(len(row) == 4 and row[0] == '__DESKTOP_APPARMOR_STATE__'
+        self.assertTrue(all(len(row) == 4 and
+                            (row == ['enforce', 'optional', 'hardware-tuning', '-']
+                             if row[2] == 'hardware-tuning'
+                             else row[0] == '__DESKTOP_APPARMOR_STATE__')
                             for row in rows))
         names = [row[2] for row in rows]
         self.assertEqual(len(names), len(set(names)))
@@ -140,7 +143,27 @@ class MasterModeInventoryTests(unittest.TestCase):
                 rows = [line.split() for line in config.read_text().splitlines()
                         if line.strip() and not line.lstrip().startswith('#')]
                 self.assertTrue(rows)
-                self.assertEqual({row[0] for row in rows}, {state})
+                self.assertEqual({row[0] for row in rows if row[2] != 'hardware-tuning'}, {state})
+                self.assertEqual([row for row in rows if row[2] == 'hardware-tuning'],
+                                 [['enforce', 'optional', 'hardware-tuning', '-']])
+
+    def test_installer_rejects_a_complain_hardware_policy(self):
+        security = FORKY / 'scripts/late/security.sh'
+        template = TARGET / 'etc/apparmor/modes.conf.tmpl'
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / 'modes.conf'
+            unsafe = template.read_text().replace('enforce optional hardware-tuning -',
+                                                  '__DESKTOP_APPARMOR_STATE__ optional hardware-tuning -')
+            config.write_text(unsafe)
+            result = subprocess.run(
+                ['/bin/sh', '-eu', '-c',
+                 '. "$1"; installer_fatal() { echo "$*" >&2; return 1; }; '
+                 'installer_info() { :; }; apparmor_apply_desktop_state "$2"',
+                 'test-mode-reject', str(security), str(config)],
+                env={**os.environ, 'DESKTOP_APPARMOR_STATE': 'complain'},
+                capture_output=True, text=True, timeout=15)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(config.read_text(), unsafe)
 
 
 if __name__ == '__main__':

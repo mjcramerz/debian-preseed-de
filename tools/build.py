@@ -97,9 +97,12 @@ def validate_apparmor_modes() -> None:
     config = SEED / 'hooks/target/etc/apparmor/modes.conf.tmpl'
     rows = [line.split() for line in config.read_text().splitlines()
             if line.strip() and not line.lstrip().startswith('#')]
-    if not rows or any(len(row) != 4 or row[0] != '__DESKTOP_APPARMOR_STATE__'
+    if not rows or any(len(row) != 4 or
+                       (row != ['enforce', 'optional', 'hardware-tuning', '-']
+                        if row[2] == 'hardware-tuning'
+                        else row[0] != '__DESKTOP_APPARMOR_STATE__')
                        for row in rows):
-        raise ValueError('all managed AppArmor rows must select DESKTOP_APPARMOR_STATE')
+        raise ValueError('managed AppArmor rows must select the desktop state, except enforced hardware-tuning')
     declared = [row[2] for row in rows]
     if len(declared) != len(set(declared)):
         raise ValueError('duplicate managed AppArmor profile mode row')

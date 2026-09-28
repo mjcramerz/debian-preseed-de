@@ -84,14 +84,25 @@ class ThemeValidationTests(unittest.TestCase):
         self.assertEqual(VALUES['LABWC_DESKTOP_QT_STYLE_OVERRIDE'], 'adwaita')
         self.assertEqual(VALUES['LABWC_DESKTOP_QT_THEME'], 'Adwaita')
         self.assertEqual(VALUES['GNOTE_COLOR_SCHEME'], 'dark')
-        active = VALUES['WAYBAR_BUTTON_WORKSPACES_ACTIVE_OUTLINE_COLOR']
+        active = VALUES['WAYBAR_BUTTON_SYSTEM_NORMAL_OUTLINE_COLOR']
         for button in ('TOMAT', 'WAYSCRIBER', 'TASKVIEW', 'APPS'):
             self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_NORMAL_OUTLINE_COLOR'], active)
+            self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_HOVER_OUTLINE_COLOR'], '#b190f6')
             self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_NORMAL_BACKGROUND_COLOR'],
                              VALUES['WAYBAR_BUTTON_APPS_NORMAL_BACKGROUND_COLOR'])
             for property_name in ('BACKGROUND', 'OUTLINE', 'SHADOW'):
                 self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_HOVER_{property_name}_COLOR'],
                                  VALUES[f'WAYBAR_BUTTON_APPS_HOVER_{property_name}_COLOR'])
+        for output in ('internal', 'external'):
+            css = (TARGET / 'etc/skel-desktop/.config/waybar/style.css.tmpl').read_text()
+            for button in ('custom-apps', 'custom-wayscriber', 'custom-tomat', 'custom-window-switcher'):
+                rules = re.findall(rf'window#waybar\.{output} #{button}:hover \{{([^}}]*)\}}', css)
+                self.assertTrue(any('box-shadow: inset ' in rule for rule in rules))
+            for button in ('custom-launcher', 'workspaces button.active', 'workspaces button'):
+                suffix = ':hover:not(.active):not(.urgent)' if button == 'workspaces button' else ':hover'
+                rule = re.search(rf'window#waybar\.{output} #{button}{re.escape(suffix)} \{{([^}}]*)\}}', css)
+                self.assertIsNotNone(rule)
+                self.assertIn('box-shadow: none;', rule.group(1))
         self.assertNotIn('71, 66', VALUES['WAYBAR_BUTTON_APPS_HOVER_BACKGROUND_COLOR'])
         for button in ('FILES', 'NOTES', 'SLEEK', 'TERMINAL', 'TUTANOTA'):
             for state in ('NORMAL', 'HOVER'):
