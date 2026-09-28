@@ -235,47 +235,10 @@ desktop_render_note_app_defaults() {
   desktop_log "rendered_note_app_defaults documents=${DIR_HOME_DOCUMENTS} pictures=${DIR_HOME_PICTURES} gtk_font_size=${gtk_font_size}"
 }
 
-desktop_stage_obsidian_default_vault() {
-  vault_root=/target/etc/skel-desktop/Syncthing/obsidian-md
-
-  install -d -m 0700 \
-    /target/etc/skel-desktop/Syncthing \
-    "$vault_root" \
-    "$vault_root/.obsidian" \
-    "$vault_root/.obsidian/snippets" \
-    "$vault_root/.obsidian/themes" \
-    "$vault_root/.obsidian/themes/evergreen-notes" \
-    "$vault_root/.trash" \
-    "$vault_root/archive" \
-    "$vault_root/attachments" \
-    "$vault_root/daily" \
-    "$vault_root/inbox" \
-    "$vault_root/templates"
-
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/app.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/app.json 0600
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/appearance.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/appearance.json 0600
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/backlink.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/backlink.json 0600
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/bookmarks.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/bookmarks.json 0600
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/command-palette.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/command-palette.json 0600
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/community-plugins.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/community-plugins.json 0600
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/core-plugins.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/core-plugins.json 0600
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/daily-notes.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/daily-notes.json 0600
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/graph.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/graph.json 0600
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/hotkeys.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/hotkeys.json 0600
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/templates.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/templates.json 0600
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/types.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/types.json 0600
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/snippets/ux.css /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/snippets/ux.css 0600
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/manifest.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/manifest.json 0600
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/theme.css /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/theme.css 0600
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/home.md /etc/skel-desktop/Syncthing/obsidian-md/home.md 0600
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/archive/index.md /etc/skel-desktop/Syncthing/obsidian-md/archive/index.md 0600
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/daily/index.md /etc/skel-desktop/Syncthing/obsidian-md/daily/index.md 0600
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/inbox/welcome.md /etc/skel-desktop/Syncthing/obsidian-md/inbox/welcome.md 0600
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/templates/daily-note-template.md /etc/skel-desktop/Syncthing/obsidian-md/templates/daily-note-template.md 0600
-  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/templates/note-template.md /etc/skel-desktop/Syncthing/obsidian-md/templates/note-template.md 0600
+desktop_stage_syncthing_ignore() {
+  install -d -m 0700 /target/etc/skel-desktop/Syncthing
   desktop_stage_role_asset etc/skel-desktop/Syncthing/.stignore /etc/skel-desktop/Syncthing/.stignore 0600
-
-  desktop_log "staged_obsidian_default_vault path=/etc/skel-desktop/Syncthing/obsidian-md theme=evergreen-notes"
+  desktop_log "staged_syncthing_ignore path=/etc/skel-desktop/Syncthing/.stignore"
 }
 
 desktop_compile_glib_schemas() {

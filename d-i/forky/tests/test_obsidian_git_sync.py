@@ -1,0 +1,241 @@
+#!/usr/bin/env python3
+"""Exercise vault publication with disposable, local Git repositories."""
+from __future__ import annotations
+
+import importlib.util
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import unittest
+from unittest import mock
+from types import SimpleNamespace
+
+SEED = Path(__file__).resolve().parents[1]
+SCRIPT = SEED/'hooks/target/usr/local/libexec/obsidian-git-sync.py'
+INSTALLER = SEED/'scripts/late/ssh/ssh-install.py'
+SPEC = importlib.util.spec_from_file_location('obsidian_git_sync', SCRIPT)
+SYNC = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(SYNC)
+INSTALL_SPEC = importlib.util.spec_from_file_location('obsidian_installer', INSTALLER)
+INSTALL = importlib.util.module_from_spec(INSTALL_SPEC)
+INSTALL_SPEC.loader.exec_module(INSTALL)
+
+
+class InstallerVaultTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix='obsidian-clone-')
+        self.addCleanup(self.temp.cleanup)
+        self.home = Path(self.temp.name)
+        self.home.chmod(0o700)
+        self.syncthing = self.home/'Syncthing'
+        self.syncthing.mkdir(mode=0o700)
+        self.stage = self.home/'stage'
+        self.stage.mkdir(mode=0o700)
+        self.account = SimpleNamespace(pw_uid=os.getuid(), pw_gid=os.getgid())
+
+    def clone_fixture(self, dest: Path, stage: Path, env: dict, **kwargs):
+        self.assertEqual((dest, stage, kwargs), (self.stage/'repository', self.stage,
+                         {'url': INSTALL.OBSIDIAN_URL, 'branch': 'mcr/main'}))
+        (dest/'.git').mkdir(parents=True)
+        (dest/'note.md').write_text('remote note\n')
+        (dest/'link').symlink_to('/does-not-exist')
+
+    def test_clone_publishes_user_writable_git_checkout(self):
+        with mock.patch.object(INSTALL, 'clone', side_effect=self.clone_fixture):
+            INSTALL.clone_obsidian(self.account, self.home, self.stage, {})
+        target = self.syncthing/'obsidian-md'
+        self.assertEqual((target/'.git').stat().st_uid, os.getuid())
+        self.assertEqual((target/'note.md').stat().st_mode & 0o777, 0o600)
+        self.assertEqual((target/'.git').stat().st_mode & 0o777, 0o700)
+        self.assertEqual((target/'link').readlink(), Path('/does-not-exist'))
+        self.assertEqual(list(self.syncthing.glob('.obsidian-clone.*')), [])
+
+    def test_existing_vault_is_preserved(self):
+        target = self.syncthing/'obsidian-md'
+        target.mkdir()
+        (target/'note.md').write_text('my note')
+        with self.assertRaisesRegex(INSTALL.InstallError, 'already exists'):
+            INSTALL.clone_obsidian(self.account, self.home, self.stage, {})
+        self.assertEqual((target/'note.md').read_text(), 'my note')
+
+    def test_failed_clone_never_publishes_partial_vault(self):
+        def fail(dest, stage, env, **kwargs):
+            (dest/'.git').mkdir(parents=True)
+            raise INSTALL.InstallError('fixture transport failure')
+        with mock.patch.object(INSTALL, 'clone', side_effect=fail):
+            with self.assertRaisesRegex(INSTALL.InstallError, 'transport failure'):
+                INSTALL.clone_obsidian(self.account, self.home, self.stage, {})
+        self.assertFalse((self.syncthing/'obsidian-md').exists())
+        self.assertFalse(list(self.syncthing.glob('.obsidian-clone.*')))
+
+    def test_every_profile_and_session_wiring_uses_approved_contract(self):
+        paths = sorted((SEED/'hosts/profiles').glob('*.env'))
+        self.assertEqual(len(paths), 10)
+        for path in paths:
+            content = path.read_text()
+            for value in (
+                'OBSIDIAN_GIT_REPOSITORY_URL="git@gitlab.com:core-assets/docs/obsidian-md.git"',
+                'OBSIDIAN_GIT_REPOSITORY_BRANCH="mcr/main"',
+                'OBSIDIAN_GIT_DIRECTORY="Syncthing/obsidian-md"',
+                'OBSIDIAN_GIT_SYNC_INTERVAL="1h"',
+            ):
+                self.assertIn(value, content, path.name)
+        self.assertIn('managed_git_ssh_target_action clone-obsidian',
+                      (SEED/'scripts/desktop/components/user-config.sh').read_text())
+        self.assertIn('obsidian-git-sync.timer',
+                      (SEED/'scripts/desktop/components/services.sh').read_text())
+        self.assertIn('/obsidian-md/.git',
+                      (SEED/'hooks/target/etc/skel-desktop/Syncthing/.stignore').read_text())
+
+
+class VaultSyncTests(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory(prefix='obsidian-sync-')
+        self.addCleanup(directory.cleanup)
+        self.home = Path(directory.name)
+        self.home.chmod(0o700)
+        self.remote = self.home/'remote.git'
+        self.syncthing = self.home/'Syncthing'
+        self.syncthing.mkdir(mode=0o700)
+        self.work = self.home/'Syncthing/obsidian-md'
+        self.env = dict(os.environ, GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL='/dev/null',
+                        GIT_AUTHOR_NAME='Test Author', GIT_AUTHOR_EMAIL='author@example.invalid',
+                        GIT_COMMITTER_NAME='Test Author', GIT_COMMITTER_EMAIL='author@example.invalid')
+        self.call('init', '--bare', str(self.remote), cwd=self.home)
+        seed = self.home/'seed'
+        self.call('init', '-b', 'mcr/main', str(seed), cwd=self.home)
+        (seed/'initial.md').write_text('initial\n')
+        self.call('add', '-A', cwd=seed)
+        self.call('commit', '-m', 'Initial', cwd=seed)
+        self.call('remote', 'add', 'origin', str(self.remote), cwd=seed)
+        self.call('push', 'origin', 'mcr/main:mcr/main', 'mcr/main:mcr/staging',
+                  'mcr/main:mcr/release', cwd=seed)
+        self.call('clone', '--single-branch', '--branch', 'mcr/main', str(self.remote),
+                  str(self.work), cwd=self.home)
+        self.work.chmod(0o700)
+        (self.work/'.git').chmod(0o700)
+        self.call('config', 'user.name', 'Test Author', cwd=self.work)
+        self.call('config', 'user.email', 'author@example.invalid', cwd=self.work)
+        # Test transport is local. Production git() forbids file:// and local
+        # fetch/push; substitute only those three transport calls.
+        self.original_git = SYNC.git
+        self.original_url = SYNC.URL
+        self.original_quiet = SYNC.QUIET_SECONDS
+        SYNC.URL = str(self.remote)
+        SYNC.QUIET_SECONDS = 0
+        self.addCleanup(self.restore)
+
+    def restore(self):
+        SYNC.git = self.original_git
+        SYNC.URL = self.original_url
+        SYNC.QUIET_SECONDS = self.original_quiet
+
+    def call(self, *args, cwd: Path):
+        return subprocess.run(['/usr/bin/git', *args], cwd=cwd, env=self.env,
+                              check=True, capture_output=True, timeout=10).stdout.strip()
+
+    def transport(self, root: Path, *args: str):
+        if args[0] in ('ls-remote', 'fetch', 'push'):
+            return self.call(*args, cwd=root)
+        return self.original_git(root, *args)
+
+    def sync(self):
+        with mock.patch.object(SYNC, 'git', side_effect=self.transport):
+            return SYNC.sync(self.work)
+
+    def head(self, name):
+        return self.call('--git-dir='+str(self.remote), 'rev-parse', 'refs/heads/'+name,
+                         cwd=self.home)
+
+    def test_new_notes_and_deletions_commit_and_forward_atomically(self):
+        (self.work/'note.md').write_text('new note\n')
+        (self.work/'initial.md').unlink()
+        self.assertIn('pushed mcr/main', self.sync())
+        heads = [self.head(name) for name in SYNC.BRANCHES]
+        self.assertEqual(len(set(heads)), 1)
+        self.assertEqual(self.call('status', '--porcelain', cwd=self.work), b'')
+        self.assertEqual(self.call('--git-dir='+str(self.remote), 'show',
+                                   'mcr/release:note.md', cwd=self.home), b'new note')
+        self.assertEqual(self.sync(), 'all branches already up to date')
+
+    def test_recent_edit_waits_without_staging_or_pushing(self):
+        SYNC.QUIET_SECONDS = 60
+        (self.work/'note.md').write_text('still editing\n')
+        old = self.head('mcr/main')
+        self.assertIn('recent edits', self.sync())
+        self.assertEqual(self.head('mcr/main'), old)
+        self.assertEqual(self.call('diff', '--cached', '--name-only', cwd=self.work), b'')
+
+    def test_missing_promotion_branches_are_created_atomically(self):
+        for name in SYNC.BRANCHES[1:]:
+            self.call('--git-dir='+str(self.remote), 'update-ref', '-d',
+                      'refs/heads/'+name, cwd=self.home)
+        self.assertIn('pushed mcr/main', self.sync())
+        self.assertEqual(len({self.head(name) for name in SYNC.BRANCHES}), 1)
+
+    def test_change_during_stage_is_preserved_and_not_pushed(self):
+        (self.work/'note.md').write_text('first version\n')
+        original = self.transport
+        def editing(root, *args):
+            value = original(root, *args)
+            if args[:2] == ('add', '-A'):
+                (self.work/'note.md').write_text('second version\n')
+            return value
+        previous = self.head('mcr/main')
+        with mock.patch.object(SYNC, 'git', side_effect=editing):
+            with self.assertRaisesRegex(SYNC.SyncError, 'changed during staging'):
+                SYNC.sync(self.work)
+        self.assertEqual((self.work/'note.md').read_text(), 'second version\n')
+        self.assertEqual(self.head('mcr/main'), previous)
+
+    def test_divergent_stage_ref_is_never_overwritten(self):
+        other = self.home/'other'
+        self.call('clone', '--branch', 'mcr/staging', str(self.remote), str(other), cwd=self.home)
+        (other/'staging.md').write_text('independent staging change\n')
+        self.call('add', '-A', cwd=other)
+        self.call('commit', '-m', 'Staging work', cwd=other)
+        self.call('push', 'origin', 'HEAD:mcr/staging', cwd=other)
+        (self.work/'note.md').write_text('main change\n')
+        previous = self.head('mcr/staging')
+        with self.assertRaisesRegex(SYNC.SyncError, 'staging diverged'):
+            self.sync()
+        self.assertEqual(self.head('mcr/staging'), previous)
+        self.assertNotEqual(self.head('mcr/main'), self.call('rev-parse', 'HEAD', cwd=self.work))
+
+    def test_existing_staged_work_remains_untouched(self):
+        (self.work/'note.md').write_text('staged manually\n')
+        self.call('add', 'note.md', cwd=self.work)
+        with self.assertRaisesRegex(SYNC.SyncError, 'user has staged changes'):
+            self.sync()
+        self.assertEqual(self.call('show', ':note.md', cwd=self.work), b'staged manually')
+
+    def test_missing_commit_identity_does_not_stage_notes(self):
+        self.call('config', '--unset', 'user.email', cwd=self.work)
+        (self.work/'note.md').write_text('new note\n')
+        with self.assertRaisesRegex(SYNC.SyncError, 'user.email'):
+            self.sync()
+        self.assertEqual(self.call('diff', '--cached', '--name-only', cwd=self.work), b'')
+
+    def test_alternate_push_destination_is_rejected(self):
+        self.call('remote', 'set-url', '--push', 'origin', 'git@example.invalid:other.git',
+                  cwd=self.work)
+        with self.assertRaisesRegex(SYNC.SyncError, 'push destination'):
+            self.sync()
+
+    def test_failed_atomic_push_preserves_local_commit_for_retry(self):
+        (self.work/'note.md').write_text('pending\n')
+        expected = self.head('mcr/main')
+        def unavailable(root, *args):
+            if args[0] == 'push':
+                raise SYNC.SyncError('fixture remote temporarily unavailable')
+            return self.transport(root, *args)
+        with mock.patch.object(SYNC, 'git', side_effect=unavailable):
+            with self.assertRaisesRegex(SYNC.SyncError, 'temporarily unavailable'):
+                SYNC.sync(self.work)
+        self.assertEqual(self.head('mcr/main'), expected)
+        self.assertIn('pushed mcr/main', self.sync())
+
+
+if __name__ == '__main__':
+    unittest.main()

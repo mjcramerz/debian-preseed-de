@@ -142,6 +142,7 @@ run_desktop_late_command() {
     desktop_log "skipped Labwc desktop role because LABWC_DESKTOP_ENABLE=${LABWC_DESKTOP_ENABLE:-unset}"
     return 0
   }
+  desktop_validate_obsidian_git_policy
   desktop_resolve_acceleration_availability
   desktop_resolve_managed_app_default_exec
   desktop_resolve_generic_app_defaults

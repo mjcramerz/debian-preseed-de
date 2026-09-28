@@ -9,12 +9,14 @@ from __future__ import annotations
 import argparse
 import base64
 import contextlib
+import ctypes
 import fcntl
 import os
 from pathlib import Path
 import pwd
 import re
 import resource
+import shutil
 import signal
 import stat
 import struct
@@ -25,6 +27,8 @@ import time
 
 CODEX_URL = 'git@gitlab.com:computes/misc/codex-home.git'
 CODEX_BRANCH = 'mcr/main'
+OBSIDIAN_URL = 'git@gitlab.com:core-assets/docs/obsidian-md.git'
+OBSIDIAN_BRANCH = 'mcr/main'
 HOSTS = '/etc/ssh/git_known_hosts'
 ASKPASS = str(Path(__file__).with_name('ssh-install-askpass'))
 BASE_ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C.UTF-8',
@@ -282,11 +286,18 @@ def seal(account: pwd.struct_passwd, home: Path, secret: bytes,
     publish(home/'.local/share/ssh/git-key-passphrase.gpg', ciphertext,
             account.pw_uid, account.pw_gid)
 
-def clone(destination: Path, stage: Path, agent_env: dict[str, str]) -> None:
+def clone(destination: Path, stage: Path, agent_env: dict[str, str], *,
+          url: str = CODEX_URL, branch: str = CODEX_BRANCH) -> None:
     # Only the approved URL/branch, an empty template and explicit SSH policy.
     # Do not consult root's or the user's Git/SSH configuration during install.
-    if not re.fullmatch(r'/data/codex/\.home-clone\.[A-Za-z0-9]+/repository', str(destination)):
-        raise InstallError('unapproved Codex clone destination')
+    if url == CODEX_URL and branch == CODEX_BRANCH:
+        approved = re.fullmatch(r'/data/codex/\.home-clone\.[A-Za-z0-9]+/repository', str(destination))
+    elif url == OBSIDIAN_URL and branch == OBSIDIAN_BRANCH:
+        approved = destination == stage/'repository'
+    else:
+        approved = False
+    if not approved:
+        raise InstallError('unapproved managed clone destination or source')
     if destination.exists() or destination.is_symlink():
         raise InstallError('Codex clone destination already exists')
     parent = destination.parent.lstat()
@@ -315,19 +326,67 @@ def clone(destination: Path, stage: Path, agent_env: dict[str, str]) -> None:
     # stage is still root-only 0700; the parent and credential commands retain
     # umask 077. Otherwise published root-owned /etc/codex files stay unreadable.
     checked(['/usr/bin/git', '-c', 'core.hooksPath=/dev/null', 'clone', '--template=',
-             '--no-hardlinks', '--single-branch', '--branch', CODEX_BRANCH,
-             '--no-tags', '--', CODEX_URL, str(destination)], env=env, timeout=300,
+             '--no-hardlinks', '--single-branch', '--branch', branch,
+             '--no-tags', '--', url, str(destination)], env=env, timeout=300,
             umask=0o022)
     actual = checked(['/usr/bin/git', '-C', str(destination), 'symbolic-ref', '--short', 'HEAD'], env=env)
     upstream = checked(['/usr/bin/git', '-C', str(destination), 'rev-parse', '--abbrev-ref', '@{upstream}'], env=env)
-    if actual.strip() != b'mcr/main' or upstream.strip() != b'origin/mcr/main':
-        raise InstallError('Codex clone is not tracking origin/mcr/main')
+    if actual.strip() != branch.encode() or upstream.strip() != b'origin/'+branch.encode():
+        raise InstallError('managed clone is not tracking origin/mcr/main')
     # -c core.hooksPath is process-only; no installer agent/config path persists.
+
+
+def clone_obsidian(account: pwd.struct_passwd, home: Path, stage: Path,
+                   agent_env: dict[str, str]) -> None:
+    """Clone privately; publish a complete user-owned checkout without replacement."""
+    syncthing = home/'Syncthing'
+    for path in (home, syncthing):
+        info = path.lstat()
+        if (not stat.S_ISDIR(info.st_mode) or info.st_uid != account.pw_uid
+                or info.st_gid != account.pw_gid or stat.S_IMODE(info.st_mode) != 0o700):
+            raise InstallError('unsafe Obsidian checkout parent')
+    final = syncthing/'obsidian-md'
+    if final.exists() or final.is_symlink():
+        raise InstallError('Obsidian checkout already exists; refusing to replace user files')
+    source = stage/'repository'
+    clone(source, stage, agent_env, url=OBSIDIAN_URL, branch=OBSIDIAN_BRANCH)
+    # The target is on the home filesystem, which may differ from /tmp. Keep
+    # the unpublished copy root-only until every entry is owned by the user.
+    candidate = Path(tempfile.mkdtemp(prefix='.obsidian-clone.', dir=syncthing))
+    try:
+        candidate.chmod(0o700)
+        tree = candidate/'repository'
+        shutil.copytree(source, tree, symlinks=True)
+        for root, dirs, files in os.walk(tree, followlinks=False):
+            for name in (*dirs, *files):
+                item = Path(root)/name
+                info = item.lstat()
+                if not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)
+                        or stat.S_ISLNK(info.st_mode)):
+                    raise InstallError('unsupported entry in Obsidian checkout')
+                os.chown(item, account.pw_uid, account.pw_gid, follow_symlinks=False)
+                if stat.S_ISDIR(info.st_mode):
+                    item.chmod(0o700)
+                elif stat.S_ISREG(info.st_mode):
+                    item.chmod(0o700 if info.st_mode & 0o111 else 0o600)
+        os.chown(tree, account.pw_uid, account.pw_gid)
+        tree.chmod(0o700)
+        # Atomic no-replace publication: a concurrently created vault survives.
+        libc = ctypes.CDLL(None, use_errno=True)
+        libc.renameat2.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
+                                   ctypes.c_char_p, ctypes.c_uint)
+        result = libc.renameat2(-100, os.fsencode(tree), -100,
+                                os.fsencode(final), 1)  # RENAME_NOREPLACE
+        if result != 0:
+            raise OSError(ctypes.get_errno(), 'cannot publish Obsidian checkout')
+    finally:
+        if candidate.exists():
+            shutil.rmtree(candidate)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('provision', 'seal', 'clone-codex'))
+    parser.add_argument('action', choices=('provision', 'seal', 'clone-codex', 'clone-obsidian'))
     parser.add_argument('account')
     parser.add_argument('stage', type=Path)
     parser.add_argument('destination', nargs='?', type=Path)
@@ -371,10 +430,14 @@ def main() -> int:
                 if read_direct(home/'.ssh/id_git_ed25519.pub', 4096, account.pw_uid, public=True) != public:
                     raise InstallError('installed SSH public key differs from initrd')
                 seal(account, home, secret, args.gpg_fingerprint)
-            else:
+            elif args.action == 'clone-codex':
                 if args.destination is None:
                     raise InstallError('Codex clone destination is required')
                 clone(args.destination, args.stage, env)
+            else:
+                if read_direct(home/'.local/share/ssh/private/id_git_ed25519', 16384, account.pw_uid) != private:
+                    raise InstallError('installed SSH identity differs from the initrd identity')
+                clone_obsidian(account, home, args.stage, env)
     except (OSError, KeyError, ValueError, subprocess.SubprocessError) as exc:
         # No child output, passphrase, key bytes or environment in diagnostics.
         print(f'ssh-install: {type(exc).__name__}: {exc}', file=sys.stderr)

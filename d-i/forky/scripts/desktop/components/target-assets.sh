@@ -363,6 +363,10 @@ desktop_stage_target_assets() {
   chmod 0700 /target/etc/skel-desktop/.gnupg
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.service /etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.service 0644
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.timer /etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.timer 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/obsidian-git-sync.service /etc/skel-desktop/.config/systemd/user/obsidian-git-sync.service 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/obsidian-git-sync.timer /etc/skel-desktop/.config/systemd/user/obsidian-git-sync.timer 0644
+  desktop_stage_role_asset usr/local/libexec/obsidian-git-sync /usr/local/libexec/obsidian-git-sync 0755
+  desktop_stage_role_asset usr/local/libexec/obsidian-git-sync.py /usr/local/libexec/obsidian-git-sync.py 0755
 
   desktop_extract_role_wallpaper_archive
   # Publish explicit defaults after archive extraction, so an archive member
@@ -526,7 +530,7 @@ test -x /usr/bin/update-mime-database
   desktop_stage_role_asset etc/skel-desktop/.config/microsoft-edge/Default/Preferences /etc/skel-desktop/.config/microsoft-edge/Default/Preferences 0600
   desktop_stage_role_asset etc/skel-desktop/.config/obsidian/obsidian.json /etc/skel-desktop/.config/obsidian/obsidian.json 0600
   desktop_stage_role_asset etc/skel-desktop/.config/vivaldi/Default/Preferences /etc/skel-desktop/.config/vivaldi/Default/Preferences 0600
-  desktop_stage_obsidian_default_vault
+  desktop_stage_syncthing_ignore
   install -d -m 0700 /target/etc/skel-desktop/.config/keepassxc
   desktop_stage_role_asset etc/skel-desktop/.config/keepassxc/keepassxc.ini /etc/skel-desktop/.config/keepassxc/keepassxc.ini 0600
   chmod 0700 /target/etc/skel-desktop/.config/keepassxc

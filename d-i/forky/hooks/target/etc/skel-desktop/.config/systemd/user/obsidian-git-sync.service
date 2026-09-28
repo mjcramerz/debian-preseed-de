@@ -1,0 +1,31 @@
+[Unit]
+Description=Commit and publish the Obsidian vault to managed GitLab branches
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionEnvironment=XDG_SESSION_TYPE=wayland
+ConditionPathIsDirectory=%h/Syncthing/obsidian-md/.git
+Requisite=labwc-session.target
+After=labwc-session.target ssh-agent.socket
+PartOf=labwc-session.target
+
+[Service]
+Type=oneshot
+KillMode=control-group
+UMask=0077
+LimitCORE=0
+Environment=HOME=%h
+Environment=SSH_AUTH_SOCK=%t/openssh_agent
+Environment=XDG_RUNTIME_DIR=%t
+ExecStart=/usr/local/libexec/obsidian-git-sync
+TimeoutStartSec=15min
+TimeoutStopSec=10s
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/Syncthing/obsidian-md
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native
+

@@ -315,7 +315,7 @@ managed_git_ssh_target_action() (
   [ "$#" -ge 1 ] || exit 64
   action=$1
   shift
-  case "$action" in provision|seal|clone-codex) ;; *) exit 64 ;; esac
+  case "$action" in provision|seal|clone-codex|clone-obsidian) ;; *) exit 64 ;; esac
   target=${INSTALLER_TARGET_DIR:-/target}
   # This common helper also runs from standalone add-on hooks. It must not
   # depend on late/core.sh's theme-aware fetch_hook wrapper.

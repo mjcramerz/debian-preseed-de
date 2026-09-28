@@ -1,6 +1,25 @@
 #!/bin/sh
 # Sourced installer module; edit this file directly.
 
+desktop_validate_obsidian_git_policy() {
+  : "${OBSIDIAN_GIT_REPOSITORY_URL:?desktop profile must define the Obsidian Git SSH repository}"
+  : "${OBSIDIAN_GIT_REPOSITORY_BRANCH:?desktop profile must define the Obsidian branch}"
+  : "${OBSIDIAN_GIT_DIRECTORY:?desktop profile must define the Obsidian checkout}"
+  : "${OBSIDIAN_GIT_SYNC_INTERVAL:?desktop profile must define the Obsidian sync interval}"
+  [ "$OBSIDIAN_GIT_REPOSITORY_URL" = git@gitlab.com:core-assets/docs/obsidian-md.git ] &&
+    [ "$OBSIDIAN_GIT_REPOSITORY_BRANCH" = mcr/main ] &&
+    [ "$OBSIDIAN_GIT_DIRECTORY" = Syncthing/obsidian-md ] &&
+    [ "$OBSIDIAN_GIT_SYNC_INTERVAL" = 1h ] ||
+    installer_fatal "unapproved Obsidian repository, branch, checkout or hourly sync policy"
+}
+
+desktop_install_obsidian_repository() {
+  desktop_validate_obsidian_git_policy
+  managed_git_ssh_target_action clone-obsidian ||
+    installer_fatal "cannot clone Obsidian vault with the managed GitLab SSH identity"
+  desktop_log "cloned_obsidian_git_repository branch=${OBSIDIAN_GIT_REPOSITORY_BRANCH} path=${ACCOUNT_HOME}/${OBSIDIAN_GIT_DIRECTORY}"
+}
+
 desktop_install_user_config() {
   : "${ACCOUNT_USERNAME:?ACCOUNT_USERNAME must be set}"
   : "${ACCOUNT_HOME:?ACCOUNT_HOME must be set}"
@@ -84,7 +103,6 @@ gid=$(id -g "$account_user")
     .config/microsoft-edge \
     .config/obsidian \
     .config/zoom \
-    Syncthing/obsidian-md \
     .config/qt6ct \
     .config/systemd \
     .config/vim \
@@ -137,18 +155,7 @@ for private_dir in \
   "$account_home/.local/share/task/hooks" \
   "$account_home/Syncthing" \
   "$account_home/Syncthing/keepassxc" \
-  "$account_home/Syncthing/keepassxc/backups" \
-  "$account_home/Syncthing/obsidian-md" \
-  "$account_home/Syncthing/obsidian-md/.obsidian" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/snippets" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/themes" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes" \
-  "$account_home/Syncthing/obsidian-md/.trash" \
-  "$account_home/Syncthing/obsidian-md/archive" \
-  "$account_home/Syncthing/obsidian-md/attachments" \
-  "$account_home/Syncthing/obsidian-md/daily" \
-  "$account_home/Syncthing/obsidian-md/inbox" \
-  "$account_home/Syncthing/obsidian-md/templates"
+  "$account_home/Syncthing/keepassxc/backups"
 do
   install -d -m 0700 "$private_dir"
   chown "$uid:$gid" "$private_dir"
@@ -199,8 +206,8 @@ printf "desktop_account_config user=%s home=%s copied_dirs=%s copied_files=%s sh
 ' sh "$ACCOUNT_USERNAME" "$ACCOUNT_HOME" "$(if desktop_kanshi_enabled; then printf true; else printf false; fi)"
   desktop_install_primary_account_calendar_stack
   desktop_bootstrap_primary_account_gpg_key
+  desktop_install_obsidian_repository
   run_in_target "publish private browser imports in primary account Downloads" \
     /usr/local/libexec/install-browser-imports --user "$ACCOUNT_USERNAME"
   desktop_log "installed primary account desktop config user=${ACCOUNT_USERNAME}"
 }
-

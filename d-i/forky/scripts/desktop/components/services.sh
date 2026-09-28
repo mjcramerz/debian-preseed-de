@@ -155,6 +155,7 @@ desktop_enable_target_services() {
     mako.service \
     filter-chain.service \
     labwc-calendar-sync.timer \
+    obsidian-git-sync.timer \
     labwc-sync-application-launchers.service \
     labwc-sync-application-launchers.path \
     wayscriber.service \

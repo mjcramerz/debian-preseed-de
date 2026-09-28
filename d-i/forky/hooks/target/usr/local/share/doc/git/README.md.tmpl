@@ -36,6 +36,10 @@ working directory containing private media or source-control internals.
 
 The public key must already be authorized for the intended GitLab/GitHub account
 or deployment identity, including read permission for the Codex home repository.
+Desktop installations also require access to `core-assets/docs/obsidian-md`
+and permission to push `mcr/main`, `mcr/staging`, and `mcr/release`. Protected
+branches must permit the managed identity to push; the installer cannot grant
+remote repository permissions.
 Network access to both providers' SSH port 22 must be available where needed.
 There is no automatic account registration or credential upload.
 
@@ -151,6 +155,40 @@ Configure your real Git commit identity once if it is not already configured:
 `git config --global user.email 'your-verified-address@example.com'` (replace
 both placeholders). No provider email address is invented from the local login
 name. Authentication uses the SSH key; commit authorship is a separate setting.
+
+### Obsidian vault Git publication
+
+The desktop installer clones
+`git@gitlab.com:core-assets/docs/obsidian-md.git` at `mcr/main` into
+`~/Syncthing/obsidian-md`. The checkout, including `.git`, belongs to the
+primary account. The old bundled vault is not copied over the clone; your
+remote repository determines the vault contents. Obsidian's own settings can
+be created and edited within the checkout. The Syncthing `.stignore` still
+excludes the local `.git` directory and workspace layout files. Since
+`.stignore` itself does not sync, configure the same Git exclusion on other
+Syncthing devices sharing this folder.
+
+`obsidian-git-sync.timer` starts with the Labwc desktop session, runs after
+five minutes and again one hour after the preceding run finishes. At each run,
+the service checks the managed SSH identity already unlocked by `git-ssh
+unlock`. A locked identity is skipped and retried on the next timer run.
+Neither the timer nor the Git worker decrypts or stores the SSH passphrase.
+Set your real `user.name` and `user.email` as described above before the first
+automatic commit; the worker does not invent an author address.
+
+The worker checks the exact origin, checkout branch and upstream, refuses to
+replace a user staged index, waits for files modified within the past 30
+seconds, and verifies file content before and after staging/commit. It runs
+`git add -A` and `git commit`, then pushes one new main commit atomically to
+`mcr/main`, `mcr/staging`, and `mcr/release`. A missing staging/release branch
+can be created. Existing staging/release branches must be ancestors of main;
+remote main must be an ancestor of the local checkout. Divergent remote work
+is left untouched for manual reconciliation. This job never switches the
+working branch or runs a pull over open editor buffers. Files changed during
+staging are preserved, and no push occurs; the Git index may contain staged
+changes for manual review after such a race. To inspect a failure, use
+`systemctl --user status obsidian-git-sync.service` and
+`journalctl --user -u obsidian-git-sync.service`.
 
 The live policy is `~/.config/gitops/gitops.env`, owned by the user, normally
 0600. It is read afresh for each invocation, as DATA, never sourced or evaluated.

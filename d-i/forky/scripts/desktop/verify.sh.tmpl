@@ -686,50 +686,14 @@ require_readable /etc/skel-desktop/Syncthing/.stignore
 require_mode /etc/skel-desktop/Syncthing/.stignore 600
 readable_count=$((readable_count + 1))
 
-for path in \
-  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/app.json \
-  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/appearance.json \
-  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/backlink.json \
-  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/bookmarks.json \
-  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/command-palette.json \
-  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/community-plugins.json \
-  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/core-plugins.json \
-  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/daily-notes.json \
-  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/graph.json \
-  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/hotkeys.json \
-  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/templates.json \
-  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/types.json \
-  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/snippets/ux.css \
-  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/manifest.json \
-  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/theme.css \
-  /etc/skel-desktop/Syncthing/obsidian-md/archive/index.md \
-  /etc/skel-desktop/Syncthing/obsidian-md/daily/index.md \
-  /etc/skel-desktop/Syncthing/obsidian-md/home.md \
-  /etc/skel-desktop/Syncthing/obsidian-md/inbox/welcome.md \
-  /etc/skel-desktop/Syncthing/obsidian-md/templates/daily-note-template.md \
-  /etc/skel-desktop/Syncthing/obsidian-md/templates/note-template.md
-do
-  require_readable "$path"
-  require_mode "$path" 600
-  readable_count=$((readable_count + 1))
-done
-
-for path in \
-  /etc/skel-desktop/Syncthing \
-  /etc/skel-desktop/Syncthing/obsidian-md \
-  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian \
-  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/snippets \
-  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/themes \
-  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes \
-  /etc/skel-desktop/Syncthing/obsidian-md/.trash \
-  /etc/skel-desktop/Syncthing/obsidian-md/archive \
-  /etc/skel-desktop/Syncthing/obsidian-md/attachments \
-  /etc/skel-desktop/Syncthing/obsidian-md/daily \
-  /etc/skel-desktop/Syncthing/obsidian-md/inbox \
-  /etc/skel-desktop/Syncthing/obsidian-md/templates
-do
-  require_mode "$path" 700
-done
+# The checkout is cloned from GitLab at install time. Its contents belong to
+# that remote and must not be inferred from the old bundled skeleton.
+require_absent /etc/skel-desktop/Syncthing/obsidian-md
+require_mode /etc/skel-desktop/Syncthing 700
+require_mode /usr/local/libexec/obsidian-git-sync 755
+require_mode /usr/local/libexec/obsidian-git-sync.py 755
+require_mode /etc/skel-desktop/.config/systemd/user/obsidian-git-sync.service 644
+require_mode /etc/skel-desktop/.config/systemd/user/obsidian-git-sync.timer 644
 
 for path in \
   /usr/local/bin/labwc-greeter-session \
@@ -1027,6 +991,10 @@ for path in \
   /etc/chromium.d/90-performance-flags \
   /etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.service \
   /etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.timer \
+  /etc/skel-desktop/.config/systemd/user/obsidian-git-sync.service \
+  /etc/skel-desktop/.config/systemd/user/obsidian-git-sync.timer \
+  /usr/local/libexec/obsidian-git-sync \
+  /usr/local/libexec/obsidian-git-sync.py \
   /etc/skel-desktop/.config/systemd/user/apt-repo-local-software-notify.service \
   /etc/skel-desktop/.config/systemd/user/apt-repo-local-software-notify.path \
   /etc/skel-desktop/.config/systemd/user/whisper-record.service \
@@ -1187,6 +1155,8 @@ check_required_owned_dir "$account_home/.config/gitops"
 [ "$(find -P "$account_home/.config/gitops" -maxdepth 0 -printf "%m")" = 700 ] || fatal "unsafe managed Git directory"
 verify_skeleton_session_link ssh-agent.socket
 verify_account_session_link ssh-agent.socket
+verify_skeleton_session_link obsidian-git-sync.timer
+verify_account_session_link obsidian-git-sync.timer
 # Interactive decryption is on demand; do not race wallet/login prompts.
 for ssh_home in /etc/skel-desktop "$account_home"; do
   ssh_link="$ssh_home/.config/systemd/user/labwc-session.target.wants/labwc-ssh-key-load.service"
@@ -1212,27 +1182,6 @@ for path in \
   "$account_home/.config/microsoft-edge/Default/Preferences" \
   "$account_home/.config/obsidian/obsidian.json" \
   "$account_home/Syncthing/.stignore" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/app.json" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/appearance.json" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/backlink.json" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/bookmarks.json" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/command-palette.json" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/community-plugins.json" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/core-plugins.json" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/daily-notes.json" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/graph.json" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/hotkeys.json" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/templates.json" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/types.json" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/snippets/ux.css" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/manifest.json" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/theme.css" \
-  "$account_home/Syncthing/obsidian-md/archive/index.md" \
-  "$account_home/Syncthing/obsidian-md/daily/index.md" \
-  "$account_home/Syncthing/obsidian-md/home.md" \
-  "$account_home/Syncthing/obsidian-md/inbox/welcome.md" \
-  "$account_home/Syncthing/obsidian-md/templates/daily-note-template.md" \
-  "$account_home/Syncthing/obsidian-md/templates/note-template.md" \
   "$account_home/.config/Recoll.org/recoll.ini" \
   "$account_home/.recoll/recoll.conf" \
   "$account_home/.config/vivaldi/Default/Preferences" \
@@ -1246,6 +1195,8 @@ for path in \
   "$account_home/.config/systemd/user/llama-server.service" \
   "$account_home/.config/systemd/user/labwc-calendar-sync.service" \
   "$account_home/.config/systemd/user/labwc-calendar-sync.timer" \
+  "$account_home/.config/systemd/user/obsidian-git-sync.service" \
+  "$account_home/.config/systemd/user/obsidian-git-sync.timer" \
   "$account_home/.config/systemd/user/labwc-sync-application-launchers.service" \
   "$account_home/.config/systemd/user/labwc-sync-application-launchers.path" \
   "$account_home/.config/systemd/user/labwc-kwallet-portal.service" \
@@ -1414,17 +1365,8 @@ for path in \
   "$account_home/Syncthing" \
   "$account_home/Syncthing/keepassxc" \
   "$account_home/Syncthing/keepassxc/backups" \
-  "$account_home/Syncthing/obsidian-md" \
-  "$account_home/Syncthing/obsidian-md/.obsidian" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/snippets" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/themes" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes" \
-  "$account_home/Syncthing/obsidian-md/.trash" \
-  "$account_home/Syncthing/obsidian-md/archive" \
-  "$account_home/Syncthing/obsidian-md/attachments" \
-  "$account_home/Syncthing/obsidian-md/daily" \
-  "$account_home/Syncthing/obsidian-md/inbox" \
-  "$account_home/Syncthing/obsidian-md/templates"
+  "$account_home/Syncthing/obsidian-md"
+
 do
   check_required_owned_dir "$path"
 done
@@ -1525,18 +1467,29 @@ done
   printf "fatal: Obsidian vault directory mode is not 0700\n" >&2
   exit 1
 }
-[ "$(find -P "$account_home/Syncthing/obsidian-md/.obsidian" -maxdepth 0 -printf "%m")" = 700 ] || {
-  printf "fatal: Obsidian vault configuration directory mode is not 0700\n" >&2
-  exit 1
+# Only Git metadata is guaranteed by the remote repository. Notes and
+# .obsidian settings may be created and edited freely by the account.
+check_required_owned_dir "$account_home/Syncthing/obsidian-md/.git"
+[ ! -L "$account_home/Syncthing/obsidian-md/.git" ] || fatal "symlinked Obsidian repository metadata"
+[ "$(find -P "$account_home/Syncthing/obsidian-md/.git" -maxdepth 0 -printf "%m")" = 700 ] ||
+  fatal "Obsidian Git directory is not private"
+for git_file in HEAD config; do
+  check_required_owned "$account_home/Syncthing/obsidian-md/.git/$git_file"
+done
+obsidian_git() {
+  runuser -u "$account_user" -- env -i HOME="$account_home" PATH=/usr/bin:/bin \
+    GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null \
+    git -C "$account_home/Syncthing/obsidian-md" "$@"
 }
+[ "$(obsidian_git remote get-url origin)" = git@gitlab.com:core-assets/docs/obsidian-md.git ] ||
+  fatal "Obsidian repository origin is not the approved SSH URL"
+[ "$(obsidian_git symbolic-ref --short HEAD)" = mcr/main ] ||
+  fatal "Obsidian repository is not on mcr/main"
+[ "$(obsidian_git rev-parse --abbrev-ref '@{upstream}')" = origin/mcr/main ] ||
+  fatal "Obsidian repository does not track origin/mcr/main"
 for private_file in \
   "$account_home/.config/obsidian/obsidian.json" \
-  "$account_home/Syncthing/.stignore" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/app.json" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/appearance.json" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/core-plugins.json" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/manifest.json" \
-  "$account_home/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/theme.css"
+  "$account_home/Syncthing/.stignore"
 do
   [ "$(find -P "$private_file" -maxdepth 0 -printf "%m")" = 600 ] || {
     printf "fatal: managed Obsidian file mode is not 0600: %s\n" "$private_file" >&2

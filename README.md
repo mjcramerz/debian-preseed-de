@@ -5,6 +5,12 @@ Wayland desktop. The deployment target is Debian Forky with systemd 261.2.
 Review the selected host profile, disk identifiers and credentials before use;
 installation repartitions the selected disks.
 
+The desktop role clones the Obsidian vault from the managed GitLab SSH
+repository into `~/Syncthing/obsidian-md`. An account-local Labwc timer
+commits settled edits and forwards the main branch to staging and release
+hourly while the managed SSH key is unlocked. Setup and conflict behavior are
+documented in `d-i/forky/hooks/target/usr/local/share/doc/git/README.md.tmpl`.
+
 The [2026-09-26 firstboot and AppArmor repair](docs/validation/firstboot-audit-20260926/README.md)
 records the reproduced audit delivery failure, focused fixes, validation results,
 and remaining installed-host checks for this snapshot.
