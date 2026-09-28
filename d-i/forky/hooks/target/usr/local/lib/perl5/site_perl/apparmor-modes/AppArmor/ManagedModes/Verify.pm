@@ -66,18 +66,6 @@ sub verify_loaded_profile_modes {
                 !contains_label_prefix($loaded_state, $profile_label) ||
                     fatal("disabled AppArmor profile remains loaded: $profile_label");
             }
-            elsif (index($profile_label, '//') >= 0) {
-                contains_exact_line(
-                    $loaded_state,
-                    "$profile_label (enforce)",
-                ) || contains_exact_line(
-                    $loaded_state,
-                    "$profile_label (complain)",
-                ) || fatal(
-                    'AppArmor child profile is not loaded in a confined mode: '
-                    . $profile_label
-                );
-            }
             else {
                 contains_exact_line(
                     $loaded_state,

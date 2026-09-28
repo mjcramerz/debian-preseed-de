@@ -168,8 +168,7 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         # GTK 3's GDK GL path can repaint a Thunar window erratically on this
         # desktop. Keep the diagnostic workaround local to the file manager.
         environment["GDK_DEBUG"] = "nogl"
-    elif kind == "wayland" and arguments[0] == "/usr/bin/labwc-tweaks":
-        environment["GTK_THEME"] = "Adwaita:dark"
+    # Native GTK settings own color mode, including labwc-tweaks.
     # The package's argument-free footclient entry has no server readiness
     # dependency; a transient unit can outrun foot-server and lose the launch.
     # Use the already managed standalone Foot path for this exact invocation.

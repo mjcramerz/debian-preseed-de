@@ -80,6 +80,7 @@ tree.write(path, encoding="utf-8", xml_declaration=True)
 }
 
 desktop_stage_target_assets() {
+  desktop_stage_appearance
   desktop_stage_waybar_native_menus
   desktop_stage_session_repairs
   desktop_stage_wlsunset

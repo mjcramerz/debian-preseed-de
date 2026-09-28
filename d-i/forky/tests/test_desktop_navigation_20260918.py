@@ -129,11 +129,11 @@ class NavigationTests(unittest.TestCase):
     def setUp(self):
         self.menu = load('labwc-computer-management')
 
-    def test_exactly_six_top_level_groups_and_twenty_four_unique_routes(self):
+    def test_exactly_six_top_level_groups_and_twenty_five_unique_routes(self):
         self.assertEqual(list(self.menu.MENUS), ['System & Recovery', 'Network & Remote',
                          'Security & Accounts', 'Devices & Desktop', 'Containers & AI', 'Files & Documents'])
         routes = [route for entries in self.menu.MENUS.values() for route in entries.values()]
-        self.assertEqual(len(routes), 24)
+        self.assertEqual(len(routes), 25)
         self.assertEqual(len(routes), len(set(routes)))
 
     def test_all_original_management_areas_remain_reachable(self):

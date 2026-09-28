@@ -54,6 +54,7 @@ STEPS = (
     'desktop_write_labwc_plans_config',
     'desktop_install_user_resource_policy',
     'desktop_install_user_config',
+    'desktop_capture_appearance_defaults',
     'desktop_install_fonts',
     'desktop_install_waypaper',
     'desktop_enable_target_services',

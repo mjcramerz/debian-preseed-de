@@ -157,10 +157,10 @@ class ActionContractTests(unittest.TestCase):
         policy = profile(AA / 'desktop-wrappers', 'labwc-main-menu')
         self.assertIn('/usr/local/bin/labwc-computer-management rPx -> labwc-computer-management,', policy)
 
-    def test_all_twenty_four_management_routes_execute_only_their_fixed_argv(self):
+    def test_all_twenty_five_management_routes_execute_only_their_fixed_argv(self):
         menu = load('labwc-computer-management')
         routes = [route for items in menu.MENUS.values() for route in items.values()]
-        self.assertEqual(len(set(routes)), 24)
+        self.assertEqual(len(set(routes)), 25)
         with mock.patch.object(menu.Path, 'is_file', return_value=False):
             for route in routes:
                 expected = route if route[0].startswith('/') else ('/usr/local/bin/' + route[0], *route[1:])

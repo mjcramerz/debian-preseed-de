@@ -28,6 +28,11 @@
 
 # Repository-managed desktop wrapper and control-plane source.
 __DESKTOP_APPARMOR_STATE__ required desktop-wrappers -
+__DESKTOP_APPARMOR_STATE__ required labwc-appearance -
+__DESKTOP_APPARMOR_STATE__ if-executable gitbuild /usr/local/bin/gitbuild
+__DESKTOP_APPARMOR_STATE__ if-executable gitbuild-worker /usr/local/libexec/gitbuild-worker
+__DESKTOP_APPARMOR_STATE__ required compz -
+__DESKTOP_APPARMOR_STATE__ required debugsys -
 __DESKTOP_APPARMOR_STATE__ required document-applications -
 __DESKTOP_APPARMOR_STATE__ required labwc-session -
 __DESKTOP_APPARMOR_STATE__ required tomat -
@@ -35,8 +40,11 @@ __DESKTOP_APPARMOR_STATE__ required waybar-menus -
 __DESKTOP_APPARMOR_STATE__ required desktop-utilities -
 
 # Repository-managed system, storage, first-boot, Podman, and optional GitLab
-# Runner wrapper policy.
+# Runner wrapper policy. Optional sources are staged in later installer phases.
 __DESKTOP_APPARMOR_STATE__ required system-wrappers -
+__DESKTOP_APPARMOR_STATE__ optional usr.local.sbin.tpm2-enroll.sh -
+__DESKTOP_APPARMOR_STATE__ optional firstboot -
+__DESKTOP_APPARMOR_STATE__ optional hardware-tuning -
 
 # Repository-managed status reader used by the privileged security launcher.
 __DESKTOP_APPARMOR_STATE__ required usr.sbin.aa-status -
@@ -86,6 +94,7 @@ __DESKTOP_APPARMOR_STATE__ if-executable microsoft-edge-stable /usr/bin/microsof
 __DESKTOP_APPARMOR_STATE__ if-executable mullvad-browser /usr/bin/mullvad-browser
 __DESKTOP_APPARMOR_STATE__ if-executable vivaldi-stable /usr/bin/vivaldi-stable
 __DESKTOP_APPARMOR_STATE__ if-executable vivaldi-bin /usr/bin/vivaldi-stable
+__DESKTOP_APPARMOR_STATE__ optional mullvad -
 
 # Package-owned desktop profiles that otherwise load unconfined.
 # The installer copies local/desktop-application to each matching

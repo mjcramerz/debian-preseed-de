@@ -11,7 +11,8 @@ use JSON::PP ();
 open(my $profile, '<', '/proc/self/attr/current') or die "AppArmor is required\n";
 my $label = <$profile>;
 close($profile);
-die "compz worker confinement is required\n" unless $label =~ /^compz-worker \((?:enforce|complain)\)/;
+chomp($label) if defined $label;
+die "enforcing compz worker confinement is required\n" unless defined $label && $label eq 'compz-worker (enforce)';
 my $input = '';
 while (1) {
     my $got = read(STDIN, my $block, 65536);

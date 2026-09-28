@@ -24,6 +24,11 @@ class Cancelled(CompzError):
     """The complete service cgroup was stopped before cleanup."""
 
 
+def require_confinement() -> None:
+    if Path('/proc/self/attr/current').read_text().strip() != 'compz-worker (enforce)':
+        raise CompzError('An enforcing compz-worker AppArmor profile is required.')
+
+
 def require_data_directory(current: Path) -> None:
     """Keep publication and the temporary workspace in supported data trees."""
     if (not current.is_absolute() or current.is_symlink() or not current.is_dir() or
@@ -34,12 +39,13 @@ def require_data_directory(current: Path) -> None:
 
 def user_environment() -> dict[str, str]:
     uid = os.geteuid()
-    if uid == 0:
+    if uid == 0 or os.getuid() != uid:
         raise CompzError('Run compz as your desktop account, never through sudo.')
     runtime = Path(f'/run/user/{uid}')
     value = runtime.lstat()
+    bus = (runtime / 'bus').lstat()
     if (not stat.S_ISDIR(value.st_mode) or value.st_uid != uid or value.st_mode & 0o077 or
-            not stat.S_ISSOCK((runtime / 'bus').lstat().st_mode)):
+            not stat.S_ISSOCK(bus.st_mode) or bus.st_uid != uid or bus.st_mode & 0o077):
         raise CompzError('A private, active systemd user session is required.')
     return {'PATH': '/usr/bin:/bin', 'HOME': str(Path.home()), 'LC_ALL': 'C.UTF-8',
             'XDG_RUNTIME_DIR': str(runtime), 'DBUS_SESSION_BUS_ADDRESS': f'unix:path={runtime}/bus'}
@@ -79,10 +85,9 @@ def sandbox_main() -> int:
     from .worker import read_plan
     descriptors = []
     try:
-        if (os.geteuid() == 0 or len(sys.argv) != 4 or
-                Path('/proc/self/attr/current').read_text().strip() not in
-                ('compz-worker (enforce)', 'compz-worker (complain)')):
-            raise CompzError('Sandbox launcher requires its managed account and AppArmor profile.')
+        if os.geteuid() == 0 or len(sys.argv) != 4:
+            raise CompzError('Sandbox launcher requires its managed account and arguments.')
+        require_confinement()
         current, work, plan_directory = map(Path, sys.argv[1:])
         if any(not path.is_absolute() for path in (current, work, plan_directory)):
             raise CompzError('Sandbox paths must be absolute.')

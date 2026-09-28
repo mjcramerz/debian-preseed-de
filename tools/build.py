@@ -76,6 +76,8 @@ def payload_files() -> list[Path]:
             continue
         if not SAFE_PATH.fullmatch(rel.as_posix()):
             raise ValueError(f'unsupported payload path: {rel}')
+        if p.stat().st_mode & 0o111:
+            raise ValueError(f'source file must not be executable: {rel}')
         paths.append(p)
     if not paths:
         raise ValueError('empty repository')
@@ -87,7 +89,26 @@ def payload_source(path: Path) -> Path:
         raise ValueError(f'ambiguous plain/template payload: {path}')
     return template if template.is_file() else path
 
+def validate_apparmor_modes() -> None:
+    """Every repository policy file must have exactly one master-mode row."""
+    directory = SEED / 'hooks/target/etc/apparmor.d'
+    names = {p.name.removesuffix('.tmpl') for p in directory.iterdir() if p.is_file()}
+    names.add('firstboot')  # Staged from scripts/firstboot/assets after security.
+    config = SEED / 'hooks/target/etc/apparmor/modes.conf.tmpl'
+    rows = [line.split() for line in config.read_text().splitlines()
+            if line.strip() and not line.lstrip().startswith('#')]
+    if not rows or any(len(row) != 4 or row[0] != '__DESKTOP_APPARMOR_STATE__'
+                       for row in rows):
+        raise ValueError('all managed AppArmor rows must select DESKTOP_APPARMOR_STATE')
+    declared = [row[2] for row in rows]
+    if len(declared) != len(set(declared)):
+        raise ValueError('duplicate managed AppArmor profile mode row')
+    missing = names - set(declared)
+    if missing:
+        raise ValueError('unmanaged repository AppArmor profile: ' + ', '.join(sorted(missing)))
+
 def validate(paths: list[Path]) -> None:
+    validate_apparmor_modes()
     logging_checker = runpy.run_path(str(ROOT / 'tools/check_logging.py'))
     logging_checker['check'](SEED)
     theme_checker = runpy.run_path(str(ROOT / 'tools/check_themes.py'))
@@ -283,7 +304,7 @@ def build() -> dict[str, bytes]:
                 data = p.read_bytes()
                 info = tarfile.TarInfo(p.relative_to(SEED).as_posix())
                 info.size = len(data)
-                info.mode = 0o755 if p.stat().st_mode & 0o111 else 0o644
+                info.mode = 0o644
                 info.uid = info.gid = info.mtime = 0
                 info.uname = info.gname = ''
                 tf.addfile(info, io.BytesIO(data))

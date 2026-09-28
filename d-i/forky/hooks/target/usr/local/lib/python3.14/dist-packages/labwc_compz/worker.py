@@ -17,6 +17,7 @@ import threading
 
 from . import CompzError
 from .formats import BY_KEY, ENV, PIPELINE, SEVEN, WORKER, available_codecs, compression, decompression, identify, stem
+from .isolation import require_confinement
 from .safeio import Budget, CHUNK, audit, display, extract_tar, produce_tar, publish, relative
 from .volumes import VolumeSet, rar_aliases, recognizable, resolve
 
@@ -287,9 +288,7 @@ def main() -> int:
     try:
         # An inherited source fd must never provide a route back to the host.
         os.closerange(3, resource.getrlimit(resource.RLIMIT_NOFILE)[0])
-        label = Path('/proc/self/attr/current').read_text().strip()
-        if label not in ('compz-worker (enforce)', 'compz-worker (complain)'):
-            raise CompzError('Worker requires its managed AppArmor profile; no unconfined fallback.')
+        require_confinement()
         if os.geteuid() == 0 or not INPUT.is_dir() or not WORK.is_dir() or not PLAN.is_file():
             raise CompzError('Worker must run as the account inside the managed sandbox.')
         os.umask(0o077)

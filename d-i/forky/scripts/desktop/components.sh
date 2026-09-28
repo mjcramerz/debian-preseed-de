@@ -14,6 +14,7 @@ bootstrap_source_module 'scripts/desktop/components/core-renderers.sh' || return
 bootstrap_source_module 'scripts/desktop/components/desktop-helpers.sh' || return "$?"
 bootstrap_source_module 'scripts/desktop/components/logging.sh' || return "$?"
 bootstrap_source_module 'scripts/desktop/components/compz.sh' || return "$?"
+bootstrap_source_module 'scripts/desktop/components/appearance.sh' || return "$?"
 bootstrap_source_module 'scripts/desktop/components/target-assets.sh' || return "$?"
 bootstrap_source_module 'scripts/desktop/components/user-config.sh' || return "$?"
 bootstrap_source_module 'scripts/desktop/components/services.sh' || return "$?"

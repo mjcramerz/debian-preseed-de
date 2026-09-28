@@ -392,12 +392,12 @@ sys.exit(int(os.environ['STATUS']))
         result=subprocess.run(payload_installed_argv(['/bin/sh',str(self.wrapper),'menu','--dmenu','--prompt',prompt]),input=data,env=env,capture_output=True,timeout=10)
         return result,render_theme_bytes(payload_read_bytes(payload)) if payload_source_exists(payload) else b''
 
-    def test_all_six_management_groups_and_twenty_four_actions_have_native_metadata(self):
+    def test_all_six_management_groups_and_twenty_five_actions_have_native_metadata(self):
         management=load(BIN/'labwc-computer-management')
         labels=[*management.MENUS, *(label for entries in management.MENUS.values() for label in entries)]
         result,payload=self.pick(labels,root=True)
         self.assertEqual(result.returncode,0,result.stderr)
-        rows=payload.rstrip(b'\n').split(b'\n');self.assertEqual(len(rows),30)
+        rows=payload.rstrip(b'\n').split(b'\n');self.assertEqual(len(rows),31)
         for label,row in zip(labels,rows):
             text,icon=row.split(b'\0icon\x1f')
             self.assertEqual(text.decode(),label)

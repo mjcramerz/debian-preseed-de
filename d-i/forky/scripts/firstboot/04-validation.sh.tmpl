@@ -408,6 +408,9 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     /usr/local/bin/labwc-logout \
     /usr/local/bin/labwc-fuzzel \
     /usr/local/bin/labwc-computer-management \
+    /usr/local/bin/labwc-desktop-appearance \
+    /usr/local/libexec/labwc-appearance-greeter \
+    /usr/local/libexec/labwc-appearance-defaults \
     /usr/local/bin/labwc-ai-copilots \
     /usr/local/bin/labwc-ai-copilots-action \
     /usr/local/libexec/labwc-ai-llama-server \
@@ -791,6 +794,8 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     [ "$(find -P /usr/local/libexec/ssh-checks -maxdepth 0 -printf "%U:%G:%m")" = "0:0:644" ]
     [ -f /etc/systemd/system/debugsys-boot-report.service ] && [ ! -L /etc/systemd/system/debugsys-boot-report.service ]
     [ "$(find -P /etc/systemd/system/debugsys-boot-report.service -maxdepth 0 -printf "%U:%G:%m")" = "0:0:644" ]
+    [ -f /etc/apparmor.d/debugsys ] && [ ! -L /etc/apparmor.d/debugsys ]
+    [ "$(find -P /etc/apparmor.d/debugsys -maxdepth 0 -printf "%U:%G:%m")" = "0:0:644" ]
     [ -f /etc/systemd/user/ssh-agent.socket.d/10-labwc-session.conf ] && [ ! -L /etc/systemd/user/ssh-agent.socket.d/10-labwc-session.conf ]
     [ "$(find -P /etc/systemd/user/ssh-agent.socket.d/10-labwc-session.conf -maxdepth 0 -printf "%U:%G:%m")" = "0:0:644" ]
     [ -f /etc/systemd/user/ssh-agent.service.d/10-labwc-session.conf ] && [ ! -L /etc/systemd/user/ssh-agent.service.d/10-labwc-session.conf ]
@@ -990,6 +995,7 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     labwc-logout \
     labwc-fuzzel \
     labwc-computer-management \
+    labwc-desktop-appearance \
     labwc-ai-copilots \
     labwc-ai-copilots-action \
     labwc-display-configuration \

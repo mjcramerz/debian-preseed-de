@@ -484,6 +484,10 @@ install_target_firstboot_logger() {
   install -d -m 0700 /target/var/lib/firstboot /target/var/lib/firstboot/bin
   stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/etc/apparmor.d/firstboot)" \
     /etc/apparmor.d/firstboot 0644
+  if security_target_is_desktop; then
+    run_in_target "apply selected AppArmor mode to staged first-boot policy" \
+      /usr/local/libexec/apparmor-modes-run --no-reload
+  fi
   stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT firstboot.sh)" "${FILE_FIRSTBOOT_HELPER}" 0755
   install -d -m 0755 "/target${DIR_FIRSTBOOT_LIB}"
   stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT logging.sh)" "${DIR_FIRSTBOOT_LIB}/logging.sh" 0644

@@ -1,0 +1,19 @@
+#!/usr/bin/python3 -I
+"""Managed entrypoint: import only installed, root-owned workflow modules."""
+import os
+import subprocess
+import sys
+sys.dont_write_bytecode = True
+sys.path.insert(0, '/usr/local/lib/python3.14/dist-packages')
+from gitbuild.import_local import main
+if __name__ == '__main__':
+    os.umask(0o077)
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except KeyboardInterrupt:
+        print('Operation cancelled.', file=sys.stderr)
+        raise SystemExit(130)
+    except (OSError, ValueError, RuntimeError, KeyError, subprocess.SubprocessError) as error:
+        text = ''.join(c if c.isprintable() else '?' for c in str(error))
+        print(os.path.basename(sys.argv[0]) + ': ' + text, file=sys.stderr)
+        raise SystemExit(1)

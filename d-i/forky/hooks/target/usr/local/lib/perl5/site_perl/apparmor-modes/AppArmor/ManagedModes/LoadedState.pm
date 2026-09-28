@@ -130,12 +130,6 @@ sub loaded_profile_mode_matches {
         if ($entry->{mode} eq 'disable') {
             return 0 if contains_label_prefix($snapshot, $label);
         }
-        elsif (index($label, '//') >= 0) {
-            # Preserve the existing policy: child profiles may independently
-            # enforce or complain, but must never be unconfined or absent.
-            return 0 unless contains_exact_line($snapshot, "$label (enforce)") ||
-                contains_exact_line($snapshot, "$label (complain)");
-        }
         else {
             return 0 unless contains_exact_line($snapshot, "$label ($entry->{mode})");
         }

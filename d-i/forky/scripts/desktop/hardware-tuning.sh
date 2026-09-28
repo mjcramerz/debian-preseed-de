@@ -39,6 +39,8 @@ desktop_install_hardware_tuning() (
   for hardware_vendor in $hardware_vendors; do
     desktop_stage_role_asset "etc/apparmor.d/abstractions/hardware-tuning-${hardware_vendor}" "/etc/apparmor.d/abstractions/hardware-tuning-${hardware_vendor}" 0644 || exit 1
   done
+  run_in_target "apply selected AppArmor mode to staged hardware tuning policy" \
+    /usr/local/libexec/apparmor-modes-run --no-reload || exit 1
 
   : "${LATE_COMMAND_HOST_ENV:?hardware tuning requires the loaded host profile}"
   : "${ACCOUNT_USERNAME:?hardware tuning requires the desktop account}"

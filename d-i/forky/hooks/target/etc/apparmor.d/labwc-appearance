@@ -1,0 +1,91 @@
+# Managed by unattended-installer.
+abi "/usr/share/apparmor-features/features",
+#include <tunables/global>
+
+profile labwc-desktop-appearance /usr/local/bin/labwc-desktop-appearance flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/wrapper-terminal>
+  / r,
+  /home/ r,
+  /etc/ r,
+  /usr/ r,
+  /usr/local/ r,
+  /usr/local/{lib,share}/ r,
+  /usr/local/lib/python3.14/ r,
+  /usr/local/lib/python3.14/dist-packages/ r,
+  /usr/local/lib/python3.14/dist-packages/{managed_workflows,gitbuild,labwc_appearance}/{,**} r,
+  /var/ r,
+  /var/lib/ r,
+  owner @{HOME}/ r,
+  signal (send, receive) peer=@{profile_name},
+  signal (receive) peer=unconfined,
+  include <abstractions/dbus-session-strict>
+  unix,
+  /usr/bin/{systemctl,systemd-run} rix,
+  /run/ r,
+  /run/user/ r,
+  owner /run/user/[0-9]*/ r,
+  owner /run/user/[0-9]*/systemd/{,**} rw,
+  dbus (send, receive) bus=session peer=(name=org.freedesktop.systemd1),
+  /usr/local/bin/labwc-desktop-appearance rix,
+  /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
+  /usr/bin/gsettings rix,
+  /usr/bin/pkexec rPx -> labwc-appearance-auth,
+  /usr/local/share/labwc-appearance/{,defaults.json} r,
+  /usr/share/glib-2.0/schemas/{,**} r,
+  /etc/dconf/{,**} r,
+  /usr/lib/@{multiarch}/gio/modules/{,**} mr,
+  owner @{HOME}/.config/ rw,
+  owner @{HOME}/.config/{fuzzel,waybar,crystal-dock,crystal-dock/labwc,foot,kitty,gtk-3.0,gtk-4.0,qt6ct,qt6ct/colors,labwc}/ rw,
+  owner @{HOME}/.config/fuzzel/{base,fuzzel,menu,computer-management}.ini{,.internal,.external} rw,
+  owner @{HOME}/.config/waybar/style.css{,.internal,.external} rw,
+  owner @{HOME}/.config/crystal-dock/labwc/appearance.conf{,.internal,.external} rw,
+  owner @{HOME}/.config/foot/foot.ini{,.internal,.external} rw,
+  owner @{HOME}/.config/kitty/kitty.conf{,.internal,.external} rw,
+  owner @{HOME}/.config/gtk-{3,4}.0/settings.ini{,.internal,.external} rw,
+  owner @{HOME}/.config/qt6ct/qt6ct.conf{,.internal,.external} rw,
+  owner @{HOME}/.config/qt6ct/colors/labwc-appearance.conf rw,
+  owner @{HOME}/.config/labwc/themerc-override{,.internal,.external} rw,
+  owner @{HOME}/.config/{fuzzel,waybar,crystal-dock/labwc,foot,kitty,gtk-3.0,gtk-4.0,qt6ct,qt6ct/colors,labwc}/.managed-* rw,
+  owner @{HOME}/.config/dconf/{,**} rwkl,
+  owner @{HOME}/.local/{,state/} rw,
+  owner @{HOME}/.local/state/labwc-appearance/{,**} rwkl,
+  owner /run/user/[0-9]*/dconf/{,**} rwkl,
+  dbus (send, receive) bus=session peer=(name=ca.desrt.dconf),
+  dbus (send, receive) bus=session peer=(name=org.freedesktop.DBus),
+  signal (send, receive) peer=labwc-appearance-auth,
+  signal (send, receive) peer=labwc-fuzzel,
+  signal (receive) peer=labwc-computer-management,
+}
+
+profile labwc-appearance-auth flags=(attach_disconnected) {
+  #include <abstractions/managed-workflow-auth>
+  /usr/local/libexec/labwc-appearance-greeter rPx -> labwc-appearance-greeter,
+  signal (send, receive) peer=labwc-desktop-appearance,
+  signal (send, receive) peer=labwc-appearance-greeter,
+}
+
+profile labwc-appearance-greeter /usr/local/libexec/labwc-appearance-greeter flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/wrapper-terminal>
+  / r,
+  /home/ r,
+  /etc/ r,
+  /usr/ r,
+  /usr/local/ r,
+  /usr/local/{lib,share}/ r,
+  /usr/local/lib/python3.14/ r,
+  /usr/local/lib/python3.14/dist-packages/ r,
+  /usr/local/lib/python3.14/dist-packages/{managed_workflows,gitbuild,labwc_appearance}/{,**} r,
+  /var/ r,
+  /var/lib/ r,
+  owner @{HOME}/ r,
+  signal (send, receive) peer=@{profile_name},
+  signal (receive) peer=unconfined,
+  /usr/local/libexec/labwc-appearance-greeter rix,
+  /usr/local/share/labwc-appearance/{,defaults.json} r,
+  /etc/greetd/ r,
+  /etc/greetd/{gtkgreet.css,gtkgreet-power.css,.managed-*} rw,
+  /var/lib/labwc-appearance/{,**} rwkl,
+  signal (send, receive) peer=labwc-appearance-auth,
+}

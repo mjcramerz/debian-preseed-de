@@ -59,6 +59,7 @@ for cmd in \
   labwc-logout \
   labwc-fuzzel \
   labwc-computer-management \
+  labwc-desktop-appearance \
   labwc-ai-copilots \
   labwc-ai-copilots-action \
   labwc-digital-assets \
@@ -329,6 +330,8 @@ require_readable /usr/local/libexec/ssh-checks
 require_mode /usr/local/libexec/ssh-checks 644
 require_readable /etc/systemd/system/debugsys-boot-report.service
 require_mode /etc/systemd/system/debugsys-boot-report.service 644
+require_readable /etc/apparmor.d/debugsys
+require_mode /etc/apparmor.d/debugsys 644
 require_readable /etc/systemd/user/ssh-agent.socket.d/10-labwc-session.conf
 require_mode /etc/systemd/user/ssh-agent.socket.d/10-labwc-session.conf 644
 require_readable /etc/systemd/user/ssh-agent.service.d/10-labwc-session.conf
@@ -718,6 +721,9 @@ for path in \
   /usr/local/bin/labwc-fuzzel \
   /usr/local/bin/labwc-fuzzel-log \
   /usr/local/bin/labwc-computer-management \
+  /usr/local/bin/labwc-desktop-appearance \
+  /usr/local/libexec/labwc-appearance-greeter \
+  /usr/local/libexec/labwc-appearance-defaults \
   /usr/local/bin/labwc-fzf-menu \
   /usr/local/bin/labwc-window-switcher \
   /usr/local/bin/labwc-ai-copilots \

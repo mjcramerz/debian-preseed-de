@@ -385,6 +385,10 @@ devops_de_apply_environment() {
     CODEX_LOG_DIR \
     CODEX_SKILLS \
     CODEX_SQLITE_HOME \
+    GITBUILD_WORKSPACE \
+    GITBUILD_CACHE_HOME \
+    GITBUILD_STATE_HOME \
+    GITBUILD_DISTRIBUTION \
     DEVOPS_DATABASE_HOME \
     PGDATA \
     PGSERVICEFILE \
@@ -409,6 +413,13 @@ devops_de_apply_environment() {
   XDG_STATE_HOME="${HOME}/.local/state"
   export XDG_CONFIG_HOME XDG_CACHE_HOME XDG_DATA_HOME XDG_STATE_HOME
   devops_de_xdg_config_home=$XDG_CONFIG_HOME
+
+  # gitbuild intentionally does not inherit arbitrary project/toolchain hooks.
+  # Its private caches live alongside, not inside, credential-bearing state.
+  export GITBUILD_WORKSPACE="${HOME}/Workspace"
+  export GITBUILD_CACHE_HOME="${devops_de_cache_home}/gitbuild"
+  export GITBUILD_STATE_HOME="${devops_de_db_home}/gitbuild"
+  export GITBUILD_DISTRIBUTION=forky
 
   for devops_de_account_root in \
     "$devops_de_build_home" \

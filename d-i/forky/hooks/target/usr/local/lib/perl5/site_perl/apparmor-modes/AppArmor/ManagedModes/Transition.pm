@@ -16,6 +16,8 @@ use AppArmor::ManagedModes::LoadedState qw(
     profile_labels
     loaded_profile_mode_matches
 );
+use AppArmor::ManagedModes::LocalChildren qw(child_mode_matches apply_child_mode);
+use AppArmor::ManagedModes::TrustedPath qw(read_bounded_file);
 
 our @EXPORT_OK = qw(
     apply_profile_mode
@@ -35,22 +37,14 @@ sub profile_mode_matches {
     if ($mode eq 'complain') {
         return !-e $disable_link &&
             !-l $disable_link &&
-            _file_has_match(
-                $profile_path,
-                qr/flags=\([^)]*complain(?:[[:space:],)]|\z)/,
-            ) &&
-            !_file_has_match(
-                $profile_path,
-                qr/flags=\([^)]*audit(?:[[:space:],)]|\z)/,
-            );
+            _declared_profile_modes_match($profile_path, $mode) &&
+            child_mode_matches($mode, $profile_name, $profile_dir);
     }
     if ($mode eq 'enforce') {
         return !-e $disable_link &&
             !-l $disable_link &&
-            !_file_has_match(
-                $profile_path,
-                qr/flags=\([^)]*(?:audit|complain|default_allow|unconfined)/,
-            );
+            _declared_profile_modes_match($profile_path, $mode) &&
+            child_mode_matches($mode, $profile_name, $profile_dir);
     }
     if ($mode eq 'disable') {
         return -l $disable_link &&
@@ -68,6 +62,12 @@ sub apply_profile_mode {
     my $profile_dir = $options->{profile_dir};
 
     _validate_disable_entry($profile_name, $profile_path, $profile_dir);
+
+    # Reject an empty or include-only required source before editing modes.
+    if (($mode eq 'enforce' || $mode eq 'complain') &&
+        !_entry_is_optional($entry)) {
+        profile_defines_labels($entry, $options, $workspace, $tools);
+    }
 
     if (($mode eq 'enforce' || $mode eq 'complain') &&
         _entry_is_optional($entry) &&
@@ -167,6 +167,10 @@ sub apply_profile_mode {
     push @audit_command, '--no-reload' if !$options->{reload_profiles};
     push @audit_command, '-d', $mode_work_dir, $mode_profile_path;
     $tools->run_or_exit(@audit_command);
+
+    # aa-* edits the profile file, not an included local/ child declaration.
+    # Update the three tracked child sources before checking the whole file.
+    apply_child_mode($mode, $profile_name, $profile_dir, $workspace);
 
     profile_mode_matches(
         $mode,
@@ -295,18 +299,22 @@ sub _validate_disable_entry {
     }
 }
 
-sub _file_has_match {
-    my ($path, $pattern) = @_;
-
-    open my $fh, '<:raw', $path or return 0;
-    while (my $line = <$fh>) {
-        if ($line =~ $pattern) {
-            close $fh;
-            return 1;
-        }
+sub _declared_profile_modes_match {
+    my ($path, $mode) = @_;
+    my $content = read_bounded_file('AppArmor profile', $path,
+                                    limits()->{max_profile_bytes});
+    my $count = 0;
+    for my $line (split /\n/, $content) {
+        # Each declaration has its own kernel mode. A single complain flag in
+        # a file with many profiles cannot stand in for all other labels.
+        next unless $line =~ /^[ \t]*(?:profile[ \t]+|\^[^ \t]+[ \t]+|"?\/)[^\n]*\{[ \t]*(?:#.*)?$/;
+        ++$count;
+        my $flags = $line =~ /\bflags=\(([^()]*)\)/ ? $1 : '';
+        my %flag = map { $_ => 1 } grep { length } split /[\s,]+/, $flags;
+        return 0 if $flag{audit} || $flag{unconfined} || $flag{default_allow};
+        return 0 if $mode eq 'complain' ? !$flag{complain} : $flag{complain};
     }
-    close $fh;
-    return 0;
+    return $count > 0;
 }
 
 sub _file_contains {

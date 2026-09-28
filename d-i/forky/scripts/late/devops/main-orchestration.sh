@@ -266,6 +266,7 @@ devops_render_aptly_config
 devops_import_aptly_signing_key
 devops_render_osc_config
 devops_stage_publishing_entrypoints
+devops_stage_gitbuild
 devops_stage_pending_credentials
 unset \
   DEVOPS_CF_R2_ACCESS_KEY \

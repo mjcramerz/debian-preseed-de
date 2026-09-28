@@ -206,6 +206,7 @@ assert Gio.AppInfo and GioUnix.DesktopAppInfo
   desktop_install_user_resource_policy
   desktop_log "rendered Labwc desktop defaults and greetd config"
   desktop_install_user_config
+  desktop_capture_appearance_defaults
   desktop_install_fonts
   desktop_install_waypaper
   desktop_log "installed pinned Waypaper application for ${ACCOUNT_USERNAME}"

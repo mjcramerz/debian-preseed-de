@@ -19,6 +19,43 @@ def load(name):
 
 checker = load('check_modules')
 publisher = load('publication')
+builder = load('build')
+
+class RepositoryFileModes(unittest.TestCase):
+    def test_all_repository_source_files_are_nonexecutable(self):
+        paths = [path for path in ROOT.iterdir() if path.is_file()]
+        for name in ('browser-config', 'd-i', 'docs', 'tools'):
+            paths.extend(path for path in (ROOT / name).rglob('*') if path.is_file())
+        self.assertTrue(paths)
+        self.assertEqual([str(path.relative_to(ROOT)) for path in paths
+                          if path.stat().st_mode & 0o111], [])
+
+    def test_builder_rejects_executable_input_and_packages_nonexecutable_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / 'script.sh'
+            source.write_text('#!/bin/sh\nexit 0\n')
+            source.chmod(0o755)
+            with mock.patch.object(builder, 'SEED', Path(directory)):
+                with self.assertRaisesRegex(ValueError, 'source file must not be executable'):
+                    builder.payload_files()
+                source.chmod(0o644)
+                self.assertEqual(builder.payload_files(), [source])
+
+    def test_builder_rejects_undeclared_apparmor_policy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            seed = Path(directory)
+            policy_dir = seed / 'hooks/target/etc/apparmor.d'
+            policy_dir.mkdir(parents=True)
+            (policy_dir / 'new-policy').write_text('profile new-policy {\n}\n')
+            config = seed / 'hooks/target/etc/apparmor/modes.conf.tmpl'
+            config.parent.mkdir(parents=True)
+            config.write_text('__DESKTOP_APPARMOR_STATE__ optional firstboot -\n')
+            with mock.patch.object(builder, 'SEED', seed):
+                with self.assertRaisesRegex(ValueError, 'unmanaged repository AppArmor profile'):
+                    builder.validate_apparmor_modes()
+                config.write_text(config.read_text() +
+                                  '__DESKTOP_APPARMOR_STATE__ required new-policy -\n')
+                builder.validate_apparmor_modes()
 
 class ModuleContracts(unittest.TestCase):
     def setUp(self):
@@ -31,7 +68,7 @@ class ModuleContracts(unittest.TestCase):
 
     def test_inventory_is_explicit_complete_and_read_only(self):
         before = {p: p.read_bytes() for p in self.seed.rglob('*') if p.is_file()}
-        self.assertEqual(checker.check(self.seed), 47)
+        self.assertEqual(checker.check(self.seed), 49)
         self.assertEqual(before, {p: p.read_bytes() for p in before})
         self.assertFalse((ROOT / 'src').exists())
         self.assertFalse((ROOT / 'tools/generate_installer.py').exists())

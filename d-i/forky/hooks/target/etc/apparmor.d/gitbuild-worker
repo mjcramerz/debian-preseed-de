@@ -1,0 +1,80 @@
+# Managed by unattended-installer.
+abi "/usr/share/apparmor-features/features",
+#include <tunables/global>
+
+# Build boundary follows the installation-wide AppArmor mode; the worker
+# refuses to execute builds unless its own label is enforcing.
+# Package-provided sbuild/mmdebstrap implement subordinate-UID/PID/mount
+# namespaces; direct host-tool builds enter a networkless Bubblewrap sandbox.
+profile gitbuild-worker /usr/local/libexec/gitbuild-worker flags=(attach_disconnected, mediate_deleted) {
+  # Do not include wrapper-python: its /root denial would also deny a private
+  # chroot's root directory. No real account credential directories are allowed.
+  #include <abstractions/base>
+  #include <abstractions/python>
+  #include <abstractions/nameservice>
+  #include <abstractions/ssl_certs>
+  #include <abstractions/wrapper-terminal>
+  #include <abstractions/bwrap-common>
+  userns,
+  capability dac_read_search,
+  capability fowner,
+  capability fsetid,
+  capability mknod,
+  capability setfcap,
+  capability kill,
+  capability sys_resource,
+  capability sys_tty_config,
+  unix,
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  # Network is needed by the trusted dependency/bootstrap phase. sbuild's build
+  # network namespace and Bubblewrap --unshare-all isolate compilation itself.
+  signal (receive) peer=unconfined,
+  signal (receive) peer=gitbuild,
+  /usr/local/libexec/gitbuild-worker rix,
+  /usr/** mr,
+  /usr/{bin,sbin,lib,libexec}/** rix,
+  /{bin,sbin,lib,lib64}/** mrix,
+  /{bin,sbin,lib,lib64} r,
+  /{usr,etc,var,var/lib,home,pool,pool/cache,pool/db,pool/build}/ r,
+  /etc/** r,
+  /var/lib/dpkg/{,**} r,
+  /var/lib/apt/{,**} r,
+  /sys/{,**} r,
+  /proc/{,**} r,
+  /proc/[0-9]*/{uid_map,gid_map,setgroups} rw,
+  /proc/[0-9]*/{oom_score_adj,comm,coredump_filter} rw,
+  /proc/[0-9]*/task/[0-9]*/comm rw,
+  /dev/shm/{,**} rwkl,
+  /dev/{stdin,stdout,stderr} rw,
+  /run/ r,
+  /run/lock/ rw,
+  owner /run/lock/gitbuild* rwk,
+  owner @{HOME}/ r,
+  owner @{HOME}/Workspace/{,**/} r,
+  owner @{HOME}/Workspace/{,**/}target/gitbuild/{,**} rwkl,
+  # Inherited tar stdout can be written by the mapped namespace UID.
+  @{HOME}/Workspace/{,**/}target/gitbuild/*/rootfs.tar w,
+  owner /pool/{cache,db}/*/ r,
+  owner /pool/cache/*/gitbuild/{,**} rwkl,
+  # Only package-created private roots below sticky /var/tmp are writable by
+  # mapped UIDs. Never require world-executable user HOME or Workspace paths.
+  /var/tmp/ rw,
+  /var/tmp/{gitbuild-sbuild.*,gitbuild-autopkgtest-*,mmdebstrap.*,mmdebstrap-*,autopkgtest.*,autopkgtest-*,adt-*,tmp.*}/{,**} rwklmix,
+  /var/tmp/{mmdebstrap.*,mmdebstrap-*,tmp.*} rwkl,
+  # Paths after Bubblewrap's private pivot_root (not host workspaces).
+  /build/{,**} rwklmix,
+  /home/ rw,
+  /home/build/{,**} rwkl,
+  /tmp/{,**} rwklmix,
+  # Explicitly block credential brokers and privileged host operations even
+  # when a package attempts to execute an installed wrapper by absolute path.
+  deny /usr/local/libexec/{obs-publishing,aptly-publishing,obs-publishing-bin/**,aptly-publishing-bin/**,gitbuild-publish,gitbuild-import-local,labwc-appearance-greeter} x,
+  deny /usr/bin/{pkexec,sudo,su} x,
+  deny /run/user/[0-9]*/{bus,gnupg/**,keyring/**} rw,
+  deny owner @{HOME}/.{ssh,gnupg}/{,**} rwklm,
+  deny owner @{HOME}/.local/share/keyrings/{,**} rwklm,
+  deny owner @{HOME}/.local/lib/python*/{,**} mrwkl,
+}

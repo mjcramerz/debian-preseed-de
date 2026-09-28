@@ -719,6 +719,7 @@ AppArmor/ManagedModes/Logger.pm
 AppArmor/ManagedModes/TrustedPath.pm
 AppArmor/ManagedModes/Tool.pm
 AppArmor/ManagedModes/Transition.pm
+AppArmor/ManagedModes/LocalChildren.pm
 AppArmor/ManagedModes/LoadedState.pm
 AppArmor/ManagedModes/Verify.pm
 AppArmor/ManagedModes/Workspace.pm
@@ -728,7 +729,9 @@ EOF
 apparmor_managed_desktop_profile_files() {
   cat <<'EOF'
 desktop-wrappers
+labwc-appearance
 compz
+debugsys
 document-applications
 labwc-session
 tomat
@@ -757,7 +760,7 @@ usr.sbin.apt-cacher-ng
 usr.sbin.avahi-daemon
 EOF
   if installer_selected_class_reference_is_selected addon/devops 2>/dev/null; then
-    printf '%s\n' chatgpt
+    printf '%s\n' chatgpt gitbuild gitbuild-worker
   fi
 }
 
@@ -1152,6 +1155,11 @@ stage_target_desktop_apparmor_profiles() {
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/desktop-application)" \
     "/etc/apparmor.d/abstractions/desktop-application" \
+    0644
+
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-workflow-auth)" \
+    "/etc/apparmor.d/abstractions/managed-workflow-auth" \
     0644
 
   for apparmor_profile in $(apparmor_managed_desktop_profile_files); do

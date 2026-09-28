@@ -729,6 +729,7 @@ profile labwc-computer-management /usr/local/bin/labwc-computer-management flags
   /usr/local/bin/labwc-bluetooth rPx,
   /usr/local/bin/labwc-brightness-control rPx,
   /usr/local/bin/labwc-display-configuration rPx,
+  /usr/local/bin/labwc-desktop-appearance rPx,
   /usr/local/bin/labwc-digital-assets rPx,
   /usr/local/bin/labwc-external-drives rPx,
   /usr/local/bin/labwc-firewall-menu rPx,
@@ -1341,6 +1342,8 @@ profile devops-publishing /usr/local/libexec/{aptly-publishing,aptly-publishing-
   peer=(name=org.freedesktop.secrets),
 
   include if exists <local/usr.local.lib.devops-publishing>
+  signal (send, receive) peer=gitbuild-publish,
+
 }
 
 profile labwc-external-drives /usr/local/bin/labwc-external-drives flags=(attach_disconnected) {
@@ -3761,6 +3764,7 @@ profile apparmor-modes /usr/local/libexec/apparmor-modes-run flags=(attach_disco
   /tmp/apparmor-profile-names.* rw,
   /tmp/apparmor-profile-names.*/ rw,
   /tmp/apparmor-profile-names.*/** rwkl,
+  /tmp/apparmor-local-child.* rw,
   /var/lib/installer-state/logs/firstboot/data/validation-results.txt a,
 
   include if exists <local/usr.local.libexec.apparmor-modes-run>
@@ -4202,6 +4206,8 @@ profile apt-repo-local /usr/local/{bin/apt-repo-init,libexec/apt-repo-local} fla
   /etc/apt/sources.list.d/{apt-repo-local.sources,.apt-repo-local.sources.*} rw,
   /run/user/0/gnupg/{,**} rwkl,
   include if exists <local/usr.local.libexec.apt-repo-local>
+  signal (send, receive) peer=gitbuild-import-local,
+
 }
 
 # Reuse the established vendor signature/hash verifiers. This bridge may stage

@@ -364,21 +364,21 @@ class AppArmorCoverageTests(unittest.TestCase):
         self.assertNotIn('deny /data/codex/usr/etc/', runtime)
         self.assertIn('deny /data/codex/{lib,share}/** wkl,', runtime)
 
-    def test_only_selected_gtk_apps_keep_dark_and_thunar_disables_gl(self):
+    def test_gtk_apps_follow_appearance_mode_and_thunar_disables_gl(self):
         with mock.patch.object(generic, 'assert_launch_allowed'), \
              mock.patch.object(generic, 'restart_token', return_value='fixture'), \
              mock.patch.object(generic, 'menu_action_wait_arguments', return_value=[]):
-            for executable, expected in (('/usr/bin/thunar', '--setenv=GDK_DEBUG'),
-                                         ('/usr/bin/labwc-tweaks', '--setenv=GTK_THEME')):
+            environment = {}
+            argv = generic.transient_argv('wayland', 'auto', ['/usr/bin/thunar'], environment)
+            self.assertIn('--setenv=GDK_DEBUG', argv)
+            self.assertEqual(environment['GDK_DEBUG'], 'nogl')
+            for executable in ('/usr/bin/labwc-tweaks', '/usr/bin/gnumeric'):
                 environment = {}
                 argv = generic.transient_argv('wayland', 'auto', [executable], environment)
-                self.assertIn(expected, argv)
-                self.assertIn(expected.split('=')[1], environment)
-            environment = {}
-            argv = generic.transient_argv('wayland', 'auto', ['/usr/bin/gnumeric'], environment)
-            self.assertNotIn('--setenv=GTK_THEME', argv)
-            self.assertNotIn('--setenv=GDK_DEBUG', argv)
-        self.assertEqual(profiles.APPS['bitwarden']['env']['GTK_THEME'], 'Adwaita:dark')
+                self.assertNotIn('--setenv=GTK_THEME', argv)
+                self.assertNotIn('GTK_THEME', environment)
+                self.assertNotIn('--setenv=GDK_DEBUG', argv)
+        self.assertNotIn('GTK_THEME', profiles.APPS['bitwarden']['env'])
         skel = TARGET / 'etc/skel-desktop/.config'
         menu = payload_read_text(skel / 'labwc/menu.xml')
         shortcuts = payload_read_text(skel / 'labwc/rc.xml')

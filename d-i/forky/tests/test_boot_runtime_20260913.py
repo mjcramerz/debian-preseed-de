@@ -310,16 +310,44 @@ class AppArmorReconciliationTests(PerlFixture):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('defines no labels', result.stderr)
 
-    def test_child_modes_remain_confined_without_forcing_parent_mode(self):
+    def test_child_modes_follow_the_selected_parent_mode(self):
         p = self.profile()
         with p.open('a') as fh:
-            fh.write('profile alpha//child {\n}\n')
+            fh.write('profile alpha//child flags=(complain) {\n}\n')
         with self.kernel.open('a') as fh:
             fh.write('alpha//child (enforce)\n')
+        self.assertNotEqual(self.run_policy('--check-loaded').returncode, 0)
         self.assert_success(self.run_policy())
-        self.assertEqual(self.mutations(), [])
+        self.assertEqual([call[0] for call in self.mutations()], ['apparmor_parser'])
+        self.assertIn('alpha//child (complain)', self.kernel.read_text())
         self.kernel.write_text('alpha (complain)\nalpha//child (unconfined)\n')
         self.assertNotEqual(self.run_policy('--check-loaded').returncode, 0)
+
+    def test_browser_include_child_follows_both_mode_transitions(self):
+        parent = self.profile('vivaldi-bin', want='complain', source='complain')
+        local = self.profiles / 'local'
+        local.mkdir()
+        child = local / 'vivaldi-bin'
+        child.write_text('profile vivaldi-bwrap flags=(attach_disconnected, mediate_deleted) {\n}\n')
+        child.chmod(0o644)
+        self.assertNotEqual(self.run_policy('--check').returncode, 0)
+        self.assert_success(self.run_policy('--no-reload'))
+        self.assertIn('mediate_deleted, complain', child.read_text())
+        self.assert_success(self.run_policy('--check'))
+        self.config.write_text('enforce required vivaldi-bin -\n')
+        self.assert_success(self.run_policy('--no-reload'))
+        self.assertNotIn('complain', child.read_text())
+        self.assertNotIn('complain', parent.read_text())
+        self.assert_success(self.run_policy('--check'))
+
+    def test_every_declaration_in_one_file_has_its_selected_source_mode(self):
+        profile = self.profile(source='complain', loaded='complain')
+        with profile.open('a') as stream:
+            stream.write('profile beta {\n}\n')
+        self.assertNotEqual(self.run_policy('--check').returncode, 0)
+        self.assert_success(self.run_policy('--no-reload'))
+        self.assertIn('profile beta flags=(complain)', profile.read_text())
+        self.assert_success(self.run_policy('--check'))
 
     def test_reload_failure_remains_failure(self):
         self.profile(loaded=None)

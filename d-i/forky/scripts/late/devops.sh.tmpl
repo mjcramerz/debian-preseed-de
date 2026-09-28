@@ -29,6 +29,7 @@ bootstrap_source_module 'scripts/late/devops/codex-layout.sh' || exit "$?"
 bootstrap_source_module 'scripts/late/devops/codex-appserver.sh' || exit "$?"
 bootstrap_source_module 'scripts/late/devops/codex-release.sh' || exit "$?"
 bootstrap_source_module 'scripts/late/devops/account-execution.sh' || exit "$?"
+bootstrap_source_module 'scripts/late/devops/gitbuild.sh' || exit "$?"
 bootstrap_source_module 'scripts/late/devops/main-orchestration.sh' || exit "$?"
 
 devops_main "$@"
