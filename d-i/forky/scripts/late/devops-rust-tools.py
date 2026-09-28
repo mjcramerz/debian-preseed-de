@@ -41,7 +41,7 @@ class Artifact:
     version: str
     url: str
     sha256: str
-    expected_bytes: int
+    minimum_bytes: int
     filename: str
     architecture: str
     archive_members: tuple[str, ...]
@@ -280,7 +280,7 @@ def download_artifact(
             "--max-time",
             str(policy.download_timeout_seconds),
             "--max-filesize",
-            str(artifact.expected_bytes),
+            str(min(2**31, max(8 * 1024**2, artifact.minimum_bytes * 8))),
             "--output",
             str(destination),
             artifact.url,
@@ -293,10 +293,10 @@ def download_artifact(
         observed_bytes = destination.stat().st_size
     except OSError:
         fail(f"downloaded {artifact.name} archive is unavailable")
-    if observed_bytes != artifact.expected_bytes:
+    if observed_bytes < artifact.minimum_bytes:
         fail(
-            f"{artifact.name} archive size mismatch: expected "
-            f"{artifact.expected_bytes}, got {observed_bytes}"
+            f"{artifact.name} archive is unexpectedly small: "
+            f"minimum {artifact.minimum_bytes}, got {observed_bytes}"
         )
     if file_sha256(destination) != artifact.sha256:
         fail(f"{artifact.name} SHA-256 mismatch")
@@ -558,7 +558,7 @@ def parse_arguments(argv: Sequence[str]) -> InstallPolicy:
             version=dotslash_version,
             url=args.dotslash_url,
             sha256=lower_hex(args.dotslash_sha256, "DotSlash SHA-256", 64),
-            expected_bytes=positive_integer(
+            minimum_bytes=positive_integer(
                 args.dotslash_bytes,
                 "DotSlash archive bytes",
                 2**31,
@@ -573,7 +573,7 @@ def parse_arguments(argv: Sequence[str]) -> InstallPolicy:
             version=uv_version,
             url=args.uv_url,
             sha256=lower_hex(args.uv_sha256, "uv SHA-256", 64),
-            expected_bytes=positive_integer(
+            minimum_bytes=positive_integer(
                 args.uv_bytes,
                 "uv archive bytes",
                 2**31,

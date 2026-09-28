@@ -10,7 +10,8 @@ import sys
 
 PCI_ROOT = Path('/sys/bus/pci/devices')
 DEVICE_ROOT = Path('/sys/devices')
-CONTROLS = ('l0s_aspm', 'l1_aspm', 'clkpm')
+CONTROLS = ('l0s_aspm', 'l1_2_aspm', 'l1_1_aspm',
+            'l1_2_pcipm', 'l1_1_pcipm', 'l1_aspm', 'clkpm')
 
 
 def read_attribute(path: Path) -> str | None:

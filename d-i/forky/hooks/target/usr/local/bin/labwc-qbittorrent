@@ -769,6 +769,12 @@ def redirect_to_user_service() -> None:
     bus_path = session_bus_path(os.environ.get("DBUS_SESSION_BUS_ADDRESS", ""))
     if bus_path is not None and bus_path != runtime / "bus":
         fail("qBittorrent requires the desktop user's own session bus")
+    # labwc-app has already created a session-bound transient service. Starting
+    # another user unit from it needlessly depends on an inherited bus address
+    # and can fail after the first launch has succeeded. Keep its isolation and
+    # cgroup lifetime instead of recursively handing off to systemd-run.
+    if os.environ.get("LABWC_SESSION_APP") == "1":
+        return
     argv = ["/usr/bin/systemd-run", "--user", "--quiet", "--collect",
             "--service-type=exec", "--expand-environment=no", "--slice=app.slice",
             "--unit=labwc-qbittorrent-" + uuid.uuid4().hex + ".service",

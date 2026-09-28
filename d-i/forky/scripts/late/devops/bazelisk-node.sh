@@ -201,7 +201,7 @@ node_install() {
   release_version=$2
   archive_url=$3
   expected_sha256=$4
-  expected_bytes=$5
+  minimum_bytes=$5
   archive_name=$6
   archive_root=$7
   install_dir=$8
@@ -231,7 +231,9 @@ node_install() {
       node_fatal "Node SHA-256 must contain 64 lowercase hexadecimal characters"
       ;;
   esac
-  node_validate_positive_integer "exact byte count" "$expected_bytes"
+  node_validate_positive_integer "minimum byte count" "$minimum_bytes"
+  maximum_bytes=$((minimum_bytes * 8))
+  [ "$maximum_bytes" -ge 8388608 ] || maximum_bytes=8388608
 
   [ ! -e "$install_dir" ] ||
     node_fatal "Node install path already exists; this fresh-install helper will not replace it: $install_dir"
@@ -257,7 +259,7 @@ node_install() {
     --retry-delay 2 \
     --connect-timeout 15 \
     --max-time "$download_timeout" \
-    --max-filesize "$expected_bytes" \
+    --max-filesize "$maximum_bytes" \
     --output "$archive_path" \
     "$archive_url" ||
     node_fatal "failed to download pinned Node archive: $archive_url"
@@ -266,8 +268,8 @@ node_install() {
   case "$archive_bytes" in
     ""|*[!0123456789]*) node_fatal "downloaded Node archive size is invalid: $archive_name" ;;
   esac
-  [ "$archive_bytes" = "$expected_bytes" ] ||
-    node_fatal "downloaded Node archive size does not match the profile policy: $archive_name"
+  [ "$archive_bytes" -ge "$minimum_bytes" ] ||
+    node_fatal "downloaded Node archive is unexpectedly small: $archive_name"
 
   actual_sha256=$(sha256sum "$archive_path" | awk "{print \$1}")
   [ "$actual_sha256" = "$expected_sha256" ] ||
@@ -297,7 +299,7 @@ node_install() {
     "version=${release_version}" \
     "url=${archive_url}" \
     "sha256=${expected_sha256}" \
-    "bytes=${expected_bytes}" \
+    "bytes=${archive_bytes}" \
     "architecture=linux-x64" \
     >"${extracted_dir}/.node-release"
   chmod 0644 "${extracted_dir}/.node-release"
@@ -374,7 +376,7 @@ node_enable_corepack "${19}" "${26}" "${17}"
     "$DEVOPS_NODE_22_VERSION" \
     "$DEVOPS_NODE_22_URL" \
     "$DEVOPS_NODE_22_SHA256" \
-    "$DEVOPS_NODE_22_BYTES" \
+    "$DEVOPS_NODE_22_MINIMUM_BYTES" \
     "$DEVOPS_NODE_22_ARCHIVE_FILENAME" \
     "$DEVOPS_NODE_22_ARCHIVE_ROOT" \
     "$DEVOPS_NODE_22_INSTALL_ROOT" \
@@ -383,7 +385,7 @@ node_enable_corepack "${19}" "${26}" "${17}"
     "$DEVOPS_NODE_24_VERSION" \
     "$DEVOPS_NODE_24_URL" \
     "$DEVOPS_NODE_24_SHA256" \
-    "$DEVOPS_NODE_24_BYTES" \
+    "$DEVOPS_NODE_24_MINIMUM_BYTES" \
     "$DEVOPS_NODE_24_ARCHIVE_FILENAME" \
     "$DEVOPS_NODE_24_ARCHIVE_ROOT" \
     "$DEVOPS_NODE_24_INSTALL_ROOT" \
@@ -392,7 +394,7 @@ node_enable_corepack "${19}" "${26}" "${17}"
     "$DEVOPS_NODE_26_VERSION" \
     "$DEVOPS_NODE_26_URL" \
     "$DEVOPS_NODE_26_SHA256" \
-    "$DEVOPS_NODE_26_BYTES" \
+    "$DEVOPS_NODE_26_MINIMUM_BYTES" \
     "$DEVOPS_NODE_26_ARCHIVE_FILENAME" \
     "$DEVOPS_NODE_26_ARCHIVE_ROOT" \
     "$DEVOPS_NODE_26_INSTALL_ROOT" \
@@ -401,4 +403,3 @@ node_enable_corepack "${19}" "${26}" "${17}"
     "$DEVOPS_UPSTREAM_MAX_ARCHIVE_MEMBERS" \
     "$DEVOPS_UPSTREAM_MAX_EXTRACTED_BYTES"
 }
-

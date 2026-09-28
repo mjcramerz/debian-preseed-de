@@ -81,7 +81,7 @@ snander_version=$1
 snander_commit=$2
 snander_source_url=$3
 snander_archive_sha256=$4
-snander_archive_bytes=$5
+snander_archive_minimum_bytes=$5
 snander_binary_sha256=$6
 
 printf "%s\n" "$snander_version" |
@@ -99,11 +99,13 @@ for snander_digest in "$snander_archive_sha256" "$snander_binary_sha256"; do
   esac
   [ "${#snander_digest}" -eq 64 ] || ch341a_target_fatal "SHA-256 policy must contain 64 characters"
 done
-case "$snander_archive_bytes" in
+case "$snander_archive_minimum_bytes" in
   ""|*[!0-9]*) ch341a_target_fatal "invalid archive byte count" ;;
 esac
-[ "$snander_archive_bytes" -ge 7000000 ] && [ "$snander_archive_bytes" -le 9000000 ] ||
-  ch341a_target_fatal "archive byte count is outside the approved range"
+[ "$snander_archive_minimum_bytes" -ge 1048576 ] &&
+  [ "$snander_archive_minimum_bytes" -le 33554432 ] ||
+  ch341a_target_fatal "archive minimum size is outside the approved range"
+snander_archive_maximum_bytes=33554432
 
 [ "$(/usr/bin/dpkg --print-architecture)" = amd64 ] ||
   ch341a_target_fatal "the pinned upstream Linux binary supports Debian amd64 only"
@@ -168,8 +170,9 @@ if [ -e "$snander_release_root" ] || [ -L "$snander_release_root" ]; then
   [ "$snander_existing_sha256" = "$snander_binary_sha256" ] ||
     ch341a_target_fatal "existing release binary does not match the pinned SHA-256"
   snander_existing_source_bytes=$(wc -c <"$snander_release_source" | tr -d " ")
-  [ "$snander_existing_source_bytes" = "$snander_archive_bytes" ] ||
-    ch341a_target_fatal "existing source archive size does not match policy"
+  [ "$snander_existing_source_bytes" -ge "$snander_archive_minimum_bytes" ] &&
+    [ "$snander_existing_source_bytes" -le "$snander_archive_maximum_bytes" ] ||
+    ch341a_target_fatal "existing source archive size is outside policy bounds"
   snander_existing_source_sha256=$(sha256sum "$snander_release_source" | awk "{print \$1}")
   [ "$snander_existing_source_sha256" = "$snander_archive_sha256" ] ||
     ch341a_target_fatal "existing source archive does not match the pinned SHA-256"
@@ -178,7 +181,7 @@ if [ -e "$snander_release_root" ] || [ -L "$snander_release_root" ]; then
     "commit=${snander_commit}" \
     "source_url=${snander_source_url}" \
     "source_sha256=${snander_archive_sha256}" \
-    "source_bytes=${snander_archive_bytes}" \
+    "source_bytes=${snander_existing_source_bytes}" \
     "binary_sha256=${snander_binary_sha256}")
   snander_existing_metadata=$(awk "{ print }" "$snander_release_metadata")
   [ "$snander_existing_metadata" = "$snander_expected_metadata" ] ||
@@ -206,7 +209,7 @@ else
     --retry-delay 2 \
     --retry-all-errors \
     --retry-max-time 600 \
-    --max-filesize "$snander_archive_bytes" \
+    --max-filesize "$snander_archive_maximum_bytes" \
     --user-agent "unattended-installer-ch341a/1.0" \
     --output "$snander_archive" \
     --url "$snander_source_url" ||
@@ -215,8 +218,9 @@ else
   [ -f "$snander_archive" ] && [ ! -L "$snander_archive" ] ||
     ch341a_target_fatal "downloaded source archive is not a regular file"
   snander_actual_bytes=$(wc -c <"$snander_archive" | tr -d " ")
-  [ "$snander_actual_bytes" = "$snander_archive_bytes" ] ||
-    ch341a_target_fatal "downloaded source archive size does not match policy"
+  [ "$snander_actual_bytes" -ge "$snander_archive_minimum_bytes" ] &&
+    [ "$snander_actual_bytes" -le "$snander_archive_maximum_bytes" ] ||
+    ch341a_target_fatal "downloaded source archive size is outside policy bounds"
   snander_actual_sha256=$(sha256sum "$snander_archive" | awk "{print \$1}")
   [ "$snander_actual_sha256" = "$snander_archive_sha256" ] ||
     ch341a_target_fatal "downloaded source archive SHA-256 does not match policy"
@@ -287,7 +291,7 @@ else
     printf "commit=%s\n" "$snander_commit"
     printf "source_url=%s\n" "$snander_source_url"
     printf "source_sha256=%s\n" "$snander_archive_sha256"
-    printf "source_bytes=%s\n" "$snander_archive_bytes"
+    printf "source_bytes=%s\n" "$snander_actual_bytes"
     printf "binary_sha256=%s\n" "$snander_binary_sha256"
   } >"$snander_publish_dir/metadata/installer-release"
   chmod 0644 "$snander_publish_dir/metadata/installer-release"
@@ -318,7 +322,7 @@ trap - 0
     "$SNANDER_COMMIT" \
     "$SNANDER_SOURCE_URL" \
     "$SNANDER_ARCHIVE_SHA256" \
-    "$SNANDER_ARCHIVE_BYTES" \
+    "$SNANDER_ARCHIVE_MINIMUM_BYTES" \
     "$SNANDER_BINARY_SHA256"
 }
 
@@ -370,7 +374,7 @@ SNANDER_VERSION=1.7.9.3
 SNANDER_COMMIT=89e1fc29d01acee83f67fae95eb14a2b860fcee0
 SNANDER_SOURCE_URL="https://codeload.github.com/McMCCRU/SNANDer/tar.gz/${SNANDER_COMMIT}"
 SNANDER_ARCHIVE_SHA256=5fb6a93c8f2b6becbe5dcf97384b3b4842e6e20c732b484b46cc8d7717908536
-SNANDER_ARCHIVE_BYTES=7941700
+SNANDER_ARCHIVE_MINIMUM_BYTES=1572864
 SNANDER_BINARY_SHA256=eeaf6ee9b046f28ffbf326591e5b77598156b14ea1c450c07b7c4a862b5475a2
 
 run_in_target "create ch341a authorization group" /bin/sh -eu -c '

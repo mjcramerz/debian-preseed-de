@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import fcntl
 import os
 import re
+import selectors
 import signal
 import stat
 import subprocess
@@ -36,7 +38,11 @@ WL_COPY_BINARY = "/usr/bin/wl-copy"
 WL_PASTE_BINARY = "/usr/bin/wl-paste"
 OUTER_WAYLAND_DISPLAY_ENVIRONMENT = "LABWC_MANAGED_OUTER_WAYLAND_DISPLAY"
 CLIPBOARD_SINK_MODE = "--copy-host-text-to-cage"
+CLIPBOARD_REVERSE_SINK_MODE = "--copy-cage-text-to-host"
+MASKED_APPLICATION_MODE = "--run-masked-application"
 CLIPBOARD_POLL_INTERVAL_SECONDS = 0.05
+MAX_CLIPBOARD_TEXT_BYTES = 8 * 1024 * 1024
+CLIPBOARD_OPERATION_TIMEOUT_SECONDS = 10
 PRIVATE_RUNTIME_LIBRARY_NAMES = (
     "libXau.so.6",
     "libXdmcp.so.6",
@@ -73,7 +79,7 @@ FORBIDDEN_INHERITED_X11_ENVIRONMENT = (
     "XWAYLAND_RESTART_DELAY",
     "_XWAYLAND_GLOBAL_OUTPUT_SCALE",
 )
-FORBIDDEN_CAGE_ENVIRONMENT = ("WLR_BACKENDS",)
+FORBIDDEN_CAGE_ENVIRONMENT = ("WLR_DRM_DEVICES", "WLR_DRM_NO_ATOMIC")
 APPLICATION_X11_CONTROL_ENVIRONMENT_TO_CLEAR = (
     OUTER_WAYLAND_DISPLAY_ENVIRONMENT,
     "WLR_XWAYLAND",
@@ -334,43 +340,136 @@ def require_cage_wayland_socket() -> None:
     require_user_wayland_socket(runtime_directory, cage_wayland_display)
 
 
-def clipboard_bridge_argv(cage_wayland_display: str) -> list[str]:
+def clipboard_bridge_argv(cage_wayland_display: str, *, reverse: bool = False) -> list[str]:
     cage_wayland_display = validate_wayland_socket_name(
         "Cage clipboard Wayland socket name",
         cage_wayland_display,
     )
     return [
         WL_PASTE_BINARY,
+        "--no-newline",
         "--type",
         "text",
         "--watch",
         SANDBOX_LIFECYCLE_HELPER,
-        CLIPBOARD_SINK_MODE,
+        CLIPBOARD_REVERSE_SINK_MODE if reverse else CLIPBOARD_SINK_MODE,
         cage_wayland_display,
     ]
 
 
-def parse_clipboard_sink_arguments(arguments: list[str]) -> str:
-    if len(arguments) != 2 or arguments[0] != CLIPBOARD_SINK_MODE:
+def parse_clipboard_sink_arguments(arguments: list[str]) -> tuple[str, bool]:
+    if len(arguments) != 2 or arguments[0] not in (
+        CLIPBOARD_SINK_MODE, CLIPBOARD_REVERSE_SINK_MODE
+    ):
         fail("private clipboard sink received malformed arguments")
     return validate_wayland_socket_name(
         "Cage clipboard Wayland socket name",
         arguments[1],
-    )
+    ), arguments[0] == CLIPBOARD_REVERSE_SINK_MODE
 
 
-def require_clipboard_sink_environment(cage_wayland_display: str) -> None:
+def require_clipboard_sink_environment(cage_wayland_display: str, *, reverse: bool) -> str:
     runtime_directory = f"/run/user/{os.getuid()}"
     outer_wayland_display = validate_wayland_socket_name(
         "outer Wayland socket name",
         os.environ.get(OUTER_WAYLAND_DISPLAY_ENVIRONMENT, ""),
     )
-    if os.environ.get("WAYLAND_DISPLAY") != outer_wayland_display:
-        fail("private clipboard sink did not receive the outer Wayland socket")
+    expected_source = cage_wayland_display if reverse else outer_wayland_display
+    if os.environ.get("WAYLAND_DISPLAY") != expected_source:
+        fail("private clipboard sink did not receive its expected Wayland socket")
     if cage_wayland_display == outer_wayland_display:
         fail("private clipboard sink received the outer socket as its destination")
     require_user_wayland_socket(runtime_directory, outer_wayland_display)
     require_user_wayland_socket(runtime_directory, cage_wayland_display)
+    return outer_wayland_display
+
+
+def clipboard_lock(cage_wayland_display: str) -> int:
+    # Both directions for this Cage instance serialize their read/compare/write.
+    # The directory is private to the user; do not follow a replaced lock path.
+    path = f"/run/user/{os.getuid()}/labwc-clipboard-{cage_wayland_display}.lock"
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
+    metadata = os.fstat(fd)
+    if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
+            or stat.S_IMODE(metadata.st_mode) != 0o600 or metadata.st_nlink != 1):
+        os.close(fd)
+        fail("private clipboard bridge lock is unsafe")
+    fcntl.flock(fd, fcntl.LOCK_EX)
+    return fd
+
+
+def destination_clipboard_text(environment: dict[str, str]) -> bytes | None:
+    """Read only enough of the target selection to decide whether it matches."""
+    reader = subprocess.Popen(
+        [WL_PASTE_BINARY, "--no-newline", "--type", "text"],
+        env=environment, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL, close_fds=True,
+    )
+    try:
+        if reader.stdout is None:
+            fail("private clipboard reader has no output stream")
+        deadline = time.monotonic() + CLIPBOARD_OPERATION_TIMEOUT_SECONDS
+        content = bytearray()
+        with selectors.DefaultSelector() as selector:
+            selector.register(reader.stdout, selectors.EVENT_READ)
+            while len(content) <= MAX_CLIPBOARD_TEXT_BYTES:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0 or not selector.select(remaining):
+                    fail("private clipboard reader timed out")
+                chunk = os.read(
+                    reader.stdout.fileno(),
+                    min(65536, MAX_CLIPBOARD_TEXT_BYTES + 1 - len(content)),
+                )
+                if not chunk:
+                    status = reader.wait(timeout=max(0, deadline - time.monotonic()))
+                    return bytes(content) if status == 0 else None
+                content.extend(chunk)
+        # The source may be arbitrarily large; comparison cannot match the
+        # bounded payload, so stop the reader without retaining more data.
+        return None
+    finally:
+        stop_process(reader)
+        if reader.stdout is not None:
+            reader.stdout.close()
+
+
+def masked_application_argv(
+    app_name: str, outer_display: str, cage_display: str, child_argv: list[str]
+) -> list[str]:
+    if app_name not in ALLOWED_APPLICATIONS or child_argv[:1] != [ALLOWED_APPLICATIONS[app_name]]:
+        fail("private compatibility runtime rejected the masked application")
+    outer_display = validate_wayland_socket_name("outer Wayland socket name", outer_display)
+    cage_display = validate_wayland_socket_name("Cage Wayland socket name", cage_display)
+    if outer_display == cage_display:
+        fail("private compatibility runtime received duplicate Wayland sockets")
+    return [
+        "/usr/bin/bwrap", "--unshare-user", "--unshare-pid",
+        "--die-with-parent", "--bind", "/", "/",
+        # Cage and the bridge keep the parent mount. Only the application
+        # loses this exact host socket in its private mount namespace.
+        "--ro-bind", "/dev/null", f"/run/user/{os.getuid()}/{outer_display}",
+        "--proc", "/proc", "--", SANDBOX_LIFECYCLE_HELPER,
+        MASKED_APPLICATION_MODE, app_name, outer_display, cage_display,
+        "--", *child_argv,
+    ]
+
+
+def run_masked_application(arguments: list[str]) -> NoReturn:
+    if len(arguments) < 6 or arguments[4] != "--":
+        fail("masked compatibility application received malformed arguments")
+    _, app_name, outer_display, cage_display, _, *child_argv = arguments
+    masked_application_argv(app_name, outer_display, cage_display, child_argv)
+    if os.geteuid() == 0:
+        fail("masked compatibility application must not run as root")
+    runtime_directory = f"/run/user/{os.getuid()}"
+    if os.environ.get("XDG_RUNTIME_DIR") != runtime_directory or os.environ.get("WAYLAND_DISPLAY") != cage_display:
+        fail("masked application lost Cage's private display")
+    host_socket = os.path.join(runtime_directory, outer_display)
+    if stat.S_ISSOCK(os.lstat(host_socket).st_mode):
+        fail("masked application can still reach the host Wayland socket")
+    require_user_wayland_socket(runtime_directory, cage_display)
+    os.execve(child_argv[0], child_argv, application_process_environment(app_name))
+    raise AssertionError("unreachable")
 
 
 def require_cage_x11_display() -> str:
@@ -540,7 +639,7 @@ def process_exit_status(returncode: int) -> int:
 
 def supervise_application(
     application: subprocess.Popen[bytes],
-    clipboard_bridge: subprocess.Popen[bytes],
+    clipboard_bridges: tuple[subprocess.Popen[bytes], subprocess.Popen[bytes]],
 ) -> int:
     while True:
         if _received_signal is not None:
@@ -548,52 +647,60 @@ def supervise_application(
         application_status = application.poll()
         if application_status is not None:
             return process_exit_status(application_status)
-        clipboard_status = clipboard_bridge.poll()
-        if clipboard_status is not None:
-            fail(
-                "host-to-Cage clipboard bridge exited while the application "
-                f"was running (status {process_exit_status(clipboard_status)})"
-            )
+        for direction, clipboard_bridge in zip(("host-to-Cage", "Cage-to-host"), clipboard_bridges):
+            clipboard_status = clipboard_bridge.poll()
+            if clipboard_status is not None:
+                fail(
+                    f"{direction} clipboard bridge exited while the application "
+                    f"was running (status {process_exit_status(clipboard_status)})"
+                )
         time.sleep(CLIPBOARD_POLL_INTERVAL_SECONDS)
 
 
 def run_clipboard_sink(arguments: list[str]) -> int:
-    cage_wayland_display = parse_clipboard_sink_arguments(arguments)
+    cage_wayland_display, reverse = parse_clipboard_sink_arguments(arguments)
     if os.geteuid() == 0:
         fail("private clipboard sink must not run as root")
 
     system_owner = sandbox_system_owner()
-    require_clipboard_sink_environment(cage_wayland_display)
+    outer_wayland_display = require_clipboard_sink_environment(
+        cage_wayland_display, reverse=reverse
+    )
     require_system_owned_file(
         "Wayland clipboard writer",
         WL_COPY_BINARY,
         system_owner=system_owner,
         executable=True,
     )
+    require_system_owned_file(
+        "Wayland clipboard reader", WL_PASTE_BINARY,
+        system_owner=system_owner, executable=True,
+    )
     register_signal_handlers()
-
-    clipboard_writer: subprocess.Popen[bytes] | None = None
+    payload = sys.stdin.buffer.read(MAX_CLIPBOARD_TEXT_BYTES + 1)
+    if len(payload) > MAX_CLIPBOARD_TEXT_BYTES:
+        fail("private clipboard text exceeds the bridge limit")
+    if not payload:
+        return 0
+    destination = outer_wayland_display if reverse else cage_wayland_display
+    lock_fd = clipboard_lock(cage_wayland_display)
     try:
-        clipboard_writer = subprocess.Popen(
-            [
-                WL_COPY_BINARY,
-                "--type",
-                "text/plain;charset=utf-8",
-            ],
-            env=clipboard_process_environment(cage_wayland_display),
-            stdin=None,
-            stdout=subprocess.DEVNULL,
-            stderr=None,
-            close_fds=True,
+        destination_env = clipboard_process_environment(destination)
+        current = destination_clipboard_text(destination_env)
+        # A mirrored selection becomes a new owner. Suppress the echo watcher
+        # by comparing its content, including an explicitly empty selection.
+        if current == payload:
+            return 0
+        writer = subprocess.run(
+            [WL_COPY_BINARY, "--type", "text/plain;charset=utf-8"],
+            env=destination_env, input=payload, stdout=subprocess.DEVNULL,
+            timeout=CLIPBOARD_OPERATION_TIMEOUT_SECONDS, check=False,
         )
-        _active_processes.append(clipboard_writer)
-        returncode = clipboard_writer.wait()
         if _received_signal is not None:
             return 128 + _received_signal
-        return process_exit_status(returncode)
+        return process_exit_status(writer.returncode)
     finally:
-        stop_process(clipboard_writer)
-        _active_processes.clear()
+        os.close(lock_fd)
 
 
 def run_cage_supervisor(arguments: list[str]) -> int:
@@ -692,10 +799,14 @@ def run(arguments: list[str]) -> int:
         system_owner=system_owner,
         executable=True,
     )
+    require_system_owned_file(
+        "application mount namespace helper", "/usr/bin/bwrap",
+        system_owner=system_owner, executable=True,
+    )
 
     register_signal_handlers()
     application: subprocess.Popen[bytes] | None = None
-    clipboard_bridge: subprocess.Popen[bytes] | None = None
+    clipboard_bridges: list[subprocess.Popen[bytes]] = []
     try:
         cage_wayland_display = validate_wayland_socket_name(
             "Cage Wayland socket name",
@@ -711,28 +822,33 @@ def run(arguments: list[str]) -> int:
         clipboard_environment[OUTER_WAYLAND_DISPLAY_ENVIRONMENT] = (
             outer_wayland_display
         )
-        clipboard_bridge = subprocess.Popen(
-            clipboard_bridge_argv(cage_wayland_display),
-            env=clipboard_environment,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=None,
-            close_fds=True,
-        )
-        _active_processes.append(clipboard_bridge)
-        clipboard_status = clipboard_bridge.poll()
-        if clipboard_status is not None:
-            fail(
-                "host-to-Cage clipboard bridge failed during startup "
-                f"(status {process_exit_status(clipboard_status)})"
+        for reverse in (False, True):
+            source_environment = (
+                clipboard_process_environment(cage_wayland_display)
+                if reverse else clipboard_environment
             )
+            source_environment[OUTER_WAYLAND_DISPLAY_ENVIRONMENT] = outer_wayland_display
+            bridge = subprocess.Popen(
+                clipboard_bridge_argv(cage_wayland_display, reverse=reverse),
+                env=source_environment, stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL, stderr=None, close_fds=True,
+            )
+            clipboard_bridges.append(bridge)
+            _active_processes.append(bridge)
+            clipboard_status = bridge.poll()
+            if clipboard_status is not None:
+                direction = "Cage-to-host" if reverse else "host-to-Cage"
+                fail(f"{direction} clipboard bridge failed during startup "
+                     f"(status {process_exit_status(clipboard_status)})")
 
         application_environment = application_process_environment(app_name)
         expected_display = f":{display_number}"
         if application_environment.get("DISPLAY") != expected_display:
             fail("private compatibility runtime lost Cage's DISPLAY")
         application = subprocess.Popen(
-            child_argv,
+            masked_application_argv(
+                app_name, outer_wayland_display, cage_wayland_display, child_argv
+            ),
             env=application_environment,
             stdin=None,
             stdout=None,
@@ -740,10 +856,11 @@ def run(arguments: list[str]) -> int:
             close_fds=True,
         )
         _active_processes.append(application)
-        return supervise_application(application, clipboard_bridge)
+        return supervise_application(application, tuple(clipboard_bridges))
     finally:
         stop_process(application)
-        stop_process(clipboard_bridge)
+        for bridge in reversed(clipboard_bridges):
+            stop_process(bridge)
         _active_processes.clear()
 
 
@@ -752,15 +869,17 @@ def main(arguments: list[str] | None = None) -> int:
     try:
         if runtime_arguments[:1] == [CAGE_SUPERVISOR_MODE]:
             return run_cage_supervisor(runtime_arguments[1:])
-        if runtime_arguments[:1] == [CLIPBOARD_SINK_MODE]:
+        if runtime_arguments[:1] in ([CLIPBOARD_SINK_MODE], [CLIPBOARD_REVERSE_SINK_MODE]):
             return run_clipboard_sink(runtime_arguments)
+        if runtime_arguments[:1] == [MASKED_APPLICATION_MODE]:
+            run_masked_application(runtime_arguments)
         return run(runtime_arguments)
     except CompatibilityRuntimeError as exc:
         print(f"fatal: {exc}", file=sys.stderr)
         if _received_signal is not None:
             return 128 + _received_signal
         return 1
-    except (OSError, UnicodeError, ValueError) as exc:
+    except (OSError, UnicodeError, ValueError, subprocess.TimeoutExpired) as exc:
         print(
             f"fatal: private Zoom/Discord compatibility runtime failed: {exc}",
             file=sys.stderr,

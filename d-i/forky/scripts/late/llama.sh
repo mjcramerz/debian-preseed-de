@@ -114,11 +114,11 @@ llama_validate_release_policy() {
   unset release_suffix
 
   llama_validate_sha256 LLAMA_RELEASE_SHA256 "$LLAMA_RELEASE_SHA256"
-  llama_validate_integer_range LLAMA_RELEASE_BYTES "$LLAMA_RELEASE_BYTES" 1 1073741824
+  llama_validate_integer_range LLAMA_RELEASE_MINIMUM_BYTES "$LLAMA_RELEASE_MINIMUM_BYTES" 1 1073741824
   llama_validate_integer_range \
     LLAMA_RELEASE_MAXIMUM_EXTRACTED_BYTES \
     "$LLAMA_RELEASE_MAXIMUM_EXTRACTED_BYTES" \
-    "$LLAMA_RELEASE_BYTES" \
+    "$LLAMA_RELEASE_MINIMUM_BYTES" \
     4294967296
   llama_validate_integer_range \
     LLAMA_RELEASE_MAXIMUM_MEMBERS \
@@ -154,13 +154,13 @@ llama_validate_model_policy() {
   esac
 
   llama_validate_sha256 LLAMA_MODEL_SHA256 "$LLAMA_MODEL_SHA256"
-  llama_validate_positive_integer LLAMA_MODEL_BYTES "$LLAMA_MODEL_BYTES"
+  llama_validate_integer_range LLAMA_MODEL_MINIMUM_BYTES "$LLAMA_MODEL_MINIMUM_BYTES" 1 8589934592
 }
 
 llama_validate_policy() {
   : "${LLAMA_RELEASE_URL:?missing LLAMA_RELEASE_URL}"
   : "${LLAMA_RELEASE_SHA256:?missing LLAMA_RELEASE_SHA256}"
-  : "${LLAMA_RELEASE_BYTES:?missing LLAMA_RELEASE_BYTES}"
+  : "${LLAMA_RELEASE_MINIMUM_BYTES:?missing LLAMA_RELEASE_MINIMUM_BYTES}"
   : "${LLAMA_RELEASE_MAXIMUM_EXTRACTED_BYTES:?missing LLAMA_RELEASE_MAXIMUM_EXTRACTED_BYTES}"
   : "${LLAMA_RELEASE_MAXIMUM_MEMBERS:?missing LLAMA_RELEASE_MAXIMUM_MEMBERS}"
   : "${LLAMA_RELEASE_ARCHIVE_ROOT:?missing LLAMA_RELEASE_ARCHIVE_ROOT}"
@@ -178,7 +178,7 @@ llama_validate_policy() {
   : "${LLAMA_DEFAULT_MODEL:?missing LLAMA_DEFAULT_MODEL}"
   : "${LLAMA_DOWNLOAD_URL:?missing LLAMA_DOWNLOAD_URL}"
   : "${LLAMA_MODEL_SHA256:?missing LLAMA_MODEL_SHA256}"
-  : "${LLAMA_MODEL_BYTES:?missing LLAMA_MODEL_BYTES}"
+  : "${LLAMA_MODEL_MINIMUM_BYTES:?missing LLAMA_MODEL_MINIMUM_BYTES}"
   : "${LLAMA_RUNTIME_CONTEXT:?missing LLAMA_RUNTIME_CONTEXT}"
   : "${LLAMA_RUNTIME_BATCH:?missing LLAMA_RUNTIME_BATCH}"
   : "${LLAMA_RUNTIME_UBATCH:?missing LLAMA_RUNTIME_UBATCH}"
@@ -406,7 +406,7 @@ llama_target_model_is_valid() {
     model_validation_sha256=mismatch
   fi
 
-  [ "$model_validation_bytes" = "$LLAMA_MODEL_BYTES" ] || {
+  [ "$model_validation_bytes" -ge "$LLAMA_MODEL_MINIMUM_BYTES" ] || {
     model_validation_failure=byte-count
     return 1
   }
@@ -440,7 +440,7 @@ llama_target_download_model() {
     --retry-max-time "$LLAMA_DOWNLOAD_MAX_TIME_SECONDS" \
     --connect-timeout "$LLAMA_DOWNLOAD_CONNECT_TIMEOUT_SECONDS" \
     --max-time "$LLAMA_DOWNLOAD_MAX_TIME_SECONDS" \
-    --max-filesize "$LLAMA_MODEL_BYTES" \
+    --max-filesize "$((LLAMA_MODEL_MINIMUM_BYTES * 8))" \
     --output "$model_tmp" \
     "$LLAMA_DOWNLOAD_URL" ||
     llama_fatal "failed to download configured GGUF model: $LLAMA_DOWNLOAD_URL"
@@ -575,15 +575,16 @@ llama_target_download_and_install_release() {
     --retry-max-time "$LLAMA_DOWNLOAD_MAX_TIME_SECONDS" \
     --connect-timeout "$LLAMA_DOWNLOAD_CONNECT_TIMEOUT_SECONDS" \
     --max-time "$LLAMA_DOWNLOAD_MAX_TIME_SECONDS" \
-    --max-filesize "$LLAMA_RELEASE_BYTES" \
+    --max-filesize "$LLAMA_RELEASE_MAXIMUM_EXTRACTED_BYTES" \
     --output "$archive_path" \
     "$LLAMA_RELEASE_URL" ||
     llama_fatal "failed to download pinned llama runtime: $LLAMA_RELEASE_URL"
 
   archive_bytes=$(wc -c <"$archive_path" | tr -d ' ')
-  [ "$archive_bytes" = "$LLAMA_RELEASE_BYTES" ] ||
+  [ "$archive_bytes" -ge "$LLAMA_RELEASE_MINIMUM_BYTES" ] &&
+    [ "$archive_bytes" -le "$LLAMA_RELEASE_MAXIMUM_EXTRACTED_BYTES" ] ||
     llama_fatal \
-      "downloaded llama runtime has ${archive_bytes:-unknown} bytes; expected ${LLAMA_RELEASE_BYTES}"
+      "downloaded llama runtime has ${archive_bytes:-unknown} bytes; expected at least ${LLAMA_RELEASE_MINIMUM_BYTES} and at most ${LLAMA_RELEASE_MAXIMUM_EXTRACTED_BYTES}"
   archive_sha256=$(sha256sum "$archive_path" | awk '{print $1}')
   [ "$archive_sha256" = "$LLAMA_RELEASE_SHA256" ] ||
     llama_fatal "downloaded llama runtime SHA-256 does not match profile policy"
@@ -609,7 +610,7 @@ llama_target_download_and_install_release() {
   {
     printf 'url=%s\n' "$LLAMA_RELEASE_URL"
     printf 'sha256=%s\n' "$LLAMA_RELEASE_SHA256"
-    printf 'bytes=%s\n' "$LLAMA_RELEASE_BYTES"
+    printf 'minimum_bytes=%s\n' "$LLAMA_RELEASE_MINIMUM_BYTES"
     printf 'archive_root=%s\n' "$LLAMA_RELEASE_ARCHIVE_ROOT"
   } >"$release_record_staged"
   chown -R 0:0 \
@@ -746,7 +747,7 @@ llama_target_verify_runtime() {
   for runtime_verify_release_line in \
     "url=${LLAMA_RELEASE_URL}" \
     "sha256=${LLAMA_RELEASE_SHA256}" \
-    "bytes=${LLAMA_RELEASE_BYTES}" \
+    "minimum_bytes=${LLAMA_RELEASE_MINIMUM_BYTES}" \
     "archive_root=${LLAMA_RELEASE_ARCHIVE_ROOT}"
   do
     grep -Fqx "$runtime_verify_release_line" "$runtime_verify_release_record" ||
@@ -1011,7 +1012,7 @@ umask 077
 {
   write_shell_config_var LLAMA_RELEASE_URL "$LLAMA_RELEASE_URL"
   write_shell_config_var LLAMA_RELEASE_SHA256 "$LLAMA_RELEASE_SHA256"
-  write_shell_config_var LLAMA_RELEASE_BYTES "$LLAMA_RELEASE_BYTES"
+  write_shell_config_var LLAMA_RELEASE_MINIMUM_BYTES "$LLAMA_RELEASE_MINIMUM_BYTES"
   write_shell_config_var LLAMA_RELEASE_MAXIMUM_EXTRACTED_BYTES "$LLAMA_RELEASE_MAXIMUM_EXTRACTED_BYTES"
   write_shell_config_var LLAMA_RELEASE_MAXIMUM_MEMBERS "$LLAMA_RELEASE_MAXIMUM_MEMBERS"
   write_shell_config_var LLAMA_RELEASE_ARCHIVE_ROOT "$LLAMA_RELEASE_ARCHIVE_ROOT"
@@ -1029,7 +1030,7 @@ umask 077
   write_shell_config_var LLAMA_DEFAULT_MODEL "$LLAMA_DEFAULT_MODEL"
   write_shell_config_var LLAMA_DOWNLOAD_URL "$LLAMA_DOWNLOAD_URL"
   write_shell_config_var LLAMA_MODEL_SHA256 "$LLAMA_MODEL_SHA256"
-  write_shell_config_var LLAMA_MODEL_BYTES "$LLAMA_MODEL_BYTES"
+  write_shell_config_var LLAMA_MODEL_MINIMUM_BYTES "$LLAMA_MODEL_MINIMUM_BYTES"
   write_shell_config_var LLAMA_RUNTIME_CONTEXT "$LLAMA_RUNTIME_CONTEXT"
   write_shell_config_var LLAMA_RUNTIME_BATCH "$LLAMA_RUNTIME_BATCH"
   write_shell_config_var LLAMA_RUNTIME_UBATCH "$LLAMA_RUNTIME_UBATCH"

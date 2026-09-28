@@ -75,7 +75,7 @@ POLICY_KEYS = frozenset(
         "DEVOPS_DENO_VERSION",
         "DEVOPS_DENO_URL",
         "DEVOPS_DENO_SHA256",
-        "DEVOPS_DENO_BYTES",
+        "DEVOPS_DENO_MINIMUM_BYTES",
         "DEVOPS_DENO_ARCHITECTURE",
         "DEVOPS_DENO_ARCHIVE_FILENAME",
         "DEVOPS_DENO_ARCHIVE_FILES",
@@ -84,7 +84,7 @@ POLICY_KEYS = frozenset(
         "DEVOPS_YT_DLP_VERSION",
         "DEVOPS_YT_DLP_URL",
         "DEVOPS_YT_DLP_SHA256",
-        "DEVOPS_YT_DLP_BYTES",
+        "DEVOPS_YT_DLP_MINIMUM_BYTES",
         "DEVOPS_YT_DLP_ARCHITECTURE",
         "DEVOPS_YT_DLP_ARCHIVE_FILENAME",
         "DEVOPS_YT_DLP_INSTALL_ROOT",
@@ -93,7 +93,7 @@ POLICY_KEYS = frozenset(
         "DEVOPS_ANSIBLE_CORE_VERSION",
         "DEVOPS_ANSIBLE_CORE_URL",
         "DEVOPS_ANSIBLE_CORE_SHA256",
-        "DEVOPS_ANSIBLE_CORE_BYTES",
+        "DEVOPS_ANSIBLE_CORE_MINIMUM_BYTES",
         "DEVOPS_ANSIBLE_CORE_ARCHITECTURE",
         "DEVOPS_ANSIBLE_CORE_ARCHIVE_FILENAME",
         "DEVOPS_ANSIBLE_CORE_PACKAGE_ROOTS",
@@ -105,7 +105,7 @@ POLICY_KEYS = frozenset(
         "DEVOPS_OPENTOFU_VERSION",
         "DEVOPS_OPENTOFU_URL",
         "DEVOPS_OPENTOFU_SHA256",
-        "DEVOPS_OPENTOFU_BYTES",
+        "DEVOPS_OPENTOFU_MINIMUM_BYTES",
         "DEVOPS_OPENTOFU_ARCHITECTURE",
         "DEVOPS_OPENTOFU_ARCHIVE_FILENAME",
         "DEVOPS_OPENTOFU_ARCHIVE_FILES",
@@ -114,7 +114,7 @@ POLICY_KEYS = frozenset(
         "DEVOPS_TERRAFORM_VERSION",
         "DEVOPS_TERRAFORM_URL",
         "DEVOPS_TERRAFORM_SHA256",
-        "DEVOPS_TERRAFORM_BYTES",
+        "DEVOPS_TERRAFORM_MINIMUM_BYTES",
         "DEVOPS_TERRAFORM_ARCHITECTURE",
         "DEVOPS_TERRAFORM_ARCHIVE_FILENAME",
         "DEVOPS_TERRAFORM_ARCHIVE_FILES",
@@ -123,7 +123,7 @@ POLICY_KEYS = frozenset(
         "DEVOPS_PACKER_VERSION",
         "DEVOPS_PACKER_URL",
         "DEVOPS_PACKER_SHA256",
-        "DEVOPS_PACKER_BYTES",
+        "DEVOPS_PACKER_MINIMUM_BYTES",
         "DEVOPS_PACKER_ARCHITECTURE",
         "DEVOPS_PACKER_ARCHIVE_FILENAME",
         "DEVOPS_PACKER_ARCHIVE_FILES",
@@ -133,7 +133,7 @@ POLICY_KEYS = frozenset(
         "DEVOPS_WRANGLER_URL",
         "DEVOPS_WRANGLER_SHA512",
         "DEVOPS_WRANGLER_NPM_INTEGRITY",
-        "DEVOPS_WRANGLER_BYTES",
+        "DEVOPS_WRANGLER_MINIMUM_BYTES",
         "DEVOPS_WRANGLER_ARCHITECTURE",
         "DEVOPS_WRANGLER_ARCHIVE_FILENAME",
         "DEVOPS_WRANGLER_ARCHIVE_ROOT",
@@ -146,7 +146,7 @@ POLICY_KEYS = frozenset(
         "DEVOPS_APTLY_RELEASE_VERSION",
         "DEVOPS_APTLY_RELEASE_URL",
         "DEVOPS_APTLY_RELEASE_SHA256",
-        "DEVOPS_APTLY_RELEASE_BYTES",
+        "DEVOPS_APTLY_RELEASE_MINIMUM_BYTES",
         "DEVOPS_APTLY_RELEASE_ARCHITECTURE",
         "DEVOPS_APTLY_RELEASE_ARCHIVE_FILENAME",
         "DEVOPS_APTLY_RELEASE_ARCHIVE_ROOT",
@@ -156,7 +156,7 @@ POLICY_KEYS = frozenset(
         "DEVOPS_OSC_RELEASE_VERSION",
         "DEVOPS_OSC_RELEASE_URL",
         "DEVOPS_OSC_RELEASE_SHA256",
-        "DEVOPS_OSC_RELEASE_BYTES",
+        "DEVOPS_OSC_RELEASE_MINIMUM_BYTES",
         "DEVOPS_OSC_RELEASE_ARCHITECTURE",
         "DEVOPS_OSC_RELEASE_ARCHIVE_FILENAME",
         "DEVOPS_OSC_RELEASE_PACKAGE_ROOT",
@@ -167,7 +167,7 @@ POLICY_KEYS = frozenset(
         "DEVOPS_OBS_BUILD_COMMIT",
         "DEVOPS_OBS_BUILD_URL",
         "DEVOPS_OBS_BUILD_SHA256",
-        "DEVOPS_OBS_BUILD_BYTES",
+        "DEVOPS_OBS_BUILD_MINIMUM_BYTES",
         "DEVOPS_OBS_BUILD_ARCHITECTURE",
         "DEVOPS_OBS_BUILD_ARCHIVE_FILENAME",
         "DEVOPS_OBS_BUILD_ARCHIVE_ROOT",
@@ -189,7 +189,7 @@ class DownloadArtifact:
     version: str
     url: str
     filename: str
-    expected_bytes: int
+    minimum_bytes: int
     digest_algorithm: str
     expected_digest: str
     architecture: str
@@ -405,7 +405,7 @@ def artifact(
         else values[version_key],
         url=values[f"{prefix}_URL"],
         filename=archive_token(values[f"{prefix}_ARCHIVE_FILENAME"], f"{prefix}_ARCHIVE_FILENAME"),
-        expected_bytes=positive_integer(values, f"{prefix}_BYTES", 2**31),
+        minimum_bytes=positive_integer(values, f"{prefix}_MINIMUM_BYTES", 2**31),
         digest_algorithm=digest_algorithm,
         expected_digest=lower_hex(values, digest_key, digest_length),
         architecture=values[architecture_key],
@@ -1070,7 +1070,7 @@ def download_artifact(
             "--max-time",
             str(policy.download_timeout_seconds),
             "--max-filesize",
-            str(artifact.expected_bytes),
+            str(min(2**31, max(8 * 1024**2, artifact.minimum_bytes * 8))),
             "--output",
             str(destination),
             artifact.url,
@@ -1082,10 +1082,10 @@ def download_artifact(
         observed_bytes = destination.stat().st_size
     except OSError:
         fail(f"downloaded {artifact.name} artifact is unavailable")
-    if observed_bytes != artifact.expected_bytes:
+    if observed_bytes < artifact.minimum_bytes:
         fail(
-            f"{artifact.name} artifact size mismatch: expected "
-            f"{artifact.expected_bytes}, got {observed_bytes}"
+            f"{artifact.name} artifact is unexpectedly small: "
+            f"minimum {artifact.minimum_bytes}, got {observed_bytes}"
         )
     observed_digest = file_digest(destination, artifact.digest_algorithm)
     if observed_digest != artifact.expected_digest:
@@ -1171,7 +1171,7 @@ def write_release_record(
         f"name={artifact.name}",
         f"version={artifact.version}",
         f"url={artifact.url}",
-        f"bytes={artifact.expected_bytes}",
+        f"minimum_bytes={artifact.minimum_bytes}",
         f"{artifact.digest_algorithm}={artifact.expected_digest}",
         f"architecture={artifact.architecture}",
         *extra_lines,
@@ -1446,7 +1446,7 @@ def prepare_yt_dlp(
     try:
         with payload_source.open("rb") as source, payload.open("xb") as target:
             shutil.copyfileobj(source, target, length=1024 * 1024)
-        if payload.stat().st_size != artifact_item.expected_bytes:
+        if payload.stat().st_size != payload_source.stat().st_size:
             fail("yt-dlp payload size changed while preparing the managed root")
         payload.chmod(0o755)
         wrapper.write_text(

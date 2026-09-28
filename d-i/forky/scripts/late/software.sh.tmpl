@@ -242,10 +242,10 @@ managed_application_minimum_bytes=1048576
 : "${SOFTWARE_QOREDB_VERSION:?SOFTWARE_QOREDB_VERSION must be set by every desktop host profile}"
 : "${SOFTWARE_QOREDB_URL:?SOFTWARE_QOREDB_URL must be set by every desktop host profile}"
 : "${SOFTWARE_QOREDB_SHA256:?SOFTWARE_QOREDB_SHA256 must be set by every desktop host profile}"
-: "${SOFTWARE_QOREDB_BYTES:?SOFTWARE_QOREDB_BYTES must be set by every desktop host profile}"
+: "${SOFTWARE_QOREDB_MINIMUM_BYTES:?SOFTWARE_QOREDB_MINIMUM_BYTES must be set by every desktop host profile}"
 software_validate_release_version SOFTWARE_QOREDB_VERSION "$SOFTWARE_QOREDB_VERSION"
 software_validate_sha256 SOFTWARE_QOREDB_SHA256 "$SOFTWARE_QOREDB_SHA256"
-software_validate_bounded_bytes SOFTWARE_QOREDB_BYTES "$SOFTWARE_QOREDB_BYTES" 536870912
+software_validate_bounded_bytes SOFTWARE_QOREDB_MINIMUM_BYTES "$SOFTWARE_QOREDB_MINIMUM_BYTES" 536870912
 [ "$SOFTWARE_QOREDB_URL" = "https://github.com/QoreDB/QoreDB/releases/download/v${SOFTWARE_QOREDB_VERSION}/QoreDB_${SOFTWARE_QOREDB_VERSION}_amd64.deb" ] ||
   software_fatal "SOFTWARE_QOREDB_URL does not match the pinned QoreDB release"
 qoredb_deb="${work_dir}/QoreDB_${SOFTWARE_QOREDB_VERSION}_amd64.deb"
@@ -1848,8 +1848,8 @@ software_download \
   "QoreDB" \
   "$SOFTWARE_QOREDB_URL" \
   "$qoredb_deb" \
-  "$SOFTWARE_QOREDB_BYTES" \
-  "$SOFTWARE_QOREDB_BYTES" \
+  "$SOFTWARE_QOREDB_MINIMUM_BYTES" \
+  536870912 \
   artifact \
   "github.com objects.githubusercontent.com release-assets.githubusercontent.com"
 qoredb_actual_sha256=$(

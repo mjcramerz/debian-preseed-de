@@ -235,7 +235,7 @@ devops_validate_node_release() {
   version=$3
   url=$4
   sha256=$5
-  expected_bytes=$6
+  minimum_bytes=$6
   archive_filename=$7
   archive_root=$8
   install_root=$9
@@ -255,7 +255,7 @@ devops_validate_node_release() {
   [ "$url" = "https://nodejs.org/dist/${version}/${archive_filename}" ] ||
     devops_fatal "Node ${expected_major} URL must identify its official Linux x64 release archive"
   devops_validate_lower_hex "Node ${expected_major} SHA-256" "$sha256" 64
-  devops_validate_positive_integer "Node ${expected_major} exact bytes" "$expected_bytes"
+  devops_validate_positive_integer "Node ${expected_major} minimum bytes" "$minimum_bytes"
   devops_validate_abs_path "Node ${expected_major} install root" "$install_root"
   devops_validate_abs_path "Node ${expected_major} binary path" "$binary_path"
   [ "$install_root" = "/usr/local/lib/node-${expected_major}" ] ||

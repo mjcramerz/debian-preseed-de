@@ -58,7 +58,7 @@ except BaseException:
       DEVOPS_DENO_VERSION "$DEVOPS_DENO_VERSION" \
       DEVOPS_DENO_URL "$DEVOPS_DENO_URL" \
       DEVOPS_DENO_SHA256 "$DEVOPS_DENO_SHA256" \
-      DEVOPS_DENO_BYTES "$DEVOPS_DENO_BYTES" \
+      DEVOPS_DENO_MINIMUM_BYTES "$DEVOPS_DENO_MINIMUM_BYTES" \
       DEVOPS_DENO_ARCHITECTURE "$DEVOPS_DENO_ARCHITECTURE" \
       DEVOPS_DENO_ARCHIVE_FILENAME "$DEVOPS_DENO_ARCHIVE_FILENAME" \
       DEVOPS_DENO_ARCHIVE_FILES "$DEVOPS_DENO_ARCHIVE_FILES" \
@@ -67,7 +67,7 @@ except BaseException:
       DEVOPS_YT_DLP_VERSION "$DEVOPS_YT_DLP_VERSION" \
       DEVOPS_YT_DLP_URL "$DEVOPS_YT_DLP_URL" \
       DEVOPS_YT_DLP_SHA256 "$DEVOPS_YT_DLP_SHA256" \
-      DEVOPS_YT_DLP_BYTES "$DEVOPS_YT_DLP_BYTES" \
+      DEVOPS_YT_DLP_MINIMUM_BYTES "$DEVOPS_YT_DLP_MINIMUM_BYTES" \
       DEVOPS_YT_DLP_ARCHITECTURE "$DEVOPS_YT_DLP_ARCHITECTURE" \
       DEVOPS_YT_DLP_ARCHIVE_FILENAME "$DEVOPS_YT_DLP_ARCHIVE_FILENAME" \
       DEVOPS_YT_DLP_INSTALL_ROOT "$DEVOPS_YT_DLP_INSTALL_ROOT" \
@@ -76,7 +76,7 @@ except BaseException:
       DEVOPS_ANSIBLE_CORE_VERSION "$DEVOPS_ANSIBLE_CORE_VERSION" \
       DEVOPS_ANSIBLE_CORE_URL "$DEVOPS_ANSIBLE_CORE_URL" \
       DEVOPS_ANSIBLE_CORE_SHA256 "$DEVOPS_ANSIBLE_CORE_SHA256" \
-      DEVOPS_ANSIBLE_CORE_BYTES "$DEVOPS_ANSIBLE_CORE_BYTES" \
+      DEVOPS_ANSIBLE_CORE_MINIMUM_BYTES "$DEVOPS_ANSIBLE_CORE_MINIMUM_BYTES" \
       DEVOPS_ANSIBLE_CORE_ARCHITECTURE "$DEVOPS_ANSIBLE_CORE_ARCHITECTURE" \
       DEVOPS_ANSIBLE_CORE_ARCHIVE_FILENAME "$DEVOPS_ANSIBLE_CORE_ARCHIVE_FILENAME" \
       DEVOPS_ANSIBLE_CORE_PACKAGE_ROOTS "$DEVOPS_ANSIBLE_CORE_PACKAGE_ROOTS" \
@@ -88,7 +88,7 @@ except BaseException:
       DEVOPS_OPENTOFU_VERSION "$DEVOPS_OPENTOFU_VERSION" \
       DEVOPS_OPENTOFU_URL "$DEVOPS_OPENTOFU_URL" \
       DEVOPS_OPENTOFU_SHA256 "$DEVOPS_OPENTOFU_SHA256" \
-      DEVOPS_OPENTOFU_BYTES "$DEVOPS_OPENTOFU_BYTES" \
+      DEVOPS_OPENTOFU_MINIMUM_BYTES "$DEVOPS_OPENTOFU_MINIMUM_BYTES" \
       DEVOPS_OPENTOFU_ARCHITECTURE "$DEVOPS_OPENTOFU_ARCHITECTURE" \
       DEVOPS_OPENTOFU_ARCHIVE_FILENAME "$DEVOPS_OPENTOFU_ARCHIVE_FILENAME" \
       DEVOPS_OPENTOFU_ARCHIVE_FILES "$DEVOPS_OPENTOFU_ARCHIVE_FILES" \
@@ -97,7 +97,7 @@ except BaseException:
       DEVOPS_TERRAFORM_VERSION "$DEVOPS_TERRAFORM_VERSION" \
       DEVOPS_TERRAFORM_URL "$DEVOPS_TERRAFORM_URL" \
       DEVOPS_TERRAFORM_SHA256 "$DEVOPS_TERRAFORM_SHA256" \
-      DEVOPS_TERRAFORM_BYTES "$DEVOPS_TERRAFORM_BYTES" \
+      DEVOPS_TERRAFORM_MINIMUM_BYTES "$DEVOPS_TERRAFORM_MINIMUM_BYTES" \
       DEVOPS_TERRAFORM_ARCHITECTURE "$DEVOPS_TERRAFORM_ARCHITECTURE" \
       DEVOPS_TERRAFORM_ARCHIVE_FILENAME "$DEVOPS_TERRAFORM_ARCHIVE_FILENAME" \
       DEVOPS_TERRAFORM_ARCHIVE_FILES "$DEVOPS_TERRAFORM_ARCHIVE_FILES" \
@@ -106,7 +106,7 @@ except BaseException:
       DEVOPS_PACKER_VERSION "$DEVOPS_PACKER_VERSION" \
       DEVOPS_PACKER_URL "$DEVOPS_PACKER_URL" \
       DEVOPS_PACKER_SHA256 "$DEVOPS_PACKER_SHA256" \
-      DEVOPS_PACKER_BYTES "$DEVOPS_PACKER_BYTES" \
+      DEVOPS_PACKER_MINIMUM_BYTES "$DEVOPS_PACKER_MINIMUM_BYTES" \
       DEVOPS_PACKER_ARCHITECTURE "$DEVOPS_PACKER_ARCHITECTURE" \
       DEVOPS_PACKER_ARCHIVE_FILENAME "$DEVOPS_PACKER_ARCHIVE_FILENAME" \
       DEVOPS_PACKER_ARCHIVE_FILES "$DEVOPS_PACKER_ARCHIVE_FILES" \
@@ -116,7 +116,7 @@ except BaseException:
       DEVOPS_WRANGLER_URL "$DEVOPS_WRANGLER_URL" \
       DEVOPS_WRANGLER_SHA512 "$DEVOPS_WRANGLER_SHA512" \
       DEVOPS_WRANGLER_NPM_INTEGRITY "$DEVOPS_WRANGLER_NPM_INTEGRITY" \
-      DEVOPS_WRANGLER_BYTES "$DEVOPS_WRANGLER_BYTES" \
+      DEVOPS_WRANGLER_MINIMUM_BYTES "$DEVOPS_WRANGLER_MINIMUM_BYTES" \
       DEVOPS_WRANGLER_ARCHITECTURE "$DEVOPS_WRANGLER_ARCHITECTURE" \
       DEVOPS_WRANGLER_ARCHIVE_FILENAME "$DEVOPS_WRANGLER_ARCHIVE_FILENAME" \
       DEVOPS_WRANGLER_ARCHIVE_ROOT "$DEVOPS_WRANGLER_ARCHIVE_ROOT" \
@@ -129,7 +129,7 @@ except BaseException:
       DEVOPS_APTLY_RELEASE_VERSION "$DEVOPS_APTLY_RELEASE_VERSION" \
       DEVOPS_APTLY_RELEASE_URL "$DEVOPS_APTLY_RELEASE_URL" \
       DEVOPS_APTLY_RELEASE_SHA256 "$DEVOPS_APTLY_RELEASE_SHA256" \
-      DEVOPS_APTLY_RELEASE_BYTES "$DEVOPS_APTLY_RELEASE_BYTES" \
+      DEVOPS_APTLY_RELEASE_MINIMUM_BYTES "$DEVOPS_APTLY_RELEASE_MINIMUM_BYTES" \
       DEVOPS_APTLY_RELEASE_ARCHITECTURE "$DEVOPS_APTLY_RELEASE_ARCHITECTURE" \
       DEVOPS_APTLY_RELEASE_ARCHIVE_FILENAME "$DEVOPS_APTLY_RELEASE_ARCHIVE_FILENAME" \
       DEVOPS_APTLY_RELEASE_ARCHIVE_ROOT "$DEVOPS_APTLY_RELEASE_ARCHIVE_ROOT" \
@@ -139,7 +139,7 @@ except BaseException:
       DEVOPS_OSC_RELEASE_VERSION "$DEVOPS_OSC_RELEASE_VERSION" \
       DEVOPS_OSC_RELEASE_URL "$DEVOPS_OSC_RELEASE_URL" \
       DEVOPS_OSC_RELEASE_SHA256 "$DEVOPS_OSC_RELEASE_SHA256" \
-      DEVOPS_OSC_RELEASE_BYTES "$DEVOPS_OSC_RELEASE_BYTES" \
+      DEVOPS_OSC_RELEASE_MINIMUM_BYTES "$DEVOPS_OSC_RELEASE_MINIMUM_BYTES" \
       DEVOPS_OSC_RELEASE_ARCHITECTURE "$DEVOPS_OSC_RELEASE_ARCHITECTURE" \
       DEVOPS_OSC_RELEASE_ARCHIVE_FILENAME "$DEVOPS_OSC_RELEASE_ARCHIVE_FILENAME" \
       DEVOPS_OSC_RELEASE_PACKAGE_ROOT "$DEVOPS_OSC_RELEASE_PACKAGE_ROOT" \
@@ -150,7 +150,7 @@ except BaseException:
       DEVOPS_OBS_BUILD_COMMIT "$DEVOPS_OBS_BUILD_COMMIT" \
       DEVOPS_OBS_BUILD_URL "$DEVOPS_OBS_BUILD_URL" \
       DEVOPS_OBS_BUILD_SHA256 "$DEVOPS_OBS_BUILD_SHA256" \
-      DEVOPS_OBS_BUILD_BYTES "$DEVOPS_OBS_BUILD_BYTES" \
+      DEVOPS_OBS_BUILD_MINIMUM_BYTES "$DEVOPS_OBS_BUILD_MINIMUM_BYTES" \
       DEVOPS_OBS_BUILD_ARCHITECTURE "$DEVOPS_OBS_BUILD_ARCHITECTURE" \
       DEVOPS_OBS_BUILD_ARCHIVE_FILENAME "$DEVOPS_OBS_BUILD_ARCHIVE_FILENAME" \
       DEVOPS_OBS_BUILD_ARCHIVE_ROOT "$DEVOPS_OBS_BUILD_ARCHIVE_ROOT" \
@@ -205,7 +205,7 @@ rustup_validate_positive_integer() {
 rustup_version=$1
 rustup_url=$2
 expected_sha256=$3
-expected_bytes=$4
+minimum_bytes=$4
 target_triple=$5
 install_dir=$6
 rustup_init_path=$7
@@ -231,7 +231,9 @@ case "$expected_sha256" in
     rustup_fatal "Rustup SHA-256 must contain 64 lowercase hexadecimal characters"
     ;;
 esac
-rustup_validate_positive_integer "exact byte count" "$expected_bytes"
+rustup_validate_positive_integer "minimum byte count" "$minimum_bytes"
+maximum_bytes=$((minimum_bytes * 8))
+[ "$maximum_bytes" -ge 8388608 ] || maximum_bytes=8388608
 rustup_validate_positive_integer "download timeout" "$download_timeout"
 
 for required_command in awk chown curl grep install mktemp rm sha256sum tr wc; do
@@ -264,7 +266,7 @@ curl \
     --retry-delay 2 \
     --connect-timeout 15 \
     --max-time "$download_timeout" \
-    --max-filesize "$expected_bytes" \
+    --max-filesize "$maximum_bytes" \
   --output "$payload_path" \
   "$rustup_url" ||
     rustup_fatal "failed to download pinned Rustup bootstrap: $rustup_url"
@@ -273,8 +275,8 @@ payload_bytes=$(wc -c <"$payload_path" | tr -d "[[:space:]]")
 case "$payload_bytes" in
   ""|*[!0123456789]*) rustup_fatal "downloaded Rustup bootstrap size is invalid" ;;
 esac
-[ "$payload_bytes" = "$expected_bytes" ] ||
-  rustup_fatal "downloaded Rustup bootstrap size does not match the profile policy"
+[ "$payload_bytes" -ge "$minimum_bytes" ] ||
+  rustup_fatal "downloaded Rustup bootstrap is unexpectedly small"
 
 actual_sha256=$(sha256sum "$payload_path" | awk "{print \$1}")
 [ "$actual_sha256" = "$expected_sha256" ] ||
@@ -287,7 +289,7 @@ chown root:root "$install_dir" "$binary_dir" "$rustup_init_path"
   printf "version=%s\n" "$rustup_version"
   printf "source_url=%s\n" "$rustup_url"
   printf "sha256=%s\n" "$expected_sha256"
-  printf "bytes=%s\n" "$expected_bytes"
+  printf "bytes=%s\n" "$payload_bytes"
   printf "architecture=%s\n" "$target_triple"
 } >"${install_dir}/.rustup-bootstrap"
 chmod 0644 "${install_dir}/.rustup-bootstrap"
@@ -304,7 +306,7 @@ printf "installed Rustup %s bootstrap at %s\n" "$rustup_version" "$rustup_init_p
     "$DEVOPS_RUSTUP_VERSION" \
     "$DEVOPS_RUSTUP_URL" \
     "$DEVOPS_RUSTUP_SHA256" \
-    "$DEVOPS_RUSTUP_BYTES" \
+    "$DEVOPS_RUSTUP_MINIMUM_BYTES" \
     "$DEVOPS_RUSTUP_TARGET_TRIPLE" \
     "$DEVOPS_RUSTUP_INSTALL_ROOT" \
     "$DEVOPS_RUSTUP_BINARY_PATH" \
@@ -343,7 +345,7 @@ devops_install_pinned_rust_cli_binaries() {
       --dotslash-version "$DEVOPS_DOTSLASH_VERSION" \
       --dotslash-url "$DEVOPS_DOTSLASH_URL" \
       --dotslash-sha256 "$DEVOPS_DOTSLASH_SHA256" \
-      --dotslash-bytes "$DEVOPS_DOTSLASH_BYTES" \
+      --dotslash-bytes "$DEVOPS_DOTSLASH_MINIMUM_BYTES" \
       --dotslash-architecture "$DEVOPS_DOTSLASH_ARCHITECTURE" \
       --dotslash-archive-filename "$DEVOPS_DOTSLASH_ARCHIVE_FILENAME" \
       --dotslash-archive-files "$DEVOPS_DOTSLASH_ARCHIVE_FILES" \
@@ -351,7 +353,7 @@ devops_install_pinned_rust_cli_binaries() {
       --uv-version "$DEVOPS_UV_VERSION" \
       --uv-url "$DEVOPS_UV_URL" \
       --uv-sha256 "$DEVOPS_UV_SHA256" \
-      --uv-bytes "$DEVOPS_UV_BYTES" \
+      --uv-bytes "$DEVOPS_UV_MINIMUM_BYTES" \
       --uv-architecture "$DEVOPS_UV_ARCHITECTURE" \
       --uv-archive-filename "$DEVOPS_UV_ARCHIVE_FILENAME" \
       --uv-archive-root "$DEVOPS_UV_ARCHIVE_ROOT" \
@@ -365,4 +367,3 @@ devops_install_pinned_rust_cli_binaries() {
   [ ! -e "$helper_host_path" ] && [ ! -L "$helper_host_path" ] ||
     devops_fatal "temporary prebuilt Rust tool installer remains after installation"
 }
-

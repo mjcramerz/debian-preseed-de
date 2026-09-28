@@ -155,11 +155,11 @@ whisper_validate_release_policy() {
   unset release_suffix
 
   whisper_validate_sha256 WHISPER_RELEASE_SHA256 "$WHISPER_RELEASE_SHA256"
-  whisper_validate_integer_range WHISPER_RELEASE_BYTES "$WHISPER_RELEASE_BYTES" 1 536870912
+  whisper_validate_integer_range WHISPER_RELEASE_MINIMUM_BYTES "$WHISPER_RELEASE_MINIMUM_BYTES" 1 536870912
   whisper_validate_integer_range \
     WHISPER_RELEASE_MAXIMUM_EXTRACTED_BYTES \
     "$WHISPER_RELEASE_MAXIMUM_EXTRACTED_BYTES" \
-    "$WHISPER_RELEASE_BYTES" \
+    "$WHISPER_RELEASE_MINIMUM_BYTES" \
     1073741824
   whisper_validate_integer_range \
     WHISPER_RELEASE_MAXIMUM_MEMBERS \
@@ -180,7 +180,7 @@ whisper_validate_release_policy() {
 whisper_validate_policy() {
   : "${WHISPER_RELEASE_URL:?missing WHISPER_RELEASE_URL}"
   : "${WHISPER_RELEASE_SHA256:?missing WHISPER_RELEASE_SHA256}"
-  : "${WHISPER_RELEASE_BYTES:?missing WHISPER_RELEASE_BYTES}"
+  : "${WHISPER_RELEASE_MINIMUM_BYTES:?missing WHISPER_RELEASE_MINIMUM_BYTES}"
   : "${WHISPER_RELEASE_MAXIMUM_EXTRACTED_BYTES:?missing WHISPER_RELEASE_MAXIMUM_EXTRACTED_BYTES}"
   : "${WHISPER_RELEASE_MAXIMUM_MEMBERS:?missing WHISPER_RELEASE_MAXIMUM_MEMBERS}"
   : "${WHISPER_RELEASE_ARCHIVE_ROOT:?missing WHISPER_RELEASE_ARCHIVE_ROOT}"
@@ -702,15 +702,16 @@ whisper_target_download_and_install_release() {
     --retry-max-time "$WHISPER_DOWNLOAD_MAX_TIME_SECONDS" \
     --connect-timeout "$WHISPER_DOWNLOAD_CONNECT_TIMEOUT_SECONDS" \
     --max-time "$WHISPER_DOWNLOAD_MAX_TIME_SECONDS" \
-    --max-filesize "$WHISPER_RELEASE_BYTES" \
+    --max-filesize "$WHISPER_RELEASE_MAXIMUM_EXTRACTED_BYTES" \
     --output "$archive_path" \
     "$WHISPER_RELEASE_URL" ||
     whisper_target_fatal "failed to download pinned Whisper runtime: $WHISPER_RELEASE_URL"
 
   archive_bytes=$(wc -c <"$archive_path" | tr -d ' ')
-  [ "$archive_bytes" = "$WHISPER_RELEASE_BYTES" ] ||
+  [ "$archive_bytes" -ge "$WHISPER_RELEASE_MINIMUM_BYTES" ] &&
+    [ "$archive_bytes" -le "$WHISPER_RELEASE_MAXIMUM_EXTRACTED_BYTES" ] ||
     whisper_target_fatal \
-      "downloaded Whisper runtime has ${archive_bytes:-unknown} bytes; expected ${WHISPER_RELEASE_BYTES}"
+      "downloaded Whisper runtime has ${archive_bytes:-unknown} bytes; expected at least ${WHISPER_RELEASE_MINIMUM_BYTES} and at most ${WHISPER_RELEASE_MAXIMUM_EXTRACTED_BYTES}"
   archive_sha256=$(sha256sum "$archive_path" | awk '{print $1}')
   [ "$archive_sha256" = "$WHISPER_RELEASE_SHA256" ] ||
     whisper_target_fatal "downloaded Whisper runtime SHA-256 does not match profile policy"
@@ -732,7 +733,7 @@ whisper_target_download_and_install_release() {
   {
     printf 'url=%s\n' "$WHISPER_RELEASE_URL"
     printf 'sha256=%s\n' "$WHISPER_RELEASE_SHA256"
-    printf 'bytes=%s\n' "$WHISPER_RELEASE_BYTES"
+    printf 'minimum_bytes=%s\n' "$WHISPER_RELEASE_MINIMUM_BYTES"
     printf 'archive_root=%s\n' "$WHISPER_RELEASE_ARCHIVE_ROOT"
   } >"$release_record_staged"
   chown -R 0:0 \
@@ -837,7 +838,7 @@ whisper_target_verify_runtime() {
   for release_line in \
     "url=${WHISPER_RELEASE_URL}" \
     "sha256=${WHISPER_RELEASE_SHA256}" \
-    "bytes=${WHISPER_RELEASE_BYTES}" \
+    "minimum_bytes=${WHISPER_RELEASE_MINIMUM_BYTES}" \
     "archive_root=${WHISPER_RELEASE_ARCHIVE_ROOT}"
   do
     grep -Fqx "$release_line" "$release_record" ||
@@ -1077,7 +1078,7 @@ umask 077
 {
   write_shell_config_var WHISPER_RELEASE_URL "$WHISPER_RELEASE_URL"
   write_shell_config_var WHISPER_RELEASE_SHA256 "$WHISPER_RELEASE_SHA256"
-  write_shell_config_var WHISPER_RELEASE_BYTES "$WHISPER_RELEASE_BYTES"
+  write_shell_config_var WHISPER_RELEASE_MINIMUM_BYTES "$WHISPER_RELEASE_MINIMUM_BYTES"
   write_shell_config_var WHISPER_RELEASE_MAXIMUM_EXTRACTED_BYTES "$WHISPER_RELEASE_MAXIMUM_EXTRACTED_BYTES"
   write_shell_config_var WHISPER_RELEASE_MAXIMUM_MEMBERS "$WHISPER_RELEASE_MAXIMUM_MEMBERS"
   write_shell_config_var WHISPER_RELEASE_ARCHIVE_ROOT "$WHISPER_RELEASE_ARCHIVE_ROOT"

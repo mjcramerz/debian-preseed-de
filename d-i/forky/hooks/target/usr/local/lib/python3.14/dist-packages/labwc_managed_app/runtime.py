@@ -58,6 +58,8 @@ MANAGED_WAYLAND_OPENGL_ENVIRONMENT = {
     **MANAGED_NO_VULKAN_ENVIRONMENT,
 }
 MANAGED_CAGE_COMPOSITOR_ENVIRONMENT = {
+    # Cage is nested on labwc. Never let it select a DRM/KMS backend.
+    "WLR_BACKENDS": "wayland",
     "WLR_RENDERER": "gles2",
     "WLR_WL_OUTPUTS": "1",
     "WLR_NO_HARDWARE_CURSORS": "1",

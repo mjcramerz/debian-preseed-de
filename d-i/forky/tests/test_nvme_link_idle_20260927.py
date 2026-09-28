@@ -142,7 +142,8 @@ class NVMeRuleTests(unittest.TestCase):
                       'ATTR{device}!="0x5006"', 'ATTR{class}!="0x010802"'):
             self.assertIn(guard, text)
         active = '\n'.join(line for line in text.splitlines() if not line.startswith('#'))
-        for name in ('l0s_aspm', 'l1_aspm', 'clkpm'):
+        for name in ('l0s_aspm', 'l1_2_aspm', 'l1_1_aspm',
+                     'l1_2_pcipm', 'l1_1_pcipm', 'l1_aspm', 'clkpm'):
             self.assertIn(f'TEST=="link/{name}", ATTR{{link/{name}}}="0"', active)
         for prohibited in ('RUN', 'SYSTEMD_WANTS', 'setpci', 'noaer', 'reset', 'power/control', 'pcie_aspm=force'):
             self.assertNotIn(prohibited, active)
