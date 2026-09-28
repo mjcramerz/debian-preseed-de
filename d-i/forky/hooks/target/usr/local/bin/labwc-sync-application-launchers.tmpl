@@ -43,6 +43,7 @@ WAYLAND_COMPAT_APPS = {"discord", "zoom"}
 DEDICATED_MANAGED_APPS = {
     "chatgpt": CHATGPT_MANAGED_APP,
 }
+QBITTORRENT_LAUNCHER = "/usr/local/bin/labwc-qbittorrent"
 ACCELERATION_DEFAULT_KEYS = {
     "LABWC_INTEL_ACCELERATION_AVAILABLE",
     "LABWC_NVIDIA_ACCELERATION_AVAILABLE",
@@ -187,6 +188,7 @@ APP_CONFIG = (
         "desktop_names": ("org.qbittorrent.qBittorrent.desktop",),
         "action_app": "qbittorrent",
         "field_code": "%U",
+        "default_mode": "launch",
     },
     {
         "desktop_names": ("com.libretro.RetroArch.desktop", "retroarch.desktop"),
@@ -614,6 +616,10 @@ def synchronize_bitwarden_autostart(
 
 
 def managed_exec(mode: str, app_name: str, field_code: str) -> str:
+    if app_name == "qbittorrent" and mode != "pure-privacy":
+        # The dedicated wrapper owns storage, peer policy and its user service.
+        selector = f" --acceleration={mode}" if mode in {"intel", "nvidia"} else ""
+        return f"{QBITTORRENT_LAUNCHER}{selector} {field_code}"
     dedicated_executable = DEDICATED_MANAGED_APPS.get(app_name)
     if dedicated_executable is not None:
         return f"{dedicated_executable} {mode} {field_code}"

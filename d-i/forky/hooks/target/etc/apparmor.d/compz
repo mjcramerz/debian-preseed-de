@@ -7,10 +7,18 @@ profile compz-worker flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
   #include <abstractions/bwrap-common>
 
-  # During namespace construction bwrap must inspect caller-selected paths.
-  # After construction the only host data visible is /input and /work; all
-  # capabilities are dropped and further user namespaces are disabled.
-  /** r,
+  # Before the namespace is built, inspect inputs only in supported data trees.
+  # Once mounted, the worker reads /input and /plan and writes only /work.
+  /{home,data,pool}/ r,
+  /{home,data,pool}/** r,
+  owner /{home,data,pool}/**/.compz-*/operation.log rw,
+  owner /run/user/[0-9]*/compz-plan-*/ r,
+  owner /run/user/[0-9]*/compz-plan-*/operation.json r,
+  /input/ r,
+  /input/** r,
+  /plan/ r,
+  /plan/** r,
+  /etc/{ld.so.cache,nsswitch.conf,passwd,group} r,
   /usr/** mr,
   /{,usr/}lib{,32,64}/** mr,
   /usr/bin/python3{,.[0-9],.[0-9][0-9]} ix,
@@ -28,6 +36,7 @@ profile compz-worker flags=(attach_disconnected,mediate_deleted) {
   # memfd arguments contain no secrets. bwrap consumes them before decoder exec.
   /memfd:compz-args rw,
   owner @{PROC}/@{pid}/fd/** rw,
+  @{PROC}/@{pid}/attr/current r,
   owner @{PROC}/[0-9]*/{gid_map,setgroups,uid_map} rw,
   @{PROC}/sys/user/max_user_namespaces rw,
   # GnuPG's private agent uses sockets only inside the private /tmp tmpfs.

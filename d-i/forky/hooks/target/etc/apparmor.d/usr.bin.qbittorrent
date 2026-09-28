@@ -31,6 +31,8 @@ profile qbittorrent /usr/bin/qbittorrent flags=(attach_disconnected) {
   owner @{HOME}/@{XDG_DOWNLOAD_DIR}/** rwkl,
   owner /run/media/*/bittorrent/ rw,
   owner /run/media/*/bittorrent/** rwkl,
+  owner @{HOME}/bittorrent/ rw,
+  owner @{HOME}/bittorrent/** rwkl,
   @{PROC}/[0-9]*/mountinfo r,
 
   include if exists <local/usr.bin.qbittorrent>

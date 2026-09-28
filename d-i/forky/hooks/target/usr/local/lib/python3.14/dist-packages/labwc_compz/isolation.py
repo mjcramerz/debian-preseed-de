@@ -24,6 +24,14 @@ class Cancelled(CompzError):
     """The complete service cgroup was stopped before cleanup."""
 
 
+def require_data_directory(current: Path) -> None:
+    """Keep publication and the temporary workspace in supported data trees."""
+    if (not current.is_absolute() or current.is_symlink() or not current.is_dir() or
+            current.parts[1:2] not in (('home',), ('data',), ('pool',)) or
+            current.resolve(strict=True) != current):
+        raise CompzError('Run compz inside /home, /data or /pool.')
+
+
 def user_environment() -> dict[str, str]:
     uid = os.geteuid()
     if uid == 0:
@@ -78,6 +86,7 @@ def sandbox_main() -> int:
         current, work, plan_directory = map(Path, sys.argv[1:])
         if any(not path.is_absolute() for path in (current, work, plan_directory)):
             raise CompzError('Sandbox paths must be absolute.')
+        require_data_directory(current)
         flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
         cwd_fd = os.open(current, flags)
         descriptors.append(cwd_fd)
@@ -221,8 +230,7 @@ def stop(unit: str, environment: dict[str, str]) -> None:
 
 def execute(current: Path, plan: dict, passphrase: str = '') -> Path | None:
     environment = user_environment()
-    if not current.is_absolute() or current.is_symlink() or not current.is_dir():
-        raise CompzError('Current directory is unavailable or unsafe.')
+    require_data_directory(current)
     # Refuse before starting when the user manager is unavailable. The service
     # enters AppArmor using aa-exec; there is no unconfined fallback.
     check = subprocess.run(['/usr/bin/systemctl', '--user', 'show-environment'], env=environment,

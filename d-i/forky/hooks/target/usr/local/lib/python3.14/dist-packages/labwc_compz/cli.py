@@ -10,7 +10,7 @@ import sys
 
 from . import CompzError, __version__
 from .formats import available_codecs, compression, missing
-from .isolation import Cancelled, execute
+from .isolation import Cancelled, execute, require_data_directory
 from .safeio import display, relative
 from .volumes import recognizable, resolve
 
@@ -123,6 +123,7 @@ def interactive() -> None:
     if absent:
         raise CompzError('Missing managed prerequisites: ' + ', '.join(absent))
     current = Path.cwd()
+    require_data_directory(current)
     print('compz ' + __version__ + ' - ' + display(str(current)))
     print('Sources are never removed. Existing destinations are never overwritten.')
     print('Links and special files are rejected. Nested archive originals are retained.')

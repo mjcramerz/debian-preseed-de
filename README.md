@@ -78,8 +78,9 @@ Firefox, Blender and Kdenlive are excluded by the pre-pkgsel APT policy.
 
 ### Archive menu and Packer plugins
 
-Run `compz` as the desktop user from the directory containing the files or
-archives. Its menu selects compression, extraction, verification or listing;
+Run `compz` as the desktop user from a directory under `/home`, `/data` or
+`/pool` containing the files or archives. Its menu selects compression,
+extraction, verification or listing;
 extraction creates a folder named for each archive, resolves split volumes and
 can unpack nested archives. It keeps source files and refuses to replace an
 existing destination. Compression uses a tar container, with an optional GPG
@@ -88,6 +89,14 @@ prevent the interactive menu from starting. RAR creation is offered
 only where Debian provides the `rar` archiver; RAR extraction remains available
 on arm64. The archive worker requires its AppArmor profile and an active systemd
 user manager.
+
+The managed qBittorrent desktop entry starts `labwc-qbittorrent` in a session
+service. It uses `/run/media/<user>/bittorrent` when present; if that transient
+volume is absent, it creates private persistent storage in `~/bittorrent`.
+The launcher fixes the TCP/UDP peer port at `50309`, disables DHT, PeX, LSD,
+automatic port mapping and the Web UI, and checks HTTPS tracker certificates.
+The `addon/software` firewall overlay accepts the peer port on its selected
+network interfaces.
 
 The DevOps installer authenticates the exact Packer plugin releases, installs
 their binaries into the account's private plugin directory, then checks local

@@ -137,6 +137,29 @@ def configured_account(defaults: dict[str, str]) -> tuple[pwd.struct_passwd, pat
     return account, configured_root
 
 
+def select_storage_root(
+    account: pwd.struct_passwd, configured_root: pathlib.Path,
+) -> pathlib.Path:
+    if os.path.lexists(configured_root):
+        # A directory left on /run itself is not a persistent volume.
+        runtime_root = pathlib.Path("/run")
+        if (not configured_root.is_dir() or configured_root.resolve() != configured_root or
+                not runtime_root.is_dir() or
+                configured_root.stat().st_dev != runtime_root.stat().st_dev):
+            return configured_root
+    # /run/media is transient and may have no mounted torrent volume. Never
+    # create the configured root there: that would put downloads in tmpfs.
+    home = pathlib.Path(account.pw_dir)
+    require_real_directory(home, "qBittorrent account home")
+    if home.stat().st_uid != os.getuid() or home.resolve() != home:
+        fail("qBittorrent account home has unsafe ownership or symlink ancestry")
+    fallback = home / "bittorrent"
+    ensure_directory(fallback, 0o700)
+    if fallback.stat().st_uid != os.getuid():
+        fail("qBittorrent fallback storage must be owned by the desktop user")
+    return fallback
+
+
 def require_real_directory(path: pathlib.Path, label: str) -> None:
     try:
         metadata = path.lstat()
@@ -226,6 +249,7 @@ def managed_settings(paths: dict[str, pathlib.Path]) -> dict[str, dict[str, str]
             "Downloads\\TorrentExportDirectory": str(paths["torrents_active"]),
             "General\\UseRandomPort": "false",
             "Queueing\\QueueingEnabled": "false",
+            "WebUI\\Enabled": "false",
         },
     }
 
@@ -738,6 +762,13 @@ def redirect_to_user_service() -> None:
         fail("unsafe qBittorrent desktop runtime")
     if (runtime / "labwc-session-closing").exists():
         fail("the desktop is closing; qBittorrent was not started")
+    wayland_display = os.environ.get("WAYLAND_DISPLAY", "wayland-0")
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", wayland_display):
+        fail("invalid Wayland display name")
+    require_socket(runtime / wayland_display, "Wayland display")
+    bus_path = session_bus_path(os.environ.get("DBUS_SESSION_BUS_ADDRESS", ""))
+    if bus_path is not None and bus_path != runtime / "bus":
+        fail("qBittorrent requires the desktop user's own session bus")
     argv = ["/usr/bin/systemd-run", "--user", "--quiet", "--collect",
             "--service-type=exec", "--expand-environment=no", "--slice=app.slice",
             "--unit=labwc-qbittorrent-" + uuid.uuid4().hex + ".service",
@@ -748,6 +779,9 @@ def redirect_to_user_service() -> None:
             "--property=StandardInput=null", "--property=StandardOutput=journal",
             "--property=StandardError=journal", "--setenv=LABWC_SESSION_APP=1",
             "--setenv=LABWC_QBITTORRENT_SESSION_UNIT=1",
+            "--setenv=WAYLAND_DISPLAY=" + wayland_display,
+            *(["--setenv=DBUS_SESSION_BUS_ADDRESS=unix:path=" + str(bus_path)]
+              if bus_path is not None else []),
             "--", "/usr/local/bin/labwc-qbittorrent", *sys.argv[1:]]
     os.execv(argv[0], argv)
 
@@ -755,7 +789,8 @@ def redirect_to_user_service() -> None:
 def main() -> int:
     redirect_to_user_service()
     defaults = load_defaults(DEFAULTS_PATH)
-    account, root = configured_account(defaults)
+    account, configured_root = configured_account(defaults)
+    root = select_storage_root(account, configured_root)
     paths = prepare_storage(root)
     write_config(paths["profile_home"], paths)
     acceleration_mode, raw_launch_arguments = select_acceleration_mode(defaults, sys.argv[1:])

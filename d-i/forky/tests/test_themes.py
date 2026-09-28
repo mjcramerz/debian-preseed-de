@@ -102,16 +102,20 @@ class ThemeValidationTests(unittest.TestCase):
                              VALUES['WAYBAR_BUTTON_TERMINAL_HOVER_SHADOW_COLOR'])
         self.assertEqual(VALUES['WAYBAR_BUTTON_CLOCK_NORMAL_TEXT_COLOR'],
                          VALUES['WAYBAR_BUTTON_MENU_NORMAL_TEXT_COLOR'])
-        for button in ('FILES', 'NOTES', 'SLEEK', 'TERMINAL', 'TUTANOTA', 'TASKBAR'):
+        for button in ('FILES', 'NOTES', 'SLEEK', 'TERMINAL', 'TUTANOTA'):
             self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_NORMAL_OUTLINE_COLOR'],
                              'rgba(99, 135, 255, 0.48)')
+        self.assertEqual(VALUES['WAYBAR_BUTTON_TASKBAR_NORMAL_OUTLINE_COLOR'],
+                         'rgba(134, 177, 253, 0.88)')
         for button in ('BLUETOOTH', 'KEYBOARD', 'NETWORK', 'SCREENSHOT'):
             self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_NORMAL_OUTLINE_COLOR'],
                              'transparent')
             for property_name in ('BACKGROUND', 'OUTLINE'):
                 self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_HOVER_{property_name}_COLOR'],
                                  VALUES[f'WAYBAR_BUTTON_WORKSPACES_HOVER_{property_name}_COLOR'])
-        self.assertEqual(VALUES['WAYBAR_BUTTON_TASKBAR_ACTIVE_OUTLINE_COLOR'], active)
+        for state in ('ACTIVE', 'HOVER'):
+            self.assertEqual(VALUES[f'WAYBAR_BUTTON_TASKBAR_{state}_OUTLINE_COLOR'],
+                             'rgba(238, 220, 255, 0.96)')
         for button in ('AUDIO', 'BACKLIGHT', 'BATTERY', 'CPU', 'DISK', 'MEMORY'):
             self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_HOVER_SHADOW_COLOR'],
                              VALUES['WAYBAR_BUTTON_AUDIO_HOVER_SHADOW_COLOR'])

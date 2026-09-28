@@ -547,6 +547,15 @@ for _codec in formats.CODECS:
 
 
 class IsolationTests(Temporary):
+    def test_operations_are_restricted_to_data_trees(self):
+        with mock.patch.object(Path, 'is_dir', return_value=True), \
+                mock.patch.object(Path, 'resolve', lambda self, strict=False: self):
+            for name in ('/home/member', '/data/archive', '/pool/shared', '/home'):
+                isolation.require_data_directory(Path(name))
+            for name in ('/', '/etc', '/var/tmp', '/usr', '/run/user'):
+                with self.subTest(path=name), self.assertRaises(CompzError):
+                    isolation.require_data_directory(Path(name))
+
     def test_required_service_lifecycle_and_limits(self):
         command = isolation.service_command('compz-test.service', Path('/tmp/in$%'), Path('/tmp/work'),
                                             Path('/run/user/1000/plan'), plan())
@@ -652,6 +661,10 @@ class IsolationTests(Temporary):
         self.assertIn('compz', (FORKY / 'scripts/late/security.sh').read_text())
         profile = (TARGET / 'etc/apparmor.d/compz').read_text()
         self.assertIn('profile compz-worker ', profile)
+        self.assertNotIn('\n  /** r,', profile)
+        self.assertIn('/{home,data,pool}/** r,', profile)
+        self.assertIn('/**/.compz-*/operation.log rw,', profile)
+        self.assertIn('/plan/** r,', profile)
         self.assertIn('unrar-nonfree', profile)
         self.assertNotIn('network inet', profile)
         for name in ('compz-worker', 'compz-sandbox', 'compz-pipeline'):
