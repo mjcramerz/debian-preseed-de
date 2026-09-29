@@ -475,6 +475,10 @@ def masked_application_argv(
     return [
         "/usr/bin/bwrap", "--unshare-user", "--unshare-pid",
         "--die-with-parent", "--bind", "/", "/",
+        # A regular --bind marks devices nodev. Rebind only the outer
+        # sandbox's private /dev so Chromium can open /dev/null and the
+        # already-selected camera/render nodes in this nested namespace.
+        "--dev-bind", "/dev", "/dev",
         # Cage and the bridge keep the parent mount. Only the application
         # loses this exact host socket in its private mount namespace.
         "--ro-bind", "/dev/null", f"/run/user/{os.getuid()}/{outer_display}",
@@ -482,6 +486,19 @@ def masked_application_argv(
         MASKED_APPLICATION_MODE, app_name, outer_display, cage_display,
         "--", *child_argv,
     ]
+
+
+def require_private_null_device() -> None:
+    try:
+        fd = os.open("/dev/null", os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC)
+    except OSError as exc:
+        fail(f"private compatibility application cannot open /dev/null: {exc}")
+    try:
+        metadata = os.fstat(fd)
+        if not stat.S_ISCHR(metadata.st_mode) or metadata.st_rdev != os.makedev(1, 3):
+            fail("private compatibility application has an invalid /dev/null")
+    finally:
+        os.close(fd)
 
 
 def run_masked_application(arguments: list[str]) -> NoReturn:
@@ -498,6 +515,7 @@ def run_masked_application(arguments: list[str]) -> NoReturn:
     if stat.S_ISSOCK(os.lstat(host_socket).st_mode):
         fail("masked application can still reach the host Wayland socket")
     require_user_wayland_socket(runtime_directory, cage_display)
+    require_private_null_device()
     os.execve(child_argv[0], child_argv, application_process_environment(app_name))
     raise AssertionError("unreachable")
 

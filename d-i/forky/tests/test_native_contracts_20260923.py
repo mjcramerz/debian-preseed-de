@@ -34,6 +34,12 @@ class NativeContractTests(unittest.TestCase):
         self.assertNotRegex(text, r'>>?\s*"?\$CROWDSEC_LOG_FILE')
         self.assertIn('StandardOutput=journal', read_text(TARGET / 'etc/systemd/system/crowdsec-firstboot.service'))
 
+    def test_crowdsec_enroll_request_does_not_claim_console_approval(self):
+        source = (SEED / 'scripts/firstboot/assets/var/lib/firstboot/bin/crowdsec-firstboot.tmpl').read_text()
+        self.assertIn('enrollment_status=pending-approval', source)
+        self.assertIn('console_enrollment=pending-approval', source)
+        self.assertNotIn('enrollment_status=enrolled', source)
+
     def test_tailscale_does_not_replay_daemon_journal_or_append_a_second_file(self):
         text = read_text(TARGET / 'usr/local/libexec/tailscale-up')
         self.assertNotIn('journalctl', text)

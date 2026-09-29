@@ -140,6 +140,8 @@ class ApparmorEvidenceTests(unittest.TestCase):
         policy = (TARGET / "etc/apparmor.d/desktop-wrappers.tmpl").read_text()
         compat_child = policy.split("profile wayland-compat-app-bwrap ", 1)[1].split("\n  }", 1)[0]
         self.assertIn("/usr/bin/{wl-copy,wl-paste,xclip} rix,", compat_child)
+        self.assertIn("owner /run/user/[0-9]*/labwc-clipboard-wayland-[0-9]*.lock rwk,", compat_child)
+        self.assertNotIn("owner /run/user/[0-9]*/** rwk,", compat_child)
         packages = (SEED / "classes/class-select/role/desktop.cfg").read_text()
         self.assertIn(" wl-clipboard xclip wf-recorder ", packages)
         self.assertIn("  xclip " + "\\", (SEED / "scripts/desktop/verify.sh.tmpl").read_text().splitlines())

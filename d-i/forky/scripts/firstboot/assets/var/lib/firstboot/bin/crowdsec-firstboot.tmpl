@@ -372,7 +372,10 @@ enrollment_status=skipped
 if crowdsec_token=$(read_token 2>/dev/null); then
   host_name=$(hostname -f 2>/dev/null || hostname 2>/dev/null || printf '%s\n' crowdsec-node)
   if enroll_console "$crowdsec_token" "$host_name"; then
-    enrollment_status=enrolled
+    # cscli accepts the request; the Console must still approve the engine.
+    # Report this pending state rather than claiming remote enrollment.
+    enrollment_status=pending-approval
+    log_line bootstrap info crowdsec "console_enrollment=pending-approval hostname=${host_name}"
   else
     enroll_status=$?
     unset crowdsec_token

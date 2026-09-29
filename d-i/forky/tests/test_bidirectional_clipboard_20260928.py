@@ -120,6 +120,8 @@ class ClipboardRoutingTests(unittest.TestCase):
             "discord", "wayland-0", "wayland-1", ["/opt/discord/Discord"]
         )
         self.assertEqual(argv[:4], ["/usr/bin/bwrap", "--unshare-user", "--unshare-pid", "--die-with-parent"])
+        self.assertEqual(argv[argv.index("--bind") + 1:argv.index("--dev-bind")], ["/", "/"])
+        self.assertEqual(argv[argv.index("--dev-bind") + 1:argv.index("--ro-bind")], ["/dev", "/dev"])
         mask = argv.index("--ro-bind")
         self.assertEqual(argv[mask + 1:mask + 3], [
             "/dev/null", f"/run/user/{os.getuid()}/wayland-0"
@@ -153,6 +155,31 @@ class ClipboardRoutingTests(unittest.TestCase):
             with self.assertRaisesRegex(bridge.CompatibilityRuntimeError, "host Wayland socket"):
                 bridge.run_masked_application(arguments)
             execute.assert_not_called()
+
+    def test_application_fails_closed_if_private_null_device_is_unusable(self):
+        arguments = [bridge.MASKED_APPLICATION_MODE, "discord", "wayland-0", "wayland-1", "--", "/opt/discord/Discord"]
+        with mock.patch.dict(os.environ, {
+            "XDG_RUNTIME_DIR": f"/run/user/{os.getuid()}", "WAYLAND_DISPLAY": "wayland-1",
+        }), mock.patch.object(bridge.os, "geteuid", return_value=1000), \
+            mock.patch.object(bridge.os, "lstat", return_value=mock.Mock(st_mode=stat.S_IFREG)), \
+            mock.patch.object(bridge, "require_user_wayland_socket"), \
+            mock.patch.object(bridge.os, "open", side_effect=OSError("nodev")), \
+            mock.patch.object(bridge.os, "execve") as execute:
+            with self.assertRaisesRegex(bridge.CompatibilityRuntimeError, "cannot open /dev/null"):
+                bridge.run_masked_application(arguments)
+            execute.assert_not_called()
+
+    def test_null_device_must_be_the_expected_character_device(self):
+        metadata = mock.Mock(st_mode=stat.S_IFREG, st_rdev=os.makedev(1, 3))
+        with mock.patch.object(bridge.os, "open", return_value=7) as opening, \
+            mock.patch.object(bridge.os, "fstat", return_value=metadata), \
+            mock.patch.object(bridge.os, "close") as close:
+            with self.assertRaisesRegex(bridge.CompatibilityRuntimeError, "invalid /dev/null"):
+                bridge.require_private_null_device()
+            opening.assert_called_once_with(
+                "/dev/null", os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC
+            )
+            close.assert_called_once_with(7)
 
 
 if __name__ == "__main__":

@@ -153,7 +153,7 @@ edbdf14c3009aa22e3c38d7502342bbaf1c560354cc0caba51f0b77f62276502  hooks/target/e
 a8e8fba190c12bd77dfaef16ea28dd52824bf899a7a695535b925e6ad9e51174  hooks/target/etc/apparmor.d/crun
 40f1a283b872d244d01dbad5b01bd52a3b9d9cbcacd8c359a2ebed438dde586c  hooks/target/etc/apparmor.d/debugsys
 56c8213b09ea1f7721fa59b532b02f6ca432d98c26cae2874b718a4e575ef7e2  hooks/target/etc/apparmor.d/desktop-utilities
-9fc442951785ed5e5c6177dfe6fbcf5757665f7c6fb6d2ba029ac9827e487306  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
+2cedca3d8a1b9d701313ebbc31c494df2287d0096d0aad0f19dcfc56b8a0491c  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
 693dfdea71e1964fa9e701f11588d2c3a7e53af4297bda99facf207313f21a20  hooks/target/etc/apparmor.d/document-applications
 cdb9e039cbbbe809126673a7351807ed8db1c3b23618cb89d474c803a485da45  hooks/target/etc/apparmor.d/gitbuild
 f4ca1013031c0a890345a7f7c806604ba45bfd8f0ab1a2f3a65f4d0de1c5de0e  hooks/target/etc/apparmor.d/gitbuild-worker
@@ -1225,7 +1225,7 @@ c4aa12edc9178cb01e9804e0b55c0bf568400dd618a5552aa1f3b0fd6f137a5e  hooks/target/u
 d6a3428ad82152c0f1a6a2fe091297d27f3674989a320b4adc90ceb09267583a  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py
 079f08df43785665889a22dcd63367415fa8ddccdc8868f0e5f82b2fadb0cdd3  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/user_state.py
 d975c575ff90d215731039a768dcc0f66d4a48d5b9b293620d76a41a93d0a77a  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat.py
-3d0886c4b4d0bfbcd9ef391e005c7b9da43d3f1affc08c3a888390484205410a  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat_runtime.py
+c26c0d226ef7a9812fd5a01d5db6e8b3bf9e3ad086dff336c509355df1e2dfa4  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat_runtime.py
 47e1e376905f17a2d8883d206e3759c5bf54e4a6026ca9410c6c0ab4588e0a54  hooks/target/usr/local/lib/python3.14/dist-packages/managed_workflows/__init__.py
 aa5a9128edac62741b44c703bb17c988f21a3df87372bffbd1d12ce465f54f4a  hooks/target/usr/local/lib/python3.14/dist-packages/managed_workflows/fs.py
 14bcd514c91f187d1a75076ef5744846b36fdfeaa0e37eb742a23cbdc3802d74  hooks/target/usr/local/lib/python3.14/dist-packages/managed_workflows/process.py
@@ -1535,7 +1535,7 @@ d5cba1d56310feff3ca40428d6fedc686c3d6b3b9b691bf610cfe34be1ff51c1  scripts/firstb
 2f2ca88c4bfbaac9ed9c5a6ff63f27caee5c5c43d254f2fa6b58a800b72e7b75  scripts/firstboot/assets/etc/xdg/autostart/tpm2-enroll.desktop
 8cb3fbb9614b2938f8e4d3eba9ad383d5f2e76cced784a0f20af2d3ad39f6e98  scripts/firstboot/assets/usr/local/bin/tpm2-enroll-launch
 a0de6735090cec378e2a7d171cb63821b5548a6368ccd71e5e2dcb27701f4a09  scripts/firstboot/assets/usr/local/sbin/tpm2-enroll.sh
-8a571f2e89bbeee4f53b82d8d01194db6d737f270bb73a0c83b62831bc4f0fb0  scripts/firstboot/assets/var/lib/firstboot/bin/crowdsec-firstboot.tmpl
+465d9a5e0b17e751c4722cda5867da9e913d0f4b207ba56924d2e414f3c9e3f0  scripts/firstboot/assets/var/lib/firstboot/bin/crowdsec-firstboot.tmpl
 3424ca111beca744ca21a40712af48ab3ba8239cea29f0b779b7238410b19de6  scripts/firstboot/assets/var/lib/firstboot/bin/secondboot-cleanup
 1c2c06816fd9a0f8fb3e88f0cd372f0814bd4b5f249b6a0ae3d905afb746e892  scripts/firstboot/assets/var/lib/firstboot/bin/tailscale-up
 53b515b3274853c7f7e4c814fd110a0ea3ee2d9f7e90519eaf451c820781abe2  scripts/firstboot/assets/var/lib/tpm2-enrollment/config.env.tmpl

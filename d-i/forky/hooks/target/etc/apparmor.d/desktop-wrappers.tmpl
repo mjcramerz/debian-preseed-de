@@ -2618,6 +2618,8 @@ profile labwc-wayland-compat-app /usr/local/bin/labwc-wayland-compat-app flags=(
     # runtime directory before exporting its WAYLAND_DISPLAY to the supervised
     # Zoom or Discord process.
     owner /run/user/[0-9]*/wayland-[0-9]*.lock rwk,
+    # Both clipboard directions serialize through this owner-only Cage lock.
+    owner /run/user/[0-9]*/labwc-clipboard-wayland-[0-9]*.lock rwk,
     owner /run/user/[0-9]*/discord-ipc-[0-9]* rwkl,
     # Xwayland creates and atomically removes this owner-only compiled keymap.
     owner /run/user/[0-9]*/server-[0-9]*.xkm rw,

@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import tempfile
 import types
@@ -122,10 +123,13 @@ class NVMeStatusTests(unittest.TestCase):
             self.m.snapshot()
 
     def test_non_root_attribute_is_rejected(self):
-        dev = self.device()
-        os.chown(dev / 'vendor', 12345, -1)
-        with self.assertRaisesRegex(ValueError, 'unsafe sysfs'):
-            self.m.snapshot()
+        self.device()
+        # Some disposable runners map only one UID, so chown on the fixture
+        # cannot represent a foreign owner. Exercise the fstat boundary itself.
+        foreign = types.SimpleNamespace(st_mode=stat.S_IFREG, st_uid=12345)
+        with patch.object(self.m.os, 'fstat', return_value=foreign):
+            with self.assertRaisesRegex(ValueError, 'unsafe sysfs'):
+                self.m.snapshot()
 
     def test_arguments_cannot_select_paths_or_write_modes(self):
         with patch.object(self.m, 'snapshot') as snapshot:
