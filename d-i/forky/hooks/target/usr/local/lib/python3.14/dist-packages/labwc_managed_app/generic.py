@@ -187,6 +187,7 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
     # retain their AppArmor profiles and session lifetime properties.
     host_administration = (kind == "wayland" and arguments[0] in {
         "/usr/bin/foot", "/usr/bin/kitty", "/usr/bin/terminal-emulator",
+        "/usr/local/bin/labwc-terminal",
         "/usr/bin/timeshift-launcher", "/usr/local/bin/mullvad-vpn",
         "/usr/local/bin/waypaper",
     }) or (kind == "wayland" and arguments[:2] == [

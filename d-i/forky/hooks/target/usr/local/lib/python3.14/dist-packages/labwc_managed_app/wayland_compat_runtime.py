@@ -9,6 +9,7 @@ import struct
 import tempfile
 import os
 import re
+import select
 import selectors
 import signal
 import stat
@@ -22,6 +23,8 @@ from .compat_protocol import (
     peer_credentials, send_packet, receive_packet, stop_processes, protect_supervisor,
     INFRASTRUCTURE_RESULT, STARTUP_RESULT, CLEANUP_RESULT,
 )
+
+from .network_namespace import DiscordRPCRelay
 
 from .runtime import (
     MANAGED_CAGE_COMPOSITOR_ENVIRONMENT,
@@ -53,7 +56,7 @@ XCLIP_BINARY = "/usr/bin/xclip"
 OUTER_WAYLAND_DISPLAY_ENVIRONMENT = "LABWC_MANAGED_OUTER_WAYLAND_DISPLAY"
 MASKED_APPLICATION_MODE = "--run-masked-application"
 CLIPBOARD_POLL_INTERVAL_SECONDS = 0.05
-CAGE_CLIPBOARD_POLL_INTERVAL_SECONDS = 0.25
+CAGE_CLIPBOARD_POLL_INTERVAL_SECONDS = 0.5
 MAX_CLIPBOARD_TEXT_BYTES = 8 * 1024 * 1024
 CLIPBOARD_OPERATION_TIMEOUT_SECONDS = 10
 PRIVATE_RUNTIME_LIBRARY_NAMES = (
@@ -659,7 +662,7 @@ def destination_clipboard_text(environment: dict[str, str], *, x11: bool = False
 
 
 def selection_owner(payload: bytes, environment: dict[str, str], *, x11: bool) -> subprocess.Popen:
-    command = ([XCLIP_BINARY, "-selection", "clipboard", "-quiet", "-in"] if x11 else
+    command = ([XCLIP_BINARY, "-selection", "clipboard", "-quiet", "-in", "-target", "UTF8_STRING"] if x11 else
                [WL_COPY_BINARY, "--foreground", "--type", "text/plain;charset=utf-8"])
     writer = subprocess.Popen(command, env=environment, stdin=subprocess.PIPE,
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -705,43 +708,33 @@ def run_clipboard_bridge(arguments: list[str]) -> int:
     host_environment = clipboard_process_environment(outer_display)
     private_environment = private_clipboard_x11_environment()
     register_signal_handlers()
-    owners = {False: None, True: None}
-    last = {False: None, True: None}
+    owner = None
+    last = None
     try:
         while _received_signal is None:
-            # Stable order resolves simultaneous changes deterministically.
-            for source_x11 in (False, True):
-                source_environment = private_environment if source_x11 else host_environment
-                selection = read_clipboard_selection(source_environment, x11=source_x11)
-                if selection == last[source_x11]:
-                    continue
-                if selection.state == "unavailable":
-                    # Controlled feature teardown releases our mirror owners.
-                    # It cannot terminate the required application runtime.
-                    last = {False: None, True: None}
-                    return 2
-                destination_x11 = not source_x11
-                if selection.state == "cleared":
-                    stop_processes([owners[destination_x11]], time.monotonic() + 0.5, groups=True)
-                    owners[destination_x11] = None
-                    last[source_x11] = last[destination_x11] = selection
-                    continue
-                payload = selection.data
-                destination_environment = private_environment if destination_x11 else host_environment
-                fd = clipboard_lock(cage_display)
+            selection = read_clipboard_selection(host_environment)
+            if selection.state in {"cleared", "unavailable"}:
+                # A non-text selection, cleared password, or transient failure
+                # must not leave our previous host text available in the app.
+                stop_processes([owner], time.monotonic() + 0.5, groups=True)
+                owner, last = None, None
+            elif selection != last:
+                stop_processes([owner], time.monotonic() + 0.5, groups=True)
+                owner = None
                 try:
-                    current = destination_clipboard_text(destination_environment, x11=destination_x11)
-                    if current != payload:
-                        stop_processes([owners[destination_x11]], time.monotonic() + 0.5, groups=True)
-                        owners[destination_x11] = selection_owner(payload, destination_environment, x11=destination_x11)
-                    # Advance both directions only after destination success.
-                    last[source_x11] = last[destination_x11] = selection
-                finally:
-                    os.close(fd)
+                    owner = selection_owner(selection.data, private_environment, x11=True)
+                    last = selection
+                except (OSError, CompatibilityRuntimeError):
+                    # Clipboard providers can disappear between offer/read.
+                    # Retry fresh host content instead of killing the bridge.
+                    last = None
+            # Never write to the host clipboard, or reassert an unchanged host
+            # selection after the app has copied its own text. PRIMARY remains
+            # independent: selecting text must not overwrite CLIPBOARD.
             time.sleep(CAGE_CLIPBOARD_POLL_INTERVAL_SECONDS)
         return 128 + _received_signal
     finally:
-        stop_processes(list(owners.values()), time.monotonic() + 1, groups=True)
+        stop_processes([owner], time.monotonic() + 0.5, groups=True)
 
 
 def run_masked_application(arguments: list[str]) -> int:
@@ -882,6 +875,7 @@ def run(arguments: list[str]) -> int:
     bridge = None
     listener = None
     primary_directory = None
+    rpc = None
     running = False
     outcome = Outcome("startup-failed", STARTUP_RESULT)
     try:
@@ -896,13 +890,15 @@ def run(arguments: list[str]) -> int:
             fail("clipboard sharing policy is invalid")
         if os.environ["LABWC_COMPAT_CLIPBOARD"] == "1":
             try:
-                for path in (WL_PASTE_BINARY, WL_COPY_BINARY, XCLIP_BINARY):
+                for path in (WL_PASTE_BINARY, XCLIP_BINARY):
                     require_system_owned_file("clipboard helper", path, system_owner=sandbox_system_owner(), executable=True)
                 bridge = subprocess.Popen([SANDBOX_LIFECYCLE_HELPER, CLIPBOARD_BRIDGE_MODE, cage_display],
                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=None,
                     close_fds=True, start_new_session=True)
             except (OSError, CompatibilityRuntimeError):
                 print("compat-runtime: clipboard bridge unavailable", file=sys.stderr)
+        if app_name == "discord":
+            rpc = DiscordRPCRelay()
         primary_directory = tempfile.mkdtemp(prefix="labwc-compat-primary-", dir="/tmp")
         primary_path = os.path.join(primary_directory, "primary.sock")
         listener = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
@@ -947,24 +943,32 @@ def run(arguments: list[str]) -> int:
                 if bridge is not None and bridge.poll() is not None and not warned_bridge:
                     warned_bridge = True
                     print("compat-runtime: clipboard bridge degraded", file=sys.stderr)
+                if rpc is not None:
+                    rpc.service()
                 events = selector.select(0.05)
                 # Observed application outcome wins over concurrent teardown.
                 events.sort(key=lambda item: item[0].data != "primary")
                 finished = False
                 for key, _event in events:
                     if key.data == "primary":
-                        packet = receive_packet(primary)
-                        if packet == {"type": "running"}:
-                            running = True
-                            send_packet(channel, packet)
-                        elif packet.get("type") == "outcome":
-                            outcome = Outcome.from_packet(packet)
-                            finished = True
+                        # Drain queued state/outcome packets before X11 teardown.
+                        for _ in range(16):
+                            packet = receive_packet(primary)
+                            if packet == {"type": "running"}:
+                                running = True
+                                send_packet(channel, packet)
+                            elif packet.get("type") == "outcome":
+                                outcome = Outcome.from_packet(packet)
+                                finished = True
+                                break
+                            elif packet.get("type") == "activation":
+                                send_packet(channel, packet)
+                            else:
+                                fail("invalid primary runtime packet")
+                            if not select.select([primary], [], [], 0)[0]:
+                                break
+                        if finished:
                             break
-                        elif packet.get("type") == "activation":
-                            send_packet(channel, packet)
-                        else:
-                            fail("invalid primary runtime packet")
                     elif key.data == "host":
                         send_packet(primary, receive_packet(channel))
                     elif not x11.recv(65536):
@@ -980,6 +984,8 @@ def run(arguments: list[str]) -> int:
                           INFRASTRUCTURE_RESULT if running else STARTUP_RESULT)
     finally:
         cleanup_deadline = time.monotonic() + 8
+        if rpc is not None:
+            rpc.close()
         try:
             channel.settimeout(0.5)
             send_packet(channel, outcome.packet())

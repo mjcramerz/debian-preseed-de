@@ -559,7 +559,7 @@ profile mullvad-vpn /usr/local/bin/mullvad-vpn flags=(attach_disconnected) {
   @{PROC}/sys/user/max_user_namespaces r,
   "/opt/Mullvad VPN/mullvad-gui" r,
   /usr/local/bin/labwc-wayland-app rPx -> labwc-generic-app,
-  /usr/bin/{id,find} rix,
+  /usr/bin/{id,find,cat} rix,
   owner /run/user/[0-9]*/wayland-[0-9]* r,
   /usr/bin/timeout rix,
   /usr/bin/{pkexec,systemctl} PUx,
@@ -2700,7 +2700,7 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
   # without namespace-construction permissions.
   profile qbittorrent-bwrap flags=(attach_disconnected, mediate_deleted) {
     #include <abstractions/bwrap-common>
-    #include <abstractions/desktop-application>
+    #include <abstractions/qbittorrent-runtime>
     include if exists <abstractions/user-tmp>
 
     /etc/labwc/desktop.conf r,
@@ -2731,7 +2731,9 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
     /etc/{group,hosts,ld.so.cache,ld.so.conf,localtime,machine-id,mime.types,nsswitch.conf,passwd,resolv.conf,timezone} r,
     /var/lib/dbus/ r,
     /var/lib/dbus/machine-id r,
-    /usr/bin/qbittorrent rPx -> qbittorrent,
+    # Stack rather than replace confinement under Bubblewrap no_new_privs.
+    # The payload profile has no namespace-construction capabilities.
+    /usr/bin/qbittorrent rPx -> &qbittorrent,
   }
 
   include if exists <local/usr.local.bin.labwc-qbittorrent>
@@ -2969,6 +2971,9 @@ profile labwc-terminal /usr/local/bin/labwc-terminal flags=(attach_disconnected)
   /usr/local/bin/labwc-terminal rix,
   /usr/local/bin/labwc-wayland-app rPx -> labwc-generic-app,
   /dev/rfkill r,
+  /usr/bin/mkdir rix,
+  owner @{HOME}/Syncthing/ rw,
+  owner @{HOME}/Syncthing/micro/ rw,
 
   include if exists <local/usr.local.bin.labwc-terminal>
 }
@@ -3979,6 +3984,12 @@ profile labwc-main-menu /usr/local/bin/labwc-main-menu flags=(attach_disconnecte
   #include <abstractions/wrapper-python>
   include if exists <abstractions/dbus-session-strict>
   /usr/local/bin/labwc-main-menu rix,
+  /usr/local/libexec/labwc-wrap-desktop-files r,
+  /etc/labwc/desktop.conf r,
+  /usr/bin/{dpkg,dpkg-query} rix,
+  /var/lib/dpkg/{,status,info/,info/*.list} r,
+  /opt/*/resources/app.asar r,
+  /usr/{lib,share}/*/resources/app.asar r,
   /usr/local/bin/labwc-computer-management rPx -> labwc-computer-management,
   /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
   /usr/local/bin/labwc-run rPx -> labwc-run,
@@ -4002,7 +4013,7 @@ profile labwc-main-menu /usr/local/bin/labwc-main-menu flags=(attach_disconnecte
   owner /run/user/[0-9]*/ r,
   owner /run/user/[0-9]*/{bus,systemd/private} rw,
   unix (connect, send, receive) type=stream,
-  # GIO may activate DBusActivatable apps; this is user-session bus only.
+  # GIO launch notifications use only the user-session bus.
   dbus (send, receive) bus=session,
   signal (receive) peer=unconfined,
   signal (receive) set=(chld) peer=labwc-*,

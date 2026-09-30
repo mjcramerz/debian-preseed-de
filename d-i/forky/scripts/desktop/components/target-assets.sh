@@ -182,6 +182,11 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset etc/systemd/system/labwc-system-desktop-overrides.service /etc/systemd/system/labwc-system-desktop-overrides.service 0644
   desktop_stage_role_asset etc/systemd/system/labwc-system-desktop-overrides.path /etc/systemd/system/labwc-system-desktop-overrides.path 0644
   desktop_render_role_target_template \
+    etc/skel-desktop/.local/share/applications/micro.desktop.tmpl \
+    /etc/skel-desktop/.local/share/applications/micro.desktop \
+    0644 \
+    LABWC_WAYLAND_APP_DEFAULT_EXEC "$LABWC_WAYLAND_APP_DEFAULT_EXEC"
+  desktop_render_role_target_template \
     etc/skel-desktop/.local/share/applications/waypaper.desktop.tmpl \
     /etc/skel-desktop/.local/share/applications/waypaper.desktop \
     0644 \
@@ -519,6 +524,14 @@ test -x /usr/bin/update-mime-database
   desktop_stage_role_asset etc/skel-desktop/.config/swaylock/config /etc/skel-desktop/.config/swaylock/config 0644
   desktop_stage_role_asset etc/skel-desktop/.config/wireplumber/wireplumber.conf.d/10-disable-bluez-midi.conf /etc/skel-desktop/.config/wireplumber/wireplumber.conf.d/10-disable-bluez-midi.conf 0644
   desktop_stage_role_asset etc/skel-desktop/.config/wireplumber/wireplumber.conf.d/20-audio-policy.conf /etc/skel-desktop/.config/wireplumber/wireplumber.conf.d/20-audio-policy.conf 0644
+  for audio_dir in /etc/wireplumber/wireplumber.conf.d /etc/skel-desktop/.config/wireplumber/wireplumber.conf.d; do
+    case "${requested_host_profile:-${HOST_PROFILE:-}}" in
+      btrfs-de-p15s|btrfs-de-p15s-duo)
+        desktop_stage_role_asset etc/wireplumber/wireplumber.conf.d/30-p15s-audio.conf "$audio_dir/30-p15s-audio.conf" 0644
+        ;;
+      *) rm -f "/target$audio_dir/30-p15s-audio.conf" ;;
+    esac
+  done
   desktop_render_gtk_settings
   desktop_render_qt6ct_config
   desktop_stage_role_asset etc/skel-desktop/.config/kwalletrc /etc/skel-desktop/.config/kwalletrc 0644

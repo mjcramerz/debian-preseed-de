@@ -37,7 +37,10 @@ MANAGED = {
     '/usr/local/bin/labwc-terminal',
     '/usr/local/bin/labwc-app', '/usr/local/bin/labwc-wayland-compat-app',
     '/usr/local/bin/chatgpt', '/usr/local/bin/labwc-qbittorrent',
-    '/usr/local/bin/discord', '/usr/local/bin/zoom', *WRAPPERS.values(),
+    '/usr/local/bin/discord', '/usr/local/bin/zoom', '/usr/local/bin/mullvad-vpn',
+    '/usr/local/bin/labwc-computer-management', '/usr/local/bin/labwc-remote-desktop',
+    '/usr/local/bin/labwc-focuswriter-import', '/usr/local/bin/labwc-show-desktop',
+    *WRAPPERS.values(),
 }
 
 
@@ -45,9 +48,9 @@ class InvalidDesktop(ValueError):
     """A malformed source must not block otherwise valid package launchers."""
 
 
-def trusted_file(path: Path, *, vendor: bool = False) -> os.stat_result:
+def trusted_file(path: Path, *, vendor: bool = False, owner_uid: int = 0) -> os.stat_result:
     metadata = path.lstat()
-    if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
+    if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != owner_uid
             or metadata.st_nlink != 1 or metadata.st_mode & (0o002 if vendor and metadata.st_gid == 0 else 0o022)
             or metadata.st_mode & 0o7000
             or metadata.st_size > MAX_BYTES or path.resolve() != path):
@@ -108,8 +111,8 @@ def ensure_output_directory(path: Path) -> None:
     trusted_directory(path)
 
 
-def load_defaults() -> dict[str, str]:
-    trusted_file(DEFAULTS)
+def load_defaults(*, owner_uid: int = 0) -> dict[str, str]:
+    trusted_file(DEFAULTS, owner_uid=owner_uid)
     keys = {f'LABWC_{kind.upper()}_APP_DEFAULT_EXEC': kind for kind in WRAPPERS}
     result = {}
     for line in DEFAULTS.read_text(encoding='utf-8').splitlines():
@@ -329,6 +332,18 @@ def is_electron(package: str) -> bool:
     # Read-only dpkg -L does not invoke post-invoke hooks or need a second lock.
     paths = query(['/usr/bin/dpkg', '-L', '--', package]).splitlines()
     return any(path.endswith('/resources/app.asar') and Path(path).is_file() for path in paths)
+
+
+def launch_prefix(path: Path, executable: str, value: str, defaults: dict[str, str]) -> str:
+    # Respect execution classes already chosen by the package hook/profile.
+    if value.startswith(WRAPPERS['electron'] + ' '):
+        return defaults['electron']
+    if managed_exec(value):
+        return defaults['wayland']
+    package = package_for(path)
+    if package is None and executable.startswith('/'):
+        package = package_for(Path(executable))
+    return defaults['electron' if package and is_electron(package) else 'wayland']
 
 
 def validate_desktop(path: Path, text: str) -> None:

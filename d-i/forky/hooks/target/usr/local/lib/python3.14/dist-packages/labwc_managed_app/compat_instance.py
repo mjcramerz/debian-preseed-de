@@ -279,7 +279,8 @@ class CompatibilityInstance:
         observed = Outcome("normal-exit" if value["result"] == 0 else
                            "infrastructure-failed" if self.running else "startup-failed",
                            value["result"], value["signal"], value["cleanup"])
-        if observed.result and (self.outcome is None or self.outcome.result == 0):
+        # An already reported primary result precedes compositor teardown.
+        if observed.result and self.outcome is None:
             self.outcome = observed
             self.begin_cleanup()
         if observed.cleanup == "failed":
@@ -319,62 +320,65 @@ class CompatibilityInstance:
         # A queued observed application result precedes teardown reports.
         readable.sort(key=lambda channel: channel is not self.runtime)
         for channel in readable:
-            try:
-                value = receive_packet(channel)
-                if channel is self.runtime:
-                    if value == {"type": "running"} and not self.running and self.outcome is None:
-                        self.running = True
-                    elif value.get("type") == "outcome" and self.outcome is None:
-                        self.outcome = Outcome.from_packet(value)
-                        self.begin_cleanup()
-                    elif set(value) == {"type", "failed"} and value["type"] == "cleanup" and type(value["failed"]) is bool and self.outcome is not None:
-                        if value["failed"]:
-                            self.outcome = self.outcome.cleanup_failed()
-                    elif set(value) == {"type", "id", "accepted"} and value["type"] == "activation":
-                        if (type(value["accepted"]) is not bool or not isinstance(value["id"], str)
-                                or re.fullmatch(r"[0-9a-f]{32}", value["id"]) is None):
-                            raise ProtocolError("invalid runtime activation acknowledgement")
-                        pending = self.requests.pop(value["id"], None)
-                        if pending is not None:
-                            self._reply(pending, value["accepted"])
+            for _ in range(16 if channel is self.runtime else 1):
+                try:
+                    value = receive_packet(channel)
+                    if channel is self.runtime:
+                        if value == {"type": "running"} and not self.running and self.outcome is None:
+                            self.running = True
+                        elif value.get("type") == "outcome" and self.outcome is None:
+                            self.outcome = Outcome.from_packet(value)
+                            self.begin_cleanup()
+                        elif set(value) == {"type", "failed"} and value["type"] == "cleanup" and type(value["failed"]) is bool and self.outcome is not None:
+                            if value["failed"]:
+                                self.outcome = self.outcome.cleanup_failed()
+                        elif set(value) == {"type", "id", "accepted"} and value["type"] == "activation":
+                            if (type(value["accepted"]) is not bool or not isinstance(value["id"], str)
+                                    or re.fullmatch(r"[0-9a-f]{32}", value["id"]) is None):
+                                raise ProtocolError("invalid runtime activation acknowledgement")
+                            pending = self.requests.pop(value["id"], None)
+                            if pending is not None:
+                                self._reply(pending, value["accepted"])
+                        else:
+                            raise ProtocolError("unexpected runtime record")
+                    elif value == {"type": "runtime", "run_id": self.run_id} and self.runtime is None:
+                        self._require_helper(channel)
+                        self.clients.pop(channel)
+                        self.runtime = channel
+                        send_packet(channel, {"type": "runtime-accepted"})
+                    elif value.get("type") == "compositor-outcome":
+                        self._require_helper(channel, compositor=True)
+                        self._compositor_outcome(value)
+                        send_packet(channel, {"type": "compositor-accepted"})
+                        self._drop(channel)
+                    elif set(value) == {"type", "args"} and value["type"] == "activate":
+                        if not isinstance(value["args"], list):
+                            raise ProtocolError("invalid activation argument type")
+                        arguments = activation_arguments(self.app, value["args"])
+                        if self.outcome is not None:
+                            self._reply(channel, False)
+                        elif not arguments:
+                            self._reply(channel, True)
+                        elif not self.running or self.runtime is None:
+                            self._reply(channel, False)
+                        elif len(self.requests) >= 8:
+                            self._reply(channel, False)
+                        else:
+                            request = uuid.uuid4().hex
+                            send_packet(self.runtime, {"type": "activate", "id": request, "args": arguments})
+                            self.requests[request] = channel
                     else:
-                        raise ProtocolError("unexpected runtime record")
-                elif value == {"type": "runtime", "run_id": self.run_id} and self.runtime is None:
-                    self._require_helper(channel)
-                    self.clients.pop(channel)
-                    self.runtime = channel
-                    send_packet(channel, {"type": "runtime-accepted"})
-                elif value.get("type") == "compositor-outcome":
-                    self._require_helper(channel, compositor=True)
-                    self._compositor_outcome(value)
-                    send_packet(channel, {"type": "compositor-accepted"})
-                    self._drop(channel)
-                elif set(value) == {"type", "args"} and value["type"] == "activate":
-                    if not isinstance(value["args"], list):
-                        raise ProtocolError("invalid activation argument type")
-                    arguments = activation_arguments(self.app, value["args"])
-                    if self.outcome is not None:
                         self._reply(channel, False)
-                    elif not arguments:
-                        self._reply(channel, True)
-                    elif not self.running or self.runtime is None:
-                        self._reply(channel, False)
-                    elif len(self.requests) >= 8:
-                        self._reply(channel, False)
+                except (OSError, ValueError, ProtocolError):
+                    if channel is self.runtime:
+                        channel.close()
+                        self.runtime = None
+                        if self.outcome is None:
+                            raise ProtocolError("trusted runtime channel failed") from None
                     else:
-                        request = uuid.uuid4().hex
-                        send_packet(self.runtime, {"type": "activate", "id": request, "args": arguments})
-                        self.requests[request] = channel
-                else:
-                    self._reply(channel, False)
-            except (OSError, ValueError, ProtocolError):
-                if channel is self.runtime:
-                    channel.close()
-                    self.runtime = None
-                    if self.outcome is None:
-                        raise ProtocolError("trusted runtime channel failed") from None
-                else:
-                    self._reply(channel, False)
+                        self._reply(channel, False)
+                if channel is not self.runtime or not select.select([channel], [], [], 0)[0]:
+                    break
         for channel, deadline in tuple(self.clients.items()):
             if now >= deadline:
                 self._reply(channel, False)

@@ -240,6 +240,7 @@ desktop_render_labwc_rc_xml() {
     "etc/skel-desktop/.config/labwc/rc.xml.tmpl" \
     "$rc_path" \
     0644 \
+    LABWC_WAYLAND_APP_DEFAULT_EXEC "$(desktop_xml_attribute_escape "$LABWC_WAYLAND_APP_DEFAULT_EXEC")" \
     LABWC_WORKSPACE_COUNT "$workspace_count" \
     LABWC_WINDOW_SWITCHER_STYLE "${LABWC_WINDOW_SWITCHER_STYLE:-thumbnail}" \
     LABWC_WINDOW_SWITCHER_ORDER "${LABWC_WINDOW_SWITCHER_ORDER:-focus}" \
@@ -352,6 +353,7 @@ desktop_render_waybar_config() (
   wb_modules_left=$(desktop_waybar_modules_left_json) || desktop_fatal "cannot render Waybar left modules"
   wb_modules_right=$(desktop_waybar_modules_right_json) || desktop_fatal "cannot render Waybar right modules"
   desktop_render_waybar_asset config \
+    LABWC_WAYLAND_APP_DEFAULT_EXEC "$(desktop_double_quote_escape "$LABWC_WAYLAND_APP_DEFAULT_EXEC")" \
     LABWC_WAYBAR_INTERNAL_OUTPUTS "$wb_internal_outputs" \
     LABWC_WAYBAR_EXTERNAL_OUTPUTS "$wb_external_outputs" \
     LABWC_WAYBAR_MODULES_LEFT "$wb_modules_left" \

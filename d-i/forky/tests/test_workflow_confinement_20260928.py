@@ -34,27 +34,56 @@ class ArchiveConfinementTests(unittest.TestCase):
         self.assertIn("$label eq 'compz-worker (enforce)'", pipeline)
         self.assertNotIn('compz-worker (complain)', pipeline)
 
-    def test_user_bus_must_belong_to_account_and_be_private(self):
+    def test_user_bus_is_protected_by_private_runtime_directory(self):
         def entry(kind, owner=1000, permissions=0o600):
             return os.stat_result((kind | permissions, 0, 0, 0, owner, owner, 0, 0, 0, 0))
 
         directory = entry(stat.S_IFDIR, permissions=0o700)
-        good_bus = entry(stat.S_IFSOCK)
-        bad_buses = (entry(stat.S_IFSOCK, owner=1001),
-                     entry(stat.S_IFSOCK, permissions=0o666),
-                     entry(stat.S_IFLNK, permissions=0o777))
         with mock.patch.object(isolation.os, 'geteuid', return_value=1000), \
              mock.patch.object(isolation.os, 'getuid', return_value=1000):
-            for bus in bad_buses:
+            # Both restricted sockets and systemd's normal SocketMode=0666 work.
+            for permissions in (0o600, 0o660, 0o666, 0o777):
+                bus = entry(stat.S_IFSOCK, permissions=permissions)
+                with self.subTest(permissions=permissions), \
+                     mock.patch.object(Path, 'lstat', side_effect=[directory, bus]):
+                    environment = isolation.user_environment()
+                    self.assertEqual(environment['XDG_RUNTIME_DIR'], '/run/user/1000')
+                    self.assertEqual(environment['DBUS_SESSION_BUS_ADDRESS'], 'unix:path=/run/user/1000/bus')
+            for bus in (entry(stat.S_IFSOCK, owner=1001), entry(stat.S_IFREG),
+                        entry(stat.S_IFLNK, permissions=0o777)):
                 with self.subTest(bus=bus), mock.patch.object(Path, 'lstat', side_effect=[directory, bus]):
                     with self.assertRaises(CompzError):
                         isolation.user_environment()
-            with mock.patch.object(Path, 'lstat', side_effect=[directory, good_bus]):
-                self.assertEqual(isolation.user_environment()['XDG_RUNTIME_DIR'], '/run/user/1000')
+            for unsafe in (entry(stat.S_IFDIR, owner=1001, permissions=0o700),
+                           entry(stat.S_IFDIR, permissions=0o750),
+                           entry(stat.S_IFDIR, permissions=0o777),
+                           entry(stat.S_IFLNK, permissions=0o700)):
+                with self.subTest(directory=unsafe), mock.patch.object(Path, 'lstat', return_value=unsafe):
+                    with self.assertRaises(CompzError):
+                        isolation.user_environment()
+            for metadata in ([FileNotFoundError()], [directory, FileNotFoundError()]):
+                with self.subTest(metadata=metadata), mock.patch.object(Path, 'lstat', side_effect=metadata):
+                    with self.assertRaises(CompzError):
+                        isolation.user_environment()
         with mock.patch.object(isolation.os, 'geteuid', return_value=1000), \
              mock.patch.object(isolation.os, 'getuid', return_value=1001):
             with self.assertRaises(CompzError):
                 isolation.user_environment()
+
+    def test_unreachable_user_manager_creates_no_workspace_or_worker(self):
+        environment = {'XDG_RUNTIME_DIR': '/run/user/1000',
+                       'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1000/bus'}
+        with mock.patch.object(isolation, 'require_data_directory'), \
+             mock.patch.object(isolation, 'user_environment', return_value=environment), \
+             mock.patch.object(isolation.subprocess, 'run', return_value=subprocess.CompletedProcess([], 1)) as check, \
+             mock.patch.object(isolation.subprocess, 'Popen') as start, \
+             mock.patch.object(isolation.tempfile, 'mkdtemp') as workspace:
+            with self.assertRaisesRegex(CompzError, 'no unconfined fallback'):
+                isolation.execute(Path('/home/user/notes'), {}, '')
+            self.assertEqual(check.call_args.args[0], ['/usr/bin/systemctl', '--user', 'show-environment'])
+            self.assertEqual(check.call_args.kwargs['env'], environment)
+            start.assert_not_called()
+            workspace.assert_not_called()
 
 
 class BuildLogTests(unittest.TestCase):

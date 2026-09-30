@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+import errno
 import json
+import socket
 import os
 import select
 import subprocess
@@ -21,6 +23,185 @@ SLIRP4NETNS_DNS_ADDRESS = "10.0.2.3"
 SLIRP4NETNS_MTU = 65_520
 SLIRP4NETNS_STOP_TIMEOUT_SECONDS = 2
 SLIRP4NETNS_TAP_NAME = "tap0"
+
+# slirp cannot reach a service bound to the guest's 127.0.0.1 directly.
+# Its host forwards target these private TAP listeners; only this supervisor
+# connects onward to Discord's namespace-local RPC ports. No namespace entry,
+# host sockets in the payload, threads or additional long-lived processes.
+DISCORD_RPC_PORTS = tuple(range(6463, 6473))
+DISCORD_RPC_GUEST_ADDRESS = "10.0.2.100"
+DISCORD_RPC_PORT_OFFSET = 10000
+
+
+def configure_discord_rpc(api_path: str, *, runtime_check: Callable[[], None] | None = None) -> None:
+    """Configure all ports before releasing the application; failure is atomic
+    with respect to its lifetime because the caller tears down slirp on error.
+    """
+    os.chmod(api_path, 0o600)
+    for port in DISCORD_RPC_PORTS:
+        if runtime_check is not None:
+            runtime_check()
+        request = {"execute": "add_hostfwd", "arguments": {
+            "proto": "tcp", "host_addr": "127.0.0.1", "host_port": port,
+            "guest_addr": DISCORD_RPC_GUEST_ADDRESS,
+            "guest_port": port + DISCORD_RPC_PORT_OFFSET,
+        }}
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as channel:
+                channel.settimeout(2)
+                channel.connect(api_path)
+                channel.sendall(json.dumps(request).encode("ascii"))
+                channel.shutdown(socket.SHUT_WR)
+                response = bytearray()
+                while len(response) <= 4096:
+                    chunk = channel.recv(4097 - len(response))
+                    if not chunk:
+                        break
+                    response.extend(chunk)
+                value = json.loads(response) if len(response) <= 4096 else None
+            if not isinstance(value, dict) or "return" not in value or "error" in value:
+                raise ValueError("host forwarding was rejected")
+        except (OSError, ValueError):
+            fail(f"Discord loopback RPC port {port} is unavailable; no application was started")
+
+
+class DiscordRPCRelay:
+    """Bounded, nonblocking TAP-to-loopback relay inside Discord's namespace."""
+
+    LIMIT = 32
+    BUFFER_BYTES = 65536
+    IDLE_SECONDS = 60
+
+    def __init__(self):
+        self.listeners = {}
+        self.peers = {}
+        self.buffers = {}
+        self.pending = {}
+        self.activity = {}
+        self.eof = set()
+        self.shut = set()
+        try:
+            for port in DISCORD_RPC_PORTS:
+                listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.listeners[listener] = port
+                listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                listener.bind((DISCORD_RPC_GUEST_ADDRESS, port + DISCORD_RPC_PORT_OFFSET))
+                listener.listen(8)
+                listener.setblocking(False)
+        except BaseException:
+            self.close()
+            raise
+
+    def _drop(self, channel):
+        peer = self.peers.get(channel)
+        for item in (channel, peer):
+            if item is None:
+                continue
+            self.peers.pop(item, None)
+            self.buffers.pop(item, None)
+            self.pending.pop(item, None)
+            self.activity.pop(item, None)
+            self.eof.discard(item)
+            self.shut.discard(item)
+            item.close()
+
+    def _accept(self, listener, now):
+        for _ in range(4):
+            try:
+                front, _ = listener.accept()
+            except BlockingIOError:
+                return
+            if len(self.peers) >= self.LIMIT * 2:
+                front.close()
+                continue
+            back = None
+            try:
+                front.setblocking(False)
+                back = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                back.setblocking(False)
+                status = back.connect_ex(("127.0.0.1", self.listeners[listener]))
+                if status not in (0, errno.EINPROGRESS, errno.EWOULDBLOCK):
+                    raise OSError(status, "private RPC listener is not ready")
+                self.peers[front], self.peers[back] = back, front
+                self.buffers[front], self.buffers[back] = bytearray(), bytearray()
+                self.activity[front] = self.activity[back] = now
+                if status:
+                    self.pending[back] = now + 2
+            except OSError:
+                front.close()
+                if back is not None:
+                    back.close()
+
+    def service(self):
+        now = time.monotonic()
+        for channel, last in tuple(self.activity.items()):
+            if (now - last >= self.IDLE_SECONDS
+                    or now >= self.pending.get(channel, float("inf"))):
+                self._drop(channel)
+        readers = [*self.listeners, *(channel for channel, peer in self.peers.items()
+                   if channel not in self.eof and channel not in self.pending
+                   and len(self.buffers[peer]) < self.BUFFER_BYTES)]
+        writers = [channel for channel in self.peers
+                   if channel in self.pending or self.buffers[channel]]
+        readable, writable, _ = select.select(readers, writers, [], 0)
+        for channel in writable:
+            if channel not in self.peers:
+                continue
+            try:
+                if channel in self.pending:
+                    if channel.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR):
+                        self._drop(channel)
+                        continue
+                    del self.pending[channel]
+                if self.buffers[channel]:
+                    count = channel.send(self.buffers[channel])
+                    if not count:
+                        self._drop(channel)
+                        continue
+                    del self.buffers[channel][:count]
+                    self.activity[channel] = self.activity[self.peers[channel]] = now
+            except BlockingIOError:
+                pass
+            except OSError:
+                self._drop(channel)
+        for channel in readable:
+            if channel in self.listeners:
+                self._accept(channel, now)
+                continue
+            if channel not in self.peers:
+                continue
+            try:
+                peer = self.peers[channel]
+                chunk = channel.recv(self.BUFFER_BYTES - len(self.buffers[peer]))
+                if chunk:
+                    self.buffers[peer].extend(chunk)
+                    self.activity[channel] = self.activity[peer] = now
+                else:
+                    self.eof.add(channel)
+            except BlockingIOError:
+                pass
+            except OSError:
+                self._drop(channel)
+        for channel, peer in tuple(self.peers.items()):
+            if channel not in self.peers:
+                continue
+            if peer in self.eof and not self.buffers[channel] and channel not in self.pending and channel not in self.shut:
+                try:
+                    channel.shutdown(socket.SHUT_WR)
+                    self.shut.add(channel)
+                except OSError:
+                    self._drop(channel)
+                    continue
+            if channel in self.eof and peer in self.eof and not self.buffers[channel] and not self.buffers[peer]:
+                self._drop(channel)
+
+    def close(self):
+        for channel in tuple(self.peers):
+            self._drop(channel)
+        for listener in self.listeners:
+            listener.close()
+        self.listeners.clear()
+
 
 def close_file_descriptor(file_descriptor: int | None) -> None:
     if file_descriptor is None:
@@ -271,6 +452,7 @@ def run_slirp4netns_sandbox(
     runtime_check: Callable[[], None] | None = None,
     cleanup_deadline: Callable[[], float] | None = None,
     cleanup_failure: Callable[[], None] | None = None,
+    discord_rpc: bool = False,
 ) -> int:
     info_read_fd = None
     info_write_fd = None
@@ -283,6 +465,7 @@ def run_slirp4netns_sandbox(
     bwrap_process = None
     slirp_process = None
     stderr_handle = None
+    api_path = os.path.join(temp_root, "slirp4netns.api") if discord_rpc else None
 
     try:
         info_read_fd, info_write_fd = os.pipe()
@@ -331,6 +514,7 @@ def run_slirp4netns_sandbox(
                 "--configure",
                 f"--mtu={SLIRP4NETNS_MTU}",
                 "--disable-host-loopback",
+                *(["--api-socket", api_path] if api_path else []),
                 "--ready-fd",
                 str(ready_write_fd),
                 "--exit-fd",
@@ -359,6 +543,8 @@ def run_slirp4netns_sandbox(
         )
         close_file_descriptor(ready_read_fd)
         ready_read_fd = None
+        if api_path is not None:
+            configure_discord_rpc(api_path, runtime_check=runtime_check)
         if pre_payload_check is not None:
             pre_payload_check()
         bwrap_status = bwrap_process.poll()

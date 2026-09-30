@@ -14,6 +14,9 @@ import locale
 import os
 from pathlib import Path
 import pwd
+import re
+import runpy
+import stat
 import subprocess
 import sys
 import unicodedata
@@ -160,14 +163,53 @@ def enumerate_apps() -> list[dict[str, str]]:
     return sorted(apps.values(), key=lambda app: (app['name'].casefold(), app['id']))
 
 
+def desktop_policy() -> dict:
+    owner = Path('/usr').stat().st_uid
+    hook = Path('/usr/local/libexec/labwc-wrap-desktop-files')
+    for path in (hook, *hook.parents):
+        meta = path.lstat()
+        expected = stat.S_ISREG if path == hook else stat.S_ISDIR
+        if not expected(meta.st_mode) or meta.st_uid != owner or meta.st_mode & 0o022:
+            raise RuntimeError('unsafe desktop policy helper')
+    return runpy.run_path(str(hook))
+
+
 def launch_desktop(desktop_id: str) -> None:
     Gio, DesktopAppInfo = gio_api()
     app = DesktopAppInfo.new(desktop_id)
     if visible(app):
-        # GIO handles quoting, field codes, working directory, terminal and DBus
-        # semantics. The effective entry's project-managed Exec stays intact.
+        # Normalize the effective entry, not a lower-priority vendor copy.
+        # Reuse the dpkg hook's exact wrapper/terminal/compatibility policy;
+        # GIO still owns argument, URI and field-code expansion.
         try:
-            app.launch([], Gio.AppLaunchContext())
+            source = Path(app.get_filename())
+            owner = Path('/usr').stat().st_uid
+            policy = desktop_policy()
+            defaults = policy['load_defaults'](owner_uid=owner)
+            prefix = policy['launch_prefix'](source, app.get_executable() or '',
+                                              app.get_string('Exec') or '', defaults)
+            with source.open(encoding='utf-8') as stream:
+                text = stream.read(policy['MAX_BYTES'] + 1)
+            if len(text.encode('utf-8')) > policy['MAX_BYTES']:
+                raise RuntimeError('desktop entry exceeds the size limit')
+            text = policy['rewrite_desktop'](text, prefix)
+            from gi.repository import GLib
+            keyfile = GLib.KeyFile()
+            keyfile.load_from_data(text, len(text.encode('utf-8')), GLib.KeyFileFlags.KEEP_TRANSLATIONS)
+            # An in-memory DesktopAppInfo has no filename for %k. Preserve its
+            # original identity; leave %% and every other field code to GIO.
+            quoted_source = '"' + ''.join('\\' + c if c in '\\"`$' else
+                                          '%%' if c == '%' else c for c in str(source)) + '"'
+            for group in keyfile.get_groups()[0]:
+                if group == 'Desktop Entry' or group.startswith('Desktop Action '):
+                    if 'Exec' in keyfile.get_keys(group)[0]:
+                        value = keyfile.get_string(group, 'Exec')
+                        value = re.sub(r'%%|%k', lambda m: '%%' if m[0] == '%%' else quoted_source, value)
+                        keyfile.set_string(group, 'Exec', value)
+            normalized = DesktopAppInfo.new_from_keyfile(keyfile)
+            if normalized is None:
+                raise RuntimeError('normalized desktop entry is invalid')
+            normalized.launch([], Gio.AppLaunchContext())
         except Exception as exc:
             raise RuntimeError(f'cannot launch {desktop_id!r}: {exc}') from exc
 

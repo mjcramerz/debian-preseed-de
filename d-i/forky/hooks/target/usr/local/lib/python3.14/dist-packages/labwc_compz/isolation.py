@@ -42,11 +42,22 @@ def user_environment() -> dict[str, str]:
     if uid == 0 or os.getuid() != uid:
         raise CompzError('Run compz as your desktop account, never through sudo.')
     runtime = Path(f'/run/user/{uid}')
-    value = runtime.lstat()
-    bus = (runtime / 'bus').lstat()
-    if (not stat.S_ISDIR(value.st_mode) or value.st_uid != uid or value.st_mode & 0o077 or
-            not stat.S_ISSOCK(bus.st_mode) or bus.st_uid != uid or bus.st_mode & 0o077):
-        raise CompzError('A private, active systemd user session is required.')
+    try:
+        value = runtime.lstat()
+    except OSError as exc:
+        raise CompzError('The systemd user runtime directory is unavailable.') from exc
+    if (not stat.S_ISDIR(value.st_mode) or value.st_uid != uid or
+            stat.S_IMODE(value.st_mode) != 0o700):
+        raise CompzError('The systemd user runtime directory must be owned by this account and mode 0700.')
+    try:
+        bus = (runtime / 'bus').lstat()
+    except OSError as exc:
+        raise CompzError('The systemd user bus socket is unavailable.') from exc
+    # systemd's dbus.socket normally uses SocketMode=0666. The enclosing
+    # account-owned 0700 directory is the access boundary, not the socket mode.
+    # Do not chmod a session-owned socket or accept links/another account's bus.
+    if not stat.S_ISSOCK(bus.st_mode) or bus.st_uid != uid:
+        raise CompzError('The systemd user bus must be a socket owned by this account.')
     return {'PATH': '/usr/bin:/bin', 'HOME': str(Path.home()), 'LC_ALL': 'C.UTF-8',
             'XDG_RUNTIME_DIR': str(runtime), 'DBUS_SESSION_BUS_ADDRESS': f'unix:path={runtime}/bus'}
 

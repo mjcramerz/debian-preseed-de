@@ -5,6 +5,8 @@ PATH=/usr/bin:/bin
 LC_ALL=C.UTF-8
 export PATH LC_ALL
 umask 077
+# find must not inspect an arbitrary caller working directory under confinement.
+cd /
 
 fatal() {
   printf 'fatal: %s\n' "$*" >&2
@@ -103,10 +105,12 @@ vendor_gui='/opt/Mullvad VPN/mullvad-gui'
 # are disabled. Launch the package binary through our existing strict wrapper
 # instead, and fail before starting it if the namespace sandbox is disabled.
 if [ -r /proc/sys/kernel/unprivileged_userns_clone ]; then
-  read -r userns_enabled </proc/sys/kernel/unprivileged_userns_clone
+  userns_enabled=$(/usr/bin/cat /proc/sys/kernel/unprivileged_userns_clone) ||
+    fatal "cannot read the user namespace policy"
   [ "$userns_enabled" = 1 ] || fatal "Mullvad VPN requires its unprivileged namespace sandbox"
 fi
-read -r userns_limit </proc/sys/user/max_user_namespaces
+userns_limit=$(/usr/bin/cat /proc/sys/user/max_user_namespaces) ||
+  fatal "cannot read the user namespace limit"
 case "$userns_limit" in ''|*[!0-9]*) fatal "cannot validate the user namespace limit" ;; esac
 [ "$userns_limit" -gt 0 ] || fatal "Mullvad VPN requires available user namespaces"
 

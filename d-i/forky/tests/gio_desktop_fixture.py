@@ -7,6 +7,7 @@ runs in a fresh, unprivileged process, as the production menu workers do.
 import ctypes as C
 import json
 import locale
+import runpy
 from pathlib import Path
 import sys
 import types
@@ -32,6 +33,7 @@ def load_api():
 
     get_all = bind(gio, 'g_app_info_get_all', C.POINTER(GList))
     new = bind(gio, 'g_desktop_app_info_new', pointer, C.c_char_p)
+    new_keyfile_app = bind(gio, 'g_desktop_app_info_new_from_keyfile', pointer, pointer)
     new_context = bind(gio, 'g_app_launch_context_new', pointer)
     unref = bind(gobject, 'g_object_unref', None, pointer)
     free = bind(glib, 'g_free', None, pointer)
@@ -42,6 +44,7 @@ def load_api():
     for method, function in (
             ('get_id', 'g_app_info_get_id'), ('get_display_name', 'g_app_info_get_display_name'),
             ('get_filename', 'g_desktop_app_info_get_filename'),
+            ('get_executable', 'g_app_info_get_executable'),
             ('get_categories', 'g_desktop_app_info_get_categories')):
         functions[method] = bind(gio, function, C.c_char_p, pointer)
     hidden = bind(gio, 'g_desktop_app_info_get_is_hidden', C.c_int, pointer)
@@ -55,6 +58,10 @@ def load_api():
         @staticmethod
         def new(desktop_id):
             address = new(desktop_id.encode('utf-8'))
+            return DesktopAppInfo(address) if address else None
+        @staticmethod
+        def new_from_keyfile(keyfile):
+            address = new_keyfile_app(keyfile.address)
             return DesktopAppInfo(address) if address else None
         def get_string(self, key):
             address = get_string(self.address, key.encode('utf-8'))
@@ -91,6 +98,40 @@ def load_api():
     class AppLaunchContext:
         def __init__(self): self.address = new_context()
         def __del__(self): unref(self.address)
+    # The normalized launch path uses the real GLib key-file parser too.
+    key_new = bind(glib, 'g_key_file_new', pointer)
+    key_free = bind(glib, 'g_key_file_free', None, pointer)
+    key_load = bind(glib, 'g_key_file_load_from_data', C.c_int, pointer, C.c_char_p, C.c_size_t, C.c_int, pointer)
+    key_groups = bind(glib, 'g_key_file_get_groups', C.POINTER(C.c_char_p), pointer, C.POINTER(C.c_size_t))
+    key_keys = bind(glib, 'g_key_file_get_keys', C.POINTER(C.c_char_p), pointer, C.c_char_p, C.POINTER(C.c_size_t), pointer)
+    key_get = bind(glib, 'g_key_file_get_string', pointer, pointer, C.c_char_p, C.c_char_p, pointer)
+    key_set = bind(glib, 'g_key_file_set_string', None, pointer, C.c_char_p, C.c_char_p, C.c_char_p)
+    free_strings = bind(glib, 'g_strfreev', None, C.POINTER(C.c_char_p))
+    class KeyFile:
+        def __init__(self): self.address = key_new()
+        def __del__(self): key_free(self.address)
+        def load_from_data(self, text, length, flags):
+            if not key_load(self.address, text.encode(), length, flags, None):
+                raise ValueError('invalid fixture keyfile')
+        def strings(self, group=None):
+            count = C.c_size_t()
+            value = (key_groups(self.address, C.byref(count)) if group is None else
+                     key_keys(self.address, group.encode(), C.byref(count), None))
+            try: return [value[i].decode() for i in range(count.value)], count.value
+            finally: free_strings(value)
+        def get_groups(self): return self.strings()
+        def get_keys(self, group): return self.strings(group)
+        def get_string(self, group, key):
+            value = key_get(self.address, group.encode(), key.encode(), None)
+            try: return C.string_at(value).decode() if value else None
+            finally: free(value)
+        def set_string(self, group, key, value):
+            key_set(self.address, group.encode(), key.encode(), value.encode())
+    # Restricted to this test subprocess, on hosts without the GI bindings.
+    repository = types.ModuleType('gi.repository')
+    repository.GLib = types.SimpleNamespace(KeyFile=KeyFile,
+        KeyFileFlags=types.SimpleNamespace(KEEP_TRANSLATIONS=2))
+    sys.modules['gi.repository'] = repository
     return types.SimpleNamespace(AppInfo=AppInfo, AppLaunchContext=AppLaunchContext), DesktopAppInfo
 
 
@@ -98,6 +139,15 @@ def main():
     path = Path(sys.argv[1])
     module = types.ModuleType('fixture_main_menu'); module.__file__ = str(path)
     exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
+    # Load the real normalization engine; only machine-specific policy inputs
+    # and its trusted file loader are replaced in this unprivileged fixture.
+    helper = path.parent / 'desktop-policy'
+    if helper.is_file():
+        policy = runpy.run_path(str(helper))
+        policy['load_defaults'] = lambda **kw: dict.fromkeys(('wayland', 'electron'),
+            str(path.parent / 'profile-wrapper') + ' intel')
+        policy['launch_prefix'].__globals__['package_for'] = lambda _: None
+        module.desktop_policy = lambda: policy
     arguments = sys.argv[2:]
     if arguments[-1:] == ['--ctypes']:
         arguments = arguments[:-1]

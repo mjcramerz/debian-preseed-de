@@ -43,7 +43,9 @@ class MenuUnitTests(unittest.TestCase):
         received = command.replace('/usr/local/bin/labwc-wallpaper-save', '/usr/bin/printf "%s\\n"')
         result = subprocess.run(['/bin/sh', '-c', received.replace('$wallpaper', shlex.quote(wallpaper))],
                                 check=True, text=True, capture_output=True)
-        self.assertEqual(result.stdout, '--apply\n' + wallpaper + '\n')
+        # Waypaper owns its native renderer until ExecStopPost restores swaybg.
+        # This hook only persists the selection; --apply would race that owner.
+        self.assertEqual(result.stdout, wallpaper + '\n')
 
     def test_every_main_and_additional_category_has_one_destination(self):
         for label, main, additional in self.menu.CATEGORY_RULES:
@@ -350,6 +352,10 @@ class RealGioSemanticTests(unittest.TestCase):
         self.probe_source = self.root / 'gio_desktop_fixture.py'
         for source, destination in ((MENU, self.menu_source), (PROBE, self.probe_source)):
             destination.write_bytes(render_theme_bytes(payload_read_bytes(source))); destination.chmod(0o644)
+        (self.root / 'desktop-policy').write_bytes(payload_read_bytes(TARGET / 'usr/local/libexec/labwc-wrap-desktop-files'))
+        wrapper = self.root / 'profile-wrapper'
+        wrapper.write_text('#!/bin/sh\n[ "$1" = intel ] && [ "$2" = -- ] || exit 2\nshift 2\nexec "$@"\n')
+        wrapper.chmod(0o755)
         self.home = self.root / 'home'; self.home.mkdir(mode=0o755)
         self.data = self.root / 'user-data'; self.local = self.root / 'system-local'; self.vendor = self.root / 'system-vendor'
         for directory in (self.data, self.local, self.vendor): (directory / 'applications').mkdir(parents=True)
@@ -484,13 +490,13 @@ class RealGioSemanticTests(unittest.TestCase):
         marker = output / 'should-not-exist'
         title = f"Fixture $(touch {marker}) `id`; & | \U0001f680"
         self.write(self.vendor, title='Wrong lower entry', exec_value='/usr/bin/false')
-        self.write(self.data, title=title, exec_value=f'"{executable}" %c %% %F %u')
+        selected = self.write(self.data, title=title, exec_value=f'"{executable}" %c %% %k %F %u')
         self.probe('--launch=app.desktop')
         deadline = time.monotonic() + 3
         while not payload_source_exists(result_path) and time.monotonic() < deadline: time.sleep(0.01)
         self.assertTrue(payload_source_exists(result_path))
         launched = json.loads(render_theme_defaults(payload_read_text(result_path)))
-        self.assertEqual(launched['uid'], self.uid); self.assertEqual(launched['args'], [title, '%'])
+        self.assertEqual(launched['uid'], self.uid); self.assertEqual(launched['args'], [title, '%', str(selected)])
         self.assertFalse(payload_source_exists(marker))
 
     def test_pygi_binding_runs_the_same_production_discovery_when_available(self):

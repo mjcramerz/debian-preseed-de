@@ -112,6 +112,7 @@ profile waybar /usr/{bin/waybar,local/libexec/labwc-waybar-exec} flags=(attach_d
   network inet stream,
   network inet6 stream,
   signal (send) set=(kill) peer=session-glycin-bwrap,
+  signal (send) set=(term) peer={labwc-tomat,tomat},
   signal (receive) set=(usr2) peer=labwc-session-check,
   ptrace (readby) peer=labwc-session-check,
   signal (receive) set=(int, term, hup, usr1, usr2, kill) peer=unconfined,

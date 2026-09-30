@@ -132,8 +132,8 @@
     "format": " ",
     "align": 0.5,
     "tooltip": true,
-    "tooltip-format": "FeatherPad",
-    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-wayland-app auto -- /usr/bin/featherpad"
+    "tooltip-format": "Micro notes",
+    "on-click": "__INSTALLER_LABWC_WAYLAND_APP_DEFAULT_EXEC__ -- /usr/local/bin/labwc-terminal --micro"
   },
   "custom/app-sleek": {
     "format": " ",
@@ -509,8 +509,8 @@
     "format": " ",
     "align": 0.5,
     "tooltip": true,
-    "tooltip-format": "FeatherPad",
-    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-wayland-app auto -- /usr/bin/featherpad"
+    "tooltip-format": "Micro notes",
+    "on-click": "__INSTALLER_LABWC_WAYLAND_APP_DEFAULT_EXEC__ -- /usr/local/bin/labwc-terminal --micro"
   },
   "custom/app-sleek": {
     "format": " ",

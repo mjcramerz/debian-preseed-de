@@ -205,6 +205,7 @@ def run_slirp4netns_sandbox(
     runtime_check: Callable[[], None] | None = None,
     cleanup_deadline: Callable[[], float] | None = None,
     cleanup_failure: Callable[[], None] | None = None,
+    discord_rpc: bool = False,
 ) -> int:
     validate_private_procfs(command)
     slirp_binary = require_root_owned_executable(
@@ -221,6 +222,7 @@ def run_slirp4netns_sandbox(
         runtime_check=runtime_check,
         cleanup_deadline=cleanup_deadline,
         cleanup_failure=cleanup_failure,
+        discord_rpc=discord_rpc,
     )
 
 
@@ -1597,6 +1599,7 @@ def _run_persistent_sandbox(
                 pre_payload_check=lambda: (require_compatibility_dbus_proxies(proxy_processes)
                     if compatibility_instance else require_running_dbus_proxies(proxy_processes)),
                 runtime_check=(lambda: (compatibility_instance.service(), require_compatibility_dbus_proxies(proxy_processes) if compatibility_instance.outcome is None else None)) if compatibility_instance else None,
+                discord_rpc=compatibility_instance is not None and app_name == "discord",
                 cleanup_deadline=compatibility_instance.begin_cleanup if compatibility_instance else None,
                 cleanup_failure=(lambda: setattr(compatibility_instance, "cleanup_failed", True)) if compatibility_instance else None,
             )

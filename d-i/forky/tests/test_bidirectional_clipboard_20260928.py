@@ -26,9 +26,9 @@ class ClipboardRoutingTests(unittest.TestCase):
     def tearDown(self):
         bridge._received_signal = None
 
-    def test_trusted_policy_defaults_disabled_but_private_x11_is_kept(self):
+    def test_trusted_policy_enables_host_clipboard_but_private_x11_is_kept(self):
         for app in ('zoom', 'discord'):
-            self.assertIs(profiles.PERSISTENT_SANDBOX_CONFIG[app]['clipboard_bridge'], False)
+            self.assertIs(profiles.PERSISTENT_SANDBOX_CONFIG[app]['clipboard_bridge'], True)
         argv = bridge.masked_application_argv('discord', 'wayland-0', 'wayland-1', ['/opt/discord/Discord'])
         self.assertNotIn('/tmp/.X11-unix', argv)  # inherited private X socket is not masked
         with mock.patch.dict(os.environ, {'DISPLAY': ':0'}, clear=True):
@@ -104,7 +104,7 @@ class ClipboardRoutingTests(unittest.TestCase):
         finally:
             self.assertTrue(stop_processes([owner], time.monotonic() + .5, groups=True))
 
-    def test_bidirectional_empty_and_echo_state_advance_only_after_destination_success(self):
+    def test_host_text_and_empty_selection_are_mirrored_without_host_writes(self):
         state = {False: bridge.ClipboardSelection('text', b'old-secret'), True: bridge.ClipboardSelection('text', b'old-secret')}
         writes = []
         ticks = 0
@@ -133,19 +133,31 @@ class ClipboardRoutingTests(unittest.TestCase):
              mock.patch.object(bridge, 'clipboard_lock', side_effect=lambda _: os.open('/dev/null', os.O_RDONLY)), \
              mock.patch.object(bridge.time, 'sleep', side_effect=tick):
             self.assertEqual(bridge.run_clipboard_bridge([bridge.CLIPBOARD_BRIDGE_MODE, 'wayland-1']), 143)
-        self.assertEqual(writes, [(True, b'')])
+        self.assertEqual(writes, [(True, b'old-secret'), (True, b'')])
         self.assertEqual(state[True].data, b'')
 
-    def test_unavailable_bridge_degrades_and_releases_owned_selection(self):
+    def test_unavailable_clipboard_retries_and_never_replays_cleared_text(self):
+        selections = iter([bridge.ClipboardSelection('text', b'old'),
+                           bridge.ClipboardSelection('cleared'),
+                           bridge.ClipboardSelection('unavailable'),
+                           bridge.ClipboardSelection('text', b'fresh')])
+        writes = []
+        ticks = 0
+        def tick(_interval):
+            nonlocal ticks
+            ticks += 1
+            if ticks == 4:
+                bridge._received_signal = signal.SIGTERM
         with mock.patch.dict(os.environ, {bridge.OUTER_WAYLAND_DISPLAY_ENVIRONMENT: 'wayland-0'}), \
              mock.patch.object(bridge.os, 'geteuid', return_value=1000), \
              mock.patch.object(bridge, 'register_signal_handlers'), \
              mock.patch.object(bridge, 'clipboard_process_environment', return_value={}), \
              mock.patch.object(bridge, 'private_clipboard_x11_environment', return_value={}), \
-             mock.patch.object(bridge, 'read_clipboard_selection', return_value=bridge.ClipboardSelection('unavailable')), \
-             mock.patch.object(bridge, 'selection_owner') as copy:
-            self.assertEqual(bridge.run_clipboard_bridge([bridge.CLIPBOARD_BRIDGE_MODE, 'wayland-1']), 2)
-            copy.assert_not_called()
+             mock.patch.object(bridge, 'read_clipboard_selection', side_effect=lambda _: next(selections)), \
+             mock.patch.object(bridge, 'selection_owner', side_effect=lambda data, env, **kw: writes.append((data, kw))), \
+             mock.patch.object(bridge.time, 'sleep', side_effect=tick):
+            self.assertEqual(bridge.run_clipboard_bridge([bridge.CLIPBOARD_BRIDGE_MODE, 'wayland-1']), 143)
+        self.assertEqual(writes, [(b'old', {'x11': True}), (b'fresh', {'x11': True})])
 
     def test_application_namespace_masks_both_wayland_sockets(self):
         argv = bridge.masked_application_argv('discord', 'wayland-0', 'wayland-1', ['/opt/discord/Discord'])

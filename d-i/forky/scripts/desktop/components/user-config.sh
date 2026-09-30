@@ -118,6 +118,9 @@ gid=$(id -g "$account_user")
   chown -R "$uid:$gid" "$dst"
   copied_dirs=$((copied_dirs + 1))
 done
+if [ ! -f /etc/skel-desktop/.config/wireplumber/wireplumber.conf.d/30-p15s-audio.conf ]; then
+  rm -f "${account_home}/.config/wireplumber/wireplumber.conf.d/30-p15s-audio.conf"
+fi
 for user_systemd_dir in \
   "$account_home/.config/systemd" \
   "$account_home/.config/systemd/user" \
@@ -150,10 +153,14 @@ chown "$uid:$gid" "$account_home/.local/share/applications"
 install -m 0600 /etc/skel-desktop/.local/share/applications/tutanota-desktop.desktop \
   "$account_home/.local/share/applications/tutanota-desktop.desktop"
 chown "$uid:$gid" "$account_home/.local/share/applications/tutanota-desktop.desktop"
+install -m 0600 /etc/skel-desktop/.local/share/applications/micro.desktop \
+  "$account_home/.local/share/applications/micro.desktop"
+chown "$uid:$gid" "$account_home/.local/share/applications/micro.desktop"
 for private_dir in \
   "$account_home/.local/share/task" \
   "$account_home/.local/share/task/hooks" \
   "$account_home/Syncthing" \
+  "$account_home/Syncthing/micro" \
   "$account_home/Syncthing/keepassxc" \
   "$account_home/Syncthing/keepassxc/backups"
 do

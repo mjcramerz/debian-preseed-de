@@ -13,6 +13,10 @@ capability setpcap,
 capability setuid,
 capability sys_admin,
 capability sys_chroot,
+# Rootless namespace setup: loopback configuration and /proc/PID/ns reads.
+# The masked application exec explicitly drops ALL kernel capabilities.
+capability net_admin,
+capability sys_ptrace,
 
 mount,
 umount,

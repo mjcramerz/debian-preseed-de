@@ -604,6 +604,8 @@ def build_command(
     command = [
         bwrap,
         "--unshare-all",
+        "--cap-drop",
+        "ALL",
         "--share-net",
         "--new-session",
         "--die-with-parent",

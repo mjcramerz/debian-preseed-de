@@ -46,6 +46,8 @@ class RuntimeLifecycleTests(unittest.TestCase):
             is_bridge=argv[:2]==[runtime.SANDBOX_LIFECYCLE_HELPER,runtime.CLIPBOARD_BRIDGE_MODE]
             code='raise SystemExit(4)' if is_bridge else PRIMARY_CHILD
             p=original([sys.executable,'-B','-c',code],**kwargs)
+            if is_bridge:
+                p.wait(timeout=2)  # The optional failure precedes primary readiness.
             children.append(p); return p
         def lose():
             host.settimeout(2)
@@ -57,6 +59,7 @@ class RuntimeLifecycleTests(unittest.TestCase):
             with mock.patch.dict(os.environ,{'LABWC_COMPAT_CLIPBOARD':str(clipboard),
                     runtime.OUTER_WAYLAND_DISPLAY_ENVIRONMENT:'wayland-0','WAYLAND_DISPLAY':'wayland-1'}), \
                  mock.patch.object(runtime,'protect_supervisor'), \
+                 mock.patch.object(runtime,'DiscordRPCRelay'), \
                  mock.patch.object(runtime.os,'geteuid',return_value=1000), \
                  mock.patch.object(runtime,'connect_runtime',return_value=runtime_host), \
                  mock.patch.object(runtime,'require_cage_wayland_socket'), \

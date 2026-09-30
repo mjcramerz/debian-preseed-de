@@ -51,6 +51,7 @@ INNER_RUNTIME_MODULES = (
     "events.py",
     "integrity.py",
     "runtime.py",
+    "network_namespace.py",
     "compat_protocol.py",
     "wayland_compat_runtime.py",
 )

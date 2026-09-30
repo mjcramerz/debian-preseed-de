@@ -1173,6 +1173,10 @@ stage_target_desktop_apparmor_profiles() {
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/desktop-application)" \
     "/etc/apparmor.d/abstractions/desktop-application" \
     0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/qbittorrent-runtime)" \
+    "/etc/apparmor.d/abstractions/qbittorrent-runtime" \
+    0644
 
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-workflow-auth)" \

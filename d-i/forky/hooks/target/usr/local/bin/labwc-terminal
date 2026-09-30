@@ -17,6 +17,24 @@ if [ -r /etc/labwc/desktop.conf ]; then
   . /etc/labwc/desktop.conf
 fi
 
+# Notes use Micro's native unnamed-buffer Save As, relative to this directory.
+# File arguments (including relative filenames) deliberately retain the caller cwd.
+if [ "${1:-}" = --micro ]; then
+  shift
+  if [ "$#" -eq 0 ]; then
+    for notes_dir in "$HOME/Syncthing" "$HOME/Syncthing/micro"; do
+      [ ! -L "$notes_dir" ] || { printf 'fatal: notes directory is a symlink\n' >&2; exit 1; }
+      (umask 077; /usr/bin/mkdir -p -- "$notes_dir")
+      [ -d "$notes_dir" ] && [ -O "$notes_dir" ] || {
+        printf 'fatal: notes directory is not owned by this user\n' >&2
+        exit 1
+      }
+    done
+    cd -- "$HOME/Syncthing/micro"
+  fi
+  set -- -e /usr/bin/micro "$@"
+fi
+
 # Accept xterm-style `-e` for callers, but normalize it before we reach Kitty.
 xterm_execute_mode=0
 case "${1:-}" in
