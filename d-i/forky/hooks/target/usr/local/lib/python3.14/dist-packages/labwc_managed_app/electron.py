@@ -112,6 +112,12 @@ ELECTRON_PROFILES = {
 }
 
 
+def discord_x11_args(mode: str) -> list[str]:
+    args = [arg for arg in electron_args("discord", mode)
+            if not arg.startswith("--ozone-platform=") and arg != "--enable-wayland-ime"]
+    return ["--ozone-platform=x11", *args]
+
+
 def electron_args(app_name: str, mode: str) -> list[str]:
     profile = ELECTRON_PROFILES[app_name]
     features = ("UseOzonePlatform", *profile["features"])

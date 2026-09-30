@@ -10,6 +10,7 @@ import signal
 import subprocess
 import sys
 import time
+import uuid
 from collections.abc import Sequence
 
 from .commands import build_argv, resolved_executable, validate_required_runtime_files
@@ -23,7 +24,9 @@ from .environment import (
 )
 from .events import emit, event_context
 from .profiles import APPS, WAYLAND_COMPAT_APPS
-from .runtime import MANAGED_DEFAULTS_PATH, current_user_home, fail
+from .compat_protocol import (Outcome, ProtocolError, RequiredComponentError, activation_arguments,
+                              INFRASTRUCTURE_RESULT, STARTUP_RESULT)
+from .runtime import MANAGED_DEFAULTS_PATH, current_user_home, current_user_runtime_dir, fail
 from .sandbox import run_persistent_sandbox, run_pure_privacy
 from .session import (
     redirect_bitwarden_to_session_unit,
@@ -201,7 +204,7 @@ def main(
 ) -> int:
     options = _argument_parser(wayland_compat=wayland_compat).parse_args(argv)
     entrypoint = "wayland-compat" if wayland_compat else "native"
-    transport = "stderr" if options.application == "chatgpt" else "syslog"
+    transport = "stderr" if wayland_compat or options.application == "chatgpt" else "syslog"
 
     with event_context(
         application=options.application,
@@ -220,6 +223,10 @@ def main(
             emit("session-redirect", target="bitwarden")
             redirect_bitwarden_to_session_unit(options.mode, options.args)
         if wayland_compat:
+            try:
+                options.args = activation_arguments(options.application, options.args)
+            except (ProtocolError, ValueError, UnicodeError):
+                fail("compatibility launchers accept only a single approved application URI")
             emit("session-redirect", target="wayland-compat")
             redirect_wayland_compat_to_session_unit(
                 options.application,
@@ -240,6 +247,8 @@ def main(
 
         with event_context(mode=mode):
             app = APPS[options.application]
+            if wayland_compat:
+                return _run_compatibility(options.application, mode, options.args)
             executable = resolved_executable(options.application, mode)
             if not os.path.isfile(executable) or not os.access(executable, os.X_OK):
                 fail(
@@ -259,18 +268,6 @@ def main(
             if mode == "pure-privacy":
                 emit("sandbox-starting", sandbox="ephemeral")
                 result = run_pure_privacy(options.application, options.args)
-                emit("completed", status=result)
-                return result
-
-            if wayland_compat:
-                from .wayland_compat import run_wayland_compat_sandbox
-
-                emit("sandbox-starting", sandbox="wayland-compat")
-                result = run_wayland_compat_sandbox(
-                    options.application,
-                    mode,
-                    options.args,
-                )
                 emit("completed", status=result)
                 return result
 
@@ -298,3 +295,61 @@ def main(
                 )
             emit("completed", status=0)
             return 0
+
+
+def _run_compatibility(app_name: str, mode: str, arguments: list[str]) -> int:
+    from .compat_instance import CompatibilityInstance
+    from .wayland_compat import run_wayland_compat_sandbox
+    instance = None
+    run_id = uuid.uuid4().hex
+    outcome = Outcome("startup-failed", STARTUP_RESULT)
+    try:
+        instance = CompatibilityInstance(app_name, mode)
+        run_id = instance.run_id
+        with instance:
+            executable = resolved_executable(app_name, mode)
+            if not os.path.isfile(executable) or not os.access(executable, os.X_OK):
+                raise ProtocolError("application executable is unavailable")
+            validate_required_runtime_files(app_name)
+            home_dir = current_user_home()
+            ensure_managed_runtime_state(app_name, home_dir)
+            if app_name == "discord":
+                ensure_discord_managed_settings(home_dir)
+            emit("sandbox-starting", sandbox="wayland-compat", run_id=instance.run_id)
+            result = run_wayland_compat_sandbox(app_name, mode, arguments, instance=instance)
+            for _ in range(16):
+                instance.service()  # drain bounded final outcome/cleanup records
+            if instance.outcome is not None:
+                outcome = instance.outcome
+                if result != outcome.result and outcome.result == 0:
+                    outcome = Outcome("infrastructure-failed", INFRASTRUCTURE_RESULT)
+            else:
+                outcome = Outcome("infrastructure-failed" if instance.running else "startup-failed",
+                                  INFRASTRUCTURE_RESULT if instance.running else STARTUP_RESULT)
+    except RequiredComponentError as failure:
+        if instance is not None and instance.outcome is not None and instance.outcome.result:
+            outcome = instance.outcome
+        else:
+            outcome = Outcome("infrastructure-failed" if instance is not None and instance.running else "startup-failed",
+                              failure.result, failure.signal)
+    except InterruptedError:
+        if instance is not None and instance.outcome is not None and instance.outcome.result:
+            outcome = instance.outcome
+        else:
+            signum = instance.stop_signal if instance is not None and instance.stop_signal else signal.SIGTERM
+            shutdown = os.path.lexists(os.path.join(current_user_runtime_dir(), "labwc-session-closing"))
+            outcome = Outcome("shutdown-stopped" if shutdown else "user-stopped", 128 + signum, signum)
+    except (ProtocolError, OSError, ValueError, subprocess.TimeoutExpired, SystemExit):
+        # Keep an observed failure even if a required helper subsequently dies
+        # during teardown; an absent/normal primary cannot hide infrastructure.
+        if instance is not None and instance.outcome is not None and instance.outcome.result:
+            outcome = instance.outcome
+        elif instance is not None and instance.running:
+            outcome = Outcome("infrastructure-failed", INFRASTRUCTURE_RESULT)
+    if instance is not None and instance.cleanup_failed:
+        outcome = outcome.cleanup_failed()
+    # Endpoint/lock teardown is complete before the single final journal record.
+    emit("compat-outcome", run_id=run_id, app=app_name, mode=mode,
+         primary=outcome.primary, wrapper_result=outcome.result,
+         signal=outcome.signal, cleanup=outcome.cleanup)
+    return outcome.result

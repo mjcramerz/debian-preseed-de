@@ -18,6 +18,7 @@ profile telegram-desktop /usr/bin/telegram-desktop flags=(attach_disconnected, m
   /dev/video* rw,
 
   /usr/bin/telegram-desktop mr,
+  owner @{PROC}/@{pid}/{cmdline,stat} r,
   /usr/share/{TelegramDesktop,telegram-desktop}/ r,
   /usr/share/{TelegramDesktop,telegram-desktop}/** r,
   /usr/share/qt6ct/colors/ r,

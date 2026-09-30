@@ -54,11 +54,14 @@ def _stop_subprocess(process: subprocess.Popen | None) -> None:
 def _read_bwrap_sandbox_pid(
     info_fd: int,
     bwrap_process: subprocess.Popen,
+    runtime_check: Callable[[], None] | None = None,
 ) -> int:
     deadline = time.monotonic() + BWRAP_NETWORK_SETUP_TIMEOUT_SECONDS
     payload = bytearray()
 
     while True:
+        if runtime_check is not None:
+            runtime_check()
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             status = bwrap_process.poll()
@@ -154,18 +157,27 @@ def _wait_for_slirp4netns_ready(
     bwrap_process: subprocess.Popen,
     slirp_process: subprocess.Popen,
     stderr_handle,
+    runtime_check: Callable[[], None] | None = None,
 ) -> None:
     deadline = time.monotonic() + BWRAP_NETWORK_SETUP_TIMEOUT_SECONDS
 
     while True:
+        if runtime_check is not None:
+            runtime_check()
         bwrap_status = bwrap_process.poll()
         if bwrap_status is not None:
+            if runtime_check is not None:
+                from .compat_protocol import RequiredComponentError
+                raise RequiredComponentError(bwrap_status)
             fail(
                 "Bubblewrap exited before isolated network setup completed "
                 f"(status {bwrap_status})"
             )
         slirp_status = slirp_process.poll()
         if slirp_status is not None:
+            if runtime_check is not None:
+                from .compat_protocol import RequiredComponentError
+                raise RequiredComponentError(slirp_status)
             fail(
                 _slirp4netns_exit_message(
                     slirp_status,
@@ -201,6 +213,9 @@ def _wait_for_slirp4netns_ready(
             except subprocess.TimeoutExpired:
                 slirp_status = None
             if slirp_status is not None:
+                if runtime_check is not None:
+                    from .compat_protocol import RequiredComponentError
+                    raise RequiredComponentError(slirp_status)
                 fail(
                     _slirp4netns_exit_message(
                         slirp_status,
@@ -216,10 +231,21 @@ def _wait_for_bwrap_with_slirp4netns(
     bwrap_process: subprocess.Popen,
     slirp_process: subprocess.Popen,
     stderr_handle,
+    runtime_check: Callable[[], None] | None = None,
 ) -> int:
     while True:
+        if runtime_check is not None:
+            runtime_check()
+        # Payload completion precedes intentional slirp exit-fd teardown.
+        # A helper observed after that completion is not a new first cause.
+        bwrap_status = bwrap_process.poll()
+        if bwrap_status is not None:
+            return bwrap_status
         slirp_status = slirp_process.poll()
         if slirp_status is not None:
+            if runtime_check is not None:
+                from .compat_protocol import RequiredComponentError
+                raise RequiredComponentError(slirp_status)
             fail(
                 _slirp4netns_exit_message(
                     slirp_status,
@@ -231,15 +257,6 @@ def _wait_for_bwrap_with_slirp4netns(
             bwrap_status = bwrap_process.wait(timeout=0.25)
         except subprocess.TimeoutExpired:
             continue
-        slirp_status = slirp_process.poll()
-        if slirp_status is not None:
-            fail(
-                _slirp4netns_exit_message(
-                    slirp_status,
-                    stderr_handle,
-                    "while the managed application sandbox was running",
-                )
-            )
         return bwrap_status
 
 
@@ -251,6 +268,9 @@ def run_slirp4netns_sandbox(
     *,
     slirp_binary: str,
     pre_payload_check: Callable[[], None] | None = None,
+    runtime_check: Callable[[], None] | None = None,
+    cleanup_deadline: Callable[[], float] | None = None,
+    cleanup_failure: Callable[[], None] | None = None,
 ) -> int:
     info_read_fd = None
     info_write_fd = None
@@ -297,6 +317,7 @@ def run_slirp4netns_sandbox(
         sandbox_pid = _read_bwrap_sandbox_pid(
             info_read_fd,
             bwrap_process,
+            runtime_check,
         )
         close_file_descriptor(info_read_fd)
         info_read_fd = None
@@ -334,6 +355,7 @@ def run_slirp4netns_sandbox(
             bwrap_process,
             slirp_process,
             stderr_handle,
+            runtime_check,
         )
         close_file_descriptor(ready_read_fd)
         ready_read_fd = None
@@ -341,12 +363,18 @@ def run_slirp4netns_sandbox(
             pre_payload_check()
         bwrap_status = bwrap_process.poll()
         if bwrap_status is not None:
+            if runtime_check is not None:
+                from .compat_protocol import RequiredComponentError
+                raise RequiredComponentError(bwrap_status)
             fail(
                 "Bubblewrap exited after isolated network setup completed "
                 f"but before payload release (status {bwrap_status})"
             )
         slirp_status = slirp_process.poll()
         if slirp_status is not None:
+            if runtime_check is not None:
+                from .compat_protocol import RequiredComponentError
+                raise RequiredComponentError(slirp_status)
             fail(
                 _slirp4netns_exit_message(
                     slirp_status,
@@ -368,9 +396,16 @@ def run_slirp4netns_sandbox(
             bwrap_process,
             slirp_process,
             stderr_handle,
+            runtime_check,
         )
     finally:
-        if bwrap_process is not None and bwrap_process.poll() is None:
+        deadline = cleanup_deadline() if cleanup_deadline is not None else None
+        cleanup_ok = True
+        if deadline is not None:
+            from .compat_protocol import stop_processes
+            if not stop_processes([bwrap_process], deadline):
+                cleanup_ok = False
+        elif bwrap_process is not None and bwrap_process.poll() is None:
             _stop_subprocess(bwrap_process)
         for file_descriptor in (
             info_read_fd,
@@ -383,12 +418,15 @@ def run_slirp4netns_sandbox(
         ):
             close_file_descriptor(file_descriptor)
         close_file_descriptor(exit_write_fd)
-        if slirp_process is not None and slirp_process.poll() is None:
+        if deadline is not None:
+            if not stop_processes([slirp_process], deadline):
+                cleanup_ok = False
+        elif slirp_process is not None and slirp_process.poll() is None:
             try:
                 slirp_process.wait(timeout=SLIRP4NETNS_STOP_TIMEOUT_SECONDS)
             except subprocess.TimeoutExpired:
                 _stop_subprocess(slirp_process)
         if stderr_handle is not None:
             stderr_handle.close()
-
-
+        if not cleanup_ok and cleanup_failure is not None:
+            cleanup_failure()

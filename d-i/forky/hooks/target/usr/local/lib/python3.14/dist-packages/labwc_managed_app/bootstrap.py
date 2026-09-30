@@ -18,7 +18,7 @@ def _fatal(scope: PackageScope, message: str) -> NoReturn:
     # inner compatibility runtime is already supervised by a journal-backed
     # transient unit. Avoid probing the deliberately denied generic socket.
     use_syslog = not (
-        scope is PackageScope.COMPAT_RUNTIME
+        scope in {PackageScope.COMPAT_RUNTIME, PackageScope.COMPAT_PORTAL}
         or (
             scope is PackageScope.NATIVE
             and len(sys.argv) >= 3
@@ -65,6 +65,10 @@ def run(scope: PackageScope | str) -> int:
             from .cli import main
 
             return main(wayland_compat=True)
+        if selected_scope is PackageScope.COMPAT_PORTAL:
+            from .compat_portal import main
+
+            return main()
         from .wayland_compat_runtime import main
 
         return main()

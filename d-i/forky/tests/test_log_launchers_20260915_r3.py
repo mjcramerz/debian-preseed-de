@@ -168,7 +168,8 @@ class MullvadHandoffTests(unittest.TestCase):
         self.assertEqual(result.returncode, 65)
         self.assertIn('cannot verify', result.stderr)
 
-    def fixture(self, *, managed=False, active=False, auth_status=0, bad_root=False, args=()):
+    def fixture(self, *, managed=False, active=False, auth_status=0, bad_root=False, args=(),
+                userns_enabled='1', userns_limit='1024'):
         if managed:
             self.cgroup.write_text('0::/user.slice/' + self.unit + '\n')
         if active:
@@ -182,7 +183,7 @@ class MullvadHandoffTests(unittest.TestCase):
             '/usr/bin/systemctl': '[ -f "$ACTIVE" ]\n',
             '/usr/bin/pkexec': 'printf "pkexec:%s\\n" "$*" >>"$TRACE"\n[ "$AUTH_STATUS" -eq 0 ] || exit "$AUTH_STATUS"\ntouch "$ACTIVE"\n',
             '/usr/local/libexec/mullvad-daemon-start': 'exit 0\n',
-            '/opt/Mullvad VPN/mullvad-vpn': 'exit 0\n',
+            '/opt/Mullvad VPN/mullvad-gui': 'exit 0\n',
         }
         for index, (original, body) in enumerate(commands.items()):
             target = self.root / ('tool-' + str(index))
@@ -194,6 +195,13 @@ class MullvadHandoffTests(unittest.TestCase):
         # The production ordering and retained validation are asserted separately.
         text = text.replace('\nvalidate_wayland_session\n', '\n:\n')
         text = text.replace('/proc/self/cgroup', str(self.cgroup)).replace('/proc/self/uid_map', str(self.uid_map))
+        for name, value, original in (
+            ('userns-enabled', userns_enabled, '/proc/sys/kernel/unprivileged_userns_clone'),
+            ('userns-limit', userns_limit, '/proc/sys/user/max_user_namespaces'),
+        ):
+            path = self.root / name
+            path.write_text(value + '\n')
+            text = text.replace(original, str(path))
         for original, target in replacements.items():
             text = text.replace(original, target)
         wrapper = self.root / 'wrapper'
@@ -241,6 +249,13 @@ class MullvadHandoffTests(unittest.TestCase):
         result, trace = self.fixture(args=('--arbitrary',))
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(trace, '')
+
+    def test_disabled_namespaces_do_not_authenticate_or_launch_an_unsandboxed_gui(self):
+        for settings in (dict(userns_enabled='0'), dict(userns_limit='0'), dict(userns_limit='invalid')):
+            with self.subTest(settings=settings):
+                result, trace = self.fixture(managed=True, **settings)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(trace, '')
 
     def test_argument_and_session_checks_still_precede_handoff(self):
         self.assertLess(self.source.index('[ "$#" -eq 0 ]'), self.source.index('\nvalidate_wayland_session\n'))

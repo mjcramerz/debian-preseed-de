@@ -27,6 +27,7 @@
 
 # Repository-managed desktop wrapper and control-plane source.
 __DESKTOP_APPARMOR_STATE__ required desktop-wrappers -
+__DESKTOP_APPARMOR_STATE__ required zoom-discord-compat -
 __DESKTOP_APPARMOR_STATE__ required labwc-appearance -
 __DESKTOP_APPARMOR_STATE__ if-executable gitbuild /usr/local/bin/gitbuild
 __DESKTOP_APPARMOR_STATE__ if-executable gitbuild-worker /usr/local/libexec/gitbuild-worker
@@ -83,6 +84,7 @@ __DESKTOP_APPARMOR_STATE__ if-executable usr.sbin.tailscaled /usr/sbin/tailscale
 # attachment files are retained, least-privilege rules are supplied through
 # local includes, and the mode helper removes unconfined/default-allow flags.
 __DESKTOP_APPARMOR_STATE__ if-executable code /usr/bin/code
+__DESKTOP_APPARMOR_STATE__ optional vscode -
 __DESKTOP_APPARMOR_STATE__ if-executable chromium /usr/bin/chromium
 # Optional legacy files may be include-only stubs without their own AppArmor
 # labels. The mode helper detects that they have no independent label and skips

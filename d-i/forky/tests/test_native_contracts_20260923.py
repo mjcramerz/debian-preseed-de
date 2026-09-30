@@ -24,7 +24,8 @@ class NativeContractTests(unittest.TestCase):
         self.assertIn('validate Mullvad native journal logging contract', installer)
         self.assertIn('help=$(/usr/bin/mullvad-daemon --help)', installer)
         self.assertIn('40-logging.conf)"', installer)
-        self.assertIn('cmp -s "$profile" "/opt/Mullvad VPN/resources/apparmor_mullvad"', installer)
+        self.assertIn('sed -E "$normalize_header" "/opt/Mullvad VPN/resources/apparmor_mullvad"', installer)
+        self.assertIn('cmp -s "$policy_check_dir/current" "$policy_check_dir/vendor"', installer)
 
     def test_crowdsec_status_lines_have_one_native_stdout_sink(self):
         text = read_text(TARGET / 'usr/local/libexec/crowdsec-firstboot')

@@ -552,11 +552,13 @@ def validate_no_host_display_control_binds(command: list[str]) -> None:
 
 def require_socket(path: pathlib.Path, label: str) -> None:
     try:
-        metadata = path.stat()
+        metadata = path.lstat()
     except OSError as exc:
         fail(f"{label} is unavailable: {path}: {exc}")
     if not stat.S_ISSOCK(metadata.st_mode):
         fail(f"{label} is not a socket: {path}")
+    if metadata.st_uid != os.getuid() or metadata.st_nlink != 1:
+        fail(f"{label} must belong to the invoking user and have one link: {path}")
 
 
 def session_bus_path(raw_address: str) -> pathlib.Path | None:
@@ -749,9 +751,7 @@ def build_command(
 
 def redirect_to_user_service() -> None:
     marker = os.environ.get("LABWC_QBITTORRENT_SESSION_UNIT", "")
-    if marker == "1":
-        return
-    if marker:
+    if marker not in {"", "1"}:
         fail("invalid qBittorrent user-service marker")
     uid = os.getuid()
     runtime = pathlib.Path(f"/run/user/{uid}")
@@ -767,14 +767,38 @@ def redirect_to_user_service() -> None:
         fail("invalid Wayland display name")
     require_socket(runtime / wayland_display, "Wayland display")
     bus_path = session_bus_path(os.environ.get("DBUS_SESSION_BUS_ADDRESS", ""))
-    if bus_path is not None and bus_path != runtime / "bus":
+    if bus_path != runtime / "bus":
         fail("qBittorrent requires the desktop user's own session bus")
     # labwc-app has already created a session-bound transient service. Starting
     # another user unit from it needlessly depends on an inherited bus address
     # and can fail after the first launch has succeeded. Keep its isolation and
     # cgroup lifetime instead of recursively handing off to systemd-run.
-    if os.environ.get("LABWC_SESSION_APP") == "1":
+    try:
+        with pathlib.Path("/proc/self/cgroup").open(encoding="ascii") as stream:
+            membership = stream.read(65537)
+    except (OSError, UnicodeError) as exc:
+        fail(f"cannot verify qBittorrent service ownership: {exc}")
+    if len(membership) > 65536:
+        fail("oversized qBittorrent cgroup membership")
+    in_service = any(re.fullmatch(
+        r"0::/[^\n]*/labwc-(?:native-)?qbittorrent-[0-9a-f]{32}[.]service",
+        line,
+    ) for line in membership.splitlines())
+    if marker and not in_service:
+        fail("qBittorrent user-service marker is outside its managed cgroup")
+    if in_service:
         return
+    account = pwd.getpwuid(uid)
+    environment = {
+        "PATH": "/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin",
+        "LANG": os.environ.get("LANG", "C.UTF-8"),
+        "HOME": account.pw_dir, "USER": account.pw_name, "LOGNAME": account.pw_name,
+        "XDG_RUNTIME_DIR": str(runtime), "WAYLAND_DISPLAY": wayland_display,
+        "DBUS_SESSION_BUS_ADDRESS": f"unix:path={bus_path}",
+        "XDG_SESSION_TYPE": "wayland", "XDG_CURRENT_DESKTOP": "labwc:wlroots",
+    }
+    # No loader, shell, Python, or ambient service-loop variables cross the
+    # lowercase AppArmor handoff to the host user manager.
     argv = ["/usr/bin/systemd-run", "--user", "--quiet", "--collect",
             "--service-type=exec", "--expand-environment=no", "--slice=app.slice",
             "--unit=labwc-qbittorrent-" + uuid.uuid4().hex + ".service",
@@ -785,11 +809,9 @@ def redirect_to_user_service() -> None:
             "--property=StandardInput=null", "--property=StandardOutput=journal",
             "--property=StandardError=journal", "--setenv=LABWC_SESSION_APP=1",
             "--setenv=LABWC_QBITTORRENT_SESSION_UNIT=1",
-            "--setenv=WAYLAND_DISPLAY=" + wayland_display,
-            *(["--setenv=DBUS_SESSION_BUS_ADDRESS=unix:path=" + str(bus_path)]
-              if bus_path is not None else []),
+            *("--setenv=" + name for name in sorted(environment)),
             "--", "/usr/local/bin/labwc-qbittorrent", *sys.argv[1:]]
-    os.execv(argv[0], argv)
+    os.execve(argv[0], argv, environment)
 
 
 def main() -> int:

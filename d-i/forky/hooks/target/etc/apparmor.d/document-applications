@@ -6,6 +6,7 @@ profile zathura /usr/bin/zathura flags=(attach_disconnected, mediate_deleted) {
   /etc/magic r,
   #include <abstractions/document-runtime>
   /usr/bin/zathura mr,
+  owner @{PROC}/@{pid}/{cmdline,stat} r,
   /usr/lib{,/@{multiarch}}/zathura/ r,
   /usr/lib{,/@{multiarch}}/zathura/** mr,
   /usr/share/zathura/** r,

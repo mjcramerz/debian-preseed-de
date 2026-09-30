@@ -11,6 +11,7 @@ profile debugsys-boot-report flags=(attach_disconnected, mediate_deleted) {
 
   /usr/bin/python3{,.[0-9]*} rix,
   /usr/local/libexec/debugsys.py r,
+  /usr/local/sbin/nvme-pcie-status rix,
   /usr/bin/{id,uname,uptime,systemd-detect-virt,systemctl,journalctl,ps,dpkg,dpkg-query,dkms,timedatectl,loginctl,systemd-analyze,efibootmgr,mokutil,findmnt,lsmod,udevadm} rix,
   /usr/sbin/{dpkg,dkms,efibootmgr,lsmod,udevadm} rix,
   /{bin,usr/bin}/{sh,dash,bash,perl} rix,
@@ -42,6 +43,7 @@ profile debugsys-boot-report flags=(attach_disconnected, mediate_deleted) {
   /var/lib/{dpkg,dkms,apt,journal}/ r,
   /var/lib/{dpkg,dkms,apt}/** r,
   /var/lib/journal/boot/{,**} r,
+  /var/lib/journal-sealing/status.json r,
   /var/log/journal/{,**} r,
   /var/log/managed/ r,
   /var/log/managed/system/ r,

@@ -12,6 +12,7 @@ PCI_ROOT = Path('/sys/bus/pci/devices')
 DEVICE_ROOT = Path('/sys/devices')
 CONTROLS = ('l0s_aspm', 'l1_2_aspm', 'l1_1_aspm',
             'l1_2_pcipm', 'l1_1_pcipm', 'l1_aspm', 'clkpm')
+NVME_LATENCY = Path('/sys/module/nvme_core/parameters/default_ps_max_latency_us')
 
 
 def read_attribute(path: Path) -> str | None:
@@ -28,6 +29,36 @@ def read_attribute(path: Path) -> str | None:
     if len(text) > 8192:
         raise ValueError('oversized sysfs attribute')
     return text.strip()
+
+
+def link_evidence(device: Path) -> dict:
+    return {name: read_attribute(device / name) for name in (
+        'aer_dev_correctable', 'aer_dev_nonfatal', 'aer_dev_fatal',
+        'current_link_speed', 'current_link_width', 'max_link_speed', 'max_link_width')}
+
+
+def controller_evidence(device: Path) -> list[dict]:
+    """Read model/firmware only; never include serials or issue NVMe commands."""
+    root = device / 'nvme'
+    if root.is_symlink():
+        raise ValueError('unexpected symlink for NVMe controller directory')
+    try:
+        entries = sorted(root.iterdir())
+    except FileNotFoundError:
+        return []
+    if len(entries) > 256:
+        raise ValueError('oversized NVMe controller listing')
+    controllers = []
+    for entry in entries:
+        if not re.fullmatch(r'nvme[0-9]+', entry.name):
+            continue
+        meta = entry.lstat()
+        if not stat.S_ISDIR(meta.st_mode) or meta.st_uid != 0:
+            raise ValueError('unsafe NVMe controller directory')
+        controllers.append({'controller': entry.name,
+                            'model': read_attribute(entry / 'model'),
+                            'firmware_revision': read_attribute(entry / 'firmware_rev')})
+    return controllers
 
 
 def snapshot() -> list[dict]:
@@ -58,10 +89,25 @@ def snapshot() -> list[dict]:
         available = [v for v in controls.values() if v is not None]
         state = ('unavailable-kernel-or-firmware-owned' if not available else
                  'available-controls-disabled' if not any(available) else 'link-idle-still-enabled')
+        upstream = None
+        if (re.fullmatch(r'[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]', device.parent.name)
+                and read_attribute(device.parent / 'class') == '0x060400'):
+            upstream = dict(pci_address=device.parent.name, **link_evidence(device.parent))
+        latency = read_attribute(NVME_LATENCY)
+        if latency is not None and not re.fullmatch(r'[0-9]+', latency):
+            raise ValueError('invalid NVMe power-state latency limit')
         # Correctable counts are cumulative; their presence is not a media
         # health verdict. No serial numbers or namespace contents are read.
         devices.append({'pci_address': entry.name, 'pci_id': '15b7:5006',
                         'policy_state': state, 'link_idle_enabled': controls,
+                        'policy_note': ('No kernel link controls are exposed; the udev rule cannot verify '
+                                        'ASPM disabled. Review firmware ownership and both PCIe endpoints.'
+                                        if not available else
+                                        'Only exposed controls were checked; AER counters and media health '
+                                        'require separate assessment.'),
+                        'nvme_default_ps_max_latency_us': latency,
+                        'controllers': controller_evidence(device), 'upstream_bridge': upstream,
+                        'link_evidence': link_evidence(device),
                         'aer_correctable': read_attribute(device / 'aer_dev_correctable'),
                         'current_link_speed': read_attribute(device / 'current_link_speed'),
                         'current_link_width': read_attribute(device / 'current_link_width')})

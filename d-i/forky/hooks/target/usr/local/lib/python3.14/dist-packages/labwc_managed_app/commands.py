@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import os
 
-from .profiles import APPS
+from .profiles import APPS, WAYLAND_COMPAT_APPS
+from .compat_protocol import ProtocolError, activation_arguments
 from .runtime import fail, validate_absolute_path
 
 def resolved_executable(app_name: str, mode: str) -> str:
@@ -42,7 +43,7 @@ def validate_required_runtime_files(app_name: str) -> None:
 def build_argv(app_name: str, mode: str, extra_args: list[str]) -> list[str]:
     app = APPS[app_name]
     extra_args = normalize_managed_arguments(app_name, extra_args)
-    validate_managed_arguments(mode, extra_args)
+    validate_managed_arguments(mode, extra_args, app_name=app_name)
     argv = [resolved_executable(app_name, mode)]
     if mode == "intel":
         argv.extend(app.get("intel_args", app["args"]))
@@ -63,7 +64,13 @@ def normalize_managed_arguments(app_name: str, extra_args: list[str]) -> list[st
     return normalized_args
 
 
-def validate_managed_arguments(mode: str, extra_args: list[str]) -> None:
+def validate_managed_arguments(mode: str, extra_args: list[str], *, app_name: str | None = None) -> None:
+    if app_name in WAYLAND_COMPAT_APPS:
+        try:
+            activation_arguments(app_name, extra_args)
+        except ProtocolError:
+            fail("compatibility launchers accept only a single approved application URI")
+        return
     hardware_tokens = (
         "angle",
         "gpu",

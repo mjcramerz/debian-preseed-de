@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import re
+import subprocess
+import time
 import uuid
 
 from .recovery import assert_launch_allowed, restart_token
@@ -248,23 +250,48 @@ def redirect_wayland_compat_to_session_unit(
 ) -> None:
     if _consume_session_marker(WAYLAND_COMPAT_SESSION_UNIT_MARKER, f"labwc-compat-{app_name}"):
         return
-
+    from .compat_instance import (LAUNCH_TIMEOUT, acquire_lock, instance_directory,
+                                  open_lock, request_activation, instance_owned)
+    from .compat_protocol import ProtocolError, activation_arguments, stop_processes
+    from .events import emit
+    extra_args = activation_arguments(app_name, extra_args)
     systemd_run = require_root_owned_executable("systemd-run", SYSTEMD_RUN_PATH)
     environment = wayland_compat_session_unit_environment()
-    argv = wayland_compat_session_unit_argv(
-        systemd_run,
-        app_name,
-        mode,
-        extra_args,
-        environment,
-    )
+    fd = open_lock(instance_directory(app_name), "launch.lock")
+    child = None
     try:
-        os.execve(systemd_run, argv, environment)
-    except OSError as exc:
-        fail(
-            "failed to create the managed Zoom/Discord Cage session unit: "
-            f"{exc}"
-        )
+        deadline = time.monotonic() + LAUNCH_TIMEOUT
+        acquire_lock(fd, deadline)
+        if request_activation(app_name, mode, extra_args, deadline=deadline):
+            emit("launch-accepted", target="existing-instance")
+            raise SystemExit(0)
+        argv = wayland_compat_session_unit_argv(systemd_run, app_name, mode, extra_args, environment)
+        child = subprocess.Popen(argv, env=environment, close_fds=True)
+        # Hold creation ownership across manager handoff until the service's
+        # protected lifetime lock/endpoint actually exists. The service keeps
+        # the separate instance.lock for its entire run and cleanup.
+        while time.monotonic() < deadline:
+            if child.poll() not in (None, 0):
+                raise ProtocolError("manager rejected the compatibility service")
+            if instance_owned(app_name):
+                break
+            time.sleep(0.025)
+        else:
+            raise ProtocolError("compatibility service did not acquire instance ownership")
+    except (OSError, ProtocolError):
+        if child is not None and child.poll() is None:
+            stop_processes([child], time.monotonic() + 1)
+        fail("managed compatibility launch or activation failed")
+    finally:
+        os.close(fd)
+    emit("launch-accepted", target="session-unit")
+    # --wait is an explicit diagnostic request. Detached success means only
+    # that the manager accepted the launch, never that the app exited cleanly.
+    try:
+        raise SystemExit(child.wait(timeout=None if "--wait" in argv else 5))
+    except subprocess.TimeoutExpired:
+        stop_processes([child], time.monotonic() + 1)
+        fail("manager launch acknowledgement timed out")
 
 
 def redirect_native_from_private_users(

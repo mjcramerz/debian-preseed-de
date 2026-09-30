@@ -59,6 +59,10 @@ class EvidenceTests(Fixture):
         self.assertIn('dmesg', all_probes)
         self.assertIn('atomic', debug.GPU_PATTERN)
 
+    def test_nvme_diagnostics_use_the_read_only_policy_helper(self):
+        self.assertIn(('nvme-pcie-policy', ['/usr/local/sbin/nvme-pcie-status']), debug.PROBES['storage'])
+        self.assertNotIn('--reset', repr(debug.PROBES['storage']))
+
     def test_redaction_headers_json_private_keys_and_terminal_controls(self):
         text = ('Authorization: Bearer xyz.header.signature\nAuthorization: Basic dXNlcjpwYXNz\n'
                 '{"api_key":"sensitive quoted value", "refresh_token":"secret-value"}\n'

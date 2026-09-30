@@ -13,6 +13,7 @@ profile sqlitebrowser /usr/bin/sqlitebrowser flags=(attach_disconnected, mediate
   network netlink dgram,
 
   /usr/bin/sqlitebrowser mr,
+  owner @{PROC}/@{pid}/{cmdline,stat} r,
   /usr/lib/ r,
   /usr/lib64/ r,
   /usr/local/lib/ r,

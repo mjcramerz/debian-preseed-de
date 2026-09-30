@@ -137,7 +137,7 @@ class ApparmorEvidenceTests(unittest.TestCase):
         self.assertNotIn("ptrace (trace)", firstboot_profile)
 
     def test_private_clipboard_tool_is_confined_to_zoom_discord_child(self):
-        policy = (TARGET / "etc/apparmor.d/desktop-wrappers.tmpl").read_text()
+        policy = (TARGET / "etc/apparmor.d/zoom-discord-compat.tmpl").read_text()
         compat_child = policy.split("profile wayland-compat-app-bwrap ", 1)[1].split("\n  }", 1)[0]
         self.assertIn("/usr/bin/{wl-copy,wl-paste,xclip} rix,", compat_child)
         self.assertIn("owner /run/user/[0-9]*/labwc-clipboard-wayland-[0-9]*.lock rwk,", compat_child)

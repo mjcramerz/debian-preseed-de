@@ -25,6 +25,9 @@ profile spotify /usr/bin/spotify flags=(attach_disconnected) {
 
   owner @{HOME}/.cache/spotify/ rw,
   owner @{HOME}/.cache/spotify/** rwk,
+  # Spotify loads its downloaded Widevine CDM from this exact
+  # versioned cache path; other cached files retain non-executable access.
+  owner @{HOME}/.cache/spotify/WidevineCdm/[0-9]*.[0-9]*.[0-9]*.[0-9]*/_platform_specific/linux_x64/libwidevinecdm.so mr,
   owner @{HOME}/.config/spotify/ rw,
   owner @{HOME}/.config/spotify/** rwk,
   owner @{HOME}/.local/share/spotify/ rw,

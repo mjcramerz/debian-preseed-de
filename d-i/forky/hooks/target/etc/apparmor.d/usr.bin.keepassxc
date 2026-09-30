@@ -21,7 +21,11 @@ profile keepassxc /usr/bin/keepassxc flags=(attach_disconnected, mediate_deleted
   /run/udev/data/{+usb:*,c189:*} r,
   @{sys}/devices/**/usb*/speed r,
   @{sys}/devices/**/usb*/**/speed r,
-  owner @{PROC}/@{pid}/{cmdline,comm,stat} r,
+  # Secure exec can make the observed cmdline/comm inodes root-owned.
+  # @{pid} is a PID pattern, not a self-only kernel variable. Limit this
+  # ownership exception to those two metadata files; keep stat owner-bound.
+  @{PROC}/@{pid}/{cmdline,comm} r,
+  owner @{PROC}/@{pid}/stat r,
 
   owner @{HOME}/.cache/keepassxc/ rw,
   owner @{HOME}/.cache/keepassxc/** rwkl,

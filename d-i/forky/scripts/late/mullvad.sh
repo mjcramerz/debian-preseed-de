@@ -398,7 +398,16 @@ profile=/etc/apparmor.d/mullvad
 [ -f "$profile" ] && [ ! -L "$profile" ]
 [ "$(find -P "$profile" -maxdepth 0 -printf %U:%G:%n)" = 0:0:1 ]
 case "$(find -P "$profile" -maxdepth 0 -printf %m)" in 600|640|644) ;; *) exit 1 ;; esac
-cmp -s "$profile" "/opt/Mullvad VPN/resources/apparmor_mullvad"
+# A resumed late phase may see only the managed flag normalization. Compare
+# every other byte against the vendor resource; arbitrary policy edits fail.
+normalize_header="s/^profile mullvad \"\/opt\/Mullvad VPN\/mullvad-gui\" flags=\((unconfined|attach_disconnected|mediate_deleted|complain|audit|[ ,])+\) [{]$/profile mullvad verified-header {/"
+policy_check_dir=$(mktemp -d /tmp/mullvad-apparmor.XXXXXXXXXX)
+cleanup_policy_check() { rm -rf -- "$policy_check_dir"; }
+trap cleanup_policy_check 0
+trap "exit 1" HUP INT TERM
+sed -E "$normalize_header" "$profile" >"$policy_check_dir/current"
+sed -E "$normalize_header" "/opt/Mullvad VPN/resources/apparmor_mullvad" >"$policy_check_dir/vendor"
+cmp -s "$policy_check_dir/current" "$policy_check_dir/vendor"
 apparmor_parser --skip-kernel-load --skip-cache "$profile"
 ' sh || return $?
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/mullvad-apparmor.service)" \

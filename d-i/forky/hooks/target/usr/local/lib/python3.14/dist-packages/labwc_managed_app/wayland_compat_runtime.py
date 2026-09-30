@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import fcntl
+import socket
+import struct
+import tempfile
 import os
 import re
 import selectors
@@ -11,7 +15,13 @@ import stat
 import subprocess
 import sys
 import time
-from typing import BinaryIO, NoReturn
+from typing import NoReturn
+
+from .compat_protocol import (
+    CONTROL_DIRECTORY, CONTROL_SOCKET, Outcome, ProtocolError, activation_arguments,
+    peer_credentials, send_packet, receive_packet, stop_processes, protect_supervisor,
+    INFRASTRUCTURE_RESULT, STARTUP_RESULT, CLEANUP_RESULT,
+)
 
 from .runtime import (
     MANAGED_CAGE_COMPOSITOR_ENVIRONMENT,
@@ -32,14 +42,15 @@ PRIVATE_RUNTIME_LIBRARY_DIRECTORY = (
     f"{PRIVATE_RUNTIME_ROOT}/usr/lib/x86_64-linux-gnu"
 )
 XWAYLAND_BINARY = f"{PRIVATE_RUNTIME_ROOT}/usr/bin/Xwayland"
+XWAYLAND_EXEC_HELPER = "/usr/local/libexec/labwc-private-xwayland"
+CLIPBOARD_BRIDGE_MODE = "--bridge-clipboard"
+PRIMARY_SOCKET_ENVIRONMENT = "LABWC_COMPAT_PRIMARY_SOCKET"
 XWAYLAND_PROTOCOL = f"{PRIVATE_RUNTIME_ROOT}/usr/lib/xorg/protocol.txt"
 XKBCOMP_BINARY = "/usr/bin/xkbcomp"
 WL_COPY_BINARY = "/usr/bin/wl-copy"
 WL_PASTE_BINARY = "/usr/bin/wl-paste"
 XCLIP_BINARY = "/usr/bin/xclip"
 OUTER_WAYLAND_DISPLAY_ENVIRONMENT = "LABWC_MANAGED_OUTER_WAYLAND_DISPLAY"
-CLIPBOARD_SINK_MODE = "--copy-host-text-to-cage"
-CLIPBOARD_REVERSE_SINK_MODE = "--copy-cage-text-to-host"
 MASKED_APPLICATION_MODE = "--run-masked-application"
 CLIPBOARD_POLL_INTERVAL_SECONDS = 0.05
 CAGE_CLIPBOARD_POLL_INTERVAL_SECONDS = 0.25
@@ -61,8 +72,8 @@ PRIVATE_RUNTIME_LIBRARY_NAMES = (
     "libxshmfence.so.1",
 )
 PRIVATE_APPLICATION_LIBRARY_DIRECTORIES = {
-    "discord": (PRIVATE_RUNTIME_LIBRARY_DIRECTORY, "/opt/discord"),
-    "zoom": (PRIVATE_RUNTIME_LIBRARY_DIRECTORY,),
+    "discord": ("/opt/discord",),
+    "zoom": (),
 }
 DYNAMIC_LOADER_ENVIRONMENT_TO_CLEAR = (
     "LD_AUDIT",
@@ -92,21 +103,6 @@ APPLICATION_X11_CONTROL_ENVIRONMENT_TO_CLEAR = (
 X11_SOCKET_DIRECTORY = "/tmp/.X11-unix"
 MAX_DISPLAY_NUMBER = 65535
 TERMINATION_TIMEOUT_SECONDS = 3.0
-CAGE_STDERR_READ_BYTES = 4_096
-MAX_CAGE_DIAGNOSTIC_LINE_BYTES = 4_096
-CAGE_DRM_LEASE_INFO_PATTERN = re.compile(
-    rb"\d{2}:\d{2}:\d{2}\.\d{3} \[INFO\] \[\.\./cage\.c:[1-9][0-9]*\] "
-    rb"Failed to create wlr_drm_lease_manager_v1\r?\n"
-)
-XWAYLAND_BROKEN_PIPE_TEARDOWN_PATTERN = re.compile(
-    rb"\(EE\) failed to write to Xwayland fd: Broken pipe\r?\n"
-)
-IGNORED_CAGE_DIAGNOSTIC_PATTERNS = (
-    CAGE_DRM_LEASE_INFO_PATTERN,
-    XWAYLAND_BROKEN_PIPE_TEARDOWN_PATTERN,
-)
-
-_active_processes: list[subprocess.Popen[bytes]] = []
 _received_signal: int | None = None
 
 
@@ -226,18 +222,24 @@ def require_private_runtime_library(
 
 def application_process_environment(app_name: str) -> dict[str, str]:
     environment = dict(os.environ)
-    for name in (
-        *DYNAMIC_LOADER_ENVIRONMENT_TO_CLEAR,
-        *APPLICATION_X11_CONTROL_ENVIRONMENT_TO_CLEAR,
-    ):
-        environment.pop(name, None)
+    for name in tuple(environment):
+        if (name.startswith(("LD_", "WLR_", "LABWC_COMPAT_", "XWAYLAND", "QT_", "QML"))
+                or name in APPLICATION_X11_CONTROL_ENVIRONMENT_TO_CLEAR
+                or name in {"WAYLAND_DISPLAY", "WAYLAND_SOCKET", "GDK_BACKEND", "MOZ_ENABLE_WAYLAND",
+                            "SDL_VIDEODRIVER", "CLUTTER_BACKEND", "ELECTRON_OZONE_PLATFORM_HINT",
+                            "__EGL_VENDOR_LIBRARY_FILENAMES", "__EGL_VENDOR_LIBRARY_DIRS"}):
+            environment.pop(name, None)
     library_directories = PRIVATE_APPLICATION_LIBRARY_DIRECTORIES.get(app_name)
     if library_directories is None:
-        fail(
-            "private compatibility runtime rejected library policy for "
-            f"{app_name}"
-        )
-    environment["LD_LIBRARY_PATH"] = os.pathsep.join(library_directories)
+        fail("private compatibility runtime rejected application library policy")
+    if library_directories:
+        environment["LD_LIBRARY_PATH"] = os.pathsep.join(library_directories)
+    environment.update({"GDK_BACKEND": "x11", "SDL_VIDEODRIVER": "x11", "CLUTTER_BACKEND": "x11"})
+    if app_name == "zoom":
+        environment["QT_QPA_PLATFORM"] = "xcb"
+        environment["QT_OPENGL"] = "desktop"
+    else:
+        environment["ELECTRON_OZONE_PLATFORM_HINT"] = "x11"
     return environment
 
 
@@ -317,7 +319,7 @@ def require_outer_cage_environment() -> None:
     if os.environ.get("WAYLAND_DISPLAY") != outer_wayland_display:
         fail("Cage supervisor did not receive the imported outer Wayland socket")
     require_user_wayland_socket(runtime_directory, outer_wayland_display)
-    if os.environ.get("WLR_XWAYLAND") != XWAYLAND_BINARY:
+    if os.environ.get("WLR_XWAYLAND") != XWAYLAND_EXEC_HELPER:
         fail("Cage supervisor received an unexpected WLR_XWAYLAND")
     inherited_x11_names = tuple(
         name
@@ -358,111 +360,6 @@ def require_cage_wayland_socket() -> None:
     require_user_wayland_socket(runtime_directory, cage_wayland_display)
 
 
-def clipboard_bridge_argv(cage_wayland_display: str, *, reverse: bool = False) -> list[str]:
-    cage_wayland_display = validate_wayland_socket_name(
-        "Cage clipboard Wayland socket name",
-        cage_wayland_display,
-    )
-    # Cage does not provide the data-control protocol required by --watch.
-    # Its private Xwayland server exposes the same selection to native Wayland
-    # clients, so poll that selection only for the reverse direction.
-    if reverse:
-        return [SANDBOX_LIFECYCLE_HELPER, CLIPBOARD_REVERSE_SINK_MODE,
-                cage_wayland_display]
-    return [
-        WL_PASTE_BINARY,
-        "--no-newline",
-        "--type",
-        "text",
-        "--watch",
-        SANDBOX_LIFECYCLE_HELPER,
-        CLIPBOARD_SINK_MODE,
-        cage_wayland_display,
-    ]
-
-
-def parse_clipboard_sink_arguments(arguments: list[str]) -> tuple[str, bool]:
-    if len(arguments) != 2 or arguments[0] not in (
-        CLIPBOARD_SINK_MODE, CLIPBOARD_REVERSE_SINK_MODE
-    ):
-        fail("private clipboard sink received malformed arguments")
-    return validate_wayland_socket_name(
-        "Cage clipboard Wayland socket name",
-        arguments[1],
-    ), arguments[0] == CLIPBOARD_REVERSE_SINK_MODE
-
-
-def require_clipboard_sink_environment(cage_wayland_display: str, *, reverse: bool) -> str:
-    runtime_directory = f"/run/user/{os.getuid()}"
-    outer_wayland_display = validate_wayland_socket_name(
-        "outer Wayland socket name",
-        os.environ.get(OUTER_WAYLAND_DISPLAY_ENVIRONMENT, ""),
-    )
-    expected_source = cage_wayland_display if reverse else outer_wayland_display
-    if os.environ.get("WAYLAND_DISPLAY") != expected_source:
-        fail("private clipboard sink did not receive its expected Wayland socket")
-    if cage_wayland_display == outer_wayland_display:
-        fail("private clipboard sink received the outer socket as its destination")
-    require_user_wayland_socket(runtime_directory, outer_wayland_display)
-    require_user_wayland_socket(runtime_directory, cage_wayland_display)
-    return outer_wayland_display
-
-
-def clipboard_lock(cage_wayland_display: str) -> int:
-    # Both directions for this Cage instance serialize their read/compare/write.
-    # The directory is private to the user; do not follow a replaced lock path.
-    path = f"/run/user/{os.getuid()}/labwc-clipboard-{cage_wayland_display}.lock"
-    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
-    metadata = os.fstat(fd)
-    if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
-            or stat.S_IMODE(metadata.st_mode) != 0o600 or metadata.st_nlink != 1):
-        os.close(fd)
-        fail("private clipboard bridge lock is unsafe")
-    fcntl.flock(fd, fcntl.LOCK_EX)
-    return fd
-
-
-def destination_clipboard_text(
-    environment: dict[str, str], *, x11: bool = False,
-) -> bytes | None:
-    """Read only enough of the target selection to decide whether it matches."""
-    command = (
-        [XCLIP_BINARY, "-selection", "clipboard", "-out", "-target", "UTF8_STRING"]
-        if x11 else [WL_PASTE_BINARY, "--no-newline", "--type", "text"]
-    )
-    reader = subprocess.Popen(
-        command,
-        env=environment, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL, close_fds=True,
-    )
-    try:
-        if reader.stdout is None:
-            fail("private clipboard reader has no output stream")
-        deadline = time.monotonic() + CLIPBOARD_OPERATION_TIMEOUT_SECONDS
-        content = bytearray()
-        with selectors.DefaultSelector() as selector:
-            selector.register(reader.stdout, selectors.EVENT_READ)
-            while len(content) <= MAX_CLIPBOARD_TEXT_BYTES:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0 or not selector.select(remaining):
-                    fail("private clipboard reader timed out")
-                chunk = os.read(
-                    reader.stdout.fileno(),
-                    min(65536, MAX_CLIPBOARD_TEXT_BYTES + 1 - len(content)),
-                )
-                if not chunk:
-                    status = reader.wait(timeout=max(0, deadline - time.monotonic()))
-                    return bytes(content) if status == 0 else None
-                content.extend(chunk)
-        # The source may be arbitrarily large; comparison cannot match the
-        # bounded payload, so stop the reader without retaining more data.
-        return None
-    finally:
-        stop_process(reader)
-        if reader.stdout is not None:
-            reader.stdout.close()
-
-
 def masked_application_argv(
     app_name: str, outer_display: str, cage_display: str, child_argv: list[str]
 ) -> list[str]:
@@ -482,6 +379,12 @@ def masked_application_argv(
         # Cage and the bridge keep the parent mount. Only the application
         # loses this exact host socket in its private mount namespace.
         "--ro-bind", "/dev/null", f"/run/user/{os.getuid()}/{outer_display}",
+        "--ro-bind", "/dev/null", f"/run/user/{os.getuid()}/{cage_display}",
+        "--tmpfs", CONTROL_DIRECTORY,
+        "--tmpfs", PRIVATE_RUNTIME_ROOT,
+        "--ro-bind", "/dev/null", CAGE_BINARY,
+        "--ro-bind", "/dev/null", XWAYLAND_EXEC_HELPER,
+        "--cap-drop", "ALL",
         "--proc", "/proc", "--", SANDBOX_LIFECYCLE_HELPER,
         MASKED_APPLICATION_MODE, app_name, outer_display, cage_display,
         "--", *child_argv,
@@ -501,27 +404,8 @@ def require_private_null_device() -> None:
         os.close(fd)
 
 
-def run_masked_application(arguments: list[str]) -> NoReturn:
-    if len(arguments) < 6 or arguments[4] != "--":
-        fail("masked compatibility application received malformed arguments")
-    _, app_name, outer_display, cage_display, _, *child_argv = arguments
-    masked_application_argv(app_name, outer_display, cage_display, child_argv)
-    if os.geteuid() == 0:
-        fail("masked compatibility application must not run as root")
-    runtime_directory = f"/run/user/{os.getuid()}"
-    if os.environ.get("XDG_RUNTIME_DIR") != runtime_directory or os.environ.get("WAYLAND_DISPLAY") != cage_display:
-        fail("masked application lost Cage's private display")
-    host_socket = os.path.join(runtime_directory, outer_display)
-    if stat.S_ISSOCK(os.lstat(host_socket).st_mode):
-        fail("masked application can still reach the host Wayland socket")
-    require_user_wayland_socket(runtime_directory, cage_display)
-    require_private_null_device()
-    os.execve(child_argv[0], child_argv, application_process_environment(app_name))
-    raise AssertionError("unreachable")
-
-
 def require_cage_x11_display() -> str:
-    if os.environ.get("WLR_XWAYLAND") != XWAYLAND_BINARY:
+    if os.environ.get("WLR_XWAYLAND") != XWAYLAND_EXEC_HELPER:
         fail("private compatibility runtime received an unexpected WLR_XWAYLAND")
     inherited_x11_names = tuple(
         name
@@ -568,97 +452,21 @@ def require_private_x11_socket(display_number: str) -> None:
         fail("private compatibility socket is unsafe")
 
 
-def stop_process(process: subprocess.Popen[bytes] | None) -> None:
-    if process is None or process.poll() is not None:
-        return
-    try:
-        process.terminate()
-    except ProcessLookupError:
-        pass
-    try:
-        process.wait(timeout=TERMINATION_TIMEOUT_SECONDS)
-    except subprocess.TimeoutExpired:
-        try:
-            process.kill()
-        except ProcessLookupError:
-            pass
-        try:
-            process.wait(timeout=TERMINATION_TIMEOUT_SECONDS)
-        except subprocess.TimeoutExpired:
-            print("warning: compatibility child did not exit after SIGKILL", file=sys.stderr)
+def stop_process(process: subprocess.Popen[bytes] | None) -> bool:
+    return stop_processes([process], time.monotonic() + TERMINATION_TIMEOUT_SECONDS)
 
 
 def handle_signal(signum: int, _frame: object) -> None:
     global _received_signal
-    _received_signal = signum
-    for process in reversed(_active_processes):
-        if process.poll() is None:
-            try:
-                process.send_signal(signum)
-            except ProcessLookupError:
-                pass
+    if _received_signal is None:
+        _received_signal = signum
 
 
 def register_signal_handlers() -> None:
+    global _received_signal
+    _received_signal = None
     for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
         signal.signal(signum, handle_signal)
-
-
-def _write_stream_bytes(destination: BinaryIO, payload: bytes) -> None:
-    offset = 0
-    while offset < len(payload):
-        written = destination.write(payload[offset:])
-        if written is None or written <= 0:
-            fail("Cage supervisor could not relay a diagnostic")
-        offset += written
-
-
-def relay_cage_stderr(source: BinaryIO, destination: BinaryIO) -> None:
-    pending = bytearray()
-    passthrough_long_line = False
-
-    while True:
-        chunk = source.read(CAGE_STDERR_READ_BYTES)
-        if not chunk:
-            break
-        if not isinstance(chunk, bytes):
-            fail("Cage supervisor received a non-binary diagnostic stream")
-        pending.extend(chunk)
-        emitted = False
-
-        while True:
-            newline_index = pending.find(b"\n")
-            if newline_index < 0:
-                break
-            line = bytes(pending[: newline_index + 1])
-            del pending[: newline_index + 1]
-            if passthrough_long_line:
-                _write_stream_bytes(destination, line)
-                passthrough_long_line = False
-                emitted = True
-            elif not any(
-                pattern.fullmatch(line) is not None
-                for pattern in IGNORED_CAGE_DIAGNOSTIC_PATTERNS
-            ):
-                _write_stream_bytes(destination, line)
-                emitted = True
-
-        if passthrough_long_line and pending:
-            _write_stream_bytes(destination, bytes(pending))
-            pending.clear()
-            emitted = True
-        elif len(pending) > MAX_CAGE_DIAGNOSTIC_LINE_BYTES:
-            _write_stream_bytes(destination, bytes(pending))
-            pending.clear()
-            passthrough_long_line = True
-            emitted = True
-
-        if emitted:
-            destination.flush()
-
-    if pending:
-        _write_stream_bytes(destination, bytes(pending))
-        destination.flush()
 
 
 def parse_arguments(arguments: list[str]) -> tuple[str, str, list[str]]:
@@ -685,279 +493,522 @@ def process_exit_status(returncode: int) -> int:
     return returncode
 
 
-def supervise_application(
-    application: subprocess.Popen[bytes],
-    clipboard_bridges: tuple[subprocess.Popen[bytes], subprocess.Popen[bytes]],
-) -> int:
-    while True:
-        if _received_signal is not None:
-            return 128 + _received_signal
-        application_status = application.poll()
-        if application_status is not None:
-            return process_exit_status(application_status)
-        for direction, clipboard_bridge in zip(("host-to-Cage", "Cage-to-host"), clipboard_bridges):
-            clipboard_status = clipboard_bridge.poll()
-            if clipboard_status is not None:
-                fail(
-                    f"{direction} clipboard bridge exited while the application "
-                    f"was running (status {process_exit_status(clipboard_status)})"
-                )
-        time.sleep(CLIPBOARD_POLL_INTERVAL_SECONDS)
-
-
-def run_clipboard_sink(arguments: list[str]) -> int:
-    cage_wayland_display, reverse = parse_clipboard_sink_arguments(arguments)
-    if os.geteuid() == 0:
-        fail("private clipboard sink must not run as root")
-
-    system_owner = sandbox_system_owner()
-    outer_wayland_display = require_clipboard_sink_environment(
-        cage_wayland_display, reverse=reverse
-    )
-    require_system_owned_file(
-        "Wayland clipboard writer",
-        WL_COPY_BINARY,
-        system_owner=system_owner,
-        executable=True,
-    )
-    require_system_owned_file(
-        "Wayland clipboard reader", WL_PASTE_BINARY,
-        system_owner=system_owner, executable=True,
-    )
-    require_system_owned_file(
-        "private X11 clipboard tool", XCLIP_BINARY,
-        system_owner=system_owner, executable=True,
-    )
-    register_signal_handlers()
-    x11_environment = private_clipboard_x11_environment()
-    if reverse:
-        return watch_cage_clipboard(
-            cage_wayland_display, outer_wayland_display, x11_environment,
-        )
-    payload = sys.stdin.buffer.read(MAX_CLIPBOARD_TEXT_BYTES + 1)
-    if len(payload) > MAX_CLIPBOARD_TEXT_BYTES:
-        fail("private clipboard text exceeds the bridge limit")
-    if not payload:
-        return 0
-    lock_fd = clipboard_lock(cage_wayland_display)
+def require_x11_connection(display_number: str) -> socket.socket:
+    """Validate a real private X11 setup reply, retaining the connection as a liveness check."""
+    connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    connection.settimeout(5)
     try:
-        current = destination_clipboard_text(x11_environment, x11=True)
-        # A mirrored selection becomes a new owner. Suppress the echo watcher
-        # by comparing its content, including an explicitly empty selection.
-        if current == payload:
-            return 0
-        writer = subprocess.run(
-            [XCLIP_BINARY, "-selection", "clipboard", "-in"],
-            env=x11_environment, input=payload, stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=CLIPBOARD_OPERATION_TIMEOUT_SECONDS, check=False,
-        )
-        if _received_signal is not None:
-            return 128 + _received_signal
-        return process_exit_status(writer.returncode)
+        connection.connect(os.path.join(X11_SOCKET_DIRECTORY, "X" + display_number))
+        connection.sendall(struct.pack("<BBHHHHH", ord("l"), 0, 11, 0, 0, 0, 0))
+        header = bytearray()
+        deadline = time.monotonic() + 5
+        while len(header) < 8:
+            connection.settimeout(max(0.001, deadline - time.monotonic()))
+            chunk = connection.recv(8 - len(header))
+            if not chunk:
+                fail("private Xwayland closed during protocol readiness")
+            header.extend(chunk)
+        success, _unused, major, _minor, units = struct.unpack("<BBHHH", header)
+        if success != 1 or major != 11 or units * 4 > 262144:
+            fail("private Xwayland did not accept the managed X11 connection")
+        remaining = units * 4
+        while remaining:
+            if time.monotonic() >= deadline:
+                fail("private Xwayland readiness timed out")
+            connection.settimeout(max(0.001, deadline - time.monotonic()))
+            chunk = connection.recv(min(65536, remaining))
+            if not chunk:
+                fail("private Xwayland returned truncated readiness data")
+            remaining -= len(chunk)
+        connection.setblocking(False)
+        return connection
+    except BaseException:
+        connection.close()
+        raise
+
+
+def connect_runtime(app_name: str, mode: str) -> socket.socket:
+    run_id = os.environ.get("LABWC_COMPAT_RUN_ID", "")
+    if re.fullmatch(r"[0-9a-f]{32}", run_id) is None:
+        fail("private runtime lacks its managed run identity")
+    channel = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+    channel.settimeout(5)
+    try:
+        channel.connect(CONTROL_SOCKET)
+        hello = receive_packet(channel)
+        if (hello.get("type") != "instance" or hello.get("run_id") != run_id
+                or hello.get("app") != app_name or hello.get("mode") != mode
+                or peer_credentials(channel)[1] != os.getuid()):
+            fail("private runtime coordinator identity is mismatched")
+        send_packet(channel, {"type": "runtime", "run_id": run_id})
+        if receive_packet(channel) != {"type": "runtime-accepted"}:
+            fail("private runtime coordinator rejected the channel")
+        channel.setblocking(False)
+        return channel
+    except BaseException:
+        channel.close()
+        raise
+
+
+def bounded_read(fd: int, deadline: float, limit: int = MAX_CLIPBOARD_TEXT_BYTES) -> bytes:
+    """Real pipe reads, including partial input, obey size/time/stop bounds."""
+    result = bytearray()
+    with selectors.PollSelector() as selector:
+        selector.register(fd, selectors.EVENT_READ)
+        while True:
+            if _received_signal is not None:
+                fail("clipboard operation cancelled")
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                fail("clipboard input timed out")
+            if not selector.select(min(remaining, 0.05)):
+                continue
+            chunk = os.read(fd, min(65536, limit + 1 - len(result)))
+            if not chunk:
+                return bytes(result)
+            result.extend(chunk)
+            if len(result) > limit:
+                fail("clipboard input exceeds the limit")
+
+
+def clipboard_lock(cage_display: str, *, deadline: float | None = None) -> int:
+    cage_display = validate_wayland_socket_name("clipboard lock display", cage_display)
+    path = f"/run/user/{os.getuid()}/labwc-clipboard-{cage_display}.lock"
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
+    deadline = time.monotonic() + CLIPBOARD_OPERATION_TIMEOUT_SECONDS if deadline is None else deadline
+    try:
+        metadata = os.fstat(fd)
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
+                or stat.S_IMODE(metadata.st_mode) != 0o600 or metadata.st_nlink != 1):
+            fail("private clipboard lock is unsafe")
+        while _received_signal is None:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return fd
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    fail("private clipboard lock timed out")
+                time.sleep(0.025)
+        fail("private clipboard lock cancelled")
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+@dataclass(frozen=True)
+class ClipboardSelection:
+    state: str  # text, empty, cleared, unavailable
+    data: bytes | None = None
+
+
+def read_clipboard_selection(environment: dict[str, str], *, x11: bool = False,
+                             deadline: float | None = None) -> ClipboardSelection:
+    command = ([XCLIP_BINARY, "-selection", "clipboard", "-out", "-target", "UTF8_STRING"]
+               if x11 else [WL_PASTE_BINARY, "--no-newline", "--type", "text"])
+    try:
+        reader = subprocess.Popen(command, env=environment, stdin=subprocess.DEVNULL,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                  close_fds=True, start_new_session=True)
+    except OSError:
+        return ClipboardSelection("unavailable")
+    try:
+        deadline = time.monotonic() + CLIPBOARD_OPERATION_TIMEOUT_SECONDS if deadline is None else deadline
+        buffers = {reader.stdout: bytearray(), reader.stderr: bytearray()}
+        limits = {reader.stdout: MAX_CLIPBOARD_TEXT_BYTES, reader.stderr: 2048}
+        # Drain both pipes concurrently; a diagnostic cannot stall the data
+        # reader. Diagnostic bytes remain private and are never logged.
+        with selectors.PollSelector() as selector:
+            for stream in buffers:
+                selector.register(stream, selectors.EVENT_READ)
+            while selector.get_map():
+                if _received_signal is not None:
+                    fail("clipboard operation cancelled")
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return ClipboardSelection("unavailable")
+                for key, _event in selector.select(min(remaining, 0.05)):
+                    stream = key.fileobj
+                    chunk = os.read(stream.fileno(), min(65536, limits[stream] + 1 - len(buffers[stream])))
+                    if not chunk:
+                        selector.unregister(stream)
+                    else:
+                        buffers[stream].extend(chunk)
+                        if len(buffers[stream]) > limits[stream]:
+                            return ClipboardSelection("unavailable")
+        status = reader.wait(timeout=max(0.001, deadline - time.monotonic()))
+        payload = bytes(buffers[reader.stdout])
+        diagnostic = bytes(buffers[reader.stderr]).strip()
+        if status == 0:
+            return ClipboardSelection("text" if payload else "empty", payload)
+        # These fixed helper diagnostics prove no selection owner. Other
+        # versions/errors/non-text selections are unavailable, never guessed
+        # empty and never replaced from a cached secret.
+        cleared = (b"xclip: Error: There is no owner for the CLIPBOARD selection" if x11 else b"Nothing is copied")
+        return ClipboardSelection("cleared" if status == 1 and diagnostic == cleared else "unavailable")
+    except (OSError, subprocess.TimeoutExpired):
+        return ClipboardSelection("unavailable")
     finally:
-        os.close(lock_fd)
+        stop_processes([reader], time.monotonic() + 0.5, groups=True)
+        reader.stdout.close()
+        reader.stderr.close()
 
 
-def watch_cage_clipboard(
-    cage_wayland_display: str,
-    outer_wayland_display: str,
-    x11_environment: dict[str, str],
-) -> int:
-    """Mirror changed private X selections to the host without Cage data-control."""
-    host_environment = clipboard_process_environment(outer_wayland_display)
-    last_seen: bytes | None = None
-    while _received_signal is None:
-        # Xwayland bridges the native Cage selection. A missing selection (or
-        # an unsupported/oversized type) is not a fatal clipboard event.
-        payload = destination_clipboard_text(x11_environment, x11=True)
-        if payload is not None and payload != last_seen:
-            last_seen = payload
-            if payload:
-                lock_fd = clipboard_lock(cage_wayland_display)
+def destination_clipboard_text(environment: dict[str, str], *, x11: bool = False,
+                               deadline: float | None = None) -> bytes | None:
+    return read_clipboard_selection(environment, x11=x11, deadline=deadline).data
+
+
+def selection_owner(payload: bytes, environment: dict[str, str], *, x11: bool) -> subprocess.Popen:
+    command = ([XCLIP_BINARY, "-selection", "clipboard", "-quiet", "-in"] if x11 else
+               [WL_COPY_BINARY, "--foreground", "--type", "text/plain;charset=utf-8"])
+    writer = subprocess.Popen(command, env=environment, stdin=subprocess.PIPE,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                              close_fds=True, start_new_session=True)
+    try:
+        deadline = time.monotonic() + CLIPBOARD_OPERATION_TIMEOUT_SECONDS
+        os.set_blocking(writer.stdin.fileno(), False)
+        offset = 0
+        with selectors.PollSelector() as selector:
+            selector.register(writer.stdin, selectors.EVENT_WRITE)
+            while offset < len(payload):
+                if _received_signal is not None or time.monotonic() >= deadline:
+                    fail("clipboard writer cancelled or timed out")
+                if not selector.select(0.05):
+                    continue
                 try:
-                    current = destination_clipboard_text(host_environment)
+                    offset += os.write(writer.stdin.fileno(), payload[offset:offset + 65536])
+                except BlockingIOError:
+                    pass
+        writer.stdin.close()
+        # Confirm ownership, rather than timing out a healthy foreground owner.
+        while time.monotonic() < deadline and _received_signal is None:
+            if writer.poll() is not None:
+                fail("clipboard selection owner exited before ownership")
+            if destination_clipboard_text(environment, x11=x11, deadline=deadline) == payload:
+                return writer
+            time.sleep(0.025)
+        fail("clipboard selection ownership was not established")
+    except BaseException:
+        stop_processes([writer], time.monotonic() + 0.5, groups=True)
+        if writer.stdin is not None:
+            writer.stdin.close()
+        raise
+
+
+def run_clipboard_bridge(arguments: list[str]) -> int:
+    if len(arguments) != 2 or arguments[0] != CLIPBOARD_BRIDGE_MODE:
+        fail("clipboard bridge received malformed arguments")
+    cage_display = validate_wayland_socket_name("Cage clipboard display", arguments[1])
+    outer_display = os.environ.get(OUTER_WAYLAND_DISPLAY_ENVIRONMENT, "")
+    if cage_display == outer_display or os.geteuid() == 0:
+        fail("clipboard bridge lacks private display ownership")
+    host_environment = clipboard_process_environment(outer_display)
+    private_environment = private_clipboard_x11_environment()
+    register_signal_handlers()
+    owners = {False: None, True: None}
+    last = {False: None, True: None}
+    try:
+        while _received_signal is None:
+            # Stable order resolves simultaneous changes deterministically.
+            for source_x11 in (False, True):
+                source_environment = private_environment if source_x11 else host_environment
+                selection = read_clipboard_selection(source_environment, x11=source_x11)
+                if selection == last[source_x11]:
+                    continue
+                if selection.state == "unavailable":
+                    # Controlled feature teardown releases our mirror owners.
+                    # It cannot terminate the required application runtime.
+                    last = {False: None, True: None}
+                    return 2
+                destination_x11 = not source_x11
+                if selection.state == "cleared":
+                    stop_processes([owners[destination_x11]], time.monotonic() + 0.5, groups=True)
+                    owners[destination_x11] = None
+                    last[source_x11] = last[destination_x11] = selection
+                    continue
+                payload = selection.data
+                destination_environment = private_environment if destination_x11 else host_environment
+                fd = clipboard_lock(cage_display)
+                try:
+                    current = destination_clipboard_text(destination_environment, x11=destination_x11)
                     if current != payload:
-                        writer = subprocess.run(
-                            [WL_COPY_BINARY, "--type", "text/plain;charset=utf-8"],
-                            env=host_environment, input=payload,
-                            stdout=subprocess.DEVNULL,
-                            timeout=CLIPBOARD_OPERATION_TIMEOUT_SECONDS,
-                            check=False,
-                        )
-                        if writer.returncode != 0:
-                            fail("Cage-to-host clipboard write failed")
+                        stop_processes([owners[destination_x11]], time.monotonic() + 0.5, groups=True)
+                        owners[destination_x11] = selection_owner(payload, destination_environment, x11=destination_x11)
+                    # Advance both directions only after destination success.
+                    last[source_x11] = last[destination_x11] = selection
                 finally:
-                    os.close(lock_fd)
-        time.sleep(CAGE_CLIPBOARD_POLL_INTERVAL_SECONDS)
-    return 128 + _received_signal
+                    os.close(fd)
+            time.sleep(CAGE_CLIPBOARD_POLL_INTERVAL_SECONDS)
+        return 128 + _received_signal
+    finally:
+        stop_processes(list(owners.values()), time.monotonic() + 1, groups=True)
+
+
+def run_masked_application(arguments: list[str]) -> int:
+    protect_supervisor()
+    if len(arguments) < 6 or arguments[4] != "--":
+        fail("masked compatibility application received malformed arguments")
+    _, app_name, outer_display, cage_display, _, *child_argv = arguments
+    masked_application_argv(app_name, outer_display, cage_display, child_argv)
+    if os.geteuid() == 0:
+        fail("masked compatibility application must not run as root")
+    runtime_directory = f"/run/user/{os.getuid()}"
+    if os.environ.get("XDG_RUNTIME_DIR") != runtime_directory or os.environ.get("WAYLAND_DISPLAY") != cage_display:
+        fail("masked application lost its private display identity")
+    for display in (outer_display, cage_display):
+        if stat.S_ISSOCK(os.lstat(os.path.join(runtime_directory, display)).st_mode):
+            fail("masked application can still reach a host Wayland socket")
+    require_private_null_device()
+    path = os.environ.get(PRIMARY_SOCKET_ENVIRONMENT, "")
+    if re.fullmatch(r"/tmp/labwc-compat-primary-[A-Za-z0-9_]+/primary.sock", path) is None:
+        fail("masked application has an invalid primary channel")
+    metadata = os.lstat(path)
+    parent = os.lstat(os.path.dirname(path))
+    if (not stat.S_ISSOCK(metadata.st_mode) or metadata.st_uid != os.getuid()
+            or stat.S_IMODE(metadata.st_mode) != 0o600 or not stat.S_ISDIR(parent.st_mode)
+            or parent.st_uid != os.getuid() or stat.S_IMODE(parent.st_mode) != 0o700):
+        fail("masked application primary channel is unsafe")
+    channel = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+    channel.settimeout(5)
+    channel.connect(path)
+    send_packet(channel, {"type": "primary-ready"})
+    if receive_packet(channel) != {"type": "primary-accepted"}:
+        fail("masked application primary channel was rejected")
+    channel.setblocking(False)
+    register_signal_handlers()
+    application = None
+    activations = []
+    outcome = Outcome("startup-failed", STARTUP_RESULT)
+    try:
+        environment = application_process_environment(app_name)
+        application = subprocess.Popen(child_argv, env=environment, close_fds=True, start_new_session=True)
+        send_packet(channel, {"type": "running"})
+        # The profile's fixed backend arguments are retained. One-time URI
+        # data is replaced, never reused when another activation arrives.
+        base_argv = child_argv[:-1] if child_argv[-1].startswith(("discord:", "--url=")) else child_argv
+        while application.poll() is None and _received_signal is None:
+            for process, deadline in tuple(activations):
+                if process.poll() is not None or time.monotonic() >= deadline:
+                    stop_processes([process], time.monotonic() + 0.5, groups=True)
+                    activations.remove((process, deadline))
+            with selectors.DefaultSelector() as selector:
+                selector.register(channel, selectors.EVENT_READ)
+                if selector.select(0.05):
+                    packet = receive_packet(channel)
+                    if set(packet) != {"type", "id", "args"} or packet["type"] != "activate":
+                        fail("masked application received an invalid activation")
+                    approved = activation_arguments(app_name, packet["args"])
+                    accepted = bool(approved) and not activations
+                    if accepted:
+                        process = subprocess.Popen([*base_argv, *approved], env=environment,
+                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                            close_fds=True, start_new_session=True)
+                        activations.append((process, time.monotonic() + 5))
+                    send_packet(channel, {"type": "activation", "id": packet["id"], "accepted": accepted})
+        outcome = (Outcome("user-stopped", 128 + _received_signal, _received_signal)
+                   if _received_signal is not None else Outcome.observed(app_name, application.returncode))
+    except (OSError, ProtocolError, CompatibilityRuntimeError):
+        outcome = Outcome("infrastructure-failed", INFRASTRUCTURE_RESULT)
+    finally:
+        # Publish the observed cause before cleanup. The host starts its one
+        # overall deadline now; later cleanup cannot replace this outcome.
+        try:
+            send_packet(channel, outcome.packet())
+        finally:
+            cleaned = stop_processes([application, *(p for p, _ in activations)], time.monotonic() + 3, groups=True)
+            if not cleaned:
+                outcome = outcome.cleanup_failed()
+            try:
+                send_packet(channel, {"type": "cleanup", "failed": not cleaned})
+            finally:
+                channel.close()
+    return outcome.result
 
 
 def run_cage_supervisor(arguments: list[str]) -> int:
+    protect_supervisor()
     inner_arguments = parse_cage_supervisor_arguments(arguments)
     if os.geteuid() == 0:
         fail("Cage supervisor must not run as root")
-
-    system_owner = sandbox_system_owner()
-    require_system_owned_file(
-        "Cage compositor",
-        CAGE_BINARY,
-        system_owner=system_owner,
-        executable=True,
-    )
+    require_system_owned_file("Cage compositor", CAGE_BINARY, system_owner=sandbox_system_owner(), executable=True)
     require_outer_cage_environment()
     register_signal_handlers()
-
-    cage: subprocess.Popen[bytes] | None = None
-    cage_stderr: BinaryIO | None = None
+    cage = subprocess.Popen([CAGE_BINARY, "-d", "--", SANDBOX_LIFECYCLE_HELPER, *inner_arguments],
+                            stdin=None, stdout=None, stderr=None, close_fds=True, start_new_session=True)
     try:
-        cage = subprocess.Popen(
-            [
-                CAGE_BINARY,
-                "-d",
-                # Cage starts its compiled Xwayland integration automatically.
-                # WLR_XWAYLAND selects the private server. Cage 0.2/0.3 has no
-                # Xwayland enable switch; where -x exists, it disables Xwayland.
-                "--",
-                SANDBOX_LIFECYCLE_HELPER,
-                *inner_arguments,
-            ],
-            stdin=None,
-            stdout=None,
-            stderr=subprocess.PIPE,
-            close_fds=True,
-        )
-        _active_processes.append(cage)
-        if _received_signal is not None and cage.poll() is None:
-            cage.send_signal(_received_signal)
-        cage_stderr = cage.stderr
-        if cage_stderr is None:
-            fail("Cage supervisor did not receive Cage's diagnostic stream")
-        relay_cage_stderr(cage_stderr, sys.stderr.buffer)
-        returncode = cage.wait()
-        if _received_signal is not None:
-            return 128 + _received_signal
-        return process_exit_status(returncode)
+        while cage.poll() is None and _received_signal is None:
+            time.sleep(0.05)
+        result = 128 + _received_signal if _received_signal is not None else process_exit_status(cage.returncode)
+        signum = _received_signal or (-cage.returncode if cage.returncode is not None and cage.returncode < 0 else 0)
     finally:
-        stop_process(cage)
-        if cage_stderr is not None:
-            cage_stderr.close()
-        _active_processes.clear()
+        cleaned = stop_processes([cage], time.monotonic() + 3, groups=True)
+    if result or not cleaned:
+        report_compositor_outcome(arguments[0], arguments[1], result, signum, cleaned)
+    return result if cleaned else result or CLEANUP_RESULT
+
+
+def report_compositor_outcome(app_name: str, mode: str, result: int, signum: int, cleaned: bool) -> None:
+    """Report a directly observed Cage signal without parsing its stderr/status."""
+    try:
+        run_id = os.environ.get("LABWC_COMPAT_RUN_ID", "")
+        if re.fullmatch(r"[0-9a-f]{32}", run_id) is None:
+            raise ProtocolError("compositor lacks run identity")
+        with socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET) as channel:
+            channel.settimeout(0.5)
+            channel.connect(CONTROL_SOCKET)
+            hello = receive_packet(channel)
+            if (hello.get("type") != "instance" or hello.get("run_id") != run_id
+                    or hello.get("app") != app_name or hello.get("mode") != mode
+                    or peer_credentials(channel)[1] != os.getuid()):
+                raise ProtocolError("compositor outcome coordinator is mismatched")
+            send_packet(channel, {"type": "compositor-outcome", "run_id": run_id,
+                                  "result": result, "signal": signum, "cleanup": "ok" if cleaned else "failed"})
+            if receive_packet(channel) != {"type": "compositor-accepted"}:
+                raise ProtocolError("compositor outcome was rejected")
+    except (OSError, ProtocolError):
+        print("compat-runtime: compositor outcome channel unavailable", file=sys.stderr)
 
 
 def run(arguments: list[str]) -> int:
-    app_name, _mode, child_argv = parse_arguments(arguments)
+    protect_supervisor()
+    app_name, mode, child_argv = parse_arguments(arguments)
     if os.geteuid() == 0:
         fail("private compatibility runtime must not run as root")
-
-    system_owner = sandbox_system_owner()
-    require_cage_wayland_socket()
-    display_number = require_cage_x11_display()
-    require_private_x11_socket_directory()
-    require_private_x11_socket(display_number)
-    require_system_owned_file(
-        "private compatibility Xwayland executable",
-        XWAYLAND_BINARY,
-        system_owner=system_owner,
-        executable=True,
-    )
-    require_system_owned_file(
-        "private compatibility Xwayland protocol data",
-        XWAYLAND_PROTOCOL,
-        system_owner=system_owner,
-    )
-    require_system_owned_file(
-        "private compatibility XKB compiler",
-        XKBCOMP_BINARY,
-        system_owner=system_owner,
-        executable=True,
-    )
-    for library_name in PRIVATE_RUNTIME_LIBRARY_NAMES:
-        require_private_runtime_library(
-            library_name,
-            system_owner=system_owner,
-        )
-    require_system_owned_file(
-        "Wayland clipboard reader",
-        WL_PASTE_BINARY,
-        system_owner=system_owner,
-        executable=True,
-    )
-    require_system_owned_file(
-        "Wayland clipboard writer",
-        WL_COPY_BINARY,
-        system_owner=system_owner,
-        executable=True,
-    )
-    require_system_owned_file(
-        "private X11 clipboard tool", XCLIP_BINARY,
-        system_owner=system_owner, executable=True,
-    )
-    require_system_owned_file(
-        "application mount namespace helper", "/usr/bin/bwrap",
-        system_owner=system_owner, executable=True,
-    )
-
     register_signal_handlers()
-    application: subprocess.Popen[bytes] | None = None
-    clipboard_bridges: list[subprocess.Popen[bytes]] = []
+    channel = connect_runtime(app_name, mode)
+    application = None
+    primary = None
+    x11 = None
+    bridge = None
+    listener = None
+    primary_directory = None
+    running = False
+    outcome = Outcome("startup-failed", STARTUP_RESULT)
     try:
-        cage_wayland_display = validate_wayland_socket_name(
-            "Cage Wayland socket name",
-            os.environ.get("WAYLAND_DISPLAY", ""),
-        )
-        outer_wayland_display = validate_wayland_socket_name(
-            "outer Wayland socket name",
-            os.environ.get(OUTER_WAYLAND_DISPLAY_ENVIRONMENT, ""),
-        )
-        clipboard_environment = clipboard_process_environment(
-            outer_wayland_display
-        )
-        clipboard_environment[OUTER_WAYLAND_DISPLAY_ENVIRONMENT] = (
-            outer_wayland_display
-        )
-        clipboard_environment["DISPLAY"] = f":{display_number}"
-        for reverse in (False, True):
-            source_environment = (
-                clipboard_process_environment(cage_wayland_display)
-                if reverse else clipboard_environment
-            )
-            source_environment[OUTER_WAYLAND_DISPLAY_ENVIRONMENT] = outer_wayland_display
-            source_environment["DISPLAY"] = f":{display_number}"
-            bridge = subprocess.Popen(
-                clipboard_bridge_argv(cage_wayland_display, reverse=reverse),
-                env=source_environment, stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL, stderr=None, close_fds=True,
-            )
-            clipboard_bridges.append(bridge)
-            _active_processes.append(bridge)
-            clipboard_status = bridge.poll()
-            if clipboard_status is not None:
-                direction = "Cage-to-host" if reverse else "host-to-Cage"
-                fail(f"{direction} clipboard bridge failed during startup "
-                     f"(status {process_exit_status(clipboard_status)})")
-
-        application_environment = application_process_environment(app_name)
-        expected_display = f":{display_number}"
-        if application_environment.get("DISPLAY") != expected_display:
-            fail("private compatibility runtime lost Cage's DISPLAY")
-        application = subprocess.Popen(
-            masked_application_argv(
-                app_name, outer_wayland_display, cage_wayland_display, child_argv
-            ),
-            env=application_environment,
-            stdin=None,
-            stdout=None,
-            stderr=None,
-            close_fds=True,
-        )
-        _active_processes.append(application)
-        return supervise_application(application, tuple(clipboard_bridges))
+        require_cage_wayland_socket()
+        display_number = require_cage_x11_display()
+        require_private_x11_socket_directory()
+        require_private_x11_socket(display_number)
+        x11 = require_x11_connection(display_number)
+        outer_display = os.environ[OUTER_WAYLAND_DISPLAY_ENVIRONMENT]
+        cage_display = os.environ["WAYLAND_DISPLAY"]
+        if os.environ.get("LABWC_COMPAT_CLIPBOARD") not in {"0", "1"}:
+            fail("clipboard sharing policy is invalid")
+        if os.environ["LABWC_COMPAT_CLIPBOARD"] == "1":
+            try:
+                for path in (WL_PASTE_BINARY, WL_COPY_BINARY, XCLIP_BINARY):
+                    require_system_owned_file("clipboard helper", path, system_owner=sandbox_system_owner(), executable=True)
+                bridge = subprocess.Popen([SANDBOX_LIFECYCLE_HELPER, CLIPBOARD_BRIDGE_MODE, cage_display],
+                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=None,
+                    close_fds=True, start_new_session=True)
+            except (OSError, CompatibilityRuntimeError):
+                print("compat-runtime: clipboard bridge unavailable", file=sys.stderr)
+        primary_directory = tempfile.mkdtemp(prefix="labwc-compat-primary-", dir="/tmp")
+        primary_path = os.path.join(primary_directory, "primary.sock")
+        listener = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        listener.bind(primary_path)
+        os.chmod(primary_path, 0o600)
+        listener.listen(1)
+        listener.settimeout(0.05)
+        environment = dict(os.environ)
+        environment[PRIMARY_SOCKET_ENVIRONMENT] = primary_path
+        application = subprocess.Popen(masked_application_argv(app_name, outer_display, cage_display, child_argv),
+            env=environment, close_fds=True, start_new_session=True)
+        deadline = time.monotonic() + 5
+        while primary is None and time.monotonic() < deadline and _received_signal is None:
+            if application.poll() is not None:
+                fail("application namespace exited before readiness")
+            try:
+                primary, _ = listener.accept()
+            except socket.timeout:
+                continue
+        if primary is None:
+            fail("application namespace readiness timed out")
+        if peer_credentials(primary)[1] != os.getuid():
+            fail("application namespace peer owner is mismatched")
+        primary.settimeout(1)
+        if receive_packet(primary) != {"type": "primary-ready"}:
+            fail("application namespace returned invalid readiness")
+        # No payload exists yet. Remove the rendezvous before acknowledging it,
+        # and retain only connected, non-inheritable supervisor descriptors.
+        listener.close()
+        listener = None
+        os.unlink(primary_path)
+        os.rmdir(primary_directory)
+        primary_directory = None
+        send_packet(primary, {"type": "primary-accepted"})
+        primary.setblocking(False)
+        warned_bridge = False
+        with selectors.DefaultSelector() as selector:
+            selector.register(primary, selectors.EVENT_READ, "primary")
+            selector.register(channel, selectors.EVENT_READ, "host")
+            selector.register(x11, selectors.EVENT_READ, "x11")
+            while _received_signal is None:
+                if bridge is not None and bridge.poll() is not None and not warned_bridge:
+                    warned_bridge = True
+                    print("compat-runtime: clipboard bridge degraded", file=sys.stderr)
+                events = selector.select(0.05)
+                # Observed application outcome wins over concurrent teardown.
+                events.sort(key=lambda item: item[0].data != "primary")
+                finished = False
+                for key, _event in events:
+                    if key.data == "primary":
+                        packet = receive_packet(primary)
+                        if packet == {"type": "running"}:
+                            running = True
+                            send_packet(channel, packet)
+                        elif packet.get("type") == "outcome":
+                            outcome = Outcome.from_packet(packet)
+                            finished = True
+                            break
+                        elif packet.get("type") == "activation":
+                            send_packet(channel, packet)
+                        else:
+                            fail("invalid primary runtime packet")
+                    elif key.data == "host":
+                        send_packet(primary, receive_packet(channel))
+                    elif not x11.recv(65536):
+                        fail("required private Xwayland connection closed")
+                if finished:
+                    break
+                if application.poll() is not None and not events:
+                    fail("application namespace ended without a primary outcome")
+            if _received_signal is not None:
+                outcome = Outcome("user-stopped", 128 + _received_signal, _received_signal)
+    except (OSError, ProtocolError, CompatibilityRuntimeError):
+        outcome = Outcome("infrastructure-failed" if running else "startup-failed",
+                          INFRASTRUCTURE_RESULT if running else STARTUP_RESULT)
     finally:
-        stop_process(application)
-        for bridge in reversed(clipboard_bridges):
-            stop_process(bridge)
-        _active_processes.clear()
+        cleanup_deadline = time.monotonic() + 8
+        try:
+            channel.settimeout(0.5)
+            send_packet(channel, outcome.packet())
+            cleaned = stop_processes([application, bridge], cleanup_deadline, groups=True)
+            # The primary's cleanup message is non-secret, bounded, and may
+            # already be queued when its namespace supervisor exits.
+            if primary is not None:
+                primary.settimeout(min(0.1, max(0.001, cleanup_deadline - time.monotonic())))
+                try:
+                    record = receive_packet(primary)
+                    if record == {"type": "cleanup", "failed": True}:
+                        cleaned = False
+                except (OSError, ProtocolError):
+                    pass
+            if not cleaned:
+                outcome = outcome.cleanup_failed()
+            send_packet(channel, {"type": "cleanup", "failed": not cleaned})
+        finally:
+            # A failed control channel still requires owned-child teardown.
+            stop_processes([application, bridge], cleanup_deadline, groups=True)
+            for sock in (primary, x11, listener, channel):
+                if sock is not None:
+                    sock.close()
+            if primary_directory is not None:
+                path = os.path.join(primary_directory, "primary.sock")
+                if os.path.lexists(path):
+                    os.unlink(path)
+                os.rmdir(primary_directory)
+    return outcome.result
 
 
 def main(arguments: list[str] | None = None) -> int:
@@ -965,21 +1016,11 @@ def main(arguments: list[str] | None = None) -> int:
     try:
         if runtime_arguments[:1] == [CAGE_SUPERVISOR_MODE]:
             return run_cage_supervisor(runtime_arguments[1:])
-        if runtime_arguments[:1] in ([CLIPBOARD_SINK_MODE], [CLIPBOARD_REVERSE_SINK_MODE]):
-            return run_clipboard_sink(runtime_arguments)
+        if runtime_arguments[:1] == [CLIPBOARD_BRIDGE_MODE]:
+            return run_clipboard_bridge(runtime_arguments)
         if runtime_arguments[:1] == [MASKED_APPLICATION_MODE]:
-            run_masked_application(runtime_arguments)
+            return run_masked_application(runtime_arguments)
         return run(runtime_arguments)
-    except CompatibilityRuntimeError as exc:
-        print(f"fatal: {exc}", file=sys.stderr)
-        if _received_signal is not None:
-            return 128 + _received_signal
-        return 1
-    except (OSError, UnicodeError, ValueError, subprocess.TimeoutExpired) as exc:
-        print(
-            f"fatal: private Zoom/Discord compatibility runtime failed: {exc}",
-            file=sys.stderr,
-        )
-        if _received_signal is not None:
-            return 128 + _received_signal
-        return 1
+    except (CompatibilityRuntimeError, ProtocolError, OSError, UnicodeError, ValueError, subprocess.TimeoutExpired):
+        print("compat-runtime: required component failed", file=sys.stderr)
+        return 128 + _received_signal if _received_signal is not None else STARTUP_RESULT

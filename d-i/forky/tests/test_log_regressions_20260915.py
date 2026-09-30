@@ -287,7 +287,7 @@ class AppArmorRegressionTests(unittest.TestCase):
     def test_inherited_terminals_and_spotify_shutdown_have_explicit_permissions(self):
         for name in ('labwc-discord-command', 'labwc-zoom-command',
                      'labwc-wayland-compat-app'):
-            self.assertIn('owner /dev/pts/[0-9]* rw,', self.profile('desktop-wrappers', name))
+            self.assertIn('owner /dev/pts/[0-9]* rw,', self.profile('zoom-discord-compat' if name == 'labwc-wayland-compat-app' else 'desktop-wrappers', name))
         native = self.profile('desktop-wrappers', 'labwc-app')
         self.assertIn('signal (send) set=(hup int term kill) peer=spotify,', native)
         self.assertIn('deny /opt/xwayland/** rxm,', native)

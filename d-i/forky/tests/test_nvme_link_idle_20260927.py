@@ -33,6 +33,7 @@ class NVMeStatusTests(unittest.TestCase):
         self.m = types.ModuleType('nvme_status_fixture')
         exec(compile(HELPER.read_bytes(), str(HELPER), 'exec'), self.m.__dict__)
         self.m.PCI_ROOT, self.m.DEVICE_ROOT = self.bus, self.tree
+        self.m.NVME_LATENCY = self.root / 'nvme-latency'
 
     def device(self, address='0000:2e:00.0', vendor='0x15b7', product='0x5006', cls='0x010802'):
         dev = self.tree / 'pci0000:00' / address
@@ -83,6 +84,46 @@ class NVMeStatusTests(unittest.TestCase):
         self.assertEqual(record['policy_state'], 'link-idle-still-enabled')
         self.assertIsNone(record['link_idle_enabled']['l0s_aspm'])
         self.assertTrue(record['link_idle_enabled']['l1_aspm'])
+
+    def test_firmware_and_upstream_errors_are_read_without_identifiers_or_writes(self):
+        bridge = self.tree / 'pci0000:00' / '0000:00:1d.4'
+        bridge.mkdir(parents=True)
+        (bridge / 'class').write_text('0x060400\n')
+        (bridge / 'aer_dev_correctable').write_text('RxErr 9\n')
+        (bridge / 'current_link_width').write_text('4\n')
+        dev = bridge / '0000:2e:00.0'; dev.mkdir()
+        (self.bus / dev.name).symlink_to(dev, target_is_directory=True)
+        for name, value in {'vendor': '0x15b7', 'device': '0x5006', 'class': '0x010802'}.items():
+            (dev / name).write_text(value + '\n')
+        controller = dev / 'nvme' / 'nvme0'; controller.mkdir(parents=True)
+        for name, value in {'model': 'WDC PC SN730', 'firmware_rev': '11170101',
+                            'serial': 'must-not-collect'}.items():
+            (controller / name).write_text(value + '\n')
+        self.m.NVME_LATENCY.write_text('3200\n')
+        before = {p: p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
+        record, = self.m.snapshot()
+        self.assertEqual(record['controllers'], [dict(controller='nvme0', model='WDC PC SN730',
+                                                      firmware_revision='11170101')])
+        self.assertEqual(record['upstream_bridge']['pci_address'], bridge.name)
+        self.assertEqual(record['upstream_bridge']['aer_dev_correctable'], 'RxErr 9')
+        self.assertEqual(record['nvme_default_ps_max_latency_us'], '3200')
+        self.assertIn('cannot verify', record['policy_note'])
+        self.assertNotIn('must-not-collect', json.dumps(record))
+        self.assertEqual(before, {p: p.read_bytes() for p in before})
+
+    def test_controller_directory_symlink_is_not_followed(self):
+        dev = self.device()
+        (dev / 'nvme').mkdir()
+        private = self.root / 'private'; private.mkdir()
+        (dev / 'nvme/nvme0').symlink_to(private, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, 'unsafe NVMe controller'):
+            self.m.snapshot()
+
+    def test_invalid_latency_value_is_rejected(self):
+        self.device()
+        self.m.NVME_LATENCY.write_text('not-a-number\n')
+        with self.assertRaisesRegex(ValueError, 'latency'):
+            self.m.snapshot()
 
     def test_exact_pci_class_required(self):
         self.device(cls='0x010601')

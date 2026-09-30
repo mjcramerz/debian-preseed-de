@@ -32,7 +32,7 @@ TARGET = ROOT / 'd-i/forky/hooks/target'
 LIB = TARGET / 'usr/local/lib/perl5/site_perl'
 PYLIB = payload_python_library(TARGET / 'usr/local/lib/python3.14/dist-packages')
 sys.path.insert(0, str(PYLIB))
-from labwc_managed_app import dbus_proxy, generic, integrity, session
+from labwc_managed_app import compat_instance, dbus_proxy, generic, integrity, session
 from labwc_firewall import files as firewall_files, nftables
 from labwc_firewall.validation import FirewallError
 
@@ -263,15 +263,31 @@ class SessionHandoffTests(unittest.TestCase):
             stack.enter_context(mock.patch.object(session, 'bitwarden_session_unit_environment', return_value=env.copy()))
             stack.enter_context(mock.patch.object(session, 'wayland_compat_session_unit_environment', return_value=env.copy()))
             execute = stack.enter_context(mock.patch.object(session.os, 'execve'))
-            for invoke in (lambda: session.redirect_bitwarden_to_session_unit('intel', ['a b', '$HOME']),
-                           lambda: session.redirect_wayland_compat_to_session_unit('discord', 'intel', ['a b', '$HOME'])):
-                invoke()
-                executable, argv, environment = execute.call_args.args
+            session.redirect_bitwarden_to_session_unit('intel', ['a b', '$HOME'])
+            _executable, bitwarden_argv, bitwarden_env = execute.call_args.args
+            uri = 'discord://-/handoff?key=FIXTURE_SECRET'
+            manager = mock.Mock()
+            manager.poll.return_value = 0
+            manager.wait.return_value = 0
+            with tempfile.TemporaryDirectory() as name, \
+                    mock.patch.object(compat_instance, 'instance_directory', return_value=Path(name)), \
+                    mock.patch.object(compat_instance, 'request_activation', return_value=False), \
+                    mock.patch.object(compat_instance, 'instance_owned', return_value=True), \
+                    mock.patch.object(session.subprocess, 'Popen', return_value=manager) as launch:
+                with self.assertRaises(SystemExit) as accepted:
+                    session.redirect_wayland_compat_to_session_unit('discord', 'intel', [uri])
+                self.assertEqual(accepted.exception.code, 0)
+                compat_argv = launch.call_args.args[0]
+                compat_env = launch.call_args.kwargs['env']
+                self.assertFalse(any('FIXTURE_SECRET' in a for a in compat_argv
+                                     if a.startswith('--setenv=LABWC_SESSION_RESTORE=')))
+            for argv, environment, arguments in ((bitwarden_argv, bitwarden_env, ['a b', '$HOME']),
+                                                 (compat_argv, compat_env, [uri])):
                 self.assertEqual(environment, env)
                 for key in env:
                     self.assertIn('--setenv=' + key, argv)
                 self.assertNotIn('/home/alice', ' '.join(argv))
-                self.assertEqual(argv[-2:], ['a b', '$HOME'])
+                self.assertEqual(argv[-len(arguments):], arguments)
                 self.assertIn('--expand-environment=no', argv)
                 self.assertIn('--property=KillMode=control-group', argv)
                 self.assertTrue(any(a.startswith('--working-directory=') for a in argv))

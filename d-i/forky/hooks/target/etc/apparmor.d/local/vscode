@@ -1,0 +1,4 @@
+# Managed by unattended-installer. Debian's package attachment uses this
+# label, while directed managed launches use the named code profile.
+# Keep the same application policy at both entry points.
+include <local/code>

@@ -189,7 +189,14 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         "/usr/bin/foot", "/usr/bin/kitty", "/usr/bin/terminal-emulator",
         "/usr/bin/timeshift-launcher", "/usr/local/bin/mullvad-vpn",
         "/usr/local/bin/waypaper",
-    }) or (kind == "electron" and arguments[0] == "/opt/Mullvad VPN/mullvad-vpn")
+    }) or (kind == "wayland" and arguments[:2] == [
+        "/usr/local/bin/labwc-remote-desktop", "_connect",
+    ]) or (kind == "electron" and arguments[0] in {
+        "/opt/Mullvad VPN/mullvad-vpn", "/opt/Mullvad VPN/mullvad-gui",
+    })
+    # FreeRDP's file clipboard uses the package's setuid fusermount3 helper.
+    # The connection worker needs the host root UID mapping for that helper;
+    # its restricted AppArmor child owns the only permitted FUSE mount.
     is_foot = kind == "wayland" and arguments[0] == "/usr/bin/foot"
     is_waypaper = kind == "wayland" and arguments[0] == "/usr/local/bin/waypaper"
     return [

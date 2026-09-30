@@ -1,0 +1,29 @@
+# Managed by unattended-installer. Included by the verified vendor profile.
+# The vendor supplies only userns permission in an unconfined profile. The
+# managed mode switch removes that flag, so the GUI needs a real desktop
+# policy for both complain and enforce modes. The privileged VPN daemon does
+# not inherit this policy and retains its separate system-service lifecycle.
+#include <abstractions/electron-application>
+include if exists <abstractions/user-tmp>
+
+unix,
+network inet stream,
+network inet6 stream,
+network inet dgram,
+network inet6 dgram,
+network netlink raw,
+
+"/opt/Mullvad VPN/" r,
+"/opt/Mullvad VPN/**" mr,
+"/opt/Mullvad VPN/mullvad-gui" rix,
+# The socket is daemon-owned; owner qualification would reject the user GUI.
+/{,var/}run/mullvad-vpn rw,
+owner /dev/pts/[0-9]* rw,
+owner "@{HOME}/.config/Mullvad VPN/{,**}" rwkl,
+owner "@{HOME}/.cache/Mullvad VPN/{,**}" rwkl,
+owner "@{HOME}/.local/share/Mullvad VPN/{,**}" rwkl,
+
+# electron-runtime covers the owner /dev/shm/wlroots-* descriptor received
+# through SCM_RIGHTS. The outer profile's attach_disconnected/mediate_deleted
+# flags are essential: a local file rule cannot resolve a disconnected path.
+ptrace (readby) peer=desktop-launcher,

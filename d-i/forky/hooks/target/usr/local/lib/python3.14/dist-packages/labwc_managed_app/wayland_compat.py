@@ -43,6 +43,8 @@ PRIVATE_RUNTIME_LIBRARY_NAMES = (
 )
 
 SANDBOX_LIFECYCLE_HELPER = "/usr/local/libexec/labwc-zoom-discord-compat-runtime"
+PRIVATE_XWAYLAND_HELPER = "/usr/local/libexec/labwc-private-xwayland"
+OPEN_URI_HELPER = "/usr/local/libexec/labwc-compat-open-uri"
 
 
 def _validate_private_library(library_name: str) -> None:
@@ -88,6 +90,8 @@ def _validate_private_library(library_name: str) -> None:
 
 
 def validate_private_runtime() -> None:
+    for helper in (PRIVATE_XWAYLAND_HELPER, OPEN_URI_HELPER):
+        require_root_owned_regular_file("compatibility helper", helper, executable=True)
     require_root_owned_regular_file(
         "Cage compositor",
         CAGE_BINARY,
@@ -160,10 +164,14 @@ def run_wayland_compat_sandbox(
     app_name: str,
     mode: str,
     extra_args: list[str],
+    *,
+    instance=None,
 ) -> int:
     if app_name not in WAYLAND_COMPAT_APPS:
         fail(f"private compatibility sandbox is not permitted for {app_name}")
     validate_private_runtime()
+    if instance is None:
+        fail("compatibility sandbox requires the host instance coordinator")
     return _run_persistent_sandbox(
         app_name,
         mode,
@@ -179,4 +187,5 @@ def run_wayland_compat_sandbox(
         private_xkbcomp_overlay_directory=(
             PRIVATE_RUNTIME_XKBCOMP_OVERLAY_DIRECTORY
         ),
+        compatibility_instance=instance,
     )

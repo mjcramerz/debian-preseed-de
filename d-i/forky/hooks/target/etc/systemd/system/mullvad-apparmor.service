@@ -1,5 +1,5 @@
 [Unit]
-Description=Load verified Mullvad GUI AppArmor namespace policy
+Description=Load verified Mullvad GUI AppArmor policy
 Requires=apparmor.service
 After=apparmor.service
 Before=mullvad-daemon.service

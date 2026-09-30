@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .browsers import browser_args
-from .electron import electron_args, electron_js_flags, electron_privacy_args
+from .electron import electron_args, electron_js_flags, electron_privacy_args, discord_x11_args
 
 INTEL_ACCELERATION_ENV = {
     "LIBVA_DRIVER_NAME": "iHD",
@@ -35,9 +35,7 @@ DISCORD_SESSION_DBUS_NAMES = (
 ZOOM_SESSION_DBUS_NAMES = (
     "org.freedesktop.ScreenSaver",
 )
-ZOOM_SESSION_DBUS_OWN_NAMES = (
-    "org.kde.*",
-)
+ZOOM_SESSION_DBUS_OWN_NAMES = ()
 CHATGPT_SESSION_DBUS_NAMES = (
     "org.freedesktop.secrets",
 )
@@ -329,17 +327,17 @@ APPS = {
         "library_dirs": (DISCORD_ROOT,),
         "required_runtime_files": DISCORD_REQUIRED_FILES,
         "env": {
-            "ELECTRON_OZONE_PLATFORM_HINT": "wayland",
+            "ELECTRON_OZONE_PLATFORM_HINT": "x11",
             "GTK_USE_PORTAL": "1",
         },
-        "args": electron_args("discord", "launch"),
+        "args": discord_x11_args( "launch"),
         "intel_env": {},
-        "intel_args": electron_args("discord", "intel"),
+        "intel_args": discord_x11_args( "intel"),
         "nvidia_env": {
-            "ELECTRON_OZONE_PLATFORM_HINT": "wayland",
+            "ELECTRON_OZONE_PLATFORM_HINT": "x11",
             "GTK_USE_PORTAL": "1",
         },
-        "nvidia_args": electron_args("discord", "nvidia"),
+        "nvidia_args": discord_x11_args( "nvidia"),
         "bind_workspace": False,
         "pure_privacy": False,
         "persistent_sandbox": True,
@@ -638,6 +636,7 @@ PERSISTENT_SANDBOX_CONFIG = {
     },
     "discord": {
         "camera_devices": True,
+        "clipboard_bridge": False,
         "chdir": ".",
         "config_args": (),
         "dbus_names": DISCORD_SESSION_DBUS_NAMES,
@@ -683,6 +682,7 @@ PERSISTENT_SANDBOX_CONFIG = {
     "zoom": {
         "chdir": ".",
         "camera_devices": True,
+        "clipboard_bridge": False,
         "config_args": (),
         "dbus_names": ZOOM_SESSION_DBUS_NAMES,
         "dbus_own_names": ZOOM_SESSION_DBUS_OWN_NAMES,

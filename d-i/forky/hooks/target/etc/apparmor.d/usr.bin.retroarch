@@ -25,7 +25,8 @@ profile retroarch /usr/bin/retroarch flags=(attach_disconnected) {
   /run/udev/data/{c13:*,+input:input*} r,
   /sys/devices/**/power_supply/BAT[0-9]/{capacity,status,type} r,
   @{sys}/devices/**/power_supply/hidpp_battery_[0-9]*/scope r,
-  owner @{PROC}/@{pid}/cmdline r,
+  @{PROC}/@{pid}/cmdline r,
+  owner @{PROC}/@{pid}/stat r,
 
   /usr/bin/retroarch mr,
   /usr/lib/@{multiarch}/libretro/ r,

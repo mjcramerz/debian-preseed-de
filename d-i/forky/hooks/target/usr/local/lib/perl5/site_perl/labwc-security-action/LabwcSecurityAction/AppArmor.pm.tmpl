@@ -689,7 +689,7 @@ sub _application_profiles {
         chromium         => [qw(chromium)],
         code             => [qw(code)],
         qoredb           => [qw(usr.bin.qoredb)],
-        discord          => [qw(Discord)],
+        discord          => [qw(Discord zoom-discord-compat)],
         filen            => [qw(opt.Filen.Filen)],
         keepassxc        => [qw(usr.bin.keepassxc)],
         'ledger-live'    => [qw(opt.ledger-live.AppRun)],
@@ -706,7 +706,7 @@ sub _application_profiles {
         totem            => [qw(usr.bin.totem)],
         'tuta-mail'      => [qw(opt.tuta-mail.AppRun)],
         vivaldi          => [qw(vivaldi-stable vivaldi-bin)],
-        zoom             => [qw(usr.bin.zoom)],
+        zoom             => [qw(usr.bin.zoom zoom-discord-compat)],
     );
     exists $profiles{$application}
         or die "unsupported managed AppArmor application: $application\n";
@@ -762,13 +762,16 @@ sub print_application_modes {
         }
     }
 
+    $application_name{'zoom-discord-compat'} = 'Zoom / Discord';
     print sprintf "%-18s %-36s %s\n", 'Scope', 'Profile', 'Mode';
     print sprintf "%-18s %-36s %s\n", '-' x 18, '-' x 36, '-' x 8;
     for my $row (@rows) {
         my $mode = $row->[0];
         my $profile = $row->[2];
         my $application = $application_name{$profile} // 'Managed policy';
-        print sprintf "%-18s %-36s %s\n", $application, $profile, $mode;
+        my $display_profile = $profile eq 'zoom-discord-compat'
+            ? 'labwc-wayland-compat-app//wayland-compat-app-bwrap' : $profile;
+        print sprintf "%-18s %-36s %s\n", $application, $display_profile, $mode;
     }
     return 0;
 }

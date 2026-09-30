@@ -111,6 +111,8 @@ def stop_dbus_proxy(
     proxy_process: subprocess.Popen | None,
     proxy_lifecycle: socket.socket | None,
     proxy_socket: str | None = None,
+    *,
+    deadline: float | None = None,
 ) -> str:
     """Stop one proxy and close every wrapper-owned resource.
 
@@ -121,6 +123,12 @@ def stop_dbus_proxy(
     """
 
     _close_socket(proxy_lifecycle)
+    if deadline is not None:
+        from .compat_protocol import stop_processes
+        stopped = stop_processes([proxy_process], deadline)
+        diagnostics = _bounded_proxy_stderr(proxy_process) if stopped else "xdg-dbus-proxy cleanup deadline expired"
+        _unlink_proxy_socket(proxy_socket)
+        return diagnostics
     if proxy_process is not None and proxy_process.poll() is None:
         try:
             proxy_process.wait(timeout=PROXY_STOP_TIMEOUT_SECONDS)
@@ -365,6 +373,7 @@ def start_session_bus_proxy(
     additional_own_names: tuple[str, ...] = (),
     *,
     required: bool = False,
+    compatibility: bool = False,
     runtime: ProxyRuntime,
 ) -> tuple[subprocess.Popen | None, str | None, socket.socket | None]:
     raw_bus_address = os.environ.get("DBUS_SESSION_BUS_ADDRESS", "")
@@ -377,15 +386,36 @@ def start_session_bus_proxy(
         return None, None, None
 
     bus_address = runtime.validate_session_bus_address(raw_bus_address)
-    policy_arguments = (
-        f"--talk={NOTIFICATIONS_DBUS_NAME}",
-        f"--see={PORTAL_DBUS_NAMESPACE}",
-        f"--talk={PORTAL_DBUS_NAMESPACE}",
-        f"--call={PORTAL_DBUS_NAMESPACE}=*",
-        f"--broadcast={PORTAL_DBUS_NAMESPACE}={PORTAL_DBUS_BROADCAST_RULE}",
-        *(f"--talk={bus_name}" for bus_name in additional_talk_names),
-        *(f"--own={bus_name}" for bus_name in additional_own_names),
-    )
+    if compatibility:
+        methods = (
+            "OpenURI.OpenURI", "FileChooser.OpenFile", "FileChooser.SaveFile", "FileChooser.SaveFiles",
+            "ScreenCast.CreateSession", "ScreenCast.SelectSources", "ScreenCast.Start", "ScreenCast.OpenPipeWireRemote",
+            "Camera.AccessCamera", "Camera.OpenPipeWireRemote", "Settings.Read", "Settings.ReadAll",
+        )
+        policy_arguments = (
+            f"--talk={NOTIFICATIONS_DBUS_NAME}",
+            "--see=org.freedesktop.portal.Desktop",
+            *(f"--call=org.freedesktop.portal.Desktop=org.freedesktop.portal.{method}@/org/freedesktop/portal/desktop" for method in methods),
+            "--call=org.freedesktop.portal.Desktop=org.freedesktop.DBus.Properties.Get@/org/freedesktop/portal/desktop",
+            "--call=org.freedesktop.portal.Desktop=org.freedesktop.DBus.Properties.GetAll@/org/freedesktop/portal/desktop",
+            "--call=org.freedesktop.portal.Desktop=org.freedesktop.portal.Request.Close@/org/freedesktop/portal/desktop/request/*",
+            "--call=org.freedesktop.portal.Desktop=org.freedesktop.portal.Session.Close@/org/freedesktop/portal/desktop/session/*",
+            "--broadcast=org.freedesktop.portal.Desktop=org.freedesktop.portal.Request.Response@/org/freedesktop/portal/desktop/request/*",
+            "--broadcast=org.freedesktop.portal.Desktop=org.freedesktop.portal.Session.Closed@/org/freedesktop/portal/desktop/session/*",
+            "--broadcast=org.freedesktop.portal.Desktop=org.freedesktop.portal.Settings.SettingChanged@/org/freedesktop/portal/desktop",
+            *(f"--talk={bus_name}" for bus_name in additional_talk_names),
+            *(f"--own={bus_name}" for bus_name in additional_own_names),
+        )
+    else:
+        policy_arguments = (
+            f"--talk={NOTIFICATIONS_DBUS_NAME}",
+            f"--see={PORTAL_DBUS_NAMESPACE}",
+            f"--talk={PORTAL_DBUS_NAMESPACE}",
+            f"--call={PORTAL_DBUS_NAMESPACE}=*",
+            f"--broadcast={PORTAL_DBUS_NAMESPACE}={PORTAL_DBUS_BROADCAST_RULE}",
+            *(f"--talk={bus_name}" for bus_name in additional_talk_names),
+            *(f"--own={bus_name}" for bus_name in additional_own_names),
+        )
     return start_filtered_dbus_proxy(
         temp_root,
         "session-bus",
@@ -436,9 +466,9 @@ def start_system_bus_proxy(
 
 
 def stop_dbus_proxies(
-    proxies: list[
-        tuple[subprocess.Popen | None, str | None, socket.socket | None]
-    ],
-) -> None:
-    for proxy_process, proxy_socket, proxy_lifecycle in reversed(proxies):
-        stop_dbus_proxy(proxy_process, proxy_lifecycle, proxy_socket)
+    proxies: list[tuple[subprocess.Popen | None, str | None, socket.socket | None]],
+    *, deadline: float | None = None,
+) -> bool:
+    for process, proxy_socket, lifecycle in reversed(proxies):
+        stop_dbus_proxy(process, lifecycle, proxy_socket, deadline=deadline)
+    return all(process is None or process.poll() is not None for process, _, _ in proxies)

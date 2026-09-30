@@ -166,6 +166,7 @@ PROBES = {
   ('vm-sample',['vmstat','-w','1','3']), ('io-sample',['iostat','-xz','1','3']),
   ('io-pressure',['cat','/proc/pressure/io']), ('memory-pressure',['cat','/proc/pressure/memory']),
   ('nvme-devices',['nvme','list','-o','json']),
+  ('nvme-pcie-policy',['/usr/local/sbin/nvme-pcie-status']),
   ('vm-policy',['sysctl','vm.swappiness','vm.dirty_ratio','vm.dirty_background_ratio','vm.dirty_bytes','vm.dirty_background_bytes','vm.vfs_cache_pressure','vm.overcommit_memory']),
  ],
  'network': [
@@ -879,7 +880,11 @@ class Report:
         if category == 'journal':
             self.add(category, 'sealing-assurance',
                 'journalctl --verify checks journal structure without an externally held verification key. '
-                'A successful check is NOT authenticated FSS verification. Neither FSS state nor verification '
+                'Sealed journals may return "Required key not available"; this means FSS verification is '
+                'incomplete, not evidence of journal corruption. Retain the command status and all other '
+                'errors. Authenticated verification requires the matching off-host key supplied explicitly '
+                'to journalctl --verify-key by the administrator. A successful keyless check is NOT '
+                'authenticated FSS verification. Neither FSS state nor verification '
                 'seeds are collected; sealing is not enabled, rotated or repaired by this report.', {'status': 'information'})
         if category == 'storage':
             for path in sorted(Path('/sys/block').glob('*')):
@@ -989,7 +994,7 @@ class Report:
                   '**Safety:** No tuning, network scan, benchmark, firmware update or key decryption was performed. Application diagnostic commands run as the selected user in bounded transient services and may produce their normal logs/cache data.','', '## Coverage by area','']
         overview += [f'- **{c}:** {coverage[c]}' for c in self.categories]
         highlights=('kernel','cpu','firmware-memory','failed-units','package-audit','memory','swap','filesystem-space',
-                    'boot-times','boot-chain','desktop-units','outputs','audio','apparmor','secure-boot','addresses','dns','identity-metadata','agent-units','service-isolation','gpu-kernel-errors','codex-doctor','codex-unit-state','chatgpt-unit-state','journal-integrity','sealing-assurance')
+                    'boot-times','boot-chain','desktop-units','outputs','audio','apparmor','secure-boot','addresses','dns','identity-metadata','agent-units','service-isolation','gpu-kernel-errors','codex-doctor','codex-unit-state','chatgpt-unit-state','journal-integrity','sealing-assurance','nvme-pcie-policy')
         for label in highlights:
             matches=[x for x in self.records if x['label']==label]
             if not matches: continue

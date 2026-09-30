@@ -75,7 +75,7 @@ profile labwc-mullvad-browser-launcher /{usr/bin/mullvad-browser,usr/lib/mullvad
 # Debian's package profile is labelled "vscode", while the managed launcher
 # contract uses the stable "code" label. Keep a named profile for that directed
 # transition and reuse the package-local managed application policy.
-profile code flags=(attach_disconnected) {
+profile code flags=(attach_disconnected, mediate_deleted) {
   include if exists <local/code>
 }
 
@@ -555,6 +555,9 @@ profile mullvad-vpn /usr/local/bin/mullvad-vpn flags=(attach_disconnected) {
   /usr/local/bin/mullvad-vpn rix,
   owner /dev/pts/[0-9]* rw,
   @{PROC}/[0-9]*/uid_map r,
+  @{PROC}/sys/kernel/unprivileged_userns_clone r,
+  @{PROC}/sys/user/max_user_namespaces r,
+  "/opt/Mullvad VPN/mullvad-gui" r,
   /usr/local/bin/labwc-wayland-app rPx -> labwc-generic-app,
   /usr/bin/{id,find} rix,
   owner /run/user/[0-9]*/wayland-[0-9]* r,
@@ -1821,7 +1824,7 @@ profile labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected, mediate
   /usr/local/bin/labwc-app rix,
   /usr/local/lib/python3.14/dist-packages/ r,
   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
-  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_namespace,profiles,recovery,runtime,sandbox,session,user_state}.py r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,compat_gpu,compat_instance,compat_protocol,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_namespace,profiles,recovery,runtime,sandbox,session,user_state}.py r,
   deny /usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat{,_runtime}.py r,
   # ChatGPT lifecycle events use stderr so the existing capture runner sends
   # them only to its private rsyslog socket; generic syslog remains denied.
@@ -2178,7 +2181,7 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   /usr/local/bin/labwc-app rix,
   /usr/local/lib/python3.14/dist-packages/ r,
   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
-  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_namespace,profiles,recovery,runtime,sandbox,session,user_state}.py r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,compat_gpu,compat_instance,compat_protocol,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_namespace,profiles,recovery,runtime,sandbox,session,user_state}.py r,
   deny /usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat{,_runtime}.py r,
   /dev/log w,
   /run/systemd/journal/dev-log w,
@@ -2327,7 +2330,7 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     /usr/local/bin/labwc-wayland-app rix,
     /usr/local/lib/python3.14/dist-packages/ r,
     /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
-    /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,integrity,generic,environment,commands,profiles,browsers,runtime,events,electron,user_state,recovery,session}.py r,
+    /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,integrity,generic,environment,commands,compat_protocol,profiles,browsers,runtime,events,electron,user_state,recovery,session}.py r,
     owner /run/user/[0-9]*/labwc-session-closing r,
     include if exists <abstractions/user-tmp>
 
@@ -2436,379 +2439,6 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
 
 
   include if exists <local/usr.local.bin.labwc-app>
-}
-
-profile labwc-zoom-discord-compat-runtime /usr/local/libexec/labwc-zoom-discord-compat-runtime flags=(attach_disconnected) {
-  #include <abstractions/base>
-
-  /usr/local/libexec/labwc-zoom-discord-compat-runtime rix,
-  deny /usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat_runtime.py r,
-  deny /opt/xwayland/ r,
-  deny /opt/xwayland/** rxm,
-  deny /usr/bin/Xwayland rxm,
-
-  include if exists <local/usr.local.libexec.labwc-zoom-discord-compat-runtime>
-}
-
-profile labwc-wayland-compat-app /usr/local/bin/labwc-wayland-compat-app flags=(attach_disconnected) {
-  # Launching from a terminal inherits the user's PTY until systemd handoff.
-  owner /dev/pts/[0-9]* rw,
-  owner /run/user/[0-9]*/labwc-session-closing r,
-  #include <abstractions/wrapper-wayland>
-  #include <abstractions/wrapper-python>
-
-  /usr/local/bin/labwc-wayland-compat-app rix,
-  /usr/local/lib/python3.14/dist-packages/ r,
-  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
-  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_namespace,profiles,runtime,sandbox,session,user_state,wayland_compat,wayland_compat_runtime}.py r,
-  /dev/log w,
-  /run/systemd/journal/dev-log w,
-  /usr/bin/bwrap rCx -> wayland-compat-app-bwrap,
-  /usr/bin/slirp4netns rPx -> wayland-compat-slirp4netns,
-  /usr/bin/cage r,
-  # Preserve only the wrapper's validated user-manager environment while the
-  # transient service takes ownership of the complete Cage process tree.
-  /usr/bin/systemd-run rpux,
-  /usr/bin/xdg-dbus-proxy rCx -> wayland-compat-dbus-proxy,
-  unix,
-  signal (send) set=(kill term) peer=labwc-wayland-compat-app//wayland-compat-dbus-proxy,
-  signal (send) set=(exists kill term) peer=wayland-compat-slirp4netns,
-  /{lib32,lib64,opt,sbin}/ r,
-  /dev/ r,
-  /dev/kfd r,
-  /dev/dri/ r,
-  /dev/dri/renderD[0-9] r,
-  /dev/dri/renderD[0-9][0-9] r,
-  /dev/dri/renderD[0-9][0-9][0-9] r,
-  deny /dev/dri/{card,controlD}[0-9]* rw,
-  deny /dev/nvidia-modeset rw,
-  /dev/{media,video}[0-9]* r,
-  /dev/v4l-subdev[0-9]* r,
-  include if exists <local/desktop-wrappers-nvidia>
-  /etc/{alternatives,ca-certificates,fonts,ld.so.conf.d,pki,ssl,xdg}/ r,
-  /etc/{default,group,hostname,hosts,ld.so.cache,ld.so.conf,localtime,machine-id,mime.types,nsswitch.conf,passwd,resolv.conf,timezone} r,
-  /etc/labwc/desktop.conf r,
-  /etc/resolv.conf r,
-  /run/dbus/system_bus_socket r,
-  owner @{PROC}/@{pid}/fd/ r,
-  owner /run/user/[0-9]*/ r,
-  owner /run/user/[0-9]*/doc/ r,
-  owner /run/user/[0-9]*/doc/** r,
-  owner /run/user/[0-9]*/pulse/ r,
-  owner /run/user/[0-9]*/{bus,wayland-[0-9]*,pipewire-[0-9]*,pulse/native} rw,
-  owner @{HOME}/ r,
-  owner @{HOME}/.cache/ rw,
-  owner @{HOME}/.cache/{discord,zoom}/ rw,
-  owner @{HOME}/.cache/{discord,zoom}/** rwkl,
-  owner @{HOME}/.config/ rw,
-  owner @{HOME}/.config/{discord,zoom}/ rw,
-  owner @{HOME}/.config/{discord,zoom}/** rwkl,
-  owner @{HOME}/.local/ r,
-  owner @{HOME}/.local/share/ rw,
-  owner @{HOME}/.local/share/{discord,zoom}/ rw,
-  owner @{HOME}/.local/share/{discord,zoom}/** rwkl,
-  owner @{HOME}/.local/state/ rw,
-  owner @{HOME}/.local/state/discord/ rw,
-  owner @{HOME}/.local/state/discord/** rwkl,
-  owner @{HOME}/.zoom/ rw,
-  owner @{HOME}/.zoom/** rwkl,
-  owner @{HOME}/{Documents,Downloads}/ rw,
-  owner @{HOME}/{Documents,Downloads}/** rwkl,
-  owner /run/user/[0-9]*/labwc-{discord,zoom}-sandbox-*/ rw,
-  owner /run/user/[0-9]*/labwc-{discord,zoom}-sandbox-*/** rwkl,
-  owner /tmp/labwc-{discord,zoom}-sandbox-*/ rw,
-  owner /tmp/labwc-{discord,zoom}-sandbox-*/** rwkl,
-  /opt/discord/ r,
-  /opt/discord/** r,
-  /opt/zoom/ r,
-  /opt/zoom/** r,
-  /opt/xwayland/ r,
-  /opt/xwayland/usr/ r,
-  /opt/xwayland/usr/bin/ r,
-  /opt/xwayland/usr/bin/Xwayland r,
-  /opt/xwayland/usr/bin/xkbcomp r,
-  /opt/xwayland/usr/lib/ r,
-  /opt/xwayland/usr/lib/xkbcomp-overlay/ r,
-  /opt/xwayland/usr/lib/xkbcomp-overlay/xkbcomp r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/ r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libXau.so.6 r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libXau.so.6.* r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libXdmcp.so.6 r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libXdmcp.so.6.* r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libXfont2.so.2 r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libXfont2.so.2.* r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libfontenc.so.1 r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libfontenc.so.1.* r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-cursor.so.0 r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-cursor.so.0.* r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-image.so.0 r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-image.so.0.* r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-render-util.so.0 r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-render-util.so.0.* r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-render.so.0 r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-render.so.0.* r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-shm.so.0 r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-shm.so.0.* r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-util.so.1 r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-util.so.1.* r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb.so.1 r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb.so.1.* r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcvt.so.0 r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcvt.so.0.* r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxshmfence.so.1 r,
-  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxshmfence.so.1.* r,
-  /opt/xwayland/usr/lib/xorg/ r,
-  /opt/xwayland/usr/lib/xorg/protocol.txt r,
-  /usr/local/libexec/labwc-zoom-discord-compat-runtime r,
-  /usr/{lib32,lib64,sbin}/ r,
-  /usr/bin/zoom r,
-  /var/lib/dbus/ r,
-  /var/lib/dbus/machine-id r,
-  /var/lib/software/ r,
-  /var/lib/software/state/ r,
-  /var/lib/software/state/discord.installed.json r,
-
-  profile wayland-compat-dbus-proxy flags=(attach_disconnected) {
-    #include <abstractions/base>
-
-    unix,
-    signal (receive) set=(kill term) peer=labwc-wayland-compat-app,
-
-    /usr/bin/xdg-dbus-proxy mr,
-    /run/dbus/system_bus_socket rw,
-    owner /run/user/[0-9]*/bus rw,
-    owner /run/user/[0-9]*/labwc-{discord,zoom}-sandbox-*/ rw,
-    owner /run/user/[0-9]*/labwc-{discord,zoom}-sandbox-*/{session-bus,system-bus} rw,
-  }
-
-  profile wayland-compat-app-bwrap flags=(attach_disconnected, mediate_deleted) {
-    /sys/devices/system/cpu/cpufreq/policy[0-9]*/base_frequency r,
-    #include <abstractions/bwrap-common>
-    #include <abstractions/bwrap-desktop-runtime>
-    #include <abstractions/pipewire-audio>
-    include if exists <abstractions/user-tmp>
-
-    capability dac_read_search,
-    unix,
-    signal (send) peer=unconfined,
-    signal (send, receive) peer=labwc-wayland-compat-app//wayland-compat-app-bwrap,
-    /{lib32,lib64,opt,sbin}/ r,
-    /dev/ r,
-    /dev/kfd r,
-    /dev/dri/ r,
-    /dev/dri/renderD[0-9] rw,
-    /dev/dri/renderD[0-9][0-9] rw,
-    /dev/dri/renderD[0-9][0-9][0-9] rw,
-    deny /dev/dri/{card,controlD}[0-9]* rw,
-    deny /dev/nvidia-modeset rw,
-    /dev/console rw,
-    /dev/{media,video}[0-9]* rw,
-    /dev/v4l-subdev[0-9]* rw,
-    include if exists <local/desktop-wrappers-nvidia>
-    /etc/{alternatives,ca-certificates,fonts,ld.so.conf.d,pki,ssl,xdg}/ r,
-    /etc/{group,hostname,hosts,ld.so.cache,ld.so.conf,localtime,machine-id,mime.types,nsswitch.conf,passwd,resolv.conf,timezone} r,
-    /etc/resolv.conf r,
-    /run/dbus/system_bus_socket rw,
-    owner /run/user/[0-9]*/ r,
-    owner /run/user/[0-9]*/doc/ r,
-    owner /run/user/[0-9]*/doc/** r,
-    owner /run/user/[0-9]*/pulse/ rw,
-    owner /run/user/[0-9]*/{bus,wayland-[0-9]*,pipewire-[0-9]*,pulse/native} rw,
-    # Cage creates and locks a nested compositor socket inside this private
-    # runtime directory before exporting its WAYLAND_DISPLAY to the supervised
-    # Zoom or Discord process.
-    owner /run/user/[0-9]*/wayland-[0-9]*.lock rwk,
-    # Both clipboard directions serialize through this owner-only Cage lock.
-    owner /run/user/[0-9]*/labwc-clipboard-wayland-[0-9]*.lock rwk,
-    owner /run/user/[0-9]*/discord-ipc-[0-9]* rwkl,
-    # Xwayland creates and atomically removes this owner-only compiled keymap.
-    owner /run/user/[0-9]*/server-[0-9]*.xkm rw,
-    owner /tmp/.X11-unix/ rw,
-    owner /tmp/.X11-unix/X[0-9]* rw,
-    owner /tmp/.X[0-9]*-lock rwk,
-    owner @{HOME}/ r,
-    owner @{HOME}/.cache/ rw,
-    owner @{HOME}/.cache/{discord,zoom}/ rw,
-    owner @{HOME}/.cache/{discord,zoom}/** rwkl,
-    # Qt and Zoom use owner-only atomic state outside their named directories.
-    owner @{HOME}/.cache/qtshadercache-*/ rw,
-    owner @{HOME}/.cache/qtshadercache-*/** rwkl,
-    owner @{HOME}/.config/ rw,
-    owner @{HOME}/.config/\#* rwkl,
-    owner @{HOME}/.config/pulse/ rw,
-    owner @{HOME}/.config/{discord,zoom}/ rw,
-    owner @{HOME}/.config/{discord,zoom}/** rwkl,
-    owner @{HOME}/.config/zoom.conf* rwkl,
-    owner @{HOME}/.config/zoomus.conf* rwkl,
-    owner @{HOME}/.local/ r,
-    owner @{HOME}/.local/share/ rw,
-    owner @{HOME}/.local/share/{discord,zoom}/ rw,
-    owner @{HOME}/.local/share/{discord,zoom}/** rwkl,
-    owner @{HOME}/.local/state/ rw,
-    owner @{HOME}/.local/state/discord/ rw,
-    owner @{HOME}/.local/state/discord/** rwkl,
-    owner @{HOME}/.zoom/ rw,
-    owner @{HOME}/.zoom/** rwkl,
-    owner @{HOME}/{Documents,Downloads}/ rw,
-    owner @{HOME}/{Documents,Downloads}/** rwkl,
-    owner /run/user/[0-9]*/labwc-{discord,zoom}-sandbox-*/ rw,
-    owner /run/user/[0-9]*/labwc-{discord,zoom}-sandbox-*/** rwkl,
-    owner /tmp/labwc-{discord,zoom}-sandbox-*/ rw,
-    owner /tmp/labwc-{discord,zoom}-sandbox-*/** rwkl,
-    /opt/discord/ r,
-    /opt/discord/** mrix,
-    /opt/zoom/ r,
-    /opt/zoom/** mrix,
-    /opt/xwayland/ r,
-    /opt/xwayland/usr/ r,
-    /opt/xwayland/usr/bin/ r,
-    # Bubblewrap sets no_new_privs before starting the payload, so Cage-owned
-    # Xwayland must inherit this already-confined child domain instead of
-    # attempting a profile transition. This child is reachable only through
-    # the fixed Discord/Zoom wrapper and private Bubblewrap namespace.
-    /opt/xwayland/usr/bin/Xwayland rix,
-    /opt/xwayland/usr/bin/xkbcomp r,
-    /opt/xwayland/usr/lib/ r,
-    /opt/xwayland/usr/lib/xkbcomp-overlay/ r,
-    /opt/xwayland/usr/lib/xkbcomp-overlay/xkbcomp r,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/ r,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libXau.so.6 mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libXau.so.6.* mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libXdmcp.so.6 mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libXdmcp.so.6.* mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libXfont2.so.2 mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libXfont2.so.2.* mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libfontenc.so.1 mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libfontenc.so.1.* mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-cursor.so.0 mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-cursor.so.0.* mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-image.so.0 mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-image.so.0.* mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-render-util.so.0 mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-render-util.so.0.* mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-render.so.0 mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-render.so.0.* mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-shm.so.0 mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-shm.so.0.* mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-util.so.1 mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-util.so.1.* mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb.so.1 mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb.so.1.* mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcvt.so.0 mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcvt.so.0.* mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxshmfence.so.1 mr,
-    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxshmfence.so.1.* mr,
-    /opt/xwayland/usr/lib/xorg/ r,
-    /opt/xwayland/usr/lib/xorg/protocol.txt r,
-    # Compatibility payloads may inherit only these observed fixed helpers;
-    # rix keeps every helper inside this already-confined Bubblewrap child.
-    /usr/bin/{gsettings,ls,lscpu,lspci,pgrep,pipewire} rix,
-    /usr/bin/{wl-copy,wl-paste,xclip} rix,
-    /usr/bin/{env,expr,xdg-open} rix,
-    /usr/{bin,sbin}/ip rix,
-    /usr/{bin/pidof,sbin/killall5} rix,
-    /usr/libexec/xdg-desktop-portal rix,
-    # Diagnostic helpers receive read-only access to the exact metadata they
-    # queried; the child gains no writable procfs or sysfs surface.
-    @{PROC}/bus/pci/devices r,
-    @{sys}/devices/**/power_supply/*/{capacity,online,type} r,
-    @{sys}/devices/system/cpu/cpu[0-9]*/cache/index[0-9]*/{coherency_line_size,number_of_sets,physical_line_partition,shared_cpu_map,type,ways_of_associativity} r,
-    @{sys}/devices/system/cpu/cpu[0-9]*/hotplug/state r,
-    @{sys}/devices/system/cpu/cpu[0-9]*/topology/{core_id,core_siblings,thread_siblings} r,
-    @{sys}/devices/system/cpu/cpufreq/policy[0-9]*/cpuinfo_min_freq r,
-    @{sys}/devices/system/cpu/hotplug/states r,
-    @{sys}/devices/system/cpu/vulnerabilities/ r,
-    @{sys}/devices/system/cpu/vulnerabilities/* r,
-    @{sys}/kernel/cpu_byteorder r,
-    /usr/{lib32,lib64,sbin}/ r,
-    /usr/bin/ldd rix,
-    /usr/bin/{bwrap,cage,pacmd,pactl,true} rix,
-    /usr/bin/xkbcomp rix,
-    /usr/bin/python3 rix,
-    /usr/bin/python3.[0-9]* rix,
-    /usr/local/libexec/labwc-zoom-discord-compat-runtime rix,
-    /usr/local/lib/python3.14/dist-packages/ r,
-    /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
-    /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,events,integrity,runtime,wayland_compat_runtime}.py r,
-    /usr/share/iproute2/group r,
-    /usr/share/misc/pci.ids r,
-    /usr/share/xdg-desktop-portal/portals/ r,
-    /@/usr/bin/{lsb_release,xdg-mime,xdg-open} r,
-    /@/usr/bin/chromium r,
-    # xdg-open may select Chromium. Bubblewrap has already set no_new_privs,
-    # so inherit this confined child rather than creating a null profile.
-    /usr/bin/chromium rix,
-    deny /usr/bin/Xwayland rxm,
-    /usr/bin/zoom rix,
-    /usr/lib/xorg/ r,
-    /usr/lib/xorg/protocol.txt r,
-    /usr/lib/x86_64-linux-gnu/libdecor/ r,
-    /usr/lib/x86_64-linux-gnu/libdecor/plugins-1/ r,
-    /usr/lib/x86_64-linux-gnu/libdecor/plugins-1/libdecor-gtk.so mr,
-    /usr/share/X11/xkb/ r,
-    /usr/share/X11/xkb/** r,
-    /opt/discord/Discord rix,
-    /opt/zoom/{ZoomLauncher,zoom} rix,
-    /var/lib/dbus/ r,
-    /var/lib/dbus/machine-id r,
-    /proc/self/exe rix,
-    owner @{PROC}/[0-9]*/mem r,
-    @{sys}/devices/**/{idProduct,idVendor,interface} r,
-
-    deny @{sys}/devices/**/iio:device[0-9]*/in_accel_{offset,sampling_frequency,scale,x_raw,y_raw,z_raw} r,
-  }
-
-  include if exists <local/usr.local.bin.labwc-wayland-compat-app>
-}
-
-profile wayland-compat-slirp4netns flags=(attach_disconnected) {
-  # The Zoom/Discord compatibility path needs a private network namespace so
-  # wlroots cannot collide with the host Xwayland abstract Unix socket. Keep
-  # its network helper separate from ChatGPT, Codex, and rootless Podman.
-  userns,
-
-  capability net_admin,
-  capability sys_admin,
-  capability sys_ptrace,
-
-  network create unix stream,
-  network inet stream,
-  network inet dgram,
-  ptrace (read) peer=labwc-wayland-compat-app//wayland-compat-app-bwrap,
-  signal (receive) set=(exists kill term) peer=labwc-wayland-compat-app,
-
-  / r,
-  /dev/null rw,
-  /dev/net/tun rw,
-  /dev/urandom r,
-  /etc/ld.so.cache r,
-  /etc/resolv.conf r,
-  /run/resolvconf/resolv.conf r,
-  /run/systemd/resolve/stub-resolv.conf r,
-  /usr/bin/slirp4netns mr,
-  /usr/lib/@{multiarch}/ld-linux-*.so* mr,
-  /usr/lib/@{multiarch}/lib{atomic,c,glib-2.0,m,pcre2-8,seccomp,slirp}.so* mr,
-  @{PROC}/[0-9]*/ns/{net,user} r,
-  owner /run/user/[0-9]*/labwc-{discord,zoom}-sandbox-*/slirp4netns.stderr rw,
-  owner /tmp/labwc-{discord,zoom}-sandbox-*/slirp4netns.stderr rw,
-
-  include if exists <local/usr.bin.slirp4netns-wayland-compat>
-}
-
-# The desktop session and ordinary applications must not start Cage or either
-# the package-owned or private Xwayland binary directly. The managed
-# Zoom/Discord Bubblewrap child above explicitly inherits its confined profile
-# and therefore does not enter these fail-closed attachments.
-profile labwc-cage-direct-exec-deny /usr/bin/cage flags=(attach_disconnected, mediate_deleted) {
-  deny /usr/bin/cage mr,
-}
-
-profile labwc-xwayland-direct-exec-deny /{opt/xwayland/usr,usr}/bin/Xwayland flags=(attach_disconnected, mediate_deleted) {
-  deny /{opt/xwayland/usr,usr}/bin/Xwayland mr,
-}
-
-profile labwc-xkbcomp-direct-exec-deny /opt/xwayland/usr/{bin,lib/xkbcomp-overlay}/xkbcomp flags=(attach_disconnected, mediate_deleted) {
-  deny /opt/xwayland/usr/{bin,lib/xkbcomp-overlay}/xkbcomp mr,
 }
 
 profile labwc-zoom-command /usr/local/bin/zoom flags=(attach_disconnected) {
@@ -3030,7 +2660,9 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
   #include <abstractions/wrapper-python>
 
   /usr/local/bin/labwc-qbittorrent rix,
-  /usr/bin/systemd-run PUx,
+  # The wrapper validates the account/socket identities and constructs a fixed
+  # environment. AT_SECURE makes systemd ignore the user-bus variables.
+  /usr/bin/systemd-run rpux,
   owner /run/user/[0-9]*/labwc-session-closing r,
   /usr/bin/bwrap rCx -> qbittorrent-bwrap,
   /etc/labwc/desktop.conf r,

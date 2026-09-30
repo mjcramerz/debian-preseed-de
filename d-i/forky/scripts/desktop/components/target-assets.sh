@@ -190,6 +190,8 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/libexec/labwc-chatgpt-session /usr/local/libexec/labwc-chatgpt-session 0755
   desktop_stage_role_asset usr/local/bin/labwc-wayland-compat-app /usr/local/bin/labwc-wayland-compat-app 0755
   desktop_stage_role_asset usr/local/libexec/labwc-zoom-discord-compat-runtime /usr/local/libexec/labwc-zoom-discord-compat-runtime 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-private-xwayland /usr/local/libexec/labwc-private-xwayland 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-compat-open-uri /usr/local/libexec/labwc-compat-open-uri 0755
   desktop_stage_role_asset usr/local/bin/labwc-qbittorrent /usr/local/bin/labwc-qbittorrent 0755
   desktop_stage_role_asset usr/local/bin/zoom /usr/local/bin/zoom 0755
   desktop_render_role_target_template \

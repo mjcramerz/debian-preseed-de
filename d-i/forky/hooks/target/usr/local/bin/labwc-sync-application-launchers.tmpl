@@ -149,7 +149,10 @@ APP_CONFIG = (
             "zoom.desktop",
         ),
         "action_app": "zoom",
-        "field_code": "--url=%U",
+        # Pass one URI as its own desktop argument. The compatibility entrypoint
+        # validates it and adds Zoom's --url= prefix after field-code expansion.
+        "field_code": "%u",
+        "actions": ("IntelAccelerated", "NvidiaAccelerated"),
     },
     {
         "desktop_names": (
@@ -875,6 +878,10 @@ def main() -> int:
             config.get("default_mode"),
         )
         normalize_managed_launch_metadata(entry)
+        if config["action_app"] in WAYLAND_COMPAT_APPS:
+            for section in parser.sections():
+                if section.startswith("Desktop Action ") and "Exec" in parser[section]:
+                    parser[section]["Exec"] = managed_default_exec(config["action_app"], config["field_code"], config.get("default_mode"))
         if config["action_app"] == "tutanota":
             entry["MimeType"] = ";".join(TUTA_SCHEMES) + ";"
             entry["X-GNOME-UsesNotifications"] = "true"

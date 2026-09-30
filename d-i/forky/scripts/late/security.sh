@@ -734,6 +734,7 @@ EOF
 apparmor_managed_desktop_profile_files() {
   cat <<'EOF'
 desktop-wrappers
+zoom-discord-compat
 labwc-appearance
 compz
 debugsys
@@ -867,8 +868,10 @@ security_nvidia_acceleration_enabled() {
 apparmor_managed_local_include_files() {
   cat <<'EOF'
 code
+vscode
 chromium
 microsoft-edge-stable
+mullvad
 mullvad-browser
 vivaldi-stable
 vivaldi-bin
@@ -1131,6 +1134,10 @@ stage_target_desktop_apparmor_profiles() {
     "/etc/apparmor.d/abstractions/bwrap-common" \
     0644
   stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/bwrap-compat-preparation)" \
+    "/etc/apparmor.d/abstractions/bwrap-compat-preparation" \
+    0644
+  stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/bwrap-desktop-runtime)" \
     "/etc/apparmor.d/abstractions/bwrap-desktop-runtime" \
     0644
@@ -1235,6 +1242,18 @@ stage_target_desktop_apparmor_profiles() {
 	    mullvad-browser \
 	    strip-unconfined
 	fi
+  # The verified VPN vendor profile also needs deleted-FD mediation. Its
+  # local include supplies the confined GUI policy before this flag change.
+  if [ -e /target/etc/apparmor.d/mullvad ] || [ -L /target/etc/apparmor.d/mullvad ]; then
+    apparmor_require_disconnected_profile_flags \
+      "/target/etc/apparmor.d/mullvad" mullvad strip-unconfined
+  fi
+  # Debian's package attachment can also be entered directly, outside the
+  # managed code label. Give both entry points the same disconnected-FD rules.
+  if [ -e /target/etc/apparmor.d/vscode ] || [ -L /target/etc/apparmor.d/vscode ]; then
+    apparmor_require_disconnected_profile_flags \
+      "/target/etc/apparmor.d/vscode" vscode strip-unconfined
+  fi
 	# The package's /usr/bin/vivaldi-stable entry is an absolute symlink to this
   # wrapper. Test the direct target-root path so the installer never resolves
   # the symlink against its own root and silently skips the confined profiles.

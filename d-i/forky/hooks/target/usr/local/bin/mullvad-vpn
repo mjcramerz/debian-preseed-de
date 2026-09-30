@@ -94,10 +94,21 @@ has_host_root_mapping || fatal "Mullvad launcher requires the host root UID mapp
 
 daemon_unit=mullvad-daemon.service
 root_helper=/usr/local/libexec/mullvad-daemon-start
-vendor_launcher='/opt/Mullvad VPN/mullvad-vpn'
+vendor_gui='/opt/Mullvad VPN/mullvad-gui'
 
 [ -x "$root_helper" ] || fatal "Mullvad daemon start helper is unavailable"
-[ -x "$vendor_launcher" ] || fatal "Mullvad VPN launcher is unavailable"
+[ -f "$vendor_gui" ] && [ ! -L "$vendor_gui" ] && [ -x "$vendor_gui" ] ||
+  fatal "Mullvad VPN executable is unavailable"
+# The vendor shell launcher silently supplies --no-sandbox when namespaces
+# are disabled. Launch the package binary through our existing strict wrapper
+# instead, and fail before starting it if the namespace sandbox is disabled.
+if [ -r /proc/sys/kernel/unprivileged_userns_clone ]; then
+  read -r userns_enabled </proc/sys/kernel/unprivileged_userns_clone
+  [ "$userns_enabled" = 1 ] || fatal "Mullvad VPN requires its unprivileged namespace sandbox"
+fi
+read -r userns_limit </proc/sys/user/max_user_namespaces
+case "$userns_limit" in ''|*[!0-9]*) fatal "cannot validate the user namespace limit" ;; esac
+[ "$userns_limit" -gt 0 ] || fatal "Mullvad VPN requires available user namespaces"
 
 if ! /usr/bin/systemctl --quiet is-active "$daemon_unit"; then
   if /usr/bin/timeout \
@@ -142,4 +153,4 @@ export \
   SDL_VIDEODRIVER
 
 # The GUI must outlive the panel and remain separate from its namespace/cgroup.
-exec /usr/local/bin/labwc-electron-app auto -- "$vendor_launcher"
+exec /usr/local/bin/labwc-electron-app auto -- "$vendor_gui"

@@ -151,6 +151,45 @@ def managed_exec(value: str) -> bool:
     return words[0] in MANAGED or any(words[0].startswith(path + ' ') for path in MANAGED)
 
 
+def compatibility_exec(value: str) -> str | None:
+    try:
+        words = shlex.split(value, comments=False)
+    except ValueError:
+        raise InvalidDesktop('malformed compatibility desktop Exec') from None
+    if not words:
+        return None
+    executable_index = 0
+    if words[0] in {'env', '/usr/bin/env', '/bin/env'}:
+        executable_index = 1
+        if len(words) > executable_index and words[executable_index] == '--':
+            executable_index += 1
+        while len(words) > executable_index and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*=.*', words[executable_index], re.DOTALL):
+            executable_index += 1
+    if len(words) <= executable_index:
+        return None
+    app = {'zoom': 'zoom', '/usr/bin/zoom': 'zoom', '/opt/zoom/zoom': 'zoom',
+           '/opt/zoom/ZoomLauncher': 'zoom', 'discord': 'discord',
+           '/opt/discord/Discord': 'discord', '/usr/bin/discord': 'discord',
+           '/usr/bin/Discord': 'discord', '/usr/local/bin/zoom': 'zoom',
+           '/usr/local/bin/discord': 'discord'}.get(words[executable_index])
+    if app is None:
+        if executable_index and any(word in {'/opt/discord/Discord', '/usr/bin/zoom', '/opt/zoom/zoom'} for word in words[executable_index:]):
+            raise InvalidDesktop('unsupported compatibility desktop environment prefix')
+        return None
+    if app == 'zoom' and words[executable_index + 1:] in (
+            ['--url=%U'], ['--url=%u'], ['%U']):
+        # %U must be a standalone argument and this launcher accepts one URI.
+        # Repair both vendor entries and already-managed copies on reconciliation;
+        # activation_arguments adds --url= only after desktop expansion.
+        return '/usr/local/bin/zoom %u'
+    # Preserve field-code quoting verbatim. Drop a recognized env prefix:
+    # the compatibility wrapper reconstructs all trusted process policy.
+    tokens = list(re.finditer(r'(?:[^ \t"\\]|\\.|"(?:\\.|[^"\\])*")+', value))
+    if len(tokens) <= executable_index:
+        raise InvalidDesktop('malformed compatibility executable token')
+    return '/usr/local/bin/' + app + value[tokens[executable_index].end():]
+
+
 def original_generic_exec(value: str) -> str | None:
     # Only unwrap the exact prefix written by this hook, never a shell command
     # or another managed launcher. This permits changing the configured GPU.
@@ -230,7 +269,11 @@ def rewrite_desktop(text: str, prefix: str) -> str:
         application_section = section == '[Desktop Entry]' or section.startswith('[Desktop Action ')
         if separator and application_section and key.strip() == 'Exec' and value.strip():
             original = original_generic_exec(value.strip())
-            if terminal:
+            managed = compatibility_exec(original if original is not None else value.strip())
+            if managed is not None:
+                ending = '\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else ''
+                line = key + '=' + managed + ending
+            elif terminal:
                 # Wrap the terminal, not its interactive child: the latter
                 # needs the terminal's PTY and belongs to that service cgroup.
                 original = original if original is not None else value.strip()

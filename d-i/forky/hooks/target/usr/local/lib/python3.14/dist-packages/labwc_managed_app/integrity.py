@@ -26,6 +26,9 @@ CORE_MODULES = (
     "bubblewrap.py",
     "cli.py",
     "commands.py",
+    "compat_gpu.py",
+    "compat_instance.py",
+    "compat_protocol.py",
     "dbus_proxy.py",
     "electron.py",
     "environment.py",
@@ -41,13 +44,14 @@ CORE_MODULES = (
     "session.py",
     "user_state.py",
 )
-COMPATIBILITY_MODULES = ("wayland_compat.py", "wayland_compat_runtime.py")
+COMPATIBILITY_MODULES = ("wayland_compat.py", "wayland_compat_runtime.py", "compat_portal.py")
 INNER_RUNTIME_MODULES = (
     "__init__.py",
     "bootstrap.py",
     "events.py",
     "integrity.py",
     "runtime.py",
+    "compat_protocol.py",
     "wayland_compat_runtime.py",
 )
 ALL_MODULES = tuple(dict.fromkeys((*CORE_MODULES, *COMPATIBILITY_MODULES, "generic.py")))
@@ -61,6 +65,7 @@ class PackageScope(StrEnum):
     NATIVE = "native"
     WAYLAND_COMPAT = "wayland-compat"
     COMPAT_RUNTIME = "compat-runtime"
+    COMPAT_PORTAL = "compat-open-uri"
 
 
 MODULES_BY_SCOPE = {
@@ -69,6 +74,7 @@ MODULES_BY_SCOPE = {
     PackageScope.NATIVE: CORE_MODULES,
     PackageScope.WAYLAND_COMPAT: ALL_MODULES,
     PackageScope.COMPAT_RUNTIME: INNER_RUNTIME_MODULES,
+    PackageScope.COMPAT_PORTAL: ("__init__.py", "bootstrap.py", "integrity.py", "compat_protocol.py", "compat_portal.py"),
 }
 
 

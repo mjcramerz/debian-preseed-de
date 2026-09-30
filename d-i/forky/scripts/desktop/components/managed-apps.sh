@@ -9,6 +9,10 @@ browsers.py
 bubblewrap.py
 cli.py
 commands.py
+compat_gpu.py
+compat_instance.py
+compat_portal.py
+compat_protocol.py
 dbus_proxy.py
 electron.py
 environment.py

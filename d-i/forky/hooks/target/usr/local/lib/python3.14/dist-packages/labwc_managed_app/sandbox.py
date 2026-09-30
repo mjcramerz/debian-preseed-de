@@ -19,6 +19,8 @@ from . import dbus_proxy
 from . import identity
 from . import mounts
 from . import network_namespace
+from . import compat_gpu
+from .compat_protocol import CONTROL_DIRECTORY, ProtocolError, RequiredComponentError
 from .bubblewrap import PRIVATE_PROCFS_ARGUMENTS, validate_private_procfs
 from .browsers import EDGE_ON_DEVICE_MODEL_DISABLE_FEATURE
 from .commands import build_argv, normalize_managed_arguments, resolved_executable, validate_managed_arguments
@@ -69,6 +71,10 @@ PRIVATE_XKBCOMP_OVERLAY_DIRECTORY = (
     f"{WAYLAND_COMPAT_RUNTIME_ROOT}/usr/lib/xkbcomp-overlay"
 )
 PRIVATE_XKBCOMP_DESTINATION = "/usr/bin/xkbcomp"
+COMPATIBILITY_URI_OPENER = "/usr/local/libexec/labwc-compat-open-uri"
+COMPATIBILITY_URI_OPENER_DESTINATIONS = (
+    "/usr/bin/xdg-open", "/bin/xdg-open", "/usr/local/bin/xdg-open",
+)
 OUTER_WAYLAND_DISPLAY_ENVIRONMENT = (
     "LABWC_MANAGED_OUTER_WAYLAND_DISPLAY"
 )
@@ -117,12 +123,14 @@ def start_session_bus_proxy(
     additional_own_names: tuple[str, ...] = (),
     *,
     required: bool = False,
+    compatibility: bool = False,
 ) -> tuple[subprocess.Popen | None, str | None, socket.socket | None]:
     return dbus_proxy.start_session_bus_proxy(
         temp_root,
         additional_talk_names,
         additional_own_names,
         required=required,
+        compatibility=compatibility,
         runtime=_dbus_proxy_runtime(),
     )
 
@@ -194,6 +202,9 @@ def run_slirp4netns_sandbox(
     inherited_fds: tuple[int, ...],
     *,
     pre_payload_check: Callable[[], None] | None = None,
+    runtime_check: Callable[[], None] | None = None,
+    cleanup_deadline: Callable[[], float] | None = None,
+    cleanup_failure: Callable[[], None] | None = None,
 ) -> int:
     validate_private_procfs(command)
     slirp_binary = require_root_owned_executable(
@@ -207,6 +218,9 @@ def run_slirp4netns_sandbox(
         inherited_fds,
         slirp_binary=slirp_binary,
         pre_payload_check=pre_payload_check,
+        runtime_check=runtime_check,
+        cleanup_deadline=cleanup_deadline,
+        cleanup_failure=cleanup_failure,
     )
 
 
@@ -225,6 +239,14 @@ add_home_directory_binds = mounts.add_home_directory_binds
 add_optional_home_file_binds = mounts.add_optional_home_file_binds
 add_absolute_directory_binds = mounts.add_absolute_directory_binds
 add_absolute_directory_bind_pairs = mounts.add_absolute_directory_bind_pairs
+
+
+def require_compatibility_dbus_proxies(proxy_processes) -> None:
+    for process, _path, _lifecycle in proxy_processes:
+        status = process.poll()
+        if status is not None:
+            raise RequiredComponentError(status)
+    require_running_dbus_proxies(proxy_processes)
 
 
 def add_persistent_directory_binds(
@@ -926,6 +948,23 @@ def add_system_usr_mount(command: list[str]) -> None:
     command.extend(["--ro-bind", "/usr", "/usr"])
 
 
+def add_compatibility_uri_opener(command: list[str]) -> None:
+    opener = require_root_owned_regular_file(
+        "compatibility URI opener", COMPATIBILITY_URI_OPENER, executable=True,
+    )
+    for destination in COMPATIBILITY_URI_OPENER_DESTINATIONS:
+        # /usr is already read-only. An absent optional PATH entry needs no
+        # replacement and cannot be created there by the sandboxed application.
+        # The packaged /usr/bin entry is required; cover /bin's separate bind
+        # too, since the sandbox mounts merged-/usr aliases independently.
+        if destination != COMPATIBILITY_URI_OPENER_DESTINATIONS[0] and not os.path.lexists(destination):
+            continue
+        require_root_owned_regular_file(
+            "compatibility URI opener mount point", destination, executable=True,
+        )
+        command.extend(["--ro-bind", opener, destination])
+
+
 def require_private_xkbcomp_overlay(path: str) -> str:
     if path != PRIVATE_XKBCOMP_OVERLAY_DIRECTORY:
         fail("private XKB compiler overlay is outside the managed runtime")
@@ -1110,6 +1149,7 @@ def _run_persistent_sandbox(
     payload_argv_prefix: tuple[str, ...] = (),
     private_xwayland_binary: str | None = None,
     private_xkbcomp_overlay_directory: str | None = None,
+    compatibility_instance=None,
 ) -> int:
     sandbox = PERSISTENT_SANDBOX_CONFIG.get(app_name)
     if sandbox is None:
@@ -1131,6 +1171,8 @@ def _run_persistent_sandbox(
     ):
         fail("private Xwayland requires a bounded lifecycle-helper prefix")
     if private_xwayland_binary is not None:
+        if compatibility_instance is None:
+            fail("private Xwayland requires a host instance lifetime coordinator")
         if private_xwayland_binary != PRIVATE_XWAYLAND_BINARY:
             fail("private Xwayland executable is outside the managed runtime")
         if private_xkbcomp_overlay_directory is None:
@@ -1179,8 +1221,14 @@ def _run_persistent_sandbox(
     wayland_display = env["WAYLAND_DISPLAY"]
     if private_xwayland_binary is not None:
         env.update(MANAGED_CAGE_ENVIRONMENT)
-        env["LD_LIBRARY_PATH"] = PRIVATE_XWAYLAND_LIBRARY_DIRECTORY
-        env["WLR_XWAYLAND"] = private_xwayland_binary
+        for name in tuple(env):
+            if name.startswith(("LD_", "QT_", "QML")) or name in {"ELECTRON_OZONE_PLATFORM_HINT", "GDK_BACKEND", "SDL_VIDEODRIVER", "CLUTTER_BACKEND"}:
+                env.pop(name)
+        env["WLR_XWAYLAND"] = "/usr/local/libexec/labwc-private-xwayland"
+        env["LABWC_COMPAT_RUN_ID"] = compatibility_instance.run_id
+        if type(sandbox.get("clipboard_bridge")) is not bool:
+            fail("compatibility clipboard policy must be a trusted boolean")
+        env["LABWC_COMPAT_CLIPBOARD"] = "1" if sandbox["clipboard_bridge"] else "0"
         env[OUTER_WAYLAND_DISPLAY_ENVIRONMENT] = wayland_display
     host_wayland_socket = current_user_runtime_socket("Wayland socket", wayland_display)
 
@@ -1222,6 +1270,7 @@ def _run_persistent_sandbox(
             sandbox["dbus_names"],
             sandbox.get("dbus_own_names", ()),
             required=sandbox.get("require_session_bus", False),
+            compatibility=private_xwayland_binary is not None,
         )
         if session_proxy_process is not None:
             proxy_processes.append(
@@ -1256,244 +1305,259 @@ def _run_persistent_sandbox(
         stop_dbus_proxies(proxy_processes)
         shutil.rmtree(temp_root, ignore_errors=True)
         raise
-    argv = persistent_sandbox_argv(app_name, mode, extra_args, home_dir)
-    command = [
-        bwrap,
-        "--unshare-all",
-    ]
-    if share_net:
-        command.append("--share-net")
-    command.extend(
-        [
-            "--new-session",
-            "--die-with-parent",
-            "--clearenv",
-            "--uid",
-            str(os.getuid()),
-            "--gid",
-            str(os.getgid()),
-            *(
-                (
-                    "--hostname",
-                    synthetic_identity["hostname_value"],
-                    "--cap-drop",
-                    "ALL",
-                )
-                if synthetic_identity is not None
-                else ()
-            ),
-            *PRIVATE_PROCFS_ARGUMENTS,
-            "--dev",
-            "/dev",
-            "--chdir",
-            sandbox_chdir,
-        ]
-    )
-    add_private_tmpfs_mounts(command)
-    inherited_fds: tuple[int, ...] = ()
-    if private_xwayland_binary is not None:
-        command.extend(
-            [
-                "--dir",
-                PRIVATE_X11_SOCKET_DIRECTORY,
-                "--chmod",
-                "01777",
-                PRIVATE_X11_SOCKET_DIRECTORY,
-            ]
-        )
-
-    add_dir_chain(command, "/etc")
-    add_dir_chain(command, "/opt")
-    add_dir_chain(command, os.path.dirname(home_dir))
-
-    add_system_usr_mount(command)
-    if private_xkbcomp_overlay_directory is not None:
-        add_private_xkbcomp_overlay(command, private_xkbcomp_overlay_directory)
-    for source, destination in (
-        ("/bin", "/bin"),
-        ("/lib", "/lib"),
-        ("/sys", "/sys"),
-    ):
-        command.extend(["--ro-bind", source, destination])
-    for source in sandbox["ro_bind_paths"]:
-        add_optional_bind(command, "--ro-bind", source, source)
-    for source, destination in (
-        ("/sbin", "/sbin"),
-        ("/lib64", "/lib64"),
-        ("/lib32", "/lib32"),
-    ):
-        add_optional_bind(command, "--ro-bind", source, destination)
-    synthetic_etc_paths = {
-        "/etc/group",
-        "/etc/hostname",
-        "/etc/hosts",
-        "/etc/machine-id",
-        "/etc/nsswitch.conf",
-        "/etc/passwd",
-        "/etc/resolv.conf",
-    }
-    for path in (
-        "/etc/alternatives",
-        "/etc/ca-certificates",
-        "/etc/fonts",
-        "/etc/group",
-        "/etc/hosts",
-        "/etc/ld.so.cache",
-        "/etc/ld.so.conf",
-        "/etc/ld.so.conf.d",
-        "/etc/localtime",
-        "/etc/machine-id",
-        "/etc/mime.types",
-        "/etc/nsswitch.conf",
-        "/etc/passwd",
-        "/etc/pki",
-        "/etc/resolv.conf",
-        "/etc/ssl",
-    ):
-        if synthetic_identity is not None and path in synthetic_etc_paths:
-            continue
-        if slirp4netns_resolver_path is not None and path == "/etc/resolv.conf":
-            continue
-        add_optional_bind(command, "--ro-bind", path, path)
-    if synthetic_identity is not None:
-        add_synthetic_identity_mounts(command, synthetic_identity)
-        add_synthetic_sysfs_masks(command)
-    elif slirp4netns_resolver_path is not None:
-        command.extend(
-            ["--ro-bind", slirp4netns_resolver_path, "/etc/resolv.conf"]
-        )
-
-    command.extend(["--tmpfs", home_dir, "--chmod", "0700", home_dir])
-    # Mount private integration parents first, then the application's genuine
-    # persistent account directory. Reversing this order would hide its data.
-    add_persistent_directory_binds(
-        command, home_dir, sandbox.get("integration_directory_binds", ()),
-    )
-    for directory in persistent_directories:
-        add_dir_chain(command, directory)
-        command.extend(["--bind", directory, directory])
-    add_persistent_directory_binds(
-        command,
-        home_dir,
-        sandbox.get("persistent_directory_binds", ()),
-    )
-    preserve_chatgpt_home_modes = app_name == "chatgpt"
-    for relative_path in sandbox.get("ro_bind_home_paths", ()):
-        source_path = resolve_home_relative_file(
-            home_dir,
-            relative_path,
-            require_private_mode=not preserve_chatgpt_home_modes,
-        )
-        destination_path = os.path.join(home_dir, relative_path)
-        add_dir_chain(command, os.path.dirname(destination_path))
-        command.extend(["--ro-bind", source_path, destination_path])
-    for relative_path in sandbox.get("rw_bind_home_paths", ()):
-        source_path = resolve_home_relative_file(
-            home_dir,
-            relative_path,
-            writable=True,
-        )
-        destination_path = os.path.join(home_dir, relative_path)
-        add_dir_chain(command, os.path.dirname(destination_path))
-        command.extend(["--bind", source_path, destination_path])
-    add_optional_home_file_binds(
-        command,
-        home_dir,
-        sandbox.get("ro_bind_home_optional_files", ()),
-        require_private_mode=not preserve_chatgpt_home_modes,
-    )
-    add_home_directory_binds(
-        command,
-        home_dir,
-        sandbox.get("ro_bind_home_directories", ()),
-        "--ro-bind",
-        require_private_mode=not preserve_chatgpt_home_modes,
-    )
-    add_home_directory_binds(
-        command,
-        home_dir,
-        sandbox.get("rw_bind_home_directories", ()),
-        "--bind",
-    )
-    add_absolute_directory_binds(
-        command,
-        sandbox.get("ro_bind_directory_paths", ()),
-        "--ro-bind",
-    )
-    add_absolute_directory_binds(
-        command,
-        sandbox.get("rw_bind_paths", ()),
-        "--bind",
-    )
-    add_absolute_directory_bind_pairs(
-        command,
-        sandbox.get("rw_bind_directory_pairs", ()),
-        "--bind",
-    )
-    runtime_socket_paths = sandbox["runtime_sockets"]
-    sandbox_runtime_dir = f"/run/user/{os.getuid()}"
-    add_dir_chain(command, os.path.dirname(sandbox_runtime_dir))
-    command.extend(["--dir", sandbox_runtime_dir, "--chmod", "0700", sandbox_runtime_dir])
-    if shared_temp_directory is not None:
-        add_dir_chain(command, shared_temp_directory)
-        command.extend(
-            [
-                "--bind",
-                shared_temp_directory,
-                shared_temp_directory,
-            ]
-        )
-    command.extend(["--bind", host_wayland_socket, os.path.join(sandbox_runtime_dir, wayland_display)])
-
-    for relative_runtime_path in sandbox["runtime_directories"]:
-        add_runtime_bind(
-            command,
-            host_runtime_dir,
-            sandbox_runtime_dir,
-            relative_runtime_path,
-            "directory",
-        )
-    for relative_runtime_path in runtime_socket_paths:
-        add_runtime_bind(
-            command,
-            host_runtime_dir,
-            sandbox_runtime_dir,
-            relative_runtime_path,
-            "socket",
-            required=relative_runtime_path
-            in sandbox.get("required_runtime_sockets", ()),
-        )
-
-    add_video_device_binds(command, sandbox.get("camera_devices", False))
-    add_gpu_device_binds(command, mode)
-
-    if session_proxy_socket:
-        sandbox_bus_socket = os.path.join(sandbox_runtime_dir, "bus")
-        command.extend(["--bind", session_proxy_socket, sandbox_bus_socket])
-        env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={sandbox_bus_socket}"
-    else:
-        env.pop("DBUS_SESSION_BUS_ADDRESS", None)
-
-    if system_proxy_socket:
-        add_system_bus_proxy_bind(command, system_proxy_socket)
-        env["DBUS_SYSTEM_BUS_ADDRESS"] = SYSTEM_BUS_ADDRESS
-    else:
-        env.pop("DBUS_SYSTEM_BUS_ADDRESS", None)
-
-    if synthetic_identity is not None:
-        env.update(
-            {
-                "USER": "developer",
-                "LOGNAME": "developer",
-                "HOSTNAME": synthetic_identity["hostname_value"],
-            }
-        )
-    validate_no_host_audio_device_binds(app_name, command)
-    validate_no_host_display_device_binds(app_name, command)
-
     outer_wayland_lock_fd: int | None = None
     lifecycle_lock_fd: int | None = None
     try:
+        argv = persistent_sandbox_argv(app_name, mode, extra_args, home_dir)
+        command = [
+            bwrap,
+            "--unshare-all",
+        ]
+        if share_net:
+            command.append("--share-net")
+        command.extend(
+            [
+                "--new-session",
+                "--die-with-parent",
+                "--clearenv",
+                "--uid",
+                str(os.getuid()),
+                "--gid",
+                str(os.getgid()),
+                *(
+                    (
+                        "--hostname",
+                        synthetic_identity["hostname_value"],
+                        "--cap-drop",
+                        "ALL",
+                    )
+                    if synthetic_identity is not None
+                    else ()
+                ),
+                *PRIVATE_PROCFS_ARGUMENTS,
+                "--dev",
+                "/dev",
+                "--chdir",
+                sandbox_chdir,
+            ]
+        )
+        add_private_tmpfs_mounts(command)
+        inherited_fds: tuple[int, ...] = ()
+        if private_xwayland_binary is not None:
+            command.extend(
+                [
+                    "--dir",
+                    PRIVATE_X11_SOCKET_DIRECTORY,
+                    "--chmod",
+                    "01777",
+                    PRIVATE_X11_SOCKET_DIRECTORY,
+                ]
+            )
+
+        add_dir_chain(command, "/etc")
+        add_dir_chain(command, "/opt")
+        add_dir_chain(command, os.path.dirname(home_dir))
+
+        add_system_usr_mount(command)
+        if private_xkbcomp_overlay_directory is not None:
+            add_private_xkbcomp_overlay(command, private_xkbcomp_overlay_directory)
+        if compatibility_instance is not None:
+            command.extend(["--bind", str(compatibility_instance.directory), CONTROL_DIRECTORY])
+        for source, destination in (
+            ("/bin", "/bin"),
+            ("/lib", "/lib"),
+            ("/sys", "/sys"),
+        ):
+            command.extend(["--ro-bind", source, destination])
+        for source in sandbox["ro_bind_paths"]:
+            add_optional_bind(command, "--ro-bind", source, source)
+        for source, destination in (
+            ("/sbin", "/sbin"),
+            ("/lib64", "/lib64"),
+            ("/lib32", "/lib32"),
+        ):
+            add_optional_bind(command, "--ro-bind", source, destination)
+        synthetic_etc_paths = {
+            "/etc/group",
+            "/etc/hostname",
+            "/etc/hosts",
+            "/etc/machine-id",
+            "/etc/nsswitch.conf",
+            "/etc/passwd",
+            "/etc/resolv.conf",
+        }
+        for path in (
+            "/etc/alternatives",
+            "/etc/ca-certificates",
+            "/etc/fonts",
+            "/etc/group",
+            "/etc/hosts",
+            "/etc/ld.so.cache",
+            "/etc/ld.so.conf",
+            "/etc/ld.so.conf.d",
+            "/etc/localtime",
+            "/etc/machine-id",
+            "/etc/mime.types",
+            "/etc/nsswitch.conf",
+            "/etc/passwd",
+            "/etc/pki",
+            "/etc/resolv.conf",
+            "/etc/ssl",
+        ):
+            if synthetic_identity is not None and path in synthetic_etc_paths:
+                continue
+            if slirp4netns_resolver_path is not None and path == "/etc/resolv.conf":
+                continue
+            add_optional_bind(command, "--ro-bind", path, path)
+        if synthetic_identity is not None:
+            add_synthetic_identity_mounts(command, synthetic_identity)
+            add_synthetic_sysfs_masks(command)
+        elif slirp4netns_resolver_path is not None:
+            command.extend(
+                ["--ro-bind", slirp4netns_resolver_path, "/etc/resolv.conf"]
+            )
+
+        command.extend(["--tmpfs", home_dir, "--chmod", "0700", home_dir])
+        # Mount private integration parents first, then the application's genuine
+        # persistent account directory. Reversing this order would hide its data.
+        add_persistent_directory_binds(
+            command, home_dir, sandbox.get("integration_directory_binds", ()),
+        )
+        for directory in persistent_directories:
+            add_dir_chain(command, directory)
+            command.extend(["--bind", directory, directory])
+        add_persistent_directory_binds(
+            command,
+            home_dir,
+            sandbox.get("persistent_directory_binds", ()),
+        )
+        preserve_chatgpt_home_modes = app_name == "chatgpt"
+        for relative_path in sandbox.get("ro_bind_home_paths", ()):
+            source_path = resolve_home_relative_file(
+                home_dir,
+                relative_path,
+                require_private_mode=not preserve_chatgpt_home_modes,
+            )
+            destination_path = os.path.join(home_dir, relative_path)
+            add_dir_chain(command, os.path.dirname(destination_path))
+            command.extend(["--ro-bind", source_path, destination_path])
+        for relative_path in sandbox.get("rw_bind_home_paths", ()):
+            source_path = resolve_home_relative_file(
+                home_dir,
+                relative_path,
+                writable=True,
+            )
+            destination_path = os.path.join(home_dir, relative_path)
+            add_dir_chain(command, os.path.dirname(destination_path))
+            command.extend(["--bind", source_path, destination_path])
+        add_optional_home_file_binds(
+            command,
+            home_dir,
+            sandbox.get("ro_bind_home_optional_files", ()),
+            require_private_mode=not preserve_chatgpt_home_modes,
+        )
+        add_home_directory_binds(
+            command,
+            home_dir,
+            sandbox.get("ro_bind_home_directories", ()),
+            "--ro-bind",
+            require_private_mode=not preserve_chatgpt_home_modes,
+        )
+        add_home_directory_binds(
+            command,
+            home_dir,
+            sandbox.get("rw_bind_home_directories", ()),
+            "--bind",
+        )
+        add_absolute_directory_binds(
+            command,
+            sandbox.get("ro_bind_directory_paths", ()),
+            "--ro-bind",
+        )
+        add_absolute_directory_binds(
+            command,
+            sandbox.get("rw_bind_paths", ()),
+            "--bind",
+        )
+        add_absolute_directory_bind_pairs(
+            command,
+            sandbox.get("rw_bind_directory_pairs", ()),
+            "--bind",
+        )
+        runtime_socket_paths = sandbox["runtime_sockets"]
+        sandbox_runtime_dir = f"/run/user/{os.getuid()}"
+        add_dir_chain(command, os.path.dirname(sandbox_runtime_dir))
+        command.extend(["--dir", sandbox_runtime_dir, "--chmod", "0700", sandbox_runtime_dir])
+        if shared_temp_directory is not None:
+            add_dir_chain(command, shared_temp_directory)
+            command.extend(
+                [
+                    "--bind",
+                    shared_temp_directory,
+                    shared_temp_directory,
+                ]
+            )
+        command.extend(["--bind", host_wayland_socket, os.path.join(sandbox_runtime_dir, wayland_display)])
+
+        for relative_runtime_path in sandbox["runtime_directories"]:
+            add_runtime_bind(
+                command,
+                host_runtime_dir,
+                sandbox_runtime_dir,
+                relative_runtime_path,
+                "directory",
+            )
+        for relative_runtime_path in runtime_socket_paths:
+            add_runtime_bind(
+                command,
+                host_runtime_dir,
+                sandbox_runtime_dir,
+                relative_runtime_path,
+                "socket",
+                required=relative_runtime_path
+                in sandbox.get("required_runtime_sockets", ()),
+            )
+
+        add_video_device_binds(command, sandbox.get("camera_devices", False))
+        if private_xwayland_binary is not None:
+            try:
+                selected_gpu = compat_gpu.add_device_binds(command, mode)
+            except (ProtocolError, OSError, ValueError):
+                fail("compatibility render-device identity or selection failed")
+            if selected_gpu == "intel":
+                for name in ("GBM_BACKEND", "NVD_BACKEND", "__GLX_VENDOR_LIBRARY_NAME", "__NV_PRIME_RENDER_OFFLOAD"):
+                    env.pop(name, None)
+                env["LIBVA_DRIVER_NAME"] = "iHD"
+            else:
+                from .profiles import NVIDIA_ACCELERATION_ENV
+                env.update(NVIDIA_ACCELERATION_ENV)
+        else:
+            add_gpu_device_binds(command, mode)
+
+        if session_proxy_socket:
+            sandbox_bus_socket = os.path.join(sandbox_runtime_dir, "bus")
+            command.extend(["--bind", session_proxy_socket, sandbox_bus_socket])
+            env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={sandbox_bus_socket}"
+        else:
+            env.pop("DBUS_SESSION_BUS_ADDRESS", None)
+
+        if system_proxy_socket:
+            add_system_bus_proxy_bind(command, system_proxy_socket)
+            env["DBUS_SYSTEM_BUS_ADDRESS"] = SYSTEM_BUS_ADDRESS
+        else:
+            env.pop("DBUS_SYSTEM_BUS_ADDRESS", None)
+
+        if synthetic_identity is not None:
+            env.update(
+                {
+                    "USER": "developer",
+                    "LOGNAME": "developer",
+                    "HOSTNAME": synthetic_identity["hostname_value"],
+                }
+            )
+        validate_no_host_audio_device_binds(app_name, command)
+        validate_no_host_display_device_binds(app_name, command)
+
         if private_xwayland_binary is not None:
             outer_wayland_lock_fd = reserve_outer_wayland_socket_name(
                 command,
@@ -1515,7 +1579,14 @@ def _run_persistent_sandbox(
         for key, value in env.items():
             command.extend(["--setenv", key, value])
         validate_private_procfs(command)
-        require_running_dbus_proxies(proxy_processes)
+        if compatibility_instance is not None:
+            require_compatibility_dbus_proxies(proxy_processes)
+        else:
+            require_running_dbus_proxies(proxy_processes)
+        if compatibility_instance is not None and app_name == "discord":
+            # Apply after all system/vendor mounts, including merged-/usr
+            # aliases, so no later directory bind restores a browser launcher.
+            add_compatibility_uri_opener(command)
         payload_argv = [*payload_argv_prefix, *argv]
         if slirp4netns_enabled:
             return run_slirp4netns_sandbox(
@@ -1523,9 +1594,11 @@ def _run_persistent_sandbox(
                 payload_argv,
                 temp_root,
                 inherited_fds,
-                pre_payload_check=lambda: require_running_dbus_proxies(
-                    proxy_processes
-                ),
+                pre_payload_check=lambda: (require_compatibility_dbus_proxies(proxy_processes)
+                    if compatibility_instance else require_running_dbus_proxies(proxy_processes)),
+                runtime_check=(lambda: (compatibility_instance.service(), require_compatibility_dbus_proxies(proxy_processes) if compatibility_instance.outcome is None else None)) if compatibility_instance else None,
+                cleanup_deadline=compatibility_instance.begin_cleanup if compatibility_instance else None,
+                cleanup_failure=(lambda: setattr(compatibility_instance, "cleanup_failed", True)) if compatibility_instance else None,
             )
         command.extend(payload_argv)
         completed = subprocess.run(
@@ -1540,7 +1613,11 @@ def _run_persistent_sandbox(
         _close_file_descriptor(outer_wayland_lock_fd)
         if lifecycle_lock_fd is not None:
             os.close(lifecycle_lock_fd)
-        stop_dbus_proxies(proxy_processes)
+        if compatibility_instance is not None:
+            if not dbus_proxy.stop_dbus_proxies(proxy_processes, deadline=compatibility_instance.begin_cleanup()):
+                compatibility_instance.cleanup_failed = True
+        else:
+            stop_dbus_proxies(proxy_processes)
         shutil.rmtree(temp_root, ignore_errors=True)
 
 
