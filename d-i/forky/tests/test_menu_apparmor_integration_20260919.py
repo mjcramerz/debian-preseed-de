@@ -160,7 +160,9 @@ class ActionContractTests(unittest.TestCase):
     def test_all_twenty_five_management_routes_execute_only_their_fixed_argv(self):
         menu = load('labwc-computer-management')
         routes = [route for items in menu.MENUS.values() for route in items.values()]
-        self.assertEqual(len(set(routes)), 25)
+        # The NFS submenu adds one fixed route without replacing an existing one.
+        self.assertEqual(len(set(routes)), 26)
+        self.assertIn(('labwc-network-sharing',), routes)
         with mock.patch.object(menu.Path, 'is_file', return_value=False):
             for route in routes:
                 expected = route if route[0].startswith('/') else ('/usr/local/bin/' + route[0], *route[1:])

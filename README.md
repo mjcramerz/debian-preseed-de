@@ -23,6 +23,17 @@ The current [security repair and operating gates](docs/security-hardening.md)
 cover A01-A09, rsyslog tmpfs, and the installer module/loading contract. Run `python3 -B tools/build.py`
 after editing sources; run `python3 -B tools/build.py --check` before publishing.
 
+## Network sharing
+
+All ten profiles now have explicit, disabled-by-default NFS server/client and
+home-bind controls. `/data/sharing` is always created. The existing Computer
+Management menu includes **Network & Remote -> Network Sharing**. Read the
+[configuration, trust model and deployment guide](docs/network-sharing.md) and
+[validation record](docs/validation/network-sharing-20260930/README.md) before
+enabling a role. `make build` validates NFS profile policy before publication.
+The generated installer snapshot is included; see [build status](BUILD-STATUS.md)
+for the non-passing broad regression suite and outstanding live acceptance.
+
 ## Source layout
 
 - `d-i/forky/repo.env`: repository role, path contract and default selections.

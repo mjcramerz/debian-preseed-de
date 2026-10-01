@@ -741,6 +741,9 @@ profile labwc-computer-management /usr/local/bin/labwc-computer-management flags
   /usr/local/bin/labwc-maintenance-menu rPx,
   /usr/local/bin/labwc-network-control-menu rPx,
   /usr/local/bin/labwc-network-scan-menu rPx,
+  /usr/local/bin/labwc-network-sharing rPx,
+  signal (send) set=(term, kill) peer=labwc-network-sharing,
+  signal (receive) set=(chld) peer=labwc-network-sharing,
   /usr/local/libexec/labwc-output-watch rPx -> labwc-output-watch,
   /usr/local/bin/labwc-podman-menu rPx,
   /usr/local/bin/labwc-power-settings rPx,
@@ -1469,6 +1472,8 @@ profile labwc-freerdp-askpass /usr/local/bin/labwc-freerdp-askpass flags=(attach
 }
 
 profile labwc-fuzzel /usr/local/bin/labwc-fuzzel flags=(attach_disconnected) {
+  signal (receive) set=(term, kill) peer=labwc-network-sharing,
+  signal (send) set=(chld) peer=labwc-network-sharing,
   # Management navigation retains the controlling terminal through exec.
   #include <abstractions/wrapper-terminal>
   include if exists <abstractions/hardware-tuning-fuzzel-parent>
@@ -4024,6 +4029,8 @@ profile labwc-main-menu /usr/local/bin/labwc-main-menu flags=(attach_disconnecte
 
 # Pure data selector; no action execution and no shell-based fzf bindings.
 profile labwc-fzf-menu /usr/local/bin/labwc-fzf-menu flags=(attach_disconnected) {
+  signal (receive) set=(term, kill) peer=labwc-network-sharing,
+  signal (send) set=(chld) peer=labwc-network-sharing,
   #include <abstractions/wrapper-python>
   #include <abstractions/wrapper-terminal>
   /usr/local/bin/labwc-fzf-menu rix,

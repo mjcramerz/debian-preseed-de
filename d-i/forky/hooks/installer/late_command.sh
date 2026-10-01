@@ -25,6 +25,7 @@ for late_module in \
   mullvad \
   templates \
   network \
+  network-sharing \
   grub \
   security \
   dbus-broker \

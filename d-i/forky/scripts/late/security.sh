@@ -81,6 +81,8 @@ egress
 kdeconnect
 lan-share
 mdns
+nfs-server
+nfs-client
 ntp-client
 ollama
 openvpn
@@ -105,7 +107,7 @@ nftables_service_asset_supported() {
   candidate=$1
 
   case "$candidate" in
-    backup-restic|crowdsec|cups|dhcp-client|dns-client|docker|egress|kdeconnect|lan-share|mdns|ntp-client|ollama|openvpn|podman|qemu|qbittorrent|rsync|samba|smtp-client|ssdp|ssh-client|ssh-server|syncthing|tailscale|wazuh-agent|wireguard|zerotier)
+    backup-restic|crowdsec|cups|dhcp-client|dns-client|docker|egress|kdeconnect|lan-share|mdns|nfs-server|nfs-client|ntp-client|ollama|openvpn|podman|qemu|qbittorrent|rsync|samba|smtp-client|ssdp|ssh-client|ssh-server|syncthing|tailscale|wazuh-agent|wireguard|zerotier)
       return 0
       ;;
   esac
@@ -182,6 +184,13 @@ late_command_nftables_effective_services() {
   fi
 
 
+  if [ "${NFS_SERVER_ENABLE:-false}" = true ]; then
+    effective_services=$(nftables_merge_selected_services "$effective_services" nfs-server)
+  fi
+  if [ "${NFS_CLIENT_ENABLE:-false}" = true ]; then
+    effective_services=$(nftables_merge_selected_services "$effective_services" nfs-client)
+  fi
+
   if nftables_qemu_selected; then
     effective_services=$(nftables_merge_selected_services "$effective_services" qemu)
   fi
@@ -205,6 +214,7 @@ stage_target_nftables_service_assets() {
       syncthing) placeholder_map=nftables_syncthing_service_placeholder_map ;;
       tailscale) placeholder_map=nftables_tailscale_service_placeholder_map ;;
       qemu) placeholder_map=nftables_qemu_service_placeholder_map ;;
+      nfs-server|nfs-client) placeholder_map=network_sharing_nftables_placeholder_map ;;
       *) placeholder_map=nftables_interface_placeholder_map ;;
     esac
     render_target_asset_with_placeholder_map \
@@ -329,6 +339,25 @@ nftables_validate_cidr_token() {
       installer_fatal "${label} must be CIDR-formatted"
       ;;
   esac
+}
+
+network_sharing_nftables_placeholder_map() {
+  printf 'NFS_SERVER_ENABLE=%s\n' "${NFS_SERVER_ENABLE:-false}"
+  printf 'NFS_CLIENT_ENABLE=%s\n' "${NFS_CLIENT_ENABLE:-false}"
+  # The target configurator validates the complete export grammar before the
+  # firewall is staged. Derive the allowlist from that same source of truth.
+  nfs_cidrs=$(printf '%s\n' "${NFS_SERVER_EXPORTS:-}" | awk '{
+    for (i=2; i<=NF; i++) { peer=$i; sub(/\(.*/, "", peer); print peer }
+  }')
+  # shellcheck disable=SC2086
+  printf 'NFS_SERVER_ALLOW_IPV4=%s\n' "$(nftables_yaml_inline_list $nfs_cidrs)"
+  if [ -n "${NFS_CLIENT_TARGET_IP:-}" ]; then
+    printf 'NFS_CLIENT_ALLOW_IPV4=%s\n' "$(nftables_yaml_inline_list "${NFS_CLIENT_TARGET_IP}/32")"
+  else
+    printf 'NFS_CLIENT_ALLOW_IPV4=[]\n'
+  fi
+  # shellcheck disable=SC2086
+  printf 'NFS_ALLOW_INTERFACES=%s\n' "$(nftables_yaml_inline_list ${NFS_INTERFACES:-})"
 }
 
 nftables_yaml_inline_list() {
@@ -708,6 +737,7 @@ apparmor_managed_profile_files() {
 apparmor_managed_system_profile_files() {
   cat <<'EOF'
 system-wrappers
+network-sharing
 crun
 timeshift
 slirp4netns
@@ -1377,6 +1407,9 @@ configure_target_nftables() {
   installer_info "nftables profile selection: raw=${NFT_PROFILE:-default} normalized=${requested_profile} selected=${selected_profile}"
 
   if [ "$selected_profile" = none ]; then
+    if [ "${NFS_SERVER_ENABLE:-false}" = true ] || [ "${NFS_CLIENT_ENABLE:-false}" = true ]; then
+      installer_fatal "enabled NFS roles require a managed nftables profile"
+    fi
     installer_info "NFT_PROFILE=none; skipping nftables profile, service overlay, and unit staging"
     clear_target_nftables_assets
     return 0

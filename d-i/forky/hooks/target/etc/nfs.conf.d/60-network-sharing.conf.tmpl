@@ -1,0 +1,17 @@
+# Managed NFSv4.1/4.2 only; no portmapper, UDP or v4.0 callback listener.
+[nfsd]
+threads = __NFS_SERVER_THREADS__
+port = 2049
+tcp = y
+udp = n
+vers2 = n
+vers3 = n
+vers4 = y
+vers4.0 = n
+vers4.1 = y
+vers4.2 = y
+rdma = n
+[mountd]
+# Keep the AUTH_SYS group list consistent with server-side NSS membership.
+manage-gids = y
+reverse-lookup = n

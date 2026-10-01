@@ -27,6 +27,7 @@
 
 # Repository-managed desktop wrapper and control-plane source.
 __DESKTOP_APPARMOR_STATE__ required desktop-wrappers -
+__DESKTOP_APPARMOR_STATE__ required network-sharing -
 __DESKTOP_APPARMOR_STATE__ required zoom-discord-compat -
 __DESKTOP_APPARMOR_STATE__ required labwc-appearance -
 __DESKTOP_APPARMOR_STATE__ if-executable gitbuild /usr/local/bin/gitbuild

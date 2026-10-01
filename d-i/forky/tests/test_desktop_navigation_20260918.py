@@ -133,7 +133,9 @@ class NavigationTests(unittest.TestCase):
         self.assertEqual(list(self.menu.MENUS), ['System & Recovery', 'Network & Remote',
                          'Security & Accounts', 'Devices & Desktop', 'Containers & AI', 'Files & Documents'])
         routes = [route for entries in self.menu.MENUS.values() for route in entries.values()]
-        self.assertEqual(len(routes), 25)
+        # Keep all 25 existing routes and add the requested Network Sharing route.
+        self.assertEqual(len(routes), 26)
+        self.assertEqual(self.menu.MENUS['Network & Remote']['Network Sharing'], ('labwc-network-sharing',))
         self.assertEqual(len(routes), len(set(routes)))
 
     def test_all_original_management_areas_remain_reachable(self):

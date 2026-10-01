@@ -1,0 +1,12 @@
+{
+  "payload_files": 1689,
+  "all_payload_bytes_match_manifest_and_source": true,
+  "payload_metadata": "regular files; mode 0644; UID/GID/mtime 0",
+  "preseed_pins_match_payload_and_manifest": true,
+  "sha256": {
+    "preseed.cfg": "71a0094e58469dfa763979e62757d4fe1a089ef2f569fac85a6b86d287945fa0",
+    "payload.manifest": "68dd2a52f4fe6a0296b2601bb11d19a5538641ebcd2f9e5ff2f5ea6543d8037c",
+    "payload.tar.gz": "5f3d09b24550b3efc5408b42729446439c4b09a9c882b0cf62f710564477d584"
+  },
+  "original_zip_paths_retained": 1991
+}

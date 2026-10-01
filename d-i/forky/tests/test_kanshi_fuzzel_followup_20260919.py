@@ -397,7 +397,8 @@ sys.exit(int(os.environ['STATUS']))
         labels=[*management.MENUS, *(label for entries in management.MENUS.values() for label in entries)]
         result,payload=self.pick(labels,root=True)
         self.assertEqual(result.returncode,0,result.stderr)
-        rows=payload.rstrip(b'\n').split(b'\n');self.assertEqual(len(rows),31)
+        # Six groups plus 26 routes, including Network Sharing.
+        rows=payload.rstrip(b'\n').split(b'\n');self.assertEqual(len(rows),32)
         for label,row in zip(labels,rows):
             text,icon=row.split(b'\0icon\x1f')
             self.assertEqual(text.decode(),label)

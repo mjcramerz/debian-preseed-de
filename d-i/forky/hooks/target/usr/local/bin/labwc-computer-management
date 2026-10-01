@@ -24,6 +24,7 @@ MENUS = {
         'Recovery & Repair': ('labwc-maintenance-menu', 'recovery'),
     },
     'Network & Remote': {
+        'Network Sharing': ('labwc-network-sharing',),
         'Connection Profiles': ('labwc-network-control-menu', 'connections'),
         'VPN Connections': ('labwc-network-control-menu', 'vpn'),
         'WireGuard Connections': ('labwc-network-control-menu', 'wireguard'),

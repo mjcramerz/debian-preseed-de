@@ -6,12 +6,16 @@
       "source_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
       "destination_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
       "content_status": "unchanged",
-      "current_sha256": "5647294b296c0503cbe08a5d36bf8a69e3d7c5cddbc48c484a7649f780095548",
-      "current_change": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
+      "current_sha256": "0819243b986bebb722b1423bf81b415b82b20f5aab12f6a93cb8cbd2c5d04a4c",
+      "current_change": "NFS follow-up: add packaged e2fsprogs for immutable home-bind parents; all other profile settings and release pins preserved.",
       "pre_refactor_20260923_sha256": "d1a8a6241d5178bfc2cb4d152fc551f49ff1b075cf56266ccd2454e071c2f188",
       "previous_layout_sha256": "271b91656792f522969b6e45ced7eda4408cd69f46e8e99dcd10aa16f3f2514a",
       "pre_refactor_20260924_sha256": "e51fc1eb8bbda9be6a7f89398487a73c9df3d8db251777d3d23c52892cedaa51",
-      "pre_security_20260924_sha256": "7c6e8fd2e2ea6dc384076d56f3bee4ee8b6719da6f18cafc45b8231bdef7a785"
+      "pre_security_20260924_sha256": "7c6e8fd2e2ea6dc384076d56f3bee4ee8b6719da6f18cafc45b8231bdef7a785",
+      "pre_nfs_20260930_sha256": "7cf487387eb6c6c88559af6fe8e7e3eb3a0abd42f2f2a71fce9aa2053e813ed3",
+      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
+      "pre_nfs_audit_20260930_sha256": "0061651883d76ac83fb1edef8e20e37de1a905e8455d87e869bb0bd786a576e1",
+      "previous_change_before_nfs_audit_20260930": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved."
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-p15s-duo.env",
@@ -19,12 +23,16 @@
       "source_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
       "destination_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
       "content_status": "unchanged",
-      "current_sha256": "5484dc56bc22d1186a29b6066f7b01e474ffc36c2f89d2676304fb8b0a8167af",
-      "current_change": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
+      "current_sha256": "f1dc7f767e0f05043b8b404930ed7b651937855b2f6c982783871cfc89dc748d",
+      "current_change": "NFS follow-up: add packaged e2fsprogs for immutable home-bind parents; all other profile settings and release pins preserved.",
       "pre_refactor_20260923_sha256": "bed9ecc7b8304b60082bbc36990dec4b935391407470ebf8324a509b99869315",
       "previous_layout_sha256": "872fe0dde351ed81615562457d201e308474cf6c0c49e501843beaa48b9db69b",
       "pre_refactor_20260924_sha256": "7469b8a0e7ef21b6e96f63c580f1524adcb2d67f570740ce335d7c66e9186075",
-      "pre_security_20260924_sha256": "c4bc79918749dc12b0b98338c69ccbde8144217248c02380e90ecb878b9e23fa"
+      "pre_security_20260924_sha256": "c4bc79918749dc12b0b98338c69ccbde8144217248c02380e90ecb878b9e23fa",
+      "pre_nfs_20260930_sha256": "ce95f713f89639f085339784ba7f6b40f857c3486c4b6e9a1f36b5ff91ed4066",
+      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
+      "pre_nfs_audit_20260930_sha256": "6aece8cc0a6f7066449625976932fba45f284de830a164ef6bb67f28d0b98dd4",
+      "previous_change_before_nfs_audit_20260930": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved."
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-duo.env",
@@ -32,12 +40,16 @@
       "source_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
       "destination_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
       "content_status": "unchanged",
-      "current_sha256": "18f913aeca0995efecb326798850ef5daf0e53ea5c9dbe90dbe53d6b6ffb7b03",
-      "current_change": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
+      "current_sha256": "f983601ee95a485c848fe8ded2d890f9cdc3ae5ac61364effa89b076248325aa",
+      "current_change": "NFS follow-up: add packaged e2fsprogs for immutable home-bind parents; all other profile settings and release pins preserved.",
       "pre_refactor_20260923_sha256": "ecc0691554b44b2bbecde9cc5db4d1e27b1bbaf416f3e55990527f72ce1bb54d",
       "previous_layout_sha256": "10565e4d0414ce3ca539cd5562fce5e6241ae72cd659242bec9ffd28d72a12f6",
       "pre_refactor_20260924_sha256": "377ba91cd5ab6ab8d60b6c69274846ed84ff361dc1148b04fa8aaa7db03599d9",
-      "pre_security_20260924_sha256": "42a5f09dae655790f57179c767c2c8aeb986017807e9db0cf6bd59e62f015067"
+      "pre_security_20260924_sha256": "42a5f09dae655790f57179c767c2c8aeb986017807e9db0cf6bd59e62f015067",
+      "pre_nfs_20260930_sha256": "c06a0fc77a9a42896e9e79dbb56248eda9c5bb52c647e196f2f2acf7bd1be7e4",
+      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
+      "pre_nfs_audit_20260930_sha256": "89429e2625fb36552069255300e128335b621fd9dd2f43a2be0fcc25ad42182f",
+      "previous_change_before_nfs_audit_20260930": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved."
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-flex.env",
@@ -45,12 +57,16 @@
       "source_sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
       "destination_sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
       "content_status": "unchanged",
-      "current_sha256": "c6085fe588cf2350b7408c29c9b281ce334e09c647f54f26d6a5bb864bd6c242",
-      "current_change": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
+      "current_sha256": "d8fcd461a98faf8f4eae581309888c9f361d4a185e4de39cb730dad09576862a",
+      "current_change": "NFS follow-up: add packaged e2fsprogs for immutable home-bind parents; all other profile settings and release pins preserved.",
       "pre_refactor_20260923_sha256": "ac4996018777054237a4963836f31c6395ace650b27ff7b7a465cd062f60d270",
       "previous_layout_sha256": "ab14c290950c69d3aa49a516cab2d44592de0c31a3ccf74990dfd3b85ce31629",
       "pre_refactor_20260924_sha256": "112206e3582ac293ee12146b3246b4f4c1c9ee930905f77a6940b3ed85cf903b",
-      "pre_security_20260924_sha256": "2991bf569b621b11d926f87301636ec7ca5db7870fcd1368c9eb0aab29b617aa"
+      "pre_security_20260924_sha256": "2991bf569b621b11d926f87301636ec7ca5db7870fcd1368c9eb0aab29b617aa",
+      "pre_nfs_20260930_sha256": "7fb3953d341fdc70eed2a14d9ba5adcc8c9ee2bf81ebb106243e824dba8ce49a",
+      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
+      "pre_nfs_audit_20260930_sha256": "d33b15abcba809e13867c974724a3759e5f00a0776176bd4585c469ae43c73c5",
+      "previous_change_before_nfs_audit_20260930": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved."
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-p15s.env",
@@ -58,13 +74,17 @@
       "source_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
       "destination_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
       "content_status": "unchanged",
-      "current_sha256": "7fe794c4036c75ee4db34d16dab494b6d1ae92f7e4976abac270b79be03ce7a9",
-      "current_change": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
+      "current_sha256": "25577138e42ce9e7d9d8f607bc5b496616f6c3db8042d24d747464f6226e496e",
+      "current_change": "NFS follow-up: add packaged e2fsprogs for immutable home-bind parents; all other profile settings and release pins preserved.",
       "repair_note": "Baseline ZIP already contained this profile content; repaired stale current provenance, not profile behavior.",
       "pre_refactor_20260923_sha256": "f790ff59fbd0facd87c1a75c94be00b5bff4c1abe150249e3d9a31028a738a97",
       "previous_layout_sha256": "ab9fc6a338ed74f47fc0f23186d15053ebb3c0c8099b6433fedc7746348c7493",
       "pre_refactor_20260924_sha256": "eb2ace783c2e88a1ccc4ea47ea684ffbb6cc69674a14ec56dd6b19ee5b3156ff",
-      "pre_security_20260924_sha256": "b6748e6cfbc2d296d9760d1c19939cccc9c5bda98ff6b8e0ecb42a9d6012c188"
+      "pre_security_20260924_sha256": "b6748e6cfbc2d296d9760d1c19939cccc9c5bda98ff6b8e0ecb42a9d6012c188",
+      "pre_nfs_20260930_sha256": "eea71e9d795a23d23a3037ddb3d1d2c1ba071d10b26ab255d7d2661ac03b9e16",
+      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
+      "pre_nfs_audit_20260930_sha256": "145d6104884c5a32f860baea39171a4df96152fd8736e179cbf697d2a7fece4f",
+      "previous_change_before_nfs_audit_20260930": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved."
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de.env",
@@ -72,12 +92,16 @@
       "source_sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
       "destination_sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
       "content_status": "unchanged",
-      "current_sha256": "decd4f86f01fb9a9af84ebf5d8b65f74b9cd626d343c1e5e2131d70cd52fa0f5",
-      "current_change": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
+      "current_sha256": "046af1774c5703dd221f1d3695296adf1df1545acf58205aa45512b27a1ea961",
+      "current_change": "NFS follow-up: add packaged e2fsprogs for immutable home-bind parents; all other profile settings and release pins preserved.",
       "pre_refactor_20260923_sha256": "c6a05251b1f675863eda567cb9d6e7b401f9b3345b785bd9f1c1ca8652332c1e",
       "previous_layout_sha256": "7db6290276dfe9bc177bcf9a651c0aa8ad4181e7f5739b3955c1165308b8da4d",
       "pre_refactor_20260924_sha256": "2d0ea5c2633605e6fd102b3456222d16516ac5a3c81f25ebe38e254e88d55af7",
-      "pre_security_20260924_sha256": "27d705448e90a4c1990c5f342365d64884ab1e315e218b685ec6f675cce337e3"
+      "pre_security_20260924_sha256": "27d705448e90a4c1990c5f342365d64884ab1e315e218b685ec6f675cce337e3",
+      "pre_nfs_20260930_sha256": "adc675855a51b69b7bfaf840e64a72245bf899f0231dd130ec7ba58ad27826af",
+      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
+      "pre_nfs_audit_20260930_sha256": "88ed6a2b457cedd373beae0c57a1ee0a5f207ce09477ffa7609f17fb478213bc",
+      "previous_change_before_nfs_audit_20260930": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved."
     },
     {
       "source": "d-i/forky/hosts/profiles/override/f2fs-de-hp14.env",
@@ -85,12 +109,16 @@
       "source_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
       "destination_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
       "content_status": "unchanged",
-      "current_sha256": "768086cce3f585f0c605762eead79a17cfda8b75552dbd7915a4d28501b03154",
-      "current_change": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
+      "current_sha256": "70d8c91b10deacd886d039a9789d0e1ad512a9912c27f69be3e56bff0fb5fa63",
+      "current_change": "NFS follow-up: add packaged e2fsprogs for immutable home-bind parents; all other profile settings and release pins preserved.",
       "pre_refactor_20260923_sha256": "f642fc1e8155894bc84c365846c2bf7814355a294c1fb1e16aea91a0c2cc4782",
       "previous_layout_sha256": "54c7189b9bf741e1a56bfc905494bfd22b67746f9a8d933ac54338b9b465fb3c",
       "pre_refactor_20260924_sha256": "2d4d67e1db78ef53e55eedd6d2408f8033992b3f802b120dada3e84212ed6a27",
-      "pre_security_20260924_sha256": "b889960f78728108c5390edc8e86666a227a64417233792ab69e27f1004b4bf9"
+      "pre_security_20260924_sha256": "b889960f78728108c5390edc8e86666a227a64417233792ab69e27f1004b4bf9",
+      "pre_nfs_20260930_sha256": "c7866b89575e3be749e0302d5a64fa2d618910a3066be0f7855a84d39c1f3a21",
+      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
+      "pre_nfs_audit_20260930_sha256": "0b45131ddef4f5831f034c70c860e4c5d93d1b9e5842596227a6ff62c325bcce",
+      "previous_change_before_nfs_audit_20260930": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved."
     },
     {
       "source": "d-i/forky/hosts/profiles/override/f2fs-de-hp14-duo.env",
@@ -98,12 +126,16 @@
       "source_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
       "destination_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
       "content_status": "unchanged",
-      "current_sha256": "0922fa317718092d63603364d90d73339bc4625d4832c0b91ef16ebf962fdb49",
-      "current_change": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
+      "current_sha256": "00218093e536092cffcc00654a5cf438e47d84c29f24ed27cc99f0ece3c92235",
+      "current_change": "NFS follow-up: add packaged e2fsprogs for immutable home-bind parents; all other profile settings and release pins preserved.",
       "pre_refactor_20260923_sha256": "18c39c2a4edf76133939e6770adb7f82255590c45c4cc8ebdda0e6e21429ee26",
       "previous_layout_sha256": "7b29f673c54a40b45e38ed1f8e4bd538d3c5e30f1cb445079ed4784485bb8df6",
       "pre_refactor_20260924_sha256": "1e96d66be539fe67d943de9dd4cb0aa41595cab9ce41669369fa0386bd5f0876",
-      "pre_security_20260924_sha256": "930f4570d51aa733c899775403572509c14499540457370bdebf37a037f7f0d9"
+      "pre_security_20260924_sha256": "930f4570d51aa733c899775403572509c14499540457370bdebf37a037f7f0d9",
+      "pre_nfs_20260930_sha256": "3d1491fd38b214485aba5e336015a30c343945c8c291fe8091c5bd0874b779a6",
+      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
+      "pre_nfs_audit_20260930_sha256": "6c75a94b349513111a495343b296a9f9e868b667142389f62e039b98d54467b0",
+      "previous_change_before_nfs_audit_20260930": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved."
     },
     {
       "source": "d-i/forky/hosts/profiles/override/f2fs-de-x360-duo.env",
@@ -111,12 +143,16 @@
       "source_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
       "destination_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
       "content_status": "unchanged",
-      "current_sha256": "cf111e22eec71ccdfcb8a3e03d06d2a8feae9a306c1c4b99ed9b67b131d671c3",
-      "current_change": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
+      "current_sha256": "c2f7a0885fdbbd3241d48d37409748474414c066876f25bff205fc6fd886e65c",
+      "current_change": "NFS follow-up: add packaged e2fsprogs for immutable home-bind parents; all other profile settings and release pins preserved.",
       "pre_refactor_20260923_sha256": "14e847a2d89863f2d626aa3336e4185fe6b44ea026ba0e5da99ca6cb3d472e55",
       "previous_layout_sha256": "4f9a8069210c9771239c7681d39f4f4ffcd68dfbccfd7f56505d4c45b1f528cc",
       "pre_refactor_20260924_sha256": "7e7ba9233dc9ddc8273169b6feca81462c5c3b1c63825f7d17d1545aeb273645",
-      "pre_security_20260924_sha256": "70dbea287a3e7bb05932a83467ee6ea6558563b66c4467cd3be58d3fb7fd144d"
+      "pre_security_20260924_sha256": "70dbea287a3e7bb05932a83467ee6ea6558563b66c4467cd3be58d3fb7fd144d",
+      "pre_nfs_20260930_sha256": "05471d257b444d038dc77f791a7b1fe11a558bc7ca3a8756d35a19dc5dc86e0a",
+      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
+      "pre_nfs_audit_20260930_sha256": "3739b79d4a21d379267c2fd6f3f95b94bae4c6a3dbf668a11b0012e488108fa6",
+      "previous_change_before_nfs_audit_20260930": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved."
     },
     {
       "source": "d-i/forky/hosts/profiles/override/f2fs-de-x360.env",
@@ -124,12 +160,16 @@
       "source_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
       "destination_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
       "content_status": "unchanged",
-      "current_sha256": "062af88ff7a6f5c20c570cb0a7d3b86410f9a33cfcfc095034b06a8bfdb2bed6",
-      "current_change": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
+      "current_sha256": "2b8e85bbac9b07f357ce9e0ecaaf7ea1ceb7f9ee7f54be2f99e7ac24b87ee261",
+      "current_change": "NFS follow-up: add packaged e2fsprogs for immutable home-bind parents; all other profile settings and release pins preserved.",
       "pre_refactor_20260923_sha256": "5985d0a51951beddacc24c9521ce988342842de3d959ea09346a2cae53740d9c",
       "previous_layout_sha256": "57088fbd920f391fafd3111c7d55cccfc87e3e8c40291d190603c1e412d02dc8",
       "pre_refactor_20260924_sha256": "ec655123173b4ae92c6a35bd155d6dcf93eecc79830848f386ac2d627ac82b64",
-      "pre_security_20260924_sha256": "f0eca6b4ad0a78fc3909c3c9f44006e46b6d78bad5c9afc461fd218fa3f372d5"
+      "pre_security_20260924_sha256": "f0eca6b4ad0a78fc3909c3c9f44006e46b6d78bad5c9afc461fd218fa3f372d5",
+      "pre_nfs_20260930_sha256": "78a43c495626ef60443ec6560ab2dfc656a012abb5283aa6f232fe2350bf71c5",
+      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
+      "pre_nfs_audit_20260930_sha256": "7df95cf7401e60b806eb05519ffd456c9076df9779d1fc29fa8c26d668084c9f",
+      "previous_change_before_nfs_audit_20260930": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved."
     }
   ]
 }

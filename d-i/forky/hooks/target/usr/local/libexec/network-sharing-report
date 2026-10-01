@@ -1,0 +1,119 @@
+#!/usr/bin/python3 -I
+"""Finite, read-only host NFS diagnostics; run only by its system service.
+
+Never touches an NFS mount (a hard mount can block indefinitely), opens a
+network connection, follows client-supplied paths, or changes kernel state.
+"""
+from __future__ import annotations
+
+from datetime import datetime, timezone
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import sys
+import tempfile
+
+CONFIG = Path('/etc/network-sharing/config.json')
+REPORT_DIRECTORY = Path('/run/network-sharing')
+CLIENT_DIRECTORY = Path('/proc/fs/nfsd/clients')
+MAX_CLIENTS = 128
+MAX_BYTES = 8192
+
+
+def read_bounded(path: Path, limit: int = MAX_BYTES, *, trusted: bool = False) -> str:
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(fd, 'rb') as stream:
+        metadata = os.fstat(stream.fileno())
+        if not stat.S_ISREG(metadata.st_mode):
+            raise ValueError('diagnostic input is not a regular file')
+        if trusted and (metadata.st_uid != 0 or metadata.st_nlink != 1 or metadata.st_mode & 0o022):
+            raise ValueError('unsafe network sharing configuration')
+        data = stream.read(limit + 1)
+    text = data[:limit].decode('utf-8', errors='replace')
+    # Kernel client names originate remotely. Never forward terminal controls.
+    text = ''.join(c if c in '\n\t' or c.isprintable() else '?' for c in text)
+    return text + ('\n[truncated]' if len(data) > limit else '')
+
+
+def diagnostic(path: Path) -> dict[str, str]:
+    try:
+        return {'value': read_bounded(path)}
+    except (OSError, ValueError) as error:
+        return {'unavailable': type(error).__name__ + ': ' + str(error)}
+
+
+def clients(directory: Path = CLIENT_DIRECTORY) -> dict[str, object]:
+    result: list[dict[str, str]] = []
+    try:
+        # No sorting of an unbounded directory, and no following symlinks.
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                if not re.fullmatch(r'[0-9]+', entry.name) or not entry.is_dir(follow_symlinks=False):
+                    continue
+                if len(result) >= MAX_CLIENTS:
+                    return {'entries': result, 'truncated': True}
+                item = {'kernel_id': entry.name}
+                item.update(diagnostic(directory / entry.name / 'info'))
+                result.append(item)
+    except OSError as error:
+        return {'entries': result, 'unavailable': type(error).__name__ + ': ' + str(error)}
+    return {'entries': result, 'truncated': False}
+
+
+def collect(config: dict[str, object]) -> dict[str, object]:
+    report: dict[str, object] = {
+        'version': 1, 'created_utc': datetime.now(timezone.utc).isoformat(),
+        'notice': 'Kernel NFSv4 client records are not a live TCP connection count; records may survive a disconnection until lease expiry.',
+        'server_enabled': config['server_enabled'], 'client_enabled': config['client_enabled'],
+        'client_records': clients() if config['server_enabled'] else {'disabled': True},
+    }
+    for label, path in {
+        'server_protocol_versions': '/proc/fs/nfsd/versions',
+        'server_threads': '/proc/fs/nfsd/threads',
+        'client_rpc_statistics': '/proc/net/rpc/nfs',
+        'server_rpc_statistics': '/proc/net/rpc/nfsd',
+        'client_disable_idmapping': '/sys/module/nfs/parameters/nfs4_disable_idmapping',
+        'server_disable_idmapping': '/sys/module/nfsd/parameters/nfs4_disable_idmapping',
+    }.items():
+        report[label] = diagnostic(Path(path))
+    return report
+
+
+def publish(report: dict[str, object], directory: Path = REPORT_DIRECTORY) -> None:
+    metadata = directory.lstat()
+    if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_mode & 0o027:
+        raise ValueError('unsafe report directory; use network-sharing-report.service')
+    fd, name = tempfile.mkstemp(prefix='.report-', dir=directory)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+            os.fchmod(stream.fileno(), 0o640)
+            os.fchown(stream.fileno(), 0, metadata.st_gid)
+            json.dump(report, stream, indent=2, sort_keys=True, ensure_ascii=False)
+            stream.write('\n')
+            stream.flush()
+            os.fsync(stream.fileno())
+        # Replace the directory entry; never follow a previous report symlink.
+        os.replace(name, directory / 'report.json')
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+def main(argv: list[str]) -> int:
+    if argv or os.getuid() != 0 or os.geteuid() != 0:
+        raise ValueError('run this no-argument helper through network-sharing-report.service')
+    config = json.loads(read_bounded(CONFIG, 65536, trusted=True))
+    if config.get('version') != 1 or any(type(config.get(key)) is not bool for key in ('server_enabled', 'client_enabled')):
+        raise ValueError('invalid network sharing configuration')
+    publish(collect(config))
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        print('network-sharing-report: ' + str(error), file=sys.stderr)
+        raise SystemExit(1)

@@ -1,0 +1,13 @@
+{
+  "scope": "Native libacl ACL semantics only; setfacl CLI unavailable. Configurator argv is separately unit-tested.",
+  "before": {
+    "32768": "user::rwx\nuser:12345:rwx\ngroup::rwx\nmask::rwx\nother::---\n",
+    "16384": "user::rwx\nuser:12345:rwx\ngroup::rwx\nmask::rwx\nother::---\n"
+  },
+  "after": {
+    "32768": "user::rwx\ngroup::rwx\nother::---\n",
+    "16384": "user::rwx\ngroup::rwx\nmask::rwx\nother::---\n"
+  },
+  "mode_after": "0o2770",
+  "existing_child_unchanged": true
+}

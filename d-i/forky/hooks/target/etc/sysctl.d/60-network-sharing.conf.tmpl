@@ -1,0 +1,7 @@
+# Bounded TCP autotuning for NFS. wmem_max is the kernel's spelling.
+net.ipv4.tcp_window_scaling = 1
+net.ipv4.tcp_moderate_rcvbuf = 1
+net.ipv4.tcp_rmem = __NFS_TCP_RMEM__
+net.ipv4.tcp_wmem = __NFS_TCP_WMEM__
+net.core.rmem_max = __NFS_SOCKET_RMEM_MAX__
+net.core.wmem_max = __NFS_SOCKET_WMEM_MAX__

@@ -1,0 +1,84 @@
+#include <tunables/global>
+
+# The menu is never privileged. Only fixed systemd operations cross the
+# existing active-local-administrator Polkit boundary; no shell/root helper.
+profile labwc-network-sharing /usr/local/bin/labwc-network-sharing flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/wrapper-desktop>
+  #include <abstractions/wrapper-terminal>
+  /usr/local/bin/labwc-network-sharing r,
+  / r,
+  /etc/ r,
+  /etc/network-sharing/ r,
+  /etc/network-sharing/config.json r,
+  /run/ r,
+  /run/network-sharing/ r,
+  /run/network-sharing/report.json r,
+  /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
+  /usr/bin/systemctl rCx -> systemctl,
+  /usr/bin/journalctl rCx -> journalctl,
+
+  # Cross-profile child lifecycle: Python may kill/reap a timed-out command.
+  signal (send) set=(term, kill) peer=labwc-network-sharing//{systemctl,journalctl},
+  signal (receive) set=(chld) peer=labwc-network-sharing//{systemctl,journalctl},
+  signal (send) set=(term, kill) peer=labwc-{fuzzel,fzf-menu},
+  signal (receive) set=(chld) peer=labwc-{fuzzel,fzf-menu},
+  signal (receive) set=(term, kill) peer=labwc-computer-management,
+  signal (send) set=(chld) peer=labwc-computer-management,
+
+  profile systemctl {
+    #include <abstractions/base>
+    #include <abstractions/dbus-strict>
+    /usr/bin/systemctl mr,
+    /etc/{passwd,group,nsswitch.conf,machine-id} r,
+    /run/systemd/{system,private} rw,
+    /run/systemd/system/ r,
+    /run/systemd/ask-password/ r,
+    /proc/sys/kernel/random/boot_id r,
+    owner @{PROC}/@{pid}/{stat,status,cgroup,mountinfo} r,
+    /dev/tty rw,
+    network unix stream,
+    dbus (send, receive) bus=system peer=(name=org.freedesktop.systemd1),
+    dbus receive bus=system peer=(name=org.freedesktop.DBus),
+    # Authentication is performed by the already-running desktop agent, not
+    # by a new privileged or unconfined executable inside this process tree.
+    signal (receive) set=(term, kill) peer=labwc-network-sharing,
+    signal (send) set=(chld) peer=labwc-network-sharing,
+  }
+
+  profile journalctl {
+    #include <abstractions/base>
+    /usr/bin/journalctl mr,
+    /etc/{passwd,group,nsswitch.conf,machine-id} r,
+    /run/log/journal/{,**} r,
+    /var/log/journal/{,**} r,
+    /usr/lib/systemd/catalog/database r,
+    /run/systemd/journal/{,**} r,
+    /proc/sys/kernel/random/boot_id r,
+    owner @{PROC}/@{pid}/{stat,status,cgroup,mountinfo} r,
+    signal (receive) set=(term, kill) peer=labwc-network-sharing,
+    signal (send) set=(chld) peer=labwc-network-sharing,
+  }
+  include if exists <local/labwc-network-sharing>
+}
+
+# One bounded root diagnostic process, with no capabilities and no networking.
+# NFS client-controlled names are data only. No mount paths, ctl files, exports
+# mutation, cache flushing, keyring mutation or client expiry operations.
+profile network-sharing-report /usr/local/libexec/network-sharing-report flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  /usr/local/libexec/network-sharing-report r,
+  /etc/network-sharing/config.json r,
+  @{PROC}/fs/nfsd/{versions,threads} r,
+  @{PROC}/fs/nfsd/clients/ r,
+  @{PROC}/fs/nfsd/clients/[0-9]*/ r,
+  @{PROC}/fs/nfsd/clients/[0-9]*/info r,
+  @{PROC}/net/rpc/{nfs,nfsd} r,
+  owner @{PROC}/@{pid}/net/rpc/{nfs,nfsd} r,
+  @{sys}/module/{nfs,nfsd}/parameters/nfs4_disable_idmapping r,
+  /run/network-sharing/ rw,
+  /run/network-sharing/.report-* rw,
+  /run/network-sharing/report.json rw,
+  deny network,
+  include if exists <local/network-sharing-report>
+}

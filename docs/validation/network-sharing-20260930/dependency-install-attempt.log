@@ -1,0 +1,29 @@
+Ign:1 https://deb.debian.org/debian trixie InRelease
+Ign:2 https://deb.debian.org/debian trixie-updates InRelease
+Ign:3 https://deb.debian.org/debian-security trixie-security InRelease
+Err:1 https://deb.debian.org/debian trixie InRelease
+  Temporary failure resolving 'deb.debian.org'
+Err:2 https://deb.debian.org/debian trixie-updates InRelease
+  Temporary failure resolving 'deb.debian.org'
+Err:3 https://deb.debian.org/debian-security trixie-security InRelease
+  Temporary failure resolving 'deb.debian.org'
+Reading package lists...
+W: Failed to fetch https://deb.debian.org/debian/dists/trixie/InRelease  Temporary failure resolving 'deb.debian.org'
+W: Failed to fetch https://deb.debian.org/debian/dists/trixie-updates/InRelease  Temporary failure resolving 'deb.debian.org'
+W: Failed to fetch https://deb.debian.org/debian-security/dists/trixie-security/InRelease  Temporary failure resolving 'deb.debian.org'
+W: Some index files failed to download. They have been ignored, or old ones used instead.
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Package nfs-common is not available, but is referred to by another package.
+This may mean that the package is missing, has been obsoleted, or
+is only available from another source
+
+Package nfs-kernel-server is not available, but is referred to by another package.
+This may mean that the package is missing, has been obsoleted, or
+is only available from another source
+
+E: Package 'nfs-common' has no installation candidate
+E: Package 'nfs-kernel-server' has no installation candidate
+E: Unable to locate package nftables
+E: Unable to locate package shellcheck

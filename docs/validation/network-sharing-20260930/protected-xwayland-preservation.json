@@ -1,0 +1,69 @@
+{
+  "unchanged_count": 16,
+  "files": [
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/Discord",
+      "sha256": "5f7ef6f8c44924be86f1b84896cc45146054d07a4421416bd6048771e7f87660"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.zoom",
+      "sha256": "ccdeb5330a5be0b4fbaf4666cfdddfdc92796c05bf049c7827229107ab5fd830"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/zoom-discord-compat.tmpl",
+      "sha256": "d9b9dfc98840e62ccaa6e9e4b46808211dfe925cdc7f80d6a490435a7d38a513"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/zoom/zoomus.conf.tmpl",
+      "sha256": "01976b7bf3a571831c48a0402f8b055fe61447c6e54bdfceac4a57075bc79c2c"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/discord",
+      "sha256": "d87c576a9faac62085921b99b8ad5211de7673d9a5a8929dc1d165f75ab96368"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/zoom",
+      "sha256": "2aeee4f0ebf2e26a17491600ed98c3e3fadaab3f0ad8e1e2c9d52b75ad4c551a"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Discord.pm",
+      "sha256": "ed97aa1415e55b0621f5595c280a8308980dde6f05162d4b8f3cb5efe02c3e2b"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/discord-distro",
+      "sha256": "6620cf57b8c3f6abc5b24ff04e684c91a67e3a3c490a237358132718af609d29"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-private-xwayland",
+      "sha256": "9feb923b2df307c816260734eb504586806f5ac6b00ef58bd1e127c13a43b652"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-zoom-discord-compat-runtime",
+      "sha256": "71924415f611006700e6f65daab47d77dd81f73b17be0a47928c1e35f85d940b"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/share/applications/discord.desktop.tmpl",
+      "sha256": "0a5c026b447fb5f1483d515e0e0bf8e7517209bd630851d4d97b47f45e368ce7"
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/xwayland.sh",
+      "sha256": "33977e223d38797f75c0deb5c4b327dd0b7a5a95cbe5b06795a16419197ec903"
+    },
+    {
+      "path": "d-i/forky/tests/test_fail2ban_clipboard_apparmor_20260928.py",
+      "sha256": "d0ee7718f4a919e90033cf9a1f397491f315ae339dde2af1e139961211e2fd9b"
+    },
+    {
+      "path": "d-i/forky/tests/test_zoom_discord_launch_20260930.py",
+      "sha256": "b3a81661b0b9c127e3b1eaf7a8a27b3dea4af98e508c315c9150e08f4c7310ea"
+    },
+    {
+      "path": "d-i/forky/tests/test_zoom_discord_private_xwayland.py",
+      "sha256": "815b0a63b449c0d50a824b996c4ec2fa4e95a6b59203fbdbabddca15eb36f10b"
+    },
+    {
+      "path": "d-i/forky/tests/test_bidirectional_clipboard_20260928.py",
+      "sha256": "2177ca1ea258141267f8727620d28fb3ad05001c74fc3cbfc7e03d11a601125a"
+    }
+  ]
+}

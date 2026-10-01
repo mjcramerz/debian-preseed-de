@@ -396,6 +396,8 @@ def main() -> int:
         validate_iocost_profiles()
         validate_systemd_profiles()
         validate_tomat_profiles()
+        network_sharing_checker = runpy.run_path(str(ROOT / 'tools/check_network_sharing.py'))
+        network_sharing_checker['check'](SEED)
         subprocess.run([resolve_python_interpreter(), '-B', str(ROOT / 'tools/build_browser_config.py')] +
                        (['--check'] if args.check else []), check=True)
         sync_lifecycle_helpers(args.check)

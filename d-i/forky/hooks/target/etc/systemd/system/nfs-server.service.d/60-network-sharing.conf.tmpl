@@ -1,0 +1,28 @@
+[Unit]
+# Refuse partially configured boots, including package-preset enablement.
+AssertPathExists=/etc/network-sharing/config.json
+AssertPathExists=/etc/nfs.conf.d/60-network-sharing.conf
+AssertPathExists=/etc/nftables.d/20-filter.nft
+AssertPathExists=/etc/systemd/system/nftables.service.d/override.conf
+# Never export the underlying root filesystem if the data mount failed.
+RequiresMountsFor=__NFS_SERVER_PATH__
+BindsTo=nftables.service
+After=nftables.service systemd-modules-load.service nfs-idmapd.service
+Requires=nfs-idmapd.service
+
+[Service]
+# The vendor unit ignores exportfs errors. Refuse failed start/reload instead.
+ExecStartPre=
+ExecStartPre=/usr/sbin/exportfs -r
+ExecReload=
+ExecReload=/usr/sbin/exportfs -r
+# nfsd is kernel-backed: retain host networking and writable nfsd/rpc state.
+NoNewPrivileges=yes
+ProtectHome=yes
+PrivateTmp=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+TimeoutStartSec=60s
+TimeoutStopSec=60s
+KillMode=control-group

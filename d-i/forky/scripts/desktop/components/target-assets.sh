@@ -123,6 +123,7 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/bin/labwc-logout /usr/local/bin/labwc-logout 0755
   desktop_stage_role_asset usr/local/bin/labwc-fuzzel /usr/local/bin/labwc-fuzzel 0755
   desktop_stage_role_asset usr/local/bin/labwc-computer-management /usr/local/bin/labwc-computer-management 0755
+  desktop_stage_role_asset usr/local/bin/labwc-network-sharing /usr/local/bin/labwc-network-sharing 0755
   desktop_stage_role_asset usr/local/bin/labwc-ai-copilots /usr/local/bin/labwc-ai-copilots 0755
   desktop_stage_ai_copilots_perl_modules
   desktop_stage_ai_copilots_catalogs
