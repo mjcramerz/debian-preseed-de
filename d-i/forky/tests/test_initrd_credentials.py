@@ -7,6 +7,7 @@ from payload_fixture import installed_argv as payload_installed_argv, source_sta
 from payload_fixture import read_text as payload_read_text
 from pathlib import Path
 import os
+import errno
 import shlex
 import shutil
 import subprocess
@@ -32,6 +33,7 @@ MAPPING = {
     'fruux_username': 'PRESEED_FRUUX_USERNAME',
     'fruux_password': 'PRESEED_FRUUX_PASSWORD',
     'primary_user': 'PRESEED_PRIMARY_USERNAME',
+    'primary_fullname': 'PRESEED_PRIMARY_FULLNAME',
     'primary_password': 'PRESEED_PRIMARY_PASSWORD',
     'primary_gpg_passphrase': 'PRESEED_PRIMARY_GPG_PASSPHRASE',
     'git_ssh_passphrase': 'PRESEED_GIT_SSH_PASSPHRASE',
@@ -205,7 +207,12 @@ class InitrdCredentialTests(CredentialFixture):
 
     @unittest.skipUnless(os.geteuid()==0,'requires root to set fixture ownership')
     def test_wrong_owner_is_rejected(self):
-        os.chown(self.file,65534,65534)
+        try:
+            os.chown(self.file,65534,65534)
+        except OSError as error:
+            if error.errno in (errno.EINVAL, errno.EPERM, errno.EACCES):
+                self.skipTest('runtime cannot establish a foreign-owned credential fixture')
+            raise
         self.assert_safe_failure(self.run_lookup(),'owned by')
 
     def test_symlinked_parent_is_rejected(self):
@@ -273,3 +280,111 @@ class UserHashPrecedenceTests(CredentialFixture):
         self.assertIn('d-i passwd/user-password-crypted password\n',text)
         self.assertIn('d-i passwd/root-login boolean true\n',text)
         self.assertIn('d-i passwd/username string fixtureuser\n',text)
+
+
+@skip_unless_trusted_credential_ancestry
+class PrimaryIdentityTests(CredentialFixture):
+    def setUp(self):
+        super().setUp()
+        self.values.update(PRESEED_PRIMARY_USERNAME='fixtureuser',
+                           PRESEED_PRIMARY_FULLNAME="Fixture O'Connor",
+                           PRESEED_PRIMARY_PASSWORD="Fixture!$()'`\\Password")
+        self.write_env()
+        self.answers = self.dir/'account.answers.cfg'
+        self.effective = self.dir/'effective-account.env'
+
+    def render(self, shell=None, extra='', tracing=False):
+        script = 'set -eu\n'
+        for path in (SEED/'scripts/runtime/common.sh', SEED/'scripts/runtime/account.sh',
+                     SEED/'hosts/installer/account.env'):
+            script += '. ' + shlex.quote(str(path)) + '\n'
+        if tracing:
+            script += 'set -x\n'
+        script += 'runtime_write_account_answers ' + shlex.quote(str(self.answers)) + '\n'
+        script += 'runtime_write_effective_account_env ' + shlex.quote(str(self.effective)) + '\n' + extra
+        environment = {**self.env, 'INSTALLER_CMDLINE':
+                       'primary_user=wrong primary_fullname=Wrong primary_password=wrong',
+                       'ACCOUNT_USERNAME': 'inherited', 'ACCOUNT_FULLNAME': 'Inherited Person',
+                       'ACCOUNT_PASSWORD_CRYPTED': '$6$obsolete-fixture-hash'}
+        return subprocess.run(payload_installed_argv((shell or ['/bin/sh']) + ['-c', script]),
+                              env=environment, text=True, capture_output=True, timeout=15)
+
+    def test_env_identity_wins_and_home_paths_round_trip_without_primary_secrets(self):
+        for name, shell in SHELLS:
+            with self.subTest(shell=name):
+                extra = '. ' + shlex.quote(str(self.effective)) + '\n'
+                extra += 'printf "%s\\n" "$ACCOUNT_USERNAME" "$ACCOUNT_FULLNAME" "$ACCOUNT_HOME" "$DIR_HOME_WORKSPACE" "$SSH_USER_CONFIG_TARGET"\n'
+                result = self.render(shell, extra=extra)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout, "fixtureuser\nFixture O'Connor\n/home/fixtureuser\n/home/fixtureuser/Workspace\n/home/fixtureuser/.ssh/config\n")
+                answers = payload_read_text(self.answers)
+                self.assertIn("d-i passwd/user-fullname string Fixture O'Connor\n", answers)
+                self.assertIn('d-i passwd/user-password password ' + self.values['PRESEED_PRIMARY_PASSWORD'] + '\n', answers)
+                self.assertIn('d-i passwd/user-password-crypted password\n', answers)
+                effective = payload_read_text(self.effective)
+                for secret in (self.values['PRESEED_PRIMARY_PASSWORD'], self.values['PRESEED_ROOT_PASSWORD'], '$6$obsolete-fixture-hash'):
+                    self.assertNotIn(secret, effective + result.stderr)
+                self.assertEqual(payload_source_stat(self.answers).st_mode & 0o777, 0o600)
+                self.assertEqual(payload_source_stat(self.effective).st_mode & 0o777, 0o600)
+
+    def test_missing_or_empty_primary_fields_cannot_use_old_defaults_or_cmdline(self):
+        original = dict(self.values)
+        for key in ('PRESEED_PRIMARY_USERNAME', 'PRESEED_PRIMARY_FULLNAME', 'PRESEED_PRIMARY_PASSWORD'):
+            for missing in (True, False):
+                self.values = dict(original)
+                if missing:
+                    del self.values[key]
+                else:
+                    self.values[key] = ''
+                self.write_env()
+                self.env[key] = 'Inherited-Must-Not-Be-Used'
+                result = self.render()
+                with self.subTest(field=key, missing=missing):
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(key + ' is required', result.stderr)
+                    self.assertFalse(self.answers.exists())
+                    self.assertFalse(self.effective.exists())
+                    self.assertNotIn(original['PRESEED_PRIMARY_PASSWORD'], result.stdout + result.stderr)
+
+    def test_invalid_identity_is_rejected_before_any_answers_are_written(self):
+        original = dict(self.values)
+        cases = {'PRESEED_PRIMARY_USERNAME': ('root', 'User', '../user', 'u'*33, 'user\n'),
+                 'PRESEED_PRIMARY_FULLNAME': (' Person', 'Person ', 'Person:Role', 'Person\n', 'Person\tName'),
+                 'PRESEED_PRIMARY_PASSWORD': ('with space', 'password\n', 'password\r', 'password\t')}
+        for key, invalid in cases.items():
+            for value in invalid:
+                self.values = {**original, key: value}
+                self.write_env()
+                result = self.render()
+                with self.subTest(field=key, value=value):
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(self.answers.exists())
+                    self.assertNotIn(value, result.stdout + result.stderr)
+
+    def test_tracing_does_not_print_resolved_passwords(self):
+        result = self.render(tracing=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for key in ('PRESEED_PRIMARY_PASSWORD', 'PRESEED_ROOT_PASSWORD'):
+            self.assertNotIn(self.values[key], result.stdout + result.stderr)
+
+    def test_late_loader_publishes_identity_for_separate_addon_shells(self):
+        # Exercise the real account loader. Only network fetching is omitted;
+        # all policy loading, credential resolution and publication are real.
+        late = self.dir/'late'
+        late.mkdir()
+        (late/'account.env').write_text(payload_read_text(SEED/'hosts/installer/account.env'))
+        (late/'runtime-common.sh').write_text(payload_read_text(SEED/'scripts/runtime/common.sh'))
+        (late/'account-runtime.sh').write_text(payload_read_text(SEED/'scripts/runtime/account.sh'))
+        script = 'set -eu\n. ' + shlex.quote(str(SEED/'scripts/late/core.sh')) + '\n'
+        script += 'late_command_ensure_host_policy_envs() { :; }\n'
+        script += 'TMP_ENV_DIR=' + shlex.quote(str(late)) + '\n'
+        script += 'LATE_COMMAND_ACCOUNT_ENV=' + shlex.quote(str(late/'account.env')) + '\n'
+        script += 'late_command_load_account_env\n'
+        script += '/bin/sh -eu -c \' . "$1"; printf "%s\\n" "$ACCOUNT_USERNAME" "$ACCOUNT_HOME" \' addon "$LATE_COMMAND_ACCOUNT_ENV"\n'
+        result = subprocess.run(['/bin/sh', '-c', script], env=self.env,
+                                text=True, capture_output=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, 'fixtureuser\n/home/fixtureuser\n')
+        effective = (late/'account.env').read_text()
+        self.assertNotIn(self.values['PRESEED_PRIMARY_PASSWORD'], effective)
+        self.assertNotIn(self.values['PRESEED_ROOT_PASSWORD'], effective)

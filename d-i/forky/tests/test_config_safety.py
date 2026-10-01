@@ -36,7 +36,8 @@ class ConfigSafetyTests(unittest.TestCase):
         text = payload_read_text(FORKY / 'hosts/installer/account.env')
         self.assertIn('ROOT_LOGIN=true', text)
         self.assertNotIn('ROOT_PASSWORD_CRYPTED=', text)
-        self.assertIn('ACCOUNT_PASSWORD_CRYPTED="${ACCOUNT_PASSWORD_CRYPTED:-}"', text)
+        for name in ('ACCOUNT_USERNAME', 'ACCOUNT_FULLNAME', 'ACCOUNT_PASSWORD_CRYPTED'):
+            self.assertNotRegex(text, r'(?m)^' + name + '=')
         self.assertIn('FRUUX_CALENDAR_PASSWORD="${FRUUX_CALENDAR_PASSWORD:-}"', text)
         self.assertNotIn('$6$rounds=', text)
 
@@ -132,6 +133,7 @@ stage_target_nftables_all_service_assets
             'TMP_ENV_DIR': str(work),
             'FIXTURE_SOURCE': str(SHARED),
             'SSH_SERVER_ENABLED': 'true' if ssh_enabled else 'false',
+            'NFS_SERVER_PORT': '2049',
             'INSTALLER_CMDLINE': cmdline,
         }
         result = subprocess.run(

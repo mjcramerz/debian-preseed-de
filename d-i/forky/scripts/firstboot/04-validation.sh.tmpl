@@ -362,6 +362,8 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     /etc/security/greetd-greeter.conf \
     /etc/dbus-1/session.d/70-labwc-greeter-no-portals.conf \
     /etc/pam.d/swaylock \
+    /etc/systemd/user/labwc-lock.service \
+    /etc/systemd/logind.conf.d/70-labwc-lock.conf \
     /etc/greetd/config.toml \
     /etc/greetd/gtkgreet.css \
     /etc/greetd/gtkgreet-power.css \
@@ -452,6 +454,8 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     /usr/local/libexec/labwc-output-watch \
     /usr/local/libexec/labwc-swaybg \
     /usr/local/libexec/labwc-swayidle \
+    /usr/local/libexec/labwc-swaylock \
+    /usr/local/bin/labwc-idle-toggle \
     /usr/local/libexec/rsyslog-security-socket \
     /etc/rsyslog.d/39-security-scanners.conf \
     /etc/logrotate.d/security-scanners \
@@ -580,6 +584,8 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     ' sh
   check_command desktop-swaylock-authentication-chain \
     /bin/sh -eu -c '
+      swaylock_version=$(dpkg-query -W -f="\${Version}" swaylock)
+      dpkg --compare-versions "$swaylock_version" ge 1.8.6
       helper_package=$(dpkg-query -S /usr/sbin/unix_chkpwd)
       printf "%s\n" "$helper_package" |
         grep -Eq "^libpam-modules-bin(:[^:[:space:]]+)?: /usr/sbin/unix_chkpwd$"

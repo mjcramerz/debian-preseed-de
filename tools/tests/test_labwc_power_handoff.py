@@ -113,7 +113,7 @@ class PowerWorkerTests(unittest.TestCase):
 
     def test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps(self):
         self.execute('suspend')
-        self.assertTrue(any('--service-type=forking' in c and c[-1] == '/usr/local/bin/labwc-lock' for c in self.calls))
+        self.assertTrue(any(c[-2:] == ['start', 'labwc-lock.service'] for c in self.calls))
         self.assertTrue(any(c[-2:] == ['start', 'labwc-session-state@locked.service'] for c in self.calls))
         self.assertEqual(self.calls[-1], ['/usr/bin/systemctl', '--check-inhibitors=yes', '--no-ask-password', 'suspend'])
         self.assertFalse(any('stop' in c or 'terminate-user' in c or c[0].endswith('/pkill') or c[-1] == 'labwc-session-state@prepare.service' for c in self.calls))

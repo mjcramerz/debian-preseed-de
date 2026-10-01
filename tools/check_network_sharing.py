@@ -54,16 +54,21 @@ def check(seed: Path = SEED) -> int:
     if not profiles:
         raise ValueError('no network sharing profiles found')
     helper = runpy.run_path(str(seed/'scripts/late/network-sharing.py'), run_name='network_sharing_policy')
-    # SYSTEM_DOMAIN is supplied privately at installer runtime, not stored in
-    # a host profile. This placeholder is only for offline scalar validation;
-    # the target validates the actual runtime domain before configuration.
-    account = read_values(seed/'hosts/installer/account.env', {'SYSTEM_DOMAIN': 'validation.invalid'})
     for path in profiles:
         try:
-            helper['Settings'].from_environment(read_values(path, account))
+            helper['Settings'].from_environment(profile_values(seed, path))
         except ValueError as error:
             raise ValueError(f'NFS policy validation failed ({path.name}): {error}') from error
     return len(profiles)
+
+
+def profile_values(seed: Path, path: Path) -> dict[str, str]:
+    # The primary identity is private initrd input, never publication data.
+    # Placeholders exercise path/unit policy offline; the target checks actual
+    # credentials, account IDs and domain before changing its configuration.
+    initial = {'SYSTEM_DOMAIN': 'validation.invalid',
+               'ACCOUNT_USERNAME': 'validation-user', 'ACCOUNT_HOME': '/home/validation-user'}
+    return read_values(seed/'hosts/installer/hosting.env', read_values(path, initial))
 
 
 def main() -> int:

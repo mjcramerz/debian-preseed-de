@@ -15,6 +15,7 @@ Requires=nfs-idmapd.service network-sharing-identity.service
 ExecStartPre=
 ExecStartPre=/usr/sbin/exportfs -r
 ExecReload=
+ExecReload=/usr/local/libexec/network-sharing-identity
 ExecReload=/usr/sbin/exportfs -r
 # nfsd is kernel-backed: retain host networking and writable nfsd/rpc state.
 NoNewPrivileges=yes

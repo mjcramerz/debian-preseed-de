@@ -1,7 +1,7 @@
 # Managed NFSv4.1/4.2 only; no portmapper, UDP or v4.0 callback listener.
 [nfsd]
 threads = __NFS_SERVER_THREADS__
-port = 2049
+port = __NFS_SERVER_PORT__
 tcp = y
 udp = n
 vers2 = n

@@ -551,23 +551,12 @@ run_installer_secure_boot_install_tool() {
 
   ensure_installer_secure_boot_install_tool
   if [ "${1:-}" = reset-moks ]; then
-    secure_boot_delete_password=$(installer_cmdline_value primary_user 2>/dev/null || true)
-    if [ -n "$secure_boot_delete_password" ]; then
-      case "$secure_boot_delete_password" in
-        *[![:print:]]*|*[[:space:]]*)
-          installer_fatal "primary_user must be a single printable token before Secure Boot MOK deletion"
-          ;;
-      esac
-    else
-      case "${ACCOUNT_USERNAME:-}" in
-        ''|*[![:print:]]*|*[[:space:]]*)
-          installer_fatal "ACCOUNT_USERNAME must be a single printable token before Secure Boot MOK deletion"
-          ;;
-        *)
-          secure_boot_delete_password=$ACCOUNT_USERNAME
-          ;;
-      esac
-    fi
+    case "${ACCOUNT_USERNAME:-}" in
+      ''|*[![:print:]]*|*[[:space:]]*)
+        installer_fatal "ACCOUNT_USERNAME must be a single printable token before Secure Boot MOK deletion"
+        ;;
+      *) secure_boot_delete_password=$ACCOUNT_USERNAME ;;
+    esac
   fi
 
   if command -v chroot >/dev/null 2>&1; then

@@ -187,6 +187,9 @@ late_command_load_account_env() {
   # shellcheck disable=SC1090,SC1091
   . "$TMP_ENV_DIR/account-runtime.sh" || return $?
   runtime_apply_account_from_cmdline || return $?
+  # Addons run in separate shells and read this file. Publish the resolved
+  # identity/home paths, without primary/root passwords, before they start.
+  runtime_write_effective_account_env "$late_command_account_env" || return $?
   LATE_COMMAND_ACCOUNT_ENV_LOADED=1
 }
 

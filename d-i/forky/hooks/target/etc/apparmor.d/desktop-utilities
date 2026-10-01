@@ -216,6 +216,9 @@ profile desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exe
   # before the first script exec instead of building null learning descendants.
   /usr/bin/code rpx -> code,
   /usr/share/code/{bin/code,code} rpx -> code,
+  # Debian's clang frontend lives below /usr/lib; keep its linker children in
+  # this existing developer domain instead of complain-mode null descendants.
+  /usr/lib/llvm-[0-9]*/bin/clang rix,
   /usr/bin/** rPix,
   /usr/local/{bin,sbin,libexec}/** rPix,
   /usr/libexec/** rPix,

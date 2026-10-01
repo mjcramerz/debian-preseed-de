@@ -278,7 +278,7 @@ def action(config: dict, label: str) -> None:
     elif label == 'Sharing Help':
         show('Network Sharing Help', [
             'Only the installed profile server, paths and units can be managed here.',
-            'NFSv4.1/4.2 uses TCP 2049; this setup has no NFSv3 or showmount dependency.',
+            'NFSv4.1/4.2 uses TCP ' + config['profile']['NFS_SERVER_PORT'] + '; this setup has no NFSv3 or showmount dependency.',
             'AUTH_SYS is not encrypted and does not authenticate a hostile client. Use a trusted LAN or a separately configured trusted VPN.',
             'Keep user UID and shared group GID consistent on all participating hosts.',
             'Root is squashed even on the trusted server-peer range. Read-only peers cannot write.',

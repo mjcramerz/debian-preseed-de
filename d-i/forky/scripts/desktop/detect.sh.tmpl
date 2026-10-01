@@ -525,8 +525,8 @@ desktop_validate_policy_env() {
   desktop_validate_uint_range LABWC_OUTPUT_INTERNAL_REFRESH_DELAY_SECONDS "${LABWC_OUTPUT_INTERNAL_REFRESH_DELAY_SECONDS:-0}" 0 30
   desktop_validate_uint_range LABWC_KEYBOARD_REPEAT_RATE "${LABWC_KEYBOARD_REPEAT_RATE:-40}" 1 80
   desktop_validate_uint_range LABWC_KEYBOARD_REPEAT_DELAY "${LABWC_KEYBOARD_REPEAT_DELAY:-250}" 100 1000
-  desktop_validate_uint_range LABWC_IDLE_LOCK_SECONDS "${LABWC_IDLE_LOCK_SECONDS:-1800}" 60 86400
-  desktop_validate_uint_range LABWC_IDLE_DPMS_SECONDS "${LABWC_IDLE_DPMS_SECONDS:-3600}" 60 86400
+  desktop_validate_uint_range LABWC_IDLE_LOCK_SECONDS "${LABWC_IDLE_LOCK_SECONDS:-1844}" 0 86400
+  desktop_validate_uint_range LABWC_IDLE_DPMS_SECONDS "${LABWC_IDLE_DPMS_SECONDS:-3800}" 0 86400
   desktop_validate_uint_range LABWC_IDLE_SUSPEND_SECONDS "${LABWC_IDLE_SUSPEND_SECONDS:-0}" 0 86400
   desktop_validate_uint_range LABWC_FONT_WINDOW_SIZE "${LABWC_FONT_WINDOW_SIZE:-12}" 8 32
   desktop_validate_uint_range LABWC_FONT_MENU_SIZE "${LABWC_FONT_MENU_SIZE:-13}" 8 32
@@ -588,16 +588,19 @@ desktop_validate_policy_env() {
     *) desktop_fatal "invalid LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT" ;;
   esac
   desktop_validate_uint_range LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}" 1 65535
-  idle_lock_seconds=${LABWC_IDLE_LOCK_SECONDS:-1800}
-  idle_dpms_seconds=${LABWC_IDLE_DPMS_SECONDS:-3600}
+  idle_lock_seconds=${LABWC_IDLE_LOCK_SECONDS:-1844}
+  idle_dpms_seconds=${LABWC_IDLE_DPMS_SECONDS:-3800}
   idle_suspend_seconds=${LABWC_IDLE_SUSPEND_SECONDS:-0}
   case "${LABWC_ENABLE_SWAYIDLE:-true}" in
     true|yes|1|on)
-      [ "$idle_dpms_seconds" -gt "$idle_lock_seconds" ] || \
-        desktop_fatal "LABWC_IDLE_DPMS_SECONDS must be greater than LABWC_IDLE_LOCK_SECONDS so the lock screen appears before the outputs sleep"
+      if [ "$idle_lock_seconds" -gt 0 ] && [ "$idle_dpms_seconds" -gt 0 ]; then
+        [ "$idle_dpms_seconds" -gt "$idle_lock_seconds" ] || \
+          desktop_fatal "LABWC_IDLE_DPMS_SECONDS must be greater than LABWC_IDLE_LOCK_SECONDS so the lock screen appears before the outputs sleep"
+      fi
       if [ "$idle_suspend_seconds" -gt 0 ]; then
-        [ "$idle_suspend_seconds" -gt "$idle_dpms_seconds" ] || \
-          desktop_fatal "LABWC_IDLE_SUSPEND_SECONDS must be greater than LABWC_IDLE_DPMS_SECONDS when suspend is enabled"
+        [ "$idle_suspend_seconds" -gt "$idle_dpms_seconds" ] &&
+          [ "$idle_suspend_seconds" -gt "$idle_lock_seconds" ] || \
+          desktop_fatal "LABWC_IDLE_SUSPEND_SECONDS must exceed each enabled lock/DPMS timeout"
       fi
       ;;
   esac

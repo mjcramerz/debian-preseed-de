@@ -123,14 +123,15 @@ class UnitBoundaryTests(unittest.TestCase):
         self.assertIn('signal.signal(sig,', payload_read_text(TARGET/'usr/local/libexec/nvidia-char-links'))
         self.assertIn('$SIG{TERM} = sub { exit 143; };', payload_read_text(TARGET/'usr/local/libexec/zram-writeback.tmpl'))
 
-    def test_transient_forking_lock_explicitly_keeps_host_namespaces(self):
+    def test_shared_forking_lock_explicitly_keeps_host_namespaces(self):
         worker = power.Worker(1000, 'fixture', 'suspend')
-        with mock.patch.object(worker, 'user_run') as run, mock.patch.object(worker, 'helper'):
+        with mock.patch.object(worker, 'userctl') as run, mock.patch.object(worker, 'helper'):
             worker.lock()
-        args = run.call_args.args[0]
-        for value in ('--service-type=forking', '--property=PrivatePIDs=no',
-                      '--property=PrivateUsers=no', '--property=KillMode=control-group'):
-            self.assertIn(value, args)
+        run.assert_called_once_with('start', 'labwc-lock.service', timeout=25)
+        unit = (TARGET / 'etc/systemd/user/labwc-lock.service').read_text()
+        for value in ('Type=forking', 'PrivatePIDs=no', 'PrivateUsers=no',
+                      'NoNewPrivileges=no', 'KillMode=control-group', 'ExitType=cgroup'):
+            self.assertIn(value, unit)
 
 
 class Fixture(unittest.TestCase):

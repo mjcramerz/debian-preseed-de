@@ -373,6 +373,8 @@ for path in \
   /etc/pam.d/greetd-greeter \
   /etc/security/greetd-greeter.conf \
   /etc/pam.d/swaylock \
+  /etc/systemd/user/labwc-lock.service \
+  /etc/systemd/logind.conf.d/70-labwc-lock.conf \
   /usr/share/pam-configs/wtmpdb \
   /etc/greetd/config.toml \
   /etc/greetd/gtkgreet.css \
@@ -595,6 +597,9 @@ do
   require_mode "$background_file" 644
 done
 unset background_file
+swaylock_version=$(dpkg-query -W -f='${Version}' swaylock) || fatal "swaylock package is missing"
+dpkg --compare-versions "$swaylock_version" ge 1.8.6 ||
+  fatal "swaylock 1.8.6 or newer is required for the password-buffer fix after suspend/resume"
 helper_package=$(dpkg-query -S /usr/sbin/unix_chkpwd 2>/dev/null) ||
   fatal "unix_chkpwd is not owned by an installed package"
 printf "%s\n" "$helper_package" |
@@ -769,6 +774,8 @@ for path in \
   /usr/local/libexec/labwc-output-watch \
   /usr/local/libexec/labwc-swaybg \
   /usr/local/libexec/labwc-swayidle \
+  /usr/local/libexec/labwc-swaylock \
+  /usr/local/bin/labwc-idle-toggle \
   /usr/local/bin/labwc-health-notify \
   /usr/local/bin/labwc-app \
   /usr/local/bin/labwc-electron-app \
@@ -1768,6 +1775,22 @@ for config in config_roots:
         require(actions[0].get("workspace") == "current", "non-local " + key)
         require(actions[0].get("output") in ("all", "focused", "cursor"), "invalid candidate output")
         require(actions[0].get("identifier") == "all", "invalid candidate application filter")
+    seen_bindings = set()
+    for binding in rc.findall("keyboard/keybind"):
+        parts = binding.get("key", "").split("-")
+        normalized = (frozenset(parts[:-1]), parts[-1].lower())
+        require(normalized not in seen_bindings, "duplicate hotkey " + binding.get("key", ""))
+        seen_bindings.add(normalized)
+    for key, command in (("C-l", "/usr/local/bin/labwc-lock"),
+                         ("W-l", "/usr/local/bin/labwc-lock"),
+                         ("C-W-l", "/usr/local/bin/labwc-idle-toggle")):
+        bindings = [x for x in rc.findall("keyboard/keybind") if x.get("key") == key]
+        require(len(bindings) == 1 and bindings[0].get("onRelease") == "yes", "invalid " + key)
+        actions = bindings[0].findall("action")
+        require(len(actions) == 1 and actions[0].get("name") == "Execute"
+                and actions[0].get("command") == command, "invalid command for " + key)
+    require(rc.find('keyboard/keybind[@key="C-Super_L"]').get("onRelease") == "yes",
+            "Ctrl+Win modifier must defer until release to permit longer chords")
     bars = json.loads((config / "waybar/config").read_text())
     require(isinstance(bars, list) and len(bars) == 2
             and [bar.get("name") for bar in bars] == ["internal", "external"],

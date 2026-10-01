@@ -221,6 +221,7 @@ installer_fetch_host_env() {
 
   set -- \
     "$(installer_profile_env_path "$host_profile_env_dir" "$host_profile_env_name")" \
+    "$(installer_repo_join_var DIR_HOSTS_INSTALLER hosting.env)" \
     "$(installer_repo_join_var DIR_HOSTS_INSTALLER identity.env)" \
     "$(installer_repo_join_var DIR_HOSTS_INSTALLER runtime.env)" \
     "$(installer_repo_join_var DIR_HOSTS_LOGGING observability.env)"

@@ -344,10 +344,11 @@ nftables_validate_cidr_token() {
 network_sharing_nftables_placeholder_map() {
   printf 'NFS_SERVER_ENABLE=%s\n' "${NFS_SERVER_ENABLE:-false}"
   printf 'NFS_CLIENT_ENABLE=%s\n' "${NFS_CLIENT_ENABLE:-false}"
+  printf 'NFS_SERVER_PORT=%s\n' "${NFS_SERVER_PORT:?}"
   # The target configurator validates the complete export grammar before the
   # firewall is staged. Derive the allowlist from that same source of truth.
   nfs_cidrs=$(printf '%s\n' "${NFS_SERVER_EXPORTS:-}" | awk '{
-    for (i=2; i<=NF; i++) { peer=$i; sub(/\(.*/, "", peer); print peer }
+    for (i=2; i<=NF; i++) { peer=$i; sub(/\(.*/, "", peer); if (peer !~ /\//) peer=peer "/32"; print peer }
   }')
   # shellcheck disable=SC2086
   printf 'NFS_SERVER_ALLOW_IPV4=%s\n' "$(nftables_yaml_inline_list $nfs_cidrs)"

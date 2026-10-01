@@ -1727,17 +1727,45 @@ profile labwc-kanshi /usr/local/libexec/labwc-kanshi flags=(attach_disconnected)
 }
 
 profile labwc-lock /usr/local/bin/labwc-lock flags=(attach_disconnected) {
+  # Fixed user-manager dispatch; never execute PAM in the compositor namespace.
+  #include <abstractions/wrapper-desktop>
+  /usr/local/bin/labwc-lock rix,
+  /usr/bin/{id,systemctl} rix,
+  owner /run/user/[0-9]*/{systemd/private,wayland-*} rw,
+  include if exists <local/usr.local.bin.labwc-lock>
+}
+
+profile labwc-swaylock /usr/local/libexec/labwc-swaylock flags=(attach_disconnected) {
   owner @{HOME}/ r,
   #include <abstractions/wrapper-desktop>
-
-  /usr/local/bin/labwc-lock rix,
-  /usr/bin/{flock,id,find} rix,
-  /usr/bin/swaylock pux,
+  /usr/local/libexec/labwc-swaylock rix,
+  /usr/bin/{awk,gawk,mawk,nawk,flock,id,find} rix,
+  owner @{PROC}/[0-9]*/{status,gid_map} r,
+  /usr/bin/swaylock rPx -> session-controls,
   owner @{HOME}/.config/swaylock/config r,
   __THEME_TARGET_PATH_LABWC_WALLPAPER_LOCKSCREEN_SWAYLOCK__ r,
   owner /run/user/[0-9]*/labwc-swaylock{,.launch}.lock rwk,
+  include if exists <local/usr.local.libexec.labwc-swaylock>
+}
 
-  include if exists <local/usr.local.bin.labwc-lock>
+profile labwc-idle-toggle /usr/local/bin/labwc-idle-toggle flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/wrapper-desktop>
+  include if exists <abstractions/dbus-session-strict>
+  /usr/local/bin/labwc-idle-toggle r,
+  /usr/local/libexec/labwc-notification-send rix,
+  /usr/local/libexec/labwc-output-watch rPx -> labwc-output-watch,
+  /usr/bin/{systemctl,busctl} rix,
+  /usr/bin/swayidle rPx -> session-controls,
+  owner /run/user/[0-9]*/{bus,systemd/private,wayland-*} rw,
+  owner /run/user/[0-9]*/{labwc-idle.json,labwc-idle.lock,.labwc-idle.*} rwk,
+  dbus send
+    bus=session
+    path=/org/freedesktop/Notifications
+    interface=org.freedesktop.Notifications
+    member={GetCapabilities,GetServerInformation,Notify}
+    peer=(name=org.freedesktop.Notifications),
+  include if exists <local/usr.local.bin.labwc-idle-toggle>
 }
 
 profile labwc-logout /usr/local/bin/labwc-logout flags=(attach_disconnected) {
@@ -2857,6 +2885,8 @@ profile labwc-session /usr/local/bin/labwc-session flags=(attach_disconnected) {
   owner @{HOME}/.profile.d/* r,
   owner /run/user/[0-9]*/bus r,
   owner /run/user/[0-9]*/labwc-session.lock rwk,
+  /usr/bin/rm rix,
+  owner /run/user/[0-9]*/labwc-idle.json w,
   /etc/xdg/labwc/ r,
   /etc/xdg/labwc/** r,
 
@@ -2895,7 +2925,7 @@ profile labwc-swayidle /usr/local/libexec/labwc-swayidle flags=(attach_disconnec
   #include <abstractions/wrapper-wayland>
 
   /usr/local/libexec/labwc-swayidle rix,
-  /usr/bin/swayidle rPx,
+  /usr/local/bin/labwc-idle-toggle rPx -> labwc-idle-toggle,
   /etc/labwc/desktop.conf r,
 
   include if exists <local/usr.local.libexec.labwc-swayidle>

@@ -164,7 +164,7 @@ __INSTALLER_LABWC_WORKSPACE_NAME_LINES__
     <keybind key="C-A-space">
       <action name="Execute" command="labwc-run" />
     </keybind>
-    <keybind key="C-Super_L">
+    <keybind key="C-Super_L" onRelease="yes">
       <action name="Execute" command="wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle" />
     </keybind>
     <keybind key="Super_L" onRelease="yes">
@@ -173,8 +173,14 @@ __INSTALLER_LABWC_WORKSPACE_NAME_LINES__
     <keybind key="Menu">
       <action name="ShowMenu" menu="root-menu" />
     </keybind>
-    <keybind key="W-l">
-      <action name="Execute" command="labwc-lock" />
+    <keybind key="W-l" onRelease="yes">
+      <action name="Execute" command="/usr/local/bin/labwc-lock" />
+    </keybind>
+    <keybind key="C-l" onRelease="yes">
+      <action name="Execute" command="/usr/local/bin/labwc-lock" />
+    </keybind>
+    <keybind key="C-W-l" onRelease="yes">
+      <action name="Execute" command="/usr/local/bin/labwc-idle-toggle" />
     </keybind>
     <keybind key="W-S-d">
       <action name="Execute" command="/usr/bin/systemctl --user --no-block restart crystal-dock.service" />

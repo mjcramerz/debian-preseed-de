@@ -104,13 +104,35 @@ def check(config: dict) -> None:
                 if not line.lstrip().startswith('#') and line.split()[:2] == ['create', 'id_resolver']:
                     raise ValueError('conflicting NFS request-key identity handler')
     if config['server_enabled']:
+        # Refuse export drift on start/reload, including extra exports.d files.
+        # Exact comparison is sufficient: installer validation has already
+        # checked the single configured LAN export and all security flags.
+        def active_exports(path: Path) -> list[str]:
+            return [line.strip() for line in read_local(path).splitlines()
+                    if line.strip() and not line.lstrip().startswith('#')]
+        if active_exports(Path('/etc/exports')) != [settings['NFS_SERVER_EXPORTS']]:
+            raise ValueError('managed NFS export policy changed')
+        directory = Path('/etc/exports.d')
+        if directory.exists() or directory.is_symlink():
+            metadata = directory.lstat()
+            if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_mode & 0o022:
+                raise ValueError('unsafe NFS export override directory')
+            for path in directory.glob('*.exports'):
+                if active_exports(path):
+                    raise ValueError('unmanaged NFS export override settings')
         # Query nfs-utils' effective configuration, including later drop-ins.
         # A daemon config override must not restore v3, UDP or client-supplied
         # supplemental groups behind the firewall/startup guards.
         daemon = configparser.ConfigParser(interpolation=None)
         daemon.read_string(query(['/usr/sbin/nfsconf', '--dump']))
+        # nfs-utils can prefix every exports path with [exports] rootdir.
+        # Reject an override that redirects the validated sharing directory.
+        for section in daemon.sections():
+            if (section.lower() == 'exports'
+                    and shlex.split(daemon[section].get('rootdir', '')) not in ([], ['/'])):
+                raise ValueError('effective NFS export root was redirected')
         policy = {
-            'nfsd': {'threads': settings['NFS_SERVER_THREADS'], 'port': '2049',
+            'nfsd': {'threads': settings['NFS_SERVER_THREADS'], 'port': settings['NFS_SERVER_PORT'],
                      'tcp': 'y', 'udp': 'n', 'vers2': 'n', 'vers3': 'n',
                      'vers4': 'y', 'vers4.0': 'n', 'vers4.1': 'y', 'vers4.2': 'y', 'rdma': 'n'},
             'mountd': {'manage-gids': 'y', 'reverse-lookup': 'n'},

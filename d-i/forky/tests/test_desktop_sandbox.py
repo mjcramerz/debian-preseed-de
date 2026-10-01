@@ -1238,8 +1238,8 @@ desktop_normalize_background_directories
         self.assertIn('/dev/char/195:* rw,', nvidia_graphics)
         self.assertIn('/dev/char/234:* rw,', nvidia_graphics)
         self.assertEqual(direct_device_link_grants(whisper), [])
-        lock = profile_block(wrappers, 'labwc-lock')
-        self.assertIn('/usr/bin/{flock,id,find} rix,', lock)
+        lock = profile_block(wrappers, 'labwc-swaylock')
+        self.assertIn('/usr/bin/{awk,gawk,mawk,nawk,flock,id,find} rix,', lock)
         self.assertIn('owner /run/user/[0-9]*/labwc-swaylock{,.launch}.lock rwk,', lock)
         managed_modes = profile_block(wrappers, 'apparmor-modes')
         self.assertIn(

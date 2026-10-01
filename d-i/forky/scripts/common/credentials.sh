@@ -10,6 +10,7 @@ preseed_env_variable_name() {
     fruux_username) printf '%s\n' PRESEED_FRUUX_USERNAME ;;
     fruux_password) printf '%s\n' PRESEED_FRUUX_PASSWORD ;;
     primary_user) printf '%s\n' PRESEED_PRIMARY_USERNAME ;;
+    primary_fullname) printf '%s\n' PRESEED_PRIMARY_FULLNAME ;;
     primary_password) printf '%s\n' PRESEED_PRIMARY_PASSWORD ;;
     primary_gpg_passphrase) printf '%s\n' PRESEED_PRIMARY_GPG_PASSPHRASE ;;
     git_ssh_passphrase) printf '%s\n' PRESEED_GIT_SSH_PASSPHRASE ;;
@@ -149,7 +150,7 @@ preseed_env_read_value() (
     preseed_env_error 'credential file has invalid shell syntax; check assignment quoting without displaying passwords'; return 2
   fi
   unset PRESEED_WIFI_PASSPHRASE PRESEED_FRUUX_USERNAME PRESEED_FRUUX_PASSWORD \
-    PRESEED_PRIMARY_USERNAME PRESEED_PRIMARY_PASSWORD PRESEED_PRIMARY_GPG_PASSPHRASE \
+    PRESEED_PRIMARY_USERNAME PRESEED_PRIMARY_FULLNAME PRESEED_PRIMARY_PASSWORD PRESEED_PRIMARY_GPG_PASSPHRASE \
     PRESEED_GIT_SSH_PASSPHRASE PRESEED_SHIM_SIGNED_PASSPHRASE PRESEED_ROOT_PASSWORD PRESEED_CROWDSEC_TOKEN PRESEED_TAILSCALE_TOKEN \
     PRESEED_TELEGRAM_CHAT_ID PRESEED_TELEGRAM_API_KEY PRESEED_CF_APTLY_ACCESS_KEY \
     PRESEED_CF_APTLY_SECRET_KEY PRESEED_OBS_USERNAME PRESEED_OBS_PASSWORD
@@ -157,9 +158,21 @@ preseed_env_read_value() (
   if ! . "$preseed_read_tmp" >/dev/null 2>&1; then
     preseed_env_error 'credential file failed while loading trusted shell assignments'; return 2
   fi
+  set +x
+  set +v
   # The only inserted text is an identifier from the fixed mapping above.
   # The value is expanded once as data, never re-evaluated as shell input.
   eval 'preseed_read_result=${'"$preseed_read_name"'-}'
   [ -n "$preseed_read_result" ] || return 1
+  case "$preseed_read_name" in
+    PRESEED_PRIMARY_USERNAME|PRESEED_PRIMARY_FULLNAME|PRESEED_PRIMARY_PASSWORD)
+      # Check BEFORE command substitution can strip trailing newlines. Never
+      # include a primary identity/password value in the diagnostic.
+      case "$preseed_read_result" in
+        *[![:print:]]*)
+          preseed_env_error 'primary account values must be printable single-line data'; return 2 ;;
+      esac
+      ;;
+  esac
   printf '%s\n' "$preseed_read_result"
 )

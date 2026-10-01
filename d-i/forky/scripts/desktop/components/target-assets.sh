@@ -98,6 +98,12 @@ desktop_stage_target_assets() {
     /etc/dbus-1/session.d/70-labwc-greeter-no-portals.conf 0644 \
     LABWC_GREETER_USER "$LABWC_GREETER_USER"
   desktop_stage_role_asset etc/pam.d/swaylock /etc/pam.d/swaylock 0644
+  # Forky's packaged 1.8.6 fixes the stale password character after resume.
+  run_in_target "verify packaged swaylock password-buffer fix" /bin/sh -eu -c '
+    swaylock_version=$(dpkg-query -W -f="\${Version}" swaylock)
+    dpkg --compare-versions "$swaylock_version" ge 1.8.6
+  '
+  desktop_stage_role_asset etc/systemd/logind.conf.d/70-labwc-lock.conf /etc/systemd/logind.conf.d/70-labwc-lock.conf 0644
   desktop_stage_role_asset usr/share/pam-configs/wtmpdb /usr/share/pam-configs/wtmpdb 0644
   desktop_reconcile_wtmpdb_common_session /target
   desktop_render_labwc_session_wrappers
@@ -228,6 +234,9 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/lib/perl5/site_perl/whisper/WhisperMode/State.pm /usr/local/lib/perl5/site_perl/whisper/WhisperMode/State.pm 0644
   desktop_stage_role_asset usr/local/lib/perl5/site_perl/whisper/WhisperMode/Systemd.pm /usr/local/lib/perl5/site_perl/whisper/WhisperMode/Systemd.pm 0644
   desktop_stage_role_asset usr/local/bin/labwc-lock /usr/local/bin/labwc-lock 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-swaylock /usr/local/libexec/labwc-swaylock 0755
+  desktop_stage_role_asset usr/local/bin/labwc-idle-toggle /usr/local/bin/labwc-idle-toggle 0755
+  desktop_stage_role_asset etc/systemd/user/labwc-lock.service /etc/systemd/user/labwc-lock.service 0644
   desktop_stage_role_asset usr/local/bin/labwc-terminal /usr/local/bin/labwc-terminal 0755
   desktop_stage_role_asset usr/local/libexec/labwc-terminal-result /usr/local/libexec/labwc-terminal-result 0755
   desktop_stage_role_asset usr/local/bin/labwc-bluetooth /usr/local/bin/labwc-bluetooth 0755

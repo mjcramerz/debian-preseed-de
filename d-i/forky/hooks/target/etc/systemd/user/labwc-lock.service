@@ -1,0 +1,28 @@
+[Unit]
+Description=Lock the managed Labwc session with Debian PAM
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionEnvironment=XDG_SESSION_TYPE=wayland
+Requisite=labwc-session.target
+After=labwc-session.target labwc-compositor.service
+PartOf=labwc-session.target
+
+[Service]
+# -f acknowledges readiness only after the compositor confirms the session lock.
+# PAM is a second process: retain the unit until its entire cgroup exits.
+Type=forking
+Slice=session.slice
+GuessMainPID=no
+ExitType=cgroup
+ExecStart=/usr/local/libexec/labwc-swaylock
+KillMode=control-group
+Restart=no
+TimeoutStartSec=20s
+TimeoutStopSec=5s
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+# Debian's root:shadow 2755 unix_chkpwd must acquire its packaged group at exec.
+# The compositor's filesystem sandbox implicitly uses a private user namespace;
+# a locker must be launched independently by the user manager instead.
+PrivateUsers=no
+PrivatePIDs=no
+NoNewPrivileges=no

@@ -196,7 +196,7 @@ profile session-controls /usr/bin/{kanshi,swaybg,swayidle,swaylock,wlr-randr,wlr
   #include <abstractions/session-client>
   /usr/bin/bwrap rPx -> session-glycin-bwrap,
   #include <abstractions/user-documents>
-  include if exists <abstractions/authentication>
+  #include <abstractions/authentication>
   /etc/{pam.d,security}/** r,
   # Control surfaces do not perform direct Internet requests. Browser or
   # network-capable actions must transition to their dedicated profiles.

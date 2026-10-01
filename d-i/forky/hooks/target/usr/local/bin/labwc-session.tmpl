@@ -324,6 +324,9 @@ cleanup_labwc_session() {
   trap '' HUP INT TERM
   if /usr/bin/timeout --signal=TERM --kill-after=2s 90s \
        "$systemctl_cmd" --user stop labwc-session.target labwc-compositor.service 9>&-; then
+    # Idle pauses belong to this desktop login, even if an SSH login or linger
+    # keeps /run/user/$UID alive after graphical logout.
+    /usr/bin/rm -f -- "$XDG_RUNTIME_DIR/labwc-idle.json" 9>&-
     # D-Bus activation cannot unset variables; the user manager is the lifecycle
     # authority. Do not clear its live environment until teardown completed.
     # shellcheck disable=SC2086
@@ -352,6 +355,8 @@ trap 'exit 143' TERM
 # shellcheck disable=SC2086
 /usr/bin/timeout --kill-after=1s 10s "$systemctl_cmd" --user \
   unset-environment $cleanup_environment_names 9>&- || exit 1
+# Drop a pause left by an interrupted previous desktop login before clients start.
+/usr/bin/rm -f -- "$XDG_RUNTIME_DIR/labwc-idle.json" 9>&- || exit 1
 # Import static values only; autostart adds the actual Wayland socket and PID.
 # shellcheck disable=SC2086
 /usr/bin/timeout --kill-after=1s 10s "$systemctl_cmd" --user \

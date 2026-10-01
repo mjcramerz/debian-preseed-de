@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import importlib.machinery
 import importlib.util
+import errno
 import ipaddress
 import itertools
 import io
@@ -17,6 +18,7 @@ import pwd
 import grp
 import re
 import shutil
+import shlex
 import stat
 import subprocess
 import sys
@@ -50,16 +52,90 @@ NFT = module('network_sharing_nft_test', TARGET / 'usr/local/sbin/nft-policy-gen
 
 def profile(path=None, **overrides):
     path = path or PROFILES / 'btrfs-de.env'
-    result = subprocess.run(['/bin/sh', '-c', 'set -a; . "$1"; . "$2"; env -0',
-                             'profile-test', str(path), str(SEED / 'hosts/installer/account.env')],
-                            check=True, capture_output=True)
-    values = dict(field.decode().split('=', 1) for field in result.stdout.split(b'\0') if b'=' in field)
-    values['SYSTEM_DOMAIN'] = 'validation.invalid'
-    values.update(overrides)
-    return values
+    hosting = SEED / 'hosts/installer/hosting.env'
+    shared = set(re.findall(r'^(NFS_[A-Z_]+)=', hosting.read_text(), re.M))
+    before = '\n'.join(key + '=' + shlex.quote(value) for key, value in overrides.items())
+    after = '\n'.join(key + '=' + shlex.quote(value) for key, value in overrides.items() if key in shared)
+    script = 'set -a; . "$1"\n' + before + '\n. "$2"\n' + after + '\n. "$3"; env -0'
+    result = subprocess.run(['/bin/sh', '-c', script, 'profile-test', str(path), str(hosting),
+                             str(SEED / 'hosts/installer/account.env')], check=True, capture_output=True,
+                            env={**os.environ, 'ACCOUNT_USERNAME': 'mcramer', 'ACCOUNT_HOME': '/home/mcramer',
+                                 'SYSTEM_DOMAIN': 'validation.invalid'})
+    return dict(field.decode().split('=', 1) for field in result.stdout.split(b'\0') if b'=' in field)
 
 
 class SettingsTests(unittest.TestCase):
+    def test_shared_policy_lives_only_in_hosting_and_every_profile_has_a_port(self):
+        hosting = (SEED/'hosts/installer/hosting.env').read_text()
+        shared = ('NFS_SERVER_RW_OPTIONS', 'NFS_SERVER_RO_OPTIONS', 'NFS_SERVER_APT_DEPS',
+                  'NFS_CLIENT_APT_DEPS', 'NFS_CLIENT_VERSION', 'NFS_SERVER_EXPORTS',
+                  'NFS_SHARED_GROUP', 'NFS_SHARED_GID', 'NFS_ACCOUNT_UID', 'NFS_ACCOUNT_GID',
+                  'NFS_MNT_SERVER_BIND_HOME_OPTS', 'NFS_MNT_CLIENT_BIND_HOME_OPTS',
+                  'NFS_MNT_CLIENT_TARGET_SHARE_OPTS')
+        for name in shared:
+            self.assertEqual(len(re.findall(r'^' + name + '=', hosting, re.M)), 1)
+        for path in PROFILES.glob('*.env'):
+            text = path.read_text()
+            for name in (*shared, 'NFS_SERVER_DEPS', 'NFS_CLIENT_DEPS'):
+                self.assertNotRegex(text, r'(?m)^' + name + '=')
+            self.assertEqual(re.findall(r'^NFS_SERVER_PORT="([0-9]+)"$', text, re.M), ['2049'])
+
+    def test_custom_paths_port_timeout_and_configured_order_reach_fstab(self):
+        values = profile(NFS_SERVER_ENABLE='true', NFS_CLIENT_ENABLE='true',
+                         NFS_SERVER_BIND_ENABLE='true', NFS_CLIENT_BIND_ENABLE='true',
+                         NETWORK_SHARING_ROOT_PATH='/srv/lan-sharing',
+                         NFS_SERVER_PATH='/srv/lan-sharing/server', NFS_CLIENT_PATH='/srv/lan-sharing/client',
+                         ACCOUNT_USERNAME='lanuser', ACCOUNT_HOME='/home/lanuser',
+                         NFS_SERVER_HOME_BIND_PATH='LAN/server', NFS_CLIENT_HOME_BIND_PATH='LAN/client',
+                         NFS_SERVER_PORT='32049', NFS_CLIENT_MOUNT_TIMEOUT='45')
+        # Configured ordering is used verbatim, rather than silently replacing
+        # administrator-supplied options with a separate hard-coded list.
+        for name in ('NFS_MNT_SERVER_BIND_HOME_OPTS', 'NFS_MNT_CLIENT_BIND_HOME_OPTS',
+                     'NFS_MNT_CLIENT_TARGET_SHARE_OPTS'):
+            values[name] = ','.join(reversed(values[name].split(',')))
+        settings = NFS.Settings.from_environment(values)
+        entries = [entry.split() for entry in NFS.fstab_entries(settings)]
+        self.assertEqual([entry[1] for entry in entries],
+                         ['/srv/lan-sharing/client', '/home/lanuser/LAN/server', '/home/lanuser/LAN/client'])
+        for entry, name in zip(entries, ('NFS_MNT_CLIENT_TARGET_SHARE_OPTS',
+                                         'NFS_MNT_SERVER_BIND_HOME_OPTS', 'NFS_MNT_CLIENT_BIND_HOME_OPTS')):
+            self.assertEqual(entry[3], values[name])
+        self.assertIn('port=32049', entries[0][3])
+        self.assertIn('x-systemd.mount-timeout=45s', entries[0][3])
+        self.assertIn('port = 32049\n', NFS.render(TARGET/'etc/nfs.conf.d/60-network-sharing.conf.tmpl', settings))
+
+    def test_mount_policy_cannot_remove_guards_or_override_transport(self):
+        values = profile()
+        invalid = []
+        for name in ('NFS_MNT_SERVER_BIND_HOME_OPTS', 'NFS_MNT_CLIENT_BIND_HOME_OPTS',
+                     'NFS_MNT_CLIENT_TARGET_SHARE_OPTS'):
+            for option in values[name].split(','):
+                invalid.append((name, ','.join(o for o in values[name].split(',') if o != option)))
+            for extra in ('exec', 'suid', 'dev', 'soft', 'rw,ro', 'x-systemd.idle-timeout=1s',
+                          'x-systemd.requires=/tmp/unsafe', 'noexec', 'rw\nroot'):
+                invalid.append((name, values[name] + ',' + extra))
+        for name, value in invalid:
+            with self.subTest(name=name, value=value), self.assertRaises(ValueError):
+                NFS.Settings.from_environment({**values, name: value})
+        for port in ('0', '111', '65536', '02049', '2049,tcp', '2049\n'):
+            with self.subTest(port=port), self.assertRaises(ValueError):
+                NFS.Settings.from_environment(profile(NFS_SERVER_PORT=port))
+
+    def test_read_only_source_policy_is_inherited_by_the_home_bind(self):
+        values = profile(NFS_CLIENT_ENABLE='true', NFS_CLIENT_BIND_ENABLE='true')
+        values['NFS_MNT_CLIENT_TARGET_SHARE_OPTS'] = values['NFS_MNT_CLIENT_TARGET_SHARE_OPTS'].replace('rw,', 'ro,')
+        entries = NFS.fstab_entries(NFS.Settings.from_environment(values))
+        for entry in entries:
+            self.assertIn('ro', entry.split()[3].split(','))
+            self.assertNotIn('rw', entry.split()[3].split(','))
+
+    def test_literal_lan_export_address_is_an_exact_host_peer(self):
+        line = '/data/sharing/nfs-server 192.168.50.82(' + profile()['NFS_SERVER_RW_OPTIONS'] + ')'
+        self.assertEqual(NFS.parse_exports(line, '/data/sharing/nfs-server'), [('192.168.50.82/32', 'rw')])
+        for replacement in ('8.8.8.8', '127.0.0.1', 'lan.example', '*'):
+            with self.subTest(peer=replacement), self.assertRaises(ValueError):
+                NFS.parse_exports(line.replace('192.168.50.82', replacement), '/data/sharing/nfs-server')
+
     def test_all_ten_profiles_have_complete_safe_defaults(self):
         profiles = sorted(PROFILES.glob('*.env'))
         self.assertEqual(len(profiles), 10)
@@ -146,7 +222,7 @@ class SettingsTests(unittest.TestCase):
             'SYSTEM_DOMAIN': ['', '-bad.example', 'a..b', 'a\nb', 'label-' + '.example', 'a.' + 'b' * 64],
             'NFS_ACCOUNT_UID': ['0', '65534', '-1'],
             'NFS_ACCOUNT_GID': ['0', '65534', '2050'],
-            'NFS_CLIENT_DEPS': ['nfs-common', '--option', 'nfs-common $(touch /tmp/attack)'],
+            'NFS_CLIENT_APT_DEPS': ['nfs-common', '--option', 'nfs-common $(touch /tmp/attack)'],
             'NFS_TCP_RMEM': ['8192 4096 32768', '4096 131072 67108864', '1 2', '-1 8192 16384'],
         }
         for key, values in invalid.items():
@@ -301,7 +377,7 @@ class FollowUpPolicyTests(unittest.TestCase):
     def test_bind_roles_require_immutable_flag_tool_package(self):
         for role in ('SERVER', 'CLIENT'):
             values = profile(**{f'NFS_{role}_ENABLE': 'true'})
-            values[f'NFS_{role}_DEPS'] = ' '.join(p for p in values[f'NFS_{role}_DEPS'].split() if p != 'e2fsprogs')
+            values[f'NFS_{role}_APT_DEPS'] = ' '.join(p for p in values[f'NFS_{role}_APT_DEPS'].split() if p != 'e2fsprogs')
             # No home bind: no immutable-flag requirement.
             NFS.Settings.from_environment(values)
             values[f'NFS_{role}_BIND_ENABLE'] = 'true'
@@ -312,7 +388,7 @@ class FollowUpPolicyTests(unittest.TestCase):
         for path in PROFILES.glob('*.env'):
             values = profile(path)
             for role in ('SERVER', 'CLIENT'):
-                self.assertIn('e2fsprogs', values[f'NFS_{role}_DEPS'].split(), (path.name, role))
+                self.assertIn('e2fsprogs', values[f'NFS_{role}_APT_DEPS'].split(), (path.name, role))
 
     def test_server_explicitly_disables_every_legacy_protocol(self):
         import configparser
@@ -367,14 +443,27 @@ class FollowUpPolicyTests(unittest.TestCase):
         text = (TARGET/'etc/systemd/system/nfs-server.service.d/60-network-sharing.conf.tmpl').read_text()
         for key in ('ExecStartPre', 'ExecReload'):
             values = [line.split('=', 1)[1] for line in text.splitlines() if line.startswith(key + '=')]
-            self.assertEqual(values, ['', '/usr/sbin/exportfs -r'])
+            self.assertEqual(values, ['', '/usr/sbin/exportfs -r'] if key == 'ExecStartPre' else
+                             ['', '/usr/local/libexec/network-sharing-identity', '/usr/sbin/exportfs -r'])
         self.assertNotIn('ExecStart=', text)
         self.assertNotIn('ExecStop=', text)
 
 
 class FirewallTests(unittest.TestCase):
-    def render(self, path, server, client, shell='/bin/sh'):
-        values = profile(path, NFS_SERVER_ENABLE=server, NFS_CLIENT_ENABLE=client)
+    def test_custom_port_reaches_both_guards_without_allowlist_bypass(self):
+        text = self.render(PROFILES/'btrfs-de.env', 'true', 'true', NFS_SERVER_PORT='32049')
+        nfs_rules = [line for line in text.splitlines()
+                     if 'nfs_server' in line or 'nfs_client' in line or 'allowlist guard' in line]
+        guarded = [line for line in nfs_rules if 'tcp dport' in line]
+        self.assertTrue(guarded)
+        self.assertTrue(all('tcp dport 32049' in line for line in guarded))
+        self.assertEqual(self.guard_verdict(text, 'allow_nfs_server_inbound', '192.168.50.82', 'eth0'), 'return')
+        for peer, interface in (('192.168.50.81', 'eth0'), ('8.8.8.8', 'eth0'),
+                                ('192.168.50.82', 'tailscale0'), ('fd00::1', 'eth0')):
+            self.assertEqual(self.guard_verdict(text, 'allow_nfs_server_inbound', peer, interface), 'drop')
+
+    def render(self, path, server, client, shell='/bin/sh', **overrides):
+        values = profile(path, NFS_SERVER_ENABLE=server, NFS_CLIENT_ENABLE=client, **overrides)
         script = '. "$1"; . "$2"; network_sharing_nftables_placeholder_map'
         argv = ([shell, 'sh'] if shell.endswith('busybox') else [shell])
         result = subprocess.run([*argv, '-c', script, 'map', str(SEED/'scripts/late/security.sh'), str(SEED/'scripts/late/network-sharing.sh')],
@@ -425,7 +514,7 @@ class FirewallTests(unittest.TestCase):
                             self.assertIn(cidr, '\n'.join(inbound))
                         self.assertNotIn('192.168.50.0/24', '\n'.join(inbound))
                     for line in outbound:
-                        self.assertIn('ip daddr 192.168.50.212/32', line)
+                        self.assertIn('ip daddr ' + profile(path)['NFS_CLIENT_TARGET_IP'] + '/32', line)
                         self.assertIn('oifname', line)
 
     @staticmethod
@@ -515,9 +604,9 @@ class PublicationAndGeneratorTests(unittest.TestCase):
         checker = module('network_sharing_build_test', SEED.parents[1]/'tools/check_network_sharing.py')
         self.assertEqual(checker.check(SEED), 10)
         for path in PROFILES.glob('*.env'):
-            values = checker.read_values(path, checker.read_values(SEED/'hosts/installer/account.env',
-                                                                          {'SYSTEM_DOMAIN': 'validation.invalid'}))
-            expected = NFS.Settings.from_environment(profile(path)).values
+            values = checker.profile_values(SEED, path)
+            expected = NFS.Settings.from_environment(profile(path, ACCOUNT_USERNAME='validation-user',
+                                                                      ACCOUNT_HOME='/home/validation-user')).values
             actual = NFS.Settings.from_environment(values).values
             self.assertEqual(actual, expected)
 
@@ -577,10 +666,16 @@ class MarkerTests(unittest.TestCase):
 class TargetFilesystemTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(prefix='nfs-test-', dir='/root')
+        self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         for directory in ('etc', 'usr/sbin', 'usr/bin', 'home/mcramer'):
             (self.root/directory).mkdir(parents=True, exist_ok=True)
-        os.chown(self.root/'home/mcramer', 1000, 1000)
+        try:
+            os.chown(self.root/'home/mcramer', 1000, 1000)
+        except OSError as error:
+            if error.errno in (errno.EINVAL, errno.EPERM, errno.EACCES):
+                self.skipTest('runtime cannot establish the required numeric ownership fixture')
+            raise
         (self.root/'home/mcramer').chmod(0o700)
         (self.root/'etc/fstab').write_text('# existing\nUUID=unchanged / ext4 defaults 0 1\n')
         self.account = pwd.struct_passwd(('mcramer', 'x', 1000, 1000, '', '/home/mcramer', '/bin/bash'))
@@ -1163,6 +1258,46 @@ class ReporterTests(unittest.TestCase):
 
 
 class IdentityPrerequisiteTests(unittest.TestCase):
+    def test_export_security_and_peer_drift_are_rejected(self):
+        original = self.settings['NFS_SERVER_EXPORTS']
+        for text in (original.replace('root_squash', 'no_root_squash'),
+                     original.replace('subtree_check', 'no_subtree_check'),
+                     original.replace('secure,', 'insecure,'),
+                     original.replace('192.168.50.82/31', '0.0.0.0/0'),
+                     original + '\n/srv/other *(rw,no_root_squash)\n', ''):
+            self.texts['exports'] = text
+            with self.subTest(exports=text), self.assertRaisesRegex(ValueError, 'export policy changed'):
+                IDENTITY.check(self.config)
+        self.texts['exports'] = '# retained comment\n' + original + '\n'
+        IDENTITY.check(self.config)
+
+    def test_extra_exports_file_is_rejected_even_when_main_export_is_unchanged(self):
+        directory = self.root/'etc/exports.d'
+        directory.mkdir()
+        (directory/'extra.exports').touch()
+        self.texts['extra.exports'] = '/srv/other *(rw)\n'
+        with self.assertRaisesRegex(ValueError, 'unmanaged NFS export'):
+            IDENTITY.check(self.config)
+        self.texts['extra.exports'] = '# no active export\n'
+        IDENTITY.check(self.config)
+
+    def test_custom_server_port_must_match_effective_daemon_configuration(self):
+        self.settings.values['NFS_SERVER_PORT'] = '32049'
+        with self.assertRaisesRegex(ValueError, 'daemon policy changed'):
+            IDENTITY.check(self.config)
+        self.daemon = self.daemon.replace('port = 2049', 'port = 32049')
+        IDENTITY.check(self.config)
+
+    def test_nfsconf_rootdir_cannot_redirect_the_validated_export(self):
+        original = self.daemon
+        for section in ('exports', 'Exports', 'EXPORTS'):
+            for rootdir in ('/srv/other', '/home', '"/srv/other"'):
+                self.daemon = original + '\n[' + section + ']\nRootDir = ' + rootdir + '\n'
+                with self.subTest(section=section, rootdir=rootdir), self.assertRaisesRegex(ValueError, 'export root was redirected'):
+                    IDENTITY.check(self.config)
+        self.daemon = original + '\n[exports]\nrootdir = /\n'
+        IDENTITY.check(self.config)
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(dir=SEED.parents[1])
         self.root = Path(self.tmp.name)
@@ -1176,6 +1311,7 @@ class IdentityPrerequisiteTests(unittest.TestCase):
         self.mapping = NFS.render(TARGET/'etc/idmapd.conf.tmpl', self.settings)
         self.daemon = NFS.render(TARGET/'etc/nfs.conf.d/60-network-sharing.conf.tmpl', self.settings)
         self.texts = {'idmapd.conf': self.mapping,
+                      'exports': self.settings['NFS_SERVER_EXPORTS'] + '\n',
                       'id_resolver.conf': '# managed\ncreate id_resolver * * /usr/sbin/nfsidmap -t 600 %k %d\n'}
         self.query_impl = IDENTITY.query
         for name in ('nfs', 'nfsd'):

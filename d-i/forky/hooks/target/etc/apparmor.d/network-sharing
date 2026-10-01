@@ -102,6 +102,8 @@ profile network-sharing-identity /usr/local/libexec/network-sharing-identity fla
   /etc/idmapd.conf.d/{,*.conf} r,
   /etc/request-key.conf r,
   /etc/request-key.d/{,*.conf} r,
+  /etc/exports r,
+  /etc/exports.d/{,*.exports} r,
   @{sys}/module/{nfs,nfsd}/parameters/nfs4_disable_idmapping r,
   /usr/sbin/nfsidmap rCx -> nfsidmap,
   /usr/sbin/nfsconf rCx -> nfsconf,

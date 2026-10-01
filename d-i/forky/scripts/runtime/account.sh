@@ -29,8 +29,8 @@ runtime_validate_account_fullname() {
 
   [ -n "$value" ] || runtime_fatal "ACCOUNT_FULLNAME must not be empty"
   case "$value" in
-    *[![:print:]]*)
-      runtime_fatal "ACCOUNT_FULLNAME must not contain control characters"
+    *[![:print:]]*|*:*)
+      runtime_fatal "ACCOUNT_FULLNAME must not contain control characters or a GECOS colon"
       ;;
     [[:space:]]*|*[[:space:]])
       runtime_fatal "ACCOUNT_FULLNAME must not start or end with whitespace"
@@ -41,8 +41,11 @@ runtime_validate_account_fullname() {
 runtime_validate_account_username() {
   value=$1
 
-  printf '%s\n' "$value" | LC_ALL=C grep -Eq '^[a-z_][a-z0-9_-]*$' || \
-    runtime_fatal "ACCOUNT_USERNAME must match ^[a-z_][a-z0-9_-]*$"
+  printf '%s\n' "$value" | LC_ALL=C grep -Eq '^[a-z_][a-z0-9_-]{0,31}$' || \
+    runtime_fatal "ACCOUNT_USERNAME must match ^[a-z_][a-z0-9_-]{0,31}$"
+  case "$value" in
+    root|nobody|nogroup) runtime_fatal "ACCOUNT_USERNAME must be a primary human account" ;;
+  esac
 }
 
 runtime_account_apply_home_paths() {
@@ -64,6 +67,10 @@ runtime_account_apply_home_paths() {
 }
 
 runtime_apply_account_from_cmdline() {
+  # Keep this entrypoint for existing callers. Only root/GPG overrides use
+  # the command line; the primary identity is always read from /preseed.env.
+  set +x
+  set +v
   [ "${RUNTIME_ACCOUNT_CMDLINE_READY:-0}" = 1 ] && return 0
 
   # Resolve root first and preserve loader errors. The former stderr/status
@@ -77,35 +84,47 @@ runtime_apply_account_from_cmdline() {
     fi
     runtime_fatal "root password is required: root_password is absent and PRESEED_ROOT_PASSWORD is missing or empty in the installer credential file (/preseed.env by default); check the booted initrd, not /target/preseed.env"
   fi
-  primary_user_raw=$(runtime_cmdline_value primary_user || true)
-  primary_password_raw=$(runtime_cmdline_value primary_password || true)
-  primary_gpg_passphrase_raw=$(runtime_cmdline_value primary_gpg_passphrase || true)
-
-  if [ -n "$primary_user_raw" ]; then
-    runtime_validate_printable_single_line primary_user "$primary_user_raw"
-    runtime_validate_account_username "$primary_user_raw"
-    ACCOUNT_USERNAME=$primary_user_raw
-  fi
-
-  if [ -n "$primary_password_raw" ]; then
-    runtime_validate_printable_single_line primary_password "$primary_password_raw"
-    ACCOUNT_PASSWORD=$primary_password_raw
-    ACCOUNT_PASSWORD_IS_PLAIN=true
+  for primary_key in primary_user primary_fullname primary_password; do
+    primary_name=$(preseed_env_variable_name "$primary_key") || return $?
+    if primary_value=$(runtime_preseed_env_value "$primary_key"); then
+      case "$primary_key" in
+        primary_user)
+          runtime_validate_account_username "$primary_value"
+          ACCOUNT_USERNAME=$primary_value
+          ;;
+        primary_fullname)
+          runtime_validate_account_fullname "$primary_value"
+          ACCOUNT_FULLNAME=$primary_value
+          ;;
+        primary_password)
+          runtime_validate_printable_single_line "$primary_name" "$primary_value"
+          ACCOUNT_PASSWORD=$primary_value
+          ;;
+      esac
+    else
+      primary_status=$?
+      if [ "$primary_status" -ne 1 ]; then
+        runtime_fatal "cannot load ${primary_name} from the initrd credential file; see the preceding [credentials] error (no credential was logged)"
+      fi
+      runtime_fatal "${primary_name} is required in the installer's /preseed.env; primary account command-line parameters and profile defaults are not used"
+    fi
+  done
+  ACCOUNT_PASSWORD_IS_PLAIN=true
+  if primary_gpg_passphrase_raw=$(runtime_cmdline_value primary_gpg_passphrase); then
+    :
   else
-    ACCOUNT_PASSWORD=
-    ACCOUNT_PASSWORD_IS_PLAIN=false
+    primary_status=$?
+    [ "$primary_status" -eq 1 ] || runtime_fatal "cannot load primary GPG passphrase from the initrd credential file"
+    primary_gpg_passphrase_raw=
   fi
 
   if [ -n "$primary_gpg_passphrase_raw" ]; then
     runtime_validate_printable_single_line primary_gpg_passphrase "$primary_gpg_passphrase_raw"
     ACCOUNT_GPG_PASSPHRASE=$primary_gpg_passphrase_raw
     ACCOUNT_GPG_PASSPHRASE_IS_PLAIN=true
-  elif [ -n "$primary_password_raw" ]; then
-    ACCOUNT_GPG_PASSPHRASE=$primary_password_raw
-    ACCOUNT_GPG_PASSPHRASE_IS_PLAIN=true
   else
-    ACCOUNT_GPG_PASSPHRASE=
-    ACCOUNT_GPG_PASSPHRASE_IS_PLAIN=false
+    ACCOUNT_GPG_PASSPHRASE=$ACCOUNT_PASSWORD
+    ACCOUNT_GPG_PASSPHRASE_IS_PLAIN=true
   fi
 
   if [ -n "$root_password_raw" ]; then
@@ -119,8 +138,7 @@ runtime_apply_account_from_cmdline() {
 
   runtime_account_apply_home_paths
   unset \
-    primary_user_raw \
-    primary_password_raw \
+    primary_key primary_name primary_value primary_status \
     primary_gpg_passphrase_raw \
     root_password_raw
   RUNTIME_ACCOUNT_CMDLINE_READY=1
@@ -155,12 +173,7 @@ runtime_validate_account_settings() {
   fi
   runtime_validate_printable_single_line ROOT_PASSWORD "${ROOT_PASSWORD:-}"
 
-  if [ "${ACCOUNT_PASSWORD_IS_PLAIN:-false}" = true ]; then
-    runtime_validate_printable_single_line ACCOUNT_PASSWORD "$ACCOUNT_PASSWORD"
-  else
-    : "${ACCOUNT_PASSWORD_CRYPTED:?ACCOUNT_PASSWORD_CRYPTED must be set}"
-    runtime_validate_printable_single_line ACCOUNT_PASSWORD_CRYPTED "$ACCOUNT_PASSWORD_CRYPTED"
-  fi
+  runtime_validate_printable_single_line ACCOUNT_PASSWORD "$ACCOUNT_PASSWORD"
 
   if [ "${ACCOUNT_GPG_PASSPHRASE_IS_PLAIN:-false}" = true ]; then
     runtime_validate_printable_single_line \
@@ -176,7 +189,7 @@ runtime_write_account_answers() {
   runtime_prepare_parent_dir "$dest" 0700
   {
     printf '##########  Runtime Account Configuration  ##########\n'
-    printf '# Generated inside the installer from hosts/installer/account.env.\n'
+    printf '# Primary identity from private /preseed.env; policy from hosts/installer/account.env.\n'
     printf 'd-i passwd/root-login boolean %s\n' "$ROOT_LOGIN"
     printf 'd-i passwd/root-login seen true\n'
     # Clear any stale hash/lock answer before supplying the selected plaintext
@@ -193,17 +206,12 @@ runtime_write_account_answers() {
     printf 'd-i passwd/user-fullname seen true\n'
     printf 'd-i passwd/username string %s\n' "$ACCOUNT_USERNAME"
     printf 'd-i passwd/username seen true\n'
-    if [ "${ACCOUNT_PASSWORD_IS_PLAIN:-false}" = true ]; then
-      printf 'd-i passwd/user-password-crypted password\n'
-      printf 'd-i passwd/user-password-crypted seen true\n'
-      printf 'd-i passwd/user-password password %s\n' "$ACCOUNT_PASSWORD"
-      printf 'd-i passwd/user-password seen true\n'
-      printf 'd-i passwd/user-password-again password %s\n' "$ACCOUNT_PASSWORD"
-      printf 'd-i passwd/user-password-again seen true\n'
-    else
-      printf 'd-i passwd/user-password-crypted password %s\n' "$ACCOUNT_PASSWORD_CRYPTED"
-      printf 'd-i passwd/user-password-crypted seen true\n'
-    fi
+    printf 'd-i passwd/user-password-crypted password\n'
+    printf 'd-i passwd/user-password-crypted seen true\n'
+    printf 'd-i passwd/user-password password %s\n' "$ACCOUNT_PASSWORD"
+    printf 'd-i passwd/user-password seen true\n'
+    printf 'd-i passwd/user-password-again password %s\n' "$ACCOUNT_PASSWORD"
+    printf 'd-i passwd/user-password-again seen true\n'
     printf 'd-i passwd/user-default-groups string %s\n' "$ACCOUNT_DEFAULT_GROUPS"
     printf 'd-i passwd/user-default-groups seen true\n'
     printf 'd-i user-setup/allow-password-weak boolean false\n'
@@ -221,7 +229,7 @@ runtime_write_effective_account_env() {
   runtime_validate_account_groups "$ACCOUNT_DEFAULT_GROUPS"
   runtime_prepare_parent_dir "$dest" 0700
   {
-    printf '# Generated inside the installer from hosts/installer/account.env plus resolved installer identity overrides.\n'
+    printf '# Primary identity from private /preseed.env; policy from hosts/installer/account.env.\n'
     printf 'ROOT_LOGIN=%s\n' "$(runtime_shell_quote "$ROOT_LOGIN")"
     printf 'ACCOUNT_USERNAME=%s\n' "$(runtime_shell_quote "$ACCOUNT_USERNAME")"
     printf 'ACCOUNT_FULLNAME=%s\n' "$(runtime_shell_quote "$ACCOUNT_FULLNAME")"

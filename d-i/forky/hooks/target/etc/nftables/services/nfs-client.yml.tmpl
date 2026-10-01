@@ -10,7 +10,7 @@ services:
     direction: outbound
     enforce_allowlist: true
     protocols: [tcp]
-    ports: [2049]
+    ports: [__INSTALLER_NFS_SERVER_PORT__]
     allow_to:
       ipv4: __INSTALLER_NFS_CLIENT_ALLOW_IPV4__
       ipv6: []

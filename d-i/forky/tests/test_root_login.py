@@ -58,7 +58,12 @@ class RootFixture(unittest.TestCase):
         )
 
     def seed_env(self, value=TEST_ROOT):
-        self.envfile.write_text("PRESEED_ROOT_PASSWORD=" + shlex.quote(value) + "\n")
+        self.envfile.write_text(
+            "PRESEED_ROOT_PASSWORD=" + shlex.quote(value) + "\n" +
+            "PRESEED_PRIMARY_USERNAME='fixtureuser'\n" +
+            "PRESEED_PRIMARY_FULLNAME='Fixture User'\n" +
+            "PRESEED_PRIMARY_PASSWORD=" + shlex.quote(TEST_USER) + "\n"
+        )
         self.envfile.chmod(0o600)
 
     def run_shell(self, script, shell=None, env=None):
@@ -106,6 +111,7 @@ class RootAccountTests(RootFixture):
                 self.assert_answers(TEST_ROOT)
                 self.assertEqual(result.stdout + result.stderr, "")
 
+    @skip_unless_trusted_credential_ancestry
     def test_first_duplicate_parameter_wins(self):
         self.seed_env("Fallback-Fixture-Only!2026")
         self.env["INSTALLER_CMDLINE"] += (
@@ -185,7 +191,9 @@ class RootAccountTests(RootFixture):
         result = self.assert_render_fails()
         self.assertIn("single printable token", result.stderr)
 
+    @skip_unless_trusted_credential_ancestry
     def test_cmdline_glob_characters_are_literal_not_filesystem_patterns(self):
+        self.seed_env()
         (self.path / "root_password=Expanded-Not-The-Password").touch()
         password = "*"
         self.env["INSTALLER_CMDLINE"] += " root_password=" + password
@@ -195,7 +203,9 @@ class RootAccountTests(RootFixture):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assert_answers(password)
 
+    @skip_unless_trusted_credential_ancestry
     def test_root_password_shell_metacharacters_are_not_executed(self):
+        self.seed_env()
         password = "$(touch${IFS}SHOULD_NOT_EXIST);x'\"`:$[]?*\\end"
         self.env["INSTALLER_CMDLINE"] += " root_password=" + password
         result = self.render()
@@ -232,7 +242,9 @@ class RootAccountTests(RootFixture):
         self.assertEqual(self.render().returncode, 0)
         self.assertEqual(payload_read_bytes(self.answers), before)
 
+    @skip_unless_trusted_credential_ancestry
     def test_cmdline_file_runtime_path(self):
+        self.seed_env()
         cmdline_file = self.path / "cmdline"
         cmdline_file.write_text(self.env["INSTALLER_CMDLINE"] + " root_password=" + TEST_ROOT)
         self.env["INSTALLER_CMDLINE"] = ""
@@ -353,7 +365,7 @@ class DebconfRootTests(RootFixture):
                 result = self.apply(shell, "runtime_seed_answers_file")
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assert_database(TEST_ROOT)
-                self.assertEqual(self.debconf("GET passwd/user-fullname"), "Matthew Cramer")
+                self.assertEqual(self.debconf("GET passwd/user-fullname"), "Fixture User")
 
     @skip_unless_trusted_credential_ancestry
     def test_literal_trailing_backslash_password_round_trips_in_all_shells(self):

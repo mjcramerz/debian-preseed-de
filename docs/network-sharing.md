@@ -8,7 +8,11 @@ managed nftables compiler, and the existing desktop authorization policy. It
 does not compile software, create a second firewall manager, or change the
 private Zoom/Discord Xwayland configuration.
 
-All ten host profiles contain the same explicit NFS controls. The shipped
+All ten host profiles contain explicit host-specific NFS controls. Shared
+export options/peers, package lists, NFS version, numeric identity policy and
+fstab option strings live in `d-i/forky/hosts/installer/hosting.env`, loaded
+immediately after the selected profile. Edit shared policy there and host
+role/path/port/interface controls in the selected profile. The shipped
 `btrfs-de-p15s.env` enables the server role and its home bind. The other nine
 profiles, including `btrfs-de-p15s-duo.env`, disable both roles and home binds;
 the client role is disabled in every shipped profile. The installer always
@@ -57,7 +61,7 @@ backticks, forward references and duplicate NFS assignments are rejected by the
 build-time gate. This gate validates the same scalar policy as the target
 configurator without executing the profile shell.
 
-## Profile reference
+## Profile and shared policy reference
 
 | Variable | Default and meaning |
 | --- | --- |
@@ -66,11 +70,12 @@ configurator without executing the profile shell.
 | `NFS_SERVER_PATH` | `${NETWORK_SHARING_ROOT_PATH}/nfs-server`; the only exported directory. |
 | `NFS_SERVER_BIND_ENABLE` | `true` in `btrfs-de-p15s.env`, otherwise `false`; bind the local server directory into the primary account home; requires the server role. |
 | `NFS_SERVER_HOME_BIND_PATH` | `Sharing/nfs-server`; relative to `ACCOUNT_HOME`, never an absolute path. |
-| `NFS_SERVER_DEPS` | `nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl e2fsprogs`; required package closure is validated. Additional valid package names are allowed. |
+| `NFS_SERVER_APT_DEPS` | `nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl e2fsprogs`; required package closure is validated. Additional valid package names are allowed. |
+| `NFS_SERVER_PORT` | `2049`; canonical decimal TCP port 1024-65535 in each profile; drives nfs.conf, both firewall overlays, the client mount and daemon drift checks. Match this port on server and client hosts. |
 | `NFS_SERVER_THREADS` | `8`; validated range 1-128. |
-| `NFS_SERVER_RW_OPTIONS` | `rw,sync,subtree_check,root_squash,secure,sec=sys,fsid=0`; profile shorthand used to compose exports. |
+| `NFS_SERVER_RW_OPTIONS` | `rw,sync,subtree_check,root_squash,secure,sec=sys,fsid=0`; shared shorthand used to compose exports. |
 | `NFS_SERVER_RO_OPTIONS` | `ro,sync,subtree_check,root_squash,secure,sec=sys,fsid=0`; read-only shorthand. |
-| `NFS_SERVER_EXPORTS` | One fully expanded export line with the exact CIDRs below; one directory, no wildcard/DNS peers, no overlapping ranges. This line drives both exports and the server firewall allowlist. |
+| `NFS_SERVER_EXPORTS` | One fully expanded export line with the exact CIDRs below; one directory, RFC1918 CIDRs or literal IPv4 hosts; no wildcard/DNS peers or overlapping ranges. This line drives both exports and the server firewall allowlist. |
 | `NFS_CLIENT_ENABLE` | `false`; install the NFS client and its managed automount. |
 | `NFS_CLIENT_PATH` | `${NETWORK_SHARING_ROOT_PATH}/nfs-client`; local mountpoint, not the remote server path. |
 | `NFS_CLIENT_BIND_ENABLE` | `false`; bind the client mount into the primary account home; requires the client role. |
@@ -80,9 +85,12 @@ configurator without executing the profile shell.
 | `NFS_CLIENT_VERSION` | `4.2`; only `4.1` or `4.2`, with no silent downgrade to v3 or v4.0. |
 | `NFS_CLIENT_READ_ONLY` | `false`; make the source and optional client home bind read-only locally. |
 | `NFS_CLIENT_MOUNT_TIMEOUT` | `30`; initial mount job timeout in seconds, range 5-120; not an application I/O deadline. |
-| `NFS_CLIENT_DEPS` | `nfs-common libnfsidmap1 keyutils nftables e2fsprogs`. |
+| `NFS_CLIENT_APT_DEPS` | `nfs-common libnfsidmap1 keyutils nftables e2fsprogs`. |
 | `NFS_ACCOUNT_UID` / `NFS_ACCOUNT_GID` | `1000` / `1000`; required existing primary account IDs on every peer. A mismatch aborts; users are never renumbered. |
 | `NFS_SHARED_GROUP` / `NFS_SHARED_GID` | `nfs-sharing` / `2050`; same group name and numeric GID on all peers. An existing conflicting name/GID is rejected, never silently renumbered. |
+| `NFS_MNT_SERVER_BIND_HOME_OPTS` | Shared server home-bind options: `bind,nosuid,nodev,noexec,nofail`, with `x-systemd.requires-mounts-for=${NFS_SERVER_PATH}`. |
+| `NFS_MNT_CLIENT_BIND_HOME_OPTS` | Shared client home-bind options: the bind safety flags, the actual `${NFS_CLIENT_PATH}` prerequisite, `_netdev`, automount and the configured initial mount timeout. |
+| `NFS_MNT_CLIENT_TARGET_SHARE_OPTS` | Shared remote mount options: TCP, `${NFS_SERVER_PORT}`, `${NFS_CLIENT_VERSION}`, `hard,resvport,sec=sys,nosuid,nodev,noexec`, network/automount/timeout flags, and requirements on the client target, firewall and identity check. Required flags cannot be removed or contradicted. Configured option ordering is retained. |
 | `NFS_INTERFACES` | `${MANAGED_NETWORK_ETHERNET_IFACE} ${MANAGED_NETWORK_WIFI_IFACE}`; existing explicit host interface names, not wildcard or loopback. Confirm these are the trusted interfaces. |
 | `NFS_TCP_RMEM` / `NFS_TCP_WMEM` | `4096 131072 16777216` / `4096 16384 16777216`; ordered TCP minimum/default/maximum bytes. |
 | `NFS_SOCKET_RMEM_MAX` / `NFS_SOCKET_WMEM_MAX` | `16777216` each; socket buffer ceilings. |
@@ -126,8 +134,9 @@ active exports, including `exports.d/*.exports`, are rejected rather than
 silently sharing a pseudo-root or expanding access. There is no wildcard
 export and no `no_root_squash`, `insecure`, `async`, or `crossmnt` option.
 
-The server overlay admits TCP 2049 from those CIDRs on the chosen interfaces.
-The client overlay permits TCP 2049 to the configured server `/32` only.
+The server overlay admits TCP `NFS_SERVER_PORT` (2049 by default) from the
+configured export CIDRs/IPs on the chosen interfaces. The client overlay permits
+the same configured TCP port to the selected server `/32` only.
 Both explicitly enable `enforce_allowlist` in the existing policy compiler.
 For these service ports, regular-chain guards run after invalid-packet drops
 and before established, loopback or local-hook accepts. A matching peer and
@@ -153,6 +162,16 @@ trusted LAN, or separately provision and verify a trusted encrypted network.
 Do not expose TCP 2049 directly to the Internet. A mutually authenticated
 Kerberos/TLS deployment requires its own credentials and policy; none are
 invented or silently substituted here.
+
+The primary username, full name and password are required private initrd
+values `PRESEED_PRIMARY_USERNAME`, `PRESEED_PRIMARY_FULLNAME` and
+`PRESEED_PRIMARY_PASSWORD` in `/preseed.env`. Account command-line parameters,
+profile defaults and `ACCOUNT_PASSWORD_CRYPTED` are not identity sources.
+`hosts/installer/account.env` contains account/SSH policy only. Runtime loading
+derives the home/SSH paths and publishes the resolved identity to the private
+effective account environment for separate addon shells, without persisting
+the primary or root passwords there. Required identity validation precedes disk
+discovery; the existing root and GPG override policies are retained.
 
 The primary account is added to `nfs-sharing` GID 2050 (or the explicitly chosen
 consistent group/GID). Coordinate numeric user UIDs as well as the shared GID
@@ -192,7 +211,7 @@ and substituting a symlink that fstab generation would resolve elsewhere.
 The immutable parent prevents that substitution without changing ownership or
 mode of the home itself, or making the mounted export contents immutable.
 
-The profiles include Debian `e2fsprogs` for `/usr/bin/chattr`; a configured
+The shared package lists include Debian `e2fsprogs` for `/usr/bin/chattr`; a configured
 home-bind role must retain this dependency. Setting the flag requires a
 supporting filesystem and the installer's `CAP_LINUX_IMMUTABLE` capability.
 Failure aborts before managed fstab entries or the success record are written;
@@ -237,7 +256,7 @@ The normal subsequent kernel/initramfs installation path remains responsible
 for applying the modprobe configuration to the installed boot environment.
 
 Servers additionally receive `/etc/nfs.conf.d/60-network-sharing.conf`:
-TCP 2049, eight configured worker threads, NFSv4.1/4.2 enabled, **v2/v3/v4.0**, UDP
+TCP `NFS_SERVER_PORT` (2049 by default), eight configured worker threads, NFSv4.1/4.2 enabled, **v2/v3/v4.0**, UDP
 and RDMA disabled. Both active roles mask `rpcbind.service`, `rpcbind.socket`,
 `rpc-statd.service` and `rpc-statd-notify.service`; this is a deliberately v4-only
 host policy and must not be combined with an unrelated legacy RPC/NFSv3 need.
@@ -272,7 +291,11 @@ requires `/proc/fs/nfsd` to be mounted before it starts. The client source
 mount is also bound to the managed firewall service. Its start/reload overrides
 require `exportfs -r` to succeed instead of inheriting the vendor unit's
 error-ignoring command prefix. An export-refresh failure is therefore visible
-to systemd and to the menu; it is not silently reported as success.
+to systemd and to the menu; it is not silently reported as success. The startup
+identity check also verifies the exact installed export line and refuses active
+unmanaged `exports.d/*.exports`. Reload first runs that same confined helper;
+peer/options drift is rejected before `exportfs -r`. Its additional AppArmor
+access is read-only and limited to `/etc/exports` and `exports.d/*.exports`.
 Both root helper services require and follow `apparmor-modes.service` before
 reading their actual kernel AppArmor labels. An unavailable, unconfined or
 complain-mode label fails the helper before any configuration processing; a
@@ -311,7 +334,8 @@ file already installed. Do not boot/publish a partially failed installation.
 
 ### Mount options and ordering
 
-Client fstab entries use `hard,proto=tcp,port=2049,resvport,sec=sys,vers=4.2`
+Client fstab entries derive from `NFS_MNT_CLIENT_TARGET_SHARE_OPTS` in
+`hosting.env`; defaults include `hard,proto=tcp,port=2049,resvport,sec=sys,vers=4.2`
 (or explicit 4.1), `nosuid,nodev,noexec,_netdev,nofail`, an automount, the
 configured initial mount timeout, and dependencies on `nfs-client.target` and
 `nftables.service`. Both binds use `x-systemd.requires-mounts-for=` with the
@@ -456,7 +480,7 @@ kernel/packages/systemd 261.2. Confirm the disabled-profile case still creates
 client-only, both roles, and each bind setting. Then check:
 
 1. Inspect effective `nfsconf`, `exportfs -v`, nftables rules and
-   `systemctl cat` output; verify TCP 2049 only, correct interface/source CIDRs,
+   `systemctl cat` output; verify only the configured TCP port, correct interface/source CIDRs,
    no v2/v3/UDP/RDMA service exposure, and no unintended inherited overrides.
    Check `nfsidmap -d`, the installed domain/group/UIDs, module parameters,
    `getent group nfs-sharing`, sysctls and `findmnt` options/dependencies.

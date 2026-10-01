@@ -506,16 +506,9 @@ class Worker:
             self.greeter_identity = identity
 
     def lock(self) -> None:
-        # Type=forking waits for labwc-lock's swaylock -f readiness handshake.
-        # Unlike an exec oneshot, its daemon stays in a live independent unit.
-        self.user_run(["/usr/bin/systemd-run", "--user",
-             "--quiet", "--collect", "--service-type=forking", "--expand-environment=no",
-             "--unit=labwc-power-lock-" + uuid.uuid4().hex + ".service",
-             "--property=Requisite=labwc-session.target", "--property=After=labwc-session.target",
-             "--property=PartOf=labwc-session.target", "--property=TimeoutStartSec=20s",
-             "--property=TimeoutStopSec=5s", "--property=KillMode=control-group",
-             "--property=PrivatePIDs=no", "--property=PrivateUsers=no",
-             "--", "/usr/local/bin/labwc-lock"], timeout=25)
+        # Every manual, idle and power path uses the same independent PAM unit.
+        # Type=forking waits for swaylock's acknowledged lock before suspend.
+        self.userctl("start", "labwc-lock.service", timeout=25)
         self.helper("locked")
 
     def best_effort(self, description: str, callback) -> None:

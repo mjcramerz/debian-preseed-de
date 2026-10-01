@@ -57,7 +57,7 @@ def private_ipv4(value: str) -> ipaddress.IPv4Address:
 
 
 def parse_exports(line: str, server_path: str) -> list[tuple[str, str]]:
-    """One explicit export and nonoverlapping CIDRs, never wildcard/DNS entries."""
+    """One export, nonoverlapping LAN CIDRs/IPs, never wildcard/DNS entries."""
     if not line or len(line) > 16384 or any(c in line for c in '\r\n\t'):
         raise ValueError('NFS_SERVER_EXPORTS must be one bounded, space-separated line')
     fields = line.split(' ')
@@ -70,8 +70,8 @@ def parse_exports(line: str, server_path: str) -> list[tuple[str, str]]:
         if not match:
             raise ValueError('invalid NFS peer/option grammar')
         network = ipaddress.IPv4Network(match[1], strict=True)
-        if '/' not in match[1] or not any(network.subnet_of(n) for n in PRIVATE_NETWORKS):
-            raise ValueError('NFS exports require explicit RFC1918 CIDRs')
+        if not any(network.subnet_of(n) for n in PRIVATE_NETWORKS):
+            raise ValueError('NFS exports require explicit RFC1918 CIDRs or addresses')
         if any(network.overlaps(other) for other in networks):
             raise ValueError('overlapping NFS export CIDRs are ambiguous')
         options = match[2].split(',')
@@ -91,6 +91,18 @@ def package_names(value: str, required: set[str]) -> list[str]:
     if not required <= set(packages):
         raise ValueError('NFS dependency list omits required packages: ' + ' '.join(sorted(required - set(packages))))
     return sorted(set(packages))
+
+
+def mount_options(value: str, name: str, required: set[str], optional: set[str]) -> list[str]:
+    """Accept configured ordering, but never remove safety/dependency flags."""
+    options = value.split(',')
+    flags = set(options)
+    if (not value or len(value) > 16384 or len(flags) != len(options)
+            or not required <= flags or not flags <= required | optional):
+        raise ValueError(f'{name} has missing, duplicate or unsupported mount options')
+    if 'ro' in flags and 'rw' in flags:
+        raise ValueError(f'{name} must not combine ro and rw')
+    return options
 
 
 @dataclass(frozen=True)
@@ -114,10 +126,13 @@ class Settings:
     def from_environment(cls, env: Mapping[str, str]) -> 'Settings':
         names = set(BOOLS) | {
             'ACCOUNT_USERNAME', 'ACCOUNT_HOME', 'SYSTEM_DOMAIN', 'NFT_PROFILE', 'NETWORK_SHARING_ROOT_PATH',
-            'NFS_SERVER_PATH', 'NFS_SERVER_HOME_BIND_PATH', 'NFS_SERVER_DEPS', 'NFS_SERVER_THREADS',
+            'NFS_SERVER_PATH', 'NFS_SERVER_HOME_BIND_PATH', 'NFS_SERVER_APT_DEPS', 'NFS_SERVER_THREADS',
+            'NFS_SERVER_PORT', 'NFS_SERVER_RW_OPTIONS', 'NFS_SERVER_RO_OPTIONS',
             'NFS_SERVER_EXPORTS', 'NFS_CLIENT_PATH', 'NFS_CLIENT_HOME_BIND_PATH',
             'NFS_CLIENT_TARGET_IP', 'NFS_CLIENT_EXPORT_PATH', 'NFS_CLIENT_VERSION',
-            'NFS_CLIENT_MOUNT_TIMEOUT', 'NFS_CLIENT_DEPS', 'NFS_ACCOUNT_UID', 'NFS_ACCOUNT_GID',
+            'NFS_CLIENT_MOUNT_TIMEOUT', 'NFS_CLIENT_APT_DEPS', 'NFS_ACCOUNT_UID', 'NFS_ACCOUNT_GID',
+            'NFS_MNT_SERVER_BIND_HOME_OPTS', 'NFS_MNT_CLIENT_BIND_HOME_OPTS',
+            'NFS_MNT_CLIENT_TARGET_SHARE_OPTS',
             'NFS_SHARED_GROUP', 'NFS_SHARED_GID', 'NFS_INTERFACES', 'NFS_TCP_RMEM',
             'NFS_TCP_WMEM', 'NFS_SOCKET_RMEM_MAX', 'NFS_SOCKET_WMEM_MAX'}
         missing = names - env.keys()
@@ -164,6 +179,9 @@ class Settings:
         if int(values['NFS_SHARED_GID']) == int(values['NFS_ACCOUNT_GID']):
             raise ValueError('NFS_SHARED_GID must be separate from the primary account GID')
         bounded_integer(values['NFS_SERVER_THREADS'], 'NFS_SERVER_THREADS', 1, 128)
+        port = bounded_integer(values['NFS_SERVER_PORT'], 'NFS_SERVER_PORT', 1024, 65535)
+        if values['NFS_SERVER_PORT'] != str(port):
+            raise ValueError('NFS_SERVER_PORT must use canonical decimal notation')
         bounded_integer(values['NFS_CLIENT_MOUNT_TIMEOUT'], 'NFS_CLIENT_MOUNT_TIMEOUT', 5, 120)
         private_ipv4(values['NFS_CLIENT_TARGET_IP'])
         normalized_path(values['NFS_CLIENT_EXPORT_PATH'], allow_root=True)
@@ -185,6 +203,26 @@ class Settings:
             if limits != sorted(limits) or limits[-1] > maximum:
                 raise ValueError('TCP buffers must be ordered and fit within the socket ceiling')
         peers = parse_exports(values['NFS_SERVER_EXPORTS'], values['NFS_SERVER_PATH'])
+        for mode in ('RW', 'RO'):
+            options = values[f'NFS_SERVER_{mode}_OPTIONS'].split(',')
+            if len(set(options)) != len(options) or set(options) != REQUIRED_FLAGS | {mode.lower()}:
+                raise ValueError(f'NFS_SERVER_{mode}_OPTIONS must retain the managed export policy')
+        bind_flags = {'bind', 'nosuid', 'nodev', 'noexec', 'nofail'}
+        network_flags = {'_netdev', 'x-systemd.automount',
+                         'x-systemd.mount-timeout=' + values['NFS_CLIENT_MOUNT_TIMEOUT'] + 's'}
+        for role in ('SERVER', 'CLIENT'):
+            required = bind_flags | {'x-systemd.requires-mounts-for=' + values[f'NFS_{role}_PATH']}
+            if role == 'CLIENT':
+                required |= network_flags
+            mount_options(values[f'NFS_MNT_{role}_BIND_HOME_OPTS'], f'NFS_MNT_{role}_BIND_HOME_OPTS', required, {'ro'})
+        required = {'hard', 'proto=tcp', 'port=' + values['NFS_SERVER_PORT'], 'resvport', 'sec=sys',
+                    'vers=' + values['NFS_CLIENT_VERSION'], 'nosuid', 'nodev', 'noexec', 'nofail',
+                    'x-systemd.requires=nfs-client.target', 'x-systemd.requires=nftables.service',
+                    'x-systemd.requires=network-sharing-identity.service'} | network_flags
+        options = mount_options(values['NFS_MNT_CLIENT_TARGET_SHARE_OPTS'],
+                                'NFS_MNT_CLIENT_TARGET_SHARE_OPTS', required, {'ro', 'rw'})
+        if not set(options) & {'ro', 'rw'}:
+            raise ValueError('NFS_MNT_CLIENT_TARGET_SHARE_OPTS requires ro or rw')
         common = {'nfs-common', 'libnfsidmap1', 'keyutils', 'nftables'}
         server_required = common | {'nfs-kernel-server', 'acl'}
         client_required = set(common)
@@ -192,8 +230,8 @@ class Settings:
             server_required.add('e2fsprogs')
         if flags['NFS_CLIENT_BIND_ENABLE']:
             client_required.add('e2fsprogs')
-        server = package_names(values['NFS_SERVER_DEPS'], server_required)
-        client = package_names(values['NFS_CLIENT_DEPS'], client_required)
+        server = package_names(values['NFS_SERVER_APT_DEPS'], server_required)
+        client = package_names(values['NFS_CLIENT_APT_DEPS'], client_required)
         packages = (server if flags['NFS_SERVER_ENABLE'] else []) + (client if flags['NFS_CLIENT_ENABLE'] else [])
         return cls(values, flags, peers, sorted(set(packages)))
 
@@ -321,25 +359,20 @@ def unit_name(path: str, suffix: str = 'mount') -> str:
 def fstab_entries(s: Settings) -> list[str]:
     entries: list[str] = []
     if s.enabled('NFS_CLIENT_ENABLE'):
-        opts = ['ro' if s.enabled('NFS_CLIENT_READ_ONLY') else 'rw', 'hard', 'proto=tcp',
-                'port=2049', 'resvport', 'sec=sys', 'vers=' + s['NFS_CLIENT_VERSION'],
-                'nosuid', 'nodev', 'noexec', '_netdev', 'nofail', 'x-systemd.automount',
-                'x-systemd.mount-timeout=' + s['NFS_CLIENT_MOUNT_TIMEOUT'] + 's',
-                'x-systemd.requires=nfs-client.target', 'x-systemd.requires=nftables.service',
-                'x-systemd.requires=network-sharing-identity.service']
+        opts = s['NFS_MNT_CLIENT_TARGET_SHARE_OPTS'].split(',')
+        if s.enabled('NFS_CLIENT_READ_ONLY'):
+            opts = ['ro' if option == 'rw' else option for option in opts]
         entries.append(f"{s['NFS_CLIENT_TARGET_IP']}:{s['NFS_CLIENT_EXPORT_PATH']} {s['NFS_CLIENT_PATH']} nfs {','.join(opts)} 0 0")
     for role in ('SERVER', 'CLIENT'):
         if not s.enabled(f'NFS_{role}_BIND_ENABLE'):
             continue
         source = s[f'NFS_{role}_PATH']
         target = s['ACCOUNT_HOME'] + '/' + s[f'NFS_{role}_HOME_BIND_PATH']
-        opts = ['bind', 'nosuid', 'nodev', 'noexec', 'nofail',
-                'x-systemd.requires-mounts-for=' + source]
-        if role == 'CLIENT':
-            opts += ['_netdev', 'x-systemd.automount',
-                     'x-systemd.mount-timeout=' + s['NFS_CLIENT_MOUNT_TIMEOUT'] + 's']
-            if s.enabled('NFS_CLIENT_READ_ONLY'):
-                opts.append('ro')
+        opts = s[f'NFS_MNT_{role}_BIND_HOME_OPTS'].split(',')
+        if (role == 'CLIENT' and (s.enabled('NFS_CLIENT_READ_ONLY')
+                                 or 'ro' in s['NFS_MNT_CLIENT_TARGET_SHARE_OPTS'].split(','))
+                and 'ro' not in opts):
+            opts.append('ro')
         entries.append(f"{source} {target} none {','.join(opts)} 0 0")
     return entries
 
