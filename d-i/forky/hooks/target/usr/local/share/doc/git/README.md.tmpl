@@ -168,7 +168,14 @@ excludes the local `.git` directory and workspace layout files. Since
 `.stignore` itself does not sync, configure the same Git exclusion on other
 Syncthing devices sharing this folder.
 
-`obsidian-git-sync.timer` starts with the Labwc desktop session, runs after
+`OBSIDIAN_GIT_AUTO_ENABLE` controls automatic publication. Both p15s profiles
+set it to `true`; all other profiles set it to `false`. The installer writes
+the selected value to root-owned `/etc/obsidian-git-sync.conf`. When false,
+the session timer is not enabled and the worker performs no Git operations,
+even if invoked directly. Use normal Git commands to add, commit and push
+manually; the vault clone and its ownership remain the same.
+
+When enabled, `obsidian-git-sync.timer` starts with the Labwc desktop session, runs after
 five minutes and again one hour after the preceding run finishes. At each run,
 the service checks the managed SSH identity already unlocked by `git-ssh
 unlock`. A locked identity is skipped and retried on the next timer run.

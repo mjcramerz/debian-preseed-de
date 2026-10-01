@@ -697,6 +697,7 @@ require_absent /etc/skel-desktop/Syncthing/obsidian-md
 require_mode /etc/skel-desktop/Syncthing 700
 require_mode /usr/local/libexec/obsidian-git-sync 755
 require_mode /usr/local/libexec/obsidian-git-sync.py 755
+require_mode /etc/obsidian-git-sync.conf 644
 require_mode /etc/skel-desktop/.config/systemd/user/obsidian-git-sync.service 644
 require_mode /etc/skel-desktop/.config/systemd/user/obsidian-git-sync.timer 644
 
@@ -1050,6 +1051,7 @@ fatal() {
 account_user=$1
 account_home=$2
 icon_theme=$3
+obsidian_git_auto_enable=$4
 uid=$(id -u "$account_user")
 gid=$(id -g "$account_user")
 required_checked=0
@@ -1164,8 +1166,24 @@ check_required_owned_dir "$account_home/.config/gitops"
 [ "$(find -P "$account_home/.config/gitops" -maxdepth 0 -printf "%m")" = 700 ] || fatal "unsafe managed Git directory"
 verify_skeleton_session_link ssh-agent.socket
 verify_account_session_link ssh-agent.socket
-verify_skeleton_session_link obsidian-git-sync.timer
-verify_account_session_link obsidian-git-sync.timer
+[ ! -L /etc/obsidian-git-sync.conf ] &&
+  [ "$(find -P /etc/obsidian-git-sync.conf -maxdepth 0 -printf "%U:%G:%m:%n")" = 0:0:644:1 ] ||
+  fatal "unsafe automatic Obsidian Git policy file"
+printf "OBSIDIAN_GIT_AUTO_ENABLE=%s\n" "$obsidian_git_auto_enable" |
+  cmp -s - /etc/obsidian-git-sync.conf || fatal "automatic Obsidian Git policy differs from the profile"
+case "$obsidian_git_auto_enable" in
+  true)
+    verify_skeleton_session_link obsidian-git-sync.timer
+    verify_account_session_link obsidian-git-sync.timer
+    ;;
+  false)
+    for obsidian_home in /etc/skel-desktop "$account_home"; do
+      obsidian_link="$obsidian_home/.config/systemd/user/labwc-session.target.wants/obsidian-git-sync.timer"
+      [ ! -e "$obsidian_link" ] && [ ! -L "$obsidian_link" ] || fatal "automatic Obsidian Git timer must be disabled"
+    done
+    ;;
+  *) fatal "invalid OBSIDIAN_GIT_AUTO_ENABLE" ;;
+esac
 # Interactive decryption is on demand; do not race wallet/login prompts.
 for ssh_home in /etc/skel-desktop "$account_home"; do
   ssh_link="$ssh_home/.config/systemd/user/labwc-session.target.wants/labwc-ssh-key-load.service"
@@ -1601,7 +1619,7 @@ printf "desktop_primary_account_verification user=%s home=%s required_files=%s o
   "${optional_missing:-none}" \
   "$account_shell" \
   "$shell_status"
-' sh "$ACCOUNT_USERNAME" "$ACCOUNT_HOME" "${LABWC_DESKTOP_GTK_ICON_THEME}"
+' sh "$ACCOUNT_USERNAME" "$ACCOUNT_HOME" "${LABWC_DESKTOP_GTK_ICON_THEME}" "$OBSIDIAN_GIT_AUTO_ENABLE"
 }
 
 desktop_verify_greeter_access() {

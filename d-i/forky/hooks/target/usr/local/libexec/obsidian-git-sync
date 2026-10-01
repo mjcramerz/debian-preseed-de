@@ -2,6 +2,18 @@
 set -eu
 umask 077
 [ "$#" -eq 0 ] || exit 64
+# Check before touching the agent or vault. The Python sync entry point checks
+# again before any Git operation, including direct invocation of that helper.
+if /usr/bin/python3 -I /usr/local/libexec/obsidian-git-sync.py --check-auto-enabled; then
+  :
+else
+  policy_status=$?
+  if [ "$policy_status" -eq 1 ]; then
+    printf '%s\n' 'obsidian-git-sync: automatic Git publication disabled; use Git manually'
+    exit 0
+  fi
+  exit "$policy_status"
+fi
 # The desktop session unlock is explicit. Never decrypt a passphrase from a
 # timer or push using an unrelated identity from the user's agent.
 # shellcheck disable=SC1091

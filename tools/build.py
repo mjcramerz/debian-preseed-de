@@ -353,6 +353,15 @@ def validate_systemd_profiles() -> None:
         if result.returncode:
             raise ValueError(f'{profile.name}: invalid systemd policy: {result.stderr.strip()}')
 
+def validate_obsidian_git_profiles() -> None:
+    """Reject an absent, duplicate or ambiguous automation flag before publication."""
+    for profile in sorted((SEED / 'hosts/profiles').glob('*.env')):
+        rows = [line for line in profile.read_text().splitlines()
+                if re.match(r'^\s*OBSIDIAN_GIT_AUTO_ENABLE\b', line)]
+        if len(rows) != 1 or not re.fullmatch(r'OBSIDIAN_GIT_AUTO_ENABLE="(?:true|false)"', rows[0]):
+            raise ValueError(f'{profile.name}: OBSIDIAN_GIT_AUTO_ENABLE must be exactly one quoted true/false assignment')
+
+
 def validate_tomat_profiles() -> None:
     """Reject absent/unsafe bootstrap pins before publishing any installer files."""
     required = {"SOFTWARE_TOMAT_TAG", "SOFTWARE_TOMAT_URL", "SOFTWARE_TOMAT_SHA256"}
@@ -395,6 +404,7 @@ def main() -> int:
         module_checker['check'](SEED)
         validate_iocost_profiles()
         validate_systemd_profiles()
+        validate_obsidian_git_profiles()
         validate_tomat_profiles()
         network_sharing_checker = runpy.run_path(str(ROOT / 'tools/check_network_sharing.py'))
         network_sharing_checker['check'](SEED)

@@ -17,10 +17,32 @@ import time
 URL = 'git@gitlab.com:core-assets/docs/obsidian-md.git'
 BRANCHES = ('mcr/main', 'mcr/staging', 'mcr/release')
 QUIET_SECONDS = 30
+AUTO_POLICY = Path('/etc/obsidian-git-sync.conf')
 
 
 class SyncError(Exception):
     pass
+
+
+def auto_enabled() -> bool:
+    """Read the installed profile policy as data, never shell or environment."""
+    for parent in AUTO_POLICY.parents:
+        info = parent.lstat()
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+            raise SyncError('untrusted automatic Git policy directory')
+    try:
+        fd = os.open(AUTO_POLICY, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    except FileNotFoundError:
+        return False
+    with os.fdopen(fd, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0
+                or info.st_nlink != 1 or info.st_mode & 0o022):
+            raise SyncError('untrusted automatic Git policy file')
+        value = stream.read(128)
+    if value not in (b'OBSIDIAN_GIT_AUTO_ENABLE=true\n', b'OBSIDIAN_GIT_AUTO_ENABLE=false\n'):
+        raise SyncError('invalid OBSIDIAN_GIT_AUTO_ENABLE policy')
+    return value == b'OBSIDIAN_GIT_AUTO_ENABLE=true\n'
 
 
 def git(root: Path, *args: str) -> bytes:
@@ -104,6 +126,8 @@ def snapshot(root: Path, known: set[bytes] | None = None) -> dict[bytes, tuple]:
 
 
 def sync(root: Path) -> str:
+    if not auto_enabled():
+        return 'automatic Git publication disabled; add, commit and push manually'
     owned_dir(root.parent.parent)
     owned_dir(root.parent)
     owned_dir(root)
@@ -194,15 +218,17 @@ def sync(root: Path) -> str:
 
 def main() -> int:
     try:
-        if os.getuid() == 0 or len(sys.argv) != 1:
-            raise SyncError('run as the desktop user without arguments')
+        if os.getuid() == 0 or sys.argv[1:] not in ([], ['--check-auto-enabled']):
+            raise SyncError('run as the desktop user with no arguments or --check-auto-enabled')
+        if sys.argv[1:] == ['--check-auto-enabled']:
+            return 0 if auto_enabled() else 1
         account = pwd.getpwuid(os.getuid())
         if os.environ.get('HOME') != account.pw_dir or not account.pw_dir.startswith('/home/'):
             raise SyncError('unexpected desktop account home')
         print('obsidian-git-sync: '+sync(Path(account.pw_dir)/'Syncthing/obsidian-md'))
     except (OSError, ValueError, subprocess.SubprocessError, SyncError) as exc:
         print(f'obsidian-git-sync: {exc}', file=sys.stderr)
-        return 1
+        return 2 if sys.argv[1:] == ['--check-auto-enabled'] else 1
     return 0
 
 

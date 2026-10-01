@@ -374,6 +374,9 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.timer /etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.timer 0644
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/obsidian-git-sync.service /etc/skel-desktop/.config/systemd/user/obsidian-git-sync.service 0644
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/obsidian-git-sync.timer /etc/skel-desktop/.config/systemd/user/obsidian-git-sync.timer 0644
+  desktop_render_role_target_template \
+    etc/obsidian-git-sync.conf.tmpl /etc/obsidian-git-sync.conf 0644 \
+    OBSIDIAN_GIT_AUTO_ENABLE "$OBSIDIAN_GIT_AUTO_ENABLE"
   desktop_stage_role_asset usr/local/libexec/obsidian-git-sync /usr/local/libexec/obsidian-git-sync 0755
   desktop_stage_role_asset usr/local/libexec/obsidian-git-sync.py /usr/local/libexec/obsidian-git-sync.py 0755
 

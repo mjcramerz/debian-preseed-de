@@ -8,8 +8,11 @@ managed nftables compiler, and the existing desktop authorization policy. It
 does not compile software, create a second firewall manager, or change the
 private Zoom/Discord Xwayland configuration.
 
-All ten host profiles contain the same explicit NFS controls. Both roles and
-both home binds are **disabled by default**. The installer always creates the
+All ten host profiles contain the same explicit NFS controls. The shipped
+`btrfs-de-p15s.env` enables the server role and its home bind. The other nine
+profiles, including `btrfs-de-p15s-duo.env`, disable both roles and home binds;
+the client role is disabled in every shipped profile. The installer always
+creates the
 root-owned `/data/sharing` directory and a root-owned, non-secret
 `/etc/network-sharing/config.json`, including when both roles are disabled.
 Disabled roles do not install their NFS packages or add NFS mounts/exports.
@@ -59,9 +62,9 @@ configurator without executing the profile shell.
 | Variable | Default and meaning |
 | --- | --- |
 | `NETWORK_SHARING_ROOT_PATH` | `/data/sharing`; always created, root-owned, normally mode 0755. A customized root must be strictly below `/data`, `/pool`, or `/srv`. |
-| `NFS_SERVER_ENABLE` | `false`; install and configure the dedicated NFSv4 server. |
+| `NFS_SERVER_ENABLE` | `true` in `btrfs-de-p15s.env`, otherwise `false`; install and configure the dedicated NFSv4 server. |
 | `NFS_SERVER_PATH` | `${NETWORK_SHARING_ROOT_PATH}/nfs-server`; the only exported directory. |
-| `NFS_SERVER_BIND_ENABLE` | `false`; bind the local server directory into the primary account home; requires the server role. |
+| `NFS_SERVER_BIND_ENABLE` | `true` in `btrfs-de-p15s.env`, otherwise `false`; bind the local server directory into the primary account home; requires the server role. |
 | `NFS_SERVER_HOME_BIND_PATH` | `Sharing/nfs-server`; relative to `ACCOUNT_HOME`, never an absolute path. |
 | `NFS_SERVER_DEPS` | `nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl e2fsprogs`; required package closure is validated. Additional valid package names are allowed. |
 | `NFS_SERVER_THREADS` | `8`; validated range 1-128. |
@@ -329,7 +332,7 @@ bounded by a userspace service timeout.
 ## Network Sharing desktop menu and authorization
 
 Open **Computer Management -> Network & Remote -> Network Sharing**. It uses
-the existing Fuzzel picker, its theme/category icon, and the existing optional
+the existing Fuzzel picker, explicit icons for every action, and the existing optional
 fzf backend. Back/cancel is non-destructive. The menu includes Sharing Status,
 Connect/Disconnect, Check Connected NFS Clients, Start/Stop/Restart NFS Server,
 Reload NFS Exports, Identity Mapping and RPC Diagnostics, Show Configured
@@ -346,8 +349,12 @@ new permissive sudoers or Polkit rule. Check that agent on the real desktop;
 a denied/cancelled authorization is an error, not an implicit success.
 
 Disconnect, stop, restart and reload require confirmation with **Cancel** as
-the default. Disconnect submits stops for both automounts and mounts, and
-never forces a busy filesystem. A timed-out systemctl client is reaped; its
+the default. Connect waits for the remote mount before starting a home bind.
+Disconnect stops the home bind mount before its automount, then the remote
+mount before its automount. Each job must succeed before the next is submitted;
+a busy or failed unmount leaves its automount intact. No forced unmount is
+requested. These actions change current state, not installed boot enablement.
+A timed-out systemctl client is reaped; its
 already-submitted PID 1 job may still complete, so inspect status before
 retrying. Read-only status uses unit properties, not `ls`, `statfs`, `df` or
 other operations on the remote mount. Configured exports are labelled as the

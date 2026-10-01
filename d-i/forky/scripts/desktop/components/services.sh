@@ -78,6 +78,37 @@ desktop_mask_unit_if_available() {
   desktop_log "staged_${scope}_unit_masked unit=${unit} unit_path=${unit_path}"
 }
 
+desktop_configure_obsidian_git_timer() {
+  desktop_validate_obsidian_git_auto_enable
+  if [ "$OBSIDIAN_GIT_AUTO_ENABLE" = true ]; then
+    desktop_stage_user_unit_wanted_by obsidian-git-sync.timer labwc-session.target
+    return 0
+  fi
+
+  desktop_require_absolute_account_home
+  # Retire only our exact activation links from earlier installer revisions.
+  # Preflight both locations before removing either; preserve admin entries.
+  for obsidian_home in /etc/skel-desktop "$ACCOUNT_HOME"; do
+    obsidian_units="/target${obsidian_home}/.config/systemd/user"
+    obsidian_wants="${obsidian_units}/labwc-session.target.wants"
+    obsidian_parent=$obsidian_wants
+    while [ -n "$obsidian_parent" ]; do
+      [ ! -L "$obsidian_parent" ] && { [ ! -e "$obsidian_parent" ] || [ -d "$obsidian_parent" ]; } ||
+        installer_fatal "unsafe Obsidian timer activation directory: ${obsidian_parent}"
+      obsidian_parent=${obsidian_parent%/*}
+    done
+    obsidian_link="${obsidian_wants}/obsidian-git-sync.timer"
+    if [ -e "$obsidian_link" ] || [ -L "$obsidian_link" ]; then
+      [ -L "$obsidian_link" ] && [ "$(readlink "$obsidian_link")" = ../obsidian-git-sync.timer ] ||
+        installer_fatal "unmanaged Obsidian timer activation preserved: ${obsidian_link}"
+    fi
+  done
+  for obsidian_home in /etc/skel-desktop "$ACCOUNT_HOME"; do
+    rm -f -- "/target${obsidian_home}/.config/systemd/user/labwc-session.target.wants/obsidian-git-sync.timer"
+  done
+  desktop_log "obsidian_git_auto_disabled account=${ACCOUNT_USERNAME}"
+}
+
 desktop_enable_target_services() {
   # Boot reconciliation handles inputs that predate path activation. The same
   # helper already runs synchronously during desktop installation.
@@ -155,7 +186,6 @@ desktop_enable_target_services() {
     mako.service \
     filter-chain.service \
     labwc-calendar-sync.timer \
-    obsidian-git-sync.timer \
     labwc-sync-application-launchers.service \
     labwc-sync-application-launchers.path \
     wayscriber.service \
@@ -167,6 +197,8 @@ desktop_enable_target_services() {
   do
     desktop_stage_user_unit_wanted_by "$unit" labwc-session.target
   done
+
+  desktop_configure_obsidian_git_timer
 
   if desktop_kanshi_enabled; then
     desktop_stage_user_unit_wanted_by kanshi.service labwc-session.target

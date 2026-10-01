@@ -21,8 +21,11 @@ import stat
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from unittest import mock
+from theme_fixture import render_theme_defaults, theme_values
+from fuzzel_fixture import geometry_environment, wrapper_script
 
 SEED = Path(__file__).resolve().parents[1]
 TARGET = SEED / 'hooks/target'
@@ -63,9 +66,13 @@ class SettingsTests(unittest.TestCase):
         for path in profiles:
             with self.subTest(profile=path.name):
                 settings = NFS.Settings.from_environment(profile(path))
-                self.assertFalse(settings.active)
+                # The supplied p15s profile deliberately enables its server
+                # and home bind. Preserve that profile's installed policy.
+                server = path.stem == 'btrfs-de-p15s'
+                self.assertEqual(settings.enabled('NFS_SERVER_ENABLE'), server)
+                self.assertFalse(settings.enabled('NFS_CLIENT_ENABLE'))
                 self.assertEqual(settings['NETWORK_SHARING_ROOT_PATH'], '/data/sharing')
-                self.assertFalse(settings.enabled('NFS_SERVER_BIND_ENABLE'))
+                self.assertEqual(settings.enabled('NFS_SERVER_BIND_ENABLE'), server)
                 self.assertFalse(settings.enabled('NFS_CLIENT_BIND_ENABLE'))
 
     def test_exact_cidr_coverage_and_permissions_all_profiles(self):
@@ -833,9 +840,9 @@ class MenuTests(unittest.TestCase):
             command.assert_not_called()
 
     def test_disconnect_stops_both_automounts_and_mounts_no_force(self):
-        with mock.patch.object(MENU, 'confirm', return_value=True), mock.patch.object(MENU, 'systemctl') as command, mock.patch.object(MENU, 'completed'):
+        with mock.patch.object(MENU, 'confirm', return_value=True), mock.patch.object(MENU, 'systemctl', return_value=subprocess.CompletedProcess([], 0, '')) as command, mock.patch.object(MENU, 'completed'):
             MENU.action(self.config, 'Disconnect from NFS Server')
-            command.assert_called_once_with(self.config, 'stop', [self.config[key] for key in ('client_bind_automount', 'client_bind_mount', 'client_automount', 'client_mount')])
+            self.assertEqual(command.call_args_list, [mock.call(self.config, 'stop', [self.config[key]]) for key in ('client_bind_mount', 'client_bind_automount', 'client_mount', 'client_automount')])
 
     def test_disabled_role_does_not_trigger_privileged_action(self):
         self.config['client_enabled'] = False
@@ -865,10 +872,162 @@ class MenuTests(unittest.TestCase):
     def test_successful_report_accepts_only_fresh_timestamped_data(self):
         from datetime import datetime, timezone
         def freshly_published(path):
-            return {'version': 1, 'created_utc': datetime.now(timezone.utc).isoformat()}
+            return {'version': 1, 'created_utc': datetime.now(timezone.utc).isoformat(),
+                    'server_enabled': True, 'client_enabled': True}
         with mock.patch.object(MENU, 'systemctl', return_value=subprocess.CompletedProcess([], 0, '')), \
              mock.patch.object(MENU, 'read_json', side_effect=freshly_published):
             self.assertEqual(MENU.report(self.config)['version'], 1)
+
+    def test_connect_waits_for_remote_mount_before_starting_home_bind(self):
+        with mock.patch.object(MENU, 'systemctl', return_value=subprocess.CompletedProcess([], 0, '')) as command, mock.patch.object(MENU, 'completed'):
+            MENU.action(self.config, 'Connect to NFS Server')
+        self.assertEqual(command.call_args_list, [mock.call(self.config, 'start', [self.config[key]]) for key in ('client_automount', 'client_mount', 'client_bind_automount', 'client_bind_mount')])
+
+    def test_connection_and_disconnect_failures_stop_at_each_failed_job(self):
+        for label, keys in (
+            ('Connect to NFS Server', ('client_automount', 'client_mount', 'client_bind_automount', 'client_bind_mount')),
+            ('Disconnect from NFS Server', ('client_bind_mount', 'client_bind_automount', 'client_mount', 'client_automount')),
+        ):
+            for index in range(len(keys)):
+                replies = [subprocess.CompletedProcess([], 0, '')]*index + [subprocess.CompletedProcess([], 1, 'busy or denied')]
+                with self.subTest(label=label, index=index), mock.patch.object(MENU, 'confirm', return_value=True), mock.patch.object(MENU, 'systemctl', side_effect=replies) as command, mock.patch.object(MENU, 'completed') as completed:
+                    MENU.action(self.config, label)
+                self.assertEqual(command.call_count, index+1)
+                self.assertEqual(command.call_args.args[2], [self.config[keys[index]]])
+                completed.assert_called_once_with(replies[-1])
+
+    def test_client_without_home_bind_manages_only_the_remote_pair(self):
+        self.config.update(client_bind_mount='', client_bind_automount='')
+        for label, keys, verb in (
+            ('Connect to NFS Server', ('client_automount', 'client_mount'), 'start'),
+            ('Disconnect from NFS Server', ('client_mount', 'client_automount'), 'stop'),
+        ):
+            with self.subTest(label=label), mock.patch.object(MENU, 'confirm', return_value=True), mock.patch.object(MENU, 'systemctl', return_value=subprocess.CompletedProcess([], 0, '')) as command, mock.patch.object(MENU, 'completed'):
+                MENU.action(self.config, label)
+            self.assertEqual(command.call_args_list, [mock.call(self.config, verb, [self.config[key]]) for key in keys])
+
+    def test_all_server_mutations_have_exact_dispatch_and_cancel_guards(self):
+        for label, verb in (('Start NFS Server', 'start'), ('Stop NFS Server', 'stop'), ('Restart NFS Server', 'restart'), ('Reload NFS Exports', 'reload')):
+            for confirmed in (False, True):
+                with self.subTest(label=label, confirmed=confirmed), mock.patch.object(MENU, 'confirm', return_value=confirmed) as confirm, mock.patch.object(MENU, 'systemctl') as command, mock.patch.object(MENU, 'completed'):
+                    MENU.action(self.config, label)
+                if verb == 'start' or confirmed:
+                    command.assert_called_once_with(self.config, verb, ['nfs-server.service'])
+                else:
+                    command.assert_not_called()
+                self.assertEqual(confirm.call_count, int(verb != 'start'))
+
+    def test_every_disabled_role_action_avoids_privileged_operations(self):
+        roles = {
+            'client': ('Connect to NFS Server', 'Disconnect from NFS Server'),
+            'server': ('Start NFS Server', 'Stop NFS Server', 'Restart NFS Server', 'Reload NFS Exports', 'Check Connected NFS Clients', 'Show Configured Exports'),
+        }
+        for role, labels in roles.items():
+            self.config[role+'_enabled'] = False
+            for label in labels:
+                with self.subTest(label=label), mock.patch.object(MENU, 'show'), mock.patch.object(MENU, 'systemctl') as command, mock.patch.object(MENU, 'report') as report:
+                    MENU.action(self.config, label)
+                command.assert_not_called()
+                report.assert_not_called()
+
+    def test_dependencies_are_query_only_and_other_verbs_fail_closed(self):
+        for verb, selected in (
+            ('stop', ['nftables.service']), ('restart', ['nfs-idmapd.service']),
+            ('start', ['network-sharing-identity.service']), ('stop', ['network-sharing-report.service']),
+            ('reload', [self.config['client_mount']]), ('restart', [self.config['client_mount']]),
+        ):
+            with self.subTest(verb=verb, selected=selected), mock.patch.object(MENU, 'command') as command, self.assertRaises(ValueError):
+                MENU.systemctl(self.config, verb, selected)
+            command.assert_not_called()
+
+    def test_read_only_errors_never_look_like_successful_empty_status_or_logs(self):
+        self.config['profile'] = {}
+        failure = subprocess.CompletedProcess([], 1, 'fixture bus or journal error')
+        for label in ('Sharing Status', 'Recent NFS Logs'):
+            with self.subTest(label=label), mock.patch.object(MENU, 'systemctl', return_value=failure), mock.patch.object(MENU, 'command', return_value=failure), mock.patch.object(MENU, 'show') as show:
+                with self.assertRaisesRegex(RuntimeError, 'fixture bus or journal error'):
+                    MENU.action(self.config, label)
+            show.assert_not_called()
+
+    def test_report_role_mismatch_is_rejected(self):
+        from datetime import datetime, timezone
+        stale = {'version': 1, 'created_utc': datetime.now(timezone.utc).isoformat(),
+                 'server_enabled': False, 'client_enabled': True}
+        with mock.patch.object(MENU, 'systemctl', return_value=subprocess.CompletedProcess([], 0, '')), mock.patch.object(MENU, 'read_json', side_effect=lambda path: {**stale, 'created_utc': datetime.now(timezone.utc).isoformat()}):
+            with self.assertRaisesRegex(RuntimeError, 'role settings'):
+                MENU.report(self.config)
+
+    def test_configuration_error_is_visible_in_graphical_menu(self):
+        with mock.patch.object(MENU.os, 'geteuid', return_value=1000), mock.patch.object(MENU, 'load_config', side_effect=ValueError('invalid config')), mock.patch.object(MENU, 'show') as show:
+            self.assertEqual(MENU.main([]), 2)
+        show.assert_called_once_with('Network Sharing Configuration Error', ['invalid config'])
+
+    def test_load_config_rejects_mismatched_pairs_disabled_binds_and_wrong_suffix(self):
+        valid = {**self.config, 'profile': {}}
+        with mock.patch.object(MENU, 'read_json', return_value=valid):
+            self.assertEqual(MENU.load_config(), valid)
+        for change in (
+            {'client_automount': 'other.automount'}, {'client_mount': 'wrong.automount'},
+            {'client_bind_automount': ''}, {'client_bind_mount': ''},
+            {'client_enabled': False}, {'server_enabled': False, 'server_bind_mount': 'home-test-server.mount'},
+            {'client_mount': '--evil.mount'}, {'client_automount': 'one.automount\nextra.automount'},
+        ):
+            # A syntactically valid leading dash is harmless as an operand
+            # after --; the mismatched pair must nevertheless be rejected.
+            with self.subTest(change=change), mock.patch.object(MENU, 'read_json', return_value={**valid, **change}), self.assertRaises(ValueError):
+                MENU.load_config()
+
+    def test_status_exports_help_and_logs_dispatch_without_mutating_units(self):
+        self.config.update(profile=profile(), peers=[['192.168.50.82/31', 'rw']])
+        for label, title in (
+            ('Sharing Status', 'Sharing Status'),
+            ('Show Configured Exports', 'Configured Export Policy (not a live export listing)'),
+            ('Sharing Help', 'Network Sharing Help'), ('Recent NFS Logs', 'Recent NFS Logs'),
+        ):
+            reply = subprocess.CompletedProcess([], 0, 'fixture status or log\n')
+            with self.subTest(label=label), mock.patch.object(MENU, 'systemctl', return_value=reply) as control, mock.patch.object(MENU, 'command', return_value=reply) as command, mock.patch.object(MENU, 'show') as show:
+                MENU.action(self.config, label)
+            self.assertEqual(show.call_args.args[0], title)
+            if label == 'Sharing Status':
+                control.assert_called_once_with(self.config, 'show', MENU.units(self.config))
+            else:
+                control.assert_not_called()
+            if label == 'Recent NFS Logs':
+                self.assertEqual(command.call_args.args[0][0], '/usr/bin/journalctl')
+            else:
+                command.assert_not_called()
+
+    def test_both_diagnostic_actions_show_unavailable_data_explicitly(self):
+        self.config['profile'] = profile()
+        data = {'version': 1, 'created_utc': '2026-10-01T00:00:00+00:00',
+                'notice': 'Kernel records are not a live connection count.',
+                'client_records': {'entries': [], 'unavailable': 'server stopped'},
+                'client_rpc_statistics': {'unavailable': 'client module not loaded'}}
+        for label in ('Check Connected NFS Clients', 'Identity Mapping and RPC Diagnostics'):
+            with self.subTest(label=label), mock.patch.object(MENU, 'report', return_value=data) as report, mock.patch.object(MENU, 'show') as show:
+                MENU.action(self.config, label)
+            report.assert_called_once_with(self.config)
+            self.assertIn('unavailable' if label.startswith('Check') else 'not loaded', '\n'.join(show.call_args.args[1]))
+
+    def test_no_roles_does_not_start_report_or_offer_privileged_maintenance(self):
+        self.config.update(server_enabled=False, client_enabled=False,
+                           client_bind_mount='', client_bind_automount='')
+        with mock.patch.object(MENU, 'show'), mock.patch.object(MENU, 'systemctl') as control:
+            self.assertIsNone(MENU.report(self.config))
+        control.assert_not_called()
+        for verb, selected in (('start', ['network-sharing-report.service']),
+                               ('start', ['nfs-server.service']), ('start', [self.config['client_mount']])):
+            with self.subTest(verb=verb, selected=selected), self.assertRaises(ValueError):
+                MENU.systemctl(self.config, verb, selected)
+
+    def test_unknown_action_and_back_cannot_mutate(self):
+        with mock.patch.object(MENU, 'command') as command, self.assertRaises(ValueError):
+            MENU.action(self.config, '/bin/sh')
+        command.assert_not_called()
+        for selected in ('Back', None):
+            with mock.patch.object(MENU.os, 'geteuid', return_value=1000), mock.patch.object(MENU, 'load_config', return_value=self.config), mock.patch.object(MENU, 'choose', return_value=selected), mock.patch.object(MENU, 'action') as action:
+                self.assertEqual(MENU.main([]), 0)
+            action.assert_not_called()
 
     def test_picker_cancellation_and_unknown_output_are_not_actions(self):
         for status, output in ((1, ''), (0, '/bin/sh\n'), (0, 'Connect to NFS Server\nextra\n')):
@@ -884,6 +1043,91 @@ class MenuTests(unittest.TestCase):
             self.assertNotIn('SYSTEMD_HOST', env)
             self.assertEqual(run.call_args.kwargs['stdin'], subprocess.DEVNULL)
             self.assertNotIn('shell', run.call_args.kwargs)
+
+
+class MenuIconTests(unittest.TestCase):
+    ICONS = {
+        'Network Sharing': ('NETWORK_SHARING', 'folder-remote'),
+        'Sharing Status': ('SHARING_STATUS', 'dialog-information'),
+        'Connect to NFS Server': ('CONNECT_TO_NFS_SERVER', 'network-connect'),
+        'Disconnect from NFS Server': ('DISCONNECT_FROM_NFS_SERVER', 'network-disconnect'),
+        'Check Connected NFS Clients': ('CHECK_CONNECTED_NFS_CLIENTS', 'network-workgroup'),
+        'Start NFS Server': ('START_NFS_SERVER', 'media-playback-start'),
+        'Stop NFS Server': ('STOP_NFS_SERVER', 'media-playback-stop'),
+        'Reload NFS Exports': ('RELOAD_NFS_EXPORTS', 'view-refresh'),
+        'Restart NFS Server': ('RESTART_NFS_SERVER', 'system-reboot'),
+        'Identity Mapping and RPC Diagnostics': ('IDENTITY_MAPPING_AND_RPC_DIAGNOSTICS', 'system-search'),
+        'Show Configured Exports': ('SHOW_CONFIGURED_EXPORTS', 'folder-publicshare'),
+        'Recent NFS Logs': ('RECENT_NFS_LOGS', 'text-x-log'),
+        'Sharing Help': ('SHARING_HELP', 'help-browser'),
+        'Continue': ('CONTINUE', 'go-next'),
+        'Back': ('BACK', 'go-previous'), 'Cancel': ('CANCEL', 'dialog-cancel'),
+    }
+
+    def test_native_icons_cover_every_action_and_preserve_exact_dispatch(self):
+        self.assertTrue(set(MENU.ACTIONS) <= self.ICONS.keys())
+        with tempfile.TemporaryDirectory(prefix='sharing-icons-') as directory:
+            root = Path(directory)
+            config = root/'home/.config/fuzzel'
+            runtime = root/'runtime'
+            config.mkdir(parents=True)
+            runtime.mkdir(mode=0o700)
+            for name in ('base.ini', 'fuzzel.ini', 'menu.ini', 'computer-management.ini'):
+                (config/name).write_text('[main]\n')
+            fake = root/'fuzzel'
+            fake.write_text('''#!/usr/bin/python3
+import os,sys
+from pathlib import Path
+data=sys.stdin.buffer.read()
+Path(os.environ['CAPTURE']).write_bytes(data)
+sys.stdout.buffer.write(data.split(b'\\n')[int(os.environ['SELECTED'])].split(b'\\0')[0]+b'\\n')
+''')
+            fake.chmod(0o700)
+            wrapper = wrapper_script(root, fake)
+            labels = list(self.ICONS)
+            capture = root/'payload'
+            env = {'PATH': '/usr/bin:/bin', 'HOME': str(root/'home'),
+                   'XDG_CONFIG_HOME': str(root/'home/.config'), 'XDG_RUNTIME_DIR': str(runtime),
+                   'CAPTURE': str(capture), 'LABWC_FUZZEL_MANAGED_ICONS': '1',
+                   'LABWC_FUZZEL_PALETTE': 'computer-management', **geometry_environment()}
+            for index, label in enumerate(labels):
+                with self.subTest(label=label):
+                    result = subprocess.run(['/bin/sh', str(wrapper), 'computer-management', '--dmenu', '--prompt',
+                                             'Computer Management / Network & Remote / Network Sharing'],
+                                            input=''.join(item+'\n' for item in labels).encode(),
+                                            env={**env, 'SELECTED': str(index)}, capture_output=True, timeout=10)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout.decode(), label+'\n')
+            rows = capture.read_bytes().splitlines()
+            self.assertEqual(rows[:-1], [(label+'\0icon\x1f'+icon).encode()
+                                         for label, (_, icon) in self.ICONS.items() if label != 'Cancel'])
+            # The shared graphical picker presents Cancel as Back; collision
+            # decoration must still round-trip to the original Cancel value.
+            cancel_label, cancel_icon = rows[-1].split(b'\0icon\x1f')
+            self.assertTrue(cancel_label.startswith(b'Back'))
+            self.assertEqual(cancel_icon, b'go-previous')
+            self.assertFalse(list(runtime.glob('labwc-fuzzel-menu.*')))
+
+    def test_terminal_icons_and_colors_cover_the_same_raw_actions(self):
+        path = TARGET/'usr/local/bin/labwc-fzf-menu.tmpl'
+        namespace = types.ModuleType('sharing_fzf_icons')
+        source = render_theme_defaults(path.read_text(), {'FZF_MANAGEMENT_SHARING_STATUS_ICON_COLOR': '#123456'})
+        exec(compile(source, str(path), 'exec'), namespace.__dict__)
+        labels = list(self.ICONS)
+        prompt = 'Computer Management / Network & Remote / Network Sharing'
+        displayed = namespace.display_choices(labels, prompt)
+        offered, accepted, ansi = namespace.color_choices(displayed, prompt)
+        self.assertTrue(ansi)
+        self.assertEqual(set(displayed.values()), set(labels))
+        values = theme_values()
+        for label, (key, _) in self.ICONS.items():
+            with self.subTest(label=label):
+                self.assertIn(label, namespace.ICONS)
+                self.assertEqual(namespace.icon_for(label), values['FZF_MANAGEMENT_'+key+'_ICON_GLYPH'])
+        for offered_label in offered:
+            reply = subprocess.CompletedProcess([], 0, offered_label+'\n')
+            with mock.patch.object(namespace.subprocess, 'run', return_value=reply):
+                self.assertEqual(namespace.select(labels, prompt), (0, accepted[offered_label]))
 
 
 class ReporterTests(unittest.TestCase):

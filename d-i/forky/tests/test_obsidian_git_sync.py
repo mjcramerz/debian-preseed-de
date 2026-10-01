@@ -6,6 +6,8 @@ import importlib.util
 import os
 from pathlib import Path
 import subprocess
+import shlex
+import runpy
 import tempfile
 import unittest
 from unittest import mock
@@ -81,6 +83,9 @@ class InstallerVaultTests(unittest.TestCase):
                 'OBSIDIAN_GIT_SYNC_INTERVAL="1h"',
             ):
                 self.assertIn(value, content, path.name)
+            expected = 'true' if '-p15s' in path.stem else 'false'
+            self.assertEqual(content.count('OBSIDIAN_GIT_AUTO_ENABLE='), 1, path.name)
+            self.assertIn('OBSIDIAN_GIT_AUTO_ENABLE="' + expected + '"', content, path.name)
         self.assertIn('managed_git_ssh_target_action clone-obsidian',
                       (SEED/'scripts/desktop/components/user-config.sh').read_text())
         self.assertIn('obsidian-git-sync.timer',
@@ -91,6 +96,9 @@ class InstallerVaultTests(unittest.TestCase):
 
 class VaultSyncTests(unittest.TestCase):
     def setUp(self):
+        enabled = mock.patch.object(SYNC, 'auto_enabled', return_value=True)
+        enabled.start()
+        self.addCleanup(enabled.stop)
         directory = tempfile.TemporaryDirectory(prefix='obsidian-sync-')
         self.addCleanup(directory.cleanup)
         self.home = Path(directory.name)
@@ -158,6 +166,27 @@ class VaultSyncTests(unittest.TestCase):
         self.assertEqual(self.call('--git-dir='+str(self.remote), 'show',
                                    'mcr/release:note.md', cwd=self.home), b'new note')
         self.assertEqual(self.sync(), 'all branches already up to date')
+
+    def test_disabled_publication_leaves_notes_index_refs_and_remote_untouched(self):
+        (self.work/'note.md').write_text('manual work\n')
+        self.call('add', 'note.md', cwd=self.work)
+        (self.work/'untracked.md').write_text('do not stage automatically\n')
+        head = self.call('rev-parse', 'HEAD', cwd=self.work)
+        index = (self.work/'.git/index').read_bytes()
+        remote = [self.head(name) for name in SYNC.BRANCHES]
+        with mock.patch.object(SYNC, 'auto_enabled', return_value=False), mock.patch.object(SYNC, 'git') as git:
+            self.assertIn('disabled', SYNC.sync(self.work))
+            git.assert_not_called()
+        self.assertEqual((self.work/'.git/index').read_bytes(), index)
+        self.assertEqual(self.call('rev-parse', 'HEAD', cwd=self.work), head)
+        self.assertEqual([self.head(name) for name in SYNC.BRANCHES], remote)
+        self.assertEqual((self.work/'untracked.md').read_text(), 'do not stage automatically\n')
+
+    def test_invalid_policy_does_not_reach_git(self):
+        with mock.patch.object(SYNC, 'auto_enabled', side_effect=SYNC.SyncError('invalid policy')), mock.patch.object(SYNC, 'git') as git:
+            with self.assertRaisesRegex(SYNC.SyncError, 'invalid policy'):
+                SYNC.sync(self.work)
+            git.assert_not_called()
 
     def test_recent_edit_waits_without_staging_or_pushing(self):
         SYNC.QUIET_SECONDS = 60
@@ -235,6 +264,173 @@ class VaultSyncTests(unittest.TestCase):
                 SYNC.sync(self.work)
         self.assertEqual(self.head('mcr/main'), expected)
         self.assertIn('pushed mcr/main', self.sync())
+
+
+@unittest.skipUnless(os.geteuid() == 0, 'root-owned policy fixtures require root')
+class AutoPolicyTests(unittest.TestCase):
+    def setUp(self):
+        # The policy parser also rejects writable ancestors such as /tmp.
+        temporary = tempfile.TemporaryDirectory(prefix='obsidian-policy-', dir='/root')
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.path = self.root/'auto.conf'
+        policy = mock.patch.object(SYNC, 'AUTO_POLICY', self.path)
+        policy.start()
+        self.addCleanup(policy.stop)
+
+    def test_exact_boolean_policy_and_missing_policy_fail_closed(self):
+        self.assertFalse(SYNC.auto_enabled())
+        for value in ('true', 'false'):
+            self.path.write_text('OBSIDIAN_GIT_AUTO_ENABLE=' + value + '\n')
+            self.path.chmod(0o644)
+            with mock.patch.dict(os.environ, {'OBSIDIAN_GIT_AUTO_ENABLE': 'true'}):
+                self.assertEqual(SYNC.auto_enabled(), value == 'true')
+
+    def test_invalid_or_executable_policy_is_never_evaluated(self):
+        marker = self.root/'executed'
+        for value in ('', 'OBSIDIAN_GIT_AUTO_ENABLE=yes\n',
+                      'OBSIDIAN_GIT_AUTO_ENABLE=true\nextra\n',
+                      'OBSIDIAN_GIT_AUTO_ENABLE=$(touch ' + str(marker) + ')\n',
+                      'x'*1024):
+            self.path.write_text(value)
+            with self.assertRaises(SYNC.SyncError):
+                SYNC.auto_enabled()
+        self.assertFalse(marker.exists())
+
+    def test_untrusted_file_types_links_and_writable_metadata_are_rejected(self):
+        original = self.root/'original'
+        original.write_text('OBSIDIAN_GIT_AUTO_ENABLE=true\n')
+        self.path.symlink_to(original)
+        with self.assertRaises(OSError):
+            SYNC.auto_enabled()
+        self.path.unlink()
+        os.link(original, self.path)
+        with self.assertRaises(SYNC.SyncError):
+            SYNC.auto_enabled()
+        self.path.unlink()
+        os.mkfifo(self.path, 0o600)
+        with self.assertRaises(SYNC.SyncError):
+            SYNC.auto_enabled()
+        self.path.unlink()
+        self.path.write_text(original.read_text())
+        self.path.chmod(0o666)
+        with self.assertRaises(SYNC.SyncError):
+            SYNC.auto_enabled()
+        self.path.chmod(0o644)
+        self.root.chmod(0o777)
+        with self.assertRaises(SYNC.SyncError):
+            SYNC.auto_enabled()
+
+    def test_disabled_wrapper_exits_before_ssh_or_git(self):
+        self.path.write_text('OBSIDIAN_GIT_AUTO_ENABLE=false\n')
+        wrapper = (SCRIPT.parent/'obsidian-git-sync').read_text().replace(
+            '/usr/local/libexec/obsidian-git-sync.py', str(SCRIPT))
+        # The real parser reads our root-owned fixture; only the CLI UID check
+        # is substituted in this root-only test. No agent/vault is available.
+        worker = self.root/'worker.py'
+        worker.write_text(SCRIPT.read_text().replace(
+            "AUTO_POLICY = Path('/etc/obsidian-git-sync.conf')", 'AUTO_POLICY = Path(' + repr(str(self.path)) + ')').replace(
+            'if os.getuid() == 0 or sys.argv[1:]', 'if False or sys.argv[1:]'))
+        wrapper = wrapper.replace(str(SCRIPT), str(worker))
+        result = subprocess.run(['/bin/sh', '-eu', '-c', wrapper], capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('disabled', result.stdout)
+        self.assertNotIn('unlock', result.stderr)
+
+
+class TimerPolicyTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix='obsidian-timer-')
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.target = self.root/'target'
+        self.links = []
+        for home in ('etc/skel-desktop', 'home/test'):
+            directory = self.target/home/'.config/systemd/user/labwc-session.target.wants'
+            directory.mkdir(parents=True)
+            self.links.append(directory/'obsidian-git-sync.timer')
+
+    def run_policy(self, enabled):
+        services = (SEED/'scripts/desktop/components/services.sh').read_text().replace('/target', str(self.target))
+        validator = (SEED/'scripts/desktop/components/user-config.sh').read_text()
+        stubs = '''
+installer_fatal() { printf '%s\\n' "$*" >&2; exit 7; }
+desktop_require_absolute_account_home() { [ "$ACCOUNT_HOME" = /home/test ]; }
+desktop_stage_user_unit_wanted_by() { printf 'stage %s %s\\n' "$1" "$2"; }
+desktop_log() { :; }
+'''
+        code = 'set -eu\n' + services + '\n' + validator + '\n' + stubs + '\nACCOUNT_USERNAME=test\nACCOUNT_HOME=/home/test\n'
+        if enabled is not None:
+            code += 'OBSIDIAN_GIT_AUTO_ENABLE=' + shlex.quote(enabled) + '\n'
+        return subprocess.run(['/bin/sh', '-c', code + 'desktop_configure_obsidian_git_timer'],
+                              text=True, capture_output=True, timeout=10,
+                              env={'PATH': '/usr/bin:/bin'})
+
+    def test_enabled_policy_stages_only_the_session_timer(self):
+        result = self.run_policy('true')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, 'stage obsidian-git-sync.timer labwc-session.target\n')
+
+    def test_disabled_policy_removes_only_managed_links_and_is_idempotent(self):
+        for link in self.links:
+            link.symlink_to('../obsidian-git-sync.timer')
+            (link.parent/'unrelated.timer').symlink_to('../unrelated.timer')
+        for _ in range(2):
+            result = self.run_policy('false')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotIn('stage', result.stdout)
+            for link in self.links:
+                self.assertFalse(link.exists() or link.is_symlink())
+                self.assertTrue((link.parent/'unrelated.timer').is_symlink())
+
+    def test_unmanaged_entry_fails_before_either_link_is_removed(self):
+        self.links[0].symlink_to('../obsidian-git-sync.timer')
+        self.links[1].write_text('administrator entry\n')
+        result = self.run_policy('false')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue(self.links[0].is_symlink())
+        self.assertEqual(self.links[1].read_text(), 'administrator entry\n')
+
+    def test_symlinked_ancestor_is_rejected_before_removing_any_link(self):
+        for link in self.links:
+            link.symlink_to('../obsidian-git-sync.timer')
+        config = self.target/'home/test/.config'
+        saved = self.root/'saved-config'
+        config.rename(saved)
+        config.symlink_to(saved, target_is_directory=True)
+        result = self.run_policy('false')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue(self.links[0].is_symlink())
+        self.assertTrue((saved/'systemd/user/labwc-session.target.wants/obsidian-git-sync.timer').is_symlink())
+
+    def test_missing_and_non_boolean_flags_are_rejected(self):
+        for value in (None, '', 'yes', 'TRUE', '1', 'false\n'):
+            with self.subTest(value=value):
+                result = self.run_policy(value)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn('stage', result.stdout)
+
+
+class PublicationPolicyTests(unittest.TestCase):
+    def test_publisher_rejects_missing_duplicate_or_unsafe_automation_flags(self):
+        build = runpy.run_path(str(SEED.parents[1]/'tools/build.py'))
+        validate = build['validate_obsidian_git_profiles']
+        with tempfile.TemporaryDirectory(prefix='obsidian-publication-') as directory:
+            seed = Path(directory)
+            profiles = seed/'hosts/profiles'
+            profiles.mkdir(parents=True)
+            profile = profiles/'example.env'
+            with mock.patch.dict(validate.__globals__, {'SEED': seed}):
+                for value in ('true', 'false'):
+                    profile.write_text('OBSIDIAN_GIT_AUTO_ENABLE="' + value + '"\n')
+                    validate()
+                for text in ('', 'OBSIDIAN_GIT_AUTO_ENABLE="yes"\n',
+                             'OBSIDIAN_GIT_AUTO_ENABLE=true\n',
+                             'OBSIDIAN_GIT_AUTO_ENABLE="false"\nOBSIDIAN_GIT_AUTO_ENABLE="true"\n',
+                             'OBSIDIAN_GIT_AUTO_ENABLE="$(id)"\n'):
+                    profile.write_text(text)
+                    with self.subTest(text=text), self.assertRaisesRegex(ValueError, 'OBSIDIAN_GIT_AUTO_ENABLE'):
+                        validate()
 
 
 if __name__ == '__main__':

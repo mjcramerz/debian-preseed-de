@@ -1,7 +1,15 @@
 #!/bin/sh
 # Sourced installer module; edit this file directly.
 
+desktop_validate_obsidian_git_auto_enable() {
+  case "${OBSIDIAN_GIT_AUTO_ENABLE-}" in
+    true|false) ;;
+    *) installer_fatal "OBSIDIAN_GIT_AUTO_ENABLE must be exactly true or false" ;;
+  esac
+}
+
 desktop_validate_obsidian_git_policy() {
+  desktop_validate_obsidian_git_auto_enable
   : "${OBSIDIAN_GIT_REPOSITORY_URL:?desktop profile must define the Obsidian Git SSH repository}"
   : "${OBSIDIAN_GIT_REPOSITORY_BRANCH:?desktop profile must define the Obsidian branch}"
   : "${OBSIDIAN_GIT_DIRECTORY:?desktop profile must define the Obsidian checkout}"

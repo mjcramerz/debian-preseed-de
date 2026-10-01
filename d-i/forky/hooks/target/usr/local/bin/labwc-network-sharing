@@ -24,8 +24,6 @@ ACTIONS = (
     'Reload NFS Exports', 'Restart NFS Server', 'Identity Mapping and RPC Diagnostics',
     'Show Configured Exports', 'Recent NFS Logs', 'Sharing Help',
 )
-FIXED_UNITS = {'nfs-server.service', 'nfs-mountd.service', 'nfs-idmapd.service',
-               'nfs-client.target', 'nftables.service', 'network-sharing-report.service', 'network-sharing-identity.service'}
 
 
 def clean(text: str, limit: int = 800) -> str:
@@ -61,10 +59,18 @@ def load_config() -> dict:
     for key in ('client_mount', 'client_automount', 'server_bind_mount',
                 'client_bind_mount', 'client_bind_automount'):
         value = config.get(key)
-        if not isinstance(value, str) or (value and (len(value) > 255 or not re.fullmatch(r'(?:[A-Za-z0-9_.-]|\\x[0-9a-f]{2})+\.(?:mount|automount)', value))):
+        suffix = 'automount' if key.endswith('_automount') else 'mount'
+        if not isinstance(value, str) or (value and (len(value) > 255 or not re.fullmatch(r'(?:[A-Za-z0-9_.-]|\\x[0-9a-f]{2})+\.' + suffix, value))):
             raise ValueError('invalid managed mount unit')
     if not config['client_mount'] or not config['client_automount']:
         raise ValueError('missing client mount unit')
+    for prefix in ('client', 'client_bind'):
+        mount, automount = config[prefix + '_mount'], config[prefix + '_automount']
+        if bool(mount) != bool(automount) or (mount and automount != mount.removesuffix('.mount') + '.automount'):
+            raise ValueError('inconsistent managed mount/automount pair')
+    if ((config['client_bind_mount'] and not config['client_enabled'])
+            or (config['server_bind_mount'] and not config['server_enabled'])):
+        raise ValueError('home bind configured for a disabled NFS role')
     return config
 
 
@@ -125,12 +131,20 @@ def command(argv: list[str], timeout: int = 100) -> subprocess.CompletedProcess:
 
 
 def systemctl(config: dict, verb: str, selected: list[str]) -> subprocess.CompletedProcess:
-    allowed = FIXED_UNITS | set(units(config))
-    if verb not in ('start', 'stop', 'restart', 'reload', 'show') or not selected or any(unit not in allowed for unit in selected):
+    # Firewall, identity and RPC dependencies are status-only here. Starting
+    # the configured server/mount lets PID 1 enforce their dependency graph.
+    client = {config[key] for key in ('client_automount', 'client_mount',
+              'client_bind_automount', 'client_bind_mount') if config[key]} if config['client_enabled'] else set()
+    server = {'nfs-server.service'} if config['server_enabled'] else set()
+    diagnostics = {'network-sharing-report.service'} if config['server_enabled'] or config['client_enabled'] else set()
+    allowed = {'show': set(units(config)) | diagnostics,
+               'start': client | server | diagnostics, 'stop': client | server,
+               'restart': server, 'reload': server}
+    if verb not in allowed or not selected or any(unit not in allowed[verb] for unit in selected):
         raise ValueError('unmanaged systemd operation rejected')
-    args = ['/usr/bin/systemctl', '--no-pager', '--no-legend', verb]
+    args = ['/usr/bin/systemctl', '--system', '--no-pager', '--no-legend', verb]
     if verb == 'show':
-        args += ['--property=Id,ActiveState,SubState,Result']
+        args += ['--property=Id,LoadState,ActiveState,SubState,Result']
     return command([*args, '--', *selected], 200 if verb != 'show' else 15)
 
 
@@ -157,6 +171,8 @@ def report(config: dict) -> dict | None:
     created = datetime.fromisoformat(data.get('created_utc', ''))
     if created.tzinfo is None or created < requested:
         raise RuntimeError('Diagnostics did not publish a fresh report; check the report service and retry.')
+    if any(type(data.get(key)) is not bool or data[key] != config[key] for key in ('server_enabled', 'client_enabled')):
+        raise RuntimeError('Diagnostics role settings differ from the installed configuration.')
     return data
 
 
@@ -173,6 +189,8 @@ def action(config: dict, label: str) -> None:
     if label == 'Sharing Status':
         settings = config['profile']
         result = systemctl(config, 'show', units(config))
+        if result.returncode:
+            raise RuntimeError('Cannot read sharing status: ' + clean(result.stdout, 1600))
         show('Sharing Status', [
             'Server enabled: ' + str(config['server_enabled']),
             'Client enabled: ' + str(config['client_enabled']),
@@ -186,12 +204,22 @@ def action(config: dict, label: str) -> None:
         if label.startswith('Disconnect'):
             if not confirm('Disconnect NFS? Close files and applications using the share first.'):
                 return
-            selected = [config[key] for key in ('client_bind_automount', 'client_bind_mount', 'client_automount', 'client_mount') if config[key]]
-            completed(systemctl(config, 'stop', selected))
+            # Stopping an automount tears down its autofs layer. Never do that
+            # over a busy/failed mount: unmount first and stop on any error.
+            selected = [config[key] for key in ('client_bind_mount', 'client_bind_automount', 'client_mount', 'client_automount') if config[key]]
+            verb = 'stop'
         else:
             selected = [config['client_automount'], config['client_mount']]
             selected += [config[key] for key in ('client_bind_automount', 'client_bind_mount') if config[key]]
-            completed(systemctl(config, 'start', selected))
+            verb = 'start'
+        # Wait for each job. A failed remote mount must never start a home
+        # bind, and a failed unmount must never detach its automount layer.
+        for unit in selected:
+            result = systemctl(config, verb, [unit])
+            if result.returncode:
+                completed(result)
+                return
+        completed(result)
     elif label in ('Start NFS Server', 'Stop NFS Server', 'Restart NFS Server', 'Reload NFS Exports'):
         if not need_role(config, 'server'):
             return
@@ -232,6 +260,8 @@ def action(config: dict, label: str) -> None:
             lines += [key + ':', *value.get('value', value.get('unavailable', '')).splitlines()]
         show('Identity Mapping and RPC Diagnostics', lines)
     elif label == 'Show Configured Exports':
+        if not need_role(config, 'server'):
+            return
         show('Configured Export Policy (not a live export listing)', [
             config['profile']['NFS_SERVER_PATH'],
             *[cidr + ' : ' + mode for cidr, mode in config['peers']],
@@ -242,6 +272,8 @@ def action(config: dict, label: str) -> None:
         for unit in [*units(config), 'network-sharing-report.service']:
             args += ['--unit', unit]
         result = command(args, 15)
+        if result.returncode:
+            raise RuntimeError('Cannot read NFS logs: ' + clean(result.stdout, 1600))
         show('Recent NFS Logs', result.stdout.splitlines() or ['No readable entries. Journal access follows the existing account group policy.'])
     elif label == 'Sharing Help':
         show('Network Sharing Help', [
@@ -254,6 +286,8 @@ def action(config: dict, label: str) -> None:
             'Client data: ' + config['profile']['NFS_CLIENT_PATH'],
             'A hard-mounted share may block application I/O during outages. Never use lazy/forced unmount to conceal that condition.',
             'Disconnect only after closing applications and files. The menu never probes file contents on a remote share.',
+            'A failed unmount stops the disconnect sequence; close the remaining users of the share and retry.',
+            'Connect/disconnect and server actions change the current state, not the installed boot policy.',
             'Role changes and a new remote server require an administrator-reviewed configuration change; see docs/network-sharing.md in the installer repository.'])
     else:
         raise ValueError('unknown network sharing action')
@@ -267,7 +301,13 @@ def main(argv: list[str]) -> int:
         raise ValueError('usage: labwc-network-sharing [--catalog|--status]')
     if os.geteuid() == 0:
         raise ValueError('Network Sharing must run as the desktop user, never root')
-    config = load_config()
+    try:
+        config = load_config()
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        if not argv:
+            show('Network Sharing Configuration Error', [str(error)])
+            return 2
+        raise
     if argv == ['--status']:
         result = systemctl(config, 'show', units(config))
         print(result.stdout, end='')
