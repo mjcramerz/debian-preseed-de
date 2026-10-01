@@ -69,6 +69,7 @@ profile network-sharing-report /usr/local/libexec/network-sharing-report flags=(
   #include <abstractions/wrapper-python>
   /usr/local/libexec/network-sharing-report r,
   /etc/network-sharing/config.json r,
+  owner @{PROC}/@{pid}/attr/{current,apparmor/current} r,
   @{PROC}/fs/nfsd/{versions,threads} r,
   @{PROC}/fs/nfsd/clients/ r,
   @{PROC}/fs/nfsd/clients/[0-9]*/ r,
@@ -81,4 +82,56 @@ profile network-sharing-report /usr/local/libexec/network-sharing-report flags=(
   /run/network-sharing/report.json rw,
   deny network,
   include if exists <local/network-sharing-report>
+}
+
+# Finite read-only startup check. This cannot change identities, mappings,
+# keyrings or kernel parameters and never opens an exported/mounted path.
+profile network-sharing-identity /usr/local/libexec/network-sharing-identity flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/nameservice-strict>
+  /usr/local/libexec/network-sharing-identity r,
+  owner @{PROC}/@{pid}/attr/{current,apparmor/current} r,
+  deny network inet,
+  deny network inet6,
+  deny network netlink,
+  / r,
+  /etc/ r,
+  /etc/network-sharing/ r,
+  /etc/network-sharing/config.json r,
+  /etc/idmapd.conf r,
+  /etc/idmapd.conf.d/{,*.conf} r,
+  /etc/request-key.conf r,
+  /etc/request-key.d/{,*.conf} r,
+  @{sys}/module/{nfs,nfsd}/parameters/nfs4_disable_idmapping r,
+  /usr/sbin/nfsidmap rCx -> nfsidmap,
+  /usr/sbin/nfsconf rCx -> nfsconf,
+  signal (send) set=(term, kill) peer=network-sharing-identity//{nfsidmap,nfsconf},
+  signal (receive) set=(chld) peer=network-sharing-identity//{nfsidmap,nfsconf},
+  signal (receive) set=(term, kill) peer=unconfined,
+
+  profile nfsidmap {
+    #include <abstractions/base>
+    #include <abstractions/nameservice-strict>
+    deny network inet,
+    deny network inet6,
+    deny network netlink,
+    /usr/sbin/nfsidmap mr,
+    /etc/idmapd.conf r,
+    /etc/idmapd.conf.d/{,*.conf} r,
+    /usr/etc/idmapd.conf r,
+    /usr/etc/idmapd.conf.d/{,*.conf} r,
+    signal (receive) set=(term, kill) peer=network-sharing-identity,
+    signal (send) set=(chld) peer=network-sharing-identity,
+  }
+  profile nfsconf {
+    #include <abstractions/base>
+    /usr/sbin/nfsconf mr,
+    /etc/nfs.conf r,
+    /etc/nfs.conf.d/{,*.conf} r,
+    /usr/etc/nfs.conf r,
+    /usr/etc/nfs.conf.d/{,*.conf} r,
+    signal (receive) set=(term, kill) peer=network-sharing-identity,
+    signal (send) set=(chld) peer=network-sharing-identity,
+  }
+  include if exists <local/network-sharing-identity>
 }

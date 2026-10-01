@@ -25,7 +25,9 @@ configure_target_network_sharing() (
     etc/systemd/system/nfs-server.service.d/60-network-sharing.conf.tmpl \
     etc/systemd/system/nfs-mountd.service.d/60-network-sharing.conf \
     etc/systemd/system/nfs-idmapd.service.d/60-network-sharing.conf \
+    etc/systemd/system/network-sharing-identity.service \
     etc/systemd/system/network-sharing-report.service.tmpl \
+    usr/local/libexec/network-sharing-identity \
     usr/local/libexec/network-sharing-report
   do
     stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET "$nfs_asset")" \
@@ -34,6 +36,7 @@ configure_target_network_sharing() (
   run_in_target "validate and configure profile-controlled NFS sharing" \
     /usr/bin/env \
     "ACCOUNT_USERNAME=${ACCOUNT_USERNAME:?}" "ACCOUNT_HOME=${ACCOUNT_HOME:?}" \
+    "SYSTEM_DOMAIN=${SYSTEM_DOMAIN:?}" \
     "NFT_PROFILE=${NFT_PROFILE:-default}" \
     "NETWORK_SHARING_ROOT_PATH=${NETWORK_SHARING_ROOT_PATH:?}" \
     "NFS_SERVER_ENABLE=${NFS_SERVER_ENABLE:?}" \
@@ -47,14 +50,13 @@ configure_target_network_sharing() (
     "NFS_CLIENT_PATH=${NFS_CLIENT_PATH:?}" \
     "NFS_CLIENT_BIND_ENABLE=${NFS_CLIENT_BIND_ENABLE:?}" \
     "NFS_CLIENT_HOME_BIND_PATH=${NFS_CLIENT_HOME_BIND_PATH:?}" \
-    "NFS_CLIENT_BIND_PATH=${NFS_CLIENT_BIND_PATH:?}" \
     "NFS_CLIENT_TARGET_IP=${NFS_CLIENT_TARGET_IP:?}" \
     "NFS_CLIENT_EXPORT_PATH=${NFS_CLIENT_EXPORT_PATH:?}" \
     "NFS_CLIENT_VERSION=${NFS_CLIENT_VERSION:?}" \
     "NFS_CLIENT_READ_ONLY=${NFS_CLIENT_READ_ONLY:?}" \
     "NFS_CLIENT_MOUNT_TIMEOUT=${NFS_CLIENT_MOUNT_TIMEOUT:?}" \
     "NFS_CLIENT_DEPS=${NFS_CLIENT_DEPS:?}" \
-    "NFS_IDMAP_DOMAIN=${NFS_IDMAP_DOMAIN:?}" \
+    "NFS_ACCOUNT_UID=${NFS_ACCOUNT_UID:?}" "NFS_ACCOUNT_GID=${NFS_ACCOUNT_GID:?}" \
     "NFS_SHARED_GROUP=${NFS_SHARED_GROUP:?}" "NFS_SHARED_GID=${NFS_SHARED_GID:?}" \
     "NFS_INTERFACES=${NFS_INTERFACES:?}" \
     "NFS_TCP_RMEM=${NFS_TCP_RMEM:?}" "NFS_TCP_WMEM=${NFS_TCP_WMEM:?}" \

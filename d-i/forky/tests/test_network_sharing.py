@@ -9,11 +9,13 @@ import importlib.machinery
 import importlib.util
 import ipaddress
 import itertools
+import io
 import json
 import os
 from pathlib import Path
 import pwd
 import grp
+import re
 import shutil
 import stat
 import subprocess
@@ -39,6 +41,7 @@ def module(name, path):
 NFS = module('network_sharing_installer_test', SEED / 'scripts/late/network-sharing.py')
 MENU = module('network_sharing_menu_test', TARGET / 'usr/local/bin/labwc-network-sharing')
 REPORT = module('network_sharing_report_test', TARGET / 'usr/local/libexec/network-sharing-report')
+IDENTITY = module('network_sharing_identity_test', TARGET / 'usr/local/libexec/network-sharing-identity')
 NFT = module('network_sharing_nft_test', TARGET / 'usr/local/sbin/nft-policy-generate.py')
 
 
@@ -48,6 +51,7 @@ def profile(path=None, **overrides):
                              'profile-test', str(path), str(SEED / 'hosts/installer/account.env')],
                             check=True, capture_output=True)
     values = dict(field.decode().split('=', 1) for field in result.stdout.split(b'\0') if b'=' in field)
+    values['SYSTEM_DOMAIN'] = 'validation.invalid'
     values.update(overrides)
     return values
 
@@ -73,6 +77,30 @@ class SettingsTests(unittest.TestCase):
             actual = {str(ip): mode for cidr, mode in peers for ip in ipaddress.ip_network(cidr)}
             self.assertEqual(actual, expected, path.name)
             self.assertEqual(sum(ipaddress.ip_network(cidr).num_addresses for cidr, _ in peers), 41)
+
+    def test_domain_is_derived_from_runtime_identity_and_bind_path_is_canonical(self):
+        for path in PROFILES.glob('*.env'):
+            values = profile(path, SYSTEM_DOMAIN='Lab.Example')
+            settings = NFS.Settings.from_environment(values)
+            rendered = NFS.render(TARGET/'etc/idmapd.conf.tmpl', settings)
+            self.assertIn('Domain = sharing.lab.example\n', rendered)
+            self.assertIn('No-Strip = none\n', rendered)
+            self.assertEqual(settings['NFS_ACCOUNT_UID'], '1000')
+            self.assertEqual(settings['NFS_ACCOUNT_GID'], '1000')
+            for obsolete in ('NFS_IDMAP_DOMAIN', 'NFS_CLIENT_BIND_PATH'):
+                self.assertNotIn(obsolete, settings.values)
+                self.assertNotIn(obsolete+'=', path.read_text())
+
+    def test_domain_length_includes_the_sharing_prefix_and_has_no_runtime_fallback(self):
+        # 4 labels plus 3 separators: 245 bytes, 253 with sharing. prefixed.
+        maximum = '.'.join(['a'*63]*3+['b'*53])
+        NFS.Settings.from_environment(profile(SYSTEM_DOMAIN=maximum))
+        with self.assertRaises(ValueError):
+            NFS.Settings.from_environment(profile(SYSTEM_DOMAIN=maximum+'c'))
+        values = profile()
+        del values['SYSTEM_DOMAIN']
+        with self.assertRaisesRegex(ValueError, 'SYSTEM_DOMAIN'):
+            NFS.Settings.from_environment(values)
 
     def test_all_valid_role_and_bind_combinations(self):
         for server, client in itertools.product(range(3), repeat=2):
@@ -108,9 +136,10 @@ class SettingsTests(unittest.TestCase):
             'NFS_SERVER_ENABLE': ['yes', '1', 'TRUE', 'true\n'],
             'NFS_INTERFACES': ['*', 'eth+', 'lo', '', 'eth0\"'],
             'NFS_CLIENT_VERSION': ['3', '4', '4.0', '4.2,soft'],
-            'NFS_IDMAP_DOMAIN': ['-bad.example', 'a..b', 'a\nb', 'A.local'],
+            'SYSTEM_DOMAIN': ['', '-bad.example', 'a..b', 'a\nb', 'label-' + '.example', 'a.' + 'b' * 64],
+            'NFS_ACCOUNT_UID': ['0', '65534', '-1'],
+            'NFS_ACCOUNT_GID': ['0', '65534', '2050'],
             'NFS_CLIENT_DEPS': ['nfs-common', '--option', 'nfs-common $(touch /tmp/attack)'],
-            'NFS_CLIENT_BIND_PATH': ['Different/path'],
             'NFS_TCP_RMEM': ['8192 4096 32768', '4096 131072 67108864', '1 2', '-1 8192 16384'],
         }
         for key, values in invalid.items():
@@ -128,6 +157,7 @@ class SettingsTests(unittest.TestCase):
     def test_exports_never_widen_implicitly(self):
         baseline = profile()['NFS_SERVER_EXPORTS']
         for line in (baseline.replace('root_squash', 'no_root_squash'), baseline.replace('sync,', 'async,'),
+                     baseline.replace('subtree_check', 'no_subtree_check'),
                      baseline.replace('secure,', 'insecure,'), baseline.replace('sec=sys', 'sec=none'),
                      baseline.replace('192.168.50.82/31', '*'), baseline.replace('192.168.50.82/31', '192.168.50.83/31'),
                      baseline + ' ' + baseline.split()[1], baseline + '\n',
@@ -143,8 +173,7 @@ class SettingsTests(unittest.TestCase):
 
     def test_escaped_unit_name_length_is_validated_before_publication(self):
         with self.assertRaisesRegex(ValueError, 'unit-name limit'):
-            NFS.Settings.from_environment(profile(NFS_CLIENT_HOME_BIND_PATH='Sharing/' + '-' * 64,
-                                                  NFS_CLIENT_BIND_PATH='Sharing/' + '-' * 64))
+            NFS.Settings.from_environment(profile(NFS_CLIENT_HOME_BIND_PATH='Sharing/' + '-' * 64))
 
     def test_template_rendering_has_no_unresolved_tokens(self):
         settings = NFS.Settings.from_environment(profile(NFS_SERVER_ENABLE='true', NFS_CLIENT_ENABLE='true'))
@@ -312,7 +341,10 @@ class FollowUpPolicyTests(unittest.TestCase):
             def evaluate():
                 return subprocess.run(['systemd-analyze', 'condition', *['AssertPathExists='+str(p) for p in files]],
                                       text=True, capture_output=True, timeout=15)
-            self.assertNotEqual(evaluate().returncode, 0)
+            probe = evaluate()
+            if 'Failed to initialize unit search paths' in probe.stderr:
+                self.skipTest('native systemd condition checker cannot initialize in this environment')
+            self.assertNotEqual(probe.returncode, 0)
             for path in files:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.touch()
@@ -371,6 +403,11 @@ class FirewallTests(unittest.TestCase):
                     outbound = [line for line in text.splitlines() if 'service nfs_client outbound' in line]
                     self.assertEqual(bool(inbound), server == 'true')
                     self.assertEqual(bool(outbound), client == 'true')
+                    guards = [line for line in text.splitlines() if 'allowlist guard' in line]
+                    self.assertEqual(len(guards), (server == 'true') + (client == 'true'))
+                    for guard in guards:
+                        self.assertLess(text.index(guard), text.index('ct state established,related'))
+                        self.assertLess(text.index(guard), text.index('base loopback'))
                     for line in inbound:
                         self.assertIn('iifname', line)
                         self.assertIn('tcp dport 2049', line)
@@ -384,6 +421,82 @@ class FirewallTests(unittest.TestCase):
                         self.assertIn('ip daddr 192.168.50.212/32', line)
                         self.assertIn('oifname', line)
 
+    @staticmethod
+    def guard_verdict(text, chain, peer, interface):
+        # Evaluate the rendered NFS regular-chain matches independently of the
+        # generator. This is an offline policy check, not kernel enforcement.
+        address = ipaddress.ip_address(peer)
+        prefix = 'add rule inet labwc_filter ' + chain + ' '
+        for line in text.splitlines():
+            if not line.startswith(prefix):
+                continue
+            rule = line[len(prefix):].split(' comment ', 1)[0]
+            if rule == 'counter drop':
+                return 'drop'
+            match = re.fullmatch(r'(?:iifname|oifname) (.+) (ip6|ip) (?:saddr|daddr) (.+) counter return', rule)
+            if not match:
+                raise AssertionError('unexpected NFS guard rule: ' + rule)
+            interfaces = re.findall(r'"([^"]+)"', match[1])
+            networks = [ipaddress.ip_network(value.strip()) for value in match[3].strip('{} ').split(',')]
+            if interface in interfaces and address.version == (6 if match[2] == 'ip6' else 4) and any(address in network for network in networks):
+                return 'return'
+        raise AssertionError('NFS allowlist has no terminal drop')
+
+    def test_server_guard_preserves_exact_peers_and_blocks_wrong_interface_and_ipv6(self):
+        text = self.render(PROFILES/'btrfs-de.env', 'true', 'false')
+        interfaces = profile()['NFS_INTERFACES'].split()
+        allowed = set(range(82, 101)) | set(range(112, 123)) | set(range(212, 223))
+        for suffix in range(1, 255):
+            peer = '192.168.50.' + str(suffix)
+            for interface in interfaces:
+                self.assertEqual(self.guard_verdict(text, 'allow_nfs_server_inbound', peer, interface),
+                                 'return' if suffix in allowed else 'drop')
+        for peer, interface in (('192.168.50.82', 'lo'), ('192.168.50.212', 'wg0'),
+                                ('192.168.50.112', 'untrusted0'), ('fd00::82', interfaces[0])):
+            self.assertEqual(self.guard_verdict(text, 'allow_nfs_server_inbound', peer, interface), 'drop')
+        self.assertNotIn('ct state', '\n'.join(line for line in text.splitlines() if 'allow_nfs_server_inbound ' in line))
+
+    def test_client_guard_is_effective_despite_general_output_accept(self):
+        text = self.render(PROFILES/'btrfs-de.env', 'false', 'true')
+        interface = profile()['NFS_INTERFACES'].split()[0]
+        self.assertEqual(self.guard_verdict(text, 'allow_nfs_client_outbound', '192.168.50.212', interface), 'return')
+        for peer, iface in (('192.168.50.211', interface), ('192.168.50.213', interface),
+                            ('10.0.0.1', interface), ('fd00::212', interface),
+                            ('192.168.50.212', 'lo'), ('192.168.50.212', 'wg0')):
+            self.assertEqual(self.guard_verdict(text, 'allow_nfs_client_outbound', peer, iface), 'drop')
+        self.assertIn('tcp dport 2049 jump allow_nfs_client_outbound', text)
+        self.assertNotIn('udp dport 2049', text)
+
+    def test_allowlist_guards_are_opt_in_and_leave_other_filtering_intact(self):
+        service = {'enabled': True, 'direction': 'outbound', 'protocols': ['tcp'], 'ports': [2049],
+                   'allow_to': {'ipv4': ['192.168.50.212/32'], 'interfaces': ['eth0']}}
+        policy = {'services': {'nfs_client': service}, 'interfaces': {'wan': ['eth0']}}
+        maps = NFT.build_define_maps(policy, NFT.RenderContext())
+        base = NFT.render_filter(policy, maps, NFT.RenderContext(), False)
+        self.assertNotIn('allowlist', base)
+        service['enforce_allowlist'] = True
+        hardened = NFT.render_filter(policy, maps, NFT.RenderContext(), False)
+        remaining = '\n'.join(line for line in hardened.split('\n') if 'allow_nfs_client_outbound' not in line)
+        self.assertEqual(remaining, base)
+        chain = [line for line in hardened.splitlines() if line.startswith('add rule inet labwc_filter allow_nfs_client_outbound ')]
+        self.assertTrue(chain)
+        self.assertFalse(any('accept' in line for line in chain))
+
+    def test_malformed_enforced_allowlists_fail_closed(self):
+        baseline = {'enabled': True, 'enforce_allowlist': True, 'direction': 'outbound',
+                    'protocols': ['tcp'], 'ports': [2049],
+                    'allow_to': {'ipv4': ['192.168.50.212/32'], 'interfaces': ['eth0']}}
+        for changes in ({'allow_to': {}}, {'allow_to': {'ipv4': ['192.168.50.212/32']}},
+                        {'allow_to': {'ipv4_groups': ['missing'], 'interfaces': ['eth0']}},
+                        {'ports': []}, {'source_ports': [2049]}, {'direction': 'bidirectional'},
+                        {'enforce_allowlist': 'invalid'}):
+            with self.subTest(changes=changes), self.assertRaises(NFT.PolicyError):
+                NFT.render_filter({'services': {'nfs_client': {**baseline, **changes}}}, {}, NFT.RenderContext(), False)
+        policy = {'services': {'nfs_client': baseline},
+                  'nftables': {'chain_names': {'output': 'allow_nfs_client_outbound'}}}
+        with self.assertRaises(NFT.PolicyError):
+            NFT.render_filter(policy, {}, NFT.RenderContext(), False)
+
     @unittest.skipUnless(shutil.which('busybox'), 'BusyBox unavailable')
     def test_busybox_map_matches_dash(self):
         path = PROFILES/'btrfs-de.env'
@@ -395,7 +508,8 @@ class PublicationAndGeneratorTests(unittest.TestCase):
         checker = module('network_sharing_build_test', SEED.parents[1]/'tools/check_network_sharing.py')
         self.assertEqual(checker.check(SEED), 10)
         for path in PROFILES.glob('*.env'):
-            values = checker.read_values(path, checker.read_values(SEED/'hosts/installer/account.env'))
+            values = checker.read_values(path, checker.read_values(SEED/'hosts/installer/account.env',
+                                                                          {'SYSTEM_DOMAIN': 'validation.invalid'}))
             expected = NFS.Settings.from_environment(profile(path)).values
             actual = NFS.Settings.from_environment(values).values
             self.assertEqual(actual, expected)
@@ -429,8 +543,8 @@ class PublicationAndGeneratorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             generated = root/'normal'
             mount = (generated/NFS.unit_name(settings['NFS_CLIENT_PATH'])).read_text()
-            self.assertIn('Requires=nfs-client.target nftables.service', mount)
-            self.assertIn('After=nfs-client.target nftables.service', mount)
+            self.assertIn('Requires=nfs-client.target nftables.service network-sharing-identity.service', mount)
+            self.assertIn('After=nfs-client.target nftables.service network-sharing-identity.service', mount)
             self.assertIn('TimeoutSec=30s', mount)
             for role in ('SERVER', 'CLIENT'):
                 home = settings['ACCOUNT_HOME']+'/'+settings[f'NFS_{role}_HOME_BIND_PATH']
@@ -472,9 +586,11 @@ class TargetFilesystemTests(unittest.TestCase):
         self.stack = []
         for patch in (mock.patch.object(NFS, 'Path', side_effect=mapped),
                       mock.patch.object(NFS, 'run'), mock.patch.object(NFS.pwd, 'getpwnam', return_value=self.account),
-                      mock.patch.object(NFS.grp, 'getgrnam', return_value=self.group)):
+                      mock.patch.object(NFS.pwd, 'getpwuid', return_value=self.account),
+                      mock.patch.object(NFS.grp, 'getgrnam', return_value=self.group),
+                      mock.patch.object(NFS.grp, 'getgrgid', return_value=self.group)):
             self.stack.append(patch)
-        self.path_mock, self.run, _, _ = [patch.start() for patch in self.stack]
+        self.path_mock, self.run, _, _, _, _ = [patch.start() for patch in self.stack]
 
     def tearDown(self):
         for patch in reversed(self.stack):
@@ -635,8 +751,7 @@ class TargetFilesystemTests(unittest.TestCase):
         self.configure(NFS_SERVER_ENABLE='true', NFS_CLIENT_ENABLE='true',
                        NFS_SERVER_BIND_ENABLE='true', NFS_CLIENT_BIND_ENABLE='true',
                        NFS_SERVER_HOME_BIND_PATH='ServerShare/nested/server',
-                       NFS_CLIENT_HOME_BIND_PATH='ClientShare/nested/client',
-                       NFS_CLIENT_BIND_PATH='ClientShare/nested/client')
+                       NFS_CLIENT_HOME_BIND_PATH='ClientShare/nested/client')
         calls = [call.args[0] for call in self.run.call_args_list if call.args[0][0] == '/usr/bin/chattr']
         self.assertEqual(calls, [['/usr/bin/chattr', '+i', '--', str(self.root/'home/mcramer'/name)]
                                  for name in ('ClientShare', 'ServerShare')])
@@ -803,6 +918,216 @@ class ReporterTests(unittest.TestCase):
                 REPORT.read_bounded(link)
 
 
+class IdentityPrerequisiteTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(dir=SEED.parents[1])
+        self.root = Path(self.tmp.name)
+        self.settings = NFS.Settings.from_environment(profile(NFS_SERVER_ENABLE='true', NFS_CLIENT_ENABLE='true'))
+        self.config = {'version': 1, 'profile': self.settings.values,
+                       'server_enabled': True, 'client_enabled': True}
+        self.account = pwd.struct_passwd(('mcramer', 'x', 1000, 1000, '', '/home/mcramer', '/bin/bash'))
+        nobody = pwd.struct_passwd(('nobody', 'x', 65534, 65534, '', '/nonexistent', '/usr/sbin/nologin'))
+        sharing = grp.struct_group(('nfs-sharing', 'x', 2050, ['mcramer']))
+        nogroup = grp.struct_group(('nogroup', 'x', 65534, []))
+        self.mapping = NFS.render(TARGET/'etc/idmapd.conf.tmpl', self.settings)
+        self.daemon = NFS.render(TARGET/'etc/nfs.conf.d/60-network-sharing.conf.tmpl', self.settings)
+        self.texts = {'idmapd.conf': self.mapping,
+                      'id_resolver.conf': '# managed\ncreate id_resolver * * /usr/sbin/nfsidmap -t 600 %k %d\n'}
+        self.query_impl = IDENTITY.query
+        for name in ('nfs', 'nfsd'):
+            path = self.root/'sys/module'/name/'parameters/nfs4_disable_idmapping'
+            path.parent.mkdir(parents=True)
+            path.write_text('N\n')
+        (self.root/'etc/request-key.d').mkdir(parents=True)
+        def mapped(value):
+            path = Path(value)
+            return self.root/str(path).lstrip('/') if path.is_absolute() else path
+        def query(argv):
+            if argv == ['/usr/sbin/nfsidmap', '-d']:
+                return 'sharing.validation.invalid\n'
+            if argv == ['/usr/sbin/nfsconf', '--dump']:
+                return self.daemon
+            raise AssertionError('unmanaged command')
+        self.patches = [
+            mock.patch.object(IDENTITY, 'Path', side_effect=mapped),
+            mock.patch.object(IDENTITY, 'read_local', side_effect=lambda p: self.texts[p.name]),
+            mock.patch.object(IDENTITY, 'query', side_effect=query),
+            mock.patch.object(IDENTITY.pwd, 'getpwnam', side_effect=lambda name: self.account if name == 'mcramer' else nobody),
+            mock.patch.object(IDENTITY.pwd, 'getpwuid', side_effect=lambda uid: self.account),
+            mock.patch.object(IDENTITY.grp, 'getgrnam', side_effect=lambda name: sharing if name == 'nfs-sharing' else nogroup),
+            mock.patch.object(IDENTITY.grp, 'getgrgid', return_value=sharing),
+            mock.patch.object(IDENTITY.os, 'getgrouplist', side_effect=lambda name, gid: [1000, 2050] if name == 'mcramer' else [65534]),
+        ]
+        for patch in self.patches:
+            patch.start()
+
+    def tearDown(self):
+        for patch in reversed(self.patches):
+            patch.stop()
+        self.tmp.cleanup()
+
+    def test_valid_identity_all_active_role_combinations(self):
+        for server, client in ((True, False), (False, True), (True, True)):
+            with self.subTest(server=server, client=client):
+                IDENTITY.check({**self.config, 'server_enabled': server, 'client_enabled': client})
+
+    def test_valid_quoted_nfsconf_dump(self):
+        self.daemon = '\n'.join(line.split('=', 1)[0]+'= "'+line.split('=', 1)[1].strip()+'"' if '=' in line else line
+                                for line in self.daemon.splitlines())
+        IDENTITY.check(self.config)
+
+    def test_account_uid_gid_home_drift_denied(self):
+        for uid, gid, home in ((1001, 1000, '/home/mcramer'), (1000, 1001, '/home/mcramer'), (1000, 1000, '/home/elsewhere')):
+            self.account = pwd.struct_passwd(('mcramer', 'x', uid, gid, '', home, '/bin/bash'))
+            with self.subTest(uid=uid, gid=gid, home=home), self.assertRaisesRegex(ValueError, 'UID/GID/home'):
+                IDENTITY.check(self.config)
+
+    def test_shared_membership_and_gid_drift_denied(self):
+        for field, value in (('gr_gid', 2051), ('gr_name', 'other')):
+            group = grp.struct_group((value if field == 'gr_name' else 'nfs-sharing', 'x',
+                                      value if field == 'gr_gid' else 2050, ['mcramer']))
+            with mock.patch.object(IDENTITY.grp, 'getgrgid', return_value=group), self.assertRaisesRegex(ValueError, 'shared group'):
+                IDENTITY.check(self.config)
+        with mock.patch.object(IDENTITY.os, 'getgrouplist', return_value=[1000]), self.assertRaisesRegex(ValueError, 'shared group'):
+            IDENTITY.check(self.config)
+
+    def test_anonymous_membership_never_gains_access(self):
+        with mock.patch.object(IDENTITY.os, 'getgrouplist', return_value=[1000, 2050]), self.assertRaisesRegex(ValueError, 'anonymous'):
+            IDENTITY.check(self.config)
+
+    def test_unknown_name_fallback_and_domain_policy_cannot_be_overridden(self):
+        for old, new in (('No-Strip = none', 'No-Strip = both'), ('Nobody-User = nobody', 'Nobody-User = mcramer'),
+                         ('Nobody-Group = nogroup', 'Nobody-Group = nfs-sharing'), ('Method = nsswitch', 'Method = static'),
+                         ('sharing.validation.invalid', 'sharing.foreign.invalid')):
+            self.texts['idmapd.conf'] = self.mapping.replace(old, new)
+            with self.subTest(change=new), self.assertRaisesRegex(ValueError, 'name-mapping policy'):
+                IDENTITY.check(self.config)
+
+    def test_later_idmap_dropins_are_refused(self):
+        directory = self.root/'etc/idmapd.conf.d'
+        directory.mkdir()
+        (directory/'99-domain.conf').touch()
+        self.texts['99-domain.conf'] = '[General]\nDomain = foreign.invalid\n'
+        metadata = directory.lstat()
+        fields = list(metadata)
+        fields[4] = 0  # Model a trusted configuration directory for rootless tests.
+        with mock.patch.object(Path, 'lstat', return_value=os.stat_result(fields)), self.assertRaisesRegex(ValueError, 'override settings'):
+            IDENTITY.check(self.config)
+
+    def test_effective_mapping_domain_is_checked(self):
+        with mock.patch.object(IDENTITY, 'query', return_value='foreign.invalid\n'), self.assertRaisesRegex(ValueError, 'effective NFS identity domain'):
+            IDENTITY.check(self.config)
+
+    def test_missing_or_numeric_only_kernel_mapping_is_refused(self):
+        for name in ('nfs', 'nfsd'):
+            path = self.root/'sys/module'/name/'parameters/nfs4_disable_idmapping'
+            path.write_text('Y\n')
+            with self.subTest(role=name), self.assertRaisesRegex(ValueError, 'name mapping is not enabled'):
+                IDENTITY.check(self.config)
+            path.unlink()
+            with self.assertRaises(FileNotFoundError):
+                IDENTITY.check(self.config)
+            path.write_text('0\n')
+        IDENTITY.check(self.config)
+
+    def test_client_resolver_changes_and_more_specific_handlers_denied(self):
+        self.texts['id_resolver.conf'] += 'create id_resolver uid:* * /bin/false\n'
+        with self.assertRaisesRegex(ValueError, 'upcall policy'):
+            IDENTITY.check(self.config)
+        self.texts['id_resolver.conf'] = 'create id_resolver * * /usr/sbin/nfsidmap -t 600 %k %d\n'
+        for name in ('request-key.conf', 'earlier.conf'):
+            path = self.root/'etc'/name if name == 'request-key.conf' else self.root/'etc/request-key.d'/name
+            path.touch()
+            self.texts[name] = 'create id_resolver uid:* * /bin/false\n'
+            with self.subTest(file=name), self.assertRaisesRegex(ValueError, 'conflicting NFS request-key'):
+                IDENTITY.check(self.config)
+            self.texts[name] = 'create dns_resolver * * /bin/false\nnegate * * * /bin/false\n'
+            IDENTITY.check(self.config)
+
+    def test_effective_server_protocol_and_group_overrides_denied(self):
+        baseline = self.daemon
+        for old, new in (('vers3 = n', 'vers3 = y'), ('udp = n', 'udp = y'),
+                         ('manage-gids = y', 'manage-gids = n'), ('vers4.0 = n', 'vers4.0 = y')):
+            self.daemon = baseline.replace(old, new)
+            with self.subTest(change=new), self.assertRaisesRegex(ValueError, 'daemon policy'):
+                IDENTITY.check(self.config)
+
+    def test_disabled_and_malformed_config_does_not_run_queries(self):
+        for config in ({}, {**self.config, 'server_enabled': False, 'client_enabled': False},
+                       {**self.config, 'client_enabled': 'true'}):
+            with mock.patch.object(IDENTITY, 'query') as query, self.assertRaises(ValueError):
+                IDENTITY.check(config)
+            query.assert_not_called()
+
+    def test_query_is_bounded_read_only_and_drops_environment_injections(self):
+        with mock.patch.object(IDENTITY.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, 'domain\n')) as query:
+            self.assertEqual(self.query_impl(['/usr/sbin/nfsidmap', '-d']), 'domain\n')
+        call = query.call_args
+        self.assertEqual(call.args[0], ['/usr/sbin/nfsidmap', '-d'])
+        self.assertEqual(call.kwargs['timeout'], 10)
+        self.assertEqual(call.kwargs['stdin'], subprocess.DEVNULL)
+        self.assertTrue(call.kwargs['check'])
+        self.assertEqual(call.kwargs['env'], IDENTITY.TOOL_ENV)
+
+
+class HelperConfinementTests(unittest.TestCase):
+    def invoke(self, helper, labels):
+        opened = []
+        def path(value):
+            value = str(value)
+            opened.append(value)
+            result = mock.Mock()
+            label = labels.get(value)
+            if label is None:
+                result.open.side_effect = FileNotFoundError(value)
+            elif isinstance(label, Exception):
+                result.open.side_effect = label
+            else:
+                result.open.side_effect = lambda **kw: io.StringIO(label)
+            return result
+        reader = 'read_local' if helper is IDENTITY else 'read_bounded'
+        processor = 'check' if helper is IDENTITY else 'collect'
+        config = {'version': 1, 'server_enabled': True, 'client_enabled': False}
+        with mock.patch.object(helper, 'Path', side_effect=path), \
+             mock.patch.object(helper.os, 'getuid', return_value=0), \
+             mock.patch.object(helper.os, 'geteuid', return_value=0), \
+             mock.patch.object(helper, reader, return_value=json.dumps(config)) as read, \
+             mock.patch.object(helper, processor), \
+             mock.patch.object(REPORT, 'publish'):
+            try:
+                self.assertEqual(helper.main([]), 0)
+            except (ValueError, OSError):
+                read.assert_not_called()
+                raise
+            read.assert_called_once()
+        return opened
+
+    def test_both_root_helpers_require_their_own_enforcing_label(self):
+        for helper, name in ((IDENTITY, 'network-sharing-identity'), (REPORT, 'network-sharing-report')):
+            for label in ('unconfined', name + ' (complain)', 'other (enforce)', '', name + ' (enforce) ' + 'x' * 256):
+                with self.subTest(helper=name, label=label), self.assertRaises(ValueError):
+                    self.invoke(helper, {'/proc/self/attr/apparmor/current': label})
+            self.invoke(helper, {'/proc/self/attr/apparmor/current': name + ' (enforce)\n'})
+
+    def test_missing_lsm_specific_path_uses_the_legacy_kernel_interface(self):
+        for helper, name in ((IDENTITY, 'network-sharing-identity'), (REPORT, 'network-sharing-report')):
+            opened = self.invoke(helper, {'/proc/self/attr/current': name + ' (enforce)'})
+            self.assertEqual(opened, ['/proc/self/attr/apparmor/current', '/proc/self/attr/current'])
+
+    def test_disabled_lsm_or_denied_label_cannot_start_root_work(self):
+        for helper in (IDENTITY, REPORT):
+            with self.subTest(helper=helper), self.assertRaises(ValueError):
+                self.invoke(helper, {})
+            with self.assertRaises(PermissionError):
+                self.invoke(helper, {'/proc/self/attr/apparmor/current': PermissionError('denied')})
+
+    def test_legacy_label_cannot_override_an_existing_unconfined_lsm_label(self):
+        for helper, name in ((IDENTITY, 'network-sharing-identity'), (REPORT, 'network-sharing-report')):
+            with self.subTest(helper=name), self.assertRaises(ValueError):
+                self.invoke(helper, {'/proc/self/attr/apparmor/current': 'unconfined',
+                                     '/proc/self/attr/current': name + ' (enforce)'})
+
+
 class IntegrationWiringTests(unittest.TestCase):
     def test_both_storage_families_and_installer_dispatch(self):
         for name in ('btrfs-family.sh', 'f2fs-family.sh'):
@@ -812,6 +1137,35 @@ class IntegrationWiringTests(unittest.TestCase):
         for path in (SEED/'scripts/late/dispatch.sh', SEED/'hooks/installer/late_command.sh'):
             self.assertIn('network-sharing', path.read_text())
         self.assertIn('labwc-network-sharing 0755', (SEED/'scripts/desktop/components/target-assets.sh').read_text())
+
+    def test_mapper_identity_guard_and_firewall_have_explicit_lifecycle_dependencies(self):
+        server = (TARGET/'etc/systemd/system/nfs-server.service.d/60-network-sharing.conf.tmpl').read_text()
+        self.assertIn('BindsTo=nftables.service nfs-idmapd.service\n', server)
+        self.assertIn('Requires=nfs-idmapd.service network-sharing-identity.service\n', server)
+        mapper = (TARGET/'etc/systemd/system/nfs-idmapd.service.d/60-network-sharing.conf').read_text()
+        self.assertIn('Requires=proc-fs-nfsd.mount network-sharing-identity.service\n', mapper)
+        self.assertIn('After=proc-fs-nfsd.mount network-sharing-identity.service\n', mapper)
+        settings = NFS.Settings.from_environment(profile(NFS_CLIENT_ENABLE='true'))
+        self.assertIn('x-systemd.requires=network-sharing-identity.service', NFS.fstab_entries(settings)[0])
+        unit = (TARGET/'etc/systemd/system/network-sharing-identity.service').read_text()
+        for field in ('Type=oneshot', 'RemainAfterExit=no', 'CapabilityBoundingSet=', 'ProtectKernelTunables=yes',
+                      'AppArmorProfile=network-sharing-identity', 'TimeoutStartSec=30s', 'KillMode=control-group'):
+            self.assertIn(field, unit)
+
+    def test_root_helpers_wait_for_mode_policy_and_have_read_only_label_access(self):
+        policy = (TARGET/'etc/apparmor.d/network-sharing').read_text()
+        for name, suffix in (('identity', ''), ('report', '.tmpl')):
+            unit = (TARGET/f'etc/systemd/system/network-sharing-{name}.service{suffix}').read_text()
+            self.assertIn('Requires=apparmor.service apparmor-modes.service\n', unit)
+            self.assertIn('After=apparmor.service apparmor-modes.service', unit)
+            section = policy.split('profile network-sharing-' + name + ' /', 1)[1]
+            if name == 'report':
+                section = section.split('profile network-sharing-identity', 1)[0]
+            self.assertIn('owner @{PROC}/@{pid}/attr/{current,apparmor/current} r,', section)
+        identity = policy.split('profile network-sharing-identity /', 1)[1]
+        self.assertNotIn('#include <abstractions/nameservice>', identity)
+        for family in ('inet', 'inet6', 'netlink'):
+            self.assertEqual(identity.count('deny network ' + family + ','), 2)
 
     def test_apparmor_registry_and_service_transition(self):
         self.assertIn('__DESKTOP_APPARMOR_STATE__ required network-sharing -', (TARGET/'etc/apparmor/modes.conf.tmpl').read_text())

@@ -6,9 +6,9 @@ AssertPathExists=/etc/nftables.d/20-filter.nft
 AssertPathExists=/etc/systemd/system/nftables.service.d/override.conf
 # Never export the underlying root filesystem if the data mount failed.
 RequiresMountsFor=__NFS_SERVER_PATH__
-BindsTo=nftables.service
-After=nftables.service systemd-modules-load.service nfs-idmapd.service
-Requires=nfs-idmapd.service
+BindsTo=nftables.service nfs-idmapd.service
+After=nftables.service systemd-modules-load.service network-sharing-identity.service nfs-idmapd.service
+Requires=nfs-idmapd.service network-sharing-identity.service
 
 [Service]
 # The vendor unit ignores exportfs errors. Refuse failed start/reload instead.

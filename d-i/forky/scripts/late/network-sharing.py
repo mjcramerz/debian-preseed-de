@@ -24,7 +24,7 @@ from typing import Iterator, Mapping
 
 BEGIN = '# BEGIN managed-network-sharing'
 END = '# END managed-network-sharing'
-REQUIRED_FLAGS = {'sync', 'no_subtree_check', 'root_squash', 'secure', 'sec=sys', 'fsid=0'}
+REQUIRED_FLAGS = {'sync', 'subtree_check', 'root_squash', 'secure', 'sec=sys', 'fsid=0'}
 PRIVATE_NETWORKS = tuple(ipaddress.ip_network(n) for n in ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'))
 BOOLS = ('NFS_SERVER_ENABLE', 'NFS_CLIENT_ENABLE', 'NFS_SERVER_BIND_ENABLE',
          'NFS_CLIENT_BIND_ENABLE', 'NFS_CLIENT_READ_ONLY')
@@ -78,7 +78,7 @@ def parse_exports(line: str, server_path: str) -> list[tuple[str, str]]:
         flags = set(options)
         mode = flags & {'ro', 'rw'}
         if len(flags) != len(options) or len(mode) != 1 or flags != REQUIRED_FLAGS | mode:
-            raise ValueError('export flags must be ro/rw,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0')
+            raise ValueError('export flags must be ro/rw,sync,subtree_check,root_squash,secure,sec=sys,fsid=0')
         networks.append(network)
         peers.append((str(network), next(iter(mode))))
     return peers
@@ -113,11 +113,11 @@ class Settings:
     @classmethod
     def from_environment(cls, env: Mapping[str, str]) -> 'Settings':
         names = set(BOOLS) | {
-            'ACCOUNT_USERNAME', 'ACCOUNT_HOME', 'NFT_PROFILE', 'NETWORK_SHARING_ROOT_PATH',
+            'ACCOUNT_USERNAME', 'ACCOUNT_HOME', 'SYSTEM_DOMAIN', 'NFT_PROFILE', 'NETWORK_SHARING_ROOT_PATH',
             'NFS_SERVER_PATH', 'NFS_SERVER_HOME_BIND_PATH', 'NFS_SERVER_DEPS', 'NFS_SERVER_THREADS',
-            'NFS_SERVER_EXPORTS', 'NFS_CLIENT_PATH', 'NFS_CLIENT_HOME_BIND_PATH', 'NFS_CLIENT_BIND_PATH',
+            'NFS_SERVER_EXPORTS', 'NFS_CLIENT_PATH', 'NFS_CLIENT_HOME_BIND_PATH',
             'NFS_CLIENT_TARGET_IP', 'NFS_CLIENT_EXPORT_PATH', 'NFS_CLIENT_VERSION',
-            'NFS_CLIENT_MOUNT_TIMEOUT', 'NFS_CLIENT_DEPS', 'NFS_IDMAP_DOMAIN',
+            'NFS_CLIENT_MOUNT_TIMEOUT', 'NFS_CLIENT_DEPS', 'NFS_ACCOUNT_UID', 'NFS_ACCOUNT_GID',
             'NFS_SHARED_GROUP', 'NFS_SHARED_GID', 'NFS_INTERFACES', 'NFS_TCP_RMEM',
             'NFS_TCP_WMEM', 'NFS_SOCKET_RMEM_MAX', 'NFS_SOCKET_WMEM_MAX'}
         missing = names - env.keys()
@@ -155,21 +155,24 @@ class Settings:
         for local_path in (root, *sources, *(home + '/' + target for target in targets)):
             if len(unit_name(local_path, 'automount')) > 255:
                 raise ValueError('sharing path exceeds the escaped systemd unit-name limit')
-        if values['NFS_CLIENT_BIND_PATH'] != values['NFS_CLIENT_HOME_BIND_PATH']:
-            raise ValueError('NFS_CLIENT_BIND_PATH must equal NFS_CLIENT_HOME_BIND_PATH')
         for key in ('ACCOUNT_USERNAME', 'NFS_SHARED_GROUP'):
             if not re.fullmatch(r'[a-z_][a-z0-9_-]{0,31}', values[key]) or values[key] in ('root', 'nogroup', 'nobody'):
                 raise ValueError(f'invalid {key}')
         bounded_integer(values['NFS_SHARED_GID'], 'NFS_SHARED_GID', 1000, 59999)
+        bounded_integer(values['NFS_ACCOUNT_UID'], 'NFS_ACCOUNT_UID', 1000, 59999)
+        bounded_integer(values['NFS_ACCOUNT_GID'], 'NFS_ACCOUNT_GID', 1000, 59999)
+        if int(values['NFS_SHARED_GID']) == int(values['NFS_ACCOUNT_GID']):
+            raise ValueError('NFS_SHARED_GID must be separate from the primary account GID')
         bounded_integer(values['NFS_SERVER_THREADS'], 'NFS_SERVER_THREADS', 1, 128)
         bounded_integer(values['NFS_CLIENT_MOUNT_TIMEOUT'], 'NFS_CLIENT_MOUNT_TIMEOUT', 5, 120)
         private_ipv4(values['NFS_CLIENT_TARGET_IP'])
         normalized_path(values['NFS_CLIENT_EXPORT_PATH'], allow_root=True)
         if values['NFS_CLIENT_VERSION'] not in ('4.1', '4.2'):
             raise ValueError('only NFSv4.1 and NFSv4.2 are supported')
-        domain = values['NFS_IDMAP_DOMAIN']
-        if len(domain) > 253 or not all(re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', label) for label in domain.split('.')):
-            raise ValueError('invalid NFS_IDMAP_DOMAIN')
+        values['SYSTEM_DOMAIN'] = values['SYSTEM_DOMAIN'].lower()
+        domain = values['SYSTEM_DOMAIN']
+        if len('sharing.' + domain) > 253 or not all(re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', label) for label in domain.split('.')):
+            raise ValueError('invalid SYSTEM_DOMAIN for the derived NFS identity namespace')
         ifaces = values['NFS_INTERFACES'].split()
         if not ifaces or len(ifaces) > 8 or any(not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]{0,14}', i) or i == 'lo' for i in ifaces):
             raise ValueError('NFS_INTERFACES requires explicit interface names, never wildcards')
@@ -322,7 +325,8 @@ def fstab_entries(s: Settings) -> list[str]:
                 'port=2049', 'resvport', 'sec=sys', 'vers=' + s['NFS_CLIENT_VERSION'],
                 'nosuid', 'nodev', 'noexec', '_netdev', 'nofail', 'x-systemd.automount',
                 'x-systemd.mount-timeout=' + s['NFS_CLIENT_MOUNT_TIMEOUT'] + 's',
-                'x-systemd.requires=nfs-client.target', 'x-systemd.requires=nftables.service']
+                'x-systemd.requires=nfs-client.target', 'x-systemd.requires=nftables.service',
+                'x-systemd.requires=network-sharing-identity.service']
         entries.append(f"{s['NFS_CLIENT_TARGET_IP']}:{s['NFS_CLIENT_EXPORT_PATH']} {s['NFS_CLIENT_PATH']} nfs {','.join(opts)} 0 0")
     for role in ('SERVER', 'CLIENT'):
         if not s.enabled(f'NFS_{role}_BIND_ENABLE'):
@@ -340,10 +344,16 @@ def fstab_entries(s: Settings) -> list[str]:
     return entries
 
 
-def group_and_account(s: Settings) -> pwd.struct_passwd:
+def primary_account(s: Settings) -> pwd.struct_passwd:
     account = pwd.getpwnam(s['ACCOUNT_USERNAME'])
-    if account.pw_uid < 1000 or account.pw_uid == 65534 or account.pw_dir != s['ACCOUNT_HOME']:
-        raise ValueError('NFS primary account identity/home mismatch')
+    if (account.pw_uid != int(s['NFS_ACCOUNT_UID']) or account.pw_gid != int(s['NFS_ACCOUNT_GID'])
+            or account.pw_dir != s['ACCOUNT_HOME'] or pwd.getpwuid(account.pw_uid).pw_name != account.pw_name):
+        raise ValueError('NFS primary account UID/GID/home mismatch; refusing to renumber AUTH_SYS identities')
+    return account
+
+
+def group_and_account(s: Settings) -> pwd.struct_passwd:
+    account = primary_account(s)
     gid = int(s['NFS_SHARED_GID'])
     try:
         existing = grp.getgrnam(s['NFS_SHARED_GROUP'])
@@ -355,7 +365,7 @@ def group_and_account(s: Settings) -> pwd.struct_passwd:
         else:
             raise ValueError('NFS_SHARED_GID is already used by another group')
     else:
-        if existing.gr_gid != gid:
+        if existing.gr_gid != gid or grp.getgrgid(gid).gr_name != s['NFS_SHARED_GROUP']:
             raise ValueError('NFS_SHARED_GROUP has a different GID; refusing to renumber')
     run(['/usr/sbin/usermod', '--append', '--groups', s['NFS_SHARED_GROUP'], s['ACCOUNT_USERNAME']])
     return account
@@ -479,6 +489,15 @@ def configure(s: Settings, assets: Path) -> None:
                 if any(line.strip() and not line.lstrip().startswith('#') for line in read_regular(other).splitlines()):
                     raise ValueError('unmanaged exports.d entries conflict with the dedicated NFSv4 policy')
     if s.active:
+        # AUTH_SYS sends numeric credentials independently of NFSv4 name
+        # mapping. Refuse a mismatched install before any package mutation.
+        primary_account(s)
+        overrides = Path('/etc/idmapd.conf.d')
+        if overrides.exists() or overrides.is_symlink():
+            system_directory(overrides)
+            for other in overrides.glob('*.conf'):
+                if any(line.strip() and not line.lstrip().startswith(('#', ';')) for line in read_regular(other).splitlines()):
+                    raise ValueError('unmanaged idmapd.conf.d settings conflict with the dedicated NFS identity policy')
         if s.enabled('NFS_SERVER_ENABLE'):
             # Package maintscripts may enable a unit even while policy-rc.d
             # blocks starts. Install the boot-time completion guards first.
@@ -490,10 +509,13 @@ def configure(s: Settings, assets: Path) -> None:
                  '-y', '--no-install-recommends', '--no-install-suggests', 'install', *s.packages], timeout=1800)
         account = group_and_account(s)
         for name in ('etc/idmapd.conf.tmpl', 'etc/sysctl.d/60-network-sharing.conf.tmpl',
-                     'etc/systemd/system/network-sharing-report.service.tmpl'):
+                     'etc/systemd/system/network-sharing-report.service.tmpl',
+                     'etc/systemd/system/network-sharing-identity.service'):
             atomic_write(Path('/') / name.removesuffix('.tmpl'), render(assets / name, s))
         atomic_write(Path('/usr/local/libexec/network-sharing-report'),
                      (assets / 'usr/local/libexec/network-sharing-report').read_text(), 0o755)
+        atomic_write(Path('/usr/local/libexec/network-sharing-identity'),
+                     (assets / 'usr/local/libexec/network-sharing-identity').read_text(), 0o755)
         modules = ['sunrpc']
         options = ['# Managed NFSv4 name mapping (AUTH_SYS still uses numeric credentials).']
         if s.enabled('NFS_CLIENT_ENABLE'):
@@ -530,6 +552,9 @@ def configure(s: Settings, assets: Path) -> None:
             # unmount is configured: it would race a still-active bind mount.
             atomic_write(Path('/etc/systemd/system') / (unit_name(target) + '.d') / '60-network-sharing.conf',
                          '[Unit]\nBindsTo=' + unit_name(s['NFS_CLIENT_PATH']) + '\nAfter=' + unit_name(s['NFS_CLIENT_PATH']) + '\n')
+        if s.enabled('NFS_CLIENT_ENABLE'):
+            atomic_write(Path('/etc/systemd/system') / (unit_name(s['NFS_CLIENT_PATH']) + '.d') / '60-network-sharing.conf',
+                         '[Unit]\nBindsTo=nftables.service\nAfter=nftables.service\n')
         # Deliberately v4-only; these RPC listeners are not needed for this role.
         run(['/usr/bin/systemctl', '--root=/', 'mask', 'rpcbind.service', 'rpcbind.socket',
              'rpc-statd.service', 'rpc-statd-notify.service'])

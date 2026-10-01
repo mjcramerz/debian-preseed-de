@@ -65,21 +65,20 @@ configurator without executing the profile shell.
 | `NFS_SERVER_HOME_BIND_PATH` | `Sharing/nfs-server`; relative to `ACCOUNT_HOME`, never an absolute path. |
 | `NFS_SERVER_DEPS` | `nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl e2fsprogs`; required package closure is validated. Additional valid package names are allowed. |
 | `NFS_SERVER_THREADS` | `8`; validated range 1-128. |
-| `NFS_SERVER_RW_OPTIONS` | `rw,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0`; profile shorthand used to compose exports. |
-| `NFS_SERVER_RO_OPTIONS` | `ro,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0`; read-only shorthand. |
+| `NFS_SERVER_RW_OPTIONS` | `rw,sync,subtree_check,root_squash,secure,sec=sys,fsid=0`; profile shorthand used to compose exports. |
+| `NFS_SERVER_RO_OPTIONS` | `ro,sync,subtree_check,root_squash,secure,sec=sys,fsid=0`; read-only shorthand. |
 | `NFS_SERVER_EXPORTS` | One fully expanded export line with the exact CIDRs below; one directory, no wildcard/DNS peers, no overlapping ranges. This line drives both exports and the server firewall allowlist. |
 | `NFS_CLIENT_ENABLE` | `false`; install the NFS client and its managed automount. |
 | `NFS_CLIENT_PATH` | `${NETWORK_SHARING_ROOT_PATH}/nfs-client`; local mountpoint, not the remote server path. |
 | `NFS_CLIENT_BIND_ENABLE` | `false`; bind the client mount into the primary account home; requires the client role. |
 | `NFS_CLIENT_HOME_BIND_PATH` | `Sharing/nfs-client`; relative home destination. |
-| `NFS_CLIENT_BIND_PATH` | `${NFS_CLIENT_HOME_BIND_PATH}`; compatibility alias, required to equal the canonical home-relative setting. |
 | `NFS_CLIENT_TARGET_IP` | `192.168.50.212`; example RFC1918 IPv4 server, change for the installation. No hostname, public IP, IPv6, or CIDR is accepted here. |
 | `NFS_CLIENT_EXPORT_PATH` | `/`; remote NFSv4 namespace path. The configured server's `fsid=0` directory is mounted as `IP:/`, **not** `IP:/data/sharing/nfs-server`. |
 | `NFS_CLIENT_VERSION` | `4.2`; only `4.1` or `4.2`, with no silent downgrade to v3 or v4.0. |
 | `NFS_CLIENT_READ_ONLY` | `false`; make the source and optional client home bind read-only locally. |
 | `NFS_CLIENT_MOUNT_TIMEOUT` | `30`; initial mount job timeout in seconds, range 5-120; not an application I/O deadline. |
 | `NFS_CLIENT_DEPS` | `nfs-common libnfsidmap1 keyutils nftables e2fsprogs`. |
-| `NFS_IDMAP_DOMAIN` | `sharing.home.arpa`; identical name-mapping domain on all peers. |
+| `NFS_ACCOUNT_UID` / `NFS_ACCOUNT_GID` | `1000` / `1000`; required existing primary account IDs on every peer. A mismatch aborts; users are never renumbered. |
 | `NFS_SHARED_GROUP` / `NFS_SHARED_GID` | `nfs-sharing` / `2050`; same group name and numeric GID on all peers. An existing conflicting name/GID is rejected, never silently renumbered. |
 | `NFS_INTERFACES` | `${MANAGED_NETWORK_ETHERNET_IFACE} ${MANAGED_NETWORK_WIFI_IFACE}`; existing explicit host interface names, not wildcard or loopback. Confirm these are the trusted interfaces. |
 | `NFS_TCP_RMEM` / `NFS_TCP_WMEM` | `4096 131072 16777216` / `4096 16384 16777216`; ordered TCP minimum/default/maximum bytes. |
@@ -105,11 +104,16 @@ including endpoints and **no adjacent addresses**:
 
 The final interval is interpreted as trusted read/write server peers, **not**
 unsquashed root peers. All 41 addresses use `root_squash`, `secure`, `sync`,
-`no_subtree_check`, `sec=sys`, and `fsid=0`; only `ro` versus `rw` changes.
+`subtree_check`, `sec=sys`, and `fsid=0`; only `ro` versus `rw` changes.
 `secure` requests reserved source ports and the client explicitly uses
 `resvport`. Neither a reserved port nor an IP allowlist authenticates a hostile
 machine. `sync` is chosen over asynchronous export acknowledgements. The
 single `fsid=0` export avoids adding a second pseudo-root/crossmount policy.
+The exported directory is a subdirectory of the data filesystem, so
+`subtree_check` prevents guessed filehandles from bypassing the directory
+boundary. This adds server lookup work and can cause stale filehandles when
+open files are renamed. Exporting an entire dedicated filesystem could avoid
+that tradeoff, but this change does not alter the storage layout.
 Do not mount unrelated filesystems beneath this export expecting them to be
 published: automatic cross-filesystem exporting is not enabled.
 
@@ -120,13 +124,20 @@ silently sharing a pseudo-root or expanding access. There is no wildcard
 export and no `no_root_squash`, `insecure`, `async`, or `crossmnt` option.
 
 The server overlay admits TCP 2049 from those CIDRs on the chosen interfaces.
-The client overlay declares TCP 2049 to the configured server `/32` only.
+The client overlay permits TCP 2049 to the configured server `/32` only.
+Both explicitly enable `enforce_allowlist` in the existing policy compiler.
+For these service ports, regular-chain guards run after invalid-packet drops
+and before established, loopback or local-hook accepts. A matching peer and
+interface returns to normal filtering; every other address/interface, including
+IPv6, is dropped. These guards never grant an early accept or bypass another
+firewall owner's policy. Their restrictions also apply to existing TCP flows
+when the managed rules are reloaded; no conntrack flush is required.
 There are no new UDP, rpcbind, NFSv3, or IPv6 NFS accept rules. IPv4/IPv6 default
 and established-connection handling remain the existing firewall's policy.
-In particular, the repository's general outbound policy is unchanged: the
-client overlay is **not an exclusive egress sandbox** when the base output
-policy accepts other traffic. Existing loopback/established traffic and other
-administrative rules also remain in effect. Active NFS with `NFT_PROFILE=none`
+The repository's general outbound policy remains in effect for other ports;
+the client guard enforces its NFS destination/interface allowlist even with
+an accepting base output policy. Administrative local hooks and established
+traffic cannot bypass either NFS guard. Active NFS with `NFT_PROFILE=none`
 is rejected. NFS does not flush tables belonging to CrowdSec, Fail2ban or other
 managers.
 
@@ -142,8 +153,12 @@ invented or silently substituted here.
 
 The primary account is added to `nfs-sharing` GID 2050 (or the explicitly chosen
 consistent group/GID). Coordinate numeric user UIDs as well as the shared GID
-across hosts. Names and `NFS_IDMAP_DOMAIN` must agree in the peers' NSS identity
-sources. Name mapping does not replace AUTH_SYS's numeric authorization.
+across hosts. `NFS_ACCOUNT_UID` and `NFS_ACCOUNT_GID` make the primary-account
+contract explicit (1000:1000 by default); the installer checks the existing
+account before package changes. Use the same account names, numeric IDs and
+`SYSTEM_DOMAIN` on all peers. The NFS mapping domain is always derived as
+`sharing.${SYSTEM_DOMAIN}` (lowercased and validated), with no independent
+profile setting. Name mapping does not replace AUTH_SYS's numeric authorization.
 The installer does **not** renumber existing users or recursively change file
 ownership. Log in again after changing group membership on an existing system.
 
@@ -154,6 +169,8 @@ default ACL preserves group access for newly created shared content; individual
 applications can still deliberately create restrictive modes. Existing child
 content is not recursively rewritten. `rpc.mountd` uses `manage-gids=yes`, so
 the server resolves supplemental membership from its own identity database.
+The primary GID remains client-supplied; `manage-gids` does not authenticate
+credentials or remove the trusted-client requirement of AUTH_SYS.
 Provision all intended users/group memberships on the server, not just on a
 client. Root-squashed anonymous users have no automatic permission to traverse
 this group-only directory.
@@ -191,7 +208,9 @@ concurrently mutating account.
 
 When a role is active the installer writes:
 
-* `/etc/idmapd.conf`: explicit domain, `nobody`/`nogroup` fallback, NSS mapping.
+* `/etc/idmapd.conf`: domain `sharing.${SYSTEM_DOMAIN}`, `No-Strip=none`,
+  `nobody`/`nogroup` fallback and NSS mapping. Active unmanaged
+  `/etc/idmapd.conf.d/*.conf` overrides are rejected.
 * `/etc/modules-load.d/60-network-sharing.conf`: `sunrpc`, plus `nfs` and
   **`nfsv4`** for clients, and `nfsd` for servers; dependent kernel modules are
   resolved by modprobe.
@@ -221,6 +240,19 @@ and RDMA disabled. Both active roles mask `rpcbind.service`, `rpcbind.socket`,
 host policy and must not be combined with an unrelated legacy RPC/NFSv3 need.
 The normal packaged NFS client target/server service are enabled offline.
 
+Both roles require `network-sharing-identity.service` before use. This finite,
+read-only check verifies the primary UID/GID/home, shared GID and membership,
+nonprivileged anonymous identities, the exact mapping policy, the effective
+`nfsidmap -d` domain, and enabled name mapping in the loaded role modules.
+Clients also require the managed request-key upcall with no competing exact
+`id_resolver` handlers; servers verify the effective v4-only daemon policy and
+server-side `manage-gids` membership resolution using `nfsconf --dump`. The
+check never changes identities, flushes keyrings or writes kernel state, and
+keeps no process or cached success state between starts. Built-in/preloaded
+modules that ignore the modprobe options fail closed and need the correct
+boot parameters (`nfs.nfs4_disable_idmapping=0` and/or
+`nfsd.nfs4_disable_idmapping=0`) before retrying.
+
 The server drop-in is staged **before** package installation: inhibiting package
 starts does not prevent maintainer scripts from enabling a unit for a future
 boot. Its `AssertPathExists=` prerequisites require the NFS completion record,
@@ -232,10 +264,18 @@ remain mandatory. These are installation-completion guards, not protection
 against a privileged administrator changing completed configuration.
 
 The server unit requires the real export filesystem and the idmap service,
-and is bound to the managed firewall service. Its start/reload overrides
+and is bound to both the managed firewall and idmap services. The mapper
+requires `/proc/fs/nfsd` to be mounted before it starts. The client source
+mount is also bound to the managed firewall service. Its start/reload overrides
 require `exportfs -r` to succeed instead of inheriting the vendor unit's
 error-ignoring command prefix. An export-refresh failure is therefore visible
 to systemd and to the menu; it is not silently reported as success.
+Both root helper services require and follow `apparmor-modes.service` before
+reading their actual kernel AppArmor labels. An unavailable, unconfined or
+complain-mode label fails the helper before any configuration processing; a
+failed identity prerequisite prevents server/client startup. `AppArmorProfile=`
+alone is insufficient when AppArmor is disabled. The LSM-specific process-label
+interface is preferred, with the legacy interface used only when it is absent.
 Mountd and idmapd have bounded
 restarts and stop jobs, private temporary directories, protected home/system
 paths, and other compatible systemd restrictions. Mountd retains `AF_NETLINK`
@@ -338,13 +378,21 @@ The client list reports **kernel NFSv4 lease/client records**, not an exact
 live TCP connection count. A record may outlive a connection; an unavailable
 kernel interface or denied read is shown as unavailable, not zero clients.
 
-`etc/apparmor.d/network-sharing` supplies separate menu and report profiles,
-with confined systemctl/journalctl child profiles and the existing confined
-picker transition. Explicit, peer-limited termination and child-completion
+`etc/apparmor.d/network-sharing` supplies separate menu, report and identity-check
+profiles, with confined systemctl/journalctl and nfsidmap/nfsconf child profiles
+and the existing confined picker transition. Explicit, peer-limited termination and child-completion
 signal rules let the menu reap its command children without granting it
 authority to kill arbitrary processes. It is registered in the existing required system-policy
 inventory and follows `DESKTOP_APPARMOR_STATE`; a profile set to complain is
-**not** enforcing. The report service explicitly requests its AppArmor profile.
+**not** enforcing. The report and identity-check services explicitly request
+their AppArmor profiles and refuse to work without their own enforcing labels.
+Selecting desktop complain mode therefore prevents a subsequent NFS start
+or diagnostics refresh until the NFS profiles are enforcing again; it does
+not stop already running kernel exports or existing mounts. The identity
+helper and its `nfsidmap -d` child use the strict NSS abstraction for local
+identity lookup, with explicit IP and netlink denials matching their systemd
+address-family restrictions. Only the running process's read-only AppArmor
+label attributes are added to the helper policies.
 Parser success alone cannot demonstrate enforce-mode interoperability. There
 is no newly invented daemon AppArmor policy for mountd/idmapd/nfsd; their added
 isolation is provided by the compatible systemd drop-ins described above.

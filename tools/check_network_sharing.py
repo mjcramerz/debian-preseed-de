@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SEED = ROOT / 'd-i/forky'
 ASSIGNMENT = re.compile(r'([A-Z][A-Z0-9_]*)="([^"\\`\x00-\x1f\x7f]*)"')
 EXTRA = {'NETWORK_SHARING_ROOT_PATH', 'NFT_PROFILE', 'MANAGED_NETWORK_ETHERNET_IFACE',
-         'MANAGED_NETWORK_WIFI_IFACE', 'ACCOUNT_USERNAME', 'ACCOUNT_HOME'}
+         'MANAGED_NETWORK_WIFI_IFACE', 'ACCOUNT_USERNAME', 'ACCOUNT_HOME', 'SYSTEM_DOMAIN'}
 
 
 def read_values(path: Path, initial: dict[str, str] | None = None) -> dict[str, str]:
@@ -54,7 +54,10 @@ def check(seed: Path = SEED) -> int:
     if not profiles:
         raise ValueError('no network sharing profiles found')
     helper = runpy.run_path(str(seed/'scripts/late/network-sharing.py'), run_name='network_sharing_policy')
-    account = read_values(seed/'hosts/installer/account.env')
+    # SYSTEM_DOMAIN is supplied privately at installer runtime, not stored in
+    # a host profile. This placeholder is only for offline scalar validation;
+    # the target validates the actual runtime domain before configuration.
+    account = read_values(seed/'hosts/installer/account.env', {'SYSTEM_DOMAIN': 'validation.invalid'})
     for path in profiles:
         try:
             helper['Settings'].from_environment(read_values(path, account))

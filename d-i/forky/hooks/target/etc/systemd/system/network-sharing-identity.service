@@ -1,31 +1,28 @@
 [Unit]
-Description=Bounded read-only NFS sharing diagnostics
+Description=Verify the managed NFS identity namespace before use
 Requires=apparmor.service apparmor-modes.service
-After=apparmor.service apparmor-modes.service
-ConditionPathExists=/etc/network-sharing/config.json
+After=apparmor.service apparmor-modes.service systemd-modules-load.service
+AssertPathExists=/etc/network-sharing/config.json
+AssertPathExists=/etc/idmapd.conf
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/libexec/network-sharing-report
-Group=__NFS_SHARED_GROUP__
-RuntimeDirectory=network-sharing
-RuntimeDirectoryMode=0750
-RuntimeDirectoryPreserve=yes
-UMask=0027
-AppArmorProfile=network-sharing-report
-TimeoutStartSec=20s
+ExecStart=/usr/local/libexec/network-sharing-identity
+# Recheck on subsequent starts; no resident process or cached success state.
+RemainAfterExit=no
+AppArmorProfile=network-sharing-identity
+TimeoutStartSec=30s
 TimeoutStopSec=5s
 KillMode=control-group
+UMask=0077
 TasksMax=16
 MemoryMax=96M
-CPUQuota=25%
 NoNewPrivileges=yes
 CapabilityBoundingSet=
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
 PrivateDevices=yes
-# Read host-namespace RPC counters; do not hide them in PrivateNetwork.
 IPAddressDeny=any
 SocketBindDeny=any
 ProtectKernelTunables=yes

@@ -104,6 +104,19 @@ def publish(report: dict[str, object], directory: Path = REPORT_DIRECTORY) -> No
 def main(argv: list[str]) -> int:
     if argv or os.getuid() != 0 or os.geteuid() != 0:
         raise ValueError('run this no-argument helper through network-sharing-report.service')
+    # Do not run a root diagnostic helper unconfined when AppArmor is disabled,
+    # or treat the desktop's optional complain mode as enforced isolation.
+    for path in ('/proc/self/attr/apparmor/current', '/proc/self/attr/current'):
+        try:
+            with Path(path).open(encoding='ascii') as stream:
+                label = stream.read(256).strip()
+        except FileNotFoundError:
+            continue
+        if label != 'network-sharing-report (enforce)':
+            raise ValueError('an enforcing network-sharing-report AppArmor profile is required')
+        break
+    else:
+        raise ValueError('AppArmor process label is unavailable')
     config = json.loads(read_bounded(CONFIG, 65536, trusted=True))
     if config.get('version') != 1 or any(type(config.get(key)) is not bool for key in ('server_enabled', 'client_enabled')):
         raise ValueError('invalid network sharing configuration')

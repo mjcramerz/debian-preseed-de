@@ -25,7 +25,7 @@ ACTIONS = (
     'Show Configured Exports', 'Recent NFS Logs', 'Sharing Help',
 )
 FIXED_UNITS = {'nfs-server.service', 'nfs-mountd.service', 'nfs-idmapd.service',
-               'nfs-client.target', 'nftables.service', 'network-sharing-report.service'}
+               'nfs-client.target', 'nftables.service', 'network-sharing-report.service', 'network-sharing-identity.service'}
 
 
 def clean(text: str, limit: int = 800) -> str:
@@ -98,6 +98,8 @@ def confirm(title: str) -> bool:
 
 def units(config: dict) -> list[str]:
     result = ['nftables.service']
+    if config['server_enabled'] or config['client_enabled']:
+        result.append('network-sharing-identity.service')
     if config['server_enabled']:
         result += ['nfs-server.service', 'nfs-mountd.service', 'nfs-idmapd.service']
     if config['client_enabled']:
@@ -220,7 +222,8 @@ def action(config: dict, label: str) -> None:
         if data is None:
             return
         settings = config['profile']
-        lines = [data['created_utc'], 'Domain: ' + settings['NFS_IDMAP_DOMAIN'],
+        lines = [data['created_utc'], 'Domain: sharing.' + settings['SYSTEM_DOMAIN'],
+                 'Account: ' + settings['ACCOUNT_USERNAME'] + ' (UID ' + settings['NFS_ACCOUNT_UID'] + ', GID ' + settings['NFS_ACCOUNT_GID'] + ')',
                  'Shared group: ' + settings['NFS_SHARED_GROUP'] + ' (GID ' + settings['NFS_SHARED_GID'] + ')',
                  'Mapping is enabled when disable_idmapping is N/0. AUTH_SYS still needs consistent numeric UID/GID values.']
         for key, value in data.items():
@@ -232,7 +235,7 @@ def action(config: dict, label: str) -> None:
         show('Configured Export Policy (not a live export listing)', [
             config['profile']['NFS_SERVER_PATH'],
             *[cidr + ' : ' + mode for cidr, mode in config['peers']],
-            'sync, root_squash, secure, sec=sys, no_subtree_check, fsid=0',
+            'sync, root_squash, secure, sec=sys, subtree_check, fsid=0',
             'This displays the installed profile, not later manual administrator changes.'])
     elif label == 'Recent NFS Logs':
         args = ['/usr/bin/journalctl', '--no-pager', '--output=short-iso', '--lines=80']

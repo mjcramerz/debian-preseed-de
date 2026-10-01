@@ -1,7 +1,9 @@
 # Managed NFS identity namespace. This is not a Kerberos realm.
 [General]
 Verbosity = 0
-Domain = __NFS_IDMAP_DOMAIN__
+Domain = sharing.__SYSTEM_DOMAIN__
+# Require the configured domain before stripping names for NSS lookup.
+No-Strip = none
 [Mapping]
 Nobody-User = nobody
 Nobody-Group = nogroup

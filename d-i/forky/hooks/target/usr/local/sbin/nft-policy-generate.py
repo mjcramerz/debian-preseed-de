@@ -1141,6 +1141,54 @@ def validate_services(policy: Mapping[str, Any], maps: Mapping[str, Dict[str, An
                 raise PolicyError(f"services.{service_name}: sensitive service has a public allowlist; narrow it for admin/private services or pass --allow-public-sensitive")
 
 
+def build_allowlist_guards(policy: Mapping[str, Any], maps: Mapping[str, Dict[str, Any]], ctx: RenderContext) -> List[str]:
+    """Constrain opted-in service ports before broad established/local accepts.
+
+    Return for a permitted peer/interface, then continue normal filtering.
+    Never accept here: other service, anti-spoof and administrative policy
+    remains authoritative. The terminal drop also excludes unlisted IP families.
+    """
+    family, table = family_table(policy)
+    input_chain, _, output_chain, _, _, _ = chain_names(policy)
+    rules: List[str] = []
+    services = as_dict(policy.get("services"), "services")
+    for name in sorted(services):
+        service = as_dict(services[name], f"services.{name}")
+        if not as_bool(service.get("enabled"), False) or not as_bool(service.get("enforce_allowlist"), False):
+            continue
+        label = f"services.{name}"
+        direction = str(service.get("direction", "inbound")).lower()
+        if direction not in {"inbound", "outbound"}:
+            raise PolicyError(f"{label}: enforced allowlists require one explicit direction")
+        ports = normalize_ports(service, label)
+        if not ports or normalize_source_ports(service, label):
+            raise PolicyError(f"{label}: enforced allowlists require destination ports only")
+        inbound = direction == "inbound"
+        field = "allow" if inbound else "allow_to"
+        allow = as_dict(service.get(field), f"{label}.{field}")
+        if not allow_has_any_ip_constraints(allow, f"{label}.{field}"):
+            raise PolicyError(f"{label}: enforced allowlist requires explicit IP peers")
+        interfaces = interface_match_exprs(maps, allow, "in" if inbound else "out", f"{label}.{field}")
+        if interfaces == [""]:
+            raise PolicyError(f"{label}: enforced allowlist requires explicit interfaces")
+        matches = [f"{iface} {ip}" for version in (4, 6)
+                   for ip in ip_match_exprs(maps, allow, version, "saddr" if inbound else "daddr", f"{label}.{field}", ctx)
+                   for iface in interfaces]
+        if not matches:
+            raise PolicyError(f"{label}: enforced allowlist has no usable IP peers")
+        guard = validate_nft_identifier(f"allow_{name}_{direction}", f"{label}.guard_chain")
+        if guard in chain_names(policy):
+            raise PolicyError(f"{label}: allowlist guard collides with a configured chain")
+        rules.append(f"add chain {family} {table} {guard}")
+        for match in matches:
+            rules.append(add_rule(policy, guard, match + " counter return" + comment_expr(f"service {name} allowlist peer")))
+        rules.append(add_rule(policy, guard, "counter drop" + comment_expr(f"service {name} allowlist deny")))
+        for proto in normalize_protocols(service, label):
+            rules.append(add_rule(policy, input_chain if inbound else output_chain,
+                                  port_match(proto, ports) + f" jump {guard}" + comment_expr(f"service {name} allowlist guard")))
+    return rules
+
+
 def render_filter(policy: Mapping[str, Any], maps: Mapping[str, Dict[str, Any]], ctx: RenderContext, allow_public_sensitive: bool) -> str:
     validate_services(policy, maps, ctx, allow_public_sensitive)
     features = as_dict(policy.get("features"), "features")
@@ -1160,6 +1208,8 @@ def render_filter(policy: Mapping[str, Any], maps: Mapping[str, Dict[str, Any]],
         lines.append(add_rule(policy, input_chain, "ct state invalid counter drop" + comment_expr("base drop invalid")))
         lines.append(add_rule(policy, forward_chain, "ct state invalid counter drop" + comment_expr("base drop invalid forward")))
         lines.append(add_rule(policy, output_chain, "ct state invalid counter drop" + comment_expr("base drop invalid output")))
+
+    lines.extend(build_allowlist_guards(policy, maps, ctx))
 
     if as_bool(features.get("allow_established_related"), True):
         lines.append(add_rule(policy, input_chain, "ct state established,related counter accept" + comment_expr("base established related")))

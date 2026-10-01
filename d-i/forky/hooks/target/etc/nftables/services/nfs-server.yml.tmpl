@@ -8,6 +8,7 @@ services:
   nfs_server:
     enabled: __INSTALLER_NFS_SERVER_ENABLE__
     direction: inbound
+    enforce_allowlist: true
     protocols: [tcp]
     ports: [2049]
     allow:
