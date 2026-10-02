@@ -548,6 +548,17 @@ chmod 0750 "$repository_staging/agents" "$repository_staging/skills"
 install -d -m 0700 -o "$account_user" -g devops "$candidate_home_path/app-server-control"
 install -m 0600 -o "$account_user" -g devops /dev/null \
   "$candidate_home_path/app-server-control/app-server-startup.lock"
+daemon_state_path="$candidate_home_path/app-server-daemon"
+[ -d "$daemon_state_path" ] && [ ! -L "$daemon_state_path" ] &&
+  [ -f "$daemon_state_path/settings.json" ] && [ ! -L "$daemon_state_path/settings.json" ] ||
+  codex_fatal "Codex home must supply direct app-server daemon settings"
+unexpected_daemon_state=$(find "$daemon_state_path" -mindepth 1 -maxdepth 1 \
+  ! -name settings.json -print -quit)
+[ -z "$unexpected_daemon_state" ] ||
+  codex_fatal "Codex home must not stage live daemon PID, lock or log state"
+codex_chmod_without_special_bits 0700 "$daemon_state_path"
+codex_chmod_without_special_bits 0600 "$daemon_state_path/settings.json"
+unset daemon_state_path unexpected_daemon_state
 ln -s -- "$codex_root/packages" "$candidate_home_path/packages"
 ln -s -- "$codex_root/sockets/app-server-control.sock" \
   "$candidate_home_path/app-server-control/app-server-control.sock"

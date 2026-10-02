@@ -22,6 +22,7 @@ MAX_TOTAL = 8 << 30
 MUTABLE_TREES = frozenset({
     'home/sessions', 'home/shell_snapshots', 'home/archived_sessions', 'home/memories',
 })
+PRIVATE_MUTABLE_TREES = frozenset({'home/app-server-daemon'})
 MUTABLE_FILES = frozenset({
     'home/history.jsonl', 'home/session_index.jsonl',
     'home/external_agent_session_imports.json',
@@ -203,7 +204,8 @@ def validate_git(root: Path, entries: dict[str, Entry], uid: int, gid: int,
 
 
 def runtime_tree(name: str) -> bool:
-    return any(name == root or name.startswith(root + '/') for root in MUTABLE_TREES)
+    return any(name == root or name.startswith(root + '/')
+               for root in MUTABLE_TREES | PRIVATE_MUTABLE_TREES)
 
 
 def validate_link(name: str, target: str, codex_root: str) -> None:
@@ -255,14 +257,18 @@ def compare_trees(expected: Path, actual: Path, uid: int, gid: int, branch: str,
         if runtime_tree(name):
             if (entry.uid, entry.gid) != (uid, gid):
                 raise StateError('mutable state is owned by an unexpected account')
-            if entry.kind == 'dir' and entry.mode in {0o700, 0o2770}:
+            private = any(name == root or name.startswith(root + '/')
+                          for root in PRIVATE_MUTABLE_TREES)
+            directory_modes = {0o700} if private else {0o700, 0o2770}
+            file_modes = {0o600} if private else {0o600, 0o660}
+            if entry.kind == 'dir' and entry.mode in directory_modes:
                 pass
-            elif entry.kind == 'file' and entry.mode in {0o600, 0o660}:
+            elif entry.kind == 'file' and entry.mode in file_modes:
                 pass
             else:
                 raise StateError('unsafe mutable state type or permissions')
             # Named runtime root directories retain their exact policy.
-            if name in wanted and name in MUTABLE_TREES:
+            if name in wanted and name in MUTABLE_TREES | PRIVATE_MUTABLE_TREES:
                 if entry != wanted[name]:
                     raise StateError('mutable state root differs from policy')
             continue

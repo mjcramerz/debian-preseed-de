@@ -241,6 +241,13 @@ if [ -e "$home_path/auth.json" ] || [ -L "$home_path/auth.json" ]; then
   codex_verify_stat "${account_uid}:${devops_gid}:600" "$home_path/auth.json"
 fi
 codex_verify_stat "${account_uid}:${devops_gid}:700" "$home_path/app-server-control"
+codex_verify_stat "${account_uid}:${devops_gid}:700" "$home_path/app-server-daemon"
+[ -f "$home_path/app-server-daemon/settings.json" ] &&
+  [ ! -L "$home_path/app-server-daemon/settings.json" ] ||
+  codex_fatal "Codex daemon settings must be a direct regular file"
+[ "$(find -P "$home_path/app-server-daemon/settings.json" -maxdepth 0 -printf "%n")" = 1 ] ||
+  codex_fatal "Codex daemon settings must not be hard linked"
+codex_verify_stat "${account_uid}:${devops_gid}:600" "$home_path/app-server-daemon/settings.json"
 codex_verify_stat \
   "${account_uid}:${devops_gid}:600" \
   "$home_path/app-server-control/app-server-startup.lock"
@@ -272,6 +279,8 @@ for writable_path in \
   "$codex_root/sockets" \
   "$codex_root/credentials" \
   "$home_path/app-server-control" \
+  "$home_path/app-server-daemon" \
+  "$home_path/app-server-daemon/settings.json" \
   "$home_path/app-server-control/app-server-startup.lock"
 do
   /usr/sbin/runuser -u "$account_user" -- /usr/bin/test -w "$writable_path" ||

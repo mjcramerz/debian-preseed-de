@@ -425,6 +425,43 @@ class CodexStateTests(unittest.TestCase):
         session = self.actual / 'home/sessions/new.jsonl'; session.write_text('runtime'); session.chmod(0o660)
         self.compare(); self.compare()
 
+    def daemon_settings(self):
+        for tree in (self.expected, self.actual):
+            state = tree/'home/app-server-daemon'
+            state.mkdir(mode=0o700)
+            settings = state/'settings.json'
+            settings.write_text('{"updater":{"autoUpdateEnabled":false}}\n')
+            settings.chmod(0o600)
+        return self.actual/'home/app-server-daemon'
+
+    def test_private_daemon_settings_and_runtime_records_converge(self):
+        state = self.daemon_settings()
+        settings = state/'settings.json'
+        settings.write_text('{"remoteControlEnabled":false,"shutdownGraceSeconds":25}\n')
+        lock = state/'daemon.lock'
+        lock.write_text('')
+        lock.chmod(0o600)
+        self.compare(); self.compare()
+
+    def test_daemon_state_rejects_shared_permissions_and_symlinks(self):
+        state = self.daemon_settings()
+        settings = state/'settings.json'
+        for mode in (0o640, 0o660, 0o666):
+            settings.chmod(mode)
+            with self.assertRaises(self.mod.StateError): self.compare()
+        settings.chmod(0o600)
+        state.chmod(0o2770)
+        with self.assertRaises(self.mod.StateError): self.compare()
+        state.chmod(0o700)
+        settings.unlink()
+        settings.symlink_to('../config.toml')
+        with self.assertRaises(self.mod.StateError): self.compare()
+
+    def test_daemon_settings_cannot_disappear_from_publication(self):
+        state = self.daemon_settings()
+        (state/'settings.json').unlink()
+        with self.assertRaises(self.mod.StateError): self.compare()
+
     def test_memories_do_not_require_a_git_marker_or_discard_a_real_repository(self):
         self.compare()
         nested = self.actual / 'home/memories/.git'

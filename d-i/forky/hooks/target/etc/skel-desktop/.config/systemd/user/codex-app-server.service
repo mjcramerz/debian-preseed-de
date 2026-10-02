@@ -7,6 +7,7 @@ ConditionFileIsExecutable=/usr/local/libexec/codex-app-server-wait-ready
 ConditionPathIsDirectory=/data/codex/usr/home
 ConditionPathIsDirectory=/data/codex/sockets
 ConditionPathIsDirectory=/data/codex/usr/home/app-server-control
+ConditionPathIsDirectory=/data/codex/usr/home/app-server-daemon
 # Keep the backend alive across proxy idle exits and direct administrative starts.
 # Stopping/restarting the public listener still propagates to this backend.
 PartOf=codex-app-server.socket

@@ -15,6 +15,10 @@ d __INSTALLER_DEVOPS_CODEX_HOME__ 2770 __INSTALLER_ACCOUNT_USERNAME__ devops -
 # private /data/codex/sockets directory.
 # auth.json is deliberately omitted: Codex creates it only after user login.
 d __INSTALLER_DEVOPS_CODEX_HOME__/app-server-control 0700 __INSTALLER_ACCOUNT_USERNAME__ devops -
+# Settings are versioned in codex-home; the process manager owns live PID state.
+# Retain account-only permissions without recreating or truncating settings.
+d __INSTALLER_DEVOPS_CODEX_HOME__/app-server-daemon 0700 __INSTALLER_ACCOUNT_USERNAME__ devops -
+z __INSTALLER_DEVOPS_CODEX_HOME__/app-server-daemon/settings.json 0600 __INSTALLER_ACCOUNT_USERNAME__ devops -
 f __INSTALLER_DEVOPS_CODEX_HOME__/app-server-control/app-server-startup.lock 0600 __INSTALLER_ACCOUNT_USERNAME__ devops -
 L __INSTALLER_DEVOPS_CODEX_HOME__/app-server-control/app-server-control.sock - __INSTALLER_ACCOUNT_USERNAME__ devops - __INSTALLER_DEVOPS_CODEX_ROOT__/sockets/app-server-control.sock
 d __INSTALLER_DEVOPS_CODEX_HOME__/sessions 2770 __INSTALLER_ACCOUNT_USERNAME__ devops -
