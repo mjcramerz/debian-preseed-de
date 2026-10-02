@@ -5,6 +5,7 @@
 
 #include <abstractions/electron-application>
 #include <abstractions/pipewire-audio>
+#include <abstractions/user-documents>
 include if exists <abstractions/user-tmp>
 include if exists <abstractions/xdg-open>
 
@@ -97,6 +98,7 @@ owner @{HOME}/.local/state/browser-devtools/vivaldi/** rwkl,
 profile vivaldi-bwrap flags=(attach_disconnected, mediate_deleted) {
   #include <abstractions/bwrap-common>
   #include <abstractions/electron-runtime>
+  #include <abstractions/user-documents>
 
   # A parent browser mDNS socket can reach exec as an inherited descriptor.
   # Bubblewrap must not use host UDP sockets while constructing its namespace.

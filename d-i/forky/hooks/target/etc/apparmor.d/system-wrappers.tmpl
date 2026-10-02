@@ -694,6 +694,7 @@ profile labwc-apparmor-policy-worker /usr/local/libexec/labwc-apparmor-policy-wo
   /etc/apparmor/modes.conf rw,
   /etc/apparmor/.modes.* rwkl,
   /sys/module/apparmor/parameters/enabled r,
+  /sys/kernel/security/apparmor/profiles r,
   /var/lib/labwc-apparmor-policy/ rw,
   /var/lib/labwc-apparmor-policy/policy.lock rwk,
   include if exists <local/usr.local.libexec.labwc-apparmor-policy-worker>

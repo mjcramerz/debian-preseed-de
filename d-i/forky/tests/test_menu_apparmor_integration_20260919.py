@@ -166,6 +166,8 @@ class ActionContractTests(unittest.TestCase):
         with mock.patch.object(menu.Path, 'is_file', return_value=False):
             for route in routes:
                 expected = route if route[0].startswith('/') else ('/usr/local/bin/' + route[0], *route[1:])
+                if expected[0] == '/usr/local/bin/labwc-desktop-appearance':
+                    expected = ('/usr/local/bin/labwc-wayland-app', 'auto', '--', *expected)
                 with self.subTest(route=route), mock.patch.object(menu.subprocess, 'run',
                         return_value=types.SimpleNamespace(returncode=7)) as run:
                     self.assertEqual(menu.run_action(route), 7)

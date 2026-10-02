@@ -99,11 +99,20 @@ class NVMeStatusTests(unittest.TestCase):
         for name, value in {'model': 'WDC PC SN730', 'firmware_rev': '11170101',
                             'serial': 'must-not-collect'}.items():
             (controller / name).write_text(value + '\n')
+        (controller / 'power').mkdir()
+        (controller / 'power/pm_qos_latency_tolerance_us').write_text('0\n')
+        (dev / 'power').mkdir()
+        (dev / 'power/control').write_text('on\n')
+        (dev / 'power/runtime_status').write_text('active\n')
+        (dev / 'd3cold_allowed').write_text('0\n')
         self.m.NVME_LATENCY.write_text('3200\n')
         before = {p: p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
         record, = self.m.snapshot()
         self.assertEqual(record['controllers'], [dict(controller='nvme0', model='WDC PC SN730',
-                                                      firmware_revision='11170101')])
+                                                      firmware_revision='11170101', apst_latency_tolerance_us='0')])
+        self.assertEqual(record['runtime_power_control'], 'on')
+        self.assertEqual(record['runtime_power_status'], 'active')
+        self.assertEqual(record['d3cold_allowed'], '0')
         self.assertEqual(record['upstream_bridge']['pci_address'], bridge.name)
         self.assertEqual(record['upstream_bridge']['aer_dev_correctable'], 'RxErr 9')
         self.assertEqual(record['nvme_default_ps_max_latency_us'], '3200')
@@ -190,8 +199,16 @@ class NVMeRuleTests(unittest.TestCase):
         for name in ('l0s_aspm', 'l1_2_aspm', 'l1_1_aspm',
                      'l1_2_pcipm', 'l1_1_pcipm', 'l1_aspm', 'clkpm'):
             self.assertIn(f'TEST=="link/{name}", ATTR{{link/{name}}}="0"', active)
-        for prohibited in ('RUN', 'SYSTEMD_WANTS', 'setpci', 'noaer', 'reset', 'power/control', 'pcie_aspm=force'):
+        for prohibited in ('RUN', 'SYSTEMD_WANTS', 'setpci', 'noaer', 'reset', 'pcie_aspm=force'):
             self.assertNotIn(prohibited, active)
+        self.assertIn('TEST=="power/control", ATTR{power/control}="on"', active)
+        self.assertIn('TEST=="d3cold_allowed", ATTR{d3cold_allowed}="0"', active)
+        controller = next(line for line in active.splitlines() if line.startswith('SUBSYSTEM=="nvme"'))
+        for guard in ('ATTR{model}=="WDC PC SN730 SDBQNTY-512G-1001*"',
+                      'ATTRS{vendor}=="0x15b7"', 'ATTRS{device}=="0x5006"',
+                      'TEST=="power/pm_qos_latency_tolerance_us"',
+                      'ATTR{power/pm_qos_latency_tolerance_us}="0"'):
+            self.assertIn(guard, controller)
 
     def test_shared_staging_covers_both_filesystem_families(self):
         stage = (ROOT / 'scripts/late/storage-maintenance.sh').read_text()

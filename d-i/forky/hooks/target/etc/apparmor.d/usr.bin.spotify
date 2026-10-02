@@ -34,6 +34,13 @@ profile spotify /usr/bin/spotify flags=(attach_disconnected) {
   owner @{HOME}/.local/share/spotify/** rwk,
   owner @{HOME}/@{XDG_MUSIC_DIR}/ r,
   owner @{HOME}/@{XDG_MUSIC_DIR}/** r,
+  # User-selected local music can live on the managed NFS shares. Keep this
+  # read-only; encrypted streaming downloads remain in Spotify's own cache.
+  /data/ r,
+  /data/sharing/ r,
+  /data/sharing/{nfs-client,nfs-server}/{,**} r,
+  owner @{HOME}/Sharing/ r,
+  @{HOME}/Sharing/{nfs-client,nfs-server}/{,**} r,
 
   include if exists <local/usr.bin.spotify>
 }

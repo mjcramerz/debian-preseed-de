@@ -245,11 +245,12 @@ class IntegrationContractTests(unittest.TestCase):
         for name in ('labwc-apparmor-policy@.service', 'labwc-apparmor-boot-recover.service'):
             self.assertIn(f'"/etc/systemd/system/{name}" 0644', security)
 
-    def test_live_profile_menu_replaces_boot_toggle_without_per_app_unload(self):
+    def test_live_profile_menu_selects_one_application_and_protects_session(self):
         menu = payload_read_text(TARGET / 'usr/local/bin/labwc-maintenance-menu')
         self.assertNotIn("'Disable All'", menu)
-        self.assertIn("'Unload AppArmor Profiles'", menu)
-        self.assertIn("'Load AppArmor Profiles'", menu)
+        self.assertIn("'Unload AppArmor Profile'", menu)
+        self.assertIn("'Load AppArmor Profile'", menu)
+        self.assertIn('--list-apparmor-profile-candidates', menu)
         self.assertNotIn('AppArmor After Reboot', menu)
         self.assertIn('confirmed-apparmor-profile-state-change', menu)
         self.assertNotIn('Disable) mode=disable', menu)

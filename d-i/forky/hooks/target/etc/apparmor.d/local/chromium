@@ -6,6 +6,8 @@
 
 #include <abstractions/electron-application>
 #include <abstractions/pipewire-audio>
+# File chooser imports/uploads and atomic downloads in document roots.
+#include <abstractions/user-documents>
 include if exists <abstractions/user-tmp>
 include if exists <abstractions/xdg-open>
 

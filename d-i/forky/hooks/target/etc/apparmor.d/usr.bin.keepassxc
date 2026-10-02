@@ -8,6 +8,8 @@ profile keepassxc /usr/bin/keepassxc flags=(attach_disconnected, mediate_deleted
   /usr/share/imsprog/ r,
   owner @{HOME}/Workspace/{,**/} r,
   #include <abstractions/desktop-application>
+  # Database/key-file selection, import/export and atomic-save backups.
+  #include <abstractions/user-documents>
   include if exists <abstractions/user-tmp>
 
   /usr/bin/keepassxc mr,
@@ -17,6 +19,11 @@ profile keepassxc /usr/bin/keepassxc flags=(attach_disconnected, mediate_deleted
   /usr/share/keepassxc/** r,
 
   /dev/bus/usb/ r,
+  # YubiKey challenge-response and FIDO devices remain limited by udev/DAC.
+  /dev/bus/usb/** rw,
+  /dev/hidraw* rw,
+  network inet stream,
+  network inet6 stream,
   deny /dev/dri/card[0-9]* rw,
   /run/udev/data/{+usb:*,c189:*} r,
   @{sys}/devices/**/usb*/speed r,

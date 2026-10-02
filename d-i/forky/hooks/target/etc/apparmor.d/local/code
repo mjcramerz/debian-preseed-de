@@ -6,6 +6,7 @@
 
 #include <abstractions/electron-application>
 #include <abstractions/pipewire-audio>
+#include <abstractions/user-documents>
 include if exists <abstractions/consoles>
 include if exists <abstractions/user-tmp>
 include if exists <abstractions/xdg-open>

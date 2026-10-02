@@ -68,6 +68,23 @@ require_confirmation() {
     fatal "managed system confirmation is missing"
 }
 
+run_fwupd() {
+  require_command fwupdmgr
+  # fwupd owns signature, power and device-safety checks. Avoid unrelated
+  # reporting/remote-enablement prompts and never reboot from this menu.
+  # Status 2 is fwupd's successful no-action result; all failures survive.
+  if fwupdmgr --assume-yes --no-unreported-check --no-remote-check --no-reboot-check "$@"; then
+    return 0
+  else
+    firmware_status=$?
+  fi
+  if [ "$firmware_status" -eq 2 ]; then
+    printf '%s\n' 'Firmware action completed: nothing to do.'
+    return 0
+  fi
+  return "$firmware_status"
+}
+
 systemd_resolved_active() {
   command -v resolvectl >/dev/null 2>&1 || return 1
   command -v systemctl >/dev/null 2>&1 || return 1
@@ -318,23 +335,22 @@ case "$action" in
     ;;
   firmware-devices)
     [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
-    require_command fwupdmgr
-    exec fwupdmgr get-devices
+    run_fwupd get-devices
     ;;
   refresh-firmware-metadata)
     [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
-    require_command fwupdmgr
-    exec fwupdmgr refresh --force
+    run_fwupd refresh --force
     ;;
   firmware-updates)
     [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
-    require_command fwupdmgr
-    exec fwupdmgr get-updates
+    run_fwupd refresh
+    run_fwupd --no-metadata-check get-updates
     ;;
   apply-firmware-updates)
     require_confirmation "$@"
-    require_command fwupdmgr
-    exec fwupdmgr update --assume-yes
+    run_fwupd refresh
+    run_fwupd --no-metadata-check update
+    printf '%s\n' 'If fwupd requested a reboot or device power cycle, perform it manually to finish activation.'
     ;;
   upgradeable-packages)
     [ "$#" -eq 0 ] || fatal "$action does not accept arguments"

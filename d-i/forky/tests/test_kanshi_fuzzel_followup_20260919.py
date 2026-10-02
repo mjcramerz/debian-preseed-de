@@ -474,7 +474,10 @@ class ManagementRoutingTests(unittest.TestCase):
                      mock.patch.object(self.menu.Path,'is_file',return_value=False):
                     self.assertEqual(self.menu.run_action(route),0)
                     exe=route[0] if route[0].startswith('/') else '/usr/local/bin/'+route[0]
-                    self.assertEqual(run.call_args.args[0], (exe,*route[1:]))
+                    expected = (exe, *route[1:])
+                    if exe == '/usr/local/bin/labwc-desktop-appearance':
+                        expected = ('/usr/local/bin/labwc-wayland-app', 'auto', '--', *expected)
+                    self.assertEqual(run.call_args.args[0], expected)
                     self.assertNotIn('shell',run.call_args.kwargs)
                     if exe.startswith('/usr/local/'):
                         self.assertTrue(payload_source_exists(TARGET/exe.lstrip('/')),exe)

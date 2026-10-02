@@ -80,6 +80,11 @@ def run_action(arguments: tuple[str, ...]) -> int:
     if not executable.startswith('/'):
         executable = '/usr/local/bin/' + executable
     command = (executable, *arguments[1:])
+    if executable == '/usr/local/bin/labwc-desktop-appearance':
+        # A compositor child inherits its UID namespace. The user manager
+        # starts this exact administrative workflow with host UID semantics,
+        # so root-owned defaults and pkexec retain their real ownership.
+        command = ('/usr/local/bin/labwc-wayland-app', 'auto', '--', *command)
     # Only the explicit terminal UI already owns a tty. Graphical invocation
     # uses the AI launcher's normal terminal entry point instead.
     if executable == '/usr/local/bin/labwc-ai-copilots' and os.environ.get('LABWC_MENU_BACKEND') == 'fzf':

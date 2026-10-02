@@ -57,7 +57,9 @@ def controller_evidence(device: Path) -> list[dict]:
             raise ValueError('unsafe NVMe controller directory')
         controllers.append({'controller': entry.name,
                             'model': read_attribute(entry / 'model'),
-                            'firmware_revision': read_attribute(entry / 'firmware_rev')})
+                            'firmware_revision': read_attribute(entry / 'firmware_rev'),
+                            'apst_latency_tolerance_us': read_attribute(
+                                entry / 'power/pm_qos_latency_tolerance_us')})
     return controllers
 
 
@@ -101,11 +103,15 @@ def snapshot() -> list[dict]:
         devices.append({'pci_address': entry.name, 'pci_id': '15b7:5006',
                         'policy_state': state, 'link_idle_enabled': controls,
                         'policy_note': ('No kernel link controls are exposed; the udev rule cannot verify '
-                                        'ASPM disabled. Review firmware ownership and both PCIe endpoints.'
+                                        'ASPM disabled. Per-controller APST and runtime PM are separate '
+                                        'mitigations; increasing RxErr still requires firmware/link assessment.'
                                         if not available else
                                         'Only exposed controls were checked; AER counters and media health '
                                         'require separate assessment.'),
                         'nvme_default_ps_max_latency_us': latency,
+                        'runtime_power_control': read_attribute(device / 'power/control'),
+                        'runtime_power_status': read_attribute(device / 'power/runtime_status'),
+                        'd3cold_allowed': read_attribute(device / 'd3cold_allowed'),
                         'controllers': controller_evidence(device), 'upstream_bridge': upstream,
                         'link_evidence': link_evidence(device),
                         'aer_correctable': read_attribute(device / 'aer_dev_correctable'),

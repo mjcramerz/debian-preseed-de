@@ -209,9 +209,11 @@ sub _validate_request_shape {
         return;
     }
     if ($action eq 'set-apparmor-profile-state') {
-        @args == 2 && $args[0] =~ /\A(?:load|unload)\z/
-            && $args[1] eq 'confirmed-apparmor-profile-state-change'
-            or die "set-apparmor-profile-state requires an action and explicit confirmation\n";
+        @args == 3 && $args[0] =~ /\A(?:load|unload)\z/
+            && $args[2] eq 'confirmed-apparmor-profile-state-change'
+            or die "set-apparmor-profile-state requires an action, profile source and explicit confirmation\n";
+        require LabwcSecurityAction::AppArmor;
+        LabwcSecurityAction::AppArmor->new()->_profile_state_file($args[1]);
         return;
     }
     if ($action eq 'set-apparmor-desktop-state') {
@@ -664,6 +666,17 @@ sub run {
     return $self->_fatal('labwc-security-action must be launched by the logged-in desktop user')
         if $> == 0;
     my $status = eval {
+        if (@argv && $argv[0] eq '--list-apparmor-profile-candidates') {
+            shift @argv;
+            @argv == 0 or die "--list-apparmor-profile-candidates does not accept arguments\n";
+            require LabwcSecurityAction::AppArmor;
+            my $apparmor = LabwcSecurityAction::AppArmor->new();
+            for my $name (sort $apparmor->_profile_state_files()) {
+                my $path = $apparmor->_profile_state_file($name);
+                print "$name\n" if -f $path && !-l $path;
+            }
+            return 0;
+        }
         if (@argv && $argv[0] eq '--list-apparmor-draft-candidates') {
             shift @argv;
             @argv == 0 or die "--list-apparmor-draft-candidates does not accept arguments\n";

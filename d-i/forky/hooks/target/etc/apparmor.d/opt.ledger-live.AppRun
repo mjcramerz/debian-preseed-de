@@ -6,6 +6,8 @@ abi "/usr/share/apparmor-features/features",
 
 profile ledger-live /opt/ledger-live/AppRun flags=(attach_disconnected) {
   #include <abstractions/electron-application>
+  # Transaction report exports to the managed document/save-dialog roots.
+  #include <abstractions/user-documents>
   #include <abstractions/pipewire-audio>
   include if exists <abstractions/user-tmp>
 

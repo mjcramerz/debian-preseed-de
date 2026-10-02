@@ -4,9 +4,10 @@ abi "/usr/share/apparmor-features/features",
 
 #include <tunables/global>
 
-profile retroarch /usr/bin/retroarch flags=(attach_disconnected) {
+profile retroarch /usr/bin/retroarch flags=(attach_disconnected, mediate_deleted) {
   #include <abstractions/desktop-application>
   #include <abstractions/pipewire-audio>
+  #include <abstractions/user-documents>
   include if exists <abstractions/user-tmp>
 
   capability sys_nice,
@@ -31,6 +32,11 @@ profile retroarch /usr/bin/retroarch flags=(attach_disconnected) {
   /usr/bin/retroarch mr,
   /usr/lib/@{multiarch}/libretro/ r,
   /usr/lib/@{multiarch}/libretro/*.so mr,
+  /usr/lib/libretro/{,*.so} mr,
+  # Cores are shared libraries, not executables. Keep plugin mapping limited
+  # to the core directories; ROMs and saves receive no execution permission.
+  owner @{HOME}/.config/retroarch/cores/*.so mr,
+  owner @{HOME}/.local/share/retroarch/cores/*.so mr,
   /usr/share/{libretro,retroarch}/ r,
   /usr/share/{libretro,retroarch}/** r,
 

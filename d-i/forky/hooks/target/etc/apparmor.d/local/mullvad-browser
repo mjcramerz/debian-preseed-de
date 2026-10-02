@@ -5,6 +5,7 @@
 
 #include <abstractions/desktop-application>
 #include <abstractions/pipewire-audio>
+#include <abstractions/user-documents>
 include if exists <abstractions/user-tmp>
 include if exists <abstractions/xdg-open>
 
@@ -72,6 +73,7 @@ owner @{HOME}/@{XDG_DOWNLOAD_DIR}/** rwkl,
 profile mullvad-bwrap flags=(attach_disconnected, mediate_deleted) {
   #include <abstractions/bwrap-common>
   #include <abstractions/desktop-application>
+  #include <abstractions/user-documents>
   include if exists <abstractions/user-tmp>
 
   signal (receive) set=(kill) peer=mullvad-browser,

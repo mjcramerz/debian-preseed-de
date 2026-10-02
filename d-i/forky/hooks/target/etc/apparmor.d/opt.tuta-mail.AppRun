@@ -6,6 +6,8 @@ abi "/usr/share/apparmor-features/features",
 
 profile tuta-mail /opt/tuta-mail/AppRun flags=(attach_disconnected) {
   #include <abstractions/electron-runtime>
+  # Save/export mail and select attachments in the managed document roots.
+  #include <abstractions/user-documents>
   # Electron constructs nested PID/network namespaces and a safe proc chroot.
   # These AppArmor permissions do not grant host capabilities to the daily uid.
   # Do not weaken the shared capability-free runtime for other applications.
@@ -82,6 +84,7 @@ profile tuta-mail /opt/tuta-mail/AppRun flags=(attach_disconnected) {
   profile tuta-bwrap flags=(attach_disconnected, mediate_deleted) {
     #include <abstractions/bwrap-common>
     #include <abstractions/desktop-application>
+    #include <abstractions/user-documents>
     include if exists <abstractions/user-tmp>
 
     network inet stream,
@@ -138,6 +141,14 @@ profile tuta-mail /opt/tuta-mail/AppRun flags=(attach_disconnected) {
 profile tuta-glycin-loader flags=(attach_disconnected, mediate_deleted) {
   #include <abstractions/desktop-application>
   include if exists <abstractions/user-tmp>
+
+  # Attachment previews can read group-owned NFS files, never modify them.
+  /data/ r,
+  /data/{downloads,sharing}/ r,
+  /data/downloads/** r,
+  /data/sharing/{nfs-client,nfs-server}/{,**} r,
+  owner @{HOME}/Sharing/ r,
+  @{HOME}/Sharing/{nfs-client,nfs-server}/{,**} r,
 
   /usr/libexec/glycin-loaders/2+/glycin-image-rs mrix,
   /usr/libexec/glycin-loaders/2+/glycin-svg mrix,

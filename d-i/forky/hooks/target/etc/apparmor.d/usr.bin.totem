@@ -19,6 +19,7 @@ profile /usr/bin/totem /usr/bin/totem flags=(attach_disconnected) {
   /usr/bin/totem mr,
   /usr/libexec/totem* rix,
   /usr/libexec/gstreamer-1.0/gst-plugin-scanner ix,
+  /usr/lib/@{multiarch}/gstreamer1.0/gstreamer-1.0/gst-plugin-scanner rix,
   /usr/share/{glib-2.0,gstreamer-1.0,totem}/ r,
   /usr/share/{glib-2.0,gstreamer-1.0,totem}/** r,
 
@@ -50,6 +51,7 @@ profile /usr/bin/totem /usr/bin/totem flags=(attach_disconnected) {
     /usr/bin/totem mr,
     /usr/libexec/totem* rix,
     /usr/libexec/gstreamer-1.0/gst-plugin-scanner ix,
+    /usr/lib/@{multiarch}/gstreamer1.0/gstreamer-1.0/gst-plugin-scanner rix,
     /usr/share/{glib-2.0,gstreamer-1.0,totem}/ r,
     /usr/share/{glib-2.0,gstreamer-1.0,totem}/** r,
 

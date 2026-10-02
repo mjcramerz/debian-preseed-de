@@ -5,6 +5,27 @@ owner @{HOME}/ r,
 owner @{HOME}/{Desktop,Documents,Downloads,Music,Pictures,Public,Templates,Videos,Workspace,Syncthing}/ rw,
 owner @{HOME}/{Desktop,Documents,Downloads,Music,Pictures,Public,Templates,Videos,Workspace,Syncthing}/** rwklm,
 owner @{HOME}/*.{pdf,doc,docx,odt,rtf,txt,md,csv,tsv,xopp} rwkl,
+# Extensionless documents and Qt/GLib atomic-save siblings directly in HOME.
+# '*' is one path component: hidden credentials and custom subtrees retain
+# their existing policy. This grants file access, never execution.
+owner @{HOME}/[^.]* rwkl,
+# GIO uses this hidden, user-owned sibling for atomic replacement in HOME.
+owner @{HOME}/.goutputstream-* rwkl,
+# Honor the installed XDG directory names, including localized directories.
+owner @{HOME}/@{XDG_DESKTOP_DIR}/{,**} rwklm,
+owner @{HOME}/@{XDG_DOCUMENTS_DIR}/{,**} rwklm,
+owner @{HOME}/@{XDG_DOWNLOAD_DIR}/{,**} rwklm,
+owner @{HOME}/@{XDG_MUSIC_DIR}/{,**} rwklm,
+owner @{HOME}/@{XDG_PICTURES_DIR}/{,**} rwklm,
+owner @{HOME}/@{XDG_PUBLICSHARE_DIR}/{,**} rwklm,
+owner @{HOME}/@{XDG_TEMPLATES_DIR}/{,**} rwklm,
+owner @{HOME}/@{XDG_VIDEOS_DIR}/{,**} rwklm,
+# Managed NFS roots have DAC/group/export permissions of their own. Peer files
+# can legitimately have another UID; do not require local ownership here.
+/data/sharing/ r,
+/data/sharing/{nfs-client,nfs-server}/{,**} rwkl,
+owner @{HOME}/Sharing/ r,
+@{HOME}/Sharing/{nfs-client,nfs-server}/{,**} rwkl,
 /data/ r,
 /data/{downloads,tmp}/ rw,
 /data/{downloads,tmp}/** rwklm,

@@ -665,9 +665,22 @@ set_all_apparmor_desktop_profiles_mode() {
 set_apparmor_profile_state() {
   profile_action=$1
   case "$profile_action" in
-    load) profile_warning='Load or reload AppArmor profiles now; running processes may need restarting to regain confinement' ;;
-    unload) profile_warning='Unload ALL AppArmor profiles now; running processes lose their confinement until restarted after loading' ;;
+    load|unload) ;;
     *) fatal "unsupported AppArmor profile action: $profile_action" ;;
+  esac
+  profile_candidates=$(labwc-security-action --list-apparmor-profile-candidates) || return "$?"
+  [ -n "$profile_candidates" ] || {
+    printf '%s\n' 'warning: no independent application profiles are installed' >&2
+    return 0
+  }
+  selected_profile=$(
+    printf '%s\n' "$profile_candidates" |
+      labwc-fuzzel menu --dmenu --prompt "Select AppArmor profile to ${profile_action}" || menu_failure "$?"
+  )
+  [ -n "$selected_profile" ] || return 0
+  case "$profile_action" in
+    load) profile_warning="Load ${selected_profile} and its children; restart this app to restore confinement" ;;
+    unload) profile_warning="Unload ${selected_profile} and its children; this app loses confinement until loaded and restarted" ;;
   esac
   confirmation=$(
     choose_lines "$profile_warning" \
@@ -675,7 +688,7 @@ set_apparmor_profile_state() {
       'Continue with AppArmor profile change'
   )
   [ "$confirmation" = 'Continue with AppArmor profile change' ] || return 0
-  run_security_action set-apparmor-profile-state "$profile_action" confirmed-apparmor-profile-state-change
+  run_security_action set-apparmor-profile-state "$profile_action" "$selected_profile" confirmed-apparmor-profile-state-change
 }
 
 set_apparmor_application_audit() {
@@ -863,8 +876,8 @@ apparmor_managed_modes_menu() {
         'Generate New Rules' \
         'Enforce All' \
         'Complain All' \
-        'Unload AppArmor Profiles' \
-        'Load AppArmor Profiles' \
+        'Unload AppArmor Profile' \
+        'Load AppArmor Profile' \
         'Set App Mode' \
         'Set App Audit Logging' \
         'Reload Modes & Clear Audit' \
@@ -884,10 +897,10 @@ apparmor_managed_modes_menu() {
       'Complain All')
         set_all_apparmor_desktop_profiles_mode complain
         ;;
-      'Unload AppArmor Profiles')
+      'Unload AppArmor Profile')
         set_apparmor_profile_state unload
         ;;
-      'Load AppArmor Profiles')
+      'Load AppArmor Profile')
         set_apparmor_profile_state load
         ;;
       'Set App Mode')

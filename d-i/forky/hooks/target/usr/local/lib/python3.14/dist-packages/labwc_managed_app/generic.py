@@ -190,6 +190,7 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         "/usr/local/bin/labwc-terminal",
         "/usr/bin/timeshift-launcher", "/usr/local/bin/mullvad-vpn",
         "/usr/local/bin/waypaper",
+        "/usr/local/bin/labwc-desktop-appearance",
     }) or (kind == "wayland" and arguments[:2] == [
         "/usr/local/bin/labwc-remote-desktop", "_connect",
     ]) or (kind == "electron" and arguments[0] in {

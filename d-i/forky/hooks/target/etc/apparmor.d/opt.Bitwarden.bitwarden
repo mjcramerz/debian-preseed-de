@@ -6,6 +6,8 @@ abi "/usr/share/apparmor-features/features",
 
 profile bitwarden /opt/Bitwarden/bitwarden flags=(attach_disconnected) {
   #include <abstractions/electron-application>
+  # Vault import/export files; keep the exact native-messaging grants below.
+  #include <abstractions/user-documents>
   ptrace (readby) peer=desktop-launcher,
   include if exists <abstractions/user-tmp>
 

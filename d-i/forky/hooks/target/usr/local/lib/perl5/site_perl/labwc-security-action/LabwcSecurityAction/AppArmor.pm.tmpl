@@ -110,18 +110,6 @@ has profile_draft_dir => (
     default => sub { '/var/lib/apparmor/drafts' },
 );
 
-has profile_loader => (
-    is      => 'ro',
-    isa     => Str,
-    default => sub { '/lib/apparmor/apparmor.systemd' },
-);
-
-has profile_teardown => (
-    is      => 'ro',
-    isa     => Str,
-    default => sub { '/usr/sbin/aa-teardown' },
-);
-
 has rule_generator => (
     is      => 'ro',
     isa     => Str,
@@ -140,7 +128,7 @@ has loaded_profiles_path => (
 
 sub _policy_service {
     my ($self, $request) = @_;
-    $request =~ /\A(?:global-(?:enforce|complain)|boot-(?:enable|disable)|application-[a-z0-9-]+-(?:enforce|complain)|audit-[a-z0-9-]+-(?:enable|disable)|reload-modes)\z/
+    $request =~ /\A(?:global-(?:enforce|complain)|boot-(?:enable|disable)|application-[a-z0-9-]+-(?:enforce|complain)|audit-[a-z0-9-]+-(?:enable|disable)|profile-(?:load|unload)-[A-Za-z0-9_.+-]+|reload-modes)\z/
         or die "invalid AppArmor policy service request\n";
     my $unit = "labwc-apparmor-policy\@$request.service";
     print "Starting independent system policy worker: $unit\n";
@@ -1151,65 +1139,98 @@ sub set_boot_state {
     return $self->_policy_service("boot-$mode");
 }
 
-sub _profiles_loaded {
+sub _profile_state_files {
+    # Only independent application policy sources are eligible. Session,
+    # terminal, authentication, sandbox-launch and system profiles are never
+    # offered or accepted, including the shared Zoom/Discord runtime.
+    return qw(
+        opt.Bitwarden.bitwarden chromium code vscode usr.bin.qoredb Discord
+        opt.Filen.Filen usr.bin.keepassxc opt.ledger-live.AppRun
+        microsoft-edge-stable mullvad-browser obsidian opt.postman.app.Postman
+        usr.bin.qbittorrent usr.bin.retroarch sleek usr.bin.spotify
+        usr.bin.sqlitebrowser usr.bin.telegram-desktop usr.bin.totem
+        opt.tuta-mail.AppRun vivaldi-stable vivaldi-bin usr.bin.zoom
+        usr.bin.pwsh
+    );
+}
+
+sub _profile_state_file {
+    my ($self, $name) = @_;
+    my %allowed = map { $_ => 1 } $self->_profile_state_files();
+    defined($name) && exists $allowed{$name}
+        or die "protected or unsupported AppArmor profile source\n";
+    return $self->profile_dir() . "/$name";
+}
+
+sub _loaded_profile_names {
     my ($self) = @_;
-    open my $profiles, '<', $self->loaded_profiles_path()
-        or die "cannot read loaded AppArmor profiles: $!\n";
-    my $bytes = read $profiles, my $first_byte, 1;
-    defined($bytes) or die "cannot inspect loaded AppArmor profiles: $!\n";
-    close $profiles or die "cannot close loaded AppArmor profiles: $!\n";
-    return $bytes != 0;
+    my $content = $self->_read_small_file($self->loaded_profiles_path(), 4_194_304,
+                                        'loaded AppArmor profiles');
+    my %names;
+    for my $line (split /\n/, $content) {
+        $line =~ /\A(.+) \([a-z]+\)\z/
+            or die "malformed loaded AppArmor profile state\n";
+        $names{$1} = 1;
+    }
+    return \%names;
 }
 
 sub set_profile_state {
-    my ($self, $action, $confirmation) = @_;
-    $confirmation eq 'confirmed-apparmor-profile-state-change'
+    my ($self, $action, $name, $confirmation) = @_;
+    defined($confirmation) && $confirmation eq 'confirmed-apparmor-profile-state-change'
         or die "AppArmor profile changes require explicit confirmation\n";
-    $action =~ /\A(?:load|unload)\z/
+    defined($action) && $action =~ /\A(?:load|unload)\z/
         or die "unsupported AppArmor profile action\n";
+    $self->_profile_state_file($name);
+    return $self->_policy_service("profile-$action-$name");
+}
 
-    my $policy_lock = $self->_policy_lock();
+sub _change_profile_state {
+    # Called only by the independent policy worker while holding policy.lock.
+    my ($self, $action, $name) = @_;
+    $action =~ /\A(?:load|unload)\z/ or die "unsupported AppArmor profile action\n";
+    my $source = $self->_profile_state_file($name);
+    $self->_validate_root_owned_file('selected AppArmor profile', $source);
+    !-e $self->profile_dir() . "/disable/$name" && !-l $self->profile_dir() . "/disable/$name"
+        or die "selected AppArmor profile is disabled on disk; resolve that policy before loading or unloading\n";
     my $enabled = $self->_read_small_file($self->kernel_enabled_path(), 16, 'AppArmor kernel enablement');
     $enabled =~ s/\s+\z//;
     $enabled eq 'Y' or die "AppArmor is not enabled in the running kernel; profiles cannot be changed\n";
-    my $loaded = $self->_profiles_loaded();
-
-    if ($action eq 'unload') {
-        if (!$loaded) {
-            print "No AppArmor profiles are loaded. Nothing to unload.\n";
-            return 0;
-        }
-        my $teardown = $self->profile_teardown();
-        $self->_validate_root_owned_file('AppArmor teardown command', $teardown);
-        -x $teardown or die "AppArmor teardown command is not executable\n";
-        print "Unloading all AppArmor profiles with aa-teardown...\n";
-        STDOUT->flush();
-        my $status = $self->command()->run($teardown);
-        $status == 0 or die "aa-teardown failed with status $status; check the live profile state\n";
-        !$self->_profiles_loaded()
-            or die "aa-teardown returned success but AppArmor profiles remain loaded\n";
-        print "All AppArmor profiles were unloaded. The boot setting was not changed.\n";
-        print "Restart affected processes after loading profiles to restore their confinement.\n";
+    my $labels = $self->_profile_labels($source);
+    # A modified root-owned source must not smuggle a control-plane profile
+    # into an otherwise eligible application file.
+    for my $label (@{$labels}) {
+        $label =~ m{\A(?:bitwarden|chromium|code|vscode|qoredb|Discord|filen|keepassxc|ledger-live|microsoft-edge-stable|mullvad-browser|obsidian|postman|qbittorrent|retroarch|sleek|spotify|sqlitebrowser|telegram-desktop|/usr/bin/totem|tuta-mail|tuta-glycin-loader|vivaldi-stable|vivaldi-bin|usr\.bin\.zoom|pwsh)(?://[^\r\n]+)?\z}
+            or die "selected source contains a protected or unsupported AppArmor label: $label\n";
+    }
+    my $before = $self->_loaded_profile_names();
+    my %family = map { $_ => 1 } @{$labels};
+    my @active = grep { my $p = $_; grep { $p eq $_ || index($p, "$_//") == 0 } @{$labels} } keys %{$before};
+    if ($action eq 'unload' && !@active) {
+        print "Selected AppArmor profile is already unloaded. Nothing to unload.\n";
         return 0;
     }
-
-    # apparmor.service remains active after aa-teardown, so a systemctl start
-    # would not restore policy. Invoke Debian's package-owned loader directly.
-    my $loader = $self->profile_loader();
-    $self->_validate_root_owned_file('AppArmor loader', $loader);
-    -x $loader or die "AppArmor loader is not executable\n";
-    my $verb = $loaded ? 'reload' : 'start';
-    print "AppArmor profiles are " . ($loaded ? 'loaded' : 'unloaded') . "; running $loader $verb...\n";
+    print "AppArmor $action: $name (including its child profiles).\n";
     STDOUT->flush();
-    my $status = $self->command()->run($loader, $verb);
-    $status == 0 or die "AppArmor $verb failed with status $status; check the live profile state\n";
-    $self->_profiles_loaded() or die "AppArmor $verb returned success but no profiles are loaded\n";
-    print "Reconciling managed AppArmor application and wrapper modes...\n";
-    STDOUT->flush();
-    $status = $self->_reconcile_modes();
-    $status == 0 or die "AppArmor profiles loaded but managed mode reconciliation failed with status $status\n";
-    print "AppArmor profiles loaded and managed modes verified.\n";
-    print "Processes that lost confinement during an unload may need restarting.\n";
+    my $status = $self->command()->run($self->_program('apparmor_parser'),
+        '--config-file', '/etc/apparmor/parser.conf', '-K', '-T',
+        $action eq 'unload' ? '--remove' : '--replace', $source);
+    $status == 0 or die "selected AppArmor $action failed with status $status; inspect the live state before retrying\n";
+    my $after = $self->_loaded_profile_names();
+    for my $label (@{$labels}, @active) {
+        if ($action eq 'unload') {
+            !exists $after->{$label} or die "selected AppArmor profile remains loaded: $label\n";
+        }
+        elsif (exists $family{$label}) {
+            exists $after->{$label} or die "selected AppArmor profile was not loaded: $label\n";
+        }
+    }
+    for my $label (keys %{$before}) {
+        next if grep { $label eq $_ || index($label, "$_//") == 0 } @{$labels};
+        exists $after->{$label} or die "unrelated AppArmor profile disappeared: $label\n";
+    }
+    print "Selected profile $action completed; no boot setting was changed.\n";
+    print "Restart the selected application after loading to restore confinement of tasks that were unloaded.\n";
     return 0;
 }
 

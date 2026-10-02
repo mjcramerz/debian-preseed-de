@@ -369,7 +369,7 @@ sub _dispatch {
         return $self->apparmor()->set_boot_state(@args);
     }
     if ($action eq 'set-apparmor-profile-state') {
-        @args == 2 or die "set-apparmor-profile-state requires an action and confirmation\n";
+        @args == 3 or die "set-apparmor-profile-state requires an action, profile source and confirmation\n";
         return $self->apparmor()->set_profile_state(@args);
     }
     if ($action eq 'set-apparmor-desktop-state') {
