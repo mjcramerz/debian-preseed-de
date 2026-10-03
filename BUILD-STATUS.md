@@ -1,4 +1,39 @@
-# Build status - 2026-10-03 Codex, browser and Sharing permission integration
+# Build status - 2026-10-03 finish-install home permission repair
+
+The final `99-normalize-finish` hook still performed an unrestricted home chmod
+walk after the earlier desktop pass. It reached root-owned, immutable Sharing
+parents and aborted installation. The final hook now resolves a nonroot UID and
+matching home from a unique entry in the target's `/etc/passwd`, verifies ownership,
+and physically prunes foreign-owned entries before chmod or descent. Numeric
+`-user` works with GNU find and the installer's BusyBox find. Sharing parent
+flags and modes, `0000` unmounted endpoints, account-private modes, and fatal
+account chmod failures are preserved. No mount, NFS policy, profile, AppArmor or
+Xwayland source was changed.
+
+The new fixture reproduced the original fatal directory normalization error.
+The focused home/NFS/module/finish-order suite ran 155 tests: 129 passed and 26
+were explicitly skipped. All 15 publication contract tests passed. Home tests
+include the complete final hook, repeated execution, custom root-owned Sharing
+parents, foreign files and descendants, GNU and BusyBox find/awk, symlink
+boundaries, malformed/ambiguous identities, and fatal account chmod failures.
+Ownership simulation is explicitly labelled: native foreign UID and immutable
+fixtures cannot run in this environment, and private mount namespaces are denied.
+
+The rebuilt snapshot contains 1694 payload files. Build freshness and all 59
+preseeds passed, including private debconf command read-back. All 709 parser
+checks across 349 shell sources passed with dash, bash and the official BusyBox
+1.35.0 x86_64 musl binary. The whole-tree audit reported zero explicit failures:
+612 syntax passes, 224 unit structure checks, 159 blocked Perl dependencies,
+616 inventory-only records and 11 unrendered templates. These are offline checks;
+the available systemd is 255, not the deployment's fixed systemd 261.2.
+
+No software was compiled. No live Forky installation, immutable bind-mount/NFS
+acceptance, enforcing AppArmor test or target service activation was performed.
+The pre-existing broad-suite failures recorded below remain outside this repair;
+those broad suites were not rerun. Publish the complete snapshot atomically and
+perform an unattended installation on the intended deployment platform.
+
+## Previous snapshot record: Codex, browser and Sharing integration
 
 
 The desktop permission pass now prunes every foreign-owned entry before changing

@@ -546,19 +546,43 @@ normalize_account_home_permissions() {
     exit 1
   }
 
-  find "$target_home" -xdev -type d -exec chmod 0700 {} + || {
+  # Resolve the installed identity offline; the installer's passwd database and
+  # the NFS profile UID are not authoritative for this account.
+  account_uid=$(awk -F: -v account="${ACCOUNT_USERNAME:-}" -v home="$account_home" '
+    $1 == account {
+      count++
+      if (NF == 7 && $3 ~ /^[1-9][0-9]*$/ && $6 == home) uid = $3
+    }
+    END {
+      if (account == "" || count != 1 || uid == "") exit 1
+      print uid
+    }
+  ' "${TARGET}/etc/passwd") || {
+    log "fatal: unable to resolve target account identity for ${ACCOUNT_USERNAME:-unset} and $account_home"
+    exit 1
+  }
+  owned_home=$(find -P "$target_home" -maxdepth 0 -type d -user "$account_uid" -print) &&
+    [ "$owned_home" = "$target_home" ] || {
+    log "fatal: target account home is not owned by the selected account: $target_home"
+    exit 1
+  }
+
+  # Prune before chmod or descent. NFS bind parents are root-owned and immutable;
+  # their unmounted endpoints must stay 0000. -xdev alone does not protect them.
+  # Numeric -user also works with the installer's BusyBox find (unlike -uid).
+  find -P "$target_home" -xdev ! -user "$account_uid" -prune -o -type d -exec chmod 0700 {} + || {
     log "fatal: failed to normalize target account home directories"
     exit 1
   }
-  find "$target_home" -xdev -type f -perm /0100 -exec chmod 0700 {} + || {
+  find -P "$target_home" -xdev ! -user "$account_uid" -prune -o -type f -perm /0100 -exec chmod 0700 {} + || {
     log "fatal: failed to normalize executable target account files"
     exit 1
   }
-  find "$target_home" -xdev -type f ! -perm /0100 -exec chmod 0600 {} + || {
+  find -P "$target_home" -xdev ! -user "$account_uid" -prune -o -type f ! -perm /0100 -exec chmod 0600 {} + || {
     log "fatal: failed to normalize non-executable target account files"
     exit 1
   }
-  log "info: normalized account home directories to 0700 and regular files to 0600 or 0700"
+  log "info: normalized account-owned home directories to 0700 and regular files to 0600 or 0700"
 }
 
 normalize_enabled_tmpfs_dir() {

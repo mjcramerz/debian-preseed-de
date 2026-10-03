@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the actual desktop chmod block without touching a live account.
+"""Exercise desktop and finish-install permissions without touching a live account.
 
 find traversal and chmod are real. Mixed-ownership tests replace only find's
 UID predicate because some containers cannot create foreign-UID fixtures. The
@@ -19,6 +19,7 @@ import tempfile
 import unittest
 
 SOURCE = Path(__file__).resolve().parents[1] / 'scripts/desktop/components/user-config.sh'
+FINISH_SOURCE = Path(__file__).resolve().parents[1] / 'hooks/installer/finish-install.d/99-normalize-finish'
 SHELLS = [['/bin/sh']]
 if shutil.which('busybox'):
     SHELLS.append([shutil.which('busybox'), 'sh'])
@@ -220,6 +221,231 @@ os.execv(os.environ['PERMISSION_TEST_FIND'], ['find', *argv])
                 self.assertEqual(self.mode(sharing), 0o755)
                 self.assertEqual(self.mode(endpoint), 0o000)
                 self.assert_private_modes()
+
+
+class FinishHomePermissionTests(HomePermissionTests):
+    """Run the final hook's real functions with explicitly simulated ownership.
+
+    The target passwd file, traversal, chmod and error propagation are real.
+    Only the account UID predicate is mapped onto the fixture's current UID;
+    protected parents are excluded by path and chmod models their EPERM.
+    Native ownership tests below do not use this mapping.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.finish_text = FINISH_SOURCE.read_text()
+        functions = []
+        for name in ('require_absolute_path', 'target_path_for', 'normalize_account_home_permissions'):
+            start = self.finish_text.index(name + '() {')
+            functions.append(self.finish_text[start:self.finish_text.index('\n}\n', start) + 3])
+        self.functions = '\n'.join(functions)
+        self.passwd = self.root/'etc/passwd'
+        self.passwd.parent.mkdir()
+        self.account_record = 'mcramer:x:1000:1000:Fixture:/home/mcramer:/bin/sh\n'
+        self.passwd.write_text('root:x:0:0:root:/root:/bin/sh\n' + self.account_record)
+        self.env['PERMISSION_TEST_AWK'] = shutil.which('awk')
+        self.write_tool('awk', '''import json, os, sys
+command = json.loads(os.environ['PERMISSION_TEST_AWK_ARGV'])
+os.execv(command[0], command + sys.argv[1:])
+''')
+        self.simulate_foreign_ownership([])
+
+    def reset_private_modes(self):
+        super().reset_private_modes()
+        # The earlier desktop pass already normalized user units as data.
+        self.unit.chmod(0o600)
+
+    def simulate_foreign_ownership(self, paths):
+        self.env['PERMISSION_TEST_FOREIGN'] = json.dumps([str(p) for p in paths])
+        self.env['PERMISSION_TEST_FIXTURE_UID'] = str(os.geteuid())
+        self.write_tool('find', '''import json, os, sys
+foreign = json.loads(os.environ['PERMISSION_TEST_FOREIGN'])
+argv = []
+index = 1
+while index < len(sys.argv):
+    if sys.argv[index] == '-user' and sys.argv[index+1] == '1000':
+        argv.extend(['(', '-user', os.environ['PERMISSION_TEST_FIXTURE_UID']])
+        for path in foreign:
+            argv.extend(['!', '-path', path])
+        argv.append(')')
+        index += 2
+    else:
+        argv.append(sys.argv[index])
+        index += 1
+command = json.loads(os.environ['PERMISSION_TEST_FIND_ARGV'])
+os.execv(command[0], command + argv)
+''')
+
+    def fixture_environment(self, shell):
+        env = dict(self.env)
+        # Exercise BusyBox's find applet too, not just ash with GNU find.
+        find = [shell[0], 'find'] if len(shell) > 1 else [self.env['PERMISSION_TEST_FIND']]
+        env['PERMISSION_TEST_FIND_ARGV'] = json.dumps(find)
+        awk = [shell[0], 'awk'] if len(shell) > 1 else [self.env['PERMISSION_TEST_AWK']]
+        env['PERMISSION_TEST_AWK_ARGV'] = json.dumps(awk)
+        return env
+
+    def run_block(self, shell, uid=None, *, home='/home/mcramer', username='mcramer'):
+        program = ('set -eu\nTARGET=$1\nACCOUNT_HOME=$2\nACCOUNT_USERNAME=$3\n'
+                   'log() { printf "%s\\n" "$*" >&2; }\n' + self.functions +
+                   '\nnormalize_account_home_permissions\nprintf "completed\\n"\n')
+        return subprocess.run([*shell, '-c', program, 'finish-permission-test',
+                               str(self.root), home, username],
+                              env=self.fixture_environment(shell), capture_output=True,
+                              text=True, timeout=20)
+
+    def test_foreign_uid_tree_is_pruned_with_real_find_metadata(self):
+        # A foreign home root must fail rather than silently pruning everything.
+        (self.bin/'find').unlink()
+        uid = os.geteuid()+1
+        self.passwd.write_text(self.account_record.replace(':1000:1000:', f':{uid}:1000:'))
+        for shell in SHELLS:
+            with self.subTest(shell=shell):
+                result = self.run_block(shell)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('not owned by the selected account', result.stderr)
+                self.assertEqual(self.mode(self.home), 0o755)
+                self.assertEqual(self.mode(self.data), 0o644)
+                self.assertFalse(self.log.exists())
+
+    def test_missing_malformed_or_ambiguous_target_identity_fails_before_chmod(self):
+        cases = ('', self.account_record.replace('mcramer:', 'another:'),
+                 self.account_record*2, self.account_record.replace(':1000:1000:', ':0:0:'),
+                 self.account_record.replace(':1000:1000:', ':invalid:1000:'),
+                 self.account_record.replace('/home/mcramer:', '/home/another:'),
+                 self.account_record.replace(':/bin/sh', ''),
+                 self.account_record.replace(':1000:1000:', ':01000:1000:'))
+        for record in cases:
+            self.passwd.write_text(record)
+            for shell in SHELLS:
+                with self.subTest(record=record, shell=shell):
+                    result = self.run_block(shell)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn('target account identity', result.stderr)
+                    self.assertFalse(self.log.exists())
+        self.passwd.unlink()
+        for shell in SHELLS:
+            with self.subTest(shell=shell, missing_passwd=True):
+                result = self.run_block(shell)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('target account identity', result.stderr)
+                self.assertFalse(self.log.exists())
+
+    def test_missing_account_username_fails_before_chmod(self):
+        for shell in SHELLS:
+            with self.subTest(shell=shell):
+                result = self.run_block(shell, username='')
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('target account identity', result.stderr)
+                self.assertFalse(self.log.exists())
+
+    def test_unsafe_or_indirect_home_fails_before_chmod(self):
+        outside = self.root/'outside'
+        outside.mkdir(); outside.chmod(0o755)
+        link = self.root/'home/indirect'
+        link.symlink_to(outside, target_is_directory=True)
+        for home in ('', '/', 'home/mcramer', '/home/../outside', '/home//mcramer', '/home/indirect'):
+            for shell in SHELLS:
+                with self.subTest(home=home, shell=shell):
+                    result = self.run_block(shell, home=home)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(self.log.exists())
+                    self.assertEqual(self.mode(outside), 0o755)
+
+    def test_directory_and_executable_chmod_errors_remain_fatal(self):
+        for path, message in ((self.home/'.config', 'home directories'),
+                              (self.program, 'executable target account files')):
+            self.env['PERMISSION_TEST_DENY'] = json.dumps([str(path)])
+            for shell in SHELLS:
+                with self.subTest(path=path, shell=shell):
+                    self.reset_private_modes()
+                    result = self.run_block(shell)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn('Operation not permitted', result.stderr)
+                    self.assertIn(message, result.stderr)
+                    self.assertNotIn('completed', result.stdout)
+
+    def test_native_immutable_sharing_parent_retains_flags_and_modes(self):
+        if os.geteuid() != 0 or not shutil.which('chattr'):
+            self.skipTest('native immutable fixture requires root and chattr')
+        try:
+            for path in (self.home, *self.home.rglob('*')):
+                os.chown(path, 1000, 1000)
+        except OSError as error:
+            if error.errno in (errno.EINVAL, errno.EPERM, errno.EACCES):
+                self.skipTest('runtime cannot create a native account-UID fixture')
+            raise
+        sharing = self.home/'Sharing'
+        endpoint = sharing/'nfs-client'
+        endpoint.mkdir(parents=True)
+        sharing.chmod(0o755); endpoint.chmod(0o000)
+        result = subprocess.run(['chattr', '+i', '--', str(sharing)], capture_output=True, text=True)
+        if result.returncode:
+            self.skipTest('native immutable flags unavailable: '+result.stderr.strip())
+        self.addCleanup(subprocess.run, ['chattr', '-i', '--', str(sharing)], check=True)
+        # Forward to the actual selected find, without mapping any metadata.
+        self.write_tool('find', '''import json, os, sys
+command = json.loads(os.environ['PERMISSION_TEST_FIND_ARGV'])
+os.execv(command[0], command + sys.argv[1:])
+''')
+        for shell in SHELLS:
+            with self.subTest(shell=shell):
+                result = self.run_block(shell)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(self.mode(sharing), 0o755)
+                self.assertEqual(self.mode(endpoint), 0o000)
+                self.assert_private_modes()
+                with self.assertRaises(PermissionError):
+                    sharing.chmod(0o700)
+
+    def test_complete_finish_hook_preserves_protected_parents_and_is_idempotent(self):
+        sharing = self.home/'Sharing'
+        endpoint = sharing/'nfs-client'
+        endpoint.mkdir(parents=True)
+        sharing.chmod(0o755); endpoint.chmod(0o000)
+        self.simulate_foreign_ownership([sharing])
+        self.env['PERMISSION_TEST_DENY'] = json.dumps([str(sharing)])
+        env_dir = self.root/'env'; env_dir.mkdir()
+        (env_dir/'account.env').write_text('ACCOUNT_USERNAME=mcramer\nACCOUNT_HOME=/home/mcramer\n')
+        (env_dir/'host.env').write_text('''DIR_TMP=/tmp
+DIR_VAR_TMP=/var/tmp
+DIR_VAR_SPOOL=/var/spool
+DIR_VAR_SPOOL_RSYSLOG=/var/spool/rsyslog
+SECURE_BOOT_MODE=direct
+TMPFS_VAR_LOG=false
+TMPFS_VAR_SPOOL_RSYSLOG=false
+TMPFS_VAR_CACHE=false
+TMPFS_VAR_LIB_APT_LISTS=false
+TMPFS_DEV_SHM=false
+TMPFS_DATA_RUN=false
+TMPFS_SYSTEMD_COREDUMP=false
+''')
+        (self.root/'etc/fstab').write_text('tmpfs /tmp tmpfs rw,nodev,nosuid,mode=1777 0 0\n')
+        # Relocate installer-only paths; never touch the host log or os-prober.
+        script = self.finish_text.replace('/tmp/installer.log', str(self.root/'installer.log'))
+        for name in ('TEMPORARY_OS_PROBER_PATH', 'TEMPORARY_OS_PROBER_REAL_PATH',
+                     'TEMPORARY_OS_PROBER_STATE_PATH'):
+            start = script.index(name+'=')
+            end = script.index('\n', start)
+            script = script[:start]+name+'='+str(self.root/name)+script[end:]
+        hook = self.root/'finish-hook'; hook.write_text(script)
+        for shell in SHELLS:
+            env = dict(self.fixture_environment(shell), INSTALLER_TARGET_DIR=str(self.root),
+                       INSTALLER_ENV_DIR=str(env_dir), INSTALLER_RUNTIME_DIR=str(self.root/'runtime'),
+                       INSTALLER_ASSUME_TARGET_MOUNTED='1')
+            for attempt in range(2):
+                with self.subTest(shell=shell, attempt=attempt):
+                    result = subprocess.run([*shell, str(hook)], env=env, capture_output=True,
+                                            text=True, timeout=20)
+                    log = (self.root/'var/lib/installer-state/installer.log').read_text()
+                    self.assertEqual(result.returncode, 0, log+result.stderr)
+                    self.assertIn('completed final target normalization hook', log)
+                    self.assert_private_modes()
+                    self.assertEqual(self.mode(sharing), 0o755)
+                    self.assertEqual(self.mode(endpoint), 0o000)
+                    self.assertEqual(self.mode(self.root/'tmp'), 0o1777)
+                    self.assertEqual(self.mode(self.root/'var/tmp'), 0o1777)
 
 
 if __name__ == '__main__':
