@@ -111,7 +111,7 @@ def main() -> int:
                       'Systemd unit checks are lexical structure only.',
                       'Blocked dependencies, inventory-only files and unrendered templates are not passing runtime tests.',
                       'No package availability, partitioning, hardware, Secure Boot or service activation acceptance test was performed.',
-                      'Browser export coverage is static, not live site testing or GUI import acceptance.']}
+                      'Browser policy checks are static; live extension installation and GUI import acceptance were not performed.']}
     (output/'summary.json').write_text(json.dumps(report,indent=2)+'\n')
     print('Summary: '+str(output/'summary.json'),flush=True)
     return 0 if report['success'] else 1

@@ -114,147 +114,67 @@ class BrowserConfigurationTests(unittest.TestCase):
     def setUpClass(cls):
         cls.builder = module('browser_build_security_test', ROOT/'tools/build_browser_config.py')
         cls.products = cls.builder.generate()
-        cls.ns = json.loads(cls.products[EXPORT/'noscript_data.txt'])
-        cls.ub = json.loads(cls.products[EXPORT/'my-ubol-settings.json'])
-        cls.pb = json.loads(cls.products[EXPORT/cls.builder.PB_FILE])
-        cls.coverage = json.loads(cls.products[EXPORT/'bookmark-coverage.json'])
 
     def test_generated_files_are_reproducible_and_current(self):
         self.assertEqual(self.products, self.builder.generate())
+        self.assertEqual(len(self.products), 23)
         for path, data in self.products.items():
             self.assertEqual(payload_read_bytes(path), data, str(path))
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o644)
 
-    def test_all_bookmarks_accounted_for_with_nested_exclusions(self):
-        counts = self.coverage['counts']
-        self.assertEqual(counts, {'bookmark_entries':691,'included_web_entries':543,
-                         'included_web_origins':338,'excluded_folder_entries':100,
-                         'internal_or_non_web_entries':48,'live_tested_entries':0})
-        for row in self.coverage['entries']:
-            excluded = bool({'entertainment','imported'} & {x.casefold() for x in row['folders']})
-            self.assertEqual(row['status']=='excluded-folder', excluded)
-            self.assertFalse(row['live_tested'])
-            if row['status']=='configured-unverified':
-                top = row['origin']
-                caps = self.ns['policy']['sites']['custom'][top]['contextual'][top]['capabilities']
-                self.assertIn('script', caps)
-                self.assertNotIn('lan', caps)
-                self.assertNotIn('ping', caps)
-                self.assertNotIn('object', caps)
+    def test_exports_are_not_bundled_or_published_to_downloads(self):
+        self.assertFalse(EXPORT.exists())
+        self.assertFalse((TARGET/'usr/local/libexec/install-browser-imports').exists())
+        self.assertEqual({p.name for p in self.builder.CONFIG.iterdir()}, {'policies.json'})
+        for path in self.products:
+            self.assertNotIn('browser-imports', str(path))
+        installer = (SEED/'scripts/desktop/components/user-config.sh').read_text()
+        self.assertNotIn('install-browser-imports', installer)
+        self.assertIn('desktop_install_browser_repository', installer)
 
-    def test_no_blanket_trust_and_no_clone_of_noscript_instance_uuid(self):
-        self.assertEqual(self.ns['policy']['sites']['trusted'], [])
-        self.assertNotIn('uuid', self.ns['local'])
-        self.assertFalse(self.ns['policy']['autoAllowTop'])
-        self.assertTrue(self.ns['sync']['xss'])
-        self.assertTrue(self.ns['sync']['clearclick'])
-        for rule in self.ns['policy']['sites']['custom'].values():
-            self.assertNotIn('script', rule['capabilities'])
-            self.assertTrue(rule['contextual'])
-
-    def test_ubol_uses_real_rulesets_and_no_unprotected_bookmarks(self):
-        self.assertEqual(self.ub['filteringModes'], {'none':[],'basic':[],'optimal':['all-urls'],'complete':[]})
-        self.assertEqual({x[1:] for x in self.ub['rulesets']}, set(self.builder.EXTRA_RULESETS))
-        self.assertNotIn('+default', self.ub['rulesets'])
-        self.assertFalse(self.ub['popupBlockMode'])
-
-    def test_no_fabricated_badger_observations_or_signal(self):
-        settings = self.pb['settings_map']
-        for key in ('sendDNTSignal','checkForDNTPolicy','learnLocally','learnInIncognito'):
-            self.assertFalse(settings[key])
-        self.assertEqual(settings['disabledSites'], [])
-        for key in ('snitch_map','tracking_map','fp_scripts'):
-            self.assertEqual(self.pb[key], {})
-        self.assertEqual(len(self.pb['action_map']), 29)
-        self.assertTrue(all(v['userAction']=='user_block' for v in self.pb['action_map'].values()))
+    def test_each_browser_installs_the_same_user_adjustable_extensions(self):
+        for family in self.builder.FAMILIES:
+            with self.subTest(browser=family):
+                ext = json.loads(self.products[TARGET/family/'policies/managed/extensions.json'])
+                self.assertEqual(set(ext), {'ExtensionSettings'})
+                self.assertEqual(set(ext['ExtensionSettings']),
+                                 {self.builder.UBOL, self.builder.NOSCRIPT, self.builder.BADGER})
+                for setting in ext['ExtensionSettings'].values():
+                    self.assertEqual(setting, {'installation_mode': 'normal_installed',
+                        'update_url': 'https://clients2.google.com/service/update2/crx',
+                        'toolbar_pin': 'default_pinned'})
 
     def test_devtools_and_extension_settings_are_available(self):
-        for family in ('etc/vivaldi','etc/chromium','etc/opt/edge','etc/opt/chrome'):
+        for family in self.builder.FAMILIES:
             security = json.loads(self.products[TARGET/family/'policies/managed/security.json'])
             self.assertEqual(security['DeveloperToolsAvailability'], 1)
             self.assertTrue(security['RemoteDebuggingAllowed'])
             self.assertEqual(security['ExtensionDeveloperModeSettings'], 0)
-        ext = json.loads(self.products[TARGET/'etc/vivaldi/policies/managed/extensions.json'])
-        for setting in ext['ExtensionSettings'].values():
-            self.assertEqual(setting['installation_mode'], 'normal_installed')
-            self.assertNotIn('blocked_permissions', setting)
-        self.assertNotIn('jplgfhpmjnbigmhklmmbgecoobifkmpa', ext['ExtensionSettings'])
-        ub = ext['3rdparty']['extensions'][self.builder.UBOL]
-        for key in ('disabledFeatures','rulesets','defaultFilteringMode','noFiltering'):
-            self.assertNotIn(key, ub)
+        for data in self.products.values():
+            self.assertNotIn('3rdparty', json.loads(data))
+
+    def test_security_and_telemetry_policies_remain_enforced(self):
+        for family in self.builder.FAMILIES:
+            security = json.loads(self.products[TARGET/family/'policies/managed/security.json'])
+            self.assertFalse(security['SSLErrorOverrideAllowed'])
+            self.assertEqual(security['DefaultInsecureContentSetting'], 2)
+            self.assertEqual(security['DownloadRestrictions'], 1)
+            telemetry = json.loads(self.products[TARGET/family/'policies/managed/telemetry.json'])
+            self.assertFalse(telemetry['SpellCheckServiceEnabled'])
+            if family != 'etc/opt/edge':
+                self.assertTrue(security['DisableSafeBrowsingProceedAnyway'])
+                self.assertEqual(telemetry['SafeBrowsingProtectionLevel'], 1)
+                self.assertFalse(telemetry['MetricsReportingEnabled'])
 
     def test_only_recommendable_policies_and_no_invented_dnt_policy(self):
-        allowed = {'BackgroundModeEnabled','BlockThirdPartyCookies','NetworkPredictionOptions',
-                   'SearchSuggestEnabled','AutofillAddressEnabled','AutofillCreditCardEnabled','PasswordManagerEnabled'}
         for path, data in self.products.items():
             if path.name == 'defaults.json':
-                self.assertLessEqual(json.loads(data).keys(), allowed)
+                self.assertLessEqual(json.loads(data).keys(), self.builder.RECOMMENDABLE)
             if '/policies/' in str(path):
                 self.assertNotIn('EnableDoNotTrack', json.loads(data))
-        for profile in ('vivaldi','microsoft-edge','chromium'):
+        for profile in ('vivaldi', 'microsoft-edge', 'chromium'):
             prefs = json.loads(self.products[TARGET/'etc/skel-desktop/.config'/profile/'Default/Preferences'])
             self.assertFalse(prefs['enable_do_not_track'])
-
-    def test_native_urls_are_not_web_origins(self):
-        for value in ('chrome://policy','vivaldi://extensions','chrome-extension://abcdef/dashboard.html'):
-            self.assertIsNone(self.builder.origin(value))
-        self.assertEqual(self.builder.origin('https://EXAMPLE.com:443/path'), 'https://example.com')
-        with self.assertRaises(ValueError):
-            self.builder.origin('https://user:password@example.com/')
-
-
-class ImportPublisherTests(unittest.TestCase):
-    def setUp(self):
-        self.pub = module('import_publisher_security_test', TARGET/'usr/local/libexec/install-browser-imports')
-        self.temp = tempfile.TemporaryDirectory(prefix='browser-publish-')
-        self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
-        self.fd = os.open(self.root, os.O_RDONLY|os.O_DIRECTORY)
-        self.addCleanup(os.close, self.fd)
-
-    def test_private_owned_idempotent_publication(self):
-        name = self.pub.publish(self.fd, 'test.json', b'new data', os.getuid(), os.getgid())
-        self.assertEqual(name, 'test.json')
-        info = payload_source_stat(self.root/name)
-        self.assertEqual(stat.S_IMODE(info.st_mode), 0o600)
-        self.assertEqual(info.st_uid, os.getuid())
-        self.assertEqual(self.pub.publish(self.fd, name, b'new data', os.getuid(), os.getgid()), name)
-        self.assertFalse(list(self.root.glob('.browser-import-*')))
-
-    def test_user_edits_preserved_and_update_not_clobbered(self):
-        (self.root/'test.json').write_text('user edits')
-        self.assertEqual(self.pub.publish(self.fd,'test.json',b'new',os.getuid(),os.getgid()), 'test.json.install-update')
-        with self.assertRaises(ValueError):
-            self.pub.publish(self.fd,'test.json',b'newer',os.getuid(),os.getgid())
-        self.assertEqual(payload_read_text(self.root/'test.json'), 'user edits')
-        self.assertEqual(payload_read_bytes(self.root/'test.json.install-update'), b'new')
-
-    def test_symlinks_and_fifos_rejected(self):
-        for name in ('symlink','fifo'):
-            if name == 'symlink': (self.root/name).symlink_to('/etc/passwd')
-            else: os.mkfifo(self.root/name)
-            with self.assertRaises(ValueError):
-                self.pub.publish(self.fd,name,b'new',os.getuid(),os.getgid())
-        self.assertFalse(list(self.root.glob('.browser-import-*')))
-
-    def test_root_home_rejected(self):
-        with self.assertRaises(ValueError):
-            self.pub.install(self.root,self.root,0,0)
-
-    @unittest.skipUnless(os.geteuid()==0, 'cross-account ownership fixture requires root')
-    def test_full_install_uses_owned_downloads_and_rejects_download_symlink(self):
-        home = self.root/'home'; home.mkdir(); os.chown(home, 65534, 65534)
-        source = self.root/'source'; source.mkdir()
-        for name in self.pub.FILES:
-            (source/name).write_text('{}\n'); (source/name).chmod(0o600)
-        names = self.pub.install(source,home,65534,65534)
-        self.assertEqual(set(names), set(self.pub.FILES))
-        self.assertEqual(stat.S_IMODE(payload_source_stat(home/'Downloads').st_mode),0o700)
-        for name in names:
-            self.assertEqual(payload_source_stat(home/'Downloads'/name).st_uid,65534)
-        shutil.rmtree(home/'Downloads')
-        (home/'Downloads').symlink_to(source)
-        with self.assertRaises(OSError):
-            self.pub.install(source,home,65534,65534)
 
 
 class DebugLauncherTests(unittest.TestCase):

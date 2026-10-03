@@ -463,14 +463,17 @@ for path in \
   /etc/apt/apt.conf.d/60desktop-local-mail.conf \
   /etc/opt/chrome/policies/managed/telemetry.json \
   /etc/opt/chrome/policies/managed/security.json \
+  /etc/opt/chrome/policies/managed/extensions.json \
   /etc/opt/chrome/policies/managed/performance.json \
   /etc/opt/chrome/policies/recommended/defaults.json \
   /etc/chromium/policies/managed/telemetry.json \
   /etc/chromium/policies/managed/security.json \
+  /etc/chromium/policies/managed/extensions.json \
   /etc/chromium/policies/managed/performance.json \
   /etc/chromium/policies/recommended/defaults.json \
   /etc/opt/edge/policies/managed/telemetry.json \
   /etc/opt/edge/policies/managed/security.json \
+  /etc/opt/edge/policies/managed/extensions.json \
   /etc/opt/edge/policies/managed/performance.json \
   /etc/opt/edge/policies/recommended/defaults.json \
   /etc/vivaldi/policies/managed/telemetry.json \
@@ -671,13 +674,6 @@ do
 done
 
 require_mode /usr/local/bin/browser-devtools 755
-require_mode /usr/local/libexec/install-browser-imports 755
-require_mode /usr/local/share/browser-imports 700
-require_mode /usr/local/share/browser-imports/noscript_data.txt 600
-require_mode /usr/local/share/browser-imports/my-ubol-settings.json 600
-require_mode /usr/local/share/browser-imports/PrivacyBadger_user_data-9_6_2026_1_50_43_PM.json 600
-require_mode /usr/local/share/browser-imports/bookmark-coverage.json 600
-require_mode /usr/local/share/browser-imports/BROWSER-IMPORTS.md 600
 
 require_mode /etc/skel-desktop/.config/keepassxc 700
 require_mode /etc/skel-desktop/.config/keepassxc/keepassxc.ini 600
@@ -1139,6 +1135,29 @@ verify_account_session_link() {
   required_checked=$((required_checked + 1))
 }
 
+
+# Browser exports are account-owned Git data, never bundled seed imports.
+for browser_directory in \
+  "$account_home/Workspace" \
+  "$account_home/Workspace/netscape" \
+  "$account_home/Workspace/netscape/.git"
+do
+  check_required_owned_dir "$browser_directory"
+  [ ! -L "$browser_directory" ] || fatal "symlinked browser checkout directory"
+  [ "$(find -P "$browser_directory" -maxdepth 0 -printf "%m")" = 700 ] ||
+    fatal "browser checkout directory must be private mode 0700"
+done
+browser_checkout="$account_home/Workspace/netscape"
+unsafe_browser_entry=$(find -P "$browser_checkout" -xdev \
+  \( ! -uid "$uid" -o ! -gid "$gid" -o \( ! -type d ! -type f \) \
+     -o \( -type d ! -perm 0700 \) \
+     -o \( -type f \( ! -links 1 -o \( ! -perm 0600 ! -perm 0700 \) \) \) \) \
+  -print -quit)
+[ -z "$unsafe_browser_entry" ] || fatal "unsafe browser checkout ownership, type or permissions"
+check_required_owned "$browser_checkout/.git/HEAD"
+printf "ref: refs/heads/mcr/main\n" | cmp -s - "$browser_checkout/.git/HEAD" ||
+  fatal "browser checkout is not on the configured mcr/main branch"
+unset browser_directory browser_checkout unsafe_browser_entry
 
 # The encrypted identity and sealed passphrase are both private account files.
 check_required_owned "$account_home/.local/share/ssh/private/id_git_ed25519"

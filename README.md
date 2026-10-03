@@ -44,7 +44,7 @@ for the non-passing broad regression suite and outstanding live acceptance.
 - `d-i/forky/hooks/target/`: target-side files and renderable configuration.
 - `d-i/forky/scripts/`: small installer entrypoints and shared runtime modules, detailed below.
 - `d-i/forky/tests/` and `tools/`: executable regression tests and build checks.
-- `browser-config/`: private browser configuration inputs.
+- `browser-config/`: browser policies; extension exports are cloned over SSH into `~/Workspace/netscape` from `git@gitlab.com:core-assets/helpers/netscape.git` on `mcr/main`. Extension settings remain user-editable; exports are imported manually in each extension. Current Chromium-family browsers use uBlock Origin Lite (Manifest V3).
 
 ### Installer implementation
 

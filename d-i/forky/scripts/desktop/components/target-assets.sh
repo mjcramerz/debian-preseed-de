@@ -349,10 +349,12 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset etc/apt/apt.conf.d/60desktop-local-mail.conf /etc/apt/apt.conf.d/60desktop-local-mail.conf 0644
   desktop_stage_role_asset etc/chromium/policies/managed/telemetry.json /etc/chromium/policies/managed/telemetry.json 0644
   desktop_stage_role_asset etc/chromium/policies/managed/security.json /etc/chromium/policies/managed/security.json 0644
+  desktop_stage_role_asset etc/chromium/policies/managed/extensions.json /etc/chromium/policies/managed/extensions.json 0644
   desktop_stage_role_asset etc/chromium/policies/managed/performance.json /etc/chromium/policies/managed/performance.json 0644
   desktop_stage_role_asset etc/chromium/policies/recommended/defaults.json /etc/chromium/policies/recommended/defaults.json 0644
   desktop_stage_role_asset etc/opt/edge/policies/managed/telemetry.json /etc/opt/edge/policies/managed/telemetry.json 0644
   desktop_stage_role_asset etc/opt/edge/policies/managed/security.json /etc/opt/edge/policies/managed/security.json 0644
+  desktop_stage_role_asset etc/opt/edge/policies/managed/extensions.json /etc/opt/edge/policies/managed/extensions.json 0644
   desktop_stage_role_asset etc/opt/edge/policies/managed/performance.json /etc/opt/edge/policies/managed/performance.json 0644
   desktop_stage_role_asset etc/opt/edge/policies/recommended/defaults.json /etc/opt/edge/policies/recommended/defaults.json 0644
   desktop_stage_role_asset etc/vivaldi/policies/managed/telemetry.json /etc/vivaldi/policies/managed/telemetry.json 0644
@@ -361,17 +363,11 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset etc/vivaldi/policies/managed/performance.json /etc/vivaldi/policies/managed/performance.json 0644
   desktop_stage_role_asset etc/vivaldi/policies/recommended/defaults.json /etc/vivaldi/policies/recommended/defaults.json 0644
   desktop_stage_role_asset etc/opt/chrome/policies/managed/security.json /etc/opt/chrome/policies/managed/security.json 0644
+  desktop_stage_role_asset etc/opt/chrome/policies/managed/extensions.json /etc/opt/chrome/policies/managed/extensions.json 0644
   desktop_stage_role_asset etc/opt/chrome/policies/managed/telemetry.json /etc/opt/chrome/policies/managed/telemetry.json 0644
   desktop_stage_role_asset etc/opt/chrome/policies/managed/performance.json /etc/opt/chrome/policies/managed/performance.json 0644
   desktop_stage_role_asset etc/opt/chrome/policies/recommended/defaults.json /etc/opt/chrome/policies/recommended/defaults.json 0644
   desktop_stage_role_asset usr/local/bin/browser-devtools /usr/local/bin/browser-devtools 0755
-  desktop_stage_role_asset usr/local/libexec/install-browser-imports /usr/local/libexec/install-browser-imports 0755
-  desktop_stage_role_asset usr/local/share/browser-imports/noscript_data.txt /usr/local/share/browser-imports/noscript_data.txt 0600
-  desktop_stage_role_asset usr/local/share/browser-imports/my-ubol-settings.json /usr/local/share/browser-imports/my-ubol-settings.json 0600
-  desktop_stage_role_asset usr/local/share/browser-imports/PrivacyBadger_user_data-9_6_2026_1_50_43_PM.json /usr/local/share/browser-imports/PrivacyBadger_user_data-9_6_2026_1_50_43_PM.json 0600
-  desktop_stage_role_asset usr/local/share/browser-imports/bookmark-coverage.json /usr/local/share/browser-imports/bookmark-coverage.json 0600
-  desktop_stage_role_asset usr/local/share/browser-imports/BROWSER-IMPORTS.md /usr/local/share/browser-imports/BROWSER-IMPORTS.md 0600
-  chmod 0700 /target/usr/local/share/browser-imports
   desktop_stage_role_asset \
     usr/share/glib-2.0/schemas/90-desktop-wsdd.gschema.override \
     /usr/share/glib-2.0/schemas/90-desktop-wsdd.gschema.override \

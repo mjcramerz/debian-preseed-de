@@ -16,6 +16,7 @@ from pathlib import Path
 import pwd
 import re
 import resource
+import secrets
 import shutil
 import signal
 import stat
@@ -29,6 +30,8 @@ CODEX_URL = 'git@gitlab.com:computes/misc/codex-home.git'
 CODEX_BRANCH = 'mcr/main'
 OBSIDIAN_URL = 'git@gitlab.com:core-assets/docs/obsidian-md.git'
 OBSIDIAN_BRANCH = 'mcr/main'
+NETSCAPE_URL = 'git@gitlab.com:core-assets/helpers/netscape.git'
+NETSCAPE_BRANCH = 'mcr/main'
 HOSTS = '/etc/ssh/git_known_hosts'
 ASKPASS = str(Path(__file__).with_name('ssh-install-askpass'))
 BASE_ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C.UTF-8',
@@ -292,14 +295,14 @@ def clone(destination: Path, stage: Path, agent_env: dict[str, str], *,
     # Do not consult root's or the user's Git/SSH configuration during install.
     if url == CODEX_URL and branch == CODEX_BRANCH:
         approved = re.fullmatch(r'/data/codex/\.home-clone\.[A-Za-z0-9]+/repository', str(destination))
-    elif url == OBSIDIAN_URL and branch == OBSIDIAN_BRANCH:
+    elif (url, branch) in ((OBSIDIAN_URL, OBSIDIAN_BRANCH), (NETSCAPE_URL, NETSCAPE_BRANCH)):
         approved = destination == stage/'repository'
     else:
         approved = False
     if not approved:
         raise InstallError('unapproved managed clone destination or source')
     if destination.exists() or destination.is_symlink():
-        raise InstallError('Codex clone destination already exists')
+        raise InstallError('managed clone destination already exists')
     parent = destination.parent.lstat()
     if not stat.S_ISDIR(parent.st_mode) or parent.st_uid != 0 or stat.S_IMODE(parent.st_mode) != 0o700:
         # The allocator must clear inherited setgid; do not accept 2700 here.
@@ -334,6 +337,133 @@ def clone(destination: Path, stage: Path, agent_env: dict[str, str], *,
     if actual.strip() != branch.encode() or upstream.strip() != b'origin/'+branch.encode():
         raise InstallError('managed clone is not tracking origin/mcr/main')
     # -c core.hooksPath is process-only; no installer agent/config path persists.
+
+
+def copy_private_checkout(source: int, destination: int, uid: int, gid: int) -> None:
+    """Copy regular Git entries through pinned directory descriptors only."""
+    for name in os.listdir(source):
+        info = os.stat(name, dir_fd=source, follow_symlinks=False)
+        if stat.S_ISDIR(info.st_mode):
+            os.mkdir(name, 0o700, dir_fd=destination)
+            source_fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=source)
+            try:
+                target_fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=destination)
+                try:
+                    copy_private_checkout(source_fd, target_fd, uid, gid)
+                finally:
+                    os.close(target_fd)
+            finally:
+                os.close(source_fd)
+        elif stat.S_ISREG(info.st_mode) and info.st_nlink == 1:
+            source_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=source)
+            try:
+                current = os.fstat(source_fd)
+                if (not stat.S_ISREG(current.st_mode) or current.st_nlink != 1
+                        or (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino)):
+                    raise InstallError('browser checkout entry changed during publication')
+                target_fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                                    0o600, dir_fd=destination)
+                with os.fdopen(target_fd, 'wb') as output:
+                    with os.fdopen(source_fd, 'rb', closefd=False) as input_stream:
+                        shutil.copyfileobj(input_stream, output)
+                    os.fchown(output.fileno(), uid, gid)
+                    os.fchmod(output.fileno(), 0o700 if info.st_mode & 0o111 else 0o600)
+                    output.flush()
+                    os.fsync(output.fileno())
+            finally:
+                os.close(source_fd)
+        else:
+            raise InstallError('browser checkout must contain only direct directories and unlinked regular files')
+    os.fchown(destination, uid, gid)
+    os.fchmod(destination, 0o700)
+    os.fsync(destination)
+
+
+def clone_netscape(account: pwd.struct_passwd, home: Path, stage: Path,
+                   agent_env: dict[str, str], *, url: str, branch: str) -> None:
+    """Publish a private checkout atomically, preserving any existing user files."""
+    if (url, branch) != (NETSCAPE_URL, NETSCAPE_BRANCH):
+        raise InstallError('unapproved browser repository or branch')
+    if account.pw_uid == 0 or not home.is_absolute() or home.resolve(strict=True) != home:
+        raise InstallError('unsafe browser checkout home')
+    home_fd = os.open(home, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        info = os.fstat(home_fd)
+        if (info.st_uid != account.pw_uid or info.st_gid != account.pw_gid
+                or stat.S_IMODE(info.st_mode) != 0o700):
+            raise InstallError('browser checkout home must be account-owned mode 0700')
+        created = False
+        try:
+            os.mkdir('Workspace', 0o700, dir_fd=home_fd)
+            created = True
+        except FileExistsError:
+            pass
+        workspace_fd = os.open('Workspace', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=home_fd)
+        try:
+            if created:
+                if os.fstat(workspace_fd).st_uid != 0:
+                    raise InstallError('browser Workspace changed during creation')
+                os.fchown(workspace_fd, account.pw_uid, account.pw_gid)
+                os.fchmod(workspace_fd, 0o700)
+            info = os.fstat(workspace_fd)
+            if (info.st_uid != account.pw_uid or info.st_gid != account.pw_gid
+                    or stat.S_IMODE(info.st_mode) != 0o700):
+                raise InstallError('browser Workspace must be account-owned mode 0700')
+            try:
+                os.stat('netscape', dir_fd=workspace_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                pass
+            else:
+                raise InstallError('browser checkout already exists; refusing to replace user files')
+            source = stage/'repository'
+            clone(source, stage, agent_env, url=url, branch=branch)
+            # The home filesystem can differ from /tmp. Pin both ends of the
+            # final rename so account-writable path components cannot redirect it.
+            candidate = '.netscape-clone.' + secrets.token_hex(12)
+            os.mkdir(candidate, 0o700, dir_fd=workspace_fd)
+            candidate_fd = os.open(candidate, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=workspace_fd)
+            publication_stage_ready = False
+            try:
+                candidate_info = os.fstat(candidate_fd)
+                if (candidate_info.st_uid != 0 or stat.S_IMODE(candidate_info.st_mode) != 0o700
+                        or os.listdir(candidate_fd)):
+                    raise InstallError('browser publication stage must be empty, root-owned mode 0700')
+                publication_stage_ready = True
+                os.mkdir('repository', 0o700, dir_fd=candidate_fd)
+                tree_fd = os.open('repository', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=candidate_fd)
+                try:
+                    source_fd = os.open(source, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+                    try:
+                        copy_private_checkout(source_fd, tree_fd, account.pw_uid, account.pw_gid)
+                    finally:
+                        os.close(source_fd)
+                finally:
+                    os.close(tree_fd)
+                libc = ctypes.CDLL(None, use_errno=True)
+                libc.renameat2.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
+                                           ctypes.c_char_p, ctypes.c_uint)
+                if libc.renameat2(candidate_fd, b'repository', workspace_fd, b'netscape', 1) != 0:
+                    raise OSError(ctypes.get_errno(), 'cannot publish browser checkout without replacement')
+                os.fsync(workspace_fd)
+            finally:
+                # Never follow a substituted path or remove a concurrent entry.
+                try:
+                    if publication_stage_ready:
+                        if 'repository' in os.listdir(candidate_fd):
+                            shutil.rmtree('repository', dir_fd=candidate_fd)
+                        try:
+                            entry = os.stat(candidate, dir_fd=workspace_fd, follow_symlinks=False)
+                            current = os.fstat(candidate_fd)
+                            if (entry.st_dev, entry.st_ino) == (current.st_dev, current.st_ino):
+                                os.rmdir(candidate, dir_fd=workspace_fd)
+                        except FileNotFoundError:
+                            pass
+                finally:
+                    os.close(candidate_fd)
+        finally:
+            os.close(workspace_fd)
+    finally:
+        os.close(home_fd)
 
 
 def clone_obsidian(account: pwd.struct_passwd, home: Path, stage: Path,
@@ -386,11 +516,13 @@ def clone_obsidian(account: pwd.struct_passwd, home: Path, stage: Path,
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('provision', 'seal', 'clone-codex', 'clone-obsidian'))
+    parser.add_argument('action', choices=('provision', 'seal', 'clone-codex', 'clone-obsidian', 'clone-netscape'))
     parser.add_argument('account')
     parser.add_argument('stage', type=Path)
     parser.add_argument('destination', nargs='?', type=Path)
     parser.add_argument('--gpg-fingerprint', help='full desktop primary fingerprint; required for seal')
+    parser.add_argument('--repository-url', help='approved SSH source; required for clone-netscape')
+    parser.add_argument('--repository-branch', help='approved branch; required for clone-netscape')
     args = parser.parse_args()
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     os.umask(0o077)
@@ -399,6 +531,11 @@ def main() -> int:
     try:
         if (args.action == 'seal') != (args.gpg_fingerprint is not None):
             raise InstallError('--gpg-fingerprint is required only for the seal action')
+        if args.action == 'clone-netscape':
+            if (args.repository_url, args.repository_branch) != (NETSCAPE_URL, NETSCAPE_BRANCH):
+                raise InstallError('clone-netscape requires the approved SSH repository and branch')
+        elif args.repository_url is not None or args.repository_branch is not None:
+            raise InstallError('repository options are accepted only for clone-netscape')
         if args.action != 'clone-codex' and args.destination is not None:
             raise InstallError('a destination is accepted only for clone-codex')
         if os.geteuid() != 0:
@@ -437,7 +574,11 @@ def main() -> int:
             else:
                 if read_direct(home/'.local/share/ssh/private/id_git_ed25519', 16384, account.pw_uid) != private:
                     raise InstallError('installed SSH identity differs from the initrd identity')
-                clone_obsidian(account, home, args.stage, env)
+                if args.action == 'clone-netscape':
+                    clone_netscape(account, home, args.stage, env,
+                                   url=args.repository_url, branch=args.repository_branch)
+                else:
+                    clone_obsidian(account, home, args.stage, env)
     except (OSError, KeyError, ValueError, subprocess.SubprocessError) as exc:
         # No child output, passphrase, key bytes or environment in diagnostics.
         print(f'ssh-install: {type(exc).__name__}: {exc}', file=sys.stderr)

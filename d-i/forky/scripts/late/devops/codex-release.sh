@@ -61,7 +61,7 @@ codex_chmod_without_special_bits() {
   shift
 
   case "$requested_mode" in
-    0644|0700|0750|0755) ;;
+    0600|0644|0700|0750|0755) ;;
     *) codex_fatal "unsupported Codex managed mode: $requested_mode" ;;
   esac
   [ "$#" -gt 0 ] ||

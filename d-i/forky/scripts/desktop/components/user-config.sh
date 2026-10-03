@@ -28,6 +28,21 @@ desktop_install_obsidian_repository() {
   desktop_log "cloned_obsidian_git_repository branch=${OBSIDIAN_GIT_REPOSITORY_BRANCH} path=${ACCOUNT_HOME}/${OBSIDIAN_GIT_DIRECTORY}"
 }
 
+desktop_install_browser_repository() {
+  : "${BROWSER_NETSCAPE_REPOSITORY_URL:?desktop profile must define the browser Git SSH repository}"
+  : "${BROWSER_NETSCAPE_REPOSITORY_BRANCH:?desktop profile must define the browser branch}"
+  : "${BROWSER_NETSCAPE_DIRECTORY:?desktop profile must define the browser checkout}"
+  [ "$BROWSER_NETSCAPE_REPOSITORY_URL" = git@gitlab.com:core-assets/helpers/netscape.git ] &&
+    [ "$BROWSER_NETSCAPE_REPOSITORY_BRANCH" = mcr/main ] &&
+    [ "$BROWSER_NETSCAPE_DIRECTORY" = Workspace/netscape ] ||
+    installer_fatal "unapproved browser repository, branch or checkout"
+  managed_git_ssh_target_action clone-netscape \
+    --repository-url "$BROWSER_NETSCAPE_REPOSITORY_URL" \
+    --repository-branch "$BROWSER_NETSCAPE_REPOSITORY_BRANCH" ||
+    installer_fatal "cannot clone browser exports with the managed GitLab SSH identity"
+  desktop_log "cloned_browser_repository branch=${BROWSER_NETSCAPE_REPOSITORY_BRANCH} path=${ACCOUNT_HOME}/${BROWSER_NETSCAPE_DIRECTORY}"
+}
+
 desktop_install_user_config() {
   : "${ACCOUNT_USERNAME:?ACCOUNT_USERNAME must be set}"
   : "${ACCOUNT_HOME:?ACCOUNT_HOME must be set}"
@@ -222,7 +237,6 @@ printf "desktop_account_config user=%s home=%s copied_dirs=%s copied_files=%s sh
   desktop_install_primary_account_calendar_stack
   desktop_bootstrap_primary_account_gpg_key
   desktop_install_obsidian_repository
-  run_in_target "publish private browser imports in primary account Downloads" \
-    /usr/local/libexec/install-browser-imports --user "$ACCOUNT_USERNAME"
+  desktop_install_browser_repository
   desktop_log "installed primary account desktop config user=${ACCOUNT_USERNAME}"
 }
