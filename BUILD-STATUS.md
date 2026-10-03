@@ -1,4 +1,17 @@
-# Build status - 2026-10-03 Codex and browser integration
+# Build status - 2026-10-03 Codex, browser and Sharing permission integration
+
+
+The desktop permission pass now prunes every foreign-owned entry before changing
+modes or descending into directories. The NFS installer deliberately creates
+root-owned, immutable home bind parents such as `/home/mcramer/Sharing` before
+desktop configuration. The former home-wide chmod pass reached that protected
+parent and failed with `Operation not permitted`; `find -xdev` did not exclude it.
+All four permission walks now use physical traversal and an account-UID pruning
+predicate. Root-managed parents and their `0000` unmounted endpoints remain
+untouched, while account directories, data, programs and systemd units retain
+their private modes. No immutable flag is cleared and no chmod failure is hidden.
+The previous delivered block reproduces the protected-path failure in the
+regression fixture with dash and official BusyBox ash; the corrected block passes.
 
 The Codex publisher now accepts the private `0600` daemon-settings mode that
 previously aborted installation. All ten host profiles define the SSH repository
@@ -38,13 +51,18 @@ private debconf read-back of all four generated command values. All 709 parser
 checks across 349 shell sources passed using dash, bash and the official BusyBox
 1.35.0 x86_64 musl binary. No executable was compiled or added to the source tree.
 
-The focused installer/browser/provenance suite ran 38 tests: 34 passed, and four
-native non-root ownership tests were skipped because this container rejects
-ownership changes to the target UID/GID. Real file-descriptor copying, atomic
-publication, collision handling and failure cleanup also passed using separately
-labelled simulated ownership. The real Git checkout test used a local transport
-fixture; it did not authenticate to GitLab. All 15 existing module/publication
-contract tests passed.
+The focused permission/browser/NFS/provenance suite ran 77 tests: 70 passed,
+and seven were skipped. Five native ownership tests could not establish foreign
+UID fixtures; the native systemd condition checker could not initialize, and the
+AppArmor parser was unavailable. The new home permission regressions exercised
+real find/chmod behavior, symlink boundaries and fatal error propagation. Their
+mixed-ownership fixture substitutes only the UID predicate and guards protected
+paths with EPERM; it is not a native immutable-flag acceptance test. Real
+file-descriptor copying, atomic publication, collision handling and failure
+cleanup also passed using separately labelled simulated ownership. The real Git
+checkout test used a local transport fixture, without GitLab authentication.
+All 15 module, source-mode and publication contract tests passed on this tree.
+All ten NFS profiles passed the target-policy preflight.
 
 The whole codebase audit completed with zero explicit failures: 601 passed syntax
 checks, 224 systemd structure checks, 159 blocked Perl dependency checks, 11 blocked
@@ -52,13 +70,15 @@ tool checks, 616 inventory-only records and 11 templates requiring rendering.
 Structure, inventory, blocked and unrendered checks are not runtime passes.
 
 The broad suites remain **not green**. With the same Python runtime, BusyBox and
-validation environment, a fresh extraction of the uploaded ZIP ran 3224 installer
-tests with 696 failures, 331 errors and 186 skips. This tree ran 3238 installer tests
-with 676 failures, 330 errors and 190 skips. Subtests contribute multiple failures.
-Both trees ran 217 tools tests with the same three failures and 74 errors. Comparing
-failing identifiers while ignoring shifted line numbers and generated temporary
-directory names found no new failing identifiers. Unrelated source/test repairs
-and test suppression were not introduced to conceal these results.
+validation environment, a fresh extraction of the uploaded ZIP previously ran
+3224 installer tests with 696 failures, 331 errors and 186 skips. The prior
+delivered tree ran 3238 tests with 676 failures, 330 errors and 190 skips. This
+corrected tree ran 3245 tests with 675 failures, 331 errors and 191 skips. Subtests
+contribute multiple failures. All three trees ran 217 tools tests with the same
+three failures and 74 errors. Comparing failing test identifiers with the prior
+delivery, while ignoring shifted line numbers and generated temporary directory
+names, found no new failing identifiers. Unrelated source/test repairs and test
+suppression were not introduced to conceal these results.
 
 No live Forky/systemd 261.2 installation, private GitLab authentication, browser
 extension installation/import, hardware boot, NFS service activation or enforcing

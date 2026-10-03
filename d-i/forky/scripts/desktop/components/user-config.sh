@@ -221,12 +221,15 @@ fi
 if command -v /usr/local/bin/labwc-sync-application-launchers >/dev/null 2>&1; then
   /usr/local/bin/labwc-sync-application-launchers "$account_user" "$account_home"
 fi
-find "$account_home" -xdev -type d -exec chmod 0700 {} +
-find "$account_home" -xdev -type f -perm /0100 -exec chmod 0700 {} +
-find "$account_home" -xdev -type f ! -perm /0100 -exec chmod 0600 {} +
+# Only normalize account-owned entries. Prune foreign-owned directories before
+# descending or changing modes: NFS bind parents are root-owned and immutable,
+# and their unmounted endpoints must retain mode 0000. -xdev alone is insufficient.
+find -P "$account_home" -xdev ! -uid "$uid" -prune -o -type d -exec chmod 0700 {} +
+find -P "$account_home" -xdev ! -uid "$uid" -prune -o -type f -perm /0100 -exec chmod 0700 {} +
+find -P "$account_home" -xdev ! -uid "$uid" -prune -o -type f ! -perm /0100 -exec chmod 0600 {} +
 # Unit files and drop-ins are data, never programs. Do not preserve execute
 # bits from a copied/restored skeleton on Whisper or other user units.
-find "$account_home/.config/systemd/user" -xdev -type f -exec chmod 0600 {} +
+find -P "$account_home/.config/systemd/user" -xdev ! -uid "$uid" -prune -o -type f -exec chmod 0600 {} +
 zsh_path=$(command -v zsh 2>/dev/null || true)
 if [ -n "$zsh_path" ]; then
   usermod -s "$zsh_path" "$account_user"

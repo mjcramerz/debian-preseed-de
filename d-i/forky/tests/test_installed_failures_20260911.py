@@ -298,7 +298,7 @@ ensure_target_asset_parent /private/subdir/data
         network = payload_read_text(FORKY / 'scripts/late/templates/network/inet6.tmpl')
         self.assertIn('keep_addr_on_down=1', network)
         components = payload_read_text(FORKY / 'scripts/desktop/components.sh')
-        self.assertIn('find "$account_home/.config/systemd/user" -xdev -type f -exec chmod 0600 {} +', components)
+        self.assertIn('find -P "$account_home/.config/systemd/user" -xdev ! -uid "$uid" -prune -o -type f -exec chmod 0600 {} +', components)
         for app in ('labwc-tweaks', 'hyprpolkitagent'):
             text = payload_read_text(TARGET / f'usr/local/share/applications/{app}.desktop')
             self.assertIn(f'StartupWMClass={app}', text)
