@@ -31,6 +31,7 @@ class ForceContractTests(unittest.TestCase):
     def worker(self, action, greeter=False):
         worker = self.power.Worker(1000, 'desktop', action, greeter=greeter)
         worker.prepared = not greeter
+        worker.session_stopped = worker.storage_stopped = True
         worker.package_locks = mock.Mock()
         return worker
 

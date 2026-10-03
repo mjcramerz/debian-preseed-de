@@ -25,6 +25,9 @@ ProcSubset=all
 KillMode=control-group
 TimeoutStopSec=20s
 Type=oneshot
+# Cancelling in-flight maintenance is a clean stop; setup owns swap/reset.
+# systemd otherwise treats SIGTERM as a failure for Type=oneshot.
+SuccessExitStatus=SIGTERM
 EnvironmentFile=__INSTALLER_FILE_ZRAM_DEFAULT__
 RuntimeDirectory=zram
 RuntimeDirectoryMode=0750

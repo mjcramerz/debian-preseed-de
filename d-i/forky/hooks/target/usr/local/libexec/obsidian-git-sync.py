@@ -26,6 +26,31 @@ class SyncError(Exception):
 
 def auto_enabled() -> bool:
     """Read the installed profile policy as data, never shell or environment."""
+    directory = os.environ.get('CREDENTIALS_DIRECTORY')
+    if directory is not None:
+        # LoadCredential supplies an immutable, account-private snapshot made
+        # by the user manager before filesystem sandboxing maps host root to
+        # the overflow UID. Keep the namespace and the manual root-owner check.
+        expected = Path(f'/run/user/{os.getuid()}/credentials/obsidian-git-sync.service')
+        if directory != str(expected):
+            raise SyncError('unexpected automatic Git credential directory')
+        dfd = os.open(expected, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            info = os.fstat(dfd)
+            if info.st_uid != os.getuid() or info.st_mode & 0o077:
+                raise SyncError('untrusted automatic Git credential directory')
+            fd = os.open('automatic-git-policy',
+                         os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+                         dir_fd=dfd)
+            with os.fdopen(fd, 'rb') as stream:
+                info = os.fstat(stream.fileno())
+                if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                        or info.st_nlink != 1 or info.st_mode & 0o377):
+                    raise SyncError('untrusted automatic Git credential file')
+                value = stream.read(128)
+        finally:
+            os.close(dfd)
+        return parse_auto_policy(value)
     for parent in AUTO_POLICY.parents:
         info = parent.lstat()
         if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
@@ -40,6 +65,10 @@ def auto_enabled() -> bool:
                 or info.st_nlink != 1 or info.st_mode & 0o022):
             raise SyncError('untrusted automatic Git policy file')
         value = stream.read(128)
+    return parse_auto_policy(value)
+
+
+def parse_auto_policy(value: bytes) -> bool:
     if value not in (b'OBSIDIAN_GIT_AUTO_ENABLE=true\n', b'OBSIDIAN_GIT_AUTO_ENABLE=false\n'):
         raise SyncError('invalid OBSIDIAN_GIT_AUTO_ENABLE policy')
     return value == b'OBSIDIAN_GIT_AUTO_ENABLE=true\n'

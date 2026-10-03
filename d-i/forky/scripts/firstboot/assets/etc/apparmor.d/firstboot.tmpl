@@ -39,7 +39,9 @@ profile firstboot /var/lib/firstboot/bin/firstboot.sh flags=(attach_disconnected
   /dev/char/[0-9]*:[0-9]* r,
   /dev/nvidia{[0-9]*,ctl,-modeset,-uvm,-uvm-tools} r,
   /usr/bin/{busctl,id,find} rix,
-  /usr/bin/{dpkg-query,passwd,perl,readlink} rix,
+  # dpkg --compare-versions validates the installed swaylock/PAM chain.
+  # The package database remains read-only in this profile.
+  /usr/bin/{dpkg,dpkg-query,passwd,perl,readlink} rix,
   /usr/sbin/runuser rix,
   /usr/bin/{flock,grep,mkdir,mktemp,sleep,timeout,desktop-file-validate} rix,
   signal (send, receive) set=(hup, int, term, kill, cont) peer=firstboot,

@@ -69,6 +69,11 @@ profile usr.bin.tailscale /usr/bin/tailscale flags=(attach_disconnected, mediate
   #include <abstractions/base>
   #include <abstractions/nameservice>
 
+  # netcheck uses marked sockets and ICMP probes. On the target kernel,
+  # CAP_NET_RAW also authorizes SO_MARK; the CLI needs no CAP_NET_ADMIN.
+  capability net_raw,
+  network inet raw,
+  network inet6 raw,
   network inet stream,
   network inet6 stream,
   network inet dgram,

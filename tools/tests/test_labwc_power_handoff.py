@@ -42,6 +42,8 @@ class PowerWorkerTests(unittest.TestCase):
         self.failure = None
         self.active_guest = False
         self.guest_stopped = False
+        self.user_stopped = False
+        self.managed_stopped = set()
         self.stack = contextlib.ExitStack()
         self.addCleanup(self.stack.close)
         self.stack.enter_context(mock.patch.object(power, 'run', side_effect=self.mock_run))
@@ -51,12 +53,15 @@ class PowerWorkerTests(unittest.TestCase):
         self.stack.enter_context(mock.patch.object(power, 'hold_reservation'))
         self.stack.enter_context(mock.patch.object(power, 'PackageLocks'))
         self.stack.enter_context(mock.patch.object(power.Worker, 'session_identity', return_value='a' * 32))
+        self.stack.enter_context(mock.patch.object(power, 'sharing_stop_groups', return_value=[]))
 
     def mock_run(self, argv, **kwargs):
         self.calls.append(argv)
         if self.failure and self.failure(argv):
             raise power.Error('injected failure')
         if argv[-1] == 'ListSessions':
+            if self.user_stopped:
+                return json.dumps({'type': 'a(susso)', 'data': [[]]})
             return json.dumps({'type': 'a(susso)', 'data': [[
                 ['c1', 1000, 'desktop', 'seat0', '/org/freedesktop/login1/session/c1']]]})
         if argv[-1] == 'ListInhibitors':
@@ -69,6 +74,14 @@ class PowerWorkerTests(unittest.TestCase):
             if self.active_guest and 'podman-devops-restart.service' in argv:
                 return 'LoadState=loaded\nActiveState=active\n'
             return 'LoadState=not-found\nActiveState=inactive\n'
+        if '--property=LoadState,ActiveState,SubState,Result' in argv:
+            if argv[2] in self.managed_stopped:
+                return 'LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=success\n'
+            return 'LoadState=loaded\nActiveState=active\nSubState=running\nResult=success\n'
+        if 'stop' in argv and '--no-block' not in argv:
+            self.managed_stopped.update(argv[argv.index('stop') + 1:])
+        if 'terminate-user' in argv:
+            self.user_stopped = True
         if 'stop' in argv and 'podman-devops-restart.service' in argv:
             self.guest_stopped = True
         if '--property=ActiveState,Result' in argv:
@@ -92,6 +105,8 @@ class PowerWorkerTests(unittest.TestCase):
                 self.calls.clear()
                 self.active_guest = True
                 self.guest_stopped = False
+                self.user_stopped = False
+                self.managed_stopped.clear()
                 self.execute(action)
                 prepare = next(i for i, c in enumerate(self.calls)
                                if c[-2:] == ['start', 'labwc-session-state@prepare.service'])
@@ -103,9 +118,14 @@ class PowerWorkerTests(unittest.TestCase):
                 self.assertEqual(final, len(self.calls) - 1)
                 self.assertEqual(sum(is_handoff(c) for c in self.calls), 1)
                 self.assertEqual(sum(c.count('--force') for c in self.calls), 1)
-                self.assertFalse(any('kill' in c or 'terminate-user' in c
-                                     or 'labwc-compositor.service' in c
-                                     or 'greetd.service' in c or 'seatd.service' in c
+                teardown = next(i for i, c in enumerate(self.calls) if 'terminate-user' in c)
+                zram = next(i for i, c in enumerate(self.calls) if 'stop' in c and 'zram-setup.service' in c)
+                fallback = next(i for i, c in enumerate(self.calls) if 'stop' in c and 'swap-fallback.service' in c)
+                self.assertLess(guests, teardown)
+                self.assertLess(teardown, zram)
+                self.assertLess(zram, fallback)
+                self.assertLess(fallback, final)
+                self.assertFalse(any('kill' in c or 'seatd.service' in c
                                      or 'dbus-broker.service' in c for c in self.calls))
                 self.assertFalse(any('RebootWithFlags' in c or 'PowerOffWithFlags' in c
                                      for c in self.calls))

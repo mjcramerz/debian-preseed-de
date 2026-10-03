@@ -27,6 +27,9 @@ COMPOSITOR = "labwc-compositor.service"
 # Only repository-managed guest shutdown hooks. Leave their engines and both
 # D-Bus brokers alive while ExecStop completes; do not enumerate/stop the host.
 GUEST_STOP_UNITS = ("podman-devops-restart.service", "incus-startup.service")
+SHARING_CONFIG = Path("/etc/network-sharing/config.json")
+ZRAM_WORK_UNITS = ("zram-idle-writeback.timer", "zram-cold-tier.timer",
+                   "zram-writebackd.service", "zram-writeback.service")
 
 
 class Error(Exception):
@@ -370,6 +373,93 @@ def login_sessions() -> list[tuple[str, int]]:
         raise Error("cannot verify login sessions") from exc
 
 
+def sharing_stop_groups() -> list[tuple[str, ...]]:
+    """Derive only installer-owned mount units from bounded root-owned data.
+
+    Never stat the exported/remote paths: that can activate an automount or
+    block on an unavailable hard NFS mount. PID 1 owns the actual unmounts.
+    """
+    try:
+        for parent in reversed(SHARING_CONFIG.parents):
+            info = parent.lstat()
+            if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+                raise Error("untrusted network sharing configuration directory")
+        fd = os.open(SHARING_CONFIG, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    except FileNotFoundError:
+        return []  # This optional role was not installed.
+    with os.fdopen(fd, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0
+                or info.st_nlink != 1 or info.st_mode & 0o022):
+            raise Error("untrusted network sharing configuration")
+        raw = stream.read(65537)
+    try:
+        if len(raw) > 65536:
+            raise ValueError("oversized configuration")
+        config = json.loads(raw)
+        if (not isinstance(config, dict) or config.get('version') != 1
+                or not isinstance(config.get('profile'), dict)
+                or any(type(config.get(k)) is not bool for k in ('server_enabled', 'client_enabled'))):
+            raise ValueError("invalid configuration")
+        settings = config['profile']
+
+        def path_value(key: str, *, relative: bool = False) -> str:
+            value = settings[key]
+            if (not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_./-]{1,2048}', value)
+                    or value.startswith('/') == relative
+                    or any(p in ('', '.', '..') for p in value.lstrip('/').split('/'))
+                    or value.startswith('//')):
+                raise ValueError("invalid sharing path")
+            return value
+
+        def unit(path: str, suffix: str) -> str:
+            name = ''.join('-' if c == '/' else c if c.isalnum() or c in '_.'
+                           else f'\\x{ord(c):02x}' for c in path.strip('/')) + '.' + suffix
+            if len(name) > 255:
+                raise ValueError("oversized mount unit")
+            return name
+
+        root = path_value('NETWORK_SHARING_ROOT_PATH')
+        home = path_value('ACCOUNT_HOME')
+        if not root.startswith(('/data/', '/pool/', '/srv/')) or not home.startswith('/home/'):
+            raise ValueError("unexpected sharing root/home")
+        automounts, binds, clients = [], [], []
+        for role in ('SERVER', 'CLIENT'):
+            enabled = config[role.lower() + '_enabled']
+            if settings['NFS_' + role + '_ENABLE'] != str(enabled).lower():
+                raise ValueError("inconsistent NFS role")
+            bind = settings['NFS_' + role + '_BIND_ENABLE']
+            if bind not in ('true', 'false') or (bind == 'true' and not enabled):
+                raise ValueError("inconsistent NFS bind role")
+            source = path_value('NFS_' + role + '_PATH')
+            if not source.startswith(root + '/'):
+                raise ValueError("sharing mount outside managed root")
+            if bind == 'true':
+                target = home + '/' + path_value('NFS_' + role + '_HOME_BIND_PATH', relative=True)
+                name = unit(target, 'mount')
+                if config[role.lower() + '_bind_mount'] != name:
+                    raise ValueError("inconsistent home bind unit")
+                binds.append(name)
+                if role == 'CLIENT':
+                    name = unit(target, 'automount')
+                    if config['client_bind_automount'] != name:
+                        raise ValueError("inconsistent home automount unit")
+                    automounts.append(name)
+            if role == 'CLIENT' and enabled:
+                for suffix, group in (('automount', automounts), ('mount', clients)):
+                    name = unit(source, suffix)
+                    if config['client_' + suffix] != name:
+                        raise ValueError("inconsistent NFS client unit")
+                    group.append(name)
+        if not (config['server_enabled'] or config['client_enabled']):
+            return []
+        # Queue activation stops and mount stops together. The generated
+        # After=/RequiresMountsFor= edges unmount home views before the client.
+        return [tuple(automounts), tuple(binds), tuple(clients)]
+    except (ValueError, KeyError, TypeError, RecursionError) as exc:
+        raise Error("invalid installed network sharing shutdown policy") from exc
+
+
 class Worker:
     def __init__(self, uid: int, user: str, action: str, *, greeter: bool = False):
         self.uid, self.user, self.action = uid, user, action
@@ -379,6 +469,9 @@ class Worker:
         self.committed = False
         self.prepared = False
         self.handoff_attempted = False
+        self.session_stopped = False
+        self.storage_stopped = False
+        self.stopped_units: list[str] = []
 
     def user_run(self, argv: list[str], **kwargs) -> str:
         account = pwd.getpwuid(self.uid)
@@ -454,6 +547,12 @@ class Worker:
         greeters = []
         for session_id, session_uid in sessions:
             fields = (session_id, str(session_uid))
+            if self.session_stopped:
+                session_class = run(["/usr/bin/loginctl", "show-session", session_id,
+                                     "--property=Class", "--value"], timeout=5, max_output=256).strip()
+                if session_class not in {"background", "background-light", "manager", "manager-early"}:
+                    raise Error("a login session appeared or remained after desktop teardown")
+                continue
             if int(fields[1]) == self.uid:
                 if not self.greeter:
                     continue
@@ -497,7 +596,7 @@ class Worker:
                             f"session={session_id}); ask that user to save and log out first")
             if session_class not in {"background", "background-light", "manager", "manager-early", "greeter"}:
                 raise Error(f"cannot verify other login session {session_id}; class is unknown")
-        if self.greeter:
+        if self.greeter and not self.session_stopped:
             if len(greeters) != 1:
                 raise Error("cannot identify one active local greeter session")
             identity = greeters[0]
@@ -540,16 +639,15 @@ class Worker:
             time.sleep(0.2)
 
     def terminate_user(self) -> None:
-        # Logout is account-local. Machine power uses the separate single-
-        # force handoff; do not tear down its IPC or seat before submitting.
-        if self.action != "logout":
-            raise Error("account teardown is only valid for logout")
+        if self.action not in {"logout", "reboot", "poweroff"}:
+            raise Error("account teardown requires logout or machine shutdown")
         self.require_package_reservation()
         # Once committed, one failed stop must not strand a half-closed desktop.
         # Queue stops first (disabling restart), then use PID 1's cgroup-wide
         # TERM/KILL paths. No process-name matching and no caller-owned worker.
-        self.best_effort("desktop units", lambda: self.userctl(
-            "--no-block", "stop", "labwc-session.target", "labwc-compositor.service", timeout=10))
+        if not self.greeter:
+            self.best_effort("desktop units", lambda: self.userctl(
+                "--no-block", "stop", "labwc-session.target", "labwc-compositor.service", timeout=10))
         self.best_effort("login sessions", lambda: run(
             ["/usr/bin/loginctl", "terminate-user", str(self.uid)], timeout=10))
         self.best_effort("user manager and slice", lambda: run(
@@ -564,6 +662,84 @@ class Worker:
             if self.wait_for_exit(grace):
                 return
         raise Error("user slice did not stop; inspect the power action log")
+
+    @staticmethod
+    def unit_state(name: str) -> dict[str, str]:
+        text = run(["/usr/bin/systemctl", "show", name,
+                    "--property=LoadState,ActiveState,SubState,Result"], timeout=10, max_output=4096)
+        props = {}
+        for line in text.splitlines():
+            key, separator, value = line.partition('=')
+            if not separator or key in props:
+                raise Error("invalid shutdown unit state: " + name)
+            props[key] = value
+        return props
+
+    def stop_units(self, names: tuple[str, ...], *, optional: bool = True) -> None:
+        self.require_package_reservation()
+        selected = []
+        for name in names:
+            props = self.unit_state(name)
+            if optional and props.get('LoadState') == 'not-found' and props.get('ActiveState') == 'inactive':
+                continue
+            if props.get('LoadState') not in {'loaded', 'masked'}:
+                raise Error("cannot load managed shutdown unit: " + name)
+            if props.get('ActiveState') == 'inactive':
+                self.verify_stopped_unit(name, props)
+                self.stopped_units.append(name)
+                continue
+            if props.get('ActiveState') not in {'active', 'activating', 'reloading', 'deactivating'}:
+                raise Error("cannot safely stop managed unit: " + name)
+            selected.append(name)
+        if selected:
+            status("Stopping managed units: " + ', '.join(selected))
+            # No lazy/forced unmount: a busy mount or failed ExecStop vetoes
+            # the force handoff. A transport timeout never authorizes power.
+            run(["/usr/bin/systemctl", "--no-ask-password", "stop", *selected],
+                timeout=180, max_output=16384)
+            for name in selected:
+                props = self.unit_state(name)
+                self.verify_stopped_unit(name, props)
+                self.stopped_units.append(name)
+
+    @staticmethod
+    def verify_stopped_unit(name: str, props: dict[str, str]) -> None:
+        if (props.get('LoadState') not in {'loaded', 'masked'}
+                or props.get('ActiveState') != 'inactive' or props.get('SubState') != 'dead'
+                or (not name.endswith('.target') and props.get('Result') != 'success')):
+            raise Error("managed shutdown did not complete cleanly: " + name)
+
+    def stop_network_sharing(self) -> None:
+        groups = sharing_stop_groups()
+        if not groups:
+            return
+        self.stop_units(tuple(name for group in groups for name in group), optional=False)
+        # Kernel server/export teardown precedes its userspace cache daemons.
+        self.stop_units(('nfs-server.service',))
+        self.stop_units(('nfs-mountd.service', 'nfs-idmapd.service', 'nfsdcld.service',
+                         'nfs-blkmap.service', 'rpc-gssd.service', 'rpc-svcgssd.service',
+                         'nfs-client.target'))
+
+    def prepare_machine_shutdown(self, identity: str | None = None) -> None:
+        self.stop_network_sharing()
+        if not self.greeter and (identity is None or self.session_identity() != identity):
+            raise Error("desktop session changed during network sharing teardown")
+        self.protect_other_sessions()
+        check_shutdown_inhibitors()
+        self.require_package_reservation()
+        self.committed = True
+        # Prevent greetd from creating a fresh login while swap is drained.
+        # PID 1 and the system bus remain alive for all cleanup transactions.
+        self.stop_units(('greetd.service',))
+        self.terminate_user()
+        self.session_stopped = True
+        self.protect_other_sessions()
+        self.stop_units(ZRAM_WORK_UNITS)
+        # The existing ExecStop contracts do swapoff -> reset -> mapper close.
+        # Keep fallback swap available until zram has released its pages.
+        self.stop_units(('zram-setup.service',))
+        self.stop_units(('swap-fallback.service',))
+        self.storage_stopped = True
 
     def stop_optional_guests(self) -> None:
         self.require_package_reservation()
@@ -599,12 +775,15 @@ class Worker:
         if not (self.prepared or self.greeter) or self.handoff_attempted:
             raise Error("handoff requires a prepared desktop and may run only once")
         self.require_package_reservation()
+        if not self.session_stopped or not self.storage_stopped:
+            raise Error("handoff requires completed session and storage teardown")
         self.protect_other_sessions()
         check_shutdown_inhibitors()
         self.require_package_reservation()
-        # Preparation and managed guest ExecStop hooks have already completed.
-        # Keep the compositor, seat and buses alive until PID 1 takes over: do
-        # not add a shutdown.target transaction or a pre-handoff seat teardown.
+        for name in self.stopped_units:
+            self.verify_stopped_unit(name, self.unit_state(name))
+        # All managed cleanup hooks completed. PID 1 still owns final ordinary
+        # filesystem unmount/remount and any unrelated encrypted root devices.
         os.sync()
         self.require_package_reservation()
         status(f"Power handoff: systemctl --force {self.action}; single-force PID 1 shutdown")
@@ -665,6 +844,7 @@ class Worker:
                     # guard above has excluded other interactive users. Share
                     # the guest-stop and single-force PID 1 handoff path.
                     self.stop_optional_guests()
+                    self.prepare_machine_shutdown(identity)
                     self.final_power_action()
                     hold_reservation()
                     return
@@ -694,6 +874,7 @@ class Worker:
                     # handoff; keep the authorized seat alive until then.
                     if self.session_identity() != identity:
                         raise Error("desktop session changed during power preparation")
+                    self.prepare_machine_shutdown(identity)
                     self.final_power_action()
                     # Never release locks just because the enqueue call returned.
                     hold_reservation()

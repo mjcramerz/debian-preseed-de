@@ -105,8 +105,17 @@ profile network-sharing-identity /usr/local/libexec/network-sharing-identity fla
   /etc/exports r,
   /etc/exports.d/{,*.exports} r,
   @{sys}/module/{nfs,nfsd}/parameters/nfs4_disable_idmapping r,
-  /usr/sbin/nfsidmap rCx -> nfsidmap,
-  /usr/sbin/nfsconf rCx -> nfsconf,
+  # Keep the parent confinement when entering the smaller child profiles.
+  # Replacing it with Cx is rejected under the unit's NoNewPrivileges=yes.
+  /usr/sbin/nfsidmap rPx -> &network-sharing-identity//nfsidmap,
+  /usr/sbin/nfsconf rPx -> &network-sharing-identity//nfsconf,
+  /usr/sbin/{nfsidmap,nfsconf} m,
+  /etc/nfs.conf r,
+  /etc/nfs.conf.d/{,*.conf} r,
+  /usr/etc/{idmapd,nfs}.conf r,
+  /usr/etc/{idmapd,nfs}.conf.d/{,*.conf} r,
+  # Both components of a stacked child's label must permit its lifecycle.
+  signal (send, receive) set=(term, kill, chld) peer=network-sharing-identity,
   signal (send) set=(term, kill) peer=network-sharing-identity//{nfsidmap,nfsconf},
   signal (receive) set=(chld) peer=network-sharing-identity//{nfsidmap,nfsconf},
   signal (receive) set=(term, kill) peer=unconfined,

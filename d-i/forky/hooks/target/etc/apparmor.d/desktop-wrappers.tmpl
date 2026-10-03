@@ -479,6 +479,12 @@ profile labwc-admin-action-worker /usr/local/libexec/labwc-admin-action-worker f
   capability setuid,
   capability setgid,
   capability kill,
+  # The unit/seccomp allow only the authorized PID 1 power transport.
+  capability sys_boot,
+  / r,
+  /etc/ r,
+  /etc/network-sharing/ r,
+  /etc/network-sharing/config.json r,
   #include <abstractions/dbus-session-strict>
   /run/user/[0-9]*/ r,
   owner /run/user/[0-9]*/{bus,systemd/private} rw,

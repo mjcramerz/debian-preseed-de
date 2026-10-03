@@ -2,6 +2,7 @@
 """Exercise vault publication with disposable, local Git repositories."""
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import os
 from pathlib import Path
@@ -336,6 +337,70 @@ class AutoPolicyTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('disabled', result.stdout)
         self.assertNotIn('unlock', result.stderr)
+
+
+class CredentialPolicyTests(unittest.TestCase):
+    """Read a real private credential file while redirecting its fixed path."""
+    def setUp(self):
+        self.stack = contextlib.ExitStack()
+        self.addCleanup(self.stack.close)
+        self.root = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        self.directory = self.root / 'credentials'
+        self.directory.mkdir(mode=0o700)
+        self.path = self.directory / 'automatic-git-policy'
+        self.expected = f'/run/user/{os.getuid()}/credentials/obsidian-git-sync.service'
+        self.stack.enter_context(mock.patch.dict(os.environ, {'CREDENTIALS_DIRECTORY': self.expected}))
+        original_open = os.open
+        def credential_open(path, flags, *args, **kwargs):
+            if str(path) == self.expected:
+                path = self.directory
+            return original_open(path, flags, *args, **kwargs)
+        self.stack.enter_context(mock.patch.object(SYNC.os, 'open', side_effect=credential_open))
+
+    def test_enabled_and_disabled_credentials_do_not_inspect_unmapped_root(self):
+        for enabled in ('true', 'false'):
+            self.path.write_text('OBSIDIAN_GIT_AUTO_ENABLE=' + enabled + '\n')
+            self.path.chmod(0o400)
+            with mock.patch.object(Path, 'lstat', side_effect=AssertionError('host root is unmapped')):
+                self.assertEqual(SYNC.auto_enabled(), enabled == 'true')
+            self.path.chmod(0o600)
+
+    def test_wrong_directory_does_not_fall_back_to_host_policy(self):
+        with mock.patch.dict(os.environ, {'CREDENTIALS_DIRECTORY': str(self.directory)}):
+            with self.assertRaisesRegex(SYNC.SyncError, 'unexpected'):
+                SYNC.auto_enabled()
+
+    def test_credential_links_and_writable_or_shared_modes_fail_closed(self):
+        original = self.root / 'original'
+        original.write_text('OBSIDIAN_GIT_AUTO_ENABLE=true\n')
+        original.chmod(0o400)
+        self.path.symlink_to(original)
+        with self.assertRaises(OSError):
+            SYNC.auto_enabled()
+        self.path.unlink()
+        os.link(original, self.path)
+        with self.assertRaisesRegex(SYNC.SyncError, 'untrusted'):
+            SYNC.auto_enabled()
+        self.path.unlink()
+        self.path.write_text(original.read_text())
+        for mode in (0o600, 0o440, 0o444, 0o500):
+            self.path.chmod(mode)
+            with self.subTest(mode=oct(mode)), self.assertRaisesRegex(SYNC.SyncError, 'untrusted'):
+                SYNC.auto_enabled()
+        self.path.chmod(0o400)
+        self.directory.chmod(0o750)
+        with self.assertRaisesRegex(SYNC.SyncError, 'directory'):
+            SYNC.auto_enabled()
+
+    def test_missing_or_invalid_credential_never_enables_publication(self):
+        with self.assertRaises(FileNotFoundError):
+            SYNC.auto_enabled()
+        for value in (b'', b'OBSIDIAN_GIT_AUTO_ENABLE=true\nextra', b'x' * 1024):
+            self.path.write_bytes(value)
+            self.path.chmod(0o400)
+            with self.assertRaisesRegex(SYNC.SyncError, 'invalid'):
+                SYNC.auto_enabled()
+            self.path.chmod(0o600)
 
 
 class TimerPolicyTests(unittest.TestCase):

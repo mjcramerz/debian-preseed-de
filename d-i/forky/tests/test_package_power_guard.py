@@ -285,7 +285,7 @@ class WorkerFlowTests(LockFixture):
         self.stack.enter_context(mock.patch.object(self.power, 'check_shutdown_inhibitors',
             side_effect=lambda **kwargs: self.events.append(('inhibitors', ()))))
         for name in ('lock', 'protect_other_sessions', 'helper', 'terminate_user',
-                     'stop_optional_guests', 'final_power_action'):
+                     'stop_optional_guests', 'prepare_machine_shutdown', 'final_power_action'):
             self.stack.enter_context(mock.patch.object(worker, name,
                 side_effect=lambda *a, _name=name, **kw: self.events.append((_name, a))))
         self.stack.enter_context(mock.patch.object(worker, 'session_identity', return_value='a'*32))
@@ -301,7 +301,7 @@ class WorkerFlowTests(LockFixture):
                 def wait():
                     self.assertIsNone(child.poll())
                     self.assertIn(('ready', ()), self.events)
-                    forbidden = {'terminate_user', 'stop_optional_guests', 'final_power_action', 'run'}
+                    forbidden = {'terminate_user', 'stop_optional_guests', 'prepare_machine_shutdown', 'final_power_action', 'run'}
                     self.assertFalse(any(e[0] in forbidden or e == ('helper', ('prepare',)) for e in self.events))
                     self.release(child)
                 def action_run(argv, **kwargs):

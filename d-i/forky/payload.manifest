@@ -155,7 +155,7 @@ edbdf14c3009aa22e3c38d7502342bbaf1c560354cc0caba51f0b77f62276502  hooks/target/e
 a8e8fba190c12bd77dfaef16ea28dd52824bf899a7a695535b925e6ad9e51174  hooks/target/etc/apparmor.d/crun
 e431f5d17cfc99228c205f06f742cccaa346b390541691704248220d41482dc9  hooks/target/etc/apparmor.d/debugsys
 da4e72e4839da435df0590b3813394349220a0103e6bb07654de54319a1c3cc8  hooks/target/etc/apparmor.d/desktop-utilities
-bcd4bbb422bc6f51e76da8435255915562feb3b3161b426bd956b06854be86bf  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
+683a10baa89c66ffefcc2eac4a3726cd3186109e820927903b63928e5f9ab6a9  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
 13de57d1307059ea65cc7f7cebd7c3080877c7bf17c3c46f799f58b69379ec29  hooks/target/etc/apparmor.d/document-applications
 cdb9e039cbbbe809126673a7351807ed8db1c3b23618cb89d474c803a485da45  hooks/target/etc/apparmor.d/gitbuild
 f4ca1013031c0a890345a7f7c806604ba45bfd8f0ab1a2f3a65f4d0de1c5de0e  hooks/target/etc/apparmor.d/gitbuild-worker
@@ -178,7 +178,7 @@ c0e5db31a4d46f24dd1be5982ffb848c1f8d540e732e43a37c81c74c112abc2c  hooks/target/e
 ec80c49c77fcf27b04cb18428e5bfc8ed161e31838a990a9c818d3f0401b1819  hooks/target/etc/apparmor.d/local/vivaldi-bin
 b56993434c3bdddd28af55b894b421f0a69cbfbfc2e77bed5185b223b78bc249  hooks/target/etc/apparmor.d/local/vivaldi-stable
 585377eab0e67027396fe5e84ee4f4f7f1bd55527d2fcd7f09ed7dfab39f4e76  hooks/target/etc/apparmor.d/local/vscode
-51cd2e037452951f0195030c5051bb51d707fba08f1ac119d10cbc2bf27998d4  hooks/target/etc/apparmor.d/network-sharing
+0c7a368d1fd8b927a0ad26fddfe368bf8aae6d3053778473e502a440a8dfc6b2  hooks/target/etc/apparmor.d/network-sharing
 207ef2d2cc043b555ed1b8824777fbf624d4181c4382829e029997d33a49ec9f  hooks/target/etc/apparmor.d/obsidian
 03e5b252b57c09ce1a9d8fa36eb2c6992aae1cca7768899298e5e28a7df2d422  hooks/target/etc/apparmor.d/opt.Bitwarden.bitwarden
 ed3cbabc262a42f5979bc439836eceb67030dcd6e50f0882e0c7f5af72f2089a  hooks/target/etc/apparmor.d/opt.Filen.Filen
@@ -204,7 +204,7 @@ ccdeb5330a5be0b4fbaf4666cfdddfdc92796c05bf049c7827229107ab5fd830  hooks/target/e
 97c8862dc42168d4cf288959e61d780c311b7d4b1e5bf0b6960043b3231f44f1  hooks/target/etc/apparmor.d/usr.sbin.aa-status
 6c31bfce85175a362e12986e01d9bf417e200ba06ef8164a97d66fbc19067f70  hooks/target/etc/apparmor.d/usr.sbin.apt-cacher-ng
 68b28cbc90cf4da6dad1bffb42ba353c9e2a744316ce2bc6e0515681abc84e97  hooks/target/etc/apparmor.d/usr.sbin.avahi-daemon
-48700756cffc993ddb60a8227b361689ee977e626e4337a8d3bd49042c4a25ae  hooks/target/etc/apparmor.d/usr.sbin.tailscaled
+322815bed20885f1808321eff1d02b2171de0461879a3bbfaaa72a888b4842a6  hooks/target/etc/apparmor.d/usr.sbin.tailscaled
 6cda9d80bda900ecbf995263474bd45be88f4184ab12a71c2107c5ba66bcdb0e  hooks/target/etc/apparmor.d/vivaldi-bin
 2dc80e72d8319adbfa98f92a6beee85ccf5fef8a207c3884004df407c78ad812  hooks/target/etc/apparmor.d/vivaldi-stable
 4792262c938079db935d12695e47e41e56e33e8a7e0f4bdb54099fed749d778d  hooks/target/etc/apparmor.d/waybar-menus
@@ -593,7 +593,7 @@ cb024b5328b7e4b54107aacf757ac7a61be2f07b35032e646d9b023c26764596  hooks/target/e
 a694376c90825f3ea1dfccaa5ae9133896baae52afe490fbf7bc59f5b23ee733  hooks/target/etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.service
 32f620ab5566a15f08399bee352cbf8cb4398a21192a89abcef69a83f15cf181  hooks/target/etc/skel-desktop/.config/systemd/user/labwc-wlsunset-start.service
 ac33789825c002088c8657738f8e69840836a432bb5413e0a4381e1e8f577ad9  hooks/target/etc/skel-desktop/.config/systemd/user/llama-server.service
-e2e5225485abdb7172666b0d05b9ee6b48d95c0b097de04f4648224d693d5667  hooks/target/etc/skel-desktop/.config/systemd/user/obsidian-git-sync.service
+d72459b82b41e87ccfa1fe831e603fc62ec91f614e1f0d603bdc3b81feaa159f  hooks/target/etc/skel-desktop/.config/systemd/user/obsidian-git-sync.service
 800af3bdd87d6bd9d59ec822ebd42f27625fae38582776384ff7f41fc93459dc  hooks/target/etc/skel-desktop/.config/systemd/user/obsidian-git-sync.timer
 1692ba4f49906b7b92aa15719be918d3fa85cdb588aab8b14c57eef00493b3d7  hooks/target/etc/skel-desktop/.config/systemd/user/session.slice.d/60-resources.conf.tmpl
 b9a27cdb1f541835f7620dc595de7f5f6424fc7c788223b95ad17b95500a98cc  hooks/target/etc/skel-desktop/.config/systemd/user/swaybg.service
@@ -826,7 +826,7 @@ c1ad23a9f7c4798e47babad2ecc4953caf51df2204e5939e36cc4babc31bab30  hooks/target/e
 cdfa0c0b361d17312e55386dd62264c1c5de41ddec4a6c91ef03595d69456124  hooks/target/etc/systemd/system/zram-cold-tier.timer.tmpl
 1f08d2af0a167fa9039f1b13233558321af0e7c55b8d6c3b3ee98afd8a17f444  hooks/target/etc/systemd/system/zram-idle-writeback.timer.tmpl
 e2267c86f759889b4393853bd3e025d99d056929979916346cd84b6996547a4a  hooks/target/etc/systemd/system/zram-setup.service.tmpl
-4e7c70f93c40761a9217494aa747736a32d92e795a65662bc73f6c902fcddeee  hooks/target/etc/systemd/system/zram-writeback.service.tmpl
+2239bdfe039eae38690d98cef5c75bb269c48828a244631d60c9161055f60614  hooks/target/etc/systemd/system/zram-writeback.service.tmpl
 b4e281d002c0eedbcb60e76196f20a6649a9dc910a6462e4466bdcf40cd345d2  hooks/target/etc/systemd/system/zram-writebackd.service.tmpl
 b868148a8053c96ca47323ae22a690fabff45ad6de0b28de9aaba1adb657ba6c  hooks/target/etc/systemd/system.conf.d/60-resource-accounting.conf.tmpl
 5c5d1f8abcc1558c44c5dec5a9a8f32a876f2d52214b663be5e99b790b247c9e  hooks/target/etc/systemd/user/dbus-broker.service.d/10-broker-hardening.conf.tmpl
@@ -1295,7 +1295,7 @@ d99dbfd49a7692db963ef4ee8807109f236c7471cf34465ba4ef1da8f90ccda1  hooks/target/u
 791720ec8ee3581a42a5bb2a1914b9e21732f32b66eea4a680826f6ee03c916a  hooks/target/usr/local/libexec/journal-sealing
 ecc69a59950185c470c3efb406d32c9a71ba63652d911fce61328817cb2d0132  hooks/target/usr/local/libexec/journal-snapshot.tmpl
 1551811c7217239749b1d732846296ceac00e5f557089f203734999ca8bcc8e7  hooks/target/usr/local/libexec/labwc-admin-action-root
-617a741f27f891dc932606336ca793eda96d74b199d629fbdb95b35e33ade128  hooks/target/usr/local/libexec/labwc-admin-action-worker
+e51bc1e6f8541730f46938e1338f6563c0584dfe1bbc82e831d13620318b58fd  hooks/target/usr/local/libexec/labwc-admin-action-worker
 3959bd12f12e37d53f27a2f47d62d5eb6190005989e70ddf42fdb6c963805c4b  hooks/target/usr/local/libexec/labwc-ai-llama-server
 e4cd0f7546c15b9cb082a4368503c05646f2a0e034167400c3763eafaa24de91  hooks/target/usr/local/libexec/labwc-ai-model-info
 5d2323e9a23ba28084034f732666c89886b9c243694dec7bd6faefb9d5ff51cb  hooks/target/usr/local/libexec/labwc-ai-model-install-root
@@ -1354,7 +1354,7 @@ e6158b1f9c2470222ecb0569c9c73c41c0d3523210a3fc30e4ee934dc2566407  hooks/target/u
 0a9b03b79013d2a43e2e67eb5a9c452feec51aea852f8e1741552ec0307ba46f  hooks/target/usr/local/libexec/nvidia-vram-check
 14913a22adce68a74ad8754155d2acac518ee9d808c6857a856862156f30edd5  hooks/target/usr/local/libexec/obs-publishing
 07a4245fc4bd9be2a5ce7c3d2d5f0f942b7d443b6f266f1fda0e2127537780b2  hooks/target/usr/local/libexec/obsidian-git-sync
-b0e337c2c4e8c936538eb312dcb20ab509b6ede228a183b240de59047cc7f423  hooks/target/usr/local/libexec/obsidian-git-sync.py
+bf0e439302939c9f2457592abdb48daa711492da7bc6ebcbeabeba743c64f36f  hooks/target/usr/local/libexec/obsidian-git-sync.py
 d335ee35b5a9f002919a197ee750cc76a6f9da808cf4e248f87d33cbea985a94  hooks/target/usr/local/libexec/podman-devops-client
 8fa6687c965d5aa6a0a607b839ed17e6a05d31cb90bd6c9732bf7c9c0fda3d7d  hooks/target/usr/local/libexec/podman-devops-host
 c0a831f77cb0f53dddd39608a4b7ad27a1e10609033ad256cf7580f08067dc36  hooks/target/usr/local/libexec/rsyslog-openai-socket.tmpl
@@ -1476,7 +1476,7 @@ de39f9426f549a36fee6387d8655a35e7c3b97c4ff8ec94eeaeb737dfcc4c2e7  hosts/profiles
 161cc3bdbf33be12319f5b7ea7f147b73394fca91761a94922f1145f69608eb7  hosts/profiles/f2fs-de-x360.env
 aa5ceb7dafb8c0ef1ad9aa5706e3ed5a207e6ca095122343720465f051e8013d  hosts/themes/README.md
 b0d3ba489aeabed48ae86754fced48e7cd21184b3e899f7eb06cc4445ad558d7  hosts/themes/apps.env
-6e5b5db8735674d6ccbb409fe020d454eab22fb9d1f7ca82e7498cae7f6db6d5  hosts/themes/base.env
+66d530176de6255ed8325a8a028755fe697118bb1bd95cbc1e04ef4fb64d1a60  hosts/themes/base.env
 5240c1e3e6a5915148728a55803d5cf0a4bf6e2b23c849cb9611117d8ad4297d  hosts/themes/office.env
 fd4818ce916987a2805afe2339fc2396072a982b8f219ef7027600d71c4e01c3  hosts/themes/theme-schema.tsv
 34b025528d5f3271e58cd80b2e97a00b10c014df460da65fce4a2dc01d0343f1  repo.env
@@ -1549,7 +1549,7 @@ b77e3edc96a63684ad2ab08f784cc1a6b36e9a927e5ef61c810dcf919dc81988  scripts/firstb
 196a03825c0ba67ac91caf18cc6492d71abb70f41a443e32d59c300cb808b27c  scripts/firstboot/03-network.sh
 c771d580c7d304a96ba9c274a22eba3b0a30745b9bc4339f1e3dc2779cee8eb2  scripts/firstboot/04-validation.sh.tmpl
 12ad994a1f2b039bb693e889731d1402309562d9e40a2125e269d2ac9ce0582b  scripts/firstboot/05-cleanup.sh
-5236fad0cd2ebe2c9efe8bfd5086737035d2a5690642999e7ce428d20e6115ee  scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl
+dfe9950297aac47d74e88bb600486a2bf9b991dc585b7d4618292c670f7c8d98  scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl
 12ffdb848f62b8db7850bd35298c1d4a7692466b9210b032609a30f55cb3cd5e  scripts/firstboot/assets/etc/initramfs-tools/scripts/init-bottom/90-installer-health
 5fa070d13c84b8e83354970048ae703a2d44bad7a1ec6f7b13ddaabe3d8407b7  scripts/firstboot/assets/etc/initramfs-tools/scripts/init-premount/90-installer-health
 ce2048d3ce254651ba95684705f67ad253fbcec1f5fcc5016e116dfd46311191  scripts/firstboot/assets/etc/initramfs-tools/scripts/init-top/90-installer-health

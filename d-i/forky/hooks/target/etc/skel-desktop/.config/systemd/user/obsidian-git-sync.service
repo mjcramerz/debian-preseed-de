@@ -16,6 +16,9 @@ LimitCORE=0
 Environment=HOME=%h
 Environment=SSH_AUTH_SOCK=%t/openssh_agent
 Environment=XDG_RUNTIME_DIR=%t
+# The manager reads this host policy before entering the user mount namespace.
+# Host root is unmapped there; never treat overflow UID 65534 as trusted root.
+LoadCredential=automatic-git-policy:/etc/obsidian-git-sync.conf
 ExecStart=/usr/local/libexec/obsidian-git-sync
 TimeoutStartSec=15min
 TimeoutStopSec=10s
@@ -28,4 +31,3 @@ RestrictSUIDSGID=yes
 LockPersonality=yes
 RestrictRealtime=yes
 SystemCallArchitectures=native
-
