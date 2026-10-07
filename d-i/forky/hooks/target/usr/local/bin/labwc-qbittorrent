@@ -1193,12 +1193,17 @@ def run_pasta_sandbox(command: list[str], payload: list[str], temporary: str,
     except (OSError, ValueError) as exc:
         fail(f"qBittorrent private network failed: {exc}")
     finally:
+        cancellation_error = None
         if pidfd is not None:
             try:
                 if not released:
                     signal.pidfd_send_signal(pidfd, signal.SIGKILL)
             except ProcessLookupError:
                 pass
+            except OSError as exc:
+                # A confinement failure must not skip child reaping or leave
+                # readiness pipes open. The explicit gate still rejects EOF.
+                cancellation_error = exc
             finally:
                 runtime.close_file_descriptor(pidfd)
         if sandbox is not None and sandbox.poll() is None:
@@ -1207,6 +1212,8 @@ def run_pasta_sandbox(command: list[str], payload: list[str], temporary: str,
             runtime._stop_subprocess(helper)
         for descriptor in (info_read, info_write, block_read, block_write, gate_read, gate_write):
             runtime.close_file_descriptor(descriptor)
+        if cancellation_error is not None:
+            fail(f"private namespace cancellation failed after child cleanup: {cancellation_error}")
 
 
 def main() -> int:

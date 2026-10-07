@@ -363,7 +363,7 @@ raise SystemExit(not result.wasSuccessful())
 PY
 ```
 
-It runs 77 tests: 75 pass and the two packaged-backend TCP/UDP packet tests
+It runs 78 tests: 76 pass and the two packaged-backend TCP/UDP packet tests
 skip because the tool environment has no `/dev/net/tun`. Real Bubblewrap,
 pidfd cancellation, startup gates, argument preservation and process reaping
 run with simulated pasta network readiness. Native AppArmor compilation and

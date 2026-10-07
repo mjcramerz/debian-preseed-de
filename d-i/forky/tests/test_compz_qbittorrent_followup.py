@@ -169,6 +169,27 @@ class TorrentIntegrationTests(unittest.TestCase):
         self.assertEqual(release.call_count, 2)
         stop.assert_called_once_with(sandbox)
 
+    def test_failed_namespace_signal_still_reaps_children_without_releasing_payload(self):
+        sandbox, helper = mock.Mock(), mock.Mock()
+        sandbox.poll.return_value = helper.poll.return_value = None
+        with tempfile.TemporaryDirectory() as directory:
+            pidfd = os.open('/dev/null', os.O_RDONLY)
+            with mock.patch.object(subprocess, 'Popen', side_effect=[sandbox, helper]), \
+                    mock.patch.object(network_namespace, '_read_bwrap_sandbox_pid', return_value=1234), \
+                    mock.patch.object(os, 'pidfd_open', return_value=pidfd), \
+                    mock.patch.object(QBIT['run_pasta_sandbox'].__globals__['signal'], 'pidfd_send_signal',
+                                      side_effect=PermissionError('fixture confinement denial')), \
+                    mock.patch.dict(QBIT['run_pasta_sandbox'].__globals__,
+                                    {'wait_for_pasta_ready': mock.Mock(side_effect=SystemExit(1))}), \
+                    mock.patch.object(network_namespace, '_stop_subprocess') as stop, \
+                    mock.patch.object(os, 'write') as release, self.assertRaises(SystemExit):
+                QBIT['run_pasta_sandbox'](['/usr/bin/bwrap'], ['/usr/bin/qbittorrent'], directory,
+                    ('eth0', '192.168.50.88'), 50309, network_namespace, '/usr/bin/pasta')
+            release.assert_not_called()
+            self.assertEqual(stop.call_args_list, [mock.call(sandbox), mock.call(helper)])
+            with self.assertRaises(OSError):
+                os.fstat(pidfd)
+
     def test_real_pasta_runner_cancels_failed_setup_and_gates_literal_arguments(self):
         if not Path('/usr/bin/bwrap').is_file():
             self.skipTest('Bubblewrap unavailable')

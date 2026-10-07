@@ -1016,7 +1016,7 @@ dbcbfd4c4534a2eed2a6f082c5eb069d0ac601aabcead44154aaa25933ae8209  hooks/target/u
 5273da5ce40cce4966fc258b356a61ba8afaf1b36011fbeb23b5de1f310a359b  hooks/target/usr/local/bin/labwc-podman-menu
 4ad254036c3aa181a332368b04c5c336a26c707dade67dc15ed8d707398ed142  hooks/target/usr/local/bin/labwc-power-menu
 574f44bc11b7d48298ad957f87c0b6685f8278d20328fe820dff8350dcecf2bf  hooks/target/usr/local/bin/labwc-power-settings
-69b4a6e78adae19e3b400ff98dc128126c250dd70d7fe3cbd23ecf34b21d3f8b  hooks/target/usr/local/bin/labwc-qbittorrent
+90402127a76be0164d6aa4aa1d535bea4ec9bb7c043db6e975030b49fdfc03c7  hooks/target/usr/local/bin/labwc-qbittorrent
 ea26b2e95bfece1c73e5d24cefeff45fbc2bf7daa218cb91bdb43ec7bcb83b1b  hooks/target/usr/local/bin/labwc-recovery-action.tmpl
 10062595bcad1c681e330109b093cccd42260ce658205e85dc6305b5fb8a1ad1  hooks/target/usr/local/bin/labwc-remote-desktop.tmpl
 9d7044a3d503d51779abca420c770fdf5b190710c1e7eed4d33d3acabe59ba49  hooks/target/usr/local/bin/labwc-run
