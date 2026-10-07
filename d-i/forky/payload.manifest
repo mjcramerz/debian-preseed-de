@@ -138,7 +138,7 @@ b79b1e24c9b066f2a6f35c1f256e535d7603a3e8a0c958381116141dfb583643  hooks/target/e
 53e4ec85af7c14b8a504bc0b7ed2f1e364f5934e4365c79977e0d25a8c4002ad  hooks/target/etc/apparmor.d/abstractions/hardware-tuning-nvidia
 3e3f6c738ea2555fbf2d6f833e434f819cdcfd02eb1e5a77754d379e927b3233  hooks/target/etc/apparmor.d/abstractions/managed-workflow-auth
 87b7e4a3e5b62c6c647b48f84c56bd2c644caf4c9719cd9b6b2ce76591419e4e  hooks/target/etc/apparmor.d/abstractions/pipewire-audio
-8124dbb705bbf12d9361601d8f4a4681a5208ffce13d35420b4b43f2784310aa  hooks/target/etc/apparmor.d/abstractions/qbittorrent-runtime
+7e5028196408cb30a97cb1a83e6f4b0423c8266d734aafb3d36b4d310175331e  hooks/target/etc/apparmor.d/abstractions/qbittorrent-runtime
 4afc27cfe7a871711a9988beff6169aa2b48613a9ba85f37f16eb385ac227b09  hooks/target/etc/apparmor.d/abstractions/session-client
 027ee3401bab30a882ad02b3bb85dc8af06c2fac4f47406a24d0699a1cb7fe40  hooks/target/etc/apparmor.d/abstractions/timeshift-runtime
 a4b2568e2be94ff2dc711d2d8729f29e37fefc14e5b43bf86ab3eb7a62d13e69  hooks/target/etc/apparmor.d/abstractions/user-documents
@@ -864,7 +864,7 @@ d9f5ab5f383b3b3653469a1f74f79958660949a9e940ed96ce47f336e5807dcf  hooks/target/e
 a73e4b55574569e06359d8c4f058b994515da40b49ffc40fec23444f18e4d998  hooks/target/etc/systemd/user/labwc-native-.service.d/85-hardware-tuning.conf.tmpl
 a73e4b55574569e06359d8c4f058b994515da40b49ffc40fec23444f18e4d998  hooks/target/etc/systemd/user/labwc-wayland-.service.d/85-hardware-tuning.conf.tmpl
 a73e4b55574569e06359d8c4f058b994515da40b49ffc40fec23444f18e4d998  hooks/target/etc/systemd/user/llama-server.service.d/85-hardware-tuning.conf.tmpl
-9b3e0f03ef3be579ac97188f4b6bd1c2e15c7da53d7582e2be9024a7f3671790  hooks/target/etc/systemd/user/mako.service.d/10-labwc-session.conf
+6e1e74dc48d78bcc23daaeee4f095b59d27d78483c36480cf07acc356c7ae9f7  hooks/target/etc/systemd/user/mako.service.d/10-labwc-session.conf
 b24b7195f15eb61fb35c12ee75476bee97a7ca18b0fea9c12baf419559954e27  hooks/target/etc/systemd/user/mako.service.d/60-resource-class.conf
 2197d310c46468604855e64ca7a09a4fcdf22ede44c16121ac33253d3f61e03b  hooks/target/etc/systemd/user/nvidia-balanced.target
 ddc6ae73aa343c11c12ae73fbf6aa157ef06380317401a52ee079ea267cde30a  hooks/target/etc/systemd/user/nvidia-high.target
@@ -1015,7 +1015,7 @@ dbcbfd4c4534a2eed2a6f082c5eb069d0ac601aabcead44154aaa25933ae8209  hooks/target/u
 5273da5ce40cce4966fc258b356a61ba8afaf1b36011fbeb23b5de1f310a359b  hooks/target/usr/local/bin/labwc-podman-menu
 4ad254036c3aa181a332368b04c5c336a26c707dade67dc15ed8d707398ed142  hooks/target/usr/local/bin/labwc-power-menu
 574f44bc11b7d48298ad957f87c0b6685f8278d20328fe820dff8350dcecf2bf  hooks/target/usr/local/bin/labwc-power-settings
-581eb0f48fc597bee288475aad765ecd3dce640097d4c61bd35baacbec15566e  hooks/target/usr/local/bin/labwc-qbittorrent
+78df4ee96a3a278a6dff68a20d02eb24eb7896a04ef670a089b48b763263f6dc  hooks/target/usr/local/bin/labwc-qbittorrent
 ea26b2e95bfece1c73e5d24cefeff45fbc2bf7daa218cb91bdb43ec7bcb83b1b  hooks/target/usr/local/bin/labwc-recovery-action.tmpl
 10062595bcad1c681e330109b093cccd42260ce658205e85dc6305b5fb8a1ad1  hooks/target/usr/local/bin/labwc-remote-desktop.tmpl
 9d7044a3d503d51779abca420c770fdf5b190710c1e7eed4d33d3acabe59ba49  hooks/target/usr/local/bin/labwc-run
@@ -1256,7 +1256,7 @@ bd4507f48c6b1ecc52607c01a97ef5dcf7bcc9fa47b45f150ccedd68a1fdb8ca  hooks/target/u
 135267d9f7d198ab763ca1bf63be02692e6c6121b2561b522170fc5cceae3ae7  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/integrity.py
 ae665a85c88c409d21163551dd292f9ef7367917f22c0f2003e356d36a4f2f8c  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/mounts.py
 ab32db65a3cd922683a73028fec4a3d69edf577ca56f4b665977ede7f0771822  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_namespace.py
-c1f95d9f82f77ed06ae066447739739779292e118f4725798c6fb3182d8dae93  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py.tmpl
+a8c86d847c064996917d4f6d5ef29dbab7ff02420015456cf1694e02eb4f04c2  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py.tmpl
 7f2c41c7ded609aa20d80a19387262037c059a976a5d7510404c070be313f23b  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/recovery.py
 f7a78ac89b004f693a60c086c0d4632c28611b7f9902286f457ce5083f743b2a  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/runtime.py
 5fc7496473f7f89f5266c4e433f0614e50c64c9a34cb74ecb408d8739bdb5052  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/sandbox.py

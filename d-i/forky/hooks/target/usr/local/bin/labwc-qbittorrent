@@ -206,6 +206,10 @@ def prepare_storage(root: pathlib.Path) -> dict[str, pathlib.Path]:
 def managed_settings(paths: dict[str, pathlib.Path]) -> dict[str, dict[str, str]]:
     return {
         "Application": {"MemoryWorkingSetLimit": "1024"},
+        # The supplied 5.2.4 crash is in Adwaita's focus-rectangle painting.
+        # Keep the managed profile on Qt's built-in style even when reopening
+        # a configuration that explicitly selected the crashing plugin.
+        "Appearance": {"Style": "Fusion"},
         "BitTorrent": {
             "Session\\AddExtensionToIncompleteFiles": "true",
             "Session\\AnnounceToAllTiers": "true",
@@ -716,6 +720,7 @@ def build_command(
         "XDG_CURRENT_DESKTOP": "labwc:wlroots",
         "QT_QPA_PLATFORM": "wayland",
         "QT_QPA_PLATFORMTHEME": os.environ.get("QT_QPA_PLATFORMTHEME", "qt6ct"),
+        "QT_STYLE_OVERRIDE": "Fusion",
         "QSG_RHI_BACKEND": "opengl",
         "TMPDIR": "/tmp",
     }

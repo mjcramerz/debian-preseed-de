@@ -148,6 +148,16 @@ automatic port mapping and the Web UI, and checks HTTPS tracker certificates.
 The `addon/software` firewall overlay accepts the peer port on its selected
 network interfaces.
 
+Managed qBittorrent launches use Qt's built-in Fusion style to avoid the supplied
+Adwaita focus-paint crash. Its direct and Bubblewrap AppArmor profiles share the
+same runtime grants for block-device directory reads, account-owned process
+metadata and account-owned terminal I/O.
+
+Mako starts after a five-second wait in its session-bound user service. The wait
+also applies to D-Bus activation; notification producers ordered after Mako wait
+for the daemon to acquire its notification bus name. Later notifications use
+the existing delivery and timeout settings.
+
 The DevOps installer authenticates the exact Packer plugin releases, installs
 their binaries into the account's private plugin directory, then checks local
 checksums and the managed HCL constraints. The installation does not invoke

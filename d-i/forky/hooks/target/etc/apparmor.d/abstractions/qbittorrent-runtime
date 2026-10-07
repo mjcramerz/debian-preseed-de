@@ -14,6 +14,13 @@ network inet6 dgram,
 /usr/share/qbittorrent/ r,
 /usr/share/qbittorrent/** r,
 
+# Disk inventory needs the directory entries, not writable sysfs or device data.
+/sys/block/ r,
+# qBittorrent's diagnostics read process metadata in both host and PID namespaces.
+# Restrict these reads and terminal I/O to objects owned by the invoking user.
+owner @{PROC}/@{pid}/{cmdline,stat} r,
+owner /dev/pts/[0-9]* rw,
+
 owner @{HOME}/.cache/qBittorrent/ rw,
 owner @{HOME}/.cache/qBittorrent/** rwk,
 owner @{HOME}/.config/#[0-9]* rwkl,

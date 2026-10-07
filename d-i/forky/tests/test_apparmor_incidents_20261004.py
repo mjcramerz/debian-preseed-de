@@ -113,7 +113,7 @@ class SuppliedDenialTests(unittest.TestCase):
             converted_output = []
             # Each policy owns its ABI declaration. Parse the actual policy
             # files independently, then combine only the parser's output.
-            for name in ('desktop-wrappers', 'desktop-utilities', 'document-applications'):
+            for name in ('desktop-wrappers', 'desktop-utilities', 'document-applications', 'usr.bin.qbittorrent'):
                 for option, output in (('-d', debug_output), ('--dump=rule-exprs', converted_output)):
                     result = subprocess.run([*argv, option, str(base / name)], capture_output=True,
                                             text=True, encoding='utf-8', timeout=30)
@@ -163,6 +163,22 @@ class SuppliedDenialTests(unittest.TestCase):
             # The compiler debug mask reports r/x/m, while the native rule
             # reader above independently reports the inherited execution mode.
             self.assertTrue(set('rx') <= execution, execution)
+            # Replay all October 7 qBittorrent file denials in the compiler's
+            # effective policy for both direct and Bubblewrap launches.
+            for label in ('qbittorrent', 'labwc-qbittorrent//qbittorrent-bwrap'):
+                with self.subTest(qbittorrent_profile=label):
+                    self.assertEqual(permissions(label, '/sys/block/', owned=False), {'r'})
+                    self.assertNotIn('r', permissions(label, '/sys/block/sda/size', owned=False))
+                    for pid in ('2', '21822'):
+                        for attribute in ('cmdline', 'stat'):
+                            filename = f'/proc/{pid}/{attribute}'
+                            self.assertEqual(permissions(label, filename), {'r'})
+                            self.assertNotIn('r', permissions(label, filename, owned=False))
+                        self.assertNotIn('r', permissions(label, f'/proc/{pid}/environ'))
+                    self.assertTrue(set('rw') <= permissions(label, '/dev/pts/0'))
+            # The direct profile has no namespace-construction grants, so a
+            # terminal from another account does not acquire access here.
+            self.assertFalse(permissions('qbittorrent', '/dev/pts/0', owned=False))
             usb = '/sys/devices/pci0000:00/0000:00:14.0/usb1/1-2'
             for attribute in ('bcdDevice', 'version', 'bDeviceClass', 'bDeviceSubClass',
                               'bDeviceProtocol', 'devpath', 'speed', 'bConfigurationValue',

@@ -438,6 +438,8 @@ APPS = {
         "privacy_exec": "/usr/bin/qbittorrent",
         "env": {
             "QT_QPA_PLATFORM": "wayland",
+            # Also cover the disposable profile used by pure-privacy launches.
+            "QT_STYLE_OVERRIDE": "Fusion",
         },
         "args": [],
         "intel_env": {},
