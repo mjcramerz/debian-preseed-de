@@ -2927,6 +2927,9 @@ profile qbittorrent-pasta flags=(attach_disconnected) {
   /usr/lib/@{multiarch}/ld-linux-*.so* mr,
   /usr/lib/@{multiarch}/libc.so* mr,
   /etc/{nsswitch.conf,passwd,group} r,
+  # pasta tests whether its caller is in the initial user namespace before
+  # joining the pre-existing private namespace, even when started rootless.
+  owner @{PROC}/@{pid}/uid_map r,
   @{PROC}/[0-9]*/ns/ r,
   @{PROC}/[0-9]*/ns/{net,user} r,
   @{PROC}/sys/net/ipv4/{ip_local_port_range,tcp_syn_retries,tcp_syn_linear_timeouts,tcp_rto_max_ms} r,

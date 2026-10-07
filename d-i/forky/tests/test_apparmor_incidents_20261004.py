@@ -188,6 +188,8 @@ class SuppliedDenialTests(unittest.TestCase):
                 self.assertFalse(permissions('labwc-qbittorrent//qbittorrent-bwrap', filename))
             self.assertFalse(permissions('labwc-qbittorrent//qbittorrent-bwrap', '/dev/net/tun', owned=False))
             self.assertFalse(permissions('qbittorrent-pasta', '/home/fixture/.ssh/id_ed25519'))
+            self.assertIn('r', permissions('qbittorrent-pasta', '/proc/1234/uid_map'))
+            self.assertNotIn('w', permissions('qbittorrent-pasta', '/proc/1234/uid_map'))
             self.assertTrue(set('rx') <= permissions('crowdsec-firstboot', '/usr/bin/sha256sum', owned=False))
             self.assertTrue(set('rw') <= permissions('crowdsec-firstboot',
                                                    '/var/lib/firstboot/crowdsec/capi-activated', owned=False))
