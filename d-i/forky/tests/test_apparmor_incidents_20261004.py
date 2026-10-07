@@ -99,6 +99,9 @@ class SuppliedDenialTests(unittest.TestCase):
             for template in AA.rglob('*.tmpl'):
                 (base / template.relative_to(AA).with_name(template.name[:-5])).unlink(missing_ok=True)
             shutil.copytree(AA, base, dirs_exist_ok=True, symlinks=True)
+            (base / 'firstboot').unlink(missing_ok=True)
+            shutil.copyfile(SEED / 'scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl',
+                            base / 'firstboot.tmpl')
             render_theme_tree(base)
             # The installer renders the validated primary account separately
             # from appearance/logging. This fixture has no real account data.
@@ -113,7 +116,7 @@ class SuppliedDenialTests(unittest.TestCase):
             converted_output = []
             # Each policy owns its ABI declaration. Parse the actual policy
             # files independently, then combine only the parser's output.
-            for name in ('desktop-wrappers', 'desktop-utilities', 'document-applications', 'usr.bin.qbittorrent'):
+            for name in ('desktop-wrappers', 'desktop-utilities', 'document-applications', 'usr.bin.qbittorrent', 'firstboot'):
                 for option, output in (('-d', debug_output), ('--dump=rule-exprs', converted_output)):
                     result = subprocess.run([*argv, option, str(base / name)], capture_output=True,
                                             text=True, encoding='utf-8', timeout=30)
@@ -158,11 +161,36 @@ class SuppliedDenialTests(unittest.TestCase):
                 filename = f'/{location}/log/journal/machine/user-1000@rotated.journal~'
                 self.assertIn('r', permissions('desktop-launcher', filename, owned=False))
                 self.assertNotIn('w', permissions('desktop-launcher', filename, owned=False))
+            # thunar-volman inherits desktop-launcher. Replay the October 7
+            # root-owned udev input metadata reads and preserve their bounds.
+            for filename in ('+input:input33', '+input:input34', 'c13:73', 'c13:72', 'c13:34',
+                             '+input:input0', '+input:input1234', 'c13:0', 'c13:1234'):
+                with self.subTest(thunar_volman_metadata=filename):
+                    self.assertEqual(permissions('desktop-launcher', '/run/udev/data/' + filename,
+                                                 owned=False), {'r'})
+            for filename in ('/run/udev/data/+input:inputx', '/run/udev/data/c13:x',
+                             '/run/udev/data/+net:eth0', '/run/udev/data/c14:73',
+                             '/run/udev/data/+input:input33/child', '/run/udev/data/c13:73/child'):
+                with self.subTest(thunar_volman_excluded_path=filename):
+                    self.assertFalse(permissions('desktop-launcher', filename, owned=False))
             execution = permissions('labwc-qbittorrent//qbittorrent-bwrap',
                                     '/usr/bin/qbittorrent', owned=False)
             # The compiler debug mask reports r/x/m, while the native rule
             # reader above independently reports the inherited execution mode.
             self.assertTrue(set('rx') <= execution, execution)
+            self.assertIn('x', permissions('labwc-qbittorrent', '/usr/bin/pasta', owned=False))
+            self.assertEqual(permissions('qbittorrent-pasta', '/dev/net/tun', owned=False), {'r', 'w', 'a'})
+            self.assertTrue(set('rx') <= permissions('qbittorrent-pasta', '/usr/bin/pasta.avx2', owned=False))
+            for name in ('pasta.pid', 'pasta.log'):
+                filename = '/run/user/1000/labwc-qbittorrent-sandbox-fixture/' + name
+                self.assertTrue(set('rw') <= permissions('labwc-qbittorrent', filename))
+                self.assertTrue(set('rw') <= permissions('qbittorrent-pasta', filename))
+                self.assertFalse(permissions('labwc-qbittorrent//qbittorrent-bwrap', filename))
+            self.assertFalse(permissions('labwc-qbittorrent//qbittorrent-bwrap', '/dev/net/tun', owned=False))
+            self.assertFalse(permissions('qbittorrent-pasta', '/home/fixture/.ssh/id_ed25519'))
+            self.assertTrue(set('rx') <= permissions('crowdsec-firstboot', '/usr/bin/sha256sum', owned=False))
+            self.assertTrue(set('rw') <= permissions('crowdsec-firstboot',
+                                                   '/var/lib/firstboot/crowdsec/capi-activated', owned=False))
             for directory in ('Desktop', 'Documents', 'Downloads', 'Music', 'Pictures',
                               'Public', 'Templates', 'Videos'):
                 self.assertTrue(set('rwk') <= permissions('labwc-chatgpt//chatgpt-bwrap',
@@ -242,20 +270,24 @@ class SuppliedDenialTests(unittest.TestCase):
 
     def test_qbittorrent_helper_has_reciprocal_namespace_and_cleanup_permissions(self):
         payload = body('desktop-wrappers', 'qbittorrent-bwrap')
-        helper = body('desktop-wrappers', 'qbittorrent-slirp4netns')
+        helper = body('desktop-wrappers', 'qbittorrent-pasta')
         parent = body('desktop-wrappers', 'labwc-qbittorrent')
         self.assertIn('#include <abstractions/python>', payload)
         self.assertIn('/usr/bin/python3{,.[0-9]*} rix,', payload)
-        self.assertIn('ptrace (readby) peer=qbittorrent-slirp4netns,', payload)
+        self.assertIn('ptrace (readby) peer=qbittorrent-pasta,', payload)
         self.assertIn('ptrace (read) peer=labwc-qbittorrent//qbittorrent-bwrap,', helper)
         self.assertIn('signal (receive) set=(exists kill term) peer=labwc-qbittorrent,', payload)
         self.assertIn('signal (receive) set=(exists kill term) peer=labwc-qbittorrent,', helper)
-        self.assertIn('signal (send) peer=qbittorrent-slirp4netns,', parent)
+        self.assertIn('signal (send) peer=qbittorrent-pasta,', parent)
         self.assertIn('signal (send) peer=labwc-qbittorrent//qbittorrent-bwrap,', parent)
         self.assertNotIn('/dev/net/tun', payload)
         self.assertIn('/dev/net/tun rw,', helper)
         self.assertIn('network unix stream,', helper)
-        self.assertIn('labwc-qbittorrent-sandbox-*/{slirp4netns.stderr,slirp4netns.api} rw,', helper)
+        self.assertIn('labwc-qbittorrent-sandbox-*/{pasta.log,pasta.pid} rw,', helper)
+        self.assertIn('/usr/bin/pasta rPx -> qbittorrent-pasta,', parent)
+        self.assertIn('/usr/bin/pasta.avx2 rix,', helper)
+        self.assertIn('network netlink raw,', helper)
+        self.assertNotIn('Ux,', helper)
 
     def test_document_media_identity_map_is_validated_and_staged(self):
         source = (SEED / 'scripts/late/security.sh').read_text(encoding='utf-8')

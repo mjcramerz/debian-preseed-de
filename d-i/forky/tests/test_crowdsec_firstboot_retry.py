@@ -26,6 +26,35 @@ def source_function(name: str, source: str = SOURCE) -> str:
 
 
 class CrowdSecFirstbootRetryTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('systemd-analyze'), 'native systemd unit checker unavailable')
+    def test_retry_unit_and_engine_dropin_parse_with_native_systemd(self):
+        with tempfile.TemporaryDirectory(prefix='crowdsec-units-') as directory:
+            units = Path(directory)
+            firstboot = UNIT
+            for name, value in (('HOST_VARIANT', 'desktop'), ('ENROLL_TOKEN_FILE', '/private/enroll.token'),
+                                ('COMPLETE_FILE', '/private/complete'), ('STATUS_FILE', '/private/status.env')):
+                firstboot = firstboot.replace('__INSTALLER_CROWDSEC_' + name + '__', value)
+            # Parsing only: substitute the absent installed bootstrap helper
+            # with an inert executable. No service or remote API is started.
+            firstboot = firstboot.replace('ExecStart=/var/lib/firstboot/bin/crowdsec-firstboot',
+                                           'ExecStart=/usr/bin/true')
+            (units / 'crowdsec-firstboot.service').write_text(firstboot, encoding='utf-8')
+            for name in ('secondboot', 'auditd'):
+                (units / (name + '.service')).write_text(
+                    '[Unit]\nDescription=Inert dependency fixture\n[Service]\nExecStart=/usr/bin/true\n', encoding='ascii')
+            engine = units / 'crowdsec.service'
+            engine.write_text('[Unit]\nDescription=Engine parser fixture\n'
+                              '[Service]\nType=notify\nExecStart=/usr/bin/true\nRestart=always\nRestartSec=60\n', encoding='ascii')
+            dropin = units / 'crowdsec.service.d/20-capi-retry.conf'
+            dropin.parent.mkdir()
+            shutil.copyfile(FORKY / 'hooks/target/etc/systemd/system/crowdsec.service.d/20-capi-retry.conf', dropin)
+            result = subprocess.run(['systemd-analyze', '--man=no', '--generators=no', 'verify',
+                                      str(units / 'crowdsec-firstboot.service'), str(engine)],
+                env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'SYSTEMD_UNIT_PATH': str(units) + ':',
+                     'SYSTEMD_LOG_LEVEL': 'warning'}, text=True, encoding='utf-8', capture_output=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotRegex(result.stderr, r'Unknown (key|section)|Failed to parse|Invalid argument')
+
     def test_preseed_env_token_is_staged_privately_and_consumed_as_console_argument(self):
         credentials = (FORKY / 'scripts/common/credentials.sh').read_text(encoding='utf-8')
         # Only the ancestry limit and firstboot root UID are modeled for this
@@ -208,6 +237,7 @@ verify_capi_enabled
     def test_new_capi_credentials_reload_engine_and_failed_reload_invalidates_core_marker(self):
         code = source_function('ensure_capi_registration') + '\n' + source_function('write_core_ready_marker') + """
 CROWDSEC_CORE_READY_FILE=$1/core-ready
+CROWDSEC_CAPI_ACTIVATED_FILE=$1/capi-activated
 CASE_CREDENTIALS=$1/credentials.yaml
 crowdsec_config_path() { printf '%s\\n' "$CASE_CREDENTIALS"; }
 run_required_crowdsec_command() { printf 'registered\\n'; printf 'fixture-credentials\\n' >"$CASE_CREDENTIALS"; }
@@ -468,9 +498,9 @@ log_line() { printf 'event=%s\\n' "$*"; }
 
     def test_retry_unit_and_cleanup_preserve_core_and_token_contract(self):
         self.assertIn("Environment=CROWDSEC_ENROLL_ATTEMPTS=1", UNIT)
-        self.assertIn("RestartSec=30s", UNIT)
-        self.assertIn("RestartSteps=5", UNIT)
-        self.assertIn("RestartMaxDelaySec=1h", UNIT)
+        self.assertIn("RestartSec=65min", UNIT)
+        self.assertNotIn("RestartSteps=", UNIT)
+        self.assertNotIn("RestartMaxDelaySec=", UNIT)
         self.assertIn("RestartPreventExitStatus=2", UNIT)
         self.assertNotIn("StartLimitIntervalSec=infinity", UNIT)
         self.assertLess(SOURCE.index("systemctl enable crowdsec.service"),
@@ -479,6 +509,44 @@ log_line() { printf 'event=%s\\n' "$*"; }
                         SOURCE.index("enrollment_status=skipped"))
         cleanup = (FORKY / "scripts/firstboot/assets/var/lib/firstboot/bin/secondboot-cleanup").read_text(encoding="utf-8")
         self.assertIn('"${crowdsec_state_dir}/core-ready"', cleanup)
+        self.assertIn('"${crowdsec_state_dir}/capi-activated"', cleanup)
+        engine_retry = (FORKY / 'hooks/target/etc/systemd/system/crowdsec.service.d/20-capi-retry.conf').read_text(encoding='utf-8')
+        self.assertIn('RestartSec=65min', engine_retry)
+        self.assertIn('/etc/systemd/system/crowdsec.service.d/20-capi-retry.conf 0644', LATE)
+
+    def test_console_retries_do_not_reload_unchanged_capi_credentials(self):
+        code = source_function('ensure_capi_registration') + '\n' + source_function('write_core_ready_marker') + """
+umask 077
+CROWDSEC_CORE_READY_FILE=$1/core-ready
+CROWDSEC_CAPI_ACTIVATED_FILE=$1/capi-activated
+CASE_CREDENTIALS=$1/credentials.yaml
+crowdsec_config_path() { printf '%s\\n' "$CASE_CREDENTIALS"; }
+capi_credentials_configured() { return 0; }
+verify_capi_enabled() { return 0; }
+run_required_crowdsec_command() { printf 'unexpected-register\\n'; return 1; }
+wait_for_lapi() { return 0; }
+log_line() { printf '%s\\n' "$*"; }
+systemctl() { [ "$1" != reload ] || printf 'reload\\n' >>"$CASE_CALLS"; }
+printf 'fixture-private-credentials\\n' >"$CASE_CREDENTIALS"
+ensure_capi_registration
+ensure_capi_registration
+[ "$(wc -l <"$CASE_CALLS")" -eq 1 ]
+printf 'changed-private-credentials\\n' >"$CASE_CREDENTIALS"
+ensure_capi_registration
+[ "$(wc -l <"$CASE_CALLS")" -eq 2 ]
+"""
+        for label, shell in SHELLS:
+            with self.subTest(shell=label), tempfile.TemporaryDirectory() as directory:
+                result = subprocess.run([*shell, '-eu', '-c', code, 'crowdsec-fixture', directory],
+                    env={'PATH': '/usr/bin:/bin', 'CASE_CALLS': str(Path(directory) / 'calls')},
+                    text=True, encoding='utf-8', capture_output=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('capi_registration=already-activated', result.stdout)
+                self.assertNotIn('private-credentials', result.stdout + result.stderr)
+                marker = Path(directory) / 'capi-activated'
+                self.assertEqual(marker.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(marker.stat().st_size, 65)
+                self.assertNotIn('cscli capi status', SOURCE)
 
 
 if __name__ == "__main__":

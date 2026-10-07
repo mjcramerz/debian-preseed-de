@@ -219,7 +219,7 @@ profile waypaper /{usr/local/bin/waypaper,opt/waypaper/bin/waypaper,opt/waypaper
     ptrace (read) peer=labwc-chatgpt//chatgpt-dbus-proxy,
     ptrace (read) peer=labwc-chatgpt//chatgpt-bwrap,
     ptrace (read) peer=chatgpt-slirp4netns,
-    ptrace (read) peer=qbittorrent-slirp4netns,
+    ptrace (read) peer=qbittorrent-pasta,
     ptrace (read) peer=labwc-app,
     ptrace (read) peer=labwc-app//app-bwrap,
     ptrace (read) peer=codex-wrapper,
@@ -2790,7 +2790,7 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
   /usr/bin/systemd-run rpux,
   /usr/{sbin,bin}/ip rix,
   network netlink raw,
-  /usr/bin/slirp4netns rPx -> qbittorrent-slirp4netns,
+  /usr/bin/pasta rPx -> qbittorrent-pasta,
   network unix stream,
   /usr/local/lib/python3.14/ r,
   /usr/local/lib/python3.14/dist-packages/ r,
@@ -2798,8 +2798,8 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/*.py r,
   owner @{PROC}/@{pid}/fd/ r,
   owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/ rw,
-  owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/{resolv.conf,slirp4netns.stderr,slirp4netns.api} rw,
-  signal (send) peer=qbittorrent-slirp4netns,
+  owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/{resolv.conf,pasta.log,pasta.pid} rw,
+  signal (send) peer=qbittorrent-pasta,
   signal (send) peer=labwc-qbittorrent//qbittorrent-bwrap,
   owner /run/user/[0-9]*/labwc-session-closing r,
   /usr/bin/bwrap rCx -> qbittorrent-bwrap,
@@ -2847,7 +2847,7 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
     /usr/bin/python3{,.[0-9]*} rix,
     include if exists <abstractions/user-tmp>
 
-    ptrace (readby) peer=qbittorrent-slirp4netns,
+    ptrace (readby) peer=qbittorrent-pasta,
     signal (receive) set=(exists kill term) peer=labwc-qbittorrent,
     /etc/labwc/desktop.conf r,
     owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/resolv.conf r,
@@ -2886,22 +2886,33 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
   include if exists <local/usr.local.bin.labwc-qbittorrent>
 }
 
-profile qbittorrent-slirp4netns flags=(attach_disconnected) {
+profile qbittorrent-pasta flags=(attach_disconnected) {
   # Only this helper configures the private TAP. The torrent payload drops all
-  # capabilities and never receives /dev/net/tun or the helper's API socket.
+  # capabilities and never receives /dev/net/tun, helper state, or host network.
   userns,
   capability net_admin,
+  capability net_bind_service,
   capability sys_admin,
   capability sys_ptrace,
-  # The helper serves the pathname API as well as creating its Unix socket.
-  # Filesystem rules below restrict that API to the private owned directory.
+  capability setuid,
+  capability setgid,
+  capability setpcap,
+  # pasta's native sandbox pivots into an empty, read-only private tmpfs.
+  mount options=(rw, runbindable) -> /,
+  mount "" -> /,
+  mount "" -> /tmp/,
+  pivot_root /tmp/ -> /tmp/,
+  umount /,
   network unix stream,
+  network unix dgram,
+  network netlink raw,
   network inet stream,
   network inet dgram,
   ptrace (read) peer=labwc-qbittorrent//qbittorrent-bwrap,
   ptrace (readby) peer=desktop-launcher,
   ptrace (readby) peer=waypaper//waypaper-ps,
   ptrace (readby) peer=aa-status-reader,
+  signal (send, receive) peer=@{profile_name},
   signal (receive) set=(exists kill term) peer=labwc-qbittorrent,
   / r,
   /dev/null rw,
@@ -2911,11 +2922,17 @@ profile qbittorrent-slirp4netns flags=(attach_disconnected) {
   /etc/resolv.conf r,
   /run/resolvconf/resolv.conf r,
   /run/systemd/resolve/{stub-resolv.conf,resolv.conf} r,
-  /usr/bin/slirp4netns mr,
+  /usr/bin/pasta mr,
+  /usr/bin/pasta.avx2 rix,
   /usr/lib/@{multiarch}/ld-linux-*.so* mr,
-  /usr/lib/@{multiarch}/lib{atomic,c,glib-2.0,m,pcre2-8,seccomp,slirp}.so* mr,
+  /usr/lib/@{multiarch}/libc.so* mr,
+  /etc/{nsswitch.conf,passwd,group} r,
+  @{PROC}/[0-9]*/ns/ r,
   @{PROC}/[0-9]*/ns/{net,user} r,
-  owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/{slirp4netns.stderr,slirp4netns.api} rw,
+  @{PROC}/sys/net/ipv4/{ip_local_port_range,tcp_syn_retries,tcp_syn_linear_timeouts,tcp_rto_max_ms} r,
+  @{PROC}/sys/net/netfilter/nf_conntrack_udp_timeout{,_stream} r,
+  owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/ r,
+  owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/{pasta.log,pasta.pid} rw,
 }
 
 profile labwc-recovery-action /usr/local/bin/labwc-recovery-action flags=(attach_disconnected) {

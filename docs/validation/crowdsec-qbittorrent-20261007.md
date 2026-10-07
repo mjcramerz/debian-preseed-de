@@ -208,3 +208,175 @@ change does not establish that those conditions have been repaired. Missing
 global Xwayland, Crystal Dock API deprecation, duplicate packaged grok notices,
 and the unmerged-bin package taint do not establish additional failures in this
 capture. No source compilation or Xwayland-policy change is introduced.
+
+## Additional thunar-volman denial supplied afterward
+
+The subsequent LPL-346 records numbered 3166–3215 contain 50 repeated
+`desktop-launcher` open denials for five root-owned input metadata paths:
+
+- `/run/udev/data/+input:input33`
+- `/run/udev/data/+input:input34`
+- `/run/udev/data/c13:73`
+- `/run/udev/data/c13:72`
+- `/run/udev/data/c13:34`
+
+These records were supplied separately after the 47-file capture above.
+The installed package lists `/usr/bin/thunar-volman`. The existing
+`desktop-launcher` `/usr/bin/** rPix` rule permits inherited execution when
+there is no matching application profile, consistent with the supplied label.
+The canonical profile had block/USB udev metadata grants but lacked these input
+families. Linux character major 13 is the input core.
+[Linux device assignments](https://www.kernel.org/doc/Documentation/admin-guide/devices.txt).
+
+The only production policy addition is this read rule and its comment in
+`hooks/target/etc/apparmor.d/desktop-utilities`:
+
+```apparmor
+/run/udev/data/{c13:[0-9]*,+input:input[0-9]*} r,
+```
+
+The rule is in `desktop-launcher`, which is the label in the denial records.
+It permits root-owned udev metadata reads without an owner qualifier and adds
+no raw-device or write permission. The existing desktop-profile catalog and
+`stage_target_desktop_apparmor_profiles` already stage this source to
+`/etc/apparmor.d/desktop-utilities`; no new staging path or profile transition
+is required.
+
+The existing native AppArmor effective-rule test was extended. Before the
+policy change, all five reported paths and four additional input-ID cases
+lacked read permission. After the change, all nine cases have exactly `r` for
+non-owned files. Six negative cases verify that unrelated subsystems/majors,
+nonnumeric initial IDs and child paths remain outside these grants.
+
+All three selected checks pass:
+
+1. `test_apparmor_incidents_20261004.SuppliedDenialTests.test_native_parser_permissions_cover_nested_documents_usb_and_unclean_journals`
+2. `test_apparmor_incidents_20261004.SuppliedDenialTests.test_compositor_env_helper_inherits_confinement_without_missing_transition`
+3. `test_policy_review_20260916.AppArmorReviewTests.test_udev_queries_do_not_add_device_access`
+
+The native parser uses the actual managed profiles and abstractions in an
+isolated copy, including the existing document, USB, qBittorrent and journal
+checks. This verifies compiled rule matching without loading policy into the
+host kernel. Live hotplug and denial clearance on LPL-346 require the updated
+installed policy and have not been exercised from this workspace.
+
+The follow-up `python3 -B tools/build.py` and `python3 -B tools/build.py --check`
+both pass. Independent comparison against the pre-fix snapshot `1f304d4`
+confirms all 1,704 source/archive/manifest entries agree. Only
+`hooks/target/etc/apparmor.d/desktop-utilities` changes in the payload, and its
+entire difference is the read rule and comment above. The other 1,703 entries,
+including CrowdSec, qBittorrent and private Xwayland, are byte-identical.
+
+## Working-backup and network follow-up
+
+The later supplied `todo/cs`, `todo/crowd` and `todo/crowdi` were also read,
+bringing this capture to 50 files. These contain private credential material;
+only the non-secret failure facts are recorded here. LPL-454 runs
+`v1.8.1-debian-pragmatic-amd64-909b5157`. Correct Console enrollment syntax and
+`cscli capi status` both receive remote HTTP 403. The successful enrollment on
+LPL-346 establishes that the attachment key can work; an invalid attachment
+key does not explain a separate CAPI authentication failure.
+
+Compared CrowdSec's class, late installer, firstboot helper and service against
+the user-identified working checkout at
+`/home/mcramer/Workspace/debian-preseed-de.bak`. It also defers CAPI registration
+to firstboot and uses `cscli capi register --error`, followed by engine
+activation and `cscli console enroll --overwrite --name HOST TOKEN`. The current
+helper preserves those registration/enrollment commands, adds an option
+terminator before the token, and uses the documented reload operation to
+activate credentials. It does not rotate populated credentials on HTTP 403.
+
+CrowdSec documents a one-hour CAPI ban after excessive authentication, including
+restart loops and repeated `cscli capi status` calls. This is a documented
+explanation consistent with the capture, rather than proof of the failing
+host's public-IP ban state.
+[CrowdSec CAPI 403 troubleshooting](https://docs.crowdsec.net/u/troubleshooting/capi_403/).
+All ten repository profiles disable Tailscale accepted DNS/routes and leave
+the exit-node value empty. This change adds no enrollment routing override.
+
+The follow-up changes:
+
+- Both firstboot retry and engine failure restart wait 65 minutes, allowing the
+  documented ban interval to expire. This also delays recovery from other
+  engine failures; healthy engine operation is unaffected.
+- A root-only credential fingerprint records successful activation. Console
+  retries do not reload unchanged credentials or add CAPI status probes.
+  Changed/new credentials still reload before enrollment. The token and
+  completion gate remain intact after failures, with local services retained
+  when they have passed their existing verification.
+- The retry drop-in is staged by the late CrowdSec installer, the fingerprint
+  is removed by secondboot cleanup, and firstboot AppArmor permits inherited
+  `sha256sum` execution. CAPI sharing and both pull options remain enabled.
+- The normal, Intel and NVIDIA qBittorrent launch paths now use packaged
+  `pasta` from Debian's `passt` package. The desktop package class and installed
+  verifier require it. Its package maintainer scripts only manage the packaged
+  AppArmor profiles; no daemon is introduced by this package.
+- The private TAP remains `tap0`, `10.0.2.100/24`, MTU 65520. Only the configured
+  peer port is forwarded for TCP and UDP, bound to the selected host address
+  and interface. Outbound sockets use that same source/interface. Automatic
+  forwarding/scanning, gateway-to-host mapping, and DHCP/IPv6 advertisements
+  are disabled; DNS continues to use the validated routed upstreams.
+- Pasta is supervised in the existing session cgroup. Private PID-file
+  readiness must match the actual helper PID before either startup gate is
+  released. Failed setup kills the pinned namespace init before closing
+  Bubblewrap's release pipe. Helper failure stops the application. Diagnostics
+  are private, bounded and sanitized before reporting the backend error cause.
+- The helper has a dedicated AppArmor label, native sandbox permissions, and
+  reciprocal namespace/cleanup permissions. The torrent payload receives no
+  helper state, TUN device or host network. Unrelated applications keep their
+  existing network backend; the disposable pure-privacy launch path is unchanged.
+- Global/alternate upload and download limits are managed as unlimited, and
+  alternative-speed selection and bandwidth scheduling are disabled. Existing
+  unrelated preferences, tracker privacy, TLS/SSRF checks, fixed peer ports,
+  profile locking, Qt IPC, mounted-volume requirement and no-home-fallback
+  storage policy are retained.
+
+Pasta translates packets to native host sockets rather than implementing
+slirp's full TCP stack.
+[Debian pasta manual](https://manpages.debian.org/testing/passt/pasta.1.en.html).
+Its installed package is `0.0~git20261002.cba3570-1`. The corresponding Debian
+source was inspected as data, without compilation: `passt.c` calls TAP setup
+and `fwd_listen_init()` before writing the PID file; `fwd.c` exits initialization
+when a strong explicit TCP or UDP port bind fails. Automatic/`all` forwarding
+rules would have weaker semantics and are not used here.
+[Debian source archive](https://deb.debian.org/debian/pool/main/p/passt/passt_0.0~git20261002.cba3570.orig.tar.xz).
+
+### Follow-up validation
+
+The exact focused suite is:
+
+```sh
+python3 -I -B - <<'PY'
+import sys
+import unittest
+sys.path.insert(0, 'd-i/forky/tests')
+names = [
+    'test_crowdsec_firstboot_retry',
+    'test_compz_qbittorrent_followup',
+    'test_installer_hardening.ConfigurationOrderingTests',
+    'test_apparmor_incidents_20261004',
+    'test_policy_review_20260916.AppArmorReviewTests.test_udev_queries_do_not_add_device_access',
+]
+result = unittest.TextTestRunner(verbosity=1).run(
+    unittest.defaultTestLoader.loadTestsFromNames(names))
+raise SystemExit(not result.wasSuccessful())
+PY
+```
+
+It runs 77 tests: 75 pass and the two packaged-backend TCP/UDP packet tests
+skip because the tool environment has no `/dev/net/tun`. Real Bubblewrap,
+pidfd cancellation, startup gates, argument preservation and process reaping
+run with simulated pasta network readiness. Native AppArmor compilation and
+effective file-permission checks cover five policy files, including the
+CrowdSec fingerprint operation and pasta helper permissions. Native systemd
+unit parsing passes with inert executable/dependency fixtures; the checker
+is systemd 262, while the changed duration directives also apply to 261.2.
+Dash parsing and `git diff --check` pass.
+
+The user's ISP advertises 1000/1000 Mbit/s and their usual torrent rate is about
+90 MiB/s. This environment does not establish a new torrent transfer rate:
+live TCP/UDP forwarding under enforced policy, throughput on the mounted volume,
+remote CAPI enrollment/appearance, and Console approval remain installed-host
+validation. The code cannot override a CrowdSec server-side ban. No live
+enrollment, host service restart, policy load, source compilation or deployment
+was performed during this follow-up.

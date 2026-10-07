@@ -199,6 +199,9 @@ for logging_unit in crowdsec crowdsec-firewall-bouncer; do
     "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/systemd/system/${logging_unit}.service.d/40-logging.conf")" \
     "/etc/systemd/system/${logging_unit}.service.d/40-logging.conf" 0644
 done
+crowdsec_stage_target_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/crowdsec.service.d/20-capi-retry.conf)" \
+  /etc/systemd/system/crowdsec.service.d/20-capi-retry.conf 0644
 
 # dpkg may configure packages in dependency order rather than pkgsel text order.
 # The upstream bouncer does not depend on a fully initialized local engine.

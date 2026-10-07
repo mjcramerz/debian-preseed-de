@@ -119,6 +119,7 @@ cleanup_crowdsec_bootstrap() {
     "$crowdsec_helper" \
     "$crowdsec_complete" \
     "${crowdsec_state_dir}/core-ready" \
+    "${crowdsec_state_dir}/capi-activated" \
     "${crowdsec_state_dir}/status.env" \
     "${crowdsec_state_dir}/bootstrap.log"
   rmdir "$crowdsec_state_dir" 2>/dev/null || true

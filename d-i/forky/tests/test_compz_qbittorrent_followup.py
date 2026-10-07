@@ -35,6 +35,193 @@ LAUNCHERS = runpy.run_path(
 
 
 class TorrentIntegrationTests(unittest.TestCase):
+    def test_saved_speed_caps_and_alternative_scheduler_are_removed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = QBIT['prepare_storage'](Path(directory))
+            config = QBIT['write_config'](paths['profile_home'], paths, ('tap0', '10.0.2.100'))
+            config.write_text('[BitTorrent]\nSession\\GlobalDLSpeedLimit=10000\n'
+                              'Session\\GlobalUPSpeedLimit=10000\n'
+                              'Session\\UseAlternativeGlobalSpeedLimit=true\n'
+                              'Session\\BandwidthSchedulerEnabled=true\n'
+                              '[Preferences]\nGeneral\\Locale=sv\n', encoding='utf-8')
+            QBIT['write_config'](paths['profile_home'], paths, ('tap0', '10.0.2.100'))
+            parser = configparser.ConfigParser(interpolation=None)
+            parser.optionxform = str
+            parser.read(config, encoding='utf-8')
+            for key in ('GlobalDLSpeedLimit', 'GlobalUPSpeedLimit', 'AlternativeGlobalDLSpeedLimit',
+                        'AlternativeGlobalUPSpeedLimit'):
+                self.assertEqual(parser['BitTorrent']['Session\\' + key], '0')
+            for key in ('UseAlternativeGlobalSpeedLimit', 'BandwidthSchedulerEnabled'):
+                self.assertEqual(parser['BitTorrent']['Session\\' + key], 'false')
+            self.assertEqual(parser['Preferences'][r'General\Locale'], 'sv')
+
+    def test_pasta_has_exact_ports_and_interface_without_automatic_forwarding(self):
+        command = QBIT['pasta_command']('/usr/bin/pasta', 1234, '/run/user/1000/private',
+                                        ('eth0', '192.168.50.88'), 50308)
+        for key, value in (('--tcp-ports', '192.168.50.88%eth0/50308'),
+                           ('--udp-ports', '192.168.50.88%eth0/50308'),
+                           ('--tcp-ns', 'none'), ('--udp-ns', 'none'),
+                           ('--outbound-if4', 'eth0'), ('--outbound', '192.168.50.88'),
+                           ('--address', '10.0.2.100/24'), ('--ns-ifname', 'tap0'),
+                           ('--gateway', '10.0.2.2'), ('--mtu', '65520'),
+                           ('--userns', '/proc/1234/ns/user'), ('--netns', '/proc/1234/ns/net')):
+            self.assertEqual(command[command.index(key) + 1], value)
+        for key in ('--no-map-gw', '--foreground', '--ipv4-only', '--config-net'):
+            self.assertIn(key, command)
+        self.assertFalse({'auto', 'all', '--freebind', '--host-lo-to-ns-lo', '--dns-forward'} & set(command))
+        desktop_class = (FORKY / 'classes/class-select/role/desktop.cfg').read_text(encoding='utf-8')
+        self.assertIn('bubblewrap slirp4netns passt xdg-dbus-proxy', desktop_class)
+        self.assertIn('  pasta \\\n', (FORKY / 'scripts/desktop/verify.sh.tmpl').read_text(encoding='utf-8'))
+
+    def test_pasta_invalid_binding_creates_no_children(self):
+        for interface, address, port in (('lo', '127.0.0.1', 50309),
+            ('tailscale0', '100.65.1.2', 50309), ('eth0', '0.0.0.0', 50309),
+            ('eth0', '::1', 50309), ('eth0', True, 50309),
+            ('eth0', '192.168.50.88', True), ('eth0', '192.168.50.88', 22),
+            ('eth0;id', '192.168.50.88', 50309)):
+            with self.subTest(binding=(interface, address, port)), \
+                    mock.patch.object(subprocess, 'Popen') as launch, self.assertRaises(SystemExit):
+                QBIT['run_pasta_sandbox']([], [], '/unused', (interface, address), port,
+                                          network_namespace, '/usr/bin/pasta')
+            launch.assert_not_called()
+
+    def test_pasta_readiness_checks_pid_identity_and_private_file(self):
+        helper = mock.Mock(pid=1234)
+        helper.poll.return_value = None
+        sandbox = mock.Mock()
+        sandbox.poll.return_value = None
+        for case in ('ready', 'wrong-pid', 'public', 'hardlink', 'symlink', 'oversized', 'not-pid'):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'pasta.pid'
+                path.write_bytes(b'1234\n' if case != 'wrong-pid' else b'4321\n')
+                path.chmod(0o644 if case == 'public' else 0o600)
+                if case == 'hardlink':
+                    os.link(path, Path(directory) / 'other')
+                elif case == 'symlink':
+                    path.rename(Path(directory) / 'other')
+                    path.symlink_to(Path(directory) / 'other')
+                elif case == 'oversized':
+                    path.write_bytes(b'1' * 33)
+                elif case == 'not-pid':
+                    path.write_bytes(b'1234\nextra\n')
+                if case == 'ready':
+                    QBIT['wait_for_pasta_ready'](helper, sandbox, directory)
+                else:
+                    with self.assertRaises((SystemExit, OSError)):
+                        QBIT['wait_for_pasta_ready'](helper, sandbox, directory)
+
+    def test_pasta_setup_failure_kills_init_before_closing_release_pipe(self):
+        events = []
+        pipes = []
+        original_pipe = os.pipe
+        def pipe():
+            descriptors = original_pipe()
+            pipes.append(descriptors)
+            return descriptors
+        sandbox, helper = mock.Mock(), mock.Mock()
+        sandbox.poll.return_value = helper.poll.return_value = None
+        original_close = network_namespace.close_file_descriptor
+        def close(descriptor):
+            events.append(('close', descriptor))
+            original_close(descriptor)
+        with tempfile.TemporaryDirectory() as directory:
+            pidfd = os.open('/dev/null', os.O_RDONLY)
+            globals_ = QBIT['run_pasta_sandbox'].__globals__
+            with mock.patch.object(subprocess, 'Popen', side_effect=[sandbox, helper]) as launch, \
+                    mock.patch.object(os, 'pipe', side_effect=pipe), \
+                    mock.patch.object(network_namespace, '_read_bwrap_sandbox_pid', return_value=1234), \
+                    mock.patch.object(os, 'pidfd_open', return_value=pidfd), \
+                    mock.patch.object(QBIT['run_pasta_sandbox'].__globals__['signal'], 'pidfd_send_signal',
+                                      side_effect=lambda *args: events.append(('kill', args))), \
+                    mock.patch.object(network_namespace, 'close_file_descriptor', side_effect=close), \
+                    mock.patch.object(network_namespace, '_stop_subprocess') as stop, \
+                    mock.patch.dict(globals_, {'wait_for_pasta_ready': mock.Mock(side_effect=SystemExit(1))}), \
+                    mock.patch.object(os, 'write') as release, self.assertRaises(SystemExit):
+                QBIT['run_pasta_sandbox'](['/usr/bin/bwrap', '--unshare-all'], ['/usr/bin/qbittorrent'],
+                    directory, ('eth0', '192.168.50.88'), 50309, network_namespace, '/usr/bin/pasta')
+            release.assert_not_called()
+            self.assertEqual(stop.call_args_list, [mock.call(sandbox), mock.call(helper)])
+            bwrap = launch.call_args_list[0].args[0]
+            kill_index = next(i for i, event in enumerate(events) if event[0] == 'kill')
+            self.assertEqual(events[kill_index][1][0], pidfd)
+            self.assertGreater(next(i for i, event in enumerate(events)
+                                    if event == ('close', pidfd)), kill_index)
+            block_write = pipes[1][1]
+            self.assertGreater(next(i for i, event in enumerate(events)
+                                    if event == ('close', block_write)), kill_index)
+            self.assertIn(network_namespace.PEER_STARTUP_GATE, bwrap)
+            gate = int(bwrap[bwrap.index(network_namespace.PEER_STARTUP_GATE) + 1])
+            self.assertIn(gate, launch.call_args_list[0].kwargs['pass_fds'])
+
+    def test_pasta_helper_loss_stops_qbittorrent_after_ready(self):
+        sandbox, helper = mock.Mock(), mock.Mock(returncode=1)
+        sandbox.poll.return_value = None
+        helper.poll.side_effect = [None, 1, 1]
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(subprocess, 'Popen', side_effect=[sandbox, helper]), \
+                mock.patch.object(network_namespace, '_read_bwrap_sandbox_pid', return_value=1234), \
+                mock.patch.object(os, 'pidfd_open', return_value=None), \
+                mock.patch.dict(QBIT['run_pasta_sandbox'].__globals__, {'wait_for_pasta_ready': mock.Mock()}), \
+                mock.patch.object(network_namespace, '_stop_subprocess') as stop, \
+                mock.patch.object(os, 'write') as release, self.assertRaises(SystemExit):
+            QBIT['run_pasta_sandbox'](['/usr/bin/bwrap'], ['/usr/bin/qbittorrent'], directory,
+                ('eth0', '192.168.50.88'), 50309, network_namespace, '/usr/bin/pasta')
+        self.assertEqual(release.call_count, 2)
+        stop.assert_called_once_with(sandbox)
+
+    def test_real_pasta_runner_cancels_failed_setup_and_gates_literal_arguments(self):
+        if not Path('/usr/bin/bwrap').is_file():
+            self.skipTest('Bubblewrap unavailable')
+        command = ['/usr/bin/bwrap', '--unshare-all', '--cap-drop', 'ALL', '--die-with-parent',
+                   '--ro-bind', '/', '/', '--proc', '/proc', '--dev', '/dev']
+        probe = subprocess.run([*command, '/usr/bin/true'], capture_output=True, timeout=5)
+        if probe.returncode:
+            self.skipTest('private namespaces unavailable: ' + probe.stderr.decode('utf-8', 'replace')[:300])
+        real_popen = subprocess.Popen
+        real_pin = os.pidfd_open
+        literal = 'literal;$(not-a-command)'
+        for case in ('helper-failure', 'pin-failure', 'ready'):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                marker = Path(directory) / 'payload-started'
+                processes = []
+                def launch(argv, **kwargs):
+                    if argv[0] == '/usr/bin/pasta':
+                        if case == 'helper-failure':
+                            argv = ['/usr/bin/false']
+                        else:
+                            # Only native network setup is simulated. The
+                            # runner, private PID-file reader, Bubblewrap,
+                            # startup gate, pidfd cancellation and exec are real.
+                            argv = ['/usr/bin/python3', '-I', '-B', '-c',
+                                'import os,sys,time; time.sleep(0.05); '
+                                'open(sys.argv[1],"w").write(str(os.getpid())+"\\n"); time.sleep(10)',
+                                argv[argv.index('--pid') + 1]]
+                    process = real_popen(argv, **kwargs)
+                    processes.append(process)
+                    return process
+                def pin(pid):
+                    if case == 'pin-failure':
+                        raise OSError('fixture pin failure')
+                    return real_pin(pid)
+                payload = ['/usr/bin/python3', '-I', '-B', '-c',
+                    'import pathlib,sys; pathlib.Path(sys.argv[1]).write_text(sys.argv[2],encoding="ascii")',
+                    str(marker), literal]
+                with mock.patch.object(subprocess, 'Popen', side_effect=launch), \
+                        mock.patch.object(os, 'pidfd_open', side_effect=pin):
+                    if case == 'ready':
+                        status = QBIT['run_pasta_sandbox']([*command, '--bind', directory, directory],
+                            payload, directory, ('eth0', '192.168.50.88'), 50309,
+                            network_namespace, '/usr/bin/pasta')
+                        self.assertEqual(status, 0)
+                        self.assertEqual(marker.read_text(encoding='ascii'), literal)
+                    else:
+                        with self.assertRaises(SystemExit):
+                            QBIT['run_pasta_sandbox']([*command, '--bind', directory, directory],
+                                payload, directory, ('eth0', '192.168.50.88'), 50309,
+                                network_namespace, '/usr/bin/pasta')
+                        self.assertFalse(marker.exists(), 'failed setup executed the payload')
+                self.assertTrue(all(process.poll() is not None for process in processes), 'child leaked')
+
     def test_payload_command_keeps_namespace_isolation_and_drops_all_capabilities(self):
         account = pwd.struct_passwd(('fixture', 'x', os.getuid(), os.getgid(), '', '/home/fixture', '/bin/sh'))
         globals_ = QBIT['build_command'].__globals__
@@ -320,22 +507,22 @@ stage_target_nftables_service_assets qbittorrent
                         with self.assertRaises(SystemExit):
                             QBIT['routed_dns_servers'](binding, source)
 
-    def test_private_dns_is_mounted_and_disables_slirp_host_dns_proxy(self):
+    def test_private_dns_is_mounted_and_pasta_uses_the_selected_route(self):
         account = pwd.struct_passwd(('fixture', 'x', os.getuid(), os.getgid(), '',
                                      '/home/fixture', '/bin/sh'))
         with tempfile.TemporaryDirectory() as directory:
             captured = []
-            def launch(*args, **kwargs):
+            def launch(*args):
                 command = args[0]
                 resolver = Path(command[command.index('--ro-bind') + 1])
-                captured.append((resolver.read_text(encoding='ascii'), kwargs))
+                captured.append((resolver.read_text(encoding='ascii'), args[3:]))
                 return 0
-            runtime = types.SimpleNamespace(SLIRP4NETNS_BINARY='/usr/bin/true',
-                                            run_slirp4netns_sandbox=launch)
+            runtime = types.SimpleNamespace()
             globals_ = QBIT['run_new_instance'].__globals__
             with mock.patch.dict(globals_, {'network_binding': lambda: ('eth0', '192.168.50.88'),
                                            'routed_dns_servers': lambda binding: ['192.168.50.1'],
                                            'write_config': mock.Mock(), 'network_runtime': lambda: runtime,
+                                           'run_pasta_sandbox': launch, 'PASTA_BINARY': '/usr/bin/true',
                                            'build_command': lambda *args: ['bwrap', '--ro-bind',
                                                str(args[-1]), '/etc/resolv.conf', 'qbittorrent']}), \
                  mock.patch.object(tempfile, 'TemporaryDirectory',
@@ -347,8 +534,7 @@ stage_target_nftables_service_assets qbittorrent
                     {'profile_home': Path(directory)}, 'launch', [], 50309), 0)
             self.assertEqual(captured[0][0],
                              'nameserver 192.168.50.1\noptions timeout:2 attempts:2\n')
-            self.assertEqual(captured[0][1]['peer_forward'], ('192.168.50.88', 50309))
-            self.assertTrue(captured[0][1]['disable_dns'])
+            self.assertEqual(captured[0][1], (('eth0', '192.168.50.88'), 50309, runtime, '/usr/bin/true'))
 
     def test_repeated_launch_sends_qt_ipc_without_starting_another_network_helper(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -463,7 +649,14 @@ stage_target_nftables_service_assets qbittorrent
             launch.assert_not_called()
 
     def test_packaged_slirp_forwards_tcp_and_udp_to_a_real_private_payload(self):
-        for executable in ('/usr/bin/bwrap', '/usr/bin/slirp4netns', '/usr/bin/python3', '/dev/net/tun'):
+        self.exercise_packaged_peer_transport('slirp')
+
+    def test_packaged_pasta_forwards_tcp_and_udp_to_a_real_private_payload(self):
+        self.exercise_packaged_peer_transport('pasta')
+
+    def exercise_packaged_peer_transport(self, backend):
+        binary = '/usr/bin/pasta' if backend == 'pasta' else '/usr/bin/slirp4netns'
+        for executable in ('/usr/bin/bwrap', binary, '/usr/bin/python3', '/dev/net/tun'):
             if executable == '/dev/net/tun' and not Path(executable).exists():
                 self.skipTest('host TUN device unavailable; no live packet forwarding was exercised')
             if executable == '/dev/net/tun':
@@ -483,11 +676,12 @@ stage_target_nftables_service_assets qbittorrent
             tcp.bind(('127.0.0.1', 0))
             port = tcp.getsockname()[1]
             udp.bind(('127.0.0.1', port))
-        payload = '''import socket,sys
+        payload = '''import pathlib,socket,sys
 port = int(sys.argv[1])
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp:
     tcp.bind(('10.0.2.100', port)); tcp.listen(1); tcp.settimeout(5)
     udp.bind(('10.0.2.100', port)); udp.settimeout(5)
+    pathlib.Path(sys.argv[2]).write_text('ready', encoding='ascii')
     channel, _ = tcp.accept()
     with channel:
         channel.settimeout(5); channel.sendall(channel.recv(64))
@@ -497,6 +691,10 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp, socket.socket(soc
         def exchange():
             try:
                 deadline = time.monotonic() + 5
+                while not ready_file.exists():
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError('private peer payload was not ready')
+                    time.sleep(.05)
                 while True:
                     try:
                         channel = socket.create_connection(('127.0.0.1', port), timeout=1)
@@ -516,11 +714,36 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp, socket.socket(soc
         worker = threading.Thread(target=exchange)
         with tempfile.TemporaryDirectory() as directory, \
                 mock.patch.object(network_namespace, 'validate_peer_forward', return_value='127.0.0.1'):
+            ready_file = Path(directory) / 'peer-ready'
+            fixture_namespace = [*command, '--bind', directory, directory]
             try:
-                result = network_namespace.run_slirp4netns_sandbox(command,
-                    ['/usr/bin/python3', '-I', '-B', '-c', payload, str(port)], directory, (),
-                    slirp_binary='/usr/bin/slirp4netns', peer_forward=('127.0.0.1', port),
-                    pre_payload_check=worker.start)
+                if backend == 'slirp':
+                    result = network_namespace.run_slirp4netns_sandbox(fixture_namespace,
+                        ['/usr/bin/python3', '-I', '-B', '-c', payload, str(port), str(ready_file)], directory, (),
+                        slirp_binary=binary, peer_forward=('127.0.0.1', port), pre_payload_check=worker.start)
+                else:
+                    original_command = QBIT['pasta_command']
+                    original_ready = QBIT['wait_for_pasta_ready']
+                    binding = QBIT['network_binding']()
+                    def fixture_command(*args):
+                        argv = original_command(*args)
+                        # Forward only loopback fixture traffic. All other
+                        # namespace/route arguments and native setup are real.
+                        for option in ('--tcp-ports', '--udp-ports'):
+                            argv[argv.index(option) + 1] = '127.0.0.1/' + str(port)
+                        if os.getuid() == 0:
+                            # pasta otherwise drops root to nobody, who cannot
+                            # join this fixture's root-owned user namespace.
+                            argv.extend(['--runas', '0:0'])
+                        return argv
+                    def ready(*args):
+                        original_ready(*args)
+                        worker.start()
+                    with mock.patch.dict(QBIT['run_pasta_sandbox'].__globals__,
+                                         {'pasta_command': fixture_command, 'wait_for_pasta_ready': ready}):
+                        result = QBIT['run_pasta_sandbox'](fixture_namespace,
+                            ['/usr/bin/python3', '-I', '-B', '-c', payload, str(port), str(ready_file)], directory,
+                            binding, port, network_namespace, binary)
             finally:
                 if worker.ident is not None:
                     worker.join(timeout=12)

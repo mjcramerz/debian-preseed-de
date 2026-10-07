@@ -11,13 +11,14 @@ CROWDSEC_LOG_FILE=${CROWDSEC_LOG_FILE:-__INSTALLER_LOG_SYSTEM_SERVICES_FILE__}
 CROWDSEC_STATUS_FILE=${CROWDSEC_STATUS_FILE:-${CROWDSEC_STATE_DIR}/status.env}
 CROWDSEC_COMPLETE_FILE=${CROWDSEC_COMPLETE_FILE:-${CROWDSEC_STATE_DIR}/complete}
 CROWDSEC_CORE_READY_FILE=${CROWDSEC_STATE_DIR}/core-ready
+CROWDSEC_CAPI_ACTIVATED_FILE=${CROWDSEC_STATE_DIR}/capi-activated
 CROWDSEC_ENROLL_TOKEN_FILE=${CROWDSEC_ENROLL_TOKEN_FILE:-${CROWDSEC_STATE_DIR}/enroll.token}
 CROWDSEC_HOST_VARIANT=${CROWDSEC_HOST_VARIANT:-server}
 CROWDSEC_ENROLL_ATTEMPTS=${CROWDSEC_ENROLL_ATTEMPTS:-1}
 CROWDSEC_ENROLL_RETRY_DELAY_SECONDS=${CROWDSEC_ENROLL_RETRY_DELAY_SECONDS:-10}
 
 # State is root-only; never continue after failure to retain diagnostics.
-for path in "$CROWDSEC_STATE_DIR" "$CROWDSEC_STATUS_FILE" "$CROWDSEC_COMPLETE_FILE" "$CROWDSEC_CORE_READY_FILE" "$CROWDSEC_ENROLL_TOKEN_FILE"; do
+for path in "$CROWDSEC_STATE_DIR" "$CROWDSEC_STATUS_FILE" "$CROWDSEC_COMPLETE_FILE" "$CROWDSEC_CORE_READY_FILE" "$CROWDSEC_CAPI_ACTIVATED_FILE" "$CROWDSEC_ENROLL_TOKEN_FILE"; do
   case "$path" in /*) ;; *) exit 1 ;; esac
   case "$path" in *'/../'*|*'/./'*|*/..|*/.) exit 1 ;; esac
   parent=$path
@@ -31,10 +32,12 @@ for path in "$CROWDSEC_STATE_DIR" "$CROWDSEC_STATUS_FILE" "$CROWDSEC_COMPLETE_FI
   done
 done
 install -d -m 0700 "$CROWDSEC_STATE_DIR"
-if [ -e "$CROWDSEC_CORE_READY_FILE" ]; then
-  [ -f "$CROWDSEC_CORE_READY_FILE" ] && [ ! -L "$CROWDSEC_CORE_READY_FILE" ] &&
-    [ "$(find -P "$CROWDSEC_CORE_READY_FILE" -maxdepth 0 -printf %U:%m:%n)" = 0:600:1 ] || exit 1
-fi
+for marker in "$CROWDSEC_CORE_READY_FILE" "$CROWDSEC_CAPI_ACTIVATED_FILE"; do
+  if [ -e "$marker" ]; then
+    [ -f "$marker" ] && [ ! -L "$marker" ] &&
+      [ "$(find -P "$marker" -maxdepth 0 -printf %U:%m:%n)" = 0:600:1 ] || exit 1
+  fi
+done
 work_dir=$(mktemp -d "$CROWDSEC_STATE_DIR/.firstboot.XXXXXX")
 cleanup_work() { status=$?; trap - 0; rm -rf -- "$work_dir"; exit "$status"; }
 trap cleanup_work 0
@@ -311,11 +314,32 @@ ensure_capi_registration() {
     }
   fi
   verify_capi_enabled || return 1
-  # Activate credentials before enrollment, including a registration performed
-  # manually between retries. A failed reload must recheck core on retry.
+  # Keep the working install's register -> activate -> enroll sequence. Do not
+  # reload an unchanged credential file on every Console retry: each reload
+  # authenticates again and can prolong a CAPI login-burst ban. Keep this
+  # fingerprint private; it is state, never a log field.
+  capi_fingerprint=$(sha256sum -- "$online_credentials_file") || return 1
+  capi_fingerprint=${capi_fingerprint%% *}
+  activated_fingerprint=
+  if [ -f "$CROWDSEC_CAPI_ACTIVATED_FILE" ] &&
+     [ "$(find -P "$CROWDSEC_CAPI_ACTIVATED_FILE" -maxdepth 0 -printf %s)" = 65 ]; then
+    IFS= read -r activated_fingerprint <"$CROWDSEC_CAPI_ACTIVATED_FILE" || return 1
+  fi
+  if [ -f "$CROWDSEC_CAPI_ACTIVATED_FILE" ] &&
+     [ "$activated_fingerprint" = "$capi_fingerprint" ] &&
+     systemctl is-active --quiet crowdsec.service; then
+    log_line bootstrap info crowdsec "capi_registration=already-activated"
+    return 0
+  fi
   rm -f -- "$CROWDSEC_CORE_READY_FILE" || return 1
   if ! systemctl reload crowdsec.service || ! wait_for_lapi 45; then
     log_line bootstrap error crowdsec "capi_registration=activation-pending"
+    return 1
+  fi
+  capi_marker=$(mktemp "${CROWDSEC_CAPI_ACTIVATED_FILE}.XXXXXX") || return 1
+  if ! { printf '%s\n' "$capi_fingerprint" >"$capi_marker" &&
+         chmod 0600 "$capi_marker" && mv -f -- "$capi_marker" "$CROWDSEC_CAPI_ACTIVATED_FILE"; }; then
+    rm -f -- "$capi_marker"
     return 1
   fi
   write_core_ready_marker || return 1
@@ -498,7 +522,7 @@ if crowdsec_token=$(read_token 2>/dev/null); then
     elif [ "$enroll_status" -eq 3 ]; then
       write_status 1 retry-pending
       log_line bootstrap warning crowdsec \
-        "console_enrollment=pending reason=forbidden-response hostname=${host_name} token_retained=true retry=systemd"
+        "console_enrollment=pending reason=remote-forbidden hostname=${host_name} token_retained=true retry=systemd retry_after_seconds=3900"
       exit 1
     else
       log_line bootstrap warning crowdsec \

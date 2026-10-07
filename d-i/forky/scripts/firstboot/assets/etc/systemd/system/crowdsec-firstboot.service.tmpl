@@ -18,9 +18,9 @@ ExecStart=/var/lib/firstboot/bin/crowdsec-firstboot
 StandardOutput=journal
 StandardError=journal
 Restart=on-failure
-RestartSec=30s
-RestartSteps=5
-RestartMaxDelaySec=1h
+# CAPI login bursts can ban the public IP for one hour. Retry after that
+# interval, with a margin, rather than re-authenticating during the ban.
+RestartSec=65min
 RestartPreventExitStatus=2
 TimeoutStartSec=10min
 User=root

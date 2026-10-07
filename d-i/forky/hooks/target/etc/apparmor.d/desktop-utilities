@@ -175,7 +175,7 @@ profile desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exe
   ptrace (read) peer=labwc-chatgpt-log-runner,
   ptrace (read) peer=labwc-chatgpt,
   ptrace (read) peer=chatgpt-slirp4netns,
-  ptrace (read) peer=qbittorrent-slirp4netns,
+  ptrace (read) peer=qbittorrent-pasta,
   ptrace (read) peer=desktop-launcher//application-bwrap,
   # btop in the terminal needs read-only process statistics, not ptrace writes.
   ptrace (read) peer=bitwarden,
@@ -269,6 +269,8 @@ profile desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exe
   /usr/lib/@{multiarch}/glib-2.0/gio-launch-desktop rix,
   # udevadm queries device metadata, not block/USB device contents.
   /run/udev/data/{b[0-9]*:[0-9]*,c189:[0-9]*,+usb:*} r,
+  # thunar-volman also reads input-device metadata while handling hotplug.
+  /run/udev/data/{c13:[0-9]*,+input:input[0-9]*} r,
   # The account owns the checked-out configuration tree. Edits from a terminal
   # are confined to that account's files; release and system configuration
   # under /data/codex/{lib,share} and /etc/codex stay separate.
