@@ -1,4 +1,53 @@
-# Build status - 2026-10-05 desktop launcher and document repair
+# Build status - 2026-10-07 NFS client access and automatic mounting
+
+The [NFS client validation record](docs/validation/nfs-client-access-20261007.md)
+covers the reproduced inaccessible mode-000 client endpoints, both `noauto`
+fstab entries, and the Connect action's refusal when a login had stale group
+membership. Both client mounts now require `auto`, have generated boot links,
+and retain the actual NFS source prerequisite for the home bind. Disconnected
+client endpoints are navigable root-owned mode 0755 without ordinary-user local
+write access. Connect remains an authorized, ordered retry.
+
+The focused NFS suite ran 135 tests: 114 passed and 21 root-only private
+filesystem fixtures were skipped under this workspace's ordinary account.
+The navigation fixture exercised real directory modes and cd/list access;
+root ownership was simulated there. All ten NFS profiles, all 711 shell parser
+checks and all 59 preseed/private read-back checks pass. The 1,704-member
+snapshot, manifest and preseed pins are current. Compared with the snapshot
+at the start of this NFS task, only hosting.env, network-sharing.py and
+labwc-network-sharing changed in the payload; all other members and all
+archive modes/link targets, including earlier GitOps work and private
+Xwayland compatibility, were preserved.
+
+No software compilation, live mount, policy load, service restart or deployment
+occurred. Native generator validation used systemd 262; the documented target
+remains Forky/systemd 261.2. LPL-697 must receive the installed-client updates
+described in the guide before its existing fstab and modes change. Its supplied
+log shows NFS support startup, without establishing a mounted share or a server
+access rejection. Server availability, actual source-IP admission and live
+UID/GID/ACL/AppArmor access still require target acceptance. Earlier broad-suite
+failures remain outside this focused repair.
+
+## Previous snapshot record - 2026-10-07 GitOps and managed log review
+
+The [GitOps and managed validation record](docs/validation/gitops-managed-20261007.md)
+covers all 48 current TODO files, the reproduced symbolic-reference transaction
+failure, detached-HEAD recovery, and the initramfs IOMMU redaction correction.
+The existing qBittorrent style and AppArmor repairs were verified against the
+current evidence; no duplicate implementation was added.
+
+All 86 selected tests pass with no skips. ShellCheck reports no diagnostics for
+the edited helper; all 711 shell parser checks and all 59 preseed/private
+read-back checks pass. The 1,704-member snapshot, manifest and preseed pins are
+current. Only the GitOps engine, its documentation template and the initramfs
+health helper differ in the payload; all other members, including private
+Xwayland compatibility, are unchanged. No software compilation or live
+deployment occurred. Validation used systemd 262; target acceptance remains
+Forky/systemd 261.2. Earlier broad-suite failures and documented hardware,
+vendor, tray-menu and console-approval findings remain outside these verified
+repository repairs.
+
+## Previous snapshot record - 2026-10-05 desktop launcher and document repair
 
 All 41 current desktop evidence files were read: 3,501,377 bytes, including 21
 empty files. The source repair covers native missing-display recovery,

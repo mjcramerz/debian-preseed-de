@@ -1010,7 +1010,10 @@ def apply_clear_state(root: Path, state: dict, path: Path) -> None:
             ref, _, target = row.partition(' ')
             if target:
                 symbolic[ref] = target
-        transaction = ['start', 'option no-deref']
+        # The stdin "option no-deref" affects only the next ref command.
+        # Select it for the whole invocation so every symbolic tracking ref is
+        # verified/deleted directly, without changing its destination branch.
+        transaction = ['start']
         for ref in sorted(state['before'].keys() | state['after'].keys()):
             old, new = state['before'].get(ref), state['after'].get(ref)
             if old == new:
@@ -1034,7 +1037,7 @@ def apply_clear_state(root: Path, state: dict, path: Path) -> None:
             transaction.append('update HEAD ' + state['after']['refs/heads/mcr/main'] + ' ' + old_tip)
         transaction += ['prepare', 'commit', '']
         require_clean(root)
-        git('update-ref', '--stdin', cwd=root, data='\n'.join(transaction).encode('utf-8'))
+        git('update-ref', '--no-deref', '--stdin', cwd=root, data='\n'.join(transaction).encode('utf-8'))
     if branches:
         git('symbolic-ref', 'HEAD', 'refs/heads/mcr/main', cwd=root)
         if resolve('HEAD', root) != state['after']['refs/heads/mcr/main']:

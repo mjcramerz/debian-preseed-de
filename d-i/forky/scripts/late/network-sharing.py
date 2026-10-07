@@ -208,7 +208,7 @@ class Settings:
             if len(set(options)) != len(options) or set(options) != REQUIRED_FLAGS | {mode.lower()}:
                 raise ValueError(f'NFS_SERVER_{mode}_OPTIONS must retain the managed export policy')
         bind_flags = {'bind', 'nosuid', 'nodev', 'noexec', 'nofail'}
-        network_flags = {'_netdev', 'noauto',
+        network_flags = {'_netdev', 'auto',
                          'x-systemd.mount-timeout=' + values['NFS_CLIENT_MOUNT_TIMEOUT'] + 's'}
         for role in ('SERVER', 'CLIENT'):
             required = bind_flags | {'x-systemd.requires-mounts-for=' + values[f'NFS_{role}_PATH'],
@@ -404,7 +404,7 @@ def fstab_entries(s: Settings) -> list[str]:
 
 
 def public_config(s: Settings) -> dict:
-    """Version 2 has explicit mount units, never filesystem-access triggers."""
+    """Version 2 describes mount units; boot enablement comes from fstab."""
     public = {'version': 2, 'profile': s.values, 'peers': s.peers,
               'server_enabled': s.enabled('NFS_SERVER_ENABLE'), 'client_enabled': s.enabled('NFS_CLIENT_ENABLE'),
               'client_mount': unit_name(s['NFS_CLIENT_PATH'])}
@@ -486,7 +486,9 @@ def home_bind_directory(s: Settings, role: str, account: pwd.struct_passwd) -> N
             raise ValueError('symlink in home bind path')
     if any(current.iterdir()):
         raise ValueError('refusing to cover files in home bind destination')
-    os.chmod(current, 0o000)
+    # A disconnected client remains navigable, with no ordinary-user writes
+    # into the root-owned local placeholder. Mounted access follows server DAC.
+    os.chmod(current, 0o755 if role == 'CLIENT' else 0o000, follow_symlinks=False)
 
 
 def protect_home_bind_parents(s: Settings) -> None:
@@ -603,7 +605,7 @@ def configure(s: Settings, assets: Path) -> None:
             # request-key handlers (including DNS and GSS entries).
             atomic_write(Path('/etc/request-key.d/id_resolver.conf'),
                          '# Managed NFSv4 identity upcall\ncreate id_resolver * * /usr/sbin/nfsidmap -t 600 %k %d\n')
-            sharing_directory(Path(s['NFS_CLIENT_PATH']), 0o000, empty=True)
+            sharing_directory(Path(s['NFS_CLIENT_PATH']), 0o755, empty=True)
         if s.enabled('NFS_SERVER_ENABLE'):
             modules.append('nfsd')
             options.append('options nfsd nfs4_disable_idmapping=0')
@@ -636,7 +638,7 @@ def configure(s: Settings, assets: Path) -> None:
             atomic_write(path, '\n'.join(lines) + '\n')
         if s.enabled('NFS_CLIENT_BIND_ENABLE'):
             target = s['ACCOUNT_HOME'] + '/' + s['NFS_CLIENT_HOME_BIND_PATH']
-            # Explicitly connected binds stop when the source disappears.
+            # The home bind stops when the source disappears.
             # No automount or idle-unmount layer is installed.
             atomic_write(Path('/etc/systemd/system') / (unit_name(target) + '.d') / '60-network-sharing.conf',
                          '[Unit]\nBindsTo=' + unit_name(s['NFS_CLIENT_PATH']) + '\nAfter=' + unit_name(s['NFS_CLIENT_PATH']) + '\n')
@@ -653,7 +655,7 @@ def configure(s: Settings, assets: Path) -> None:
     if entries:
         fstab = append_block(fstab, BEGIN + '\n' + '\n'.join(entries) + '\n' + END + '\n')
         atomic_write(Path('/etc/fstab'), format_fstab(fstab))
-    # Version 2 describes explicit client mount units only. Older automount
+    # Version 2 describes client mount units. Older automount
     # configuration is rejected rather than silently reactivating path triggers.
     atomic_write(config_path, json.dumps(public_config(s), indent=2, sort_keys=True) + '\n')
     print('Network sharing configured: server=' + str(s.enabled('NFS_SERVER_ENABLE')).lower()

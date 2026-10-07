@@ -74,8 +74,8 @@ class SettingsTests(unittest.TestCase):
             self.skipTest('native GIO cannot parse an alternate fstab fixture')
         with tempfile.TemporaryDirectory(prefix='nfs-gvfs-fstab-') as directory:
             fstab = Path(directory)/'fstab'
-            fstab.write_text('/srv/share /home/fixture/Sharing/nfs-client none bind,noauto,x-gvfs-show 0 0\n'
-                             '192.168.50.82:/ /srv/client nfs noauto,x-gvfs-show 0 0\n', encoding='utf-8')
+            fstab.write_text('/srv/share /home/fixture/Sharing/nfs-client none bind,auto,x-gvfs-show 0 0\n'
+                             '192.168.50.82:/ /srv/client nfs auto,x-gvfs-show 0 0\n', encoding='utf-8')
             points, _ = GioUnix.mount_points_get_from_file(str(fstab))
             self.assertEqual([point.get_mount_path() for point in points], ['/srv/client'])
 
@@ -152,7 +152,7 @@ class SettingsTests(unittest.TestCase):
                      'NFS_MNT_CLIENT_TARGET_SHARE_OPTS'):
             for option in values[name].split(','):
                 invalid.append((name, ','.join(o for o in values[name].split(',') if o != option)))
-            for extra in ('exec', 'suid', 'dev', 'soft', 'rw,ro', 'auto', 'x-systemd.automount', 'x-systemd.idle-timeout=1s',
+            for extra in ('exec', 'suid', 'dev', 'soft', 'rw,ro', 'auto', 'noauto', 'x-systemd.automount', 'x-systemd.idle-timeout=1s',
                           'x-systemd.requires=/tmp/unsafe', 'noexec', 'rw\nroot'):
                 invalid.append((name, values[name] + ',' + extra))
         for name, value in invalid:
@@ -169,6 +169,17 @@ class SettingsTests(unittest.TestCase):
         for entry in entries:
             self.assertIn('ro', entry.split()[3].split(','))
             self.assertNotIn('rw', entry.split()[3].split(','))
+
+    def test_client_mount_policy_requires_auto_and_rejects_noauto(self):
+        values = profile(NFS_CLIENT_ENABLE='true', NFS_CLIENT_BIND_ENABLE='true')
+        for name in ('NFS_MNT_CLIENT_TARGET_SHARE_OPTS', 'NFS_MNT_CLIENT_BIND_HOME_OPTS'):
+            with self.subTest(name=name):
+                options = values[name].split(',')
+                self.assertIn('auto', options)
+                self.assertNotIn('noauto', options)
+                disabled = ','.join('noauto' if option == 'auto' else option for option in options)
+                with self.assertRaises(ValueError):
+                    NFS.Settings.from_environment({**values, name: disabled})
 
     def test_literal_lan_export_address_is_an_exact_host_peer(self):
         line = '/data/sharing/nfs-server 192.168.50.82(' + profile()['NFS_SERVER_RW_OPTIONS'] + ')'
@@ -244,17 +255,19 @@ class SettingsTests(unittest.TestCase):
                         self.assertEqual(source, '192.168.50.212:/')
                         self.assertEqual(where, '/data/sharing/nfs-client')
                         self.assertEqual(kind, 'nfs')
-                        self.assertTrue({'hard', '_netdev', 'nofail', 'noauto', 'sec=sys', 'resvport', 'nosuid', 'nodev', 'noexec'} <= set(options.split(',')))
+                        self.assertTrue({'hard', '_netdev', 'nofail', 'auto', 'sec=sys', 'resvport', 'nosuid', 'nodev', 'noexec'} <= set(options.split(',')))
+                        self.assertNotIn('noauto', options.split(','))
                         self.assertNotIn('x-systemd.automount', options)
                         self.assertNotIn('soft', options)
                         self.assertIn('ro' if ro == 'true' else 'rw', options.split(','))
                     for entry in entries[int(client > 0):]:
                         self.assertIn('x-systemd.requires-mounts-for=' + entry.split()[0], entry)
                         if entry.split()[0] == s['NFS_CLIENT_PATH']:
-                            self.assertIn('noauto', entry.split()[3].split(','))
+                            self.assertIn('auto', entry.split()[3].split(','))
+                            self.assertNotIn('noauto', entry.split()[3].split(','))
                             self.assertNotIn('x-systemd.automount', entry)
 
-    def test_published_configuration_and_menu_use_explicit_mounts_only(self):
+    def test_published_configuration_and_menu_use_mount_units_without_autofs(self):
         for server, client, bind in itertools.product(('false', 'true'), repeat=3):
             if client == 'false' and bind == 'true':
                 continue
@@ -760,20 +773,53 @@ class PublicationAndGeneratorTests(unittest.TestCase):
             for role in ('SERVER', 'CLIENT'):
                 home = settings['ACCOUNT_HOME']+'/'+settings[f'NFS_{role}_HOME_BIND_PATH']
                 self.assertIn('RequiresMountsFor='+settings[f'NFS_{role}_PATH'], (generated/NFS.unit_name(home)).read_text())
-            # Native generator proof: no autofs/.path unit exists and no
-            # boot target wants either client mount. Only an explicit start
-            # can pull in the NFS dependencies or the remote source.
+            # Both client entries are wanted at boot. The bind still requires
+            # the real source mount; no autofs or path unit is involved.
             self.assertFalse(list(generated.rglob('*.automount')))
             self.assertFalse(list(generated.rglob('*.path')))
             for path in (settings['NFS_CLIENT_PATH'],
                          settings['ACCOUNT_HOME']+'/'+settings['NFS_CLIENT_HOME_BIND_PATH']):
                 name = NFS.unit_name(path)
-                self.assertIn('noauto', (generated/name).read_text(encoding='utf-8'))
+                options = re.search(r'^Options=(.*)$', (generated/name).read_text(encoding='utf-8'), re.M)[1].split(',')
+                self.assertIn('auto', options)
+                self.assertNotIn('noauto', options)
                 links = [entry for entry in generated.rglob('*') if entry.is_symlink() and
                          entry.name == name and entry.parent.name.endswith(('.wants', '.requires'))]
-                self.assertEqual(links, [], name)
+                self.assertEqual(links, [generated/'remote-fs.target.wants'/name], name)
             self.assertTrue((generated/'local-fs.target.wants'/NFS.unit_name(
                 settings['ACCOUNT_HOME']+'/'+settings['NFS_SERVER_HOME_BIND_PATH'])).is_symlink())
+
+
+@unittest.skipIf(os.geteuid() == 0, 'navigation fixture must exercise ordinary-user permissions')
+class ClientDirectoryPermissionTests(unittest.TestCase):
+    def test_disconnected_home_client_is_navigable_under_private_umask(self):
+        for relative in ('Sharing/nfs-client', 'LAN/nested/client'):
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory(prefix='nfs-client-access-') as temporary:
+                home = Path(temporary)/'home'
+                home.mkdir(mode=0o700)
+                settings = NFS.Settings.from_environment(profile(NFS_CLIENT_ENABLE='true',
+                    NFS_CLIENT_BIND_ENABLE='true', NFS_CLIENT_HOME_BIND_PATH=relative))
+                # Only the ownership boundary is simulated. Directory modes
+                # and ordinary-user list/chdir access use the real filesystem.
+                settings.values['ACCOUNT_HOME'] = str(home)
+                account = pwd.struct_passwd(('fixture', 'x', os.getuid(), os.getgid(), '', str(home), '/bin/sh'))
+                previous = os.umask(0o077)
+                endpoint = home/relative
+                try:
+                    with mock.patch.object(NFS, 'trusted_parents'), mock.patch.object(NFS.os, 'chown') as chown:
+                        NFS.home_bind_directory(settings, 'CLIENT', account)
+                    self.assertEqual(stat.S_IMODE(endpoint.stat().st_mode), 0o755)
+                    for call in chown.call_args_list:
+                        self.assertEqual(call.args[1:], (0, 0))
+                    self.assertEqual(list(endpoint.iterdir()), [])
+                    result = subprocess.run(['/bin/sh', '-c', 'cd -- "$1" && pwd -P', 'nfs-navigation', str(endpoint)],
+                                            text=True, encoding='utf-8', capture_output=True, timeout=5)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout.strip(), str(endpoint))
+                finally:
+                    os.umask(previous)
+                    if endpoint.exists():
+                        endpoint.chmod(0o755)
 
 
 class MarkerTests(unittest.TestCase):
@@ -854,8 +900,9 @@ class TargetFilesystemTests(unittest.TestCase):
         bookmarks = (self.root/'etc/skel-desktop/.config/gtk-3.0/bookmarks').read_text()
         self.assertEqual(bookmarks, 'file:///home/mcramer/Sharing/nfs-server nfs-server\n'
                                    'file:///home/mcramer/Sharing/nfs-client nfs-client\n')
-        self.assertEqual(stat.S_IMODE((self.root/'data/sharing/nfs-client').stat().st_mode), 0)
-        self.assertEqual(stat.S_IMODE((self.root/'home/mcramer/Sharing/nfs-client').stat().st_mode), 0)
+        for path in (self.root/'data/sharing/nfs-client', self.root/'home/mcramer/Sharing/nfs-client'):
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o755)
+            self.assertEqual((path.stat().st_uid, path.stat().st_gid), (0, 0))
         self.assertEqual((self.root/'etc/modules-load.d/60-network-sharing.conf').read_text(), 'sunrpc\nnfs\nnfsv4\nnfsd\n')
         modprobe = (self.root/'etc/modprobe.d/60-network-sharing.conf').read_text()
         self.assertIn('options nfs nfs4_disable_idmapping=0', modprobe)
@@ -972,8 +1019,8 @@ class TargetFilesystemTests(unittest.TestCase):
         def check(argv, **kwargs):
             if argv[0] == '/usr/bin/chattr':
                 self.assertEqual(argv, ['/usr/bin/chattr', '+i', '--', str(self.root/'home/mcramer/Sharing')])
-                for role in ('server', 'client'):
-                    self.assertEqual(stat.S_IMODE((self.root/f'home/mcramer/Sharing/nfs-{role}').stat().st_mode), 0)
+                for role, mode in (('server', 0), ('client', 0o755)):
+                    self.assertEqual(stat.S_IMODE((self.root/f'home/mcramer/Sharing/nfs-{role}').stat().st_mode), mode)
                 self.assertNotIn(NFS.BEGIN, (self.root/'etc/fstab').read_text())
                 self.assertFalse((self.root/'etc/network-sharing/config.json').exists())
                 locked.append(argv[-1])
@@ -1058,13 +1105,16 @@ class MenuTests(unittest.TestCase):
         groups.start()
         self.addCleanup(groups.stop)
 
-    def test_missing_login_group_does_not_start_mounts_and_explains_relogin(self):
+    def test_stale_login_group_does_not_block_ordered_mount_retry(self):
         with mock.patch.object(MENU.os, 'getgroups', return_value=[]), \
                 mock.patch.object(MENU.os, 'getgid', return_value=1000), \
-                mock.patch.object(MENU, 'show') as show, mock.patch.object(MENU, 'systemctl') as command:
+                mock.patch.object(MENU, 'show') as show, \
+                mock.patch.object(MENU, 'completed'), \
+                mock.patch.object(MENU, 'systemctl', return_value=subprocess.CompletedProcess([], 0, '')) as command:
             MENU.action(self.config, 'Connect to NFS Server')
-        command.assert_not_called()
-        self.assertIn('Log out and log in', '\n'.join(show.call_args.args[1]))
+        self.assertEqual(command.call_args_list, [mock.call(self.config, 'start', [self.config[key]])
+                                                for key in ('client_mount', 'client_bind_mount')])
+        show.assert_not_called()
 
     def test_menu_catalog_includes_required_actions(self):
         for label in ('Connect to NFS Server', 'Check Connected NFS Clients', 'Disconnect from NFS Server', 'Reload NFS Exports'):

@@ -53,9 +53,9 @@ def read_json(path: Path, limit: int = 4 * 1024 * 1024) -> dict:
 def load_config() -> dict:
     config = read_json(CONFIG, 65536)
     if config.get('version') != 2:
-        raise ValueError('unsupported network sharing configuration; explicit client mounts require version 2')
+        raise ValueError('unsupported network sharing configuration; client mount units require version 2')
     if any(key in config for key in ('client_automount', 'client_bind_automount', 'server_bind_automount')):
-        raise ValueError('automatic client mount configuration is unsupported')
+        raise ValueError('legacy automount configuration is unsupported')
     if any(type(config.get(key)) is not bool for key in ('server_enabled', 'client_enabled')):
         raise ValueError('invalid role flags')
     if not isinstance(config.get('profile'), dict):
@@ -196,7 +196,7 @@ def action(config: dict, label: str) -> None:
             'Root: ' + settings['NETWORK_SHARING_ROOT_PATH'],
             'Remote: ' + settings['NFS_CLIENT_TARGET_IP'] + ':' + settings['NFS_CLIENT_EXPORT_PATH'],
             *result.stdout.splitlines(),
-            'The client share is mounted only by Connect to NFS Server; browsing Sharing never connects it.'])
+            'Client mounts start automatically at boot. Use Connect to NFS Server to retry a failed or disconnected mount.'])
     elif label in ('Connect to NFS Server', 'Disconnect from NFS Server'):
         if not need_role(config, 'client'):
             return
@@ -207,14 +207,6 @@ def action(config: dict, label: str) -> None:
             selected = [config[key] for key in ('client_bind_mount', 'client_mount') if config[key]]
             verb = 'stop'
         else:
-            settings = config['profile']
-            shared_gid = int(settings['NFS_SHARED_GID'])
-            if shared_gid not in {os.getgid(), *os.getgroups()}:
-                show('NFS group is missing from this login', [
-                    'Log out and log in again after joining ' + settings['NFS_SHARED_GROUP'] + '.',
-                    'The group database and the running desktop session must both include the shared GID.',
-                    'Mounting a share does not update the groups of an existing session.'])
-                return
             selected = [config['client_mount']]
             selected += [config['client_bind_mount']] if config['client_bind_mount'] else []
             verb = 'start'
@@ -290,13 +282,14 @@ def action(config: dict, label: str) -> None:
             'Root is squashed even on the trusted server-peer range. Read-only peers cannot write.',
             'Server data: ' + config['profile']['NFS_SERVER_PATH'],
             'Client data: ' + config['profile']['NFS_CLIENT_PATH'],
-            'Use Connect to NFS Server to mount the client share. Browsing Sharing does not connect it.',
-            'mount -a requires root. sudo mount -a skips the noauto client entries; Connect starts their dependencies in order.',
-            'After joining the shared group, log out and log in again so this desktop session has the new GID.',
+            'Client mounts start automatically at boot; Connect to NFS Server retries them if needed.',
+            'Disconnected client directories remain readable and empty; data is available only while the NFS source is mounted.',
+            'mount -a requires root and includes both client entries. Connect starts their systemd dependencies in order.',
+            'After joining the shared group, log out and log in again for group-dependent file access; this does not prevent a mount retry.',
             'A hard-mounted share may block application I/O during outages. Never use lazy/forced unmount to conceal that condition.',
             'Disconnect only after closing applications and files. The menu never probes file contents on a remote share.',
             'A failed unmount stops the disconnect sequence; close the remaining users of the share and retry.',
-            'Client mounts stay disconnected at boot. Connect/disconnect and server actions change only the current state.',
+            'Disconnect changes the current state. The installed client mounts are attempted again at the next boot.',
             'Role changes and a new remote server require an administrator-reviewed configuration change; see docs/network-sharing.md in the installer repository.'])
     else:
         raise ValueError('unknown network sharing action')

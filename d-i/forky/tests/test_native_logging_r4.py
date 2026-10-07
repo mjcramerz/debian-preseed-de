@@ -242,4 +242,45 @@ class NativeWiringTests(unittest.TestCase):
             text=logging_text(source_path(TARGET/f'etc/systemd/system/{unit}.service.d/40-logging.conf').read_text())
             self.assertIn('native-logging --check '+kind,text);self.assertIn('ReadWritePaths=',text)
 
+
+class InitramfsCmdlineTests(unittest.TestCase):
+    def assert_redaction(self, cmdline, expected):
+        # Substitute only the kernel input path in a private fixture. Execute
+        # the actual shell helper; no boot stage, target log or service runs.
+        helper = SEED/'scripts/firstboot/assets/etc/initramfs-tools/scripts/installer-health-common'
+        shells = [('/bin/dash',)]
+        busybox = shutil.which('busybox')
+        self.assertIsNotNone(busybox, 'BusyBox is required for initramfs portability checks')
+        shells.append((busybox, 'sh'))
+        with tempfile.TemporaryDirectory(prefix='initramfs-cmdline-') as temporary:
+            root = Path(temporary)
+            source = root/'cmdline'
+            source.write_text(cmdline+'\n', encoding='utf-8')
+            copied = root/'health-common'
+            copied.write_text(helper.read_text(encoding='utf-8').replace(
+                '/proc/cmdline', str(source)), encoding='utf-8')
+            for shell in shells:
+                with self.subTest(shell=shell):
+                    result = subprocess.run([*shell, '-eu', '-c',
+                        '. "$1"; installer_health_redacted_cmdline', 'sh', str(copied)],
+                        capture_output=True, text=True, encoding='utf-8', timeout=10)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout.strip(), expected)
+
+    def test_initramfs_retains_iommu_booleans_and_redacts_credentials(self):
+        for value in ('0', '1'):
+            with self.subTest(value=value):
+                cmdline = (f'root=UUID=fixture ro iommu.passthrough={value} iommu.strict=1 '
+                           'fruux_password=fixture-password crowdsec_token=fixture-token '
+                           'wireless_wpa=fixture-wifi api_key=fixture-api passthrough_secret=fixture-secret')
+                expected = (f'root=UUID=fixture ro iommu.passthrough={value} iommu.strict=1 '
+                            'fruux_password=REDACTED crowdsec_token=REDACTED '
+                            'wireless_wpa=REDACTED api_key=REDACTED passthrough_secret=REDACTED')
+                self.assert_redaction(cmdline, expected)
+
+    def test_unexpected_iommu_values_remain_redacted(self):
+        for value in ('fixture-secret', '01', '0;fixture', '1-secret'):
+            with self.subTest(value=value):
+                self.assert_redaction('iommu.passthrough='+value, 'iommu.passthrough=REDACTED')
+
 if __name__=='__main__':unittest.main()

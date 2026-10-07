@@ -66,6 +66,8 @@ installer_health_redacted_cmdline() {
   set -f
   for argument in $cmdline; do
     case "$argument" in
+      # These exact booleans are security policy, not credentials.
+      iommu.passthrough=0|iommu.passthrough=1) ;;
       primary_gpg_passphrase=*|fruux_username=*|fruux_password=*|netcfg/wireless_wpa=*|wireless_wpa=*|wifi_wpa=*|*[Pp][Aa][Ss][Ss]*=*|*[Ss][Ee][Cc][Rr][Ee][Tt]*=*|*[Tt][Oo][Kk][Ee][Nn]*=*|*[Kk][Ee][Yy]*=*)
         argument=${argument%%=*}=REDACTED
         ;;

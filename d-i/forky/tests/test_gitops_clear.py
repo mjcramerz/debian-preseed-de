@@ -332,6 +332,33 @@ class ClearFixture(unittest.TestCase):
         self.assertEqual(set(g.remote_refs(self.root, str(self.remote))), {'refs/heads/'+branch for branch in g.BRANCHES})
         self.assertFalse(self.raw('for-each-ref', '--format=%(refname)', 'refs/gitops/').strip())
 
+    def test_branch_clear_deletes_symbolic_tracking_heads_without_dereferencing(self):
+        self.raw('symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/mcr/main')
+        self.raw('update-ref', 'refs/remotes/older/main', self.tip)
+        self.raw('symbolic-ref', 'refs/remotes/older/HEAD', 'refs/remotes/older/main')
+        index = (self.root/'.git/index').read_bytes()
+        self.clear(none=True)
+        self.assert_final_branches()
+        self.assertEqual((self.root/'.git/index').read_bytes(), index)
+        self.assertEqual(set(g.all_refs(self.root)),
+                         {'refs/heads/'+name for name in g.BRANCHES}
+                         | {'refs/remotes/origin/'+name for name in g.BRANCHES})
+        self.assertEqual(g.remote_refs(self.root, str(self.remote)), g.promotion_tips(self.root))
+
+    def test_tag_clear_verifies_multiple_symbolic_tracking_heads(self):
+        self.raw('symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/mcr/main')
+        self.raw('update-ref', 'refs/remotes/older/main', self.tip)
+        self.raw('symbolic-ref', 'refs/remotes/older/HEAD', 'refs/remotes/older/main')
+        before = g.all_refs(self.root)
+        self.clear(branches=False, keep=['keep-oldest'])
+        self.assertEqual(g.all_refs(self.root), {ref: oid for ref, oid in before.items()
+                         if not ref.startswith('refs/tags/') or ref == 'refs/tags/keep-oldest'})
+        self.assertEqual(self.raw('symbolic-ref', 'HEAD').strip(), 'refs/heads/mcr/main')
+        self.assertEqual(self.raw('symbolic-ref', 'refs/remotes/origin/HEAD').strip(),
+                         'refs/remotes/origin/mcr/main')
+        self.assertEqual(self.raw('symbolic-ref', 'refs/remotes/older/HEAD').strip(),
+                         'refs/remotes/older/main')
+
     def test_multiple_kept_tags_rebase_from_oldest_and_keep_annotations(self):
         oldest_tree = self.raw('rev-parse', 'keep-oldest^{tree}').strip()
         self.clear(keep=['keep-oldest', 'keep-latest'])
@@ -448,15 +475,18 @@ class ClearFixture(unittest.TestCase):
         self.assertIn('Resuming', self.output.getvalue())
 
     def test_remote_success_local_failure_is_recoverable(self):
+        self.raw('symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/mcr/main')
         original = g.git
         def fail_local(*args, **kwargs):
-            if args == ('update-ref', '--stdin') and b'update HEAD ' in kwargs.get('data', b''):
+            if args == ('update-ref', '--no-deref', '--stdin') and b'update HEAD ' in kwargs.get('data', b''):
                 raise g.GitOpsError('fixture local transaction interrupted')
             return original(*args, **kwargs)
         with mock.patch.object(g, 'git', side_effect=fail_local):
             with self.assertRaisesRegex(g.GitOpsError, 'transaction interrupted'):
                 self.clear(none=True)
         self.assertEqual(self.raw('rev-parse', 'HEAD').strip(), self.tip)
+        self.assertNotEqual(self.raw('symbolic-ref', '--quiet', 'HEAD', check=False).returncode, 0)
+        self.assertTrue((self.root/'.git/gitops-clear.json').is_file())
         self.assertEqual(len(g.remote_refs(self.root, str(self.remote))), 3)
         self.clear(none=True)
         self.assert_final_branches()

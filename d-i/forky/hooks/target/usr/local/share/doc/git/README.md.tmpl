@@ -237,6 +237,13 @@ before continuing. Do not edit/delete the journal or use another Git operation
 while it is pending. A conflicting concurrent edit or changed remote requires
 review of the retained bundle and current state; it is not force-repaired.
 
+Local publication uses a transaction with `--no-deref` for every ref command.
+Branch clear removes obsolete symbolic remote HEAD refs without dereferencing
+their branches; tag clear verifies and preserves them. If an older engine
+stopped with `symref-delete: cannot operate with deref mode` after remote
+publication, the corrected engine can resume the retained journal with the
+same `mcr-branch-clear --apply` command, even while HEAD is detached.
+
 ### Obsidian vault Git publication
 
 The desktop installer clones

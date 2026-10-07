@@ -22,13 +22,17 @@ root-owned `/data/sharing` directory and a root-owned, non-secret
 roles are disabled.
 Disabled roles do not install their NFS packages or add NFS mounts/exports.
 
-The client starts disconnected after boot. Use **Connect to NFS Server** in
-the Network Sharing menu to mount it. Both client fstab entries use `noauto`;
-there are no client `.automount` or `.path` units. Browsing `~/Sharing` does
-not initiate a connection. The server's local home bind remains a normal local
-bind mount; only its server data directory is exported.
+Both client fstab entries use `auto` and are attempted at boot. The home bind
+requires the actual NFS source mount; there are no client `.automount` or
+`.path` units. Use **Connect to NFS Server** to retry after a failed boot mount
+or a disconnect. Unmounted client directories remain navigable and empty,
+root-owned mode 0755, without granting ordinary users local fallback writes.
+Mounted data access follows the server's identity and permission policy.
+The server's local home bind remains a normal local bind mount; only its
+server data directory is exported.
 
-See [the explicit client mount repair](validation/nfs-client-explicit-20261005.md),
+See [the current client access repair](validation/nfs-client-access-20261007.md),
+[the earlier autofs repair](validation/nfs-client-explicit-20261005.md),
 [the original validation record](validation/network-sharing-20260930/README.md) and
 [BUILD-STATUS.md](../BUILD-STATUS.md) before publication. Offline success is not
 proof that a fresh Forky installation, the packaged NFS daemons, AppArmor
@@ -85,7 +89,7 @@ configurator without executing the profile shell.
 | `NFS_SERVER_RW_OPTIONS` | `rw,sync,subtree_check,root_squash,secure,sec=sys,fsid=0`; shared shorthand used to compose exports. |
 | `NFS_SERVER_RO_OPTIONS` | `ro,sync,subtree_check,root_squash,secure,sec=sys,fsid=0`; read-only shorthand. |
 | `NFS_SERVER_EXPORTS` | One fully expanded export line with the exact CIDRs below; one directory, RFC1918 CIDRs or literal IPv4 hosts; no wildcard/DNS peers or overlapping ranges. This line drives both exports and the server firewall allowlist. |
-| `NFS_CLIENT_ENABLE` | `true` in `btrfs-de-flex-duo.env`, otherwise `false`; install the NFS client and its explicitly started mount. |
+| `NFS_CLIENT_ENABLE` | `true` in `btrfs-de-flex-duo.env`, otherwise `false`; install the NFS client and its automatic boot mount. |
 | `NFS_CLIENT_PATH` | `${NETWORK_SHARING_ROOT_PATH}/nfs-client`; local mountpoint, not the remote server path. |
 | `NFS_CLIENT_BIND_ENABLE` | `true` in `btrfs-de-flex-duo.env`, otherwise `false`; bind the client mount into the primary account home; requires the client role. |
 | `NFS_CLIENT_HOME_BIND_PATH` | `Sharing/nfs-client`; relative home destination. |
@@ -98,8 +102,8 @@ configurator without executing the profile shell.
 | `NFS_ACCOUNT_UID` / `NFS_ACCOUNT_GID` | `1000` / `1000`; required existing primary account IDs on every peer. A mismatch aborts; users are never renumbered. |
 | `NFS_SHARED_GROUP` / `NFS_SHARED_GID` | `nfs-sharing` / `2050`; same group name and numeric GID on all peers. An existing conflicting name/GID is rejected, never silently renumbered. |
 | `NFS_MNT_SERVER_BIND_HOME_OPTS` | Shared server home-bind options: `bind,nosuid,nodev,noexec,nofail`, with `x-systemd.requires-mounts-for=${NFS_SERVER_PATH}`. |
-| `NFS_MNT_CLIENT_BIND_HOME_OPTS` | Shared client home-bind options: the bind safety flags, the actual `${NFS_CLIENT_PATH}` prerequisite, `_netdev,noauto` and the configured initial mount timeout. |
-| `NFS_MNT_CLIENT_TARGET_SHARE_OPTS` | Shared remote mount options: TCP, `${NFS_SERVER_PORT}`, `${NFS_CLIENT_VERSION}`, `hard,resvport,sec=sys,nosuid,nodev,noexec`, network/`noauto`/timeout flags, and requirements on the client target, firewall and identity check. Required flags cannot be removed or contradicted; `auto` and `x-systemd.automount` are rejected. Configured option ordering is retained. |
+| `NFS_MNT_CLIENT_BIND_HOME_OPTS` | Shared client home-bind options: the bind safety flags, the actual `${NFS_CLIENT_PATH}` prerequisite, `_netdev,auto` and the configured initial mount timeout. |
+| `NFS_MNT_CLIENT_TARGET_SHARE_OPTS` | Shared remote mount options: TCP, `${NFS_SERVER_PORT}`, `${NFS_CLIENT_VERSION}`, `hard,resvport,sec=sys,nosuid,nodev,noexec`, network/`auto`/timeout flags, and requirements on the client target, firewall and identity check. Required flags cannot be removed or contradicted; `noauto` and `x-systemd.automount` are rejected. Configured option ordering is retained. |
 | `NFS_INTERFACES` | `${MANAGED_NETWORK_ETHERNET_IFACE} ${MANAGED_NETWORK_WIFI_IFACE}`; existing explicit host interface names, not wildcard or loopback. Confirm these are the trusted interfaces. |
 | `NFS_TCP_RMEM` / `NFS_TCP_WMEM` | `4096 131072 16777216` / `4096 16384 16777216`; ordered TCP minimum/default/maximum bytes. |
 | `NFS_SOCKET_RMEM_MAX` / `NFS_SOCKET_WMEM_MAX` | `16777216` each; socket buffer ceilings. |
@@ -213,18 +217,20 @@ Provision all intended users/group memberships on the server, not just on a
 client. Root-squashed anonymous users have no automatic permission to traverse
 this group-only directory.
 
-The client mountpoint and unused home bind endpoints are root-owned mode
-**000** while unmounted, preventing ordinary users from accidentally depositing
-local data at a disconnected mount destination. Once mounted, remote/export
-permissions apply. A disconnected client endpoint remains inaccessible to the
-ordinary account until Connect succeeds; path access cannot mount it and
-errors/outages do not turn it into a writable local fallback.
+The client mountpoint and client home bind endpoint are root-owned mode
+**0755** while unmounted. The ordinary account can enter and list these empty
+directories, including after a failed connection. Root ownership and the
+absence of group/other write bits prevent local fallback writes. Once mounted,
+remote/export permissions apply. The unused server home bind endpoint retains
+mode **000**; the local server data directory retains its account/shared-group
+ownership and mode 2770. Browsing a disconnected client directory does not
+itself submit a mount job; use Connect to retry a failed automatic boot mount.
 
 Home binds use a dedicated root-owned `~/Sharing` parent, mode 0755, and empty
 root-owned endpoints. The parent is browsable and is never exported or itself
 used as an NFS mountpoint. Only `nfs-server` contains exported data. The
-`nfs-client` child exposes the remote filesystem after an explicit Connect;
-its presence never triggers mounting. After creating **all** enabled endpoints,
+`nfs-client` child exposes the remote filesystem after the ordered source and
+home mounts succeed, either at boot or through Connect. After creating **all** enabled endpoints,
 the installer
 sets the immutable flag (`chattr +i`) on each dedicated first-level parent.
 Root ownership alone does not prevent the home owner from renaming that parent
@@ -371,21 +377,25 @@ file already installed. Do not boot/publish a partially failed installation.
 
 Client fstab entries derive from `NFS_MNT_CLIENT_TARGET_SHARE_OPTS` in
 `hosting.env`; defaults include `hard,proto=tcp,port=2049,resvport,sec=sys,vers=4.2`
-(or explicit 4.1), `nosuid,nodev,noexec,_netdev,nofail,noauto`, the
-configured initial mount timeout, and dependencies on `nfs-client.target` and
-`nftables.service`. Both binds use `x-systemd.requires-mounts-for=` with the
+(or explicit 4.1), `nosuid,nodev,noexec,_netdev,nofail,auto`, the
+configured initial mount timeout, and dependencies on `nfs-client.target`,
+`nftables.service` and `network-sharing-identity.service`. Both binds use
+`x-systemd.requires-mounts-for=` with the
 **actual source path**, not a doubled sharing root or a literal variable name.
-The client home bind also uses `noauto` and has a `BindsTo=` relationship to its
-source mount, so stopping/disappearing source mounts tears it down. Neither
-client mount is enabled or pulled into a boot filesystem target. The packaged
-`nfs-client.target` supplies client support services; enabling that target does
-not start these `noauto` mounts. The generated configuration contains no autofs
-or path activation layer.
+The client home bind also uses `auto` and has ordered `BindsTo=`/`After=`
+relationships to its source mount, so it cannot publish an unmounted source
+and stopping/disappearing source mounts tears it down. The fstab generator
+links both client mounts from `remote-fs.target.wants`, making them boot jobs.
+`_netdev` classifies the home bind as a network mount; `nofail` lets boot continue
+without requiring the share to succeed. The configured timeout bounds the
+initial mount command. The packaged `nfs-client.target` supplies client support
+services; that target becoming active alone does not establish a mounted
+share. The generated configuration contains no autofs or path activation layer.
 
 There is deliberately no idle-unmount timer: an active bind can keep the
-underlying filesystem busy. `noauto` keeps the client disconnected at boot
-and ordinary path access cannot activate it. `hard` is deliberate for data
-integrity. It can block
+underlying filesystem busy. A failed boot connection leaves readable, empty,
+non-writable client placeholders; Connect retries the ordered mount jobs when
+the server is available. `hard` is deliberate for data integrity. It can block
 application I/O during server/storage outages, even after the initial mount
 job's timeout has elapsed; `noexec` is also not a general content sandbox.
 No `soft`, forced unmount, lazy detach, or filesystem-wide kill action is used.
@@ -417,7 +427,11 @@ the default. Connect waits for the remote mount before starting a home bind.
 Disconnect stops the home bind mount before the remote mount. Each job must
 succeed before the next is submitted; a busy or failed home unmount stops the
 sequence without requesting a source unmount. No forced unmount is requested.
-These actions change current state; a new boot starts with the client disconnected.
+These actions change current state; a new boot attempts both configured client
+mounts again. Connect does not require the invoking process to already contain
+the shared supplementary GID. The managed identity prerequisite still validates
+the configured account and server-side permissions govern file access. Log out
+and in after joining the shared group for files that rely on the session's GID.
 A timed-out systemctl client is reaped; its
 already-submitted PID 1 job may still complete, so inspect status before
 retrying. Read-only status uses unit properties, not `ls`, `statfs`, `df` or
@@ -506,6 +520,64 @@ a rebuilt profile is the supported deterministic path; this patch intentionally
 provides no automatic live-role migration/removal command. Never simply delete
 `config.json` to defeat the changed-profile guard.
 
+### Existing format-2 client using noauto and mode-000 endpoints
+
+The October 7 log from LPL-697 shows the NFS modules and client support target
+starting, but contains no source/home `.mount` job or server mount rejection.
+Those entries alone do not establish a connection. A rebuilt installer fixes
+future installations; it does not change that installed host's fstab, endpoint
+modes or menu helper.
+
+For the default `/home/mcramer/Sharing/nfs-client` and
+`/data/sharing/nfs-client` paths, an administrator can apply the same narrow
+policy in maintenance. Close share users and work from outside both paths.
+Back up the current fstab, saved configuration and menu helper in a private
+administrator directory. Stop the home bind first, check its result, then stop
+the source; a busy/failed stop must be resolved before proceeding:
+
+```sh
+sudo /usr/bin/systemctl stop 'home-mcramer-Sharing-nfs\x2dclient.mount'
+sudo /usr/bin/systemctl stop 'data-sharing-nfs\x2dclient.mount'
+```
+
+Confirm both are inactive and no mount remains at either exact path before
+changing permissions. Inspect the local mount table without canonicalizing
+remote paths:
+
+```sh
+/usr/bin/findmnt --nocanonicalize --mountpoint /home/mcramer/Sharing/nfs-client --output TARGET,SOURCE,FSTYPE,OPTIONS
+/usr/bin/findmnt --nocanonicalize --mountpoint /data/sharing/nfs-client --output TARGET,SOURCE,FSTYPE,OPTIONS
+```
+
+Neither command should list a mount. Verify the unmounted endpoints are empty
+real directories owned by root:root. Set **only these unmounted directories**
+to mode 0755; do not chmod/chown a mounted export or recursively change data:
+
+```sh
+sudo /usr/bin/chmod 0755 -- /data/sharing/nfs-client /home/mcramer/Sharing/nfs-client
+```
+
+Within the managed NFS block of `/etc/fstab`, replace the exact `noauto` option
+with `auto` on the remote client and its home bind, preserving all transport,
+security, timeout and dependency options. Make the same option replacement in
+the saved format-2 `/etc/network-sharing/config.json` profile keys
+`NFS_MNT_CLIENT_TARGET_SHARE_OPTS` and `NFS_MNT_CLIENT_BIND_HOME_OPTS`; preserve
+its version, role flags, paths and unit names. Install the updated
+`hooks/target/usr/local/bin/labwc-network-sharing` helper as root-owned mode
+0755 at `/usr/local/bin/labwc-network-sharing`. For customized paths, use the
+actual installed configuration and its escaped unit names throughout.
+
+Keep the existing identity, firewall and bind `BindsTo=`/`After=` prerequisites,
+and the immutable home parent. Then run `sudo systemctl daemon-reload`, inspect
+the generated source/home units and their `remote-fs.target.wants` links, and
+choose **Connect to NFS Server**. Verify both units are active, both mount-table
+entries refer to the same NFS source, and normal file access succeeds as the
+desktop account. If an actual mount job reports access denied, inspect the
+server's export allowlist against the client's real source IP and its UID/GID,
+ACL and identity diagnostics; the supplied boot excerpt does not identify a
+server rejection. Do not relax `root_squash`, the allowlist or AppArmor to hide
+that error.
+
 ### Existing client with the logged autofs configuration
 
 Rebuilding this repository does not retire active units on LPL-307. The supplied
@@ -532,14 +604,15 @@ the whole filesystem. Confirm the units are inactive using unit properties,
 without walking the remote paths. A runtime mask lasts only until reboot.
 Before reopening access or rebooting, retire the old automount fstab options,
 definitions and enablement links as part of the coordinated deployment above,
-or reinstall with the rebuilt snapshot. New client entries must have `noauto`
+or reinstall with the rebuilt snapshot. New client entries must have `auto`
 and neither `x-systemd.automount` nor any `.path` activator. Confirm no legacy
 autofs layer remains active; a daemon reload alone does not unmount it. For an
 in-place deployment, remove only these temporary runtime masks with
 `systemctl unmask --runtime` after deploying all updated consumers, reloading
 systemd and verifying that the old activation definitions/links are gone and
-the new mounts remain inactive with `noauto`. The new mount units cannot be
-explicitly connected while their runtime masks remain.
+the new mounts have automatic boot links and the home bind requires its source.
+The new mount units cannot start while their runtime masks remain. After
+unmasking, use Connect to start the source and home bind in order.
 
 For removal of an optional home bind, first stop its mount and any legacy automount units,
 remove their managed fstab entries and related unit drop-ins, run
@@ -568,10 +641,12 @@ client-only, both roles, and each bind setting. Then check:
    Confirm ordinary group members can collaborate with correct numeric owners.
    Probe adjacent excluded addresses such as .81, .101, .111, .123, .211 and
    .223. Never change the live management host's address just to run this test.
-3. Reboot with the server absent. Verify both client mounts remain inactive,
-   no client automount/path units or activation links exist, and `cd ~/Sharing`
-   and directory metadata browsing submit no NFS jobs. The disconnected client
-   child should deny ordinary-account traversal immediately. Try explicit
+3. Reboot with the server absent. Verify the client mount attempts fail within
+   the configured initial timeout without making them required for boot. Both
+   client mount units must have `remote-fs.target.wants` links, `auto` and no
+   `noauto`. No client automount/path units should exist. Ordinary-account
+   `cd ~/Sharing/nfs-client`, `cd /data/sharing/nfs-client` and listing must work
+   on the empty disconnected endpoints without local file creation. Try
    Connect with the server absent, inspect its failure, restore the server,
    then explicitly Connect and disconnect with closed and deliberately busy
    disposable files. Verify no local fallback writes or hidden user files,
@@ -595,7 +670,11 @@ client-only, both roles, and each bind setting. Then check:
    have not regressed. Record actual package/kernel/systemd versions and
    acceptance evidence with the release.
 
-## October 6 mount permissions and desktop visibility
+## Mount permissions and desktop visibility
+
+The October 7 client access repair supersedes the earlier `noauto`, mode-000
+client endpoints and session-group Connect refusal. Historical validation
+records retain the policy they tested at the time.
 
 Run `mount -a` as an administrator (`sudo mount -a`). util-linux deliberately
 drops its setuid credentials for an ordinary account using `-a`; the supplied
@@ -605,13 +684,14 @@ credential changes now run inside a dedicated `mount-user` child with no
 boundary still controls privileged mounts. Group membership grants access to
 shared data; it does not authorize mounting all of fstab.
 
-Client entries keep `noauto`. `sudo mount -a` therefore skips them. Use
-**Connect to NFS Server**, which waits for the source mount before starting the
-home bind. Starting a bind directly with mount bypasses the systemd dependency
-graph and can bind the disconnected mode-000 directory. After joining the
-shared group, log out and log in again; the menu now rejects Connect when the
-running session lacks the configured shared GID. Membership in `/etc/group`
-alone does not update an existing desktop process's supplementary groups.
+Client entries use `auto`, so `sudo mount -a` includes them. Prefer the boot
+mount jobs or **Connect to NFS Server**, which run the systemd prerequisites
+and wait for the source mount before starting the home bind. Calling mount
+directly bypasses that dependency graph and can bind an empty disconnected
+directory if the source mount failed. After joining the shared group, log out
+and log in again for group-dependent file access. Membership in `/etc/group`
+alone does not update an existing desktop process's supplementary groups;
+Connect nevertheless submits the mount jobs through normal authorization.
 
 Both home bind rows include `x-gvfs-show` and a stable `x-gvfs-name`. However,
 GLib's fstab enumeration explicitly ignores **bind** entries before GVfs sees
@@ -619,8 +699,10 @@ them. These options cannot keep an unmounted bind in Thunar's **Devices**
 section. The installer also creates account-specific GTK bookmarks, copied by
 the existing desktop skeleton stage, so `nfs-server` / `nfs-client` remain in
 **Places** when disconnected. No automatic mount is added by these bookmarks.
-The protected endpoints remain mode 000 when disconnected to prevent local
-fallback writes. Actual mounted access follows the server's UID/GID, ACLs,
+The protected client endpoints use root-owned mode 0755 when disconnected,
+permitting navigation and preventing ordinary-user local fallback writes.
+The server home endpoint remains mode 000 until its local bind is mounted.
+Actual mounted access follows the server's UID/GID, ACLs,
 export policy, active session groups and AppArmor policy.
 
 The export root is now owned by the configured primary account with the shared

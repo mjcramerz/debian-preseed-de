@@ -32,11 +32,12 @@ profiles disable both roles. Review the selected profile before installation.
 `/data/sharing` and `~/Sharing` are parents for separate server/client children;
 only the configured server child is exported. The existing Computer
 Management menu includes **Network & Remote -> Network Sharing**.
-Client connections are explicit: choose **Connect to NFS Server**. Client
-mounts use `noauto`; browsing `~/Sharing` does not mount NFS and boot leaves the
-client disconnected. The [2026-10-05 client follow-up](docs/validation/nfs-client-explicit-20261005.md)
-records the logged autofs failure, the shared configuration repair and LAN
-firewall acceptance checks. Read the
+Client source and home bind use `auto` and start in dependency order at boot.
+Disconnected client directories remain navigable, root-owned and unwritable
+by the ordinary account. **Connect to NFS Server** retries a failed connection;
+there is no autofs or path activation layer. The
+[2026-10-07 client access repair](docs/validation/nfs-client-access-20261007.md)
+records the permission, boot mount and retry regression checks. Read the
 [configuration, trust model and deployment guide](docs/network-sharing.md) and
 [validation record](docs/validation/network-sharing-20260930/README.md) before
 enabling a role. `make build` validates NFS profile policy before publication.
