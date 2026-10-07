@@ -8,6 +8,9 @@ case "$action" in
   poweroff|reboot) ;;
   *) printf 'usage: greetd-power-action {poweroff|shutdown|reboot}\n' >&2; exit 64 ;;
 esac
+# pkexec validates an inherited SHELL against /etc/shells. The greeter keeps
+# its nologin account shell; this fixed-function request needs no shell value.
+unset SHELL
 # Only the active, local, configured greeter is authorized for this exact
 # fixed-function helper. No interactive/root-password fallback in the greeter.
 exec /usr/bin/pkexec --disable-internal-agent /usr/local/libexec/greetd-power-action-root "$action"

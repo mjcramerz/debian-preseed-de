@@ -162,6 +162,7 @@ class FirstbootForceValidationTests(unittest.TestCase):
             section = section.replace(' /' + relative + ' 2>/dev/null',
                                       ' ' + shlex.quote(str(destination)) + ' 2>/dev/null')
         self.worker = self.directory / 'usr/local/libexec/labwc-admin-action-worker'
+        self.greeter_frontend = self.directory / 'usr/local/sbin/greetd-power-action'
         self.worker_source = self.worker.read_text()
         self.unit = self.directory / 'etc/systemd/system/labwc-admin-action@.service'
         self.unit_source = self.unit.read_text()
@@ -178,6 +179,12 @@ class FirstbootForceValidationTests(unittest.TestCase):
 
     def test_corrected_worker_and_existing_frontends_pass_firstboot_gate(self):
         self.check(True)
+
+    def test_firstboot_rejects_inherited_greeter_shell(self):
+        source = self.greeter_frontend.read_text(encoding='utf-8')
+        self.assertEqual(source.count('\nunset SHELL\n'), 1)
+        self.greeter_frontend.write_text(source.replace('\nunset SHELL\n', '\n'), encoding='utf-8')
+        self.check(False)
 
     def test_firstboot_rejects_missing_boot_capability_or_raw_reboot_filter(self):
         mutations = (

@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import sys
 
 import gi
 
@@ -20,6 +21,7 @@ class GreeterPower:
         self.pending_action = None
         self.buttons = {}
         self.action_process = None
+        self.confirmation_timeout = None
 
         self.window = Gtk.Window()
         self.window.set_name("greeter-power")
@@ -75,18 +77,33 @@ class GreeterPower:
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         )
 
+    def cancel_confirmation_timeout(self):
+        if self.confirmation_timeout is not None:
+            GLib.source_remove(self.confirmation_timeout)
+            self.confirmation_timeout = None
+
     def reset_pending(self, expected_action=None):
         if expected_action is not None and self.pending_action != expected_action:
             return GLib.SOURCE_REMOVE
 
         if self.action_process is not None:
             return GLib.SOURCE_REMOVE
+        self.cancel_confirmation_timeout()
         self.pending_action = None
         for button, label in self.buttons.values():
             button.set_label(label)
             button.set_sensitive(True)
+            button.set_tooltip_text(None)
             button.get_style_context().remove_class("confirm")
         return GLib.SOURCE_REMOVE
+
+    def show_failure(self, action, detail):
+        self.reset_pending()
+        button = self.buttons[action][0]
+        button.set_label("Reboot failed" if action == "reboot" else "Shutdown failed")
+        button.set_tooltip_text("The power request failed. Ask an administrator to check the greeter power log.")
+        print(f"event=greeter_power_request action={action} status=failed {detail}",
+              file=sys.stderr, flush=True)
 
     def request_action(self, button, action):
         if self.action_process is not None:
@@ -98,9 +115,11 @@ class GreeterPower:
                 "Confirm reboot" if action == "reboot" else "Confirm shutdown"
             )
             button.get_style_context().add_class("confirm")
-            GLib.timeout_add_seconds(5, self.reset_pending, action)
+            self.confirmation_timeout = GLib.timeout_add_seconds(5, self.reset_pending, action)
             return
 
+        # A stale confirmation timer must not clear a later failure message.
+        self.cancel_confirmation_timeout()
         for current_button, _ in self.buttons.values():
             current_button.set_sensitive(False)
         button.set_label("Reboot queued" if action == "reboot" else "Shutdown queued")
@@ -115,8 +134,8 @@ class GreeterPower:
                 close_fds=True,
                 start_new_session=True,
             )
-        except OSError:
-            self.reset_pending()
+        except OSError as error:
+            self.show_failure(action, f"stage=spawn errno={error.errno}")
             return
         GLib.timeout_add(250, self.check_action)
 
@@ -124,11 +143,15 @@ class GreeterPower:
         result = self.action_process.poll()
         if result is None:
             return GLib.SOURCE_CONTINUE
+        action = self.pending_action
         self.action_process = None
         # The fixed greeter frontend uses systemctl --wait: process exit means
         # the unit ended, not merely that it acknowledged a pending request.
         # Restore the buttons on errors AND administrator cancellation.
-        self.reset_pending()
+        if result:
+            self.show_failure(action, f"stage=helper exit_status={result}")
+        else:
+            self.reset_pending()
         return GLib.SOURCE_REMOVE
 
 

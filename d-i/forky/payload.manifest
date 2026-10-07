@@ -996,7 +996,7 @@ ae97e674e27627010a77ff54174e328572f9ef14e40eed48c8da3b092b8b312b  hooks/target/u
 6988025e0b6deabbe729afbf36634d42ccd15f1fe84614b914c5bba589dcd6e0  hooks/target/usr/local/bin/labwc-fuzzel.tmpl
 1c78e97cb6a809bf57d6baa6eadfcf47bc2ac0aeaab08a26f2063b7cd6bc8cf5  hooks/target/usr/local/bin/labwc-fzf-menu.tmpl
 e0385bfa4819a47bbb119e9ab38ce0dc72bb21d2da8af4a79ab7918952fe1fbe  hooks/target/usr/local/bin/labwc-greeter-output
-ad2b80c25533650017f518811289dfb942e56318a476758b02ae44b6f2a2b3b6  hooks/target/usr/local/bin/labwc-greeter-power
+b2c5356b007b91bf95a863499cc32209956b226ac1c00876a4d971b5e88d6dd2  hooks/target/usr/local/bin/labwc-greeter-power
 95f9d7236573b5792fe39906e9c5de7fcdd6aef7cf7aa8591133a54b802fc3fa  hooks/target/usr/local/bin/labwc-greeter-session.tmpl
 ea62a5a95feccccee1efa23e8a19cedaed6c24ed3a418f46fced349de3079d25  hooks/target/usr/local/bin/labwc-hardware-tuning
 e4f99d83e155629cc61b5ebbfc8a2f6c4f7fdec65cfb79a578375735d308c77b  hooks/target/usr/local/bin/labwc-health-notify.tmpl
@@ -1384,7 +1384,7 @@ fab3b55e8b74e2fd4636007c9595a8cc2c2343a5b7d0d7721e3d2a5b3cd0c2c3  hooks/target/u
 818b18b246664c4bd3a9e19113d025fae07ab0f24847624c68694c1f7817e353  hooks/target/usr/local/libexec/zram-device-setup.tmpl
 2ff2c747d7da5754cb2cbb09bc2624b92176f36ee157ef71d5520dcdc92f187b  hooks/target/usr/local/libexec/zram-writeback.tmpl
 ac69a5a83f2908426168497c69d9f2268ce963be8a52680807b8eca763db2445  hooks/target/usr/local/sbin/fwops-mode
-d78c36004c98bf84c8c09d928e1ce99918931938744c094d5bd425df8df2f85e  hooks/target/usr/local/sbin/greetd-power-action
+a60bce358b81a698d0a325447a14d0d0548b49077f13c8f4f4042d08ba768330  hooks/target/usr/local/sbin/greetd-power-action
 21982dcb4c7e577f093c3ad55c0ac095787f50d92eb324fcad7d3753fb4ee69b  hooks/target/usr/local/sbin/labwc-notify.tmpl
 e74fefdec32c18e9e940a9d33d09c6417a49230d08bfb09fa44cfce9c554860a  hooks/target/usr/local/sbin/luks-mok-close.tmpl
 5470640dbbafa9560346a0576f8e934871b5163775b33b61c7deefe4f1f9815f  hooks/target/usr/local/sbin/luks-mok-open.tmpl
@@ -1557,7 +1557,7 @@ b26b034b097f7057121554596475ff4f2c1b843b58d29900ad97f05024ab88b5  scripts/deskto
 9aa4b78fc07008f37a979e3f1b2b5b334178b582063f9e26e58986be94a5df9b  scripts/firstboot/01-early.sh
 b77e3edc96a63684ad2ab08f784cc1a6b36e9a927e5ef61c810dcf919dc81988  scripts/firstboot/02-collect.sh.tmpl
 196a03825c0ba67ac91caf18cc6492d71abb70f41a443e32d59c300cb808b27c  scripts/firstboot/03-network.sh
-c771d580c7d304a96ba9c274a22eba3b0a30745b9bc4339f1e3dc2779cee8eb2  scripts/firstboot/04-validation.sh.tmpl
+34deab73eec541f721cdeda5b8ecbad5b9b99c373e8a13d7ea8cf6563624894d  scripts/firstboot/04-validation.sh.tmpl
 12ad994a1f2b039bb693e889731d1402309562d9e40a2125e269d2ac9ce0582b  scripts/firstboot/05-cleanup.sh
 dfe9950297aac47d74e88bb600486a2bf9b991dc585b7d4618292c670f7c8d98  scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl
 12ffdb848f62b8db7850bd35298c1d4a7692466b9210b032609a30f55cb3cd5e  scripts/firstboot/assets/etc/initramfs-tools/scripts/init-bottom/90-installer-health

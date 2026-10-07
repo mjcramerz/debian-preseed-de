@@ -1,4 +1,37 @@
-# Build status - 2026-10-07 NFS client access and automatic mounting
+# Build status - 2026-10-07 gtkgreet power actions
+
+The [greeter power validation record](docs/validation/gtkgreet-power-20261007.md)
+identifies the supplied LPL-697 failure: pkexec rejected the `_greetd` account's
+inherited SHELL before either Reboot or Shutdown reached the root worker. The
+fixed-function greeter frontend now unsets SHELL at that boundary. The account
+retains its nologin shell and the existing active/local authorization. Both
+buttons reach the shared package-aware, cleanup-verified single-force worker.
+
+Failed helper starts/jobs now leave a visible Reboot failed / Shutdown failed
+label and a structured journal event. Confirmation timers are cancelled when
+replaced or submitted, and retries require a new confirmation. First-boot
+validation now checks the environment correction as well as the existing
+single-force, identity and confinement contracts.
+
+All 60 focused tests pass without skips: 35 greeter/button/dispatch tests,
+11 force and first-boot gate tests, and 14 shutdown/storage tests. GTK, Polkit
+authentication and PID-1 operations were replaced by controlled fixtures;
+the real button controller and isolated copies of the shell helper chain were
+executed. ShellCheck reports no diagnostics for the edited frontend. All 711
+shell parser checks and all 59 preseed/private read-back checks pass.
+
+The 1,704-member payload, manifest and preseed pins are current. Only
+labwc-greeter-power, greetd-power-action and 04-validation.sh.tmpl changed in
+the payload during this task; all other members and archive modes/link targets
+were preserved, including Waybar's worker, earlier NFS/GitOps fixes and private
+Xwayland. No software compilation, privileged helper execution against host
+Polkit, live power action, service restart or deployment occurred. LPL-697
+requires the two installed helper updates described in the record. A real
+greeter reboot/poweroff on Forky/systemd 261.2 remains deployment acceptance;
+the verification host uses systemd 262. Earlier broad-suite findings remain
+outside this focused repair.
+
+## Previous snapshot record - 2026-10-07 NFS client access and automatic mounting
 
 The [NFS client validation record](docs/validation/nfs-client-access-20261007.md)
 covers the reproduced inaccessible mode-000 client endpoints, both `noauto`

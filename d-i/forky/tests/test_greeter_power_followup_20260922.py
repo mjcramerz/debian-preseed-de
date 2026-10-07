@@ -9,6 +9,7 @@ from payload_fixture import installed_argv as payload_installed_argv, source_exi
 from payload_fixture import read_text as payload_read_text
 import ast
 import contextlib
+import errno
 import io
 import json
 import os
@@ -25,6 +26,108 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[3]
 TARGET = ROOT / 'd-i/forky/hooks/target'
 WORKER = TARGET / 'usr/local/libexec/labwc-admin-action-worker'
+
+
+def power_buttons():
+    """Real button controller, with GTK/timers/transports replaced before use."""
+    source = TARGET / 'usr/local/bin/labwc-greeter-power'
+    tree = ast.parse(payload_read_text(source), filename=str(source))
+    definitions = [node for node in tree.body if isinstance(node, (ast.ClassDef, ast.Assign))]
+    fixture = types.ModuleType('greeter_power_buttons')
+    fixture.Gtk = mock.Mock()
+    fixture.Gtk.Button.new_with_label.side_effect = lambda label: mock.Mock(name=label)
+    fixture.GtkLayerShell = mock.Mock()
+    fixture.GLib = SimpleNamespace(SOURCE_REMOVE=False, SOURCE_CONTINUE=True,
+        timeout_add_seconds=mock.Mock(return_value=11), timeout_add=mock.Mock(return_value=12),
+        source_remove=mock.Mock())
+    fixture.subprocess = SimpleNamespace(Popen=mock.Mock(), DEVNULL=subprocess.DEVNULL)
+    fixture.sys = SimpleNamespace(stderr=io.StringIO())
+    exec(compile(ast.Module(body=definitions, type_ignores=[]), str(source), 'exec'), fixture.__dict__)
+    return fixture, fixture.GreeterPower()
+
+
+class ButtonDispatchTests(unittest.TestCase):
+    def setUp(self):
+        self.gui, self.ui = power_buttons()
+
+    def confirm(self, action):
+        button = self.ui.buttons[action][0]
+        self.ui.request_action(button, action)
+        self.ui.request_action(button, action)
+        return button
+
+    def test_both_buttons_dispatch_exact_helper_after_confirmation(self):
+        for action in ('reboot', 'poweroff'):
+            with self.subTest(action=action):
+                self.gui, self.ui = power_buttons()
+                button = self.ui.buttons[action][0]
+                self.ui.request_action(button, action)
+                self.gui.subprocess.Popen.assert_not_called()
+                self.ui.request_action(button, action)
+                self.gui.subprocess.Popen.assert_called_once_with(
+                    ['/usr/local/sbin/greetd-power-action', action],
+                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=None,
+                    close_fds=True, start_new_session=True)
+                self.gui.GLib.source_remove.assert_called_once_with(11)
+                for current, _ in self.ui.buttons.values():
+                    current.set_sensitive.assert_called_with(False)
+
+    def test_running_request_cannot_dispatch_a_duplicate(self):
+        button = self.confirm('reboot')
+        self.gui.subprocess.Popen.return_value.poll.return_value = None
+        self.assertTrue(self.ui.check_action())
+        self.ui.request_action(button, 'reboot')
+        self.gui.subprocess.Popen.assert_called_once()
+
+    def test_failed_job_is_visible_and_does_not_retry_automatically(self):
+        for action in ('reboot', 'poweroff'):
+            with self.subTest(action=action):
+                self.gui, self.ui = power_buttons()
+                button = self.confirm(action)
+                self.gui.subprocess.Popen.return_value.poll.return_value = 127
+                self.assertFalse(self.ui.check_action())
+                button.set_label.assert_called_with('Reboot failed' if action == 'reboot' else 'Shutdown failed')
+                button.set_sensitive.assert_called_with(True)
+                self.assertIsNone(self.ui.pending_action)
+                self.assertIsNone(self.ui.action_process)
+                self.assertIn('status=failed', self.gui.sys.stderr.getvalue())
+                self.assertIn('exit_status=127', self.gui.sys.stderr.getvalue())
+                self.gui.subprocess.Popen.assert_called_once()
+
+    def test_spawn_failure_is_visible_and_restores_both_buttons(self):
+        self.gui.subprocess.Popen.side_effect = OSError(errno.EACCES, 'Permission denied')
+        button = self.confirm('reboot')
+        button.set_label.assert_called_with('Reboot failed')
+        self.assertIn('errno=13', self.gui.sys.stderr.getvalue())
+        self.assertIsNone(self.ui.action_process)
+        for current, _ in self.ui.buttons.values():
+            current.set_sensitive.assert_called_with(True)
+
+    def test_changing_confirmation_cancels_previous_timeout(self):
+        self.ui.request_action(self.ui.buttons['reboot'][0], 'reboot')
+        self.ui.request_action(self.ui.buttons['poweroff'][0], 'poweroff')
+        self.gui.GLib.source_remove.assert_called_once_with(11)
+        self.assertEqual(self.ui.pending_action, 'poweroff')
+        self.gui.subprocess.Popen.assert_not_called()
+
+    def test_completed_or_cancelled_request_restores_confirmation_state(self):
+        button = self.confirm('reboot')
+        self.gui.subprocess.Popen.return_value.poll.return_value = 0
+        self.assertFalse(self.ui.check_action())
+        button.set_label.assert_called_with('Reboot')
+        self.assertIsNone(self.ui.pending_action)
+        self.assertIsNone(self.ui.action_process)
+        self.assertEqual(self.gui.sys.stderr.getvalue(), '')
+
+    def test_failed_request_requires_a_new_confirmation_to_retry(self):
+        button = self.confirm('reboot')
+        self.gui.subprocess.Popen.return_value.poll.return_value = 127
+        self.ui.check_action()
+        self.ui.request_action(button, 'reboot')
+        button.set_label.assert_called_with('Confirm reboot')
+        self.gui.subprocess.Popen.assert_called_once()
+        self.ui.request_action(button, 'reboot')
+        self.assertEqual(self.gui.subprocess.Popen.call_count, 2)
 
 
 def module():
@@ -193,18 +296,24 @@ class GreeterFlowTests(unittest.TestCase):
         self.fail_on = None
         self.greeter_properties = session()
         self.inhibitors = []
+        self.stopped = set()
+        self.user_stopped = False
         self.transport = self.stack.enter_context(mock.patch.object(self.power, 'run', side_effect=self.run_command))
         self.reservation = self.stack.enter_context(mock.patch.object(self.power, 'PackageLocks'))
         self.stack.enter_context(mock.patch.object(self.power, 'ready'))
         self.hold = self.stack.enter_context(mock.patch.object(self.power, 'hold_reservation'))
+        self.stack.enter_context(mock.patch.object(self.power, 'sharing_stop_groups', return_value=[]))
 
     def run_command(self, argv, **kwargs):
         self.calls.append(argv)
         if self.fail_on and self.fail_on(argv):
             raise self.power.Error('injected transport failure')
         if argv[-1] == 'ListSessions':
-            return session_listing('c1 109 greeter seat0 321 greeter tty1 no -\n')
+            return session_listing('' if self.user_stopped else 'c1 109 greeter seat0 321 greeter tty1 no -\n')
         if argv[0] == '/usr/bin/loginctl':
+            if 'terminate-user' in argv:
+                self.user_stopped = True
+                return ''
             return self.greeter_properties
         if argv[-1] == 'ListInhibitors':
             return json.dumps(dict(type='a(ssssuu)', data=[self.inhibitors]))
@@ -215,6 +324,20 @@ class GreeterFlowTests(unittest.TestCase):
             self.assertGreater(self.reservation.return_value.__enter__.return_value.verify.call_count, 0)
             return ''
         self.assertEqual(argv[0], '/usr/bin/systemctl')
+        if '--property=LoadState,ActiveState,SubState,Result' in argv:
+            name = argv[2]
+            if name != 'greetd.service':
+                return 'LoadState=not-found\nActiveState=inactive\nSubState=dead\n'
+            inactive = name in self.stopped
+            return ('LoadState=loaded\nActiveState=' + ('inactive' if inactive else 'active')
+                    + '\nSubState=' + ('dead' if inactive else 'running') + '\nResult=success\n')
+        if '--property=ActiveState' in argv and f'user-109.slice' in argv:
+            return 'inactive\n' if self.user_stopped else 'active\n'
+        if argv == ['/usr/bin/systemctl', '--no-ask-password', 'stop', 'greetd.service']:
+            self.stopped.add('greetd.service')
+            return ''
+        if argv == ['/usr/bin/systemctl', '--no-block', 'stop', 'user@109.service', 'user-109.slice']:
+            return ''
         if '--property=LoadState,ActiveState' in argv:
             if self.active_guest and 'podman-devops-restart.service' in argv:
                 return 'LoadState=loaded\nActiveState=active\n'
@@ -237,13 +360,19 @@ class GreeterFlowTests(unittest.TestCase):
         for action in ('reboot', 'poweroff'):
             with self.subTest(action=action):
                 self.calls.clear()
+                self.stopped.clear()
+                self.user_stopped = False
                 worker = self.execute(action)
                 final = handoff_argv(action)
                 self.assertEqual(self.calls[-1], final)
                 self.assertEqual(sum(is_handoff(call) for call in self.calls), 1)
                 capture = ['/usr/bin/systemctl', '--no-ask-password', 'start', 'power-log-capture.service']
                 self.assertEqual(self.calls.count(capture), 0)
-                self.assertFalse(any('stop' in call for call in self.calls))
+                stop = self.calls.index(['/usr/bin/systemctl', '--no-ask-password', 'stop', 'greetd.service'])
+                terminate = self.calls.index(['/usr/bin/loginctl', 'terminate-user', '109'])
+                self.assertLess(stop, terminate)
+                self.assertLess(terminate, len(self.calls) - 1)
+                self.assertTrue(worker.session_stopped and worker.storage_stopped)
                 self.assertTrue(worker.committed and worker.handoff_attempted)
                 self.assertGreaterEqual(sum('show-session' in call for call in self.calls), 3)
                 self.assertFalse(any('--user' in call or 'kill' in call for call in self.calls))
@@ -301,9 +430,12 @@ name=pathlib.Path(sys.argv[0]).name
 if name=='systemctl':
  with open(os.environ['TEST_CALLS'],'a') as f: f.write(json.dumps(sys.argv[1:])+'\\n')
 elif name=='id': print('0')
-elif name=='getent': print('greeter:x:'+os.environ['PKEXEC_UID']+':109::/:/usr/sbin/nologin')
+elif name=='getent': print(os.environ.get('TEST_INVOKER_NAME','greeter')+':x:'+os.environ['PKEXEC_UID']+':109::/:/usr/sbin/nologin')
 elif name=='pkexec':
  assert sys.argv[1]=='--disable-internal-agent'
+ if os.environ.get('TEST_REQUIRE_UNSET_SHELL')=='1' and 'SHELL' in os.environ:
+  print('fixture pkexec rejected SHELL before authorization',file=sys.stderr)
+  sys.exit(127)
  os.execve(sys.argv[2],sys.argv[2:],dict(os.environ))
 else: raise AssertionError(name)
 '''
@@ -337,6 +469,45 @@ else: raise AssertionError(name)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(json.loads(payload_read_text(self.record).splitlines()[-1]),
                                  ['--wait', 'start', f'labwc-admin-action@109-greeter-{normalized}.service'])
+
+    def test_nologin_shell_does_not_block_the_fixed_power_helper(self):
+        self.env['TEST_REQUIRE_UNSET_SHELL'] = '1'
+        self.env['PKEXEC_UID'] = '989'
+        self.env['TEST_INVOKER_NAME'] = '_greetd'
+        for shell in ('/usr/sbin/nologin', '/bin/false', '/bin/sh'):
+            for action in ('reboot', 'poweroff'):
+                with self.subTest(shell=shell, action=action):
+                    self.env['SHELL'] = shell
+                    result = self.invoke([action])
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(json.loads(payload_read_text(self.record).splitlines()[-1]),
+                                     ['--wait', 'start', f'labwc-admin-action@989-greeter-{action}.service'])
+                    self.assertEqual(self.env['SHELL'], shell)
+
+    def test_confirmed_buttons_with_nologin_shell_reach_the_waited_worker(self):
+        environment = {**self.env, 'SHELL': '/usr/sbin/nologin', 'PKEXEC_UID': '989',
+                       'TEST_INVOKER_NAME': '_greetd', 'TEST_REQUIRE_UNSET_SHELL': '1'}
+        for action in ('reboot', 'poweroff'):
+            with self.subTest(action=action):
+                gui, controller = power_buttons()
+                # Only isolated helper copies may be spawned; their privileged
+                # commands are test adapters, never host pkexec or PID 1.
+                gui.ACTION_HELPER = str(self.entry)
+                gui.subprocess.Popen = subprocess.Popen
+                button = controller.buttons[action][0]
+                with mock.patch.dict(os.environ, environment):
+                    controller.request_action(button, action)
+                    controller.request_action(button, action)
+                process = controller.action_process
+                try:
+                    self.assertEqual(process.wait(timeout=5), 0)
+                finally:
+                    if process.poll() is None:
+                        process.kill()
+                        process.wait(timeout=5)
+                self.assertFalse(controller.check_action())
+                self.assertEqual(json.loads(payload_read_text(self.record).splitlines()[-1]),
+                                 ['--wait', 'start', f'labwc-admin-action@989-greeter-{action}.service'])
 
     def test_unsupported_or_injected_actions_never_contact_systemctl(self):
         for args in ([], ['reboot', '--force'], ['--force'], ['suspend'], ['logout'],

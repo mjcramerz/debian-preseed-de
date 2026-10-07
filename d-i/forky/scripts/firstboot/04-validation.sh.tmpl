@@ -1183,6 +1183,7 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
 
   # Validate the complete greeter handoff, not just the presence of a menu.
   if grep -Fqx 'exec /usr/bin/pkexec --disable-internal-agent /usr/local/libexec/greetd-power-action-root "$action"' /usr/local/sbin/greetd-power-action 2>/dev/null &&
+     grep -Fqx 'unset SHELL' /usr/local/sbin/greetd-power-action 2>/dev/null &&
      grep -Fqx '  poweroff|reboot) exec /usr/local/libexec/labwc-admin-action-root "greeter-$1" ;;' /usr/local/libexec/greetd-power-action-root 2>/dev/null &&
      grep -Fqx '  greeter-*) exec /usr/bin/systemctl --wait start "$worker_unit" ;;' /usr/local/libexec/labwc-admin-action-root 2>/dev/null &&
      grep -Fq 'if self.action not in {"reboot", "poweroff"}:' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
