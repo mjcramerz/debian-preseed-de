@@ -792,7 +792,9 @@ printf '%s\n' 1
         self.assertNotIn('bouncers add', helper)
         self.assertIn('crowdsec-bouncer-verify', helper)
         unit = payload_read_text(ROOT/'hooks/target/etc/systemd/system/crowdsec-firstboot.service')
-        self.assertIn('RestartSec=1h', unit)
+        self.assertIn('RestartSec=30s', unit)
+        self.assertIn('RestartSteps=5', unit)
+        self.assertIn('RestartMaxDelaySec=1h', unit)
         self.assertIn('RestartPreventExitStatus=2', unit)
         self.assertNotIn('StartLimitIntervalSec=infinity', unit)
 

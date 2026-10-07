@@ -47,8 +47,8 @@ class TorrentIntegrationTests(unittest.TestCase):
                                        'optional_ro_bind': mock.Mock(),
                                        'add_gpu_device_binds': mock.Mock()}), \
              mock.patch.object(shutil, 'which', side_effect=lambda name: '/usr/bin/' + name):
-            command = QBIT['build_command'](account, Path('/home/fixture/bittorrent'),
-                                             Path('/home/fixture/bittorrent/.qbittorrent-profile'), 'launch', [],
+            command = QBIT['build_command'](account, Path('/run/media/fixture/bittorrent'),
+                                             Path('/run/media/fixture/bittorrent/.qbittorrent-profile'), 'launch', [],
                                              Path('/run/user/1000/fixture/resolv.conf'))
         self.assertEqual(command[0], '/usr/bin/bwrap')
         self.assertEqual(command[-1], '/usr/bin/qbittorrent')
@@ -96,15 +96,37 @@ class TorrentIntegrationTests(unittest.TestCase):
         self.assertEqual(LAUNCHERS["managed_exec"]("intel", "qbittorrent", "%U"),
                          "/usr/local/bin/labwc-qbittorrent --acceleration=intel %U")
 
-    def test_absent_transient_storage_uses_private_persistent_home(self):
+    def test_absent_storage_fails_without_creating_a_home_fallback(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
             account = pwd.struct_passwd(
                 ("user", "x", os.getuid(), os.getgid(), "", str(home), "/bin/sh")
             )
-            root = QBIT["select_storage_root"](account, home / "missing" / "bittorrent")
-            self.assertEqual(root, home / "bittorrent")
-            self.assertEqual(root.stat().st_mode & 0o777, 0o700)
+            with self.assertRaises(SystemExit):
+                QBIT["select_storage_root"](account, home / "missing" / "bittorrent")
+            self.assertEqual(list(home.iterdir()), [])
+
+    def test_storage_left_on_run_fails_without_creating_a_home_fallback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            account = pwd.struct_passwd(
+                ("user", "x", os.getuid(), os.getgid(), "", str(home), "/bin/sh")
+            )
+            configured = home / "volume"
+            configured.mkdir()
+            metadata = configured.stat()
+            original_stat = Path.stat
+            def same_runtime_device(path, *args, **kwargs):
+                return metadata if path == Path('/run') else original_stat(path, *args, **kwargs)
+            with mock.patch.object(Path, 'stat', autospec=True, side_effect=same_runtime_device):
+                with self.assertRaises(SystemExit):
+                    QBIT["select_storage_root"](account, configured)
+            self.assertEqual(list(home.iterdir()), [configured])
+            self.assertEqual(list(configured.iterdir()), [])
+
+    def test_managed_config_uses_private_profile_and_fixed_network_policy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
             paths = QBIT["prepare_storage"](root)
             config = QBIT["write_config"](paths["profile_home"], paths, ('tap0', '10.0.2.100'))
             parser = configparser.ConfigParser(interpolation=None)
@@ -149,9 +171,13 @@ class TorrentIntegrationTests(unittest.TestCase):
             self.assertEqual(QBIT["select_storage_root"](account, configured), configured)
             configured.rmdir()
             configured.symlink_to("/etc")
-            self.assertEqual(QBIT["select_storage_root"](account, configured), configured)
             with self.assertRaises(SystemExit):
-                QBIT["prepare_storage"](configured)
+                QBIT["select_storage_root"](account, configured)
+
+    def test_removed_home_fallback_has_no_apparmor_write_grant(self):
+        for path in (TARGET / 'etc/apparmor.d/desktop-wrappers.tmpl',
+                     TARGET / 'etc/apparmor.d/abstractions/qbittorrent-runtime'):
+            self.assertFalse('@{HOME}/bittorrent/' in path.read_text(encoding='utf-8'), str(path))
 
     def test_firewall_peer_port_has_no_packet_cap(self):
         overlay = (TARGET / "etc/nftables/services/qbittorrent.yml.tmpl").read_text()
@@ -257,6 +283,42 @@ stage_target_nftables_service_assets qbittorrent
             with self.assertRaises(SystemExit):
                 QBIT['select_routed_dns_servers'](b'nameserver 127.0.0.53\n'
                     b'nameserver 100.100.100.100\n', binding)
+
+    def test_private_dns_accepts_only_root_or_systemd_resolve_owned_state(self):
+        binding = ('eth0', '192.168.50.88')
+        service_uid = 991
+        cases = (
+            (0, 0, 0o755, 0o644, 1, True),
+            (service_uid, service_uid, 0o755, 0o644, 1, True),
+            (service_uid, 0, 0o755, 0o644, 1, True),
+            (1000, service_uid, 0o755, 0o644, 1, False),
+            (service_uid, 1000, 0o755, 0o644, 1, False),
+            (service_uid, service_uid, 0o775, 0o644, 1, False),
+            (service_uid, service_uid, 0o755, 0o664, 1, False),
+            (service_uid, service_uid, 0o755, 0o644, 2, False),
+        )
+        globals_ = QBIT['routed_dns_servers'].__globals__
+        for directory_uid, file_uid, directory_mode, file_mode, links, accepted in cases:
+            with self.subTest(directory_uid=directory_uid, file_uid=file_uid,
+                              directory_mode=directory_mode, file_mode=file_mode, links=links), \
+                 tempfile.TemporaryDirectory() as directory:
+                source = Path(directory) / 'resolv.conf'
+                source.write_bytes(b'nameserver 192.168.50.1\n')
+                def directory_metadata(path):
+                    return types.SimpleNamespace(st_mode=stat.S_IFDIR | (
+                        directory_mode if path == source.parent else 0o755),
+                        st_uid=directory_uid if path == source.parent else 0)
+                file_metadata = types.SimpleNamespace(st_mode=stat.S_IFREG | file_mode,
+                    st_uid=file_uid, st_nlink=links, st_size=source.stat().st_size)
+                with mock.patch.object(pwd, 'getpwnam', return_value=types.SimpleNamespace(pw_uid=service_uid)), \
+                     mock.patch.object(Path, 'lstat', autospec=True, side_effect=directory_metadata), \
+                     mock.patch.object(os, 'fstat', return_value=file_metadata), \
+                     mock.patch.dict(globals_, {'route_binding': lambda address: binding}):
+                    if accepted:
+                        self.assertEqual(QBIT['routed_dns_servers'](binding, source), ['192.168.50.1'])
+                    else:
+                        with self.assertRaises(SystemExit):
+                            QBIT['routed_dns_servers'](binding, source)
 
     def test_private_dns_is_mounted_and_disables_slirp_host_dns_proxy(self):
         account = pwd.struct_passwd(('fixture', 'x', os.getuid(), os.getgid(), '',

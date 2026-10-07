@@ -163,6 +163,8 @@ run_crowdsec_command() {
   if timeout --kill-after=10 120 "$@" >"$command_output" 2>&1; then
     rm -f -- "$command_output"
     return 0
+  else
+    command_status=$?
   fi
 
   if grep -Eiq '403|forbidden' "$command_output" 2>/dev/null; then
@@ -174,7 +176,7 @@ run_crowdsec_command() {
   fi
   command_level=warning
   [ "$command_requirement" = required ] && command_level=error
-  log_line bootstrap "$command_level" crowdsec "${command_name}=failed reason=${command_reason}"
+  log_line bootstrap "$command_level" crowdsec "${command_name}=failed reason=${command_reason} exit_status=${command_status}"
   rm -f -- "$command_output"
   return 1
 }
@@ -218,7 +220,7 @@ ensure_bouncer_api_key() {
 
 crowdsec_config_path() {
   config_key=$1
-  config_path=$(cscli config show -o raw --key "$config_key" 2>/dev/null || true)
+  config_path=$(timeout --kill-after=5 10 cscli config show -o raw --key "$config_key" 2>/dev/null || true)
   [ -n "$config_path" ] || return 1
   [ "${#config_path}" -le 4096 ] || return 1
   case "$config_path" in
@@ -231,6 +233,60 @@ crowdsec_config_path() {
   printf '%s\n' "$config_path"
 }
 
+verify_capi_enabled() {
+  for capi_key in Sharing PullConfig.Community PullConfig.Blocklists; do
+    capi_enabled=$(timeout --kill-after=5 10 cscli config show -o json \
+      --key "Config.API.Server.OnlineClient.${capi_key}" 2>/dev/null) || capi_enabled=
+    [ "$capi_enabled" = true ] || {
+      log_line bootstrap error crowdsec "capi_communication=disabled setting=${capi_key}"
+      return 1
+    }
+  done
+  log_line bootstrap info crowdsec "capi_communication=enabled"
+}
+
+capi_credentials_configured() {
+  # A nonempty file may contain only a URL or incomplete package defaults.
+  # Parse the private YAML without printing any credential value. Config-show
+  # intentionally does not load the credential object, only its file path.
+  timeout --kill-after=5 10 /usr/bin/python3 -I - "$online_credentials_file" <<'PY'
+import os
+from pathlib import Path
+import stat
+import sys
+import yaml
+
+try:
+    path = Path(sys.argv[1])
+    for parent in path.parents:
+        info = parent.lstat()
+        if (not stat.S_ISDIR(info.st_mode) or info.st_uid not in (0, os.geteuid())
+                or (info.st_mode & 0o022 and not info.st_mode & stat.S_ISVTX)):
+            sys.exit(2)
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(descriptor, "rb") as stream:
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
+                or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1
+                or info.st_size > 16384):
+            sys.exit(2)
+        content = stream.read(16385)
+    if len(content) > 16384:
+        sys.exit(2)
+    data = yaml.safe_load(content)
+    if data is None:
+        sys.exit(1)
+    if not isinstance(data, dict):
+        sys.exit(2)
+    sys.exit(0 if all(isinstance(data.get(key), str) and data[key]
+                      for key in ("url", "login", "password")) else 1)
+except FileNotFoundError:
+    sys.exit(1)
+except (OSError, ValueError, yaml.YAMLError):
+    sys.exit(2)
+PY
+}
+
 ensure_capi_registration() {
   online_credentials_file=$(
     crowdsec_config_path Config.API.Server.OnlineClient.CredentialsFilePath
@@ -239,17 +295,30 @@ ensure_capi_registration() {
     return 1
   }
 
-  if [ -s "$online_credentials_file" ]; then
+  if capi_credentials_configured; then
     log_line bootstrap info crowdsec "capi_registration=present"
-    return 0
+  else
+    capi_config_status=$?
+    [ "$capi_config_status" -eq 1 ] || {
+      log_line bootstrap error crowdsec "capi_credentials_configuration=invalid"
+      return 1
+    }
+    log_line bootstrap info crowdsec "capi_registration=start"
+    run_required_crowdsec_command capi-register cscli capi register --error || return 1
+    capi_credentials_configured || {
+      log_line bootstrap error crowdsec "capi_registration=missing-credentials"
+      return 1
+    }
   fi
-
-  log_line bootstrap info crowdsec "capi_registration=start"
-  run_required_crowdsec_command capi-register cscli capi register --error || return 1
-  [ -s "$online_credentials_file" ] || {
-    log_line bootstrap error crowdsec "capi_registration=missing-credentials"
+  verify_capi_enabled || return 1
+  # Activate credentials before enrollment, including a registration performed
+  # manually between retries. A failed reload must recheck core on retry.
+  rm -f -- "$CROWDSEC_CORE_READY_FILE" || return 1
+  if ! systemctl reload crowdsec.service || ! wait_for_lapi 45; then
+    log_line bootstrap error crowdsec "capi_registration=activation-pending"
     return 1
-  }
+  fi
+  write_core_ready_marker || return 1
   log_line bootstrap info crowdsec "capi_registration=complete"
 }
 
@@ -286,7 +355,7 @@ enroll_console() {
   while [ "$attempt" -le "$CROWDSEC_ENROLL_ATTEMPTS" ]; do
     log_line bootstrap info crowdsec "console_enrollment=attempt hostname=${host_name} attempt=${attempt}/${CROWDSEC_ENROLL_ATTEMPTS}"
     enroll_output=$(mktemp "$work_dir/enroll.XXXXXX") || return $?
-    if timeout --kill-after=10 60 cscli console enroll --overwrite --name "$host_name" "$crowdsec_token" >"$enroll_output" 2>&1; then
+    if timeout --kill-after=10 60 cscli console enroll --overwrite --name "$host_name" -- "$crowdsec_token" >"$enroll_output" 2>&1; then
       rm -f -- "$enroll_output"
       return 0
     fi
@@ -370,11 +439,6 @@ run_required_crowdsec_command collections-install \
   write_status 1 error
   exit 1
 }
-ensure_capi_registration || {
-  stop_bootstrap_services
-  write_status 1 error
-  exit 1
-}
 ensure_bouncer_api_key || {
   log_line bootstrap error crowdsec "bouncer_api_key_missing=true"
   write_status 1 error
@@ -406,6 +470,14 @@ write_core_ready_marker || {
 log_line bootstrap info crowdsec "core_bootstrap=complete"
 fi
 
+# Remote availability must not stop verified local detection and remediation.
+# Keep the token and completion gate intact until registration/enrollment works.
+ensure_capi_registration || {
+  write_status 1 retry-pending
+  log_line bootstrap warning crowdsec "capi_registration=pending retry=systemd"
+  exit 1
+}
+
 enrollment_status=skipped
 if crowdsec_token=$(read_token 2>/dev/null); then
   host_name=$(hostname -f 2>/dev/null || hostname 2>/dev/null || printf '%s\n' crowdsec-node)
@@ -426,11 +498,11 @@ if crowdsec_token=$(read_token 2>/dev/null); then
     elif [ "$enroll_status" -eq 3 ]; then
       write_status 1 retry-pending
       log_line bootstrap warning crowdsec \
-        "console_enrollment=pending reason=forbidden-response hostname=${host_name} token_retained=true retry_in=1h"
+        "console_enrollment=pending reason=forbidden-response hostname=${host_name} token_retained=true retry=systemd"
       exit 1
     else
       log_line bootstrap warning crowdsec \
-        "console_enrollment=pending reason=temporary-failure hostname=${host_name} token_retained=true retry_in=1h"
+        "console_enrollment=pending reason=temporary-failure hostname=${host_name} token_retained=true retry=systemd"
       write_status 1 failed
       exit 1
     fi

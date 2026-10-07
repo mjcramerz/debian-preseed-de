@@ -1,4 +1,4 @@
-# Native logging only; engine, credentials and acquisition remain intact.
+# Managed native logging and enabled Central API communication.
 common:
   log_media: file
   log_dir: __INSTALLER_LOG_CROWDSEC_DIR__
@@ -7,3 +7,11 @@ common:
   log_max_age: __INSTALLER_LOG_ROTATE_MAXAGE_DAYS__
   log_max_files: __INSTALLER_LOG_ROTATE_COUNT__
   compress_logs: true
+api:
+  server:
+    online_client:
+      credentials_path: /etc/crowdsec/online_api_credentials.yaml
+      sharing: true
+      pull:
+        community: true
+        blocklists: true

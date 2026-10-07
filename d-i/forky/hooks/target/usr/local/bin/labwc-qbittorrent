@@ -156,24 +156,17 @@ def configured_peer_port(defaults: dict[str, str]) -> int:
 def select_storage_root(
     account: pwd.struct_passwd, configured_root: pathlib.Path,
 ) -> pathlib.Path:
-    if os.path.lexists(configured_root):
-        # A directory left on /run itself is not a persistent volume.
-        runtime_root = pathlib.Path("/run")
-        if (not configured_root.is_dir() or configured_root.resolve() != configured_root or
-                not runtime_root.is_dir() or
-                configured_root.stat().st_dev != runtime_root.stat().st_dev):
-            return configured_root
-    # /run/media is transient and may have no mounted torrent volume. Never
-    # create the configured root there: that would put downloads in tmpfs.
-    home = pathlib.Path(account.pw_dir)
-    require_real_directory(home, "qBittorrent account home")
-    if home.stat().st_uid != os.getuid() or home.resolve() != home:
-        fail("qBittorrent account home has unsafe ownership or symlink ancestry")
-    fallback = home / "bittorrent"
-    ensure_directory(fallback, 0o700)
-    if fallback.stat().st_uid != os.getuid():
-        fail("qBittorrent fallback storage must be owned by the desktop user")
-    return fallback
+    require_real_directory(configured_root, "qBittorrent storage volume")
+    if configured_root.resolve() != configured_root:
+        fail(f"qBittorrent storage volume must not resolve through symlinks: {configured_root}")
+    # /run/media is transient. Require the configured volume before creating
+    # any profile or download directory; never redirect storage into the home.
+    try:
+        if configured_root.stat().st_dev == pathlib.Path("/run").stat().st_dev:
+            fail(f"qBittorrent storage volume is not mounted: {configured_root}")
+    except OSError as exc:
+        fail(f"cannot verify qBittorrent storage volume: {exc}")
+    return configured_root
 
 
 def require_real_directory(path: pathlib.Path, label: str) -> None:
@@ -274,15 +267,20 @@ def routed_dns_servers(binding: tuple[str, str], source: pathlib.Path = SYSTEMD_
     127.0.0.53 stub; systemd-resolved rejects that non-loopback source.
     """
     try:
+        resolver_owners = {0, pwd.getpwnam("systemd-resolve").pw_uid}
+    except KeyError:
+        fail("systemd-resolve account is unavailable")
+    try:
         for directory in (pathlib.Path("/run"), pathlib.Path("/run/systemd"), source.parent):
             metadata = directory.lstat()
-            if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0
+            owners = resolver_owners if directory == source.parent else {0}
+            if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid not in owners
                     or metadata.st_mode & 0o022):
                 fail(f"unsafe qBittorrent resolver directory: {directory}")
         descriptor = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
         with os.fdopen(descriptor, "rb") as handle:
             metadata = os.fstat(handle.fileno())
-            if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
+            if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid not in resolver_owners
                     or metadata.st_mode & 0o022 or metadata.st_nlink != 1
                     or not 0 < metadata.st_size <= 16_384):
                 fail("unsafe systemd-resolved upstream DNS configuration")

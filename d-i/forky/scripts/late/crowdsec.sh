@@ -116,8 +116,18 @@ crowdsec_stage_logging_overlay() {
     [ -f "$logging_overlay_host" ] && [ ! -L "$logging_overlay_host" ] ||
       crowdsec_fatal "unsafe CrowdSec logging overlay"
     LC_ALL=C awk -v kind="$logging_overlay_kind" '
+      BEGIN {
+        capi[1]="api:"; capi[2]="  server:"; capi[3]="    online_client:"
+        capi[4]="      credentials_path: /etc/crowdsec/online_api_credentials.yaml"
+        capi[5]="      sharing: true"; capi[6]="      pull:"
+        capi[7]="        community: true"; capi[8]="        blocklists: true"
+      }
       /^[ \t]*#/ || /^[ \t]*$/ { next }
       {
+        if (kind=="engine" && ($0=="api:" || capi_line)) {
+          if ($0!=capi[++capi_line]) exit 1
+          next
+        }
         if (kind=="engine" && $0=="common:") {
           if (section++) exit 1
           next
@@ -135,6 +145,7 @@ crowdsec_stage_logging_overlay() {
           if (key !~ /^(log_mode|log_dir|log_level|log_max_size|log_max_age|log_max_backups|log_compression)$/) exit 1
         }
       }
+      END { if (capi_line && capi_line!=8) exit 1 }
     ' "$logging_overlay_host" || crowdsec_fatal "preserving administrator CrowdSec overlay: $logging_overlay_target"
   fi
   crowdsec_stage_target_asset "$logging_overlay_repo" "$logging_overlay_target" 0600
