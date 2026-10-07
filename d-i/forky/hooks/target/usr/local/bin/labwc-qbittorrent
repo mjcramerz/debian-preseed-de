@@ -29,6 +29,7 @@ MAX_LAUNCH_ARGUMENTS = 64
 MAX_LAUNCH_ARGUMENT_BYTES = 8192
 MAX_TORRENT_FILE_BYTES = 16 * 1024 * 1024
 DEFAULT_PORT = 50309
+SYSTEMD_RESOLVERS = pathlib.Path("/run/systemd/resolve/resolv.conf")
 USERNAME_PATTERN = re.compile(r"^[a-z_][a-z0-9_-]*$")
 DBUS_ADDRESS_PATTERN = re.compile(r"unix:path=([^,]+)(?:,[^=]+=[^,]+)*")
 DEFAULT_KEYS = {
@@ -218,23 +219,21 @@ def prepare_storage(root: pathlib.Path) -> dict[str, pathlib.Path]:
     return paths
 
 
-def network_binding() -> tuple[str, str]:
-    """Select one Internet route locally; route get does not transmit a packet."""
-    # slirp4netns add_hostfwd supports IPv4 listeners. Require that contract
-    # instead of starting a download-only sandbox with unusable peer forwards.
+def route_binding(destination: str) -> tuple[str, str]:
+    """Read the kernel's IPv4 route without transmitting a packet."""
     try:
         result = subprocess.run(
-            ["/usr/sbin/ip", "-j", "-4", "route", "get", "1.1.1.1"],
+            ["/usr/sbin/ip", "-j", "-4", "route", "get", destination],
             stdin=subprocess.DEVNULL, capture_output=True, timeout=5,
             env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C"},
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        fail(f"cannot inspect the qBittorrent Internet route: {exc}")
+        raise ValueError("route lookup failed") from exc
     if result.returncode:
-        fail("qBittorrent private peer forwarding requires an active IPv4 Internet route")
+        raise ValueError("route is unavailable")
     if len(result.stdout) > 16384:
-        fail("qBittorrent Internet route response is oversized")
+        raise ValueError("route response is oversized")
     try:
         routes = json.loads(result.stdout)
         if not isinstance(routes, list) or len(routes) != 1 or not isinstance(routes[0], dict):
@@ -250,11 +249,83 @@ def network_binding() -> tuple[str, str]:
         if (address.is_loopback or address.is_link_local
                 or address.is_unspecified or address.is_multicast or address.is_reserved):
             raise ValueError("unusable route source address")
-        if interface == "lo" or interface.startswith("tailscale"):
-            fail("qBittorrent Internet route uses loopback or Tailscale; activate a LAN or VPN Internet route")
         return interface, str(address)
     except (ValueError, TypeError) as exc:
-        fail(f"invalid qBittorrent Internet route response: {exc}")
+        raise ValueError("invalid route response") from exc
+
+
+def network_binding() -> tuple[str, str]:
+    """Select one Internet route for the private peer listener and egress."""
+    # slirp4netns add_hostfwd supports IPv4 listeners. Require that contract
+    # instead of starting a download-only sandbox with unusable peer forwards.
+    try:
+        interface, source = route_binding("1.1.1.1")
+    except ValueError as exc:
+        fail(f"qBittorrent private peer forwarding requires an active IPv4 Internet route: {exc}")
+    if interface == "lo" or interface.startswith("tailscale"):
+        fail("qBittorrent Internet route uses loopback or Tailscale; activate a LAN or VPN Internet route")
+    return interface, source
+
+
+def routed_dns_servers(binding: tuple[str, str], source: pathlib.Path = SYSTEMD_RESOLVERS) -> list[str]:
+    """Use only upstream DNS servers reachable by the selected Internet route.
+
+    slirp's built-in DNS inherits --outbound-addr when it contacts the host's
+    127.0.0.53 stub; systemd-resolved rejects that non-loopback source.
+    """
+    try:
+        for directory in (pathlib.Path("/run"), pathlib.Path("/run/systemd"), source.parent):
+            metadata = directory.lstat()
+            if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0
+                    or metadata.st_mode & 0o022):
+                fail(f"unsafe qBittorrent resolver directory: {directory}")
+        descriptor = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
+        with os.fdopen(descriptor, "rb") as handle:
+            metadata = os.fstat(handle.fileno())
+            if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
+                    or metadata.st_mode & 0o022 or metadata.st_nlink != 1
+                    or not 0 < metadata.st_size <= 16_384):
+                fail("unsafe systemd-resolved upstream DNS configuration")
+            content = handle.read(16_385)
+    except OSError as exc:
+        fail(f"systemd-resolved upstream DNS configuration is unavailable: {exc}")
+    if len(content) > 16_384:
+        fail("systemd-resolved upstream DNS configuration is oversized")
+    return select_routed_dns_servers(content, binding)
+
+
+def select_routed_dns_servers(content: bytes, binding: tuple[str, str]) -> list[str]:
+    """Reject stub, Tailscale and off-route upstreams before creating a sandbox."""
+    try:
+        lines = content.decode("ascii").splitlines()
+    except UnicodeError:
+        fail("invalid systemd-resolved upstream DNS configuration")
+    selected: list[str] = []
+    for line in lines:
+        fields = line.split()
+        if len(fields) != 2 or fields[0] != "nameserver":
+            continue
+        try:
+            address = ipaddress.IPv4Address(fields[1])
+        except ipaddress.AddressValueError:
+            continue
+        if (address.is_loopback or address.is_link_local or address.is_unspecified
+                or address.is_multicast or address.is_reserved):
+            continue
+        candidate = str(address)
+        if candidate in selected:
+            continue
+        try:
+            if route_binding(candidate) != binding:
+                continue
+        except ValueError:
+            continue
+        selected.append(candidate)
+        if len(selected) == 3:
+            break
+    if not selected:
+        fail("no IPv4 DNS server follows the selected qBittorrent Internet route")
+    return selected
 
 
 def managed_settings(
@@ -997,6 +1068,7 @@ def run_new_instance(
     acceleration_mode: str, launch_arguments: list[str], port: int,
 ) -> int:
     binding = network_binding()
+    dns_servers = routed_dns_servers(binding)
     write_config(paths["profile_home"], paths, ("tap0", "10.0.2.100"), port)
     runtime = network_runtime()
     binary = pathlib.Path(runtime.SLIRP4NETNS_BINARY)
@@ -1016,7 +1088,10 @@ def run_new_instance(
         prefix="labwc-qbittorrent-sandbox-", dir=f"/run/user/{os.getuid()}",
     ) as temporary:
         resolver = pathlib.Path(temporary) / "resolv.conf"
-        resolver.write_text("nameserver 10.0.2.3\noptions edns0\n", encoding="ascii")
+        resolver.write_text(
+            "".join(f"nameserver {server}\n" for server in dns_servers)
+            + "options timeout:2 attempts:2\n", encoding="ascii",
+        )
         resolver.chmod(0o600)
         command = build_command(
             account, root, paths["profile_home"], acceleration_mode,
@@ -1025,7 +1100,7 @@ def run_new_instance(
         payload_count = 1 + len(launch_arguments)
         return runtime.run_slirp4netns_sandbox(
             command[:-payload_count], command[-payload_count:], temporary, (),
-            slirp_binary=str(binary), peer_forward=(binding[1], port),
+            slirp_binary=str(binary), peer_forward=(binding[1], port), disable_dns=True,
         )
 
 

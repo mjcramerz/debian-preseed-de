@@ -191,6 +191,15 @@ class SuppliedDenialTests(unittest.TestCase):
                             self.assertNotIn('r', permissions(label, filename, owned=False))
                         self.assertNotIn('r', permissions(label, f'/proc/{pid}/environ'))
                     self.assertTrue(set('rw') <= permissions(label, '/dev/pts/0'))
+            for label in ('codex-wrapper//codex-bwrap', 'codex-runtime//codex-bwrap'):
+                with self.subTest(codex_profile=label):
+                    self.assertEqual(permissions(label, '/var/lib/dpkg/diversions', owned=False), {'r'})
+            self.assertIn('r', permissions('labwc-qbittorrent', '/proc/12058/fd/'))
+            self.assertNotIn('r', permissions('labwc-qbittorrent', '/proc/12058/fd/', owned=False))
+            self.assertIn('r', permissions('labwc-qbittorrent',
+                                           '/run/systemd/resolve/resolv.conf', owned=False))
+            self.assertNotIn('w', permissions('labwc-qbittorrent',
+                                              '/run/systemd/resolve/resolv.conf', owned=False))
             # The direct profile has no namespace-construction grants, so a
             # terminal from another account does not acquire access here.
             self.assertFalse(permissions('qbittorrent', '/dev/pts/0', owned=False))

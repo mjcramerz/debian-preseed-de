@@ -792,8 +792,9 @@ printf '%s\n' 1
         self.assertNotIn('bouncers add', helper)
         self.assertIn('crowdsec-bouncer-verify', helper)
         unit = payload_read_text(ROOT/'hooks/target/etc/systemd/system/crowdsec-firstboot.service')
-        self.assertIn('StartLimitIntervalSec=infinity', unit)
-        self.assertIn('StartLimitBurst=3', unit)
+        self.assertIn('RestartSec=1h', unit)
+        self.assertIn('RestartPreventExitStatus=2', unit)
+        self.assertNotIn('StartLimitIntervalSec=infinity', unit)
 
     def test_mullvad_offline_validation_and_runtime_activation_are_distinct(self):
         text = payload_read_text(ROOT/'scripts/late/mullvad.sh')

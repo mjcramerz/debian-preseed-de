@@ -508,6 +508,7 @@ def run_slirp4netns_sandbox(
     cleanup_failure: Callable[[], None] | None = None,
     discord_rpc: bool = False,
     peer_forward: tuple[str, int] | None = None,
+    disable_dns: bool = False,
 ) -> int:
     if peer_forward is not None:
         # Validate before creating namespaces or listeners. The source address
@@ -597,6 +598,7 @@ def run_slirp4netns_sandbox(
                 "--configure",
                 f"--mtu={SLIRP4NETNS_MTU}",
                 "--disable-host-loopback",
+                *(["--disable-dns"] if disable_dns else []),
                 *([f"--outbound-addr={peer_forward[0]}"] if peer_forward is not None else []),
                 *(["--api-socket", api_path] if api_path else []),
                 "--ready-fd",

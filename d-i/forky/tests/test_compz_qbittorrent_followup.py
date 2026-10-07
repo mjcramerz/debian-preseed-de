@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import configparser
+import contextlib
 import json
 import os
 from pathlib import Path
@@ -9,12 +10,14 @@ import pwd
 import runpy
 import shutil
 import socket
+import stat
 import struct
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+import types
 import unittest
 from unittest import mock
 
@@ -239,6 +242,52 @@ stage_target_nftables_service_assets qbittorrent
         with mock.patch.object(subprocess, 'run', return_value=subprocess.CompletedProcess([], 2, b'', b'')):
             with self.assertRaises(SystemExit): QBIT['network_binding']()
 
+    def test_private_dns_keeps_only_servers_on_the_selected_route(self):
+        binding = ('eth0', '192.168.50.88')
+        config = (b'nameserver 127.0.0.53\nnameserver 2001:db8::53\n'
+                  b'nameserver 100.100.100.100\nnameserver 10.64.0.1\n'
+                  b'nameserver 192.168.50.1\nnameserver 192.168.50.1\n')
+        routes = {'100.100.100.100': ('tailscale0', '100.65.244.106'),
+                  '10.64.0.1': ('wg0', '10.64.0.2'),
+                  '192.168.50.1': binding}
+        globals_ = QBIT['select_routed_dns_servers'].__globals__
+        with mock.patch.dict(globals_, {'route_binding': lambda address: routes[address]}):
+            self.assertEqual(QBIT['select_routed_dns_servers'](config, binding),
+                             ['192.168.50.1'])
+            with self.assertRaises(SystemExit):
+                QBIT['select_routed_dns_servers'](b'nameserver 127.0.0.53\n'
+                    b'nameserver 100.100.100.100\n', binding)
+
+    def test_private_dns_is_mounted_and_disables_slirp_host_dns_proxy(self):
+        account = pwd.struct_passwd(('fixture', 'x', os.getuid(), os.getgid(), '',
+                                     '/home/fixture', '/bin/sh'))
+        with tempfile.TemporaryDirectory() as directory:
+            captured = []
+            def launch(*args, **kwargs):
+                command = args[0]
+                resolver = Path(command[command.index('--ro-bind') + 1])
+                captured.append((resolver.read_text(encoding='ascii'), kwargs))
+                return 0
+            runtime = types.SimpleNamespace(SLIRP4NETNS_BINARY='/usr/bin/true',
+                                            run_slirp4netns_sandbox=launch)
+            globals_ = QBIT['run_new_instance'].__globals__
+            with mock.patch.dict(globals_, {'network_binding': lambda: ('eth0', '192.168.50.88'),
+                                           'routed_dns_servers': lambda binding: ['192.168.50.1'],
+                                           'write_config': mock.Mock(), 'network_runtime': lambda: runtime,
+                                           'build_command': lambda *args: ['bwrap', '--ro-bind',
+                                               str(args[-1]), '/etc/resolv.conf', 'qbittorrent']}), \
+                 mock.patch.object(tempfile, 'TemporaryDirectory',
+                                   return_value=contextlib.nullcontext(directory)), \
+                 mock.patch.object(Path, 'lstat', return_value=types.SimpleNamespace(
+                     st_mode=stat.S_IFREG | 0o755, st_uid=0)), \
+                 mock.patch.object(QBIT['run_new_instance'].__globals__['signal'], 'signal'):
+                self.assertEqual(QBIT['run_new_instance'](account, Path(directory),
+                    {'profile_home': Path(directory)}, 'launch', [], 50309), 0)
+            self.assertEqual(captured[0][0],
+                             'nameserver 192.168.50.1\noptions timeout:2 attempts:2\n')
+            self.assertEqual(captured[0][1]['peer_forward'], ('192.168.50.88', 50309))
+            self.assertTrue(captured[0][1]['disable_dns'])
+
     def test_repeated_launch_sends_qt_ipc_without_starting_another_network_helper(self):
         with tempfile.TemporaryDirectory() as directory:
             profile = Path(directory)
@@ -328,13 +377,15 @@ stage_target_nftables_service_assets qbittorrent
                 self.assertRaises(SystemExit):
             network_namespace.run_slirp4netns_sandbox(
                 ['/usr/bin/bwrap', '--unshare-all'], ['/usr/bin/qbittorrent'], directory, (),
-                slirp_binary='/usr/bin/slirp4netns', peer_forward=('192.168.50.88', 50309))
+                slirp_binary='/usr/bin/slirp4netns', peer_forward=('192.168.50.88', 50309),
+                disable_dns=True)
         release.assert_not_called()
         bwrap.terminate.assert_called_once()
         bwrap.wait.assert_called()
         slirp.wait.assert_called()
         helper_command = launch.call_args_list[1].args[0]
         self.assertIn('--disable-host-loopback', helper_command)
+        self.assertIn('--disable-dns', helper_command)
         self.assertIn('--outbound-addr=192.168.50.88', helper_command)
         self.assertIn('--api-socket', helper_command)
 
