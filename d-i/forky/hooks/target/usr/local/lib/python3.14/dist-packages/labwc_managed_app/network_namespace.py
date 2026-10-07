@@ -5,10 +5,12 @@ from __future__ import annotations
 from collections.abc import Callable
 
 import errno
+import ipaddress
 import json
 import socket
 import os
 import select
+import signal
 import subprocess
 import time
 
@@ -23,6 +25,58 @@ SLIRP4NETNS_DNS_ADDRESS = "10.0.2.3"
 SLIRP4NETNS_MTU = 65_520
 SLIRP4NETNS_STOP_TIMEOUT_SECONDS = 2
 SLIRP4NETNS_TAP_NAME = "tap0"
+
+# Bubblewrap's block-fd accepts EOF as readiness. In peer mode a second,
+# inherited pipe authorizes exec only on an explicit marker; early setup
+# failures and supervisor death therefore cannot start the torrent payload.
+# This fixed code runs after namespace setup and closes its only extra fd
+# before replacing itself, so it adds no long-lived process.
+PEER_STARTUP_GATE = (
+    "import os,sys; fd=int(sys.argv[1]); marker=os.read(fd,1); os.close(fd); "
+    "sys.exit(1) if marker != b'1' else os.execv(sys.argv[2],sys.argv[2:])"
+)
+
+
+def validate_peer_forward(host_address: str, port: int) -> str:
+    if not isinstance(host_address, str):
+        fail("invalid private peer forwarding address")
+    try:
+        address = ipaddress.IPv4Address(host_address)
+    except (ValueError, TypeError):
+        fail("invalid private peer forwarding address")
+    if (address.is_loopback or address.is_unspecified or address.is_link_local
+            or address.is_multicast or address.is_reserved
+            or type(port) is not int or not 1024 <= port <= 65535):
+        fail("invalid private peer forwarding policy")
+    return str(address)
+
+
+def configure_peer_forward(api_path: str, host_address: str, port: int) -> None:
+    """Forward both torrent transports before releasing the private payload."""
+    address = validate_peer_forward(host_address, port)
+    os.chmod(api_path, 0o600)
+    for protocol in ("tcp", "udp"):
+        request = {"execute": "add_hostfwd", "arguments": {
+            "proto": protocol, "host_addr": address, "host_port": port,
+            "guest_addr": "10.0.2.100", "guest_port": port,
+        }}
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as channel:
+                channel.settimeout(2)
+                channel.connect(api_path)
+                channel.sendall(json.dumps(request).encode("ascii"))
+                channel.shutdown(socket.SHUT_WR)
+                response = bytearray()
+                while len(response) <= 4096:
+                    chunk = channel.recv(4097 - len(response))
+                    if not chunk:
+                        break
+                    response.extend(chunk)
+                value = json.loads(response) if len(response) <= 4096 else None
+            if not isinstance(value, dict) or "return" not in value or "error" in value:
+                raise ValueError("host forwarding was rejected")
+        except (OSError, ValueError) as exc:
+            fail(f"private peer {protocol} port {port} forwarding failed; no application was started: {exc}")
 
 # slirp cannot reach a service bound to the guest's 127.0.0.1 directly.
 # Its host forwards target these private TAP listeners; only this supervisor
@@ -453,7 +507,14 @@ def run_slirp4netns_sandbox(
     cleanup_deadline: Callable[[], float] | None = None,
     cleanup_failure: Callable[[], None] | None = None,
     discord_rpc: bool = False,
+    peer_forward: tuple[str, int] | None = None,
 ) -> int:
+    if peer_forward is not None:
+        # Validate before creating namespaces or listeners. The source address
+        # pins outbound traffic to the same active route as the host forwards.
+        validate_peer_forward(*peer_forward)
+        if discord_rpc:
+            fail("invalid private peer forwarding policy")
     info_read_fd = None
     info_write_fd = None
     block_read_fd = None
@@ -462,10 +523,14 @@ def run_slirp4netns_sandbox(
     ready_write_fd = None
     exit_read_fd = None
     exit_write_fd = None
+    gate_read_fd = None
+    gate_write_fd = None
     bwrap_process = None
     slirp_process = None
     stderr_handle = None
-    api_path = os.path.join(temp_root, "slirp4netns.api") if discord_rpc else None
+    sandbox_pidfd = None
+    payload_released = False
+    api_path = os.path.join(temp_root, "slirp4netns.api") if discord_rpc or peer_forward is not None else None
 
     try:
         info_read_fd, info_write_fd = os.pipe()
@@ -473,17 +538,25 @@ def run_slirp4netns_sandbox(
         ready_read_fd, ready_write_fd = os.pipe()
         exit_read_fd, exit_write_fd = os.pipe()
 
+        sandbox_argv = payload_argv
+        gate_fds = ()
+        if peer_forward is not None:
+            gate_read_fd, gate_write_fd = os.pipe()
+            gate_fds = (gate_read_fd,)
+            sandbox_argv = ["/usr/bin/python3", "-I", "-B", "-c", PEER_STARTUP_GATE,
+                            str(gate_read_fd), *payload_argv]
+
         bwrap_command = [
             *command,
             "--info-fd",
             str(info_write_fd),
             "--block-fd",
             str(block_read_fd),
-            *payload_argv,
+            *sandbox_argv,
         ]
         bwrap_pass_fds = tuple(
             dict.fromkeys(
-                (*inherited_fds, info_write_fd, block_read_fd)
+                (*inherited_fds, info_write_fd, block_read_fd, *gate_fds)
             )
         )
         bwrap_process = subprocess.Popen(
@@ -496,6 +569,8 @@ def run_slirp4netns_sandbox(
         info_write_fd = None
         close_file_descriptor(block_read_fd)
         block_read_fd = None
+        close_file_descriptor(gate_read_fd)
+        gate_read_fd = None
 
         sandbox_pid = _read_bwrap_sandbox_pid(
             info_read_fd,
@@ -504,6 +579,14 @@ def run_slirp4netns_sandbox(
         )
         close_file_descriptor(info_read_fd)
         info_read_fd = None
+        if peer_forward is not None:
+            # Bubblewrap's block-fd also releases on EOF. Pin the namespace
+            # init so failed peer setup can kill it BEFORE closing that pipe,
+            # without signalling a PID that could have been reused.
+            try:
+                sandbox_pidfd = os.pidfd_open(sandbox_pid)
+            except OSError as exc:
+                fail(f"cannot pin the private peer namespace for safe cancellation: {exc}")
 
         stderr_path = os.path.join(temp_root, "slirp4netns.stderr")
         stderr_handle = open(stderr_path, "w+b", buffering=0)
@@ -514,6 +597,7 @@ def run_slirp4netns_sandbox(
                 "--configure",
                 f"--mtu={SLIRP4NETNS_MTU}",
                 "--disable-host-loopback",
+                *([f"--outbound-addr={peer_forward[0]}"] if peer_forward is not None else []),
                 *(["--api-socket", api_path] if api_path else []),
                 "--ready-fd",
                 str(ready_write_fd),
@@ -543,8 +627,10 @@ def run_slirp4netns_sandbox(
         )
         close_file_descriptor(ready_read_fd)
         ready_read_fd = None
-        if api_path is not None:
+        if discord_rpc and api_path is not None:
             configure_discord_rpc(api_path, runtime_check=runtime_check)
+        elif peer_forward is not None and api_path is not None:
+            configure_peer_forward(api_path, *peer_forward)
         if pre_payload_check is not None:
             pre_payload_check()
         bwrap_status = bwrap_process.poll()
@@ -571,12 +657,17 @@ def run_slirp4netns_sandbox(
             )
         try:
             os.write(block_write_fd, b"1")
+            if gate_write_fd is not None:
+                os.write(gate_write_fd, b"1")
+            payload_released = True
         except (BrokenPipeError, OSError):
             status = bwrap_process.poll()
             suffix = f" (status {status})" if status is not None else ""
             fail(f"cannot release the configured Bubblewrap sandbox{suffix}")
         close_file_descriptor(block_write_fd)
         block_write_fd = None
+        close_file_descriptor(gate_write_fd)
+        gate_write_fd = None
 
         return _wait_for_bwrap_with_slirp4netns(
             bwrap_process,
@@ -585,6 +676,14 @@ def run_slirp4netns_sandbox(
             runtime_check,
         )
     finally:
+        if sandbox_pidfd is not None:
+            try:
+                if not payload_released:
+                    signal.pidfd_send_signal(sandbox_pidfd, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            finally:
+                close_file_descriptor(sandbox_pidfd)
         deadline = cleanup_deadline() if cleanup_deadline is not None else None
         cleanup_ok = True
         if deadline is not None:
@@ -601,6 +700,8 @@ def run_slirp4netns_sandbox(
             ready_read_fd,
             ready_write_fd,
             exit_read_fd,
+            gate_read_fd,
+            gate_write_fd,
         ):
             close_file_descriptor(file_descriptor)
         close_file_descriptor(exit_write_fd)

@@ -175,6 +175,7 @@ profile desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exe
   ptrace (read) peer=labwc-chatgpt-log-runner,
   ptrace (read) peer=labwc-chatgpt,
   ptrace (read) peer=chatgpt-slirp4netns,
+  ptrace (read) peer=qbittorrent-slirp4netns,
   ptrace (read) peer=desktop-launcher//application-bwrap,
   # btop in the terminal needs read-only process statistics, not ptrace writes.
   ptrace (read) peer=bitwarden,

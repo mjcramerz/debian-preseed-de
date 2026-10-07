@@ -1,4 +1,40 @@
-# Build status - 2026-10-07 gtkgreet power actions
+# Build status - 2026-10-07 desktop runtime and qBittorrent networking
+
+The [desktop runtime validation record](docs/validation/desktop-runtime-20261007.md)
+covers all 48 TODO files and the complete uncommitted integration. qBittorrent
+uses packaged slirp4netns in a private network, with TCP and UDP forwarding on
+the profile-selected port and active IPv4 route. Startup readiness, concurrent
+launch IPC and cancellation are bounded. Mounted torrent storage has scoped
+sysfs metadata reads and no raw block-device access.
+
+Mako login and D-Bus activation share one systemd service through the canonical
+package-maintenance producer. Ctrl+Win+L enters the host user-manager namespace
+before applying the unchanged strict root policy check. ChatGPT's standard save
+directories and cold document-portal mount have matching sandbox and AppArmor
+write permissions.
+
+The focused suites ran 120 tests: 116 passed and 4 were skipped for actual-root
+fixtures or the unavailable host TUN device. Real Unix IPC/API, flock, dash/ash
+publication and inert Bubblewrap startup/cancellation fixtures were exercised;
+route replies, portal transport and successful network readiness used mocks.
+All 45 managed AppArmor policy files parse offline and their named transitions,
+includes and staging references pass. All 711 shell parser checks pass.
+
+The rebuilt 1,704-member payload, manifest and preseed pins are current. Archive
+read-back matches every source file and manifest entry. Exactly 15 payload
+members changed; member names and all archive metadata are preserved. All 14
+members named for private Xwayland/compatibility are unchanged; the shared
+network supervisor's new peer mode is selected only by qBittorrent. The
+private-Xwayland suite's unchanged sys_ptrace assertion also fails in HEAD.
+
+No software compilation, host policy load, desktop restart, router change or
+deployment occurred. Local verification uses Forky/systemd 262; the requested
+target remains Forky/systemd 261.2. External incoming TCP/UDP, private-tracker
+seeding, actual ChatGPT downloads and desktop enforcement need installed-target
+acceptance. The supplied eDP-1 atomic EBUSY failures are investigated but remain
+unverified on hardware; no speculative modesetting change was introduced.
+
+## Previous snapshot record - 2026-10-07 gtkgreet power actions
 
 The [greeter power validation record](docs/validation/gtkgreet-power-20261007.md)
 identifies the supplied LPL-697 failure: pkexec rejected the `_greetd` account's

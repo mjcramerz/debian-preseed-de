@@ -219,6 +219,7 @@ profile waypaper /{usr/local/bin/waypaper,opt/waypaper/bin/waypaper,opt/waypaper
     ptrace (read) peer=labwc-chatgpt//chatgpt-dbus-proxy,
     ptrace (read) peer=labwc-chatgpt//chatgpt-bwrap,
     ptrace (read) peer=chatgpt-slirp4netns,
+    ptrace (read) peer=qbittorrent-slirp4netns,
     ptrace (read) peer=labwc-app,
     ptrace (read) peer=labwc-app//app-bwrap,
     ptrace (read) peer=codex-wrapper,
@@ -1820,6 +1821,8 @@ profile labwc-idle-toggle /usr/local/bin/labwc-idle-toggle flags=(attach_disconn
   /usr/local/libexec/labwc-notification-send rix,
   /usr/local/libexec/labwc-output-watch rPx -> labwc-output-watch,
   /usr/bin/{systemctl,busctl} rix,
+  /usr/bin/systemd-run rpux,
+  owner @{PROC}/@{pid}/cgroup r,
   /usr/bin/swayidle rPx -> session-controls,
   owner /run/user/[0-9]*/{bus,systemd/private,wayland-*} rw,
   owner /run/user/[0-9]*/{labwc-idle.json,labwc-idle.lock,.labwc-idle.*} rwk,
@@ -1931,6 +1934,14 @@ profile labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected, mediate
   /usr/local/bin/git-ssh rpx -> git-ssh,
   signal (send) set=(hup int quit kill term) peer=git-ssh,
   /usr/bin/{chmod,id,mkdir,readlink,find} rix,
+  /usr/bin/busctl rix,
+  include if exists <abstractions/dbus-session-strict>
+  dbus send
+    bus=session
+    path=/org/freedesktop/portal/documents
+    interface=org.freedesktop.portal.Documents
+    member=GetMountPoint
+    peer=(name=org.freedesktop.portal.Documents),
   /usr/bin/{mise,pwsh,sccache} rix,
   # Re-enter the user manager; --pipe preserves the private log sink.
   /usr/bin/systemd-run rpux,
@@ -2044,6 +2055,7 @@ profile labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected, mediate
   owner @{HOME}/{.bash_aliases,.bash_logout,.bash_profile,.bashrc,.dircolors,.gitconfig,.gitlint,.lldbinit,.markdownlint-cli2.cjs,.markdownlint-cli2.jsonc,.markdownlint-cli2.mjs,.markdownlint-cli2.yaml,.markdownlint.json,.markdownlint.yaml,.markdownlint.yml,.profile,.ripgreprc,.rustfmt.toml,.shellcheckrc,.vimrc,.zlogin,.zlogout,.zprofile,.zsh_aliases,.zshenv,.zshrc} r,
   owner @{HOME}/{Downloads,Workspace}/ rw,
   owner @{HOME}/{Downloads,Workspace}/** rwkl,
+  owner @{HOME}/{Desktop,Documents,Music,Pictures,Public,Templates,Videos}/ rw,
   /data/ rw,
   /data/{codex,downloads}/ rw,
   /data/{codex,downloads}/** rwkl,
@@ -2121,7 +2133,7 @@ profile labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected, mediate
     deny /etc/opt/chrome/native-messaging-hosts/ w,
     owner /run/user/[0-9]*/ r,
     owner /run/user/[0-9]*/doc/ r,
-    owner /run/user/[0-9]*/doc/** r,
+    owner /run/user/[0-9]*/doc/** rwkl,
     owner /run/user/[0-9]*/pulse/ rw,
     owner /run/user/[0-9]*/{bus,wayland-[0-9]*,pipewire-[0-9]*,pulse/native} rw,
     owner /run/user/[0-9]*/labwc-chatgpt-tmp/ rw,
@@ -2169,6 +2181,8 @@ profile labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected, mediate
     owner @{HOME}/{Downloads,Workspace}/ rw,
     owner @{HOME}/{Downloads,Workspace}/** rwklm,
     owner @{HOME}/{Downloads,Workspace}/** rix,
+    owner @{HOME}/{Desktop,Documents,Music,Pictures,Public,Templates,Videos}/ rw,
+    owner @{HOME}/{Desktop,Documents,Music,Pictures,Public,Templates,Videos}/** rwkl,
     /data/ rw,
     /data/codex/ rw,
     /data/codex/** rwklm,
@@ -2774,6 +2788,18 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
   # The wrapper validates the account/socket identities and constructs a fixed
   # environment. AT_SECURE makes systemd ignore the user-bus variables.
   /usr/bin/systemd-run rpux,
+  /usr/{sbin,bin}/ip rix,
+  network netlink raw,
+  /usr/bin/slirp4netns rPx -> qbittorrent-slirp4netns,
+  network unix stream,
+  /usr/local/lib/python3.14/ r,
+  /usr/local/lib/python3.14/dist-packages/ r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/*.py r,
+  owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/ rw,
+  owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/{resolv.conf,slirp4netns.stderr,slirp4netns.api} rw,
+  signal (send) peer=qbittorrent-slirp4netns,
+  signal (send) peer=labwc-qbittorrent//qbittorrent-bwrap,
   owner /run/user/[0-9]*/labwc-session-closing r,
   /usr/bin/bwrap rCx -> qbittorrent-bwrap,
   /etc/labwc/desktop.conf r,
@@ -2812,9 +2838,16 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
   profile qbittorrent-bwrap flags=(attach_disconnected, mediate_deleted) {
     #include <abstractions/bwrap-common>
     #include <abstractions/qbittorrent-runtime>
+    # The fixed startup gate inherits confinement and execs qBittorrent only
+    # after explicit peer-forward readiness. It imports only system stdlib.
+    #include <abstractions/python>
+    /usr/bin/python3{,.[0-9]*} rix,
     include if exists <abstractions/user-tmp>
 
+    ptrace (readby) peer=qbittorrent-slirp4netns,
+    signal (receive) set=(exists kill term) peer=labwc-qbittorrent,
     /etc/labwc/desktop.conf r,
+    owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/resolv.conf r,
     /run/media/ r,
     /run/media/*/ r,
     /run/media/*/bittorrent/ rw,
@@ -2850,6 +2883,38 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
   }
 
   include if exists <local/usr.local.bin.labwc-qbittorrent>
+}
+
+profile qbittorrent-slirp4netns flags=(attach_disconnected) {
+  # Only this helper configures the private TAP. The torrent payload drops all
+  # capabilities and never receives /dev/net/tun or the helper's API socket.
+  userns,
+  capability net_admin,
+  capability sys_admin,
+  capability sys_ptrace,
+  # The helper serves the pathname API as well as creating its Unix socket.
+  # Filesystem rules below restrict that API to the private owned directory.
+  network unix stream,
+  network inet stream,
+  network inet dgram,
+  ptrace (read) peer=labwc-qbittorrent//qbittorrent-bwrap,
+  ptrace (readby) peer=desktop-launcher,
+  ptrace (readby) peer=waypaper//waypaper-ps,
+  ptrace (readby) peer=aa-status-reader,
+  signal (receive) set=(exists kill term) peer=labwc-qbittorrent,
+  / r,
+  /dev/null rw,
+  /dev/net/tun rw,
+  /dev/urandom r,
+  /etc/ld.so.cache r,
+  /etc/resolv.conf r,
+  /run/resolvconf/resolv.conf r,
+  /run/systemd/resolve/{stub-resolv.conf,resolv.conf} r,
+  /usr/bin/slirp4netns mr,
+  /usr/lib/@{multiarch}/ld-linux-*.so* mr,
+  /usr/lib/@{multiarch}/lib{atomic,c,glib-2.0,m,pcre2-8,seccomp,slirp}.so* mr,
+  @{PROC}/[0-9]*/ns/{net,user} r,
+  owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/{slirp4netns.stderr,slirp4netns.api} rw,
 }
 
 profile labwc-recovery-action /usr/local/bin/labwc-recovery-action flags=(attach_disconnected) {

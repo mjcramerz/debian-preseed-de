@@ -163,12 +163,27 @@ class SuppliedDenialTests(unittest.TestCase):
             # The compiler debug mask reports r/x/m, while the native rule
             # reader above independently reports the inherited execution mode.
             self.assertTrue(set('rx') <= execution, execution)
+            for directory in ('Desktop', 'Documents', 'Downloads', 'Music', 'Pictures',
+                              'Public', 'Templates', 'Videos'):
+                self.assertTrue(set('rwk') <= permissions('labwc-chatgpt//chatgpt-bwrap',
+                    f'/home/fixture/{directory}/nested/download.pdf'))
+            self.assertTrue(set('rwk') <= permissions('labwc-chatgpt//chatgpt-bwrap',
+                '/run/user/1000/doc/fixture/download.pdf'))
+            self.assertNotIn('w', permissions('labwc-chatgpt', '/home/fixture/.ssh/id_ed25519'))
             # Replay all October 7 qBittorrent file denials in the compiler's
             # effective policy for both direct and Bubblewrap launches.
             for label in ('qbittorrent', 'labwc-qbittorrent//qbittorrent-bwrap'):
                 with self.subTest(qbittorrent_profile=label):
                     self.assertEqual(permissions(label, '/sys/block/', owned=False), {'r'})
                     self.assertNotIn('r', permissions(label, '/sys/block/sda/size', owned=False))
+                    for device in ('/sys/devices/virtual/block/dm-1', '/sys/devices/virtual/block/zram0',
+                                   '/sys/devices/pci0000:00/nvme/nvme0/nvme0n1',
+                                   '/sys/devices/pci0000:00/usb1/1-2/block/sda'):
+                        for leaf in ('dev', 'queue/rotational', 'queue/dax'):
+                            self.assertEqual(permissions(label, device + '/' + leaf, owned=False), {'r'})
+                    for device in ('/dev/dm-1', '/dev/zram0', '/dev/sda', '/dev/nvme0n1',
+                                   '/sys/devices/virtual/block/dm-1/size'):
+                        self.assertFalse(permissions(label, device, owned=False))
                     for pid in ('2', '21822'):
                         for attribute in ('cmdline', 'stat'):
                             filename = f'/proc/{pid}/{attribute}'
@@ -215,6 +230,23 @@ class SuppliedDenialTests(unittest.TestCase):
                 self.assertTrue(set('rw') <= permissions('labwc-wrap-desktop-files', scratch))
             for outside in ('/tmp/tmpfixture', '/var/tmp/tmpfixture', '/home/fixture/private.txt'):
                 self.assertNotIn('w', permissions('labwc-wrap-desktop-files', outside))
+
+    def test_qbittorrent_helper_has_reciprocal_namespace_and_cleanup_permissions(self):
+        payload = body('desktop-wrappers', 'qbittorrent-bwrap')
+        helper = body('desktop-wrappers', 'qbittorrent-slirp4netns')
+        parent = body('desktop-wrappers', 'labwc-qbittorrent')
+        self.assertIn('#include <abstractions/python>', payload)
+        self.assertIn('/usr/bin/python3{,.[0-9]*} rix,', payload)
+        self.assertIn('ptrace (readby) peer=qbittorrent-slirp4netns,', payload)
+        self.assertIn('ptrace (read) peer=labwc-qbittorrent//qbittorrent-bwrap,', helper)
+        self.assertIn('signal (receive) set=(exists kill term) peer=labwc-qbittorrent,', payload)
+        self.assertIn('signal (receive) set=(exists kill term) peer=labwc-qbittorrent,', helper)
+        self.assertIn('signal (send) peer=qbittorrent-slirp4netns,', parent)
+        self.assertIn('signal (send) peer=labwc-qbittorrent//qbittorrent-bwrap,', parent)
+        self.assertNotIn('/dev/net/tun', payload)
+        self.assertIn('/dev/net/tun rw,', helper)
+        self.assertIn('network unix stream,', helper)
+        self.assertIn('labwc-qbittorrent-sandbox-*/{slirp4netns.stderr,slirp4netns.api} rw,', helper)
 
     def test_document_media_identity_map_is_validated_and_staged(self):
         source = (SEED / 'scripts/late/security.sh').read_text(encoding='utf-8')

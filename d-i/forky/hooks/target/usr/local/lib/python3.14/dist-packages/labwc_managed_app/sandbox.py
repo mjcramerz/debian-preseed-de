@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 import fcntl
+import json
 import os
 import pathlib
 import re
@@ -1143,6 +1144,38 @@ def select_persistent_sandbox_chdir(
     return fallback
 
 
+def prepare_document_portal(host_runtime_dir: str) -> None:
+    """Activate the FUSE export before taking the sandbox's runtime snapshot."""
+    try:
+        result = subprocess.run(
+            ["/usr/bin/busctl", "--user", "--timeout=10", "--json=short", "call",
+             "org.freedesktop.portal.Documents", "/org/freedesktop/portal/documents",
+             "org.freedesktop.portal.Documents", "GetMountPoint"],
+            stdin=subprocess.DEVNULL, capture_output=True, timeout=12,
+            env={**managed_subprocess_environment(), "XDG_RUNTIME_DIR": host_runtime_dir,
+                 "DBUS_SESSION_BUS_ADDRESS": f"unix:path={host_runtime_dir}/bus"}, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        fail(f"cannot activate ChatGPT's document portal: {exc}")
+    if result.returncode or len(result.stdout) > 16384:
+        fail("ChatGPT document portal is unavailable; check xdg-document-portal.service")
+    try:
+        value = json.loads(result.stdout)
+        data = value["data"]
+        if value["type"] != "ay" or not isinstance(data, list) or len(data) != 1:
+            raise ValueError("invalid portal mount response")
+        encoded = data[0]
+        if (not isinstance(encoded, list) or not 1 <= len(encoded) <= 4096
+                or any(type(number) is not int or not 0 <= number <= 255 for number in encoded)):
+            raise ValueError("invalid portal mount bytes")
+        mount_point = bytes(encoded).rstrip(b"\0").decode("utf-8")
+        expected = os.path.join(host_runtime_dir, "doc")
+        if mount_point not in {expected, expected + "/"}:
+            raise ValueError("portal mount is outside the owned runtime")
+    except (ValueError, KeyError, TypeError) as exc:
+        fail(f"ChatGPT document portal returned an invalid mount point: {exc}")
+
+
 def _run_persistent_sandbox(
     app_name: str,
     mode: str,
@@ -1196,6 +1229,8 @@ def _run_persistent_sandbox(
     home_stat = os.lstat(home_dir)
     if stat.S_ISLNK(home_stat.st_mode) or not stat.S_ISDIR(home_stat.st_mode) or home_stat.st_uid != os.getuid():
         fail(f"sandbox HOME is not a directory owned by the current user: {home_dir}")
+    if sandbox.get("prepare_document_portal", False):
+        prepare_document_portal(host_runtime_dir)
 
     bwrap = require_root_owned_executable("bubblewrap", "/usr/bin/bwrap")
 
@@ -1510,6 +1545,7 @@ def _run_persistent_sandbox(
                 sandbox_runtime_dir,
                 relative_runtime_path,
                 "directory",
+                required=relative_runtime_path in sandbox.get("required_runtime_directories", ()),
             )
         for relative_runtime_path in runtime_socket_paths:
             add_runtime_bind(

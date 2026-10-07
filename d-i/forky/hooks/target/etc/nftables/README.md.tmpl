@@ -62,7 +62,10 @@ Concrete `hosts/profiles/<family>/<role>.env` files control installer staging:
 - `NFT_SERVICES=none` applies only the selected profile.
 - `NFT_SERVICES=ssh-server,qbittorrent` applies those service overlays, but only when `NFT_PROFILE` is not `none`.
 - Selecting `addon/software` on a desktop automatically adds the qBittorrent
-  overlay and opens the fixed TCP/UDP peer port `50309`.
+  overlay and opens the stable TCP/UDP peer port selected by
+  `LABWC_QBITTORRENT_PORT` (default `50309`). Match both router forwards to this
+  host-specific port; the launcher forwards both transports into its private
+  slirp4netns network before starting qBittorrent.
 - Selecting the installer addon class `ssh` automatically merges the
   `ssh-server` service overlay into the effective staged firewall policy.
 - `NFTABLES_LOG_LEVEL=none|error|warning|info|debug` controls only

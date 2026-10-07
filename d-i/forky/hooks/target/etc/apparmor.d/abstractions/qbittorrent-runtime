@@ -1,6 +1,6 @@
 # Managed by unattended-installer. Capability-free qBittorrent payload policy.
 
-#include <abstractions/desktop-application>
+#include <abstractions/desktop-runtime>
 #include <abstractions/user-documents>
 include if exists <abstractions/user-tmp>
 
@@ -14,8 +14,16 @@ network inet6 dgram,
 /usr/share/qbittorrent/ r,
 /usr/share/qbittorrent/** r,
 
-# Disk inventory needs the directory entries, not writable sysfs or device data.
+# libtorrent drive_info reads device numbers and rotational/DAX hints. These
+# sysfs text leaves are metadata, never raw /dev block access or writable sysfs.
 /sys/block/ r,
+/sys/block/*/{dev,queue/{rotational,dax}} r,
+/sys/devices/**/block/*/{dev,queue/{rotational,dax}} r,
+/sys/devices/**/nvme/nvme[0-9]*/nvme[0-9]*n[0-9]*/{dev,queue/{rotational,dax}} r,
+# External links remain in the payload's no_new_privs domain; xdg-open uses
+# desktop IPC rather than requesting an unconfined exec.
+/usr/bin/{xdg-open,hostname,printf} rix,
+@{PROC}/version r,
 # qBittorrent's diagnostics read process metadata in both host and PID namespaces.
 # Restrict these reads and terminal I/O to objects owned by the invoking user.
 owner @{PROC}/@{pid}/{cmdline,stat} r,
@@ -37,4 +45,3 @@ owner /run/media/*/bittorrent/** rwkl,
 owner @{HOME}/bittorrent/ rw,
 owner @{HOME}/bittorrent/** rwkl,
 @{PROC}/[0-9]*/mountinfo r,
-

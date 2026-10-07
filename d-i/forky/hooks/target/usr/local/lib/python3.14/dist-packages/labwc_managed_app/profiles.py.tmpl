@@ -588,6 +588,9 @@ CHATGPT_DEVOPS_READ_WRITE_HOME_DIRECTORIES = (
     "Downloads",
     "Workspace",
 )
+CHATGPT_DOWNLOAD_HOME_DIRECTORIES = (
+    "Desktop", "Documents", "Music", "Pictures", "Public", "Templates", "Videos",
+)
 CHATGPT_DEVOPS_READ_WRITE_PATHS = (
     "/pool",
     "/data/codex",
@@ -618,7 +621,8 @@ PERSISTENT_SANDBOX_CONFIG = {
             "/etc/codex",
             "/etc/llama",
         ),
-        "rw_bind_home_directories": CHATGPT_DEVOPS_READ_WRITE_HOME_DIRECTORIES,
+        "rw_bind_home_directories": (*CHATGPT_DEVOPS_READ_WRITE_HOME_DIRECTORIES,
+                                     *CHATGPT_DOWNLOAD_HOME_DIRECTORIES),
         "rw_bind_paths": CHATGPT_DEVOPS_READ_WRITE_PATHS,
         "rw_bind_directory_pairs": (
             (
@@ -628,6 +632,8 @@ PERSISTENT_SANDBOX_CONFIG = {
         ),
         "preserve_working_directory": True,
         "runtime_directories": ("doc",),
+        "required_runtime_directories": ("doc",),
+        "prepare_document_portal": True,
         "runtime_sockets": (
             "pipewire-0",
             "pulse/native",

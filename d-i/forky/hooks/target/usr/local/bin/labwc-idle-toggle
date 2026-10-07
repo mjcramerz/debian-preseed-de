@@ -14,6 +14,7 @@ import stat
 import subprocess
 import sys
 import time
+import uuid
 
 CONFIG = Path('/etc/labwc/desktop.conf')
 STATE = 'labwc-idle.json'
@@ -240,6 +241,8 @@ def main(argv: list[str]) -> int:
     if argv not in ([], ['--run']):
         raise Error('usage: labwc-idle-toggle [--run]')
     if not argv:
+        redirect_toggle()
+    if not argv:
         def interrupted(signum, frame):
             raise Error('idle toggle interrupted')
         for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
@@ -258,6 +261,54 @@ def main(argv: list[str]) -> int:
         os.close(directory)
     os.execv(command_argv[0], command_argv)
     return 1
+
+
+def redirect_toggle() -> None:
+    """Read root policy from the user manager's host namespace, not Labwc's."""
+    directory = runtime_fd()
+    try:
+        bus = os.stat('bus', dir_fd=directory, follow_symlinks=False)
+        if not stat.S_ISSOCK(bus.st_mode) or bus.st_uid != os.getuid():
+            raise Error('the owned desktop session bus is unavailable')
+    finally:
+        os.close(directory)
+    marker = os.environ.get('LABWC_IDLE_SESSION_UNIT', '')
+    if marker not in {'', '1'}:
+        raise Error('invalid idle user-service marker')
+    with Path('/proc/self/cgroup').open(encoding='ascii') as stream:
+        membership = stream.read(65537)
+    if len(membership) > 65536:
+        raise Error('oversized idle cgroup membership')
+    in_service = any(re.fullmatch(
+        r'0::/[^\n]*/labwc-idle-toggle-[0-9a-f]{32}[.]service', line,
+    ) for line in membership.splitlines())
+    if marker:
+        if not in_service:
+            raise Error('idle user-service marker is outside its managed cgroup')
+        return
+    runtime = f'/run/user/{os.getuid()}'
+    environment = {
+        'PATH': '/usr/local/bin:/usr/bin:/bin', 'XDG_RUNTIME_DIR': runtime,
+        'DBUS_SESSION_BUS_ADDRESS': f'unix:path={runtime}/bus',
+        'LABWC_SESSION_OWNER': 'desktop', 'XDG_SESSION_TYPE': 'wayland',
+        'WAYLAND_DISPLAY': os.environ['WAYLAND_DISPLAY'],
+    }
+    command_argv = [
+        '/usr/bin/systemd-run', '--user', '--quiet', '--wait', '--collect',
+        '--service-type=exec', '--expand-environment=no', '--slice=app.slice',
+        '--unit=labwc-idle-toggle-' + uuid.uuid4().hex + '.service',
+        '--property=Requisite=labwc-session.target', '--property=After=labwc-session.target',
+        '--property=PartOf=labwc-session.target', '--property=PrivateUsers=no',
+        '--property=KillMode=control-group',
+        '--property=TimeoutStopSec=10s', '--property=RuntimeMaxSec=180s',
+        '--property=StandardInput=null', '--property=StandardOutput=journal',
+        '--property=StandardError=journal', '--setenv=LABWC_IDLE_SESSION_UNIT=1',
+        *('--setenv=' + name for name in sorted(environment)),
+        '--', '/usr/local/bin/labwc-idle-toggle',
+    ]
+    # Lowercase AppArmor ux retains these validated bus variables. AT_SECURE
+    # would remove them and reconnect to the wrong activation context.
+    os.execve(command_argv[0], command_argv, environment)
 
 
 if __name__ == '__main__':

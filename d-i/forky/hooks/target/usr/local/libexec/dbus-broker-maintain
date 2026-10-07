@@ -181,6 +181,13 @@ def refresh_files() -> None:
         if service_name(read_owned_file(source)) != expected:
             raise RuntimeError(f'unexpected activation Name in {source}')
         alias = LOCAL_SERVICES / f'{expected}.service'
+        if expected == 'org.freedesktop.Notifications':
+            # The vendor Exec starts an unmanaged second Mako while the
+            # session service waits. Keep one systemd owner across both login
+            # and D-Bus activation, including later package refreshes.
+            atomic_write(alias, b'[D-BUS Service]\nName=org.freedesktop.Notifications\n'
+                         b'SystemdService=mako.service\nExec=/usr/bin/false\n')
+            continue
         if alias.is_symlink() and os.readlink(alias) == str(source):
             continue
         with tempfile.TemporaryDirectory(prefix='.broker-alias.', dir=LOCAL_SERVICES) as directory:

@@ -144,20 +144,51 @@ user manager.
 The managed qBittorrent desktop entry starts `labwc-qbittorrent` in a session
 service. It uses `/run/media/<user>/bittorrent` when present; if that transient
 volume is absent, it creates private persistent storage in `~/bittorrent`.
-The launcher fixes the TCP/UDP peer port at `50309`, disables DHT, PeX, LSD,
-automatic port mapping and the Web UI, and checks HTTPS tracker certificates.
-The `addon/software` firewall overlay accepts the peer port on its selected
-network interfaces.
+The launcher's TCP/UDP listener, both slirp4netns forwards and the `addon/software`
+firewall overlay use the profile's `LABWC_QBITTORRENT_PORT`. Ports are canonical
+decimal integers in `1024..65535`; the default is `50309`. The current P15s
+profile selects `50308`. Forward both TCP and UDP from the router to the same
+selected port on the system's LAN address.
+
+qBittorrent runs in a private Bubblewrap network with `tap0` at `10.0.2.100`.
+The launcher selects the active IPv4 Internet route, excludes loopback and
+Tailscale, and binds slirp4netns outbound traffic and both host peer listeners
+to that route's source address. Both forwards must succeed before the payload
+starts. An explicit readiness gate prevents payload execution on startup-pipe
+EOF; failed setup also kills the pinned namespace. A bounded startup lock
+serializes concurrent first launches, and later requests use the existing
+application's local IPC socket.
+Relaunch after changing the route or VPN. Router forwarding works when the
+Internet route uses the router connection; a VPN route needs forwarding at its
+own public endpoint. This forwarding contract requires IPv4 and a host TUN
+device. DHT, PeX, LSD, automatic port mapping and the Web UI remain disabled;
+HTTPS tracker certificates are checked and normal tracker failover is used.
 
 Managed qBittorrent launches use Qt's built-in Fusion style to avoid the supplied
 Adwaita focus-paint crash. Its direct and Bubblewrap AppArmor profiles share the
-same runtime grants for block-device directory reads, account-owned process
-metadata and account-owned terminal I/O.
+same runtime grants for read-only disk classification metadata in sysfs,
+account-owned process metadata and account-owned terminal I/O. Mounted torrent
+storage needs no raw block-device access. Disk devices and writable sysfs are
+not exposed to the torrent payload. Only its separate network helper receives
+the TUN access needed to configure the private TAP.
 
 Mako starts after a five-second wait in its session-bound user service. The wait
 also applies to D-Bus activation; notification producers ordered after Mako wait
 for the daemon to acquire its notification bus name. Later notifications use
-the existing delivery and timeout settings.
+the existing delivery and timeout settings. The canonical activation file now
+selects `SystemdService=mako.service`; the package refresh helper preserves that
+selection. Login and D-Bus activation share the same service owner.
+
+Ctrl+Win+L runs the idle toggle through the desktop user manager so it reads
+the root-owned policy in the host namespace. Policy ownership validation stays
+strict; the override remains session-only and preserves explicit/manual locking.
+
+ChatGPT binds existing standard save directories into its private home and
+activates the document portal before binding `/run/user/<uid>/doc`. Exported
+portal documents have confined write permissions for saving. Missing optional
+save directories are skipped; an unavailable document portal produces an
+actionable launch error. See [the runtime validation record](docs/validation/desktop-runtime-20261007.md)
+for evidence and installed-desktop acceptance requirements.
 
 The DevOps installer authenticates the exact Packer plugin releases, installs
 their binaries into the account's private plugin directory, then checks local

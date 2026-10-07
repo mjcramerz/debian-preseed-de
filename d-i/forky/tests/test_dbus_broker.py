@@ -127,7 +127,9 @@ class BrokerPolicyTests(unittest.TestCase):
             h.refresh_files()
             self.assertNotIn('eavesdrop=', payload_read_text(session))
             alias = local / 'org.freedesktop.Notifications.service'
-            self.assertEqual(alias.resolve(), Path(str(original) + '.distrib'))
+            self.assertFalse(alias.is_symlink())
+            self.assertIn('SystemdService=mako.service', alias.read_text(encoding='utf-8'))
+            self.assertIn('Exec=/usr/bin/false', alias.read_text(encoding='utf-8'))
             vendor = Path(str(session) + '.distrib')
             vendor.write_text('<busconfig><policy><allow eavesdrop="true"/><allow own="org.example.New"/></policy></busconfig>')
             h.refresh_files()
@@ -135,6 +137,38 @@ class BrokerPolicyTests(unittest.TestCase):
             before = payload_source_stat(session).st_mtime_ns
             h.refresh_files()
             self.assertEqual(payload_source_stat(session).st_mtime_ns, before)
+
+    def test_notification_activation_cannot_revert_to_a_second_daemon_after_package_refresh(self):
+        # Real local publication; vendor ownership/diversion are explicit
+        # fixtures so this check needs no privileged dpkg or running user bus.
+        h = self.helper
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); vendor = root/'vendor'; local = root/'local'
+            vendor.mkdir(); local.mkdir()
+            session = vendor/'session.conf'
+            session.write_text('<busconfig><policy><allow own="*"/></policy></busconfig>', encoding='utf-8')
+            mako = vendor/'mako.service'
+            mako.write_text('[D-BUS Service]\nName=org.freedesktop.Notifications\nExec=/usr/bin/mako\n', encoding='utf-8')
+            def source(path):
+                if path == session: return session
+                if path.name == 'fr.emersion.mako.service': return mako
+                return None
+            with mock.patch.multiple(h, SESSION=session, SERVICES=vendor, LOCAL_SERVICES=local), \
+                    mock.patch.object(h, 'diverted_source', side_effect=source), \
+                    mock.patch.object(h, 'read_owned_file', side_effect=lambda path: path.read_bytes()), \
+                    mock.patch.object(h, 'trusted_directory'):
+                h.refresh_files()
+                alias = local/'org.freedesktop.Notifications.service'
+                initial = alias.read_bytes()
+                mako.write_text('[D-BUS Service]\nName=org.freedesktop.Notifications\nExec=/usr/bin/mako --vendor-new-argument\n', encoding='utf-8')
+                h.refresh_files()
+                self.assertEqual(alias.read_bytes(), initial)
+                self.assertIn(b'SystemdService=mako.service', initial)
+                self.assertNotIn(b'Exec=/usr/bin/mako', initial)
+                self.assertEqual(alias.stat().st_mode & 0o777, 0o644)
+            dropin = (SHARED/'etc/systemd/user/mako.service.d/10-labwc-session.conf').read_text(encoding='utf-8')
+            self.assertIn('Type=dbus\nBusName=org.freedesktop.Notifications', dropin)
+            self.assertIn('ExecStartPre=/usr/bin/sleep 5', dropin)
 
     @unittest.skipUnless(os.geteuid() == 0, 'checks actual root-owned files in an isolated temporary directory')
     def test_atomic_write_failure_preserves_previous_configuration(self) -> None:

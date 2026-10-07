@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import io
 import os
 from pathlib import Path
 import shlex
@@ -220,6 +221,50 @@ class IdleTests(unittest.TestCase):
             self.m.main(['--run'])
         self.assertNotIn('timeout', execute.call_args.args[1])
         with self.assertRaises(OSError): os.fstat(directory)
+
+    def test_hotkey_handoff_has_host_ownership_and_a_clean_environment(self):
+        bus = socket.socket(socket.AF_UNIX)
+        self.addCleanup(bus.close); bus.bind(str(self.root/'bus'))
+        environment = {'WAYLAND_DISPLAY': 'wayland-1', 'LD_PRELOAD': '/untrusted',
+                       'PYTHONPATH': '/untrusted', 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/wrong'}
+        directory = os.open(self.root, os.O_RDONLY | os.O_DIRECTORY)
+        with mock.patch.dict(os.environ, environment, clear=True), \
+                mock.patch.object(self.m, 'runtime_fd', return_value=directory), \
+                mock.patch.object(self.m.os, 'execve') as execute:
+            self.m.redirect_toggle()
+        executable, argv, env = execute.call_args.args
+        self.assertEqual(executable, '/usr/bin/systemd-run')
+        for property_ in ('PrivateUsers=no', 'PartOf=labwc-session.target',
+                          'Requisite=labwc-session.target', 'KillMode=control-group'):
+            self.assertIn('--property=' + property_, argv)
+        self.assertEqual(env['DBUS_SESSION_BUS_ADDRESS'], f'unix:path=/run/user/{os.getuid()}/bus')
+        self.assertNotIn('LD_PRELOAD', env); self.assertNotIn('PYTHONPATH', env)
+        self.assertIn('--setenv=LABWC_IDLE_SESSION_UNIT=1', argv)
+        with self.assertRaises(OSError): os.fstat(directory)
+
+    def test_user_service_marker_cannot_skip_handoff_outside_the_managed_cgroup(self):
+        bus = socket.socket(socket.AF_UNIX)
+        self.addCleanup(bus.close); bus.bind(str(self.root/'bus'))
+        for membership, accepted in (('0::/user.slice/labwc-idle-toggle-' + 'a'*32 + '.service\n', True),
+                                     ('0::/user.slice/labwc-compositor.service\n', False)):
+            directory = os.open(self.root, os.O_RDONLY | os.O_DIRECTORY)
+            with mock.patch.dict(os.environ, {'LABWC_IDLE_SESSION_UNIT': '1'}, clear=True), \
+                    mock.patch.object(self.m, 'runtime_fd', return_value=directory), \
+                    mock.patch.object(self.m.Path, 'open', return_value=io.StringIO(membership)), \
+                    mock.patch.object(self.m.os, 'execve') as execute:
+                if accepted: self.m.redirect_toggle()
+                else:
+                    with self.assertRaisesRegex(self.m.Error, 'outside'): self.m.redirect_toggle()
+                execute.assert_not_called()
+
+    def test_unmapped_root_or_user_owned_policy_is_still_rejected(self):
+        path = self.root/'desktop.conf'; path.write_text('unused', encoding='utf-8')
+        for uid in (65534, 1000):
+            metadata = types.SimpleNamespace(st_mode=stat.S_IFREG | 0o644, st_uid=uid)
+            with mock.patch.object(self.m, 'CONFIG', path), \
+                    mock.patch.object(self.m.os, 'fstat', return_value=metadata), \
+                    self.assertRaisesRegex(self.m.Error, 'root-owned'):
+                self.m.read_policy()
 
     @unittest.skipUnless(os.getuid() == 0, 'root-owned policy fixture')
     def test_policy_is_literal_and_rejects_duplicates_unsafe_metadata_and_code(self):

@@ -1,6 +1,10 @@
 #!/usr/bin/python3 -I
 import configparser
+import errno
+import fcntl
 import hashlib
+import ipaddress
+import json
 import os
 import pathlib
 import pwd
@@ -8,7 +12,13 @@ import re
 import shlex
 import shutil
 import stat
+import subprocess
+import signal
+import socket
+import struct
 import sys
+import tempfile
+import time
 import urllib.parse
 import uuid
 
@@ -18,7 +28,7 @@ MAX_DEFAULTS_BYTES = 65536
 MAX_LAUNCH_ARGUMENTS = 64
 MAX_LAUNCH_ARGUMENT_BYTES = 8192
 MAX_TORRENT_FILE_BYTES = 16 * 1024 * 1024
-MANAGED_PORT = 50309
+DEFAULT_PORT = 50309
 USERNAME_PATTERN = re.compile(r"^[a-z_][a-z0-9_-]*$")
 DBUS_ADDRESS_PATTERN = re.compile(r"unix:path=([^,]+)(?:,[^=]+=[^,]+)*")
 DEFAULT_KEYS = {
@@ -123,9 +133,7 @@ def configured_account(defaults: dict[str, str]) -> tuple[pwd.struct_passwd, pat
     if configured_user != account.pw_name:
         fail(f"qBittorrent is restricted to {configured_user}, not {account.pw_name}")
 
-    configured_port = defaults.get("LABWC_QBITTORRENT_PORT", "")
-    if configured_port != str(MANAGED_PORT):
-        fail(f"LABWC_QBITTORRENT_PORT must remain fixed at {MANAGED_PORT}: {configured_port or 'unset'}")
+    configured_peer_port(defaults)
 
     expected_root = pathlib.Path(f"/run/media/{configured_user}/bittorrent")
     configured_root = validate_absolute_path(
@@ -135,6 +143,13 @@ def configured_account(defaults: dict[str, str]) -> tuple[pwd.struct_passwd, pat
     if configured_root != expected_root:
         fail(f"LABWC_QBITTORRENT_ROOT must be {expected_root}: {configured_root}")
     return account, configured_root
+
+
+def configured_peer_port(defaults: dict[str, str]) -> int:
+    value = defaults.get("LABWC_QBITTORRENT_PORT", "")
+    if not re.fullmatch(r"[1-9][0-9]{3,4}", value) or not 1024 <= int(value) <= 65535:
+        fail("LABWC_QBITTORRENT_PORT must be a decimal port in 1024..65535")
+    return int(value)
 
 
 def select_storage_root(
@@ -203,7 +218,48 @@ def prepare_storage(root: pathlib.Path) -> dict[str, pathlib.Path]:
     return paths
 
 
-def managed_settings(paths: dict[str, pathlib.Path]) -> dict[str, dict[str, str]]:
+def network_binding() -> tuple[str, str]:
+    """Select one Internet route locally; route get does not transmit a packet."""
+    # slirp4netns add_hostfwd supports IPv4 listeners. Require that contract
+    # instead of starting a download-only sandbox with unusable peer forwards.
+    try:
+        result = subprocess.run(
+            ["/usr/sbin/ip", "-j", "-4", "route", "get", "1.1.1.1"],
+            stdin=subprocess.DEVNULL, capture_output=True, timeout=5,
+            env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C"},
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        fail(f"cannot inspect the qBittorrent Internet route: {exc}")
+    if result.returncode:
+        fail("qBittorrent private peer forwarding requires an active IPv4 Internet route")
+    if len(result.stdout) > 16384:
+        fail("qBittorrent Internet route response is oversized")
+    try:
+        routes = json.loads(result.stdout)
+        if not isinstance(routes, list) or len(routes) != 1 or not isinstance(routes[0], dict):
+            raise ValueError("expected one route")
+        route = routes[0]
+        interface = route.get("dev", "")
+        source = route.get("prefsrc", route.get("src", ""))
+        if not isinstance(interface, str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,15}", interface):
+            raise ValueError("invalid route interface")
+        if not isinstance(source, str):
+            raise ValueError("invalid route source type")
+        address = ipaddress.IPv4Address(source)
+        if (address.is_loopback or address.is_link_local
+                or address.is_unspecified or address.is_multicast or address.is_reserved):
+            raise ValueError("unusable route source address")
+        if interface == "lo" or interface.startswith("tailscale"):
+            fail("qBittorrent Internet route uses loopback or Tailscale; activate a LAN or VPN Internet route")
+        return interface, str(address)
+    except (ValueError, TypeError) as exc:
+        fail(f"invalid qBittorrent Internet route response: {exc}")
+
+
+def managed_settings(
+    paths: dict[str, pathlib.Path], binding: tuple[str, str], port: int = DEFAULT_PORT,
+) -> dict[str, dict[str, str]]:
     return {
         "Application": {"MemoryWorkingSetLimit": "1024"},
         # The supplied 5.2.4 crash is in Adwaita's focus-rectangle painting.
@@ -212,8 +268,9 @@ def managed_settings(paths: dict[str, pathlib.Path]) -> dict[str, dict[str, str]
         "Appearance": {"Style": "Fusion"},
         "BitTorrent": {
             "Session\\AddExtensionToIncompleteFiles": "true",
-            "Session\\AnnounceToAllTiers": "true",
-            "Session\\AnnounceToAllTrackers": "true",
+            "Session\\AnnounceToAllTiers": "false",
+            "Session\\AnnounceToAllTrackers": "false",
+            "Session\\AnnounceIP": "",
             "Session\\AnonymousModeEnabled": "false",
             "Session\\BTProtocol": "Both",
             "Session\\DHTEnabled": "false",
@@ -223,12 +280,15 @@ def managed_settings(paths: dict[str, pathlib.Path]) -> dict[str, dict[str, str]
             "Session\\FinishedTorrentExportDirectory": str(paths["torrents_completed"]),
             "Session\\GlobalMaxRatio": "-1",
             "Session\\GlobalMaxSeedingMinutes": "-1",
+            "Session\\Interface": binding[0],
+            "Session\\InterfaceName": binding[0],
+            "Session\\InterfaceAddress": binding[1],
             "Session\\LSDEnabled": "false",
             "Session\\MaxActiveTorrents": "-1",
             "Session\\MaxActiveUploads": "-1",
             "Session\\MaxUploads": "-1",
             "Session\\PeXEnabled": "false",
-            "Session\\Port": str(MANAGED_PORT),
+            "Session\\Port": str(port),
             "Session\\QueueingSystemEnabled": "false",
             "Session\\ReannounceWhenAddressChanged": "true",
             "Session\\SSRFMitigation": "true",
@@ -243,7 +303,10 @@ def managed_settings(paths: dict[str, pathlib.Path]) -> dict[str, dict[str, str]
         "LegalNotice": {"Accepted": "true"},
         "Network": {"PortForwardingEnabled": "false"},
         "Preferences": {
-            "Connection\\PortRangeMin": str(MANAGED_PORT),
+            "Connection\\PortRangeMin": str(port),
+            "Connection\\Interface": binding[0],
+            "Connection\\InterfaceName": binding[0],
+            "Connection\\InterfaceAddress": binding[1],
             "Connection\\ResolvePeerCountries": "true",
             "Connection\\UPnP": "false",
             "Downloads\\FinishedTorrentExportDirectory": str(paths["torrents_completed"]),
@@ -258,7 +321,10 @@ def managed_settings(paths: dict[str, pathlib.Path]) -> dict[str, dict[str, str]
     }
 
 
-def write_config(profile_home: pathlib.Path, paths: dict[str, pathlib.Path]) -> pathlib.Path:
+def write_config(
+    profile_home: pathlib.Path, paths: dict[str, pathlib.Path], binding: tuple[str, str],
+    port: int = DEFAULT_PORT,
+) -> pathlib.Path:
     config_dir = profile_home / ".config" / "qBittorrent"
     ensure_directory(profile_home / ".config", 0o700)
     ensure_directory(config_dir, 0o700)
@@ -281,7 +347,7 @@ def write_config(profile_home: pathlib.Path, paths: dict[str, pathlib.Path]) -> 
         except (OSError, configparser.Error) as exc:
             fail(f"failed to parse qBittorrent config {config_path}: {exc}")
 
-    for section, settings in managed_settings(paths).items():
+    for section, settings in managed_settings(paths, binding, port).items():
         if not parser.has_section(section):
             parser.add_section(section)
         for key, value in settings.items():
@@ -450,6 +516,71 @@ def prepare_launch_arguments(
     return prepared
 
 
+def forward_to_existing(profile_home: pathlib.Path, arguments: list[str]) -> bool:
+    """Use qBittorrent's bounded QtLocalPeer IPC before claiming peer ports."""
+    ipc = profile_home / ".config/qBittorrent/ipc-socket"
+    try:
+        metadata = ipc.lstat()
+    except FileNotFoundError:
+        return False
+    if not stat.S_ISSOCK(metadata.st_mode) or metadata.st_uid != os.getuid():
+        fail("unsafe existing qBittorrent IPC socket")
+    if any("|" in value for value in arguments):
+        fail("qBittorrent IPC arguments must not contain its parameter separator")
+    message = "|".join(arguments).encode("utf-8")
+    if len(message) > 65535:
+        fail("qBittorrent IPC request exceeds the application limit")
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as channel:
+            channel.settimeout(5)
+            try:
+                channel.connect(str(ipc))
+            except OSError as exc:
+                if exc.errno in {errno.ENOENT, errno.ECONNREFUSED}:
+                    return False  # qBittorrent itself recovers its stale endpoint.
+                raise
+            channel.sendall(struct.pack("!I", len(message)) + message)
+            acknowledgement = bytearray()
+            while len(acknowledgement) < 3:
+                chunk = channel.recv(3 - len(acknowledgement))
+                if not chunk:
+                    break
+                acknowledgement.extend(chunk)
+            if acknowledgement != b"ack":
+                fail("existing qBittorrent did not acknowledge the launch request")
+    except OSError as exc:
+        fail(f"cannot send the launch request to existing qBittorrent: {exc}")
+    return True
+
+
+def acquire_launch_lock(profile_home: pathlib.Path, arguments: list[str]) -> int | None:
+    """Serialize first starts; concurrent requests can still reach live IPC."""
+    if forward_to_existing(profile_home, arguments):
+        return None
+    descriptor = os.open(profile_home / ".launcher.lock",
+        os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK, 0o600)
+    try:
+        metadata = os.fstat(descriptor)
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
+                or stat.S_IMODE(metadata.st_mode) != 0o600 or metadata.st_nlink != 1):
+            fail("unsafe qBittorrent launcher lock")
+        deadline = time.monotonic() + 30
+        while True:
+            if forward_to_existing(profile_home, arguments):
+                os.close(descriptor)
+                return None
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return descriptor
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    fail("qBittorrent startup is still in progress; retry after it is ready")
+                time.sleep(0.1)
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
 def optional_ro_bind(command: list[str], source: str) -> None:
     if os.path.exists(source):
         command.extend(["--ro-bind", source, source])
@@ -585,6 +716,7 @@ def build_command(
     profile_home: pathlib.Path,
     acceleration_mode: str,
     extra_args: list[str],
+    resolver_path: pathlib.Path,
 ) -> list[str]:
     bwrap = shutil.which("bwrap")
     executable = shutil.which("qbittorrent")
@@ -610,7 +742,6 @@ def build_command(
         "--unshare-all",
         "--cap-drop",
         "ALL",
-        "--share-net",
         "--new-session",
         "--die-with-parent",
         "--clearenv",
@@ -695,13 +826,13 @@ def build_command(
         "/etc/nsswitch.conf",
         "/etc/passwd",
         "/etc/pki",
-        "/etc/resolv.conf",
         "/etc/ssl",
         "/etc/timezone",
         "/etc/xdg",
         "/var/lib/dbus/machine-id",
     ):
         optional_ro_bind(command, source)
+    command.extend(["--ro-bind", str(resolver_path), "/etc/resolv.conf"])
 
     environment = {
         "PATH": "/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin",
@@ -821,24 +952,81 @@ def redirect_to_user_service() -> None:
     os.execve(argv[0], argv, environment)
 
 
+def network_runtime():
+    """Reuse the installed supervisor after verifying its trusted import chain."""
+    package_root = pathlib.Path("/usr/local/lib/python3.14/dist-packages")
+    package = package_root / "labwc_managed_app"
+    for directory in (*reversed(package_root.parents[:-1]), package_root, package):
+        metadata = directory.lstat()
+        if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0
+                or metadata.st_mode & 0o022):
+            fail(f"unsafe qBittorrent network runtime directory: {directory}")
+    for name in ("__init__.py", "integrity.py"):
+        metadata = (package / name).lstat()
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
+                or stat.S_IMODE(metadata.st_mode) != 0o644 or metadata.st_nlink != 1):
+            fail(f"unsafe qBittorrent network runtime module: {name}")
+    sys.dont_write_bytecode = True
+    sys.path.insert(0, str(package_root))
+    from labwc_managed_app.integrity import validate_package
+    validate_package("native", owner=(0, 0))
+    from labwc_managed_app import network_namespace
+    return network_namespace
+
+
 def main() -> int:
     redirect_to_user_service()
     defaults = load_defaults(DEFAULTS_PATH)
     account, configured_root = configured_account(defaults)
+    port = configured_peer_port(defaults)
     root = select_storage_root(account, configured_root)
     paths = prepare_storage(root)
-    write_config(paths["profile_home"], paths)
     acceleration_mode, raw_launch_arguments = select_acceleration_mode(defaults, sys.argv[1:])
     launch_arguments = prepare_launch_arguments(paths, raw_launch_arguments)
-    command = build_command(
-        account,
-        root,
-        paths["profile_home"],
-        acceleration_mode,
-        launch_arguments,
-    )
-    os.execv(command[0], command)
-    return 0
+    launch_lock = acquire_launch_lock(paths["profile_home"], launch_arguments)
+    if launch_lock is None:
+        return 0
+    try:
+        return run_new_instance(account, root, paths, acceleration_mode, launch_arguments, port)
+    finally:
+        os.close(launch_lock)
+
+
+def run_new_instance(
+    account: pwd.struct_passwd, root: pathlib.Path, paths: dict[str, pathlib.Path],
+    acceleration_mode: str, launch_arguments: list[str], port: int,
+) -> int:
+    binding = network_binding()
+    write_config(paths["profile_home"], paths, ("tap0", "10.0.2.100"), port)
+    runtime = network_runtime()
+    binary = pathlib.Path(runtime.SLIRP4NETNS_BINARY)
+    metadata = binary.lstat()
+    if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
+            or metadata.st_mode & 0o022 or not os.access(binary, os.X_OK)):
+        fail("slirp4netns must be a root-owned, non-writable executable")
+    # Raising on termination lets the shared supervisor reap both children and
+    # close every setup/exit FD before our private runtime directory is removed.
+    def interrupted(signum, frame):
+        for watched in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+            signal.signal(watched, signal.SIG_IGN)
+        raise SystemExit(128 + signum)
+    for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+        signal.signal(signum, interrupted)
+    with tempfile.TemporaryDirectory(
+        prefix="labwc-qbittorrent-sandbox-", dir=f"/run/user/{os.getuid()}",
+    ) as temporary:
+        resolver = pathlib.Path(temporary) / "resolv.conf"
+        resolver.write_text("nameserver 10.0.2.3\noptions edns0\n", encoding="ascii")
+        resolver.chmod(0o600)
+        command = build_command(
+            account, root, paths["profile_home"], acceleration_mode,
+            launch_arguments, resolver,
+        )
+        payload_count = 1 + len(launch_arguments)
+        return runtime.run_slirp4netns_sandbox(
+            command[:-payload_count], command[-payload_count:], temporary, (),
+            slirp_binary=str(binary), peer_forward=(binding[1], port),
+        )
 
 
 if __name__ == "__main__":

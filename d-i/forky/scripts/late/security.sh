@@ -214,6 +214,7 @@ stage_target_nftables_service_assets() {
       syncthing) placeholder_map=nftables_syncthing_service_placeholder_map ;;
       tailscale) placeholder_map=nftables_tailscale_service_placeholder_map ;;
       qemu) placeholder_map=nftables_qemu_service_placeholder_map ;;
+      qbittorrent) placeholder_map=nftables_qbittorrent_service_placeholder_map ;;
       nfs-server|nfs-client) placeholder_map=network_sharing_nftables_placeholder_map ;;
       *) placeholder_map=nftables_interface_placeholder_map ;;
     esac
@@ -321,6 +322,19 @@ nftables_validate_port_value() {
   esac
   [ "$value" -ge 1 ] && [ "$value" -le 65535 ] ||
     installer_fatal "${label} must be in range 1..65535"
+}
+
+nftables_qbittorrent_service_placeholder_map() {
+  qbittorrent_port=${LABWC_QBITTORRENT_PORT:-50309}
+  case "$qbittorrent_port" in
+    [1-9][0-9][0-9][0-9]|[1-9][0-9][0-9][0-9][0-9]) ;;
+    *) installer_fatal "LABWC_QBITTORRENT_PORT must be a decimal port in 1024..65535" ;;
+  esac
+  nftables_validate_port_value LABWC_QBITTORRENT_PORT "$qbittorrent_port"
+  [ "$qbittorrent_port" -ge 1024 ] ||
+    installer_fatal "LABWC_QBITTORRENT_PORT must be in range 1024..65535"
+  nftables_interface_placeholder_map
+  printf 'LABWC_QBITTORRENT_PORT=%s\n' "$qbittorrent_port"
 }
 
 nftables_validate_cidr_token() {

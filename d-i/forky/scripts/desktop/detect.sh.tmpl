@@ -587,7 +587,10 @@ desktop_validate_policy_env() {
     all|focused|cursor) ;;
     *) desktop_fatal "invalid LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT" ;;
   esac
-  desktop_validate_uint_range LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}" 1 65535
+  desktop_validate_uint_range LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}" 1024 65535
+  case "${LABWC_QBITTORRENT_PORT:-50309}" in
+    0*) desktop_fatal "LABWC_QBITTORRENT_PORT must not have leading zeroes" ;;
+  esac
   idle_lock_seconds=${LABWC_IDLE_LOCK_SECONDS:-1844}
   idle_dpms_seconds=${LABWC_IDLE_DPMS_SECONDS:-3800}
   idle_suspend_seconds=${LABWC_IDLE_SUSPEND_SECONDS:-0}
@@ -604,8 +607,6 @@ desktop_validate_policy_env() {
       fi
       ;;
   esac
-  [ "${LABWC_QBITTORRENT_PORT:-50309}" -eq 50309 ] ||
-    desktop_fatal "LABWC_QBITTORRENT_PORT must remain fixed at 50309"
   [ "${LABWC_CRYSTAL_DOCK_MAXIMUM_ICON_SIZE:-80}" -ge "${LABWC_CRYSTAL_DOCK_MINIMUM_ICON_SIZE:-50}" ] || \
     desktop_fatal "LABWC_CRYSTAL_DOCK_MAXIMUM_ICON_SIZE must be >= LABWC_CRYSTAL_DOCK_MINIMUM_ICON_SIZE"
   desktop_validate_apparmor_state \

@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -97,6 +98,61 @@ class ManagedArgumentReviewTests(unittest.TestCase):
         enabled = next(a for a in single if a.startswith('--enable-features='))
         self.assertIn('VendorFeature', enabled)
         self.assertNotIn('Vulkan', enabled)
+
+
+class ChatGPTDownloadTests(unittest.TestCase):
+    def test_native_save_paths_are_persistent_without_exposing_secret_directories(self):
+        config = profiles.PERSISTENT_SANDBOX_CONFIG['chatgpt']
+        paths = config['rw_bind_home_directories']
+        self.assertTrue({'Downloads', 'Desktop', 'Documents', 'Pictures', 'Workspace'} <= set(paths))
+        self.assertFalse({'.ssh', '.gnupg', '.config'} & set(paths))
+        with tempfile.TemporaryDirectory() as home:
+            for relative in ('Downloads', 'Desktop', 'Documents', 'Pictures', 'Workspace'):
+                (Path(home)/relative).mkdir()
+            command = []
+            mounts.add_home_directory_binds(command, home, paths, '--bind')
+            binds = [command[i+1:i+3] for i, value in enumerate(command) if value == '--bind']
+            for relative in ('Downloads', 'Desktop', 'Documents', 'Pictures', 'Workspace'):
+                path = str(Path(home)/relative)
+                self.assertIn([path, path], binds)
+            self.assertNotIn([home, home], binds)
+
+    def test_cold_document_portal_is_activated_before_its_required_mount(self):
+        runtime = '/run/user/1000'
+        result = subprocess.CompletedProcess([], 0,
+            json.dumps({'type': 'ay', 'data': [list((runtime + '/doc\0').encode())]}).encode(), b'')
+        with mock.patch.object(sandbox.subprocess, 'run', return_value=result) as call:
+            sandbox.prepare_document_portal(runtime)
+        self.assertEqual(call.call_args.args[0][-1], 'GetMountPoint')
+        self.assertEqual(call.call_args.kwargs['timeout'], 12)
+        self.assertEqual(call.call_args.kwargs['env']['DBUS_SESSION_BUS_ADDRESS'], 'unix:path=/run/user/1000/bus')
+        config = profiles.PERSISTENT_SANDBOX_CONFIG['chatgpt']
+        self.assertTrue(config['prepare_document_portal'])
+        self.assertEqual(config['required_runtime_directories'], ('doc',))
+        with tempfile.TemporaryDirectory() as root:
+            with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                sandbox.add_runtime_bind([], root, '/run/user/1000', 'doc', 'directory', required=True)
+            (Path(root)/'doc').mkdir()
+            command = []
+            sandbox.add_runtime_bind(command, root, '/run/user/1000', 'doc', 'directory', required=True)
+            self.assertEqual(command[-3:], ['--bind', str(Path(root)/'doc'), '/run/user/1000/doc'])
+
+    def test_invalid_document_portal_response_cannot_expose_a_foreign_mount(self):
+        for payload in (b'not json', b'{}', b'x' * 16385,
+                        json.dumps({'type': 'ay', 'data': [[True]]}).encode(),
+                        json.dumps({'type': 'ay', 'data': [list(b'/run/user/2000/doc\0')]}).encode(),
+                        json.dumps({'type': 'ay', 'data': [list(b'/run/user/1000/../2000/doc\0')]}).encode()):
+            result = subprocess.CompletedProcess([], 0, payload, b'')
+            with mock.patch.object(sandbox.subprocess, 'run', return_value=result), \
+                    redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                sandbox.prepare_document_portal('/run/user/1000')
+
+    def test_document_portal_transport_errors_are_actionable(self):
+        for error in (OSError('busctl unavailable'), subprocess.TimeoutExpired('busctl', 12)):
+            with mock.patch.object(sandbox.subprocess, 'run', side_effect=error), \
+                    redirect_stderr(io.StringIO()) as diagnostics, self.assertRaises(SystemExit):
+                sandbox.prepare_document_portal('/run/user/1000')
+            self.assertIn('cannot activate ChatGPT', diagnostics.getvalue())
 
 
 class TutaDocumentMountTests(unittest.TestCase):
