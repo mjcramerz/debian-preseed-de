@@ -1,0 +1,13 @@
+# Managed by unattended-installer.
+#
+# Vivaldi's vendor package installs an unconfined wrapper profile. Replace it
+# with a confined parent so the short-lived shell launcher can transition only
+# to the separately confined browser binary.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile vivaldi-stable /opt/vivaldi/vivaldi flags=(attach_disconnected, mediate_deleted) {
+  include if exists <local/vivaldi-stable>
+}

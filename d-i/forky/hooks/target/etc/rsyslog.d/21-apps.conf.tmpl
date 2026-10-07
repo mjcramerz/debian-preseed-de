@@ -1,0 +1,24 @@
+# Security/authentication and explicit power events have priority. Normal user
+# processes then bypass every remaining component/security matcher. Debian's
+# regular account range excludes system/dynamic/nobody UIDs. Missing credentials
+# fail closed into system.log, never into a security-specific file.
+if ($.managed_security_routed == "on") then { stop }
+if ($inputname == "imuxsock" and exists($!uid) and
+    cnum($!uid) >= 1000 and cnum($!uid) <= 59999) then {
+  action(type="omfile" file="__INSTALLER_LOG_APPLICATIONS_FILE__"
+         template="RSYSLOG_FileFormat" createDirs="off" sync="off"
+         queue.type="LinkedList" queue.filename="apps"
+         queue.size="__INSTALLER_LOG_RSYSLOG_QUEUE_MESSAGES__"
+         queue.highWatermark="__INSTALLER_LOG_RSYSLOG_QUEUE_HIGH__"
+         queue.lowWatermark="__INSTALLER_LOG_RSYSLOG_QUEUE_LOW__"
+         queue.maxDiskSpace="__INSTALLER_LOG_RSYSLOG_QUEUE_DISK_MIB__m"
+         queue.maxFileSize="__INSTALLER_LOG_RSYSLOG_QUEUE_SEGMENT_MIB__m"
+         queue.saveOnShutdown="on" queue.workerThreads="1"
+         queue.timeoutEnqueue="0"
+         action.resumeRetryCount="-1"
+         action.resumeInterval="__INSTALLER_LOG_RSYSLOG_RESUME_SECONDS__"
+         rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+         rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+         rotation.sizeLimitCommandPassFileName="on")
+  stop
+}

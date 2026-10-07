@@ -1,0 +1,58 @@
+[Unit]
+Description=Managed Codex app-server backend (repository build)
+Documentation=https://developers.openai.com/codex/app-server
+ConditionFileIsExecutable=/data/codex/lib/codex
+ConditionFileIsExecutable=/data/codex/share/bin/codex
+ConditionFileIsExecutable=/usr/local/libexec/codex-app-server-wait-ready
+ConditionPathIsDirectory=/data/codex/usr/home
+ConditionPathIsDirectory=/data/codex/sockets
+ConditionPathIsDirectory=/data/codex/usr/home/app-server-control
+ConditionPathIsDirectory=/data/codex/usr/home/app-server-daemon
+# Keep the backend alive across proxy idle exits and direct administrative starts.
+# Stopping/restarting the public listener still propagates to this backend.
+PartOf=codex-app-server.socket
+StopWhenUnneeded=no
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=exec
+# User managers do not source shell profiles. The wrapper below applies the
+# complete 71-devops-de.sh environment; seed identity before any Exec command.
+Environment=HOME=%h USER=%u LOGNAME=%u XDG_RUNTIME_DIR=%t
+Environment=CODEX_HOME=/data/codex/usr/home
+Environment=XDG_CONFIG_HOME=%h/.config XDG_CACHE_HOME=%h/.cache
+Environment=XDG_DATA_HOME=%h/.local/share XDG_STATE_HOME=%h/.local/state
+# The non-secret policy is optional, including during stop/upgrade operations.
+# Keep its safe allowlist default even when the override file is absent.
+Environment=CODEX_APP_SERVER_SECRET_ENV_NAMES=CODEX_MCP_API_KEY
+EnvironmentFile=-/etc/codex/app-server.env
+# CODEX_HOME/auth.json is application-managed and absent until user login.
+# Never synthesize, load as a credential, or read-only-overmount that file.
+LoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env
+EnvironmentFile=-%d/codex-mcp.env
+WorkingDirectory=%h/Workspace
+ExecStartPre=/usr/bin/rm -f -- /data/codex/sockets/app-server-backend.sock
+ExecStart=/data/codex/lib/codex app-server --listen unix:///data/codex/sockets/app-server-backend.sock
+ExecStartPost=/usr/local/libexec/codex-app-server-wait-ready
+ExecStopPost=/usr/bin/rm -f -- /data/codex/sockets/app-server-backend.sock
+# The wrapper performs bounded cleanup, then reports a manager-requested
+# SIGTERM as the conventional shell status 143. Listener shutdown is clean.
+SuccessExitStatus=143 SIGTERM
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=90s
+TimeoutStopSec=30s
+KillMode=mixed
+UMask=0077
+# Enter the caller-specific AppArmor bwrap child BEFORE no_new_privs is set.
+# bwrap sets no_new_privs itself and the payload verifies zero active caps.
+# User-manager seccomp knobs implicitly set NNP, so do not add them here.
+# Do not use ProtectProc/ProcSubset, PrivateUsers, RestrictNamespaces,
+# CapabilityBoundingSet, or ProtectKernelTunables: nested tool sandboxes need
+# their own PID/user/mount namespaces and a fresh private /proc.
+NoNewPrivileges=no
+LimitCORE=0
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=codex-app-server

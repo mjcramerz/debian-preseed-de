@@ -1,0 +1,7 @@
+# Use the packaged nftables action; isolate its sets from the managed firewall.
+[Init]
+table = fail2ban
+table_family = inet
+chain_hook = input
+chain_priority = -1
+blocktype = drop

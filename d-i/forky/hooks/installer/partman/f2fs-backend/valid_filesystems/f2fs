@@ -1,0 +1,17 @@
+#!/bin/sh
+
+dev=$1
+id=$2
+property=$3
+
+[ -f /var/lib/partman/f2fs ] || exit 0
+case $property in
+    formatable)
+        echo f2fs
+        ;;
+    existing)
+        [ -f "$id/detected_filesystem" ] || exit 0
+        fs=$(cat "$id/detected_filesystem")
+        [ "$fs" = f2fs ] && echo f2fs
+        ;;
+esac

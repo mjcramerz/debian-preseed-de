@@ -1,0 +1,9 @@
+Name: Maintain wtmp database
+Default: yes
+Priority: 0
+Session-Type: Additional
+Session-Interactive-Only: yes
+Session:
+	[success=ignore default=1] pam_succeed_if.so quiet service = login
+	[success=1 default=ignore] pam_succeed_if.so quiet tty !~ ?*
+	optional pam_wtmpdb.so skip_if=sshd

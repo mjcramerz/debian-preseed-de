@@ -1,0 +1,44 @@
+{
+  "advertised_standard_solutions": [
+    "naive"
+  ],
+  "bench_version": "2.2.6-gbef3b59-dirty x86_64-unknown-linux-gnu",
+  "device_firmware": "5108AGLA",
+  "device_model": "KXG6AZNV512G TOSHIBA",
+  "limitations": [
+    "The summary reports aMOF FAIL for every completed QoS sweep point and NO SOLUTION for the three isolation/bandwidth targets.",
+    "This is the exported tuned naive policy, not params-naive, a sweep endpoint, or an isolation guarantee.",
+    "The exact model and firmware are shared across profiles; each profile retains its original deployment enable switch.",
+    "The latency-only rlat-99-q* alternatives are not advertised by the native hwdb export and are not deployed."
+  ],
+  "model": {
+    "rbps": 2766969053,
+    "rrandiops": 226916,
+    "rseqiops": 288832,
+    "wbps": 862334516,
+    "wrandiops": 151257,
+    "wseqiops": 175319
+  },
+  "qos": {
+    "max": 100.0,
+    "min": 75.0,
+    "rlat": 1077,
+    "rpct": 99.0,
+    "wlat": 730,
+    "wpct": 99.0
+  },
+  "schema": 1,
+  "selected": "naive",
+  "source": "User-supplied results(2).zip; resctl-results.json iocost-tune result",
+  "source_sha256": {
+    "resctl-native-hwdb.txt": "ea3bb0867d8bd3b27f3c06aa0e1883dd9bcd73d125f2aa129a0d0b956f3685c1",
+    "resctl-results.json": "dd535cd1c7616b18d64b44228b0a876c290fa2566853f97b09ab59e1ffdb4d35",
+    "resctl-summary.txt": "ad81c26b9095daf78c8f254d32383e313d530be7adbd5b39452a1467543921d6",
+    "solutions.json": "1d3d7719258f54c08bff9978ca224270e48979ce84501b077502a1d1491aca2c"
+  },
+  "unavailable_standard_solutions": [
+    "isolation",
+    "isolated-bandwidth",
+    "bandwidth"
+  ]
+}

@@ -1,0 +1,38 @@
+#!/bin/sh
+set -eu
+
+profile=${BOOTPROFILE_FORCE:-${BOOTPROFILE:-}}
+if [ -z "$profile" ]; then
+  cmdline_profile=$(
+    sed -n \
+      -e 's/.*systemd\.setenv=BOOTPROFILE=\([^ ]*\).*/\1/p' \
+      -e 's/.*bootprofile=\([^ ]*\).*/\1/p' \
+      /proc/cmdline 2>/dev/null | sed -n '1p'
+  )
+  if [ -n "$cmdline_profile" ]; then
+    profile=$cmdline_profile
+  else
+    profile=__INSTALLER_BOOTPROFILE_DEFAULT__
+  fi
+fi
+
+case "$profile" in
+  __INSTALLER_BOOTPROFILE_DEFAULT__|__INSTALLER_BOOTPROFILE_HARDENED__|__INSTALLER_BOOTPROFILE_PERFORMANCE__) ;;
+  *) profile="__INSTALLER_BOOTPROFILE_DEFAULT__" ;;
+esac
+
+sync_profile_dir() {
+  src=$1
+  dest=$2
+  install -d -m 0755 "$dest"
+  find "$dest" -maxdepth 1 -type l -name '*.conf' -delete 2>/dev/null || true
+  [ -d "$src" ] || return 0
+  for f in "$src"/*.conf; do
+    [ -e "$f" ] || continue
+    ln -sf "$f" "$dest/$(basename "$f")"
+  done
+}
+
+install -d -m 0755 "__INSTALLER_DIR_RUN_SYSCTL__"
+sync_profile_dir "__INSTALLER_DIR_SYSCTL_PROFILES__/$profile" "__INSTALLER_DIR_RUN_SYSCTL__"
+printf '%s\n' "$profile" >/run/bootprofile.current

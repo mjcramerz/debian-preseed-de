@@ -1,0 +1,368 @@
+#!/bin/sh
+# Sourced installer module; edit this file directly.
+
+devops_validate_bazel_policy() {
+  : "${DEVOPS_BAZELISK_VERSION:?DEVOPS_BAZELISK_VERSION must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZELISK_URL:?DEVOPS_BAZELISK_URL must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZELISK_SHA256:?DEVOPS_BAZELISK_SHA256 must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZELISK_MINIMUM_BYTES:?DEVOPS_BAZELISK_MINIMUM_BYTES must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZELISK_MAXIMUM_BYTES:?DEVOPS_BAZELISK_MAXIMUM_BYTES must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZELISK_INSTALL_DIR:?DEVOPS_BAZELISK_INSTALL_DIR must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZELISK_BINARY_PATH:?DEVOPS_BAZELISK_BINARY_PATH must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZEL_CACHE_ROOT:?DEVOPS_BAZEL_CACHE_ROOT must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZEL_BUILD_ROOT:?DEVOPS_BAZEL_BUILD_ROOT must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZEL_DB_ROOT:?DEVOPS_BAZEL_DB_ROOT must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZEL_CACHE_SUBDIR:?DEVOPS_BAZEL_CACHE_SUBDIR must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZEL_DISK_CACHE_SUBDIR:?DEVOPS_BAZEL_DISK_CACHE_SUBDIR must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZEL_REPOSITORY_CACHE_SUBDIR:?DEVOPS_BAZEL_REPOSITORY_CACHE_SUBDIR must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZEL_OUTPUT_USER_ROOT_SUBDIR:?DEVOPS_BAZEL_OUTPUT_USER_ROOT_SUBDIR must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZELISK_HOME_SUBDIR:?DEVOPS_BAZELISK_HOME_SUBDIR must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZEL_DISK_CACHE_SIZE:?DEVOPS_BAZEL_DISK_CACHE_SIZE must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZEL_DISK_CACHE_MAX_AGE:?DEVOPS_BAZEL_DISK_CACHE_MAX_AGE must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZEL_DISK_CACHE_GC_IDLE_DELAY:?DEVOPS_BAZEL_DISK_CACHE_GC_IDLE_DELAY must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZEL_ACTION_CACHE_MAX_AGE:?DEVOPS_BAZEL_ACTION_CACHE_MAX_AGE must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZEL_ACTION_CACHE_GC_IDLE_DELAY:?DEVOPS_BAZEL_ACTION_CACHE_GC_IDLE_DELAY must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZEL_ACTION_CACHE_GC_THRESHOLD:?DEVOPS_BAZEL_ACTION_CACHE_GC_THRESHOLD must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZEL_INSTALL_BASE_GC_MAX_AGE:?DEVOPS_BAZEL_INSTALL_BASE_GC_MAX_AGE must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZEL_SERVER_IDLE_SECONDS:?DEVOPS_BAZEL_SERVER_IDLE_SECONDS must be set before DevOps provisioning}"
+  : "${DEVOPS_BAZEL_REPOSITORY_DOWNLOADER_RETRIES:?DEVOPS_BAZEL_REPOSITORY_DOWNLOADER_RETRIES must be set before DevOps provisioning}"
+
+  if ! printf '%s\n' "$DEVOPS_BAZELISK_VERSION" | LC_ALL=C grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+    devops_fatal "DEVOPS_BAZELISK_VERSION must be a semantic version: $DEVOPS_BAZELISK_VERSION"
+  fi
+  case "$DEVOPS_BAZELISK_URL" in
+    "https://github.com/bazelbuild/bazelisk/releases/download/v${DEVOPS_BAZELISK_VERSION}/bazelisk-linux-amd64")
+      ;;
+    *)
+      devops_fatal "DEVOPS_BAZELISK_URL must be the HTTPS Linux AMD64 release asset for DEVOPS_BAZELISK_VERSION"
+      ;;
+  esac
+  [ "${#DEVOPS_BAZELISK_SHA256}" -eq 64 ] ||
+    devops_fatal "DEVOPS_BAZELISK_SHA256 must be a lowercase SHA-256 digest"
+  case "$DEVOPS_BAZELISK_SHA256" in
+    *[!0123456789abcdef]*)
+      devops_fatal "DEVOPS_BAZELISK_SHA256 must be a lowercase SHA-256 digest"
+      ;;
+  esac
+
+  devops_validate_positive_integer \
+    "DEVOPS_BAZELISK_MINIMUM_BYTES" \
+    "$DEVOPS_BAZELISK_MINIMUM_BYTES"
+  devops_validate_positive_integer \
+    "DEVOPS_BAZELISK_MAXIMUM_BYTES" \
+    "$DEVOPS_BAZELISK_MAXIMUM_BYTES"
+  [ "$DEVOPS_BAZELISK_MAXIMUM_BYTES" -ge "$DEVOPS_BAZELISK_MINIMUM_BYTES" ] ||
+    devops_fatal "DEVOPS_BAZELISK_MAXIMUM_BYTES must not be smaller than DEVOPS_BAZELISK_MINIMUM_BYTES"
+
+  devops_validate_abs_path "DEVOPS_BAZELISK_INSTALL_DIR" "$DEVOPS_BAZELISK_INSTALL_DIR"
+  devops_validate_abs_path "DEVOPS_BAZELISK_BINARY_PATH" "$DEVOPS_BAZELISK_BINARY_PATH"
+  [ "$DEVOPS_BAZELISK_INSTALL_DIR" = "/usr/local/lib/bazelisk" ] ||
+    devops_fatal "DEVOPS_BAZELISK_INSTALL_DIR must remain /usr/local/lib/bazelisk"
+  [ "$DEVOPS_BAZELISK_BINARY_PATH" = "${DEVOPS_BAZELISK_INSTALL_DIR}/bazel" ] ||
+    devops_fatal "DEVOPS_BAZELISK_BINARY_PATH must be ${DEVOPS_BAZELISK_INSTALL_DIR}/bazel"
+
+  devops_validate_abs_path "DEVOPS_BAZEL_CACHE_ROOT" "$DEVOPS_BAZEL_CACHE_ROOT"
+  devops_validate_abs_path "DEVOPS_BAZEL_BUILD_ROOT" "$DEVOPS_BAZEL_BUILD_ROOT"
+  devops_validate_abs_path "DEVOPS_BAZEL_DB_ROOT" "$DEVOPS_BAZEL_DB_ROOT"
+  [ "$DEVOPS_BAZEL_CACHE_ROOT" = "$DIR_POOL_CACHE" ] ||
+    devops_fatal "DEVOPS_BAZEL_CACHE_ROOT must match DIR_POOL_CACHE"
+  [ "$DEVOPS_BAZEL_BUILD_ROOT" = "$DIR_POOL_BUILD" ] ||
+    devops_fatal "DEVOPS_BAZEL_BUILD_ROOT must match DIR_POOL_BUILD"
+  [ "$DEVOPS_BAZEL_DB_ROOT" = "$DIR_POOL_DB" ] ||
+    devops_fatal "DEVOPS_BAZEL_DB_ROOT must match DIR_POOL_DB"
+
+  devops_validate_relative_path "DEVOPS_BAZEL_CACHE_SUBDIR" "$DEVOPS_BAZEL_CACHE_SUBDIR"
+  devops_validate_relative_path \
+    "DEVOPS_BAZEL_DISK_CACHE_SUBDIR" \
+    "$DEVOPS_BAZEL_DISK_CACHE_SUBDIR"
+  devops_validate_relative_path \
+    "DEVOPS_BAZEL_REPOSITORY_CACHE_SUBDIR" \
+    "$DEVOPS_BAZEL_REPOSITORY_CACHE_SUBDIR"
+  devops_validate_relative_path \
+    "DEVOPS_BAZEL_OUTPUT_USER_ROOT_SUBDIR" \
+    "$DEVOPS_BAZEL_OUTPUT_USER_ROOT_SUBDIR"
+  devops_validate_relative_path \
+    "DEVOPS_BAZELISK_HOME_SUBDIR" \
+    "$DEVOPS_BAZELISK_HOME_SUBDIR"
+
+  devops_validate_bazel_size "DEVOPS_BAZEL_DISK_CACHE_SIZE" "$DEVOPS_BAZEL_DISK_CACHE_SIZE"
+  devops_validate_bazel_duration \
+    "DEVOPS_BAZEL_DISK_CACHE_MAX_AGE" \
+    "$DEVOPS_BAZEL_DISK_CACHE_MAX_AGE"
+  devops_validate_bazel_duration \
+    "DEVOPS_BAZEL_DISK_CACHE_GC_IDLE_DELAY" \
+    "$DEVOPS_BAZEL_DISK_CACHE_GC_IDLE_DELAY"
+  devops_validate_bazel_duration \
+    "DEVOPS_BAZEL_ACTION_CACHE_MAX_AGE" \
+    "$DEVOPS_BAZEL_ACTION_CACHE_MAX_AGE"
+  devops_validate_bazel_duration \
+    "DEVOPS_BAZEL_ACTION_CACHE_GC_IDLE_DELAY" \
+    "$DEVOPS_BAZEL_ACTION_CACHE_GC_IDLE_DELAY"
+  devops_validate_bazel_duration \
+    "DEVOPS_BAZEL_INSTALL_BASE_GC_MAX_AGE" \
+    "$DEVOPS_BAZEL_INSTALL_BASE_GC_MAX_AGE"
+  devops_validate_positive_integer \
+    "DEVOPS_BAZEL_ACTION_CACHE_GC_THRESHOLD" \
+    "$DEVOPS_BAZEL_ACTION_CACHE_GC_THRESHOLD"
+  [ "$DEVOPS_BAZEL_ACTION_CACHE_GC_THRESHOLD" -le 100 ] ||
+    devops_fatal "DEVOPS_BAZEL_ACTION_CACHE_GC_THRESHOLD must not exceed 100"
+  devops_validate_positive_integer \
+    "DEVOPS_BAZEL_SERVER_IDLE_SECONDS" \
+    "$DEVOPS_BAZEL_SERVER_IDLE_SECONDS"
+  devops_validate_positive_integer \
+    "DEVOPS_BAZEL_REPOSITORY_DOWNLOADER_RETRIES" \
+    "$DEVOPS_BAZEL_REPOSITORY_DOWNLOADER_RETRIES"
+}
+
+devops_validate_publishing_policy() {
+  : "${DEVOPS_APTLY_ROOT_SUBDIR:?DEVOPS_APTLY_ROOT_SUBDIR must be set before DevOps provisioning}"
+  : "${DEVOPS_APTLY_GPG_SIGNING_KEY:?DEVOPS_APTLY_GPG_SIGNING_KEY must be set before DevOps provisioning}"
+  : "${DEVOPS_APTLY_R2_ENDPOINT_URL:?DEVOPS_APTLY_R2_ENDPOINT_URL must be set before DevOps provisioning}"
+  : "${DEVOPS_APTLY_R2_ENDPOINT_NAME:?DEVOPS_APTLY_R2_ENDPOINT_NAME must be set before DevOps provisioning}"
+  : "${DEVOPS_APTLY_R2_BUCKET:?DEVOPS_APTLY_R2_BUCKET must be set before DevOps provisioning}"
+  : "${DEVOPS_APTLY_R2_PREFIX:?DEVOPS_APTLY_R2_PREFIX must be set before DevOps provisioning}"
+  : "${DEVOPS_APTLY_DISTRIBUTIONS:?DEVOPS_APTLY_DISTRIBUTIONS must be set before DevOps provisioning}"
+  : "${DEVOPS_APTLY_COMPONENT:?DEVOPS_APTLY_COMPONENT must be set before DevOps provisioning}"
+  : "${DEVOPS_APTLY_WORKER_ROUTE:?DEVOPS_APTLY_WORKER_ROUTE must be set before DevOps provisioning}"
+  : "${DEVOPS_APTLY_WORKER_ZONE:?DEVOPS_APTLY_WORKER_ZONE must be set before DevOps provisioning}"
+  : "${DEVOPS_APTLY_PUBLIC_BASE_URL:?DEVOPS_APTLY_PUBLIC_BASE_URL must be set before DevOps provisioning}"
+  : "${DEVOPS_APTLY_REPOSITORY_KEY_FINGERPRINT:?DEVOPS_APTLY_REPOSITORY_KEY_FINGERPRINT must be set before DevOps provisioning}"
+  : "${DEVOPS_OSC_STATE_SUBDIR:?DEVOPS_OSC_STATE_SUBDIR must be set before DevOps provisioning}"
+  : "${DEVOPS_OSC_CACHE_SUBDIR:?DEVOPS_OSC_CACHE_SUBDIR must be set before DevOps provisioning}"
+  : "${DEVOPS_OSC_BUILD_SUBDIR:?DEVOPS_OSC_BUILD_SUBDIR must be set before DevOps provisioning}"
+  : "${DEVOPS_OBS_API_URL:?DEVOPS_OBS_API_URL must be set before DevOps provisioning}"
+  : "${DEVOPS_OBS_PROJECT:?DEVOPS_OBS_PROJECT must be set before DevOps provisioning}"
+  : "${DEVOPS_OBS_REPOSITORY:?DEVOPS_OBS_REPOSITORY must be set before DevOps provisioning}"
+  : "${DEVOPS_OSC_CREDENTIALS_BACKEND:?DEVOPS_OSC_CREDENTIALS_BACKEND must be set before DevOps provisioning}"
+
+  devops_validate_relative_path "DEVOPS_APTLY_ROOT_SUBDIR" "$DEVOPS_APTLY_ROOT_SUBDIR"
+  devops_validate_aptly_signing_key_path \
+    "DEVOPS_APTLY_GPG_SIGNING_KEY" \
+    "$DEVOPS_APTLY_GPG_SIGNING_KEY"
+  devops_validate_openpgp_fingerprint \
+    "DEVOPS_APTLY_REPOSITORY_KEY_FINGERPRINT" \
+    "$DEVOPS_APTLY_REPOSITORY_KEY_FINGERPRINT"
+  devops_validate_relative_path "DEVOPS_OSC_STATE_SUBDIR" "$DEVOPS_OSC_STATE_SUBDIR"
+  devops_validate_relative_path "DEVOPS_OSC_CACHE_SUBDIR" "$DEVOPS_OSC_CACHE_SUBDIR"
+  devops_validate_relative_path "DEVOPS_OSC_BUILD_SUBDIR" "$DEVOPS_OSC_BUILD_SUBDIR"
+
+  [ "$DEVOPS_APTLY_ROOT_SUBDIR" = aptly ] ||
+    devops_fatal "DEVOPS_APTLY_ROOT_SUBDIR must remain aptly"
+  [ "$DEVOPS_OSC_STATE_SUBDIR" = osc ] ||
+    devops_fatal "DEVOPS_OSC_STATE_SUBDIR must remain osc"
+  [ "$DEVOPS_OSC_CACHE_SUBDIR" = osc ] ||
+    devops_fatal "DEVOPS_OSC_CACHE_SUBDIR must remain osc"
+  [ "$DEVOPS_OSC_BUILD_SUBDIR" = osc ] ||
+    devops_fatal "DEVOPS_OSC_BUILD_SUBDIR must remain osc"
+  [ "$DEVOPS_APTLY_R2_ENDPOINT_URL" = "https://79cc1f5f831fb7f414638c3e758e9710.r2.cloudflarestorage.com" ] ||
+    devops_fatal "DEVOPS_APTLY_R2_ENDPOINT_URL must remain the managed Cloudflare R2 endpoint"
+  [ "$DEVOPS_APTLY_R2_ENDPOINT_NAME" = r2 ] ||
+    devops_fatal "DEVOPS_APTLY_R2_ENDPOINT_NAME must remain r2"
+  [ "$DEVOPS_APTLY_R2_BUCKET" = cf-aptly-r2-prod ] ||
+    devops_fatal "DEVOPS_APTLY_R2_BUCKET must remain cf-aptly-r2-prod"
+  [ "$DEVOPS_APTLY_R2_PREFIX" = /debian ] ||
+    devops_fatal "DEVOPS_APTLY_R2_PREFIX must remain /debian"
+  [ "$DEVOPS_APTLY_DISTRIBUTIONS" = "stable testing" ] ||
+    devops_fatal "DEVOPS_APTLY_DISTRIBUTIONS must remain stable testing"
+  [ "$DEVOPS_APTLY_COMPONENT" = main ] ||
+    devops_fatal "DEVOPS_APTLY_COMPONENT must remain main"
+  [ "$DEVOPS_APTLY_WORKER_ROUTE" = apt ] ||
+    devops_fatal "DEVOPS_APTLY_WORKER_ROUTE must remain apt"
+  [ "$DEVOPS_APTLY_WORKER_ZONE" = jcramer.xyz ] ||
+    devops_fatal "DEVOPS_APTLY_WORKER_ZONE must remain jcramer.xyz"
+  [ "$DEVOPS_APTLY_PUBLIC_BASE_URL" = "https://${DEVOPS_APTLY_WORKER_ROUTE}.${DEVOPS_APTLY_WORKER_ZONE}" ] ||
+    devops_fatal "DEVOPS_APTLY_PUBLIC_BASE_URL must match the Worker hostname; the Worker strips the internal R2 prefix"
+  [ "$DEVOPS_OBS_API_URL" = https://api.opensuse.org ] ||
+    devops_fatal "DEVOPS_OBS_API_URL must remain https://api.opensuse.org"
+  [ "$DEVOPS_OBS_PROJECT" = home:cramerz:debian ] ||
+    devops_fatal "DEVOPS_OBS_PROJECT must remain home:cramerz:debian"
+  [ "$DEVOPS_OBS_REPOSITORY" = Debian_Unstable ] ||
+    devops_fatal "DEVOPS_OBS_REPOSITORY must remain Debian_Unstable"
+  [ "$DEVOPS_OSC_CREDENTIALS_BACKEND" = keyring.backends.SecretService.Keyring ] ||
+    devops_fatal "DEVOPS_OSC_CREDENTIALS_BACKEND must remain the Secret Service backend"
+}
+
+devops_load_publishing_credentials() {
+  DEVOPS_CF_R2_ACCESS_KEY=$(installer_cmdline_value cf_r2_access_key 2>/dev/null || true)
+  DEVOPS_CF_R2_SECRET_KEY=$(installer_cmdline_value cf_r2_secret_key 2>/dev/null || true)
+  DEVOPS_OBS_USERNAME=$(installer_cmdline_value obs_username 2>/dev/null || true)
+  DEVOPS_OBS_PASSWORD=$(installer_cmdline_value obs_password 2>/dev/null || true)
+
+  [ -n "$DEVOPS_CF_R2_ACCESS_KEY" ] ||
+    devops_fatal "addon/devops requires cf_r2_access_key on the kernel cmdline or in /preseed.env"
+  [ -n "$DEVOPS_CF_R2_SECRET_KEY" ] ||
+    devops_fatal "addon/devops requires cf_r2_secret_key on the kernel cmdline or in /preseed.env"
+  [ -n "$DEVOPS_OBS_USERNAME" ] ||
+    devops_fatal "addon/devops requires obs_username on the kernel cmdline or in /preseed.env"
+  [ -n "$DEVOPS_OBS_PASSWORD" ] ||
+    devops_fatal "addon/devops requires obs_password on the kernel cmdline or in /preseed.env"
+
+  [ "${#DEVOPS_CF_R2_ACCESS_KEY}" -eq 32 ] ||
+    devops_fatal "cf_r2_access_key must be a 32-character hexadecimal R2 access key id"
+  case "$DEVOPS_CF_R2_ACCESS_KEY" in
+    *[!0123456789abcdefABCDEF]*)
+      devops_fatal "cf_r2_access_key must be a 32-character hexadecimal R2 access key id"
+      ;;
+  esac
+  [ "${#DEVOPS_CF_R2_SECRET_KEY}" -eq 64 ] ||
+    devops_fatal "cf_r2_secret_key must be a 64-character hexadecimal R2 secret access key"
+  case "$DEVOPS_CF_R2_SECRET_KEY" in
+    *[!0123456789abcdefABCDEF]*)
+      devops_fatal "cf_r2_secret_key must be a 64-character hexadecimal R2 secret access key"
+      ;;
+  esac
+  if ! printf '%s\n' "$DEVOPS_OBS_USERNAME" |
+    LC_ALL=C grep -Eq '^[A-Za-z0-9_.@+-]+$'
+  then
+    devops_fatal "obs_username contains unsupported characters"
+  fi
+  [ "${#DEVOPS_OBS_USERNAME}" -le 255 ] ||
+    devops_fatal "obs_username exceeds 255 characters"
+  [ "${#DEVOPS_OBS_PASSWORD}" -le 4096 ] ||
+    devops_fatal "obs_password exceeds 4096 characters"
+  if ! printf '%s\n' "$DEVOPS_OBS_PASSWORD" |
+    LC_ALL=C grep -Eq '^[[:graph:]]+$'
+  then
+    devops_fatal "obs_password must be one printable token without whitespace"
+  fi
+}
+
+devops_validate_codex_policy() {
+  # These are fixed addon/devops prerequisites rather than host-specific
+  # tuning. Supply the exact class defaults when an earlier installer seed
+  # cache predates the profile entries, then validate them below as usual.
+  : "${DEVOPS_CODEX_BWRAP_USERNS_CLONE:=1}"
+  : "${DEVOPS_CODEX_BWRAP_MAX_USER_NAMESPACES:=1024}"
+
+  : "${DEVOPS_CODEX_VERSION:?DEVOPS_CODEX_VERSION must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_STANDALONE_INSTALLER_URL:?DEVOPS_CODEX_STANDALONE_INSTALLER_URL must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_STANDALONE_INSTALLER_MAXIMUM_BYTES:?DEVOPS_CODEX_STANDALONE_INSTALLER_MAXIMUM_BYTES must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_RELEASE_TAG:?DEVOPS_CODEX_RELEASE_TAG must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_URL:?DEVOPS_CODEX_URL must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_SHA256:?DEVOPS_CODEX_SHA256 must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_MAXIMUM_BYTES:?DEVOPS_CODEX_MAXIMUM_BYTES must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_MAXIMUM_EXTRACTED_BYTES:?DEVOPS_CODEX_MAXIMUM_EXTRACTED_BYTES must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_ARCHIVE_BINARY_DIR:?DEVOPS_CODEX_ARCHIVE_BINARY_DIR must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_ARCHIVE_SCHEMA_MEMBER:?DEVOPS_CODEX_ARCHIVE_SCHEMA_MEMBER must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_ROOT:?DEVOPS_CODEX_ROOT must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_BINARY_PATH:?DEVOPS_CODEX_BINARY_PATH must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_SCHEMA_PATH:?DEVOPS_CODEX_SCHEMA_PATH must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_WRAPPER_PATH:?DEVOPS_CODEX_WRAPPER_PATH must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_USER_ROOT:?DEVOPS_CODEX_USER_ROOT must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_SYSTEM_CONFIG_DIR:?DEVOPS_CODEX_SYSTEM_CONFIG_DIR must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_LOG_DIR:?DEVOPS_CODEX_LOG_DIR must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_SQLITE_HOME:?DEVOPS_CODEX_SQLITE_HOME must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_RUNTIME_ROOT:?DEVOPS_CODEX_RUNTIME_ROOT must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_REPOSITORY_URL:?DEVOPS_CODEX_REPOSITORY_URL must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_REPOSITORY_BRANCH:?DEVOPS_CODEX_REPOSITORY_BRANCH must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_AGENTS:?DEVOPS_CODEX_AGENTS must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_HOME:?DEVOPS_CODEX_HOME must be set before DevOps provisioning}"
+  : "${DEVOPS_CODEX_SKILLS:?DEVOPS_CODEX_SKILLS must be set before DevOps provisioning}"
+
+  if ! printf '%s\n' "$DEVOPS_CODEX_VERSION" |
+    LC_ALL=C grep -Eq '^[A-Za-z0-9][A-Za-z0-9._+-]*$'
+  then
+    devops_fatal "DEVOPS_CODEX_VERSION contains unsupported syntax: $DEVOPS_CODEX_VERSION"
+  fi
+  [ "$DEVOPS_CODEX_STANDALONE_INSTALLER_URL" = https://chatgpt.com/codex/install.sh ] ||
+    devops_fatal "DEVOPS_CODEX_STANDALONE_INSTALLER_URL must remain the approved ChatGPT HTTPS installer"
+  devops_validate_positive_integer \
+    "DEVOPS_CODEX_STANDALONE_INSTALLER_MAXIMUM_BYTES" \
+    "$DEVOPS_CODEX_STANDALONE_INSTALLER_MAXIMUM_BYTES"
+  [ "$DEVOPS_CODEX_STANDALONE_INSTALLER_MAXIMUM_BYTES" -le 1048576 ] ||
+    devops_fatal "DEVOPS_CODEX_STANDALONE_INSTALLER_MAXIMUM_BYTES must not exceed 1048576"
+  if ! printf '%s\n' "$DEVOPS_CODEX_RELEASE_TAG" |
+    LC_ALL=C grep -Eq '^[A-Za-z0-9][A-Za-z0-9._+-]*$'
+  then
+    devops_fatal "DEVOPS_CODEX_RELEASE_TAG contains unsupported syntax: $DEVOPS_CODEX_RELEASE_TAG"
+  fi
+  if ! printf '%s\n' "$DEVOPS_CODEX_URL" |
+    LC_ALL=C grep -Eq '^https://[^[:space:]]+$'
+  then
+    devops_fatal "DEVOPS_CODEX_URL must be a whitespace-free HTTPS URL"
+  fi
+
+  [ "${#DEVOPS_CODEX_SHA256}" -eq 64 ] ||
+    devops_fatal "DEVOPS_CODEX_SHA256 must be a lowercase SHA-256 digest"
+  case "$DEVOPS_CODEX_SHA256" in
+    *[!0123456789abcdef]*)
+      devops_fatal "DEVOPS_CODEX_SHA256 must be a lowercase SHA-256 digest"
+      ;;
+  esac
+  devops_validate_positive_integer "DEVOPS_CODEX_MAXIMUM_BYTES" "$DEVOPS_CODEX_MAXIMUM_BYTES"
+  devops_validate_positive_integer \
+    "DEVOPS_CODEX_MAXIMUM_EXTRACTED_BYTES" \
+    "$DEVOPS_CODEX_MAXIMUM_EXTRACTED_BYTES"
+
+  devops_validate_relative_path \
+    "DEVOPS_CODEX_ARCHIVE_BINARY_DIR" \
+    "$DEVOPS_CODEX_ARCHIVE_BINARY_DIR"
+  case "$DEVOPS_CODEX_ARCHIVE_BINARY_DIR" in
+    */*) devops_fatal "DEVOPS_CODEX_ARCHIVE_BINARY_DIR must be one directory name" ;;
+  esac
+  devops_validate_relative_path \
+    "DEVOPS_CODEX_ARCHIVE_SCHEMA_MEMBER" \
+    "$DEVOPS_CODEX_ARCHIVE_SCHEMA_MEMBER"
+  case "$DEVOPS_CODEX_ARCHIVE_SCHEMA_MEMBER" in
+    */*) devops_fatal "DEVOPS_CODEX_ARCHIVE_SCHEMA_MEMBER must be a root file name" ;;
+  esac
+
+  devops_validate_abs_path "DEVOPS_CODEX_ROOT" "$DEVOPS_CODEX_ROOT"
+  devops_validate_abs_path "DEVOPS_CODEX_BINARY_PATH" "$DEVOPS_CODEX_BINARY_PATH"
+  devops_validate_abs_path "DEVOPS_CODEX_SCHEMA_PATH" "$DEVOPS_CODEX_SCHEMA_PATH"
+  devops_validate_abs_path "DEVOPS_CODEX_WRAPPER_PATH" "$DEVOPS_CODEX_WRAPPER_PATH"
+  devops_validate_abs_path "DEVOPS_CODEX_USER_ROOT" "$DEVOPS_CODEX_USER_ROOT"
+  devops_validate_abs_path \
+    "DEVOPS_CODEX_SYSTEM_CONFIG_DIR" \
+    "$DEVOPS_CODEX_SYSTEM_CONFIG_DIR"
+  devops_validate_abs_path "DEVOPS_CODEX_LOG_DIR" "$DEVOPS_CODEX_LOG_DIR"
+  devops_validate_abs_path "DEVOPS_CODEX_SQLITE_HOME" "$DEVOPS_CODEX_SQLITE_HOME"
+  devops_validate_abs_path "DEVOPS_CODEX_RUNTIME_ROOT" "$DEVOPS_CODEX_RUNTIME_ROOT"
+  devops_validate_abs_path "DEVOPS_CODEX_AGENTS" "$DEVOPS_CODEX_AGENTS"
+  devops_validate_abs_path "DEVOPS_CODEX_HOME" "$DEVOPS_CODEX_HOME"
+  devops_validate_abs_path "DEVOPS_CODEX_SKILLS" "$DEVOPS_CODEX_SKILLS"
+  devops_validate_abs_path \
+    "managed Codex host log directory" \
+    "$devops_codex_host_log_dir"
+
+  [ "$DEVOPS_CODEX_ROOT" = /data/codex ] ||
+    devops_fatal "DEVOPS_CODEX_ROOT must remain /data/codex"
+  [ "$DEVOPS_CODEX_BINARY_PATH" = "${DEVOPS_CODEX_ROOT}/share/bin/codex" ] ||
+    devops_fatal "DEVOPS_CODEX_BINARY_PATH must remain ${DEVOPS_CODEX_ROOT}/share/bin/codex"
+  [ "$DEVOPS_CODEX_SCHEMA_PATH" = "${DEVOPS_CODEX_ROOT}/${DEVOPS_CODEX_ARCHIVE_SCHEMA_MEMBER}" ] ||
+    devops_fatal "DEVOPS_CODEX_SCHEMA_PATH must match the profile-owned archive schema member"
+  [ "$DEVOPS_CODEX_WRAPPER_PATH" = "${DEVOPS_CODEX_ROOT}/lib/codex" ] ||
+    devops_fatal "DEVOPS_CODEX_WRAPPER_PATH must remain ${DEVOPS_CODEX_ROOT}/lib/codex"
+  [ "$DEVOPS_CODEX_USER_ROOT" = "${DEVOPS_CODEX_ROOT}/usr" ] ||
+    devops_fatal "DEVOPS_CODEX_USER_ROOT must remain ${DEVOPS_CODEX_ROOT}/usr"
+  [ "$DEVOPS_CODEX_SYSTEM_CONFIG_DIR" = /etc/codex ] ||
+    devops_fatal "DEVOPS_CODEX_SYSTEM_CONFIG_DIR must remain /etc/codex"
+  [ "$DEVOPS_CODEX_LOG_DIR" = "${DEVOPS_CODEX_ROOT}/log" ] ||
+    devops_fatal "DEVOPS_CODEX_LOG_DIR must remain ${DEVOPS_CODEX_ROOT}/log"
+  [ "$DEVOPS_CODEX_SQLITE_HOME" = "${DEVOPS_CODEX_ROOT}/sqlite" ] ||
+    devops_fatal "DEVOPS_CODEX_SQLITE_HOME must remain ${DEVOPS_CODEX_ROOT}/sqlite"
+  [ "$DEVOPS_CODEX_RUNTIME_ROOT" = "${DEVOPS_CODEX_ROOT}/runtime" ] ||
+    devops_fatal "DEVOPS_CODEX_RUNTIME_ROOT must remain ${DEVOPS_CODEX_ROOT}/runtime"
+  [ "$DEVOPS_CODEX_AGENTS" = "${DEVOPS_CODEX_USER_ROOT}/agents" ] ||
+    devops_fatal "DEVOPS_CODEX_AGENTS must remain ${DEVOPS_CODEX_USER_ROOT}/agents"
+  [ "$DEVOPS_CODEX_HOME" = "${DEVOPS_CODEX_USER_ROOT}/home" ] ||
+    devops_fatal "DEVOPS_CODEX_HOME must remain ${DEVOPS_CODEX_USER_ROOT}/home"
+  [ "$DEVOPS_CODEX_SKILLS" = "${DEVOPS_CODEX_USER_ROOT}/skills" ] ||
+    devops_fatal "DEVOPS_CODEX_SKILLS must remain ${DEVOPS_CODEX_USER_ROOT}/skills"
+  [ "$devops_codex_host_log_dir" = __INSTALLER_LOG_CODEX_RUNTIME_DIR__ ] ||
+    devops_fatal "managed Codex host log directory must remain __INSTALLER_LOG_CODEX_RUNTIME_DIR__"
+  [ "$DEVOPS_CODEX_BWRAP_USERNS_CLONE" = 1 ] ||
+    devops_fatal "DEVOPS_CODEX_BWRAP_USERNS_CLONE must remain 1 for Bubblewrap"
+  devops_validate_positive_integer \
+    "DEVOPS_CODEX_BWRAP_MAX_USER_NAMESPACES" \
+    "$DEVOPS_CODEX_BWRAP_MAX_USER_NAMESPACES"
+  [ "$DEVOPS_CODEX_BWRAP_MAX_USER_NAMESPACES" -eq 1024 ] ||
+    devops_fatal "DEVOPS_CODEX_BWRAP_MAX_USER_NAMESPACES must remain 1024"
+
+  [ "$DEVOPS_CODEX_REPOSITORY_URL" = git@gitlab.com:computes/misc/codex-home.git ] ||
+    devops_fatal "DEVOPS_CODEX_REPOSITORY_URL must remain the approved GitLab SSH repository"
+  [ "$DEVOPS_CODEX_REPOSITORY_BRANCH" = mcr/main ] ||
+    devops_fatal "DEVOPS_CODEX_REPOSITORY_BRANCH must remain mcr/main"
+
+}
+

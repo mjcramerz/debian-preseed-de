@@ -1,0 +1,32 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/bin:/bin
+LC_ALL=C.UTF-8
+export PATH LC_ALL
+umask 077
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+[ "$(/usr/bin/id -u)" -eq 0 ] ||
+  fatal "Mullvad daemon start helper must run as root"
+case "${PKEXEC_UID:-}" in
+  ''|0|0*|*[!0-9]*)
+    fatal "Mullvad daemon start helper requires a non-root pkexec invoker"
+    ;;
+esac
+/usr/bin/getent passwd "$PKEXEC_UID" >/dev/null 2>&1 ||
+  fatal "pkexec invoking account does not exist: $PKEXEC_UID"
+[ "$#" -eq 0 ] || fatal "usage: mullvad-daemon-start"
+
+daemon_unit=mullvad-daemon.service
+if /usr/bin/systemctl --quiet is-active "$daemon_unit"; then
+  exit 0
+fi
+
+/usr/bin/systemctl start "$daemon_unit"
+/usr/bin/systemctl --quiet is-active "$daemon_unit" ||
+  fatal "Mullvad daemon did not become active"

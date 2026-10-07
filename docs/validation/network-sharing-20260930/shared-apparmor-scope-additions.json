@@ -1,0 +1,9 @@
+[
+  "/usr/local/bin/labwc-network-sharing rPx,",
+  "signal (send) set=(term, kill) peer=labwc-network-sharing,",
+  "signal (receive) set=(chld) peer=labwc-network-sharing,",
+  "signal (receive) set=(term, kill) peer=labwc-network-sharing,",
+  "signal (send) set=(chld) peer=labwc-network-sharing,",
+  "signal (receive) set=(term, kill) peer=labwc-network-sharing,",
+  "signal (send) set=(chld) peer=labwc-network-sharing,"
+]

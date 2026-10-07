@@ -1,0 +1,44 @@
+[Unit]
+Description=Verify the managed NFS identity namespace before use
+Requires=apparmor.service apparmor-modes.service
+After=apparmor.service apparmor-modes.service systemd-modules-load.service
+AssertPathExists=/etc/network-sharing/config.json
+AssertPathExists=/etc/idmapd.conf
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/network-sharing-identity
+# Recheck on subsequent starts; no resident process or cached success state.
+RemainAfterExit=no
+AppArmorProfile=network-sharing-identity
+TimeoutStartSec=30s
+TimeoutStopSec=5s
+KillMode=control-group
+UMask=0077
+TasksMax=16
+MemoryMax=96M
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+# This prerequisite reads policy and identities, never share contents. Hide
+# every allowed sharing parent before recursive read-only sandbox setup, so
+# its namespace cannot traverse the automount that is waiting for this check.
+InaccessiblePaths=-/data -/pool -/srv
+PrivateTmp=yes
+PrivateDevices=yes
+IPAddressDeny=any
+SocketBindDeny=any
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+MemoryDenyWriteExecute=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM

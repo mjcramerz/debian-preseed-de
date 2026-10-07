@@ -1,0 +1,11 @@
+# Managed by the installer apt-setup preferences generator.
+# Block the stable CrowdSec feed when the addon selects the testing channel as
+# the managed source of truth.
+
+Package: *
+Pin: release o=packagecloud.io/crowdsec/crowdsec
+Pin-Priority: -1
+
+Package: *
+Pin: release l=packagecloud.io/crowdsec/crowdsec
+Pin-Priority: -1

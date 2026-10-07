@@ -1,0 +1,1216 @@
+--- before/d-i/forky/hooks/target/etc/nfs.conf.d/60-network-sharing.conf.tmpl
++++ after/d-i/forky/hooks/target/etc/nfs.conf.d/60-network-sharing.conf.tmpl
+@@ -4,6 +4,7 @@
+ port = 2049
+ tcp = y
+ udp = n
++vers2 = n
+ vers3 = n
+ vers4 = y
+ vers4.0 = n
+--- before/d-i/forky/hooks/target/etc/systemd/system/nfs-mountd.service.d/60-network-sharing.conf
++++ after/d-i/forky/hooks/target/etc/systemd/system/nfs-mountd.service.d/60-network-sharing.conf
+@@ -11,7 +11,8 @@
+ RestrictSUIDSGID=yes
+ RestrictRealtime=yes
+ LockPersonality=yes
+-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
++# nfs-utils uses generic netlink for kernel export and AUTH_SYS group caches.
++RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+ TimeoutStopSec=30s
+ KillMode=control-group
+ Restart=on-failure
+--- before/d-i/forky/hooks/target/etc/systemd/system/nfs-server.service.d/60-network-sharing.conf.tmpl
++++ after/d-i/forky/hooks/target/etc/systemd/system/nfs-server.service.d/60-network-sharing.conf.tmpl
+@@ -1,4 +1,9 @@
+ [Unit]
++# Refuse partially configured boots, including package-preset enablement.
++AssertPathExists=/etc/network-sharing/config.json
++AssertPathExists=/etc/nfs.conf.d/60-network-sharing.conf
++AssertPathExists=/etc/nftables.d/20-filter.nft
++AssertPathExists=/etc/systemd/system/nftables.service.d/override.conf
+ # Never export the underlying root filesystem if the data mount failed.
+ RequiresMountsFor=__NFS_SERVER_PATH__
+ BindsTo=nftables.service
+@@ -6,6 +11,11 @@
+ Requires=nfs-idmapd.service
+ 
+ [Service]
++# The vendor unit ignores exportfs errors. Refuse failed start/reload instead.
++ExecStartPre=
++ExecStartPre=/usr/sbin/exportfs -r
++ExecReload=
++ExecReload=/usr/sbin/exportfs -r
+ # nfsd is kernel-backed: retain host networking and writable nfsd/rpc state.
+ NoNewPrivileges=yes
+ ProtectHome=yes
+--- before/d-i/forky/hosts/profiles/btrfs-de-duo.env
++++ after/d-i/forky/hosts/profiles/btrfs-de-duo.env
+@@ -37,7 +37,7 @@
+ NFS_SERVER_PATH="${NETWORK_SHARING_ROOT_PATH}/nfs-server"
+ NFS_SERVER_BIND_ENABLE="false"
+ NFS_SERVER_HOME_BIND_PATH="Sharing/nfs-server"
+-NFS_SERVER_DEPS="nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl"
++NFS_SERVER_DEPS="nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl e2fsprogs"
+ NFS_SERVER_THREADS="8"
+ NFS_SERVER_RW_OPTIONS="rw,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0"
+ NFS_SERVER_RO_OPTIONS="ro,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0"
+@@ -55,7 +55,7 @@
+ NFS_CLIENT_VERSION="4.2"
+ NFS_CLIENT_READ_ONLY="false"
+ NFS_CLIENT_MOUNT_TIMEOUT="30"
+-NFS_CLIENT_DEPS="nfs-common libnfsidmap1 keyutils nftables"
++NFS_CLIENT_DEPS="nfs-common libnfsidmap1 keyutils nftables e2fsprogs"
+ NFS_IDMAP_DOMAIN="sharing.home.arpa"
+ # Keep account UIDs and this group GID consistent across all AUTH_SYS peers.
+ NFS_SHARED_GROUP="nfs-sharing"
+--- before/d-i/forky/hosts/profiles/btrfs-de-flex-duo.env
++++ after/d-i/forky/hosts/profiles/btrfs-de-flex-duo.env
+@@ -38,7 +38,7 @@
+ NFS_SERVER_PATH="${NETWORK_SHARING_ROOT_PATH}/nfs-server"
+ NFS_SERVER_BIND_ENABLE="false"
+ NFS_SERVER_HOME_BIND_PATH="Sharing/nfs-server"
+-NFS_SERVER_DEPS="nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl"
++NFS_SERVER_DEPS="nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl e2fsprogs"
+ NFS_SERVER_THREADS="8"
+ NFS_SERVER_RW_OPTIONS="rw,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0"
+ NFS_SERVER_RO_OPTIONS="ro,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0"
+@@ -56,7 +56,7 @@
+ NFS_CLIENT_VERSION="4.2"
+ NFS_CLIENT_READ_ONLY="false"
+ NFS_CLIENT_MOUNT_TIMEOUT="30"
+-NFS_CLIENT_DEPS="nfs-common libnfsidmap1 keyutils nftables"
++NFS_CLIENT_DEPS="nfs-common libnfsidmap1 keyutils nftables e2fsprogs"
+ NFS_IDMAP_DOMAIN="sharing.home.arpa"
+ # Keep account UIDs and this group GID consistent across all AUTH_SYS peers.
+ NFS_SHARED_GROUP="nfs-sharing"
+--- before/d-i/forky/hosts/profiles/btrfs-de-flex.env
++++ after/d-i/forky/hosts/profiles/btrfs-de-flex.env
+@@ -37,7 +37,7 @@
+ NFS_SERVER_PATH="${NETWORK_SHARING_ROOT_PATH}/nfs-server"
+ NFS_SERVER_BIND_ENABLE="false"
+ NFS_SERVER_HOME_BIND_PATH="Sharing/nfs-server"
+-NFS_SERVER_DEPS="nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl"
++NFS_SERVER_DEPS="nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl e2fsprogs"
+ NFS_SERVER_THREADS="8"
+ NFS_SERVER_RW_OPTIONS="rw,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0"
+ NFS_SERVER_RO_OPTIONS="ro,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0"
+@@ -55,7 +55,7 @@
+ NFS_CLIENT_VERSION="4.2"
+ NFS_CLIENT_READ_ONLY="false"
+ NFS_CLIENT_MOUNT_TIMEOUT="30"
+-NFS_CLIENT_DEPS="nfs-common libnfsidmap1 keyutils nftables"
++NFS_CLIENT_DEPS="nfs-common libnfsidmap1 keyutils nftables e2fsprogs"
+ NFS_IDMAP_DOMAIN="sharing.home.arpa"
+ # Keep account UIDs and this group GID consistent across all AUTH_SYS peers.
+ NFS_SHARED_GROUP="nfs-sharing"
+--- before/d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env
++++ after/d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env
+@@ -38,7 +38,7 @@
+ NFS_SERVER_PATH="${NETWORK_SHARING_ROOT_PATH}/nfs-server"
+ NFS_SERVER_BIND_ENABLE="false"
+ NFS_SERVER_HOME_BIND_PATH="Sharing/nfs-server"
+-NFS_SERVER_DEPS="nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl"
++NFS_SERVER_DEPS="nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl e2fsprogs"
+ NFS_SERVER_THREADS="8"
+ NFS_SERVER_RW_OPTIONS="rw,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0"
+ NFS_SERVER_RO_OPTIONS="ro,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0"
+@@ -56,7 +56,7 @@
+ NFS_CLIENT_VERSION="4.2"
+ NFS_CLIENT_READ_ONLY="false"
+ NFS_CLIENT_MOUNT_TIMEOUT="30"
+-NFS_CLIENT_DEPS="nfs-common libnfsidmap1 keyutils nftables"
++NFS_CLIENT_DEPS="nfs-common libnfsidmap1 keyutils nftables e2fsprogs"
+ NFS_IDMAP_DOMAIN="sharing.home.arpa"
+ # Keep account UIDs and this group GID consistent across all AUTH_SYS peers.
+ NFS_SHARED_GROUP="nfs-sharing"
+--- before/d-i/forky/hosts/profiles/btrfs-de-p15s.env
++++ after/d-i/forky/hosts/profiles/btrfs-de-p15s.env
+@@ -37,7 +37,7 @@
+ NFS_SERVER_PATH="${NETWORK_SHARING_ROOT_PATH}/nfs-server"
+ NFS_SERVER_BIND_ENABLE="false"
+ NFS_SERVER_HOME_BIND_PATH="Sharing/nfs-server"
+-NFS_SERVER_DEPS="nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl"
++NFS_SERVER_DEPS="nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl e2fsprogs"
+ NFS_SERVER_THREADS="8"
+ NFS_SERVER_RW_OPTIONS="rw,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0"
+ NFS_SERVER_RO_OPTIONS="ro,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0"
+@@ -55,7 +55,7 @@
+ NFS_CLIENT_VERSION="4.2"
+ NFS_CLIENT_READ_ONLY="false"
+ NFS_CLIENT_MOUNT_TIMEOUT="30"
+-NFS_CLIENT_DEPS="nfs-common libnfsidmap1 keyutils nftables"
++NFS_CLIENT_DEPS="nfs-common libnfsidmap1 keyutils nftables e2fsprogs"
+ NFS_IDMAP_DOMAIN="sharing.home.arpa"
+ # Keep account UIDs and this group GID consistent across all AUTH_SYS peers.
+ NFS_SHARED_GROUP="nfs-sharing"
+--- before/d-i/forky/hosts/profiles/btrfs-de.env
++++ after/d-i/forky/hosts/profiles/btrfs-de.env
+@@ -37,7 +37,7 @@
+ NFS_SERVER_PATH="${NETWORK_SHARING_ROOT_PATH}/nfs-server"
+ NFS_SERVER_BIND_ENABLE="false"
+ NFS_SERVER_HOME_BIND_PATH="Sharing/nfs-server"
+-NFS_SERVER_DEPS="nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl"
++NFS_SERVER_DEPS="nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl e2fsprogs"
+ NFS_SERVER_THREADS="8"
+ NFS_SERVER_RW_OPTIONS="rw,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0"
+ NFS_SERVER_RO_OPTIONS="ro,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0"
+@@ -55,7 +55,7 @@
+ NFS_CLIENT_VERSION="4.2"
+ NFS_CLIENT_READ_ONLY="false"
+ NFS_CLIENT_MOUNT_TIMEOUT="30"
+-NFS_CLIENT_DEPS="nfs-common libnfsidmap1 keyutils nftables"
++NFS_CLIENT_DEPS="nfs-common libnfsidmap1 keyutils nftables e2fsprogs"
+ NFS_IDMAP_DOMAIN="sharing.home.arpa"
+ # Keep account UIDs and this group GID consistent across all AUTH_SYS peers.
+ NFS_SHARED_GROUP="nfs-sharing"
+--- before/d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env
++++ after/d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env
+@@ -38,7 +38,7 @@
+ NFS_SERVER_PATH="${NETWORK_SHARING_ROOT_PATH}/nfs-server"
+ NFS_SERVER_BIND_ENABLE="false"
+ NFS_SERVER_HOME_BIND_PATH="Sharing/nfs-server"
+-NFS_SERVER_DEPS="nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl"
++NFS_SERVER_DEPS="nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl e2fsprogs"
+ NFS_SERVER_THREADS="8"
+ NFS_SERVER_RW_OPTIONS="rw,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0"
+ NFS_SERVER_RO_OPTIONS="ro,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0"
+@@ -56,7 +56,7 @@
+ NFS_CLIENT_VERSION="4.2"
+ NFS_CLIENT_READ_ONLY="false"
+ NFS_CLIENT_MOUNT_TIMEOUT="30"
+-NFS_CLIENT_DEPS="nfs-common libnfsidmap1 keyutils nftables"
++NFS_CLIENT_DEPS="nfs-common libnfsidmap1 keyutils nftables e2fsprogs"
+ NFS_IDMAP_DOMAIN="sharing.home.arpa"
+ # Keep account UIDs and this group GID consistent across all AUTH_SYS peers.
+ NFS_SHARED_GROUP="nfs-sharing"
+--- before/d-i/forky/hosts/profiles/f2fs-de-hp14.env
++++ after/d-i/forky/hosts/profiles/f2fs-de-hp14.env
+@@ -38,7 +38,7 @@
+ NFS_SERVER_PATH="${NETWORK_SHARING_ROOT_PATH}/nfs-server"
+ NFS_SERVER_BIND_ENABLE="false"
+ NFS_SERVER_HOME_BIND_PATH="Sharing/nfs-server"
+-NFS_SERVER_DEPS="nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl"
++NFS_SERVER_DEPS="nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl e2fsprogs"
+ NFS_SERVER_THREADS="8"
+ NFS_SERVER_RW_OPTIONS="rw,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0"
+ NFS_SERVER_RO_OPTIONS="ro,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0"
+@@ -56,7 +56,7 @@
+ NFS_CLIENT_VERSION="4.2"
+ NFS_CLIENT_READ_ONLY="false"
+ NFS_CLIENT_MOUNT_TIMEOUT="30"
+-NFS_CLIENT_DEPS="nfs-common libnfsidmap1 keyutils nftables"
++NFS_CLIENT_DEPS="nfs-common libnfsidmap1 keyutils nftables e2fsprogs"
+ NFS_IDMAP_DOMAIN="sharing.home.arpa"
+ # Keep account UIDs and this group GID consistent across all AUTH_SYS peers.
+ NFS_SHARED_GROUP="nfs-sharing"
+--- before/d-i/forky/hosts/profiles/f2fs-de-x360-duo.env
++++ after/d-i/forky/hosts/profiles/f2fs-de-x360-duo.env
+@@ -37,7 +37,7 @@
+ NFS_SERVER_PATH="${NETWORK_SHARING_ROOT_PATH}/nfs-server"
+ NFS_SERVER_BIND_ENABLE="false"
+ NFS_SERVER_HOME_BIND_PATH="Sharing/nfs-server"
+-NFS_SERVER_DEPS="nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl"
++NFS_SERVER_DEPS="nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl e2fsprogs"
+ NFS_SERVER_THREADS="8"
+ NFS_SERVER_RW_OPTIONS="rw,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0"
+ NFS_SERVER_RO_OPTIONS="ro,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0"
+@@ -55,7 +55,7 @@
+ NFS_CLIENT_VERSION="4.2"
+ NFS_CLIENT_READ_ONLY="false"
+ NFS_CLIENT_MOUNT_TIMEOUT="30"
+-NFS_CLIENT_DEPS="nfs-common libnfsidmap1 keyutils nftables"
++NFS_CLIENT_DEPS="nfs-common libnfsidmap1 keyutils nftables e2fsprogs"
+ NFS_IDMAP_DOMAIN="sharing.home.arpa"
+ # Keep account UIDs and this group GID consistent across all AUTH_SYS peers.
+ NFS_SHARED_GROUP="nfs-sharing"
+--- before/d-i/forky/hosts/profiles/f2fs-de-x360.env
++++ after/d-i/forky/hosts/profiles/f2fs-de-x360.env
+@@ -37,7 +37,7 @@
+ NFS_SERVER_PATH="${NETWORK_SHARING_ROOT_PATH}/nfs-server"
+ NFS_SERVER_BIND_ENABLE="false"
+ NFS_SERVER_HOME_BIND_PATH="Sharing/nfs-server"
+-NFS_SERVER_DEPS="nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl"
++NFS_SERVER_DEPS="nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl e2fsprogs"
+ NFS_SERVER_THREADS="8"
+ NFS_SERVER_RW_OPTIONS="rw,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0"
+ NFS_SERVER_RO_OPTIONS="ro,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0"
+@@ -55,7 +55,7 @@
+ NFS_CLIENT_VERSION="4.2"
+ NFS_CLIENT_READ_ONLY="false"
+ NFS_CLIENT_MOUNT_TIMEOUT="30"
+-NFS_CLIENT_DEPS="nfs-common libnfsidmap1 keyutils nftables"
++NFS_CLIENT_DEPS="nfs-common libnfsidmap1 keyutils nftables e2fsprogs"
+ NFS_IDMAP_DOMAIN="sharing.home.arpa"
+ # Keep account UIDs and this group GID consistent across all AUTH_SYS peers.
+ NFS_SHARED_GROUP="nfs-sharing"
+--- before/d-i/forky/scripts/late/network-sharing.py
++++ after/d-i/forky/scripts/late/network-sharing.py
+@@ -15,6 +15,7 @@
+ from pathlib import Path, PurePosixPath
+ import pwd
+ import re
++import signal
+ import stat
+ import subprocess
+ import sys
+@@ -37,7 +38,7 @@
+         raise ValueError('sharing paths must use only ASCII letters, digits, _, ., / and -')
+     if value.startswith('/') == relative or (value == '/' and not allow_root):
+         raise ValueError('unexpected absolute/relative sharing path')
+-    if value != '/' and any(part in ('', '.', '..') for part in value.lstrip('/').split('/')):
++    if value.startswith('//') or (value != '/' and any(part in ('', '.', '..') for part in value.lstrip('/').split('/'))):
+         raise ValueError('sharing path is not normalized')
+     return value
+ 
+@@ -182,14 +183,36 @@
+                 raise ValueError('TCP buffers must be ordered and fit within the socket ceiling')
+         peers = parse_exports(values['NFS_SERVER_EXPORTS'], values['NFS_SERVER_PATH'])
+         common = {'nfs-common', 'libnfsidmap1', 'keyutils', 'nftables'}
+-        server = package_names(values['NFS_SERVER_DEPS'], common | {'nfs-kernel-server', 'acl'})
+-        client = package_names(values['NFS_CLIENT_DEPS'], common)
++        server_required = common | {'nfs-kernel-server', 'acl'}
++        client_required = set(common)
++        if flags['NFS_SERVER_BIND_ENABLE']:
++            server_required.add('e2fsprogs')
++        if flags['NFS_CLIENT_BIND_ENABLE']:
++            client_required.add('e2fsprogs')
++        server = package_names(values['NFS_SERVER_DEPS'], server_required)
++        client = package_names(values['NFS_CLIENT_DEPS'], client_required)
+         packages = (server if flags['NFS_SERVER_ENABLE'] else []) + (client if flags['NFS_CLIENT_ENABLE'] else [])
+         return cls(values, flags, peers, sorted(set(packages)))
+ 
+ 
+ def run(argv: list[str], *, timeout: int = 60) -> None:
+-    subprocess.run(argv, check=True, stdin=subprocess.DEVNULL, env=TOOL_ENV, timeout=timeout)
++    # apt can have dpkg/maintscript children. On timeout, kill its owned group
++    # before the policy-rc.d context is restored, not only the immediate child.
++    with subprocess.Popen(argv, stdin=subprocess.DEVNULL, env=TOOL_ENV,
++                          start_new_session=True) as child:
++        try:
++            returncode = child.wait(timeout=timeout)
++        except BaseException:
++            # Keep the leader unreaped until signalling: never target a numeric
++            # process-group ID after its leader may already have been reused.
++            if child.returncode is None:
++                try:
++                    os.killpg(child.pid, signal.SIGKILL)
++                except ProcessLookupError:
++                    pass
++            raise  # Popen's context reaps the direct child before unwinding.
++        if returncode:
++            raise subprocess.CalledProcessError(returncode, argv)
+ 
+ 
+ def trusted_parents(path: Path) -> None:
+@@ -378,6 +401,20 @@
+     os.chmod(current, 0o000)
+ 
+ 
++def protect_home_bind_parents(s: Settings) -> None:
++    """Prevent the home owner from redirecting persistent root-managed binds.
++
++    Root ownership alone does not stop rename from the user-owned home. Lock
++    each dedicated first-level parent only AFTER every endpoint is created.
++    This is an offline installer: no target user session may run concurrently.
++    Unsupported immutable flags fail before fstab or success publication.
++    """
++    parents = {str(Path(s['ACCOUNT_HOME']) / PurePosixPath(s[f'NFS_{role}_HOME_BIND_PATH']).parts[0])
++               for role in ('SERVER', 'CLIENT') if s.enabled(f'NFS_{role}_BIND_ENABLE')}
++    for parent in sorted(parents):
++        run(['/usr/bin/chattr', '+i', '--', parent])
++
++
+ @contextmanager
+ def inhibit_package_services() -> Iterator[None]:
+     """Restore d-i's policy-rc.d exactly, even when apt fails. No live starts."""
+@@ -420,8 +457,15 @@
+     destinations = {entry.split()[1] for entry in entries}
+     for line in fstab.splitlines():
+         parts = line.split()
+-        if parts and not line.lstrip().startswith('#') and len(parts) > 1 and parts[1] in destinations:
+-            raise ValueError('an unmanaged fstab entry already owns an NFS mount destination')
++        if len(parts) > 1 and not line.lstrip().startswith('#'):
++            # fstab allows octal escapes; the generator also canonicalizes ./,
++            # ../ and repeated slashes. Reject aliases before writing a second
++            # definition of the same unit, without probing remote mount paths.
++            destination = re.sub(r'\\([0-7]{3})', lambda m: chr(int(m[1], 8)), parts[1])
++            if destination.startswith('/'):
++                destination = os.path.normpath('/' + destination.lstrip('/'))
++            if destination in destinations:
++                raise ValueError('an unmanaged fstab entry already owns an NFS mount destination')
+     # Validate export ownership before package installation or export mutation.
+     exports = ''
+     if s.enabled('NFS_SERVER_ENABLE'):
+@@ -435,6 +479,11 @@
+                 if any(line.strip() and not line.lstrip().startswith('#') for line in read_regular(other).splitlines()):
+                     raise ValueError('unmanaged exports.d entries conflict with the dedicated NFSv4 policy')
+     if s.active:
++        if s.enabled('NFS_SERVER_ENABLE'):
++            # Package maintscripts may enable a unit even while policy-rc.d
++            # blocks starts. Install the boot-time completion guards first.
++            name = 'etc/systemd/system/nfs-server.service.d/60-network-sharing.conf.tmpl'
++            atomic_write(Path('/') / name.removesuffix('.tmpl'), render(assets / name, s))
+         with inhibit_package_services():
+             run(['/usr/bin/apt-get', '-o', 'Acquire::Retries=3', '-o', 'Acquire::http::Timeout=45',
+                  '-o', 'Acquire::https::Timeout=45', '-o', 'DPkg::Lock::Timeout=60', '-o', 'DPkg::Use-Pty=0',
+@@ -459,10 +508,13 @@
+             modules.append('nfsd')
+             options.append('options nfsd nfs4_disable_idmapping=0')
+             sharing_directory(Path(s['NFS_SERVER_PATH']), 0o2770, int(s['NFS_SHARED_GID']))
+-            run(['/usr/bin/setfacl', '-m', 'd:u::rwx,d:g::rwx,d:m::rwx,d:o::---', '--', s['NFS_SERVER_PATH']])
++            # Replace, do not merge: inherited named ACLs must not grant extra
++            # access. Only the export root is managed, never existing children.
++            run(['/usr/bin/setfacl', '--set',
++                 'u::rwx,g::rwx,o::---,d:u::rwx,d:g::rwx,d:m::rwx,d:o::---',
++                 '--', s['NFS_SERVER_PATH']])
+             atomic_write(Path('/etc/exports'), append_block(exports, render(assets / 'etc/exports.tmpl', s)))
+             for name in ('etc/nfs.conf.d/60-network-sharing.conf.tmpl',
+-                         'etc/systemd/system/nfs-server.service.d/60-network-sharing.conf.tmpl',
+                          'etc/systemd/system/nfs-mountd.service.d/60-network-sharing.conf',
+                          'etc/systemd/system/nfs-idmapd.service.d/60-network-sharing.conf'):
+                 atomic_write(Path('/') / name.removesuffix('.tmpl'), render(assets / name, s))
+@@ -471,6 +523,7 @@
+         for role in ('SERVER', 'CLIENT'):
+             if s.enabled(f'NFS_{role}_BIND_ENABLE'):
+                 home_bind_directory(s, role, account)
++        protect_home_bind_parents(s)
+         if s.enabled('NFS_CLIENT_BIND_ENABLE'):
+             target = s['ACCOUNT_HOME'] + '/' + s['NFS_CLIENT_HOME_BIND_PATH']
+             # Also tear down the home bind if the source disappears. No idle
+--- before/d-i/forky/tests/fixtures/contracts/profile-provenance.json
++++ after/d-i/forky/tests/fixtures/contracts/profile-provenance.json
+@@ -6,14 +6,16 @@
+       "source_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
+       "destination_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
+       "content_status": "unchanged",
+-      "current_sha256": "0061651883d76ac83fb1edef8e20e37de1a905e8455d87e869bb0bd786a576e1",
+-      "current_change": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved.",
++      "current_sha256": "0819243b986bebb722b1423bf81b415b82b20f5aab12f6a93cb8cbd2c5d04a4c",
++      "current_change": "NFS follow-up: add packaged e2fsprogs for immutable home-bind parents; all other profile settings and release pins preserved.",
+       "pre_refactor_20260923_sha256": "d1a8a6241d5178bfc2cb4d152fc551f49ff1b075cf56266ccd2454e071c2f188",
+       "previous_layout_sha256": "271b91656792f522969b6e45ced7eda4408cd69f46e8e99dcd10aa16f3f2514a",
+       "pre_refactor_20260924_sha256": "e51fc1eb8bbda9be6a7f89398487a73c9df3d8db251777d3d23c52892cedaa51",
+       "pre_security_20260924_sha256": "7c6e8fd2e2ea6dc384076d56f3bee4ee8b6719da6f18cafc45b8231bdef7a785",
+       "pre_nfs_20260930_sha256": "7cf487387eb6c6c88559af6fe8e7e3eb3a0abd42f2f2a71fce9aa2053e813ed3",
+-      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained."
++      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
++      "pre_nfs_audit_20260930_sha256": "0061651883d76ac83fb1edef8e20e37de1a905e8455d87e869bb0bd786a576e1",
++      "previous_change_before_nfs_audit_20260930": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved."
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-p15s-duo.env",
+@@ -21,14 +23,16 @@
+       "source_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
+       "destination_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
+       "content_status": "unchanged",
+-      "current_sha256": "6aece8cc0a6f7066449625976932fba45f284de830a164ef6bb67f28d0b98dd4",
+-      "current_change": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved.",
++      "current_sha256": "f1dc7f767e0f05043b8b404930ed7b651937855b2f6c982783871cfc89dc748d",
++      "current_change": "NFS follow-up: add packaged e2fsprogs for immutable home-bind parents; all other profile settings and release pins preserved.",
+       "pre_refactor_20260923_sha256": "bed9ecc7b8304b60082bbc36990dec4b935391407470ebf8324a509b99869315",
+       "previous_layout_sha256": "872fe0dde351ed81615562457d201e308474cf6c0c49e501843beaa48b9db69b",
+       "pre_refactor_20260924_sha256": "7469b8a0e7ef21b6e96f63c580f1524adcb2d67f570740ce335d7c66e9186075",
+       "pre_security_20260924_sha256": "c4bc79918749dc12b0b98338c69ccbde8144217248c02380e90ecb878b9e23fa",
+       "pre_nfs_20260930_sha256": "ce95f713f89639f085339784ba7f6b40f857c3486c4b6e9a1f36b5ff91ed4066",
+-      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained."
++      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
++      "pre_nfs_audit_20260930_sha256": "6aece8cc0a6f7066449625976932fba45f284de830a164ef6bb67f28d0b98dd4",
++      "previous_change_before_nfs_audit_20260930": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved."
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-duo.env",
+@@ -36,14 +40,16 @@
+       "source_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
+       "destination_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
+       "content_status": "unchanged",
+-      "current_sha256": "89429e2625fb36552069255300e128335b621fd9dd2f43a2be0fcc25ad42182f",
+-      "current_change": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved.",
++      "current_sha256": "f983601ee95a485c848fe8ded2d890f9cdc3ae5ac61364effa89b076248325aa",
++      "current_change": "NFS follow-up: add packaged e2fsprogs for immutable home-bind parents; all other profile settings and release pins preserved.",
+       "pre_refactor_20260923_sha256": "ecc0691554b44b2bbecde9cc5db4d1e27b1bbaf416f3e55990527f72ce1bb54d",
+       "previous_layout_sha256": "10565e4d0414ce3ca539cd5562fce5e6241ae72cd659242bec9ffd28d72a12f6",
+       "pre_refactor_20260924_sha256": "377ba91cd5ab6ab8d60b6c69274846ed84ff361dc1148b04fa8aaa7db03599d9",
+       "pre_security_20260924_sha256": "42a5f09dae655790f57179c767c2c8aeb986017807e9db0cf6bd59e62f015067",
+       "pre_nfs_20260930_sha256": "c06a0fc77a9a42896e9e79dbb56248eda9c5bb52c647e196f2f2acf7bd1be7e4",
+-      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained."
++      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
++      "pre_nfs_audit_20260930_sha256": "89429e2625fb36552069255300e128335b621fd9dd2f43a2be0fcc25ad42182f",
++      "previous_change_before_nfs_audit_20260930": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved."
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-flex.env",
+@@ -51,14 +57,16 @@
+       "source_sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
+       "destination_sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
+       "content_status": "unchanged",
+-      "current_sha256": "d33b15abcba809e13867c974724a3759e5f00a0776176bd4585c469ae43c73c5",
+-      "current_change": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved.",
++      "current_sha256": "d8fcd461a98faf8f4eae581309888c9f361d4a185e4de39cb730dad09576862a",
++      "current_change": "NFS follow-up: add packaged e2fsprogs for immutable home-bind parents; all other profile settings and release pins preserved.",
+       "pre_refactor_20260923_sha256": "ac4996018777054237a4963836f31c6395ace650b27ff7b7a465cd062f60d270",
+       "previous_layout_sha256": "ab14c290950c69d3aa49a516cab2d44592de0c31a3ccf74990dfd3b85ce31629",
+       "pre_refactor_20260924_sha256": "112206e3582ac293ee12146b3246b4f4c1c9ee930905f77a6940b3ed85cf903b",
+       "pre_security_20260924_sha256": "2991bf569b621b11d926f87301636ec7ca5db7870fcd1368c9eb0aab29b617aa",
+       "pre_nfs_20260930_sha256": "7fb3953d341fdc70eed2a14d9ba5adcc8c9ee2bf81ebb106243e824dba8ce49a",
+-      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained."
++      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
++      "pre_nfs_audit_20260930_sha256": "d33b15abcba809e13867c974724a3759e5f00a0776176bd4585c469ae43c73c5",
++      "previous_change_before_nfs_audit_20260930": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved."
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-p15s.env",
+@@ -66,15 +74,17 @@
+       "source_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
+       "destination_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
+       "content_status": "unchanged",
+-      "current_sha256": "145d6104884c5a32f860baea39171a4df96152fd8736e179cbf697d2a7fece4f",
+-      "current_change": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved.",
++      "current_sha256": "25577138e42ce9e7d9d8f607bc5b496616f6c3db8042d24d747464f6226e496e",
++      "current_change": "NFS follow-up: add packaged e2fsprogs for immutable home-bind parents; all other profile settings and release pins preserved.",
+       "repair_note": "Baseline ZIP already contained this profile content; repaired stale current provenance, not profile behavior.",
+       "pre_refactor_20260923_sha256": "f790ff59fbd0facd87c1a75c94be00b5bff4c1abe150249e3d9a31028a738a97",
+       "previous_layout_sha256": "ab9fc6a338ed74f47fc0f23186d15053ebb3c0c8099b6433fedc7746348c7493",
+       "pre_refactor_20260924_sha256": "eb2ace783c2e88a1ccc4ea47ea684ffbb6cc69674a14ec56dd6b19ee5b3156ff",
+       "pre_security_20260924_sha256": "b6748e6cfbc2d296d9760d1c19939cccc9c5bda98ff6b8e0ecb42a9d6012c188",
+       "pre_nfs_20260930_sha256": "eea71e9d795a23d23a3037ddb3d1d2c1ba071d10b26ab255d7d2661ac03b9e16",
+-      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained."
++      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
++      "pre_nfs_audit_20260930_sha256": "145d6104884c5a32f860baea39171a4df96152fd8736e179cbf697d2a7fece4f",
++      "previous_change_before_nfs_audit_20260930": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved."
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de.env",
+@@ -82,14 +92,16 @@
+       "source_sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
+       "destination_sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
+       "content_status": "unchanged",
+-      "current_sha256": "88ed6a2b457cedd373beae0c57a1ee0a5f207ce09477ffa7609f17fb478213bc",
+-      "current_change": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved.",
++      "current_sha256": "046af1774c5703dd221f1d3695296adf1df1545acf58205aa45512b27a1ea961",
++      "current_change": "NFS follow-up: add packaged e2fsprogs for immutable home-bind parents; all other profile settings and release pins preserved.",
+       "pre_refactor_20260923_sha256": "c6a05251b1f675863eda567cb9d6e7b401f9b3345b785bd9f1c1ca8652332c1e",
+       "previous_layout_sha256": "7db6290276dfe9bc177bcf9a651c0aa8ad4181e7f5739b3955c1165308b8da4d",
+       "pre_refactor_20260924_sha256": "2d0ea5c2633605e6fd102b3456222d16516ac5a3c81f25ebe38e254e88d55af7",
+       "pre_security_20260924_sha256": "27d705448e90a4c1990c5f342365d64884ab1e315e218b685ec6f675cce337e3",
+       "pre_nfs_20260930_sha256": "adc675855a51b69b7bfaf840e64a72245bf899f0231dd130ec7ba58ad27826af",
+-      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained."
++      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
++      "pre_nfs_audit_20260930_sha256": "88ed6a2b457cedd373beae0c57a1ee0a5f207ce09477ffa7609f17fb478213bc",
++      "previous_change_before_nfs_audit_20260930": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved."
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/f2fs-de-hp14.env",
+@@ -97,14 +109,16 @@
+       "source_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
+       "destination_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
+       "content_status": "unchanged",
+-      "current_sha256": "0b45131ddef4f5831f034c70c860e4c5d93d1b9e5842596227a6ff62c325bcce",
+-      "current_change": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved.",
++      "current_sha256": "70d8c91b10deacd886d039a9789d0e1ad512a9912c27f69be3e56bff0fb5fa63",
++      "current_change": "NFS follow-up: add packaged e2fsprogs for immutable home-bind parents; all other profile settings and release pins preserved.",
+       "pre_refactor_20260923_sha256": "f642fc1e8155894bc84c365846c2bf7814355a294c1fb1e16aea91a0c2cc4782",
+       "previous_layout_sha256": "54c7189b9bf741e1a56bfc905494bfd22b67746f9a8d933ac54338b9b465fb3c",
+       "pre_refactor_20260924_sha256": "2d4d67e1db78ef53e55eedd6d2408f8033992b3f802b120dada3e84212ed6a27",
+       "pre_security_20260924_sha256": "b889960f78728108c5390edc8e86666a227a64417233792ab69e27f1004b4bf9",
+       "pre_nfs_20260930_sha256": "c7866b89575e3be749e0302d5a64fa2d618910a3066be0f7855a84d39c1f3a21",
+-      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained."
++      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
++      "pre_nfs_audit_20260930_sha256": "0b45131ddef4f5831f034c70c860e4c5d93d1b9e5842596227a6ff62c325bcce",
++      "previous_change_before_nfs_audit_20260930": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved."
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/f2fs-de-hp14-duo.env",
+@@ -112,14 +126,16 @@
+       "source_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
+       "destination_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
+       "content_status": "unchanged",
+-      "current_sha256": "6c75a94b349513111a495343b296a9f9e868b667142389f62e039b98d54467b0",
+-      "current_change": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved.",
++      "current_sha256": "00218093e536092cffcc00654a5cf438e47d84c29f24ed27cc99f0ece3c92235",
++      "current_change": "NFS follow-up: add packaged e2fsprogs for immutable home-bind parents; all other profile settings and release pins preserved.",
+       "pre_refactor_20260923_sha256": "18c39c2a4edf76133939e6770adb7f82255590c45c4cc8ebdda0e6e21429ee26",
+       "previous_layout_sha256": "7b29f673c54a40b45e38ed1f8e4bd538d3c5e30f1cb445079ed4784485bb8df6",
+       "pre_refactor_20260924_sha256": "1e96d66be539fe67d943de9dd4cb0aa41595cab9ce41669369fa0386bd5f0876",
+       "pre_security_20260924_sha256": "930f4570d51aa733c899775403572509c14499540457370bdebf37a037f7f0d9",
+       "pre_nfs_20260930_sha256": "3d1491fd38b214485aba5e336015a30c343945c8c291fe8091c5bd0874b779a6",
+-      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained."
++      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
++      "pre_nfs_audit_20260930_sha256": "6c75a94b349513111a495343b296a9f9e868b667142389f62e039b98d54467b0",
++      "previous_change_before_nfs_audit_20260930": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved."
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/f2fs-de-x360-duo.env",
+@@ -127,14 +143,16 @@
+       "source_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
+       "destination_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
+       "content_status": "unchanged",
+-      "current_sha256": "3739b79d4a21d379267c2fd6f3f95b94bae4c6a3dbf668a11b0012e488108fa6",
+-      "current_change": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved.",
++      "current_sha256": "c2f7a0885fdbbd3241d48d37409748474414c066876f25bff205fc6fd886e65c",
++      "current_change": "NFS follow-up: add packaged e2fsprogs for immutable home-bind parents; all other profile settings and release pins preserved.",
+       "pre_refactor_20260923_sha256": "14e847a2d89863f2d626aa3336e4185fe6b44ea026ba0e5da99ca6cb3d472e55",
+       "previous_layout_sha256": "4f9a8069210c9771239c7681d39f4f4ffcd68dfbccfd7f56505d4c45b1f528cc",
+       "pre_refactor_20260924_sha256": "7e7ba9233dc9ddc8273169b6feca81462c5c3b1c63825f7d17d1545aeb273645",
+       "pre_security_20260924_sha256": "70dbea287a3e7bb05932a83467ee6ea6558563b66c4467cd3be58d3fb7fd144d",
+       "pre_nfs_20260930_sha256": "05471d257b444d038dc77f791a7b1fe11a558bc7ca3a8756d35a19dc5dc86e0a",
+-      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained."
++      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
++      "pre_nfs_audit_20260930_sha256": "3739b79d4a21d379267c2fd6f3f95b94bae4c6a3dbf668a11b0012e488108fa6",
++      "previous_change_before_nfs_audit_20260930": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved."
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/f2fs-de-x360.env",
+@@ -142,14 +160,16 @@
+       "source_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
+       "destination_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
+       "content_status": "unchanged",
+-      "current_sha256": "7df95cf7401e60b806eb05519ffd456c9076df9779d1fc29fa8c26d668084c9f",
+-      "current_change": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved.",
++      "current_sha256": "2b8e85bbac9b07f357ce9e0ecaaf7ea1ceb7f9ee7f54be2f99e7ac24b87ee261",
++      "current_change": "NFS follow-up: add packaged e2fsprogs for immutable home-bind parents; all other profile settings and release pins preserved.",
+       "pre_refactor_20260923_sha256": "5985d0a51951beddacc24c9521ce988342842de3d959ea09346a2cae53740d9c",
+       "previous_layout_sha256": "57088fbd920f391fafd3111c7d55cccfc87e3e8c40291d190603c1e412d02dc8",
+       "pre_refactor_20260924_sha256": "ec655123173b4ae92c6a35bd155d6dcf93eecc79830848f386ac2d627ac82b64",
+       "pre_security_20260924_sha256": "f0eca6b4ad0a78fc3909c3c9f44006e46b6d78bad5c9afc461fd218fa3f372d5",
+       "pre_nfs_20260930_sha256": "78a43c495626ef60443ec6560ab2dfc656a012abb5283aa6f232fe2350bf71c5",
+-      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained."
++      "previous_change_before_nfs_20260930": "Unified Fuzzel launcher and menu widths at 60 columns; previous profile policy retained.",
++      "pre_nfs_audit_20260930_sha256": "7df95cf7401e60b806eb05519ffd456c9076df9779d1fc29fa8c26d668084c9f",
++      "previous_change_before_nfs_audit_20260930": "Added explicit, disabled-by-default NFS server/client settings and exact export policy; all other profile settings preserved."
+     }
+   ]
+ }
+--- before/d-i/forky/tests/test_network_sharing.py
++++ after/d-i/forky/tests/test_network_sharing.py
+@@ -156,6 +156,181 @@
+         text = NFS.render(TARGET/'etc/sysctl.d/60-network-sharing.conf.tmpl', settings)
+         self.assertIn('net.core.wmem_max = 16777216', text)
+         self.assertNotIn('wmen_max', text)
++
++
++class CommandLifecycleTests(unittest.TestCase):
++    def test_command_success_and_failure_are_preserved(self):
++        NFS.run([sys.executable, '-I', '-c', 'raise SystemExit(0)'], timeout=10)
++        with self.assertRaises(subprocess.CalledProcessError) as error:
++            NFS.run([sys.executable, '-I', '-c', 'raise SystemExit(37)'], timeout=10)
++        self.assertEqual(error.exception.returncode, 37)
++
++    def test_timeout_signals_only_an_unreaped_owned_group(self):
++        for already_reaped in (False, True):
++            with self.subTest(already_reaped=already_reaped):
++                child = mock.MagicMock()
++                child.__enter__.return_value = child
++                child.pid = 12345
++                child.returncode = 0 if already_reaped else None
++                child.wait.side_effect = subprocess.TimeoutExpired(['fixture'], 1)
++                with mock.patch.object(NFS.subprocess, 'Popen', return_value=child) as launch, \
++                     mock.patch.object(NFS.os, 'killpg') as kill:
++                    with self.assertRaises(subprocess.TimeoutExpired):
++                        NFS.run(['/fixture'], timeout=1)
++                self.assertTrue(launch.call_args.kwargs['start_new_session'])
++                if already_reaped:
++                    kill.assert_not_called()
++                else:
++                    kill.assert_called_once_with(child.pid, NFS.signal.SIGKILL)
++
++    @unittest.skipUnless(sys.platform == 'linux', 'Linux child-subreaper fixture required')
++    def test_timeout_stops_a_real_descendant_and_reaps_the_command(self):
++        # Subreaper state exists only in this disposable probe, not in the
++        # installer or unittest runner. All adopted fixture children are reaped.
++        script = r'''import ctypes,json,os,runpy,subprocess,sys,tempfile,time
++from pathlib import Path
++# The fixture alone becomes a subreaper, so it can reap the adopted grandchild.
++libc=ctypes.CDLL(None,use_errno=True)
++if libc.prctl(36,1,0,0,0):
++    raise OSError(ctypes.get_errno(), 'fixture subreaper')
++helper=runpy.run_path(sys.argv[1],run_name='timeout_test')
++with tempfile.TemporaryDirectory() as tmp:
++    marker=Path(tmp)/'late-write'
++    ready=Path(tmp)/'ready'
++    release=Path(tmp)/'release'
++    code="""import os,sys,time
++from pathlib import Path
++if os.fork() == 0:
++    Path(sys.argv[2]).write_text(str(os.getpid()))
++    deadline=time.monotonic()+15
++    while not Path(sys.argv[3]).exists() and time.monotonic()<deadline:
++        time.sleep(.01)
++    Path(sys.argv[1]).write_text('unsafe late child')
++    os._exit(0)
++time.sleep(20)
++"""
++    real_popen=subprocess.Popen
++    def launch(*args,**kwargs):
++        child=real_popen(*args,**kwargs)
++        # Begin the tested deadline only after the process hierarchy exists.
++        # This makes the regression independent of machine startup/load speed.
++        deadline=time.monotonic()+10
++        while not ready.exists():
++            if child.poll() is not None or time.monotonic()>=deadline:
++                child.kill()
++                child.wait()
++                raise AssertionError('fixture did not start')
++            time.sleep(.01)
++        return child
++    subprocess.Popen=launch
++    timed_out=False
++    try:
++        helper['run']([sys.executable,'-I','-c',code,str(marker),str(ready),str(release)],timeout=.1)
++    except subprocess.TimeoutExpired:
++        timed_out=True
++    finally:
++        subprocess.Popen=real_popen
++        release.touch()
++    statuses=[]
++    deadline=time.monotonic()+3
++    while time.monotonic()<deadline:
++        try:
++            pid,status=os.waitpid(-1,os.WNOHANG)
++        except ChildProcessError:
++            break
++        if pid:
++            statuses.append(os.waitstatus_to_exitcode(status))
++        else:
++            time.sleep(.02)
++    else:
++        raise AssertionError('fixture child survived')
++    print(json.dumps({'timed_out':timed_out,'started':ready.exists(),
++                      'late_write':marker.exists(),'statuses':statuses}))
++'''
++        result = subprocess.run([sys.executable, '-I', '-c', script,
++                                 str(SEED/'scripts/late/network-sharing.py')],
++                                text=True, capture_output=True, timeout=20)
++        self.assertEqual(result.returncode, 0, result.stderr)
++        self.assertEqual(json.loads(result.stdout), {'timed_out': True, 'started': True, 'late_write': False, 'statuses': [-9]})
++
++
++class FollowUpPolicyTests(unittest.TestCase):
++    def test_multiple_leading_slashes_are_not_normalized_paths(self):
++        for path in ('//', '//data/sharing', '///export'):
++            with self.subTest(path=path), self.assertRaisesRegex(ValueError, 'normalized'):
++                NFS.normalized_path(path, allow_root=True)
++        with self.assertRaises(ValueError):
++            NFS.Settings.from_environment(profile(NFS_CLIENT_EXPORT_PATH='//export'))
++
++    def test_bind_roles_require_immutable_flag_tool_package(self):
++        for role in ('SERVER', 'CLIENT'):
++            values = profile(**{f'NFS_{role}_ENABLE': 'true'})
++            values[f'NFS_{role}_DEPS'] = ' '.join(p for p in values[f'NFS_{role}_DEPS'].split() if p != 'e2fsprogs')
++            # No home bind: no immutable-flag requirement.
++            NFS.Settings.from_environment(values)
++            values[f'NFS_{role}_BIND_ENABLE'] = 'true'
++            with self.subTest(role=role), self.assertRaisesRegex(ValueError, 'e2fsprogs'):
++                NFS.Settings.from_environment(values)
++
++    def test_every_profile_supplies_bind_dependency_for_both_roles(self):
++        for path in PROFILES.glob('*.env'):
++            values = profile(path)
++            for role in ('SERVER', 'CLIENT'):
++                self.assertIn('e2fsprogs', values[f'NFS_{role}_DEPS'].split(), (path.name, role))
++
++    def test_server_explicitly_disables_every_legacy_protocol(self):
++        import configparser
++        settings = NFS.Settings.from_environment(profile(NFS_SERVER_ENABLE='true'))
++        config = configparser.ConfigParser()
++        config.read_string(NFS.render(TARGET/'etc/nfs.conf.d/60-network-sharing.conf.tmpl', settings))
++        for key in ('vers2', 'vers3', 'vers4.0', 'udp', 'rdma'):
++            self.assertEqual(config['nfsd'][key], 'n', key)
++        for key in ('vers4', 'vers4.1', 'vers4.2', 'tcp'):
++            self.assertEqual(config['nfsd'][key], 'y', key)
++
++    def test_mountd_can_use_native_kernel_netlink_caches(self):
++        text = (TARGET/'etc/systemd/system/nfs-mountd.service.d/60-network-sharing.conf').read_text()
++        lines = [line for line in text.splitlines() if line.startswith('RestrictAddressFamilies=')]
++        self.assertEqual(lines, ['RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK'])
++        self.assertIn('NoNewPrivileges=yes', text)
++        self.assertIn('ProtectSystem=full', text)
++
++    def test_server_requires_completed_nfs_and_managed_firewall_configuration(self):
++        text = (TARGET/'etc/systemd/system/nfs-server.service.d/60-network-sharing.conf.tmpl').read_text()
++        expected = ['/etc/network-sharing/config.json', '/etc/nfs.conf.d/60-network-sharing.conf',
++                    '/etc/nftables.d/20-filter.nft', '/etc/systemd/system/nftables.service.d/override.conf']
++        self.assertEqual([line.split('=', 1)[1] for line in text.splitlines() if line.startswith('AssertPathExists=')], expected)
++        self.assertNotIn('ConditionPathExists=', text)
++
++    @unittest.skipUnless(shutil.which('systemd-analyze'), 'native systemd assertion checker unavailable')
++    def test_native_systemd_rejects_incomplete_server_prerequisites(self):
++        text = (TARGET/'etc/systemd/system/nfs-server.service.d/60-network-sharing.conf.tmpl').read_text()
++        paths = [line.split('=', 1)[1] for line in text.splitlines() if line.startswith('AssertPathExists=')]
++        with tempfile.TemporaryDirectory() as temporary:
++            root = Path(temporary)
++            files = [root/path.lstrip('/') for path in paths]
++            def evaluate():
++                return subprocess.run(['systemd-analyze', 'condition', *['AssertPathExists='+str(p) for p in files]],
++                                      text=True, capture_output=True, timeout=15)
++            self.assertNotEqual(evaluate().returncode, 0)
++            for path in files:
++                path.parent.mkdir(parents=True, exist_ok=True)
++                path.touch()
++            result = evaluate()
++            self.assertEqual(result.returncode, 0, result.stderr)
++            for path in files:
++                with self.subTest(missing=path.relative_to(root)):
++                    path.unlink()
++                    self.assertNotEqual(evaluate().returncode, 0)
++                    path.touch()
++
++    def test_export_refresh_errors_fail_start_and_reload(self):
++        text = (TARGET/'etc/systemd/system/nfs-server.service.d/60-network-sharing.conf.tmpl').read_text()
++        for key in ('ExecStartPre', 'ExecReload'):
++            values = [line.split('=', 1)[1] for line in text.splitlines() if line.startswith(key + '=')]
++            self.assertEqual(values, ['', '/usr/sbin/exportfs -r'])
++        self.assertNotIn('ExecStart=', text)
++        self.assertNotIn('ExecStop=', text)
+ 
+ 
+ class FirewallTests(unittest.TestCase):
+@@ -392,6 +567,16 @@
+             self.configure(NFS_CLIENT_ENABLE='true')
+         self.run.assert_not_called()
+ 
++    def test_alias_fstab_destinations_fail_before_package_install(self):
++        for destination in ('/data//sharing/nfs-client', '//data/sharing/nfs-client',
++                            '/data/sharing/./nfs-client', '/data/other/../sharing/nfs-client',
++                            r'/data/sharing/nfs\055client', r'/data/sharing/\156fs-client'):
++            (self.root/'etc/fstab').write_text('/srv/existing ' + destination + ' none bind,nofail 0 0\n')
++            with self.subTest(destination=destination), self.assertRaisesRegex(ValueError, 'unmanaged fstab'):
++                self.configure(NFS_CLIENT_ENABLE='true')
++            self.run.assert_not_called()
++            self.assertFalse((self.root/'etc/network-sharing/config.json').exists())
++
+     def test_symlinked_root_is_rejected(self):
+         (self.root/'data').mkdir()
+         (self.root/'data/sharing').symlink_to(self.root/'etc', target_is_directory=True)
+@@ -431,6 +616,76 @@
+             NFS.read_regular(path)
+         self.assertEqual(real.read_text(), 'keep')
+ 
++    def test_home_bind_parent_locked_once_after_all_endpoints_exist(self):
++        locked = []
++        def check(argv, **kwargs):
++            if argv[0] == '/usr/bin/chattr':
++                self.assertEqual(argv, ['/usr/bin/chattr', '+i', '--', str(self.root/'home/mcramer/Sharing')])
++                for role in ('server', 'client'):
++                    self.assertEqual(stat.S_IMODE((self.root/f'home/mcramer/Sharing/nfs-{role}').stat().st_mode), 0)
++                self.assertNotIn(NFS.BEGIN, (self.root/'etc/fstab').read_text())
++                self.assertFalse((self.root/'etc/network-sharing/config.json').exists())
++                locked.append(argv[-1])
++        self.run.side_effect = check
++        self.configure(NFS_SERVER_ENABLE='true', NFS_CLIENT_ENABLE='true',
++                       NFS_SERVER_BIND_ENABLE='true', NFS_CLIENT_BIND_ENABLE='true')
++        self.assertEqual(len(locked), 1)
++
++    def test_distinct_home_bind_parents_locked_in_stable_order(self):
++        self.configure(NFS_SERVER_ENABLE='true', NFS_CLIENT_ENABLE='true',
++                       NFS_SERVER_BIND_ENABLE='true', NFS_CLIENT_BIND_ENABLE='true',
++                       NFS_SERVER_HOME_BIND_PATH='ServerShare/nested/server',
++                       NFS_CLIENT_HOME_BIND_PATH='ClientShare/nested/client',
++                       NFS_CLIENT_BIND_PATH='ClientShare/nested/client')
++        calls = [call.args[0] for call in self.run.call_args_list if call.args[0][0] == '/usr/bin/chattr']
++        self.assertEqual(calls, [['/usr/bin/chattr', '+i', '--', str(self.root/'home/mcramer'/name)]
++                                 for name in ('ClientShare', 'ServerShare')])
++
++    def test_home_bind_lock_failure_prevents_mount_publication_and_enablement(self):
++        def fail_lock(argv, **kwargs):
++            if argv[0] == '/usr/bin/chattr':
++                raise subprocess.CalledProcessError(1, argv)
++        self.run.side_effect = fail_lock
++        with self.assertRaises(subprocess.CalledProcessError):
++            self.configure(NFS_CLIENT_ENABLE='true', NFS_CLIENT_BIND_ENABLE='true')
++        self.assertNotIn(NFS.BEGIN, (self.root/'etc/fstab').read_text())
++        self.assertFalse((self.root/'etc/network-sharing/config.json').exists())
++        self.assertFalse(any(call.args[0][0] == '/usr/bin/systemctl' for call in self.run.call_args_list))
++
++    def test_no_home_bind_means_no_immutable_directory_change(self):
++        self.configure(NFS_SERVER_ENABLE='true', NFS_CLIENT_ENABLE='true')
++        self.assertFalse(any(call.args[0][0] == '/usr/bin/chattr' for call in self.run.call_args_list))
++        self.assertFalse((self.root/'home/mcramer/Sharing').exists())
++
++    def test_existing_user_owned_home_bind_parent_is_not_taken_over(self):
++        path = self.root/'home/mcramer/Sharing'
++        path.mkdir()
++        os.chown(path, 1000, 1000)
++        with self.assertRaisesRegex(ValueError, 'root-owned'):
++            self.configure(NFS_CLIENT_ENABLE='true', NFS_CLIENT_BIND_ENABLE='true')
++        self.assertEqual(path.stat().st_uid, 1000)
++        self.assertFalse(any(call.args[0][0] == '/usr/bin/chattr' for call in self.run.call_args_list))
++
++    def test_export_root_acl_replaces_named_entries_without_recursion(self):
++        self.configure(NFS_SERVER_ENABLE='true')
++        calls = [call.args[0] for call in self.run.call_args_list if call.args[0][0] == '/usr/bin/setfacl']
++        self.assertEqual(calls, [['/usr/bin/setfacl', '--set',
++                                 'u::rwx,g::rwx,o::---,d:u::rwx,d:g::rwx,d:m::rwx,d:o::---',
++                                 '--', '/data/sharing/nfs-server']])
++
++    def test_server_start_guard_is_installed_before_packages_can_enable_units(self):
++        def fail_apt(argv, **kwargs):
++            if argv[0] == '/usr/bin/apt-get':
++                dropin = self.root/'etc/systemd/system/nfs-server.service.d/60-network-sharing.conf'
++                self.assertIn('AssertPathExists=/etc/network-sharing/config.json', dropin.read_text())
++                self.assertFalse((self.root/'etc/network-sharing/config.json').exists())
++                raise subprocess.CalledProcessError(1, argv)
++        self.run.side_effect = fail_apt
++        with self.assertRaises(subprocess.CalledProcessError):
++            self.configure(NFS_SERVER_ENABLE='true')
++        self.assertFalse((self.root/'etc/exports').exists())
++        self.assertNotIn(NFS.BEGIN, (self.root/'etc/fstab').read_text())
++
+     def test_package_policy_restored_on_failure(self):
+         policy = self.root/'usr/sbin/policy-rc.d'
+         policy.write_text('#!/bin/sh\nexit 77\n')
+--- before/docs/network-sharing.md
++++ after/docs/network-sharing.md
+@@ -63,7 +63,7 @@
+ | `NFS_SERVER_PATH` | `${NETWORK_SHARING_ROOT_PATH}/nfs-server`; the only exported directory. |
+ | `NFS_SERVER_BIND_ENABLE` | `false`; bind the local server directory into the primary account home; requires the server role. |
+ | `NFS_SERVER_HOME_BIND_PATH` | `Sharing/nfs-server`; relative to `ACCOUNT_HOME`, never an absolute path. |
+-| `NFS_SERVER_DEPS` | `nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl`; required package closure is validated. Additional valid package names are allowed. |
++| `NFS_SERVER_DEPS` | `nfs-kernel-server nfs-common libnfsidmap1 keyutils nftables acl e2fsprogs`; required package closure is validated. Additional valid package names are allowed. |
+ | `NFS_SERVER_THREADS` | `8`; validated range 1-128. |
+ | `NFS_SERVER_RW_OPTIONS` | `rw,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0`; profile shorthand used to compose exports. |
+ | `NFS_SERVER_RO_OPTIONS` | `ro,sync,no_subtree_check,root_squash,secure,sec=sys,fsid=0`; read-only shorthand. |
+@@ -78,7 +78,7 @@
+ | `NFS_CLIENT_VERSION` | `4.2`; only `4.1` or `4.2`, with no silent downgrade to v3 or v4.0. |
+ | `NFS_CLIENT_READ_ONLY` | `false`; make the source and optional client home bind read-only locally. |
+ | `NFS_CLIENT_MOUNT_TIMEOUT` | `30`; initial mount job timeout in seconds, range 5-120; not an application I/O deadline. |
+-| `NFS_CLIENT_DEPS` | `nfs-common libnfsidmap1 keyutils nftables`. |
++| `NFS_CLIENT_DEPS` | `nfs-common libnfsidmap1 keyutils nftables e2fsprogs`. |
+ | `NFS_IDMAP_DOMAIN` | `sharing.home.arpa`; identical name-mapping domain on all peers. |
+ | `NFS_SHARED_GROUP` / `NFS_SHARED_GID` | `nfs-sharing` / `2050`; same group name and numeric GID on all peers. An existing conflicting name/GID is rejected, never silently renumbered. |
+ | `NFS_INTERFACES` | `${MANAGED_NETWORK_ETHERNET_IFACE} ${MANAGED_NETWORK_WIFI_IFACE}`; existing explicit host interface names, not wildcard or loopback. Confirm these are the trusted interfaces. |
+@@ -148,6 +148,8 @@
+ ownership. Log in again after changing group membership on an existing system.
+ 
+ The server directory is root-owned, group `nfs-sharing`, mode **2770**. Its
++access and default ACLs are replaced on that directory, removing inherited or
++pre-existing named entries rather than retaining unintended grants. The
+ default ACL preserves group access for newly created shared content; individual
+ applications can still deliberately create restrictive modes. Existing child
+ content is not recursively rewritten. `rpc.mountd` uses `manage-gids=yes`, so
+@@ -163,8 +165,22 @@
+ mounting; errors/outages do not turn it into a writable local fallback.
+ 
+ Home binds use a dedicated root-owned `~/Sharing` parent, mode 0755, and empty
+-root-owned endpoints. The account home itself must be a real, non-group/world-
+-writable directory belonging to the primary account. Existing user-owned
++root-owned endpoints. After creating **all** enabled endpoints, the installer
++sets the immutable flag (`chattr +i`) on each dedicated first-level parent.
++Root ownership alone does not prevent the home owner from renaming that parent
++and substituting a symlink that fstab generation would resolve elsewhere.
++The immutable parent prevents that substitution without changing ownership or
++mode of the home itself, or making the mounted export contents immutable.
++
++The profiles include Debian `e2fsprogs` for `/usr/bin/chattr`; a configured
++home-bind role must retain this dependency. Setting the flag requires a
++supporting filesystem and the installer's `CAP_LINUX_IMMUTABLE` capability.
++Failure aborts before managed fstab entries or the success record are written;
++there is no unsafe fallback. Only the dedicated parent is locked, not the
++export data, and this feature never runs when both home binds are disabled.
++
++The account home itself must be a real, non-group/world-writable directory
++belonging to the primary account. Existing user-owned
+ parents (for example an already-populated `~/Documents`), symlinks, writable
+ configuration ancestors and nonempty mount destinations are rejected. No user
+ files are covered or recursively chowned. This is a fresh, offline installation
+@@ -199,16 +215,33 @@
+ for applying the modprobe configuration to the installed boot environment.
+ 
+ Servers additionally receive `/etc/nfs.conf.d/60-network-sharing.conf`:
+-TCP 2049, eight configured worker threads, NFSv4.1/4.2 enabled, v3/v4.0, UDP
++TCP 2049, eight configured worker threads, NFSv4.1/4.2 enabled, **v2/v3/v4.0**, UDP
+ and RDMA disabled. Both active roles mask `rpcbind.service`, `rpcbind.socket`,
+ `rpc-statd.service` and `rpc-statd-notify.service`; this is a deliberately v4-only
+ host policy and must not be combined with an unrelated legacy RPC/NFSv3 need.
+ The normal packaged NFS client target/server service are enabled offline.
+ 
++The server drop-in is staged **before** package installation: inhibiting package
++starts does not prevent maintainer scripts from enabling a unit for a future
++boot. Its `AssertPathExists=` prerequisites require the NFS completion record,
++the managed daemon configuration, the generated filter table, and the managed
++nftables service override. An interrupted configuration therefore causes a
++failed server start rather than a successful skip or unguarded package-preset
++startup. The firewall override's existing syntax check and lifecycle dependency
++remain mandatory. These are installation-completion guards, not protection
++against a privileged administrator changing completed configuration.
++
+ The server unit requires the real export filesystem and the idmap service,
+-and is bound to the managed firewall service. Mountd and idmapd have bounded
++and is bound to the managed firewall service. Its start/reload overrides
++require `exportfs -r` to succeed instead of inheriting the vendor unit's
++error-ignoring command prefix. An export-refresh failure is therefore visible
++to systemd and to the menu; it is not silently reported as success.
++Mountd and idmapd have bounded
+ restarts and stop jobs, private temporary directories, protected home/system
+-paths, and other compatible systemd restrictions. The kernel-backed NFS server
++paths, and other compatible systemd restrictions. Mountd retains `AF_NETLINK`
++alongside its existing permitted families so nfs-utils can use kernel export
++and AUTH_SYS group-cache upcalls rather than being forced into legacy fallback
++by the service sandbox. The kernel-backed NFS server
+ retains its required host networking and NFS state access. The implementation
+ does not pretend it can isolate kernel nfsd workers with a generic userspace
+ sandbox or apply an untested capability allowlist to all nfs-utils binaries.
+@@ -219,7 +252,15 @@
+ Package installation temporarily inhibits service starts and restores the
+ previous `policy-rc.d` exactly, including a previous symlink. Installer commands
+ use fixed absolute executables and argument arrays, bounded child waits, and
+-private staged assets from the pinned payload. It does not mount shares, run
++private staged assets from the pinned payload. Commands have their own process
++group; timeout/error cleanup signals the still-owned group before reaping the
++leader and restoring package-start inhibition. This prevents ordinary dpkg or
++maintscript children from continuing after only apt has been killed. It is not
++a sandbox for malicious packages or descendants that deliberately detach; the
++trusted package policy and outer installer supervision remain required. A
++package timeout is fatal and may require administrator repair of interrupted
++dpkg state; the installer does not pretend it can roll back package scripts.
++It does not mount shares, run
+ `exportfs`, start daemons, load modules or apply sysctls inside the installer.
+ Configuration writes are guarded and atomically replaced. An installation
+ failure aborts; this is not a transaction that rolls back every package or
+@@ -342,6 +383,16 @@
+ provides no automatic live-role migration/removal command. Never simply delete
+ `config.json` to defeat the changed-profile guard.
+ 
++For removal of an optional home bind, first stop its mount and automount units,
++remove their managed fstab entries and related unit drop-ins, run
++`systemctl daemon-reload`, and confirm that no active mount or startable old
++bind definition remains. Only then may an administrator clear the dedicated
++parent's immutable flag, for example `chattr -i -- /home/mcramer/Sharing` for
++the default account. Do not recursively clear attributes or touch share data.
++Unlocking the parent while root-managed binds still exist reopens the path
++redirection vulnerability. Partial installation failures can leave the parent
++locked; inspect and remove any bind definitions before the same cleanup.
++
+ ## Live acceptance before enabling production sharing
+ 
+ Use disposable hosts/VMs and disposable files, matching the actual target
+@@ -351,7 +402,7 @@
+ 
+ 1. Inspect effective `nfsconf`, `exportfs -v`, nftables rules and
+    `systemctl cat` output; verify TCP 2049 only, correct interface/source CIDRs,
+-   no v3/UDP/RDMA service exposure, and no unintended inherited overrides.
++   no v2/v3/UDP/RDMA service exposure, and no unintended inherited overrides.
+    Check `nfsidmap -d`, the installed domain/group/UIDs, module parameters,
+    `getent group nfs-sharing`, sysctls and `findmnt` options/dependencies.
+ 2. From actual distinct permitted source IPs, verify allowed RW create/read/
+@@ -364,6 +415,12 @@
+    Verify no local fallback writes or hidden user files, correct bind teardown,
+    and understood blocked-I/O/shutdown behavior. Check the server does not
+    export an underlying empty directory when its source filesystem is absent.
++   Inspect `lsattr -d` on each dedicated home-bind parent. As the ordinary
++   account, verify parent rename/removal is denied, including with the share
++   disconnected and after reboot. Verify normal file operations inside a
++   permitted mounted share still work. Check `getfacl` on the export root has
++   no inherited named access/default grants; test initial ACL cleanup using
++   disposable directories only.
+ 4. In an **enforcing** AppArmor session, try every menu action, including both
+    successful and denied/cancelled authorization, missing journal access,
+    empty/unavailable/stale client records, and report-service failure. Inspect
+@@ -389,3 +446,10 @@
+ * Debian Forky nfs-common file list: https://packages.debian.org/forky/amd64/nfs-common/filelist
+ * systemd `systemd.mount(5)`: https://www.freedesktop.org/software/systemd/man/latest/systemd.mount.html
+ * Linux IP sysctl documentation: https://docs.kernel.org/networking/ip-sysctl.html
++* e2fsprogs `chattr(1)`: https://man7.org/linux/man-pages/man1/chattr.1.html
++* ACL project `setfacl(1)`: https://man7.org/linux/man-pages/man1/setfacl.1.html
++* systemd fstab generator: https://www.freedesktop.org/software/systemd/man/latest/systemd-fstab-generator.html
++* nfs-utils server unit: https://github.com/linux-nfs/nfs-utils/blob/master/systemd/nfs-server.service
++* nfs-utils mountd protocol handling: https://github.com/linux-nfs/nfs-utils/blob/master/utils/mountd/mountd.c
++* nfs-utils kernel cache handling: https://github.com/linux-nfs/nfs-utils/blob/master/support/export/cache.c
++* Python `subprocess` process/session and timeout semantics: https://docs.python.org/3/library/subprocess.html
+--- before/docs/validation/network-sharing-20260930/README.md
++++ after/docs/validation/network-sharing-20260930/README.md
+@@ -1,6 +1,148 @@
+ # NFS validation record - 2026-09-30
+ 
+-## What this record proves
++## Follow-up audit of the delivered codebase
++
++This section records the subsequent audit against the previously delivered
++`debian-preseed-de-nfs-refactored-20260930.tar.gz`, not against the original ZIP.
++The original delivery evidence below is retained as history. The follow-up
++keeps every one of the previous archive's 2,038 regular-file paths and all
++1,991 original ZIP file paths. No Xwayland/Zoom/Discord source is changed.
++Only NFS deployment code/configuration, its tests/profile-hash metadata, its
++existing guide/validation record, and generated installer snapshots change.
++New files under `follow-up/` are validation evidence, not deployment code.
++
++### Corrections verified during this pass
++
++* Persistent home binds: root ownership did not prevent the home owner from
++  renaming the dedicated parent and redirecting the generated mount through a
++  symlink. A real unprivileged/native-generator fixture reproduces this. All
++  endpoints are now created before `chattr +i` locks each dedicated first-level
++  parent. An unsupported/failed lock aborts before managed fstab and completion
++  publication. The share contents are not marked immutable. `e2fsprogs` is
++  recorded in both role dependency variables in all ten profiles. Existing
++  unmanaged fstab destination aliases are rejected, including decoded octal
++  escapes and lexical path normalization; ambiguous leading `//` settings are
++  rejected too.
++* NFS server: v2 is explicitly disabled as well as v3, v4.0, UDP and RDMA.
++  Mountd retains AF_NETLINK for the kernel's export/authentication caches.
++  The vendor's ignored export-refresh errors are replaced by required
++  `exportfs -r` start/reload commands. Completion/configuration/firewall
++  assertions are staged before package installation, so package-preset unit
++  enablement cannot start a partially configured server successfully.
++* Export-root permissions: an exact access/default ACL replaces inherited
++  named grants. Existing children are not modified recursively. Native libacl
++  fixtures confirm the intended ACL/mode semantics; the actual `setfacl` CLI
++  is unavailable here and its exact invocation is unit-tested instead.
++* Installer command lifecycle: a real fixture reproduced a subprocess child
++  surviving the old timeout handler. Each command now has its own session and
++  process group. Timeout/exception cleanup signals the owned group before
++  reaping the direct child and restoring package-service inhibition. The
++  regression verifies the descendant started, is killed, and cannot perform
++  a post-timeout write. This is lifecycle cleanup for trusted package tools,
++  not containment of malicious maintainer scripts or package-state rollback.
++* Profile provenance: current profile hashes track the narrow dependency
++  edits. Original/historical hashes and the previous explanations remain
++  intact; the previous current values are recorded as follow-up history.
++  No test assertions or unrelated release gates were relaxed.
++
++### Successful final checks
++
++| Check | Follow-up result | Evidence |
++| --- | --- | --- |
++| Focused NFS suite | 65 tests, PASS (19 more than the prior delivery) | [nfs-final.log](follow-up/nfs-final.log) |
++| Standalone NFS wiring checker | PASS | [network-sharing-check-final.log](follow-up/network-sharing-check-final.log) |
++| Repository integrity after metadata synchronization | 10 tests, PASS | [repository-integrity-final.log](follow-up/repository-integrity-final.log) |
++| Current profile provenance case | PASS | [profile-provenance-after.log](follow-up/profile-provenance-after.log) |
++| Rebuilt installer payload | 1,689 files; manifest bytes and preseed pins match | [payload-integrity.json](follow-up/payload-integrity.json) |
++| Repeated builds | All three generated products byte-identical | [repeated-build.json](follow-up/repeated-build.json) |
++| Snapshot/shell checks | 705 checks across 347 shell files, PASS | [check-final.log](follow-up/check-final.log) |
++| Preseed checks | 59 files; four command values preserved, PASS | [preseed-final.log](follow-up/preseed-final.log) |
++| Codebase audit | Exit 0; categorized coverage, not all runtime passes | [audit-summary.json](follow-up/audit-summary.json) |
++| Protected private-Xwayland stack | All 16 recorded original hashes unchanged | [protected-xwayland-preservation.json](follow-up/protected-xwayland-preservation.json) |
++
++The focused tests include native systemd fstab generation, native assertion
++semantics, and AppArmor parser checks, together with fixture-based installer,
++menu and daemon configuration tests. The audit categories remain 609 pass,
++222 structure-pass, 159 blocked-dependency, 616 inventory-only and 11
++template-needs-render. They must not be counted as 1,617 runtime passes.
++
++### Complete regression coverage: still not a green release
++
++| Suite | Prior delivered archive | Follow-up final coverage |
++| --- | --- | --- |
++| Complete installer discovery | 3,185 invocations; 118 failures, 9 errors, 72 skips | 3,204 invocations; 117 failures, 7 errors, 72 skips |
++| Complete tools suite | 244 tests; 3 failures | 244 tests; the same 3 failures |
++
++Failure counts include failing subtests. Final installer coverage was divided
++by module into four disjoint isolated-copy partitions. The final multiset was
++checked against full discovery: 3,204 invocations, 3,197 distinct IDs; seven
++inherited imported tests are each discovered twice. No cases were dropped.
++After synchronizing current profile metadata, partition 0 was rerun in full.
++All ten repository-integrity module tests were rerun on the final source and
++replace that same module's results in partition 2. Its raw log deliberately
++retains ten pre-correction provenance subtest failures; the aggregate does not
++pretend those were a final result. Partitions 1 and 3 do not consume that ledger.
++
++There are **no new failing case IDs or subtest identifiers** after normalizing
++only temporary-directory names in the comparison. Existing outcome differences
++are not attributed to unrelated fixes. Existing failures remain out of this
++NFS audit's scope, and the repository cannot be described as a green release.
++The unchanged tools failure IDs are listed in the historical record below.
++
++See [full-suite-comparison.json](follow-up/full-suite-comparison.json) for exact
++IDs, raw input names, replacement-module provenance and complete coverage.
++[tools-comparison.json](follow-up/tools-comparison.json) records the tools
++comparison. Raw baseline/final logs and machine-readable partition outputs are
++included in `follow-up/`; no skipped dependency tests are claimed to pass.
++
++### Evidence boundaries and deployment requirements
++
++The target remains Forky/systemd 261.2. This container is Debian trixie with
++systemd 257.9 and Python 3.13.5. Additional NFS/nftables/setfacl/chattr test
++binaries could not be installed because the Debian mirror was unavailable by
++DNS. Native `libacl.so.1` was usable, but `CAP_LINUX_IMMUTABLE` and network
++namespace creation are denied. The attempted immutable operation returned
++EPERM; there is **no claim of a successful immutable enforcement test here**.
++See [kernel-capabilities.json](follow-up/kernel-capabilities.json).
++
++There was no real NFS client/server mount, reboot, target GUI authorization,
++native nftables ruleset load, or enforcing AppArmor session. The mount-parent
++change fails closed on unsupported target filesystems; its Btrfs/F2FS runtime
++behavior and ordinary-user rename denial still need target-side verification.
++The guide's live acceptance matrix and rollback procedure were updated,
++including the requirement to remove/stop all persistent bind definitions
++before clearing a parent's immutable flag. Keep roles/binds disabled until
++that acceptance and the existing release-gate failures are reviewed.
++
++No new source-build workflow or global Xwayland dependency was introduced.
++[Source preservation](follow-up/source-changes.json) records every changed
++baseline path and verifies unrelated files and historical ledger values.
++[Rendered examples](follow-up/rendered-final-example/) are fixtures, not a
++standalone firewall ruleset or an installed-target capture.
++
++### Reproduction
++
++From the repository root, use the commands in the historical reproduction
++section, plus the complete installer suite:
++
++```sh
++python3 -B -m unittest discover -s d-i/forky/tests -p 'test_*.py'
++PYTHONPATH=d-i/forky/tests python3 -B -m unittest -v test_repository_integrity
++python3 -B -m unittest discover -s tools/tests -p 'test_*.py'
++```
++
++The complete suites currently return nonzero for the documented failures.
++The partition/module runners are retained in `follow-up/` for reproducing the
++coverage method; run each partition in a separate complete source copy. The
++ordinary sequential command above remains the repository's release gate.
++
++## Initial delivery: historical validation record
++
++The following sections and adjacent original evidence files describe the
++previous delivery. Their test counts and historical source comparison have
++not been rewritten to imply that they describe this follow-up.
++
++### What this record proves
+ 
+ The supplied ZIP was extracted as the pristine comparison tree. The modified
+ repository includes all original file paths, the NFS implementation and tests,
+@@ -14,7 +156,7 @@
+ container used for these checks runs systemd 257.9 and Python 3.13.5. This is
+ an offline validation record, not an assertion of live target acceptance.
+ 
+-## Successful checks
++### Successful checks
+ 
+ | Check | Result | Evidence |
+ | --- | --- | --- |
+@@ -45,7 +187,7 @@
+ including real generated mount/automount units, exact exports, sysctls, and NFS
+ firewall excerpts. Excerpts are not a standalone nftables ruleset.
+ 
+-## Existing failing regressions: explicitly not a green release
++### Existing failing regressions: explicitly not a green release
+ 
+ An exploratory full installer-suite run during development ran 3139 tests and
+ reported 158 failures, 13 errors and 72 skips. That run was neither a pristine
+@@ -79,7 +221,7 @@
+ [original tools](pristine-tools-tests.log), [final tools](refactored-tools-tests.log).
+ These failures were not bypassed with skips or unrelated source edits.
+ 
+-## Environment and live acceptance gaps
++### Environment and live acceptance gaps
+ 
+ See [environment.txt](environment.txt), the [dependency install attempt](dependency-install-attempt.log),
+ and the [kernel network test](kernel-network-test.log). The environment could
+@@ -98,7 +240,7 @@
+ private Zoom/Discord Xwayland behavior too. Remaining project release-gate
+ failures must also be reviewed and resolved on the release host.
+ 
+-## Reproduction commands
++### Reproduction commands
+ 
+ From the repository root:
+ 
+@@ -126,7 +268,7 @@
+ accepted production release gate. Run the complete `make test` and `make
+ validate` as well on the release host, with an adequate validator test timeout.
+ 
+-## Scope and archive evidence
++### Scope and archive evidence
+ 
+ [source-changes.json](source-changes.json) records uploaded-file SHA-256 hashes,
+ changed original paths, added paths and the absence of missing original files.

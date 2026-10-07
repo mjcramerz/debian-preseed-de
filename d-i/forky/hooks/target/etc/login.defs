@@ -1,0 +1,51 @@
+#
+# Managed by unattended-installer.
+# Configuration control definitions for the shadow package.
+#
+
+MAIL_DIR        /var/mail
+
+LOG_UNKFAIL_ENAB        no
+LOG_OK_LOGINS           no
+
+HUSHLOGIN_FILE  .hushlogin
+
+ENV_SUPATH      PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/data/bin
+ENV_PATH        PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games:/data/bin
+
+TTYPERM         0600
+ERASECHAR       0177
+KILLCHAR        025
+
+HOME_MODE       0700
+UMASK           077
+
+PASS_MAX_DAYS   99999
+PASS_MIN_DAYS   0
+PASS_WARN_AGE   7
+
+UID_MIN          1000
+UID_MAX          60000
+SYS_UID_MIN      100
+SYS_UID_MAX      999
+SUB_UID_MIN      100000
+SUB_UID_MAX      600100000
+SUB_UID_COUNT    65536
+
+GID_MIN          1000
+GID_MAX          60000
+SYS_GID_MIN      100
+SYS_GID_MAX      999
+SUB_GID_MIN      100000
+SUB_GID_MAX      600100000
+SUB_GID_COUNT    65536
+
+LOGIN_RETRIES   5
+LOGIN_TIMEOUT   60
+CHFN_RESTRICT   rwh
+
+ENCRYPT_METHOD YESCRYPT
+
+DEFAULT_HOME    yes
+NONEXISTENT     /nonexistent
+USERGROUPS_ENAB yes

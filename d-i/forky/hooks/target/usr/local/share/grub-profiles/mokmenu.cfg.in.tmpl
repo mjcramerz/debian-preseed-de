@@ -1,0 +1,7 @@
+menuentry 'MOK Enrollment' --id 'installer-mok-enrollment' --class debian --class secure-boot --class os {
+    insmod fat
+    insmod chain
+    @@MOKMANAGER_SEARCH@@
+    echo 'Use MokManager to enroll the generated certificate stored at @@MOK_DER_PATH@@.'
+    chainloader ($esp)@@MOKMANAGER_PATH@@
+}

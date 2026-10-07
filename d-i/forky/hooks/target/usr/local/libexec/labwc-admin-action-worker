@@ -1,0 +1,926 @@
+#!/usr/bin/python3 -I
+"""Authorized PID-1-owned power worker; user documents never run as root."""
+from __future__ import annotations
+import contextlib
+import errno
+import fcntl
+import json
+import os
+from pathlib import Path
+import pwd
+import re
+import selectors
+import signal
+import socket
+import stat
+import subprocess
+import sys
+import time
+import uuid
+
+# Never inherit bus redirection, automatic kexec/soft-reboot, or a caller PATH.
+ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C.UTF-8",
+       "SYSTEMCTL_FORCE_BUS": "0", "SYSTEMCTL_SKIP_AUTO_KEXEC": "1",
+       "SYSTEMCTL_SKIP_AUTO_SOFT_REBOOT": "1"}
+DESKTOP_TARGET = "labwc-session.target"
+COMPOSITOR = "labwc-compositor.service"
+# Only repository-managed guest shutdown hooks. Leave their engines and both
+# D-Bus brokers alive while ExecStop completes; do not enumerate/stop the host.
+GUEST_STOP_UNITS = ("podman-devops-restart.service", "incus-startup.service")
+SHARING_CONFIG = Path("/etc/network-sharing/config.json")
+ZRAM_WORK_UNITS = ("zram-idle-writeback.timer", "zram-cold-tier.timer",
+                   "zram-writebackd.service", "zram-writeback.service")
+
+
+class Error(Exception):
+    pass
+
+
+class Cancelled(Error):
+    """The session helper vetoed preparation before any destructive work."""
+
+
+
+# Never accept lock paths, commands, or timeouts from caller-controlled input.
+# POSIX record locks (lockf/fcntl), not BSD flock, interoperate with APT/dpkg.
+PACKAGE_LOCK_PATHS = (Path("/var/lib/dpkg/lock-frontend"), Path("/var/lib/dpkg/lock"))
+ACTION_LOCK_DIRECTORY = Path("/run/labwc-power")
+
+
+class PackageLocks:
+    """Drain package writers, then keep both inodes read-locked during handoff.
+
+    A shared whole-file POSIX lock conflicts with APT/dpkg's exclusive locks
+    without requiring write access to the package database. The descriptors
+    stay in this PID-1-owned process, never in a caller's desktop cgroup.
+    Partial acquisitions are released before waiting to avoid lock-order
+    deadlocks with another frontend. Missing/untrusted paths fail closed;
+    this code never creates, truncates, removes, or repairs dpkg lock files.
+    """
+    def __init__(self, on_wait=None):
+        self.fds: list[tuple[Path, int]] = []
+        self.on_wait = on_wait
+
+    @staticmethod
+    def trusted(st) -> bool:
+        return (stat.S_ISREG(st.st_mode) and st.st_uid == 0
+                and st.st_nlink == 1 and not st.st_mode & 0o022)
+
+    def verify(self) -> None:
+        if len(self.fds) != len(PACKAGE_LOCK_PATHS):
+            raise Error("package lock reservation is not held")
+        for path, fd in self.fds:
+            opened, current = os.fstat(fd), path.lstat()
+            if (not self.trusted(opened) or not self.trusted(current)
+                    or (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino)):
+                raise Error(f"package lock path changed or is unsafe: {path}")
+
+    def close(self) -> None:
+        while self.fds:
+            _, fd = self.fds.pop()
+            os.close(fd)  # POSIX locks are released by closing this descriptor.
+
+    def __enter__(self):
+        next_report = 0.0
+        notified = False
+        try:
+            while True:
+                busy = None
+                for path in PACKAGE_LOCK_PATHS:
+                    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+                    self.fds.append((path, fd))
+                    if not self.trusted(os.fstat(fd)):
+                        raise Error(f"unsafe package lock: {path}")
+                    try:
+                        fcntl.lockf(fd, fcntl.LOCK_SH | fcntl.LOCK_NB, 0, 0, os.SEEK_SET)
+                    except OSError as exc:
+                        if exc.errno == errno.EINTR:
+                            busy = path
+                            break
+                        if exc.errno not in {errno.EACCES, errno.EAGAIN}:
+                            raise
+                        busy = path
+                        break
+                if busy is None:
+                    self.verify()
+                    status("Package locks reserved; continuing authorized power action")
+                    return self
+                # Do not hold the frontend while waiting for a backend writer.
+                self.close()
+                now = time.monotonic()
+                if now >= next_report:
+                    message = f"Waiting for package activity to release {busy}; no power action performed"
+                    print(message, file=sys.stderr, flush=True)
+                    status(message)
+                    next_report = now + 30
+                if not notified and self.on_wait is not None:
+                    self.on_wait()
+                    notified = True
+                # No timeout may turn a busy package database into permission
+                # to tear down a session, power off, reboot, or suspend.
+                time.sleep(1)
+        except BaseException:
+            self.close()
+            raise
+
+    def __exit__(self, exc_type, exc, traceback):
+        self.close()
+
+
+def status(message: str) -> None:
+    """Record the power stage and notify PID 1; neither is an authorization gate."""
+    print(message.replace("\n", " "), file=sys.stderr, flush=True)
+    address = os.environ.get("NOTIFY_SOCKET", "")
+    if not address or address[0] not in "/@":
+        return
+    if address.startswith("@"):
+        address = "\0" + address[1:]
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as notifier:
+            notifier.settimeout(2)
+            notifier.connect(address)
+            notifier.sendall(("STATUS=" + message.replace("\n", " ")).encode())
+    except OSError as exc:
+        print(f"power status notification: {exc}", file=sys.stderr, flush=True)
+
+
+@contextlib.contextmanager
+def action_lock(*, wait: bool = False):
+    """Serialize desktop/greeter requests and the whole system sleep cycle.
+
+    Sleep waits for a queued desktop action to finish; explicit desktop actions
+    retain their existing immediate duplicate-request rejection. The suspend
+    worker releases this lock after systemctl has enqueued (not completed) the
+    sleep job, so its sleep guard can then acquire it without a circular wait.
+    """
+    directory = ACTION_LOCK_DIRECTORY
+    st = directory.lstat()
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != 0 or stat.S_IMODE(st.st_mode) != 0o700:
+        raise Error("unsafe system power lock directory")
+    path = directory / "action.lock"
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != 0 or st.st_nlink != 1 or stat.S_IMODE(st.st_mode) != 0o600:
+            raise Error("unsafe system power lock")
+        next_report = 0.0
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if not wait:
+                    raise Error("another managed power action or sleep request is pending") from None
+                now = time.monotonic()
+                if now >= next_report:
+                    message = "Waiting for the existing managed power action before sleep"
+                    print(message, file=sys.stderr, flush=True)
+                    status(message)
+                    next_report = now + 30
+                time.sleep(1)
+        current = path.lstat()
+        if (current.st_dev, current.st_ino) != (st.st_dev, st.st_ino):
+            raise Error("system power lock path changed while waiting")
+        yield
+    finally:
+        os.close(fd)
+
+
+def hold_reservation() -> None:
+    # A successful systemctl request is not completed shutdown or sleep.
+    # Keep the reservation alive until PID 1 stops this service. For the sleep
+    # guard, StopWhenUnneeded releases it only after the sleep/resume job ends.
+    while True:
+        signal.pause()
+
+
+def sleep_guard() -> int:
+    # sleep.target REQUIRES this Type=notify service, ordered before the target.
+    # Unlike a late system-sleep script, readiness is withheld until packages
+    # finish, and the locks remain held through both pre- and post-sleep hooks.
+    # Take the action lock BEFORE package locks; never reserve the package
+    # database while waiting for a desktop worker that needs it to finish.
+    with action_lock(wait=True):
+        with PackageLocks():
+            ready()
+            status("Package locks reserved for the complete sleep/resume cycle")
+            hold_reservation()
+    return 0
+
+
+def bounded_output(proc, timeout: float, limit: int) -> tuple[str, str]:
+    """Drain both transport pipes with a deadline and an enforced memory bound."""
+    deadline = time.monotonic() + timeout
+    buffers = {proc.stdout: bytearray(), proc.stderr: bytearray()}
+    with selectors.DefaultSelector() as poller:
+        for stream in buffers:
+            poller.register(stream, selectors.EVENT_READ)
+        while poller.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(proc.args, timeout)
+            for key, _ in poller.select(remaining):
+                stream = key.fileobj
+                chunk = os.read(stream.fileno(), 16_384)
+                if not chunk:
+                    poller.unregister(stream)
+                    continue
+                # stderr is diagnostic only; neither pipe may grow without bound.
+                maximum = limit if stream is proc.stdout else 16_384
+                if len(buffers[stream]) + len(chunk) > maximum:
+                    raise Error("power transport output exceeded its size limit")
+                buffers[stream].extend(chunk)
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise subprocess.TimeoutExpired(proc.args, timeout)
+    proc.wait(timeout=remaining)
+    return tuple(bytes(buffers[stream]).decode("utf-8", errors="replace")
+                 for stream in (proc.stdout, proc.stderr))
+
+
+def run(argv: list[str], *, timeout: float = 25, accepted: tuple[int, ...] = (0,),
+        max_output: int | None = None, account=None) -> str:
+    # Each local transport gets its own process group. On a timeout, reap the
+    # whole transport rather than leaving a stdio bridge holding our pipes open.
+    child_env = dict(ENV)
+    credentials = {}
+    if account is not None:
+        # Direct credential drop, NOT PAM/runuser or --machine=user@.host.
+        # The latter creates one short-lived login session per query and races
+        # logind peer credential acquisition. Only trusted passwd data is used.
+        if not 0 < account.pw_uid < 2**32 - 1 or not 0 <= account.pw_gid < 2**32 - 1:
+            raise Error("invalid user-manager credentials")
+        runtime = f"/run/user/{account.pw_uid}"
+        child_env.update(HOME=account.pw_dir, USER=account.pw_name,
+                         LOGNAME=account.pw_name, XDG_RUNTIME_DIR=runtime,
+                         DBUS_SESSION_BUS_ADDRESS="unix:path=" + runtime + "/bus")
+        credentials = dict(user=account.pw_uid, group=account.pw_gid, extra_groups=())
+    proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True, env=child_env,
+                            start_new_session=True, close_fds=True, **credentials)
+    communicated = False
+    try:
+        try:
+            if max_output is None:
+                output, error = proc.communicate(timeout=timeout)
+            else:
+                output, error = bounded_output(proc, timeout, max_output)
+            communicated = True
+        except subprocess.TimeoutExpired:
+            raise Error(f"{Path(argv[0]).name} timed out after {timeout}s") from None
+        if error:
+            # stderr is diagnostic, unlike stdout carrying parsed D-Bus/API data.
+            print(error.rstrip()[:16_384], file=sys.stderr, flush=True)
+        if proc.returncode not in accepted:
+            raise Error(f"{Path(argv[0]).name} exited {proc.returncode}: {error.strip()[:1000]}")
+        return output
+    finally:
+        # Do not kill a successfully drained local transport: its PAM/logind
+        # release may still be finishing. Killing that peer unconditionally can
+        # race credential acquisition. Cancellation/timeout still reaps the
+        # whole process group, including pipe-holding bridge descendants.
+        if not communicated:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        try:
+            # Keep the original bounded reap even for an uninterruptible child;
+            # systemd retains the final cgroup stop boundary on cancellation.
+            proc.wait(timeout=2)
+        finally:
+            proc.stdout.close()
+            proc.stderr.close()
+
+
+def ready() -> None:
+    # Type=notify makes the pkexec frontend observe startup/authorization errors
+    # before any application is closed. Only this main process may acknowledge.
+    address = os.environ.get("NOTIFY_SOCKET", "")
+    if not address or address[0] not in "/@":
+        raise Error("power worker requires its systemd notification socket")
+    if address.startswith("@"):
+        address = "\0" + address[1:]
+    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as notifier:
+        notifier.settimeout(2)
+        notifier.connect(address)
+        notifier.sendall(b"READY=1\nSTATUS=Authorized desktop power request accepted")
+
+
+def check_shutdown_inhibitors() -> None:
+    """Veto known block locks; single --force bypasses logind delay handling.
+
+    This snapshot is not an atomic inhibitor reservation. The final PID 1
+    handoff does not emit logind PrepareForShutdown or wait for delay locks.
+    """
+    raw = run(["/usr/bin/busctl", "--system", "--json=short", "--timeout=5s",
+               "call", "org.freedesktop.login1", "/org/freedesktop/login1",
+               "org.freedesktop.login1.Manager", "ListInhibitors"], timeout=7, max_output=1_048_576)
+    try:
+        if len(raw) > 1_048_576:
+            raise ValueError("oversized inhibitor response")
+        result = json.loads(raw)
+        if not isinstance(result, dict) or result.get("type") != "a(ssssuu)":
+            raise ValueError("unexpected inhibitor signature")
+        data = result.get("data")
+        if not isinstance(data, list) or len(data) != 1 or not isinstance(data[0], list) or len(data[0]) > 1024:
+            raise ValueError("invalid inhibitor array")
+        for item in data[0]:
+            if (not isinstance(item, list) or len(item) != 6
+                    or any(not isinstance(value, str) or len(value) > 4096 for value in item[:4])
+                    or any(type(value) is not int or not 0 <= value < 2**32 for value in item[4:])):
+                raise ValueError("invalid inhibitor record")
+            if "shutdown" in item[0].split(":") and item[3] != "delay":
+                if item[3] not in {"block", "block-weak"}:
+                    raise Error("unrecognized shutdown inhibitor mode")
+                # Do not log caller-supplied inhibitor strings or sensitive data.
+                raise Error(f"shutdown is inhibited by uid={item[4]} pid={item[5]}; "
+                            "release the inhibitor before retrying")
+    except (ValueError, RecursionError) as exc:
+        raise Error("cannot verify shutdown inhibitors") from exc
+
+
+def login_sessions() -> list[tuple[str, int]]:
+    """Read bounded, typed logind records rather than presentation columns."""
+    raw = run(["/usr/bin/busctl", "--system", "--json=short", "--timeout=5s",
+               "call", "org.freedesktop.login1", "/org/freedesktop/login1",
+               "org.freedesktop.login1.Manager", "ListSessions"], timeout=7, max_output=131_072)
+    try:
+        if len(raw) > 131_072:
+            raise ValueError("oversized session response")
+        result = json.loads(raw)
+        if not isinstance(result, dict) or result.get("type") != "a(susso)":
+            raise ValueError("unexpected session signature")
+        data = result.get("data")
+        if (not isinstance(data, list) or len(data) != 1
+                or not isinstance(data[0], list) or len(data[0]) > 1024):
+            raise ValueError("invalid session array")
+        sessions = []
+        seen = set()
+        for row in data[0]:
+            if (not isinstance(row, list) or len(row) != 5
+                    or not isinstance(row[0], str)
+                    or re.fullmatch(r"[A-Za-z0-9_-]{1,64}", row[0]) is None
+                    or type(row[1]) is not int or not 0 <= row[1] < 2**32
+                    or any(not isinstance(value, str) or len(value) > 4096 for value in row[2:])
+                    or not row[4].startswith("/org/freedesktop/login1/session/")
+                    or row[0] in seen):
+                raise ValueError("invalid session record")
+            seen.add(row[0])
+            sessions.append((row[0], row[1]))
+        return sessions
+    except (ValueError, RecursionError) as exc:
+        raise Error("cannot verify login sessions") from exc
+
+
+def sharing_stop_groups() -> list[tuple[str, ...]]:
+    """Derive only installer-owned mount units from bounded root-owned data.
+
+    Never stat the exported/remote paths: that can block on an unavailable
+    hard NFS mount. PID 1 owns the actual unmounts.
+    """
+    try:
+        for parent in reversed(SHARING_CONFIG.parents):
+            info = parent.lstat()
+            if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+                raise Error("untrusted network sharing configuration directory")
+        fd = os.open(SHARING_CONFIG, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    except FileNotFoundError:
+        return []  # This optional role was not installed.
+    with os.fdopen(fd, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0
+                or info.st_nlink != 1 or info.st_mode & 0o022):
+            raise Error("untrusted network sharing configuration")
+        raw = stream.read(65537)
+    try:
+        if len(raw) > 65536:
+            raise ValueError("oversized configuration")
+        config = json.loads(raw)
+        if (not isinstance(config, dict) or config.get('version') != 2
+                or not isinstance(config.get('profile'), dict)
+                or any(type(config.get(k)) is not bool for k in ('server_enabled', 'client_enabled'))
+                or any(k in config for k in ('client_automount', 'client_bind_automount',
+                                             'server_bind_automount'))):
+            raise ValueError("invalid configuration")
+        settings = config['profile']
+
+        def path_value(key: str, *, relative: bool = False) -> str:
+            value = settings[key]
+            if (not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_./-]{1,2048}', value)
+                    or value.startswith('/') == relative
+                    or any(p in ('', '.', '..') for p in value.lstrip('/').split('/'))
+                    or value.startswith('//')):
+                raise ValueError("invalid sharing path")
+            return value
+
+        def unit(path: str, suffix: str) -> str:
+            name = ''.join('-' if c == '/' else c if c.isalnum() or c in '_.'
+                           else f'\\x{ord(c):02x}' for c in path.strip('/')) + '.' + suffix
+            if len(name) > 255:
+                raise ValueError("oversized mount unit")
+            return name
+
+        root = path_value('NETWORK_SHARING_ROOT_PATH')
+        home = path_value('ACCOUNT_HOME')
+        if not root.startswith(('/data/', '/pool/', '/srv/')) or not home.startswith('/home/'):
+            raise ValueError("unexpected sharing root/home")
+        binds, clients = [], []
+        for role in ('SERVER', 'CLIENT'):
+            enabled = config[role.lower() + '_enabled']
+            if settings['NFS_' + role + '_ENABLE'] != str(enabled).lower():
+                raise ValueError("inconsistent NFS role")
+            bind = settings['NFS_' + role + '_BIND_ENABLE']
+            if bind not in ('true', 'false') or (bind == 'true' and not enabled):
+                raise ValueError("inconsistent NFS bind role")
+            source = path_value('NFS_' + role + '_PATH')
+            if not source.startswith(root + '/'):
+                raise ValueError("sharing mount outside managed root")
+            if bind == 'true':
+                target = home + '/' + path_value('NFS_' + role + '_HOME_BIND_PATH', relative=True)
+                name = unit(target, 'mount')
+                if config[role.lower() + '_bind_mount'] != name:
+                    raise ValueError("inconsistent home bind unit")
+                binds.append(name)
+            if role == 'CLIENT' and enabled:
+                name = unit(source, 'mount')
+                if config['client_mount'] != name:
+                    raise ValueError("inconsistent NFS client unit")
+                clients.append(name)
+        if not (config['server_enabled'] or config['client_enabled']):
+            return []
+        # Queue mount stops together. The generated
+        # After=/RequiresMountsFor= edges unmount home views before the client.
+        return [tuple(binds), tuple(clients)]
+    except (ValueError, KeyError, TypeError, RecursionError) as exc:
+        raise Error("invalid installed network sharing shutdown policy") from exc
+
+
+class Worker:
+    def __init__(self, uid: int, user: str, action: str, *, greeter: bool = False):
+        self.uid, self.user, self.action = uid, user, action
+        self.greeter = greeter
+        self.greeter_identity: tuple[str, str] | None = None
+        self.package_locks = None
+        self.committed = False
+        self.prepared = False
+        self.handoff_attempted = False
+        self.session_stopped = False
+        self.storage_stopped = False
+        self.stopped_units: list[str] = []
+
+    def user_run(self, argv: list[str], **kwargs) -> str:
+        account = pwd.getpwuid(self.uid)
+        if account.pw_name != self.user:
+            raise Error("invoking account changed during power preparation")
+        # The address is derived from the authorized UID; never accept caller
+        # bus addresses, injected environment variables or an arbitrary command.
+        runtime = Path(f"/run/user/{self.uid}")
+        meta = runtime.lstat()
+        if (not stat.S_ISDIR(meta.st_mode) or meta.st_uid != self.uid
+                or stat.S_IMODE(meta.st_mode) != 0o700):
+            raise Error("unsafe or unavailable authorized user bus")
+        return run(argv, account=account, **kwargs)
+
+    def userctl(self, *args: str, **kwargs) -> str:
+        return self.user_run(["/usr/bin/systemctl", "--user", "--no-pager",
+                              "--no-ask-password", *args], **kwargs)
+
+    def helper(self, action: str) -> None:
+        if action not in {"prepare", "cancel", "locked", "error", "waiting"}:
+            raise Error("invalid desktop state operation")
+        # This is a USER unit, not a PID-1 service with User=. Its manager owns
+        # the desktop environment and executes the helper without root rights.
+        if action == "prepare":
+            # Reset any retained result from an interrupted prior worker. The
+            # prepare-only RemainAfterExit drop-in prevents successful status
+            # 77 being garbage-collected and mistaken for a fresh status 0.
+            self.userctl("stop", "labwc-session-state@prepare.service", timeout=15)
+        self.userctl("start", "labwc-session-state@" + action + ".service",
+                     timeout=300 if action == "prepare" else 15)
+        if action == "prepare":
+            response = self.userctl("show", "labwc-session-state@prepare.service",
+                "--property=ActiveState,SubState,Result,ExecMainStatus", timeout=10)
+            props = {}
+            for line in response.splitlines():
+                key, separator, value = line.partition("=")
+                if not separator or key in props:
+                    raise Error("invalid session preparation properties")
+                props[key] = value
+            if (props.get("ActiveState") != "active" or props.get("SubState") != "exited"
+                    or props.get("Result") != "success"):
+                raise Error("cannot verify retained session preparation completion")
+            # Only release the retained unit AFTER reading its exit status.
+            self.userctl("stop", "labwc-session-state@prepare.service", timeout=15)
+            if props.get("ExecMainStatus") == "77":
+                raise Cancelled("user/save veto; no session teardown or power action performed")
+            if props.get("ExecMainStatus") != "0":
+                raise Error("unexpected session preparation status")
+
+    @staticmethod
+    def session_properties(session_id: str) -> dict[str, str]:
+        keys = ("User", "Name", "Class", "Active", "Remote", "Service", "Leader")
+        # loginctl takes one property name per option; a comma-separated value
+        # requests a nonexistent property and silently omits the real fields.
+        raw = run(["/usr/bin/loginctl", "show-session", session_id, "--all",
+                   *("--property=" + key for key in keys)],
+                  timeout=5, max_output=8192)
+        props = {}
+        for item in raw.splitlines():
+            key, separator, value = item.partition("=")
+            if not separator or key not in keys or key in props:
+                raise Error("invalid greeter session properties")
+            props[key] = value
+        if set(props) != set(keys):
+            raise Error("incomplete greeter session properties")
+        return props
+
+    def protect_other_sessions(self) -> None:
+        if self.action == "logout":
+            return
+        sessions = login_sessions()
+        interactive = {"user", "user-early", "user-light", "user-early-light", "user-incomplete", "lock-screen"}
+        greeters = []
+        for session_id, session_uid in sessions:
+            fields = (session_id, str(session_uid))
+            if self.session_stopped:
+                session_class = run(["/usr/bin/loginctl", "show-session", session_id,
+                                     "--property=Class", "--value"], timeout=5, max_output=256).strip()
+                if session_class not in {"background", "background-light", "manager", "manager-early"}:
+                    raise Error("a login session appeared or remained after desktop teardown")
+                continue
+            if int(fields[1]) == self.uid:
+                if not self.greeter:
+                    continue
+                # Polkit authorized an active/local greeter, not every future
+                # session of that account. Revalidate before the PID 1 handoff.
+                props = self.session_properties(fields[0])
+                if props["Class"] != "user-light":
+                    if props["Class"] in interactive:
+                        raise Error("a greeter power request cannot bypass an interactive desktop")
+                    continue  # A user-manager/background session is not the greeter.
+                expected = {"User": str(self.uid), "Name": self.user, "Active": "yes",
+                            "Remote": "no", "Service": "greetd-greeter"}
+                if (any(props[key] != value for key, value in expected.items())
+                        or not re.fullmatch(r"[1-9][0-9]{0,9}", props["Leader"])
+                        or int(props["Leader"]) >= 2**31):
+                    raise Error("the authorized active local greeter session is no longer available")
+                greeters.append((fields[0], props["Leader"]))
+                continue
+            session_class = run(["/usr/bin/loginctl", "show-session", fields[0],
+                                 "--property=Class", "--value"], timeout=5, max_output=256).strip()
+            if session_class == "user-light" and not self.greeter:
+                # greetd starts its own session as soon as the compositor
+                # exits. This non-desktop greeter must not veto an already
+                # prepared request merely because it appeared after stop.
+                # Recheck logind's PAM service and local identity before
+                # excluding it from the other-interactive-user veto.
+                props = self.session_properties(fields[0])
+                try:
+                    account = pwd.getpwuid(int(fields[1]))
+                except KeyError as exc:
+                    raise Error("unrecognized greeter account") from exc
+                if (props["Class"] == "user-light" and props["Service"] == "greetd-greeter"
+                        and props["Remote"] == "no" and props["User"] == fields[1]
+                        and props["Name"] == account.pw_name
+                        and props["Active"] in {"yes", "no"}
+                        and re.fullmatch(r"[1-9][0-9]{0,9}", props["Leader"])
+                        and int(props["Leader"]) < 2**31):
+                    continue
+            if session_class in interactive:
+                raise Error(f"another interactive account is logged in (uid={session_uid}, "
+                            f"session={session_id}); ask that user to save and log out first")
+            if session_class not in {"background", "background-light", "manager", "manager-early", "greeter"}:
+                raise Error(f"cannot verify other login session {session_id}; class is unknown")
+        if self.greeter and not self.session_stopped:
+            if len(greeters) != 1:
+                raise Error("cannot identify one active local greeter session")
+            identity = greeters[0]
+            if self.greeter_identity is not None and identity != self.greeter_identity:
+                raise Error("greeter session changed while power was pending; submit a new request")
+            self.greeter_identity = identity
+
+    def lock(self) -> None:
+        # Every manual, idle and power path uses the same independent PAM unit.
+        # Type=forking waits for swaylock's acknowledged lock before suspend.
+        self.userctl("start", "labwc-lock.service", timeout=25)
+        self.helper("locked")
+
+    def best_effort(self, description: str, callback) -> None:
+        try:
+            callback()
+        except (Error, OSError, subprocess.SubprocessError) as exc:
+            print(f"power cleanup ({description}): {exc}", file=sys.stderr, flush=True)
+
+    def remaining(self) -> bool:
+        # Query the manager, not /proc of other AppArmor domains. PID 1/logind
+        # already own every managed user unit and login-session cgroup.
+        state = run(["/usr/bin/systemctl", "show", f"user-{self.uid}.slice",
+                     "--property=ActiveState", "--value"], timeout=5).strip()
+        if state not in {"active", "activating", "deactivating", "inactive", "failed"}:
+            raise Error("cannot determine the invoking user's slice state")
+        return state not in {"inactive", "failed"}
+
+    def wait_for_exit(self, seconds: float) -> bool:
+        deadline = time.monotonic() + seconds
+        while True:
+            try:
+                if not self.remaining():
+                    return True
+            except (Error, OSError, subprocess.SubprocessError) as exc:
+                print(f"power cleanup (slice state): {exc}", file=sys.stderr, flush=True)
+                return False
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(0.2)
+
+    def terminate_user(self) -> None:
+        if self.action not in {"logout", "reboot", "poweroff"}:
+            raise Error("account teardown requires logout or machine shutdown")
+        self.require_package_reservation()
+        # Once committed, one failed stop must not strand a half-closed desktop.
+        # Queue stops first (disabling restart), then use PID 1's cgroup-wide
+        # TERM/KILL paths. No process-name matching and no caller-owned worker.
+        if not self.greeter:
+            self.best_effort("desktop units", lambda: self.userctl(
+                "--no-block", "stop", "labwc-session.target", "labwc-compositor.service", timeout=10))
+        self.best_effort("login sessions", lambda: run(
+            ["/usr/bin/loginctl", "terminate-user", str(self.uid)], timeout=10))
+        self.best_effort("user manager and slice", lambda: run(
+            ["/usr/bin/systemctl", "--no-block", "stop", f"user@{self.uid}.service",
+             f"user-{self.uid}.slice"], timeout=10))
+        if self.wait_for_exit(1):
+            return
+        for sig, grace in (("TERM", 3), ("KILL", 3)):
+            self.best_effort(sig + " user cgroups", lambda: run(
+                ["/usr/bin/systemctl", "kill", "--kill-whom=all", "--signal=" + sig,
+                 f"user-{self.uid}.slice"], timeout=5))
+            if self.wait_for_exit(grace):
+                return
+        raise Error("user slice did not stop; inspect the power action log")
+
+    @staticmethod
+    def unit_state(name: str) -> dict[str, str]:
+        text = run(["/usr/bin/systemctl", "show", name,
+                    "--property=LoadState,ActiveState,SubState,Result"], timeout=10, max_output=4096)
+        props = {}
+        for line in text.splitlines():
+            key, separator, value = line.partition('=')
+            if not separator or key in props:
+                raise Error("invalid shutdown unit state: " + name)
+            props[key] = value
+        return props
+
+    def stop_units(self, names: tuple[str, ...], *, optional: bool = True) -> None:
+        self.require_package_reservation()
+        selected = []
+        for name in names:
+            props = self.unit_state(name)
+            if optional and props.get('LoadState') == 'not-found' and props.get('ActiveState') == 'inactive':
+                continue
+            if props.get('LoadState') not in {'loaded', 'masked'}:
+                raise Error("cannot load managed shutdown unit: " + name)
+            if props.get('ActiveState') == 'inactive':
+                self.verify_stopped_unit(name, props)
+                self.stopped_units.append(name)
+                continue
+            if props.get('ActiveState') not in {'active', 'activating', 'reloading', 'deactivating'}:
+                raise Error("cannot safely stop managed unit: " + name)
+            selected.append(name)
+        if selected:
+            status("Stopping managed units: " + ', '.join(selected))
+            # No lazy/forced unmount: a busy mount or failed ExecStop vetoes
+            # the force handoff. A transport timeout never authorizes power.
+            run(["/usr/bin/systemctl", "--no-ask-password", "stop", *selected],
+                timeout=180, max_output=16384)
+            for name in selected:
+                props = self.unit_state(name)
+                self.verify_stopped_unit(name, props)
+                self.stopped_units.append(name)
+
+    @staticmethod
+    def verify_stopped_unit(name: str, props: dict[str, str]) -> None:
+        if (props.get('LoadState') not in {'loaded', 'masked'}
+                or props.get('ActiveState') != 'inactive' or props.get('SubState') != 'dead'
+                or (not name.endswith('.target') and props.get('Result') != 'success')):
+            raise Error("managed shutdown did not complete cleanly: " + name)
+
+    def stop_network_sharing(self) -> None:
+        groups = sharing_stop_groups()
+        if not groups:
+            return
+        self.stop_units(tuple(name for group in groups for name in group), optional=False)
+        # Kernel server/export teardown precedes its userspace cache daemons.
+        self.stop_units(('nfs-server.service',))
+        self.stop_units(('nfs-mountd.service', 'nfs-idmapd.service', 'nfsdcld.service',
+                         'nfs-blkmap.service', 'rpc-gssd.service', 'rpc-svcgssd.service',
+                         'nfs-client.target'))
+
+    def prepare_machine_shutdown(self, identity: str | None = None) -> None:
+        self.stop_network_sharing()
+        if not self.greeter and (identity is None or self.session_identity() != identity):
+            raise Error("desktop session changed during network sharing teardown")
+        self.protect_other_sessions()
+        check_shutdown_inhibitors()
+        self.require_package_reservation()
+        self.committed = True
+        # Prevent greetd from creating a fresh login while swap is drained.
+        # PID 1 and the system bus remain alive for all cleanup transactions.
+        self.stop_units(('greetd.service',))
+        self.terminate_user()
+        self.session_stopped = True
+        self.protect_other_sessions()
+        self.stop_units(ZRAM_WORK_UNITS)
+        # The existing ExecStop contracts do swapoff -> reset -> mapper close.
+        # Keep fallback swap available until zram has released its pages.
+        self.stop_units(('zram-setup.service',))
+        self.stop_units(('swap-fallback.service',))
+        self.storage_stopped = True
+
+    def stop_optional_guests(self) -> None:
+        self.require_package_reservation()
+        # These fixed names are optional when the corresponding addon is not
+        # installed. An installed, running hook must complete successfully.
+        # Stopping a oneshot with RemainAfterExit runs its vendor ExecStop. It
+        # does not start the hook, its daemon, or any shutdown barrier.
+        selected = []
+        for name in GUEST_STOP_UNITS:
+            text = run(["/usr/bin/systemctl", "show", name,
+                        "--property=LoadState,ActiveState"], timeout=10)
+            props = dict(line.split("=", 1) for line in text.splitlines() if "=" in line)
+            if props.get("LoadState") == "not-found":
+                continue
+            if props.get("ActiveState") == "inactive":
+                continue
+            if props.get("LoadState") != "loaded" or props.get("ActiveState") not in {
+                    "active", "activating", "reloading", "deactivating"}:
+                raise Error(f"cannot safely stop guest hook: {name}")
+            selected.append(name)
+        if selected:
+            run(["/usr/bin/systemctl", "--no-ask-password", "stop", *selected], timeout=180)
+            for name in selected:
+                text = run(["/usr/bin/systemctl", "show", name,
+                            "--property=ActiveState,Result"], timeout=10)
+                props = dict(line.split("=", 1) for line in text.splitlines() if "=" in line)
+                if props.get("ActiveState") != "inactive" or props.get("Result") != "success":
+                    raise Error(f"guest shutdown did not complete cleanly: {name}")
+
+    def final_power_action(self) -> None:
+        if self.action not in {"reboot", "poweroff"}:
+            raise Error("invalid machine shutdown action")
+        if not (self.prepared or self.greeter) or self.handoff_attempted:
+            raise Error("handoff requires a prepared desktop and may run only once")
+        self.require_package_reservation()
+        if not self.session_stopped or not self.storage_stopped:
+            raise Error("handoff requires completed session and storage teardown")
+        self.protect_other_sessions()
+        check_shutdown_inhibitors()
+        self.require_package_reservation()
+        for name in self.stopped_units:
+            self.verify_stopped_unit(name, self.unit_state(name))
+        # All managed cleanup hooks completed. PID 1 still owns final ordinary
+        # filesystem unmount/remount and any unrelated encrypted root devices.
+        os.sync()
+        self.require_package_reservation()
+        status(f"Power handoff: systemctl --force {self.action}; single-force PID 1 shutdown")
+        self.require_package_reservation()
+        self.committed = True
+        self.handoff_attempted = True
+        # Exactly ONE --force is the selected path, not a failure fallback. It
+        # bypasses the ordinary unit-stop transaction and logind delay handling;
+        # PID 1 still terminates processes and unmounts/remounts filesystems.
+        # Never use double force, reboot(2), a raw reboot/poweroff utility, or a
+        # shell command. The fixed environment disables auto kexec/soft-reboot.
+        try:
+            run(["/usr/bin/systemctl", "--force", self.action],
+                timeout=25, max_output=4096)
+        except (Error, OSError, subprocess.SubprocessError) as exc:
+            # A lost acknowledgement may follow an accepted request. Do not
+            # resend, escalate force, start another target, or revive the desktop.
+            raise Error(f"{self.action} handoff status uncertain; do not retry automatically: {exc}") from exc
+
+    def require_package_reservation(self) -> None:
+        if self.package_locks is None:
+            raise Error("power action requires an active package lock reservation")
+        self.package_locks.verify()
+
+    def package_waiting(self) -> None:
+        if not self.greeter:
+            self.best_effort("package-wait notification", lambda: self.helper("waiting"))
+
+    def session_identity(self) -> str:
+        self.userctl("--quiet", "is-active", DESKTOP_TARGET)
+        identity = self.userctl("show", COMPOSITOR, "--property=InvocationID", "--value").strip()
+        if not re.fullmatch(r"[0-9a-f]{32}", identity) or identity == "0" * 32:
+            raise Error("cannot identify the invoking desktop session")
+        return identity
+
+    def execute(self) -> None:
+        identity = None if self.greeter else self.session_identity()
+        self.protect_other_sessions()
+        if self.action == "suspend":
+            self.lock()
+        # Startup/authorization is acknowledged before an unbounded package
+        # wait. The system worker, not pkexec/Waybar, owns the pending request.
+        ready()
+        with PackageLocks(self.package_waiting) as reservation:
+            self.package_locks = reservation
+            try:
+                # A long upgrade may outlive the original desktop or login.
+                # Never apply its old request to a newly started compositor.
+                if not self.greeter and self.session_identity() != identity:
+                    raise Error("desktop session changed while waiting for package activity")
+                self.protect_other_sessions()
+                if self.greeter:
+                    if self.action not in {"poweroff", "reboot"}:
+                        raise Error("invalid greeter power action")
+                    self.require_package_reservation()
+                    check_shutdown_inhibitors()
+                    # No desktop belongs to this greeter request; the account
+                    # guard above has excluded other interactive users. Share
+                    # the guest-stop and single-force PID 1 handoff path.
+                    self.stop_optional_guests()
+                    self.prepare_machine_shutdown(identity)
+                    self.final_power_action()
+                    hold_reservation()
+                    return
+                if self.action == "suspend":
+                    # A user may unlock the desktop during a long package wait.
+                    # Cancel rather than suspending an unlocked session later.
+                    self.helper("locked")
+                    self.require_package_reservation()
+                    # The required sleep.target guard independently reserves
+                    # the locks until resume. systemctl suspend is asynchronous.
+                    run(["/usr/bin/systemctl", "--check-inhibitors=yes",
+                         "--no-ask-password", "suspend"], timeout=60)
+                    return
+                self.helper("prepare")
+                self.prepared = True
+                self.protect_other_sessions()
+                self.require_package_reservation()
+                if self.action == "logout":
+                    self.committed = True
+                    self.terminate_user()
+                else:
+                    check_shutdown_inhibitors()
+                    # An optional guest hook can fail or time out. Complete
+                    # those checks while the desktop is still available.
+                    self.stop_optional_guests()
+                    # Detect session replacement before the single-force
+                    # handoff; keep the authorized seat alive until then.
+                    if self.session_identity() != identity:
+                        raise Error("desktop session changed during power preparation")
+                    self.prepare_machine_shutdown(identity)
+                    self.final_power_action()
+                    # Never release locks just because the enqueue call returned.
+                    hold_reservation()
+            finally:
+                self.package_locks = None
+
+
+def main(argv: list[str]) -> int:
+    if os.geteuid() != 0 or len(argv) != 1:
+        raise Error("usage (system service only): labwc-admin-action-worker UID-ACTION or --sleep-guard")
+    if argv == ["--sleep-guard"]:
+        return sleep_guard()
+    match = re.fullmatch(r"([1-9][0-9]{0,9})-(greeter-)?(suspend|reboot|poweroff|shutdown|logout)", argv[0])
+    if not match:
+        raise Error("invalid power-worker instance")
+    uid, greeter, action = int(match[1]), bool(match[2]), match[3]
+    if action == "shutdown":
+        action = "poweroff"
+    if greeter and action not in {"reboot", "poweroff"}:
+        raise Error("greeter workers only accept poweroff and reboot")
+    account = pwd.getpwuid(uid)
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", account.pw_name):
+        raise Error("unsafe invoking account identifier")
+    os.umask(0o077)
+    with action_lock():
+        worker = Worker(uid, account.pw_name, action, greeter=greeter)
+        try:
+            worker.execute()
+        except Cancelled as exc:
+            if worker.committed:
+                raise Error("invalid cancellation after teardown commitment") from exc
+            worker.best_effort("cancel preparation", lambda: worker.helper("cancel"))
+            print(f"power cancelled: {exc}", file=sys.stderr, flush=True)
+            return 0
+        except BaseException:
+            if not worker.committed and not worker.greeter:
+                for operation in ("cancel", "error"):
+                    try:
+                        worker.helper(operation)
+                    except (Error, OSError, subprocess.SubprocessError):
+                        pass
+            # Never resurrect a user manager or claim a save-dialog cancellation
+            # after destructive teardown. The native power action log retains the real error.
+            raise
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except (Error, OSError, KeyError, ValueError, subprocess.SubprocessError) as exc:
+        print(f"labwc-admin-action-worker: {exc}", file=sys.stderr)
+        sys.exit(1)

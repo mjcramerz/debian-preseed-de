@@ -1,0 +1,19 @@
+[Unit]
+Description=Locked devops rootless Podman and Docker-compatible API socket
+Documentation=man:podman-system-service(1)
+RequiresMountsFor=/run/podman-devops
+After=systemd-tmpfiles-setup.service
+Before=podman-devops.service
+
+[Socket]
+ListenStream=/run/podman-devops/podman.sock
+SocketUser=devops
+SocketGroup=devops
+SocketMode=0660
+DirectoryMode=0710
+RemoveOnStop=yes
+Backlog=128
+Service=podman-devops.service
+
+[Install]
+WantedBy=sockets.target

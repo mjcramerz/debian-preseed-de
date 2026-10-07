@@ -1,0 +1,4 @@
+[Unit]
+# The login greeter needs no audio server or socket activation.
+# Retain the package unit's root exclusion and desktop-user behavior.
+ConditionUser=!__INSTALLER_LABWC_GREETER_USER__

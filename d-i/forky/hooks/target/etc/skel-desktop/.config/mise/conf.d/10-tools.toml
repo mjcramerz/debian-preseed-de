@@ -1,0 +1,7 @@
+# Managed Mise fragment directory.
+#
+# Fragments load alphabetically after config.toml. Do not pin [tools] here:
+# config.toml owns the Node 26 fallback, while a project-local mise.toml from
+# project-local `mise use node@22`, `mise use node@24`, or `mise use node@26`
+# selects a prelinked Node runtime with higher precedence. LLVM 24 and Bazelisk
+# are direct managed tools.

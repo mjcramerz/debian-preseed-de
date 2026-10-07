@@ -1,0 +1,8 @@
+# Package-native file writers only. Collector files rotate inline on size.
+# Reset the old managed 15-minute cadence on reinstall; no new polling service.
+[Timer]
+OnCalendar=
+OnCalendar=daily
+AccuracySec=1h
+RandomizedDelaySec=1h
+Persistent=true

@@ -1,0 +1,17 @@
+[Unit]
+Description=Schedule zram cold-tier maintenance
+After=__INSTALLER_ZRAM_SETUP_UNIT__
+Requires=__INSTALLER_ZRAM_SETUP_UNIT__
+ConditionPathExists=__INSTALLER_FILE_ZRAM_CONFIG__
+ConditionPathExists=__INSTALLER_FILE_ZRAM_WRITEBACK_HELPER__
+
+[Timer]
+OnBootSec=20min
+OnUnitActiveSec=__INSTALLER_ZRAM_COLD_TIER_INTERVAL__
+RandomizedDelaySec=__INSTALLER_ZRAM_COLD_TIER_RANDOMIZED_DELAY__
+AccuracySec=1min
+Unit=zram-writeback.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

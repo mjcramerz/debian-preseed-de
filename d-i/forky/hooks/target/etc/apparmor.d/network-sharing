@@ -1,0 +1,152 @@
+#include <tunables/global>
+
+# The menu is never privileged. Only fixed systemd operations cross the
+# existing active-local-administrator Polkit boundary; no shell/root helper.
+profile labwc-network-sharing /usr/local/bin/labwc-network-sharing flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/wrapper-desktop>
+  #include <abstractions/wrapper-terminal>
+  /usr/local/bin/labwc-network-sharing r,
+  / r,
+  /etc/ r,
+  /etc/network-sharing/ r,
+  /etc/network-sharing/config.json r,
+  /run/ r,
+  /run/network-sharing/ r,
+  /run/network-sharing/report.json r,
+  /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
+  /usr/bin/systemctl rCx -> systemctl,
+  /usr/bin/journalctl rCx -> journalctl,
+
+  # Cross-profile child lifecycle: Python may kill/reap a timed-out command.
+  signal (send) set=(term, kill) peer=labwc-network-sharing//{systemctl,journalctl},
+  signal (receive) set=(chld) peer=labwc-network-sharing//{systemctl,journalctl},
+  signal (send) set=(term, kill) peer=labwc-{fuzzel,fzf-menu},
+  signal (receive) set=(chld) peer=labwc-{fuzzel,fzf-menu},
+  signal (receive) set=(term, kill) peer=labwc-computer-management,
+  signal (send) set=(chld) peer=labwc-computer-management,
+
+  profile systemctl {
+    #include <abstractions/base>
+    #include <abstractions/dbus-strict>
+    /usr/bin/systemctl mr,
+    /etc/{passwd,group,nsswitch.conf,machine-id} r,
+    /run/systemd/{system,private} rw,
+    /run/systemd/system/ r,
+    /run/systemd/ask-password/ r,
+    /proc/sys/kernel/random/boot_id r,
+    owner @{PROC}/@{pid}/{stat,status,cgroup,mountinfo} r,
+    /dev/tty rw,
+    network unix stream,
+    dbus (send, receive) bus=system peer=(name=org.freedesktop.systemd1),
+    dbus receive bus=system peer=(name=org.freedesktop.DBus),
+    # Authentication is performed by the already-running desktop agent, not
+    # by a new privileged or unconfined executable inside this process tree.
+    signal (receive) set=(term, kill) peer=labwc-network-sharing,
+    signal (send) set=(chld) peer=labwc-network-sharing,
+  }
+
+  profile journalctl {
+    #include <abstractions/base>
+    /usr/bin/journalctl mr,
+    /etc/{passwd,group,nsswitch.conf,machine-id} r,
+    /run/log/journal/{,**} r,
+    /var/log/journal/{,**} r,
+    /usr/lib/systemd/catalog/database r,
+    /run/systemd/journal/{,**} r,
+    /proc/sys/kernel/random/boot_id r,
+    owner @{PROC}/@{pid}/{stat,status,cgroup,mountinfo} r,
+    signal (receive) set=(term, kill) peer=labwc-network-sharing,
+    signal (send) set=(chld) peer=labwc-network-sharing,
+  }
+  include if exists <local/labwc-network-sharing>
+}
+
+# One bounded root diagnostic process, with no capabilities and no networking.
+# NFS client-controlled names are data only. No mount paths, ctl files, exports
+# mutation, cache flushing, keyring mutation or client expiry operations.
+profile network-sharing-report /usr/local/libexec/network-sharing-report flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  /usr/local/libexec/network-sharing-report r,
+  /etc/apparmor/modes.conf r,
+  /etc/network-sharing/config.json r,
+  owner @{PROC}/@{pid}/attr/{current,apparmor/current} r,
+  @{PROC}/fs/nfsd/{versions,threads} r,
+  @{PROC}/fs/nfsd/clients/ r,
+  @{PROC}/fs/nfsd/clients/[0-9]*/ r,
+  @{PROC}/fs/nfsd/clients/[0-9]*/info r,
+  @{PROC}/net/rpc/{nfs,nfsd} r,
+  owner @{PROC}/@{pid}/net/rpc/{nfs,nfsd} r,
+  @{sys}/module/{nfs,nfsd}/parameters/nfs4_disable_idmapping r,
+  /run/network-sharing/ rw,
+  /run/network-sharing/.report-* rw,
+  /run/network-sharing/report.json rw,
+  deny network,
+  include if exists <local/network-sharing-report>
+}
+
+# Finite read-only startup check. This cannot change identities, mappings,
+# keyrings or kernel parameters and never opens an exported/mounted path.
+profile network-sharing-identity /usr/local/libexec/network-sharing-identity flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/nameservice-strict>
+  /usr/local/libexec/network-sharing-identity r,
+  /etc/apparmor/modes.conf r,
+  owner @{PROC}/@{pid}/attr/{current,apparmor/current} r,
+  deny network inet,
+  deny network inet6,
+  deny network netlink,
+  / r,
+  /etc/ r,
+  /etc/network-sharing/ r,
+  /etc/network-sharing/config.json r,
+  # The native NFS config reader takes LOCK_SH before reading every main
+  # file and drop-in. Both components of a stacked label must allow it;
+  # directory enumeration stays read-only and config writes remain denied.
+  /{usr/,}etc/idmapd.conf rk,
+  /{usr/,}etc/idmapd.conf.d/ r,
+  /{usr/,}etc/idmapd.conf.d/*.conf rk,
+  /etc/request-key.conf r,
+  /etc/request-key.d/{,*.conf} r,
+  /etc/exports r,
+  /etc/exports.d/{,*.exports} r,
+  @{sys}/module/{nfs,nfsd}/parameters/nfs4_disable_idmapping r,
+  # Resolve both profiles explicitly and retain the parent under
+  # NoNewPrivileges=yes. A leading '&' instead stacks onto an executable
+  # attachment; these read-only tools have no such attached profile.
+  /usr/sbin/nfsidmap rPx -> "network-sharing-identity//&network-sharing-identity//nfsidmap",
+  /usr/sbin/nfsconf rPx -> "network-sharing-identity//&network-sharing-identity//nfsconf",
+  /usr/sbin/{nfsidmap,nfsconf} m,
+  /{usr/,}etc/nfs.conf rk,
+  /{usr/,}etc/nfs.conf.d/ r,
+  /{usr/,}etc/nfs.conf.d/*.conf rk,
+  # Both components of a stacked child's label must permit its lifecycle.
+  signal (send, receive) set=(term, kill, chld) peer=network-sharing-identity,
+  signal (send) set=(term, kill) peer=network-sharing-identity//{nfsidmap,nfsconf},
+  signal (receive) set=(chld) peer=network-sharing-identity//{nfsidmap,nfsconf},
+  signal (receive) set=(term, kill) peer=unconfined,
+
+  profile nfsidmap {
+    #include <abstractions/base>
+    #include <abstractions/nameservice-strict>
+    deny network inet,
+    deny network inet6,
+    deny network netlink,
+    /usr/sbin/nfsidmap mr,
+    /{usr/,}etc/idmapd.conf rk,
+    /{usr/,}etc/idmapd.conf.d/ r,
+    /{usr/,}etc/idmapd.conf.d/*.conf rk,
+    signal (receive) set=(term, kill) peer=network-sharing-identity,
+    signal (send) set=(chld) peer=network-sharing-identity,
+  }
+  profile nfsconf {
+    #include <abstractions/base>
+    /usr/sbin/nfsconf mr,
+    /{usr/,}etc/nfs.conf rk,
+    /{usr/,}etc/nfs.conf.d/ r,
+    /{usr/,}etc/nfs.conf.d/*.conf rk,
+    signal (receive) set=(term, kill) peer=network-sharing-identity,
+    signal (send) set=(chld) peer=network-sharing-identity,
+  }
+  include if exists <local/network-sharing-identity>
+}

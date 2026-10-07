@@ -1,0 +1,86 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+umask 077
+
+MOUNTINFO=${TMPFS_PRE_CLEAN_MOUNTINFO:-/proc/self/mountinfo}
+case "$MOUNTINFO" in /proc/self/mountinfo|/proc/1/mountinfo) ;;
+  *) echo "fatal: invalid mountinfo source" >&2; exit 1 ;;
+esac
+
+TMPFS_PRE_CLEAN_TARGETS="__INSTALLER_TMPFS_PRE_CLEAN_TARGETS__"
+
+fatal() {
+  echo "fatal: $*" >&2
+  exit 1
+}
+
+usage() {
+  echo "usage: ${0##*/}" >&2
+  exit 1
+}
+
+require_cleanable_path() {
+  label=$1
+  path=$2
+
+  case "$path" in
+    /*) ;;
+    *) fatal "${label} must be an absolute path: ${path:-unset}" ;;
+  esac
+  case "$path" in
+    /|*..*|*//*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@:+%=-]*)
+      fatal "${label} contains unsupported path syntax: $path"
+      ;;
+  esac
+  if [ -L "$path" ]; then
+    fatal "${label} must not be a symlink: $path"
+  fi
+  if [ -e "$path" ] && [ ! -d "$path" ]; then
+    fatal "${label} exists but is not a directory: $path"
+  fi
+}
+
+clean_dir_contents() {
+  label=$1
+  path=$2
+
+  require_cleanable_path "$label" "$path"
+  [ -d "$path" ] || return 0
+  # -xdev on a shallow find does NOT constrain a recursive rm launched by it.
+  # Let find perform deletion itself: symlinks are not followed, and nested
+  # filesystems are never traversed. A remaining mount point fails closed.
+  # Also reject mount points before deleting anything from the backing tree.
+  # /proc/self/mountinfo escapes whitespace; these paths reject it above.
+  awk -v path="$path" '$5 == path || index($5, path "/") == 1 { found=1 }
+    END { exit found ? 1 : 0 }' "$MOUNTINFO" ||
+    fatal "${label} contains an active mount point: $path"
+  find "$path" -xdev -depth -mindepth 1 -delete
+  first_entry=$(find "$path" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null || true)
+  [ -z "$first_entry" ] || fatal "${label} still has content after cleanup: $first_entry"
+}
+
+clean_configured_tmpfs_backing_dirs() {
+  [ -n "$TMPFS_PRE_CLEAN_TARGETS" ] || fatal "TMPFS_PRE_CLEAN_TARGETS is empty"
+
+  for target in $TMPFS_PRE_CLEAN_TARGETS; do
+    old_ifs=$IFS
+    IFS='|'
+    # shellcheck disable=SC2086
+    set -- $target
+    IFS=$old_ifs
+    [ "$#" -eq 2 ] || fatal "invalid cleanup target: $target"
+    clean_dir_contents "$1" "$2"
+  done
+}
+
+case "$#" in
+  0)
+    clean_configured_tmpfs_backing_dirs
+    ;;
+  *)
+    usage
+    ;;
+esac

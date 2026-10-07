@@ -1,0 +1,9 @@
+[Unit]
+After=systemd-tmpfiles-setup.service
+RequiresMountsFor=__INSTALLER_LOG_AUDIT_DIR__
+
+[Service]
+ReadWritePaths=__INSTALLER_LOG_AUDIT_DIR__
+UMask=0027
+StandardOutput=journal
+StandardError=journal

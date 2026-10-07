@@ -1,0 +1,22 @@
+# Managed by unattended-installer.
+[DEFAULT]
+bantime = 24h
+# Repeat bans double, up to one week, using the persistent ban database.
+bantime.increment = true
+bantime.maxtime = 1w
+findtime = 10m
+maxretry = 10
+usedns = no
+ignoreself = true
+ignoreip = 127.0.0.1/8 ::1
+banaction = nftables
+banaction_allports = nftables[type=allports]
+chain = fail2ban_input
+
+[sshd]
+enabled = true
+backend = systemd
+journalmatch = _SYSTEMD_UNIT=ssh.service
+mode = normal
+port = __INSTALLER_SSH_PORT__
+protocol = tcp

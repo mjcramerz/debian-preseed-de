@@ -1,0 +1,56 @@
+#!/bin/sh
+set -eu
+
+PROG=${0##*/}
+AUGENRULES_BIN=/usr/sbin/augenrules
+
+if [ ! -x "$AUGENRULES_BIN" ]; then
+  AUGENRULES_BIN=/sbin/augenrules
+fi
+[ -x "$AUGENRULES_BIN" ] || {
+  printf '%s: augenrules binary is missing\n' "$PROG" >&2
+  exit 127
+}
+
+augenrules_status_line() {
+  case "$1" in
+    'No change'|'No rules'|'enabled '[0-9]*|'failure '[0-9]*|'pid '[0-9]*|'rate_limit '[0-9]*|'backlog_limit '[0-9]*|'lost '[0-9]*|'backlog '[0-9]*|'backlog_wait_time '[0-9]*|'backlog_wait_time_actual '[0-9]*|'loginuid_immutable '[0-9]*)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+emit_filtered_file() {
+  file_path=$1
+  stream=$2
+
+  [ -s "$file_path" ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    augenrules_status_line "$line" && continue
+    case "$stream" in
+      stdout) printf '%s\n' "$line" ;;
+      stderr) printf '%s\n' "$line" >&2 ;;
+      *) return 1 ;;
+    esac
+  done <"$file_path"
+}
+
+stdout_file=$(mktemp "${TMPDIR:-/tmp}/${PROG}.stdout.XXXXXX")
+stderr_file=$(mktemp "${TMPDIR:-/tmp}/${PROG}.stderr.XXXXXX")
+
+cleanup() {
+  rm -f -- "$stdout_file" "$stderr_file"
+}
+
+trap cleanup EXIT HUP INT TERM
+
+if "$AUGENRULES_BIN" "$@" >"$stdout_file" 2>"$stderr_file"; then
+  rc=0
+else
+  rc=$?
+fi
+
+emit_filtered_file "$stdout_file" stdout
+emit_filtered_file "$stderr_file" stderr
+exit "$rc"

@@ -1,0 +1,11 @@
+# Managed by the installer apt-setup preferences generator.
+# Keep the CUDA archive available for explicit installs, but pin the managed
+# CUDA runtime set to NVIDIA's upstream packages.
+
+Package: *
+Pin: release o=NVIDIA,l=NVIDIA CUDA
+Pin-Priority: 100
+
+Package: cuda-cudart-13-1 cuda-nvrtc-13-1 cuda-opencl-13-1 libcublas-13-1 libcufft-13-1 libcufile-13-1 libcuobjclient-13-1 libcurand-13-1 libcusolver-13-1 libcusparse-13-1 libnpp-13-1 libnvjitlink-13-1 libnvfatbin-13-1 libnvjpeg-13-1 libnccl2
+Pin: release o=NVIDIA,l=NVIDIA CUDA
+Pin-Priority: 900

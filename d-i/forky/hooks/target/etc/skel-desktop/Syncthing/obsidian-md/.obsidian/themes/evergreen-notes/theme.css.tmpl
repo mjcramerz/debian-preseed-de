@@ -1,0 +1,344 @@
+
+/*
+ * Evergreen Notes
+ * Managed local theme for the Debian Labwc desktop.
+ */
+body {
+  --font-interface-theme: "__THEME_OBSIDIAN_TEXT_FONT_FAMILY__", sans-serif;
+  --font-text-theme: "__THEME_OBSIDIAN_TEXT_FONT_FAMILY__", sans-serif;
+  --font-monospace-theme: "__THEME_OBSIDIAN_MONOSPACE_FONT_FAMILY__", monospace;
+  --font-text-size: 16px;
+  --line-height-normal: 1.6;
+  --line-height-tight: 1.35;
+  --file-line-width: 860px;
+  --radius-s: 4px;
+  --radius-m: 7px;
+  --radius-l: 10px;
+  --input-radius: 5px;
+  --button-radius: 5px;
+  --tab-radius-active: 5px 5px 0 0;
+  --checkbox-radius: 4px;
+  --callout-radius: 7px;
+  --embed-border-start: 3px solid var(--interactive-accent);
+  --nav-item-size: 14px;
+  --nav-item-padding: 4px 8px;
+  --status-bar-font-size: 12px;
+  --h1-size: 1.85em;
+  --h2-size: 1.55em;
+  --h3-size: 1.3em;
+  --h4-size: 1.15em;
+  --h5-size: 1.05em;
+  --h6-size: 1em;
+  --h1-weight: 700;
+  --h2-weight: 700;
+  --h3-weight: 650;
+  --h4-weight: 650;
+  --h5-weight: 600;
+  --h6-weight: 600;
+  --bold-weight: 700;
+  --link-decoration: none;
+  --link-decoration-hover: underline;
+}
+.theme-dark {
+  color-scheme: __THEME_OBSIDIAN_DARK_COLOR_SCHEME__;
+  --color-base-00: __THEME_OBSIDIAN_DARK_NEUTRAL_PALETTE_SHADE_00_COLOR__;
+  --color-base-05: __THEME_OBSIDIAN_DARK_NEUTRAL_PALETTE_SHADE_05_COLOR__;
+  --color-base-10: __THEME_OBSIDIAN_DARK_NEUTRAL_PALETTE_SHADE_10_COLOR__;
+  --color-base-20: __THEME_OBSIDIAN_DARK_NEUTRAL_PALETTE_SHADE_20_COLOR__;
+  --color-base-25: __THEME_OBSIDIAN_DARK_NEUTRAL_PALETTE_SHADE_25_COLOR__;
+  --color-base-30: __THEME_OBSIDIAN_DARK_NEUTRAL_PALETTE_SHADE_30_COLOR__;
+  --color-base-35: __THEME_OBSIDIAN_DARK_NEUTRAL_PALETTE_SHADE_35_COLOR__;
+  --color-base-40: __THEME_OBSIDIAN_DARK_NEUTRAL_PALETTE_SHADE_40_COLOR__;
+  --color-base-50: __THEME_OBSIDIAN_DARK_NEUTRAL_PALETTE_SHADE_50_COLOR__;
+  --color-base-60: __THEME_OBSIDIAN_DARK_NEUTRAL_PALETTE_SHADE_60_COLOR__;
+  --color-base-70: __THEME_OBSIDIAN_DARK_NEUTRAL_PALETTE_SHADE_70_COLOR__;
+  --color-base-100: __THEME_OBSIDIAN_DARK_NEUTRAL_PALETTE_SHADE_100_COLOR__;
+  --accent-h: __THEME_OBSIDIAN_DARK_ACCENT_HUE__;
+  --accent-s: __THEME_OBSIDIAN_DARK_ACCENT_SATURATION__;
+  --accent-l: __THEME_OBSIDIAN_DARK_ACCENT_LIGHTNESS__;
+  --background-primary: __THEME_OBSIDIAN_DARK_BACKGROUND_PRIMARY_COLOR__;
+  --background-primary-alt: __THEME_OBSIDIAN_DARK_BACKGROUND_PRIMARY_ALTERNATE_COLOR__;
+  --background-secondary: __THEME_OBSIDIAN_DARK_BACKGROUND_SECONDARY_COLOR__;
+  --background-secondary-alt: __THEME_OBSIDIAN_DARK_BACKGROUND_SECONDARY_ALTERNATE_COLOR__;
+  --background-modifier-hover: __THEME_OBSIDIAN_DARK_BACKGROUND_MODIFIER_HOVER_COLOR__;
+  --background-modifier-active-hover: __THEME_OBSIDIAN_DARK_BACKGROUND_MODIFIER_ACTIVE_HOVER_COLOR__;
+  --background-modifier-border: __THEME_OBSIDIAN_DARK_BACKGROUND_MODIFIER_BORDER_COLOR__;
+  --background-modifier-border-hover: __THEME_OBSIDIAN_DARK_BACKGROUND_MODIFIER_HOVER_BORDER_COLOR__;
+  --background-modifier-border-focus: __THEME_OBSIDIAN_DARK_BACKGROUND_MODIFIER_FOCUS_BORDER_COLOR__;
+  --background-modifier-form-field: __THEME_OBSIDIAN_DARK_BACKGROUND_MODIFIER_FORM_FIELD_COLOR__;
+  --background-modifier-message: __THEME_OBSIDIAN_DARK_BACKGROUND_MODIFIER_MESSAGE_COLOR__;
+  --interactive-normal: __THEME_OBSIDIAN_DARK_INTERACTIVE_NORMAL_COLOR__;
+  --interactive-hover: __THEME_OBSIDIAN_DARK_INTERACTIVE_HOVER_COLOR__;
+  --interactive-accent: __THEME_OBSIDIAN_DARK_INTERACTIVE_ACCENT_COLOR__;
+  --interactive-accent-hsl: __THEME_OBSIDIAN_DARK_INTERACTIVE_ACCENT_HSL__;
+  --interactive-accent-hover: __THEME_OBSIDIAN_DARK_INTERACTIVE_ACCENT_HOVER_COLOR__;
+  --text-normal: __THEME_OBSIDIAN_DARK_TEXT_NORMAL_COLOR__;
+  --text-muted: __THEME_OBSIDIAN_DARK_TEXT_MUTED_COLOR__;
+  --text-faint: __THEME_OBSIDIAN_DARK_TEXT_FAINT_COLOR__;
+  --text-on-accent: __THEME_OBSIDIAN_DARK_TEXT_ON_ACCENT_COLOR__;
+  --text-on-accent-inverted: __THEME_OBSIDIAN_DARK_TEXT_ON_ACCENT_INVERTED_COLOR__;
+  --text-success: __THEME_OBSIDIAN_DARK_TEXT_SUCCESS_COLOR__;
+  --text-warning: __THEME_OBSIDIAN_DARK_TEXT_WARNING_COLOR__;
+  --text-error: __THEME_OBSIDIAN_DARK_TEXT_ERROR_COLOR__;
+  --text-accent: __THEME_OBSIDIAN_DARK_TEXT_ACCENT_COLOR__;
+  --text-accent-hover: __THEME_OBSIDIAN_DARK_TEXT_ACCENT_HOVER_COLOR__;
+  --text-selection: __THEME_OBSIDIAN_DARK_TEXT_SELECTION_COLOR__;
+  --text-highlight-bg: __THEME_OBSIDIAN_DARK_TEXT_HIGHLIGHT_BACKGROUND_COLOR__;
+  --caret-color: __THEME_OBSIDIAN_DARK_CARET_COLOR__;
+  --link-color: __THEME_OBSIDIAN_DARK_LINK_TEXT_COLOR__;
+  --link-color-hover: __THEME_OBSIDIAN_DARK_LINK_HOVER_TEXT_COLOR__;
+  --link-external-color: __THEME_OBSIDIAN_DARK_LINK_EXTERNAL_TEXT_COLOR__;
+  --link-external-color-hover: __THEME_OBSIDIAN_DARK_LINK_EXTERNAL_HOVER_TEXT_COLOR__;
+  --link-unresolved-color: __THEME_OBSIDIAN_DARK_LINK_UNRESOLVED_TEXT_COLOR__;
+  --tag-color: __THEME_OBSIDIAN_DARK_TAG_TEXT_COLOR__;
+  --tag-color-hover: __THEME_OBSIDIAN_DARK_TAG_HOVER_TEXT_COLOR__;
+  --tag-background: __THEME_OBSIDIAN_DARK_TAG_BACKGROUND_COLOR__;
+  --tag-background-hover: __THEME_OBSIDIAN_DARK_TAG_HOVER_BACKGROUND_COLOR__;
+  --code-normal: __THEME_OBSIDIAN_DARK_CODE_NORMAL_COLOR__;
+  --code-comment: __THEME_OBSIDIAN_DARK_CODE_COMMENT_COLOR__;
+  --code-function: __THEME_OBSIDIAN_DARK_CODE_FUNCTION_COLOR__;
+  --code-important: __THEME_OBSIDIAN_DARK_CODE_IMPORTANT_COLOR__;
+  --code-keyword: __THEME_OBSIDIAN_DARK_CODE_KEYWORD_COLOR__;
+  --code-operator: __THEME_OBSIDIAN_DARK_CODE_OPERATOR_COLOR__;
+  --code-property: __THEME_OBSIDIAN_DARK_CODE_PROPERTY_COLOR__;
+  --code-punctuation: __THEME_OBSIDIAN_DARK_CODE_PUNCTUATION_COLOR__;
+  --code-string: __THEME_OBSIDIAN_DARK_CODE_STRING_COLOR__;
+  --code-tag: __THEME_OBSIDIAN_DARK_CODE_TAG_TEXT_COLOR__;
+  --code-value: __THEME_OBSIDIAN_DARK_CODE_VALUE_COLOR__;
+  --code-background: __THEME_OBSIDIAN_DARK_CODE_BACKGROUND_COLOR__;
+  --blockquote-border-color: __THEME_OBSIDIAN_DARK_BLOCKQUOTE_BORDER_COLOR__;
+  --blockquote-background-color: __THEME_OBSIDIAN_DARK_BLOCKQUOTE_BACKGROUND_COLOR__;
+  --hr-color: __THEME_OBSIDIAN_DARK_HORIZONTAL_RULE_COLOR__;
+  --table-border-color: __THEME_OBSIDIAN_DARK_TABLE_BORDER_COLOR__;
+  --table-header-background: __THEME_OBSIDIAN_DARK_TABLE_HEADER_BACKGROUND_COLOR__;
+  --table-row-alt-background: __THEME_OBSIDIAN_DARK_TABLE_ROW_ALTERNATE_BACKGROUND_COLOR__;
+  --checkbox-color: __THEME_OBSIDIAN_DARK_CHECKBOX_BACKGROUND_COLOR__;
+  --checkbox-color-hover: __THEME_OBSIDIAN_DARK_CHECKBOX_HOVER_BACKGROUND_COLOR__;
+  --checkbox-border-color: __THEME_OBSIDIAN_DARK_CHECKBOX_BORDER_COLOR__;
+  --nav-item-color: __THEME_OBSIDIAN_DARK_NAVIGATION_ITEM_TEXT_COLOR__;
+  --nav-item-color-hover: __THEME_OBSIDIAN_DARK_NAVIGATION_ITEM_HOVER_TEXT_COLOR__;
+  --nav-item-color-active: __THEME_OBSIDIAN_DARK_NAVIGATION_ITEM_ACTIVE_TEXT_COLOR__;
+  --nav-item-background-hover: __THEME_OBSIDIAN_DARK_NAVIGATION_ITEM_HOVER_BACKGROUND_COLOR__;
+  --nav-item-background-active: __THEME_OBSIDIAN_DARK_NAVIGATION_ITEM_ACTIVE_BACKGROUND_COLOR__;
+  --nav-indentation-guide-color: __THEME_OBSIDIAN_DARK_NAVIGATION_INDENTATION_GUIDE_COLOR__;
+  --tab-background-active: __THEME_OBSIDIAN_DARK_TAB_ACTIVE_BACKGROUND_COLOR__;
+  --tab-text-color: __THEME_OBSIDIAN_DARK_TAB_TEXT_COLOR__;
+  --tab-text-color-active: __THEME_OBSIDIAN_DARK_TAB_ACTIVE_TEXT_COLOR__;
+  --tab-text-color-focused-active: __THEME_OBSIDIAN_DARK_TAB_FOCUSED_ACTIVE_TEXT_COLOR__;
+  --tab-divider-color: __THEME_OBSIDIAN_DARK_TAB_DIVIDER_COLOR__;
+  --titlebar-background: __THEME_OBSIDIAN_DARK_TITLEBAR_BACKGROUND_COLOR__;
+  --titlebar-background-focused: __THEME_OBSIDIAN_DARK_TITLEBAR_FOCUSED_BACKGROUND_COLOR__;
+  --titlebar-text-color: __THEME_OBSIDIAN_DARK_TITLEBAR_TEXT_COLOR__;
+  --ribbon-background: __THEME_OBSIDIAN_DARK_RIBBON_BACKGROUND_COLOR__;
+  --ribbon-background-collapsed: __THEME_OBSIDIAN_DARK_RIBBON_COLLAPSED_BACKGROUND_COLOR__;
+  --ribbon-background-hover: __THEME_OBSIDIAN_DARK_RIBBON_HOVER_BACKGROUND_COLOR__;
+  --status-bar-background: __THEME_OBSIDIAN_DARK_STATUS_BAR_BACKGROUND_COLOR__;
+  --status-bar-text-color: __THEME_OBSIDIAN_DARK_STATUS_BAR_TEXT_COLOR__;
+  --divider-color: __THEME_OBSIDIAN_DARK_DIVIDER_COLOR__;
+  --divider-color-hover: __THEME_OBSIDIAN_DARK_DIVIDER_HOVER_COLOR__;
+  --scrollbar-bg: __THEME_OBSIDIAN_DARK_SCROLLBAR_BACKGROUND_COLOR__;
+  --scrollbar-thumb-bg: __THEME_OBSIDIAN_DARK_SCROLLBAR_THUMB_BACKGROUND_COLOR__;
+  --scrollbar-active-thumb-bg: __THEME_OBSIDIAN_DARK_SCROLLBAR_THUMB_ACTIVE_BACKGROUND_COLOR__;
+  --modal-background: __THEME_OBSIDIAN_DARK_MODAL_BACKGROUND_COLOR__;
+  --modal-border-color: __THEME_OBSIDIAN_DARK_MODAL_BORDER_COLOR__;
+  --prompt-border-color: __THEME_OBSIDIAN_DARK_PROMPT_BORDER_COLOR__;
+  --graph-line: __THEME_OBSIDIAN_DARK_GRAPH_LINE_COLOR__;
+  --graph-node: __THEME_OBSIDIAN_DARK_GRAPH_NODE_COLOR__;
+  --graph-node-unresolved: __THEME_OBSIDIAN_DARK_GRAPH_NODE_UNRESOLVED_COLOR__;
+  --graph-node-focused: __THEME_OBSIDIAN_DARK_GRAPH_NODE_FOCUSED_COLOR__;
+  --graph-node-tag: __THEME_OBSIDIAN_DARK_GRAPH_NODE_TAG_TEXT_COLOR__;
+  --graph-node-attachment: __THEME_OBSIDIAN_DARK_GRAPH_NODE_ATTACHMENT_COLOR__;
+  --canvas-background: __THEME_OBSIDIAN_DARK_CANVAS_BACKGROUND_COLOR__;
+  --canvas-card-label-color: __THEME_OBSIDIAN_DARK_CANVAS_CARD_LABEL_COLOR__;
+  --canvas-dot-pattern: __THEME_OBSIDIAN_DARK_CANVAS_DOT_PATTERN_COLOR__;
+  --canvas-color: __THEME_OBSIDIAN_DARK_CANVAS_COLOR_HSL__;
+}
+.theme-light {
+  color-scheme: __THEME_OBSIDIAN_LIGHT_COLOR_SCHEME__;
+  --color-base-00: __THEME_OBSIDIAN_LIGHT_NEUTRAL_PALETTE_SHADE_00_COLOR__;
+  --color-base-05: __THEME_OBSIDIAN_LIGHT_NEUTRAL_PALETTE_SHADE_05_COLOR__;
+  --color-base-10: __THEME_OBSIDIAN_LIGHT_NEUTRAL_PALETTE_SHADE_10_COLOR__;
+  --color-base-20: __THEME_OBSIDIAN_LIGHT_NEUTRAL_PALETTE_SHADE_20_COLOR__;
+  --color-base-25: __THEME_OBSIDIAN_LIGHT_NEUTRAL_PALETTE_SHADE_25_COLOR__;
+  --color-base-30: __THEME_OBSIDIAN_LIGHT_NEUTRAL_PALETTE_SHADE_30_COLOR__;
+  --color-base-35: __THEME_OBSIDIAN_LIGHT_NEUTRAL_PALETTE_SHADE_35_COLOR__;
+  --color-base-40: __THEME_OBSIDIAN_LIGHT_NEUTRAL_PALETTE_SHADE_40_COLOR__;
+  --color-base-50: __THEME_OBSIDIAN_LIGHT_NEUTRAL_PALETTE_SHADE_50_COLOR__;
+  --color-base-60: __THEME_OBSIDIAN_LIGHT_NEUTRAL_PALETTE_SHADE_60_COLOR__;
+  --color-base-70: __THEME_OBSIDIAN_LIGHT_NEUTRAL_PALETTE_SHADE_70_COLOR__;
+  --color-base-100: __THEME_OBSIDIAN_LIGHT_NEUTRAL_PALETTE_SHADE_100_COLOR__;
+  --accent-h: __THEME_OBSIDIAN_LIGHT_ACCENT_HUE__;
+  --accent-s: __THEME_OBSIDIAN_LIGHT_ACCENT_SATURATION__;
+  --accent-l: __THEME_OBSIDIAN_LIGHT_ACCENT_LIGHTNESS__;
+  --background-primary: __THEME_OBSIDIAN_LIGHT_BACKGROUND_PRIMARY_COLOR__;
+  --background-primary-alt: __THEME_OBSIDIAN_LIGHT_BACKGROUND_PRIMARY_ALTERNATE_COLOR__;
+  --background-secondary: __THEME_OBSIDIAN_LIGHT_BACKGROUND_SECONDARY_COLOR__;
+  --background-secondary-alt: __THEME_OBSIDIAN_LIGHT_BACKGROUND_SECONDARY_ALTERNATE_COLOR__;
+  --background-modifier-hover: __THEME_OBSIDIAN_LIGHT_BACKGROUND_MODIFIER_HOVER_COLOR__;
+  --background-modifier-active-hover: __THEME_OBSIDIAN_LIGHT_BACKGROUND_MODIFIER_ACTIVE_HOVER_COLOR__;
+  --background-modifier-border: __THEME_OBSIDIAN_LIGHT_BACKGROUND_MODIFIER_BORDER_COLOR__;
+  --background-modifier-border-hover: __THEME_OBSIDIAN_LIGHT_BACKGROUND_MODIFIER_HOVER_BORDER_COLOR__;
+  --background-modifier-border-focus: __THEME_OBSIDIAN_LIGHT_BACKGROUND_MODIFIER_FOCUS_BORDER_COLOR__;
+  --background-modifier-form-field: __THEME_OBSIDIAN_LIGHT_BACKGROUND_MODIFIER_FORM_FIELD_COLOR__;
+  --background-modifier-message: __THEME_OBSIDIAN_LIGHT_BACKGROUND_MODIFIER_MESSAGE_COLOR__;
+  --interactive-normal: __THEME_OBSIDIAN_LIGHT_INTERACTIVE_NORMAL_COLOR__;
+  --interactive-hover: __THEME_OBSIDIAN_LIGHT_INTERACTIVE_HOVER_COLOR__;
+  --interactive-accent: __THEME_OBSIDIAN_LIGHT_INTERACTIVE_ACCENT_COLOR__;
+  --interactive-accent-hsl: __THEME_OBSIDIAN_LIGHT_INTERACTIVE_ACCENT_HSL__;
+  --interactive-accent-hover: __THEME_OBSIDIAN_LIGHT_INTERACTIVE_ACCENT_HOVER_COLOR__;
+  --text-normal: __THEME_OBSIDIAN_LIGHT_TEXT_NORMAL_COLOR__;
+  --text-muted: __THEME_OBSIDIAN_LIGHT_TEXT_MUTED_COLOR__;
+  --text-faint: __THEME_OBSIDIAN_LIGHT_TEXT_FAINT_COLOR__;
+  --text-on-accent: __THEME_OBSIDIAN_LIGHT_TEXT_ON_ACCENT_COLOR__;
+  --text-on-accent-inverted: __THEME_OBSIDIAN_LIGHT_TEXT_ON_ACCENT_INVERTED_COLOR__;
+  --text-success: __THEME_OBSIDIAN_LIGHT_TEXT_SUCCESS_COLOR__;
+  --text-warning: __THEME_OBSIDIAN_LIGHT_TEXT_WARNING_COLOR__;
+  --text-error: __THEME_OBSIDIAN_LIGHT_TEXT_ERROR_COLOR__;
+  --text-accent: __THEME_OBSIDIAN_LIGHT_TEXT_ACCENT_COLOR__;
+  --text-accent-hover: __THEME_OBSIDIAN_LIGHT_TEXT_ACCENT_HOVER_COLOR__;
+  --text-selection: __THEME_OBSIDIAN_LIGHT_TEXT_SELECTION_COLOR__;
+  --text-highlight-bg: __THEME_OBSIDIAN_LIGHT_TEXT_HIGHLIGHT_BACKGROUND_COLOR__;
+  --caret-color: __THEME_OBSIDIAN_LIGHT_CARET_COLOR__;
+  --link-color: __THEME_OBSIDIAN_LIGHT_LINK_TEXT_COLOR__;
+  --link-color-hover: __THEME_OBSIDIAN_LIGHT_LINK_HOVER_TEXT_COLOR__;
+  --link-external-color: __THEME_OBSIDIAN_LIGHT_LINK_EXTERNAL_TEXT_COLOR__;
+  --link-external-color-hover: __THEME_OBSIDIAN_LIGHT_LINK_EXTERNAL_HOVER_TEXT_COLOR__;
+  --link-unresolved-color: __THEME_OBSIDIAN_LIGHT_LINK_UNRESOLVED_TEXT_COLOR__;
+  --tag-color: __THEME_OBSIDIAN_LIGHT_TAG_TEXT_COLOR__;
+  --tag-color-hover: __THEME_OBSIDIAN_LIGHT_TAG_HOVER_TEXT_COLOR__;
+  --tag-background: __THEME_OBSIDIAN_LIGHT_TAG_BACKGROUND_COLOR__;
+  --tag-background-hover: __THEME_OBSIDIAN_LIGHT_TAG_HOVER_BACKGROUND_COLOR__;
+  --code-normal: __THEME_OBSIDIAN_LIGHT_CODE_NORMAL_COLOR__;
+  --code-comment: __THEME_OBSIDIAN_LIGHT_CODE_COMMENT_COLOR__;
+  --code-function: __THEME_OBSIDIAN_LIGHT_CODE_FUNCTION_COLOR__;
+  --code-important: __THEME_OBSIDIAN_LIGHT_CODE_IMPORTANT_COLOR__;
+  --code-keyword: __THEME_OBSIDIAN_LIGHT_CODE_KEYWORD_COLOR__;
+  --code-operator: __THEME_OBSIDIAN_LIGHT_CODE_OPERATOR_COLOR__;
+  --code-property: __THEME_OBSIDIAN_LIGHT_CODE_PROPERTY_COLOR__;
+  --code-punctuation: __THEME_OBSIDIAN_LIGHT_CODE_PUNCTUATION_COLOR__;
+  --code-string: __THEME_OBSIDIAN_LIGHT_CODE_STRING_COLOR__;
+  --code-tag: __THEME_OBSIDIAN_LIGHT_CODE_TAG_TEXT_COLOR__;
+  --code-value: __THEME_OBSIDIAN_LIGHT_CODE_VALUE_COLOR__;
+  --code-background: __THEME_OBSIDIAN_LIGHT_CODE_BACKGROUND_COLOR__;
+  --blockquote-border-color: __THEME_OBSIDIAN_LIGHT_BLOCKQUOTE_BORDER_COLOR__;
+  --blockquote-background-color: __THEME_OBSIDIAN_LIGHT_BLOCKQUOTE_BACKGROUND_COLOR__;
+  --hr-color: __THEME_OBSIDIAN_LIGHT_HORIZONTAL_RULE_COLOR__;
+  --table-border-color: __THEME_OBSIDIAN_LIGHT_TABLE_BORDER_COLOR__;
+  --table-header-background: __THEME_OBSIDIAN_LIGHT_TABLE_HEADER_BACKGROUND_COLOR__;
+  --table-row-alt-background: __THEME_OBSIDIAN_LIGHT_TABLE_ROW_ALTERNATE_BACKGROUND_COLOR__;
+  --checkbox-color: __THEME_OBSIDIAN_LIGHT_CHECKBOX_BACKGROUND_COLOR__;
+  --checkbox-color-hover: __THEME_OBSIDIAN_LIGHT_CHECKBOX_HOVER_BACKGROUND_COLOR__;
+  --checkbox-border-color: __THEME_OBSIDIAN_LIGHT_CHECKBOX_BORDER_COLOR__;
+  --nav-item-color: __THEME_OBSIDIAN_LIGHT_NAVIGATION_ITEM_TEXT_COLOR__;
+  --nav-item-color-hover: __THEME_OBSIDIAN_LIGHT_NAVIGATION_ITEM_HOVER_TEXT_COLOR__;
+  --nav-item-color-active: __THEME_OBSIDIAN_LIGHT_NAVIGATION_ITEM_ACTIVE_TEXT_COLOR__;
+  --nav-item-background-hover: __THEME_OBSIDIAN_LIGHT_NAVIGATION_ITEM_HOVER_BACKGROUND_COLOR__;
+  --nav-item-background-active: __THEME_OBSIDIAN_LIGHT_NAVIGATION_ITEM_ACTIVE_BACKGROUND_COLOR__;
+  --nav-indentation-guide-color: __THEME_OBSIDIAN_LIGHT_NAVIGATION_INDENTATION_GUIDE_COLOR__;
+  --tab-background-active: __THEME_OBSIDIAN_LIGHT_TAB_ACTIVE_BACKGROUND_COLOR__;
+  --tab-text-color: __THEME_OBSIDIAN_LIGHT_TAB_TEXT_COLOR__;
+  --tab-text-color-active: __THEME_OBSIDIAN_LIGHT_TAB_ACTIVE_TEXT_COLOR__;
+  --tab-text-color-focused-active: __THEME_OBSIDIAN_LIGHT_TAB_FOCUSED_ACTIVE_TEXT_COLOR__;
+  --tab-divider-color: __THEME_OBSIDIAN_LIGHT_TAB_DIVIDER_COLOR__;
+  --titlebar-background: __THEME_OBSIDIAN_LIGHT_TITLEBAR_BACKGROUND_COLOR__;
+  --titlebar-background-focused: __THEME_OBSIDIAN_LIGHT_TITLEBAR_FOCUSED_BACKGROUND_COLOR__;
+  --titlebar-text-color: __THEME_OBSIDIAN_LIGHT_TITLEBAR_TEXT_COLOR__;
+  --ribbon-background: __THEME_OBSIDIAN_LIGHT_RIBBON_BACKGROUND_COLOR__;
+  --ribbon-background-collapsed: __THEME_OBSIDIAN_LIGHT_RIBBON_COLLAPSED_BACKGROUND_COLOR__;
+  --ribbon-background-hover: __THEME_OBSIDIAN_LIGHT_RIBBON_HOVER_BACKGROUND_COLOR__;
+  --status-bar-background: __THEME_OBSIDIAN_LIGHT_STATUS_BAR_BACKGROUND_COLOR__;
+  --status-bar-text-color: __THEME_OBSIDIAN_LIGHT_STATUS_BAR_TEXT_COLOR__;
+  --divider-color: __THEME_OBSIDIAN_LIGHT_DIVIDER_COLOR__;
+  --divider-color-hover: __THEME_OBSIDIAN_LIGHT_DIVIDER_HOVER_COLOR__;
+  --scrollbar-bg: __THEME_OBSIDIAN_LIGHT_SCROLLBAR_BACKGROUND_COLOR__;
+  --scrollbar-thumb-bg: __THEME_OBSIDIAN_LIGHT_SCROLLBAR_THUMB_BACKGROUND_COLOR__;
+  --scrollbar-active-thumb-bg: __THEME_OBSIDIAN_LIGHT_SCROLLBAR_THUMB_ACTIVE_BACKGROUND_COLOR__;
+  --modal-background: __THEME_OBSIDIAN_LIGHT_MODAL_BACKGROUND_COLOR__;
+  --modal-border-color: __THEME_OBSIDIAN_LIGHT_MODAL_BORDER_COLOR__;
+  --prompt-border-color: __THEME_OBSIDIAN_LIGHT_PROMPT_BORDER_COLOR__;
+  --graph-line: __THEME_OBSIDIAN_LIGHT_GRAPH_LINE_COLOR__;
+  --graph-node: __THEME_OBSIDIAN_LIGHT_GRAPH_NODE_COLOR__;
+  --graph-node-unresolved: __THEME_OBSIDIAN_LIGHT_GRAPH_NODE_UNRESOLVED_COLOR__;
+  --graph-node-focused: __THEME_OBSIDIAN_LIGHT_GRAPH_NODE_FOCUSED_COLOR__;
+  --graph-node-tag: __THEME_OBSIDIAN_LIGHT_GRAPH_NODE_TAG_TEXT_COLOR__;
+  --graph-node-attachment: __THEME_OBSIDIAN_LIGHT_GRAPH_NODE_ATTACHMENT_COLOR__;
+  --canvas-background: __THEME_OBSIDIAN_LIGHT_CANVAS_BACKGROUND_COLOR__;
+  --canvas-card-label-color: __THEME_OBSIDIAN_LIGHT_CANVAS_CARD_LABEL_COLOR__;
+  --canvas-dot-pattern: __THEME_OBSIDIAN_LIGHT_CANVAS_DOT_PATTERN_COLOR__;
+  --canvas-color: __THEME_OBSIDIAN_LIGHT_CANVAS_COLOR_HSL__;
+}
+.markdown-source-view.mod-cm6 .cm-line {
+  letter-spacing: 0.005em;
+}
+.markdown-rendered p {
+  letter-spacing: 0.005em;
+}
+.markdown-rendered li {
+  letter-spacing: 0.005em;
+}
+.markdown-rendered h1 {
+  letter-spacing: -0.012em;
+}
+.markdown-rendered h2 {
+  letter-spacing: -0.012em;
+}
+.markdown-rendered h3 {
+  letter-spacing: -0.012em;
+}
+.markdown-rendered h4 {
+  letter-spacing: -0.012em;
+}
+.markdown-rendered h5 {
+  letter-spacing: -0.012em;
+}
+.markdown-rendered h6 {
+  letter-spacing: -0.012em;
+}
+.markdown-rendered table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.markdown-rendered th {
+  font-weight: 700;
+  text-align: left;
+}
+.markdown-rendered code {
+  border-radius: var(--radius-s);
+  padding: 0.08em 0.3em;
+}
+.markdown-source-view.mod-cm6 .cm-inline-code {
+  border-radius: var(--radius-s);
+  padding: 0.08em 0.3em;
+}
+.markdown-rendered pre code {
+  padding: 0;
+}
+.workspace-tab-header.is-active {
+  box-shadow: inset 0 2px 0 var(--interactive-accent);
+}
+.nav-file-title.is-active {
+  font-weight: 650;
+}
+.nav-folder-title.is-active {
+  font-weight: 650;
+}
+.callout {
+  border: 1px solid rgba(var(--callout-color), __THEME_OBSIDIAN_CALLOUT_OUTLINE_ALPHA__);
+  box-shadow: none;
+}
+.tag {
+  border: 1px solid var(--background-modifier-border);
+  font-weight: 600;
+}
+
+
+@media print {body {
+    --font-text-size: 11pt;
+    --file-line-width: 100%;
+  }
+.markdown-preview-view {
+    color: __THEME_OBSIDIAN_PRINT_PREVIEW_TEXT_COLOR__;
+    background: __THEME_OBSIDIAN_PRINT_PREVIEW_BACKGROUND_COLOR__;
+  }
+
+}

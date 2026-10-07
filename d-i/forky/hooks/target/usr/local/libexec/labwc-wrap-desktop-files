@@ -1,0 +1,875 @@
+#!/usr/bin/python3 -I
+"""Idempotent local overrides of package-owned desktop entries; never write vendor files.
+
+No shell evaluation, user-profile sourcing, dpkg writes, or user-home writes.
+Desktop Exec text is prefixed verbatim: quoting and % field codes are preserved.
+"""
+from __future__ import annotations
+from contextlib import contextmanager
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import resource
+import shlex
+import signal
+import stat
+import subprocess
+import sys
+import tarfile
+import tempfile
+
+DEFAULTS = Path('/etc/labwc/desktop.conf')
+APPLICATION_DIRS = (Path('/usr/share/applications'),)
+OUTPUT_DIR = Path('/usr/local/share/applications')
+STATE_DIR = Path('/var/lib/labwc-desktop-files')
+MANIFEST = STATE_DIR / 'overrides.json'
+PENDING = STATE_DIR / 'pending.json'
+SOURCE_STATE = STATE_DIR / 'source-state.json'
+DATABASE_DIRTY = STATE_DIR / 'database-dirty'
+LOCK = Path('/run/lock/labwc-desktop-files.lock')
+VALIDATOR = Path('/usr/bin/desktop-file-validate')
+DATABASE_TOOL = Path('/usr/bin/update-desktop-database')
+SAFE_ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C', 'HOME': '/nonexistent'}
+MAX_BYTES = 1024 * 1024
+DPKG_INFO = Path('/var/lib/dpkg/info')
+WRAPPERS = {'electron': '/usr/local/bin/labwc-electron-app', 'wayland': '/usr/local/bin/labwc-wayland-app'}
+# These have existing dedicated sandbox/compatibility/logging entrypoints.
+MANAGED = {
+    '/usr/local/bin/labwc-terminal',
+    '/usr/local/bin/labwc-app', '/usr/local/bin/labwc-wayland-compat-app',
+    '/usr/local/bin/chatgpt', '/usr/local/bin/labwc-qbittorrent',
+    '/usr/local/bin/discord', '/usr/local/bin/zoom', '/usr/local/bin/mullvad-vpn',
+    '/usr/local/bin/labwc-computer-management', '/usr/local/bin/labwc-remote-desktop',
+    '/usr/local/bin/labwc-focuswriter-import', '/usr/local/bin/labwc-show-desktop',
+    *WRAPPERS.values(),
+}
+
+
+class InvalidDesktop(ValueError):
+    """A malformed source must not block otherwise valid package launchers."""
+
+
+def trusted_file(path: Path, *, vendor: bool = False, owner_uid: int = 0, size_limit: int = MAX_BYTES) -> os.stat_result:
+    metadata = path.lstat()
+    if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != owner_uid
+            or (not vendor and metadata.st_nlink != 1) or metadata.st_mode & (0o002 if vendor and metadata.st_gid == 0 else 0o022)
+            or metadata.st_mode & 0o7000
+            or metadata.st_size > size_limit or path.resolve() != path):
+        raise ValueError(f'unsafe package/configuration file: {path}')
+    return metadata
+
+
+def trusted_directory(path: Path) -> None:
+    for parent in (path, *path.parents):
+        metadata = parent.lstat()
+        if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0
+                or metadata.st_mode & (0o002 if metadata.st_gid == 0 else 0o022)):
+            raise ValueError(f'unsafe application directory: {parent}')
+
+
+def read_desktop_bytes(path: Path) -> tuple[bytes, os.stat_result, os.stat_result]:
+    """Follow only root-owned system data; writes replace the entry, not its target."""
+    trusted_directory(path.parent)
+    entry = path.lstat()
+    source = path
+    if stat.S_ISLNK(entry.st_mode):
+        if entry.st_uid != 0 or entry.st_nlink != 1:
+            raise ValueError(f'unsafe desktop symlink: {path}')
+        source = path.resolve(strict=True)
+        if not str(source).startswith(('/usr/', '/opt/')):
+            raise ValueError(f'desktop symlink escapes system application trees: {path}')
+        trusted_directory(source.parent)
+    metadata = trusted_file(source, vendor=True)
+    fd = os.open(source, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    with os.fdopen(fd, 'rb') as stream:
+        opened = os.fstat(stream.fileno())
+        if (opened.st_dev, opened.st_ino, opened.st_mtime_ns, opened.st_size) != (metadata.st_dev, metadata.st_ino, metadata.st_mtime_ns, metadata.st_size):
+            raise ValueError(f'desktop source changed while opening: {path}')
+        text = stream.read(MAX_BYTES + 1)
+        if len(text) > MAX_BYTES:
+            raise ValueError(f'desktop source grew beyond its size limit: {path}')
+    return text, entry, metadata
+
+
+def read_desktop(path: Path) -> tuple[str, os.stat_result, os.stat_result]:
+    content, entry, metadata = read_desktop_bytes(path)
+    return content.decode('utf-8'), entry, metadata
+
+
+def ensure_output_directory(path: Path) -> None:
+    # main/service use umask 0077 for private state. Newly created application
+    # directories must nevertheless be searchable by desktop users. Never
+    # relax permissions on a pre-existing administrator directory.
+    missing = []
+    parent = path
+    while not parent.exists():
+        missing.append(parent)
+        parent = parent.parent
+    trusted_directory(parent)
+    for directory in reversed(missing):
+        directory.mkdir(mode=0o755)
+        directory.chmod(0o755)
+    trusted_directory(path)
+
+
+def load_defaults(*, owner_uid: int = 0) -> dict[str, str]:
+    trusted_file(DEFAULTS, owner_uid=owner_uid)
+    keys = {f'LABWC_{kind.upper()}_APP_DEFAULT_EXEC': kind for kind in WRAPPERS}
+    result = {}
+    for line in DEFAULTS.read_text(encoding='utf-8').splitlines():
+        key, separator, value = line.partition('=')
+        key = key.strip()
+        if not separator or key not in keys:
+            continue
+        if keys[key] in result:
+            raise ValueError(f'duplicate launcher default: {key}')
+        words = shlex.split(value, comments=True)
+        if len(words) != 1:
+            raise ValueError(f'invalid launcher default: {key}')
+        command = shlex.split(words[0])
+        if len(command) != 2 or command[0] != WRAPPERS[keys[key]] or command[1] not in {'intel', 'nvidia', 'launch'}:
+            raise ValueError(f'unsafe launcher default: {key}')
+        result[keys[key]] = ' '.join(command)
+    if set(result) != set(WRAPPERS):
+        raise ValueError('both generic launcher defaults must be configured')
+    return result
+
+
+def managed_exec(value: str) -> bool:
+    # This is only recognition; Exec is never reconstructed from shlex tokens.
+    # Double-quoted executable paths and env prefixes are commonly used.
+    try:
+        words = shlex.split(value, comments=False)
+    except ValueError as exc:
+        raise InvalidDesktop('malformed desktop Exec quoting') from exc
+    if words and words[0] in {'env', '/usr/bin/env', '/bin/env'}:
+        words = words[1:]
+        if words and words[0] == '--':
+            words = words[1:]
+        while words and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*=.*', words[0], re.DOTALL):
+            words = words[1:]
+    if not words:
+        return False
+    # Recognize only the executable, never a managed path passed as data.
+    # Preserve legacy whole-prefix quoting without rewriting vendor arguments.
+    return words[0] in MANAGED or any(words[0].startswith(path + ' ') for path in MANAGED)
+
+
+def compatibility_exec(value: str) -> str | None:
+    try:
+        words = shlex.split(value, comments=False)
+    except ValueError:
+        raise InvalidDesktop('malformed compatibility desktop Exec') from None
+    if not words:
+        return None
+    executable_index = 0
+    if words[0] in {'env', '/usr/bin/env', '/bin/env'}:
+        executable_index = 1
+        if len(words) > executable_index and words[executable_index] == '--':
+            executable_index += 1
+        while len(words) > executable_index and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*=.*', words[executable_index], re.DOTALL):
+            executable_index += 1
+    if len(words) <= executable_index:
+        return None
+    app = {'zoom': 'zoom', '/usr/bin/zoom': 'zoom', '/opt/zoom/zoom': 'zoom',
+           '/opt/zoom/ZoomLauncher': 'zoom', 'discord': 'discord',
+           '/opt/discord/Discord': 'discord', '/usr/bin/discord': 'discord',
+           '/usr/bin/Discord': 'discord', '/usr/local/bin/zoom': 'zoom',
+           '/usr/local/bin/discord': 'discord'}.get(words[executable_index])
+    if app is None:
+        if executable_index and any(word in {'/opt/discord/Discord', '/usr/bin/zoom', '/opt/zoom/zoom'} for word in words[executable_index:]):
+            raise InvalidDesktop('unsupported compatibility desktop environment prefix')
+        return None
+    if app == 'zoom' and words[executable_index + 1:] in (
+            ['--url=%U'], ['--url=%u'], ['%U']):
+        # %U must be a standalone argument and this launcher accepts one URI.
+        # Repair both vendor entries and already-managed copies on reconciliation;
+        # activation_arguments adds --url= only after desktop expansion.
+        return '/usr/local/bin/zoom %u'
+    # Preserve field-code quoting verbatim. Drop a recognized env prefix:
+    # the compatibility wrapper reconstructs all trusted process policy.
+    tokens = list(re.finditer(r'(?:[^ \t"\\]|\\.|"(?:\\.|[^"\\])*")+', value))
+    if len(tokens) <= executable_index:
+        raise InvalidDesktop('malformed compatibility executable token')
+    return '/usr/local/bin/' + app + value[tokens[executable_index].end():]
+
+
+def original_generic_exec(value: str) -> str | None:
+    # Only unwrap the exact prefix written by this hook, never a shell command
+    # or another managed launcher. This permits changing the configured GPU.
+    match = re.fullmatch(
+        r"/usr/local/bin/labwc-(?:electron|wayland)-app (?:intel|nvidia|launch) -- (.+)",
+        value,
+    )
+    return match.group(1) if match else None
+
+
+def repair_known_vendor_entry(name: str, text: str) -> str:
+    """Repair only the known vendor desktop entry defects.
+
+    Desktop Exec quoting is not shell quoting. Do not run a shell parser over
+    arbitrary entries or relax desktop-file-validate for unknown syntax.
+    """
+    if name not in {'lynis.desktop', 'sdl-freerdp-file.desktop'}:
+        return text
+    lines = text.splitlines(keepends=True)
+    has_edit = any(line.strip() == '[Desktop Action Edit]' for line in lines)
+    section = ''
+    result = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('[') and stripped.endswith(']'):
+            section = stripped
+        key, separator, value = line.partition('=')
+        if separator and section == '[Desktop Entry]':
+            ending = '\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else ''
+            if name == 'lynis.desktop' and key.strip() == 'Exec' and value.strip() == (
+                    "su-to-root -c '/usr/sbin/lynis audit system --no-colors'"):
+                # Terminal=true is wrapped below; --run avoids spawning a
+                # second terminal in the managed action client.
+                line = key + '=/usr/local/bin/labwc-security-action --run audit-security-posture' + ending
+            elif name == 'sdl-freerdp-file.desktop' and key.strip() == 'Actions' and not has_edit:
+                # An undeclared action is unusable; retain every other action.
+                actions = value.strip().split(';')
+                if 'Edit' in actions:
+                    line = key + '=' + ';'.join(action for action in actions if action != 'Edit') + ending
+        result.append(line)
+    return ''.join(result)
+
+
+def rewrite_desktop(text: str, prefix: str) -> str:
+    lines = text.splitlines(keepends=True)
+    section = ''
+    main = {}
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('[') and stripped.endswith(']'):
+            section = stripped
+        elif section == '[Desktop Entry]' and '=' in line and not stripped.startswith('#'):
+            key, value = line.split('=', 1)
+            key = key.strip()
+            if key in main:
+                raise InvalidDesktop(f'duplicate Desktop Entry key: {key}')
+            main[key] = value.strip()
+    # Booleans are case-sensitive true/false, not shell truth values. NoDisplay
+    # is deliberately retained: MIME-only applications still need isolation.
+    # OnlyShowIn/NotShowIn/TryExec are also retained, never evaluated as root's
+    # desktop or PATH. Discovery, not system reconciliation, applies visibility.
+    for key in ('Hidden', 'NoDisplay', 'Terminal', 'DBusActivatable'):
+        if key in main and main[key] not in {'true', 'false'}:
+            raise InvalidDesktop(f'invalid Desktop Entry boolean: {key}')
+    if main.get('Type') != 'Application' or main.get('Hidden') == 'true':
+        return text
+    if not main.get('Exec'):
+        return text
+    terminal = main.get('Terminal') == 'true'
+    section = ''
+    result = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('[') and stripped.endswith(']'):
+            section = stripped
+        key, separator, value = line.partition('=')
+        application_section = section == '[Desktop Entry]' or section.startswith('[Desktop Action ')
+        if separator and application_section and key.strip() == 'Exec' and value.strip():
+            original = original_generic_exec(value.strip())
+            managed = compatibility_exec(original if original is not None else value.strip())
+            if managed is not None:
+                ending = '\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else ''
+                line = key + '=' + managed + ending
+            elif terminal:
+                # Wrap the terminal, not its interactive child: the latter
+                # needs the terminal's PTY and belongs to that service cgroup.
+                original = original if original is not None else value.strip()
+                ending = '\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else ''
+                line = key + '=/usr/local/bin/labwc-terminal -e ' + original + ending
+            elif original is not None:
+                ending = '\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else ''
+                line = key + '=' + prefix + ' -- ' + original + ending
+            elif not managed_exec(value.strip()):
+                line = key + '=' + prefix + ' -- ' + value.lstrip()
+        elif separator and section == '[Desktop Entry]' and terminal and key.strip() == 'Terminal':
+            line = key + '=false' + ('\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else '')
+        elif separator and section == '[Desktop Entry]' and key.strip() == 'DBusActivatable':
+            # Otherwise compliant launchers bypass Exec and its service wrapper.
+            line = key + '=false' + ('\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else '')
+        result.append(line)
+    return ''.join(result)
+
+
+def query(arguments: list[str]) -> str:
+    result = subprocess.run(arguments, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            env=SAFE_ENV,
+                            text=True, timeout=30)
+    if result.returncode:
+        raise ValueError(f'package query failed: {arguments[0]} (status {result.returncode})')
+    return result.stdout
+
+
+def package_for(path: Path) -> str | None:
+    # dpkg-query -S treats its argument as a glob: escape literal metacharacters.
+    pattern = re.sub(r'([*?\[\\])', r'\\\1', str(path))
+    result = subprocess.run(['/usr/bin/dpkg-query', '-S', '--', pattern], check=False,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30,
+                            env=SAFE_ENV)
+    if result.returncode == 1:
+        return None  # locally installed entries are not owned by dpkg
+    if result.returncode:
+        raise ValueError(f'cannot query package owner: {path}')
+    owners = set()
+    for line in result.stdout.splitlines():
+        owner, separator, installed_path = line.rpartition(': ')
+        if separator and installed_path == str(path):
+            owners.update(owner.split(', '))
+    if len(owners) != 1:
+        raise ValueError(f'ambiguous package ownership: {path}')
+    package = owners.pop()
+    if not re.fullmatch(r'[a-z0-9][a-z0-9+.-]*(?::[a-z0-9-]+)?', package):
+        raise ValueError(f'invalid package owner: {path}')
+    return package
+
+
+def is_electron(package: str) -> bool:
+    # Read-only dpkg -L does not invoke post-invoke hooks or need a second lock.
+    paths = query(['/usr/bin/dpkg', '-L', '--', package]).splitlines()
+    return any(path.endswith('/resources/app.asar') and Path(path).is_file() for path in paths)
+
+
+def launch_prefix(path: Path, executable: str, value: str, defaults: dict[str, str]) -> str:
+    # Respect execution classes already chosen by the package hook/profile.
+    if value.startswith(WRAPPERS['electron'] + ' '):
+        return defaults['electron']
+    if managed_exec(value):
+        return defaults['wayland']
+    package = package_for(path)
+    if package is None and executable.startswith('/'):
+        package = package_for(Path(executable))
+    return defaults['electron' if package and is_electron(package) else 'wayland']
+
+
+def validate_desktop(path: Path, text: str) -> None:
+    # No temporary desktop ID in a public applications directory, even after a
+    # crash. Publication remains a separate atomic operation after validation.
+    with tempfile.TemporaryDirectory(prefix='validate-', dir=STATE_DIR) as directory:
+        source = Path(directory) / path.name
+        source.write_text(text, encoding='utf-8', newline='')
+        source.chmod(0o600)
+        result = subprocess.run([str(VALIDATOR), str(source)], env=SAFE_ENV,
+                                capture_output=True, text=True, timeout=30, check=False)
+        if result.returncode:
+            raise InvalidDesktop(f'desktop-file-validate rejected {path}: '
+                                 f'{result.stdout.strip()} {result.stderr.strip()}')
+
+
+def write_atomic(path: Path, text: str, before: os.stat_result | None = None) -> None:
+    """Publish a local file only; source ownership/modes never propagate here."""
+    fd, temporary = tempfile.mkstemp(prefix=f'.{path.name}.labwc-', dir=path.parent)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8', newline='') as stream:
+            os.fchmod(stream.fileno(), 0o600 if path.parent == STATE_DIR else 0o644)
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if before is not None:
+            after = path.lstat()
+            if (after.st_dev, after.st_ino, after.st_mtime_ns, after.st_ctime_ns, after.st_size) != (before.st_dev, before.st_ino, before.st_mtime_ns, before.st_ctime_ns, before.st_size):
+                raise ValueError(f'local desktop override changed during update: {path}')
+        elif path.exists() or path.is_symlink():
+            raise ValueError(f'local desktop override appeared during update: {path}')
+        os.replace(temporary, path)
+        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def load_manifest(path: Path | None = None) -> dict[str, str]:
+    path = MANIFEST if path is None else path
+    if not path.exists():
+        return {}
+    trusted_file(path)
+    data = json.loads(path.read_text(encoding='utf-8'))
+    if not isinstance(data, dict):
+        raise ValueError('invalid desktop override manifest')
+    for name, digest in data.items():
+        parts = Path(name).parts
+        if not parts or Path(name).is_absolute() or any(p in {'.', '..'} for p in parts) or not name.endswith('.desktop'):
+            raise ValueError('unsafe desktop override manifest path')
+        if not isinstance(digest, str) or not re.fullmatch('[0-9a-f]{64}', digest):
+            raise ValueError('invalid desktop override manifest digest')
+    return data
+
+
+def owned_override(path: Path, expected: str | None) -> bool:
+    if expected is None or not path.exists() or path.is_symlink():
+        return False
+    try:
+        text, _, _ = read_desktop(path)
+    except (OSError, ValueError, UnicodeError):
+        return False  # altered ownership/modes are administrator territory too
+    return hashlib.sha256(text.encode('utf-8')).hexdigest() == expected
+
+
+def generate_overrides(defaults: dict[str, str], names: set[str] | None = None) -> bool:
+    ensure_output_directory(OUTPUT_DIR)
+    STATE_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+    trusted_directory(OUTPUT_DIR)
+    trusted_directory(STATE_DIR)
+    previous = load_manifest()
+    pending = load_manifest(PENDING)
+    if PENDING.exists():
+        print('labwc desktop hook: recovering interrupted ownership journal', file=sys.stderr)
+    # A durable ownership journal bridges a crash between publishing a local
+    # file and committing the manifest. Only an exact staged digest is adopted.
+    for name, digest in pending.items():
+        if owned_override(OUTPUT_DIR / name, digest):
+            previous[name] = digest
+    current: dict[str, str] = {} if names is None else {name: value for name, value in previous.items() if name not in names}
+    cache: dict[str, bool] = {}
+    changed = False
+    for directory in APPLICATION_DIRS:
+        if not directory.exists():
+            continue
+        trusted_directory(directory)
+        candidates = sorted(directory.rglob('*.desktop')) if names is None else [directory / name for name in sorted(names)]
+        for path in candidates:
+            if not path.exists() and not path.is_symlink():
+                continue
+            name = path.relative_to(directory).as_posix()
+            if names is not None and name not in names:
+                continue
+            try:
+                text, _, _ = read_desktop(path)
+                text = repair_known_vendor_entry(name, text)
+            except (OSError, ValueError, UnicodeError) as exc:
+                print(f'labwc desktop hook: skipped malformed {path}: {exc}', file=sys.stderr)
+                if owned_override(OUTPUT_DIR / name, previous.get(name)):
+                    current[name] = previous[name]
+                continue
+            try:
+                if rewrite_desktop(text, defaults['wayland']) == text:
+                    continue
+            except InvalidDesktop as exc:
+                print(f'labwc desktop hook: skipped malformed {path}: {exc}', file=sys.stderr)
+                if owned_override(OUTPUT_DIR / name, previous.get(name)):
+                    current[name] = previous[name]
+                continue
+            package = package_for(path)
+            if package is None:
+                continue
+            if package not in cache:
+                cache[package] = is_electron(package)
+            output = rewrite_desktop(text, defaults['electron' if cache[package] else 'wayland'])
+            destination = OUTPUT_DIR / name
+            ensure_output_directory(destination.parent)
+            before = None
+            if destination.exists() or destination.is_symlink():
+                if not owned_override(destination, previous.get(name)):
+                    print(f'labwc desktop hook: preserving administrator override: {destination}', file=sys.stderr)
+                    continue
+                before = destination.lstat()
+            digest = hashlib.sha256(output.encode('utf-8')).hexdigest()
+            if before is None or previous.get(name) != digest:
+                try:
+                    validate_desktop(destination, output)
+                except InvalidDesktop as exc:
+                    print(f'labwc desktop hook: {exc}', file=sys.stderr)
+                    # Keep a last known validated wrapper on invalid updates;
+                    # do not expose an unwrapped vendor entry by deleting it.
+                    if before is not None:
+                        current[name] = previous[name]
+                    continue
+                mark_database_dirty()
+                pending[name] = digest
+                write_atomic(PENDING, json.dumps(pending, sort_keys=True) + '\n',
+                             PENDING.lstat() if PENDING.exists() else None)
+                write_atomic(destination, output, before)
+                print(f'labwc desktop hook: {"updated" if before else "added"}: {destination}', file=sys.stderr)
+                changed = True
+            current[name] = digest
+    # Package removals, Hidden changes and newly dedicated launchers
+    # must not leave stale overrides shadowing vendor entries. Never delete a
+    # local file edited or replaced by the administrator since our last run.
+    for name, digest in previous.items():
+        if (names is None or name in names) and name not in current and owned_override(OUTPUT_DIR / name, digest):
+            mark_database_dirty()
+            (OUTPUT_DIR / name).unlink()
+            fsync_directory((OUTPUT_DIR / name).parent)
+            print(f'labwc desktop hook: removed: {OUTPUT_DIR / name}', file=sys.stderr)
+            changed = True
+    payload = json.dumps(current, sort_keys=True, indent=2) + '\n'
+    if current != previous or not MANIFEST.exists() or PENDING.exists():
+        write_atomic(MANIFEST, payload, MANIFEST.lstat() if MANIFEST.exists() else None)
+    if PENDING.exists():
+        PENDING.unlink()
+        directory_fd = os.open(STATE_DIR, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    return changed
+
+
+def fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def mark_database_dirty() -> None:
+    # Durable *before* publication/removal: a crash must not lose the later
+    # update-desktop-database, even if the ownership journal already commits.
+    if not DATABASE_DIRTY.exists():
+        write_atomic(DATABASE_DIRTY, fingerprint(output=True) + '\n')
+
+
+def fingerprint(*, output: bool = False, names: set[str] | None = None) -> str:
+    """Hash small source contents, not mtimes or package installation dates.
+
+    Output checking additionally detects deleted overrides and administrator
+    edits. Never follow an output symlink, especially one into a user's home.
+    There are no dpkg subprocesses on this path.
+    """
+    digest = hashlib.sha256()
+
+    def add(name: str, value: bytes) -> None:
+        label = name.encode('utf-8')
+        for field in (label, value):
+            digest.update(len(field).to_bytes(8, 'big'))
+            digest.update(field)
+
+    if not output:
+        for path in (DEFAULTS, Path(__file__).resolve()):
+            trusted_file(path)
+            add(str(path), path.read_bytes())
+    for directory in ((OUTPUT_DIR,) if output else APPLICATION_DIRS):
+        add(str(directory), b'present' if directory.exists() else b'absent')
+        if not directory.exists():
+            continue
+        trusted_directory(directory)
+        # pathlib does not recurse into symlink directories here.
+        candidates = sorted(directory.rglob('*.desktop')) if names is None else [directory / name for name in sorted(names)]
+        for path in candidates:
+            if not path.exists() and not path.is_symlink():
+                add(str(path), b'absent')
+                continue
+            entry = path.lstat()
+            name = str(path)
+            add(name + ':mode', f'{entry.st_mode}:{entry.st_uid}:{entry.st_gid}:{entry.st_nlink}'.encode())
+            if output and stat.S_ISLNK(entry.st_mode):
+                add(name, os.fsencode(os.readlink(path)))
+                continue
+            if output:
+                try:
+                    trusted_file(path, vendor=True)
+                except ValueError:
+                    add(name, b'administrator-owned-unsafe-for-management')
+                    continue
+            try:
+                content, _, source_metadata = read_desktop_bytes(path)
+            except (OSError, ValueError):
+                # One unsafe vendor entry must not block other applications.
+                # Its metadata remains part of the cache; never read its bytes.
+                add(name, b'unsafe-vendor-entry')
+                continue
+            if not output:
+                # A package replacement with identical bytes may change its
+                # executable/resources too. Detect replacement without mtimes.
+                add(name + ':identity', f'{entry.st_dev}:{entry.st_ino}:'
+                    f'{source_metadata.st_dev}:{source_metadata.st_ino}'.encode())
+            add(name, content)
+    return digest.hexdigest()
+
+
+def read_source_state() -> dict:
+    if not SOURCE_STATE.exists():
+        return {}
+    trusted_file(SOURCE_STATE)
+    try:
+        value = json.loads(SOURCE_STATE.read_text(encoding='utf-8'))
+    except (ValueError, UnicodeError):
+        return {}  # a cache is not an ownership authority
+    return value if isinstance(value, dict) else {}
+
+
+def reconcile(*, force: bool = False, post_invoke: bool = False, names: set[str] | None = None) -> None:
+    """Caller holds the common lock, including cache/database publication.
+
+    Non-dpkg changes are provisional. The next final dpkg invocation must do
+    one full pass even if a path invocation observed the same desktop bytes
+    before the package finished installing its executables/resources.
+    """
+    ensure_output_directory(OUTPUT_DIR)
+    STATE_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+    trusted_directory(OUTPUT_DIR)
+    trusted_directory(STATE_DIR)
+    if stat.S_IMODE(STATE_DIR.stat().st_mode) != 0o700:
+        STATE_DIR.chmod(0o700)
+    for _ in range(3):
+        source = fingerprint(names=names)
+        before_output = fingerprint(output=True) if names is None else ''
+        state = read_source_state() if names is None else {}
+        manifest_digest = ''
+        if MANIFEST.exists():
+            trusted_file(MANIFEST)
+            manifest_digest = hashlib.sha256(MANIFEST.read_bytes()).hexdigest()
+        if (names is None and not force and not PENDING.exists() and not DATABASE_DIRTY.exists()
+                and MANIFEST.exists() and state.get('manifest') == manifest_digest
+                and state.get('source') == source
+                and state.get('output') == before_output
+                and (not post_invoke or state.get('final') is True)):
+            return
+        defaults = load_defaults()
+        generate_overrides(defaults, names)
+        if DATABASE_DIRTY.exists():
+            trusted_file(DATABASE_DIRTY)
+            # No DB churn for a failed validation/crash before publication, or
+            # a batch with no net output changes. Failed updates retain intent.
+            if DATABASE_DIRTY.read_text().strip() != fingerprint(output=True):
+                subprocess.run([str(DATABASE_TOOL), str(OUTPUT_DIR)], env=SAFE_ENV,
+                               check=True, timeout=30)
+            DATABASE_DIRTY.unlink()
+            fsync_directory(STATE_DIR)
+        if source != fingerprint(names=names):
+            # Do not certify a snapshot if dpkg changed input during our pass.
+            continue
+        if names is not None:
+            # A package-scoped pass cannot certify the complete desktop tree.
+            # Leave the next boot/policy-change pass to refresh that cache.
+            if SOURCE_STATE.exists():
+                trusted_file(SOURCE_STATE)
+                SOURCE_STATE.unlink()
+                fsync_directory(STATE_DIR)
+            return
+        state = {'source': source, 'output': fingerprint(output=True), 'final': post_invoke,
+                 'manifest': hashlib.sha256(MANIFEST.read_bytes()).hexdigest()}
+        payload = json.dumps(state, sort_keys=True) + '\n'
+        if not SOURCE_STATE.exists() or SOURCE_STATE.read_text(encoding='utf-8') != payload:
+            write_atomic(SOURCE_STATE, payload, SOURCE_STATE.lstat() if SOURCE_STATE.exists() else None)
+        return
+    raise ValueError('desktop inputs kept changing; reconciliation must be retried')
+
+
+def desktop_names(paths: list[str]) -> set[str]:
+    result = set()
+    prefix = '/usr/share/applications/'
+    for path in paths:
+        path = '/' + path.removeprefix('./').lstrip('/')
+        if path.startswith(prefix) and path.endswith('.desktop'):
+            name = path[len(prefix):]
+            if (not name or any(part in {'', '.', '..'} for part in name.split('/'))
+                    or any(ord(char) < 32 or ord(char) == 127 for char in name)):
+                raise ValueError('unsafe desktop path in package metadata')
+            result.add(name)
+    return result
+
+
+def apt_desktop_names(stream) -> set[str]:
+    first = stream.readline(65537)
+    if first not in ('VERSION 2\n', 'VERSION 3\n'):
+        raise ValueError('APT must supply package action protocol 2 or 3')
+    size = len(first)
+    configuration = True
+    names = set()
+    queried = set()
+    while True:
+        line = stream.readline(65537)
+        if not line:
+            break
+        size += len(line)
+        if len(line) > 65536 or size > 16 * MAX_BYTES:
+            raise ValueError('APT package actions exceed their limit')
+        if configuration:
+            key, separator, value = line.partition('=')
+            if (separator and key.lower() == 'dpkg::options::'
+                    and re.match(r'--(?:root|instdir|admindir)(?:=|\s|$)', value)):
+                raise ValueError('desktop hook does not support an alternate dpkg root')
+            if line == '\n':
+                configuration = False
+            continue
+        count = 5 if first == 'VERSION 2\n' else 9
+        fields = line.removesuffix('\n').split(maxsplit=count - 1)
+        if len(fields) != count or not re.fullmatch(r'[a-z0-9][a-z0-9+.-]*', fields[0]):
+            raise ValueError('invalid APT package action')
+        package, action = fields[0], fields[-1]
+        if action not in ('**CONFIGURE**', '**REMOVE**') and not action.startswith('/'):
+            raise ValueError('invalid APT package operation')
+        # Existing .list files cover upgrades/reinstalls/removals without
+        # spawning dpkg or scanning the applications tree for each package.
+        if package not in queried:
+            queried.add(package)
+            for listing in (DPKG_INFO / (package + '.list'),
+                            *DPKG_INFO.glob(package + ':*.list')):
+                if listing.is_file():
+                    trusted_file(listing, size_limit=16 * MAX_BYTES)
+                    names.update(desktop_names(listing.read_text(encoding='utf-8').splitlines()))
+        if action.startswith('/'):
+            # New packages have no installed .list yet. The small control
+            # archive's md5sums avoids decompressing the entire package data.
+            archive = Path(action)
+            metadata = archive.lstat()
+            # APT can deliberately install a user's local .deb. Treat its
+            # checksums as bounded data; do not demand root ownership of it.
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_mode & 0o022:
+                raise ValueError('unsafe incoming package archive')
+            with archive_output(['/usr/bin/dpkg-deb', '--ctrl-tarfile', str(archive)]) as control:
+                with tarfile.open(fileobj=control, mode='r:') as tar:
+                    member = next((m for m in tar if m.name.removeprefix('./') == 'md5sums'), None)
+                    if member is not None:
+                        if not member.isfile() or member.size > 8 * MAX_BYTES:
+                            raise ValueError('unsafe package checksums metadata')
+                        with tar.extractfile(member) as sums:
+                            names.update(desktop_names([line.decode('utf-8').split('  ', 1)[-1].strip() for line in sums]))
+                    else:
+                        # md5sums is optional. A missing one must not silently
+                        # leave a newly installed desktop launcher unwrapped.
+                        with archive_output(['/usr/bin/dpkg-deb', '--contents', str(archive)]) as contents:
+                            for line in contents:
+                                names.update(desktop_names([line.decode('utf-8').split(maxsplit=5)[-1].removesuffix('\n')]))
+    if configuration:
+        raise ValueError('incomplete APT package action input')
+    return names
+
+
+def limit_control_archive() -> None:
+    # Limit the decompressor's regular-file output before it starts, rather
+    # than accepting an unbounded temporary file and checking afterwards.
+    resource.setrlimit(resource.RLIMIT_FSIZE, (16 * MAX_BYTES, 16 * MAX_BYTES))
+
+
+@contextmanager
+def archive_output(arguments: list[str]):
+    # Both control archives and the optional contents fallback are bounded.
+    # No captured pipe may be held open by a decompressor after its leader dies.
+    # APT runs outside the service's PrivateTmp namespace. Keep scratch data in
+    # the same trusted private state tree instead of probing global tempdirs.
+    STATE_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+    trusted_directory(STATE_DIR)
+    if stat.S_IMODE(STATE_DIR.stat().st_mode) != 0o700:
+        STATE_DIR.chmod(0o700)
+    with tempfile.TemporaryFile(dir=STATE_DIR) as output:
+        with subprocess.Popen(arguments, env=SAFE_ENV, stdout=output,
+                              stderr=subprocess.DEVNULL, start_new_session=True,
+                              preexec_fn=limit_control_archive) as child:
+            try:
+                child.wait(timeout=30)
+            except BaseException:
+                try:
+                    os.killpg(child.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                child.wait(timeout=5)
+                raise
+            if child.returncode:
+                raise ValueError(f'package metadata inspection failed (status {child.returncode})')
+        if output.tell() > 16 * MAX_BYTES:
+            raise ValueError('package metadata output exceeds its limit')
+        output.seek(0)
+        yield output
+
+
+def directory_state() -> str:
+    # dpkg replaces files by rename, changing the containing directory. Include
+    # nested application directories without opening every desktop file.
+    rows = []
+    for path in APPLICATION_DIRS:
+        rows.append((str(path), path.stat().st_mtime_ns if path.exists() else None))
+        for root, directories, _files in os.walk(path, followlinks=False):
+            directories[:] = sorted(name for name in directories if not (Path(root) / name).is_symlink())
+            if Path(root) != path:
+                rows.append((root, Path(root).stat().st_mtime_ns))
+    return json.dumps(rows) + '\n'
+
+
+def pending_names(path: Path) -> set[str]:
+    trusted_file(path)
+    value = json.loads(path.read_text(encoding='utf-8'))
+    if not isinstance(value, list) or not all(isinstance(name, str) for name in value):
+        raise ValueError('invalid pending desktop package paths')
+    names = set(value)
+    if desktop_names(['/usr/share/applications/' + name for name in names]) != names:
+        raise ValueError('unsafe pending desktop package paths')
+    return names
+
+
+def main(argv: list[str] | None = None) -> int:
+    apt_pending = STATE_DIR / 'apt-packages.json'
+    dpkg_directory_state = STATE_DIR / 'dpkg-directory.json'
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--force', action='store_true', help='bypass the source-state cache')
+    parser.add_argument('--post-invoke', action='store_true', help='final synchronous dpkg reconciliation')
+    hooks = parser.add_mutually_exclusive_group()
+    hooks.add_argument('--apt-pre', action='store_true', help='collect only changed desktop package paths')
+    hooks.add_argument('--apt-post', action='store_true', help='reconcile this APT transaction once')
+    hooks.add_argument('--dpkg-post', action='store_true', help='cheap direct-dpkg desktop change check')
+    options = parser.parse_args(argv)
+    if os.geteuid() != 0:
+        raise ValueError('desktop package hook must run as root')
+    # --root/--instdir must never accidentally rewrite the host. Installer
+    # chroot runs use their own / and are supported normally.
+    if os.environ.get('DPKG_ROOT', '') not in {'', '/'} or os.environ.get('DPKG_ADMINDIR', '/var/lib/dpkg') != '/var/lib/dpkg':
+        return 0
+    if os.environ.get('DPKG_HOOK_ACTION', 'configure') not in {'install', 'unpack', 'configure', 'triggers-only', 'remove', 'purge'}:
+        return 0
+    if not DEFAULTS.exists():
+        return 0  # desktop role has not been rendered yet
+    names = None
+    if options.apt_pre:
+        descriptor = os.environ.get('APT_HOOK_INFO_FD', '')
+        if not descriptor.isdecimal() or not 3 <= int(descriptor) <= 1024:
+            raise ValueError('missing APT package information FD')
+        with os.fdopen(os.dup(int(descriptor)), 'r', encoding='utf-8') as stream:
+            names = apt_desktop_names(stream)
+        if not names:
+            return 0
+    if options.apt_post and not apt_pending.exists():
+        return 0
+    if options.dpkg_post:
+        if apt_pending.exists():
+            return 0  # APT's final hook runs after all unpack/configure calls.
+        if dpkg_directory_state.exists():
+            trusted_file(dpkg_directory_state)
+            if dpkg_directory_state.read_text(encoding='utf-8') == directory_state():
+                return 0
+    os.umask(0o077)
+    lock = os.open(LOCK, os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(lock, 'r+') as handle:
+        metadata = os.fstat(handle.fileno())
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_nlink != 1 or metadata.st_mode & 0o022:
+            raise ValueError('unsafe desktop hook lock')
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        if options.apt_pre:
+            STATE_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+            trusted_directory(STATE_DIR)
+            if apt_pending.exists():
+                names.update(pending_names(apt_pending))
+            write_atomic(apt_pending, json.dumps(sorted(names)) + '\n', apt_pending.lstat() if apt_pending.exists() else None)
+            return 0
+        if options.apt_post:
+            names = pending_names(apt_pending)
+        reconcile(force=options.force, post_invoke=options.post_invoke or options.apt_post or options.dpkg_post, names=names)
+        if options.apt_post:
+            apt_pending.unlink()
+        directory_payload = directory_state()
+        if not dpkg_directory_state.exists() or dpkg_directory_state.read_text(encoding='utf-8') != directory_payload:
+            write_atomic(dpkg_directory_state, directory_payload,
+                         dpkg_directory_state.lstat() if dpkg_directory_state.exists() else None)
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, UnicodeError, subprocess.SubprocessError) as exc:
+        print(f'labwc desktop hook: {exc}', file=sys.stderr)
+        raise SystemExit(1)

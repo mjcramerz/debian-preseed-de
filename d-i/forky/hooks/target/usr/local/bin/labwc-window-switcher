@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+[ "$#" -eq 0 ] || { printf '%s\n' 'usage: labwc-window-switcher' >&2; exit 2; }
+[ "$(/usr/bin/id -u)" -ne 0 ] || {
+  printf '%s\n' 'labwc-window-switcher must run as the desktop user' >&2
+  exit 1
+}
+# Waybar must invoke this on mouse release, after GTK's pointer grab ends.
+# Send down/up on the SAME virtual keyboard, before the user selects or cancels.
+# No F13 (or Alt) is held for the lifetime of labwc's native thumbnail switcher.
+# The enclosing transient service isolates the cgroup; timeout also bounds direct
+# invocations and tears down the virtual keyboard if the compositor stops replying.
+exec /usr/bin/timeout --signal=TERM --kill-after=1s 2s /usr/bin/wtype -P F13 -p F13

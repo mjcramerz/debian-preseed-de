@@ -1,0 +1,210 @@
+#!/usr/bin/python3 -I
+"""Fail closed on NFS identity drift before an export or client mount starts.
+
+Read local configuration/NSS and loaded module parameters only. Never mount,
+renumber accounts, load modules, flush keyrings or write kernel state.
+"""
+from __future__ import annotations
+
+import grp
+import configparser
+import json
+import os
+from pathlib import Path
+import pwd
+import shlex
+import stat
+import subprocess
+import sys
+
+CONFIG = Path('/etc/network-sharing/config.json')
+MODE_CONFIG = Path('/etc/apparmor/modes.conf')
+TOOL_ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C', 'LC_ALL': 'C'}
+
+
+def query(argv: list[str]) -> str:
+    result = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True, env=TOOL_ENV,
+                            timeout=10, check=True)
+    return result.stdout
+
+
+def read_local(path: Path, limit: int = 65536) -> str:
+    for parent in reversed(path.parents):
+        metadata = parent.lstat()
+        if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_mode & 0o022:
+            raise ValueError('untrusted NFS identity configuration parent')
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(fd, 'r', encoding='utf-8') as stream:
+        metadata = os.fstat(stream.fileno())
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_nlink != 1 or metadata.st_mode & 0o022:
+            raise ValueError('untrusted NFS identity configuration')
+        text = stream.read(limit + 1)
+    if len(text) > limit:
+        raise ValueError('oversized NFS identity configuration')
+    return text
+
+
+def check(config: dict) -> None:
+    if (not isinstance(config, dict) or config.get('version') != 2
+            or any(type(config.get(k)) is not bool for k in ('server_enabled', 'client_enabled'))
+            or not isinstance(config.get('profile'), dict)):
+        raise ValueError('invalid installed NFS identity configuration')
+    if not (config['server_enabled'] or config['client_enabled']):
+        raise ValueError('no installed NFS role is enabled')
+    settings = config['profile']
+    account = pwd.getpwnam(settings['ACCOUNT_USERNAME'])
+    uid, gid = int(settings['NFS_ACCOUNT_UID']), int(settings['NFS_ACCOUNT_GID'])
+    if (account.pw_uid != uid or account.pw_gid != gid or account.pw_dir != settings['ACCOUNT_HOME']
+            or pwd.getpwuid(uid).pw_name != account.pw_name):
+        raise ValueError('NFS primary account UID/GID/home changed')
+    shared = grp.getgrnam(settings['NFS_SHARED_GROUP'])
+    shared_gid = int(settings['NFS_SHARED_GID'])
+    canonical = grp.getgrgid(shared_gid)
+    # The installer creates this local group and adds the account explicitly.
+    # initgroups/getgrouplist enumerates *all* NSS group providers (including
+    # systemd userdb or remote directories), even after a successful files
+    # lookup. It has no Python timeout and can stall the prerequisite mount.
+    # Check the managed group's own member list and primary GID instead.
+    if (shared.gr_gid != shared_gid or canonical.gr_gid != shared_gid or canonical.gr_name != shared.gr_name
+            or (gid != shared_gid and account.pw_name not in shared.gr_mem)):
+        raise ValueError('NFS shared group GID/membership changed')
+    anonymous = pwd.getpwnam('nobody')
+    if (anonymous.pw_uid != 65534 or anonymous.pw_gid != 65534
+            or grp.getgrnam('nogroup').gr_gid != 65534
+            or anonymous.pw_name in shared.gr_mem or anonymous.pw_gid == shared_gid):
+        raise ValueError('NFS anonymous identity must not have shared-group access')
+    # Newer libnfsidmap reads /etc/idmapd.conf.d after /etc/idmapd.conf.
+    # Never let an unrelated drop-in widen the managed namespace/method.
+    directory = Path('/etc/idmapd.conf.d')
+    if directory.exists() or directory.is_symlink():
+        metadata = directory.lstat()
+        if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_mode & 0o022:
+            raise ValueError('unsafe idmapd override directory')
+        for path in directory.glob('*.conf'):
+            if any(line.strip() and not line.lstrip().startswith(('#', ';')) for line in read_local(path).splitlines()):
+                raise ValueError('unmanaged idmapd override settings')
+    domain = 'sharing.' + settings['SYSTEM_DOMAIN']
+    mapping = configparser.ConfigParser(interpolation=None)
+    mapping.read_string(read_local(Path('/etc/idmapd.conf')))
+    expected = {
+        'General': {'verbosity': '0', 'domain': domain, 'no-strip': 'none'},
+        'Mapping': {'nobody-user': 'nobody', 'nobody-group': 'nogroup'},
+        'Translation': {'method': 'nsswitch'},
+    }
+    if mapping.defaults() or {section: dict(mapping[section]) for section in mapping.sections()} != expected:
+        raise ValueError('NFS name-mapping policy changed')
+    # -d reads the effective libnfsidmap domain without creating/flushing keys.
+    if query(['/usr/sbin/nfsidmap', '-d']).strip() != domain:
+        raise ValueError('effective NFS identity domain differs from SYSTEM_DOMAIN')
+    if config['client_enabled']:
+        resolver = read_local(Path('/etc/request-key.d/id_resolver.conf'))
+        rules = [line.strip() for line in resolver.splitlines() if line.strip() and not line.lstrip().startswith('#')]
+        if rules != ['create id_resolver * * /usr/sbin/nfsidmap -t 600 %k %d']:
+            raise ValueError('NFS client identity upcall policy changed')
+        # request-key selects the most specific rule across ALL its files.
+        # A second exact type rule can beat this generic description handler.
+        files = [Path('/etc/request-key.conf'), *Path('/etc/request-key.d').glob('*.conf')]
+        for path in files:
+            if path.name == 'id_resolver.conf' or not (path.exists() or path.is_symlink()):
+                continue
+            for line in read_local(path).splitlines():
+                if not line.lstrip().startswith('#') and line.split()[:2] == ['create', 'id_resolver']:
+                    raise ValueError('conflicting NFS request-key identity handler')
+    if config['server_enabled']:
+        # Refuse export drift on start/reload, including extra exports.d files.
+        # Exact comparison is sufficient: installer validation has already
+        # checked the single configured LAN export and all security flags.
+        def active_exports(path: Path) -> list[str]:
+            return [line.strip() for line in read_local(path).splitlines()
+                    if line.strip() and not line.lstrip().startswith('#')]
+        if active_exports(Path('/etc/exports')) != [settings['NFS_SERVER_EXPORTS']]:
+            raise ValueError('managed NFS export policy changed')
+        directory = Path('/etc/exports.d')
+        if directory.exists() or directory.is_symlink():
+            metadata = directory.lstat()
+            if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_mode & 0o022:
+                raise ValueError('unsafe NFS export override directory')
+            for path in directory.glob('*.exports'):
+                if active_exports(path):
+                    raise ValueError('unmanaged NFS export override settings')
+        # Query nfs-utils' effective configuration, including later drop-ins.
+        # A daemon config override must not restore v3, UDP or client-supplied
+        # supplemental groups behind the firewall/startup guards.
+        daemon = configparser.ConfigParser(interpolation=None)
+        daemon.read_string(query(['/usr/sbin/nfsconf', '--dump']))
+        # nfs-utils can prefix every exports path with [exports] rootdir.
+        # Reject an override that redirects the validated sharing directory.
+        for section in daemon.sections():
+            if (section.lower() == 'exports'
+                    and shlex.split(daemon[section].get('rootdir', '')) not in ([], ['/'])):
+                raise ValueError('effective NFS export root was redirected')
+        policy = {
+            'nfsd': {'threads': settings['NFS_SERVER_THREADS'], 'port': settings['NFS_SERVER_PORT'],
+                     'tcp': 'y', 'udp': 'n', 'vers2': 'n', 'vers3': 'n',
+                     'vers4': 'y', 'vers4.0': 'n', 'vers4.1': 'y', 'vers4.2': 'y'},
+            'mountd': {'manage-gids': 'y', 'reverse-lookup': 'n'},
+        }
+        for section, fields in policy.items():
+            # nfsconf emits conf-file syntax and may quote its expanded values.
+            if section not in daemon or any(shlex.split(daemon[section].get(key, '')) != [value] for key, value in fields.items()):
+                raise ValueError('effective NFS daemon policy changed: ' + section)
+        # rpc.nfsd's legacy port fallback treats even n/0/empty as an RDMA
+        # port request. Both packaged startup paths disable RDMA when unset.
+        if any(key in daemon['nfsd'] for key in ('rdma', 'rdma-port')):
+            raise ValueError('effective NFS daemon policy changed: RDMA must remain unset')
+    for role, name in (('client_enabled', 'nfs'), ('server_enabled', 'nfsd')):
+        if config[role]:
+            # modprobe options do not change built-in/previously loaded modules.
+            # Refuse a numeric-only kernel instead of silently disabling mapping.
+            path = Path('/sys/module') / name / 'parameters/nfs4_disable_idmapping'
+            if path.read_text(encoding='ascii').strip() not in ('N', '0'):
+                raise ValueError(name + ': NFSv4 name mapping is not enabled')
+
+
+def require_confinement() -> None:
+    # AppArmorProfile= is ignored when the LSM is disabled. Require our own
+    # label and the exact mode rendered from DESKTOP_APPARMOR_STATE in the
+    # trusted network-sharing policy row.
+    for path in ('/proc/self/attr/apparmor/current', '/proc/self/attr/current'):
+        try:
+            with Path(path).open(encoding='ascii') as stream:
+                label = stream.read(256).strip()
+        except FileNotFoundError:
+            continue
+        if label not in ('network-sharing-identity (enforce)', 'network-sharing-identity (complain)'):
+            raise ValueError('the managed network-sharing-identity AppArmor profile is required')
+        rows = []
+        for line in read_local(MODE_CONFIG).splitlines():
+            fields = line.split()
+            if not fields or fields[0].startswith('#'):
+                continue
+            if len(fields) != 4:
+                raise ValueError('invalid managed AppArmor mode configuration')
+            if fields[2] == 'network-sharing':
+                rows.append(fields)
+        if (len(rows) != 1 or rows[0][1:] != ['required', 'network-sharing', '-']
+                or rows[0][0] not in ('enforce', 'complain')):
+            raise ValueError('a unique enforce or complain network-sharing mode is required')
+        if label != 'network-sharing-identity (' + rows[0][0] + ')':
+            raise ValueError('network-sharing-identity AppArmor mode differs from managed policy')
+        return
+    raise ValueError('AppArmor process label is unavailable')
+
+
+def main(argv: list[str]) -> int:
+    if argv or os.getuid() != 0 or os.geteuid() != 0:
+        raise ValueError('run this no-argument helper through network-sharing-identity.service')
+    require_confinement()
+    print('event=network_sharing_identity status=checking', file=sys.stderr, flush=True)
+    check(json.loads(read_local(CONFIG)))
+    print('event=network_sharing_identity status=verified', file=sys.stderr, flush=True)
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except (OSError, ValueError, KeyError, TypeError, configparser.Error, subprocess.SubprocessError) as error:
+        print('network-sharing-identity: ' + str(error), file=sys.stderr)
+        raise SystemExit(1)

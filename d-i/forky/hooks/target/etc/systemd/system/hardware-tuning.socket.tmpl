@@ -1,0 +1,14 @@
+[Unit]
+Description=Authenticated local hardware tuning control socket
+
+[Socket]
+ListenStream=/run/hardware-tuning/control.sock
+SocketUser=root
+SocketGroup=__INSTALLER_HARDWARE_GID__
+SocketMode=0660
+DirectoryMode=0755
+RemoveOnStop=yes
+Backlog=32
+
+[Install]
+WantedBy=sockets.target

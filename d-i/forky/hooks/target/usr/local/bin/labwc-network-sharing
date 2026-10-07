@@ -1,0 +1,341 @@
+#!/usr/bin/python3 -I
+"""Profile-controlled NFS management; unprivileged, fixed argv, native picker.
+
+Privileged changes go through systemd's existing active-local administrator
+Polkit policy. This program never calls sudo, pkexec, a shell, or mount itself.
+"""
+from __future__ import annotations
+
+from datetime import datetime, timezone
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import subprocess
+import sys
+
+PICKER = '/usr/local/bin/labwc-fuzzel'
+CONFIG = Path('/etc/network-sharing/config.json')
+REPORT = Path('/run/network-sharing/report.json')
+ACTIONS = (
+    'Sharing Status', 'Connect to NFS Server', 'Disconnect from NFS Server',
+    'Check Connected NFS Clients', 'Start NFS Server', 'Stop NFS Server',
+    'Reload NFS Exports', 'Restart NFS Server', 'Identity Mapping and RPC Diagnostics',
+    'Show Configured Exports', 'Recent NFS Logs', 'Sharing Help',
+)
+
+
+def clean(text: str, limit: int = 800) -> str:
+    return ''.join(c if c.isprintable() else ' ' for c in str(text))[:limit]
+
+
+def read_json(path: Path, limit: int = 4 * 1024 * 1024) -> dict:
+    # Both locations have installer/service-owned, non-writable parents.
+    for parent in reversed(path.parents):
+        metadata = parent.lstat()
+        if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_mode & 0o022:
+            raise ValueError('untrusted network sharing directory')
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(fd, 'rb') as stream:
+        metadata = os.fstat(stream.fileno())
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_nlink != 1 or metadata.st_mode & 0o022:
+            raise ValueError('untrusted network sharing data file')
+        raw = stream.read(limit + 1)
+    if len(raw) > limit:
+        raise ValueError('network sharing data is too large')
+    value = json.loads(raw)
+    if not isinstance(value, dict):
+        raise ValueError('unsupported network sharing data format')
+    return value
+
+
+def load_config() -> dict:
+    config = read_json(CONFIG, 65536)
+    if config.get('version') != 2:
+        raise ValueError('unsupported network sharing configuration; explicit client mounts require version 2')
+    if any(key in config for key in ('client_automount', 'client_bind_automount', 'server_bind_automount')):
+        raise ValueError('automatic client mount configuration is unsupported')
+    if any(type(config.get(key)) is not bool for key in ('server_enabled', 'client_enabled')):
+        raise ValueError('invalid role flags')
+    if not isinstance(config.get('profile'), dict):
+        raise ValueError('missing installed profile settings')
+    for key in ('client_mount', 'server_bind_mount', 'client_bind_mount'):
+        value = config.get(key)
+        if not isinstance(value, str) or (value and (len(value) > 255 or not re.fullmatch(r'(?!-)(?:[A-Za-z0-9_.-]|\\x[0-9a-f]{2})+\.mount', value))):
+            raise ValueError('invalid managed mount unit')
+    if not config['client_mount']:
+        raise ValueError('missing client mount unit')
+    if ((config['client_bind_mount'] and not config['client_enabled'])
+            or (config['server_bind_mount'] and not config['server_enabled'])):
+        raise ValueError('home bind configured for a disabled NFS role')
+    return config
+
+
+def choose(labels: list[str], prompt: str) -> str | None:
+    result = subprocess.run(
+        [PICKER, 'computer-management', '--dmenu', '--prompt', clean(prompt, 180)],
+        input=''.join(label + '\n' for label in labels), text=True,
+        stdout=subprocess.PIPE, check=False,
+        env={**os.environ, 'LABWC_MENU_INPUT_MODE': 'choice',
+             'LABWC_FUZZEL_MANAGED_ICONS': '1', 'LABWC_FUZZEL_ROOT_MENU': '0',
+             'LABWC_MENU_ACTION_WAIT': '1'})
+    if result.returncode == 1:
+        return None
+    if result.returncode:
+        raise RuntimeError('Network Sharing picker failed: ' + str(result.returncode))
+    selected = result.stdout.removesuffix('\n')
+    return selected if selected in labels else None
+
+
+def show(title: str, lines: list[str]) -> None:
+    # Display-only lines never become command arguments or action identifiers.
+    rows = [clean(line) for line in lines if line.strip()]
+    if len(rows) > 300:
+        rows = rows[:299] + ['[Display limited to 300 rows; full diagnostics are in /run/network-sharing/report.json]']
+    choose([*rows, 'Back'], title)
+
+
+def confirm(title: str) -> bool:
+    return choose(['Cancel', 'Continue'], title) == 'Continue'
+
+
+def units(config: dict) -> list[str]:
+    result = ['nftables.service']
+    if config['server_enabled'] or config['client_enabled']:
+        result.append('network-sharing-identity.service')
+    if config['server_enabled']:
+        result += ['nfs-server.service', 'nfs-mountd.service', 'nfs-idmapd.service']
+    if config['client_enabled']:
+        result += ['nfs-client.target', config['client_mount']]
+    result += [config[key] for key in ('server_bind_mount', 'client_bind_mount') if config[key]]
+    return list(dict.fromkeys(result))
+
+
+def command(argv: list[str], timeout: int = 100) -> subprocess.CompletedProcess:
+    # No environment-controlled pager, bus redirection, shell, or PATH lookup.
+    env = {key: value for key, value in os.environ.items()
+           if key in ('HOME', 'USER', 'LOGNAME', 'XDG_RUNTIME_DIR', 'LANG', 'LC_ALL', 'TERM')}
+    env.update(PATH='/usr/sbin:/usr/bin:/sbin:/bin', SYSTEMD_PAGER='cat',
+               SYSTEMD_COLORS='0', SYSTEMD_URLIFY='0')
+    try:
+        return subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, text=True, check=False,
+                              timeout=timeout, env=env)
+    except subprocess.TimeoutExpired as error:
+        # systemctl's client is killed/reaped, not a remote hard-mounted I/O
+        # worker. The manager still owns its bounded mount/service job.
+        raise RuntimeError('Command timed out; check Sharing Status. The systemd job may still be completing; no forced unmount was attempted.') from error
+
+
+def systemctl(config: dict, verb: str, selected: list[str]) -> subprocess.CompletedProcess:
+    # Firewall, identity and RPC dependencies are status-only here. Starting
+    # the configured server/mount lets PID 1 enforce their dependency graph.
+    client = {config[key] for key in ('client_mount', 'client_bind_mount') if config[key]} if config['client_enabled'] else set()
+    server = {'nfs-server.service'} if config['server_enabled'] else set()
+    diagnostics = {'network-sharing-report.service'} if config['server_enabled'] or config['client_enabled'] else set()
+    allowed = {'show': set(units(config)) | diagnostics,
+               'start': client | server | diagnostics, 'stop': client | server,
+               'restart': server, 'reload': server}
+    if verb not in allowed or not selected or any(unit not in allowed[verb] for unit in selected):
+        raise ValueError('unmanaged systemd operation rejected')
+    args = ['/usr/bin/systemctl', '--system', '--no-pager', '--no-legend', verb]
+    if verb == 'show':
+        args += ['--property=Id,LoadState,ActiveState,SubState,Result']
+    return command([*args, '--', *selected], 200 if verb != 'show' else 15)
+
+
+def need_role(config: dict, role: str) -> bool:
+    if config[role + '_enabled']:
+        return True
+    show('NFS ' + role + ' is disabled', [
+        'Enable NFS_' + role.upper() + '_ENABLE in the selected installer profile and rebuild.',
+        'The menu does not install packages, edit exports, or enable an unconfigured role.'])
+    return False
+
+
+def report(config: dict) -> dict | None:
+    if not config['server_enabled'] and not config['client_enabled']:
+        show('NFS is disabled', ['No NFS diagnostics service is installed when both roles are disabled.'])
+        return None
+    requested = datetime.now(timezone.utc)
+    result = systemctl(config, 'start', ['network-sharing-report.service'])
+    if result.returncode:
+        raise RuntimeError('Diagnostics failed: ' + clean(result.stdout, 1600))
+    # A successful start can still be skipped by a unit condition. Never show
+    # an old report as fresh in that case, or after a concurrent old invocation.
+    data = read_json(REPORT)
+    if data.get('version') != 1:
+        raise RuntimeError('unsupported network sharing diagnostic format')
+    created = datetime.fromisoformat(data.get('created_utc', ''))
+    if created.tzinfo is None or created < requested:
+        raise RuntimeError('Diagnostics did not publish a fresh report; check the report service and retry.')
+    if any(type(data.get(key)) is not bool or data[key] != config[key] for key in ('server_enabled', 'client_enabled')):
+        raise RuntimeError('Diagnostics role settings differ from the installed configuration.')
+    return data
+
+
+def completed(result: subprocess.CompletedProcess) -> None:
+    if result.returncode:
+        show('NFS operation failed', [*result.stdout.splitlines(),
+             'Authorization requires an active local administrator and the desktop authentication agent.',
+             'Check Sharing Status and Recent NFS Logs.'])
+    else:
+        show('NFS operation completed', result.stdout.splitlines() or ['Done.'])
+
+
+def action(config: dict, label: str) -> None:
+    if label == 'Sharing Status':
+        settings = config['profile']
+        result = systemctl(config, 'show', units(config))
+        if result.returncode:
+            raise RuntimeError('Cannot read sharing status: ' + clean(result.stdout, 1600))
+        show('Sharing Status', [
+            'Server enabled: ' + str(config['server_enabled']),
+            'Client enabled: ' + str(config['client_enabled']),
+            'Root: ' + settings['NETWORK_SHARING_ROOT_PATH'],
+            'Remote: ' + settings['NFS_CLIENT_TARGET_IP'] + ':' + settings['NFS_CLIENT_EXPORT_PATH'],
+            *result.stdout.splitlines(),
+            'The client share is mounted only by Connect to NFS Server; browsing Sharing never connects it.'])
+    elif label in ('Connect to NFS Server', 'Disconnect from NFS Server'):
+        if not need_role(config, 'client'):
+            return
+        if label.startswith('Disconnect'):
+            if not confirm('Disconnect NFS? Close files and applications using the share first.'):
+                return
+            # Remove the home bind before the remote source; stop on any error.
+            selected = [config[key] for key in ('client_bind_mount', 'client_mount') if config[key]]
+            verb = 'stop'
+        else:
+            settings = config['profile']
+            shared_gid = int(settings['NFS_SHARED_GID'])
+            if shared_gid not in {os.getgid(), *os.getgroups()}:
+                show('NFS group is missing from this login', [
+                    'Log out and log in again after joining ' + settings['NFS_SHARED_GROUP'] + '.',
+                    'The group database and the running desktop session must both include the shared GID.',
+                    'Mounting a share does not update the groups of an existing session.'])
+                return
+            selected = [config['client_mount']]
+            selected += [config['client_bind_mount']] if config['client_bind_mount'] else []
+            verb = 'start'
+        # Wait for each job. A failed remote mount must never start a home
+        # bind, and a failed home unmount must leave the source mounted.
+        for unit in selected:
+            result = systemctl(config, verb, [unit])
+            if result.returncode:
+                completed(result)
+                return
+        completed(result)
+    elif label in ('Start NFS Server', 'Stop NFS Server', 'Restart NFS Server', 'Reload NFS Exports'):
+        if not need_role(config, 'server'):
+            return
+        verb = {'Start NFS Server': 'start', 'Stop NFS Server': 'stop',
+                'Restart NFS Server': 'restart', 'Reload NFS Exports': 'reload'}[label]
+        if verb != 'start' and not confirm(label + '? This can affect connected clients.'):
+            return
+        completed(systemctl(config, verb, ['nfs-server.service']))
+    elif label == 'Check Connected NFS Clients':
+        if not need_role(config, 'server'):
+            return
+        data = report(config)
+        if data is None:
+            return
+        clients = data['client_records']
+        lines = [data['created_utc'], data['notice']]
+        if clients.get('unavailable'):
+            lines += ['Client records unavailable: ' + clients['unavailable']]
+        elif not clients['entries']:
+            lines += ['No NFSv4 client records reported by the kernel.']
+        for client in clients['entries']:
+            lines += ['Client ' + client['kernel_id'], *client.get('value', client.get('unavailable', '')).splitlines()]
+        if clients.get('truncated'):
+            lines += ['Client list capped at 128 records.']
+        show('Kernel NFSv4 Client Records', lines)
+    elif label == 'Identity Mapping and RPC Diagnostics':
+        data = report(config)
+        if data is None:
+            return
+        settings = config['profile']
+        lines = [data['created_utc'], 'Domain: sharing.' + settings['SYSTEM_DOMAIN'],
+                 'Account: ' + settings['ACCOUNT_USERNAME'] + ' (UID ' + settings['NFS_ACCOUNT_UID'] + ', GID ' + settings['NFS_ACCOUNT_GID'] + ')',
+                 'Shared group: ' + settings['NFS_SHARED_GROUP'] + ' (GID ' + settings['NFS_SHARED_GID'] + ')',
+                 'Mapping is enabled when disable_idmapping is N/0. AUTH_SYS still needs consistent numeric UID/GID values.']
+        for key, value in data.items():
+            if key == 'client_records' or not isinstance(value, dict):
+                continue
+            lines += [key + ':', *value.get('value', value.get('unavailable', '')).splitlines()]
+        show('Identity Mapping and RPC Diagnostics', lines)
+    elif label == 'Show Configured Exports':
+        if not need_role(config, 'server'):
+            return
+        show('Configured Export Policy (not a live export listing)', [
+            config['profile']['NFS_SERVER_PATH'],
+            *[cidr + ' : ' + mode for cidr, mode in config['peers']],
+            'sync, root_squash, secure, sec=sys, subtree_check, fsid=0',
+            'This displays the installed profile, not later manual administrator changes.'])
+    elif label == 'Recent NFS Logs':
+        args = ['/usr/bin/journalctl', '--no-pager', '--output=short-iso', '--lines=80']
+        for unit in [*units(config), 'network-sharing-report.service']:
+            args += ['--unit', unit]
+        result = command(args, 15)
+        if result.returncode:
+            raise RuntimeError('Cannot read NFS logs: ' + clean(result.stdout, 1600))
+        show('Recent NFS Logs', result.stdout.splitlines() or ['No readable entries. Journal access follows the existing account group policy.'])
+    elif label == 'Sharing Help':
+        show('Network Sharing Help', [
+            'Only the installed profile server, paths and units can be managed here.',
+            'NFSv4.1/4.2 uses TCP ' + config['profile']['NFS_SERVER_PORT'] + '; this setup has no NFSv3 or showmount dependency.',
+            'AUTH_SYS is not encrypted and does not authenticate a hostile client. Use a trusted LAN or a separately configured trusted VPN.',
+            'Keep user UID and shared group GID consistent on all participating hosts.',
+            'Root is squashed even on the trusted server-peer range. Read-only peers cannot write.',
+            'Server data: ' + config['profile']['NFS_SERVER_PATH'],
+            'Client data: ' + config['profile']['NFS_CLIENT_PATH'],
+            'Use Connect to NFS Server to mount the client share. Browsing Sharing does not connect it.',
+            'mount -a requires root. sudo mount -a skips the noauto client entries; Connect starts their dependencies in order.',
+            'After joining the shared group, log out and log in again so this desktop session has the new GID.',
+            'A hard-mounted share may block application I/O during outages. Never use lazy/forced unmount to conceal that condition.',
+            'Disconnect only after closing applications and files. The menu never probes file contents on a remote share.',
+            'A failed unmount stops the disconnect sequence; close the remaining users of the share and retry.',
+            'Client mounts stay disconnected at boot. Connect/disconnect and server actions change only the current state.',
+            'Role changes and a new remote server require an administrator-reviewed configuration change; see docs/network-sharing.md in the installer repository.'])
+    else:
+        raise ValueError('unknown network sharing action')
+
+
+def main(argv: list[str]) -> int:
+    if argv == ['--catalog']:
+        print(json.dumps(ACTIONS, indent=2))
+        return 0
+    if argv not in ([], ['--status']):
+        raise ValueError('usage: labwc-network-sharing [--catalog|--status]')
+    if os.geteuid() == 0:
+        raise ValueError('Network Sharing must run as the desktop user, never root')
+    try:
+        config = load_config()
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        if not argv:
+            show('Network Sharing Configuration Error', [str(error)])
+            return 2
+        raise
+    if argv == ['--status']:
+        result = systemctl(config, 'show', units(config))
+        print(result.stdout, end='')
+        return result.returncode
+    while True:
+        selected = choose([*ACTIONS, 'Back'], 'Computer Management / Network & Remote / Network Sharing')
+        if selected is None or selected == 'Back':
+            return 0
+        try:
+            action(config, selected)
+        except (OSError, ValueError, KeyError, TypeError, RuntimeError) as error:
+            show('Network Sharing Error', [str(error)])
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except KeyboardInterrupt:
+        raise SystemExit(0)
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError) as error:
+        print('Network Sharing: ' + clean(str(error), 1600), file=sys.stderr)
+        raise SystemExit(2)

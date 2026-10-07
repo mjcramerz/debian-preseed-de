@@ -1,0 +1,9 @@
+#!/bin/sh
+# Polkit authorizes this exact helper for the configured active/local greeter.
+# The shared root frontend validates root, PKEXEC_UID and its passwd identity.
+set -eu
+[ "$#" -eq 1 ] || { printf 'usage: greetd-power-action-root {poweroff|reboot}\n' >&2; exit 64; }
+case "$1" in
+  poweroff|reboot) exec /usr/local/libexec/labwc-admin-action-root "greeter-$1" ;;
+  *) printf 'unsupported greeter power action\n' >&2; exit 64 ;;
+esac

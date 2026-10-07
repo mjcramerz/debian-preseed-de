@@ -1,0 +1,198 @@
+window {
+  background-color: __THEME_GTKGREET_WINDOW_NORMAL_BACKGROUND_COLOR__;
+  background-image: url("__INSTALLER_LABWC_GREETER_BACKGROUND_URL__");
+  background-size: cover;
+  background-position: center;
+  color: __THEME_GTKGREET_WINDOW_NORMAL_TEXT_COLOR__;
+  font-family: "__THEME_GTKGREET_TEXT_FONT_FAMILY__";
+}
+label#clock {
+  color: __THEME_GTKGREET_CLOCK_NORMAL_TEXT_COLOR__;
+  font-size: __INSTALLER_LABWC_GREETER_CLOCK_FONT_SIZE__px;
+  font-weight: 600;
+  margin: 0 0 18px 0;
+  text-shadow: 0 2px 10px __THEME_GTKGREET_CLOCK_NORMAL_TEXT_SHADOW_COLOR__;
+}
+box#body {
+  background-color: __THEME_GTKGREET_FORM_NORMAL_BACKGROUND_COLOR__;
+  background-image: none;
+  border: 1px solid __THEME_GTKGREET_FORM_NORMAL_OUTLINE_COLOR__;
+  border-radius: 16px;
+  box-shadow: 0 18px 48px __THEME_GTKGREET_FORM_NORMAL_SHADOW_COLOR__;
+  color: __THEME_GTKGREET_FORM_NORMAL_TEXT_COLOR__;
+  margin: __INSTALLER_LABWC_GREETER_PANEL_MARGIN__px;
+  min-width: __INSTALLER_LABWC_GREETER_PANEL_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_GREETER_PANEL_PADDING_Y__px __INSTALLER_LABWC_GREETER_PANEL_PADDING_X__px;
+}
+box#body label {
+  color: __THEME_GTKGREET_LABEL_NORMAL_TEXT_COLOR__;
+  font-size: __INSTALLER_LABWC_GREETER_LABEL_FONT_SIZE__px;
+  font-weight: 600;
+  margin: 0 8px 8px 0;
+}
+box#body entry#input-field {
+  background-color: __THEME_GTKGREET_INPUT_NORMAL_BACKGROUND_COLOR__;
+  background-image: none;
+  border: 1px solid __THEME_GTKGREET_INPUT_NORMAL_OUTLINE_COLOR__;
+  border-radius: 10px;
+  box-shadow: none;
+  color: __THEME_GTKGREET_INPUT_NORMAL_TEXT_COLOR__;
+  font-size: __INSTALLER_LABWC_GREETER_CONTROL_FONT_SIZE__px;
+  min-height: __INSTALLER_LABWC_GREETER_CONTROL_MIN_HEIGHT__px;
+  min-width: __INSTALLER_LABWC_GREETER_ENTRY_MIN_WIDTH__px;
+  padding: 6px 13px;
+  margin: 0 0 14px 0;
+}
+box#body entry#input-field selection {
+  background-color: __THEME_GTKGREET_INPUT_SELECTED_BACKGROUND_COLOR__;
+  color: __THEME_GTKGREET_INPUT_SELECTED_TEXT_COLOR__;
+}
+box#body entry#input-field:focus {
+  background-color: __THEME_GTKGREET_INPUT_FOCUS_BACKGROUND_COLOR__;
+  border-color: __THEME_GTKGREET_INPUT_FOCUS_OUTLINE_COLOR__;
+  box-shadow: 0 0 0 3px __THEME_GTKGREET_INPUT_FOCUS_SHADOW_COLOR__;
+}
+box#body combobox#command-selector {
+  background-color: __THEME_GTKGREET_SESSION_SELECTOR_NORMAL_BACKGROUND_COLOR__;
+  background-image: none;
+  border: 1px solid __THEME_GTKGREET_SESSION_SELECTOR_NORMAL_OUTLINE_COLOR__;
+  border-radius: 10px;
+  box-shadow: none;
+  color: __THEME_GTKGREET_SESSION_SELECTOR_NORMAL_TEXT_COLOR__;
+  font-size: __INSTALLER_LABWC_GREETER_CONTROL_FONT_SIZE__px;
+  min-height: __INSTALLER_LABWC_GREETER_CONTROL_MIN_HEIGHT__px;
+  min-width: __INSTALLER_LABWC_GREETER_SHELL_MIN_WIDTH__px;
+  padding: 0 10px;
+  margin: 0 0 16px 0;
+}
+box#body combobox#command-selector:focus {
+  background-color: __THEME_GTKGREET_SESSION_SELECTOR_FOCUS_BACKGROUND_COLOR__;
+  border-color: __THEME_GTKGREET_SESSION_SELECTOR_FOCUS_OUTLINE_COLOR__;
+  box-shadow: 0 0 0 3px __THEME_GTKGREET_SESSION_SELECTOR_FOCUS_SHADOW_COLOR__;
+}
+box#body button {
+  background-color: __THEME_GTKGREET_BUTTON_NORMAL_BACKGROUND_COLOR__;
+  background-image: none;
+  border: 1px solid __THEME_GTKGREET_BUTTON_NORMAL_OUTLINE_COLOR__;
+  border-radius: 10px;
+  box-shadow: none;
+  color: __THEME_GTKGREET_BUTTON_NORMAL_TEXT_COLOR__;
+  font-size: __INSTALLER_LABWC_GREETER_CONTROL_FONT_SIZE__px;
+  font-weight: 700;
+  min-height: __INSTALLER_LABWC_GREETER_CONTROL_MIN_HEIGHT__px;
+  min-width: __INSTALLER_LABWC_GREETER_BUTTON_MIN_WIDTH__px;
+  padding: 6px 18px;
+  margin: 6px 0 0 8px;
+}
+box#body button:hover {
+  background-color: __THEME_GTKGREET_BUTTON_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_GTKGREET_BUTTON_HOVER_OUTLINE_COLOR__;
+  color: __THEME_GTKGREET_BUTTON_HOVER_TEXT_COLOR__;
+  box-shadow: 0 8px 20px __THEME_GTKGREET_BUTTON_HOVER_SHADOW_COLOR__;
+}
+box#body button:focus {
+  background-color: __THEME_GTKGREET_BUTTON_FOCUS_BACKGROUND_COLOR__;
+  border-color: __THEME_GTKGREET_BUTTON_FOCUS_OUTLINE_COLOR__;
+  color: __THEME_GTKGREET_BUTTON_FOCUS_TEXT_COLOR__;
+  box-shadow: 0 8px 20px __THEME_GTKGREET_BUTTON_FOCUS_SHADOW_COLOR__;
+}
+box#body button:active {
+  background-color: __THEME_GTKGREET_BUTTON_ACTIVE_BACKGROUND_COLOR__;
+  border-color: __THEME_GTKGREET_BUTTON_ACTIVE_OUTLINE_COLOR__;
+}
+box#body button:disabled {
+  background-color: __THEME_GTKGREET_BUTTON_DISABLED_BACKGROUND_COLOR__;
+  border-color: __THEME_GTKGREET_BUTTON_DISABLED_OUTLINE_COLOR__;
+  color: __THEME_GTKGREET_BUTTON_DISABLED_TEXT_COLOR__;
+}
+box#body combobox#command-selector entry {
+  background-color: __THEME_GTKGREET_SESSION_SELECTOR_ENTRY_NORMAL_BACKGROUND_COLOR__;
+  background-image: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: __THEME_GTKGREET_SESSION_SELECTOR_ENTRY_NORMAL_TEXT_COLOR__;
+  font-size: __INSTALLER_LABWC_GREETER_CONTROL_FONT_SIZE__px;
+  font-weight: 600;
+  min-height: __INSTALLER_LABWC_GREETER_CONTROL_MIN_HEIGHT__px;
+  min-width: 0;
+  padding: 0 4px;
+  margin: 0;
+}
+box#body combobox#command-selector button {
+  background-color: __THEME_GTKGREET_SESSION_SELECTOR_BUTTON_NORMAL_BACKGROUND_COLOR__;
+  background-image: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: __THEME_GTKGREET_SESSION_SELECTOR_BUTTON_NORMAL_TEXT_COLOR__;
+  font-size: __INSTALLER_LABWC_GREETER_CONTROL_FONT_SIZE__px;
+  font-weight: 600;
+  min-height: __INSTALLER_LABWC_GREETER_CONTROL_MIN_HEIGHT__px;
+  min-width: 0;
+  padding: 0 4px;
+  margin: 0;
+}
+box#body combobox#command-selector button:hover {
+  background-color: __THEME_GTKGREET_SESSION_SELECTOR_BUTTON_HOVER_BACKGROUND_COLOR__;
+  border: 0;
+  box-shadow: none;
+  color: __THEME_GTKGREET_SESSION_SELECTOR_BUTTON_HOVER_TEXT_COLOR__;
+}
+box#body combobox#command-selector button:focus {
+  background-color: __THEME_GTKGREET_SESSION_SELECTOR_BUTTON_FOCUS_BACKGROUND_COLOR__;
+  border: 0;
+  box-shadow: none;
+  color: __THEME_GTKGREET_SESSION_SELECTOR_BUTTON_FOCUS_TEXT_COLOR__;
+}
+box#body combobox#command-selector button:active {
+  background-color: __THEME_GTKGREET_SESSION_SELECTOR_BUTTON_ACTIVE_BACKGROUND_COLOR__;
+  border: 0;
+  box-shadow: none;
+  color: __THEME_GTKGREET_SESSION_SELECTOR_BUTTON_ACTIVE_TEXT_COLOR__;
+}
+box#body combobox#command-selector arrow {
+  color: __THEME_GTKGREET_SESSION_SELECTOR_ARROW_NORMAL_ICON_COLOR__;
+  min-height: 16px;
+  min-width: 16px;
+}
+box#body button.suggested-action {
+  background-color: __THEME_GTKGREET_SUBMIT_BUTTON_NORMAL_BACKGROUND_COLOR__;
+  background-image: none;
+  border-color: __THEME_GTKGREET_SUBMIT_BUTTON_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_GTKGREET_SUBMIT_BUTTON_NORMAL_TEXT_COLOR__;
+}
+box#body button.suggested-action:hover {
+  background-color: __THEME_GTKGREET_SUBMIT_BUTTON_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_GTKGREET_SUBMIT_BUTTON_HOVER_OUTLINE_COLOR__;
+  color: __THEME_GTKGREET_SUBMIT_BUTTON_HOVER_TEXT_COLOR__;
+  box-shadow: 0 10px 24px __THEME_GTKGREET_SUBMIT_BUTTON_HOVER_SHADOW_COLOR__;
+}
+box#body button.suggested-action:focus {
+  background-color: __THEME_GTKGREET_SUBMIT_BUTTON_FOCUS_BACKGROUND_COLOR__;
+  border-color: __THEME_GTKGREET_SUBMIT_BUTTON_FOCUS_OUTLINE_COLOR__;
+  color: __THEME_GTKGREET_SUBMIT_BUTTON_FOCUS_TEXT_COLOR__;
+  box-shadow: 0 10px 24px __THEME_GTKGREET_SUBMIT_BUTTON_FOCUS_SHADOW_COLOR__;
+}
+box#body button.suggested-action:active {
+  background-color: __THEME_GTKGREET_SUBMIT_BUTTON_ACTIVE_BACKGROUND_COLOR__;
+  background-image: none;
+  border-color: __THEME_GTKGREET_SUBMIT_BUTTON_ACTIVE_OUTLINE_COLOR__;
+  color: __THEME_GTKGREET_SUBMIT_BUTTON_ACTIVE_TEXT_COLOR__;
+}
+menu {
+  background-color: __THEME_GTKGREET_MENU_NORMAL_BACKGROUND_COLOR__;
+  border: 1px solid __THEME_GTKGREET_MENU_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_GTKGREET_MENU_NORMAL_TEXT_COLOR__;
+  padding: 6px;
+}
+menuitem {
+  border-radius: 7px;
+  color: __THEME_GTKGREET_MENU_ITEM_NORMAL_TEXT_COLOR__;
+  padding: 7px 12px;
+}
+menuitem:hover {
+  background-color: __THEME_GTKGREET_MENU_ITEM_HOVER_BACKGROUND_COLOR__;
+  color: __THEME_GTKGREET_MENU_ITEM_HOVER_TEXT_COLOR__;
+}
+

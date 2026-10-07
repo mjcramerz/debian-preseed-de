@@ -1,0 +1,39 @@
+{
+  "baseline": {
+    "log": "tools-before.log",
+    "tests": 244,
+    "failures_and_errors": [
+      {
+        "outcome": "FAIL",
+        "id": "test_installed_session_failures_20260913.PanelAndWiringTests.test_all_panel_click_commands_use_session_bound_user_services"
+      },
+      {
+        "outcome": "FAIL",
+        "id": "test_labwc_power_handoff.WiringTests.test_all_modified_launchers_have_cgroup_exit_and_session_ownership"
+      },
+      {
+        "outcome": "FAIL",
+        "id": "test_theme_editor.ThemeTests.test_catalog_covers_only_all_target_color_keys_once"
+      }
+    ]
+  },
+  "final": {
+    "log": "tools-final.log",
+    "tests": 244,
+    "failures_and_errors": [
+      {
+        "outcome": "FAIL",
+        "id": "test_installed_session_failures_20260913.PanelAndWiringTests.test_all_panel_click_commands_use_session_bound_user_services"
+      },
+      {
+        "outcome": "FAIL",
+        "id": "test_labwc_power_handoff.WiringTests.test_all_modified_launchers_have_cgroup_exit_and_session_ownership"
+      },
+      {
+        "outcome": "FAIL",
+        "id": "test_theme_editor.ThemeTests.test_catalog_covers_only_all_target_color_keys_once"
+      }
+    ]
+  },
+  "same_failure_identifiers": true
+}

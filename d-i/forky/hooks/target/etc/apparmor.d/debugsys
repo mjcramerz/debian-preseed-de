@@ -1,0 +1,61 @@
+# Managed by unattended-installer. The optional boot collector is read-only
+# outside its root-private report and state directories. Initramfs capture
+# runs before host AppArmor is available and is not governed by this profile.
+abi "/usr/share/apparmor-features/features",
+#include <tunables/global>
+
+profile debugsys-boot-report flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/base>
+  #include <abstractions/python>
+  #include <abstractions/nameservice-strict>
+
+  /usr/bin/python3{,.[0-9]*} rix,
+  /usr/local/libexec/debugsys.py r,
+  /usr/local/sbin/nvme-pcie-status rix,
+  /usr/bin/{id,uname,uptime,systemd-detect-virt,systemctl,journalctl,ps,dpkg,dpkg-query,dkms,timedatectl,loginctl,systemd-analyze,efibootmgr,mokutil,findmnt,lsmod,udevadm} rix,
+  /usr/sbin/{dpkg,dkms,efibootmgr,lsmod,udevadm} rix,
+  /{bin,usr/bin}/{sh,dash,bash,perl} rix,
+  /usr/ r,
+  /usr/{bin,sbin,lib,libexec,share}/ r,
+  /usr/lib/** mr,
+  /usr/share/** r,
+  /{bin,sbin,lib,lib64}/ r,
+  /{bin,sbin,lib,lib64}/** mr,
+
+  /etc/ r,
+  /etc/** r,
+  deny /etc/{shadow,shadow-,gshadow,gshadow-,security/opasswd} r,
+  deny /etc/ssh/ssh_host_*_key r,
+  deny /etc/{ssl/private/**,wireguard/**,NetworkManager/system-connections/**,apt/auth.conf,apt/auth.conf.d/**} r,
+  /proc/ r,
+  /proc/** r,
+  deny /proc/[0-9]*/{environ,mem,fd/**} r,
+  /sys/ r,
+  /sys/** r,
+  /run/ r,
+  /run/{systemd,dbus,log,initramfs}/ r,
+  /run/{systemd,log}/** r,
+  deny /run/{credentials/**,systemd/credentials/**} r,
+  /run/initramfs/debugsys/{,**} r,
+  /run/{systemd/private,dbus/system_bus_socket} rw,
+  /var/ r,
+  /var/{lib,log}/ r,
+  /var/lib/{dpkg,dkms,apt,journal}/ r,
+  /var/lib/{dpkg,dkms,apt}/** r,
+  /var/lib/journal/boot/{,**} r,
+  /var/lib/journal-sealing/status.json r,
+  /var/log/journal/{,**} r,
+  /var/log/managed/ r,
+  /var/log/managed/system/ r,
+  /var/log/managed/system/{kernel.log*,system.log*} r,
+  /var/log/managed/system/debugsys/{,**} rwkl,
+  /var/lib/debugsys/{,armed,operation.lock,last-captured-boot,.debugsys-*} rwkl,
+
+  unix,
+  dbus (send, receive) bus=system peer=(name=org.freedesktop.systemd1),
+  dbus (send, receive) bus=system peer=(name=org.freedesktop.login1),
+  dbus (send, receive) bus=system peer=(name=org.freedesktop.timedate1),
+  signal (send, receive) peer=@{profile_name},
+  signal (receive) peer=unconfined,
+  # No network sockets, user home, initramfs writes, or package maintenance.
+}

@@ -1,0 +1,25 @@
+#!/bin/sh
+set -eu
+
+snapshot_path=${TS_SNAPSHOT_PATH:-}
+case "$snapshot_path" in
+  /*/timeshift-btrfs/snapshots/*) ;;
+  *) exit 0 ;;
+esac
+case "$snapshot_path" in
+  *..*|*//*)
+    printf 'warning: refusing unsafe Timeshift snapshot hook path: %s\n' "$snapshot_path" >&2
+    exit 0
+    ;;
+esac
+
+command -v systemctl >/dev/null 2>&1 || {
+  printf 'warning: systemctl is unavailable; GRUB snapshot refresh was not queued\n' >&2
+  exit 0
+}
+
+if ! systemctl --no-block start grub-btrfs-refresh.service; then
+  printf 'warning: failed to queue GRUB snapshot refresh for %s\n' "$snapshot_path" >&2
+fi
+
+exit 0

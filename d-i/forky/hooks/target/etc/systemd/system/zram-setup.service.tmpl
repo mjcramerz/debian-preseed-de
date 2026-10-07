@@ -1,0 +1,31 @@
+[Unit]
+Description=Configure zram swap with encrypted writeback backing
+# Start after the generic swap boundary so shutdown reverses the ordering:
+# this unit stops its writeback workers, performs swapoff, and resets zram
+# before systemd begins generic swap teardown.
+After=local-fs.target systemd-modules-load.service swap-fallback.service swap.target
+Wants=local-fs.target systemd-modules-load.service swap-fallback.service swap.target
+Before=multi-user.target
+ConditionPathExists=__INSTALLER_FILE_ZRAM_DEFAULT__
+ConditionPathExists=__INSTALLER_FILE_ZRAM_SETUP_HELPER__
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+RuntimeDirectory=zram
+RuntimeDirectoryMode=0750
+SyslogIdentifier=zram-device-setup
+StandardOutput=journal
+StandardError=journal
+ExecStart=__INSTALLER_FILE_ZRAM_SETUP_HELPER__ start
+ExecStop=__INSTALLER_FILE_ZRAM_SETUP_HELPER__ stop
+TimeoutStartSec=2min
+TimeoutStopSec=1min
+MemoryAccounting=yes
+TasksAccounting=yes
+TasksMax=64
+OOMPolicy=stop
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

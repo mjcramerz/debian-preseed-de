@@ -1,0 +1,34 @@
+    @@DEV_PART_OPT_MB@@ @@DEV_PART_OPT_MB@@ @@DEV_PART_OPT_MB@@ btrfs
+        method{ format } format{ }
+        use_filesystem{ } filesystem{ btrfs }
+        mountpoint{ /opt }
+    .
+    @@DEV_PART_DATA_MB@@ @@DEV_PART_DATA_MB@@ @@DEV_PART_DATA_MB@@ xfs
+        method{ format } format{ }
+        use_filesystem{ } filesystem{ xfs }
+        mountpoint{ /data }
+    .
+    @@DEV_PART_POOL_MB@@ @@DEV_PART_POOL_MB@@ @@DEV_PART_POOL_MB@@ xfs
+        method{ format } format{ }
+        use_filesystem{ } filesystem{ xfs }
+        mountpoint{ /pool }
+    .
+    @@DEV_PART_VAR_TMP_MB@@ @@DEV_PART_VAR_TMP_MB@@ @@DEV_PART_VAR_TMP_MB@@ ext4
+        method{ format } format{ }
+        use_filesystem{ } filesystem{ ext4 }
+        mountpoint{ /var/tmp }
+    .
+    @@DEV_PART_VAR_LIB_SHSIGNED_MB@@ @@DEV_PART_VAR_LIB_SHSIGNED_MB@@ @@DEV_PART_VAR_LIB_SHSIGNED_MB@@ free
+        method{ keep }
+    .
+    @@DEV_PART_VAR_LOG_JOURNAL_MB@@ @@DEV_PART_VAR_LOG_JOURNAL_MB@@ @@DEV_PART_VAR_LOG_JOURNAL_MB@@ ext4
+        method{ format } format{ }
+        use_filesystem{ } filesystem{ ext4 }
+        mountpoint{ /var/log/journal }
+    .
+    @@DEV_PART_RAW_SWAP_MB@@ @@DEV_PART_RAW_SWAP_MB@@ @@DEV_PART_RAW_SWAP_MB@@ free
+        method{ keep }
+    .
+    @@DEV_PART_RAW_ZRAM_MB@@ @@DEV_PART_RAW_ZRAM_MB@@ @@DEV_PART_RAW_ZRAM_MB@@ free
+        method{ keep }
+    .

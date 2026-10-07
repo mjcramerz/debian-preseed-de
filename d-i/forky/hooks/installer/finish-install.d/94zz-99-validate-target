@@ -1,0 +1,65 @@
+#!/bin/sh
+# This is a target-readiness record, not an installation-success record.
+# Only the guarded 99reboot sentinel may publish installation.success later.
+set -eu
+runtime=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}
+. "$runtime/bootstrap/source.sh"
+installer_lifecycle_paths
+target=${INSTALLER_TARGET_DIR:-/target}
+awk -v p="$target" '$2==p {found=1} END {exit !found}' /proc/mounts
+[ -f "$LC_STATE/late.done" ]
+[ ! -e "$LC_STATE/first-failure" ]
+chroot "$target" /bin/sh -eu -c '
+audit=$(dpkg --audit)
+[ -z "$audit" ] || { printf "%s\n" "$audit" >&2; exit 1; }
+test -s /etc/fstab
+test -s /boot/grub/grub.cfg
+require_signature() {
+  signatures=$(sbverify --list "$1" 2>&1)
+  # sbverify --list may return zero for an unsigned PE image.
+  printf "%s\n" "$signatures" | grep -Eq "^signature [0-9]+"
+}
+count=0
+for image in /boot/vmlinuz-*; do
+  test -s "$image" || continue
+  version=${image#/boot/vmlinuz-}
+  test -d "/lib/modules/$version"
+  test -s "/boot/initrd.img-$version"
+  lsinitramfs "/boot/initrd.img-$version" >/dev/null
+  require_signature "$image"
+  count=$((count + 1))
+done
+test "$count" -gt 0
+arch=$(dpkg --print-architecture)
+case "$arch" in amd64) suffix=x64 ;; arm64) suffix=aa64 ;; *) exit 1 ;; esac
+for file in "/boot/efi/EFI/debian/shim${suffix}.efi" "/boot/efi/EFI/debian/grub${suffix}.efi" "/boot/efi/EFI/debian/mm${suffix}.efi"; do
+  test -s "$file"
+  require_signature "$file"
+done
+systemctl --root=/ get-default >/dev/null
+# Only installer-specific placeholders in published configuration/executables.
+# Repository source templates and documentation are intentionally not scanned.
+if grep -rIlE "__INSTALLER_[A-Z0-9_]+__" /etc /usr/local/bin /usr/local/sbin /usr/local/libexec; then
+  echo "fatal: unresolved installer placeholder published" >&2
+  exit 1
+else
+  result=$?
+  test "$result" -eq 1
+fi
+'
+# Do not traverse indirect parents when writing privileged readiness state.
+path=$target/var/lib/installer-state
+while [ "$path" != / ]; do
+  [ ! -L "$path" ]
+  path=${path%/*}; [ -n "$path" ] || path=/
+done
+install -d -m 0700 "$target/var/lib/installer-state"
+tmp=$(mktemp "$target/var/lib/installer-state/.validated.XXXXXX")
+trap 'rm -f "$tmp"' 0
+printf 'state=TARGET_VALIDATED\ninstallation_success=not_yet\n' >"$tmp"
+chmod 0600 "$tmp"
+mv "$tmp" "$target/var/lib/installer-state/target-validated"
+tmp=$(mktemp "$LC_STATE/.validated.XXXXXX")
+printf 'state=TARGET_VALIDATED\n' >"$tmp"
+chmod 0600 "$tmp"
+mv "$tmp" "$LC_STATE/target-validated"

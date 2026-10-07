@@ -1,0 +1,7 @@
+# Keyboard illumination starts at the highest ThinkPad-supported level.
+ACTION=="add", SUBSYSTEM=="leds", KERNEL=="tpacpi::kbd_backlight", ATTR{brightness}="2"
+# Reapply supported brightness event bits if the driver appears after boot.
+ACTION=="add", SUBSYSTEM=="platform", KERNEL=="thinkpad_acpi", TAG+="systemd", ENV{SYSTEMD_WANTS}+="labwc-thinkpad-hotkeys.service"
+# Sysfs brightness is separate from a device node's MODE/GROUP. Keep display
+# control with the installed desktop account's video group, including hotplug.
+ACTION=="add", SUBSYSTEM=="backlight", RUN+="/usr/bin/chgrp video /sys%p/brightness", RUN+="/usr/bin/chmod g+w /sys%p/brightness"

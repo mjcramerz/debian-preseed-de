@@ -1,0 +1,18 @@
+# Managed samloader-rs access for the exact Samsung Download Mode USB product
+# identifiers supported by samloader-rs 2.0.0. Keep normal Samsung USB modes
+# outside this rule and authorize only plugdev plus the active local session.
+
+ACTION!="add", ACTION!="bind", ACTION!="change", GOTO="managed_samsung_download_end"
+SUBSYSTEM!="usb", GOTO="managed_samsung_download_end"
+ATTR{idVendor}!="04e8", GOTO="managed_samsung_download_end"
+
+ATTR{idProduct}=="6601", GOTO="managed_samsung_download_grant"
+ATTR{idProduct}=="685d", GOTO="managed_samsung_download_grant"
+ATTR{idProduct}=="68c3", GOTO="managed_samsung_download_grant"
+
+GOTO="managed_samsung_download_end"
+
+LABEL="managed_samsung_download_grant"
+MODE="0660", GROUP="plugdev", TAG+="uaccess"
+
+LABEL="managed_samsung_download_end"

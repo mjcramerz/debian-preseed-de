@@ -1,0 +1,19 @@
+apiVersion: cybops.nftables/v1
+kind: NftablesServiceOverlay
+metadata:
+  name: nfs-server
+  description: Managed NFSv4 server; exact trusted IPv4 peers only.
+  merge_priority: 50
+services:
+  nfs_server:
+    enabled: __INSTALLER_NFS_SERVER_ENABLE__
+    direction: inbound
+    enforce_allowlist: true
+    protocols: [tcp]
+    ports: [__INSTALLER_NFS_SERVER_PORT__]
+    allow:
+      ipv4: __INSTALLER_NFS_SERVER_ALLOW_IPV4__
+      ipv6: []
+      interfaces: __INSTALLER_NFS_ALLOW_INTERFACES__
+    sensitive: true
+    log: false

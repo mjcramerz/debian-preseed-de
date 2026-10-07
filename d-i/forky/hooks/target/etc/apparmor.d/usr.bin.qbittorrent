@@ -1,0 +1,11 @@
+# Managed by unattended-installer.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile qbittorrent /usr/bin/qbittorrent flags=(attach_disconnected) {
+  #include <abstractions/qbittorrent-runtime>
+
+  include if exists <local/usr.bin.qbittorrent>
+}

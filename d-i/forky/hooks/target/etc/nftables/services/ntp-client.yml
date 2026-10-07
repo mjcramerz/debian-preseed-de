@@ -1,0 +1,19 @@
+apiVersion: cybops.nftables/v1
+kind: NftablesServiceOverlay
+metadata:
+  name: ntp-client
+  description: Outbound NTP client overlay.
+  merge_priority: 50
+egress:
+  rules:
+    ntp_client:
+      enabled: true
+      protocols:
+      - udp
+      ports:
+      - 123
+      allow_to:
+        ipv4:
+        - 0.0.0.0/0
+        ipv6:
+        - ::/0

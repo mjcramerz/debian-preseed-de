@@ -1,0 +1,21 @@
+apiVersion: cybops.nftables/v1
+kind: NftablesServiceOverlay
+metadata:
+  name: ssh-server
+  description: SSH server inbound allowlist overlay for LAN/VPN administration.
+  merge_priority: 50
+services:
+  ssh_server:
+    enabled: true
+    direction: inbound
+    protocols:
+    - tcp
+    ports:
+    - __INSTALLER_SSH_PORT__
+    allow:
+      ipv4: __INSTALLER_NFTABLES_SSH_ALLOW_IPV4__
+      ipv6: __INSTALLER_NFTABLES_SSH_ALLOW_IPV6__
+      interfaces: __INSTALLER_NFTABLES_SSH_ALLOW_INTERFACES__
+    rate_limit: 10/minute burst 20 packets
+    sensitive: true
+    log: false

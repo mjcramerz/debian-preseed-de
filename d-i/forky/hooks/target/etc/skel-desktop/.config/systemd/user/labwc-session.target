@@ -1,0 +1,15 @@
+[Unit]
+Description=labwc compositor session
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+Requires=dbus.service dbus.socket
+BindsTo=labwc-compositor.service
+After=dbus.service dbus.socket labwc-compositor.service
+# The user manager owns Labwc and this target is the authoritative desktop
+# client boundary. Logout and authenticated power transitions stop this target
+# first. Session services are WantedBy this target and ordered After it, so
+# reverse shutdown ordering stops clients before the target and then the
+# compositor before the user broker and socket. Do not depend on the generic
+# graphical-session target.
+DefaultDependencies=no
+Conflicts=shutdown.target
+Before=shutdown.target

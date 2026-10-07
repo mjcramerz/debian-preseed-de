@@ -1,0 +1,20 @@
+[Unit]
+DefaultDependencies=no
+Conflicts=shutdown.target
+Before=shutdown.target
+Description=Publish the Obsidian vault once each active desktop hour
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionEnvironment=XDG_SESSION_TYPE=wayland
+Requisite=labwc-session.target
+After=labwc-session.target
+PartOf=labwc-session.target
+
+[Timer]
+OnActiveSec=5min
+OnUnitInactiveSec=1h
+AccuracySec=1min
+Unit=obsidian-git-sync.service
+
+[Install]
+WantedBy=labwc-session.target

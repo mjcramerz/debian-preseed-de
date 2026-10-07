@@ -1,0 +1,6 @@
+# Managed by unattended-installer.
+source: journalctl
+journalctl_filter:
+  - "_SYSTEMD_UNIT=ssh.service"
+labels:
+  type: syslog

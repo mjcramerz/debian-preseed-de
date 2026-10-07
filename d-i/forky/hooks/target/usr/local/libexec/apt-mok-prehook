@@ -1,0 +1,223 @@
+#!/usr/bin/python3 -I
+"""Expose encrypted MOK material only for an APT boot/module transaction."""
+from __future__ import annotations
+import fcntl
+import os
+from pathlib import Path
+import re
+import signal
+import stat
+import subprocess
+import sys
+import time
+
+STATE = Path('/run/apt-mok-prehook')
+MARKER = STATE / 'opened'
+TOOL = '/usr/libexec/install-tools/secure-boot-tool'
+OPEN = '/usr/local/sbin/luks-mok-open'
+CLOSE = '/usr/local/sbin/luks-mok-close'
+ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C', 'HOME': '/root'}
+# Keep this expression byte-identical to its entry in 52unattended-upgrades.
+# Both consumers use re.match so the blacklist contains the complete MOK gate.
+# Colon boundaries cover python-apt's foreign-architecture names; the APT
+# action protocol supplies unqualified package names, validated below.
+RELEVANT = re.compile(
+    r'^(?:(?:linux|kernel|grub|shim|initramfs-tools|dracut|dkms|kmod|module-assistant)($|-|:)|'
+    r'.*-dkms($|:)|virtualbox-modules?($|-|:)|.*(?:nvidia|cuda)|'
+    r'(?:cudnn|nccl|nsight|tensorrt|lib(?:cu(?:blas|dart|fft|file|dnn|dss|inj|objclient|pti|rand|solver|sparse|tensor)|'
+    r'nccl|npp|nv(?:blas|cuvid|fatbin|infer|jitlink|jpeg|onnxparsers|optix|parsers|rtc|toolsext|vm)))|'
+    r'(?:cccl|collectx-bringup|cublas|cuquantum|cusparselt|cutensor|cuvs|datacenter-gpu-manager|'
+    r'dcgmi|gds-tools|libdcgm|libnvptxcompiler|libnvsdm|libxnvctrl|mft|nv-hostengine|nvcomp|'
+    r'nvfwupd|nvimgcodec|nvjpeg2k|nvlink|nvlsm|nvshmem|nvtiff|nvvct)($|-|[0-9]|:))'
+)
+
+
+def relevant_actions(stream) -> bool:
+    # Read and validate the complete bounded protocol before acting. Never log
+    # the configuration section: it can contain proxy authentication material.
+    first = stream.readline(65537)
+    if first not in ('VERSION 2\n', 'VERSION 3\n'):
+        raise ValueError('APT must provide package action protocol version 2 or 3')
+    fields = 5 if first == 'VERSION 2\n' else 9
+    configuration = True
+    relevant = False
+    total = len(first)
+    while True:
+        line = stream.readline(65537)
+        if not line:
+            break
+        total += len(line)
+        if len(line) > 65536 or total > 16 * 1024 * 1024:
+            raise ValueError('APT package action input exceeds its limit')
+        if configuration:
+            if line == '\n':
+                configuration = False
+            # Do not act on an alternate dpkg target outside this chroot.
+            key, separator, value = line.partition('=')
+            if (separator and key.lower() == 'dpkg::options::'
+                    and re.match(r'--(?:root|instdir|admindir)(?:=|\s|$)', value)):
+                raise ValueError('MOK hook does not support an alternate dpkg root')
+            continue
+        parts = line.removesuffix('\n').split(maxsplit=fields - 1)
+        if len(parts) != fields or not re.fullmatch(r'[a-z0-9][a-z0-9+.-]*', parts[0]):
+            raise ValueError('invalid APT package action record')
+        if parts[-1] not in ('**CONFIGURE**', '**REMOVE**') and not parts[-1].startswith('/'):
+            raise ValueError('invalid APT package operation')
+        if RELEVANT.match(parts[0]):
+            relevant = True
+    if configuration:
+        raise ValueError('incomplete APT package action input')
+    return relevant
+
+
+def trusted(metadata, *, directory=False) -> None:
+    kind = stat.S_ISDIR if directory else stat.S_ISREG
+    if (not kind(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_mode & 0o077
+            or (not directory and metadata.st_nlink != 1)):
+        raise ValueError('unsafe MOK transaction state')
+
+
+def run(command: list[str], *, check=True, quiet=False, timeout=180) -> subprocess.CompletedProcess:
+    # Kill the complete helper process group on interruption/timeout, including
+    # a passphrase prompt. Keep the controlling terminal: setsid would make
+    # luks-mok-open's /dev/tty unavailable. Temporarily lend it to this group.
+    tty_fd = None
+    foreground = None
+    previous_ttou = None
+    if command[0] == OPEN:
+        try:
+            tty_fd = os.open('/dev/tty', os.O_RDWR | os.O_CLOEXEC)
+            foreground = os.tcgetpgrp(tty_fd)
+        except OSError as exc:
+            if tty_fd is not None:
+                os.close(tty_fd)
+            raise ValueError('unlock needs a controlling terminal; run sudo luks-mok-open before noninteractive APT') from exc
+        previous_ttou = signal.signal(signal.SIGTTOU, signal.SIG_IGN)
+    try:
+        with subprocess.Popen(command, env=ENV, process_group=0,
+                              stdout=subprocess.DEVNULL if quiet else None,
+                              stderr=subprocess.DEVNULL if quiet else None) as child:
+            try:
+                if tty_fd is not None:
+                    os.tcsetpgrp(tty_fd, child.pid)
+                    os.killpg(child.pid, signal.SIGCONT)
+                child.wait(timeout=timeout)
+            except BaseException:
+                try:
+                    os.killpg(child.pid, signal.SIGTERM)
+                    # A child stopped by terminal job control must resume to
+                    # receive TERM. KILL covers helpers that ignore it.
+                    os.killpg(child.pid, signal.SIGCONT)
+                    # Keep the leader unreaped until its descendants have
+                    # also been killed; otherwise its PGID could be reused.
+                    time.sleep(0.2)
+                    os.killpg(child.pid, signal.SIGKILL)
+                    child.wait(timeout=5)
+                except ProcessLookupError:
+                    pass
+                raise
+            if check and child.returncode:
+                raise subprocess.CalledProcessError(child.returncode, command)
+            return subprocess.CompletedProcess(command, child.returncode)
+    finally:
+        if tty_fd is not None:
+            try:
+                os.tcsetpgrp(tty_fd, foreground)
+            finally:
+                os.close(tty_fd)
+                signal.signal(signal.SIGTTOU, previous_ttou)
+
+
+def notify(summary: str, body: str, urgency: str = 'normal') -> None:
+    helper = '/usr/local/sbin/labwc-notify'
+    if os.path.isfile(helper):
+        try:
+            run([helper, '--category', 'x-labwc.maintenance', '--urgency', urgency,
+                 '--summary', summary, '--body', body], check=False, quiet=True, timeout=10)
+        except (OSError, subprocess.SubprocessError):
+            pass  # Notification delivery never changes APT/signing outcomes.
+
+
+def ready() -> bool:
+    return run([TOOL, 'state-ready'], check=False, quiet=True).returncode == 0
+
+
+def cleanup() -> None:
+    if not MARKER.exists():
+        return
+    trusted(MARKER.lstat())
+    try:
+        run([CLOSE])
+    except (OSError, subprocess.SubprocessError):
+        notify('Signing storage could not be locked',
+               'APT could not close its MOK volume. Run sudo luks-mok-close and inspect the APT log.', 'critical')
+        raise
+    MARKER.unlink()  # Keep intent on a close failure, allowing an explicit retry.
+    notify('Signing storage locked', 'APT finished boot/module maintenance and closed its MOK volume.')
+
+
+def main(argv=None) -> int:
+    args = list(sys.argv[1:] if argv is None else argv)
+    if args not in ([], ['--post']):
+        raise ValueError('usage: apt-mok-prehook [--post]')
+    if os.geteuid() != 0:
+        raise ValueError('MOK transaction hook must run as root')
+    post = args == ['--post']
+    if post:
+        if not STATE.exists() or not MARKER.exists():
+            return 0
+    else:
+        descriptor = os.environ.get('APT_HOOK_INFO_FD', '')
+        if not descriptor.isdecimal() or not 3 <= int(descriptor) <= 1024:
+            raise ValueError('APT package information FD is missing or invalid')
+        with os.fdopen(os.dup(int(descriptor)), 'r', encoding='utf-8', errors='strict') as stream:
+            if not relevant_actions(stream):
+                return 0  # No state, package queries, mount checks or prompts.
+        if not os.path.isfile(OPEN):
+            return 0  # The encrypted MOK policy is not installed on this host.
+        STATE.mkdir(mode=0o700, exist_ok=True)
+    trusted(STATE.lstat(), directory=True)
+    fd = os.open(STATE / 'lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    with os.fdopen(fd, 'r+') as lock:
+        trusted(os.fstat(lock.fileno()))
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if post:
+            cleanup()
+            return 0
+        # Recover our own interrupted open before accepting another transaction.
+        cleanup()
+        if ready():
+            return 0  # An administrator owns this open; do not close it later.
+        if run([TOOL, 'state-mounted'], check=False, quiet=True).returncode == 0:
+            raise ValueError('MOK state is mounted but its key/certificate is unavailable')
+        marker_fd = os.open(MARKER, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+        with os.fdopen(marker_fd, 'w', encoding='ascii') as marker:
+            marker.write('opened\n')
+            marker.flush()
+            os.fsync(marker.fileno())
+        try:
+            print('apt MOK hook: unlock the signing volume for boot/module maintenance', file=sys.stderr)
+            run([OPEN])  # luks-mok-open uses /dev/tty, never APT's metadata FD.
+            if not ready():
+                raise ValueError('MOK key/certificate is unavailable after unlocking')
+            notify('Signing storage unlocked', 'APT opened the MOK volume for this boot/module transaction; it will close it afterwards.')
+        except BaseException:
+            try:
+                cleanup()
+            except (OSError, ValueError, subprocess.SubprocessError) as close_error:
+                print(f'apt MOK hook: cleanup also failed: {close_error}', file=sys.stderr)
+            raise
+    return 0
+
+
+if __name__ == '__main__':
+    def interrupted(signum, _frame):
+        raise InterruptedError(f'interrupted by signal {signum}')
+
+    for handled_signal in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+        signal.signal(handled_signal, interrupted)
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, UnicodeError, subprocess.SubprocessError) as exc:
+        print(f'apt MOK hook: {exc}', file=sys.stderr)
+        raise SystemExit(1)

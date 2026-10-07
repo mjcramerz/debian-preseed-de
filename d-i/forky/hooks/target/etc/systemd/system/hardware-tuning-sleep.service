@@ -1,0 +1,34 @@
+[Unit]
+Description=Restore hardware controls before sleep and re-evaluate after resume
+Requires=hardware-tuning.socket
+After=hardware-tuning.socket apparmor.service
+Before=sleep.target
+PartOf=sleep.target
+StopWhenUnneeded=yes
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/labwc-hardware-tuning pause
+ExecStop=/usr/local/bin/labwc-hardware-tuning resume
+TimeoutStartSec=360s
+TimeoutStopSec=360s
+Slice=system.slice
+UMask=0077
+AppArmorProfile=hardware-tuning-client
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+
+[Install]
+RequiredBy=sleep.target

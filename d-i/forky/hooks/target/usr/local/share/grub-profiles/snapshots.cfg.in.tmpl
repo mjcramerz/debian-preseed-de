@@ -1,0 +1,7 @@
+submenu 'BTRFS Snapshots' --id 'snapshots-btrfs' --class snapshots --class btrfs --class os {
+    if [ -f "${prefix}/grub-btrfs.cfg" ]; then
+        configfile "${prefix}/grub-btrfs.cfg"
+    else
+        echo 'The snapshot menu is not available yet. Boot normally to refresh it.'
+    fi
+}

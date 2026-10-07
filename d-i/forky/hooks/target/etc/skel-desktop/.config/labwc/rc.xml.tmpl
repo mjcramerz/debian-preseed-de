@@ -1,0 +1,345 @@
+<?xml version="1.0"?>
+<labwc_config>
+  <core>
+    <decoration>server</decoration>
+    <gap>6</gap>
+    <!-- Labwc must always establish the first usable scanout itself.  The
+         managed watcher converges the topology after the Wayland output is
+         visible; disabling this makes login depend on a racy helper call and
+         can leave every connector black. -->
+    <autoEnableOutputs>yes</autoEnableOutputs>
+    <reuseOutputMode>yes</reuseOutputMode>
+    <primarySelection>yes</primarySelection>
+  </core>
+
+  <placement>
+    <policy>center</policy>
+  </placement>
+
+  <focus>
+    <focusNew>yes</focusNew>
+    <followMouse>no</followMouse>
+    <raiseOnFocus>no</raiseOnFocus>
+  </focus>
+
+  <theme>
+    <name>__THEME_LABWC_WINDOW_DECORATION_THEME__</name>
+    <icon>__INSTALLER_LABWC_DESKTOP_GTK_ICON_THEME__</icon>
+    <titlebar>
+      <layout>icon:iconify,max,close</layout>
+      <showTitle>yes</showTitle>
+    </titlebar>
+    <maximizedDecoration>titlebar</maximizedDecoration>
+    <dropShadows>yes</dropShadows>
+    <cornerRadius>10</cornerRadius>
+    <font place="ActiveWindow">
+      <name>__THEME_LABWC_TEXT_FONT_FAMILY__</name>
+      <size>__INSTALLER_LABWC_FONT_WINDOW_SIZE__</size>
+      <slant>normal</slant>
+      <weight>normal</weight>
+    </font>
+    <font place="InactiveWindow">
+      <name>__THEME_LABWC_TEXT_FONT_FAMILY__</name>
+      <size>__INSTALLER_LABWC_FONT_WINDOW_SIZE__</size>
+      <slant>normal</slant>
+      <weight>normal</weight>
+    </font>
+    <font place="MenuHeader">
+      <name>__THEME_LABWC_TEXT_FONT_FAMILY__</name>
+      <size>__INSTALLER_LABWC_FONT_MENU_SIZE__</size>
+      <slant>normal</slant>
+      <weight>bold</weight>
+    </font>
+    <font place="MenuItem">
+      <name>__THEME_LABWC_TEXT_FONT_FAMILY__</name>
+      <size>__INSTALLER_LABWC_FONT_MENU_SIZE__</size>
+      <slant>normal</slant>
+      <weight>normal</weight>
+    </font>
+    <font place="OnScreenDisplay">
+      <name>__THEME_LABWC_TEXT_FONT_FAMILY__</name>
+      <size>__INSTALLER_LABWC_FONT_OSD_SIZE__</size>
+      <slant>normal</slant>
+      <weight>normal</weight>
+    </font>
+  </theme>
+
+  <menu>
+    <showIcons>yes</showIcons>
+  </menu>
+
+  <desktops>
+    <number>__INSTALLER_LABWC_WORKSPACE_COUNT__</number>
+    <popupTime>600</popupTime>
+    <names>
+__INSTALLER_LABWC_WORKSPACE_NAME_LINES__
+    </names>
+  </desktops>
+
+  <!-- Primary Alt+Tab stays inside labwc: exact workspace state and native
+       modifier/Escape/mouse lifecycle, without an external window-state service. -->
+  <windowSwitcher preview="__INSTALLER_LABWC_WINDOW_SWITCHER_PREVIEW__"
+                  outlines="__INSTALLER_LABWC_WINDOW_SWITCHER_OUTLINES__"
+                  unshade="__INSTALLER_LABWC_WINDOW_SWITCHER_UNSHADE__"
+                  order="__INSTALLER_LABWC_WINDOW_SWITCHER_ORDER__">
+    <osd show="yes" style="__INSTALLER_LABWC_WINDOW_SWITCHER_STYLE__"
+         output="__INSTALLER_LABWC_WINDOW_SWITCHER_OSD_OUTPUT__"
+         thumbnailLabelFormat="%n __THEME_LABWC_TASKVIEW_LABEL_SEPARATOR_ICON_GLYPH__ %T  %S  %o" />
+  </windowSwitcher>
+
+  <libinput>
+    <device category="non-touch">
+      <pointerSpeed>__INSTALLER_LABWC_MOUSE_POINTER_SPEED__</pointerSpeed>
+      <accelProfile>__INSTALLER_LABWC_MOUSE_ACCEL_PROFILE__</accelProfile>
+    </device>
+    <device category="touchpad">
+      <accelProfile>adaptive</accelProfile>
+      <tap>yes</tap>
+      <tapButtonMap>lrm</tapButtonMap>
+      <tapAndDrag>no</tapAndDrag>
+      <dragLock>no</dragLock>
+      <disableWhileTyping>yes</disableWhileTyping>
+      <clickMethod>clickfinger</clickMethod>
+      <scrollMethod>twofinger</scrollMethod>
+    </device>
+  </libinput>
+
+  <keyboard>
+    <default />
+    <numlock>on</numlock>
+    <repeatRate>__INSTALLER_LABWC_KEYBOARD_REPEAT_RATE__</repeatRate>
+    <repeatDelay>__INSTALLER_LABWC_KEYBOARD_REPEAT_DELAY__</repeatDelay>
+    <!-- Use the unmodified Debian compositor's native thumbnail OSD.
+         No simulated held modifier and no secondary window-list application. -->
+    <keybind key="F13">
+      <action name="NextWindow" workspace="current" output="__INSTALLER_LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT__" identifier="all" />
+    </keybind>
+    <keybind key="A-Tab">
+      <action name="NextWindow" workspace="current" output="__INSTALLER_LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT__" identifier="all" />
+    </keybind>
+    <keybind key="A-S-Tab">
+      <action name="PreviousWindow" workspace="current" output="__INSTALLER_LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT__" identifier="all" />
+    </keybind>
+    <!-- Native ThinkPad evdev keys; firmware-owned brightness/volume remain unchanged. -->
+    <keybind key="XF86AudioMicMute" onRelease="yes">
+      <action name="Execute" command="/usr/bin/wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle" />
+    </keybind>
+    <keybind key="XF86ScreenSaver" onRelease="yes">
+      <action name="Execute" command="/usr/local/bin/labwc-lock" />
+    </keybind>
+    <!-- Sleep/power keys remain owned by logind; do not handle them twice. -->
+    <keybind key="XF86Display" onRelease="yes">
+      <action name="Execute" command="/usr/local/bin/labwc-display-configuration" />
+    </keybind>
+    <keybind key="XF86WLAN" onRelease="yes">
+      <action name="Execute" command="/usr/local/bin/labwc-network-control-menu" />
+    </keybind>
+    <keybind key="XF86Battery" onRelease="yes">
+      <action name="Execute" command="/usr/local/bin/labwc-power-menu" />
+    </keybind>
+    <keybind key="XF86Launch1" onRelease="yes">
+      <action name="Execute" command="/usr/local/bin/labwc-computer-management" />
+    </keybind>
+    <keybind key="XF86Launch3" onRelease="yes">
+      <action name="Execute" command="/usr/local/bin/labwc-main-menu" />
+    </keybind>
+    <keybind key="XF86NotificationCenter" onRelease="yes">
+      <action name="Execute" command="/usr/bin/makoctl restore" />
+    </keybind>
+    <keybind key="W-n">
+      <action name="Execute" command="__INSTALLER_LABWC_WAYLAND_APP_DEFAULT_EXEC__ -- /usr/local/bin/labwc-terminal --micro" />
+    </keybind>
+    <keybind key="C-A-n">
+      <action name="Execute" command="__INSTALLER_LABWC_WAYLAND_APP_DEFAULT_EXEC__ -- /usr/local/bin/labwc-terminal --micro" />
+    </keybind>
+    <keybind key="W-Return">
+      <action name="Execute" command="labwc-terminal" />
+    </keybind>
+    <keybind key="W-d">
+      <action name="Execute" command="labwc-run" />
+    </keybind>
+    <keybind key="W-space">
+      <action name="Execute" command="labwc-run" />
+    </keybind>
+    <keybind key="C-A-space">
+      <action name="Execute" command="labwc-run" />
+    </keybind>
+    <keybind key="C-Super_L" onRelease="yes">
+      <action name="Execute" command="wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle" />
+    </keybind>
+    <keybind key="Super_L" onRelease="yes">
+      <action name="Execute" command="labwc-main-menu" />
+    </keybind>
+    <keybind key="Menu">
+      <action name="ShowMenu" menu="root-menu" />
+    </keybind>
+    <keybind key="W-l" onRelease="yes">
+      <action name="Execute" command="/usr/local/bin/labwc-lock" />
+    </keybind>
+    <keybind key="C-l" onRelease="yes">
+      <action name="Execute" command="/usr/local/bin/labwc-lock" />
+    </keybind>
+    <keybind key="C-W-l" onRelease="yes">
+      <action name="Execute" command="/usr/local/bin/labwc-idle-toggle" />
+    </keybind>
+    <keybind key="W-S-d">
+      <action name="Execute" command="/usr/bin/systemctl --user --no-block restart crystal-dock.service" />
+    </keybind>
+    <keybind key="W-m">
+      <action name="Execute" command="labwc-computer-management" />
+    </keybind>
+    <keybind key="C-A-m">
+      <action name="Execute" command="labwc-computer-management" />
+    </keybind>
+    <keybind key="W-S-p">
+      <action name="Execute" command="labwc-power-menu" />
+    </keybind>
+    <keybind key="W-S-o">
+      <action name="Execute" command="/usr/local/libexec/labwc-output-watch --refresh" />
+    </keybind>
+    <keybind key="W-f">
+      <action name="Execute" command="/usr/local/bin/labwc-wayland-app auto -- /usr/bin/thunar" />
+    </keybind>
+    <keybind key="C-A-f">
+      <action name="Execute" command="/usr/local/bin/labwc-wayland-app auto -- /usr/bin/thunar" />
+    </keybind>
+    <keybind key="W-b">
+      <action name="Execute" command="/usr/local/bin/labwc-app nvidia vivaldi" />
+    </keybind>
+    <keybind key="C-A-b">
+      <action name="Execute" command="/usr/local/bin/labwc-app nvidia vivaldi" />
+    </keybind>
+    <keybind key="W-t">
+      <action name="Execute" command="labwc-terminal" />
+    </keybind>
+    <keybind key="C-A-t">
+      <action name="Execute" command="labwc-terminal" />
+    </keybind>
+    <keybind key="W-e">
+      <action name="Execute" command="/usr/local/bin/labwc-app nvidia tutanota" />
+    </keybind>
+    <keybind key="C-A-e">
+      <action name="Execute" command="/usr/local/bin/labwc-app nvidia tutanota" />
+    </keybind>
+    <keybind key="W-p">
+      <action name="Execute" command="/usr/local/bin/labwc-app nvidia bitwarden" />
+    </keybind>
+    <keybind key="C-A-p">
+      <action name="Execute" command="/usr/local/bin/labwc-app nvidia bitwarden" />
+    </keybind>
+    <keybind key="W-w">
+      <action name="Execute" command="labwc-wayscriber-toggle" />
+    </keybind>
+    <keybind key="C-A-w">
+      <action name="Execute" command="labwc-wayscriber-toggle" />
+    </keybind>
+    <keybind key="W-s">
+      <action name="Execute" command="/usr/local/bin/labwc-app auto spotify" />
+    </keybind>
+    <keybind key="C-A-s">
+      <action name="Execute" command="/usr/local/bin/labwc-app auto spotify" />
+    </keybind>
+    <keybind key="W-c">
+      <action name="Execute" command="qalculate-qt" />
+    </keybind>
+    <keybind key="C-A-c">
+      <action name="Execute" command="qalculate-qt" />
+    </keybind>
+    <keybind key="W-o">
+      <action name="Execute" command="/usr/local/bin/labwc-app nvidia filen" />
+    </keybind>
+    <keybind key="C-A-o">
+      <action name="Execute" command="/usr/local/bin/labwc-app nvidia filen" />
+    </keybind>
+    <keybind key="W-a">
+      <action name="Execute" command="__INSTALLER_LABWC_AUDIO_CONTROL_COMMAND__" />
+    </keybind>
+    <keybind key="C-A-a">
+      <action name="Execute" command="__INSTALLER_LABWC_AUDIO_CONTROL_COMMAND__" />
+    </keybind>
+    <keybind key="C-A-x">
+      <action name="Execute" command="wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle" />
+    </keybind>
+__INSTALLER_LABWC_RECORDING_KEYBIND_LINES__
+    <keybind key="W-q">
+      <action name="Close" />
+    </keybind>
+    <keybind key="W-S-q">
+      <action name="Execute" command="labwc-logout" />
+    </keybind>
+__INSTALLER_LABWC_WORKSPACE_KEYBIND_LINES__
+    <keybind key="W-Left">
+      <action name="SnapToEdge" direction="left" combine="yes" />
+    </keybind>
+    <keybind key="W-Right">
+      <action name="SnapToEdge" direction="right" combine="yes" />
+    </keybind>
+    <keybind key="W-Up">
+      <action name="ToggleMaximize" />
+    </keybind>
+    <keybind key="W-Down">
+      <action name="UnMaximize" />
+    </keybind>
+    <keybind key="W-S-f">
+      <action name="ToggleFullscreen" />
+    </keybind>
+    <keybind key="Print">
+      <action name="Execute">
+        <command>labwc-capture screenshot-full</command>
+      </action>
+    </keybind>
+    <keybind key="S-Print">
+      <action name="Execute">
+        <command>labwc-capture screenshot-box</command>
+      </action>
+    </keybind>
+    <keybind key="XF86AudioRaiseVolume">
+      <action name="Execute" command="wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+ --limit 1.2" />
+    </keybind>
+    <keybind key="XF86AudioLowerVolume">
+      <action name="Execute" command="wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-" />
+    </keybind>
+    <keybind key="XF86AudioMute">
+      <action name="Execute" command="wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle" />
+    </keybind>
+    <keybind key="XF86MonBrightnessUp">
+      <action name="Execute" command="labwc-brightness-control up" />
+    </keybind>
+    <keybind key="XF86MonBrightnessDown">
+      <action name="Execute" command="labwc-brightness-control down" />
+    </keybind>
+    <keybind key="XF86MonBrightnessCycle">
+      <action name="Execute" command="labwc-brightness-control menu" />
+    </keybind>
+    <keybind key="W-F6">
+      <action name="Execute" command="labwc-brightness-control up" />
+    </keybind>
+    <keybind key="W-F5">
+      <action name="Execute" command="labwc-brightness-control down" />
+    </keybind>
+  </keyboard>
+
+  <mouse>
+    <default />
+    <context name="Root">
+      <mousebind button="Left" action="Press">
+        <action name="Unfocus" />
+      </mousebind>
+      <mousebind button="Right" action="Press">
+        <action name="ShowMenu" menu="root-menu" />
+      </mousebind>
+    </context>
+    <context name="All">
+      <mousebind direction="W-Up" action="Scroll">
+        <action name="GoToDesktop" to="left" />
+      </mousebind>
+      <mousebind direction="W-Down" action="Scroll">
+        <action name="GoToDesktop" to="right" />
+      </mousebind>
+    </context>
+  </mouse>
+
+  <windowRules>
+    <windowRule identifier="*" serverDecoration="yes" />
+  </windowRules>
+</labwc_config>

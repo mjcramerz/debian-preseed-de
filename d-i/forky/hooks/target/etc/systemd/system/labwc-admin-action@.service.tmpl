@@ -1,0 +1,69 @@
+[Unit]
+Description=Execute authorized Labwc desktop power action (%i)
+Documentation=man:systemd.service(5) man:systemctl(1) man:org.freedesktop.login1(5)
+After=systemd-logind.service systemd-tmpfiles-setup.service
+# Normal stop ordering only; the single-force handoff skips unit stop jobs.
+# Its package reservation stays held until PID 1 terminates the worker.
+# Ordering does not pull any of these optional units into startup.
+Before=apt-daily.service apt-daily-upgrade.service unattended-upgrades.service packagekit.service
+RequiresMountsFor=__INSTALLER_LOG_POWER_DIR__
+Wants=systemd-logind.service systemd-tmpfiles-setup.service
+ConditionFileIsExecutable=/usr/local/libexec/labwc-admin-action-worker
+
+[Service]
+# Host logind/PID-1 IPC and user-manager handoff must retain host credentials.
+PrivatePIDs=no
+PrivateUsers=no
+Type=notify
+NotifyAccess=main
+ExecStart=/usr/local/libexec/labwc-admin-action-worker %i
+TimeoutStartSec=60s
+# Package waits must outlive arbitrarily long installs. All command transports,
+# save dialogs, desktop jobs and guest hooks retain their individual timeouts.
+# Cancellation is systemctl stop, never a timeout-triggered power fallback.
+RuntimeMaxSec=infinity
+RuntimeDirectory=labwc-power
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+TimeoutStopSec=5s
+KillMode=control-group
+StandardOutput=append:__INSTALLER_LOG_POWER_DIR__/action-%i.log
+# Record early preflight failures where journalctl can actually diagnose them.
+StandardError=journal
+SyslogIdentifier=labwc-admin-action
+UMask=0077
+AppArmorProfile=labwc-admin-action-worker
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectClock=yes
+ProtectControlGroups=yes
+# The worker drops credentials before contacting /run/user/UID/bus.
+# ProtectHome=yes hides that IPC directory too. Keep it read-only while
+# leaving both real home trees inaccessible; AppArmor still limits sockets.
+ProtectHome=read-only
+InaccessiblePaths=/home /root
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+# PID 1 performs user-manager cgroup cleanup. CAP_KILL is only needed to
+# reap a timed-out, credential-dropped transport in this service; AppArmor
+# limits its signals to the worker profile, not desktop applications.
+ProtectProc=default
+ProtectSystem=strict
+ProcSubset=pid
+# PID 1 authenticates its direct Reboot/PowerOff methods with CAP_SYS_BOOT.
+# Grant it only here; seccomp below still forbids direct reboot/kexec.
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_KILL CAP_SYS_BOOT
+AmbientCapabilities=
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+# Only PID 1 may perform the actual reboot, not this worker or its children.
+SystemCallFilter=~@reboot

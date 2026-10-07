@@ -1,0 +1,23 @@
+menuentry 'Boot from Rescue USB' --id 'installer-rescue-usb' --class efi --class usb --class os {
+    if [ "$grub_platform" = "efi" ]; then
+        insmod part_gpt
+        insmod fat
+        insmod search
+        insmod chain
+        if @@RESCUE_USB_SEARCH@@; then
+            if [ -e @@RESCUE_USB_EFI_PATH@@ ]; then
+                echo 'Chainloading the installer rescue USB.'
+                chainloader @@RESCUE_USB_EFI_PATH@@
+            else
+                echo 'The installer rescue USB was found, but @@RESCUE_USB_EFI_PATH@@ is missing.'
+                false
+            fi
+        else
+            echo 'Rescue USB not plugged in'
+            false
+        fi
+    else
+        echo 'Boot from Rescue USB requires UEFI GRUB.'
+        false
+    fi
+}

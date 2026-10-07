@@ -1,0 +1,53 @@
+#!/bin/sh
+set -eu
+
+PREREQ=""
+
+prereqs() {
+  printf '%s\n' "$PREREQ"
+}
+
+case "${1:-}" in
+  prereqs)
+    prereqs
+    exit 0
+    ;;
+esac
+
+[ -r /etc/tpm2-cryptroot.conf ] || exit 0
+
+. /usr/share/initramfs-tools/hook-functions
+
+fatal() {
+  printf 'tpm2-cryptroot hook: fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+copy_file config /etc/tpm2-cryptroot.conf /etc/tpm2-cryptroot.conf
+copy_exec /usr/sbin/cryptsetup /usr/sbin/cryptsetup
+
+token_plugin=$(find /usr/lib /lib -type f -name 'libcryptsetup-token-systemd-tpm2.so' -print 2>/dev/null | head -n 1)
+[ -n "$token_plugin" ] || fatal "systemd TPM2 cryptsetup token plugin is unavailable"
+copy_exec "$token_plugin" "$token_plugin"
+
+tss_libraries=$(find /usr/lib /lib -type f \
+  \( -name 'libtss2-esys.so.*' \
+     -o -name 'libtss2-mu.so.*' \
+     -o -name 'libtss2-rc.so.*' \
+     -o -name 'libtss2-tcti-device.so.*' \) \
+  -print 2>/dev/null | sort -u)
+[ -n "$tss_libraries" ] || fatal "TPM2 TSS runtime libraries are unavailable"
+for tss_library in $tss_libraries; do
+  copy_exec "$tss_library" "$tss_library"
+done
+
+manual_add_modules tpm || true
+manual_add_modules dm_crypt || true
+manual_add_modules tpm_crb || true
+manual_add_modules tpm_tis || true
+manual_add_modules tpm_tis_core || true
+manual_add_modules tpm_tis_spi || true
+manual_add_modules tpm_tis_spi_cr50 || true
+manual_add_modules tpm_tis_i2c || true
+manual_add_modules tpm_tis_i2c_cr50 || true
+manual_add_modules tpm_ftpm_tee || true

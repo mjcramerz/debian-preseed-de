@@ -1,0 +1,7 @@
+# Managed by the installer apt-setup preferences generator.
+# Keep Debian Sid visible as a low-priority recovery archive beneath the
+# managed Forky and Trixie suites.
+
+Package: *
+Pin: release n=sid
+Pin-Priority: 100

@@ -1,0 +1,148 @@
+# Managed by unattended-installer.
+abi "/usr/share/apparmor-features/features",
+#include <tunables/global>
+
+# UI and credential-bearing publisher. The worker has its own always-enforcing
+# source file and is not included in the optional desktop complain-mode set.
+profile gitbuild /usr/local/bin/gitbuild flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/wrapper-terminal>
+  / r,
+  /home/ r,
+  /etc/ r,
+  /usr/ r,
+  /usr/local/ r,
+  /usr/local/{lib,share}/ r,
+  /usr/local/lib/python3.14/ r,
+  /usr/local/lib/python3.14/dist-packages/ r,
+  /usr/local/lib/python3.14/dist-packages/{managed_workflows,gitbuild,labwc_appearance}/{,**} r,
+  /var/ r,
+  /var/lib/ r,
+  owner @{HOME}/ r,
+  signal (send, receive) peer=@{profile_name},
+  signal (receive) peer=unconfined,
+  include <abstractions/dbus-session-strict>
+  unix,
+  /usr/bin/{systemctl,systemd-run} rix,
+  /run/ r,
+  /run/user/ r,
+  owner /run/user/[0-9]*/ r,
+  owner /run/user/[0-9]*/systemd/{,**} rw,
+  dbus (send, receive) bus=session peer=(name=org.freedesktop.systemd1),
+  /pool/ r,
+  /pool/{build,cache,db}/ r,
+  owner /pool/{build,cache,db}/*/ r,
+  owner /pool/{cache,db}/*/gitbuild/{,**} rwkl,
+  owner @{HOME}/Workspace/{,**/} rw,
+  owner @{HOME}/Workspace/** r,
+  owner @{HOME}/Workspace/{,**/}target/{,**} rwkl,
+  /usr/local/bin/gitbuild rix,
+  /usr/bin/{git,fzf,dpkg} rix,
+  /usr/lib/git-core/{,**} r,
+  /usr/share/{git-core,git,terminfo}/{,**} r,
+  /{,usr/}lib/terminfo/{,**} r,
+  /etc/terminfo/{,**} r,
+  /etc/{gitconfig,subuid,subgid} r,
+  /usr/local/share/gitbuild/{,**} r,
+  owner @{HOME}/Workspace/{,**/}debian/{,**} rwkl,
+  owner @{HOME}/Workspace/{,**/}.gitbuild-debian-*/{,**} rwkl,
+  owner /pool/db/*/aptly/{,aptly.conf} r,
+  /usr/bin/pkexec rPx -> gitbuild-auth,
+  signal (send, receive) peer=gitbuild-auth,
+  signal (receive) peer=gitbuild-worker,
+  signal (receive) peer=gitbuild-publish,
+}
+
+profile gitbuild-auth flags=(attach_disconnected) {
+  #include <abstractions/managed-workflow-auth>
+  /usr/local/libexec/gitbuild-import-local rPx -> gitbuild-import-local,
+  signal (send, receive) peer=gitbuild,
+  signal (send, receive) peer=gitbuild-import-local,
+}
+
+profile gitbuild-import-local /usr/local/libexec/gitbuild-import-local flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/wrapper-terminal>
+  / r,
+  /home/ r,
+  /etc/ r,
+  /usr/ r,
+  /usr/local/ r,
+  /usr/local/{lib,share}/ r,
+  /usr/local/lib/python3.14/ r,
+  /usr/local/lib/python3.14/dist-packages/ r,
+  /usr/local/lib/python3.14/dist-packages/{managed_workflows,gitbuild,labwc_appearance}/{,**} r,
+  /var/ r,
+  /var/lib/ r,
+  # Authenticated root opens the caller-owned HOME directory, not its files.
+  @{HOME}/ r,
+  signal (send, receive) peer=@{profile_name},
+  signal (receive) peer=unconfined,
+  /usr/local/libexec/gitbuild-import-local rix,
+  # Root must read a user-owned artifact. The helper pins every component with
+  # O_NOFOLLOW, verifies ownership, and copies it to root-only staging first.
+  @{HOME}/Workspace/{,**/} r,
+  @{HOME}/Workspace/{,**/}target/gitbuild/*/artifacts/*.deb r,
+  /var/lib/software/ rw,
+  /var/lib/software/.gitbuild-incoming/{,**} rwkl,
+  /usr/local/bin/apt-repo-init rPx -> apt-repo-local,
+  signal (send, receive) peer=gitbuild-auth,
+  signal (send, receive) peer=apt-repo-local,
+}
+
+profile gitbuild-publish /usr/local/libexec/gitbuild-publish flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/wrapper-terminal>
+  / r,
+  /home/ r,
+  /etc/ r,
+  /usr/ r,
+  /usr/local/ r,
+  /usr/local/{lib,share}/ r,
+  /usr/local/lib/python3.14/ r,
+  /usr/local/lib/python3.14/dist-packages/ r,
+  /usr/local/lib/python3.14/dist-packages/{managed_workflows,gitbuild,labwc_appearance}/{,**} r,
+  /var/ r,
+  /var/lib/ r,
+  owner @{HOME}/ r,
+  signal (send, receive) peer=@{profile_name},
+  signal (receive) peer=unconfined,
+  /pool/ r,
+  /pool/{build,cache,db}/ r,
+  owner /pool/{build,cache,db}/*/ r,
+  owner /pool/{cache,db}/*/gitbuild/{,**} rwkl,
+  owner @{HOME}/Workspace/{,**/} rw,
+  owner @{HOME}/Workspace/** r,
+  owner @{HOME}/Workspace/{,**/}target/{,**} rwkl,
+  # Native Wayland pinentry only; this adds no X11/Xwayland access.
+  #include <abstractions/wrapper-gui>
+  #include <abstractions/nameservice>
+  unix,
+  /usr/local/libexec/gitbuild-publish rix,
+  /usr/bin/{debsign,gpg,gpg2,gpgconf,gpg-agent,pinentry,pinentry-qt,pinentry-qt5,pinentry-gnome3,pinentry-gtk-2,pinentry-curses,pinentry-tty,perl,sed,cat,cp,mv,rm,mktemp,basename,dirname,readlink} rix,
+  /usr/bin/{md5sum,sha1sum,sha256sum,wc,grep,egrep,fgrep,awk,gawk,mawk,cut,tr,head,tail,sort,uniq,mkdir,rmdir,chmod,stat,date,touch,dpkg,dpkg-parsechangelog,which,getopt} rix,
+  /usr/share/perl{,5}/{,**} r,
+  /usr/lib/@{multiarch}/perl{,5}/{,**} mr,
+  /usr/lib/gnupg{,2}/{,**} mr,
+  /usr/lib/gnupg{,2}/{gpg-preset-passphrase,gpg-protect-tool,keyboxd} rix,
+  /usr/share/{gnupg,gnupg2,perl5,pinentry,qt6,qt5}/{,**} r,
+  /etc/gnupg/{,**} r,
+  /etc/alternatives/ r,
+  /tmp/ rw,
+  owner /tmp/{debsign*,gpg-*,tmp.*}/{,**} rwkl,
+  owner /tmp/{debsign*,gpg-*,tmp.*} rwkl,
+  owner @{HOME}/.gnupg/{,**} rwkl,
+  owner /run/user/[0-9]*/gnupg/{,**} rwkl,
+  owner /run/user/[0-9]*/ r,
+  owner /run/user/[0-9]*/wayland-* rw,
+  owner @{HOME}/.config/{qt5ct,qt6ct}/{,**} r,
+  owner @{HOME}/.config/kdeglobals r,
+  owner @{HOME}/.cache/{,fontconfig/,qtshadercache/,qtshadercache/**} rw,
+  owner /pool/db/*/{aptly,osc}/{,**} r,
+  owner /pool/build/*/osc/ r,
+  owner /pool/build/*/osc/gitbuild/{,**} rwkl,
+  /usr/local/libexec/aptly-publishing-bin/aptly-publish-local rPx -> devops-publishing,
+  /usr/local/libexec/obs-publishing-bin/osc rPx -> devops-publishing,
+  signal (send, receive) peer=devops-publishing,
+  signal (receive) peer=gitbuild,
+}

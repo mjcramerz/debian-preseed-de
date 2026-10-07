@@ -1,0 +1,14 @@
+# Managed by unattended-installer.
+#
+# NVIDIA-only source-device access for the managed Bubblewrap launchers. This
+# include is staged only when an NVIDIA addon is selected and a matching display
+# adapter is detected. It is deliberately separate from the shared wrapper
+# profile so raw application starts and non-NVIDIA targets never receive these
+# device-path permissions.
+
+/dev/nvidia[0-9]* rw,
+/dev/nvidia-caps/ r,
+/dev/nvidia-caps/** rw,
+/dev/nvidia-uvm rw,
+/dev/nvidia-uvm-tools rw,
+/dev/nvidiactl rw,

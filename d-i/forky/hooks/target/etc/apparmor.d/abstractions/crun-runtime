@@ -1,0 +1,45 @@
+# Managed by unattended-installer.
+#
+# crun is the final OCI runtime boundary for both rootless and service-owned
+# Podman workloads. It must construct namespaces, mounts, cgroups, consoles,
+# and process supervision state before handing execution to an OCI-selected
+# AppArmor profile. Keep these runtime mechanics repository-owned so crun does
+# not depend on package abstractions or a package profile's optional local
+# include contract. Package abstractions can carry explicit deny rules and are
+# intentionally not included in this complete OCI runtime boundary.
+
+io_uring,
+mqueue,
+userns,
+
+capability,
+
+network,
+unix,
+dbus,
+
+mount,
+remount,
+umount,
+pivot_root,
+
+ptrace,
+signal,
+
+# OCI runtimes may request a named workload profile after the container root
+# has been assembled. Cover both an immediate aa_change_profile() request and
+# an aa_change_onexec() request for an arbitrary container init path and target
+# profile without relying on the package's crun profile or local/crun extension.
+change_profile -> **,
+change_profile unsafe /** -> **,
+
+# crun receives container init executables through inherited descriptors.
+/dev/fd/[0-9]* rix,
+
+# A general OCI runtime must assemble and enter arbitrary image roots. Keep all
+# file permissions explicit in this repository-owned abstraction so detached
+# mount paths, deleted runtime objects, cgroups, consoles, container storage,
+# and the selected payload remain usable under enforcement.
+/ r,
+/** rwklm,
+/** rix,

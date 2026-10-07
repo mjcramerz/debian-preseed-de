@@ -1,0 +1,24 @@
+python3 -B d-i/forky/tests/audit_codebase.py --output .build/validation/audit.json
+{
+  "requested_unique_files": 1379,
+  "total_with_installers_and_hosts": 1617,
+  "check_counts": {
+    "blocked-dependency": 159,
+    "inventory-only": 616,
+    "pass": 609,
+    "structure-pass": 222,
+    "template-needs-render": 11
+  },
+  "kind_counts": {
+    "apparmor-policy": 96,
+    "config-or-data": 520,
+    "javascript": 11,
+    "json": 45,
+    "perl": 184,
+    "python": 176,
+    "shell": 333,
+    "systemd-structure": 222,
+    "toml": 11,
+    "xml": 19
+  }
+}

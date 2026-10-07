@@ -1,0 +1,85 @@
+// Managed by unattended-installer.
+// Keep logind power, sleep, seat, and session controls behind sudo auth.
+
+(function() {
+    var ADMIN_GROUP = "sudo";
+    var POWER_GROUP = "power";
+    var STRICT_SUSPEND = true;
+
+    function startsWith(value, prefix) {
+        return typeof value === "string" && value.indexOf(prefix) === 0;
+    }
+
+    function contains(value, needle) {
+        return typeof value === "string" && value.indexOf(needle) !== -1;
+    }
+
+    function isRoot(subject) {
+        return subject.user === "root";
+    }
+
+    function activeLocal(subject) {
+        return subject.active === true && subject.local === true;
+    }
+
+    function adminOnly(subject) {
+        if (isRoot(subject)) {
+            return polkit.Result.YES;
+        }
+        if (!activeLocal(subject)) {
+            return polkit.Result.NO;
+        }
+        if (!subject.isInGroup(ADMIN_GROUP)) {
+            return polkit.Result.NO;
+        }
+        return polkit.Result.AUTH_ADMIN;
+    }
+
+    polkit.addRule(function(action, subject) {
+        var id = action.id;
+
+        if (!startsWith(id, "org.freedesktop.login1.")) {
+            return polkit.Result.NOT_HANDLED;
+        }
+
+        if (!isRoot(subject) && !activeLocal(subject)) {
+            return polkit.Result.NO;
+        }
+
+        if (id === "org.freedesktop.login1.inhibit-delay-shutdown") {
+            if (!isRoot(subject) && !subject.isInGroup(ADMIN_GROUP)) {
+                return polkit.Result.NO;
+            }
+            return polkit.Result.YES;
+        }
+
+        if (
+            contains(id, "power-off") ||
+            contains(id, "reboot") ||
+            contains(id, "halt") ||
+            contains(id, "hibernate") ||
+            contains(id, "hybrid-sleep") ||
+            contains(id, "suspend-then-hibernate") ||
+            contains(id, "ignore-inhibit") ||
+            contains(id, "multiple-sessions") ||
+            contains(id, "set-") ||
+            contains(id, "attach-device") ||
+            contains(id, "flush-devices") ||
+            contains(id, "terminate-") ||
+            contains(id, "kill-") ||
+            contains(id, "schedule-shutdown") ||
+            contains(id, "cancel-scheduled-shutdown")
+        ) {
+            return adminOnly(subject);
+        }
+
+        if (contains(id, "suspend")) {
+            if (!STRICT_SUSPEND && subject.isInGroup(POWER_GROUP)) {
+                return polkit.Result.YES;
+            }
+            return adminOnly(subject);
+        }
+
+        return adminOnly(subject);
+    });
+})();

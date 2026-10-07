@@ -1,0 +1,11 @@
+{
+  "check_counts": {
+    "blocked-dependency": 159,
+    "inventory-only": 616,
+    "pass": 609,
+    "structure-pass": 222,
+    "template-needs-render": 11
+  },
+  "file_type_counts": null,
+  "note": "Pass counts are offline checks; structure, inventory, blocked dependency and template checks are not runtime acceptance."
+}

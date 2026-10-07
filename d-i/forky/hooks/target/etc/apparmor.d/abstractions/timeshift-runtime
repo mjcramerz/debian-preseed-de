@@ -1,0 +1,30 @@
+# Managed by unattended-installer.
+#
+# Timeshift must inspect and snapshot the complete installed system, construct
+# temporary mount namespaces, invoke Btrfs/rsync/GRUB helpers, display its GTK
+# interface, and run the managed notification and post-snapshot hooks. Keep the
+# complete compatibility boundary repository-owned and independent of package
+# abstractions or optional package-local rules.
+
+io_uring,
+mqueue,
+userns,
+
+capability,
+
+network,
+unix,
+dbus,
+
+mount,
+remount,
+umount,
+pivot_root,
+
+ptrace,
+signal,
+
+/ r,
+/** rwklm,
+/** rix,
+

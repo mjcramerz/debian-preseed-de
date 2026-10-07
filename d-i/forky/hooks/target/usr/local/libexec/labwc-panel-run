@@ -1,0 +1,166 @@
+#!/usr/bin/python3 -I
+"""Run the fixed native dock, coalescing exact known upstream diagnostic floods.
+
+The first occurrence, all other output and the real exit status remain visible.
+This is a journal-volume workaround, not a patch of the dock binary.
+"""
+import os
+import selectors
+import signal
+import subprocess
+import sys
+import time
+
+MESSAGES = {
+    'crystal-dock': {b'LayerShellQt.Window.screenConfiguration is deprecated use screen and wantsToBeOnActiveScreen instead'},
+}
+SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGUSR1, signal.SIGUSR2)
+
+
+class Coalescer:
+    def __init__(self, messages: set[bytes], interval: float = 60.0):
+        self.messages = messages
+        self.interval = interval
+        self.last = time.monotonic()
+        self.seen = set()
+        self.repeats = {}
+
+    def line(self, stream, data: bytes) -> None:
+        text = data.rstrip(b'\r\n')
+        canonical = text
+        key = (stream, canonical)
+        if canonical in self.messages:
+            if key in self.seen:
+                self.repeats[key] = self.repeats.get(key, 0) + 1
+                return
+            self.seen.add(key)
+        stream.write(data)
+        stream.flush()
+
+    def flush(self, final: bool = False) -> None:
+        now = time.monotonic()
+        if not final and now - self.last < self.interval:
+            return
+        for (stream, text), count in self.repeats.items():
+            stream.write(b'[labwc-panel-run] repeated ' + str(count).encode() + b' times: ' + text + b'\n')
+            stream.flush()
+        self.repeats.clear()
+        self.last = now
+
+
+def supervise(command: list[str], messages: set[bytes], *, signals=SIGNALS) -> int:
+    """Supervise the dock, preserving its exit status and bounded teardown.
+
+    Closing stdout is not mistaken for process termination. Waybar is directly
+    supervised by systemd and never enters this diagnostic adapter.
+    """
+    child = None
+    pending = set()
+    stop_at = None
+
+    def forward(number, _frame):
+        nonlocal stop_at
+        if number in (signal.SIGINT, signal.SIGTERM):
+            stop_at = stop_at or time.monotonic()
+        if child is None:
+            pending.add(number)
+        else:
+            child.send_signal(number)
+
+    previous = {number: signal.signal(number, forward) for number in signals}
+    coalescer = Coalescer(messages)
+    buffers = {}
+    exited_at = None
+    try:
+        with selectors.DefaultSelector() as selector:
+            child = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE, close_fds=True, bufsize=0)
+            for source, destination in ((child.stdout, sys.stdout.buffer),
+                                        (child.stderr, sys.stderr.buffer)):
+                os.set_blocking(source.fileno(), False)
+                selector.register(source, selectors.EVENT_READ, destination)
+                buffers[source] = bytearray()
+            for number in pending:
+                child.send_signal(number)
+            pending.clear()
+            while selector.get_map() or child.poll() is None:
+                for key, _ in selector.select(timeout=0.25):
+                    source, destination = key.fileobj, key.data
+                    try:
+                        data = os.read(source.fileno(), 65536)
+                    except BlockingIOError:
+                        continue
+                    if not data:
+                        if buffers[source]:
+                            coalescer.line(destination, bytes(buffers[source]))
+                        selector.unregister(source)
+                        source.close()
+                        continue
+                    buffer = buffers[source]
+                    buffer.extend(data)
+                    while b'\n' in buffer:
+                        end = buffer.index(b'\n') + 1
+                        coalescer.line(destination, bytes(buffer[:end]))
+                        del buffer[:end]
+                    if len(buffer) > 8192:
+                        coalescer.line(destination, bytes(buffer))
+                        buffer.clear()
+                coalescer.flush()
+                now = time.monotonic()
+                status = child.poll()
+                if status is None and stop_at is not None and now - stop_at >= 5:
+                    child.kill()
+                if status is not None:
+                    exited_at = exited_at or now
+                    # Inherited pipes cannot pin an exited dock indefinitely;
+                    # systemd subsequently cleans its service control group.
+                    if now - exited_at >= 2:
+                        for key in list(selector.get_map().values()):
+                            if buffers[key.fileobj]:
+                                coalescer.line(key.data, bytes(buffers[key.fileobj]))
+                            selector.unregister(key.fileobj)
+                            key.fileobj.close()
+                        break
+        status = child.wait()
+        coalescer.flush(final=True)
+        return status
+    finally:
+        if child is not None:
+            if child.poll() is None:
+                child.terminate()
+            try:
+                child.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                child.kill()
+                child.wait()
+            for stream in (child.stdout, child.stderr):
+                if stream is not None:
+                    stream.close()
+        for number, handler in previous.items():
+            signal.signal(number, handler)
+
+
+def main(args: list[str]) -> int:
+    if os.getuid() == 0 or len(args) != 1 or args[0] not in MESSAGES:
+        return 2
+    panel = args[0]
+    command = ['/usr/bin/' + panel]
+    return supervise(command, MESSAGES[panel])
+
+
+if __name__ == '__main__':
+    try:
+        status = main(sys.argv[1:])
+        if status < 0:
+            # Let systemd distinguish a normal stop signal from an ordinary
+            # exit(143). Fatal signals still remain failures, not successes.
+            number = -status
+            if number not in (signal.SIGKILL, signal.SIGSTOP):
+                signal.signal(number, signal.SIG_DFL)
+            signal.pthread_sigmask(signal.SIG_UNBLOCK, {number})
+            os.kill(os.getpid(), number)
+            raise SystemExit(128 + number)  # only reachable if delivery failed
+        raise SystemExit(status)
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        print(f'labwc-panel-run: {exc}', file=sys.stderr)
+        raise SystemExit(1)

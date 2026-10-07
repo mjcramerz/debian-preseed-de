@@ -1,0 +1,202 @@
+#!/usr/bin/python3 -I
+"""Safely extract an official Samsung firmware ZIP into an empty directory."""
+
+from __future__ import annotations
+
+import os
+import shutil
+import stat
+import sys
+import tempfile
+import zipfile
+from pathlib import Path, PurePosixPath
+from typing import NoReturn
+
+MAX_MEMBERS = 64
+MAX_MEMBER_BYTES = 24 * 1024 * 1024 * 1024
+MAX_TOTAL_BYTES = 32 * 1024 * 1024 * 1024
+MINIMUM_FREE_HEADROOM_BYTES = 1024 * 1024 * 1024
+COPY_CHUNK_BYTES = 1024 * 1024
+
+
+class FirmwareError(RuntimeError):
+    """A safe error raised while validating or extracting firmware."""
+
+
+def fail(message: str) -> NoReturn:
+    raise FirmwareError(message)
+
+
+def validate_member(info: zipfile.ZipInfo, seen: set[str]) -> PurePosixPath:
+    name = info.filename
+    if not name or "\x00" in name or "\n" in name or "\r" in name or "\\" in name:
+        fail("firmware archive contains an invalid member name")
+    path = PurePosixPath(name)
+    if path.is_absolute() or any(part in ("", ".", "..") for part in path.parts):
+        fail(f"firmware archive contains an unsafe member path: {name}")
+    normalized = path.as_posix()
+    if normalized in seen:
+        fail(f"firmware archive contains a duplicate member: {normalized}")
+    seen.add(normalized)
+    if info.flag_bits & 0x1:
+        fail(f"encrypted firmware archive members are unsupported: {normalized}")
+    unix_mode = info.external_attr >> 16
+    file_type = stat.S_IFMT(unix_mode)
+    if file_type not in (0, stat.S_IFREG, stat.S_IFDIR):
+        fail(f"firmware archive contains an unsupported node: {normalized}")
+    if info.file_size > MAX_MEMBER_BYTES:
+        fail(f"firmware archive member exceeds the size ceiling: {normalized}")
+    return path
+
+
+def ensure_regular_input(path: Path) -> None:
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        raise FirmwareError("firmware archive must be a regular non-symlink file") from exc
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        fail("firmware archive must be a regular non-symlink file")
+
+
+def ensure_empty_output(path: Path) -> None:
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        raise FirmwareError(
+            "firmware extraction destination must be a regular directory"
+        ) from exc
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        fail("firmware extraction destination must be a regular directory")
+    if any(path.iterdir()):
+        fail("firmware extraction destination must be empty")
+
+
+def create_staging_directory(output_path: Path) -> Path:
+    parent = output_path.parent
+    try:
+        metadata = parent.lstat()
+    except OSError as exc:
+        raise FirmwareError(
+            "firmware extraction destination parent must be a regular directory"
+        ) from exc
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        fail("firmware extraction destination parent must be a regular directory")
+    staging: Path | None = None
+    try:
+        staging = Path(
+            tempfile.mkdtemp(
+                prefix=".labwc-samsung-firmware-extract.",
+                dir=parent,
+            )
+        )
+        os.chmod(staging, 0o700)
+        return staging
+    except OSError as exc:
+        if staging is not None:
+            shutil.rmtree(staging, ignore_errors=True)
+        raise FirmwareError("cannot create private firmware extraction staging directory") from exc
+
+
+def copy_member(
+    archive: zipfile.ZipFile,
+    info: zipfile.ZipInfo,
+    destination: Path,
+) -> None:
+    destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    descriptor = os.open(
+        destination,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+        0o600,
+    )
+    written = 0
+    try:
+        with archive.open(info, "r") as source, os.fdopen(descriptor, "wb") as target:
+            descriptor = -1
+            while True:
+                chunk = source.read(COPY_CHUNK_BYTES)
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > info.file_size or written > MAX_MEMBER_BYTES:
+                    fail(f"firmware archive member exceeded its declared size: {info.filename}")
+                target.write(chunk)
+        if written != info.file_size:
+            fail(f"firmware archive member size changed while extracting: {info.filename}")
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if destination.exists() and written != info.file_size:
+            destination.unlink()
+
+
+def extract(archive_path: Path, output_path: Path) -> None:
+    staging_path: Path | None = None
+    try:
+        with zipfile.ZipFile(archive_path) as archive:
+            members = archive.infolist()
+            if not members or len(members) > MAX_MEMBERS:
+                fail("firmware archive member count is outside the managed ceiling")
+            seen: set[str] = set()
+            total_bytes = 0
+            validated: list[tuple[zipfile.ZipInfo, PurePosixPath]] = []
+            for info in members:
+                member_path = validate_member(info, seen)
+                total_bytes += info.file_size
+                if total_bytes > MAX_TOTAL_BYTES:
+                    fail("firmware archive expands beyond the managed size ceiling")
+                validated.append((info, member_path))
+
+            available_bytes = shutil.disk_usage(output_path).free
+            required_bytes = total_bytes + MINIMUM_FREE_HEADROOM_BYTES
+            if available_bytes < required_bytes:
+                fail(
+                    "firmware extraction requires "
+                    f"{required_bytes} bytes free, but only {available_bytes} bytes are available"
+                )
+
+            staging_path = create_staging_directory(output_path)
+            for info, member_path in validated:
+                destination = staging_path.joinpath(*member_path.parts)
+                if info.is_dir():
+                    destination.mkdir(mode=0o700, parents=True, exist_ok=True)
+                    os.chmod(destination, 0o700)
+                    continue
+                copy_member(archive, info, destination)
+
+        ensure_empty_output(output_path)
+        os.replace(staging_path, output_path)
+        staging_path = None
+    finally:
+        if staging_path is not None:
+            shutil.rmtree(staging_path, ignore_errors=True)
+
+
+def main() -> int:
+    if len(sys.argv) != 3:
+        fail("usage: labwc-samsung-firmware-extract ARCHIVE.zip OUTPUT_DIRECTORY")
+
+    archive_path = Path(sys.argv[1])
+    output_path = Path(sys.argv[2])
+    if not archive_path.is_absolute() or not output_path.is_absolute():
+        fail("firmware archive and destination paths must be absolute")
+    ensure_regular_input(archive_path)
+    ensure_empty_output(output_path)
+
+    try:
+        extract(archive_path, output_path)
+    except zipfile.BadZipFile as error:
+        raise FirmwareError(f"firmware archive is invalid: {error}") from error
+    except OSError as error:
+        raise FirmwareError(f"firmware extraction failed: {error}") from error
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except FirmwareError as error:
+        print(f"fatal: {error}", file=sys.stderr)
+        raise SystemExit(1)
+    except Exception:
+        print("fatal: firmware extraction failed", file=sys.stderr)
+        raise SystemExit(1)

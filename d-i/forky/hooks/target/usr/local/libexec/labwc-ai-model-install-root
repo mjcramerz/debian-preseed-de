@@ -1,0 +1,27 @@
+#!/bin/sh
+set -eu
+umask 077
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+LC_ALL=C.UTF-8
+PERL5LIB=/usr/local/lib/perl5/site_perl/ai-copilots
+export PATH LC_ALL PERL5LIB
+
+case "${PKEXEC_UID:-}" in
+  ''|*[!0-9]*|0)
+    printf '%s\n' \
+      'fatal: privileged model installer must be invoked by a non-root desktop user through pkexec' >&2
+    exit 1
+    ;;
+esac
+
+exec /usr/bin/env -i \
+  PATH="$PATH" \
+  LC_ALL="$LC_ALL" \
+  PERL5LIB="$PERL5LIB" \
+  PKEXEC_UID="$PKEXEC_UID" \
+  /usr/bin/perl \
+  -MAICopilots::ModelInstallRoot \
+  -e 'exit AICopilots::ModelInstallRoot->new()->run(@ARGV);' \
+  -- \
+  "$@"

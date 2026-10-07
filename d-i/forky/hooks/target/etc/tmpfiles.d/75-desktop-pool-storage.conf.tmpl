@@ -1,0 +1,10 @@
+# Managed by unattended-installer.
+#
+# Desktop-only primary-account development storage. Keep this role policy out
+# of the shared runtime roots so non-desktop installs never gain desktop-user
+# pool directories.
+d __INSTALLER_DIR_POOL_BUILD__/__INSTALLER_ACCOUNT_USERNAME__ 2770 __INSTALLER_ACCOUNT_USERNAME__ devops -
+d __INSTALLER_DIR_POOL_CACHE__/__INSTALLER_ACCOUNT_USERNAME__ 2770 __INSTALLER_ACCOUNT_USERNAME__ devops -
+d __INSTALLER_DIR_POOL_CACHE__/__INSTALLER_ACCOUNT_USERNAME__/tmp 0700 __INSTALLER_ACCOUNT_USERNAME__ __INSTALLER_ACCOUNT_USERNAME__ -
+d __INSTALLER_DIR_POOL_CACHE__/__INSTALLER_ACCOUNT_USERNAME__/whisper 2770 __INSTALLER_ACCOUNT_USERNAME__ devops -
+d __INSTALLER_DIR_POOL_DB__/__INSTALLER_ACCOUNT_USERNAME__ 2770 __INSTALLER_ACCOUNT_USERNAME__ devops -

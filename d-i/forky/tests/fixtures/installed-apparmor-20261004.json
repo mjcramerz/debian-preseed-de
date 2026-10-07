@@ -1,0 +1,152 @@
+[
+  {
+    "profile": "labwc-generic-app",
+    "operation": "file_inherit",
+    "class": "file",
+    "name": "/dev/rfkill",
+    "denied_mask": "r"
+  },
+  {
+    "profile": "labwc-wayland-compat-app//wayland-compat-app-bwrap",
+    "operation": "open",
+    "class": "file",
+    "name": "/proc/13/cmdline",
+    "denied_mask": "r"
+  },
+  {
+    "profile": "labwc-wayland-compat-app//wayland-compat-app-bwrap",
+    "operation": "open",
+    "class": "file",
+    "name": "/proc/2/cmdline",
+    "denied_mask": "r"
+  },
+  {
+    "profile": "mullvad",
+    "operation": "exec",
+    "class": "file",
+    "name": "/usr/bin/gsettings",
+    "denied_mask": "x"
+  },
+  {
+    "profile": "mullvad-vpn",
+    "operation": "open",
+    "class": "file",
+    "name": "/",
+    "denied_mask": "r"
+  },
+  {
+    "profile": "waypaper//waypaper-ps",
+    "operation": "ptrace",
+    "class": "ptrace",
+    "denied_mask": "read",
+    "peer": "bitwarden"
+  },
+  {
+    "profile": "waypaper//waypaper-ps",
+    "operation": "ptrace",
+    "class": "ptrace",
+    "denied_mask": "read",
+    "peer": "hardware-tuning-client"
+  },
+  {
+    "profile": "waypaper//waypaper-ps",
+    "operation": "ptrace",
+    "class": "ptrace",
+    "denied_mask": "read",
+    "peer": "mullvad"
+  },
+  {
+    "profile": "waypaper//waypaper-ps",
+    "operation": "ptrace",
+    "class": "ptrace",
+    "denied_mask": "read",
+    "peer": "vivaldi-bin"
+  },
+  {
+    "profile": "waypaper//waypaper-ps",
+    "operation": "ptrace",
+    "class": "ptrace",
+    "denied_mask": "read",
+    "peer": "vivaldi-stable"
+  },
+  {
+    "profile": "waypaper//waypaper-ps",
+    "operation": "ptrace",
+    "class": "ptrace",
+    "denied_mask": "read",
+    "peer": "whisper-record-toggle"
+  },
+  {
+    "profile": "wpctl",
+    "operation": "file_inherit",
+    "class": "file",
+    "name": "/dev/rfkill",
+    "denied_mask": "r"
+  },
+  {
+    "profile": "labwc-mute-default-microphone",
+    "operation": "open",
+    "class": "file",
+    "name": "/dev/shm/",
+    "denied_mask": "r"
+  },
+  {
+    "profile": "labwc-mute-default-microphone",
+    "operation": "chmod",
+    "class": "file",
+    "name": "/run/user/1000/pulse/",
+    "denied_mask": "w"
+  },
+  {
+    "profile": "labwc-mute-default-microphone",
+    "operation": "rmdir",
+    "class": "file",
+    "name": "/run/user/1000/pulse/",
+    "denied_mask": "d"
+  },
+  {
+    "profile": "labwc-mute-default-microphone",
+    "operation": "open",
+    "class": "file",
+    "name": "/etc/machine-id",
+    "denied_mask": "r"
+  },
+  {
+    "profile": "labwc-qbittorrent//qbittorrent-bwrap",
+    "operation": "exec",
+    "class": "file",
+    "name": "/usr/bin/qbittorrent",
+    "denied_mask": "x",
+    "info": "no new privs",
+    "target": "qbittorrent"
+  },
+  {
+    "profile": "desktop-launcher",
+    "operation": "ptrace",
+    "class": "ptrace",
+    "denied_mask": "read",
+    "peer": "labwc-waybar-battery"
+  },
+  {
+    "profile": "desktop-launcher",
+    "operation": "ptrace",
+    "class": "ptrace",
+    "denied_mask": "read",
+    "peer": "labwc-brightness-control"
+  },
+  {
+    "profile": "codex-wrapper//codex-bwrap",
+    "operation": "signal",
+    "class": "signal",
+    "denied_mask": "receive",
+    "signal": "kill",
+    "peer": "codex-wrapper"
+  },
+  {
+    "profile": "mullvad",
+    "operation": "mkdir",
+    "class": "file",
+    "name": "/home/user/.cache/dconf/",
+    "denied_mask": "c"
+  }
+]

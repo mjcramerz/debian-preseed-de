@@ -1,0 +1,1210 @@
+{
+  "date": "2026-09-24",
+  "environment": {
+    "full_perl_moo_moox_dependencies_available": false,
+    "os": "Debian 13 (trixie) container",
+    "physical_hardware_tuning_performed": false,
+    "python": "3.13.5",
+    "rsyslogd_available": false,
+    "source_compilations_added": false,
+    "systemd": "systemd 257 (257.9-1~deb13u1)",
+    "target_boot_performed": false,
+    "target_requested": "Debian Forky / systemd 261.2"
+  },
+  "limits": [
+    "No unattended target installation, boot, suspend/resume, physical CPU/GPU calibration or live AppArmor kernel enforcement was performed.",
+    "Native rsyslog -N1 and private-socket delivery/rotation integration were not executable because rsyslogd is unavailable. Skips are not passes.",
+    "The available native systemd parser is 257.9, not requested 261.2; offline fixture executables were used for hardware unit validation.",
+    "158 broad-audit entries are blocked by missing dependencies, 579 inventory-only, 214 structure-only, and 11 JavaScript templates require rendering. These are not full runtime validations.",
+    "No guarantee of lossless forwarding or exact CPU/I/O reduction is asserted; no performance benchmark was fabricated.",
+    "Native file producers retain their distinct supported rotation mechanisms; logrotate size conditions are checked on invocation, not continuously."
+  ],
+  "logging_contract": {
+    "applications_file": "/var/log/managed/apps/apps.log",
+    "collector_logrotate_timer_required": false,
+    "delivery": "nonblocking socket transport, bounded queues; no collector journal replay and possible drops under overload",
+    "generic_component_lines_after": 23,
+    "generic_component_lines_before": 245,
+    "generic_component_regex_calls_after": 0,
+    "generic_component_regex_calls_before": 89,
+    "imjournal_removed": true,
+    "journal_forward_to_syslog": true,
+    "kernel_file": "/var/log/managed/system/kernel.log",
+    "kernel_reader": "imklog",
+    "logging_settings_after": 111,
+    "logging_settings_before": 275,
+    "native_file_logrotate_cadence": "daily; size 2M conditions for repository-owned policies",
+    "numbered_archives": 4,
+    "omfile_outputs_with_size_callback": 27,
+    "rotation_trigger_bytes": 2097152,
+    "rotation_trigger_is_strict_file_byte_ceiling": false,
+    "system_services_file": "/var/log/managed/system/system.log"
+  },
+  "payload": {
+    "d-i/forky/payload.manifest": {
+      "bytes": 188428,
+      "sha256": "04422a2339fa4702711446f0cbc4856880b511076f63f4f5ed256cc141279862"
+    },
+    "d-i/forky/payload.tar.gz": {
+      "bytes": 7259458,
+      "sha256": "9c1c4dd5ba16a06dcc0428d945d2a5701d21440518a0adb34835f8509b003d8f"
+    },
+    "d-i/forky/preseed.cfg": {
+      "bytes": 88323,
+      "sha256": "226e54981ecdb2efb672561529297bed2eac19d5a4ac2e9dd0e0bebf8dd52381"
+    }
+  },
+  "payload_file_count": 1525,
+  "scope": "Installer logging prerequisite ordering, constant-path application/system logging, writer-triggered size rotation and required validation/staging",
+  "scope_preservation": {
+    "all_byte_identical": true,
+    "files": [
+      {
+        "path": "d-i/forky/tests/test_hardware_tuning_refactor_20260917.py",
+        "sha256": "37780cbecddc4a2e27513e5be7f7c7a1671c0459f1c07d3132d3c6aec52b8bc8",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/tests/test_hardware_tuning_20260916.py",
+        "sha256": "73e80c6a5133f4be9b4baaa6912229b00c5af3de2bd36639a05c2c12f6de7d61",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/tests/test_hardware_tuning_handover_20260917.py",
+        "sha256": "dd05356998bf862f675d89a166044d75bcdd4549af2b5fcae28c760647c62a15",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/tests/test_hardware_tuning_followup_20260917.py",
+        "sha256": "5fe9f1cd0897c910efca0f2490d5e54e65f89dbe4e0e6f224848a33877d456d9",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/scripts/desktop/hardware-tuning.sh",
+        "sha256": "9df833525574b92a1c64ebfb1d370fe7510659c821d2fb3047d3e2fe705be682",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/scripts/desktop/hardware-tuning-assets.list",
+        "sha256": "407ae0b60233c19e0ccc1d4bcdf51f76e77be840f7a68359218e5a1ea20bf4bd",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/scripts/desktop/xwayland.sh",
+        "sha256": "5a78923022e33ef616383305eb998ff777a31eb247632d16ae087064e33f7672",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/scripts/desktop/hardware-tuning-config.py",
+        "sha256": "7fd944de84f090b1caeb127e0a15bcc8573f6f6992e3f16e1f7c04590ad37ea9",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env",
+        "sha256": "2991bf569b621b11d926f87301636ec7ca5db7870fcd1368c9eb0aab29b617aa",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/btrfs-de-p15s.env",
+        "sha256": "b6748e6cfbc2d296d9760d1c19939cccc9c5bda98ff6b8e0ecb42a9d6012c188",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env",
+        "sha256": "c4bc79918749dc12b0b98338c69ccbde8144217248c02380e90ecb878b9e23fa",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env",
+        "sha256": "f0eca6b4ad0a78fc3909c3c9f44006e46b6d78bad5c9afc461fd218fa3f372d5",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/btrfs-de.env",
+        "sha256": "27d705448e90a4c1990c5f342365d64884ab1e315e218b685ec6f675cce337e3",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/btrfs-de-duo.env",
+        "sha256": "42a5f09dae655790f57179c767c2c8aeb986017807e9db0cf6bd59e62f015067",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/f2fs-de-hp14.env",
+        "sha256": "b889960f78728108c5390edc8e86666a227a64417233792ab69e27f1004b4bf9",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env",
+        "sha256": "930f4570d51aa733c899775403572509c14499540457370bdebf37a037f7f0d9",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env",
+        "sha256": "7c6e8fd2e2ea6dc384076d56f3bee4ee8b6719da6f18cafc45b8231bdef7a785",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env",
+        "sha256": "70dbea287a3e7bb05932a83467ee6ea6558563b66c4467cd3be58d3fb7fd144d",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-zoom-discord-compat-runtime",
+        "sha256": "71924415f611006700e6f65daab47d77dd81f73b17be0a47928c1e35f85d940b",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/libexec/hardware-tuning-worker",
+        "sha256": "63a3ac95fbdf345b5a5d7ace39c885d0240b433dfd0caf93c66df6b498ee7cc9",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/libexec/hardware-tuningd",
+        "sha256": "3fe7278496710ea582275807fcc8e6087b5eff7112c3136c5873d8c57af1bd94",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/libexec/hardware-tuning-policy",
+        "sha256": "3ec13fcaade9f4937bd7275b6250d05592771ada20a902f24e26c6046211cdfc",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/libexec/discord-distro",
+        "sha256": "6620cf57b8c3f6abc5b24ff04e684c91a67e3a3c490a237358132718af609d29",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/bin/zoom",
+        "sha256": "2aeee4f0ebf2e26a17491600ed98c3e3fadaab3f0ad8e1e2c9d52b75ad4c551a",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/bin/discord",
+        "sha256": "d87c576a9faac62085921b99b8ad5211de7673d9a5a8929dc1d165f75ab96368",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/bin/labwc-hardware-tuning",
+        "sha256": "ea62a5a95feccccee1efa23e8a19cedaed6c24ed3a418f46fced349de3079d25",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/share/applications/discord.desktop.tmpl",
+        "sha256": "0a5c026b447fb5f1483d515e0e0bf8e7517209bd630851d4d97b47f45e368ce7",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/hardware_tuning/broker.py",
+        "sha256": "6f9505edb9ee3ad3d84b1595967caf8ebd2c5b8f565b9a0fae85685861a7385b",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/hardware_tuning/system_state.py",
+        "sha256": "29436c1d1baa2b6c16386dc0502a3bf53df3e1a78833ecf08674c74fc993e26e",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/hardware_tuning/policy_owner.py",
+        "sha256": "91a90cc3270682bc741fbd0f09a32ab4c3a255c5402151d64522ffa71ee4e9de",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/hardware_tuning/client.py",
+        "sha256": "e2af5b78e554344d1f73a0ce191ae16902a51437465fb2ef0f660264b28feeb0",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/hardware_tuning/intel.py",
+        "sha256": "2609ced4b28f26e6f2f75dfed58cdc93de9070c45b017a893aad2a62c0de7c8f",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/hardware_tuning/nvidia.py",
+        "sha256": "6a177f61f3463504b6c572f617585941aef52dd096e4468b3c264afeb3414fe1",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/hardware_tuning/engine.py",
+        "sha256": "e877033bd376d20e1c652b07e80f2b3ab4ff2ebde85727e787f2d3d1d9a595ee",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/hardware_tuning/common.py",
+        "sha256": "6997a39a8d92fc84f465e5bad5a243225fb67e306ea07b4cdda0c10fae6e91ad",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Discord.pm",
+        "sha256": "ed97aa1415e55b0621f5595c280a8308980dde6f05162d4b8f3cb5efe02c3e2b",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/mounts.py",
+        "sha256": "7b871043df09c576fc948f33774b11362b978dd4afc178fee6d56bb0aa6d4d97",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/commands.py",
+        "sha256": "4a7b4f76aa264c86689efe530e8b27a7fb9698d60e12fb15aa3be4d76b304fb4",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat_runtime.py",
+        "sha256": "d2a5eb45025f6ca4dbecbcc598ea51d0244de71d6106941d1852fe32d4e2ffdc",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/integrity.py",
+        "sha256": "aeeab4e328bcbc4b9c95e64f2154d1648e122612d66e0c67ee00633b0b430001",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/identity.py",
+        "sha256": "6029417c6944a2ae15955786548aa70cfc5a296a7169b81a9a505930a4e23196",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/sandbox.py",
+        "sha256": "ecf172df997618a1c1c99ad08583ce73627f494e4555b5102295ae76885c70d2",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py",
+        "sha256": "d2c357e64f60be4ed5f8b452383c179d6ef1e4c1e38f07af2dc35e837a3d0866",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/events.py",
+        "sha256": "bd4507f48c6b1ecc52607c01a97ef5dcf7bcc9fa47b45f150ccedd68a1fdb8ca",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py",
+        "sha256": "39111c9b8040210d5c821776f088555471db6b04300c3e6225c48f6099ba1087",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py.tmpl",
+        "sha256": "5942bc31e8af8f8a90313154e9a9aaca271bd751cd8793b50589c067c9cae728",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/bubblewrap.py",
+        "sha256": "f89632f47ab25bc303bedbbb4f92ccc5f7eddd435c56c2b6126f39240fee6659",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/browsers.py",
+        "sha256": "812d813b72c1d2acca405c5fc8560585f66204cd486482a2a1fcd15c60a10848",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/bootstrap.py",
+        "sha256": "fbf07a38bcb2fb1b1944a5a5bc06e5a3eeb906b599aadc5de40937fc7713ea6a",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/cli.py",
+        "sha256": "716d0f4abd8a1259cd83fac5edf75b950ea7e307aef6e583666663af75e8749d",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/recovery.py",
+        "sha256": "7fa92bf26e88e9711c18cfa692f62f1c69566dc824ba118249da274e2b78c08d",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/__init__.py",
+        "sha256": "71a732c5641d07111a1259dd73159c8a2224dfe9147701ea976c3c46333330a4",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_namespace.py",
+        "sha256": "57dd5cabb262e4b3dc952a4b58f5ea8c1736c47ee2d9f59ccf4c078442ec16a9",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/dbus_proxy.py",
+        "sha256": "540863adc762d9b1f177641ffc69abd32bd3c950a321cdfd8a0ed5cc84e670e4",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/runtime.py",
+        "sha256": "7aa540a8117255a44defee431ede78c5d7dbc011bc12f8f98c4d9c9c46d34e93",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/electron.py",
+        "sha256": "3e9f1a2ba7f009912c461f31034c0f0d80da7fd7c2929fad4bbf7f7afe786592",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/user_state.py",
+        "sha256": "079f08df43785665889a22dcd63367415fa8ddccdc8868f0e5f82b2fadb0cdd3",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat.py",
+        "sha256": "d975c575ff90d215731039a768dcc0f66d4a48d5b9b293620d76a41a93d0a77a",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/environment.py",
+        "sha256": "6d2f829cbecd3de09f47ab3c50c03f4b88dd4ea835f77c1365cdaadad8fc98dd",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.zoom",
+        "sha256": "ccdeb5330a5be0b4fbaf4666cfdddfdc92796c05bf049c7827229107ab5fd830",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/apparmor.d/hardware-tuning",
+        "sha256": "97c8db71a2720a7f8417500bfa373b429c14a8b41b3b4d4097d31fa13df6d006",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/apparmor.d/Discord",
+        "sha256": "5f7ef6f8c44924be86f1b84896cc45146054d07a4421416bd6048771e7f87660",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/hardware-tuning/intel.json.tmpl",
+        "sha256": "4190b2325c5bf4a8688728fcca4432d722156700ae75f3aba384efd18e22492c",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/hardware-tuning/broker.json.tmpl",
+        "sha256": "dd615cc52b6d164f88c41580513beef180338e6c67101c59eeedb06306225020",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/hardware-tuning/nvidia.json.tmpl",
+        "sha256": "04815e5c0feb6e58edb258badcd33eb9728d0628798e820ffd1f55afec713e91",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/zoom/zoomus.conf.tmpl",
+        "sha256": "01976b7bf3a571831c48a0402f8b055fe61447c6e54bdfceac4a57075bc79c2c",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/systemd/user/hardware-tuning-intel-silent.service",
+        "sha256": "3312ad801fb714e92083bfcb1bf9d76dfc2391bbe3b951265300aed2c00057c8",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/systemd/user/hardware-tuning-intel-high.service",
+        "sha256": "80f8299a7bb9e48d5b36c817182eee073f10c2bdafea5685d3fc9463d32e2d43",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/systemd/user/hardware-tuning-nvidia-performance.service",
+        "sha256": "971a6ee18f049a3a2658189202b641da6462e0168e7fb48e18d4eca71e4bb68c",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/systemd/user/hardware-tuning-intel-performance.service",
+        "sha256": "85f22683ea01112c3ea89ab2103ec4ecb95b173b6b21d41ba3c4ed17f6eb4792",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/systemd/user/hardware-tuning-intel-balanced.service",
+        "sha256": "ebd8c83acae0dff21a94e44a29831c25ef2e643b4277b5845a67dac4a86a3b99",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/systemd/user/hardware-tuning-nvidia-silent.service",
+        "sha256": "38233c18be056ae05b68237b58b367b5a8534f7cc0175630ae301bbe95230493",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/systemd/user/hardware-tuning-nvidia-balanced.service",
+        "sha256": "5aa4c10d0320026b1c6b6fb1008fdf8ff5e4489f1f3ebc7f5bbd5501127ee9bf",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/systemd/user/hardware-tuning-nvidia-high.service",
+        "sha256": "cafc1ef37bf0cd8fc9ce8e9408fcc3ef34c26f9d09908b1e38c1df9567a20128",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/systemd/system/hardware-tuning.socket.tmpl",
+        "sha256": "ba4d5142e7c290ad800fbc655be8efd8c72b40308e792f824f74a75ec0a5d696",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/systemd/system/hardware-tuning-sleep.service",
+        "sha256": "ae2fc048728e9eeeed76c78853a58607aa0c727a224000f1c1ffdd09398c0994",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/systemd/system/hardware-tuning.service.tmpl",
+        "sha256": "de30b4431b83027fda7dae2b9ec3f2fecc97edd09eab8c162b103d71a11311c9",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/systemd/system/hardware-tuning-autostart.service",
+        "sha256": "4f31599d80347845527c8831f9a7ac65bd35e3e0fe7d955c71b830d43714ae13",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/systemd/user/llama-server.service.d/85-hardware-tuning.conf.tmpl",
+        "sha256": "a73e4b55574569e06359d8c4f058b994515da40b49ffc40fec23444f18e4d998",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/systemd/user/labwc-wayland-.service.d/85-hardware-tuning.conf.tmpl",
+        "sha256": "a73e4b55574569e06359d8c4f058b994515da40b49ffc40fec23444f18e4d998",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/systemd/user/labwc-native-.service.d/85-hardware-tuning.conf.tmpl",
+        "sha256": "a73e4b55574569e06359d8c4f058b994515da40b49ffc40fec23444f18e4d998",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/systemd/user/labwc-electron-.service.d/85-hardware-tuning.conf.tmpl",
+        "sha256": "a73e4b55574569e06359d8c4f058b994515da40b49ffc40fec23444f18e4d998",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/systemd/user/labwc-devops-.service.d/85-hardware-tuning.conf.tmpl",
+        "sha256": "a73e4b55574569e06359d8c4f058b994515da40b49ffc40fec23444f18e4d998",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/apt/preferences.d/default/x11.pref",
+        "sha256": "0379e0ae1e0cf3571babe6f0892ac3e3f69a479ca431ef8f0c3c79c8c0715992",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/apparmor.d/abstractions/hardware-tuning-management-parent",
+        "sha256": "090d7a28664c03b46d150c5eee23e3edadb8cfd0c90fcf5c5ed438b47ae5009c",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/apparmor.d/abstractions/hardware-tuning-intel",
+        "sha256": "4671f6da71ce2800acffd002962f5cb94551e31d9659aab4bca7f8c8347edd63",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/apparmor.d/abstractions/hardware-tuning-desktop-parent",
+        "sha256": "b79b1e24c9b066f2a6f35c1f256e535d7603a3e8a0c958381116141dfb583643",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/apparmor.d/abstractions/hardware-tuning-nvidia",
+        "sha256": "53e4ec85af7c14b8a504bc0b7ed2f1e364f5934e4365c79977e0d25a8c4002ad",
+        "unchanged": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/etc/apparmor.d/abstractions/hardware-tuning-fuzzel-parent",
+        "sha256": "7a0a8bb10ce084e2b9c0aecd4536d085988eedb8291a27dc8146d7f211fc36e7",
+        "unchanged": true
+      }
+    ],
+    "protected_files": 89
+  },
+  "source_archive": {
+    "name": "debian-preseed-de(1).zip",
+    "sha256": "43b078621174625a741e3b4a24a8f9d52407c00f87a31e79c1e512b383ce7441"
+  },
+  "source_changes": {
+    "changed": [
+      {
+        "original_sha256": "9fd2906ce49c6fdbcdb0a737830641231f7f796e376377968b970516ddf6d6ec",
+        "path": "README.md",
+        "refactored_sha256": "9291e89d9922b40e79c9a967e9413a6b4dd7c8cf99ad76cfc5a085e978408980"
+      },
+      {
+        "original_sha256": "ee47bdd1a1c5cdbf8b8321458e8fd41058ea8b59f889adf736559f3a564eb6dc",
+        "path": "d-i/forky/hooks/target/etc/logrotate.conf",
+        "refactored_sha256": "4b1fffd0c6e9a1e5a6893c0df8bac21b7ba830e00ba2366e5aa2996d34432742"
+      },
+      {
+        "original_sha256": "f0a88c36b51dfb172fdf6a747d4b92daf1694a3a655374f465a0f518a2bf8b56",
+        "path": "d-i/forky/hooks/target/etc/logrotate.d/adb",
+        "refactored_sha256": "73b5902843b36a3f2f2bb482b85d610a3a55576a48bf8dfda6094a1fc4d3a6a1"
+      },
+      {
+        "original_sha256": "2ed71c49c10ba030479a98a444097f92a30912526c752f31e72f42e726c3b4ee",
+        "path": "d-i/forky/hooks/target/etc/logrotate.d/apparmor-modes.tmpl",
+        "refactored_sha256": "73b5902843b36a3f2f2bb482b85d610a3a55576a48bf8dfda6094a1fc4d3a6a1"
+      },
+      {
+        "original_sha256": "8fa58b8f80757947f36cf42cd00716bced082732b31c0e464b84d880dec17075",
+        "path": "d-i/forky/hooks/target/etc/logrotate.d/apparmor.tmpl",
+        "refactored_sha256": "73b5902843b36a3f2f2bb482b85d610a3a55576a48bf8dfda6094a1fc4d3a6a1"
+      },
+      {
+        "original_sha256": "bedb58ccc687779a850652378a9dd939a0ffde117ee761b20d115597656ea302",
+        "path": "d-i/forky/hooks/target/etc/logrotate.d/auth.tmpl",
+        "refactored_sha256": "73b5902843b36a3f2f2bb482b85d610a3a55576a48bf8dfda6094a1fc4d3a6a1"
+      },
+      {
+        "original_sha256": "33fc019b80d798d8b8c4985de086488599b4d8f4322aa59a24e971ba08d27e8f",
+        "path": "d-i/forky/hooks/target/etc/logrotate.d/chatgpt-runtime.tmpl",
+        "refactored_sha256": "304f47f51350925417e156880a6f523e58d0c220bb698cfc8c65b47dfd66f6c8"
+      },
+      {
+        "original_sha256": "776d2b84e05e9784c390241e3e0db9c1659cd6ae12b7c29e5de0301cd3386467",
+        "path": "d-i/forky/hooks/target/etc/logrotate.d/chatgpt.tmpl",
+        "refactored_sha256": "ae9c65a1d3fe609799ea06e674c8e1437bbdb80fae933266dc9f000d68a2aa85"
+      },
+      {
+        "original_sha256": "270b2939d837b8f6900388f921deb732b7b02664f81de74998c934cd5ce8e659",
+        "path": "d-i/forky/hooks/target/etc/logrotate.d/codex.tmpl",
+        "refactored_sha256": "ca7972ed064cf1ea2b9a3d72aaa963ee12343e825192c2524448e84605d3fc83"
+      },
+      {
+        "original_sha256": "3a4c6f22edda81846f4a7c75f090405eacc228a0de024a75e4d1c4f12f6bb35f",
+        "path": "d-i/forky/hooks/target/etc/logrotate.d/desktop-apps",
+        "refactored_sha256": "73b5902843b36a3f2f2bb482b85d610a3a55576a48bf8dfda6094a1fc4d3a6a1"
+      },
+      {
+        "original_sha256": "bb33ffee6c82f73199c018d1faf02d001df534459f18b7e52e243574ce6feb9e",
+        "path": "d-i/forky/hooks/target/etc/logrotate.d/fail2ban.tmpl",
+        "refactored_sha256": "995ab22a61ce2d181bdea046a9369f0867a83e80e7efd5ec897dedc8634c80a7"
+      },
+      {
+        "original_sha256": "bcd08985225c6e363e689bdb8da0a4820a4e65d6a172a91f2f4f68e2d75b696c",
+        "path": "d-i/forky/hooks/target/etc/logrotate.d/fuzzel.tmpl",
+        "refactored_sha256": "73b5902843b36a3f2f2bb482b85d610a3a55576a48bf8dfda6094a1fc4d3a6a1"
+      },
+      {
+        "original_sha256": "24ede013cc4d80f82f610a0ee98a61f081c6c0dfc3fbd426677bf238d711560c",
+        "path": "d-i/forky/hooks/target/etc/logrotate.d/nftables.tmpl",
+        "refactored_sha256": "73b5902843b36a3f2f2bb482b85d610a3a55576a48bf8dfda6094a1fc4d3a6a1"
+      },
+      {
+        "original_sha256": "7f89ad916dc12350937081b662842eb0678436203ade92adc12bf30e41e0e6e1",
+        "path": "d-i/forky/hooks/target/etc/logrotate.d/rsyslog.tmpl",
+        "refactored_sha256": "73b5902843b36a3f2f2bb482b85d610a3a55576a48bf8dfda6094a1fc4d3a6a1"
+      },
+      {
+        "original_sha256": "48e2f5433ae4975b77aa20a6f93130a70dfcad6d1b7ef8e9e62c80728e92d2ab",
+        "path": "d-i/forky/hooks/target/etc/logrotate.d/security-notify",
+        "refactored_sha256": "73b5902843b36a3f2f2bb482b85d610a3a55576a48bf8dfda6094a1fc4d3a6a1"
+      },
+      {
+        "original_sha256": "2a019e4ae1f207763c6662e8f74ba62a4b32b7a74b915ab48977a82b55570f2e",
+        "path": "d-i/forky/hooks/target/etc/logrotate.d/security-scanners.tmpl",
+        "refactored_sha256": "73b5902843b36a3f2f2bb482b85d610a3a55576a48bf8dfda6094a1fc4d3a6a1"
+      },
+      {
+        "original_sha256": "3c08b4aeeac2f606d556dc4a6a0ca8c4c5f08386aeacecf17174820cc01fda2f",
+        "path": "d-i/forky/hooks/target/etc/logrotate.d/storage.tmpl",
+        "refactored_sha256": "73b5902843b36a3f2f2bb482b85d610a3a55576a48bf8dfda6094a1fc4d3a6a1"
+      },
+      {
+        "original_sha256": "4f7ebb1d48f61266e6b80a7ee37d109d33eb1ba20cbb715d448110cf2abff1b7",
+        "path": "d-i/forky/hooks/target/etc/logrotate.d/timeshift.tmpl",
+        "refactored_sha256": "73b5902843b36a3f2f2bb482b85d610a3a55576a48bf8dfda6094a1fc4d3a6a1"
+      },
+      {
+        "original_sha256": "33b51330d28a3afdb2128ea3f07cb2bac6aae955aba370b44ade11b09d3499ab",
+        "path": "d-i/forky/hooks/target/etc/logrotate.d/usb.tmpl",
+        "refactored_sha256": "73b5902843b36a3f2f2bb482b85d610a3a55576a48bf8dfda6094a1fc4d3a6a1"
+      },
+      {
+        "original_sha256": "9d597cd7beed2e25a28d538c87405d2fa278b5a690fb769a1f46791dfaef462f",
+        "path": "d-i/forky/hooks/target/etc/logrotate.d/whisper.tmpl",
+        "refactored_sha256": "73b5902843b36a3f2f2bb482b85d610a3a55576a48bf8dfda6094a1fc4d3a6a1"
+      },
+      {
+        "original_sha256": "963ec08ba111628d858a76779a792fcff4851bde268d2b107392d602de219a54",
+        "path": "d-i/forky/hooks/target/etc/logrotate.d/zram.tmpl",
+        "refactored_sha256": "73b5902843b36a3f2f2bb482b85d610a3a55576a48bf8dfda6094a1fc4d3a6a1"
+      },
+      {
+        "original_sha256": "5477b2f9fe35774448637f86d2d57a38ce67289f82982a7c26c3369b0aaab9db",
+        "path": "d-i/forky/hooks/target/etc/rsyslog.conf.tmpl",
+        "refactored_sha256": "f857eb553863c1c945135e1ac3283107d50f36200a41e974449ee8b2189014e3"
+      },
+      {
+        "original_sha256": "d54d4c2dedadfa08d9ac93a5c74a6e1d5e578b49c1b3721dbf38eacdb2375da0",
+        "path": "d-i/forky/hooks/target/etc/rsyslog.d/15-audit.conf",
+        "refactored_sha256": "b8fe2188fdb98c453c9d777844af2a0eaa20062ececf6afebcc4258afed83619"
+      },
+      {
+        "original_sha256": "8c5c168a4678657ff93145171e0c2729699cb69aa005e481d566ccaf5292e560",
+        "path": "d-i/forky/hooks/target/etc/rsyslog.d/19-power.conf.tmpl",
+        "refactored_sha256": "99ffbd0e695e5eb00fa1f4b22c9b217a73a0b837a8585dfba08165532836ef46"
+      },
+      {
+        "original_sha256": "fa557e322395dbca9312493aadd158b36eff7910d574900f5429a051fb5bb433",
+        "path": "d-i/forky/hooks/target/etc/rsyslog.d/20-auth.conf.tmpl",
+        "refactored_sha256": "f6558c7b7819eb56ceea453ababed84134e5f1fb4b31e5b70c85dbae1b91f18c"
+      },
+      {
+        "original_sha256": "29a93a5156ae268e1d60863bb895520668debbed7573a30b4e06d3404dc39281",
+        "path": "d-i/forky/hooks/target/etc/rsyslog.d/25-usb.conf.tmpl",
+        "refactored_sha256": "56e2fea9602cafda0221ea26e482f7482011b9869d66a6119461b6e939d61d60"
+      },
+      {
+        "original_sha256": "df8739834f1358173310c80aa2ac25355fa6a239c6a509da917a5a626684b19c",
+        "path": "d-i/forky/hooks/target/etc/rsyslog.d/30-apparmor.conf.tmpl",
+        "refactored_sha256": "e0871ca953f86869da662caba430582e5c111b3ceedc9feee65b40ca2b1d127f"
+      },
+      {
+        "original_sha256": "bdf257ea8a74c2d9ea5d5f31304e887fd139b8735204909973f5fc8e9096cd94",
+        "path": "d-i/forky/hooks/target/etc/rsyslog.d/31-apparmor-modes.conf.tmpl",
+        "refactored_sha256": "630f9c2442aae894323faaf723902417356c4078748db8e706fa468e1dbfa4ba"
+      },
+      {
+        "original_sha256": "77c6ab60d886c153751f53330888c8d8fd402b1299af8983512a4c8fe1ced16c",
+        "path": "d-i/forky/hooks/target/etc/rsyslog.d/35-storage.conf.tmpl",
+        "refactored_sha256": "7cbe2bc2e1a379d873b02d65b03601928a2465bf1a42cbee219adcdb886a6535"
+      },
+      {
+        "original_sha256": "a2a8a676d939dcd88504b9af32eb8fad90633a9c12d8ac6be3a1efbbba3798f0",
+        "path": "d-i/forky/hooks/target/etc/rsyslog.d/36-zram.conf.tmpl",
+        "refactored_sha256": "e2e6424c0e431bcdcb7694031f7fb8f786784c5cdea1fa6627eac97a7fbc316e"
+      },
+      {
+        "original_sha256": "59b1b5872551f86692ad2a6a763046fab5209a6c1f28be4cd6157e0a41e648ab",
+        "path": "d-i/forky/hooks/target/etc/rsyslog.d/37-whisper.conf.tmpl",
+        "refactored_sha256": "70fc15eb1a1d9de371f1d425d85df6fbb0c209e4996a87622671377098db2dbb"
+      },
+      {
+        "original_sha256": "8452cd7b11067eae0cc1e6226560d8a82559e784bd2c09c4f7282e77172e380e",
+        "path": "d-i/forky/hooks/target/etc/rsyslog.d/38-openai-chatgpt.conf.tmpl",
+        "refactored_sha256": "d697763543cca67bd7fde78640df9b3adde328901751bd4534f62b25bf876d47"
+      },
+      {
+        "original_sha256": "d6e3a549f8d14928f99a231d617d8c62c5a7f6803ff3b1723b86d59b436cbc7a",
+        "path": "d-i/forky/hooks/target/etc/rsyslog.d/38-timeshift.conf.tmpl",
+        "refactored_sha256": "85c5f6d183e3bbaa94f69a3ac8244bcd69bf768c7bdec2ea61b1302baf2e536b"
+      },
+      {
+        "original_sha256": "004bddd28c2674eafd2fd9c4a3ad3e83765f90361f6c06145163ce968e4786cd",
+        "path": "d-i/forky/hooks/target/etc/rsyslog.d/39-security-scanners.conf.tmpl",
+        "refactored_sha256": "22d19ff0e1bf727f64715807403c67e8a9ba2c8ea71aa8b61a9f294f0cd02550"
+      },
+      {
+        "original_sha256": "cef52af4ba68758af135c2968f1a3282507aadb3f97a969e44be5d57a2e811cd",
+        "path": "d-i/forky/hooks/target/etc/rsyslog.d/40-nftables.conf.tmpl",
+        "refactored_sha256": "919ec5440719acef67eac6a2ddbfdf2eaaf62c46cba5bb5151d3dfc9bc6507b8"
+      },
+      {
+        "original_sha256": "a0f57f3614191986ea5a31f4a329b22243c0ac1ed18c4ea3a2e830bc57228e4f",
+        "path": "d-i/forky/hooks/target/etc/rsyslog.d/41-fuzzel.conf.tmpl",
+        "refactored_sha256": "e4a2c35ce343df4a38048ff07ce0b84cb6b289f78cbb89d636b5c1cfbc914a7c"
+      },
+      {
+        "original_sha256": "6e8076ff676ca522247da1c1df74a306a6ec8040ba506c9d1cb50fa60e26e9c3",
+        "path": "d-i/forky/hooks/target/etc/rsyslog.d/44-components.conf.tmpl",
+        "refactored_sha256": "8bfa1d9a39eb15e237ac0e156a9478a25cada0625f19d3f31dce9c19ae7855c4"
+      },
+      {
+        "original_sha256": "64e046b8d743134c771a99796f826e1a9e983fe52424ef0f51cf79be3a1b9b0b",
+        "path": "d-i/forky/hooks/target/etc/systemd/journald.conf.d/10-storage.conf.tmpl",
+        "refactored_sha256": "d6befec27a1d90e1135ca3813c6bc70aa1d04e9b95a0256c9119dc416ba60c6f"
+      },
+      {
+        "original_sha256": "c9edf1f3560c5d009a74ecb6fc164188d69d70b9c9d1f6d04d6f0ee8c83ba53c",
+        "path": "d-i/forky/hooks/target/etc/systemd/system/logrotate.timer.d/override.conf.tmpl",
+        "refactored_sha256": "3b5285308bb57e13109b96ee90e1d82d9f668628736889dbdb642923d053ed80"
+      },
+      {
+        "original_sha256": "a660085984e4bdbc01bdd4e62c2bdb32b83782b97887e756f2f2b439ab344507",
+        "path": "d-i/forky/hooks/target/etc/systemd/system/rsyslog.service.d/20-log-layout.conf.tmpl",
+        "refactored_sha256": "96bd625e35c6bed9df4c7bc122a4773ff39d5aca5d44c6cea3ce62ed36ccea86"
+      },
+      {
+        "original_sha256": "b8cf075c172d68b5d3617714e2689d6b4597b29db7b5758acb066c1f9f15255b",
+        "path": "d-i/forky/hooks/target/etc/tmpfiles.d/59-log-layout.conf.tmpl",
+        "refactored_sha256": "ab0564b9f99ba1fbc2c945bbb8ff292b51fa79bca57138a45771f247a61e4e49"
+      },
+      {
+        "original_sha256": "251d0190e62262c327f447d3ad0b3ab02c2cc6faa2e819fbe5a192350f6a3ec5",
+        "path": "d-i/forky/hooks/target/usr/local/libexec/journal-check",
+        "refactored_sha256": "cf6aa29851794ffbd69aa352dc5b42f53ba2ca366b53883f172c7e2e19cf323f"
+      },
+      {
+        "original_sha256": "f63414bb5066c7bedf0ffaf02f6587edb1f2271ab4b30b0e380e01b2ca9046a2",
+        "path": "d-i/forky/hooks/target/usr/local/libexec/log-layout.tmpl",
+        "refactored_sha256": "b009da67e87d2e4b38835564e9466ed14d7e3862c645818fb769ca19a169dd26"
+      },
+      {
+        "original_sha256": "067ec6d2f3c0d00243080afe4b9c6d61144ad724deedac00bfa964ccc323f95e",
+        "path": "d-i/forky/hosts/logging/observability-schema.tsv",
+        "refactored_sha256": "68473e080d4974036d34fa6a3ae94eae6501648f14899ef445e2b59c77201000"
+      },
+      {
+        "original_sha256": "ef7562a50a0db453221dce6723281a08c9aa20261531f942325044d34a9abb72",
+        "path": "d-i/forky/hosts/logging/observability.env",
+        "refactored_sha256": "b13db4d8a8ab8408e53652be2f921b4d09d678a531fdd4da82c5105254ce27c2"
+      },
+      {
+        "original_sha256": "b5e1736d31c8131619a9e7cd7c3108695f298263344d70c60b9b3912dbc57248",
+        "path": "d-i/forky/payload.manifest",
+        "refactored_sha256": "04422a2339fa4702711446f0cbc4856880b511076f63f4f5ed256cc141279862"
+      },
+      {
+        "original_sha256": "ceb0ab8c298dc11a0959fd27f2627d9f3e2b6a1218433abf9bf37f7eb0d41a13",
+        "path": "d-i/forky/payload.tar.gz",
+        "refactored_sha256": "9c1c4dd5ba16a06dcc0428d945d2a5701d21440518a0adb34835f8509b003d8f"
+      },
+      {
+        "original_sha256": "76c6dcf6eb2194eac35caab91f2a5a4809614dc3e9b23c7e53abad8c5293a8e4",
+        "path": "d-i/forky/preseed.cfg",
+        "refactored_sha256": "226e54981ecdb2efb672561529297bed2eac19d5a4ac2e9dd0e0bebf8dd52381"
+      },
+      {
+        "original_sha256": "775a72583e1c9e4435f218b85004ebfbfe268989e434215a0f6eb64c65f3d01c",
+        "path": "d-i/forky/scripts/desktop/components.sh.tmpl",
+        "refactored_sha256": "809f02e6a2206b215470b56e4f216b80ddcf9f97cd4998d09bbe516e704a0e84"
+      },
+      {
+        "original_sha256": "5bfe5eea1095753c10cf3adc683e410e402e775d6557a712b5886d8968e58379",
+        "path": "d-i/forky/scripts/desktop/verify.sh.tmpl",
+        "refactored_sha256": "f694d73a64d79d14d8b8e3b0db6dbb498505d12d24d963019f4e054e6ced26c4"
+      },
+      {
+        "original_sha256": "21a4daea41cf2bc06bb8b0ca321bd7255a3cae8d96237e8576f6e6ee438a9abe",
+        "path": "d-i/forky/scripts/firstboot/assets/var/lib/firstboot/bin/crowdsec-firstboot.tmpl",
+        "refactored_sha256": "8a571f2e89bbeee4f53b82d8d01194db6d737f270bb73a0c83b62831bc4f0fb0"
+      },
+      {
+        "original_sha256": "419e3d279f245350da930a2e9a6dcb681c31d2bcdae92e4e647326d9a9c72e26",
+        "path": "d-i/forky/scripts/late/btrfs-family.sh",
+        "refactored_sha256": "61b3eefaa8b43652f1ee2948ce95bee87d7a8c8f3fb8a5215f267b8a1da3969f"
+      },
+      {
+        "original_sha256": "02d004441cddce34249c304fbb241f99c0665837bf6ff2eef57d257eb2d9b70a",
+        "path": "d-i/forky/scripts/late/crowdsec.sh",
+        "refactored_sha256": "7fb1d596165b0469f7b53445b3e23381ab6fc422da8b2a7effe379cc48721e86"
+      },
+      {
+        "original_sha256": "efdcb6626e8540cdbb97bdaa0a5a6bc18312dd279bbfbf9bbdc2f97b8ef3606e",
+        "path": "d-i/forky/scripts/late/devops.sh.tmpl",
+        "refactored_sha256": "d7141553e537e3df750b68afd1b4f69e3aa090d61f3d84c35e8937a55056cc50"
+      },
+      {
+        "original_sha256": "4cac214b39e6d516ca40f3971e4dba32be2e8814794b0954113560ff4e7c9fef",
+        "path": "d-i/forky/scripts/late/f2fs-family.sh",
+        "refactored_sha256": "d4043ba972332c1ce7fa8c5c8638145dc1cf839816ff7c9e2d81feef5c8d8eca"
+      },
+      {
+        "original_sha256": "19ccdfeddb5a15983004c197b72fd9783fe1276adc96cd637b39e1be6d1bb19e",
+        "path": "d-i/forky/scripts/late/software.sh.tmpl",
+        "refactored_sha256": "ac7d7668d287e145094cc7393e4c6b26544a508993260cdf17af758358befd26"
+      },
+      {
+        "original_sha256": "b106da74d32fc9a3c37195c000805b63de09cf57eb176a7040cc0fdd6c8b9f63",
+        "path": "d-i/forky/scripts/late/storage-maintenance.sh",
+        "refactored_sha256": "8e30c3d4e72ae92e62ba11ce74cf2cae48f740f7b7b1f7c89a3b4b01a8d3a6f4"
+      },
+      {
+        "original_sha256": "3ff3683f5e422d2bebc69189296faebf7dd9c2589b257eb9bfa35b6af9ba7765",
+        "path": "d-i/forky/scripts/late/tailscale.sh",
+        "refactored_sha256": "47e070477bd6b03e5dcb52917422f1c2ddca183a13952936bded4ded7c1777cf"
+      },
+      {
+        "original_sha256": "309646d46fe982551aa9c145bcbfbae7bf6b32cfb174ddbc3662a10cbdb4f75b",
+        "path": "d-i/forky/scripts/late/target-assets.sh",
+        "refactored_sha256": "930b183bb3fbf34460aa780b2631235562cd12b65ca4f2ce6ac580639e16ca4c"
+      },
+      {
+        "original_sha256": "fb2c57cd8e7f29efb388585515a113af33bed4c0c5a7eda13340ad3a31f37d8f",
+        "path": "d-i/forky/tests/test_boot_logging_20260923.py",
+        "refactored_sha256": "18d589afa730a0ef85b9ec0a1b0224cb73b724e217939bd66c6ee199e12bb574"
+      },
+      {
+        "original_sha256": "25874acbd886c565d8eb28a9845ce4319ba121929bdd284443fe1b96506884a2",
+        "path": "d-i/forky/tests/test_layout_followup_20260923.py",
+        "refactored_sha256": "2273bfd6a73ce1a4bd9c01dbd9e52b9c8baa53a124ab81ef45b65f554a6ec9a2"
+      },
+      {
+        "original_sha256": "8d6e36e19015d8e0cff47ae6c8f2799068037199cf3eeb8617813f4f159965d8",
+        "path": "d-i/forky/tests/test_managed_logging_r3.py",
+        "refactored_sha256": "0b3fa4bb6a3324295d675079b8292baeac125b18d0d6a961ad9fe5823b9029d9"
+      },
+      {
+        "original_sha256": "f5c5b64afe4c52c0479127072e08141437af2617f678dd2304b65bacb459ad46",
+        "path": "d-i/forky/tests/test_native_contracts_20260923.py",
+        "refactored_sha256": "32099845c330cb1d1509e978ed87951501f0b23432e3297d8f1db89e0f3c7c0f"
+      },
+      {
+        "original_sha256": "d6b816f819d3dbd377b2cdc1d06ca06accdf2ecdc6bf9b2a678d6fdfadede458",
+        "path": "d-i/forky/tests/test_native_logging_r4.py",
+        "refactored_sha256": "ba24779ad57b31b5978478b9fe7eb471fa50e09380857710e05f01df7f290e54"
+      },
+      {
+        "original_sha256": "91b2fc0ade8e2ee60f6bf0c4e734a979ff81d063f05adfd288ed930a195d80b9",
+        "path": "d-i/forky/tests/test_systemd_resource_policy.py",
+        "refactored_sha256": "788708cbaeaa99a9e412ad016b1783d0e0ca271de51976f9b25a5885430975a2"
+      }
+    ],
+    "new": [
+      "LOGGING-REPAIR-20260924-results.json",
+      "LOGGING-REPAIR-20260924.md",
+      "d-i/forky/hooks/target/etc/rsyslog.d/21-apps.conf.tmpl",
+      "d-i/forky/hooks/target/usr/local/libexec/rsyslog-size-rotate.tmpl",
+      "d-i/forky/tests/test_logging_size_20260924.py"
+    ],
+    "original_files": 1735,
+    "refactored_files": 1740,
+    "removed": []
+  },
+  "validation": {
+    "broad_audit_summary": {
+      "check_counts": {
+        "blocked-dependency": 158,
+        "inventory-only": 579,
+        "pass": 491,
+        "structure-pass": 214,
+        "template-needs-render": 11
+      },
+      "kind_counts": {
+        "config-or-data": 579,
+        "javascript": 11,
+        "json": 45,
+        "perl": 181,
+        "python": 119,
+        "shell": 277,
+        "systemd-structure": 214,
+        "toml": 11,
+        "xml": 16
+      },
+      "limits": [
+        "Syntax and inventory are not semantic or runtime proof.",
+        "Systemd structure checks do not resolve vendor units or template values.",
+        "Blocked dependency/template checks are not passes.",
+        "No kernel policies, network changes, services or installers are applied."
+      ],
+      "requested_unique_files": 1274,
+      "scope_counts": {
+        "hooks/installer": 28,
+        "hooks/target": 1246
+      },
+      "total_with_installers_and_hosts": 1453
+    },
+    "focused_logging": {
+      "errors": 0,
+      "failed_cases": [],
+      "failures": 0,
+      "log_sha256": "5d3eb3ff744cb93f7ac4bd82215451c53c99f4707e3383554ad8c4dfede921f8",
+      "result": "OK",
+      "seconds": 87.975,
+      "skipped": 2,
+      "tests": 116
+    },
+    "full_repository_failed_case_reruns": {
+      "errors": 0,
+      "failed_cases": [
+        "test_full_debian_preseed_include_and_run_local_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_include_and_run_local_apply)",
+        "test_opposite_role_fails_before_preflight_marker (test_repository_transport.RealBootstrapTests.test_opposite_role_fails_before_preflight_marker)"
+      ],
+      "failures": 2,
+      "log_sha256": "2e93ec8935d02c27d6e2c8c10f7170c7699860485322716855ca22b851718b1b",
+      "result": "FAILED",
+      "seconds": 284.9,
+      "skipped": 0,
+      "tests": 9
+    },
+    "full_repository_initial_shards": [
+      {
+        "errors": 0,
+        "failed_cases": [
+          "test_full_debian_preseed_f2fs_arm64_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_f2fs_arm64_apply)",
+          "test_full_debian_preseed_include_and_run_http_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_include_and_run_http_apply)",
+          "test_full_debian_preseed_include_and_run_local_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_include_and_run_local_apply)",
+          "test_full_debian_preseed_vm_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_vm_apply)"
+        ],
+        "failures": 4,
+        "log_sha256": "c93e3e88b5c3d4697ecd09d598ae9925f9559047b6bdf58d043e5e4a762b46cc",
+        "result": "FAILED",
+        "seconds": 606.558,
+        "skipped": 4,
+        "tests": 609
+      },
+      {
+        "errors": 0,
+        "failed_cases": [],
+        "failures": 0,
+        "log_sha256": "10c93a840e37c2ae3bb9e4e2333ed6ab573e7a616868208d15ba943541c0ac34",
+        "result": "OK",
+        "seconds": 497.741,
+        "skipped": 26,
+        "tests": 696
+      },
+      {
+        "errors": 0,
+        "failed_cases": [
+          "test_native_power_sink_and_its_rotation_share_the_catalogue (test_layout_followup_20260923.LayoutContracts.test_native_power_sink_and_its_rotation_share_the_catalogue)",
+          "test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation)"
+        ],
+        "failures": 2,
+        "log_sha256": "391a3f235fd1f4eb08e2c48969de245d8eeec1d29765f4eccb351586966829fd",
+        "result": "FAILED",
+        "seconds": 750.028,
+        "skipped": 11,
+        "tests": 649
+      },
+      {
+        "errors": 0,
+        "failed_cases": [
+          "test_actual_generated_local_bootstrap_under_busybox_at_every_boundary (test_bootstrap_portability.GeneratedInstallerShellTests.test_actual_generated_local_bootstrap_under_busybox_at_every_boundary)",
+          "test_hardware_detection_failure_is_recorded_before_class_merge (test_bootstrap_portability.GeneratedInstallerShellTests.test_hardware_detection_failure_is_recorded_before_class_merge)",
+          "test_opposite_role_fails_before_preflight_marker (test_repository_transport.RealBootstrapTests.test_opposite_role_fails_before_preflight_marker)"
+        ],
+        "failures": 3,
+        "log_sha256": "6fe0d4be37c2ba4192874b5c641f4dbbcb7a6f300bdd721b1c8e6723a1555469",
+        "result": "FAILED",
+        "seconds": 610.263,
+        "skipped": 12,
+        "tests": 676
+      }
+    ],
+    "full_repository_rollup": {
+      "errors": 0,
+      "failures": 9,
+      "initial_passed": 2568,
+      "passed_after_standard_deadline_reruns": 2576,
+      "remaining_failed_standard_deadline_cases": [
+        "test_opposite_role_fails_before_preflight_marker (test_repository_transport.RealBootstrapTests.test_opposite_role_fails_before_preflight_marker)"
+      ],
+      "skipped": 53,
+      "tests": 2630
+    },
+    "hardware_policy_parsers": {
+      "checks": [
+        {
+          "check": "systemd-verify",
+          "fixture_executables": true,
+          "log": "units-intel-system.log",
+          "returncode": 0,
+          "scope": "system",
+          "vendors": [
+            "intel"
+          ]
+        },
+        {
+          "check": "systemd-verify",
+          "fixture_executables": true,
+          "log": "units-intel-user.log",
+          "returncode": 0,
+          "scope": "user",
+          "vendors": [
+            "intel"
+          ]
+        },
+        {
+          "check": "apparmor-parse",
+          "kernel_load": false,
+          "log": "apparmor-intel.log",
+          "returncode": 0,
+          "vendors": [
+            "intel"
+          ]
+        },
+        {
+          "check": "systemd-verify",
+          "fixture_executables": true,
+          "log": "units-nvidia-system.log",
+          "returncode": 0,
+          "scope": "system",
+          "vendors": [
+            "nvidia"
+          ]
+        },
+        {
+          "check": "systemd-verify",
+          "fixture_executables": true,
+          "log": "units-nvidia-user.log",
+          "returncode": 0,
+          "scope": "user",
+          "vendors": [
+            "nvidia"
+          ]
+        },
+        {
+          "check": "apparmor-parse",
+          "kernel_load": false,
+          "log": "apparmor-nvidia.log",
+          "returncode": 0,
+          "vendors": [
+            "nvidia"
+          ]
+        },
+        {
+          "check": "systemd-verify",
+          "fixture_executables": true,
+          "log": "units-intel-nvidia-system.log",
+          "returncode": 0,
+          "scope": "system",
+          "vendors": [
+            "intel",
+            "nvidia"
+          ]
+        },
+        {
+          "check": "systemd-verify",
+          "fixture_executables": true,
+          "log": "units-intel-nvidia-user.log",
+          "returncode": 0,
+          "scope": "user",
+          "vendors": [
+            "intel",
+            "nvidia"
+          ]
+        },
+        {
+          "check": "apparmor-parse",
+          "kernel_load": false,
+          "log": "apparmor-intel-nvidia.log",
+          "returncode": 0,
+          "vendors": [
+            "intel",
+            "nvidia"
+          ]
+        }
+      ],
+      "limits": [
+        "Offline parser/dependency checks with fixture executables and session/AppArmor dependencies; no target units started.",
+        "AppArmor policies compiled without kernel loading; on-target enforcement remains required."
+      ],
+      "success": true,
+      "systemd_version": "systemd 257 (257.9-1~deb13u1)"
+    },
+    "independent_payload_integrity": {
+      "duplicate_or_unsafe_members": false,
+      "every_member_hash_matches": true,
+      "payload_file_count": 1525,
+      "selected_authenticated_templates": [
+        {
+          "bytes": 1409,
+          "mode": "0o644",
+          "path": "hooks/target/etc/rsyslog.d/21-apps.conf.tmpl",
+          "sha256": "70cd9447211bf57d7fc1fa5870f509a0bddbe2cad3947831022ad0888b0a3333"
+        },
+        {
+          "bytes": 7479,
+          "mode": "0o644",
+          "path": "hooks/target/usr/local/libexec/rsyslog-size-rotate.tmpl",
+          "sha256": "c1b851375c0b003c7be09296d47f8d5eeedfb741f1342a558bd82941a0094bb6"
+        },
+        {
+          "bytes": 5459,
+          "mode": "0o644",
+          "path": "hooks/target/etc/tmpfiles.d/59-log-layout.conf.tmpl",
+          "sha256": "ab0564b9f99ba1fbc2c945bbb8ff292b51fa79bca57138a45771f247a61e4e49"
+        }
+      ],
+      "template_rendering": "existing authenticated target-asset publication layer",
+      "valid": true
+    },
+    "initial_failure_context": [
+      "Initial shards ran concurrently, and some generated-bootstrap cases observed an intermediate stale payload before the final rebuild.",
+      "The old power-routing assertion was updated to assert real socket identifiers and native rotation ownership, replacing unavailable journal-only metadata.",
+      "Preseed apply and process-handoff fixtures have short deadlines; their original assertions were rerun serially on the frozen payload without changing deadlines.",
+      "The original input baseline also failed test_opposite_role_fails_before_preflight_marker. Its unchanged eight-second fixture deadline still fails, but a separate diagnostic observed the required fatal record and non-returning terminal hold after 10.17 seconds, with every other assertion unchanged. This diagnostic is not counted as a standard-deadline pass."
+    ],
+    "local_preseed_final_standard_deadline_rerun": {
+      "errors": 0,
+      "failed_cases": [],
+      "failures": 0,
+      "log_sha256": "df6248ecfbbdcf9d14db3ba98dfc6f92acea242479900a2238e66616f5ece2b9",
+      "result": "OK",
+      "seconds": 58.354,
+      "skipped": 0,
+      "tests": 1
+    },
+    "native_logrotate": {
+      "dry_run": true,
+      "fixture_substitutions": [
+        "private include directory",
+        "desktop account=root",
+        "openailogger/devops group=root"
+      ],
+      "fragments": 20,
+      "returncode": 0,
+      "target_services_started": false,
+      "version": "logrotate 3.22.0"
+    },
+    "original_repository_baseline": {
+      "errors": 0,
+      "failed_cases": [
+        "test_opposite_role_fails_before_preflight_marker (test_repository_transport.RealBootstrapTests.test_opposite_role_fails_before_preflight_marker)"
+      ],
+      "failures": 1,
+      "log_sha256": "c00bd25e5603eb238b8e78c84b1e21668c1041f680eacd6599552ec882d19525",
+      "result": "FAILED",
+      "seconds": 1929.494,
+      "skipped": 52,
+      "tests": 2606
+    },
+    "preexisting_role_deadline_diagnostic": {
+      "diagnostic_only": true,
+      "errors": 0,
+      "failed_cases": [],
+      "failures": 0,
+      "log_sha256": "99508e51fd1fa912eee998de194878e27e6f0dedd0ebc5c21e9a26122cd63345",
+      "observations": [
+        {
+          "diagnostic_deadline_seconds": 30,
+          "file_created": true,
+          "observed_seconds": 10.169035891000021,
+          "original_fixture_deadline_seconds": 8
+        }
+      ],
+      "result": "OK",
+      "seconds": 10.217,
+      "skipped": 0,
+      "tests": 1
+    },
+    "release_checks": {
+      "exit_status": 0,
+      "output": "resctl-bench: 10 profiles have independently valid release pins (offline)\nBrowser artifacts current\nsnapshot, pins and preseed are current\nlogging: variables=111, templates=345, logging_templates=77, profiles=10\nAll four generated command values survived private debconf read-back unchanged\n59 preseed files checked; PASS\n"
+    },
+    "rerun_command": [
+      "python3",
+      "-B",
+      "-m",
+      "unittest",
+      "-v",
+      "test_layout_followup_20260923.LayoutContracts.test_native_power_sink_and_its_rotation_share_the_catalogue",
+      "test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation",
+      "test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_f2fs_arm64_apply",
+      "test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_include_and_run_http_apply",
+      "test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_include_and_run_local_apply",
+      "test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_vm_apply",
+      "test_bootstrap_portability.GeneratedInstallerShellTests.test_actual_generated_local_bootstrap_under_busybox_at_every_boundary",
+      "test_bootstrap_portability.GeneratedInstallerShellTests.test_hardware_detection_failure_is_recorded_before_class_merge",
+      "test_repository_transport.RealBootstrapTests.test_opposite_role_fails_before_preflight_marker"
+    ],
+    "shell_parsers": {
+      "failures": [],
+      "parser_checks": 593,
+      "scope": "syntax and external metadata dependency checks; runtime execution is a separate test stage",
+      "shell_files": 291,
+      "success": true
+    },
+    "tools_final": {
+      "errors": 0,
+      "failed_cases": [],
+      "failures": 0,
+      "log_sha256": "50f0a577dd4079c1a4bc66f56c4fd2e1336e6359b66536216dbaf6aab0bc86c5",
+      "result": "OK",
+      "seconds": 49.327,
+      "skipped": 0,
+      "tests": 179
+    },
+    "tools_initial": {
+      "errors": 0,
+      "failed_cases": [
+        "test_reload_is_forwarded (test_scoped_desktop_fixes.PanelTests.test_reload_is_forwarded)"
+      ],
+      "failures": 1,
+      "log_sha256": "67232e0b101cf21aa45012217786cf89c1ea035d81839f947da0254d82be389a",
+      "result": "FAILED",
+      "seconds": 78.929,
+      "skipped": 0,
+      "tests": 179
+    }
+  }
+}

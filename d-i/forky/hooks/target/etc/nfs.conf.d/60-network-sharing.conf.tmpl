@@ -1,0 +1,18 @@
+# Managed NFSv4.1/4.2 only; no portmapper, UDP or v4.0 callback listener.
+[nfsd]
+threads = __NFS_SERVER_THREADS__
+port = __NFS_SERVER_PORT__
+tcp = y
+udp = n
+vers2 = n
+vers3 = n
+vers4 = y
+vers4.0 = n
+vers4.1 = y
+vers4.2 = y
+# Leave rdma and rdma-port unset. rpc.nfsd also interprets false strings
+# as legacy RDMA port names; the identity guard rejects inherited settings.
+[mountd]
+# Keep the AUTH_SYS group list consistent with server-side NSS membership.
+manage-gids = y
+reverse-lookup = n

@@ -1,0 +1,47 @@
+{
+  "rootDir": "__INSTALLER_DEVOPS_APTLY_ROOT_DIR__",
+  "downloadConcurrency": 4,
+  "downloadSpeedLimit": 0,
+  "architectures": [
+    "amd64",
+    "source"
+  ],
+  "dependencyFollowSuggests": false,
+  "dependencyFollowRecommends": false,
+  "dependencyFollowAllVariants": false,
+  "dependencyFollowSource": false,
+  "dependencyVerboseResolve": false,
+  "gpgDisableSign": false,
+  "gpgDisableVerify": false,
+  "gpgProvider": "gpg",
+  "downloadSourcePackages": false,
+  "skipLegacyPool": true,
+  "managedLocalPublishing": {
+    "schemaVersion": 1,
+    "distributions": "__INSTALLER_DEVOPS_APTLY_DISTRIBUTIONS__",
+    "component": "__INSTALLER_DEVOPS_APTLY_COMPONENT__",
+    "publishTarget": "__INSTALLER_DEVOPS_APTLY_PUBLISH_TARGET__",
+    "workerRoute": "__INSTALLER_DEVOPS_APTLY_WORKER_ROUTE__",
+    "workerZone": "__INSTALLER_DEVOPS_APTLY_WORKER_ZONE__",
+    "publicBaseURL": "__INSTALLER_DEVOPS_APTLY_PUBLIC_BASE_URL__",
+    "signingKeyFingerprint": "__INSTALLER_DEVOPS_APTLY_REPOSITORY_KEY_FINGERPRINT__",
+    "credentialsBackend": "__INSTALLER_DEVOPS_APTLY_CREDENTIALS_BACKEND__"
+  },
+  "S3PublishEndpoints": {
+    "__INSTALLER_DEVOPS_APTLY_R2_ENDPOINT_NAME__": {
+      "region": "auto",
+      "bucket": "__INSTALLER_DEVOPS_APTLY_R2_BUCKET__",
+      "endpoint": "__INSTALLER_DEVOPS_APTLY_R2_ENDPOINT_URL__",
+      "awsAccessKeyID": "",
+      "awsSecretAccessKey": "",
+      "prefix": "__INSTALLER_DEVOPS_APTLY_R2_STORAGE_PREFIX__",
+      "acl": "none",
+      "storageClass": "STANDARD",
+      "encryptionMethod": "",
+      "plusWorkaround": false,
+      "disableMultiDel": false,
+      "forceSigV2": false,
+      "debug": false
+    }
+  }
+}

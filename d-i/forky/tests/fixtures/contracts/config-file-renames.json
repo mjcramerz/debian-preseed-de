@@ -1,0 +1,8 @@
+{
+  "d-i/forky/hooks/target/etc/installer/runtime.conf.tmpl": "d-i/forky/hooks/target/etc/system-runtime.conf.tmpl",
+  "d-i/forky/hooks/target/etc/secure-boot/config.tmpl": "d-i/forky/hooks/target/etc/secure-boot.conf.tmpl",
+  "d-i/forky/hooks/target/etc/default/chatgpt": "d-i/forky/hooks/target/etc/chatgpt/package-policy.conf",
+  "d-i/forky/hooks/target/etc/default/codex-app-server": "d-i/forky/hooks/target/etc/codex/app-server.env",
+  "d-i/forky/hooks/target/etc/default/zram-writeback.tmpl": "d-i/forky/hooks/target/etc/zram-writeback/setup.conf.tmpl",
+  "d-i/forky/hooks/target/etc/zram-writeback.conf.tmpl": "d-i/forky/hooks/target/etc/zram-writeback/policy.conf.tmpl"
+}

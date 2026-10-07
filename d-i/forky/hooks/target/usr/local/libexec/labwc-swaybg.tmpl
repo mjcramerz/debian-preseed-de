@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+
+if [ -r /etc/labwc/desktop.conf ]; then
+  # shellcheck disable=SC1091
+  . /etc/labwc/desktop.conf
+fi
+
+case "${LABWC_ENABLE_SWAYBG:-true}" in
+  true|yes|1|on) ;;
+  *) exit 0 ;;
+esac
+
+wallpaper_path=${LABWC_WALLPAPER_PATH:-__THEME_TARGET_PATH_LABWC_WALLPAPER_DESKTOP_SWAYBG__}
+# One supervisor owns the background for the whole graphical session. Changes
+# arrive through the validated state file; selections never restart the unit.
+exec /usr/local/libexec/labwc-wallpaper-control supervise "$wallpaper_path"

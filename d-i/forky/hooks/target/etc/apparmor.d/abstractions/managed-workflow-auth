@@ -1,0 +1,47 @@
+# Fixed-purpose Polkit brokers. Include only in unattached named profiles;
+# never attach this abstraction globally to pkexec or grant an unconfined exec.
+#include <abstractions/wrapper-base>
+#include <abstractions/wrapper-terminal>
+#include <abstractions/dbus-strict>
+#include <abstractions/nameservice>
+
+capability setuid,
+capability setgid,
+capability audit_write,
+capability sys_resource,
+unix,
+signal (send, receive) peer=@{profile_name},
+signal (receive) peer=unconfined,
+/usr/bin/{pkexec,pkttyagent} rix,
+/usr/share/polkit-1/ r,
+/usr/share/polkit-1/** r,
+/etc/polkit-1/{,**} r,
+/etc/{environment,login.defs} r,
+/etc/pam.d/{,**} r,
+/etc/security/{,**} r,
+/{,usr/}lib/@{multiarch}/security/*.so mr,
+/proc/ r,
+/proc/[0-9]*/{stat,status,loginuid,cmdline} r,
+/proc/[0-9]*/attr/current r,
+/run/ r,
+/run/user/ r,
+/run/user/[0-9]*/ r,
+/run/systemd/{,**} r,
+/run/utmp r,
+/var/run/utmp r,
+/var/log/{btmp,wtmp,lastlog} rwk,
+/var/log/ r,
+/var/ r,
+/var/lib/ r,
+/ r,
+/home/ r,
+@{HOME}/ r,
+# pkexec normally changes to the target account's home before exec. This is
+# traversal only; it does not authorize reading root's files or running a shell.
+/root/ r,
+
+# The daemon performs authentication; the broker can only request its declared
+# action and relay the agent conversation over the system bus.
+dbus (send, receive) bus=system peer=(name=org.freedesktop.PolicyKit1),
+dbus (send, receive) bus=system peer=(name=org.freedesktop.DBus),
+dbus (receive) bus=system interface=org.freedesktop.PolicyKit1.AuthenticationAgent,

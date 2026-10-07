@@ -1,0 +1,165 @@
+#!/usr/bin/python3 -I
+"""Computer Management: task groups and a discoverable Hardware Tuning entry.
+
+The no-argument entry point and child dmenu pickers use graphical Fuzzel.
+Explicit --terminal mode retains the terminal-only fzf adapter. Existing
+allowlisted dispatch, confirmations and privileged helpers remain.
+"""
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+SELF = '/usr/local/bin/labwc-computer-management'
+PICKER = '/usr/local/bin/labwc-fuzzel'
+TERMINAL = '/usr/local/bin/labwc-terminal'
+LOG = '/usr/local/bin/labwc-fuzzel-log'
+HARDWARE = '/usr/local/bin/labwc-hardware-tuning'
+
+# Labels are presentation. Only these fixed argv vectors can be launched.
+MENUS = {
+    'System & Recovery': {
+        'Maintenance & Health': ('labwc-maintenance-menu', 'system'),
+        'Recovery & Repair': ('labwc-maintenance-menu', 'recovery'),
+    },
+    'Network & Remote': {
+        'Network Sharing': ('labwc-network-sharing',),
+        'Connection Profiles': ('labwc-network-control-menu', 'connections'),
+        'VPN Connections': ('labwc-network-control-menu', 'vpn'),
+        'WireGuard Connections': ('labwc-network-control-menu', 'wireguard'),
+        'DNS Configuration': ('labwc-network-control-menu', 'dns'),
+        'Network Discovery': ('labwc-network-scan-menu',),
+        'Remote Desktop': ('labwc-remote-desktop',),
+    },
+    'Security & Accounts': {
+        'Protection & Firewall': ('labwc-maintenance-menu', 'security'),
+        'Users & Groups': ('labwc-users-groups-menu',),
+    },
+    'Devices & Desktop': {
+        'Desktop Appearance': ('labwc-desktop-appearance',),
+        'Displays & Layout': ('labwc-display-configuration',),
+        'Refresh Display Layout': ('/usr/local/libexec/labwc-output-watch', '--refresh'),
+        'Power Profile': ('labwc-power-settings',),
+        'Hardware Tuning': ('labwc-hardware-tuning', 'menu'),
+        'Keyboard Layout': ('labwc-keyboard-layout',),
+        'Audio Control': ('labwc-wayland-app', 'auto', '--', '/usr/bin/pavucontrol'),
+        'Restart Dock': ('/usr/bin/systemctl', '--user', '--no-block', 'restart', 'crystal-dock.service'),
+        'Android Devices': ('labwc-adb-menu',),
+        'Bluetooth Devices': ('labwc-bluetooth', 'menu'),
+        'Brightness': ('labwc-brightness-control',),
+    },
+    'Containers & AI': {
+        'Containers': ('labwc-podman-menu',),
+        'AI & Copilots': ('labwc-ai-copilots',),
+    },
+    'Files & Documents': {
+        'Documents & Media': ('labwc-digital-assets',),
+        'Drives & Backups': ('labwc-external-drives',),
+    },
+}
+
+
+def choose(labels: list[str], prompt: str) -> str | None:
+    result = subprocess.run([PICKER, 'computer-management', '--dmenu', '--prompt', prompt],
+                            input=''.join(label + '\n' for label in labels), text=True,
+                            stdout=subprocess.PIPE, check=False,
+                            env={**os.environ, 'LABWC_MENU_INPUT_MODE': 'choice',
+                                 'LABWC_FUZZEL_MANAGED_ICONS': '1',
+                                 'LABWC_FUZZEL_ROOT_MENU': '1' if prompt == 'Computer Management' else '0'})
+    if result.returncode == 1:
+        return None
+    if result.returncode:
+        raise RuntimeError(f'management picker failed ({result.returncode})')
+    selected = result.stdout.removesuffix('\n')
+    return selected if selected in labels else None
+
+
+def run_action(arguments: tuple[str, ...]) -> int:
+    executable = arguments[0]
+    if not executable.startswith('/'):
+        executable = '/usr/local/bin/' + executable
+    command = (executable, *arguments[1:])
+    if executable == '/usr/local/bin/labwc-desktop-appearance':
+        # A compositor child inherits its UID namespace. The user manager
+        # starts this exact administrative workflow with host UID semantics,
+        # so root-owned defaults and pkexec retain their real ownership.
+        command = ('/usr/local/bin/labwc-wayland-app', 'auto', '--', *command)
+    # Only the explicit terminal UI already owns a tty. Graphical invocation
+    # uses the AI launcher's normal terminal entry point instead.
+    if executable == '/usr/local/bin/labwc-ai-copilots' and os.environ.get('LABWC_MENU_BACKEND') == 'fzf':
+        command += ('--terminal',)
+    try:
+        status = subprocess.run(command, check=False).returncode
+    except OSError as error:
+        print(f'Computer Management: {Path(executable).name}: {error}', file=sys.stderr)
+        status = 127
+    if Path(LOG).is_file():
+        subprocess.run([LOG, 'action', 'completed', 'source=computer-management',
+                        'action=' + Path(executable).name, 'status=' + str(status)],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    return status
+
+
+def open_hardware_tuning() -> int:
+    # Keep the route visible even on intentionally gated hosts. Do not enable
+    # unsupported vendors, install packages or bypass the AppArmor transition.
+    if not (Path(HARDWARE).is_file() and os.access(HARDWARE, os.X_OK)):
+        choose(['Back'], 'Hardware Tuning unavailable: not installed (host enable flags / hardware / addon gates)')
+        return 0
+    result = run_action(('labwc-hardware-tuning', 'menu'))
+    if result:
+        choose(['Back'], f'Hardware Tuning failed (status {result}): check its notification and hardware-tuning.service logs')
+    return result
+
+
+def run_menu() -> int:
+    while True:
+        group = choose(['Hardware Tuning', *MENUS, 'Exit'], 'Computer Management')
+        if group is None or group == 'Exit':
+            return 0
+        if group == 'Hardware Tuning':
+            open_hardware_tuning()
+            continue
+        entries = MENUS[group]
+        while True:
+            selected = choose([*entries, 'Back'], 'Computer Management / ' + group)
+            if selected is None or selected == 'Back':
+                break
+            if selected == 'Hardware Tuning':
+                open_hardware_tuning()
+            else:
+                run_action(entries[selected])
+
+def main(argv: list[str]) -> int:
+    if argv == ['--catalog']:
+        print(json.dumps(MENUS, ensure_ascii=False, indent=2))
+        return 0
+    if os.geteuid() == 0:
+        raise ValueError('Computer Management must run as the desktop user')
+    if argv not in ([], ['--graphical'], ['--terminal']):
+        raise ValueError('usage: labwc-computer-management [--graphical|--terminal|--catalog]')
+    backend = 'fzf' if argv == ['--terminal'] else 'fuzzel'
+    if backend == 'fzf':
+        with open('/dev/tty', 'r+'):
+            pass
+        for key in list(os.environ):
+            if key.startswith('FZF_'):
+                del os.environ[key]
+    # These exports belong only to this process tree, never the user manager.
+    # A child action must finish before the next menu can take keyboard focus.
+    os.environ.update(LABWC_MENU_BACKEND=backend, LABWC_MENU_ACTION_WAIT='1',
+                      LABWC_FUZZEL_MANAGED_ICONS='1', LABWC_FUZZEL_ROOT_MENU='0',
+                      LABWC_FUZZEL_LOG_SCOPE='computer-management',
+                      LABWC_FUZZEL_PALETTE='computer-management')
+    return run_menu()
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except KeyboardInterrupt:
+        raise SystemExit(0)
+    except (OSError, ValueError, RuntimeError) as error:
+        print('Computer Management: ' + str(error), file=sys.stderr)
+        raise SystemExit(2)

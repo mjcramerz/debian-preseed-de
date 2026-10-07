@@ -1,0 +1,18 @@
+    menuentry '@@KERNEL_TITLE@@' --id '@@KERNEL_ENTRY_ID@@' --class debian --class gnu-linux --class gnu --class os {
+        set @@PROFILE_SAVED_VAR@@='@@KERNEL_ENTRY_ID@@'
+        set @@LAST_PROFILE_VAR@@='@@PROFILE@@'
+        set @@LAST_KERNEL_VAR@@='@@KERNEL_VER@@'
+        if [ -s $prefix/grubenv ]; then
+            save_env @@PROFILE_SAVED_VAR@@
+            save_env @@LAST_PROFILE_VAR@@
+            save_env @@LAST_KERNEL_VAR@@
+        fi
+        insmod gzio
+        insmod zstd
+        insmod part_gpt
+        insmod ext2
+        @@BOOT_SEARCH@@
+@@DISPLAY_POLICY@@
+        linux   /vmlinuz-@@KERNEL_VER@@ @@ROOT_ARG@@ ro @@BASE_CMDLINE@@ systemd.setenv=BOOTPROFILE=@@PROFILE@@ @@PROFILE_FLAGS@@
+        initrd  /initrd.img-@@KERNEL_VER@@
+    }

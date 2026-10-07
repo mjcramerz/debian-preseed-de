@@ -1,0 +1,12 @@
+test_full_catalog_is_rendered_without_optional_addons (test_config_safety.NftablesCatalogTests.test_full_catalog_is_rendered_without_optional_addons) ... ok
+test_selected_ssh_port_is_preserved_in_rendered_catalog (test_config_safety.NftablesCatalogTests.test_selected_ssh_port_is_preserved_in_rendered_catalog) ... ok
+test_both_storage_families_select_before_kernel_image_repair (test_xanmod_regdb_20260927.XanmodRegdbTests.test_both_storage_families_select_before_kernel_image_repair) ... ok
+test_mismatched_signature_link_is_detected (test_xanmod_regdb_20260927.XanmodRegdbTests.test_mismatched_signature_link_is_detected) ... ok
+test_missing_package_or_signature_or_alternative_fails_closed (test_xanmod_regdb_20260927.XanmodRegdbTests.test_missing_package_or_signature_or_alternative_fails_closed) ... ok
+test_other_kernels_keep_debian_package_default (test_xanmod_regdb_20260927.XanmodRegdbTests.test_other_kernels_keep_debian_package_default) ... ok
+test_xanmod_selects_packaged_database_and_paired_signature (test_xanmod_regdb_20260927.XanmodRegdbTests.test_xanmod_selects_packaged_database_and_paired_signature) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 1.935s
+
+OK

@@ -1,0 +1,11 @@
+# Managed by unattended-installer.
+#
+# Debian's abstractions/audio includes abstractions/audio.d from inside each
+# consuming profile. Deny rules take precedence over the package abstraction's
+# legacy ALSA grants, so vendor profiles remain limited to session audio IPC.
+
+deny /dev/snd/ r,
+deny /dev/snd/** rwklm,
+deny /dev/sound/ r,
+deny /dev/sound/** rwklm,
+deny /dev/{admmidi,adsp,aload,amidi,audio,dmfm,dmmidi,dsp,midi,mixer,mpu401data,mpu401stat,patmgr,phone,radio,rmidi,sequencer,smpte}* rwklm,

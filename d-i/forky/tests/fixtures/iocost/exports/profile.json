@@ -1,0 +1,410 @@
+{
+  "benchmark_device": {
+    "devnr": "259:0",
+    "kname": "nvme0n1",
+    "size_bytes": 508717432832,
+    "transport": "nvme"
+  },
+  "generator": "IOCost Lab 2.10.1",
+  "identity": {
+    "attributes": {
+      "device/firmware_rev": "5108AGLA",
+      "device/model": "KXG6AZNV512G TOSHIBA",
+      "device/serial": "319F7HM3FDM3",
+      "eui": "8c e3 8e 05 00 69 65 c3",
+      "nsid": "1",
+      "wwid": "eui.8ce38e05006965c3"
+    },
+    "drivers": [],
+    "id": "a7a884f69ceed7d0",
+    "properties": {
+      "ID_MODEL": "KXG6AZNV512G TOSHIBA",
+      "ID_PATH": "pci-0000:01:00.0-nvme-1",
+      "ID_REVISION": "5108AGLA",
+      "ID_SERIAL": "KXG6AZNV512G_TOSHIBA_319F7HM3FDM3_1",
+      "ID_SERIAL_SHORT": "319F7HM3FDM3",
+      "ID_WWN": "eui.8ce38e05006965c3"
+    },
+    "size_bytes": 508717432832,
+    "strong": true,
+    "transport": "nvme",
+    "usb": []
+  },
+  "install_block_reason": "",
+  "install_eligible": true,
+  "quality": "tuned",
+  "result_jobs": [
+    {
+      "kind": "iocost-params",
+      "period": [
+        1790105884,
+        1790106419
+      ],
+      "version": "2.2.6-gbef3b59-dirty x86_64-unknown-linux-gnu"
+    },
+    {
+      "kind": "hashd-params",
+      "period": [
+        1790106420,
+        1790106827
+      ],
+      "version": "2.2.6-gbef3b59-dirty x86_64-unknown-linux-gnu"
+    },
+    {
+      "kind": "iocost-qos",
+      "period": [
+        1790106828,
+        1790148058
+      ],
+      "version": "2.2.6-gbef3b59-dirty x86_64-unknown-linux-gnu"
+    },
+    {
+      "kind": "iocost-tune",
+      "period": [
+        1790148079,
+        1790148079
+      ],
+      "version": "2.2.6-gbef3b59-dirty x86_64-unknown-linux-gnu"
+    }
+  ],
+  "schema": 1,
+  "selected": "naive",
+  "solution_order": [
+    "naive",
+    "params-naive",
+    "rlat-99-q1",
+    "rlat-99-q2",
+    "rlat-99-q3",
+    "rlat-99-q4"
+  ],
+  "solutions": {
+    "naive": {
+      "adjusted_mem_offload_delta": 0.0,
+      "adjusted_mem_offload_factor": 0.0,
+      "isol": 0.019019019019019017,
+      "mem_offload_factor": 2.0296244161793937,
+      "mem_profile": 4,
+      "model": {
+        "rbps": 2766969053,
+        "rrandiops": 226916,
+        "rseqiops": 288832,
+        "wbps": 862334516,
+        "wrandiops": 151257,
+        "wseqiops": 175319
+      },
+      "qos": {
+        "max": 100.0,
+        "min": 75.0,
+        "rlat": 1077,
+        "rpct": 99.0,
+        "wlat": 730,
+        "wpct": 99.0
+      },
+      "rlat": {
+        "100": {
+          "100": 0.040171408714362554
+        },
+        "50": {
+          "100": 0.0008108823529411765,
+          "99": 0.00040711868316299074,
+          "mean": 0.00017830403099530843
+        },
+        "99": {
+          "99": 0.004799999999999999,
+          "mean": 0.0010769112164845745
+        }
+      },
+      "scale_factor": 1.0,
+      "target": {
+        "VrateRange": [
+          [
+            75.0,
+            100.0
+          ],
+          [
+            "99",
+            "99"
+          ]
+        ]
+      },
+      "wlat": {
+        "100": {
+          "100": 0.02116666666666667
+        },
+        "50": {
+          "100": 0.0012826190476190474,
+          "99": 0.0006139999999999999,
+          "mean": 0.00017692370348266264
+        },
+        "99": {
+          "99": 0.005404761904761906,
+          "mean": 0.000729666033632779
+        }
+      }
+    },
+    "params-naive": {
+      "devnr": "259:0",
+      "model": {
+        "rbps": 2766969053,
+        "rrandiops": 226916,
+        "rseqiops": 288832,
+        "wbps": 862334516,
+        "wrandiops": 151257,
+        "wseqiops": 175319
+      },
+      "qos": {
+        "max": 100.0,
+        "min": 60.0,
+        "rlat": 103023,
+        "rpct": 95.0,
+        "wlat": 34406,
+        "wpct": 95.0
+      }
+    },
+    "rlat-99-q1": {
+      "adjusted_mem_offload_delta": 0.0,
+      "adjusted_mem_offload_factor": 0.0,
+      "isol": 0.019019019019019017,
+      "mem_offload_factor": 2.0296244161793937,
+      "mem_profile": 4,
+      "model": {
+        "rbps": 2766969053,
+        "rrandiops": 226916,
+        "rseqiops": 288832,
+        "wbps": 862334516,
+        "wrandiops": 151257,
+        "wseqiops": 175319
+      },
+      "qos": {
+        "max": 100.0,
+        "min": 54.88,
+        "rlat": 1077,
+        "rpct": 99.0,
+        "wlat": 0,
+        "wpct": 0.0
+      },
+      "rlat": {
+        "100": {
+          "100": 0.040171408714362554
+        },
+        "50": {
+          "100": 0.0008108823529411765,
+          "99": 0.00040711868316299074,
+          "mean": 0.00017830403099530843
+        },
+        "99": {
+          "99": 0.004799999999999999,
+          "mean": 0.0010769112164845745
+        }
+      },
+      "scale_factor": 1.0,
+      "target": {
+        "LatRange": [
+          "rlat-99-mean",
+          [
+            0.75,
+            1.0
+          ]
+        ]
+      },
+      "wlat": {
+        "100": {
+          "100": 0.02116666666666667
+        },
+        "50": {
+          "100": 0.0012826190476190474,
+          "99": 0.0006139999999999999,
+          "mean": 0.00017692370348266264
+        },
+        "99": {
+          "99": 0.005404761904761906,
+          "mean": 0.000729666033632779
+        }
+      }
+    },
+    "rlat-99-q2": {
+      "adjusted_mem_offload_delta": 0.0,
+      "adjusted_mem_offload_factor": 0.0,
+      "isol": 0.5385021385021386,
+      "mem_offload_factor": 2.0296244161793937,
+      "mem_profile": 4,
+      "model": {
+        "rbps": 1518512616,
+        "rrandiops": 124532,
+        "rseqiops": 158511,
+        "wbps": 473249182,
+        "wrandiops": 83010,
+        "wseqiops": 96215
+      },
+      "qos": {
+        "max": 100.0,
+        "min": 86.33,
+        "rlat": 973,
+        "rpct": 99.0,
+        "wlat": 0,
+        "wpct": 0.0
+      },
+      "rlat": {
+        "100": {
+          "100": 0.025214577729962336
+        },
+        "50": {
+          "100": 0.0008108823529411765,
+          "99": 0.0003200193652501344,
+          "mean": 0.00016951271265813509
+        },
+        "99": {
+          "99": 0.00378695652173913,
+          "mean": 0.0009729410001314445
+        }
+      },
+      "scale_factor": 0.5488,
+      "target": {
+        "LatRange": [
+          "rlat-99-mean",
+          [
+            0.5,
+            0.75
+          ]
+        ]
+      },
+      "wlat": {
+        "100": {
+          "100": 0.02116666666666667
+        },
+        "50": {
+          "100": 0.0012826190476190474,
+          "99": 0.0006139999999999999,
+          "mean": 0.00017692370348266264
+        },
+        "99": {
+          "99": 0.005404761904761906,
+          "mean": 0.0006696499168943913
+        }
+      }
+    },
+    "rlat-99-q3": {
+      "adjusted_mem_offload_delta": 0.0,
+      "adjusted_mem_offload_factor": 0.0,
+      "isol": 0.6301756301756303,
+      "mem_offload_factor": 1.9253120631006129,
+      "mem_profile": 4,
+      "model": {
+        "rbps": 1310989937,
+        "rrandiops": 107513,
+        "rseqiops": 136849,
+        "wbps": 408574094,
+        "wrandiops": 71666,
+        "wseqiops": 83066
+      },
+      "qos": {
+        "max": 100.0,
+        "min": 84.17,
+        "rlat": 869,
+        "rpct": 99.0,
+        "wlat": 0,
+        "wpct": 0.0
+      },
+      "rlat": {
+        "100": {
+          "100": 0.022728402366863895
+        },
+        "50": {
+          "100": 0.0008108823529411765,
+          "99": 0.0003055414201183431,
+          "mean": 0.00016574500479934651
+        },
+        "99": {
+          "99": 0.0033527950310559,
+          "mean": 0.0008689707837783145
+        }
+      },
+      "scale_factor": 0.47379999999999994,
+      "target": {
+        "LatRange": [
+          "rlat-99-mean",
+          [
+            0.25,
+            0.5
+          ]
+        ]
+      },
+      "wlat": {
+        "100": {
+          "100": 0.02116666666666667
+        },
+        "50": {
+          "100": 0.0012826190476190474,
+          "99": 0.0006139999999999999,
+          "mean": 0.00017692370348266264
+        },
+        "99": {
+          "99": 0.005404761904761906,
+          "mean": 0.0006596738336599518
+        }
+      }
+    },
+    "rlat-99-q4": {
+      "adjusted_mem_offload_delta": 0.0,
+      "adjusted_mem_offload_factor": 0.0,
+      "isol": 0.6912912912912913,
+      "mem_offload_factor": 1.7688435334824417,
+      "mem_profile": 4,
+      "model": {
+        "rbps": 1103467258,
+        "rrandiops": 90494,
+        "rseqiops": 115186,
+        "wbps": 343899005,
+        "wrandiops": 60321,
+        "wseqiops": 69917
+      },
+      "qos": {
+        "max": 100.0,
+        "min": 81.19,
+        "rlat": 765,
+        "rpct": 99.0,
+        "wlat": 0,
+        "wpct": 0.0
+      },
+      "rlat": {
+        "100": {
+          "100": 0.020242227003765455
+        },
+        "50": {
+          "100": 0.0008108823529411765,
+          "99": 0.0002910634749865518,
+          "mean": 0.00016197729694055794
+        },
+        "99": {
+          "99": 0.002918633540372671,
+          "mean": 0.0007650005674251847
+        }
+      },
+      "scale_factor": 0.39880000000000004,
+      "target": {
+        "LatRange": [
+          "rlat-99-mean",
+          [
+            0.0,
+            0.25
+          ]
+        ]
+      },
+      "wlat": {
+        "100": {
+          "100": 0.02116666666666667
+        },
+        "50": {
+          "100": 0.0012826190476190474,
+          "99": 0.0006139999999999999,
+          "mean": 0.00017692370348266264
+        },
+        "99": {
+          "99": 0.005404761904761906,
+          "mean": 0.0006496977504255124
+        }
+      }
+    }
+  },
+  "source_result_sha256": "dd535cd1c7616b18d64b44228b0a876c290fa2566853f97b09ab59e1ffdb4d35"
+}

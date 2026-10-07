@@ -1,0 +1,160 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/bin:/bin
+LC_ALL=C.UTF-8
+export PATH LC_ALL
+umask 077
+# find must not inspect an arbitrary caller working directory under confinement.
+cd /
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+validate_wayland_session() {
+  current_uid=$(/usr/bin/id -u 2>/dev/null) ||
+    fatal "cannot resolve the current account ID"
+  case "$current_uid" in
+    ''|*[!0-9]*) fatal "the current account ID is invalid" ;;
+  esac
+  [ "$current_uid" -gt 0 ] || fatal "Mullvad VPN must not run as root"
+
+  [ "${LABWC_SESSION_OWNER:-}" = desktop ] ||
+    fatal "Mullvad VPN requires the managed Labwc desktop session"
+  [ "${XDG_SESSION_TYPE:-}" = wayland ] ||
+    fatal "Mullvad VPN requires a native Wayland session"
+
+  expected_runtime_dir="/run/user/${current_uid}"
+  [ "${XDG_RUNTIME_DIR:-}" = "$expected_runtime_dir" ] ||
+    fatal "XDG_RUNTIME_DIR is not the managed account runtime directory"
+  [ -d "$XDG_RUNTIME_DIR" ] && [ ! -L "$XDG_RUNTIME_DIR" ] ||
+    fatal "XDG_RUNTIME_DIR is not a direct directory"
+  runtime_owner=$(/usr/bin/find -P "$XDG_RUNTIME_DIR" -maxdepth 0 -printf '%U' 2>/dev/null) ||
+    fatal "cannot inspect XDG_RUNTIME_DIR ownership"
+  runtime_mode=$(/usr/bin/find -P "$XDG_RUNTIME_DIR" -maxdepth 0 -printf '%m' 2>/dev/null) ||
+    fatal "cannot inspect XDG_RUNTIME_DIR mode"
+  [ "$runtime_owner" = "$current_uid" ] ||
+    fatal "XDG_RUNTIME_DIR is not owned by the current account"
+  [ "$runtime_mode" = 700 ] ||
+    fatal "XDG_RUNTIME_DIR must be mode 0700"
+
+  case "${WAYLAND_DISPLAY:-}" in
+    wayland-*) wayland_suffix=${WAYLAND_DISPLAY#wayland-} ;;
+    *) fatal "WAYLAND_DISPLAY is not a managed Wayland socket name" ;;
+  esac
+  case "$wayland_suffix" in
+    ''|*[!0-9]*) fatal "WAYLAND_DISPLAY is not a managed Wayland socket name" ;;
+  esac
+
+  wayland_socket="${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}"
+  [ -S "$wayland_socket" ] && [ ! -L "$wayland_socket" ] ||
+    fatal "the managed Wayland socket is unavailable"
+  wayland_owner=$(/usr/bin/find -P "$wayland_socket" -maxdepth 0 -printf '%U' 2>/dev/null) ||
+    fatal "cannot inspect the managed Wayland socket ownership"
+  wayland_links=$(/usr/bin/find -P "$wayland_socket" -maxdepth 0 -printf '%n' 2>/dev/null) ||
+    fatal "cannot inspect the managed Wayland socket link count"
+  [ "$wayland_owner" = "$current_uid" ] ||
+    fatal "the managed Wayland socket is not owned by the current account"
+  [ "$wayland_links" = 1 ] ||
+    fatal "the managed Wayland socket must have one filesystem link"
+}
+
+in_managed_host_unit() {
+  # Unified cgroup membership comes from procfs, not a caller-supplied marker.
+  [ -r /proc/self/cgroup ] || fatal "cannot verify the Mullvad launcher cgroup"
+  while IFS=: read -r hierarchy controllers cgroup; do
+    [ "$hierarchy:$controllers" = "0:" ] || continue
+    unit=${cgroup##*/}
+    case "$unit" in
+      labwc-wayland-mullvad-vpn-*.service)
+        token=${unit#labwc-wayland-mullvad-vpn-}
+        token=${token%.service}
+        case "$token" in ''|*[!0123456789abcdef]*) continue ;; esac
+        [ "${#token}" -eq 32 ] && return 0
+        ;;
+    esac
+  done </proc/self/cgroup
+  return 1
+}
+
+has_host_root_mapping() {
+  # Fail explicitly on a locally overridden unit that reintroduces PrivateUsers.
+  while read -r inside outside count; do
+    [ "$inside" = 0 ] && [ "$outside" = 0 ] && [ "$count" -gt 0 ] && return 0
+  done </proc/self/uid_map
+  return 1
+}
+
+[ "$#" -eq 0 ] || fatal "usage: mullvad-vpn"
+validate_wayland_session
+if ! in_managed_host_unit; then
+  exec /usr/local/bin/labwc-wayland-app auto -- /usr/local/bin/mullvad-vpn
+fi
+has_host_root_mapping || fatal "Mullvad launcher requires the host root UID mapping"
+
+daemon_unit=mullvad-daemon.service
+root_helper=/usr/local/libexec/mullvad-daemon-start
+vendor_gui='/opt/Mullvad VPN/mullvad-gui'
+
+[ -x "$root_helper" ] || fatal "Mullvad daemon start helper is unavailable"
+[ -f "$vendor_gui" ] && [ ! -L "$vendor_gui" ] && [ -x "$vendor_gui" ] ||
+  fatal "Mullvad VPN executable is unavailable"
+# The vendor shell launcher silently supplies --no-sandbox when namespaces
+# are disabled. Launch the package binary through our existing strict wrapper
+# instead, and fail before starting it if the namespace sandbox is disabled.
+if [ -r /proc/sys/kernel/unprivileged_userns_clone ]; then
+  userns_enabled=$(/usr/bin/cat /proc/sys/kernel/unprivileged_userns_clone) ||
+    fatal "cannot read the user namespace policy"
+  [ "$userns_enabled" = 1 ] || fatal "Mullvad VPN requires its unprivileged namespace sandbox"
+fi
+userns_limit=$(/usr/bin/cat /proc/sys/user/max_user_namespaces) ||
+  fatal "cannot read the user namespace limit"
+case "$userns_limit" in ''|*[!0-9]*) fatal "cannot validate the user namespace limit" ;; esac
+[ "$userns_limit" -gt 0 ] || fatal "Mullvad VPN requires available user namespaces"
+
+if ! /usr/bin/systemctl --quiet is-active "$daemon_unit"; then
+  if /usr/bin/timeout \
+      --foreground \
+      --kill-after=5s \
+      120s \
+      /usr/bin/pkexec \
+      "$root_helper"
+  then
+    :
+  else
+    start_status=$?
+    fatal "Mullvad daemon start was cancelled or failed (status ${start_status})"
+  fi
+fi
+
+/usr/bin/systemctl --quiet is-active "$daemon_unit" ||
+  fatal "Mullvad daemon did not become active"
+
+unset \
+  DESKTOP_STARTUP_ID \
+  DISPLAY \
+  SESSION_MANAGER \
+  WINDOWID \
+  WLR_XWAYLAND \
+  XAUTHORITY \
+  XWAYLAND \
+  XWAYLAND_FORCE_SCALE \
+  XWAYLAND_NO_GLAMOR \
+  XWAYLAND_PATH \
+  XWAYLAND_RESTART_DELAY \
+  _XWAYLAND_GLOBAL_OUTPUT_SCALE
+
+ELECTRON_OZONE_PLATFORM_HINT=wayland
+GDK_BACKEND=wayland
+QT_QPA_PLATFORM=wayland
+SDL_VIDEODRIVER=wayland
+export \
+  ELECTRON_OZONE_PLATFORM_HINT \
+  GDK_BACKEND \
+  QT_QPA_PLATFORM \
+  SDL_VIDEODRIVER
+
+# The GUI must outlive the panel and remain separate from its namespace/cgroup.
+exec /usr/local/bin/labwc-electron-app auto -- "$vendor_gui"

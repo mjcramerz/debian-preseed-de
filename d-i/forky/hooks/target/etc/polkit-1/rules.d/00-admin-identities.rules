@@ -1,0 +1,10 @@
+// Managed by unattended-installer.
+// Limit polkit administrator authentication identities to the sudo group.
+
+(function() {
+    var ADMIN_GROUP = "sudo";
+
+    polkit.addAdminRule(function(action, subject) {
+        return ["unix-group:" + ADMIN_GROUP];
+    });
+})();

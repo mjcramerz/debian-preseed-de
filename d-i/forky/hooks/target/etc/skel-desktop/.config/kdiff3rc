@@ -1,0 +1,8 @@
+[KDiff3 Options]
+AutoAdvance=false
+AutoCopySelection=false
+AutoSaveAndQuitOnMergeWithoutConflicts=false
+CreateBakFiles=false
+EncodingForOutput=UTF-8
+ShowWhiteSpaceCharacters=false
+WordWrap=false

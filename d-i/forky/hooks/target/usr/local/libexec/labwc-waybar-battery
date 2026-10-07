@@ -1,0 +1,88 @@
+#!/usr/bin/python3 -I
+"""Read the battery sysfs ABI without Waybar's native Plugged polling loop."""
+from __future__ import annotations
+
+import html
+import json
+from pathlib import Path
+
+POWER = Path("/sys/class/power_supply")
+
+
+def value(device: Path, name: str) -> str | None:
+    try:
+        with (device / name).open("r", encoding="ascii") as stream:
+            return stream.read(64).strip()
+    except (OSError, UnicodeError):
+        return None
+
+
+def number(device: Path, name: str) -> int | None:
+    raw = value(device, name)
+    if raw is None or not raw.isascii() or not raw.isdecimal() or len(raw) > 12:
+        return None
+    return int(raw)
+
+
+def output(root: Path = POWER) -> dict:
+    try:
+        devices = sorted(root.iterdir())[:64]
+    except OSError:
+        devices = []
+    batteries = []
+    ac_online = False
+    for device in devices:
+        kind = value(device, "type")
+        if kind in ("Mains", "USB", "USB_C", "USB_PD") and number(device, "online") == 1:
+            ac_online = True
+        if kind != "Battery" or len(batteries) >= 16:
+            continue
+        capacity = number(device, "capacity")
+        if capacity is None or capacity > 100:
+            continue
+        status = value(device, "status")
+        if status not in ("Charging", "Discharging", "Full", "Not charging", "Unknown"):
+            status = "Unknown"
+        batteries.append((device, capacity, status))
+    if not batteries:
+        return {"text": "—", "alt": "default", "class": "unknown", "tooltip": "No battery detected"}
+
+    # Weighted capacity when every battery exports the same sysfs energy unit.
+    weighted = [(number(d, "energy_now"), number(d, "energy_full")) for d, _, _ in batteries]
+    if all(now is not None and full is not None and full > 0 for now, full in weighted):
+        capacity = min(100, round(100 * sum(now for now, _ in weighted) /
+                                  sum(full for _, full in weighted)))
+    else:
+        capacity = round(sum(cap for _, cap, _ in batteries) / len(batteries))
+    statuses = {status for _, _, status in batteries}
+    if "Charging" in statuses:
+        state = "charging"
+    elif "Discharging" in statuses:
+        state = "discharging"
+    elif statuses == {"Full"}:
+        state = "full"
+    elif ac_online:
+        state = "plugged"
+    elif "Not charging" in statuses:
+        state = "not-charging"
+    else:
+        state = "unknown"
+    level = "critical" if capacity <= 15 else "warning" if capacity <= 30 else ""
+    icon_state = state if state in ("charging", "full", "plugged", "not-charging") else ""
+    alt = "-".join(filter(None, (icon_state, level))) or "default"
+
+    detail = []
+    for device, cap, status in batteries:
+        full = number(device, "energy_full") or number(device, "charge_full")
+        design = number(device, "energy_full_design") or number(device, "charge_full_design")
+        health = f"  Health {min(100, round(100 * full / design))}%" if full and design else ""
+        cycles = number(device, "cycle_count")
+        cycle_text = f"  Cycles {cycles}" if cycles is not None else ""
+        detail.append(f"{html.escape(device.name)}: {cap}% ({status}){health}{cycle_text}")
+    return {"text": f"{capacity}%", "alt": alt,
+            "class": [state, level] if level else [state],
+            "tooltip": "\n".join(detail)}
+
+
+if __name__ == "__main__":
+    print(json.dumps(output(), ensure_ascii=False))

@@ -1,0 +1,7 @@
+// Unlock last, after the other package preflight hooks have succeeded.
+// APT supplies package actions on a separate FD; keep stdin for the terminal.
+DPkg::Pre-Install-Pkgs { "/usr/local/libexec/apt-mok-prehook"; };
+DPkg::Tools::Options::/usr/local/libexec/apt-mok-prehook::Version "2";
+DPkg::Tools::Options::/usr/local/libexec/apt-mok-prehook::InfoFD "3";
+// APT has no Post-Install-Pkgs interface. The final cleanup lives in
+// 01mok-maintenance-cleanup so it precedes the other Post-Invoke scripts.

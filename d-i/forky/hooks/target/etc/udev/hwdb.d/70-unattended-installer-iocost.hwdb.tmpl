@@ -1,0 +1,7 @@
+# Managed by unattended-installer: IOCost.
+# Native 90-iocost.rules lookup: drive model and firmware, not a lab profile ID.
+# The helper appends one model/QoS pair per advertised solution from its own
+# validated scalar fields, and verifies the complete record before publication.
+
+block::name:__INSTALLER_IOCOST_DEVICE_MODEL_MATCH__:fwrev:__INSTALLER_IOCOST_DEVICE_FWREV_MATCH__:
+ IOCOST_SOLUTIONS=__INSTALLER_IOCOST_SOLUTIONS__

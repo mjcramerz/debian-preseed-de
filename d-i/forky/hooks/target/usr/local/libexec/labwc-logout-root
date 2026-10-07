@@ -1,0 +1,5 @@
+#!/bin/sh
+# Polkit authorizes only this fixed self-logout operation, never arbitrary args.
+set -eu
+[ "$#" -eq 0 ] || { printf 'fatal: labwc-logout-root takes no arguments\n' >&2; exit 64; }
+exec /usr/local/libexec/labwc-admin-action-root logout

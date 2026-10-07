@@ -1,0 +1,256 @@
+#!/bin/sh
+set -eu
+
+: "${HOME:?HOME must be set}"
+
+config_root=${XDG_CONFIG_HOME:-${HOME}/.config}
+defaults_file="${config_root}/tesseract/ocr-defaults.conf"
+user_words_dir="${config_root}/tesseract/user-words"
+user_patterns_dir="${config_root}/tesseract/user-patterns"
+
+languages=eng+swe
+engine_mode=1
+page_segmentation_mode=3
+output_format=txt
+output_directory="${HOME}/Documents/OCR"
+open_result=0
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  notify_ocr critical "OCR failed" "The requested OCR action did not complete."
+  exit 1
+}
+
+notify_ocr() {
+  urgency=$1
+  summary=$2
+  body=$3
+
+  command -v notify-send >/dev/null 2>&1 || return 0
+  [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || return 0
+  notify-send \
+    -a OCR \
+    -u "$urgency" \
+    -i scanner \
+    -c x-labwc.maintenance \
+    -t 10000 \
+    "$summary" \
+    "$body" >/dev/null 2>&1 || true
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || fatal "required command is not installed: $1"
+}
+
+is_uint() {
+  case "${1:-}" in
+    ''|*[!0123456789]*) return 1 ;;
+  esac
+  return 0
+}
+
+trim_spaces() {
+  value=$1
+  value=${value#"${value%%[![:space:]]*}"}
+  value=${value%"${value##*[![:space:]]}"}
+  printf '%s\n' "$value"
+}
+
+path_from_home() {
+  value=$1
+  case "$value" in
+    "~") printf '%s\n' "$HOME" ;;
+    "~/"*) printf '%s/%s\n' "$HOME" "${value#~/}" ;;
+    *) printf '%s\n' "$value" ;;
+  esac
+}
+
+load_defaults() {
+  [ -r "$defaults_file" ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=$(trim_spaces "$line")
+    case "$line" in
+      ''|'#'*) continue ;;
+      *=*) ;;
+      *) fatal "invalid OCR defaults line: $line" ;;
+    esac
+    key=$(trim_spaces "${line%%=*}")
+    value=$(trim_spaces "${line#*=}")
+    case "$key" in
+      OCR_LANGUAGES)
+        case "$value" in
+          ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_+.-]*) fatal "OCR_LANGUAGES contains unsupported characters" ;;
+        esac
+        languages=$value
+        ;;
+      OCR_ENGINE_MODE)
+        is_uint "$value" || fatal "OCR_ENGINE_MODE must be an integer"
+        engine_mode=$value
+        ;;
+      OCR_PAGE_SEGMENTATION_MODE)
+        is_uint "$value" || fatal "OCR_PAGE_SEGMENTATION_MODE must be an integer"
+        page_segmentation_mode=$value
+        ;;
+      OCR_OUTPUT_FORMAT)
+        case "$value" in
+          txt|pdf|hocr|tsv) output_format=$value ;;
+          *) fatal "OCR_OUTPUT_FORMAT must be txt, pdf, hocr, or tsv" ;;
+        esac
+        ;;
+      OCR_OUTPUT_DIRECTORY)
+        output_directory=$(path_from_home "$value")
+        ;;
+      OCR_OPEN_RESULT)
+        case "$value" in
+          0|1) open_result=$value ;;
+          *) fatal "OCR_OPEN_RESULT must be 0 or 1" ;;
+        esac
+        ;;
+      *)
+        fatal "unsupported OCR defaults key: $key"
+        ;;
+    esac
+  done <"$defaults_file"
+}
+
+resolve_optional_lang_file() {
+  file_root=$1
+  lang_value=$2
+  case "$lang_value" in
+    *+*) candidate="${file_root}/default" ;;
+    *) candidate="${file_root}/${lang_value}" ;;
+  esac
+  for suffix in '' '.txt' '.user-words' '.user-patterns'; do
+    file_path="${candidate}${suffix}"
+    [ -r "$file_path" ] || continue
+    [ -s "$file_path" ] || continue
+    printf '%s\n' "$file_path"
+    return 0
+  done
+  return 1
+}
+
+usage() {
+  cat <<'EOF'
+Usage:
+  labwc-ocr <image-file>
+  labwc-ocr --stdout <image-file>
+  labwc-ocr --lang <langs> --format <txt|pdf|hocr|tsv> <image-file>
+EOF
+}
+
+stdout_mode=0
+input_path=
+
+load_defaults
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --stdout)
+      stdout_mode=1
+      ;;
+    --lang)
+      [ "$#" -ge 2 ] || fatal "--lang requires an argument"
+      languages=$2
+      shift
+      ;;
+    --format)
+      [ "$#" -ge 2 ] || fatal "--format requires an argument"
+      case "$2" in
+        txt|pdf|hocr|tsv) output_format=$2 ;;
+        *) fatal "unsupported OCR output format: $2" ;;
+      esac
+      shift
+      ;;
+    --psm)
+      [ "$#" -ge 2 ] || fatal "--psm requires an argument"
+      is_uint "$2" || fatal "--psm must be an integer"
+      page_segmentation_mode=$2
+      shift
+      ;;
+    --oem)
+      [ "$#" -ge 2 ] || fatal "--oem requires an argument"
+      is_uint "$2" || fatal "--oem must be an integer"
+      engine_mode=$2
+      shift
+      ;;
+    --output-dir)
+      [ "$#" -ge 2 ] || fatal "--output-dir requires an argument"
+      output_directory=$(path_from_home "$2")
+      shift
+      ;;
+    --open)
+      open_result=1
+      ;;
+    --no-open)
+      open_result=0
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --*)
+      fatal "unsupported option: $1"
+      ;;
+    *)
+      [ -z "$input_path" ] || fatal "only one OCR input file may be supplied"
+      input_path=$1
+      ;;
+  esac
+  shift
+done
+
+[ -n "$input_path" ] || {
+  usage >&2
+  exit 2
+}
+
+case "$languages" in
+  ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_+.-]*)
+    fatal "OCR language list contains unsupported characters"
+    ;;
+esac
+
+require_command tesseract
+[ -r "$input_path" ] || fatal "OCR input is missing or unreadable: $input_path"
+
+if [ "$stdout_mode" = 1 ]; then
+  output_base=stdout
+else
+  install -d -m 0755 "$output_directory"
+  base_name=${input_path##*/}
+  base_name=${base_name%.*}
+  output_base="${output_directory}/${base_name}"
+fi
+
+set -- "$input_path" "$output_base" -l "$languages" --oem "$engine_mode" --psm "$page_segmentation_mode"
+if user_words=$(resolve_optional_lang_file "$user_words_dir" "$languages" 2>/dev/null); then
+  set -- "$@" --user-words "$user_words"
+fi
+if user_patterns=$(resolve_optional_lang_file "$user_patterns_dir" "$languages" 2>/dev/null); then
+  set -- "$@" --user-patterns "$user_patterns"
+fi
+set -- "$@" "$output_format"
+tesseract "$@"
+
+if [ "$stdout_mode" = 1 ]; then
+  exit 0
+fi
+
+case "$output_format" in
+  txt) result_path="${output_base}.txt" ;;
+  pdf) result_path="${output_base}.pdf" ;;
+  hocr) result_path="${output_base}.hocr" ;;
+  tsv) result_path="${output_base}.tsv" ;;
+  *) fatal "unsupported OCR output format after execution: $output_format" ;;
+esac
+
+[ -r "$result_path" ] || fatal "OCR result is missing: $result_path"
+if [ "$open_result" = 1 ] && command -v xdg-open >/dev/null 2>&1; then
+  xdg-open "$result_path" >/dev/null 2>&1 &
+fi
+notify_ocr \
+  normal \
+  "OCR completed" \
+  "The recognized ${output_format} result was saved to the configured OCR folder."
+printf '%s\n' "$result_path"

@@ -1,0 +1,10 @@
+submenu '@@DISTRO_TITLE@@ (@@PROFILE_LABEL@@)' --class debian --class gnu-linux --class gnu --class os {
+    set last_known_profile='@@PROFILE@@'
+    if [ -s $prefix/grubenv ]; then
+        load_env @@PROFILE_SAVED_VAR@@
+        load_env @@LAST_PROFILE_VAR@@
+        load_env @@LAST_KERNEL_VAR@@
+    fi
+    if [ -n "$@@PROFILE_SAVED_VAR@@" ]; then
+        set default="$@@PROFILE_SAVED_VAR@@"
+    fi

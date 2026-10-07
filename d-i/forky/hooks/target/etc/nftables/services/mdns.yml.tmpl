@@ -1,0 +1,28 @@
+apiVersion: cybops.nftables/v1
+kind: NftablesServiceOverlay
+metadata:
+  name: mdns
+  description: mDNS / multicast DNS LAN discovery overlay.
+  merge_priority: 50
+services:
+  mdns:
+    enabled: true
+    direction: bidirectional
+    protocols:
+    - udp
+    ports:
+    - 5353
+    allow:
+      ipv4:
+      - 224.0.0.251/32
+      ipv6:
+      - ff02::fb/128
+      interfaces:
+      - eth0
+      - en*
+      - __INSTALLER_MANAGED_NETWORK_ETHERNET_IFACE__
+      - wlan0
+      - wl*
+      - __INSTALLER_MANAGED_NETWORK_WIFI_IFACE__
+    scope: link_local_only
+    log: false

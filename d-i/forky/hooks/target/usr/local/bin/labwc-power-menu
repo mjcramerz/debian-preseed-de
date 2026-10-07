@@ -1,0 +1,34 @@
+#!/bin/sh
+set -eu
+
+# Picker cancellation is not a backend/configuration failure.
+menu_failure() {
+  [ "$1" -eq 1 ] && return 0
+  printf 'fatal: menu picker failed (status %s)\n' "$1" >&2
+  exit "$1"
+}
+
+choice=$(
+  printf '%s\n' 'Lock screen' 'Logout session' Suspend Reboot 'Power off' |
+    labwc-fuzzel menu --dmenu --prompt power || menu_failure "$?"
+)
+
+case "$choice" in
+  'Lock screen')
+    exec /usr/local/bin/labwc-power-settings lock
+    ;;
+  'Logout session')
+    exec /usr/local/bin/labwc-power-settings logout
+    ;;
+  Suspend)
+    exec /usr/local/bin/labwc-power-settings suspend
+    ;;
+  Reboot)
+    exec /usr/local/bin/labwc-power-settings reboot
+    ;;
+  'Power off')
+    exec /usr/local/bin/labwc-power-settings poweroff
+    ;;
+esac
+
+exit 0

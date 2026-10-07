@@ -1,0 +1,13 @@
+# Managed by unattended-installer.
+#
+# The vendor package does not provide a separate attachment for the long-lived
+# Chromium binary. Keep its application and Bubblewrap policy in the tracked
+# local include while this parent owns the executable attachment and flags.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile vivaldi-bin /opt/vivaldi/vivaldi-bin flags=(attach_disconnected, mediate_deleted) {
+  include if exists <local/vivaldi-bin>
+}

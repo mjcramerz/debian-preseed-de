@@ -1,0 +1,18 @@
+set nocompatible
+set backspace=indent,eol,start
+set clipboard=unnamedplus
+set hidden
+set ignorecase
+set smartcase
+set mouse=a
+set number
+set ruler
+set shiftwidth=4
+set showcmd
+set smartindent
+set softtabstop=4
+set tabstop=4
+set expandtab
+set wildmenu
+syntax on
+filetype plugin indent on

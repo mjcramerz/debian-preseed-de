@@ -1,0 +1,13 @@
+#!/bin/sh
+# The unprivileged greeter never invokes logind power methods directly.
+set -eu
+[ "$#" -eq 1 ] || { printf 'usage: greetd-power-action {poweroff|shutdown|reboot}\n' >&2; exit 64; }
+action=$1
+case "$action" in
+  shutdown) action=poweroff ;;
+  poweroff|reboot) ;;
+  *) printf 'usage: greetd-power-action {poweroff|shutdown|reboot}\n' >&2; exit 64 ;;
+esac
+# Only the active, local, configured greeter is authorized for this exact
+# fixed-function helper. No interactive/root-password fallback in the greeter.
+exec /usr/bin/pkexec --disable-internal-agent /usr/local/libexec/greetd-power-action-root "$action"

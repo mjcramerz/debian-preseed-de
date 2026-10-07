@@ -1,0 +1,36 @@
+# Managed by unattended-installer.
+# Present USB filesystems cleanly in udisks/GIO consumers while disabling
+# automatic mounting. Manual mount is governed by polkit usbmedia/usbadmin policy.
+
+SUBSYSTEM!="block", GOTO="debian_installer_udisks_behavior_end"
+
+# Secure Boot MOK state is internal installer/operator state. Do not expose
+# either the outer LUKS container or the opened mapper in udisks/GIO file
+# managers such as Thunar.
+ENV{ID_FS_LABEL}=="secure-boot-mok", ENV{UDISKS_IGNORE}="1", ENV{UDISKS_PRESENTATION_HIDE}="1", GOTO="debian_installer_udisks_behavior_end"
+ENV{ID_FS_LABEL_ENC}=="secure-boot-mok", ENV{UDISKS_IGNORE}="1", ENV{UDISKS_PRESENTATION_HIDE}="1", GOTO="debian_installer_udisks_behavior_end"
+ENV{DM_NAME}=="secure-boot-mok", ENV{UDISKS_IGNORE}="1", ENV{UDISKS_PRESENTATION_HIDE}="1", GOTO="debian_installer_udisks_behavior_end"
+ENV{ID_FS_LABEL}=="SHIM_SIGNED", ENV{UDISKS_IGNORE}="1", ENV{UDISKS_PRESENTATION_HIDE}="1", GOTO="debian_installer_udisks_behavior_end"
+ENV{ID_FS_LABEL_ENC}=="SHIM_SIGNED", ENV{UDISKS_IGNORE}="1", ENV{UDISKS_PRESENTATION_HIDE}="1", GOTO="debian_installer_udisks_behavior_end"
+
+SUBSYSTEMS!="usb", ENV{ID_BUS}!="usb", GOTO="debian_installer_udisks_behavior_end"
+
+# Power-off is a drive-level operation. Mark the USB disk itself so UDisks can
+# stop the transport cleanly after every mounted child volume is unmounted.
+ENV{DEVTYPE}=="disk", ENV{UDISKS_AUTO}="0", ENV{UDISKS_CAN_POWER_OFF}="1", ENV{UDISKS_ICON_NAME}="drive-removable-media", ENV{UDISKS_SYMBOLIC_ICON_NAME}="drive-removable-media-symbolic", GOTO="debian_installer_udisks_behavior_end"
+
+ENV{DEVTYPE}!="partition", GOTO="debian_installer_udisks_behavior_end"
+ENV{ID_FS_USAGE}!="filesystem", ENV{ID_FS_USAGE}!="crypto", GOTO="debian_installer_udisks_behavior_end"
+
+ENV{UDISKS_AUTO}="0"
+ENV{UDISKS_FILESYSTEM_SHARED}="0"
+ENV{UDISKS_ICON_NAME}="drive-removable-media"
+ENV{UDISKS_SYMBOLIC_ICON_NAME}="drive-removable-media-symbolic"
+
+ENV{ID_FS_USAGE}=="crypto", ENV{UDISKS_NAME}="Encrypted USB volume"
+ENV{ID_FS_LABEL}=="?*", ENV{UDISKS_NAME}="$env{ID_FS_LABEL}"
+ENV{ID_FS_LABEL}!="?*", ENV{ID_FS_LABEL_ENC}=="?*", ENV{UDISKS_NAME}="$env{ID_FS_LABEL_ENC}"
+ENV{ID_FS_LABEL}!="?*", ENV{ID_FS_LABEL_ENC}!="?*", ENV{ID_MODEL_FROM_DATABASE}=="?*", ENV{UDISKS_NAME}="$env{ID_MODEL_FROM_DATABASE}"
+ENV{ID_FS_LABEL}!="?*", ENV{ID_FS_LABEL_ENC}!="?*", ENV{ID_MODEL_FROM_DATABASE}!="?*", ENV{ID_MODEL}=="?*", ENV{UDISKS_NAME}="$env{ID_MODEL}"
+
+LABEL="debian_installer_udisks_behavior_end"

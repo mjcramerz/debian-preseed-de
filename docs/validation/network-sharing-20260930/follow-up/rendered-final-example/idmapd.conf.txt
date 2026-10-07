@@ -1,0 +1,9 @@
+# Managed NFS identity namespace. This is not a Kerberos realm.
+[General]
+Verbosity = 0
+Domain = sharing.home.arpa
+[Mapping]
+Nobody-User = nobody
+Nobody-Group = nogroup
+[Translation]
+Method = nsswitch

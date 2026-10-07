@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+
+fatal() { printf 'fatal: %s\n' "$*" >&2; exit 1; }
+[ "$#" -eq 0 ] || { printf 'usage: labwc-lock\n' >&2; exit 64; }
+uid=$(/usr/bin/id -u)
+[ "$uid" -ne 0 ] && [ "${XDG_RUNTIME_DIR:-}" = "/run/user/$uid" ] ||
+  fatal "screen locking requires the desktop user's runtime directory"
+[ "${LABWC_SESSION_OWNER:-}" = desktop ] && [ "${XDG_SESSION_TYPE:-}" = wayland ] ||
+  fatal "screen locking requires the managed Labwc Wayland session"
+case "${WAYLAND_DISPLAY:-}" in
+  ''|*/*|*..*) fatal "invalid Wayland display" ;;
+esac
+[ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ] || fatal "Wayland socket is unavailable"
+/usr/bin/systemctl --user --quiet is-active labwc-session.target ||
+  fatal "the managed desktop session is inactive"
+# The manager serializes starts and waits for swaylock -f's readiness handshake.
+# Never spawn the locker in the compositor/idle caller's namespace or cgroup.
+/usr/bin/systemctl --user start labwc-lock.service || fatal "screen lock failed"
+/usr/bin/systemctl --user --quiet is-active labwc-lock.service ||
+  fatal "screen lock did not become active"

@@ -1,0 +1,153 @@
+{
+  "schema": 2,
+  "source": "User-supplied exports.zip, IOCost Lab 2.10.1",
+  "source_sha256": {
+    "exports.zip": "12edfdf855711a7d398956c6e61000988160c1d1f1b4962219c3bfdd9e41db01",
+    "profile.json": "8356f461af4ffd95310de105275a1fb207c22844807ad944d4e55a5dad69c1b6",
+    "export.hwdb": "8be3e7f9bb2d2a0cfd94317f445864e2ba90e3dd7035be07d3322c0532a3c5f3"
+  },
+  "source_result_sha256": "dd535cd1c7616b18d64b44228b0a876c290fa2566853f97b09ab59e1ffdb4d35",
+  "device_model": "KXG6AZNV512G TOSHIBA",
+  "benchmarked_firmware": "5108AGLA",
+  "firmware_match": "*",
+  "selected": "naive",
+  "solution_order": [
+    "naive",
+    "params-naive",
+    "rlat-99-q1",
+    "rlat-99-q2",
+    "rlat-99-q3",
+    "rlat-99-q4"
+  ],
+  "solutions": {
+    "naive": {
+      "model": {
+        "rbps": 2766969053,
+        "rrandiops": 226916,
+        "rseqiops": 288832,
+        "wbps": 862334516,
+        "wrandiops": 151257,
+        "wseqiops": 175319
+      },
+      "qos": {
+        "max": 100.0,
+        "min": 75.0,
+        "rlat": 1077,
+        "rpct": 99.0,
+        "wlat": 730,
+        "wpct": 99.0
+      }
+    },
+    "params-naive": {
+      "model": {
+        "rbps": 2766969053,
+        "rrandiops": 226916,
+        "rseqiops": 288832,
+        "wbps": 862334516,
+        "wrandiops": 151257,
+        "wseqiops": 175319
+      },
+      "qos": {
+        "max": 100.0,
+        "min": 60.0,
+        "rlat": 103023,
+        "rpct": 95.0,
+        "wlat": 34406,
+        "wpct": 95.0
+      }
+    },
+    "rlat-99-q1": {
+      "model": {
+        "rbps": 2766969053,
+        "rrandiops": 226916,
+        "rseqiops": 288832,
+        "wbps": 862334516,
+        "wrandiops": 151257,
+        "wseqiops": 175319
+      },
+      "qos": {
+        "max": 100.0,
+        "min": 54.88,
+        "rlat": 1077,
+        "rpct": 99.0,
+        "wlat": 0,
+        "wpct": 0.0
+      }
+    },
+    "rlat-99-q2": {
+      "model": {
+        "rbps": 1518512616,
+        "rrandiops": 124532,
+        "rseqiops": 158511,
+        "wbps": 473249182,
+        "wrandiops": 83010,
+        "wseqiops": 96215
+      },
+      "qos": {
+        "max": 100.0,
+        "min": 86.33,
+        "rlat": 973,
+        "rpct": 99.0,
+        "wlat": 0,
+        "wpct": 0.0
+      }
+    },
+    "rlat-99-q3": {
+      "model": {
+        "rbps": 1310989937,
+        "rrandiops": 107513,
+        "rseqiops": 136849,
+        "wbps": 408574094,
+        "wrandiops": 71666,
+        "wseqiops": 83066
+      },
+      "qos": {
+        "max": 100.0,
+        "min": 84.17,
+        "rlat": 869,
+        "rpct": 99.0,
+        "wlat": 0,
+        "wpct": 0.0
+      }
+    },
+    "rlat-99-q4": {
+      "model": {
+        "rbps": 1103467258,
+        "rrandiops": 90494,
+        "rseqiops": 115186,
+        "wbps": 343899005,
+        "wrandiops": 60321,
+        "wseqiops": 69917
+      },
+      "qos": {
+        "max": 100.0,
+        "min": 81.19,
+        "rlat": 765,
+        "rpct": 99.0,
+        "wlat": 0,
+        "wpct": 0.0
+      }
+    }
+  },
+  "reserved_solution_order": [
+    "isolation",
+    "isolated-bandwidth",
+    "bandwidth",
+    "naive",
+    "params-naive",
+    "rlat-99-q1",
+    "rlat-99-q2",
+    "rlat-99-q3",
+    "rlat-99-q4"
+  ],
+  "unavailable_standard_solutions": [
+    "isolation",
+    "isolated-bandwidth",
+    "bandwidth"
+  ],
+  "limits": [
+    "Firmware wildcard is requested deployment scope, not a measurement of every firmware.",
+    "Full raw metrics are retained in profile.json; they are not kernel parameters.",
+    "No isolation guarantee is inferred from exported solution availability."
+  ]
+}

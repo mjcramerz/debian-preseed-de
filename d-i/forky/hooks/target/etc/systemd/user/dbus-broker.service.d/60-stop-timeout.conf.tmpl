@@ -1,0 +1,5 @@
+# Bound only the broker stop grace period, not every service or user manager.
+# Retain vendor ordering and control-group SIGTERM/SIGKILL handling so both
+# dbus-broker-launch and its broker child are reaped by the same service.
+[Service]
+TimeoutStopSec=__INSTALLER_DBUS_BROKER_TIMEOUT_STOP_SEC__s

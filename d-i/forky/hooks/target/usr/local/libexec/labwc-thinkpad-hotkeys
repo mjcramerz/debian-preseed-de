@@ -1,0 +1,43 @@
+#!/usr/bin/python3 -I
+"""Enable supported ThinkPad brightness events without replacing other bits."""
+import os
+from pathlib import Path
+import re
+import sys
+
+ROOT = Path('/sys/devices/platform/thinkpad_acpi')
+BRIGHTNESS_EVENTS = 0x00008000 | 0x00010000
+
+
+def read_mask(name: str) -> int:
+    with (ROOT / name).open('r', encoding='ascii') as stream:
+        value = stream.read(64).strip()
+    if not re.fullmatch(r'0x[0-9a-fA-F]{1,8}', value):
+        raise ValueError(f'invalid ThinkPad {name}')
+    return int(value, 16)
+
+
+def main() -> int:
+    if len(sys.argv) != 1 or os.geteuid() != 0:
+        raise ValueError('this fixed hardware helper requires root and accepts no arguments')
+    if not ROOT.is_dir():
+        return 0
+    current = read_mask('hotkey_mask')
+    supported = read_mask('hotkey_all_mask')
+    # Firmware/model capabilities vary. Keep the active mask, including other
+    # administrator settings, and request only the two supported brightness bits.
+    wanted = current | (BRIGHTNESS_EVENTS & supported)
+    if wanted != current:
+        with (ROOT / 'hotkey_mask').open('w', encoding='ascii') as stream:
+            stream.write(f'0x{wanted:08x}\n')
+        if read_mask('hotkey_mask') & (BRIGHTNESS_EVENTS & supported) != BRIGHTNESS_EVENTS & supported:
+            raise ValueError('firmware did not retain the supported brightness event bits')
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, UnicodeError) as exc:
+        print(f'labwc-thinkpad-hotkeys: {exc}', file=sys.stderr)
+        raise SystemExit(1)

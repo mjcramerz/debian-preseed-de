@@ -1,0 +1,6 @@
+# Keep repeat-ban history longer than the longest ban, in the installer's
+# private persistent state directory.
+[DEFAULT]
+dbfile = /var/lib/fail2ban/fail2ban.sqlite3
+dbpurgeage = 14d
+dbmaxmatches = 10

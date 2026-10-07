@@ -1,0 +1,7 @@
+[Unit]
+After=labwc-session.target
+Requisite=labwc-session.target
+Description=Lifetime leases for intel high tuning
+PartOf=labwc-session.target
+StopWhenUnneeded=yes
+Requires=hardware-tuning-intel-high.service

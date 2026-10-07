@@ -1,0 +1,106 @@
+...............s...................................................................................................s.s....F...................................................................s....................................................gitops: main/staging/release branches cannot be deleted
+.........intel: injected worker error
+.nvidia: injected worker error; recovery still pending: injected worker error
+....intel: injected worker error; recovery still pending: injected worker error
+.........................................................intel: failed write; recovery still pending: injected worker error
+...............................................................................................................................................................s....................ss..ss................ss...........................................................................................................ssssssssss..................E..........................................................s......F.............F...........FF......................................................
+======================================================================
+ERROR: test_real_unprivileged_smoke_with_harmless_compiled_fixture (test_resctl_bench_20260916.PublicationTests.test_real_unprivileged_smoke_with_harmless_compiled_fixture)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/nfs-audit/final-suite/3/debian-preseed-de/d-i/forky/scripts/desktop/resctl-bench-install.py", line 210, in smoke
+    result = subprocess.run([str(root / 'bin' / binary), '--version'],
+                            stdin=subprocess.DEVNULL, capture_output=True,
+                            text=True, env=environment, cwd=home, timeout=20,
+                            user=nobody.pw_uid, group=nobody.pw_gid, extra_groups=())
+  File "/usr/lib/python3.13/subprocess.py", line 554, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 1972, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+PermissionError: [Errno 13] Permission denied: '/var/lib/resctl-test-_1s8h0xp/stage/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-20260916-test/bin/resctl-bench'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/mnt/data/nfs-audit/final-suite/3/debian-preseed-de/d-i/forky/tests/test_resctl_bench_20260916.py", line 390, in test_real_unprivileged_smoke_with_harmless_compiled_fixture
+    self.installer.smoke(self.root, ['resctl-bench'], '2.2.6', self.work/'real-smoke')
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/data/nfs-audit/final-suite/3/debian-preseed-de/d-i/forky/scripts/desktop/resctl-bench-install.py", line 215, in smoke
+    raise Error(f'{binary} --version execution denied at {root / "bin" / binary}; '
+                'check directory traversal, mount noexec, and AppArmor policy; '
+                'no executable published and no security policy changed') from exc
+resctl_installer.Error: resctl-bench --version execution denied at /var/lib/resctl-test-_1s8h0xp/stage/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-20260916-test/bin/resctl-bench; check directory traversal, mount noexec, and AppArmor policy; no executable published and no security policy changed
+
+======================================================================
+FAIL: test_named_apparmor_runtime_gaps_are_covered (test_desktop_sandbox.InstalledFailureRegressionTests.test_named_apparmor_runtime_gaps_are_covered)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/nfs-audit/final-suite/3/debian-preseed-de/d-i/forky/tests/test_desktop_sandbox.py", line 1285, in test_named_apparmor_runtime_gaps_are_covered
+    self.assertIn(rule, managed_firstboot)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'capability sys_ptrace,' not found in 'profile firstboot /var/lib/firstboot/bin/firstboot.sh flags=(attach_disconnected) {\n  #include <abstractions/wrapper-base>\n\n  unix,\n  dbus,\n  network create inet dgram,\n  network (create, bind, getattr, getopt, setopt, send, receive) netlink raw,\n  capability audit_write,\n  capability chown,\n  capability dac_read_search,\n  capability fowner,\n  capability net_admin,\n  capability setgid,\n  capability setuid,\n  capability sys_admin,\n  capability syslog,\n  # systemctl and networkctl inspect PID 1 and unconfined service metadata.\n  ptrace (read) peer=unconfined,\n\n  /var/lib/firstboot/bin/firstboot.sh rix,\n  /usr/local/libexec/dbus-broker-check rix,\n  # Read-only package check; never execute an authentication dialog as root.\n  /usr/local/libexec/labwc-hyprpolkit-agent rix,\n  /usr/libexec/ r,\n  /usr/libexec/hyprpolkitagent r,\n  # --status is read-only: journal-sealing.service owns generation/migration.\n  # Keep the verification seed readable only at its exact path; no key writes.\n  /usr/local/libexec/journal-sealing rix,\n  /usr/local/libexec/journal-check rix,\n  # firstboot invokes the read-only --check path; do not grant /dev writes.\n  /usr/local/libexec/nvidia-char-links rix,\n  /usr/bin/python3{,.[0-9]*} rix,\n  /usr/bin/printf rix,\n  /dev/char/ r,\n  /dev/char/[0-9]*:[0-9]* r,\n  /dev/nvidia{[0-9]*,ctl,-modeset,-uvm,-uvm-tools} r,\n  /usr/bin/{busctl,id,find} rix,\n  /usr/bin/{dpkg-query,passwd,perl,readlink} rix,\n  /usr/sbin/runuser rix,\n  /usr/bin/{flock,grep,mkdir,mktemp,sleep,timeout,desktop-file-validate} rix,\n  signal (send, receive) set=(hup, int, term, kill, cont) peer=firstboot,\n  /var/lib/firstboot/lib/ r,\n  /var/lib/firstboot/lib/logging.sh r,\n  /var/lib/firstboot/lib/import-initramfs.py r,\n  /var/lib/firstboot/lib/service-account-processes.py r,\n  /var/lib/firstboot/lib/{01-early,02-collect,03-network,04-validation,05-cleanup}.sh rix,\n  /usr/bin/{cat,chmod,chown,cp,cut,date,dmesg,find,findmnt,getent,hostname,hostnamectl,journalctl,lsblk,mokutil,mv,networkctl,resolvectl,rm,sed,ss,systemctl,systemd-analyze,uname} rix,\n  /usr/{bin,sbin}/ip rix,\n  /usr/bin/{eglinfo,es2_info,wlr-randr} rix,\n  /usr/bin/coredumpctl rix,\n  /usr/sbin/aa-status rPx -> aa-status-reader,\n  /usr/local/libexec/apparmor-modes-run rPx -> apparmor-modes,\n\n  / r,\n  /boot/ r,\n  /boot/** r,\n  /dev/ r,\n  /dev/{kmsg,tty,urandom} r,\n  /dev/null rw,\n  /etc/ r,\n  /etc/** r,\n  /etc/labwc/desktop.conf rw,\n  /home/*/.config/qt6ct/qt6ct.conf r,\n  # Root firstboot enumerates the user-owned unit directory; owner would not match.\n  @{HOME}/.config/systemd/user/ r,\n  /run/ r,\n  /run/** r,\n  /usr/local/ r,\n  /usr/local/** r,\n  /usr/bin/pwd r,\n  /usr/lib/ r,\n  /usr/lib/** mr,\n  /usr/share/ r,\n  /usr/share/** r,\n  # The initramfs importer opens every ancestor with O_DIRECTORY/O_NOFOLLOW.\n  /var/ r,\n  /var/lib/ r,\n  /var/lib/dpkg/ r,\n  /var/lib/dpkg/** r,\n  /var/lib/journal-sealing/ r,\n  /var/lib/journal-sealing/lock rk,\n  /var/lib/journal-sealing/status.json r,\n  /var/lib/journal-sealing/verification-key r,\n  /var/lib/firstboot/ r,\n  /var/lib/firstboot/state/ rw,\n  /var/lib/firstboot/state/** rwkl,\n  /var/lib/installer-state/ rw,\n  /var/lib/installer-state/** rwkl,\n  /var/log/ r,\n  /var/log/** r,\n  /var/log/managed/system/initramfs/ rw,\n  /var/log/managed/system/initramfs/** rwk,\n  @{PROC}/ r,\n  @{PROC}/** r,\n  @{sys}/ r,\n  @{sys}/** r,\n\n  include if exists <local/usr.local.libexec.firstboot.sh>\n}\n'
+
+======================================================================
+FAIL: test_safe_package_modes_and_unsafe_metadata (test_security_hardening_20260924.TailscaleMetadata.test_safe_package_modes_and_unsafe_metadata)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/nfs-audit/final-suite/3/debian-preseed-de/d-i/forky/tests/test_security_hardening_20260924.py", line 261, in test_safe_package_modes_and_unsafe_metadata
+    self.assertEqual(result.returncode == 0, not bool(mode & 0o022), (oct(mode), result.stderr))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False != True : ('0o400', 'unsafe configuration directory: /tmp/tmp3p1qgghy/etc/default\n')
+
+======================================================================
+FAIL: test_all_recorded_missing_accesses_have_narrow_profile_rules (test_session_repairs_20260919.PolicyIncidentTests.test_all_recorded_missing_accesses_have_narrow_profile_rules)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/nfs-audit/final-suite/3/debian-preseed-de/d-i/forky/tests/test_session_repairs_20260919.py", line 170, in test_all_recorded_missing_accesses_have_narrow_profile_rules
+    self.assertIn('ptrace (read) peer=labwc-wrap-desktop-files,',
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                  self.block('system-wrappers', 'firstboot'))
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'ptrace (read) peer=labwc-wrap-desktop-files,' not found in 'profile firstboot /var/lib/firstboot/bin/firstboot.sh flags=(attach_disconnected) {\n  #include <abstractions/wrapper-base>\n\n  unix,\n  dbus,\n  network create inet dgram,\n  network (create, bind, getattr, getopt, setopt, send, receive) netlink raw,\n  capability audit_write,\n  capability chown,\n  capability dac_read_search,\n  capability fowner,\n  capability net_admin,\n  capability setgid,\n  capability setuid,\n  capability sys_admin,\n  capability syslog,\n  # systemctl and networkctl inspect PID 1 and unconfined service metadata.\n  ptrace (read) peer=unconfined,\n\n  /var/lib/firstboot/bin/firstboot.sh rix,\n  /usr/local/libexec/dbus-broker-check rix,\n  # Read-only package check; never execute an authentication dialog as root.\n  /usr/local/libexec/labwc-hyprpolkit-agent rix,\n  /usr/libexec/ r,\n  /usr/libexec/hyprpolkitagent r,\n  # --status is read-only: journal-sealing.service owns generation/migration.\n  # Keep the verification seed readable only at its exact path; no key writes.\n  /usr/local/libexec/journal-sealing rix,\n  /usr/local/libexec/journal-check rix,\n  # firstboot invokes the read-only --check path; do not grant /dev writes.\n  /usr/local/libexec/nvidia-char-links rix,\n  /usr/bin/python3{,.[0-9]*} rix,\n  /usr/bin/printf rix,\n  /dev/char/ r,\n  /dev/char/[0-9]*:[0-9]* r,\n  /dev/nvidia{[0-9]*,ctl,-modeset,-uvm,-uvm-tools} r,\n  /usr/bin/{busctl,id,find} rix,\n  /usr/bin/{dpkg-query,passwd,perl,readlink} rix,\n  /usr/sbin/runuser rix,\n  /usr/bin/{flock,grep,mkdir,mktemp,sleep,timeout,desktop-file-validate} rix,\n  signal (send, receive) set=(hup, int, term, kill, cont) peer=firstboot,\n  /var/lib/firstboot/lib/ r,\n  /var/lib/firstboot/lib/logging.sh r,\n  /var/lib/firstboot/lib/import-initramfs.py r,\n  /var/lib/firstboot/lib/service-account-processes.py r,\n  /var/lib/firstboot/lib/{01-early,02-collect,03-network,04-validation,05-cleanup}.sh rix,\n  /usr/bin/{cat,chmod,chown,cp,cut,date,dmesg,find,findmnt,getent,hostname,hostnamectl,journalctl,lsblk,mokutil,mv,networkctl,resolvectl,rm,sed,ss,systemctl,systemd-analyze,uname} rix,\n  /usr/{bin,sbin}/ip rix,\n  /usr/bin/{eglinfo,es2_info,wlr-randr} rix,\n  /usr/bin/coredumpctl rix,\n  /usr/sbin/aa-status rPx -> aa-status-reader,\n  /usr/local/libexec/apparmor-modes-run rPx -> apparmor-modes,\n\n  / r,\n  /boot/ r,\n  /boot/** r,\n  /dev/ r,\n  /dev/{kmsg,tty,urandom} r,\n  /dev/null rw,\n  /etc/ r,\n  /etc/** r,\n  /etc/labwc/desktop.conf rw,\n  /home/*/.config/qt6ct/qt6ct.conf r,\n  # Root firstboot enumerates the user-owned unit directory; owner would not match.\n  @{HOME}/.config/systemd/user/ r,\n  /run/ r,\n  /run/** r,\n  /usr/local/ r,\n  /usr/local/** r,\n  /usr/bin/pwd r,\n  /usr/lib/ r,\n  /usr/lib/** mr,\n  /usr/share/ r,\n  /usr/share/** r,\n  # The initramfs importer opens every ancestor with O_DIRECTORY/O_NOFOLLOW.\n  /var/ r,\n  /var/lib/ r,\n  /var/lib/dpkg/ r,\n  /var/lib/dpkg/** r,\n  /var/lib/journal-sealing/ r,\n  /var/lib/journal-sealing/lock rk,\n  /var/lib/journal-sealing/status.json r,\n  /var/lib/journal-sealing/verification-key r,\n  /var/lib/firstboot/ r,\n  /var/lib/firstboot/state/ rw,\n  /var/lib/firstboot/state/** rwkl,\n  /var/lib/installer-state/ rw,\n  /var/lib/installer-state/** rwkl,\n  /var/log/ r,\n  /var/log/** r,\n  /var/log/managed/system/initramfs/ rw,\n  /var/log/managed/system/initramfs/** rwk,\n  @{PROC}/ r,\n  @{PROC}/** r,\n  @{sys}/ r,\n  @{sys}/** r,\n\n  include if exists <local/usr.local.libexec.firstboot.sh>\n}'
+
+======================================================================
+FAIL: test_offline_effective_broker_timeout_kill_mode_and_ordering (test_shutdown_policy_r5.BrokerStopPolicyTests.test_offline_effective_broker_timeout_kill_mode_and_ordering) (scope='system')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/nfs-audit/final-suite/3/debian-preseed-de/d-i/forky/tests/test_shutdown_policy_r5.py", line 182, in test_offline_effective_broker_timeout_kill_mode_and_ordering
+    self.assertEqual(result.returncode, 0, result.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : Failed to open "/tmp/tmp4p0rtu78/units", ignoring: Permission denied
+Unit r5-test.target not found.
+Unit rescue.target not found.
+
+
+======================================================================
+FAIL: test_offline_effective_broker_timeout_kill_mode_and_ordering (test_shutdown_policy_r5.BrokerStopPolicyTests.test_offline_effective_broker_timeout_kill_mode_and_ordering) (scope='user')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/nfs-audit/final-suite/3/debian-preseed-de/d-i/forky/tests/test_shutdown_policy_r5.py", line 182, in test_offline_effective_broker_timeout_kill_mode_and_ordering
+    self.assertEqual(result.returncode, 0, result.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : Failed to open "/tmp/tmpno9d_zco/units", ignoring: Permission denied
+Unit r5-test.target not found.
+Unit rescue.target not found.
+
+
+----------------------------------------------------------------------
+Ran 800 tests in 344.871s
+
+FAILED (failures=5, errors=1, skipped=22)
+desktop_font_verification terminal=3 microsoft=2 content=verified
+desktop_font_verification terminal=3 microsoft=2 content=verified
+{"exported": true, "machine_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "rotated": true, "verification_sha256": "9018973a094b4a1e1c84677a6b99053cc1bca3a08f4a5ed9f223f67038b5a8c7", "version": 1}
+{"exported": true, "machine_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "rotated": true, "verification_sha256": "9018973a094b4a1e1c84677a6b99053cc1bca3a08f4a5ed9f223f67038b5a8c7", "version": 1}
+{"exported": true, "machine_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "rotated": true, "verification_sha256": "9018973a094b4a1e1c84677a6b99053cc1bca3a08f4a5ed9f223f67038b5a8c7", "version": 1}

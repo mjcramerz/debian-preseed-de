@@ -1,0 +1,12 @@
+{
+  "systemd": "systemd 257 (257.9-1~deb13u1)",
+  "CAP_LINUX_IMMUTABLE": false,
+  "immutable_fixture": {
+    "errno": 1,
+    "error": "[Errno 1] Operation not permitted"
+  },
+  "network_namespace": {
+    "exit_code": 1,
+    "stderr": "unshare: unshare failed: Operation not permitted\n"
+  }
+}

@@ -1,0 +1,460 @@
+"""Systemd session ownership for long-running managed applications."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+import re
+import shlex
+import subprocess
+import tempfile
+import time
+import uuid
+
+from .recovery import assert_launch_allowed, restart_token
+from .integrity import system_owner
+from .environment import (
+    desktop_activation_environment,
+    CHATGPT_DEVOPS_ENVIRONMENT_RESERVED, CHATGPT_FORBIDDEN_AMBIENT_ENVIRONMENT,
+)
+
+from .runtime import (
+    current_user_home,
+    current_user_name,
+    current_user_runtime_dir,
+    current_user_runtime_socket,
+    fail,
+    managed_subprocess_environment,
+    require_root_owned_executable,
+    validate_runtime_entry_name,
+    validate_session_bus_address,
+)
+
+MANAGED_APP_PATH = "/usr/local/bin/labwc-app"
+CHATGPT_SESSION_PATH = "/usr/local/libexec/labwc-chatgpt-session"
+WAYLAND_COMPAT_MANAGED_APP_PATH = "/usr/local/bin/labwc-wayland-compat-app"
+SYSTEMD_RUN_PATH = "/usr/bin/systemd-run"
+BITWARDEN_SESSION_UNIT_MARKER = "LABWC_MANAGED_APP_SESSION_UNIT"
+NATIVE_SESSION_UNIT_MARKER = "LABWC_NATIVE_APP_SESSION_UNIT"
+WAYLAND_COMPAT_SESSION_UNIT_MARKER = (
+    "LABWC_MANAGED_WAYLAND_COMPAT_SESSION_UNIT"
+)
+WAYLAND_COMPAT_SESSION_UNIT_METADATA = {
+    "discord": ("Discord", "labwc-discord-cage"),
+    "zoom": ("Zoom", "labwc-zoom-cage"),
+}
+
+
+def menu_action_wait_arguments() -> list[str]:
+    """A timing request, never an authorization or sandbox-bypass flag.
+
+    Consume this only in the launcher; do not export it into payload services
+    or saved session restore commands. Ordinary desktop launches stay detached.
+    """
+    return ["--wait"] if os.environ.get("LABWC_MENU_ACTION_WAIT") == "1" else []
+
+
+def _session_unit(prefix: str) -> str:
+    if re.fullmatch(r"labwc-[a-z0-9-]+", prefix) is None:
+        fail("invalid managed session unit prefix")
+    return f"{prefix}-{uuid.uuid4().hex}.service"
+
+
+def _consume_session_marker(name: str, prefix: str) -> bool:
+    """Accept reentry only inside the expected manager-owned service cgroup.
+
+    The flag is a loop guard, not authority by itself. Consume it before any
+    payload is created so subsequently launched applications get new services.
+    """
+    marker = os.environ.pop(name, "")
+    if not marker:
+        return False
+    if marker != "1":
+        fail(f"{name} has an invalid value")
+    try:
+        with Path("/proc/self/cgroup").open(encoding="ascii") as stream:
+            membership = stream.read(65537)
+    except (OSError, UnicodeError) as exc:
+        fail(f"cannot validate managed session cgroup: {exc}")
+    pattern = re.escape(prefix) + r"-[0-9a-f]{32}\.service"
+    if len(membership) <= 65536:
+        for line in membership.splitlines():
+            fields = line.split(":", 2)
+            if (len(fields) == 3 and fields[1] in {"", "name=systemd"}
+                    and re.fullmatch(pattern, fields[2].rsplit("/", 1)[-1])):
+                return True
+    fail(f"{name} is set outside its managed session service")
+
+
+def bitwarden_session_unit_argv(
+    systemd_run: str,
+    mode: str,
+    extra_args: list[str],
+    environment: dict[str, str] | None = None,
+) -> list[str]:
+    assert_launch_allowed()
+    return [
+        systemd_run,
+        "--user",
+        "--quiet",
+        "--collect",
+        *menu_action_wait_arguments(),
+        "--service-type=exec",
+        "--expand-environment=no",
+        "--property=StandardInput=null",
+        "--property=StandardOutput=journal",
+        "--property=StandardError=journal",
+        "--description=Managed Bitwarden desktop client",
+        "--unit=" + _session_unit("labwc-bitwarden"),
+        "--property=After=labwc-session.target labwc-kwallet-portal.service",
+        "--property=Requisite=labwc-session.target labwc-kwallet-portal.service",
+        "--property=PartOf=labwc-session.target labwc-kwallet-portal.service",
+        f"--property=ConditionPathExists=!/run/user/{os.getuid()}/labwc-session-closing",
+        "--slice=app.slice",
+        "--property=ExitType=cgroup",
+        "--property=UnsetEnvironment=LABWC_MENU_ACTION_WAIT",
+        "--property=KillMode=control-group",
+        "--setenv=LABWC_SESSION_APP=1",
+        "--property=TimeoutStopSec=20s",
+        "--property=SendSIGKILL=yes",
+        "--property=Restart=no",
+        "--property=UMask=0077",
+        "--property=SyslogIdentifier=labwc-bitwarden",
+        f"--setenv={BITWARDEN_SESSION_UNIT_MARKER}=1",
+        "--setenv=LABWC_SESSION_RESTORE=" + restart_token([MANAGED_APP_PATH, mode, "bitwarden", *extra_args]),
+        f"--working-directory={os.getcwd()}",
+        *(f"--setenv={name}" for name in sorted(environment or {})),
+        "--",
+        MANAGED_APP_PATH,
+        mode,
+        "bitwarden",
+        *extra_args,
+    ]
+
+
+def managed_session_unit_environment(
+    application_label: str, *, require_session_owner: bool = True,
+    native_bus_fallback: bool = False,
+) -> dict[str, str]:
+    if require_session_owner and os.environ.get("LABWC_SESSION_OWNER") != "desktop":
+        fail(f"{application_label} requires the managed Labwc desktop session")
+    home_dir = current_user_home()
+    user_name = current_user_name()
+    runtime_dir = current_user_runtime_dir()
+    raw_bus_address = os.environ.get("DBUS_SESSION_BUS_ADDRESS", "")
+    if native_bus_fallback and not raw_bus_address:
+        # A terminal/SSH environment can omit the address while the same
+        # user's desktop and manager are active. Resolve only the existing,
+        # owned socket in the validated private runtime directory. Explicit
+        # foreign/malformed addresses still fail; no bus is spawned here.
+        raw_bus_address = "unix:path=" + current_user_runtime_socket("DBUS session bus", "bus")
+    session_bus_address = validate_session_bus_address(raw_bus_address)
+    environment = managed_subprocess_environment()
+    environment.update(desktop_activation_environment())
+    environment.update(
+        {
+            "HOME": home_dir,
+            "USER": user_name,
+            "LOGNAME": user_name,
+            "XDG_RUNTIME_DIR": runtime_dir,
+            "DBUS_SESSION_BUS_ADDRESS": session_bus_address,
+            "SYSTEMD_COLORS": "0",
+            "LABWC_SESSION_OWNER": "desktop",
+        }
+    )
+    return environment
+
+
+def bitwarden_session_unit_environment() -> dict[str, str]:
+    environment = managed_session_unit_environment("Bitwarden")
+    wayland_display = validate_runtime_entry_name(
+        "WAYLAND_DISPLAY", os.environ.get("WAYLAND_DISPLAY", ""),
+    )
+    current_user_runtime_socket("Wayland socket", wayland_display)
+    environment["WAYLAND_DISPLAY"] = wayland_display
+    return environment
+
+
+def native_session_wayland_display(environment: dict[str, str]) -> str:
+    """Resolve an omitted terminal variable from this user's active desktop.
+
+    Never guess wayland-0 or enumerate unrelated/nested compositor sockets.
+    Explicit names still undergo the same ownership/type checks. Private
+    Zoom/Discord entrypoints do not use this native-only recovery path.
+    """
+    display = os.environ.get("WAYLAND_DISPLAY", "")
+    if not display:
+        systemctl = require_root_owned_executable("systemctl", "/usr/bin/systemctl")
+        try:
+            for unit in ("labwc-session.target", "labwc-compositor.service"):
+                state = subprocess.run(
+                    [systemctl, "--user", "--quiet", "is-active", unit],
+                    env=environment, stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    timeout=3, check=False,
+                )
+                if state.returncode:
+                    fail("Wayland display recovery requires an active Labwc desktop")
+            # Do not capture/log the manager's complete environment. Bound
+            # the read and retain only the four fixed session identifiers.
+            with tempfile.NamedTemporaryFile(
+                prefix="labwc-activation-", dir=environment["XDG_RUNTIME_DIR"],
+            ) as output:
+                result = subprocess.run(
+                    [systemctl, "--user", "show-environment"],
+                    env=environment, stdin=subprocess.DEVNULL, stdout=output,
+                    stderr=subprocess.DEVNULL, timeout=3, check=False,
+                )
+                output.seek(0)
+                data = output.read(65537)
+            if result.returncode or len(data) > 65536:
+                fail("cannot read the bounded Labwc activation environment")
+            expected = {
+                "LABWC_SESSION_OWNER": "desktop",
+                "XDG_SESSION_TYPE": "wayland",
+                "XDG_RUNTIME_DIR": environment["XDG_RUNTIME_DIR"],
+            }
+            values: dict[str, str] = {}
+            for line in data.decode("utf-8").splitlines():
+                name, separator, value = line.partition("=")
+                if separator and name in {*expected, "WAYLAND_DISPLAY"}:
+                    parsed = shlex.split(value)
+                    if name in values or len(parsed) != 1:
+                        fail("invalid Labwc activation environment")
+                    values[name] = parsed[0]
+            if any(values.get(name) != value for name, value in expected.items()):
+                fail("user manager has no matching Labwc activation environment")
+            display = values.get("WAYLAND_DISPLAY", "")
+        except (OSError, UnicodeError, ValueError, subprocess.TimeoutExpired) as exc:
+            fail(f"cannot recover the active Labwc display: {type(exc).__name__}")
+    display = validate_runtime_entry_name("WAYLAND_DISPLAY", display)
+    current_user_runtime_socket("Wayland socket", display)
+    return display
+
+
+def wayland_compat_session_unit_argv(
+    systemd_run: str,
+    app_name: str,
+    mode: str,
+    extra_args: list[str],
+    environment: dict[str, str] | None = None,
+) -> list[str]:
+    metadata = WAYLAND_COMPAT_SESSION_UNIT_METADATA.get(app_name)
+    if metadata is None:
+        fail(f"managed compatibility session unit rejected {app_name}")
+    display_name, syslog_identifier = metadata
+    assert_launch_allowed()
+    return [
+        systemd_run,
+        "--user",
+        "--quiet",
+        "--collect",
+        *menu_action_wait_arguments(),
+        "--service-type=exec",
+        "--expand-environment=no",
+        "--property=StandardInput=null",
+        "--property=StandardOutput=journal",
+        "--property=StandardError=journal",
+        f"--description=Managed {display_name} Cage compatibility session",
+        "--unit=" + _session_unit(f"labwc-compat-{app_name}"),
+        "--property=After=labwc-session.target",
+        "--property=Requisite=labwc-session.target",
+        "--property=PartOf=labwc-session.target",
+        f"--property=ConditionPathExists=!/run/user/{os.getuid()}/labwc-session-closing",
+        "--slice=app.slice",
+        "--property=ExitType=cgroup",
+        "--property=UnsetEnvironment=LABWC_MENU_ACTION_WAIT",
+        "--property=KillMode=control-group",
+        "--setenv=LABWC_SESSION_APP=1",
+        "--property=TimeoutStopSec=20s",
+        "--property=SendSIGKILL=yes",
+        "--property=Restart=no",
+        "--property=UMask=0077",
+        f"--property=SyslogIdentifier={syslog_identifier}",
+        f"--setenv={WAYLAND_COMPAT_SESSION_UNIT_MARKER}=1",
+        "--setenv=LABWC_SESSION_NESTED=1",
+        "--setenv=LABWC_SESSION_RESTORE=" + restart_token([WAYLAND_COMPAT_MANAGED_APP_PATH, mode, app_name, *extra_args]),
+        f"--working-directory={os.getcwd()}",
+        *(f"--setenv={name}" for name in sorted(environment or {})),
+        "--",
+        WAYLAND_COMPAT_MANAGED_APP_PATH,
+        mode,
+        app_name,
+        *extra_args,
+    ]
+
+
+def wayland_compat_session_unit_environment() -> dict[str, str]:
+    environment = managed_session_unit_environment("Zoom/Discord Cage")
+    wayland_display = validate_runtime_entry_name(
+        "WAYLAND_DISPLAY",
+        os.environ.get("WAYLAND_DISPLAY", ""),
+    )
+    current_user_runtime_socket("Wayland socket", wayland_display)
+    environment["WAYLAND_DISPLAY"] = wayland_display
+    return environment
+
+
+def redirect_bitwarden_to_session_unit(mode: str, extra_args: list[str]) -> None:
+    if _consume_session_marker(BITWARDEN_SESSION_UNIT_MARKER, "labwc-bitwarden"):
+        return
+
+    systemd_run = require_root_owned_executable("systemd-run", SYSTEMD_RUN_PATH)
+    environment = bitwarden_session_unit_environment()
+    argv = bitwarden_session_unit_argv(systemd_run, mode, extra_args, environment)
+    try:
+        os.execve(systemd_run, argv, environment)
+    except OSError as exc:
+        fail(f"failed to create the managed Bitwarden session unit: {exc}")
+
+
+def redirect_wayland_compat_to_session_unit(
+    app_name: str,
+    mode: str,
+    extra_args: list[str],
+) -> None:
+    if _consume_session_marker(WAYLAND_COMPAT_SESSION_UNIT_MARKER, f"labwc-compat-{app_name}"):
+        return
+    from .compat_instance import (LAUNCH_TIMEOUT, acquire_lock, instance_directory,
+                                  open_lock, request_activation, instance_owned)
+    from .compat_protocol import ProtocolError, activation_arguments, stop_processes
+    from .events import emit
+    extra_args = activation_arguments(app_name, extra_args)
+    systemd_run = require_root_owned_executable("systemd-run", SYSTEMD_RUN_PATH)
+    environment = wayland_compat_session_unit_environment()
+    fd = open_lock(instance_directory(app_name), "launch.lock")
+    child = None
+    try:
+        deadline = time.monotonic() + LAUNCH_TIMEOUT
+        acquire_lock(fd, deadline)
+        if request_activation(app_name, mode, extra_args, deadline=deadline):
+            emit("launch-accepted", target="existing-instance")
+            raise SystemExit(0)
+        argv = wayland_compat_session_unit_argv(systemd_run, app_name, mode, extra_args, environment)
+        child = subprocess.Popen(argv, env=environment, close_fds=True)
+        # Hold creation ownership across manager handoff until the service's
+        # protected lifetime lock/endpoint actually exists. The service keeps
+        # the separate instance.lock for its entire run and cleanup.
+        while time.monotonic() < deadline:
+            if child.poll() not in (None, 0):
+                raise ProtocolError("manager rejected the compatibility service")
+            if instance_owned(app_name):
+                break
+            time.sleep(0.025)
+        else:
+            raise ProtocolError("compatibility service did not acquire instance ownership")
+    except (OSError, ProtocolError):
+        if child is not None and child.poll() is None:
+            stop_processes([child], time.monotonic() + 1)
+        fail("managed compatibility launch or activation failed")
+    finally:
+        os.close(fd)
+    emit("launch-accepted", target="session-unit")
+    # --wait is an explicit diagnostic request. Detached success means only
+    # that the manager accepted the launch, never that the app exited cleanly.
+    try:
+        raise SystemExit(child.wait(timeout=None if "--wait" in argv else 5))
+    except subprocess.TimeoutExpired:
+        stop_processes([child], time.monotonic() + 1)
+        fail("manager launch acknowledgement timed out")
+
+
+def redirect_native_from_private_users(
+    app_name: str, mode: str, extra_args: list[str],
+) -> None:
+    """Re-enter the host user manager before checking host-owned app data.
+
+    The compositor's filesystem sandbox implicitly creates a user namespace.
+    In it root and supplementary group ownership cannot be distinguished.
+    Do not weaken all the later ownership checks or alter that sandbox: ask
+    the same user's manager to execute the existing wrapper outside it.
+    Only ChatGPT retains its private output pipes. Other applications use
+    independent journal streams, never the panel/compositor stdout descriptors.
+    """
+    marker = _consume_session_marker(NATIVE_SESSION_UNIT_MARKER, f"labwc-native-{app_name}")
+    private_users = system_owner()[0] != 0
+    if marker:
+        if private_users:
+            fail("managed application user manager still hides host ownership")
+        return
+    assert_launch_allowed()
+    # Every native launch gets its own service, including terminal launches.
+    # Tuta additionally waits for the Secret Service provider below.
+    systemd_run = require_root_owned_executable("systemd-run", SYSTEMD_RUN_PATH)
+    environment = managed_session_unit_environment(
+        app_name, require_session_owner=False,
+        native_bus_fallback=app_name not in WAYLAND_COMPAT_SESSION_UNIT_METADATA,
+    )
+    wayland_display = native_session_wayland_display(environment)
+    dependencies = "labwc-session.target"
+    if app_name == "tutanota":
+        dependencies += " labwc-kwallet-portal.service"
+    # The generic entrypoint attaches the generic AppArmor profile when started
+    # by systemd. ChatGPT must retain its dedicated profile and private pipes;
+    # a tiny fixed-purpose reentry stub performs that explicit transition.
+    command = [MANAGED_APP_PATH, mode, app_name, *extra_args]
+    if app_name == "chatgpt":
+        command = [CHATGPT_SESSION_PATH, mode, *extra_args]
+    environment["WAYLAND_DISPLAY"] = wayland_display
+    environment["LABWC_SESSION_APP"] = "1"
+    environment["LABWC_SESSION_RESTORE"] = restart_token([MANAGED_APP_PATH, mode, app_name, *extra_args])
+    if app_name == "chatgpt":
+        if (os.environ.get("DEVOPS_DE_ACTIVE") == "1"
+                and os.environ.get("DEVOPS_DE_ENVIRONMENT_READY") == "1"):
+            for name, value in os.environ.items():
+                if name in CHATGPT_DEVOPS_ENVIRONMENT_RESERVED or name in {"LABWC_SESSION_APP", "LABWC_SESSION_RESTORE"}:
+                    continue
+                if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) is None:
+                    fail("ChatGPT received an invalid environment variable name")
+                # Reject loader/shell injection before execing systemd-run,
+                # not just later in the host-side application validator.
+                if (name in CHATGPT_FORBIDDEN_AMBIENT_ENVIRONMENT
+                        or name.startswith(("LD_", "BASH_FUNC_"))):
+                    if value:
+                        fail(f"ChatGPT launcher forbids ambient environment variable: {name}")
+                    continue
+                # Account/bus identity is always the validated mapping above.
+                environment[name] = value
+        else:
+            # Do not inherit stale activation markers from the user manager.
+            # The host-side launcher will apply the authoritative fragment.
+            environment["DEVOPS_DE_ACTIVE"] = "0"
+            environment["DEVOPS_DE_ENVIRONMENT_READY"] = "0"
+    # ChatGPT owns its bundled Codex stdio child. The separately socket-activated
+    # CLI backend must not become a startup or failure dependency of the GUI.
+    startup_dependencies = dependencies
+    argv = [
+        systemd_run, "--user", "--quiet", "--collect",
+        *(["--pipe", "--wait"] if app_name == "chatgpt" else [
+            *menu_action_wait_arguments(),
+            "--property=StandardInput=null",
+            "--property=StandardOutput=journal",
+            "--property=StandardError=journal",
+            f"--property=SyslogIdentifier=labwc-{app_name}",
+        ]),
+        "--slice=app.slice",
+        "--service-type=exec", "--expand-environment=no",
+        f"--description=Managed {app_name} desktop client",
+        "--unit=" + _session_unit(f"labwc-native-{app_name}"),
+        f"--property=After={startup_dependencies}",
+        # Never pull the desktop/compositor back up during teardown. The
+        # Secret Service provider is already session-owned; Requisite verifies
+        # readiness without starting it.
+        f"--property=Requisite={startup_dependencies}",
+        f"--property=PartOf={dependencies}",
+        f"--property=ConditionPathExists=!/run/user/{os.getuid()}/labwc-session-closing",
+        "--property=ExitType=cgroup",
+        "--property=UnsetEnvironment=LABWC_MENU_ACTION_WAIT",
+        "--property=KillMode=control-group", "--property=TimeoutStopSec=20s",
+        "--property=SendSIGKILL=yes", "--property=Restart=no", "--property=UMask=0077",
+        f"--working-directory={os.getcwd()}",
+        f"--setenv={NATIVE_SESSION_UNIT_MARKER}=1",
+        # Values, including optional credentials, are not exposed in argv.
+        *(f"--setenv={name}" for name in sorted(environment)
+          if name != NATIVE_SESSION_UNIT_MARKER),
+        "--", *command,
+    ]
+    try:
+        os.execve(systemd_run, argv, environment)
+    except OSError as exc:
+        fail(f"failed to create the managed {app_name} session unit: {exc}")

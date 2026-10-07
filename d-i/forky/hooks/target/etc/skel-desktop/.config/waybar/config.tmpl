@@ -1,0 +1,756 @@
+[
+{
+  "name": "internal",
+  "output": [__INSTALLER_LABWC_WAYBAR_INTERNAL_OUTPUTS__],
+  "layer": "top",
+  "position": "top",
+  "height": __INSTALLER_LABWC_WAYBAR_INTERNAL_HEIGHT__,
+  "spacing": __INSTALLER_LABWC_WAYBAR_INTERNAL_BAR_SPACING__,
+  "expand-left": true,
+  "margin-bottom": __INSTALLER_LABWC_WAYBAR_INTERNAL_BAR_MARGIN_BOTTOM__,
+  "margin-top": __INSTALLER_LABWC_WAYBAR_INTERNAL_BAR_MARGIN_TOP__,
+  "margin-left": __INSTALLER_LABWC_WAYBAR_INTERNAL_BAR_MARGIN_LEFT__,
+  "margin-right": __INSTALLER_LABWC_WAYBAR_INTERNAL_BAR_MARGIN_RIGHT__,
+  "modules-left": [__INSTALLER_LABWC_WAYBAR_MODULES_LEFT__],
+  "modules-center": ["clock"],
+  "modules-right": [__INSTALLER_LABWC_WAYBAR_MODULES_RIGHT__],
+  "ext/workspaces": {
+    "format": "{name}",
+    "sort-by-name": true,
+    "on-click": "activate",
+    "active-only": false,
+    "all-outputs": true
+  },
+  "wlr/taskbar": {
+    "format": "{icon}",
+    "all-outputs": false,
+    "sort-by-app-id": false,
+    "expand": true,
+    "icon-size": __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_ICON_SIZE__,
+    "icon-theme": "__THEME_WAYBAR_TASKBAR_ICON_THEME__",
+    "tooltip": true,
+    "tooltip-format": "{title}",
+    "on-click": "minimize-raise",
+    "on-click-middle": "close",
+    "on-click-right": "minimize-raise",
+    "app_ids-mapping": {
+      "footclient": "foot",
+      "org.xfce.Thunar": "thunar"
+    }
+  },
+  "custom/launcher": {
+    "format": "Menu",
+    "tooltip": false,
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --setenv=LABWC_FUZZEL_OUTPUT_CLASS=INTERNAL -- labwc-main-menu"
+  },
+  "group/apps": {
+    "orientation": "inherit",
+    "drawer": {
+      "transition-duration": __INSTALLER_LABWC_WAYBAR_INTERNAL_DRAWER_TRANSITION_DURATION_MS__,
+      "transition-left-to-right": true,
+      "click-to-reveal": true
+    },
+    "modules": [
+      "custom/apps",
+      "custom/app-terminal",
+      "custom/app-files",
+      "custom/app-tuta",
+      "custom/app-notes",
+      "custom/app-sleek"
+    ]
+  },
+  "custom/window-switcher": {
+    "format": "__THEME_WAYBAR_BUTTON_TASKVIEW_NORMAL_ICON_GLYPH__",
+    "align": 0.5,
+    "tooltip": true,
+    "tooltip-format": "Windows (F13) - select a window; Escape cancels. Alt+Tab: thumbnails",
+    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-window-switcher --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=3s --property=RuntimeMaxSec=3s --property=TimeoutStopSec=1s --property=StandardInput=null --property=StandardOutput=null --property=StandardError=journal -- /usr/local/bin/labwc-window-switcher"
+  },
+  "custom/wayscriber": {
+    "format": " ",
+    "align": 0.5,
+    "justify": "center",
+    "tooltip": true,
+    "tooltip-format": "Wayscriber",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-wayscriber-toggle"
+  },
+  "custom/tomat": {
+    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-tomat watch",
+    "exec-if": "/usr/bin/test -x /usr/bin/tomat",
+    "return-type": "json",
+    "format": "{}",
+    "escape": false,
+    "tooltip": true,
+    "restart-interval": 5,
+    "exec-on-event": false,
+    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat toggle",
+    "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat skip",
+    "menu": "on-click",
+    "menu-file": "~/.config/waybar/tomat-menu.xml",
+    "menu-actions": {
+      "tomat_default": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start default",
+      "tomat_25": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start 25",
+      "tomat_50": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start 50",
+      "tomat_90": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start 90",
+      "tomat_toggle": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat toggle",
+      "tomat_skip": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat skip",
+      "tomat_stop": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat stop",
+      "tomat_config": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat config",
+      "tomat_notifications": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat settings notifications",
+      "tomat_sounds": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat settings sounds"
+    }
+  },
+  "custom/apps": {
+    "format": " ",
+    "align": 0.5,
+    "justify": "center",
+    "tooltip": true,
+    "tooltip-format": "Applications"
+  },
+  "custom/app-terminal": {
+    "format": " ",
+    "align": 0.5,
+    "tooltip": true,
+    "tooltip-format": "Foot",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal"
+  },
+  "custom/app-files": {
+    "format": " ",
+    "align": 0.5,
+    "tooltip": true,
+    "tooltip-format": "Thunar",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/bin/env GDK_DEBUG=nogl __INSTALLER_LABWC_FILE_MANAGER_COMMAND__"
+  },
+  "custom/app-tuta": {
+    "format": " ",
+    "align": 0.5,
+    "tooltip": true,
+    "tooltip-format": "Tuta Mail",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ tutanota"
+  },
+  "custom/app-notes": {
+    "format": " ",
+    "align": 0.5,
+    "tooltip": true,
+    "tooltip-format": "Micro notes",
+    "on-click": "__INSTALLER_LABWC_WAYLAND_APP_DEFAULT_EXEC__ -- /usr/local/bin/labwc-terminal --micro"
+  },
+  "custom/app-sleek": {
+    "format": " ",
+    "align": 0.5,
+    "tooltip": true,
+    "tooltip-format": "Sleek",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ sleek"
+  },
+  "clock": {
+    "interval": 30,
+    "format": "{:%a %H:%M}",
+    "tooltip-format": "<tt>{calendar}</tt>",
+    "calendar": {
+      "mode": "month",
+      "weeks-pos": "right",
+      "format": {
+        "months": "<span color='__THEME_WAYBAR_CLOCK_CALENDAR_MONTHS_TEXT_COLOR__'><span weight='__THEME_WAYBAR_INTERNAL_FONT_WEIGHT_EMPHASIS__'>{}</span></span>",
+        "weekdays": "<span color='__THEME_WAYBAR_CLOCK_CALENDAR_WEEKDAYS_TEXT_COLOR__'><span weight='__THEME_WAYBAR_INTERNAL_FONT_WEIGHT_EMPHASIS__'>{}</span></span>",
+        "weeks": "<span color='__THEME_WAYBAR_CLOCK_CALENDAR_WEEKS_TEXT_COLOR__'>W{}</span>",
+        "today": "<span color='__THEME_WAYBAR_CLOCK_CALENDAR_TODAY_TEXT_COLOR__'><span weight='__THEME_WAYBAR_INTERNAL_FONT_WEIGHT_EMPHASIS__'><u>{}</u></span></span>"
+      }
+    },
+    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CALENDAR_COMMAND__",
+    "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-calendar tasks",
+    "menu": "on-click",
+    "menu-file": "~/.config/waybar/calendar-menu.xml",
+    "menu-actions": {
+      "calendar_open": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar browse",
+      "calendar_agenda": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar agenda",
+      "calendar_new_event": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar new-event",
+      "calendar_edit_event": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar edit-event",
+      "calendar_tasks": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar tasks",
+      "calendar_all_tasks": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar all-tasks",
+      "calendar_new_task": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar new-task",
+      "calendar_show_task": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar show-task",
+      "calendar_edit_task": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar edit-task",
+      "calendar_done_task": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar done-task",
+      "calendar_delete_task": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar delete-task",
+      "calendar_sync": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar sync-ui"
+    }
+  },
+  "group/quick-controls": {
+    "orientation": "inherit",
+    "drawer": {
+      "transition-duration": __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_TRANSITION_DURATION_MS__,
+      "transition-left-to-right": false,
+      "click-to-reveal": true
+    },
+    "modules": [
+      "custom/system",
+      "network",
+      "custom/bluetooth",
+      "custom/keyboard",
+      "custom/screenshot"
+    ]
+  },
+  "custom/system": {
+    "format": "__THEME_WAYBAR_BUTTON_SYSTEM_NORMAL_ICON_GLYPH__",
+    "tooltip": true,
+    "tooltip-format": "System controls"
+  },
+  "network": {
+    "interval": 5,
+    "family": "ipv4",
+    "format-wifi": "__THEME_WAYBAR_BUTTON_NETWORK_WIFI_ICON_GLYPH__",
+    "format-ethernet": "__THEME_WAYBAR_BUTTON_NETWORK_ETHERNET_ICON_GLYPH__",
+    "format-linked": "__THEME_WAYBAR_BUTTON_NETWORK_LINKED_ICON_GLYPH__",
+    "format-disconnected": "__THEME_WAYBAR_BUTTON_NETWORK_DISCONNECTED_ICON_GLYPH__",
+    "format-disabled": "__THEME_WAYBAR_BUTTON_NETWORK_DISABLED_ICON_GLYPH__",
+    "tooltip-format-wifi": "{essid}\n{signalStrength}%  {ipaddr}\nUp {bandwidthUpBytes}  Down {bandwidthDownBytes}",
+    "tooltip-format-ethernet": "{ifname}\n{ipaddr}\nUp {bandwidthUpBytes}  Down {bandwidthDownBytes}",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e nmtui",
+    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-network-control-menu"
+  },
+  "custom/bluetooth": {
+    "exec": "/usr/local/libexec/labwc-waybar-exec labwc-bluetooth status",
+    "return-type": "json",
+    "interval": 10,
+    "signal": 8,
+    "tooltip": true,
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-bluetooth open",
+    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-bluetooth menu"
+  },
+  "custom/keyboard": {
+    "exec": "/usr/local/libexec/labwc-waybar-exec labwc-keyboard-layout status",
+    "return-type": "json",
+    "interval": 30,
+    "signal": 7,
+    "tooltip": true,
+    "exec-on-event": false,
+    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- labwc-keyboard-layout waybar-toggle"
+  },
+  "custom/screenshot": {
+    "exec": "/usr/local/libexec/labwc-waybar-exec __INSTALLER_LABWC_CAPTURE_COMMAND__ status",
+    "return-type": "json",
+    "interval": 5,
+    "signal": 9,
+    "tooltip": true,
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ primary",
+    "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ stop",
+    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ menu"
+  },
+  "pulseaudio": {
+    "format": "<span foreground='__THEME_WAYBAR_BUTTON_AUDIO_NORMAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_AUDIO_NORMAL_ICON_GLYPH__</span> {volume}% {format_source}",
+    "format-muted": "<span foreground='__THEME_WAYBAR_BUTTON_AUDIO_MUTED_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_AUDIO_MUTED_ICON_GLYPH__</span> {volume}% {format_source}",
+    "format-source": "<span font_family='__THEME_WAYBAR_INTERNAL_BUTTON_AUDIO_MICROPHONE_NORMAL_FONT_FAMILY__' weight='__THEME_WAYBAR_INTERNAL_FONT_WEIGHT_EMPHASIS__' color='__THEME_WAYBAR_BUTTON_AUDIO_MICROPHONE_NORMAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_AUDIO_MICROPHONE_NORMAL_ICON_GLYPH__</span>__THEME_WAYBAR_BUTTON_AUDIO_MICROPHONE_NORMAL_SEPARATOR_ICON_GLYPH__{volume}%",
+    "format-source-muted": "<span font_family='__THEME_WAYBAR_INTERNAL_BUTTON_AUDIO_MICROPHONE_MUTED_FONT_FAMILY__' weight='__THEME_WAYBAR_INTERNAL_FONT_WEIGHT_EMPHASIS__' color='__THEME_WAYBAR_BUTTON_AUDIO_MICROPHONE_MUTED_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_AUDIO_MICROPHONE_MUTED_ICON_GLYPH__</span>__THEME_WAYBAR_BUTTON_AUDIO_MICROPHONE_MUTED_SEPARATOR_ICON_GLYPH__{volume}%",
+    "tooltip-format": "{desc}",
+    "scroll-step": 5,
+    "max-volume": 120,
+    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_AUDIO_CONTROL_COMMAND__",
+    "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+    "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+ --limit 1.2",
+    "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-",
+    "menu": "on-click",
+    "menu-file": "~/.config/waybar/audio-menu.xml",
+    "menu-actions": {
+      "audio_open": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_AUDIO_CONTROL_COMMAND__",
+      "audio_mute": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+      "audio_mic": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
+      "audio_40": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/wpctl set-volume @DEFAULT_AUDIO_SINK@ 40% --limit 1.2",
+      "whisper_record": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/whisper-record-toggle start",
+      "whisper_transcribe": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/systemctl --user --no-block start whisper-transcribe.service",
+      "whisper_stop": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/whisper-record-toggle stop",
+      "whisper_cancel": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/systemctl --user stop whisper-transcribe.service"
+    }
+  },
+  "custom/backlight": {
+    "exec": "/usr/local/libexec/labwc-waybar-exec __INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ status",
+    "return-type": "json",
+    "interval": 5,
+    "signal": 8,
+    "tooltip": true,
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ menu",
+    "on-scroll-up": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ up",
+    "on-scroll-down": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ down"
+  },
+  "custom/battery": {
+    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-waybar-battery",
+    "return-type": "json",
+    "interval": 5,
+    "format": "{icon} {text}",
+    "format-icons": {
+      "default": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_NORMAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_NORMAL_ICON_GLYPH__</span>",
+      "charging": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_CHARGING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_CHARGING_ICON_GLYPH__</span>",
+      "full": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_FULL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_FULL_ICON_GLYPH__</span>",
+      "plugged": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_PLUGGED_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_PLUGGED_ICON_GLYPH__</span>",
+      "not-charging": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_NOT_CHARGING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_NOT_CHARGING_ICON_GLYPH__</span>",
+      "charging-warning": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_CHARGING_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_CHARGING_ICON_GLYPH__</span>",
+      "charging-critical": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_CHARGING_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_CHARGING_ICON_GLYPH__</span>",
+      "full-warning": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_FULL_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_FULL_ICON_GLYPH__</span>",
+      "full-critical": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_FULL_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_FULL_ICON_GLYPH__</span>",
+      "plugged-warning": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_PLUGGED_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_PLUGGED_ICON_GLYPH__</span>",
+      "plugged-critical": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_PLUGGED_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_PLUGGED_ICON_GLYPH__</span>",
+      "not-charging-warning": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_NOT_CHARGING_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_NOT_CHARGING_ICON_GLYPH__</span>",
+      "not-charging-critical": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_NOT_CHARGING_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_NOT_CHARGING_ICON_GLYPH__</span>",
+      "warning": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_WARNING_ICON_GLYPH__</span>",
+      "critical": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_CRITICAL_ICON_GLYPH__</span>"
+    },
+    "tooltip": true,
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_POWER_SETTINGS_COMMAND__"
+  },
+  "disk": {
+    "path": "/",
+    "interval": 30,
+    "format": "<span foreground='__THEME_WAYBAR_BUTTON_DISK_NORMAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_DISK_NORMAL_ICON_GLYPH__</span> {percentage_used}%",
+    "format-warning": "<span foreground='__THEME_WAYBAR_BUTTON_DISK_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_DISK_WARNING_ICON_GLYPH__</span> {percentage_used}%",
+    "format-critical": "<span foreground='__THEME_WAYBAR_BUTTON_DISK_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_DISK_CRITICAL_ICON_GLYPH__</span> {percentage_used}%",
+    "tooltip-format": "{used} used out of {total} on {path} ({percentage_used}%)",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e ncdu /",
+    "states": {
+      "warning": 80,
+      "critical": 90
+    }
+  },
+  "cpu": {
+    "interval": 5,
+    "format": "<span foreground='__THEME_WAYBAR_BUTTON_CPU_NORMAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_CPU_NORMAL_ICON_GLYPH__</span> {usage}%",
+    "format-warning": "<span foreground='__THEME_WAYBAR_BUTTON_CPU_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_CPU_WARNING_ICON_GLYPH__</span> {usage}%",
+    "format-critical": "<span foreground='__THEME_WAYBAR_BUTTON_CPU_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_CPU_CRITICAL_ICON_GLYPH__</span> {usage}%",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e btop",
+    "states": {
+      "warning": 70,
+      "critical": 90
+    }
+  },
+  "memory": {
+    "interval": 10,
+    "format": "<span foreground='__THEME_WAYBAR_BUTTON_MEMORY_NORMAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_MEMORY_NORMAL_ICON_GLYPH__</span> {percentage}%",
+    "format-warning": "<span foreground='__THEME_WAYBAR_BUTTON_MEMORY_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_MEMORY_WARNING_ICON_GLYPH__</span> {percentage}%",
+    "format-critical": "<span foreground='__THEME_WAYBAR_BUTTON_MEMORY_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_MEMORY_CRITICAL_ICON_GLYPH__</span> {percentage}%",
+    "tooltip-format": "{used:0.1f} GiB / {total:0.1f} GiB\nSwap {swapUsed:0.1f} / {swapTotal:0.1f} GiB",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e btop",
+    "states": {
+      "warning": 75,
+      "critical": 90
+    }
+  },
+  "tray": {
+    "icon-size": __INSTALLER_LABWC_WAYBAR_INTERNAL_TRAY_ICON_SIZE__,
+    "spacing": __INSTALLER_LABWC_WAYBAR_INTERNAL_TRAY_SPACING__
+  },
+  "custom/lock": {
+    "format": "__THEME_WAYBAR_BUTTON_LOCK_NORMAL_ICON_GLYPH__",
+    "tooltip": false,
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-lock"
+  },
+  "custom/notifications": {
+    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-notifications status",
+    "return-type": "json",
+    "format": "{}",
+    "escape": true,
+    "interval": 5,
+    "tooltip": true,
+    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications center",
+    "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd",
+    "menu": "on-click",
+    "menu-file": "~/.config/waybar/notifications-menu.xml",
+    "menu-actions": {
+      "notifications_center": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications center",
+      "notifications_restore": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications restore",
+      "notifications_dnd_on": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd-on",
+      "notifications_dnd_off": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd-off",
+      "notifications_dnd": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd",
+      "notifications_dismiss": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dismiss",
+      "notifications_clear": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications clear"
+    }
+  },
+  "custom/power": {
+    "format": "__THEME_WAYBAR_BUTTON_POWER_NORMAL_ICON_GLYPH__",
+    "tooltip": false,
+    "menu": "on-click",
+    "menu-file": "~/.config/waybar/power-menu.xml",
+    "menu-actions": {
+      "power_lock": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings lock",
+      "power_suspend": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings suspend",
+      "power_reboot": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings reboot",
+      "power_logout": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings logout",
+      "power_shutdown": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings poweroff"
+    }
+  }
+},
+{
+  "name": "external",
+  "output": [__INSTALLER_LABWC_WAYBAR_EXTERNAL_OUTPUTS__],
+  "layer": "top",
+  "position": "top",
+  "height": __INSTALLER_LABWC_WAYBAR_EXTERNAL_HEIGHT__,
+  "spacing": __INSTALLER_LABWC_WAYBAR_EXTERNAL_BAR_SPACING__,
+  "expand-left": true,
+  "margin-bottom": __INSTALLER_LABWC_WAYBAR_EXTERNAL_BAR_MARGIN_BOTTOM__,
+  "margin-top": __INSTALLER_LABWC_WAYBAR_EXTERNAL_BAR_MARGIN_TOP__,
+  "margin-left": __INSTALLER_LABWC_WAYBAR_EXTERNAL_BAR_MARGIN_LEFT__,
+  "margin-right": __INSTALLER_LABWC_WAYBAR_EXTERNAL_BAR_MARGIN_RIGHT__,
+  "modules-left": [__INSTALLER_LABWC_WAYBAR_MODULES_LEFT__],
+  "modules-center": ["clock"],
+  "modules-right": [__INSTALLER_LABWC_WAYBAR_MODULES_RIGHT__],
+  "ext/workspaces": {
+    "format": "{name}",
+    "sort-by-name": true,
+    "on-click": "activate",
+    "active-only": false,
+    "all-outputs": true
+  },
+  "wlr/taskbar": {
+    "format": "{icon}",
+    "all-outputs": false,
+    "sort-by-app-id": false,
+    "expand": true,
+    "icon-size": __INSTALLER_LABWC_WAYBAR_EXTERNAL_TASKBAR_ICON_SIZE__,
+    "icon-theme": "__THEME_WAYBAR_TASKBAR_ICON_THEME__",
+    "tooltip": true,
+    "tooltip-format": "{title}",
+    "on-click": "minimize-raise",
+    "on-click-middle": "close",
+    "on-click-right": "minimize-raise",
+    "app_ids-mapping": {
+      "footclient": "foot",
+      "org.xfce.Thunar": "thunar"
+    }
+  },
+  "custom/launcher": {
+    "format": "Menu",
+    "tooltip": false,
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --setenv=LABWC_FUZZEL_OUTPUT_CLASS=EXTERNAL -- labwc-main-menu"
+  },
+  "group/apps": {
+    "orientation": "inherit",
+    "drawer": {
+      "transition-duration": __INSTALLER_LABWC_WAYBAR_EXTERNAL_DRAWER_TRANSITION_DURATION_MS__,
+      "transition-left-to-right": true,
+      "click-to-reveal": true
+    },
+    "modules": [
+      "custom/apps",
+      "custom/app-terminal",
+      "custom/app-files",
+      "custom/app-tuta",
+      "custom/app-notes",
+      "custom/app-sleek"
+    ]
+  },
+  "custom/window-switcher": {
+    "format": "__THEME_WAYBAR_BUTTON_TASKVIEW_NORMAL_ICON_GLYPH__",
+    "align": 0.5,
+    "tooltip": true,
+    "tooltip-format": "Windows (F13) - select a window; Escape cancels. Alt+Tab: thumbnails",
+    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-window-switcher --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=3s --property=RuntimeMaxSec=3s --property=TimeoutStopSec=1s --property=StandardInput=null --property=StandardOutput=null --property=StandardError=journal -- /usr/local/bin/labwc-window-switcher"
+  },
+  "custom/wayscriber": {
+    "format": " ",
+    "align": 0.5,
+    "justify": "center",
+    "tooltip": true,
+    "tooltip-format": "Wayscriber",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-wayscriber-toggle"
+  },
+  "custom/tomat": {
+    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-tomat watch",
+    "exec-if": "/usr/bin/test -x /usr/bin/tomat",
+    "return-type": "json",
+    "format": "{}",
+    "escape": false,
+    "tooltip": true,
+    "restart-interval": 5,
+    "exec-on-event": false,
+    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat toggle",
+    "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat skip",
+    "menu": "on-click",
+    "menu-file": "~/.config/waybar/tomat-menu.xml",
+    "menu-actions": {
+      "tomat_default": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start default",
+      "tomat_25": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start 25",
+      "tomat_50": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start 50",
+      "tomat_90": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start 90",
+      "tomat_toggle": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat toggle",
+      "tomat_skip": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat skip",
+      "tomat_stop": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat stop",
+      "tomat_config": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat config",
+      "tomat_notifications": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat settings notifications",
+      "tomat_sounds": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat settings sounds"
+    }
+  },
+  "custom/apps": {
+    "format": " ",
+    "align": 0.5,
+    "justify": "center",
+    "tooltip": true,
+    "tooltip-format": "Applications"
+  },
+  "custom/app-terminal": {
+    "format": " ",
+    "align": 0.5,
+    "tooltip": true,
+    "tooltip-format": "Foot",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal"
+  },
+  "custom/app-files": {
+    "format": " ",
+    "align": 0.5,
+    "tooltip": true,
+    "tooltip-format": "Thunar",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/bin/env GDK_DEBUG=nogl __INSTALLER_LABWC_FILE_MANAGER_COMMAND__"
+  },
+  "custom/app-tuta": {
+    "format": " ",
+    "align": 0.5,
+    "tooltip": true,
+    "tooltip-format": "Tuta Mail",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ tutanota"
+  },
+  "custom/app-notes": {
+    "format": " ",
+    "align": 0.5,
+    "tooltip": true,
+    "tooltip-format": "Micro notes",
+    "on-click": "__INSTALLER_LABWC_WAYLAND_APP_DEFAULT_EXEC__ -- /usr/local/bin/labwc-terminal --micro"
+  },
+  "custom/app-sleek": {
+    "format": " ",
+    "align": 0.5,
+    "tooltip": true,
+    "tooltip-format": "Sleek",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ sleek"
+  },
+  "clock": {
+    "interval": 30,
+    "format": "{:%a %H:%M}",
+    "tooltip-format": "<tt>{calendar}</tt>",
+    "calendar": {
+      "mode": "month",
+      "weeks-pos": "right",
+      "format": {
+        "months": "<span color='__THEME_WAYBAR_CLOCK_CALENDAR_MONTHS_TEXT_COLOR__'><span weight='__THEME_WAYBAR_EXTERNAL_FONT_WEIGHT_EMPHASIS__'>{}</span></span>",
+        "weekdays": "<span color='__THEME_WAYBAR_CLOCK_CALENDAR_WEEKDAYS_TEXT_COLOR__'><span weight='__THEME_WAYBAR_EXTERNAL_FONT_WEIGHT_EMPHASIS__'>{}</span></span>",
+        "weeks": "<span color='__THEME_WAYBAR_CLOCK_CALENDAR_WEEKS_TEXT_COLOR__'>W{}</span>",
+        "today": "<span color='__THEME_WAYBAR_CLOCK_CALENDAR_TODAY_TEXT_COLOR__'><span weight='__THEME_WAYBAR_EXTERNAL_FONT_WEIGHT_EMPHASIS__'><u>{}</u></span></span>"
+      }
+    },
+    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CALENDAR_COMMAND__",
+    "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-calendar tasks",
+    "menu": "on-click",
+    "menu-file": "~/.config/waybar/calendar-menu.xml",
+    "menu-actions": {
+      "calendar_open": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar browse",
+      "calendar_agenda": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar agenda",
+      "calendar_new_event": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar new-event",
+      "calendar_edit_event": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar edit-event",
+      "calendar_tasks": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar tasks",
+      "calendar_all_tasks": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar all-tasks",
+      "calendar_new_task": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar new-task",
+      "calendar_show_task": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar show-task",
+      "calendar_edit_task": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar edit-task",
+      "calendar_done_task": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar done-task",
+      "calendar_delete_task": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar delete-task",
+      "calendar_sync": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar sync-ui"
+    }
+  },
+  "group/quick-controls": {
+    "orientation": "inherit",
+    "drawer": {
+      "transition-duration": __INSTALLER_LABWC_WAYBAR_EXTERNAL_QUICK_CONTROL_TRANSITION_DURATION_MS__,
+      "transition-left-to-right": false,
+      "click-to-reveal": true
+    },
+    "modules": [
+      "custom/system",
+      "network",
+      "custom/bluetooth",
+      "custom/keyboard",
+      "custom/screenshot"
+    ]
+  },
+  "custom/system": {
+    "format": "__THEME_WAYBAR_BUTTON_SYSTEM_NORMAL_ICON_GLYPH__",
+    "tooltip": true,
+    "tooltip-format": "System controls"
+  },
+  "network": {
+    "interval": 5,
+    "family": "ipv4",
+    "format-wifi": "__THEME_WAYBAR_BUTTON_NETWORK_WIFI_ICON_GLYPH__",
+    "format-ethernet": "__THEME_WAYBAR_BUTTON_NETWORK_ETHERNET_ICON_GLYPH__",
+    "format-linked": "__THEME_WAYBAR_BUTTON_NETWORK_LINKED_ICON_GLYPH__",
+    "format-disconnected": "__THEME_WAYBAR_BUTTON_NETWORK_DISCONNECTED_ICON_GLYPH__",
+    "format-disabled": "__THEME_WAYBAR_BUTTON_NETWORK_DISABLED_ICON_GLYPH__",
+    "tooltip-format-wifi": "{essid}\n{signalStrength}%  {ipaddr}\nUp {bandwidthUpBytes}  Down {bandwidthDownBytes}",
+    "tooltip-format-ethernet": "{ifname}\n{ipaddr}\nUp {bandwidthUpBytes}  Down {bandwidthDownBytes}",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e nmtui",
+    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-network-control-menu"
+  },
+  "custom/bluetooth": {
+    "exec": "/usr/local/libexec/labwc-waybar-exec labwc-bluetooth status",
+    "return-type": "json",
+    "interval": 10,
+    "signal": 8,
+    "tooltip": true,
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-bluetooth open",
+    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-bluetooth menu"
+  },
+  "custom/keyboard": {
+    "exec": "/usr/local/libexec/labwc-waybar-exec labwc-keyboard-layout status",
+    "return-type": "json",
+    "interval": 30,
+    "signal": 7,
+    "tooltip": true,
+    "exec-on-event": false,
+    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- labwc-keyboard-layout waybar-toggle"
+  },
+  "custom/screenshot": {
+    "exec": "/usr/local/libexec/labwc-waybar-exec __INSTALLER_LABWC_CAPTURE_COMMAND__ status",
+    "return-type": "json",
+    "interval": 5,
+    "signal": 9,
+    "tooltip": true,
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ primary",
+    "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ stop",
+    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ menu"
+  },
+  "pulseaudio": {
+    "format": "<span foreground='__THEME_WAYBAR_BUTTON_AUDIO_NORMAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_AUDIO_NORMAL_ICON_GLYPH__</span> {volume}% {format_source}",
+    "format-muted": "<span foreground='__THEME_WAYBAR_BUTTON_AUDIO_MUTED_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_AUDIO_MUTED_ICON_GLYPH__</span> {volume}% {format_source}",
+    "format-source": "<span font_family='__THEME_WAYBAR_EXTERNAL_BUTTON_AUDIO_MICROPHONE_NORMAL_FONT_FAMILY__' weight='__THEME_WAYBAR_EXTERNAL_FONT_WEIGHT_EMPHASIS__' color='__THEME_WAYBAR_BUTTON_AUDIO_MICROPHONE_NORMAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_AUDIO_MICROPHONE_NORMAL_ICON_GLYPH__</span>__THEME_WAYBAR_BUTTON_AUDIO_MICROPHONE_NORMAL_SEPARATOR_ICON_GLYPH__{volume}%",
+    "format-source-muted": "<span font_family='__THEME_WAYBAR_EXTERNAL_BUTTON_AUDIO_MICROPHONE_MUTED_FONT_FAMILY__' weight='__THEME_WAYBAR_EXTERNAL_FONT_WEIGHT_EMPHASIS__' color='__THEME_WAYBAR_BUTTON_AUDIO_MICROPHONE_MUTED_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_AUDIO_MICROPHONE_MUTED_ICON_GLYPH__</span>__THEME_WAYBAR_BUTTON_AUDIO_MICROPHONE_MUTED_SEPARATOR_ICON_GLYPH__{volume}%",
+    "tooltip-format": "{desc}",
+    "scroll-step": 5,
+    "max-volume": 120,
+    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_AUDIO_CONTROL_COMMAND__",
+    "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+    "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+ --limit 1.2",
+    "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-",
+    "menu": "on-click",
+    "menu-file": "~/.config/waybar/audio-menu.xml",
+    "menu-actions": {
+      "audio_open": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_AUDIO_CONTROL_COMMAND__",
+      "audio_mute": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+      "audio_mic": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
+      "audio_40": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/wpctl set-volume @DEFAULT_AUDIO_SINK@ 40% --limit 1.2",
+      "whisper_record": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/whisper-record-toggle start",
+      "whisper_transcribe": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/systemctl --user --no-block start whisper-transcribe.service",
+      "whisper_stop": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/whisper-record-toggle stop",
+      "whisper_cancel": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/systemctl --user stop whisper-transcribe.service"
+    }
+  },
+  "custom/backlight": {
+    "exec": "/usr/local/libexec/labwc-waybar-exec __INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ status",
+    "return-type": "json",
+    "interval": 5,
+    "signal": 8,
+    "tooltip": true,
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ menu",
+    "on-scroll-up": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ up",
+    "on-scroll-down": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ down"
+  },
+  "custom/battery": {
+    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-waybar-battery",
+    "return-type": "json",
+    "interval": 5,
+    "format": "{icon} {text}",
+    "format-icons": {
+      "default": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_NORMAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_NORMAL_ICON_GLYPH__</span>",
+      "charging": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_CHARGING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_CHARGING_ICON_GLYPH__</span>",
+      "full": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_FULL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_FULL_ICON_GLYPH__</span>",
+      "plugged": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_PLUGGED_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_PLUGGED_ICON_GLYPH__</span>",
+      "not-charging": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_NOT_CHARGING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_NOT_CHARGING_ICON_GLYPH__</span>",
+      "charging-warning": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_CHARGING_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_CHARGING_ICON_GLYPH__</span>",
+      "charging-critical": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_CHARGING_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_CHARGING_ICON_GLYPH__</span>",
+      "full-warning": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_FULL_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_FULL_ICON_GLYPH__</span>",
+      "full-critical": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_FULL_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_FULL_ICON_GLYPH__</span>",
+      "plugged-warning": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_PLUGGED_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_PLUGGED_ICON_GLYPH__</span>",
+      "plugged-critical": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_PLUGGED_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_PLUGGED_ICON_GLYPH__</span>",
+      "not-charging-warning": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_NOT_CHARGING_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_NOT_CHARGING_ICON_GLYPH__</span>",
+      "not-charging-critical": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_NOT_CHARGING_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_NOT_CHARGING_ICON_GLYPH__</span>",
+      "warning": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_WARNING_ICON_GLYPH__</span>",
+      "critical": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_CRITICAL_ICON_GLYPH__</span>"
+    },
+    "tooltip": true,
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_POWER_SETTINGS_COMMAND__"
+  },
+  "disk": {
+    "path": "/",
+    "interval": 30,
+    "format": "<span foreground='__THEME_WAYBAR_BUTTON_DISK_NORMAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_DISK_NORMAL_ICON_GLYPH__</span> {percentage_used}%",
+    "format-warning": "<span foreground='__THEME_WAYBAR_BUTTON_DISK_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_DISK_WARNING_ICON_GLYPH__</span> {percentage_used}%",
+    "format-critical": "<span foreground='__THEME_WAYBAR_BUTTON_DISK_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_DISK_CRITICAL_ICON_GLYPH__</span> {percentage_used}%",
+    "tooltip-format": "{used} used out of {total} on {path} ({percentage_used}%)",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e ncdu /",
+    "states": {
+      "warning": 80,
+      "critical": 90
+    }
+  },
+  "cpu": {
+    "interval": 5,
+    "format": "<span foreground='__THEME_WAYBAR_BUTTON_CPU_NORMAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_CPU_NORMAL_ICON_GLYPH__</span> {usage}%",
+    "format-warning": "<span foreground='__THEME_WAYBAR_BUTTON_CPU_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_CPU_WARNING_ICON_GLYPH__</span> {usage}%",
+    "format-critical": "<span foreground='__THEME_WAYBAR_BUTTON_CPU_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_CPU_CRITICAL_ICON_GLYPH__</span> {usage}%",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e btop",
+    "states": {
+      "warning": 70,
+      "critical": 90
+    }
+  },
+  "memory": {
+    "interval": 10,
+    "format": "<span foreground='__THEME_WAYBAR_BUTTON_MEMORY_NORMAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_MEMORY_NORMAL_ICON_GLYPH__</span> {percentage}%",
+    "format-warning": "<span foreground='__THEME_WAYBAR_BUTTON_MEMORY_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_MEMORY_WARNING_ICON_GLYPH__</span> {percentage}%",
+    "format-critical": "<span foreground='__THEME_WAYBAR_BUTTON_MEMORY_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_MEMORY_CRITICAL_ICON_GLYPH__</span> {percentage}%",
+    "tooltip-format": "{used:0.1f} GiB / {total:0.1f} GiB\nSwap {swapUsed:0.1f} / {swapTotal:0.1f} GiB",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e btop",
+    "states": {
+      "warning": 75,
+      "critical": 90
+    }
+  },
+  "tray": {
+    "icon-size": __INSTALLER_LABWC_WAYBAR_EXTERNAL_TRAY_ICON_SIZE__,
+    "spacing": __INSTALLER_LABWC_WAYBAR_EXTERNAL_TRAY_SPACING__
+  },
+  "custom/lock": {
+    "format": "__THEME_WAYBAR_BUTTON_LOCK_NORMAL_ICON_GLYPH__",
+    "tooltip": false,
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-lock"
+  },
+  "custom/notifications": {
+    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-notifications status",
+    "return-type": "json",
+    "format": "{}",
+    "escape": true,
+    "interval": 5,
+    "tooltip": true,
+    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications center",
+    "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd",
+    "menu": "on-click",
+    "menu-file": "~/.config/waybar/notifications-menu.xml",
+    "menu-actions": {
+      "notifications_center": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications center",
+      "notifications_restore": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications restore",
+      "notifications_dnd_on": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd-on",
+      "notifications_dnd_off": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd-off",
+      "notifications_dnd": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd",
+      "notifications_dismiss": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dismiss",
+      "notifications_clear": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications clear"
+    }
+  },
+  "custom/power": {
+    "format": "__THEME_WAYBAR_BUTTON_POWER_NORMAL_ICON_GLYPH__",
+    "tooltip": false,
+    "menu": "on-click",
+    "menu-file": "~/.config/waybar/power-menu.xml",
+    "menu-actions": {
+      "power_lock": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings lock",
+      "power_suspend": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings suspend",
+      "power_reboot": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings reboot",
+      "power_logout": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings logout",
+      "power_shutdown": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings poweroff"
+    }
+  }
+}
+]

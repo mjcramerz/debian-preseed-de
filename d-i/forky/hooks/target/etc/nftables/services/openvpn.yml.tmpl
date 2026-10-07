@@ -1,0 +1,28 @@
+apiVersion: cybops.nftables/v1
+kind: NftablesServiceOverlay
+metadata:
+  name: openvpn
+  description: OpenVPN server/client overlay.
+  merge_priority: 50
+services:
+  openvpn:
+    enabled: true
+    direction: inbound
+    protocols:
+    - udp
+    ports:
+    - 1194
+    allow:
+      ipv4:
+      - 0.0.0.0/0
+      ipv6:
+      - ::/0
+      interfaces:
+      - eth0
+      - en*
+      - __INSTALLER_MANAGED_NETWORK_ETHERNET_IFACE__
+      - wlan0
+      - wl*
+      - __INSTALLER_MANAGED_NETWORK_WIFI_IFACE__
+    rate_limit: 100/second burst 200 packets
+    log: false

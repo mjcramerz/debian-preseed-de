@@ -1,0 +1,40 @@
+# Native power requests/results; one authoritative file, before generic routing.
+# Only available socket credentials are recorded; a tag is not authority.
+# Full structured unit/boot metadata remains in the source journal.
+template(name="PowerEventJSON" type="list" option.caseSensitive="on") {
+  constant(value="{")
+  property(name="timereported" outname="timestamp" format="jsonf" dateFormat="rfc3339")
+  constant(value=",")
+  property(name="hostname" outname="host" format="jsonf")
+  constant(value=",")
+  property(name="programname" outname="program" format="jsonf")
+  constant(value=",")
+  property(name="procid" outname="pid" format="jsonf")
+  constant(value=",")
+  property(name="syslogseverity-text" outname="severity" format="jsonf")
+  constant(value=",")
+  property(name="inputname" outname="input" format="jsonf")
+  constant(value=",")
+  property(name="$!uid" outname="uid" format="jsonf")
+  constant(value=",")
+  property(name="msg" outname="message" format="jsonf")
+  constant(value="}\n")
+}
+
+if ($programname == "labwc-power-menu" or $programname == "labwc-greeter-power" or
+    $programname == "greetd-power-action" or $programname == "greetd-power-action-root" or
+    $programname == "labwc-admin-action" or $programname == "labwc-power-settings" or
+    $programname == "labwc-package-sleep-guard" or
+    ($inputname == "imuxsock" and $!uid == "0" and
+     ($!exe == "/usr/lib/systemd/systemd-sleep" or
+      $!exe == "/usr/lib/systemd/systemd-shutdown"))) then {
+  action(type="omfile" file="__INSTALLER_LOG_POWER_ACTIONS_FILE__"
+         template="PowerEventJSON" createDirs="off" sync="on" flushOnTXEnd="on"
+         fileOwner="__INSTALLER_LOG_OWNER__" fileGroup="__INSTALLER_LOG_GROUP__"
+         fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+         action.resumeRetryCount="-1" action.resumeInterval="__INSTALLER_LOG_RSYSLOG_RESUME_SECONDS__"
+         rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+         rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+         rotation.sizeLimitCommandPassFileName="on")
+  stop
+}

@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<labwc_config>
+  <core>
+    <decoration>client</decoration>
+    <autoEnableOutputs>no</autoEnableOutputs>
+    <primarySelection>no</primarySelection>
+  </core>
+  <keyboard>
+    <keybind key="A-F4" />
+    <keybind key="F10">
+      <action name="Execute" command="/usr/local/sbin/greetd-power-action reboot" />
+    </keybind>
+    <keybind key="F12">
+      <action name="Execute" command="/usr/local/sbin/greetd-power-action poweroff" />
+    </keybind>
+  </keyboard>
+  <mouse>
+    <context name="Root">
+      <mousebind button="Right" action="Press" />
+    </context>
+  </mouse>
+</labwc_config>

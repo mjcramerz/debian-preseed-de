@@ -1,0 +1,2 @@
+# Installed only with a gated tuning backend. Child completion, not hardware access.
+signal (send) set=(chld) peer=hardware-tuning-client,

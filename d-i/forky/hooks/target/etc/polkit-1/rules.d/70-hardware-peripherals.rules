@@ -1,0 +1,60 @@
+// Managed by unattended-installer.
+// Polkit-controlled hardware, peripheral, and firewall changes require sudo auth.
+
+(function() {
+    var ADMIN_GROUP = "sudo";
+
+    function isRoot(subject) {
+        return subject.user === "root";
+    }
+
+    function startsWith(value, prefix) {
+        return typeof value === "string" && value.indexOf(prefix) === 0;
+    }
+
+    function hasPrefix(value, prefixes) {
+        var i;
+        for (i = 0; i < prefixes.length; i++) {
+            if (startsWith(value, prefixes[i])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function activeLocal(subject) {
+        return subject.active === true && subject.local === true;
+    }
+
+    function adminOnly(subject) {
+        if (isRoot(subject)) {
+            return polkit.Result.YES;
+        }
+        if (!activeLocal(subject)) {
+            return polkit.Result.NO;
+        }
+        if (!subject.isInGroup(ADMIN_GROUP)) {
+            return polkit.Result.NO;
+        }
+        return polkit.Result.AUTH_ADMIN;
+    }
+
+    polkit.addRule(function(action, subject) {
+        var prefixes = [
+            "org.freedesktop.ModemManager1.",
+            "org.fedoraproject.FirewallD1.",
+            "org.freedesktop.bolt.",
+            "org.freedesktop.upower.",
+            "org.blueman.",
+            "org.bluez.",
+            "org.opensuse.cupspkhelper.mechanism.",
+            "org.freedesktop.color-manager."
+        ];
+
+        if (hasPrefix(action.id, prefixes)) {
+            return adminOnly(subject);
+        }
+
+        return polkit.Result.NOT_HANDLED;
+    });
+})();

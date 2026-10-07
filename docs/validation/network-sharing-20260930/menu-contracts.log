@@ -1,0 +1,8 @@
+test_exactly_six_top_level_groups_and_twenty_five_unique_routes (test_desktop_navigation_20260918.NavigationTests.test_exactly_six_top_level_groups_and_twenty_five_unique_routes) ... ok
+test_all_six_management_groups_and_twenty_five_actions_have_native_metadata (test_kanshi_fuzzel_followup_20260919.NativeShellProtocolTests.test_all_six_management_groups_and_twenty_five_actions_have_native_metadata) ... ok
+test_all_twenty_five_management_routes_execute_only_their_fixed_argv (test_menu_apparmor_integration_20260919.ActionContractTests.test_all_twenty_five_management_routes_execute_only_their_fixed_argv) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.065s
+
+OK

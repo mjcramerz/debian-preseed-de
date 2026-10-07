@@ -1,0 +1,28 @@
+apiVersion: cybops.nftables/v1
+kind: NftablesServiceOverlay
+metadata:
+  name: ssdp
+  description: SSDP / UPnP discovery overlay. Keep LAN-only.
+  merge_priority: 50
+services:
+  ssdp:
+    enabled: true
+    direction: bidirectional
+    protocols:
+    - udp
+    ports:
+    - 1900
+    allow:
+      ipv4:
+      - 239.255.255.250/32
+      ipv6:
+      - ff02::c/128
+      interfaces:
+      - eth0
+      - en*
+      - __INSTALLER_MANAGED_NETWORK_ETHERNET_IFACE__
+      - wlan0
+      - wl*
+      - __INSTALLER_MANAGED_NETWORK_WIFI_IFACE__
+    scope: lan_only
+    log: false

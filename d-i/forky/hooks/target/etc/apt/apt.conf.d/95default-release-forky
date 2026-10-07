@@ -1,0 +1,6 @@
+// Managed by unattended-installer.
+//
+// Keep target-side APT candidate selection anchored to Debian Forky for the
+// managed target baseline.
+
+APT::Default-Release "forky";

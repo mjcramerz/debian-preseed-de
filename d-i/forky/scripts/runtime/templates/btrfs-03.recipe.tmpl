@@ -1,0 +1,10 @@
+    @@DEV_PART_ROOT_MB@@ @@ROOT_PRIORITY@@ 1000000000 btrfs
+        method{ format } format{ }
+        use_filesystem{ } filesystem{ btrfs }
+        mountpoint{ / }
+    .
+    @@DEV_PART_HOME_MB@@ @@DEV_PART_HOME_MB@@ @@DEV_PART_HOME_MB@@ btrfs
+        method{ format } format{ }
+        use_filesystem{ } filesystem{ btrfs }
+        mountpoint{ /home }
+    .

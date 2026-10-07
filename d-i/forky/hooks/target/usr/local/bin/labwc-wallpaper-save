@@ -1,0 +1,3 @@
+#!/bin/sh
+# The helper uses directory descriptors and atomic, durable state replacement.
+exec /usr/local/libexec/labwc-wallpaper-control save "$@"

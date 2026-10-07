@@ -1,0 +1,3 @@
+# Excerpts, not a standalone ruleset. Base output policy is unchanged.
+add rule inet labwc_filter input iifname { "eth0", "wifi0" } ip saddr { 192.168.50.82/31, 192.168.50.84/30, 192.168.50.88/29, 192.168.50.96/30, 192.168.50.100/32, 192.168.50.112/29, 192.168.50.120/31, 192.168.50.122/32, 192.168.50.212/30, 192.168.50.216/30, 192.168.50.220/31, 192.168.50.222/32 } tcp dport 2049 ct state new counter accept comment "service nfs_server inbound"
+add rule inet labwc_filter output oifname { "eth0", "wifi0" } ip daddr 192.168.50.212/32 tcp dport 2049 counter accept comment "service nfs_client outbound"

@@ -1,0 +1,55 @@
+# Managed Android debug rules for the desktop role. Restrict access to USB
+# devices that expose an ADB, fastboot, or legacy Android debug interface, then
+# authorize common phone OEMs through plugdev and the active local session.
+
+ACTION!="add", ACTION!="bind", ACTION!="change", GOTO="managed_android_debug_end"
+SUBSYSTEM!="usb", GOTO="managed_android_debug_end"
+ATTR{bDeviceClass}=="09", GOTO="managed_android_debug_end"
+ENV{ID_USB_INTERFACES}!="*:ff42??:*", ENV{ID_USB_INTERFACES}!="*:ef0201:*", GOTO="managed_android_debug_end"
+
+# Google / Pixel
+ATTR{idVendor}=="18d1", GOTO="managed_android_debug_grant"
+# Samsung
+ATTR{idVendor}=="04e8", GOTO="managed_android_debug_grant"
+# Motorola and Lenovo
+ATTR{idVendor}=="22b8", GOTO="managed_android_debug_grant"
+ATTR{idVendor}=="17ef", GOTO="managed_android_debug_grant"
+# Sony
+ATTR{idVendor}=="0fce", GOTO="managed_android_debug_grant"
+# LG
+ATTR{idVendor}=="1004", GOTO="managed_android_debug_grant"
+# HTC
+ATTR{idVendor}=="0bb4", GOTO="managed_android_debug_grant"
+# Huawei and Honor
+ATTR{idVendor}=="12d1", GOTO="managed_android_debug_grant"
+# Xiaomi
+ATTR{idVendor}=="2717", GOTO="managed_android_debug_grant"
+# OPPO, OnePlus, and Realme
+ATTR{idVendor}=="22d9", GOTO="managed_android_debug_grant"
+ATTR{idVendor}=="2a70", GOTO="managed_android_debug_grant"
+# Nokia / HMD
+ATTR{idVendor}=="2e04", GOTO="managed_android_debug_grant"
+# ZTE
+ATTR{idVendor}=="19d2", GOTO="managed_android_debug_grant"
+# ASUS
+ATTR{idVendor}=="0b05", GOTO="managed_android_debug_grant"
+# Acer
+ATTR{idVendor}=="0502", GOTO="managed_android_debug_grant"
+# Amazon
+ATTR{idVendor}=="1949", GOTO="managed_android_debug_grant"
+# Fairphone
+ATTR{idVendor}=="2ae5", GOTO="managed_android_debug_grant"
+# Essential
+ATTR{idVendor}=="2e17", GOTO="managed_android_debug_grant"
+# Vivo
+ATTR{idVendor}=="2d95", GOTO="managed_android_debug_grant"
+# Qualcomm and MediaTek reference / bootloader modes
+ATTR{idVendor}=="05c6", GOTO="managed_android_debug_grant"
+ATTR{idVendor}=="0e8d", GOTO="managed_android_debug_grant"
+
+GOTO="managed_android_debug_end"
+
+LABEL="managed_android_debug_grant"
+MODE="0660", GROUP="plugdev", TAG+="uaccess"
+
+LABEL="managed_android_debug_end"

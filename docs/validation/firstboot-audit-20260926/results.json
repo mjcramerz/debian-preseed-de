@@ -1,0 +1,104 @@
+{
+  "date": "2026-09-26",
+  "target": "Debian Forky; systemd 261.2",
+  "booted_target": false,
+  "build": "pass",
+  "build_check": "pass with private packaged BusyBox on scoped PATH",
+  "browser_check": "pass",
+  "preseed_files": 59,
+  "shell_check": {
+    "success": true,
+    "shell_files": 362,
+    "parser_checks": 735,
+    "failures": [],
+    "scope": "syntax and external metadata dependency checks; runtime execution is a separate test stage"
+  },
+  "new_firstboot_audit_tests": {
+    "run": 14,
+    "pass": 14,
+    "fail": 0,
+    "errors": 0,
+    "skip": 0,
+    "native_rsyslog_used": true
+  },
+  "focused_session_tests": {
+    "run": 8,
+    "pass": 8
+  },
+  "session_reliability_tests": {
+    "run": 37,
+    "pass": 36,
+    "fail": 1,
+    "reason": "/proc/self/fd unavailable in validation environment"
+  },
+  "podman_incus_tests": {
+    "run": 88,
+    "pass": 85,
+    "errors": 2,
+    "skip": 1,
+    "reason": "ownership fixture chown to UID 65534 returns EINVAL"
+  },
+  "full_runner": {
+    "result": "incomplete; no final installer suite summary",
+    "browser_check": "pass",
+    "build_check": "blocked: BusyBox absent from runner fixed PATH",
+    "preseed_check": "pass",
+    "shell_check": "blocked: BusyBox absent from runner fixed PATH",
+    "installer_tests": "incomplete at test_repository_transport.TransportTests.test_library_adapters_share_one_get_and_accept_empty_profile; partial failures/errors/skips are not a passing suite"
+  },
+  "tools_suite_standard_path": {
+    "result": "failed in restricted environment",
+    "run": 166,
+    "failures": 1,
+    "errors": 76,
+    "note": "Error count includes setUpClass errors; do not derive a passing test count by subtraction. BusyBox missing and /var/lib fixture paths unavailable."
+  },
+  "audit_check_counts": {
+    "blocked-dependency": 158,
+    "inventory-only": 586,
+    "pass": 560,
+    "structure-pass": 215,
+    "template-needs-render": 11
+  },
+  "apparmor_offline": [
+    {
+      "profile": "firstboot",
+      "returncode": 0,
+      "kernel_load": false,
+      "parser_package": "4.1.8-2",
+      "features_sha256": "5a4df9b37600bf147c293d73fa6a284eee99267e270e9608225919ef4713664a"
+    },
+    {
+      "profile": "labwc-session",
+      "returncode": 0,
+      "kernel_load": false,
+      "parser_package": "4.1.8-2",
+      "features_sha256": "5a4df9b37600bf147c293d73fa6a284eee99267e270e9608225919ef4713664a"
+    }
+  ],
+  "validation_tools": "Existing Debian binary packages extracted privately; no installation scripts, source compilation or kernel policy loads",
+  "package_sha256": {
+    "apparmor_4.1.8-2_amd64.deb": "52af31082f0473b8e6e4ec2426e438879eff2702a1608f0f14fb50cfd795aefa",
+    "busybox-static_1.38.0-3+b1_amd64.deb": "26801f17e6c88e813be104effc0ea3b43d912bd59ca6295fcd1260528ebb4d41",
+    "libestr0_0.1.11-2+b2_amd64.deb": "84856cd6952bee89ebccea150c27233f173c8ad9566c4650a8e3ab391126e73d",
+    "libfastjson4_1.2609.0-1_amd64.deb": "99697dce2f16f42781cb9fc5035d3e03ffa73e540ebe1676743943d8597ed602",
+    "rsyslog_8.2608.0-4_amd64.deb": "5f7e996fbff64f76c085ecbc2e4ee9a50af61b60005db75f0a1467cf62fb1579"
+  },
+  "runtime_product_sha256": {
+    "preseed.cfg": "594ce8cb4247fa65e4565058089eba805dd969a702f78289b73f96cbdce06b00",
+    "payload.manifest": "b1956d1f33777f7f1145f468f2fd52dc83243b80f8f257f28cf3383edbffebec",
+    "payload.tar.gz": "f7db03cb634bca535e4e4bd571772409fc745202fffa43411872720d30291fff"
+  },
+  "limits": [
+    "No Forky/systemd 261.2 boot or service activation acceptance",
+    "No live enforcing AppArmor, GPU/GUI, physical hardware or partitioning acceptance",
+    "Full suite cannot be counted as passing in this restricted environment",
+    "EFI FAT and firmware observations require installed-host attention"
+  ],
+  "installer_module_tests_with_private_busybox": {
+    "run": 12,
+    "pass": 12,
+    "failures": 0,
+    "errors": 0
+  }
+}

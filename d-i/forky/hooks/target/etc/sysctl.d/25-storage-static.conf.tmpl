@@ -1,0 +1,8 @@
+# /etc/sysctl.d/25-storage-static.conf (rendered storage static override)
+# Keep only the family-agnostic static storage knobs here. The bootprofile
+# overlays own the runtime reclaim and writeback policy so switching profiles
+# replaces the full storage tuning set cleanly.
+vm.page-cluster = 0
+vm.vfs_cache_pressure_denom = 100
+vm.watermark_boost_factor = 0
+vm.stat_interval = 10

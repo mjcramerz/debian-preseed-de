@@ -1,0 +1,17 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin qw($RealBin);
+use File::Spec ();
+
+use lib
+    File::Spec->catdir(
+        $RealBin, '..', 'lib', 'perl5', 'site_perl', 'zram-writeback'
+    ),
+    '/usr/local/lib/perl5/site_perl/zram-writeback';
+
+use Zram::Setup::CLI;
+
+exit Zram::Setup::CLI->new()->run(@ARGV);

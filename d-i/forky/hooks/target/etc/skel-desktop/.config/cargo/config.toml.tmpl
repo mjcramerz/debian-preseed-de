@@ -1,0 +1,20 @@
+# Managed by unattended-installer.
+#
+# CARGO_HOME remains /pool-backed through the desktop DevOps profile. The late
+# helper copies this same policy into CARGO_HOME so Cargo applies it before the
+# desktop skeleton is copied to the primary account. Cargo owns build
+# parallelism so entering the DevOps environment does not impose a jobs cap.
+[build]
+rustc-wrapper = "__INSTALLER_DEVOPS_CARGO_RUSTC_WRAPPER__"
+
+[target."__INSTALLER_DEVOPS_CARGO_TARGET_TRIPLE__"]
+# The linker and code-generation policy are owned by the selected desktop
+# profile. addon/devops validates the selected target CPU against the installed
+# Rust toolchain before the unattended installation can complete.
+linker = "__INSTALLER_DEVOPS_CARGO_TARGET_LINKER__"
+rustflags = [
+  "-C",
+  "target-cpu=__INSTALLER_DEVOPS_CARGO_TARGET_CPU__",
+  "-C",
+  "link-arg=__INSTALLER_DEVOPS_CARGO_LINKER_ARGUMENT__",
+]

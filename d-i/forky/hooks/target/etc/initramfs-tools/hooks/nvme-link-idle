@@ -1,0 +1,13 @@
+#!/bin/sh
+# Apply the device-specific rule during initramfs enumeration, before root mounts.
+set -eu
+
+case "${1:-}" in
+  prereqs) exit 0 ;;
+esac
+
+# Distribution-provided initramfs API, outside this repository's source tree.
+# shellcheck source=/dev/null
+. /usr/share/initramfs-tools/hook-functions
+
+copy_file config /etc/udev/rules.d/74-nvme-link-idle.rules /etc/udev/rules.d/74-nvme-link-idle.rules

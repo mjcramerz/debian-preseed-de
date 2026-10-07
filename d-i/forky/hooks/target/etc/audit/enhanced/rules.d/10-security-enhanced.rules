@@ -1,0 +1,75 @@
+## Managed by installer late_command.
+## Enhanced profile: broader native-ABI integrity coverage without old-style
+## -w watches, catch-all execve, networking, or global file-open syscall rules.
+## auditctl requires syscall selectors on arch-qualified perm/path/dir rules.
+
+-D
+--backlog_wait_time 120000
+## auditctl/augenrules status prints this as "failure 1"; it is the kernel
+## audit failure mode (printk), not a rule load failure.
+-f 1
+
+## Ignore kernel pseudo-filesystems before any filesystem-scoped checks.
+-a never,filesystem -F fstype=debugfs
+-a never,filesystem -F fstype=tracefs
+
+## AppArmor policy changes; AppArmor denials are emitted by the kernel LSM into audit.
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F dir=/etc/apparmor.d -F perm=wa -F key=apparmor-policy
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F dir=/etc/apparmor -F perm=wa -F key=apparmor-policy
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F path=/etc/apparmor/parser.conf -F perm=wa -F key=apparmor-policy
+
+## Identity databases.
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F path=/etc/passwd -F perm=wa -F key=identity
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F path=/etc/group -F perm=wa -F key=identity
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F path=/etc/shadow -F perm=wa -F key=identity
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F path=/etc/gshadow -F perm=wa -F key=identity
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F path=/etc/security/opasswd -F perm=wa -F key=identity
+
+## sudo, su, and administrative activity.
+-a always,exit -F arch=b64 -S execve -S execveat -F path=/usr/bin/sudo -F perm=x -F key=privilege-escalation
+-a always,exit -F arch=b64 -S execve -S execveat -F path=/usr/bin/su -F perm=x -F key=privilege-escalation
+-a always,exit -F arch=b64 -S execve -S execveat -F path=/usr/bin/passwd -F perm=x -F key=account-tools
+-a always,exit -F arch=b64 -S execve -S execveat -F path=/usr/bin/chsh -F perm=x -F key=account-tools
+-a always,exit -F arch=b64 -S execve -S execveat -F path=/usr/bin/chfn -F perm=x -F key=account-tools
+-a always,exit -F arch=b64 -S execve -S execveat -F path=/usr/bin/newgrp -F perm=x -F key=account-tools
+-a always,exit -F arch=b64 -S execve -S execveat -F path=/usr/bin/gpasswd -F perm=x -F key=account-tools
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F path=/etc/sudoers -F perm=wa -F key=sudo-config
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F dir=/etc/sudoers.d -F perm=wa -F key=sudo-config
+
+## PAM, login, SSH, and security policy configuration.
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F dir=/etc/pam.d -F perm=wa -F key=auth-config
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F dir=/etc/security -F perm=wa -F key=auth-config
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F path=/etc/login.defs -F perm=wa -F key=auth-config
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F dir=/etc/ssh -F perm=wa -F key=auth-config
+
+## Firewall and nftables policy.
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F path=/etc/nftables.conf -F perm=wa -F key=firewall-policy
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F dir=/etc/nftables.d -F perm=wa -F key=firewall-policy
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F dir=/etc/nftables -F perm=wa -F key=firewall-policy
+
+## Audit daemon and rsyslog configuration.
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F dir=/etc/audit -F perm=wa -F key=audit-policy
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F path=/etc/rsyslog.conf -F perm=wa -F key=syslog-policy
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F dir=/etc/rsyslog.d -F perm=wa -F key=syslog-policy
+
+## Broader configuration integrity watches for 24/7 hosts.
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F path=/etc/sysctl.conf -F perm=wa -F key=sysctl-config
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F dir=/etc/sysctl.d -F perm=wa -F key=sysctl-config
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F dir=/etc/modprobe.d -F perm=wa -F key=module-policy
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F dir=/etc/modules-load.d -F perm=wa -F key=module-policy
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F dir=/etc/systemd/system -F perm=wa -F key=systemd-config
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F dir=/boot -F perm=wa -F key=boot-config
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F dir=/usr/local/sbin -F perm=wa -F key=local-admin-tools
+-a always,exit -F arch=b64 -S openat -S truncate -S ftruncate -S chmod -S fchmod -S fchmodat -S chown -S fchown -S fchownat -S lchown -S rename -S renameat -S renameat2 -S unlink -S unlinkat -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F dir=/usr/local/bin -F perm=wa -F key=local-admin-tools
+
+## Kernel, clock, hostname, and mount-state changes.
+-a always,exit -F arch=b64 -S init_module -S finit_module -S delete_module -F key=kernel-module
+-a always,exit -F arch=b64 -S adjtimex -S settimeofday -S clock_settime -F key=time-change
+-a always,exit -F arch=b64 -S sethostname -S setdomainname -F key=host-identity
+-a always,exit -F arch=b64 -S mount -S umount2 -F key=mount-change
+
+## Permission-denied access attempts against high-value configuration trees.
+-a always,exit -F arch=b64 -S openat -S openat2 -S truncate -S ftruncate -F dir=/etc -F success=0 -F key=etc-access-denied
+-a always,exit -F arch=b64 -S openat -S openat2 -S truncate -S ftruncate -F dir=/boot -F success=0 -F key=boot-access-denied
+
+-e 1

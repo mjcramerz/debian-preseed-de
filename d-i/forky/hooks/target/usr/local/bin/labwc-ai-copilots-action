@@ -1,0 +1,49 @@
+#!/bin/sh
+set -eu
+
+# Sanitize the interpreter environment before Perl loads repository modules.
+: "${HOME:?HOME must be set}"
+
+active_uid=$(/usr/bin/id -u)
+active_user=$(/usr/bin/id -un)
+case "$active_uid:$active_user" in
+  0:*|*:*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*|*:)
+    printf '%s\n' 'labwc-ai-copilots-action: invalid desktop identity' >&2
+    exit 1
+    ;;
+esac
+
+terminal_type=${TERM:-dumb}
+case "$terminal_type" in
+  ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._+-]*)
+    terminal_type=dumb
+    ;;
+esac
+
+ssh_auth_sock=
+case "${SSH_AUTH_SOCK:-}" in
+  "${XDG_RUNTIME_DIR:-}/"*)
+    [ -S "$SSH_AUTH_SOCK" ] && ssh_auth_sock=$SSH_AUTH_SOCK
+    ;;
+esac
+
+exec /usr/bin/env -i \
+  HOME="$HOME" \
+  USER="$active_user" \
+  LOGNAME="$active_user" \
+  SHELL=/bin/zsh \
+  LANG=C.UTF-8 \
+  LC_ALL=C.UTF-8 \
+  TERM="$terminal_type" \
+  XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
+  WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
+  XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-wayland}" \
+  LABWC_SESSION_OWNER="${LABWC_SESSION_OWNER:-}" \
+  DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-}" \
+  SSH_AUTH_SOCK="$ssh_auth_sock" \
+  PATH=/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin \
+  /usr/bin/perl \
+    -I/usr/local/lib/perl5/site_perl/ai-copilots \
+    -MAICopilots::CLI \
+    -e 'exit AICopilots::CLI->new()->run(@ARGV)' \
+    -- "$@"

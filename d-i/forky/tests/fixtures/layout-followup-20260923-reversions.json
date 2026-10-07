@@ -1,0 +1,173 @@
+{
+  "basis": "Exact scoped changes against the prior delivered archive; historical workload hashes and prior reversions are unchanged.",
+  "files": {
+    "d-i/forky/hooks/target/data/docs/podman-devops.md": {
+      "current_path": "d-i/forky/hooks/target/data/docs/podman-devops.md",
+      "previous_sha256": "d56bef144b1560176b06e11bdeff32d3ec23681ee3863b145733339e13d670aa",
+      "hunks": [
+        {
+          "current": "host daemon, **not** the rootless Podman engine. The desktop uses its existing\n`incus` group and `unix.socket.user`; bootstrap alone uses the admin socket.\n\nThe rewritten `incus-host` parses a strict scalar configuration schema\nrather than sourcing shell or constructing YAML. It checks package/socket\ncontracts, prepares only top-level storage, serializes bootstrap with flock,\nthen reconciles the storage pool, managed bridge and unprivileged default\n",
+          "previous": "host daemon, **not** the rootless Podman engine. The desktop uses its existing\n`incus` group and `unix.socket.user`; bootstrap alone uses the admin socket.\n\nThe rewritten `x-incus-host` parses a strict scalar configuration schema\nrather than sourcing shell or constructing YAML. It checks package/socket\ncontracts, prepares only top-level storage, serializes bootstrap with flock,\nthen reconciles the storage pool, managed bridge and unprivileged default\n"
+        },
+        {
+          "current": "`--validate-config` is read-only and does not call the daemon.\n`--prepare-install` prepares storage but never starts Incus in a chroot.\nThe restricted broker remains ordered after successful bootstrap. A failure\nis visible through `incus-host.service`, with spaced retries.\n\n## Diagnostics, maintenance and migration\n\n",
+          "previous": "`--validate-config` is read-only and does not call the daemon.\n`--prepare-install` prepares storage but never starts Incus in a chroot.\nThe restricted broker remains ordered after successful bootstrap. A failure\nis visible through `x-incus-host.service`, with spaced retries.\n\n## Diagnostics, maintenance and migration\n\n"
+        },
+        {
+          "current": "systemctl status podman-devops.socket podman-devops.service podman-devops-restart.service\n/usr/local/libexec/podman-devops-host check\nsystemctl restart podman-devops-bootstrap.service\njournalctl -b -u incus-host.service\n/usr/local/libexec/incus-host --validate-config\n```\n\nThose maintenance commands are root operations where necessary, **not** part\n",
+          "previous": "systemctl status podman-devops.socket podman-devops.service podman-devops-restart.service\n/usr/local/libexec/podman-devops-host check\nsystemctl restart podman-devops-bootstrap.service\njournalctl -b -u x-incus-host.service\n/usr/local/libexec/x-incus-host --validate-config\n```\n\nThose maintenance commands are root operations where necessary, **not** part\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/codex-app-server.service": {
+      "current_path": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/codex-app-server.service",
+      "previous_sha256": "8a5c0391f2d0676531e7a5800ed49510d2160851d828a1b141bd60200e751c24",
+      "hunks": [
+        {
+          "current": "Environment=CODEX_HOME=/data/codex/usr/home\nEnvironment=XDG_CONFIG_HOME=%h/.config XDG_CACHE_HOME=%h/.cache\nEnvironment=XDG_DATA_HOME=%h/.local/share XDG_STATE_HOME=%h/.local/state\nEnvironmentFile=/etc/codex/app-server.env\n# CODEX_HOME/auth.json is application-managed and absent until user login.\n# Never synthesize, load as a credential, or read-only-overmount that file.\nLoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env\n",
+          "previous": "Environment=CODEX_HOME=/data/codex/usr/home\nEnvironment=XDG_CONFIG_HOME=%h/.config XDG_CACHE_HOME=%h/.cache\nEnvironment=XDG_DATA_HOME=%h/.local/share XDG_STATE_HOME=%h/.local/state\nEnvironmentFile=/etc/default/codex-app-server\n# CODEX_HOME/auth.json is application-managed and absent until user login.\n# Never synthesize, load as a credential, or read-only-overmount that file.\nLoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/profiles/btrfs-de-duo.env": {
+      "current_path": "d-i/forky/hosts/profiles/btrfs-de-duo.env",
+      "previous_sha256": "634622bc19e35916ca788d81ec463f864fcda2e3db64eb95eceb10032964acf9",
+      "hunks": [
+        {
+          "current": "NFT_SERVICES=\"none\"\n# Wi-Fi PSK Security\nWIFI_PSK_SECURITY=\"sae\"\nMANAGED_NETWORK_ETHERNET_IFACE=\"eth0\"\nMANAGED_NETWORK_WIFI_IFACE=\"wifi0\"\nTAILSCALE_INTERFACE=\"tailscale0\"\nTAILSCALE_UDP_PORT=\"41641\"\nTAILSCALE_ACCEPT_DNS=\"false\"\n",
+          "previous": "NFT_SERVICES=\"none\"\n# Wi-Fi PSK Security\nWIFI_PSK_SECURITY=\"sae\"\nMANAGED_NETWORK_ETHERNET_IFACE=\"x-eth0\"\nMANAGED_NETWORK_WIFI_IFACE=\"x-wifi0\"\nTAILSCALE_INTERFACE=\"tailscale0\"\nTAILSCALE_UDP_PORT=\"41641\"\nTAILSCALE_ACCEPT_DNS=\"false\"\n"
+        },
+        {
+          "current": "# Profile-owned Labwc desktop and desktop-addon policy.\nDESKTOP_APPARMOR_STATE=\"complain\"\nLABWC_DESKTOP_ENABLE=\"true\"\nLABWC_MANAGED_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-app nvidia\"\nLABWC_ELECTRON_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-electron-app nvidia\"\nLABWC_WAYLAND_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-wayland-app nvidia\"\n\n",
+          "previous": "# Profile-owned Labwc desktop and desktop-addon policy.\nDESKTOP_APPARMOR_STATE=\"complain\"\nLABWC_DESKTOP_ENABLE=\"true\"\nLABWC_MANAGED_APP_DEFAULT_EXEC=\"/usr/local/bin/x-labwc-app nvidia\"\nLABWC_ELECTRON_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-electron-app nvidia\"\nLABWC_WAYLAND_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-wayland-app nvidia\"\n\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env": {
+      "current_path": "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env",
+      "previous_sha256": "3db62c569ff182078376006535c0b0b3093f22b7763c84305dd80c9758ca06f2",
+      "hunks": [
+        {
+          "current": "NFT_SERVICES=\"none\"\n# Wi-Fi PSK Security\nWIFI_PSK_SECURITY=\"sae\"\nMANAGED_NETWORK_ETHERNET_IFACE=\"eth0\"\nMANAGED_NETWORK_WIFI_IFACE=\"wifi0\"\nTAILSCALE_INTERFACE=\"tailscale0\"\nTAILSCALE_UDP_PORT=\"41641\"\nTAILSCALE_ACCEPT_DNS=\"false\"\n",
+          "previous": "NFT_SERVICES=\"none\"\n# Wi-Fi PSK Security\nWIFI_PSK_SECURITY=\"sae\"\nMANAGED_NETWORK_ETHERNET_IFACE=\"x-eth0\"\nMANAGED_NETWORK_WIFI_IFACE=\"x-wifi0\"\nTAILSCALE_INTERFACE=\"tailscale0\"\nTAILSCALE_UDP_PORT=\"41641\"\nTAILSCALE_ACCEPT_DNS=\"false\"\n"
+        },
+        {
+          "current": "# set is reviewed from real host access records.\nDESKTOP_APPARMOR_STATE=\"complain\"\nLABWC_DESKTOP_ENABLE=\"true\"\nLABWC_MANAGED_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-app intel\"\nLABWC_ELECTRON_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-electron-app nvidia\"\nLABWC_WAYLAND_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-wayland-app nvidia\"\n\n",
+          "previous": "# set is reviewed from real host access records.\nDESKTOP_APPARMOR_STATE=\"complain\"\nLABWC_DESKTOP_ENABLE=\"true\"\nLABWC_MANAGED_APP_DEFAULT_EXEC=\"/usr/local/bin/x-labwc-app intel\"\nLABWC_ELECTRON_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-electron-app nvidia\"\nLABWC_WAYLAND_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-wayland-app nvidia\"\n\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/profiles/btrfs-de-flex.env": {
+      "current_path": "d-i/forky/hosts/profiles/btrfs-de-flex.env",
+      "previous_sha256": "eeb744a7630fb0d031b5605fc410bf65e0e22683b72dce68505cd9c89a1c5edf",
+      "hunks": [
+        {
+          "current": "NFT_SERVICES=\"none\"\n# Wi-Fi PSK Security\nWIFI_PSK_SECURITY=\"sae\"\nMANAGED_NETWORK_ETHERNET_IFACE=\"eth0\"\nMANAGED_NETWORK_WIFI_IFACE=\"wifi0\"\nTAILSCALE_INTERFACE=\"tailscale0\"\nTAILSCALE_UDP_PORT=\"41641\"\nTAILSCALE_ACCEPT_DNS=\"false\"\n",
+          "previous": "NFT_SERVICES=\"none\"\n# Wi-Fi PSK Security\nWIFI_PSK_SECURITY=\"sae\"\nMANAGED_NETWORK_ETHERNET_IFACE=\"x-eth0\"\nMANAGED_NETWORK_WIFI_IFACE=\"x-wifi0\"\nTAILSCALE_INTERFACE=\"tailscale0\"\nTAILSCALE_UDP_PORT=\"41641\"\nTAILSCALE_ACCEPT_DNS=\"false\"\n"
+        },
+        {
+          "current": "# Profile-owned Labwc desktop and desktop-addon policy.\nDESKTOP_APPARMOR_STATE=\"complain\"\nLABWC_DESKTOP_ENABLE=\"true\"\nLABWC_MANAGED_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-app nvidia\"\nLABWC_ELECTRON_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-electron-app nvidia\"\nLABWC_WAYLAND_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-wayland-app nvidia\"\n\n",
+          "previous": "# Profile-owned Labwc desktop and desktop-addon policy.\nDESKTOP_APPARMOR_STATE=\"complain\"\nLABWC_DESKTOP_ENABLE=\"true\"\nLABWC_MANAGED_APP_DEFAULT_EXEC=\"/usr/local/bin/x-labwc-app nvidia\"\nLABWC_ELECTRON_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-electron-app nvidia\"\nLABWC_WAYLAND_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-wayland-app nvidia\"\n\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env": {
+      "current_path": "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env",
+      "previous_sha256": "ab9ab9b74463c4643537b6fff71b4f2cab5c8805b69dd95ee979b8bf77eb545e",
+      "hunks": [
+        {
+          "current": "NFT_SERVICES=\"none\"\n# Wi-Fi PSK Security\nWIFI_PSK_SECURITY=\"sae\"\nMANAGED_NETWORK_ETHERNET_IFACE=\"eth0\"\nMANAGED_NETWORK_WIFI_IFACE=\"wifi0\"\nTAILSCALE_INTERFACE=\"tailscale0\"\nTAILSCALE_UDP_PORT=\"41641\"\nTAILSCALE_ACCEPT_DNS=\"false\"\n",
+          "previous": "NFT_SERVICES=\"none\"\n# Wi-Fi PSK Security\nWIFI_PSK_SECURITY=\"sae\"\nMANAGED_NETWORK_ETHERNET_IFACE=\"x-eth0\"\nMANAGED_NETWORK_WIFI_IFACE=\"x-wifi0\"\nTAILSCALE_INTERFACE=\"tailscale0\"\nTAILSCALE_UDP_PORT=\"41641\"\nTAILSCALE_ACCEPT_DNS=\"false\"\n"
+        },
+        {
+          "current": "# Profile-owned Labwc desktop and desktop-addon policy.\nDESKTOP_APPARMOR_STATE=\"complain\"\nLABWC_DESKTOP_ENABLE=\"true\"\nLABWC_MANAGED_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-app nvidia\"\nLABWC_ELECTRON_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-electron-app nvidia\"\nLABWC_WAYLAND_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-wayland-app nvidia\"\n\n",
+          "previous": "# Profile-owned Labwc desktop and desktop-addon policy.\nDESKTOP_APPARMOR_STATE=\"complain\"\nLABWC_DESKTOP_ENABLE=\"true\"\nLABWC_MANAGED_APP_DEFAULT_EXEC=\"/usr/local/bin/x-labwc-app nvidia\"\nLABWC_ELECTRON_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-electron-app nvidia\"\nLABWC_WAYLAND_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-wayland-app nvidia\"\n\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/profiles/btrfs-de-p15s.env": {
+      "current_path": "d-i/forky/hosts/profiles/btrfs-de-p15s.env",
+      "previous_sha256": "29feb22385fe7249e53418ee596ac69f9ccde76ee433b6ed427b99b12ed713d2",
+      "hunks": [
+        {
+          "current": "NFT_SERVICES=\"none\"\n# Wi-Fi PSK Security\nWIFI_PSK_SECURITY=\"sae\"\nMANAGED_NETWORK_ETHERNET_IFACE=\"eth0\"\nMANAGED_NETWORK_WIFI_IFACE=\"wifi0\"\nTAILSCALE_INTERFACE=\"tailscale0\"\nTAILSCALE_UDP_PORT=\"41641\"\nTAILSCALE_ACCEPT_DNS=\"false\"\n",
+          "previous": "NFT_SERVICES=\"none\"\n# Wi-Fi PSK Security\nWIFI_PSK_SECURITY=\"sae\"\nMANAGED_NETWORK_ETHERNET_IFACE=\"x-eth0\"\nMANAGED_NETWORK_WIFI_IFACE=\"x-wifi0\"\nTAILSCALE_INTERFACE=\"tailscale0\"\nTAILSCALE_UDP_PORT=\"41641\"\nTAILSCALE_ACCEPT_DNS=\"false\"\n"
+        },
+        {
+          "current": "# complain | enforce\nDESKTOP_APPARMOR_STATE=\"complain\"\nLABWC_DESKTOP_ENABLE=\"true\"\nLABWC_MANAGED_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-app nvidia\"\nLABWC_ELECTRON_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-electron-app nvidia\"\nLABWC_WAYLAND_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-wayland-app nvidia\"\n\n",
+          "previous": "# complain | enforce\nDESKTOP_APPARMOR_STATE=\"complain\"\nLABWC_DESKTOP_ENABLE=\"true\"\nLABWC_MANAGED_APP_DEFAULT_EXEC=\"/usr/local/bin/x-labwc-app nvidia\"\nLABWC_ELECTRON_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-electron-app nvidia\"\nLABWC_WAYLAND_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-wayland-app nvidia\"\n\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/profiles/btrfs-de.env": {
+      "current_path": "d-i/forky/hosts/profiles/btrfs-de.env",
+      "previous_sha256": "6d1e56b07a614c9e9992511ea3260810616a79bb767b5f016e85f5d144ea17a5",
+      "hunks": [
+        {
+          "current": "NFT_SERVICES=\"none\"\n# Wi-Fi PSK Security\nWIFI_PSK_SECURITY=\"sae\"\nMANAGED_NETWORK_ETHERNET_IFACE=\"eth0\"\nMANAGED_NETWORK_WIFI_IFACE=\"wifi0\"\nTAILSCALE_INTERFACE=\"tailscale0\"\nTAILSCALE_UDP_PORT=\"41641\"\nTAILSCALE_ACCEPT_DNS=\"false\"\n",
+          "previous": "NFT_SERVICES=\"none\"\n# Wi-Fi PSK Security\nWIFI_PSK_SECURITY=\"sae\"\nMANAGED_NETWORK_ETHERNET_IFACE=\"x-eth0\"\nMANAGED_NETWORK_WIFI_IFACE=\"x-wifi0\"\nTAILSCALE_INTERFACE=\"tailscale0\"\nTAILSCALE_UDP_PORT=\"41641\"\nTAILSCALE_ACCEPT_DNS=\"false\"\n"
+        },
+        {
+          "current": "# Profile-owned Labwc desktop and desktop-addon policy.\nDESKTOP_APPARMOR_STATE=\"complain\"\nLABWC_DESKTOP_ENABLE=\"true\"\nLABWC_MANAGED_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-app nvidia\"\nLABWC_ELECTRON_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-electron-app nvidia\"\nLABWC_WAYLAND_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-wayland-app nvidia\"\n\n",
+          "previous": "# Profile-owned Labwc desktop and desktop-addon policy.\nDESKTOP_APPARMOR_STATE=\"complain\"\nLABWC_DESKTOP_ENABLE=\"true\"\nLABWC_MANAGED_APP_DEFAULT_EXEC=\"/usr/local/bin/x-labwc-app nvidia\"\nLABWC_ELECTRON_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-electron-app nvidia\"\nLABWC_WAYLAND_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-wayland-app nvidia\"\n\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env": {
+      "current_path": "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env",
+      "previous_sha256": "23d6b02dc99a162f332d4adc49ff782a4c43fccc02caf0d6f65a013d14e75b90",
+      "hunks": [
+        {
+          "current": "NFT_SERVICES=\"none\"\n# Wi-Fi PSK Security\nWIFI_PSK_SECURITY=\"sae\"\nMANAGED_NETWORK_ETHERNET_IFACE=\"eth0\"\nMANAGED_NETWORK_WIFI_IFACE=\"wifi0\"\nTAILSCALE_INTERFACE=\"tailscale0\"\nTAILSCALE_UDP_PORT=\"41641\"\nTAILSCALE_ACCEPT_DNS=\"false\"\n",
+          "previous": "NFT_SERVICES=\"none\"\n# Wi-Fi PSK Security\nWIFI_PSK_SECURITY=\"sae\"\nMANAGED_NETWORK_ETHERNET_IFACE=\"x-eth0\"\nMANAGED_NETWORK_WIFI_IFACE=\"x-wifi0\"\nTAILSCALE_INTERFACE=\"tailscale0\"\nTAILSCALE_UDP_PORT=\"41641\"\nTAILSCALE_ACCEPT_DNS=\"false\"\n"
+        },
+        {
+          "current": "# Profile-owned Labwc desktop and desktop-addon policy.\nDESKTOP_APPARMOR_STATE=\"complain\"\nLABWC_DESKTOP_ENABLE=\"true\"\nLABWC_MANAGED_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-app nvidia\"\nLABWC_ELECTRON_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-electron-app nvidia\"\nLABWC_WAYLAND_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-wayland-app nvidia\"\n\n",
+          "previous": "# Profile-owned Labwc desktop and desktop-addon policy.\nDESKTOP_APPARMOR_STATE=\"complain\"\nLABWC_DESKTOP_ENABLE=\"true\"\nLABWC_MANAGED_APP_DEFAULT_EXEC=\"/usr/local/bin/x-labwc-app nvidia\"\nLABWC_ELECTRON_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-electron-app nvidia\"\nLABWC_WAYLAND_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-wayland-app nvidia\"\n\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/profiles/f2fs-de-hp14.env": {
+      "current_path": "d-i/forky/hosts/profiles/f2fs-de-hp14.env",
+      "previous_sha256": "827b6dd8774ab4e8274e02d3d8bf61442b4df05ae7b2e8fae27d8522dea00979",
+      "hunks": [
+        {
+          "current": "NFT_SERVICES=\"none\"\n# Wi-Fi PSK Security\nWIFI_PSK_SECURITY=\"sae\"\nMANAGED_NETWORK_ETHERNET_IFACE=\"eth0\"\nMANAGED_NETWORK_WIFI_IFACE=\"wifi0\"\nTAILSCALE_INTERFACE=\"tailscale0\"\nTAILSCALE_UDP_PORT=\"41641\"\nTAILSCALE_ACCEPT_DNS=\"false\"\n",
+          "previous": "NFT_SERVICES=\"none\"\n# Wi-Fi PSK Security\nWIFI_PSK_SECURITY=\"sae\"\nMANAGED_NETWORK_ETHERNET_IFACE=\"x-eth0\"\nMANAGED_NETWORK_WIFI_IFACE=\"x-wifi0\"\nTAILSCALE_INTERFACE=\"tailscale0\"\nTAILSCALE_UDP_PORT=\"41641\"\nTAILSCALE_ACCEPT_DNS=\"false\"\n"
+        },
+        {
+          "current": "# Profile-owned Labwc desktop and desktop-addon policy.\nDESKTOP_APPARMOR_STATE=\"complain\"\nLABWC_DESKTOP_ENABLE=\"true\"\nLABWC_MANAGED_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-app nvidia\"\nLABWC_ELECTRON_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-electron-app nvidia\"\nLABWC_WAYLAND_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-wayland-app nvidia\"\n\n",
+          "previous": "# Profile-owned Labwc desktop and desktop-addon policy.\nDESKTOP_APPARMOR_STATE=\"complain\"\nLABWC_DESKTOP_ENABLE=\"true\"\nLABWC_MANAGED_APP_DEFAULT_EXEC=\"/usr/local/bin/x-labwc-app nvidia\"\nLABWC_ELECTRON_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-electron-app nvidia\"\nLABWC_WAYLAND_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-wayland-app nvidia\"\n\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env": {
+      "current_path": "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env",
+      "previous_sha256": "1ea971ba2d3548a26fbd80b451a1fe339aa06fddcd1bb91813aae2c042e505ff",
+      "hunks": [
+        {
+          "current": "NFT_SERVICES=\"none\"\n# Wi-Fi PSK Security\nWIFI_PSK_SECURITY=\"sae\"\nMANAGED_NETWORK_ETHERNET_IFACE=\"eth0\"\nMANAGED_NETWORK_WIFI_IFACE=\"wifi0\"\nTAILSCALE_INTERFACE=\"tailscale0\"\nTAILSCALE_UDP_PORT=\"41641\"\nTAILSCALE_ACCEPT_DNS=\"false\"\n",
+          "previous": "NFT_SERVICES=\"none\"\n# Wi-Fi PSK Security\nWIFI_PSK_SECURITY=\"sae\"\nMANAGED_NETWORK_ETHERNET_IFACE=\"x-eth0\"\nMANAGED_NETWORK_WIFI_IFACE=\"x-wifi0\"\nTAILSCALE_INTERFACE=\"tailscale0\"\nTAILSCALE_UDP_PORT=\"41641\"\nTAILSCALE_ACCEPT_DNS=\"false\"\n"
+        },
+        {
+          "current": "# Profile-owned Labwc desktop and desktop-addon policy.\nDESKTOP_APPARMOR_STATE=\"complain\"\nLABWC_DESKTOP_ENABLE=\"true\"\nLABWC_MANAGED_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-app nvidia\"\nLABWC_ELECTRON_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-electron-app nvidia\"\nLABWC_WAYLAND_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-wayland-app nvidia\"\n\n",
+          "previous": "# Profile-owned Labwc desktop and desktop-addon policy.\nDESKTOP_APPARMOR_STATE=\"complain\"\nLABWC_DESKTOP_ENABLE=\"true\"\nLABWC_MANAGED_APP_DEFAULT_EXEC=\"/usr/local/bin/x-labwc-app nvidia\"\nLABWC_ELECTRON_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-electron-app nvidia\"\nLABWC_WAYLAND_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-wayland-app nvidia\"\n\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/profiles/f2fs-de-x360.env": {
+      "current_path": "d-i/forky/hosts/profiles/f2fs-de-x360.env",
+      "previous_sha256": "eadaaf3c3561df8a13c6d8c418bcbf867d63ea5e231e5751bed7c14bd8502e3c",
+      "hunks": [
+        {
+          "current": "NFT_SERVICES=\"none\"\n# Wi-Fi PSK Security\nWIFI_PSK_SECURITY=\"sae\"\nMANAGED_NETWORK_ETHERNET_IFACE=\"eth0\"\nMANAGED_NETWORK_WIFI_IFACE=\"wifi0\"\nTAILSCALE_INTERFACE=\"tailscale0\"\nTAILSCALE_UDP_PORT=\"41641\"\nTAILSCALE_ACCEPT_DNS=\"false\"\n",
+          "previous": "NFT_SERVICES=\"none\"\n# Wi-Fi PSK Security\nWIFI_PSK_SECURITY=\"sae\"\nMANAGED_NETWORK_ETHERNET_IFACE=\"x-eth0\"\nMANAGED_NETWORK_WIFI_IFACE=\"x-wifi0\"\nTAILSCALE_INTERFACE=\"tailscale0\"\nTAILSCALE_UDP_PORT=\"41641\"\nTAILSCALE_ACCEPT_DNS=\"false\"\n"
+        },
+        {
+          "current": "# Profile-owned Labwc desktop and desktop-addon policy.\nDESKTOP_APPARMOR_STATE=\"complain\"\nLABWC_DESKTOP_ENABLE=\"true\"\nLABWC_MANAGED_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-app nvidia\"\nLABWC_ELECTRON_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-electron-app nvidia\"\nLABWC_WAYLAND_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-wayland-app nvidia\"\n\n",
+          "previous": "# Profile-owned Labwc desktop and desktop-addon policy.\nDESKTOP_APPARMOR_STATE=\"complain\"\nLABWC_DESKTOP_ENABLE=\"true\"\nLABWC_MANAGED_APP_DEFAULT_EXEC=\"/usr/local/bin/x-labwc-app nvidia\"\nLABWC_ELECTRON_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-electron-app nvidia\"\nLABWC_WAYLAND_APP_DEFAULT_EXEC=\"/usr/local/bin/labwc-wayland-app nvidia\"\n\n"
+        }
+      ]
+    }
+  }
+}

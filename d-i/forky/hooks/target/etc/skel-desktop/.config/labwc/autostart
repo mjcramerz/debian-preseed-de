@@ -1,0 +1,5 @@
+#!/bin/sh
+# labwc-compositor.service supplies the managed startup helper with
+# labwc --startup. Keep this file as a no-op so no lower-priority XDG
+# autostart script can start a second output-policy owner.
+exit 0

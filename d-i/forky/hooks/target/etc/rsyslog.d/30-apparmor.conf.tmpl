@@ -1,0 +1,66 @@
+# Consume only AppArmor records from auditd's authoritative file. The audit
+# syslog plugin is disabled so the full audit stream never enters journald.
+# Poll the single fixed input to recover file updates/rotation.
+module(load="imfile" mode="polling" pollingInterval="2")
+template(
+  name="ManagedAppArmorAuditLine"
+  type="string"
+  string="%msg%\n"
+)
+
+template(
+  name="ManagedAppArmorDesktopSignal"
+  type="string"
+  string="apparmor\n"
+)
+
+ruleset(name="managed_apparmor_log_writer") {
+  action(
+    name="managed_apparmor_log"
+    type="omfile"
+    file="__INSTALLER_LOG_APPARMOR_FILE__"
+    fileOwner="__INSTALLER_LOG_OWNER__"
+    fileGroup="__INSTALLER_LOG_GROUP__"
+    fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+    dirOwner="__INSTALLER_LOG_OWNER__"
+    dirGroup="__INSTALLER_LOG_GROUP__"
+    dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
+    createDirs="on"
+    template="ManagedAppArmorAuditLine"
+    rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+    rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+    rotation.sizeLimitCommandPassFileName="on"
+  )
+  if (re_match($msg, '^(node=[^ ]+ )?type=(AVC|1400) msg=audit\\([0-9]+\\.[0-9]+:[0-9]+\\): apparmor="DENIED"( |$)') or
+      re_match($msg, '^(node=[^ ]+ )?type=APPARMOR_DENIED ')) then {
+    action(name="managed_apparmor_desktop_signal" type="omfile"
+           file="/var/lib/labwc-notifications/security/apparmor.signal"
+           fileOwner="__INSTALLER_LOG_OWNER__" fileGroup="logreader"
+           fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+           dirOwner="__INSTALLER_LOG_OWNER__" dirGroup="logreader"
+           dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__" createDirs="on"
+           template="ManagedAppArmorDesktopSignal"
+           rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+           rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+           rotation.sizeLimitCommandPassFileName="on")
+  }
+}
+
+ruleset(name="managed_apparmor_from_audit" queue.type="LinkedList"
+        queue.size="__INSTALLER_LOG_RSYSLOG_QUEUE_MESSAGES__" queue.workerThreads="1") {
+  # Audit EXECVE/USER records can quote arbitrary application arguments. They
+  # are not AppArmor events even when that text contains a denial marker.
+  if (re_match($msg, '^(node=[^ ]+ )?type=(AVC|1400|APPARMOR[A-Z_]*) msg=audit\\([0-9]+\\.[0-9]+:[0-9]+\\): ') and
+      ($msg contains "apparmor=" or $msg contains "type=1400" or $msg contains "type=APPARMOR")) then {
+    call managed_apparmor_log_writer
+  }
+}
+
+input(type="imfile" File="__INSTALLER_LOG_AUDIT_FILE__" Tag="managed-audit:"
+      Ruleset="managed_apparmor_from_audit" PersistStateInterval="1"
+      MaxSubmitAtOnce="64")
+# imfile's default 1024-record submission exceeds this route's 1000-record
+# queue and can stall the producer before waking its worker (rsyslog 8.2608).
+# Keep the batch below even the logging schema's minimum queue capacity.
+# Kernel copies remain in the managed kernel log. Auditd's file is the sole
+# input to this AppArmor mirror, so one action/worker owns size rotation.

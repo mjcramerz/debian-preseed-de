@@ -1,0 +1,59 @@
+{
+  "edge_security": {
+    "DefaultInsecureContentSetting": 2,
+    "DeveloperToolsAvailability": 1,
+    "DownloadRestrictions": 1,
+    "ExtensionDeveloperModeSettings": 0,
+    "RemoteDebuggingAllowed": true,
+    "SSLErrorOverrideAllowed": false
+  },
+  "edge_telemetry": {
+    "ConfigureDoNotTrack": false,
+    "SpellCheckServiceEnabled": false
+  },
+  "extensions": {
+    "ExtensionSettings": {
+      "ddkjiahejlhfcafbddmgiahcphecmpfh": {
+        "installation_mode": "normal_installed",
+        "toolbar_pin": "default_pinned",
+        "update_url": "https://clients2.google.com/service/update2/crx"
+      },
+      "doojmbjmlfjjnbmnoijecmcbfeoakpjm": {
+        "installation_mode": "normal_installed",
+        "toolbar_pin": "default_pinned",
+        "update_url": "https://clients2.google.com/service/update2/crx"
+      },
+      "pkehgijcmpdhfbdbbnkijodmdjhbjlgp": {
+        "installation_mode": "normal_installed",
+        "toolbar_pin": "default_pinned",
+        "update_url": "https://clients2.google.com/service/update2/crx"
+      }
+    }
+  },
+  "recommended": {
+    "AutofillAddressEnabled": false,
+    "AutofillCreditCardEnabled": false,
+    "BackgroundModeEnabled": false,
+    "BlockThirdPartyCookies": true,
+    "NetworkPredictionOptions": 2,
+    "PasswordManagerEnabled": false,
+    "SearchSuggestEnabled": false
+  },
+  "security": {
+    "DefaultInsecureContentSetting": 2,
+    "DeveloperToolsAvailability": 1,
+    "DisableSafeBrowsingProceedAnyway": true,
+    "DownloadRestrictions": 1,
+    "ExtensionDeveloperModeSettings": 0,
+    "RemoteDebuggingAllowed": true,
+    "SSLErrorOverrideAllowed": false
+  },
+  "telemetry": {
+    "CloudReportingEnabled": false,
+    "MetricsReportingEnabled": false,
+    "SafeBrowsingExtendedReportingEnabled": false,
+    "SafeBrowsingProtectionLevel": 1,
+    "SpellCheckServiceEnabled": false,
+    "UrlKeyedAnonymizedDataCollectionEnabled": false
+  }
+}

@@ -1,0 +1,18 @@
+#!/bin/sh
+# systemd invokes this after Foot exits, even if its start/exec failed.
+# No shell wrapper around Foot, child supervisor, retry, or status remapping.
+set -eu
+result=${SERVICE_RESULT:-unknown}
+[ "$result" != success ] || exit 0
+code=${EXIT_CODE:-unknown}
+status=${EXIT_STATUS:-unknown}
+# Manager-supplied values are still bounded before writing to the journal.
+for value in "$result" "$code" "$status"; do
+  case "$value" in
+    ''|*[!A-Za-z0-9_-]*) exit 0 ;;
+  esac
+  [ "${#value}" -le 64 ] || exit 0
+done
+printf 'Foot unit result=%s exit_code=%s exit_status=%s; see preceding Foot stderr for the cause\n' \
+  "$result" "$code" "$status" >&2
+exit 0

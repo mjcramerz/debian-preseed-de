@@ -1,0 +1,8 @@
+if [ "$grub_platform" = "efi" ]; then
+    fwsetup --is-supported
+    if [ "$?" = 0 ]; then
+        menuentry 'UEFI Firmware Settings' $menuentry_id_option 'uefi-firmware' --class firmware --class efi {
+            fwsetup
+        }
+    fi
+fi

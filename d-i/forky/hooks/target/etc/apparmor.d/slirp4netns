@@ -1,0 +1,20 @@
+# Managed by unattended-installer.
+#
+# Forky's package profile intentionally keeps slirp4netns unconfined while
+# assigning it a stable AppArmor label. Preserve that compatibility contract,
+# but attach disconnected namespace paths so the managed complain-mode policy
+# can match the exact /proc namespace files opened by slirp4netns.
+
+abi <abi/4.0>,
+include <tunables/global>
+
+profile slirp4netns /usr/bin/slirp4netns flags=(unconfined, attach_disconnected) {
+  userns,
+
+  # pivot_root is required for running `slirp4netns --enable-sandbox` inside LXD.
+  # https://github.com/rootless-containers/slirp4netns/issues/348
+  pivot_root,
+
+  # Site-specific additions and overrides. See local/README for details.
+  include if exists <local/slirp4netns>
+}

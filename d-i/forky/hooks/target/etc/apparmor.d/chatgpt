@@ -1,0 +1,17 @@
+# Managed by unattended-installer.
+#
+# Direct vendor execution is intentionally unusable. The dedicated
+# labwc-chatgpt wrapper enters a separate Bubblewrap child profile and inherits
+# that confined profile for the package launchers and embedded Codex helpers
+# after no_new_privs is set.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile chatgpt /{usr/bin/chatgpt,usr/lib/chatgpt/{ChatGPT,browser_crashpad_handler,codex-launcher,resources/{codex,codex-code-mode-host}}} flags=(attach_disconnected, mediate_deleted) {
+  deny /tmp/.X11-unix/ rw,
+  deny /tmp/.X11-unix/** rw,
+
+  include if exists <local/chatgpt>
+}

@@ -1,0 +1,7 @@
+# Managed by the installer apt-setup preferences generator.
+# Keep Debian Trixie available as a lower-priority fallback archive beneath the
+# managed Forky baseline.
+
+Package: *
+Pin: release n=trixie
+Pin-Priority: 400

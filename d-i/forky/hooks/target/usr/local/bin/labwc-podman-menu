@@ -1,0 +1,353 @@
+#!/usr/bin/python3 -I
+"""Fuzzel management of the one devops rootless engine; always unprivileged.
+
+Selections map to immutable API IDs, never interpolated shell commands. Slow or
+interactive operations run visibly in a terminal and retain their exit status.
+"""
+from __future__ import annotations
+import fcntl
+import json
+import os
+from pathlib import Path
+import re
+import selectors
+import time
+import signal
+import stat
+import subprocess
+import sys
+
+PODMAN = '/usr/local/bin/podman'
+DOCKER = '/usr/local/bin/docker'
+FUZZEL = '/usr/local/bin/labwc-fuzzel'
+TERMINAL = '/usr/local/bin/labwc-terminal'
+SELF = '/usr/local/bin/labwc-podman-menu'
+
+
+def text(value: object, limit: int = 120) -> str:
+    return ''.join(c if c.isprintable() else '?' for c in str(value))[:limit]
+
+
+def value(record: dict, name: str, default=None):
+    return next((v for k, v in record.items() if k.lower() == name.lower()), default)
+
+
+def execute(argv: list[str], timeout: float = 45) -> str:
+    process = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                               start_new_session=True)
+    output, errors = bytearray(), bytearray()
+    deadline = time.monotonic() + timeout
+    try:
+        with selectors.DefaultSelector() as selector:
+            for stream, destination in ((process.stdout, output), (process.stderr, errors)):
+                assert stream is not None
+                os.set_blocking(stream.fileno(), False)
+                selector.register(stream, selectors.EVENT_READ, destination)
+            while selector.get_map():
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired(argv, timeout)
+                for key, _ in selector.select(min(remaining, 0.1)):
+                    block = os.read(key.fileobj.fileno(), 65_536)
+                    if not block:
+                        selector.unregister(key.fileobj)
+                        continue
+                    key.data.extend(block)
+                    if len(output) + len(errors) > 16_777_216:
+                        raise RuntimeError('container query output exceeds 16 MiB')
+        status = process.wait(timeout=max(0.01, deadline - time.monotonic()))
+        if status:
+            raise RuntimeError(f'{Path(argv[0]).name} exited {status}: {text(errors.decode("utf-8", "replace"), 600)}')
+        return output.decode('utf-8', 'replace')
+    finally:
+        # Keep the leader unreaped until escalation ends, so its PGID cannot
+        # be recycled while descendants hold inherited pipes open.
+        if process.returncode is None:
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+                time.sleep(0.2)
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait(timeout=3)
+        for stream in (process.stdout, process.stderr):
+            if stream is not None:
+                stream.close()
+
+
+def menu(prompt: str, choices: list[str]) -> str | None:
+    result = subprocess.run([FUZZEL, 'menu', '--dmenu', '--prompt', prompt + '> '],
+                            input='\n'.join(choices) + '\n', text=True,
+                            stdout=subprocess.PIPE, check=False)
+    if result.returncode == 1:
+        return None
+    if result.returncode:
+        raise RuntimeError(f'menu picker failed (status {result.returncode})')
+    selected = result.stdout.removesuffix('\n')
+    return selected if selected in choices else None
+
+
+def entry(prompt: str) -> str | None:
+    result = subprocess.run([FUZZEL, 'menu', '--dmenu', '--prompt', prompt + '> '],
+                            input='', text=True, stdout=subprocess.PIPE, check=False,
+                            env={**os.environ, 'LABWC_MENU_INPUT_MODE': 'text'})
+    if result.returncode == 1:
+        return None
+    if result.returncode:
+        raise RuntimeError(f'menu picker failed (status {result.returncode})')
+    selected = result.stdout.removesuffix('\n')
+    if not selected:
+        return None
+    if len(selected) > 4096 or any(not c.isprintable() for c in selected):
+        raise ValueError('input contains control characters or is too long')
+    return selected
+
+
+def message(content: str) -> None:
+    menu('Containers', [text(line, 220) for line in content.splitlines()[:12]] or ['Done'])
+
+
+def confirm(action: str) -> bool:
+    return menu('Confirm', ['Cancel', action]) == action
+
+
+def terminal(tool: str, *arguments: str) -> None:
+    # Terminal arguments are passed verbatim through labwc-terminal. There is
+    # deliberately no sh -c, eval, sudo, SSH login, or user-controlled executable.
+    subprocess.run([TERMINAL, '-e', SELF, '--terminal', tool, *arguments],
+                   env={**os.environ, 'LABWC_MENU_ACTION_WAIT': '1'},
+                   check=False)
+
+
+def records(*arguments: str) -> list[dict]:
+    items = json.loads(execute([PODMAN, *arguments, '--format=json']))
+    if items is None:
+        return []
+    if not isinstance(items, list) or not all(isinstance(i, dict) for i in items):
+        raise ValueError('engine returned an unexpected object list')
+    return items
+
+
+def identifier(record: dict) -> str:
+    result = str(value(record, 'Id', value(record, 'ID', ''))).removeprefix('sha256:')
+    if not re.fullmatch(r'[a-fA-F0-9]{12,64}', result):
+        raise ValueError('engine returned an invalid immutable object ID')
+    return result
+
+
+def container_menu() -> None:
+    items = records('ps', '--all', '--no-trunc')
+    mapping = {}
+    for item in items:
+        ident = identifier(item)
+        names = value(item, 'Names', [])
+        label = text(', '.join(names) if isinstance(names, list) else names)
+        mapping[f'{label} | {text(value(item, "Status", ""))} | {ident[:12]}'] = ident
+    if not mapping:
+        message('No containers in the devops engine. Use Run an image or Deploy Compose.')
+        return
+    selected = menu('Container', list(mapping))
+    if not selected:
+        return
+    ident = mapping[selected]
+    action = menu(ident[:12], ['Start', 'Stop', 'Restart', 'Pause', 'Unpause',
+                              'Logs', 'Inspect', 'Stats', 'Shell', 'Remove'])
+    if action in ('Start', 'Stop', 'Restart', 'Pause', 'Unpause'):
+        args = [action.lower()]
+        if action in ('Stop', 'Restart'):
+            args += ['--time', '20']
+        execute([PODMAN, *args, ident], 60)
+        message(f'{action} succeeded: {ident[:12]}')
+    elif action == 'Logs':
+        terminal('podman', 'logs', '--tail', '200', '--follow', ident)
+    elif action == 'Inspect':
+        terminal('podman', 'inspect', ident)
+    elif action == 'Stats':
+        terminal('podman', 'stats', ident)
+    elif action == 'Shell':
+        terminal('podman', 'exec', '-it', ident, '/bin/sh')
+    elif action == 'Remove' and confirm(f'Remove container {ident[:12]} (must be stopped)'):
+        execute([PODMAN, 'rm', ident])
+        message('Container removed; named volumes were not deleted.')
+
+
+def object_menu(kind: str) -> None:
+    args = ('images', '--no-trunc') if kind == 'image' else (kind, 'ls')
+    items = records(*args)
+    mapping = {}
+    for item in items:
+        if kind == 'image':
+            ident = identifier(item)
+            tags = value(item, 'RepoTags', value(item, 'Names', [])) or ['<untagged>']
+            if isinstance(tags, str):
+                tags = [tags]
+            label = text(', '.join(tags)) + ' | ' + ident[:12]
+        else:
+            ident = value(item, 'Name', '')
+            if not isinstance(ident, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*', ident):
+                raise ValueError('engine returned an invalid object name')
+            label = ident
+        mapping[label] = ident
+    selected = menu(kind.title(), list(mapping)) if mapping else None
+    if not mapping:
+        message(f'No {kind} objects found.')
+    if not selected:
+        return
+    ident = mapping[selected]
+    action = menu(text(selected), ['Inspect', 'Remove'])
+    if action == 'Inspect':
+        terminal('podman', kind, 'inspect', ident)
+    elif action == 'Remove' and confirm(f'Remove {kind} {text(ident, 80)}'):
+        execute([PODMAN, kind, 'rm', ident])
+        message(f'{kind.title()} removed.')
+
+
+def image_name(prompt: str) -> str | None:
+    image = entry(prompt)
+    if image is not None and (not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_./:@+-]*', image) or '/' not in image):
+        raise ValueError('use a qualified image, for example docker.io/library/alpine:3 or localhost/myapp:dev')
+    return image
+
+
+def create_object(kind: str) -> None:
+    name = entry(f'New {kind} name')
+    if name is None:
+        return
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,127}', name):
+        raise ValueError('object name contains unsupported characters')
+    execute([PODMAN, kind, 'create', name])
+    message(f'Created {kind}: {name}')
+
+
+def interactive_action(action: str) -> None:
+    if action == 'Pull image':
+        image = image_name('Qualified image')
+        if image:
+            terminal('podman', 'pull', image)
+    elif action == 'Run image':
+        image = image_name('Qualified image')
+        name = entry('Container name') if image else None
+        if image and name:
+            if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,127}', name):
+                raise ValueError('invalid container name')
+            terminal('podman', 'run', '--detach', '--name', name,
+                     '--restart=unless-stopped', image)
+    elif action == 'Build image':
+        context = entry('Build context directory')
+        if context:
+            path = Path(context).expanduser().resolve(strict=True)
+            if not path.is_dir():
+                raise ValueError('build context must be a directory')
+            tag = image_name('Image tag (localhost/myapp:dev)')
+            if tag:
+                terminal('podman', 'build', '--tag', tag, str(path))
+    elif action == 'Deploy Compose':
+        filename = entry('Compose file (shared bind mounts belong in /pool/podman/workspace)')
+        if filename:
+            path = Path(filename).expanduser().resolve(strict=True)
+            if not path.is_file():
+                raise ValueError('Compose file must be a regular file')
+            terminal('docker', 'compose', '--project-directory', str(path.parent),
+                     '--file', str(path), 'up', '--detach')
+
+
+def terminal_main(arguments: list[str]) -> int:
+    if not arguments or arguments[0] not in ('podman', 'docker'):
+        raise ValueError('invalid terminal client')
+    executable = PODMAN if arguments[0] == 'podman' else DOCKER
+    print('Engine: rootless devops | socket: /run/podman-devops/podman.sock', flush=True)
+    # Same process group as the terminal: Ctrl-C and terminal close reach the
+    # actual client. No terminal-output capture or automatic mutation retries.
+    process = subprocess.Popen([executable, *arguments[1:]])
+    handlers = {}
+    def forward(number, _frame):
+        if process.poll() is None:
+            process.send_signal(number)
+    for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        handlers[number] = signal.signal(number, forward)
+    try:
+        code = process.wait()
+    finally:
+        for number, handler in handlers.items():
+            signal.signal(number, handler)
+    status = code if code >= 0 else 128 - code
+    print(f'\nCommand exited with status {status}.', flush=True)
+    if status not in (129, 130, 143) and sys.stdin.isatty():
+        try:
+            input('Press Enter to close. ')
+        except (EOFError, KeyboardInterrupt):
+            pass
+    return status
+
+
+def runtime_lock() -> int:
+    root = Path(os.environ.get('XDG_RUNTIME_DIR', ''))
+    if not root.is_absolute() or root.is_symlink():
+        raise ValueError('a private XDG_RUNTIME_DIR is required')
+    metadata = root.stat()
+    if metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) != 0o700:
+        raise ValueError('XDG_RUNTIME_DIR has unsafe owner/permissions')
+    fd = os.open(root / 'labwc-podman-menu.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    meta = os.fstat(fd)
+    if meta.st_uid != os.getuid() or meta.st_nlink != 1 or not stat.S_ISREG(meta.st_mode) or stat.S_IMODE(meta.st_mode) != 0o600:
+        os.close(fd)
+        raise ValueError('unsafe menu lock')
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd
+
+
+def main(arguments: list[str]) -> int:
+    if os.geteuid() == 0:
+        raise ValueError('launch this menu from the desktop account without sudo')
+    if arguments[:1] == ['--terminal']:
+        return terminal_main(arguments[1:])
+    if arguments:
+        raise ValueError('usage: labwc-podman-menu')
+    try:
+        lock = runtime_lock()
+    except BlockingIOError:
+        return 0
+    try:
+        actions = ['Containers', 'Images', 'Volumes', 'Networks', 'Pull image',
+                   'Run image', 'Build image', 'Deploy Compose', 'Create volume',
+                   'Create network', 'Engine info', 'Disk usage', 'Events', 'Close']
+        while True:
+            action = menu('Rootless devops containers', actions)
+            if action in (None, 'Close'):
+                return 0
+            try:
+                if action == 'Containers':
+                    container_menu()
+                elif action in ('Images', 'Volumes', 'Networks'):
+                    object_menu(action[:-1].lower())
+                elif action in ('Pull image', 'Run image', 'Build image', 'Deploy Compose'):
+                    interactive_action(action)
+                elif action.startswith('Create '):
+                    create_object(action.split()[1])
+                elif action == 'Engine info':
+                    terminal('podman', 'info')
+                elif action == 'Disk usage':
+                    terminal('podman', 'system', 'df')
+                elif action == 'Events':
+                    terminal('podman', 'events')
+            except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as exc:
+                print(f'container menu: {exc}', file=sys.stderr)
+                message(f'Operation failed: {exc}\nNo success was assumed. Check Engine info and the bootstrap service.')
+    finally:
+        os.close(lock)
+
+
+if __name__ == '__main__':
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, lambda number, _frame: sys.exit(128 + number))
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except (OSError, ValueError) as exc:
+        print(f'container menu: {exc}', file=sys.stderr)
+        sys.exit(1)

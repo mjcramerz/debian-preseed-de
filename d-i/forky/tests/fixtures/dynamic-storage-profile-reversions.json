@@ -1,0 +1,230 @@
+{
+  "btrfs-de-flex-duo.env": [
+    {
+      "current": "# a measured Debian budget (for example, 380 GiB total minus 100 GiB preserved).\n",
+      "historical": "# 365-399 GiB of Debian NVMe budget after preserving about 100 GiB.\n"
+    },
+    {
+      "current": "# Raw backing uses decimal MB; runtime clamps it to the available Debian disk budget.\nSIZE_PART_RAW_ZRAM_MAX_MB=\"17180\"\nSIZE_PART_RAW_ZRAM_DISK_DIVISOR=\"16\"\n",
+      "historical": "SIZE_PART_RAW_ZRAM_MAX_MB=\"16384\"\nSIZE_PART_RAW_ZRAM_DISK_DIVISOR=\"24\"\n"
+    },
+    {
+      "current": "SIZE_PART_SWAP_MIN_MIB=\"1024\"\nSIZE_PART_SWAP_MAX_MIB=\"6144\"\nSIZE_PART_SWAP_RAM_DIVISOR=\"1\"\n",
+      "historical": "SIZE_PART_SWAP_MIN_MIB=\"2524\"\nSIZE_PART_SWAP_MAX_MIB=\"6096\"\nSIZE_PART_SWAP_RAM_DIVISOR=\"4\"\n"
+    },
+    {
+      "current": "# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"220\"\n",
+      "historical": "ZRAM_PCT=\"100\"\n"
+    },
+    {
+      "current": "ZRAM_MAX_MIB=\"16384\"\n",
+      "historical": "ZRAM_MAX_MIB=\"8192\"\n"
+    }
+  ],
+  "btrfs-de-p15s-duo.env": [
+    {
+      "current": "IOCOST_DEVICE_MODEL_MATCH=\"WDC PC SN730 SDBQNTY-512G-1001*\"\n",
+      "historical": "IOCOST_DEVICE_MODEL_MATCH=\"KXG6AZNV512G*\"\n"
+    },
+    {
+      "current": "# The model match permits trailing NVMe model padding; firmware wildcard is intentional.\n",
+      "historical": "# The model prefix pins the 512GB family; firmware wildcard is intentional.\n"
+    },
+    {
+      "current": "# IOCost: provisional values for WDC PC SN730 SDBQNTY-512G-1001, NOT measured calibration.\n",
+      "historical": "# IOCost: provisional KXG6AZNV512G values, NOT measured calibration.\n"
+    },
+    {
+      "current": "# a measured Debian budget (for example, 380 GiB total minus 100 GiB preserved).\n",
+      "historical": "# 365-399 GiB of Debian NVMe budget after preserving about 100 GiB.\n"
+    },
+    {
+      "current": "# Raw backing uses decimal MB; runtime clamps it to the available Debian disk budget.\nSIZE_PART_RAW_ZRAM_MAX_MB=\"30065\"\nSIZE_PART_RAW_ZRAM_DISK_DIVISOR=\"8\"\n",
+      "historical": "SIZE_PART_RAW_ZRAM_MAX_MB=\"16384\"\nSIZE_PART_RAW_ZRAM_DISK_DIVISOR=\"24\"\n"
+    },
+    {
+      "current": "SIZE_PART_SWAP_RAM_DIVISOR=\"4\"\n",
+      "historical": "SIZE_PART_SWAP_RAM_DIVISOR=\"8\"\n"
+    },
+    {
+      "current": "# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"60\"\n",
+      "historical": "ZRAM_PCT=\"25\"\n"
+    },
+    {
+      "current": "ZRAM_MAX_MIB=\"28672\"\n",
+      "historical": "ZRAM_MAX_MIB=\"12288\"\n"
+    }
+  ],
+  "btrfs-de-duo.env": [
+    {
+      "current": "# Raw backing uses decimal MB; runtime clamps it to the available Debian disk budget.\nSIZE_PART_RAW_ZRAM_MAX_MB=\"30065\"\nSIZE_PART_RAW_ZRAM_DISK_DIVISOR=\"8\"\n",
+      "historical": "SIZE_PART_RAW_ZRAM_MAX_MB=\"32768\"\nSIZE_PART_RAW_ZRAM_DISK_DIVISOR=\"16\"\n"
+    },
+    {
+      "current": "SIZE_PART_SWAP_MAX_MIB=\"8192\"\n",
+      "historical": "SIZE_PART_SWAP_MAX_MIB=\"16384\"\n"
+    },
+    {
+      "current": "# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"60\"\n",
+      "historical": "ZRAM_PCT=\"100\"\n"
+    },
+    {
+      "current": "ZRAM_MAX_MIB=\"28672\"\n",
+      "historical": "ZRAM_MAX_MIB=\"8192\"\n"
+    }
+  ],
+  "btrfs-de-flex.env": [
+    {
+      "current": "# Raw backing uses decimal MB; runtime clamps it to the available Debian disk budget.\nSIZE_PART_RAW_ZRAM_MAX_MB=\"17180\"\nSIZE_PART_RAW_ZRAM_DISK_DIVISOR=\"16\"\n",
+      "historical": "SIZE_PART_RAW_ZRAM_MAX_MB=\"16384\"\nSIZE_PART_RAW_ZRAM_DISK_DIVISOR=\"24\"\n"
+    },
+    {
+      "current": "SIZE_PART_SWAP_MAX_MIB=\"6144\"\nSIZE_PART_SWAP_RAM_DIVISOR=\"1\"\n",
+      "historical": "SIZE_PART_SWAP_MAX_MIB=\"4096\"\nSIZE_PART_SWAP_RAM_DIVISOR=\"4\"\n"
+    },
+    {
+      "current": "# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"220\"\n",
+      "historical": "ZRAM_PCT=\"100\"\n"
+    },
+    {
+      "current": "ZRAM_MAX_MIB=\"16384\"\n",
+      "historical": "ZRAM_MAX_MIB=\"8192\"\n"
+    }
+  ],
+  "btrfs-de-p15s.env": [
+    {
+      "current": "IOCOST_DEVICE_MODEL_MATCH=\"WDC PC SN730 SDBQNTY-512G-1001*\"\n",
+      "historical": "IOCOST_DEVICE_MODEL_MATCH=\"KXG6AZNV512G*\"\n"
+    },
+    {
+      "current": "# The model match permits trailing NVMe model padding; firmware wildcard is intentional.\n",
+      "historical": "# The model prefix pins the 512GB family; firmware wildcard is intentional.\n"
+    },
+    {
+      "current": "# IOCost: provisional values for WDC PC SN730 SDBQNTY-512G-1001, NOT measured calibration.\n",
+      "historical": "# IOCost: provisional KXG6AZNV512G values, NOT measured calibration.\n"
+    },
+    {
+      "current": "# Raw backing uses decimal MB; runtime clamps it to the available Debian disk budget.\nSIZE_PART_RAW_ZRAM_MAX_MB=\"30065\"\nSIZE_PART_RAW_ZRAM_DISK_DIVISOR=\"8\"\n",
+      "historical": "SIZE_PART_RAW_ZRAM_MAX_MB=\"16384\"\nSIZE_PART_RAW_ZRAM_DISK_DIVISOR=\"24\"\n"
+    },
+    {
+      "current": "SIZE_PART_SWAP_RAM_DIVISOR=\"4\"\n",
+      "historical": "SIZE_PART_SWAP_RAM_DIVISOR=\"8\"\n"
+    },
+    {
+      "current": "# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"60\"\n",
+      "historical": "ZRAM_PCT=\"25\"\n"
+    },
+    {
+      "current": "ZRAM_MAX_MIB=\"28672\"\n",
+      "historical": "ZRAM_MAX_MIB=\"12288\"\n"
+    }
+  ],
+  "btrfs-de.env": [
+    {
+      "current": "# Raw backing uses decimal MB; runtime clamps it to the available Debian disk budget.\nSIZE_PART_RAW_ZRAM_MAX_MB=\"30065\"\nSIZE_PART_RAW_ZRAM_DISK_DIVISOR=\"8\"\n",
+      "historical": "SIZE_PART_RAW_ZRAM_MAX_MB=\"32768\"\nSIZE_PART_RAW_ZRAM_DISK_DIVISOR=\"16\"\n"
+    },
+    {
+      "current": "SIZE_PART_SWAP_MAX_MIB=\"8192\"\n",
+      "historical": "SIZE_PART_SWAP_MAX_MIB=\"16384\"\n"
+    },
+    {
+      "current": "# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"60\"\n",
+      "historical": "ZRAM_PCT=\"100\"\n"
+    },
+    {
+      "current": "ZRAM_MAX_MIB=\"28672\"\n",
+      "historical": "ZRAM_MAX_MIB=\"8192\"\n"
+    }
+  ],
+  "f2fs-de-hp14.env": [
+    {
+      "current": "# HP Chromebook 14 G7: nominal 4 GiB RAM and 32 GiB eMMC.\n# Firmware-reserved RAM is excluded from the detected usable-memory budget.\n",
+      "historical": "# F2FS desktop profile for approximately 3424 MiB RAM and 29-33 GiB eMMC.\n"
+    },
+    {
+      "current": "# Raw backing uses decimal MB; runtime clamps it to the available Debian disk budget.\nSIZE_PART_RAW_ZRAM_MAX_MB=\"6443\"\nSIZE_PART_RAW_ZRAM_DISK_DIVISOR=\"4\"\n",
+      "historical": "SIZE_PART_RAW_ZRAM_MAX_MB=\"3072\"\nSIZE_PART_RAW_ZRAM_DISK_DIVISOR=\"12\"\n"
+    },
+    {
+      "current": "SIZE_PART_SWAP_MIN_MIB=\"1024\"\n",
+      "historical": "SIZE_PART_SWAP_MIN_MIB=\"2048\"\n"
+    },
+    {
+      "current": "SIZE_PART_SWAP_RAM_DIVISOR=\"1\"\nSIZE_PART_SWAP_LAYOUT_DIVISOR=\"8\"\n",
+      "historical": "SIZE_PART_SWAP_RAM_DIVISOR=\"4\"\nSIZE_PART_SWAP_LAYOUT_DIVISOR=\"12\"\n"
+    },
+    {
+      "current": "# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"180\"\n",
+      "historical": "ZRAM_PCT=\"100\"\n"
+    },
+    {
+      "current": "ZRAM_MAX_MIB=\"6144\"\n",
+      "historical": "ZRAM_MAX_MIB=\"4096\"\n"
+    }
+  ],
+  "f2fs-de-hp14-duo.env": [
+    {
+      "current": "# HP Chromebook 14 G7: nominal 4 GiB RAM, 32 GiB eMMC, dual boot.\n# Usable RAM and preserved storage are measured, not assumed from nominal sizes.\n",
+      "historical": "# Dual-boot F2FS desktop profile for approximately 3424 MiB RAM and\n# 19-23 GiB of Debian eMMC budget after preserving about 10 GiB.\n"
+    },
+    {
+      "current": "# Raw backing uses decimal MB; runtime clamps it to the available Debian disk budget.\nSIZE_PART_RAW_ZRAM_MAX_MB=\"6443\"\nSIZE_PART_RAW_ZRAM_DISK_DIVISOR=\"4\"\n",
+      "historical": "SIZE_PART_RAW_ZRAM_MAX_MB=\"3072\"\nSIZE_PART_RAW_ZRAM_DISK_DIVISOR=\"12\"\n"
+    },
+    {
+      "current": "SIZE_PART_SWAP_MIN_MIB=\"1024\"\n",
+      "historical": "SIZE_PART_SWAP_MIN_MIB=\"2048\"\n"
+    },
+    {
+      "current": "SIZE_PART_SWAP_RAM_DIVISOR=\"1\"\nSIZE_PART_SWAP_LAYOUT_DIVISOR=\"8\"\n",
+      "historical": "SIZE_PART_SWAP_RAM_DIVISOR=\"4\"\nSIZE_PART_SWAP_LAYOUT_DIVISOR=\"12\"\n"
+    },
+    {
+      "current": "# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"180\"\n",
+      "historical": "ZRAM_PCT=\"100\"\n"
+    },
+    {
+      "current": "ZRAM_MAX_MIB=\"6144\"\n",
+      "historical": "ZRAM_MAX_MIB=\"4096\"\n"
+    }
+  ],
+  "f2fs-de-x360-duo.env": [
+    {
+      "current": "# Raw backing uses decimal MB; runtime clamps it to the available Debian disk budget.\nSIZE_PART_RAW_ZRAM_MAX_MB=\"6443\"\nSIZE_PART_RAW_ZRAM_DISK_DIVISOR=\"4\"\n",
+      "historical": "SIZE_PART_RAW_ZRAM_MAX_MB=\"4096\"\nSIZE_PART_RAW_ZRAM_DISK_DIVISOR=\"16\"\n"
+    },
+    {
+      "current": "SIZE_PART_SWAP_RAM_DIVISOR=\"1\"\nSIZE_PART_SWAP_LAYOUT_DIVISOR=\"8\"\n",
+      "historical": "SIZE_PART_SWAP_RAM_DIVISOR=\"4\"\nSIZE_PART_SWAP_LAYOUT_DIVISOR=\"12\"\n"
+    },
+    {
+      "current": "# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"180\"\n",
+      "historical": "ZRAM_PCT=\"100\"\n"
+    },
+    {
+      "current": "ZRAM_MAX_MIB=\"6144\"\n",
+      "historical": "ZRAM_MAX_MIB=\"4096\"\n"
+    }
+  ],
+  "f2fs-de-x360.env": [
+    {
+      "current": "# Raw backing uses decimal MB; runtime clamps it to the available Debian disk budget.\nSIZE_PART_RAW_ZRAM_MAX_MB=\"6443\"\nSIZE_PART_RAW_ZRAM_DISK_DIVISOR=\"4\"\n",
+      "historical": "SIZE_PART_RAW_ZRAM_MAX_MB=\"4096\"\nSIZE_PART_RAW_ZRAM_DISK_DIVISOR=\"16\"\n"
+    },
+    {
+      "current": "SIZE_PART_SWAP_RAM_DIVISOR=\"1\"\nSIZE_PART_SWAP_LAYOUT_DIVISOR=\"8\"\n",
+      "historical": "SIZE_PART_SWAP_RAM_DIVISOR=\"4\"\nSIZE_PART_SWAP_LAYOUT_DIVISOR=\"12\"\n"
+    },
+    {
+      "current": "# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"180\"\n",
+      "historical": "ZRAM_PCT=\"100\"\n"
+    },
+    {
+      "current": "ZRAM_MAX_MIB=\"6144\"\n",
+      "historical": "ZRAM_MAX_MIB=\"4096\"\n"
+    }
+  ]
+}

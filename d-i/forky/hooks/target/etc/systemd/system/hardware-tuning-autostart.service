@@ -1,0 +1,32 @@
+[Unit]
+Description=Boot opt-in and active marker for automatic hardware tuning
+BindsTo=hardware-tuning.service
+After=hardware-tuning.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# No broker callback: synchronous StartUnit from the broker must not deadlock.
+# The broker initializes from persistent enablement only on a fresh boot;
+# runtime Stop survives socket reactivation and broker restarts on this boot.
+ExecStart=/usr/local/bin/labwc-hardware-tuning autostart-marker
+TimeoutStartSec=30s
+Slice=system.slice
+UMask=0077
+AppArmorProfile=hardware-tuning-client
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+
+[Install]
+WantedBy=multi-user.target

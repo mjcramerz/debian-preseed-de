@@ -1,0 +1,287 @@
+#!/bin/sh
+# Sourced installer module; edit this file directly.
+
+desktop_stage_boot_logging() {
+  # Offline preparation only; never read the installer's journal or start units.
+  desktop_stage_role_asset usr/local/libexec/journal-snapshot.tmpl /usr/local/libexec/journal-snapshot 0755
+  desktop_stage_role_asset etc/systemd/system/boot-log.service.tmpl /etc/systemd/system/boot-log.service 0644
+  desktop_stage_role_asset etc/systemd/system/boot-log.timer.tmpl /etc/systemd/system/boot-log.timer 0644
+  run_in_target "prepare persistent boot journal directory" \
+    /usr/local/libexec/journal-snapshot --prepare
+  stage_target_systemd_unit_enabled boot-log.timer system
+}
+
+desktop_stage_logging_policy() {
+  : "${ACCOUNT_USERNAME:?ACCOUNT_USERNAME must be set}"
+
+  # shellcheck disable=SC2016
+  run_in_target "configure Labwc security notification access" /bin/sh -c '
+set -eu
+account_user=$1
+signal_reader_group=logreader
+scanner_writer_group=securitylogger
+
+for command_name in getent groupadd id usermod; do
+  command -v "$command_name" >/dev/null 2>&1 || {
+    printf "fatal: required notification access command is missing: %s\n" "$command_name" >&2
+    exit 1
+  }
+done
+
+getent passwd "$account_user" >/dev/null
+for access_group in "$signal_reader_group" "$scanner_writer_group"; do
+  getent group "$access_group" >/dev/null 2>&1 ||
+    groupadd --system "$access_group"
+  usermod -a -G "$access_group" "$account_user"
+
+  case " $(id -nG "$account_user") " in
+    *" $access_group "*) ;;
+    *)
+      printf "fatal: desktop account was not added to %s: %s\n" "$access_group" "$account_user" >&2
+      exit 1
+      ;;
+  esac
+done
+' sh "$ACCOUNT_USERNAME"
+
+  install -d -m 0755 \
+    /target/etc/rsyslog.d \
+    /target/etc/logrotate.d \
+    /target/etc/systemd/system/logrotate.timer.d \
+    /target/etc/systemd/system/rsyslog.service.d \
+    /target/usr/local/libexec
+
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.conf)" \
+    /etc/rsyslog.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/15-audit.conf)" \
+    /etc/rsyslog.d/15-audit.conf \
+    0644
+  desktop_stage_role_asset etc/rsyslog.d/19-power.conf.tmpl /etc/rsyslog.d/19-power.conf 0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/21-apps.conf)" \
+    /etc/rsyslog.d/21-apps.conf 0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/rsyslog-size-rotate)" \
+    /usr/local/libexec/rsyslog-size-rotate 0755
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/20-auth.conf)" \
+    /etc/rsyslog.d/20-auth.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/25-usb.conf)" \
+    /etc/rsyslog.d/25-usb.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/30-apparmor.conf)" \
+    /etc/rsyslog.d/30-apparmor.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/31-apparmor-modes.conf)" \
+    /etc/rsyslog.d/31-apparmor-modes.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/35-storage.conf)" \
+    /etc/rsyslog.d/35-storage.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/37-whisper.conf)" \
+    /etc/rsyslog.d/37-whisper.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/39-security-scanners.conf)" \
+    /etc/rsyslog.d/39-security-scanners.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/40-nftables.conf)" \
+    /etc/rsyslog.d/40-nftables.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/41-fuzzel.conf)" \
+    /etc/rsyslog.d/41-fuzzel.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/42-adb.conf)" \
+    /etc/rsyslog.d/42-adb.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/43-desktop-apps.conf)" \
+    /etc/rsyslog.d/43-desktop-apps.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/99-discard.conf)" \
+    /etc/rsyslog.d/99-discard.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/logrotate.conf)" \
+    /etc/logrotate.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/logrotate.timer.d/override.conf)" \
+    /etc/systemd/system/logrotate.timer.d/override.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/logrotate.d/rsyslog)" \
+    /etc/logrotate.d/rsyslog \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/logrotate.d/audit)" \
+    /etc/logrotate.d/audit \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/logrotate.d/auth)" \
+    /etc/logrotate.d/auth \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/logrotate.d/usb)" \
+    /etc/logrotate.d/usb \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/logrotate.d/apparmor)" \
+    /etc/logrotate.d/apparmor \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/logrotate.d/apparmor-modes)" \
+    /etc/logrotate.d/apparmor-modes \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/logrotate.d/storage)" \
+    /etc/logrotate.d/storage \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/logrotate.d/whisper)" \
+    /etc/logrotate.d/whisper \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/logrotate.d/nftables)" \
+    /etc/logrotate.d/nftables \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/logrotate.d/security-notify)" \
+    /etc/logrotate.d/security-notify \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/logrotate.d/security-scanners)" \
+    /etc/logrotate.d/security-scanners \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/logrotate.d/fuzzel)" \
+    /etc/logrotate.d/fuzzel \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/logrotate.d/adb)" \
+    /etc/logrotate.d/adb \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/logrotate.d/desktop-apps)" \
+    /etc/logrotate.d/desktop-apps \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/tmpfiles.d/60-security-logs.conf)" \
+    /etc/tmpfiles.d/60-security-logs.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/tmpfiles.d/65-audit-syslog.conf)" \
+    /etc/tmpfiles.d/65-audit-syslog.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/rsyslog-security-socket)" \
+    /usr/local/libexec/rsyslog-security-socket \
+    0755
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/rsyslog.service.d/30-security-scanner-socket.conf)" \
+    /etc/systemd/system/rsyslog.service.d/30-security-scanner-socket.conf \
+    0644
+  desktop_stage_role_asset \
+    usr/local/bin/labwc-fuzzel-log \
+    /usr/local/bin/labwc-fuzzel-log \
+    0755
+
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/44-components.conf)" \
+    /etc/rsyslog.d/44-components.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/tmpfiles.d/59-log-layout.conf)" \
+    /etc/tmpfiles.d/59-log-layout.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/rsyslog.service.d/20-log-layout.conf)" \
+    /etc/systemd/system/rsyslog.service.d/20-log-layout.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/journal-check)" \
+    /usr/local/libexec/journal-check \
+    0755
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/journal-sealing)" \
+    /usr/local/libexec/journal-sealing \
+    0755
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/journal-sealing.service)" \
+    /etc/systemd/system/journal-sealing.service \
+    0644
+  stage_target_systemd_unit_enabled journal-sealing.service system
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/log-layout)" \
+    /usr/local/libexec/log-layout \
+    0755
+
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/native-logging)" \
+    /usr/local/libexec/native-logging \
+    0755
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/tmpfiles.d/58-native-logs.conf)" \
+    /etc/tmpfiles.d/58-native-logs.conf \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rkhunter.d/99-logging.conf)" \
+    /etc/rkhunter.d/99-logging.conf \
+    0644
+  for managed_logging_unit in clamav-freshclam clamav-daemon; do
+    stage_target_asset \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/systemd/system/${managed_logging_unit}.service.d/40-logging.conf")" \
+      "/etc/systemd/system/${managed_logging_unit}.service.d/40-logging.conf" \
+      0644
+  done
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/local/usr.sbin.clamd)" \
+    /etc/apparmor.d/local/usr.sbin.clamd \
+    0644
+  run_in_target "retire byte-exact obsolete R3 logging rules" \
+    /usr/local/libexec/native-logging --retire-r3
+  run_in_target "configure native package logging without changing other settings" \
+    /usr/local/libexec/native-logging --configure
+  run_in_target "preflight protected logging destinations before tmpfiles" \
+    /usr/local/libexec/log-layout --preflight
+
+  run_in_target "validate effective managed journald policy" \
+    /usr/local/libexec/journal-check
+  run_in_target "create protected managed logging destinations" \
+    /usr/bin/systemd-tmpfiles --create \
+    /etc/tmpfiles.d/58-native-logs.conf \
+    /etc/tmpfiles.d/59-log-layout.conf \
+    /etc/tmpfiles.d/60-security-logs.conf \
+    /etc/tmpfiles.d/65-audit-syslog.conf
+  run_in_target "validate managed log layout and legacy auth link" \
+    /usr/local/libexec/log-layout
+  desktop_stage_boot_logging
+
+  run_in_target \
+    "validate managed rsyslog configuration" \
+    /usr/sbin/rsyslogd \
+    -N1 \
+    -f \
+    /etc/rsyslog.conf
+  run_in_target \
+    "validate managed logrotate configuration" \
+    /usr/sbin/logrotate \
+    --debug \
+    /etc/logrotate.conf
+
+  desktop_log "staged_logging_policy journal_input=imuxsock apps=__INSTALLER_LOG_APPLICATIONS_FILE__ system=__INSTALLER_LOG_SYSTEM_SERVICES_FILE__ kernel=__INSTALLER_LOG_KERNEL_FILE__ auth=__INSTALLER_LOG_AUTH_FILE__ apparmor=__INSTALLER_LOG_APPARMOR_FILE__ rotation=writer-size threshold_bytes=__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__ archives=__INSTALLER_LOG_ROTATE_COUNT__ scanner_socket=__INSTALLER_LOG_SCANNER_SOCKET__ log_group=__INSTALLER_LOG_GROUP__"
+}
+

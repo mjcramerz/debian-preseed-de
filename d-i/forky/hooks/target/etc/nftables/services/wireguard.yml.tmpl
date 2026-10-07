@@ -1,0 +1,49 @@
+apiVersion: cybops.nftables/v1
+kind: NftablesServiceOverlay
+metadata:
+  name: wireguard
+  description: WireGuard VPN server/client overlay.
+  merge_priority: 50
+services:
+  wireguard:
+    enabled: true
+    direction: inbound
+    protocols:
+    - udp
+    ports:
+    - 51820
+    allow:
+      ipv4:
+      - 0.0.0.0/0
+      ipv6:
+      - ::/0
+      interfaces:
+      - eth0
+      - en*
+      - __INSTALLER_MANAGED_NETWORK_ETHERNET_IFACE__
+      - wlan0
+      - wl*
+      - __INSTALLER_MANAGED_NETWORK_WIFI_IFACE__
+    rate_limit: 200/second burst 400 packets
+    log: false
+forwarding:
+  enabled: false
+  router_mode: false
+  rules:
+    vpn_to_lan:
+      enabled: false
+      from_interfaces:
+      - wg0
+      to_interfaces:
+      - eth0
+      - en*
+      - __INSTALLER_MANAGED_NETWORK_ETHERNET_IFACE__
+      - wlan0
+      - wl*
+      - __INSTALLER_MANAGED_NETWORK_WIFI_IFACE__
+      source_ipv4:
+      - 10.8.0.0/24
+      destination_ipv4:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16

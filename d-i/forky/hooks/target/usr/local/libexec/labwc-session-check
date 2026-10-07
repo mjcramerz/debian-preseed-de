@@ -1,0 +1,74 @@
+#!/usr/bin/python3 -I
+"""Fixed-operation user-service checks; no generic command or shell interface."""
+import os
+from pathlib import Path
+import signal
+import stat
+import subprocess
+import sys
+
+
+def main(args: list[str]) -> int:
+    if args == ["session-ready"]:
+        runtime = os.environ.get("XDG_RUNTIME_DIR", "")
+        display = os.environ.get("WAYLAND_DISPLAY", "")
+        uid = os.getuid()
+        if runtime != f"/run/user/{uid}" or not display or display in {".", ".."}:
+            return 1
+        if "/" in display or "\0" in display:
+            return 1
+        directory = Path(runtime)
+        metadata = directory.lstat()
+        if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != uid
+                or metadata.st_mode & 0o077):
+            return 1
+        # lstat also sees broken symlinks. Errors other than absence must
+        # propagate to the fail-closed entry point, never mean "ready".
+        try:
+            (directory / "labwc-session-closing").lstat()
+        except FileNotFoundError:
+            pass
+        else:
+            return 1
+        metadata = (directory / display).lstat()
+        if not stat.S_ISSOCK(metadata.st_mode) or metadata.st_uid != uid:
+            return 1
+        command = ["/usr/bin/systemctl", "--user", "--quiet", "is-active", "labwc-session.target"]
+        timeout = 3
+    elif args == ["compositor-config"]:
+        return int(not os.access(Path.home() / ".config/labwc/rc.xml", os.R_OK))
+    elif args == ["kwallet-ready"]:
+        command = ["/usr/bin/busctl", "--user", "--timeout=10", "introspect",
+                   "org.freedesktop.secrets", "/org/freedesktop/secrets",
+                   "org.freedesktop.Secret.Service"]
+        timeout = 12
+    elif len(args) == 2 and args[0] == "reload-waybar":
+        if not args[1].isascii() or not args[1].isdigit() or not 1 < int(args[1]) <= 2_147_483_647:
+            return 1
+        pid = int(args[1])
+        # pidfd pins the process, so a recycled PID can never be signalled.
+        fd = os.pidfd_open(pid)
+        try:
+            proc = Path(f"/proc/{pid}")
+            if proc.stat().st_uid != os.getuid():
+                return 1
+            # Check the executable inode, not the forgeable process name.
+            if not (proc / "exe").samefile("/usr/bin/waybar"):
+                return 1
+            signal.pidfd_send_signal(fd, signal.SIGUSR2)
+            return 0
+        finally:
+            os.close(fd)
+    else:
+        return 2
+    # The busctl introspection table is readiness data, not a journal message.
+    result = subprocess.run(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                            timeout=timeout, check=False)
+    return 0 if result.returncode == 0 else 1
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        raise SystemExit(1)

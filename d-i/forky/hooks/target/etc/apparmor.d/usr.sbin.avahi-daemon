@@ -1,0 +1,34 @@
+# Managed by unattended-installer.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile avahi-daemon /usr/sbin/avahi-daemon flags=(attach_disconnected, complain) {
+  #include <abstractions/base>
+  include if exists <abstractions/dbus>
+  include if exists <abstractions/mdns>
+  include if exists <abstractions/nameservice>
+
+  capability chown,
+  capability net_admin,
+  capability net_bind_service,
+  capability setgid,
+  capability setuid,
+  capability sys_chroot,
+
+  /usr/sbin/avahi-daemon mr,
+  /usr/lib/avahi/** mr,
+  /usr/share/avahi/** r,
+  /etc/avahi/** r,
+  /etc/nsswitch.conf r,
+  /etc/hosts r,
+  /etc/resolv.conf r,
+
+  /run/avahi-daemon/** rwk,
+  /var/run/avahi-daemon/** rwk,
+  /var/lib/avahi-autoipd/** rwk,
+  /tmp/** rwk,
+
+  include if exists <local/usr.sbin.avahi-daemon>
+}

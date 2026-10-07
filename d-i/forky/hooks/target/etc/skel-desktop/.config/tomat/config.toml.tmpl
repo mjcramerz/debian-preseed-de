@@ -1,0 +1,42 @@
+# Managed defaults; menu setting changes preserve this file's other content.
+# Start presets override work/break only, retaining long_break and sessions.
+[timer]
+work = 45.0
+break = 5.0
+long_break = 15.0
+sessions = 3
+auto_advance = "to-break"
+
+[sound]
+mode = "embedded"
+volume = 0.3
+
+[notification]
+enabled = true
+timeout = 8000
+
+[display]
+text_format = "{icon} {time}"
+text_format_idle = "__THEME_WAYBAR_BUTTON_TOMAT_IDLE_ICON_GLYPH__"
+
+[display.icons]
+work = "__THEME_WAYBAR_BUTTON_TOMAT_WORK_ICON_GLYPH__"
+break = "__THEME_WAYBAR_BUTTON_TOMAT_BREAK_ICON_GLYPH__"
+long_break = "__THEME_WAYBAR_BUTTON_TOMAT_LONG_BREAK_ICON_GLYPH__"
+play = "__THEME_WAYBAR_BUTTON_TOMAT_PLAY_ICON_GLYPH__"
+pause = "__THEME_WAYBAR_BUTTON_TOMAT_PAUSE_ICON_GLYPH__"
+stop = "__THEME_WAYBAR_BUTTON_TOMAT_STOP_ICON_GLYPH__"
+
+# No shell expansion, DND mutation, volume mutation or automatic media resume.
+# The helper and its playerctl child remain in the daemon's session cgroup.
+[hooks.on_break_start]
+cmd = "/usr/local/libexec/labwc-tomat-hook"
+args = ["break"]
+timeout = 3
+capture_output = true
+
+[hooks.on_long_break_start]
+cmd = "/usr/local/libexec/labwc-tomat-hook"
+args = ["long-break"]
+timeout = 3
+capture_output = true

@@ -1,0 +1,17 @@
+[Unit]
+Description=Configure encrypted fallback swap partition
+After=local-fs.target systemd-modules-load.service
+Wants=local-fs.target systemd-modules-load.service
+Before=zram-setup.service multi-user.target
+ConditionPathExists=__INSTALLER_FILE_SWAP_FALLBACK_CONFIG__
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=__INSTALLER_FILE_SWAP_FALLBACK_HELPER__ start
+ExecStop=__INSTALLER_FILE_SWAP_FALLBACK_HELPER__ stop
+TimeoutStartSec=2min
+TimeoutStopSec=1min
+
+[Install]
+WantedBy=multi-user.target

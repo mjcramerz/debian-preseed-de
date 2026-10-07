@@ -1,0 +1,23 @@
+[Unit]
+Description=Enable supported ThinkPad display brightness key events
+After=systemd-modules-load.service
+ConditionPathExists=/sys/devices/platform/thinkpad_acpi/hotkey_mask
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/labwc-thinkpad-hotkeys
+TimeoutStartSec=5s
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

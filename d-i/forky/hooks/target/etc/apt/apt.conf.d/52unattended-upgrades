@@ -1,0 +1,191 @@
+// Managed by unattended-installer.
+//
+// Automatic maintenance policy:
+// - accept upgrade candidates only from explicitly approved repository sites;
+// - let the repository pin policy choose the candidate version;
+// - keep the core system, boot, firmware, GPU and audio changes manual;
+// - keep removals manual too and never reboot automatically.
+
+#clear Unattended-Upgrade::Allowed-Origins;
+#clear Unattended-Upgrade::Origins-Pattern;
+Unattended-Upgrade::Origins-Pattern {
+        // Official Debian archives.
+        "site=mirrors.glesys.net";
+        "site=deb.debian.org";
+        "site=security.debian.org";
+
+        // Approved vendor archives declared by the Forky installer classes.
+        "site=apt.jcramer.xyz";
+        "site=deb.xanmod.org";
+        "site=developer.download.nvidia.com";
+        "site=downloadcontent.opensuse.org";
+        "site=packagecloud.io";
+        "site=packages.gitlab.com";
+        "site=packages.microsoft.com";
+        "site=mise.jdx.dev";
+        "site=pkg.cloudflare.com";
+        "site=pkgs.tailscale.com";
+        "site=pkgs.zabbly.com";
+        "site=repo.mysql.com";
+        "site=repo.vivaldi.com";
+        "site=repository.mullvad.net";
+        "site=repository.spotify.com";
+        "site=storage.googleapis.com";
+        "site=wayscriber.com";
+};
+
+// Python regular expressions are matched against binary package names.
+Unattended-Upgrade::Package-Blacklist {
+        // Keep byte-identical to apt-mok-prehook.RELEVANT. Both use re.match;
+        // regression checks enforce coverage of every MOK-gated package.
+        // ':' also covers python-apt's foreign-architecture package names.
+        "^(?:(?:linux|kernel|grub|shim|initramfs-tools|dracut|dkms|kmod|module-assistant)($|-|:)|.*-dkms($|:)|virtualbox-modules?($|-|:)|.*(?:nvidia|cuda)|(?:cudnn|nccl|nsight|tensorrt|lib(?:cu(?:blas|dart|fft|file|dnn|dss|inj|objclient|pti|rand|solver|sparse|tensor)|nccl|npp|nv(?:blas|cuvid|fatbin|infer|jitlink|jpeg|onnxparsers|optix|parsers|rtc|toolsext|vm)))|(?:cccl|collectx-bringup|cublas|cuquantum|cusparselt|cutensor|cuvs|datacenter-gpu-manager|dcgmi|gds-tools|libdcgm|libnvptxcompiler|libnvsdm|libxnvctrl|mft|nv-hostengine|nvcomp|nvfwupd|nvimgcodec|nvjpeg2k|nvlink|nvlsm|nvshmem|nvtiff|nvvct)($|-|[0-9]|:))";
+
+        // Base system, service manager, device management and authentication.
+        "^(systemd|libsystemd|libudev|udev|udev-udeb)($|-|[0-9]).*";
+        "^(dbus|libdbus|libpam|libnss|polkit|libpolkit)($|-|[0-9]).*";
+        "^(polkitd|policykit-1|libcap|libacl|libattr|libcrypt|libkeyutils|libseccomp|libselinux|libsepol)($|-|[0-9]).*";
+        "^(libc6|libc-bin|libc-dev-bin|libc-l10n|locales|libgcc-s[0-9]+|libstdc[+][+][0-9]+)($|-).*";
+        "^(apt|apt-utils|dpkg|dpkg-dev|libapt-pkg[0-9.]+|unattended-upgrades)($|-).*";
+        "^(base-files|base-passwd|debianutils|init|init-system-helpers|sysvinit-utils|login|login[.]defs|passwd|sudo|sudo-rs|util-linux|util-linux-extra|mount|coreutils|bash|dash|busybox)($|-).*";
+        "^(usrmerge|usr-is-merged|grep|sed|gawk|mawk|findutils|diffutils|procps|psmisc|hostname|tzdata|keyutils|bzip2|gzip|xz-utils|tar|file|libmagic|ncurses|libncurses|libtinfo|libreadline|libpcre|debian-archive-keyring)($|-|[0-9]).*";
+        "^(perl|libperl|python3([.][0-9]+)?|libpython3([.][0-9]+)?|gpg|gpgv|gnupg|dirmngr|libgcrypt|libgpg-error)($|-|[0-9]).*";
+        "^(openssl|libssl|libcrypto|ca-certificates|libassuan|libksba)($|-|[0-9]).*";
+
+        // Storage, networking and the desktop session's system services.
+        "^(cryptsetup|libcryptsetup|lvm2|liblvm2cmd|dmsetup|libdevmapper|btrfs-progs|xfsprogs|f2fs-tools|e2fsprogs|libext2fs|libe2p|libcom-err|dosfstools|nvme-cli|mdadm|zfs|zram-tools|zstd)($|-|[0-9]).*";
+        "^(libblkid|libfdisk|libmount|libsmartcols|libuuid|libnvme|libkmod)($|-|[0-9]).*";
+        "^(network-manager|ifupdown|iproute2|nftables|libnftables|libnftnl|iptables|wireguard|wpasupplicant|wireless-regdb|openssh|nfs-common|nfs-kernel-server|rpcbind)($|-|[0-9]).*";
+        "^(tailscale|mullvad-vpn|networkd-dispatcher|avahi|libavahi|libnfs|libtirpc|libgssglue)($|-|[0-9]).*";
+        "^(apparmor|libapparmor|auditd|libaudit|dbus-broker|udisks2|libudisks2|upower|libupower|power-profiles-daemon|greetd|seatd|libseat|labwc|libwlroots|wlroots|waybar|crystal-dock|mako-notifier|hyprpolkitagent|xdg-desktop-portal)($|-|[0-9]).*";
+        "^(acpid|acpi-support|acpi-support-base|tlp|thermald|irqbalance|intel-pcm|smartmontools|cups|libcups)($|-|[0-9]).*";
+        "^(cron|cronie|anacron|at|rsyslog|logrotate|console-setup|keyboard-configuration|kbd)($|-).*";
+
+        // UEFI, Secure Boot, bootloaders, and firmware update tooling.
+        "^.*(efi|uefi).*$";
+        "^grub($|-).*";
+        "^shim($|-).*";
+        "^mokutil$";
+        "^os-prober$";
+        "^systemd-boot($|-).*";
+        "^fwupd($|-).*";
+        "^fwupdate($|-).*";
+        "^flashrom$";
+        "^ovmf$";
+
+        // Kernels, initramfs generators, out-of-tree modules, and firmware.
+        "^linux($|-).*";
+        "^kernel($|-).*";
+        "^initramfs-tools($|-).*";
+        "^dracut($|-).*";
+        "^kmod$";
+        "^dkms$";
+        "^.*-dkms$";
+        "^module-assistant$";
+        "^.*-modules?($|-).*";
+        "^firmware($|-).*";
+        "^.*-firmware($|-).*";
+        "^.*firmware.*$";
+        "^intel-microcode$";
+        "^amd64-microcode$";
+        "^iucode-tool$";
+
+        // NVIDIA, CUDA, cuDNN, NCCL, Nsight, and their runtime libraries.
+        "^nvidia($|-).*";
+        "^libnvidia($|-).*";
+        "^.*nvidia.*$";
+        "^xserver-xorg-video-nvidia($|-).*";
+        "^cuda($|-).*";
+        "^libcuda($|-).*";
+        "^.*cuda.*$";
+        "^cudnn.*";
+        "^libcudnn.*";
+        "^nccl.*";
+        "^libnccl.*";
+        "^nsight.*";
+        "^libcublas.*";
+        "^libcudart.*";
+        "^libcufft.*";
+        "^libcupti.*";
+        "^libcurand.*";
+        "^libcusolver.*";
+        "^libcusparse.*";
+        "^libnpp.*";
+        "^libnvblas.*";
+        "^libnvjitlink.*";
+        "^libnvrtc.*";
+        "^libnvtoolsext.*";
+        "^(libcufile|libcudss|libcusparselt|libcutensor|libcuobjclient|libcuinj|libnvfatbin|libnvjpeg|libnvvm|libnvoptix|libnvidia|libnvcuvid|libnvinfer|libnvonnxparsers|libnvparsers).*";
+        "^(tensorrt|libtensorrt|python3-libnvinfer|python3-tensorrt|python3-pycuda|python3-cuda|nvidia-cuda-toolkit)($|-).*";
+        // NVIDIA's archive also ships SDK/management packages without either
+        // vendor token in their binary package name.
+        "^(cccl|collectx-bringup|cublas|cuquantum|cusparselt|cutensor|cuvs|datacenter-gpu-manager|dcgmi|gds-tools|libdcgm|libnvptxcompiler|libnvsdm|libxnvctrl|mft|nv-hostengine|nvcomp|nvfwupd|nvimgcodec|nvjpeg2k|nvlink|nvlsm|nvshmem|nvtiff|nvvct)($|-|[0-9]).*";
+
+        // Vulkan, OpenGL, EGL, Mesa, GLVND, DRM/GBM, and shader tooling.
+        "^.*vulkan.*$";
+        "^.*opengl.*$";
+        "^.*egl.*$";
+        "^mesa($|-).*";
+        "^libgl($|-|[0-9]).*";
+        "^libegl($|-|[0-9]).*";
+        "^libgles($|-|[0-9]).*";
+        "^libglx($|-|[0-9]).*";
+        "^libopengl($|-|[0-9]).*";
+        "^libglapi($|-|[0-9]).*";
+        "^libglvnd($|-|[0-9]).*";
+        "^libglu($|-|[0-9]).*";
+        "^libgbm($|-|[0-9]).*";
+        "^libdrm($|-|[0-9]).*";
+        "^glslang($|-).*";
+        "^spirv($|-).*";
+        "^libspirv($|-|[0-9]).*";
+
+        // PipeWire, WirePlumber, and their direct audio/hardware integrations.
+        "^pipewire($|-).*";
+        "^libpipewire($|-).*";
+        "^libspa($|-).*";
+        "^wireplumber($|-).*";
+        "^libwireplumber($|-).*";
+        "^gstreamer1[.]0-pipewire$";
+        "^rtkit$";
+        "^alsa($|-).*";
+        "^libasound[0-9].*";
+        "^pulseaudio($|-).*";
+        "^libpulse.*";
+        "^(libsndfile|libsndio|libspeex|libopus|libsoxr|libwebrtc-audio-processing)($|-|[0-9]).*";
+        "^libcamera($|-|[0-9]).*";
+        "^bluez($|-).*";
+        "^libbluetooth[0-9].*";
+        "^rfkill$";
+};
+
+// Automatic dpkg --configure -a runs before blacklist filtering and could
+// configure an interrupted boot/module/GPU package. Recovery remains manual.
+Unattended-Upgrade::AutoFixInterruptedDpkg "false";
+Unattended-Upgrade::MinimalSteps "true";
+Unattended-Upgrade::InstallOnShutdown "false";
+
+Unattended-Upgrade::Mail "";
+Unattended-Upgrade::MailReport "on-change";
+
+// Kernel removal also belongs to explicit maintenance of the boot/MOK chain.
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "false";
+Unattended-Upgrade::Remove-New-Unused-Dependencies "false";
+Unattended-Upgrade::Remove-Unused-Dependencies "false";
+
+# Automatic package maintenance must never reboot this computer. Reboot
+# decisions remain explicit administrative actions after the user has saved
+# their work.
+Unattended-Upgrade::Automatic-Reboot "false";
+Unattended-Upgrade::Automatic-Reboot-WithUsers "false";
+
+Unattended-Upgrade::OnlyOnACPower "false";
+Unattended-Upgrade::Skip-Updates-On-Metered-Connections "true";
+
+Unattended-Upgrade::Allow-downgrade "false";
+Unattended-Upgrade::Allow-APT-Mark-Fallback "true";
+
+Unattended-Upgrade::SyslogEnable "true";
+Unattended-Upgrade::SyslogFacility "daemon";
+Unattended-Upgrade::Verbose "false";
+Unattended-Upgrade::Debug "false";

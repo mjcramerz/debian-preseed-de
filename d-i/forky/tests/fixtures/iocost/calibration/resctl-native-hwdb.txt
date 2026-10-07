@@ -1,0 +1,13 @@
+# 22 points, MOF=[1.769,2.030], aMOF=[0.000,0.000]
+block:*:name:KXG6AZNV512G TOSHIBA:fwrev:*:
+  IOCOST_SOLUTIONS=naive
+  IOCOST_MODEL_NAIVE=rbps=2766969053 rseqiops=288832 rrandiops=226916 wbps=862334516 wseqiops=175319 wrandiops=151257
+  IOCOST_QOS_NAIVE=rpct=99.00 rlat=1077 wpct=99.00 wlat=730 min=75.00 max=100.00
+  IOCOST_MODEL_RLAT_99_Q1=rbps=2766969053 rseqiops=288832 rrandiops=226916 wbps=862334516 wseqiops=175319 wrandiops=151257
+  IOCOST_QOS_RLAT_99_Q1=rpct=99.00 rlat=1077 wpct=0.00 wlat=0 min=54.88 max=100.00
+  IOCOST_MODEL_RLAT_99_Q2=rbps=1518512616 rseqiops=158511 rrandiops=124532 wbps=473249182 wseqiops=96215 wrandiops=83010
+  IOCOST_QOS_RLAT_99_Q2=rpct=99.00 rlat=973 wpct=0.00 wlat=0 min=86.33 max=100.00
+  IOCOST_MODEL_RLAT_99_Q3=rbps=1310989937 rseqiops=136849 rrandiops=107513 wbps=408574094 wseqiops=83066 wrandiops=71666
+  IOCOST_QOS_RLAT_99_Q3=rpct=99.00 rlat=869 wpct=0.00 wlat=0 min=84.17 max=100.00
+  IOCOST_MODEL_RLAT_99_Q4=rbps=1103467258 rseqiops=115186 rrandiops=90494 wbps=343899005 wseqiops=69917 wrandiops=60321
+  IOCOST_QOS_RLAT_99_Q4=rpct=99.00 rlat=765 wpct=0.00 wlat=0 min=81.19 max=100.00

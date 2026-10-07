@@ -1,0 +1,13 @@
+test_absent_battery_is_stable (test_session_battery_audit_20260925.BatteryOutputTests.test_absent_battery_is_stable) ... ok
+test_multiple_batteries_use_total_energy_and_bound_invalid_input (test_session_battery_audit_20260925.BatteryOutputTests.test_multiple_batteries_use_total_energy_and_bound_invalid_input) ... ok
+test_plugged_and_low_capacity_preserve_style (test_session_battery_audit_20260925.BatteryOutputTests.test_plugged_and_low_capacity_preserve_style) ... ok
+test_audit_stream_stays_native_and_apparmor_has_file_input (test_session_battery_audit_20260925.IntegrationContracts.test_audit_stream_stays_native_and_apparmor_has_file_input) ... ok
+test_battery_probe_has_a_named_read_only_profile (test_session_battery_audit_20260925.IntegrationContracts.test_battery_probe_has_a_named_read_only_profile) ... ok
+test_firstboot_requires_sealing_provisioning (test_session_battery_audit_20260925.IntegrationContracts.test_firstboot_requires_sealing_provisioning) ... ok
+test_greeter_and_root_shell_are_light_without_desktop_bus (test_session_battery_audit_20260925.IntegrationContracts.test_greeter_and_root_shell_are_light_without_desktop_bus) ... ok
+test_secret_service_readiness_does_not_dump_bus_introspection (test_session_battery_audit_20260925.IntegrationContracts.test_secret_service_readiness_does_not_dump_bus_introspection) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.010s
+
+OK

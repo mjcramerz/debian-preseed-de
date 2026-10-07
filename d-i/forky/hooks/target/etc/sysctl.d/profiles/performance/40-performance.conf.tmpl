@@ -1,0 +1,100 @@
+# /etc/sysctl.d/profiles/performance/40-performance.conf
+# Performance profile: higher throughput without dropping the core security floor.
+
+# Kernel diagnostics, crash surfaces, and information exposure.
+kernel.printk = 4 4 1 4
+kernel.nmi_watchdog = 0
+kernel.randomize_va_space = 2
+kernel.kexec_load_disabled = 1
+kernel.kptr_restrict = 2
+kernel.dmesg_restrict = 1
+kernel.yama.ptrace_scope = 1
+kernel.perf_event_paranoid = 2
+kernel.unprivileged_bpf_disabled = 1
+net.core.bpf_jit_harden = 1
+
+# Filesystem and terminal hardening.
+fs.suid_dumpable = 0
+fs.protected_hardlinks = 1
+fs.protected_symlinks = 1
+fs.protected_fifos = 2
+fs.protected_regular = 2
+dev.tty.ldisc_autoload = 0
+dev.tty.legacy_tiocsti = 0
+
+# Keep namespaces available for container-heavy and build-heavy profiles.
+kernel.unprivileged_userns_clone = 1
+user.max_user_namespaces = 65535
+
+# IPv4 routing, spoofing, and redirect controls.
+net.ipv4.ip_forward = 0
+net.ipv4.conf.all.forwarding = 0
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.rp_filter = 1
+net.ipv4.conf.all.log_martians = 1
+net.ipv4.conf.default.log_martians = 1
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv4.conf.default.accept_redirects = 0
+net.ipv4.conf.all.secure_redirects = 0
+net.ipv4.conf.default.secure_redirects = 0
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.default.send_redirects = 0
+net.ipv4.conf.all.accept_source_route = 0
+net.ipv4.conf.default.accept_source_route = 0
+net.ipv4.conf.all.bootp_relay = 0
+net.ipv4.conf.default.bootp_relay = 0
+net.ipv4.conf.all.proxy_arp = 0
+net.ipv4.conf.default.proxy_arp = 0
+net.ipv4.conf.all.arp_ignore = 1
+net.ipv4.conf.default.arp_ignore = 1
+net.ipv4.conf.all.arp_announce = 2
+net.ipv4.conf.default.arp_announce = 2
+
+# IPv4 TCP safety defaults.
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+net.ipv4.icmp_ignore_bogus_error_responses = 1
+net.ipv4.tcp_syncookies = 1
+net.ipv4.tcp_syn_retries = 4
+net.ipv4.tcp_synack_retries = 4
+net.ipv4.tcp_rfc1337 = 1
+net.ipv4.ping_group_range = 0 2147483647
+net.ipv4.ip_unprivileged_port_start = 1025
+
+# IPv6 redirect/source-route controls; privacy addresses are disabled for stable flows.
+net.ipv6.conf.all.accept_redirects = 0
+net.ipv6.conf.default.accept_redirects = 0
+net.ipv6.conf.all.accept_source_route = 0
+net.ipv6.conf.default.accept_source_route = 0
+net.ipv6.conf.all.use_tempaddr = 0
+net.ipv6.conf.default.use_tempaddr = 0
+
+# Bridge traffic should stay visible to nftables/iptables policy.
+net.bridge.bridge-nf-call-iptables = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-arptables = 1
+
+# Profile-specific VM reclaim, writeback, file-watcher, and accept-queue tuning.
+vm.swappiness = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_SWAPPINESS__
+vm.page-cluster = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_PAGE_CLUSTER__
+vm.vfs_cache_pressure = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_VFS_CACHE_PRESSURE__
+vm.watermark_boost_factor = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_WATERMARK_BOOST_FACTOR__
+vm.watermark_scale_factor = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_WATERMARK_SCALE_FACTOR__
+vm.compaction_proactiveness = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_COMPACTION_PROACTIVENESS__
+vm.extfrag_threshold = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_EXTFRAG_THRESHOLD__
+vm.zone_reclaim_mode = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_ZONE_RECLAIM_MODE__
+vm.dirty_background_bytes = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_DIRTY_BACKGROUND_BYTES__
+vm.dirty_bytes = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_DIRTY_BYTES__
+vm.dirty_expire_centisecs = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_DIRTY_EXPIRE_CENTISECS__
+vm.dirty_writeback_centisecs = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_DIRTY_WRITEBACK_CENTISECS__
+vm.dirtytime_expire_seconds = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_DIRTYTIME_EXPIRE_SECONDS__
+vm.stat_interval = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_STAT_INTERVAL__
+fs.aio-max-nr = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_AIO_MAX_NR__
+fs.inotify.max_user_instances = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_INOTIFY_MAX_USER_INSTANCES__
+fs.inotify.max_user_watches = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_INOTIFY_MAX_USER_WATCHES__
+fs.inotify.max_queued_events = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_INOTIFY_MAX_QUEUED_EVENTS__
+net.core.somaxconn = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_SOMAXCONN__
+net.core.netdev_max_backlog = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_NETDEV_MAX_BACKLOG__
+net.ipv4.tcp_max_syn_backlog = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_TCP_MAX_SYN_BACKLOG__
+net.ipv4.tcp_fastopen = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_TCP_FASTOPEN__
+net.ipv4.tcp_keepalive_time = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_TCP_KEEPALIVE_TIME__
+net.ipv4.tcp_fin_timeout = __INSTALLER_SYSCTL_PROFILE_PERFORMANCE_TCP_FIN_TIMEOUT__

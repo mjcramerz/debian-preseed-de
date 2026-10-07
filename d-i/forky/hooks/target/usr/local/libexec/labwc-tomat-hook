@@ -1,0 +1,36 @@
+#!/usr/bin/python3 -I
+"""Pause all MPRIS players at break start; never resume unrelated user media."""
+import os
+import subprocess
+import sys
+
+
+def main(argv):
+    expected = {"break": "break_start", "long-break": "long_break_start"}
+    if len(argv) != 1 or argv[0] not in expected:
+        raise ValueError("expected break or long-break")
+    if os.geteuid() == 0 or os.geteuid() != os.getuid():
+        raise ValueError("hook requires the unprivileged desktop user")
+    if os.environ.get("TOMAT_EVENT") != expected[argv[0]]:
+        raise ValueError("hook event does not match its fixed action")
+    runtime = f"/run/user/{os.getuid()}"
+    if os.environ.get("XDG_RUNTIME_DIR") != runtime:
+        raise ValueError("invalid runtime directory")
+    env = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
+           "XDG_RUNTIME_DIR": runtime, "DBUS_SESSION_BUS_ADDRESS": f"unix:path={runtime}/bus"}
+    # playerctl does not daemonize; the timeout reaps the child and the enclosing
+    # systemd unit owns all descendants if the hook itself is interrupted.
+    result = subprocess.run(["/usr/bin/playerctl", "--all-players", "pause"], env=env,
+                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL, timeout=2.5, check=False)
+    if result.returncode not in (0, 1):  # No running player is a normal outcome.
+        raise RuntimeError(f"playerctl failed ({result.returncode})")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except (ValueError, RuntimeError, OSError, subprocess.SubprocessError) as exc:
+        print(f"labwc-tomat-hook: {exc}", file=sys.stderr)
+        raise SystemExit(1)

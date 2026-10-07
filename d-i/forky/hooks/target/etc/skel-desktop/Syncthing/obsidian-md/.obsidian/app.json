@@ -1,0 +1,40 @@
+{
+  "alwaysUpdateLinks": true,
+  "attachmentFolderPath": "attachments",
+  "defaultViewMode": "source",
+  "foldHeading": true,
+  "foldIndent": true,
+  "legacyEditor": false,
+  "livePreview": true,
+  "newFileFolderPath": "inbox",
+  "newFileLocation": "folder",
+  "newLinkFormat": "relative",
+  "pdfExportSettings": {
+    "includeName": true,
+    "pageSize": "A4",
+    "landscape": false,
+    "margin": "0",
+    "downscalePercent": 100
+  },
+  "promptDelete": true,
+  "propertiesInDocument": "visible",
+  "readableLineLength": true,
+  "showIndentGuide": true,
+  "showInlineTitle": true,
+  "showLineNumber": true,
+  "showUnsupportedFiles": true,
+  "spellcheck": true,
+  "spellcheckLanguages": [
+    "en-US",
+    "sv-SE"
+  ],
+  "strictLineBreaks": false,
+  "tabSize": 2,
+  "trashOption": "local",
+  "useMarkdownLinks": false,
+  "useTab": false,
+  "userIgnoreFilters": [
+    ".git/"
+  ],
+  "vimMode": false
+}

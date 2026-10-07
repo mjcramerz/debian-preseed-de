@@ -1,0 +1,21 @@
+#!/bin/sh
+# Runs before 07preseed. Guard every executable, including stock d-i hooks
+# installed by udebs since early_command. Their nonzero errors must not be
+# swallowed by finish-install's continue-on-error loop.
+set -eu
+LC_ALL=C
+export LC_ALL
+runtime=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}
+. "$runtime/bootstrap/source.sh"
+installer_lifecycle_paths
+[ -x /usr/lib/finish-install.d/95umount ]
+[ -x /usr/lib/finish-install.d/99reboot ]
+tmp=$(mktemp "$LC_STATE/.finish-hooks.XXXXXX")
+trap 'rm -f "$tmp"' 0
+for hook in /usr/lib/finish-install.d/*; do
+  [ -x "$hook" ] || continue
+  installer_guard_hook "$hook" finish
+  printf '%s\n' "${hook##*/}" >>"$tmp"
+done
+chmod 0600 "$tmp"
+mv "$tmp" "$LC_STATE/finish-hooks.list"

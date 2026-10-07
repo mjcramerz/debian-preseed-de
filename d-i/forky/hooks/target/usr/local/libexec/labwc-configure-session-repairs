@@ -1,0 +1,258 @@
+#!/usr/bin/python3 -I
+"""Installer-only reconciliation of small, root-owned system policies."""
+import os
+from pathlib import Path
+import pwd
+import re
+import stat
+import sys
+import tempfile
+
+
+def replace(path, data, metadata):
+    if path.is_symlink():
+        raise RuntimeError(f'refusing symlink: {path}')
+    fd, name = tempfile.mkstemp(prefix='.' + path.name + '.', dir=path.parent)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+            stream.write(data)
+            stream.flush()
+            os.fchown(stream.fileno(), metadata.st_uid, metadata.st_gid)
+            os.fchmod(stream.fileno(), stat.S_IMODE(metadata.st_mode))
+            os.fsync(stream.fileno())
+        current = path.stat(follow_symlinks=False)
+        if (current.st_dev, current.st_ino, current.st_mtime_ns, current.st_ctime_ns) != (
+                metadata.st_dev, metadata.st_ino, metadata.st_mtime_ns, metadata.st_ctime_ns):
+            raise RuntimeError(f'PAM configuration changed before replacement: {path}')
+        os.replace(name, path)
+        dfd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        try:
+            os.fsync(dfd)
+        finally:
+            os.close(dfd)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+def retire_colour_assets(account):
+    """Remove only the superseded managed colour implementation, never recurse.
+
+    Called by the offline installer inside /target, not by a desktop process.
+    Directory descriptors prevent a redirected user configuration tree from
+    turning this cleanup into a privileged deletion outside the named paths.
+    Package-owned /usr files and unrelated GeoClue policy are not touched.
+    """
+    def remove(path):
+        fd = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        try:
+            for part in path.parts[1:-1]:
+                try:
+                    child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                                    dir_fd=fd)
+                except FileNotFoundError:
+                    return
+                os.close(fd)
+                fd = child
+                meta = os.fstat(fd)
+                if meta.st_uid not in (0, account.pw_uid) or meta.st_mode & 0o022:
+                    raise RuntimeError('unsafe obsolete colour asset parent: ' + str(path))
+            try:
+                meta = os.stat(path.name, dir_fd=fd, follow_symlinks=False)
+            except FileNotFoundError:
+                return
+            if (not (stat.S_ISREG(meta.st_mode) or stat.S_ISLNK(meta.st_mode))
+                    or meta.st_uid not in (0, account.pw_uid)):
+                raise RuntimeError('unsafe obsolete colour asset: ' + str(path))
+            os.unlink(path.name, dir_fd=fd)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+    for name in (
+        '/usr/local/bin/labwc-gammastep-indicator',
+        '/usr/local/share/applications/gammastep-indicator.desktop',
+        '/usr/local/share/applications/gammastep.desktop',
+        '/etc/gammastep/config.ini',
+        '/etc/geoclue/conf.d/90-gammastep.conf',
+    ):
+        remove(Path(name))
+    home = Path(account.pw_dir)
+    if not home.is_absolute() or '..' in home.parts or str(home) == '/':
+        raise RuntimeError('unsafe desktop home for obsolete colour cleanup')
+    for base in (Path('/etc/skel-desktop'), home):
+        remove(base / '.config/autostart/gammastep-indicator.desktop')
+        remove(base / '.config/systemd/user/labwc-gammastep-indicator.service')
+        remove(base / '.local/share/applications/gammastep-indicator.desktop')
+        remove(base / '.local/share/applications/gammastep.desktop')
+    for base in (Path('/etc/systemd/user'), Path('/etc/skel-desktop/.config/systemd/user'),
+                 home / '.config/systemd/user'):
+        for target in ('labwc-session.target.wants', 'graphical-session.target.wants', 'default.target.wants'):
+            for unit in ('labwc-gammastep-indicator.service', 'gammastep-indicator.service', 'gammastep.service'):
+                remove(base / target / unit)
+
+
+def reconcile_clamd_notification(directory=Path('/etc/clamav')):
+    """Disable only a stale default-path NotifyClamd on scanner-only installs.
+
+    Never change a custom daemon path or a present clamd configuration.
+    Debian owns freshclam.conf as clamav:adm (0444, or 0400 for proxy
+    credentials). Accept root or that named package account for this data file
+    only; do not infer trust from DatabaseOwner inside the file. The directory
+    and a present clamd.conf still require root ownership. Preserve bytes and
+    file permissions/ownership, including secret-bearing read-only files, and
+    replace atomically through a pinned no-follow directory descriptor.
+
+    This is an offline installer operation, not a live reconfiguration API.
+    Detect observed source changes rather than overwriting a concurrent edit.
+    """
+    try:
+        dfd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    except FileNotFoundError:
+        return False
+    try:
+        meta = os.fstat(dfd)
+        if meta.st_uid != 0 or meta.st_mode & 0o022:
+            raise RuntimeError('unsafe clamav configuration directory')
+        try:
+            daemon = os.stat('clamd.conf', dir_fd=dfd, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            if not stat.S_ISREG(daemon.st_mode) or daemon.st_uid != 0 or daemon.st_mode & 0o022:
+                raise RuntimeError('unsafe clamd configuration')
+            return False
+        try:
+            fd = os.open('freshclam.conf', os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=dfd)
+        except FileNotFoundError:
+            return False
+        def snapshot(info):
+            return (info.st_dev, info.st_ino, info.st_uid, info.st_gid,
+                    info.st_mode, info.st_nlink, info.st_size,
+                    info.st_mtime_ns, info.st_ctime_ns)
+
+        with os.fdopen(fd, 'rb') as stream:
+            meta = os.fstat(stream.fileno())
+            allowed_uid = 0
+            if meta.st_uid != 0:
+                try:
+                    allowed_uid = pwd.getpwnam('clamav').pw_uid
+                except KeyError:
+                    pass  # No package account: never trust an arbitrary UID.
+            if (not stat.S_ISREG(meta.st_mode) or meta.st_nlink != 1
+                    or meta.st_uid not in (0, allowed_uid)
+                    or meta.st_mode & (0o022 | 0o111 | 0o7000)):
+                raise RuntimeError(
+                    'unsafe freshclam configuration: '
+                    f'uid={meta.st_uid} gid={meta.st_gid} '
+                    f'mode={stat.S_IMODE(meta.st_mode):04o} links={meta.st_nlink}; '
+                    'expected a regular single-link file owned by root or clamav, '
+                    'without executable, special, or group/other-write bits')
+            data = stream.read(65537)
+            if snapshot(os.fstat(stream.fileno())) != snapshot(meta):
+                raise RuntimeError('freshclam configuration changed while reading; refusing replacement')
+        if len(data) > 65536:
+            raise RuntimeError('oversized freshclam configuration (limit: 65536 bytes)')
+        pattern = rb'(?m)^([ \t]*NotifyClamd[ \t]+/etc/clamav/clamd\.conf[ \t]*\r?)$'
+        updated, count = re.subn(pattern, rb'# Managed scanner-only install; clamd.conf absent: \1', data)
+        if not count:
+            return False
+        if len(updated) > 65536:
+            raise RuntimeError('oversized freshclam configuration after reconciliation (limit: 65536 bytes)')
+        # This is an offline installer operation in a root-owned directory.
+        # An unpredictable, exclusive filename prevents following old debris.
+        import secrets
+        name = '.freshclam.conf.' + secrets.token_hex(16)
+        newfd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                        0o600, dir_fd=dfd)
+        try:
+            with os.fdopen(newfd, 'wb') as stream:
+                stream.write(updated)
+                stream.flush()
+                os.fchown(stream.fileno(), meta.st_uid, meta.st_gid)
+                os.fchmod(stream.fileno(), stat.S_IMODE(meta.st_mode))
+                os.fsync(stream.fileno())
+            current = os.stat('freshclam.conf', dir_fd=dfd, follow_symlinks=False)
+            if snapshot(current) != snapshot(meta):
+                raise RuntimeError('freshclam configuration changed before replacement; refusing overwrite')
+            try:
+                os.stat('clamd.conf', dir_fd=dfd, follow_symlinks=False)
+            except FileNotFoundError:
+                pass
+            else:
+                raise RuntimeError('clamd configuration appeared; refusing to disable notification')
+            os.replace(name, 'freshclam.conf', src_dir_fd=dfd, dst_dir_fd=dfd)
+            os.fsync(dfd)
+        finally:
+            try:
+                os.unlink(name, dir_fd=dfd)
+            except FileNotFoundError:
+                pass
+        return True
+    finally:
+        os.close(dfd)
+
+
+def main():
+    if os.getuid() != 0 or len(sys.argv) != 2:
+        raise RuntimeError('expected root: helper ACCOUNT')
+    account = pwd.getpwnam(sys.argv[1])
+    if account.pw_uid == 0:
+        raise RuntimeError('the desktop account cannot be root')
+    retire_colour_assets(account)
+    if reconcile_clamd_notification():
+        print('session-repairs: disabled stale default NotifyClamd; '
+              'FreshClam ownership and permissions preserved', file=sys.stderr)
+    path = Path('/etc/pam.d/sudo-i')
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    with os.fdopen(fd, 'r', encoding='utf-8') as stream:
+        meta = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0 or meta.st_nlink != 1
+                or meta.st_mode & 0o022):
+            raise RuntimeError('unsafe sudo-i PAM configuration')
+        text = stream.read(65537)
+    if len(text) > 65536:
+        raise RuntimeError('oversized sudo-i PAM configuration')
+    line = 'session optional pam_env.so conffile=/etc/security/sudo-i.conf readenv=0 user_readenv=0'
+    old_text = text
+    text = text.replace('# Managed: root shell uses user-early-light (systemd >=258).',
+                        '# Managed: sudo-i stays in the invoking session (systemd >=258).')
+    pattern = r'(?m)^(@include[ \t]+common-session[ \t]*)$'
+    matches = list(re.finditer(pattern, text))
+    active_lines = [item for item in text.splitlines() if not item.lstrip().startswith('#')]
+    managed_lines = [item for item in active_lines if '/etc/security/sudo-i.conf' in item]
+    managed_match = re.search(r'(?m)^' + re.escape(line) + r'$', text)
+    if (len(matches) != 1 or managed_lines not in ([], [line])
+            or (managed_lines and (managed_match is None
+                                   or managed_match.start() >= matches[0].start()))):
+        raise RuntimeError('unexpected sudo-i session stack; refusing to change PAM')
+    if not managed_lines:
+        text = re.sub(pattern, '# Managed: sudo-i stays in the invoking session (systemd >=258).\n' + line + '\n' + r'\1', text)
+    if text != old_text:
+        replace(path, text, meta)
+    cron = Path('/etc/pam.d/cron')
+    if cron.exists() or cron.is_symlink():
+        fd = os.open(cron, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        with os.fdopen(fd, 'r', encoding='utf-8') as stream:
+            meta = os.fstat(stream.fileno())
+            if (not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0 or meta.st_nlink != 1
+                    or meta.st_mode & 0o022):
+                raise RuntimeError('unsafe cron PAM configuration')
+            cron_text = stream.read(65537)
+        if len(cron_text) > 65536:
+            raise RuntimeError('oversized cron PAM configuration')
+        cron_line = 'session optional pam_env.so conffile=/etc/security/cron-session.conf readenv=0 user_readenv=0'
+        if cron_line not in cron_text.splitlines():
+            pattern = r'(?m)^(@include[ \t]+common-session-noninteractive[ \t]*)$'
+            if len(re.findall(pattern, cron_text)) != 1:
+                raise RuntimeError('unexpected cron session stack; refusing to change PAM')
+            cron_text = re.sub(pattern, cron_line + '\n' + r'\1', cron_text)
+            replace(cron, cron_text, meta)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, ValueError, KeyError, RuntimeError) as error:
+        print(f'session-repairs: {error}', file=sys.stderr)
+        sys.exit(1)

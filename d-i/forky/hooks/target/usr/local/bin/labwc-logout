@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+[ "${LABWC_SESSION_OWNER:-}" = desktop ] || {
+  printf 'fatal: labwc-logout must run in the managed desktop session\n' >&2
+  exit 1
+}
+[ "$#" -eq 0 ] || exit 64
+# The fixed self-logout helper needs no administrator password, but validates
+# PKEXEC_UID and uses the same save/clipboard/teardown worker as power actions.
+exec /usr/local/bin/labwc-admin-action logout

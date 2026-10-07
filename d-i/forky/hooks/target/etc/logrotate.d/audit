@@ -1,0 +1,1 @@
+# auditd owns its native rotation through max_log_file / num_logs.

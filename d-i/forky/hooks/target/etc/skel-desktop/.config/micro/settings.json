@@ -1,0 +1,12 @@
+{
+  "autosave": 120,
+  "clipboard": "external",
+  "diffgutter": true,
+  "mkparents": true,
+  "rmtrailingws": true,
+  "savecursor": true,
+  "savehistory": true,
+  "softwrap": true,
+  "tabmovement": true,
+  "tabsize": 4
+}

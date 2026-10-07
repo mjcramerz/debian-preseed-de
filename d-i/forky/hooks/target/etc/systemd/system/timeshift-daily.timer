@@ -1,0 +1,11 @@
+[Unit]
+Description=Schedule the managed eight-times-daily Timeshift snapshot
+
+[Timer]
+OnCalendar=*-*-* 00,03,06,09,12,15,18,21:00:00
+Persistent=true
+RandomizedDelaySec=10m
+Unit=timeshift-daily.service
+
+[Install]
+WantedBy=timers.target

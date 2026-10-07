@@ -1,0 +1,6 @@
+// Managed by unattended-installer.
+//
+// Keep target-side APT candidate selection anchored to Debian Trixie when a
+// target policy needs an explicit trixie fallback release.
+
+APT::Default-Release "trixie";

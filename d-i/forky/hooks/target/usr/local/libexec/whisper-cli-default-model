@@ -1,0 +1,29 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+use lib '/usr/local/lib/perl5/site_perl/whisper';
+
+use WhisperMode::Config;
+
+my $config = WhisperMode::Config->new();
+my $binary = $config->value('WHISPER_CLI');
+my $model  = $config->value('WHISPER_MODEL');
+
+$binary ne '/usr/local/bin/whisper-cli'
+    && $binary ne '/usr/local/libexec/whisper-cli-default-model'
+    or die "whisper-cli: configured binary resolves to the default-model wrapper\n";
+
+my $model_is_explicit = scalar grep {
+    $_ eq '-m'
+        || $_ eq '--model'
+        || /\A--model=/
+        || /\A-m=/
+} @ARGV;
+
+my @command = ($binary);
+push @command, '--model', $model if !$model_is_explicit;
+push @command, @ARGV;
+
+exec { $binary } @command
+    or die "whisper-cli: cannot execute configured Whisper binary: $!\n";

@@ -1,0 +1,39 @@
+[Unit]
+Description=Validate and activate the locked devops rootless container engine
+Documentation=file:/data/docs/podman-devops.md
+RequiresMountsFor=/pool/podman /run/podman-devops
+Wants=podman-devops.socket
+After=systemd-tmpfiles-setup.service podman-devops.socket
+ConditionPathExists=/etc/podman-devops/layout.json
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/libexec/podman-devops-host start
+Restart=on-failure
+RestartSec=30
+TimeoutStartSec=180
+TimeoutStopSec=15
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+# The locked service account has no home, login session, or user bus.
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictRealtime=yes
+LockPersonality=yes
+ReadWritePaths=/run/lock /run/podman-devops
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=podman-devops-bootstrap
+
+[Install]
+WantedBy=multi-user.target

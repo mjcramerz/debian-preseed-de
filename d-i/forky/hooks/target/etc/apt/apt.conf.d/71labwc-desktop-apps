@@ -1,0 +1,4 @@
+DPkg::Pre-Install-Pkgs { "/usr/local/libexec/labwc-wrap-desktop-files --apt-pre"; };
+DPkg::Tools::Options::/usr/local/libexec/labwc-wrap-desktop-files::Version "2";
+DPkg::Tools::Options::/usr/local/libexec/labwc-wrap-desktop-files::InfoFD "3";
+DPkg::Post-Invoke { "/usr/local/libexec/labwc-wrap-desktop-files --apt-post"; };

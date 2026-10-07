@@ -1,0 +1,74 @@
+# Managed by unattended-installer.
+# Taskwarrior and taskwarrior-tui share this XDG configuration.
+
+data.location=~/.local/share/task
+hooks.location=~/.local/share/task/hooks
+
+confirmation=yes
+bulk=3
+weekstart=Monday
+dateformat=Y-M-D
+dateformat.report=Y-M-D
+default.command=pending
+
+# Workflow reports
+report.pending.description=Pending
+report.pending.columns=id,priority,project,tags,due,description.count,urgency
+report.pending.labels=ID,P,Project,Tags,Due,Description,Urg
+report.pending.sort=urgency-,due+,project+/,entry+
+report.pending.filter=status:pending -ACTIVE
+
+report.inprogress.description=In Progress
+report.inprogress.columns=id,start.age,priority,project,tags,due,description.count,urgency
+report.inprogress.labels=ID,Active,P,Project,Tags,Due,Description,Urg
+report.inprogress.sort=start-,urgency-,due+,project+/
+report.inprogress.filter=status:pending +ACTIVE
+
+report.completed.description=Completed
+report.completed.columns=id,end,project,tags,description.count
+report.completed.labels=ID,Completed,Project,Tags,Description
+report.completed.sort=end-
+report.completed.filter=status:completed
+
+# Desktop-aligned Taskwarrior colors
+color.alternate=__THEME_TASKWARRIOR_ALTERNATE_STYLE__
+color.active=__THEME_TASKWARRIOR_ACTIVE_STYLE__
+color.completed=__THEME_TASKWARRIOR_COMPLETED_STYLE__
+color.deleted=__THEME_TASKWARRIOR_DELETED_STYLE__
+color.overdue=__THEME_TASKWARRIOR_OVERDUE_STYLE__
+color.due.today=__THEME_TASKWARRIOR_DUE_TODAY_STYLE__
+color.due=__THEME_TASKWARRIOR_DUE_STYLE__
+color.scheduled=__THEME_TASKWARRIOR_SCHEDULED_STYLE__
+color.blocked=__THEME_TASKWARRIOR_BLOCKED_STYLE__
+color.blocking=__THEME_TASKWARRIOR_BLOCKING_STYLE__
+color.recurring=__THEME_TASKWARRIOR_RECURRING_STYLE__
+color.tagged=__THEME_TASKWARRIOR_TAGGED_STYLE__
+color.label=__THEME_TASKWARRIOR_LABEL_STYLE__
+color.label.sort=__THEME_TASKWARRIOR_LABEL_SORT_STYLE__
+color.footnote=__THEME_TASKWARRIOR_FOOTNOTE_STYLE__
+
+# taskwarrior-tui workflow and chrome
+uda.taskwarrior-tui.task-report.next.filter=pending
+uda.taskwarrior-tui.task-report.info-show=true
+uda.taskwarrior-tui.task-report.info-location=auto
+uda.taskwarrior-tui.task-report.looping=true
+uda.taskwarrior-tui.task-report.use-alternate-style=true
+uda.taskwarrior-tui.task-report.prompt-on-delete=true
+uda.taskwarrior-tui.task-report.prompt-on-done=false
+uda.taskwarrior-tui.task-report.reset-filter-on-esc=true
+uda.taskwarrior-tui.quick-tag.name=next
+uda.taskwarrior-tui.selection.indicator=__THEME_TASKWARRIOR_TUI_SELECTION_INDICATOR_ICON_GLYPH__
+uda.taskwarrior-tui.selection.bold=yes
+uda.taskwarrior-tui.mark.indicator=__THEME_TASKWARRIOR_TUI_MARK_INDICATOR_ICON_GLYPH__
+uda.taskwarrior-tui.style.title=__THEME_TASKWARRIOR_TUI_TITLE_STYLE__
+uda.taskwarrior-tui.style.title.border=__THEME_TASKWARRIOR_TUI_TITLE_BORDER_STYLE__
+uda.taskwarrior-tui.style.navbar=__THEME_TASKWARRIOR_TUI_NAVBAR_STYLE__
+uda.taskwarrior-tui.style.command=__THEME_TASKWARRIOR_TUI_COMMAND_STYLE__
+uda.taskwarrior-tui.style.command.error=__THEME_TASKWARRIOR_TUI_COMMAND_ERROR_STYLE__
+uda.taskwarrior-tui.style.context.active=__THEME_TASKWARRIOR_TUI_CONTEXT_ACTIVE_STYLE__
+uda.taskwarrior-tui.style.report-menu.active=__THEME_TASKWARRIOR_TUI_REPORT_MENU_ACTIVE_STYLE__
+uda.taskwarrior-tui.style.report.selection=__THEME_TASKWARRIOR_TUI_REPORT_SELECTION_STYLE__
+uda.taskwarrior-tui.style.report.scrollbar=__THEME_TASKWARRIOR_TUI_REPORT_SCROLLBAR_STYLE__
+uda.taskwarrior-tui.style.report.scrollbar.area=__THEME_TASKWARRIOR_TUI_REPORT_SCROLLBAR_AREA_STYLE__
+uda.taskwarrior-tui.style.calendar.title=__THEME_TASKWARRIOR_TUI_CALENDAR_TITLE_STYLE__
+uda.taskwarrior-tui.style.calendar.today=__THEME_TASKWARRIOR_TUI_CALENDAR_TODAY_STYLE__

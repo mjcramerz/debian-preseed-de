@@ -1,0 +1,32 @@
+{
+  "rsyslog_package": "8.2608.0-4 amd64",
+  "fixture": "isolated audit file input; numeric fixture owner/group 0; no system sockets, services or policy load",
+  "results": [
+    {
+      "configuration": "original",
+      "seconds": 22.047,
+      "native_records": 3262,
+      "expected_apparmor_records": 430,
+      "observed_apparmor_records": 0,
+      "exact_bytes_match": false,
+      "denial_signals": 0,
+      "source_sha256": "577d01cc089426de9a9506d669a4b71ee55486444aadf0a12a9b3747f501ffbd",
+      "audit_sha256": "a26a0ffd73e299f182e626d597bc323de265f0a7052becc4498562f2f1e721a4",
+      "read_offset_before_shutdown": 253679,
+      "stderr": ""
+    },
+    {
+      "configuration": "repaired",
+      "seconds": 0.252,
+      "native_records": 3262,
+      "expected_apparmor_records": 430,
+      "observed_apparmor_records": 430,
+      "exact_bytes_match": true,
+      "denial_signals": 30,
+      "source_sha256": "671579be93fcfb3ffd141d7a1aba163d8f09b5eaa2f7dd404f47c8df070eb406",
+      "audit_sha256": "a26a0ffd73e299f182e626d597bc323de265f0a7052becc4498562f2f1e721a4",
+      "read_offset_before_shutdown": 771983,
+      "stderr": ""
+    }
+  ]
+}

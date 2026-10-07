@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+# sudo's login mode, not an inherited developer/root shell environment.
+if [ "$(/usr/bin/id -u)" -ne 0 ]; then
+  exec /usr/bin/sudo -i -- /usr/local/bin/debugsys "$@"
+fi
+exec /usr/bin/python3 -I -B /usr/local/libexec/debugsys.py "$@"

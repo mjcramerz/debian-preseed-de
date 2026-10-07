@@ -1,0 +1,14 @@
+## Managed by unattended-installer for CrowdSec post-exploitation visibility.
+## Desktop role keeps a smaller suspicious-command set to stay quieter.
+-a always,exit -F arch=b64 -S execve -S execveat -F path=/usr/bin/curl -F perm=x -F key=crowdsec-download
+-a always,exit -F arch=b64 -S execve -S execveat -F path=/usr/bin/wget -F perm=x -F key=crowdsec-download
+-a always,exit -F arch=b64 -S execve -S execveat -F path=/usr/bin/base64 -F perm=x -F key=crowdsec-encoding
+-a always,exit -F arch=b64 -S execve -S execveat -F path=/usr/bin/python3 -F perm=x -F key=crowdsec-interpreter
+-a always,exit -F arch=b64 -S execve -S execveat -F path=/usr/bin/perl -F perm=x -F key=crowdsec-interpreter
+-a always,exit -F arch=b64 -S execve -S execveat -F path=/bin/sh -F perm=x -F key=crowdsec-shell
+-a always,exit -F arch=b64 -S execve -S execveat -F path=/usr/bin/bash -F perm=x -F key=crowdsec-shell
+-a always,exit -F arch=b64 -S execve -S execveat -F path=/usr/bin/nc -F perm=x -F key=crowdsec-network-tool
+-a always,exit -F arch=b64 -S execve -S execveat -F path=/usr/bin/ncat -F perm=x -F key=crowdsec-network-tool
+-a always,exit -F arch=b64 -S execve -S execveat -F path=/usr/bin/socat -F perm=x -F key=crowdsec-network-tool
+-a always,exit -F arch=b64 -S execve -S execveat -F path=/usr/bin/pkill -F perm=x -F key=crowdsec-process-control
+-a always,exit -F arch=b64 -S execve -S execveat -F path=/usr/bin/kill -F perm=x -F key=crowdsec-process-control

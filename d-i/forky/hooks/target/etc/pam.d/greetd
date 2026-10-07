@@ -1,0 +1,24 @@
+#%PAM-1.0
+#
+# Managed by unattended-installer. Keep the real desktop login as a normal
+# interactive Wayland user session without pulling in GNOME-specific helpers.
+
+auth       optional   pam_faildelay.so delay=3000000
+auth       requisite  pam_nologin.so
+auth       optional   pam_group.so
+
+@include common-auth
+@include common-account
+
+session    required   pam_loginuid.so
+session    required   pam_env.so readenv=1
+session    required   pam_env.so readenv=1 envfile=/etc/default/locale
+session    required   pam_limits.so
+session    optional   pam_keyinit.so force revoke
+@include common-session-noninteractive
+session    optional   pam_wtmpdb.so skip_if=sshd
+# The managed Labwc session requires pam_systemd to create /run/user/$UID,
+# start the per-user manager, and provide the canonical user D-Bus socket.
+# Do not continue into a partially initialized desktop when that fails.
+session    required   pam_systemd.so class=user type=wayland desktop=labwc
+@include common-password

@@ -1,0 +1,8 @@
+{
+  "CloudReportingEnabled": false,
+  "MetricsReportingEnabled": false,
+  "SafeBrowsingExtendedReportingEnabled": false,
+  "SafeBrowsingProtectionLevel": 1,
+  "SpellCheckServiceEnabled": false,
+  "UrlKeyedAnonymizedDataCollectionEnabled": false
+}

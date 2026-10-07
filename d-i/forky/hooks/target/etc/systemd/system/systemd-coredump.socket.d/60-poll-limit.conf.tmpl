@@ -1,0 +1,7 @@
+# Managed by unattended-installer.
+# Local, self-recovering polling policy only. Preserve vendor concurrency,
+# per-source limits and the coordinated kernel.core_pipe_limit setting.
+# This is an administrator policy, not a measured optimum or a storage limit.
+[Socket]
+PollLimitIntervalSec=__SYSTEMD_COREDUMP_POLL_LIMIT_INTERVAL_SEC__s
+PollLimitBurst=__SYSTEMD_COREDUMP_POLL_LIMIT_BURST__

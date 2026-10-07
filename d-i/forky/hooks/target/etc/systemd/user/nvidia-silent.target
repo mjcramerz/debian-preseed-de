@@ -1,0 +1,7 @@
+[Unit]
+After=labwc-session.target
+Requisite=labwc-session.target
+Description=Lifetime leases for nvidia silent tuning
+PartOf=labwc-session.target
+StopWhenUnneeded=yes
+Requires=hardware-tuning-nvidia-silent.service

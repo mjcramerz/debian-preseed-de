@@ -1,0 +1,19 @@
+apiVersion: cybops.nftables/v1
+kind: NftablesServiceOverlay
+metadata:
+  name: nfs-client
+  description: Managed NFSv4 client; exact trusted IPv4 peers only.
+  merge_priority: 50
+services:
+  nfs_client:
+    enabled: __INSTALLER_NFS_CLIENT_ENABLE__
+    direction: outbound
+    enforce_allowlist: true
+    protocols: [tcp]
+    ports: [__INSTALLER_NFS_SERVER_PORT__]
+    allow_to:
+      ipv4: __INSTALLER_NFS_CLIENT_ALLOW_IPV4__
+      ipv6: []
+      interfaces: __INSTALLER_NFS_ALLOW_INTERFACES__
+    sensitive: true
+    log: false

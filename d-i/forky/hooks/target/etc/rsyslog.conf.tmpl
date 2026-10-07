@@ -1,0 +1,35 @@
+# Local socket transport; no journal database reader, cursor, network input,
+# or output feedback loop. journald forwards original SCM_CREDENTIALS. Only
+# kernel-attested uid/pid and live /proc executable identity are used as trust
+# evidence; application tags are routing hints, never authorization.
+# Socket forwarding has no replay after collector downtime. The host-selected
+# journal storage policy remains independent and retains structured records.
+
+global(maxMessageSize="__INSTALLER_LOG_RSYSLOG_MESSAGE_KIB__k"
+       compatibility.defaults.secure="strict")
+$WorkDirectory __INSTALLER_LOG_RSYSLOG_SPOOL_DIR__
+module(load="imuxsock" SysSock.Use="on"
+       SysSock.Annotate="on" SysSock.ParseTrusted="on"
+       SysSock.UsePIDFromSystem="on" SysSock.FlowControl="off"
+       SysSock.RateLimit.Interval="__INSTALLER_LOG_SYSLOG_RATE_INTERVAL__"
+       SysSock.RateLimit.Burst="__INSTALLER_LOG_SYSLOG_RATE_BURST__"
+       SysSock.RateLimit.Severity="5")
+# journald ReadKMsg=no: imklog remains the single managed kernel-log input.
+module(load="imklog")
+
+$FileOwner __INSTALLER_LOG_OWNER__
+$FileGroup __INSTALLER_LOG_GROUP__
+$FileCreateMode __INSTALLER_LOG_FILE_MODE__
+$DirOwner __INSTALLER_LOG_OWNER__
+$DirGroup __INSTALLER_LOG_GROUP__
+$DirCreateMode __INSTALLER_LOG_DIRECTORY_MODE__
+$Umask 0027
+$ActionFileDefaultTemplate RSYSLOG_TraditionalFileFormat
+$RepeatedMsgReduction off
+# Bound in-memory dispatch independently of the disk-assisted output queues.
+main_queue(queue.size="__INSTALLER_LOG_RSYSLOG_MAIN_QUEUE_MESSAGES__" queue.workerThreads="1")
+
+# Private socket rulesets stay separate. Dedicated security routes run
+# before constant-path fallbacks; normal user applications stop in 21-apps.
+# 99-discard stops the remaining classified records. Do not restore parallel /var/log/syslog/facility copies here.
+include(file="/etc/rsyslog.d/*.conf" mode="abort-if-missing")

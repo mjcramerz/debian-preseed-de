@@ -1,0 +1,24 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+# Catch cancellation when the service runs as namespace PID 1. run_daemon()
+# temporarily replaces TERM/INT with its existing graceful stop handlers.
+$SIG{TERM} = sub { exit 143; };
+$SIG{INT}  = sub { exit 130; };
+$SIG{HUP}  = sub { exit 129; };
+
+use FindBin qw($RealBin);
+use File::Spec ();
+
+use lib
+    File::Spec->catdir(
+        $RealBin, '..', 'lib', 'perl5', 'site_perl', 'zram-writeback'
+    ),
+    '/usr/local/lib/perl5/site_perl/zram-writeback';
+
+$ENV{PATH} = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
+
+use Zram::CLI;
+
+exit Zram::CLI::run(@ARGV);

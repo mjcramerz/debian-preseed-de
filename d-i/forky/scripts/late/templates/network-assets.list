@@ -1,0 +1,14 @@
+target etc/network/interfaces
+target etc/network/interfaces.d/50-network.tmpl
+target etc/network/host.conf.tmpl
+target etc/systemd/network/10-ethernet.link.tmpl
+target etc/systemd/network/11-wifi.link.tmpl
+target etc/NetworkManager/conf.d/90-network-unmanaged.conf.tmpl
+fragments dns-search.tmpl
+fragments inet4.tmpl
+fragments inet6.tmpl
+fragments performance.tmpl
+fragments wifi-open.tmpl
+fragments wifi-sae.tmpl
+fragments wifi-wep.tmpl
+fragments wifi-wpa.tmpl

@@ -1,0 +1,35 @@
+#!/bin/sh
+# DevOps installation entrypoint; implementation is in late/devops/.
+set -eu
+
+target_root=${1:-/target}
+[ -d "$target_root" ] || exit 0
+devops_codex_host_log_dir=__INSTALLER_LOG_CODEX_RUNTIME_DIR__
+
+runtime_dir=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}
+bootstrap_lib=${INSTALLER_BOOTSTRAP_LIB:-${runtime_dir}/bootstrap/bootstrap.sh}
+[ -s "$bootstrap_lib" ] || {
+  printf '%s\n' 'fatal: installer bootstrap is unavailable; start with preseed.cfg' >&2
+  exit 1
+}
+# shellcheck disable=SC1090
+. "$bootstrap_lib"
+bootstrap_source_common_lib ""
+
+bootstrap_source_module 'scripts/late/devops/validation-base.sh' || exit "$?"
+bootstrap_source_module 'scripts/late/devops/upstream-policy.sh' || exit "$?"
+bootstrap_source_module 'scripts/late/devops/policy-resolution.sh' || exit "$?"
+bootstrap_source_module 'scripts/late/devops/publication-layout.sh' || exit "$?"
+bootstrap_source_module 'scripts/late/devops/signing-key.sh' || exit "$?"
+bootstrap_source_module 'scripts/late/devops/publication-services.sh' || exit "$?"
+bootstrap_source_module 'scripts/late/devops/tool-configs.sh' || exit "$?"
+bootstrap_source_module 'scripts/late/devops/bazelisk-node.sh' || exit "$?"
+bootstrap_source_module 'scripts/late/devops/upstream-rust.sh' || exit "$?"
+bootstrap_source_module 'scripts/late/devops/codex-layout.sh' || exit "$?"
+bootstrap_source_module 'scripts/late/devops/codex-appserver.sh' || exit "$?"
+bootstrap_source_module 'scripts/late/devops/codex-release.sh' || exit "$?"
+bootstrap_source_module 'scripts/late/devops/account-execution.sh' || exit "$?"
+bootstrap_source_module 'scripts/late/devops/gitbuild.sh' || exit "$?"
+bootstrap_source_module 'scripts/late/devops/main-orchestration.sh' || exit "$?"
+
+devops_main "$@"
