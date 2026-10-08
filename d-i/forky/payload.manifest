@@ -155,7 +155,7 @@ edbdf14c3009aa22e3c38d7502342bbaf1c560354cc0caba51f0b77f62276502  hooks/target/e
 a8e8fba190c12bd77dfaef16ea28dd52824bf899a7a695535b925e6ad9e51174  hooks/target/etc/apparmor.d/crun
 e431f5d17cfc99228c205f06f742cccaa346b390541691704248220d41482dc9  hooks/target/etc/apparmor.d/debugsys
 9c426bb2b42b4e22944e1f16588664536a7a8609ecef13c55f07c96f644cc630  hooks/target/etc/apparmor.d/desktop-utilities
-9f28a631001a45d223b985b110f334fc3bec2c8eb85d3f2f8252612e50efcb93  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
+dca166ec000c38ce8048db9ab5880496877a65ac8d658f70f5b490bf270c2c22  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
 e304c3e08d1cd5e3abc5922dc93f6ee7137b29a0171fcd6beac721d9a297080d  hooks/target/etc/apparmor.d/document-applications
 cdb9e039cbbbe809126673a7351807ed8db1c3b23618cb89d474c803a485da45  hooks/target/etc/apparmor.d/gitbuild
 f4ca1013031c0a890345a7f7c806604ba45bfd8f0ab1a2f3a65f4d0de1c5de0e  hooks/target/etc/apparmor.d/gitbuild-worker
@@ -205,7 +205,7 @@ ccdeb5330a5be0b4fbaf4666cfdddfdc92796c05bf049c7827229107ab5fd830  hooks/target/e
 97c8862dc42168d4cf288959e61d780c311b7d4b1e5bf0b6960043b3231f44f1  hooks/target/etc/apparmor.d/usr.sbin.aa-status
 6c31bfce85175a362e12986e01d9bf417e200ba06ef8164a97d66fbc19067f70  hooks/target/etc/apparmor.d/usr.sbin.apt-cacher-ng
 68b28cbc90cf4da6dad1bffb42ba353c9e2a744316ce2bc6e0515681abc84e97  hooks/target/etc/apparmor.d/usr.sbin.avahi-daemon
-322815bed20885f1808321eff1d02b2171de0461879a3bbfaaa72a888b4842a6  hooks/target/etc/apparmor.d/usr.sbin.tailscaled
+a0b143607f08e07955edd6851ee70892fd4966e4f88bb71c4de5b070906e91b9  hooks/target/etc/apparmor.d/usr.sbin.tailscaled
 6cda9d80bda900ecbf995263474bd45be88f4184ab12a71c2107c5ba66bcdb0e  hooks/target/etc/apparmor.d/vivaldi-bin
 2dc80e72d8319adbfa98f92a6beee85ccf5fef8a207c3884004df407c78ad812  hooks/target/etc/apparmor.d/vivaldi-stable
 4792262c938079db935d12695e47e41e56e33e8a7e0f4bdb54099fed749d778d  hooks/target/etc/apparmor.d/waybar-menus
@@ -1016,7 +1016,7 @@ dbcbfd4c4534a2eed2a6f082c5eb069d0ac601aabcead44154aaa25933ae8209  hooks/target/u
 5273da5ce40cce4966fc258b356a61ba8afaf1b36011fbeb23b5de1f310a359b  hooks/target/usr/local/bin/labwc-podman-menu
 4ad254036c3aa181a332368b04c5c336a26c707dade67dc15ed8d707398ed142  hooks/target/usr/local/bin/labwc-power-menu
 574f44bc11b7d48298ad957f87c0b6685f8278d20328fe820dff8350dcecf2bf  hooks/target/usr/local/bin/labwc-power-settings
-90402127a76be0164d6aa4aa1d535bea4ec9bb7c043db6e975030b49fdfc03c7  hooks/target/usr/local/bin/labwc-qbittorrent
+300b79e55eb13a808151a1592882a6d5d3c4b6e2fab3cdcacbad851629b786ee  hooks/target/usr/local/bin/labwc-qbittorrent
 ea26b2e95bfece1c73e5d24cefeff45fbc2bf7daa218cb91bdb43ec7bcb83b1b  hooks/target/usr/local/bin/labwc-recovery-action.tmpl
 10062595bcad1c681e330109b093cccd42260ce658205e85dc6305b5fb8a1ad1  hooks/target/usr/local/bin/labwc-remote-desktop.tmpl
 9d7044a3d503d51779abca420c770fdf5b190710c1e7eed4d33d3acabe59ba49  hooks/target/usr/local/bin/labwc-run

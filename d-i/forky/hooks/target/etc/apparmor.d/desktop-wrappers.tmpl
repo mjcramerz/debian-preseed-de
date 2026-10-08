@@ -2908,6 +2908,9 @@ profile qbittorrent-pasta flags=(attach_disconnected) {
   network netlink raw,
   network inet stream,
   network inet dgram,
+  # pasta probes IPv6 TCP support during initialization, including when its
+  # fixed launcher selects --ipv4-only. Forwarding remains IPv4-only.
+  network inet6 stream,
   ptrace (read) peer=labwc-qbittorrent//qbittorrent-bwrap,
   ptrace (readby) peer=desktop-launcher,
   ptrace (readby) peer=waypaper//waypaper-ps,

@@ -1171,7 +1171,10 @@ def run_pasta_sandbox(command: list[str], payload: list[str], temporary: str,
         try:
             helper = subprocess.Popen(argv, cwd="/", env=runtime.managed_subprocess_environment(),
                                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                      stderr=subprocess.DEVNULL)
+                                      # Early startup failures precede pasta's
+                                      # bounded log-file setup. Preserve those
+                                      # native errors in the user-unit journal.
+                                      stderr=None)
         finally:
             os.umask(old_umask)
         wait_for_pasta_ready(helper, sandbox, temporary)

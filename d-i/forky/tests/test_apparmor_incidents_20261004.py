@@ -75,6 +75,21 @@ class SuppliedDenialTests(unittest.TestCase):
             self.assertTrue(rule.all_targets)
             self.assertFalse(rule.deny)
 
+    @unittest.skipUnless(importlib.util.find_spec('apparmor'), 'native AppArmor rule reader unavailable')
+    def test_tailscale_desktop_probe_enters_its_confined_loginctl_child(self):
+        from apparmor.rule.file import FileRule
+        parent = body('usr.sbin.tailscaled', 'usr.sbin.tailscaled')
+        lines = [line.strip() for line in parent.splitlines()
+                 if line.strip().startswith('/usr/bin/loginctl ') and '->' in line]
+        self.assertEqual(len(lines), 1)
+        rule = FileRule.create_instance(lines[0])
+        self.assertEqual(rule.exec_perms, 'Cx')
+        self.assertEqual(rule.target.regex, 'loginctl')
+        self.assertFalse(rule.deny)
+        self.assertIn('signal (send) set=(term kill) peer=usr.sbin.tailscaled//loginctl,', parent)
+        child = body('usr.sbin.tailscaled', 'loginctl')
+        self.assertIn('signal (receive) set=(term kill) peer=usr.sbin.tailscaled,', child)
+
     def test_compositor_env_helper_inherits_confinement_without_missing_transition(self):
         policy = body('labwc-session', 'labwc-compositor')
         self.assertIn('/usr/bin/env rix,', policy)
@@ -116,7 +131,8 @@ class SuppliedDenialTests(unittest.TestCase):
             converted_output = []
             # Each policy owns its ABI declaration. Parse the actual policy
             # files independently, then combine only the parser's output.
-            for name in ('desktop-wrappers', 'desktop-utilities', 'document-applications', 'usr.bin.qbittorrent', 'firstboot'):
+            for name in ('desktop-wrappers', 'desktop-utilities', 'document-applications',
+                         'usr.bin.qbittorrent', 'usr.sbin.tailscaled', 'firstboot'):
                 for option, output in (('-d', debug_output), ('--dump=rule-exprs', converted_output)):
                     result = subprocess.run([*argv, option, str(base / name)], capture_output=True,
                                             text=True, encoding='utf-8', timeout=30)
@@ -129,6 +145,7 @@ class SuppliedDenialTests(unittest.TestCase):
                            re.findall(r'^aare: (.*?)[ \t]+->\s+(.*)$', '\n'.join(converted_output), re.M)
                            if normalize(pattern) in file_patterns}
             rules = {}
+            native_rules = {}
             name = label = None
             for line in '\n'.join(debug_output).splitlines():
                 if line.startswith('Name:'):
@@ -137,11 +154,14 @@ class SuppliedDenialTests(unittest.TestCase):
                     parent = line.split(':', 1)[1].strip()
                     label = name if parent == '<NULL>' else parent + '//' + name
                     rules[label] = []
+                    native_rules[label] = []
                 elif line.startswith('Perms:'):
                     match = re.fullmatch(r'Perms:\s*([^:]*):([^ ]*)\s+priority=\d+\s+Name:\s*\((.*)\)', line)
                     self.assertIsNotNone(match, line)
                     owner, other, pattern = match.groups()
                     rules[label].append((expressions[normalize(pattern)], set(owner), set(other)))
+                elif label is not None:
+                    native_rules[label].append(line)
             def permissions(label, filename, owned=True):
                 result = set()
                 for expression, owner, other in rules[label]:
@@ -181,6 +201,28 @@ class SuppliedDenialTests(unittest.TestCase):
             self.assertIn('x', permissions('labwc-qbittorrent', '/usr/bin/pasta', owned=False))
             self.assertEqual(permissions('qbittorrent-pasta', '/dev/net/tun', owned=False), {'r', 'w', 'a'})
             self.assertTrue(set('rx') <= permissions('qbittorrent-pasta', '/usr/bin/pasta.avx2', owned=False))
+            # Replay the October 8 AF_INET6/SOCK_STREAM denial in the native
+            # policy, without granting IPv6 UDP or raw sockets to this helper.
+            helper_network = [line for line in native_rules['qbittorrent-pasta']
+                              if line.startswith('network inet6 ')]
+            self.assertEqual(helper_network, ['network inet6 { stream } ,'])
+            query = 'usr.sbin.tailscaled//loginctl'
+            self.assertTrue(set('rx') <= permissions('usr.sbin.tailscaled', '/usr/bin/loginctl', owned=False))
+            self.assertEqual(permissions(query, '/usr/bin/loginctl', owned=False), {'r', 'm'})
+            self.assertTrue(set('rw') <= permissions(query, '/run/dbus/system_bus_socket', owned=False))
+            for path in ('/usr/bin/bash', '/usr/bin/sudo', '/dev/net/tun',
+                         '/run/tailscale/tailscaled.sock', '/var/lib/tailscale/tailscaled.state'):
+                self.assertFalse(permissions(query, path, owned=False))
+            self.assertFalse(any(line.startswith(('network inet ', 'network inet6 ', 'Capability:'))
+                                 for line in native_rules[query]))
+            sends = [line for line in native_rules[query] if line.startswith('dbus ( send )')]
+            self.assertEqual(len(sends), 3)
+            logind = [line for line in sends if 'name="org.freedesktop.login1"' in line]
+            self.assertEqual(len(logind), 2)
+            self.assertTrue(any('member="{ListSessions,ListSessionsEx,GetSession}"' in line
+                                and 'path="/org/freedesktop/login1"' in line for line in logind))
+            self.assertTrue(any('member="{Get,GetAll}"' in line
+                                and 'path="/org/freedesktop/login1/session/*"' in line for line in logind))
             for name in ('pasta.pid', 'pasta.log'):
                 filename = '/run/user/1000/labwc-qbittorrent-sandbox-fixture/' + name
                 self.assertTrue(set('rw') <= permissions('labwc-qbittorrent', filename))

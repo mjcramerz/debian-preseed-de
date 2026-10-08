@@ -169,6 +169,42 @@ class TorrentIntegrationTests(unittest.TestCase):
         self.assertEqual(release.call_count, 2)
         stop.assert_called_once_with(sandbox)
 
+    def test_pasta_early_native_error_reaches_the_supervisors_stderr(self):
+        # Namespace setup is a stub here; the helper is a real subprocess.
+        # Capture the supervisor's stderr exactly as the user unit does and
+        # fail before any native log file exists, as in the supplied incident.
+        driver = '''import os,runpy,subprocess,sys,types
+from unittest import mock
+qbit = runpy.run_path(sys.argv[1], run_name="test")
+real_popen = subprocess.Popen
+sandbox = mock.Mock()
+sandbox.poll.return_value = None
+def launch(argv, **kwargs):
+    if argv[0] == "fixture-bwrap":
+        return sandbox
+    if argv[0] != "fixture-pasta":
+        raise AssertionError("unexpected helper")
+    return real_popen([sys.executable, "-I", "-B", "-c",
+        "import os,sys; os.write(2,b'IPv6 startup probe blocked'+bytes([10])); sys.exit(1)"], **kwargs)
+runtime = types.SimpleNamespace(
+    PEER_STARTUP_GATE="fixture-gate",
+    managed_subprocess_environment=lambda: {"PATH": "/usr/bin:/bin"},
+    close_file_descriptor=lambda fd: os.close(fd) if fd is not None else None,
+    _read_bwrap_sandbox_pid=lambda *args: 1234,
+    _stop_subprocess=lambda *args: None)
+with mock.patch.object(subprocess, "Popen", side_effect=launch), \\
+     mock.patch.object(os, "pidfd_open", return_value=None):
+    qbit["run_pasta_sandbox"](["fixture-bwrap"], ["fixture-payload"], sys.argv[2],
+        ("eth0", "192.168.50.88"), 50309, runtime, "fixture-pasta")
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run([sys.executable, '-I', '-B', '-c', driver,
+                                     str(TARGET / 'usr/local/bin/labwc-qbittorrent'), directory],
+                                    capture_output=True, text=True, encoding='utf-8', timeout=5)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('IPv6 startup probe blocked', result.stderr)
+        self.assertIn('no application was started', result.stderr)
+
     def test_failed_namespace_signal_still_reaps_children_without_releasing_payload(self):
         sandbox, helper = mock.Mock(), mock.Mock()
         sandbox.poll.return_value = helper.poll.return_value = None
