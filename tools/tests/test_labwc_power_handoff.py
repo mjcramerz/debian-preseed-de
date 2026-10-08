@@ -75,9 +75,14 @@ class PowerWorkerTests(unittest.TestCase):
                 return 'LoadState=loaded\nActiveState=active\n'
             return 'LoadState=not-found\nActiveState=inactive\n'
         if '--property=LoadState,ActiveState,SubState,Result' in argv:
+            if power.EXTERNAL_DRIVES_UNIT in argv:
+                return 'LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=success\n'
             if argv[2] in self.managed_stopped:
                 return 'LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=success\n'
             return 'LoadState=loaded\nActiveState=active\nSubState=running\nResult=success\n'
+        if '--property=LoadState,ActiveState,SubState,Result,ExecMainStatus' in argv:
+            self.assertEqual(argv[2], power.EXTERNAL_DRIVES_UNIT)
+            return 'LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=success\nExecMainStatus=0\n'
         if 'stop' in argv and '--no-block' not in argv:
             self.managed_stopped.update(argv[argv.index('stop') + 1:])
         if 'terminate-user' in argv:
@@ -119,12 +124,21 @@ class PowerWorkerTests(unittest.TestCase):
                 self.assertEqual(sum(is_handoff(c) for c in self.calls), 1)
                 self.assertEqual(sum(c.count('--force') for c in self.calls), 1)
                 teardown = next(i for i, c in enumerate(self.calls) if 'terminate-user' in c)
+                drives = self.calls.index(['/usr/bin/systemctl', '--no-ask-password',
+                                          'start', power.EXTERNAL_DRIVES_UNIT])
                 zram = next(i for i, c in enumerate(self.calls) if 'stop' in c and 'zram-setup.service' in c)
                 fallback = next(i for i, c in enumerate(self.calls) if 'stop' in c and 'swap-fallback.service' in c)
                 self.assertLess(guests, teardown)
+                self.assertLess(guests, drives)
+                self.assertLess(drives, teardown)
                 self.assertLess(teardown, zram)
                 self.assertLess(zram, fallback)
                 self.assertLess(fallback, final)
+                drive_calls = [i for i, c in enumerate(self.calls) if c[-2:] ==
+                               ['start', power.EXTERNAL_DRIVES_UNIT]]
+                self.assertEqual(len(drive_calls), 2)
+                self.assertLess(fallback, drive_calls[1])
+                self.assertLess(drive_calls[1], final)
                 self.assertFalse(any('kill' in c or 'seatd.service' in c
                                      or 'dbus-broker.service' in c for c in self.calls))
                 self.assertFalse(any('RebootWithFlags' in c or 'PowerOffWithFlags' in c
@@ -157,6 +171,30 @@ class PowerWorkerTests(unittest.TestCase):
         with self.assertRaises(power.Error):
             self.execute('reboot')
         self.assertFalse(any('--force' in c or 'terminate-user' in c for c in self.calls))
+
+    def test_external_drive_preparation_failure_keeps_the_seat_and_blocks_force(self):
+        for action in ('reboot', 'poweroff'):
+            with self.subTest(action=action):
+                self.calls.clear()
+                self.failure = lambda command: command[-2:] == ['start', power.EXTERNAL_DRIVES_UNIT]
+                with self.assertRaises(power.Error):
+                    self.execute(action)
+                self.assertFalse(any('--force' in c or 'terminate-user' in c or
+                                     ('stop' in c and 'greetd.service' in c) for c in self.calls))
+
+    def test_late_drive_preparation_failure_still_blocks_force_without_retry(self):
+        attempts = 0
+        def fail_final_inventory(command):
+            nonlocal attempts
+            if command[-2:] == ['start', power.EXTERNAL_DRIVES_UNIT]:
+                attempts += 1
+                return attempts == 2
+            return False
+        self.failure = fail_final_inventory
+        with self.assertRaises(power.Error):
+            self.execute('reboot')
+        self.assertEqual(attempts, 2)
+        self.assertFalse(any('--force' in c for c in self.calls))
 
     def test_failed_lock_never_suspends(self):
         self.failure = lambda command: command[-1] == 'labwc-session-state@locked.service'
@@ -331,7 +369,14 @@ class WiringTests(unittest.TestCase):
 
     def test_all_modified_launchers_have_cgroup_exit_and_session_ownership(self):
         module = TARGET / 'usr/local/lib/python3.14/dist-packages/labwc_managed_app'
-        for path in (module / 'generic.py', module / 'session.py', TARGET / 'usr/local/bin/labwc-qbittorrent'):
+        sys.path.insert(0, str(payload_python_library(module.parent)))
+        from labwc_managed_app import generic
+        with mock.patch.object(generic, 'assert_launch_allowed'):
+            arguments = generic.transient_argv('wayland', 'launch', ['/usr/bin/thunar'], {})
+        for property_ in ('ExitType=cgroup', 'KillMode=control-group', 'PartOf=labwc-session.target'):
+            self.assertIn('--property=' + property_, arguments)
+        self.assertIn('--setenv=LABWC_SESSION_APP', arguments)
+        for path in (module / 'session.py', TARGET / 'usr/local/bin/labwc-qbittorrent'):
             text = payload_read_text(path)
             self.assertIn('ExitType=cgroup', text)
             self.assertTrue('KillMode=control-group' in text or 'KillMode=" + ("mixed" if is_foot else "control-group")' in text)

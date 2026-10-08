@@ -128,6 +128,10 @@ build_inventory() {
           value = substr($field_index, equals_index + 2, length($field_index) - equals_index - 2)
           field[key] = value
         }
+        # --paths can report the parent as /dev/sdX rather than sdX.
+        if (index(field["PKNAME"], dev_root "/") == 1) {
+          field["PKNAME"] = substr(field["PKNAME"], length(dev_root) + 2)
+        }
 
         if (NR == FNR) {
           if (field["TYPE"] == "disk" &&
@@ -252,7 +256,7 @@ current_device_identity() {
     --paths \
     --output MAJ:MIN,TYPE,TRAN,PKNAME \
     -- "$device" 2>/dev/null |
-    awk '
+    awk -v dev_root="$DEV_ROOT" '
       {
         split("", field)
         for (field_index = 1; field_index <= NF; field_index++) {
@@ -266,7 +270,11 @@ current_device_identity() {
         }
         if (field["MAJ:MIN"] ~ /^[0123456789]+:[0123456789]+$/ &&
             (field["TYPE"] == "disk" || field["TYPE"] == "part")) {
-          print field["MAJ:MIN"] "|" field["TYPE"] "|" field["TRAN"] "|" field["PKNAME"]
+          parent = field["PKNAME"]
+          if (index(parent, dev_root "/") == 1) {
+            parent = substr(parent, length(dev_root) + 2)
+          }
+          print field["MAJ:MIN"] "|" field["TYPE"] "|" field["TRAN"] "|" parent
           exit
         }
       }
@@ -701,7 +709,7 @@ mounted_records_for_disk() {
 
   disk_snapshot=$(collect_snapshot "$disk_device") || return 1
   printf '%s\n' "$disk_snapshot" |
-    awk -v disk_device="$disk_device" -v disk_name="$disk_name" '
+    awk -v disk_device="$disk_device" -v disk_name="$disk_name" -v dev_root="$DEV_ROOT" '
       {
         split("", field)
         for (field_index = 1; field_index <= NF; field_index++) {
@@ -712,6 +720,9 @@ mounted_records_for_disk() {
           key = substr($field_index, 1, equals_index - 1)
           value = substr($field_index, equals_index + 2, length($field_index) - equals_index - 2)
           field[key] = value
+        }
+        if (index(field["PKNAME"], dev_root "/") == 1) {
+          field["PKNAME"] = substr(field["PKNAME"], length(dev_root) + 2)
         }
         belongs_to_disk = field["PATH"] == disk_device ||
           field["PKNAME"] == disk_name
@@ -728,19 +739,31 @@ mounted_records_for_disk() {
 }
 
 power_off_drive() {
-  disk_device=$1
-  expected_disk_devnum=$2
+  # POSIX shell function variables are shared. Volume validation also calls
+  # validate_external_disk, so keep the selected disk identity in dedicated
+  # variables until the final power-off check.
+  poweroff_device=$1
+  poweroff_devnum=$2
 
-  validate_external_disk "$disk_device" "$expected_disk_devnum"
+  validate_external_disk "$poweroff_device" "$poweroff_devnum"
   confirmation=$(
     choose_lines \
-      "Safely power off ${disk_device}" \
+      "Safely power off ${poweroff_device}" \
       'Cancel' \
       'Sync, unmount volumes, and power off'
   )
   [ "$confirmation" = 'Sync, unmount volumes, and power off' ] || return 0
 
-  mounted_records=$(mounted_records_for_disk "$disk_device") || return 1
+  power_off_drive_confirmed "$poweroff_device" "$poweroff_devnum"
+}
+
+power_off_drive_confirmed() {
+  # Desktop removal is confirmed above. The shutdown service reaches this
+  # same backend only after the machine power request has been authorized.
+  poweroff_device=$1
+  poweroff_devnum=$2
+  validate_external_disk "$poweroff_device" "$poweroff_devnum"
+  mounted_records=$(mounted_records_for_disk "$poweroff_device") || return 1
   if [ -n "$mounted_records" ]; then
     while IFS='|' read -r volume_device volume_devnum volume_type; do
       [ -n "$volume_device" ] || continue
@@ -778,21 +801,21 @@ $mounted_records
 EOF
   fi
 
-  remaining_records=$(mounted_records_for_disk "$disk_device") || return 1
+  remaining_records=$(mounted_records_for_disk "$poweroff_device") || return 1
   if [ -n "$remaining_records" ]; then
-    printf 'external drive still has mounted volumes: %s\n' "$disk_device" >&2
+    printf 'external drive still has mounted volumes: %s\n' "$poweroff_device" >&2
     notify_drive critical __THEME_MAKO_EXTERNAL_DRIVES_ERROR_ICON_NAME__ \
       "External drive remains connected" \
-      "$disk_device still has mounted volumes and was not powered off."
+      "$poweroff_device still has mounted volumes and was not powered off."
     return 1
   fi
 
-  validate_external_disk "$disk_device" "$expected_disk_devnum"
-  if output=$(run_udisksctl power-off --block-device "$disk_device" 2>&1); then
+  validate_external_disk "$poweroff_device" "$poweroff_devnum"
+  if output=$(run_udisksctl power-off --block-device "$poweroff_device" 2>&1); then
     printf '%s\n' "$output"
     notify_drive normal media-eject \
       "External drive powered off" \
-      "$disk_device can now be disconnected."
+      "$poweroff_device can now be disconnected."
     return 0
   else
     action_status=$?
@@ -800,7 +823,7 @@ EOF
   printf '%s\n' "$output" >&2
   notify_drive critical __THEME_MAKO_EXTERNAL_DRIVES_ERROR_ICON_NAME__ \
     "External drive power-off failed" \
-    "$disk_device remains connected."
+    "$poweroff_device remains connected."
   return "$action_status"
 }
 
@@ -884,8 +907,199 @@ ensure_desktop_user() {
     fatal "labwc-external-drives must run as the logged-in desktop user"
 }
 
-ensure_desktop_user
-for required_command in awk flock id labwc-fuzzel lsblk mktemp sleep sync timeout udisksctl; do
+shutdown_disk_records() {
+  settle_udev
+  # No filesystem probing/raw block-device reads are needed to select disks.
+  shutdown_snapshot=$(
+    lsblk --pairs --paths \
+      --output PATH,KNAME,TYPE,TRAN,MOUNTPOINTS,PKNAME,MAJ:MIN
+  ) || return 1
+  printf '%s\n' "$shutdown_snapshot" |
+    awk -v dev_root="$DEV_ROOT" -v maximum="$MAX_RECORDS" '
+      function device_name(value) {
+        if (value == "") return ""
+        if (index(value, dev_root "/") == 1) return value
+        return dev_root "/" value
+      }
+      FILENAME != "-" {
+        split($0, account, ":")
+        if (account[3] ~ /^[0-9]+$/ &&
+            (account[3] == 0 || (account[3] >= 1000 && account[3] <= 59999)) &&
+            account[6] ~ /^\//)
+          homes[account[6]] = 1
+        next
+      }
+      {
+        split("", field)
+        for (i = 1; i <= NF; i++) {
+          equals = index($i, "=")
+          if (equals < 2) continue
+          field[substr($i, 1, equals - 1)] = substr($i, equals + 2, length($i) - equals - 2)
+        }
+        key = device_name(field["KNAME"])
+        if (key == "") key = field["PATH"]
+        parent = device_name(field["PKNAME"])
+        if (++rows > 4096) { invalid = 1; exit }
+        child[rows] = key
+        ancestor[rows] = parent
+        # The shared removal backend supports disks and plain partitions.
+        # Never silently skip an open encrypted/LVM/RAID descendant.
+        if (field["TYPE"] != "disk" && field["TYPE"] != "part")
+          mapped[key] = 1
+        mountpoints = field["MOUNTPOINTS"]
+        gsub(/\\x0a/, "\n", mountpoints)
+        count = split(mountpoints, mounts, "\n")
+        for (i = 1; i <= count; i++) {
+          # USB disks backing the OS are system storage, never removable
+          # shutdown candidates, including encrypted/LVM descendants.
+          if (mounts[i] == "/" || mounts[i] == "/home" || homes[mounts[i]] ||
+              mounts[i] ~ /^\/(boot|usr|etc|var)(\/|$)/)
+            protected[key] = 1
+          if (mounts[i] == "[SWAP]") swap[key] = 1
+        }
+        if (field["TYPE"] == "disk" && field["TRAN"] == "usb") {
+          if (field["PATH"] !~ ("^" dev_root "/[[:alnum:]_.+-]+$") ||
+              field["MAJ:MIN"] !~ /^[0-9]+:[0-9]+$/ || ++disks > maximum) {
+            invalid = 1
+            exit
+          }
+          disk_path[key] = field["PATH"]
+          disk_devnum[key] = field["MAJ:MIN"]
+        }
+      }
+      END {
+        if (invalid) exit 1
+        # Propagate protected mounts and active swap to every backing disk.
+        # Repeated rows preserve multiple parents in device-mapper graphs.
+        do {
+          changed = 0
+          for (i = 1; i <= rows; i++) {
+            parent = ancestor[i]
+            if (parent == "") continue
+            if (protected[child[i]] && !protected[parent]) {
+              protected[parent] = 1
+              changed = 1
+            }
+            if (swap[child[i]] && !swap[parent]) {
+              swap[parent] = 1
+              changed = 1
+            }
+            if (mapped[child[i]] && !mapped[parent]) {
+              mapped[parent] = 1
+              changed = 1
+            }
+          }
+        } while (changed)
+        for (key in disk_path) {
+          kind = protected[key] ? "system" : swap[key] ? "swap" : mapped[key] ? "mapped" : "external"
+          print kind "|" disk_path[key] "|" disk_devnum[key]
+        }
+      }
+    ' /etc/passwd -
+}
+
+prepare_shutdown_drives() {
+  shutdown_records=$(shutdown_disk_records) ||
+    fatal "unable to inventory external USB disks for shutdown"
+  # Reject active swap before powering off any candidate disk.
+  while IFS='|' read -r shutdown_kind shutdown_device shutdown_devnum; do
+    [ -n "$shutdown_kind" ] || continue
+    [ "$shutdown_kind" != swap ] ||
+      fatal "external USB disk still contains active swap: $shutdown_device"
+    [ "$shutdown_kind" != mapped ] ||
+      fatal "external USB disk still has an open encrypted/LVM/RAID mapping: $shutdown_device"
+  done <<EOF
+$shutdown_records
+EOF
+  while IFS='|' read -r shutdown_kind shutdown_device shutdown_devnum; do
+    case "$shutdown_kind" in
+      '') continue ;;
+      system)
+        printf 'Keeping USB system disk available for PID 1: %s\n' "$shutdown_device"
+        ;;
+      external)
+        printf 'Preparing external USB disk for shutdown: %s\n' "$shutdown_device"
+        power_off_drive_confirmed "$shutdown_device" "$shutdown_devnum" || return 1
+        ;;
+      *) fatal "invalid external USB shutdown inventory" ;;
+    esac
+  done <<EOF
+$shutdown_records
+EOF
+  printf '%s\n' 'External USB drive preparation complete'
+}
+
+run_path_operation() {
+  [ "$#" -eq 2 ] || fatal "an external-drive path operation requires one folder"
+  path_operation=$1
+  selected_path=$2
+  case "$path_operation" in
+    --manage-path|--unmount-path|--power-off-path) ;;
+    *) fatal "unsupported external-drive path operation" ;;
+  esac
+  case "$selected_path" in
+    /*) ;;
+    *) fatal "the selected external-drive folder must be absolute" ;;
+  esac
+  [ -d "$selected_path" ] || fatal "the selected external-drive folder is unavailable"
+  selected_volume_device=$(
+    findmnt --noheadings --raw --canonicalize --evaluate --nofsroot \
+      --output SOURCE --target "$selected_path"
+  ) || fatal "unable to resolve the selected folder's mounted volume"
+  validate_device_path "$selected_volume_device"
+  path_identity=$(current_device_identity "$selected_volume_device") ||
+    fatal "unable to identify the selected external volume"
+  [ -n "$path_identity" ] || fatal "the selected external volume is unavailable"
+  IFS='|' read -r path_devnum path_type _path_transport path_parent <<EOF
+$path_identity
+EOF
+  case "$path_type" in
+    disk) selected_parent_device=$selected_volume_device ;;
+    part) selected_parent_device="$DEV_ROOT/$path_parent" ;;
+    *) fatal "the selected folder is not on a supported external USB volume" ;;
+  esac
+  validate_external_target "$selected_volume_device" "$path_devnum" "$path_type"
+  validate_external_disk "$selected_parent_device"
+  path_disk_devnum=$validated_disk_devnum
+  # A context action must not keep its own cwd on the volume being unmounted.
+  CDPATH='' cd -- / || fatal "unable to leave the selected external volume"
+  case "$path_operation" in
+    --manage-path)
+      manage_volume "$selected_volume_device" "$selected_parent_device" "$path_devnum" "$path_type"
+      ;;
+    --unmount-path)
+      unmount_volume "$selected_volume_device" "$path_devnum" "$path_type"
+      ;;
+    --power-off-path)
+      power_off_drive "$selected_parent_device" "$path_disk_devnum"
+      ;;
+    *) fatal "unsupported external-drive path operation" ;;
+  esac
+}
+
+requested_operation=menu
+requested_path=
+if [ "$#" -eq 1 ] && [ "$1" = --prepare-shutdown ]; then
+  requested_operation=shutdown
+elif [ "$#" -ne 0 ]; then
+  [ "$#" -eq 2 ] || fatal "usage: labwc-external-drives [--prepare-shutdown|--manage-path FOLDER|--unmount-path FOLDER|--power-off-path FOLDER]"
+  case "$1" in
+    --manage-path|--unmount-path|--power-off-path) requested_operation=$1 ;;
+    *) fatal "unsupported external-drive operation: $1" ;;
+  esac
+  requested_path=$2
+fi
+
+if [ "$requested_operation" = shutdown ]; then
+  [ "$(id -u)" -eq 0 ] || fatal "external-drive shutdown preparation requires the authorized root service"
+  # The authorized service needs neither a desktop bus nor a menu picker.
+  unset DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR TMPDIR
+  CDPATH='' cd -- / || fatal "unable to leave external-drive mount points"
+else
+  ensure_desktop_user
+  require_command labwc-fuzzel
+fi
+for required_command in awk findmnt flock id lsblk mktemp sleep sync timeout udisksctl; do
   require_command "$required_command"
 done
 [ -S /run/dbus/system_bus_socket ] ||
@@ -898,7 +1112,14 @@ case "$runtime_root" in
   /*) ;;
   *) use_operation_lock=0 ;;
 esac
-if [ "$use_operation_lock" -eq 1 ]; then
+if [ "$requested_operation" = shutdown ]; then
+  runtime_root=/run/labwc-power
+  require_command find
+  [ ! -L "$runtime_root" ] && [ -d "$runtime_root" ] &&
+    [ "$(find -P "$runtime_root" -maxdepth 0 -printf '%U:%m')" = 0:700 ] ||
+    fatal "the root external-drive shutdown runtime directory is unsafe"
+  use_operation_lock=1
+elif [ "$use_operation_lock" -eq 1 ]; then
   if runtime_root=$(
     CDPATH='' cd -- "$runtime_root" 2>/dev/null &&
       pwd -P
@@ -914,10 +1135,13 @@ if [ "$use_operation_lock" -eq 1 ]; then
   exec 9>"$lock_file" ||
     fatal "unable to open the external-drive operation lock"
   if ! flock --exclusive --nonblock 9; then
+    [ "$requested_operation" != shutdown ] ||
+      fatal "another external-drive shutdown preparation is already running"
     notify_drive normal drive-removable-media \
       "External-drive action already running" \
       "Wait for the current sync, unmount, or power-off action to finish."
-    exit 0
+    [ "$requested_operation" = menu ] && exit 0
+    exit 1
   fi
 else
   runtime_root=${TMPDIR:-/tmp}
@@ -939,7 +1163,21 @@ cleanup() {
   rm -f -- "$snapshot_file" "$map_file"
   rmdir -- "$temp_dir" 2>/dev/null || true
 }
-trap cleanup EXIT HUP INT TERM
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+if [ "$requested_operation" = shutdown ]; then
+  prepare_shutdown_drives
+  exit "$?"
+elif [ "$requested_operation" != menu ]; then
+  if run_path_operation "$requested_operation" "$requested_path"; then
+    exit 0
+  else
+    exit "$?"
+  fi
+fi
 
 while :; do
   if ! collect_snapshot >"$snapshot_file"; then

@@ -215,6 +215,33 @@ class AppArmorReconciliationTests(PerlFixture):
         self.assertIn('alpha (complain)', render_theme_defaults(payload_read_text(self.kernel)))
         self.assertIn('reconciled=1', result.stdout)
 
+    def test_explicit_reload_updates_policy_even_when_labels_and_modes_match(self):
+        a = self.profile()
+        b = self.profile('beta', want='enforce', source='enforce', loaded='enforce')
+        before = [(p.read_bytes(), p.stat().st_ino, p.stat().st_mtime_ns) for p in (a, b)]
+        # Changing a rule does not change the kernel's label/mode listing.
+        a.write_text(a.read_text().replace('\n}', '\n  /usr/bin/loginctl rix,\n}'))
+        before[0] = (a.read_bytes(), a.stat().st_ino, a.stat().st_mtime_ns)
+        result = self.run_policy('--force-reload')
+        self.assert_success(result)
+        calls = self.mutations()
+        self.assertEqual(len(calls), 2)
+        for call in calls:
+            self.assertEqual(call[0], 'apparmor_parser')
+            self.assertIn('-r', call)
+            self.assertIn('-T', call)
+        self.assertEqual({call[-1] for call in calls}, {str(a), str(b)})
+        self.assertEqual(before, [(p.read_bytes(), p.stat().st_ino, p.stat().st_mtime_ns) for p in (a, b)])
+
+    def test_force_reload_rejects_readonly_and_no_reload_combinations(self):
+        self.profile()
+        for flag in ('--check', '--check-loaded', '--no-reload'):
+            with self.subTest(flag=flag):
+                result = self.run_policy('--force-reload', flag)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('--force-reload requires', result.stderr)
+                self.assertEqual(self.mutations(), [])
+
     def test_source_drift_changes_only_mismatching_profile_and_is_idempotent(self):
         self.profile(source='enforce', loaded='enforce')
         unchanged = self.profile('beta')
@@ -374,6 +401,85 @@ class AppArmorReconciliationTests(PerlFixture):
         self.assertEqual(result.stdout, 'apparmor-modes: hello world\n')
         self.assertEqual(result.stderr, 'apparmor-modes: warning: watch?this\n')
         self.assertNotIn('Sys::Syslog', render_theme_defaults(payload_read_text(LIB / 'apparmor-modes/AppArmor/ManagedModes/Logger.pm')))
+
+
+class AppArmorReloadContractTests(PerlFixture):
+    """Unprivileged control-flow checks; no trusted-path or kernel emulation."""
+
+    def run_perl(self, code, *arguments):
+        return subprocess.run([PERL, '-I' + str(LIB / 'apparmor-modes'), '-e', code, '--',
+                               *arguments], env=self.env, capture_output=True,
+                              text=True, encoding='utf-8', timeout=5)
+
+    def test_force_reload_option_and_incompatible_flags(self):
+        code = r'''use JSON::PP; use AppArmor::ManagedModes::CLI qw(parse_args);
+            print encode_json(parse_args(@ARGV));'''
+        result = self.run_perl(code, '--force-reload')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        options = json.loads(result.stdout)
+        self.assertEqual(options['force_reload'], 1)
+        self.assertEqual(options['reload_profiles'], 1)
+        for flag in ('--check', '--check-loaded', '--no-reload'):
+            for arguments in (('--force-reload', flag), (flag, '--force-reload')):
+                with self.subTest(arguments=arguments):
+                    result = self.run_perl(code, *arguments)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn('--force-reload requires', result.stderr)
+
+    def test_force_reload_uses_parser_even_when_source_and_kernel_modes_match(self):
+        # Tool and trusted-path boundaries are mocks. Execute the real
+        # apply_profile_mode branch without elevating privileges or loading
+        # policy into the development kernel.
+        code = r'''
+use JSON::PP;
+use AppArmor::ManagedModes::Transition qw(apply_profile_mode);
+{
+    package FixtureTools;
+    sub new { bless { calls => [] }, shift }
+    sub require_executable { push @{$_[0]->{calls}}, ['require', $_[1], $_[2]] }
+    sub run_or_exit { my $self = shift; push @{$self->{calls}}, ['run', @_] }
+}
+no warnings 'redefine';
+local *AppArmor::ManagedModes::Transition::_validate_disable_entry = sub {};
+local *AppArmor::ManagedModes::Transition::profile_defines_labels = sub { 1 };
+local *AppArmor::ManagedModes::Transition::profile_mode_matches = sub { 1 };
+local *AppArmor::ManagedModes::Transition::loaded_profile_mode_matches = sub { 1 };
+my ($mode, $force) = @ARGV;
+my $entry = { mode => $mode, name => 'fixture', path => '/fixture/profiles/fixture' };
+my $options = { profile_dir => '/fixture/profiles', tool_dir => '/fixture/tools',
+                reload_profiles => 1, force_reload => $force };
+my $tools = FixtureTools->new;
+my $changed = apply_profile_mode($entry, $options, undef, $tools, {});
+print encode_json({ changed => $changed, calls => $tools->{calls} }), "\n";
+'''
+        for mode in ('enforce', 'complain'):
+            with self.subTest(mode=mode):
+                result = self.run_perl(code, mode, '1')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                report = json.loads(result.stdout.splitlines()[-1])
+                self.assertEqual(report['changed'], 1)
+                mutations = [c for c in report['calls'] if c[0] == 'run']
+                self.assertEqual(mutations, [['run', '/fixture/tools/apparmor_parser', '-r',
+                                             '-T', '-I', '/fixture/profiles', '--base',
+                                             '/fixture/profiles', '/fixture/profiles/fixture']])
+                result = self.run_perl(code, mode, '0')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                report = json.loads(result.stdout.splitlines()[-1])
+                self.assertEqual(report, {'changed': 0, 'calls': []})
+        # A forced reload must never enable a deliberately disabled profile.
+        result = self.run_perl(code, 'disable', '1')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout.splitlines()[-1]), {'changed': 0, 'calls': []})
+
+    def test_reload_modules_compile_with_the_installed_perl_dependencies(self):
+        for module in ('CLI', 'Transition'):
+            with self.subTest(module=module):
+                path = LIB / 'apparmor-modes/AppArmor/ManagedModes' / (module + '.pm')
+                result = subprocess.run([PERL, '-I' + str(LIB / 'apparmor-modes'), '-c',
+                                         str(path)], env=self.env, capture_output=True,
+                                        text=True, encoding='utf-8', timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('syntax OK', result.stderr)
 
 
 class NetworkReadinessTests(PerlFixture):
@@ -610,6 +716,7 @@ target_managed_network_link_types
         self.assertNotRegex(firstboot, r'apparmor-modes-run --check(?:\s|$)')
         unit = render_theme_defaults(payload_read_text(TARGET / 'etc/systemd/system/apparmor-modes.service'))
         self.assertIn('SyslogIdentifier=apparmor-modes', unit)
+        self.assertIn('ExecReload=/usr/local/libexec/apparmor-modes-run --force-reload', unit)
         self.assertIn('Before=systemd-user-sessions.service display-manager.service multi-user.target', unit)
 
     def test_grub_recordfail_all_managed_writers_use_500(self):

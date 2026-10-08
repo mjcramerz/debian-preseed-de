@@ -324,8 +324,16 @@ class GreeterFlowTests(unittest.TestCase):
             self.assertGreater(self.reservation.return_value.__enter__.return_value.verify.call_count, 0)
             return ''
         self.assertEqual(argv[0], '/usr/bin/systemctl')
+        if argv == ['/usr/bin/systemctl', '--no-ask-password', 'start', self.power.EXTERNAL_DRIVES_UNIT]:
+            self.assertEqual(kwargs, {'timeout': 920, 'max_output': 4096})
+            return ''
+        if '--property=LoadState,ActiveState,SubState,Result,ExecMainStatus' in argv:
+            self.assertEqual(argv[2], self.power.EXTERNAL_DRIVES_UNIT)
+            return 'LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=success\nExecMainStatus=0\n'
         if '--property=LoadState,ActiveState,SubState,Result' in argv:
             name = argv[2]
+            if name == self.power.EXTERNAL_DRIVES_UNIT:
+                return 'LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=success\n'
             if name != 'greetd.service':
                 return 'LoadState=not-found\nActiveState=inactive\nSubState=dead\n'
             inactive = name in self.stopped
@@ -369,14 +377,47 @@ class GreeterFlowTests(unittest.TestCase):
                 capture = ['/usr/bin/systemctl', '--no-ask-password', 'start', 'power-log-capture.service']
                 self.assertEqual(self.calls.count(capture), 0)
                 stop = self.calls.index(['/usr/bin/systemctl', '--no-ask-password', 'stop', 'greetd.service'])
+                drives = self.calls.index(['/usr/bin/systemctl', '--no-ask-password', 'start',
+                                           self.power.EXTERNAL_DRIVES_UNIT])
                 terminate = self.calls.index(['/usr/bin/loginctl', 'terminate-user', '109'])
+                self.assertLess(drives, stop)
                 self.assertLess(stop, terminate)
                 self.assertLess(terminate, len(self.calls) - 1)
                 self.assertTrue(worker.session_stopped and worker.storage_stopped)
+                self.assertTrue(worker.external_drives_prepared)
                 self.assertTrue(worker.committed and worker.handoff_attempted)
                 self.assertGreaterEqual(sum('show-session' in call for call in self.calls), 3)
                 self.assertFalse(any('--user' in call or 'kill' in call for call in self.calls))
                 self.assertFalse(any('dbus.service' in call or 'dbus-broker.service' in call for call in self.calls))
+                drive_calls = [i for i, c in enumerate(self.calls) if c[-2:] ==
+                               ['start', self.power.EXTERNAL_DRIVES_UNIT]]
+                self.assertEqual(len(drive_calls), 2)
+                self.assertGreater(drive_calls[1], terminate)
+                self.assertLess(drive_calls[1], len(self.calls) - 1)
+
+    def test_drive_failure_keeps_greeter_available_and_prevents_force(self):
+        for action in ('reboot', 'poweroff'):
+            with self.subTest(action=action):
+                self.calls.clear()
+                self.fail_on = lambda argv: argv[-2:] == ['start', self.power.EXTERNAL_DRIVES_UNIT]
+                with self.assertRaises(self.power.Error):
+                    self.execute(action)
+                self.assertFalse(any(is_handoff(c) or 'terminate-user' in c or
+                                     ('stop' in c and 'greetd.service' in c) for c in self.calls))
+
+    def test_late_drive_failure_never_submits_or_retries_force(self):
+        attempts = 0
+        def fail_final_inventory(argv):
+            nonlocal attempts
+            if argv[-2:] == ['start', self.power.EXTERNAL_DRIVES_UNIT]:
+                attempts += 1
+                return attempts == 2
+            return False
+        self.fail_on = fail_final_inventory
+        with self.assertRaises(self.power.Error):
+            self.execute()
+        self.assertEqual(attempts, 2)
+        self.assertFalse(any(is_handoff(c) for c in self.calls))
 
     def test_unavailable_snapshot_service_is_never_contacted(self):
         self.fail_on = lambda argv: 'power-log-capture.service' in argv

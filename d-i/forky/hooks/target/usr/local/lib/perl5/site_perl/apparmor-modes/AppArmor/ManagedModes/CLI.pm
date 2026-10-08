@@ -30,7 +30,7 @@ sub warn {
 
 sub usage {
     print <<'USAGE';
-Usage: apparmor-modes [--check] [--check-loaded] [--no-reload]
+Usage: apparmor-modes [--check] [--check-loaded] [--no-reload] [--force-reload]
                                [--config PATH] [--profile-dir PATH]
                                [--tool-dir PATH] [--loaded-profiles PATH]
 USAGE
@@ -43,6 +43,7 @@ sub parse_args {
         profile_dir          => '/etc/apparmor.d',
         tool_dir             => '/usr/sbin',
         reload_profiles      => 1,
+        force_reload         => 0,
         check_only           => 0,
         check_loaded         => 0,
         loaded_profiles_path => '/sys/kernel/security/apparmor/profiles',
@@ -60,6 +61,9 @@ sub parse_args {
         }
         elsif ($argument eq '--no-reload') {
             $options->{reload_profiles} = 0;
+        }
+        elsif ($argument eq '--force-reload') {
+            $options->{force_reload} = 1;
         }
         elsif ($argument eq '--config') {
             @argv or fatal('--config requires a path');
@@ -86,6 +90,10 @@ sub parse_args {
         }
     }
 
+    if ($options->{force_reload} &&
+        ($options->{check_only} || !$options->{reload_profiles})) {
+        fatal('--force-reload requires policy application with reloads enabled');
+    }
     return $options;
 }
 

@@ -30,6 +30,7 @@ GUEST_STOP_UNITS = ("podman-devops-restart.service", "incus-startup.service")
 SHARING_CONFIG = Path("/etc/network-sharing/config.json")
 ZRAM_WORK_UNITS = ("zram-idle-writeback.timer", "zram-cold-tier.timer",
                    "zram-writebackd.service", "zram-writeback.service")
+EXTERNAL_DRIVES_UNIT = "labwc-external-drives-shutdown.service"
 
 
 class Error(Exception):
@@ -467,6 +468,7 @@ class Worker:
         self.handoff_attempted = False
         self.session_stopped = False
         self.storage_stopped = False
+        self.external_drives_prepared = False
         self.stopped_units: list[str] = []
 
     def user_run(self, argv: list[str], **kwargs) -> str:
@@ -660,9 +662,12 @@ class Worker:
         raise Error("user slice did not stop; inspect the power action log")
 
     @staticmethod
-    def unit_state(name: str) -> dict[str, str]:
+    def unit_state(name: str, *, exec_status: bool = False) -> dict[str, str]:
+        properties = "LoadState,ActiveState,SubState,Result"
+        if exec_status:
+            properties += ",ExecMainStatus"
         text = run(["/usr/bin/systemctl", "show", name,
-                    "--property=LoadState,ActiveState,SubState,Result"], timeout=10, max_output=4096)
+                    "--property=" + properties], timeout=10, max_output=4096)
         props = {}
         for line in text.splitlines():
             key, separator, value = line.partition('=')
@@ -723,6 +728,13 @@ class Worker:
         self.protect_other_sessions()
         check_shutdown_inhibitors()
         self.require_package_reservation()
+        # Both Waybar and gtkgreet reach this stage after authorization, save
+        # preparation (desktop only), guest drain and sharing teardown. Keep
+        # the seat alive while drive sync/unmount/power-off can still fail.
+        self.prepare_external_drives()
+        self.protect_other_sessions()
+        check_shutdown_inhibitors()
+        self.require_package_reservation()
         self.committed = True
         # Prevent greetd from creating a fresh login while swap is drained.
         # PID 1 and the system bus remain alive for all cleanup transactions.
@@ -736,6 +748,23 @@ class Worker:
         self.stop_units(('zram-setup.service',))
         self.stop_units(('swap-fallback.service',))
         self.storage_stopped = True
+
+    def prepare_external_drives(self) -> None:
+        self.require_package_reservation()
+        self.external_drives_prepared = False
+        status("Syncing, unmounting and powering off external USB data drives")
+        # PID 1 starts the existing manager in a separate fixed service. The
+        # power worker retains PrivateDevices/ProcSubset and its own profile.
+        # One-shot completion, Result and exit status must all agree.
+        run(["/usr/bin/systemctl", "--no-ask-password", "start", EXTERNAL_DRIVES_UNIT],
+            timeout=920, max_output=4096)
+        props = self.unit_state(EXTERNAL_DRIVES_UNIT, exec_status=True)
+        self.verify_stopped_unit(EXTERNAL_DRIVES_UNIT, props)
+        if props.get("ExecMainStatus") != "0":
+            raise Error("external-drive shutdown preparation did not exit successfully")
+        self.external_drives_prepared = True
+        if EXTERNAL_DRIVES_UNIT not in self.stopped_units:
+            self.stopped_units.append(EXTERNAL_DRIVES_UNIT)
 
     def stop_optional_guests(self) -> None:
         self.require_package_reservation()
@@ -773,6 +802,12 @@ class Worker:
         self.require_package_reservation()
         if not self.session_stopped or not self.storage_stopped:
             raise Error("handoff requires completed session and storage teardown")
+        if not self.external_drives_prepared:
+            raise Error("handoff requires successful external-drive preparation")
+        # Re-inventory after session/swap teardown: a USB data drive may have
+        # arrived during those operations. A failed second preparation still
+        # vetoes force; it never retries a failed first preparation.
+        self.prepare_external_drives()
         self.protect_other_sessions()
         check_shutdown_inhibitors()
         self.require_package_reservation()

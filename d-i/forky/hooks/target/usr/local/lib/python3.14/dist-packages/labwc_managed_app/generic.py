@@ -169,10 +169,15 @@ def session_environment() -> dict[str, str]:
 
 def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict[str, str]) -> list[str]:
     assert_launch_allowed()
-    if kind == "wayland" and arguments[0] == "/usr/bin/thunar":
+    is_thunar = kind == "wayland" and arguments[0] in {"/usr/bin/thunar", "/usr/bin/Thunar"}
+    if is_thunar:
         # GTK 3's GDK GL path can repaint a Thunar window erratically on this
         # desktop. Keep the diagnostic workaround local to the file manager.
         environment["GDK_DEBUG"] = "nogl"
+        # The Unix fallback monitor cannot provide UDisks eject/power-off
+        # controls. Select the installed native GVfs monitor on the user bus.
+        environment["GIO_USE_VFS"] = "gvfs"
+        environment["GIO_USE_VOLUME_MONITOR"] = "GProxyVolumeMonitorUDisks2"
     # Native GTK settings own color mode, including labwc-tweaks.
     # The package's argument-free footclient entry has no server readiness
     # dependency; a transient unit can outrun foot-server and lose the launch.
@@ -188,10 +193,13 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
     # pkexec cannot become host root and Mullvad sees its root-owned daemon
     # socket as owned by nobody. Waypaper's post-command also validates the
     # root-owned ancestors of the user's wallpaper state; the user namespace
-    # maps those ancestors to nobody and rejects every selection. These apps
-    # retain their AppArmor profiles and session lifetime properties.
+    # maps those ancestors to nobody and rejects every selection. Thunar needs
+    # the host mount view and UID semantics for GVfs/UDisks removable-drive
+    # controls and for mount/unmount changes to reach its Devices sidebar.
+    # These apps retain their AppArmor profiles and session lifetime properties.
     host_administration = (kind == "wayland" and arguments[0] in {
         "/usr/bin/foot", "/usr/bin/kitty", "/usr/bin/terminal-emulator",
+        "/usr/bin/thunar", "/usr/bin/Thunar",
         "/usr/local/bin/labwc-terminal",
         "/usr/bin/timeshift-launcher", "/usr/local/bin/mullvad-vpn",
         "/usr/local/bin/waypaper",
@@ -211,8 +219,12 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         *menu_action_wait_arguments(),
         "--service-type=exec", "--expand-environment=no", "--slice=app.slice",
         f"--unit={unit}", f"--description=Labwc {kind} application: {label}",
-        "--property=Requisite=labwc-session.target", "--property=After=labwc-session.target",
+        "--property=Requisite=labwc-session.target",
+        "--property=After=labwc-session.target" + (
+            " gvfs-daemon.service gvfs-udisks2-volume-monitor.service" if is_thunar else ""),
         "--property=PartOf=labwc-session.target",
+        *(["--property=Wants=gvfs-daemon.service gvfs-udisks2-volume-monitor.service",
+           "--property=PrivateMounts=no"] if is_thunar else []),
         # Waypaper temporarily owns swaybg while its GUI is open. Stop the
         # supervisor before native backend startup, then restore the saved
         # selection after the GUI and all its renderers have exited. This

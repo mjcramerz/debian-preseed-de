@@ -90,6 +90,8 @@ class DirectHandoffTests(unittest.TestCase):
         self.worker = self.power.Worker(1000, 'desktop', 'poweroff')
         self.worker.prepared = True
         self.worker.session_stopped = self.worker.storage_stopped = True
+        self.worker.external_drives_prepared = True
+        self.worker.prepare_external_drives = mock.Mock()
         self.worker.package_locks = mock.Mock()
         self.events = []
         self.stack = contextlib.ExitStack()

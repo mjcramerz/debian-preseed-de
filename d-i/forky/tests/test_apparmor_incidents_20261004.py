@@ -76,19 +76,19 @@ class SuppliedDenialTests(unittest.TestCase):
             self.assertFalse(rule.deny)
 
     @unittest.skipUnless(importlib.util.find_spec('apparmor'), 'native AppArmor rule reader unavailable')
-    def test_tailscale_desktop_probe_enters_its_confined_loginctl_child(self):
+    def test_tailscale_desktop_probe_inherits_confinement_under_no_new_privileges(self):
         from apparmor.rule.file import FileRule
         parent = body('usr.sbin.tailscaled', 'usr.sbin.tailscaled')
         lines = [line.strip() for line in parent.splitlines()
-                 if line.strip().startswith('/usr/bin/loginctl ') and '->' in line]
+                 if line.strip().startswith('/usr/bin/loginctl ')]
         self.assertEqual(len(lines), 1)
         rule = FileRule.create_instance(lines[0])
-        self.assertEqual(rule.exec_perms, 'Cx')
-        self.assertEqual(rule.target.regex, 'loginctl')
+        self.assertEqual(rule.exec_perms, 'ix')
+        self.assertTrue(rule.all_targets)
         self.assertFalse(rule.deny)
-        self.assertIn('signal (send) set=(term kill) peer=usr.sbin.tailscaled//loginctl,', parent)
-        child = body('usr.sbin.tailscaled', 'loginctl')
-        self.assertIn('signal (receive) set=(term kill) peer=usr.sbin.tailscaled,', child)
+        self.assertNotIn('profile loginctl ', parent)
+        service = read_text(SEED / 'hooks/target/etc/systemd/system/tailscaled.service.d/override.conf')
+        self.assertIn('NoNewPrivileges=true', service)
 
     def test_compositor_env_helper_inherits_confinement_without_missing_transition(self):
         policy = body('labwc-session', 'labwc-compositor')
@@ -206,28 +206,26 @@ class SuppliedDenialTests(unittest.TestCase):
             helper_network = [line for line in native_rules['qbittorrent-pasta']
                               if line.startswith('network inet6 ')]
             self.assertEqual(helper_network, ['network inet6 { stream } ,'])
-            query = 'usr.sbin.tailscaled//loginctl'
+            query = 'usr.sbin.tailscaled'
             self.assertTrue(set('rx') <= permissions('usr.sbin.tailscaled', '/usr/bin/loginctl', owned=False))
-            self.assertEqual(permissions(query, '/usr/bin/loginctl', owned=False), {'r', 'm'})
+            self.assertNotIn('usr.sbin.tailscaled//loginctl', native_rules)
             self.assertTrue(set('rw') <= permissions(query, '/run/dbus/system_bus_socket', owned=False))
-            for path in ('/usr/bin/bash', '/usr/bin/sudo', '/dev/net/tun',
-                         '/run/tailscale/tailscaled.sock', '/var/lib/tailscale/tailscaled.state'):
+            for path in ('/usr/bin/bash', '/usr/bin/sudo'):
                 self.assertFalse(permissions(query, path, owned=False))
-            self.assertFalse(any(line.startswith(('network inet ', 'network inet6 ', 'Capability:'))
-                                 for line in native_rules[query]))
             sends = [line for line in native_rules[query] if line.startswith('dbus ( send )')]
-            self.assertEqual(len(sends), 3)
             logind = [line for line in sends if 'name="org.freedesktop.login1"' in line]
             self.assertEqual(len(logind), 2)
             self.assertTrue(any('member="{ListSessions,ListSessionsEx,GetSession}"' in line
                                 and 'path="/org/freedesktop/login1"' in line for line in logind))
             self.assertTrue(any('member="{Get,GetAll}"' in line
                                 and 'path="/org/freedesktop/login1/session/*"' in line for line in logind))
-            for name in ('pasta.pid', 'pasta.log'):
+            for name in ('pasta.pid',):
                 filename = '/run/user/1000/labwc-qbittorrent-sandbox-fixture/' + name
                 self.assertTrue(set('rw') <= permissions('labwc-qbittorrent', filename))
                 self.assertTrue(set('rw') <= permissions('qbittorrent-pasta', filename))
                 self.assertFalse(permissions('labwc-qbittorrent//qbittorrent-bwrap', filename))
+            for label in ('labwc-qbittorrent', 'qbittorrent-pasta'):
+                self.assertFalse(permissions(label, '/run/user/1000/labwc-qbittorrent-sandbox-fixture/pasta.log'))
             self.assertFalse(permissions('labwc-qbittorrent//qbittorrent-bwrap', '/dev/net/tun', owned=False))
             self.assertFalse(permissions('qbittorrent-pasta', '/home/fixture/.ssh/id_ed25519'))
             self.assertIn('r', permissions('qbittorrent-pasta', '/proc/1234/uid_map'))
@@ -327,7 +325,7 @@ class SuppliedDenialTests(unittest.TestCase):
         self.assertNotIn('/dev/net/tun', payload)
         self.assertIn('/dev/net/tun rw,', helper)
         self.assertIn('network unix stream,', helper)
-        self.assertIn('labwc-qbittorrent-sandbox-*/{pasta.log,pasta.pid} rw,', helper)
+        self.assertIn('labwc-qbittorrent-sandbox-*/pasta.pid rw,', helper)
         self.assertIn('/usr/bin/pasta rPx -> qbittorrent-pasta,', parent)
         self.assertIn('/usr/bin/pasta.avx2 rix,', helper)
         self.assertIn('network netlink raw,', helper)

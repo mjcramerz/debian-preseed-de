@@ -1188,6 +1188,11 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
      grep -Fqx '  greeter-*) exec /usr/bin/systemctl --wait start "$worker_unit" ;;' /usr/local/libexec/labwc-admin-action-root 2>/dev/null &&
      grep -Fq 'if self.action not in {"reboot", "poweroff"}:' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
      grep -Fq 'run(["/usr/bin/systemctl", "--force", self.action],' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
+     grep -Fq 'if not self.external_drives_prepared:' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
+     grep -Fqx 'ExecStart=/usr/local/bin/labwc-external-drives --prepare-shutdown' /etc/systemd/system/labwc-external-drives-shutdown.service 2>/dev/null &&
+     grep -Fqx 'AppArmorProfile=labwc-external-drives' /etc/systemd/system/labwc-external-drives-shutdown.service 2>/dev/null &&
+     grep -Fqx 'PrivateMounts=no' /etc/systemd/system/labwc-external-drives-shutdown.service 2>/dev/null &&
+     grep -Fqx 'DevicePolicy=closed' /etc/systemd/system/labwc-external-drives-shutdown.service 2>/dev/null &&
      grep -Fqx 'CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_KILL CAP_SYS_BOOT' /etc/systemd/system/labwc-admin-action@.service 2>/dev/null &&
      grep -Fqx 'SystemCallFilter=~@reboot' /etc/systemd/system/labwc-admin-action@.service 2>/dev/null &&
      grep -Fqx 'XDG_SESSION_CLASS DEFAULT=none OVERRIDE=none' /etc/security/sudo-i.conf 2>/dev/null &&

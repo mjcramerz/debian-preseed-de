@@ -91,7 +91,9 @@ sub apply_profile_mode {
     if ($options->{reload_profiles} && !defined $loaded_state) {
         $loaded_state = capture_loaded_state($options, $workspace);
     }
-    if ($source_matches && (!$options->{reload_profiles} ||
+    my $force_reload = $options->{force_reload} &&
+        ($mode eq 'enforce' || $mode eq 'complain');
+    if ($source_matches && !$force_reload && (!$options->{reload_profiles} ||
         loaded_profile_mode_matches($entry, $loaded_state, $options, $workspace, $tools))) {
         info($options->{reload_profiles}
             ? "profile source and loaded state already agree: $profile_name mode=$mode"
@@ -105,7 +107,9 @@ sub apply_profile_mode {
             # run either aa-* mode editor. Ignore stale binary read caches.
             my $parser_path = "$options->{tool_dir}/apparmor_parser";
             $tools->require_executable('required AppArmor parser', $parser_path);
-            info("profile kernel mode differs; reloading: $profile_name mode=$mode");
+            info($force_reload
+                ? "profile policy reload requested: $profile_name mode=$mode"
+                : "profile kernel mode differs; reloading: $profile_name mode=$mode");
             $tools->run_or_exit(
                 $parser_path, '-r', '-T', '-I', $profile_dir,
                 '--base', $profile_dir, $profile_path,

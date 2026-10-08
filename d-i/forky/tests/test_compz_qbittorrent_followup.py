@@ -68,10 +68,34 @@ class TorrentIntegrationTests(unittest.TestCase):
             self.assertEqual(command[command.index(key) + 1], value)
         for key in ('--no-map-gw', '--foreground', '--ipv4-only', '--config-net'):
             self.assertIn(key, command)
+        self.assertNotIn('--log-file', command)
+        self.assertNotIn('--log-size', command)
         self.assertFalse({'auto', 'all', '--freebind', '--host-lo-to-ns-lo', '--dns-forward'} & set(command))
         desktop_class = (FORKY / 'classes/class-select/role/desktop.cfg').read_text(encoding='utf-8')
         self.assertIn('bubblewrap slirp4netns passt xdg-dbus-proxy', desktop_class)
         self.assertIn('  pasta \\\n', (FORKY / 'scripts/desktop/verify.sh.tmpl').read_text(encoding='utf-8'))
+
+    @unittest.skipUnless(Path('/usr/bin/pasta').is_file(), 'native pasta unavailable')
+    def test_native_pasta_accepts_the_production_options_before_namespace_setup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            command = QBIT['pasta_command']('/usr/bin/pasta', 1234, directory,
+                                            ('eth0', '192.168.50.88'), 50309)
+            # This isolated test environment may expose only loopback. The
+            # native parser validates interface names even before --help.
+            # Substitute that real interface only in this parsing fixture;
+            # production still rejects loopback and uses its validated route.
+            for option in ('--interface', '--outbound-if4'):
+                command[command.index(option) + 1] = 'lo'
+            for option in ('--tcp-ports', '--udp-ports'):
+                command[command.index(option) + 1] = '192.168.50.88%lo/50309'
+            # Parse the actual production options, then exit via --help before
+            # opening namespace paths, configuring a TAP or binding listeners.
+            command[command.index('--userns'):] = ['--help']
+            result = subprocess.run(command, capture_output=True, text=True,
+                                    encoding='utf-8', timeout=5)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('Usage:', result.stdout + result.stderr)
+            self.assertEqual(list(Path(directory).iterdir()), [])
 
     def test_pasta_invalid_binding_creates_no_children(self):
         for interface, address, port in (('lo', '127.0.0.1', 50309),

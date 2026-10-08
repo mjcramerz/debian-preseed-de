@@ -1,6 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <actions>
   <action>
+    <icon>drive-removable-media</icon>
+    <name>External Drive Actions</name>
+    <unique-id>1791451200000000-1</unique-id>
+    <command>/usr/local/bin/labwc-external-drives --manage-path %f</command>
+    <description>Manage the USB drive containing this folder</description>
+    <patterns>*</patterns>
+    <directories/>
+  </action>
+  <action>
+    <icon>media-eject</icon>
+    <name>Unmount External Volume</name>
+    <unique-id>1791451200000000-2</unique-id>
+    <command>/usr/local/bin/labwc-external-drives --unmount-path %f</command>
+    <description>Flush pending writes and unmount this USB volume</description>
+    <patterns>*</patterns>
+    <directories/>
+  </action>
+  <action>
+    <icon>media-eject</icon>
+    <name>Safely Remove External Drive</name>
+    <unique-id>1791451200000000-3</unique-id>
+    <command>/usr/local/bin/labwc-external-drives --power-off-path %f</command>
+    <description>Confirm, flush and unmount all volumes, then power off the USB drive</description>
+    <patterns>*</patterns>
+    <directories/>
+  </action>
+  <action>
     <icon>utilities-terminal</icon>
     <name>Open Terminal Here</name>
     <unique-id>1717610100000001-1</unique-id>

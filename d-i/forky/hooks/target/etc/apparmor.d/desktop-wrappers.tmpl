@@ -1417,7 +1417,13 @@ profile labwc-external-drives /usr/local/bin/labwc-external-drives flags=(attach
 
   /usr/local/bin/labwc-external-drives rix,
   /usr/bin/{awk,flock,gawk,id,mawk,mktemp,nawk,rm,rmdir,sleep,sync,timeout} rix,
-  /usr/bin/{lsblk,notify-send,udevadm,udisksctl} rix,
+  /usr/bin/{find,findmnt,lsblk,notify-send,udevadm,udisksctl} rix,
+  # Only the authorized shutdown service retains this DAC read capability.
+  # No raw block I/O, filesystem mount syscall or machine power capability.
+  capability dac_read_search,
+  # Sync opens the mount-point directory, including USB volumes mounted
+  # outside /media. Directory enumeration adds no regular-file data access.
+  /**/ r,
   /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
   signal (send) set=(kill term) peer=labwc-external-drives,
   /run/dbus/system_bus_socket rw,
@@ -1445,6 +1451,10 @@ profile labwc-external-drives /usr/local/bin/labwc-external-drives flags=(attach
   owner /run/user/[0-9]*/labwc-external-drives.*/** rwkl,
   owner /tmp/labwc-external-drives.*/ rw,
   owner /tmp/labwc-external-drives.*/** rwkl,
+  /run/labwc-power/ r,
+  /run/labwc-power/labwc-external-drives.lock rwk,
+  /run/labwc-power/labwc-external-drives.*/ rw,
+  /run/labwc-power/labwc-external-drives.*/** rwkl,
   /{media,mnt,run/media}/ r,
   /{media,mnt,run/media}/** r,
   dbus send
@@ -2798,7 +2808,7 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/*.py r,
   owner @{PROC}/@{pid}/fd/ r,
   owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/ rw,
-  owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/{resolv.conf,pasta.log,pasta.pid} rw,
+  owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/{resolv.conf,pasta.pid} rw,
   signal (send) peer=qbittorrent-pasta,
   signal (send) peer=labwc-qbittorrent//qbittorrent-bwrap,
   owner /run/user/[0-9]*/labwc-session-closing r,
@@ -2938,7 +2948,7 @@ profile qbittorrent-pasta flags=(attach_disconnected) {
   @{PROC}/sys/net/ipv4/{ip_local_port_range,tcp_syn_retries,tcp_syn_linear_timeouts,tcp_rto_max_ms} r,
   @{PROC}/sys/net/netfilter/nf_conntrack_udp_timeout{,_stream} r,
   owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/ r,
-  owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/{pasta.log,pasta.pid} rw,
+  owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/pasta.pid rw,
 }
 
 profile labwc-recovery-action /usr/local/bin/labwc-recovery-action flags=(attach_disconnected) {

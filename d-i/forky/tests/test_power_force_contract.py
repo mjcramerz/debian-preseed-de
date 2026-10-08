@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
 import shlex
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -32,6 +34,10 @@ class ForceContractTests(unittest.TestCase):
         worker = self.power.Worker(1000, 'desktop', action, greeter=greeter)
         worker.prepared = not greeter
         worker.session_stopped = worker.storage_stopped = True
+        worker.external_drives_prepared = True
+        # The final inventory is a hardware/service boundary; complete
+        # desktop and greeter flow tests exercise its real dispatch/order.
+        worker.prepare_external_drives = mock.Mock()
         worker.package_locks = mock.Mock()
         return worker
 
@@ -67,6 +73,18 @@ class ForceContractTests(unittest.TestCase):
                     worker.final_power_action()
                 self.commands.assert_not_called()
                 self.assertFalse(worker.committed or worker.handoff_attempted)
+
+    def test_missing_external_drive_preparation_vetoes_every_force_handoff(self):
+        for action in ('reboot', 'poweroff'):
+            for greeter in (False, True):
+                with self.subTest(action=action, greeter=greeter):
+                    worker = self.worker(action, greeter)
+                    worker.external_drives_prepared = False
+                    self.commands.reset_mock()
+                    with self.assertRaisesRegex(self.power.Error, 'external-drive preparation'):
+                        worker.final_power_action()
+                    self.commands.assert_not_called()
+                    self.assertFalse(worker.handoff_attempted)
 
     def test_failed_or_uncertain_submission_never_escalates_or_retries(self):
         for action in ('reboot', 'poweroff'):
@@ -137,6 +155,79 @@ class ForceUnitConfinementTests(unittest.TestCase):
                            'PrivatePIDs=no', 'AppArmorProfile=labwc-admin-action-worker'):
             self.assertIn(assignment, assignments)
 
+    def test_drive_service_uses_the_shared_manager_and_preserves_host_mounts(self):
+        source = TARGET / 'etc/systemd/system/labwc-external-drives-shutdown.service'
+        text = read_text(source)
+        assignments = [line for line in text.splitlines() if line and not line.startswith('#')]
+        for assignment in (
+                'Type=oneshot', 'WorkingDirectory=/', 'TimeoutStartSec=15min',
+                'ExecStart=/usr/local/bin/labwc-external-drives --prepare-shutdown',
+                'AppArmorProfile=labwc-external-drives', 'NoNewPrivileges=yes',
+                'PrivateMounts=no', 'PrivateDevices=no', 'PrivateTmp=no',
+                'PrivateUsers=no', 'PrivatePIDs=no', 'DevicePolicy=closed',
+                'CapabilityBoundingSet=CAP_DAC_READ_SEARCH',
+                'SystemCallFilter=~@mount @reboot @raw-io'):
+            self.assertIn(assignment, assignments)
+        self.assertNotIn('[Install]', text)
+        self.assertNotIn('RemainAfterExit=', text)
+        self.assertNotIn('CAP_SYS_ADMIN', text)
+        self.assertNotIn('CAP_SYS_BOOT', text)
+        self.assertNotIn('ProtectSystem=', text)
+        self.assertNotIn('ProtectHome=', text)
+        publisher = read_text(ROOT / 'd-i/forky/scripts/desktop/components/target-assets.sh')
+        self.assertIn('etc/systemd/system/labwc-external-drives-shutdown.service '
+                      '/etc/systemd/system/labwc-external-drives-shutdown.service 0644', publisher)
+        self.assertIn('require_mode /etc/systemd/system/labwc-external-drives-shutdown.service 644',
+                      read_text(ROOT / 'd-i/forky/scripts/desktop/verify.sh'))
+
+    @unittest.skipUnless(shutil.which('systemd-analyze'), 'native systemd parser unavailable')
+    def test_drive_service_passes_native_offline_unit_verification(self):
+        with tempfile.TemporaryDirectory(prefix='external-drive-unit-') as directory:
+            path = Path(directory) / 'labwc-external-drives-shutdown.service'
+            source = read_text(TARGET / 'etc/systemd/system' / path.name)
+            # Parse all production settings with an available, inert executable
+            # and a dependency stub. verify never starts these services.
+            path.write_text(source.replace(
+                'ExecStart=/usr/local/bin/labwc-external-drives --prepare-shutdown',
+                'ExecStart=/usr/bin/true'))
+            (Path(directory) / 'udisks2.service').write_text(
+                '[Service]\nExecStart=/usr/bin/true\n')
+            # A private user-manager runtime lets the native syntax parser
+            # operate in minimal containers without /run/systemd. This is
+            # parsing only, not a system-manager or device-policy live test.
+            runtime = Path(directory) / 'runtime'
+            runtime.mkdir(mode=0o700)
+            env = dict(os.environ, SYSTEMD_UNIT_PATH=directory + ':/usr/lib/systemd/user',
+                       XDG_RUNTIME_DIR=str(runtime))
+            result = subprocess.run(
+                [shutil.which('systemd-analyze'), '--user', '--generators=no', '--man=no',
+                 '--recursive-errors=no', 'verify', str(path)],
+                capture_output=True, text=True, encoding='utf-8', env=env, timeout=10)
+            if (result.returncode != 0 and
+                    'Failed to enable SO_PASSCRED on handoff timestamp socket: Operation not permitted'
+                    in result.stderr):
+                self.skipTest('kernel blocks Unix socket options required by the native unit verifier')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
+class ExternalDrivePreparationTests(unittest.TestCase):
+    def test_nonzero_missing_failed_or_running_service_never_marks_drives_prepared(self):
+        power = module()
+        for properties in (
+                '', 'LoadState=not-found\nActiveState=inactive\nSubState=dead\nResult=success\nExecMainStatus=0\n',
+                'LoadState=loaded\nActiveState=active\nSubState=running\nResult=success\nExecMainStatus=0\n',
+                'LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=exit-code\nExecMainStatus=1\n',
+                'LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=success\nExecMainStatus=1\n',
+                'LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=success\n'):
+            with self.subTest(properties=properties):
+                worker = power.Worker(1000, 'desktop', 'poweroff')
+                worker.package_locks = mock.Mock()
+                with mock.patch.object(power, 'run', side_effect=['', properties]) as calls, \
+                        contextlib.redirect_stderr(io.StringIO()), self.assertRaises(power.Error):
+                    worker.prepare_external_drives()
+                self.assertFalse(worker.external_drives_prepared)
+                self.assertFalse(any('--force' in call.args[0] for call in calls.call_args_list))
+
 
 class FirstbootForceValidationTests(unittest.TestCase):
     def setUp(self):
@@ -150,6 +241,7 @@ class FirstbootForceValidationTests(unittest.TestCase):
             'usr/local/libexec/labwc-admin-action-worker',
             'etc/security/sudo-i.conf',
             'etc/systemd/system/labwc-admin-action@.service',
+            'etc/systemd/system/labwc-external-drives-shutdown.service',
         )
         source = read_text(ROOT / 'd-i/forky/scripts/firstboot/04-validation.sh')
         section = source.split('  # Validate the complete greeter handoff,', 1)[1]
@@ -184,6 +276,16 @@ class FirstbootForceValidationTests(unittest.TestCase):
         source = self.greeter_frontend.read_text(encoding='utf-8')
         self.assertEqual(source.count('\nunset SHELL\n'), 1)
         self.greeter_frontend.write_text(source.replace('\nunset SHELL\n', '\n'), encoding='utf-8')
+        self.check(False)
+
+    def test_firstboot_rejects_missing_external_drive_stage_or_service(self):
+        original = self.worker_source
+        self.worker.write_text(original.replace('if not self.external_drives_prepared:',
+                                                 'if False:'))
+        self.check(False)
+        self.worker.write_text(original)
+        service = self.directory / 'etc/systemd/system/labwc-external-drives-shutdown.service'
+        service.write_text(service.read_text().replace('DevicePolicy=closed', 'DevicePolicy=auto'))
         self.check(False)
 
     def test_firstboot_rejects_missing_boot_capability_or_raw_reboot_filter(self):

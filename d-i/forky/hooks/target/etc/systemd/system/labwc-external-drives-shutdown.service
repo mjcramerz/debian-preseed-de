@@ -1,0 +1,46 @@
+[Unit]
+Description=Safely power off external USB data drives before managed shutdown
+Requires=udisks2.service
+After=udisks2.service systemd-udevd.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/
+ExecStart=/usr/local/bin/labwc-external-drives --prepare-shutdown
+# Each sync/unmount/power-off retains its own bounded timeout. Exhausting
+# the overall budget is a failed preparation, never permission to force power.
+TimeoutStartSec=15min
+TimeoutStopSec=5s
+KillMode=control-group
+Restart=no
+RuntimeDirectory=labwc-power
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+UnsetEnvironment=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR TMPDIR
+UMask=0077
+StandardInput=null
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=labwc-external-drives-shutdown
+AppArmorProfile=labwc-external-drives
+NoNewPrivileges=yes
+# Inspect real block-node metadata and the host mount table. DevicePolicy
+# forbids raw block-device I/O; UDisks performs unmount/power-off on the bus.
+# Filesystem namespacing would leave stale private mounts during removal.
+PrivateMounts=no
+PrivateDevices=no
+PrivateTmp=no
+PrivateUsers=no
+PrivatePIDs=no
+DevicePolicy=closed
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@mount @reboot @raw-io

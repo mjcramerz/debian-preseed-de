@@ -17,7 +17,8 @@ Type=oneshot
 # Its writable policy and cache trees are explicitly declared below, so the
 # command must remain inside this unit's filesystem namespace.
 ExecStart=/usr/local/libexec/apparmor-modes-run
-ExecReload=/usr/local/libexec/apparmor-modes-run
+# A matching label/mode does not prove that changed rules are loaded.
+ExecReload=/usr/local/libexec/apparmor-modes-run --force-reload
 RemainAfterExit=yes
 TimeoutStartSec=2min
 TimeoutStopSec=15s

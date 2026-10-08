@@ -2,6 +2,7 @@
 Description=labwc compositor session
 ConditionEnvironment=LABWC_SESSION_OWNER=desktop
 Requires=dbus.service dbus.socket
+Wants=gvfs-daemon.service gvfs-udisks2-volume-monitor.service
 BindsTo=labwc-compositor.service
 After=dbus.service dbus.socket labwc-compositor.service
 # The user manager owns Labwc and this target is the authoritative desktop

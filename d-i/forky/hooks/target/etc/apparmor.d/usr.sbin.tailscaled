@@ -12,6 +12,7 @@ abi "/usr/share/apparmor-features/features",
 profile usr.sbin.tailscaled /usr/sbin/tailscaled flags=(attach_disconnected, mediate_deleted) {
   #include <abstractions/base>
   #include <abstractions/nameservice>
+  #include <abstractions/dbus-strict>
 
   # Network and packet-filter administration remain confined to this daemon.
   capability net_admin,
@@ -31,9 +32,38 @@ profile usr.sbin.tailscaled /usr/sbin/tailscaled flags=(attach_disconnected, med
   /usr/sbin/resolvconf rix,
   /{,usr/}bin/{flock,sed} rix,
   # Tailscale 1.104.1's hostinfo desktop detection invokes loginctl to list
-  # sessions and read their Type. The helper gets only read-only logind access.
-  /usr/bin/loginctl rCx -> loginctl,
-  signal (send) set=(term kill) peer=usr.sbin.tailscaled//loginctl,
+  # sessions and read their Type. Inherit this profile: tailscaled.service sets
+  # NoNewPrivileges=true, which can reject a transition to a separate profile.
+  /usr/bin/loginctl rix,
+  network unix stream,
+  dbus (send) bus=system path=/org/freedesktop/login1
+    interface=org.freedesktop.login1.Manager
+    member={ListSessions,ListSessionsEx,GetSession}
+    peer=(name=org.freedesktop.login1),
+  dbus (send) bus=system path=/org/freedesktop/login1/session/*
+    interface=org.freedesktop.DBus.Properties member={Get,GetAll}
+    peer=(name=org.freedesktop.login1),
+  dbus (receive) bus=system peer=(name=org.freedesktop.login1),
+  dbus (receive) bus=system peer=(name=org.freedesktop.DBus),
+  # Adding logind D-Bus mediation must retain the daemon's DNS integration.
+  dbus (send) bus=system path=/org/freedesktop/resolve1
+    interface=org.freedesktop.resolve1.Manager
+    member={SetLinkDNS,SetLinkDomains,SetLinkDefaultRoute,SetLinkLLMNR,SetLinkMulticastDNS,SetLinkDNSSEC,SetLinkDNSOverTLS,RevertLink,FlushCaches}
+    peer=(name=org.freedesktop.resolve1),
+  dbus (send) bus=system path=/org/freedesktop/resolve1
+    interface=org.freedesktop.DBus.Peer member=Ping
+    peer=(name=org.freedesktop.resolve1),
+  dbus (receive) bus=system peer=(name=org.freedesktop.resolve1),
+  dbus (send) bus=system path=/org/freedesktop/NetworkManager
+    interface=org.freedesktop.NetworkManager member=GetDeviceByIpIface
+    peer=(name=org.freedesktop.NetworkManager),
+  dbus (send) bus=system path=/org/freedesktop/NetworkManager/Devices/*
+    interface=org.freedesktop.NetworkManager.Device member={GetAppliedConnection,Reapply}
+    peer=(name=org.freedesktop.NetworkManager),
+  dbus (send) bus=system path=/org/freedesktop/NetworkManager{,/**}
+    interface=org.freedesktop.DBus.Properties member={Get,GetAll}
+    peer=(name=org.freedesktop.NetworkManager),
+  dbus (receive) bus=system peer=(name=org.freedesktop.NetworkManager),
   /usr/share/doc/resolvconf/copyright r,
   /dev/net/tun rw,
   /dev/tpmrm0 rw,
@@ -65,25 +95,6 @@ profile usr.sbin.tailscaled /usr/sbin/tailscaled flags=(attach_disconnected, med
   @{PROC}/sys/net/ipv6/conf/*/{disable_ipv6,disable_policy} r,
   @{sys}/devices/virtual/dmi/id/{bios_vendor,product_name,sys_vendor} r,
   @{sys}/fs/cgroup/system.slice/tailscaled.service/cpu.max r,
-
-  profile loginctl flags=(attach_disconnected) {
-    #include <abstractions/base>
-    #include <abstractions/dbus-strict>
-
-    /usr/bin/loginctl mr,
-    /etc/{passwd,group,nsswitch.conf} r,
-    network unix stream,
-    dbus (send) bus=system path=/org/freedesktop/login1
-      interface=org.freedesktop.login1.Manager
-      member={ListSessions,ListSessionsEx,GetSession}
-      peer=(name=org.freedesktop.login1),
-    dbus (send) bus=system path=/org/freedesktop/login1/session/*
-      interface=org.freedesktop.DBus.Properties member={Get,GetAll}
-      peer=(name=org.freedesktop.login1),
-    dbus (receive) bus=system peer=(name=org.freedesktop.login1),
-    dbus (receive) bus=system peer=(name=org.freedesktop.DBus),
-    signal (receive) set=(term kill) peer=usr.sbin.tailscaled,
-  }
 
   include if exists <local/usr.sbin.tailscaled>
 }
