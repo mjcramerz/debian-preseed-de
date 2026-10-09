@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Unprivileged Podman/Docker dispatch; no sudo, shell evaluation or UID change."""
 from __future__ import annotations
 import grp

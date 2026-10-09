@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Reconcile only /dev/char links for existing, root-owned NVIDIA devices.
 
 Never create devices, load modules, change permissions, or follow an untrusted

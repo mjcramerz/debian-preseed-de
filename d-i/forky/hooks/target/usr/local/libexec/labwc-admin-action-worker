@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Authorized PID-1-owned power worker; user documents never run as root."""
 from __future__ import annotations
 import contextlib

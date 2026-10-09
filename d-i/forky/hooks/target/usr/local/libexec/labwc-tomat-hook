@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Pause all MPRIS players at break start; never resume unrelated user media."""
 import os
 import subprocess

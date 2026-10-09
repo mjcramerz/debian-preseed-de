@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Validate the packaged Qt agent, then exec it in the existing user service.
 
 --check is read-only and needs no display; installation/firstboot use it too.

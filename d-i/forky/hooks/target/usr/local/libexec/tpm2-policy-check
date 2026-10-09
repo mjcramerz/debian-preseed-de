@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Read-only TPM evidence checks and durable enrollment/release state.
 
 No enrollment, slot deletion or PCR extension is performed by this helper.

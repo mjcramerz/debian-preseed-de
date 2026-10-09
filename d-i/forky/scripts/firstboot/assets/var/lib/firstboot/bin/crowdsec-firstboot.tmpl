@@ -252,7 +252,7 @@ capi_credentials_configured() {
   # A nonempty file may contain only a URL or incomplete package defaults.
   # Parse the private YAML without printing any credential value. Config-show
   # intentionally does not load the credential object, only its file path.
-  timeout --kill-after=5 10 /usr/bin/python3 -I - "$online_credentials_file" <<'PY'
+  timeout --kill-after=5 10 /usr/bin/python3 -I -B - "$online_credentials_file" <<'PY'
 import os
 from pathlib import Path
 import stat

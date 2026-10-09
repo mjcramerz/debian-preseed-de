@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Serialize the managed Mullvad daemon and Tailscale service lifecycles."""
 
 from __future__ import annotations

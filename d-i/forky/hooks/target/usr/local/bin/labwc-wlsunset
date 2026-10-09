@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Own one native colour daemon through a transient systemd user service.
 
 No shell evaluation, fork-to-background, geolocation, polling daemon or X11.

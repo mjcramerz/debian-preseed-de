@@ -70,7 +70,7 @@ if [ ! -r "$SYNCTHING_STATE_DIR/config.xml" ] && [ "$mode" = --prepare ]; then
 fi
 [ -f "$SYNCTHING_STATE_DIR/config.xml" ] || syncthing_fatal "managed Syncthing config is missing"
 
-python3 -I - "$SYNCTHING_STATE_DIR/config.xml" "$SYNCTHING_DATA_DIR" "$SYNCTHING_TCP_PORT" "$SYNCTHING_GUI_ENABLED" "$mode" <<'PY'
+python3 -I -B - "$SYNCTHING_STATE_DIR/config.xml" "$SYNCTHING_DATA_DIR" "$SYNCTHING_TCP_PORT" "$SYNCTHING_GUI_ENABLED" "$mode" <<'PY'
 import os
 import sys
 import signal

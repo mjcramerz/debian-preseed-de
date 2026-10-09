@@ -654,7 +654,6 @@ NATIVE_VETH_SANDBOX_DEFAULTS = {
     "preserve_persistent_modes": True,
     "shared_temp_directory_by_application": True,
     "share_net": False,
-    "veth": True,
     "system_dbus_names": ("org.freedesktop.UPower",),
 }
 PERSISTENT_SANDBOX_CONFIG = {
@@ -839,7 +838,6 @@ PERSISTENT_SANDBOX_CONFIG = {
         ),
         "share_net": False,
         "shared_temp_directory": "labwc-chatgpt-tmp",
-        "veth": True,
         "synthetic_identity": True,
         "system_dbus_names": CHATGPT_SYSTEM_DBUS_NAMES,
     },
@@ -863,7 +861,6 @@ PERSISTENT_SANDBOX_CONFIG = {
         "runtime_directories": ("doc",),
         "runtime_sockets": ("pipewire-0", "pulse/native"),
         "share_net": False,
-        "veth": True,
         "system_dbus_names": (),
     },
     "tutanota": {
@@ -886,7 +883,6 @@ PERSISTENT_SANDBOX_CONFIG = {
         "runtime_directories": ("doc",),
         "runtime_sockets": ("pipewire-0", "pulse/native"),
         "share_net": False,
-        "veth": True,
         "system_dbus_names": TUTA_SYSTEM_DBUS_NAMES,
     },
     "zoom": {
@@ -915,7 +911,6 @@ PERSISTENT_SANDBOX_CONFIG = {
         "runtime_directories": ("doc",),
         "runtime_sockets": ("pipewire-0", "pulse/native"),
         "share_net": False,
-        "veth": True,
         "system_dbus_names": (),
     },
 }

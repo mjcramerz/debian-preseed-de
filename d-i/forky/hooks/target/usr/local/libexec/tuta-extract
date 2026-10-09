@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Extract a verified Type-2 AppImage without executing its ELF runtime.
 
 Input is a root-private signed artifact and its expected SHA-256. The package

@@ -202,12 +202,13 @@ def run_veth_sandbox(
     runtime_check: Callable[[], None] | None = None,
     cleanup_deadline: Callable[[], float] | None = None,
     cleanup_failure: Callable[[], None] | None = None,
+    network: bool = True,
 ) -> int:
     validate_private_procfs(command)
     return network_namespace.run_veth_sandbox(
         command, payload_argv, temp_root, inherited_fds, app=app,
         pre_payload_check=pre_payload_check, runtime_check=runtime_check,
-        cleanup_deadline=cleanup_deadline, cleanup_failure=cleanup_failure,
+        cleanup_deadline=cleanup_deadline, cleanup_failure=cleanup_failure, network=network,
     )
 
 
@@ -465,11 +466,12 @@ def bwrap_command(app_name: str, bwrap: str) -> list[str]:
 def run_pure_privacy(app_name: str, extra_args: list[str]) -> int:
     if not APPS[app_name].get("pure_privacy", False):
         fail(f"pure-privacy mode is not supported for {app_name}")
+    from .network_client import network_enabled
+    network_app = "qbittorrent-privacy" if app_name == "qbittorrent" else app_name
     online = APPS[app_name].get("privacy_share_net", True)
     if type(online) is not bool:
         fail(f"PurePrivacy network policy is invalid for {app_name}")
-    if online and not PERSISTENT_SANDBOX_CONFIG.get(app_name, {}).get("veth", False):
-        fail(f"PurePrivacy online mode requires a private veth policy for {app_name}")
+    online = online and network_enabled(network_app)
 
     bwrap = require_root_owned_executable("bubblewrap", "/usr/bin/bwrap")
 
@@ -585,6 +587,7 @@ def run_pure_privacy(app_name: str, extra_args: list[str]) -> int:
         "/etc/chromium.d",
         "/etc/opt/edge",
         "/etc/vivaldi",
+        "/etc/app-veth.json",
         "/etc/pki",
         "/etc/fonts",
         "/etc/alternatives",
@@ -664,8 +667,7 @@ def run_pure_privacy(app_name: str, extra_args: list[str]) -> int:
 
     try:
         require_running_dbus_proxy(proxy_process, proxy_socket)
-        if online:
-            return run_veth_sandbox(
+        return run_veth_sandbox(
                 command,
                 argv,
                 temp_root,
@@ -673,11 +675,8 @@ def run_pure_privacy(app_name: str, extra_args: list[str]) -> int:
                 pre_payload_check=lambda: require_running_dbus_proxy(proxy_process, proxy_socket),
                 # The dedicated persistent torrent wrapper owns peer-port
                 # forwarding. A disposable profile needs outbound networking.
-                app="qbittorrent-privacy" if app_name == "qbittorrent" else app_name,
+                app=network_app, network=online,
             )
-        command.extend(argv)
-        completed = subprocess.run(command, check=False, cwd="/", env=managed_subprocess_environment())
-        return completed.returncode
     finally:
         stop_dbus_proxy(proxy_process, proxy_lifecycle, proxy_socket)
         shutil.rmtree(temp_root, ignore_errors=True)
@@ -1245,11 +1244,10 @@ def _run_persistent_sandbox(
     if sandbox is None:
         fail(f"persistent sandbox mode is not supported for {app_name}")
     share_net = sandbox.get("share_net")
-    veth_enabled = sandbox.get("veth", False)
+    from .network_client import network_enabled
+    veth_enabled = network_enabled(app_name)
     if not isinstance(share_net, bool):
         fail(f"persistent sandbox network-sharing policy is invalid for {app_name}")
-    if not isinstance(veth_enabled, bool):
-        fail(f"persistent sandbox veth policy is invalid for {app_name}")
     if share_net and veth_enabled:
         fail(
             f"persistent sandbox cannot share the host network and use veth: {app_name}"
@@ -1488,6 +1486,7 @@ def _run_persistent_sandbox(
         }
         for path in (
             "/etc/alternatives",
+            "/etc/app-veth.json",
             "/etc/ca-certificates",
             "/etc/chromium",
             "/etc/chromium.d",
@@ -1713,8 +1712,7 @@ def _run_persistent_sandbox(
             command.extend(podman_socket_arguments())
             command.extend(codex_socket_arguments())
         payload_argv = [*payload_argv_prefix, *argv]
-        if veth_enabled:
-            return run_veth_sandbox(
+        return run_veth_sandbox(
                 command,
                 payload_argv,
                 temp_root,
@@ -1722,19 +1720,10 @@ def _run_persistent_sandbox(
                 pre_payload_check=lambda: (require_compatibility_dbus_proxies(proxy_processes)
                     if compatibility_instance else require_running_dbus_proxies(proxy_processes)),
                 runtime_check=(lambda: (compatibility_instance.service(), require_compatibility_dbus_proxies(proxy_processes) if compatibility_instance.outcome is None else None)) if compatibility_instance else None,
-                app=app_name,
+                app=app_name, network=veth_enabled,
                 cleanup_deadline=compatibility_instance.begin_cleanup if compatibility_instance else None,
                 cleanup_failure=(lambda: setattr(compatibility_instance, "cleanup_failed", True)) if compatibility_instance else None,
             )
-        command.extend(payload_argv)
-        completed = subprocess.run(
-            command,
-            check=False,
-            cwd="/",
-            env=managed_subprocess_environment(),
-            pass_fds=inherited_fds,
-        )
-        return completed.returncode
     finally:
         _close_file_descriptor(outer_wayland_lock_fd)
         if lifecycle_lock_fd is not None:

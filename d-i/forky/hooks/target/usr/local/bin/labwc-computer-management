@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Computer Management: task groups and a discoverable Hardware Tuning entry.
 
 The no-argument entry point and child dmenu pickers use graphical Fuzzel.

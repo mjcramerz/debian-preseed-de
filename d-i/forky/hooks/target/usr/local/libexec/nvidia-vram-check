@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python3 -B
 """Validate NVIDIA suspend backing storage before invoking the vendor service."""
 from __future__ import annotations
 

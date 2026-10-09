@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Thunar's native GVfs device actions use the ordered external-drive worker.
 
 The installed GVfs remote monitor supplies inventory and mount operations.

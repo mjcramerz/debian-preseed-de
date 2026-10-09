@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Profile-controlled NFS management; unprivileged, fixed argv, native picker.
 
 Privileged changes go through systemd's existing active-local administrator

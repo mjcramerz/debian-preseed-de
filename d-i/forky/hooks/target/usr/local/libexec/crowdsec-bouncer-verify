@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python3 -B
 """Validate the package-enrolled local bouncer without exposing its API key."""
 import argparse
 import json

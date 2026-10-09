@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Fuzzel management of the one devops rootless engine; always unprivileged.
 
 Selections map to immutable API IDs, never interpolated shell commands. Slow or

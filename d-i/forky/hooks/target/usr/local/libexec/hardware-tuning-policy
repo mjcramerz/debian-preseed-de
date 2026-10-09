@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Root-only, AppArmor-confined policy-owner helper; never executes commands."""
 import ctypes
 import json

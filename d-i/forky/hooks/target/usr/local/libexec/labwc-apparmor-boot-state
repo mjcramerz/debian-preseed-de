@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Stage a managed AppArmor boot change; never unload live policy or reboot.
 
 Only the repository-owned GRUB security fragment and grub.cfg are changed.

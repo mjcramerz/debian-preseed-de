@@ -14,7 +14,7 @@ import socket
 import stat
 import struct
 
-from .integrity import system_owner
+from .integrity import IntegrityError, require_managed_module, system_owner
 
 SOCKET_PATH = "/run/app-veth/control.sock"
 DNS_ADDRESS = "10.0.2.3"
@@ -28,6 +28,35 @@ CODEX_SOCKET_NAMES = (
 )
 CODEX_SOCKET_DAEMON_ROOT = Path("/tmp")
 CODEX_SOCKET_DAEMON_NAME = re.compile(r"codex-daemon-[0-9]+")
+
+
+def _configuration() -> dict:
+    # Load lazily so Podman's installer-time adapter probe needs only its
+    # minimal client package, before the security stage publishes this policy.
+    owner = system_owner()
+    try:
+        require_managed_module(Path(__file__).parent.parent / "app_veth_policy.py", owner=owner)
+        from app_veth_policy import read_configuration
+        return read_configuration(owner_uid=owner[0])
+    except (OSError, ValueError) as exc:
+        raise IntegrityError(f"managed application network policy is unavailable or invalid: {exc}") from exc
+
+
+def configured_network_policy(app: str) -> dict | None:
+    return _configuration()["apps"].get(app)
+
+
+def network_enabled(app: str) -> bool:
+    policy = configured_network_policy(app)
+    return policy is not None and policy["network"]
+
+
+def configured_executable_application(executable: str) -> str | None:
+    matches = [name for name, policy in _configuration()["apps"].items()
+               if os.path.realpath(executable) in {os.path.realpath(path) for path in policy["executables"]}]
+    if len(matches) > 1:
+        raise ValueError("executable matches more than one application network policy")
+    return matches[0] if matches else None
 
 
 def pin_sandbox_init(pid: int) -> int:
@@ -225,8 +254,20 @@ class Lease:
             response, _ancillary, flags, _address = self.socket.recvmsg(4096)
             if flags & (socket.MSG_TRUNC | socket.MSG_CTRUNC):
                 raise ValueError("oversized network readiness response")
-            result = json.loads(response)
+            if not response:
+                raise ValueError("network service closed the request before readiness; see managed network log")
+            try:
+                result = json.loads(response)
+            except (UnicodeError, json.JSONDecodeError) as exc:
+                raise ValueError("invalid network service response") from exc
             if not isinstance(result, dict) or result.get("ready") is not True:
+                if (isinstance(result, dict) and result.get("ready") is False
+                        and isinstance(result.get("error"), str)
+                        and isinstance(result.get("correlation_id"), str)
+                        and re.fullmatch(r"[0-9a-f]{32}", result["correlation_id"])):
+                    detail = " ".join(result["error"].split())[:512]
+                    raise ValueError(f"network service rejected request: {detail} "
+                                     f"(correlation {result['correlation_id']})")
                 raise ValueError("kernel network setup failed; see managed network log")
             self.address = str(ipaddress.IPv4Address(result["address"]))
             self.gateway = str(ipaddress.IPv4Address(result["gateway"]))
@@ -234,7 +275,7 @@ class Lease:
             if self.interface != "eth0":
                 raise ValueError("invalid private interface")
             self.peer_port = result.get("peer_port")
-            if app == "qbittorrent" and (type(self.peer_port) is not int or not 1024 <= self.peer_port <= 65535):
+            if self.peer_port is not None and (type(self.peer_port) is not int or not 1024 <= self.peer_port <= 65535):
                 raise ValueError("invalid private peer forwarding port")
             self.socket.setblocking(False)
         except BaseException:

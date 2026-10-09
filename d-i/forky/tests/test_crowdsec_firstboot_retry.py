@@ -336,6 +336,40 @@ stop_bootstrap_services() { systemctl stop crowdsec-firewall-bouncer.service cro
                 self.assertFalse(token.exists())
                 self.assertNotIn("fixture-token", recovered.stdout + recovered.stderr)
 
+                # Run the actual cleanup against an inert installed tree.
+                # Pending console approval has the same successful bootstrap
+                # marker contract as accepted Tailscale provisioning.
+                target = directory / "target"
+                crowd = target / "var/lib/firstboot/crowdsec"
+                crowd.mkdir(parents=True)
+                shutil.copyfile(directory / "complete", crowd / "complete")
+                for path, content in {
+                    "var/lib/firstboot/state/complete": "status=0\n",
+                    "var/lib/firstboot/tailscale/complete": "status=0\n",
+                    "var/lib/firstboot/bin/firstboot.sh": "inert\n",
+                    "var/lib/firstboot/bin/crowdsec-firstboot": "inert\n",
+                    "var/lib/firstboot/bin/tailscale-up": "inert\n",
+                    "var/lib/firstboot/bin/secondboot-cleanup": "inert\n",
+                    "var/lib/firstboot/lib/stage.sh": "inert\n",
+                    "etc/systemd/system/firstboot.service": "inert\n",
+                    "etc/systemd/system/crowdsec-firstboot.service": "inert\n",
+                    "etc/systemd/system/tailscale-bootstrap.service": "inert\n",
+                    "etc/systemd/system/secondboot.service": "inert\n",
+                    "etc/apparmor.d/firstboot": "inert\n",
+                }.items():
+                    artifact = target / path
+                    artifact.parent.mkdir(parents=True, exist_ok=True)
+                    artifact.write_text(content, encoding="ascii")
+                cleanup = subprocess.run([*shell, str(FORKY / "scripts/firstboot/assets/var/lib/firstboot/bin/secondboot-cleanup")],
+                    env={"PATH": "/usr/bin:/bin", "SECONDBOOT_ROOT": str(target)},
+                    text=True, encoding="utf-8", capture_output=True, timeout=5)
+                self.assertEqual(cleanup.returncode, 0, cleanup.stderr)
+                self.assertIn("removed completed CrowdSec bootstrap artifacts", cleanup.stdout)
+                self.assertIn("removed completed Tailscale bootstrap artifacts", cleanup.stdout)
+                self.assertFalse((target / "var/lib/firstboot").exists())
+                self.assertFalse((target / "etc/systemd/system/secondboot.service").exists())
+                self.assertIn("OnSuccess=secondboot.service", (FORKY / "scripts/firstboot/assets/etc/systemd/system/firstboot.service").read_text(encoding="utf-8"))
+
     def test_hub_failures_distinguish_remote_forbidden_from_local_permissions(self):
         code = source_function("run_crowdsec_command") + """
 work_dir=$1

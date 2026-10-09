@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Normalize active APT inputs into vendor-named deb822 files, without networking."""
 from __future__ import annotations
 

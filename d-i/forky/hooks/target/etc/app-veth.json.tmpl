@@ -1,1 +1,34 @@
-{"desktop_user":"__INSTALLER_ACCOUNT_USERNAME__","peer_port":__INSTALLER_LABWC_QBITTORRENT_PORT__}
+{
+  "version": 1,
+  "desktop_user": "__INSTALLER_ACCOUNT_USERNAME__",
+  "apps": {
+    "bitwarden": {"network": true, "block_lan": true},
+    "chatgpt": {"network": true, "block_lan": false},
+    "chromium": {"network": true, "block_lan": false},
+    "code": {"network": true, "block_lan": false},
+    "codex": {"network": true, "block_lan": false},
+    "discord": {"network": true, "block_lan": true},
+    "filen": {"network": true, "block_lan": true},
+    "freerdp": {"network": true, "block_lan": false},
+    "ledger-live": {"network": true, "block_lan": true},
+    "liferea": {"network": true, "block_lan": false},
+    "microsoft-edge": {"network": true, "block_lan": false},
+    "mullvad-browser": {"network": true, "block_lan": false},
+    "obsidian": {"network": true, "block_lan": false},
+    "postman": {"network": true, "block_lan": false},
+    "qbittorrent": {
+      "network": true,
+      "block_lan": false,
+      "pin_route": true,
+      "peer_port": __INSTALLER_LABWC_QBITTORRENT_PORT__
+    },
+    "qbittorrent-privacy": {"network": true, "block_lan": true},
+    "qoredb": {"network": true, "block_lan": false},
+    "spotify": {"network": true, "block_lan": true},
+    "telegram-desktop": {"network": true, "block_lan": true},
+    "tutanota": {"network": true, "block_lan": true},
+    "vivaldi": {"network": true, "block_lan": false},
+    "zoom": {"network": true, "block_lan": true},
+    "podman": {"network": true, "block_lan": false}
+  }
+}

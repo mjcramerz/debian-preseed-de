@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Installer-only reconciliation of small, root-owned system policies."""
 import os
 from pathlib import Path

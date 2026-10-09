@@ -1721,6 +1721,9 @@ configure_target_app_veth() {
     stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET "$veth_asset")" "/$veth_asset" 0644
   done
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/sbin/app-veth)" /usr/local/sbin/app-veth 0755
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/lib/python3.14/dist-packages/app_veth_policy.py)" \
+    /usr/local/lib/python3.14/dist-packages/app_veth_policy.py 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/app-veth-podman)" /usr/local/libexec/app-veth-podman 0755
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/resolved.conf.d/60-app-veth.conf)" /etc/systemd/resolved.conf.d/60-app-veth.conf 0644
   render_target_asset_with_placeholder_map \

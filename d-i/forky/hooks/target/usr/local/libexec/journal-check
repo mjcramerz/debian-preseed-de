@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Check the effective native journald policy without changing it or journal data.
 
 The installer and rsyslog ExecStartPre use the same check. systemd-analyze

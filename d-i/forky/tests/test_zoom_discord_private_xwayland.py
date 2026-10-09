@@ -244,7 +244,9 @@ class EnvironmentAndDisplayTests(unittest.TestCase):
         self.assertIn('PRIVATE_X11_SOCKET_DIRECTORY', text)
         self.assertNotIn('"--bind", "/tmp/.X11-unix"', text)
         self.assertFalse(profiles.PERSISTENT_SANDBOX_CONFIG['discord']['share_net'])
-        self.assertTrue(profiles.PERSISTENT_SANDBOX_CONFIG['discord']['veth'])
+        network_config = json.loads((TARGET / 'etc/app-veth.json.tmpl').read_text(encoding='utf-8').replace(
+            '__INSTALLER_ACCOUNT_USERNAME__', 'desktop').replace('__INSTALLER_LABWC_QBITTORRENT_PORT__', '50309'))
+        self.assertTrue(network_config['apps']['discord']['network'])
         # Identical display numbers are accepted only for the private namespace.
         with mock.patch.dict(os.environ, {'DISPLAY':':0','WLR_XWAYLAND':runtime.XWAYLAND_EXEC_HELPER}, clear=True):
             self.assertEqual(runtime.require_cage_x11_display(), '0')

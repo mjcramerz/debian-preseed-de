@@ -699,7 +699,7 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
         [ ! -e "/etc/systemd/system/user-${uid}.slice.d/50-podman-devops.conf" ]
         [ ! -L "/etc/systemd/system/user-${uid}.slice.d/50-podman-devops.conf" ]
         ! systemctl is-active --quiet "user@${uid}.service"
-        devops_processes=$(/usr/bin/python3 -I /var/lib/firstboot/lib/service-account-processes.py "$uid")
+        devops_processes=$(/usr/bin/python3 -I -B /var/lib/firstboot/lib/service-account-processes.py "$uid")
         ! printf "%s\n" "$devops_processes" | grep -Eq "^(pipewire|pipewire-pulse|wireplumber|mako|gpg-agent|ssh-agent|dbus-broker|dbus-daemon|hyprpolkitagen|xdg-desktop-por)$"
         for runtime_user_state in bus systemd
         do

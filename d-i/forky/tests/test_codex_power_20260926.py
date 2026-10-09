@@ -22,6 +22,9 @@ from labwc_managed_app import network_client
 class WrapperRegressionTests(unittest.TestCase):
     def setUp(self):
         self.c = desktop.load_script(desktop.DESKTOP / 'data/codex/lib/codex', 'codex_regression')
+        policy = mock.patch.object(network_client, 'network_enabled', return_value=True)
+        policy.start()
+        self.addCleanup(policy.stop)
 
     def test_wrapper_flags_are_only_a_prefix(self):
         for argv in (['exec', '--no-bwrap'], ['--', '--isolated-network'],
@@ -58,6 +61,12 @@ class WrapperRegressionTests(unittest.TestCase):
             self.assertFalse(any('installation_id' in value for value in args))
 
     def test_kernel_network_releases_payload_and_reaps_supervision(self):
+        self._check_kernel_network(True)
+
+    def test_disabled_network_keeps_payload_supervision_without_acquiring_a_lease(self):
+        self._check_kernel_network(False)
+
+    def _check_kernel_network(self, online):
             with tempfile.TemporaryDirectory() as tmp:
                 self.c.CODEX_CONTROL_DIR = tmp
                 self.c.CODEX_ISOLATED_NETWORK = True
@@ -70,6 +79,7 @@ class WrapperRegressionTests(unittest.TestCase):
                 lease.close.side_effect = lambda: events.append('lease-close')
                 pidfd = os.open('/dev/null', os.O_RDONLY)
                 with mock.patch.object(self.c, 'codex_prepare_control_state'), \
+                     mock.patch.object(network_client, 'network_enabled', return_value=online), \
                      mock.patch.object(self.c, 'codex_prepare_identity_files'), \
                      mock.patch.object(self.c, 'codex_build_bwrap_args', return_value=['bwrap']), \
                      mock.patch.object(self.c, 'codex_clear_app_server_environment') as clear, \
@@ -81,13 +91,16 @@ class WrapperRegressionTests(unittest.TestCase):
                      mock.patch.object(self.c.subprocess, 'Popen', return_value=process) as spawn:
                     self.assertEqual(self.c.codex_run_sandboxed(), 0)
                     self.assertEqual(spawn.call_count, 1)
-                    acquire.assert_called_once_with(4321, 'codex')
+                    if online:
+                        acquire.assert_called_once_with(4321, 'codex')
+                    else:
+                        acquire.assert_not_called()
                     clear.assert_called_once()
                     self.assertEqual(release.call_count, 2)
                     self.assertTrue(all(call.args[1] == b'1' for call in release.call_args_list))
                     self.assertEqual(spawn.call_args_list[0].args[0][-2:], ['exec', 'hello'])
                 self.assertIsNone(self.c.CODEX_BWRAP_PROCESS)
-                self.assertEqual(events, ['namespace-stop', 'lease-close'])
+                self.assertEqual(events, ['namespace-stop', 'lease-close'] if online else ['namespace-stop'])
                 stop.assert_called_once_with(pidfd, self.c.signal.SIGKILL)
                 self.assertIsNone(self.c.CODEX_NETWORK_LEASE)
                 self.assertIsNone(self.c.CODEX_SANDBOX_PIDFD)

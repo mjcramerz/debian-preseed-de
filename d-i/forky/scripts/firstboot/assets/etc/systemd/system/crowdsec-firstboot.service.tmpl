@@ -4,6 +4,8 @@ Documentation=https://docs.crowdsec.net/
 Wants=network-online.target nss-lookup.target time-sync.target auditd.service
 After=network-online.target nss-lookup.target time-sync.target auditd.service
 ConditionPathExists=!/var/lib/firstboot/crowdsec/complete
+# Accepted console requests (pending approval) publish complete and exit 0.
+# Cleanup is gated by the helpers' markers, not propagated trigger status.
 OnSuccess=secondboot.service
 
 [Service]

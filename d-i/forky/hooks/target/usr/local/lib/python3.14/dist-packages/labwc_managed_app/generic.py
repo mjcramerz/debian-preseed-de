@@ -11,11 +11,14 @@ use an explicit AppArmor/bubblewrap policy (or a distinct uid/VM) for confinemen
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 import re
 import shlex
 import shutil
+import stat
+import tempfile
 import uuid
 
 from .environment import (
@@ -38,6 +41,12 @@ WRAPPERS = {
     "electron": "/usr/local/bin/labwc-electron-app",
     "wayland": "/usr/local/bin/labwc-wayland-app",
 }
+CONFIGURED_ENVIRONMENT_NAMES = "LABWC_CONFIGURED_ENVIRONMENT_NAMES"
+CONFIGURED_PAYLOAD_LAUNCHER = (
+    "import json,os,sys; "
+    "source=open(sys.argv[1],encoding='utf-8'); environment=json.load(source); source.close(); "
+    "os.execve(sys.argv[2],sys.argv[2:],environment)"
+)
 # Never let the user manager reintroduce X11, a different GPU or loader hooks.
 UNSET_ENVIRONMENT = (
     "DISPLAY", "XAUTHORITY", "GTK_THEME", "LD_PRELOAD", "LD_AUDIT", "LD_LIBRARY_PATH",
@@ -47,6 +56,7 @@ UNSET_ENVIRONMENT = (
     "LIBVA_DRIVER_NAME", "NVD_BACKEND", "__GLX_VENDOR_LIBRARY_NAME",
     "__NV_PRIME_RENDER_OFFLOAD", "__VK_LAYER_NV_optimus", "VK_ICD_FILENAMES",
     "VK_DRIVER_FILES", "MESA_LOADER_DRIVER_OVERRIDE", "LIBGL_ALWAYS_SOFTWARE",
+    CONFIGURED_ENVIRONMENT_NAMES,
 )
 ELECTRON_UNSAFE_SWITCHES = {
     "--no-sandbox", "--no-zygote", "--single-process", "--disable-gpu-sandbox",
@@ -175,7 +185,7 @@ def session_environment() -> dict[str, str]:
     return environment
 
 
-def managed_network_command(mode: str, arguments: list[str]) -> list[str] | None:
+def managed_network_command(mode: str, arguments: list[str], *, kind: str = "wayland") -> list[str] | None:
     """Keep generic desktop entries for known clients on the reviewed policy.
 
     Match installed executable paths, never desktop names or user data. This
@@ -198,10 +208,129 @@ def managed_network_command(mode: str, arguments: list[str]) -> list[str] | None
         if name == "qbittorrent":
             return ["/usr/local/bin/labwc-qbittorrent", *([f"--acceleration={mode}"] if mode in {"intel", "nvidia"} else []), *arguments[1:]]
         return ["/usr/local/bin/labwc-app", mode, name, *arguments[1:]]
+    # Keep the existing host administration/recovery entrypoints usable even
+    # while an administrator is repairing a malformed network policy file.
+    if executable in {os.path.realpath(path) for path in (
+            "/usr/bin/foot", "/usr/bin/footclient", "/usr/bin/kitty", "/usr/bin/terminal-emulator",
+            "/usr/bin/thunar", "/usr/bin/Thunar", "/usr/local/bin/labwc-terminal",
+            "/usr/bin/timeshift-launcher", "/usr/local/bin/mullvad-vpn", "/usr/local/bin/waypaper",
+            "/usr/local/bin/labwc-desktop-appearance", "/usr/local/bin/labwc-remote-desktop",
+            "/opt/Mullvad VPN/mullvad-vpn", "/opt/Mullvad VPN/mullvad-gui")}:
+        return None
+    from .network_client import configured_executable_application
+    name = configured_executable_application(executable)
+    if name is not None:
+        return ["/usr/local/libexec/app-veth-run", kind, mode, name, "--", *arguments]
     return None
 
 
-def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict[str, str]) -> list[str]:
+def configured_worker_environment(environment: dict[str, str]) -> dict[str, str]:
+    """Carry only names explicitly supplied by the generic launcher.
+
+    The user manager may hold unrelated variables. Passing names separately
+    preserves desktop env assignments and session restore metadata without
+    exposing values in the worker's command line or copying manager secrets.
+    """
+    raw = os.environ.get(CONFIGURED_ENVIRONMENT_NAMES, "")
+    names = raw.split()
+    if len(raw) > 8192 or len(names) > 128 or len(set(names)) != len(names):
+        fail("invalid configured application environment names")
+    total = 0
+    for name in names:
+        if (re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) is None
+                or name == CONFIGURED_ENVIRONMENT_NAMES or name not in os.environ):
+            fail("invalid configured application environment name")
+        value = os.environ[name]
+        total += len(value.encode("utf-8", errors="surrogateescape"))
+        if len(value) > 65536 or total > 262144:
+            fail("oversized configured application environment")
+        protected = (name in UNSET_ENVIRONMENT
+                     or name.startswith(("LD_", "BASH_FUNC_", "VK_", "__VK_"))
+                     or name in {"HOME", "USER", "LOGNAME", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"})
+        if protected and (name not in environment or value != environment[name]):
+            fail(f"configured application environment conflicts with isolation: {name}")
+        environment[name] = value
+    return environment
+
+
+def run_configured_network(arguments: list[str]) -> int:
+    """A user-manager worker for new, explicitly configured package clients.
+
+    Preserve the generic launcher's filesystem and IPC access. This adds a
+    private network/PID namespace, rather than inventing an application-specific
+    filesystem or AppArmor policy for an unknown package.
+    """
+    from . import network_namespace
+    from .network_client import configured_executable_application, configured_network_policy
+    from .network_client import resolver_configuration
+
+    parser = argparse.ArgumentParser(prog="app-veth-run")
+    parser.add_argument("kind", choices=tuple(WRAPPERS))
+    parser.add_argument("mode", choices=("launch", "intel", "nvidia"))
+    parser.add_argument("app")
+    parser.add_argument("command", nargs=argparse.REMAINDER)
+    options = parser.parse_args(arguments)
+    payload = options.command
+    if payload[:1] == ["--"]:
+        payload = payload[1:]
+    if not payload or os.geteuid() == 0:
+        parser.error("a configured desktop-user executable is required")
+    assert_launch_allowed()
+    executable = os.path.realpath(payload[0])
+    if configured_executable_application(executable) != options.app:
+        fail("executable is not authorized by the application network configuration")
+    owner_uid = system_owner()[0]
+    for parent in Path(executable).parents:
+        metadata = parent.lstat()
+        if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != owner_uid
+                or metadata.st_mode & 0o022):
+            fail("configured executable has an unsafe parent directory")
+    require_root_owned_executable("configured application", executable)
+    payload[0] = executable
+    environment = session_environment()
+    defaults = load_managed_defaults(MANAGED_DEFAULTS_PATH, owner_uid=owner_uid)
+    validate_acceleration_mode(options.mode, acceleration_availability_from_defaults(defaults))
+    environment.update(INTEL_ACCELERATION_ENV if options.mode == "intel"
+                       else NVIDIA_ACCELERATION_ENV if options.mode == "nvidia" else {})
+    environment = configured_worker_environment(environment)
+    if options.kind == "electron":
+        payload = electron_command(payload)
+    policy = configured_network_policy(options.app)
+    if policy is None:
+        fail("application network policy was removed before launch")
+    bwrap = require_root_owned_executable("bubblewrap", "/usr/bin/bwrap")
+    # The transient unit owns a private /tmp and removes it even after a
+    # crash/SIGKILL. Payloads receive a separate empty /tmp mount.
+    with tempfile.TemporaryDirectory(prefix="labwc-configured-network-", dir="/tmp") as temporary:
+        resolver = Path(temporary) / "resolv.conf"
+        resolver.write_text(resolver_configuration() if policy["network"] else "# Networking is disabled.\n",
+                            encoding="ascii")
+        resolver.chmod(0o600)
+        # Desktop env assignments may contain application credentials. Keep
+        # their values in a private read-only payload file, never bwrap argv.
+        environment_path = Path(temporary) / "environment.json"
+        with os.fdopen(os.open(environment_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC,
+                               0o600), "w", encoding="utf-8") as stream:
+            json.dump(environment, stream)
+        payload_environment_path = "/tmp/.labwc-app-environment.json"
+        command = [bwrap, "--die-with-parent", "--new-session", "--unshare-user", "--unshare-pid",
+                   "--unshare-net", "--unshare-ipc", "--unshare-uts", "--uid", str(os.getuid()),
+                   "--gid", str(os.getgid()), "--bind", "/", "/", "--proc", "/proc",
+                   "--tmpfs", "/tmp", "--tmpfs", "/run/app-veth", "--ro-bind", str(resolver),
+                   "/etc/resolv.conf", "--ro-bind", str(environment_path), payload_environment_path,
+                   "--chdir", os.getcwd(), "--cap-drop", "ALL", "--clearenv"]
+        # The fixed compatibility runtime remains available only through its
+        # existing Zoom/Discord launchers; generic clients cannot use it.
+        if Path("/opt/xwayland").is_dir():
+            command.extend(("--tmpfs", "/opt/xwayland"))
+        payload = ["/usr/bin/python3", "-I", "-B", "-c", CONFIGURED_PAYLOAD_LAUNCHER,
+                   payload_environment_path, *payload]
+        return network_namespace.run_veth_sandbox(command, payload, temporary, (),
+                                                  app=options.app, network=policy["network"])
+
+
+def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict[str, str],
+                   *, restore_arguments: list[str] | None = None) -> list[str]:
     assert_launch_allowed()
     is_thunar = kind == "wayland" and arguments[0] in {"/usr/bin/thunar", "/usr/bin/Thunar"}
     if is_thunar:
@@ -219,8 +348,12 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
     if kind == "wayland" and arguments == ["/usr/bin/footclient"]:
         arguments = ["/usr/bin/foot"]
     environment["LABWC_SESSION_APP"] = "1"
-    environment["LABWC_SESSION_RESTORE"] = restart_token([WRAPPERS[kind], mode, "--", *arguments])
-    label = re.sub(r"[^A-Za-z0-9_-]", "-", Path(arguments[0]).name)[:48] or "app"
+    restored = arguments if restore_arguments is None else restore_arguments
+    environment["LABWC_SESSION_RESTORE"] = restart_token([WRAPPERS[kind], mode, "--", *restored])
+    if arguments[0] == "/usr/local/libexec/app-veth-run":
+        environment[CONFIGURED_ENVIRONMENT_NAMES] = " ".join(sorted(
+            name for name in environment if name != CONFIGURED_ENVIRONMENT_NAMES))
+    label = re.sub(r"[^A-Za-z0-9_-]", "-", Path(restored[0]).name)[:48] or "app"
     unit = f"labwc-{kind}-{label}-{uuid.uuid4().hex}.service"
     # These canonical administration launchers need host UID semantics.
     # User-manager filesystem/IPC namespaces implicitly enable PrivateUsers:
@@ -341,14 +474,16 @@ def main(kind: str, argv: list[str] | None = None) -> int:
     arguments[0] = executable
     environment.update(MANAGED_WAYLAND_OPENGL_ENVIRONMENT)
     environment.update(INTEL_ACCELERATION_ENV if mode == "intel" else NVIDIA_ACCELERATION_ENV if mode == "nvidia" else {})
-    network_command = managed_network_command(mode, arguments)
+    network_command = managed_network_command(mode, arguments, kind=kind)
+    restore_arguments = list(arguments) if network_command is not None else None
     if network_command is not None:
         arguments = network_command
     elif kind == "electron":
         arguments = electron_command(arguments)
     try:
         systemd_run = require_root_owned_executable("systemd-run", "/usr/bin/systemd-run")
-        os.execve(systemd_run, transient_argv(kind, mode, arguments, environment), environment)
+        os.execve(systemd_run, transient_argv(kind, mode, arguments, environment,
+                                            restore_arguments=restore_arguments), environment)
     except OSError as exc:
         fail(f"desktop executable could not start: {executable}: {exc}")
     return 1

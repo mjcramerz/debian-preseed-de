@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """List real-UID process names without ps reading unrelated ptrace-gated fields."""
 from __future__ import annotations
 

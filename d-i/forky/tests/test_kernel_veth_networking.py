@@ -31,9 +31,14 @@ SEED = Path(__file__).resolve().parents[1]
 TARGET = SEED / "hooks/target"
 LIBRARY = python_library(TARGET / "usr/local/lib/python3.14/dist-packages")
 sys.path.insert(0, str(LIBRARY))
+import app_veth_policy as policy_parser
 from labwc_managed_app import network_client as client
 from labwc_managed_app import network_namespace as supervisor
 from labwc_managed_app import generic, profiles, sandbox
+
+DEFAULT_CONFIG_RAW = (TARGET / "etc/app-veth.json.tmpl").read_text(encoding="utf-8").replace(
+    "__INSTALLER_ACCOUNT_USERNAME__", "desktop").replace("__INSTALLER_LABWC_QBITTORRENT_PORT__", "50309")
+DEFAULT_POLICIES = policy_parser.parse_configuration(DEFAULT_CONFIG_RAW.encode())["apps"]
 
 broker = types.ModuleType("tested_veth_broker")
 broker.__file__ = str(TARGET / "usr/local/sbin/app-veth")
@@ -41,6 +46,59 @@ exec(compile(Path(broker.__file__).read_text(encoding="utf-8"), broker.__file__,
 podman_adapter = types.ModuleType("tested_podman_adapter")
 podman_adapter.__file__ = str(TARGET / "usr/local/libexec/app-veth-podman")
 exec(compile(Path(podman_adapter.__file__).read_text(encoding="utf-8"), podman_adapter.__file__, "exec"), podman_adapter.__dict__)
+
+
+class PolicyParsingTests(unittest.TestCase):
+    def parse(self, apps):
+        return policy_parser.parse_configuration(json.dumps({"version": 1, "desktop_user": "desktop", "apps": apps}).encode())
+
+    def test_typed_policy_defaults_and_optional_peer_forwarding(self):
+        rows = self.parse({"future-client": {"network": True, "peer_port": 4242,
+                                           "executables": ["/opt/future-client/client"]},
+                           "offline": {"network": False}})["apps"]
+        self.assertTrue(rows["future-client"]["pin_route"])
+        self.assertEqual(rows["future-client"]["executables"], ("/opt/future-client/client",))
+        self.assertIsNone(rows["offline"]["peer_port"])
+
+    def test_unknown_keys_malformed_flags_ports_paths_and_duplicates_fail_closed(self):
+        bad = ({}, {"network": "true"}, {"network": True, "block_lan": 1},
+               {"network": True, "pin_route": "false"}, {"network": True, "peer_port": True},
+               {"network": True, "peer_port": 1023}, {"network": True, "peer_port": 65536},
+               {"network": False, "peer_port": 4242}, {"network": True, "peer_port": 4242, "pin_route": False},
+               {"network": True, "shell": "malicious"}, {"network": True, "executables": ["/tmp/app"]},
+               {"network": True, "executables": ["/opt/../tmp/app"]},
+               {"network": True, "executables": ["/usr/bin/app", "/usr/bin/app"]})
+        for row in bad:
+            with self.subTest(row=row), self.assertRaises(ValueError):
+                self.parse({"client": row})
+        with self.assertRaises(ValueError):
+            self.parse({"../client": {"network": True}})
+        with self.assertRaisesRegex(ValueError, "duplicate"):
+            policy_parser.parse_configuration(b'{"version":1,"desktop_user":"desktop","apps":{"client":{"network":true,"network":false}}}')
+        with self.assertRaises(ValueError):
+            policy_parser.parse_configuration(b"x" * (policy_parser.MAX_CONFIG_BYTES + 1))
+
+    def test_real_file_reload_and_unsafe_symlink_mode_and_hardlink_guards(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            def write(apps):
+                path.write_text(json.dumps({"version": 1, "desktop_user": "desktop", "apps": apps}), encoding="ascii")
+                path.chmod(0o644)
+            write({"future-client": {"network": True}})
+            self.assertIn("future-client", policy_parser.read_configuration(str(path), owner_uid=os.getuid())["apps"])
+            write({})
+            self.assertEqual(policy_parser.read_configuration(str(path), owner_uid=os.getuid())["apps"], {})
+            path.chmod(0o666)
+            with self.assertRaises(ValueError):
+                policy_parser.read_configuration(str(path), owner_uid=os.getuid())
+            path.chmod(0o644)
+            link = Path(directory) / "link"
+            link.symlink_to(path)
+            with self.assertRaises(OSError):
+                policy_parser.read_configuration(str(link), owner_uid=os.getuid())
+            os.link(path, Path(directory) / "hardlink")
+            with self.assertRaises(ValueError):
+                policy_parser.read_configuration(str(path), owner_uid=os.getuid())
 
 
 class ConfigurationPublisherTests(unittest.TestCase):
@@ -76,15 +134,18 @@ installer_assert_no_unresolved_installer_placeholders "$2/config.json" app-veth
                 for result in self.render(directory, port=port):
                     self.assertEqual(result.returncode, 0, result.stderr)
                     path = Path(directory) / "config.json"
-                    self.assertEqual(json.loads(path.read_text()),
-                                     {"desktop_user": "desktop", "peer_port": int(port or "50309")})
+                    data = json.loads(path.read_text(encoding="utf-8"))
+                    self.assertEqual(data["desktop_user"], "desktop")
+                    self.assertEqual(data["version"], 1)
+                    self.assertEqual(data["apps"]["qbittorrent"]["peer_port"], int(port or "50309"))
+                    self.assertNotIn("keepassxc", data["apps"])
                     # Target-root ownership is modeled here; the parser itself
                     # and the rendered bytes are production code.
                     metadata = types.SimpleNamespace(st_mode=stat.S_IFREG | 0o644, st_uid=0, st_nlink=1)
                     with mock.patch.object(broker, "CONFIG", str(path)), \
                             mock.patch.object(broker.os, "fstat", return_value=metadata), \
                             mock.patch.object(broker.pwd, "getpwnam", return_value=types.SimpleNamespace(pw_uid=1000)):
-                        self.assertEqual(broker.configuration(), (1000, int(port or "50309")))
+                        self.assertEqual(broker.configuration(), (1000, policy_parser.parse_configuration(path.read_bytes())["apps"]))
 
     def test_invalid_network_policy_fails_during_rendering(self):
         for account, port in (("root", "50309"), ("desktop", "1023"), ("desktop", "65536"),
@@ -96,7 +157,7 @@ installer_assert_no_unresolved_installer_placeholders "$2/config.json" app-veth
     def test_config_check_cli_validates_without_network_side_effects(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.json"
-            path.write_text('{"desktop_user":"desktop","peer_port":50309}\n', encoding="ascii")
+            path.write_text(DEFAULT_CONFIG_RAW, encoding="ascii")
             open_file = os.open
             def mapped_open(value, flags, *arguments, **options):
                 return open_file(path if value == "/etc/app-veth.json" else value,
@@ -120,15 +181,37 @@ installer_assert_no_unresolved_installer_placeholders "$2/config.json" app-veth
             os.mkfifo(path, mode=0o600)
             # Exercise the real open and metadata guard in a bounded child so
             # a regression cannot hang the entire validation process.
-            code = ('import runpy,sys; module=runpy.run_path(sys.argv[1]); '
+            code = ('import runpy,sys; sys.path.insert(0,sys.argv[3]); module=runpy.run_path(sys.argv[1]); '
                     'check=module["configuration"]; check.__globals__["CONFIG"]=sys.argv[2]; check()')
-            result = subprocess.run([sys.executable, "-I", "-B", "-c", code, broker.__file__, str(path)],
+            result = subprocess.run([sys.executable, "-I", "-B", "-c", code, broker.__file__, str(path), str(LIBRARY)],
                                     capture_output=True, text=True, timeout=5)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("unsafe managed network configuration", result.stderr)
 
 
 class AuthorizationTests(unittest.TestCase):
+    def test_omitted_and_disabled_apps_are_rejected_and_new_configured_apps_are_accepted(self):
+        policies = policy_parser.parse_configuration(json.dumps({"version": 1, "desktop_user": "desktop",
+            "apps": {"new-client": {"network": True}, "keepassxc": {"network": False}}}).encode())["apps"]
+        for app in ("codex", "keepassxc"):
+            with self.subTest(app=app), self.assertRaises(ValueError):
+                self.request({"app": app}, policies=policies)
+        _pid, _uid, app, descriptor = self.request({"app": "new-client"}, policies=policies)
+        os.close(descriptor)
+        self.assertEqual(app, "new-client")
+
+    def test_client_preserves_broker_error_and_distinguishes_early_disconnect(self):
+        for response, expected in ((b"", "closed the request"),
+                (json.dumps({"ready": False, "error": "Nexthop has invalid gateway.",
+                             "correlation_id": "a" * 32}).encode(), "Nexthop has invalid gateway")):
+            channel = mock.Mock()
+            channel.getsockopt.return_value = struct.pack("3i", 12, 0, 0)
+            channel.recvmsg.return_value = (response, [], 0, None)
+            with self.subTest(response=response), mock.patch.object(client, "control_socket_owner", return_value=0), \
+                    mock.patch.object(client.socket, "socket", return_value=channel), self.assertRaisesRegex(ValueError, expected):
+                client.Lease(3, "codex")
+            channel.close.assert_called_once()
+
     def test_host_namespace_is_rejected_without_admin_commands(self):
         fd = os.open("/proc/self/ns/net", os.O_RDONLY)
         try:
@@ -142,7 +225,7 @@ class AuthorizationTests(unittest.TestCase):
         with open("/dev/null", "rb") as stream, self.assertRaises(OSError):
             broker.namespace_owner(stream.fileno(), os.getuid())
 
-    def request(self, request, *, count=1, uid=None, authorize=True):
+    def request(self, request, *, count=1, uid=None, authorize=True, policies=DEFAULT_POLICIES):
         left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
         descriptor = os.open("/dev/null", os.O_RDONLY)
         try:
@@ -153,7 +236,7 @@ class AuthorizationTests(unittest.TestCase):
                     mock.patch.object(broker, "namespace_owner") as ownership:
                 if not authorize:
                     ownership.side_effect = ValueError("foreign namespace")
-                return broker.receive(right, os.getuid() if uid is None else uid)
+                return broker.receive(right, os.getuid() if uid is None else uid, policies)
         finally:
             left.close(); right.close(); os.close(descriptor)
 
@@ -214,9 +297,9 @@ class AuthorizationTests(unittest.TestCase):
                 "gateway": "10.203.0.1", "interface": "eth0", "peer_port": port}).encode(), [], 0, None)
             with self.subTest(port=port), mock.patch.object(client, "control_socket_owner", return_value=0), \
                     mock.patch.object(client.socket, "socket", return_value=channel):
-                if port == 50309:
+                if port is None or port == 50309:
                     lease = client.Lease(3, "qbittorrent")
-                    self.assertEqual(lease.peer_port, 50309)
+                    self.assertEqual(lease.peer_port, port)
                     lease.close()
                 else:
                     with self.assertRaises(ValueError):
@@ -399,7 +482,8 @@ class AdministrationTests(unittest.TestCase):
         self.calls.clear()
 
     def network(self, app="codex"):
-        return broker.Network(3, 70, app, 1000, 50309, ipaddress.IPv4Network("10.203.0.0/24"), self.endpoints)
+        policy = DEFAULT_POLICIES.get(app, {"network": True, "peer_port": None, "pin_route": False, "block_lan": False})
+        return broker.Network(3, 70, app, 1000, policy, ipaddress.IPv4Network("10.203.0.0/24"), self.endpoints)
 
     def test_kernel_link_is_tagged_and_route_mtu_preserved_without_tun(self):
         network = self.network()
@@ -415,7 +499,7 @@ class AdministrationTests(unittest.TestCase):
         self.assertEqual((network.gateway, network.address), ("10.203.0.13", "10.203.0.14"))
         self.assertFalse(any("tc" in argv for argv, _ in self.calls))
 
-    def test_firewall_commits_atomically_before_link_is_up(self):
+    def test_guest_link_is_up_before_default_route_and_host_link_after_firewall_commit(self):
         events = []
         def command(argv, **kwargs):
             events.append(("command", argv))
@@ -425,9 +509,12 @@ class AdministrationTests(unittest.TestCase):
             network = self.network()
         self.addCleanup(network.close)
         transaction = next(i for i,e in enumerate(events) if e[0] == "firewall")
-        up = [i for i,e in enumerate(events) if e[0] == "command" and e[1][-1] == "up" and "lo" not in e[1]]
-        self.assertTrue(up)
-        self.assertTrue(all(i > transaction for i in up))
+        guest_up = next(i for i,e in enumerate(events) if e[0] == "command" and e[1][-2:] == ["eth0", "up"])
+        default = next(i for i,e in enumerate(events) if e[0] == "command" and "default" in e[1])
+        host_up = next(i for i,e in enumerate(events) if e[0] == "command" and e[1][-2:] == ["veth3-app", "up"])
+        self.assertLess(guest_up, default)
+        self.assertLess(default, transaction)
+        self.assertLess(transaction, host_up)
 
     def test_qbittorrent_dnat_is_exact_tcp_udp_and_route_pinned(self):
         network = self.network("qbittorrent")
@@ -462,7 +549,9 @@ class AdministrationTests(unittest.TestCase):
         forward = broker.RULESET.split('chain forward_guard {', 1)[1].split('chain nat {', 1)[0]
         self.assertIn('iifname @outbound accept', forward)
         self.assertIn('oifname @links ct state established,related accept', forward)
-        self.assertNotIn('ip daddr', forward.split('iifname @outbound accept', 1)[0])
+        self.assertNotIn('lan_blocked {', self.transactions[0])
+        self.assertLess(forward.index('iifname @lan_blocked ip daddr @lan_ipv4 drop'),
+                        forward.index('iifname @outbound accept'))
         self.assertIn('iifname @outbound masquerade', broker.RULESET)
 
     def test_lan_only_route_uses_active_connected_links_without_requiring_wan(self):
@@ -487,7 +576,7 @@ class AdministrationTests(unittest.TestCase):
         self.assertIn((["/usr/sbin/ip", "link", "set", "dev", "veth3-app", "down"], {}), self.calls)
         self.assertTrue(any(argv[-3:] == ["veth3-peer", "netns", f"/proc/self/fd/{self.endpoints.host_fd}"] for argv, _ in self.calls))
         self.assertFalse(any(argv[:3] == ["/usr/sbin/ip", "link", "del"] for argv, _ in self.calls))
-        self.assertFalse(any(argv[-2:] == ["eth0", "up"] for argv, _ in self.calls))
+        self.assertFalse(any(argv[-2:] == ["veth3-app", "up"] for argv, _ in self.calls))
 
     def test_close_removes_packet_path_before_rule_elements(self):
         network = self.network()
@@ -540,14 +629,50 @@ class AdministrationTests(unittest.TestCase):
 
     def test_packet_guard_blocks_cross_namespace_before_established(self):
         rules = broker.RULESET
-        self.assertLess(rules.index(f'iifname {broker.INTERFACE_MATCH} oifname {broker.INTERFACE_MATCH} drop'), rules.index('ct state established,related'))
+        forward = rules.split("chain forward_guard {", 1)[1].split("chain nat {", 1)[0]
+        self.assertLess(forward.index(f'iifname {broker.INTERFACE_MATCH} oifname {broker.INTERFACE_MATCH} drop'), forward.index('ct state established,related'))
         self.assertIn('iifname . ip saddr != @sources drop', rules)
         self.assertIn(f'iifname {broker.INTERFACE_MATCH} meta nfproto != ipv4 drop', rules)
         self.assertIn('dnat to 127.0.0.1:53053', rules)
         self.assertNotIn('flush ruleset', rules)
 
+    def test_block_lan_is_lease_specific_and_precedes_established_or_outbound_allow(self):
+        network = self.network("bitwarden")
+        self.addCleanup(network.close)
+        self.assertIn('lan_blocked { "veth3-app" }', self.transactions[0])
+        rules = broker.RULESET.split("chain forward_guard {", 1)[1].split("chain nat {", 1)[0]
+        self.assertLess(rules.index("iifname @lan_blocked ip daddr @lan_ipv4 drop"), rules.index("iifname @outbound accept"))
+        self.assertLess(rules.index("iifname @lan_blocked ip daddr @lan_ipv4 drop"), rules.index("ct state established,related"))
+        network.close()
+        self.assertIn('delete element inet app_veth lan_blocked', self.transactions[-1])
+
+    def test_lan_snapshot_covers_public_connected_subnets_but_preserves_tunnel_internet(self):
+        def replies(argv, **options):
+            if argv[-2:] == ["scope", "link"]:
+                return json.dumps([{"dst": "203.0.113.0/24", "dev": "eth0"},
+                                   {"dst": "0.0.0.0/1", "dev": "tun0"}])
+            return json.dumps([{"ifname": "eth0"}, {"ifname": "tun0", "linkinfo": {"info_kind": "tun"}}])
+        with mock.patch.object(broker, "run", side_effect=replies):
+            values = broker.refresh_lan_networks(None)
+            self.assertIn("203.0.113.0/24", values)
+            self.assertIn("100.64.0.0/10", values)
+            self.assertNotIn("0.0.0.0/1", values)
+            count = len(self.transactions)
+            broker.refresh_lan_networks(values)
+            self.assertEqual(len(self.transactions), count)
+        self.assertIn("flush set inet app_veth lan_ipv4", self.transactions[0])
+
+    def test_peer_forwarding_policy_works_for_a_new_app_without_a_broker_code_change(self):
+        policy = policy_parser.parse_configuration(json.dumps({"version": 1, "desktop_user": "desktop",
+            "apps": {"new-client": {"network": True, "peer_port": 4242}}}).encode())["apps"]["new-client"]
+        network = broker.Network(3, 70, "new-client", 1000, policy, ipaddress.IPv4Network("10.203.0.0/24"), self.endpoints)
+        self.addCleanup(network.close)
+        self.assertIn('192.0.2.8 . tcp . 4242 : 10.203.0.14 . 4242', self.transactions[0])
+        self.assertIn('192.0.2.8 . udp . 4242 : 10.203.0.14 . 4242', self.transactions[0])
+        self.assertIn('pinned { "veth3-app" . "wg0" }', self.transactions[0])
+
     def test_all_current_and_future_app_policies_reuse_fixed_host_names_without_renaming(self):
-        for app in sorted(broker.APPS | {"future-desktop-app"}):
+        for app in sorted(set(DEFAULT_POLICIES) | {"future-desktop-app"}):
             with self.subTest(app=app):
                 self.calls.clear()
                 network = self.network(app)
@@ -565,6 +690,22 @@ class AdministrationTests(unittest.TestCase):
 
 
 class SupervisorTests(unittest.TestCase):
+    def test_offline_payload_is_gated_and_its_namespace_is_reaped_without_a_lease(self):
+        process = mock.Mock()
+        process.poll.side_effect = [None, 0]
+        pidfd = os.open("/dev/null", os.O_RDONLY)
+        with mock.patch.object(supervisor.subprocess, "Popen", return_value=process), \
+                mock.patch.object(supervisor, "_read_bwrap_sandbox_pid", return_value=1234), \
+                mock.patch.object(supervisor, "pin_sandbox_init", return_value=pidfd), \
+                mock.patch.object(client.Lease, "for_pid") as acquire, \
+                mock.patch.object(supervisor.os, "write", return_value=1) as release, \
+                mock.patch.object(supervisor.signal, "pidfd_send_signal") as stop, \
+                mock.patch.object(supervisor, "_stop_subprocess"):
+            self.assertEqual(supervisor.run_veth_sandbox(["bwrap"], ["app"], "/unused", (), app="keepassxc", network=False), 0)
+        acquire.assert_not_called()
+        self.assertEqual(release.call_count, 2)
+        stop.assert_called_once_with(pidfd, supervisor.signal.SIGKILL)
+
     def test_failed_network_kills_pinned_init_before_closing_release_fds(self):
         events = []
         sandbox = mock.Mock()
@@ -652,6 +793,12 @@ class SupervisorTests(unittest.TestCase):
 
 
 class DesktopLaunchTests(unittest.TestCase):
+    def setUp(self):
+        # Policies come from the rendered production template; only installed
+        # file ownership/path access is modeled for these mount-plan fixtures.
+        patch = mock.patch.object(client, "_configuration", return_value={"apps": DEFAULT_POLICIES})
+        patch.start()
+        self.addCleanup(patch.stop)
     def test_known_desktop_executables_and_aliases_reenter_managed_launchers(self):
         for app, policy in profiles.APPS.items():
             for executable in (policy["exec"], *generic.MANAGED_EXECUTABLE_ALIASES.get(app, ())):
@@ -670,10 +817,103 @@ class DesktopLaunchTests(unittest.TestCase):
         self.assertIsNone(generic.managed_network_command("launch", ["/usr/bin/thunar"]))
         self.assertIsNone(generic.managed_network_command("launch", ["/home/user/code"]))
 
+    def test_future_executable_policy_reenters_the_user_service_worker_with_literal_arguments(self):
+        future = policy_parser.parse_configuration(json.dumps({"version": 1, "desktop_user": "desktop",
+            "apps": {"new-client": {"network": True, "block_lan": True,
+                                    "executables": ["/opt/new-client/client"]}}}).encode())
+        with mock.patch.object(client, "_configuration", return_value=future):
+            self.assertEqual(generic.managed_network_command("intel", ["/opt/new-client/client", "literal; $HOME"], kind="electron"),
+                ["/usr/local/libexec/app-veth-run", "electron", "intel", "new-client", "--", "/opt/new-client/client", "literal; $HOME"])
+        with mock.patch.object(client, "_configuration", return_value={"apps": {}}):
+            self.assertIsNone(generic.managed_network_command("intel", ["/opt/new-client/client"]))
+
+    def test_future_client_restore_records_the_vendor_command_before_worker_dispatch(self):
+        original = ["/opt/new-client/client", "literal; $HOME"]
+        worker = ["/usr/local/libexec/app-veth-run", "electron", "intel", "new-client", "--", *original]
+        environment = {}
+        with mock.patch.object(generic, "assert_launch_allowed"), \
+                mock.patch.object(generic, "restart_token", side_effect=json.dumps):
+            command = generic.transient_argv("electron", "intel", worker, environment, restore_arguments=original)
+        self.assertEqual(json.loads(environment["LABWC_SESSION_RESTORE"]),
+                         ["/usr/local/bin/labwc-electron-app", "intel", "--", *original])
+        self.assertEqual(command[command.index("--") + 1:], worker)
+        self.assertEqual(set(environment[generic.CONFIGURED_ENVIRONMENT_NAMES].split()),
+                         {"LABWC_SESSION_APP", "LABWC_SESSION_RESTORE"})
+
+    def test_configured_worker_preserves_explicit_environment_without_importing_manager_values(self):
+        names = "HOME VENDOR_OPTION LABWC_SESSION_APP LABWC_SESSION_RESTORE"
+        with mock.patch.dict(os.environ, {generic.CONFIGURED_ENVIRONMENT_NAMES: names,
+                "HOME": "/home/desktop", "VENDOR_OPTION": "literal; $HOME",
+                "LABWC_SESSION_APP": "1", "LABWC_SESSION_RESTORE": "restore-token",
+                "UNRELATED_MANAGER_SECRET": "not-forwarded"}, clear=True):
+            environment = generic.configured_worker_environment({"HOME": "/home/desktop"})
+        self.assertEqual(environment, {"HOME": "/home/desktop", "VENDOR_OPTION": "literal; $HOME",
+                                      "LABWC_SESSION_APP": "1", "LABWC_SESSION_RESTORE": "restore-token"})
+        for names, values in (("LD_PRELOAD", {"LD_PRELOAD": "/tmp/injected.so"}),
+                              ("HOME", {"HOME": "/root"}), ("MISSING", {}),
+                              ("OPTION OPTION", {"OPTION": "value"}),
+                              ("OPTION", {"OPTION": "x" * 65537})):
+            with self.subTest(names=names), \
+                    mock.patch.dict(os.environ, {generic.CONFIGURED_ENVIRONMENT_NAMES: names, **values}, clear=True), \
+                    self.assertRaises(SystemExit):
+                generic.configured_worker_environment({"HOME": "/home/desktop"})
+
+    def test_administration_launchers_do_not_depend_on_network_policy_availability(self):
+        with mock.patch.object(client, "configured_executable_application", side_effect=ValueError("malformed JSON")) as policy:
+            for executable in ("/usr/bin/foot", "/usr/bin/thunar", "/usr/local/bin/labwc-terminal"):
+                self.assertIsNone(generic.managed_network_command("launch", [executable]))
+        policy.assert_not_called()
+
+    def test_configured_generic_worker_keeps_private_network_procfs_and_hides_broker_endpoint(self):
+        for online in (True, False):
+            future = policy_parser.parse_configuration(json.dumps({"version": 1, "desktop_user": "desktop",
+                "apps": {"new-client": {"network": online, "executables": ["/usr/bin/true"]}}}).encode())
+            with self.subTest(online=online), tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
+                stack.enter_context(mock.patch.object(client, "_configuration", return_value=future))
+                stack.enter_context(mock.patch.object(generic.os, "geteuid", return_value=1000))
+                stack.enter_context(mock.patch.object(generic, "assert_launch_allowed"))
+                stack.enter_context(mock.patch.object(generic, "session_environment", return_value={"XDG_RUNTIME_DIR": directory}))
+                stack.enter_context(mock.patch.object(generic, "load_managed_defaults", return_value={}))
+                stack.enter_context(mock.patch.object(generic, "acceleration_availability_from_defaults", return_value={"intel": True, "nvidia": True}))
+                stack.enter_context(mock.patch.object(generic, "require_root_owned_executable", side_effect=lambda label, path: path))
+                stack.enter_context(mock.patch.dict(os.environ, {
+                    generic.CONFIGURED_ENVIRONMENT_NAMES: "VENDOR_TOKEN", "VENDOR_TOKEN": "fixture-token"}, clear=True))
+                def launch(command, payload, temporary, inherited, **options):
+                    self.assertIn("--unshare-net", command)
+                    self.assertIn("--unshare-pid", command)
+                    self.assertIn("--proc", command)
+                    self.assertEqual(command[command.index("/run/app-veth") - 1], "--tmpfs")
+                    self.assertNotIn("/run/app-veth/control.sock", command)
+                    self.assertEqual((Path(temporary) / "resolv.conf").read_text(encoding="ascii"),
+                                     client.resolver_configuration() if online else "# Networking is disabled.\n")
+                    self.assertEqual(payload[-2:], ["/usr/bin/true", "literal; $HOME"])
+                    self.assertEqual(payload[:4], ["/usr/bin/python3", "-I", "-B", "-c"])
+                    environment_path = Path(temporary) / "environment.json"
+                    environment = json.loads(environment_path.read_text(encoding="utf-8"))
+                    self.assertEqual(environment["VENDOR_TOKEN"], "fixture-token")
+                    self.assertEqual(stat.S_IMODE(environment_path.stat().st_mode), 0o600)
+                    self.assertFalse(any("fixture-token" in item for item in (*command, *payload)))
+                    self.assertEqual(payload[5], "/tmp/.labwc-app-environment.json")
+                    # Execute the loader against its real private fixture file.
+                    result = subprocess.run([*payload[:5], str(environment_path), *payload[6:]],
+                                            capture_output=True, timeout=5)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(options, {"app": "new-client", "network": online})
+                    return 37
+                stack.enter_context(mock.patch.object(supervisor, "run_veth_sandbox", side_effect=launch))
+                self.assertEqual(generic.run_configured_network(["wayland", "intel", "new-client", "--", "/usr/bin/true", "literal; $HOME"]), 37)
+
     def test_native_persistent_launches_gate_payload_and_preserve_only_configured_state(self):
+        self._check_persistent_launches(DEFAULT_POLICIES)
+
+    def test_removing_all_app_policies_keeps_persistent_apps_offline(self):
+        self._check_persistent_launches({})
+
+    def _check_persistent_launches(self, policies):
         apps = set(profiles.PERSISTENT_SANDBOX_CONFIG) - {"chatgpt", "discord", "zoom", "tutanota", "qbittorrent", "qoredb"}
         for app in sorted(apps):
             with self.subTest(app=app), tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
+                stack.enter_context(mock.patch.object(client, "_configuration", return_value={"apps": policies}))
                 root = Path(directory)
                 home, runtime = root / "home", root / "runtime"
                 home.mkdir(); runtime.mkdir(mode=0o700)
@@ -696,13 +936,15 @@ class DesktopLaunchTests(unittest.TestCase):
                 stack.enter_context(mock.patch.object(sandbox.mounts, "add_user_media_directory_bind"))
                 def launch(command, payload, temporary, inherited, **options):
                     self.assertEqual(options["app"], app)
+                    self.assertEqual(options["network"], app in policies)
                     self.assertEqual(payload, [profiles.APPS[app]["exec"], "literal-url"])
                     self.assertNotIn("literal-url", command)
                     self.assertNotIn("--share-net", command)
                     self.assertIn("--unshare-all", command)
                     sandbox.validate_private_procfs(command)
                     resolver = command[command.index("/etc/resolv.conf")-1]
-                    self.assertEqual(Path(resolver).read_text(encoding="utf-8"), sandbox.veth_resolv_conf())
+                    if app in policies:
+                        self.assertEqual(Path(resolver).read_text(encoding="utf-8"), sandbox.veth_resolv_conf())
                     bindings = [command[i+1:i+3] for i, value in enumerate(command) if value == "--bind"]
                     for relative in profiles.PERSISTENT_SANDBOX_CONFIG[app]["persistent_paths"]:
                         self.assertIn([str(home/relative), str(home/relative)], bindings)
@@ -760,17 +1002,16 @@ class DesktopLaunchTests(unittest.TestCase):
             stack.enter_context(mock.patch.object(sandbox, "start_session_bus_proxy", return_value=(None, None, None)))
             stack.enter_context(mock.patch.object(sandbox, "stop_dbus_proxy"))
             stack.enter_context(mock.patch.object(sandbox, "require_running_dbus_proxy"))
-            lease = stack.enter_context(mock.patch.object(sandbox, "run_veth_sandbox"))
-            def launch(command, **options):
+            def launch(command, payload, temporary, inherited, **options):
                 self.assertNotIn("--share-net", command)
-                self.assertEqual(command[-1], "/usr/bin/keepassxc")
+                self.assertEqual(payload, ["/usr/bin/keepassxc"])
+                self.assertFalse(options["network"])
                 resolver = command[command.index("/etc/resolv.conf")-1]
                 self.assertEqual(Path(resolver).read_text(encoding="utf-8"), "# Networking is disabled.\n")
                 sandbox.validate_private_procfs(command)
-                return subprocess.CompletedProcess(command, 37)
-            stack.enter_context(mock.patch.object(sandbox.subprocess, "run", side_effect=launch))
+                return 37
+            stack.enter_context(mock.patch.object(sandbox, "run_veth_sandbox", side_effect=launch))
             self.assertEqual(sandbox.run_pure_privacy("keepassxc", []), 37)
-            lease.assert_not_called()
 
 
 class PodmanAdapterTests(unittest.TestCase):
@@ -819,6 +1060,27 @@ class PodmanAdapterTests(unittest.TestCase):
 
 class KernelFixtureTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("unshare") and shutil.which("ip"), "native iproute2 tools unavailable")
+    def test_native_gateway_rejects_down_guest_and_accepts_up_guest_with_host_peer_down(self):
+        script = '''import json,subprocess
+def ip(*args):
+    return subprocess.run(["/usr/sbin/ip",*args],capture_output=True,text=True,encoding="utf-8",timeout=3)
+for args in (("link","add","eth0","type","veth","peer","name","host0"),
+             ("addr","add","10.203.0.2/30","dev","eth0")):
+    result=ip(*args);assert result.returncode==0,result.stderr
+bad=ip("route","add","default","via","10.203.0.1","dev","eth0")
+assert bad.returncode!=0 and "invalid gateway" in bad.stderr,bad.stderr
+result=ip("link","set","eth0","up");assert result.returncode==0,result.stderr
+good=ip("route","add","default","via","10.203.0.1","dev","eth0")
+assert good.returncode==0,good.stderr
+assert "UP" not in json.loads(ip("-j","link","show","dev","host0").stdout)[0]["flags"]
+'''
+        result = subprocess.run(["/usr/bin/unshare", "-Urn", sys.executable, "-I", "-B", "-c", script],
+                                capture_output=True, text=True, encoding="utf-8", timeout=10)
+        if result.returncode and result.stderr.startswith("unshare: unshare failed: Operation not permitted"):
+            self.skipTest("unprivileged kernel namespaces are unavailable")
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    @unittest.skipUnless(shutil.which("unshare") and shutil.which("ip"), "native iproute2 tools unavailable")
     def test_native_boot_batch_precreates_fixed_down_pairs_and_recovers_without_recreation(self):
         # Native link creation/recovery run in a fresh user/net namespace.
         # Sysctl policy is verified separately: this check does not write it.
@@ -830,6 +1092,7 @@ class KernelFixtureTests(unittest.TestCase):
             identities = dict(endpoints.ids)
             endpoints.close()
         script = '''import ipaddress,json,subprocess,sys
+sys.path.insert(0,sys.argv[2])
 fixture=json.load(sys.stdin)
 def ip(*args, data=None):
     result=subprocess.run(["/usr/sbin/ip",*args],input=data,capture_output=True,text=True,timeout=5)
@@ -864,7 +1127,7 @@ recovery()
 assert [row["ifname"] for row in json.loads(ip("-j","link","show"))] == ["lo"]
 print("native boot pool: 32 fixed pairs DOWN, gateway addresses, stable names/indexes and recovery passed")
 '''
-        result = subprocess.run(["/usr/bin/unshare", "-Urn", sys.executable, "-I", "-B", "-c", script, broker.__file__],
+        result = subprocess.run(["/usr/bin/unshare", "-Urn", sys.executable, "-I", "-B", "-c", script, broker.__file__, str(LIBRARY)],
                                 input=json.dumps({"batch": batch, "ids": identities}), capture_output=True,
                                 text=True, encoding="utf-8", timeout=20)
         if result.returncode and result.stderr.startswith("unshare: unshare failed: Operation not permitted"):
@@ -924,7 +1187,7 @@ print("native boot pool: 32 fixed pairs DOWN, gateway addresses, stable names/in
                 mock.patch.object(broker, "event"), mock.patch.object(broker.Network, "reserve"):
             endpoints = broker.EndpointPool(ipaddress.IPv4Network("10.203.0.0/24"))
             for app in ("codex", "podman", "qbittorrent", "discord"):
-                network = broker.Network(0, 70, app, 1000, 50309, ipaddress.IPv4Network("10.203.0.0/24"), endpoints)
+                network = broker.Network(0, 70, app, 1000, DEFAULT_POLICIES[app], ipaddress.IPv4Network("10.203.0.0/24"), endpoints)
                 network.close()
             endpoints.close()
         result = subprocess.run(["/usr/bin/unshare", "-Urn", "/usr/sbin/nft", "--check", "-f", "-"],
@@ -940,7 +1203,9 @@ print("native boot pool: 32 fixed pairs DOWN, gateway addresses, stable names/in
         # namespace. The host network is never entered or modified. A local
         # UDP echo endpoint stands in for resolved; this verifies packet/NAT
         # plumbing, not resolved's DNS processing or any Internet access.
-        script = '''import importlib.machinery, importlib.util, ipaddress, os, socket, subprocess, sys, threading
+        script = '''import importlib.machinery, importlib.util, ipaddress, json, os, socket, subprocess, sys, threading
+sys.path.insert(0,sys.argv[2])
+policies=json.loads(sys.argv[3])
 loader=importlib.machinery.SourceFileLoader("fixture_broker",sys.argv[1])
 spec=importlib.util.spec_from_loader(loader.name,loader)
 b=importlib.util.module_from_spec(spec); loader.exec_module(b)
@@ -962,7 +1227,7 @@ try:
         if os.fstat(fd).st_ino != os.stat("/proc/self/ns/net").st_ino: break
         os.close(fd);fd=None
     assert fd is not None
-    network=b.Network(0,fd,"chromium",os.getuid(),50309,ipaddress.IPv4Network("10.203.0.0/24"),endpoints)
+    network=b.Network(0,fd,"chromium",os.getuid(),policies["chromium"],ipaddress.IPv4Network("10.203.0.0/24"),endpoints)
     with socket.socket(socket.AF_INET,socket.SOCK_DGRAM) as dns:
         dns.bind(("127.0.0.1",53053));dns.settimeout(5)
         def answer():
@@ -975,7 +1240,7 @@ try:
     b.run(["/usr/bin/nsenter",f"--net=/proc/self/fd/{fd}","--",sys.executable,"-I","-B","-c",blocked],fds=(fd,))
     network.close();network=None
     # Exercise the actual qBittorrent source-NAT map transaction too.
-    network=b.Network(0,fd,"qbittorrent",os.getuid(),50309,ipaddress.IPv4Network("10.203.0.0/24"),endpoints)
+    network=b.Network(0,fd,"qbittorrent",os.getuid(),policies["qbittorrent"],ipaddress.IPv4Network("10.203.0.0/24"),endpoints)
     network.close();network=None
     print("isolated kernel veth UDP DNS NAT, host guard and qBittorrent transaction passed")
 finally:
@@ -984,7 +1249,7 @@ finally:
     if fd is not None: os.close(fd)
     child.terminate();child.wait(timeout=5)
 '''
-        result = subprocess.run(["/usr/bin/unshare", "-Urnmpf", "--mount-proc", sys.executable, "-I", "-B", "-c", script, broker.__file__],
+        result = subprocess.run(["/usr/bin/unshare", "-Urnmpf", "--mount-proc", sys.executable, "-I", "-B", "-c", script, broker.__file__, str(LIBRARY), json.dumps(DEFAULT_POLICIES)],
                                 capture_output=True, text=True, encoding="utf-8", timeout=30)
         if result.returncode and result.stderr.startswith("unshare: unshare failed: Operation not permitted"):
             self.skipTest("unprivileged kernel namespaces are unavailable")
@@ -1130,7 +1395,9 @@ configure_target_rootless_podman
                 self.assertTrue(profiles.APPS[app]["persistent_sandbox"])
                 policy = profiles.PERSISTENT_SANDBOX_CONFIG[app]
                 self.assertFalse(policy["share_net"])
-                self.assertTrue(policy["veth"])
+                self.assertNotIn("veth", policy)
+        for app in ("keepassxc", "sleek", "mpv", "retroarch"):
+            self.assertNotIn(app, DEFAULT_POLICIES)
 
     def test_packages_do_not_install_packet_proxies(self):
         for path in (SEED/"classes").rglob("*.cfg"):

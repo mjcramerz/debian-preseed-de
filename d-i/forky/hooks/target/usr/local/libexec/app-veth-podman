@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Podman network_cmd_path adapter: kernel veth lease, no packet proxy."""
 
 from __future__ import annotations

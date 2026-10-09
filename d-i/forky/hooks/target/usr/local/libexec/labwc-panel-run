@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Run the fixed native dock, coalescing exact known upstream diagnostic floods.
 
 The first occurrence, all other output and the real exit status remain visible.

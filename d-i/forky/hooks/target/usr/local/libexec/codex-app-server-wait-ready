@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Wait for the private Codex app-server backend socket."""
 
 from __future__ import annotations

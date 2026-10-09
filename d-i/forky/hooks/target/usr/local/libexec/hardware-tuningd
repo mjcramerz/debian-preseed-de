@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Root socket broker entrypoint."""
 import sys
 sys.dont_write_bytecode = True

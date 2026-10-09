@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Publish the host's signed, flat APT repository; never run apt or dpkg installs.
 
 The inbox is private, pool objects are immutable, and a single current symlink

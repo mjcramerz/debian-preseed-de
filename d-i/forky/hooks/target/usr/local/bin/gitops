@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Managed Git workflows; run as the desktop user, never through sudo.
 
 Sync is an explicit upstream tree synchronization, not a merge strategy trick:

@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Reconcile local Incus storage/network/profile without shell or YAML evaluation.
 
 Confined clients stay on unix.socket.user (group incus). Only this root-owned

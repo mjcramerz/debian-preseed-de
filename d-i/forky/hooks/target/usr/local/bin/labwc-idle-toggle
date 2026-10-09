@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Session-only idle policy; no shell evaluation or persistent system edits."""
 from __future__ import annotations
 

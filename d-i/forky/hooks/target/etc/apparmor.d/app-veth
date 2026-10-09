@@ -14,6 +14,7 @@ profile app-veth /usr/local/sbin/app-veth flags=(attach_disconnected, mediate_de
   network netlink raw,
   network netlink dgram,
   /usr/local/sbin/app-veth r,
+  /usr/local/lib/python3.14/dist-packages/app_veth_policy.py r,
   /etc/app-veth.json r,
   /etc/iproute2/{,**} r,
   /usr/lib/iproute2/{,**} r,

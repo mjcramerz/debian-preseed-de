@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Read the battery sysfs ABI without Waybar's native Plugged polling loop."""
 from __future__ import annotations
 

@@ -1,5 +1,7 @@
 # Only the supervisor opens this socket. The private /run masks it in payloads.
 /usr/local/lib/python3.14/dist-packages/ r,
+/usr/local/lib/python3.14/dist-packages/app_veth_policy.py r,
+/etc/app-veth.json r,
 /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
 /usr/local/lib/python3.14/dist-packages/labwc_managed_app/__init__.py r,
 /usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_client.py r,

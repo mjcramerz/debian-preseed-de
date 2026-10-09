@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Idempotent local overrides of package-owned desktop entries; never write vendor files.
 
 No shell evaluation, user-profile sourcing, dpkg writes, or user-home writes.

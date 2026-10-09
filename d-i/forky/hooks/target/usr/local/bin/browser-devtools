@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python3 -B
 """Start an opt-in, loopback-only Chromium-family debugging profile."""
 from __future__ import annotations
 import argparse

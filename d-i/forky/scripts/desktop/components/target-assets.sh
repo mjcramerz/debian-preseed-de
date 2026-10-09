@@ -196,6 +196,7 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/bin/labwc-app /usr/local/bin/labwc-app 0755
   desktop_stage_role_asset usr/local/bin/labwc-electron-app /usr/local/bin/labwc-electron-app 0755
   desktop_stage_role_asset usr/local/bin/labwc-wayland-app /usr/local/bin/labwc-wayland-app 0755
+  desktop_stage_role_asset usr/local/libexec/app-veth-run /usr/local/libexec/app-veth-run 0755
   desktop_stage_role_asset usr/local/libexec/labwc-wrap-desktop-files /usr/local/libexec/labwc-wrap-desktop-files 0755
   desktop_stage_role_asset etc/apt/apt.conf.d/71labwc-desktop-apps /etc/apt/apt.conf.d/71labwc-desktop-apps 0644
   desktop_stage_role_asset usr/local/bin/labwc-main-menu /usr/local/bin/labwc-main-menu 0755

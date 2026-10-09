@@ -55,7 +55,7 @@ capture() {
 
 # Import only after switch-root and all real /var/log mounts are active.
 # The helper rejects indirect paths, non-root writers, hardlinks and oversize data.
-if ! /usr/bin/python3 /var/lib/firstboot/lib/import-initramfs.py; then
+if ! /usr/bin/python3 -B /var/lib/firstboot/lib/import-initramfs.py; then
   log_line log-collection error initramfs "import_failed=true"
   exit 1
 fi

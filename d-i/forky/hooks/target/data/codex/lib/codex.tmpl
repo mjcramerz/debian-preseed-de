@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Managed Codex launcher with Bubblewrap and optional isolated networking."""
 
 from __future__ import annotations
@@ -16,6 +16,10 @@ import signal
 import stat
 import subprocess
 import sys
+
+# The wrapper also has interpreter-driven callers. Set this before importing
+# managed modules; isolated Python ignores PYTHONDONTWRITEBYTECODE.
+sys.dont_write_bytecode = True
 import tempfile
 import time
 from collections.abc import Iterable, MutableMapping, Sequence
@@ -336,6 +340,7 @@ CODEX_APP_SERVER_ENVIRONMENT: dict[str, str] = {}
 CODEX_APP_SERVER_MODE = False
 CODEX_USE_BWRAP = True
 CODEX_ISOLATED_NETWORK = True
+CODEX_NETWORK_ENABLED = True
 CODEX_SANDBOX_PATH = ""
 CODEX_CONTROL_DIR = ""
 CODEX_BWRAP_PROCESS: subprocess.Popen[bytes] | None = None
@@ -1327,7 +1332,7 @@ def codex_render_payload_launcher(
 ) -> None:
     codex_require_abs_path("nested Bubblewrap binary", bwrap_binary)
     codex_require_abs_path("payload process status path", process_status_path)
-    script = f'''#!/usr/bin/python3 -I
+    script = f'''#!/usr/bin/python3 -IB
 from __future__ import annotations
 
 import os
@@ -1436,6 +1441,7 @@ def nested_bubblewrap_probe() -> None:
         "--",
         "/usr/bin/python3",
         "-I",
+        "-B",
         "-c",
         probe,
         marker,
@@ -1523,7 +1529,8 @@ def codex_prepare_identity_files(uid: int, gid: int) -> str:
         ).encode(),
         # /run is private, so capture the host resolver rather than exposing a
         # dangling /etc/resolv.conf symlink into /run/systemd/resolve.
-        "resolv.conf": (codex_veth_resolver_configuration() if CODEX_ISOLATED_NETWORK else
+        "resolv.conf": ((codex_veth_resolver_configuration() if CODEX_NETWORK_ENABLED else
+                         b"# Networking is disabled.\n") if CODEX_ISOLATED_NETWORK else
                         (_read_bounded_text("/etc/resolv.conf", 65536, "host resolver") + "\n").encode()),
         "nsswitch.conf": CODEX_NSSWITCH_CONFIGURATION,
         "passwd": (
@@ -2063,7 +2070,12 @@ def codex_handle_signal(signum: int, _frame: object = None) -> None:
 
 def codex_run_sandboxed() -> int:
     global CODEX_BWRAP_PROCESS, CODEX_SANDBOX_PID, CODEX_SANDBOX_PIDFD, CODEX_NETWORK_LEASE
-    from labwc_managed_app.network_client import Lease, pin_sandbox_init
+    global CODEX_NETWORK_ENABLED
+    from labwc_managed_app.network_client import Lease, pin_sandbox_init, network_enabled
+    try:
+        CODEX_NETWORK_ENABLED = network_enabled("codex")
+    except (OSError, ValueError, RuntimeError) as exc:
+        codex_die(f"managed network policy failed: {exc}")
     uid, gid = os.getuid(), os.getgid()
     codex_prepare_control_state()
     codex_prepare_identity_files(uid, gid)
@@ -2079,8 +2091,8 @@ def codex_run_sandboxed() -> int:
         gate = ("import os,sys; fd=int(sys.argv[1]); marker=os.read(fd,1); os.close(fd); "
                 "sys.exit(1) if marker != b'1' else os.execv(sys.argv[2],sys.argv[2:])")
         bwrap_command = [*command, "--info-fd", str(info_write), "--block-fd", str(block_read),
-            "--", "/usr/bin/python3", "-I", "-c", gate, str(gate_read),
-            "/usr/bin/python3", "-I", "/run/codex-synthetic-bin/payload-launcher.py",
+            "--", "/usr/bin/python3", "-I", "-B", "-c", gate, str(gate_read),
+            "/usr/bin/python3", "-I", "-B", "/run/codex-synthetic-bin/payload-launcher.py",
             CODEX_RAW_BINARY, *CODEX_ARGS]
         CODEX_BWRAP_PROCESS = subprocess.Popen(bwrap_command, close_fds=True,
             pass_fds=(info_write, block_read, gate_read))
@@ -2093,7 +2105,7 @@ def codex_run_sandboxed() -> int:
         if CODEX_BWRAP_PROCESS.poll() is not None:
             codex_die("Bubblewrap exited during sandbox setup")
         CODEX_SANDBOX_PIDFD = pin_sandbox_init(CODEX_SANDBOX_PID)
-        if CODEX_ISOLATED_NETWORK:
+        if CODEX_ISOLATED_NETWORK and CODEX_NETWORK_ENABLED:
             CODEX_NETWORK_LEASE = Lease.for_pid(CODEX_SANDBOX_PID, "codex")
             CODEX_NETWORK_LEASE.check()
         if CODEX_BWRAP_PROCESS.poll() is not None:

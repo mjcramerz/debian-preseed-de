@@ -287,7 +287,9 @@ def run_veth_sandbox(
     cleanup_deadline: Callable[[], float] | None = None,
     cleanup_failure: Callable[[], None] | None = None,
     on_network_ready: Callable | None = None,
+    network: bool = True,
 ) -> int:
+    """Supervise the private PID namespace, with an optional veth lease."""
     from .network_client import Lease
     descriptors = set()
     sandbox = None
@@ -310,14 +312,18 @@ def run_veth_sandbox(
             descriptors.remove(fd)
         pid = _read_bwrap_sandbox_pid(info_read, sandbox, runtime_check)
         pidfd = pin_sandbox_init(pid)
-        lease = Lease.for_pid(pid, app)
+        if network:
+            lease = Lease.for_pid(pid, app)
         if on_network_ready is not None:
+            if lease is None:
+                raise ValueError("network readiness callback requires a lease")
             on_network_ready(lease)
         if pre_payload_check is not None:
             pre_payload_check()
         if runtime_check is not None:
             runtime_check()
-        lease.check()
+        if lease is not None:
+            lease.check()
         if sandbox.poll() is not None:
             fail("Bubblewrap stopped before kernel network readiness")
         os.write(block_write, b"1")
@@ -331,7 +337,8 @@ def run_veth_sandbox(
             status = sandbox.poll()
             if status is not None:
                 return status
-            lease.check()
+            if lease is not None:
+                lease.check()
             try:
                 return sandbox.wait(timeout=0.25)
             except subprocess.TimeoutExpired:

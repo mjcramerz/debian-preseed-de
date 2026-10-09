@@ -27,7 +27,7 @@ FORKY = Path(__file__).resolve().parents[1]
 TARGET = FORKY / "hooks/target"
 QBIT = runpy.run_path(str(TARGET / "usr/local/bin/labwc-qbittorrent"), run_name="test")
 sys.path.insert(0, str(python_library(TARGET / 'usr/local/lib/python3.14/dist-packages')))
-from labwc_managed_app import network_namespace
+from labwc_managed_app import network_namespace, network_client
 LAUNCHERS = runpy.run_path(
     str(TARGET / "usr/local/bin/labwc-sync-application-launchers.tmpl"),
     run_name="test",
@@ -35,6 +35,45 @@ LAUNCHERS = runpy.run_path(
 
 
 class TorrentIntegrationTests(unittest.TestCase):
+    def test_json_peer_port_and_disabled_network_reach_the_actual_profile(self):
+        for policy in ({"network": True, "peer_port": 4242},
+                       {"network": True, "peer_port": None},
+                       {"network": False, "peer_port": None}, None):
+            with self.subTest(policy=policy), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                paths = QBIT['prepare_storage'](root)
+                account = pwd.struct_passwd(('fixture', 'x', os.getuid(), os.getgid(), '', directory, '/bin/sh'))
+                online = policy is not None and policy['network']
+                expected_port = policy['peer_port'] if online and policy['peer_port'] is not None else 50309
+                runtime = types.SimpleNamespace(VETH_DNS_ADDRESS='10.0.2.3',
+                    veth_resolv_conf=lambda: 'nameserver 10.0.2.3\n')
+                def launch(command, payload, temporary, descriptors, **options):
+                    self.assertEqual(options['network'], online)
+                    self.assertEqual((Path(temporary) / 'resolv.conf').read_text(encoding='ascii'),
+                                     'nameserver 10.0.2.3\n' if online else '# Networking is disabled.\n')
+                    if online:
+                        options['on_network_ready'](types.SimpleNamespace(
+                            peer_port=policy['peer_port'], interface='eth0', address='10.203.0.14'))
+                    else:
+                        self.assertIsNone(options['on_network_ready'])
+                    config = configparser.ConfigParser(interpolation=None)
+                    config.optionxform = str
+                    config.read(paths['profile_home'] / '.config/qBittorrent/qBittorrent.conf', encoding='utf-8')
+                    self.assertEqual(config['BitTorrent'][r'Session\Port'], str(expected_port))
+                    self.assertEqual(config['Preferences'][r'Connection\PortRangeMin'], str(expected_port))
+                    self.assertEqual(config['BitTorrent'][r'Session\Interface'], 'eth0' if online else 'lo')
+                    return 0
+                runtime.run_veth_sandbox = launch
+                globals_ = QBIT['run_new_instance'].__globals__
+                temporary_directory = tempfile.TemporaryDirectory
+                with mock.patch.object(network_client, 'configured_network_policy', return_value=policy), \
+                        mock.patch.dict(globals_, network_runtime=lambda: runtime,
+                                        build_command=lambda *args: ['bwrap', '/usr/bin/qbittorrent']), \
+                        mock.patch.object(globals_['signal'], 'signal'), \
+                        mock.patch.object(tempfile, 'TemporaryDirectory',
+                                          side_effect=lambda **options: temporary_directory(dir=directory)):
+                    self.assertEqual(QBIT['run_new_instance'](account, root, paths, 'launch', [], 50309), 0)
+
     def test_ready_peer_port_must_match_the_launcher_before_config_is_published(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -54,6 +93,7 @@ class TorrentIntegrationTests(unittest.TestCase):
                     return 0
                 runtime.run_veth_sandbox = ready
                 with self.subTest(broker_port=broker_port), \
+                        mock.patch.object(network_client, "configured_network_policy", return_value={"network": True, "peer_port": 50309}), \
                         mock.patch.dict(globals_, network_runtime=lambda: runtime,
                                         build_command=lambda *args: ['bwrap', '/usr/bin/qbittorrent']), \
                         mock.patch.object(globals_['signal'], 'signal'), \

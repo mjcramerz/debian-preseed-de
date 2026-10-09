@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Keep locally diverted broker compatibility files aligned with dpkg updates.
 
 This helper never restarts a message bus. Configure is used in the installer;

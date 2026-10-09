@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Unprivileged hardware-tuning controls; no setuid, sudo or shell evaluation."""
 import sys
 sys.dont_write_bytecode = True

@@ -10,6 +10,11 @@
 
 #include <abstractions/electron-runtime>
 
+# Nested desktop/URI launchers read policy but cannot reach the lease socket,
+# which the private /run mount hides from every payload.
+/etc/app-veth.json r,
+/usr/local/lib/python3.14/dist-packages/app_veth_policy.py r,
+
 # Managed applications use their existing per-application profiles when
 # launched directly. Their Bubblewrap payloads need the same client-side
 # network primitives, but remain restricted by the separate Bubblewrap

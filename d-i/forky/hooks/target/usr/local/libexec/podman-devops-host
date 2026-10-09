@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Install/validate the one locked devops engine; never a desktop privilege broker.
 
 setup is for an offline, quiescent installation target. start is repeatable at

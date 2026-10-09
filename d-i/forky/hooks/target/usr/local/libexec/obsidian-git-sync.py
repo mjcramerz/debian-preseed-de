@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Commit a quiescent Obsidian vault and fast-forward three GitLab branches."""
 from __future__ import annotations
 

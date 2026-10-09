@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Read-only evidence for the device-specific NVMe link-idle policy."""
 from __future__ import annotations
 import json

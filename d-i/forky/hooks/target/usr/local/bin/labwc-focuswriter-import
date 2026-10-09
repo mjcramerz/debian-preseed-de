@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Bounded, non-destructive DOCX main-body text import for FocusWriter.
 
 This is deliberately NOT an OOXML round-trip converter. Tables are flattened;

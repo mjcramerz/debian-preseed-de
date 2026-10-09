@@ -1,0 +1,47 @@
+#!/usr/bin/python3 -IB
+"""Unprivileged user-service worker for configured generic desktop clients."""
+
+from pathlib import Path
+import signal
+import stat
+import sys
+
+sys.dont_write_bytecode = True
+library = Path("/usr/local/lib/python3.14/dist-packages")
+package = library / "labwc_managed_app"
+
+
+def fail(message: str) -> None:
+    print(f"app-veth-run: {message}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def interrupted(signum: int, _frame) -> None:
+    for watched in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+        signal.signal(watched, signal.SIG_IGN)
+    raise SystemExit(128 + signum)
+
+
+try:
+    anchor = Path("/usr").lstat()
+    owner = (anchor.st_uid, anchor.st_gid)
+    for path in (Path("/usr"), Path("/usr/local"), Path("/usr/local/lib"),
+                 library.parent, library, package):
+        meta = path.lstat()
+        if (not stat.S_ISDIR(meta.st_mode) or (meta.st_uid, meta.st_gid) != owner
+                or meta.st_mode & 0o022):
+            fail("unsafe managed package directory")
+    for name in ("__init__.py", "integrity.py"):
+        meta = (package / name).lstat()
+        if (not stat.S_ISREG(meta.st_mode) or (meta.st_uid, meta.st_gid) != owner
+                or stat.S_IMODE(meta.st_mode) != 0o644 or meta.st_nlink != 1):
+            fail("unsafe managed bootstrap module")
+    sys.path.insert(0, str(library))
+    from labwc_managed_app.integrity import validate_package
+    validate_package("wayland", owner=owner)
+    from labwc_managed_app.generic import run_configured_network
+    for watched in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+        signal.signal(watched, interrupted)
+    raise SystemExit(run_configured_network(sys.argv[1:]))
+except (OSError, ValueError, RuntimeError) as exc:
+    fail(str(exc))

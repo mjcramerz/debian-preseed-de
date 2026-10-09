@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Safely extract an official Samsung firmware ZIP into an empty directory."""
 
 from __future__ import annotations

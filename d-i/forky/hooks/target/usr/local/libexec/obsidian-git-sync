@@ -4,7 +4,7 @@ umask 077
 [ "$#" -eq 0 ] || exit 64
 # Check before touching the agent or vault. The Python sync entry point checks
 # again before any Git operation, including direct invocation of that helper.
-if /usr/bin/python3 -I /usr/local/libexec/obsidian-git-sync.py --check-auto-enabled; then
+if /usr/bin/python3 -I -B /usr/local/libexec/obsidian-git-sync.py --check-auto-enabled; then
   :
 else
   policy_status=$?
@@ -23,4 +23,4 @@ if ! managed_ssh_context || ! managed_ssh_socket ||
   printf '%s\n' 'obsidian-git-sync: unlock the managed identity with git-ssh unlock; retrying next hour' >&2
   exit 0
 fi
-exec /usr/bin/python3 -I /usr/local/libexec/obsidian-git-sync.py
+exec /usr/bin/python3 -I -B /usr/local/libexec/obsidian-git-sync.py

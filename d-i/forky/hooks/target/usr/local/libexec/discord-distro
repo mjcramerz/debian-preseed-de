@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Validate and extract Discord distribution manifests and tar payloads."""
 
 from __future__ import annotations

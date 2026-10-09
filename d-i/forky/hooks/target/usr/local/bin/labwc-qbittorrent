@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 import configparser
 import errno
 import fcntl
@@ -1009,6 +1009,14 @@ def run_new_instance(
     acceleration_mode: str, launch_arguments: list[str], port: int,
 ) -> int:
     runtime = network_runtime()
+    from labwc_managed_app.network_client import configured_network_policy
+    try:
+        network_policy = configured_network_policy("qbittorrent")
+    except (OSError, ValueError, RuntimeError) as exc:
+        fail(f"managed qBittorrent network policy failed: {exc}")
+    online = network_policy is not None and network_policy["network"]
+    if online and network_policy["peer_port"] is not None:
+        port = network_policy["peer_port"]
     # Raising on termination lets the supervisor reap both children and
     # close every setup/exit FD before our private runtime directory is removed.
     def interrupted(signum, frame):
@@ -1023,9 +1031,9 @@ def run_new_instance(
         resolver = pathlib.Path(temporary) / "resolv.conf"
         resolver_configuration = getattr(runtime, "veth_resolv_conf", None)
         resolver.write_text(
-            resolver_configuration() if resolver_configuration is not None else (
+            (resolver_configuration() if resolver_configuration is not None else (
                 f"nameserver {runtime.VETH_DNS_ADDRESS}\noptions timeout:2 attempts:3\n"
-            ),
+            )) if online else "# Networking is disabled.\n",
             encoding="ascii",
         )
         resolver.chmod(0o600)
@@ -1035,13 +1043,15 @@ def run_new_instance(
         )
         payload_count = 1 + len(launch_arguments)
         def configured(lease):
-            if lease.peer_port != port:
+            if lease.peer_port is not None and lease.peer_port != port:
                 fail("qBittorrent peer port differs from the managed network service configuration")
             write_config(paths["profile_home"], paths, (lease.interface, lease.address), port)
+        if not online:
+            write_config(paths["profile_home"], paths, ("lo", "127.0.0.1"), port)
         return runtime.run_veth_sandbox(
             command[:-payload_count], command[-payload_count:], temporary, (),
             app="qbittorrent",
-            on_network_ready=configured,
+            on_network_ready=configured if online else None, network=online,
         )
 
 

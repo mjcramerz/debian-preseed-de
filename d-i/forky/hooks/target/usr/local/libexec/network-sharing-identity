@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -I
+#!/usr/bin/python3 -IB
 """Fail closed on NFS identity drift before an export or client mount starts.
 
 Read local configuration/NSS and loaded module parameters only. Never mount,
