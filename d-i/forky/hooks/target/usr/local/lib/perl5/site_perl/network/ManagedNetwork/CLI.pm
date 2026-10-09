@@ -3,7 +3,6 @@ package ManagedNetwork::CLI;
 use strict;
 use warnings;
 
-use File::Basename qw(basename);
 use Moo;
 
 use ManagedNetwork::Logger;

@@ -35,13 +35,16 @@ def strict_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 def decode(text: str | bytes) -> Any:
-    return json.loads(text, object_pairs_hook=strict_object,
-                      parse_constant=lambda x: (_ for _ in ()).throw(TuningError(f"nonfinite JSON: {x}")))
+    try:
+        return json.loads(text, object_pairs_hook=strict_object,
+                          parse_constant=lambda x: (_ for _ in ()).throw(TuningError(f"nonfinite JSON: {x}")))
+    except (ValueError, RecursionError) as exc:
+        raise TuningError("invalid or excessively nested JSON") from exc
 
 
 def trusted_json(path: Path, maximum: int = MAX_JSON) -> Any:
     """No symlinks, nonregular files, untrusted owners, or mutable ancestors."""
-    for parent in [path.parent, *path.parents][:-1]:
+    for parent in path.parents[:-1]:
         st = parent.lstat()
         if not stat.S_ISDIR(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022:
             raise TuningError(f"untrusted directory: {parent}")
@@ -81,12 +84,17 @@ def atomic_json(path: Path, value: Any, mode: int = 0o600) -> None:
             pass
 
 
-def read_text(path: Path) -> str:
-    with path.open("r", encoding="ascii") as stream:
-        value = stream.read(16385)
-    if len(value) > 16384:
+def read_text(path: Path, maximum: int = 16384) -> str:
+    if type(maximum) is not int or not 1 <= maximum <= MAX_JSON:
+        raise TuningError("invalid kernel attribute size limit")
+    descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(descriptor, "rb") as stream:
+        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            raise TuningError(f"nonregular kernel attribute: {path}")
+        data = stream.read(maximum + 1)
+    if len(data) > maximum:
         raise TuningError(f"oversized kernel attribute: {path}")
-    return value.strip()
+    return data.decode("ascii").strip()
 
 
 def integer(value: Any, low: int, high: int) -> int:

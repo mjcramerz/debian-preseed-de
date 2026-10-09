@@ -157,16 +157,17 @@ sub parse_content {
         my ($raw_value) = $current =~ /\A[A-Za-z_][A-Za-z0-9_]*=(.*)\z/s;
         defined($raw_value)
             or die "invalid configuration assignment in " . $self->path() . "\n";
-        my $complete = eval { __PACKAGE__->parse_shell_value($raw_value); 1 };
+        my $parsed_value;
+        my $complete = eval { $parsed_value = __PACKAGE__->parse_shell_value($raw_value); 1 };
         if (!$complete) {
             next if $@ =~ /unterminated quoted configuration value/;
             die "invalid configuration value in " . $self->path() . ": $@";
         }
-        my ($key, $value) = $current =~ /\A([A-Za-z_][A-Za-z0-9_]*)=(.*)\z/s;
+        my ($key) = $current =~ /\A([A-Za-z_][A-Za-z0-9_]*)=/;
         $allowed{$key}
             or die "unsupported configuration key in " . $self->path() . ": $key\n";
         !exists($values{$key}) or die "duplicate configuration key: $key\n";
-        $values{$key} = __PACKAGE__->parse_shell_value($value);
+        $values{$key} = $parsed_value;
         $current = q{};
     }
     $current eq q{}

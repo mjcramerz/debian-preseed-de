@@ -73,8 +73,17 @@ def load_defaults(path: pathlib.Path) -> dict[str, str]:
 
     values: dict[str, str] = {}
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError as exc:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+        with os.fdopen(descriptor, "rb") as source:
+            opened = os.fstat(source.fileno())
+            if (not stat.S_ISREG(opened.st_mode) or opened.st_uid != 0 or opened.st_mode & 0o022
+                    or (opened.st_dev, opened.st_ino) != (metadata.st_dev, metadata.st_ino)):
+                fail(f"managed desktop defaults changed or are unsafe: {path}")
+            payload = source.read(MAX_DEFAULTS_BYTES + 1)
+        if len(payload) > MAX_DEFAULTS_BYTES:
+            fail(f"managed desktop defaults exceed {MAX_DEFAULTS_BYTES} bytes: {path}")
+        lines = payload.decode("utf-8").splitlines()
+    except (OSError, UnicodeError) as exc:
         fail(f"failed to read managed desktop defaults: {path}: {exc}")
     for line_number, raw_line in enumerate(lines, start=1):
         line = raw_line.strip()

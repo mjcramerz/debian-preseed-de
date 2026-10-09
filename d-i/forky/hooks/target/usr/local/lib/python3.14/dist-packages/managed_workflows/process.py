@@ -37,7 +37,7 @@ def checked(argv: list[str], *, cwd: Path | None = None, env=None,
             capture: bool = False, timeout: int = 300, input: str | None = None) -> str:
     if not argv or not argv[0].startswith('/'):
         raise ValueError('an absolute executable is required')
-    result = subprocess.run(argv, cwd=cwd, env=env or environment(desktop=True),
+    result = subprocess.run(argv, cwd=cwd, env=environment(desktop=True) if env is None else env,
                             text=True, input=input, capture_output=capture,
                             timeout=timeout, check=False)
     if result.returncode:

@@ -59,6 +59,8 @@ def main(arguments: list[str]) -> int:
     for fd in (args.ready_fd, args.exit_fd):
         if fd is not None and not 3 <= fd <= 1024:
             raise ValueError("invalid lifecycle descriptor")
+    if args.ready_fd == args.exit_fd:
+        raise ValueError("ready and exit descriptors must be distinct")
     namespace_fd = os.open(args.namespace, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
     try:
         lease = network_lease_type()(namespace_fd, "podman")
@@ -72,7 +74,7 @@ def main(arguments: list[str]) -> int:
             readers = [lease.socket]
             if args.exit_fd is not None:
                 readers.append(args.exit_fd)
-            ready, _, _ = select.select(readers, [], [], 1)
+            ready, _, _ = select.select(readers, [], [])
             if lease.socket in ready:
                 lease.check()
             if args.exit_fd is not None and args.exit_fd in ready:

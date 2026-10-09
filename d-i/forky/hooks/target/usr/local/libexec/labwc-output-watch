@@ -486,14 +486,28 @@ sub load_defaults {
     my ($path) = @_;
     my %values;
 
-    return %values if !defined $path || !-r $path || -s $path > 65_536;
-    open my $fh, '<', $path or return %values;
-    while (my $line = <$fh>) {
-        if (length $line > 4096) {
-            close $fh;
+    return %values if !defined $path;
+    sysopen my $fh, $path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK or return %values;
+    my @metadata = stat($fh);
+    return %values if !@metadata || !-f $fh || ($metadata[4] != 0 && $metadata[4] != $<)
+        || ($metadata[2] & 0022) || $metadata[7] > 65_536;
+    my $content = q{};
+    while (length($content) <= 65_536) {
+        my $remaining = 65_537 - length($content);
+        my $read = sysread($fh, my $chunk, $remaining > 16_384 ? 16_384 : $remaining);
+        if (!defined($read)) {
+            next if $!{EINTR};
             return ();
         }
-        chomp $line;
+        last if $read == 0;
+        $content .= $chunk;
+    }
+    close $fh or return ();
+    return () if length($content) > 65_536;
+    for my $line (split /\n/, $content, -1) {
+        if (length $line > 4096) {
+            return ();
+        }
         $line =~ s/^\s+//;
         $line =~ s/\s+$//;
         next if $line eq q{} || $line =~ /^#/;
@@ -508,7 +522,6 @@ sub load_defaults {
         next if length $value > 2048 || $value =~ /[\x00\r\n]/;
         $values{$key} = $value;
     }
-    close $fh;
     return %values;
 }
 

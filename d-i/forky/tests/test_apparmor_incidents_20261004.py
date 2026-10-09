@@ -34,6 +34,122 @@ def body(file, label):
     raise AssertionError('unterminated profile: ' + label)
 
 
+def chatgpt_handoff_paths():
+    return [f'/run/user/{uid}/labwc-chatgpt-tmp/{directory}{filename}'
+            for uid in ('1000', '23456')
+            for directory in ('', 'preview-X/', 'some nested/child/')
+            for filename in ('archive.tar.gz', 'document.pdf', 'image.png', 'no-extension',
+                             '.partial', 'a file.txt', 'literal[brackets].txt')]
+
+
+class ChatGPTFileHandoffTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('apparmor_parser') and importlib.util.find_spec('apparmor'),
+                         'native AppArmor parser/rule reader unavailable')
+    def test_all_repository_profiles_parse_offline_and_expanded_proxy_covers_shared_tree(self):
+        from apparmor.rule.file import FileRule
+        with tempfile.TemporaryDirectory(prefix='apparmor-file-handoff-') as temporary:
+            work = Path(temporary)
+            base = work / 'apparmor.d'
+            shutil.copytree('/etc/apparmor.d', base, symlinks=True)
+            for template in AA.rglob('*.tmpl'):
+                (base / template.relative_to(AA).with_name(template.name[:-5])).unlink(missing_ok=True)
+            shutil.copytree(AA, base, dirs_exist_ok=True, symlinks=True)
+            (base / 'firstboot').unlink(missing_ok=True)
+            shutil.copyfile(SEED / 'scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl',
+                            base / 'firstboot.tmpl')
+            render_theme_tree(base)
+            media = base / 'local/abstractions/desktop-user-media'
+            media.write_text(media.read_text(encoding='utf-8').replace(
+                '__INSTALLER_ACCOUNT_USERNAME__', 'fixture'), encoding='utf-8')
+            config = work / 'parser.conf'
+            config.write_text('', encoding='utf-8')
+            cache = work / 'cache'
+            cache.mkdir(mode=0o700)
+            argv = ['apparmor_parser', '--config-file', str(config),
+                    '--cache-loc', str(cache), '-b', str(base), '-I', str(base),
+                    '--skip-kernel-load', '--skip-cache', '-j', '1']
+            policies = sorted(path.name.removesuffix('.tmpl') for path in AA.iterdir() if path.is_file())
+            policies.append('firstboot')
+            self.assertTrue(policies)
+            for name in policies:
+                with self.subTest(policy=name):
+                    # One -d checks syntax without building native code or
+                    # loading policy. The private config/cache prevent host writes.
+                    result = subprocess.run([*argv, '-d', str(base / name)],
+                        capture_output=True, text=True, encoding='utf-8', timeout=30)
+                    self.assertEqual(result.returncode, 0, result.stderr[-4000:])
+            result = subprocess.run([*argv, '-p', str(base / 'desktop-wrappers')],
+                capture_output=True, text=True, encoding='utf-8', timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr[-4000:])
+            stack = []
+            rules = []
+            for line in result.stdout.splitlines():
+                header = re.match(r'^\s*profile\s+(\S+)\s[^\n]*\{\s*$', line)
+                if header:
+                    stack.append('//'.join((*stack[-1:], header[1])))
+                elif line.strip() == '}':
+                    stack.pop()
+                elif stack and stack[-1] == 'labwc-chatgpt//chatgpt-dbus-proxy' and line.strip().startswith('owner /run/user/'):
+                    rules.append(FileRule.create_instance(line.strip()))
+            self.assertEqual(stack, [])
+            for path in chatgpt_handoff_paths():
+                with self.subTest(shared_file=path):
+                    requested = FileRule(path, {'r'}, None, FileRule.ALL, owner=True, log_event=True)
+                    self.assertTrue(any(not rule.deny and rule.is_covered(requested) for rule in rules))
+            self.assertEqual(list(cache.iterdir()), [])
+
+    def test_proxy_child_has_independent_read_grants_for_shared_files(self):
+        policy = body('desktop-wrappers', 'chatgpt-dbus-proxy')
+        rule = 'owner /run/user/[0-9]*/{doc,labwc-chatgpt-tmp}/{,**} r,'
+        self.assertIn(rule, policy)
+        self.assertIn('owner @{HOME}/{Desktop,Documents,Downloads,Music,Pictures,Public,Templates,Videos,Workspace}/{,**} r,', policy)
+        self.assertIn('/data/downloads/{,**} r,', policy)
+        self.assertIn('/pool/{,**} r,', policy)
+        for line in policy.splitlines():
+            if 'labwc-chatgpt-tmp' in line or line.strip().startswith(('/data/downloads/', '/pool/')):
+                self.assertTrue(line.strip().endswith(' r,'), line)
+        self.assertNotIn('/run/user/[0-9]*/** r,', policy)
+
+    @unittest.skipUnless(importlib.util.find_spec('apparmor'), 'native AppArmor rule reader unavailable')
+    def test_shared_temp_globs_cover_varied_names_depths_and_uids(self):
+        from apparmor.rule.file import FileRule
+        policy = body('desktop-wrappers', 'chatgpt-dbus-proxy')
+        rules = [FileRule.create_instance(line.strip()) for line in policy.splitlines()
+                 if line.strip().startswith(('owner /', '/data/downloads/', '/pool/'))]
+        for path in chatgpt_handoff_paths():
+            with self.subTest(shared_file=path):
+                # Denial paths are literal filenames, including spaces and
+                # glob characters; they are not AppArmor policy expressions.
+                requested = FileRule(path, {'r'}, None, FileRule.ALL, owner=True, log_event=True)
+                self.assertTrue(any(not rule.deny and rule.is_covered(requested) for rule in rules))
+                for rule in rules:
+                    if rule.path.match(path):
+                        self.assertTrue(rule.owner)
+                        self.assertEqual(rule.perms, {'r'})
+                        self.assertIsNone(rule.exec_perms)
+        for path in ('/run/user/1000/labwc-other-tmp/file',
+                     '/run/user/1000/labwc-chatgpt-tmp-neighbor/file'):
+            requested = FileRule.create_instance(f'owner "{path}" r,')
+            self.assertFalse(any(not rule.deny and rule.is_covered(requested) for rule in rules))
+        requested = FileRule.create_instance('"/run/user/1000/labwc-chatgpt-tmp/file" r,')
+        self.assertFalse(any(not rule.deny and rule.is_covered(requested) for rule in rules))
+
+    def test_launcher_payload_and_desktop_tools_cover_same_user_temp_tree(self):
+        for label in ('labwc-chatgpt', 'chatgpt-bwrap'):
+            policy = body('desktop-wrappers', label)
+            self.assertIn('owner /run/user/[0-9]*/labwc-chatgpt-tmp/ rw,', policy)
+            self.assertIn('owner /run/user/[0-9]*/labwc-chatgpt-tmp/** rwkl,', policy)
+        documents = read_text(AA / 'abstractions/user-documents')
+        self.assertIn('owner /run/user/[0-9]*/labwc-chatgpt-tmp/{,**} rwkl,', documents)
+        self.assertIn('#include <abstractions/user-documents>', body('desktop-utilities', 'desktop-launcher'))
+        parent = body('desktop-wrappers', 'labwc-chatgpt')
+        self.assertIn('/usr/bin/xdg-dbus-proxy rCx -> chatgpt-dbus-proxy,', parent)
+        self.assertIn('/usr/bin/bwrap rCx -> chatgpt-bwrap,', parent)
+        child = body('desktop-wrappers', 'chatgpt-bwrap')
+        self.assertIn('/usr/lib/chatgpt/ChatGPT rix,', child)
+        self.assertNotRegex(child, r'/usr/lib/chatgpt/ChatGPT\s+[^,]*[pPcCuU]')
+
+
 class SuppliedDenialTests(unittest.TestCase):
     @unittest.skipUnless(importlib.util.find_spec('apparmor'), 'native AppArmor rule reader unavailable')
     def test_october_9_signal_and_netlink_requests_are_covered_by_exact_rules(self):

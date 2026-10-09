@@ -289,6 +289,22 @@ class AuthorizationTests(unittest.TestCase):
                 client.Lease(3, "codex")
             channel.close.assert_called_once()
 
+    def test_client_rejects_missing_and_non_text_network_readiness_fields(self):
+        ready = {"ready": True, "address": "10.203.0.2", "gateway": "10.203.0.1", "interface": "eth0"}
+        for field in ('address', 'gateway', 'interface'):
+            for value in (None, True, 1, [], {}):
+                response = dict(ready, **{field: value})
+                if value is None:
+                    del response[field]
+                channel = mock.Mock()
+                channel.getsockopt.return_value = struct.pack('3i', 12, 0, 0)
+                channel.recvmsg.return_value = (json.dumps(response).encode(), [], 0, None)
+                with self.subTest(field=field, value=value), \
+                        mock.patch.object(client, 'control_socket_owner', return_value=0), \
+                        mock.patch.object(client.socket, 'socket', return_value=channel), self.assertRaises(ValueError):
+                    client.Lease(3, 'codex')
+                channel.close.assert_called_once()
+
     def test_peer_forwarding_port_requires_a_canonical_ready_integer(self):
         for port in (None, True, "50309", 1023, 65536, 50309):
             channel = mock.Mock()
@@ -601,6 +617,16 @@ class AdministrationTests(unittest.TestCase):
         with mock.patch.object(broker, 'run', side_effect=replies), \
                 self.assertRaisesRegex(ValueError, 'Internet interface is down'):
             self.original_route()
+
+    def test_malformed_route_and_link_snapshots_fail_with_a_controlled_error(self):
+        for route in (None, [], {}, {'dev': []}, {'dev': 'eth0', 'prefsrc': True}):
+            with self.subTest(route=route), self.assertRaises(ValueError):
+                broker.route_interface(route)
+        for links in ([], {}, [None], [{'mtu': 1500}], [{'mtu': True, 'flags': ['UP']}],
+                      [{'mtu': 1500, 'flags': 'UP'}]):
+            with self.subTest(links=links), mock.patch.object(broker, 'run', return_value=json.dumps(links)), \
+                    self.assertRaises(ValueError):
+                broker.route_interface({'dev': 'eth0', 'prefsrc': '192.0.2.8'})
 
     def test_close_removes_packet_path_before_rule_elements(self):
         network = self.network()
@@ -1210,6 +1236,46 @@ class DesktopLaunchTests(unittest.TestCase):
             self.assertEqual(captured["payload"], ["/usr/bin/chromium", "literal-url"])
             self.assertEqual(captured["app"], "chromium")
 
+    def test_privacy_setup_failures_reclaim_private_files_and_started_proxy(self):
+        for fault in ('resolver', 'mount'):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
+                root = Path(directory)
+                env = {"HOME": "/home/user", "XDG_RUNTIME_DIR": str(root), "WAYLAND_DISPLAY": "wayland-0"}
+                stack.enter_context(mock.patch.object(sandbox, 'pure_privacy_environment', return_value=env))
+                stack.enter_context(mock.patch.object(sandbox, 'pure_privacy_argv', return_value=['/usr/bin/chromium']))
+                stack.enter_context(mock.patch.object(sandbox, 'require_root_owned_executable', return_value='/usr/bin/bwrap'))
+                stack.enter_context(mock.patch.object(sandbox, 'current_user_runtime_socket', return_value=str(root/'wayland-0')))
+                proxy = mock.Mock()
+                lifecycle = mock.Mock()
+                started = stack.enter_context(mock.patch.object(sandbox, 'start_session_bus_proxy', return_value=(proxy, '/proxy', lifecycle)))
+                stopped = stack.enter_context(mock.patch.object(sandbox, 'stop_dbus_proxy'))
+                if fault == 'resolver':
+                    stack.enter_context(mock.patch.object(sandbox, 'veth_resolv_conf', side_effect=ValueError('resolver failed')))
+                else:
+                    stack.enter_context(mock.patch.object(sandbox, 'add_dir_chain', side_effect=ValueError('mount failed')))
+                with self.assertRaisesRegex(ValueError, fault + ' failed'):
+                    sandbox.run_pure_privacy('chromium', [])
+                self.assertEqual(list(root.iterdir()), [])
+                if fault == 'resolver':
+                    started.assert_not_called()
+                    stopped.assert_not_called()
+                else:
+                    stopped.assert_called_once_with(proxy, lifecycle, '/proxy')
+
+    def test_persistent_resolver_failure_reclaims_private_setup_directory(self):
+        with tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
+            root = Path(directory)
+            home, runtime = root/'home', root/'runtime'
+            home.mkdir(); runtime.mkdir(mode=0o700)
+            env = {"HOME": str(home), "XDG_RUNTIME_DIR": str(runtime), "WAYLAND_DISPLAY": "wayland-0"}
+            stack.enter_context(mock.patch.object(sandbox, 'build_environment', return_value=env))
+            stack.enter_context(mock.patch.object(sandbox, 'require_root_owned_executable', return_value='/usr/bin/bwrap'))
+            stack.enter_context(mock.patch.object(sandbox, 'current_user_runtime_socket', return_value=str(runtime/'wayland-0')))
+            stack.enter_context(mock.patch.object(sandbox, 'create_veth_resolver_file', side_effect=ValueError('resolver failed')))
+            with self.assertRaisesRegex(ValueError, 'resolver failed'):
+                sandbox.run_persistent_sandbox('chromium', 'launch', [])
+            self.assertFalse(list(runtime.glob('labwc-chromium-sandbox-*')))
+
     def test_offline_privacy_never_requests_a_network_lease(self):
         with tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
             root = Path(directory)
@@ -1238,6 +1304,11 @@ class DesktopLaunchTests(unittest.TestCase):
 
 
 class PodmanAdapterTests(unittest.TestCase):
+    def test_shared_ready_exit_descriptor_is_rejected_before_namespace_access(self):
+        with mock.patch.object(podman_adapter.os, 'open') as opened, self.assertRaisesRegex(ValueError, 'distinct'):
+            podman_adapter.main(['-c', '-r', '3', '-e', '3', '--netns-type=path', '/dev/null', 'tap0'])
+        opened.assert_not_called()
+
     def test_version_probe_is_side_effect_free_before_any_namespace_import(self):
         with contextlib.redirect_stdout(io.StringIO()) as output, \
                 mock.patch.object(podman_adapter.os, "open") as opened, \

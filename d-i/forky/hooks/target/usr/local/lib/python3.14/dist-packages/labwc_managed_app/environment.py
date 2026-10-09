@@ -240,6 +240,30 @@ def validate_chatgpt_work_areas(user_name: str, home_dir: str) -> None:
         fail("managed ChatGPT absolute work-area policy is inconsistent")
 
 
+def _read_validated_text(
+    path: str | pathlib.Path, metadata: os.stat_result, maximum_bytes: int,
+) -> str:
+    """Read a bounded snapshot of the file whose metadata was validated."""
+    if type(maximum_bytes) is not int or maximum_bytes <= 0:
+        fail("managed text byte limit must be a positive integer")
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+        with os.fdopen(descriptor, "rb") as source:
+            opened = os.fstat(source.fileno())
+            if (not stat.S_ISREG(opened.st_mode)
+                    or (opened.st_dev, opened.st_ino, opened.st_uid, opened.st_gid, opened.st_mode)
+                    != (metadata.st_dev, metadata.st_ino, metadata.st_uid, metadata.st_gid, metadata.st_mode)):
+                fail(f"managed text file changed while opening: {path}")
+            if opened.st_size > maximum_bytes:
+                fail(f"managed text file exceeds the size limit: {path}")
+            payload = source.read(maximum_bytes + 1)
+        if len(payload) > maximum_bytes:
+            fail(f"managed text file exceeds the size limit: {path}")
+        return payload.decode("utf-8")
+    except (OSError, UnicodeError) as exc:
+        fail(f"failed to read managed text file: {path}: {exc}")
+
+
 def load_managed_defaults(path: pathlib.Path, *, owner_uid: int = 0) -> dict[str, str]:
     try:
         metadata = path.lstat()
@@ -256,10 +280,7 @@ def load_managed_defaults(path: pathlib.Path, *, owner_uid: int = 0) -> dict[str
         fail(f"managed desktop defaults exceed {MAX_MANAGED_DEFAULTS_BYTES} bytes: {path}")
 
     values: dict[str, str] = {}
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError as exc:
-        fail(f"failed to read managed desktop defaults: {path}: {exc}")
+    lines = _read_validated_text(path, metadata, MAX_MANAGED_DEFAULTS_BYTES).splitlines()
     for line_number, raw_line in enumerate(lines, start=1):
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
@@ -458,19 +479,14 @@ def require_root_owned_regular_file(
 
 def load_root_owned_text(path: str, maximum_bytes: int) -> str:
     file_stat = require_root_owned_regular_file(path)
-    if file_stat.st_size > maximum_bytes:
-        fail(f"managed root-owned file exceeds the size limit: {path}")
-    try:
-        return pathlib.Path(path).read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as exc:
-        fail(f"failed to read managed root-owned file: {path}: {exc}")
+    return _read_validated_text(path, file_stat, maximum_bytes)
 
 
 def load_root_json_object(path: str, maximum_bytes: int) -> dict[str, object]:
     raw = load_root_owned_text(path, maximum_bytes)
     try:
         value = json.loads(raw, object_pairs_hook=reject_duplicate_json_keys)
-    except json.JSONDecodeError as exc:
+    except (json.JSONDecodeError, RecursionError) as exc:
         fail(f"managed root-owned JSON is invalid: {path}: {exc}")
     if not isinstance(value, dict):
         fail(f"managed root-owned JSON must contain an object: {path}")
@@ -775,35 +791,7 @@ def replace_discord_user_modules(
 
 
 def write_user_json_atomic(path: str, value: dict[str, object], mode: int) -> None:
-    parent = os.path.dirname(path)
-    ensure_user_owned_directory(parent, 0o700)
-    descriptor, temporary_path = tempfile.mkstemp(
-        prefix=f".{os.path.basename(path)}.",
-        dir=parent,
-    )
-    descriptor_open = True
-    try:
-        os.fchmod(descriptor, mode)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            descriptor_open = False
-            json.dump(value, handle, ensure_ascii=False, indent=2)
-            handle.write("\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary_path, path)
-    finally:
-        if descriptor_open:
-            os.close(descriptor)
-        try:
-            os.unlink(temporary_path)
-        except FileNotFoundError:
-            pass
-    file_stat = os.lstat(path)
-    if stat.S_ISLNK(file_stat.st_mode) or not stat.S_ISREG(file_stat.st_mode):
-        fail(f"managed JSON replacement is not a regular file: {path}")
-    if file_stat.st_uid != os.getuid():
-        fail(f"managed JSON replacement is not owned by the current user: {path}")
-    os.chmod(path, mode)
+    replace_user_text_atomic(path, json.dumps(value, ensure_ascii=False, indent=2) + "\n", mode)
 
 
 def ensure_discord_managed_settings(home_dir: str) -> None:

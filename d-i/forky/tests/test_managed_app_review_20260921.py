@@ -26,7 +26,7 @@ from test_dynamic_storage_sizing_20260921 import TARGET
 LIB = python_library(TARGET / 'usr/local/lib/python3.14/dist-packages')
 if str(LIB) not in sys.path:
     sys.path.insert(0, str(LIB))
-from labwc_managed_app import browsers, commands, generic, mounts, profiles, sandbox, user_state
+from labwc_managed_app import browsers, commands, environment, generic, integrity, mounts, profiles, sandbox, user_state
 
 
 class ManagedArgumentReviewTests(unittest.TestCase):
@@ -103,6 +103,54 @@ class ManagedArgumentReviewTests(unittest.TestCase):
         enabled = next(a for a in single if a.startswith('--enable-features='))
         self.assertIn('VendorFeature', enabled)
         self.assertNotIn('Vulkan', enabled)
+
+
+class ManagedTextReviewTests(unittest.TestCase):
+    def test_inner_supervisor_rejects_a_mutable_network_client_dependency(self):
+        with tempfile.TemporaryDirectory() as directory:
+            package = Path(directory)/'labwc_managed_app'
+            shutil.copytree(LIB/'labwc_managed_app', package)
+            package.chmod(0o755)
+            for path in package.iterdir():
+                path.chmod(0o644)
+            owner = (os.getuid(), os.getgid())
+            integrity.validate_package('compat-runtime', package_directory=package, owner=owner)
+            (package/'network_client.py').chmod(0o666)
+            with self.assertRaises(integrity.IntegrityError):
+                integrity.validate_package('compat-runtime', package_directory=package, owner=owner)
+
+    def test_defaults_read_rejects_invalid_encoding_and_oversized_content(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'desktop.conf'
+            for payload in (b'\xff', b'x' * (environment.MAX_MANAGED_DEFAULTS_BYTES + 1)):
+                path.write_bytes(payload)
+                with self.subTest(size=len(payload)), redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                    environment.load_managed_defaults(path, owner_uid=os.getuid())
+
+    def test_replaced_defaults_file_is_rejected_on_the_opened_descriptor(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'desktop.conf'
+            path.write_text('LABWC_INTEL_ACCELERATION_AVAILABLE=true\n', encoding='utf-8')
+            native_open = os.open
+            def replace_then_open(target, flags):
+                path.rename(path.with_suffix('.previous'))
+                path.write_text('LABWC_INTEL_ACCELERATION_AVAILABLE=false\n', encoding='utf-8')
+                return native_open(target, flags)
+            with mock.patch.object(environment.os, 'open', side_effect=replace_then_open), \
+                    redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                environment.load_managed_defaults(path, owner_uid=os.getuid())
+
+    def test_read_is_bounded_even_when_the_validated_size_is_stale(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'text'
+            path.write_bytes(b'x' * 33)
+            metadata = path.stat()
+            stale = os.stat_result((*metadata[:6], 1, *metadata[7:]))
+            with mock.patch.object(environment.os, 'fstat', return_value=stale), \
+                    redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                environment._read_validated_text(path, metadata, 32)
+            path.write_text('valid\n', encoding='utf-8')
+            self.assertEqual(environment._read_validated_text(path, path.stat(), 32), 'valid\n')
 
 
 class ChatGPTDownloadTests(unittest.TestCase):
@@ -220,6 +268,19 @@ class TutaDocumentMountTests(unittest.TestCase):
 
 
 class UserStateReviewTests(unittest.TestCase):
+    def test_shared_json_writer_preserves_unicode_mode_and_refuses_symlink_destinations(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/'state.json'
+            value = {'title': 'm\u00f6te', 'enabled': True}
+            environment.write_user_json_atomic(str(path), value, 0o600)
+            self.assertEqual(json.loads(path.read_text(encoding='utf-8')), value)
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+            alias = Path(directory)/'alias.json'
+            alias.symlink_to(path)
+            with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                environment.write_user_json_atomic(str(alias), {'changed': True}, 0o600)
+            self.assertEqual(json.loads(path.read_text(encoding='utf-8')), value)
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(prefix='x-state-review-')
         self.addCleanup(self.tmp.cleanup)

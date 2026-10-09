@@ -95,7 +95,7 @@ class FilesystemTests(Temporary):
             self.assertFalse(list(self.root.rglob('.managed-*')))
 
     def test_paths_are_strictly_relative(self):
-        for value in ('', '/etc/passwd', '../file', './file', 'a//file', 'a/../file', 'a\nfile'):
+        for value in ('', '.', '/etc/passwd', '../file', './file', 'a//file', 'a/../file', 'a\nfile'):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 parts(value)
 
@@ -138,13 +138,27 @@ class FilesystemTests(Temporary):
     def test_copy_change_does_not_replace_destination(self):
         with Tree(self.root) as tree:
             tree.write('in', b'initial'); tree.write('out', b'original')
-            original = shutil.copyfileobj
-            def changing(source, destination, length):
-                original(source, destination, length)
+            original = os.fsync
+            def changing(fd):
+                original(fd)
                 with open(self.root / 'in', 'ab') as f: f.write(b'changed')
-            with mock.patch('shutil.copyfileobj', side_effect=changing), self.assertRaises(ValueError):
+            with mock.patch('managed_workflows.fs.os.fsync', side_effect=changing), self.assertRaises(ValueError):
                 tree.copy('out', tree, 'in')
             self.assertEqual(tree.read('out'), b'original')
+
+    def test_copy_bounds_growth_and_rejects_truncation(self):
+        with Tree(self.root) as tree:
+            tree.write('in', b'initial'); tree.write('out', b'original')
+            metadata = (self.root / 'in').stat()
+            for data in (b'initial' + b'excess' * 1000, b'short'):
+                stream = io.BytesIO(data)
+                with self.subTest(size=len(data)), mock.patch.object(
+                        tree, 'open_read', return_value=contextlib.nullcontext((stream, metadata))):
+                    with self.assertRaises(ValueError):
+                        tree.copy('out', tree, 'in')
+                    self.assertLessEqual(stream.tell(), metadata.st_size + 1)
+                self.assertEqual(tree.read('out'), b'original')
+                self.assertFalse(list(self.root.rglob('.managed-*')))
 
 
 class SourceTests(Temporary):
@@ -282,6 +296,11 @@ class BuildTests(Temporary):
                                          'DISPLAY': ':0', 'DBUS_SESSION_BUS_ADDRESS': 'secret'}):
             env = process.environment()
         self.assertFalse({'PYTHONPATH', 'LD_PRELOAD', 'GIT_CONFIG_COUNT', 'DISPLAY', 'DBUS_SESSION_BUS_ADDRESS'} & env.keys())
+
+    def test_checked_preserves_explicit_empty_environment(self):
+        with mock.patch.object(process.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0)) as run:
+            process.checked(['/usr/bin/true'], env={})
+        self.assertEqual(run.call_args.kwargs['env'], {})
 
     def test_transient_service_has_cgroup_limits_and_unique_identity(self):
         child = mock.Mock(); child.wait.return_value = 0; child.poll.return_value = 0
@@ -700,7 +719,7 @@ class IntegrationTests(unittest.TestCase):
                      *(TARGET / 'usr/local/libexec').glob('gitbuild-*'),
                      *(TARGET / 'usr/local/libexec').glob('labwc-appearance-*')):
             self.assertFalse(path.stat().st_mode & 0o111, str(path))
-            self.assertEqual(path.read_text().splitlines()[0], '#!/usr/bin/python3 -I')
+            self.assertEqual(path.read_text().splitlines()[0], '#!/usr/bin/python3 -IB')
         self.assertIn('"/$path" 0755', (SEED / 'scripts/late/devops/gitbuild.sh').read_text())
         self.assertIn('/usr/local/bin/labwc-desktop-appearance 0755',
                       (SEED / 'scripts/desktop/components/appearance.sh').read_text())

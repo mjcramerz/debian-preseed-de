@@ -114,9 +114,13 @@ publish_target_asset() (
   trap 'exit 129' HUP
   trap 'exit 130' INT
   trap 'exit 143' TERM
-  (fetch_hook "$asset_source" "$asset_work/payload") || exit 1
+  if [ "$asset_kind" = stdin ]; then
+    cat >"$asset_work/payload" || exit 1
+  else
+    (fetch_hook "$asset_source" "$asset_work/payload") || exit 1
+  fi
   case "$asset_kind" in
-    plain) ;;
+    plain|stdin) ;;
     template)
       (TMP_ENV_DIR=$asset_work; render_target_template "$asset_work/payload" "$asset_work/rendered" "$asset_mode") || exit 1
       mv -f "$asset_work/rendered" "$asset_work/payload" || exit 1
@@ -137,6 +141,11 @@ publish_target_asset() (
 
 stage_target_asset() {
   publish_target_asset "$1" "$2" "$3" plain
+}
+
+# Generated late-command files use the same publication contract as assets.
+write_target_file() {
+  publish_target_asset - "$1" "$2" stdin
 }
 
 remove_target_asset() (
@@ -210,47 +219,61 @@ stage_target_hardware_spec() (
 )
 
 stage_target_docs_index() {
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET data/docs/README.md)" "${DIR_DATA_DOCS}/README.md" 0644
+  [ -n "${DIR_DATA_DOCS:-}" ] || {
+    installer_fatal "DIR_DATA_DOCS must be set before staging helper docs"
+    return 1
+  }
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET data/docs/README.md)" "${DIR_DATA_DOCS}/README.md" 0644 || return $?
   target_chown_helper_doc_path "${DIR_DATA_DOCS}/README.md"
 }
 
 target_helper_doc_owner_ids() {
-  if [ -n "${TARGET_HELPER_DOC_OWNER_IDS:-}" ]; then
-    printf '%s\n' "$TARGET_HELPER_DOC_OWNER_IDS"
-    return 0
+  helper_doc_owner_ids=${TARGET_HELPER_DOC_OWNER_IDS:-}
+  if [ -z "$helper_doc_owner_ids" ]; then
+    : "${ACCOUNT_USERNAME:?ACCOUNT_USERNAME must be set before staging helper docs}"
+    helper_doc_passwd=$(target_asset_host_path /etc/passwd) || return $?
+    helper_doc_owner_ids=$(awk -F: -v wanted_user="$ACCOUNT_USERNAME" '$1 == wanted_user { print $3 ":" $4; exit }' "$helper_doc_passwd") || return $?
   fi
-
-  : "${ACCOUNT_USERNAME:?ACCOUNT_USERNAME must be set before staging helper docs}"
-  helper_doc_owner_ids=$(awk -F: -v wanted_user="$ACCOUNT_USERNAME" '$1 == wanted_user { print $3 ":" $4; exit }' /target/etc/passwd)
-  [ -n "$helper_doc_owner_ids" ] || installer_fatal "target helper doc owner is missing from /target/etc/passwd: ${ACCOUNT_USERNAME}"
+  case "$helper_doc_owner_ids" in
+    ''|:*|*:|*[!0-9:]*|*:*:*)
+      installer_fatal "target helper doc owner must be a numeric UID:GID pair"
+      return 1 ;;
+    *:*) ;;
+    *) installer_fatal "target helper doc owner must be a numeric UID:GID pair"; return 1 ;;
+  esac
   TARGET_HELPER_DOC_OWNER_IDS=$helper_doc_owner_ids
   printf '%s\n' "$TARGET_HELPER_DOC_OWNER_IDS"
 }
 
 target_chown_helper_doc_path() {
   doc_target_path=$1
-  helper_doc_owner_ids=$(target_helper_doc_owner_ids)
-  doc_host_path=$(target_asset_host_path "$doc_target_path")
+  # Call directly so the owner cache survives subsequent documents in this shell.
+  target_helper_doc_owner_ids >/dev/null || return $?
+  doc_host_path=$(target_asset_host_path "$doc_target_path") || return $?
 
-  chown "$helper_doc_owner_ids" "$doc_host_path"
+  chown "$TARGET_HELPER_DOC_OWNER_IDS" "$doc_host_path"
 }
 
-stage_target_helper_doc() {
+stage_target_helper_doc_file() {
   repo_relpath=$1
   doc_name=$2
 
-  [ -n "${DIR_DATA_DOCS:-}" ] || installer_fatal "DIR_DATA_DOCS must be set before staging helper docs"
-  stage_target_docs_index
   doc_target_path="${DIR_DATA_DOCS}/${doc_name}"
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET "data/docs/${repo_relpath}")" "${doc_target_path}" 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET "data/docs/${repo_relpath}")" "${doc_target_path}" 0644 || return $?
   target_chown_helper_doc_path "$doc_target_path"
+}
+
+stage_target_helper_doc() {
+  stage_target_docs_index || return $?
+  stage_target_helper_doc_file "$1" "$2"
 }
 
 stage_target_helper_docs() {
   [ "$#" -gt 0 ] || return 0
+  stage_target_docs_index || return $?
 
   while [ "$#" -gt 0 ]; do
-    stage_target_helper_doc "$1" "$1"
+    stage_target_helper_doc_file "$1" "$1" || return $?
     shift
   done
 }

@@ -271,42 +271,6 @@ bootstrap_validate_relative_seed_path() {
   esac
 }
 
-bootstrap_copy_path_with_mode() {
-  copy_src_path=$1
-  copy_dest_path=$2
-  copy_mode=$3
-  copy_label=${4:-file}
-  copy_parent_dir=$(dirname "$copy_dest_path")
-  copy_tmp_path="${copy_dest_path}.tmp.$$"
-  copy_err_path="${copy_tmp_path}.copy.log"
-
-  if [ "$copy_src_path" = "$copy_dest_path" ]; then
-    chmod "$copy_mode" "$copy_dest_path" 2>/dev/null || true
-    return 0
-  fi
-
-  [ -d "$copy_parent_dir" ] || install -d -m 0700 "$copy_parent_dir"
-  rm -f "$copy_tmp_path" "$copy_err_path"
-  if cp "$copy_src_path" "$copy_tmp_path" >"$copy_err_path" 2>&1; then
-    copy_status=0
-  else
-    copy_status=$?
-  fi
-  if [ "$copy_status" -ne 0 ]; then
-    bootstrap_log "error: failed to copy ${copy_label} from ${copy_src_path} to ${copy_dest_path} (status ${copy_status})"
-    [ -s "$copy_err_path" ] && sed 's/^/[bootstrap:cp] /' "$copy_err_path" >&2
-    rm -f "$copy_tmp_path" "$copy_err_path"
-    exit 1
-  fi
-  rm -f "$copy_err_path"
-  if [ ! -s "$copy_tmp_path" ]; then
-    rm -f "$copy_tmp_path"
-    bootstrap_fatal "copied ${copy_label} is empty: ${copy_src_path}"
-  fi
-  mv "$copy_tmp_path" "$copy_dest_path"
-  chmod "$copy_mode" "$copy_dest_path"
-}
-
 bootstrap_log_path_is_numbered() {
   bootstrap_check_log_path=$1
   bootstrap_check_log_name=${bootstrap_check_log_path##*/}

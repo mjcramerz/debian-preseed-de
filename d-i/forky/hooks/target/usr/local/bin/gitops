@@ -86,13 +86,16 @@ def load_patterns(path: Path, workflow: str) -> list[str]:
     """Parse data, never source/eval a dotenv or import repository-local policy."""
     if path.is_symlink() or path.resolve() != path.absolute():
         raise GitOpsError('gitops.env must have a direct, nonsymlinked path')
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
     try:
         info = os.fstat(fd)
         if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
                 or info.st_nlink != 1 or info.st_mode & 0o022 or info.st_size > 65536):
             raise GitOpsError('gitops.env must be owned by you, a single regular file, and not group/world writable')
-        raw = os.read(fd, 65537).decode('utf-8')
+        data = os.read(fd, 65537)
+        if len(data) > 65536:
+            raise GitOpsError('gitops.env exceeds the size limit')
+        raw = data.decode('utf-8')
     finally:
         os.close(fd)
     values: dict[str, str] = {}
@@ -202,7 +205,7 @@ def repository_lock(root: Path):
     common = Path(git('rev-parse', '--git-common-dir', cwd=root).decode().rstrip('\n'))
     if not common.is_absolute():
         common = root/common
-    fd = os.open(common/'gitops.lock', os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    fd = os.open(common/'gitops.lock', os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, 0o600)
     try:
         st = os.fstat(fd)
         if st.st_uid != os.getuid() or st.st_nlink != 1 or not stat.S_ISREG(st.st_mode):

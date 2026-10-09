@@ -100,7 +100,9 @@ sub capture_command {
                 next;
             }
             $! = 0;
-            my ($readable, $writable) = IO::Select->select($reads, $writes, undef, $left < 0.05 ? $left : 0.05);
+            # Pipe readiness and EINTR wake this wait. Keep the full remaining
+            # deadline instead of waking twenty times a second while idle.
+            my ($readable, $writable) = IO::Select->select($reads, $writes, undef, $left);
             if (!defined $readable) {
                 next if !$! || $! == EINTR;
                 die "subprocess select failed: $!\n";

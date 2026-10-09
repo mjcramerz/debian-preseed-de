@@ -107,38 +107,53 @@ installer_apply_scalar_placeholders() {
   rm -f "$installer_placeholder_script"
 }
 
-installer_copy_path_with_mode() {
+installer_copy_path_with_mode() (
+  umask 077
   copy_src_path=$1
   copy_dest_path=$2
   copy_mode=$3
   copy_label=${4:-file}
-  copy_parent_dir=$(dirname "$copy_dest_path")
-  copy_tmp_path="${copy_dest_path}.tmp.$$"
-  copy_err_path="${copy_tmp_path}.copy.err"
+  case "$copy_mode" in
+    [0-7][0-7][0-7]|[0-7][0-7][0-7][0-7]) ;;
+    *) installer_error "invalid copy mode for ${copy_label}"; exit 1 ;;
+  esac
 
   if [ "$copy_src_path" = "$copy_dest_path" ]; then
-    chmod "$copy_mode" "$copy_dest_path" 2>/dev/null || true
-    return 0
+    [ -f "$copy_dest_path" ] && [ ! -L "$copy_dest_path" ] || exit 1
+    chmod "$copy_mode" "$copy_dest_path"
+    exit $?
   fi
 
-  [ -d "$copy_parent_dir" ] || install -d -m 0700 "$copy_parent_dir"
-  rm -f "$copy_tmp_path" "$copy_err_path"
-  if cp "$copy_src_path" "$copy_tmp_path" >"$copy_err_path" 2>&1; then
+  copy_parent_dir=$(dirname "$copy_dest_path") || exit 1
+  [ -d "$copy_parent_dir" ] || install -d -m 0700 "$copy_parent_dir" || exit 1
+  [ ! -d "$copy_dest_path" ] || {
+    installer_error "copy destination is a directory: ${copy_dest_path}"
+    exit 1
+  }
+  copy_work=$(mktemp -d "$copy_parent_dir/.installer-copy.XXXXXX") || exit 1
+  trap 'rm -rf -- "$copy_work"' EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  copy_tmp_path="$copy_work/payload"
+  copy_err_path="$copy_work/copy.err"
+  if cp -- "$copy_src_path" "$copy_tmp_path" >"$copy_err_path" 2>&1; then
     copy_status=0
   else
     copy_status=$?
   fi
   if [ "$copy_status" -ne 0 ]; then
     installer_error "failed to copy ${copy_label} from ${copy_src_path} to ${copy_dest_path} (status ${copy_status})"
-    [ -s "$copy_err_path" ] && sed 's/^/[cp] /' "$copy_err_path" >&2
-    rm -f "$copy_tmp_path" "$copy_err_path"
-    return 1
+    [ ! -s "$copy_err_path" ] || sed -n '1,40s/^/[cp] /p' "$copy_err_path" >&2
+    exit 1
   fi
-  rm -f "$copy_err_path"
-  [ -s "$copy_tmp_path" ] || installer_fatal "copied ${copy_label} is empty: ${copy_src_path}"
-  mv "$copy_tmp_path" "$copy_dest_path"
-  chmod "$copy_mode" "$copy_dest_path"
-}
+  [ -s "$copy_tmp_path" ] || {
+    installer_fatal "copied ${copy_label} is empty: ${copy_src_path}"
+    exit 1
+  }
+  chmod "$copy_mode" "$copy_tmp_path" || exit 1
+  mv -fT -- "$copy_tmp_path" "$copy_dest_path" || exit 1
+)
 
 installer_log_path_is_numbered() {
   installer_check_log_path=$1

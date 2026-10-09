@@ -71,13 +71,16 @@ def publish_snapshot(directory: Path, products: dict[str, bytes]) -> int:
         for name in changed:
             attempted.append(name)
             atomic_write(directory / name, products[name], 0o644)
-    except BaseException:
+    except BaseException as failure:
         for name in reversed(attempted):
             path = directory / name
             old = previous[name]
-            if old is None:
-                path.unlink(missing_ok=True)
-            else:
-                atomic_write(path, *old)
+            try:
+                if old is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    atomic_write(path, *old)
+            except BaseException as rollback_error:
+                failure.add_note(f'rollback failed for {name}: {rollback_error}')
         raise
     return len(changed)

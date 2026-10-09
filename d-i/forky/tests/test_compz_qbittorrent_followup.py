@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import configparser
 import contextlib
+import io
 import json
 import os
 from pathlib import Path
@@ -35,6 +36,26 @@ LAUNCHERS = runpy.run_path(
 
 
 class TorrentIntegrationTests(unittest.TestCase):
+    def test_defaults_reader_rejects_special_oversize_and_malformed_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'desktop.conf'
+            globals_ = QBIT['load_defaults'].__globals__
+            # Ownership is a fixture seam; open/read/type/size checks are real.
+            original = globals_['os'].fstat
+            def owned(fd):
+                values = list(original(fd)); values[4] = 0
+                return os.stat_result(values)
+            for data in (b'x' * (QBIT['MAX_DEFAULTS_BYTES'] + 1), b'\xff'):
+                path.write_bytes(data)
+                metadata = list(path.lstat()); metadata[4] = 0; metadata[6] = 0
+                with mock.patch.object(Path, 'lstat', return_value=os.stat_result(metadata)), \
+                        mock.patch.object(globals_['os'], 'fstat', side_effect=owned), \
+                        contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                    QBIT['load_defaults'](path)
+            path.unlink(); os.mkfifo(path)
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                QBIT['load_defaults'](path)
+
     def test_json_peer_port_and_disabled_network_reach_the_actual_profile(self):
         for policy in ({"network": True, "peer_port": 4242},
                        {"network": True, "peer_port": None},

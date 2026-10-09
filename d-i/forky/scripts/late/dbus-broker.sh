@@ -335,24 +335,47 @@ target_systemd_install_values() {
   key=$2
 
   [ -r "/target${unit_path}" ] || installer_fatal "target systemd unit is unreadable: ${unit_path}"
-  in_install=false
-  while IFS= read -r unit_line || [ -n "$unit_line" ]; do
-    unit_line=$(printf '%s' "$unit_line" | sed 's/\r$//')
-    unit_trimmed=$(installer_trim_whitespace "$unit_line")
-    case "$unit_trimmed" in
-      \[*\])
-        [ "$unit_trimmed" = "[Install]" ] && in_install=true || in_install=false
-        continue
-        ;;
-    esac
-    [ "$in_install" = true ] || continue
-    value_line=$(printf '%s\n' "$unit_line" | sed -n "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*//p")
-    [ -n "$value_line" ] || continue
-    value_line=$(printf '%s' "$value_line" | sed 's/[[:space:]]*[#;].*$//')
-    for value in $value_line; do
-      printf '%s\n' "$value"
-    done
-  done <"/target${unit_path}"
+  case "$key" in WantedBy|RequiredBy|Alias|Also) ;; *) installer_fatal "unsupported systemd install key: $key" ;; esac
+  # One parser process per key, rather than several sed processes per line.
+  # Preserve ordering, honor list resets/continuations, and omit duplicates.
+  LC_ALL=C awk -v wanted_key="$key" '
+    {
+      bytes += length($0) + 1
+      if (bytes > 1048576) { failed = 1; exit 1 }
+      line = $0
+      sub(/\r$/, "", line)
+      if (line ~ /^[ \t]*[#;]/) next
+      if (line ~ /\\$/) {
+        logical = logical substr(line, 1, length(line) - 1) " "
+        next
+      }
+      line = logical line
+      logical = ""
+      sub(/^[ \t]+/, "", line)
+      sub(/[ \t]+$/, "", line)
+      if (line ~ /^\[[^]]+\]$/) { in_install = (line == "[Install]"); next }
+      if (!in_install || index(line, "=") == 0) next
+      assignment = substr(line, 1, index(line, "=") - 1)
+      sub(/[ \t]+$/, "", assignment)
+      if (assignment != wanted_key) next
+      value = substr(line, index(line, "=") + 1)
+      sub(/[ \t]*[#;].*$/, "", value)
+      sub(/^[ \t]+/, "", value)
+      sub(/[ \t]+$/, "", value)
+      if (value == "") {
+        for (i in values) delete values[i]
+        for (i in seen) delete seen[i]
+        count = 0
+        next
+      }
+      n = split(value, words, /[ \t]+/)
+      for (i = 1; i <= n; i++) if (!seen[words[i]]++) values[++count] = words[i]
+    }
+    END {
+      if (failed || logical != "") exit 1
+      for (i = 1; i <= count; i++) print values[i]
+    }
+  ' "/target${unit_path}" || installer_fatal "cannot parse target systemd install entries: ${unit_path}"
 }
 
 stage_target_atomic_unit_symlink() (
@@ -360,6 +383,9 @@ stage_target_atomic_unit_symlink() (
   link_source=$1
   link_destination=$2
   [ ! -d "$link_destination" ] || { installer_fatal "systemd link is a directory: $link_destination"; exit 1; }
+  if [ -L "$link_destination" ] && [ "$(readlink "$link_destination")" = "$link_source" ]; then
+    exit 0
+  fi
   link_work=$(mktemp -d "$(dirname "$link_destination")/.installer-link.XXXXXX") || exit 1
   trap 'rm -rf -- "$link_work"' EXIT
   trap 'exit 129' HUP

@@ -29,6 +29,25 @@ class OutputReconcileTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
         return result
 
+    def test_defaults_are_bounded_and_special_files_do_not_block(self):
+        self.perl(r'''
+use File::Temp qw(tempdir);
+my $root = tempdir(CLEANUP => 1);
+my $path = "$root/defaults";
+open my $out, '>', $path or die $!;
+print {$out} "LABWC_OUTPUT_POLICY='auto'\n"; close $out or die $!;
+my %values = load_defaults($path);
+die 'valid defaults lost' unless $values{LABWC_OUTPUT_POLICY} eq 'auto';
+chmod 0666, $path; %values = load_defaults($path); die 'writable defaults accepted' if %values;
+unlink $path; POSIX::mkfifo($path, 0600) == 0 or die $!;
+%values = load_defaults($path); die 'FIFO defaults accepted' if %values;
+unlink $path; symlink '/dev/null', $path or die $!;
+%values = load_defaults($path); die 'symlink defaults accepted' if %values;
+unlink $path; open $out, '>', $path or die $!;
+print {$out} ('#' x 65537); close $out or die $!;
+%values = load_defaults($path); die 'oversized defaults accepted' if %values;
+''')
+
     def test_menu_selection_uses_enabled_primary_output_and_bar_class(self):
         self.perl(r'''
 test_defaults(LABWC_OUTPUT_INTERNAL_PREFIXES => 'eDP LVDS DSI');

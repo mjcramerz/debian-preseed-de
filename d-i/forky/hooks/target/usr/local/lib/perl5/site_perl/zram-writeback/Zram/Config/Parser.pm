@@ -3,7 +3,8 @@ package Zram::Config::Parser;
 use strict;
 use warnings;
 
-use Fcntl qw(O_NOFOLLOW O_RDONLY);
+use Errno qw(EINTR);
+use Fcntl qw(O_NOFOLLOW O_NONBLOCK O_RDONLY);
 use Moo;
 use MooX::StrictConstructor;
 use MooX::Types::MooseLike::Numeric qw(PositiveInt);
@@ -65,8 +66,13 @@ sub _read_contents {
     ($stat[2] & 0022) == 0
         or fatal("zram-writeback config must not be group or world writable: $path");
 
-    sysopen my $fh, $path, O_RDONLY | O_NOFOLLOW
+    sysopen my $fh, $path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK
         or fatal("missing zram-writeback config $path: $!");
+    my @opened = stat($fh);
+    @opened && ($opened[2] & 0170000) == 0100000
+        && $opened[0] == $stat[0] && $opened[1] == $stat[1]
+        && $opened[4] == $stat[4] && ($opened[2] & 0022) == 0
+        or fatal("zram-writeback config changed or is unsafe: $path");
     binmode $fh, ':raw'
         or fatal("failed to set raw mode for zram-writeback config $path: $!");
 
@@ -76,8 +82,10 @@ sub _read_contents {
     while (length($contents) < $read_limit) {
         my $remaining = $read_limit - length($contents);
         my $read = read($fh, my $chunk, $remaining);
-        defined $read
-            or fatal("failed to read zram-writeback config $path: $!");
+        if (!defined($read)) {
+            next if $! == EINTR;
+            fatal("failed to read zram-writeback config $path: $!");
+        }
         last if $read == 0;
         $contents .= $chunk;
     }

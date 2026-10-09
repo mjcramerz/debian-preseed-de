@@ -197,18 +197,24 @@ class Engine:
                 # Retain even initially equal requests until coupling has been
                 # resolved: a preceding governor/turbo write may change them.
                 values[key] = resolved
-        for key, value in list(values.items()):
-            knob = self.backend.knobs[key]
+        pairs, governors = {}, {}
+        for knob in self.backend.knobs.values():
             if knob.pair:
-                pair = {k.side: values.get(k.id, k.read()) for k in self.backend.knobs.values() if k.pair == knob.pair}
+                pairs.setdefault(knob.pair, {})[knob.side] = knob
+            if knob.setting == "CPU_GOVERNOR":
+                governors[knob.id.rsplit("/", 1)[0]] = knob
+        for pair_name, members in pairs.items():
+            if any(k.id in values for k in members.values()):
+                pair = {side: values[k.id] if k.id in values else k.read()
+                        for side, k in members.items()}
                 if len(pair) == 2 and pair["min"] > pair["max"]:
-                    raise TuningError(f"inverted min/max pair: {knob.pair}")
+                    raise TuningError(f"inverted min/max pair: {pair_name}")
         for knob in self.backend.knobs.values():
             if knob.setting == "CPU_EPP":
                 directory = knob.id.rsplit("/", 1)[0]
-                governor = next((k for k in self.backend.knobs.values() if k.setting == "CPU_GOVERNOR" and
-                                 k.id.rsplit("/", 1)[0] == directory), None)
-                if governor and values.get(governor.id, governor.read()) == "performance" and values.get(knob.id, knob.read()) != "performance":
+                governor = governors.get(directory)
+                if (governor and (values[governor.id] if governor.id in values else governor.read()) == "performance"
+                        and (values[knob.id] if knob.id in values else knob.read()) != "performance"):
                     raise TuningError("performance governor cannot be combined with non-performance EPP")
         checker = getattr(self.backend, "check_ownership", None)
         if checker:

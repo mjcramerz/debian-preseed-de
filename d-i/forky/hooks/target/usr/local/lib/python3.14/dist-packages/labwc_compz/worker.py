@@ -27,10 +27,18 @@ INPUT = Path('/input')
 
 
 def read_plan(path: Path = PLAN) -> dict:
-    value = path.lstat()
-    if not stat.S_ISREG(value.st_mode) or value.st_size > 1024 * 1024:
-        raise CompzError('Invalid operation plan.')
-    plan = json.loads(path.read_bytes())
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+        with os.fdopen(descriptor, 'rb') as stream:
+            value = os.fstat(stream.fileno())
+            if not stat.S_ISREG(value.st_mode) or value.st_size > 1024 * 1024:
+                raise CompzError('Invalid operation plan.')
+            data = stream.read(1024 * 1024 + 1)
+        if len(data) > 1024 * 1024:
+            raise CompzError('Invalid operation plan.')
+        plan = json.loads(data)
+    except (OSError, ValueError, RecursionError) as exc:
+        raise CompzError('Invalid operation plan.') from exc
     fields = {'action', 'selected', 'codec', 'tier', 'output', 'encrypted', 'nested',
               'max_bytes', 'max_files', 'memory_mib', 'threads', 'hours', 'depth'}
     if not isinstance(plan, dict) or plan.keys() != fields:

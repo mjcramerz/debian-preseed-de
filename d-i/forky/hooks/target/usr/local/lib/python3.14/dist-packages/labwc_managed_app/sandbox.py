@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import ExitStack
 
 import fcntl
 import json
@@ -464,6 +465,11 @@ def bwrap_command(app_name: str, bwrap: str) -> list[str]:
 
 
 def run_pure_privacy(app_name: str, extra_args: list[str]) -> int:
+    with ExitStack() as resources:
+        return _run_pure_privacy(app_name, extra_args, resources)
+
+
+def _run_pure_privacy(app_name: str, extra_args: list[str], resources: ExitStack) -> int:
     if not APPS[app_name].get("pure_privacy", False):
         fail(f"pure-privacy mode is not supported for {app_name}")
     from .network_client import network_enabled
@@ -488,6 +494,7 @@ def run_pure_privacy(app_name: str, extra_args: list[str]) -> int:
     sandbox_wayland_socket = os.path.join(sandbox_runtime_dir, wayland_display)
 
     temp_root = tempfile.mkdtemp(prefix=f"labwc-{app_name}-privacy-", dir=host_runtime_dir if os.path.isdir(host_runtime_dir) else None)
+    resources.callback(shutil.rmtree, temp_root, ignore_errors=True)
     machine_id_path = os.path.join(temp_root, "machine-id")
     hostname_path = os.path.join(temp_root, "hostname")
     passwd_path = os.path.join(temp_root, "passwd")
@@ -524,18 +531,11 @@ def run_pure_privacy(app_name: str, extra_args: list[str]) -> int:
             "netgroup: files\n"
         )
 
-    proxy_process = None
-    proxy_socket = None
-    proxy_lifecycle = None
-    try:
-        proxy_process, proxy_socket, proxy_lifecycle = start_session_bus_proxy(
-            temp_root,
-            APPS[app_name].get("privacy_dbus_names", ()),
-        )
-    except BaseException:
-        stop_dbus_proxy(proxy_process, proxy_lifecycle, proxy_socket)
-        shutil.rmtree(temp_root, ignore_errors=True)
-        raise
+    proxy_process, proxy_socket, proxy_lifecycle = start_session_bus_proxy(
+        temp_root,
+        APPS[app_name].get("privacy_dbus_names", ()),
+    )
+    resources.callback(stop_dbus_proxy, proxy_process, proxy_lifecycle, proxy_socket)
 
     command = [
         *bwrap_command(app_name, bwrap),
@@ -665,21 +665,17 @@ def run_pure_privacy(app_name: str, extra_args: list[str]) -> int:
         command.extend(["--setenv", key, value])
     validate_private_procfs(command)
 
-    try:
-        require_running_dbus_proxy(proxy_process, proxy_socket)
-        return run_veth_sandbox(
-                command,
-                argv,
-                temp_root,
-                (),
-                pre_payload_check=lambda: require_running_dbus_proxy(proxy_process, proxy_socket),
-                # The dedicated persistent torrent wrapper owns peer-port
-                # forwarding. A disposable profile needs outbound networking.
-                app=network_app, network=online,
-            )
-    finally:
-        stop_dbus_proxy(proxy_process, proxy_lifecycle, proxy_socket)
-        shutil.rmtree(temp_root, ignore_errors=True)
+    require_running_dbus_proxy(proxy_process, proxy_socket)
+    return run_veth_sandbox(
+        command,
+        argv,
+        temp_root,
+        (),
+        pre_payload_check=lambda: require_running_dbus_proxy(proxy_process, proxy_socket),
+        # The dedicated persistent torrent wrapper owns peer-port
+        # forwarding. A disposable profile needs outbound networking.
+        app=network_app, network=online,
+    )
 
 
 def persistent_app_directory(
@@ -1240,6 +1236,27 @@ def _run_persistent_sandbox(
     private_xkbcomp_overlay_directory: str | None = None,
     compatibility_instance=None,
 ) -> int:
+    with ExitStack() as resources:
+        return _run_persistent_sandbox_with_resources(
+            app_name, mode, extra_args, resources,
+            payload_argv_prefix=payload_argv_prefix,
+            private_xwayland_binary=private_xwayland_binary,
+            private_xkbcomp_overlay_directory=private_xkbcomp_overlay_directory,
+            compatibility_instance=compatibility_instance,
+        )
+
+
+def _run_persistent_sandbox_with_resources(
+    app_name: str,
+    mode: str,
+    extra_args: list[str],
+    resources: ExitStack,
+    *,
+    payload_argv_prefix: tuple[str, ...] = (),
+    private_xwayland_binary: str | None = None,
+    private_xkbcomp_overlay_directory: str | None = None,
+    compatibility_instance=None,
+) -> int:
     sandbox = PERSISTENT_SANDBOX_CONFIG.get(app_name)
     if sandbox is None:
         fail(f"persistent sandbox mode is not supported for {app_name}")
@@ -1334,6 +1351,7 @@ def _run_persistent_sandbox(
         prefix=f"labwc-{app_name}-sandbox-",
         dir=host_runtime_dir if os.path.isdir(host_runtime_dir) else None,
     )
+    resources.callback(shutil.rmtree, temp_root, ignore_errors=True)
     synthetic_identity = (
         create_synthetic_identity_files(
             temp_root,
@@ -1401,7 +1419,6 @@ def _run_persistent_sandbox(
                 )
     except BaseException:
         stop_dbus_proxies(proxy_processes)
-        shutil.rmtree(temp_root, ignore_errors=True)
         raise
     outer_wayland_lock_fd: int | None = None
     lifecycle_lock_fd: int | None = None
@@ -1733,7 +1750,6 @@ def _run_persistent_sandbox(
                 compatibility_instance.cleanup_failed = True
         else:
             stop_dbus_proxies(proxy_processes)
-        shutil.rmtree(temp_root, ignore_errors=True)
 
 
 def run_persistent_sandbox(app_name: str, mode: str, extra_args: list[str]) -> int:

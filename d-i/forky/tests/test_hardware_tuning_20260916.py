@@ -125,13 +125,30 @@ class PolicyTests(unittest.TestCase):
                 installer.boolean(value)
 
     def test_duplicate_nonfinite_unknown_json_rejected(self):
-        for text in ('{"a":1,"a":2}', '{"a":NaN}', '{"a":Infinity}'):
+        for text in ('{"a":1,"a":2}', '{"a":NaN}', '{"a":Infinity}', '{invalid'):
             with self.subTest(text=text), self.assertRaises(common.TuningError):
                 common.decode(text)
+        with patch.object(common.json, 'loads', side_effect=RecursionError('fixture nesting')):
+            with self.assertRaises(common.TuningError):
+                common.decode('[]')
         value = simple_policy({"X": ("keep",) * 4})
         value["unknown"] = True
         with self.assertRaises(common.TuningError):
             common.validate_policy(value, {"X": ("keep",) * 4})
+
+    def test_kernel_reader_rejects_fifo_and_bounds_actual_bytes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'attribute'
+            os.mkfifo(path)
+            with self.assertRaisesRegex(common.TuningError, 'nonregular'):
+                common.read_text(path)
+            path.unlink(); path.write_bytes(b'12345')
+            self.assertEqual(common.read_text(path, maximum=5), '12345')
+            with self.assertRaisesRegex(common.TuningError, 'oversized'):
+                common.read_text(path, maximum=4)
+            for maximum in (0, True, common.MAX_JSON + 1):
+                with self.subTest(maximum=maximum), self.assertRaises(common.TuningError):
+                    common.read_text(path, maximum=maximum)
 
     def test_strict_schema_types(self):
         settings = {"X": ("keep",) * 4}
@@ -473,6 +490,34 @@ class EngineTests(unittest.TestCase):
             self.make(settings).apply("high", settings)
         self.assertEqual(self.backend.writes, [])
 
+    def test_plan_uses_requested_pair_values_without_kernel_reads(self):
+        low = self.backend.add("lo", "MIN", 2, 0, 10, pair="pair", side="min")
+        high = self.backend.add("hi", "MAX", 8, 0, 10, pair="pair", side="max")
+        settings = {"MIN": ("3",) * 4, "MAX": ("7",) * 4}
+        with patch.object(low, "read", side_effect=AssertionError("unexpected read")), \
+                patch.object(high, "read", side_effect=AssertionError("unexpected read")):
+            self.assertEqual(self.make(settings).plan("high", settings)[0], {"lo": 3, "hi": 7})
+
+    def test_plan_reads_only_unrequested_pair_member_once(self):
+        low = self.backend.add("lo", "MIN", 2, 0, 10, pair="pair", side="min")
+        high = self.backend.add("hi", "MAX", 8, 0, 10, pair="pair", side="max")
+        settings = {"MIN": ("3",) * 4, "MAX": ("keep",) * 4}
+        with patch.object(low, "read", side_effect=AssertionError("unexpected read")), \
+                patch.object(high, "read", return_value=8) as read:
+            self.make(settings).plan("high", settings)
+        read.assert_called_once_with()
+
+    def test_plan_uses_requested_governor_and_epp(self):
+        governor = self.backend.add("cpu/governor", "CPU_GOVERNOR", "powersave", choices=("powersave", "performance"))
+        epp = self.backend.add("cpu/epp", "CPU_EPP", "balance_power", choices=("balance_power", "performance"))
+        settings = {"CPU_GOVERNOR": ("performance",) * 4, "CPU_EPP": ("performance",) * 4}
+        with patch.object(governor, "read", side_effect=AssertionError("unexpected read")), \
+                patch.object(epp, "read", side_effect=AssertionError("unexpected read")):
+            self.make(settings).plan("high", settings)
+            settings["CPU_EPP"] = ("balance_power",) * 4
+            with self.assertRaisesRegex(common.TuningError, "performance governor"):
+                self.make(settings).plan("high", settings)
+
     def test_cannot_claim_unknown_locked_clock_range_is_measured(self):
         knob = self.backend.add("x", "X", "unlocked", 100, 1000, unit="MHz-pair", restorable=False)
         policy = simple_policy({"X": ("100,900",) * 4})
@@ -484,6 +529,7 @@ class EngineTests(unittest.TestCase):
         policy["exclusive_clock_control"] = True
         self.assertEqual(knob.resolve("100,900", policy), [100, 900])
 
+    @unittest.skipUnless(os.geteuid() == 0, 'recovery requires a root-owned transaction lock fixture')
     def test_recovery_without_journal_does_not_load_a_driver(self):
         with patch.object(engine, "STATE", Path(self.temporary.name)), patch.object(engine.importlib, "import_module") as load:
             self.assertEqual(engine.execute("nvidia", "reset"), {"restored": 0})

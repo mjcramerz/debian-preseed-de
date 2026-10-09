@@ -177,6 +177,96 @@ class PrivateStageTests(unittest.TestCase):
                 self.assertEqual(list((root / "tmp").iterdir()), [])
 
 
+class GeneratedFilePublicationTests(unittest.TestCase):
+    run_shell = PrivateStageTests.run_shell
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix='generated-target-')
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name) / 'target'
+        self.root.mkdir()
+        self.destination = self.root / 'etc/systemd/system/fixture.service'
+        self.destination.parent.mkdir(parents=True)
+        self.destination.write_text('old unit\n')
+        self.destination.chmod(0o600)
+
+    def publish(self, shell, setup=''):
+        result = self.run_shell(self.root, setup + '''
+fetch_hook() { exit 95; }
+if write_target_file /etc/systemd/system/fixture.service 0644 <<'UNIT'
+[Service]
+ExecStart=/usr/bin/true
+UNIT
+then :; else status=$?; exit "$status"; fi
+''', shell)
+        self.assertEqual(list(self.destination.parent.glob('.installer-asset.*')), [])
+        return result
+
+    def test_generated_unit_permissions_are_set_before_publication(self):
+        for interpreter in SHELLS:
+            with self.subTest(shell=interpreter):
+                result = self.publish(interpreter, '''
+mv() {
+  [ "$(stat -c %a "$3")" = 644 ] || return 40
+  [ "$(stat -c %a "$(dirname "$3")")" = 700 ] || return 41
+  command mv "$@"
+}
+''')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(self.destination.read_text(), '[Service]\nExecStart=/usr/bin/true\n')
+                self.assertEqual(self.destination.stat().st_mode & 0o777, 0o644)
+
+    def test_partial_input_failure_preserves_previous_unit(self):
+        for interpreter in SHELLS:
+            with self.subTest(shell=interpreter):
+                result = self.publish(interpreter, 'cat() { printf partial; return 39; }\n')
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(self.destination.read_text(), 'old unit\n')
+                self.assertEqual(self.destination.stat().st_mode & 0o777, 0o600)
+
+    def test_rename_failure_preserves_previous_unit(self):
+        for interpreter in SHELLS:
+            with self.subTest(shell=interpreter):
+                result = self.publish(interpreter, 'mv() { return 37; }\n')
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(self.destination.read_text(), 'old unit\n')
+
+    def test_generated_file_rejects_parent_symlink_escape(self):
+        outside = self.root.parent / 'outside'
+        outside.mkdir()
+        (self.root / 'redirect').symlink_to(outside)
+        for interpreter in SHELLS:
+            with self.subTest(shell=interpreter):
+                result = self.run_shell(self.root,
+                    'if write_target_file /redirect/file 0644 <<EOF\nfixture\nEOF\n'
+                    'then exit 90; else exit 0; fi\n', interpreter)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(list(outside.iterdir()), [])
+
+    def test_networkmanager_caller_stops_and_cleans_up_publication_failure(self):
+        text = (FORKY / 'scripts/late/network.sh').read_text()
+        start = text.index('  networkmanager_override_tmp=$(mktemp ')
+        end = text.index('\n  stage_target_asset \\', start)
+        fragment = text[start:end]
+        for interpreter in SHELLS:
+            with self.subTest(shell=interpreter):
+                code = '''
+TMP_ENV_DIR=$INSTALLER_TARGET_DIR
+target_networkmanager_unit=fixture
+networkmanager_unit_path=/usr/lib/systemd/system/NetworkManager.service
+render_target_networkmanager_unit_override() { printf '[Service]\\n'; }
+write_target_file() { return 45; }
+publish_fixture_override() {
+''' + fragment + '''
+}
+if publish_fixture_override; then exit 90; else exit 0; fi
+'''
+                result = self.run_shell(self.root, code, interpreter)
+                self.assertNotEqual(result.returncode, 90, result.stderr)
+                self.assertIn('could not publish NetworkManager unit override', result.stderr)
+                self.assertEqual(list(self.root.glob('NetworkManager.service.*')), [])
+
+
 @unittest.skipUnless(os.geteuid() == 0 and shutil.which("busybox") and shutil.which("perl"),
                      "real interpreter chroots require root, BusyBox and Perl")
 class TargetStageChrootTests(unittest.TestCase):

@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import shlex
 import shutil
+import stat
 import subprocess
 import tempfile
 import unittest
@@ -74,14 +75,18 @@ class Deb822RepairTests(unittest.TestCase):
 
 class VendorSourcesTests(unittest.TestCase):
     def setUp(self):
-        base = Path('/var/lib/apt-repo-local-tests')
-        base.mkdir(mode=0o755, exist_ok=True)
-        self.root = Path(tempfile.mkdtemp(dir=base))
+        # Production walks every ancestor up to /. A remapped runtime root
+        # cannot satisfy that contract; do not relax it or write under /var.
+        for parent in (Path(tempfile.gettempdir()), *Path(tempfile.gettempdir()).parents):
+            metadata = parent.lstat()
+            if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0
+                    or metadata.st_mode & 0o022):
+                self.skipTest(f'root-owned non-writable normalization ancestry unavailable: {parent}')
+        temporary = tempfile.TemporaryDirectory(prefix='apt-vendor-sources-')
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
         self.parts = self.root / 'etc/apt/sources.list.d'
         self.parts.mkdir(parents=True)
-
-    def tearDown(self):
-        shutil.rmtree(self.root)
 
     def write(self, name, text):
         path = self.parts / name

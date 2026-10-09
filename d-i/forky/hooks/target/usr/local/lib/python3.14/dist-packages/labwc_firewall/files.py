@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 import fcntl
 import os
@@ -87,8 +87,12 @@ def _write_temporary(directory: Path, prefix: str, content: str) -> Path:
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
-    except OSError as exc:
-        raise FirewallError(f"cannot write firewall candidate {path}: {exc}") from exc
+    except BaseException as exc:
+        with suppress(OSError):
+            path.unlink()
+        if isinstance(exc, OSError):
+            raise FirewallError(f"cannot write firewall candidate {path}: {exc}") from exc
+        raise
     finally:
         if descriptor != -1:
             os.close(descriptor)
@@ -109,8 +113,12 @@ def _backup(source: Path, prefix: str) -> Path:
                 shutil.copyfileobj(source_handle, handle)
             handle.flush()
             os.fsync(handle.fileno())
-    except OSError as exc:
-        raise FirewallError(f"cannot create firewall backup: {exc}") from exc
+    except BaseException as exc:
+        with suppress(OSError):
+            path.unlink()
+        if isinstance(exc, OSError):
+            raise FirewallError(f"cannot create firewall backup: {exc}") from exc
+        raise
     finally:
         if descriptor != -1:
             os.close(descriptor)
@@ -118,6 +126,7 @@ def _backup(source: Path, prefix: str) -> Path:
 
 
 def _atomic_restore(source: Path, target: Path) -> None:
+    temporary = None
     try:
         temporary = _write_temporary(
             target.parent,
@@ -129,6 +138,10 @@ def _atomic_restore(source: Path, target: Path) -> None:
         raise FirewallError(
             f"cannot restore managed firewall file {target}: {exc}"
         ) from exc
+    finally:
+        if temporary is not None:
+            with suppress(OSError):
+                temporary.unlink()
 
 
 @dataclass
@@ -144,10 +157,17 @@ class PendingMutation:
         validate_managed_file("firewall state file", paths.state_file)
         validate_managed_file("firewall fragment", paths.fragment_file)
         validate_nft_conf(paths.nft_conf)
+        state_backup = _backup(paths.state_file, "firewall-security-state.")
+        try:
+            fragment_backup = _backup(paths.fragment_file, "firewall-security-fragment.")
+        except BaseException:
+            with suppress(OSError):
+                state_backup.unlink()
+            raise
         return cls(
             paths=paths,
-            state_backup=_backup(paths.state_file, "firewall-security-state."),
-            fragment_backup=_backup(paths.fragment_file, "firewall-security-fragment."),
+            state_backup=state_backup,
+            fragment_backup=fragment_backup,
         )
 
     def write_candidates(self, state_content: str, fragment_content: str) -> None:

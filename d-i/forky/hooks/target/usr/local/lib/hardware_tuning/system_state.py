@@ -80,11 +80,12 @@ def power_managers() -> dict[str, str]:
 def platform_report(root: Path) -> dict:
     """Bounded, passive inventory; no serial numbers, authorization or PM writes."""
     errors = []
+    sysfs = (root / "sys").resolve()
 
     def read(path: Path):
         try:
             canonical = path.resolve(strict=True)
-            if not canonical.is_relative_to((root / "sys").resolve()):
+            if not canonical.is_relative_to(sysfs):
                 raise TuningError("attribute escaped sysfs")
             return read_text(canonical)
         except FileNotFoundError:

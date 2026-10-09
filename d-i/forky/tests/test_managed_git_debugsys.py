@@ -80,6 +80,9 @@ class PatternTests(Fixture):
         with self.assertRaises(gitops.GitOpsError):gitops.load_patterns(p,'forks')
         alias.unlink();p.chmod(0o666)
         with self.assertRaises(gitops.GitOpsError):gitops.load_patterns(p,'forks')
+    def test_fifo_policy_is_rejected_without_a_writer(self):
+        p=self.root/'gitops.env';p.unlink(missing_ok=True);os.mkfifo(p)
+        with self.assertRaises(gitops.GitOpsError):gitops.load_patterns(p,'forks')
     def test_protected_absence_deletion_and_type_collision(self):
         local={'a/keep':('100644','old'),'lock':('120000','old-link'),'same.keep':('100755','exec')}
         source={'a':('100644','collision'),'lock/new':('100644','collision'),'new.keep':('100644','absent'),'other':('100644','new')}
@@ -110,6 +113,10 @@ class RealGitTests(PatternTests):
     def sync(self,apply=True,workflow='forks'):
         with contextlib.redirect_stdout(io.StringIO()):
             gitops.sync(self.repo,workflow,'upstream',apply,False,self.policy)
+    def test_fifo_repository_lock_is_rejected_without_a_reader(self):
+        os.mkfifo(self.repo/'.git/gitops.lock')
+        with self.assertRaises((gitops.GitOpsError,OSError)),gitops.repository_lock(self.repo):
+            self.fail('FIFO repository lock accepted')
     def test_apply_preserves_protected_content_and_absence(self):
         self.sync()
         self.assertEqual(payload_read_text(self.repo/'lock/secret'),'local')

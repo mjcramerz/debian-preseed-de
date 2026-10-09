@@ -47,6 +47,198 @@ def module(path, name):
     return result
 
 
+class SharedCopyTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix='installer-copy-')
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.source = self.root / 'source file'
+        self.destination = self.root / 'destination file'
+        self.source.write_bytes(b'new content\n')
+        self.destination.write_bytes(b'old content\n')
+        self.destination.chmod(0o600)
+
+    def copy(self, setup='', *, same_path=False, mode='0644'):
+        source = self.destination if same_path else self.source
+        code = f'''
+. {Q(str(ROOT / 'scripts/common/modules/files-logging.sh'))}
+installer_error() {{ printf '%s\\n' "$*" >&2; }}
+installer_fatal() {{ printf '%s\\n' "$*" >&2; return 1; }}
+{setup}
+if installer_copy_path_with_mode {Q(str(source))} {Q(str(self.destination))} {Q(mode)} fixture; then
+  printf 'copied\\n'
+else
+  status=$?
+  exit "$status"
+fi
+'''
+        result = shell(code, shell_path='/bin/dash')
+        self.assertEqual(list(self.root.glob('.installer-copy.*')), [])
+        return result
+
+    def test_success_sets_permissions_before_publication(self):
+        result = self.copy('''
+mv() {
+  [ "$(stat -c %a "$3")" = 644 ] || return 40
+  [ "$(stat -c %a "$(dirname "$3")")" = 700 ] || return 41
+  command mv "$@"
+}
+''')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.destination.read_bytes(), b'new content\n')
+        self.assertEqual(self.destination.stat().st_mode & 0o777, 0o644)
+
+    def test_rename_failure_is_not_hidden_by_conditional_caller(self):
+        result = self.copy('mv() { return 37; }')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.destination.read_bytes(), b'old content\n')
+        self.assertEqual(self.destination.stat().st_mode & 0o777, 0o600)
+
+    def test_permission_failure_preserves_previous_file(self):
+        result = self.copy('chmod() { return 38; }')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.destination.read_bytes(), b'old content\n')
+
+    def test_same_path_permission_failure_is_returned(self):
+        result = self.copy('chmod() { return 38; }', same_path=True)
+        self.assertEqual(result.returncode, 38)
+        self.assertEqual(self.destination.read_bytes(), b'old content\n')
+
+    def test_partial_copy_failure_cleans_up_and_preserves_destination(self):
+        result = self.copy('cp() { printf partial >"$3"; return 39; }')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.destination.read_bytes(), b'old content\n')
+        self.assertIn('status 39', result.stderr)
+
+    def test_empty_source_preserves_previous_file(self):
+        self.source.write_bytes(b'')
+        result = self.copy()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.destination.read_bytes(), b'old content\n')
+
+    def test_directory_destination_is_rejected_without_chmod(self):
+        self.destination.unlink()
+        self.destination.mkdir(mode=0o700)
+        result = self.copy()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(list(self.destination.iterdir()), [])
+        self.assertEqual(self.destination.stat().st_mode & 0o777, 0o700)
+
+    def test_invalid_mode_preserves_previous_file(self):
+        result = self.copy(mode='--reference=other')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.destination.read_bytes(), b'old content\n')
+
+    def test_destination_symlink_is_replaced_without_changing_its_target(self):
+        other = self.root / 'other'
+        other.write_bytes(b'other content\n')
+        other.chmod(0o600)
+        self.destination.unlink()
+        self.destination.symlink_to(other)
+        result = self.copy()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.destination.is_symlink())
+        self.assertEqual(self.destination.read_bytes(), b'new content\n')
+        self.assertEqual(other.read_bytes(), b'other content\n')
+        self.assertEqual(other.stat().st_mode & 0o777, 0o600)
+
+    def test_same_path_symlink_is_rejected_without_changing_its_target(self):
+        self.destination.unlink()
+        self.destination.symlink_to(self.source)
+        original_mode = self.source.stat().st_mode
+        result = self.copy(same_path=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.source.stat().st_mode, original_mode)
+
+
+class HelperDocumentationTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix='installer-docs-')
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        (self.root / 'etc').mkdir()
+        (self.root / 'etc/passwd').write_text('fixture:x:1000:1001::/home/fixture:/bin/sh\n')
+
+    def stage(self, command, setup=''):
+        # Fetch/publication and chown are recorded, so ownership on the host is
+        # never changed. Owner lookup and target path resolution use real code.
+        code = f'''
+. {Q(str(ROOT / 'scripts/late/target-assets.sh'))}
+INSTALLER_TARGET_DIR={Q(str(self.root))}
+ACCOUNT_USERNAME=fixture
+DIR_DATA_DOCS=/data/docs
+unset TARGET_HELPER_DOC_OWNER_IDS
+installer_fatal() {{ printf '%s\\n' "$*" >&2; return 1; }}
+installer_repo_join_var() {{ printf '%s\\n' "$2"; }}
+stage_target_asset() {{ printf 'stage:%s\\n' "$2"; }}
+chown() {{ printf 'owner:%s:%s\\n' "$1" "$2"; }}
+awk() {{ printf 'lookup\\n' >>{Q(str(self.root / 'lookups'))}; command awk "$@"; }}
+{setup}
+if {command}; then :; else status=$?; exit "$status"; fi
+'''
+        return shell(code, shell_path='/bin/dash')
+
+    def test_batch_stages_index_once_and_caches_owner_in_current_shell(self):
+        result = self.stage('stage_target_helper_docs first.md second.md third.md')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        stages = [line for line in result.stdout.splitlines() if line.startswith('stage:')]
+        self.assertEqual(stages, ['stage:/data/docs/README.md', 'stage:/data/docs/first.md',
+                                  'stage:/data/docs/second.md', 'stage:/data/docs/third.md'])
+        self.assertEqual((self.root / 'lookups').read_text(), 'lookup\n')
+        owners = [line for line in result.stdout.splitlines() if line.startswith('owner:')]
+        self.assertEqual(len(owners), 4)
+        self.assertTrue(all(line.startswith(f'owner:1000:1001:{self.root}/data/docs/') for line in owners))
+
+    def test_single_document_still_stages_index_and_supports_renaming(self):
+        result = self.stage('stage_target_helper_doc original.md renamed.md')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('stage:/data/docs/README.md\n', result.stdout)
+        self.assertIn('stage:/data/docs/renamed.md\n', result.stdout)
+        self.assertEqual((self.root / 'lookups').read_text(), 'lookup\n')
+
+    def test_empty_batch_does_not_stage_or_lookup(self):
+        result = self.stage('stage_target_helper_docs')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, '')
+        self.assertFalse((self.root / 'lookups').exists())
+
+    def test_index_failure_stops_before_ownership_and_documents(self):
+        result = self.stage('stage_target_helper_docs first.md second.md',
+                            'stage_target_asset() { printf "stage:%s\\n" "$2"; return 42; }')
+        self.assertEqual(result.returncode, 42, result.stderr)
+        self.assertEqual(result.stdout, 'stage:/data/docs/README.md\n')
+        self.assertFalse((self.root / 'lookups').exists())
+
+    def test_document_failure_stops_before_chown_and_remaining_documents(self):
+        result = self.stage('stage_target_helper_docs first.md second.md', '''
+stage_target_asset() {
+  printf 'stage:%s\\n' "$2"
+  case "$2" in */first.md) return 43 ;; esac
+}
+''')
+        self.assertEqual(result.returncode, 43, result.stderr)
+        self.assertNotIn('owner:1000:1001:' + str(self.root) + '/data/docs/first.md', result.stdout)
+        self.assertNotIn('second.md', result.stdout)
+
+    def test_invalid_cached_owner_never_reaches_chown(self):
+        for owner in ('root', ':1', '1:', '1:2:3', '-1:2'):
+            with self.subTest(owner=owner):
+                result = self.stage('stage_target_docs_index', f'TARGET_HELPER_DOC_OWNER_IDS={Q(owner)}')
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn('owner:', result.stdout)
+        self.assertFalse((self.root / 'lookups').exists())
+
+    def test_missing_account_never_reaches_chown(self):
+        result = self.stage('stage_target_docs_index', 'ACCOUNT_USERNAME=absent')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn('owner:', result.stdout)
+
+    def test_owner_lookup_failure_is_not_hidden_by_conditional_caller(self):
+        result = self.stage('stage_target_docs_index', 'awk() { return 44; }')
+        self.assertEqual(result.returncode, 44, result.stderr)
+        self.assertNotIn('owner:', result.stdout)
+
+
 class LifecycleTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='installer-lifecycle-')
@@ -348,6 +540,66 @@ class AptBoundaryTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         (self.root / 'etc/apt/sources.list.d').mkdir(parents=True)
 
+    def run_mocked_ancestry(self, code):
+        # Simulate accepted ancestry without changing host ownership. Existing
+        # capability-gated cases exercise the production ancestry checks.
+        return shell(f'. {Q(str(LC))}\n. {Q(str(APT))}\n'
+                     'installer_apt_safe_path() { :; }\n' + code)
+
+    def test_conditional_caller_obeys_rejected_path(self):
+        source = self.root / 'etc/apt/sources.list'
+        source.write_text('deb cdrom:[fixture] /\n')
+        result = self.run_mocked_ancestry(
+            'installer_apt_safe_path() { return 44; }\n'
+            f'if installer_apt_strip_cdrom {Q(str(self.root))}; then exit 90; else exit 0; fi\n')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(source.read_text(), 'deb cdrom:[fixture] /\n')
+
+    def test_sources_without_cdrom_are_not_rewritten_or_reformatted(self):
+        files = [self.root / 'etc/apt/sources.list', self.root / 'etc/apt/sources.list.d/network.sources']
+        files[0].write_text('deb https://mirror.invalid/debian forky main')
+        files[1].write_text('Types: deb\nURIs: https://mirror.invalid/debian\nSuites: forky\n')
+        before = {p: (p.read_bytes(), p.stat().st_ino, p.stat().st_mtime_ns) for p in files}
+        result = self.run_mocked_ancestry(f'installer_apt_strip_cdrom {Q(str(self.root))}\n')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(before, {p: (p.read_bytes(), p.stat().st_ino, p.stat().st_mtime_ns) for p in files})
+        self.assertEqual(list((self.root / 'etc/apt').rglob('.installer-source.*')), [])
+
+    def test_filter_failure_preserves_source_in_conditional_call(self):
+        source = self.root / 'etc/apt/sources.list'
+        source.write_text('deb cdrom:[fixture] /\ndeb https://mirror.invalid/debian forky main\n')
+        original = source.read_bytes()
+        result = self.run_mocked_ancestry('awk() { printf partial; return 46; }\n'
+            f'if installer_apt_strip_cdrom {Q(str(self.root))}; then exit 90; else exit 0; fi\n')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(source.read_bytes(), original)
+        self.assertEqual(list((self.root / 'etc/apt').rglob('.installer-source.*')), [])
+
+    def test_read_failure_is_not_mistaken_for_absent_cdrom(self):
+        source = self.root / 'etc/apt/sources.list'
+        source.write_text('deb cdrom:[fixture] /\n')
+        result = self.run_mocked_ancestry('grep() { return 47; }\n'
+            f'if installer_apt_strip_cdrom {Q(str(self.root))}; then exit 90; else exit 0; fi\n')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(source.read_text(), 'deb cdrom:[fixture] /\n')
+
+    @skip_unless_installer_apt_ancestry
+    def test_repeated_bootstrap_preserves_matching_source_inode_and_mode(self):
+        key = self.root / 'usr/share/keyrings/debian-archive-keyring.gpg'
+        key.parent.mkdir(parents=True)
+        key.write_bytes(b'fixture-key-presence-only')
+        code = (f'. {Q(str(LC))}\n. {Q(str(APT))}\n'
+                f'installer_apt_bootstrap_source {Q(str(self.root))} https mirror.invalid /debian forky\n')
+        result = shell(code)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        source = self.root / 'etc/apt/sources.list'
+        before = (source.read_bytes(), source.stat().st_ino, source.stat().st_mtime_ns)
+        result = shell(code)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(before, (source.read_bytes(), source.stat().st_ino, source.stat().st_mtime_ns))
+        self.assertEqual(source.stat().st_mode & 0o777, 0o644)
+        self.assertEqual(list((self.root / 'etc/apt').rglob('.installer-bootstrap.*')), [])
+
     @skip_unless_installer_apt_ancestry
     def test_cdrom_list_and_deb822_removed_before_network_source_publication(self):
         (self.root / 'etc/apt/sources.list').write_text('deb cdrom:[fixture] /\ndeb https://mirror.invalid/debian trixie main\n')
@@ -371,7 +623,7 @@ class AptBoundaryTests(unittest.TestCase):
         script = self.root / 'bootstrap-base.postinst'
         script.write_text('#!/bin/sh\nset -e\nDISTRIBUTION=trixie\nwaypoint() { "$2"; }\napt_update() { echo UNSAFE; }\nwaypoint 3 apt_update\necho UNSAFE\n')
         script.chmod(0o755)
-        command = [str(ROOT / 'scripts/preseed/base-apt-adapter.sh'), str(script), str(helper)]
+        command = ['/bin/sh', str(ROOT / 'scripts/preseed/base-apt-adapter.sh'), str(script), str(helper)]
         for _ in range(2):
             result = subprocess.run(payload_installed_argv(command), capture_output=True, text=True, timeout=10)
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -382,7 +634,7 @@ class AptBoundaryTests(unittest.TestCase):
     def test_unknown_bootstrap_version_is_rejected_before_mutation(self):
         script = self.root / 'bootstrap'; script.write_text('#!/bin/sh\nwaypoint 4 apt_update\n'); script.chmod(0o755)
         helper = self.root / 'helper'; helper.touch()
-        result = subprocess.run(payload_installed_argv([str(ROOT / 'scripts/preseed/base-apt-adapter.sh'), str(script), str(helper)]), capture_output=True)
+        result = subprocess.run(payload_installed_argv(['/bin/sh', str(ROOT / 'scripts/preseed/base-apt-adapter.sh'), str(script), str(helper)]), capture_output=True, timeout=10)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(payload_read_text(script), '#!/bin/sh\nwaypoint 4 apt_update\n')
 

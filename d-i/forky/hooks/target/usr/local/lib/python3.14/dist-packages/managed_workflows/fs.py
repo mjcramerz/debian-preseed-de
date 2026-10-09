@@ -14,7 +14,7 @@ MAX_TEXT = 8 * 1024 * 1024
 
 def parts(value: str) -> tuple[str, ...]:
     path = PurePosixPath(value)
-    if (not value or path.is_absolute() or str(path) != value or
+    if (not value or not path.parts or path.is_absolute() or str(path) != value or
             any(p in ('', '.', '..') for p in path.parts) or
             any(ord(c) < 32 or ord(c) == 127 for c in value)):
         raise ValueError('invalid relative path')
@@ -204,7 +204,6 @@ class Tree:
 
     def copy(self, relative: str, source: 'Tree', source_name: str, *, mode: int = 0o600,
              limit: int = 16 * 1024**3) -> None:
-        import shutil
         with source.open_read(source_name, limit=limit) as (stream, before):
             with self.parent(relative, create=True) as (parent, name):
                 try:
@@ -219,7 +218,15 @@ class Tree:
                              os.O_NOFOLLOW | os.O_CLOEXEC, mode, dir_fd=parent)
                 try:
                     with os.fdopen(fd, 'wb', closefd=False) as out:
-                        shutil.copyfileobj(stream, out, 1024 * 1024)
+                        remaining = before.st_size
+                        while remaining:
+                            chunk = stream.read(min(remaining, 1024 * 1024))
+                            if not chunk:
+                                raise ValueError('copy source truncated during operation')
+                            out.write(chunk)
+                            remaining -= len(chunk)
+                        if stream.read(1):
+                            raise ValueError('copy source grew during operation')
                         out.flush()
                         os.fchmod(fd, mode)
                         os.fsync(fd)

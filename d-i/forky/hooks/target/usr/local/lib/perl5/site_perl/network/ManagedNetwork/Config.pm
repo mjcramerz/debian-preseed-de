@@ -3,7 +3,8 @@ package ManagedNetwork::Config;
 use strict;
 use warnings;
 
-use Fcntl qw(O_NOFOLLOW O_RDONLY);
+use Errno qw(EINTR);
+use Fcntl qw(O_NOFOLLOW O_NONBLOCK O_RDONLY);
 use Moo;
 use MooX::StrictConstructor;
 use MooX::TypeTiny;
@@ -105,22 +106,36 @@ sub parse_shell_value {
     return $value;
 }
 
-sub _read_file {
-    my ($self) = @_;
+sub read_file_limited {
+    my ($class, $path, $maximum_bytes) = @_;
 
-    -l $self->path()
-        and die "network defaults must not be a symbolic link: " . $self->path() . "\n";
-    sysopen my $fh, $self->path(), O_RDONLY | O_NOFOLLOW
-        or die "cannot read " . $self->path() . ": $!\n";
+    defined($maximum_bytes) && !ref($maximum_bytes)
+        && $maximum_bytes =~ /\A[1-9][0-9]*\z/
+        or die "network file byte limit must be a positive integer\n";
+    sysopen my $fh, $path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK
+        or die "cannot read $path: $!\n";
+    binmode $fh, ':raw' or die "cannot set byte mode for $path: $!\n";
     my @stat = stat $fh;
     @stat && -f _
-        or die "network defaults must be a regular file: " . $self->path() . "\n";
-    $stat[7] <= $self->maximum_bytes()
-        or die "config file is too large: " . $self->path() . "\n";
-    local $/;
-    my $content = <$fh>;
-    close $fh or die "cannot close " . $self->path() . ": $!\n";
-    return defined($content) ? $content : q{};
+        or die "network file must be a regular file: $path\n";
+    $stat[7] <= $maximum_bytes or die "network file is too large: $path\n";
+    my $content = q{};
+    while (1) {
+        my $count = sysread($fh, $content, $maximum_bytes + 1 - length($content), length($content));
+        if (!defined $count) {
+            next if $! == EINTR;
+            die "cannot read $path: $!\n";
+        }
+        last if !$count;
+        length($content) <= $maximum_bytes or die "network file is too large: $path\n";
+    }
+    close $fh or die "cannot close $path: $!\n";
+    return $content;
+}
+
+sub _read_file {
+    my ($self) = @_;
+    return __PACKAGE__->read_file_limited($self->path(), $self->maximum_bytes());
 }
 
 sub load {
@@ -137,15 +152,16 @@ sub load {
         my ($raw_value) = $current =~ /\A[A-Z_][A-Z0-9_]*=(.*)\z/s;
         defined($raw_value)
             or die "invalid config assignment in " . $self->path() . "\n";
-        my $complete = eval { __PACKAGE__->parse_shell_value($raw_value); 1 };
+        my $parsed;
+        my $complete = eval { $parsed = __PACKAGE__->parse_shell_value($raw_value); 1 };
         if (!$complete) {
             next if $@ =~ /unterminated quoted configuration value/;
             die "invalid shell value in " . $self->path() . ": $@";
         }
-        my ($key, $value) = $current =~ /\A([A-Z_][A-Z0-9_]*)=(.*)\z/s;
+        my ($key) = $current =~ /\A([A-Z_][A-Z0-9_]*)=/;
         $allowed{$key}
             or die "unsupported config key in network defaults: $key\n";
-        $config{$key} = __PACKAGE__->parse_shell_value($value);
+        $config{$key} = $parsed;
         $current = q{};
     }
     $current eq q{}

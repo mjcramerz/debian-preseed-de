@@ -79,6 +79,21 @@ class BrokerPolicyTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'foreign diversion'):
                 self.helper.diverted_source(Path('/usr/share/dbus-1/session.conf'))
 
+    def test_fifo_configuration_is_rejected_without_waiting_for_a_writer(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/'config'
+            os.mkfifo(path, 0o600)
+            with self.assertRaisesRegex(RuntimeError, 'unsafe root-owned configuration'):
+                self.helper.read_owned_file(path)
+
+    def test_final_reload_call_uses_only_the_remaining_budget(self) -> None:
+        with mock.patch.object(self.helper.Path, 'is_socket', return_value=True), \
+                mock.patch.object(self.helper.Path, 'glob', return_value=[]), \
+                mock.patch.object(self.helper.time, 'monotonic', side_effect=[10, 39.5]), \
+                mock.patch.object(self.helper, 'command') as command:
+            self.helper.reload_active_buses()
+        self.assertEqual(command.call_args.kwargs['timeout'], 0.5)
+
     def test_local_activation_directory_mode_is_normalized_after_private_umask(self) -> None:
         source = payload_read_text(Path(self.helper.__file__))
         self.assertIn('os.fchmod(fd, mode)', source)
@@ -184,6 +199,40 @@ class BrokerPolicyTests(unittest.TestCase):
 
 
 class BrokerInstallTests(unittest.TestCase):
+    def test_install_parser_handles_sections_continuations_resets_and_duplicates(self) -> None:
+        source = payload_read_text(FORKY/'scripts/late/dbus-broker.sh')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            # Redirect the literal installer target only in this test copy.
+            helper = root/'helper.sh'
+            helper.write_text(source.replace('/target', str(root)), encoding='utf-8')
+            unit = root/'fixture.service'
+            unit.write_text('[Unit]\nWantedBy=wrong.target\n[Install]\nWantedBy=old.target\n'
+                            'WantedBy=\nWantedBy = first.target \\\n# ignored continuation comment\n'
+                            ' second.target first.target\nWantedBy=third.target\n'
+                            'Alias=alias.service\n[Service]\nWantedBy=wrong-again.target\n', encoding='utf-8')
+            script = '. "$1"; installer_fatal() { printf "%s\\n" "$*" >&2; exit 1; }; target_systemd_install_values /fixture.service WantedBy'
+            for shell in (['/bin/sh'], [shutil.which('busybox'), 'sh'] if shutil.which('busybox') else []):
+                if not shell:
+                    continue
+                with self.subTest(shell=shell):
+                    result = subprocess.run([*shell, '-eu', '-c', script, 'fixture', str(helper)],
+                                            capture_output=True, text=True, encoding='utf-8', timeout=5)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout.splitlines(), ['first.target', 'second.target', 'third.target'])
+
+    def test_republishing_the_same_unit_symlink_preserves_its_inode(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory)/'alias.service'
+            destination.symlink_to('/usr/lib/systemd/system/dbus-broker.service')
+            before = destination.lstat().st_ino
+            script = '. "$1"; installer_fatal() { exit 1; }; stage_target_atomic_unit_symlink "$2" "$3"'
+            result = subprocess.run(['/bin/sh', '-eu', '-c', script, 'fixture',
+                                     str(FORKY/'scripts/late/dbus-broker.sh'), os.readlink(destination), str(destination)],
+                                    capture_output=True, text=True, encoding='utf-8', timeout=5)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(destination.lstat().st_ino, before)
+
     def test_package_repair_cannot_remove_unrelated_apps(self) -> None:
         source = payload_read_text(FORKY / 'scripts/late/dbus-broker.sh')
         self.assertIn('--no-remove install', source)

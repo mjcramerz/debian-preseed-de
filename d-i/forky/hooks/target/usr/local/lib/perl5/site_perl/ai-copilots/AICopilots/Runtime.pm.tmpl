@@ -4,7 +4,8 @@ use strict;
 use warnings;
 
 use Cwd qw(abs_path);
-use Encode qw(encode);
+use Encode qw(decode encode FB_CROAK);
+use Errno qw(EINTR);
 use Fcntl qw(:DEFAULT O_NOFOLLOW);
 use File::Basename qw(basename);
 use File::Path qw(make_path);
@@ -197,6 +198,9 @@ sub _read_file {
     my ($self, $path, $maximum, $allow_user_owned) = @_;
     defined($path) && $path =~ m{\A/} && $path !~ /[\0\r\n]/
         or _fatal('diagnostic file path is invalid');
+    defined($maximum) && !ref($maximum) && $maximum =~ /\A[1-9][0-9]*\z/
+        && $maximum <= 16_777_216
+        or _fatal('diagnostic file size limit is invalid');
     -f $path && !-l $path
         or _fatal("diagnostic file is unavailable: $path");
     my @stat = lstat $path;
@@ -205,13 +209,33 @@ sub _read_file {
         or _fatal("diagnostic file ownership or mode is unsafe: $path");
     $stat[7] <= $maximum
         or _fatal("diagnostic file exceeds the size limit: $path");
-    open my $fh, '<:encoding(UTF-8)', $path
+    sysopen my $fh, $path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK
         or _fatal("cannot read diagnostic file: $!");
-    local $/;
-    my $content = <$fh>;
+    my @opened = stat($fh);
+    @opened && ($opened[2] & 0170000) == 0100000
+        && $opened[0] == $stat[0] && $opened[1] == $stat[1]
+        && $opened[4] == $expected_uid && ($opened[2] & 0022) == 0
+        && $opened[7] <= $maximum
+        or _fatal("diagnostic file changed or is unsafe: $path");
+    binmode $fh, ':raw' or _fatal("cannot read diagnostic file: $!");
+    my $content = q{};
+    while (length($content) <= $maximum) {
+        my $remaining = $maximum + 1 - length($content);
+        my $read = sysread($fh, my $chunk, $remaining > 65_536 ? 65_536 : $remaining);
+        if (!defined($read)) {
+            next if $! == EINTR;
+            _fatal("cannot read diagnostic file: $!");
+        }
+        last if $read == 0;
+        $content .= $chunk;
+    }
     close $fh
         or _fatal("cannot close diagnostic file: $!");
-    return $content // q{};
+    length($content) <= $maximum
+        or _fatal("diagnostic file exceeds the size limit: $path");
+    my $text = eval { decode('UTF-8', $content, FB_CROAK) };
+    defined($text) or _fatal('diagnostic file is not valid UTF-8');
+    return $text;
 }
 
 sub _tail_text {

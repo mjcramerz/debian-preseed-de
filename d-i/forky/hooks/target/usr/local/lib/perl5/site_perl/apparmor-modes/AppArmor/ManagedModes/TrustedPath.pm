@@ -7,7 +7,8 @@ use Exporter qw(import);
 use Moo;
 use MooX::StrictConstructor;
 use MooX::TypeTiny;
-use Fcntl qw(O_NOFOLLOW O_RDONLY);
+use Errno qw(EINTR);
+use Fcntl qw(O_NOFOLLOW O_NONBLOCK O_RDONLY);
 
 use AppArmor::ManagedModes::CLI qw(fatal);
 
@@ -60,9 +61,16 @@ sub validate_root_owned_file {
 sub read_bounded_file {
     my ($label, $path, $max_bytes) = @_;
 
+    defined($max_bytes) && !ref($max_bytes) && $max_bytes =~ /\A[1-9][0-9]*\z/ ||
+        fatal("invalid size limit for $label");
     -l $path && fatal("$label must not be a symlink: $path");
-    sysopen my $fh, $path, O_RDONLY | O_NOFOLLOW ||
+    sysopen my $fh, $path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK ||
         fatal("cannot read $label: $path");
+    my @metadata = stat($fh);
+    @metadata && ($metadata[2] & 0170000) == 0100000 ||
+        fatal("$label must be a regular file: $path");
+    $metadata[7] <= $max_bytes ||
+        fatal("$label exceeds ${max_bytes} bytes: $path");
     binmode $fh, ':raw' ||
         fatal("cannot read $label: $path");
 
@@ -75,7 +83,10 @@ sub read_bounded_file {
             $buffer,
             $remaining > 65_536 ? 65_536 : $remaining,
         );
-        defined($read) || fatal("cannot read $label: $path");
+        if (!defined($read)) {
+            next if $! == EINTR;
+            fatal("cannot read $label: $path");
+        }
         last if $read == 0;
         $content .= $buffer;
         $remaining -= $read;

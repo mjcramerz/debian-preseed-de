@@ -45,6 +45,10 @@ owner /run/media/** rwklm,
 include if exists <local/abstractions/desktop-user-media>
 owner /run/user/[0-9]*/{doc,gvfs}/ r,
 owner /run/user/[0-9]*/{doc,gvfs}/** rwklm,
+# ChatGPT publishes previews/downloads here, with the real user's ownership
+# and a private runtime directory. File managers and document tools can save
+# or move those files; this never grants executable mapping or execution.
+owner /run/user/[0-9]*/labwc-chatgpt-tmp/{,**} rwkl,
 owner @{HOME}/.local/share/recently-used.xbel* rwkl,
 owner @{HOME}/.local/share/gvfs-metadata/ rw,
 owner @{HOME}/.local/share/gvfs-metadata/** rwkl,

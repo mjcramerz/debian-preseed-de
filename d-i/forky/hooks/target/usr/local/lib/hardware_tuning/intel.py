@@ -40,9 +40,7 @@ class Backend:
         self.knobs: dict[str, Knob] = {}
         self.telemetry: dict[str, object] = {}
         self.unavailable: list[str] = []
-        cpuinfo = (root / "proc/cpuinfo").read_text(encoding="ascii")
-        if len(cpuinfo) > 4 * 1024 * 1024:
-            raise TuningError("CPU inventory exceeds supported size")
+        cpuinfo = read_text(root / "proc/cpuinfo", maximum=4 * 1024 * 1024)
         vendors = re.findall(r"^vendor_id\s*:\s*(\S+)", cpuinfo, re.M)
         if not vendors or set(vendors) != {"GenuineIntel"}:
             raise TuningError("Intel CPU not detected at runtime")

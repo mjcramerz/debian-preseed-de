@@ -176,6 +176,55 @@ class PublicationContracts(unittest.TestCase):
             with self.assertRaises(OSError): publisher.publish_snapshot(self.root, self.products)
         self.assertEqual(before, {p: p.read_bytes() for p in self.root.iterdir()})
 
+    def test_rollback_failure_preserves_original_error_and_restores_other_products(self):
+        self.products = {name: b'new-' + name.encode() for name in
+                         ('payload.tar.gz', 'payload.manifest', 'preseed.cfg')}
+        before = {p.name: p.read_bytes() for p in self.root.iterdir()}
+        real = publisher.atomic_write
+        failure = OSError('injected publication failure')
+        calls = []
+
+        def fail_publication_and_one_restore(path, data, mode):
+            calls.append(path.name)
+            if len(calls) == 3:
+                raise failure
+            if data == before['payload.manifest']:
+                raise OSError('injected rollback failure')
+            return real(path, data, mode)
+
+        with mock.patch.object(publisher, 'atomic_write', side_effect=fail_publication_and_one_restore):
+            with self.assertRaises(OSError) as caught:
+                publisher.publish_snapshot(self.root, self.products)
+        self.assertIs(caught.exception, failure)
+        self.assertEqual(calls, ['payload.tar.gz', 'payload.manifest', 'preseed.cfg',
+                                 'preseed.cfg', 'payload.manifest', 'payload.tar.gz'])
+        self.assertEqual((self.root / 'payload.tar.gz').read_bytes(), before['payload.tar.gz'])
+        self.assertEqual((self.root / 'preseed.cfg').read_bytes(), before['preseed.cfg'])
+        self.assertTrue(any('payload.manifest' in note and 'injected rollback failure' in note
+                            for note in failure.__notes__))
+
+    def test_postpublication_failure_removes_new_product_during_rollback(self):
+        self.products = {name: b'new-' + name.encode() for name in
+                         ('payload.tar.gz', 'payload.manifest', 'preseed.cfg')}
+        new_path = self.root / 'payload.manifest'
+        new_path.unlink()
+        before = {p.name: p.read_bytes() for p in self.root.iterdir()}
+        real = publisher.atomic_write
+        calls = 0
+
+        def fail_after_write(*args):
+            nonlocal calls
+            calls += 1
+            real(*args)
+            if calls == 2:
+                raise OSError('injected postpublication failure')
+
+        with mock.patch.object(publisher, 'atomic_write', side_effect=fail_after_write):
+            with self.assertRaisesRegex(OSError, 'injected postpublication failure'):
+                publisher.publish_snapshot(self.root, self.products)
+        self.assertFalse(new_path.exists())
+        self.assertEqual(before, {p.name: p.read_bytes() for p in self.root.iterdir()})
+
     def test_environment_output_is_unconditionally_rejected(self):
         env = self.root / 'profile.env'
         env.write_bytes(b'KEEP="true"\n')

@@ -416,6 +416,12 @@ class WorkerTests(PipelineTests):
         self.inputs.mkdir()
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
+        temporary_directory = tempfile.TemporaryDirectory
+        def private_temporary(*args, **options):
+            if options.get('dir') == '/tmp':
+                options['dir'] = self.root
+            return temporary_directory(*args, **options)
+        self.stack.enter_context(mock.patch.object(worker.tempfile, 'TemporaryDirectory', side_effect=private_temporary))
         self.stack.enter_context(mock.patch.object(worker, 'WORK', self.work))
         self.stack.enter_context(mock.patch.object(worker, 'PIPELINE', str(self.driver)))
         self.producer = self.root / 'producer.py'
@@ -435,6 +441,19 @@ class WorkerTests(PipelineTests):
                 worker.read_plan(target)
         target.write_text(json.dumps(plan()))
         self.assertEqual(worker.read_plan(target), plan())
+
+    def test_plan_reader_rejects_fifo_symlink_malformed_and_oversize(self):
+        target = self.root / 'plan.json'
+        for data in (b'{invalid', b'x' * (1024 * 1024 + 1)):
+            target.write_bytes(data)
+            with self.assertRaises(CompzError):
+                worker.read_plan(target)
+        target.unlink(); os.mkfifo(target)
+        with self.assertRaises(CompzError):
+            worker.read_plan(target)
+        target.unlink(); target.symlink_to(self.root / 'missing')
+        with self.assertRaises(CompzError):
+            worker.read_plan(target)
 
     def test_unavailable_rar_writer_is_not_offered_or_accepted(self):
         original = os.access

@@ -33,7 +33,7 @@ DOCTYPE = ('<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configurat
            ' "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">\n')
 
 
-def command(argv: list[str], timeout: int = 30) -> str:
+def command(argv: list[str], timeout: float = 30) -> str:
     result = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True,
                             text=True, timeout=timeout, check=False,
                             env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'})
@@ -43,7 +43,7 @@ def command(argv: list[str], timeout: int = 30) -> str:
 
 
 def read_owned_file(path: Path) -> bytes:
-    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd, 'rb') as stream:
         metadata = os.fstat(stream.fileno())
         if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
@@ -221,11 +221,12 @@ def reload_active_buses() -> None:
                       '/usr/bin/busctl', '--user', '--timeout=3', *method])
     deadline = time.monotonic() + 30
     for argv in calls:
-        if time.monotonic() >= deadline:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
             print('warning: bus reload budget exhausted; run dbus-broker-maintain --refresh again', file=sys.stderr)
             break
         try:
-            command(argv, timeout=5)
+            command(argv, timeout=min(5, remaining))
         except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
             print(f'warning: active bus reload deferred: {exc}', file=sys.stderr)
 

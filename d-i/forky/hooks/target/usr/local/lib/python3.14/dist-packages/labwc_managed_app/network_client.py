@@ -270,6 +270,9 @@ class Lease:
                     raise ValueError(f"network service rejected request: {detail} "
                                      f"(correlation {result['correlation_id']})")
                 raise ValueError("kernel network setup failed; see managed network log")
+            for field in ("address", "gateway", "interface"):
+                if not isinstance(result.get(field), str):
+                    raise ValueError(f"invalid network readiness field: {field}")
             self.address = str(ipaddress.IPv4Address(result["address"]))
             self.gateway = str(ipaddress.IPv4Address(result["gateway"]))
             self.interface = result["interface"]

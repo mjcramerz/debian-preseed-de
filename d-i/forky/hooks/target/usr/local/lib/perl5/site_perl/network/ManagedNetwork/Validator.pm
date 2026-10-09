@@ -3,7 +3,6 @@ package ManagedNetwork::Validator;
 use strict;
 use warnings;
 
-use File::Basename qw(dirname);
 use Moo;
 use MooX::StrictConstructor;
 use MooX::TypeTiny;
@@ -228,14 +227,7 @@ sub _file_mode {
 
 sub _slurp_limited {
     my ($self, $path) = @_;
-
-    open my $fh, '<', $path or die "cannot read $path: $!\n";
-    local $/;
-    my $content = <$fh>;
-    close $fh or die "cannot close $path: $!\n";
-    length($content // q{}) <= 131_072
-        or die "$path is too large\n";
-    return $content // q{};
+    return ManagedNetwork::Config->read_file_limited($path, 131_072);
 }
 
 sub _iface_is_wifi {
@@ -246,9 +238,7 @@ sub _iface_is_wifi {
 sub _read_sys_value {
     my ($self, $path) = @_;
 
-    open my $fh, '<', $path or return undef;
-    my $value = <$fh>;
-    close $fh;
+    my $value = eval { ManagedNetwork::Config->read_file_limited($path, 8192) };
     return undef if !defined $value;
     chomp $value;
     return $value;

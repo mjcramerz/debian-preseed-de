@@ -328,6 +328,45 @@ class SessionHandoffTests(unittest.TestCase):
 
 
 class PythonLifecycleTests(unittest.TestCase):
+    def test_partial_firewall_backup_setup_removes_first_backup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            backup = Path(directory) / 'backup'; backup.write_bytes(b'original')
+            with mock.patch.object(firewall_files, 'validate_managed_file'), \
+                    mock.patch.object(firewall_files, 'validate_nft_conf'), \
+                    mock.patch.object(firewall_files, '_backup', side_effect=[backup, FirewallError('second backup failed')]):
+                with self.assertRaisesRegex(FirewallError, 'second backup'):
+                    firewall_files.PendingMutation.create(firewall_files.FirewallPaths())
+            self.assertFalse(backup.exists())
+
+    def test_failed_firewall_candidate_write_removes_temporary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with mock.patch.object(firewall_files.os, 'fsync', side_effect=OSError('fixture failure')):
+                with self.assertRaises(FirewallError):
+                    firewall_files._write_temporary(root, '.candidate-', 'candidate')
+            self.assertEqual(list(root.iterdir()), [])
+
+    def test_failed_firewall_backup_removes_temporary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create = tempfile.mkstemp
+            with mock.patch.object(firewall_files.tempfile, 'mkstemp',
+                    side_effect=lambda **kw: create(prefix=kw['prefix'], dir=root)):
+                with self.assertRaises(FirewallError):
+                    firewall_files._backup(root / 'missing', '.backup-')
+            self.assertEqual(list(root.iterdir()), [])
+
+    def test_failed_firewall_restore_removes_temporary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backup = root / 'backup'; backup.write_text('original', encoding='utf-8')
+            target = root / 'target'; target.write_text('current', encoding='utf-8')
+            with mock.patch.object(firewall_files.os, 'replace', side_effect=OSError('fixture failure')):
+                with self.assertRaises(FirewallError):
+                    firewall_files._atomic_restore(backup, target)
+            self.assertEqual(target.read_text(encoding='utf-8'), 'current')
+            self.assertEqual(set(root.iterdir()), {backup, target})
+
     @unittest.skipUnless(os.geteuid() == 0, 'root-owned lock fixture')
     def test_firewall_lock_rejects_symlink_fifo_and_foreign_owner(self):
         with tempfile.TemporaryDirectory() as name:

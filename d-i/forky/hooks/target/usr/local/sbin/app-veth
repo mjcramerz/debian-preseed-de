@@ -179,6 +179,9 @@ def namespace_owner(fd: int, uid: int) -> None:
 
 
 def route_interface(item) -> tuple[str, str, int, bool]:
+    if (not isinstance(item, dict) or not isinstance(item.get("dev"), str)
+            or not isinstance(item.get("prefsrc", item.get("src")), str)):
+        raise ValueError("invalid IPv4 route interface or source")
     iface = item["dev"]
     if not re.fullmatch(r"[A-Za-z0-9_.-]{1,15}", iface) or iface == "lo" or re.fullmatch(INTERFACE_PATTERN, iface):
         raise ValueError("invalid Internet interface")
@@ -186,7 +189,11 @@ def route_interface(item) -> tuple[str, str, int, bool]:
     if address.is_loopback or address.is_unspecified or address.is_multicast or address.is_link_local:
         raise ValueError("invalid Internet source")
     links = json.loads(run(["/usr/sbin/ip", "-j", "link", "show", "dev", iface]))
-    mtu = links[0]["mtu"]
+    if (not isinstance(links, list) or len(links) != 1 or not isinstance(links[0], dict)
+            or not isinstance(links[0].get("flags"), list)
+            or any(not isinstance(flag, str) for flag in links[0]["flags"])):
+        raise ValueError("invalid Internet link response")
+    mtu = links[0].get("mtu")
     if type(mtu) is not int or not 576 <= mtu <= 65535:
         raise ValueError("invalid Internet MTU")
     return iface, str(address), mtu, "UP" in links[0].get("flags", [])
@@ -202,6 +209,9 @@ def route(*, allow_lan: bool = False) -> tuple[str, str, int]:
         # default route. This selects the MTU only: host routing/masquerade
         # continue to choose the actual LAN, VPN or WAN egress per packet.
         routes = json.loads(run(["/usr/sbin/ip", "-j", "-4", "route", "show", "scope", "link"]))
+        if (not isinstance(routes, list) or any(not isinstance(item, dict)
+                or not isinstance(item.get("dev", ""), str) for item in routes)):
+            raise ValueError("invalid connected IPv4 route response")
         candidates = [item for item in routes if item.get("dev") != "lo"
                       and not re.fullmatch(INTERFACE_PATTERN, item.get("dev", ""))
                       and item.get("type", "unicast") == "unicast"

@@ -6,8 +6,9 @@ use warnings;
 use lib '/usr/local/lib/perl5/site_perl/runtime';
 use Managed::Process qw(capture_command);
 use Cwd qw(abs_path);
+use Encode qw(decode FB_CROAK);
 use Errno qw(EINTR);
-use Fcntl qw(:flock O_CREAT O_EXCL O_NOFOLLOW O_RDONLY O_RDWR O_TRUNC O_WRONLY);
+use Fcntl qw(:flock O_CREAT O_EXCL O_NOFOLLOW O_NONBLOCK O_RDONLY O_RDWR O_TRUNC O_WRONLY);
 use File::Basename qw(basename);
 use File::Path qw(make_path remove_tree);
 use File::Spec;
@@ -382,16 +383,37 @@ sub read_input_list {
     $stat[4] == $< && ($stat[2] & 07777) == 0600
         or _fatal('selection list ownership or mode is unsafe');
     $stat[7] <= 16_384 or _fatal('selection list exceeds the managed size limit');
-    open my $fh, '<:encoding(UTF-8)', $list_path
+    sysopen my $fh, $list_path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK
         or _fatal("cannot read selection list: $!");
+    my @opened = stat($fh);
+    @opened && ($opened[2] & 0170000) == 0100000 && $opened[4] == $<
+        && ($opened[2] & 07777) == 0600 && $opened[7] <= 16_384
+        && $opened[0] == $stat[0] && $opened[1] == $stat[1]
+        or _fatal('selection list changed or is unsafe');
+    binmode $fh, ':raw' or _fatal("cannot read selection list: $!");
+    my $content = q{};
+    while (length($content) <= 16_384) {
+        my $read = sysread($fh, my $chunk, 16_385 - length($content));
+        if (!defined($read)) {
+            next if $! == EINTR;
+            _fatal("cannot read selection list: $!");
+        }
+        last if $read == 0;
+        $content .= $chunk;
+    }
+    close $fh or _fatal("cannot close selection list: $!");
+    length($content) <= 16_384 or _fatal('selection list exceeds the managed size limit');
+    my $text = eval { decode('UTF-8', $content, FB_CROAK) };
+    defined($text) or _fatal('selection list is not valid UTF-8');
+    my @lines = split /\n/, $text, -1;
+    pop @lines if @lines && $text =~ /\n\z/;
     my @files;
-    while (my $line = <$fh>) {
-        $line =~ s/\r?\n\z//;
+    for my $line (@lines) {
+        $line =~ s/\r\z//;
         push @files, $self->validate_user_file($kind, $line);
         @files <= $self->max_multi_files()
             or _fatal('too many files in managed selection list');
     }
-    close $fh or _fatal("cannot close selection list: $!");
     @files >= 2 or _fatal('select at least two input files');
     return \@files;
 }

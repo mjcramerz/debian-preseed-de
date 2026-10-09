@@ -111,16 +111,6 @@ ensure_target_mount() {
   fi
 }
 
-write_target_file() {
-  target_path=$1
-  target_mode=$2
-  target_normalize_systemd_config_parent_modes "$target_path" /target
-  install -d -m 0755 "$(dirname "/target${target_path}")"
-  chmod 0755 "$(dirname "/target${target_path}")"
-  cat >"/target${target_path}"
-  chmod "$target_mode" "/target${target_path}"
-}
-
 shell_single_quote() {
   printf "'"
   printf '%s' "$1" | sed "s/'/'\\\\''/g"

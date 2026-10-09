@@ -809,7 +809,11 @@ stage_target_networkmanager_dispatcher_activation_if_available() {
     installer_fatal "could not allocate temporary NetworkManager unit override"
   if render_target_networkmanager_unit_override \
     "$target_networkmanager_unit" >"$networkmanager_override_tmp"; then
-    write_target_file /etc/systemd/system/NetworkManager.service 0644 <"$networkmanager_override_tmp"
+    write_target_file /etc/systemd/system/NetworkManager.service 0644 <"$networkmanager_override_tmp" || {
+      rm -f -- "$networkmanager_override_tmp"
+      installer_fatal "could not publish NetworkManager unit override: ${networkmanager_unit_path}"
+      return 1
+    }
     installer_info "removed NetworkManager Before=networking.service ordering from ${networkmanager_unit_path}"
   else
     networkmanager_render_status=$?

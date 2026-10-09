@@ -9,7 +9,7 @@ commands and loaded-kernel state are always fixtures, never the real kernel.
 """
 from __future__ import annotations
 from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_stat as payload_source_stat
-from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text, installed_script
 from theme_fixture import render_theme_defaults, render_theme_bytes
 
 from contextlib import ExitStack, redirect_stdout, redirect_stderr
@@ -411,6 +411,79 @@ class AppArmorReloadContractTests(PerlFixture):
                                *arguments], env=self.env, capture_output=True,
                               text=True, encoding='utf-8', timeout=5)
 
+    def test_bounded_reader_rejects_fifo_symlink_directory_and_oversize(self):
+        path = self.root / 'data'
+        code = r'''use AppArmor::ManagedModes::TrustedPath qw(read_bounded_file);
+            my $value = read_bounded_file('fixture', $ARGV[0], 4); print $value;'''
+        path.write_bytes(b'four')
+        result = self.run_perl(code, str(path))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, 'four')
+        path.write_bytes(b'large')
+        self.assertNotEqual(self.run_perl(code, str(path)).returncode, 0)
+        path.unlink(); os.mkfifo(path)
+        self.assertNotEqual(self.run_perl(code, str(path)).returncode, 0)
+        path.unlink(); path.symlink_to('/dev/null')
+        self.assertNotEqual(self.run_perl(code, str(path)).returncode, 0)
+        path.unlink(); path.mkdir()
+        self.assertNotEqual(self.run_perl(code, str(path)).returncode, 0)
+    def test_ai_diagnostic_reader_bounds_bytes_and_rejects_bad_utf8(self):
+        path = self.root / 'diagnostic'; path.write_bytes('value é'.encode('utf-8'))
+        module = installed_script(LIB / 'ai-copilots/AICopilots/Runtime.pm')
+        code = r'''binmode STDOUT, ':encoding(UTF-8)';
+            require $ARGV[0]; my $reader = AICopilots::Runtime->new();
+            print $reader->_read_file($ARGV[1], 16, 1);'''
+        def run():
+            return subprocess.run([PERL, '-I' + str(LIB / 'ai-copilots'), '-I' + str(LIB / 'runtime'),
+                '-e', code, '--', str(module), str(path)], env=self.env, capture_output=True,
+                text=True, encoding='utf-8', timeout=5)
+        result = run(); self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, 'value é')
+        for data in (b'x' * 17, b'\xff'):
+            path.write_bytes(data)
+            self.assertNotEqual(run().returncode, 0)
+        path.unlink(); os.mkfifo(path)
+        self.assertNotEqual(run().returncode, 0)
+
+    def test_zram_config_reader_rejects_special_files_and_oversize(self):
+        path = self.root / 'zram.conf'; path.write_text('[global]\nvalue=ok\n', encoding='ascii')
+        code = r'''use Zram::Config::Parser;
+            my $reader = Zram::Config::Parser->new(max_config_bytes => 32);
+            print $reader->parse($ARGV[0])->{global}{value};'''
+        def run():
+            return subprocess.run([PERL, '-I' + str(LIB / 'zram-writeback'), '-e', code,
+                '--', str(path)], env=self.env, capture_output=True, text=True, encoding='utf-8', timeout=5)
+        result = run(); self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, 'ok')
+        path.write_bytes(b'x' * 33)
+        self.assertNotEqual(run().returncode, 0)
+        path.unlink(); os.mkfifo(path)
+        self.assertNotEqual(run().returncode, 0)
+        path.unlink(); path.symlink_to('/dev/null')
+        self.assertNotEqual(run().returncode, 0)
+
+    def test_digital_asset_selection_reader_bounds_and_decodes_the_list(self):
+        path = self.root / 'labwc-digital-assets-list.abcdef'
+        files = [self.root / 'one.md', self.root / 'two.md']
+        for file in files:
+            file.write_bytes(b'fixture')
+        path.write_text('\n'.join(map(str, files)) + '\n', encoding='utf-8'); path.chmod(0o600)
+        module = installed_script(LIB / 'digital-assets/DigitalAssets/Context.pm')
+        code = r'''require $ARGV[0];
+            my $reader = DigitalAssets::Context->new(runtime_directory => $ARGV[1], home => $ARGV[1]);
+            print scalar @{$reader->read_input_list('markdown', $ARGV[2])};'''
+        def run():
+            return subprocess.run([PERL, '-I' + str(LIB / 'digital-assets'), '-I' + str(LIB / 'runtime'),
+                '-e', code, '--', str(module), str(self.root), str(path)], env=self.env,
+                capture_output=True, text=True, encoding='utf-8', timeout=5)
+        result = run(); self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, '2')
+        for data in (b'x' * 16_385, b'\xff'):
+            path.write_bytes(data)
+            self.assertNotEqual(run().returncode, 0)
+        path.unlink(); os.mkfifo(path, 0o600)
+        self.assertNotEqual(run().returncode, 0)
+
     def test_force_reload_option_and_incompatible_flags(self):
         code = r'''use JSON::PP; use AppArmor::ManagedModes::CLI qw(parse_args);
             print encode_json(parse_args(@ARGV));'''
@@ -522,6 +595,32 @@ MANAGED_NETWORK_IPV6_ENABLED=false
         result = self.validate('--wait-seconds', '1')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn('waiting for managed', result.stderr)
+
+    def test_network_files_reject_fifos_without_waiting_for_a_writer(self):
+        self.adapter()
+        for path in (self.config, self.staged, self.sysfs/'enp1s0/address'):
+            with self.subTest(path=path):
+                original = path.read_bytes()
+                path.unlink()
+                os.mkfifo(path, 0o600)
+                result = self.validate()
+                self.assertNotEqual(result.returncode, 0, result.stderr)
+                path.unlink()
+                path.write_bytes(original)
+                path.chmod(0o600)
+
+    def test_network_reader_honors_byte_limits_and_preserves_byte_values(self):
+        code = r'''use ManagedNetwork::Config;
+            my ($path, $limit) = @ARGV;
+            print ManagedNetwork::Config->read_file_limited($path, $limit);'''
+        path = self.root/'bounded'
+        for value, limit, expected in ((b'value\n', 6, 0), (b'x' * 33, 32, 1)):
+            path.write_bytes(value)
+            result = subprocess.run([PERL, '-I' + str(LIB/'network'), '-e', code, '--', str(path), str(limit)],
+                                    env=self.env, capture_output=True, timeout=5)
+            self.assertEqual(bool(result.returncode), bool(expected), result.stderr)
+            if not expected:
+                self.assertEqual(result.stdout, value)
 
     def test_delayed_expected_adapter_succeeds(self):
         timer = threading.Timer(0.3, self.adapter)
