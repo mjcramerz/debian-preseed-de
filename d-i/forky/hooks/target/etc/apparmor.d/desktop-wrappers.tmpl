@@ -218,8 +218,6 @@ profile waypaper /{usr/local/bin/waypaper,opt/waypaper/bin/waypaper,opt/waypaper
     ptrace (read) peer=labwc-chatgpt,
     ptrace (read) peer=labwc-chatgpt//chatgpt-dbus-proxy,
     ptrace (read) peer=labwc-chatgpt//chatgpt-bwrap,
-    ptrace (read) peer=chatgpt-slirp4netns,
-    ptrace (read) peer=qbittorrent-pasta,
     ptrace (read) peer=labwc-app,
     ptrace (read) peer=labwc-app//app-bwrap,
     ptrace (read) peer=codex-wrapper,
@@ -1137,6 +1135,7 @@ profile digital-assets-python-runtime /usr/local/lib/digital-assets/{bin/**,pipx
 }
 
 profile codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/app-veth-client>
   owner @{HOME}/Workspace/{,**/} r,
   #include <abstractions/wrapper-python>
 
@@ -1145,7 +1144,7 @@ profile codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, mediate_
   # lifecycle and liveness signals from its unconfined user-manager domain.
   signal (receive) set=(exists hup int quit kill term) peer=unconfined,
   signal (send, receive) peer=codex-wrapper//codex-bwrap,
-  signal (send) set=(exists term) peer=codex-slirp4netns,
+  ptrace (read) peer=codex-wrapper//codex-bwrap,
 
   /data/ r,
   /data/codex/ rw,
@@ -1176,7 +1175,6 @@ profile codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, mediate_
   deny __INSTALLER_LOG_CHATGPT_DIR__/** rwkl,
   deny __INSTALLER_LOG_CHATGPT_FILE__ rwkl,
   /usr/bin/bwrap rCx -> codex-bwrap,
-  /usr/bin/slirp4netns rPx -> codex-slirp4netns,
   /usr/local/bin/git-ssh rpx -> git-ssh,
   signal (send) set=(hup int quit kill term) peer=git-ssh,
   /usr/bin/{chmod,id,mkdir,readlink,find} rix,
@@ -1276,13 +1274,13 @@ profile codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, mediate_
   profile codex-bwrap flags=(attach_disconnected, mediate_deleted) {
     #include <abstractions/bwrap-common>
     #include <abstractions/codex-runtime>
-    ptrace (readby) peer=codex-slirp4netns,
 
     # Bubblewrap traverses root-owned bind sources while constructing the
     # Codex sandbox; pathname mediation still limits what it may read.
     capability dac_read_search,
     # The wrapper owns the child lifecycle and forwards only stop signals.
     signal (receive) set=(exists hup int quit term kill) peer=codex-wrapper,
+    ptrace (readby) peer=codex-wrapper,
 
     / r,
     /data/codex/usr/instructions/ r,
@@ -1305,64 +1303,23 @@ profile codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, mediate_
   include if exists <local/data.codex.lib.codex>
 }
 
-profile codex-slirp4netns flags=(attach_disconnected) {
-  # Codex uses a dedicated named transition so this least-privilege policy does
-  # not alter the package slirp4netns attachment used by rootless Podman.
-  userns,
-
-  capability net_admin,
-  capability sys_admin,
-  capability sys_ptrace,
-
-  network create unix stream,
-  network inet stream,
-  network inet dgram,
-  ptrace (read) peer=codex-wrapper//codex-bwrap,
-  ptrace (read) peer=codex-runtime//codex-bwrap,
-  ptrace (readby) peer=desktop-launcher,
-  ptrace (readby) peer=devops-toolchain,
-  # aa-status may inspect the helper label, while the user manager and shell
-  # may only probe or hang up the supervised network helper.
-  ptrace (readby) peer=aa-status-reader,
-  signal (receive) set=(exists kill term) peer=codex-wrapper,
-  signal (receive) set=(exists term) peer=codex-runtime,
-  signal (receive) set=(exists hup) peer=unconfined,
-
-  / r,
-  /dev/null r,
-  /dev/net/tun rw,
-  /dev/pts/[0-9]* rw,
-  /dev/urandom r,
-  /etc/ld.so.cache r,
-  /etc/resolv.conf r,
-  /run/resolvconf/resolv.conf r,
-  /run/systemd/resolve/stub-resolv.conf r,
-  /usr/bin/slirp4netns mr,
-  /usr/lib/@{multiarch}/ld-linux-*.so* mr,
-  /usr/lib/@{multiarch}/lib{atomic,c,glib-2.0,m,pcre2-8,seccomp,slirp}.so* mr,
-  @{PROC}/[0-9]*/ns/{net,user} r,
-  owner /data/codex/runtime/.control/launch.*/{slirp.stdout,slirp.stderr} w,
-
-  include if exists <local/usr.bin.slirp4netns-codex>
-}
-
 profile codex-runtime /data/codex/share/bin/* flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/app-veth-client>
   #include <abstractions/codex-runtime>
 
   # Direct Codex entrypoints use the same confined constructor split as the
   # repository wrapper instead of retaining Bubblewrap authority in the parent.
   signal (send, receive) peer=codex-runtime//codex-bwrap,
-  signal (send) set=(exists term) peer=codex-slirp4netns,
+  ptrace (read) peer=codex-runtime//codex-bwrap,
 
   /usr/bin/bwrap rCx -> codex-bwrap,
-  /usr/bin/slirp4netns rPx -> codex-slirp4netns,
 
   profile codex-bwrap flags=(attach_disconnected, mediate_deleted) {
     #include <abstractions/bwrap-common>
     #include <abstractions/codex-runtime>
-    ptrace (readby) peer=codex-slirp4netns,
 
     signal (send, receive) peer=codex-runtime,
+    ptrace (readby) peer=codex-runtime,
     /usr/local/lib/bazelisk/ r,
     /usr/local/lib/bazelisk/bazel rix,
   }
@@ -1412,18 +1369,26 @@ profile labwc-external-drives /usr/local/bin/labwc-external-drives flags=(attach
   # Management navigation retains the controlling terminal through exec.
   #include <abstractions/wrapper-terminal>
   #include <abstractions/wrapper-desktop>
+  # The native GVfs adapter is a system-Python service in this same domain;
+  # its user unit drops every capability. The root shutdown worker is separate.
+  #include <abstractions/wrapper-python>
   include if exists <abstractions/dbus-session-strict>
   include if exists <abstractions/dbus-strict>
 
   /usr/local/bin/labwc-external-drives rix,
+  /usr/local/libexec/labwc-gvfs-volume-monitor r,
+  /usr/lib/python3/dist-packages/gi/{,**} mr,
+  /usr/lib/@{multiarch}/girepository-1.0/ r,
+  /usr/lib/@{multiarch}/girepository-1.0/{GLib,GObject,GModule,Gio}-2.0.typelib mr,
+  /usr/lib/@{multiarch}/girepository-1.0/GIRepository-{2.0,3.0}.typelib mr,
   /usr/bin/{awk,flock,gawk,id,mawk,mktemp,nawk,rm,rmdir,sleep,sync,timeout} rix,
-  /usr/bin/{find,findmnt,lsblk,notify-send,udevadm,udisksctl} rix,
+  /usr/bin/{findmnt,lsblk,notify-send,udevadm,udisksctl} rix,
   # Only the authorized shutdown service retains this DAC read capability.
   # No raw block I/O, filesystem mount syscall or machine power capability.
   capability dac_read_search,
   # Sync opens the mount-point directory, including USB volumes mounted
   # outside /media. Directory enumeration adds no regular-file data access.
-  /**/ r,
+  /{media,mnt,run/media}/**/ r,
   /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
   signal (send) set=(kill term) peer=labwc-external-drives,
   /run/dbus/system_bus_socket rw,
@@ -1472,6 +1437,31 @@ profile labwc-external-drives /usr/local/bin/labwc-external-drives flags=(attach
   dbus (send, receive)
   bus=system
   peer=(name=org.freedesktop.UDisks2),
+  dbus bind
+  bus=session
+  name=org.gtk.vfs.LabwcVolumeMonitor,
+  dbus send
+  bus=session
+  path=/org/freedesktop/DBus
+  interface=org.freedesktop.DBus
+  member={RequestName,ReleaseName}
+  peer=(name=org.freedesktop.DBus),
+  dbus receive
+  bus=session
+  path=/org/freedesktop/DBus
+  interface=org.freedesktop.DBus
+  member={NameAcquired,NameLost,NameOwnerChanged}
+  peer=(name=org.freedesktop.DBus),
+  dbus (send, receive)
+  bus=session
+  path=/org/gtk/Private/RemoteVolumeMonitor
+  interface=org.gtk.Private.RemoteVolumeMonitor
+  peer=(name=org.gtk.vfs.UDisks2VolumeMonitor),
+  dbus (send, receive)
+  bus=session
+  path=/org/gtk/Private/RemoteVolumeMonitor
+  interface={org.gtk.Private.RemoteVolumeMonitor,org.freedesktop.DBus.Introspectable}
+  peer=(label=desktop-launcher),
 
   include if exists <local/usr.local.bin.labwc-external-drives>
 }
@@ -1926,6 +1916,7 @@ profile labwc-chatgpt-log-runner /usr/local/libexec/labwc-chatgpt-log-runner fla
 }
 
 profile labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/app-veth-client>
   #include <abstractions/wrapper-wayland>
   #include <abstractions/wrapper-python>
 
@@ -1934,12 +1925,11 @@ profile labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected, mediate
   /usr/local/bin/labwc-app rix,
   /usr/local/lib/python3.14/dist-packages/ r,
   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
-  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,compat_gpu,compat_instance,compat_protocol,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_namespace,profiles,recovery,runtime,sandbox,session,user_state}.py r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,compat_gpu,compat_instance,compat_protocol,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_client,network_namespace,profiles,recovery,runtime,sandbox,session,user_state}.py r,
   deny /usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat{,_runtime}.py r,
   # ChatGPT lifecycle events use stderr so the existing capture runner sends
   # them only to its private rsyslog socket; generic syslog remains denied.
   /usr/bin/bwrap rCx -> chatgpt-bwrap,
-  /usr/bin/slirp4netns rPx -> chatgpt-slirp4netns,
   /usr/bin/xdg-dbus-proxy rCx -> chatgpt-dbus-proxy,
   /usr/local/bin/git-ssh rpx -> git-ssh,
   signal (send) set=(hup int quit kill term) peer=git-ssh,
@@ -1964,8 +1954,8 @@ profile labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected, mediate
   /opt/ r,
   unix,
   signal (send) set=(kill term) peer=labwc-chatgpt//chatgpt-bwrap,
+  ptrace (read) peer=labwc-chatgpt//chatgpt-bwrap,
   signal (send) set=(kill term) peer=labwc-chatgpt//chatgpt-dbus-proxy,
-  signal (send) set=(exists kill term) peer=chatgpt-slirp4netns,
   signal (receive) set=(int) peer=labwc-chatgpt-log-runner,
   deny /dev/log rw,
   deny /{,var/}run/systemd/journal/ r,
@@ -2115,6 +2105,9 @@ profile labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected, mediate
   }
 
   profile chatgpt-bwrap flags=(attach_disconnected, mediate_deleted) {
+    ptrace (readby) peer=labwc-chatgpt,
+    /run/podman-devops/ r,
+    /run/podman-devops/podman.sock rw,
     #include <abstractions/bwrap-common>
     #include <abstractions/bwrap-desktop-runtime>
     #include <abstractions/pipewire-audio>
@@ -2251,45 +2244,8 @@ profile labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected, mediate
   include if exists <local/usr.local.bin.chatgpt>
 }
 
-profile chatgpt-slirp4netns flags=(attach_disconnected) {
-  # ChatGPT uses a dedicated named transition so its network helper cannot
-  # inherit the broader package attachment used by rootless Podman or the
-  # independent managed Codex wrapper.
-  userns,
-
-  capability net_admin,
-  capability sys_admin,
-  capability sys_ptrace,
-
-  network create unix stream,
-  network inet stream,
-  network inet dgram,
-  ptrace (read) peer=labwc-chatgpt//chatgpt-bwrap,
-  # Keep status inspection separate from ChatGPT's own process tracing.
-  ptrace (readby) peer=desktop-launcher,
-  ptrace (readby) peer=waypaper//waypaper-ps,
-  ptrace (readby) peer=aa-status-reader,
-  signal (receive) set=(exists kill term) peer=labwc-chatgpt,
-
-  / r,
-  /dev/null rw,
-  /dev/net/tun rw,
-  /dev/urandom r,
-  /etc/ld.so.cache r,
-  /etc/resolv.conf r,
-  /run/resolvconf/resolv.conf r,
-  /run/systemd/resolve/stub-resolv.conf r,
-  /usr/bin/slirp4netns mr,
-  /usr/lib/@{multiarch}/ld-linux-*.so* mr,
-  /usr/lib/@{multiarch}/lib{atomic,c,glib-2.0,m,pcre2-8,seccomp,slirp}.so* mr,
-  @{PROC}/[0-9]*/ns/{net,user} r,
-  owner /run/user/[0-9]*/labwc-chatgpt-sandbox-*/slirp4netns.stderr rw,
-  owner /tmp/labwc-chatgpt-sandbox-*/slirp4netns.stderr rw,
-
-  include if exists <local/usr.bin.slirp4netns-chatgpt>
-}
-
 profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
+  #include <abstractions/app-veth-client>
   # Explicit launches can inherit their caller's terminal before systemd owns
   # the app cgroup; do not reject these inherited descriptors.
   owner /dev/pts/[0-9]* rw,
@@ -2303,6 +2259,7 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   owner /run/user/[0-9]*/labwc-session-closing r,
   owner /run/user/[0-9]*/labwc-activation-* rw,
   #include <abstractions/wrapper-wayland>
+  #include <abstractions/managed-app-config>
   #include <abstractions/wrapper-python>
   # Launcher metadata/access checks cover the same document roots as its
   # Bubblewrap child; actual content is exposed by the per-app mount policy.
@@ -2311,7 +2268,7 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   /usr/local/bin/labwc-app rix,
   /usr/local/lib/python3.14/dist-packages/ r,
   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
-  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,compat_gpu,compat_instance,compat_protocol,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_namespace,profiles,recovery,runtime,sandbox,session,user_state}.py r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,compat_gpu,compat_instance,compat_protocol,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_client,network_namespace,profiles,recovery,runtime,sandbox,session,user_state}.py r,
   deny /usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat{,_runtime}.py r,
   /dev/log w,
   /run/systemd/journal/dev-log w,
@@ -2321,6 +2278,15 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   deny /tmp/.X11-unix/ rw,
   deny /tmp/.X11-unix/** rw,
   /usr/bin/bwrap rCx -> app-bwrap,
+  /usr/bin/aa-exec rix,
+  change_profile -> labwc-app//code-bwrap,
+  signal (send) set=(kill term) peer=labwc-app//code-bwrap,
+  ptrace (read) peer=labwc-app//code-bwrap,
+  # Device metadata used to retain only the explicitly configured native
+  # peripherals in Ledger/RetroArch's private /dev.
+  /dev/bus/{,usb/,usb/**} r,
+  /dev/input/{,**} r,
+  /dev/{hidraw[0-9]*,uinput} r,
   # systemd-run needs the validated XDG_RUNTIME_DIR and D-Bus address to reach
   # the active user manager. Lowercase pux preserves that fixed environment;
   # uppercase PUx invokes secure-exec environment scrubbing.
@@ -2330,7 +2296,8 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   unix,
   /dev/rfkill r,
   signal (send) peer=unconfined,
-  signal (send) set=(kill) peer=labwc-app//app-bwrap,
+  signal (send) set=(kill term) peer=labwc-app//app-bwrap,
+  ptrace (read) peer=labwc-app//app-bwrap,
   /{lib32,lib64,opt,sbin}/ r,
   /dev/ r,
   /dev/kfd r,
@@ -2345,6 +2312,7 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   /run/dbus/system_bus_socket rw,
   owner /run/user/[0-9]*/ r,
   owner /run/user/[0-9]*/labwc-tutanota-tmp/{,**} rwkl,
+  owner /run/user/[0-9]*/labwc-*-tmp/ rw,
   owner /run/user/[0-9]*/doc/ r,
   owner /run/user/[0-9]*/doc/** r,
   owner /run/user/[0-9]*/pulse/ r,
@@ -2356,6 +2324,13 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   member={GetNameOwner,NameHasOwner,StartServiceByName}
   peer=(name=org.freedesktop.DBus),
   owner @{HOME}/ r,
+  # Directory metadata for the persistent native application state.
+  owner @{HOME}/.{pki,mullvad,mullvad-browser,vscode,vscode-shared}/ rw,
+  owner @{HOME}/.pki/nssdb/ rw,
+  owner @{HOME}/.mullvad/mullvadbrowser/ rw,
+  owner @{HOME}/.ssh/ r,
+  owner @{HOME}/.ssh/{config,known_hosts} r,
+  owner @{HOME}/Postman/ rw,
   # Bitwarden prepares only these browser-specific native-messaging listener
   # directories. Keep creation and chmod access on the exact directory chain.
   owner @{HOME}/.mozilla/ rw,
@@ -2412,7 +2387,12 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   /opt/{Bitwarden,Filen,Obsidian,ledger-live,postman,sleek,tuta-mail}/ r,
   /opt/{Bitwarden,Filen,Obsidian,ledger-live,postman,sleek,tuta-mail}/** r,
   /usr/{lib32,lib64,sbin}/ r,
-  /usr/bin/{chromium,code,keepassxc,microsoft-edge-stable,mullvad-browser,qbittorrent,qoredb,retroarch,spotify,telegram-desktop,vivaldi-stable} r,
+  /usr/bin/{chromium,code,keepassxc,liferea,microsoft-edge-stable,mpv,mullvad-browser,qbittorrent,qoredb,retroarch,sdl-freerdp,sdl-freerdp3,spotify,telegram-desktop,vivaldi-stable} r,
+  /etc/freerdp/{,**} r,
+  /etc/krb5.conf{,.d/,.d/**} r,
+  /usr/local/bin/labwc-freerdp-askpass r,
+  /etc/opt/{,edge/,edge/**} r,
+  /etc/vivaldi/{,**} r,
   /var/lib/dbus/ r,
   /var/lib/dbus/machine-id r,
   # labwc-app constructs a fixed allowlisted environment before these
@@ -2450,12 +2430,45 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   # abstraction and explicitly inherit execution for the fixed managed
   # application allowlist.
   profile app-bwrap flags=(attach_disconnected, mediate_deleted) {
+    ptrace (readby) peer=labwc-app,
+    owner /run/user/[0-9]*/labwc-*-tmp/{,**} rwkl,
     #include <abstractions/bwrap-common>
     #include <abstractions/bwrap-desktop-runtime>
+    # Native network clients retain capability-free audio/WebKit access.
+    #include <abstractions/pipewire-audio>
+    #include <abstractions/webkit-runtime>
+    /sys/devices/virtual/dmi/id/{board_vendor,bios_vendor} r,
+    /etc/freerdp/{,**} r,
+    /etc/krb5.conf{,.d/,.d/**} r,
+    /usr/local/bin/labwc-freerdp-askpass rix,
+    # Only the FreeRDP policy binds the folder explicitly selected for drive
+    # redirection at this sandbox path. No generic HOME write grant is needed.
+    /rdp-shared/ rw,
+    /rdp-shared/** rwkl,
+    /etc/opt/{,edge/,edge/**} r,
+    /etc/vivaldi/{,**} r,
     # File-chooser selection does not grant AppArmor access by itself. Tuta's
     # attachments/downloads and managed browser file access use these roots;
     # Bubblewrap still controls which of them each application can see.
     #include <abstractions/user-documents>
+    # Bind policy exposes these nodes only to the two hardware clients.
+    /dev/bus/usb/{,**} rw,
+    /dev/input/{,**} rw,
+    /dev/{hidraw[0-9]*,uinput} rw,
+    /run/udev/data/{,c13:*,+input:input*} r,
+    @{sys}/devices/**/report_descriptor r,
+    owner @{HOME}/.mullvad-browser/{,**} rwkl,
+    owner @{HOME}/.mullvad/{,mullvadbrowser/,mullvadbrowser/**} rwkl,
+    owner @{HOME}/.config/{chromium,google-chrome,microsoft-edge,vivaldi}/NativeMessagingHosts/.bitwarden_desktop_proxy rix,
+    owner @{HOME}/.mozilla/native-messaging-hosts/.bitwarden_desktop_proxy rix,
+    owner @{HOME}/.var/app/org.mozilla.firefox/.mozilla/native-messaging-hosts/{,**} rwkl,
+    owner @{HOME}/.var/app/com.google.Chrome/config/google-chrome/NativeMessagingHosts/{,**} rwkl,
+    owner @{HOME}/.var/app/org.chromium.Chromium/config/chromium/NativeMessagingHosts/{,**} rwkl,
+    owner @{HOME}/.var/app/com.microsoft.Edge/config/microsoft-edge/NativeMessagingHosts/{,**} rwkl,
+    owner @{HOME}/.config/retroarch/cores/*.so mr,
+    owner @{HOME}/.local/share/retroarch/cores/*.so mr,
+    /usr/bin/qoredb rix,
+    owner /pool/db/*/qoredb/{,**} rwkl,
     # Preserve the no_new_privs domain for application-owned namespace probes.
     /usr/bin/unshare rix,
     # The installed xdg-open handler dispatches through labwc-wayland-app.
@@ -2465,13 +2478,13 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     /usr/local/bin/labwc-wayland-app rix,
     /usr/local/lib/python3.14/dist-packages/ r,
     /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
-    /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,integrity,generic,environment,commands,compat_protocol,profiles,browsers,runtime,events,electron,user_state,recovery,session}.py r,
+    /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,integrity,generic,environment,commands,compat_protocol,profiles,browsers,runtime,events,electron,user_state,recovery,session,network_client}.py r,
     owner /run/user/[0-9]*/labwc-session-closing r,
     include if exists <abstractions/user-tmp>
 
     unix,
     signal (send) peer=unconfined,
-    signal (receive) set=(kill) peer=labwc-app,
+    signal (receive) set=(kill term) peer=labwc-app,
     /{lib32,lib64,opt,sbin}/ r,
     /dev/ r,
     /dev/console rw,
@@ -2554,7 +2567,7 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     /usr/bin/obsidian rix,
     /usr/bin/sleek rix,
     /usr/bin/spotify rix,
-    /usr/bin/{chromium,code,keepassxc,microsoft-edge-stable,mullvad-browser,qbittorrent,retroarch,telegram-desktop,vivaldi-stable} rix,
+    /usr/bin/{chromium,code,keepassxc,liferea,microsoft-edge-stable,mpv,mullvad-browser,qbittorrent,retroarch,sdl-freerdp,sdl-freerdp3,telegram-desktop,vivaldi-stable} rix,
     /usr/lib/mullvad-browser/start-mullvad-browser rix,
     /usr/share/code/{bin/code,code} rix,
     /usr/share/spotify/ r,
@@ -2572,6 +2585,29 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     deny @{sys}/devices/**/iio:device[0-9]*/in_accel_{offset,sampling_frequency,scale,x_raw,y_raw,z_raw} r,
   }
 
+
+  profile code-bwrap flags=(attach_disconnected, mediate_deleted) {
+    ptrace (readby) peer=labwc-app,
+    owner /run/user/[0-9]*/labwc-code-tmp/{,**} rwkl,
+    #include <abstractions/bwrap-common>
+    #include <abstractions/wrapper-python>
+    include <local/code>
+    /usr/bin/bwrap rix,
+    /usr/local/lib/python3.14/dist-packages/ r,
+    /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
+    /usr/local/lib/python3.14/dist-packages/labwc_managed_app/*.py r,
+    owner /run/user/[0-9]*/labwc-code-{sandbox,privacy}-*/{,**} rwkl,
+    owner /tmp/labwc-code-{sandbox,privacy}-*/{,**} rwkl,
+    owner @{HOME}/.vscode{,-shared}/** rix,
+    /pool/ r,
+    owner /pool/** rwklm,
+    @{PROC}/@{pid}/net/{tcp,tcp6,udp,udp6} r,
+    signal (receive) set=(kill term) peer=labwc-app,
+    deny /run/app-veth/{,**} rw,
+    deny /opt/xwayland/{,**} rxm,
+    deny /usr/bin/Xwayland rxm,
+    deny /tmp/.X11-unix/{,**} rw,
+  }
 
   include if exists <local/usr.local.bin.labwc-app>
 }
@@ -2791,6 +2827,8 @@ profile labwc-power-settings /usr/local/bin/labwc-power-settings flags=(attach_d
 }
 
 profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconnected) {
+  #include <abstractions/app-veth-client>
+  owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/resolv.conf rw,
   #include <abstractions/wrapper-wayland>
   #include <abstractions/wrapper-python>
 
@@ -2800,7 +2838,6 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
   /usr/bin/systemd-run rpux,
   /usr/{sbin,bin}/ip rix,
   network netlink raw,
-  /usr/bin/pasta rPx -> qbittorrent-pasta,
   network unix stream,
   /usr/local/lib/python3.14/ r,
   /usr/local/lib/python3.14/dist-packages/ r,
@@ -2808,9 +2845,8 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/*.py r,
   owner @{PROC}/@{pid}/fd/ r,
   owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/ rw,
-  owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/{resolv.conf,pasta.pid} rw,
-  signal (send) peer=qbittorrent-pasta,
   signal (send) peer=labwc-qbittorrent//qbittorrent-bwrap,
+  ptrace (read) peer=labwc-qbittorrent//qbittorrent-bwrap,
   owner /run/user/[0-9]*/labwc-session-closing r,
   /usr/bin/bwrap rCx -> qbittorrent-bwrap,
   /etc/labwc/desktop.conf r,
@@ -2849,6 +2885,7 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
   # direct qBittorrent launch therefore enters the qbittorrent attachment
   # without namespace-construction permissions.
   profile qbittorrent-bwrap flags=(attach_disconnected, mediate_deleted) {
+    ptrace (readby) peer=labwc-qbittorrent,
     #include <abstractions/bwrap-common>
     #include <abstractions/qbittorrent-runtime>
     # The fixed startup gate inherits confinement and execs qBittorrent only
@@ -2857,7 +2894,6 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
     /usr/bin/python3{,.[0-9]*} rix,
     include if exists <abstractions/user-tmp>
 
-    ptrace (readby) peer=qbittorrent-pasta,
     signal (receive) set=(exists kill term) peer=labwc-qbittorrent,
     /etc/labwc/desktop.conf r,
     owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/resolv.conf r,
@@ -2896,61 +2932,6 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
   include if exists <local/usr.local.bin.labwc-qbittorrent>
 }
 
-profile qbittorrent-pasta flags=(attach_disconnected) {
-  # Only this helper configures the private TAP. The torrent payload drops all
-  # capabilities and never receives /dev/net/tun, helper state, or host network.
-  userns,
-  capability net_admin,
-  capability net_bind_service,
-  capability sys_admin,
-  capability sys_ptrace,
-  capability setuid,
-  capability setgid,
-  capability setpcap,
-  # pasta's native sandbox pivots into an empty, read-only private tmpfs.
-  mount options=(rw, runbindable) -> /,
-  mount "" -> /,
-  mount "" -> /tmp/,
-  pivot_root /tmp/ -> /tmp/,
-  umount /,
-  network unix stream,
-  network unix dgram,
-  network netlink raw,
-  network inet stream,
-  network inet dgram,
-  # pasta probes IPv6 TCP support during initialization, including when its
-  # fixed launcher selects --ipv4-only. Forwarding remains IPv4-only.
-  network inet6 stream,
-  ptrace (read) peer=labwc-qbittorrent//qbittorrent-bwrap,
-  ptrace (readby) peer=desktop-launcher,
-  ptrace (readby) peer=waypaper//waypaper-ps,
-  ptrace (readby) peer=aa-status-reader,
-  signal (send, receive) peer=@{profile_name},
-  signal (receive) set=(exists kill term) peer=labwc-qbittorrent,
-  / r,
-  /dev/null rw,
-  /dev/net/tun rw,
-  /dev/urandom r,
-  /etc/ld.so.cache r,
-  /etc/resolv.conf r,
-  /run/resolvconf/resolv.conf r,
-  /run/systemd/resolve/{stub-resolv.conf,resolv.conf} r,
-  /usr/bin/pasta mr,
-  /usr/bin/pasta.avx2 rix,
-  /usr/lib/@{multiarch}/ld-linux-*.so* mr,
-  /usr/lib/@{multiarch}/libc.so* mr,
-  /etc/{nsswitch.conf,passwd,group} r,
-  # pasta tests whether its caller is in the initial user namespace before
-  # joining the pre-existing private namespace, even when started rootless.
-  owner @{PROC}/@{pid}/uid_map r,
-  @{PROC}/[0-9]*/ns/ r,
-  @{PROC}/[0-9]*/ns/{net,user} r,
-  @{PROC}/sys/net/ipv4/{ip_local_port_range,tcp_syn_retries,tcp_syn_linear_timeouts,tcp_rto_max_ms} r,
-  @{PROC}/sys/net/netfilter/nf_conntrack_udp_timeout{,_stream} r,
-  owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/ r,
-  owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/pasta.pid rw,
-}
-
 profile labwc-recovery-action /usr/local/bin/labwc-recovery-action flags=(attach_disconnected) {
   #include <abstractions/wrapper-terminal>
   #include <abstractions/wrapper-desktop>
@@ -2971,6 +2952,7 @@ profile labwc-remote-desktop /usr/local/bin/labwc-remote-desktop flags=(attach_d
   #include <abstractions/wrapper-python>
 
   /usr/local/bin/labwc-remote-desktop rix,
+  /usr/local/bin/labwc-app rPx -> labwc-app,
   /usr/bin/notify-send pux,
   /usr/bin/{freerdp-sdl,sdl-freerdp,sdl-freerdp3,thunar,wlfreerdp,xfreerdp} pux,
   /usr/local/bin/labwc-freerdp-askpass rPx -> labwc-freerdp-askpass,
@@ -3977,6 +3959,7 @@ profile labwc-generic-app /usr/local/bin/labwc-{electron,wayland}-app flags=(att
   owner /run/user/[0-9]*/labwc-session-closing r,
   owner /run/user/[0-9]*/labwc-activation-* rw,
   #include <abstractions/wrapper-wayland>
+  #include <abstractions/managed-app-config>
   #include <abstractions/wrapper-python>
   include if exists <abstractions/dbus-session-strict>
   /usr/local/bin/labwc-{electron,wayland}-app rix,
@@ -4008,7 +3991,8 @@ profile labwc-wrap-desktop-files /usr/local/libexec/labwc-wrap-desktop-files fla
   capability fowner,
   /usr/local/libexec/labwc-wrap-desktop-files r,
   /usr/bin/{dpkg,dpkg-deb,dpkg-query,desktop-file-validate,update-desktop-database} rix,
-  /usr/bin/{gzip,xz,zstd} rix,
+  # dpkg-deb --contents uses tar when a new package has no md5sums metadata.
+  /usr/bin/{gzip,tar,xz,zstd} rix,
   /var/cache/apt/archives/{,partial/}*.deb r,
   /home/*/**.deb r,
   /data/{downloads,tmp}/**.deb r,

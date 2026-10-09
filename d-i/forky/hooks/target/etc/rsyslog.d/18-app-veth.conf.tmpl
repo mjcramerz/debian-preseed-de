@@ -1,0 +1,12 @@
+# Root service lifecycle records, before application and fallback routing.
+if ($inputname == "imuxsock" and exists($!uid) and cnum($!uid) == 0 and
+    $programname == "app-veth") then {
+  action(type="omfile" file="__INSTALLER_LOG_VETH_FILE__"
+         template="RSYSLOG_FileFormat" createDirs="off" sync="off"
+         action.resumeRetryCount="-1"
+         action.resumeInterval="__INSTALLER_LOG_RSYSLOG_RESUME_SECONDS__"
+         rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+         rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+         rotation.sizeLimitCommandPassFileName="on")
+  stop
+}

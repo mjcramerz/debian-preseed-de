@@ -52,6 +52,24 @@ ACCELERATION_DEFAULT_KEYS = {
 
 APP_CONFIG = (
     {
+        "desktop_names": ("sdl-freerdp.desktop", "sdl-freerdp3.desktop", "org.freerdp.FreeRDP.desktop"),
+        "action_app": "freerdp",
+        "field_code": "%f",
+        "actions": ("IntelAccelerated", "NvidiaAccelerated"),
+    },
+    {
+        "desktop_names": ("mpv.desktop",),
+        "action_app": "mpv",
+        "field_code": "%U",
+        "actions": ("IntelAccelerated", "NvidiaAccelerated"),
+    },
+    {
+        "desktop_names": ("net.sourceforge.liferea.desktop", "liferea.desktop"),
+        "action_app": "liferea",
+        "field_code": "%U",
+        "actions": ("IntelAccelerated", "NvidiaAccelerated"),
+    },
+    {
         "desktop_names": ("chromium.desktop",),
         "action_app": "chromium",
         "field_code": "%U",

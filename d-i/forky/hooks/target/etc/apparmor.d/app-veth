@@ -1,0 +1,64 @@
+#include <tunables/global>
+
+# The sole privileged network constructor has no user files, shells, package
+# execution, payload exec, host namespace request, or arbitrary command path.
+profile app-veth /usr/local/sbin/app-veth flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/nameservice-strict>
+  capability net_admin,
+  capability sys_admin,
+  network unix seqpacket,
+  network unix dgram,
+  network inet stream,
+  network inet dgram,
+  network netlink raw,
+  network netlink dgram,
+  /usr/local/sbin/app-veth r,
+  /etc/app-veth.json r,
+  /etc/iproute2/{,**} r,
+  /usr/lib/iproute2/{,**} r,
+  /usr/share/iproute2/{,**} r,
+  /etc/protocols r,
+  /etc/services r,
+  /etc/nftables/{,**} r,
+  # Forky resolves the compatibility /usr/sbin/ip symlink to /usr/bin/ip.
+  /usr/{bin,sbin}/ip rix,
+  /usr/sbin/{nft,sysctl} rix,
+  /usr/bin/nsenter rix,
+  /usr/lib/@{multiarch}/lib*.so* mr,
+  /usr/lib/@{multiarch}/xtables/*.so* mr,
+  /run/app-veth/ rw,
+  /run/app-veth/control.sock rw,
+  /run/systemd/notify w,
+  @{PROC}/sys/net/ipv4/ip_forward r,
+  @{PROC}/sys/net/ipv4/conf/veth[0-9]*-app/{route_localnet,rp_filter} rw,
+  @{PROC}/sys/net/ipv6/conf/all/disable_ipv6 rw,
+  @{PROC}/[0-9]*/ns/{net,user} r,
+  owner @{PROC}/@{pid}/{mounts,stat,status} r,
+  owner @{PROC}/@{pid}/fd/{,[0-9]*} r,
+  # Forky's nsfs handle is mediated as "/" with attach_disconnected, even
+  # when opened via /proc/self/ns/net. This exact read is not recursive.
+  / r,
+  /net:\[[0-9]*\] r,
+  /user:\[[0-9]*\] r,
+  owner /tmp/{,**} rw,
+  signal (send, receive) peer=app-veth,
+  signal (receive) set=(term,kill,int) peer=unconfined,
+}
+
+# Podman uses a fixed configured helper ABI for its rootless uplink. This
+# helper has no capabilities and sends a namespace FD to the constructor.
+profile app-veth-podman /usr/local/libexec/app-veth-podman flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/app-veth-client>
+  /usr/local/libexec/app-veth-podman r,
+  owner /run/podman-devops/** r,
+  # nsfs bind mounts retain root-owned inode metadata. Permit only Netavark's
+  # rootless namespace endpoint independently of the ordinary devops files.
+  /run/podman-devops/**/rootless-netns/rootless-netns r,
+  /net:\[[0-9]*\] r,
+  /dev/pts/[0-9]* rw,
+  signal (receive) peer=unconfined,
+  signal (send) set=(chld) peer=unconfined,
+  ptrace (readby) peer=unconfined,
+}

@@ -7,12 +7,16 @@ import json
 import os
 from pathlib import Path
 import socket
+import sys
 import tempfile
 import unittest
 from unittest import mock
 import test_desktop_sandbox as desktop
 import test_power_runtime_20260920 as power_tests
-from payload_fixture import read_text
+from payload_fixture import read_text, python_library
+
+sys.path.insert(0, str(python_library(desktop.DESKTOP / 'usr/local/lib/python3.14/dist-packages')))
+from labwc_managed_app import network_client
 
 
 class WrapperRegressionTests(unittest.TestCase):
@@ -26,14 +30,14 @@ class WrapperRegressionTests(unittest.TestCase):
                 enabled, actual = self.c.codex_parse_arguments(argv)
                 self.assertTrue(enabled)
                 self.assertEqual(actual, argv)
-                self.assertFalse(self.c.CODEX_ISOLATED_NETWORK)
+                self.assertTrue(self.c.CODEX_ISOLATED_NETWORK)
 
     def test_default_and_explicit_isolated_network(self):
         enabled, actual = self.c.codex_parse_arguments(['--isolated-network', 'exec', 'hello'])
         self.assertTrue(enabled and self.c.CODEX_ISOLATED_NETWORK)
         self.assertEqual(actual, ['exec', 'hello'])
         self.c.codex_parse_arguments([])
-        self.assertFalse(self.c.CODEX_ISOLATED_NETWORK)
+        self.assertTrue(self.c.CODEX_ISOLATED_NETWORK)
 
     def test_incompatible_modes_are_rejected(self):
         for argv in (['--isolated-network', '--no-bwrap'],
@@ -53,38 +57,53 @@ class WrapperRegressionTests(unittest.TestCase):
                 self.assertIn(flag, args)
             self.assertFalse(any('installation_id' in value for value in args))
 
-    def test_both_network_modes_release_payload_and_reap_supervision(self):
-        for isolated in (False, True):
-            with self.subTest(isolated=isolated), tempfile.TemporaryDirectory() as tmp:
+    def test_kernel_network_releases_payload_and_reaps_supervision(self):
+            with tempfile.TemporaryDirectory() as tmp:
                 self.c.CODEX_CONTROL_DIR = tmp
-                self.c.CODEX_ISOLATED_NETWORK = isolated
+                self.c.CODEX_ISOLATED_NETWORK = True
                 self.c.CODEX_ARGS = ['exec', 'hello']
-                processes = [mock.Mock(), mock.Mock()]
-                for process in processes:
-                    process.poll.return_value = None
-                    process.wait.return_value = 0
+                process = mock.Mock()
+                process.poll.return_value = None
+                process.wait.return_value = 0
+                events = []
+                lease = mock.Mock()
+                lease.close.side_effect = lambda: events.append('lease-close')
                 pidfd = os.open('/dev/null', os.O_RDONLY)
                 with mock.patch.object(self.c, 'codex_prepare_control_state'), \
                      mock.patch.object(self.c, 'codex_prepare_identity_files'), \
                      mock.patch.object(self.c, 'codex_build_bwrap_args', return_value=['bwrap']), \
                      mock.patch.object(self.c, 'codex_clear_app_server_environment') as clear, \
                      mock.patch.object(self.c, '_read_json_fd', return_value=b'{"child-pid":4321}'), \
-                     mock.patch.object(self.c, '_pid_alive', return_value=True), \
-                     mock.patch.object(self.c.os, 'pidfd_open', return_value=pidfd), \
+                     mock.patch.object(network_client, 'pin_sandbox_init', return_value=pidfd), \
+                     mock.patch.object(network_client.Lease, 'for_pid', return_value=lease) as acquire, \
+                     mock.patch.object(self.c.signal, 'pidfd_send_signal', side_effect=lambda *args: events.append('namespace-stop')) as stop, \
                      mock.patch.object(self.c.os, 'write', return_value=1) as release, \
-                     mock.patch.object(self.c, '_read_ready_byte', return_value=b'1') as ready, \
-                     mock.patch.object(self.c.subprocess, 'Popen', side_effect=processes) as spawn:
+                     mock.patch.object(self.c.subprocess, 'Popen', return_value=process) as spawn:
                     self.assertEqual(self.c.codex_run_sandboxed(), 0)
-                    self.assertEqual(spawn.call_count, 2 if isolated else 1)
-                    self.assertEqual(ready.call_count, int(isolated))
+                    self.assertEqual(spawn.call_count, 1)
+                    acquire.assert_called_once_with(4321, 'codex')
                     clear.assert_called_once()
-                    release.assert_called_once()
-                    self.assertEqual(release.call_args.args[1], b'1')
+                    self.assertEqual(release.call_count, 2)
+                    self.assertTrue(all(call.args[1] == b'1' for call in release.call_args_list))
                     self.assertEqual(spawn.call_args_list[0].args[0][-2:], ['exec', 'hello'])
                 self.assertIsNone(self.c.CODEX_BWRAP_PROCESS)
-                self.assertIsNone(self.c.CODEX_SLIRP_PROCESS)
+                self.assertEqual(events, ['namespace-stop', 'lease-close'])
+                stop.assert_called_once_with(pidfd, self.c.signal.SIGKILL)
+                self.assertIsNone(self.c.CODEX_NETWORK_LEASE)
                 self.assertIsNone(self.c.CODEX_SANDBOX_PIDFD)
                 with self.assertRaises(OSError): os.fstat(pidfd)
+
+    def test_signal_cleanup_stops_namespace_before_releasing_network_lease(self):
+        events = []
+        self.c.CODEX_NETWORK_LEASE = mock.Mock()
+        self.c.CODEX_NETWORK_LEASE.close.side_effect = lambda: events.append('lease-close')
+        with mock.patch.object(self.c, 'codex_clear_app_server_environment'), \
+                mock.patch.object(self.c, '_signal_sandbox', side_effect=lambda sig: events.append(sig)), \
+                mock.patch.object(self.c, '_terminate_process'), \
+                mock.patch.object(self.c, '_close_fd'):
+            self.c.codex_cleanup()
+        self.assertEqual(events, [self.c.signal.SIGTERM, self.c.signal.SIGKILL, 'lease-close'])
+        self.assertIsNone(self.c.CODEX_NETWORK_LEASE)
 
     def test_client_environment_is_explicit_bounded_and_not_loader_environment(self):
         allowed = {'RUST_LOG': 'debug', 'TERM': 'xterm-256color',
@@ -124,10 +143,11 @@ class WrapperRegressionTests(unittest.TestCase):
                  mock.patch.object(self.c, 'codex_control_root', return_value=tmp), \
                  mock.patch.dict(os.environ, HOME='/home/desktop'), \
                  mock.patch.object(self.c, 'codex_generate_uuid', return_value='12345678-1234-1234-1234-123456789abc'), \
+                 mock.patch.object(self.c, 'codex_veth_resolver_configuration', return_value=b'nameserver 10.0.2.3\nsearch lan.example\n'), \
                  mock.patch.object(self.c, '_read_bounded_text', return_value='nameserver 127.0.0.53') as read:
                 self.c.CODEX_ISOLATED_NETWORK = isolated
                 directory = Path(self.c.codex_prepare_identity_files(os.getuid(), os.getgid()))
-                expected = self.c.CODEX_RESOLVER_CONFIGURATION if isolated else b'nameserver 127.0.0.53\n'
+                expected = b'nameserver 10.0.2.3\nsearch lan.example\n' if isolated else b'nameserver 127.0.0.53\n'
                 self.assertEqual((directory/'resolv.conf').read_bytes(), expected)
                 self.assertFalse((directory/'installation_id').exists())
                 self.assertEqual(read.call_count, int(not isolated))
@@ -209,6 +229,9 @@ class PowerRegressionTests(unittest.TestCase):
     def test_force_occurs_only_after_sync_and_reservation_recheck(self):
         events = []
         w = self.p.Worker(1000, 'desktop', 'reboot'); w.prepared = True
+        w.session_stopped = w.storage_stopped = True
+        w.external_drives_prepared = True
+        w.prepare_external_drives = mock.Mock(side_effect=lambda: events.append('drive-recheck'))
         w.package_locks = mock.Mock()
         w.package_locks.verify.side_effect = lambda: events.append('verify')
         with mock.patch.object(w, 'protect_other_sessions', side_effect=lambda: events.append('accounts')), \
@@ -218,6 +241,7 @@ class PowerRegressionTests(unittest.TestCase):
              contextlib.redirect_stderr(io.StringIO()):
             w.final_power_action()
             self.assertEqual(events[-1], handoff_argv('reboot'))
+            self.assertLess(events.index('drive-recheck'), events.index('sync'))
             self.assertIn(('inhibitors', {}), events)
             self.assertEqual(events[events.index('sync')+1], 'verify')
             with self.assertRaises(self.p.Error): w.final_power_action()
@@ -225,6 +249,9 @@ class PowerRegressionTests(unittest.TestCase):
 
     def test_sync_failure_never_submits_force(self):
         w = self.p.Worker(1000, 'desktop', 'poweroff'); w.prepared = True
+        w.session_stopped = w.storage_stopped = True
+        w.external_drives_prepared = True
+        w.prepare_external_drives = mock.Mock()
         w.package_locks = mock.Mock()
         with mock.patch.object(w, 'protect_other_sessions'), \
              mock.patch.object(self.p, 'check_shutdown_inhibitors'), \

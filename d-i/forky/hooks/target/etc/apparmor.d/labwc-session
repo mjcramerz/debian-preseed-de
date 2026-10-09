@@ -94,6 +94,9 @@ profile waybar /usr/{bin/waybar,local/libexec/labwc-waybar-exec} flags=(attach_d
   /usr/local/lib/python3.14/dist-packages/ r,
   # Click callbacks dispatch through this user manager, not panel-owned children.
   owner /run/user/[0-9]*/systemd/private rw,
+  # Keep direct/future panel btop launches in the dedicated monitor domain;
+  # the current click path still uses the transient terminal service.
+  /usr/bin/btop rPx -> desktop-btop,
   /usr/bin/bwrap rPx -> session-glycin-bwrap,
   /usr/local/share/satty/ r,
   /usr/local/share/satty/** r,

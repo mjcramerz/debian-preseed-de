@@ -6,6 +6,11 @@
 
 userns,
 
+# Every managed Bubblewrap payload may receive a signal from btop. The kernel
+# still requires the same host UID for signal delivery; this is the AppArmor
+# receiver side of that user-owned process-control contract.
+include if exists <abstractions/base.d/managed-process-monitor>
+
 capability chown,
 capability dac_override,
 capability setgid,

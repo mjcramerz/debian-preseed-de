@@ -15,6 +15,7 @@ profile labwc-zoom-discord-compat-runtime /usr/local/libexec/labwc-zoom-discord-
 }
 
 profile labwc-wayland-compat-app /usr/local/bin/labwc-wayland-compat-app flags=(attach_disconnected) {
+  #include <abstractions/app-veth-client>
   # Launching from a terminal inherits the user's PTY until systemd handoff.
   owner /dev/pts/[0-9]* rw,
   owner /run/user/[0-9]*/labwc-session-closing r,
@@ -24,11 +25,10 @@ profile labwc-wayland-compat-app /usr/local/bin/labwc-wayland-compat-app flags=(
   /usr/local/bin/labwc-wayland-compat-app rix,
   /usr/local/lib/python3.14/dist-packages/ r,
   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
-  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,compat_gpu,compat_instance,compat_portal,compat_protocol,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_namespace,profiles,recovery,runtime,sandbox,session,user_state,wayland_compat,wayland_compat_runtime}.py r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,compat_gpu,compat_instance,compat_portal,compat_protocol,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_client,network_namespace,profiles,recovery,runtime,sandbox,session,user_state,wayland_compat,wayland_compat_runtime}.py r,
   /dev/log w,
   /run/systemd/journal/dev-log w,
   /usr/bin/bwrap rCx -> wayland-compat-app-bwrap,
-  /usr/bin/slirp4netns rPx -> wayland-compat-slirp4netns,
   /usr/bin/cage r,
   # Preserve only the wrapper's validated user-manager environment while the
   # transient service takes ownership of the complete Cage process tree.
@@ -41,11 +41,11 @@ profile labwc-wayland-compat-app /usr/local/bin/labwc-wayland-compat-app flags=(
   owner /run/user/[0-9]*/labwc-compat-{discord,zoom}/{launch.lock,instance.lock} rwk,
   owner /run/user/[0-9]*/labwc-compat-{discord,zoom}/instance.sock rw,
   signal (send) set=(hup int term kill) peer=labwc-wayland-compat-app//wayland-compat-app-bwrap,
+  ptrace (read) peer=labwc-wayland-compat-app//wayland-compat-app-bwrap,
   signal (receive) set=(hup int term kill) peer=unconfined,
   /usr/bin/xdg-dbus-proxy rCx -> wayland-compat-dbus-proxy,
   unix,
   signal (send) set=(kill term) peer=labwc-wayland-compat-app//wayland-compat-dbus-proxy,
-  signal (send) set=(exists kill term) peer=wayland-compat-slirp4netns,
   /{lib32,lib64,opt,sbin}/ r,
   /dev/ r,
   deny /dev/{kfd,accel} rw,
@@ -322,6 +322,7 @@ profile labwc-wayland-compat-app /usr/local/bin/labwc-wayland-compat-app flags=(
     owner /tmp/labwc-compat-primary-*/ rw,
     owner /tmp/labwc-compat-primary-*/primary.sock rw,
     signal (receive) set=(hup int term kill) peer=labwc-wayland-compat-app,
+    ptrace (readby) peer=labwc-wayland-compat-app,
     signal (receive) set=(hup int term kill) peer=unconfined,
     /usr/local/lib/python3.14/dist-packages/ r,
     /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
@@ -351,42 +352,6 @@ profile labwc-wayland-compat-app /usr/local/bin/labwc-wayland-compat-app flags=(
   }
 
   include if exists <local/usr.local.bin.labwc-wayland-compat-app>
-}
-
-profile wayland-compat-slirp4netns flags=(attach_disconnected) {
-  # The Zoom/Discord compatibility path needs a private network namespace so
-  # wlroots cannot collide with the host Xwayland abstract Unix socket. Keep
-  # its network helper separate from ChatGPT, Codex, and rootless Podman.
-  userns,
-
-  capability net_admin,
-  capability sys_admin,
-  capability sys_ptrace,
-
-  network create unix stream,
-  network inet stream,
-  network inet dgram,
-  ptrace (read) peer=labwc-wayland-compat-app//wayland-compat-app-bwrap,
-  signal (receive) set=(exists kill term) peer=labwc-wayland-compat-app,
-
-  / r,
-  /dev/null rw,
-  /dev/net/tun rw,
-  /dev/urandom r,
-  /etc/ld.so.cache r,
-  /etc/resolv.conf r,
-  /run/resolvconf/resolv.conf r,
-  /run/systemd/resolve/stub-resolv.conf r,
-  /usr/bin/slirp4netns mr,
-  /usr/lib/@{multiarch}/ld-linux-*.so* mr,
-  /usr/lib/@{multiarch}/lib{atomic,c,glib-2.0,m,pcre2-8,seccomp,slirp}.so* mr,
-  @{PROC}/[0-9]*/ns/{net,user} r,
-  owner /run/user/[0-9]*/labwc-discord-sandbox-*/slirp4netns.api rw,
-  owner /tmp/labwc-discord-sandbox-*/slirp4netns.api rw,
-  owner /run/user/[0-9]*/labwc-{discord,zoom}-sandbox-*/slirp4netns.stderr rw,
-  owner /tmp/labwc-{discord,zoom}-sandbox-*/slirp4netns.stderr rw,
-
-  include if exists <local/usr.bin.slirp4netns-wayland-compat>
 }
 
 # The desktop session and ordinary applications must not start Cage or either

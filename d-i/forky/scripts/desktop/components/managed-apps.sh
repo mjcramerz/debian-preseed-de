@@ -22,6 +22,7 @@ identity.py
 integrity.py
 mounts.py
 network_namespace.py
+network_client.py
 profiles.py
 recovery.py
 runtime.py
@@ -205,10 +206,6 @@ desktop_stage_labwc_managed_app_python_modules() {
   managed_app_package_parent=$(dirname -- "$managed_app_package_dir")
   managed_app_manifest="${TMP_ENV_DIR}/labwc-app.manifest.$$"
 
-  if [ -e "$managed_app_package_dir" ] || [ -L "$managed_app_package_dir" ]; then
-    installer_fatal \
-      "managed application package destination already exists in fresh target: ${managed_app_package_path}"
-  fi
   install -d -o root -g root -m 0755 "$managed_app_package_parent"
 
   for managed_app_trusted_path in \
@@ -368,4 +365,3 @@ desktop_stage_labwc_adb_perl_modules() {
         0644
     done
 }
-

@@ -1,0 +1,26 @@
+# Only the supervisor opens this socket. The private /run masks it in payloads.
+/usr/local/lib/python3.14/dist-packages/ r,
+/usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
+/usr/local/lib/python3.14/dist-packages/labwc_managed_app/__init__.py r,
+/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_client.py r,
+/usr/local/lib/python3.14/dist-packages/labwc_managed_app/integrity.py r,
+/run/ r,
+/run/systemd/resolve/stub-resolv.conf r,
+/run/app-veth/ r,
+/run/app-veth/control.sock rw,
+network unix seqpacket,
+# The supervisor inspects the blocked init in its caller-owned user namespace.
+# Linux grants the creator capabilities in that child namespace; AppArmor must
+# permit this read-side check too. No capability is added to the host process,
+# and the including profiles retain their explicit ptrace peer restrictions.
+capability sys_ptrace,
+# Namespace inodes are root-owned even when their owning user namespace belongs
+# to the desktop account. DAC/ptrace checks and the broker's FD/uid validation
+# still apply; an owner qualifier here rejects the real nsfs inode.
+@{PROC}/[0-9]*/ns/{net,pid} r,
+@{PROC}/[0-9]*/status r,
+# attach_disconnected can mediate the root-owned nsfs handle as exactly "/".
+# Opening a procfs namespace path needs this read too; it grants no child paths.
+/ r,
+/net:\[[0-9]*\] r,
+/pid:\[[0-9]*\] r,

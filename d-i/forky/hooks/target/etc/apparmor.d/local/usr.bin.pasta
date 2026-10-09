@@ -1,6 +1,0 @@
-# Managed rootless network namespaces are volatile, never stored on /pool.
-# Keep the rest of Podman storage private. UID is checked by ordinary DAC.
-owner /run/user/[0-9]*/netns/ r,
-owner /run/user/[0-9]*/netns/netns-* r,
-owner /run/user/[0-9]*/containers/networks/ r,
-owner /run/user/[0-9]*/containers/networks/** r,

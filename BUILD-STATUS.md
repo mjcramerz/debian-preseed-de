@@ -1,11 +1,120 @@
-# Build status - 2026-10-07 desktop runtime and qBittorrent networking
+# Build status - 2026-10-09 LPL-746 namespace-read repair
 
-The [desktop runtime validation record](docs/validation/desktop-runtime-20261007.md)
-covers all 48 TODO files and the complete uncommitted integration. qBittorrent
-uses packaged slirp4netns in a private network, with TCP and UDP forwarding on
-the profile-selected port and active IPv4 route. Startup readiness, concurrent
-launch IPC and cancellation are bounded. Mounted torrent storage has scoped
-sysfs metadata reads and no raw block-device access.
+The latest [LPL-746 follow-up](docs/validation/installed-startup-20261009/lpl746-namespace-read.md)
+covers all 45 current TODO files and all 8,936 physical lines, including the
+complete copied installer-state folder. Its validation report records one
+failure: `failed-units-present`, listing `app-veth.service` and
+`podman-devops.socket`. The broker exits while opening `/proc/self/ns/net`,
+before creating the boot pool; Podman activation then exhausts its socket
+trigger limit. All nine captured AppArmor denials mediate that namespace read
+as the exact path `/` in the enforced `app-veth` profile.
+
+The broker and common namespace-client policies now permit that exact read and
+correctly escape the literal brackets in nsfs names. Native compiler-mask
+checks cover eight broker/client domains, root-owned namespace handles, and
+continued exclusion of unrelated host files. The boot pool remains fixed at
+`veth0-app` through `veth31-app`, created before readiness and app leases.
+
+The current integration run passes **541 of 593 tests**, with **52 explicit
+skips** and no failures/errors. All **46 policies parse offline**. The rebuilt
+**1,725-member** payload, manifest and preseed pins pass the builder's check and
+complete archive read-back. Starting user changes and private-display sources
+pass the preservation check. The historical complain-capture test is skipped
+when that capture has been replaced; the enforced namespace regression runs.
+
+The copied host reports **systemd 262-1**, while the requested target remains
+**Forky/systemd 261.2**. This is a repository and installer-snapshot repair;
+installed policy enforcement, a clean firstboot run and actual application
+traffic still require target acceptance. Recorded firmware/kernel warnings
+have no independently established repository cause. Private Xwayland remains
+scoped to Zoom and Discord; no software compilation or live deployment occurred.
+
+## Previous snapshot record - 2026-10-09 LPL-948 fixed veth pool and startup repair
+
+`app-veth.service` now pre-creates 32 separate pairs before publishing its
+control socket and systemd readiness. Host adapters retain `veth0-app` through
+`veth31-app` for their entire lifetime. Idle peers are `vethN-peer`; authenticated
+leases move an existing peer into the caller's namespace, and cleanup returns
+that DOWN, address-free peer for reuse. There is no application-name table or
+per-application host-interface rename. Structured lifecycle logs identify the
+application and its assigned host interface.
+
+NetworkManager excludes all 64 pool endpoint names literally; its matcher does
+not support bracket ranges. The service and host firewall use the same fixed
+host names. Boot tags are applied explicitly after `ip link add`, because the
+native veth create path did not retain an inline alias. Interrupted, untagged
+creation is recoverable only for an exact, mutually paired, DOWN, address-free
+idle pair. Tagged recovery preserves unrelated interfaces.
+
+The earlier LPL-948 evidence identified the shared launcher failure: AppArmor denied
+the supervisor's namespace-inspection capability and reciprocal SIGTERM to its
+Bubblewrap child. The common client abstraction now permits that child namespace
+check without adding a host capability; existing explicit ptrace peers remain.
+The missing labwc-app/app-bwrap TERM pair and immutable iproute2 lookup reads are
+included. The Podman adapter supports the side-effect-free `--version` probe.
+The additional LPL-550 `dpkg-deb` tar denial is repaired by allowing `/usr/bin/tar`
+to inherit the desktop package wrapper's confinement. The optional metadata
+fallback and effective rule pass a separate 32-test AppArmor/package selection.
+All active service, helper, policy, configuration, installer and diagnostic
+references use `app-veth`; host adapters use only the fixed `vethN-app` defaults.
+
+The [LPL-948 startup repair record](docs/validation/installed-startup-20261009/README.md)
+accounts for all five TODO files supplied at that point and all 1,246 lines,
+including `apparmor1`. The earlier 91-file record below is historical; its
+validation did not establish enforcement on the newly supplied installed host.
+The integration selection runs 593 tests: 541 pass and 52 are skipped. The later
+tar-specific selection passes all 32 tests without skips.
+The 61-test kernel-networking selection includes real creation of all 32 DOWN
+pairs, address/index checks, recovery and inspection of a real blocked
+Bubblewrap init. Native nftables validates the fixed-name rules and lease
+transactions. All 46 AppArmor policies parse offline, 350 shell files pass 711
+parser checks, 59 preseeds pass private debconf validation, and 18 logging
+contracts plus native rsyslog configuration parsing pass.
+
+The payload is rebuilt with 1,725 members and refreshed manifest/preseed pins.
+The record distinguishes fixture checks and native isolated checks from target
+execution. The installed-host DNS/packet path and AppArmor enforcement still
+require deployment acceptance. The single eDP-1 atomic EBUSY record lacks a
+corresponding output-helper mutation or compositor exit in this capture; its
+hardware cause remains unverified. Private Xwayland behavior remains scoped to
+Zoom and Discord. No software compilation, host policy load, desktop restart,
+router change, or live deployment occurred.
+
+## Previous snapshot record - 2026-10-08 kernel veth namespace networking
+
+The managed desktop, Codex, ChatGPT, qBittorrent, Zoom, Discord, Tuta, and
+rootless Podman paths now use a root-owned kernel veth supervisor. It allocates
+one private network namespace lease per process, preserves the selected route
+MTU, programs nftables before releasing Bubblewrap's startup gate, and removes
+the link and rules on lease close. Podman keeps Netavark for its internal
+bridges; its network command is a local lease client and no packet-proxy
+package is installed.
+
+The supervisor uses an extra loopback listener of host systemd-resolved for DNS,
+preserves resolved search domains in private resolver files, validates namespace
+ownership through the transferred network-namespace FD, rejects host namespaces,
+and writes structured lifecycle records to the managed veth log. Codex retains
+its managed Podman Unix socket access for custom MCP/container workflows.
+
+Foreground application services use `ExitType=main` with `KillMode=control-group`
+and bounded stop escalation. This covers current and future
+`labwc-wayland-*`, `labwc-electron-*`, `labwc-native-*`, `labwc-devops-*`,
+`labwc-bitwarden-*`, qBittorrent, and compatibility service names. Bubblewrap
+cleanup pins and terminates the private PID-namespace init before releasing a
+network lease. ChatGPT logging reaps the direct child independently of inherited
+output-pipe EOF. Applications that provide tray/background behavior keep their
+main process alive according to their own settings.
+
+Btop has a dedicated AppArmor domain. Waybar's CPU and memory actions use the
+host PID view, and btop can read process metadata and transport tables for all
+processes. It can signal same-UID processes without CAP_KILL; kernel ownership
+checks continue to reject root and other-account processes. Bubblewrap payloads
+receive the reciprocal AppArmor rule through the shared bwrap abstraction.
+
+Managed Wayland and Electron launcher domains now inherit an owner-qualified
+common application-state abstraction for `.config`, `.cache`, `.local/share`,
+`.local/state`, and `.var/app`. Credentials, documents and executable home
+paths remain explicit opt-ins.
 
 Mako login and D-Bus activation share one systemd service through the canonical
 package-maintenance producer. Ctrl+Win+L enters the host user-manager namespace
@@ -13,23 +122,38 @@ before applying the unchanged strict root policy check. ChatGPT's standard save
 directories and cold document-portal mount have matching sandbox and AppArmor
 write permissions.
 
-The focused suites ran 120 tests: 116 passed and 4 were skipped for actual-root
-fixtures or the unavailable host TUN device. Real Unix IPC/API, flock, dash/ash
-publication and inert Bubblewrap startup/cancellation fixtures were exercised;
-route replies, portal transport and successful network readiness used mocks.
-All 45 managed AppArmor policy files parse offline and their named transitions,
-includes and staging references pass. All 711 shell parser checks pass.
+The [installed startup repair record](docs/validation/installed-startup-20261008/README.md)
+accounts for all 91 supplied TODO files and all 18,842 lines. The broker failed
+because its JSON template used scalar names that the installer does not render.
+The corrected template now passes a broker configuration check before service
+enablement. The Thunar volume monitor's incompatible user-service capability
+bounding directive is removed. The broker's enforced AppArmor policy now permits
+Forky's resolved `/usr/bin/ip` executable and only the root-owned Netavark
+namespace endpoint. Codex signal cleanup terminates its pinned namespace before
+releasing the network lease. A non-regular configuration cannot block on open.
 
-The rebuilt 1,704-member payload, manifest and preseed pins are current. Archive
-read-back matches every source file and manifest entry. Exactly 15 payload
-members changed; member names and all archive metadata are preserved. All 14
-members named for private Xwayland/compatibility are unchanged; the shared
-network supervisor's new peer mode is selected only by qBittorrent. The
-private-Xwayland suite's unchanged sys_ptrace assertion also fails in HEAD.
+The focused integration selection runs 584 tests: 532 pass and 52 are skipped.
+The kernel-veth suite includes 52 tests, with one live packet test skipped
+because this environment denies isolated sysctl writes. Six private session-bus
+fixtures require the unavailable dbus-daemon; 44 other fixtures require actual
+root-owned files and one historical audit fixture is absent. Native nftables
+accepts the base rules and lease transactions
+in a disposable namespace. All 46 managed AppArmor policy files parse offline,
+all 715 shell parser checks pass, and 59 preseed files pass private debconf
+validation. The corrected private-display test verifies that application exec
+drops ALL capabilities while preserving namespace-construction permissions;
+the complete private-display selection passes.
+
+The generated payload products were rebuilt with 1,724 payload files, refreshed
+manifest hashes, archive, and preseed pins. Every archive member's bytes and
+metadata were checked against the source and manifest. Ten private-Xwayland
+and compatibility runtime/policy sources match their starting hashes. The
+private Xwayland launch path remains scoped to Zoom and Discord.
 
 No software compilation, host policy load, desktop restart, router change or
-deployment occurred. Local verification uses Forky/systemd 262; the requested
-target remains Forky/systemd 261.2. External incoming TCP/UDP, private-tracker
+deployment occurred. Local verification and the supplied installed version
+report use Forky/systemd 262; the requested target remains Forky/systemd 261.2.
+External incoming TCP/UDP, private-tracker
 seeding, actual ChatGPT downloads and desktop enforcement need installed-target
 acceptance. The supplied eDP-1 atomic EBUSY failures are investigated but remain
 unverified on hardware; no speculative modesetting change was introduced.
@@ -168,7 +292,7 @@ configuration must receive these source changes before live acceptance.
 
 The additional events 1429-1469 are covered by nine exact `ptrace (read)`
 grants in Waypaper's ps child and two scoped reciprocal `readby` rules in the
-ChatGPT D-Bus proxy and slirp4netns helper. The other seven peers already inherit
+ChatGPT D-Bus proxy and the Codex slirp helper. The other seven peers already inherit
 the scoped reciprocal rule. All 22 selected tests pass without skips, including
 effective expanded peer checks and offline compilation of all 45 managed
 policies. The refreshed 1704-member snapshot differs from the captured previous

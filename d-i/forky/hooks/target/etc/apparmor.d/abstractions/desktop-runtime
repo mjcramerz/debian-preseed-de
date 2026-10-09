@@ -6,6 +6,7 @@
 # profiles. This abstraction only supplies common desktop IPC and graphics.
 
 #include <abstractions/base>
+#include <abstractions/managed-app-config>
 ptrace (readby) peer=desktop-launcher,
 ptrace (readby) peer=waypaper//waypaper-ps,
 include if exists <abstractions/dbus-session>

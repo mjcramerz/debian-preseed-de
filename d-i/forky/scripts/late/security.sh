@@ -755,7 +755,7 @@ system-wrappers
 network-sharing
 crun
 timeshift
-slirp4netns
+app-veth
 usr.sbin.aa-status
 usr.sbin.tailscaled
 EOF
@@ -858,6 +858,9 @@ apparmor_apply_desktop_state() {
         if ($3 == "hardware-tuning") {
           if ($1 != "enforce" || $2 != "optional" || $4 != "-") exit 41
           hardware_seen++
+        } else if ($3 == "app-veth") {
+          if ($1 != "enforce" || $2 != "required" || $4 != "-") exit 41
+          veth_seen++
         } else if ($1 != "__DESKTOP_APPARMOR_STATE__") {
           exit 41
         }
@@ -865,11 +868,11 @@ apparmor_apply_desktop_state() {
           exit 42
         }
         rows++
-        if ($3 != "hardware-tuning") $1 = selected_state
+        if ($3 != "hardware-tuning" && $3 != "app-veth") $1 = selected_state
         print
       }
       END {
-        if (rows == 0 || hardware_seen != 1) {
+        if (rows == 0 || hardware_seen != 1 || veth_seen != 1) {
           exit 43
         }
       }
@@ -926,8 +929,6 @@ EOF
 apparmor_support_local_include_files() {
   cat <<'EOF'
 usr.bin.freshclam
-usr.bin.pasta
-slirp4netns
 unix-chkpwd
 EOF
 }
@@ -1272,6 +1273,10 @@ stage_target_desktop_apparmor_profiles() {
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/desktop-runtime)" \
     "/etc/apparmor.d/abstractions/desktop-runtime" \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-app-config)" \
+    "/etc/apparmor.d/abstractions/managed-app-config" \
     0644
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/desktop-application)" \
@@ -1699,6 +1704,34 @@ configure_target_fail2ban() {
   stage_target_systemd_unit_enabled fail2ban.service system
 }
 
+app_veth_placeholder_map() {
+  apparmor_document_media_placeholder_map
+  nftables_qbittorrent_service_placeholder_map
+}
+
+configure_target_app_veth() {
+  [ "$(late_command_nftables_profile)" != none ] ||
+    installer_fatal "managed kernel namespaces require the nftables policy"
+  for veth_asset in \
+    etc/systemd/system/app-veth.service \
+    etc/NetworkManager/conf.d/70-app-veth.conf \
+    etc/sysctl.d/91-app-veth.conf \
+    etc/modules-load.d/app-veth.conf
+  do
+    stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET "$veth_asset")" "/$veth_asset" 0644
+  done
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/sbin/app-veth)" /usr/local/sbin/app-veth 0755
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/app-veth-podman)" /usr/local/libexec/app-veth-podman 0755
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/resolved.conf.d/60-app-veth.conf)" /etc/systemd/resolved.conf.d/60-app-veth.conf 0644
+  render_target_asset_with_placeholder_map \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/app-veth.json.tmpl)" \
+    /etc/app-veth.json 0644 app_veth_placeholder_map
+  run_in_target "validate managed kernel network configuration" \
+    /usr/local/sbin/app-veth --check-config
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/18-app-veth.conf)" /etc/rsyslog.d/18-app-veth.conf 0644
+  stage_target_systemd_unit_enabled app-veth.service system
+}
+
 configure_target_apparmor_auditd() {
   security_class=$(late_command_security_class)
 
@@ -1744,6 +1777,8 @@ configure_target_apparmor_auditd() {
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/apparmor.service.d/20-cache.conf)" "/etc/systemd/system/apparmor.service.d/20-cache.conf" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor/easyprof.conf)" "/etc/apparmor/easyprof.conf" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor/logprof.conf)" "/etc/apparmor/logprof.conf" 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/app-veth-client)" "/etc/apparmor.d/abstractions/app-veth-client" 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/base.d/managed-process-monitor)" "/etc/apparmor.d/abstractions/base.d/managed-process-monitor" 0644
   stage_target_system_apparmor_profiles
   if security_target_is_desktop; then
     install -d -m 0755 \
@@ -1790,5 +1825,6 @@ configure_target_apparmor_auditd() {
   stage_target_systemd_unit_enabled rsyslog.service system
   stage_target_systemd_unit_enabled logrotate.timer system
   configure_target_nftables
+  configure_target_app_veth
   configure_target_fail2ban
 }

@@ -758,11 +758,12 @@ power_off_drive() {
 }
 
 power_off_drive_confirmed() {
-  # Desktop removal is confirmed above. The shutdown service reaches this
-  # same backend only after the machine power request has been authorized.
+  # Menu confirmation, a native device action, or authorized shutdown reaches
+  # this same backend. Reject system storage and unsupported open mappings.
   poweroff_device=$1
   poweroff_devnum=$2
   validate_external_disk "$poweroff_device" "$poweroff_devnum"
+  validate_disk_removal_state "$poweroff_device" "$poweroff_devnum"
   mounted_records=$(mounted_records_for_disk "$poweroff_device") || return 1
   if [ -n "$mounted_records" ]; then
     while IFS='|' read -r volume_device volume_devnum volume_type; do
@@ -811,6 +812,7 @@ EOF
   fi
 
   validate_external_disk "$poweroff_device" "$poweroff_devnum"
+  validate_disk_removal_state "$poweroff_device" "$poweroff_devnum"
   if output=$(run_udisksctl power-off --block-device "$poweroff_device" 2>&1); then
     printf '%s\n' "$output"
     notify_drive normal media-eject \
@@ -912,7 +914,7 @@ shutdown_disk_records() {
   # No filesystem probing/raw block-device reads are needed to select disks.
   shutdown_snapshot=$(
     lsblk --pairs --paths \
-      --output PATH,KNAME,TYPE,TRAN,MOUNTPOINTS,PKNAME,MAJ:MIN
+      --output PATH,KNAME,TYPE,TRAN,MOUNTPOINTS,PKNAME,MAJ:MIN "$@"
   ) || return 1
   printf '%s\n' "$shutdown_snapshot" |
     awk -v dev_root="$DEV_ROOT" -v maximum="$MAX_RECORDS" '
@@ -998,6 +1000,20 @@ shutdown_disk_records() {
     ' /etc/passwd -
 }
 
+validate_disk_removal_state() {
+  disk_removal_records=$(shutdown_disk_records "$1") ||
+    fatal "unable to inspect the external disk's active descendants"
+  disk_removal_kind=$(
+    printf '%s\n' "$disk_removal_records" |
+      awk -F'|' -v wanted_device="$1" -v wanted_devnum="$2" '
+        $2 == wanted_device && $3 == wanted_devnum { kind = $1; count++ }
+        END { if (count != 1) exit 1; print kind }
+      '
+  ) || fatal "the selected external disk changed during removal"
+  [ "$disk_removal_kind" = external ] ||
+    fatal "external disk removal rejected: active $disk_removal_kind storage remains on $1"
+}
+
 prepare_shutdown_drives() {
   shutdown_records=$(shutdown_disk_records) ||
     fatal "unable to inventory external USB disks for shutdown"
@@ -1077,14 +1093,50 @@ EOF
   esac
 }
 
+run_device_operation() {
+  # Native Thunar/GVfs actions already express the user's removal request.
+  # Resolve and revalidate the block node here; no menu or forced unmount.
+  [ "$#" -eq 2 ] || fatal "a device operation requires one block device"
+  device_operation=$1
+  native_device=$2
+  case "$device_operation" in
+    --unmount-device|--power-off-device) ;;
+    *) fatal "unsupported external-drive device operation" ;;
+  esac
+  validate_device_path "$native_device"
+  native_identity=$(current_device_identity "$native_device") ||
+    fatal "unable to identify the selected external device"
+  [ -n "$native_identity" ] || fatal "the selected external device is unavailable"
+  IFS='|' read -r native_devnum native_type _native_transport native_parent <<EOF
+$native_identity
+EOF
+  validate_external_target "$native_device" "$native_devnum" "$native_type"
+  # Do not retain a working directory on the volume being removed.
+  CDPATH='' cd -- / || fatal "unable to leave external-drive mount points"
+  case "$device_operation" in
+    --unmount-device)
+      unmount_volume "$native_device" "$native_devnum" "$native_type"
+      ;;
+    --power-off-device)
+      case "$native_type" in
+        disk) native_disk=$native_device ;;
+        part) native_disk="$DEV_ROOT/$native_parent" ;;
+        *) fatal "unsupported external-drive device type" ;;
+      esac
+      validate_external_disk "$native_disk"
+      power_off_drive_confirmed "$native_disk" "$validated_disk_devnum"
+      ;;
+  esac
+}
+
 requested_operation=menu
 requested_path=
 if [ "$#" -eq 1 ] && [ "$1" = --prepare-shutdown ]; then
   requested_operation=shutdown
 elif [ "$#" -ne 0 ]; then
-  [ "$#" -eq 2 ] || fatal "usage: labwc-external-drives [--prepare-shutdown|--manage-path FOLDER|--unmount-path FOLDER|--power-off-path FOLDER]"
+  [ "$#" -eq 2 ] || fatal "usage: labwc-external-drives [--prepare-shutdown|--manage-path FOLDER|--unmount-path FOLDER|--power-off-path FOLDER|--unmount-device DEVICE|--power-off-device DEVICE]"
   case "$1" in
-    --manage-path|--unmount-path|--power-off-path) requested_operation=$1 ;;
+    --manage-path|--unmount-path|--power-off-path|--unmount-device|--power-off-device) requested_operation=$1 ;;
     *) fatal "unsupported external-drive operation: $1" ;;
   esac
   requested_path=$2
@@ -1097,7 +1149,9 @@ if [ "$requested_operation" = shutdown ]; then
   CDPATH='' cd -- / || fatal "unable to leave external-drive mount points"
 else
   ensure_desktop_user
-  require_command labwc-fuzzel
+  case "$requested_operation" in
+    menu|--manage-path|--power-off-path) require_command labwc-fuzzel ;;
+  esac
 fi
 for required_command in awk findmnt flock id lsblk mktemp sleep sync timeout udisksctl; do
   require_command "$required_command"
@@ -1114,9 +1168,16 @@ case "$runtime_root" in
 esac
 if [ "$requested_operation" = shutdown ]; then
   runtime_root=/run/labwc-power
-  require_command find
+  require_command python3
+  runtime_metadata=$(/usr/bin/python3 -I -B -c '
+import os, stat, sys
+metadata = os.lstat(sys.argv[1])
+if not stat.S_ISDIR(metadata.st_mode):
+    raise SystemExit(1)
+print(f"{metadata.st_uid}:{stat.S_IMODE(metadata.st_mode):o}")
+' "$runtime_root") || fatal "cannot validate the root external-drive shutdown runtime directory"
   [ ! -L "$runtime_root" ] && [ -d "$runtime_root" ] &&
-    [ "$(find -P "$runtime_root" -maxdepth 0 -printf '%U:%m')" = 0:700 ] ||
+    [ "$runtime_metadata" = 0:700 ] ||
     fatal "the root external-drive shutdown runtime directory is unsafe"
   use_operation_lock=1
 elif [ "$use_operation_lock" -eq 1 ]; then
@@ -1172,6 +1233,12 @@ if [ "$requested_operation" = shutdown ]; then
   prepare_shutdown_drives
   exit "$?"
 elif [ "$requested_operation" != menu ]; then
+  case "$requested_operation" in
+    --unmount-device|--power-off-device)
+      run_device_operation "$requested_operation" "$requested_path"
+      exit "$?"
+      ;;
+  esac
   if run_path_operation "$requested_operation" "$requested_path"; then
     exit 0
   else

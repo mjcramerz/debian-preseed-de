@@ -1,0 +1,1613 @@
+{
+  "date": "2026-10-09",
+  "capture": "LPL-746",
+  "requested_target": "Debian Forky/systemd 261.2",
+  "installed_version_capture": "systemd 262 (262-1)",
+  "evidence_read": {
+    "files": 45,
+    "physical_lines": 8936,
+    "inventory": [
+      {
+        "path": "todo/apparmor.log",
+        "bytes": 75019,
+        "lines": 428,
+        "sha256": "de9e80d8a1b1be935778764d06c9243df17d7e5b538e5663a69b3eaf2b0f0d92"
+      },
+      {
+        "path": "todo/fail",
+        "bytes": 12464,
+        "lines": 97,
+        "sha256": "29baa38b7c8e09609378dfd553811c2188c546839658d1c146772f7d4604d6e3"
+      },
+      {
+        "path": "todo/installer-state/installer.log",
+        "bytes": 730403,
+        "lines": 4935,
+        "sha256": "0dc9d6686dc2d0a6841193f51c54002ff9a4c9dbd79ec4c8d1244cf36b2dee45"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/20-firstboot.log",
+        "bytes": 380,
+        "lines": 4,
+        "sha256": "6ef32c49ac9bced0461f0982f3b573ace695209d5137b168452e518007f43ebb"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/apparmor-status.json",
+        "bytes": 15795,
+        "lines": 495,
+        "sha256": "1a5e37ae8188b840dd0a1bbacc4cf71cb29b7cb7d741a39fa01b1c5231e579aa"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/block-devices.txt",
+        "bytes": 3339,
+        "lines": 31,
+        "sha256": "d0fbcf829f086e4368a09239178120d28c1cf7063ee9208cecd02ae23661197b"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/boot.env",
+        "bytes": 194,
+        "lines": 7,
+        "sha256": "15c72a3d0d24d88c97ca604197a4c92cba743f9a12e4eb9f7420cffce7b79df9"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/cmdline.txt",
+        "bytes": 1256,
+        "lines": 1,
+        "sha256": "b156de46dbe5adb67d2c729ad719cb1d817660d95820dbfb56a9ca199408a969"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/desktop-units.txt",
+        "bytes": 8405,
+        "lines": 88,
+        "sha256": "5ac5505a47f6761d5467ff003c2a800237a667e3c7eb54a04cf609dfb6da63a6"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/desktop-user-unit-files.txt",
+        "bytes": 383,
+        "lines": 8,
+        "sha256": "61572e096e80eeb6783977a3a51c6ba8249db3cb32e9bad1384c970c9756ec45"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/dmesg-warnings.txt",
+        "bytes": 3873,
+        "lines": 33,
+        "sha256": "1e1685c48fff3dfd73517a0fdc8ec76c4cf0ce82aa35d65952d95ac8c191e9cd"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/findmnt-verify.txt",
+        "bytes": 8404,
+        "lines": 197,
+        "sha256": "ca76753054c587e1074dc26443d480c2579ef22e04acbce2e6e57070bfa26d67"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/fstab.txt",
+        "bytes": 9982,
+        "lines": 46,
+        "sha256": "d97de4459418d923f201e2b1fd9563cb1f0ce5fc5f0e3cd79712f74fa1eebd45"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/hostnamectl.txt",
+        "bytes": 688,
+        "lines": 18,
+        "sha256": "f9ce4c7c2eacab2fdbd71cc03128df9112534730b9da1f584cbd23d359f58788"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/initramfs-log-files.txt",
+        "bytes": 461,
+        "lines": 8,
+        "sha256": "724c2118ab8bf023fa98cea098248fe5a4517d5010ed7f9dcaee24216d5e4d64"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/ip-address.txt",
+        "bytes": 1464,
+        "lines": 25,
+        "sha256": "7a41ba694cc6ceef19b5b6486271d01455b7da86b4a19dd28b9a115de50427f0"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/ip-brief-address.txt",
+        "bytes": 326,
+        "lines": 5,
+        "sha256": "fef0b8739c17555db07deeb87e37196cfc5c0505a0427f96bb5b8dd20ffc3898"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/ip-route.txt",
+        "bytes": 141,
+        "lines": 3,
+        "sha256": "ecc84596cb27063ead4f1f17fbd08ecf5c149d991f5c67b632fcf074c579a2ad"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/ip-rule.txt",
+        "bytes": 284,
+        "lines": 8,
+        "sha256": "dc15acda8b63bd431082492b0b71c040ecac5f371b7a4eb117221a589b5e087e"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/journal-warnings.txt",
+        "bytes": 9897,
+        "lines": 88,
+        "sha256": "83964504ba0bb7fc2b91309a6b25d07f043aee31d67434c15fe3f512aa531bc1"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/mok-enrollment.txt",
+        "bytes": 7171,
+        "lines": 136,
+        "sha256": "f466d89535ce8f74eee6813504e67e3e92da5450a4dcf6f670f7cdde29ce38cf"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/mounts.txt",
+        "bytes": 8847,
+        "lines": 52,
+        "sha256": "917e34536aff1115e190bb61eb87aa99c287b9016f4cc0b55e94181214a0bd16"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/network-interfaces.txt",
+        "bytes": 104,
+        "lines": 5,
+        "sha256": "2308a3c5294acdd171ec1efe1bd43fa6dde4b6505fd03514e0494a85e985489d"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/network-network-default.txt",
+        "bytes": 1623,
+        "lines": 27,
+        "sha256": "565f83679ad3352e65c44230fb53d7dc8dbeaca8d2f7c0b94098907d538e5853"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/network-network.txt",
+        "bytes": 1135,
+        "lines": 27,
+        "sha256": "c204c82fb36acb66d52fa8d83ea1989c1e3661d74d09f387b693a88df68bfa0c"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/network-targets.txt",
+        "bytes": 11136,
+        "lines": 138,
+        "sha256": "7edbca5f3b73b95d00fa5b4c115ddaddca76320314a6a004ba8d0abf80fc553c"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/networkctl-list.txt",
+        "bytes": 281,
+        "lines": 8,
+        "sha256": "03faf4c924cf99d1fa34dac879624885edf2044ba633dee096ce614a25a2c080"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/networkctl-status.txt",
+        "bytes": 284,
+        "lines": 2,
+        "sha256": "06b7d5660bbd0c9f34dbf8b887f2e884499453b76dbad6942333254dfb5f6339"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/resolv.conf.txt",
+        "bytes": 934,
+        "lines": 23,
+        "sha256": "2827a27f7a20666194f8f00f8ad95071f130d53dea3daa69f04734e2cd5f1e41"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/resolvectl-status.txt",
+        "bytes": 719,
+        "lines": 22,
+        "sha256": "87ff12784af034040598c64c8fea9e936995b8462b6650fb481781ad38570192"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/secureboot-state.txt",
+        "bytes": 49,
+        "lines": 2,
+        "sha256": "6bd53709a4c5f9e2baf886329c8397604128c7b1bfa5d9a09ff201445abecc41"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/security-baseline-units.txt",
+        "bytes": 8729,
+        "lines": 109,
+        "sha256": "c4f965ab14afa24ec9ff54c5893d0473d3047dd339ccb623111671e8bc0e6638"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/sockets-listening.txt",
+        "bytes": 1589,
+        "lines": 19,
+        "sha256": "f0567e7576cabc4ca15f5a9b44718e11e309677caf7caf4762683e3acc977aae"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/systemctl-failed.txt",
+        "bytes": 577,
+        "lines": 10,
+        "sha256": "19ba375b69400b2dd96610521902fcf52c187b46fde306f9df9fa4748f5b3b9b"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/systemctl-jobs.txt",
+        "bytes": 644,
+        "lines": 13,
+        "sha256": "04befff27ef94e3a6629171a477ab14f3bc7cf9ad373453cf46c9dd426c0659c"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/systemd-analyze-blame.txt",
+        "bytes": 2362,
+        "lines": 80,
+        "sha256": "1e0ad0ce57845ca52d1c8f15db1e55c9d8faff71ec056bcc6a9b6a0f2c0e3eee"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/systemd-analyze-time.txt",
+        "bytes": 206,
+        "lines": 5,
+        "sha256": "5de01b959746527bc83f8c75fdaac4e9f6524bfc9ea53ab5e03f498962b048de"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/systemd-boot-state.txt",
+        "bytes": 1774,
+        "lines": 40,
+        "sha256": "55790bf20d5d8a13b753eb744b6d42eed394e0de6f7e41206904316a5d330082"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/systemd-failed.txt",
+        "bytes": 577,
+        "lines": 10,
+        "sha256": "19ba375b69400b2dd96610521902fcf52c187b46fde306f9df9fa4748f5b3b9b"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/systemd-targets.txt",
+        "bytes": 11619,
+        "lines": 85,
+        "sha256": "d3c8f2fc16f8b3ba20fc839ecf3c0fe51a4feeb2c1a17f15086b98b2fc0c46ea"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/systemd-version.txt",
+        "bytes": 339,
+        "lines": 3,
+        "sha256": "1751a2e70105d4e888188b753f800d3285beaf14c5e40b42fa79377448da8cd8"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/data/validation-results.txt",
+        "bytes": 42826,
+        "lines": 475,
+        "sha256": "bd562367bfb6e5a4e05c5f419a403a5c9888bac78524d491c658afff0628de67"
+      },
+      {
+        "path": "todo/installer-state/logs/firstboot/status.env",
+        "bytes": 40,
+        "lines": 2,
+        "sha256": "b24dacff4310d7a6b3929b3c1e3e03fad3cc75048a4e4d92e5e9d825ef1b588d"
+      },
+      {
+        "path": "todo/installer-state/target-validated",
+        "bytes": 52,
+        "lines": 2,
+        "sha256": "75a073acffbc61aa6508ea1e513f01efee97fc90e10311e7ff1cc8c381c0a65e"
+      },
+      {
+        "path": "todo/journalctl",
+        "bytes": 127148,
+        "lines": 1116,
+        "sha256": "4c7cff97f701c6e2f424e1deba5e5f542108fcb0df551e28c6144977846383a6"
+      }
+    ]
+  },
+  "installed_firstboot": {
+    "failed_checks": [
+      "FAIL failed-units-present"
+    ],
+    "skipped_checks": [
+      "SKIP desktop-session-graphics-capture: no active Wayland session"
+    ],
+    "failed_units": [
+      "app-veth.service",
+      "podman-devops.socket"
+    ],
+    "validation_status": "fail",
+    "failures": 1,
+    "apparmor_denials": 9,
+    "denied_profile": "app-veth",
+    "denied_operation": "open",
+    "denied_path": "/",
+    "denied_permission": "r"
+  },
+  "checks": [
+    {
+      "check": "contracts",
+      "argv": [
+        "/usr/bin/python3",
+        "-I",
+        "-B",
+        "-c",
+        "import sys, unittest; sys.path.insert(0, sys.argv.pop(1)); unittest.main(module=None)",
+        "/home/mcramer/Workspace/debian-preseed-de/d-i/forky/tests",
+        "-v",
+        "test_kernel_veth_networking",
+        "test_thunar_native_drive_actions",
+        "test_codex_power_20260926",
+        "test_podman_incus_redesign",
+        "test_desktop_sandbox",
+        "test_managed_app_review_20260921",
+        "test_compz_qbittorrent_followup",
+        "test_apparmor_incidents_20261004",
+        "test_zoom_discord_private_xwayland",
+        "test_desktop_integration_20260914",
+        "test_computer_management_20260916",
+        "test_network_sharing"
+      ],
+      "cwd": "/home/mcramer/Workspace/debian-preseed-de/d-i/forky/tests",
+      "returncode": 0,
+      "seconds": 24.834
+    },
+    {
+      "check": "build",
+      "argv": [
+        "/usr/bin/python3",
+        "-I",
+        "-B",
+        "tools/build.py"
+      ],
+      "cwd": "/home/mcramer/Workspace/debian-preseed-de",
+      "returncode": 0,
+      "seconds": 4.624
+    },
+    {
+      "check": "build-check",
+      "argv": [
+        "/usr/bin/python3",
+        "-I",
+        "-B",
+        "tools/build.py",
+        "--check"
+      ],
+      "cwd": "/home/mcramer/Workspace/debian-preseed-de",
+      "returncode": 0,
+      "seconds": 4.574
+    }
+  ],
+  "integration": {
+    "total": 593,
+    "passed": 541,
+    "skipped": 52,
+    "failures": 0,
+    "errors": 0,
+    "unittest_seconds": 24.294,
+    "skip_reasons": {
+      "current todo/apparmor.log is not the historical complain-mode capture; enforced namespace denials are covered by native policy checks": 1,
+      "environment denies sysctl writes even in an isolated user/network namespace": 1,
+      "native private session bus unavailable": 6,
+      "private root-owned filesystem fixtures require root": 21,
+      "real root-owned filesystem fixtures required": 12,
+      "root-owned file fixtures require root": 11
+    },
+    "native_namespace_mask_test_passed": "test_native_parser_permissions_cover_nested_documents_usb_and_unclean_journals",
+    "transcript_sha256": "74043ea89a4f6df22d1fdde1e417845831f55885b13d1b0eac75ab1c4d1d6abd"
+  },
+  "offline_apparmor": {
+    "policies": [
+      {
+        "policy": "Discord",
+        "returncode": 0
+      },
+      {
+        "policy": "app-veth",
+        "returncode": 0
+      },
+      {
+        "policy": "chatgpt",
+        "returncode": 0
+      },
+      {
+        "policy": "compz",
+        "returncode": 0
+      },
+      {
+        "policy": "crun",
+        "returncode": 0
+      },
+      {
+        "policy": "debugsys",
+        "returncode": 0
+      },
+      {
+        "policy": "desktop-utilities",
+        "returncode": 0
+      },
+      {
+        "policy": "desktop-wrappers",
+        "returncode": 0
+      },
+      {
+        "policy": "document-applications",
+        "returncode": 0
+      },
+      {
+        "policy": "firstboot",
+        "returncode": 0
+      },
+      {
+        "policy": "gitbuild",
+        "returncode": 0
+      },
+      {
+        "policy": "gitbuild-worker",
+        "returncode": 0
+      },
+      {
+        "policy": "hardware-tuning",
+        "returncode": 0
+      },
+      {
+        "policy": "labwc-appearance",
+        "returncode": 0
+      },
+      {
+        "policy": "labwc-session",
+        "returncode": 0
+      },
+      {
+        "policy": "network-sharing",
+        "returncode": 0
+      },
+      {
+        "policy": "obsidian",
+        "returncode": 0
+      },
+      {
+        "policy": "opt.Bitwarden.bitwarden",
+        "returncode": 0
+      },
+      {
+        "policy": "opt.Filen.Filen",
+        "returncode": 0
+      },
+      {
+        "policy": "opt.ledger-live.AppRun",
+        "returncode": 0
+      },
+      {
+        "policy": "opt.postman.app.Postman",
+        "returncode": 0
+      },
+      {
+        "policy": "opt.tuta-mail.AppRun",
+        "returncode": 0
+      },
+      {
+        "policy": "sleek",
+        "returncode": 0
+      },
+      {
+        "policy": "system-wrappers",
+        "returncode": 0
+      },
+      {
+        "policy": "timeshift",
+        "returncode": 0
+      },
+      {
+        "policy": "tomat",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.keepassxc",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.pwsh",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.qbittorrent",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.qoredb",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.retroarch",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.spotify",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.sqlitebrowser",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.telegram-desktop",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.totem",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.zoom",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.local.sbin.tpm2-enroll.sh",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.sbin.aa-status",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.sbin.apt-cacher-ng",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.sbin.avahi-daemon",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.sbin.tailscaled",
+        "returncode": 0
+      },
+      {
+        "policy": "vivaldi-bin",
+        "returncode": 0
+      },
+      {
+        "policy": "vivaldi-stable",
+        "returncode": 0
+      },
+      {
+        "policy": "waybar-menus",
+        "returncode": 0
+      },
+      {
+        "policy": "whisper-local-transcription",
+        "returncode": 0
+      },
+      {
+        "policy": "zoom-discord-compat",
+        "returncode": 0
+      }
+    ],
+    "kernel_load": false,
+    "cache_write": false,
+    "commands": [
+      {
+        "policy": "Discord",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/Discord"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "app-veth",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/app-veth"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "chatgpt",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/chatgpt"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "compz",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/compz"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "crun",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/crun"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "debugsys",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/debugsys"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "desktop-utilities",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/desktop-utilities"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "desktop-wrappers",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/desktop-wrappers"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "document-applications",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/document-applications"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "firstboot",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/firstboot"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "gitbuild",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/gitbuild"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "gitbuild-worker",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/gitbuild-worker"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "hardware-tuning",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/hardware-tuning"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "labwc-appearance",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/labwc-appearance"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "labwc-session",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/labwc-session"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "network-sharing",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/network-sharing"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "obsidian",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/obsidian"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "opt.Bitwarden.bitwarden",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/opt.Bitwarden.bitwarden"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "opt.Filen.Filen",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/opt.Filen.Filen"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "opt.ledger-live.AppRun",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/opt.ledger-live.AppRun"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "opt.postman.app.Postman",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/opt.postman.app.Postman"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "opt.tuta-mail.AppRun",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/opt.tuta-mail.AppRun"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "sleek",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/sleek"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "system-wrappers",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/system-wrappers"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "timeshift",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/timeshift"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "tomat",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/tomat"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.keepassxc",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/usr.bin.keepassxc"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.pwsh",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/usr.bin.pwsh"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.qbittorrent",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/usr.bin.qbittorrent"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.qoredb",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/usr.bin.qoredb"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.retroarch",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/usr.bin.retroarch"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.spotify",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/usr.bin.spotify"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.sqlitebrowser",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/usr.bin.sqlitebrowser"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.telegram-desktop",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/usr.bin.telegram-desktop"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.totem",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/usr.bin.totem"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.zoom",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/usr.bin.zoom"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "usr.local.sbin.tpm2-enroll.sh",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/usr.local.sbin.tpm2-enroll.sh"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "usr.sbin.aa-status",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/usr.sbin.aa-status"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "usr.sbin.apt-cacher-ng",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/usr.sbin.apt-cacher-ng"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "usr.sbin.avahi-daemon",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/usr.sbin.avahi-daemon"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "usr.sbin.tailscaled",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/usr.sbin.tailscaled"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "vivaldi-bin",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/vivaldi-bin"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "vivaldi-stable",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/vivaldi-stable"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "waybar-menus",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/waybar-menus"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "whisper-local-transcription",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/whisper-local-transcription"
+        ],
+        "returncode": 0
+      },
+      {
+        "policy": "zoom-discord-compat",
+        "argv": [
+          "apparmor_parser",
+          "--config-file",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/parser.conf",
+          "-b",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-I",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d",
+          "-Q",
+          "-K",
+          "-j",
+          "1",
+          "/tmp/managed-policy-review-uvjw57qy/apparmor.d/zoom-discord-compat"
+        ],
+        "returncode": 0
+      }
+    ]
+  },
+  "source_sha256": {
+    "d-i/forky/hooks/target/etc/apparmor.d/app-veth": "6ec32d0eae8efc455908ac2796b7c4b80e3ea62a60108839742e64eeca336499",
+    "d-i/forky/hooks/target/etc/apparmor.d/abstractions/app-veth-client": "aca00e25e475f713bd6dd28affad38d4f6680876a3da31022c1d9b1e1c1190df",
+    "d-i/forky/tests/test_apparmor_incidents_20261004.py": "656bd7ec438061bf7f5e1d6a0d02e8d6952a6835eb0d01959db29ea8cd7f770d",
+    "d-i/forky/tests/test_desktop_sandbox.py": "927ffe4b087996a882816ba21ae731811c007e0ecbb6c9feaf4b8bacd6f5f0fe"
+  },
+  "preservation": {
+    "initial_file_changes": 88,
+    "unrelated_initial_files_preserved": [
+      "d-i/forky/classes/class-addon/devops.cfg",
+      "d-i/forky/classes/class-addon/podman.cfg",
+      "d-i/forky/classes/class-addon/qemu.cfg",
+      "d-i/forky/classes/class-select/role/desktop.cfg",
+      "d-i/forky/hooks/target/data/docs/podman-devops.md",
+      "d-i/forky/hooks/target/etc/apparmor.d/abstractions/bwrap-common",
+      "d-i/forky/hooks/target/etc/apparmor.d/abstractions/bwrap-desktop-runtime",
+      "d-i/forky/hooks/target/etc/apparmor.d/abstractions/codex-runtime",
+      "d-i/forky/hooks/target/etc/apparmor.d/abstractions/desktop-runtime",
+      "d-i/forky/hooks/target/etc/apparmor.d/abstractions/qbittorrent-runtime",
+      "d-i/forky/hooks/target/etc/apparmor.d/desktop-utilities",
+      "d-i/forky/hooks/target/etc/apparmor.d/labwc-session",
+      "d-i/forky/hooks/target/etc/nftables/README.md.tmpl",
+      "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/config.tmpl",
+      "d-i/forky/hooks/target/etc/tmpfiles.d/59-log-layout.conf.tmpl",
+      "d-i/forky/hooks/target/usr/local/bin/labwc-external-drives.tmpl",
+      "d-i/forky/hooks/target/usr/local/bin/labwc-qbittorrent",
+      "d-i/forky/hooks/target/usr/local/bin/labwc-remote-desktop.tmpl",
+      "d-i/forky/hooks/target/usr/local/bin/labwc-sync-application-launchers.tmpl",
+      "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py",
+      "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/integrity.py",
+      "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_namespace.py",
+      "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py.tmpl",
+      "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/sandbox.py",
+      "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py",
+      "d-i/forky/hooks/target/usr/local/libexec/labwc-chatgpt-log-runner.tmpl",
+      "d-i/forky/hooks/target/usr/local/libexec/log-layout.tmpl",
+      "d-i/forky/hooks/target/usr/local/libexec/rsyslog-size-rotate.tmpl",
+      "d-i/forky/hosts/logging/observability-schema.tsv",
+      "d-i/forky/hosts/logging/observability.env",
+      "d-i/forky/scripts/desktop/components/managed-apps.sh",
+      "d-i/forky/scripts/desktop/components/target-assets.sh",
+      "d-i/forky/scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl",
+      "d-i/forky/scripts/late/qemu.sh",
+      "d-i/forky/scripts/late/software.sh.tmpl",
+      "d-i/forky/tests/test_compz_qbittorrent_followup.py",
+      "d-i/forky/tests/test_desktop_integration_20260914.py",
+      "d-i/forky/tests/test_podman_incus_redesign.py",
+      "d-i/forky/hooks/target/etc/apparmor.d/abstractions/base.d/managed-process-monitor",
+      "d-i/forky/hooks/target/etc/apparmor.d/abstractions/managed-app-config",
+      "d-i/forky/hooks/target/etc/systemd/user/labwc-compat-.service.d/50-app-lifecycle.conf",
+      "d-i/forky/hooks/target/etc/systemd/user/labwc-devops-.service.d/60-stop-budget.conf",
+      "d-i/forky/hooks/target/etc/systemd/user/labwc-native-.service.d/50-app-lifecycle.conf",
+      "d-i/forky/hooks/target/etc/systemd/user/labwc-wayland-foot-.service.d/60-terminal-lifecycle.conf",
+      "d-i/forky/hooks/target/usr/local/libexec/labwc-gvfs-volume-monitor",
+      "d-i/forky/hooks/target/usr/share/dbus-1/services/org.gtk.vfs.LabwcVolumeMonitor.service",
+      "d-i/forky/hooks/target/usr/share/gvfs/remote-volume-monitors/labwc.monitor"
+    ],
+    "initial_files_with_only_requested_identifier_changes": [
+      {
+        "source": "d-i/forky/hooks/target/data/config/podman/templates/devops/containers.conf.tmpl",
+        "destination": "d-i/forky/hooks/target/data/config/podman/templates/devops/containers.conf.tmpl"
+      },
+      {
+        "source": "d-i/forky/hooks/target/data/config/podman/templates/devops/podman-devops.service.tmpl",
+        "destination": "d-i/forky/hooks/target/data/config/podman/templates/devops/podman-devops.service.tmpl"
+      },
+      {
+        "source": "d-i/forky/hooks/target/etc/apparmor.d/zoom-discord-compat.tmpl",
+        "destination": "d-i/forky/hooks/target/etc/apparmor.d/zoom-discord-compat.tmpl"
+      },
+      {
+        "source": "d-i/forky/hooks/target/etc/apparmor/modes.conf.tmpl",
+        "destination": "d-i/forky/hooks/target/etc/apparmor/modes.conf.tmpl"
+      },
+      {
+        "source": "d-i/forky/hooks/target/etc/nftables/services/podman.yml",
+        "destination": "d-i/forky/hooks/target/etc/nftables/services/podman.yml"
+      },
+      {
+        "source": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apparmor-modes/AppArmor/ManagedModes/Config.pm",
+        "destination": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apparmor-modes/AppArmor/ManagedModes/Config.pm"
+      },
+      {
+        "source": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor.pm.tmpl",
+        "destination": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor.pm.tmpl"
+      },
+      {
+        "source": "d-i/forky/hooks/target/usr/local/libexec/debugsys.py.tmpl",
+        "destination": "d-i/forky/hooks/target/usr/local/libexec/debugsys.py.tmpl"
+      },
+      {
+        "source": "d-i/forky/hooks/target/usr/local/libexec/podman-devops-host",
+        "destination": "d-i/forky/hooks/target/usr/local/libexec/podman-devops-host"
+      },
+      {
+        "source": "d-i/forky/scripts/desktop/verify.sh.tmpl",
+        "destination": "d-i/forky/scripts/desktop/verify.sh.tmpl"
+      },
+      {
+        "source": "d-i/forky/scripts/late/podman.sh",
+        "destination": "d-i/forky/scripts/late/podman.sh"
+      },
+      {
+        "source": "tools/build.py",
+        "destination": "tools/build.py"
+      },
+      {
+        "source": "d-i/forky/hooks/target/etc/modules-load.d/managed-veth.conf",
+        "destination": "d-i/forky/hooks/target/etc/modules-load.d/app-veth.conf"
+      },
+      {
+        "source": "d-i/forky/hooks/target/etc/rsyslog.d/18-managed-veth.conf.tmpl",
+        "destination": "d-i/forky/hooks/target/etc/rsyslog.d/18-app-veth.conf.tmpl"
+      },
+      {
+        "source": "d-i/forky/hooks/target/etc/sysctl.d/91-managed-veth.conf",
+        "destination": "d-i/forky/hooks/target/etc/sysctl.d/91-app-veth.conf"
+      },
+      {
+        "source": "d-i/forky/hooks/target/etc/systemd/resolved.conf.d/60-managed-veth.conf",
+        "destination": "d-i/forky/hooks/target/etc/systemd/resolved.conf.d/60-app-veth.conf"
+      },
+      {
+        "source": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_client.py",
+        "destination": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_client.py"
+      }
+    ],
+    "authored_delta_from_start": [
+      "BUILD-STATUS.md",
+      "README.md",
+      "d-i/forky/hooks/target/data/codex/lib/codex.tmpl",
+      "d-i/forky/hooks/target/etc/app-veth.json.tmpl",
+      "d-i/forky/hooks/target/etc/apparmor.d/abstractions/app-veth-client",
+      "d-i/forky/hooks/target/etc/apparmor.d/app-veth",
+      "d-i/forky/hooks/target/etc/apparmor.d/desktop-wrappers.tmpl",
+      "d-i/forky/hooks/target/etc/systemd/system/app-veth.service",
+      "d-i/forky/hooks/target/etc/systemd/user/labwc-gvfs-volume-monitor.service",
+      "d-i/forky/hooks/target/usr/local/libexec/app-veth-podman",
+      "d-i/forky/hooks/target/usr/local/sbin/app-veth",
+      "d-i/forky/hooks/target/usr/local/sbin/nft-policy-generate.py",
+      "d-i/forky/payload.manifest",
+      "d-i/forky/payload.tar.gz",
+      "d-i/forky/preseed.cfg",
+      "d-i/forky/scripts/late/security.sh",
+      "d-i/forky/tests/test_apparmor_incidents_20261004.py",
+      "d-i/forky/tests/test_codex_power_20260926.py",
+      "d-i/forky/tests/test_computer_management_20260916.py",
+      "d-i/forky/tests/test_desktop_sandbox.py",
+      "d-i/forky/tests/test_kernel_veth_networking.py",
+      "d-i/forky/tests/test_managed_app_review_20260921.py",
+      "d-i/forky/tests/test_thunar_native_drive_actions.py",
+      "d-i/forky/tests/test_zoom_discord_private_xwayland.py"
+    ],
+    "deleted_user_sources_preserved": true,
+    "private_xwayland_compatibility_sources_preserved": [
+      {
+        "path": "d-i/forky/hooks/target/etc/apparmor.d/zoom-discord-compat.tmpl",
+        "sha256": "c5542c54c589e36474bfc66fa5c406cec1c35540390b4ded6b89a9d7c2f8d3ed",
+        "only_network_abstraction_reference_renamed": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/compat_gpu.py",
+        "sha256": "c213a982f8738c247188e5a34b596f0f961066b47de4c217a03e782e714fae08",
+        "only_network_abstraction_reference_renamed": false
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/compat_instance.py",
+        "sha256": "7639cc177906bc289fe7a51fe79e8430f0d872c40083536bee111b379420b8b5",
+        "only_network_abstraction_reference_renamed": false
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/compat_portal.py",
+        "sha256": "8b15285d73bdfdc70dd980296e89349814cbd1183171c0e763a46371caa71ae1",
+        "only_network_abstraction_reference_renamed": false
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/compat_protocol.py",
+        "sha256": "401ac686869b9778f073d8b4c2e32987e28ecbddc926091a1975eb70d46549da",
+        "only_network_abstraction_reference_renamed": false
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat.py",
+        "sha256": "df51dcbb6d743225d3a8fc3730b7bb1112fc3e5fb5e85e004af6e0098cd389e0",
+        "only_network_abstraction_reference_renamed": false
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat_runtime.py",
+        "sha256": "8cf652c89584781611e31f60e28e11c2def1ab34033e6d2a4251f849a1b0193d",
+        "only_network_abstraction_reference_renamed": false
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-private-xwayland",
+        "sha256": "9feb923b2df307c816260734eb504586806f5ac6b00ef58bd1e127c13a43b652",
+        "only_network_abstraction_reference_renamed": false
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-zoom-discord-compat-runtime",
+        "sha256": "71924415f611006700e6f65daab47d77dd81f73b17be0a47928c1e35f85d940b",
+        "only_network_abstraction_reference_renamed": false
+      },
+      {
+        "path": "d-i/forky/scripts/desktop/xwayland.sh",
+        "sha256": "33977e223d38797f75c0deb5c4b327dd0b7a5a95cbe5b06795a16419197ec903",
+        "only_network_abstraction_reference_renamed": false
+      }
+    ],
+    "payload_members": 1725,
+    "all_payload_bytes_match_sources_and_manifest": true,
+    "all_payload_metadata_verified": true,
+    "preseed_pins_verified": true,
+    "products_sha256": {
+      "payload.tar.gz": "51f4e1cf96fdade52c56ecc4a6d0c54ed22bfda3358f401ed43b33183e3313ae",
+      "payload.manifest": "fa0ac0db792d2e9b48b63b8950ba4b49254f03e746eda635a436266be4f70bff",
+      "preseed.cfg": "12897b332ff70d1227c179716c84cb7633433dc42a5cb288f1687dda10020919"
+    }
+  },
+  "installed_policy_reload": false,
+  "installed_firstboot_after_repair": false,
+  "installed_application_launches_after_repair": false,
+  "live_dns_and_packet_acceptance": false
+}

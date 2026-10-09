@@ -25,7 +25,11 @@ from .compat_protocol import CONTROL_DIRECTORY, ProtocolError, RequiredComponent
 from .bubblewrap import PRIVATE_PROCFS_ARGUMENTS, validate_private_procfs
 from .browsers import EDGE_ON_DEVICE_MODEL_DISABLE_FEATURE
 from .commands import build_argv, normalize_managed_arguments, resolved_executable, validate_managed_arguments
-from .environment import build_environment, resolve_home_relative_path
+from .environment import (
+    build_environment,
+    managed_database_state_root,
+    resolve_home_relative_path,
+)
 from .profiles import (
     APPS,
     PERSISTENT_SANDBOX_CONFIG,
@@ -53,12 +57,7 @@ SYSTEM_BUS_SOCKET_PATH = dbus_proxy.SYSTEM_BUS_SOCKET_PATH
 SYSTEM_BUS_ADDRESS = dbus_proxy.SYSTEM_BUS_ADDRESS
 BWRAP_INFO_MAX_BYTES = network_namespace.BWRAP_INFO_MAX_BYTES
 BWRAP_NETWORK_SETUP_TIMEOUT_SECONDS = network_namespace.BWRAP_NETWORK_SETUP_TIMEOUT_SECONDS
-SLIRP4NETNS_BINARY = network_namespace.SLIRP4NETNS_BINARY
-SLIRP4NETNS_DIAGNOSTIC_MAX_BYTES = network_namespace.SLIRP4NETNS_DIAGNOSTIC_MAX_BYTES
-SLIRP4NETNS_DNS_ADDRESS = network_namespace.SLIRP4NETNS_DNS_ADDRESS
-SLIRP4NETNS_MTU = network_namespace.SLIRP4NETNS_MTU
-SLIRP4NETNS_STOP_TIMEOUT_SECONDS = network_namespace.SLIRP4NETNS_STOP_TIMEOUT_SECONDS
-SLIRP4NETNS_TAP_NAME = network_namespace.SLIRP4NETNS_TAP_NAME
+VETH_DNS_ADDRESS = network_namespace.VETH_DNS_ADDRESS
 PRIVATE_TEMPORARY_DIRECTORIES = mounts.PRIVATE_TEMPORARY_DIRECTORIES
 PRIVATE_X11_SOCKET_DIRECTORY = "/tmp/.X11-unix"
 PRIVATE_XWAYLAND_BINARY = (
@@ -196,34 +195,19 @@ def _close_file_descriptor(file_descriptor: int | None) -> None:
     network_namespace.close_file_descriptor(file_descriptor)
 
 
-def run_slirp4netns_sandbox(
-    command: list[str],
-    payload_argv: list[str],
-    temp_root: str,
-    inherited_fds: tuple[int, ...],
-    *,
+def run_veth_sandbox(
+    command: list[str], payload_argv: list[str], temp_root: str,
+    inherited_fds: tuple[int, ...], *, app: str,
     pre_payload_check: Callable[[], None] | None = None,
     runtime_check: Callable[[], None] | None = None,
     cleanup_deadline: Callable[[], float] | None = None,
     cleanup_failure: Callable[[], None] | None = None,
-    discord_rpc: bool = False,
 ) -> int:
     validate_private_procfs(command)
-    slirp_binary = require_root_owned_executable(
-        "slirp4netns",
-        SLIRP4NETNS_BINARY,
-    )
-    return network_namespace.run_slirp4netns_sandbox(
-        command,
-        payload_argv,
-        temp_root,
-        inherited_fds,
-        slirp_binary=slirp_binary,
-        pre_payload_check=pre_payload_check,
-        runtime_check=runtime_check,
-        cleanup_deadline=cleanup_deadline,
-        cleanup_failure=cleanup_failure,
-        discord_rpc=discord_rpc,
+    return network_namespace.run_veth_sandbox(
+        command, payload_argv, temp_root, inherited_fds, app=app,
+        pre_payload_check=pre_payload_check, runtime_check=runtime_check,
+        cleanup_deadline=cleanup_deadline, cleanup_failure=cleanup_failure,
     )
 
 
@@ -340,22 +324,20 @@ def filtered_resolv_conf() -> str:
     return "\n".join(lines) + "\n"
 
 
-def slirp4netns_resolv_conf() -> str:
-    return (
-        f"nameserver {SLIRP4NETNS_DNS_ADDRESS}\n"
-        "options timeout:2 attempts:3\n"
-    )
+def veth_resolv_conf() -> str:
+    from .network_client import resolver_configuration
+    return resolver_configuration()
 
 
-def create_slirp4netns_resolver_file(temp_root: str) -> str:
-    validate_absolute_path("slirp4netns temporary root", temp_root)
-    resolver_path = os.path.join(temp_root, "slirp4netns-resolv.conf")
+def create_veth_resolver_file(temp_root: str) -> str:
+    validate_absolute_path("veth temporary root", temp_root)
+    resolver_path = os.path.join(temp_root, "veth-resolv.conf")
     try:
         with open(resolver_path, "x", encoding="utf-8") as handle:
-            handle.write(slirp4netns_resolv_conf())
+            handle.write(veth_resolv_conf())
         os.chmod(resolver_path, 0o600)
     except OSError as exc:
-        fail(f"cannot create the private slirp4netns resolver policy: {exc}")
+        fail(f"cannot create the private veth resolver policy: {exc}")
     return resolver_path
 
 
@@ -471,9 +453,23 @@ def pure_privacy_argv(app_name: str, extra_args: list[str]) -> list[str]:
     return argv
 
 
+def bwrap_command(app_name: str, bwrap: str) -> list[str]:
+    if app_name == "code":
+        # Code's tools retain its existing application-specific execution
+        # policy. Do not grant IDE execution rights to every browser payload.
+        aa_exec = require_root_owned_executable("aa-exec", "/usr/bin/aa-exec")
+        return [aa_exec, "--profile=labwc-app//code-bwrap", "--", bwrap]
+    return [bwrap]
+
+
 def run_pure_privacy(app_name: str, extra_args: list[str]) -> int:
     if not APPS[app_name].get("pure_privacy", False):
         fail(f"pure-privacy mode is not supported for {app_name}")
+    online = APPS[app_name].get("privacy_share_net", True)
+    if type(online) is not bool:
+        fail(f"PurePrivacy network policy is invalid for {app_name}")
+    if online and not PERSISTENT_SANDBOX_CONFIG.get(app_name, {}).get("veth", False):
+        fail(f"PurePrivacy online mode requires a private veth policy for {app_name}")
 
     bwrap = require_root_owned_executable("bubblewrap", "/usr/bin/bwrap")
 
@@ -510,7 +506,7 @@ def run_pure_privacy(app_name: str, extra_args: list[str]) -> int:
     with open(hosts_path, "w", encoding="utf-8") as handle:
         handle.write(f"127.0.0.1 localhost\n::1 localhost\n127.0.1.1 {fake_hostname}\n")
     with open(resolv_path, "w", encoding="utf-8") as handle:
-        handle.write(filtered_resolv_conf())
+        handle.write(veth_resolv_conf() if online else "# Networking is disabled.\n")
     with open(nsswitch_path, "w", encoding="utf-8") as handle:
         handle.write(
             "passwd: files\n"
@@ -540,7 +536,7 @@ def run_pure_privacy(app_name: str, extra_args: list[str]) -> int:
         raise
 
     command = [
-        bwrap,
+        *bwrap_command(app_name, bwrap),
         "--unshare-all",
         "--new-session",
         "--die-with-parent",
@@ -551,14 +547,16 @@ def run_pure_privacy(app_name: str, extra_args: list[str]) -> int:
         str(os.getgid()),
         "--hostname",
         fake_hostname,
+        "--cap-drop",
+        "ALL",
         *PRIVATE_PROCFS_ARGUMENTS,
         "--dev",
         "/dev",
         "--chdir",
         home_dir,
     ]
-    if APPS[app_name].get("privacy_share_net", True):
-        command.insert(2, "--share-net")
+    # The existing offline policies stay offline. Online policies obtain their
+    # own kernel-veth lease and never share the host namespace.
     add_dir_chain(command, os.path.dirname(home_dir))
     command.extend(["--tmpfs", home_dir, "--chmod", "0700", home_dir])
     add_dir_chain(command, os.path.dirname(sandbox_runtime_dir))
@@ -585,6 +583,8 @@ def run_pure_privacy(app_name: str, extra_args: list[str]) -> int:
         "/etc/ca-certificates",
         "/etc/chromium",
         "/etc/chromium.d",
+        "/etc/opt/edge",
+        "/etc/vivaldi",
         "/etc/pki",
         "/etc/fonts",
         "/etc/alternatives",
@@ -661,16 +661,22 @@ def run_pure_privacy(app_name: str, extra_args: list[str]) -> int:
     for key, value in env.items():
         command.extend(["--setenv", key, value])
     validate_private_procfs(command)
-    command.extend(argv)
 
     try:
         require_running_dbus_proxy(proxy_process, proxy_socket)
-        completed = subprocess.run(
-            command,
-            check=False,
-            cwd="/",
-            env=managed_subprocess_environment(),
-        )
+        if online:
+            return run_veth_sandbox(
+                command,
+                argv,
+                temp_root,
+                (),
+                pre_payload_check=lambda: require_running_dbus_proxy(proxy_process, proxy_socket),
+                # The dedicated persistent torrent wrapper owns peer-port
+                # forwarding. A disposable profile needs outbound networking.
+                app="qbittorrent-privacy" if app_name == "qbittorrent" else app_name,
+            )
+        command.extend(argv)
+        completed = subprocess.run(command, check=False, cwd="/", env=managed_subprocess_environment())
         return completed.returncode
     finally:
         stop_dbus_proxy(proxy_process, proxy_lifecycle, proxy_socket)
@@ -1080,6 +1086,25 @@ def add_synthetic_sysfs_masks(command: list[str]) -> None:
             command.extend(["--tmpfs", path])
 
 
+def add_native_device_binds(command: list[str], sandbox: dict[str, object]) -> None:
+    """Retain explicitly configured USB/game peripherals in private /dev.
+
+    Bind accessible character nodes individually; never expose the host input
+    directory or turn an application device flag into arbitrary path access.
+    """
+    patterns = []
+    if sandbox.get("usb_devices", False):
+        patterns.extend(("/dev/bus/usb/[0-9][0-9][0-9]/[0-9][0-9][0-9]", "/dev/hidraw[0-9]*"))
+    if sandbox.get("game_devices", False):
+        patterns.extend(("/dev/input/event[0-9]*", "/dev/input/js[0-9]*", "/dev/hidraw[0-9]*", "/dev/uinput"))
+    for pattern in patterns:
+        for path in sorted(pathlib.Path("/").glob(pattern[1:])):
+            metadata = path.lstat()
+            if stat.S_ISCHR(metadata.st_mode) and not stat.S_ISLNK(metadata.st_mode) and os.access(path, os.R_OK | os.W_OK):
+                add_dir_chain(command, str(path.parent))
+                command.extend(["--dev-bind", str(path), str(path)])
+
+
 def persistent_sandbox_argv(
     app_name: str,
     mode: str,
@@ -1099,6 +1124,36 @@ def persistent_sandbox_argv(
         *sandbox.get("inner_sandbox_args", ()),
     ]
     return argv
+
+
+def freerdp_shared_folder(extra_args: list[str], home_dir: str) -> tuple[list[str], str | None]:
+    """Bind only the menu's explicit shared folder, below HOME or user media."""
+    arguments = list(extra_args)
+    selected = None
+    home_root = pathlib.Path(home_dir).resolve(strict=True)
+    media_root = pathlib.Path("/run/media") / current_user_name()
+    roots = [home_root]
+    if media_root.is_dir() and not media_root.is_symlink():
+        roots.append(media_root.resolve(strict=True))
+    for index, argument in enumerate(arguments):
+        if not argument.startswith("/drive:"):
+            continue
+        if selected is not None or not argument.startswith("/drive:Shared,"):
+            fail("managed FreeRDP supports one explicitly selected Shared folder")
+        source = argument.removeprefix("/drive:Shared,")
+        if len(source) > 1024 or "," in source or any(ord(char) < 32 or ord(char) == 127 for char in source):
+            fail("invalid FreeRDP shared folder")
+        validate_absolute_path("FreeRDP shared folder", source)
+        try:
+            resolved = pathlib.Path(source).resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            fail(f"FreeRDP shared folder is unavailable: {exc}")
+        if (not any(resolved == root or root in resolved.parents for root in roots)
+                or not resolved.is_dir() or not os.access(resolved, os.R_OK | os.X_OK)):
+            fail("FreeRDP shared folder must be readable below HOME or the current user's media directory")
+        selected = str(resolved)
+        arguments[index] = "/drive:Shared,/rdp-shared"
+    return arguments, selected
 
 
 def select_persistent_sandbox_chdir(
@@ -1190,14 +1245,14 @@ def _run_persistent_sandbox(
     if sandbox is None:
         fail(f"persistent sandbox mode is not supported for {app_name}")
     share_net = sandbox.get("share_net")
-    slirp4netns_enabled = sandbox.get("slirp4netns", False)
+    veth_enabled = sandbox.get("veth", False)
     if not isinstance(share_net, bool):
         fail(f"persistent sandbox network-sharing policy is invalid for {app_name}")
-    if not isinstance(slirp4netns_enabled, bool):
-        fail(f"persistent sandbox slirp4netns policy is invalid for {app_name}")
-    if share_net and slirp4netns_enabled:
+    if not isinstance(veth_enabled, bool):
+        fail(f"persistent sandbox veth policy is invalid for {app_name}")
+    if share_net and veth_enabled:
         fail(
-            f"persistent sandbox cannot share the host network and use slirp4netns: {app_name}"
+            f"persistent sandbox cannot share the host network and use veth: {app_name}"
         )
     if private_xwayland_binary is not None and app_name not in WAYLAND_COMPAT_APPS:
         fail(f"private Xwayland is not permitted for {app_name}")
@@ -1229,6 +1284,9 @@ def _run_persistent_sandbox(
     home_stat = os.lstat(home_dir)
     if stat.S_ISLNK(home_stat.st_mode) or not stat.S_ISDIR(home_stat.st_mode) or home_stat.st_uid != os.getuid():
         fail(f"sandbox HOME is not a directory owned by the current user: {home_dir}")
+    freerdp_share = None
+    if app_name == "freerdp":
+        extra_args, freerdp_share = freerdp_shared_folder(extra_args, home_dir)
     if sandbox.get("prepare_document_portal", False):
         prepare_document_portal(host_runtime_dir)
 
@@ -1238,7 +1296,7 @@ def _run_persistent_sandbox(
         persistent_app_directory(
             home_dir,
             relative_path,
-            preserve_existing_mode=app_name == "chatgpt",
+            preserve_existing_mode=app_name == "chatgpt" or sandbox.get("preserve_persistent_modes", False),
         )
         for relative_path in sandbox["persistent_paths"]
     ]
@@ -1246,6 +1304,11 @@ def _run_persistent_sandbox(
         prepare_tuta_integration(home_dir)
     shared_temp_directory = None
     shared_temp_entry = sandbox.get("shared_temp_directory")
+    if shared_temp_entry is None and sandbox.get("shared_temp_directory_by_application", False):
+        # Browser/Electron singleton sockets must remain reachable by later
+        # launches using the same account profile, across private namespaces.
+        # Only this application's private runtime directory is shared.
+        shared_temp_entry = f"labwc-{app_name}-tmp"
     if shared_temp_entry is not None:
         if not isinstance(shared_temp_entry, str):
             fail(f"persistent sandbox shared temp name is invalid for {app_name}")
@@ -1278,8 +1341,8 @@ def _run_persistent_sandbox(
             temp_root,
             home_dir,
             resolv_conf=(
-                slirp4netns_resolv_conf()
-                if slirp4netns_enabled
+                veth_resolv_conf()
+                if veth_enabled
                 else None
             ),
             shell_path=env["SHELL"],
@@ -1287,9 +1350,9 @@ def _run_persistent_sandbox(
         if sandbox.get("synthetic_identity", False)
         else None
     )
-    slirp4netns_resolver_path = (
-        create_slirp4netns_resolver_file(temp_root)
-        if slirp4netns_enabled and synthetic_identity is None
+    veth_resolver_path = (
+        create_veth_resolver_file(temp_root)
+        if veth_enabled and synthetic_identity is None
         else None
     )
     proxy_processes: list[
@@ -1347,7 +1410,7 @@ def _run_persistent_sandbox(
     try:
         argv = persistent_sandbox_argv(app_name, mode, extra_args, home_dir)
         command = [
-            bwrap,
+            *bwrap_command(app_name, bwrap),
             "--unshare-all",
         ]
         if share_net:
@@ -1361,12 +1424,12 @@ def _run_persistent_sandbox(
                 str(os.getuid()),
                 "--gid",
                 str(os.getgid()),
+                "--cap-drop",
+                "ALL",
                 *(
                     (
                         "--hostname",
                         synthetic_identity["hostname_value"],
-                        "--cap-drop",
-                        "ALL",
                     )
                     if synthetic_identity is not None
                     else ()
@@ -1426,6 +1489,8 @@ def _run_persistent_sandbox(
         for path in (
             "/etc/alternatives",
             "/etc/ca-certificates",
+            "/etc/chromium",
+            "/etc/chromium.d",
             "/etc/fonts",
             "/etc/group",
             "/etc/hosts",
@@ -1440,18 +1505,19 @@ def _run_persistent_sandbox(
             "/etc/pki",
             "/etc/resolv.conf",
             "/etc/ssl",
+            "/etc/xdg",
         ):
             if synthetic_identity is not None and path in synthetic_etc_paths:
                 continue
-            if slirp4netns_resolver_path is not None and path == "/etc/resolv.conf":
+            if veth_resolver_path is not None and path == "/etc/resolv.conf":
                 continue
             add_optional_bind(command, "--ro-bind", path, path)
         if synthetic_identity is not None:
             add_synthetic_identity_mounts(command, synthetic_identity)
             add_synthetic_sysfs_masks(command)
-        elif slirp4netns_resolver_path is not None:
+        elif veth_resolver_path is not None:
             command.extend(
-                ["--ro-bind", slirp4netns_resolver_path, "/etc/resolv.conf"]
+                ["--ro-bind", veth_resolver_path, "/etc/resolv.conf"]
             )
 
         command.extend(["--tmpfs", home_dir, "--chmod", "0700", home_dir])
@@ -1518,6 +1584,20 @@ def _run_persistent_sandbox(
             sandbox.get("rw_bind_paths", ()),
             "--bind",
         )
+        if freerdp_share is not None:
+            command.extend(["--dir", "/rdp-shared", "--bind", freerdp_share, "/rdp-shared"])
+        if sandbox.get("database_state", False):
+            database_state_root = managed_database_state_root(
+                app_name,
+                current_user_name(),
+            )
+            if database_state_root is None:
+                fail(f"managed database state is unavailable for {app_name}")
+            add_absolute_directory_binds(
+                command,
+                (database_state_root,),
+                "--bind",
+            )
         add_absolute_directory_bind_pairs(
             command,
             sandbox.get("rw_bind_directory_pairs", ()),
@@ -1559,6 +1639,7 @@ def _run_persistent_sandbox(
             )
 
         add_video_device_binds(command, sandbox.get("camera_devices", False))
+        add_native_device_binds(command, sandbox)
         if private_xwayland_binary is not None:
             try:
                 selected_gpu = compat_gpu.add_device_binds(command, mode)
@@ -1627,9 +1708,13 @@ def _run_persistent_sandbox(
             # Apply after all system/vendor mounts, including merged-/usr
             # aliases, so no later directory bind restores a browser launcher.
             add_compatibility_uri_opener(command)
+        if app_name == "chatgpt":
+            from .network_client import codex_socket_arguments, podman_socket_arguments
+            command.extend(podman_socket_arguments())
+            command.extend(codex_socket_arguments())
         payload_argv = [*payload_argv_prefix, *argv]
-        if slirp4netns_enabled:
-            return run_slirp4netns_sandbox(
+        if veth_enabled:
+            return run_veth_sandbox(
                 command,
                 payload_argv,
                 temp_root,
@@ -1637,7 +1722,7 @@ def _run_persistent_sandbox(
                 pre_payload_check=lambda: (require_compatibility_dbus_proxies(proxy_processes)
                     if compatibility_instance else require_running_dbus_proxies(proxy_processes)),
                 runtime_check=(lambda: (compatibility_instance.service(), require_compatibility_dbus_proxies(proxy_processes) if compatibility_instance.outcome is None else None)) if compatibility_instance else None,
-                discord_rpc=compatibility_instance is not None and app_name == "discord",
+                app=app_name,
                 cleanup_deadline=compatibility_instance.begin_cleanup if compatibility_instance else None,
                 cleanup_failure=(lambda: setattr(compatibility_instance, "cleanup_failed", True)) if compatibility_instance else None,
             )

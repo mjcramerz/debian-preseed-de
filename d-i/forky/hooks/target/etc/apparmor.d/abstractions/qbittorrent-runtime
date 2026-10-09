@@ -24,6 +24,8 @@ network inet6 dgram,
 # desktop IPC rather than requesting an unconfined exec.
 /usr/bin/{xdg-open,hostname,printf} rix,
 @{PROC}/version r,
+# Read-only socket diagnostics; the bwrap payload has private PID and netns.
+@{PROC}/@{pid}/net/{tcp,tcp6,udp,udp6} r,
 # qBittorrent's diagnostics read process metadata in both host and PID namespaces.
 # Restrict these reads and terminal I/O to objects owned by the invoking user.
 owner @{PROC}/@{pid}/{cmdline,stat} r,

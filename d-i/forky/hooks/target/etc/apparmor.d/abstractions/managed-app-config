@@ -1,0 +1,19 @@
+# Managed by unattended-installer.
+#
+# Common mutable application-state contract for repository-managed Wayland
+# and Electron applications. Keep this to normal per-user state locations;
+# credentials, documents and executable home paths remain explicit opt-ins.
+# The owner qualifier prevents access to another account's state; no execute
+# or memory-map permission is granted.
+owner @{HOME}/.cache/ rw,
+owner @{HOME}/.cache/** rwkl,
+owner @{HOME}/.config/ rw,
+owner @{HOME}/.config/** rwkl,
+owner @{HOME}/.local/ rw,
+owner @{HOME}/.local/share/ rw,
+owner @{HOME}/.local/share/** rwkl,
+owner @{HOME}/.local/state/ rw,
+owner @{HOME}/.local/state/** rwkl,
+owner @{HOME}/.var/ rw,
+owner @{HOME}/.var/app/ rw,
+owner @{HOME}/.var/app/** rwkl,

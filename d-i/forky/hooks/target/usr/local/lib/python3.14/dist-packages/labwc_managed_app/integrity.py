@@ -37,6 +37,7 @@ CORE_MODULES = (
     "integrity.py",
     "mounts.py",
     "network_namespace.py",
+    "network_client.py",
     "profiles.py",
     "recovery.py",
     "runtime.py",

@@ -98,8 +98,8 @@ def validate_apparmor_modes() -> None:
     rows = [line.split() for line in config.read_text().splitlines()
             if line.strip() and not line.lstrip().startswith('#')]
     if not rows or any(len(row) != 4 or
-                       (row != ['enforce', 'optional', 'hardware-tuning', '-']
-                        if row[2] == 'hardware-tuning'
+                       (row != ['enforce', 'optional' if row[2] == 'hardware-tuning' else 'required', row[2], '-']
+                        if row[2] in ('hardware-tuning', 'app-veth')
                         else row[0] != '__DESKTOP_APPARMOR_STATE__')
                        for row in rows):
         raise ValueError('managed AppArmor rows must select the desktop state, except enforced hardware-tuning')

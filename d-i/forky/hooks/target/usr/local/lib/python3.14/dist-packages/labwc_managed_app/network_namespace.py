@@ -1,11 +1,9 @@
-"""Private network namespace supervision for Bubblewrap sandboxes."""
+"""Kernel namespace supervision for Bubblewrap sandboxes."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
-
 import errno
-import ipaddress
 import json
 import socket
 import os
@@ -15,112 +13,31 @@ import subprocess
 import time
 
 from .runtime import fail, managed_subprocess_environment
-
+from .network_client import pin_sandbox_init
 
 BWRAP_INFO_MAX_BYTES = 16_384
 BWRAP_NETWORK_SETUP_TIMEOUT_SECONDS = 15
-SLIRP4NETNS_BINARY = "/usr/bin/slirp4netns"
-SLIRP4NETNS_DIAGNOSTIC_MAX_BYTES = 4_096
-SLIRP4NETNS_DNS_ADDRESS = "10.0.2.3"
-SLIRP4NETNS_MTU = 65_520
-SLIRP4NETNS_STOP_TIMEOUT_SECONDS = 2
-SLIRP4NETNS_TAP_NAME = "tap0"
+PROCESS_STOP_TIMEOUT_SECONDS = 2
+VETH_DNS_ADDRESS = "10.0.2.3"
 
-# Bubblewrap's block-fd accepts EOF as readiness. In peer mode a second,
-# inherited pipe authorizes exec only on an explicit marker; early setup
-# failures and supervisor death therefore cannot start the torrent payload.
-# This fixed code runs after namespace setup and closes its only extra fd
-# before replacing itself, so it adds no long-lived process.
+
+def veth_resolv_conf() -> str:
+    from .network_client import resolver_configuration
+    return resolver_configuration()
+
+
+# EOF on Bubblewrap's block-fd is insufficient authorization to start a payload.
 PEER_STARTUP_GATE = (
     "import os,sys; fd=int(sys.argv[1]); marker=os.read(fd,1); os.close(fd); "
     "sys.exit(1) if marker != b'1' else os.execv(sys.argv[2],sys.argv[2:])"
 )
-
-
-def validate_peer_forward(host_address: str, port: int) -> str:
-    if not isinstance(host_address, str):
-        fail("invalid private peer forwarding address")
-    try:
-        address = ipaddress.IPv4Address(host_address)
-    except (ValueError, TypeError):
-        fail("invalid private peer forwarding address")
-    if (address.is_loopback or address.is_unspecified or address.is_link_local
-            or address.is_multicast or address.is_reserved
-            or type(port) is not int or not 1024 <= port <= 65535):
-        fail("invalid private peer forwarding policy")
-    return str(address)
-
-
-def configure_peer_forward(api_path: str, host_address: str, port: int) -> None:
-    """Forward both torrent transports before releasing the private payload."""
-    address = validate_peer_forward(host_address, port)
-    os.chmod(api_path, 0o600)
-    for protocol in ("tcp", "udp"):
-        request = {"execute": "add_hostfwd", "arguments": {
-            "proto": protocol, "host_addr": address, "host_port": port,
-            "guest_addr": "10.0.2.100", "guest_port": port,
-        }}
-        try:
-            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as channel:
-                channel.settimeout(2)
-                channel.connect(api_path)
-                channel.sendall(json.dumps(request).encode("ascii"))
-                channel.shutdown(socket.SHUT_WR)
-                response = bytearray()
-                while len(response) <= 4096:
-                    chunk = channel.recv(4097 - len(response))
-                    if not chunk:
-                        break
-                    response.extend(chunk)
-                value = json.loads(response) if len(response) <= 4096 else None
-            if not isinstance(value, dict) or "return" not in value or "error" in value:
-                raise ValueError("host forwarding was rejected")
-        except (OSError, ValueError) as exc:
-            fail(f"private peer {protocol} port {port} forwarding failed; no application was started: {exc}")
-
-# slirp cannot reach a service bound to the guest's 127.0.0.1 directly.
-# Its host forwards target these private TAP listeners; only this supervisor
-# connects onward to Discord's namespace-local RPC ports. No namespace entry,
-# host sockets in the payload, threads or additional long-lived processes.
 DISCORD_RPC_PORTS = tuple(range(6463, 6473))
-DISCORD_RPC_GUEST_ADDRESS = "10.0.2.100"
+DISCORD_RPC_GUEST_ADDRESS = "0.0.0.0"
 DISCORD_RPC_PORT_OFFSET = 10000
 
 
-def configure_discord_rpc(api_path: str, *, runtime_check: Callable[[], None] | None = None) -> None:
-    """Configure all ports before releasing the application; failure is atomic
-    with respect to its lifetime because the caller tears down slirp on error.
-    """
-    os.chmod(api_path, 0o600)
-    for port in DISCORD_RPC_PORTS:
-        if runtime_check is not None:
-            runtime_check()
-        request = {"execute": "add_hostfwd", "arguments": {
-            "proto": "tcp", "host_addr": "127.0.0.1", "host_port": port,
-            "guest_addr": DISCORD_RPC_GUEST_ADDRESS,
-            "guest_port": port + DISCORD_RPC_PORT_OFFSET,
-        }}
-        try:
-            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as channel:
-                channel.settimeout(2)
-                channel.connect(api_path)
-                channel.sendall(json.dumps(request).encode("ascii"))
-                channel.shutdown(socket.SHUT_WR)
-                response = bytearray()
-                while len(response) <= 4096:
-                    chunk = channel.recv(4097 - len(response))
-                    if not chunk:
-                        break
-                    response.extend(chunk)
-                value = json.loads(response) if len(response) <= 4096 else None
-            if not isinstance(value, dict) or "return" not in value or "error" in value:
-                raise ValueError("host forwarding was rejected")
-        except (OSError, ValueError):
-            fail(f"Discord loopback RPC port {port} is unavailable; no application was started")
-
-
 class DiscordRPCRelay:
-    """Bounded, nonblocking TAP-to-loopback relay inside Discord's namespace."""
+    """Bounded, nonblocking veth-to-loopback relay inside Discord's namespace."""
 
     LIMIT = 32
     BUFFER_BYTES = 65536
@@ -274,14 +191,14 @@ def _stop_subprocess(process: subprocess.Popen | None) -> None:
     except ProcessLookupError:
         pass
     try:
-        process.wait(timeout=SLIRP4NETNS_STOP_TIMEOUT_SECONDS)
+        process.wait(timeout=PROCESS_STOP_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
         try:
             process.kill()
         except ProcessLookupError:
             pass
         try:
-            process.wait(timeout=SLIRP4NETNS_STOP_TIMEOUT_SECONDS)
+            process.wait(timeout=PROCESS_STOP_TIMEOUT_SECONDS)
         except subprocess.TimeoutExpired:
             pass
 
@@ -362,360 +279,89 @@ def _read_bwrap_sandbox_pid(
     return sandbox_pid
 
 
-def _slirp4netns_diagnostic(stderr_handle) -> str:
-    try:
-        stderr_handle.flush()
-        stderr_handle.seek(0)
-        payload = stderr_handle.read(SLIRP4NETNS_DIAGNOSTIC_MAX_BYTES + 1)
-    except OSError:
-        return ""
-    truncated = len(payload) > SLIRP4NETNS_DIAGNOSTIC_MAX_BYTES
-    payload = payload[:SLIRP4NETNS_DIAGNOSTIC_MAX_BYTES]
-    message = " ".join(payload.decode("utf-8", errors="replace").split())
-    if truncated:
-        message = f"{message} [truncated]" if message else "[truncated]"
-    return message
-
-
-def _slirp4netns_exit_message(
-    status: int,
-    stderr_handle,
-    context: str,
-) -> str:
-    diagnostic = _slirp4netns_diagnostic(stderr_handle)
-    suffix = f": {diagnostic}" if diagnostic else ""
-    return f"slirp4netns exited {context} (status {status}){suffix}"
-
-
-def _wait_for_slirp4netns_ready(
-    ready_fd: int,
-    bwrap_process: subprocess.Popen,
-    slirp_process: subprocess.Popen,
-    stderr_handle,
-    runtime_check: Callable[[], None] | None = None,
-) -> None:
-    deadline = time.monotonic() + BWRAP_NETWORK_SETUP_TIMEOUT_SECONDS
-
-    while True:
-        if runtime_check is not None:
-            runtime_check()
-        bwrap_status = bwrap_process.poll()
-        if bwrap_status is not None:
-            if runtime_check is not None:
-                from .compat_protocol import RequiredComponentError
-                raise RequiredComponentError(bwrap_status)
-            fail(
-                "Bubblewrap exited before isolated network setup completed "
-                f"(status {bwrap_status})"
-            )
-        slirp_status = slirp_process.poll()
-        if slirp_status is not None:
-            if runtime_check is not None:
-                from .compat_protocol import RequiredComponentError
-                raise RequiredComponentError(slirp_status)
-            fail(
-                _slirp4netns_exit_message(
-                    slirp_status,
-                    stderr_handle,
-                    "before configuring the isolated network namespace",
-                )
-            )
-
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            fail(
-                "slirp4netns did not configure the isolated network namespace "
-                "before timeout"
-            )
-        try:
-            readable, _, _ = select.select(
-                [ready_fd],
-                [],
-                [],
-                min(remaining, 0.25),
-            )
-        except InterruptedError:
-            continue
-        if not readable:
-            continue
-        try:
-            readiness = os.read(ready_fd, 2)
-        except InterruptedError:
-            continue
-        if readiness != b"1":
-            try:
-                slirp_status = slirp_process.wait(timeout=0.1)
-            except subprocess.TimeoutExpired:
-                slirp_status = None
-            if slirp_status is not None:
-                if runtime_check is not None:
-                    from .compat_protocol import RequiredComponentError
-                    raise RequiredComponentError(slirp_status)
-                fail(
-                    _slirp4netns_exit_message(
-                        slirp_status,
-                        stderr_handle,
-                        "before configuring the isolated network namespace",
-                    )
-                )
-            fail("slirp4netns returned an invalid readiness marker")
-        return
-
-
-def _wait_for_bwrap_with_slirp4netns(
-    bwrap_process: subprocess.Popen,
-    slirp_process: subprocess.Popen,
-    stderr_handle,
-    runtime_check: Callable[[], None] | None = None,
-) -> int:
-    while True:
-        if runtime_check is not None:
-            runtime_check()
-        # Payload completion precedes intentional slirp exit-fd teardown.
-        # A helper observed after that completion is not a new first cause.
-        bwrap_status = bwrap_process.poll()
-        if bwrap_status is not None:
-            return bwrap_status
-        slirp_status = slirp_process.poll()
-        if slirp_status is not None:
-            if runtime_check is not None:
-                from .compat_protocol import RequiredComponentError
-                raise RequiredComponentError(slirp_status)
-            fail(
-                _slirp4netns_exit_message(
-                    slirp_status,
-                    stderr_handle,
-                    "while the managed application sandbox was running",
-                )
-            )
-        try:
-            bwrap_status = bwrap_process.wait(timeout=0.25)
-        except subprocess.TimeoutExpired:
-            continue
-        return bwrap_status
-
-
-def run_slirp4netns_sandbox(
-    command: list[str],
-    payload_argv: list[str],
-    temp_root: str,
-    inherited_fds: tuple[int, ...],
-    *,
-    slirp_binary: str,
+def run_veth_sandbox(
+    command: list[str], payload_argv: list[str], temp_root: str,
+    inherited_fds: tuple[int, ...], *, app: str,
     pre_payload_check: Callable[[], None] | None = None,
     runtime_check: Callable[[], None] | None = None,
     cleanup_deadline: Callable[[], float] | None = None,
     cleanup_failure: Callable[[], None] | None = None,
-    discord_rpc: bool = False,
-    peer_forward: tuple[str, int] | None = None,
-    disable_dns: bool = False,
+    on_network_ready: Callable | None = None,
 ) -> int:
-    if peer_forward is not None:
-        # Validate before creating namespaces or listeners. The source address
-        # pins outbound traffic to the same active route as the host forwards.
-        validate_peer_forward(*peer_forward)
-        if discord_rpc:
-            fail("invalid private peer forwarding policy")
-    info_read_fd = None
-    info_write_fd = None
-    block_read_fd = None
-    block_write_fd = None
-    ready_read_fd = None
-    ready_write_fd = None
-    exit_read_fd = None
-    exit_write_fd = None
-    gate_read_fd = None
-    gate_write_fd = None
-    bwrap_process = None
-    slirp_process = None
-    stderr_handle = None
-    sandbox_pidfd = None
-    payload_released = False
-    api_path = os.path.join(temp_root, "slirp4netns.api") if discord_rpc or peer_forward is not None else None
-
+    from .network_client import Lease
+    descriptors = set()
+    sandbox = None
+    pidfd = None
+    lease = None
     try:
-        info_read_fd, info_write_fd = os.pipe()
-        block_read_fd, block_write_fd = os.pipe()
-        ready_read_fd, ready_write_fd = os.pipe()
-        exit_read_fd, exit_write_fd = os.pipe()
-
-        sandbox_argv = payload_argv
-        gate_fds = ()
-        if peer_forward is not None:
-            gate_read_fd, gate_write_fd = os.pipe()
-            gate_fds = (gate_read_fd,)
-            sandbox_argv = ["/usr/bin/python3", "-I", "-B", "-c", PEER_STARTUP_GATE,
-                            str(gate_read_fd), *payload_argv]
-
-        bwrap_command = [
-            *command,
-            "--info-fd",
-            str(info_write_fd),
-            "--block-fd",
-            str(block_read_fd),
-            *sandbox_argv,
-        ]
-        bwrap_pass_fds = tuple(
-            dict.fromkeys(
-                (*inherited_fds, info_write_fd, block_read_fd, *gate_fds)
-            )
-        )
-        bwrap_process = subprocess.Popen(
-            bwrap_command,
-            cwd="/",
-            env=managed_subprocess_environment(),
-            pass_fds=bwrap_pass_fds,
-        )
-        close_file_descriptor(info_write_fd)
-        info_write_fd = None
-        close_file_descriptor(block_read_fd)
-        block_read_fd = None
-        close_file_descriptor(gate_read_fd)
-        gate_read_fd = None
-
-        sandbox_pid = _read_bwrap_sandbox_pid(
-            info_read_fd,
-            bwrap_process,
-            runtime_check,
-        )
-        close_file_descriptor(info_read_fd)
-        info_read_fd = None
-        if peer_forward is not None:
-            # Bubblewrap's block-fd also releases on EOF. Pin the namespace
-            # init so failed peer setup can kill it BEFORE closing that pipe,
-            # without signalling a PID that could have been reused.
-            try:
-                sandbox_pidfd = os.pidfd_open(sandbox_pid)
-            except OSError as exc:
-                fail(f"cannot pin the private peer namespace for safe cancellation: {exc}")
-
-        stderr_path = os.path.join(temp_root, "slirp4netns.stderr")
-        stderr_handle = open(stderr_path, "w+b", buffering=0)
-        os.chmod(stderr_path, 0o600)
-        slirp_process = subprocess.Popen(
-            [
-                slirp_binary,
-                "--configure",
-                f"--mtu={SLIRP4NETNS_MTU}",
-                "--disable-host-loopback",
-                *(["--disable-dns"] if disable_dns else []),
-                *([f"--outbound-addr={peer_forward[0]}"] if peer_forward is not None else []),
-                *(["--api-socket", api_path] if api_path else []),
-                "--ready-fd",
-                str(ready_write_fd),
-                "--exit-fd",
-                str(exit_read_fd),
-                str(sandbox_pid),
-                SLIRP4NETNS_TAP_NAME,
-            ],
-            cwd="/",
-            env=managed_subprocess_environment(),
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=stderr_handle,
-            pass_fds=(ready_write_fd, exit_read_fd),
-        )
-        close_file_descriptor(ready_write_fd)
-        ready_write_fd = None
-        close_file_descriptor(exit_read_fd)
-        exit_read_fd = None
-
-        _wait_for_slirp4netns_ready(
-            ready_read_fd,
-            bwrap_process,
-            slirp_process,
-            stderr_handle,
-            runtime_check,
-        )
-        close_file_descriptor(ready_read_fd)
-        ready_read_fd = None
-        if discord_rpc and api_path is not None:
-            configure_discord_rpc(api_path, runtime_check=runtime_check)
-        elif peer_forward is not None and api_path is not None:
-            configure_peer_forward(api_path, *peer_forward)
+        info_read, info_write = os.pipe()
+        descriptors.update((info_read, info_write))
+        block_read, block_write = os.pipe()
+        descriptors.update((block_read, block_write))
+        gate_read, gate_write = os.pipe()
+        descriptors.update((gate_read, gate_write))
+        argv = [*command, "--info-fd", str(info_write), "--block-fd", str(block_read),
+                "/usr/bin/python3", "-I", "-B", "-c", PEER_STARTUP_GATE,
+                str(gate_read), *payload_argv]
+        sandbox = subprocess.Popen(argv, cwd="/", env=managed_subprocess_environment(),
+            pass_fds=tuple(dict.fromkeys((*inherited_fds, info_write, block_read, gate_read))))
+        for fd in (info_write, block_read, gate_read):
+            close_file_descriptor(fd)
+            descriptors.remove(fd)
+        pid = _read_bwrap_sandbox_pid(info_read, sandbox, runtime_check)
+        pidfd = pin_sandbox_init(pid)
+        lease = Lease.for_pid(pid, app)
+        if on_network_ready is not None:
+            on_network_ready(lease)
         if pre_payload_check is not None:
             pre_payload_check()
-        bwrap_status = bwrap_process.poll()
-        if bwrap_status is not None:
+        if runtime_check is not None:
+            runtime_check()
+        lease.check()
+        if sandbox.poll() is not None:
+            fail("Bubblewrap stopped before kernel network readiness")
+        os.write(block_write, b"1")
+        os.write(gate_write, b"1")
+        for fd in (block_write, gate_write, info_read):
+            close_file_descriptor(fd)
+            descriptors.remove(fd)
+        while True:
             if runtime_check is not None:
-                from .compat_protocol import RequiredComponentError
-                raise RequiredComponentError(bwrap_status)
-            fail(
-                "Bubblewrap exited after isolated network setup completed "
-                f"but before payload release (status {bwrap_status})"
-            )
-        slirp_status = slirp_process.poll()
-        if slirp_status is not None:
-            if runtime_check is not None:
-                from .compat_protocol import RequiredComponentError
-                raise RequiredComponentError(slirp_status)
-            fail(
-                _slirp4netns_exit_message(
-                    slirp_status,
-                    stderr_handle,
-                    "after configuring the isolated network namespace "
-                    "but before payload release",
-                )
-            )
-        try:
-            os.write(block_write_fd, b"1")
-            if gate_write_fd is not None:
-                os.write(gate_write_fd, b"1")
-            payload_released = True
-        except (BrokenPipeError, OSError):
-            status = bwrap_process.poll()
-            suffix = f" (status {status})" if status is not None else ""
-            fail(f"cannot release the configured Bubblewrap sandbox{suffix}")
-        close_file_descriptor(block_write_fd)
-        block_write_fd = None
-        close_file_descriptor(gate_write_fd)
-        gate_write_fd = None
-
-        return _wait_for_bwrap_with_slirp4netns(
-            bwrap_process,
-            slirp_process,
-            stderr_handle,
-            runtime_check,
-        )
-    finally:
-        if sandbox_pidfd is not None:
+                runtime_check()
+            status = sandbox.poll()
+            if status is not None:
+                return status
+            lease.check()
             try:
-                if not payload_released:
-                    signal.pidfd_send_signal(sandbox_pidfd, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            finally:
-                close_file_descriptor(sandbox_pidfd)
-        deadline = cleanup_deadline() if cleanup_deadline is not None else None
-        cleanup_ok = True
-        if deadline is not None:
-            from .compat_protocol import stop_processes
-            if not stop_processes([bwrap_process], deadline):
-                cleanup_ok = False
-        elif bwrap_process is not None and bwrap_process.poll() is None:
-            _stop_subprocess(bwrap_process)
-        for file_descriptor in (
-            info_read_fd,
-            info_write_fd,
-            block_read_fd,
-            block_write_fd,
-            ready_read_fd,
-            ready_write_fd,
-            exit_read_fd,
-            gate_read_fd,
-            gate_write_fd,
-        ):
-            close_file_descriptor(file_descriptor)
-        close_file_descriptor(exit_write_fd)
-        if deadline is not None:
-            if not stop_processes([slirp_process], deadline):
-                cleanup_ok = False
-        elif slirp_process is not None and slirp_process.poll() is None:
-            try:
-                slirp_process.wait(timeout=SLIRP4NETNS_STOP_TIMEOUT_SECONDS)
+                return sandbox.wait(timeout=0.25)
             except subprocess.TimeoutExpired:
-                _stop_subprocess(slirp_process)
-        if stderr_handle is not None:
-            stderr_handle.close()
-        if not cleanup_ok and cleanup_failure is not None:
-            cleanup_failure()
+                continue
+    except (OSError, ValueError, RuntimeError) as exc:
+        fail(f"kernel private network failed: {exc}")
+    finally:
+        try:
+            # Bubblewrap's monitor reports the initial payload's exit while
+            # its PID-1 reaper can still own detached descendants. End the
+            # pinned namespace on every exit, including normal completion.
+            # Killing its init makes the kernel terminate every process in
+            # that PID namespace; a recycled numeric PID is never targeted.
+            if pidfd is not None:
+                try:
+                    signal.pidfd_send_signal(pidfd, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+        finally:
+            cleanup_ok = True
+            deadline = cleanup_deadline() if cleanup_deadline is not None else None
+            if deadline is not None:
+                from .compat_protocol import stop_processes
+                cleanup_ok = stop_processes([sandbox], deadline)
+            else:
+                _stop_subprocess(sandbox)
+            for fd in descriptors:
+                close_file_descriptor(fd)
+            close_file_descriptor(pidfd)
+            if lease is not None:
+                lease.close()
+            if not cleanup_ok and cleanup_failure is not None:
+                cleanup_failure()

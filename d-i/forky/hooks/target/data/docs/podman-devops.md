@@ -62,7 +62,7 @@ for direct desktop manipulation are in `workspace`.
 
 PID 1 delegates the API service cgroup; rootless Podman manages its child
 cgroups through `cgroupfs` on unified cgroup v2. The engine also uses crun,
-Netavark and pasta. `auto`
+Netavark and a managed kernel veth uplink. `auto`
 selects native OverlayFS on approved local filesystems (ext4, XFS, Btrfs, F2FS);
 explicit `btrfs` requires Btrfs. Actual rootless storage initialization must
 succeed at boot; there is no silent switch to vfs, another path, or rootful
@@ -77,7 +77,8 @@ Use fully qualified image names; no ambiguous search-registry fallback is set.
 
 The addon installs `podman`, `docker-cli`, `docker-compose`,
 `golang-github-containers-common`, `conmon`, `crun`, `uidmap`, `netavark`,
-`aardvark-dns`, `passt`, `catatonit`, and `python3`.
+`aardvark-dns`, `catatonit`, `python3`, `iproute2`, `nftables`,
+`util-linux`, and `systemd-resolved`.
 Podman **5.8.6 or newer** is checked explicitly: the managed restart unit uses
 upstream's boot-state filter and native `stop --service` behavior. Debian Forky
 currently provides that version family. This is not a backport for Bookworm or

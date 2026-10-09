@@ -9,6 +9,7 @@ use IPC::Open3 qw(open3);
 use POSIX qw(WNOHANG);
 use Socket qw(AF_UNIX SOCK_DGRAM sockaddr_un);
 use Symbol qw(gensym);
+use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 
 use constant {
     CHILD_EXECUTABLE        => '/usr/local/bin/labwc-app',
@@ -25,6 +26,9 @@ use constant {
     SOCKET_PATH             => '__INSTALLER_LOG_CHATGPT_SOCKET__',
     SYSLOG_TAG              => 'openai-chatgpt',
     TERMINATION_GRACE_SECS  => 5,
+    TERMINATION_KILL_SECS   => 2,
+    OUTPUT_DRAIN_SECS      => 0.2,
+    CHILD_POLL_SECS        => 0.1,
 };
 
 open STDOUT, '>', '/dev/null' or exit 70;
@@ -157,29 +161,23 @@ sub _flush_complete_lines {
     return;
 }
 
-sub _wait_child {
-    my ($pid) = @_;
-
-    while (1) {
-        my $waited = waitpid($pid, 0);
-        return $? if $waited == $pid;
-        next if $waited == -1 && $! == EINTR;
-        die "cannot wait for managed ChatGPT child\n";
-    }
+sub _monotonic {
+    return clock_gettime(CLOCK_MONOTONIC);
 }
 
 sub _terminate_child {
     my ($pid) = @_;
 
     kill 'TERM', $pid;
-    my $deadline = time() + TERMINATION_GRACE_SECS;
-    while (time() < $deadline) {
-        my $waited = waitpid($pid, WNOHANG);
-        return if $waited == $pid || $waited == -1;
-        select undef, undef, undef, 0.1;
+    for my $grace (TERMINATION_GRACE_SECS, TERMINATION_KILL_SECS) {
+        my $deadline = _monotonic() + $grace;
+        while (_monotonic() < $deadline) {
+            my $waited = waitpid($pid, WNOHANG);
+            return if $waited == $pid || ($waited == -1 && $! != EINTR);
+            select undef, undef, undef, CHILD_POLL_SECS;
+        }
+        kill 'KILL', $pid;
     }
-    kill 'KILL', $pid;
-    eval { _wait_child($pid); 1 };
     return;
 }
 
@@ -237,30 +235,63 @@ eval {
         stderr => q{},
     );
     my $termination_deadline;
+    my $kill_deadline;
+    my $drain_deadline;
+    my $raw_status;
     local $SIG{PIPE} = 'IGNORE';
     local $SIG{HUP} = sub {
         kill 'HUP', $child_pid if defined $child_pid;
-        $termination_deadline //= time() + TERMINATION_GRACE_SECS;
+        $termination_deadline //= _monotonic() + TERMINATION_GRACE_SECS;
     };
     local $SIG{INT} = sub {
         kill 'INT', $child_pid if defined $child_pid;
-        $termination_deadline //= time() + TERMINATION_GRACE_SECS;
+        $termination_deadline //= _monotonic() + TERMINATION_GRACE_SECS;
     };
     local $SIG{TERM} = sub {
         kill 'TERM', $child_pid if defined $child_pid;
-        $termination_deadline //= time() + TERMINATION_GRACE_SECS;
+        $termination_deadline //= _monotonic() + TERMINATION_GRACE_SECS;
     };
 
-    while ($selector->count()) {
+    # A descendant retaining stdout/stderr must not outlive the application by
+    # holding this supervisor open. Reap the direct child independently of EOF
+    # and drain only briefly afterwards. The user unit owns final cgroup cleanup.
+    while ($selector->count() || defined($child_pid)) {
+        if (defined($child_pid)) {
+            my $waited = waitpid($child_pid, WNOHANG);
+            if ($waited == $child_pid) {
+                $raw_status = $?;
+                undef $child_pid; # Never signal a PID after it has been reaped.
+                $drain_deadline = _monotonic() + OUTPUT_DRAIN_SECS;
+            } elsif ($waited == -1 && $! != EINTR) {
+                die "cannot inspect managed ChatGPT child\n";
+            }
+        }
+        if (defined($drain_deadline) && _monotonic() >= $drain_deadline) {
+            for my $handle ($selector->handles()) {
+                my $stream = $stream_for{fileno($handle)};
+                $selector->remove($handle);
+                close $handle or die "cannot close managed ChatGPT output\n";
+                _flush_complete_lines($stream, \$buffer_for{$stream}, 1);
+            }
+            last;
+        }
         if (
             defined($termination_deadline)
-            && time() >= $termination_deadline
+            && _monotonic() >= $termination_deadline
             && defined($child_pid)
         ) {
             kill 'KILL', $child_pid;
             undef $termination_deadline;
+            $kill_deadline = _monotonic() + TERMINATION_KILL_SECS;
         }
-        for my $handle ($selector->can_read(1)) {
+        die "managed ChatGPT child did not exit after termination\n"
+            if defined($kill_deadline) && defined($child_pid)
+                && _monotonic() >= $kill_deadline;
+        if (!$selector->count()) {
+            select undef, undef, undef, CHILD_POLL_SECS;
+            next;
+        }
+        for my $handle ($selector->can_read(CHILD_POLL_SECS)) {
             my $file_descriptor = fileno($handle);
             defined($file_descriptor)
                 or die "managed ChatGPT output descriptor is unavailable\n";
@@ -296,8 +327,6 @@ eval {
         }
     }
 
-    my $raw_status = _wait_child($child_pid);
-    undef $child_pid;
     $status = _exit_status($raw_status);
     _send_syslog(
         $status == 0

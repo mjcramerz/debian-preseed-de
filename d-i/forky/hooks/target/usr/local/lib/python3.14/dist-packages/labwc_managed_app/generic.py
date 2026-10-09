@@ -25,7 +25,7 @@ from .environment import (
 from .recovery import assert_launch_allowed, restart_token
 from .integrity import system_owner
 from .session import menu_action_wait_arguments, native_session_wayland_display
-from .profiles import INTEL_ACCELERATION_ENV, NVIDIA_ACCELERATION_ENV
+from .profiles import APPS, INTEL_ACCELERATION_ENV, NVIDIA_ACCELERATION_ENV, WAYLAND_COMPAT_APPS
 from .runtime import (
     ANGLE_GL_ARGS, MANAGED_DEFAULTS_PATH, MANAGED_PATH,
     MANAGED_WAYLAND_OPENGL_ENVIRONMENT, current_user_home, current_user_name,
@@ -52,6 +52,14 @@ ELECTRON_UNSAFE_SWITCHES = {
     "--no-sandbox", "--no-zygote", "--single-process", "--disable-gpu-sandbox",
     "--disable-namespace-sandbox", "--disable-seccomp-filter-sandbox", "--disable-sandbox",
     "--in-process-gpu",
+}
+MANAGED_EXECUTABLE_ALIASES = {
+    "chromium": ("/usr/lib/chromium/chromium",),
+    "microsoft-edge": ("/opt/microsoft/msedge/microsoft-edge",),
+    "vivaldi": ("/opt/vivaldi/vivaldi", "/opt/vivaldi/vivaldi-bin"),
+    "code": ("/usr/share/code/code", "/usr/share/code/bin/code"),
+    "mullvad-browser": ("/usr/lib/mullvad-browser/start-mullvad-browser",),
+    "spotify": ("/usr/share/spotify/spotify",),
 }
 
 
@@ -167,6 +175,32 @@ def session_environment() -> dict[str, str]:
     return environment
 
 
+def managed_network_command(mode: str, arguments: list[str]) -> list[str] | None:
+    """Keep generic desktop entries for known clients on the reviewed policy.
+
+    Match installed executable paths, never desktop names or user data. This
+    covers package updates and URI handlers before launcher synchronization.
+    """
+    executable = os.path.realpath(arguments[0])
+    for name, policy in APPS.items():
+        if not policy.get("persistent_sandbox", False) and name != "qbittorrent":
+            continue
+        paths = (policy["exec"], *policy.get("exec_candidates", ()),
+                 *MANAGED_EXECUTABLE_ALIASES.get(name, ()))
+        if name == "qbittorrent":
+            paths = (*paths, "/usr/bin/qbittorrent")
+        if executable not in {os.path.realpath(path) for path in paths}:
+            continue
+        if name == "chatgpt":
+            return ["/usr/local/bin/chatgpt", mode, *arguments[1:]]
+        if name in WAYLAND_COMPAT_APPS:
+            return ["/usr/local/bin/labwc-wayland-compat-app", mode, name, *arguments[1:]]
+        if name == "qbittorrent":
+            return ["/usr/local/bin/labwc-qbittorrent", *([f"--acceleration={mode}"] if mode in {"intel", "nvidia"} else []), *arguments[1:]]
+        return ["/usr/local/bin/labwc-app", mode, name, *arguments[1:]]
+    return None
+
+
 def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict[str, str]) -> list[str]:
     assert_launch_allowed()
     is_thunar = kind == "wayland" and arguments[0] in {"/usr/bin/thunar", "/usr/bin/Thunar"}
@@ -174,10 +208,10 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         # GTK 3's GDK GL path can repaint a Thunar window erratically on this
         # desktop. Keep the diagnostic workaround local to the file manager.
         environment["GDK_DEBUG"] = "nogl"
-        # The Unix fallback monitor cannot provide UDisks eject/power-off
-        # controls. Select the installed native GVfs monitor on the user bus.
+        # Route native device unmount/eject through the ordered drive worker.
+        # The managed monitor delegates inventory and mount dialogs to GVfs.
         environment["GIO_USE_VFS"] = "gvfs"
-        environment["GIO_USE_VOLUME_MONITOR"] = "GProxyVolumeMonitorUDisks2"
+        environment["GIO_USE_VOLUME_MONITOR"] = "GProxyVolumeMonitorLabwc"
     # Native GTK settings own color mode, including labwc-tweaks.
     # The package's argument-free footclient entry has no server readiness
     # dependency; a transient unit can outrun foot-server and lose the launch.
@@ -213,6 +247,10 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
     # The connection worker needs the host root UID mapping for that helper;
     # its restricted AppArmor child owns the only permitted FUSE mount.
     is_foot = kind == "wayland" and arguments[0] == "/usr/bin/foot"
+    is_terminal = kind == "wayland" and arguments[0] in {
+        "/usr/bin/foot", "/usr/bin/kitty", "/usr/bin/terminal-emulator",
+        "/usr/local/bin/labwc-terminal",
+    }
     is_waypaper = kind == "wayland" and arguments[0] == "/usr/local/bin/waypaper"
     return [
         "/usr/bin/systemd-run", "--user", "--quiet", "--collect",
@@ -221,9 +259,10 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         f"--unit={unit}", f"--description=Labwc {kind} application: {label}",
         "--property=Requisite=labwc-session.target",
         "--property=After=labwc-session.target" + (
-            " gvfs-daemon.service gvfs-udisks2-volume-monitor.service" if is_thunar else ""),
+            " gvfs-daemon.service labwc-gvfs-volume-monitor.service" if is_thunar else ""),
         "--property=PartOf=labwc-session.target",
-        *(["--property=Wants=gvfs-daemon.service gvfs-udisks2-volume-monitor.service",
+        *(["--property=Wants=gvfs-daemon.service",
+           "--property=Requires=labwc-gvfs-volume-monitor.service",
            "--property=PrivateMounts=no"] if is_thunar else []),
         # Waypaper temporarily owns swaybg while its GUI is open. Stop the
         # supervisor before native backend startup, then restore the saved
@@ -231,7 +270,10 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         # handoff is independent of AppArmor's enforce/complain setting.
         *(["--property=ExecStartPre=/usr/bin/systemctl --user stop swaybg.service",
            "--property=ExecStopPost=/usr/bin/systemctl --user start swaybg.service"] if is_waypaper else []),
-        "--property=ExitType=" + ("main" if is_waypaper else "cgroup"),
+        # The executable is the foreground application. Its exit starts the
+        # service's bounded cleanup, including detached descendants. An app
+        # that the user configured to stay in its tray keeps its main alive.
+        "--property=ExitType=main",
         f"--property=ConditionPathExists=!/run/user/{os.getuid()}/labwc-session-closing",
         "--property=KillMode=" + ("mixed" if is_foot else "control-group"),
         # Bound preparation/exec failure without limiting application runtime.
@@ -256,6 +298,7 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
             "--property=PrivateTmp=yes", "--property=PrivateIPC=yes",
             "--property=ProtectSystem=full",
         ]),
+        *(["--property=ProtectProc=default", "--property=ProcSubset=all"] if is_terminal else []),
         "--property=UnsetEnvironment=" + " ".join(name for name in UNSET_ENVIRONMENT if name not in environment),
         f"--working-directory={os.getcwd()}",
         # Passing only names keeps tokens and other values out of argv.
@@ -298,7 +341,10 @@ def main(kind: str, argv: list[str] | None = None) -> int:
     arguments[0] = executable
     environment.update(MANAGED_WAYLAND_OPENGL_ENVIRONMENT)
     environment.update(INTEL_ACCELERATION_ENV if mode == "intel" else NVIDIA_ACCELERATION_ENV if mode == "nvidia" else {})
-    if kind == "electron":
+    network_command = managed_network_command(mode, arguments)
+    if network_command is not None:
+        arguments = network_command
+    elif kind == "electron":
         arguments = electron_command(arguments)
     try:
         systemd_run = require_root_owned_executable("systemd-run", "/usr/bin/systemd-run")

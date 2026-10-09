@@ -26,8 +26,8 @@ from typing import NoReturn
 # The wrapper directory is the only managed Codex directory on the host PATH.
 # This remains the public ``codex`` command and starts Codex in a Bubblewrap
 # sandbox unless the caller explicitly supplies the wrapper-only ``--no-bwrap``
-# escape hatch. --isolated-network enables the optional slirp4netns network.
-# Host networking otherwise preserves local OAuth/MCP connectivity. Release
+# escape hatch. Sandboxed launches use managed kernel namespace networking.
+# Unix socket MCP/container connections remain available. Release
 # siblings are added only to the sanitized payload PATH.
 
 CODEX_RAW_BINARY = "/data/codex/share/bin/codex"
@@ -47,7 +47,6 @@ CODEX_SHARED_DOWNLOADS_ROOT = "/data/downloads"
 CODEX_SHARED_TMP_ROOT = "/data/tmp"
 CODEX_DEVOPS_GROUP = "devops"
 BWRAP_BINARY = "/usr/bin/bwrap"
-SLIRP4NETNS_BINARY = "/usr/bin/slirp4netns"
 PROFILE_SHELL = "/bin/sh"
 CODEX_APP_SERVER_ARGUMENTS = (
     "app-server",
@@ -306,12 +305,6 @@ MAX_APP_SERVER_SECRET_VALUE_BYTES = 65_536
 MAX_APP_SERVER_SECRET_ENVIRONMENT_BYTES = 262_144
 NETWORK_SETUP_TIMEOUT_SECONDS = 15.0
 PROCESS_STOP_TIMEOUT_SECONDS = 2.0
-SLIRP4NETNS_MTU = 65_520
-SLIRP4NETNS_TAP_NAME = "tap0"
-CODEX_RESOLVER_CONFIGURATION = (
-    b"nameserver 10.0.2.3\n"
-    b"options timeout:2 attempts:3\n"
-)
 CODEX_NSSWITCH_CONFIGURATION = (
     b"passwd: files\n"
     b"group: files\n"
@@ -342,13 +335,13 @@ CODEX_DEVOPS_ENV_NAMES: list[str] = []
 CODEX_APP_SERVER_ENVIRONMENT: dict[str, str] = {}
 CODEX_APP_SERVER_MODE = False
 CODEX_USE_BWRAP = True
-CODEX_ISOLATED_NETWORK = False
+CODEX_ISOLATED_NETWORK = True
 CODEX_SANDBOX_PATH = ""
 CODEX_CONTROL_DIR = ""
 CODEX_BWRAP_PROCESS: subprocess.Popen[bytes] | None = None
 CODEX_SANDBOX_PID: int | None = None
 CODEX_SANDBOX_PIDFD: int | None = None
-CODEX_SLIRP_PROCESS: subprocess.Popen[bytes] | None = None
+CODEX_NETWORK_LEASE = None
 CODEX_SIGNALLED = False
 
 
@@ -483,7 +476,8 @@ def codex_generate_uuid() -> str:
 def codex_parse_arguments(arguments: Sequence[str]) -> tuple[bool, list[str]]:
     global CODEX_APP_SERVER_MODE, CODEX_ARGS, CODEX_USE_BWRAP, CODEX_ISOLATED_NETWORK
     CODEX_USE_BWRAP = True
-    CODEX_ISOLATED_NETWORK = False
+    CODEX_ISOLATED_NETWORK = True
+    isolation_requested = False
     # Wrapper switches are a prefix, never tokens extracted from a Codex prompt
     # or a child command. A literal -- terminates wrapper option processing.
     index = 0
@@ -493,6 +487,7 @@ def codex_parse_arguments(arguments: Sequence[str]) -> tuple[bool, list[str]]:
             CODEX_USE_BWRAP = False
         elif argument == "--isolated-network":
             CODEX_ISOLATED_NETWORK = True
+            isolation_requested = True
         else:
             break
         index += 1
@@ -500,9 +495,51 @@ def codex_parse_arguments(arguments: Sequence[str]) -> tuple[bool, list[str]]:
     CODEX_APP_SERVER_MODE = tuple(CODEX_ARGS) == CODEX_APP_SERVER_ARGUMENTS
     if CODEX_APP_SERVER_MODE and not CODEX_USE_BWRAP:
         codex_die("the managed app-server service requires Bubblewrap isolation")
-    if CODEX_ISOLATED_NETWORK and not CODEX_USE_BWRAP:
-        codex_die("--isolated-network requires Bubblewrap isolation")
+    if not CODEX_USE_BWRAP:
+        if isolation_requested:
+            codex_die("--isolated-network requires Bubblewrap isolation")
+        CODEX_ISOLATED_NETWORK = False
     return CODEX_USE_BWRAP, [*CODEX_ARGS]
+
+
+def codex_podman_socket_arguments() -> list[str]:
+    """Bind only the pre-existing managed Podman API socket into private /run."""
+    config = Path("/etc/podman-devops/client.conf")
+    if not config.is_file():
+        return []
+    try:
+        service = pwd.getpwnam("devops")
+        directory = Path("/run/podman-devops")
+        parent = directory.lstat()
+        socket_path = directory / "podman.sock"
+        metadata = socket_path.lstat()
+    except KeyError:
+        # The desktop can be installed without addon/podman. In that case no
+        # managed API exists and no socket is exposed into the sandbox.
+        return []
+    except OSError as exc:
+        codex_die(f"managed Podman API state is unavailable: {exc}")
+    if (not stat.S_ISDIR(parent.st_mode) or parent.st_uid != service.pw_uid
+            or stat.S_IMODE(parent.st_mode) != 0o710):
+        codex_die("managed Podman runtime directory is unsafe")
+    if (not stat.S_ISSOCK(metadata.st_mode) or metadata.st_uid != service.pw_uid
+            or metadata.st_gid != service.pw_gid or stat.S_IMODE(metadata.st_mode) != 0o660):
+        codex_die("managed Podman API socket is unsafe")
+    return ["--dir", str(directory), "--bind", str(socket_path), str(socket_path)]
+
+
+def codex_socket_arguments() -> list[str]:
+    """Use the shared validated Codex control/MCP socket bind policy."""
+    try:
+        from labwc_managed_app.network_client import codex_socket_arguments as bind_arguments
+    except ModuleNotFoundError as exc:
+        # The installer-side mount-plan tests load this wrapper without the
+        # target package. A real sandbox later imports Lease from the same
+        # package and fails closed if the deployed package is absent.
+        if exc.name != "labwc_managed_app.network_client":
+            raise
+        return []
+    return bind_arguments()
 
 
 def _app_server_secret_environment_name_is_safe(name: str) -> bool:
@@ -1486,7 +1523,7 @@ def codex_prepare_identity_files(uid: int, gid: int) -> str:
         ).encode(),
         # /run is private, so capture the host resolver rather than exposing a
         # dangling /etc/resolv.conf symlink into /run/systemd/resolve.
-        "resolv.conf": (CODEX_RESOLVER_CONFIGURATION if CODEX_ISOLATED_NETWORK else
+        "resolv.conf": (codex_veth_resolver_configuration() if CODEX_ISOLATED_NETWORK else
                         (_read_bounded_text("/etc/resolv.conf", 65536, "host resolver") + "\n").encode()),
         "nsswitch.conf": CODEX_NSSWITCH_CONFIGURATION,
         "passwd": (
@@ -1841,6 +1878,8 @@ def codex_build_bwrap_args(uid: int, gid: int) -> list[str]:
             "--tmpfs", CODEX_RUNTIME_ROOT,
         )
     )
+    BWRAP_ARGS.extend(codex_podman_socket_arguments())
+    BWRAP_ARGS.extend(codex_socket_arguments())
     # Never expose credential sources, including for interactive invocations.
     BWRAP_ARGS.extend(("--tmpfs", f"{CODEX_STORAGE_ROOT}/credentials"))
     # Release code stays immutable. The checked-out usr/etc is account-owned;
@@ -1940,19 +1979,6 @@ def _read_json_fd(fd: int, process: subprocess.Popen[bytes]) -> bytes:
     return bytes(data)
 
 
-def _read_ready_byte(fd: int, deadline_seconds: float) -> bytes:
-    deadline = time.monotonic() + deadline_seconds
-    while time.monotonic() < deadline:
-        readable, _, _ = select.select((fd,), (), (), min(0.1, deadline - time.monotonic()))
-        if readable:
-            return os.read(fd, 1)
-        if CODEX_BWRAP_PROCESS is not None and CODEX_BWRAP_PROCESS.poll() is not None:
-            return b""
-        if CODEX_SLIRP_PROCESS is not None and CODEX_SLIRP_PROCESS.poll() is not None:
-            return b""
-    return b""
-
-
 def _close_fd(fd: int | None) -> None:
     if fd is None:
         return
@@ -1982,6 +2008,11 @@ def _terminate_process(process: subprocess.Popen[bytes] | None) -> None:
             print("warning: child did not exit after SIGKILL; service cgroup cleanup is required", file=sys.stderr)
 
 
+def codex_veth_resolver_configuration() -> bytes:
+    from labwc_managed_app.network_client import resolver_configuration
+    return resolver_configuration().encode("ascii")
+
+
 def _signal_sandbox(signum: int) -> None:
     # The pinned handle cannot target a recycled PID during delayed cleanup.
     if CODEX_SANDBOX_PIDFD is not None:
@@ -1992,19 +2023,20 @@ def _signal_sandbox(signum: int) -> None:
 
 
 def codex_cleanup() -> None:
-    global CODEX_BWRAP_PROCESS, CODEX_CONTROL_DIR, CODEX_SANDBOX_PID, CODEX_SANDBOX_PIDFD, CODEX_SLIRP_PROCESS, CODEX_SIGNALLED
+    global CODEX_BWRAP_PROCESS, CODEX_CONTROL_DIR, CODEX_SANDBOX_PID, CODEX_SANDBOX_PIDFD, CODEX_NETWORK_LEASE, CODEX_SIGNALLED
     # A signal arriving during normal finally cleanup must not interrupt teardown.
     CODEX_SIGNALLED = True
     codex_clear_app_server_environment()
     _signal_sandbox(signal.SIGTERM)
     _terminate_process(CODEX_BWRAP_PROCESS)
-    _terminate_process(CODEX_SLIRP_PROCESS)
     _signal_sandbox(signal.SIGKILL)
+    if CODEX_NETWORK_LEASE is not None:
+        CODEX_NETWORK_LEASE.close()
     _close_fd(CODEX_SANDBOX_PIDFD)
     CODEX_SANDBOX_PIDFD = None
     CODEX_BWRAP_PROCESS = None
     CODEX_SANDBOX_PID = None
-    CODEX_SLIRP_PROCESS = None
+    CODEX_NETWORK_LEASE = None
     if CODEX_CONTROL_DIR:
         control_dir = CODEX_CONTROL_DIR
         CODEX_CONTROL_DIR = ""
@@ -2030,146 +2062,72 @@ def codex_handle_signal(signum: int, _frame: object = None) -> None:
 
 
 def codex_run_sandboxed() -> int:
-    global CODEX_BWRAP_PROCESS, CODEX_SANDBOX_PID, CODEX_SANDBOX_PIDFD, CODEX_SLIRP_PROCESS
-    uid = os.getuid()
-    gid = os.getgid()
+    global CODEX_BWRAP_PROCESS, CODEX_SANDBOX_PID, CODEX_SANDBOX_PIDFD, CODEX_NETWORK_LEASE
+    from labwc_managed_app.network_client import Lease, pin_sandbox_init
+    uid, gid = os.getuid(), os.getgid()
     codex_prepare_control_state()
     codex_prepare_identity_files(uid, gid)
     command = codex_build_bwrap_args(uid, gid)
-    info_read = info_write = block_read = block_write = None
-    ready_read = ready_write = exit_read = exit_write = None
-    stdout_handle = stderr_handle = None
+    descriptors = set()
     try:
         info_read, info_write = os.pipe()
+        descriptors.update((info_read, info_write))
         block_read, block_write = os.pipe()
-        bwrap_command = [
-            *command,
-            "--info-fd",
-            str(info_write),
-            "--block-fd",
-            str(block_read),
-            "--",
-            "/usr/bin/python3",
-            "-I",
-            "/run/codex-synthetic-bin/payload-launcher.py",
-            CODEX_RAW_BINARY,
-            *CODEX_ARGS,
-        ]
-        CODEX_BWRAP_PROCESS = subprocess.Popen(
-            bwrap_command,
-            close_fds=True,
-            pass_fds=(info_write, block_read),
-        )
-        # systemd has already decoded the optional MCP credential into the
-        # service environment. Bubblewrap inherits that sanitized environment
-        # without putting secret values in argv; the supervising wrapper drops its copy
-        # immediately after the child has started.
+        descriptors.update((block_read, block_write))
+        gate_read, gate_write = os.pipe()
+        descriptors.update((gate_read, gate_write))
+        gate = ("import os,sys; fd=int(sys.argv[1]); marker=os.read(fd,1); os.close(fd); "
+                "sys.exit(1) if marker != b'1' else os.execv(sys.argv[2],sys.argv[2:])")
+        bwrap_command = [*command, "--info-fd", str(info_write), "--block-fd", str(block_read),
+            "--", "/usr/bin/python3", "-I", "-c", gate, str(gate_read),
+            "/usr/bin/python3", "-I", "/run/codex-synthetic-bin/payload-launcher.py",
+            CODEX_RAW_BINARY, *CODEX_ARGS]
+        CODEX_BWRAP_PROCESS = subprocess.Popen(bwrap_command, close_fds=True,
+            pass_fds=(info_write, block_read, gate_read))
         codex_clear_app_server_environment()
-        _close_fd(info_write)
-        info_write = None
-        _close_fd(block_read)
-        block_read = None
+        for fd in (info_write, block_read, gate_read):
+            _close_fd(fd)
+            descriptors.remove(fd)
         info = _read_json_fd(info_read, CODEX_BWRAP_PROCESS)
-        try:
-            CODEX_SANDBOX_PID = codex_parse_sandbox_pid(info)
-        except CodexError:
-            if CODEX_BWRAP_PROCESS.poll() is not None:
-                status = CODEX_BWRAP_PROCESS.returncode
-                codex_die(
-                    "Bubblewrap exited before reporting a sandbox process id "
-                    f"(status {status})"
-                )
-            raise
-        if CODEX_BWRAP_PROCESS.poll() is not None or not _pid_alive(CODEX_SANDBOX_PID):
-            status = CODEX_BWRAP_PROCESS.wait()
-            codex_die(f"Bubblewrap exited during sandbox setup (status {status})")
-
-        # The child is blocked on block_write until namespace networking is ready.
-        # Pin it while it is still supervised, before any cleanup signal is sent.
-        CODEX_SANDBOX_PIDFD = os.pidfd_open(CODEX_SANDBOX_PID)
+        CODEX_SANDBOX_PID = codex_parse_sandbox_pid(info)
+        if CODEX_BWRAP_PROCESS.poll() is not None:
+            codex_die("Bubblewrap exited during sandbox setup")
+        CODEX_SANDBOX_PIDFD = pin_sandbox_init(CODEX_SANDBOX_PID)
         if CODEX_ISOLATED_NETWORK:
-            ready_read, ready_write = os.pipe()
-            exit_read, exit_write = os.pipe()
-            stdout_handle = open(f"{CODEX_CONTROL_DIR}/slirp.stdout", "xb")
-            stderr_handle = open(f"{CODEX_CONTROL_DIR}/slirp.stderr", "xb")
-            CODEX_SLIRP_PROCESS = subprocess.Popen(
-                [
-                    SLIRP4NETNS_BINARY,
-                    "--configure",
-                    f"--mtu={SLIRP4NETNS_MTU}",
-                    "--disable-host-loopback",
-                    "--ready-fd",
-                    str(ready_write),
-                    "--exit-fd",
-                    str(exit_read),
-                    str(CODEX_SANDBOX_PID),
-                    SLIRP4NETNS_TAP_NAME,
-                ],
-                close_fds=True,
-                pass_fds=(ready_write, exit_read),
-                stdout=stdout_handle,
-                stderr=stderr_handle,
-            )
-            _close_fd(ready_write)
-            ready_write = None
-            _close_fd(exit_read)
-            exit_read = None
-            ready = _read_ready_byte(ready_read, NETWORK_SETUP_TIMEOUT_SECONDS)
-            if ready != b"1":
-                if CODEX_BWRAP_PROCESS.poll() is not None:
-                    codex_die(
-                        "Bubblewrap exited before network setup completed "
-                        f"(status {CODEX_BWRAP_PROCESS.returncode})"
-                    )
-                if CODEX_SLIRP_PROCESS.poll() is not None:
-                    codex_die(
-                        "slirp4netns exited before configuring the isolated network "
-                        f"namespace (status {CODEX_SLIRP_PROCESS.returncode})"
-                    )
-                codex_die("slirp4netns timed out while configuring the isolated network namespace")
+            CODEX_NETWORK_LEASE = Lease.for_pid(CODEX_SANDBOX_PID, "codex")
+            CODEX_NETWORK_LEASE.check()
+        if CODEX_BWRAP_PROCESS.poll() is not None:
+            codex_die("Bubblewrap exited before private network readiness")
         os.write(block_write, b"1")
-        _close_fd(block_write)
-        block_write = None
-        _close_fd(info_read)
-        info_read = None
-        _close_fd(ready_read)
-        ready_read = None
+        os.write(gate_write, b"1")
+        for fd in (block_write, gate_write, info_read):
+            _close_fd(fd)
+            descriptors.remove(fd)
         while True:
             try:
-                bwrap_status = CODEX_BWRAP_PROCESS.wait(timeout=0.5)
+                status = CODEX_BWRAP_PROCESS.wait(timeout=0.25)
                 break
             except subprocess.TimeoutExpired:
-                if CODEX_SLIRP_PROCESS is not None and CODEX_SLIRP_PROCESS.poll() is not None:
-                    codex_die(f"isolated network helper exited (status {CODEX_SLIRP_PROCESS.returncode})")
+                if CODEX_NETWORK_LEASE is not None:
+                    CODEX_NETWORK_LEASE.check()
         CODEX_BWRAP_PROCESS = None
         CODEX_SANDBOX_PID = None
+        return status if status >= 0 else 128 - status
+    except (OSError, ValueError, RuntimeError) as exc:
+        codex_die(f"kernel namespace network failed: {exc}")
+    finally:
+        # The monitor can exit when Codex exits while namespace PID 1 still
+        # owns inherited stdio/MCP helpers. Terminate the pinned init on every
+        # path before releasing its network lease or closing the pidfd.
+        _signal_sandbox(signal.SIGKILL)
+        _terminate_process(CODEX_BWRAP_PROCESS)
+        for fd in descriptors:
+            _close_fd(fd)
         _close_fd(CODEX_SANDBOX_PIDFD)
         CODEX_SANDBOX_PIDFD = None
-        _close_fd(exit_write)
-        exit_write = None
-        if CODEX_SLIRP_PROCESS is not None:
-            try:
-                CODEX_SLIRP_PROCESS.wait(timeout=PROCESS_STOP_TIMEOUT_SECONDS)
-            except subprocess.TimeoutExpired:
-                _terminate_process(CODEX_SLIRP_PROCESS)
-            CODEX_SLIRP_PROCESS = None
-        return bwrap_status if bwrap_status >= 0 else 128 - bwrap_status
-    finally:
-        for descriptor in (
-            info_read,
-            info_write,
-            block_read,
-            block_write,
-            ready_read,
-            ready_write,
-            exit_read,
-            exit_write,
-        ):
-            _close_fd(descriptor)
-        if stdout_handle is not None:
-            stdout_handle.close()
-        if stderr_handle is not None:
-            stderr_handle.close()
+        if CODEX_NETWORK_LEASE is not None:
+            CODEX_NETWORK_LEASE.close()
+            CODEX_NETWORK_LEASE = None
 
 
 def _exec_raw_codex() -> NoReturn:
@@ -2199,8 +2157,6 @@ def main(arguments: Sequence[str]) -> int:
         "managed Codex host log directory", CODEX_HOST_LOG_ROOT
     )
     codex_require_executable("Bubblewrap", BWRAP_BINARY)
-    if CODEX_ISOLATED_NETWORK:
-        codex_require_executable("slirp4netns", SLIRP4NETNS_BINARY)
     codex_require_user_namespace_support()
     for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGQUIT, signal.SIGTERM):
         signal.signal(signum, codex_handle_signal)

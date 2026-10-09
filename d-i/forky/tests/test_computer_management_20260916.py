@@ -236,6 +236,16 @@ class RemoteLogTests(unittest.TestCase):
         self.assertTrue(payload_read_bytes(self.log).endswith(b'FINAL\n'))
         self.assertEqual(payload_source_stat(self.log).st_mode & 0o777, 0o600)
 
+    def test_saved_connection_runs_the_client_through_the_app_veth_launcher(self):
+        command = ['/usr/bin/sdl-freerdp', '/v:192.168.10.25:3389', '/u:fixture', '/from-stdin:force']
+        with mock.patch.object(REMOTE, 'resolve_freerdp_executable', return_value=command[0]), \
+                mock.patch.object(REMOTE, 'decode_profile', return_value={}), \
+                mock.patch.object(REMOTE, 'build_freerdp_command', return_value=command), \
+                mock.patch.object(REMOTE, 'connection_log_path', return_value=self.log), \
+                mock.patch.object(REMOTE, 'run_freerdp_command', return_value=0) as run:
+            REMOTE.run_encoded_connection('fixture')
+        run.assert_called_once_with(['/usr/local/bin/labwc-app', 'launch', 'freerdp', *command[1:]], self.log)
+
 class IntegrationContractTests(unittest.TestCase):
     def test_new_workers_and_units_are_staged(self):
         components = payload_read_text(FORKY / 'scripts/desktop/components.sh')
@@ -299,7 +309,7 @@ class IntegrationContractTests(unittest.TestCase):
     def test_storage_inventory_failure_is_not_treated_as_unmounted(self):
         source = payload_read_text(TARGET / 'usr/local/bin/labwc-external-drives')
         self.assertIn('disk_snapshot=$(collect_snapshot "$disk_device") || return 1', source)
-        self.assertIn('remaining_records=$(mounted_records_for_disk "$disk_device") || return 1', source)
+        self.assertIn('remaining_records=$(mounted_records_for_disk "$poweroff_device") || return 1', source)
 
 if __name__ == '__main__':
     unittest.main()

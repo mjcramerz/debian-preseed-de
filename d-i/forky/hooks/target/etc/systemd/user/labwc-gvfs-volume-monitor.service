@@ -1,0 +1,34 @@
+[Unit]
+Description=Thunar external-drive sync and removal monitor
+Requisite=labwc-session.target
+Requires=gvfs-udisks2-volume-monitor.service
+After=labwc-session.target gvfs-udisks2-volume-monitor.service
+PartOf=labwc-session.target
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionEnvironment=XDG_SESSION_TYPE=wayland
+
+[Service]
+Type=dbus
+BusName=org.gtk.vfs.LabwcVolumeMonitor
+ExecStart=/usr/bin/python3 -I -B /usr/local/libexec/labwc-gvfs-volume-monitor
+AppArmorProfile=labwc-external-drives
+Slice=session.slice
+NoNewPrivileges=yes
+# The user manager cannot change the host capability bounding set without a
+# user namespace. UDisks/syncfs require the host UID and mount view below.
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+UMask=0077
+LimitCORE=0
+StandardInput=null
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=labwc-external-drives
+# Preserve host mount/UID semantics required by UDisks and syncfs.
+PrivateMounts=no
+PrivateUsers=no
+KillMode=mixed
+TimeoutStartSec=15s
+TimeoutStopSec=30min
+Restart=on-failure
+RestartSec=2s

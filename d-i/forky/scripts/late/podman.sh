@@ -76,6 +76,22 @@ configure_target_rootless_podman() (
   done
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/podman-devops-host)" /usr/local/libexec/podman-devops-host 0755
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/podman-devops-client)" /usr/local/libexec/podman-devops-client 0755
+  # The desktop role publishes the complete managed-app package later in its
+  # own atomic staging step. Server-only Podman targets still need the small
+  # network-client import surface here because they do not run that role.
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/app-veth-podman)" /usr/local/libexec/app-veth-podman 0755
+  podman_target_host_variant=${INSTALLER_HOST_VARIANT:-}
+  if [ -z "$podman_target_host_variant" ]; then
+    podman_target_host_variant=$(installer_selected_class_for_purpose host-variant 2>/dev/null || printf '%s\n' server)
+  fi
+  if [ "$podman_target_host_variant" != desktop ]; then
+    stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/lib/python3.14/dist-packages/labwc_managed_app/__init__.py)" /usr/local/lib/python3.14/dist-packages/labwc_managed_app/__init__.py 0644
+    stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/lib/python3.14/dist-packages/labwc_managed_app/integrity.py)" /usr/local/lib/python3.14/dist-packages/labwc_managed_app/integrity.py 0644
+    stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_client.py)" /usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_client.py 0644
+  fi
+  unset podman_target_host_variant
+  run_in_target 'validate staged kernel Podman network adapter' \
+    /usr/bin/python3 -I -B /usr/local/libexec/app-veth-podman --help
   for client in podman docker docker-compose; do
     stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET "usr/local/bin/$client")" "/usr/local/bin/$client" 0755
   done

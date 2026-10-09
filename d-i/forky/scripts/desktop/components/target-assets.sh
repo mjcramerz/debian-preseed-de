@@ -107,6 +107,16 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/share/pam-configs/wtmpdb /usr/share/pam-configs/wtmpdb 0644
   desktop_reconcile_wtmpdb_common_session /target
   desktop_render_labwc_session_wrappers
+  # systemd's dash-prefix drop-ins also cover future application names and
+  # transient UUIDs. Keep session daemons outside these application families.
+  for application_family in wayland electron native devops bitwarden qbittorrent compat; do
+    desktop_stage_role_asset etc/systemd/user/labwc-native-.service.d/50-app-lifecycle.conf \
+      "/etc/systemd/user/labwc-${application_family}-.service.d/50-app-lifecycle.conf" 0644
+  done
+  desktop_stage_role_asset etc/systemd/user/labwc-wayland-foot-.service.d/60-terminal-lifecycle.conf \
+    /etc/systemd/user/labwc-wayland-foot-.service.d/60-terminal-lifecycle.conf 0644
+  desktop_stage_role_asset etc/systemd/user/labwc-devops-.service.d/60-stop-budget.conf \
+    /etc/systemd/user/labwc-devops-.service.d/60-stop-budget.conf 0644
   desktop_configure_local_mail_delivery
   desktop_stage_role_asset usr/local/bin/labwc-autostart /usr/local/bin/labwc-autostart 0755
   desktop_stage_role_asset usr/local/bin/labwc-wallpaper-save /usr/local/bin/labwc-wallpaper-save 0755
@@ -153,6 +163,10 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/bin/labwc-maintenance-menu /usr/local/bin/labwc-maintenance-menu 0755
   desktop_stage_role_asset usr/local/bin/labwc-podman-menu /usr/local/bin/labwc-podman-menu 0755
   desktop_stage_role_asset usr/local/bin/labwc-external-drives /usr/local/bin/labwc-external-drives 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-gvfs-volume-monitor /usr/local/libexec/labwc-gvfs-volume-monitor 0755
+  desktop_stage_role_asset etc/systemd/user/labwc-gvfs-volume-monitor.service /etc/systemd/user/labwc-gvfs-volume-monitor.service 0644
+  desktop_stage_role_asset usr/share/dbus-1/services/org.gtk.vfs.LabwcVolumeMonitor.service /usr/share/dbus-1/services/org.gtk.vfs.LabwcVolumeMonitor.service 0644
+  desktop_stage_role_asset usr/share/gvfs/remote-volume-monitors/labwc.monitor /usr/share/gvfs/remote-volume-monitors/labwc.monitor 0644
   desktop_stage_labwc_security_action_perl_modules
   desktop_stage_role_asset usr/local/bin/labwc-security-action /usr/local/bin/labwc-security-action 0755
   desktop_stage_role_asset usr/local/bin/labwc-system-action /usr/local/bin/labwc-system-action 0755

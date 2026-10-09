@@ -567,7 +567,7 @@ def user_evidence(application: str) -> int:
             if path.stat().st_uid != uid:
                 continue
             comm = (path/'comm').read_text().strip()
-            if not re.search(r'(?i)codex|chatgpt|bwrap|slirp4netns', comm):
+            if not re.search(r'(?i)codex|chatgpt|bwrap|app-veth', comm):
                 continue
             print(json.dumps({'pid': path.name, 'comm': comm}), flush=True)
             for suffix in ('status', 'cgroup', 'attr/current', 'uid_map', 'gid_map'):
@@ -823,7 +823,7 @@ class Report:
         if self.user:
             self.user_probe(category, category+'-readable-journal',
                 ['journalctl', '-b', f'_UID={self.user.pw_uid}', '--no-pager', '-n', '3000',
-                 '--grep=(?i)codex|chatgpt|app-server|bwrap|slirp4netns'], bus_required=False)
+                 '--grep=(?i)codex|chatgpt|app-server|bwrap|app-veth'], bus_required=False)
         if category == 'codex':
             self.codex_probe('codex-version', ['--version'])
             result = self.codex_probe('codex-help', ['--help'])

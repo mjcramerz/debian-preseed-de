@@ -828,7 +828,9 @@ class IntegrationContractTests(unittest.TestCase):
     def test_selected_addon_installs_real_clients_and_profile(self):
         packages = payload_read_text(FORKY / 'classes/class-addon/podman.cfg')
         active = next(line for line in packages.splitlines() if line.startswith('d-i pkgsel/include string'))
-        for package in ('podman', 'docker-cli', 'docker-compose', 'python3', 'uidmap', 'passt'):
+        for package in ('podman', 'docker-cli', 'docker-compose', 'python3', 'uidmap',
+                        'netavark', 'aardvark-dns', 'iproute2', 'nftables',
+                        'systemd-resolved'):
             self.assertIn(package, active.split())
         self.assertNotIn('docker.io', active.split())
         self.assertNotIn('podman-docker', active.split())

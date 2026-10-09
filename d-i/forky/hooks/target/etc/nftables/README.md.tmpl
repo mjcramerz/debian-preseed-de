@@ -65,7 +65,7 @@ Concrete `hosts/profiles/<family>/<role>.env` files control installer staging:
   overlay and opens the stable TCP/UDP peer port selected by
   `LABWC_QBITTORRENT_PORT` (default `50309`). Match both router forwards to this
   host-specific port; the launcher forwards both transports into its private
-  slirp4netns network before starting qBittorrent.
+  kernel veth namespace before starting qBittorrent.
 - Selecting the installer addon class `ssh` automatically merges the
   `ssh-server` service overlay into the effective staged firewall policy.
 - `NFTABLES_LOG_LEVEL=none|error|warning|info|debug` controls only

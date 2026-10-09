@@ -2,12 +2,13 @@ apiVersion: cybops.nftables/v1
 kind: NftablesServiceOverlay
 metadata:
   name: podman
-  description: Rootless Podman uses pasta; no host bridge forwarding exception.
+  description: Rootless Podman uses a managed kernel veth uplink and Netavark bridges.
   merge_priority: 50
 containers:
   podman:
     # Netavark bridges live inside the rootless namespace, not on the host.
     # Published ports remain subject to the normal host firewall policy.
+    # app-veth owns only the host uplink, never the Netavark bridge.
     enabled: false
     allow_container_outbound: false
     interfaces: []

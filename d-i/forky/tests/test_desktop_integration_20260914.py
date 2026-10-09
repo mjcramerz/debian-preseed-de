@@ -168,6 +168,7 @@ run_udisksctl() {
 }
 case "$1" in
   --fixture-shutdown) prepare_shutdown_drives ;;
+  --unmount-device|--power-off-device) run_device_operation "$1" "$2" ;;
   *) run_path_operation "$1" "$2" ;;
 esac
 ''')
@@ -217,6 +218,49 @@ esac
                          'udisks:power-off --block-device ' + str(self.dev / 'sdb') + ':cwd=/')
         self.assertFalse(self.first.exists())
         self.assertFalse(self.second.exists())
+
+    def test_native_device_unmount_uses_the_same_sync_and_verified_udisks_flow(self):
+        result = self.run_action('--unmount-device', path=self.dev / 'sdb1')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        operations = [e for e in self.events if e.startswith(('sync:', 'udisks:'))]
+        self.assertEqual(operations, [
+            'sync:--file-system -- ' + str(self.folder),
+            'udisks:unmount --block-device ' + str(self.dev / 'sdb1') + ':cwd=/'])
+        self.assertFalse(self.first.exists())
+        self.assertTrue(self.second.exists())
+        self.assertFalse(any(e.startswith('findmnt:') for e in self.events))
+
+    def test_native_eject_needs_no_second_picker_and_syncs_all_volumes_first(self):
+        result = self.run_action('--power-off-device', path=self.dev / 'sdb', mode='cancel')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        operations = [e for e in self.events if e.startswith(('sync:', 'udisks:'))]
+        self.assertEqual(len(operations), 5, operations)
+        self.assertTrue(all(e.startswith('sync:') for e in operations[:2]))
+        self.assertTrue(all(e.startswith('udisks:unmount') for e in operations[2:4]))
+        self.assertIn('power-off --block-device ' + str(self.dev / 'sdb'), operations[4])
+
+    def test_native_removal_failure_or_internal_device_never_bypasses_the_worker(self):
+        for mode, transport in (('sync-failure', 'usb'), ('busy', 'usb'),
+                                ('lingering', 'usb'), ('success', 'sata')):
+            with self.subTest(mode=mode, transport=transport):
+                result = self.run_action('--power-off-device', path=self.dev / 'sdb',
+                                         mode=mode, transport=transport)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(any('power-off --block-device' in e for e in self.events))
+                self.assertNotIn('--force', '\n'.join(self.events))
+
+    def test_native_device_path_rejects_traversal_before_inventory_or_sync(self):
+        result = self.run_action('--unmount-device', path=self.dev / '..' / 'sdb1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(any(e.startswith(('sync:', 'udisks:')) for e in self.events))
+
+    def test_native_eject_rejects_usb_system_swap_and_mapped_storage_before_sync(self):
+        for mode in ('system-disk', 'active-swap', 'mapped-data'):
+            with self.subTest(mode=mode):
+                result = self.run_action('--power-off-device', path=self.dev / 'sdb', mode=mode)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('removal rejected', result.stderr)
+                self.assertFalse(any(e.startswith(('sync:', 'udisks:')) for e in self.events))
 
     def test_failed_sync_keeps_every_volume_mounted_and_does_not_power_off(self):
         for operation in ('--unmount-path', '--power-off-path'):
@@ -487,10 +531,11 @@ class ServiceAndNotificationTests(unittest.TestCase):
                 env = {'GIO_USE_VFS': 'local', 'GIO_USE_VOLUME_MONITOR': 'unix'}
                 argv = generic.transient_argv('wayland', 'launch', [executable, '/run/media/fixture'], env)
             self.assertEqual(env['GIO_USE_VFS'], 'gvfs')
-            self.assertEqual(env['GIO_USE_VOLUME_MONITOR'], 'GProxyVolumeMonitorUDisks2')
+            self.assertEqual(env['GIO_USE_VOLUME_MONITOR'], 'GProxyVolumeMonitorLabwc')
             for setting in ('PrivateUsers=no', 'PrivatePIDs=no', 'PrivateMounts=no',
-                            'Wants=gvfs-daemon.service gvfs-udisks2-volume-monitor.service',
-                            'After=labwc-session.target gvfs-daemon.service gvfs-udisks2-volume-monitor.service',
+                            'Wants=gvfs-daemon.service',
+                            'Requires=labwc-gvfs-volume-monitor.service',
+                            'After=labwc-session.target gvfs-daemon.service labwc-gvfs-volume-monitor.service',
                             'PartOf=labwc-session.target'):
                 self.assertIn('--property=' + setting, argv)
             for setting in ('PrivateTmp=yes', 'PrivateIPC=yes', 'ProtectSystem=full'):
@@ -517,7 +562,7 @@ class ServiceAndNotificationTests(unittest.TestCase):
                 argv = generic.transient_argv('wayland', 'launch', ['/usr/bin/foot'], {})
                 self.assertEqual('--wait' in argv, marker == '1')
                 self.assertNotIn('--pipe', argv)
-                self.assertIn('--property=ExitType=cgroup', argv)
+                self.assertIn('--property=ExitType=main', argv)
                 self.assertTrue(any(arg.startswith('--property=UnsetEnvironment=') and
                                     'LABWC_MENU_ACTION_WAIT' in arg for arg in argv))
                 self.assertFalse(any(arg.startswith('--setenv=LABWC_MENU_ACTION_WAIT') for arg in argv))
@@ -539,6 +584,30 @@ class ServiceAndNotificationTests(unittest.TestCase):
         self.assertIn('--property=After=labwc-session.target labwc-kwallet-portal.service', argv)
         self.assertIn('--property=UnsetEnvironment=LABWC_MENU_ACTION_WAIT', argv)
         self.assertEqual(argv[-1], 'mailto:a@example.invalid')
+        for property_value in ('ExitType=main', 'KillMode=control-group', 'TimeoutStopSec=20s', 'SendSIGKILL=yes'):
+            self.assertIn('--property=' + property_value, argv)
+
+    def test_bitwarden_and_every_future_native_launcher_keep_main_owned_cleanup(self):
+        with mock.patch.object(session, 'assert_launch_allowed'):
+            argv = session.bitwarden_session_unit_argv('/usr/bin/systemd-run', 'launch', [])
+        self.assertIn('--property=ExitType=main', argv)
+        self.assertIn('--property=KillMode=control-group', argv)
+        for app in (*profiles.APPS.keys(), 'future-native-app'):
+            if app in profiles.WAYLAND_COMPAT_APPS or app == 'bitwarden':
+                continue
+            with self.subTest(app=app), ExitStack() as stack:
+                stack.enter_context(mock.patch.dict(os.environ, {'WAYLAND_DISPLAY': 'wayland-1'}, clear=True))
+                stack.enter_context(mock.patch.object(session, '_consume_session_marker', return_value=False))
+                stack.enter_context(mock.patch.object(session, 'system_owner', return_value=(0, 0)))
+                stack.enter_context(mock.patch.object(session, 'assert_launch_allowed'))
+                stack.enter_context(mock.patch.object(session, 'require_root_owned_executable', return_value='/usr/bin/systemd-run'))
+                stack.enter_context(mock.patch.object(session, 'current_user_runtime_socket'))
+                stack.enter_context(mock.patch.object(session, 'managed_session_unit_environment', return_value={'HOME': '/home/test'}))
+                execute = stack.enter_context(mock.patch.object(session.os, 'execve'))
+                session.redirect_native_from_private_users(app, 'launch', [])
+            argv = execute.call_args.args[1]
+            for property_value in ('ExitType=main', 'KillMode=control-group', 'TimeoutStopSec=20s', 'SendSIGKILL=yes'):
+                self.assertIn('--property=' + property_value, argv)
 
     def test_activation_token_is_opaque_bounded_and_not_saved_as_restore_argument(self):
         with mock.patch.dict(os.environ, {'XDG_ACTIVATION_TOKEN':'opaque-token'}, clear=True):

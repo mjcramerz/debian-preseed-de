@@ -52,6 +52,8 @@ PORT_RANGE_RE = re.compile(r"^(\d{1,5})-(\d{1,5})$")
 UNRESOLVED_RE = re.compile(r"\$\{|<[^>]+>|YOUR_|CHANGE_ME|TODO", re.IGNORECASE)
 MAX_YAML_BYTES = 1024 * 1024
 DEFAULT_COMMAND_TIMEOUT_SECONDS = 30
+# Reserved boot pool slots; avoid matching Netavark's other veth interfaces.
+APP_VETH_INTERFACES = "{ " + ", ".join(f'"veth{slot}-app"' for slot in range(32)) + " }"
 NFT_FAMILIES = {"arp", "bridge", "inet", "ip", "ip6", "netdev"}
 NFT_NAT_FAMILIES = {"inet", "ip", "ip6"}
 EGRESS_MODES = {"allow_all", "allow_all_with_audit", "audit", "enforce", "strict", "deny_by_default"}
@@ -1208,6 +1210,13 @@ def render_filter(policy: Mapping[str, Any], maps: Mapping[str, Dict[str, Any]],
         lines.append(add_rule(policy, input_chain, "ct state invalid counter drop" + comment_expr("base drop invalid")))
         lines.append(add_rule(policy, forward_chain, "ct state invalid counter drop" + comment_expr("base drop invalid forward")))
         lines.append(add_rule(policy, output_chain, "ct state invalid counter drop" + comment_expr("base drop invalid output")))
+
+    # The kernel network service validates allocated endpoint/source pairs in
+    # its earlier hook. The fixed pool does not grant namespace-to-namespace access:
+    # app_veth.forward_guard applies first, including before established.
+    lines.append(add_rule(policy, input_chain, f'iifname {APP_VETH_INTERFACES} ip daddr 127.0.0.1 meta l4proto {{ tcp, udp }} th dport 53053 ct status dnat accept' + comment_expr("managed namespace resolved DNS")))
+    lines.append(add_rule(policy, forward_chain, f'iifname {APP_VETH_INTERFACES} accept' + comment_expr("app veth guarded egress")))
+    lines.append(add_rule(policy, forward_chain, f'oifname {APP_VETH_INTERFACES} accept' + comment_expr("app veth guarded ingress")))
 
     lines.extend(build_allowlist_guards(policy, maps, ctx))
 

@@ -18,8 +18,18 @@ profile firstboot /var/lib/firstboot/bin/firstboot.sh flags=(attach_disconnected
   capability setuid,
   capability sys_admin,
   capability syslog,
+  capability sys_ptrace,
   # systemctl and networkctl inspect PID 1 and unconfined service metadata.
   ptrace (read) peer=unconfined,
+  ptrace (read) peer=firstboot,
+  ptrace (read) peer=labwc-compositor,
+  ptrace (read) peer=labwc-greeter-session,
+  ptrace (read) peer=zram-writeback,
+  ptrace (read) peer=usr.sbin.tailscaled,
+
+  # Read service-account process metadata during firstboot validation. The
+  # reciprocal rule is on crowdsec-firstboot; no trace/attach is granted.
+  ptrace (read) peer=crowdsec-firstboot,
 
   /var/lib/firstboot/bin/firstboot.sh rix,
   /usr/local/libexec/dbus-broker-check rix,
@@ -41,7 +51,8 @@ profile firstboot /var/lib/firstboot/bin/firstboot.sh flags=(attach_disconnected
   /usr/bin/{busctl,id,find} rix,
   # dpkg --compare-versions validates the installed swaylock/PAM chain.
   # The package database remains read-only in this profile.
-  /usr/bin/{dpkg,dpkg-query,passwd,perl,readlink} rix,
+  /usr/bin/dpkg rix,
+  /usr/bin/{dpkg-query,passwd,perl,readlink} rix,
   /usr/sbin/runuser rix,
   /usr/bin/{flock,grep,mkdir,mktemp,sleep,timeout,desktop-file-validate} rix,
   signal (send, receive) set=(hup, int, term, kill, cont) peer=firstboot,

@@ -1,0 +1,1740 @@
+{
+  "commands": {
+    "contracts": {
+      "check": "contracts",
+      "argv": [
+        "/usr/bin/python3",
+        "-I",
+        "-B",
+        "-c",
+        "import sys, unittest; sys.path.insert(0, sys.argv.pop(1)); unittest.main(module=None)",
+        "/home/mcramer/Workspace/debian-preseed-de/d-i/forky/tests",
+        "-v",
+        "test_kernel_veth_networking",
+        "test_thunar_native_drive_actions",
+        "test_codex_power_20260926",
+        "test_podman_incus_redesign",
+        "test_desktop_sandbox",
+        "test_managed_app_review_20260921",
+        "test_compz_qbittorrent_followup",
+        "test_apparmor_incidents_20261004",
+        "test_zoom_discord_private_xwayland",
+        "test_desktop_integration_20260914",
+        "test_computer_management_20260916",
+        "test_network_sharing"
+      ],
+      "cwd": "/home/mcramer/Workspace/debian-preseed-de/d-i/forky/tests",
+      "returncode": 0,
+      "seconds": 22.175
+    },
+    "shells": {
+      "check": "shells",
+      "argv": [
+        "/usr/bin/python3",
+        "-I",
+        "-B",
+        "tools/check_shells.py",
+        "--output",
+        "/home/mcramer/Workspace/debian-preseed-de/.build/repair-review/shell-check.json"
+      ],
+      "cwd": "/home/mcramer/Workspace/debian-preseed-de",
+      "returncode": 0,
+      "seconds": 2.67
+    },
+    "preseeds": {
+      "check": "preseeds",
+      "argv": [
+        "/usr/bin/python3",
+        "-I",
+        "-B",
+        "tools/check_preseeds.py"
+      ],
+      "cwd": "/home/mcramer/Workspace/debian-preseed-de",
+      "returncode": 0,
+      "seconds": 0.264
+    },
+    "build": {
+      "check": "build",
+      "argv": [
+        "/usr/bin/python3",
+        "-I",
+        "-B",
+        "tools/build.py"
+      ],
+      "cwd": "/home/mcramer/Workspace/debian-preseed-de",
+      "returncode": 0,
+      "seconds": 4.623
+    },
+    "build-check": {
+      "check": "build-check",
+      "argv": [
+        "/usr/bin/python3",
+        "-I",
+        "-B",
+        "tools/build.py",
+        "--check"
+      ],
+      "cwd": "/home/mcramer/Workspace/debian-preseed-de",
+      "returncode": 0,
+      "seconds": 4.574
+    }
+  },
+  "tests": {
+    "run": 584,
+    "passed": 532,
+    "skipped": 52,
+    "failures": 0,
+    "errors": 0,
+    "seconds": 21.65,
+    "skip_reasons": {
+      "environment denies sysctl writes even in an isolated user/network namespace": 1,
+      "native private session bus unavailable": 6,
+      "root-owned file fixtures require root": 11,
+      "original todo/apparmor.log not supplied; policy/fixture checks remain enabled": 1,
+      "real root-owned filesystem fixtures required": 12,
+      "private root-owned filesystem fixtures require root": 21
+    },
+    "skipped_tests": [
+      {
+        "test": "test_real_veth_dns_and_host_isolation_inside_unprivileged_namespaces (test_kernel_veth_networking.KernelFixtureTests.test_real_veth_dns_and_host_isolation_inside_unprivileged_namespaces)",
+        "reason": "environment denies sysctl writes even in an isolated user/network namespace"
+      },
+      {
+        "test": "test_cancellation_before_writes_prevents_the_worker_from_starting (test_thunar_native_drive_actions.PrivateBusTests.test_cancellation_before_writes_prevents_the_worker_from_starting)",
+        "reason": "native private session bus unavailable"
+      },
+      {
+        "test": "test_forced_or_stale_removal_never_starts_a_worker (test_thunar_native_drive_actions.PrivateBusTests.test_forced_or_stale_removal_never_starts_a_worker)",
+        "reason": "native private session bus unavailable"
+      },
+      {
+        "test": "test_inventory_signals_are_rewritten_once_for_the_managed_monitor (test_thunar_native_drive_actions.PrivateBusTests.test_inventory_signals_are_rewritten_once_for_the_managed_monitor)",
+        "reason": "native private session bus unavailable"
+      },
+      {
+        "test": "test_mount_dialogs_and_replies_preserve_each_clients_upstream_identity (test_thunar_native_drive_actions.PrivateBusTests.test_mount_dialogs_and_replies_preserve_each_clients_upstream_identity)",
+        "reason": "native private session bus unavailable"
+      },
+      {
+        "test": "test_sync_or_unmount_failure_returns_an_error_to_thunar (test_thunar_native_drive_actions.PrivateBusTests.test_sync_or_unmount_failure_returns_an_error_to_thunar)",
+        "reason": "native private session bus unavailable"
+      },
+      {
+        "test": "test_unmount_eject_and_stop_wait_for_worker_and_never_call_native_removal (test_thunar_native_drive_actions.PrivateBusTests.test_unmount_eject_and_stop_wait_for_worker_and_never_call_native_removal)",
+        "reason": "native private session bus unavailable"
+      },
+      {
+        "test": "test_atomic_write_is_private_and_idempotent (test_podman_incus_redesign.AtomicHostFileTests.test_atomic_write_is_private_and_idempotent)",
+        "reason": "root-owned file fixtures require root"
+      },
+      {
+        "test": "test_existing_private_data_is_not_recursively_chowned (test_podman_incus_redesign.AtomicHostFileTests.test_existing_private_data_is_not_recursively_chowned)",
+        "reason": "root-owned file fixtures require root"
+      },
+      {
+        "test": "test_file_size_limit (test_podman_incus_redesign.AtomicHostFileTests.test_file_size_limit)",
+        "reason": "root-owned file fixtures require root"
+      },
+      {
+        "test": "test_group_writable_file_is_rejected (test_podman_incus_redesign.AtomicHostFileTests.test_group_writable_file_is_rejected)",
+        "reason": "root-owned file fixtures require root"
+      },
+      {
+        "test": "test_group_writable_parent_requires_sticky (test_podman_incus_redesign.AtomicHostFileTests.test_group_writable_parent_requires_sticky)",
+        "reason": "root-owned file fixtures require root"
+      },
+      {
+        "test": "test_hardlinked_file_is_rejected (test_podman_incus_redesign.AtomicHostFileTests.test_hardlinked_file_is_rejected)",
+        "reason": "root-owned file fixtures require root"
+      },
+      {
+        "test": "test_interrupted_replace_preserves_old_file (test_podman_incus_redesign.AtomicHostFileTests.test_interrupted_replace_preserves_old_file)",
+        "reason": "root-owned file fixtures require root"
+      },
+      {
+        "test": "test_symlink_leaf_is_rejected (test_podman_incus_redesign.AtomicHostFileTests.test_symlink_leaf_is_rejected)",
+        "reason": "root-owned file fixtures require root"
+      },
+      {
+        "test": "test_symlink_parent_is_rejected (test_podman_incus_redesign.AtomicHostFileTests.test_symlink_parent_is_rejected)",
+        "reason": "root-owned file fixtures require root"
+      },
+      {
+        "test": "test_unit_links_are_idempotent_and_conflicts_refused (test_podman_incus_redesign.AtomicHostFileTests.test_unit_links_are_idempotent_and_conflicts_refused)",
+        "reason": "root-owned file fixtures require root"
+      },
+      {
+        "test": "test_unrelated_directory_owner_is_not_taken_over (test_podman_incus_redesign.AtomicHostFileTests.test_unrelated_directory_owner_is_not_taken_over)",
+        "reason": "root-owned file fixtures require root"
+      },
+      {
+        "test": "test_apparmor_complain_incident_is_fully_mapped (test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped)",
+        "reason": "original todo/apparmor.log not supplied; policy/fixture checks remain enabled"
+      },
+      {
+        "test": "test_commit_journal_failure_rolls_back_published_pair (test_computer_management_20260916.BootTransactionTests.test_commit_journal_failure_rolls_back_published_pair)",
+        "reason": "real root-owned filesystem fixtures required"
+      },
+      {
+        "test": "test_corrupt_journal_is_preserved_for_manual_review (test_computer_management_20260916.BootTransactionTests.test_corrupt_journal_is_preserved_for_manual_review)",
+        "reason": "real root-owned filesystem fixtures required"
+      },
+      {
+        "test": "test_disable_enable_and_idempotence (test_computer_management_20260916.BootTransactionTests.test_disable_enable_and_idempotence)",
+        "reason": "real root-owned filesystem fixtures required"
+      },
+      {
+        "test": "test_external_root_changes_are_not_overwritten (test_computer_management_20260916.BootTransactionTests.test_external_root_changes_are_not_overwritten)",
+        "reason": "real root-owned filesystem fixtures required"
+      },
+      {
+        "test": "test_file_modes_are_preserved (test_computer_management_20260916.BootTransactionTests.test_file_modes_are_preserved)",
+        "reason": "real root-owned filesystem fixtures required"
+      },
+      {
+        "test": "test_generator_and_checker_failure_restore_both_files (test_computer_management_20260916.BootTransactionTests.test_generator_and_checker_failure_restore_both_files)",
+        "reason": "real root-owned filesystem fixtures required"
+      },
+      {
+        "test": "test_hardlinks_symlinks_and_writable_files_are_rejected (test_computer_management_20260916.BootTransactionTests.test_hardlinks_symlinks_and_writable_files_are_rejected)",
+        "reason": "real root-owned filesystem fixtures required"
+      },
+      {
+        "test": "test_interrupted_transaction_is_recovered_on_next_invocation (test_computer_management_20260916.BootTransactionTests.test_interrupted_transaction_is_recovered_on_next_invocation)",
+        "reason": "real root-owned filesystem fixtures required"
+      },
+      {
+        "test": "test_invalid_generated_kernel_flags_never_publish (test_computer_management_20260916.BootTransactionTests.test_invalid_generated_kernel_flags_never_publish)",
+        "reason": "real root-owned filesystem fixtures required"
+      },
+      {
+        "test": "test_no_op_does_not_run_grub_tools (test_computer_management_20260916.BootTransactionTests.test_no_op_does_not_run_grub_tools)",
+        "reason": "real root-owned filesystem fixtures required"
+      },
+      {
+        "test": "test_publication_failure_rolls_back (test_computer_management_20260916.BootTransactionTests.test_publication_failure_rolls_back)",
+        "reason": "real root-owned filesystem fixtures required"
+      },
+      {
+        "test": "test_symlink_ancestor_and_non_root_parent_are_rejected (test_computer_management_20260916.BootTransactionTests.test_symlink_ancestor_and_non_root_parent_are_rejected)",
+        "reason": "real root-owned filesystem fixtures required"
+      },
+      {
+        "test": "test_alias_fstab_destinations_fail_before_package_install (test_network_sharing.TargetFilesystemTests.test_alias_fstab_destinations_fail_before_package_install)",
+        "reason": "private root-owned filesystem fixtures require root"
+      },
+      {
+        "test": "test_both_roles_binds_idempotence_permissions_and_no_live_calls (test_network_sharing.TargetFilesystemTests.test_both_roles_binds_idempotence_permissions_and_no_live_calls)",
+        "reason": "private root-owned filesystem fixtures require root"
+      },
+      {
+        "test": "test_changed_profile_rerun_refused (test_network_sharing.TargetFilesystemTests.test_changed_profile_rerun_refused)",
+        "reason": "private root-owned filesystem fixtures require root"
+      },
+      {
+        "test": "test_client_only_never_installs_export_or_server_daemon_policy (test_network_sharing.TargetFilesystemTests.test_client_only_never_installs_export_or_server_daemon_policy)",
+        "reason": "private root-owned filesystem fixtures require root"
+      },
+      {
+        "test": "test_configuration_symlinks_hardlinks_and_fifo_rejected (test_network_sharing.TargetFilesystemTests.test_configuration_symlinks_hardlinks_and_fifo_rejected)",
+        "reason": "private root-owned filesystem fixtures require root"
+      },
+      {
+        "test": "test_conflicting_fstab_fails_before_package_install (test_network_sharing.TargetFilesystemTests.test_conflicting_fstab_fails_before_package_install)",
+        "reason": "private root-owned filesystem fixtures require root"
+      },
+      {
+        "test": "test_disabled_still_creates_root_without_packages_or_services (test_network_sharing.TargetFilesystemTests.test_disabled_still_creates_root_without_packages_or_services)",
+        "reason": "private root-owned filesystem fixtures require root"
+      },
+      {
+        "test": "test_distinct_home_bind_parents_locked_in_stable_order (test_network_sharing.TargetFilesystemTests.test_distinct_home_bind_parents_locked_in_stable_order)",
+        "reason": "private root-owned filesystem fixtures require root"
+      },
+      {
+        "test": "test_existing_exports_and_mounts_are_not_silently_replaced (test_network_sharing.TargetFilesystemTests.test_existing_exports_and_mounts_are_not_silently_replaced)",
+        "reason": "private root-owned filesystem fixtures require root"
+      },
+      {
+        "test": "test_existing_user_owned_home_bind_parent_is_not_taken_over (test_network_sharing.TargetFilesystemTests.test_existing_user_owned_home_bind_parent_is_not_taken_over)",
+        "reason": "private root-owned filesystem fixtures require root"
+      },
+      {
+        "test": "test_export_root_acl_replaces_named_entries_without_recursion (test_network_sharing.TargetFilesystemTests.test_export_root_acl_replaces_named_entries_without_recursion)",
+        "reason": "private root-owned filesystem fixtures require root"
+      },
+      {
+        "test": "test_home_bind_lock_failure_prevents_mount_publication_and_enablement (test_network_sharing.TargetFilesystemTests.test_home_bind_lock_failure_prevents_mount_publication_and_enablement)",
+        "reason": "private root-owned filesystem fixtures require root"
+      },
+      {
+        "test": "test_home_bind_parent_locked_once_after_all_endpoints_exist (test_network_sharing.TargetFilesystemTests.test_home_bind_parent_locked_once_after_all_endpoints_exist)",
+        "reason": "private root-owned filesystem fixtures require root"
+      },
+      {
+        "test": "test_home_symlinks_and_user_owned_parents_rejected (test_network_sharing.TargetFilesystemTests.test_home_symlinks_and_user_owned_parents_rejected)",
+        "reason": "private root-owned filesystem fixtures require root"
+      },
+      {
+        "test": "test_mount_destination_must_be_empty (test_network_sharing.TargetFilesystemTests.test_mount_destination_must_be_empty)",
+        "reason": "private root-owned filesystem fixtures require root"
+      },
+      {
+        "test": "test_no_home_bind_means_no_immutable_directory_change (test_network_sharing.TargetFilesystemTests.test_no_home_bind_means_no_immutable_directory_change)",
+        "reason": "private root-owned filesystem fixtures require root"
+      },
+      {
+        "test": "test_package_policy_restored_on_failure (test_network_sharing.TargetFilesystemTests.test_package_policy_restored_on_failure)",
+        "reason": "private root-owned filesystem fixtures require root"
+      },
+      {
+        "test": "test_private_installer_umask_still_publishes_traversable_directories (test_network_sharing.TargetFilesystemTests.test_private_installer_umask_still_publishes_traversable_directories)",
+        "reason": "private root-owned filesystem fixtures require root"
+      },
+      {
+        "test": "test_server_only_never_installs_client_mount_or_upcall (test_network_sharing.TargetFilesystemTests.test_server_only_never_installs_client_mount_or_upcall)",
+        "reason": "private root-owned filesystem fixtures require root"
+      },
+      {
+        "test": "test_server_start_guard_is_installed_before_packages_can_enable_units (test_network_sharing.TargetFilesystemTests.test_server_start_guard_is_installed_before_packages_can_enable_units)",
+        "reason": "private root-owned filesystem fixtures require root"
+      },
+      {
+        "test": "test_symlinked_root_is_rejected (test_network_sharing.TargetFilesystemTests.test_symlinked_root_is_rejected)",
+        "reason": "private root-owned filesystem fixtures require root"
+      }
+    ]
+  },
+  "shells": {
+    "success": true,
+    "shell_files": 352,
+    "parser_checks": 715,
+    "failures": [],
+    "scope": "syntax and external metadata dependency checks; runtime execution is a separate test stage"
+  },
+  "apparmor": {
+    "policies": [
+      {
+        "policy": "Discord",
+        "returncode": 0
+      },
+      {
+        "policy": "chatgpt",
+        "returncode": 0
+      },
+      {
+        "policy": "compz",
+        "returncode": 0
+      },
+      {
+        "policy": "crun",
+        "returncode": 0
+      },
+      {
+        "policy": "debugsys",
+        "returncode": 0
+      },
+      {
+        "policy": "desktop-utilities",
+        "returncode": 0
+      },
+      {
+        "policy": "desktop-wrappers",
+        "returncode": 0
+      },
+      {
+        "policy": "document-applications",
+        "returncode": 0
+      },
+      {
+        "policy": "firstboot",
+        "returncode": 0
+      },
+      {
+        "policy": "gitbuild",
+        "returncode": 0
+      },
+      {
+        "policy": "gitbuild-worker",
+        "returncode": 0
+      },
+      {
+        "policy": "hardware-tuning",
+        "returncode": 0
+      },
+      {
+        "policy": "labwc-appearance",
+        "returncode": 0
+      },
+      {
+        "policy": "labwc-session",
+        "returncode": 0
+      },
+      {
+        "policy": "managed-veth",
+        "returncode": 0
+      },
+      {
+        "policy": "network-sharing",
+        "returncode": 0
+      },
+      {
+        "policy": "obsidian",
+        "returncode": 0
+      },
+      {
+        "policy": "opt.Bitwarden.bitwarden",
+        "returncode": 0
+      },
+      {
+        "policy": "opt.Filen.Filen",
+        "returncode": 0
+      },
+      {
+        "policy": "opt.ledger-live.AppRun",
+        "returncode": 0
+      },
+      {
+        "policy": "opt.postman.app.Postman",
+        "returncode": 0
+      },
+      {
+        "policy": "opt.tuta-mail.AppRun",
+        "returncode": 0
+      },
+      {
+        "policy": "sleek",
+        "returncode": 0
+      },
+      {
+        "policy": "system-wrappers",
+        "returncode": 0
+      },
+      {
+        "policy": "timeshift",
+        "returncode": 0
+      },
+      {
+        "policy": "tomat",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.keepassxc",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.pwsh",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.qbittorrent",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.qoredb",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.retroarch",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.spotify",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.sqlitebrowser",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.telegram-desktop",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.totem",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.zoom",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.local.sbin.tpm2-enroll.sh",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.sbin.aa-status",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.sbin.apt-cacher-ng",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.sbin.avahi-daemon",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.sbin.tailscaled",
+        "returncode": 0
+      },
+      {
+        "policy": "vivaldi-bin",
+        "returncode": 0
+      },
+      {
+        "policy": "vivaldi-stable",
+        "returncode": 0
+      },
+      {
+        "policy": "waybar-menus",
+        "returncode": 0
+      },
+      {
+        "policy": "whisper-local-transcription",
+        "returncode": 0
+      },
+      {
+        "policy": "zoom-discord-compat",
+        "returncode": 0
+      }
+    ],
+    "kernel_load": false,
+    "cache_write": false
+  },
+  "evidence": {
+    "files": 91,
+    "lines": 18842,
+    "bytes": 2549400,
+    "normalized_records": 9445,
+    "empty_files": 22,
+    "complete_line_accounting": true,
+    "inputs_unchanged": true,
+    "diagnostic_occurrences_across_overlapping_logs": {
+      "capabilities_step": 27,
+      "json_decode": 61,
+      "console_unenrolled": 2
+    }
+  },
+  "second_review": {
+    "coverage": {
+      "files": 49,
+      "lines": 11503,
+      "bytes": 1650916,
+      "empty_files": 22,
+      "unique_messages": 6098,
+      "unique_diagnostics": 112,
+      "audit_syscalls": {
+        "yes": 998
+      },
+      "apparmor_records": {
+        "STATUS": 840
+      },
+      "inventory": [
+        {
+          "path": "todo/fail",
+          "lines": 357,
+          "bytes": 46612,
+          "sha256": "6fc71ee0203438db256596dc1a0507357bd58628359b81abb7f7d64cc0bf98f0"
+        },
+        {
+          "path": "todo/Failing",
+          "lines": 433,
+          "bytes": 48487,
+          "sha256": "dc0c95919f38da91ea311e7aa2d14ccf1f90f3bf6c693b08ff88351c4f81aca3"
+        },
+        {
+          "path": "todo/journalctl",
+          "lines": 1940,
+          "bytes": 224364,
+          "sha256": "b1362085350a526e88d63e10272fd216d485316c0cd4302434ec9c1a8ff0f56c"
+        },
+        {
+          "path": "todo/managed/apps/apps.log",
+          "lines": 144,
+          "bytes": 19783,
+          "sha256": "fff8cf9234ac3631ce6b0c7797a6a22167d9a5b16840fa961059e0a0d83d544a"
+        },
+        {
+          "path": "todo/managed/models/openai/chatgpt/chatgpt.log",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/models/openai/chatgpt/runtime/codex-login.log",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/models/openai/chatgpt/runtime/codex-tui.log",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/models/openai/codex/codex-login.log",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/models/openai/codex/codex-tui.log",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/models/whisper/whisper.log",
+          "lines": 1,
+          "bytes": 150,
+          "sha256": "da4c1244a095a4601a6baca5fef8ba59159c4aa34461cc0e3a69d3b6e4829461"
+        },
+        {
+          "path": "todo/managed/network/veth.log",
+          "lines": 16,
+          "bytes": 3664,
+          "sha256": "99ea48dcd03f853dcf4a9cdc28a70575f044b2ac83d8e559acca574896e4fa0f"
+        },
+        {
+          "path": "todo/managed/security/apparmor/apparmor.log",
+          "lines": 419,
+          "bytes": 72961,
+          "sha256": "b2165d179f063796180a01ba6e5f23caecc19d648b790a6d0c9432b153eaa06d"
+        },
+        {
+          "path": "todo/managed/security/apparmor/modes.log",
+          "lines": 63,
+          "bytes": 8526,
+          "sha256": "014d23eeaa7cf4f3888a2a82676b57e2f162be20468727dbf35f4bf88483a3ee"
+        },
+        {
+          "path": "todo/managed/security/audit/auditd.log",
+          "lines": 5134,
+          "bytes": 876925,
+          "sha256": "84956b34daf42a1358df5423d0492f61264ca7149b82f4ee81814fd7f737ea43"
+        },
+        {
+          "path": "todo/managed/security/auth/auth.log",
+          "lines": 46,
+          "bytes": 5149,
+          "sha256": "315e2283419d093613ebaa7e324297acba556c225901bc4db5b03d1c40a47497"
+        },
+        {
+          "path": "todo/managed/security/chkrootkit/chkrootkit.log",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/security/chkrootkit/daily.log",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/security/chkrootkit/daily.log.raw",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/security/chkrootkit/log.expected",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/security/clamav/clamav.log",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/security/clamav/freshclam.log",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/security/clamscan/clamscan.log",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/security/crowdsec/crowdsec-firewall-bouncer.log",
+          "lines": 18,
+          "bytes": 1742,
+          "sha256": "d0e761133781ef53768f48829f555ed5f8eeee53314214436abaaf45178fce98"
+        },
+        {
+          "path": "todo/managed/security/crowdsec/crowdsec.log",
+          "lines": 226,
+          "bytes": 26047,
+          "sha256": "b2c4c1ccf16235fce5d8cb2ef502afbdfb66486f8f871c042ad909604b28ff2d"
+        },
+        {
+          "path": "todo/managed/security/crowdsec/crowdsec_api.log",
+          "lines": 28,
+          "bytes": 7561,
+          "sha256": "3a0553da469535d8f6807d6c4ee9e2fde5eb4e4d6c0d08db11b4cca059ae2c4c"
+        },
+        {
+          "path": "todo/managed/security/debsecan/debsecan.log",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/security/debsums/debsums.log",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/security/fail2ban/fail2ban.log",
+          "lines": 19,
+          "bytes": 1828,
+          "sha256": "b38184f9de25f0059cfd524f99413cfaba31b5b24fa3ba96e781fd2ee5dc790b"
+        },
+        {
+          "path": "todo/managed/security/lynis/lynis-report.dat",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/security/lynis/lynis.log",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/security/lynis/scan.log",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/security/nftables/nftables.log",
+          "lines": 21,
+          "bytes": 4294,
+          "sha256": "440a564d14641dc71b5e91be842d2b05159f293f00126154ee4851a6bddb2803"
+        },
+        {
+          "path": "todo/managed/security/rkhunter/rkhunter.log",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/security/rkhunter/scan.log",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/security/spectre-meltdown-checker/spectre-meltdown-checker.log",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/system/fwupd/security-scan.log",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/system/initramfs/01-init-top.log",
+          "lines": 49,
+          "bytes": 1899,
+          "sha256": "96b82ad3b9d29b82ebf3c048067d19bacf1e4f6401be3b6ace8ed30c2fd0cb93"
+        },
+        {
+          "path": "todo/managed/system/initramfs/02-init-premount.log",
+          "lines": 53,
+          "bytes": 4907,
+          "sha256": "2d5184a60b34fb137fd78b59a9fc946f386720c15b0c74d5739b683ce8bee850"
+        },
+        {
+          "path": "todo/managed/system/initramfs/03-local-top.log",
+          "lines": 55,
+          "bytes": 3854,
+          "sha256": "9f3f1c5da794496e61e49e20ac9ae7b890c89444c1773530234b1890c4987942"
+        },
+        {
+          "path": "todo/managed/system/initramfs/04-local-block.log",
+          "lines": 5,
+          "bytes": 126,
+          "sha256": "4b2059e21636925b226e679e35fdb745083a5175d8e0fe6d0871fe42ed7ddeea"
+        },
+        {
+          "path": "todo/managed/system/initramfs/05-local-premount.log",
+          "lines": 25,
+          "bytes": 2007,
+          "sha256": "c6c4769e8aada54b5578fcceb2a8e450d81683a3450ea3b04cf4aa2a79101971"
+        },
+        {
+          "path": "todo/managed/system/initramfs/06-local-bottom.log",
+          "lines": 33,
+          "bytes": 2230,
+          "sha256": "1b1b459964db283d0c5090dfc6005c242e7009bb382e589574309c7891b8c8f9"
+        },
+        {
+          "path": "todo/managed/system/initramfs/07-init-bottom.log",
+          "lines": 85,
+          "bytes": 4834,
+          "sha256": "8fb5083676d29a1f52b90ad78503eba550a21cdde445457017b5c75d07e51b72"
+        },
+        {
+          "path": "todo/managed/system/kernel.log",
+          "lines": 917,
+          "bytes": 100902,
+          "sha256": "a6e6568ba73e007d85365a672c83a70393942396f845e8026c1a009b56419e39"
+        },
+        {
+          "path": "todo/managed/system/storage/storage.log",
+          "lines": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "todo/managed/system/system.log",
+          "lines": 1327,
+          "bytes": 172203,
+          "sha256": "6aa3b4d99ee175963924c455324acc849d4ddbc6965ceae2fd5ccefb4f64a48b"
+        },
+        {
+          "path": "todo/managed/system/timeshift/timeshift.log",
+          "lines": 2,
+          "bytes": 176,
+          "sha256": "adbe4be51536fea5c174a637f89457be8161ec9bba5cdbd66dcd1a1472ec04bf"
+        },
+        {
+          "path": "todo/managed/system/usb/usb.log",
+          "lines": 84,
+          "bytes": 9271,
+          "sha256": "519512007c4282083a35d3d156d59a91c6eb57928a0b1028ef3119b5bcccb24f"
+        },
+        {
+          "path": "todo/managed/system/zram/zram.log",
+          "lines": 3,
+          "bytes": 414,
+          "sha256": "0bccfa5e4b6d7dc0c372d2cb7c594ae4ed0e178b377c94834bbdc50d3ccf28d6"
+        }
+      ]
+    },
+    "all_diagnostics_assigned_once": true,
+    "categories": [
+      {
+        "category": "broker_and_dependency_failures",
+        "disposition": "source_repaired_live_unverified",
+        "unique_records": 49,
+        "occurrences_across_overlapping_logs": 1856,
+        "sources": [
+          {
+            "diagnostic_id": 0,
+            "path": "todo/fail",
+            "line": 1,
+            "occurrences_across_overlapping_logs": 61
+          },
+          {
+            "diagnostic_id": 1,
+            "path": "todo/fail",
+            "line": 2,
+            "occurrences_across_overlapping_logs": 403
+          },
+          {
+            "diagnostic_id": 2,
+            "path": "todo/fail",
+            "line": 3,
+            "occurrences_across_overlapping_logs": 3
+          },
+          {
+            "diagnostic_id": 3,
+            "path": "todo/fail",
+            "line": 4,
+            "occurrences_across_overlapping_logs": 3
+          },
+          {
+            "diagnostic_id": 4,
+            "path": "todo/fail",
+            "line": 5,
+            "occurrences_across_overlapping_logs": 403
+          },
+          {
+            "diagnostic_id": 5,
+            "path": "todo/fail",
+            "line": 52,
+            "occurrences_across_overlapping_logs": 3
+          },
+          {
+            "diagnostic_id": 10,
+            "path": "todo/Failing",
+            "line": 1,
+            "occurrences_across_overlapping_logs": 61
+          },
+          {
+            "diagnostic_id": 11,
+            "path": "todo/Failing",
+            "line": 2,
+            "occurrences_across_overlapping_logs": 403
+          },
+          {
+            "diagnostic_id": 12,
+            "path": "todo/Failing",
+            "line": 9,
+            "occurrences_across_overlapping_logs": 342
+          },
+          {
+            "diagnostic_id": 13,
+            "path": "todo/Failing",
+            "line": 45,
+            "occurrences_across_overlapping_logs": 20
+          },
+          {
+            "diagnostic_id": 14,
+            "path": "todo/Failing",
+            "line": 46,
+            "occurrences_across_overlapping_logs": 21
+          },
+          {
+            "diagnostic_id": 15,
+            "path": "todo/Failing",
+            "line": 47,
+            "occurrences_across_overlapping_logs": 21
+          },
+          {
+            "diagnostic_id": 16,
+            "path": "todo/Failing",
+            "line": 48,
+            "occurrences_across_overlapping_logs": 3
+          },
+          {
+            "diagnostic_id": 26,
+            "path": "todo/journalctl",
+            "line": 376,
+            "occurrences_across_overlapping_logs": 37
+          },
+          {
+            "diagnostic_id": 32,
+            "path": "todo/journalctl",
+            "line": 689,
+            "occurrences_across_overlapping_logs": 13
+          },
+          {
+            "diagnostic_id": 33,
+            "path": "todo/journalctl",
+            "line": 690,
+            "occurrences_across_overlapping_logs": 13
+          },
+          {
+            "diagnostic_id": 34,
+            "path": "todo/journalctl",
+            "line": 691,
+            "occurrences_across_overlapping_logs": 13
+          },
+          {
+            "diagnostic_id": 41,
+            "path": "todo/journalctl",
+            "line": 878,
+            "occurrences_across_overlapping_logs": 2
+          },
+          {
+            "diagnostic_id": 47,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 2556,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 48,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 2829,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 49,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 2836,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 50,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 2838,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 51,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 2843,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 52,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 3056,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 53,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 4155,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 54,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 4162,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 55,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 4169,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 56,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 4171,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 57,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 4174,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 58,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 4362,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 59,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 4369,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 60,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 4376,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 61,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 4378,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 62,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 4381,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 63,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 4602,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 64,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 4609,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 65,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 4616,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 66,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 4618,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 67,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 4621,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 68,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 4811,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 69,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 4822,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 70,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 4829,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 71,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 4831,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 72,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 4834,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 73,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 5055,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 74,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 5062,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 75,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 5069,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 76,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 5071,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 77,
+            "path": "todo/managed/security/audit/auditd.log",
+            "line": 5074,
+            "occurrences_across_overlapping_logs": 1
+          }
+        ]
+      },
+      {
+        "category": "gvfs_and_thunar_failures",
+        "disposition": "source_repaired_live_unverified",
+        "unique_records": 6,
+        "occurrences_across_overlapping_logs": 112,
+        "sources": [
+          {
+            "diagnostic_id": 8,
+            "path": "todo/fail",
+            "line": 313,
+            "occurrences_across_overlapping_logs": 2
+          },
+          {
+            "diagnostic_id": 9,
+            "path": "todo/fail",
+            "line": 314,
+            "occurrences_across_overlapping_logs": 2
+          },
+          {
+            "diagnostic_id": 17,
+            "path": "todo/Failing",
+            "line": 307,
+            "occurrences_across_overlapping_logs": 27
+          },
+          {
+            "diagnostic_id": 18,
+            "path": "todo/Failing",
+            "line": 308,
+            "occurrences_across_overlapping_logs": 27
+          },
+          {
+            "diagnostic_id": 19,
+            "path": "todo/Failing",
+            "line": 309,
+            "occurrences_across_overlapping_logs": 27
+          },
+          {
+            "diagnostic_id": 20,
+            "path": "todo/Failing",
+            "line": 310,
+            "occurrences_across_overlapping_logs": 27
+          }
+        ]
+      },
+      {
+        "category": "public_xwayland_unavailable",
+        "disposition": "expected_private_only_display_contract",
+        "unique_records": 2,
+        "occurrences_across_overlapping_logs": 5,
+        "sources": [
+          {
+            "diagnostic_id": 7,
+            "path": "todo/fail",
+            "line": 54,
+            "occurrences_across_overlapping_logs": 3
+          },
+          {
+            "diagnostic_id": 42,
+            "path": "todo/journalctl",
+            "line": 998,
+            "occurrences_across_overlapping_logs": 2
+          }
+        ]
+      },
+      {
+        "category": "wireplumber_proxy_destroyed",
+        "disposition": "audio_device_acceptance_required",
+        "unique_records": 1,
+        "occurrences_across_overlapping_logs": 3,
+        "sources": [
+          {
+            "diagnostic_id": 6,
+            "path": "todo/fail",
+            "line": 53,
+            "occurrences_across_overlapping_logs": 3
+          }
+        ]
+      },
+      {
+        "category": "grub_timer_description",
+        "disposition": "description_not_failure",
+        "unique_records": 1,
+        "occurrences_across_overlapping_logs": 2,
+        "sources": [
+          {
+            "diagnostic_id": 21,
+            "path": "todo/journalctl",
+            "line": 232,
+            "occurrences_across_overlapping_logs": 2
+          }
+        ]
+      },
+      {
+        "category": "network_offload_status",
+        "disposition": "capability_listing_not_failure",
+        "unique_records": 3,
+        "occurrences_across_overlapping_logs": 10,
+        "sources": [
+          {
+            "diagnostic_id": 22,
+            "path": "todo/journalctl",
+            "line": 263,
+            "occurrences_across_overlapping_logs": 4
+          },
+          {
+            "diagnostic_id": 23,
+            "path": "todo/journalctl",
+            "line": 264,
+            "occurrences_across_overlapping_logs": 2
+          },
+          {
+            "diagnostic_id": 24,
+            "path": "todo/journalctl",
+            "line": 265,
+            "occurrences_across_overlapping_logs": 4
+          }
+        ]
+      },
+      {
+        "category": "getty_static_condition",
+        "disposition": "expected_package_condition",
+        "unique_records": 1,
+        "occurrences_across_overlapping_logs": 2,
+        "sources": [
+          {
+            "diagnostic_id": 25,
+            "path": "todo/journalctl",
+            "line": 276,
+            "occurrences_across_overlapping_logs": 2
+          }
+        ]
+      },
+      {
+        "category": "networkmanager_device_transitions",
+        "disposition": "normal_activation_transition",
+        "unique_records": 6,
+        "occurrences_across_overlapping_logs": 11,
+        "sources": [
+          {
+            "diagnostic_id": 27,
+            "path": "todo/journalctl",
+            "line": 404,
+            "occurrences_across_overlapping_logs": 2
+          },
+          {
+            "diagnostic_id": 28,
+            "path": "todo/journalctl",
+            "line": 405,
+            "occurrences_across_overlapping_logs": 2
+          },
+          {
+            "diagnostic_id": 29,
+            "path": "todo/journalctl",
+            "line": 411,
+            "occurrences_across_overlapping_logs": 2
+          },
+          {
+            "diagnostic_id": 31,
+            "path": "todo/journalctl",
+            "line": 520,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 39,
+            "path": "todo/journalctl",
+            "line": 833,
+            "occurrences_across_overlapping_logs": 2
+          },
+          {
+            "diagnostic_id": 40,
+            "path": "todo/journalctl",
+            "line": 840,
+            "occurrences_across_overlapping_logs": 2
+          }
+        ]
+      },
+      {
+        "category": "optional_ofono_backend",
+        "disposition": "optional_backend_unavailable",
+        "unique_records": 1,
+        "occurrences_across_overlapping_logs": 2,
+        "sources": [
+          {
+            "diagnostic_id": 30,
+            "path": "todo/journalctl",
+            "line": 508,
+            "occurrences_across_overlapping_logs": 2
+          }
+        ]
+      },
+      {
+        "category": "tailscale_initialization",
+        "disposition": "health_recovers_in_supplied_journal",
+        "unique_records": 4,
+        "occurrences_across_overlapping_logs": 10,
+        "sources": [
+          {
+            "diagnostic_id": 35,
+            "path": "todo/journalctl",
+            "line": 763,
+            "occurrences_across_overlapping_logs": 4
+          },
+          {
+            "diagnostic_id": 36,
+            "path": "todo/journalctl",
+            "line": 766,
+            "occurrences_across_overlapping_logs": 2
+          },
+          {
+            "diagnostic_id": 37,
+            "path": "todo/journalctl",
+            "line": 781,
+            "occurrences_across_overlapping_logs": 2
+          },
+          {
+            "diagnostic_id": 38,
+            "path": "todo/journalctl",
+            "line": 798,
+            "occurrences_across_overlapping_logs": 2
+          }
+        ]
+      },
+      {
+        "category": "launcher_sync",
+        "disposition": "unchanged_outputs_no_missing_or_invalid_entries",
+        "unique_records": 1,
+        "occurrences_across_overlapping_logs": 2,
+        "sources": [
+          {
+            "diagnostic_id": 43,
+            "path": "todo/journalctl",
+            "line": 1089,
+            "occurrences_across_overlapping_logs": 2
+          }
+        ]
+      },
+      {
+        "category": "crystal_dock_deprecation",
+        "disposition": "packaged_api_notice_startup_succeeded",
+        "unique_records": 1,
+        "occurrences_across_overlapping_logs": 2,
+        "sources": [
+          {
+            "diagnostic_id": 44,
+            "path": "todo/journalctl",
+            "line": 1093,
+            "occurrences_across_overlapping_logs": 2
+          }
+        ]
+      },
+      {
+        "category": "journal_syslog_forwarding",
+        "disposition": "observed_forwarding_gap_live_measurement_required",
+        "unique_records": 1,
+        "occurrences_across_overlapping_logs": 1,
+        "sources": [
+          {
+            "diagnostic_id": 45,
+            "path": "todo/journalctl",
+            "line": 1094,
+            "occurrences_across_overlapping_logs": 1
+          }
+        ]
+      },
+      {
+        "category": "netavark_dhcp_idle_exit",
+        "disposition": "successful_idle_shutdown_in_supplied_journal",
+        "unique_records": 1,
+        "occurrences_across_overlapping_logs": 2,
+        "sources": [
+          {
+            "diagnostic_id": 46,
+            "path": "todo/journalctl",
+            "line": 1108,
+            "occurrences_across_overlapping_logs": 2
+          }
+        ]
+      },
+      {
+        "category": "crowdsec_early_capi_disabled",
+        "disposition": "provisioning_transition_bouncer_receives_decisions",
+        "unique_records": 2,
+        "occurrences_across_overlapping_logs": 2,
+        "sources": [
+          {
+            "diagnostic_id": 78,
+            "path": "todo/managed/security/crowdsec/crowdsec.log",
+            "line": 6,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 83,
+            "path": "todo/managed/security/crowdsec/crowdsec.log",
+            "line": 82,
+            "occurrences_across_overlapping_logs": 1
+          }
+        ]
+      },
+      {
+        "category": "crowdsec_parser_registration",
+        "disposition": "packaged_parser_warning_service_continues",
+        "unique_records": 6,
+        "occurrences_across_overlapping_logs": 6,
+        "sources": [
+          {
+            "diagnostic_id": 79,
+            "path": "todo/managed/security/crowdsec/crowdsec.log",
+            "line": 23,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 80,
+            "path": "todo/managed/security/crowdsec/crowdsec.log",
+            "line": 24,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 84,
+            "path": "todo/managed/security/crowdsec/crowdsec.log",
+            "line": 99,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 85,
+            "path": "todo/managed/security/crowdsec/crowdsec.log",
+            "line": 100,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 89,
+            "path": "todo/managed/security/crowdsec/crowdsec.log",
+            "line": 182,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 90,
+            "path": "todo/managed/security/crowdsec/crowdsec.log",
+            "line": 183,
+            "occurrences_across_overlapping_logs": 1
+          }
+        ]
+      },
+      {
+        "category": "crowdsec_reload",
+        "disposition": "provisioning_reload_transition",
+        "unique_records": 3,
+        "occurrences_across_overlapping_logs": 3,
+        "sources": [
+          {
+            "diagnostic_id": 81,
+            "path": "todo/managed/security/crowdsec/crowdsec.log",
+            "line": 66,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 82,
+            "path": "todo/managed/security/crowdsec/crowdsec.log",
+            "line": 76,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 87,
+            "path": "todo/managed/security/crowdsec/crowdsec.log",
+            "line": 145,
+            "occurrences_across_overlapping_logs": 1
+          }
+        ]
+      },
+      {
+        "category": "crowdsec_console_enrollment",
+        "disposition": "external_console_approval_required",
+        "unique_records": 2,
+        "occurrences_across_overlapping_logs": 2,
+        "sources": [
+          {
+            "diagnostic_id": 86,
+            "path": "todo/managed/security/crowdsec/crowdsec.log",
+            "line": 144,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 88,
+            "path": "todo/managed/security/crowdsec/crowdsec.log",
+            "line": 161,
+            "occurrences_across_overlapping_logs": 1
+          }
+        ]
+      },
+      {
+        "category": "fail2ban_new_database",
+        "disposition": "first_install_initialization",
+        "unique_records": 1,
+        "occurrences_across_overlapping_logs": 1,
+        "sources": [
+          {
+            "diagnostic_id": 91,
+            "path": "todo/managed/security/fail2ban/fail2ban.log",
+            "line": 5,
+            "occurrences_across_overlapping_logs": 1
+          }
+        ]
+      },
+      {
+        "category": "kernel_capabilities_and_firmware",
+        "disposition": "hardware_notice_not_application_startup_failure",
+        "unique_records": 12,
+        "occurrences_across_overlapping_logs": 12,
+        "sources": [
+          {
+            "diagnostic_id": 92,
+            "path": "todo/managed/system/kernel.log",
+            "line": 2,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 93,
+            "path": "todo/managed/system/kernel.log",
+            "line": 170,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 94,
+            "path": "todo/managed/system/kernel.log",
+            "line": 171,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 95,
+            "path": "todo/managed/system/kernel.log",
+            "line": 172,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 96,
+            "path": "todo/managed/system/kernel.log",
+            "line": 173,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 97,
+            "path": "todo/managed/system/kernel.log",
+            "line": 174,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 98,
+            "path": "todo/managed/system/kernel.log",
+            "line": 272,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 99,
+            "path": "todo/managed/system/kernel.log",
+            "line": 320,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 100,
+            "path": "todo/managed/system/kernel.log",
+            "line": 373,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 106,
+            "path": "todo/managed/system/kernel.log",
+            "line": 592,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 107,
+            "path": "todo/managed/system/kernel.log",
+            "line": 596,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 108,
+            "path": "todo/managed/system/kernel.log",
+            "line": 830,
+            "occurrences_across_overlapping_logs": 1
+          }
+        ]
+      },
+      {
+        "category": "acpi_pci_resources",
+        "disposition": "hardware_acceptance_required",
+        "unique_records": 5,
+        "occurrences_across_overlapping_logs": 5,
+        "sources": [
+          {
+            "diagnostic_id": 101,
+            "path": "todo/managed/system/kernel.log",
+            "line": 465,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 102,
+            "path": "todo/managed/system/kernel.log",
+            "line": 502,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 103,
+            "path": "todo/managed/system/kernel.log",
+            "line": 503,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 104,
+            "path": "todo/managed/system/kernel.log",
+            "line": 504,
+            "occurrences_across_overlapping_logs": 1
+          },
+          {
+            "diagnostic_id": 105,
+            "path": "todo/managed/system/kernel.log",
+            "line": 512,
+            "occurrences_across_overlapping_logs": 1
+          }
+        ]
+      },
+      {
+        "category": "bluetooth_coded_phy",
+        "disposition": "hardware_feature_acceptance_required",
+        "unique_records": 1,
+        "occurrences_across_overlapping_logs": 1,
+        "sources": [
+          {
+            "diagnostic_id": 109,
+            "path": "todo/managed/system/kernel.log",
+            "line": 903,
+            "occurrences_across_overlapping_logs": 1
+          }
+        ]
+      },
+      {
+        "category": "usb_ucsi_errors",
+        "disposition": "hardware_firmware_acceptance_required",
+        "unique_records": 2,
+        "occurrences_across_overlapping_logs": 4,
+        "sources": [
+          {
+            "diagnostic_id": 110,
+            "path": "todo/managed/system/usb/usb.log",
+            "line": 51,
+            "occurrences_across_overlapping_logs": 2
+          },
+          {
+            "diagnostic_id": 111,
+            "path": "todo/managed/system/usb/usb.log",
+            "line": 52,
+            "occurrences_across_overlapping_logs": 2
+          }
+        ]
+      }
+    ],
+    "new_production_changes": [],
+    "live_target_executed": false,
+    "limits": [
+      "22 empty files do not establish successful execution",
+      "159 journal forwards to syslog were missed in the supplied boot",
+      "absence of AppArmor denials in supplied files does not prove future enforcement",
+      "target requested systemd 261.2; supplied and local native tools are 262-1"
+    ]
+  },
+  "logging_review": {
+    "catalog": {
+      "variables": 113,
+      "templates": 356,
+      "logging_templates": 79,
+      "profiles": 10
+    },
+    "commands": [
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "-I",
+          "-B",
+          "-c",
+          "import sys, unittest; sys.path.insert(0, sys.argv.pop(1)); unittest.main(module=None)",
+          "/home/mcramer/Workspace/debian-preseed-de/d-i/forky/tests",
+          "-v",
+          "test_native_logging_r4.CatalogTests",
+          "test_managed_logging_r3.RoutingContractTests"
+        ],
+        "returncode": 0
+      },
+      {
+        "argv": [
+          "/usr/sbin/rsyslogd",
+          "-N1",
+          "-f",
+          "/home/mcramer/Workspace/debian-preseed-de/.build/repair-review/rsyslog-config-jz2lon47/rsyslog.conf"
+        ],
+        "returncode": 0,
+        "scope": "native syntax parser; temporary spool and local fixture owner/group"
+      }
+    ],
+    "tests": {
+      "run": 18,
+      "passed": 18,
+      "skipped": 0,
+      "failures": 0,
+      "errors": 0,
+      "seconds": 12.776
+    }
+  }
+}

@@ -162,22 +162,7 @@ class OutcomeAndPipeTests(unittest.TestCase):
                 runtime.run_cage_supervisor(['zoom','intel','--','/usr/bin/zoom'])
             create.assert_not_called()
 
-    def test_intentional_slirp_end_does_not_replace_payload_exit(self):
-        process = child('raise SystemExit(7)')
-        slirp = child('raise SystemExit(0)')
-        process.wait(); slirp.wait()
-        self.assertEqual(network_namespace._wait_for_bwrap_with_slirp4netns(process, slirp, io.BytesIO()), 7)
 
-    def test_required_slirp_failure_is_detected_while_payload_is_alive(self):
-        process = child('import time; time.sleep(30)', start_new_session=True)
-        slirp = child('raise SystemExit(4)')
-        slirp.wait()
-        try:
-            with mock.patch.object(network_namespace, 'fail', side_effect=protocol.ProtocolError):
-                with self.assertRaises(protocol.ProtocolError):
-                    network_namespace._wait_for_bwrap_with_slirp4netns(process, slirp, io.BytesIO())
-        finally:
-            protocol.stop_processes([process], time.monotonic() + .5, groups=True)
 
     def test_required_proxy_failure_is_detected_at_runtime(self):
         p = child('raise SystemExit(3)'); p.wait()
@@ -192,16 +177,8 @@ class OutcomeAndPipeTests(unittest.TestCase):
         helper.wait()
         try:
             with self.assertRaises(protocol.RequiredComponentError) as failed:
-                network_namespace._wait_for_bwrap_with_slirp4netns(
-                    payload, helper, io.BytesIO(), runtime_check=lambda: None)
-            self.assertEqual((failed.exception.result, failed.exception.signal), (139, 11))
-            with self.assertRaises(protocol.RequiredComponentError) as failed:
                 sandbox.require_compatibility_dbus_proxies([(helper, '/absent', None)])
             self.assertEqual((failed.exception.result, failed.exception.signal), (139, 11))
-            # A completed payload makes later intentional helper teardown moot.
-            payload.terminate(); payload.wait()
-            self.assertEqual(network_namespace._wait_for_bwrap_with_slirp4netns(
-                payload, helper, io.BytesIO(), runtime_check=lambda: None), -signal.SIGTERM)
         finally:
             protocol.stop_processes([payload], time.monotonic() + .5, groups=True)
 
@@ -267,7 +244,7 @@ class EnvironmentAndDisplayTests(unittest.TestCase):
         self.assertIn('PRIVATE_X11_SOCKET_DIRECTORY', text)
         self.assertNotIn('"--bind", "/tmp/.X11-unix"', text)
         self.assertFalse(profiles.PERSISTENT_SANDBOX_CONFIG['discord']['share_net'])
-        self.assertTrue(profiles.PERSISTENT_SANDBOX_CONFIG['discord']['slirp4netns'])
+        self.assertTrue(profiles.PERSISTENT_SANDBOX_CONFIG['discord']['veth'])
         # Identical display numbers are accepted only for the private namespace.
         with mock.patch.dict(os.environ, {'DISPLAY':':0','WLR_XWAYLAND':runtime.XWAYLAND_EXEC_HELPER}, clear=True):
             self.assertEqual(runtime.require_cage_x11_display(), '0')
@@ -421,8 +398,13 @@ class ActivationAndPolicyTests(unittest.TestCase):
         self.assertNotIn('signal (send) peer=unconfined,', policy)
         self.assertNotIn('owner @{PROC}/[0-9]*/mem r,', policy)
         prep = read_text(TARGET/'etc/apparmor.d/abstractions/bwrap-compat-preparation')
-        self.assertNotIn('capability sys_ptrace,', prep)
-        self.assertNotIn('capability net_admin,', prep)
+        # Construction reads namespace descriptors and configures loopback;
+        # the application exec must drop all of those kernel capabilities.
+        self.assertIn('capability sys_ptrace,', prep)
+        self.assertIn('capability net_admin,', prep)
+        argv = runtime.masked_application_argv('discord', 'wayland-0', 'wayland-1',
+                                               ['/opt/discord/Discord'])
+        self.assertEqual(argv[argv.index('--cap-drop') + 1], 'ALL')
         self.assertIn('profile labwc-xwayland-direct-exec-deny', policy)
         self.assertIn('profile labwc-private-xwayland-direct-deny', policy)
         self.assertIn('zoom-discord-compat', read_text(TARGET/'etc/apparmor/modes.conf'))

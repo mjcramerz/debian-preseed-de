@@ -2,6 +2,48 @@
 abi "/usr/share/apparmor-features/features",
 #include <tunables/global>
 
+profile desktop-btop /usr/bin/btop flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/base>
+  include <abstractions/nameservice-strict>
+  include <abstractions/wrapper-terminal>
+  # btop remains an ordinary user: no CAP_KILL, setuid, sudo or shell exec.
+  # This permission allows metadata reads in user-owned child namespaces;
+  # it does not give btop a kernel capability in the host user namespace.
+  capability sys_ptrace,
+  # AppArmor mediates both directions; base.d supplies the reciprocal grant.
+  signal (send),
+  ptrace (read),
+  deny ptrace (trace),
+  /usr/bin/btop mr,
+  /usr/share/{btop,terminfo}/{,**} r,
+  /{etc,lib}/terminfo/{,**} r,
+  /etc/{os-release,fstab,mtab} r,
+  /usr/lib/os-release r,
+  /sys/{,**} r,
+  # NVML reads GPU statistics through the existing NVIDIA control devices;
+  # privileged GPU state changes still require kernel capabilities.
+  /dev/nvidiactl rw,
+  /dev/nvidia[0-9]* rw,
+  @{PROC}/driver/nvidia/{,**} r,
+  @{PROC}/ r,
+  @{PROC}/[0-9]*/ r,
+  @{PROC}/[0-9]*/fd/ r,
+  @{PROC}/[0-9]*/fdinfo/ r,
+  @{PROC}/{cpuinfo,diskstats,loadavg,meminfo,mounts,partitions,stat,uptime,version} r,
+  @{PROC}/net/{dev,route,wireless} r,
+  @{PROC}/sys/kernel/{osrelease,pid_max} r,
+  @{PROC}/[0-9]*/{cmdline,comm,exe,limits,loginuid,oom_score,oom_score_adj,stat,statm,status,io,sched,schedstat,smaps_rollup,wchan,cgroup} r,
+  @{PROC}/[0-9]*/fdinfo/[0-9]* r,
+  @{PROC}/[0-9]*/net/{tcp,tcp6,udp,udp6} r,
+  @{PROC}/[0-9]*/task/{,[0-9]*/} r,
+  @{PROC}/[0-9]*/task/[0-9]*/{comm,stat,status,statm,sched,schedstat} r,
+  # Monitoring never reads process environments, memory or trace controls.
+  deny @{PROC}/[0-9]*/{environ,mem,syscall,stack} rw,
+  owner @{HOME}/.config/btop/{,**} rwkl,
+  owner @{HOME}/.cache/btop/{,**} rwkl,
+  owner @{HOME}/.local/state/btop/{,**} rwkl,
+}
+
 profile desktop-editors /usr/bin/{featherpad,qimgv,kdiff3,gnumeric,xournalpp,gnote,qalculate-qt} flags=(attach_disconnected, mediate_deleted) {
   # September 20 audit: Qt atomic saves require both the published file and
   # the temporary inode, with mediate_deleted on this profile (not a home wildcard).
@@ -70,6 +112,11 @@ profile desktop-media /usr/bin/{mpv,recoll,recollindex,recollq,liferea} flags=(a
   #include <abstractions/webkit-runtime>
   /usr/bin/iconv rix,
   network inet dgram,
+  # mpv labels its own worker threads through procfs.  Keep this to the
+  # same-owner task comm files; no broader process control is granted.
+  owner @{PROC}/[0-9]*/task/[0-9]*/comm rw,
+  # libplacebo reads these two stable, read-only firmware identity values.
+  @{sys}/devices/virtual/dmi/id/{board_vendor,bios_vendor} r,
   /usr/local/lib/python3.[0-9]*/dist-packages/ r,
   /dev/tty rw,
   owner @{HOME}/.local/share/net.sourceforge.liferea/{,**} rwkl,
@@ -114,6 +161,8 @@ profile desktop-media /usr/bin/{mpv,recoll,recollindex,recollq,liferea} flags=(a
   owner @{HOME}/.{config,cache}/{mpv,recoll,liferea}/** rwklm,
   owner @{HOME}/.local/share/{mpv,recoll,liferea}/ rw,
   owner @{HOME}/.local/share/{mpv,recoll,liferea}/** rwklm,
+  owner @{HOME}/.local/state/mpv/ rw,
+  owner @{HOME}/.local/state/mpv/** rwklm,
   # Recoll's QtWebEngine viewer creates a Chromium user namespace. These
   # permissions do not grant capabilities in the initial (host) namespace.
   userns,
@@ -174,15 +223,12 @@ profile desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exe
   ptrace (read) peer=labwc-chatgpt//chatgpt-dbus-proxy,
   ptrace (read) peer=labwc-chatgpt-log-runner,
   ptrace (read) peer=labwc-chatgpt,
-  ptrace (read) peer=chatgpt-slirp4netns,
-  ptrace (read) peer=qbittorrent-pasta,
   ptrace (read) peer=desktop-launcher//application-bwrap,
   # btop in the terminal needs read-only process statistics, not ptrace writes.
   ptrace (read) peer=bitwarden,
   ptrace (read) peer=filen,
   ptrace (read) peer=vivaldi-bin,
   ptrace (read) peer=vivaldi-stable,
-  ptrace (read) peer=codex-slirp4netns,
   ptrace (read) peer=codex-wrapper,
   ptrace (read) peer=codex-wrapper//codex-bwrap,
   ptrace (read) peer=crystal-dock,
@@ -227,6 +273,7 @@ profile desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exe
   # A terminal can launch Code through its package shell trampoline. Transition
   # before the first script exec instead of building null learning descendants.
   /usr/bin/code rpx -> code,
+  /usr/bin/btop rPx -> desktop-btop,
   /usr/share/code/{bin/code,code} rpx -> code,
   # Debian's clang frontend lives below /usr/lib; keep its linker children in
   # this existing developer domain instead of complain-mode null descendants.
@@ -245,6 +292,10 @@ profile desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exe
   /var/log/ r,
   /{run,var}/log/journal/ r,
   /{run,var}/log/journal/*/ r,
+  # Keep the concrete runtime paths alongside the brace form so policy
+  # inspection and older AppArmor loaders see the same journal directories.
+  /run/log/journal/ r,
+  /var/log/journal/*/user-[0-9]*.journal r,
   # journalctl also reads rotated and unclean-shutdown user journals. DAC
   # retains access control; no system journal or write permission is added.
   /{run,var}/log/journal/*/user-[0-9]*.journal{,~} r,

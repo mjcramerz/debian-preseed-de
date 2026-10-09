@@ -18,3 +18,8 @@ network inet stream,
 network inet6 stream,
 network inet dgram,
 network inet6 dgram,
+# Network-aware payloads may read transport tables visible in the private
+# procfs mount. @{pid} is a numeric PID glob, not a kernel self-only variable;
+# isolation comes from the private PID/net namespaces, with no procfs bind from
+# the host. These procfs table inodes are root-owned, so do not use owner here.
+@{PROC}/@{pid}/net/{tcp,tcp6,udp,udp6} r,

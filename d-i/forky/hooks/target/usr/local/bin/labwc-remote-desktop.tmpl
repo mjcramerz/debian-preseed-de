@@ -1031,7 +1031,10 @@ def run_encoded_connection(value: str) -> None:
     profile = decode_profile(value)
     command = build_freerdp_command(profile, executable)
     log_path = connection_log_path()
-    returncode = run_freerdp_command(command, log_path)
+    # The connection reader keeps its bounded log, while the client itself
+    # uses the same managed veth/Bubblewrap policy as a desktop launch.
+    returncode = run_freerdp_command(
+        ["/usr/local/bin/labwc-app", "launch", "freerdp", *command[1:]], log_path)
     if returncode != 0:
         notify(
             "Remote Desktop connection failed",

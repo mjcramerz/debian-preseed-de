@@ -1,0 +1,371 @@
+#!/usr/bin/python3 -I
+"""Thunar's native GVfs device actions use the ordered external-drive worker.
+
+The installed GVfs remote monitor supplies inventory and mount operations.
+Only removal is intercepted. Separate upstream connections preserve each
+client's mount-dialog and cancellation ownership. No block I/O or privilege
+change takes place here; UDisks/polkit still authorizes the worker's requests.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+import json
+import os
+import re
+import signal
+import sys
+import uuid
+import xml.etree.ElementTree as ET
+
+import gi
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib
+
+NAME = "org.gtk.vfs.LabwcVolumeMonitor"
+UPSTREAM = "org.gtk.vfs.UDisks2VolumeMonitor"
+PATH = "/org/gtk/Private/RemoteVolumeMonitor"
+INTERFACE = "org.gtk.Private.RemoteVolumeMonitor"
+WORKER = "/usr/local/bin/labwc-external-drives"
+DRIVE = "(ssssbbbbbbbbuasa{ss}sa{sv})"
+VOLUME = "(ssssssbbssa{ss}sa{sv})"
+MOUNT = "(ssssssbsassa{sv})"
+LIST_TYPE = "(a" + DRIVE + "a" + VOLUME + "a" + MOUNT + ")"
+MAX_MESSAGE = 2 * 1024 * 1024
+MAX_RECORDS = 128
+MAX_CLIENTS = 32
+MAX_PENDING = 64
+CONTROL_TIMEOUT_MS = 5000
+OPERATION_TIMEOUT_MS = 30 * 60 * 1000  # Matches the packaged GVfs client.
+REMOVALS = {"MountUnmount", "DriveEject", "DriveStop"}
+# GVfs' stable remote-volume-monitor wire contract, including MountOpReply2.
+METHODS = {
+    "IsSupported": ((), ("b",)),
+    "List": ((), ("a" + DRIVE, "a" + VOLUME, "a" + MOUNT)),
+    "CancelOperation": (("s",), ("b",)),
+    "MountUnmount": (("s", "s", "u", "s"), ()),
+    "VolumeMount": (("s", "s", "u", "s"), ()),
+    "DriveEject": (("s", "s", "u", "s"), ()),
+    "DrivePollForMedia": (("s", "s"), ()),
+    "DriveStart": (("s", "s", "u", "s"), ()),
+    "DriveStop": (("s", "s", "u", "s"), ()),
+    "MountOpReply": (("s", "i", "s", "s", "s", "i", "i", "b"), ()),
+    "MountOpReply2": (("s", "i", "s", "s", "s", "i", "i", "b", "a{sv}"), ()),
+}
+SIGNALS = {
+    **{name: ("s", "s", DRIVE) for name in (
+        "DriveChanged", "DriveConnected", "DriveDisconnected", "DriveEjectButton", "DriveStopButton")},
+    **{name: ("s", "s", VOLUME) for name in ("VolumeChanged", "VolumeAdded", "VolumeRemoved")},
+    **{name: ("s", "s", MOUNT) for name in (
+        "MountChanged", "MountAdded", "MountPreUnmount", "MountRemoved")},
+    "MountOpAskPassword": ("s", "s", "s", "s", "s", "u"),
+    "MountOpAskQuestion": ("s", "s", "s", "as"),
+    "MountOpShowProcesses": ("s", "s", "s", "ai", "as"),
+    "MountOpShowUnmountProgress": ("s", "s", "s", "x", "x"),
+    "MountOpAborted": ("s", "s"),
+}
+
+
+def interface_info():
+    node = ET.Element("node")
+    interface = ET.SubElement(node, "interface", name=INTERFACE)
+    for name, (inputs, outputs) in METHODS.items():
+        method = ET.SubElement(interface, "method", name=name)
+        for direction, types in (("in", inputs), ("out", outputs)):
+            for index, type_ in enumerate(types):
+                ET.SubElement(method, "arg", name=f"{direction}{index}", type=type_, direction=direction)
+    for name, types in SIGNALS.items():
+        member = ET.SubElement(interface, "signal", name=name)
+        for index, type_ in enumerate(types):
+            ET.SubElement(member, "arg", name=f"arg{index}", type=type_)
+    return Gio.DBusNodeInfo.new_for_xml(ET.tostring(node, encoding="unicode")).interfaces[0]
+
+
+def removal_command(method: str, identifier: str, inventory) -> list[str]:
+    """Resolve an opaque GVfs ID from a fresh, bounded inventory, never argv."""
+    if len(inventory) != 3 or any(len(records) > MAX_RECORDS for records in inventory):
+        raise ValueError("external-drive inventory exceeds its limit")
+    drives, volumes, mounts = inventory
+    if method == "MountUnmount":
+        mount = next((record for record in mounts if record[0] == identifier), None)
+        if mount is None:
+            raise ValueError("the selected mount is no longer available")
+        volume = next((record for record in volumes if record[0] == mount[7]), None)
+        if volume is None:
+            raise ValueError("the selected mount has no block volume")
+        device = volume[10].get("unix-device", "")
+        operation = "--unmount-device"
+    elif method in ("DriveStop", "DriveEject"):
+        drive = next((record for record in drives if record[0] == identifier), None)
+        if drive is None:
+            raise ValueError("the selected drive is no longer available")
+        device = drive[14].get("unix-device", "")
+        operation = "--power-off-device"
+    else:
+        raise ValueError("unsupported device removal operation")
+    if not isinstance(device, str) or not re.fullmatch(r"/dev/[A-Za-z0-9._+-]{1,128}", device):
+        raise ValueError("the selected block device is unsupported")
+    # The worker independently checks block type, USB parent and current devnum.
+    return [WORKER, operation, device]
+
+
+def failure(invocation, code: Gio.IOErrorEnum, message: str) -> None:
+    invocation.return_gerror(GLib.Error.new_literal(Gio.io_error_quark(), message, int(code)))
+
+
+def log(event: str, **fields) -> None:
+    print(json.dumps({"event": event, **fields}, sort_keys=True), file=sys.stderr, flush=True)
+
+
+@dataclass
+class Removal:
+    sender: str
+    invocation: object
+    method: str
+    cancel_id: str
+    mount_op_id: str
+    correlation_id: str
+    cancellable: object
+    process: object = None
+
+
+class Monitor:
+    def __init__(self, address: str, *, upstream=UPSTREAM):
+        self.address = address
+        self.upstream = upstream
+        self.connection = self.connect()
+        self.clients = {}
+        self.pending = 0
+        self.removal = None
+        self.stopping = False
+        self.loop = GLib.MainLoop()
+        self.connection.signal_subscribe(
+            upstream, INTERFACE, None, PATH, None, Gio.DBusSignalFlags.NONE,
+            self.relay_signal, None)
+        self.connection.signal_subscribe(
+            "org.freedesktop.DBus", "org.freedesktop.DBus", "NameOwnerChanged",
+            "/org/freedesktop/DBus", None, Gio.DBusSignalFlags.NONE,
+            self.owner_changed, None)
+        self.registration = self.connection.register_object(PATH, interface_info(), self.method_call, None, None)
+
+    def connect(self):
+        connection = Gio.DBusConnection.new_for_address_sync(
+            self.address, Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT |
+            Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION, None, None)
+        connection.set_exit_on_close(False)
+        connection.connect("closed", self.closed)
+        return connection
+
+    def acquire(self):
+        # Verify the packaged backend before becoming a usable native monitor.
+        supported = self.connection.call_sync(
+            self.upstream, PATH, INTERFACE, "IsSupported", None, GLib.VariantType.new("(b)"),
+            Gio.DBusCallFlags.NONE, CONTROL_TIMEOUT_MS, None).unpack()[0]
+        if not supported:
+            raise RuntimeError("the installed UDisks volume monitor is unavailable")
+        result = self.connection.call_sync(
+            "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+            "RequestName", GLib.Variant("(su)", (NAME, 4)), GLib.VariantType.new("(u)"),
+            Gio.DBusCallFlags.NONE, CONTROL_TIMEOUT_MS, None).unpack()[0]
+        if result not in (1, 4):
+            raise RuntimeError("the managed volume-monitor name is already owned")
+
+    def client(self, sender):
+        if sender not in self.clients:
+            if len(self.clients) >= MAX_CLIENTS:
+                raise ValueError("too many volume-monitor clients")
+            connection = self.connect()
+            connection.signal_subscribe(
+                self.upstream, INTERFACE, None, PATH, None, Gio.DBusSignalFlags.NONE,
+                self.relay_signal, sender)
+            self.clients[sender] = connection
+        return self.clients[sender]
+
+    def relay_signal(self, _connection, _sender, _path, _interface, name, parameters, destination):
+        types = SIGNALS.get(name)
+        is_dialog = name.startswith("MountOp")
+        if types is None or is_dialog != (destination is not None) or parameters.get_size() > MAX_MESSAGE:
+            return
+        if parameters.get_type_string() != "(" + "".join(types) + ")":
+            return
+        if parameters.get_child_value(0).get_string() != self.upstream:
+            return
+        children = [GLib.Variant("s", NAME)]
+        children.extend(parameters.get_child_value(i) for i in range(1, parameters.n_children()))
+        try:
+            self.connection.emit_signal(destination, PATH, INTERFACE, name, GLib.Variant.new_tuple(*children))
+        except GLib.Error:
+            log("signal-delivery-failed", signal=name)
+
+    def owner_changed(self, _connection, _sender, _path, _interface, _signal, parameters, _data):
+        name, old_owner, new_owner = parameters.unpack()
+        if name == self.upstream and old_owner and old_owner != new_owner:
+            # Opaque upstream IDs cannot survive a monitor restart.
+            self.stop()
+        if name in self.clients and not new_owner:
+            connection = self.clients.pop(name)
+            connection.close(None, None, None)
+        removal = self.removal
+        if removal and removal.sender == name and not new_owner and removal.process is None:
+            removal.cancellable.cancel()
+
+    def closed(self, connection, _remote, _error):
+        if connection is getattr(self, "connection", None):
+            self.stop()
+
+    def method_call(self, _connection, sender, _path, _interface, method, parameters, invocation):
+        if self.stopping:
+            failure(invocation, Gio.IOErrorEnum.CLOSED, "the device monitor is stopping")
+            return
+        if method not in METHODS or not re.fullmatch(r":[0-9]+\.[0-9]+", sender) or parameters.get_size() > MAX_MESSAGE:
+            failure(invocation, Gio.IOErrorEnum.INVALID_ARGUMENT, "invalid volume-monitor request")
+            return
+        if method == "CancelOperation" and self.removal and (
+                self.removal.sender, self.removal.cancel_id) == (sender, parameters.unpack()[0]):
+            # Once writes start, complete the ordered backend. Killing it mid
+            # unmount cannot safely undo the operation. GVfs supports refusal.
+            cancellable = self.removal.process is None
+            if cancellable:
+                self.removal.cancellable.cancel()
+            invocation.return_value(GLib.Variant("(b)", (cancellable,)))
+            return
+        if self.pending >= MAX_PENDING:
+            failure(invocation, Gio.IOErrorEnum.BUSY, "too many volume-monitor requests")
+            return
+        if method in REMOVALS:
+            self.remove(sender, method, parameters, invocation)
+            return
+        try:
+            connection = self.connection if method in ("IsSupported", "List") else self.client(sender)
+        except (GLib.Error, ValueError):
+            failure(invocation, Gio.IOErrorEnum.BUSY, "cannot open a volume-monitor client")
+            return
+        self.pending += 1
+        connection.call(
+            self.upstream, PATH, INTERFACE, method, parameters,
+            GLib.VariantType.new("(" + "".join(METHODS[method][1]) + ")"),
+            Gio.DBusCallFlags.NONE, OPERATION_TIMEOUT_MS if method == "VolumeMount" else CONTROL_TIMEOUT_MS,
+            None, self.forward_done, invocation)
+
+    def forward_done(self, connection, result, invocation):
+        self.pending -= 1
+        try:
+            reply = connection.call_finish(result)
+            if reply.get_size() > MAX_MESSAGE:
+                failure(invocation, Gio.IOErrorEnum.NO_SPACE, "volume-monitor response exceeds its limit")
+            else:
+                invocation.return_value(reply)
+        except GLib.Error as error:
+            invocation.return_gerror(error)
+
+    def remove(self, sender, method, parameters, invocation):
+        identifier, cancel_id, flags, mount_op_id = parameters.unpack()
+        if flags != 0 or any(len(value) > 512 for value in (identifier, cancel_id, mount_op_id)):
+            failure(invocation, Gio.IOErrorEnum.INVALID_ARGUMENT, "forced or invalid removal is not supported")
+            return
+        if self.removal:
+            failure(invocation, Gio.IOErrorEnum.BUSY, "an external-drive operation is already running")
+            return
+        removal = Removal(sender, invocation, method, cancel_id, mount_op_id,
+                          uuid.uuid4().hex, Gio.Cancellable())
+        self.removal = removal
+        self.connection.call(
+            self.upstream, PATH, INTERFACE, "List", None, GLib.VariantType.new(LIST_TYPE),
+            Gio.DBusCallFlags.NONE, CONTROL_TIMEOUT_MS, removal.cancellable,
+            self.inventory_ready, (removal, identifier))
+
+    def inventory_ready(self, connection, result, data):
+        removal, identifier = data
+        try:
+            inventory = connection.call_finish(result)
+            if removal.cancellable.is_cancelled() or self.stopping:
+                failure(removal.invocation, Gio.IOErrorEnum.CANCELLED, "device removal was cancelled before starting")
+                self.finish_removal()
+                return
+            if inventory.get_size() > MAX_MESSAGE:
+                raise ValueError("external-drive inventory exceeds its limit")
+            command = removal_command(removal.method, identifier, inventory.unpack())
+            launcher = Gio.SubprocessLauncher.new(Gio.SubprocessFlags.STDOUT_SILENCE)
+            launcher.set_cwd("/")
+            launcher.set_environ([
+                "PATH=/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8", "LC_ALL=C.UTF-8",
+                f"XDG_RUNTIME_DIR=/run/user/{os.getuid()}", f"DBUS_SESSION_BUS_ADDRESS={self.address}"])
+            removal.process = launcher.spawnv(command)
+            log("removal-started", operation=removal.method, correlation_id=removal.correlation_id)
+            removal.process.wait_async(None, self.worker_done, removal)
+            if removal.mount_op_id:
+                try:
+                    self.connection.emit_signal(
+                        removal.sender, PATH, INTERFACE, "MountOpShowUnmountProgress",
+                        GLib.Variant("(sssxx)", (NAME, removal.mount_op_id,
+                            "Writing data and safely removing the external drive…", -1, 0)))
+                except GLib.Error:
+                    log("progress-delivery-failed", correlation_id=removal.correlation_id)
+        except (GLib.Error, ValueError) as error:
+            # No request payloads, passwords or user-controlled paths in logs.
+            log("removal-rejected", operation=removal.method, correlation_id=removal.correlation_id,
+                cause=type(error).__name__)
+            if isinstance(error, GLib.Error):
+                removal.invocation.return_gerror(error)
+            else:
+                failure(removal.invocation, Gio.IOErrorEnum.NOT_FOUND, str(error))
+            self.finish_removal()
+
+    def worker_done(self, process, result, removal):
+        try:
+            process.wait_finish(result)
+            success = process.get_successful()
+            if success:
+                removal.invocation.return_value(GLib.Variant("()", ()))
+            else:
+                failure(removal.invocation, Gio.IOErrorEnum.FAILED,
+                        "External-drive sync/removal failed. Close files and retry; the drive was not force-unmounted.")
+            log("removal-finished", operation=removal.method, correlation_id=removal.correlation_id, success=success)
+        except GLib.Error as error:
+            removal.invocation.return_gerror(error)
+        finally:
+            self.finish_removal()
+
+    def finish_removal(self):
+        self.removal = None
+        if self.stopping:
+            self.loop.quit()
+
+    def stop(self, *_args):
+        self.stopping = True
+        if self.removal is None:
+            self.loop.quit()
+        elif self.removal.process is None:
+            self.removal.cancellable.cancel()
+        # A running worker finishes its sync/unmount verification before exit.
+        return GLib.SOURCE_REMOVE
+
+    def close(self):
+        self.connection.unregister_object(self.registration)
+        for connection in (*self.clients.values(), self.connection):
+            if not connection.is_closed():
+                connection.close_sync(None)
+        self.clients.clear()
+
+
+def main() -> int:
+    if len(sys.argv) != 1 or os.getuid() == 0:
+        print("the managed volume monitor requires the desktop user's session", file=sys.stderr)
+        return 1
+    monitor = None
+    try:
+        monitor = Monitor(f"unix:path=/run/user/{os.getuid()}/bus")
+        monitor.acquire()
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signum, monitor.stop)
+        monitor.loop.run()
+        return 0
+    except (GLib.Error, RuntimeError) as error:
+        log("monitor-failed", cause=type(error).__name__)
+        return 1
+    finally:
+        if monitor is not None:
+            monitor.close()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

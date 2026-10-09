@@ -34,12 +34,117 @@ def body(file, label):
 
 
 class SuppliedDenialTests(unittest.TestCase):
+    def test_codex_apt_state_read_and_btop_transition_do_not_add_privilege(self):
+        runtime = read_text(AA / 'abstractions/codex-runtime')
+        self.assertIn('/var/lib/apt/extended_states r,', runtime)
+        monitor = body('desktop-utilities', 'desktop-btop')
+        self.assertIn('signal (send),', monitor)
+        self.assertIn('ptrace (read),', monitor)
+        self.assertNotRegex(monitor, r'(?m)^\s*capability (?:kill|setuid|setgid),')
+        self.assertIn('capability sys_ptrace,', monitor)
+        self.assertIn('deny ptrace (trace),', monitor)
+        self.assertIn('@{PROC}/[0-9]*/ r,', monitor)
+        self.assertIn('@{PROC}/[0-9]*/net/{tcp,tcp6,udp,udp6} r,', monitor)
+        self.assertIn('@{PROC}/[0-9]*/{cmdline,comm,exe,limits,loginuid,oom_score,oom_score_adj,stat,statm,status,io,sched,schedstat,smaps_rollup,wchan,cgroup} r,', monitor)
+        self.assertNotRegex(monitor, r'(?m)^\s*(?:allow )?ptrace\s*\([^)]*\btrace\b')
+        self.assertNotRegex(monitor, r'(?m)^\s*/(?:usr/bin|bin)/[^\n]*\s+[^,]*x')
+        self.assertIn('/usr/bin/btop rPx -> desktop-btop,', body('desktop-utilities', 'desktop-launcher'))
+        self.assertIn('/usr/bin/btop rPx -> desktop-btop,', body('labwc-session', 'waybar'))
+        receiver = read_text(AA / 'abstractions/base.d/managed-process-monitor')
+        self.assertIn('signal (receive) peer=desktop-btop,', receiver)
+        self.assertIn('ptrace (readby) peer=desktop-btop,', receiver)
+        self.assertNotRegex(receiver, r'(?m)^\s*(?:signal \(send|ptrace \(trace|capability|/[^\n]+\s+[^,]*[wx])')
+        stages = read_text(SEED / 'scripts/late/security.sh')
+        self.assertIn('"/etc/apparmor.d/abstractions/base.d/managed-process-monitor" 0644', stages)
+        waybar = read_text(SEED / 'hooks/target/etc/skel-desktop/.config/waybar/config.tmpl')
+        btop_actions = [line for line in waybar.splitlines() if 'labwc-terminal -e btop' in line]
+        self.assertEqual(len(btop_actions), 4)
+        for action in btop_actions:
+            self.assertIn('ExitType=main', action)
+            self.assertIn('ProtectProc=default', action)
+            self.assertIn('ProcSubset=all', action)
+
+    @unittest.skipUnless(shutil.which('apparmor_parser') and importlib.util.find_spec('apparmor'),
+                         'native AppArmor parser/rule reader unavailable')
+    def test_native_parser_expands_btop_receiver_for_apps_and_future_profiles(self):
+        from apparmor.rule.signal import SignalRule
+        from apparmor.rule.ptrace import PtraceRule
+        with tempfile.TemporaryDirectory(prefix='btop-user-signals-') as temporary:
+            base = Path(temporary) / 'apparmor.d'
+            shutil.copytree('/etc/apparmor.d', base, symlinks=True)
+            for template in AA.rglob('*.tmpl'):
+                (base / template.relative_to(AA).with_name(template.name[:-5])).unlink(missing_ok=True)
+            shutil.copytree(AA, base, dirs_exist_ok=True, symlinks=True)
+            render_theme_tree(base)
+            config = base / 'parser.conf'
+            config.write_text('', encoding='utf-8')
+            future = base / 'future-fixture'
+            future.write_text('#include <tunables/global>\nprofile future-app-fixture {\n include <abstractions/base>\n}\n', encoding='utf-8')
+            seen = set()
+            labels = ('labwc-chatgpt//chatgpt-bwrap', 'labwc-app//app-bwrap', 'labwc-app//code-bwrap',
+                      'codex-wrapper//codex-bwrap', 'labwc-wayland-compat-app//wayland-compat-app-bwrap',
+                      'labwc-qbittorrent//qbittorrent-bwrap', 'desktop-btop', 'future-app-fixture')
+            for name in ('desktop-wrappers', 'desktop-utilities', 'zoom-discord-compat', 'chatgpt', 'future-fixture'):
+                result = subprocess.run(['apparmor_parser', '--config-file', str(config), '-b', str(base), '-I', str(base),
+                    '-Q', '-K', '-p', str(base / name)], capture_output=True, text=True, encoding='utf-8', timeout=30)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                policies = {}
+                stack = []
+                for line in result.stdout.splitlines():
+                    header = re.match(r'^\s*profile\s+(\S+)\s[^\n]*\{\s*$', line)
+                    if header:
+                        label = '//'.join((*stack[-1:], header[1]))
+                        stack.append(label)
+                        policies[label] = []
+                    elif line.strip() == '}':
+                        stack.pop()
+                    elif stack:
+                        policies[stack[-1]].append(line.strip())
+                for label in labels:
+                    if label not in policies:
+                        continue
+                    seen.add(label)
+                    rules = policies[label]
+                    signals = [SignalRule.create_instance(line) for line in rules if re.match(r'^(?:audit |deny )*signal\b', line)]
+                    receivers = [rule for rule in signals if not rule.deny and 'receive' in (rule.access or ('send', 'receive'))
+                                 and not rule.all_peers and rule.peer.regex == 'desktop-btop']
+                    self.assertTrue(receivers, 'missing btop receive permission: ' + label)
+                    if label == 'desktop-btop':
+                        self.assertTrue(any(not rule.deny and 'send' in (rule.access or ('send', 'receive')) and rule.all_peers for rule in signals))
+                    observers = [PtraceRule.create_instance(line) for line in rules if re.match(r'^(?:audit |deny )*ptrace\b', line)]
+                    self.assertTrue(any(not rule.deny and 'readby' in (rule.access or ('read', 'readby', 'trace', 'tracedby')) and not rule.all_peers
+                                        and rule.peer.regex == 'desktop-btop' for rule in observers), label)
+            self.assertEqual(seen, set(labels))
+
+    def test_external_drives_native_metadata_probe_needs_no_root_directory_grant(self):
+        policy = body('desktop-wrappers', 'labwc-external-drives')
+        self.assertNotIn('  / r,', policy)
+        self.assertNotIn('  /**/ r,', policy)
+        worker = read_text(SEED / 'hooks/target/usr/local/bin/labwc-external-drives')
+        self.assertIn('metadata = os.lstat(sys.argv[1])', worker)
+        self.assertIn('/usr/bin/python3 -I -B -c', worker)
+        self.assertNotIn('find -P "$runtime_root"', worker)
+        self.assertNotRegex(policy, r'(?m)^\s*(?:owner )?/\*\*\s+[^,]*[rw]')
+        self.assertNotRegex(policy, r'(?m)^\s*/\s+[^,]*[wxmk]')
+
+    def test_mpv_proc_identity_and_state_access_stays_scoped(self):
+        policy = body('desktop-utilities', 'desktop-media')
+        self.assertIn('owner @{PROC}/[0-9]*/task/[0-9]*/comm rw,', policy)
+        self.assertIn('@{sys}/devices/virtual/dmi/id/{board_vendor,bios_vendor} r,', policy)
+        self.assertIn('owner @{HOME}/.local/state/mpv/ rw,', policy)
+        self.assertIn('owner @{HOME}/.local/state/mpv/** rwklm,', policy)
+        # The media profile must not gain generic procfs or sysfs write access
+        # while fixing these observed, same-user read/write denials.
+        self.assertNotRegex(policy, r'(?m)^\s*@\{PROC\}/\*\*\s+[rw]')
+        self.assertNotRegex(policy, r'(?m)^\s*@\{sys\}/\*\*\s+[rw]')
+
     def test_october_6_apt_can_read_private_archives_without_dac_write_override(self):
         policy = body('desktop-wrappers', 'labwc-wrap-desktop-files')
         self.assertIn('capability dac_read_search,', policy)
         self.assertNotRegex(policy, r'(?m)^\s*capability dac_override,')
         self.assertIn('/home/*/**.deb r,', policy)
         self.assertIn('/var/lib/labwc-desktop-files/{,**} rw,', policy)
+        self.assertIn('/usr/bin/{gzip,tar,xz,zstd} rix,', policy)
 
     def test_october_6_mount_credential_drop_is_isolated_from_desktop_tools(self):
         parent = body('desktop-utilities', 'desktop-launcher')
@@ -99,6 +204,13 @@ class SuppliedDenialTests(unittest.TestCase):
         self.assertNotRegex(policy, r'/usr/bin/\*\s+[^,]*[uU]')
         generic = body('desktop-wrappers', 'labwc-generic-app')
         self.assertIn('/usr/local/bin/labwc-{electron,wayland}-app rix,', generic)
+        self.assertIn('#include <abstractions/managed-app-config>', generic)
+        config = read_text(AA / 'abstractions/managed-app-config')
+        for location in ('.cache', '.config', '.local/share', '.local/state', '.var/app'):
+            self.assertIn(f'owner @{{HOME}}/{location}/** rwkl,', config)
+        staging = read_text(SEED / 'scripts/late/security.sh')
+        self.assertIn('etc/apparmor.d/abstractions/managed-app-config', staging)
+        self.assertIn('"/etc/apparmor.d/abstractions/managed-app-config"', staging)
         launcher = body('desktop-utilities', 'desktop-launcher')
         self.assertIn('/usr/bin/** rPix,', launcher)
         self.assertRegex(read_text(AA / 'desktop-utilities'),
@@ -132,7 +244,8 @@ class SuppliedDenialTests(unittest.TestCase):
             # Each policy owns its ABI declaration. Parse the actual policy
             # files independently, then combine only the parser's output.
             for name in ('desktop-wrappers', 'desktop-utilities', 'document-applications',
-                         'usr.bin.qbittorrent', 'usr.sbin.tailscaled', 'firstboot'):
+                         'usr.bin.qbittorrent', 'usr.sbin.tailscaled', 'firstboot', 'app-veth',
+                         'zoom-discord-compat'):
                 for option, output in (('-d', debug_output), ('--dump=rule-exprs', converted_output)):
                     result = subprocess.run([*argv, option, str(base / name)], capture_output=True,
                                             text=True, encoding='utf-8', timeout=30)
@@ -168,6 +281,41 @@ class SuppliedDenialTests(unittest.TestCase):
                     if expression.fullmatch(filename):
                         result.update(owner if owned else other)
                 return result
+            # LPL-746: opening /proc/self/ns/net was mediated as the nsfs
+            # root "/" under attach_disconnected. Numeric procfs rules and
+            # /net:[inode] alone missed this path and stopped the boot pool.
+            # Check the actual compiler masks for the broker and every shared
+            # namespace client, including Podman and the compatibility parent.
+            for label in ('app-veth', 'app-veth-podman', 'codex-wrapper', 'codex-runtime',
+                          'labwc-chatgpt', 'labwc-app', 'labwc-qbittorrent',
+                          'labwc-wayland-compat-app'):
+                with self.subTest(disconnected_namespace_reader=label):
+                    self.assertEqual(permissions(label, '/', owned=False), {'r'}, label)
+                    self.assertIn('r', permissions(label, '/proc/12345/ns/net', owned=False))
+                    self.assertIn('r', permissions(label, '/net:[4026531840]', owned=False))
+                    if label not in ('app-veth', 'app-veth-podman'):
+                        self.assertIn('r', permissions(label, '/pid:[4026531836]', owned=False))
+            self.assertEqual(permissions('app-veth', '/user:[4026531837]', owned=False), {'r'})
+            # An exact root read must not grant recursive reads or any writes
+            # to the host filesystem, nor other users' procfs file descriptors.
+            for label in ('app-veth', 'app-veth-podman'):
+                for filename in ('/root/private.txt', '/home/other/private.txt',
+                                 '/proc/12345/fd/9'):
+                    self.assertFalse(permissions(label, filename, owned=False), (label, filename))
+            # nsfs bind mounts have root-owned inode metadata even though the
+            # surrounding Podman runtime belongs to devops. Permit that exact
+            # endpoint without granting access to other accounts' runtime data.
+            endpoint = '/run/podman-devops/containers/networks/rootless-netns/rootless-netns'
+            self.assertEqual(permissions('app-veth-podman', endpoint, owned=False), {'r'})
+            self.assertFalse(permissions('app-veth-podman',
+                                         '/run/podman-devops/private.env', owned=False))
+            # Forky's /usr/sbin/ip is a compatibility symlink to /usr/bin/ip;
+            # AppArmor mediates the resolved executable path.
+            for executable in ('/usr/sbin/ip', '/usr/bin/ip'):
+                self.assertTrue(set('rx') <= permissions('app-veth', executable, owned=False), executable)
+            for filename in ('/usr/share/iproute2/group', '/usr/share/iproute2/rt_tables',
+                             '/usr/share/iproute2/rt_realms'):
+                self.assertEqual(permissions('app-veth', filename, owned=False), {'r'}, filename)
             for label in ('labwc-app//app-bwrap', 'desktop-editors', 'focuswriter', 'zathura', 'desktop-launcher'):
                 for directory in ('Downloads', 'Documents', 'Pictures', 'Workspace', 'Syncthing'):
                     with self.subTest(label=label, directory=directory):
@@ -177,6 +325,15 @@ class SuppliedDenialTests(unittest.TestCase):
                     label, '/run/media/fixture/USB/nested/group-owned.pdf', owned=False))
                 self.assertNotIn('w', permissions(
                     label, '/run/media/another-account/USB/document.pdf', owned=False))
+            for path in (
+                    '/home/fixture/.config/future-app/settings.json',
+                    '/home/fixture/.cache/future-app/cache.db',
+                    '/home/fixture/.local/share/future-app/data.db',
+                    '/home/fixture/.local/state/future-app/state',
+                    '/home/fixture/.var/app/future-app/config'):
+                with self.subTest(managed_app_state=path):
+                    self.assertTrue(set('rwk') <= permissions('labwc-generic-app', path))
+            self.assertNotIn('w', permissions('labwc-generic-app', '/home/fixture/.ssh/id_ed25519'))
             for location in ('run', 'var'):
                 filename = f'/{location}/log/journal/machine/user-1000@rotated.journal~'
                 self.assertIn('r', permissions('desktop-launcher', filename, owned=False))
@@ -198,14 +355,8 @@ class SuppliedDenialTests(unittest.TestCase):
             # The compiler debug mask reports r/x/m, while the native rule
             # reader above independently reports the inherited execution mode.
             self.assertTrue(set('rx') <= execution, execution)
-            self.assertIn('x', permissions('labwc-qbittorrent', '/usr/bin/pasta', owned=False))
-            self.assertEqual(permissions('qbittorrent-pasta', '/dev/net/tun', owned=False), {'r', 'w', 'a'})
-            self.assertTrue(set('rx') <= permissions('qbittorrent-pasta', '/usr/bin/pasta.avx2', owned=False))
-            # Replay the October 8 AF_INET6/SOCK_STREAM denial in the native
-            # policy, without granting IPv6 UDP or raw sockets to this helper.
-            helper_network = [line for line in native_rules['qbittorrent-pasta']
-                              if line.startswith('network inet6 ')]
-            self.assertEqual(helper_network, ['network inet6 { stream } ,'])
+            self.assertFalse(permissions('labwc-qbittorrent', '/usr/bin/pasta', owned=False))
+            self.assertTrue(set('rw') <= permissions('labwc-qbittorrent', '/run/app-veth/control.sock', owned=False))
             query = 'usr.sbin.tailscaled'
             self.assertTrue(set('rx') <= permissions('usr.sbin.tailscaled', '/usr/bin/loginctl', owned=False))
             self.assertNotIn('usr.sbin.tailscaled//loginctl', native_rules)
@@ -219,17 +370,41 @@ class SuppliedDenialTests(unittest.TestCase):
                                 and 'path="/org/freedesktop/login1"' in line for line in logind))
             self.assertTrue(any('member="{Get,GetAll}"' in line
                                 and 'path="/org/freedesktop/login1/session/*"' in line for line in logind))
-            for name in ('pasta.pid',):
-                filename = '/run/user/1000/labwc-qbittorrent-sandbox-fixture/' + name
-                self.assertTrue(set('rw') <= permissions('labwc-qbittorrent', filename))
-                self.assertTrue(set('rw') <= permissions('qbittorrent-pasta', filename))
-                self.assertFalse(permissions('labwc-qbittorrent//qbittorrent-bwrap', filename))
-            for label in ('labwc-qbittorrent', 'qbittorrent-pasta'):
-                self.assertFalse(permissions(label, '/run/user/1000/labwc-qbittorrent-sandbox-fixture/pasta.log'))
             self.assertFalse(permissions('labwc-qbittorrent//qbittorrent-bwrap', '/dev/net/tun', owned=False))
-            self.assertFalse(permissions('qbittorrent-pasta', '/home/fixture/.ssh/id_ed25519'))
-            self.assertIn('r', permissions('qbittorrent-pasta', '/proc/1234/uid_map'))
-            self.assertNotIn('w', permissions('qbittorrent-pasta', '/proc/1234/uid_map'))
+            self.assertFalse(permissions('labwc-qbittorrent//qbittorrent-bwrap', '/run/app-veth/control.sock', owned=False))
+            for parent, child in (
+                    ('codex-wrapper', 'codex-wrapper//codex-bwrap'),
+                    ('codex-runtime', 'codex-runtime//codex-bwrap'),
+                    ('labwc-chatgpt', 'labwc-chatgpt//chatgpt-bwrap'),
+                    ('labwc-app', 'labwc-app//app-bwrap'),
+                    ('labwc-app', 'labwc-app//code-bwrap'),
+                    ('labwc-qbittorrent', 'labwc-qbittorrent//qbittorrent-bwrap')):
+                with self.subTest(namespace_reader=parent, payload=child):
+                    self.assertIn('r', permissions(parent, '/proc/12345/ns/net', owned=False))
+                    self.assertTrue(set('rw') <= permissions(parent, '/run/app-veth/control.sock', owned=False))
+                    if child.endswith('//code-bwrap'):
+                        # The debug masks also list deny rules. Confirm this
+                        # explicit denial through the native rule reader;
+                        # AppArmor deny always overrides an inherited allow.
+                        from apparmor.rule.file import FileRule
+                        rule = FileRule.create_instance('deny /run/app-veth/{,**} rw,')
+                        self.assertTrue(rule.deny)
+                        self.assertIn('deny /run/app-veth/{,**} rw,', body('desktop-wrappers', 'code-bwrap'))
+                    else:
+                        self.assertFalse(permissions(child, '/run/app-veth/control.sock', owned=False))
+                    for table in ('tcp', 'tcp6', 'udp', 'udp6'):
+                        self.assertEqual(permissions(child, '/proc/12345/net/' + table, owned=False), {'r'})
+            self.assertTrue(set('rx') <= permissions('labwc-app//app-bwrap', '/usr/bin/mpv', owned=False))
+            self.assertTrue(set('rx') <= permissions('labwc-app//app-bwrap', '/usr/bin/liferea', owned=False))
+            self.assertTrue(set('rw') <= permissions('labwc-app', '/run/user/1000/labwc-chromium-tmp/'))
+            self.assertFalse(permissions('labwc-app//app-bwrap', '/usr/bin/sudo', owned=False))
+            self.assertTrue(set('rx') <= permissions('labwc-app//code-bwrap', '/usr/bin/git', owned=False))
+            self.assertTrue(set('rw') <= permissions('desktop-media', '/proc/12345/task/12346/comm'))
+            self.assertEqual(permissions('desktop-media', '/sys/devices/virtual/dmi/id/board_vendor', owned=False), {'r'})
+            self.assertEqual(permissions('desktop-media', '/sys/devices/virtual/dmi/id/bios_vendor', owned=False), {'r'})
+            self.assertTrue(set('rw') <= permissions('desktop-media', '/home/fixture/.local/state/mpv/'))
+            self.assertFalse(permissions('labwc-external-drives', '/', owned=False))
+            self.assertFalse(permissions('labwc-external-drives', '/root/private.txt', owned=False))
             self.assertTrue(set('rx') <= permissions('crowdsec-firstboot', '/usr/bin/sha256sum', owned=False))
             self.assertTrue(set('rw') <= permissions('crowdsec-firstboot',
                                                    '/var/lib/firstboot/crowdsec/capi-activated', owned=False))
@@ -304,32 +479,24 @@ class SuppliedDenialTests(unittest.TestCase):
                 allowed = permissions('labwc-wrap-desktop-files', archive, owned=False)
                 self.assertIn('r', allowed)
                 self.assertFalse(set('wx') & allowed)
+            self.assertTrue(set('rx') <= permissions('labwc-wrap-desktop-files', '/usr/bin/tar', owned=False))
             for scratch in ('/var/lib/labwc-desktop-files/metadata-fixture',
                             '/var/lib/labwc-desktop-files/#1234'):
                 self.assertTrue(set('rw') <= permissions('labwc-wrap-desktop-files', scratch))
             for outside in ('/tmp/tmpfixture', '/var/tmp/tmpfixture', '/home/fixture/private.txt'):
                 self.assertNotIn('w', permissions('labwc-wrap-desktop-files', outside))
 
-    def test_qbittorrent_helper_has_reciprocal_namespace_and_cleanup_permissions(self):
+    def test_qbittorrent_kernel_network_keeps_authority_in_supervisor(self):
         payload = body('desktop-wrappers', 'qbittorrent-bwrap')
-        helper = body('desktop-wrappers', 'qbittorrent-pasta')
         parent = body('desktop-wrappers', 'labwc-qbittorrent')
         self.assertIn('#include <abstractions/python>', payload)
         self.assertIn('/usr/bin/python3{,.[0-9]*} rix,', payload)
-        self.assertIn('ptrace (readby) peer=qbittorrent-pasta,', payload)
-        self.assertIn('ptrace (read) peer=labwc-qbittorrent//qbittorrent-bwrap,', helper)
         self.assertIn('signal (receive) set=(exists kill term) peer=labwc-qbittorrent,', payload)
-        self.assertIn('signal (receive) set=(exists kill term) peer=labwc-qbittorrent,', helper)
-        self.assertIn('signal (send) peer=qbittorrent-pasta,', parent)
         self.assertIn('signal (send) peer=labwc-qbittorrent//qbittorrent-bwrap,', parent)
+        self.assertIn('#include <abstractions/app-veth-client>', parent)
+        self.assertNotIn('app-veth-client', payload)
         self.assertNotIn('/dev/net/tun', payload)
-        self.assertIn('/dev/net/tun rw,', helper)
-        self.assertIn('network unix stream,', helper)
-        self.assertIn('labwc-qbittorrent-sandbox-*/pasta.pid rw,', helper)
-        self.assertIn('/usr/bin/pasta rPx -> qbittorrent-pasta,', parent)
-        self.assertIn('/usr/bin/pasta.avx2 rix,', helper)
-        self.assertIn('network netlink raw,', helper)
-        self.assertNotIn('Ux,', helper)
+        self.assertNotIn('/usr/bin/pasta', parent)
 
     def test_document_media_identity_map_is_validated_and_staged(self):
         source = (SEED / 'scripts/late/security.sh').read_text(encoding='utf-8')
@@ -446,7 +613,7 @@ render_target_asset_with_placeholder_map "$2" /etc/apparmor.d/local/abstractions
         peers = (
             'labwc-chatgpt-log-runner', 'labwc-chatgpt',
             'labwc-chatgpt//chatgpt-dbus-proxy', 'labwc-chatgpt//chatgpt-bwrap',
-            'chatgpt-slirp4netns', 'labwc-app', 'labwc-app//app-bwrap',
+            'labwc-app', 'labwc-app//app-bwrap',
             'codex-wrapper', 'codex-wrapper//codex-bwrap',
         )
         with tempfile.TemporaryDirectory(prefix='waypaper-process-policy-') as temporary:
@@ -476,6 +643,18 @@ render_target_asset_with_placeholder_map "$2" /etc/apparmor.d/local/abstractions
             elif stack and re.match(r'\s*(?:(?:audit|deny|allow)\s+)*ptrace\b', line):
                 profiles[stack[-1]].append(PtraceRule.create_instance(line.strip()))
         self.assertEqual(stack, [])
+        for parent, child in (
+                ('codex-wrapper', 'codex-wrapper//codex-bwrap'),
+                ('codex-runtime', 'codex-runtime//codex-bwrap'),
+                ('labwc-chatgpt', 'labwc-chatgpt//chatgpt-bwrap'),
+                ('labwc-app', 'labwc-app//app-bwrap'),
+                ('labwc-app', 'labwc-app//code-bwrap'),
+                ('labwc-qbittorrent', 'labwc-qbittorrent//qbittorrent-bwrap')):
+            for label, peer, access in ((parent, child, 'read'), (child, parent, 'readby')):
+                with self.subTest(namespace_reader=label, peer=peer):
+                    grants = [rule for rule in profiles[label] if not rule.all_peers and rule.peer.regex == peer]
+                    self.assertTrue(grants)
+                    self.assertTrue(all(not rule.deny and rule.access == {access} for rule in grants))
         observer = 'waypaper//waypaper-ps'
         reader = profiles[observer]
         for rule in reader:

@@ -1,0 +1,6 @@
+# btop's dedicated domain may read public process statistics and send signals.
+# Kernel credential checks still restrict signaling to the user's processes;
+# this receiver permission grants no capability or executable transition.
+# The distribution's base.d hook applies it to future ordinary app profiles.
+signal (receive) peer=desktop-btop,
+ptrace (readby) peer=desktop-btop,

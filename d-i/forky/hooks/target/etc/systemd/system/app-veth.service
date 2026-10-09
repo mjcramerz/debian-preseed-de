@@ -1,0 +1,46 @@
+[Unit]
+Description=Pre-created application veth pool and namespace routing
+Requires=nftables.service systemd-resolved.service apparmor.service
+After=nftables.service systemd-resolved.service apparmor.service systemd-sysctl.service
+BindsTo=nftables.service systemd-resolved.service
+PartOf=nftables.service systemd-resolved.service
+Before=podman-devops.service greetd.service
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStart=/usr/local/sbin/app-veth
+AppArmorProfile=app-veth
+RuntimeDirectory=app-veth
+RuntimeDirectoryMode=0755
+UMask=0077
+KillMode=control-group
+TimeoutStartSec=45s
+TimeoutStopSec=45s
+Restart=on-failure
+RestartSec=2s
+NoNewPrivileges=yes
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYS_ADMIN
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/run/app-veth
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_NETLINK
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+TasksMax=16
+MemoryMax=128M
+LimitNOFILE=256
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=app-veth
+
+[Install]
+WantedBy=multi-user.target

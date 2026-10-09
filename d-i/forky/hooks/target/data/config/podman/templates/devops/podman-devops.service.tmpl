@@ -1,8 +1,8 @@
 [Unit]
 Description=Locked devops rootless Podman API service
 Documentation=man:podman-system-service(1)
-Requires=podman-devops.socket
-After=podman-devops.socket
+Requires=podman-devops.socket app-veth.service
+After=podman-devops.socket app-veth.service
 RequiresMountsFor=/pool/podman /run/podman-devops
 StartLimitIntervalSec=60
 StartLimitBurst=10

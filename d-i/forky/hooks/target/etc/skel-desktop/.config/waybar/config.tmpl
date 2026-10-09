@@ -314,7 +314,7 @@
     "format": "<span foreground='__THEME_WAYBAR_BUTTON_CPU_NORMAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_CPU_NORMAL_ICON_GLYPH__</span> {usage}%",
     "format-warning": "<span foreground='__THEME_WAYBAR_BUTTON_CPU_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_CPU_WARNING_ICON_GLYPH__</span> {usage}%",
     "format-critical": "<span foreground='__THEME_WAYBAR_BUTTON_CPU_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_CPU_CRITICAL_ICON_GLYPH__</span> {usage}%",
-    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e btop",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=main --property=KillMode=control-group --property=TimeoutStopSec=20s --property=SendSIGKILL=yes --property=ProtectProc=default --property=ProcSubset=all -- labwc-terminal -e btop",
     "states": {
       "warning": 70,
       "critical": 90
@@ -326,7 +326,7 @@
     "format-warning": "<span foreground='__THEME_WAYBAR_BUTTON_MEMORY_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_MEMORY_WARNING_ICON_GLYPH__</span> {percentage}%",
     "format-critical": "<span foreground='__THEME_WAYBAR_BUTTON_MEMORY_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_MEMORY_CRITICAL_ICON_GLYPH__</span> {percentage}%",
     "tooltip-format": "{used:0.1f} GiB / {total:0.1f} GiB\nSwap {swapUsed:0.1f} / {swapTotal:0.1f} GiB",
-    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e btop",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=main --property=KillMode=control-group --property=TimeoutStopSec=20s --property=SendSIGKILL=yes --property=ProtectProc=default --property=ProcSubset=all -- labwc-terminal -e btop",
     "states": {
       "warning": 75,
       "critical": 90
@@ -691,7 +691,7 @@
     "format": "<span foreground='__THEME_WAYBAR_BUTTON_CPU_NORMAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_CPU_NORMAL_ICON_GLYPH__</span> {usage}%",
     "format-warning": "<span foreground='__THEME_WAYBAR_BUTTON_CPU_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_CPU_WARNING_ICON_GLYPH__</span> {usage}%",
     "format-critical": "<span foreground='__THEME_WAYBAR_BUTTON_CPU_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_CPU_CRITICAL_ICON_GLYPH__</span> {usage}%",
-    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e btop",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=main --property=KillMode=control-group --property=TimeoutStopSec=20s --property=SendSIGKILL=yes --property=ProtectProc=default --property=ProcSubset=all -- labwc-terminal -e btop",
     "states": {
       "warning": 70,
       "critical": 90
@@ -703,7 +703,7 @@
     "format-warning": "<span foreground='__THEME_WAYBAR_BUTTON_MEMORY_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_MEMORY_WARNING_ICON_GLYPH__</span> {percentage}%",
     "format-critical": "<span foreground='__THEME_WAYBAR_BUTTON_MEMORY_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_MEMORY_CRITICAL_ICON_GLYPH__</span> {percentage}%",
     "tooltip-format": "{used:0.1f} GiB / {total:0.1f} GiB\nSwap {swapUsed:0.1f} / {swapTotal:0.1f} GiB",
-    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e btop",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=main --property=KillMode=control-group --property=TimeoutStopSec=20s --property=SendSIGKILL=yes --property=ProtectProc=default --property=ProcSubset=all -- labwc-terminal -e btop",
     "states": {
       "warning": 75,
       "critical": 90

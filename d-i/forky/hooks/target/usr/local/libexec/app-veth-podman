@@ -1,0 +1,93 @@
+#!/usr/bin/python3 -I
+"""Podman network_cmd_path adapter: kernel veth lease, no packet proxy."""
+
+from __future__ import annotations
+
+import argparse
+import os
+import select
+import signal
+import sys
+
+sys.dont_write_bytecode = True
+Lease = None
+
+
+def network_lease_type():
+    global Lease
+    if Lease is None:
+        from labwc_managed_app.network_client import Lease as network_lease
+        Lease = network_lease
+    return Lease
+
+
+def main(arguments: list[str]) -> int:
+    # Podman probes this configured command for supported optional arguments.
+    # Only the lifecycle protocol is adapted; Netavark creates bridges/veths.
+    if arguments == ["--help"]:
+        print("managed kernel network: -c -r FD [-e FD] --netns-type=path "
+              "--disable-host-loopback --mtu --enable-sandbox --enable-seccomp PATH tap0")
+        return 0
+    if arguments == ["--version"]:
+        print("app-veth-podman version 1.0.0")
+        return 0
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("-c", "--configure", action="store_true", required=True)
+    parser.add_argument("-r", "--ready-fd", type=int, required=True)
+    parser.add_argument("-e", "--exit-fd", type=int)
+    parser.add_argument("--disable-host-loopback", action="store_true")
+    parser.add_argument("--mtu", type=int)
+    parser.add_argument("--outbound-addr")
+    parser.add_argument("--outbound-addr6")
+    parser.add_argument("--enable-ipv6", action="store_true")
+    parser.add_argument("--enable-sandbox", action="store_true")
+    parser.add_argument("--enable-seccomp", action="store_true")
+    parser.add_argument("--cidr")
+    parser.add_argument("--api-socket")
+    parser.add_argument("--netns-type", choices=("path",), required=True)
+    parser.add_argument("namespace")
+    parser.add_argument("interface", choices=("tap0",))
+    args = parser.parse_args(arguments)
+    if (args.enable_ipv6 or args.outbound_addr is not None
+            or args.outbound_addr6 is not None or args.cidr is not None
+            or args.api_socket is not None):
+        raise ValueError("managed Podman bridge uplinks use broker-selected IPv4 routing only")
+    if not os.path.isabs(args.namespace) or ".." in args.namespace.split("/"):
+        raise ValueError("invalid Podman namespace path")
+    if args.mtu is not None and not 576 <= args.mtu <= 65535:
+        raise ValueError("invalid Podman network MTU")
+    for fd in (args.ready_fd, args.exit_fd):
+        if fd is not None and not 3 <= fd <= 1024:
+            raise ValueError("invalid lifecycle descriptor")
+    namespace_fd = os.open(args.namespace, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        lease = network_lease_type()(namespace_fd, "podman")
+    finally:
+        os.close(namespace_fd)
+    try:
+        lease.check()
+        os.write(args.ready_fd, b"1")
+        os.close(args.ready_fd)
+        while True:
+            readers = [lease.socket]
+            if args.exit_fd is not None:
+                readers.append(args.exit_fd)
+            ready, _, _ = select.select(readers, [], [], 1)
+            if lease.socket in ready:
+                lease.check()
+            if args.exit_fd is not None and args.exit_fd in ready:
+                return 0
+    finally:
+        lease.close()
+        if args.exit_fd is not None:
+            os.close(args.exit_fd)
+
+
+if __name__ == "__main__":
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(sig, lambda number, _frame: sys.exit(128 + number))
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"app-veth-podman: {exc}", file=sys.stderr)
+        sys.exit(1)

@@ -29,11 +29,8 @@ MAX_LAUNCH_ARGUMENTS = 64
 MAX_LAUNCH_ARGUMENT_BYTES = 8192
 MAX_TORRENT_FILE_BYTES = 16 * 1024 * 1024
 DEFAULT_PORT = 50309
-PASTA_BINARY = "/usr/bin/pasta"
 NETWORK_SETUP_SECONDS = 15
-PRIVATE_PEER_INTERFACE = "tap0"
-PRIVATE_PEER_ADDRESS = "10.0.2.100"
-SYSTEMD_RESOLVERS = pathlib.Path("/run/systemd/resolve/resolv.conf")
+PRIVATE_PEER_INTERFACE = "eth0"
 USERNAME_PATTERN = re.compile(r"^[a-z_][a-z0-9_-]*$")
 DBUS_ADDRESS_PATTERN = re.compile(r"unix:path=([^,]+)(?:,[^=]+=[^,]+)*")
 DEFAULT_KEYS = {
@@ -262,72 +259,6 @@ def network_binding() -> tuple[str, str]:
     if interface == "lo" or interface.startswith("tailscale"):
         fail("qBittorrent Internet route uses loopback or Tailscale; activate a LAN or VPN Internet route")
     return interface, source
-
-
-def routed_dns_servers(binding: tuple[str, str], source: pathlib.Path = SYSTEMD_RESOLVERS) -> list[str]:
-    """Use only upstream DNS servers reachable by the selected Internet route.
-
-    Use upstream addresses directly, without mapping the host resolver stub
-    or routing DNS through a different interface from the peer connections.
-    """
-    try:
-        resolver_owners = {0, pwd.getpwnam("systemd-resolve").pw_uid}
-    except KeyError:
-        fail("systemd-resolve account is unavailable")
-    try:
-        for directory in (pathlib.Path("/run"), pathlib.Path("/run/systemd"), source.parent):
-            metadata = directory.lstat()
-            owners = resolver_owners if directory == source.parent else {0}
-            if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid not in owners
-                    or metadata.st_mode & 0o022):
-                fail(f"unsafe qBittorrent resolver directory: {directory}")
-        descriptor = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
-        with os.fdopen(descriptor, "rb") as handle:
-            metadata = os.fstat(handle.fileno())
-            if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid not in resolver_owners
-                    or metadata.st_mode & 0o022 or metadata.st_nlink != 1
-                    or not 0 < metadata.st_size <= 16_384):
-                fail("unsafe systemd-resolved upstream DNS configuration")
-            content = handle.read(16_385)
-    except OSError as exc:
-        fail(f"systemd-resolved upstream DNS configuration is unavailable: {exc}")
-    if len(content) > 16_384:
-        fail("systemd-resolved upstream DNS configuration is oversized")
-    return select_routed_dns_servers(content, binding)
-
-
-def select_routed_dns_servers(content: bytes, binding: tuple[str, str]) -> list[str]:
-    """Reject stub, Tailscale and off-route upstreams before creating a sandbox."""
-    try:
-        lines = content.decode("ascii").splitlines()
-    except UnicodeError:
-        fail("invalid systemd-resolved upstream DNS configuration")
-    selected: list[str] = []
-    for line in lines:
-        fields = line.split()
-        if len(fields) != 2 or fields[0] != "nameserver":
-            continue
-        try:
-            address = ipaddress.IPv4Address(fields[1])
-        except ipaddress.AddressValueError:
-            continue
-        if (address.is_loopback or address.is_link_local or address.is_unspecified
-                or address.is_multicast or address.is_reserved):
-            continue
-        candidate = str(address)
-        if candidate in selected:
-            continue
-        try:
-            if route_binding(candidate) != binding:
-                continue
-        except ValueError:
-            continue
-        selected.append(candidate)
-        if len(selected) == 3:
-            break
-    if not selected:
-        fail("no IPv4 DNS server follows the selected qBittorrent Internet route")
-    return selected
 
 
 def managed_settings(
@@ -1020,9 +951,10 @@ def redirect_to_user_service() -> None:
             "--service-type=exec", "--expand-environment=no", "--slice=app.slice",
             "--unit=labwc-qbittorrent-" + uuid.uuid4().hex + ".service",
             "--property=Requisite=labwc-session.target", "--property=After=labwc-session.target",
-            "--property=PartOf=labwc-session.target", "--property=ExitType=cgroup",
+            "--property=PartOf=labwc-session.target", "--property=ExitType=main",
             f"--property=ConditionPathExists=!/run/user/{uid}/labwc-session-closing",
             "--property=KillMode=control-group", "--property=TimeoutStopSec=20s",
+            "--property=SendSIGKILL=yes", "--property=Restart=no",
             "--property=StandardInput=null", "--property=StandardOutput=journal",
             "--property=StandardError=journal", "--property=SyslogIdentifier=labwc-qbittorrent",
             "--setenv=LABWC_SESSION_APP=1",
@@ -1054,150 +986,6 @@ def network_runtime():
     return network_namespace
 
 
-def pasta_command(binary: str, sandbox_pid: int, temporary: str,
-                  binding: tuple[str, str], port: int) -> list[str]:
-    interface, source = binding
-    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,15}", interface) or interface == "lo" or interface.startswith("tailscale"):
-        fail("invalid qBittorrent outbound interface")
-    if not isinstance(source, str) or type(sandbox_pid) is not int or sandbox_pid <= 0:
-        fail("invalid qBittorrent network namespace binding")
-    try:
-        address = ipaddress.IPv4Address(source)
-    except ipaddress.AddressValueError:
-        fail("invalid qBittorrent IPv4 peer address")
-    if (address.is_loopback or address.is_unspecified or address.is_link_local
-            or address.is_multicast or address.is_reserved
-            or type(port) is not int or not 1024 <= port <= 65535):
-        fail("invalid qBittorrent peer listener")
-    # Explicit address/gateway suppress copying host addresses/routes. Disable
-    # every automatic host/namespace port scan and gateway-to-host mapping.
-    listener = f"{address}%{interface}/{port}"
-    return [binary, "--foreground", "--ipv4-only", "--config-net",
-            "--ns-ifname", PRIVATE_PEER_INTERFACE,
-            "--address", PRIVATE_PEER_ADDRESS + "/24", "--gateway", "10.0.2.2",
-            "--mtu", "65520", "--interface", interface,
-            "--outbound-if4", interface, "--outbound", str(address),
-            "--no-map-gw", "--no-icmp", "--no-dhcp", "--no-dhcpv6", "--no-ndp", "--no-ra",
-            "--tcp-ports", listener, "--udp-ports", listener,
-            "--tcp-ns", "none", "--udp-ns", "none",
-            "--pid", str(pathlib.Path(temporary) / "pasta.pid"),
-            "--userns", f"/proc/{sandbox_pid}/ns/user",
-            "--netns", f"/proc/{sandbox_pid}/ns/net"]
-
-
-def wait_for_pasta_ready(process, sandbox, temporary: str) -> None:
-    # pasta's documented PID file is written after TAP configuration and
-    # fwd_listen_init(). Explicit single-port rules are strong: a TCP or UDP
-    # bind failure exits before the PID is written. Do not use auto/all (weak)
-    # rules, or try ptracing pasta after it deliberately disables dumpability.
-    pid_path = pathlib.Path(temporary) / "pasta.pid"
-    deadline = time.monotonic() + NETWORK_SETUP_SECONDS
-    while time.monotonic() < deadline:
-        if process.poll() is not None:
-            fail(f"pasta exited during private network setup (status {process.returncode}); no application was started; see pasta's preceding journal diagnostics")
-        if sandbox.poll() is not None:
-            fail("Bubblewrap exited before private network readiness")
-        try:
-            descriptor = os.open(pid_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
-        except FileNotFoundError:
-            time.sleep(0.05)
-            continue
-        with os.fdopen(descriptor, "rb") as handle:
-            metadata = os.fstat(handle.fileno())
-            if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
-                    or stat.S_IMODE(metadata.st_mode) != 0o600 or metadata.st_nlink != 1
-                    or metadata.st_size > 32):
-                fail("unsafe pasta readiness file")
-            content = handle.read(33)
-        if not content:
-            time.sleep(0.05)
-            continue
-        if len(content) > 32 or not re.fullmatch(rb"[1-9][0-9]*\n?", content) or int(content) != process.pid:
-            fail("pasta readiness PID does not match the supervised helper")
-        return
-    fail("pasta private network setup timed out; no application was started")
-
-
-def run_pasta_sandbox(command: list[str], payload: list[str], temporary: str,
-                      binding: tuple[str, str], port: int, runtime, binary: str) -> int:
-    # The shared namespace utilities remain unchanged for other applications.
-    # A second gate rejects EOF because Bubblewrap's own block-fd releases on
-    # EOF. A pinned init PID allows safe cancellation before closing that fd.
-    # Validate all listener and route parameters before creating any child.
-    pasta_command(binary, 1, temporary, binding, port)
-    info_read = info_write = block_read = block_write = gate_read = gate_write = None
-    sandbox = helper = None
-    pidfd = None
-    released = False
-    try:
-        info_read, info_write = os.pipe()
-        block_read, block_write = os.pipe()
-        gate_read, gate_write = os.pipe()
-        sandbox = subprocess.Popen(
-            [*command, "--info-fd", str(info_write), "--block-fd", str(block_read),
-             "/usr/bin/python3", "-I", "-B", "-c", runtime.PEER_STARTUP_GATE,
-             str(gate_read), *payload], cwd="/", env=runtime.managed_subprocess_environment(),
-            stdin=subprocess.DEVNULL, pass_fds=(info_write, block_read, gate_read))
-        for descriptor in (info_write, block_read, gate_read):
-            runtime.close_file_descriptor(descriptor)
-        info_write = block_read = gate_read = None
-        sandbox_pid = runtime._read_bwrap_sandbox_pid(info_read, sandbox)
-        runtime.close_file_descriptor(info_read)
-        info_read = None
-        pidfd = os.pidfd_open(sandbox_pid)
-        argv = pasta_command(binary, sandbox_pid, temporary, binding, port)
-        old_umask = os.umask(0o077)
-        try:
-            helper = subprocess.Popen(argv, cwd="/", env=runtime.managed_subprocess_environment(),
-                                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                      # Foreground diagnostics belong to the
-                                      # user-unit journal and central logging
-                                      # policy, including early setup errors.
-                                      stderr=None)
-        finally:
-            os.umask(old_umask)
-        wait_for_pasta_ready(helper, sandbox, temporary)
-        if helper.poll() is not None or sandbox.poll() is not None:
-            fail("private network stopped before qBittorrent startup")
-        os.write(block_write, b"1")
-        os.write(gate_write, b"1")
-        released = True
-        for descriptor in (block_write, gate_write):
-            runtime.close_file_descriptor(descriptor)
-        block_write = gate_write = None
-        while True:
-            if helper.poll() is not None:
-                fail(f"pasta stopped (status {helper.returncode}); stopping the isolated qBittorrent session; see pasta's preceding journal diagnostics")
-            try:
-                return sandbox.wait(timeout=0.25)
-            except subprocess.TimeoutExpired:
-                continue
-    except (OSError, ValueError) as exc:
-        fail(f"qBittorrent private network failed: {exc}")
-    finally:
-        cancellation_error = None
-        if pidfd is not None:
-            try:
-                if not released:
-                    signal.pidfd_send_signal(pidfd, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            except OSError as exc:
-                # A confinement failure must not skip child reaping or leave
-                # readiness pipes open. The explicit gate still rejects EOF.
-                cancellation_error = exc
-            finally:
-                runtime.close_file_descriptor(pidfd)
-        if sandbox is not None and sandbox.poll() is None:
-            runtime._stop_subprocess(sandbox)
-        if helper is not None and helper.poll() is None:
-            runtime._stop_subprocess(helper)
-        for descriptor in (info_read, info_write, block_read, block_write, gate_read, gate_write):
-            runtime.close_file_descriptor(descriptor)
-        if cancellation_error is not None:
-            fail(f"private namespace cancellation failed after child cleanup: {cancellation_error}")
-
-
 def main() -> int:
     redirect_to_user_service()
     defaults = load_defaults(DEFAULTS_PATH)
@@ -1220,15 +1008,7 @@ def run_new_instance(
     account: pwd.struct_passwd, root: pathlib.Path, paths: dict[str, pathlib.Path],
     acceleration_mode: str, launch_arguments: list[str], port: int,
 ) -> int:
-    binding = network_binding()
-    dns_servers = routed_dns_servers(binding)
-    write_config(paths["profile_home"], paths, (PRIVATE_PEER_INTERFACE, PRIVATE_PEER_ADDRESS), port)
     runtime = network_runtime()
-    binary = pathlib.Path(PASTA_BINARY)
-    metadata = binary.lstat()
-    if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
-            or metadata.st_mode & 0o022 or not os.access(binary, os.X_OK)):
-        fail("pasta must be a root-owned, non-writable executable")
     # Raising on termination lets the supervisor reap both children and
     # close every setup/exit FD before our private runtime directory is removed.
     def interrupted(signum, frame):
@@ -1241,9 +1021,12 @@ def run_new_instance(
         prefix="labwc-qbittorrent-sandbox-", dir=f"/run/user/{os.getuid()}",
     ) as temporary:
         resolver = pathlib.Path(temporary) / "resolv.conf"
+        resolver_configuration = getattr(runtime, "veth_resolv_conf", None)
         resolver.write_text(
-            "".join(f"nameserver {server}\n" for server in dns_servers)
-            + "options timeout:2 attempts:2\n", encoding="ascii",
+            resolver_configuration() if resolver_configuration is not None else (
+                f"nameserver {runtime.VETH_DNS_ADDRESS}\noptions timeout:2 attempts:3\n"
+            ),
+            encoding="ascii",
         )
         resolver.chmod(0o600)
         command = build_command(
@@ -1251,9 +1034,14 @@ def run_new_instance(
             launch_arguments, resolver,
         )
         payload_count = 1 + len(launch_arguments)
-        return run_pasta_sandbox(
-            command[:-payload_count], command[-payload_count:], temporary, binding,
-            port, runtime, str(binary),
+        def configured(lease):
+            if lease.peer_port != port:
+                fail("qBittorrent peer port differs from the managed network service configuration")
+            write_config(paths["profile_home"], paths, (lease.interface, lease.address), port)
+        return runtime.run_veth_sandbox(
+            command[:-payload_count], command[-payload_count:], temporary, (),
+            app="qbittorrent",
+            on_network_ready=configured,
         )
 
 

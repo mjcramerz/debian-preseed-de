@@ -1,0 +1,7 @@
+[RemoteVolumeMonitor]
+Name=GProxyVolumeMonitorLabwc
+DBusName=org.gtk.vfs.LabwcVolumeMonitor
+IsNative=true
+# Thunar selects this name explicitly. Keep the packaged UDisks monitor's
+# priority (4) higher so other applications retain their normal monitor.
+NativePriority=3

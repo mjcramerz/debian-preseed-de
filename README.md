@@ -144,15 +144,16 @@ user manager.
 The managed qBittorrent desktop entry starts `labwc-qbittorrent` in a session
 service. It uses `/run/media/<user>/bittorrent` when present; if that transient
 volume is absent, it creates private persistent storage in `~/bittorrent`.
-The launcher's TCP/UDP listener, both slirp4netns forwards and the `addon/software`
+The launcher's TCP/UDP listener, both kernel DNAT forwards and the `addon/software`
 firewall overlay use the profile's `LABWC_QBITTORRENT_PORT`. Ports are canonical
 decimal integers in `1024..65535`; the default is `50309`. The current P15s
 profile selects `50308`. Forward both TCP and UDP from the router to the same
 selected port on the system's LAN address.
 
-qBittorrent runs in a private Bubblewrap network with `tap0` at `10.0.2.100`.
+qBittorrent runs in a private Bubblewrap network with a dynamically allocated
+`eth0` veth address.
 The launcher selects the active IPv4 Internet route, excludes loopback and
-Tailscale, and binds slirp4netns outbound traffic and both host peer listeners
+Tailscale, and pins kernel-routed outbound traffic and both host peer listeners
 to that route's source address. Both forwards must succeed before the payload
 starts. An explicit readiness gate prevents payload execution on startup-pipe
 EOF; failed setup also kills the pinned namespace. A bounded startup lock
@@ -160,8 +161,9 @@ serializes concurrent first launches, and later requests use the existing
 application's local IPC socket.
 Relaunch after changing the route or VPN. Router forwarding works when the
 Internet route uses the router connection; a VPN route needs forwarding at its
-own public endpoint. This forwarding contract requires IPv4 and a host TUN
-device. DHT, PeX, LSD, automatic port mapping and the Web UI remain disabled;
+own public endpoint. This forwarding contract requires IPv4. DNS uses an extra
+loopback listener of the host systemd-resolved service, including its active VPN
+and split DNS policy. DHT, PeX, LSD, automatic port mapping and the Web UI remain disabled;
 HTTPS tracker certificates are checked and normal tracker failover is used.
 
 Managed qBittorrent launches use Qt's built-in Fusion style to avoid the supplied
@@ -169,8 +171,73 @@ Adwaita focus-paint crash. Its direct and Bubblewrap AppArmor profiles share the
 same runtime grants for read-only disk classification metadata in sysfs,
 account-owned process metadata and account-owned terminal I/O. Mounted torrent
 storage needs no raw block-device access. Disk devices and writable sysfs are
-not exposed to the torrent payload. Only its separate network helper receives
-the TUN access needed to configure the private TAP.
+not exposed to the torrent payload. The root network service constructs veth
+interfaces through netlink; it does not use a TUN/TAP device.
+
+### Managed private networking
+
+The managed Chromium, Edge, Vivaldi, Mullvad Browser, Code, Postman, Bitwarden,
+Obsidian, QoreDB, Sleek, Spotify, Filen, Ledger Live, Telegram, KeePassXC,
+RetroArch, MPV, Liferea and FreeRDP launchers use private kernel veth networks.
+ChatGPT/Codex, Tuta, Zoom and Discord use the same broker. Ordinary online
+PurePrivacy launches also use veth; the existing offline KeePassXC and
+RetroArch PurePrivacy policies remain offline. Generic desktop wrappers route
+known package executable paths back through these managed launchers.
+
+`app-veth.service` pre-creates 32 separate veth pairs at boot before publishing
+readiness or starting the greeter and Podman API service. Idle host adapters
+are `veth0-app` through `veth31-app`, with matching `vethN-peer` endpoints;
+both ends stay DOWN until assigned. NetworkManager leaves these reserved slots
+to the service. Each authenticated lease moves an existing peer into the
+caller's namespace. Host names stay fixed for the entire pool lifetime; app
+names are recorded in structured lifecycle logs. Current and future managed
+policies need no interface-name mappings. Apps never create host adapters.
+
+The service validates each namespace FD and its owning account before
+attaching the existing veth. Firewall changes commit before the payload startup
+gate opens. Source validation rejects spoofed addresses, host services and
+other managed namespaces are blocked, and cleanup removes the packet path
+before its rule elements, then returns the DOWN, address-free peer to the
+pool. A cleanup failure keeps the default-deny guards
+installed until recovery succeeds. Recovery handles tagged service endpoints
+and an interrupted creation of an exact, mutually paired, DOWN, address-free
+idle pair; it preserves other untagged or foreign-tagged interfaces.
+The uplinks are IPv4; route
+interface MTU is preserved and no traffic shaper or userspace packet router is
+introduced. Actual throughput still needs measurement on the installed host.
+
+Private DNS requests at `10.0.2.3:53` are sent to systemd-resolved's extra
+loopback listener, `127.0.0.1:53053`, over TCP or UDP. The main host stub and
+the host's DNS/VPN policy remain authoritative. Lifecycle records go to
+`/var/log/managed/network/veth.log` through the managed logging/rotation policy.
+Application state and selected document/device paths are retained explicitly;
+each application's private temporary IPC directory supports subsequent launches.
+The capability-free FreeRDP sandbox retains askpass and ordinary clipboard IPC;
+privileged FUSE clipboard mounts are outside that sandbox's permissions.
+
+Podman's internal bridges use Netavark with nftables, behind the kernel veth
+uplink. Its configured helper is `/usr/local/libexec/app-veth-podman`.
+The `default_rootless_network_cmd` compatibility selector in Podman's config
+selects the custom helper ABI; it does not install or execute that selector's
+namesake program. Codex and ChatGPT retain the existing
+`/run/podman-devops/podman.sock` Unix API binding for container/custom MCP work.
+User-installed MCP configuration is independent of this installer networking.
+
+The installer renders the broker's account and peer port through the validated
+scalar map, then runs `app-veth --check-config` before enabling the service.
+Malformed or non-regular configuration fails during installation. The broker's
+enforced AppArmor profile permits Forky's resolved `ip` executable, its immutable
+iproute2 lookup files, and the adapter's exact root-owned Netavark namespace
+endpoint. Broker and client profiles permit the exact nsfs root read mediated
+as `/` by `attach_disconnected`, with literal namespace-name brackets escaped;
+this read grants no child paths. Supervisors can inspect their caller-owned
+child namespace and send the confined child SIGTERM/SIGKILL, with the existing
+explicit ptrace peer rules and host capability restrictions retained. The Podman helper also supports its
+side-effect-free `--version` probe. The
+[installed startup repair record](docs/validation/installed-startup-20261009/README.md)
+and [LPL-746 firstboot follow-up](docs/validation/installed-startup-20261009/lpl746-namespace-read.md)
+document the supplied failure evidence, regression results and installed-host
+acceptance requirements.
 
 Mako starts after a five-second wait in its session-bound user service. The wait
 also applies to D-Bus activation; notification producers ordered after Mako wait

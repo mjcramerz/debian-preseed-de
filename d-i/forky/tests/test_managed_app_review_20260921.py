@@ -10,10 +10,15 @@ import io
 import json
 import os
 from pathlib import Path
+import re
+import shutil
+import signal
+import socket
 import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -354,6 +359,119 @@ class UserStateReviewTests(unittest.TestCase):
 class PreservedCompatibilityReviewTests(unittest.TestCase):
     def test_only_zoom_and_discord_remain_private_compatibility_apps(self):
         self.assertEqual(set(profiles.WAYLAND_COMPAT_APPS), {'zoom','discord'})
+
+
+class ApplicationLifecycleReviewTests(unittest.TestCase):
+    def test_unknown_future_wayland_and_electron_apps_use_main_exit_cleanup(self):
+        for kind in ('wayland', 'electron'):
+            with self.subTest(kind=kind), mock.patch.object(generic, 'assert_launch_allowed'):
+                argv = generic.transient_argv(kind, 'launch', ['/opt/future-app/bin/app', 'literal; argument'], {})
+            for setting in ('ExitType=main', 'KillMode=control-group', 'TimeoutStopSec=20s', 'SendSIGKILL=yes', 'Restart=no'):
+                self.assertIn('--property=' + setting, argv)
+            self.assertEqual(argv[-2:], ['/opt/future-app/bin/app', 'literal; argument'])
+
+    @unittest.skipUnless(shutil.which('systemd-analyze'), 'native systemd analyzer unavailable')
+    def test_native_systemd_applies_family_policy_to_future_app_names(self):
+        # The native parser loads the real dash-prefix drop-ins. This checks
+        # effective properties without starting a user manager or application.
+        with tempfile.TemporaryDirectory(prefix='application-units-') as directory:
+            root = Path(directory)
+            source = TARGET / 'etc/systemd/user'
+            units = []
+            for family in ('wayland', 'electron', 'native', 'devops', 'bitwarden', 'qbittorrent', 'compat'):
+                drop = root / f'labwc-{family}-.service.d'
+                drop.mkdir()
+                (drop / '50-app-lifecycle.conf').write_text(payload_read_text(source / 'labwc-native-.service.d/50-app-lifecycle.conf'), encoding='utf-8')
+                unit = root / f'labwc-{family}-future-app-0123456789abcdef0123456789abcdef.service'
+                unit.write_text('[Service]\nType=exec\nExitType=cgroup\nKillMode=process\nExecStart=/usr/bin/true\n', encoding='utf-8')
+                units.append(str(unit))
+            result = subprocess.run(['/usr/bin/systemd-analyze', '--user', '--generators=no', '--man=no', 'verify', *units],
+                env={**os.environ, 'SYSTEMD_UNIT_PATH': str(root) + ':/usr/lib/systemd/user', 'SYSTEMD_LOG_LEVEL': 'debug'},
+                capture_output=True, text=True, encoding='utf-8', timeout=20)
+            self.assertEqual(result.returncode, 0, result.stderr[-4000:])
+            output = result.stdout + result.stderr
+            for family in ('wayland', 'electron', 'native', 'devops', 'bitwarden', 'qbittorrent', 'compat'):
+                self.assertIn(str(root / f'labwc-{family}-.service.d/50-app-lifecycle.conf'), output)
+            self.assertIn('ExitType=main\n', payload_read_text(source / 'labwc-native-.service.d/50-app-lifecycle.conf'))
+            # service_dump() does not print ExitType; the native parser has
+            # accepted that directive in every loaded family drop-in above.
+            for setting in ('KillMode: control-group', 'TimeoutStopSec: 20s', 'SendSIGKILL: yes'):
+                self.assertEqual(output.count(setting), 7, setting)
+            stages = payload_read_text(TARGET.parents[1] / 'scripts/desktop/components/target-assets.sh')
+            self.assertIn('for application_family in wayland electron native devops bitwarden qbittorrent compat; do', stages)
+
+    @unittest.skipUnless(shutil.which('perl') and shutil.which('setsid'), 'Perl process/logging runtime unavailable')
+    def test_chatgpt_log_supervision_is_independent_of_inherited_pipes_and_eof(self):
+        for mode, expected in (('held-pipe', 7), ('closed-output', 137)):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory(prefix='chatgpt-log-lifetime-') as directory:
+                root = Path(directory)
+                path = root / 'log.sock'
+                ready = root / 'ready'
+                child = root / 'child'
+                child.write_text('#!/usr/bin/python3\n' + '''import os,signal,sys,time
+from pathlib import Path
+ready=Path(os.environ["FIXTURE_READY"])
+def publish_ready():
+    # Existence is the readiness signal; publish complete PID bytes atomically.
+    pending=ready.with_name("ready.tmp")
+    pending.write_text(str(os.getpid()),encoding="ascii")
+    pending.replace(ready)
+if os.environ["FIXTURE_MODE"] == "held-pipe":
+    pid=os.fork()
+    if pid == 0:
+        signal.signal(signal.SIGTERM,signal.SIG_IGN)
+        publish_ready()
+        print("fixture child output",flush=True)
+        time.sleep(30)
+        os._exit(0)
+    while not ready.exists(): time.sleep(.01)
+    sys.exit(7)
+signal.signal(signal.SIGTERM,signal.SIG_IGN)
+os.close(1);os.close(2)
+publish_ready()
+time.sleep(30)
+''', encoding='utf-8')
+                child.chmod(0o700)
+                source = payload_read_text(TARGET / 'usr/local/libexec/labwc-chatgpt-log-runner')
+                source = re.sub(r"(?m)^(\s*CHILD_EXECUTABLE\s*=>\s*)'[^']*'", lambda match: match[1] + repr(str(child)), source)
+                source = re.sub(r"(?m)^(\s*SOCKET_PATH\s*=>\s*)'[^']*'", lambda match: match[1] + repr(str(path)), source)
+                source = source.replace('TERMINATION_GRACE_SECS  => 5,', 'TERMINATION_GRACE_SECS  => 0.2,')
+                logger = root / 'logger.pl'
+                logger.write_text(source, encoding='utf-8')
+                pinned = None
+                with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sink:
+                    sink.bind(str(path))
+                    process = subprocess.Popen(['/usr/bin/perl', str(logger), 'launch'],
+                        env={**os.environ, 'FIXTURE_MODE': mode, 'FIXTURE_READY': str(ready)},
+                        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    try:
+                        deadline = time.monotonic() + 3
+                        while not ready.exists() and process.poll() is None and time.monotonic() < deadline:
+                            time.sleep(.01)
+                        self.assertTrue(ready.exists(), 'real fixture child did not start')
+                        pinned = os.pidfd_open(int(ready.read_text(encoding='ascii')))
+                        if mode == 'closed-output':
+                            process.terminate()
+                        process.communicate(timeout=3)
+                        self.assertEqual(process.returncode, expected)
+                        sink.settimeout(.05)
+                        messages = []
+                        try:
+                            while len(messages) < 64:
+                                messages.append(sink.recv(8192))
+                        except TimeoutError:
+                            pass
+                        self.assertTrue(any(f'event=completed status={expected}'.encode() in message for message in messages))
+                    finally:
+                        if pinned is not None:
+                            try:
+                                signal.pidfd_send_signal(pinned, signal.SIGKILL)
+                            except ProcessLookupError:
+                                pass
+                            os.close(pinned)
+                        if process.poll() is None:
+                            process.kill()
+                        process.wait(timeout=3)
 
 
 if __name__ == '__main__':

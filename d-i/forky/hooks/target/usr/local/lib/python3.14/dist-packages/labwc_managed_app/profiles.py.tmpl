@@ -83,6 +83,7 @@ APPS = {
         "nvidia_args": browser_args("chromium", "nvidia"),
         "bind_workspace": False,
         "pure_privacy": True,
+        "persistent_sandbox": True,
     },
     "microsoft-edge": {
         "exec": "/usr/bin/microsoft-edge-stable",
@@ -94,6 +95,7 @@ APPS = {
         "nvidia_args": browser_args("microsoft-edge", "nvidia"),
         "bind_workspace": False,
         "pure_privacy": True,
+        "persistent_sandbox": True,
     },
     "vivaldi": {
         "exec": "/usr/bin/vivaldi-stable",
@@ -107,6 +109,7 @@ APPS = {
         "nvidia_args": browser_args("vivaldi", "nvidia"),
         "bind_workspace": False,
         "pure_privacy": True,
+        "persistent_sandbox": True,
     },
     "code": {
         "exec": "/usr/bin/code",
@@ -125,6 +128,7 @@ APPS = {
         "privacy_args": electron_privacy_args("code"),
         "bind_workspace": True,
         "pure_privacy": True,
+        "persistent_sandbox": True,
     },
     "mullvad-browser": {
         "exec": "/usr/bin/mullvad-browser",
@@ -144,6 +148,7 @@ APPS = {
         "nvidia_args": [],
         "bind_workspace": False,
         "pure_privacy": True,
+        "persistent_sandbox": True,
     },
     "bitwarden": {
         "exec": "/opt/Bitwarden/bitwarden",
@@ -163,6 +168,7 @@ APPS = {
         "privacy_args": electron_privacy_args("bitwarden"),
         "bind_workspace": False,
         "pure_privacy": True,
+        "persistent_sandbox": True,
     },
     "chatgpt": {
         "exec": "/usr/lib/chatgpt/ChatGPT",
@@ -208,6 +214,7 @@ APPS = {
         "nvidia_args": electron_args("obsidian", "nvidia"),
         "bind_workspace": False,
         "pure_privacy": False,
+        "persistent_sandbox": True,
     },
     "qoredb": {
         "exec": "/usr/bin/qoredb",
@@ -223,6 +230,7 @@ APPS = {
         "nvidia_args": [],
         "bind_workspace": False,
         "pure_privacy": False,
+        "persistent_sandbox": True,
         "database_state_directory": "qoredb",
     },
     "postman": {
@@ -243,6 +251,7 @@ APPS = {
         "nvidia_args": electron_args("postman", "nvidia"),
         "bind_workspace": False,
         "pure_privacy": False,
+        "persistent_sandbox": True,
     },
     "keepassxc": {
         "exec": "/usr/bin/keepassxc",
@@ -262,6 +271,7 @@ APPS = {
         "nvidia_args": [],
         "bind_workspace": False,
         "pure_privacy": True,
+        "persistent_sandbox": True,
         "privacy_share_net": False,
     },
     "sleek": {
@@ -283,6 +293,7 @@ APPS = {
         "nvidia_args": electron_args("sleek", "nvidia"),
         "bind_workspace": False,
         "pure_privacy": False,
+        "persistent_sandbox": True,
     },
     "spotify": {
         "exec": "/usr/bin/spotify",
@@ -300,6 +311,7 @@ APPS = {
         "nvidia_args": electron_args("spotify", "nvidia"),
         "bind_workspace": False,
         "pure_privacy": False,
+        "persistent_sandbox": True,
     },
     "filen": {
         "exec": "/opt/Filen/Filen",
@@ -321,6 +333,7 @@ APPS = {
         "privacy_args": electron_privacy_args("filen"),
         "bind_workspace": False,
         "pure_privacy": True,
+        "persistent_sandbox": True,
     },
     "discord": {
         "exec": "/opt/discord/Discord",
@@ -364,6 +377,7 @@ APPS = {
         "privacy_args": electron_privacy_args("ledger-live"),
         "bind_workspace": False,
         "pure_privacy": False,
+        "persistent_sandbox": True,
     },
     "tutanota": {
         "exec": "/opt/tuta-mail/AppRun",
@@ -415,6 +429,7 @@ APPS = {
         "nvidia_args": [],
         "bind_workspace": False,
         "pure_privacy": True,
+        "persistent_sandbox": True,
     },
     "retroarch": {
         "exec": "/usr/bin/retroarch",
@@ -430,8 +445,26 @@ APPS = {
         "nvidia_args": [],
         "bind_workspace": False,
         "pure_privacy": True,
+        "persistent_sandbox": True,
         "privacy_share_net": False,
         "privacy_home_ro_paths": (".config/retroarch/retroarch.cfg",),
+    },
+    "mpv": {
+        "exec": "/usr/bin/mpv",
+        "env": {}, "args": [], "intel_env": {}, "intel_args": [], "nvidia_env": {}, "nvidia_args": [],
+        "bind_workspace": False, "pure_privacy": False, "persistent_sandbox": True,
+    },
+    "liferea": {
+        "exec": "/usr/bin/liferea",
+        "env": {}, "args": [], "intel_env": {}, "intel_args": [], "nvidia_env": {}, "nvidia_args": [],
+        "bind_workspace": False, "pure_privacy": False, "persistent_sandbox": True,
+    },
+    "freerdp": {
+        "exec": "/usr/bin/sdl-freerdp",
+        "exec_candidates": ("/usr/bin/sdl-freerdp3",),
+        "env": {"FREERDP_ASKPASS": "/usr/local/bin/labwc-freerdp-askpass"},
+        "args": [], "intel_env": {}, "intel_args": [], "nvidia_env": {}, "nvidia_args": [],
+        "bind_workspace": False, "pure_privacy": False, "persistent_sandbox": True,
     },
     "qbittorrent": {
         "exec": "/usr/local/bin/labwc-qbittorrent",
@@ -596,7 +629,173 @@ CHATGPT_DEVOPS_READ_WRITE_PATHS = (
     "/data/codex",
     "/data/downloads",
 )
+# Reuse the existing persistent sandbox and explicitly retain only application
+# state, documents and client IPC.  Every online policy unshares the host network
+# before obtaining a veth lease; the payload never receives the lease socket.
+NATIVE_VETH_SANDBOX_DEFAULTS = {
+    "chdir": ".",
+    "config_args": (),
+    "dbus_names": (
+        "org.freedesktop.Notifications",
+        "org.freedesktop.portal.*",
+        "org.freedesktop.secrets",
+        "org.kde.StatusNotifierWatcher",
+    ),
+    "dbus_own_names": (),
+    "inner_sandbox_args": (),
+    "require_session_bus": True,
+    "ro_bind_paths": (),
+    "ro_bind_home_directories": (".config/gtk-3.0", ".config/gtk-4.0", ".config/dconf",
+                                 ".config/fontconfig", ".local/share/icons"),
+    "ro_bind_home_optional_files": (".config/user-dirs.dirs", ".config/qt6ct/qt6ct.conf"),
+    "rw_bind_home_directories": ("Downloads", "Documents", "Pictures"),
+    "runtime_directories": ("doc",),
+    "runtime_sockets": ("pipewire-0", "pulse/native"),
+    "preserve_persistent_modes": True,
+    "shared_temp_directory_by_application": True,
+    "share_net": False,
+    "veth": True,
+    "system_dbus_names": ("org.freedesktop.UPower",),
+}
 PERSISTENT_SANDBOX_CONFIG = {
+    "chromium": {
+        **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "camera_devices": True,
+        "persistent_paths": (".cache/chromium", ".config/chromium", ".pki/nssdb",
+                             ".local/state/browser-devtools/chromium"),
+    },
+    "microsoft-edge": {
+        **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "camera_devices": True,
+        "persistent_paths": (".cache/microsoft-edge", ".config/microsoft-edge",
+                             ".pki/nssdb", ".local/state/browser-devtools/microsoft-edge"),
+        "ro_bind_paths": ("/opt/microsoft/msedge", "/etc/opt/edge"),
+    },
+    "vivaldi": {
+        **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "camera_devices": True,
+        "persistent_paths": (".cache/vivaldi", ".config/vivaldi", ".pki/nssdb",
+                             ".local/state/browser-devtools/vivaldi"),
+        "ro_bind_paths": ("/opt/vivaldi", "/etc/vivaldi"),
+    },
+    "mullvad-browser": {
+        **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "camera_devices": True,
+        "persistent_paths": (".mullvad-browser", ".mullvad/mullvadbrowser",
+                             ".cache/mullvad/mullvadbrowser"),
+    },
+    "code": {
+        **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "persistent_paths": (".cache/Code", ".cache/Microsoft/DeveloperTools",
+                             ".config/Code", ".local/share/code", ".vscode", ".vscode-shared"),
+        "rw_bind_home_directories": ("Workspace", "Documents", "Downloads"),
+        "ro_bind_home_directories": (),
+        "ro_bind_home_optional_files": (
+            ".config/user-dirs.dirs", ".gitconfig", ".ssh/config", ".ssh/known_hosts",
+        ),
+        "rw_bind_paths": ("/pool",),
+        "preserve_working_directory": True,
+    },
+    "bitwarden": {
+        **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "persistent_paths": (".cache/Bitwarden", ".cache/com.bitwarden.desktop",
+                             ".config/Bitwarden", ".local/share/Bitwarden",
+                             ".config/chromium/NativeMessagingHosts",
+                             ".config/google-chrome/NativeMessagingHosts",
+                             ".config/microsoft-edge/NativeMessagingHosts",
+                             ".config/vivaldi/NativeMessagingHosts",
+                             ".mozilla/native-messaging-hosts",
+                             ".var/app/org.mozilla.firefox/.mozilla/native-messaging-hosts",
+                             ".var/app/com.google.Chrome/config/google-chrome/NativeMessagingHosts",
+                             ".var/app/org.chromium.Chromium/config/chromium/NativeMessagingHosts",
+                             ".var/app/com.microsoft.Edge/config/microsoft-edge/NativeMessagingHosts"),
+        "ro_bind_paths": ("/opt/Bitwarden",),
+    },
+    "obsidian": {
+        **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "persistent_paths": (".cache/obsidian", ".config/obsidian",
+                             ".local/share/obsidian"),
+        "ro_bind_paths": ("/opt/Obsidian",),
+        "rw_bind_home_directories": ("Syncthing/obsidian-md", "Documents", "Downloads"),
+        "ro_bind_home_optional_files": (".config/user-dirs.dirs", ".gitconfig"),
+    },
+    "qoredb": {
+        **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "persistent_paths": (),
+        # The runtime adds the already validated per-account database state.
+        "database_state": True,
+    },
+    "postman": {
+        **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "persistent_paths": (".cache/Postman", ".config/Postman", ".local/share/Postman", "Postman"),
+        "ro_bind_paths": ("/opt/postman/app",),
+        "rw_bind_home_directories": ("Workspace", "Documents", "Downloads"),
+    },
+    "keepassxc": {
+        **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "persistent_paths": (".cache/keepassxc", ".config/keepassxc", ".local/share/keepassxc"),
+        "rw_bind_home_directories": ("Syncthing/keepassxc", "Documents", "Downloads"),
+    },
+    "mpv": {
+        **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "persistent_paths": (".cache/mpv", ".config/mpv", ".local/share/mpv", ".local/state/mpv"),
+        "rw_bind_home_directories": ("Music", "Videos", "Documents", "Downloads"),
+        "user_media_directory": True,
+    },
+    "liferea": {
+        **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "persistent_paths": (".cache/liferea", ".config/liferea", ".local/share/liferea",
+                             ".cache/net.sourceforge.liferea", ".local/share/net.sourceforge.liferea"),
+    },
+    "freerdp": {
+        **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "persistent_paths": (".config/freerdp", ".cache/freerdp", ".local/share/freerdp"),
+        "ro_bind_paths": ("/etc/freerdp", "/etc/krb5.conf", "/etc/krb5.conf.d",
+                          "/usr/local/bin/labwc-freerdp-askpass"),
+    },
+    "sleek": {
+        **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "persistent_paths": (".cache/sleek", ".config/sleek", ".local/share/sleek"),
+        "ro_bind_paths": ("/opt/sleek",),
+        "rw_bind_home_directories": ("Syncthing/sleek", "Documents", "Downloads"),
+    },
+    "spotify": {
+        **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "persistent_paths": (".cache/spotify", ".config/spotify", ".local/share/spotify"),
+        "dbus_own_names": ("org.mpris.MediaPlayer2.spotify",),
+        "rw_bind_home_directories": ("Music", "Downloads"),
+    },
+    "filen": {
+        **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "persistent_paths": (".cache/Filen", ".cache/filen", ".config/Filen", ".config/filen",
+                             ".config/@filen", ".config/rclone", ".local/share/Filen", ".local/share/filen"),
+        "ro_bind_paths": ("/opt/Filen",),
+        "rw_bind_home_directories": ("Filen", "Desktop", "Documents", "Downloads", "Music",
+                                     "Pictures", "Videos", "Workspace", "Syncthing"),
+    },
+    "ledger-live": {
+        **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "persistent_paths": (".cache/Ledger Live", ".config/Ledger Live", ".config/Ledger Wallet",
+                             ".config/ledger-live-desktop", ".local/share/Ledger Live"),
+        "ro_bind_paths": ("/opt/ledger-live",),
+        "usb_devices": True,
+    },
+    "telegram-desktop": {
+        **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "camera_devices": True,
+        "persistent_paths": (".cache/telegram-desktop", ".config/telegram-desktop",
+                             ".local/share/TelegramDesktop"),
+    },
+    "retroarch": {
+        **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "persistent_paths": (".cache/retroarch", ".config/retroarch", ".local/share/retroarch"),
+        "rw_bind_home_directories": ("Games", "Documents", "Downloads"),
+        "game_devices": True,
+    },
+    "qbittorrent": {
+        **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "persistent_paths": (".cache/qBittorrent", ".config/qBittorrent", ".local/share/qBittorrent"),
+    },
     "chatgpt": {
         "chdir": "Workspace",
         "config_args": (),
@@ -640,7 +839,7 @@ PERSISTENT_SANDBOX_CONFIG = {
         ),
         "share_net": False,
         "shared_temp_directory": "labwc-chatgpt-tmp",
-        "slirp4netns": True,
+        "veth": True,
         "synthetic_identity": True,
         "system_dbus_names": CHATGPT_SYSTEM_DBUS_NAMES,
     },
@@ -664,7 +863,7 @@ PERSISTENT_SANDBOX_CONFIG = {
         "runtime_directories": ("doc",),
         "runtime_sockets": ("pipewire-0", "pulse/native"),
         "share_net": False,
-        "slirp4netns": True,
+        "veth": True,
         "system_dbus_names": (),
     },
     "tutanota": {
@@ -686,7 +885,8 @@ PERSISTENT_SANDBOX_CONFIG = {
         "ro_bind_home_paths": (".config/user-dirs.dirs",),
         "runtime_directories": ("doc",),
         "runtime_sockets": ("pipewire-0", "pulse/native"),
-        "share_net": True,
+        "share_net": False,
+        "veth": True,
         "system_dbus_names": TUTA_SYSTEM_DBUS_NAMES,
     },
     "zoom": {
@@ -715,7 +915,7 @@ PERSISTENT_SANDBOX_CONFIG = {
         "runtime_directories": ("doc",),
         "runtime_sockets": ("pipewire-0", "pulse/native"),
         "share_net": False,
-        "slirp4netns": True,
+        "veth": True,
         "system_dbus_names": (),
     },
 }

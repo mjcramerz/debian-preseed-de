@@ -91,6 +91,9 @@ sub load_config {
         !($profile_name eq 'hardware-tuning' &&
           ($mode ne 'enforce' || $presence ne 'optional' || $executable_probe ne '-')) ||
             fatal('hardware-tuning policy must remain optional and enforced');
+        !($profile_name eq 'app-veth' &&
+          ($mode ne 'enforce' || $presence ne 'required' || $executable_probe ne '-')) ||
+            fatal('app-veth policy must remain required and enforced');
         # These files contain mandatory Px/AppArmorProfile launch targets and
         # the policy worker itself. Never replay a legacy global live unload.
         my %launch_sources = map { $_ => 1 } qw(

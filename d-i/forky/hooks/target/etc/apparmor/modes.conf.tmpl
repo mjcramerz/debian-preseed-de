@@ -46,6 +46,7 @@ __DESKTOP_APPARMOR_STATE__ required system-wrappers -
 __DESKTOP_APPARMOR_STATE__ optional usr.local.sbin.tpm2-enroll.sh -
 __DESKTOP_APPARMOR_STATE__ optional firstboot -
 enforce optional hardware-tuning -
+enforce required app-veth -
 
 # Repository-managed status reader used by the privileged security launcher.
 __DESKTOP_APPARMOR_STATE__ required usr.sbin.aa-status -
@@ -122,7 +123,6 @@ __DESKTOP_APPARMOR_STATE__ if-executable linux-sandbox /usr/libexec/x86_64-linux
 __DESKTOP_APPARMOR_STATE__ if-executable mmdebstrap /usr/bin/mmdebstrap
 __DESKTOP_APPARMOR_STATE__ if-executable rootlesskit /usr/bin/rootlesskit
 __DESKTOP_APPARMOR_STATE__ if-executable runc /usr/bin/runc
-__DESKTOP_APPARMOR_STATE__ if-executable slirp4netns /usr/bin/slirp4netns
 __DESKTOP_APPARMOR_STATE__ if-executable userbindmount /usr/bin/userbindmount
 __DESKTOP_APPARMOR_STATE__ if-executable virtiofsd /usr/libexec/virtiofsd
 
@@ -131,6 +131,4 @@ __DESKTOP_APPARMOR_STATE__ if-executable virtiofsd /usr/libexec/virtiofsd
 __DESKTOP_APPARMOR_STATE__ if-executable lsb_release /usr/bin/lsb_release
 __DESKTOP_APPARMOR_STATE__ if-executable nvidia_modprobe /usr/bin/nvidia-modprobe
 __DESKTOP_APPARMOR_STATE__ if-executable usr.bin.man /usr/bin/man
-__DESKTOP_APPARMOR_STATE__ if-executable usr.bin.passt /usr/bin/passt
-__DESKTOP_APPARMOR_STATE__ if-executable usr.bin.pasta /usr/bin/pasta
 __DESKTOP_APPARMOR_STATE__ if-executable usr.bin.totem-previewers /usr/bin/totem-video-thumbnailer

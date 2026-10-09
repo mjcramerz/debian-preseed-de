@@ -480,7 +480,7 @@ def setup(args: argparse.Namespace) -> None:
         raise Failure('desktop account must be a separate unprivileged login account')
     for binary in ('/usr/bin/podman', '/usr/bin/docker', '/usr/bin/docker-compose',
                    '/usr/bin/crun', '/usr/bin/newuidmap', '/usr/bin/newgidmap',
-                   '/usr/bin/pasta', '/usr/bin/systemctl', '/usr/bin/env',
+                   '/usr/local/libexec/app-veth-podman', '/usr/bin/systemctl', '/usr/bin/env',
                    '/usr/bin/install', NOLOGIN):
         if not os.access(binary, os.X_OK):
             raise Failure(f'required executable is missing: {binary}')

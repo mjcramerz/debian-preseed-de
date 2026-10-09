@@ -43,8 +43,8 @@ for cmd in \
   browser-devtools \
   labwc \
   cage \
-  slirp4netns \
-  pasta \
+  app-veth \
+  app-veth-podman \
   gtkgreet \
   greetd-power-action \
   labwc-greeter-output \
@@ -398,6 +398,7 @@ for path in \
   /etc/systemd/journald.conf.d/10-storage.conf \
   /etc/rsyslog.conf \
   /etc/rsyslog.d/15-audit.conf \
+  /etc/rsyslog.d/18-app-veth.conf \
   /etc/rsyslog.d/20-auth.conf \
   /etc/rsyslog.d/21-apps.conf \
   /etc/rsyslog.d/25-usb.conf \
@@ -564,6 +565,22 @@ done
 
 require_mode /etc/systemd/system/labwc-admin-action@.service 644
 require_mode /etc/systemd/system/labwc-external-drives-shutdown.service 644
+require_mode /etc/systemd/user/labwc-gvfs-volume-monitor.service 644
+for application_family in wayland electron native devops bitwarden qbittorrent compat; do
+  lifecycle_policy="/etc/systemd/user/labwc-${application_family}-.service.d/50-app-lifecycle.conf"
+  require_mode "$lifecycle_policy" 644
+  for lifecycle_setting in ExitType=main KillMode=control-group TimeoutStopSec=20s SendSIGKILL=yes; do
+    grep -Fxq "$lifecycle_setting" "$lifecycle_policy" || fatal "missing application lifecycle setting: $lifecycle_setting"
+  done
+done
+require_mode /etc/systemd/user/labwc-wayland-foot-.service.d/60-terminal-lifecycle.conf 644
+require_mode /etc/systemd/user/labwc-devops-.service.d/60-stop-budget.conf 644
+require_mode /etc/apparmor.d/abstractions/base.d/managed-process-monitor 644
+require_mode /usr/local/libexec/labwc-gvfs-volume-monitor 755
+require_mode /usr/share/dbus-1/services/org.gtk.vfs.LabwcVolumeMonitor.service 644
+require_mode /usr/share/gvfs/remote-volume-monitors/labwc.monitor 644
+grep -qx '\''Name=GProxyVolumeMonitorLabwc'\'' /usr/share/gvfs/remote-volume-monitors/labwc.monitor ||
+  fatal '\''Thunar external-drive native volume monitor is not registered'\''
 require_mode /etc/systemd/system/labwc-package-sleep-guard.service 644
 require_mode /etc/systemd/system/sleep.target.d/50-package-lock-guard.conf 644
 require_mode /usr/local/libexec/greetd-power-action-root 755

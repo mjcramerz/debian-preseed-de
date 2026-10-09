@@ -1,0 +1,582 @@
+{
+  "date": "2026-10-09",
+  "scope": "repository source repairs and deterministic installer bundle; no live deployment",
+  "todo_files": 5,
+  "todo_lines": 1246,
+  "additional_user_message_evidence": {
+    "host": "LPL-550",
+    "duplicate_records": 2,
+    "profile": "labwc-wrap-desktop-files",
+    "operation": "exec",
+    "path": "/usr/bin/tar"
+  },
+  "integration": {
+    "tests": 593,
+    "passed": 541,
+    "skipped": 52,
+    "unittest_seconds": 23.886,
+    "skip_reasons": {
+      "'environment denies sysctl writes even in an isolated user/network namespace'": 1,
+      "'native private session bus unavailable'": 6,
+      "'root-owned file fixtures require root'": 11,
+      "'original todo/apparmor.log not supplied; policy/fixture checks remain enabled'": 1,
+      "'real root-owned filesystem fixtures required'": 12,
+      "'private root-owned filesystem fixtures require root'": 21
+    },
+    "commands": {
+      "contracts": {
+        "check": "contracts",
+        "argv": [
+          "/usr/bin/python3",
+          "-I",
+          "-B",
+          "-c",
+          "import sys, unittest; sys.path.insert(0, sys.argv.pop(1)); unittest.main(module=None)",
+          "/home/mcramer/Workspace/debian-preseed-de/d-i/forky/tests",
+          "-v",
+          "test_kernel_veth_networking",
+          "test_thunar_native_drive_actions",
+          "test_codex_power_20260926",
+          "test_podman_incus_redesign",
+          "test_desktop_sandbox",
+          "test_managed_app_review_20260921",
+          "test_compz_qbittorrent_followup",
+          "test_apparmor_incidents_20261004",
+          "test_zoom_discord_private_xwayland",
+          "test_desktop_integration_20260914",
+          "test_computer_management_20260916",
+          "test_network_sharing"
+        ],
+        "cwd": "/home/mcramer/Workspace/debian-preseed-de/d-i/forky/tests",
+        "returncode": 0,
+        "seconds": 24.434
+      },
+      "shells": {
+        "check": "shells",
+        "argv": [
+          "/usr/bin/python3",
+          "-I",
+          "-B",
+          "tools/check_shells.py",
+          "--output",
+          "/home/mcramer/Workspace/debian-preseed-de/.build/repair-review/shell-check.json"
+        ],
+        "cwd": "/home/mcramer/Workspace/debian-preseed-de",
+        "returncode": 0,
+        "seconds": 2.869
+      },
+      "preseeds": {
+        "check": "preseeds",
+        "argv": [
+          "/usr/bin/python3",
+          "-I",
+          "-B",
+          "tools/check_preseeds.py"
+        ],
+        "cwd": "/home/mcramer/Workspace/debian-preseed-de",
+        "returncode": 0,
+        "seconds": 0.265
+      },
+      "build": {
+        "check": "build",
+        "argv": [
+          "/usr/bin/python3",
+          "-I",
+          "-B",
+          "tools/build.py"
+        ],
+        "cwd": "/home/mcramer/Workspace/debian-preseed-de",
+        "returncode": 0,
+        "seconds": 4.574
+      },
+      "build-check": {
+        "check": "build-check",
+        "argv": [
+          "/usr/bin/python3",
+          "-I",
+          "-B",
+          "tools/build.py",
+          "--check"
+        ],
+        "cwd": "/home/mcramer/Workspace/debian-preseed-de",
+        "returncode": 0,
+        "seconds": 4.424
+      }
+    }
+  },
+  "kernel_selection": {
+    "tests": 61,
+    "native_boot_pool": true,
+    "native_blocked_bubblewrap_inspection": true,
+    "native_nft_syntax_and_transactions": true,
+    "packet_fixture": "skipped: isolated sysctl writes denied"
+  },
+  "tar_followup": {
+    "check": "tar-apparmor-package",
+    "argv": [
+      "/usr/bin/python3",
+      "-I",
+      "-B",
+      "-c",
+      "import sys, unittest; sys.path.insert(0, sys.argv.pop(1)); unittest.main(module=None)",
+      "/home/mcramer/Workspace/debian-preseed-de/d-i/forky/tests",
+      "-v",
+      "test_apparmor_incidents_20261004",
+      "test_maintenance_20261004.DesktopTransactionTests"
+    ],
+    "cwd": "/home/mcramer/Workspace/debian-preseed-de",
+    "returncode": 0,
+    "tests": 32,
+    "passed": 32,
+    "skipped": 0,
+    "unittest_seconds": 9.055,
+    "scope": "offline effective AppArmor rules and native private package inspection; kernel policy not loaded"
+  },
+  "apparmor": {
+    "policies": [
+      {
+        "policy": "Discord",
+        "returncode": 0
+      },
+      {
+        "policy": "app-veth",
+        "returncode": 0
+      },
+      {
+        "policy": "chatgpt",
+        "returncode": 0
+      },
+      {
+        "policy": "compz",
+        "returncode": 0
+      },
+      {
+        "policy": "crun",
+        "returncode": 0
+      },
+      {
+        "policy": "debugsys",
+        "returncode": 0
+      },
+      {
+        "policy": "desktop-utilities",
+        "returncode": 0
+      },
+      {
+        "policy": "desktop-wrappers",
+        "returncode": 0
+      },
+      {
+        "policy": "document-applications",
+        "returncode": 0
+      },
+      {
+        "policy": "firstboot",
+        "returncode": 0
+      },
+      {
+        "policy": "gitbuild",
+        "returncode": 0
+      },
+      {
+        "policy": "gitbuild-worker",
+        "returncode": 0
+      },
+      {
+        "policy": "hardware-tuning",
+        "returncode": 0
+      },
+      {
+        "policy": "labwc-appearance",
+        "returncode": 0
+      },
+      {
+        "policy": "labwc-session",
+        "returncode": 0
+      },
+      {
+        "policy": "network-sharing",
+        "returncode": 0
+      },
+      {
+        "policy": "obsidian",
+        "returncode": 0
+      },
+      {
+        "policy": "opt.Bitwarden.bitwarden",
+        "returncode": 0
+      },
+      {
+        "policy": "opt.Filen.Filen",
+        "returncode": 0
+      },
+      {
+        "policy": "opt.ledger-live.AppRun",
+        "returncode": 0
+      },
+      {
+        "policy": "opt.postman.app.Postman",
+        "returncode": 0
+      },
+      {
+        "policy": "opt.tuta-mail.AppRun",
+        "returncode": 0
+      },
+      {
+        "policy": "sleek",
+        "returncode": 0
+      },
+      {
+        "policy": "system-wrappers",
+        "returncode": 0
+      },
+      {
+        "policy": "timeshift",
+        "returncode": 0
+      },
+      {
+        "policy": "tomat",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.keepassxc",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.pwsh",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.qbittorrent",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.qoredb",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.retroarch",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.spotify",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.sqlitebrowser",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.telegram-desktop",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.totem",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.bin.zoom",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.local.sbin.tpm2-enroll.sh",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.sbin.aa-status",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.sbin.apt-cacher-ng",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.sbin.avahi-daemon",
+        "returncode": 0
+      },
+      {
+        "policy": "usr.sbin.tailscaled",
+        "returncode": 0
+      },
+      {
+        "policy": "vivaldi-bin",
+        "returncode": 0
+      },
+      {
+        "policy": "vivaldi-stable",
+        "returncode": 0
+      },
+      {
+        "policy": "waybar-menus",
+        "returncode": 0
+      },
+      {
+        "policy": "whisper-local-transcription",
+        "returncode": 0
+      },
+      {
+        "policy": "zoom-discord-compat",
+        "returncode": 0
+      }
+    ],
+    "kernel_load": false,
+    "cache_write": false
+  },
+  "logging": {
+    "catalog": {
+      "variables": 113,
+      "templates": 356,
+      "logging_templates": 79,
+      "profiles": 10
+    },
+    "commands": [
+      {
+        "argv": [
+          "/usr/bin/python3",
+          "-I",
+          "-B",
+          "-c",
+          "import sys, unittest; sys.path.insert(0, sys.argv.pop(1)); unittest.main(module=None)",
+          "/home/mcramer/Workspace/debian-preseed-de/d-i/forky/tests",
+          "-v",
+          "test_native_logging_r4.CatalogTests",
+          "test_managed_logging_r3.RoutingContractTests"
+        ],
+        "returncode": 0
+      },
+      {
+        "argv": [
+          "/usr/sbin/rsyslogd",
+          "-N1",
+          "-f",
+          "/home/mcramer/Workspace/debian-preseed-de/.build/repair-review/rsyslog-config-hvypk7bj/rsyslog.conf"
+        ],
+        "returncode": 0,
+        "scope": "native syntax parser; temporary spool and local fixture owner/group"
+      }
+    ]
+  },
+  "host_firewall_contract": "broker and host generator fixed interface sets compared equal",
+  "preservation": {
+    "initial_file_changes": 88,
+    "unrelated_initial_files_preserved": [
+      "d-i/forky/classes/class-addon/devops.cfg",
+      "d-i/forky/classes/class-addon/podman.cfg",
+      "d-i/forky/classes/class-addon/qemu.cfg",
+      "d-i/forky/classes/class-select/role/desktop.cfg",
+      "d-i/forky/hooks/target/data/docs/podman-devops.md",
+      "d-i/forky/hooks/target/etc/apparmor.d/abstractions/bwrap-common",
+      "d-i/forky/hooks/target/etc/apparmor.d/abstractions/bwrap-desktop-runtime",
+      "d-i/forky/hooks/target/etc/apparmor.d/abstractions/codex-runtime",
+      "d-i/forky/hooks/target/etc/apparmor.d/abstractions/desktop-runtime",
+      "d-i/forky/hooks/target/etc/apparmor.d/abstractions/qbittorrent-runtime",
+      "d-i/forky/hooks/target/etc/apparmor.d/desktop-utilities",
+      "d-i/forky/hooks/target/etc/apparmor.d/labwc-session",
+      "d-i/forky/hooks/target/etc/nftables/README.md.tmpl",
+      "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/config.tmpl",
+      "d-i/forky/hooks/target/etc/tmpfiles.d/59-log-layout.conf.tmpl",
+      "d-i/forky/hooks/target/usr/local/bin/labwc-external-drives.tmpl",
+      "d-i/forky/hooks/target/usr/local/bin/labwc-qbittorrent",
+      "d-i/forky/hooks/target/usr/local/bin/labwc-remote-desktop.tmpl",
+      "d-i/forky/hooks/target/usr/local/bin/labwc-sync-application-launchers.tmpl",
+      "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py",
+      "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/integrity.py",
+      "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_namespace.py",
+      "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py.tmpl",
+      "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/sandbox.py",
+      "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py",
+      "d-i/forky/hooks/target/usr/local/libexec/labwc-chatgpt-log-runner.tmpl",
+      "d-i/forky/hooks/target/usr/local/libexec/log-layout.tmpl",
+      "d-i/forky/hooks/target/usr/local/libexec/rsyslog-size-rotate.tmpl",
+      "d-i/forky/hosts/logging/observability-schema.tsv",
+      "d-i/forky/hosts/logging/observability.env",
+      "d-i/forky/scripts/desktop/components/managed-apps.sh",
+      "d-i/forky/scripts/desktop/components/target-assets.sh",
+      "d-i/forky/scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl",
+      "d-i/forky/scripts/late/qemu.sh",
+      "d-i/forky/scripts/late/software.sh.tmpl",
+      "d-i/forky/tests/test_compz_qbittorrent_followup.py",
+      "d-i/forky/tests/test_desktop_integration_20260914.py",
+      "d-i/forky/tests/test_podman_incus_redesign.py",
+      "d-i/forky/hooks/target/etc/apparmor.d/abstractions/base.d/managed-process-monitor",
+      "d-i/forky/hooks/target/etc/apparmor.d/abstractions/managed-app-config",
+      "d-i/forky/hooks/target/etc/systemd/user/labwc-compat-.service.d/50-app-lifecycle.conf",
+      "d-i/forky/hooks/target/etc/systemd/user/labwc-devops-.service.d/60-stop-budget.conf",
+      "d-i/forky/hooks/target/etc/systemd/user/labwc-native-.service.d/50-app-lifecycle.conf",
+      "d-i/forky/hooks/target/etc/systemd/user/labwc-wayland-foot-.service.d/60-terminal-lifecycle.conf",
+      "d-i/forky/hooks/target/usr/local/libexec/labwc-gvfs-volume-monitor",
+      "d-i/forky/hooks/target/usr/share/dbus-1/services/org.gtk.vfs.LabwcVolumeMonitor.service",
+      "d-i/forky/hooks/target/usr/share/gvfs/remote-volume-monitors/labwc.monitor"
+    ],
+    "initial_files_with_only_requested_identifier_changes": [
+      {
+        "source": "d-i/forky/hooks/target/data/config/podman/templates/devops/containers.conf.tmpl",
+        "destination": "d-i/forky/hooks/target/data/config/podman/templates/devops/containers.conf.tmpl"
+      },
+      {
+        "source": "d-i/forky/hooks/target/data/config/podman/templates/devops/podman-devops.service.tmpl",
+        "destination": "d-i/forky/hooks/target/data/config/podman/templates/devops/podman-devops.service.tmpl"
+      },
+      {
+        "source": "d-i/forky/hooks/target/etc/apparmor.d/zoom-discord-compat.tmpl",
+        "destination": "d-i/forky/hooks/target/etc/apparmor.d/zoom-discord-compat.tmpl"
+      },
+      {
+        "source": "d-i/forky/hooks/target/etc/apparmor/modes.conf.tmpl",
+        "destination": "d-i/forky/hooks/target/etc/apparmor/modes.conf.tmpl"
+      },
+      {
+        "source": "d-i/forky/hooks/target/etc/nftables/services/podman.yml",
+        "destination": "d-i/forky/hooks/target/etc/nftables/services/podman.yml"
+      },
+      {
+        "source": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apparmor-modes/AppArmor/ManagedModes/Config.pm",
+        "destination": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apparmor-modes/AppArmor/ManagedModes/Config.pm"
+      },
+      {
+        "source": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor.pm.tmpl",
+        "destination": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor.pm.tmpl"
+      },
+      {
+        "source": "d-i/forky/hooks/target/usr/local/libexec/debugsys.py.tmpl",
+        "destination": "d-i/forky/hooks/target/usr/local/libexec/debugsys.py.tmpl"
+      },
+      {
+        "source": "d-i/forky/hooks/target/usr/local/libexec/podman-devops-host",
+        "destination": "d-i/forky/hooks/target/usr/local/libexec/podman-devops-host"
+      },
+      {
+        "source": "d-i/forky/scripts/desktop/verify.sh.tmpl",
+        "destination": "d-i/forky/scripts/desktop/verify.sh.tmpl"
+      },
+      {
+        "source": "d-i/forky/scripts/late/podman.sh",
+        "destination": "d-i/forky/scripts/late/podman.sh"
+      },
+      {
+        "source": "tools/build.py",
+        "destination": "tools/build.py"
+      },
+      {
+        "source": "d-i/forky/hooks/target/etc/modules-load.d/managed-veth.conf",
+        "destination": "d-i/forky/hooks/target/etc/modules-load.d/app-veth.conf"
+      },
+      {
+        "source": "d-i/forky/hooks/target/etc/rsyslog.d/18-managed-veth.conf.tmpl",
+        "destination": "d-i/forky/hooks/target/etc/rsyslog.d/18-app-veth.conf.tmpl"
+      },
+      {
+        "source": "d-i/forky/hooks/target/etc/sysctl.d/91-managed-veth.conf",
+        "destination": "d-i/forky/hooks/target/etc/sysctl.d/91-app-veth.conf"
+      },
+      {
+        "source": "d-i/forky/hooks/target/etc/systemd/resolved.conf.d/60-managed-veth.conf",
+        "destination": "d-i/forky/hooks/target/etc/systemd/resolved.conf.d/60-app-veth.conf"
+      },
+      {
+        "source": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_client.py",
+        "destination": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_client.py"
+      }
+    ],
+    "authored_delta_from_start": [
+      "BUILD-STATUS.md",
+      "README.md",
+      "d-i/forky/hooks/target/data/codex/lib/codex.tmpl",
+      "d-i/forky/hooks/target/etc/app-veth.json.tmpl",
+      "d-i/forky/hooks/target/etc/apparmor.d/abstractions/app-veth-client",
+      "d-i/forky/hooks/target/etc/apparmor.d/app-veth",
+      "d-i/forky/hooks/target/etc/apparmor.d/desktop-wrappers.tmpl",
+      "d-i/forky/hooks/target/etc/systemd/system/app-veth.service",
+      "d-i/forky/hooks/target/etc/systemd/user/labwc-gvfs-volume-monitor.service",
+      "d-i/forky/hooks/target/usr/local/libexec/app-veth-podman",
+      "d-i/forky/hooks/target/usr/local/sbin/app-veth",
+      "d-i/forky/hooks/target/usr/local/sbin/nft-policy-generate.py",
+      "d-i/forky/payload.manifest",
+      "d-i/forky/payload.tar.gz",
+      "d-i/forky/preseed.cfg",
+      "d-i/forky/scripts/late/security.sh",
+      "d-i/forky/tests/test_apparmor_incidents_20261004.py",
+      "d-i/forky/tests/test_codex_power_20260926.py",
+      "d-i/forky/tests/test_computer_management_20260916.py",
+      "d-i/forky/tests/test_desktop_sandbox.py",
+      "d-i/forky/tests/test_kernel_veth_networking.py",
+      "d-i/forky/tests/test_managed_app_review_20260921.py",
+      "d-i/forky/tests/test_thunar_native_drive_actions.py",
+      "d-i/forky/tests/test_zoom_discord_private_xwayland.py"
+    ],
+    "deleted_user_sources_preserved": true,
+    "private_xwayland_compatibility_sources_preserved": [
+      {
+        "path": "d-i/forky/hooks/target/etc/apparmor.d/zoom-discord-compat.tmpl",
+        "sha256": "c5542c54c589e36474bfc66fa5c406cec1c35540390b4ded6b89a9d7c2f8d3ed",
+        "only_network_abstraction_reference_renamed": true
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/compat_gpu.py",
+        "sha256": "c213a982f8738c247188e5a34b596f0f961066b47de4c217a03e782e714fae08",
+        "only_network_abstraction_reference_renamed": false
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/compat_instance.py",
+        "sha256": "7639cc177906bc289fe7a51fe79e8430f0d872c40083536bee111b379420b8b5",
+        "only_network_abstraction_reference_renamed": false
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/compat_portal.py",
+        "sha256": "8b15285d73bdfdc70dd980296e89349814cbd1183171c0e763a46371caa71ae1",
+        "only_network_abstraction_reference_renamed": false
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/compat_protocol.py",
+        "sha256": "401ac686869b9778f073d8b4c2e32987e28ecbddc926091a1975eb70d46549da",
+        "only_network_abstraction_reference_renamed": false
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat.py",
+        "sha256": "df51dcbb6d743225d3a8fc3730b7bb1112fc3e5fb5e85e004af6e0098cd389e0",
+        "only_network_abstraction_reference_renamed": false
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat_runtime.py",
+        "sha256": "8cf652c89584781611e31f60e28e11c2def1ab34033e6d2a4251f849a1b0193d",
+        "only_network_abstraction_reference_renamed": false
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-private-xwayland",
+        "sha256": "9feb923b2df307c816260734eb504586806f5ac6b00ef58bd1e127c13a43b652",
+        "only_network_abstraction_reference_renamed": false
+      },
+      {
+        "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-zoom-discord-compat-runtime",
+        "sha256": "71924415f611006700e6f65daab47d77dd81f73b17be0a47928c1e35f85d940b",
+        "only_network_abstraction_reference_renamed": false
+      },
+      {
+        "path": "d-i/forky/scripts/desktop/xwayland.sh",
+        "sha256": "33977e223d38797f75c0deb5c4b327dd0b7a5a95cbe5b06795a16419197ec903",
+        "only_network_abstraction_reference_renamed": false
+      }
+    ],
+    "payload_members": 1725,
+    "all_payload_bytes_match_sources_and_manifest": true,
+    "all_payload_metadata_verified": true,
+    "preseed_pins_verified": true,
+    "products_sha256": {
+      "payload.tar.gz": "509fd834b6e50fa498c074d5a9f0396bff1450fec16892cc7dc1715bddc551c4",
+      "payload.manifest": "dd578c27081603dcabf09c59b411ef70987f9f62cc8f832da6c15ad6e047f712",
+      "preseed.cfg": "a340e0eb144cb48acbf420960c3a1038a6e18d6aeed0fd813980dcf0f62fa2b3"
+    }
+  },
+  "installed_target": "Forky/systemd 261.2",
+  "local_validation_systemd": "262",
+  "kernel_policy_loaded": false,
+  "host_network_changed": false,
+  "software_compiled_from_source": false,
+  "live_deployment": false,
+  "remaining_acceptance": [
+    "installed enforced-policy GUI and Podman startup",
+    "actual resolved DNS, packet forwarding, external tracker/RPC traffic",
+    "root-owned filesystem and private desktop bus behavior",
+    "eDP-1 atomic EBUSY hardware cause remains unverified"
+  ]
+}

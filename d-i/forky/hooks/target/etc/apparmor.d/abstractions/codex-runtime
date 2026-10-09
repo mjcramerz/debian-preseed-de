@@ -81,6 +81,7 @@ deny /opt/vivaldi/extensions/ w,
 # Package discovery is read-only and limited to the metadata observed from
 # dpkg-query and apt-cache inside the Codex payload domain.
 /var/cache/apt/pkgcache.bin r,
+/var/lib/apt/extended_states r,
 /var/lib/apt/lists/ r,
 /var/lib/apt/lists/*_{InRelease,Release} r,
 /var/lib/apt/lists/*_{Packages,Translation-*} r,
@@ -104,3 +105,13 @@ owner /run/systemd/{,**} rwkl,
 # No blanket /proc/** write grant and no host sysctl-write authority.
 deny @{PROC}/sys/** wklx,
 deny @{PROC}/{sysrq-trigger,kcore,keys,timer_list} rwklx,
+
+# Existing rootless operator API for stdio MCPs in private network namespaces.
+/run/podman-devops/ r,
+/run/podman-devops/podman.sock rw,
+# Codex app-server and MCP Unix endpoints are explicitly mounted into the
+# private Bubblewrap root. Keep the paths narrow even though the surrounding
+# managed storage policy remains available for application state.
+/data/codex/sockets/ r,
+/data/codex/sockets/{app-server-backend.sock,app-server-control.sock,codex-mcp.sock} rw,
+@{PROC}/@{pid}/net/{tcp,tcp6,udp,udp6} r,
