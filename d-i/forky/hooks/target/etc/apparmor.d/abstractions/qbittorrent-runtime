@@ -22,7 +22,7 @@ network inet6 dgram,
 /sys/devices/**/nvme/nvme[0-9]*/nvme[0-9]*n[0-9]*/{dev,queue/{rotational,dax}} r,
 # External links remain in the payload's no_new_privs domain; xdg-open uses
 # desktop IPC rather than requesting an unconfined exec.
-/usr/bin/{xdg-open,hostname,printf} rix,
+/usr/bin/{xdg-open,printf} rix,
 @{PROC}/version r,
 # Read-only socket diagnostics; the bwrap payload has private PID and netns.
 @{PROC}/@{pid}/net/{tcp,tcp6,udp,udp6} r,

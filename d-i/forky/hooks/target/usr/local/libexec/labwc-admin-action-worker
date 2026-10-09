@@ -640,6 +640,8 @@ class Worker:
         if self.action not in {"logout", "reboot", "poweroff"}:
             raise Error("account teardown requires logout or machine shutdown")
         self.require_package_reservation()
+        if self.action in {"reboot", "poweroff"} and not self.external_drives_prepared:
+            raise Error("session teardown requires successful external-drive preparation")
         # Once committed, one failed stop must not strand a half-closed desktop.
         # Queue stops first (disabling restart), then use PID 1's cgroup-wide
         # TERM/KILL paths. No process-name matching and no caller-owned worker.

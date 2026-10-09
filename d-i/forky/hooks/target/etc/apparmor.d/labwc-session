@@ -222,6 +222,8 @@ profile session-controls /usr/bin/{kanshi,swaybg,swayidle,swaylock,wlr-randr,wlr
   owner @{HOME}/.cache/glycin/ rw,
   owner @{HOME}/.cache/glycin/** rwkl,
   ptrace (read) peer=labwc-compositor,
+  # Browser notifications hand Mako a PNG from their private scoped temp dir.
+  owner /run/user/[0-9]*/labwc-{chromium,microsoft-edge,vivaldi}-tmp/.*.scoped_dir.*/icon.png r,
   owner /run/user/[0-9]*/labwc-capture/ r,
   owner /run/user/[0-9]*/labwc-capture/satty-source.*.png rw,
   owner /run/user/[0-9]*/wayscriber/ rw,
@@ -253,6 +255,8 @@ profile session-glycin-bwrap flags=(attach_disconnected, mediate_deleted) {
   /usr/{,local/}share/icons/** r,
   /usr/share/backgrounds/ r,
   /usr/share/backgrounds/** r,
+  # Preserve the same read bound when the icon is passed to an image loader.
+  owner /run/user/[0-9]*/labwc-{chromium,microsoft-edge,vivaldi}-tmp/.*.scoped_dir.*/icon.png r,
   owner /tmp/gdk-pixbuf-glycin-tmp.* rwk,
   owner @{HOME}/.config/swaylock/config r,
   owner @{HOME}/.cache/fontconfig/ r,

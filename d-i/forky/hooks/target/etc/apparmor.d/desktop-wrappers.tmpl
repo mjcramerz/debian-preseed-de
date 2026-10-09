@@ -2397,7 +2397,7 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   /etc/freerdp/{,**} r,
   /etc/krb5.conf{,.d/,.d/**} r,
   /usr/local/bin/labwc-freerdp-askpass r,
-  /etc/opt/{,edge/,edge/**} r,
+  /etc/opt/{,chrome/,chrome/**,edge/,edge/**} r,
   /etc/vivaldi/{,**} r,
   /var/lib/dbus/ r,
   /var/lib/dbus/machine-id r,
@@ -2451,10 +2451,10 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     # redirection at this sandbox path. No generic HOME write grant is needed.
     /rdp-shared/ rw,
     /rdp-shared/** rwkl,
-    /etc/opt/{,edge/,edge/**} r,
+    /etc/opt/{,chrome/,chrome/**,edge/,edge/**} r,
     # Browser mkdir probes run against the sandbox's synthetic /etc.
-    # Only this directory is writable; host policy files remain read-only.
-    owner /etc/opt/ rw,
+    # Only the probed directories are writable; host policy files stay read-only.
+    owner /etc/opt/{,chrome/,chrome/native-messaging-hosts/} rw,
     /etc/vivaldi/{,**} r,
     # File-chooser selection does not grant AppArmor access by itself. Tuta's
     # attachments/downloads and managed browser file access use these roots;
@@ -2526,6 +2526,7 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     owner @{HOME}/.local/share/** rwkl,
     owner @{HOME}/.local/state/ rw,
     owner @{HOME}/.local/state/** rwkl,
+    owner @{HOME}/Postman/{,**} rwkl,
     owner @{HOME}/Syncthing/ rw,
     owner @{HOME}/Syncthing/.stignore rwkl,
     owner @{HOME}/Syncthing/keepassxc/ rw,

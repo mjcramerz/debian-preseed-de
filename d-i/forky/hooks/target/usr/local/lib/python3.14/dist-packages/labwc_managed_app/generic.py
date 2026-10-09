@@ -398,10 +398,10 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         f"--unit={unit}", f"--description=Labwc {kind} application: {label}",
         "--property=Requisite=labwc-session.target",
         "--property=After=labwc-session.target" + (
-            " gvfs-daemon.service labwc-gvfs-volume-monitor.service thunar.service" if is_thunar else ""),
+            " gvfs-daemon.service labwc-gvfs-volume-monitor.service" if is_thunar else ""),
         "--property=PartOf=labwc-session.target",
         *(["--property=Wants=gvfs-daemon.service",
-           "--property=Requires=labwc-gvfs-volume-monitor.service thunar.service",
+           "--property=Requires=labwc-gvfs-volume-monitor.service",
            "--property=PrivateMounts=no"] if is_thunar else []),
         *(["--property=PrivateNetwork=no", "--property=PrivateMounts=no"] if is_capture else []),
         # Waypaper temporarily owns swaybg while its GUI is open. Stop the

@@ -5,10 +5,12 @@ import importlib.util
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
+from unittest import mock
 
-from payload_fixture import read_text
+from payload_fixture import python_library, read_text
 from theme_fixture import render_theme_tree
 
 
@@ -198,9 +200,19 @@ class SuppliedDenialTests(unittest.TestCase):
         btop_actions = [line for line in waybar.splitlines() if 'labwc-terminal -e btop' in line]
         self.assertEqual(len(btop_actions), 4)
         for action in btop_actions:
-            self.assertIn('ExitType=main', action)
-            self.assertIn('ProtectProc=default', action)
-            self.assertIn('ProcSubset=all', action)
+            self.assertIn('"on-click": "/usr/local/bin/labwc-terminal -e btop"', action)
+        terminal = read_text(SEED / 'hooks/target/usr/local/bin/labwc-terminal')
+        self.assertIn('exec /usr/local/bin/labwc-wayland-app auto -- "$terminal_exec" -e "$@"', terminal)
+        with mock.patch.object(sys, 'path', [str(python_library(
+                SEED / 'hooks/target/usr/local/lib/python3.14/dist-packages')), *sys.path]):
+            from labwc_managed_app import generic
+        with mock.patch.object(generic, 'assert_launch_allowed'), \
+             mock.patch.object(generic, 'restart_token', return_value='fixture'), \
+             mock.patch.object(generic, 'menu_action_wait_arguments', return_value=[]):
+            for executable in ('/usr/bin/foot', '/usr/bin/kitty', '/usr/bin/terminal-emulator'):
+                argv = generic.transient_argv('wayland', 'auto', [executable, '-e', 'btop'], {})
+                for property_ in ('ExitType=main', 'ProtectProc=default', 'ProcSubset=all'):
+                    self.assertIn('--property=' + property_, argv)
 
     @unittest.skipUnless(shutil.which('apparmor_parser') and importlib.util.find_spec('apparmor'),
                          'native AppArmor parser/rule reader unavailable')
@@ -383,7 +395,7 @@ class SuppliedDenialTests(unittest.TestCase):
             # files independently, then combine only the parser's output.
             for name in ('desktop-wrappers', 'desktop-utilities', 'document-applications',
                          'usr.bin.qbittorrent', 'usr.sbin.tailscaled', 'firstboot', 'app-veth',
-                         'zoom-discord-compat'):
+                         'zoom-discord-compat', 'labwc-session', 'opt.postman.app.Postman'):
                 for option, output in (('-d', debug_output), ('--dump=rule-exprs', converted_output)):
                     result = subprocess.run([*argv, option, str(base / name)], capture_output=True,
                                             text=True, encoding='utf-8', timeout=30)
@@ -423,8 +435,8 @@ class SuppliedDenialTests(unittest.TestCase):
                 if event['class'] != 'file':
                     continue
                 with self.subTest(installed_october_9=event):
-                    self.assertLessEqual(set(event['requested_mask']), set('cr'))
-                    required = set(event['requested_mask'].replace('c', 'w'))
+                    self.assertLessEqual(set(event['requested_mask']), set('crwxmd'))
+                    required = set(event['requested_mask'].replace('c', 'w').replace('d', 'w'))
                     self.assertLessEqual(required, permissions(event['profile'], event['name'],
                                                               owned=event['fsuid'] == event['ouid']))
             # Replay every file denial class from the October 9 installed logs.
@@ -433,7 +445,52 @@ class SuppliedDenialTests(unittest.TestCase):
                 self.assertTrue(set('rw') <= permissions('desktop-btop', filename))
                 self.assertNotIn('w', permissions('desktop-btop', filename, owned=False))
             payload = 'labwc-app//app-bwrap'
+            # Replay the new browser/notification denials with compiler-expanded
+            # owner bounds and inherited execution in the existing payload.
+            for helper in ('hostname', 'file', 'expr'):
+                for prefix in ('/usr/bin/', '/bin/'):
+                    self.assertTrue(set('rx') <= permissions(payload, prefix + helper, owned=False))
+                self.assertIn('/{,usr/}bin/{hostname,file,expr} rix,',
+                              read_text(AA / 'abstractions/desktop-runtime'))
+            for filename in ('/etc/chromium.d/90-performance-flags',
+                             '/etc/magic', '/usr/lib/file/magic.mgc'):
+                self.assertIn('r', permissions(payload, filename, owned=False))
+                self.assertNotIn('w', permissions(payload, filename, owned=False))
+            for label in ('labwc-app//app-bwrap', 'qbittorrent',
+                          'labwc-qbittorrent//qbittorrent-bwrap', 'postman', 'session-controls'):
+                self.assertTrue(set('rx') <= permissions(label, '/usr/bin/hostname', owned=False))
+                self.assertIn('w', permissions(label, '/home/fixture/'))
+                self.assertNotIn('w', permissions(label, '/home/fixture/', owned=False))
+            self.assertTrue(set('rw') <= permissions(payload, '/run/user/1000/pulse/'))
+            self.assertNotIn('w', permissions(payload, '/run/user/1000/pulse/', owned=False))
+            # Direct audio clients retain read-only host-directory metadata.
+            self.assertNotIn('w', permissions('postman', '/run/user/1000/pulse/'))
+            self.assertTrue(set('rw') <= permissions('postman', '/home/fixture/Postman/files/'))
+            self.assertTrue(set('rw') <= permissions(payload, '/home/fixture/Postman/files/'))
+            self.assertNotIn('w', permissions(payload, '/home/fixture/Postman/files/', owned=False))
+            cdm = '/home/fixture/.config/vivaldi/WidevineCdm/4.10.3112.0/_platform_specific/linux_x64/libwidevinecdm.so'
+            self.assertIn('m', permissions(payload, cdm))
+            self.assertNotIn('m', permissions(payload, cdm, owned=False))
+            self.assertNotIn('m', permissions(payload, '/home/fixture/.config/vivaldi/unrelated.so'))
+            for label in ('session-controls', 'session-glycin-bwrap'):
+                for app, prefix in (('vivaldi', 'com.vivaldi.Vivaldi'),
+                                    ('chromium', 'org.chromium.Chromium'),
+                                    ('microsoft-edge', 'com.microsoft.Edge')):
+                    icon = f'/run/user/1000/labwc-{app}-tmp/.{prefix}.scoped_dir.r8I9pb/icon.png'
+                    self.assertEqual(permissions(label, icon), {'r'})
+                    self.assertFalse(permissions(label, icon, owned=False))
+                    for filename in (icon.replace('icon.png', 'Cookies'),
+                                     icon.replace('icon.png', 'nested/icon.png'),
+                                     icon.replace('icon.png', 'icon.png.exe'),
+                                     icon.replace('-tmp/', '-tmp-neighbor/'),
+                                     icon.replace('labwc-' + app, 'labwc-code')):
+                        self.assertFalse(permissions(label, filename), (label, filename))
             self.assertTrue(set('rw') <= permissions(payload, '/etc/opt/'))
+            for directory in ('/etc/opt/chrome/', '/etc/opt/chrome/native-messaging-hosts/'):
+                self.assertTrue(set('rw') <= permissions(payload, directory))
+                self.assertNotIn('w', permissions(payload, directory, owned=False))
+            self.assertNotIn('w', permissions(payload, '/etc/opt/chrome/policies/managed/policy.json'))
+            self.assertNotIn('w', permissions(payload, '/etc/opt/chrome/native-messaging-hosts/untrusted.json'))
             self.assertNotIn('w', permissions(payload, '/etc/opt/edge/policies/managed/policy.json', owned=False))
             proxy = '/home/fixture/.mozilla/native-messaging-hosts/.bitwarden_desktop_proxy'
             self.assertTrue(set('rwx') <= permissions(payload, proxy))

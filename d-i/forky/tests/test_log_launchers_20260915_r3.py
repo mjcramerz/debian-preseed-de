@@ -403,7 +403,14 @@ class AppArmorCoverageTests(unittest.TestCase):
         command = '/usr/local/bin/labwc-wayland-app auto -- /usr/bin/thunar'
         self.assertIn('command="' + command + '"', menu)
         self.assertEqual(shortcuts.count('command="' + command + '"'), 2)
-        self.assertEqual(waybar.count('-- /usr/bin/env GDK_DEBUG=nogl __INSTALLER_LABWC_FILE_MANAGER_COMMAND__'), 2)
+        self.assertEqual(waybar.count('/usr/local/bin/labwc-wayland-app auto -- __INSTALLER_LABWC_FILE_MANAGER_COMMAND__'), 2)
+        for command, count in (('/usr/local/bin/labwc-terminal', 2),
+                               ('/usr/local/bin/labwc-terminal --micro', 2),
+                               ('/usr/local/bin/labwc-terminal -e ncdu /', 2),
+                               ('/usr/local/bin/labwc-terminal -e btop', 4)):
+            self.assertEqual(waybar.count('"on-click": "' + command + '"'), count)
+        preferences = ET.fromstring(payload_read_text(skel / 'xfce4/xfconf/xfce-perchannel-xml/thunar.xml'))
+        self.assertEqual(preferences.find('property[@name="misc-volume-management"]').get('value'), 'false')
         for profile in (FORKY / 'hosts/profiles').glob('*.env'):
             self.assertIn('LABWC_FILE_MANAGER_COMMAND="thunar"', profile.read_text())
 

@@ -10,6 +10,10 @@
 
 #include <abstractions/electron-runtime>
 
+# The runtime mounts only pulse/native into an application-owned directory,
+# so libpulse may manage that private directory without changing the host one.
+owner /run/user/[0-9]*/pulse/ rw,
+
 # Nested desktop/URI launchers read policy but cannot reach the lease socket,
 # which the private /run mount hides from every payload.
 /etc/app-veth.json r,

@@ -542,10 +542,11 @@ class ServiceAndNotificationTests(unittest.TestCase):
             self.assertEqual(env['GIO_USE_VOLUME_MONITOR'], 'GProxyVolumeMonitorLabwc')
             for setting in ('PrivateUsers=no', 'PrivatePIDs=no', 'PrivateMounts=no',
                             'Wants=gvfs-daemon.service',
-                            'Requires=labwc-gvfs-volume-monitor.service thunar.service',
-                            'After=labwc-session.target gvfs-daemon.service labwc-gvfs-volume-monitor.service thunar.service',
+                            'Requires=labwc-gvfs-volume-monitor.service',
+                            'After=labwc-session.target gvfs-daemon.service labwc-gvfs-volume-monitor.service',
                             'PartOf=labwc-session.target'):
                 self.assertIn('--property=' + setting, argv)
+            self.assertFalse(any('thunar.service' in item for item in argv))
             for setting in ('PrivateTmp=yes', 'PrivateIPC=yes', 'ProtectSystem=full'):
                 self.assertNotIn('--property=' + setting, argv)
             self.assertIn('--setenv=GIO_USE_VFS', argv)

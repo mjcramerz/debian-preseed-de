@@ -211,6 +211,69 @@ class ForceUnitConfinementTests(unittest.TestCase):
 
 
 class ExternalDrivePreparationTests(unittest.TestCase):
+    def test_drive_completion_precedes_desktop_and_greeter_session_teardown(self):
+        power = module()
+        for action in ('reboot', 'poweroff'):
+            for greeter in (False, True):
+                for failed in (False, True):
+                    with self.subTest(action=action, greeter=greeter, failed=failed):
+                        worker = power.Worker(1000, 'desktop', action, greeter=greeter)
+                        worker.package_locks = mock.Mock()
+                        events = []
+                        def command(argv, **kwargs):
+                            events.append(argv)
+                            if argv[-2:] == ['start', power.EXTERNAL_DRIVES_UNIT]:
+                                if failed:
+                                    raise power.Error('drive preparation failed')
+                                return ''
+                            if argv[:3] == ['/usr/bin/systemctl', 'show', power.EXTERNAL_DRIVES_UNIT]:
+                                return ('LoadState=loaded\nActiveState=inactive\nSubState=dead\n'
+                                        'Result=success\nExecMainStatus=0\n')
+                            return ''
+                        with contextlib.ExitStack() as stack:
+                            stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+                            stack.enter_context(mock.patch.object(power, 'run', side_effect=command))
+                            stack.enter_context(mock.patch.object(power, 'check_shutdown_inhibitors'))
+                            stack.enter_context(mock.patch.object(worker, 'protect_other_sessions'))
+                            stack.enter_context(mock.patch.object(worker, 'session_identity', return_value='fixture'))
+                            stack.enter_context(mock.patch.object(worker, 'stop_network_sharing'))
+                            stops = stack.enter_context(mock.patch.object(worker, 'stop_units',
+                                side_effect=lambda names: events.append(['stop-units', *names])))
+                            userctl = stack.enter_context(mock.patch.object(worker, 'userctl',
+                                side_effect=lambda *args, **kwargs: events.append(['userctl', *args])))
+                            stack.enter_context(mock.patch.object(worker, 'wait_for_exit', return_value=True))
+                            if failed:
+                                with self.assertRaisesRegex(power.Error, 'drive preparation failed'):
+                                    worker.prepare_machine_shutdown('fixture')
+                                stops.assert_not_called()
+                                userctl.assert_not_called()
+                                self.assertFalse(worker.committed or worker.session_stopped)
+                                self.assertFalse(any('terminate-user' in event for event in events))
+                            else:
+                                worker.prepare_machine_shutdown('fixture')
+                                verified = next(i for i, event in enumerate(events) if event[:3] ==
+                                                ['/usr/bin/systemctl', 'show', power.EXTERNAL_DRIVES_UNIT])
+                                greetd = events.index(['stop-units', 'greetd.service'])
+                                terminated = events.index(['/usr/bin/loginctl', 'terminate-user', '1000'])
+                                self.assertLess(verified, greetd)
+                                self.assertLess(greetd, terminated)
+                                self.assertTrue(worker.external_drives_prepared)
+                                self.assertTrue(worker.session_stopped and worker.storage_stopped)
+
+    def test_power_session_teardown_requires_verified_drive_preparation(self):
+        power = module()
+        for action in ('reboot', 'poweroff'):
+            for greeter in (False, True):
+                with self.subTest(action=action, greeter=greeter):
+                    worker = power.Worker(1000, 'desktop', action, greeter=greeter)
+                    worker.package_locks = mock.Mock()
+                    with mock.patch.object(power, 'run') as run, \
+                         mock.patch.object(worker, 'userctl') as userctl, \
+                         self.assertRaisesRegex(power.Error, 'external-drive preparation'):
+                        worker.terminate_user()
+                    run.assert_not_called()
+                    userctl.assert_not_called()
+
     def test_nonzero_missing_failed_or_running_service_never_marks_drives_prepared(self):
         power = module()
         for properties in (

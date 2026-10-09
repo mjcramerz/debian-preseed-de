@@ -64,20 +64,23 @@ class TorrentServiceTests(unittest.TestCase):
         self.assertEqual(environment['HOME'], '/home/desktop')
         self.assertTrue({'LD_PRELOAD', 'PYTHONPATH', 'DISPLAY', 'LABWC_SESSION_APP'}.isdisjoint(environment))
         for item in ('--collect', '--property=Requisite=labwc-session.target',
-                     '--property=PartOf=labwc-session.target', '--property=ExitType=cgroup',
-                     '--property=KillMode=control-group'):
+                     '--property=PartOf=labwc-session.target', '--property=ExitType=main',
+                     '--property=KillMode=control-group', '--property=UMask=0077'):
             self.assertIn(item, argv)
         self.assertEqual(argv[argv.index('--') + 1:],
                          ['/usr/local/bin/labwc-qbittorrent', 'magnet:?xt=fixture'])
 
     def test_only_real_managed_service_membership_skips_the_handoff(self):
-        for prefix in ('labwc-native-qbittorrent-', 'labwc-qbittorrent-'):
+        for prefix in ('labwc-native-qbittorrent-', 'labwc-qbittorrent-',
+                       'labwc-wayland-qbittorrent-', 'labwc-wayland-labwc-qbittorrent-'):
             for marker in ('', '1'):
                 with self.subTest(prefix=prefix, marker=marker):
                     executed = self.redirect('0::/user.slice/' + prefix + 'a' * 32 + '.service\n',
                                              LABWC_QBITTORRENT_SESSION_UNIT=marker)
                     executed.assert_not_called()
         for membership in ('0::/user.slice/not-qbittorrent.service\n',
+                           '0::/user.slice/labwc-wayland-qbittorrent-evil-' + 'a' * 32 + '.service\n',
+                           '0::/user.slice/labwc-wayland-labwc-qbittorrent-' + 'a' * 31 + '.service\n',
                            '0::/user.slice/labwc-qbittorrent-' + 'a' * 32 + '.service/child\n'):
             with self.subTest(membership=membership), self.assertRaises(SystemExit):
                 self.redirect(membership, LABWC_QBITTORRENT_SESSION_UNIT='1')

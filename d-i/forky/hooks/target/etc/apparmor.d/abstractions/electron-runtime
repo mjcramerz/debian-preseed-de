@@ -5,6 +5,10 @@
 
 #include <abstractions/desktop-runtime>
 
+/etc/chromium.d/{,**} r,
+# Browser-downloaded CDM: map only this library in the browser-owned profile.
+owner @{HOME}/.config/{chromium,google-chrome,microsoft-edge,vivaldi}/WidevineCdm/*/_platform_specific/*/libwidevinecdm.so mr,
+
 io_uring,
 mqueue type=posix,
 

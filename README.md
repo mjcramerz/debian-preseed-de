@@ -1,7 +1,7 @@
 # Debian Forky unattended desktop installation
 
 Preseed sources, target configuration and deployment helpers for the labwc
-Wayland desktop. The deployment target is Debian Forky with systemd 261.2.
+Wayland desktop. The deployment target is Debian Forky with systemd 262.
 Review the selected host profile, disk identifiers and credentials before use;
 installation repartitions the selected disks.
 

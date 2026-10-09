@@ -1177,6 +1177,7 @@ class DesktopLaunchTests(unittest.TestCase):
                 stack.enter_context(mock.patch.object(sandbox, "build_environment", return_value=env))
                 stack.enter_context(mock.patch.object(sandbox, "persistent_sandbox_argv", return_value=[profiles.APPS[app]["exec"], "literal-url"]))
                 stack.enter_context(mock.patch.object(sandbox, "require_root_owned_executable", side_effect=lambda label, path: path))
+                optional_bind = stack.enter_context(mock.patch.object(sandbox, "add_optional_bind", wraps=sandbox.add_optional_bind))
                 stack.enter_context(mock.patch.object(sandbox, "current_user_runtime_socket", return_value=str(runtime/"wayland-0")))
                 for name in ("start_session_bus_proxy", "start_system_bus_proxy"):
                     stack.enter_context(mock.patch.object(sandbox, name, return_value=(None, None, None)))
@@ -1190,6 +1191,8 @@ class DesktopLaunchTests(unittest.TestCase):
                     self.assertNotIn("literal-url", command)
                     self.assertNotIn("--share-net", command)
                     self.assertIn("--unshare-all", command)
+                    if app in {"chromium", "microsoft-edge", "vivaldi"}:
+                        optional_bind.assert_any_call(command, "--ro-bind", "/etc/opt/chrome", "/etc/opt/chrome")
                     sandbox.validate_private_procfs(command)
                     resolver = command[command.index("/etc/resolv.conf")-1]
                     if app in policies:
@@ -1511,7 +1514,7 @@ print("native boot pool: 32 fixed pairs DOWN, gateway addresses, stable names/in
         # namespace. The host network is never entered or modified. A local
         # UDP echo endpoint stands in for resolved; this verifies packet/NAT
         # plumbing, not resolved's DNS processing or any Internet access.
-        script = '''import importlib.machinery, importlib.util, ipaddress, json, os, socket, subprocess, sys, threading
+        script = '''import importlib.machinery, importlib.util, ipaddress, json, os, select, socket, subprocess, sys, threading
 sys.path.insert(0,sys.argv[2])
 policies=json.loads(sys.argv[3])
 loader=importlib.machinery.SourceFileLoader("fixture_broker",sys.argv[1])
@@ -1526,7 +1529,7 @@ b.route=lambda **options:("dummy0","192.0.2.1",1500)
 b.nft(b.RULESET)
 endpoints=b.EndpointPool(ipaddress.IPv4Network("10.203.0.0/24"))
 child=subprocess.Popen(["/usr/bin/unshare","-n","/usr/bin/sleep","30"])
-fd=None; network=None
+fd=None; network=None; remote=None; remote_fd=None
 try:
     import time
     for attempt in range(100):
@@ -1547,14 +1550,86 @@ try:
     blocked="import socket;s=socket.socket();s.settimeout(.2);assert s.connect_ex(('10.203.0.1',53053)) != 0"
     b.run(["/usr/bin/nsenter",f"--net=/proc/self/fd/{fd}","--",sys.executable,"-I","-B","-c",blocked],fds=(fd,))
     network.close();network=None
-    # Exercise the actual qBittorrent source-NAT map transaction too.
+    # Model an Internet peer behind an isolated routed uplink. The peer's
+    # public test address is outside the LAN blocklist; no real network exists.
+    remote=subprocess.Popen(["/usr/bin/unshare","-n","/usr/bin/sleep","30"])
+    for attempt in range(100):
+        time.sleep(.01)
+        remote_fd=os.open(f"/proc/{remote.pid}/ns/net",os.O_RDONLY)
+        if os.fstat(remote_fd).st_ino != os.stat("/proc/self/ns/net").st_ino: break
+        os.close(remote_fd);remote_fd=None
+    assert remote_fd is not None
+    b.run(["/usr/sbin/ip","link","del","dummy0"])
+    b.run(["/usr/sbin/ip","link","add","dummy0","type","veth","peer","name","wanpeer"])
+    b.run(["/usr/sbin/ip","link","set","wanpeer","netns",f"/proc/self/fd/{remote_fd}"],fds=(remote_fd,))
+    b.run(["/usr/sbin/ip","-batch","-"],data="addr add 192.0.2.1/24 dev dummy0\\nlink set dummy0 up\\nroute add 203.0.113.2/32 via 192.0.2.2 dev dummy0\\n")
+    b.run(["/usr/bin/nsenter",f"--net=/proc/self/fd/{remote_fd}","--","/usr/sbin/ip","-batch","-"],
+          data="link set lo up\\naddr add 203.0.113.2/32 dev lo\\naddr add 192.0.2.2/24 dev wanpeer\\nlink set wanpeer up\\nroute add default via 192.0.2.1 dev wanpeer\\n",fds=(remote_fd,))
+    b.refresh_lan_networks(None)
+    # A second forward hook defaults to drop, as the installed base policy does.
+    b.nft('table inet fixture_base { chain forward { type filter hook forward priority 0; policy drop; '
+          'iifname '+b.INTERFACE_MATCH+' accept; oifname '+b.INTERFACE_MATCH+' accept; } }')
     network=b.Network(0,fd,"qbittorrent",os.getuid(),policies["qbittorrent"],ipaddress.IPv4Network("10.203.0.0/24"),endpoints)
+    port=policies["qbittorrent"]["peer_port"]
+    server_code="""import socket,sys
+kind=int(sys.argv[1]); address=sys.argv[2]; port=int(sys.argv[3]); expected=sys.argv[4]
+with socket.socket(socket.AF_INET,kind) as listener:
+    listener.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
+    listener.settimeout(4); listener.bind((address,port))
+    if kind==socket.SOCK_STREAM: listener.listen(1)
+    print('ready',flush=True)
+    if kind==socket.SOCK_DGRAM:
+        data,peer=listener.recvfrom(2048)
+        assert peer[0]==expected
+        if expected=='192.0.2.1': assert peer[1]==int(sys.argv[5])
+        listener.sendto(data,peer)
+    else:
+        connection,peer=listener.accept()
+        with connection:
+            connection.settimeout(4); assert peer[0]==expected
+            if expected=='192.0.2.1': assert peer[1]==int(sys.argv[5])
+            received=b''
+            while len(received)<131072:
+                part=connection.recv(65536); assert part; received+=part
+            connection.sendall(received)
+"""
+    client_code="""import socket,sys
+kind=int(sys.argv[1]); address=sys.argv[2]; port=int(sys.argv[3]); source=sys.argv[4]; source_port=int(sys.argv[5])
+payload=b'p'*(1024 if kind==socket.SOCK_DGRAM else 131072)
+with socket.socket(socket.AF_INET,kind) as connection:
+    connection.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
+    connection.settimeout(4); connection.bind((source,source_port)); connection.connect((address,port))
+    connection.sendall(payload); received=b''
+    while len(received)<len(payload):
+        part=connection.recv(65536); assert part; received+=part
+    assert received==payload
+"""
+    def exchange(server_fd,client_fd,kind,server_address,destination,listen_port,source,source_port,expected):
+        prefix=["/usr/bin/nsenter",f"--net=/proc/self/fd/{server_fd}","--",sys.executable,"-I","-B","-c"]
+        server=subprocess.Popen([*prefix,server_code,str(kind),server_address,str(listen_port),expected,str(port)],
+                                pass_fds=(server_fd,),stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding='utf-8')
+        try:
+            assert select.select([server.stdout],[],[],5)[0], 'peer fixture did not become ready'
+            assert server.stdout.readline()=='ready\\n'
+            b.run(["/usr/bin/nsenter",f"--net=/proc/self/fd/{client_fd}","--",sys.executable,"-I","-B","-c",
+                   client_code,str(kind),destination,str(listen_port),source,str(source_port)],fds=(client_fd,))
+            output,error=server.communicate(timeout=5)
+            assert server.returncode==0,error
+        finally:
+            if server.poll() is None: server.kill()
+            server.communicate(timeout=5)
+    for kind in (socket.SOCK_STREAM,socket.SOCK_DGRAM):
+        exchange(remote_fd,fd,kind,'203.0.113.2','203.0.113.2',4242,network.address,port,'192.0.2.1')
+        exchange(fd,remote_fd,kind,network.address,'192.0.2.1',port,'203.0.113.2',0,'203.0.113.2')
+    b.run(["/usr/bin/nsenter",f"--net=/proc/self/fd/{fd}","--",sys.executable,"-I","-B","-c",blocked],fds=(fd,))
     network.close();network=None
-    print("isolated kernel veth UDP DNS NAT, host guard and qBittorrent transaction passed")
+    print("isolated kernel veth UDP DNS NAT, host guard and qBittorrent bidirectional TCP/UDP payloads passed")
 finally:
     if network is not None: network.close()
     endpoints.close()
     if fd is not None: os.close(fd)
+    if remote_fd is not None: os.close(remote_fd)
+    if remote is not None: remote.terminate();remote.wait(timeout=5)
     child.terminate();child.wait(timeout=5)
 '''
         result = subprocess.run(["/usr/bin/unshare", "-Urnmpf", "--mount-proc", sys.executable, "-I", "-B", "-c", script, broker.__file__, str(LIBRARY), json.dumps(DEFAULT_POLICIES)],

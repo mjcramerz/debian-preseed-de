@@ -662,20 +662,21 @@ PERSISTENT_SANDBOX_CONFIG = {
         "camera_devices": True,
         "persistent_paths": (".cache/chromium", ".config/chromium", ".pki/nssdb",
                              ".local/state/browser-devtools/chromium"),
+        "ro_bind_paths": ("/etc/opt/chrome",),
     },
     "microsoft-edge": {
         **NATIVE_VETH_SANDBOX_DEFAULTS,
         "camera_devices": True,
         "persistent_paths": (".cache/microsoft-edge", ".config/microsoft-edge",
                              ".pki/nssdb", ".local/state/browser-devtools/microsoft-edge"),
-        "ro_bind_paths": ("/opt/microsoft/msedge", "/etc/opt/edge"),
+        "ro_bind_paths": ("/opt/microsoft/msedge", "/etc/opt/edge", "/etc/opt/chrome"),
     },
     "vivaldi": {
         **NATIVE_VETH_SANDBOX_DEFAULTS,
         "camera_devices": True,
         "persistent_paths": (".cache/vivaldi", ".config/vivaldi", ".pki/nssdb",
                              ".local/state/browser-devtools/vivaldi"),
-        "ro_bind_paths": ("/opt/vivaldi", "/etc/vivaldi"),
+        "ro_bind_paths": ("/opt/vivaldi", "/etc/vivaldi", "/etc/opt/chrome"),
     },
     "mullvad-browser": {
         **NATIVE_VETH_SANDBOX_DEFAULTS,

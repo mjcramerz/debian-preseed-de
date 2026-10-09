@@ -34,11 +34,34 @@ def inventory():
 
 
 class WiringTests(unittest.TestCase):
+    @unittest.skipIf(os.getuid() == 0, 'volume monitor requires a desktop uid')
+    def test_real_unix_signal_stops_the_loop_without_deprecated_api_or_a_bus(self):
+        script = '''import gi, os, runpy, signal, sys, warnings
+warnings.simplefilter('error', gi.PyGIDeprecationWarning)
+module=runpy.run_path(sys.argv[1],run_name='fixture')
+GLib=module['GLib']
+class Monitor:
+    failed=False
+    def __init__(self,address): self.loop=GLib.MainLoop()
+    def acquire(self):
+        GLib.timeout_add(20,lambda:(os.kill(os.getpid(),signal.SIGTERM),GLib.SOURCE_REMOVE)[1])
+    def stop(self): self.loop.quit(); return GLib.SOURCE_REMOVE
+    def close(self): print('closed',flush=True)
+module['main'].__globals__['Monitor']=Monitor
+sys.argv=[sys.argv[1]]
+assert module['main']()==0
+'''
+        result = subprocess.run(['/usr/bin/python3', '-I', '-B', '-c', script,
+                                 str(TARGET / 'usr/local/libexec/labwc-gvfs-volume-monitor')],
+                                capture_output=True, text=True, encoding='utf-8', timeout=5)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, 'closed\n')
+
     def test_dbus_primary_and_transient_clients_share_the_native_monitor(self):
         path = 'etc/systemd/user/thunar.service.d/50-labwc-session.conf'
         unit = (TARGET / path).read_text(encoding='utf-8')
         for setting in ('Type=dbus', 'BusName=org.xfce.FileManager',
-                        'ExecStart=/usr/bin/Thunar --daemon',
+                        'ExecStart=/usr/bin/Thunar --gapplication-service',
                         'Requires=labwc-gvfs-volume-monitor.service',
                         'PartOf=labwc-session.target', 'PrivateUsers=no', 'PrivateMounts=no',
                         'ConditionPathExists=!/run/user/%U/labwc-session-closing',
@@ -46,6 +69,7 @@ class WiringTests(unittest.TestCase):
                         'LABWC_SESSION_APP=1',
                         'Restart=on-failure', 'GIO_USE_VOLUME_MONITOR=GProxyVolumeMonitorLabwc'):
             self.assertIn(setting, unit)
+        self.assertNotIn('--daemon', unit)
         assets = (TARGET.parents[1] / 'scripts/desktop/components/target-assets.sh').read_text(encoding='utf-8')
         self.assertIn(f'{path} /{path} 0644', assets)
 

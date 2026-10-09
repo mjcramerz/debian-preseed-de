@@ -1,6 +1,6 @@
 {
   "source": "Installed October 9 AppArmor denials; account paths anonymized",
-  "records": 23,
+  "records": 38,
   "events": [
     {
       "profile": "labwc-app//app-bwrap",
@@ -174,6 +174,146 @@
       "operation": "open",
       "class": "file",
       "name": "/usr/share/keepassxc/wordlists/",
+      "requested_mask": "r",
+      "denied_mask": "r",
+      "fsuid": "1000",
+      "ouid": "0"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "mkdir",
+      "class": "file",
+      "name": "/etc/opt/chrome/",
+      "requested_mask": "c",
+      "denied_mask": "c",
+      "fsuid": "1000",
+      "ouid": "1000"
+    },
+    {
+      "profile": "labwc-qbittorrent//qbittorrent-bwrap",
+      "operation": "mkdir",
+      "class": "file",
+      "name": "/home/fixture/",
+      "requested_mask": "c",
+      "denied_mask": "c",
+      "fsuid": "1000",
+      "ouid": "1000"
+    },
+    {
+      "profile": "session-controls",
+      "operation": "open",
+      "class": "file",
+      "name": "/run/user/1000/labwc-vivaldi-tmp/.com.vivaldi.Vivaldi.scoped_dir.r8I9pb/icon.png",
+      "requested_mask": "r",
+      "denied_mask": "r",
+      "fsuid": "1000",
+      "ouid": "1000"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "exec",
+      "class": "file",
+      "name": "/usr/bin/hostname",
+      "requested_mask": "x",
+      "denied_mask": "x",
+      "fsuid": "1000",
+      "ouid": "0"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "exec",
+      "class": "file",
+      "name": "/bin/hostname",
+      "requested_mask": "x",
+      "denied_mask": "x",
+      "fsuid": "1000",
+      "ouid": "0"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "exec",
+      "class": "file",
+      "name": "/usr/bin/file",
+      "requested_mask": "x",
+      "denied_mask": "x",
+      "fsuid": "1000",
+      "ouid": "0"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "exec",
+      "class": "file",
+      "name": "/usr/bin/expr",
+      "requested_mask": "x",
+      "denied_mask": "x",
+      "fsuid": "1000",
+      "ouid": "0"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "exec",
+      "class": "file",
+      "name": "/bin/expr",
+      "requested_mask": "x",
+      "denied_mask": "x",
+      "fsuid": "1000",
+      "ouid": "0"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "open",
+      "class": "file",
+      "name": "/etc/chromium.d/90-performance-flags",
+      "requested_mask": "r",
+      "denied_mask": "r",
+      "fsuid": "1000",
+      "ouid": "0"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "mkdir",
+      "class": "file",
+      "name": "/home/fixture/Postman/files/",
+      "requested_mask": "c",
+      "denied_mask": "c",
+      "fsuid": "1000",
+      "ouid": "1000"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "file_mmap",
+      "class": "file",
+      "name": "/home/fixture/.config/vivaldi/WidevineCdm/4.10.3112.0/_platform_specific/linux_x64/libwidevinecdm.so",
+      "requested_mask": "m",
+      "denied_mask": "m",
+      "fsuid": "1000",
+      "ouid": "1000"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "chmod",
+      "class": "file",
+      "name": "/run/user/1000/pulse/",
+      "requested_mask": "w",
+      "denied_mask": "w",
+      "fsuid": "1000",
+      "ouid": "1000"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "rmdir",
+      "class": "file",
+      "name": "/run/user/1000/pulse/",
+      "requested_mask": "d",
+      "denied_mask": "d",
+      "fsuid": "1000",
+      "ouid": "1000"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "open",
+      "class": "file",
+      "name": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-5/3-5:1.0/interface",
       "requested_mask": "r",
       "denied_mask": "r",
       "fsuid": "1000",

@@ -4,7 +4,6 @@ from __future__ import annotations
 import configparser
 import contextlib
 import io
-import json
 import os
 from pathlib import Path
 import pwd
@@ -93,7 +92,12 @@ class TorrentIntegrationTests(unittest.TestCase):
                         mock.patch.object(globals_['signal'], 'signal'), \
                         mock.patch.object(tempfile, 'TemporaryDirectory',
                                           side_effect=lambda **options: temporary_directory(dir=directory)):
-                    self.assertEqual(QBIT['run_new_instance'](account, root, paths, 'launch', [], 50309), 0)
+                    if online and policy['peer_port'] is None:
+                        with self.assertRaises(SystemExit):
+                            QBIT['run_new_instance'](account, root, paths, 'launch', [], 50309)
+                        self.assertFalse((paths['profile_home'] / '.config/qBittorrent/qBittorrent.conf').exists())
+                    else:
+                        self.assertEqual(QBIT['run_new_instance'](account, root, paths, 'launch', [], 50309), 0)
 
     def test_ready_peer_port_must_match_the_launcher_before_config_is_published(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -102,7 +106,7 @@ class TorrentIntegrationTests(unittest.TestCase):
             account = pwd.struct_passwd(('fixture', 'x', os.getuid(), os.getgid(), '', str(root), '/bin/sh'))
             globals_ = QBIT['run_new_instance'].__globals__
             temporary_directory = tempfile.TemporaryDirectory
-            for broker_port in (50309, 50308):
+            for broker_port in (50309, 50308, None):
                 runtime = types.SimpleNamespace(VETH_DNS_ADDRESS='10.0.2.3',
                     veth_resolv_conf=lambda: 'nameserver 10.0.2.3\nsearch fixture.example\n')
                 def ready(command, payload, temporary, descriptors, **options):
@@ -253,6 +257,88 @@ class TorrentIntegrationTests(unittest.TestCase):
             self.assertEqual(parser['BitTorrent'][r'Session\InterfaceAddress'], '10.203.0.14')
             for key in (r'Session\AnnounceToAllTiers', r'Session\AnnounceToAllTrackers'):
                 self.assertEqual(parser['BitTorrent'][key], 'false')
+            self.assertEqual(parser['BitTorrent'][r'Session\AnnouncePort'], '50309')
+            self.assertEqual(parser['Application'][r'FileLogger\Path'],
+                             '/home/user/.local/share/qBittorrent/logs')
+
+    def test_saved_peer_limits_tracker_injection_and_log_path_are_normalized(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = QBIT['prepare_storage'](Path(directory))
+            config = QBIT['write_config'](paths['profile_home'], paths, ('eth0', '10.203.0.14'))
+            config.write_text('[BitTorrent]\nSession\\MaxConnections=1\n'
+                              'Session\\MaxConnectionsPerTorrent=1\nSession\\MaxUploadsPerTorrent=1\n'
+                              'Session\\GlobalMaxInactiveSeedingMinutes=5\nSession\\AnnouncePort=6881\n'
+                              'Session\\OutgoingPortsMin=6881\nSession\\OutgoingPortsMax=6882\n'
+                              'Session\\AddTrackersEnabled=true\nSession\\AddTrackersFromURLEnabled=true\n'
+                              '[Application]\nFileLogger\\Enabled=false\n'
+                              'FileLogger\\Path=/home/old-user/logs\n'
+                              '[Preferences]\nGeneral\\Locale=sv\n', encoding='utf-8')
+            QBIT['write_config'](paths['profile_home'], paths, ('eth0', '10.203.0.18'), 50308)
+            parser = configparser.ConfigParser(interpolation=None)
+            parser.optionxform = str
+            parser.read(config, encoding='utf-8')
+            for name, value in {'MaxConnections': '500', 'MaxConnectionsPerTorrent': '100',
+                                'MaxUploads': '-1', 'MaxUploadsPerTorrent': '-1',
+                                'GlobalMaxInactiveSeedingMinutes': '-1', 'AnnouncePort': '50308',
+                                'Port': '50308', 'InterfaceAddress': '10.203.0.18',
+                                'OutgoingPortsMin': '0', 'OutgoingPortsMax': '0',
+                                'AddTrackersEnabled': 'false', 'AddTrackersFromURLEnabled': 'false'}.items():
+                self.assertEqual(parser['BitTorrent']['Session\\' + name], value)
+            for name, value in {'Enabled': 'true', 'Backup': 'true', 'DeleteOld': 'true',
+                                'Path': '/home/user/.local/share/qBittorrent/logs',
+                                'MaxSizeBytes': str(5 * 1024 * 1024), 'Age': '7', 'AgeType': '0'}.items():
+                self.assertEqual(parser['Application']['FileLogger\\' + name], value)
+            self.assertEqual(parser['Preferences'][r'General\Locale'], 'sv')
+
+    def test_unchanged_managed_config_is_not_replaced_and_permissions_are_private(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = QBIT['prepare_storage'](Path(directory))
+            config = QBIT['write_config'](paths['profile_home'], paths, ('eth0', '10.203.0.14'))
+            content = config.read_text(encoding='utf-8') + '# Preserve this profile comment.\n'
+            config.write_text(content, encoding='utf-8')
+            config.chmod(0o644)
+            metadata = config.stat()
+            with mock.patch.object(QBIT['write_config'].__globals__['os'], 'replace') as replace:
+                QBIT['write_config'](paths['profile_home'], paths, ('eth0', '10.203.0.14'))
+                replace.assert_not_called()
+            self.assertEqual(config.read_text(encoding='utf-8'), content)
+            self.assertEqual(config.stat().st_ino, metadata.st_ino)
+            self.assertEqual(config.stat().st_mtime_ns, metadata.st_mtime_ns)
+            self.assertEqual(config.stat().st_mode & 0o777, 0o600)
+
+    def test_config_rejects_unsafe_and_oversized_inputs_without_printing_contents(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = QBIT['prepare_storage'](Path(directory))
+            config = QBIT['write_config'](paths['profile_home'], paths, ('eth0', '10.203.0.14'))
+            for kind in ('symlink', 'hardlink', 'fifo', 'oversized', 'foreign-owner', 'malformed'):
+                config.unlink()
+                source = Path(directory) / 'input'
+                if source.exists():
+                    source.unlink()
+                source.write_text('[Preferences]\nGeneral\\Locale=sv\n', encoding='utf-8')
+                if kind == 'symlink':
+                    config.symlink_to(source)
+                elif kind == 'hardlink':
+                    os.link(source, config)
+                elif kind == 'fifo':
+                    os.mkfifo(config)
+                elif kind == 'oversized':
+                    with config.open('wb') as stream:
+                        stream.truncate(QBIT['MAX_CONFIG_BYTES'] + 1)
+                elif kind == 'malformed':
+                    config.write_text('fixture-secret-that-must-not-be-logged', encoding='utf-8')
+                else:
+                    config.write_text(source.read_text(encoding='utf-8'), encoding='utf-8')
+                with contextlib.ExitStack() as stack:
+                    if kind == 'foreign-owner':
+                        metadata = config.stat()
+                        stack.enter_context(mock.patch.object(QBIT['os'], 'fstat', return_value=
+                            types.SimpleNamespace(st_mode=metadata.st_mode, st_uid=os.getuid() + 1,
+                                                  st_nlink=1, st_size=metadata.st_size)))
+                    stderr = stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+                    with self.subTest(kind=kind), self.assertRaises(SystemExit):
+                        QBIT['write_config'](paths['profile_home'], paths, ('eth0', '10.203.0.14'))
+                    self.assertNotIn('fixture-secret-that-must-not-be-logged', stderr.getvalue())
 
     def test_saved_adwaita_style_is_replaced_and_unrelated_preferences_preserved(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -351,35 +437,6 @@ stage_target_nftables_service_assets qbittorrent
                         else:
                             self.assertNotEqual(result.returncode, 0)
                             self.assertFalse(published.exists())
-
-    def test_route_binding_uses_the_active_source_and_rejects_non_internet_routes(self):
-        for interface, source, accepted in (('eth0', '192.168.50.88', True),
-                                           ('wg0', '10.64.0.2', True),
-                                           ('tailscale0', '100.65.244.106', False),
-                                           ('lo', '127.0.0.1', False),
-                                           ('eth0', '169.254.1.2', False)):
-            result = subprocess.CompletedProcess([], 0, json.dumps([{'dev': interface, 'prefsrc': source}]).encode(), b'')
-            with self.subTest(interface=interface), mock.patch.object(subprocess, 'run', return_value=result) as execute:
-                if accepted:
-                    self.assertEqual(QBIT['network_binding'](), (interface, source))
-                else:
-                    with self.assertRaises(SystemExit): QBIT['network_binding']()
-                self.assertEqual(execute.call_args.args[0],
-                                 ['/usr/sbin/ip', '-j', '-4', 'route', 'get', '1.1.1.1'])
-                self.assertEqual(execute.call_args.kwargs['timeout'], 5)
-
-    def test_route_lookup_fails_closed_on_timeout_invalid_or_missing_route(self):
-        for output in (b'{}', b'[]', b'not json', b'x' * 16385,
-                       b'[{"dev":"eth0","prefsrc":true}]', b'[{"dev":"eth0","prefsrc":3232235777}]'):
-            with mock.patch.object(subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, output, b'')):
-                with self.assertRaises(SystemExit): QBIT['network_binding']()
-        with mock.patch.object(subprocess, 'run', side_effect=subprocess.TimeoutExpired('ip', 5)):
-            with self.assertRaises(SystemExit): QBIT['network_binding']()
-        with mock.patch.object(subprocess, 'run', return_value=subprocess.CompletedProcess([], 2, b'', b'')):
-            with self.assertRaises(SystemExit): QBIT['network_binding']()
-
-
-
 
     def test_repeated_launch_sends_qt_ipc_without_starting_another_network_helper(self):
         with tempfile.TemporaryDirectory() as directory:

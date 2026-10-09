@@ -19,7 +19,8 @@ import xml.etree.ElementTree as ET
 
 import gi
 gi.require_version("Gio", "2.0")
-from gi.repository import Gio, GLib
+gi.require_version("GLibUnix", "2.0")
+from gi.repository import Gio, GLib, GLibUnix
 
 NAME = "org.gtk.vfs.LabwcVolumeMonitor"
 UPSTREAM = "org.gtk.vfs.UDisks2VolumeMonitor"
@@ -362,7 +363,7 @@ def main() -> int:
         monitor = Monitor(f"unix:path=/run/user/{os.getuid()}/bus")
         monitor.acquire()
         for signum in (signal.SIGTERM, signal.SIGINT):
-            GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signum, monitor.stop)
+            GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signum, monitor.stop)
         monitor.loop.run()
         return 1 if monitor.failed else 0
     except (GLib.Error, RuntimeError) as error:

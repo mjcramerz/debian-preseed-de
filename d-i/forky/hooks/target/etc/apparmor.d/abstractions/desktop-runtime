@@ -28,6 +28,11 @@ include if exists <abstractions/xdg-desktop>
 # scripts. Keep them inside the calling profile.
 /{,usr/}bin/{bash,dash,sh} rix,
 /usr/bin/{awk,basename,cat,cut,dbus-send,dirname,gawk,getconf,getopt,grep,head,lsb_release,mawk,mkdir,mv,nawk,readlink,realpath,sed,sort,touch,tr,uname,xdg-mime,xdg-settings,xprop} rix,
+/{,usr/}bin/{hostname,file,expr} rix,
+# MIME detection reads the package magic database, including merged-/usr links.
+/etc/magic r,
+/usr/share/misc/magic{,.mgc} r,
+/usr/lib/file/magic.mgc r,
 
 # Raw audio hardware is compositor/session-service only. Application profiles
 # opt into PipeWire/Pulse sockets through pipewire-audio instead.
@@ -64,7 +69,9 @@ deny /var/cache/fontconfig/** rwkl,
 /usr/share/fontconfig/conf.avail/** r,
 /usr/share/xkeyboard-config-*/ r,
 /usr/share/xkeyboard-config-*/** r,
-owner @{HOME}/ r,
+# Toolkit directory creation probes need metadata writes on the home itself.
+# Child files and directories still require their own application rules.
+owner @{HOME}/ rw,
 owner @{HOME}/.config/ rw,
 owner @{HOME}/.config/mimeapps.list* rwkl,
 owner @{HOME}/.local/share/ rw,
@@ -73,6 +80,9 @@ owner @{HOME}/.local/share/pki/** rwkl,
 owner @{HOME}/.pki/ rw,
 owner @{HOME}/.pki/nssdb/ rw,
 owner @{HOME}/.pki/nssdb/** rwkl,
+
+# Read-only USB interface names used during toolkit/device enumeration.
+@{sys}/devices/**/usb[0-9]*/**/interface r,
 
 # Files selected through xdg-desktop-portal are exposed below this FUSE mount.
 owner /run/user/[0-9]*/doc/ r,
