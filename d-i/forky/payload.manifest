@@ -160,8 +160,8 @@ edbdf14c3009aa22e3c38d7502342bbaf1c560354cc0caba51f0b77f62276502  hooks/target/e
 97037de893dd958aa30f41c58226133a7ba6d3a1ca69b9f951d569c5b578328d  hooks/target/etc/apparmor.d/compz
 a8e8fba190c12bd77dfaef16ea28dd52824bf899a7a695535b925e6ad9e51174  hooks/target/etc/apparmor.d/crun
 e431f5d17cfc99228c205f06f742cccaa346b390541691704248220d41482dc9  hooks/target/etc/apparmor.d/debugsys
-6b74bd349dca69e01ef6a385b9a83aa6bcd07a86ad305a38f56b65486010b129  hooks/target/etc/apparmor.d/desktop-utilities
-b6c88c10bf02e0214ec0a31131108ae36eee2765d7464322390a939cb10dc498  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
+a3200fa8c908c7f5b34cdb7f442ee7f75c411f5a2bbc9713b841be93942ffa29  hooks/target/etc/apparmor.d/desktop-utilities
+6e2d591c65644a651fc69b69890e7554f1cc2fd7a6d84b95c365d4837986f132  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
 e304c3e08d1cd5e3abc5922dc93f6ee7137b29a0171fcd6beac721d9a297080d  hooks/target/etc/apparmor.d/document-applications
 cdb9e039cbbbe809126673a7351807ed8db1c3b23618cb89d474c803a485da45  hooks/target/etc/apparmor.d/gitbuild
 f4ca1013031c0a890345a7f7c806604ba45bfd8f0ab1a2f3a65f4d0de1c5de0e  hooks/target/etc/apparmor.d/gitbuild-worker
@@ -499,7 +499,7 @@ e1c8986a71b41ddb89f319953d27eb001ab501ea9e48f3353e94c1788c7b0608  hooks/target/e
 8800c313375a39020f662207e5d114c0adefaaadbcfb0dc55900a554fc4bbe73  hooks/target/etc/skel-desktop/.config/Code/User/settings.json.tmpl
 b85fa56ee0cb67c46d123962a06c4399945de33d50407fcfd9d6e8f590f6a586  hooks/target/etc/skel-desktop/.config/GottCode/FocusWriter.conf.tmpl
 52446891883cd0fcc923252ca2be58a6d9c8d0eefbc83af4f17ed5cd75b45280  hooks/target/etc/skel-desktop/.config/Recoll.org/recoll.ini.tmpl
-c4353d35fc3e436118b953358cbc7760184651faf6227dab3f239ece3f4bb0b5  hooks/target/etc/skel-desktop/.config/Thunar/uca.xml
+b72a375b2ec8cbe4b2e2ee48d066d358dbd8dc83fc9f84cda2b4b628e53811d0  hooks/target/etc/skel-desktop/.config/Thunar/uca.xml
 27bae096567a2be5e6d15045384a1ef20ba4f703afc5ffd0d5c553a7695bfa7e  hooks/target/etc/skel-desktop/.config/autostart/mullvad-vpn.desktop.tmpl
 dd6672417bbc4a0f4a91708f000ec382f633224f1a2daa92f5c83a06914f2b3f  hooks/target/etc/skel-desktop/.config/bazel/bazelrc.tmpl
 0b55a2c7ccf869a4a301e548d3f0a681f62663f4bbfd8c6a1f25d9dae3d2976d  hooks/target/etc/skel-desktop/.config/btop/btop.conf.tmpl
@@ -894,6 +894,7 @@ c9cbdf3481c37304ca10758d386a943eb27676975d105b9ab8672203d9b50022  hooks/target/e
 63bfe73c7109597a5e5593802560e69c3f0daff7c338ed179533a692ea2a1de0  hooks/target/etc/systemd/user/ssh-agent.service.d/10-labwc-session.conf
 2c9c321ed2d7fc341d93aaa8f6206eb6af91f5f17980ebf4b2400c358e2ae246  hooks/target/etc/systemd/user/ssh-agent.service.d/60-resource-class.conf
 e0f61b009e7bc4bff8f9b011dd6d924373f147f1f8b6da3ea718ca363aa11a15  hooks/target/etc/systemd/user/ssh-agent.socket.d/10-labwc-session.conf
+2ba23b2df4aa631b6c17664e23a8eac93b8fce94a437dc98d0d40fa122a294a2  hooks/target/etc/systemd/user/thunar.service.d/50-labwc-session.conf
 7773a9e133b114a749825bbf3a261c3e8e5e76ea23909b2af6f5f7efe9964d48  hooks/target/etc/systemd/user/wayscriber.service.d/10-labwc-session.conf
 ff08cc7013052253158ea6e01cb67e5fb8bf99cd40b221bf7b94f273d0dae215  hooks/target/etc/systemd/user/wireplumber.service.d/20-no-root.conf.tmpl
 b5efe0d0c34ace7ad252b14c000a76eb489909d8288554dabd7fc24e6ff00d28  hooks/target/etc/systemd/user/wireplumber.service.d/60-resource-class.conf
@@ -1267,12 +1268,12 @@ bfd49a77b8586649525406e8861020ead34f822f5d6b7fc763dc8c456cccf6c5  hooks/target/u
 a87fab01db35b3cb5fff246894159cbdc2150833fcfc8c3044e672b97590b614  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/electron.py
 6d2f829cbecd3de09f47ab3c50c03f4b88dd4ea835f77c1365cdaadad8fc98dd  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/environment.py
 bd4507f48c6b1ecc52607c01a97ef5dcf7bcc9fa47b45f150ccedd68a1fdb8ca  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/events.py
-78e9b63e9c50b4cfbfec2bca3eb5c1799cf9c37a089442537abb8fd3d62aad32  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py
+b6f82e5b371170844ede1fcb52cbcde1daeaa7ce5f9e497aee8231fa50c72c48  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py
 6029417c6944a2ae15955786548aa70cfc5a296a7169b81a9a505930a4e23196  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/identity.py
 6d05d6b36386374c49dacb856c9eeb310f5388495e3ab98f4f8c3e434b288cf4  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/integrity.py
 ae665a85c88c409d21163551dd292f9ef7367917f22c0f2003e356d36a4f2f8c  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/mounts.py
-f066b28cfbf974bf4aa8e3a5cfd5f793d4cb9cb30772eecbb218356a9fe589c4  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_client.py
-17eb876e2dd827ce89cb015769d53d4e6533cf6d8b8cb854a3b2669150419025  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_namespace.py
+8bb00ddc903f660d71294e8bb625b1c7158fc3a200bad8f610db18b90f4581b0  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_client.py
+1b91fdf4b1d84b8f4f24324b5f4c291ffa17bd8ff444de74e64bce82dbcbca24  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_namespace.py
 d3f61700c5dfb217def56f73896a6d901dd162372793a63719125f9976d18bb1  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py.tmpl
 7f2c41c7ded609aa20d80a19387262037c059a976a5d7510404c070be313f23b  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/recovery.py
 f7a78ac89b004f693a60c086c0d4632c28611b7f9902286f457ce5083f743b2a  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/runtime.py
@@ -1337,7 +1338,7 @@ e39c1c15ceefe999bb04da384136c5575cb36545099844b1af078bd33b8b1133  hooks/target/u
 9a5ea59fcae24f932d9bc3d53b443a165946b5e6606de33a0224868957fd524e  hooks/target/usr/local/libexec/labwc-configure-session-repairs
 292dc24e5cbe047e8feee05d5bc043c4c72e1598fe22315597b695fb134a5935  hooks/target/usr/local/libexec/labwc-firewall-action-root
 f53a03fb90830752cd30ea49e317c63796a0fdb0e36b4ddb7ab2594ef06e1e7d  hooks/target/usr/local/libexec/labwc-greeter-client
-399a9887646755e1a9fe73553a8185f258b6d1d4e48df399392bb5d8c97252fb  hooks/target/usr/local/libexec/labwc-gvfs-volume-monitor
+3fb8d0836802a4aee2493df2f0ba1d7a8d30e0ad282216047c2f67a0236bcc8b  hooks/target/usr/local/libexec/labwc-gvfs-volume-monitor
 153c7831881df07461a5c4ac39fdedf8fffe37a052ad773f14d4c7e1064fba5f  hooks/target/usr/local/libexec/labwc-hyprpolkit-agent
 68a2d0f7f62ca1108b2765c67cee0dd2e4f3caf4093a6d808771584cc41fbe80  hooks/target/usr/local/libexec/labwc-kanshi
 10f3e53184f287b83bc8f9bd0d6c568f58f44b26279bc920f01d818e0dbe05e4  hooks/target/usr/local/libexec/labwc-logout-root
@@ -1403,7 +1404,7 @@ fab3b55e8b74e2fd4636007c9595a8cc2c2343a5b7d0d7721e3d2a5b3cd0c2c3  hooks/target/u
 7102d40d083c30b8c082c2fb92b103ff21d876afdbc90757b639ef33346f5931  hooks/target/usr/local/libexec/whisper-record-toggle
 818b18b246664c4bd3a9e19113d025fae07ab0f24847624c68694c1f7817e353  hooks/target/usr/local/libexec/zram-device-setup.tmpl
 2ff2c747d7da5754cb2cbb09bc2624b92176f36ee157ef71d5520dcdc92f187b  hooks/target/usr/local/libexec/zram-writeback.tmpl
-14ff58e740cb9c5b2c46e70330032497f745c19021a7ca604571a5c1806696b0  hooks/target/usr/local/sbin/app-veth
+9661323325e7486208cc659172d2607d29c6e091e6290fa864cf22687e01554f  hooks/target/usr/local/sbin/app-veth
 ac69a5a83f2908426168497c69d9f2268ce963be8a52680807b8eca763db2445  hooks/target/usr/local/sbin/fwops-mode
 a60bce358b81a698d0a325447a14d0d0548b49077f13c8f4f4042d08ba768330  hooks/target/usr/local/sbin/greetd-power-action
 21982dcb4c7e577f093c3ad55c0ac095787f50d92eb324fcad7d3753fb4ee69b  hooks/target/usr/local/sbin/labwc-notify.tmpl
@@ -1551,7 +1552,7 @@ b7576dfab166fcce9c843a847702d52e25a176e4e91c5afb2f9d7ed1ec294d64  scripts/deskto
 107fcd771b087e339ed8d5525ee64ef18b597233e4817d108da6806d0d1cdd32  scripts/desktop/components/rendering-access.sh
 0d155373adc2fa4819215d720e00cb64b8daf4e690bbd523a1e5c63ae97ba793  scripts/desktop/components/services.sh
 827efdaa7de934f58ce8aefb71db55ba69db5068ab7d12704416636e1f8b4155  scripts/desktop/components/stage-assets.sh
-7f6e87dc36dd97e628c8d04c2ad5b0c80e93286f778f757e0a3adde4b1b84ea7  scripts/desktop/components/target-assets.sh
+8ccde016748bb8666447100c090ef8d9459338ab89c0a7cf6c28fb99704ef9a0  scripts/desktop/components/target-assets.sh
 054c9c7958bc612eebf81807306cb3afe840f8c96f969f8612ecce14688013f5  scripts/desktop/components/user-config.sh
 c3663f52f7717e9d8ab47fc49b0b04b94173131b0823e1d218687627f1f680d1  scripts/desktop/components/user-session.sh
 428a470bffcd6f1fb491604754ddde83b23f494b70b9125181e1171ee9563d4a  scripts/desktop/components.sh
@@ -1572,7 +1573,7 @@ cfb13c1edd411d1b9cce5d39fd681f9a7d5c6b9ba76ba2c57e9cc94512411159  scripts/deskto
 8ef0d54e9fcf9516ad0df4724738464f00750f90279f3d60e3c360b660389425  scripts/desktop/templates/pam-wtmpdb.fragment
 b26b034b097f7057121554596475ff4f2c1b843b58d29900ad97f05024ab88b5  scripts/desktop/templates/recording-reconfigure.xml.fragment
 2ad262651f844bf110f28f47ea4a954d662dbca8c6ff1e230cc26f32e59b0013  scripts/desktop/templates/recording-whisper.xml.fragment
-efca23aab02448660a65ad38e37802e9eb70154f9c2cd932b038b37823c81fb7  scripts/desktop/verify.sh.tmpl
+e2f4287232ed672f6ad387d11584cfa43d479c1c0636b5cfd9f97ad23aa537d8  scripts/desktop/verify.sh.tmpl
 6210193fe8aaab0a0731a6fbba6dd5076fd593a4a5445e38a16ab850f2b5f9c5  scripts/desktop/waybar-geometry.tsv
 760418df003765aace979cbb494ceea40b980e559a35daad4a0124f58f5fc802  scripts/desktop/waypaper.sh
 33977e223d38797f75c0deb5c4b327dd0b7a5a95cbe5b06795a16419197ec903  scripts/desktop/xwayland.sh

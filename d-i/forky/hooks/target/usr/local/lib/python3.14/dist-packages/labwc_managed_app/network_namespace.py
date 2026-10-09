@@ -279,6 +279,28 @@ def _read_bwrap_sandbox_pid(
     return sandbox_pid
 
 
+def wait_for_payload(sandbox: subprocess.Popen, lease) -> int:
+    """Wait for process exit or lease loss without periodic wakeups."""
+    status = sandbox.poll()
+    if status is not None:
+        return status
+    if lease is None:
+        return sandbox.wait()
+    lease.check()
+    try:
+        monitor_fd = os.pidfd_open(sandbox.pid)
+    except ProcessLookupError:
+        return sandbox.wait()
+    try:
+        while True:
+            ready, _, _ = select.select([monitor_fd, lease.socket], [], [])
+            lease.check()
+            if monitor_fd in ready:
+                return sandbox.wait()
+    finally:
+        close_file_descriptor(monitor_fd)
+
+
 def run_veth_sandbox(
     command: list[str], payload_argv: list[str], temp_root: str,
     inherited_fds: tuple[int, ...], *, app: str,
@@ -331,6 +353,8 @@ def run_veth_sandbox(
         for fd in (block_write, gate_write, info_read):
             close_file_descriptor(fd)
             descriptors.remove(fd)
+        if runtime_check is None:
+            return wait_for_payload(sandbox, lease)
         while True:
             if runtime_check is not None:
                 runtime_check()
@@ -359,16 +383,18 @@ def run_veth_sandbox(
                     pass
         finally:
             cleanup_ok = True
-            deadline = cleanup_deadline() if cleanup_deadline is not None else None
-            if deadline is not None:
-                from .compat_protocol import stop_processes
-                cleanup_ok = stop_processes([sandbox], deadline)
-            else:
-                _stop_subprocess(sandbox)
-            for fd in descriptors:
-                close_file_descriptor(fd)
-            close_file_descriptor(pidfd)
-            if lease is not None:
-                lease.close()
+            try:
+                deadline = cleanup_deadline() if cleanup_deadline is not None else None
+                if deadline is not None:
+                    from .compat_protocol import stop_processes
+                    cleanup_ok = stop_processes([sandbox], deadline)
+                else:
+                    _stop_subprocess(sandbox)
+            finally:
+                for fd in descriptors:
+                    close_file_descriptor(fd)
+                close_file_descriptor(pidfd)
+                if lease is not None:
+                    lease.close()
             if not cleanup_ok and cleanup_failure is not None:
                 cleanup_failure()

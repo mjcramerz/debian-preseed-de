@@ -165,6 +165,7 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/bin/labwc-external-drives /usr/local/bin/labwc-external-drives 0755
   desktop_stage_role_asset usr/local/libexec/labwc-gvfs-volume-monitor /usr/local/libexec/labwc-gvfs-volume-monitor 0755
   desktop_stage_role_asset etc/systemd/user/labwc-gvfs-volume-monitor.service /etc/systemd/user/labwc-gvfs-volume-monitor.service 0644
+  desktop_stage_role_asset etc/systemd/user/thunar.service.d/50-labwc-session.conf /etc/systemd/user/thunar.service.d/50-labwc-session.conf 0644
   desktop_stage_role_asset usr/share/dbus-1/services/org.gtk.vfs.LabwcVolumeMonitor.service /usr/share/dbus-1/services/org.gtk.vfs.LabwcVolumeMonitor.service 0644
   desktop_stage_role_asset usr/share/gvfs/remote-volume-monitors/labwc.monitor /usr/share/gvfs/remote-volume-monitors/labwc.monitor 0644
   desktop_stage_labwc_security_action_perl_modules

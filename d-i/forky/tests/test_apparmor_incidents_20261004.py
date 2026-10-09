@@ -15,6 +15,7 @@ from theme_fixture import render_theme_tree
 SEED = Path(__file__).resolve().parents[1]
 AA = SEED / 'hooks/target/etc/apparmor.d'
 INCIDENTS = json.loads((SEED / 'tests/fixtures/installed-apparmor-20261004.json').read_text(encoding='utf-8'))
+OCTOBER_9 = json.loads((SEED / 'tests/fixtures/installed-apparmor-20261009.json').read_text(encoding='utf-8'))
 
 
 def body(file, label):
@@ -34,6 +35,27 @@ def body(file, label):
 
 
 class SuppliedDenialTests(unittest.TestCase):
+    @unittest.skipUnless(importlib.util.find_spec('apparmor'), 'native AppArmor rule reader unavailable')
+    def test_october_9_signal_and_netlink_requests_are_covered_by_exact_rules(self):
+        from apparmor.rule.signal import SignalRule
+        from apparmor.rule.network import NetworkRule
+        for event in OCTOBER_9['events']:
+            if event['class'] == 'signal':
+                policy = body('desktop-utilities', event['profile'])
+                requested = SignalRule.create_instance(
+                    f"signal ({event['requested_mask']}) set=({event['signal']}) peer={event['peer']},")
+                rules = [SignalRule.create_instance(line.strip()) for line in policy.splitlines()
+                         if line.strip().startswith('signal ')]
+                self.assertTrue(any(not rule.deny and rule.is_covered(requested) for rule in rules), event)
+            elif event['class'] == 'net':
+                policy = body('desktop-utilities', event['profile'])
+                requested = NetworkRule.create_instance(f"network {event['family']} {event['sock_type']},")
+                rules = [NetworkRule.create_instance(line.strip()) for line in policy.splitlines()
+                         if line.strip().startswith('network ')]
+                self.assertTrue(any(not rule.deny and rule.is_covered(requested) for rule in rules), event)
+            else:
+                self.assertEqual(event['class'], 'file', event)
+
     def test_codex_apt_state_read_and_btop_transition_do_not_add_privilege(self):
         runtime = read_text(AA / 'abstractions/codex-runtime')
         self.assertIn('/var/lib/apt/extended_states r,', runtime)
@@ -281,6 +303,33 @@ class SuppliedDenialTests(unittest.TestCase):
                     if expression.fullmatch(filename):
                         result.update(owner if owned else other)
                 return result
+            for event in OCTOBER_9['events']:
+                if event['class'] != 'file':
+                    continue
+                with self.subTest(installed_october_9=event):
+                    self.assertLessEqual(set(event['requested_mask']), set('cr'))
+                    required = set(event['requested_mask'].replace('c', 'w'))
+                    self.assertLessEqual(required, permissions(event['profile'], event['name'],
+                                                              owned=event['fsuid'] == event['ouid']))
+            # Replay every file denial class from the October 9 installed logs.
+            for filename in ('/home/fixture/.local/state/btop.log',
+                             '/home/fixture/.local/state/btop.log.1'):
+                self.assertTrue(set('rw') <= permissions('desktop-btop', filename))
+                self.assertNotIn('w', permissions('desktop-btop', filename, owned=False))
+            payload = 'labwc-app//app-bwrap'
+            self.assertTrue(set('rw') <= permissions(payload, '/etc/opt/'))
+            self.assertNotIn('w', permissions(payload, '/etc/opt/edge/policies/managed/policy.json', owned=False))
+            proxy = '/home/fixture/.mozilla/native-messaging-hosts/.bitwarden_desktop_proxy'
+            self.assertTrue(set('rwx') <= permissions(payload, proxy))
+            self.assertNotIn('w', permissions(payload, proxy, owned=False))
+            self.assertFalse(permissions(payload, '/home/fixture/.mozilla/native-messaging-hosts/unrelated-helper'))
+            for filename in ('/usr/share/keepassxc/translations/keepassxc_en.qm',
+                             '/usr/share/keepassxc/wordlists/',
+                             '/usr/share/keepassxc/wordlists/eff_large.wordlist',
+                             '/sys/devices/pci0000:00/0000:00:0d.0/usb1/speed',
+                             '/sys/devices/pci0000:00/0000:00:14.0/usb3/3-1/speed'):
+                self.assertEqual(permissions(payload, filename, owned=False), {'r'})
+            self.assertNotIn('w', permissions(payload, '/sys/devices/pci0000:00/usb1/speed', owned=False))
             # LPL-746: opening /proc/self/ns/net was mediated as the nsfs
             # root "/" under attach_disconnected. Numeric procfs rules and
             # /net:[inode] alone missed this path and stopped the boot pool.

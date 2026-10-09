@@ -502,19 +502,32 @@ class AdministrationTests(unittest.TestCase):
     def test_guest_link_is_up_before_default_route_and_host_link_after_firewall_commit(self):
         events = []
         def command(argv, **kwargs):
-            events.append(("command", argv))
+            events.append(("command", argv, kwargs))
             return self.commands(argv, **kwargs)
         with mock.patch.object(broker, "run", side_effect=command), \
                 mock.patch.object(broker, "nft", side_effect=lambda text: events.append(("firewall", text))):
             network = self.network()
         self.addCleanup(network.close)
         transaction = next(i for i,e in enumerate(events) if e[0] == "firewall")
-        guest_up = next(i for i,e in enumerate(events) if e[0] == "command" and e[1][-2:] == ["eth0", "up"])
-        default = next(i for i,e in enumerate(events) if e[0] == "command" and "default" in e[1])
+        guest = next(i for i,e in enumerate(events) if e[0] == "command" and "--" in e[1] and e[1][-2:] == ["-batch", "-"])
+        setup = events[guest][2]["data"].splitlines()
+        self.assertLess(setup.index("link set eth0 up"), setup.index("route add default via 10.203.0.13 dev eth0"))
         host_up = next(i for i,e in enumerate(events) if e[0] == "command" and e[1][-2:] == ["veth3-app", "up"])
-        self.assertLess(guest_up, default)
-        self.assertLess(default, transaction)
+        self.assertLess(guest, transaction)
         self.assertLess(transaction, host_up)
+
+    def test_failed_guest_batch_reclaims_the_peer_without_enabling_host_access(self):
+        def command(argv, **kwargs):
+            result = self.commands(argv, **kwargs)
+            if "--" in argv and argv[-2:] == ["-batch", "-"]:
+                raise RuntimeError("guest batch failed")
+            return result
+        with mock.patch.object(broker, "run", side_effect=command), \
+                self.assertRaisesRegex(RuntimeError, "guest batch failed"):
+            self.network()
+        self.assertFalse(any(argv[-2:] == ["veth3-app", "up"] for argv, _ in self.calls))
+        self.assertTrue(any(argv[-3:] == ["veth3-peer", "netns", f"/proc/self/fd/{self.endpoints.host_fd}"] for argv, _ in self.calls))
+        self.assertEqual(self.transactions, [])
 
     def test_qbittorrent_dnat_is_exact_tcp_udp_and_route_pinned(self):
         network = self.network("qbittorrent")
@@ -522,6 +535,8 @@ class AdministrationTests(unittest.TestCase):
         transaction = self.transactions[0]
         for transport in ("tcp", "udp"):
             self.assertIn(f'192.0.2.8 . {transport} . 50309 : 10.203.0.14 . 50309', transaction)
+            self.assertIn(f'"veth3-app" . {transport} . 50309 : 192.0.2.8 . 50309', transaction)
+        self.assertIn('snat ip to iifname . meta l4proto . th sport map @peer_snat', broker.RULESET)
         self.assertIn('add element inet app_veth snat_map { "veth3-app" : 192.0.2.8 }', transaction)
         self.assertNotIn('add element inet app_veth snat {', transaction)
         self.assertIn('pinned { "veth3-app" . "wg0" }', transaction)
@@ -577,6 +592,15 @@ class AdministrationTests(unittest.TestCase):
         self.assertTrue(any(argv[-3:] == ["veth3-peer", "netns", f"/proc/self/fd/{self.endpoints.host_fd}"] for argv, _ in self.calls))
         self.assertFalse(any(argv[:3] == ["/usr/sbin/ip", "link", "del"] for argv, _ in self.calls))
         self.assertFalse(any(argv[-2:] == ["veth3-app", "up"] for argv, _ in self.calls))
+
+    def test_internet_route_rejects_a_down_interface(self):
+        def replies(argv, **options):
+            if argv[-2:] == ['get', '1.1.1.1']:
+                return json.dumps([{'dev': 'eth0', 'prefsrc': '192.0.2.8'}])
+            return json.dumps([{'mtu': 1500, 'flags': []}])
+        with mock.patch.object(broker, 'run', side_effect=replies), \
+                self.assertRaisesRegex(ValueError, 'Internet interface is down'):
+            self.original_route()
 
     def test_close_removes_packet_path_before_rule_elements(self):
         network = self.network()
@@ -671,6 +695,31 @@ class AdministrationTests(unittest.TestCase):
         self.assertIn('192.0.2.8 . udp . 4242 : 10.203.0.14 . 4242', self.transactions[0])
         self.assertIn('pinned { "veth3-app" . "wg0" }', self.transactions[0])
 
+    def test_changed_or_missing_pinned_route_revokes_only_affected_leases(self):
+        for current in (('eth0', '192.0.2.9', 1500), None):
+            with self.subTest(current=current):
+                stable = mock.Mock(pinned_route=current if current is not None else ('wg0', '192.0.2.8', 1420))
+                changed = mock.Mock(pinned_route=('wg0', '192.0.2.8', 1420))
+                unpinned = mock.Mock(pinned_route=None)
+                channels = [mock.Mock() for _ in range(3)]
+                leases = dict(zip(channels, (stable, changed, unpinned)))
+                manager = mock.Mock()
+                error = ValueError('route lost') if current is None else None
+                with mock.patch.object(broker, 'route', return_value=current, side_effect=error), \
+                        mock.patch.object(broker.os, 'close') as close_fd:
+                    broker.refresh_pinned_routes(manager, leases)
+                changed.close.assert_called_once()
+                self.assertNotIn(channels[1], leases)
+                if current is not None:
+                    stable.close.assert_not_called()
+                    self.assertIn(channels[0], leases)
+                    close_fd.assert_called_once_with(changed.nsfd)
+                else:
+                    stable.close.assert_called_once()
+                    self.assertNotIn(channels[0], leases)
+                unpinned.close.assert_not_called()
+                self.assertIn(channels[2], leases)
+
     def test_all_current_and_future_app_policies_reuse_fixed_host_names_without_renaming(self):
         for app in sorted(set(DEFAULT_POLICIES) | {"future-desktop-app"}):
             with self.subTest(app=app):
@@ -689,7 +738,133 @@ class AdministrationTests(unittest.TestCase):
                                     for call in broker.event.call_args_list))
 
 
+class BrokerLifecycleTests(unittest.TestCase):
+    def test_startup_failure_closes_owned_resources_and_preserves_unsafe_socket_paths(self):
+        for fault in ('route', 'unsafe-socket', 'pool'):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
+                path = Path(directory) / 'control.sock'
+                if fault == 'unsafe-socket':
+                    path.write_text('preserve', encoding='ascii')
+                pool = mock.Mock()
+                selector = mock.Mock()
+                route_watch = mock.Mock()
+                listener = mock.Mock()
+                if fault == 'route':
+                    route_watch.bind.side_effect = OSError('route watch failed')
+                stack.enter_context(mock.patch.object(broker.os, 'geteuid', return_value=0))
+                stack.enter_context(mock.patch.object(broker, 'configuration', return_value=(1000, DEFAULT_POLICIES)))
+                stack.enter_context(mock.patch.object(broker, 'recover_endpoints'))
+                stack.enter_context(mock.patch.object(broker, 'select_pool', return_value=ipaddress.IPv4Network('10.203.0.0/24')))
+                stack.enter_context(mock.patch.object(broker.Path, 'read_text', return_value='1'))
+                stack.enter_context(mock.patch.object(broker.socket, 'create_connection'))
+                firewall = stack.enter_context(mock.patch.object(broker, 'nft'))
+                stack.enter_context(mock.patch.object(broker, 'EndpointPool', return_value=pool,
+                    side_effect=RuntimeError('pool failed') if fault == 'pool' else None))
+                stack.enter_context(mock.patch.object(broker.selectors, 'DefaultSelector', return_value=selector))
+                sockets = stack.enter_context(mock.patch.object(broker.socket, 'socket', side_effect=(route_watch, listener)))
+                stack.enter_context(mock.patch.object(broker, 'refresh_lan_networks', return_value=()))
+                stack.enter_context(mock.patch.object(broker.signal, 'signal'))
+                stack.enter_context(mock.patch.object(broker, 'SOCKET_PATH', str(path)))
+                expected = {'route': 'route watch failed', 'unsafe-socket': 'socket is unsafe', 'pool': 'pool failed'}[fault]
+                with self.assertRaisesRegex((OSError, ValueError, RuntimeError), expected):
+                    broker.main()
+                if fault == 'pool':
+                    pool.close.assert_not_called()
+                    sockets.assert_not_called()
+                    firewall.assert_called_once_with(broker.RULESET)
+                else:
+                    pool.close.assert_called_once()
+                    selector.close.assert_called_once()
+                    route_watch.close.assert_called_once()
+                    self.assertEqual(firewall.call_args.args, ('destroy table inet app_veth\n',))
+                if fault == 'unsafe-socket':
+                    self.assertEqual(path.read_bytes(), b'preserve')
+                    listener.close.assert_called_once()
+
+    def test_unregister_failure_keeps_the_lease_owned_for_service_cleanup(self):
+        left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        namespace_fd = os.open('/dev/null', os.O_RDONLY)
+        network = mock.Mock(nsfd=namespace_fd)
+        leases = {left: network}
+        try:
+            with broker.selectors.DefaultSelector() as selector:
+                with self.assertRaises(KeyError):
+                    broker.release_lease(selector, leases, left)
+                self.assertIs(leases[left], network)
+                network.close.assert_not_called()
+                os.fstat(namespace_fd)
+                selector.register(left, broker.selectors.EVENT_READ)
+                broker.release_lease(selector, leases, left)
+                self.assertEqual(leases, {})
+                network.close.assert_called_once()
+                with self.assertRaises(OSError):
+                    os.fstat(namespace_fd)
+        finally:
+            supervisor.close_file_descriptor(namespace_fd)
+            left.close()
+            right.close()
+
+
 class SupervisorTests(unittest.TestCase):
+    def test_native_wait_observes_child_exit_without_polling(self):
+        with subprocess.Popen([sys.executable, '-I', '-B', '-c', 'raise SystemExit(37)']) as process:
+            self.assertEqual(supervisor.wait_for_payload(process, None), 37)
+
+    def test_native_wait_observes_payload_exit_with_a_live_lease(self):
+        left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        lease = object.__new__(client.Lease)
+        lease.socket = left
+        opened = []
+        native_open = os.pidfd_open
+        with subprocess.Popen([sys.executable, '-I', '-B', '-c',
+                               'import sys; sys.stdin.buffer.read(1); raise SystemExit(37)'],
+                              stdin=subprocess.PIPE) as process:
+            def open_then_release(pid):
+                descriptor = native_open(pid)
+                opened.append(descriptor)
+                process.stdin.write(b'x')
+                process.stdin.flush()
+                return descriptor
+            try:
+                with mock.patch.object(supervisor.os, 'pidfd_open', side_effect=open_then_release):
+                    self.assertEqual(supervisor.wait_for_payload(process, lease), 37)
+                self.assertEqual(len(opened), 1)
+                with self.assertRaises(OSError):
+                    os.fstat(opened[0])
+            finally:
+                process.stdin.close()
+                if process.poll() is None:
+                    process.terminate()
+                process.wait(timeout=3)
+                left.close()
+                right.close()
+
+    def test_native_wait_observes_lease_loss_and_closes_its_pidfd(self):
+        left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        lease = object.__new__(client.Lease)
+        lease.socket = left
+        with subprocess.Popen([sys.executable, '-I', '-B', '-c',
+                               'import time; time.sleep(5)']) as process:
+            opened = []
+            native_open = os.pidfd_open
+            def open_then_disconnect(pid):
+                descriptor = native_open(pid)
+                opened.append(descriptor)
+                right.close()
+                return descriptor
+            try:
+                with mock.patch.object(supervisor.os, 'pidfd_open', side_effect=open_then_disconnect), \
+                        self.assertRaisesRegex(RuntimeError, 'lease ended'):
+                    supervisor.wait_for_payload(process, lease)
+                self.assertEqual(len(opened), 1)
+                with self.assertRaises(OSError):
+                    os.fstat(opened[0])
+            finally:
+                process.terminate()
+                process.wait(timeout=3)
+                left.close()
+                right.close()
+
     def test_offline_payload_is_gated_and_its_namespace_is_reaped_without_a_lease(self):
         process = mock.Mock()
         process.poll.side_effect = [None, 0]
@@ -765,6 +940,38 @@ class SupervisorTests(unittest.TestCase):
         stop.assert_called_once_with(pidfd, supervisor.signal.SIGKILL)
         self.assertEqual(events, ["namespace-stop", "lease-close"])
 
+    def test_teardown_errors_still_close_every_pipe_pidfd_and_network_lease(self):
+        for fault in ('stop', 'deadline'):
+            with self.subTest(fault=fault), contextlib.ExitStack() as stack:
+                process = mock.Mock()
+                process.poll.side_effect = [None, 0]
+                lease = mock.Mock()
+                pidfd = os.open('/dev/null', os.O_RDONLY)
+                pipes = []
+                native_pipe = os.pipe
+                def pipe():
+                    pair = native_pipe()
+                    pipes.extend(pair)
+                    return pair
+                stack.enter_context(mock.patch.object(supervisor.os, 'pipe', side_effect=pipe))
+                stack.enter_context(mock.patch.object(supervisor.subprocess, 'Popen', return_value=process))
+                stack.enter_context(mock.patch.object(supervisor, '_read_bwrap_sandbox_pid', return_value=1234))
+                stack.enter_context(mock.patch.object(supervisor, 'pin_sandbox_init', return_value=pidfd))
+                stack.enter_context(mock.patch.object(client.Lease, 'for_pid', return_value=lease))
+                stack.enter_context(mock.patch.object(supervisor.os, 'write'))
+                stack.enter_context(mock.patch.object(supervisor.signal, 'pidfd_send_signal'))
+                stack.enter_context(mock.patch.object(supervisor, '_stop_subprocess',
+                    side_effect=OSError('stop failed') if fault == 'stop' else None))
+                deadline = mock.Mock(side_effect=RuntimeError('deadline failed')) if fault == 'deadline' else None
+                with self.assertRaisesRegex((OSError, RuntimeError), f'{fault} failed'):
+                    supervisor.run_veth_sandbox(['bwrap'], ['app'], '/unused', (), app='codex',
+                        pre_payload_check=mock.Mock(side_effect=ValueError('payload readiness failed')),
+                        cleanup_deadline=deadline)
+                lease.close.assert_called_once()
+                for descriptor in (*pipes, pidfd):
+                    with self.assertRaises(OSError):
+                        os.fstat(descriptor)
+
     def test_pid_namespace_cleanup_rejects_the_current_host_namespace(self):
         with self.assertRaisesRegex(ValueError, "separate PID namespace"):
             supervisor.pin_sandbox_init(os.getpid())
@@ -826,6 +1033,22 @@ class DesktopLaunchTests(unittest.TestCase):
                 ["/usr/local/libexec/app-veth-run", "electron", "intel", "new-client", "--", "/opt/new-client/client", "literal; $HOME"])
         with mock.patch.object(client, "_configuration", return_value={"apps": {}}):
             self.assertIsNone(generic.managed_network_command("intel", ["/opt/new-client/client"]))
+
+    def test_executable_aliases_are_fresh_and_ambiguous_policies_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            first, second, alias = (Path(directory) / name for name in ('first', 'second', 'alias'))
+            first.write_text('', encoding='ascii')
+            second.write_text('', encoding='ascii')
+            alias.symlink_to(first)
+            apps = {'first': {'executables': (str(first),)}, 'second': {'executables': (str(second),)}}
+            with mock.patch.object(client, '_configuration', return_value={'apps': apps}):
+                self.assertEqual(client.configured_executable_application(str(alias)), 'first')
+                alias.unlink()
+                alias.symlink_to(second)
+                self.assertEqual(client.configured_executable_application(str(alias)), 'second')
+                apps['first']['executables'] = (str(second),)
+                with self.assertRaisesRegex(ValueError, 'more than one'):
+                    client.configured_executable_application(str(alias))
 
     def test_future_client_restore_records_the_vendor_command_before_worker_dispatch(self):
         original = ["/opt/new-client/client", "literal; $HOME"]
@@ -1061,21 +1284,35 @@ class PodmanAdapterTests(unittest.TestCase):
 class KernelFixtureTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("unshare") and shutil.which("ip"), "native iproute2 tools unavailable")
     def test_native_gateway_rejects_down_guest_and_accepts_up_guest_with_host_peer_down(self):
-        script = '''import json,subprocess
-def ip(*args):
-    return subprocess.run(["/usr/sbin/ip",*args],capture_output=True,text=True,encoding="utf-8",timeout=3)
+        commands = []
+        def command(argv, **options):
+            commands.append((argv, options))
+            return '[{"ifname":"lo"}]' if argv[-3:] == ['-j', 'link', 'show'] else ''
+        with mock.patch.object(broker, 'run', side_effect=command), \
+                mock.patch.object(broker, 'route', return_value=('eth0', '192.0.2.1', 1500)), \
+                mock.patch.object(broker, 'nft'), mock.patch.object(broker, 'event'):
+            endpoints = types.SimpleNamespace(ids={0: 'fixture'}, host_fd=70)
+            network = broker.Network(0, 70, 'codex', 1000, DEFAULT_POLICIES['codex'],
+                                     ipaddress.IPv4Network('10.203.0.0/24'), endpoints)
+            network.close()
+        batch = next(options['data'] for argv, options in commands if '--' in argv and argv[-2:] == ['-batch', '-'])
+        script = '''import json,subprocess,sys
+def ip(*args,data=None):
+    return subprocess.run(["/usr/sbin/ip",*args],input=data,capture_output=True,text=True,encoding="utf-8",timeout=3)
 for args in (("link","add","eth0","type","veth","peer","name","host0"),
              ("addr","add","10.203.0.2/30","dev","eth0")):
     result=ip(*args);assert result.returncode==0,result.stderr
-bad=ip("route","add","default","via","10.203.0.1","dev","eth0")
+bad=ip("-batch","-",data="route add default via 10.203.0.1 dev eth0\\nlink set eth0 up\\n")
 assert bad.returncode!=0 and "invalid gateway" in bad.stderr,bad.stderr
-result=ip("link","set","eth0","up");assert result.returncode==0,result.stderr
-good=ip("route","add","default","via","10.203.0.1","dev","eth0")
+assert "UP" not in json.loads(ip("-j","link","show","dev","eth0").stdout)[0]["flags"]
+result=ip("addr","del","10.203.0.2/30","dev","eth0");assert result.returncode==0,result.stderr
+good=ip("-batch","-",data=sys.stdin.read())
 assert good.returncode==0,good.stderr
 assert "UP" not in json.loads(ip("-j","link","show","dev","host0").stdout)[0]["flags"]
+assert json.loads(ip("-j","route","show","default").stdout)[0]["gateway"]=="10.203.0.1"
 '''
         result = subprocess.run(["/usr/bin/unshare", "-Urn", sys.executable, "-I", "-B", "-c", script],
-                                capture_output=True, text=True, encoding="utf-8", timeout=10)
+                                input=batch, capture_output=True, text=True, encoding="utf-8", timeout=10)
         if result.returncode and result.stderr.startswith("unshare: unshare failed: Operation not permitted"):
             self.skipTest("unprivileged kernel namespaces are unavailable")
         self.assertEqual(result.returncode, 0, result.stderr)

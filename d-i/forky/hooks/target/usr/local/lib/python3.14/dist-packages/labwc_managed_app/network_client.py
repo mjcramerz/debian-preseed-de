@@ -52,8 +52,9 @@ def network_enabled(app: str) -> bool:
 
 
 def configured_executable_application(executable: str) -> str | None:
+    executable = os.path.realpath(executable)
     matches = [name for name, policy in _configuration()["apps"].items()
-               if os.path.realpath(executable) in {os.path.realpath(path) for path in policy["executables"]}]
+               if any(executable == os.path.realpath(path) for path in policy["executables"])]
     if len(matches) > 1:
         raise ValueError("executable matches more than one application network policy")
     return matches[0] if matches else None

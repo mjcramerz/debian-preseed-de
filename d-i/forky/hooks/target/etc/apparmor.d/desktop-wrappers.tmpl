@@ -2446,6 +2446,9 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     /rdp-shared/ rw,
     /rdp-shared/** rwkl,
     /etc/opt/{,edge/,edge/**} r,
+    # Browser mkdir probes run against the sandbox's synthetic /etc.
+    # Only this directory is writable; host policy files remain read-only.
+    owner /etc/opt/ rw,
     /etc/vivaldi/{,**} r,
     # File-chooser selection does not grant AppArmor access by itself. Tuta's
     # attachments/downloads and managed browser file access use these roots;
@@ -2460,7 +2463,9 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     owner @{HOME}/.mullvad-browser/{,**} rwkl,
     owner @{HOME}/.mullvad/{,mullvadbrowser/,mullvadbrowser/**} rwkl,
     owner @{HOME}/.config/{chromium,google-chrome,microsoft-edge,vivaldi}/NativeMessagingHosts/.bitwarden_desktop_proxy rix,
-    owner @{HOME}/.mozilla/native-messaging-hosts/.bitwarden_desktop_proxy rix,
+    owner @{HOME}/.mozilla/native-messaging-hosts/ rw,
+    owner @{HOME}/.mozilla/native-messaging-hosts/.bitwarden_desktop_proxy rwklix,
+    owner @{HOME}/.mozilla/native-messaging-hosts/com.8bit.bitwarden.json rwkl,
     owner @{HOME}/.var/app/org.mozilla.firefox/.mozilla/native-messaging-hosts/{,**} rwkl,
     owner @{HOME}/.var/app/com.google.Chrome/config/google-chrome/NativeMessagingHosts/{,**} rwkl,
     owner @{HOME}/.var/app/org.chromium.Chromium/config/chromium/NativeMessagingHosts/{,**} rwkl,
@@ -2572,6 +2577,9 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     /usr/share/code/{bin/code,code} rix,
     /usr/share/spotify/ r,
     /usr/share/spotify/** mr,
+    /usr/share/keepassxc/{,**} r,
+    # libusb reads link speeds, including the USB root hubs themselves.
+    /sys/devices/**/usb[0-9]*/{,**/}speed r,
     /usr/share/spotify/spotify rix,
     deny /opt/xwayland/ r,
     deny /opt/xwayland/** rxm,

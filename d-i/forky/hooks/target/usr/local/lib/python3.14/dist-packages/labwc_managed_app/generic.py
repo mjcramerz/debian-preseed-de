@@ -41,6 +41,7 @@ WRAPPERS = {
     "electron": "/usr/local/bin/labwc-electron-app",
     "wayland": "/usr/local/bin/labwc-wayland-app",
 }
+CAPTURE_EXECUTABLES = frozenset({"/usr/bin/wireshark", "/usr/bin/tshark", "/usr/bin/dumpcap"})
 CONFIGURED_ENVIRONMENT_NAMES = "LABWC_CONFIGURED_ENVIRONMENT_NAMES"
 CONFIGURED_PAYLOAD_LAUNCHER = (
     "import json,os,sys; "
@@ -199,7 +200,7 @@ def managed_network_command(mode: str, arguments: list[str], *, kind: str = "way
                  *MANAGED_EXECUTABLE_ALIASES.get(name, ()))
         if name == "qbittorrent":
             paths = (*paths, "/usr/bin/qbittorrent")
-        if executable not in {os.path.realpath(path) for path in paths}:
+        if not any(executable == os.path.realpath(path) for path in dict.fromkeys(paths)):
             continue
         if name == "chatgpt":
             return ["/usr/local/bin/chatgpt", mode, *arguments[1:]]
@@ -210,12 +211,13 @@ def managed_network_command(mode: str, arguments: list[str], *, kind: str = "way
         return ["/usr/local/bin/labwc-app", mode, name, *arguments[1:]]
     # Keep the existing host administration/recovery entrypoints usable even
     # while an administrator is repairing a malformed network policy file.
-    if executable in {os.path.realpath(path) for path in (
+    if any(executable == os.path.realpath(path) for path in (
             "/usr/bin/foot", "/usr/bin/footclient", "/usr/bin/kitty", "/usr/bin/terminal-emulator",
+            *CAPTURE_EXECUTABLES,
             "/usr/bin/thunar", "/usr/bin/Thunar", "/usr/local/bin/labwc-terminal",
             "/usr/bin/timeshift-launcher", "/usr/local/bin/mullvad-vpn", "/usr/local/bin/waypaper",
             "/usr/local/bin/labwc-desktop-appearance", "/usr/local/bin/labwc-remote-desktop",
-            "/opt/Mullvad VPN/mullvad-vpn", "/opt/Mullvad VPN/mullvad-gui")}:
+            "/opt/Mullvad VPN/mullvad-vpn", "/opt/Mullvad VPN/mullvad-gui")):
         return None
     from .network_client import configured_executable_application
     name = configured_executable_application(executable)
@@ -333,6 +335,7 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
                    *, restore_arguments: list[str] | None = None) -> list[str]:
     assert_launch_allowed()
     is_thunar = kind == "wayland" and arguments[0] in {"/usr/bin/thunar", "/usr/bin/Thunar"}
+    is_capture = kind == "wayland" and arguments[0] in CAPTURE_EXECUTABLES
     if is_thunar:
         # GTK 3's GDK GL path can repaint a Thunar window erratically on this
         # desktop. Keep the diagnostic workaround local to the file manager.
@@ -364,7 +367,10 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
     # the host mount view and UID semantics for GVfs/UDisks removable-drive
     # controls and for mount/unmount changes to reach its Devices sidebar.
     # These apps retain their AppArmor profiles and session lifetime properties.
-    host_administration = (kind == "wayland" and arguments[0] in {
+    # dumpcap's package capabilities belong to the initial user namespace.
+    # PrivateTmp/ProtectSystem in a user unit implicitly create PrivateUsers,
+    # where those capabilities cannot authorize host-interface packet sockets.
+    host_administration = is_capture or (kind == "wayland" and arguments[0] in {
         "/usr/bin/foot", "/usr/bin/kitty", "/usr/bin/terminal-emulator",
         "/usr/bin/thunar", "/usr/bin/Thunar",
         "/usr/local/bin/labwc-terminal",
@@ -392,11 +398,12 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         f"--unit={unit}", f"--description=Labwc {kind} application: {label}",
         "--property=Requisite=labwc-session.target",
         "--property=After=labwc-session.target" + (
-            " gvfs-daemon.service labwc-gvfs-volume-monitor.service" if is_thunar else ""),
+            " gvfs-daemon.service labwc-gvfs-volume-monitor.service thunar.service" if is_thunar else ""),
         "--property=PartOf=labwc-session.target",
         *(["--property=Wants=gvfs-daemon.service",
-           "--property=Requires=labwc-gvfs-volume-monitor.service",
+           "--property=Requires=labwc-gvfs-volume-monitor.service thunar.service",
            "--property=PrivateMounts=no"] if is_thunar else []),
+        *(["--property=PrivateNetwork=no", "--property=PrivateMounts=no"] if is_capture else []),
         # Waypaper temporarily owns swaybg while its GUI is open. Stop the
         # supervisor before native backend startup, then restore the saved
         # selection after the GUI and all its renderers have exited. This

@@ -137,6 +137,7 @@ class Monitor:
         self.pending = 0
         self.removal = None
         self.stopping = False
+        self.failed = False
         self.loop = GLib.MainLoop()
         self.connection.signal_subscribe(
             upstream, INTERFACE, None, PATH, None, Gio.DBusSignalFlags.NONE,
@@ -200,6 +201,8 @@ class Monitor:
         name, old_owner, new_owner = parameters.unpack()
         if name == self.upstream and old_owner and old_owner != new_owner:
             # Opaque upstream IDs cannot survive a monitor restart.
+            self.failed = True
+            log("upstream-restarted")
             self.stop()
         if name in self.clients and not new_owner:
             connection = self.clients.pop(name)
@@ -210,6 +213,9 @@ class Monitor:
 
     def closed(self, connection, _remote, _error):
         if connection is getattr(self, "connection", None):
+            if not self.stopping:
+                self.failed = True
+                log("session-bus-closed")
             self.stop()
 
     def method_call(self, _connection, sender, _path, _interface, method, parameters, invocation):
@@ -358,7 +364,7 @@ def main() -> int:
         for signum in (signal.SIGTERM, signal.SIGINT):
             GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signum, monitor.stop)
         monitor.loop.run()
-        return 0
+        return 1 if monitor.failed else 0
     except (GLib.Error, RuntimeError) as error:
         log("monitor-failed", cause=type(error).__name__)
         return 1

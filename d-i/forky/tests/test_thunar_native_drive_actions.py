@@ -34,6 +34,21 @@ def inventory():
 
 
 class WiringTests(unittest.TestCase):
+    def test_dbus_primary_and_transient_clients_share_the_native_monitor(self):
+        path = 'etc/systemd/user/thunar.service.d/50-labwc-session.conf'
+        unit = (TARGET / path).read_text(encoding='utf-8')
+        for setting in ('Type=dbus', 'BusName=org.xfce.FileManager',
+                        'ExecStart=/usr/bin/Thunar --daemon',
+                        'Requires=labwc-gvfs-volume-monitor.service',
+                        'PartOf=labwc-session.target', 'PrivateUsers=no', 'PrivateMounts=no',
+                        'ConditionPathExists=!/run/user/%U/labwc-session-closing',
+                        'KillMode=control-group', 'TimeoutStopSec=20s',
+                        'LABWC_SESSION_APP=1',
+                        'Restart=on-failure', 'GIO_USE_VOLUME_MONITOR=GProxyVolumeMonitorLabwc'):
+            self.assertIn(setting, unit)
+        assets = (TARGET.parents[1] / 'scripts/desktop/components/target-assets.sh').read_text(encoding='utf-8')
+        self.assertIn(f'{path} /{path} 0644', assets)
+
     def test_native_registration_is_selected_only_for_thunar_and_all_assets_are_staged(self):
         registration = configparser.ConfigParser()
         registration.read(TARGET / 'usr/share/gvfs/remote-volume-monitors/labwc.monitor')
@@ -107,6 +122,7 @@ class ProtocolFixtureTests(unittest.TestCase):
         self.monitor.pending = 0
         self.monitor.removal = None
         self.monitor.stopping = False
+        self.monitor.failed = False
         self.monitor.loop = mock.Mock()
         self.monitor.connect = mock.Mock(side_effect=lambda: mock.Mock())
         self.delayed = []
@@ -204,6 +220,20 @@ class ProtocolFixtureTests(unittest.TestCase):
         self.monitor.loop.quit.assert_not_called()
         self.hold.unlink()
         self.wait_for(lambda: self.completed(invocation))
+        self.monitor.loop.quit.assert_called_once()
+        self.assertFalse(self.monitor.failed)
+
+    def test_lost_upstream_ids_or_session_bus_trigger_service_recovery(self):
+        self.monitor.owner_changed(None, None, None, None, None,
+                                   GLib.Variant('(sss)', (PROXY['UPSTREAM'], ':1.20', ':1.21')), None)
+        self.assertTrue(self.monitor.failed)
+        self.assertTrue(self.monitor.stopping)
+        self.monitor.loop.quit.assert_called_once()
+        self.monitor.failed = False
+        self.monitor.stopping = False
+        self.monitor.loop.reset_mock()
+        self.monitor.closed(self.connection, True, None)
+        self.assertTrue(self.monitor.failed)
         self.monitor.loop.quit.assert_called_once()
 
     def test_dialogs_are_unicast_and_inventory_is_broadcast_once_with_the_correct_name(self):

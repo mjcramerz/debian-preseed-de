@@ -49,6 +49,7 @@ table inet app_veth {
     map rpc { type inet_service : ipv4_addr . inet_service; }
     map gateways { type ifname : ipv4_addr; }
     map snat_map { type ifname : ipv4_addr; }
+    map peer_snat { type ifname . inet_proto . inet_service : ipv4_addr . inet_service; }
     chain source_guard {
         type filter hook prerouting priority -150; policy accept;
         iifname __APP_INTERFACES__ meta nfproto != ipv4 drop
@@ -85,6 +86,9 @@ table inet app_veth {
     }
     chain nat {
         type nat hook postrouting priority srcnat; policy accept;
+        # uTP, UDP trackers and incoming peers share the advertised listener.
+        # Preserve that exact TCP/UDP source port through the host NAT layer.
+        iifname @links meta l4proto { tcp, udp } snat ip to iifname . meta l4proto . th sport map @peer_snat
         iifname @links snat ip to iifname map @snat_map
         iifname @outbound masquerade
         oifname @links ip saddr 127.0.0.0/8 snat ip to oifname map @gateways
@@ -212,7 +216,10 @@ def route(*, allow_lan: bool = False) -> tuple[str, str, int]:
         return active[0][0], active[0][1], min(item[2] for item in active)
     if not isinstance(routes, list) or len(routes) != 1:
         raise ValueError("invalid Internet route response")
-    return route_interface(routes[0])[:3]
+    selected = route_interface(routes[0])
+    if not selected[3]:
+        raise ValueError("Internet interface is down")
+    return selected[:3]
 
 
 def select_pool() -> ipaddress.IPv4Network:
@@ -281,12 +288,15 @@ class Network:
         self.reservations = []
         self.attached = False
         self.installed = False
+        self.pinned_route = None
         try:
             if policy.get("network") is not True:
                 raise ValueError("application has no network authorization")
             peer_port = policy["peer_port"]
             pinned = policy["pin_route"]
             iface, source, mtu = route(allow_lan=not (pinned or policy["block_lan"]))
+            if pinned:
+                self.pinned_route = (iface, source, mtu)
             if app == "qbittorrent" and iface.startswith("tailscale"):
                 raise ValueError("qBittorrent requires a LAN or VPN Internet route")
             path = f"/proc/self/fd/{nsfd}"
@@ -300,16 +310,17 @@ class Network:
             self.peer_name = "eth0"
             run(["/usr/sbin/ip", "link", "set", "dev", self.name, "mtu", str(mtu)])
             run([*enter, "/usr/sbin/sysctl", "-q", "-w", "net.ipv6.conf.all.disable_ipv6=1"], fds=(nsfd,))
-            for args in (["link", "set", "lo", "up"],
-                         ["link", "set", "eth0", "mtu", str(mtu)],
-                         ["addr", "add", self.address + "/30", "dev", "eth0"],
-                         # The connected gateway route is usable only when the
-                         # guest link is UP. Its host peer remains DOWN until
-                         # the firewall transaction commits, so no packet can
-                         # escape while installing this default route.
-                         ["link", "set", "eth0", "up"],
-                         ["route", "add", "default", "via", self.gateway, "dev", "eth0"]):
-                run([*enter, "/usr/sbin/ip", *args], fds=(nsfd,))
+            # ip -batch stops at the first error. The guest must be UP before
+            # adding its gateway route; the host peer stays DOWN until the
+            # firewall commits, so setup cannot release application packets.
+            guest_setup = (
+                "link set lo up\n"
+                f"link set eth0 mtu {mtu}\n"
+                f"addr add {self.address}/30 dev eth0\n"
+                "link set eth0 up\n"
+                f"route add default via {self.gateway} dev eth0\n"
+            )
+            run([*enter, "/usr/sbin/ip", "-batch", "-"], data=guest_setup, fds=(nsfd,))
             rows = []
             def element(name, value):
                 rows.append(f"add element inet app_veth {name} {{ {value} }}")
@@ -327,6 +338,7 @@ class Network:
             if peer_port is not None:
                 for protocol, socket_type in (("tcp", socket.SOCK_STREAM), ("udp", socket.SOCK_DGRAM)):
                     self.reserve(source, peer_port, socket_type)
+                    element("peer_snat", f'"{self.name}" . {protocol} . {peer_port} : {source} . {peer_port}')
                     element("forwards", f'{source} . {protocol} . {peer_port} : {self.address} . {peer_port}')
                     element("incoming", f'"{self.name}" . {self.address} . {protocol} . {peer_port}')
             if app == "discord":
@@ -392,6 +404,36 @@ class Network:
         event("network_cleanup_failed" if errors else "network_removed", self.id, app=self.app, uid=self.uid)
         if errors:
             raise NetworkCleanupError("managed network cleanup failed") from errors[0]
+
+
+def release_lease(selector, leases, channel):
+    network = leases[channel]
+    selector.unregister(channel)
+    leases.pop(channel)
+    try:
+        network.close()
+    finally:
+        try:
+            os.close(network.nsfd)
+        finally:
+            channel.close()
+
+
+def refresh_pinned_routes(selector, leases):
+    pinned = [(channel, network) for channel, network in leases.items()
+              if network.pinned_route is not None]
+    if not pinned:
+        return
+    try:
+        current = route()
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+        current = None
+    for channel, network in pinned:
+        if current != network.pinned_route:
+            # Never silently move a torrent from its selected VPN/LAN egress,
+            # or keep advertising a peer port on an address no longer in use.
+            event("network_route_changed", network.id, app=network.app, uid=network.uid)
+            release_lease(selector, leases, channel)
 
 
 def receive(channel, desktop_uid, policies):
@@ -472,42 +514,59 @@ def main():
     with socket.create_connection(("127.0.0.1", 53053), timeout=2):
         pass
     nft(RULESET)
-    endpoints = EndpointPool(pool)
-    selector = selectors.DefaultSelector()
-    # Kernel notifications keep public-addressed connected LAN policy current
-    # after DHCP, VPN and interface changes. A lost/failed snapshot terminates
-    # leases through the same fail-closed teardown as any service failure.
-    route_watch = socket.socket(socket.AF_NETLINK, socket.SOCK_RAW | socket.SOCK_CLOEXEC,
-                                socket.NETLINK_ROUTE)
-    route_watch.bind((0, 0x10 | 0x40))  # RTMGRP_IPV4_IFADDR | RTMGRP_IPV4_ROUTE
-    route_watch.setblocking(False)
-    selector.register(route_watch, selectors.EVENT_READ)
-    lan_snapshot = refresh_lan_networks(None)
-    listener = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET | socket.SOCK_CLOEXEC)
+    endpoints = None
+    selector = None
+    route_watch = None
+    listener = None
     leases = {}
     socket_path = Path(SOCKET_PATH)
-    if socket_path.exists() or socket_path.is_symlink():
-        metadata = socket_path.lstat()
-        if (not stat.S_ISSOCK(metadata.st_mode) or metadata.st_uid != 0
-                or stat.S_IMODE(metadata.st_mode) != 0o666):
-            raise ValueError("stale managed network socket is unsafe")
-        socket_path.unlink()
-    listener.bind(SOCKET_PATH)
-    os.chmod(SOCKET_PATH, 0o666)  # Credentials + namespace ownership authorize every request.
-    listener.listen(16)
-    selector.register(listener, selectors.EVENT_READ)
+    socket_bound = False
     errors = []
     try:
+        endpoints = EndpointPool(pool)
+        selector = selectors.DefaultSelector()
+        # Kernel notifications keep public-addressed connected LAN policy current
+        # after DHCP, VPN and interface changes. A lost/failed snapshot terminates
+        # leases through the same fail-closed teardown as any service failure.
+        route_watch = socket.socket(socket.AF_NETLINK, socket.SOCK_RAW | socket.SOCK_CLOEXEC,
+                                    socket.NETLINK_ROUTE)
+        route_watch.bind((0, 0x1 | 0x10 | 0x40))  # RTMGRP_LINK | RTMGRP_IPV4_IFADDR | RTMGRP_IPV4_ROUTE
+        route_watch.setblocking(False)
+        selector.register(route_watch, selectors.EVENT_READ)
+        lan_snapshot = refresh_lan_networks(None)
+        listener = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET | socket.SOCK_CLOEXEC)
+        if socket_path.exists() or socket_path.is_symlink():
+            metadata = socket_path.lstat()
+            if (not stat.S_ISSOCK(metadata.st_mode) or metadata.st_uid != 0
+                    or stat.S_IMODE(metadata.st_mode) != 0o666):
+                raise ValueError("stale managed network socket is unsafe")
+            socket_path.unlink()
+        listener.bind(SOCKET_PATH)
+        socket_bound = True
+        os.chmod(SOCKET_PATH, 0o666)  # Credentials + namespace ownership authorize every request.
+        listener.listen(16)
+        selector.register(listener, selectors.EVENT_READ)
         notify_path = os.environ.get("NOTIFY_SOCKET")
         if notify_path:
             with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as notification:
                 notification.connect("\0" + notify_path[1:] if notify_path.startswith("@") else notify_path)
                 notification.sendall(b"READY=1")
         while True:
-            for key, _ in selector.select(timeout=1):
+            for key, _ in selector.select():
                 if key.fileobj is route_watch:
-                    route_watch.recv(65536)
+                    # Coalesce a bounded burst before taking the two route/link
+                    # snapshots; endpoint setup generates several notifications.
+                    for _ in range(64):
+                        try:
+                            route_watch.recv(65536)
+                        except BlockingIOError:
+                            break
                     lan_snapshot = refresh_lan_networks(lan_snapshot)
+                    try:
+                        refresh_pinned_routes(selector, leases)
+                    except NetworkCleanupError as exc:
+                        errors.append(exc)
+                        raise
                 elif key.fileobj is listener:
                     channel, _ = listener.accept()
                     channel.settimeout(2)
@@ -558,16 +617,15 @@ def main():
                             channel.close()
                 else:
                     channel = key.fileobj
-                    network = leases.pop(channel)
-                    selector.unregister(channel)
+                    # A route event earlier in this readiness batch may have
+                    # already revoked and closed this exact lease.
+                    if channel not in leases:
+                        continue
                     try:
-                        network.close()
+                        release_lease(selector, leases, channel)
                     except NetworkCleanupError as exc:
                         errors.append(exc)
                         raise
-                    finally:
-                        os.close(network.nsfd)
-                        channel.close()
     finally:
         # Signals cannot interrupt cleanup and strand a later lease.
         for sig in (signal.SIGTERM, signal.SIGINT):
@@ -580,17 +638,19 @@ def main():
             finally:
                 os.close(network.nsfd)
                 channel.close()
-        selector.close()
-        route_watch.close()
-        listener.close()
-        Path(SOCKET_PATH).unlink(missing_ok=True)
+        for resource in (selector, route_watch, listener):
+            if resource is not None:
+                resource.close()
+        if socket_bound:
+            socket_path.unlink(missing_ok=True)
         if errors:
             # A failed deletion must never expose a stale veth by removing the
             # reserved-link default-deny guards. Restart recovery removes tagged links
             # before replacing this table; clients fail closed meanwhile.
             raise NetworkCleanupError("network service cleanup failed") from errors[0]
-        endpoints.close()
-        nft("destroy table inet app_veth\n")
+        if endpoints is not None:
+            endpoints.close()
+            nft("destroy table inet app_veth\n")
 
 
 if __name__ == "__main__":

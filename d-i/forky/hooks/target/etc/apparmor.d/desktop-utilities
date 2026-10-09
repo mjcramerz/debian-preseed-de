@@ -12,6 +12,9 @@ profile desktop-btop /usr/bin/btop flags=(attach_disconnected, mediate_deleted) 
   capability sys_ptrace,
   # AppArmor mediates both directions; base.d supplies the reciprocal grant.
   signal (send),
+  # Foot sends HUP when the terminal closes; both sides are mediated.
+  signal (receive) set=(hup) peer=desktop-launcher,
+  network netlink raw,
   ptrace (read),
   deny ptrace (trace),
   /usr/bin/btop mr,
@@ -42,6 +45,7 @@ profile desktop-btop /usr/bin/btop flags=(attach_disconnected, mediate_deleted) 
   owner @{HOME}/.config/btop/{,**} rwkl,
   owner @{HOME}/.cache/btop/{,**} rwkl,
   owner @{HOME}/.local/state/btop/{,**} rwkl,
+  owner @{HOME}/.local/state/btop.log{,.1} rwk,
 }
 
 profile desktop-editors /usr/bin/{featherpad,qimgv,kdiff3,gnumeric,xournalpp,gnote,qalculate-qt} flags=(attach_disconnected, mediate_deleted) {
@@ -200,6 +204,7 @@ profile desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exe
   ptrace (read) peer=hardware-tuning-client,
   signal (send) set=(hup) peer=session-controls,
   signal (send) set=(hup) peer=labwc-security-action,
+  signal (send) set=(hup) peer=desktop-btop,
   # Embedded Python may ignore the caller environment. Failed optional bytecode
   # cache writes are harmless: never grant writes to the packaged interpreter.
   deny /usr/lib/python3{,.[0-9]*}/{,**/}__pycache__/*.pyc* w,

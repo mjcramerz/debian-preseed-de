@@ -566,6 +566,7 @@ done
 require_mode /etc/systemd/system/labwc-admin-action@.service 644
 require_mode /etc/systemd/system/labwc-external-drives-shutdown.service 644
 require_mode /etc/systemd/user/labwc-gvfs-volume-monitor.service 644
+require_mode /etc/systemd/user/thunar.service.d/50-labwc-session.conf 644
 for application_family in wayland electron native devops bitwarden qbittorrent compat; do
   lifecycle_policy="/etc/systemd/user/labwc-${application_family}-.service.d/50-app-lifecycle.conf"
   require_mode "$lifecycle_policy" 644

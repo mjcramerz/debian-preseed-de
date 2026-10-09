@@ -1,0 +1,183 @@
+{
+  "source": "Installed October 9 AppArmor denials; account paths anonymized",
+  "records": 23,
+  "events": [
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "mkdir",
+      "class": "file",
+      "name": "/etc/opt/",
+      "requested_mask": "c",
+      "denied_mask": "c",
+      "fsuid": "1000",
+      "ouid": "1000"
+    },
+    {
+      "profile": "desktop-btop",
+      "operation": "mknod",
+      "class": "file",
+      "name": "/home/fixture/.local/state/btop.log",
+      "requested_mask": "c",
+      "denied_mask": "c",
+      "fsuid": "1000",
+      "ouid": "1000"
+    },
+    {
+      "profile": "desktop-btop",
+      "operation": "create",
+      "class": "net",
+      "requested_mask": "create",
+      "denied_mask": "create",
+      "family": "netlink",
+      "sock_type": "raw"
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "signal",
+      "class": "signal",
+      "requested_mask": "send",
+      "denied_mask": "send",
+      "signal": "hup",
+      "peer": "desktop-btop"
+    },
+    {
+      "profile": "desktop-btop",
+      "operation": "signal",
+      "class": "signal",
+      "requested_mask": "receive",
+      "denied_mask": "receive",
+      "signal": "hup",
+      "peer": "desktop-launcher"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "mknod",
+      "class": "file",
+      "name": "/home/fixture/.mozilla/native-messaging-hosts/.bitwarden_desktop_proxy",
+      "requested_mask": "c",
+      "denied_mask": "c",
+      "fsuid": "1000",
+      "ouid": "1000"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "open",
+      "class": "file",
+      "name": "/usr/share/keepassxc/translations/keepassxc_en.qm",
+      "requested_mask": "r",
+      "denied_mask": "r",
+      "fsuid": "1000",
+      "ouid": "0"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "open",
+      "class": "file",
+      "name": "/sys/devices/pci0000:00/0000:00:0d.0/usb1/speed",
+      "requested_mask": "r",
+      "denied_mask": "r",
+      "fsuid": "1000",
+      "ouid": "0"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "open",
+      "class": "file",
+      "name": "/sys/devices/pci0000:00/0000:00:0d.0/usb2/speed",
+      "requested_mask": "r",
+      "denied_mask": "r",
+      "fsuid": "1000",
+      "ouid": "0"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "open",
+      "class": "file",
+      "name": "/sys/devices/pci0000:00/0000:00:14.0/usb3/speed",
+      "requested_mask": "r",
+      "denied_mask": "r",
+      "fsuid": "1000",
+      "ouid": "0"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "open",
+      "class": "file",
+      "name": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-1/speed",
+      "requested_mask": "r",
+      "denied_mask": "r",
+      "fsuid": "1000",
+      "ouid": "0"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "open",
+      "class": "file",
+      "name": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-10/speed",
+      "requested_mask": "r",
+      "denied_mask": "r",
+      "fsuid": "1000",
+      "ouid": "0"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "open",
+      "class": "file",
+      "name": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-3/speed",
+      "requested_mask": "r",
+      "denied_mask": "r",
+      "fsuid": "1000",
+      "ouid": "0"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "open",
+      "class": "file",
+      "name": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-5/speed",
+      "requested_mask": "r",
+      "denied_mask": "r",
+      "fsuid": "1000",
+      "ouid": "0"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "open",
+      "class": "file",
+      "name": "/sys/devices/pci0000:00/0000:00:14.0/usb3/3-8/speed",
+      "requested_mask": "r",
+      "denied_mask": "r",
+      "fsuid": "1000",
+      "ouid": "0"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "open",
+      "class": "file",
+      "name": "/sys/devices/pci0000:00/0000:00:14.0/usb4/speed",
+      "requested_mask": "r",
+      "denied_mask": "r",
+      "fsuid": "1000",
+      "ouid": "0"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "open",
+      "class": "file",
+      "name": "/usr/share/keepassxc/wordlists/eff_large.wordlist",
+      "requested_mask": "r",
+      "denied_mask": "r",
+      "fsuid": "1000",
+      "ouid": "0"
+    },
+    {
+      "profile": "labwc-app//app-bwrap",
+      "operation": "open",
+      "class": "file",
+      "name": "/usr/share/keepassxc/wordlists/",
+      "requested_mask": "r",
+      "denied_mask": "r",
+      "fsuid": "1000",
+      "ouid": "0"
+    }
+  ]
+}

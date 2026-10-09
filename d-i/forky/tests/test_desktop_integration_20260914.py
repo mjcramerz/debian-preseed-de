@@ -182,17 +182,11 @@ esac
         self.events = self.trace.read_text().splitlines()
         return result
 
-    def test_thunar_actions_call_the_canonical_manager(self):
+    def test_thunar_folder_actions_do_not_offer_drive_removal(self):
         actions = ET.fromstring(payload_read_text(TARGET / 'etc/skel-desktop/.config/Thunar/uca.xml'))
         managed = [a for a in actions if 'labwc-external-drives' in a.findtext('command', '')]
-        self.assertEqual(len(managed), 3)
-        self.assertEqual({shlex.split(a.findtext('command'))[1] for a in managed},
-                         {'--manage-path', '--unmount-path', '--power-off-path'})
-        for action in managed:
-            self.assertEqual(shlex.split(action.findtext('command'))[0],
-                             '/usr/local/bin/labwc-external-drives')
-            self.assertEqual(shlex.split(action.findtext('command'))[2:], ['%f'])
-            self.assertIsNotNone(action.find('directories'))
+        self.assertEqual(managed, [])
+        self.assertIn('Open Terminal Here', [a.findtext('name') for a in actions])
         self.assertEqual(len({a.findtext('unique-id') for a in actions}), len(actions))
 
     def test_folder_unmount_flushes_and_leaves_its_working_directory(self):
@@ -525,6 +519,20 @@ class MailDefaultsTests(unittest.TestCase):
 
 
 class ServiceAndNotificationTests(unittest.TestCase):
+    def test_capture_tools_keep_host_namespaces_and_only_dumpcap_package_privileges(self):
+        for executable in ('/usr/bin/wireshark', '/usr/bin/tshark', '/usr/bin/dumpcap'):
+            with self.subTest(executable=executable), mock.patch.object(generic, 'assert_launch_allowed'):
+                argv = generic.transient_argv('wayland', 'launch', [executable, '-D'], {})
+                self.assertIsNone(generic.managed_network_command('launch', [executable]))
+            for setting in ('PrivateUsers=no', 'PrivateNetwork=no', 'PrivateMounts=no',
+                            'NoNewPrivileges=no', 'PartOf=labwc-session.target', 'KillMode=control-group'):
+                self.assertIn('--property=' + setting, argv)
+            for setting in ('PrivateTmp=yes', 'PrivateIPC=yes', 'ProtectSystem=full'):
+                self.assertNotIn('--property=' + setting, argv)
+            self.assertFalse(any('AmbientCapabilities=' in item or 'CapabilityBoundingSet=' in item
+                                 for item in argv))
+            self.assertEqual(argv[-2:], [executable, '-D'])
+
     def test_thunar_keeps_host_mounts_and_native_udisks_controls(self):
         for executable in ('/usr/bin/thunar', '/usr/bin/Thunar'):
             with self.subTest(executable=executable), mock.patch.object(generic, 'assert_launch_allowed'):
@@ -534,8 +542,8 @@ class ServiceAndNotificationTests(unittest.TestCase):
             self.assertEqual(env['GIO_USE_VOLUME_MONITOR'], 'GProxyVolumeMonitorLabwc')
             for setting in ('PrivateUsers=no', 'PrivatePIDs=no', 'PrivateMounts=no',
                             'Wants=gvfs-daemon.service',
-                            'Requires=labwc-gvfs-volume-monitor.service',
-                            'After=labwc-session.target gvfs-daemon.service labwc-gvfs-volume-monitor.service',
+                            'Requires=labwc-gvfs-volume-monitor.service thunar.service',
+                            'After=labwc-session.target gvfs-daemon.service labwc-gvfs-volume-monitor.service thunar.service',
                             'PartOf=labwc-session.target'):
                 self.assertIn('--property=' + setting, argv)
             for setting in ('PrivateTmp=yes', 'PrivateIPC=yes', 'ProtectSystem=full'):
