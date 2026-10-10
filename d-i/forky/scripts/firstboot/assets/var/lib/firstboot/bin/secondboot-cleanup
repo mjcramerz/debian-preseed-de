@@ -213,27 +213,31 @@ remove_initramfs_health_hooks() {
   fi
 }
 
-installer_state=$(root_path /var/lib/installer-state)
 firstboot_complete=$(root_path /var/lib/firstboot/state/complete)
 crypto_config=$(root_path /var/lib/tpm2-enrollment/config.env)
 crypto_install_passphrase=$(root_path /var/lib/tpm2-enrollment/install-passphrase)
 crypto_pending=$(root_path /var/lib/tpm2-enrollment/tpm2-enroll.pending)
 crypto_complete=$(root_path /var/lib/tpm2-enrollment/tpm2-enroll.complete)
 
-[ -e "$firstboot_complete" ] || [ -L "$firstboot_complete" ] || {
-  printf 'fatal: firstboot completion marker is missing: %s\n' "$firstboot_complete" >&2
-  exit 1
-}
-regular_file_exists "$firstboot_complete" || {
-  printf 'fatal: firstboot completion marker must be a regular non-symlink file: %s\n' "$firstboot_complete" >&2
-  exit 1
-}
+firstboot_marker_present=false
+if [ -e "$firstboot_complete" ] || [ -L "$firstboot_complete" ]; then
+  regular_file_exists "$firstboot_complete" || {
+    printf 'fatal: firstboot completion marker must be a regular non-symlink file: %s\n' "$firstboot_complete" >&2
+    exit 1
+  }
+  firstboot_marker_present=true
+fi
 
 # Enrollment helpers can finish independently of unrelated first-boot
 # diagnostics. Remove each completed bootstrap surface immediately; retain only
 # components that still lack their own completion marker.
 cleanup_crowdsec_bootstrap
 cleanup_tailscale_bootstrap
+
+if [ "$firstboot_marker_present" != true ]; then
+  log "removed completed bootstrap artifacts; retained first-boot artifacts until firstboot publishes completion"
+  exit 0
+fi
 
 if ! firstboot_completed_successfully "$firstboot_complete"; then
   log "retained first-boot artifacts because firstboot did not complete successfully"

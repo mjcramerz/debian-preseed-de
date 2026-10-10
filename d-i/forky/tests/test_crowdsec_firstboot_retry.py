@@ -12,6 +12,7 @@ import unittest
 FORKY = Path(__file__).resolve().parents[1]
 SOURCE = (FORKY / "scripts/firstboot/assets/var/lib/firstboot/bin/crowdsec-firstboot.tmpl").read_text(encoding="utf-8")
 UNIT = (FORKY / "scripts/firstboot/assets/etc/systemd/system/crowdsec-firstboot.service.tmpl").read_text(encoding="utf-8")
+SECONDBOOT_UNIT = (FORKY / "scripts/firstboot/assets/etc/systemd/system/secondboot.service").read_text(encoding="utf-8")
 LATE = (FORKY / "scripts/late/crowdsec.sh").read_text(encoding="utf-8")
 OVERLAY = (FORKY / "hooks/target/etc/crowdsec/config.yaml.local.tmpl").read_text(encoding="utf-8")
 SHELLS = (("dash", ["/bin/dash"]),)
@@ -571,6 +572,40 @@ log_line() { printf 'event=%s\\n' "$*"; }
                             '__INSTALLER_LOG_VETH_FILE__'):
             self.assertIn(placeholder, system_acquis)
         self.assertIn('/etc/crowdsec/acquis.d/23-system-syslog.yaml', LATE)
+
+    def test_secondboot_cleans_completed_helpers_before_firstboot_marker(self):
+        self.assertNotIn("ConditionPathExists=/var/lib/firstboot/state/complete", SECONDBOOT_UNIT)
+        for label, shell in SHELLS:
+            with self.subTest(shell=label), tempfile.TemporaryDirectory() as root:
+                target = Path(root) / "target"
+                for path, content in {
+                    "var/lib/firstboot/crowdsec/complete": "status=pass\n",
+                    "var/lib/firstboot/tailscale/complete": "status=0\n",
+                    "var/lib/firstboot/bin/crowdsec-firstboot": "inert\n",
+                    "var/lib/firstboot/bin/tailscale-up": "inert\n",
+                    "var/lib/firstboot/bin/firstboot.sh": "inert\n",
+                    "etc/systemd/system/crowdsec-firstboot.service": "inert\n",
+                    "etc/systemd/system/tailscale-bootstrap.service": "inert\n",
+                    "etc/systemd/system/firstboot.service": "inert\n",
+                    "etc/systemd/system/secondboot.service": "inert\n",
+                    "var/lib/firstboot/bin/secondboot-cleanup": "inert\n",
+                }.items():
+                    artifact = target / path
+                    artifact.parent.mkdir(parents=True, exist_ok=True)
+                    artifact.write_text(content, encoding="ascii")
+
+                cleanup = subprocess.run(
+                    [*shell, str(FORKY / "scripts/firstboot/assets/var/lib/firstboot/bin/secondboot-cleanup")],
+                    env={"PATH": "/usr/bin:/bin", "SECONDBOOT_ROOT": str(target)},
+                    text=True, encoding="utf-8", capture_output=True, timeout=5,
+                )
+                self.assertEqual(cleanup.returncode, 0, cleanup.stderr)
+                self.assertIn("retained first-boot artifacts until firstboot publishes completion", cleanup.stdout)
+                self.assertFalse((target / "var/lib/firstboot/crowdsec").exists())
+                self.assertFalse((target / "var/lib/firstboot/tailscale").exists())
+                self.assertTrue((target / "var/lib/firstboot/bin/firstboot.sh").exists())
+                self.assertTrue((target / "etc/systemd/system/firstboot.service").exists())
+                self.assertTrue((target / "etc/systemd/system/secondboot.service").exists())
 
     def test_desktop_audit_rules_cover_root_and_user_execve_abis(self):
         rules = (FORKY / 'hooks/target/etc/audit/crowdsec/desktop.rules').read_text(encoding='utf-8')
