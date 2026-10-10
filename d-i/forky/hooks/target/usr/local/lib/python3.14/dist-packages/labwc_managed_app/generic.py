@@ -155,6 +155,14 @@ def unwrap_env(arguments: list[str], environment: dict[str, str]) -> list[str]:
     return []
 
 
+def validated_labwc_pid() -> str | None:
+    value = os.environ.get("LABWC_PID", "")
+    if value and (not re.fullmatch(r"[1-9][0-9]{0,9}", value)
+                  or int(value) > 2_147_483_647):
+        fail("invalid LABWC_PID in the compositor session environment")
+    return value or None
+
+
 def session_environment() -> dict[str, str]:
     home = current_user_home()
     user = current_user_name()
@@ -334,6 +342,13 @@ def run_configured_network(arguments: list[str]) -> int:
 def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict[str, str],
                    *, restore_arguments: list[str] | None = None) -> list[str]:
     assert_launch_allowed()
+    if kind == "wayland" and arguments[0] == "/usr/bin/labwc-tweaks":
+        labwc_pid = validated_labwc_pid()
+        if labwc_pid is not None:
+            # labwc-tweaks uses the compositor-owned PID for its fixed
+            # `labwc -r` reload.  Propagate it only to this reviewed control
+            # surface; ordinary desktop clients never receive a signal target.
+            environment["LABWC_PID"] = labwc_pid
     is_thunar = kind == "wayland" and arguments[0] in {"/usr/bin/thunar", "/usr/bin/Thunar"}
     is_capture = kind == "wayland" and arguments[0] in CAPTURE_EXECUTABLES
     if is_thunar:
@@ -377,6 +392,11 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         "/usr/bin/timeshift-launcher", "/usr/local/bin/mullvad-vpn",
         "/usr/local/bin/waypaper",
         "/usr/local/bin/labwc-desktop-appearance",
+        # Labwc Tweaks edits the account's compositor configuration and
+        # signals the already-running labwc process.  Keep it in the host
+        # UID/PID/IPC view used by Desktop Appearance so writes and HUP reach
+        # the real session instead of a transient namespace.
+        "/usr/bin/labwc-tweaks",
     }) or (kind == "wayland" and arguments[:2] == [
         "/usr/local/bin/labwc-remote-desktop", "_connect",
     ]) or (kind == "electron" and arguments[0] in {

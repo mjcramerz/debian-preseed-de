@@ -166,8 +166,8 @@ e304c3e08d1cd5e3abc5922dc93f6ee7137b29a0171fcd6beac721d9a297080d  hooks/target/e
 cdb9e039cbbbe809126673a7351807ed8db1c3b23618cb89d474c803a485da45  hooks/target/etc/apparmor.d/gitbuild
 f4ca1013031c0a890345a7f7c806604ba45bfd8f0ab1a2f3a65f4d0de1c5de0e  hooks/target/etc/apparmor.d/gitbuild-worker
 5c78f2e9a86dd72d9c092e2f82f75944f45aacf6568a4c62ef694ac2c8e95a80  hooks/target/etc/apparmor.d/hardware-tuning
-f2717555645c83b6dbbcda72c486b6c1d06372e8627f6f0a084e8cedaf8eee0d  hooks/target/etc/apparmor.d/labwc-appearance
-fbf5752c5554a8006b552a1c39e455cb8666f2a46fd434f9a2e8afc2f95e294d  hooks/target/etc/apparmor.d/labwc-session
+c5f4ccc463ac9ec3c833a6685f33497e75e1c3ad562df13c2bfafa243b08441f  hooks/target/etc/apparmor.d/labwc-appearance
+216bad7302b968db52791bb245c4753748858ab47232500c0825080e537ccecb  hooks/target/etc/apparmor.d/labwc-session
 390c6c816315f1e59f27f86b4f34c7e645204c399af9789a98498c473aecc9a0  hooks/target/etc/apparmor.d/local/abstractions/desktop-user-media.tmpl
 43564f673f1428ce44b8fb34931a77e64003789c746b49b391cc5248ae7c6c74  hooks/target/etc/apparmor.d/local/chromium
 394a744f6bc5106afba0575d8c46992a1dde41a7250c020a2160bde0b4e14bd4  hooks/target/etc/apparmor.d/local/code
@@ -532,7 +532,7 @@ f9a36c40ee620d298e60b1b75d4a562abf987291e9c5d3cc4bb0610e97b6d249  hooks/target/e
 b9dfe671082ad086b779862a6ef73410e24a4a840193c3c01d7db1b6649885fb  hooks/target/etc/skel-desktop/.config/labwc/autostart
 73e27cb9d58dd5369e9d3089cf89b2914b237b32438f5122a136e93db48e7424  hooks/target/etc/skel-desktop/.config/labwc/environment.d/10-wayland.env.tmpl
 9474a63af5ca9f73ab4cdead93815fd2f89377d4aca413f299f8479df83f3704  hooks/target/etc/skel-desktop/.config/labwc/environment.tmpl
-6b56954037bea2acec3c4877e5012b70a9264d235f8621330682732ff925126f  hooks/target/etc/skel-desktop/.config/labwc/menu.xml.tmpl
+a32ac712ba4a12f59833192dd4c9b5281cf8a23d1038f79f7ec0252036402a50  hooks/target/etc/skel-desktop/.config/labwc/menu.xml.tmpl
 dfc8b81107f342e7706f5f02a4eeb59ed46dc0e927cba0324ea66b5b3d81a63e  hooks/target/etc/skel-desktop/.config/labwc/rc.xml.tmpl
 124722631f375e267a8f3abd344007810064e075a2499725a70d7e123ff2879e  hooks/target/etc/skel-desktop/.config/labwc/shutdown
 dae46c69bcdbd8abd4fa91eaef344e2545306f5719cf91dd66a56bbb27820054  hooks/target/etc/skel-desktop/.config/labwc/themerc-override.tmpl
@@ -1033,7 +1033,7 @@ e933650d1906e3d2c8372fc2f980efa03a2a396cbe39eaa2698c0d2ea94d5bb1  hooks/target/u
 7d030bfba346ae78a7224262d4b61973941f2a2dd111a9c9600812319321bb9a  hooks/target/usr/local/bin/labwc-podman-menu
 4ad254036c3aa181a332368b04c5c336a26c707dade67dc15ed8d707398ed142  hooks/target/usr/local/bin/labwc-power-menu
 574f44bc11b7d48298ad957f87c0b6685f8278d20328fe820dff8350dcecf2bf  hooks/target/usr/local/bin/labwc-power-settings
-d3f3596b329d6d9f998ee88f41787dd6083cdbe00ce55f81ef9c8830fb75305d  hooks/target/usr/local/bin/labwc-qbittorrent
+850202389c4a38f2c60ad89404105c4da87d614bbfa21f064b014d99cc016371  hooks/target/usr/local/bin/labwc-qbittorrent
 ea26b2e95bfece1c73e5d24cefeff45fbc2bf7daa218cb91bdb43ec7bcb83b1b  hooks/target/usr/local/bin/labwc-recovery-action.tmpl
 14892da2b2b2a72f72f11d7919f367ee92a2e98b47e060ae861497621f820df9  hooks/target/usr/local/bin/labwc-remote-desktop.tmpl
 9d7044a3d503d51779abca420c770fdf5b190710c1e7eed4d33d3acabe59ba49  hooks/target/usr/local/bin/labwc-run
@@ -1233,10 +1233,10 @@ a3c38818fee2858dca2c613e116aca7d7428a8b1094678a4524b1ce49aef6add  hooks/target/u
 d9e978888e0b421bfdd9eb8379874c66fe8eae0e4f574bdacf7a97666bb811b0  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_ai_copilots/cli.py
 c84539bcfd878430ce128e5aaef84053a58bea73ff2cf96fea5a08c0f7038035  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_ai_copilots/gguf.py
 ba218e705e4a01002555f3620e389f5229e93b9ba46961e3ebf0d1b54bc68c64  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/__init__.py
-848019183fbc2a02119d8b9cc63ef803555e63c1c6c6db69d0ebe7ce11469308  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/catalog.py
+21ea2c2a9f7664e0da0e8b5317a5a484a015d8be199e531e550d739b371aa0be  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/catalog.py
 0b93fbf5548254ab1a7e88a77add6555dee2b05c1821fd73b9b420213bbcbf82  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/cli.py
 034daefcea0514e489d48bcb59ac358c57f8bce8956a3894aec9b95a09565356  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/defaults.py
-8abaeaec9bf0b55c81ac8d48da7714fc8b6c2e69399821afddbb662d3433c279  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/editors.py
+420b1bc1161a198c267c5f12c4635cc37e6302f1f32e8a7956f151ede9c828a1  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/editors.py
 c9bba6e7a1a2b219eacf623cc0225445548e8739c18d13e50ec759bea11e773c  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/engine.py
 e7404379109fb1e71e22943fa15a9a4fdfbb18071bf48b0125e23ed581c36555  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/greeter.py
 0f78920248b6b2d4d2d9dc2f9b2795b1790f68604db21afccb77e63b1463feb4  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/native.py
@@ -1270,7 +1270,7 @@ bfd49a77b8586649525406e8861020ead34f822f5d6b7fc763dc8c456cccf6c5  hooks/target/u
 a87fab01db35b3cb5fff246894159cbdc2150833fcfc8c3044e672b97590b614  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/electron.py
 2cfec18ba25d96f1e7b0585d6dabf7c5515b3b589c3c8fb872db154ba3b7700a  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/environment.py
 bd4507f48c6b1ecc52607c01a97ef5dcf7bcc9fa47b45f150ccedd68a1fdb8ca  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/events.py
-285aa5862a56d50135d540184e9b30755466e5f3de3a0d62a638b1690f882ea5  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py
+07c43b46ba20edcb9203fc9eae7a1fe36a6bcbc7a092872564a238b4c7189c00  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py
 6029417c6944a2ae15955786548aa70cfc5a296a7169b81a9a505930a4e23196  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/identity.py
 1d4bdb37fa9522b9192e29f1c0b37dd90a7b8392da7dde737555c35e4f700d6b  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/integrity.py
 ae665a85c88c409d21163551dd292f9ef7367917f22c0f2003e356d36a4f2f8c  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/mounts.py

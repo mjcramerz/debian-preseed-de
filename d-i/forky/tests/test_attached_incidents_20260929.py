@@ -65,7 +65,8 @@ class TorrentServiceTests(unittest.TestCase):
         self.assertTrue({'LD_PRELOAD', 'PYTHONPATH', 'DISPLAY', 'LABWC_SESSION_APP'}.isdisjoint(environment))
         for item in ('--collect', '--property=Requisite=labwc-session.target',
                      '--property=PartOf=labwc-session.target', '--property=ExitType=main',
-                     '--property=KillMode=control-group', '--property=UMask=0077'):
+                     '--property=KillSignal=SIGINT', '--property=KillMode=control-group',
+                     '--property=UMask=0077'):
             self.assertIn(item, argv)
         self.assertEqual(argv[argv.index('--') + 1:],
                          ['/usr/local/bin/labwc-qbittorrent', 'magnet:?xt=fixture'])

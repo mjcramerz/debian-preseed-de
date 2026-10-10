@@ -474,8 +474,8 @@ class PaletteTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls): cls.defaults = native_defaults()
 
-    def test_twenty_distinct_dark_light_palettes_and_readable_selection(self):
-        self.assertEqual(len(catalog.LABELS), 20)
+    def test_distinct_dark_light_palettes_and_readable_selection(self):
+        self.assertEqual(len(catalog.LABELS), 32)
         for mode in ('dark', 'light'):
             seen = set()
             for identity in catalog.LABELS:
@@ -484,7 +484,7 @@ class PaletteTests(unittest.TestCase):
                 self.assertGreaterEqual(catalog.contrast(p.accent, p.selection_text), 4.5)
                 self.assertEqual(len(p.ansi), 16)
                 seen.add((p.background, p.foreground, p.accent))
-            self.assertEqual(len(seen), 20)
+            self.assertEqual(len(seen), 32)
 
     def test_every_profile_renders_all_native_files_in_both_modes(self):
         for identity in catalog.LABELS:
@@ -559,7 +559,7 @@ class PaletteTests(unittest.TestCase):
         with contextlib.redirect_stdout(out): appearance_cli.main(['--catalog'])
         data = json.loads(out.getvalue())
         self.assertEqual(set(data['profiles']), set(catalog.COMPONENTS))
-        for profiles in data['profiles'].values(): self.assertEqual(len(profiles), 20)
+        for profiles in data['profiles'].values(): self.assertEqual(len(profiles), 32)
         self.assertEqual(set(data['reset']), {*catalog.COMPONENTS, 'mode', 'all'})
 
     def test_global_mode_and_component_resets_preserve_other_selections(self):

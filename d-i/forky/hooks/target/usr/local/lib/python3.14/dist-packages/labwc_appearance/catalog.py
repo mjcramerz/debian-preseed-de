@@ -1,4 +1,4 @@
-"""Twenty coordinated palettes, each with explicit dark and light variants."""
+"""Coordinated palettes with explicit dark and light variants."""
 from __future__ import annotations
 from dataclasses import dataclass
 
@@ -24,6 +24,18 @@ CATALOG = (
  ('graphite-mint', 'Graphite Mint', '202526', 'e4eeee', '89d1b9', 'f1f7f5', '283c37', '2d725c'),
  ('sandstone-sky', 'Sandstone Sky', '292827', 'f0ece5', '90bfdd', 'faf7f0', '353c42', '336c8e'),
  ('ember-night', 'Ember Night', '2c2020', 'f5e7e3', 'efad91', 'fdf2ed', '4c302d', 'a25139'),
+ ('inkstone', 'Inkstone', '101820', 'e8f0f4', '5bd6c5', 'f4f8fa', '1e2a33', '147d72'),
+ ('sapphire-night', 'Sapphire Night', '0d1b2a', 'e7f1ff', '4ea1ff', 'f0f6ff', '182a40', '2f66b0'),
+ ('aurora-violet', 'Aurora Violet', '1d1830', 'f0eaff', 'c7a0ff', 'faf7ff', '2b2145', '7147a8'),
+ ('crimson-carbon', 'Crimson Carbon', '241416', 'f7e7ea', 'ff6f91', 'fff5f6', '4b1e2a', 'be3d61'),
+ ('eucalyptus', 'Eucalyptus', '11251d', 'e4f4eb', '5ee0a0', 'f1fbf5', '204331', '2b7c55'),
+ ('desert-dawn', 'Desert Dawn', '352116', 'f9ebdb', 'ffb45d', 'fff8ed', '4b301e', 'a25a12'),
+ ('deep-space', 'Deep Space', '131b2b', 'e5edff', '8f9dff', 'f3f5ff', '252c48', '5b69bb'),
+ ('rosewood', 'Rosewood', '2c1720', 'f6e7ec', 'f58bb0', 'fff4f7', '4d2435', 'b74670'),
+ ('petrol', 'Petrol', '0f292f', 'e2f2f3', '4fd1d9', 'f0fbfc', '1d4148', '1a7180'),
+ ('moss', 'Moss', '1c2719', 'eaf2e2', 'b7d66b', 'f6faef', '304425', '637d2b'),
+ ('storm', 'Storm', '20242b', 'eef1f4', '89b7e8', 'f3f6fa', '2a3440', '4874a8'),
+ ('plum-gold', 'Plum Gold', '2a1b2a', 'f5e9f6', 'e0b85d', 'fff8f2', '432d3e', '996526'),
 )
 LABELS = {row[0]: row[1] for row in CATALOG}
 DEFAULT_PROFILE = CATALOG[0][0]

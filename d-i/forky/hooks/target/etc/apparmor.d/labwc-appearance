@@ -60,6 +60,10 @@ profile labwc-desktop-appearance /usr/local/bin/labwc-desktop-appearance flags=(
 
 profile labwc-appearance-auth flags=(attach_disconnected) {
   #include <abstractions/managed-workflow-auth>
+  # pkexec inspects its inherited authentication descriptor before handing
+  # control to the polkit broker.  fdinfo exposes metadata only; the broker
+  # never receives permission to read the descriptor itself.
+  /proc/[0-9]*/fdinfo/[0-9]* r,
   /usr/local/libexec/labwc-appearance-greeter rPx -> labwc-appearance-greeter,
   signal (send, receive) peer=labwc-desktop-appearance,
   signal (send, receive) peer=labwc-appearance-greeter,

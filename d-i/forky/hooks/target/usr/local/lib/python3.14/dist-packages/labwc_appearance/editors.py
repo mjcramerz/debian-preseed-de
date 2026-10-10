@@ -130,7 +130,10 @@ def _role(selector: str, prop: str, p: Palette, *, background: bool = False) -> 
     disabled = ':disabled' in selector or '.hidden' in selector
     highlight = p.ansi[1] if alert else p.ansi[3] if warning else p.accent
     if 'shadow' in prop:
-        return p.background
+        # Hover, focus and selected controls use the accent as their glow;
+        # ordinary drop shadows stay tied to the palette border so they remain
+        # visible on both dark and light surfaces without becoming black halos.
+        return p.accent if selected or ':hover' in selector or ':focus' in selector else p.border
     if 'border' in prop or 'outline' in prop:
         return highlight if selected or alert or ':focus' in selector else p.border
     if prop in ('color', 'fill', 'stroke', 'caret-color'):

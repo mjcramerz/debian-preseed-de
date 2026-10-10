@@ -951,7 +951,14 @@ def redirect_to_user_service() -> None:
             "--property=Requisite=labwc-session.target", "--property=After=labwc-session.target",
             "--property=PartOf=labwc-session.target", "--property=ExitType=main",
             f"--property=ConditionPathExists=!/run/user/{uid}/labwc-session-closing",
-            "--property=KillMode=control-group", "--property=TimeoutStopSec=20s",
+            # qBittorrent owns a StatusNotifierItem when its tray integration
+            # is enabled.  SIGTERM can tear down the bubblewrap cgroup before
+            # Qt unregisters that item, leaving Waybar with a stale
+            # /StatusNotifierItem path and a cancelled relayout.  SIGINT is
+            # qBittorrent's graceful close signal; the cgroup boundary still
+            # guarantees cleanup if the application does not exit in time.
+            "--property=KillSignal=SIGINT", "--property=KillMode=control-group",
+            "--property=TimeoutStopSec=20s",
             "--property=SendSIGKILL=yes", "--property=Restart=no", "--property=UMask=0077",
             "--property=StandardInput=null", "--property=StandardOutput=journal",
             "--property=StandardError=journal", "--property=SyslogIdentifier=labwc-qbittorrent",

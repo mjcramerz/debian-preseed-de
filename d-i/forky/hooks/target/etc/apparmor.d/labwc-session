@@ -197,7 +197,12 @@ profile session-controls /usr/bin/{kanshi,swaybg,swayidle,swaylock,wlr-randr,wlr
   /etc/magic r,
   owner @{PROC}/[0-9]*/mountinfo r,
   signal (receive) set=(hup) peer=desktop-launcher,
+  # Labwc Tweaks applies input changes by asking the running compositor to
+  # reload its user-owned rc.xml.  The executable remains confined to this
+  # profile; only the fixed HUP delivery is allowed across the service edge.
+  signal (send) set=(hup) peer=labwc-compositor,
   signal (receive) set=(term kill) peer=labwc-swaybg,
+  /usr/bin/labwc rix,
   ptrace (readby) peer=waypaper//waypaper-ps,
   signal (send) set=(chld) peer=labwc-swaybg,
   # Read-only inherited Bluetooth status descriptor; never rfkill writes.
