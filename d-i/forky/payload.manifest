@@ -123,7 +123,7 @@ cb188b506742e312e4e8c43c91ef30377485c0c273ecd10b28d49d64583d6b8f  hooks/target/e
 aa01d64b45acbaa87fb74d56f2b7cb65353c0c18f72fb3b1b1b8f0c391effab9  hooks/target/etc/apparmor.d/abstractions/base.d/managed-process-monitor
 e91359bcc5377eecf6c8b9e42af43a318e254f688e18299091b6dac0de30c16a  hooks/target/etc/apparmor.d/abstractions/bwrap-common
 7ccd1bbb3b5d04f66136a667dff53220f3370b3151bbe0b0f0d1f0abe8632368  hooks/target/etc/apparmor.d/abstractions/bwrap-compat-preparation
-80ad2413293fae50c3cca198674d3fbe4fc3c256ce8d1bc96c385bcc05b898a3  hooks/target/etc/apparmor.d/abstractions/bwrap-desktop-runtime
+be67732ed44f6e186af7e365ae2c2a5b49e653d9237a3b13216b42d406e25b7d  hooks/target/etc/apparmor.d/abstractions/bwrap-desktop-runtime
 d095084f528e73e758e026b136ced95a6a831a234bc39f988f6330274641b208  hooks/target/etc/apparmor.d/abstractions/codex-runtime
 c739dac83abbcf3aef0f7e5bacdcf178b37cbfce9cff4c870320e4ce761a1c7a  hooks/target/etc/apparmor.d/abstractions/crun-runtime
 f09c9df3b0858ca7b20c3749cc1fea1dcdf8c9e1f1ccd469829bc585c216f8c1  hooks/target/etc/apparmor.d/abstractions/desktop-application
@@ -160,8 +160,8 @@ edbdf14c3009aa22e3c38d7502342bbaf1c560354cc0caba51f0b77f62276502  hooks/target/e
 97037de893dd958aa30f41c58226133a7ba6d3a1ca69b9f951d569c5b578328d  hooks/target/etc/apparmor.d/compz
 a8e8fba190c12bd77dfaef16ea28dd52824bf899a7a695535b925e6ad9e51174  hooks/target/etc/apparmor.d/crun
 e431f5d17cfc99228c205f06f742cccaa346b390541691704248220d41482dc9  hooks/target/etc/apparmor.d/debugsys
-a3200fa8c908c7f5b34cdb7f442ee7f75c411f5a2bbc9713b841be93942ffa29  hooks/target/etc/apparmor.d/desktop-utilities
-eb00d9bc57719e00f2fd454daaa72cd55daabc8452f62489593ee8b2498e0b8d  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
+66a5f7b76862ed2370e8e8551eb0480a178ed6a2ef240cbab5c43f05df07b28d  hooks/target/etc/apparmor.d/desktop-utilities
+1e7fb6257611c617cbc1cbdc333f98843c95282f71a0fe7447463f219b754d77  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
 e304c3e08d1cd5e3abc5922dc93f6ee7137b29a0171fcd6beac721d9a297080d  hooks/target/etc/apparmor.d/document-applications
 cdb9e039cbbbe809126673a7351807ed8db1c3b23618cb89d474c803a485da45  hooks/target/etc/apparmor.d/gitbuild
 f4ca1013031c0a890345a7f7c806604ba45bfd8f0ab1a2f3a65f4d0de1c5de0e  hooks/target/etc/apparmor.d/gitbuild-worker
@@ -245,7 +245,7 @@ f93422221bec409c9e23cf3fbe294d546686123b825f937fc699a9995ca68ca8  hooks/target/e
 0379e0ae1e0cf3571babe6f0892ac3e3f69a479ca431ef8f0c3c79c8c0715992  hooks/target/etc/apt/preferences.d/default/x11.pref
 5f86bc19202015cca0af19e2085c208d962a17c28a3d3c2860dfc29c8a0b24b8  hooks/target/etc/apt/preferences.d/default/zabbly.pref
 02c8afba26fe3324592618c19201d8bf68131c499cde08b6383d7f4b11b52df4  hooks/target/etc/apt/sources.list.d/apt-repo-local.sources
-10480974cd9c82f7c25cefd159572cd189098185621483a6052be4917acc7a2c  hooks/target/etc/audit/crowdsec/desktop.rules
+d8028f660b8aa153178d6b354dd06b1b5e6370e12f13d97e51aacebec8525164  hooks/target/etc/audit/crowdsec/desktop.rules
 93fc0d1096ee0d56c01d6a4932f516c6a3cae453526f297d1b63c3cf33d80a39  hooks/target/etc/audit/enhanced/auditd.conf.tmpl
 36d5dbecdd75df05ddf3a907325c01f21403a1cc77de8856479d0ed2d360cd18  hooks/target/etc/audit/enhanced/rules.d/10-security-enhanced.rules
 c66b069332d6c5077aafd713285542c54840509d6ef9aa0f39078233a05f12d3  hooks/target/etc/audit/plugins.d/af_unix.conf
@@ -263,8 +263,10 @@ d8a7462b4bfb1f2e4f68a7b6b6b8a51a42bc76e1f9dbe2c6534899c792571988  hooks/target/e
 bc259a862e98e8be5262202a184dd14d9c87aea6c3c7d579901c28bba57adcf8  hooks/target/etc/codex/app-server.env
 f7f73005a768aa21f67aca336e2c9d61223e7be38e3d69a1f9b7b6b22286d7b5  hooks/target/etc/crowdsec/acquis.d/20-sshd.yaml
 9105ea9eb08de47d023006ce8300181a0bb1006b3789896e689469ce43e973a3  hooks/target/etc/crowdsec/acquis.d/21-auditd.yaml.tmpl
+c91a8163239bc1c0be3b946bfcabdd7ef239b702d5bc681b7cb02138b9d54035  hooks/target/etc/crowdsec/acquis.d/22-nftables.yaml.tmpl
+cc1b063807e44a716f2c529be92971a5a3f97f47ca1c044c20d76469b5244b7e  hooks/target/etc/crowdsec/acquis.d/23-system-syslog.yaml.tmpl
 5ff520d68a2be9c3a8b40ed570b1b64febfd9c0345503370ab035e8cdf726367  hooks/target/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml.local.tmpl
-171769fc645daf084ec4de624139c721a31868555d03b8f96699181effc9be60  hooks/target/etc/crowdsec/config.yaml.local.tmpl
+2a86e4d80c40758d54937df8aa6d8bc54a57655b1e7ff8aab9b99799044a1bfa  hooks/target/etc/crowdsec/config.yaml.local.tmpl
 11d066b0ffadfe14e15af306673cf36d7452ed246d1dc6b54ac2272b6155a4c9  hooks/target/etc/cryptsetup-initramfs/conf-hook
 045e1ea839b9390a3e6c3a1ded589adb842a33fa9ad478f467f018c2ccf31bd6  hooks/target/etc/crypttab.tmpl
 72a09acc9708abbbf9c2a247a2ee0273a7ccdd3bfb20e37efcd05e765dac338b  hooks/target/etc/dbus-1/session.d/70-labwc-greeter-no-portals.conf.tmpl
@@ -951,7 +953,7 @@ f67e7714c95846a39c8bcbe417427db6af334f30d612161c7a08ebe85355104e  hooks/target/e
 081d129909f9d82fd91c2c3253d20c03aacb443a7f873bb3975188838c499c9c  hooks/target/etc/udev/rules.d/74-nvme-link-idle.rules
 9f086f6270a53fda2d2bb062e56fc8a6a44c2c43ec01809079d34bc87e3ef785  hooks/target/etc/udev/rules.d/81-labwc-thinkpad-backlight.rules
 42229100ae8241e9febc99dfeeb15ec8e265c6b9e8abb36e3ea734596242c7bb  hooks/target/etc/udev/rules.d/85-wifi-regdom.rules
-2a8ab1554af88a1218cf991b8dd78cce0b8aee380acb16fc7bfbf91a7ef2e73a  hooks/target/etc/udev/rules.d/90-udisks-behavior.rules
+60a6f2e89de99bec88cd5fce54777116dadf7002fa26e95782c9e32f432704d2  hooks/target/etc/udev/rules.d/90-udisks-behavior.rules
 9f354a33ee5bdf2ed91ce972401fce3807f4c6e4c7403fffdaa9b87d8080ae5a  hooks/target/etc/udev/udev.conf.d/90-hardening.conf
 7cc2b3fd6db9efca1f0c346e75afe4fb63919930618255e0d935ba6932cc618e  hooks/target/etc/udisks2/mount_options.conf
 d64e1045dff6aefb857c5600f6e3ee79a452a24d6474cdb0ed7af9bb5068b6ec  hooks/target/etc/udisks2/udisks2.conf
@@ -1274,9 +1276,9 @@ bd4507f48c6b1ecc52607c01a97ef5dcf7bcc9fa47b45f150ccedd68a1fdb8ca  hooks/target/u
 ae665a85c88c409d21163551dd292f9ef7367917f22c0f2003e356d36a4f2f8c  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/mounts.py
 215dd2e44d3bdfad1d07ddc87301f43ddcfed43150de8f2986501e757d44b41a  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_client.py
 1b91fdf4b1d84b8f4f24324b5f4c291ffa17bd8ff444de74e64bce82dbcbca24  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_namespace.py
-297d0e540d2bb6ad4b9e4ffe09bd5ff6f2988b09cd0a6c13e90a6ab4355c6ab8  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py.tmpl
+86821ad1379983c836418ba57f914393ec3416e506141a2679e2ece80291c978  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py.tmpl
 7f2c41c7ded609aa20d80a19387262037c059a976a5d7510404c070be313f23b  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/recovery.py
-f7a78ac89b004f693a60c086c0d4632c28611b7f9902286f457ce5083f743b2a  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/runtime.py
+1d75efe59fa09fec405e87d335f8f5042ecd683d2589ff6f5fc7fbc1324e8209  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/runtime.py
 41122423efc3133bfd256a65b60d5c096a296ed0464188eb2494068dc5e53070  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/sandbox.py
 107654a524817ad6e62b8598088993927ee11e28098e1f442c60be70585b3c1d  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py
 079f08df43785665889a22dcd63367415fa8ddccdc8868f0e5f82b2fadb0cdd3  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/user_state.py
@@ -1600,7 +1602,7 @@ bfe689d133893156d1a7dfb162796c920dc0e6607ba205b0693cae066be428a5  scripts/firstb
 2f2ca88c4bfbaac9ed9c5a6ff63f27caee5c5c43d254f2fa6b58a800b72e7b75  scripts/firstboot/assets/etc/xdg/autostart/tpm2-enroll.desktop
 8cb3fbb9614b2938f8e4d3eba9ad383d5f2e76cced784a0f20af2d3ad39f6e98  scripts/firstboot/assets/usr/local/bin/tpm2-enroll-launch
 a0de6735090cec378e2a7d171cb63821b5548a6368ccd71e5e2dcb27701f4a09  scripts/firstboot/assets/usr/local/sbin/tpm2-enroll.sh
-a56c2b523e8103d3fda546202124fc7c8d891aa8f2faa540ccb5013b0c4d96cd  scripts/firstboot/assets/var/lib/firstboot/bin/crowdsec-firstboot.tmpl
+bb9a19c8811b1df08f364aeb88c0f79dbb3d28b999b78f2aac80f48e62d718ab  scripts/firstboot/assets/var/lib/firstboot/bin/crowdsec-firstboot.tmpl
 cd93e81670d6aa63113b8d297c0fafbf9ac0c51dd7e926b080b496f9fcc33747  scripts/firstboot/assets/var/lib/firstboot/bin/secondboot-cleanup
 69ce8a0a0bcfd20e57b3312c461d298ca3f12d2705a685849bd1acc12a24d3ce  scripts/firstboot/assets/var/lib/firstboot/bin/tailscale-up
 53b515b3274853c7f7e4c814fd110a0ea3ee2d9f7e90519eaf451c820781abe2  scripts/firstboot/assets/var/lib/tpm2-enrollment/config.env.tmpl
@@ -1620,7 +1622,7 @@ c94b606a82993d57bd86b8dfb230d53fe6d708c1ee831eda0f00f0384c4fd1d8  scripts/late/c
 c1b2f2a835456b33096d27473c4c3b1de93b6a90fe655bda14ae503516d8e9c1  scripts/late/codex-installer-session.py
 0d161c2e64b8e37b3bb9ba4d9fb0a7d05e221ebaa62ba2a2df9e59238f2cb352  scripts/late/codex-state.py
 ef632a529533f8662378f23a6a77958aedfe35490b659bdff755d63a5f5f2f1d  scripts/late/core.sh
-b7a82442d26e61624bb97d84075ea983c34e7d49762b10d93b14d25b37b6b986  scripts/late/crowdsec.sh
+592c3fa0f31da98af536cdded67caf4a75feffd8f43d7d75b45a8b1de5b54a8d  scripts/late/crowdsec.sh
 5a7b50dcda9777ed6310a216009224f64bef4fec21a5fae4c1e398d295df71a1  scripts/late/crypto.sh
 f848ec73ba1b90c16be1e337244098adf1070baa0529f498d8f6c5b1643bf139  scripts/late/cuda-legacy.sh
 9349a246f23861c0b8b0cd6c34a76f345c5b2215cd5ed460ee8053048ad1ac9e  scripts/late/dbus-broker.sh

@@ -18,6 +18,7 @@ owner /run/user/[0-9]*/pulse/ rw,
 # which the private /run mount hides from every payload.
 /etc/app-veth.json r,
 /usr/local/lib/python3.14/dist-packages/app_veth_policy.py r,
+/usr/share/TelegramDesktop/tresources.rcc r,
 
 # Managed applications use their existing per-application profiles when
 # launched directly. Their Bubblewrap payloads need the same client-side

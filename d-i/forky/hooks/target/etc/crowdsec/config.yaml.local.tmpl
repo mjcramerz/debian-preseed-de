@@ -12,6 +12,8 @@ api:
     online_client:
       credentials_path: /etc/crowdsec/online_api_credentials.yaml
       sharing: true
+      # Community Edition subscriptions are selected in Console (up to
+      # three blocklists); this engine-side switch pulls those assignments.
       pull:
         community: true
         blocklists: true

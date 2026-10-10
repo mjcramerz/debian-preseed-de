@@ -1,0 +1,10 @@
+# Managed root and network syslog sources. The linux collection's syslog
+# parser keeps these records available to current and future Hub scenarios.
+# Dedicated nftables, auditd, and SSH routes remain separate so the same record
+# is not intentionally acquired twice; application/model logs are not sources.
+filenames:
+  - __INSTALLER_LOG_SYSTEM_SERVICES_FILE__
+  - __INSTALLER_LOG_KERNEL_FILE__
+  - __INSTALLER_LOG_VETH_FILE__
+labels:
+  type: syslog

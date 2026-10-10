@@ -548,6 +548,40 @@ log_line() { printf 'event=%s\\n' "$*"; }
         self.assertIn('RestartSec=65min', engine_retry)
         self.assertIn('/etc/systemd/system/crowdsec.service.d/20-capi-retry.conf 0644', LATE)
 
+    def test_firstboot_installs_ssh_audit_and_whitelist_protection(self):
+        self.assertIn(
+            'cscli collections install crowdsecurity/linux crowdsecurity/sshd '
+            'crowdsecurity/auditd crowdsecurity/iptables crowdsecurity/whitelist-good-actors',
+            SOURCE,
+        )
+        self.assertIn(
+            'collections=crowdsecurity/linux,crowdsecurity/sshd,crowdsecurity/auditd,'
+            'crowdsecurity/iptables,crowdsecurity/whitelist-good-actors',
+            SOURCE,
+        )
+        self.assertIn('      pull:\n        community: true\n        blocklists: true', OVERLAY)
+        self.assertIn('cscli console enable --all', SOURCE)
+        self.assertIn('community_blocklist_slots=3', SOURCE)
+        acquis = (FORKY / 'hooks/target/etc/crowdsec/acquis.d/22-nftables.yaml.tmpl').read_text(encoding='utf-8')
+        self.assertIn('__INSTALLER_LOG_NFTABLES_FILE__', acquis)
+        self.assertIn('type: syslog', acquis)
+        self.assertIn('/etc/crowdsec/acquis.d/22-nftables.yaml', LATE)
+        system_acquis = (FORKY / 'hooks/target/etc/crowdsec/acquis.d/23-system-syslog.yaml.tmpl').read_text(encoding='utf-8')
+        for placeholder in ('__INSTALLER_LOG_SYSTEM_SERVICES_FILE__', '__INSTALLER_LOG_KERNEL_FILE__',
+                            '__INSTALLER_LOG_VETH_FILE__'):
+            self.assertIn(placeholder, system_acquis)
+        self.assertIn('/etc/crowdsec/acquis.d/23-system-syslog.yaml', LATE)
+
+    def test_desktop_audit_rules_cover_root_and_user_execve_abis(self):
+        rules = (FORKY / 'hooks/target/etc/audit/crowdsec/desktop.rules').read_text(encoding='utf-8')
+        for arch in ('b64', 'b32'):
+            self.assertIn(
+                f'-a always,exit -F arch={arch} -S execve -S execveat '
+                '-F auid>=0 -F auid!=4294967295 -F key=crowdsec-exec',
+                rules,
+            )
+        self.assertNotIn(' -F path=', rules)
+
     def test_console_retries_do_not_reload_unchanged_capi_credentials(self):
         code = source_function('ensure_capi_registration') + '\n' + source_function('write_core_ready_marker') + """
 umask 077

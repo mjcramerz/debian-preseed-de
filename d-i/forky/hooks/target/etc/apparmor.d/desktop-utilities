@@ -27,6 +27,10 @@ profile desktop-btop /usr/bin/btop flags=(attach_disconnected, mediate_deleted) 
   # privileged GPU state changes still require kernel capabilities.
   /dev/nvidiactl rw,
   /dev/nvidia[0-9]* rw,
+  /dev/nvidia-uvm rw,
+  # btop removes stale NVIDIA device aliases while refreshing its inventory;
+  # AppArmor represents unlink permission as write on this exact device range.
+  /dev/char/195:{0,255} w,
   @{PROC}/driver/nvidia/{,**} r,
   @{PROC}/ r,
   @{PROC}/[0-9]*/ r,
@@ -35,11 +39,14 @@ profile desktop-btop /usr/bin/btop flags=(attach_disconnected, mediate_deleted) 
   @{PROC}/{cpuinfo,diskstats,loadavg,meminfo,mounts,partitions,stat,uptime,version} r,
   @{PROC}/net/{dev,route,wireless} r,
   @{PROC}/sys/kernel/{osrelease,pid_max} r,
+  @{PROC}/sys/vm/mmap_min_addr r,
+  @{PROC}/devices r,
   @{PROC}/[0-9]*/{cmdline,comm,exe,limits,loginuid,oom_score,oom_score_adj,stat,statm,status,io,sched,schedstat,smaps_rollup,wchan,cgroup} r,
   @{PROC}/[0-9]*/fdinfo/[0-9]* r,
   @{PROC}/[0-9]*/net/{tcp,tcp6,udp,udp6} r,
   @{PROC}/[0-9]*/task/{,[0-9]*/} r,
-  @{PROC}/[0-9]*/task/[0-9]*/{comm,stat,status,statm,sched,schedstat} r,
+  owner @{PROC}/[0-9]*/task/[0-9]*/comm rw,
+  @{PROC}/[0-9]*/task/[0-9]*/{stat,status,statm,sched,schedstat} r,
   # Monitoring never reads process environments, memory or trace controls.
   deny @{PROC}/[0-9]*/{environ,mem,syscall,stack} rw,
   owner @{HOME}/.config/btop/{,**} rwkl,
@@ -123,6 +130,9 @@ profile desktop-media /usr/bin/{mpv,recoll,recollindex,recollq,liferea} flags=(a
   @{sys}/devices/virtual/dmi/id/{board_vendor,bios_vendor} r,
   /usr/local/lib/python3.[0-9]*/dist-packages/ r,
   /dev/tty rw,
+  # Recoll inherits the terminal descriptors supplied by its launcher.
+  # Keep access limited to the invoking user's pseudo-terminals.
+  owner /dev/pts/[0-9]* rw,
   owner @{HOME}/.local/share/net.sourceforge.liferea/{,**} rwkl,
   owner @{HOME}/.cache/net.sourceforge.liferea/{,**} rwkl,
   signal (send) set=(kill term) peer=desktop-media//media-glycin-bwrap,

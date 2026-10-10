@@ -1,0 +1,7 @@
+# Managed nftables packet-log acquisition for the CrowdSec iptables collection.
+# The managed nftables generator emits kernel syslog records with SRC/DST and
+# verdict fields; the official iptables parser consumes that format.
+filenames:
+  - __INSTALLER_LOG_NFTABLES_FILE__
+labels:
+  type: syslog

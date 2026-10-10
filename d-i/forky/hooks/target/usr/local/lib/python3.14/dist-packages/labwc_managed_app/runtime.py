@@ -47,6 +47,13 @@ MANAGED_NO_VULKAN_ENVIRONMENT = {
     "GSK_RENDERER": "opengl",
     "GDK_DISABLE": "vulkan",
     "QT_OPENGL": "desktop",
+    # QtWebEngine's Chromium child otherwise enables Vulkan on NVIDIA when
+    # GBM import is unavailable, which can crash Recoll during startup. Force
+    # its software compositor and keep every Vulkan path disabled.
+    "QTWEBENGINE_CHROMIUM_FLAGS": (
+        "--disable-gpu --disable-vulkan "
+        "--disable-features=Vulkan,DefaultANGLEVulkan,VulkanFromANGLE,ForceEnableWebGpuInterop"
+    ),
     "QSG_RHI_BACKEND": "opengl",
     "SDL_RENDER_DRIVER": "opengl",
     "WGPU_BACKEND": "gl",

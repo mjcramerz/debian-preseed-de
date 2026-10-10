@@ -33,4 +33,9 @@ ENV{ID_FS_LABEL}!="?*", ENV{ID_FS_LABEL_ENC}=="?*", ENV{UDISKS_NAME}="$env{ID_FS
 ENV{ID_FS_LABEL}!="?*", ENV{ID_FS_LABEL_ENC}!="?*", ENV{ID_MODEL_FROM_DATABASE}=="?*", ENV{UDISKS_NAME}="$env{ID_MODEL_FROM_DATABASE}"
 ENV{ID_FS_LABEL}!="?*", ENV{ID_FS_LABEL_ENC}!="?*", ENV{ID_MODEL_FROM_DATABASE}!="?*", ENV{ID_MODEL}=="?*", ENV{UDISKS_NAME}="$env{ID_MODEL}"
 
+# Optical devices must not be auto-mounted. Explicit mounts remain available
+# through UDisks, and the filesystem-specific policy still decides whether a
+# writable optical format such as UDF may be mounted read-write.
+ENV{ID_CDROM}=="1", ENV{UDISKS_AUTO}="0", ENV{UDISKS_ICON_NAME}="media-optical", ENV{UDISKS_SYMBOLIC_ICON_NAME}="media-optical-symbolic"
+
 LABEL="debian_installer_udisks_behavior_end"

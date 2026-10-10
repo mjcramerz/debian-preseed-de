@@ -414,6 +414,23 @@ class AppArmorCoverageTests(unittest.TestCase):
         for profile in (FORKY / 'hosts/profiles').glob('*.env'):
             self.assertIn('LABWC_FILE_MANAGER_COMMAND="thunar"', profile.read_text())
 
+    def test_qtwebengine_cannot_fall_back_to_vulkan(self):
+        # QtWebEngine is used by Recoll and is not controlled by Electron's
+        # Chromium switches. The managed Wayland environment must force its
+        # software compositor so an NVIDIA GBM probe cannot select Vulkan.
+        from labwc_managed_app import browsers, runtime
+        flags = runtime.MANAGED_WAYLAND_OPENGL_ENVIRONMENT['QTWEBENGINE_CHROMIUM_FLAGS']
+        self.assertIn('--disable-gpu', flags)
+        self.assertIn('--disable-vulkan', flags)
+        self.assertIn('--disable-features=Vulkan,DefaultANGLEVulkan,VulkanFromANGLE,ForceEnableWebGpuInterop', flags)
+        self.assertNotIn('--enable-features=Vulkan', flags)
+        for mode in ('launch', 'intel', 'nvidia'):
+            with self.subTest(vivaldi_mode=mode):
+                browser = browsers.browser_args('vivaldi', mode)
+                self.assertIn('--use-gl=angle', browser)
+                self.assertIn('--use-angle=gl', browser)
+                self.assertNotIn('--disable-gpu', browser)
+
     def test_thunar_hotkeys_and_files_menu_use_the_same_managed_entrypoint(self):
         skel = TARGET / 'etc/skel-desktop/.config/labwc'
         shortcuts = ET.fromstring(payload_read_text(skel / 'rc.xml'))

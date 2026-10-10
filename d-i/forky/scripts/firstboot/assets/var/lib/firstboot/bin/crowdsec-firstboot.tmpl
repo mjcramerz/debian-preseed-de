@@ -456,9 +456,9 @@ log_line bootstrap info crowdsec "hub_update=true"
 if ! run_optional_crowdsec_command hub-update cscli hub update; then
   log_line bootstrap warning crowdsec "hub_update=fallback-to-packaged-index"
 fi
-log_line bootstrap info crowdsec "installing_collections=true collections=crowdsecurity/linux,crowdsecurity/auditd"
+log_line bootstrap info crowdsec "installing_collections=true collections=crowdsecurity/linux,crowdsecurity/sshd,crowdsecurity/auditd,crowdsecurity/iptables,crowdsecurity/whitelist-good-actors"
 run_required_crowdsec_command collections-install \
-  cscli collections install crowdsecurity/linux crowdsecurity/auditd --ignore || {
+  cscli collections install crowdsecurity/linux crowdsecurity/sshd crowdsecurity/auditd crowdsecurity/iptables crowdsecurity/whitelist-good-actors || {
   stop_bootstrap_services
   write_status 1 error
   exit 1
@@ -539,6 +539,14 @@ else
     exit 2
   fi
   log_line bootstrap info crowdsec "console_enrollment=skipped reason=no-token"
+fi
+
+# Keep every Community Console sharing option enabled when this node is
+# enrolled. The command is optional because local CAPI registration and the
+# firewall bouncer remain valid when Console approval is still pending.
+log_line bootstrap info crowdsec "console_options=enable-all blocklist_pull=enabled community_blocklist_slots=3"
+if ! run_optional_crowdsec_command console-enable cscli console enable --all; then
+  log_line bootstrap warning crowdsec "console_options=enable-all-pending"
 fi
 
 remove_enrollment_token

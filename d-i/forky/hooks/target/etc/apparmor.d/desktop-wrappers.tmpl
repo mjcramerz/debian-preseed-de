@@ -2470,6 +2470,7 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     owner @{HOME}/.mullvad/{,mullvadbrowser/,mullvadbrowser/**} rwkl,
     owner @{HOME}/.config/{chromium,google-chrome,microsoft-edge,vivaldi}/NativeMessagingHosts/.bitwarden_desktop_proxy rix,
     owner @{HOME}/.mozilla/native-messaging-hosts/ rw,
+    owner @{HOME}/.mozilla/native-messaging-hosts/.app.bw.socket rwkl,
     owner @{HOME}/.mozilla/native-messaging-hosts/.bitwarden_desktop_proxy rwklix,
     owner @{HOME}/.mozilla/native-messaging-hosts/com.8bit.bitwarden.json rwkl,
     owner @{HOME}/.var/app/org.mozilla.firefox/.mozilla/native-messaging-hosts/{,**} rwkl,
@@ -2478,6 +2479,9 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     owner @{HOME}/.var/app/com.microsoft.Edge/config/microsoft-edge/NativeMessagingHosts/{,**} rwkl,
     owner @{HOME}/.config/retroarch/cores/*.so mr,
     owner @{HOME}/.local/share/retroarch/cores/*.so mr,
+    # Filen updates its per-user rclone helper in a versioned directory and
+    # executes only these two fixed helper names from the Bubblewrap payload.
+    owner @{HOME}/.config/@filen/desktop/rclone/bin/*/{rclone,.copy-*} rwklmrix,
     /usr/bin/qoredb rix,
     owner /pool/db/*/qoredb/{,**} rwkl,
     # Preserve the no_new_privs domain for application-owned namespace probes.
@@ -2486,11 +2490,14 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     # Do not add Px/Ux transitions after Bubblewrap has set no_new_privs.
     #include <abstractions/wrapper-python>
     /usr/bin/{xdg-open,systemd-run} rix,
+    /usr/bin/{id,ln} rix,
     /usr/local/bin/labwc-wayland-app rix,
     /usr/local/lib/python3.14/dist-packages/ r,
     /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
     /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,integrity,generic,environment,commands,compat_protocol,profiles,browsers,runtime,events,electron,user_state,recovery,session,network_client}.py r,
     owner /run/user/[0-9]*/labwc-session-closing r,
+    owner /run/user/[0-9]*/.obsidian-cli.sock rw,
+    owner /run/user/[0-9]*/wayland-proxy-* rw,
     include if exists <abstractions/user-tmp>
 
     unix,
@@ -2550,6 +2557,11 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     /usr/{lib32,lib64,sbin}/ r,
     /usr/bin/ldd rix,
     /usr/bin/{bwrap,true} rix,
+    # KeepassXC probes the Bubblewrap init process and uses wl-copy for its
+    # Wayland clipboard integration. These are fixed, read/execute-only host
+    # tools; they do not grant a transition or broader process inspection.
+    @{PROC}/[0-9]*/cmdline r,
+    /usr/bin/wl-copy rix,
     /usr/bin/{pacmd,pactl} rix,
     /usr/lib/mullvad-browser/** mrix,
     /usr/share/code/** mrix,

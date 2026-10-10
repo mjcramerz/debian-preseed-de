@@ -112,7 +112,11 @@ APPS = {
         "persistent_sandbox": True,
     },
     "code": {
-        "exec": "/usr/bin/code",
+        # Invoke Electron directly. /usr/bin/code is the CLI wrapper and
+        # intentionally sets ELECTRON_RUN_AS_NODE=1, so it exits after handing
+        # off to a detached client; the transient service would then reap the
+        # GUI cgroup. The real binary keeps the managed service attached.
+        "exec": "/usr/share/code/code",
         "library_dirs": ("/usr/share/code",),
         "required_runtime_files": ("/usr/share/code/libffmpeg.so",),
         "env": {
