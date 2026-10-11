@@ -12,7 +12,30 @@ import os
 import shutil
 import tempfile
 import re
+import shlex
+import subprocess
 SEED = Path(__file__).resolve().parents[1]
+
+@lru_cache(maxsize=1)
+def network_identity_environment():
+    text = (SEED / 'hosts/installer/identity.env').read_text()
+    return {key: shlex.split(value)[0] for key, value in
+            re.findall(r'^(APP_VETH_[A-Z0-9_]+)=(.*)$', text, re.M)}
+
+@lru_cache(maxsize=1)
+def network_identity_values():
+    result = subprocess.run(['/bin/sh', '-eu', '-c',
+        '. "$1"; app_veth_identity_placeholder_map', 'identity-fixture',
+        str(SEED / 'scripts/common/modules/app-veth-identity.sh')],
+        env={'PATH': '/usr/bin:/bin', **network_identity_environment()},
+        capture_output=True, text=True, timeout=5, check=True)
+    return dict(line.split('=', 1) for line in result.stdout.splitlines())
+
+def network_identity_text(text):
+    if '__INSTALLER_APP_VETH_' in text:
+        for key, value in network_identity_values().items():
+            text = text.replace('__INSTALLER_' + key + '__', value)
+    return text
 @lru_cache(maxsize=1)
 def _logging():
     module = runpy.run_path(str(SEED.parents[1] / 'tools/check_logging.py'))
@@ -83,7 +106,7 @@ def read_text(path, *args, **kwargs):
         return module_definition_view(original, render=not original.name.endswith('.tmpl'))
     resolved = source_path(original)
     text = resolved.read_text(*args, **kwargs)
-    return logging_text(text) if resolved != original else text
+    return network_identity_text(logging_text(text) if resolved != original else text)
 
 def read_bytes(path):
     original = Path(path)

@@ -220,22 +220,6 @@ class LogLayoutTests(unittest.TestCase):
         with self.assertRaises(layout.LayoutError):
             layout.check_layout(self.root)
 
-    def test_only_exact_old_root_owned_auth_link_migrates(self):
-        path = self.root / 'var/log/auth.log'; path.symlink_to(layout.OLD_AUTH)
-        layout.migrate_auth_link(self.root)
-        self.assertEqual(os.readlink(path), layout.NEW_AUTH)
-        layout.migrate_auth_link(self.root)
-        self.assertEqual(os.readlink(path), layout.NEW_AUTH)
-        self.assertFalse(list(path.parent.glob('.auth-link-*')))
-
-    def test_administrator_real_file_link_and_unowned_link_are_preserved(self):
-        path = self.root / 'var/log/auth.log'
-        path.write_bytes(b'legacy auth remains')
-        layout.migrate_auth_link(self.root); self.assertEqual(payload_read_bytes(path), b'legacy auth remains')
-        path.unlink(); path.symlink_to('/administrator/auth.log')
-        layout.migrate_auth_link(self.root); self.assertEqual(os.readlink(path), '/administrator/auth.log')
-        path.unlink(); path.symlink_to(layout.OLD_AUTH); os.chown(path, 65534, 65534, follow_symlinks=False)
-        layout.migrate_auth_link(self.root); self.assertEqual(os.readlink(path), layout.OLD_AUTH)
 
     def test_application_writable_model_subtree_is_not_reowned(self):
         path = self.root / 'var/log/managed/models/openai/chatgpt/runtime'

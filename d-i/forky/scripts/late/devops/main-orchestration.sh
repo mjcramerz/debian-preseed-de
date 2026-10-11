@@ -78,7 +78,6 @@ DEVOPS_CODEX_APP_SERVER_USER_UNIT="${ACCOUNT_HOME}/.config/systemd/user/codex-ap
 DEVOPS_CODEX_APP_SERVER_USER_PROXY_UNIT="${ACCOUNT_HOME}/.config/systemd/user/codex-app-server-proxy.service"
 DEVOPS_CODEX_APP_SERVER_USER_SOCKET_UNIT="${ACCOUNT_HOME}/.config/systemd/user/codex-app-server.socket"
 DEVOPS_CODEX_APP_SERVER_USER_SOCKET_WANTS="${ACCOUNT_HOME}/.config/systemd/user/sockets.target.wants/codex-app-server.socket"
-DEVOPS_CODEX_APP_SERVER_LEGACY_USER_WANTS="${ACCOUNT_HOME}/.config/systemd/user/default.target.wants/codex-app-server.service"
 
 CARGO_HOME="${DIR_POOL_CACHE}/${ACCOUNT_USERNAME}/cargo"
 CARGO_TARGET_DIR="${DIR_POOL_BUILD}/${ACCOUNT_USERNAME}/cargo/target"
@@ -156,8 +155,7 @@ for devops_path in \
   "$DEVOPS_CODEX_APP_SERVER_USER_UNIT" \
   "$DEVOPS_CODEX_APP_SERVER_USER_PROXY_UNIT" \
   "$DEVOPS_CODEX_APP_SERVER_USER_SOCKET_UNIT" \
-  "$DEVOPS_CODEX_APP_SERVER_USER_SOCKET_WANTS" \
-  "$DEVOPS_CODEX_APP_SERVER_LEGACY_USER_WANTS"
+  "$DEVOPS_CODEX_APP_SERVER_USER_SOCKET_WANTS"
 do
   devops_validate_abs_path "derived DevOps path" "$devops_path"
 done
@@ -372,9 +370,6 @@ unset codex_binary_dir_host codex_first_binary codex_unsafe_binary
 [ -L "${target_root}${DEVOPS_CODEX_APP_SERVER_USER_SOCKET_WANTS}" ] &&
   [ "$(readlink -- "${target_root}${DEVOPS_CODEX_APP_SERVER_USER_SOCKET_WANTS}")" = ../codex-app-server.socket ] ||
   devops_fatal "Codex app-server socket is not enabled for the account sockets target"
-[ ! -e "${target_root}${DEVOPS_CODEX_APP_SERVER_LEGACY_USER_WANTS}" ] &&
-  [ ! -L "${target_root}${DEVOPS_CODEX_APP_SERVER_LEGACY_USER_WANTS}" ] ||
-  devops_fatal "Codex app-server backend remains enabled for the account default target"
 [ ! -e "${target_root}${devops_codex_archive_helper_path}" ] &&
   [ ! -L "${target_root}${devops_codex_archive_helper_path}" ] ||
   devops_fatal "temporary Codex archive helper remains after installation"

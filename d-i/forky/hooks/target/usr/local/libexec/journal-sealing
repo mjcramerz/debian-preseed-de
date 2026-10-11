@@ -21,8 +21,6 @@ import tempfile
 
 STATE = Path('/var/lib/journal-sealing')
 KEY = STATE / 'verification-key'
-LEGACY_RUNTIME = Path('/run/journal-sealing')
-LEGACY_KEY = LEGACY_RUNTIME / 'verification-key'
 RECORD = STATE / 'status.json'
 JOURNAL = Path('/var/log/journal')
 ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C',
@@ -129,40 +127,6 @@ def read_record(machine: str) -> dict:
     return record
 
 
-def migrate_legacy_key(machine: str) -> None:
-    """Preserve an unexported key from installations updated before reboot."""
-    if not LEGACY_KEY.exists() and not LEGACY_KEY.is_symlink():
-        return
-    if command(['/usr/bin/findmnt', '--noheadings', '--output', 'FSTYPE', '--target', '/run']) not in ('tmpfs', 'ramfs'):
-        raise ValueError('legacy verification key must reside on RAM-backed /run')
-    directory(LEGACY_RUNTIME, private=True)
-    seed = private_bytes(LEGACY_KEY, 512)
-    if not KEY_PATTERN.fullmatch(seed):
-        raise ValueError('invalid legacy verification key')
-    if RECORD.exists() or RECORD.is_symlink():
-        record = read_record(machine)
-        if record['exported'] or hashlib.sha256(seed).hexdigest() != record['verification_sha256']:
-            raise ValueError('legacy verification key conflicts with sealing evidence')
-    if KEY.exists() or KEY.is_symlink():
-        if verification_key() != seed:
-            raise ValueError('persistent verification key conflicts with legacy key')
-    else:
-        fd, temporary = tempfile.mkstemp(prefix='.verification-', dir=STATE)
-        try:
-            with os.fdopen(fd, 'wb') as stream:
-                stream.write(seed)
-                stream.flush()
-                os.fsync(stream.fileno())
-            os.link(temporary, KEY, follow_symlinks=False)
-            sync_directory(STATE)
-        finally:
-            if os.path.exists(temporary):
-                os.unlink(temporary)
-                sync_directory(STATE)
-    LEGACY_KEY.unlink()
-    sync_directory(LEGACY_RUNTIME)
-
-
 def check_record_key(record: dict, *, cleanup: bool = False) -> None:
     if record['exported']:
         # Only a mutating operation may finish an interrupted acknowledgement.
@@ -259,8 +223,6 @@ def main(argv: list[str]) -> int:
                 or stat.S_IMODE(info.st_mode) != 0o600):
             raise ValueError('unsafe journal sealing lock')
         fcntl.flock(stream, fcntl.LOCK_EX if mutating else fcntl.LOCK_SH)
-        if mutating:
-            migrate_legacy_key(machine)
         if action == '--setup':
             record = setup(machine, fss)
         else:

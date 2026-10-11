@@ -129,25 +129,6 @@ class InstallerPolicyTests(unittest.TestCase):
         self.assertFalse(payload_source_exists(self.root/'etc/geoclue'))
         self.assertEqual(first,render_theme_defaults(payload_read_text(self.pam)))
 
-    def test_existing_light_root_policy_is_migrated_without_changing_authentication(self):
-        managed = 'session optional pam_env.so conffile=/etc/security/sudo-i.conf readenv=0 user_readenv=0'
-        self.pam.write_text('@include common-auth\n@include common-account\n'
-                            '# Managed: root shell uses user-early-light (systemd >=258).\n'
-                            + managed + '\n@include common-session\n')
-        before = self.pam.stat()
-        self.invoke()
-        text = self.pam.read_text()
-        self.assertNotIn('user-early-light', text)
-        self.assertEqual(text.count(managed), 1)
-        self.assertIn('@include common-auth\n@include common-account\n', text)
-        self.assertLess(text.index(managed), text.index('@include common-session'))
-        self.assertEqual(self.pam.stat().st_mode, before.st_mode)
-        self.invoke()
-        self.assertEqual(self.pam.read_text(), text)
-        policy = (TARGET / 'etc/security/sudo-i.conf').read_text()
-        self.assertIn('XDG_SESSION_CLASS DEFAULT=none OVERRIDE=none', policy)
-        # This scoped policy changes session registration, not authentication.
-        self.assertNotIn('pam_permit', text)
 
     def test_unknown_pam_stack_fails_without_replacing_it(self):
         self.pam.write_text('@include custom-session\n')
@@ -182,53 +163,6 @@ class InstallerPolicyTests(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
         return path
-
-    def test_obsolete_colour_cleanup_is_exact_and_idempotent(self):
-        obsolete = [self.fixture_file(name) for name in (
-            'usr/local/bin/labwc-gammastep-indicator',
-            'usr/local/share/applications/gammastep.desktop',
-            'usr/local/share/applications/gammastep-indicator.desktop',
-            'etc/gammastep/config.ini',
-            'etc/geoclue/conf.d/90-gammastep.conf',
-            'etc/skel-desktop/.config/systemd/user/labwc-gammastep-indicator.service',
-            'home/fixtureuser/.config/autostart/gammastep-indicator.desktop',
-            'home/fixtureuser/.config/systemd/user/labwc-gammastep-indicator.service',
-            'home/fixtureuser/.local/share/applications/gammastep-indicator.desktop')]
-        victim = self.fixture_file('victim', 'preserved')
-        enablement = self.root / 'home/fixtureuser/.config/systemd/user/labwc-session.target.wants/gammastep.service'
-        enablement.parent.mkdir(parents=True)
-        enablement.symlink_to(victim)
-        preserved = [self.fixture_file(name, 'unrelated') for name in (
-            'usr/bin/gammastep', 'etc/geoclue/conf.d/80-other-application.conf',
-            'home/fixtureuser/.config/another-program/settings')]
-        self.invoke(); self.invoke()
-        self.assertTrue(all(not payload_source_exists(path) for path in obsolete))
-        self.assertFalse(enablement.is_symlink())
-        self.assertEqual(render_theme_defaults(payload_read_text(victim)), 'preserved')
-        self.assertTrue(all(render_theme_defaults(payload_read_text(path)) == 'unrelated' for path in preserved))
-
-    def test_colour_cleanup_rejects_redirected_parent(self):
-        victim = self.fixture_file('victim/gammastep-indicator.desktop', 'preserved')
-        redirected = self.root / 'usr/local/share/applications'
-        redirected.parent.mkdir(parents=True)
-        redirected.symlink_to(victim.parent, target_is_directory=True)
-        with self.assertRaises(OSError): self.invoke()
-        self.assertEqual(render_theme_defaults(payload_read_text(victim)), 'preserved')
-
-    def test_colour_cleanup_rejects_non_regular_leaf(self):
-        path = self.root / 'usr/local/bin/labwc-gammastep-indicator'
-        path.mkdir(parents=True)
-        with self.assertRaisesRegex(RuntimeError, 'unsafe obsolete colour asset'): self.invoke()
-        self.assertTrue(path.is_dir())
-
-    def test_colour_cleanup_unlinks_hardlink_without_writing_other_name(self):
-        victim = self.fixture_file('victim', 'preserved')
-        obsolete = self.root / 'usr/local/bin/labwc-gammastep-indicator'
-        obsolete.parent.mkdir(parents=True)
-        os.link(victim, obsolete)
-        self.invoke()
-        self.assertFalse(payload_source_exists(obsolete))
-        self.assertEqual(render_theme_defaults(payload_read_text(victim)), 'preserved')
 
 
 class HealthTransactionTests(unittest.TestCase):

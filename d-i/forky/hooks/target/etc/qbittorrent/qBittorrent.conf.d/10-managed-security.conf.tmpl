@@ -3,7 +3,6 @@
 # before each new instance. All native application settings belong in this file.
 
 [Application]
-MemoryWorkingSetLimit=1024
 FileLogger\Enabled=true
 FileLogger\Path=/home/user/.local/share/qBittorrent/logs
 FileLogger\Backup=true
@@ -17,6 +16,9 @@ FileLogger\AgeType=0
 Style=Fusion
 
 [BitTorrent]
+# Never expose an embedded tracker or merge another torrent's announce URLs.
+TrackerEnabled=false
+MergeTrackersEnabled=false
 Session\AddExtensionToIncompleteFiles=true
 Session\AnnounceToAllTiers=false
 Session\AnnounceToAllTrackers=false
@@ -26,11 +28,22 @@ Session\AnonymousModeEnabled=false
 # Do not add public fallback trackers to private-tracker torrents.
 Session\AddTrackersEnabled=false
 Session\AddTrackersFromURLEnabled=false
-Session\BTProtocol=Both
+# Native enum: 0 = TCP and uTP; retain compatibility with either peer transport.
+Session\BTProtocol=0
 Session\BlockPeersOnPrivilegedPorts=true
+Session\ConnectionSpeed=30
 Session\DHTEnabled=false
 Session\DefaultSavePath=/run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/completed
 Session\DisableAutoTMMByDefault=true
+# Use libtorrent's platform backend and the kernel's bounded page cache.
+# Avoid obsolete libtorrent 1.x DiskCacheSize/TTL tuning on Forky.
+Session\DiskIOType=0
+Session\DiskIOReadMode=1
+Session\DiskIOWriteMode=1
+Session\AsyncIOThreadsCount=10
+Session\HashingThreadsCount=1
+Session\FilePoolSize=100
+Session\DiskQueueSize=1048576
 Session\Encryption=0
 Session\FinishedTorrentExportDirectory=/run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/torrents-completed
 Session\GlobalMaxRatio=-1
@@ -42,32 +55,51 @@ Session\AlternativeGlobalDLSpeedLimit=0
 Session\AlternativeGlobalUPSpeedLimit=0
 Session\UseAlternativeGlobalSpeedLimit=false
 Session\BandwidthSchedulerEnabled=false
-# The broker always names the private veth eth0. An empty optional address
-# selects that interface's current lease without runtime config rendering.
-Session\Interface=eth0
-Session\InterfaceName=eth0
-Session\InterfaceAddress=
+# Bind the install-rendered private interface and its reserved primary IPv4.
+# The broker reserves the same endpoint on every launch.
+Session\Interface=__INSTALLER_APP_VETH_NAMESPACE_INTERFACE__
+Session\InterfaceName=__INSTALLER_APP_VETH_NAMESPACE_INTERFACE__
+Session\InterfaceAddress=__INSTALLER_APP_VETH_QBITTORRENT_ADDRESS__
 Session\LSDEnabled=false
+Session\IPFilteringEnabled=false
+Session\TrackerFilteringEnabled=false
+Session\MaxActiveCheckingTorrents=1
+Session\MaxActiveDownloads=-1
 Session\MaxActiveTorrents=-1
 Session\MaxActiveUploads=-1
+Session\MaxConcurrentHTTPAnnounces=50
 # Bound socket usage while permitting unlimited transfer rates and seeding.
 Session\MaxConnections=500
 Session\MaxConnectionsPerTorrent=100
 Session\MaxUploads=-1
 Session\MaxUploadsPerTorrent=-1
+Session\MultiConnectionsPerIp=false
 Session\OutgoingPortsMin=0
 Session\OutgoingPortsMax=0
 Session\PeXEnabled=false
+Session\PerformanceWarning=true
 Session\Port=__INSTALLER_LABWC_QBITTORRENT_PORT__
+Session\Preallocation=false
 Session\QueueingSystemEnabled=false
 Session\ReannounceWhenAddressChanged=true
 Session\SSRFMitigation=true
+# These persistence intervals are minutes. Limit work lost after a crash.
+Session\SaveResumeDataInterval=5
+Session\SaveStatisticsInterval=5
+# Give private trackers time to receive the stopped announce during shutdown.
+Session\StopTrackerTimeout=5
 Session\TempPath=/run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/active
 Session\TempPathEnabled=true
 Session\TorrentExportDirectory=/run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/torrents-active
-Session\UseRandomPort=false
-Session\UseUPnP=false
 Session\ValidateHTTPSTrackerCertificate=true
+Session\IgnoreLimitsOnLAN=false
+Session\IncludeOverheadInLimits=true
+Session\uTPRateLimited=true
+
+# Torrent names and metadata must never trigger external commands.
+[AutoRun]
+enabled=false
+OnTorrentAdded\Enabled=false
 
 [Core]
 AutoDeleteAddedTorrentFile=Never
@@ -79,17 +111,5 @@ Accepted=true
 PortForwardingEnabled=false
 
 [Preferences]
-Connection\PortRangeMin=__INSTALLER_LABWC_QBITTORRENT_PORT__
-Connection\Interface=eth0
-Connection\InterfaceName=eth0
-Connection\InterfaceAddress=
 Connection\ResolvePeerCountries=true
-Connection\UPnP=false
-Downloads\FinishedTorrentExportDirectory=/run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/torrents-completed
-Downloads\SavePath=/run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/completed
-Downloads\TempPath=/run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/active
-Downloads\TempPathEnabled=true
-Downloads\TorrentExportDirectory=/run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/torrents-active
-General\UseRandomPort=false
-Queueing\QueueingEnabled=false
 WebUI\Enabled=false

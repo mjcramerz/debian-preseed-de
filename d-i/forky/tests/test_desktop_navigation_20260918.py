@@ -260,7 +260,7 @@ class DesktopIntegrationTests(unittest.TestCase):
         self.assertIn('${LABWC_MENU_BACKEND:-fuzzel}', wrapper)
         self.assertIn('menu|--dmenu|--dmenu0)', wrapper)
         self.assertNotIn('launcher|menu|--dmenu', wrapper)
-        self.assertIn('labwc-fuzzel launcher', render_theme_defaults(payload_read_text(BIN/'labwc-run')))
+        self.assertIn('labwc-main-menu --search', render_theme_defaults(payload_read_text(BIN/'labwc-run')))
 
     def test_f13_native_press_binding_and_both_alt_tab_bindings(self):
         root=ET.fromstring(render_theme_defaults(payload_read_text(TARGET/'etc/skel-desktop/.config/labwc/rc.xml.tmpl')))

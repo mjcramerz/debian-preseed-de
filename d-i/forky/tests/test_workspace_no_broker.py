@@ -284,112 +284,6 @@ class InstalledVerifierTests(unittest.TestCase):
         self.assertIn('unresolved workspace configuration', self.verify().stderr)
 
 
-class RetirementTests(unittest.TestCase):
-    def setUp(self):
-        temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
-        self.code = relocate(embedded_code('components.sh', 'desktop_retire_workspace_broker'), self.root)
-
-    def cleanup(self, home='/home/test'):
-        return run_code(self.code, home)
-
-    def put(self, relative, text='retired'):
-        path = self.root / relative
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text)
-        return path
-
-    def test_empty_target_is_noop_and_idempotent(self):
-        for _ in range(2):
-            result = self.cleanup()
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn('removed=0', result.stdout)
-            self.assertEqual(list(self.root.iterdir()), [])
-
-    def test_removes_all_known_modules_and_units_preserves_other_services(self):
-        parsed = ast.parse(self.code)
-        assignment = next(n for n in parsed.body if isinstance(n, ast.Assign) and
-                          any(isinstance(t, ast.Name) and t.id == 'modules' for t in n.targets))
-        modules = ast.literal_eval(assignment.value)
-        self.assertEqual(len(modules), 15)
-        for module in modules:
-            self.put('usr/local/lib/labwc-workspace-broker/' + module)
-        for entry in ('usr/local/libexec/labwc-workspace-broker',
-                      'usr/local/libexec/labwc-workspace-wayland-adapter',
-                      'usr/local/bin/labwc-workspace-broker-client'):
-            self.put(entry)
-        retained = []
-        for directory in ('etc/skel-desktop/.config/systemd/user', 'home/test/.config/systemd/user'):
-            self.put(directory + '/labwc-workspace-broker.service')
-            link = self.root / directory / 'labwc-session.target.wants/labwc-workspace-broker.service'
-            link.parent.mkdir(parents=True)
-            link.symlink_to('../labwc-workspace-broker.service')
-            retained.append(self.put(directory + '/waybar.service', 'leave unchanged'))
-            other = link.with_name('dbus.service')
-            other.symlink_to('../dbus.service')
-            retained.append(other)
-        result = self.cleanup()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('removed=22', result.stdout)
-        self.assertFalse(payload_source_exists(self.root / 'usr/local/lib/labwc-workspace-broker'))
-        for path in retained:
-            self.assertTrue(payload_source_exists(path) or path.is_symlink())
-        self.assertIn('removed=0', self.cleanup().stdout)
-
-    def test_unlinks_final_symlinks_without_touching_destination(self):
-        target = self.put('keep-me', 'not retired')
-        link = self.root / 'usr/local/bin/labwc-workspace-broker-client'
-        link.parent.mkdir(parents=True)
-        link.symlink_to(target)
-        result = self.cleanup()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertFalse(link.is_symlink())
-        self.assertEqual(render_theme_defaults(payload_read_text(target)), 'not retired')
-
-    def test_symlink_parent_rejected_before_any_deletion(self):
-        retained = self.put('usr/local/libexec/labwc-workspace-broker')
-        outside = self.root / 'outside'
-        outside.mkdir()
-        (self.root / 'usr/local/bin').symlink_to(outside, target_is_directory=True)
-        result = self.cleanup()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn('symlinked retired asset parent', result.stderr)
-        self.assertTrue(payload_source_exists(retained))
-
-    def test_user_unit_symlink_parent_rejected(self):
-        retained = self.put('usr/local/libexec/labwc-workspace-broker')
-        home = self.root / 'home/test'
-        home.mkdir(parents=True)
-        (home / '.config').symlink_to(self.root / 'outside')
-        result = self.cleanup()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertTrue(payload_source_exists(retained))
-
-    def test_unknown_private_files_preserved(self):
-        custom = self.put('usr/local/lib/labwc-workspace-broker/operator-notes.txt', 'keep')
-        self.put('usr/local/lib/labwc-workspace-broker/PROTOCOL-LICENSES.txt')
-        result = self.cleanup()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(render_theme_defaults(payload_read_text(custom)), 'keep')
-        self.assertIn('preserved unrecognized files', result.stderr)
-
-    def test_non_file_retired_entry_rejected(self):
-        path = self.root / 'usr/local/libexec/labwc-workspace-broker'
-        path.mkdir(parents=True)
-        result = self.cleanup()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn('refusing non-file', result.stderr)
-
-    def test_invalid_home_does_not_delete_assets(self):
-        retained = self.put('usr/local/libexec/labwc-workspace-broker')
-        for home in ('/', '', 'relative', '/home/../root', '/home//test', '/home/test/'):
-            with self.subTest(home=home):
-                result = self.cleanup(home)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertTrue(payload_source_exists(retained))
-
-
 class SourceWiringTests(unittest.TestCase):
     def test_retired_runtime_files_absent(self):
         for relative in ('usr/local/lib/labwc-workspace-broker',
@@ -404,7 +298,7 @@ class SourceWiringTests(unittest.TestCase):
 
     def test_cleanup_and_verification_are_wired(self):
         components = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/components.sh'))
-        self.assertIn('desktop_stage_labwc_user_session_assets() {\n  desktop_retire_workspace_broker', components)
+        self.assertNotIn('desktop_retire_workspace_broker', components)
         verification = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/verify.sh'))
         stage = verification.split('desktop_verify_target_staging() {', 1)[1]
         self.assertIn('desktop_verify_native_workspace_config', stage)

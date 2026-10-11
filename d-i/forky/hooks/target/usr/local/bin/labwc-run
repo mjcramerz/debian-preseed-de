@@ -6,7 +6,7 @@ if [ -r /etc/labwc/desktop.conf ]; then
   . /etc/labwc/desktop.conf
 fi
 
-launcher_command=${LABWC_LAUNCHER_COMMAND:-labwc-fuzzel launcher}
+launcher_command=${LABWC_LAUNCHER_COMMAND:-labwc-main-menu --search}
 case "$launcher_command" in
   ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._+@%=:,/\ -]*)
     printf 'fatal: invalid LABWC_LAUNCHER_COMMAND: %s\n' "$launcher_command" >&2

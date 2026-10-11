@@ -57,7 +57,6 @@ class SealingReadOnlyTests(unittest.TestCase):
         real_open, real_flock = os.open, self.m.fcntl.flock
         with mock.patch.object(self.m.os, 'open', wraps=real_open) as opened, \
              mock.patch.object(self.m.fcntl, 'flock', wraps=real_flock) as flock, \
-             mock.patch.object(self.m, 'migrate_legacy_key') as migrate, \
              mock.patch.object(self.m, 'write_record') as write:
             self.assertEqual(self.m.main(['--status']), 0)
         locks = [call.args[1] for call in opened.call_args_list if call.args[0] == self.m.STATE / 'lock']
@@ -65,7 +64,6 @@ class SealingReadOnlyTests(unittest.TestCase):
         self.assertEqual(locks[0] & os.O_ACCMODE, os.O_RDONLY)
         self.assertFalse(locks[0] & os.O_CREAT)
         self.assertEqual(flock.call_args.args[1], self.m.fcntl.LOCK_SH)
-        migrate.assert_not_called()
         write.assert_not_called()
         self.assertEqual(before, {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.m.STATE.iterdir()})
 
@@ -136,7 +134,7 @@ class LanSharingTests(unittest.TestCase):
         overlay = (TARGET / 'etc/nftables/services/lan-share.yml.tmpl').read_text()
         for key, value in tokens.items():
             overlay = overlay.replace('__INSTALLER_' + key + '__', value)
-        profile = (TARGET / 'etc/nftables/profiles/desktop.yml.tmpl').read_text()
+        profile = read_text(TARGET / 'etc/nftables/profiles/desktop.yml.tmpl')
         for key in ('MANAGED_NETWORK_ETHERNET_IFACE', 'MANAGED_NETWORK_WIFI_IFACE'):
             profile = profile.replace('__INSTALLER_' + key + '__', values[key])
         with tempfile.TemporaryDirectory() as tmp:

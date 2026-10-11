@@ -267,20 +267,6 @@ fi
   desktop_log "compiled_glib_schemas scope=desktop"
 }
 
-# Remove only the obsolete project-owned shutdown graph on republication.
-# Never start/stop/enable those units while staging an unattended installation.
-desktop_remove_legacy_power_transactions() (
-  set -eu
-  for power_action in reboot poweroff; do
-    for power_kind in service target; do
-      ensure_target_asset_parent "/etc/systemd/system/labwc-power-${power_action}.${power_kind}"
-      power_path=$(target_asset_host_path "/etc/systemd/system/labwc-power-${power_action}.${power_kind}")
-      [ ! -d "$power_path" ] || installer_fatal "obsolete power unit is a directory: $power_path"
-      rm -f -- "$power_path"
-    done
-  done
-)
-
 desktop_install_user_resource_policy() {
   stage_target_systemd_manager_accounting || return 1
   user_slice_dropin=/etc/systemd/system/user-1000.slice.d/50-resource-accounting.conf

@@ -133,10 +133,9 @@ class Broker:
         if not path.exists() and not path.is_symlink():
             return False
         data = trusted_json(path)
-        legacy = {"version", "automatic", "manual", "paused", "faults"}
+        fields = {"version", "automatic", "manual", "paused", "faults", "policy_release", "policy_error"}
         if (not isinstance(data, dict) or type(data.get("version")) is not int
-                or data["version"] not in (1, 2)
-                or set(data) != (legacy if data["version"] == 1 else legacy | {"policy_release", "policy_error"})):
+                or data["version"] != 2 or set(data) != fields):
             raise TuningError("invalid broker recovery state")
         if type(data["automatic"]) is not bool or type(data["paused"]) is not bool:
             raise TuningError("invalid automatic/pause state")
@@ -144,15 +143,15 @@ class Broker:
             raise TuningError("invalid manual recovery state")
         if not isinstance(data["faults"], dict) or not set(data["faults"]) <= set(self.selection.vendors) or any(not isinstance(v, str) or len(v) > 8192 for v in data["faults"].values()):
             raise TuningError("invalid fault state")
-        if (data.get("policy_release") not in (None, "stop", "disable")
-                or not isinstance(data.get("policy_error", ""), str) or len(data.get("policy_error", "")) > 8192):
+        if (data["policy_release"] not in (None, "stop", "disable")
+                or not isinstance(data["policy_error"], str) or len(data["policy_error"]) > 8192):
             raise TuningError("invalid policy handover recovery state")
         self.selection.automatic = data["automatic"]
         self.selection.manual = data["manual"] if self.seat.active() else {v: None for v in self.selection.vendors}
         self.selection.paused = data["paused"]
         self.selection.faults = data["faults"]
-        self.policy_release = data.get("policy_release")
-        self.policy_error = data.get("policy_error", "")
+        self.policy_release = data["policy_release"]
+        self.policy_error = data["policy_error"]
         return True
 
     async def worker(self, vendor: str, action: str, profile: str | None = None) -> dict:

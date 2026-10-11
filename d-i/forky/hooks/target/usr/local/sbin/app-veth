@@ -28,11 +28,14 @@ from app_veth_policy import read_configuration
 SOCKET_PATH = "/run/app-veth/control.sock"
 CONFIG = "/etc/app-veth.json"
 ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C"}
+# Up to 128 precreated pairs produce more than 64 KiB of detailed ip JSON.
+MAX_COMMAND_OUTPUT_BYTES = 524288
 NS_GET_USERNS = 0xB701
 NS_GET_OWNER_UID = 0xB704
 NS_GET_NSTYPE = 0xB703
 CLONE_NEWNET = 0x40000000
-MAX_LEASES = 32
+NETWORK_SETTINGS = {}
+ACTIVE_NETWORK_SETTINGS = None
 # A transient carrier or USB adapter flap can remove the default route for a
 # few seconds while the interface is recreated. Keep the pinned namespace
 # alive during that bounded outage; the existing nftables mapping remains
@@ -40,10 +43,8 @@ MAX_LEASES = 32
 # revokes the lease below.
 PINNED_ROUTE_GRACE_SECONDS = 10
 # Fixed host names are created once at boot and retained for every lease.
-INTERFACE_PATTERN = r"veth(?:[0-9]|[12][0-9]|3[01])-app"
-INTERFACE_MATCH = "{ " + ", ".join(f'"veth{slot}-app"' for slot in range(MAX_LEASES)) + " }"
 
-RULESET = '''destroy table inet app_veth
+RULESET_TEMPLATE = '''destroy table inet app_veth
 table inet app_veth {
     set links { type ifname; }
     set sources { type ifname . ipv4_addr; }
@@ -64,7 +65,7 @@ table inet app_veth {
     }
     chain dns_and_peers {
         type nat hook prerouting priority dstnat; policy accept;
-        iifname @links ip daddr 10.0.2.3 meta l4proto { tcp, udp } th dport 53 dnat to 127.0.0.1:53053
+        iifname @links ip daddr __DNS_ADDRESS__ meta l4proto { tcp, udp } th dport 53 dnat to __DNS_HOST_ADDRESS__:__DNS_HOST_PORT__
         meta l4proto { tcp, udp } dnat ip to ip daddr . meta l4proto . th dport map @forwards
     }
     chain rpc_output {
@@ -74,7 +75,7 @@ table inet app_veth {
     }
     chain host_guard {
         type filter hook input priority -10; policy accept;
-        iifname @links ip daddr 127.0.0.1 meta l4proto { tcp, udp } th dport 53053 ct status dnat accept
+        iifname @links ip daddr __DNS_HOST_ADDRESS__ meta l4proto { tcp, udp } th dport __DNS_HOST_PORT__ ct status dnat accept
         # Replies to the exact host-initiated peer/RPC DNAT maps must return
         # to their initiating host socket; unrelated host access stays denied.
         iifname @links ct state established,related ct status dnat accept
@@ -104,7 +105,33 @@ table inet app_veth {
         oifname @links ip saddr 127.0.0.0/8 snat ip to oifname map @gateways
     }
 }
-'''.replace("__APP_INTERFACES__", INTERFACE_MATCH)
+'''
+
+
+def interface_name(slot: int, *, peer: bool = False) -> str:
+    suffix = "peer_interface_suffix" if peer else "host_interface_suffix"
+    return NETWORK_SETTINGS["host_interface_prefix"] + str(slot) + NETWORK_SETTINGS[suffix]
+
+
+def apply_network_identity(settings: dict) -> None:
+    global NETWORK_SETTINGS, MAX_LEASES, INTERFACE_PATTERN, INTERFACE_MATCH, RULESET
+    NETWORK_SETTINGS = dict(settings)
+    MAX_LEASES = settings["max_leases"]
+    names = [interface_name(slot) for slot in range(MAX_LEASES)]
+    INTERFACE_PATTERN = "(?:" + "|".join(re.escape(name) for name in names) + ")"
+    INTERFACE_MATCH = "{ " + ", ".join(f'"{name}"' for name in names) + " }"
+    RULESET = RULESET_TEMPLATE.replace("__APP_INTERFACES__", INTERFACE_MATCH)
+    for key in ("dns_address", "dns_host_address", "dns_host_port"):
+        RULESET = RULESET.replace("__" + key.upper() + "__", str(settings[key]))
+
+
+def application_slot(policy: dict, leases: dict) -> int:
+    occupied = {network.slot for network in leases.values()}
+    for slot in policy["slots"]:
+        if slot not in occupied:
+            return slot
+    raise ValueError("all reserved network slots for this application are in use")
+
 
 
 def event(name: str, correlation: str, **fields) -> None:
@@ -124,8 +151,8 @@ def run(argv: list[str], *, data: str | None = None, fds: tuple[int, ...] = ()) 
                                 stdout=output, stderr=output, timeout=5, env=ENV,
                                 pass_fds=fds, check=False)
         output.seek(0)
-        text = output.read(65537)
-    if result.returncode or len(text) > 65536:
+        text = output.read(MAX_COMMAND_OUTPUT_BYTES + 1)
+    if result.returncode or len(text) > MAX_COMMAND_OUTPUT_BYTES:
         diagnostic = " ".join(text.decode("ascii", errors="replace").split())[:512]
         raise RuntimeError(f"{Path(argv[0]).name} failed (status {result.returncode}): {diagnostic}")
     return text.decode("ascii")
@@ -135,11 +162,15 @@ def nft(data: str) -> None:
     run(["/usr/sbin/nft", "-f", "-"], data=data)
 
 
-def configuration() -> tuple[int, dict]:
+def configuration(*, activate: bool = False) -> tuple[int, dict]:
     conf = read_configuration(CONFIG)
+    if ACTIVE_NETWORK_SETTINGS is not None and conf["network"] != ACTIVE_NETWORK_SETTINGS:
+        raise ValueError("network identity changed; restart app-veth before acquiring new leases")
     uid = pwd.getpwnam(conf["desktop_user"]).pw_uid
     if uid == 0:
         raise ValueError("invalid managed network configuration")
+    if activate:
+        apply_network_identity(conf["network"])
     return uid, conf["apps"]
 
 
@@ -243,14 +274,18 @@ def route(*, allow_lan: bool = False) -> tuple[str, str, int]:
 
 
 def select_pool() -> ipaddress.IPv4Network:
+    pool = ipaddress.IPv4Network(NETWORK_SETTINGS["ipv4_cidr"])
     routes = json.loads(run(["/usr/sbin/ip", "-j", "-4", "route", "show", "table", "all"]))
-    networks = [ipaddress.IPv4Network(r["dst"], strict=False) for r in routes
-                if r.get("dst") not in (None, "default")]
-    for value in ("10.203.0.0/24", "10.204.0.0/24", "172.30.253.0/24"):
-        pool = ipaddress.IPv4Network(value)
-        if not any(pool.overlaps(network) for network in networks):
-            return pool
-    raise ValueError("managed network pools overlap existing host routes")
+    if not isinstance(routes, list) or any(not isinstance(row, dict) for row in routes):
+        raise ValueError("invalid host IPv4 route snapshot")
+    # Full-tunnel VPNs may express the default route as two /1 routes. These
+    # catch-all routes do not allocate a connected application subnet.
+    catch_all_routes = {None, "default", "0.0.0.0/0", "0.0.0.0/1", "128.0.0.0/1"}
+    networks = [ipaddress.IPv4Network(row["dst"], strict=False) for row in routes
+                if row.get("dst") not in catch_all_routes]
+    if any(pool.overlaps(network) for network in networks):
+        raise ValueError("configured app-veth subnet overlaps existing host routes; adjust identity.env")
+    return pool
 
 
 class EndpointPool:
@@ -262,11 +297,11 @@ class EndpointPool:
         rows = []
         settings = []
         for slot, identity in self.ids.items():
-            name = f"veth{slot}-app"
+            name = interface_name(slot)
             gateway = str(ipaddress.IPv4Address(int(pool.network_address) + slot * 4 + 1))
             # iproute2's veth create path does not retain an inline alias.
             # Tag explicitly while both ends are still DOWN, before addresses.
-            rows.extend((f"link add name {name} type veth peer name veth{slot}-peer",
+            rows.extend((f"link add name {name} type veth peer name {interface_name(slot, peer=True)}",
                          f"link set dev {name} alias app-veth:{identity}",
                          f"addr add {gateway}/30 dev {name}"))
             settings.extend((f"net.ipv4.conf.{name}.route_localnet=1", f"net.ipv4.conf.{name}.rp_filter=2"))
@@ -285,7 +320,7 @@ class EndpointPool:
     def close(self):
         try:
             run(["/usr/sbin/ip", "-batch", "-"],
-                data="".join(f"link del dev veth{slot}-app\n" for slot in self.ids))
+                data="".join(f"link del dev {interface_name(slot)}\n" for slot in self.ids))
         finally:
             if self.host_fd is not None:
                 os.close(self.host_fd)
@@ -299,8 +334,9 @@ class Network:
         if slot not in endpoints.ids or endpoints.host_fd is None:
             raise ValueError("managed network endpoint pool is unavailable")
         self.id = uuid.uuid4().hex
-        self.name = f"veth{slot}-app"
-        self.peer_name = f"veth{slot}-peer"
+        self.name = interface_name(slot)
+        self.peer_name = interface_name(slot, peer=True)
+        self.interface = NETWORK_SETTINGS["namespace_interface"]
         base = int(pool.network_address) + slot * 4
         self.gateway = str(ipaddress.IPv4Address(base + 1))
         self.address = str(ipaddress.IPv4Address(base + 2))
@@ -327,12 +363,12 @@ class Network:
             path = f"/proc/self/fd/{nsfd}"
             enter = ["/usr/bin/nsenter", f"--net={path}", "--"]
             links = json.loads(run([*enter, "/usr/sbin/ip", "-j", "link", "show"], fds=(nsfd,)))
-            if any(link["ifname"] == "eth0" or (app != "podman" and link["ifname"] != "lo") for link in links):
+            if any(link["ifname"] == self.interface or (app != "podman" and link["ifname"] != "lo") for link in links):
                 raise ValueError("namespace already has network interfaces")
             run(["/usr/sbin/ip", "link", "set", "dev", self.peer_name, "netns", path], fds=(nsfd,))
             self.attached = True
-            run([*enter, "/usr/sbin/ip", "link", "set", "dev", self.peer_name, "name", "eth0"], fds=(nsfd,))
-            self.peer_name = "eth0"
+            run([*enter, "/usr/sbin/ip", "link", "set", "dev", self.peer_name, "name", self.interface], fds=(nsfd,))
+            self.peer_name = self.interface
             run(["/usr/sbin/ip", "link", "set", "dev", self.name, "mtu", str(mtu)])
             run([*enter, "/usr/sbin/sysctl", "-q", "-w", "net.ipv6.conf.all.disable_ipv6=1"], fds=(nsfd,))
             # ip -batch stops at the first error. The guest must be UP before
@@ -340,10 +376,10 @@ class Network:
             # firewall commits, so setup cannot release application packets.
             guest_setup = (
                 "link set lo up\n"
-                f"link set eth0 mtu {mtu}\n"
-                f"addr add {self.address}/30 dev eth0\n"
-                "link set eth0 up\n"
-                f"route add default via {self.gateway} dev eth0\n"
+                f"link set {self.interface} mtu {mtu}\n"
+                f"addr add {self.address}/30 dev {self.interface}\n"
+                f"link set {self.interface} up\n"
+                f"route add default via {self.gateway} dev {self.interface}\n"
             )
             run([*enter, "/usr/sbin/ip", "-batch", "-"], data=guest_setup, fds=(nsfd,))
             rows = []
@@ -405,7 +441,7 @@ class Network:
                 fds = (self.nsfd, self.endpoints.host_fd)
                 run([*enter, "/usr/sbin/ip", "link", "set", "dev", self.peer_name, "down"], fds=fds)
                 run([*enter, "/usr/sbin/ip", "addr", "flush", "dev", self.peer_name], fds=fds)
-                idle_name = f"veth{self.slot}-peer"
+                idle_name = interface_name(self.slot, peer=True)
                 if self.peer_name != idle_name:
                     run([*enter, "/usr/sbin/ip", "link", "set", "dev", self.peer_name, "name", idle_name], fds=fds)
                     self.peer_name = idle_name
@@ -532,9 +568,9 @@ def recover_endpoints():
             # between create and tag can leave both idle ends untagged. Only
             # that mutually paired, DOWN, address-free state is recoverable;
             # any other untagged or foreign-tagged interface is left alone.
-            peer_name = name.removesuffix("-app") + "-peer"
+            peer_name = name.removesuffix(NETWORK_SETTINGS["host_interface_suffix"]) + NETWORK_SETTINGS["peer_interface_suffix"]
             peer = links.get(peer_name, {})
-            if (alias or not name.endswith("-app") or "UP" in link.get("flags", [])
+            if (alias or not name.endswith(NETWORK_SETTINGS["host_interface_suffix"]) or "UP" in link.get("flags", [])
                     or link.get("link") != peer_name or peer.get("link") != name
                     or peer.get("ifalias") or "UP" in peer.get("flags", [])
                     or peer.get("linkinfo", {}).get("info_kind") != "veth"):
@@ -553,7 +589,7 @@ def wait_dns_frontend() -> None:
     while True:
         remaining = deadline - time.monotonic()
         try:
-            with socket.create_connection(("127.0.0.1", 53053), timeout=min(.25, max(.001, remaining))):
+            with socket.create_connection((NETWORK_SETTINGS["dns_host_address"], NETWORK_SETTINGS["dns_host_port"]), timeout=min(.25, max(.001, remaining))):
                 return
         except (ConnectionRefusedError, TimeoutError) as exc:
             remaining = deadline - time.monotonic()
@@ -563,9 +599,11 @@ def wait_dns_frontend() -> None:
 
 
 def main():
+    global ACTIVE_NETWORK_SETTINGS
     if os.geteuid() != 0:
         raise ValueError("network service requires root")
-    desktop_uid, policies = configuration()
+    desktop_uid, policies = configuration(activate=True)
+    ACTIVE_NETWORK_SETTINGS = dict(NETWORK_SETTINGS)
     # Recover before route allocation so stale leases cannot consume a pool.
     recover_endpoints()
     pool = select_pool()
@@ -642,10 +680,10 @@ def main():
                             raise ValueError("network lease limit reached")
                         if any(os.fstat(n.nsfd).st_ino == os.fstat(nsfd).st_ino for n in leases.values()):
                             raise ValueError("namespace already has a lease")
-                        slot = next(i for i in range(MAX_LEASES) if i not in {n.slot for n in leases.values()})
+                        slot = application_slot(policies[app], leases)
                         network = Network(slot, nsfd, app, uid, policies[app], pool, endpoints)
                         response = {"ready": True, "address": network.address,
-                                    "gateway": network.gateway, "interface": "eth0"}
+                                    "gateway": network.gateway, "interface": network.interface}
                         if policies[app]["peer_port"] is not None:
                             response["peer_port"] = policies[app]["peer_port"]
                         channel.send(json.dumps(response).encode("ascii"))
@@ -688,6 +726,7 @@ def main():
                         errors.append(exc)
                         raise
     finally:
+        ACTIVE_NETWORK_SETTINGS = None
         # Signals cannot interrupt cleanup and strand a later lease.
         for sig in (signal.SIGTERM, signal.SIGINT):
             signal.signal(sig, signal.SIG_IGN)

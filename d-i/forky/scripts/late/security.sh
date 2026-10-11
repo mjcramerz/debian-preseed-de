@@ -235,8 +235,13 @@ stage_target_nftables_profile_assets() {
       "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/nftables/profiles/${profile_asset}.yml")" \
       "/etc/nftables/profiles/${profile_asset}.yml" \
       0644 \
-      nftables_interface_placeholder_map
+      nftables_app_veth_profile_placeholder_map
   done
+}
+
+nftables_app_veth_profile_placeholder_map() {
+  app_veth_identity_placeholder_map || return "$?"
+  nftables_interface_placeholder_map
 }
 
 stage_target_nftables_all_service_assets() {
@@ -936,16 +941,6 @@ unix-chkpwd
 EOF
 }
 
-apparmor_obsolete_local_include_files() {
-  cat <<'EOF'
-crun
-timeshift
-timeshift-gtk
-usr.bin.timeshift
-usr.bin.timeshift-gtk
-EOF
-}
-
 apparmor_compat_desktop_local_include_files() {
   cat <<'EOF'
 1password
@@ -1091,18 +1086,6 @@ apparmor_require_disconnected_profile_flags() {
   }
 }
 
-apparmor_obsolete_profile_files() {
-  cat <<'EOF'
-opt.microsoft.msedge.msedge
-timeshift-gtk
-usr.bin.code
-usr.bin.microsoft-edge-stable
-usr.bin.mullvad-browser
-usr.bin.timeshift
-usr.bin.timeshift-gtk
-EOF
-}
-
 apparmor_disable_superseded_edge_profile() {
   # Keep the distribution conffile, but give the vendor's confined profile the
   # sole Edge attachment. Both the boot loader and aa-logprof skip disable/.
@@ -1176,6 +1159,12 @@ stage_target_system_apparmor_profiles() {
     0644
 
   for apparmor_profile in $(apparmor_managed_system_profile_files); do
+    if [ "$apparmor_profile" = app-veth ]; then
+      render_target_asset_with_placeholder_map \
+        "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/app-veth.tmpl)" \
+        /etc/apparmor.d/app-veth 0644 app_veth_identity_placeholder_map
+      continue
+    fi
     stage_target_asset \
       "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/apparmor.d/${apparmor_profile}")" \
       "/etc/apparmor.d/${apparmor_profile}" \
@@ -1385,14 +1374,6 @@ stage_target_desktop_apparmor_profiles() {
         "$apparmor_profile"
     done
   fi
-  for apparmor_local_include in $(apparmor_obsolete_local_include_files); do
-    rm -f "/target/etc/apparmor.d/local/${apparmor_local_include}"
-  done
-  rm -f \
-    /target/etc/apparmor.d/disable/crun \
-    /target/etc/apparmor.d/disable/timeshift \
-    /target/etc/apparmor.d/force-complain/crun \
-    /target/etc/apparmor.d/force-complain/timeshift
   for apparmor_local_include in $(apparmor_compat_desktop_local_include_files); do
     stage_target_asset \
       "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/local/desktop-application)" \
@@ -1400,12 +1381,6 @@ stage_target_desktop_apparmor_profiles() {
       0644
   done
 
-  for apparmor_obsolete_profile in $(apparmor_obsolete_profile_files); do
-    rm -f \
-      "/target/etc/apparmor.d/${apparmor_obsolete_profile}" \
-      "/target/etc/apparmor.d/disable/${apparmor_obsolete_profile}" \
-      "/target/etc/apparmor.d/force-complain/${apparmor_obsolete_profile}"
-  done
 }
 
 nftables_default_placeholder_map() {
@@ -1708,6 +1683,7 @@ configure_target_fail2ban() {
 }
 
 app_veth_dns_placeholder_map() (
+  app_veth_identity_map=$(app_veth_identity_placeholder_map) || return "$?"
   # Export only public DNS policy, never the full installer environment. Pass
   # values as data rather than awk arguments, so backslashes are not expanded.
   SYSTEM_NAMESERVERS_IPV4_DNS1=${SYSTEM_NAMESERVERS_IPV4_DNS1:-}
@@ -1723,7 +1699,7 @@ app_veth_dns_placeholder_map() (
   export SYSTEM_NAMESERVERS_IPV4_DNS2 SYSTEM_NAMESERVERS_IPV6_DNS2 SYSTEM_NAMESERVERS_HOSTNAME_DNS2
   export SYSTEM_NAMESERVERS_PORT
   export SYSTEM_DNS_CACHE_SIZE SYSTEM_DNS_CACHE_MIN_TTL
-  LC_ALL=C awk '
+  app_veth_dns_map=$(LC_ALL=C awk '
     function fail(name) {
       print "fatal: invalid " name " in system DNS policy" > "/dev/stderr"
       exit 1
@@ -1813,10 +1789,12 @@ app_veth_dns_placeholder_map() (
       print "SYSTEM_DNS_CACHE_SIZE=" cache_size
       print "SYSTEM_DNS_CACHE_MIN_TTL=" cache_min_ttl
     }
-  ' </dev/null
+  ' </dev/null) || return "$?"
+  printf '%s\n%s\n' "$app_veth_identity_map" "$app_veth_dns_map"
 )
 
 app_veth_placeholder_map() {
+  app_veth_identity_placeholder_map || return "$?"
   apparmor_document_media_placeholder_map
   nftables_qbittorrent_service_placeholder_map
 }
@@ -1826,12 +1804,14 @@ configure_target_app_veth() {
     installer_fatal "managed kernel namespaces require the nftables policy"
   for veth_asset in \
     etc/systemd/system/app-veth.service \
-    etc/NetworkManager/conf.d/70-app-veth.conf \
     etc/sysctl.d/91-app-veth.conf \
     etc/modules-load.d/app-veth.conf
   do
     stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET "$veth_asset")" "/$veth_asset" 0644
   done
+  render_target_asset_with_placeholder_map \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/NetworkManager/conf.d/70-app-veth.conf.tmpl)" \
+    /etc/NetworkManager/conf.d/70-app-veth.conf 0644 app_veth_identity_placeholder_map
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/sbin/app-veth)" /usr/local/sbin/app-veth 0755
   render_target_asset_with_placeholder_map \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/stubby/stubby.yml.tmpl)" \

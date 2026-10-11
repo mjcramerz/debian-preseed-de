@@ -251,8 +251,6 @@ done
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/local/usr.sbin.clamd)" \
     /etc/apparmor.d/local/usr.sbin.clamd \
     0644
-  run_in_target "retire byte-exact obsolete R3 logging rules" \
-    /usr/local/libexec/native-logging --retire-r3
   run_in_target "configure native package logging without changing other settings" \
     /usr/local/libexec/native-logging --configure
   run_in_target "preflight protected logging destinations before tmpfiles" \
@@ -266,7 +264,7 @@ done
     /etc/tmpfiles.d/59-log-layout.conf \
     /etc/tmpfiles.d/60-security-logs.conf \
     /etc/tmpfiles.d/65-audit-syslog.conf
-  run_in_target "validate managed log layout and legacy auth link" \
+  run_in_target "validate managed log layout" \
     /usr/local/libexec/log-layout
   desktop_stage_boot_logging
 

@@ -228,11 +228,8 @@ devops_load_publishing_credentials() {
 }
 
 devops_validate_codex_policy() {
-  # These are fixed addon/devops prerequisites rather than host-specific
-  # tuning. Supply the exact class defaults when an earlier installer seed
-  # cache predates the profile entries, then validate them below as usual.
-  : "${DEVOPS_CODEX_BWRAP_USERNS_CLONE:=1}"
-  : "${DEVOPS_CODEX_BWRAP_MAX_USER_NAMESPACES:=1024}"
+  : "${DEVOPS_CODEX_BWRAP_USERNS_CLONE:?missing DevOps user namespace policy}"
+  : "${DEVOPS_CODEX_BWRAP_MAX_USER_NAMESPACES:?missing DevOps namespace capacity policy}"
 
   : "${DEVOPS_CODEX_VERSION:?DEVOPS_CODEX_VERSION must be set before DevOps provisioning}"
   : "${DEVOPS_CODEX_STANDALONE_INSTALLER_URL:?DEVOPS_CODEX_STANDALONE_INSTALLER_URL must be set before DevOps provisioning}"

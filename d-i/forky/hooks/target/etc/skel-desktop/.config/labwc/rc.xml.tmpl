@@ -185,7 +185,10 @@ __INSTALLER_LABWC_WORKSPACE_NAME_LINES__
     <keybind key="W-S-d">
       <action name="Execute" command="/usr/bin/systemctl --user --no-block restart crystal-dock.service" />
     </keybind>
-    <keybind key="W-m">
+    <keybind key="W-Alt_L" onRelease="yes">
+      <action name="Execute" command="labwc-computer-management" />
+    </keybind>
+    <keybind key="W-Alt_R" onRelease="yes">
       <action name="Execute" command="labwc-computer-management" />
     </keybind>
     <keybind key="C-A-m">
@@ -233,8 +236,11 @@ __INSTALLER_LABWC_WORKSPACE_NAME_LINES__
     <keybind key="C-A-w">
       <action name="Execute" command="labwc-wayscriber-toggle" />
     </keybind>
-    <keybind key="W-s">
+    <keybind key="W-m">
       <action name="Execute" command="/usr/local/bin/labwc-app auto spotify" />
+    </keybind>
+    <keybind key="W-s">
+      <action name="Execute" command="labwc-run" />
     </keybind>
     <keybind key="C-A-s">
       <action name="Execute" command="/usr/local/bin/labwc-app auto spotify" />

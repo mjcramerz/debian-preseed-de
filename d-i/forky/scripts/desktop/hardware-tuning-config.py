@@ -208,9 +208,7 @@ def install(root: Path, uid: int, gid: int, environment: dict, vendors: list[str
             or [bar.get("name") for bar in data] != ["internal", "external"]):
         raise ValueError("Waybar configuration must contain the internal/external bars")
     for bar in data:
-        # New installs use the sysfs reader; preserve existing native modules
-        # when reconfiguring an older installation.
-        key = "custom/battery" if "custom/battery" in bar else "battery"
+        key = "custom/battery"
         if not isinstance(bar.get(key), dict):
             raise ValueError("Waybar bar has no battery module")
         bar[key]["on-click-right"] = CLICK

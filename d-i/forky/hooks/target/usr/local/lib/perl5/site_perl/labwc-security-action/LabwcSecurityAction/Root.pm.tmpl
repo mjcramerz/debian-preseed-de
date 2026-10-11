@@ -372,10 +372,6 @@ sub _dispatch {
         @args == 3 or die "set-apparmor-profile-state requires an action, profile source and confirmation\n";
         return $self->apparmor()->set_profile_state(@args);
     }
-    if ($action eq 'set-apparmor-desktop-state') {
-        @args == 2 or die "$action requires a mode and confirmation\n";
-        return $self->apparmor()->set_desktop_state(@args);
-    }
     if ($action eq 'set-apparmor-application-audit') {
         @args == 3 or die "$action requires an application, mode, and confirmation\n";
         return $self->apparmor()->set_application_audit(@args);

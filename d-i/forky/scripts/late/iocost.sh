@@ -209,16 +209,6 @@ iocost_publish_local() (
   stage_target_asset "$1" "$2" "${3:-0644}"
 )
 
-iocost_restore_legacy_link() (
-  iocost_link_path=$(target_asset_host_path /etc/udev/iocost.conf) || exit 1
-  ensure_target_asset_parent /etc/udev/iocost.conf || exit 1
-  iocost_link_work=$(mktemp -d "$(dirname "$iocost_link_path")/.installer-iocost-link.XXXXXX") || exit 1
-  trap 'rm -rf -- "$iocost_link_work"' EXIT
-  ln -s ../systemd/iocost.conf.d/70-unattended-installer.conf "$iocost_link_work/link" || exit 1
-  chown -h 0:0 "$iocost_link_work/link" || exit 1
-  mv -fT -- "$iocost_link_work/link" "$iocost_link_path" || exit 1
-)
-
 # Exact strings and simple globs use the shell matcher without eval. For two
 # globs (or bracket/escape syntax), only disjoint literal prefixes prove safety;
 # uncertainty is an overlap, never permission to overwrite administrator policy.
@@ -321,9 +311,7 @@ iocost_restore() {
   iocost_restore_failed=0
   while IFS= read -r iocost_rel; do
     iocost_safe_parents "$iocost_rel" || { iocost_restore_failed=1; continue; }
-    if [ -L "$iocost_work/old/$iocost_rel" ]; then
-      iocost_restore_legacy_link || iocost_restore_failed=1
-    elif [ -f "$iocost_work/old/$iocost_rel" ]; then
+    if [ -f "$iocost_work/old/$iocost_rel" ]; then
       iocost_old_mode=$(installer_metadata_value "$iocost_work/old/$iocost_rel" mode) || { iocost_restore_failed=1; continue; }
       iocost_publish_local "$iocost_work/old/$iocost_rel" "/$iocost_rel" "$iocost_old_mode" || iocost_restore_failed=1
     else
@@ -374,7 +362,7 @@ stage_target_iocost() (
   # Check every final destination before rendering or touching target files.
   while IFS= read -r iocost_rel; do
     iocost_safe_parents "$iocost_rel" || exit 1
-    # The native file has separate stock-defaults/legacy-migration handling.
+    # The native file has separate stock-defaults handling.
     [ "$iocost_rel" != etc/udev/iocost.conf ] || continue
     if [ "$IOCOST_CALIBRATE_ENABLE" = true ]; then
       if [ -e "$iocost_root/$iocost_rel" ] || [ -L "$iocost_root/$iocost_rel" ]; then
@@ -385,16 +373,8 @@ stage_target_iocost() (
       printf '%s\n' "$iocost_rel" >>"$iocost_work/actions" || exit 1
     fi
   done <"$iocost_work/assets"
-  # Retire only marker-owned legacy assets, transactionally. Administrator
-  # files remain untouched even when another profile disables this policy.
-  for iocost_rel in etc/systemd/iocost.conf etc/systemd/iocost.conf.d/70-unattended-installer.conf; do
-    iocost_safe_parents "$iocost_rel" || exit 1
-    if iocost_owned_file "$iocost_root/$iocost_rel"; then
-      printf '%s\n' "$iocost_rel" >>"$iocost_work/actions" || exit 1
-    fi
-  done
   iocost_safe_parents etc/udev/iocost.conf || exit 1
-  iocost_compat=$iocost_root/etc/udev/iocost.conf
+  iocost_native=$iocost_root/etc/udev/iocost.conf
   iocost_saved_rel=etc/udev/iocost.conf.unattended-installer-original
   iocost_saved=$iocost_root/$iocost_saved_rel
   iocost_safe_parents "$iocost_saved_rel" || exit 1
@@ -408,20 +388,16 @@ stage_target_iocost() (
     chmod 0644 "$iocost_work/native-original" || exit 1
     iocost_inactive_native_file "$iocost_work/native-original" || exit 1
   fi
-  if iocost_owned_file "$iocost_compat" || {
-      [ -L "$iocost_compat" ] &&
-      [ "$(installer_metadata_value "$iocost_compat" uid_gid)" = 0:0 ] &&
-      [ "$(readlink "$iocost_compat")" = ../systemd/iocost.conf.d/70-unattended-installer.conf ] &&
-      iocost_owned_file "$iocost_root/etc/systemd/iocost.conf.d/70-unattended-installer.conf"
-    }; then
+  [ ! -L "$iocost_native" ] || { printf '%s\n' 'IOCost: native configuration must be a regular file' >&2; exit 1; }
+  if iocost_owned_file "$iocost_native"; then
     printf '%s\n' etc/udev/iocost.conf >>"$iocost_work/actions" || exit 1
     if [ "$IOCOST_CALIBRATE_ENABLE" = false ] && [ "$iocost_have_saved" = true ]; then
       iocost_restore_native=true
       printf '%s\n' "$iocost_saved_rel" >>"$iocost_work/actions" || exit 1
     fi
   elif [ "$IOCOST_CALIBRATE_ENABLE" = true ]; then
-    if [ -e "$iocost_compat" ] || [ -L "$iocost_compat" ]; then
-      iocost_inactive_native_file "$iocost_compat" || { printf '%s\n' 'IOCost: /etc/udev/iocost.conf has active settings or unsafe metadata; original preserved' >&2; exit 1; }
+    if [ -e "$iocost_native" ] || [ -L "$iocost_native" ]; then
+      iocost_inactive_native_file "$iocost_native" || { printf '%s\n' 'IOCost: /etc/udev/iocost.conf has active settings or unsafe metadata; original preserved' >&2; exit 1; }
       if [ "$iocost_have_saved" = false ]; then
         iocost_save_native=true
         # Preserve defaults BEFORE replacing the native config with managed data.
@@ -430,15 +406,15 @@ stage_target_iocost() (
     fi
     printf '%s\n' etc/udev/iocost.conf >>"$iocost_work/actions" || exit 1
   elif [ "$iocost_have_saved" = true ]; then
-    if [ ! -e "$iocost_compat" ] && [ ! -L "$iocost_compat" ]; then
-      # Recover a removed/interrupted link without losing the saved defaults.
+    if [ ! -e "$iocost_native" ] && [ ! -L "$iocost_native" ]; then
+      # Recover an interrupted replacement without losing the saved defaults.
       iocost_restore_native=true
       printf '%s\n' etc/udev/iocost.conf "$iocost_saved_rel" >>"$iocost_work/actions" || exit 1
-    elif iocost_inactive_native_file "$iocost_compat" && cmp -s "$iocost_compat" "$iocost_work/native-original"; then
+    elif iocost_inactive_native_file "$iocost_native" && cmp -s "$iocost_native" "$iocost_work/native-original"; then
       # A prior interrupted disable already restored the original file.
       printf '%s\n' "$iocost_saved_rel" >>"$iocost_work/actions" || exit 1
     else
-      # An administrator replaced the link: do not restore over their policy.
+      # Preserve a replacement config that differs from the saved defaults.
       printf '%s\n' 'IOCost: native administrator config and saved defaults retained' >&2
     fi
   fi
@@ -453,7 +429,7 @@ stage_target_iocost() (
     printf '%s\n' etc/udev/hwdb.bin >>"$iocost_work/actions" || exit 1
   fi
   if [ "$IOCOST_CALIBRATE_ENABLE" = true ]; then
-    # systemd 257/261 reads the single /etc/udev/iocost.conf file; it does
+    # systemd 262 reads the single /etc/udev/iocost.conf file; it does
     # not merge drop-ins. Materialize the same policy there and in its managed
     # drop-in so both requested paths exist and native udev applies the policy.
     # Do not silently assume the interface on an unknown future target binary.
@@ -510,9 +486,8 @@ stage_target_iocost() (
   # Take all recovery copies before the first target rename/unlink.
   while IFS= read -r iocost_rel; do
     mkdir -p "$iocost_work/old/$(dirname "$iocost_rel")" || exit 1
-    if [ -L "$iocost_root/$iocost_rel" ]; then
-      ln -s ../systemd/iocost.conf.d/70-unattended-installer.conf "$iocost_work/old/$iocost_rel" || exit 1
-    elif [ -f "$iocost_root/$iocost_rel" ]; then
+    [ ! -L "$iocost_root/$iocost_rel" ] || exit 1
+    if [ -f "$iocost_root/$iocost_rel" ]; then
       cp -p -- "$iocost_root/$iocost_rel" "$iocost_work/old/$iocost_rel" || exit 1
     fi
   done <"$iocost_work/actions"
@@ -535,9 +510,6 @@ stage_target_iocost() (
       else
         rm -f -- "$iocost_root/$iocost_rel" || exit 1
       fi
-    elif [ "$iocost_rel" = etc/systemd/iocost.conf ] ||
-         [ "$iocost_rel" = etc/systemd/iocost.conf.d/70-unattended-installer.conf ]; then
-      rm -f -- "$iocost_root/$iocost_rel" || exit 1
     else
       iocost_publish_local "$iocost_work/new/$iocost_rel" "/$iocost_rel" || exit 1
     fi

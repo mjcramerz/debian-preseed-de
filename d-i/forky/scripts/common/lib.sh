@@ -20,6 +20,7 @@ bootstrap_source_module 'scripts/common/modules/credentials-probes.sh' || return
 bootstrap_source_module 'scripts/common/modules/observability.sh' || return "$?"
 bootstrap_source_module 'scripts/common/modules/repository-apt.sh' || return "$?"
 bootstrap_source_module 'scripts/common/modules/profiles.sh' || return "$?"
+bootstrap_source_module 'scripts/common/modules/app-veth-identity.sh' || return "$?"
 bootstrap_source_module 'scripts/common/modules/class-plan.sh' || return "$?"
 bootstrap_source_module 'scripts/common/modules/class-metadata.sh' || return "$?"
 bootstrap_source_module 'scripts/common/modules/class-selection.sh' || return "$?"

@@ -32,7 +32,7 @@ profile app-veth /usr/local/sbin/app-veth flags=(attach_disconnected, mediate_de
   /run/app-veth/control.sock rw,
   /run/systemd/notify w,
   @{PROC}/sys/net/ipv4/ip_forward r,
-  @{PROC}/sys/net/ipv4/conf/veth[0-9]*-app/{route_localnet,rp_filter} rw,
+  @{PROC}/sys/net/ipv4/conf/__INSTALLER_APP_VETH_HOST_INTERFACE_PREFIX__[0-9]*__INSTALLER_APP_VETH_HOST_INTERFACE_SUFFIX__/{route_localnet,rp_filter} rw,
   @{PROC}/sys/net/ipv6/conf/all/disable_ipv6 rw,
   @{PROC}/[0-9]*/ns/{net,user} r,
   owner @{PROC}/@{pid}/{mounts,stat,status} r,

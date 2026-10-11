@@ -748,11 +748,6 @@ def select_asset(assets: list[dict], source: dict, package: str, architecture: s
     candidates = [asset for asset in assets if compatible_asset(asset["name"], architecture)]
     if source.get("family"):
         families = {source["family"]}
-        # Existing Tomat records can carry the old unversioned filename hint.
-        # Permit its versioned replacement only for this exact upstream source.
-        if (source["url"] == "https://api.github.com/repos/jolars/tomat/releases?per_page=100"
-                and source["family"] == "tomat_amd64.deb"):
-            families.add("tomat_{version}_amd64.deb")
         candidates = [asset for asset in candidates if asset_family(asset["name"]) in families]
     else:
         compact = re.sub(r"[-_.]", "", package.lower())
@@ -1218,7 +1213,7 @@ class Repository:
         self.policy_file = etc.parent / "usr/local/share/software/package-policies.json"
         self.architectures = {run(["/usr/bin/dpkg", "--print-architecture"]).decode().strip()}
         self.architectures.update(run(["/usr/bin/dpkg", "--print-foreign-architectures"]).decode().split())
-        self.catalog = {"format": 1, "packages": {}, "disabled_seeds": [], "migrated": False}
+        self.catalog = {"format": 1, "packages": {}, "disabled_seeds": []}
         self.pending: list[Path] = []
         self.changed = False
         self.discovery = Discovery(root)
@@ -1493,9 +1488,8 @@ class Repository:
     def ensure_policies(self) -> None:
         """Reconcile edit policies even when upstream metadata reports no update.
 
-        Old catalogues can adopt an unmodified pool object as the original. A
-        previously edited object is not a substitute for the original archive:
-        fail closed until the administrator imports the original vendor .deb.
+        Every ingested package retains its original upstream archive. Missing
+        retention metadata is an invalid catalogue, never a migration input.
         """
         for key, record in list(self.catalog["packages"].items()):
             policy = self.effective_policy(record["package"], record.get("policy", {}))
@@ -1503,12 +1497,8 @@ class Repository:
             needs_edit = any(policy.get(field) for field in EDIT_KEYS)
             if (needs_edit or stamp) and stamp != policy_digest(policy):
                 relative = record.get("upstream_filename")
-                if not relative:
-                    source = self.repo / record["filename"]
-                    if digest_file(source) != record["upstream_sha256"]:
-                        raise Error(f"{key}: edited legacy archive lacks the original; "
-                                    "use apt-repo-init --add ORIGINAL.deb --yes before republishing")
-                    relative = self.retain_upstream(source, record["package"], record["upstream_sha256"])
+                if not isinstance(relative, str):
+                    raise Error("missing retained upstream filename")
                 if not re.fullmatch(r"upstream/[a-z0-9][a-z0-9+.-]+/[0-9a-f]{64}\.deb", relative):
                     raise Error("invalid retained upstream filename")
                 source = self.root / relative
@@ -1644,24 +1634,6 @@ class Repository:
                 rejected += 1
                 warn(f"rejected {path.name}: {exc}; retained at {target}")
         return rejected
-
-    def migrate(self) -> None:
-        if self.catalog.get("migrated"):
-            return
-        legacy = self.root / "debs"
-        if legacy.exists():
-            safe_dir(legacy)
-            # Ascending Debian versions makes the newest retained archive win.
-            from functools import cmp_to_key
-            candidates = []
-            for path in legacy.glob("*.deb"):
-                fields = inspect_deb(path, self.architectures)
-                candidates.append((path, fields["Version"]))
-            candidates.sort(key=cmp_to_key(lambda a, b: 1 if newer(a[1], b[1]) else -1 if newer(b[1], a[1]) else 0))
-            for path, _ in candidates:
-                self.ingest(self.stage(path))
-        self.catalog["migrated"] = True
-        self.changed = True
 
     def seed_defaults(self) -> None:
         defaults = json.loads(run(["/usr/local/libexec/apt-repo-local-vendor", "defaults"]))
@@ -1928,43 +1900,6 @@ class Repository:
         # Partial upstream failure must be visible to both the CLI and systemd.
         return 3 if counts["error"] or rejected else 0
 
-    def retire_pre_update_hook(self) -> None:
-        # Only the exact shipped wrapper and a comment/whitespace-equivalent
-        # single old hook are ours to delete. Validate both before removing any.
-        obsolete = self.etc.parent / "usr/local/bin/local-add-deb"
-        path = self.etc / "apt/apt.conf.d/90-local-apt-repository"
-        remove = []
-        if obsolete.exists() or obsolete.is_symlink():
-            data = read_bytes(obsolete, 65536)
-            if hashlib.sha256(data).hexdigest() != "8f4e7916a9646ecce0221fd789276e6a2fd41ec6fb4ed35187e60c07e569a2c3":
-                raise Error("legacy local-add-deb was customized; retire it explicitly")
-            remove.append(obsolete)
-        if path.exists() or path.is_symlink():
-            data = read_bytes(path, 65536).decode("utf-8")
-            normalized = " ".join(line.strip() for line in data.splitlines()
-                                  if line.strip() and not line.lstrip().startswith("//"))
-            if normalized != 'APT::Update::Pre-Invoke { "/usr/local/libexec/local-apt-repository refresh"; };':
-                raise Error("legacy APT hook was customized; remove its refresh action explicitly before initializing")
-            remove.append(path)
-        hook = self.etc / "dpkg/dpkg.cfg.d/94-local-apt-vendor-policy"
-        if hook.exists() or hook.is_symlink():
-            body = read_bytes(hook, 65536).decode()
-            active = [line.strip() for line in body.splitlines() if line.strip() and not line.lstrip().startswith("#")]
-            expected = [f'{phase}-invoke=if [ -x /usr/local/libexec/local-apt-vendor ]; then /usr/local/libexec/local-apt-vendor policy-{action}; fi'
-                        for phase, action in (("pre", "before"), ("post", "after"))]
-            if active != expected:
-                raise Error("customized legacy vendor hook must be retired explicitly")
-            remove.append(hook)
-        old_cli = self.etc.parent / "usr/local/bin/apt-local-repo"
-        if old_cli.exists() or old_cli.is_symlink():
-            if hashlib.sha256(read_bytes(old_cli, 65536)).hexdigest() != "0df4e5f6bab6f11ef642570a448fe2a07b167cc360931355d0ec1b745b232cb4":
-                raise Error("customized apt-local-repo must be retired explicitly")
-            remove.append(old_cli)
-        for item in remove:
-            item.unlink()
-            fsync_dir(item.parent)
-        if path in remove:
-            print("Removed the legacy local repository APT pre-update hook.")
 
 
 def inspect_policy_input(path: Path, architectures: set[str]) -> dict:
@@ -2123,8 +2058,6 @@ def main(argv: list[str] | None = None) -> int:
     repository = Repository()
     with repository.locked():
         if args.command == "init":
-            repository.retire_pre_update_hook()
-            repository.migrate()
             repository.process_inbox()
             repository.publish()
             repository.write_source()

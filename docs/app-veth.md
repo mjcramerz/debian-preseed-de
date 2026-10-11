@@ -8,26 +8,43 @@ and nftables without executing application code.
 
 ## Configuration
 
-The complete file has three top-level keys:
+The installer emits version 2 with four top-level keys. Identity values come
+from `d-i/forky/hosts/installer/identity.env`, using the shared validated
+`app-veth-identity.sh` map for all target files:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "desktop_user": "desktop",
+  "network": {
+    "ipv4_cidr": "10.203.0.0/24",
+    "max_leases": 64,
+    "host_interface_prefix": "veth",
+    "host_interface_suffix": "-app",
+    "peer_interface_suffix": "-peer",
+    "namespace_interface": "eth0",
+    "dns_address": "10.0.2.3",
+    "dns_host_address": "127.0.0.1",
+    "dns_host_port": 53053
+  },
   "apps": {
-    "bitwarden": {"network": true, "block_lan": true},
+    "bitwarden": {"network": true, "block_lan": true, "slots": [0, 1], "addresses": ["10.203.0.2", "10.203.0.6"]},
     "qbittorrent": {
       "network": true,
       "block_lan": false,
       "pin_route": true,
-      "peer_port": 50309
+      "peer_port": 50309,
+      "slots": [28],
+      "addresses": ["10.203.0.114"]
     },
     "new-client": {
       "network": true,
       "block_lan": true,
-      "executables": ["/opt/new-client/client"]
+      "executables": ["/opt/new-client/client"],
+      "slots": [29],
+      "addresses": ["10.203.0.118"]
     },
-    "keepassxc": {"network": false}
+    "keepassxc": {"network": false, "slots": [31], "addresses": ["10.203.0.126"]}
   }
 }
 ```
@@ -39,6 +56,8 @@ clients. KeePassXC, Sleek, MPV and RetroArch have no network entry by default.
 
 | Application key | Meaning |
 | --- | --- |
+| `slots` | Required in version 2. Ordered list of unique reserved integers below `max_leases`; no slot may belong to two apps. The broker uses the first free slot in this app's list, and reports exhaustion instead of borrowing another app's address. Peer forwarding requires one slot. |
+| `addresses` | Required canonical IPv4 addresses in slot order. The installer derives them from the subnet and reservations; the parser rejects missing or inconsistent addresses. |
 | `network` | Required Boolean. Only `true` authorizes a lease. An omitted managed app, or an entry with `false`, launches in its private namespace without a veth. |
 | `block_lan` | Optional Boolean, default `false`. Blocks private IPv4, carrier-grade NAT, link-local, loopback, benchmark, multicast and reserved ranges, plus directly connected LAN subnets. DNS continues through the dedicated dnsmasq/Stubby path. |
 | `peer_port` | Optional integer in `1024..65535`. Reserves and forwards this TCP and UDP port on the selected Internet source address to the instance. Omission creates no inbound peer forwarding. |
@@ -50,6 +69,28 @@ managed clients retain their existing application identifiers and dedicated
 sandbox policies, so they do not need `executables` entries. PurePrivacy modes
 retain their existing restrictions; disposable qBittorrent uses the separate
 `qbittorrent-privacy` policy without persistent peer forwarding.
+
+The IPv4 pool must be an aligned RFC1918 subnet with enough /30s for every
+slot. Slot `n` owns the /30 starting at `network_address + 4*n`: the host is
+`+1`, and the app is `+2`. The default qBittorrent identity is slot 28,
+`veth28-app` on the host, gateway `10.203.0.113`, and `10.203.0.114` on its
+private `eth0`. Each other desktop app has two fixed slots; Podman owns 44..63
+for concurrent uplinks. Different apps never compete for an address. A second
+simultaneous namespace of the same app uses its reserved secondary address.
+After release the primary slot becomes available again. Persistent qBittorrent
+uses its existing singleton IPC path and has one reserved slot.
+
+`APP_VETH_*` defines the subnet, capacity, interface prefix/suffixes, private
+interface, DNS endpoints and application slot lists. The installer renders the
+same identity into NetworkManager exclusions, AppArmor sysctl grants, broker
+JSON, DNS services and qBittorrent binding. Changing the subnet or interface/DNS
+topology on an installed host requires updating these rendered assets and
+restarting the broker; it refuses topology changes during a running lease.
+Only the complete version-2 policy is accepted. Network identity and reserved
+application slots must be explicitly rendered during the fresh installation.
+Each app also receives a rendered `addresses` list in slot order. The parser
+requires those exact canonical IPv4 addresses to match the subnet and slots,
+and the client checks the broker response against that list.
 
 Keep the file root-owned, mode `0644`, with one hard link. Duplicate keys,
 unknown settings, malformed types, unsafe paths and oversized files are rejected.
@@ -66,7 +107,8 @@ Existing leases keep their creation policy until the instance exits.
 
 ## Adding a package
 
-Add its identifier and actual executable paths to `apps`. The existing desktop
+Add its identifier, unused reserved slots, and actual executable paths to
+`apps`. Slot 29 is unassigned in the default installer identity. The existing desktop
 entry wrapping mechanism routes package desktop entries through
 `labwc-wayland-app` or `labwc-electron-app`. On its next managed launch, the
 executable match selects the private network worker automatically.
@@ -95,8 +137,10 @@ restricted to Zoom and Discord.
 
 ## Routing and lifecycle
 
-`app-veth.service` pre-creates 32 guarded, DOWN pairs before publishing readiness.
-An authorized instance receives a unique available slot. Offline apps receive
+`app-veth.service` pre-creates the configured 64 guarded, DOWN pairs before publishing readiness.
+An authorized instance receives an available slot from its application's
+reserved list. The configured subnet is checked against host routes; overlap
+fails instead of selecting a different range. Offline apps receive
 no lease. The guest link is raised before adding its default route; its host
 peer stays DOWN until the nftables transaction commits. Bubblewrap's payload
 gate stays closed until setup and readiness checks succeed.
@@ -185,7 +229,7 @@ importing those unmanaged interfaces. Check `resolvectl status` for the global
 installer or LAN DNS servers to these stanzas would change the routing policy.
 The generated interfaces file documents this handoff. The installed reader
 accepts `MANAGED_NETWORK_DNS_MODE=global` or `link` and rejects per-link DNS in
-global mode. Legacy defaults without this field retain `link` mode.
+global mode. The installer must render the DNS mode explicitly.
 
 During installation, the generated policy is checked with
 `network-run validate --staged-only` before enabling `network.service`.

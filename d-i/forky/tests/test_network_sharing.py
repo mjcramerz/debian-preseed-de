@@ -28,6 +28,7 @@ import unittest
 from unittest import mock
 from theme_fixture import render_theme_defaults, theme_values
 from fuzzel_fixture import geometry_environment, wrapper_script
+from payload_fixture import network_identity_text
 
 SEED = Path(__file__).resolve().parents[1]
 TARGET = SEED / 'hooks/target'
@@ -584,7 +585,7 @@ class FirewallTests(unittest.TestCase):
         tokens = dict(line.split('=', 1) for line in result.stdout.splitlines())
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            text = (TARGET/f'etc/nftables/profiles/{base}.yml.tmpl').read_text()
+            text = network_identity_text((TARGET/f'etc/nftables/profiles/{base}.yml.tmpl').read_text())
             for key in ('MANAGED_NETWORK_ETHERNET_IFACE', 'MANAGED_NETWORK_WIFI_IFACE'):
                 text = text.replace('__INSTALLER_' + key + '__', values[key])
             (root/'profile.yml').write_text(text)
@@ -725,7 +726,9 @@ late_command_nftables_effective_services
     def test_allowlist_guards_are_opt_in_and_leave_other_filtering_intact(self):
         service = {'enabled': True, 'direction': 'outbound', 'protocols': ['tcp'], 'ports': [2049],
                    'allow_to': {'ipv4': ['192.168.50.212/32'], 'interfaces': ['eth0']}}
-        policy = {'services': {'nfs_client': service}, 'interfaces': {'wan': ['eth0']}}
+        policy = {'services': {'nfs_client': service}, 'interfaces': {'wan': ['eth0']},
+                  'app_veth': {'interfaces': ['veth0-app'], 'dns_host_address': '127.0.0.1',
+                               'dns_host_port': 53053}}
         maps = NFT.build_define_maps(policy, NFT.RenderContext())
         base = NFT.render_filter(policy, maps, NFT.RenderContext(), False)
         self.assertNotIn('allowlist', base)

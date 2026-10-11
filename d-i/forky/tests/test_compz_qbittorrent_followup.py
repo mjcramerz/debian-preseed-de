@@ -21,7 +21,7 @@ import types
 import unittest
 from unittest import mock
 
-from payload_fixture import python_library
+from payload_fixture import python_library, network_identity_text
 
 FORKY = Path(__file__).resolve().parents[1]
 TARGET = FORKY / "hooks/target"
@@ -36,7 +36,7 @@ QBIT_CONFIG_TEMPLATE = TARGET / "etc/qbittorrent/qBittorrent.conf.d/10-managed-s
 
 
 def rendered_managed_config(port: str = "50309", username: str = "fixture") -> bytes:
-    text = QBIT_CONFIG_TEMPLATE.read_text(encoding="utf-8")
+    text = network_identity_text(QBIT_CONFIG_TEMPLATE.read_text(encoding="utf-8"))
     return text.replace("__INSTALLER_LABWC_QBITTORRENT_PORT__", port).replace(
         "__INSTALLER_ACCOUNT_USERNAME__", username
     ).encode("utf-8")
@@ -100,9 +100,9 @@ class TorrentIntegrationTests(unittest.TestCase):
                     config.optionxform = str
                     config.read(paths['profile_home'] / '.config/qBittorrent/qBittorrent.conf', encoding='utf-8')
                     self.assertEqual(config['BitTorrent'][r'Session\Port'], str(expected_port))
-                    self.assertEqual(config['Preferences'][r'Connection\PortRangeMin'], str(expected_port))
+                    self.assertEqual(config['BitTorrent'][r'Session\AnnouncePort'], str(expected_port))
                     self.assertEqual(config['BitTorrent'][r'Session\Interface'], 'eth0')
-                    self.assertEqual(config['BitTorrent'][r'Session\InterfaceAddress'], '')
+                    self.assertEqual(config['BitTorrent'][r'Session\InterfaceAddress'], '10.203.0.114')
                     return 0
                 runtime.run_veth_sandbox = launch
                 globals_ = QBIT['run_new_instance'].__globals__
@@ -266,19 +266,29 @@ class TorrentIntegrationTests(unittest.TestCase):
             parser.read(config)
             self.assertEqual(parser["BitTorrent"][r"Session\Port"], "50309")
             for key in (r"Session\DHTEnabled", r"Session\PeXEnabled",
-                        r"Session\LSDEnabled", r"Session\UseRandomPort",
-                        r"Session\UseUPnP", r"Session\ValidateHTTPSTrackerCertificate"):
+                        r"Session\LSDEnabled", r"Session\ValidateHTTPSTrackerCertificate"):
                 self.assertEqual(parser["BitTorrent"][key],
                                  "true" if "Validate" in key else "false")
             self.assertEqual(parser["Preferences"][r"WebUI\Enabled"], "false")
+            self.assertEqual(parser["Network"]["PortForwardingEnabled"], "false")
             self.assertEqual(parser['BitTorrent'][r'Session\Interface'], 'eth0')
-            self.assertEqual(parser['BitTorrent'][r'Session\InterfaceAddress'], '')
+            self.assertEqual(parser['BitTorrent'][r'Session\InterfaceAddress'], '10.203.0.114')
             for key in (r'Session\AnnounceToAllTiers', r'Session\AnnounceToAllTrackers'):
                 self.assertEqual(parser['BitTorrent'][key], 'false')
             self.assertEqual(parser['BitTorrent'][r'Session\AnnouncePort'], '50309')
             self.assertEqual(parser['BitTorrent'][r'Session\BlockPeersOnPrivilegedPorts'], 'true')
             self.assertEqual(parser['Application'][r'FileLogger\Path'],
                              '/home/user/.local/share/qBittorrent/logs')
+            self.assertEqual(parser['BitTorrent'][r'Session\BTProtocol'], '0')
+            for key in ('TrackerEnabled', 'MergeTrackersEnabled',
+                        r'Session\IPFilteringEnabled', r'Session\TrackerFilteringEnabled',
+                        r'Session\MultiConnectionsPerIp'):
+                self.assertEqual(parser['BitTorrent'][key], 'false')
+            for key in (r'Session\SaveResumeDataInterval', r'Session\SaveStatisticsInterval',
+                        r'Session\StopTrackerTimeout'):
+                self.assertEqual(parser['BitTorrent'][key], '5')
+            self.assertEqual(parser['AutoRun']['enabled'], 'false')
+            self.assertEqual(parser['AutoRun'][r'OnTorrentAdded\Enabled'], 'false')
 
     def test_wrapper_contains_no_native_configuration_keys_or_renderer(self):
         wrapper = (TARGET / 'usr/local/bin/labwc-qbittorrent').read_text(encoding='utf-8')
@@ -377,7 +387,7 @@ class TorrentIntegrationTests(unittest.TestCase):
                 parser = configparser.ConfigParser(interpolation=None)
                 parser.optionxform = str; parser.read(config, encoding='utf-8')
                 self.assertEqual(parser['BitTorrent'][r'Session\Port'], value)
-                self.assertEqual(parser['Preferences'][r'Connection\PortRangeMin'], value)
+                self.assertEqual(parser['BitTorrent'][r'Session\AnnouncePort'], value)
         for value in ('', '22', '1023', '65536', '-50309', '050309', '50309;id', '9' * 1024):
             with self.subTest(invalid_port=value[:20]), self.assertRaises(SystemExit):
                 QBIT['configured_peer_port']({'LABWC_QBITTORRENT_PORT': value})
@@ -474,13 +484,6 @@ stage_target_nftables_service_assets qbittorrent
             self.assertEqual(outside.read_text(encoding='ascii'), 'preserved')
             lock.unlink(); lock.write_text('', encoding='ascii'); lock.chmod(0o666)
             with self.assertRaises(SystemExit): QBIT['acquire_launch_lock'](profile, [])
-
-
-
-
-
-
-
 
 
     def test_external_fuzzel_geometry_across_profiles(self):

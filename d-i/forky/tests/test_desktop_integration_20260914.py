@@ -464,13 +464,13 @@ class MailDefaultsTests(unittest.TestCase):
     def test_repairs_only_mail_associations_preserving_other_choices_and_comments(self):
         self.mime.write_text('# keep this comment\n[Default Applications]\n'
             'text/plain=my-editor.desktop;\nx-scheme-handler/mailto=tuta-mail.desktop;\n'
-            'message/rfc822=tuta-mail.desktop;\n[Removed Associations]\n'
-            'x-scheme-handler/mailto=tuta-mail.desktop;other-mail.desktop;\n')
+            'message/rfc822=other-mail.desktop;\n[Removed Associations]\n'
+            'x-scheme-handler/mailto=tutanota-desktop.desktop;other-mail.desktop;\n')
         self.assertTrue(self.repair())
         content = payload_read_text(self.mime)
         self.assertIn('# keep this comment', content)
         self.assertIn('text/plain=my-editor.desktop;', content)
-        self.assertNotIn('message/rfc822', content)
+        self.assertIn('message/rfc822=other-mail.desktop;', content)
         p = configparser.ConfigParser(interpolation=None)
         p.read_string(content)
         for section in ('Default Applications', 'Added Associations'):

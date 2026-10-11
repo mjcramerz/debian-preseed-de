@@ -115,11 +115,43 @@ class MenuUnitTests(unittest.TestCase):
              mock.patch.object(self.menu.os, 'geteuid', return_value=1000):
             self.assertEqual(self.menu.main([]), 0)
 
-    def test_search_applications_delegates_to_search_entrypoint(self):
-        with mock.patch.object(self.menu, 'choose', return_value='Search Applications'), \
-             mock.patch.object(self.menu, 'run_action') as action:
+    def test_search_applications_back_and_cancel_return_to_main(self):
+        apps = [{'id': 'browser.desktop', 'name': 'Browser', 'category': 'Internet'},
+                {'id': 'editor.desktop', 'name': 'Editor', 'category': 'Development'}]
+        for back in (self.menu.BACK, None):
+            with self.subTest(back=back), \
+                    mock.patch.object(self.menu, 'choose', side_effect=['Search Applications', back, None]) as picker, \
+                    mock.patch.object(self.menu.subprocess, 'run', return_value=types.SimpleNamespace(stdout=json.dumps(apps))):
+                self.menu.run_menu()
+            self.assertEqual(list(picker.call_args_list[1].args[0]), ['Browser', 'Editor', self.menu.BACK])
+            self.assertEqual([call.args[1] for call in picker.call_args_list],
+                             ['Main Menu', 'Search Applications', 'Main Menu'])
+
+    def test_direct_search_hotkey_uses_the_same_navigation_stack(self):
+        with mock.patch.object(self.menu, 'choose', side_effect=[self.menu.BACK, None]) as picker, \
+                mock.patch.object(self.menu.subprocess, 'run', return_value=types.SimpleNamespace(stdout='[]')), \
+                mock.patch.object(self.menu.os, 'geteuid', return_value=1000):
+            self.assertEqual(self.menu.main(['--search']), 0)
+        self.assertEqual([call.args[1] for call in picker.call_args_list], ['Search Applications', 'Main Menu'])
+
+    def test_management_cancel_returns_to_its_parent_menu(self):
+        with mock.patch.object(self.menu, 'choose', side_effect=['Computer Management', None]) as picker, \
+                mock.patch.object(self.menu, 'run_action') as action:
             self.menu.run_menu()
-        action.assert_called_once_with(('/usr/local/bin/labwc-run',))
+        action.assert_called_once_with(('/usr/local/bin/labwc-computer-management',))
+        self.assertEqual(picker.call_count, 2)
+
+    def test_requested_hotkeys_and_shared_fuzzel_back_binding(self):
+        root = ET.fromstring(payload_read_text(TARGET/'etc/skel-desktop/.config/labwc/rc.xml.tmpl'))
+        bindings = root.findall('./keyboard/keybind')
+        by_key = {node.get('key'): node.find('action').get('command') for node in bindings}
+        self.assertEqual(len(by_key), len(bindings))
+        self.assertEqual(by_key['W-s'], 'labwc-run')
+        self.assertEqual(by_key['W-m'], '/usr/local/bin/labwc-app auto spotify')
+        for key in ('W-Alt_L', 'W-Alt_R'):
+            self.assertEqual(by_key[key], 'labwc-computer-management')
+        self.assertNotIn('W-BackSpace', by_key)
+        self.assertIn('Escape Mod4+BackSpace', payload_read_text(TARGET/'etc/skel-desktop/.config/fuzzel/base.ini.tmpl'))
 
     def test_back_returns_to_main_and_reenumerates_on_next_submenu(self):
         choices = iter(['Development', self.menu.BACK, 'Development', self.menu.BACK, None])
@@ -162,16 +194,19 @@ class MenuUnitTests(unittest.TestCase):
 
 
 class IntegrationContractTests(unittest.TestCase):
-    def test_labwc_run_still_executes_searchable_fuzzel_launcher(self):
+    def test_labwc_run_executes_search_entrypoint_with_main_menu_back_navigation(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory); binary = root / 'labwc-fuzzel'
+            root = Path(directory); binary = root / 'labwc-main-menu'
             binary.write_text('#!/bin/sh\nprintf "%s\\n" "$@"\n'); binary.chmod(0o755)
             source = render_theme_defaults(payload_read_text(TARGET / 'usr/local/bin/labwc-run'))
             source = source.replace('/etc/labwc/desktop.conf', str(root / 'absent-defaults'))
             result = subprocess.run(payload_installed_argv(['/bin/sh', '-c', source]), env={'PATH': str(root) + ':/usr/bin:/bin'},
                                     text=True, capture_output=True, timeout=5)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(result.stdout, 'launcher\n')
+            self.assertEqual(result.stdout, '--search\n')
+            profiles = payload_read_text(TARGET/'etc/apparmor.d/desktop-wrappers')
+            section = profiles.split('profile labwc-run ', 1)[1].split('\n}', 1)[0]
+            self.assertIn('/usr/local/bin/labwc-main-menu rPx -> labwc-main-menu,', section)
 
     def test_waybar_menu_keeps_transient_service_contract_and_search_keys_stay_search(self):
         text = render_theme_defaults(waybar_config_text(TARGET / 'etc/skel-desktop/.config/waybar'))

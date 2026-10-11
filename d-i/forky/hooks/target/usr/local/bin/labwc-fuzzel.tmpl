@@ -227,8 +227,7 @@ case "$config_mode" in
 esac
 [ -r "${fuzzel_config_dir}/${config_name}" ] || fatal "missing Fuzzel configuration: $config_name"
 
-# Only these fixed keys and the closed class/mode enums are used in variable
-# indirection. Values are never evaluated as shell input. Point-valued line
+# Direct expansion of closed geometry keys never evaluates configuration data. Point-valued line
 # height, like :size fonts, remains DPI aware (unlike a fixed px height).
 for geometry_spec in FONT_SIZE:8:32 HORIZONTAL_PADDING:0:64 VERTICAL_PADDING:0:64 \
     INNER_PADDING:0:64 LINE_HEIGHT:8:64 BORDER_WIDTH:0:32 BORDER_RADIUS:0:128 \
@@ -239,10 +238,54 @@ for geometry_spec in FONT_SIZE:8:32 HORIZONTAL_PADDING:0:64 VERTICAL_PADDING:0:6
     WIDTH|LINES) geometry_name="FUZZEL_${geometry_mode}_${output_class}_${geometry_key}" ;;
     *) geometry_name="FUZZEL_${output_class}_${geometry_key}" ;;
   esac
-  eval "geometry_value=\${${geometry_name}-}"
+  case "$geometry_name" in
+    FUZZEL_DEFAULT_FONT_SIZE) geometry_value=${FUZZEL_DEFAULT_FONT_SIZE-} ;;
+    FUZZEL_DEFAULT_HORIZONTAL_PADDING) geometry_value=${FUZZEL_DEFAULT_HORIZONTAL_PADDING-} ;;
+    FUZZEL_DEFAULT_VERTICAL_PADDING) geometry_value=${FUZZEL_DEFAULT_VERTICAL_PADDING-} ;;
+    FUZZEL_DEFAULT_INNER_PADDING) geometry_value=${FUZZEL_DEFAULT_INNER_PADDING-} ;;
+    FUZZEL_DEFAULT_LINE_HEIGHT) geometry_value=${FUZZEL_DEFAULT_LINE_HEIGHT-} ;;
+    FUZZEL_DEFAULT_BORDER_WIDTH) geometry_value=${FUZZEL_DEFAULT_BORDER_WIDTH-} ;;
+    FUZZEL_DEFAULT_BORDER_RADIUS) geometry_value=${FUZZEL_DEFAULT_BORDER_RADIUS-} ;;
+    FUZZEL_LAUNCHER_DEFAULT_WIDTH) geometry_value=${FUZZEL_LAUNCHER_DEFAULT_WIDTH-} ;;
+    FUZZEL_LAUNCHER_DEFAULT_LINES) geometry_value=${FUZZEL_LAUNCHER_DEFAULT_LINES-} ;;
+    FUZZEL_MENU_DEFAULT_WIDTH) geometry_value=${FUZZEL_MENU_DEFAULT_WIDTH-} ;;
+    FUZZEL_MENU_DEFAULT_LINES) geometry_value=${FUZZEL_MENU_DEFAULT_LINES-} ;;
+    FUZZEL_INTERNAL_FONT_SIZE) geometry_value=${FUZZEL_INTERNAL_FONT_SIZE-} ;;
+    FUZZEL_INTERNAL_HORIZONTAL_PADDING) geometry_value=${FUZZEL_INTERNAL_HORIZONTAL_PADDING-} ;;
+    FUZZEL_INTERNAL_VERTICAL_PADDING) geometry_value=${FUZZEL_INTERNAL_VERTICAL_PADDING-} ;;
+    FUZZEL_INTERNAL_INNER_PADDING) geometry_value=${FUZZEL_INTERNAL_INNER_PADDING-} ;;
+    FUZZEL_INTERNAL_LINE_HEIGHT) geometry_value=${FUZZEL_INTERNAL_LINE_HEIGHT-} ;;
+    FUZZEL_INTERNAL_BORDER_WIDTH) geometry_value=${FUZZEL_INTERNAL_BORDER_WIDTH-} ;;
+    FUZZEL_INTERNAL_BORDER_RADIUS) geometry_value=${FUZZEL_INTERNAL_BORDER_RADIUS-} ;;
+    FUZZEL_EXTERNAL_FONT_SIZE) geometry_value=${FUZZEL_EXTERNAL_FONT_SIZE-} ;;
+    FUZZEL_EXTERNAL_HORIZONTAL_PADDING) geometry_value=${FUZZEL_EXTERNAL_HORIZONTAL_PADDING-} ;;
+    FUZZEL_EXTERNAL_VERTICAL_PADDING) geometry_value=${FUZZEL_EXTERNAL_VERTICAL_PADDING-} ;;
+    FUZZEL_EXTERNAL_INNER_PADDING) geometry_value=${FUZZEL_EXTERNAL_INNER_PADDING-} ;;
+    FUZZEL_EXTERNAL_LINE_HEIGHT) geometry_value=${FUZZEL_EXTERNAL_LINE_HEIGHT-} ;;
+    FUZZEL_EXTERNAL_BORDER_WIDTH) geometry_value=${FUZZEL_EXTERNAL_BORDER_WIDTH-} ;;
+    FUZZEL_EXTERNAL_BORDER_RADIUS) geometry_value=${FUZZEL_EXTERNAL_BORDER_RADIUS-} ;;
+    FUZZEL_LAUNCHER_INTERNAL_WIDTH) geometry_value=${FUZZEL_LAUNCHER_INTERNAL_WIDTH-} ;;
+    FUZZEL_LAUNCHER_INTERNAL_LINES) geometry_value=${FUZZEL_LAUNCHER_INTERNAL_LINES-} ;;
+    FUZZEL_LAUNCHER_EXTERNAL_WIDTH) geometry_value=${FUZZEL_LAUNCHER_EXTERNAL_WIDTH-} ;;
+    FUZZEL_LAUNCHER_EXTERNAL_LINES) geometry_value=${FUZZEL_LAUNCHER_EXTERNAL_LINES-} ;;
+    FUZZEL_MENU_INTERNAL_WIDTH) geometry_value=${FUZZEL_MENU_INTERNAL_WIDTH-} ;;
+    FUZZEL_MENU_INTERNAL_LINES) geometry_value=${FUZZEL_MENU_INTERNAL_LINES-} ;;
+    FUZZEL_MENU_EXTERNAL_WIDTH) geometry_value=${FUZZEL_MENU_EXTERNAL_WIDTH-} ;;
+    FUZZEL_MENU_EXTERNAL_LINES) geometry_value=${FUZZEL_MENU_EXTERNAL_LINES-} ;;
+    *) fatal "unsupported Fuzzel geometry key" ;;
+  esac
   require_uint_range "$geometry_name" "$geometry_value" "${geometry_bounds%%:*}" "${geometry_bounds#*:}"
-  # Assignment expansion does not re-evaluate the expanded value as shell code.
-  eval "selected_${geometry_key}=\$geometry_value"
+  case "$geometry_key" in
+    FONT_SIZE) selected_FONT_SIZE=$geometry_value ;;
+    HORIZONTAL_PADDING) selected_HORIZONTAL_PADDING=$geometry_value ;;
+    VERTICAL_PADDING) selected_VERTICAL_PADDING=$geometry_value ;;
+    INNER_PADDING) selected_INNER_PADDING=$geometry_value ;;
+    LINE_HEIGHT) selected_LINE_HEIGHT=$geometry_value ;;
+    BORDER_WIDTH) selected_BORDER_WIDTH=$geometry_value ;;
+    BORDER_RADIUS) selected_BORDER_RADIUS=$geometry_value ;;
+    WIDTH) selected_WIDTH=$geometry_value ;;
+    LINES) selected_LINES=$geometry_value ;;
+  esac
 done
 # One fixed, narrowly scoped menu for the desktop's save-before-power
 # confirmation. All other menus retain their validated output/profile geometry;

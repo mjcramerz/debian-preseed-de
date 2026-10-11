@@ -412,14 +412,17 @@ class TomatVersionedUpdaterTests(unittest.TestCase):
             with mock.patch.object(discovery, 'metadata', return_value=json.dumps([release or self.release]).encode()):
                 return discovery.release(self.mod.source_for(url), 'tomat', 'amd64', Path(work))
 
-    def test_actual_versioned_asset_works_with_pinned_repo_and_legacy_source_hints(self):
-        for url in (URL, 'https://github.com/jolars/tomat/releases',
-                    'https://github.com/jolars/tomat/releases/latest/download/tomat_amd64.deb'):
+    def test_actual_versioned_asset_works_with_pinned_repo_and_release_source(self):
+        for url in (URL, 'https://github.com/jolars/tomat/releases'):
             with self.subTest(url=url):
                 result = self.discover(url=url)
                 self.assertEqual(result['url'], URL)
                 self.assertEqual(result['version'], '2.13.0-1')
                 self.assertEqual(result['sha256'], SHA256)
+
+    def test_old_unversioned_catalogue_hint_is_rejected(self):
+        with self.assertRaises(self.mod.Error):
+            self.discover(url='https://github.com/jolars/tomat/releases/latest/download/tomat_amd64.deb')
 
     def test_versioned_refresh_requires_exact_package_revision(self):
         fields = {'Package': 'tomat', 'Architecture': 'amd64', 'Version': '2.13.0-1'}

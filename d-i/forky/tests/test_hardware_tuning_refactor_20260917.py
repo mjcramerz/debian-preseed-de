@@ -344,7 +344,7 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
     async def test_restart_without_active_seat_does_not_restore_manual_selection(self):
         with base.private_temp() as temporary:
             root = Path(temporary)
-            base.common.atomic_json(root / 'controls.json', {'version': 1, 'automatic': False, 'manual': {'intel': 'high', 'nvidia': None}, 'paused': False, 'faults': {}})
+            base.common.atomic_json(root / 'controls.json', {'version': 2, 'automatic': False, 'manual': {'intel': 'high', 'nvidia': None}, 'paused': False, 'faults': {}, 'policy_release': None, 'policy_error': ''})
             self.b.seat.present = False
             with patch.object(base.broker, 'STATE', root):
                 self.b.load()

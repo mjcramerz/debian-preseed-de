@@ -85,27 +85,6 @@ desktop_configure_obsidian_git_timer() {
     return 0
   fi
 
-  desktop_require_absolute_account_home
-  # Retire only our exact activation links from earlier installer revisions.
-  # Preflight both locations before removing either; preserve admin entries.
-  for obsidian_home in /etc/skel-desktop "$ACCOUNT_HOME"; do
-    obsidian_units="/target${obsidian_home}/.config/systemd/user"
-    obsidian_wants="${obsidian_units}/labwc-session.target.wants"
-    obsidian_parent=$obsidian_wants
-    while [ -n "$obsidian_parent" ]; do
-      [ ! -L "$obsidian_parent" ] && { [ ! -e "$obsidian_parent" ] || [ -d "$obsidian_parent" ]; } ||
-        installer_fatal "unsafe Obsidian timer activation directory: ${obsidian_parent}"
-      obsidian_parent=${obsidian_parent%/*}
-    done
-    obsidian_link="${obsidian_wants}/obsidian-git-sync.timer"
-    if [ -e "$obsidian_link" ] || [ -L "$obsidian_link" ]; then
-      [ -L "$obsidian_link" ] && [ "$(readlink "$obsidian_link")" = ../obsidian-git-sync.timer ] ||
-        installer_fatal "unmanaged Obsidian timer activation preserved: ${obsidian_link}"
-    fi
-  done
-  for obsidian_home in /etc/skel-desktop "$ACCOUNT_HOME"; do
-    rm -f -- "/target${obsidian_home}/.config/systemd/user/labwc-session.target.wants/obsidian-git-sync.timer"
-  done
   desktop_log "obsidian_git_auto_disabled account=${ACCOUNT_USERNAME}"
 }
 
@@ -156,22 +135,6 @@ desktop_enable_target_services() {
     grep -Eq "^ExecStart=.*ssh-agent .*-[dD]" /usr/lib/systemd/user/ssh-agent.service
     systemctl --global disable ssh-agent.socket
   '
-
-  # Unlock is explicitly requested by git-ssh unlock, not by graphical login.
-  # Remove only the exact links installed by older revisions, never admin files.
-  desktop_require_absolute_account_home
-  for ssh_home in /etc/skel-desktop "$ACCOUNT_HOME"; do
-    ssh_units="/target${ssh_home}/.config/systemd/user"
-    ssh_wants="${ssh_units}/labwc-session.target.wants"
-    [ ! -L "$ssh_units" ] && [ ! -L "$ssh_wants" ] ||
-      installer_fatal "unsafe SSH unlock activation directory: ${ssh_wants}"
-    ssh_link="${ssh_wants}/labwc-ssh-key-load.service"
-    if [ -L "$ssh_link" ] && [ "$(readlink "$ssh_link")" = ../labwc-ssh-key-load.service ]; then
-      rm -- "$ssh_link"
-    elif [ -e "$ssh_link" ] || [ -L "$ssh_link" ]; then
-      installer_fatal "unmanaged SSH unlock activation preserved: ${ssh_link}"
-    fi
-  done
 
   for unit in \
     labwc-output-watch.service \

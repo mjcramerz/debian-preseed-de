@@ -216,12 +216,6 @@ sub _validate_request_shape {
         LabwcSecurityAction::AppArmor->new()->_profile_state_file($args[1]);
         return;
     }
-    if ($action eq 'set-apparmor-desktop-state') {
-        @args == 2 && $args[0] =~ /\A(?:enforce|complain|disable)\z/
-            && $args[1] eq 'confirmed-apparmor-desktop-state-change'
-            or die "set-apparmor-desktop-state requires a mode and confirmation\n";
-        return;
-    }
     if ($action eq 'set-apparmor-application-audit') {
         @args == 3 && $self->_valid_application($args[0]) && $args[1] =~ /\A(?:enable|disable)\z/
             && $args[2] eq 'confirmed-apparmor-audit-change'

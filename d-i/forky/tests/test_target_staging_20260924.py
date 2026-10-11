@@ -381,7 +381,7 @@ class TargetStageChrootTests(unittest.TestCase):
         config = self.root / "etc/skel-desktop/.config/waybar/config"
         config.parent.mkdir(parents=True, exist_ok=True)
         config.write_text(json.dumps([
-            {"name": name, "battery": {"on-click": "keep-left-" + name}}
+            {"name": name, "custom/battery": {"on-click": "keep-left-" + name}}
             for name in ("internal", "external")]))
 
     def test_real_hardware_installation_is_visible_and_remains_opt_in(self):
@@ -409,8 +409,8 @@ class TargetStageChrootTests(unittest.TestCase):
                 self.assertFalse((system / "multi-user.target.wants/hardware-tuning-autostart.service").is_symlink())
                 bars = json.loads((self.root / "etc/skel-desktop/.config/waybar/config").read_text())
                 for bar in bars:
-                    self.assertEqual(bar["battery"]["on-click"], "keep-left-" + bar["name"])
-                    self.assertIn("labwc-hardware-tuning menu", bar["battery"]["on-click-right"])
+                    self.assertEqual(bar["custom/battery"]["on-click"], "keep-left-" + bar["name"])
+                    self.assertIn("labwc-hardware-tuning menu", bar["custom/battery"]["on-click-right"])
                 self.assert_clean()
                 self.assert_modes()
                 self.assertNotIn("must-not-copy", (self.fixture / "target-calls").read_text())

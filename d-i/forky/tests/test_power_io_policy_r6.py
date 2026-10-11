@@ -138,20 +138,6 @@ class FixedPowerUnitTests(unittest.TestCase):
         for rel in POWER_FILES:
             self.assertFalse(payload_source_exists(base.TARGET / rel), rel)
 
-    def test_production_publisher_removes_only_retired_units_idempotently(self):
-        runner = base.ResourcePolicyTests()
-        with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / 'target'; target.mkdir()
-            for rel in POWER_FILES:
-                p = target / rel; p.parent.mkdir(parents=True, exist_ok=True)
-                p.write_text('legacy barrier unit')
-            sentinel = target / 'etc/systemd/system/retained.service'
-            sentinel.write_text('retained')
-            for _ in range(2):
-                runner.shell(runner.staging(tmp) + 'desktop_remove_legacy_power_transactions')
-                self.assertEqual([p for p in target.rglob('*') if payload_source_is_file(p)], [sentinel])
-            self.assertEqual(payload_read_text(sentinel), 'retained')
-            self.assertFalse(list(target.rglob('*.wants')))
 
     def test_existing_application_and_wireplumber_classes_are_explicit(self):
         for leaf, section, cls in (

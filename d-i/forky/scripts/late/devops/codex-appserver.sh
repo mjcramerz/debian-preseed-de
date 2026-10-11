@@ -23,16 +23,12 @@ devops_stage_codex_app_server() {
   template_systemd_dir="${template_config_dir}/systemd"
   template_unit_dir="${template_systemd_dir}/user"
   template_wants_dir="${template_unit_dir}/sockets.target.wants"
-  template_legacy_wants_dir="${template_unit_dir}/default.target.wants"
   template_link="${template_wants_dir}/codex-app-server.socket"
-  template_legacy_link="${template_legacy_wants_dir}/codex-app-server.service"
   user_config_dir="${target_root}${ACCOUNT_HOME}/.config"
   user_systemd_dir="${user_config_dir}/systemd"
   user_unit_dir="${user_systemd_dir}/user"
   wants_dir="${user_unit_dir}/sockets.target.wants"
-  legacy_wants_dir="${user_unit_dir}/default.target.wants"
   service_link="${wants_dir}/codex-app-server.socket"
-  legacy_service_link="${legacy_wants_dir}/codex-app-server.service"
 
   bootstrap_fetch_seed_file \
     "$seed_base" \
@@ -176,16 +172,6 @@ devops_stage_codex_app_server() {
   done
   unset managed_unit_dir managed_unit_owner
 
-  for legacy_unit_dir in "$template_legacy_wants_dir" "$legacy_wants_dir"; do
-    if [ -e "$legacy_unit_dir" ] || [ -L "$legacy_unit_dir" ]; then
-      [ -d "$legacy_unit_dir" ] && [ ! -L "$legacy_unit_dir" ] ||
-        devops_fatal "Codex app-server legacy enablement directory is indirect: $legacy_unit_dir"
-      [ "$(readlink -f -- "$legacy_unit_dir")" = "$legacy_unit_dir" ] ||
-        devops_fatal "Codex app-server legacy enablement directory traverses a symlink: $legacy_unit_dir"
-    fi
-  done
-  unset legacy_unit_dir
-
   for managed_unit_name in \
     codex-app-server.service \
     codex-app-server-proxy.service \
@@ -244,17 +230,6 @@ devops_stage_codex_app_server() {
   chown -h root:root "$template_link"
   chown -h "$account_ids" "$service_link"
   unset managed_unit_link
-
-  for legacy_service_path in "$template_legacy_link" "$legacy_service_link"; do
-    if [ -L "$legacy_service_path" ]; then
-      [ "$(readlink -- "$legacy_service_path")" = ../codex-app-server.service ] ||
-        devops_fatal "Codex app-server legacy enablement link has an unexpected target: $legacy_service_path"
-      rm -f -- "$legacy_service_path"
-    elif [ -e "$legacy_service_path" ]; then
-      devops_fatal "Codex app-server legacy enablement path is not a symlink: $legacy_service_path"
-    fi
-  done
-  unset legacy_service_path
 
   devops_assert_target_metadata \
     0:0:644 \

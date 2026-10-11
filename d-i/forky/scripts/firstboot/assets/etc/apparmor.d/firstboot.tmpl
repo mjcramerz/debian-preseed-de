@@ -37,7 +37,7 @@ profile firstboot /var/lib/firstboot/bin/firstboot.sh flags=(attach_disconnected
   /usr/local/libexec/labwc-hyprpolkit-agent rix,
   /usr/libexec/ r,
   /usr/libexec/hyprpolkitagent r,
-  # --status is read-only: journal-sealing.service owns generation/migration.
+  # --status is read-only: journal-sealing.service owns generation.
   # Keep the verification seed readable only at its exact path; no key writes.
   /usr/local/libexec/journal-sealing rix,
   /usr/local/libexec/journal-check rix,

@@ -17,8 +17,6 @@ import struct
 from .integrity import IntegrityError, require_managed_module, system_owner
 
 SOCKET_PATH = "/run/app-veth/control.sock"
-DNS_ADDRESS = "10.0.2.3"
-RESOLVER_CONFIGURATION = f"nameserver {DNS_ADDRESS}\noptions timeout:2 attempts:3\n"
 STUB_RESOLVER_PATH = "/run/systemd/resolve/stub-resolv.conf"
 CODEX_SOCKET_ROOT = Path("/data/codex/sockets")
 CODEX_SOCKET_NAMES = (
@@ -96,10 +94,12 @@ def resolver_configuration() -> str:
     directly to Stubby's configured DoT/DNSSEC upstreams, independent of
     systemd-resolved's host and VPN DNS policy.
     """
+    settings = _configuration()["network"]
+    resolver = f"nameserver {settings['dns_address']}\noptions timeout:2 attempts:3\n"
     try:
         fd = os.open(STUB_RESOLVER_PATH, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
     except FileNotFoundError:
-        return RESOLVER_CONFIGURATION
+        return resolver
     try:
         metadata = os.fstat(fd)
         parent_metadata = Path(STUB_RESOLVER_PATH).parent.lstat()
@@ -131,7 +131,7 @@ def resolver_configuration() -> str:
                         for label in labels)):
                     raise ValueError("invalid systemd-resolved search domain")
         suffixes = "search " + " ".join(domains) + "\n" if domains else ""
-        return RESOLVER_CONFIGURATION + suffixes
+        return resolver + suffixes
     finally:
         os.close(fd)
 
@@ -278,11 +278,18 @@ class Lease:
             self.address = str(ipaddress.IPv4Address(result["address"]))
             self.gateway = str(ipaddress.IPv4Address(result["gateway"]))
             self.interface = result["interface"]
-            if self.interface != "eth0":
+            conf = _configuration()
+            settings = conf["network"]
+            policy = conf["apps"].get(app)
+            addresses = policy["addresses"] if policy else ()
+            if (self.interface != settings["namespace_interface"] or self.address not in addresses
+                    or self.gateway != str(ipaddress.IPv4Address(self.address) - 1)):
                 raise ValueError("invalid private interface")
             self.peer_port = result.get("peer_port")
             if self.peer_port is not None and (type(self.peer_port) is not int or not 1024 <= self.peer_port <= 65535):
                 raise ValueError("invalid private peer forwarding port")
+            if self.peer_port != policy["peer_port"]:
+                raise ValueError("private peer forwarding port differs from managed policy")
             self.socket.setblocking(False)
         except BaseException:
             self.socket.close()

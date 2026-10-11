@@ -2,7 +2,6 @@
 """Configure only native logging keys; never execute config or alter log data."""
 from __future__ import annotations
 import fcntl
-import hashlib
 import os
 from pathlib import Path
 import pwd
@@ -13,7 +12,6 @@ import sys
 
 BEGIN = '# BEGIN installer managed native logging'
 END = '# END installer managed native logging'
-OBSOLETE = {'/etc/rsyslog.d/44-managed-runtime.conf': 'fb238bedea63864915ca87d5da3f30afce5887818ca29c03c136fbdb6f3574d9', '/etc/rsyslog.d/45-managed-vendor-files.conf': '78bad7eced777cea5a911e05901d37f32ee1675739db9e961693e850067facd4'}
 POLICIES = {
     'freshclam': ('/etc/clamav/freshclam.conf', '/usr/bin/freshclam', {
         'UpdateLogFile': '__INSTALLER_LOG_FRESHCLAM_FILE__',
@@ -241,33 +239,6 @@ def configure(root: Path = Path('/'), only: str | None = None, check: bool = Fal
         for fd, *_ in prepared:
             os.close(fd)
 
-def retire_r3(root: Path = Path('/')) -> None:
-    """Remove only byte-exact obsolete managed configs, never log files."""
-    prepared = []
-    try:
-        for path, expected in OBSOLETE.items():
-            target = root / path.lstrip('/')
-            if not target.exists() and not target.is_symlink():
-                continue
-            fd = parent_fd(root, path)
-            try:
-                raw, info = read_config(fd, target.name)
-                if hashlib.sha256(raw).hexdigest() != expected:
-                    raise ConfigError(f'preserving administrator-modified obsolete config: {path}')
-                prepared.append((fd, target.name, info))
-            except BaseException:
-                os.close(fd)
-                raise
-        for fd, name, info in prepared:
-            current = os.stat(name, dir_fd=fd, follow_symlinks=False)
-            if (current.st_dev, current.st_ino, current.st_mtime_ns, current.st_size) != (info.st_dev, info.st_ino, info.st_mtime_ns, info.st_size):
-                raise ConfigError('obsolete configuration changed concurrently')
-            os.unlink(name, dir_fd=fd)
-            os.fsync(fd)
-    finally:
-        for fd, *_ in prepared:
-            os.close(fd)
-
 def main() -> int:
     args = sys.argv[1:]
     if args == ['--preflight']:
@@ -276,8 +247,8 @@ def main() -> int:
     if args[:1] == ['--check'] and len(args) == 2 and args[1] in POLICIES:
         configure(only=args[1], check=True)
         return 0
-    if args not in (['--configure'], ['--retire-r3']):
-        raise ConfigError('usage: native-logging --configure | --retire-r3 | --preflight | --check freshclam|clamd|chkrootkit')
+    if args != ['--configure']:
+        raise ConfigError('usage: native-logging --configure | --preflight | --check freshclam|clamd|chkrootkit')
     if os.geteuid() != 0:
         raise ConfigError('configuration requires root')
     lock_dir = Path('/run/native-logging')
@@ -291,10 +262,7 @@ def main() -> int:
     fd = os.open(lock_dir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX)
-        if args == ['--retire-r3']:
-            retire_r3()
-        else:
-            configure()
+        configure()
     finally:
         os.close(fd)
     return 0

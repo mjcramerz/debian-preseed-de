@@ -53,7 +53,6 @@ UNRESOLVED_RE = re.compile(r"\$\{|<[^>]+>|YOUR_|CHANGE_ME|TODO", re.IGNORECASE)
 MAX_YAML_BYTES = 1024 * 1024
 DEFAULT_COMMAND_TIMEOUT_SECONDS = 30
 # Reserved boot pool slots; avoid matching Netavark's other veth interfaces.
-APP_VETH_INTERFACES = "{ " + ", ".join(f'"veth{slot}-app"' for slot in range(32)) + " }"
 NFT_FAMILIES = {"arp", "bridge", "inet", "ip", "ip6", "netdev"}
 NFT_NAT_FAMILIES = {"inet", "ip", "ip6"}
 EGRESS_MODES = {"allow_all", "allow_all_with_audit", "audit", "enforce", "strict", "deny_by_default"}
@@ -423,6 +422,27 @@ def nft_set(values: Sequence[str], quote_strings: bool = False) -> str:
     return "{ " + ", ".join(rendered) + " }"
 
 
+def app_veth_identity(policy: Mapping[str, Any]) -> Tuple[str, str, int]:
+    value = as_dict(policy.get("app_veth"), "app_veth")
+    if set(value) != {"interfaces", "dns_host_address", "dns_host_port"}:
+        raise PolicyError("app_veth: requires exact interfaces and DNS listener fields")
+    interfaces = as_list(value["interfaces"], "app_veth.interfaces")
+    if (not 1 <= len(interfaces) <= 128 or any(not isinstance(name, str)
+            or len(name) > 15 or re.fullmatch(r"[a-z][a-z0-9]*[0-9]+-[a-z][a-z0-9]*", name) is None
+            for name in interfaces) or len(set(interfaces)) != len(interfaces)):
+        raise PolicyError("app_veth: invalid, wildcard or duplicate reserved interfaces")
+    address = value["dns_host_address"]
+    port = value["dns_host_port"]
+    try:
+        listener = ipaddress.IPv4Address(address)
+    except (TypeError, ValueError) as exc:
+        raise PolicyError("app_veth: invalid DNS listener address") from exc
+    if (not isinstance(address, str) or str(listener) != address or not listener.is_loopback
+            or type(port) is not int or not 1024 <= port <= 65535):
+        raise PolicyError("app_veth: DNS listener must be a canonical loopback address and unprivileged port")
+    return nft_set(interfaces, quote_strings=True), address, port
+
+
 def nft_define_set(values: Sequence[str], quote_strings: bool = False) -> str:
     if not values:
         raise PolicyError("cannot render empty define set")
@@ -721,14 +741,7 @@ def interface_match_exprs(
     direction: str,
     label: str,
 ) -> List[str]:
-    """Return nft interface match expressions from direct interfaces and legacy groups.
-
-    Preferred YAML:
-      interfaces: [eth0, wg0]
-
-    Backward-compatible YAML:
-      interface_groups: [wan, vpn]
-    """
+    """Resolve direct interfaces and named policy groups into nft expressions."""
     keyword = "iifname" if direction == "in" else "oifname"
     exprs: List[str] = []
 
@@ -1214,9 +1227,10 @@ def render_filter(policy: Mapping[str, Any], maps: Mapping[str, Dict[str, Any]],
     # The kernel network service validates allocated endpoint/source pairs in
     # its earlier hook. The fixed pool does not grant namespace-to-namespace access:
     # app_veth.forward_guard applies first, including before established.
-    lines.append(add_rule(policy, input_chain, f'iifname {APP_VETH_INTERFACES} ip daddr 127.0.0.1 meta l4proto {{ tcp, udp }} th dport 53053 ct status dnat accept' + comment_expr("managed namespace resolved DNS")))
-    lines.append(add_rule(policy, forward_chain, f'iifname {APP_VETH_INTERFACES} accept' + comment_expr("app veth guarded egress")))
-    lines.append(add_rule(policy, forward_chain, f'oifname {APP_VETH_INTERFACES} accept' + comment_expr("app veth guarded ingress")))
+    app_interfaces, app_dns_address, app_dns_port = app_veth_identity(policy)
+    lines.append(add_rule(policy, input_chain, f'iifname {app_interfaces} ip daddr {app_dns_address} meta l4proto {{ tcp, udp }} th dport {app_dns_port} ct status dnat accept' + comment_expr("managed namespace DNS cache")))
+    lines.append(add_rule(policy, forward_chain, f'iifname {app_interfaces} accept' + comment_expr("app veth guarded egress")))
+    lines.append(add_rule(policy, forward_chain, f'oifname {app_interfaces} accept' + comment_expr("app veth guarded ingress")))
 
     lines.extend(build_allowlist_guards(policy, maps, ctx))
 

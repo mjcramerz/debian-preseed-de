@@ -30,7 +30,7 @@ import types
 import unittest
 from unittest import mock
 
-from payload_fixture import python_library, read_text
+from payload_fixture import python_library, read_text, network_identity_text, network_identity_environment, network_identity_values
 
 SEED = Path(__file__).resolve().parents[1]
 TARGET = SEED / "hooks/target"
@@ -41,13 +41,30 @@ from labwc_managed_app import network_client as client
 from labwc_managed_app import network_namespace as supervisor
 from labwc_managed_app import generic, profiles, sandbox
 
-DEFAULT_CONFIG_RAW = (TARGET / "etc/app-veth.json.tmpl").read_text(encoding="utf-8").replace(
+DEFAULT_CONFIG_RAW = network_identity_text((TARGET / "etc/app-veth.json.tmpl").read_text(encoding="utf-8")).replace(
     "__INSTALLER_ACCOUNT_USERNAME__", "desktop").replace("__INSTALLER_LABWC_QBITTORRENT_PORT__", "50309")
-DEFAULT_POLICIES = policy_parser.parse_configuration(DEFAULT_CONFIG_RAW.encode())["apps"]
+DEFAULT_CONFIGURATION = policy_parser.parse_configuration(DEFAULT_CONFIG_RAW.encode())
+DEFAULT_POLICIES = DEFAULT_CONFIGURATION["apps"]
+
+
+def fixture_raw(apps):
+    """Complete current policy with explicit, isolated fixture reservations."""
+    pool = ipaddress.IPv4Network(DEFAULT_CONFIGURATION["network"]["ipv4_cidr"])
+    return json.dumps({"version": 2, "desktop_user": "desktop",
+                       "network": DEFAULT_CONFIGURATION["network"],
+                       "apps": {name: {"slots": [slot],
+                                       "addresses": [str(pool.network_address + slot * 4 + 2)], **policy}
+                                for slot, (name, policy) in enumerate(apps.items())}}).encode()
+
+
+def fixture_configuration(apps):
+    return policy_parser.parse_configuration(fixture_raw(apps))
+
 
 broker = types.ModuleType("tested_veth_broker")
 broker.__file__ = str(TARGET / "usr/local/sbin/app-veth")
 exec(compile(Path(broker.__file__).read_text(encoding="utf-8"), broker.__file__, "exec"), broker.__dict__)
+broker.apply_network_identity(DEFAULT_CONFIGURATION["network"])
 podman_adapter = types.ModuleType("tested_podman_adapter")
 podman_adapter.__file__ = str(TARGET / "usr/local/libexec/app-veth-podman")
 exec(compile(Path(podman_adapter.__file__).read_text(encoding="utf-8"), podman_adapter.__file__, "exec"), podman_adapter.__dict__)
@@ -55,7 +72,7 @@ exec(compile(Path(podman_adapter.__file__).read_text(encoding="utf-8"), podman_a
 
 class PolicyParsingTests(unittest.TestCase):
     def parse(self, apps):
-        return policy_parser.parse_configuration(json.dumps({"version": 1, "desktop_user": "desktop", "apps": apps}).encode())
+        return fixture_configuration(apps)
 
     def test_typed_policy_defaults_and_optional_peer_forwarding(self):
         rows = self.parse({"future-client": {"network": True, "peer_port": 4242,
@@ -64,6 +81,61 @@ class PolicyParsingTests(unittest.TestCase):
         self.assertTrue(rows["future-client"]["pin_route"])
         self.assertEqual(rows["future-client"]["executables"], ("/opt/future-client/client",))
         self.assertIsNone(rows["offline"]["peer_port"])
+
+    def test_explicit_slots_are_stable_across_launch_order_and_reuse(self):
+        rows = DEFAULT_POLICIES
+        self.assertEqual(broker.application_slot(rows['qbittorrent'], {}), 28)
+        self.assertEqual(rows['qbittorrent']['addresses'], ('10.203.0.114',))
+        active = {'browser': types.SimpleNamespace(slot=4), 'code': types.SimpleNamespace(slot=6)}
+        self.assertEqual(broker.application_slot(rows['qbittorrent'], active), 28)
+        active['torrent'] = types.SimpleNamespace(slot=28)
+        with self.assertRaisesRegex(ValueError, 'reserved network slots'):
+            broker.application_slot(rows['qbittorrent'], active)
+        del active['torrent']
+        self.assertEqual(broker.application_slot(rows['qbittorrent'], active), 28)
+        self.assertEqual(broker.application_slot(rows['chromium'], active), 5)
+
+    def test_version_two_rejects_missing_unsafe_and_colliding_identities(self):
+        source = json.loads(DEFAULT_CONFIG_RAW)
+        for field, value in (('ipv4_cidr', '192.0.2.0/24'), ('ipv4_cidr', '10.203.0.1/24'),
+                             ('max_leases', True), ('max_leases', 65),
+                             ('host_interface_prefix', 'veth;exec'), ('namespace_interface', 'lo'),
+                             ('dns_address', '10.203.0.2'), ('dns_host_address', '0.0.0.0')):
+            conf = json.loads(DEFAULT_CONFIG_RAW)
+            conf['network'][field] = value
+            with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                policy_parser.parse_configuration(json.dumps(conf).encode())
+        for slots in ([], [True], [64], [0, 0], [4]):
+            conf = json.loads(DEFAULT_CONFIG_RAW)
+            conf['apps']['bitwarden']['slots'] = slots
+            with self.subTest(slots=slots), self.assertRaises(ValueError):
+                policy_parser.parse_configuration(json.dumps(conf).encode())
+        del source['network']
+        with self.assertRaises(ValueError):
+            policy_parser.parse_configuration(json.dumps(source).encode())
+        for version in (1, 3):
+            source = json.loads(DEFAULT_CONFIG_RAW)
+            source['version'] = version
+            with self.subTest(version=version), self.assertRaises(ValueError):
+                policy_parser.parse_configuration(json.dumps(source).encode())
+        source = json.loads(DEFAULT_CONFIG_RAW)
+        del source['apps']['bitwarden']['slots']
+        with self.assertRaises(ValueError):
+            policy_parser.parse_configuration(json.dumps(source).encode())
+        for addresses in (None, [], ['10.203.0.6'], ['010.203.0.2', '10.203.0.6']):
+            source = json.loads(DEFAULT_CONFIG_RAW)
+            source['apps']['bitwarden']['addresses'] = addresses
+            with self.subTest(addresses=addresses), self.assertRaises(ValueError):
+                policy_parser.parse_configuration(json.dumps(source).encode())
+
+    def test_configured_subnet_conflict_never_selects_a_different_address_pool(self):
+        with mock.patch.object(broker, 'run', return_value='[{"dst":"10.203.0.0/16"}]'):
+            with self.assertRaisesRegex(ValueError, 'overlaps'):
+                broker.select_pool()
+        with mock.patch.object(broker, 'run', return_value='[{"dst":"default"}]'):
+            self.assertEqual(str(broker.select_pool()), '10.203.0.0/24')
+        with mock.patch.object(broker, 'run', return_value='[{"dst":"0.0.0.0/1","dev":"tun0"},{"dst":"128.0.0.0/1","dev":"tun0"}]'):
+            self.assertEqual(str(broker.select_pool()), '10.203.0.0/24')
 
     def test_unknown_keys_malformed_flags_ports_paths_and_duplicates_fail_closed(self):
         bad = ({}, {"network": "true"}, {"network": True, "block_lan": 1},
@@ -79,7 +151,7 @@ class PolicyParsingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.parse({"../client": {"network": True}})
         with self.assertRaisesRegex(ValueError, "duplicate"):
-            policy_parser.parse_configuration(b'{"version":1,"desktop_user":"desktop","apps":{"client":{"network":true,"network":false}}}')
+            policy_parser.parse_configuration(b'{"version":2,"desktop_user":"desktop","apps":{"client":{"network":true,"network":false}}}')
         with self.assertRaises(ValueError):
             policy_parser.parse_configuration(b"x" * (policy_parser.MAX_CONFIG_BYTES + 1))
 
@@ -87,7 +159,7 @@ class PolicyParsingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.json"
             def write(apps):
-                path.write_text(json.dumps({"version": 1, "desktop_user": "desktop", "apps": apps}), encoding="ascii")
+                path.write_bytes(fixture_raw(apps))
                 path.chmod(0o644)
             write({"future-client": {"network": True}})
             self.assertIn("future-client", policy_parser.read_configuration(str(path), owner_uid=os.getuid())["apps"])
@@ -115,14 +187,21 @@ set -eu
 . "$1/scripts/common/modules/files-logging.sh"
 . "$1/scripts/late/target-assets.sh"
 . "$1/scripts/late/security.sh"
+. "$1/scripts/common/modules/app-veth-identity.sh"
 installer_fatal() { printf '%s\n' "$*" >&2; exit 1; }
 TMP_ENV_DIR=$2
 cp "$1/hooks/target/etc/app-veth.json.tmpl" "$2/config.json"
 apply_placeholder_map_to_target "$2/config.json" app_veth_placeholder_map
 installer_assert_no_unresolved_installer_placeholders "$2/config.json" app-veth
+cp "$1/hooks/target/etc/nftables/profiles/desktop.yml.tmpl" "$2/firewall.yml"
+apply_placeholder_map_to_target "$2/firewall.yml" nftables_app_veth_profile_placeholder_map
+cp "$1/hooks/target/etc/NetworkManager/conf.d/70-app-veth.conf.tmpl" "$2/network-manager.conf"
+apply_placeholder_map_to_target "$2/network-manager.conf" app_veth_identity_placeholder_map
+cp "$1/hooks/target/etc/apparmor.d/app-veth.tmpl" "$2/apparmor.conf"
+apply_placeholder_map_to_target "$2/apparmor.conf" app_veth_identity_placeholder_map
 '''
         environment = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C",
-                       "ACCOUNT_USERNAME": account}
+                       "ACCOUNT_USERNAME": account, **network_identity_environment()}
         if port is not None:
             environment["LABWC_QBITTORRENT_PORT"] = port
         shells = [["/bin/sh"]]
@@ -141,9 +220,16 @@ installer_assert_no_unresolved_installer_placeholders "$2/config.json" app-veth
                     path = Path(directory) / "config.json"
                     data = json.loads(path.read_text(encoding="utf-8"))
                     self.assertEqual(data["desktop_user"], "desktop")
-                    self.assertEqual(data["version"], 1)
+                    self.assertEqual(data["version"], 2)
                     self.assertEqual(data["apps"]["qbittorrent"]["peer_port"], int(port or "50309"))
                     self.assertNotIn("keepassxc", data["apps"])
+                    import yaml
+                    host_policy = yaml.safe_load((Path(directory)/'firewall.yml').read_text())['app_veth']
+                    self.assertEqual(host_policy['interfaces'], [f'veth{slot}-app' for slot in range(data['network']['max_leases'])])
+                    self.assertEqual(host_policy['dns_host_address'], data['network']['dns_host_address'])
+                    self.assertEqual(host_policy['dns_host_port'], data['network']['dns_host_port'])
+                    for name in ('network-manager.conf', 'apparmor.conf'):
+                        self.assertNotIn('__INSTALLER_', (Path(directory)/name).read_text())
                     # Target-root ownership is modeled here; the parser itself
                     # and the rendered bytes are production code.
                     metadata = types.SimpleNamespace(st_mode=stat.S_IFREG | 0o644, st_uid=0, st_nlink=1)
@@ -195,9 +281,13 @@ installer_assert_no_unresolved_installer_placeholders "$2/config.json" app-veth
 
 
 class AuthorizationTests(unittest.TestCase):
+    def setUp(self):
+        configured = fixture_configuration({"qbittorrent": {"network": True, "peer_port": 50309}})
+        self.patch = mock.patch.object(client, "_configuration", return_value=configured)
+        self.patch.start(); self.addCleanup(self.patch.stop)
+
     def test_omitted_and_disabled_apps_are_rejected_and_new_configured_apps_are_accepted(self):
-        policies = policy_parser.parse_configuration(json.dumps({"version": 1, "desktop_user": "desktop",
-            "apps": {"new-client": {"network": True}, "keepassxc": {"network": False}}}).encode())["apps"]
+        policies = fixture_configuration({"new-client": {"network": True}, "keepassxc": {"network": False}})["apps"]
         for app in ("codex", "keepassxc"):
             with self.subTest(app=app), self.assertRaises(ValueError):
                 self.request({"app": app}, policies=policies)
@@ -318,7 +408,7 @@ class AuthorizationTests(unittest.TestCase):
                 "gateway": "10.203.0.1", "interface": "eth0", "peer_port": port}).encode(), [], 0, None)
             with self.subTest(port=port), mock.patch.object(client, "control_socket_owner", return_value=0), \
                     mock.patch.object(client.socket, "socket", return_value=channel):
-                if port is None or port == 50309:
+                if type(port) is int and port == 50309:
                     lease = client.Lease(3, "qbittorrent")
                     self.assertEqual(lease.peer_port, port)
                     lease.close()
@@ -335,7 +425,8 @@ class AuthorizationTests(unittest.TestCase):
                 channel = mock.Mock()
                 channel.getsockopt.return_value = struct.pack("3i", 12, root_uid, root_uid)
                 channel.recvmsg.return_value = (b'{"ready":true,"address":"10.203.0.2","gateway":"10.203.0.1","interface":"eth0"}', [], 0, None)
-                with mock.patch.object(client, "system_owner", return_value=(root_uid, root_uid)), \
+                with mock.patch.object(client, "_configuration", return_value=fixture_configuration({"podman": {"network": True}})), \
+                        mock.patch.object(client, "system_owner", return_value=(root_uid, root_uid)), \
                         mock.patch.object(client.Path, "lstat", side_effect=metadata), \
                         mock.patch.object(client.socket, "socket", return_value=channel):
                     lease = client.Lease(3, "podman")
@@ -355,12 +446,16 @@ class AuthorizationTests(unittest.TestCase):
 
 
 class ResolverTests(unittest.TestCase):
+    def setUp(self):
+        patch = mock.patch.object(client, "_configuration", return_value=DEFAULT_CONFIGURATION)
+        patch.start(); self.addCleanup(patch.stop)
+
     def test_only_resolved_search_suffixes_enter_the_private_resolver(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "stub-resolv.conf"
             path.write_text("# resolved\nnameserver 127.0.0.53\nsearch lan.example vpn.example.\noptions edns0 trust-ad\n", encoding="ascii")
             with mock.patch.object(client, "STUB_RESOLVER_PATH", str(path)):
-                self.assertEqual(client.resolver_configuration(), client.RESOLVER_CONFIGURATION + "search lan.example vpn.example.\n")
+                self.assertEqual(client.resolver_configuration(), "nameserver 10.0.2.3\noptions timeout:2 attempts:3\n" + "search lan.example vpn.example.\n")
 
     def test_unsafe_domain_data_and_nonregular_files_fail_boundedly(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -384,11 +479,11 @@ class ResolverTests(unittest.TestCase):
             for text, expected in (("search .\n", "."), ("search büro.example\n", "xn--bro-hoa.example")):
                 path.write_text(text, encoding="utf-8")
                 with self.subTest(text=text), mock.patch.object(client, "STUB_RESOLVER_PATH", str(path)):
-                    self.assertEqual(client.resolver_configuration(), client.RESOLVER_CONFIGURATION + "search " + expected + "\n")
+                    self.assertEqual(client.resolver_configuration(), "nameserver 10.0.2.3\noptions timeout:2 attempts:3\n" + "search " + expected + "\n")
 
     def test_missing_resolved_snapshot_keeps_broker_stub_without_public_fallback(self):
         with mock.patch.object(client.os, "open", side_effect=FileNotFoundError):
-            self.assertEqual(client.resolver_configuration(), client.RESOLVER_CONFIGURATION)
+            self.assertEqual(client.resolver_configuration(), "nameserver 10.0.2.3\noptions timeout:2 attempts:3\n")
 
 
 class CodexSocketBindTests(unittest.TestCase):
@@ -472,7 +567,7 @@ class RecoveryTests(unittest.TestCase):
         row = {"ifname": "veth3-app", "ifalias": "app-veth:" + "a" * 32,
                "flags": ["UP"], "linkinfo": {"info_kind": "veth"}}
         self.assertEqual(self.recover([row]), [["/usr/sbin/ip", "link", "del", "dev", "veth3-app"]])
-        for changes in ({"ifname": "veth32-app"}, {"ifname": "eth0"}, {"ifname": "veth3-vivaldi"},
+        for changes in ({"ifname": "veth64-app"}, {"ifname": "eth0"}, {"ifname": "veth3-vivaldi"},
                         {"ifalias": "app-veth:not-a-tag"}, {"linkinfo": {"info_kind": "bridge"}},
                         {"ifalias": ""}):
             with self.subTest(changes=changes):
@@ -721,8 +816,7 @@ class AdministrationTests(unittest.TestCase):
         self.assertIn("flush set inet app_veth lan_ipv4", self.transactions[0])
 
     def test_peer_forwarding_policy_works_for_a_new_app_without_a_broker_code_change(self):
-        policy = policy_parser.parse_configuration(json.dumps({"version": 1, "desktop_user": "desktop",
-            "apps": {"new-client": {"network": True, "peer_port": 4242}}}).encode())["apps"]["new-client"]
+        policy = fixture_configuration({"new-client": {"network": True, "peer_port": 4242}})["apps"]["new-client"]
         network = broker.Network(3, 70, "new-client", 1000, policy, ipaddress.IPv4Network("10.203.0.0/24"), self.endpoints)
         self.addCleanup(network.close)
         self.assertIn('192.0.2.8 . tcp . 4242 : 10.203.0.14 . 4242', self.transactions[0])
@@ -1112,7 +1206,7 @@ class DesktopLaunchTests(unittest.TestCase):
     def setUp(self):
         # Policies come from the rendered production template; only installed
         # file ownership/path access is modeled for these mount-plan fixtures.
-        patch = mock.patch.object(client, "_configuration", return_value={"apps": DEFAULT_POLICIES})
+        patch = mock.patch.object(client, "_configuration", return_value=DEFAULT_CONFIGURATION)
         patch.start()
         self.addCleanup(patch.stop)
     def test_known_desktop_executables_and_aliases_reenter_managed_launchers(self):
@@ -1134,9 +1228,8 @@ class DesktopLaunchTests(unittest.TestCase):
         self.assertIsNone(generic.managed_network_command("launch", ["/home/user/code"]))
 
     def test_future_executable_policy_reenters_the_user_service_worker_with_literal_arguments(self):
-        future = policy_parser.parse_configuration(json.dumps({"version": 1, "desktop_user": "desktop",
-            "apps": {"new-client": {"network": True, "block_lan": True,
-                                    "executables": ["/opt/new-client/client"]}}}).encode())
+        future = fixture_configuration({"new-client": {"network": True, "block_lan": True,
+                                    "executables": ["/opt/new-client/client"]}})
         with mock.patch.object(client, "_configuration", return_value=future):
             self.assertEqual(generic.managed_network_command("intel", ["/opt/new-client/client", "literal; $HOME"], kind="electron"),
                 ["/usr/local/libexec/app-veth-run", "electron", "intel", "new-client", "--", "/opt/new-client/client", "literal; $HOME"])
@@ -1150,7 +1243,7 @@ class DesktopLaunchTests(unittest.TestCase):
             second.write_text('', encoding='ascii')
             alias.symlink_to(first)
             apps = {'first': {'executables': (str(first),)}, 'second': {'executables': (str(second),)}}
-            with mock.patch.object(client, '_configuration', return_value={'apps': apps}):
+            with mock.patch.object(client, '_configuration', return_value={'network': DEFAULT_CONFIGURATION['network'], 'apps': apps}):
                 self.assertEqual(client.configured_executable_application(str(alias)), 'first')
                 alias.unlink()
                 alias.symlink_to(second)
@@ -1215,8 +1308,7 @@ class DesktopLaunchTests(unittest.TestCase):
 
     def test_configured_generic_worker_keeps_private_network_procfs_and_hides_broker_endpoint(self):
         for online in (True, False):
-            future = policy_parser.parse_configuration(json.dumps({"version": 1, "desktop_user": "desktop",
-                "apps": {"new-client": {"network": online, "executables": ["/usr/bin/true"]}}}).encode())
+            future = fixture_configuration({"new-client": {"network": online, "executables": ["/usr/bin/true"]}})
             with self.subTest(online=online), tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
                 stack.enter_context(mock.patch.object(client, "_configuration", return_value=future))
                 stack.enter_context(mock.patch.object(generic.os, "geteuid", return_value=1000))
@@ -1262,7 +1354,7 @@ class DesktopLaunchTests(unittest.TestCase):
         apps = set(profiles.PERSISTENT_SANDBOX_CONFIG) - {"chatgpt", "discord", "zoom", "tutanota", "qbittorrent", "qoredb"}
         for app in sorted(apps):
             with self.subTest(app=app), tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
-                stack.enter_context(mock.patch.object(client, "_configuration", return_value={"apps": policies}))
+                stack.enter_context(mock.patch.object(client, "_configuration", return_value={"network": DEFAULT_CONFIGURATION["network"], "apps": policies}))
                 root = Path(directory)
                 home, runtime = root / "home", root / "runtime"
                 home.mkdir(); runtime.mkdir(mode=0o700)
@@ -1512,8 +1604,8 @@ def ip(*args, data=None):
 ip("-batch","-",data=fixture["batch"])
 links={row["ifname"]:row for row in json.loads(ip("-j","-d","link","show"))}
 addresses={row["ifname"]:row for row in json.loads(ip("-j","-4","addr","show"))}
-assert len(links) == 65
-for slot in range(32):
+assert len(links) == len(fixture["ids"])*2+1
+for slot in range(len(fixture["ids"])):
     for name in (f"veth{slot}-app",f"veth{slot}-peer"):
         assert links[name]["linkinfo"]["info_kind"] == "veth"
         assert "UP" not in links[name]["flags"]
@@ -1530,21 +1622,23 @@ for slot in (0,1,31):
     assert current["ifalias"] == "app-veth:"+fixture["ids"][str(slot)]
     assert "UP" not in current["flags"]
 import runpy
-recovery=runpy.run_path(sys.argv[1])["recover_endpoints"]
+module=runpy.run_path(sys.argv[1])
+module["apply_network_identity"](fixture["network"])
+recovery=module["recover_endpoints"]
 recovery()
 assert [row["ifname"] for row in json.loads(ip("-j","link","show"))] == ["lo"]
 ip("link","add","name","veth0-app","type","veth","peer","name","veth0-peer")
 recovery()
 assert [row["ifname"] for row in json.loads(ip("-j","link","show"))] == ["lo"]
-print("native boot pool: 32 fixed pairs DOWN, gateway addresses, stable names/indexes and recovery passed")
+print("native boot pool: fixed pairs DOWN, gateway addresses, stable names/indexes and recovery passed")
 '''
         result = subprocess.run(["/usr/bin/unshare", "-Urn", sys.executable, "-I", "-B", "-c", script, broker.__file__, str(LIBRARY)],
-                                input=json.dumps({"batch": batch, "ids": identities}), capture_output=True,
+                                input=json.dumps({"batch": batch, "ids": identities, "network": DEFAULT_CONFIGURATION["network"]}), capture_output=True,
                                 text=True, encoding="utf-8", timeout=20)
         if result.returncode and result.stderr.startswith("unshare: unshare failed: Operation not permitted"):
             self.skipTest("unprivileged kernel namespaces are unavailable")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("32 fixed pairs DOWN", result.stdout)
+        self.assertIn("fixed pairs DOWN", result.stdout)
 
     @unittest.skipUnless(shutil.which("bwrap") and hasattr(os, "pidfd_open"), "native Bubblewrap or pidfds unavailable")
     def test_real_blocked_bubblewrap_init_can_be_inspected_and_pinned_by_its_creator(self):
@@ -1985,6 +2079,8 @@ if [ "$#" -eq 11 ]; then
   SYSTEM_DNS_CACHE_MIN_TTL=${11}
 fi
 . "$1"
+identity_root=${2%/hosts/installer/identity.env}
+. "$identity_root/scripts/common/modules/app-veth-identity.sh"
 app_veth_dns_placeholder_map
 '''
         return subprocess.run(["/bin/sh", "-eu", "-c", code, "dns-fixture", *arguments],
@@ -2019,7 +2115,7 @@ app_veth_dns_placeholder_map
                 destination = root / name
                 destination.write_text(read_text(source), encoding="ascii")
                 rendered = subprocess.run(["/bin/sh", "-eu", "-c",
-                    '. "$1"; . "$2"; . "$3"; . "$4"; TMP_ENV_DIR=$6; '
+                    '. "$1"; . "$2"; . "$3"; . "$4"; identity_root=${4%/hosts/installer/identity.env}; . "$identity_root/scripts/common/modules/app-veth-identity.sh"; TMP_ENV_DIR=$6; '
                     'apply_placeholder_map_to_target "$5" app_veth_dns_placeholder_map', "render-fixture",
                     str(SEED / "scripts/common/modules/files-logging.sh"),
                     str(SEED / "scripts/late/target-assets.sh"), str(SEED / "scripts/late/security.sh"),
@@ -2181,6 +2277,23 @@ late_command_nftables_effective_services
             self.assertTrue(any("ip6 daddr" in line for line in rules), rules)
             self.assertTrue(all("tcp dport 8853" in line for line in rules), rules)
             self.assertNotIn("udp dport 8853", result.stdout)
+            for slot in range(int(network_identity_values()['APP_VETH_MAX_LEASES'])):
+                self.assertIn(f'"veth{slot}-app"', result.stdout)
+            self.assertNotIn('"veth64-app"', result.stdout)
+            self.assertIn('th dport 53053 ct status dnat accept', result.stdout)
+
+    def test_base_firewall_rejects_wildcards_and_unsafe_dns_identity(self):
+        nft_policy = runpy.run_path(str(TARGET/'usr/local/sbin/nft-policy-generate.py'))
+        valid = {'interfaces': ['veth0-app', 'veth63-app'],
+                 'dns_host_address': '127.0.0.2', 'dns_host_port': 54053}
+        self.assertEqual(nft_policy['app_veth_identity']({'app_veth': valid}),
+                         ('{ "veth0-app", "veth63-app" }', '127.0.0.2', 54053))
+        for key, value in (('interfaces', ['veth*']), ('interfaces', ['eth0']),
+                           ('interfaces', ['veth0-app', 'veth0-app']),
+                           ('dns_host_address', '0.0.0.0'), ('dns_host_port', True),
+                           ('dns_host_port', 53)):
+            with self.subTest(key=key, value=value), self.assertRaises(nft_policy['PolicyError']):
+                nft_policy['app_veth_identity']({'app_veth': {**valid, key: value}})
 
     def test_installer_nameserver_is_rendered_from_identity_for_every_site(self):
         answers = read_text(SEED / "scripts/preseed/answers.sh")
@@ -2309,11 +2422,11 @@ class InstallationTests(unittest.TestCase):
         patterns = policy.split("match-device=", 1)[1].splitlines()[0].split(";")
         self.assertTrue(all(pattern.startswith("interface-name:=") for pattern in patterns))
         patterns = [pattern.removeprefix("interface-name:=") for pattern in patterns]
-        self.assertEqual(len(set(patterns)), 2 * broker.MAX_LEASES)
-        for slot in range(broker.MAX_LEASES):
+        self.assertEqual(len(set(patterns)), 2 * int(network_identity_values()["APP_VETH_MAX_LEASES"]))
+        for slot in range(int(network_identity_values()["APP_VETH_MAX_LEASES"])):
             for name in (f"veth{slot}-app", f"veth{slot}-peer"):
                 self.assertIn(name, patterns)
-        for name in ("eth0", "tailscale0", "podman0", "vethabcd123", "veth32-app"):
+        for name in ("eth0", "tailscale0", "podman0", "vethabcd123", "veth64-app"):
             self.assertNotIn(name, patterns)
         self.assertIn("managed=0", policy)
         installer = (TARGET.parents[1] / "scripts/late/security.sh").read_text()

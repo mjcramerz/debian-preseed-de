@@ -948,7 +948,7 @@ def run_new_instance(
         resolver_configuration = getattr(runtime, "veth_resolv_conf", None)
         resolver.write_text(
             (resolver_configuration() if resolver_configuration is not None else (
-                f"nameserver {runtime.VETH_DNS_ADDRESS}\noptions timeout:2 attempts:3\n"
+                runtime.veth_resolv_conf()
             )) if online else "# Networking is disabled.\n",
             encoding="ascii",
         )

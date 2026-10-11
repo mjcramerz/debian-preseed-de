@@ -564,6 +564,7 @@ class NetworkReadinessTests(PerlFixture):
         (self.root / 'etc/network/interfaces.d').mkdir(parents=True)
         self.config = self.root / 'etc/network/host.conf'
         self.config.write_text("""MANAGED_NETWORK_MODE=static
+MANAGED_NETWORK_DNS_MODE=link
 MANAGED_NETWORK_LINK_TYPES=ethernet
 MANAGED_NETWORK_ETHERNET_IFACE=enp1s0
 MANAGED_NETWORK_ETHERNET_MAC=02:00:00:00:00:01

@@ -594,7 +594,6 @@ class TutaExtraction(unittest.TestCase):
         self.assertNotIn('flags=(unconfined',extract)
 
 
-
 class TPMPolicy(unittest.TestCase):
     def setUp(self): self.m=module(LIBEXEC/'tpm2-policy-check')
 
@@ -654,9 +653,9 @@ class JournalSealing(unittest.TestCase):
     def setUp(self):
         self.m=module(LIBEXEC/'journal-sealing')
         self.temp=tempfile.TemporaryDirectory(dir='/root');self.addCleanup(self.temp.cleanup)
-        root=Path(self.temp.name);self.m.STATE=root/'state';self.m.LEGACY_RUNTIME=root/'run'
-        self.m.STATE.mkdir(mode=0o700);self.m.LEGACY_RUNTIME.mkdir(mode=0o700)
-        self.m.KEY=self.m.STATE/'verification-key';self.m.LEGACY_KEY=self.m.LEGACY_RUNTIME/'verification-key'
+        root=Path(self.temp.name);self.m.STATE=root/'state';self.runtime=root/'run'
+        self.m.STATE.mkdir(mode=0o700);self.runtime.mkdir(mode=0o700)
+        self.m.KEY=self.m.STATE/'verification-key'
         self.m.RECORD=self.m.STATE/'status.json'
         self.fss=root/'fss';self.key=b'aaaaaa-bbbbbb-cccccc-dddddd-eeeeee-ff/1234-abcd\n'
 
@@ -686,22 +685,12 @@ class JournalSealing(unittest.TestCase):
     def test_unexported_key_survives_runtime_recreation(self):
         with mock.patch.object(self.m.subprocess,'run',side_effect=self.fake_setup) as setup,mock.patch.object(self.m,'command') as command:
             self.m.setup('machine',self.fss)
-            self.m.LEGACY_RUNTIME.rmdir()
-            self.m.LEGACY_RUNTIME.mkdir(mode=0o700)
+            self.runtime.rmdir()
+            self.runtime.mkdir(mode=0o700)
             self.assertFalse(self.m.setup('machine',self.fss)['exported'])
             self.assertEqual(self.m.verification_key(),self.key)
             setup.assert_called_once();command.assert_called_once()
 
-    def test_valid_legacy_key_is_migrated_without_replacing_generation(self):
-        with mock.patch.object(self.m.subprocess,'run',side_effect=self.fake_setup),mock.patch.object(self.m,'command'):
-            self.m.setup('machine',self.fss)
-        self.m.KEY.replace(self.m.LEGACY_KEY)
-        with mock.patch.object(self.m,'command',return_value='tmpfs') as command,mock.patch.object(self.m.subprocess,'run') as setup:
-            self.m.migrate_legacy_key('machine')
-            self.assertEqual(self.m.verification_key(),self.key)
-            self.assertFalse(self.m.LEGACY_KEY.exists())
-            self.m.setup('machine',self.fss)
-            command.assert_called_once();setup.assert_not_called()
 
     def test_acknowledgement_deletes_persistent_key_and_survives_reboot(self):
         machine='a'*32

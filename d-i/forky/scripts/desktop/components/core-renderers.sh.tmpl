@@ -88,7 +88,7 @@ desktop_render_labwc_default_config() {
     LABWC_TERMINAL_FALLBACK "$(desktop_shell_config_value "${LABWC_TERMINAL_FALLBACK:-kitty}")" \
     LABWC_TERMINAL_FONT_FAMILY "$(desktop_shell_config_value "${LABWC_TERMINAL_FONT_FAMILY}")" \
     LABWC_TERMINAL_FONT_SIZE "$(desktop_shell_config_value "${LABWC_TERMINAL_FONT_SIZE:-12}")" \
-    LABWC_LAUNCHER_COMMAND "$(desktop_shell_config_value "${LABWC_LAUNCHER_COMMAND:-labwc-fuzzel launcher}")" \
+    LABWC_LAUNCHER_COMMAND "$(desktop_shell_config_value "${LABWC_LAUNCHER_COMMAND:-labwc-main-menu --search}")" \
     LABWC_MENU_COMMAND "$(desktop_shell_config_value "${LABWC_MENU_COMMAND:-labwc-main-menu}")" \
     LABWC_FILE_MANAGER_COMMAND "$(desktop_shell_config_value "${LABWC_FILE_MANAGER_COMMAND:-thunar}")" \
     LABWC_AUDIO_CONTROL_COMMAND "$(desktop_shell_config_value "${LABWC_AUDIO_CONTROL_COMMAND:-pavucontrol}")" \

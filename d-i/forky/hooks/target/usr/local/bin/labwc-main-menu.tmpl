@@ -25,6 +25,8 @@ sys.dont_write_bytecode = True
 SELF = '/usr/local/bin/labwc-main-menu'
 FUZZEL = '/usr/local/bin/labwc-fuzzel'
 BACK = 'Back'
+MAX_APPS = 4096
+MAX_MENU_BYTES = 1024 * 1024
 
 # Priority order, display label, main tokens, specific additional tokens.
 # Specific tokens refine broad main tokens; Settings always takes precedence.
@@ -56,7 +58,6 @@ DISPLAY_CATEGORIES = ('Development', 'Internet', 'Office & Productivity', 'Graph
 # Generic GUI actions use the existing wrapper's configured default GPU policy.
 WAYLAND = ('/usr/local/bin/labwc-wayland-app', 'auto', '--')
 ACTIONS = {
-    'Search Applications': ('/usr/local/bin/labwc-run',),
     'Terminal': ('/usr/local/bin/labwc-terminal',),
     'Computer Management': ('/usr/local/bin/labwc-computer-management',),
     'Files': WAYLAND + ('/usr/bin/thunar',),
@@ -160,6 +161,9 @@ def enumerate_apps() -> list[dict[str, str]]:
                                 'category': CATEGORY_OVERRIDES.get(desktop_id, category_for(app.get_categories())),
                                 'icon': safe_icon(app.get_string('Icon')),
                                 'filename': app.get_filename() or ''}
+            if (len(apps) > MAX_APPS or any(len(value.encode('utf-8')) > 4096
+                                            for value in apps[desktop_id].values())):
+                raise ValueError('application catalog exceeds the managed bounds')
     return sorted(apps.values(), key=lambda app: (app['name'].casefold(), app['id']))
 
 
@@ -229,8 +233,8 @@ def display_text(text: str) -> str:
     return ''.join(result)
 
 
-def app_choices(apps: list[dict[str, str]], category: str) -> dict[str, str]:
-    selected = sorted((app for app in apps if app['category'] == category),
+def app_choices(apps: list[dict[str, str]], category: str | None) -> dict[str, str]:
+    selected = sorted((app for app in apps if category is None or app['category'] == category),
                       key=lambda app: (app['name'].casefold(), app['id']))
     counts = Counter(display_text(app['name']) for app in selected)
     choices = {}
@@ -306,6 +310,8 @@ def choose(choices: dict, prompt: str, icons: dict[str, str] | None = None) -> s
         MENU_ICONS if prompt in ('Main Menu', 'Desktop Settings') else {})
     rows = ''.join(label + '\0icon\x1f' + safe_icon(supplied.get(label, MENU_ICONS.get(BACK)
                    if label == BACK else DEFAULT_ICON)) + '\n' for label in choices)
+    if len(choices) > MAX_APPS + 1 or len(rows.encode('utf-8')) > MAX_MENU_BYTES:
+        raise ValueError('application picker input exceeds the managed bounds')
     result = subprocess.run([FUZZEL, 'menu', '--dmenu', '--prompt', prompt + ': '],
                             input=rows, text=True, encoding='utf-8', stdout=subprocess.PIPE, env=env, check=False)
     if result.returncode == 1:
@@ -320,15 +326,18 @@ def run_action(argv: tuple[str, ...]) -> None:
     subprocess.run(argv, check=True)
 
 
-def run_menu() -> None:
+def run_menu(initial: str | None = None) -> None:
     top = dict.fromkeys(('Search Applications', *DISPLAY_CATEGORIES, 'Terminal',
                          'Files', 'Computer Management', 'Desktop Settings', 'Lock', 'Logout', 'Power'))
     while True:
-        selected = choose(top, 'Main Menu')
+        selected = initial if initial is not None else choose(top, 'Main Menu')
+        initial = None
         if selected is None:
             return
-        if selected in ACTIONS:
+        if selected in ACTIONS and selected != 'Search Applications':
             run_action(ACTIONS[selected])
+            if selected in ('Computer Management', 'Power'):
+                continue
             return
         if selected == 'Desktop Settings':
             choices = dict(SETTINGS_ACTIONS)
@@ -336,17 +345,15 @@ def run_menu() -> None:
         else:
             # Fresh process, same user and XDG/session/output environment.
             result = subprocess.run([SELF, '--list'], check=True, text=True,
-                                    stdout=subprocess.PIPE)
+                                    stdout=subprocess.PIPE, timeout=10)
             apps = json.loads(result.stdout)
-            choices = app_choices(apps, selected)
+            choices = app_choices(apps, None if selected == 'Search Applications' else selected)
             by_id = {app['id']: safe_icon(app.get('icon')) for app in apps}
             icons = {label: by_id[desktop_id] for label, desktop_id in choices.items()}
         choices[BACK] = None
         item = choose(choices, selected, icons)
-        if item == BACK:
+        if item is None or item == BACK:
             continue
-        if item is None:
-            return
         if selected == 'Desktop Settings':
             run_action(choices[item])
         else:
@@ -359,6 +366,7 @@ def main(argv: list[str] | None = None) -> int:
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--list', action='store_true', help='list visible apps as JSON (diagnostic)')
     group.add_argument('--launch', metavar='DESKTOP_ID', help='launch an effective visible desktop ID')
+    group.add_argument('--search', action='store_true', help='search all applications with navigation back to the main menu')
     options = parser.parse_args(argv)
     if os.geteuid() == 0:
         raise RuntimeError('the application menu must run as the desktop user, not root')
@@ -367,6 +375,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(enumerate_apps(), ensure_ascii=False))
     elif options.launch is not None:
         launch_desktop(options.launch)
+    elif options.search:
+        run_menu('Search Applications')
     else:
         run_menu()
     return 0

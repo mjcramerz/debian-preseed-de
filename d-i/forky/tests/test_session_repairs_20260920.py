@@ -318,7 +318,7 @@ class IntegrationTests(unittest.TestCase):
     def test_assets_are_staged_and_hwdb_built_in_target(self):
         source=render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/components.sh'))
         for name in ('labwc-wallpaper-control','labwc-notification-send','labwc-wlsunset',
-                     'labwc-configure-session-repairs','90-thinkpad-extra-buttons.hwdb','sudo-i.conf'):
+                     'labwc-configure-session-repairs','sudo-i.conf'):
             self.assertIn(name,source)
         self.assertIn('/usr/bin/systemd-hwdb --strict update',source)
         self.assertIn('desktop_stage_session_repairs\n',source)
@@ -335,9 +335,9 @@ class IntegrationTests(unittest.TestCase):
             match='evdev:name:ThinkPad Extra Buttons:dmi:bvnLENOVO:bvrTEST:bd01:svnLENOVO:pnTEST:pvrTEST:'
             (directory/'60-test.hwdb').write_text('evdev:name:*:dmi:*\n KEYBOARD_KEY_01=screenlock\n KEYBOARD_KEY_ff=prog1\n\n')
             self.assertFalse(payload_source_exists(TARGET/'etc/udev/hwdb.d/90-thinkpad-extra-buttons.hwdb'))
-            # The installer removes the retired asset, then rebuilds this database.
+            # The fresh installer rebuilds the packaged hardware database.
             source=render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/components.sh'))
-            self.assertIn('remove_target_asset /etc/udev/hwdb.d/90-thinkpad-extra-buttons.hwdb',source)
+            self.assertNotIn('remove_target_asset /etc/udev/hwdb.d/90-thinkpad-extra-buttons.hwdb',source)
             update=subprocess.run(payload_installed_argv(['systemd-hwdb','--strict','--root',str(root),'update']),capture_output=True,text=True)
             self.assertEqual(update.returncode,0,update.stderr)
             result=subprocess.run(payload_installed_argv(['systemd-hwdb','--root',str(root),'query',match]),capture_output=True,text=True)

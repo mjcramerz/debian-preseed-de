@@ -5,6 +5,10 @@ Wayland desktop. The deployment target is Debian Forky with systemd 262.
 Review the selected host profile, disk identifiers and credentials before use;
 installation repartitions the selected disks.
 
+This repository provisions fresh installations. Installer policy and saved runtime
+state use their current formats; old-installation migration paths and legacy
+configuration defaults are unsupported.
+
 The desktop role clones the Obsidian vault from the managed GitLab SSH
 repository into `~/Syncthing/obsidian-md`. An account-local Labwc timer
 commits settled edits and forwards the main branch to staging and release
@@ -142,16 +146,17 @@ on arm64. The archive worker requires its AppArmor profile and an active systemd
 user manager.
 
 The managed qBittorrent desktop entry starts `labwc-qbittorrent` in a session
-service. It uses `/run/media/<user>/bittorrent` when present; if that transient
-volume is absent, it creates private persistent storage in `~/bittorrent`.
+service. It requires a mounted `/run/media/<user>/bittorrent` volume before
+creating storage or its private profile; missing media fails the launch.
 The launcher's TCP/UDP listener, both kernel DNAT forwards and the `addon/software`
 firewall overlay use the profile's `LABWC_QBITTORRENT_PORT`. Ports are canonical
 decimal integers in `1024..65535`; the default is `50309`. The current P15s
 profile selects `50308`. Forward both TCP and UDP from the router to the same
 selected port on the system's LAN address.
 
-qBittorrent runs in a private Bubblewrap network with a dynamically allocated
-`eth0` veth address.
+qBittorrent runs in a private Bubblewrap network with an install-rendered
+static private address, `10.203.0.114` on `eth0` by default. Its subnet, interface
+names and reserved slot come from `hosts/installer/identity.env`.
 The launcher selects the active IPv4 Internet route, excludes loopback and
 Tailscale, and pins kernel-routed outbound traffic and both host peer listeners
 to that route's source address. Both forwards must succeed before the payload
@@ -171,8 +176,8 @@ prolonged outage.
 Relaunch after changing the route or VPN. Router forwarding works when the
 Internet route uses the router connection; a VPN route needs forwarding at its
 own public endpoint. This forwarding contract requires IPv4. DNS uses an extra
-loopback listener of the host systemd-resolved service, including its active VPN
-and split DNS policy. DHT, PeX, LSD, automatic port mapping and the Web UI remain disabled;
+dnsmasq loopback listener, which caches queries and sends misses to Stubby
+for authenticated DoT and DNSSEC validation. DHT, PeX, LSD, automatic port mapping and the Web UI remain disabled;
 HTTPS tracker certificates are checked and normal tracker failover is used.
 
 Managed qBittorrent launches use Qt's built-in Fusion style to avoid the supplied
@@ -193,14 +198,16 @@ PurePrivacy launches also use veth; the existing offline KeePassXC and
 RetroArch PurePrivacy policies remain offline. Generic desktop wrappers route
 known package executable paths back through these managed launchers.
 
-`app-veth.service` pre-creates 32 separate veth pairs at boot before publishing
+`app-veth.service` pre-creates the configured 64 separate veth pairs at boot before publishing
 readiness or starting the greeter and Podman API service. Idle host adapters
-are `veth0-app` through `veth31-app`, with matching `vethN-peer` endpoints;
+are `veth0-app` through `veth63-app`, with matching `vethN-peer` endpoints;
 both ends stay DOWN until assigned. NetworkManager leaves these reserved slots
 to the service. Each authenticated lease moves an existing peer into the
 caller's namespace. Host names stay fixed for the entire pool lifetime; app
-names are recorded in structured lifecycle logs. Current and future managed
-policies need no interface-name mappings. Apps never create host adapters.
+names are recorded in structured lifecycle logs. Each application has reserved
+slots, so launch order cannot change its primary address. Concurrent namespaces
+use secondary slots belonging to the same application. A subnet conflict fails
+without switching address ranges. See [the network policy](docs/app-veth.md). Apps never create host adapters.
 
 The service validates each namespace FD and its owning account before
 attaching the existing veth. Firewall changes commit before the payload startup
@@ -215,9 +222,9 @@ The uplinks are IPv4; route
 interface MTU is preserved and no traffic shaper or userspace packet router is
 introduced. Actual throughput still needs measurement on the installed host.
 
-Private DNS requests at `10.0.2.3:53` are sent to systemd-resolved's extra
-loopback listener, `127.0.0.1:53053`, over TCP or UDP. The main host stub and
-the host's DNS/VPN policy remain authoritative. Lifecycle records go to
+Private DNS requests at `10.0.2.3:53` are sent to the dedicated dnsmasq
+listener, `127.0.0.1:53053`, over TCP or UDP. Its cache misses go to Stubby at
+`127.0.0.1:53054`; host and VPN split DNS remain separate. Lifecycle records go to
 `/var/log/managed/network/veth.log` through the managed logging/rotation policy.
 Application state and selected document/device paths are retained explicitly;
 each application's private temporary IPC directory supports subsequent launches.
@@ -232,7 +239,7 @@ namesake program. Codex and ChatGPT retain the existing
 `/run/podman-devops/podman.sock` Unix API binding for container/custom MCP work.
 User-installed MCP configuration is independent of this installer networking.
 
-The installer renders the broker's account and peer port through the validated
+The installer renders the broker's account, network identities and peer port through the validated
 scalar map, then runs `app-veth --check-config` before enabling the service.
 Malformed or non-regular configuration fails during installation. The broker's
 enforced AppArmor profile permits Forky's resolved `ip` executable, its immutable
@@ -320,3 +327,12 @@ does not authenticate the initial preseed: checksums embedded in it do not
 repair that trust boundary. Restrict access to the repository and browser
 inputs. Read `SECURITY.md` before deployment, especially the retained,
 source-specific legacy CUDA authentication exception.
+
+### Launcher navigation
+
+Win+S opens Search Applications. Search uses the same visible GIO application
+catalog and reviewed dispatch as the categorized main menu, and includes Back.
+Win+Backspace cancels the focused fuzzel picker and returns to its previous menu
+one step; it also returns from Search Applications to the main menu. Root menus
+close when there is no parent. Win+Alt opens Computer Management, and Win+M opens
+Spotify. Fuzzel owns the Back shortcut while its overlay has keyboard focus.

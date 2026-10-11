@@ -770,8 +770,6 @@ def synchronize_tuta_mime_defaults(account_home: str, uid: int, gid: int) -> boo
     handled: set[str] = set()
     seen: set[str] = set()
     targets = {"Default Applications", "Added Associations"}
-    legacy_ids = {TUTA_DESKTOP_ID, "tuta-mail.desktop",
-                  "appimagekit-tutanota-desktop.desktop", "com.tutanota.Tutanota.desktop"}
     def finish_section() -> None:
         if section in targets and section not in handled:
             if output and not output[-1].endswith("\n"):
@@ -792,13 +790,8 @@ def synchronize_tuta_mime_defaults(account_home: str, uid: int, gid: int) -> boo
                 output.append(f"{key}={TUTA_DESKTOP_ID};\n")
                 seen.add(key)
             continue
-        # Older seeds advertised .eml as an OS-open action. Tuta's managed
-        # launcher advertises URI handling, not command-line RFC822 importing.
-        if (section in targets and key == "message/rfc822" and separator
-                and set(filter(None, value.split(";"))) <= legacy_ids):
-            continue
         if section == "Removed Associations" and key in TUTA_SCHEMES and separator:
-            remaining = [item for item in value.split(";") if item and item not in legacy_ids]
+            remaining = [item for item in value.split(";") if item and item != TUTA_DESKTOP_ID]
             if remaining:
                 output.append(f"{key}={';'.join(remaining)};\n")
             continue

@@ -15,7 +15,7 @@ edns_client_subnet_private: 1
 round_robin_upstreams: 0
 idle_timeout: 9000
 listen_addresses:
-- 127.0.0.1@53054
+- __INSTALLER_APP_VETH_TLS_HOST_ADDRESS__@__INSTALLER_APP_VETH_TLS_HOST_PORT__
 dnssec: GETDNS_EXTENSION_TRUE
 appdata_dir: "/var/cache/stubby"
 # getdns 1.7.3 treats a scalar as a zone-file path. A YAML list must contain

@@ -246,13 +246,13 @@ desktop_install_hardware_tuning
                 root = Path(temporary)
                 path = root / "etc/skel-desktop/.config/waybar/config"
                 path.parent.mkdir(parents=True)
-                original = [{"name": "internal", "battery": {"on-click": "original-energy-profile-command", "interval": 5}},
-                            {"name": "external", "battery": {"on-click": "another original", "states": {"critical": 15}}}]
+                original = [{"name": "internal", "custom/battery": {"on-click": "original-energy-profile-command", "interval": 5}},
+                            {"name": "external", "custom/battery": {"on-click": "another original", "states": {"critical": 15}}}]
                 path.write_text(json.dumps(original))
                 installer.install(root, 1000, 1000, environment(), vendors, FORKY / "hooks/target")
                 installed = json.loads(payload_read_text(path))
                 for before, after in zip(original, installed):
-                    self.assertEqual(after["battery"].pop("on-click-right"), installer.CLICK)
+                    self.assertEqual(after["custom/battery"].pop("on-click-right"), installer.CLICK)
                     self.assertEqual(after, before)
                 self.assertTrue((root / "etc/systemd/system/sockets.target.wants/hardware-tuning.socket").is_symlink())
                 self.assertTrue((root / "etc/systemd/system/sleep.target.requires/hardware-tuning-sleep.service").is_symlink())
@@ -985,7 +985,6 @@ class DevopsAndMenuTests(unittest.TestCase):
             client.menu()
         self.assertEqual(len(choices[1]), 9)
         self.assertIn("Set Silent Profile [Nvidia]", choices[1])
-
 
 
 class ReviewHardeningTests(unittest.TestCase):

@@ -263,11 +263,6 @@ validate_desktop_role() {
       [ -d "$skeleton" ]
       [ ! -L "$skeleton" ]
       [ "$(find -P "$skeleton" -maxdepth 0 -printf "%U:%G:%m")" = "0:0:755" ]
-      legacy_skeleton_parent=/etc/skel
-      legacy_skeleton_name=primary
-      legacy_skeleton="${legacy_skeleton_parent}/${legacy_skeleton_name}"
-      [ ! -e "$legacy_skeleton" ]
-      [ ! -L "$legacy_skeleton" ]
     ' sh
   desktop_account_user=$(
     /bin/sh -eu -c '

@@ -192,11 +192,6 @@ class HostPolicyTests(unittest.TestCase):
             with mock.patch.object(HOST, 'run', return_value='podman version ' + version), self.assertRaises(HOST.Failure):
                 HOST.require_podman_version()
 
-    def test_legacy_account_refused_before_any_write(self):
-        with mock.patch.object(HOST.pwd, 'getpwnam', return_value=object()), mock.patch.object(HOST, 'run') as run:
-            with self.assertRaisesRegex(HOST.Failure, 'legacy'):
-                HOST.account(True)
-            run.assert_not_called()
 
     def test_service_account_creation_never_creates_a_home_or_copies_a_skeleton(self):
         group = types.SimpleNamespace(gr_gid=123)
@@ -269,21 +264,16 @@ class HostPolicyTests(unittest.TestCase):
             HOST.account(True)
         run.assert_not_called()
 
-    def test_service_account_rejects_home_and_legacy_home_state(self):
+    def test_service_account_rejects_home_state(self):
         with tempfile.TemporaryDirectory(prefix='podman-no-home-') as name:
             root = Path(name)
             home = root / 'nonexistent'
-            legacy = root / 'legacy-home'
-            with mock.patch.object(HOST, 'HOME', home), \
-                 mock.patch.object(HOST, 'LEGACY_HOME', legacy):
+            with mock.patch.object(HOST, 'HOME', home):
                 HOST.reject_service_account_home()
                 home.mkdir()
                 with self.assertRaisesRegex(HOST.Failure, 'must not have a home'):
                     HOST.reject_service_account_home()
-                home.rmdir()
-                legacy.mkdir()
-                with self.assertRaisesRegex(HOST.Failure, 'must not have a home'):
-                    HOST.reject_service_account_home()
+
 
     def test_service_account_user_manager_state_is_forbidden(self):
         with tempfile.TemporaryDirectory(prefix='podman-no-user-manager-') as name:
@@ -770,7 +760,6 @@ class IntegrationContractTests(unittest.TestCase):
 
     def test_service_account_has_no_home_linger_user_units_or_desktop_inheritance(self):
         self.assertEqual(HOST.HOME, Path('/nonexistent'))
-        self.assertEqual(HOST.LEGACY_HOME, Path('/data/accounts/devops'))
         self.assertFalse(hasattr(HOST, 'SERVICE_ACCOUNT_FORBIDDEN_HOME_PATHS'))
         self.assertFalse(hasattr(HOST, 'SERVICE_ACCOUNT_MASKED_USER_UNITS'))
         source = payload_read_text(TARGET / 'usr/local/libexec/podman-devops-host')

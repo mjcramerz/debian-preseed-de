@@ -173,19 +173,6 @@ class NativeWriterTests(unittest.TestCase):
         journal=self.root/'var/log/journal/old/system.journal';journal.parent.mkdir(parents=True);journal.write_bytes(b'old journal')
         fstab=self.root/'etc/fstab';fstab.write_bytes(b'old mounts');self.configure()
         self.assertEqual(journal.read_bytes(),b'old journal');self.assertEqual(fstab.read_bytes(),b'old mounts')
-    def test_retirement_exact_files_is_idempotent(self):
-        entries=json.loads((SEED/'tests/fixtures/logging-r3-obsolete.json').read_text())
-        for absolute,text in entries.items():
-            path=self.root/absolute.lstrip('/');path.parent.mkdir(parents=True,exist_ok=True);path.write_text(text);path.chmod(0o644)
-        native.retire_r3(self.root);native.retire_r3(self.root)
-        for absolute in entries:self.assertFalse((self.root/absolute.lstrip('/')).exists())
-    def test_retirement_preserves_modified_file_and_peer(self):
-        entries=json.loads((SEED/'tests/fixtures/logging-r3-obsolete.json').read_text())
-        for absolute,text in entries.items():
-            path=self.root/absolute.lstrip('/');path.parent.mkdir(parents=True,exist_ok=True);path.write_text(text);path.chmod(0o644)
-        absolute=next(iter(entries));path=self.root/absolute.lstrip('/');path.write_text(path.read_text()+'# administrator\n')
-        with self.assertRaises(native.ConfigError):native.retire_r3(self.root)
-        self.assertTrue(all((self.root/p.lstrip('/')).exists() for p in entries))
 
 class ActualPublisherTests(unittest.TestCase):
     def setUp(self):

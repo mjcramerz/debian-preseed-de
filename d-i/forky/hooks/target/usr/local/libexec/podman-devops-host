@@ -28,7 +28,6 @@ from typing import Iterator
 
 USER = 'devops'
 HOME = Path('/nonexistent')
-LEGACY_HOME = Path('/data/accounts/devops')
 NOLOGIN = '/usr/sbin/nologin'
 POOL_ROOT = Path('/pool')
 POOL = POOL_ROOT / 'podman'
@@ -364,19 +363,12 @@ def password_locked() -> bool:
 
 
 def reject_service_account_home() -> None:
-    """The locked account has no home; legacy home-shaped state is rejected."""
-    for path in (HOME, LEGACY_HOME):
-        if path.exists() or path.is_symlink():
-            raise Failure(f'devops must not have a home directory: {path}')
+    """The locked service account must have no home directory."""
+    if HOME.exists() or HOME.is_symlink():
+        raise Failure(f'devops must not have a home directory: {HOME}')
 
 
 def account(create: bool = False) -> tuple[int, int]:
-    try:
-        pwd.getpwnam('podsvc')
-    except KeyError:
-        pass
-    else:
-        raise Failure('legacy podsvc account found; export/migrate its workloads offline first; no account or data was deleted')
     try:
         group = grp.getgrnam(USER)
     except KeyError:
@@ -453,7 +445,6 @@ def reject_user_manager_state(uid: int) -> None:
     forbidden = (
         Path('/var/lib/systemd/linger') / USER,
         HOME / '.config/systemd',
-        LEGACY_HOME / '.config/systemd',
         Path(f'/etc/systemd/system/user@{uid}.service.d/50-podman-devops.conf'),
         Path(f'/etc/systemd/system/user-{uid}.slice.d/50-podman-devops.conf'),
         USER_RUNTIME_ROOT / str(uid) / 'bus',

@@ -1121,18 +1121,6 @@ sub set_application_mode {
     return $self->_policy_service("application-$application-$mode");
 }
 
-sub set_desktop_state {
-    my ($self, $mode, $confirmation) = @_;
-
-    $confirmation eq 'confirmed-apparmor-desktop-state-change'
-        or die "AppArmor desktop profile mode changes require explicit confirmation\n";
-    $mode =~ /\A(?:enforce|complain|disable)\z/
-        or die "unsupported AppArmor desktop profile mode: $mode\n";
-    # Backward-compatible action token, but never replay the old live-unload
-    # operation. Full disablement is explicitly a next-boot kernel setting.
-    return $self->_policy_service($mode eq 'disable' ? 'boot-disable' : "global-$mode");
-}
-
 sub set_boot_state {
     my ($self, $mode, $confirmation) = @_;
     $confirmation eq 'confirmed-apparmor-boot-state-change'

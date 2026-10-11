@@ -18,7 +18,6 @@ from .network_client import pin_sandbox_init
 BWRAP_INFO_MAX_BYTES = 16_384
 BWRAP_NETWORK_SETUP_TIMEOUT_SECONDS = 15
 PROCESS_STOP_TIMEOUT_SECONDS = 2
-VETH_DNS_ADDRESS = "10.0.2.3"
 
 
 def veth_resolv_conf() -> str:

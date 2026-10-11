@@ -11,6 +11,11 @@ match-mode=fzf
 filter-desktop=yes
 layer=overlay
 
+# Cancellation unwinds the active picker through its caller's menu loop.
+# Keep the native cancellation keys and use Super only inside the focused UI.
+[key-bindings]
+cancel=Control+g Control+c Control+bracketleft Escape Mod4+BackSpace
+
 [colors]
 background=__THEME_FUZZEL_MENU_BACKGROUND_COLOR__
 text=__THEME_FUZZEL_MENU_NORMAL_TEXT_COLOR__

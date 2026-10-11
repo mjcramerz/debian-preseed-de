@@ -2307,11 +2307,7 @@ software_stage_seed_asset \
   "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.config/systemd/user/apt-repo-local-software-notify.path)" \
   "$software_notify_path" 0644
 
-run_in_target "enable local APT inbox and weekly refresh; retire old install timers" /bin/sh -eu -c '
-for legacy in apt-repo-local-software-download apt-repo-local-software-update; do
-  systemctl --root=/ disable "$legacy.timer" 2>/dev/null || :
-  rm -f -- "/etc/systemd/system/$legacy.timer" "/etc/systemd/system/$legacy.service"
-done
+run_in_target "enable local APT inbox and weekly refresh" /bin/sh -eu -c '
 systemctl --root=/ enable apt-repo-local-inbox.path apt-repo-local-refresh.timer >/dev/null
 systemctl --root=/ is-enabled apt-repo-local-inbox.path apt-repo-local-refresh.timer >/dev/null
 ' sh

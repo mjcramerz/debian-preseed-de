@@ -338,7 +338,7 @@ sub _clear_package_default_link {
         defined($target) && $target eq DEFAULT_PATH
             or die "unrecognized ChatGPT package-default link\n";
     } elsif (($st[2] & S_IFMT) == S_IFREG) {
-        # A known, older installer policy or vendor rewrite of the same content.
+        # The current vendor package may rewrite this canonical defaults file.
         $self->_destination_matches(CANONICAL_DEFAULT, PACKAGE_DEFAULT_PATH, 4096)
             or die "unrecognized ChatGPT package-default file\n";
     } else {

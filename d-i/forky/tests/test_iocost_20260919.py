@@ -551,50 +551,6 @@ iocost_native_hwdb() {
         self.assertFalse(any((self.target / rel).exists() for rel in ASSETS[1:]))
 
 
-    def legacy_generation(self):
-        self.native()
-        result = self.run_policy(before=ROOT_TOOL)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        old = ('etc/systemd/iocost.conf',
-               'etc/systemd/iocost.conf.d/70-unattended-installer.conf')
-        for current, previous in zip(ASSETS[:2], old):
-            destination = self.target / previous
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            (self.target / current).rename(destination)
-        (self.target / COMPAT).symlink_to('../systemd/iocost.conf.d/70-unattended-installer.conf')
-        return old
-
-    def test_legacy_owned_generation_migrates_to_regular_native_files(self):
-        old = self.legacy_generation()
-        result = self.run_policy(before=ROOT_TOOL)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        for relative in old:
-            self.assertFalse((self.target / relative).exists())
-        for relative in ASSETS[:2]:
-            path = self.target / relative
-            self.assertTrue(path.is_file())
-            self.assertFalse(path.is_symlink())
-            self.assertEqual(payload_read_text(path).count('TargetSolution=naive'), 1)
-        result = self.run_policy(profile('btrfs-de'), before=ROOT_TOOL)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assert_absent()
-
-    def test_legacy_migration_failure_restores_links_and_original_bytes(self):
-        old = self.legacy_generation()
-        originals = {rel: payload_read_bytes(self.target / rel) for rel in (*old, SAVED, 'etc/udev/hwdb.bin')}
-        failure = ROOT_TOOL + """
-iocost_native_hwdb() {
-  case "$1" in --root=/) return 73 ;; esac
-  target_exec /usr/bin/systemd-hwdb "$@"
-}
-"""
-        result = self.run_policy(before=failure)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(os.readlink(self.target / COMPAT), '../systemd/iocost.conf.d/70-unattended-installer.conf')
-        for relative, original in originals.items():
-            self.assertEqual(payload_read_bytes(self.target / relative), original)
-        self.assertFalse((self.target / ASSETS[1]).exists())
-
     def test_unmanaged_legacy_files_are_never_deleted(self):
         self.native()
         old = self.target / 'etc/systemd/iocost.conf'

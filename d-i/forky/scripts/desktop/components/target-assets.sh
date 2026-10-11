@@ -9,9 +9,6 @@ desktop_stage_session_repairs() {
     chown root:root "$public_host"
     chmod 0755 "$public_host"
   done
-  # Retire the old key remap, including reruns on an existing target. The strict
-  # hwdb rebuild below also removes its entries from the compiled database.
-  remove_target_asset /etc/udev/hwdb.d/90-thinkpad-extra-buttons.hwdb
   desktop_stage_role_asset usr/local/libexec/labwc-wallpaper-control /usr/local/libexec/labwc-wallpaper-control 0755
   desktop_stage_role_asset usr/local/libexec/labwc-notification-send /usr/local/libexec/labwc-notification-send 0755
   desktop_stage_role_asset usr/local/libexec/labwc-configure-session-repairs /usr/local/libexec/labwc-configure-session-repairs 0755
@@ -133,7 +130,6 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset etc/systemd/system/labwc-package-sleep-guard.service.tmpl /etc/systemd/system/labwc-package-sleep-guard.service 0644
   desktop_stage_role_asset etc/systemd/system/sleep.target.d/50-package-lock-guard.conf /etc/systemd/system/sleep.target.d/50-package-lock-guard.conf 0644
   desktop_stage_role_asset usr/local/libexec/greetd-power-action-root /usr/local/libexec/greetd-power-action-root 0755
-  desktop_remove_legacy_power_transactions || return 1
   desktop_stage_role_asset usr/local/bin/labwc-calendar /usr/local/bin/labwc-calendar 0755
   desktop_stage_role_asset usr/local/libexec/labwc-calendar /usr/local/libexec/labwc-calendar 0755
   desktop_stage_role_asset usr/local/libexec/labwc-plans.pl /usr/local/libexec/labwc-plans.pl 0755
@@ -223,12 +219,17 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/libexec/labwc-private-xwayland /usr/local/libexec/labwc-private-xwayland 0755
   desktop_stage_role_asset usr/local/libexec/labwc-compat-open-uri /usr/local/libexec/labwc-compat-open-uri 0755
   desktop_validate_uint_range LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}" 1024 65535
+  desktop_veth_identity=$(app_veth_identity_placeholder_map) || desktop_fatal "invalid application network identity"
+  desktop_qbittorrent_address=$(printf "%s\n" "$desktop_veth_identity" | awk -F= '$1 == "APP_VETH_QBITTORRENT_ADDRESS" { print $2 }')
+  [ -n "$desktop_qbittorrent_address" ] || desktop_fatal "missing qBittorrent network identity"
   desktop_render_role_target_template \
     etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf.tmpl \
     /etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf \
     0644 \
     ACCOUNT_USERNAME "$ACCOUNT_USERNAME" \
-    LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}"
+    LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}" \
+    APP_VETH_NAMESPACE_INTERFACE "$APP_VETH_NAMESPACE_INTERFACE" \
+    APP_VETH_QBITTORRENT_ADDRESS "$desktop_qbittorrent_address"
   desktop_stage_role_asset usr/local/bin/labwc-qbittorrent /usr/local/bin/labwc-qbittorrent 0755
   desktop_stage_role_asset usr/local/bin/zoom /usr/local/bin/zoom 0755
   desktop_render_role_target_template \
@@ -316,9 +317,6 @@ desktop_stage_target_assets() {
   desktop_stage_mullvad_dns_policy
   install -d -m 0700 /target/etc/skel-desktop/.config/autostart
   desktop_stage_mullvad_application_policy
-  # Retire the global /dev watcher on installer reruns as well as fresh installs.
-  rm -f /target/etc/systemd/system/nvidia-char-links.path \
-    /target/etc/systemd/system/multi-user.target.wants/nvidia-char-links.path
   if [ "${LABWC_NVIDIA_ACCELERATION_AVAILABLE:-false}" = true ]; then
     desktop_stage_role_asset etc/systemd/system/nvidia-powerd.service.d/10-device-guard.conf /etc/systemd/system/nvidia-powerd.service.d/10-device-guard.conf 0644
     desktop_stage_role_asset etc/udev/rules.d/71-nvidia-char-links.rules /etc/udev/rules.d/71-nvidia-char-links.rules 0644

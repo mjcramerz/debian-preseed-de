@@ -11,7 +11,7 @@ desktop_log_policy_context() {
   desktop_log "policy outputs=${LABWC_OUTPUT_POLICY:-auto} detected=${LABWC_DETECTED_OUTPUTS:-none} internal=${LABWC_DETECTED_INTERNAL_OUTPUTS:-none} external=${LABWC_DETECTED_EXTERNAL_OUTPUTS:-none} primary=${LABWC_DETECTED_PRIMARY_OUTPUT:-none}"
   desktop_log "policy acceleration intel=${LABWC_INTEL_ACCELERATION_AVAILABLE:-false} nvidia=${LABWC_NVIDIA_ACCELERATION_AVAILABLE:-false}"
   desktop_log "policy enables waybar=${LABWC_ENABLE_WAYBAR:-true} kanshi=${LABWC_ENABLE_KANSHI:-false} mako=${LABWC_ENABLE_MAKO:-true} swayidle=${LABWC_ENABLE_SWAYIDLE:-true} swaybg=${LABWC_ENABLE_SWAYBG:-true} polkit=${LABWC_ENABLE_POLKIT_AGENT:-true} portal=${LABWC_ENABLE_XDG_DESKTOP_PORTAL:-true}"
-  desktop_log "policy commands launcher=${LABWC_LAUNCHER_COMMAND:-labwc-fuzzel launcher} menu=${LABWC_MENU_COMMAND:-labwc-main-menu} file_manager=${LABWC_FILE_MANAGER_COMMAND:-thunar} terminal=${LABWC_TERMINAL_PRIMARY:-foot}/${LABWC_TERMINAL_FALLBACK:-kitty} brightness=${LABWC_BRIGHTNESS_CONTROL_COMMAND:-labwc-brightness-control} power=${LABWC_POWER_SETTINGS_COMMAND:-labwc-power-settings}"
+  desktop_log "policy commands launcher=${LABWC_LAUNCHER_COMMAND:-labwc-main-menu --search} menu=${LABWC_MENU_COMMAND:-labwc-main-menu} file_manager=${LABWC_FILE_MANAGER_COMMAND:-thunar} terminal=${LABWC_TERMINAL_PRIMARY:-foot}/${LABWC_TERMINAL_FALLBACK:-kitty} brightness=${LABWC_BRIGHTNESS_CONTROL_COMMAND:-labwc-brightness-control} power=${LABWC_POWER_SETTINGS_COMMAND:-labwc-power-settings}"
 }
 
 desktop_install_codex_standalone() (

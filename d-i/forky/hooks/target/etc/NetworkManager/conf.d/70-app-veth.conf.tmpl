@@ -1,0 +1,6 @@
+# The privileged app-veth service exclusively configures these endpoints.
+# NetworkManager supports only * and ? globs, not bracket ranges. List the
+# exact pool names literally so other host or Netavark interfaces remain eligible.
+[device-app-veth]
+__INSTALLER_APP_VETH_UNMANAGED_MATCH__
+managed=0

@@ -221,3 +221,10 @@ cidrs:
   - 10.88.0.0/16
   container_ipv6:
   - fd00::/8
+
+# The earlier app_veth hook validates sources and denies host/lateral access.
+# These exact names allow only broker-approved flows through this base table.
+app_veth:
+  interfaces: __INSTALLER_APP_VETH_HOST_INTERFACES__
+  dns_host_address: "__INSTALLER_APP_VETH_DNS_HOST_ADDRESS__"
+  dns_host_port: __INSTALLER_APP_VETH_DNS_HOST_PORT__

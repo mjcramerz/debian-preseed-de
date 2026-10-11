@@ -259,9 +259,6 @@ sub _validate_config_values {
     my %managed_type = map { $_ => 1 } @types;
     $config->{MANAGED_NETWORK_MODE} eq 'static'
         or die "MANAGED_NETWORK_MODE must be static\n";
-    # Older host.conf files predate the global resolver handoff.
-    $config->{MANAGED_NETWORK_DNS_MODE} = 'link'
-        if $config->{MANAGED_NETWORK_DNS_MODE} eq q{};
     $config->{MANAGED_NETWORK_DNS_MODE} =~ /\A(?:link|global)\z/
         or die "MANAGED_NETWORK_DNS_MODE must be link or global\n";
     $self->_valid_domain($config->{MANAGED_NETWORK_DOMAIN})

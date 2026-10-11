@@ -349,10 +349,7 @@ desktop_skeleton=/etc/skel-desktop
 [ "$(find -P "$desktop_skeleton" -maxdepth 0 -printf "%U:%G")" = 0:0 ] ||
   fatal "desktop skeleton root must be owned by root:root: $desktop_skeleton"
 require_mode "$desktop_skeleton" 755
-legacy_skeleton_parent=/etc/skel
-legacy_skeleton_name=primary
-require_absent "${legacy_skeleton_parent}/${legacy_skeleton_name}"
-unset desktop_skeleton legacy_skeleton_name legacy_skeleton_parent
+unset desktop_skeleton
 
 require_symlink_target() {
   path=$1
@@ -589,13 +586,6 @@ grep -qx '\''Requires=labwc-package-sleep-guard.service'\'' /etc/systemd/system/
   fatal '\''sleep.target does not require the package lock guard'\''
 grep -qx '\''Before=sleep.target'\'' /etc/systemd/system/labwc-package-sleep-guard.service ||
   fatal '\''package lock guard is not ordered before sleep.target'\''
-for power_action in reboot poweroff; do
-  for power_kind in service target; do
-    legacy_power_unit="/etc/systemd/system/labwc-power-${power_action}.${power_kind}"
-    [ ! -e "$legacy_power_unit" ] && [ ! -L "$legacy_power_unit" ] ||
-      fatal "obsolete shutdown transaction remains installed: $legacy_power_unit"
-  done
-done
 require_mode /etc/systemd/user/wireplumber.service.d/60-resource-class.conf 644
 grep -Fxq '\''Slice=session.slice'\'' /etc/systemd/user/wireplumber.service.d/60-resource-class.conf ||
   fatal "WirePlumber session class is missing"
@@ -866,31 +856,6 @@ for account_local_package_dropin in \
 do
   require_absent "/etc/skel-desktop/.config/systemd/user/${account_local_package_dropin}.d/10-labwc-session.conf"
 done
-for legacy_user_unit in \
-  waybar.service \
-  waybar.service.d/20-tray-compat.conf \
-  labwc-adb-server.service \
-  llama-server.service \
-  labwc-output-watch.service \
-  labwc-mute-default-microphone.service \
-  swaybg.service \
-  kanshi.service \
-  swayidle.service \
-  crystal-dock.service \
-  labwc-kwallet-portal.service \
-  labwc-calendar-sync.service \
-  labwc-calendar-sync.timer \
-  labwc-sync-application-launchers.service \
-  labwc-sync-application-launchers.path \
-  apt-repo-local-software-notify.service \
-  apt-repo-local-software-notify.path \
-  whisper-record.service \
-  whisper-transcribe.service \
-  whisper-server.service
-do
-  require_absent "/etc/systemd/user/${legacy_user_unit}"
-done
-
 require_executable /usr/libexec/hyprpolkitagent
 require_executable /usr/local/libexec/labwc-hyprpolkit-agent
 /usr/local/libexec/labwc-hyprpolkit-agent --check

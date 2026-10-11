@@ -278,7 +278,7 @@ class ChromiumFlagTests(unittest.TestCase):
         text = payload_read_text(FORKY / 'scripts/late/security.sh')
         self.production = text
         self.function = 'apparmor_require_disconnected_profile_flags() {' + text.split(
-            'apparmor_require_disconnected_profile_flags() {', 1)[1].split('\napparmor_obsolete_profile_files()', 1)[0]
+            'apparmor_require_disconnected_profile_flags() {', 1)[1].split('\napparmor_disable_superseded_edge_profile()', 1)[0]
         self.function = self.function.replace('/target/etc/apparmor.d/', str(self.directory) + '/')
         self.path = self.directory / 'chromium'
 
