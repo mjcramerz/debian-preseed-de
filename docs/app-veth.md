@@ -160,13 +160,13 @@ validation. The installer renders the upstream IPv4 addresses, IPv6 addresses,
 TLS names and port from `hosts/installer/identity.env` (`SYSTEM_NAMESERVERS_*`),
 so site policy does not need to be duplicated in a preseed fragment. DNS1 uses
 `SYSTEM_NAMESERVERS_IPV4_DNS1`, `SYSTEM_NAMESERVERS_IPV6_DNS1` and
-`SYSTEM_NAMESERVERS_HOSTNAME_DNS1`; the corresponding `DNS2` variables select
-the optional fallback. Each enabled resolver requires a TLS hostname and at
+`SYSTEM_NAMESERVERS_HOSTNAME_DNS1`; the corresponding `DNS2` and `DNS3` variables select
+optional fallbacks. In public CA mode each enabled resolver requires a TLS hostname and at
 least one address. An empty address disables only that resolver's transport
-family; DNS A and AAAA queries remain supported. Leave all three DNS2 values
-empty for a single resolver. `SYSTEM_NAMESERVERS_PORT` applies to both resolvers.
+family; DNS A and AAAA queries remain supported. Leave all three values of each
+optional resolver empty for a single resolver. `SYSTEM_NAMESERVERS_PORT` applies to all resolvers.
 Both address families are enabled by default. With `round_robin_upstreams: 0`,
-Stubby uses the ordered DNS1 endpoints (IPv4, then IPv6) before DNS2 endpoints
+Stubby uses the ordered DNS1 endpoints (IPv4, then IPv6), then DNS2, then DNS3
 when an upstream is unavailable; it does not distribute queries round-robin.
 Stubby reads the distribution's root DNSKEYs from `/usr/share/dns/root.key`.
 The trust-anchor setting uses getdns's scalar zone-file form; a filename inside
@@ -185,10 +185,72 @@ VPN DNS server. TLS authentication failure remains a resolution failure.
 Stubby withholds invalid DNSSEC answers for requests with checking enabled.
 An explicit DNS Checking Disabled (CD) request retains the protocol's diagnostic
 behavior; dnsmasq does not insert its unchecked answer into the shared cache.
-Single-label and reverse queries also use this fixed
-upstream policy; private VPN zones are available through the host resolver,
-not through the managed app resolver. Application LAN restrictions remain
-enforced by the broker's packet policy.
+Single-label and reverse queries also use this fixed upstream policy; private
+VPN zones are available through the host resolver, not through the managed app
+resolver. Application LAN restrictions remain enforced by the broker's packet policy.
+
+### Public and custom DNS certificate trust
+
+`SYSTEM_DNS_UPSTREAM_TLS_CA_CUSTOM_ENABLE="false"` is the default. Stubby uses
+Debian's `/etc/ssl/certs/ca-certificates.crt` bundle. During installation, the
+target-side configurator performs a TLS handshake to a configured numeric
+address for each enabled DNS resolver, using its `SYSTEM_NAMESERVERS_HOSTNAME_DNSn`
+as SNI and as the expected authenticated identity. It checks the public CA
+chain, validity period and certificate DNS Subject Alternative Name (SAN);
+Common Name alone is insufficient. It renders that verified expected hostname
+as `tls_auth_name`. A certificate supplied by the remote endpoint cannot select
+a different trusted hostname, and no certificate is trusted on first use.
+
+The checks try IPv4 before IPv6 with bounded socket timeouts. One verified
+address family per configured resolver is sufficient for an IPv4-only or
+IPv6-only installer. Every configured endpoint remains in the ordered runtime
+list, and Stubby authenticates its certificate again when connecting. If no
+address of a resolver can complete a handshake, or its certificate fails
+authentication, installation stops before publishing the new Stubby config.
+The installer therefore needs connectivity to the configured TLS port and a
+correct system clock. This checks TLS authentication, not a live DNS answer.
+
+To use a private DNS CA, set in `hosts/installer/identity.env`:
+
+```sh
+SYSTEM_DNS_UPSTREAM_TLS_CA_CUSTOM_ENABLE="true"
+SYSTEM_NAMESERVERS_TLS_SAN_CUSTOM="dns.lan.icramer.com"
+```
+
+Set the intended private resolver IPs in DNS1/DNS2/DNS3, and clear unused
+resolver address fields. Custom mode uses this SAN hostname for every enabled
+resolver; the public `SYSTEM_NAMESERVERS_HOSTNAME_DNSn` fields are ignored.
+All custom resolvers must present certificates valid for that same name and CA.
+In the private installer-root `/preseed.env`, add:
+
+```sh
+PRESEED_DNS_UPSTREAM_TLS_CA_NAME_CUSTOM="public_cert.crt"
+```
+
+Include `/public_cert.crt` at the root of the installer initrd alongside
+`/preseed.env`. The name must be a basename including its extension, using ASCII
+letters, digits, `_`, `-` and `.`; paths and command-line overrides are not used.
+The installer checks root ownership, safe permissions, regular-file type and
+single-link ownership before copying. The trust input can be a PEM CA bundle
+or one DER CA certificate, at most 256 KiB. Private keys, leaf certificates,
+duplicate CAs and expired/not-yet-valid CAs are rejected.
+
+The normalized public CA material is installed as root-owned mode 0644 at
+`/etc/stubby/ca/upstream-custom.pem`, beneath root-owned directories without
+group/other write permission. That fixed path is rendered into `tls_ca_file`.
+It is readable by Stubby's DynamicUser and explicitly allowed by its AppArmor
+profile. Custom mode does not query public certificates or add the private CA
+to the operating system's general CA bundle. Runtime TLS authentication and
+DNSSEC remain required. The host's global resolver also reaches these upstreams
+through its existing local Stubby connection; VPN-specific DNS policy remains
+under the existing network manager.
+
+The installed `upstream_recursive_servers` is a readable block list with one
+entry per enabled IP, each containing `address_data`, `tls_port` and
+`tls_auth_name`. `round_robin_upstreams: 0` preserves ordered failover. Build-time
+validation checks the same endpoint ordering and trust paths without contacting
+the public resolvers. CA filenames and certificate contents are initrd inputs;
+neither belongs in the served installer repository.
 
 Systemd-resolved remains available for the host and VPN-specific consumers,
 including per-link DNS and route-only domains. A VPN setting `~.` therefore

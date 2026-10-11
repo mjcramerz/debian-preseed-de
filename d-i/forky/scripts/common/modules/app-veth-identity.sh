@@ -84,7 +84,11 @@ app_veth_identity_placeholder_map() (
       if (failed) exit 1
       cidr = values["APP_VETH_IPV4_CIDR"]
       if (split(cidr, parts, /\//) != 2 || parts[2] !~ /^(1[6-9]|2[0-9]|30)$/) fail("APP_VETH_IPV4_CIDR")
-      values["pool_address"] = parts[1]; base = ipv4("pool_address"); size = 2 ^ (32 - parts[2])
+      values["pool_address"] = parts[1]; base = ipv4("pool_address")
+      # busybox-udeb omits AWK math support (including exponentiation).
+      # Prefix validation above bounds this to at most 16 integer doublings.
+      size = 1
+      for (bit = parts[2] + 0; bit < 32; bit++) size *= 2
       if (!private_ipv4(base) || base % size) fail("APP_VETH_IPV4_CIDR")
       leases = integer("APP_VETH_MAX_LEASES", 1, 128)
       if (leases * 4 > size) fail("APP_VETH_MAX_LEASES")

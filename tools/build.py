@@ -411,6 +411,19 @@ def validate_tomat_profiles() -> None:
         if not re.fullmatch(r"[0-9a-f]{64}", values["SOFTWARE_TOMAT_SHA256"]):
             raise ValueError(f"{profile.name}: invalid Tomat SHA-256")
 
+def validate_dns_policy() -> None:
+    """Validate the public map and ordered endpoints without network probes."""
+    result = subprocess.run(['/bin/sh', '-eu', '-c',
+                             '. "$1"; . "$2"; . "$3"; app_veth_dns_placeholder_map', 'dns-policy',
+                             str(SEED / 'hosts/installer/identity.env'),
+                             str(SEED / 'scripts/common/modules/app-veth-identity.sh'),
+                             str(SEED / 'scripts/late/security.sh')],
+                            capture_output=True, timeout=15, check=True,
+                            env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'})
+    helper = runpy.run_path(str(SEED / 'scripts/late/stubby-config.py'), run_name='stubby_policy')
+    helper['parse_policy'](result.stdout)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true', help='fail if generated files are stale')
@@ -430,6 +443,7 @@ def main() -> int:
         validate_tomat_profiles()
         network_sharing_checker = runpy.run_path(str(ROOT / 'tools/check_network_sharing.py'))
         network_sharing_checker['check'](SEED)
+        validate_dns_policy()
         subprocess.run([resolve_python_interpreter(), '-B', str(ROOT / 'tools/build_browser_config.py')] +
                        (['--check'] if args.check else []), check=True)
         sync_lifecycle_helpers(args.check)

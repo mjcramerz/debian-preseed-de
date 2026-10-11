@@ -19,6 +19,7 @@ import grp
 import re
 import shutil
 import shlex
+import socket
 import stat
 import subprocess
 import sys
@@ -1375,6 +1376,170 @@ class MenuTests(unittest.TestCase):
             self.assertNotIn('shell', run.call_args.kwargs)
 
 
+class TerminalMountTests(unittest.TestCase):
+    """Actual fstab planning with mocked TCP and systemd; no live mounts."""
+
+    def setUp(self):
+        self.settings = NFS.Settings.from_environment(profile(NFS_CLIENT_ENABLE='true', NFS_CLIENT_BIND_ENABLE='true'))
+        self.config = NFS.public_config(self.settings)
+        self.fstab = '\n'.join(NFS.fstab_entries(self.settings)) + '\n'
+        self.read = self.enterContext(mock.patch.object(MENU, 'read_owned_file', side_effect=lambda *_: self.fstab.encode()))
+        self.account = self.enterContext(mock.patch.object(MENU.pwd, 'getpwuid', return_value=types.SimpleNamespace(
+            pw_name=self.settings['ACCOUNT_USERNAME'], pw_dir=self.settings['ACCOUNT_HOME'])))
+        self.probe = self.enterContext(mock.patch.object(MENU.socket, 'socket'))
+        self.command = self.enterContext(mock.patch.object(MENU, 'command', side_effect=self.reply))
+        self.output = io.StringIO()
+        self.enterContext(mock.patch('sys.stdout', self.output))
+        self.started = set()
+        self.fail_start = ''
+        self.skip_start = ''
+
+    def reply(self, argv, timeout):
+        unit = argv[-1]
+        if 'start' in argv:
+            if unit == self.fail_start:
+                return subprocess.CompletedProcess(argv, 1, 'mount or authorization failed')
+            if unit != self.skip_start:
+                self.started.add(unit)
+            return subprocess.CompletedProcess(argv, 0, '')
+        self.assertIn('show', argv)
+        bind = unit == self.config['client_bind_mount']
+        remote = self.settings['NFS_CLIENT_TARGET_IP'] + ':' + self.settings['NFS_CLIENT_EXPORT_PATH']
+        where = (self.settings['ACCOUNT_HOME'] + '/' + self.settings['NFS_CLIENT_HOME_BIND_PATH']
+                 if bind else self.settings['NFS_CLIENT_PATH'])
+        mounted = unit in self.started
+        # systemd 262 switches What/Type to the kernel's NFS filesystem for
+        # active binds, and NFSv4 is reported as nfs4 even for fstab type nfs.
+        what = remote if mounted or not bind else self.settings['NFS_CLIENT_PATH']
+        kind = 'nfs4' if mounted else ('none' if bind else 'nfs')
+        text = (f'LoadState=loaded\nWhat={what}\nWhere={where}\nType={kind}\n'
+                + ('ActiveState=active\nSubState=mounted\n' if mounted else 'ActiveState=inactive\nSubState=dead\n'))
+        return subprocess.CompletedProcess(argv, 0, text)
+
+    def starts(self):
+        return [call.args[0][-1] for call in self.command.call_args_list if 'start' in call.args[0]]
+
+    def test_terminal_connect_mounts_source_then_bind_and_is_repeatable(self):
+        for _ in range(2):
+            self.assertEqual(MENU.connect_terminal(self.config), 0)
+        self.assertEqual(self.starts(), [self.config[key] for key in ('client_mount', 'client_bind_mount')]*2)
+        probe = self.probe.return_value.__enter__.return_value
+        probe.settimeout.assert_called_with(3)
+        probe.connect.assert_called_with((self.settings['NFS_CLIENT_TARGET_IP'], int(self.settings['NFS_SERVER_PORT'])))
+        self.assertEqual(self.probe.call_args.args, (socket.AF_INET, socket.SOCK_STREAM))
+        self.assertIn('nfsmnt: Mounted /data/sharing/nfs-client and /home/mcramer/Sharing/nfs-client.', self.output.getvalue())
+
+    def test_unavailable_server_never_requests_mount(self):
+        for error in (ConnectionRefusedError('refused'), TimeoutError('timeout'), OSError('no route')):
+            with self.subTest(error=error):
+                self.probe.return_value.__enter__.return_value.connect.side_effect = error
+                with self.assertRaisesRegex(RuntimeError, 'unavailable.*No mount was requested'):
+                    MENU.connect_terminal(self.config)
+        self.assertEqual(self.starts(), [])
+
+    def test_source_failure_or_skipped_start_never_starts_bind(self):
+        for attribute in ('fail_start', 'skip_start'):
+            with self.subTest(attribute=attribute):
+                setattr(self, attribute, self.config['client_mount'])
+                self.command.reset_mock()
+                with self.assertRaises(RuntimeError):
+                    MENU.connect_terminal(self.config)
+                self.assertEqual(self.starts(), [self.config['client_mount']])
+                setattr(self, attribute, '')
+        self.assertNotIn('nfsmnt: Mounted ', self.output.getvalue())
+
+    def test_bind_failure_keeps_source_available_for_retry(self):
+        self.fail_start = self.config['client_bind_mount']
+        with self.assertRaisesRegex(RuntimeError, 'Cannot mount /home/'):
+            MENU.connect_terminal(self.config)
+        self.assertEqual(self.started, {self.config['client_mount']})
+        self.fail_start = ''
+        self.assertEqual(MENU.connect_terminal(self.config), 0)
+        self.assertEqual(self.started, {self.config['client_mount'], self.config['client_bind_mount']})
+        self.assertFalse(any('stop' in call.args[0] for call in self.command.call_args_list))
+
+    def test_missing_conflicting_duplicate_and_escaped_alias_fstab_entries_fail_closed(self):
+        original = self.fstab
+        source, bind = original.splitlines()
+        invalid = ('', bind + '\n', source + '\n', original + source + '\n',
+                   original + source.replace('/data/sharing/', '/data/./sharing/') + '\n',
+                   original + source.replace('/data/sharing/', '/data/\\163haring/') + '\n',
+                   original.replace('proto=tcp', 'proto=udp'),
+                   original.replace('nosuid', 'suid'),
+                   original.replace(self.settings['NFS_CLIENT_TARGET_IP'], '192.168.50.1'),
+                   original.replace('none ', 'ext4 '))
+        for text in invalid:
+            with self.subTest(fstab=text):
+                self.fstab = text
+                with self.assertRaises(ValueError):
+                    MENU.connect_terminal(self.config)
+        self.probe.assert_not_called()
+        self.command.assert_not_called()
+
+    def test_disabled_client_and_wrong_desktop_account_fail_before_probe(self):
+        self.config['client_enabled'] = False
+        with self.assertRaisesRegex(ValueError, 'No NFS client'):
+            MENU.connect_terminal(self.config)
+        self.config['client_enabled'] = True
+        self.account.return_value.pw_dir = '/home/other'
+        with mock.patch.dict(os.environ, HOME=self.settings['ACCOUNT_HOME']):
+            with self.assertRaisesRegex(ValueError, 'configured desktop account'):
+                MENU.connect_terminal(self.config)
+        self.probe.assert_not_called()
+        self.command.assert_not_called()
+
+    def test_stale_or_unavailable_systemd_definition_fails_before_probe(self):
+        for text in ('LoadState=not-found\n', 'LoadState=loaded\nWhat=/wrong\n'):
+            with self.subTest(properties=text):
+                self.command.side_effect = None
+                self.command.return_value = subprocess.CompletedProcess([], 0, text)
+                with self.assertRaisesRegex(RuntimeError, 'systemd mount differs from fstab'):
+                    MENU.connect_terminal(self.config)
+        self.probe.assert_not_called()
+        self.assertEqual(self.starts(), [])
+
+    def test_custom_port_paths_read_only_and_source_only_policy(self):
+        values = profile(NFS_CLIENT_ENABLE='true', NFS_CLIENT_BIND_ENABLE='false', NFS_CLIENT_READ_ONLY='true',
+                         NETWORK_SHARING_ROOT_PATH='/srv/custom', NFS_CLIENT_PATH='/srv/custom/client',
+                         NFS_SERVER_PATH='/srv/custom/server', NFS_SERVER_PORT='32049')
+        self.settings = NFS.Settings.from_environment(values)
+        self.config = NFS.public_config(self.settings)
+        self.fstab = '\n'.join(NFS.fstab_entries(self.settings)) + '\n'
+        self.assertEqual(MENU.connect_terminal(self.config), 0)
+        self.assertEqual(self.starts(), [self.config['client_mount']])
+        self.probe.return_value.__enter__.return_value.connect.assert_called_once_with(
+            (self.settings['NFS_CLIENT_TARGET_IP'], 32049))
+        self.assertIn('no client home bind configured', self.output.getvalue())
+
+    def test_unit_names_match_installer_and_reject_traversal(self):
+        for path in ('/data/sharing/nfs-client', '/home/a-b/Sharing/nfs-client', '/.share/client'):
+            self.assertEqual(MENU.mount_unit(path), NFS.unit_name(path))
+        for path in ('/data/../etc', '/data//share', '/data/./share', '/', 'relative', '/data/share;bad'):
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                MENU.mount_unit(path)
+
+    def test_terminal_dispatch_has_no_picker_or_root_execution(self):
+        with mock.patch.object(MENU.os, 'geteuid', return_value=1000), \
+                mock.patch.object(MENU, 'load_config', return_value=self.config), \
+                mock.patch.object(MENU, 'choose') as picker:
+            self.assertEqual(MENU.main(['--connect']), 0)
+        picker.assert_not_called()
+        self.command.reset_mock()
+        with mock.patch.object(MENU.os, 'geteuid', return_value=0):
+            with self.assertRaisesRegex(ValueError, 'never root'):
+                MENU.main(['--connect'])
+        self.command.assert_not_called()
+
+    def test_wrapper_help_and_unrecognized_arguments_use_no_backend(self):
+        wrapper = TARGET/'usr/local/bin/nfsmnt'
+        for args, status in ((['--help'], 0), (['server:/share'], 2), (['--connect'], 2), (['--help', 'extra'], 2)):
+            with self.subTest(args=args):
+                result = subprocess.run(['/bin/sh', str(wrapper), *args], capture_output=True,
+                                        text=True, encoding='utf-8', timeout=5)
+                self.assertEqual(result.returncode, status, result.stderr)
+                self.assertIn('Usage: nfsmnt', result.stdout + result.stderr)
+
+
 class MenuIconTests(unittest.TestCase):
     ICONS = {
         'Network Sharing': ('NETWORK_SHARING', 'folder-remote'),
@@ -1863,6 +2028,11 @@ class IntegrationWiringTests(unittest.TestCase):
         for path in (SEED/'scripts/late/dispatch.sh', SEED/'hooks/installer/late_command.sh'):
             self.assertIn('network-sharing', path.read_text())
         self.assertIn('labwc-network-sharing 0755', (SEED/'scripts/desktop/components/target-assets.sh').read_text())
+        self.assertIn('usr/local/bin/nfsmnt /usr/local/bin/nfsmnt 0755', (SEED/'scripts/desktop/components/target-assets.sh').read_text())
+        policy = (TARGET/'etc/apparmor.d/network-sharing').read_text()
+        self.assertIn('/usr/local/bin/{labwc-network-sharing,nfsmnt}', policy)
+        for rule in ('/usr/local/bin/nfsmnt r,', '/usr/local/bin/labwc-network-sharing rix,', '/etc/fstab r,', 'network inet stream,'):
+            self.assertIn(rule, policy)
 
     def test_mapper_identity_guard_and_firewall_have_explicit_lifecycle_dependencies(self):
         server = (TARGET/'etc/systemd/system/nfs-server.service.d/60-network-sharing.conf.tmpl').read_text()
@@ -1910,6 +2080,11 @@ class IntegrationWiringTests(unittest.TestCase):
         policy = (TARGET/'etc/apparmor.d/network-sharing').read_text()
         self.assertIn('signal (send) set=(term, kill) peer=labwc-network-sharing//{systemctl,journalctl},', policy)
         self.assertEqual(policy.count('signal (receive) set=(term, kill) peer=labwc-network-sharing,'), 2)
+        self.assertEqual(policy.count('signal (receive) set=(hup, int, term, kill) peer=desktop-launcher,'), 2)
+        self.assertIn('signal (send) set=(chld) peer=desktop-launcher,', policy)
+        utilities = (TARGET/'etc/apparmor.d/desktop-utilities').read_text(encoding='utf-8')
+        self.assertIn('signal (send) set=(hup, int, term, kill) peer=labwc-network-sharing{,//systemctl},', utilities)
+        self.assertIn('signal (receive) set=(chld) peer=labwc-network-sharing,', utilities)
         wrappers = (TARGET/'etc/apparmor.d/desktop-wrappers.tmpl').read_text()
         for name in ('labwc-fuzzel', 'labwc-fzf-menu'):
             section = wrappers.split('profile ' + name + ' /', 1)[1].split('\n}', 1)[0]

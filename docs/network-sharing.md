@@ -25,7 +25,8 @@ Disabled roles do not install their NFS packages or add NFS mounts/exports.
 Both client fstab entries use `noauto` and are mounted only when requested. The home bind
 requires the actual NFS source mount; there are no client `.automount` or
 `.path` units or client boot activation links. Use **Connect to NFS Server**
-to mount the source and home bind in order. Unmounted client directories remain navigable and empty,
+or run **`nfsmnt`** in a desktop terminal to mount the source and home bind in
+order. Unmounted client directories remain navigable and empty,
 root-owned mode 0755, without granting ordinary users local fallback writes.
 Mounted data access follows the server's identity and permission policy.
 The server's local home bind remains a normal local bind mount; only its
@@ -38,6 +39,47 @@ See [the current client access repair](validation/nfs-client-access-20261007.md)
 proof that a fresh Forky installation, the packaged NFS daemons, AppArmor
 **enforcement**, or real network/filesystem failure behavior has passed. The
 broad repository suite is not a passing release signal for this snapshot.
+
+## Terminal mounting with nfsmnt
+
+Every desktop installation includes `/usr/local/bin/nfsmnt`, including profiles
+with NFS disabled. Run it as the configured desktop account:
+
+```sh
+nfsmnt
+```
+
+With the shipped enabled client profile, this mounts the configured NFS export
+at `/data/sharing/nfs-client`, then bind mounts it at `~/Sharing/nfs-client`.
+Custom profile paths and TCP ports are respected. A profile that deliberately
+disables its home bind mounts only the configured source and reports that no
+home bind is configured. A disabled client or missing fstab entry produces an
+error without attempting a mount; installing the command does not enable NFS
+on other hosts. `nfsmnt --help` displays usage without reading configuration.
+
+The wrapper calls the existing confined Network Sharing helper in terminal
+mode. It checks the root-owned installed configuration against the NFS source
+and home bind entries in `/etc/fstab`, rejects duplicate/conflicting entries,
+and checks that systemd has matching mount definitions. It checks the configured
+IPv4 server's TCP NFS port with a three-second timeout before requesting mounts.
+TCP reachability alone does not prove that the server will grant access to the
+export: the actual NFS mount must also succeed. There is no ping, DNS lookup,
+NFSv3 `showmount` query, or directory/file read on the remote filesystem.
+
+PID 1 performs the mounts using the existing fstab options, firewall/identity
+dependencies, mount timeouts and Polkit policy. Authorization requires an
+active local administrator in the `sudo` group and the running desktop
+authentication agent. Run `nfsmnt` without `sudo`; it does not accept arbitrary
+servers, paths or units, install packages, change fstab, or grant passwordless
+mount privileges. The configured account is resolved through the account
+database; `$HOME` cannot redirect the home bind.
+
+The source is started and verified as mounted before the home bind is started.
+A failed or skipped source mount never starts the home bind. A failed home bind
+leaves the source mounted for an explicit retry; repeated calls use systemd's
+idempotent start operation. Errors return a nonzero status and report the
+failed step. Disconnect through the existing **Disconnect from NFS Server**
+action after closing files and applications using the share.
 
 ## Enable the intended hosts, not every profile
 

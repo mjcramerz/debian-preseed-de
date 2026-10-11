@@ -215,6 +215,9 @@ profile desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exe
   signal (send) set=(hup) peer=session-controls,
   signal (send) set=(hup) peer=labwc-security-action,
   signal (send) set=(hup) peer=desktop-btop,
+  # Foreground nfsmnt and its systemctl client retain the terminal lifecycle.
+  signal (send) set=(hup, int, term, kill) peer=labwc-network-sharing{,//systemctl},
+  signal (receive) set=(chld) peer=labwc-network-sharing,
   # Embedded Python may ignore the caller environment. Failed optional bytecode
   # cache writes are harmless: never grant writes to the packaged interpreter.
   deny /usr/lib/python3{,.[0-9]*}/{,**/}__pycache__/*.pyc* w,

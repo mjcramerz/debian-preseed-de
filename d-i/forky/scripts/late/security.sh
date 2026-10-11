@@ -1692,11 +1692,18 @@ app_veth_dns_placeholder_map() (
   SYSTEM_NAMESERVERS_IPV4_DNS2=${SYSTEM_NAMESERVERS_IPV4_DNS2:-}
   SYSTEM_NAMESERVERS_IPV6_DNS2=${SYSTEM_NAMESERVERS_IPV6_DNS2:-}
   SYSTEM_NAMESERVERS_HOSTNAME_DNS2=${SYSTEM_NAMESERVERS_HOSTNAME_DNS2:-}
+  SYSTEM_NAMESERVERS_IPV4_DNS3=${SYSTEM_NAMESERVERS_IPV4_DNS3:-}
+  SYSTEM_NAMESERVERS_IPV6_DNS3=${SYSTEM_NAMESERVERS_IPV6_DNS3:-}
+  SYSTEM_NAMESERVERS_HOSTNAME_DNS3=${SYSTEM_NAMESERVERS_HOSTNAME_DNS3:-}
+  SYSTEM_DNS_UPSTREAM_TLS_CA_CUSTOM_ENABLE=${SYSTEM_DNS_UPSTREAM_TLS_CA_CUSTOM_ENABLE:-false}
+  SYSTEM_NAMESERVERS_TLS_SAN_CUSTOM=${SYSTEM_NAMESERVERS_TLS_SAN_CUSTOM:-}
   SYSTEM_NAMESERVERS_PORT=${SYSTEM_NAMESERVERS_PORT:-}
   SYSTEM_DNS_CACHE_SIZE=${SYSTEM_DNS_CACHE_SIZE:-}
   SYSTEM_DNS_CACHE_MIN_TTL=${SYSTEM_DNS_CACHE_MIN_TTL:-}
   export SYSTEM_NAMESERVERS_IPV4_DNS1 SYSTEM_NAMESERVERS_IPV6_DNS1 SYSTEM_NAMESERVERS_HOSTNAME_DNS1
   export SYSTEM_NAMESERVERS_IPV4_DNS2 SYSTEM_NAMESERVERS_IPV6_DNS2 SYSTEM_NAMESERVERS_HOSTNAME_DNS2
+  export SYSTEM_NAMESERVERS_IPV4_DNS3 SYSTEM_NAMESERVERS_IPV6_DNS3 SYSTEM_NAMESERVERS_HOSTNAME_DNS3
+  export SYSTEM_DNS_UPSTREAM_TLS_CA_CUSTOM_ENABLE SYSTEM_NAMESERVERS_TLS_SAN_CUSTOM
   export SYSTEM_NAMESERVERS_PORT
   export SYSTEM_DNS_CACHE_SIZE SYSTEM_DNS_CACHE_MIN_TTL
   app_veth_dns_map=$(LC_ALL=C awk '
@@ -1747,6 +1754,14 @@ app_veth_dns_placeholder_map() (
       return value + 0
     }
     BEGIN {
+      custom_ca = ENVIRON["SYSTEM_DNS_UPSTREAM_TLS_CA_CUSTOM_ENABLE"]
+      if (custom_ca != "true" && custom_ca != "false") fail("SYSTEM_DNS_UPSTREAM_TLS_CA_CUSTOM_ENABLE")
+      ca_file = "/etc/ssl/certs/ca-certificates.crt"
+      if (custom_ca == "true") {
+        custom_name = field("SYSTEM_NAMESERVERS_TLS_SAN_CUSTOM")
+        if (custom_name == "" || !hostname(custom_name)) fail("SYSTEM_NAMESERVERS_TLS_SAN_CUSTOM")
+        ca_file = "/etc/stubby/ca/upstream-custom.pem"
+      }
       port = ENVIRON["SYSTEM_NAMESERVERS_PORT"]
       if (port !~ /^[0-9]+$/ || length(port) > 5 || port + 0 < 1 || port + 0 > 65535)
         fail("SYSTEM_NAMESERVERS_PORT")
@@ -1754,16 +1769,18 @@ app_veth_dns_placeholder_map() (
       cache_size = integer("SYSTEM_DNS_CACHE_SIZE", 1, 1000000)
       cache_min_ttl = integer("SYSTEM_DNS_CACHE_MIN_TTL", 0, 3600)
       upstreams = "["
+      upstreams_json = "["
       ipv4_allowlist = "["
       ipv6_allowlist = "["
-      for (i = 1; i <= 2; i++) {
+      for (i = 1; i <= 3; i++) {
         key4 = "SYSTEM_NAMESERVERS_IPV4_DNS" i
         key6 = "SYSTEM_NAMESERVERS_IPV6_DNS" i
         keyname = "SYSTEM_NAMESERVERS_HOSTNAME_DNS" i
         address4 = field(key4)
         address6 = field(key6)
-        name = field(keyname)
-        if (i == 2 && name == "" && address4 == "" && address6 == "") continue
+        name = custom_ca == "true" ? "" : field(keyname)
+        if (i > 1 && name == "" && address4 == "" && address6 == "") continue
+        if (custom_ca == "true") name = custom_name
         if (name == "" || !hostname(name)) fail(keyname)
         if (address4 == "" && address6 == "") fail("SYSTEM_NAMESERVERS addresses for DNS" i)
         for (family = 4; family <= 6; family += 2) {
@@ -1772,6 +1789,7 @@ app_veth_dns_placeholder_map() (
           if (family == 4 ? !ipv4(address) : !ipv6(address))
             fail(family == 4 ? key4 : key6)
           upstreams = upstreams separator "{address_data: \"" address "\", tls_auth_name: \"" name "\", tls_port: " port "}"
+          upstreams_json = upstreams_json separator "{\"dns_index\":" i ",\"address_data\":\"" address "\",\"tls_auth_name\":\"" name "\",\"tls_port\":" port "}"
           separator = ", "
           if (family == 4) {
             ipv4_allowlist = ipv4_allowlist ipv4_separator "\"" address "\""
@@ -1783,6 +1801,9 @@ app_veth_dns_placeholder_map() (
         }
       }
       print "SYSTEM_NAMESERVERS_UPSTREAMS=" upstreams "]"
+      print "SYSTEM_NAMESERVERS_UPSTREAMS_JSON=" upstreams_json "]"
+      print "SYSTEM_DNS_UPSTREAM_TLS_CA_CUSTOM_ENABLE=" custom_ca
+      print "SYSTEM_DNS_UPSTREAM_TLS_CA_FILE=" ca_file
       print "SYSTEM_NAMESERVERS_PORT=" port
       print "SYSTEM_NAMESERVERS_IPV4_ALLOWLIST=" ipv4_allowlist "]"
       print "SYSTEM_NAMESERVERS_IPV6_ALLOWLIST=" ipv6_allowlist "]"
@@ -1799,6 +1820,56 @@ app_veth_placeholder_map() {
   nftables_qbittorrent_service_placeholder_map
 }
 
+configure_target_stubby() (
+  set -eu
+  set +x
+  set +v
+  umask 077
+  require_in_target "configure authenticated DNS upstreams"
+  stubby_stage=$(target_private_stage_dir stubby)
+  stubby_stage_host=$(target_asset_host_path "$stubby_stage")
+  trap 'rm -rf -- "$stubby_stage_host"' EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_LATE stubby-config.py)" \
+    "$stubby_stage/configure.py" 0600
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/stubby/stubby.yml.tmpl)" \
+    "$stubby_stage/stubby.yml.tmpl" 0600
+  app_veth_dns_placeholder_map >"$stubby_stage_host/policy.map"
+  stubby_ca_input=-
+  if [ "${SYSTEM_DNS_UPSTREAM_TLS_CA_CUSTOM_ENABLE:-false}" = true ]; then
+    stubby_ca_name=$(preseed_env_read_value dns_upstream_tls_ca_name_custom) || {
+      installer_fatal "custom DNS requires PRESEED_DNS_UPSTREAM_TLS_CA_NAME_CUSTOM in /preseed.env"
+      exit 1
+    }
+    case "$stubby_ca_name" in
+      [A-Za-z0-9]*.*) ;;
+      *) installer_fatal "custom DNS CA name must be a basename including its extension"; exit 1 ;;
+    esac
+    case "$stubby_ca_name" in
+      *[!A-Za-z0-9._-]*|*.) installer_fatal "custom DNS CA name contains unsupported characters or an empty extension"; exit 1 ;;
+    esac
+    [ "${#stubby_ca_name}" -le 128 ] || { installer_fatal "custom DNS CA name is too long"; exit 1; }
+    # The certificate is an initrd-root input, never a repository/HTTP fetch.
+    # Reuse the private reader's ownership, link and parent checks before copy.
+    preseed_env_check_file "/$stubby_ca_name" || {
+      installer_fatal "custom DNS CA is missing or unsafe in the installer root"
+      exit 1
+    }
+    stubby_ca_size=$(wc -c <"/$stubby_ca_name")
+    [ "$stubby_ca_size" -gt 0 ] && [ "$stubby_ca_size" -le 262144 ] || {
+      installer_fatal "custom DNS CA exceeds its size limit or is empty"
+      exit 1
+    }
+    cat "/$stubby_ca_name" >"$stubby_stage_host/ca.input"
+    stubby_ca_input="$stubby_stage/ca.input"
+  fi
+  run_in_target "authenticate DNS certificate identities and configure Stubby" \
+    /usr/bin/python3 -I -B "$stubby_stage/configure.py" \
+    "$stubby_stage/stubby.yml.tmpl" "$stubby_stage/policy.map" "$stubby_ca_input"
+)
+
 configure_target_app_veth() {
   [ "$(late_command_nftables_profile)" != none ] ||
     installer_fatal "managed kernel namespaces require the nftables policy"
@@ -1813,9 +1884,7 @@ configure_target_app_veth() {
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/NetworkManager/conf.d/70-app-veth.conf.tmpl)" \
     /etc/NetworkManager/conf.d/70-app-veth.conf 0644 app_veth_identity_placeholder_map
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/sbin/app-veth)" /usr/local/sbin/app-veth 0755
-  render_target_asset_with_placeholder_map \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/stubby/stubby.yml.tmpl)" \
-    /etc/stubby/stubby.yml 0644 app_veth_dns_placeholder_map
+  configure_target_stubby
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/stubby.service.d/60-app-veth.conf)" /etc/systemd/system/stubby.service.d/60-app-veth.conf 0644
   render_target_asset_with_placeholder_map \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/dnsmasq-app-veth.conf.tmpl)" \

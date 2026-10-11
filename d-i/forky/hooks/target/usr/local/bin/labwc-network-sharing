@@ -7,10 +7,14 @@ Polkit policy. This program never calls sudo, pkexec, a shell, or mount itself.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import ipaddress
 import json
 import os
 from pathlib import Path
+import posixpath
+import pwd
 import re
+import socket
 import stat
 import subprocess
 import sys
@@ -18,6 +22,7 @@ import sys
 PICKER = '/usr/local/bin/labwc-fuzzel'
 CONFIG = Path('/etc/network-sharing/config.json')
 REPORT = Path('/run/network-sharing/report.json')
+FSTAB = Path('/etc/fstab')
 ACTIONS = (
     'Sharing Status', 'Connect to NFS Server', 'Disconnect from NFS Server',
     'Check Connected NFS Clients', 'Start NFS Server', 'Stop NFS Server',
@@ -30,8 +35,8 @@ def clean(text: str, limit: int = 800) -> str:
     return ''.join(c if c.isprintable() else ' ' for c in str(text))[:limit]
 
 
-def read_json(path: Path, limit: int = 4 * 1024 * 1024) -> dict:
-    # Both locations have installer/service-owned, non-writable parents.
+def read_owned_file(path: Path, limit: int) -> bytes:
+    # Configuration, reports and fstab have root-owned, non-writable parents.
     for parent in reversed(path.parents):
         metadata = parent.lstat()
         if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_mode & 0o022:
@@ -44,7 +49,11 @@ def read_json(path: Path, limit: int = 4 * 1024 * 1024) -> dict:
         raw = stream.read(limit + 1)
     if len(raw) > limit:
         raise ValueError('network sharing data is too large')
-    value = json.loads(raw)
+    return raw
+
+
+def read_json(path: Path, limit: int = 4 * 1024 * 1024) -> dict:
+    value = json.loads(read_owned_file(path, limit))
     if not isinstance(value, dict):
         raise ValueError('unsupported network sharing data format')
     return value
@@ -143,6 +152,120 @@ def systemctl(config: dict, verb: str, selected: list[str]) -> subprocess.Comple
     if verb == 'show':
         args += ['--property=Id,LoadState,ActiveState,SubState,Result']
     return command([*args, '--', *selected], 200 if verb != 'show' else 15)
+
+
+def mount_unit(path: str) -> str:
+    # Match the installer's ASCII path grammar without resolving remote paths.
+    if (not isinstance(path, str) or len(path) > 2048 or not re.fullmatch(r'/[A-Za-z0-9_./-]+', path)
+            or any(part in ('', '.', '..') for part in path[1:].split('/'))):
+        raise ValueError('invalid configured NFS mount path')
+    escaped = ''.join('/' if c == '/' else (c if c.isalnum() or c in '_.' else f'\\x{ord(c):02x}')
+                      for c in path[1:])
+    if escaped.startswith('.'):
+        escaped = '\\x2e' + escaped[1:]
+    return escaped.replace('/', '-') + '.mount'
+
+
+def client_mounts(config: dict) -> tuple[str, int, list[tuple[str, str, str, str]]]:
+    """Match the configured source/bind to fstab; never select arbitrary units."""
+    if not config['client_enabled']:
+        raise ValueError('No NFS client is configured in fstab. Enable NFS_CLIENT_ENABLE in the installer profile and rebuild.')
+    settings = config['profile']
+    server = str(ipaddress.IPv4Address(settings['NFS_CLIENT_TARGET_IP']))
+    port_text = settings['NFS_SERVER_PORT']
+    if not isinstance(port_text, str) or not re.fullmatch(r'[0-9]{1,5}', port_text) or not 1 <= int(port_text) <= 65535:
+        raise ValueError('invalid configured NFS server port')
+    source = settings['NFS_CLIENT_PATH']
+    remote = server + ':' + settings['NFS_CLIENT_EXPORT_PATH']
+    options = settings['NFS_MNT_CLIENT_TARGET_SHARE_OPTS'].split(',')
+    if settings['NFS_CLIENT_READ_ONLY'] == 'true':
+        options = ['ro' if option == 'rw' else option for option in options]
+    expected = [(config['client_mount'], remote, source, 'nfs', options)]
+    if config['client_bind_mount']:
+        account = pwd.getpwuid(os.getuid())
+        if account.pw_name != settings['ACCOUNT_USERNAME'] or account.pw_dir != settings['ACCOUNT_HOME']:
+            raise ValueError('Run nfsmnt as the configured desktop account: ' + settings['ACCOUNT_USERNAME'])
+        target = settings['ACCOUNT_HOME'] + '/' + settings['NFS_CLIENT_HOME_BIND_PATH']
+        bind_options = settings['NFS_MNT_CLIENT_BIND_HOME_OPTS'].split(',')
+        if 'ro' in options and 'ro' not in bind_options:
+            bind_options.append('ro')
+        expected.append((config['client_bind_mount'], source, target, 'none', bind_options))
+    records = []
+    for line in read_owned_file(FSTAB, 1024 * 1024).decode('utf-8').splitlines():
+        if not line.strip() or line.lstrip().startswith('#'):
+            continue
+        fields = line.split()
+        if len(fields) < 4:
+            raise ValueError('invalid fstab record; ask an administrator to check /etc/fstab')
+        records.append([re.sub(r'\\([0-7]{3})', lambda match: chr(int(match[1], 8)), field)
+                        for field in fields[:4]])
+    mounts = []
+    for unit, what, where, kind, flags in expected:
+        if unit != mount_unit(where):
+            raise ValueError('configured NFS path and mount unit differ')
+        matches = [row for row in records if posixpath.normpath(row[1]) == where]
+        if len(matches) != 1:
+            raise ValueError('missing or duplicate NFS fstab entry for ' + where)
+        row = matches[0]
+        actual_flags = row[3].split(',')
+        types = ('nfs', 'nfs4') if kind == 'nfs' else ('none',)
+        if (row[:2] != [what, where] or row[2] not in types or set(actual_flags) != set(flags)
+                or len(actual_flags) != len(set(actual_flags))):
+            raise ValueError('NFS fstab entry differs from the installed profile: ' + where)
+        mounts.append((unit, what, where, row[2]))
+    return server, int(port_text), mounts
+
+
+def check_mount(config: dict, mount: tuple[str, str, str, str], *, active: bool = False) -> None:
+    unit, what, where, kind = mount
+    if not config['client_enabled'] or unit not in (config['client_mount'], config['client_bind_mount']):
+        raise ValueError('unmanaged mount status operation rejected')
+    result = command(['/usr/bin/systemctl', '--system', '--no-pager', 'show',
+                      '--property=LoadState,ActiveState,SubState,What,Where,Type', '--', unit], 15)
+    if result.returncode:
+        raise RuntimeError('Cannot check NFS mount: ' + clean(result.stdout, 1600))
+    properties = dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
+    mounted = (properties.get('ActiveState'), properties.get('SubState')) == ('active', 'mounted')
+    types = ('nfs', 'nfs4') if kind in ('nfs', 'nfs4') else ('none',)
+    if mounted:
+        # systemd 262 reports the kernel filesystem once mounted: a bind's
+        # What becomes the remote export and its Type becomes nfs/nfs4.
+        if kind == 'none':
+            settings = config['profile']
+            what = settings['NFS_CLIENT_TARGET_IP'] + ':' + settings['NFS_CLIENT_EXPORT_PATH']
+        types = ('nfs', 'nfs4')
+    if (properties.get('LoadState') != 'loaded' or properties.get('What') != what
+            or properties.get('Where') != where or properties.get('Type') not in types):
+        raise RuntimeError('systemd mount differs from fstab: ' + unit
+                           + '. Ask an administrator to check the configuration and run systemctl daemon-reload.')
+    if active and not mounted:
+        raise RuntimeError('NFS mount did not become active: ' + unit)
+
+
+def connect_terminal(config: dict) -> int:
+    server, port, mounts = client_mounts(config)
+    for mount in mounts:
+        check_mount(config, mount)
+    print(f'nfsmnt: Checking NFS server {server}:{port} ...', flush=True)
+    try:
+        # Numeric IPv4 avoids DNS, ICMP and NFSv3/showmount dependencies.
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.settimeout(3)
+            probe.connect((server, port))
+    except OSError as error:
+        raise RuntimeError(f'NFS server {server}:{port} is unavailable: {clean(str(error))}. No mount was requested.') from error
+    for mount in mounts:
+        print('nfsmnt: Mounting ' + mount[2] + ' ...', flush=True)
+        result = systemctl(config, 'start', [mount[0]])
+        if result.returncode:
+            raise RuntimeError('Cannot mount ' + mount[2] + ': ' + clean(result.stdout, 1600)
+                               + '. Authorization requires an active local administrator and the desktop authentication agent; check Network Sharing status and logs.')
+        # A successful but condition-skipped start must not be reported as mounted.
+        check_mount(config, mount, active=True)
+    print('nfsmnt: Mounted ' + ' and '.join(mount[2] for mount in mounts) + '.')
+    if not config['client_bind_mount']:
+        print('nfsmnt: The installed profile has no client home bind configured.')
+    return 0
 
 
 def need_role(config: dict, role: str) -> bool:
@@ -299,8 +422,8 @@ def main(argv: list[str]) -> int:
     if argv == ['--catalog']:
         print(json.dumps(ACTIONS, indent=2))
         return 0
-    if argv not in ([], ['--status']):
-        raise ValueError('usage: labwc-network-sharing [--catalog|--status]')
+    if argv not in ([], ['--status'], ['--connect']):
+        raise ValueError('usage: labwc-network-sharing [--catalog|--status|--connect]')
     if os.geteuid() == 0:
         raise ValueError('Network Sharing must run as the desktop user, never root')
     try:
@@ -314,6 +437,8 @@ def main(argv: list[str]) -> int:
         result = systemctl(config, 'show', units(config))
         print(result.stdout, end='')
         return result.returncode
+    if argv == ['--connect']:
+        return connect_terminal(config)
     while True:
         selected = choose([*ACTIONS, 'Back'], 'Computer Management / Network & Remote / Network Sharing')
         if selected is None or selected == 'Back':
@@ -328,7 +453,8 @@ if __name__ == '__main__':
     try:
         raise SystemExit(main(sys.argv[1:]))
     except KeyboardInterrupt:
-        raise SystemExit(0)
+        raise SystemExit(130 if sys.argv[1:] == ['--connect'] else 0)
     except (OSError, ValueError, KeyError, TypeError, RuntimeError) as error:
-        print('Network Sharing: ' + clean(str(error), 1600), file=sys.stderr)
+        label = 'nfsmnt' if sys.argv[1:] == ['--connect'] else 'Network Sharing'
+        print(label + ': ' + clean(str(error), 1600), file=sys.stderr)
         raise SystemExit(2)

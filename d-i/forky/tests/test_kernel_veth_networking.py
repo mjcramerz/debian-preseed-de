@@ -2152,6 +2152,7 @@ app_veth_dns_placeholder_map
             cache.mkdir(mode=0o700)
             text = read_text(TARGET / "etc/stubby/stubby.yml.tmpl")
             text = text.replace("__INSTALLER_SYSTEM_NAMESERVERS_UPSTREAMS__", values["SYSTEM_NAMESERVERS_UPSTREAMS"])
+            text = text.replace("__INSTALLER_SYSTEM_DNS_UPSTREAM_TLS_CA_FILE__", values["SYSTEM_DNS_UPSTREAM_TLS_CA_FILE"])
             text = text.replace("/usr/share/dns/root.key", str(self.root_key)).replace("/var/cache/stubby", str(cache))
             config = root / "stubby.yml"
             config.write_text(text, encoding="utf-8")
@@ -2385,8 +2386,8 @@ class InstallationTests(unittest.TestCase):
         for name in ("IPV4_DNS1", "IPV6_DNS1", "HOSTNAME_DNS1", "IPV4_DNS2", "IPV6_DNS2", "HOSTNAME_DNS2", "PORT"):
             self.assertRegex(identity, r'(?m)^SYSTEM_NAMESERVERS_' + name + r'="[^"\n]*"$')
         stubby = read_text(TARGET / "etc/stubby/stubby.yml.tmpl")
-        self.assertIn("listen_addresses:\n- 127.0.0.1@53054", stubby)
-        self.assertIn("dns_transport_list:\n- GETDNS_TRANSPORT_TLS", stubby)
+        self.assertIn("listen_addresses:\n  - 127.0.0.1@53054", stubby)
+        self.assertIn("dns_transport_list:\n  - GETDNS_TRANSPORT_TLS", stubby)
         self.assertIn("tls_authentication: GETDNS_AUTHENTICATION_REQUIRED", stubby)
         self.assertIn("round_robin_upstreams: 0", stubby)
         self.assertIn("dnssec: GETDNS_EXTENSION_TRUE", stubby)

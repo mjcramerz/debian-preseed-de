@@ -85,6 +85,8 @@ profile app-veth-dns-tls flags=(attach_disconnected, mediate_deleted) {
   #include <abstractions/base>
   /usr/bin/stubby rix,
   /etc/stubby/stubby.yml r,
+  /etc/stubby/ca/ r,
+  /etc/stubby/ca/upstream-custom.pem r,
   /usr/share/dns/root.key r,
   /etc/ssl/{,**} r,
   /etc/{passwd,group,nsswitch.conf,host.conf,hosts,resolv.conf,gai.conf} r,

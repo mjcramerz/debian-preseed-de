@@ -38,6 +38,7 @@ MAPPING = {
     'primary_gpg_passphrase': 'PRESEED_PRIMARY_GPG_PASSPHRASE',
     'git_ssh_passphrase': 'PRESEED_GIT_SSH_PASSPHRASE',
     'shim_signed_passphrase': 'PRESEED_SHIM_SIGNED_PASSPHRASE',
+    'dns_upstream_tls_ca_name_custom': 'PRESEED_DNS_UPSTREAM_TLS_CA_NAME_CUSTOM',
     'root_password': 'PRESEED_ROOT_PASSWORD',
     'crowdsec_token': 'PRESEED_CROWDSEC_TOKEN',
     'crowdsec_enroll_token': 'PRESEED_CROWDSEC_TOKEN',

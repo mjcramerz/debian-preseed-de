@@ -1,16 +1,20 @@
 #include <tunables/global>
 
-# The menu is never privileged. Only fixed systemd operations cross the
-# existing active-local-administrator Polkit boundary; no shell/root helper.
-profile labwc-network-sharing /usr/local/bin/labwc-network-sharing flags=(attach_disconnected) {
+# The menu and terminal wrapper are unprivileged. Fixed systemd operations
+# cross the existing Polkit boundary; no privileged shell or mount helper.
+profile labwc-network-sharing /usr/local/bin/{labwc-network-sharing,nfsmnt} flags=(attach_disconnected) {
   #include <abstractions/wrapper-python>
   #include <abstractions/wrapper-desktop>
   #include <abstractions/wrapper-terminal>
-  /usr/local/bin/labwc-network-sharing r,
+  /usr/local/bin/nfsmnt r,
+  /usr/local/bin/labwc-network-sharing rix,
   / r,
   /etc/ r,
   /etc/network-sharing/ r,
   /etc/network-sharing/config.json r,
+  /etc/fstab r,
+  # Bounded IPv4 TCP availability check; PID 1 performs the actual mounts.
+  network inet stream,
   /run/ r,
   /run/network-sharing/ r,
   /run/network-sharing/report.json r,
@@ -25,6 +29,9 @@ profile labwc-network-sharing /usr/local/bin/labwc-network-sharing flags=(attach
   signal (receive) set=(chld) peer=labwc-{fuzzel,fzf-menu},
   signal (receive) set=(term, kill) peer=labwc-computer-management,
   signal (send) set=(chld) peer=labwc-computer-management,
+  # nfsmnt runs in the terminal's foreground process group.
+  signal (receive) set=(hup, int, term, kill) peer=desktop-launcher,
+  signal (send) set=(chld) peer=desktop-launcher,
 
   profile systemctl {
     #include <abstractions/base>
@@ -44,6 +51,7 @@ profile labwc-network-sharing /usr/local/bin/labwc-network-sharing flags=(attach
     # by a new privileged or unconfined executable inside this process tree.
     signal (receive) set=(term, kill) peer=labwc-network-sharing,
     signal (send) set=(chld) peer=labwc-network-sharing,
+    signal (receive) set=(hup, int, term, kill) peer=desktop-launcher,
   }
 
   profile journalctl {

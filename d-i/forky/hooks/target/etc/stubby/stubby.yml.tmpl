@@ -3,22 +3,26 @@
 # TLS upstreams and validates DNSSEC before returning an answer.
 resolution_type: GETDNS_RESOLUTION_STUB
 log_level: GETDNS_LOG_WARNING
+# Transport and authenticated upstream trust (no plaintext fallback).
 dns_transport_list:
-- GETDNS_TRANSPORT_TLS
+  - GETDNS_TRANSPORT_TLS
 tls_authentication: GETDNS_AUTHENTICATION_REQUIRED
-tls_ca_file: "/etc/ssl/certs/ca-certificates.crt"
+tls_ca_file: "__INSTALLER_SYSTEM_DNS_UPSTREAM_TLS_CA_FILE__"
 tls_min_version: GETDNS_TLS1_2
 tls_max_version: GETDNS_TLS1_3
 tls_query_padding_blocksize: 128
 edns_client_subnet_private: 1
-# Use the ordered DNS1 endpoints before the optional DNS2 endpoints.
+# Connection reuse and ordered DNS1, DNS2, DNS3 endpoints (IPv4 then IPv6).
 round_robin_upstreams: 0
 idle_timeout: 9000
 listen_addresses:
-- __INSTALLER_APP_VETH_TLS_HOST_ADDRESS__@__INSTALLER_APP_VETH_TLS_HOST_PORT__
+  - __INSTALLER_APP_VETH_TLS_HOST_ADDRESS__@__INSTALLER_APP_VETH_TLS_HOST_PORT__
+# DNSSEC validation is independent of the TLS certificate trust store.
 dnssec: GETDNS_EXTENSION_TRUE
 appdata_dir: "/var/cache/stubby"
 # getdns 1.7.3 treats a scalar as a zone-file path. A YAML list must contain
 # resource-record dictionaries; a list containing a filename loads no anchors.
 dnssec_trust_anchors: "/usr/share/dns/root.key"
-upstream_recursive_servers: __INSTALLER_SYSTEM_NAMESERVERS_UPSTREAMS__
+# Rendered as a block list after certificate validation during installation.
+upstream_recursive_servers:
+  __INSTALLER_SYSTEM_NAMESERVERS_UPSTREAMS__

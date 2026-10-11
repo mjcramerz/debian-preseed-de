@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SEED = ROOT / 'd-i/forky'
 TOKEN = re.compile(r'__INSTALLER_(LOG_[A-Z0-9_]+)__')
 TEMPLATE_TOKEN = re.compile(r'__(?:INSTALLER|SYSTEMD|THEME)_[A-Z0-9_]+__')
-ENGINE_EXCEPTIONS = {'scripts/late/volatile-storage.sh'}
+ENGINE_EXCEPTIONS = {'scripts/late/volatile-storage.sh', 'scripts/late/stubby-config.py'}
 
 def source_path(path: Path) -> Path:
     template = path.with_name(path.name + '.tmpl')

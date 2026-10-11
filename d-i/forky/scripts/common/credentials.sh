@@ -15,6 +15,7 @@ preseed_env_variable_name() {
     primary_gpg_passphrase) printf '%s\n' PRESEED_PRIMARY_GPG_PASSPHRASE ;;
     git_ssh_passphrase) printf '%s\n' PRESEED_GIT_SSH_PASSPHRASE ;;
     shim_signed_passphrase) printf '%s\n' PRESEED_SHIM_SIGNED_PASSPHRASE ;;
+    dns_upstream_tls_ca_name_custom) printf '%s\n' PRESEED_DNS_UPSTREAM_TLS_CA_NAME_CUSTOM ;;
     root_password) printf '%s\n' PRESEED_ROOT_PASSWORD ;;
     crowdsec_token|crowdsec_enroll_token|crowdsec_attachment_key) printf '%s\n' PRESEED_CROWDSEC_TOKEN ;;
     tailscale_authkey|tailscale_auth_key) printf '%s\n' PRESEED_TAILSCALE_TOKEN ;;
@@ -153,7 +154,8 @@ preseed_env_read_value() (
     PRESEED_PRIMARY_USERNAME PRESEED_PRIMARY_FULLNAME PRESEED_PRIMARY_PASSWORD PRESEED_PRIMARY_GPG_PASSPHRASE \
     PRESEED_GIT_SSH_PASSPHRASE PRESEED_SHIM_SIGNED_PASSPHRASE PRESEED_ROOT_PASSWORD PRESEED_CROWDSEC_TOKEN PRESEED_TAILSCALE_TOKEN \
     PRESEED_TELEGRAM_CHAT_ID PRESEED_TELEGRAM_API_KEY PRESEED_CF_APTLY_ACCESS_KEY \
-    PRESEED_CF_APTLY_SECRET_KEY PRESEED_OBS_USERNAME PRESEED_OBS_PASSWORD
+    PRESEED_CF_APTLY_SECRET_KEY PRESEED_OBS_USERNAME PRESEED_OBS_PASSWORD \
+    PRESEED_DNS_UPSTREAM_TLS_CA_NAME_CUSTOM
   # shellcheck disable=SC1090
   if ! . "$preseed_read_tmp" >/dev/null 2>&1; then
     preseed_env_error 'credential file failed while loading trusted shell assignments'; return 2
@@ -171,6 +173,11 @@ preseed_env_read_value() (
       case "$preseed_read_result" in
         *[![:print:]]*)
           preseed_env_error 'primary account values must be printable single-line data'; return 2 ;;
+      esac
+      ;;
+    PRESEED_DNS_UPSTREAM_TLS_CA_NAME_CUSTOM)
+      case "$preseed_read_result" in
+        *[![:print:]]*) preseed_env_error 'custom DNS CA name must be printable single-line data'; return 2 ;;
       esac
       ;;
   esac
