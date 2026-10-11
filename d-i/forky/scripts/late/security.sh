@@ -1514,7 +1514,7 @@ configure_target_nftables() {
     "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/nftables/profiles/${selected_profile}.yml")" \
     "/etc/nftables/profiles/default.yml" \
     0644 \
-    nftables_interface_placeholder_map
+    nftables_app_veth_profile_placeholder_map
   stage_target_nftables_all_service_assets
   write_target_nftables_default_config "$selected_profile" "${requested_profile:-default}" "$selected_services" "$runtime_cidrs"
   # These are administrator state, not disposable generated policy. Seed them
