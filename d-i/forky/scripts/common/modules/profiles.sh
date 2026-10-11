@@ -177,6 +177,51 @@ installer_fetch_composite_env_paths() (
   installer_info "fetched host env ${composite_dest_path} from:${composite_fetched_paths:+ ${composite_fetched_paths}}"
 )
 
+installer_append_host_profile_app_veth_overrides() (
+  set -eu
+  override_seed_base=$1
+  override_profile_path=$2
+  override_dest_path=$3
+  override_work=$(mktemp)
+  trap 'rm -f -- "$override_work" "$override_work.map"' EXIT
+  installer_fetch_seed_path "$override_seed_base" "$override_profile_path" "$override_work" 0600 ||
+    installer_fatal "failed to fetch host profile application network overrides"
+  /bin/sh -n "$override_work" >/dev/null 2>&1 ||
+    installer_fatal "invalid shell syntax in host profile application network overrides"
+  awk '
+    BEGIN {
+      allowed["APP_VETH_IPV4_CIDR"] = 1
+      allowed["APP_VETH_MAX_LEASES"] = 1
+      allowed["APP_VETH_HOST_INTERFACE_PREFIX"] = 1
+      allowed["APP_VETH_HOST_INTERFACE_SUFFIX"] = 1
+      allowed["APP_VETH_PEER_INTERFACE_SUFFIX"] = 1
+      allowed["APP_VETH_OVERRIDE"] = 1
+    }
+    /^[[:space:]]*(export[[:space:]]+)?APP_VETH_[A-Z0-9_]+[[:space:]]*=/ {
+      line = $0
+      position = index(line, "=")
+      key = substr(line, 1, position - 1)
+      sub(/^[[:space:]]*export[[:space:]]+/, "", key)
+      sub(/^[[:space:]]+/, "", key)
+      sub(/[[:space:]]+$/, "", key)
+      if (!(key in allowed) || key in seen) exit 1
+      seen[key] = 1
+      value = substr(line, position + 1)
+      sub(/[[:space:]]+$/, "", value)
+      if (value !~ /^"[^"\\$`[:cntrl:]]*"$/) exit 1
+      value = substr(value, 2, length(value) - 2)
+      if (value != "") print key "=" value
+      next
+    }
+    /^[[:space:]]*(export[[:space:]]+)?APP_VETH_/ { exit 1 }
+  ' "$override_work" >"$override_work.map" ||
+    installer_fatal "invalid application network override in host profile"
+  cat "$override_work.map" >>"$override_dest_path" ||
+    installer_fatal "cannot append host profile application network overrides"
+  /bin/sh -n "$override_dest_path" >/dev/null 2>&1 ||
+    installer_fatal "invalid composed host environment after application network overrides"
+)
+
 installer_fetch_host_env() {
   host_seed_base=$1
   host_profile=$2
@@ -247,6 +292,10 @@ installer_fetch_host_env() {
     "$host_dest_path" \
     "$host_mode" \
     "$@"
+  installer_append_host_profile_app_veth_overrides \
+    "$host_seed_base" \
+    "$(installer_profile_env_path "$host_profile_env_dir" "$host_profile_env_name")" \
+    "$host_dest_path"
 }
 
 installer_fetch_account_env() {
@@ -260,4 +309,3 @@ installer_fetch_account_env() {
     "$account_dest_path" \
     "$account_mode" || installer_fatal "failed to fetch account env"
 }
-

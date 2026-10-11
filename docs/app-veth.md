@@ -17,8 +17,8 @@ from `d-i/forky/hosts/installer/identity.env`, using the shared validated
   "version": 2,
   "desktop_user": "desktop",
   "network": {
-    "ipv4_cidr": "10.203.0.0/24",
-    "max_leases": 64,
+    "ipv4_cidr": "10.203.0.0/23",
+    "max_leases": 128,
     "host_interface_prefix": "veth",
     "host_interface_suffix": "-app",
     "peer_interface_suffix": "-peer",
@@ -28,14 +28,14 @@ from `d-i/forky/hosts/installer/identity.env`, using the shared validated
     "dns_host_port": 53053
   },
   "apps": {
-    "bitwarden": {"network": true, "block_lan": true, "slots": [0, 1], "addresses": ["10.203.0.2", "10.203.0.6"]},
+    "bitwarden": {"network": true, "block_lan": true, "slots": [0, 1, 2, 3], "addresses": ["10.203.0.2", "10.203.0.6", "10.203.0.10", "10.203.0.14"]},
     "qbittorrent": {
       "network": true,
       "block_lan": false,
       "pin_route": true,
       "peer_port": 50309,
-      "slots": [28],
-      "addresses": ["10.203.0.114"]
+      "slots": [56],
+      "addresses": ["10.203.0.226"]
     },
     "new-client": {
       "network": true,
@@ -56,7 +56,7 @@ clients. KeePassXC, Sleek, MPV and RetroArch have no network entry by default.
 
 | Application key | Meaning |
 | --- | --- |
-| `slots` | Required in version 2. Ordered list of unique reserved integers below `max_leases`; no slot may belong to two apps. The broker uses the first free slot in this app's list, and reports exhaustion instead of borrowing another app's address. Peer forwarding requires one slot. |
+| `slots` | Required in version 2. Ordered list of unique reserved integers below `max_leases`; no slot may belong to two apps. Ordinary applications reserve four slots; applications with `peer_port` or `pin_route` reserve one slot. The broker uses the first free slot in this app's list, and reports exhaustion instead of borrowing another app's address. |
 | `addresses` | Required canonical IPv4 addresses in slot order. The installer derives them from the subnet and reservations; the parser rejects missing or inconsistent addresses. |
 | `network` | Required Boolean. Only `true` authorizes a lease. An omitted managed app, or an entry with `false`, launches in its private namespace without a veth. |
 | `block_lan` | Optional Boolean, default `false`. Blocks private IPv4, carrier-grade NAT, link-local, loopback, benchmark, multicast and reserved ranges, plus directly connected LAN subnets. DNS continues through the dedicated dnsmasq/Stubby path. |
@@ -72,25 +72,30 @@ retain their existing restrictions; disposable qBittorrent uses the separate
 
 The IPv4 pool must be an aligned RFC1918 subnet with enough /30s for every
 slot. Slot `n` owns the /30 starting at `network_address + 4*n`: the host is
-`+1`, and the app is `+2`. The default qBittorrent identity is slot 28,
-`veth28-app` on the host, gateway `10.203.0.113`, and `10.203.0.114` on its
-private `eth0`. Each other desktop app has two fixed slots; Podman owns 44..63
-for concurrent uplinks. Different apps never compete for an address. A second
-simultaneous namespace of the same app uses its reserved secondary address.
-After release the primary slot becomes available again. Persistent qBittorrent
-uses its existing singleton IPC path and has one reserved slot.
+`+1`, and the app is `+2`. The default qBittorrent identity is slot 56,
+`veth56-app` on the host, gateway `10.203.0.225`, and `10.203.0.226` on its
+private `eth0`. Ordinary desktop apps have four fixed slots for concurrent
+namespaces. Applications with a pinned route or peer forwarding keep one slot
+because their source route or forwarded host port is singleton state. Different
+apps never compete for an address. After release the primary slot becomes
+available again. Persistent qBittorrent uses its existing singleton IPC path
+and one reserved slot.
 
 `APP_VETH_*` defines the subnet, capacity, interface prefix/suffixes, private
-interface, DNS endpoints and application slot lists. The installer renders the
+interface and DNS endpoints. The installer assigns stable four-slot or
+single-slot reservations in canonical application order. A nonempty
+`APP_VETH_OVERRIDE` in a host profile selects only the named applications;
+empty override values use the identity defaults. The installer renders the
 same identity into NetworkManager exclusions, AppArmor sysctl grants, broker
 JSON, DNS services and qBittorrent binding. Changing the subnet or interface/DNS
 topology on an installed host requires updating these rendered assets and
 restarting the broker; it refuses topology changes during a running lease.
 Only the complete version-2 policy is accepted. Network identity and reserved
-application slots must be explicitly rendered during the fresh installation.
-Each app also receives a rendered `addresses` list in slot order. The parser
-requires those exact canonical IPv4 addresses to match the subnet and slots,
-and the client checks the broker response against that list.
+application slots are rendered during the fresh installation. Each app receives
+a rendered `addresses` list containing one app-side address for each reserved
+`/30` slot; the list is not itself a CIDR range. The parser requires those
+exact canonical IPv4 addresses to match the subnet and slots, and the client
+checks the broker response against that list.
 
 Keep the file root-owned, mode `0644`, with one hard link. Duplicate keys,
 unknown settings, malformed types, unsafe paths and oversized files are rejected.

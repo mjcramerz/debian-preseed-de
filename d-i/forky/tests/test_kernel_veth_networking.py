@@ -84,16 +84,16 @@ class PolicyParsingTests(unittest.TestCase):
 
     def test_explicit_slots_are_stable_across_launch_order_and_reuse(self):
         rows = DEFAULT_POLICIES
-        self.assertEqual(broker.application_slot(rows['qbittorrent'], {}), 28)
-        self.assertEqual(rows['qbittorrent']['addresses'], ('10.203.0.114',))
+        self.assertEqual(broker.application_slot(rows['qbittorrent'], {}), 56)
+        self.assertEqual(rows['qbittorrent']['addresses'], ('10.203.0.226',))
         active = {'browser': types.SimpleNamespace(slot=4), 'code': types.SimpleNamespace(slot=6)}
-        self.assertEqual(broker.application_slot(rows['qbittorrent'], active), 28)
-        active['torrent'] = types.SimpleNamespace(slot=28)
+        self.assertEqual(broker.application_slot(rows['qbittorrent'], active), 56)
+        active['torrent'] = types.SimpleNamespace(slot=56)
         with self.assertRaisesRegex(ValueError, 'reserved network slots'):
             broker.application_slot(rows['qbittorrent'], active)
         del active['torrent']
-        self.assertEqual(broker.application_slot(rows['qbittorrent'], active), 28)
-        self.assertEqual(broker.application_slot(rows['chromium'], active), 5)
+        self.assertEqual(broker.application_slot(rows['qbittorrent'], active), 56)
+        self.assertEqual(broker.application_slot(rows['chromium'], active), 8)
 
     def test_version_two_rejects_missing_unsafe_and_colliding_identities(self):
         source = json.loads(DEFAULT_CONFIG_RAW)
@@ -133,9 +133,9 @@ class PolicyParsingTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'overlaps'):
                 broker.select_pool()
         with mock.patch.object(broker, 'run', return_value='[{"dst":"default"}]'):
-            self.assertEqual(str(broker.select_pool()), '10.203.0.0/24')
+            self.assertEqual(str(broker.select_pool()), '10.203.0.0/23')
         with mock.patch.object(broker, 'run', return_value='[{"dst":"0.0.0.0/1","dev":"tun0"},{"dst":"128.0.0.0/1","dev":"tun0"}]'):
-            self.assertEqual(str(broker.select_pool()), '10.203.0.0/24')
+            self.assertEqual(str(broker.select_pool()), '10.203.0.0/23')
 
     def test_unknown_keys_malformed_flags_ports_paths_and_duplicates_fail_closed(self):
         bad = ({}, {"network": "true"}, {"network": True, "block_lan": 1},
@@ -181,7 +181,7 @@ class PolicyParsingTests(unittest.TestCase):
 class ConfigurationPublisherTests(unittest.TestCase):
     """Exercise the production POSIX map renderer, not string replacement."""
 
-    def render(self, directory, *, account="desktop", port=None):
+    def render(self, directory, *, account="desktop", port=None, app_veth_override=None):
         script = r'''
 set -eu
 . "$1/scripts/common/modules/files-logging.sh"
@@ -204,6 +204,8 @@ apply_placeholder_map_to_target "$2/apparmor.conf" app_veth_identity_placeholder
                        "ACCOUNT_USERNAME": account, **network_identity_environment()}
         if port is not None:
             environment["LABWC_QBITTORRENT_PORT"] = port
+        if app_veth_override is not None:
+            environment["APP_VETH_OVERRIDE"] = app_veth_override
         shells = [["/bin/sh"]]
         if shutil.which("busybox"):
             shells.append([shutil.which("busybox"), "sh"])
@@ -244,6 +246,18 @@ apply_placeholder_map_to_target "$2/apparmor.conf" app_veth_identity_placeholder
             with self.subTest(account=account, port=port), tempfile.TemporaryDirectory() as directory:
                 for result in self.render(directory, account=account, port=port):
                     self.assertNotEqual(result.returncode, 0)
+
+    def test_app_veth_override_renders_only_selected_four_slot_apps(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for result in self.render(directory, app_veth_override="bitwarden,vivaldi"):
+                self.assertEqual(result.returncode, 0, result.stderr)
+                data = json.loads((Path(directory) / "config.json").read_text(encoding="utf-8"))
+                self.assertEqual(set(data["apps"]), {"bitwarden", "vivaldi"})
+                self.assertEqual(data["apps"]["bitwarden"]["slots"], [0, 1, 2, 3])
+                self.assertEqual(data["apps"]["vivaldi"]["slots"], [4, 5, 6, 7])
+                self.assertEqual(data["apps"]["vivaldi"]["addresses"],
+                                 ["10.203.0.18", "10.203.0.22", "10.203.0.26", "10.203.0.30"])
+                self.assertNotIn("__INSTALLER_", (Path(directory) / "config.json").read_text(encoding="ascii"))
 
     def test_config_check_cli_validates_without_network_side_effects(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -567,7 +581,7 @@ class RecoveryTests(unittest.TestCase):
         row = {"ifname": "veth3-app", "ifalias": "app-veth:" + "a" * 32,
                "flags": ["UP"], "linkinfo": {"info_kind": "veth"}}
         self.assertEqual(self.recover([row]), [["/usr/sbin/ip", "link", "del", "dev", "veth3-app"]])
-        for changes in ({"ifname": "veth64-app"}, {"ifname": "eth0"}, {"ifname": "veth3-vivaldi"},
+        for changes in ({"ifname": "veth128-app"}, {"ifname": "eth0"}, {"ifname": "veth3-vivaldi"},
                         {"ifalias": "app-veth:not-a-tag"}, {"linkinfo": {"info_kind": "bridge"}},
                         {"ifalias": ""}):
             with self.subTest(changes=changes):
@@ -2280,7 +2294,7 @@ late_command_nftables_effective_services
             self.assertNotIn("udp dport 8853", result.stdout)
             for slot in range(int(network_identity_values()['APP_VETH_MAX_LEASES'])):
                 self.assertIn(f'"veth{slot}-app"', result.stdout)
-            self.assertNotIn('"veth64-app"', result.stdout)
+            self.assertNotIn('"veth128-app"', result.stdout)
             self.assertIn('th dport 53053 ct status dnat accept', result.stdout)
 
     def test_base_firewall_rejects_wildcards_and_unsafe_dns_identity(self):
@@ -2427,7 +2441,7 @@ class InstallationTests(unittest.TestCase):
         for slot in range(int(network_identity_values()["APP_VETH_MAX_LEASES"])):
             for name in (f"veth{slot}-app", f"veth{slot}-peer"):
                 self.assertIn(name, patterns)
-        for name in ("eth0", "tailscale0", "podman0", "vethabcd123", "veth64-app"):
+        for name in ("eth0", "tailscale0", "podman0", "vethabcd123", "veth128-app"):
             self.assertNotIn(name, patterns)
         self.assertIn("managed=0", policy)
         installer = (TARGET.parents[1] / "scripts/late/security.sh").read_text()

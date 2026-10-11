@@ -155,7 +155,7 @@ profile selects `50308`. Forward both TCP and UDP from the router to the same
 selected port on the system's LAN address.
 
 qBittorrent runs in a private Bubblewrap network with an install-rendered
-static private address, `10.203.0.114` on `eth0` by default. Its subnet, interface
+static private address, `10.203.0.226` on `eth0` by default. Its subnet, interface
 names and reserved slot come from `hosts/installer/identity.env`.
 The launcher selects the active IPv4 Internet route, excludes loopback and
 Tailscale, and pins kernel-routed outbound traffic and both host peer listeners
@@ -198,16 +198,20 @@ PurePrivacy launches also use veth; the existing offline KeePassXC and
 RetroArch PurePrivacy policies remain offline. Generic desktop wrappers route
 known package executable paths back through these managed launchers.
 
-`app-veth.service` pre-creates the configured 64 separate veth pairs at boot before publishing
+`app-veth.service` pre-creates the configured 128 separate veth pairs at boot before publishing
 readiness or starting the greeter and Podman API service. Idle host adapters
-are `veth0-app` through `veth63-app`, with matching `vethN-peer` endpoints;
+are `veth0-app` through `veth127-app`, with matching `vethN-peer` endpoints;
 both ends stay DOWN until assigned. NetworkManager leaves these reserved slots
 to the service. Each authenticated lease moves an existing peer into the
 caller's namespace. Host names stay fixed for the entire pool lifetime; app
 names are recorded in structured lifecycle logs. Each application has reserved
-slots, so launch order cannot change its primary address. Concurrent namespaces
-use secondary slots belonging to the same application. A subnet conflict fails
-without switching address ranges. See [the network policy](docs/app-veth.md). Apps never create host adapters.
+slots, so launch order cannot change its primary address. Ordinary applications
+reserve four slots; applications with route pinning or peer forwarding reserve
+one slot because those resources are singleton state. A host profile may set a
+nonempty `APP_VETH_OVERRIDE` to generate a smaller application policy and pool;
+empty override values use the installer identity defaults. A subnet conflict
+fails without switching address ranges. See [the network policy](docs/app-veth.md).
+Apps never create host adapters.
 
 The service validates each namespace FD and its owning account before
 attaching the existing veth. Firewall changes commit before the payload startup

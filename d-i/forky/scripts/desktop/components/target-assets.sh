@@ -221,16 +221,31 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/libexec/labwc-compat-open-uri /usr/local/libexec/labwc-compat-open-uri 0755
   desktop_validate_uint_range LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}" 1024 65535
   desktop_veth_identity=$(app_veth_identity_placeholder_map) || desktop_fatal "invalid application network identity"
+  desktop_qbittorrent_enabled=$(printf "%s\n" "$desktop_veth_identity" | awk -F= '$1 == "APP_VETH_QBITTORRENT_ENABLED" { print $2 }')
+  case "$desktop_qbittorrent_enabled" in
+    true)
+      ;;
+    false)
+      # An explicit APP_VETH_OVERRIDE may omit qBittorrent. Do not publish a
+      # managed binding for an application that has no broker policy.
+      remove_target_asset /etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf
+      ;;
+    *)
+      desktop_fatal "invalid qBittorrent network policy selection"
+      ;;
+  esac
   desktop_qbittorrent_address=$(printf "%s\n" "$desktop_veth_identity" | awk -F= '$1 == "APP_VETH_QBITTORRENT_ADDRESS" { print $2 }')
-  [ -n "$desktop_qbittorrent_address" ] || desktop_fatal "missing qBittorrent network identity"
-  desktop_render_role_target_template \
-    etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf.tmpl \
-    /etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf \
-    0644 \
-    ACCOUNT_USERNAME "$ACCOUNT_USERNAME" \
-    LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}" \
-    APP_VETH_NAMESPACE_INTERFACE "$APP_VETH_NAMESPACE_INTERFACE" \
-    APP_VETH_QBITTORRENT_ADDRESS "$desktop_qbittorrent_address"
+  if [ "$desktop_qbittorrent_enabled" = true ]; then
+    [ -n "$desktop_qbittorrent_address" ] || desktop_fatal "missing qBittorrent network identity"
+    desktop_render_role_target_template \
+      etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf.tmpl \
+      /etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf \
+      0644 \
+      ACCOUNT_USERNAME "$ACCOUNT_USERNAME" \
+      LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}" \
+      APP_VETH_NAMESPACE_INTERFACE "$APP_VETH_NAMESPACE_INTERFACE" \
+      APP_VETH_QBITTORRENT_ADDRESS "$desktop_qbittorrent_address"
+  fi
   desktop_stage_role_asset usr/local/bin/labwc-qbittorrent /usr/local/bin/labwc-qbittorrent 0755
   desktop_stage_role_asset usr/local/bin/zoom /usr/local/bin/zoom 0755
   desktop_render_role_target_template \

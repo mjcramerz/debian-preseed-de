@@ -14,29 +14,8 @@ app_veth_identity_placeholder_map() (
     APP_VETH_DNS_HOST_PORT "${APP_VETH_DNS_HOST_PORT:-}" \
     APP_VETH_TLS_HOST_ADDRESS "${APP_VETH_TLS_HOST_ADDRESS:-}" \
     APP_VETH_TLS_HOST_PORT "${APP_VETH_TLS_HOST_PORT:-}" \
-    APP_VETH_SLOTS_BITWARDEN "${APP_VETH_SLOTS_BITWARDEN:-}" \
-    APP_VETH_SLOTS_CHATGPT "${APP_VETH_SLOTS_CHATGPT:-}" \
-    APP_VETH_SLOTS_CHROMIUM "${APP_VETH_SLOTS_CHROMIUM:-}" \
-    APP_VETH_SLOTS_CODE "${APP_VETH_SLOTS_CODE:-}" \
-    APP_VETH_SLOTS_CODEX "${APP_VETH_SLOTS_CODEX:-}" \
-    APP_VETH_SLOTS_DISCORD "${APP_VETH_SLOTS_DISCORD:-}" \
-    APP_VETH_SLOTS_FILEN "${APP_VETH_SLOTS_FILEN:-}" \
-    APP_VETH_SLOTS_FREERDP "${APP_VETH_SLOTS_FREERDP:-}" \
-    APP_VETH_SLOTS_LEDGER_LIVE "${APP_VETH_SLOTS_LEDGER_LIVE:-}" \
-    APP_VETH_SLOTS_LIFEREA "${APP_VETH_SLOTS_LIFEREA:-}" \
-    APP_VETH_SLOTS_MICROSOFT_EDGE "${APP_VETH_SLOTS_MICROSOFT_EDGE:-}" \
-    APP_VETH_SLOTS_MULLVAD_BROWSER "${APP_VETH_SLOTS_MULLVAD_BROWSER:-}" \
-    APP_VETH_SLOTS_OBSIDIAN "${APP_VETH_SLOTS_OBSIDIAN:-}" \
-    APP_VETH_SLOTS_POSTMAN "${APP_VETH_SLOTS_POSTMAN:-}" \
-    APP_VETH_SLOTS_QBITTORRENT "${APP_VETH_SLOTS_QBITTORRENT:-}" \
-    APP_VETH_SLOTS_QBITTORRENT_PRIVACY "${APP_VETH_SLOTS_QBITTORRENT_PRIVACY:-}" \
-    APP_VETH_SLOTS_QOREDB "${APP_VETH_SLOTS_QOREDB:-}" \
-    APP_VETH_SLOTS_SPOTIFY "${APP_VETH_SLOTS_SPOTIFY:-}" \
-    APP_VETH_SLOTS_TELEGRAM_DESKTOP "${APP_VETH_SLOTS_TELEGRAM_DESKTOP:-}" \
-    APP_VETH_SLOTS_TUTANOTA "${APP_VETH_SLOTS_TUTANOTA:-}" \
-    APP_VETH_SLOTS_VIVALDI "${APP_VETH_SLOTS_VIVALDI:-}" \
-    APP_VETH_SLOTS_ZOOM "${APP_VETH_SLOTS_ZOOM:-}" \
-    APP_VETH_SLOTS_PODMAN "${APP_VETH_SLOTS_PODMAN:-}" |
+    APP_VETH_OVERRIDE "${APP_VETH_OVERRIDE:-}" \
+    LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}" |
   LC_ALL=C awk '
     function fail(key) { failed = 1; print "fatal: invalid " key " in app-veth identity" > "/dev/stderr"; exit 1 }
     function integer(key, low, high, value) {
@@ -75,9 +54,28 @@ app_veth_identity_placeholder_map() (
       if (int(number / 16777216) != 127) fail(key)
       return values[key]
     }
+    function known_app(app, i) {
+      for (i = 1; i <= app_count; i++) if (apps[i] == app) return 1
+      return 0
+    }
+    function json_bool(value) { return value ? "true" : "false" }
+    BEGIN {
+      # This order is the stable address order. APP_VETH_OVERRIDE only filters
+      # the set; it cannot make addresses depend on launch order.
+      app_count = split("bitwarden,chatgpt,chromium,code,codex,discord,filen,freerdp,ledger-live,liferea,microsoft-edge,mullvad-browser,obsidian,postman,qbittorrent,qbittorrent-privacy,qoredb,spotify,telegram-desktop,tutanota,vivaldi,zoom,podman", apps, /,/)
+      block_lan["bitwarden"] = 1
+      block_lan["discord"] = 1
+      block_lan["filen"] = 1
+      block_lan["ledger-live"] = 1
+      block_lan["qbittorrent-privacy"] = 1
+      block_lan["spotify"] = 1
+      block_lan["telegram-desktop"] = 1
+      block_lan["tutanota"] = 1
+      block_lan["zoom"] = 1
+    }
     {
       position = index($0, "="); key = substr($0, 1, position - 1)
-      if (!position || key !~ /^APP_VETH_[A-Z0-9_]+$/ || key in values || length($0) > 1024) fail(key)
+      if (!position || key !~ /^[A-Z][A-Z0-9_]+$/ || key in values || length($0) > 1024) fail(key)
       values[key] = substr($0, position + 1)
     }
     END {
@@ -102,29 +100,53 @@ app_veth_identity_placeholder_map() (
       loopback("APP_VETH_DNS_HOST_ADDRESS"); loopback("APP_VETH_TLS_HOST_ADDRESS")
       integer("APP_VETH_DNS_HOST_PORT", 1024, 65535); integer("APP_VETH_TLS_HOST_PORT", 1024, 65535)
       if (values["APP_VETH_DNS_HOST_ADDRESS"] == values["APP_VETH_TLS_HOST_ADDRESS"] && values["APP_VETH_DNS_HOST_PORT"] == values["APP_VETH_TLS_HOST_PORT"]) fail("APP_VETH DNS listener collision")
-      for (key in values) {
-        if (key !~ /^APP_VETH_SLOTS_/) continue
-        count = split(values[key], slots, /,/); rendered = "["; addresses = "["
-        if (count < 1 || count > leases) fail(key)
+      port = integer("LABWC_QBITTORRENT_PORT", 1024, 65535)
+
+      override = values["APP_VETH_OVERRIDE"]
+      if (override != "") {
+        count = split(override, requested, /,/)
         for (i = 1; i <= count; i++) {
-          if (slots[i] !~ /^(0|[1-9][0-9]*)$/ || length(slots[i]) > 3 || slots[i] + 0 >= leases || slots[i] in used) fail(key)
-          used[slots[i]] = 1
-          rendered = rendered (i > 1 ? "," : "") slots[i]
-          addresses = addresses (i > 1 ? "," : "") "\"" address(base + slots[i] * 4 + 2) "\""
+          if (requested[i] !~ /^[a-z][a-z0-9-]*$/ || !known_app(requested[i]) || requested[i] in selected) fail("APP_VETH_OVERRIDE")
+          selected[requested[i]] = 1
         }
-        if (key == "APP_VETH_SLOTS_QBITTORRENT" && count != 1) fail(key)
-        values[key] = rendered "]"
-        app = substr(key, 16)
-        values["APP_VETH_" app "_ADDRESS"] = address(base + slots[1] * 4 + 2)
-        values["APP_VETH_ADDRESSES_" app] = addresses "]"
+      } else {
+        for (i = 1; i <= app_count; i++) selected[apps[i]] = 1
       }
-      matches = "match-device="
+
+      apps_json = "{"; rendered_apps = 0; slot = 0
+      for (i = 1; i <= app_count; i++) {
+        app = apps[i]
+        if (!(app in selected)) continue
+        count = (app == "qbittorrent" ? 1 : 4)
+        if (slot + count > leases) fail("APP_VETH_MAX_LEASES")
+        slots_json = "["; addresses_json = "["
+        for (j = 0; j < count; j++) {
+          current = slot + j
+          slots_json = slots_json (j ? "," : "") current
+          addresses_json = addresses_json (j ? "," : "") "\"" address(base + current * 4 + 2) "\""
+        }
+        slots_json = slots_json "]"; addresses_json = addresses_json "]"
+        if (rendered_apps++) apps_json = apps_json ","
+        apps_json = apps_json "\"" app "\":{"
+        apps_json = apps_json "\"network\":true,\"block_lan\":" json_bool(app in block_lan)
+        if (app == "qbittorrent") apps_json = apps_json ",\"pin_route\":true,\"peer_port\":" port
+        apps_json = apps_json ",\"slots\":" slots_json ",\"addresses\":" addresses_json "}"
+        if (app == "qbittorrent") {
+          values["APP_VETH_QBITTORRENT_ADDRESS"] = address(base + slot * 4 + 2)
+          values["APP_VETH_QBITTORRENT_ENABLED"] = "true"
+        }
+        slot += count
+      }
+      if (!rendered_apps) fail("APP_VETH_OVERRIDE")
+      values["APP_VETH_APPS_JSON"] = apps_json "}"
+      if (!("APP_VETH_QBITTORRENT_ENABLED" in values)) values["APP_VETH_QBITTORRENT_ENABLED"] = "false"
+      values["APP_VETH_USED_LEASES"] = slot
+      values["APP_VETH_UNMANAGED_MATCH"] = "match-device="
       host_interfaces = "["
       for (slot = 0; slot < leases; slot++) {
-        matches = matches (slot ? ";" : "") "interface-name:=" prefix slot host_suffix ";interface-name:=" prefix slot peer_suffix
+        values["APP_VETH_UNMANAGED_MATCH"] = values["APP_VETH_UNMANAGED_MATCH"] (slot ? ";" : "") "interface-name:=" prefix slot host_suffix ";interface-name:=" prefix slot peer_suffix
         host_interfaces = host_interfaces (slot ? "," : "") "\"" prefix slot host_suffix "\""
       }
-      values["APP_VETH_UNMANAGED_MATCH"] = matches
       values["APP_VETH_HOST_INTERFACES"] = host_interfaces "]"
       for (key in values) if (key ~ /^APP_VETH_/) print key "=" values[key]
     }

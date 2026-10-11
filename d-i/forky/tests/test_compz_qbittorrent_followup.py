@@ -93,7 +93,7 @@ class TorrentIntegrationTests(unittest.TestCase):
                                      'nameserver 10.0.2.3\n' if online else '# Networking is disabled.\n')
                     if online:
                         options['on_network_ready'](types.SimpleNamespace(
-                            peer_port=policy['peer_port'], interface='eth0', address='10.203.0.14'))
+                            peer_port=policy['peer_port'], interface='eth0', address='10.203.0.226'))
                     else:
                         self.assertIsNone(options['on_network_ready'])
                     config = configparser.ConfigParser(interpolation=None)
@@ -102,7 +102,7 @@ class TorrentIntegrationTests(unittest.TestCase):
                     self.assertEqual(config['BitTorrent'][r'Session\Port'], str(expected_port))
                     self.assertEqual(config['BitTorrent'][r'Session\AnnouncePort'], str(expected_port))
                     self.assertEqual(config['BitTorrent'][r'Session\Interface'], 'eth0')
-                    self.assertEqual(config['BitTorrent'][r'Session\InterfaceAddress'], '10.203.0.114')
+                    self.assertEqual(config['BitTorrent'][r'Session\InterfaceAddress'], '10.203.0.226')
                     return 0
                 runtime.run_veth_sandbox = launch
                 globals_ = QBIT['run_new_instance'].__globals__
@@ -137,7 +137,7 @@ class TorrentIntegrationTests(unittest.TestCase):
                     self.assertEqual((Path(temporary) / 'resolv.conf').read_text(encoding='ascii'),
                                      runtime.veth_resolv_conf())
                     options['on_network_ready'](types.SimpleNamespace(
-                        peer_port=broker_port, interface='eth0', address='10.203.0.14'))
+                        peer_port=broker_port, interface='eth0', address='10.203.0.226'))
                     return 0
                 runtime.run_veth_sandbox = ready
                 with self.subTest(broker_port=broker_port), \
@@ -272,7 +272,7 @@ class TorrentIntegrationTests(unittest.TestCase):
             self.assertEqual(parser["Preferences"][r"WebUI\Enabled"], "false")
             self.assertEqual(parser["Network"]["PortForwardingEnabled"], "false")
             self.assertEqual(parser['BitTorrent'][r'Session\Interface'], 'eth0')
-            self.assertEqual(parser['BitTorrent'][r'Session\InterfaceAddress'], '10.203.0.114')
+            self.assertEqual(parser['BitTorrent'][r'Session\InterfaceAddress'], '10.203.0.226')
             for key in (r'Session\AnnounceToAllTiers', r'Session\AnnounceToAllTrackers'):
                 self.assertEqual(parser['BitTorrent'][key], 'false')
             self.assertEqual(parser['BitTorrent'][r'Session\AnnouncePort'], '50309')
