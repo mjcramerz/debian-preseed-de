@@ -170,16 +170,47 @@ class SettingsTests(unittest.TestCase):
             self.assertIn('ro', entry.split()[3].split(','))
             self.assertNotIn('rw', entry.split()[3].split(','))
 
-    def test_client_mount_policy_requires_auto_and_rejects_noauto(self):
+    def test_client_mount_policy_requires_noauto_and_rejects_auto(self):
         values = profile(NFS_CLIENT_ENABLE='true', NFS_CLIENT_BIND_ENABLE='true')
         for name in ('NFS_MNT_CLIENT_TARGET_SHARE_OPTS', 'NFS_MNT_CLIENT_BIND_HOME_OPTS'):
             with self.subTest(name=name):
                 options = values[name].split(',')
-                self.assertIn('auto', options)
-                self.assertNotIn('noauto', options)
-                disabled = ','.join('noauto' if option == 'auto' else option for option in options)
+                self.assertIn('noauto', options)
+                self.assertNotIn('auto', options)
+                automatic = ','.join('auto' if option == 'noauto' else option for option in options)
                 with self.assertRaises(ValueError):
-                    NFS.Settings.from_environment({**values, name: disabled})
+                    NFS.Settings.from_environment({**values, name: automatic})
+
+    @unittest.skipUnless(shutil.which('mount'), 'native util-linux mount unavailable')
+    def test_native_mount_all_skips_manual_client_entries(self):
+        settings = NFS.Settings.from_environment(profile(NFS_CLIENT_ENABLE='true', NFS_CLIENT_BIND_ENABLE='true'))
+        with tempfile.TemporaryDirectory(prefix='nfs-noauto-') as temporary:
+            root = Path(temporary)
+            records = []
+            targets = []
+            for index, entry in enumerate(NFS.fstab_entries(settings)):
+                fields = entry.split()
+                target = root / ('manual-' + str(index))
+                target.mkdir()
+                targets.append(target)
+                fields[1] = str(target)
+                if fields[2] == 'none':
+                    fields[0] = str(targets[0])
+                records.append(' '.join(fields))
+            canary = root / 'automatic-canary'
+            canary.mkdir()
+            records.append('none ' + str(canary) + ' tmpfs auto 0 0')
+            fstab = root / 'fstab'
+            fstab.write_text('\n'.join(records) + '\n', encoding='ascii')
+            # Fake/internal-only/no-mtab: no kernel mount, NFS helper or mtab write.
+            result = subprocess.run([shutil.which('mount'), '--fake', '--internal-only', '--no-mtab',
+                '--verbose', '--all', '--fstab', str(fstab)], env={**os.environ, 'LC_ALL': 'C'},
+                capture_output=True, text=True, encoding='utf-8', timeout=5)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for target in targets:
+                self.assertRegex(result.stdout, re.escape(str(target)) + r':\s+ignored')
+            self.assertRegex(result.stdout, re.escape(str(canary)) + r':\s+successfully mounted')
+            self.assertEqual(result.stdout.count('successfully mounted'), 1)
 
     def test_literal_lan_export_address_is_an_exact_host_peer(self):
         line = '/data/sharing/nfs-server 192.168.50.82(' + profile()['NFS_SERVER_RW_OPTIONS'] + ')'
@@ -255,16 +286,16 @@ class SettingsTests(unittest.TestCase):
                         self.assertEqual(source, '192.168.50.212:/')
                         self.assertEqual(where, '/data/sharing/nfs-client')
                         self.assertEqual(kind, 'nfs')
-                        self.assertTrue({'hard', '_netdev', 'nofail', 'auto', 'sec=sys', 'resvport', 'nosuid', 'nodev', 'noexec'} <= set(options.split(',')))
-                        self.assertNotIn('noauto', options.split(','))
+                        self.assertTrue({'hard', '_netdev', 'nofail', 'noauto', 'sec=sys', 'resvport', 'nosuid', 'nodev', 'noexec'} <= set(options.split(',')))
+                        self.assertNotIn('auto', options.split(','))
                         self.assertNotIn('x-systemd.automount', options)
                         self.assertNotIn('soft', options)
                         self.assertIn('ro' if ro == 'true' else 'rw', options.split(','))
                     for entry in entries[int(client > 0):]:
                         self.assertIn('x-systemd.requires-mounts-for=' + entry.split()[0], entry)
                         if entry.split()[0] == s['NFS_CLIENT_PATH']:
-                            self.assertIn('auto', entry.split()[3].split(','))
-                            self.assertNotIn('noauto', entry.split()[3].split(','))
+                            self.assertIn('noauto', entry.split()[3].split(','))
+                            self.assertNotIn('auto', entry.split()[3].split(','))
                             self.assertNotIn('x-systemd.automount', entry)
 
     def test_published_configuration_and_menu_use_mount_units_without_autofs(self):
@@ -773,19 +804,19 @@ class PublicationAndGeneratorTests(unittest.TestCase):
             for role in ('SERVER', 'CLIENT'):
                 home = settings['ACCOUNT_HOME']+'/'+settings[f'NFS_{role}_HOME_BIND_PATH']
                 self.assertIn('RequiresMountsFor='+settings[f'NFS_{role}_PATH'], (generated/NFS.unit_name(home)).read_text())
-            # Both client entries are wanted at boot. The bind still requires
-            # the real source mount; no autofs or path unit is involved.
+            # Client entries have no boot activator. The bind still requires
+            # the real source mount for an explicit connection.
             self.assertFalse(list(generated.rglob('*.automount')))
             self.assertFalse(list(generated.rglob('*.path')))
             for path in (settings['NFS_CLIENT_PATH'],
                          settings['ACCOUNT_HOME']+'/'+settings['NFS_CLIENT_HOME_BIND_PATH']):
                 name = NFS.unit_name(path)
                 options = re.search(r'^Options=(.*)$', (generated/name).read_text(encoding='utf-8'), re.M)[1].split(',')
-                self.assertIn('auto', options)
-                self.assertNotIn('noauto', options)
+                self.assertIn('noauto', options)
+                self.assertNotIn('auto', options)
                 links = [entry for entry in generated.rglob('*') if entry.is_symlink() and
                          entry.name == name and entry.parent.name.endswith(('.wants', '.requires'))]
-                self.assertEqual(links, [generated/'remote-fs.target.wants'/name], name)
+                self.assertEqual(links, [], name)
             self.assertTrue((generated/'local-fs.target.wants'/NFS.unit_name(
                 settings['ACCOUNT_HOME']+'/'+settings['NFS_SERVER_HOME_BIND_PATH'])).is_symlink())
 

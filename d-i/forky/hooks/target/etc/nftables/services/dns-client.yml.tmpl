@@ -6,15 +6,12 @@ metadata:
   merge_priority: 50
 egress:
   rules:
-    dns_client:
+    dns_over_tls_client:
       enabled: true
       protocols:
       - tcp
-      - udp
       ports:
-      - 53
+      - __INSTALLER_SYSTEM_NAMESERVERS_PORT__
       allow_to:
-        ipv4:
-        - 0.0.0.0/0
-        ipv6:
-        - ::/0
+        ipv4: __INSTALLER_SYSTEM_NAMESERVERS_IPV4_ALLOWLIST__
+        ipv6: __INSTALLER_SYSTEM_NAMESERVERS_IPV6_ALLOWLIST__

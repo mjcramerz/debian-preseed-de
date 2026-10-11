@@ -1,0 +1,15 @@
+# systemd-resolved remains the host resolver and may serve VPN-specific links.
+# Managed application veth DNS uses the separate dnsmasq -> Stubby path.
+[Resolve]
+# Route public/global queries through the local strict Stubby resolver. Resolved
+# remains available for host and per-link VPN DNS and route-only domains.
+DNS=127.0.0.1:53054
+# Global DNS uses Stubby's authenticated TLS-only transport. There is no
+# independent global fallback. The loopback connection to Stubby is plain DNS;
+# per-link VPN transport settings remain under their network manager's policy.
+FallbackDNS=
+DNSOverTLS=no
+DNSSEC=allow-downgrade
+Cache=yes
+CacheFromLocalhost=yes
+MulticastDNS=resolve

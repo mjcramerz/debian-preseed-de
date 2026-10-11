@@ -1,9 +1,9 @@
 [Unit]
 Description=Pre-created application veth pool and namespace routing
-Requires=nftables.service systemd-resolved.service apparmor.service
-After=nftables.service systemd-resolved.service apparmor.service systemd-sysctl.service
-BindsTo=nftables.service systemd-resolved.service
-PartOf=nftables.service systemd-resolved.service
+Requires=nftables.service stubby.service dnsmasq-app-veth.service apparmor.service
+After=nftables.service stubby.service dnsmasq-app-veth.service apparmor.service systemd-sysctl.service
+BindsTo=nftables.service stubby.service dnsmasq-app-veth.service
+PartOf=nftables.service stubby.service dnsmasq-app-veth.service
 Before=podman-devops.service greetd.service
 
 [Service]

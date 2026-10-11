@@ -1,0 +1,95 @@
+# Managed by unattended-installer. Rendered during the desktop install stage.
+# labwc-qbittorrent copies the installed file unchanged into its private profile
+# before each new instance. All native application settings belong in this file.
+
+[Application]
+MemoryWorkingSetLimit=1024
+FileLogger\Enabled=true
+FileLogger\Path=/home/user/.local/share/qBittorrent/logs
+FileLogger\Backup=true
+FileLogger\MaxSizeBytes=5242880
+FileLogger\DeleteOld=true
+FileLogger\Age=7
+FileLogger\AgeType=0
+
+# Qt's built-in style avoids the supplied Adwaita focus-paint crash.
+[Appearance]
+Style=Fusion
+
+[BitTorrent]
+Session\AddExtensionToIncompleteFiles=true
+Session\AnnounceToAllTiers=false
+Session\AnnounceToAllTrackers=false
+Session\AnnounceIP=
+Session\AnnouncePort=__INSTALLER_LABWC_QBITTORRENT_PORT__
+Session\AnonymousModeEnabled=false
+# Do not add public fallback trackers to private-tracker torrents.
+Session\AddTrackersEnabled=false
+Session\AddTrackersFromURLEnabled=false
+Session\BTProtocol=Both
+Session\BlockPeersOnPrivilegedPorts=true
+Session\DHTEnabled=false
+Session\DefaultSavePath=/run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/completed
+Session\DisableAutoTMMByDefault=true
+Session\Encryption=0
+Session\FinishedTorrentExportDirectory=/run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/torrents-completed
+Session\GlobalMaxRatio=-1
+Session\GlobalMaxSeedingMinutes=-1
+Session\GlobalMaxInactiveSeedingMinutes=-1
+Session\GlobalDLSpeedLimit=0
+Session\GlobalUPSpeedLimit=0
+Session\AlternativeGlobalDLSpeedLimit=0
+Session\AlternativeGlobalUPSpeedLimit=0
+Session\UseAlternativeGlobalSpeedLimit=false
+Session\BandwidthSchedulerEnabled=false
+# The broker always names the private veth eth0. An empty optional address
+# selects that interface's current lease without runtime config rendering.
+Session\Interface=eth0
+Session\InterfaceName=eth0
+Session\InterfaceAddress=
+Session\LSDEnabled=false
+Session\MaxActiveTorrents=-1
+Session\MaxActiveUploads=-1
+# Bound socket usage while permitting unlimited transfer rates and seeding.
+Session\MaxConnections=500
+Session\MaxConnectionsPerTorrent=100
+Session\MaxUploads=-1
+Session\MaxUploadsPerTorrent=-1
+Session\OutgoingPortsMin=0
+Session\OutgoingPortsMax=0
+Session\PeXEnabled=false
+Session\Port=__INSTALLER_LABWC_QBITTORRENT_PORT__
+Session\QueueingSystemEnabled=false
+Session\ReannounceWhenAddressChanged=true
+Session\SSRFMitigation=true
+Session\TempPath=/run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/active
+Session\TempPathEnabled=true
+Session\TorrentExportDirectory=/run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/torrents-active
+Session\UseRandomPort=false
+Session\UseUPnP=false
+Session\ValidateHTTPSTrackerCertificate=true
+
+[Core]
+AutoDeleteAddedTorrentFile=Never
+
+[LegalNotice]
+Accepted=true
+
+[Network]
+PortForwardingEnabled=false
+
+[Preferences]
+Connection\PortRangeMin=__INSTALLER_LABWC_QBITTORRENT_PORT__
+Connection\Interface=eth0
+Connection\InterfaceName=eth0
+Connection\InterfaceAddress=
+Connection\ResolvePeerCountries=true
+Connection\UPnP=false
+Downloads\FinishedTorrentExportDirectory=/run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/torrents-completed
+Downloads\SavePath=/run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/completed
+Downloads\TempPath=/run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/active
+Downloads\TempPathEnabled=true
+Downloads\TorrentExportDirectory=/run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/torrents-active
+General\UseRandomPort=false
+Queueing\QueueingEnabled=false
+WebUI\Enabled=false

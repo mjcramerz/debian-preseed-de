@@ -19,6 +19,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 
 sys.dont_write_bytecode = True
@@ -32,6 +33,12 @@ NS_GET_OWNER_UID = 0xB704
 NS_GET_NSTYPE = 0xB703
 CLONE_NEWNET = 0x40000000
 MAX_LEASES = 32
+# A transient carrier or USB adapter flap can remove the default route for a
+# few seconds while the interface is recreated. Keep the pinned namespace
+# alive during that bounded outage; the existing nftables mapping remains
+# fail-closed while its egress interface is absent. A sustained outage still
+# revokes the lease below.
+PINNED_ROUTE_GRACE_SECONDS = 10
 # Fixed host names are created once at boot and retained for every lease.
 INTERFACE_PATTERN = r"veth(?:[0-9]|[12][0-9]|3[01])-app"
 INTERFACE_MATCH = "{ " + ", ".join(f'"veth{slot}-app"' for slot in range(MAX_LEASES)) + " }"
@@ -76,6 +83,9 @@ table inet app_veth {
     chain forward_guard {
         type filter hook forward priority -10; policy accept;
         iifname __APP_INTERFACES__ oifname __APP_INTERFACES__ drop
+        # Only the exact DNS endpoint is DNATed to the local cache. Block
+        # direct ordinary DNS before unpinned or pinned application egress.
+        iifname @links meta l4proto { tcp, udp } th dport 53 drop
         iifname @lan_blocked ip daddr @lan_ipv4 drop
         iifname @outbound accept
         iifname . oifname @pinned accept
@@ -299,12 +309,17 @@ class Network:
         self.attached = False
         self.installed = False
         self.pinned_route = None
+        self.route_unavailable_since = None
         try:
             if policy.get("network") is not True:
                 raise ValueError("application has no network authorization")
             peer_port = policy["peer_port"]
             pinned = policy["pin_route"]
-            iface, source, mtu = route(allow_lan=not (pinned or policy["block_lan"]))
+            # Unpinned clients only need a connected uplink to select an MTU.
+            # They can start while the host's WAN/VPN route is being restored;
+            # nftables still applies block_lan independently to every packet.
+            # A pinned client must retain a working Internet route.
+            iface, source, mtu = route(allow_lan=not pinned)
             if pinned:
                 self.pinned_route = (iface, source, mtu)
             if app == "qbittorrent" and iface.startswith("tailscale"):
@@ -438,11 +453,31 @@ def refresh_pinned_routes(selector, leases):
         current = route()
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
         current = None
+    now = time.monotonic()
     for channel, network in pinned:
+        if current is None:
+            if network.route_unavailable_since is None:
+                network.route_unavailable_since = now
+                event("network_route_unavailable", network.id, app=network.app,
+                      uid=network.uid, grace_seconds=PINNED_ROUTE_GRACE_SECONDS)
+                continue
+            if now - network.route_unavailable_since < PINNED_ROUTE_GRACE_SECONDS:
+                continue
+            # The route stayed unavailable beyond the bounded recovery window.
+            # Revoke the lease rather than leaving a stale peer-port mapping.
+            event("network_route_changed", network.id, app=network.app, uid=network.uid,
+                  reason="route_unavailable")
+            release_lease(selector, leases, channel)
+            continue
+
+        if network.route_unavailable_since is not None:
+            network.route_unavailable_since = None
+            event("network_route_restored", network.id, app=network.app, uid=network.uid)
         if current != network.pinned_route:
             # Never silently move a torrent from its selected VPN/LAN egress,
             # or keep advertising a peer port on an address no longer in use.
-            event("network_route_changed", network.id, app=network.app, uid=network.uid)
+            event("network_route_changed", network.id, app=network.app, uid=network.uid,
+                  reason="route_replaced")
             release_lease(selector, leases, channel)
 
 
@@ -511,6 +546,22 @@ def recover_endpoints():
         run(["/usr/sbin/ip", "link", "del", "dev", name])
 
 
+def wait_dns_frontend() -> None:
+    # Executing dnsmasq does not mean it has bound its listener yet. Wait only
+    # for local readiness; an unavailable public upstream must not block boot.
+    deadline = time.monotonic() + 5
+    while True:
+        remaining = deadline - time.monotonic()
+        try:
+            with socket.create_connection(("127.0.0.1", 53053), timeout=min(.25, max(.001, remaining))):
+                return
+        except (ConnectionRefusedError, TimeoutError) as exc:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise RuntimeError("managed DNS frontend did not become ready within 5 seconds") from exc
+            time.sleep(min(.05, remaining))
+
+
 def main():
     if os.geteuid() != 0:
         raise ValueError("network service requires root")
@@ -520,9 +571,9 @@ def main():
     pool = select_pool()
     if Path("/proc/sys/net/ipv4/ip_forward").read_text().strip() != "1":
         raise ValueError("managed IPv4 forwarding is disabled")
-    # The extra listener accepts veth sources while retaining resolved policy.
-    with socket.create_connection(("127.0.0.1", 53053), timeout=2):
-        pass
+    # The dedicated dnsmasq listener owns the veth cache and forwards directly
+    # to Stubby's strict DoT/DNSSEC endpoint. VPN link DNS is not in this path.
+    wait_dns_frontend()
     nft(RULESET)
     endpoints = None
     selector = None

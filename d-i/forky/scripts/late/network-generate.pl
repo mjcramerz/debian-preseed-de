@@ -32,6 +32,7 @@ my %CFG = (
     MANAGED_NETWORK_IPV4_CIDR           => '',
     MANAGED_NETWORK_IPV4_GATEWAY        => '',
     MANAGED_NETWORK_IPV4_DNS            => '',
+    MANAGED_NETWORK_DNS_MODE            => 'link',
     MANAGED_NETWORK_IPV6_ENABLED        => 'false',
     MANAGED_NETWORK_IPV6_ADDRESS        => '',
     MANAGED_NETWORK_IPV6_PREFIXLEN      => '',
@@ -794,6 +795,8 @@ sub validate_config {
     $CFG{MANAGED_NETWORK_IPV4_CIDR} = parse_ipv4_netmask('MANAGED_NETWORK_IPV4_NETMASK', $CFG{MANAGED_NETWORK_IPV4_NETMASK});
     parse_ipv4('MANAGED_NETWORK_IPV4_GATEWAY', $CFG{MANAGED_NETWORK_IPV4_GATEWAY});
     $CFG{MANAGED_NETWORK_IPV4_DNS} = validate_ipv4_dns($CFG{MANAGED_NETWORK_IPV4_DNS});
+    fatal('MANAGED_NETWORK_DNS_MODE must be link or global')
+        if $CFG{MANAGED_NETWORK_DNS_MODE} !~ /\A(?:link|global)\z/;
     $CFG{MANAGED_NETWORK_IPV6_ENABLED} = parse_bool('MANAGED_NETWORK_IPV6_ENABLED', $CFG{MANAGED_NETWORK_IPV6_ENABLED}) ? 'true' : 'false';
     if ($CFG{MANAGED_NETWORK_IPV6_ENABLED} eq 'true') {
         my (undef, $prefix) =
@@ -845,6 +848,9 @@ sub render_iface_stanza {
             NETMASK => $CFG{MANAGED_NETWORK_IPV6_PREFIXLEN}, GATEWAY => $CFG{MANAGED_NETWORK_IPV6_GATEWAY},
             DNS => $CFG{MANAGED_NETWORK_IPV6_DNS}, PERFORMANCE => $performance);
     }
+    # Installer DNS is bootstrap-only when the target owns a global resolver.
+    # Leave VPN/split DNS on other links untouched and retain the search domain.
+    $text =~ s/^    dns-nameservers[^\n]*\n//mg if $CFG{MANAGED_NETWORK_DNS_MODE} eq 'global';
     return $text;
 }
 
@@ -1006,10 +1012,15 @@ sub main {
         { mode => 0755 },
     );
     write_file_atomic(target_path('/etc/network/interfaces'), 0644, render_interfaces_base());
+    my $stanzas = join("\n", @parts);
+    if ($CFG{MANAGED_NETWORK_DNS_MODE} eq 'global') {
+        $stanzas = "# DNS is managed globally by systemd-resolved and Stubby.\n"
+            . "# Per-link DNS directives are intentionally omitted.\n\n" . $stanzas;
+    }
     write_file_atomic(
         target_path('/etc/network/interfaces.d/50-network'),
         exists($selected{wifi}) ? 0600 : 0644,
-        render_native($TARGET_TEMPLATES, 'etc/network/interfaces.d/50-network.tmpl', STANZAS => join("\n", @parts))
+        render_native($TARGET_TEMPLATES, 'etc/network/interfaces.d/50-network.tmpl', STANZAS => $stanzas)
     );
     my @link_file_types = @links;
     push @link_file_types, 'wifi' if exists($link_files{wifi}) && !grep { $_ eq 'wifi' } @link_file_types;

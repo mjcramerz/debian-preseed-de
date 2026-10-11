@@ -89,10 +89,12 @@ def pin_sandbox_init(pid: int) -> int:
 
 
 def resolver_configuration() -> str:
-    """Keep resolved's search domains while directing every query to its stub.
+    """Keep host search domains while directing every query to the local cache.
 
     Only search suffixes are imported. Nameservers and resolver options cannot
-    redirect queries away from the broker's systemd-resolved listener.
+    redirect queries away from the broker's local cache. Cache misses go
+    directly to Stubby's configured DoT/DNSSEC upstreams, independent of
+    systemd-resolved's host and VPN DNS policy.
     """
     try:
         fd = os.open(STUB_RESOLVER_PATH, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)

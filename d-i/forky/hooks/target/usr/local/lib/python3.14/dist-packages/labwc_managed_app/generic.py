@@ -223,6 +223,7 @@ def managed_network_command(mode: str, arguments: list[str], *, kind: str = "way
             "/usr/bin/foot", "/usr/bin/footclient", "/usr/bin/kitty", "/usr/bin/terminal-emulator",
             *CAPTURE_EXECUTABLES,
             "/usr/bin/thunar", "/usr/bin/Thunar", "/usr/local/bin/labwc-terminal",
+            "/usr/bin/labwc-tweaks", "/usr/bin/qt6ct",
             "/usr/bin/timeshift-launcher", "/usr/local/bin/mullvad-vpn", "/usr/local/bin/waypaper",
             "/usr/local/bin/labwc-desktop-appearance", "/usr/local/bin/labwc-remote-desktop",
             "/opt/Mullvad VPN/mullvad-vpn", "/opt/Mullvad VPN/mullvad-gui")):
@@ -397,6 +398,7 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         # UID/PID/IPC view used by Desktop Appearance so writes and HUP reach
         # the real session instead of a transient namespace.
         "/usr/bin/labwc-tweaks",
+        "/usr/bin/qt6ct",
     }) or (kind == "wayland" and arguments[:2] == [
         "/usr/local/bin/labwc-remote-desktop", "_connect",
     ]) or (kind == "electron" and arguments[0] in {
@@ -411,6 +413,9 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         "/usr/local/bin/labwc-terminal",
     }
     is_waypaper = kind == "wayland" and arguments[0] == "/usr/local/bin/waypaper"
+    is_compositor_settings = kind == "wayland" and arguments[0] in {
+        "/usr/bin/labwc-tweaks", "/usr/bin/qt6ct",
+    }
     return [
         "/usr/bin/systemd-run", "--user", "--quiet", "--collect",
         *menu_action_wait_arguments(),
@@ -458,6 +463,7 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
             "--property=PrivateTmp=yes", "--property=PrivateIPC=yes",
             "--property=ProtectSystem=full",
         ]),
+        *(["--property=PrivateIPC=no"] if is_compositor_settings else []),
         *(["--property=ProtectProc=default", "--property=ProcSubset=all"] if is_terminal else []),
         "--property=UnsetEnvironment=" + " ".join(name for name in UNSET_ENVIRONMENT if name not in environment),
         f"--working-directory={os.getcwd()}",

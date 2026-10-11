@@ -208,7 +208,7 @@ class Settings:
             if len(set(options)) != len(options) or set(options) != REQUIRED_FLAGS | {mode.lower()}:
                 raise ValueError(f'NFS_SERVER_{mode}_OPTIONS must retain the managed export policy')
         bind_flags = {'bind', 'nosuid', 'nodev', 'noexec', 'nofail'}
-        network_flags = {'_netdev', 'auto',
+        network_flags = {'_netdev', 'noauto',
                          'x-systemd.mount-timeout=' + values['NFS_CLIENT_MOUNT_TIMEOUT'] + 's'}
         for role in ('SERVER', 'CLIENT'):
             required = bind_flags | {'x-systemd.requires-mounts-for=' + values[f'NFS_{role}_PATH'],

@@ -1,0 +1,19 @@
+# Managed by unattended-installer. This is the dedicated application-veth
+# DNS frontend; the package's normal dnsmasq service is separate.
+listen-address=127.0.0.1
+bind-interfaces
+port=53053
+no-resolv
+no-hosts
+# Keep the managed application path independent from systemd-resolved and any
+# VPN-provided link DNS. Stubby is the only configured public upstream.
+server=127.0.0.1#53054
+# Dnsmasq owns the veth-facing cache. Stubby validates DNSSEC before an answer
+# reaches this cache; do not proxy the AD bit while cached entries are reused.
+cache-size=__INSTALLER_SYSTEM_DNS_CACHE_SIZE__
+min-cache-ttl=__INSTALLER_SYSTEM_DNS_CACHE_MIN_TTL__
+cache-rr=ANY
+clear-on-reload
+# The broker's packet policy still enforces each application's LAN restrictions.
+dns-forward-max=150
+log-facility=-

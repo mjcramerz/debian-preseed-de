@@ -711,7 +711,8 @@ class IntegrationTests(unittest.TestCase):
                 if source.is_dir(): shutil.copytree(source, root / folder, dirs_exist_ok=True)
             for name in ('gitbuild', 'gitbuild-worker', 'labwc-appearance', 'desktop-wrappers', 'debugsys'):
                 path = root / name; path.write_text(render_theme_defaults(read_text(TARGET / 'etc/apparmor.d' / name)))
-                result = subprocess.run(['apparmor_parser', '-Q', '-T', '-I', str(root), str(path)], capture_output=True, text=True, timeout=30)
+                # Offline parsing must neither load policy nor write host caches.
+                result = subprocess.run(['apparmor_parser', '-Q', '-K', '-I', str(root), str(path)], capture_output=True, text=True, timeout=30)
                 self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_new_python_entrypoints_are_installed_executable_from_nonexecutable_sources(self):

@@ -63,3 +63,39 @@ profile app-veth-podman /usr/local/libexec/app-veth-podman flags=(attach_disconn
   signal (send) set=(chld) peer=unconfined,
   ptrace (readby) peer=unconfined,
 }
+
+# Named service profiles avoid changing the distribution's dnsmasq attachment
+# used by NetworkManager or virtual machines. PID 1 selects these exact labels.
+profile app-veth-dns-cache flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/base>
+  /usr/sbin/dnsmasq rix,
+  /etc/dnsmasq-app-veth.conf r,
+  /etc/{passwd,group,nsswitch.conf,host.conf,hosts,gai.conf} r,
+  owner /run/dnsmasq-app-veth/{,dnsmasq.pid} rw,
+  @{PROC}/sys/net/ipv6/conf/*/mtu r,
+  owner @{PROC}/@{pid}/fd/{,[0-9]*} r,
+  network inet stream,
+  network inet dgram,
+  network netlink raw,
+  signal (send, receive) peer=app-veth-dns-cache,
+  signal (receive) set=(term,kill,int,hup,usr1) peer=unconfined,
+}
+
+profile app-veth-dns-tls flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/base>
+  /usr/bin/stubby rix,
+  /etc/stubby/stubby.yml r,
+  /usr/share/dns/root.key r,
+  /etc/ssl/{,**} r,
+  /etc/{passwd,group,nsswitch.conf,host.conf,hosts,resolv.conf,gai.conf} r,
+  /run/systemd/resolve/{resolv.conf,stub-resolv.conf} r,
+  owner /run/stubby/{,**} rw,
+  owner /var/cache/{,private/}stubby/{,**} rwk,
+  /run/systemd/notify w,
+  network inet stream,
+  network inet dgram,
+  network inet6 stream,
+  network unix dgram,
+  signal (send, receive) peer=app-veth-dns-tls,
+  signal (receive) set=(term,kill,int,hup) peer=unconfined,
+}

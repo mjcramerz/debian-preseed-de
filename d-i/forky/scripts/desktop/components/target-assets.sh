@@ -222,6 +222,13 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/libexec/labwc-zoom-discord-compat-runtime /usr/local/libexec/labwc-zoom-discord-compat-runtime 0755
   desktop_stage_role_asset usr/local/libexec/labwc-private-xwayland /usr/local/libexec/labwc-private-xwayland 0755
   desktop_stage_role_asset usr/local/libexec/labwc-compat-open-uri /usr/local/libexec/labwc-compat-open-uri 0755
+  desktop_validate_uint_range LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}" 1024 65535
+  desktop_render_role_target_template \
+    etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf.tmpl \
+    /etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf \
+    0644 \
+    ACCOUNT_USERNAME "$ACCOUNT_USERNAME" \
+    LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}"
   desktop_stage_role_asset usr/local/bin/labwc-qbittorrent /usr/local/bin/labwc-qbittorrent 0755
   desktop_stage_role_asset usr/local/bin/zoom /usr/local/bin/zoom 0755
   desktop_render_role_target_template \

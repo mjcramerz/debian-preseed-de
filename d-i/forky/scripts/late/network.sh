@@ -447,6 +447,13 @@ validate_network_wifi_psk_security() {
 network_input_placeholder_map() {
   write_shell_config_var MANAGED_NETWORK_WAIT_SECONDS 8
   write_shell_config_var MANAGED_NETWORK_MODE "$network_mode"
+  # Do not persist installer bootstrap DNS as a link-level public upstream.
+  # Global DNS uses Stubby; VPN-managed link DNS remains owned by resolved.
+  if [ -n "${SYSTEM_NAMESERVERS_HOSTNAME_DNS1:-}" ]; then
+    write_shell_config_var MANAGED_NETWORK_DNS_MODE global
+  else
+    write_shell_config_var MANAGED_NETWORK_DNS_MODE link
+  fi
   write_shell_config_var MANAGED_NETWORK_LINK_TYPES "$link_types"
   write_shell_config_var MANAGED_NETWORK_TARGET_ROOT /
   write_shell_config_var MANAGED_NETWORK_SYS_CLASS_NET /sys/class/net
@@ -514,7 +521,7 @@ write_target_managed_network_input() {
   validate_network_ipv4_address MANAGED_NETWORK_IPV4_GATEWAY "$static_gateway"
   validate_network_hostname_component SYSTEM_DOMAIN "$static_domain"
   ipv4_dns=$(normalize_network_address_list "$static_nameservers")
-  [ -n "$ipv4_dns" ] || ipv4_dns=${static_gateway:-${STATIC_NAMESERVERS_DEFAULT:-}}
+  [ -n "$ipv4_dns" ] || ipv4_dns=${STATIC_INSTALLER_NAMESERVER:-}
   validate_network_ipv4_address_list MANAGED_NETWORK_IPV4_DNS "$ipv4_dns"
 
   ipv6_address=$(installer_cmdline_value ipv6_address 2>/dev/null || true)
@@ -922,6 +929,10 @@ install_target_managed_network_handoff() {
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/network.service)" \
     "${FILE_MANAGED_NETWORK_SERVICE}" \
     0644
+  # Exercise the installed reader against the generated policy before enabling
+  # its boot unit. Hardware is checked at boot after the udev renames apply.
+  run_in_target "managed network policy validation" \
+    /usr/bin/perl "${FILE_MANAGED_NETWORK_HELPER}" validate --staged-only
   stage_target_systemd_unit_enabled network.service system
   enable_target_networking_service_if_available
   installer_append_log_category late target_customization info network \

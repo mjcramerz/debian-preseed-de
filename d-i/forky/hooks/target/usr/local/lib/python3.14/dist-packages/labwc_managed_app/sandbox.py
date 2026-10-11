@@ -322,7 +322,10 @@ def filtered_resolv_conf() -> str:
     except OSError:
         pass
     if not lines:
-        lines.append("nameserver 1.1.1.1")
+        # Keep fallback resolution inside the host resolver policy. Public
+        # upstream selection belongs to Stubby/systemd-resolved, not this
+        # application helper.
+        lines.append("nameserver 127.0.0.53")
     return "\n".join(lines) + "\n"
 
 

@@ -15,6 +15,7 @@ use ManagedNetwork::Logger;
 
 my @CONFIG_KEYS = qw(
   MANAGED_NETWORK_MODE
+  MANAGED_NETWORK_DNS_MODE
   MANAGED_NETWORK_LINK_TYPES
   MANAGED_NETWORK_HOSTNAME
   MANAGED_NETWORK_DOMAIN
@@ -49,6 +50,12 @@ has wait_seconds => (
 );
 
 has allow_absent => (
+    is      => 'ro',
+    isa     => Bool,
+    default => sub { 0 },
+);
+
+has staged_only => (
     is      => 'ro',
     isa     => Bool,
     default => sub { 0 },
@@ -92,6 +99,7 @@ sub from_environment {
     return $class->new(
         wait_seconds  => $args{wait_seconds} // 0,
         allow_absent  => $args{allow_absent} // 0,
+        staged_only   => $args{staged_only} // 0,
         config_path   => $config_path,
         logger        => $args{logger},
         sys_class_net => $ENV{MANAGED_SYS_CLASS_NET} // '/sys/class/net',
@@ -122,7 +130,7 @@ sub _validate_paths {
         or die "target root is missing: " . $self->target_root() . "\n";
     $self->sys_class_net() =~ m{\A/}
         or die "MANAGED_SYS_CLASS_NET must be absolute: " . $self->sys_class_net() . "\n";
-    -d $self->sys_class_net()
+    ($self->staged_only() || -d $self->sys_class_net())
         or die "sysfs net directory is missing: " . $self->sys_class_net() . "\n";
     $self->config_path() =~ m{\A/}
         or die "MANAGED_NETWORK_CONFIG must be absolute: " . $self->config_path() . "\n";
@@ -251,6 +259,11 @@ sub _validate_config_values {
     my %managed_type = map { $_ => 1 } @types;
     $config->{MANAGED_NETWORK_MODE} eq 'static'
         or die "MANAGED_NETWORK_MODE must be static\n";
+    # Older host.conf files predate the global resolver handoff.
+    $config->{MANAGED_NETWORK_DNS_MODE} = 'link'
+        if $config->{MANAGED_NETWORK_DNS_MODE} eq q{};
+    $config->{MANAGED_NETWORK_DNS_MODE} =~ /\A(?:link|global)\z/
+        or die "MANAGED_NETWORK_DNS_MODE must be link or global\n";
     $self->_valid_domain($config->{MANAGED_NETWORK_DOMAIN})
         or die "MANAGED_NETWORK_DOMAIN is invalid\n";
     $self->_valid_ipv4($config->{MANAGED_NETWORK_IPV4_GATEWAY})
@@ -346,6 +359,9 @@ sub _validate_expected_interface {
     ($ipv6_enabled || $ipv6 eq q{})
         or die "unexpected IPv6 CIDR for $link_type when IPv6 is disabled\n";
 
+    # Installation validates policy before the target's udev renames apply.
+    return if $self->staged_only();
+
     my $sys_iface = $self->sys_class_net() . "/$iface";
     if (!-d $sys_iface && $self->allow_absent()) {
         $self->logger()->info("configured $link_type adapter is not attached: $iface");
@@ -388,6 +404,10 @@ sub _validate_staged_files {
     $base =~ /^source[ \t]+\/etc\/network\/interfaces\.d\/\*/m
         or die "$interfaces does not source interfaces.d\n";
     my $content = $self->_slurp_limited($managed);
+    if ($config->{MANAGED_NETWORK_DNS_MODE} eq 'global') {
+        $content !~ /^[ \t]*dns-nameservers[ \t]+\S/m
+            or die "$managed must not configure per-link DNS in global mode\n";
+    }
     my $ipv6_enabled = lc($config->{MANAGED_NETWORK_IPV6_ENABLED}) eq 'true' ? 1 : 0;
     for my $link_type (@types) {
         my $upper = uc($link_type);
@@ -437,7 +457,7 @@ sub validate {
     )->load();
     my @types = $self->_validate_config_values($config);
     $self->_validate_staged_files($config, @types);
-    $self->_wait_for_expected_interfaces($config, @types);
+    $self->_wait_for_expected_interfaces($config, @types) if !$self->staged_only();
     for my $link_type (@types) {
         $self->_validate_expected_interface($config, $link_type);
     }

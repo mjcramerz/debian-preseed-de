@@ -1,8 +1,12 @@
 [Unit]
 Description=Managed Tailscale bootstrap
-After=network-online.target nss-lookup.target time-sync.target nftables.service tailscaled.service
-Wants=network-online.target nss-lookup.target time-sync.target tailscaled.service
-Requires=nftables.service
+# The control-plane bootstrap uses the host resolver. Start only after the
+# authenticated Stubby listener and resolved are active, otherwise the first
+# DNSSEC lookup can race resolver startup and be mistaken for a control-plane
+# failure. A later transient link flap remains tailscaled's responsibility.
+After=network-online.target nss-lookup.target time-sync.target nftables.service systemd-resolved.service stubby.service tailscaled.service
+Wants=network-online.target nss-lookup.target time-sync.target systemd-resolved.service stubby.service tailscaled.service
+Requires=nftables.service stubby.service
 ConditionPathExists=!/var/lib/firstboot/tailscale/complete
 ConditionFileIsExecutable=/var/lib/firstboot/bin/tailscale-up
 OnSuccess=secondboot.service

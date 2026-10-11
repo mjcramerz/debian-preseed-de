@@ -159,6 +159,15 @@ starts. An explicit readiness gate prevents payload execution on startup-pipe
 EOF; failed setup also kills the pinned namespace. A bounded startup lock
 serializes concurrent first launches, and later requests use the existing
 application's local IPC socket.
+The installer renders the complete native qBittorrent configuration into the
+root-owned `/etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf`
+asset, including `Session\BlockPeersOnPrivilegedPorts=true`, the selected peer
+port, storage paths, and the private `eth0` namespace binding. The launcher only
+validates and copies that rendered file into the persistent profile before a new
+instance; it does not render or merge native qBittorrent keys at runtime. A
+ten-second route-loss grace period lets the pinned lease survive a short carrier
+or USB adapter recreation while still revoking it for a route replacement or
+prolonged outage.
 Relaunch after changing the route or VPN. Router forwarding works when the
 Internet route uses the router connection; a VPN route needs forwarding at its
 own public endpoint. This forwarding contract requires IPv4. DNS uses an extra

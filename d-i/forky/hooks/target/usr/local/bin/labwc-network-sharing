@@ -196,7 +196,7 @@ def action(config: dict, label: str) -> None:
             'Root: ' + settings['NETWORK_SHARING_ROOT_PATH'],
             'Remote: ' + settings['NFS_CLIENT_TARGET_IP'] + ':' + settings['NFS_CLIENT_EXPORT_PATH'],
             *result.stdout.splitlines(),
-            'Client mounts start automatically at boot. Use Connect to NFS Server to retry a failed or disconnected mount.'])
+            'Use Connect to NFS Server to mount the client share when needed.'])
     elif label in ('Connect to NFS Server', 'Disconnect from NFS Server'):
         if not need_role(config, 'client'):
             return
@@ -282,9 +282,9 @@ def action(config: dict, label: str) -> None:
             'Root is squashed even on the trusted server-peer range. Read-only peers cannot write.',
             'Server data: ' + config['profile']['NFS_SERVER_PATH'],
             'Client data: ' + config['profile']['NFS_CLIENT_PATH'],
-            'Client mounts start automatically at boot; Connect to NFS Server retries them if needed.',
+            'Use Connect to NFS Server to mount the client share when needed.',
             'Disconnected client directories remain readable and empty; data is available only while the NFS source is mounted.',
-            'mount -a requires root and includes both client entries. Connect starts their systemd dependencies in order.',
+            'mount -a skips the client entries. Use Connect to NFS Server to mount them in order.',
             'After joining the shared group, log out and log in again for group-dependent file access; this does not prevent a mount retry.',
             'A hard-mounted share may block application I/O during outages. Never use lazy/forced unmount to conceal that condition.',
             'Disconnect only after closing applications and files. The menu never probes file contents on a remote share.',

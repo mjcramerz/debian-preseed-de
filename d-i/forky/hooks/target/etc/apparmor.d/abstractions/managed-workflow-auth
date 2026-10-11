@@ -23,6 +23,9 @@ signal (receive) peer=unconfined,
 /proc/ r,
 /proc/[0-9]*/{stat,status,loginuid,cmdline} r,
 /proc/[0-9]*/attr/current r,
+# pkexec inspects inherited authentication descriptors in every workflow.
+# Permit owned metadata only; this does not allow reading descriptor contents.
+owner @{PROC}/@{pid}/fdinfo/[0-9]* r,
 /run/ r,
 /run/user/ r,
 /run/user/[0-9]*/ r,

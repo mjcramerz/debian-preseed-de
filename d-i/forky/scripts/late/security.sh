@@ -169,7 +169,9 @@ nftables_merge_selected_services() {
 
 late_command_nftables_effective_services() {
   selected_services=$(late_command_nftables_services)
-  effective_services=$selected_services
+  # The global resolver always uses the rendered authenticated upstream port,
+  # including when a site selects the strict egress overlay or no services.
+  effective_services=$(nftables_merge_selected_services "$selected_services" dns-client)
 
   if installer_selected_class_reference_is_selected addon/crowdsec 2>/dev/null; then
     effective_services=$(nftables_merge_selected_services "$effective_services" crowdsec)
@@ -209,6 +211,7 @@ late_command_nftables_effective_services() {
 stage_target_nftables_service_assets() {
   for service_asset in "$@"; do
     case "$service_asset" in
+      dns-client) placeholder_map=app_veth_dns_placeholder_map ;;
       lan-share) placeholder_map=nftables_lan_share_service_placeholder_map ;;
       ssh-server) placeholder_map=nftables_ssh_service_placeholder_map ;;
       syncthing) placeholder_map=nftables_syncthing_service_placeholder_map ;;
@@ -1704,6 +1707,115 @@ configure_target_fail2ban() {
   stage_target_systemd_unit_enabled fail2ban.service system
 }
 
+app_veth_dns_placeholder_map() (
+  # Export only public DNS policy, never the full installer environment. Pass
+  # values as data rather than awk arguments, so backslashes are not expanded.
+  SYSTEM_NAMESERVERS_IPV4_DNS1=${SYSTEM_NAMESERVERS_IPV4_DNS1:-}
+  SYSTEM_NAMESERVERS_IPV6_DNS1=${SYSTEM_NAMESERVERS_IPV6_DNS1:-}
+  SYSTEM_NAMESERVERS_HOSTNAME_DNS1=${SYSTEM_NAMESERVERS_HOSTNAME_DNS1:-}
+  SYSTEM_NAMESERVERS_IPV4_DNS2=${SYSTEM_NAMESERVERS_IPV4_DNS2:-}
+  SYSTEM_NAMESERVERS_IPV6_DNS2=${SYSTEM_NAMESERVERS_IPV6_DNS2:-}
+  SYSTEM_NAMESERVERS_HOSTNAME_DNS2=${SYSTEM_NAMESERVERS_HOSTNAME_DNS2:-}
+  SYSTEM_NAMESERVERS_PORT=${SYSTEM_NAMESERVERS_PORT:-}
+  SYSTEM_DNS_CACHE_SIZE=${SYSTEM_DNS_CACHE_SIZE:-}
+  SYSTEM_DNS_CACHE_MIN_TTL=${SYSTEM_DNS_CACHE_MIN_TTL:-}
+  export SYSTEM_NAMESERVERS_IPV4_DNS1 SYSTEM_NAMESERVERS_IPV6_DNS1 SYSTEM_NAMESERVERS_HOSTNAME_DNS1
+  export SYSTEM_NAMESERVERS_IPV4_DNS2 SYSTEM_NAMESERVERS_IPV6_DNS2 SYSTEM_NAMESERVERS_HOSTNAME_DNS2
+  export SYSTEM_NAMESERVERS_PORT
+  export SYSTEM_DNS_CACHE_SIZE SYSTEM_DNS_CACHE_MIN_TTL
+  LC_ALL=C awk '
+    function fail(name) {
+      print "fatal: invalid " name " in system DNS policy" > "/dev/stderr"
+      exit 1
+    }
+    function field(name, value) {
+      value = ENVIRON[name]
+      if (length(value) > 253 || value ~ /[^A-Za-z0-9.:-]/) fail(name)
+      return value
+    }
+    function ipv4(value, parts, count, j) {
+      count = split(value, parts, /\./)
+      if (count != 4) return 0
+      for (j = 1; j <= count; j++)
+        if (parts[j] !~ /^[0-9]+$/ || length(parts[j]) > 3 ||
+            parts[j] + 0 > 255 || (length(parts[j]) > 1 && parts[j] ~ /^0/)) return 0
+      return 1
+    }
+    function hexgroups(value, groups, count, j) {
+      if (value == "") return 0
+      count = split(value, groups, /:/)
+      for (j = 1; j <= count; j++)
+        if (groups[j] !~ /^[0-9A-Fa-f]+$/ || length(groups[j]) > 4) return -1
+      return count
+    }
+    function ipv6(value, position, left, right) {
+      if (value !~ /^[0-9A-Fa-f:]+$/) return 0
+      position = index(value, "::")
+      if (!position) return hexgroups(value) == 8
+      left = hexgroups(substr(value, 1, position - 1))
+      right = hexgroups(substr(value, position + 2))
+      return left >= 0 && right >= 0 && left + right < 8
+    }
+    function hostname(value, labels, count, j) {
+      if (length(value) > 253) return 0
+      count = split(value, labels, /\./)
+      for (j = 1; j <= count; j++)
+        if (length(labels[j]) > 63 || labels[j] !~ /^[A-Za-z0-9][A-Za-z0-9-]*$/ ||
+            labels[j] ~ /-$/) return 0
+      return count > 0
+    }
+    function integer(name, minimum, maximum, value) {
+      value = ENVIRON[name]
+      if (value !~ /^[0-9]+$/ || length(value) > 7 || value + 0 < minimum || value + 0 > maximum)
+        fail(name)
+      return value + 0
+    }
+    BEGIN {
+      port = ENVIRON["SYSTEM_NAMESERVERS_PORT"]
+      if (port !~ /^[0-9]+$/ || length(port) > 5 || port + 0 < 1 || port + 0 > 65535)
+        fail("SYSTEM_NAMESERVERS_PORT")
+      port += 0
+      cache_size = integer("SYSTEM_DNS_CACHE_SIZE", 1, 1000000)
+      cache_min_ttl = integer("SYSTEM_DNS_CACHE_MIN_TTL", 0, 3600)
+      upstreams = "["
+      ipv4_allowlist = "["
+      ipv6_allowlist = "["
+      for (i = 1; i <= 2; i++) {
+        key4 = "SYSTEM_NAMESERVERS_IPV4_DNS" i
+        key6 = "SYSTEM_NAMESERVERS_IPV6_DNS" i
+        keyname = "SYSTEM_NAMESERVERS_HOSTNAME_DNS" i
+        address4 = field(key4)
+        address6 = field(key6)
+        name = field(keyname)
+        if (i == 2 && name == "" && address4 == "" && address6 == "") continue
+        if (name == "" || !hostname(name)) fail(keyname)
+        if (address4 == "" && address6 == "") fail("SYSTEM_NAMESERVERS addresses for DNS" i)
+        for (family = 4; family <= 6; family += 2) {
+          address = family == 4 ? address4 : address6
+          if (address == "") continue
+          if (family == 4 ? !ipv4(address) : !ipv6(address))
+            fail(family == 4 ? key4 : key6)
+          upstreams = upstreams separator "{address_data: \"" address "\", tls_auth_name: \"" name "\", tls_port: " port "}"
+          separator = ", "
+          if (family == 4) {
+            ipv4_allowlist = ipv4_allowlist ipv4_separator "\"" address "\""
+            ipv4_separator = ", "
+          } else {
+            ipv6_allowlist = ipv6_allowlist ipv6_separator "\"" address "\""
+            ipv6_separator = ", "
+          }
+        }
+      }
+      print "SYSTEM_NAMESERVERS_UPSTREAMS=" upstreams "]"
+      print "SYSTEM_NAMESERVERS_PORT=" port
+      print "SYSTEM_NAMESERVERS_IPV4_ALLOWLIST=" ipv4_allowlist "]"
+      print "SYSTEM_NAMESERVERS_IPV6_ALLOWLIST=" ipv6_allowlist "]"
+      print "SYSTEM_DNS_CACHE_SIZE=" cache_size
+      print "SYSTEM_DNS_CACHE_MIN_TTL=" cache_min_ttl
+    }
+  ' </dev/null
+)
+
 app_veth_placeholder_map() {
   apparmor_document_media_placeholder_map
   nftables_qbittorrent_service_placeholder_map
@@ -1721,17 +1833,32 @@ configure_target_app_veth() {
     stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET "$veth_asset")" "/$veth_asset" 0644
   done
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/sbin/app-veth)" /usr/local/sbin/app-veth 0755
+  render_target_asset_with_placeholder_map \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/stubby/stubby.yml.tmpl)" \
+    /etc/stubby/stubby.yml 0644 app_veth_dns_placeholder_map
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/stubby.service.d/60-app-veth.conf)" /etc/systemd/system/stubby.service.d/60-app-veth.conf 0644
+  render_target_asset_with_placeholder_map \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/dnsmasq-app-veth.conf.tmpl)" \
+    /etc/dnsmasq-app-veth.conf 0644 app_veth_dns_placeholder_map
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/dnsmasq-app-veth.service)" /etc/systemd/system/dnsmasq-app-veth.service 0644
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/lib/python3.14/dist-packages/app_veth_policy.py)" \
     /usr/local/lib/python3.14/dist-packages/app_veth_policy.py 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/app-veth-podman)" /usr/local/libexec/app-veth-podman 0755
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/resolved.conf.d/60-app-veth.conf)" /etc/systemd/resolved.conf.d/60-app-veth.conf 0644
+  render_target_asset_with_placeholder_map \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/resolved.conf.d/60-app-veth.conf.tmpl)" \
+    /etc/systemd/resolved.conf.d/60-app-veth.conf 0644 app_veth_dns_placeholder_map
   render_target_asset_with_placeholder_map \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/app-veth.json.tmpl)" \
     /etc/app-veth.json 0644 app_veth_placeholder_map
   run_in_target "validate managed kernel network configuration" \
     /usr/local/sbin/app-veth --check-config
+  run_in_target "validate managed DNS cache configuration" \
+    /usr/sbin/dnsmasq --test --conf-file=/etc/dnsmasq-app-veth.conf
+  run_in_target "validate managed TLS resolver configuration" \
+    /usr/bin/stubby -i -C /etc/stubby/stubby.yml
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/18-app-veth.conf)" /etc/rsyslog.d/18-app-veth.conf 0644
+  stage_target_systemd_unit_enabled dnsmasq-app-veth.service system
   stage_target_systemd_unit_enabled app-veth.service system
 }
 

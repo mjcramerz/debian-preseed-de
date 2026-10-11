@@ -596,6 +596,88 @@ MANAGED_NETWORK_IPV6_ENABLED=false
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn('waiting for managed', result.stderr)
 
+    def test_generated_dns_modes_are_accepted_by_the_installed_reader(self):
+        self.adapter()
+        (self.sysfs / 'enp1s0/device').mkdir()
+        values = {
+            'MANAGED_NETWORK_TARGET_ROOT': str(self.root),
+            'MANAGED_NETWORK_SYS_CLASS_NET': str(self.sysfs),
+            'MANAGED_NETWORK_WAIT_SECONDS': '1',
+            'MANAGED_NETWORK_DOMAIN': 'example.test',
+            'MANAGED_NETWORK_IPV4_ADDRESS': '192.0.2.2',
+            'MANAGED_NETWORK_IPV4_NETMASK': '255.255.255.0',
+            'MANAGED_NETWORK_IPV4_GATEWAY': '192.0.2.1',
+            'MANAGED_NETWORK_IPV4_DNS': '192.0.2.53',
+            'MANAGED_NETWORK_IPV6_ENABLED': 'true',
+            'MANAGED_NETWORK_IPV6_ADDRESS': '2001:db8::2/64',
+            'MANAGED_NETWORK_IPV6_GATEWAY': '2001:db8::1',
+            'MANAGED_NETWORK_IPV6_DNS': '2001:db8::53',
+        }
+        input_path = self.root / 'network-input.env'
+        for mode in ('link', 'global'):
+            with self.subTest(mode=mode):
+                values['MANAGED_NETWORK_DNS_MODE'] = mode
+                input_path.write_text(''.join(key + "='" + value + "'\n" for key, value in values.items()),
+                                      encoding='ascii')
+                generated = subprocess.run([PERL, str(FORKY / 'scripts/late/network-generate.pl'),
+                    '--input', str(input_path), '--target-templates', str(TARGET),
+                    '--fragments', str(FORKY / 'scripts/late/templates/network')],
+                    env=self.env, capture_output=True, text=True, encoding='utf-8', timeout=5)
+                self.assertEqual(generated.returncode, 0, generated.stderr)
+                result = self.validate('--staged-only')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                # Model the installed udev rename without changing a real link.
+                if (self.sysfs / 'enp1s0').exists():
+                    (self.sysfs / 'enp1s0').rename(self.sysfs / 'eth0')
+                result = self.validate('--allow-absent')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                result = self.validate()
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_invalid_dns_mode_fails_even_with_a_detached_adapter(self):
+        with self.config.open('a', encoding='ascii') as fh:
+            fh.write('MANAGED_NETWORK_DNS_MODE=invalid\n')
+        result = self.validate('--allow-absent')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('MANAGED_NETWORK_DNS_MODE must be link or global', result.stderr)
+
+    def test_staged_validation_checks_policy_before_adapter_renames(self):
+        self.adapter(mac='02:00:00:00:00:02')
+        self.assertEqual(self.validate('--staged-only').returncode, 0)
+        self.assertNotEqual(self.validate('--allow-absent').returncode, 0)
+        for key, value in (('MANAGED_NETWORK_ETHERNET_MAC', 'invalid'),
+                           ('MANAGED_NETWORK_ETHERNET_IPV4_CIDR', '192.0.2.2/99')):
+            original = self.config.read_text(encoding='ascii')
+            with self.subTest(key=key):
+                with self.config.open('a', encoding='ascii') as fh:
+                    fh.write(key + '=' + value + '\n')
+                self.assertNotEqual(self.validate('--staged-only').returncode, 0)
+                self.config.write_text(original, encoding='ascii')
+        self.staged.write_text('iface enp1s0 inet dhcp\n', encoding='ascii')
+        self.assertNotEqual(self.validate('--staged-only').returncode, 0)
+
+    def test_staged_validation_does_not_require_target_sysfs(self):
+        self.env['MANAGED_SYS_CLASS_NET'] = str(self.root / 'unmounted-sysfs')
+        self.assertEqual(self.validate('--staged-only').returncode, 0)
+        self.assertNotEqual(self.validate('--allow-absent').returncode, 0)
+
+    def test_staged_only_rejects_boot_hardware_options_and_duplicates(self):
+        for options in (('--staged-only', '--allow-absent'),
+                        ('--allow-absent', '--staged-only'),
+                        ('--staged-only', '--wait-seconds', '0'),
+                        ('--staged-only', '--staged-only')):
+            with self.subTest(options=options):
+                self.assertNotEqual(self.validate(*options).returncode, 0)
+
+    def test_global_dns_rejects_per_link_plain_dns_servers(self):
+        with self.config.open('a', encoding='ascii') as fh:
+            fh.write('MANAGED_NETWORK_DNS_MODE=global\n')
+        with self.staged.open('a', encoding='ascii') as fh:
+            fh.write('    dns-nameservers 192.0.2.53\n')
+        result = self.validate('--staged-only')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('must not configure per-link DNS in global mode', result.stderr)
+
     def test_network_files_reject_fifos_without_waiting_for_a_writer(self):
         self.adapter()
         for path in (self.config, self.staged, self.sysfs/'enp1s0/address'):
@@ -727,6 +809,52 @@ MANAGED_NETWORK_IPV6_ENABLED=false
 
 
 class IntegrationTests(unittest.TestCase):
+    def test_network_reader_failure_stops_handoff_before_boot_enablement(self):
+        # Publisher/systemd commands are fixtures; the shell caller is real.
+        script = r'''
+. "$1"
+DIR_NETWORK=/etc/network
+DIR_NETWORK_INTERFACES_D=/etc/network/interfaces.d
+FILE_NETWORK_INTERFACES=/etc/network/interfaces
+FILE_MANAGED_NETWORK_INTERFACES=/etc/network/interfaces.d/50-network
+FILE_MANAGED_NETWORK_DEFAULT=/etc/network/host.conf
+FILE_MANAGED_NETWORK_HELPER=/usr/local/libexec/network-run
+FILE_MANAGED_NETWORK_SERVICE=/etc/systemd/system/network.service
+FILE_NETWORKMANAGER_MANAGED_UNMANAGED_CONF=/etc/NetworkManager/conf.d/10-managed.conf
+install() { :; }
+stage_target_networkmanager_dispatcher_activation_if_available() { :; }
+target_managed_network_handoff_requested() { return 0; }
+target_managed_network_mode() { printf '%s\n' static; }
+target_managed_network_link_types() { printf '%s\n' ethernet; }
+require_in_target() { :; }
+test_in_target() { return 0; }
+network_link_types_has() { return 1; }
+remove_target_managed_network_handoff() { :; }
+generate_target_managed_network_config() { :; }
+stage_target_managed_network_perl_modules() { :; }
+stage_target_asset() { :; }
+installer_repo_join_var() { printf '%s/%s\n' "$1" "$2"; }
+run_in_target() {
+  [ "$1" = 'managed network policy validation' ] || exit 90
+  shift
+  printf '%s\n' "$@"
+  [ "$VALIDATION_STATUS" = 0 ] || exit "$VALIDATION_STATUS"
+}
+stage_target_systemd_unit_enabled() { printf 'enabled=%s\n' "$1"; }
+enable_target_networking_service_if_available() { :; }
+installer_append_log_category() { :; }
+install_target_managed_network_handoff
+'''
+        for status in ('0', '42'):
+            with self.subTest(status=status):
+                result = subprocess.run(['/bin/sh', '-eu', '-c', script, 'handoff-fixture',
+                    str(FORKY / 'scripts/late/network.sh')], env={**os.environ, 'VALIDATION_STATUS': status},
+                    capture_output=True, text=True, encoding='utf-8', timeout=5)
+                self.assertEqual(result.returncode, int(status), result.stderr)
+                self.assertEqual(result.stdout.splitlines()[:4],
+                    ['/usr/bin/perl', '/usr/local/libexec/network-run', 'validate', '--staged-only'])
+                self.assertEqual('enabled=network.service' in result.stdout, status == '0')
+
     def test_installer_stages_configured_wifi_as_ethernet_fallback(self):
         busybox = shutil.which('busybox')
         if not busybox:

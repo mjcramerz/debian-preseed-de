@@ -1,0 +1,24 @@
+# Managed by unattended-installer. The veth broker DNATs only its private
+# resolver address to the local cache. Stubby then uses authenticated DNS-over-
+# TLS upstreams and validates DNSSEC before returning an answer.
+resolution_type: GETDNS_RESOLUTION_STUB
+log_level: GETDNS_LOG_WARNING
+dns_transport_list:
+- GETDNS_TRANSPORT_TLS
+tls_authentication: GETDNS_AUTHENTICATION_REQUIRED
+tls_ca_file: "/etc/ssl/certs/ca-certificates.crt"
+tls_min_version: GETDNS_TLS1_2
+tls_max_version: GETDNS_TLS1_3
+tls_query_padding_blocksize: 128
+edns_client_subnet_private: 1
+# Use the ordered DNS1 endpoints before the optional DNS2 endpoints.
+round_robin_upstreams: 0
+idle_timeout: 9000
+listen_addresses:
+- 127.0.0.1@53054
+dnssec: GETDNS_EXTENSION_TRUE
+appdata_dir: "/var/cache/stubby"
+# getdns 1.7.3 treats a scalar as a zone-file path. A YAML list must contain
+# resource-record dictionaries; a list containing a filename loads no anchors.
+dnssec_trust_anchors: "/usr/share/dns/root.key"
+upstream_recursive_servers: __INSTALLER_SYSTEM_NAMESERVERS_UPSTREAMS__

@@ -11,8 +11,12 @@ import ipaddress
 import io
 import json
 import os
+import pwd
+import grp
+import re
 from pathlib import Path
 import runpy
+import select
 import signal
 import socket
 import shutil
@@ -21,6 +25,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import time
 import types
 import unittest
 from unittest import mock
@@ -684,6 +689,9 @@ class AdministrationTests(unittest.TestCase):
         self.assertIn('iifname . ip saddr != @sources drop', rules)
         self.assertIn(f'iifname {broker.INTERFACE_MATCH} meta nfproto != ipv4 drop', rules)
         self.assertIn('dnat to 127.0.0.1:53053', rules)
+        dns_guard = 'iifname @links meta l4proto { tcp, udp } th dport 53 drop'
+        self.assertLess(forward.index(dns_guard), forward.index('iifname @outbound accept'))
+        self.assertLess(forward.index(dns_guard), forward.index('iifname . oifname @pinned accept'))
         self.assertNotIn('flush ruleset', rules)
 
     def test_block_lan_is_lease_specific_and_precedes_established_or_outbound_allow(self):
@@ -727,22 +735,38 @@ class AdministrationTests(unittest.TestCase):
                 stable = mock.Mock(pinned_route=current if current is not None else ('wg0', '192.0.2.8', 1420))
                 changed = mock.Mock(pinned_route=('wg0', '192.0.2.8', 1420))
                 unpinned = mock.Mock(pinned_route=None)
+                for lease in (stable, changed, unpinned):
+                    lease.route_unavailable_since = None
                 channels = [mock.Mock() for _ in range(3)]
                 leases = dict(zip(channels, (stable, changed, unpinned)))
                 manager = mock.Mock()
-                error = ValueError('route lost') if current is None else None
-                with mock.patch.object(broker, 'route', return_value=current, side_effect=error), \
-                        mock.patch.object(broker.os, 'close') as close_fd:
-                    broker.refresh_pinned_routes(manager, leases)
-                changed.close.assert_called_once()
-                self.assertNotIn(channels[1], leases)
                 if current is not None:
+                    with mock.patch.object(broker, 'route', return_value=current), \
+                            mock.patch.object(broker.os, 'close') as close_fd:
+                        broker.refresh_pinned_routes(manager, leases)
+                    changed.close.assert_called_once()
+                    self.assertNotIn(channels[1], leases)
                     stable.close.assert_not_called()
                     self.assertIn(channels[0], leases)
                     close_fd.assert_called_once_with(changed.nsfd)
                 else:
+                    with mock.patch.object(broker, 'route', side_effect=ValueError('route lost')), \
+                            mock.patch.object(broker.time, 'monotonic', return_value=100.0), \
+                            mock.patch.object(broker.os, 'close'):
+                        broker.refresh_pinned_routes(manager, leases)
+                    stable.close.assert_not_called()
+                    changed.close.assert_not_called()
+                    self.assertIn(channels[0], leases)
+                    self.assertIn(channels[1], leases)
+                    with mock.patch.object(broker, 'route', side_effect=ValueError('route lost')), \
+                            mock.patch.object(broker.time, 'monotonic', return_value=111.0), \
+                            mock.patch.object(broker.os, 'close') as close_fd:
+                        broker.refresh_pinned_routes(manager, leases)
                     stable.close.assert_called_once()
+                    changed.close.assert_called_once()
                     self.assertNotIn(channels[0], leases)
+                    self.assertNotIn(channels[1], leases)
+                    self.assertEqual(close_fd.call_count, 2)
                 unpinned.close.assert_not_called()
                 self.assertIn(channels[2], leases)
 
@@ -762,6 +786,65 @@ class AdministrationTests(unittest.TestCase):
                     self.assertFalse("link" in argv and "add" in argv)
                 self.assertTrue(any(call.kwargs.get("app") == app and call.kwargs.get("interface") == "veth3-app"
                                     for call in broker.event.call_args_list))
+
+
+class DNSFrontendReadinessTests(unittest.TestCase):
+    def test_native_listener_ready_immediately_or_after_a_refused_connection(self):
+        create_connection = socket.create_connection
+        for delayed in (False, True):
+            with self.subTest(delayed=delayed), socket.socket() as listener:
+                listener.bind(("127.0.0.1", 0))
+                listener.settimeout(1)
+                if not delayed:
+                    listener.listen(1)
+                calls = []
+                def connect(address, timeout):
+                    self.assertEqual(address, ("127.0.0.1", 53053))
+                    self.assertGreater(timeout, 0)
+                    self.assertLessEqual(timeout, .25)
+                    if delayed and calls:
+                        listener.listen(1)
+                    calls.append(address)
+                    return create_connection(listener.getsockname(), timeout=timeout)
+                with mock.patch.object(broker.socket, "create_connection", side_effect=connect):
+                    broker.wait_dns_frontend()
+                self.assertEqual(len(calls), 2 if delayed else 1)
+                channel, _ = listener.accept()
+                with channel:
+                    channel.settimeout(1)
+                    self.assertEqual(channel.recv(1), b"", "readiness connection leaked")
+
+    def test_unavailable_listener_fails_when_readiness_deadline_expires(self):
+        clock = types.SimpleNamespace(monotonic=mock.Mock(side_effect=(0, 0, 5)), sleep=mock.Mock())
+        cause = ConnectionRefusedError("listener unavailable")
+        with mock.patch.object(broker, "time", clock), \
+                mock.patch.object(broker.socket, "create_connection", side_effect=cause), \
+                self.assertRaisesRegex(RuntimeError, "DNS frontend did not become ready") as failure:
+            broker.wait_dns_frontend()
+        self.assertIs(failure.exception.__cause__, cause)
+        clock.sleep.assert_not_called()
+
+    def test_denied_listener_fails_immediately_without_retry(self):
+        with mock.patch.object(broker.socket, "create_connection", side_effect=PermissionError("denied")) as connect, \
+                mock.patch.object(broker, "time", types.SimpleNamespace(monotonic=lambda: 0, sleep=mock.Mock())) as clock, \
+                self.assertRaises(PermissionError):
+            broker.wait_dns_frontend()
+        connect.assert_called_once()
+        clock.sleep.assert_not_called()
+
+    def test_failed_readiness_does_not_publish_firewall_or_endpoint_pool(self):
+        with mock.patch.object(broker.os, "geteuid", return_value=0), \
+                mock.patch.object(broker, "configuration", return_value=(1000, DEFAULT_POLICIES)), \
+                mock.patch.object(broker, "recover_endpoints"), \
+                mock.patch.object(broker, "select_pool", return_value=ipaddress.IPv4Network("10.203.0.0/24")), \
+                mock.patch.object(broker.Path, "read_text", return_value="1"), \
+                mock.patch.object(broker, "wait_dns_frontend", side_effect=RuntimeError("DNS unavailable")), \
+                mock.patch.object(broker, "nft") as firewall, \
+                mock.patch.object(broker, "EndpointPool") as pool, \
+                self.assertRaisesRegex(RuntimeError, "DNS unavailable"):
+            broker.main()
+        firewall.assert_not_called()
+        pool.assert_not_called()
 
 
 class BrokerLifecycleTests(unittest.TestCase):
@@ -1109,9 +1192,26 @@ class DesktopLaunchTests(unittest.TestCase):
 
     def test_administration_launchers_do_not_depend_on_network_policy_availability(self):
         with mock.patch.object(client, "configured_executable_application", side_effect=ValueError("malformed JSON")) as policy:
-            for executable in ("/usr/bin/foot", "/usr/bin/thunar", "/usr/local/bin/labwc-terminal"):
+            for executable in ("/usr/bin/foot", "/usr/bin/thunar", "/usr/local/bin/labwc-terminal",
+                               "/usr/bin/labwc-tweaks", "/usr/bin/qt6ct"):
                 self.assertIsNone(generic.managed_network_command("launch", [executable]))
         policy.assert_not_called()
+
+    def test_compositor_settings_keep_host_identity_ipc_and_persistent_config(self):
+        for executable in ("/usr/bin/labwc-tweaks", "/usr/bin/qt6ct"):
+            environment = {"HOME": "/home/desktop", "XDG_CONFIG_HOME": "/home/desktop/.config"}
+            with self.subTest(executable=executable), mock.patch.object(generic, "assert_launch_allowed"), \
+                    mock.patch.dict(os.environ, {"LABWC_PID": "4567"}, clear=True):
+                command = generic.transient_argv("wayland", "auto", [executable], environment)
+            for option in ("PrivatePIDs=no", "PrivateUsers=no", "PrivateIPC=no"):
+                self.assertIn("--property=" + option, command)
+            self.assertNotIn("--property=PrivateTmp=yes", command)
+            self.assertEqual(environment["XDG_CONFIG_HOME"], "/home/desktop/.config")
+            self.assertEqual(environment.get("LABWC_PID"), "4567" if executable.endswith("labwc-tweaks") else None)
+        with mock.patch.object(generic, "assert_launch_allowed"), \
+                mock.patch.dict(os.environ, {"LABWC_PID": "1; kill -9 1"}, clear=True), \
+                contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            generic.transient_argv("wayland", "auto", ["/usr/bin/labwc-tweaks"], {})
 
     def test_configured_generic_worker_keeps_private_network_procfs_and_hides_broker_endpoint(self):
         for online in (True, False):
@@ -1642,6 +1742,521 @@ finally:
         self.assertIn("isolated kernel veth UDP DNS NAT", result.stdout)
 
 
+class DNSFrontendFixtureTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("dnsmasq"), "packaged dnsmasq is required for the loopback fixture")
+    def test_native_frontend_caches_valid_answers_clears_ad_and_flushes_on_hup(self):
+        # Only this private high-port daemon and handcrafted loopback upstream
+        # run. No host resolver, service, firewall, route or DNS data changes.
+        def wire_name(name):
+            return b"".join(bytes([len(label)]) + label.encode("ascii") for label in name.split(".")) + b"\0"
+
+        def response(query, data, *, authenticated=False, failure=False):
+            end = 12
+            while query[end]:
+                end += query[end] + 1
+            question = query[12:end + 5]
+            kind, dns_class = struct.unpack("!HH", question[-4:])
+            flags = (0x8180 | (struct.unpack("!H", query[2:4])[0] & 0x10)
+                     | (0x20 if authenticated else 0) | (2 if failure else 0))
+            # A short upstream TTL exercises the configured local minimum.
+            answer = b"" if failure else b"\xc0\x0c" + struct.pack("!HHIH", kind, dns_class, 5, len(data)) + data
+            return query[:2] + struct.pack("!HHHHH", flags, 1, 0 if failure else 1, 0, 0) + question + answer
+
+        def receive_exact(channel, count):
+            data = b""
+            while len(data) < count:
+                part = channel.recv(count - len(data))
+                self.assertTrue(part, "fixture TCP stream closed early")
+                data += part
+            return data
+
+        with tempfile.TemporaryDirectory(prefix="veth-dns-frontend-") as directory, \
+                socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as upstream, \
+                socket.socket(socket.AF_INET, socket.SOCK_STREAM) as tcp_upstream, \
+                socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client_socket:
+            upstream.bind(("127.0.0.1", 0))
+            upstream.settimeout(3)
+            upstream_port = upstream.getsockname()[1]
+            tcp_upstream.bind(("127.0.0.1", upstream_port))
+            tcp_upstream.listen(1)
+            tcp_upstream.settimeout(3)
+            client_socket.settimeout(3)
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as reservation:
+                reservation.bind(("127.0.0.1", 0))
+                port = reservation.getsockname()[1]
+            config = Path(directory) / "dnsmasq.conf"
+            text = read_text(TARGET / "etc/dnsmasq-app-veth.conf")
+            rendered = SystemDNSRenderingTests().mapping()
+            self.assertEqual(rendered.returncode, 0, rendered.stderr)
+            values = dict(line.split("=", 1) for line in rendered.stdout.splitlines())
+            for name, value in values.items():
+                text = text.replace("__INSTALLER_" + name + "__", value)
+            self.assertNotIn("__INSTALLER_", text)
+            text = text.replace("port=53053\n", f"port={port}\n").replace(
+                "server=127.0.0.1#53054\n", f"server=127.0.0.1#{upstream_port}\n")
+            config.write_text(text, encoding="ascii")
+            with (Path(directory) / "daemon.log").open("w+", encoding="utf-8") as log:
+                process = subprocess.Popen([shutil.which("dnsmasq"), "--keep-in-foreground",
+                    "--conf-file=" + str(config), "--pid-file=",
+                    "--user=" + pwd.getpwuid(os.getuid()).pw_name,
+                    "--group=" + grp.getgrgid(os.getgid()).gr_name], stdout=log, stderr=log)
+                try:
+                    deadline = time.monotonic() + 5
+                    while True:
+                        if process.poll() is not None:
+                            log.seek(0)
+                            self.fail("dnsmasq exited before readiness: " + log.read(2000))
+                        try:
+                            with socket.create_connection(("127.0.0.1", port), timeout=.1):
+                                break
+                        except OSError:
+                            if time.monotonic() >= deadline:
+                                self.fail("fixture dnsmasq listener did not become ready")
+                            time.sleep(.01)
+                    # Dnsmasq's own interface discovery opens NETLINK_ROUTE.
+                    netlink = Path("/proc/net/netlink").read_text(encoding="ascii")
+                    self.assertTrue(any(row.split()[1:3] == ["0", str(process.pid)]
+                                        for row in netlink.splitlines()[1:]), netlink)
+                    cases = (("host.private", 1, socket.inet_aton("10.1.2.3"), False, False),
+                             ("authenticated.private", 1, socket.inet_aton("10.9.8.7"), True, False),
+                             ("printer", 1, socket.inet_aton("192.168.1.4"), False, False),
+                             ("host.private", 28, socket.inet_pton(socket.AF_INET6, "fd00::123"), False, False),
+                             ("3.2.1.10.in-addr.arpa", 12, wire_name("host.private"), False, False),
+                             ("text.private", 16, b"\x05hello", True, False),
+                             ("bogus.example", 1, b"", False, True))
+                    for name, kind, data, authenticated, failure in cases:
+                        with self.subTest(name=name, kind=kind, authenticated=authenticated):
+                            query = struct.pack("!HHHHHH", 1234, 0x120, 1, 0, 0, 0) + wire_name(name) + struct.pack("!HH", kind, 1)
+                            client_socket.sendto(query, ("127.0.0.1", port))
+                            forwarded, peer = upstream.recvfrom(4096)
+                            upstream.sendto(response(forwarded, data, authenticated=authenticated, failure=failure), peer)
+                            # Dnsmasq may retry a SERVFAIL before returning it.
+                            # Bound and answer those retries on the same fixture.
+                            for attempt in range(4):
+                                ready, _, _ = select.select([client_socket, upstream], [], [], 3)
+                                self.assertTrue(ready, "fixture DNS response timed out")
+                                if client_socket in ready:
+                                    reply = client_socket.recv(4096)
+                                    break
+                                forwarded, peer = upstream.recvfrom(4096)
+                                upstream.sendto(response(forwarded, data, authenticated=authenticated, failure=failure), peer)
+                            else:
+                                self.fail("fixture DNS retry limit reached")
+                            flags = struct.unpack("!H", reply[2:4])[0]
+                            self.assertEqual(flags & 0xf, 2 if failure else 0)
+                            # The cache owns the frontend response; Stubby's
+                            # authenticated AD bit is intentionally not
+                            # proxied through cached dnsmasq answers.
+                            self.assertFalse(flags & 0x20)
+                            if data:
+                                self.assertTrue(reply.endswith(data), reply)
+                            if not failure and kind in (1, 16):
+                                client_socket.sendto(query, ("127.0.0.1", port))
+                                ready, _, _ = select.select([client_socket, upstream], [], [], 3)
+                                self.assertIn(client_socket, ready, "cache hit contacted upstream")
+                                self.assertNotIn(upstream, ready, "cache hit contacted upstream")
+                                cached = client_socket.recv(4096)
+                                self.assertTrue(cached.endswith(data), cached)
+                                self.assertFalse(struct.unpack("!H", cached[2:4])[0] & 0x20)
+                                end = 12
+                                while cached[end]:
+                                    end += cached[end] + 1
+                                answer_start = end + 5
+                                ttl = struct.unpack("!I", cached[answer_start + 6:answer_start + 10])[0]
+                                self.assertGreaterEqual(ttl, int(values["SYSTEM_DNS_CACHE_MIN_TTL"]) - 1)
+                    # Policy changes require a Stubby restart (which also
+                    # restarts this PartOf frontend). SIGHUP is also a native
+                    # dnsmasq cache flush, verified here without host services.
+                    process.send_signal(signal.SIGHUP)
+                    query = struct.pack("!HHHHHH", 1236, 0x120, 1, 0, 0, 0) + wire_name("host.private") + struct.pack("!HH", 1, 1)
+                    deadline = time.monotonic() + 3
+                    while True:
+                        client_socket.sendto(query, ("127.0.0.1", port))
+                        ready, _, _ = select.select([client_socket, upstream], [], [], .1)
+                        if upstream in ready:
+                            forwarded, peer = upstream.recvfrom(4096)
+                            updated = socket.inet_aton("10.5.6.7")
+                            upstream.sendto(response(forwarded, updated, authenticated=True), peer)
+                            break
+                        if client_socket in ready:
+                            client_socket.recv(4096)
+                        self.assertLess(time.monotonic(), deadline, "SIGHUP did not clear cache")
+                    reply = client_socket.recv(4096)
+                    self.assertTrue(reply.endswith(updated), reply)
+                    self.assertFalse(struct.unpack("!H", reply[2:4])[0] & 0x20)
+                    # Negative caching uses the upstream SOA's TTL/minimum.
+                    # Keep the negative record separate from all positive cases.
+                    query = struct.pack("!HHHHHH", 1237, 0x100, 1, 0, 0, 0) + wire_name("absent.example") + struct.pack("!HH", 1, 1)
+                    client_socket.sendto(query, ("127.0.0.1", port))
+                    forwarded, peer = upstream.recvfrom(4096)
+                    end = 12
+                    while forwarded[end]:
+                        end += forwarded[end] + 1
+                    question = forwarded[12:end + 5]
+                    soa = wire_name("ns.example") + wire_name("hostmaster.example") + struct.pack("!IIIII", 1, 60, 60, 600, 5)
+                    authority = wire_name("example") + struct.pack("!HHIH", 6, 1, 5, len(soa)) + soa
+                    negative = forwarded[:2] + struct.pack("!HHHHH", 0x8183, 1, 0, 1, 0) + question + authority
+                    upstream.sendto(negative, peer)
+                    reply = client_socket.recv(4096)
+                    self.assertEqual(struct.unpack("!H", reply[2:4])[0] & 0xf, 3)
+                    client_socket.sendto(query, ("127.0.0.1", port))
+                    ready, _, _ = select.select([client_socket, upstream], [], [], 3)
+                    self.assertIn(client_socket, ready, "negative cache hit contacted upstream")
+                    self.assertNotIn(upstream, ready, "negative cache hit contacted upstream")
+                    cached = client_socket.recv(4096)
+                    self.assertEqual(struct.unpack("!H", cached[2:4])[0] & 0xf, 3)
+                    # A client's explicit Checking Disabled request must not
+                    # populate the shared cache used by validating clients.
+                    question = wire_name("checking-disabled.example") + struct.pack("!HH", 1, 1)
+                    query = struct.pack("!HHHHHH", 1238, 0x110, 1, 0, 0, 0) + question
+                    client_socket.sendto(query, ("127.0.0.1", port))
+                    forwarded, peer = upstream.recvfrom(4096)
+                    self.assertTrue(struct.unpack("!H", forwarded[2:4])[0] & 0x10)
+                    unchecked = socket.inet_aton("192.0.2.10")
+                    upstream.sendto(response(forwarded, unchecked), peer)
+                    self.assertTrue(client_socket.recv(4096).endswith(unchecked))
+                    query = struct.pack("!HHHHHH", 1239, 0x100, 1, 0, 0, 0) + question
+                    client_socket.sendto(query, ("127.0.0.1", port))
+                    ready, _, _ = select.select([client_socket, upstream], [], [], 3)
+                    self.assertIn(upstream, ready, "checking-disabled answer contaminated the shared cache")
+                    self.assertNotIn(client_socket, ready, "validating client received an unchecked cached answer")
+                    forwarded, peer = upstream.recvfrom(4096)
+                    self.assertFalse(struct.unpack("!H", forwarded[2:4])[0] & 0x10)
+                    checked = socket.inet_aton("192.0.2.20")
+                    upstream.sendto(response(forwarded, checked), peer)
+                    self.assertTrue(client_socket.recv(4096).endswith(checked))
+                    # TCP clients must retain the same upstream policy.
+                    with socket.create_connection(("127.0.0.1", port), timeout=3) as tcp_client:
+                        query = struct.pack("!HHHHHH", 1235, 0x120, 1, 0, 0, 0) + wire_name("tcp.private") + struct.pack("!HH", 1, 1)
+                        tcp_client.sendall(struct.pack("!H", len(query)) + query)
+                        channel, _ = tcp_upstream.accept()
+                        with channel:
+                            channel.settimeout(3)
+                            forwarded = receive_exact(channel, struct.unpack("!H", receive_exact(channel, 2))[0])
+                            answer = response(forwarded, socket.inet_aton("10.2.3.4"), authenticated=True)
+                            channel.sendall(struct.pack("!H", len(answer)) + answer)
+                        reply = receive_exact(tcp_client, struct.unpack("!H", receive_exact(tcp_client, 2))[0])
+                        self.assertTrue(reply.endswith(socket.inet_aton("10.2.3.4")))
+                        self.assertFalse(struct.unpack("!H", reply[2:4])[0] & 0x20)
+                finally:
+                    if process.poll() is None:
+                        process.terminate()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=5)
+
+
+class SystemDNSRenderingTests(unittest.TestCase):
+    stubby_binary = shutil.which("stubby")
+    root_key = Path("/usr/share/dns/root.key")
+
+    @staticmethod
+    def identity_policy():
+        # Read the canonical public policy as literal data; tests must not pin
+        # production provider addresses or TLS names to their current defaults.
+        text = read_text(SEED / "hosts/installer/identity.env")
+        return dict(re.findall(r'^SYSTEM_NAMESERVERS_([A-Z0-9_]+)="([^"\n]*)"$', text, re.M))
+
+    def mapping(self, overrides=None, *, cache_overrides=None):
+        arguments = [str(SEED / "scripts/late/security.sh"), str(SEED / "hosts/installer/identity.env")]
+        if cache_overrides is not None and overrides is None:
+            policy = self.identity_policy()
+            overrides = tuple(policy[name] for name in ("IPV4_DNS1", "IPV6_DNS1", "HOSTNAME_DNS1",
+                              "IPV4_DNS2", "IPV6_DNS2", "HOSTNAME_DNS2", "PORT"))
+        if overrides is not None:
+            arguments.extend(overrides)
+        if cache_overrides is not None:
+            arguments.extend(cache_overrides)
+        code = '''
+. "$2"
+if [ "$#" -ge 9 ]; then
+  SYSTEM_NAMESERVERS_IPV4_DNS1=$3
+  SYSTEM_NAMESERVERS_IPV6_DNS1=$4
+  SYSTEM_NAMESERVERS_HOSTNAME_DNS1=$5
+  SYSTEM_NAMESERVERS_IPV4_DNS2=$6
+  SYSTEM_NAMESERVERS_IPV6_DNS2=$7
+  SYSTEM_NAMESERVERS_HOSTNAME_DNS2=$8
+  SYSTEM_NAMESERVERS_PORT=$9
+fi
+if [ "$#" -eq 11 ]; then
+  SYSTEM_DNS_CACHE_SIZE=${10}
+  SYSTEM_DNS_CACHE_MIN_TTL=${11}
+fi
+. "$1"
+app_veth_dns_placeholder_map
+'''
+        return subprocess.run(["/bin/sh", "-eu", "-c", code, "dns-fixture", *arguments],
+                              capture_output=True, text=True, encoding="utf-8", timeout=5)
+
+    def test_default_upstreams_and_firewall_follow_the_canonical_identity_policy(self):
+        result = self.mapping()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        values = dict(line.split("=", 1) for line in result.stdout.splitlines())
+        policy = self.identity_policy()
+        for family in (4, 6):
+            addresses = [policy[f"IPV{family}_DNS{i}"] for i in (1, 2) if policy[f"IPV{family}_DNS{i}"]]
+            self.assertEqual(json.loads(values[f"SYSTEM_NAMESERVERS_IPV{family}_ALLOWLIST"]), addresses)
+        upstreams = values["SYSTEM_NAMESERVERS_UPSTREAMS"]
+        endpoints = [(policy[f"IPV{family}_DNS{i}"], policy[f"HOSTNAME_DNS{i}"])
+                     for i in (1, 2) for family in (4, 6) if policy[f"IPV{family}_DNS{i}"]]
+        self.assertEqual(upstreams.count("address_data:"), len(endpoints))
+        previous = -1
+        for address, name in endpoints:
+            self.assertIn('{address_data: "' + address + '", tls_auth_name: "' + name + '", tls_port: ' + str(int(policy["PORT"])) + '}', upstreams)
+            position = upstreams.index('address_data: "' + address + '"')
+            self.assertGreater(position, previous)
+            previous = position
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            mapping = root / "map"
+            mapping.write_text(result.stdout, encoding="ascii")
+            for source, name in ((TARGET / "etc/stubby/stubby.yml.tmpl", "stubby.yml"),
+                                 (TARGET / "etc/dnsmasq-app-veth.conf.tmpl", "dnsmasq.conf"),
+                                 (TARGET / "etc/systemd/resolved.conf.d/60-app-veth.conf.tmpl", "resolved.conf"),
+                                 (TARGET / "etc/nftables/services/dns-client.yml.tmpl", "dns-client.yml")):
+                destination = root / name
+                destination.write_text(read_text(source), encoding="ascii")
+                rendered = subprocess.run(["/bin/sh", "-eu", "-c",
+                    '. "$1"; . "$2"; . "$3"; . "$4"; TMP_ENV_DIR=$6; '
+                    'apply_placeholder_map_to_target "$5" app_veth_dns_placeholder_map', "render-fixture",
+                    str(SEED / "scripts/common/modules/files-logging.sh"),
+                    str(SEED / "scripts/late/target-assets.sh"), str(SEED / "scripts/late/security.sh"),
+                    str(SEED / "hosts/installer/identity.env"), str(destination), str(root)],
+                    capture_output=True, text=True, encoding="utf-8", timeout=5)
+                self.assertEqual(rendered.returncode, 0, rendered.stderr)
+                text = destination.read_text(encoding="ascii")
+                self.assertNotIn("__INSTALLER_", text)
+
+    def test_cache_policy_is_bounded_and_rejects_injection_without_partial_output(self):
+        result = self.mapping(cache_overrides=("10000", "60"))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        values = dict(line.split("=", 1) for line in result.stdout.splitlines())
+        self.assertEqual(values["SYSTEM_DNS_CACHE_SIZE"], "10000")
+        self.assertEqual(values["SYSTEM_DNS_CACHE_MIN_TTL"], "60")
+        for size, ttl in (("0", "60"), ("1000001", "60"), ("-1", "60"),
+                          ("10000\nINJECT=yes", "60"), ("10000", "3601"),
+                          ("10000", "-1"), ("10000", "$(id)"), ("10000", "")):
+            with self.subTest(size=size, ttl=ttl):
+                result = self.mapping(cache_overrides=(size, ttl))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("fatal: invalid SYSTEM_DNS_CACHE", result.stderr)
+                self.assertEqual(result.stdout, "")
+
+    def test_native_stubby_loads_dnssec_anchors_instead_of_accepting_an_empty_list(self):
+        if not self.stubby_binary or not self.root_key.is_file():
+            self.skipTest("packaged Stubby and dns-root-data are required for native anchor validation")
+        result = self.mapping()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        values = dict(line.split("=", 1) for line in result.stdout.splitlines())
+        with tempfile.TemporaryDirectory(prefix="stubby-anchor-fixture-") as directory:
+            root = Path(directory)
+            cache = root / "cache"
+            cache.mkdir(mode=0o700)
+            text = read_text(TARGET / "etc/stubby/stubby.yml.tmpl")
+            text = text.replace("__INSTALLER_SYSTEM_NAMESERVERS_UPSTREAMS__", values["SYSTEM_NAMESERVERS_UPSTREAMS"])
+            text = text.replace("/usr/share/dns/root.key", str(self.root_key)).replace("/var/cache/stubby", str(cache))
+            config = root / "stubby.yml"
+            config.write_text(text, encoding="utf-8")
+            result = subprocess.run([self.stubby_binary, "-i", "-C", str(config)],
+                capture_output=True, text=True, encoding="utf-8", timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            anchors = re.search(r'"dnssec_trust_anchors":\s*(\[.*?\])', result.stdout, re.S)
+            self.assertIsNotNone(anchors, "native context did not report DNSSEC trust anchors")
+            self.assertIn('"type": GETDNS_RRTYPE_DNSKEY', anchors[1], "native context loaded no DNSKEY trust anchors")
+            self.assertIn("GETDNS_AUTHENTICATION_REQUIRED", result.stdout)
+            self.assertIn("GETDNS_TRANSPORT_TLS", result.stdout)
+            self.assertRegex(result.stdout, r'"round_robin_upstreams":\s*0\b')
+            previous = -1
+            for address in re.findall(r'address_data: "([^"]+)"', values["SYSTEM_NAMESERVERS_UPSTREAMS"]):
+                position = result.stdout.index("<bindata for " + str(ipaddress.ip_address(address)) + ">")
+                self.assertGreater(position, previous, "native upstream ordering changed")
+                previous = position
+
+    def test_optional_dns2_independent_address_families_and_custom_port(self):
+        for overrides, expected in ((("192.0.2.53", "", "dns.example", "", "", "", "443"), 1),
+            (("", "2001:db8::53", "dns.example", "", "", "", "853"), 1),
+            (("192.0.2.53", "2001:db8::53", "dns.example", "", "", "", "853"), 2),
+            (("192.0.2.53", "", "one.example", "", "2001:db8::54", "two.example", "8853"), 2),
+            (("", "2001:db8::53", "one.example", "192.0.2.54", "", "two.example", "853"), 2)):
+            with self.subTest(overrides=overrides):
+                result = self.mapping(overrides)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.count("address_data:"), expected)
+                self.assertIn("tls_port: " + overrides[6], result.stdout)
+                if not any(overrides[3:6]):
+                    self.assertEqual(result.stdout.count("tls_auth_name:"), expected)
+
+    def test_malformed_policy_is_rejected_without_partial_output(self):
+        valid = ["192.0.2.53", "2001:db8::53", "dns.example", "192.0.2.54", "2001:db8::54", "dns2.example", "853"]
+        for index, invalid in ((0, "999.2.3.4"), (0, "192.0.2.1 192.0.2.2"),
+                               (0, "01.2.3.4"), (1, "2001:::53"), (1, "2001::db8::53"),
+                               (1, "12345::53"), (1, "2001:db8:1:2:3:4:5:6:7"),
+                               (2, "-dns.example"), (2, "dns-.example"), (2, "dns..example"),
+                               (2, "x" * 64 + ".example"), (2, "dns.example\nINJECT=yes"),
+                               (2, "$(id)"), (2, ""), (3, "999.2.3.4"), (4, "2001:::54"),
+                               (5, ""), (5, "dns2.example dns3.example"),
+                               (6, "0"), (6, "65536"), (6, "853;id")):
+            with self.subTest(index=index, invalid=invalid):
+                policy = valid.copy()
+                policy[index] = invalid
+                result = self.mapping(policy)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("fatal: invalid SYSTEM_NAMESERVERS", result.stderr)
+                self.assertEqual(result.stdout, "")
+        for policy in (("", "", "dns.example", "", "", "", "853"),
+                       ("", "", "", "192.0.2.54", "", "dns2.example", "853"),
+                       ("192.0.2.53", "", "dns.example", "", "", "dns2.example", "853"),
+                       ("192.0.2.53", "", "dns.example", "192.0.2.54", "", "", "853")):
+            with self.subTest(policy=policy):
+                result = self.mapping(policy)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "")
+
+    def test_new_identity_variables_keep_target_network_on_global_dns(self):
+        code = '''
+. "$1"
+. "$2"
+if [ "$3" = single ]; then
+  SYSTEM_NAMESERVERS_IPV4_DNS2=
+  SYSTEM_NAMESERVERS_IPV6_DNS2=
+  SYSTEM_NAMESERVERS_HOSTNAME_DNS2=
+fi
+network_mode=static
+target_managed_network_state_target_path() { printf /etc/network/host.conf; }
+target_host_variant_class() { printf btrfs-de; }
+write_shell_config_var() { printf "%s=%s\\n" "$1" "$2"; }
+network_input_placeholder_map
+'''
+        for mode in ("dual", "single"):
+            result = subprocess.run(["/bin/sh", "-e", "-c", code, "network-dns-fixture",
+                str(SEED / "scripts/late/network.sh"), str(SEED / "hosts/installer/identity.env"), mode],
+                capture_output=True, text=True, encoding="utf-8", timeout=5)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("MANAGED_NETWORK_DNS_MODE=global\n", result.stdout)
+
+    def test_dns_overlay_is_required_and_custom_tls_port_reaches_both_firewall_families(self):
+        code = '''
+. "$1"
+selected=$2
+late_command_nftables_services() { printf "%s\\n" "$selected"; }
+installer_selected_class_reference_is_selected() { return 1; }
+nftables_tailscale_selected() { return 1; }
+nftables_qemu_selected() { return 1; }
+nftables_software_selected() { return 1; }
+installer_info() { :; }
+SSH_SERVER_ENABLED=false
+NFS_SERVER_ENABLE=false
+NFS_CLIENT_ENABLE=false
+late_command_nftables_effective_services
+'''
+        for selected in ("", "lan-share", "egress", "dns-client"):
+            result = subprocess.run(["/bin/sh", "-eu", "-c", code, "dns-overlay-fixture",
+                str(SEED / "scripts/late/security.sh"), selected], capture_output=True,
+                text=True, encoding="utf-8", timeout=5)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.split().count("dns-client"), 1)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            # Use the real YAML merge/renderer; the host nft ruleset is untouched.
+            profile = root / "desktop.yml"
+            text = read_text(TARGET / "etc/nftables/profiles/desktop.yml")
+            text = text.replace("__INSTALLER_MANAGED_NETWORK_ETHERNET_IFACE__", "enp1s0").replace(
+                "__INSTALLER_MANAGED_NETWORK_WIFI_IFACE__", "wlan0")
+            profile.write_text(text, encoding="utf-8")
+            overlay = root / "dns-client.yml"
+            overlay.write_text(read_text(TARGET / "etc/nftables/services/dns-client.yml.tmpl").replace(
+                "__INSTALLER_SYSTEM_NAMESERVERS_PORT__", "8853").replace(
+                "__INSTALLER_SYSTEM_NAMESERVERS_IPV4_ALLOWLIST__", '["192.0.2.53"]').replace(
+                "__INSTALLER_SYSTEM_NAMESERVERS_IPV6_ALLOWLIST__", '["2001:db8::53"]'), encoding="ascii")
+            result = subprocess.run([sys.executable, "-I", "-B",
+                str(TARGET / "usr/local/sbin/nft-policy-generate.py"), "--profile", str(profile),
+                "--overlay", str(TARGET / "etc/nftables/services/egress.yml"), "--overlay", str(overlay),
+                "--print"], capture_output=True, text=True, encoding="utf-8", timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            rules = [line for line in result.stdout.splitlines() if "dns_over_tls_client outbound" in line]
+            self.assertEqual(len(rules), 2, rules)
+            self.assertTrue(any("ip daddr" in line for line in rules), rules)
+            self.assertTrue(any("ip6 daddr" in line for line in rules), rules)
+            self.assertTrue(all("tcp dport 8853" in line for line in rules), rules)
+            self.assertNotIn("udp dport 8853", result.stdout)
+
+    def test_installer_nameserver_is_rendered_from_identity_for_every_site(self):
+        answers = read_text(SEED / "scripts/preseed/answers.sh")
+        read_function = answers[answers.index("read_static_network_answers() {"):
+                                answers.index("\nread_wifi_answers() {")]
+        write_function = answers[answers.index("write_installer_nameserver_answers() {"):
+                                 answers.index("\nwrite_include_list() {")]
+        validator = answers[answers.index("validate_ipv4_address() {"):
+                            answers.index("\nvalidate_ipv4_address_list() {")]
+        code = '''
+. "$1"
+NETWORK_MODE=$2
+if [ "$#" -eq 3 ]; then STATIC_INSTALLER_NAMESERVER=$3; fi
+static_network_requested() { [ "$NETWORK_MODE" = static ]; }
+installer_fatal() { exit 1; }
+answer_value() {
+  case "$1" in
+    netcfg/get_ipaddress) printf "%s\\n" 192.0.2.20 ;;
+    netcfg/get_netmask) printf "%s\\n" 255.255.255.0 ;;
+    netcfg/get_gateway) printf "%s\\n" 192.0.2.1 ;;
+    netcfg/get_nameservers) printf "%s\\n" 192.0.2.53 ;;
+  esac
+}
+''' + validator + read_function + write_function + "\nread_static_network_answers\nwrite_static_network_answers\nwrite_installer_nameserver_answers\n"
+        default = re.search(r'^STATIC_INSTALLER_NAMESERVER="([^"\n]+)"$',
+                            read_text(SEED / "hosts/installer/identity.env"), re.M).group(1)
+        for mode in ("static", "dhcp"):
+            for override in (None, "192.0.2.54"):
+                arguments = [str(SEED / "hosts/installer/identity.env"), mode]
+                if override:
+                    arguments.append(override)
+                result = subprocess.run(["/bin/sh", "-eu", "-c", code, "installer-fixture", *arguments],
+                                        capture_output=True, text=True, encoding="utf-8", timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("d-i netcfg/get_nameservers string " + (override or default) + "\n", result.stdout)
+                self.assertIn("d-i netcfg/get_nameservers seen true", result.stdout)
+        for site in ("prod", "lab", "dmz"):
+            self.assertNotIn("netcfg/get_nameservers string", read_text(SEED / "classes/class-select/site" / (site + ".cfg")))
+
+    @unittest.skipUnless(shutil.which("perl"), "packaged Perl is required for the network generator fixture")
+    def test_target_interfaces_use_global_dns_without_bootstrap_servers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "target"
+            target.mkdir()
+            sysnet = root / "sysnet"
+            interface = sysnet / "enp1s0"
+            (interface / "device").mkdir(parents=True)
+            for key, value in {"type": "1", "address": "02:00:00:00:00:01", "carrier": "1", "operstate": "up"}.items():
+                (interface / key).write_text(value + "\n", encoding="ascii")
+            values = {"MANAGED_NETWORK_TARGET_ROOT": str(target), "MANAGED_NETWORK_SYS_CLASS_NET": str(sysnet),
+                      "MANAGED_NETWORK_WAIT_SECONDS": "1", "MANAGED_NETWORK_DOMAIN": "example.test",
+                      "MANAGED_NETWORK_IPV4_ADDRESS": "192.0.2.20", "MANAGED_NETWORK_IPV4_NETMASK": "255.255.255.0",
+                      "MANAGED_NETWORK_IPV4_GATEWAY": "192.0.2.1", "MANAGED_NETWORK_IPV4_DNS": "192.0.2.53",
+                      "MANAGED_NETWORK_IPV6_ENABLED": "true", "MANAGED_NETWORK_IPV6_ADDRESS": "2001:db8::20/64",
+                      "MANAGED_NETWORK_IPV6_GATEWAY": "2001:db8::1", "MANAGED_NETWORK_IPV6_DNS": "2001:db8::53"}
+            for mode in ("link", "global"):
+                values["MANAGED_NETWORK_DNS_MODE"] = mode
+                config = root / "network-input.env"
+                config.write_text("".join(key + "='" + value + "'\n" for key, value in values.items()), encoding="ascii")
+                result = subprocess.run([shutil.which("perl"), str(SEED / "scripts/late/network-generate.pl"),
+                    "--input", str(config), "--target-templates", str(TARGET),
+                    "--fragments", str(SEED / "scripts/late/templates/network")],
+                    capture_output=True, text=True, encoding="utf-8", timeout=10)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                network = (target / "etc/network/interfaces.d/50-network").read_text(encoding="ascii")
+                self.assertIn("iface eth0 inet6 static", network)
+                self.assertIn("dns-search example.test", network)
+                if mode == "global":
+                    self.assertNotIn("dns-nameservers", network)
+                    self.assertNotIn(values["MANAGED_NETWORK_IPV4_DNS"], network)
+                else:
+                    self.assertIn("dns-nameservers " + values["MANAGED_NETWORK_IPV4_DNS"], network)
+                self.assertIn("MANAGED_NETWORK_DNS_MODE='" + mode + "'", (target / "etc/network/host.conf").read_text(encoding="ascii"))
+
+
 class InstallationTests(unittest.TestCase):
     def test_boot_pool_is_ready_before_socket_publication_and_greeter_ordering(self):
         source = Path(broker.__file__).read_text(encoding="utf-8")
@@ -1652,6 +2267,44 @@ class InstallationTests(unittest.TestCase):
         self.assertNotIn('"link", "add"', constructor)
         service = read_text(TARGET / "etc/systemd/system/app-veth.service")
         self.assertIn("Before=podman-devops.service greetd.service", service)
+        self.assertIn("Requires=nftables.service stubby.service dnsmasq-app-veth.service apparmor.service", service)
+        identity = read_text(SEED / "hosts/installer/identity.env")
+        for name in ("IPV4_DNS1", "IPV6_DNS1", "HOSTNAME_DNS1", "IPV4_DNS2", "IPV6_DNS2", "HOSTNAME_DNS2", "PORT"):
+            self.assertRegex(identity, r'(?m)^SYSTEM_NAMESERVERS_' + name + r'="[^"\n]*"$')
+        stubby = read_text(TARGET / "etc/stubby/stubby.yml.tmpl")
+        self.assertIn("listen_addresses:\n- 127.0.0.1@53054", stubby)
+        self.assertIn("dns_transport_list:\n- GETDNS_TRANSPORT_TLS", stubby)
+        self.assertIn("tls_authentication: GETDNS_AUTHENTICATION_REQUIRED", stubby)
+        self.assertIn("round_robin_upstreams: 0", stubby)
+        self.assertIn("dnssec: GETDNS_EXTENSION_TRUE", stubby)
+        self.assertIn('dnssec_trust_anchors: "/usr/share/dns/root.key"', stubby)
+        self.assertIn("__INSTALLER_SYSTEM_NAMESERVERS_UPSTREAMS__", stubby)
+        self.assertRegex(identity, r'(?m)^STATIC_INSTALLER_NAMESERVER="[^"\n]+"$')
+        self.assertNotIn("STATIC_NAMESERVERS_DEFAULT", identity)
+        dnsmasq = read_text(TARGET / "etc/dnsmasq-app-veth.conf")
+        self.assertIn("listen-address=127.0.0.1", dnsmasq)
+        self.assertIn("port=53053", dnsmasq)
+        self.assertIn("server=127.0.0.1#53054", dnsmasq)
+        self.assertIn("cache-size=__INSTALLER_SYSTEM_DNS_CACHE_SIZE__", dnsmasq)
+        self.assertIn("min-cache-ttl=__INSTALLER_SYSTEM_DNS_CACHE_MIN_TTL__", dnsmasq)
+        self.assertIn("clear-on-reload", dnsmasq)
+        self.assertNotIn("proxy-dnssec", dnsmasq)
+        for option in ("dnssec", "domain-needed", "bogus-priv", "stop-dns-rebind"):
+            self.assertNotIn(option, dnsmasq.splitlines())
+        dns_service = read_text(TARGET / "etc/systemd/system/dnsmasq-app-veth.service")
+        self.assertIn("Type=exec\n", dns_service)
+        self.assertIn("Group=nogroup", dns_service)
+        self.assertIn("ExecStart=/usr/sbin/dnsmasq", dns_service)
+        self.assertIn("RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK", dns_service)
+        self.assertIn("RestartMode=direct", dns_service)
+        self.assertNotIn("systemd-resolved.service", dns_service)
+        self.assertIn("PartOf=stubby.service", dns_service)
+        self.assertIn("RestartMode=direct", read_text(TARGET / "etc/systemd/system/stubby.service.d/60-app-veth.conf"))
+        resolved = read_text(TARGET / "etc/systemd/resolved.conf.d/60-app-veth.conf.tmpl")
+        self.assertIn("DNS=127.0.0.1:53054", resolved)
+        self.assertIn("FallbackDNS=\n", resolved)
+        self.assertIn("DNSOverTLS=no\n", resolved)
+        self.assertIn("Cache=yes\nCacheFromLocalhost=yes", resolved)
         policy = read_text(TARGET / "etc/NetworkManager/conf.d/70-app-veth.conf")
         patterns = policy.split("match-device=", 1)[1].splitlines()[0].split(";")
         self.assertTrue(all(pattern.startswith("interface-name:=") for pattern in patterns))
@@ -1665,6 +2318,8 @@ class InstallationTests(unittest.TestCase):
         self.assertIn("managed=0", policy)
         installer = (TARGET.parents[1] / "scripts/late/security.sh").read_text()
         self.assertIn("etc/NetworkManager/conf.d/70-app-veth.conf", installer)
+        self.assertIn("etc/stubby/stubby.yml.tmpl", installer)
+        self.assertIn("app_veth_dns_placeholder_map", installer)
 
     def test_namespace_inspection_and_cleanup_permissions_cover_shared_callers(self):
         shared = read_text(TARGET / "etc/apparmor.d/abstractions/app-veth-client")
@@ -1798,7 +2453,10 @@ configure_target_rootless_podman
         self.assertIn("  configure_target_app_veth\n", source)
         for path in ("/usr/local/sbin/app-veth", "/usr/local/libexec/app-veth-podman",
                      "/etc/app-veth.json",
-                     "/etc/systemd/resolved.conf.d/60-app-veth.conf"):
+                     "/etc/systemd/resolved.conf.d/60-app-veth.conf",
+                     "/etc/stubby/stubby.yml", "/etc/dnsmasq-app-veth.conf",
+                     "/etc/systemd/system/dnsmasq-app-veth.service",
+                     "/etc/systemd/system/stubby.service.d/60-app-veth.conf"):
             self.assertIn(path, source)
         self.assertNotIn("/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_client.py", source)
         self.assertIn('/usr/local/sbin/app-veth --check-config', source)

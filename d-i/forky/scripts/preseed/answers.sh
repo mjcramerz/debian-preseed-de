@@ -452,10 +452,10 @@ read_static_network_answers() {
   STATIC_IP_ADDRESS=$(answer_value netcfg/get_ipaddress ip 2>/dev/null || true)
   STATIC_NETMASK=$(answer_value netcfg/get_netmask netmask 2>/dev/null || true)
   STATIC_GATEWAY=$(answer_value netcfg/get_gateway gateway 2>/dev/null || true)
-  STATIC_NAMESERVERS=$(answer_value netcfg/get_nameservers nameservers dns 2>/dev/null || true)
-  if [ -z "$STATIC_NAMESERVERS" ]; then
-    STATIC_NAMESERVERS=${STATIC_GATEWAY:-${STATIC_NAMESERVERS_DEFAULT:-}}
-  fi
+  # Installer bootstrap DNS is explicit host identity policy. Do not inherit a
+  # DHCP/site answer or use TLS-only system upstreams as port-53 resolvers.
+  STATIC_NAMESERVERS=${STATIC_INSTALLER_NAMESERVER:-}
+  [ -n "$STATIC_NAMESERVERS" ] || installer_fatal "STATIC_INSTALLER_NAMESERVER is required for static installation"
 }
 
 read_wifi_answers() {
@@ -481,6 +481,12 @@ write_wifi_answers() {
   :
 }
 
+write_installer_nameserver_answers() {
+  validate_ipv4_address STATIC_INSTALLER_NAMESERVER "${STATIC_INSTALLER_NAMESERVER:-}"
+  printf 'd-i netcfg/get_nameservers string %s\n' "$STATIC_INSTALLER_NAMESERVER"
+  printf 'd-i netcfg/get_nameservers seen true\n'
+}
+
 write_static_network_answers() {
   static_network_requested || return 0
 
@@ -498,10 +504,6 @@ write_static_network_answers() {
   printf 'd-i netcfg/get_netmask seen true\n'
   printf 'd-i netcfg/get_gateway string %s\n' "$STATIC_GATEWAY"
   printf 'd-i netcfg/get_gateway seen true\n'
-  if [ -n "$STATIC_NAMESERVERS" ]; then
-    printf 'd-i netcfg/get_nameservers string %s\n' "$STATIC_NAMESERVERS"
-    printf 'd-i netcfg/get_nameservers seen true\n'
-  fi
   printf 'd-i netcfg/confirm_static boolean true\n'
   printf 'd-i netcfg/confirm_static seen true\n'
 }
@@ -1003,6 +1005,7 @@ write_answers_file() {
     printf 'd-i grub-installer/skip boolean false\n'
     printf 'd-i grub-installer/skip seen true\n'
     write_static_network_answers
+    write_installer_nameserver_answers
   } >>"$answers_file"
   chmod 0600 "$answers_file"
 }

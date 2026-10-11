@@ -1,0 +1,52 @@
+[Unit]
+Description=Private DNS frontend for managed application veth namespaces
+Requires=stubby.service apparmor.service
+After=stubby.service apparmor.service
+Before=app-veth.service
+PartOf=stubby.service
+BindsTo=stubby.service
+ConditionPathExists=/etc/dnsmasq-app-veth.conf
+
+[Service]
+Type=exec
+ExecStartPre=/usr/sbin/dnsmasq --test --conf-file=/etc/dnsmasq-app-veth.conf
+ExecStart=/usr/sbin/dnsmasq --keep-in-foreground --conf-file=/etc/dnsmasq-app-veth.conf --pid-file=/run/dnsmasq-app-veth/dnsmasq.pid --user=dnsmasq --group=nogroup
+Restart=on-failure
+# Preserve dependent leases during automatic recovery of this DNS frontend.
+# Explicit stops/restarts still propagate through BindsTo/PartOf.
+RestartMode=direct
+RestartSec=2s
+User=dnsmasq
+Group=nogroup
+AppArmorProfile=app-veth-dns-cache
+RuntimeDirectory=dnsmasq-app-veth
+RuntimeDirectoryMode=0755
+UMask=0077
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+ReadOnlyPaths=/etc/dnsmasq-app-veth.conf
+ReadWritePaths=/run/dnsmasq-app-veth
+TasksMax=32
+MemoryMax=64M
+LimitNOFILE=256
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dnsmasq-app-veth
+
+[Install]
+WantedBy=multi-user.target

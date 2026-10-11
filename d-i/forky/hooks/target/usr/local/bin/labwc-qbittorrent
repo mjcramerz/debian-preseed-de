@@ -1,5 +1,4 @@
 #!/usr/bin/python3 -IB
-import configparser
 import errno
 import fcntl
 import hashlib
@@ -22,6 +21,9 @@ import uuid
 
 
 DEFAULTS_PATH = pathlib.Path("/etc/labwc/desktop.conf")
+MANAGED_POLICY_DROPIN = pathlib.Path(
+    "/etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf"
+)
 MAX_DEFAULTS_BYTES = 65536
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_LAUNCH_ARGUMENTS = 64
@@ -219,148 +221,55 @@ def prepare_storage(root: pathlib.Path) -> dict[str, pathlib.Path]:
     return paths
 
 
-def managed_settings(
-    paths: dict[str, pathlib.Path], binding: tuple[str, str], port: int = DEFAULT_PORT,
-) -> dict[str, dict[str, str]]:
-    return {
-        "Application": {
-            "MemoryWorkingSetLimit": "1024",
-            # This home is the persistent private profile, irrespective of the
-            # desktop account name or a previously saved host-home log path.
-            "FileLogger\\Enabled": "true",
-            "FileLogger\\Path": "/home/user/.local/share/qBittorrent/logs",
-            "FileLogger\\Backup": "true",
-            "FileLogger\\MaxSizeBytes": str(5 * 1024 * 1024),
-            "FileLogger\\DeleteOld": "true",
-            "FileLogger\\Age": "7",
-            "FileLogger\\AgeType": "0",  # Days; qBittorrent prunes on startup.
-        },
-        # The supplied 5.2.4 crash is in Adwaita's focus-rectangle painting.
-        # Keep the managed profile on Qt's built-in style even when reopening
-        # a configuration that explicitly selected the crashing plugin.
-        "Appearance": {"Style": "Fusion"},
-        "BitTorrent": {
-            "Session\\AddExtensionToIncompleteFiles": "true",
-            "Session\\AnnounceToAllTiers": "false",
-            "Session\\AnnounceToAllTrackers": "false",
-            "Session\\AnnounceIP": "",
-            "Session\\AnnouncePort": str(port),
-            "Session\\AnonymousModeEnabled": "false",
-            # A private tracker must never acquire public fallback trackers
-            # from an old profile's automatic tracker-list settings.
-            "Session\\AddTrackersEnabled": "false",
-            "Session\\AddTrackersFromURLEnabled": "false",
-            "Session\\BTProtocol": "Both",
-            "Session\\DHTEnabled": "false",
-            "Session\\DefaultSavePath": str(paths["completed"]),
-            "Session\\DisableAutoTMMByDefault": "true",
-            "Session\\Encryption": "0",
-            "Session\\FinishedTorrentExportDirectory": str(paths["torrents_completed"]),
-            "Session\\GlobalMaxRatio": "-1",
-            "Session\\GlobalMaxSeedingMinutes": "-1",
-            "Session\\GlobalMaxInactiveSeedingMinutes": "-1",
-            "Session\\GlobalDLSpeedLimit": "0",
-            "Session\\GlobalUPSpeedLimit": "0",
-            "Session\\AlternativeGlobalDLSpeedLimit": "0",
-            "Session\\AlternativeGlobalUPSpeedLimit": "0",
-            "Session\\UseAlternativeGlobalSpeedLimit": "false",
-            "Session\\BandwidthSchedulerEnabled": "false",
-            "Session\\Interface": binding[0],
-            "Session\\InterfaceName": binding[0],
-            "Session\\InterfaceAddress": binding[1],
-            "Session\\LSDEnabled": "false",
-            "Session\\MaxActiveTorrents": "-1",
-            "Session\\MaxActiveUploads": "-1",
-            # Bound socket usage at the upstream defaults while allowing all
-            # active torrents to seed and leaving transfer rates unlimited.
-            "Session\\MaxConnections": "500",
-            "Session\\MaxConnectionsPerTorrent": "100",
-            "Session\\MaxUploads": "-1",
-            "Session\\MaxUploadsPerTorrent": "-1",
-            "Session\\OutgoingPortsMin": "0",
-            "Session\\OutgoingPortsMax": "0",
-            "Session\\PeXEnabled": "false",
-            "Session\\Port": str(port),
-            "Session\\QueueingSystemEnabled": "false",
-            "Session\\ReannounceWhenAddressChanged": "true",
-            "Session\\SSRFMitigation": "true",
-            "Session\\TempPath": str(paths["active"]),
-            "Session\\TempPathEnabled": "true",
-            "Session\\TorrentExportDirectory": str(paths["torrents_active"]),
-            "Session\\UseRandomPort": "false",
-            "Session\\UseUPnP": "false",
-            "Session\\ValidateHTTPSTrackerCertificate": "true",
-        },
-        "Core": {"AutoDeleteAddedTorrentFile": "Never"},
-        "LegalNotice": {"Accepted": "true"},
-        "Network": {"PortForwardingEnabled": "false"},
-        "Preferences": {
-            "Connection\\PortRangeMin": str(port),
-            "Connection\\Interface": binding[0],
-            "Connection\\InterfaceName": binding[0],
-            "Connection\\InterfaceAddress": binding[1],
-            "Connection\\ResolvePeerCountries": "true",
-            "Connection\\UPnP": "false",
-            "Downloads\\FinishedTorrentExportDirectory": str(paths["torrents_completed"]),
-            "Downloads\\SavePath": str(paths["completed"]),
-            "Downloads\\TempPath": str(paths["active"]),
-            "Downloads\\TempPathEnabled": "true",
-            "Downloads\\TorrentExportDirectory": str(paths["torrents_active"]),
-            "General\\UseRandomPort": "false",
-            "Queueing\\QueueingEnabled": "false",
-            "WebUI\\Enabled": "false",
-        },
-    }
+def read_managed_config(source_path: pathlib.Path | None = None) -> bytes:
+    """Read the install-rendered root-owned qBittorrent configuration."""
+    source = source_path or MANAGED_POLICY_DROPIN
+    try:
+        parent_metadata = source.parent.lstat()
+        metadata = source.lstat()
+        if (stat.S_ISLNK(parent_metadata.st_mode) or not stat.S_ISDIR(parent_metadata.st_mode)
+                or parent_metadata.st_uid != 0 or parent_metadata.st_mode & 0o022
+                or stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_uid != 0 or metadata.st_mode & 0o022
+                or metadata.st_nlink != 1 or metadata.st_size > MAX_CONFIG_BYTES):
+            fail(f"managed qBittorrent configuration has unsafe metadata: {source}")
+        descriptor = os.open(
+            source,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+        )
+        with os.fdopen(descriptor, "rb") as handle:
+            opened = os.fstat(handle.fileno())
+            if ((opened.st_dev, opened.st_ino) != (metadata.st_dev, metadata.st_ino)
+                    or opened.st_uid != 0 or opened.st_nlink != 1
+                    or opened.st_mode & 0o022):
+                fail(f"managed qBittorrent configuration changed while opening: {source}")
+            payload = handle.read(MAX_CONFIG_BYTES + 1)
+        if len(payload) > MAX_CONFIG_BYTES:
+            fail(f"managed qBittorrent configuration exceeds {MAX_CONFIG_BYTES} bytes")
+        payload.decode("utf-8")
+    except (OSError, UnicodeError) as exc:
+        fail(f"cannot read managed qBittorrent configuration ({type(exc).__name__})")
+    if not payload.strip() or b"__INSTALLER_" in payload:
+        fail(f"managed qBittorrent configuration is not an install-rendered file: {source}")
+    return payload
 
 
-def write_config(
-    profile_home: pathlib.Path, paths: dict[str, pathlib.Path], binding: tuple[str, str],
-    port: int = DEFAULT_PORT,
-) -> pathlib.Path:
+def copy_managed_config(profile_home: pathlib.Path) -> pathlib.Path:
+    """Copy the install-rendered configuration into the private profile."""
     config_dir = profile_home / ".config" / "qBittorrent"
     ensure_directory(profile_home / ".config", 0o700)
     ensure_directory(config_dir, 0o700)
     config_path = config_dir / "qBittorrent.conf"
-
-    parser = configparser.ConfigParser(
-        interpolation=None,
-        strict=False,
-        delimiters=("=",),
-        empty_lines_in_values=False,
-    )
-    parser.optionxform = str
-    exists = os.path.lexists(config_path)
-    if exists:
+    if os.path.lexists(config_path):
         try:
-            descriptor = os.open(config_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
-            with os.fdopen(descriptor, "rb") as handle:
-                metadata = os.fstat(handle.fileno())
-                if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
-                        or metadata.st_nlink != 1):
-                    fail(f"qBittorrent config must be a singly linked regular file owned by the user: {config_path}")
-                if metadata.st_size > MAX_CONFIG_BYTES:
-                    fail(f"qBittorrent config exceeds {MAX_CONFIG_BYTES} bytes")
-                data = handle.read(MAX_CONFIG_BYTES + 1)
-                if len(data) > MAX_CONFIG_BYTES:
-                    fail(f"qBittorrent config exceeds {MAX_CONFIG_BYTES} bytes")
-                parser.read_string(data.decode("utf-8"), source=str(config_path))
-                if stat.S_IMODE(metadata.st_mode) != 0o600:
-                    os.fchmod(handle.fileno(), 0o600)
-        except (OSError, UnicodeError, configparser.Error) as exc:
-            # Parser errors may contain credential-bearing configuration lines.
-            fail(f"cannot read qBittorrent config {config_path} ({type(exc).__name__})")
+            metadata = config_path.lstat()
+        except OSError as exc:
+            fail(f"cannot inspect qBittorrent profile configuration: {exc}")
+        if (stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_uid != os.getuid() or metadata.st_nlink != 1):
+            fail(f"qBittorrent profile configuration is unsafe: {config_path}")
 
-    changed = False
-    for section, settings in managed_settings(paths, binding, port).items():
-        if not parser.has_section(section):
-            parser.add_section(section)
-        for key, value in settings.items():
-            if parser.get(section, key, fallback=None) != value:
-                parser[section][key] = value
-                changed = True
-    if exists and not changed:
-        return config_path
-
+    payload = read_managed_config()
     temporary_path = config_path.with_name(f".{config_path.name}.{os.getpid()}.tmp")
     try:
         descriptor = os.open(
@@ -368,8 +277,8 @@ def write_config(
             os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0),
             0o600,
         )
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            parser.write(handle, space_around_delimiters=False)
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary_path, config_path)
@@ -379,7 +288,7 @@ def write_config(
             temporary_path.unlink()
         except OSError:
             pass
-        fail(f"failed to write managed qBittorrent config {config_path}: {exc}")
+        fail(f"failed to copy managed qBittorrent configuration: {exc}")
     return config_path
 
 
@@ -1052,9 +961,9 @@ def run_new_instance(
         def configured(lease):
             if lease.peer_port != port:
                 fail("qBittorrent peer port differs from the managed network service configuration")
-            write_config(paths["profile_home"], paths, (lease.interface, lease.address), port)
+            copy_managed_config(paths["profile_home"])
         if not online:
-            write_config(paths["profile_home"], paths, ("lo", "127.0.0.1"), port)
+            copy_managed_config(paths["profile_home"])
         return runtime.run_veth_sandbox(
             command[:-payload_count], command[-payload_count:], temporary, (),
             app="qbittorrent",

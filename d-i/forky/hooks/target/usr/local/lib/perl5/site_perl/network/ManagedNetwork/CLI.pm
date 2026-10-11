@@ -9,7 +9,8 @@ use ManagedNetwork::Logger;
 use ManagedNetwork::Validator;
 
 sub _usage {
-    print STDERR "usage: network validate [--wait-seconds 0..15] [--allow-absent]\n";
+    print STDERR "usage: network validate [--wait-seconds 0..15] [--allow-absent]\n"
+        . "       network validate --staged-only\n";
     return;
 }
 
@@ -26,10 +27,15 @@ sub run {
     }
     my $wait_seconds = 0;
     my $allow_absent = 0;
+    my $staged_only = 0;
     my %seen;
     while (@argv) {
         my $option = shift @argv;
         if (!$seen{$option}++) {
+            if ($option eq '--staged-only') {
+                $staged_only = 1;
+                next;
+            }
             if ($option eq '--allow-absent') {
                 $allow_absent = 1;
                 next;
@@ -42,6 +48,10 @@ sub run {
         _usage();
         return 1;
     }
+    if ($staged_only && ($seen{'--wait-seconds'} || $seen{'--allow-absent'})) {
+        _usage();
+        return 1;
+    }
 
     my $logger = ManagedNetwork::Logger->new(
         active_level => $ENV{SYSTEMD_LOG_LEVEL} // 'error',
@@ -49,6 +59,7 @@ sub run {
     my $status = eval {
         ManagedNetwork::Validator->from_environment(
             logger => $logger, wait_seconds => $wait_seconds, allow_absent => $allow_absent,
+            staged_only => $staged_only,
         )->validate();
     };
     if (!$status && $@) {
