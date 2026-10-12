@@ -27,6 +27,7 @@ FUZZEL = '/usr/local/bin/labwc-fuzzel'
 BACK = 'Back'
 MAX_APPS = 4096
 MAX_MENU_BYTES = 1024 * 1024
+MAX_DESKTOP_BYTES = 1024 * 1024
 
 # Priority order, display label, main tokens, specific additional tokens.
 # Specific tokens refine broad main tokens; Settings always takes precedence.
@@ -148,6 +149,36 @@ CATEGORY_OVERRIDES = {
 TWEAKS_DESKTOP_IDS = frozenset({'labwc-tweaks.desktop', 'labwc-tweaks-gtk.desktop'})
 
 
+def read_desktop_text(source: Path, limit: int = MAX_DESKTOP_BYTES) -> str:
+    with source.open(encoding='utf-8') as stream:
+        text = stream.read(limit + 1)
+    if len(text.encode('utf-8')) > limit:
+        raise ValueError('desktop entry exceeds the size limit')
+    return text
+
+
+def desktop_keyfile(text: str):
+    from gi.repository import GLib
+    keyfile = GLib.KeyFile()
+    try:
+        keyfile.load_from_data(text, len(text.encode('utf-8')), GLib.KeyFileFlags.KEEP_TRANSLATIONS)
+    except GLib.Error as exc:
+        raise ValueError(f'invalid desktop entry: {exc}') from exc
+    return keyfile
+
+
+def action_is_launchable(keyfile, action_id: str) -> bool:
+    from gi.repository import GLib
+    group = 'Desktop Action ' + action_id
+    try:
+        if group not in keyfile.get_groups()[0]:
+            return False
+        keys = keyfile.get_keys(group)[0]
+        return all(key in keys and bool((keyfile.get_string(group, key) or '').strip()) for key in ('Name', 'Exec'))
+    except GLib.Error:
+        return False
+
+
 def enumerate_apps() -> list[dict[str, str]]:
     Gio, DesktopAppInfo = gio_api()
     apps = {}
@@ -156,15 +187,27 @@ def enumerate_apps() -> list[dict[str, str]]:
             continue
         desktop_id = app.get_id()
         if desktop_id and desktop_id not in TWEAKS_DESKTOP_IDS:
-            apps[desktop_id] = {'id': desktop_id,
-                                'name': app.get_display_name() or desktop_id,
-                                'category': CATEGORY_OVERRIDES.get(desktop_id, category_for(app.get_categories())),
-                                'icon': safe_icon(app.get_string('Icon')),
-                                'filename': app.get_filename() or ''}
-            if (len(apps) > MAX_APPS or any(len(value.encode('utf-8')) > 4096
-                                            for value in apps[desktop_id].values())):
+            entry = {'id': desktop_id, 'action': '',
+                     'name': app.get_display_name() or desktop_id,
+                     'category': CATEGORY_OVERRIDES.get(desktop_id, category_for(app.get_categories())),
+                     'icon': safe_icon(app.get_string('Icon')),
+                     'filename': app.get_filename() or ''}
+            action_ids = list(dict.fromkeys(app.list_actions()))
+            # The existing catalog bound covers default launches and actions.
+            if len(apps) + 1 + len(action_ids) > MAX_APPS:
                 raise ValueError('application catalog exceeds the managed bounds')
-    return sorted(apps.values(), key=lambda app: (app['name'].casefold(), app['id']))
+            if action_ids:
+                keyfile = desktop_keyfile(read_desktop_text(Path(entry['filename'])))
+                action_ids = [action_id for action_id in action_ids if action_is_launchable(keyfile, action_id)]
+            for action_id in ('', *action_ids):
+                choice = dict(entry, action=action_id)
+                if action_id:
+                    action_name = app.get_action_name(action_id) or action_id
+                    choice['name'] += ' — ' + action_name
+                if any(len(value.encode('utf-8')) > 4096 for value in choice.values()):
+                    raise ValueError('application catalog exceeds the managed bounds')
+                apps[desktop_id, action_id] = choice
+    return sorted(apps.values(), key=lambda app: (app['name'].casefold(), app['id'], app['action']))
 
 
 def desktop_policy() -> dict:
@@ -178,9 +221,11 @@ def desktop_policy() -> dict:
     return runpy.run_path(str(hook))
 
 
-def launch_desktop(desktop_id: str) -> None:
+def launch_desktop(desktop_id: str, action_id: str | None = None) -> None:
     Gio, DesktopAppInfo = gio_api()
     app = DesktopAppInfo.new(desktop_id)
+    if action_id is not None and (not visible(app) or action_id not in app.list_actions()):
+        raise RuntimeError(f'desktop action is no longer available: {desktop_id!r}: {action_id!r}')
     if visible(app):
         # Normalize the effective entry, not a lower-priority vendor copy.
         # Reuse the dpkg hook's exact wrapper/terminal/compatibility policy;
@@ -192,14 +237,9 @@ def launch_desktop(desktop_id: str) -> None:
             defaults = policy['load_defaults'](owner_uid=owner)
             prefix = policy['launch_prefix'](source, app.get_executable() or '',
                                               app.get_string('Exec') or '', defaults)
-            with source.open(encoding='utf-8') as stream:
-                text = stream.read(policy['MAX_BYTES'] + 1)
-            if len(text.encode('utf-8')) > policy['MAX_BYTES']:
-                raise RuntimeError('desktop entry exceeds the size limit')
+            text = read_desktop_text(source, policy['MAX_BYTES'])
             text = policy['rewrite_desktop'](text, prefix)
-            from gi.repository import GLib
-            keyfile = GLib.KeyFile()
-            keyfile.load_from_data(text, len(text.encode('utf-8')), GLib.KeyFileFlags.KEEP_TRANSLATIONS)
+            keyfile = desktop_keyfile(text)
             # An in-memory DesktopAppInfo has no filename for %k. Preserve its
             # original identity; leave %% and every other field code to GIO.
             quoted_source = '"' + ''.join('\\' + c if c in '\\"`$' else
@@ -213,7 +253,15 @@ def launch_desktop(desktop_id: str) -> None:
             normalized = DesktopAppInfo.new_from_keyfile(keyfile)
             if normalized is None:
                 raise RuntimeError('normalized desktop entry is invalid')
-            normalized.launch([], Gio.AppLaunchContext())
+            if action_id is None:
+                normalized.launch([], Gio.AppLaunchContext())
+            else:
+                # Recheck after normalization; never fall back to the default
+                # launch when a selected action was removed or became invalid.
+                if (not visible(normalized) or action_id not in normalized.list_actions()
+                        or not action_is_launchable(keyfile, action_id)):
+                    raise RuntimeError(f'desktop action is unavailable: {action_id!r}')
+                normalized.launch_action(action_id, Gio.AppLaunchContext())
         except Exception as exc:
             raise RuntimeError(f'cannot launch {desktop_id!r}: {exc}') from exc
 
@@ -233,9 +281,9 @@ def display_text(text: str) -> str:
     return ''.join(result)
 
 
-def app_choices(apps: list[dict[str, str]], category: str | None) -> dict[str, str]:
+def app_choices(apps: list[dict[str, str]], category: str | None) -> dict[str, tuple[str, str]]:
     selected = sorted((app for app in apps if category is None or app['category'] == category),
-                      key=lambda app: (app['name'].casefold(), app['id']))
+                      key=lambda app: (app['name'].casefold(), app['id'], app.get('action', '')))
     counts = Counter(display_text(app['name']) for app in selected)
     choices = {}
     for app in selected:
@@ -246,7 +294,7 @@ def app_choices(apps: list[dict[str, str]], category: str | None) -> dict[str, s
         while label in choices or label == BACK:
             label = f'{base} ({number})'
             number += 1
-        choices[label] = app['id']
+        choices[label] = (app['id'], app.get('action', ''))
     return choices
 
 
@@ -349,7 +397,7 @@ def run_menu(initial: str | None = None) -> None:
             apps = json.loads(result.stdout)
             choices = app_choices(apps, None if selected == 'Search Applications' else selected)
             by_id = {app['id']: safe_icon(app.get('icon')) for app in apps}
-            icons = {label: by_id[desktop_id] for label, desktop_id in choices.items()}
+            icons = {label: by_id[desktop_id] for label, (desktop_id, _action_id) in choices.items()}
         choices[BACK] = None
         item = choose(choices, selected, icons)
         if item is None or item == BACK:
@@ -357,7 +405,11 @@ def run_menu(initial: str | None = None) -> None:
         if selected == 'Desktop Settings':
             run_action(choices[item])
         else:
-            subprocess.run([SELF, '--launch=' + choices[item]], check=True)
+            desktop_id, action_id = choices[item]
+            command = [SELF, '--launch=' + desktop_id]
+            if action_id:
+                command.append('--action=' + action_id)
+            subprocess.run(command, check=True)
         return
 
 
@@ -367,14 +419,17 @@ def main(argv: list[str] | None = None) -> int:
     group.add_argument('--list', action='store_true', help='list visible apps as JSON (diagnostic)')
     group.add_argument('--launch', metavar='DESKTOP_ID', help='launch an effective visible desktop ID')
     group.add_argument('--search', action='store_true', help='search all applications with navigation back to the main menu')
+    parser.add_argument('--action', metavar='ACTION_ID', help='launch an advertised action of the selected desktop ID')
     options = parser.parse_args(argv)
+    if options.action is not None and options.launch is None:
+        parser.error('--action requires --launch')
     if os.geteuid() == 0:
         raise RuntimeError('the application menu must run as the desktop user, not root')
     prepare_environment()
     if options.list:
         print(json.dumps(enumerate_apps(), ensure_ascii=False))
     elif options.launch is not None:
-        launch_desktop(options.launch)
+        launch_desktop(options.launch, options.action)
     elif options.search:
         run_menu('Search Applications')
     else:

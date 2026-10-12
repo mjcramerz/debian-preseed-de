@@ -61,7 +61,7 @@ class StubbyPolicyTests(unittest.TestCase):
                                     text=True, encoding='utf-8', timeout=5,
                                     env={'PATH': directory + ':/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'})
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn('APP_VETH_QBITTORRENT_ADDRESS=10.203.0.226\n', result.stdout)
+            self.assertIn('APP_VETH_QBITTORRENT_ADDRESS=10.203.0.114\n', result.stdout)
             HELPER['parse_policy'](result.stdout.encode('ascii'))
 
     def test_block_yaml_uses_ordered_records_and_selected_trust_store(self):

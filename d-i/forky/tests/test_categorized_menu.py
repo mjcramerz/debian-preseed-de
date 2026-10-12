@@ -4,6 +4,8 @@ from payload_fixture import installed_argv as payload_installed_argv, source_exi
 from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 from theme_fixture import render_theme_defaults, render_theme_bytes
 import ctypes
+import ast
+import configparser
 import json
 import os
 from pathlib import Path
@@ -78,7 +80,7 @@ class MenuUnitTests(unittest.TestCase):
         apps = [{'id': f'app{i};$`|&.desktop', 'name': name, 'category': 'Other'} for i, name in enumerate(names)]
         choices = self.menu.app_choices(apps, 'Other')
         self.assertEqual(choices, self.menu.app_choices(list(reversed(apps)), 'Other'))
-        self.assertEqual(set(choices.values()), {app['id'] for app in apps})
+        self.assertEqual(set(choices.values()), {(app['id'], '') for app in apps})
         self.assertEqual(len(choices), len(apps)); self.assertNotIn(self.menu.BACK, choices)
         self.assertTrue(all('\n' not in label and '\t' not in label for label in choices))
         self.assertTrue(all('[' in label for label in choices if label.startswith('Duplicate')))
@@ -171,8 +173,42 @@ class MenuUnitTests(unittest.TestCase):
         self.assertEqual(run.call_args.args[0], [self.menu.SELF, '--launch=-$`foo;|.desktop'])
         self.assertNotIn('shell', run.call_args.kwargs)
 
+    def test_category_and_search_actions_keep_parent_icons_and_literal_ids(self):
+        action_id = '-Nvidia;$`|'
+        apps = [{'id': 'browser.desktop', 'name': 'Browser', 'category': 'Internet', 'icon': 'browser'},
+                {'id': 'browser.desktop', 'name': 'Browser — NVIDIA', 'category': 'Internet',
+                 'icon': 'browser', 'action': action_id},
+                {'id': 'editor.desktop', 'name': 'Editor', 'category': 'Development', 'icon': 'editor'}]
+        for category in ('Internet', 'Search Applications'):
+            with self.subTest(category=category), \
+                 mock.patch.object(self.menu, 'choose', side_effect=[category, 'Browser — NVIDIA']) as picker, \
+                 mock.patch.object(self.menu.subprocess, 'run', return_value=types.SimpleNamespace(stdout=json.dumps(apps))) as run:
+                self.menu.run_menu()
+            self.assertEqual(picker.call_args.args[0]['Browser — NVIDIA'], ('browser.desktop', action_id))
+            self.assertEqual(picker.call_args.args[2]['Browser — NVIDIA'], 'browser')
+            self.assertEqual('Editor' in picker.call_args.args[0], category == 'Search Applications')
+            self.assertEqual(run.call_args.args[0],
+                             [self.menu.SELF, '--launch=browser.desktop', '--action=' + action_id])
+            self.assertNotIn('shell', run.call_args.kwargs)
+
+    def test_same_named_actions_have_deterministic_distinct_selections(self):
+        apps = [{'id': 'app.desktop', 'name': 'App — Mode', 'category': 'Other', 'action': mode}
+                for mode in ('nvidia', 'intel')]
+        choices = self.menu.app_choices(apps, 'Other')
+        self.assertEqual(choices, self.menu.app_choices(list(reversed(apps)), 'Other'))
+        self.assertEqual(set(choices.values()), {('app.desktop', 'intel'), ('app.desktop', 'nvidia')})
+        self.assertEqual(len(choices), 2)
+
+    def test_action_cli_requires_a_desktop_id(self):
+        with mock.patch.object(self.menu, 'gio_api') as gio, \
+             mock.patch.object(sys, 'stderr'), self.assertRaises(SystemExit) as error:
+            self.menu.main(['--action=IntelAccelerated'])
+        self.assertEqual(error.exception.code, 2)
+        gio.assert_not_called()
+
     def test_root_is_refused_before_discovery_or_execution(self):
-        for argv in ([], ['--list'], ['--launch=demo.desktop']):
+        for argv in ([], ['--list'], ['--launch=demo.desktop'],
+                     ['--launch=demo.desktop', '--action=IntelAccelerated']):
             with self.subTest(argv=argv), mock.patch.object(self.menu.os, 'geteuid', return_value=0), \
                  mock.patch.object(self.menu, 'gio_api') as gio, self.assertRaises(RuntimeError):
                 self.menu.main(argv)
@@ -411,11 +447,48 @@ class RealGioSemanticTests(unittest.TestCase):
         path.chmod(0o644)
         return path
 
-    def probe(self, command='--list', pygi=False):
-        result = subprocess.run(payload_installed_argv(['/usr/bin/python3', '-B', str(self.probe_source), str(self.menu_source), command] + ([] if pygi else ['--ctypes'])),
+    def probe(self, command='--list', pygi=False, expected_status=0):
+        arguments = [command] if isinstance(command, str) else command
+        result = subprocess.run(payload_installed_argv(['/usr/bin/python3', '-B', str(self.probe_source), str(self.menu_source), *arguments] + ([] if pygi else ['--ctypes'])),
                                 text=True, capture_output=True, env=self.env, timeout=10, **self.identity)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        return json.loads(result.stdout) if command == '--list' else result
+        self.assertEqual(result.returncode, expected_status, result.stderr)
+        return json.loads(result.stdout) if command == '--list' and expected_status == 0 else result
+
+    def test_synchronized_gpu_availability_and_privacy_actions_reach_the_menu(self):
+        sync = load(TARGET / 'usr/local/bin/labwc-sync-application-launchers')
+        menu = load(MENU)
+        for intel, nvidia in ((False, False), (True, False), (False, True), (True, True)):
+            with self.subTest(intel=intel, nvidia=nvidia):
+                parser = configparser.ConfigParser(interpolation=None)
+                parser.optionxform = str
+                parser.read_string('[Desktop Entry]\nType=Application\nName=Chromium\nExec=/usr/bin/true\nCategories=Network;\nIcon=chromium\n')
+                sync.add_actions(parser, 'chromium', '%U', sync.available_actions(
+                    tuple(sync.ACTION_SPECS), {'intel': intel, 'nvidia': nvidia}))
+                path = self.data / 'applications/chromium.desktop'
+                with path.open('w', encoding='utf-8') as stream:
+                    parser.write(stream)
+                path.chmod(0o644)
+                apps = self.probe()
+                expected = {'PurePrivacy'}
+                if intel: expected.add('IntelAccelerated')
+                if nvidia: expected.add('NvidiaAccelerated')
+                self.assertEqual({app['action'] for app in apps if app['action']}, expected)
+                choices = menu.app_choices(apps, 'Internet')
+                self.assertEqual(set(choices.values()), {('chromium.desktop', action) for action in expected | {''}})
+                self.assertTrue(all(app['icon'] == 'chromium' for app in apps))
+
+    def test_pure_privacy_action_table_matches_runtime_support(self):
+        sync = load(TARGET / 'usr/local/bin/labwc-sync-application-launchers')
+        tree = ast.parse(payload_read_text(TARGET / 'usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py'))
+        table = next(node.value for node in tree.body if isinstance(node, ast.Assign)
+                     and any(isinstance(name, ast.Name) and name.id == 'APPS' for name in node.targets))
+        support = {name.value: next(value.value for key, value in zip(profile.keys, profile.values)
+                                  if isinstance(key, ast.Constant) and key.value == 'pure_privacy')
+                   for name, profile in zip(table.keys, table.values)}
+        for config in sync.APP_CONFIG:
+            with self.subTest(app=config['action_app']):
+                self.assertEqual('PurePrivacy' in config.get('actions', tuple(sync.ACTION_SPECS)),
+                                 support[config['action_app']])
 
     def test_xdg_home_over_local_over_vendor_duplicate_ids(self):
         self.write(self.vendor, title='Vendor'); self.write(self.local, title='Local'); self.write(self.data, title='User')
@@ -463,6 +536,20 @@ class RealGioSemanticTests(unittest.TestCase):
         self.write(title='Calculator', extra='Name[sv]=R\u00e4knare\n')
         self.env['LANGUAGE'] = 'sv'
         self.assertEqual(self.probe()[0]['name'], 'R\u00e4knare')
+
+    def test_actions_use_localized_names_and_effective_xdg_precedence(self):
+        self.write(extra='Actions=IntelAccelerated;\n'
+                   '[Desktop Action IntelAccelerated]\nName=Intel\nExec=/usr/bin/true\n'
+                   '[Desktop Action Undeclared]\nName=Not offered\nExec=/usr/bin/false\n')
+        self.write(self.data, title='User Browser', categories='Network;', extra='Actions=PurePrivacy;\n'
+                   '[Desktop Action PurePrivacy]\nName=Privacy\nName[sv]=Privat\nExec=/usr/bin/true\n')
+        self.env['LANGUAGE'] = 'sv'
+        apps = self.probe()
+        self.assertEqual({app['action']: app['name'] for app in apps},
+                         {'': 'User Browser', 'PurePrivacy': 'User Browser — Privat'})
+        self.assertEqual({app['category'] for app in apps}, {'Internet'})
+        self.write(self.data, extra='Hidden=true\n')
+        self.assertEqual(self.probe(), [])
 
     def test_malformed_nonapplication_and_missing_type_are_not_shown(self):
         bad = self.write(name='bad.desktop'); bad.write_text('not a keyfile\n')
@@ -534,12 +621,89 @@ class RealGioSemanticTests(unittest.TestCase):
         self.assertEqual(launched['uid'], self.uid); self.assertEqual(launched['args'], [title, '%', str(selected)])
         self.assertFalse(payload_source_exists(marker))
 
+    def test_real_gio_launches_each_selected_action_and_preserves_field_codes(self):
+        self.check_selected_action_launches()
+
+    def check_selected_action_launches(self, *, pygi=False):
+        output = self.root / 'action-output'; output.mkdir()
+        if os.geteuid() == 0: os.chown(output, self.uid, self.uid)
+        recorder = self.root / 'action recorder'
+        recorder.write_text('#!/usr/bin/python3\nimport json,os,sys\nfrom pathlib import Path\n'
+                            'Path(os.environ["MENU_FIXTURE_OUTPUT"]).write_text(json.dumps({"uid":os.getuid(),"args":sys.argv[1:]}))\n',
+                            encoding='utf-8')
+        recorder.chmod(0o755)
+        result_path = output / 'argv.json'; self.env['MENU_FIXTURE_OUTPUT'] = str(result_path)
+        marker = output / 'must-not-exist'
+        title = f'Browser $(touch {marker}) `id`; & |'
+        modes = {'IntelAccelerated': 'intel', 'NvidiaAccelerated': 'nvidia', 'PurePrivacy': 'pure-privacy'}
+        actions = 'Actions=' + ';'.join(modes) + ';\n' + ''.join(
+            f'[Desktop Action {action}]\nName={action}\nExec="{recorder}" {mode} %c %% %k %F %u\n'
+            for action, mode in modes.items())
+        selected = self.write(self.data, title=title, extra=actions, exec_value='/usr/bin/false')
+        for action, mode in modes.items():
+            with self.subTest(action=action):
+                result_path.unlink(missing_ok=True)
+                self.probe(['--launch=app.desktop', '--action=' + action], pygi=pygi)
+                deadline = time.monotonic() + 3
+                while not result_path.exists() and time.monotonic() < deadline: time.sleep(0.01)
+                self.assertTrue(result_path.is_file(), 'GIO did not execute the selected action')
+                record = json.loads(result_path.read_text(encoding='utf-8'))
+                self.assertEqual(record, {'uid': self.uid, 'args': [mode, title, '%', str(selected)]})
+                self.assertFalse(marker.exists())
+
+    def test_removed_or_undeclared_action_is_rejected_without_default_fallback(self):
+        self.write(extra='Actions=PurePrivacy;\n[Desktop Action PurePrivacy]\nName=PurePrivacy\nExec=/usr/bin/true\n'
+                   '[Desktop Action IntelAccelerated]\nName=Intel\nExec=/usr/bin/true\n', exec_value='/usr/bin/false')
+        self.assertEqual({app['action'] for app in self.probe()}, {'', 'PurePrivacy'})
+        for action in ('IntelAccelerated', 'NvidiaAccelerated', ''):
+            with self.subTest(action=action):
+                result = self.probe(['--launch=app.desktop', '--action=' + action], expected_status=1)
+                self.assertIn('desktop action is no longer available', result.stderr)
+
+    def test_desktop_actions_share_the_application_catalog_bound(self):
+        text = self.menu_source.read_text(encoding='utf-8').replace('MAX_APPS = 4096', 'MAX_APPS = 1')
+        self.menu_source.write_text(text, encoding='utf-8')
+        self.write(extra='Actions=IntelAccelerated;\n[Desktop Action IntelAccelerated]\nName=Intel\nExec=/usr/bin/true\n')
+        result = self.probe(expected_status=1)
+        self.assertIn('application catalog exceeds the managed bounds', result.stderr)
+
+    def test_advertised_actions_need_a_named_section_and_nonempty_command(self):
+        self.write(extra='Actions=Missing;NoCommand;EmptyCommand;NoName;Valid;\n'
+                   '[Desktop Action NoCommand]\nName=No command\n'
+                   '[Desktop Action EmptyCommand]\nName=Empty command\nExec=\n'
+                   '[Desktop Action NoName]\nExec=/usr/bin/true\n'
+                   '[Desktop Action Valid]\nName=Valid\nExec=/usr/bin/true\n')
+        self.assertEqual({app['action'] for app in self.probe()}, {'', 'Valid'})
+        for action in ('Missing', 'NoCommand', 'EmptyCommand', 'NoName'):
+            with self.subTest(action=action):
+                result = self.probe(['--launch=app.desktop', '--action=' + action], expected_status=1)
+                self.assertIn('desktop action is unavailable', result.stderr)
+
+    def test_normalization_preserves_managed_action_modes(self):
+        policy = load(TARGET / 'usr/local/libexec/labwc-wrap-desktop-files')
+        sync = load(TARGET / 'usr/local/bin/labwc-sync-application-launchers')
+        for app in ('chromium', 'qbittorrent', 'zoom', 'discord', 'chatgpt'):
+            config = next(config for config in sync.APP_CONFIG if config['action_app'] == app)
+            for action in config.get('actions', tuple(sync.ACTION_SPECS)):
+                with self.subTest(app=app, action=action):
+                    mode = sync.ACTION_SPECS[action][0]
+                    command = sync.managed_exec(mode, app, config['field_code'])
+                    source = ('[Desktop Entry]\nType=Application\nName=Fixture\nExec=/usr/bin/true\n'
+                              f'Actions={action};\n[Desktop Action {action}]\nName={action}\nExec={command}\n')
+                    rendered = policy.rewrite_desktop(source, '/usr/local/bin/labwc-wayland-app launch')
+                    parser = configparser.ConfigParser(interpolation=None)
+                    parser.optionxform = str
+                    parser.read_string(rendered)
+                    self.assertEqual(parser[f'Desktop Action {action}']['Exec'], command)
+
     def test_pygi_binding_runs_the_same_production_discovery_when_available(self):
         check = subprocess.run(payload_installed_argv(['/usr/bin/python3', '-I', '-c',
                                 'import gi; gi.require_version("GioUnix", "2.0"); from gi.repository import GioUnix']),
                                capture_output=True, text=True, timeout=5)
         if check.returncode: self.skipTest('python3-gi/GioUnix typelib unavailable on test host')
-        self.write(); self.assertEqual(self.probe(pygi=True), self.probe())
+        self.write(extra='Actions=IntelAccelerated;\n[Desktop Action IntelAccelerated]\nName=Intel\nExec=/usr/bin/true\n')
+        self.assertEqual(self.probe(pygi=True), self.probe())
+        self.check_selected_action_launches(pygi=True)
 
 
 if __name__ == '__main__':

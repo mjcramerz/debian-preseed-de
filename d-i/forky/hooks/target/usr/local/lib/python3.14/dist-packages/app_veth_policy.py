@@ -97,7 +97,7 @@ def parse_configuration(raw: bytes) -> dict:
         if (not isinstance(slots, list) or not 1 <= len(slots) <= network["max_leases"]
                 or any(type(slot) is not int or not 0 <= slot < network["max_leases"] for slot in slots)
                 or len(set(slots)) != len(slots) or assigned_slots.intersection(slots)
-                or (port is not None and len(slots) != 1)):
+                or ((port is not None or pinned is True) and len(slots) != 1)):
             raise ValueError("invalid, duplicate or missing reserved application network slots")
         assigned_slots.update(slots)
         addresses = policy.get("addresses")

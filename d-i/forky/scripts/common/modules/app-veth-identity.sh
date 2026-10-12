@@ -117,7 +117,7 @@ app_veth_identity_placeholder_map() (
       for (i = 1; i <= app_count; i++) {
         app = apps[i]
         if (!(app in selected)) continue
-        count = (app == "qbittorrent" ? 1 : 4)
+        count = (app == "qbittorrent" ? 1 : 2)
         if (slot + count > leases) fail("APP_VETH_MAX_LEASES")
         slots_json = "["; addresses_json = "["
         for (j = 0; j < count; j++) {

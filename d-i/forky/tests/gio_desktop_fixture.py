@@ -50,6 +50,9 @@ def load_api():
     hidden = bind(gio, 'g_desktop_app_info_get_is_hidden', C.c_int, pointer)
     shown = bind(gio, 'g_app_info_should_show', C.c_int, pointer)
     launch = bind(gio, 'g_app_info_launch', C.c_int, pointer, pointer, pointer, C.POINTER(C.POINTER(GError)))
+    list_actions = bind(gio, 'g_desktop_app_info_list_actions', C.POINTER(C.c_char_p), pointer)
+    action_name = bind(gio, 'g_desktop_app_info_get_action_name', pointer, pointer, C.c_char_p)
+    launch_action = bind(gio, 'g_desktop_app_info_launch_action', None, pointer, C.c_char_p, pointer)
 
     class DesktopAppInfo:
         def __init__(self, address): self.address = address
@@ -70,6 +73,20 @@ def load_api():
             finally: free(address)
         def get_is_hidden(self): return bool(hidden(self.address))
         def should_show(self): return bool(shown(self.address))
+        def list_actions(self):
+            values = list_actions(self.address)
+            result = []
+            index = 0
+            while values[index]:
+                result.append(values[index].decode('utf-8'))
+                index += 1
+            return result
+        def get_action_name(self, action_id):
+            value = action_name(self.address, action_id.encode('utf-8'))
+            try: return C.string_at(value).decode('utf-8') if value else None
+            finally: free(value)
+        def launch_action(self, action_id, context):
+            launch_action(self.address, action_id.encode('utf-8'), context.address)
         def launch(self, files, context):
             assert files == [], 'fixture supports the menu no-file launch only'
             error = C.POINTER(GError)()
@@ -130,7 +147,7 @@ def load_api():
     # Restricted to this test subprocess, on hosts without the GI bindings.
     repository = types.ModuleType('gi.repository')
     repository.GLib = types.SimpleNamespace(KeyFile=KeyFile,
-        KeyFileFlags=types.SimpleNamespace(KEEP_TRANSLATIONS=2))
+        KeyFileFlags=types.SimpleNamespace(KEEP_TRANSLATIONS=2), Error=ValueError)
     sys.modules['gi.repository'] = repository
     return types.SimpleNamespace(AppInfo=AppInfo, AppLaunchContext=AppLaunchContext), DesktopAppInfo
 

@@ -28,23 +28,23 @@ from `d-i/forky/hosts/installer/identity.env`, using the shared validated
     "dns_host_port": 53053
   },
   "apps": {
-    "bitwarden": {"network": true, "block_lan": true, "slots": [0, 1, 2, 3], "addresses": ["10.203.0.2", "10.203.0.6", "10.203.0.10", "10.203.0.14"]},
+    "bitwarden": {"network": true, "block_lan": true, "slots": [0, 1], "addresses": ["10.203.0.2", "10.203.0.6"]},
     "qbittorrent": {
       "network": true,
       "block_lan": false,
       "pin_route": true,
       "peer_port": 50309,
-      "slots": [56],
-      "addresses": ["10.203.0.226"]
+      "slots": [28],
+      "addresses": ["10.203.0.114"]
     },
     "new-client": {
       "network": true,
       "block_lan": true,
       "executables": ["/opt/new-client/client"],
-      "slots": [29],
-      "addresses": ["10.203.0.118"]
+      "slots": [45, 46],
+      "addresses": ["10.203.0.182", "10.203.0.186"]
     },
-    "keepassxc": {"network": false, "slots": [31], "addresses": ["10.203.0.126"]}
+    "keepassxc": {"network": false, "slots": [47], "addresses": ["10.203.0.190"]}
   }
 }
 ```
@@ -56,7 +56,7 @@ clients. KeePassXC, Sleek, MPV and RetroArch have no network entry by default.
 
 | Application key | Meaning |
 | --- | --- |
-| `slots` | Required in version 2. Ordered list of unique reserved integers below `max_leases`; no slot may belong to two apps. Ordinary applications reserve four slots; applications with `peer_port` or `pin_route` reserve one slot. The broker uses the first free slot in this app's list, and reports exhaustion instead of borrowing another app's address. |
+| `slots` | Required in version 2. Ordered list of unique reserved integers below `max_leases`; no slot may belong to two apps. The installer gives ordinary built-in applications two slots; applications with `peer_port` or `pin_route` must reserve one slot. Custom unpinned applications may reserve available slots within the configured capacity. The broker uses the first free slot in this app's list, and reports exhaustion instead of borrowing another app's address. |
 | `addresses` | Required canonical IPv4 addresses in slot order. The installer derives them from the subnet and reservations; the parser rejects missing or inconsistent addresses. |
 | `network` | Required Boolean. Only `true` authorizes a lease. An omitted managed app, or an entry with `false`, launches in its private namespace without a veth. |
 | `block_lan` | Optional Boolean, default `false`. Blocks private IPv4, carrier-grade NAT, link-local, loopback, benchmark, multicast and reserved ranges, plus directly connected LAN subnets. DNS continues through the dedicated dnsmasq/Stubby path. |
@@ -72,9 +72,9 @@ retain their existing restrictions; disposable qBittorrent uses the separate
 
 The IPv4 pool must be an aligned RFC1918 subnet with enough /30s for every
 slot. Slot `n` owns the /30 starting at `network_address + 4*n`: the host is
-`+1`, and the app is `+2`. The default qBittorrent identity is slot 56,
-`veth56-app` on the host, gateway `10.203.0.225`, and `10.203.0.226` on its
-private `eth0`. Ordinary desktop apps have four fixed slots for concurrent
+`+1`, and the app is `+2`. The default qBittorrent identity is slot 28,
+`veth28-app` on the host, gateway `10.203.0.113`, and `10.203.0.114` on its
+private `eth0`. Ordinary built-in desktop apps have two fixed slots for concurrent
 namespaces. Applications with a pinned route or peer forwarding keep one slot
 because their source route or forwarded host port is singleton state. Different
 apps never compete for an address. After release the primary slot becomes
@@ -82,7 +82,7 @@ available again. Persistent qBittorrent uses its existing singleton IPC path
 and one reserved slot.
 
 `APP_VETH_*` defines the subnet, capacity, interface prefix/suffixes, private
-interface and DNS endpoints. The installer assigns stable four-slot or
+interface and DNS endpoints. The installer assigns stable two-slot or
 single-slot reservations in canonical application order. A nonempty
 `APP_VETH_OVERRIDE` in a host profile selects only the named applications;
 empty override values use the identity defaults. The installer renders the
@@ -112,8 +112,14 @@ Existing leases keep their creation policy until the instance exits.
 
 ## Adding a package
 
-Add its identifier, unused reserved slots, and actual executable paths to
-`apps`. Slot 29 is unassigned in the default installer identity. The existing desktop
+Add its identifier, unused reserved slots, and actual executable paths to the
+installed root-owned `/etc/app-veth.json` `apps` object. There is no runtime
+allowlist restricted to the installer defaults. The complete default policy
+uses slots 0–44, leaving slots 45–127 (83 slots) for future applications without
+shrinking the `/23` pool or restarting the broker. The four F2FS host profiles
+select six applications, use 12 slots, and retain their 64-slot capacity;
+their unused slots start at 12. Always use the actual installed policy's free
+slots because host filtering changes the reservation layout. The existing desktop
 entry wrapping mechanism routes package desktop entries through
 `labwc-wayland-app` or `labwc-electron-app`. On its next managed launch, the
 executable match selects the private network worker automatically.
@@ -142,12 +148,14 @@ restricted to Zoom and Discord.
 
 ## Routing and lifecycle
 
-`app-veth.service` pre-creates the configured 64 guarded, DOWN pairs before publishing readiness.
+`app-veth.service` pre-creates the configured guarded, DOWN pairs before
+publishing readiness: 128 by default, or the host profile's selected capacity.
 An authorized instance receives an available slot from its application's
 reserved list. The configured subnet is checked against host routes; overlap
 fails instead of selecting a different range. Offline apps receive
 no lease. The guest link is raised before adding its default route; its host
-peer stays DOWN until the nftables transaction commits. Bubblewrap's payload
+peer stays DOWN until the nftables transaction commits. Its MTU and UP state
+are then applied in one command. Bubblewrap's payload
 gate stays closed until setup and readiness checks succeed.
 Before creating the pool, the broker waits up to five seconds for the local
 dnsmasq listener, tolerating refused connections during daemon startup. This
@@ -155,6 +163,16 @@ checks local readiness without waiting for a public DNS answer. A denied
 connection fails immediately, and an unavailable listener prevents setup.
 The foreground dnsmasq service uses `Type=exec` so systemd also tracks process
 setup and executable failures before starting dependent services.
+The broker's descriptor limit covers the full 128-slot capacity, including
+namespace/control descriptors, peer-port and Discord RPC reservations.
+
+A pinned lease starts a ten-second grace deadline when its Internet route becomes unavailable.
+The earliest recovery deadline bounds the event loop's next wait, so a quiet
+route outage still revokes the lease when the grace period expires. The same
+deadline is checked after busy client batches. Recovery of the original route
+clears the deadline; a changed interface, source address or MTU revokes the
+lease immediately when observed. Healthy and unpinned leases retain event-driven
+waiting without periodic route probes.
 
 The namespace client resolver uses the existing private `10.0.2.3` endpoint,
 translated only to dnsmasq on `127.0.0.1:53053`. This frontend has a bounded

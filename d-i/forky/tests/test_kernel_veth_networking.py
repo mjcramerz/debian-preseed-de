@@ -17,6 +17,7 @@ import re
 from pathlib import Path
 import runpy
 import select
+import shlex
 import signal
 import socket
 import shutil
@@ -84,21 +85,58 @@ class PolicyParsingTests(unittest.TestCase):
 
     def test_explicit_slots_are_stable_across_launch_order_and_reuse(self):
         rows = DEFAULT_POLICIES
-        self.assertEqual(broker.application_slot(rows['qbittorrent'], {}), 56)
-        self.assertEqual(rows['qbittorrent']['addresses'], ('10.203.0.226',))
+        self.assertEqual(broker.application_slot(rows['qbittorrent'], {}), 28)
+        self.assertEqual(rows['qbittorrent']['addresses'], ('10.203.0.114',))
         active = {'browser': types.SimpleNamespace(slot=4), 'code': types.SimpleNamespace(slot=6)}
-        self.assertEqual(broker.application_slot(rows['qbittorrent'], active), 56)
-        active['torrent'] = types.SimpleNamespace(slot=56)
+        self.assertEqual(broker.application_slot(rows['qbittorrent'], active), 28)
+        active['torrent'] = types.SimpleNamespace(slot=28)
         with self.assertRaisesRegex(ValueError, 'reserved network slots'):
             broker.application_slot(rows['qbittorrent'], active)
         del active['torrent']
-        self.assertEqual(broker.application_slot(rows['qbittorrent'], active), 56)
-        self.assertEqual(broker.application_slot(rows['chromium'], active), 8)
+        self.assertEqual(broker.application_slot(rows['qbittorrent'], active), 28)
+        self.assertEqual(broker.application_slot(rows['chromium'], active), 5)
+        active['second-browser'] = types.SimpleNamespace(slot=5)
+        with self.assertRaisesRegex(ValueError, 'reserved network slots'):
+            broker.application_slot(rows['chromium'], active)
+        del active['browser']
+        self.assertEqual(broker.application_slot(rows['chromium'], active), 4)
+
+    def test_builtin_apps_have_two_slots_with_singleton_qbittorrent_and_future_capacity(self):
+        self.assertEqual(len(DEFAULT_POLICIES), 23)
+        used = set()
+        for app, policy in DEFAULT_POLICIES.items():
+            with self.subTest(app=app):
+                self.assertEqual(len(policy['slots']), 1 if app == 'qbittorrent' else 2)
+                self.assertFalse(used.intersection(policy['slots']))
+                used.update(policy['slots'])
+        self.assertEqual(used, set(range(45)))
+        self.assertEqual(DEFAULT_CONFIGURATION['network']['max_leases'], 128)
+        self.assertEqual(len(set(range(128)) - used), 83)
+
+    def test_future_apps_accept_unused_slots_without_a_builtin_allowlist(self):
+        source = json.loads(DEFAULT_CONFIG_RAW)
+        source['apps']['future-client'] = {
+            'network': True, 'executables': ['/opt/future-client/client'],
+            'slots': [45, 46], 'addresses': ['10.203.0.182', '10.203.0.186']}
+        policy = policy_parser.parse_configuration(json.dumps(source).encode())['apps']['future-client']
+        self.assertEqual(broker.application_slot(policy, {}), 45)
+        occupied = {'first': types.SimpleNamespace(slot=45)}
+        self.assertEqual(broker.application_slot(policy, occupied), 46)
+        occupied['second'] = types.SimpleNamespace(slot=46)
+        with self.assertRaisesRegex(ValueError, 'reserved network slots'):
+            broker.application_slot(policy, occupied)
+
+    def test_route_pinning_and_peer_forwarding_require_singleton_slots(self):
+        for settings in ({'pin_route': True}, {'peer_port': 4242}):
+            source = json.loads(DEFAULT_CONFIG_RAW)
+            source['apps']['bitwarden'].update(settings)
+            with self.subTest(settings=settings), self.assertRaisesRegex(ValueError, 'reserved application network slots'):
+                policy_parser.parse_configuration(json.dumps(source).encode())
 
     def test_version_two_rejects_missing_unsafe_and_colliding_identities(self):
         source = json.loads(DEFAULT_CONFIG_RAW)
         for field, value in (('ipv4_cidr', '192.0.2.0/24'), ('ipv4_cidr', '10.203.0.1/24'),
-                             ('max_leases', True), ('max_leases', 65),
+                             ('max_leases', True), ('max_leases', 44), ('max_leases', 129),
                              ('host_interface_prefix', 'veth;exec'), ('namespace_interface', 'lo'),
                              ('dns_address', '10.203.0.2'), ('dns_host_address', '0.0.0.0')):
             conf = json.loads(DEFAULT_CONFIG_RAW)
@@ -181,7 +219,7 @@ class PolicyParsingTests(unittest.TestCase):
 class ConfigurationPublisherTests(unittest.TestCase):
     """Exercise the production POSIX map renderer, not string replacement."""
 
-    def render(self, directory, *, account="desktop", port=None, app_veth_override=None):
+    def render(self, directory, *, account="desktop", port=None, app_veth_override=None, network_overrides=None):
         script = r'''
 set -eu
 . "$1/scripts/common/modules/files-logging.sh"
@@ -202,6 +240,7 @@ apply_placeholder_map_to_target "$2/apparmor.conf" app_veth_identity_placeholder
 '''
         environment = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C",
                        "ACCOUNT_USERNAME": account, **network_identity_environment()}
+        environment.update(network_overrides or {})
         if port is not None:
             environment["LABWC_QBITTORRENT_PORT"] = port
         if app_veth_override is not None:
@@ -230,7 +269,7 @@ apply_placeholder_map_to_target "$2/apparmor.conf" app_veth_identity_placeholder
                     self.assertEqual(host_policy['interfaces'], [f'veth{slot}-app' for slot in range(data['network']['max_leases'])])
                     self.assertEqual(host_policy['dns_host_address'], data['network']['dns_host_address'])
                     self.assertEqual(host_policy['dns_host_port'], data['network']['dns_host_port'])
-                    for name in ('network-manager.conf', 'apparmor.conf'):
+                    for name in ('config.json', 'firewall.yml', 'network-manager.conf', 'apparmor.conf'):
                         self.assertNotIn('__INSTALLER_', (Path(directory)/name).read_text())
                     # Target-root ownership is modeled here; the parser itself
                     # and the rendered bytes are production code.
@@ -247,17 +286,37 @@ apply_placeholder_map_to_target "$2/apparmor.conf" app_veth_identity_placeholder
                 for result in self.render(directory, account=account, port=port):
                     self.assertNotEqual(result.returncode, 0)
 
-    def test_app_veth_override_renders_only_selected_four_slot_apps(self):
+    def test_app_veth_override_renders_only_selected_two_slot_apps(self):
         with tempfile.TemporaryDirectory() as directory:
             for result in self.render(directory, app_veth_override="bitwarden,vivaldi"):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 data = json.loads((Path(directory) / "config.json").read_text(encoding="utf-8"))
                 self.assertEqual(set(data["apps"]), {"bitwarden", "vivaldi"})
-                self.assertEqual(data["apps"]["bitwarden"]["slots"], [0, 1, 2, 3])
-                self.assertEqual(data["apps"]["vivaldi"]["slots"], [4, 5, 6, 7])
+                self.assertEqual(data["apps"]["bitwarden"]["slots"], [0, 1])
+                self.assertEqual(data["apps"]["vivaldi"]["slots"], [2, 3])
                 self.assertEqual(data["apps"]["vivaldi"]["addresses"],
-                                 ["10.203.0.18", "10.203.0.22", "10.203.0.26", "10.203.0.30"])
+                                 ["10.203.0.10", "10.203.0.14"])
                 self.assertNotIn("__INSTALLER_", (Path(directory) / "config.json").read_text(encoding="ascii"))
+
+    def test_f2fs_host_profiles_keep_spare_slots_and_render_all_identity_consumers(self):
+        for name in ('f2fs-de-hp14', 'f2fs-de-hp14-duo', 'f2fs-de-x360', 'f2fs-de-x360-duo'):
+            text = (SEED / 'hosts/profiles' / (name + '.env')).read_text(encoding='utf-8')
+            overrides = {key: shlex.split(value)[0] for key, value in
+                         re.findall(r'^(APP_VETH_[A-Z0-9_]+)=(.*)$', text, re.M) if shlex.split(value)[0]}
+            with self.subTest(profile=name), tempfile.TemporaryDirectory() as directory:
+                for result in self.render(directory, network_overrides=overrides):
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    data = policy_parser.parse_configuration((Path(directory) / 'config.json').read_bytes())
+                    self.assertEqual(set(data['apps']), set(overrides['APP_VETH_OVERRIDE'].split(',')))
+                    self.assertEqual(len(data['apps']), 6)
+                    self.assertTrue(all(len(policy['slots']) == 2 for policy in data['apps'].values()))
+                    self.assertEqual(data['network']['max_leases'], 64)
+                    self.assertEqual(sum(len(policy['slots']) for policy in data['apps'].values()), 12)
+                    import yaml
+                    firewall = yaml.safe_load((Path(directory) / 'firewall.yml').read_text(encoding='utf-8'))['app_veth']
+                    self.assertEqual(len(firewall['interfaces']), 64)
+                    for asset in ('config.json', 'firewall.yml', 'network-manager.conf', 'apparmor.conf'):
+                        self.assertNotIn('__INSTALLER_', (Path(directory) / asset).read_text(encoding='utf-8'))
 
     def test_config_check_cli_validates_without_network_side_effects(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -622,7 +681,9 @@ class AdministrationTests(unittest.TestCase):
         self.assertEqual(batch.count("type veth"), broker.MAX_LEASES)
         self.assertIn("app-veth:" + self.endpoints.ids[3], batch)
         self.assertIn("addr add 10.203.0.13/30 dev veth3-app", batch)
-        self.assertIn((["/usr/sbin/ip", "link", "set", "dev", "veth3-app", "mtu", "1420"], {}), self.calls)
+        self.assertIn((["/usr/sbin/ip", "link", "set", "dev", "veth3-app", "mtu", "1420", "up"], {}), self.calls)
+        self.assertEqual(sum('/usr/bin/nsenter' not in argv and argv[:3] == ['/usr/sbin/ip', 'link', 'set']
+                             and 'mtu' in argv for argv, _ in self.calls), 1)
         self.assertTrue(any("/proc/self/fd/70" in argv and "veth3-peer" in argv for argv, _ in self.calls))
         self.assertFalse(any("add" in argv and "link" in argv for argv, _ in self.calls))
         self.assertNotIn("/dev/net/tun", str(self.calls))
@@ -642,7 +703,8 @@ class AdministrationTests(unittest.TestCase):
         guest = next(i for i,e in enumerate(events) if e[0] == "command" and "--" in e[1] and e[1][-2:] == ["-batch", "-"])
         setup = events[guest][2]["data"].splitlines()
         self.assertLess(setup.index("link set eth0 up"), setup.index("route add default via 10.203.0.13 dev eth0"))
-        host_up = next(i for i,e in enumerate(events) if e[0] == "command" and e[1][-2:] == ["veth3-app", "up"])
+        host_up = next(i for i,e in enumerate(events) if e[0] == "command" and e[1] ==
+                       ["/usr/sbin/ip", "link", "set", "dev", "veth3-app", "mtu", "1420", "up"])
         self.assertLess(guest, transaction)
         self.assertLess(transaction, host_up)
 
@@ -655,7 +717,7 @@ class AdministrationTests(unittest.TestCase):
         with mock.patch.object(broker, "run", side_effect=command), \
                 self.assertRaisesRegex(RuntimeError, "guest batch failed"):
             self.network()
-        self.assertFalse(any(argv[-2:] == ["veth3-app", "up"] for argv, _ in self.calls))
+        self.assertFalse(any('veth3-app' in argv and argv[-1] == 'up' for argv, _ in self.calls))
         self.assertTrue(any(argv[-3:] == ["veth3-peer", "netns", f"/proc/self/fd/{self.endpoints.host_fd}"] for argv, _ in self.calls))
         self.assertEqual(self.transactions, [])
 
@@ -721,7 +783,7 @@ class AdministrationTests(unittest.TestCase):
         self.assertIn((["/usr/sbin/ip", "link", "set", "dev", "veth3-app", "down"], {}), self.calls)
         self.assertTrue(any(argv[-3:] == ["veth3-peer", "netns", f"/proc/self/fd/{self.endpoints.host_fd}"] for argv, _ in self.calls))
         self.assertFalse(any(argv[:3] == ["/usr/sbin/ip", "link", "del"] for argv, _ in self.calls))
-        self.assertFalse(any(argv[-2:] == ["veth3-app", "up"] for argv, _ in self.calls))
+        self.assertFalse(any('veth3-app' in argv and argv[-1] == 'up' for argv, _ in self.calls))
 
     def test_internet_route_rejects_a_down_interface(self):
         def replies(argv, **options):
@@ -956,6 +1018,84 @@ class DNSFrontendReadinessTests(unittest.TestCase):
 
 
 class BrokerLifecycleTests(unittest.TestCase):
+    def test_route_deadline_uses_the_earliest_outage_without_polling_healthy_leases(self):
+        healthy = types.SimpleNamespace(pinned_route=('wg0', '192.0.2.8', 1420), route_unavailable_since=None)
+        unpinned = types.SimpleNamespace(pinned_route=None, route_unavailable_since=10)
+        with mock.patch.object(broker.time, 'monotonic', return_value=102) as clock:
+            self.assertIsNone(broker.pinned_route_timeout({}))
+            self.assertIsNone(broker.pinned_route_timeout({1: healthy, 2: unpinned}))
+            clock.assert_not_called()
+            outages = {1: types.SimpleNamespace(pinned_route=healthy.pinned_route, route_unavailable_since=100),
+                       2: types.SimpleNamespace(pinned_route=healthy.pinned_route, route_unavailable_since=101)}
+            self.assertEqual(broker.pinned_route_timeout(outages), 8)
+        with mock.patch.object(broker.time, 'monotonic', return_value=111):
+            self.assertEqual(broker.pinned_route_timeout(outages), 0)
+
+    def test_route_grace_expires_without_further_netlink_events_even_with_client_activity(self):
+        for outcome in ('quiet-outage', 'busy-outage', 'route-restored'):
+            with self.subTest(outcome=outcome), tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
+                nsfd = os.open('/dev/null', os.O_RDONLY | os.O_CLOEXEC)
+                stack.callback(supervisor.close_file_descriptor, nsfd)
+                network = mock.Mock(nsfd=nsfd, slot=28, address='10.203.0.114',
+                                    gateway='10.203.0.113', interface='eth0',
+                                    pinned_route=('wg0', '192.0.2.8', 1420), route_unavailable_since=None)
+                channel = mock.Mock()
+                rejected = mock.Mock()
+                listener = mock.Mock()
+                listener.accept.side_effect = ((channel, None), (rejected, None))
+                watcher = mock.Mock()
+                watcher.recv.side_effect = BlockingIOError
+                selector = mock.Mock()
+                clock = [100.0]
+                waits = []
+                def select_events(timeout):
+                    waits.append(timeout)
+                    if len(waits) == 1:
+                        return [(types.SimpleNamespace(fileobj=listener), 1)]
+                    if len(waits) == 2:
+                        return [(types.SimpleNamespace(fileobj=watcher), 1)]
+                    if len(waits) == 3:
+                        clock[0] = 110.0
+                        return [(types.SimpleNamespace(fileobj=listener), 1)] if outcome == 'busy-outage' else []
+                    raise KeyboardInterrupt
+                selector.select.side_effect = select_events
+                for name, value in (('recover_endpoints', None), ('wait_dns_frontend', None),
+                                    ('select_pool', ipaddress.IPv4Network('10.203.0.0/23')),
+                                    ('configuration', (1000, DEFAULT_POLICIES)), ('refresh_lan_networks', ()),
+                                    ('EndpointPool', mock.Mock()), ('Network', network), ('nft', None)):
+                    stack.enter_context(mock.patch.object(broker, name, return_value=value))
+                stack.enter_context(mock.patch.object(broker, 'receive', side_effect=(
+                    (1234, 1000, 'qbittorrent', nsfd), ValueError('invalid request'))))
+                second_route = network.pinned_route if outcome == 'route-restored' else ValueError('route lost')
+                routes = stack.enter_context(mock.patch.object(broker, 'route', side_effect=(ValueError('route lost'), second_route)))
+                events = stack.enter_context(mock.patch.object(broker, 'event'))
+                stack.enter_context(mock.patch.object(broker.os, 'geteuid', return_value=0))
+                stack.enter_context(mock.patch.object(broker.os, 'chmod'))
+                stack.enter_context(mock.patch.object(broker.Path, 'read_text', return_value='1'))
+                stack.enter_context(mock.patch.object(broker, 'SOCKET_PATH', str(Path(directory) / 'control.sock')))
+                stack.enter_context(mock.patch.object(broker.selectors, 'DefaultSelector', return_value=selector))
+                stack.enter_context(mock.patch.object(broker.socket, 'socket', side_effect=(watcher, listener)))
+                stack.enter_context(mock.patch.dict(broker.os.environ, {'NOTIFY_SOCKET': ''}))
+                stack.enter_context(mock.patch.object(broker.time, 'monotonic', side_effect=lambda: clock[0]))
+                stack.enter_context(mock.patch.object(broker.signal, 'signal'))
+                with self.assertRaises(KeyboardInterrupt):
+                    broker.main()
+                self.assertEqual(waits, [None, None, 10, None])
+                self.assertEqual(routes.call_count, 2)
+                names = [call.args[0] for call in events.call_args_list]
+                self.assertIn('network_route_unavailable', names)
+                if outcome == 'route-restored':
+                    self.assertIn('network_route_restored', names)
+                    self.assertNotIn('network_route_changed', names)
+                    selector.unregister.assert_not_called()
+                else:
+                    self.assertIn('network_route_changed', names)
+                    selector.unregister.assert_called_once_with(channel)
+                network.close.assert_called_once()
+                channel.close.assert_called_once()
+                with self.assertRaises(OSError):
+                    os.fstat(nsfd)
+
     def test_startup_failure_closes_owned_resources_and_preserves_unsafe_socket_paths(self):
         for fault in ('route', 'unsafe-socket', 'pool'):
             with self.subTest(fault=fault), tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
@@ -1630,11 +1770,12 @@ for slot in range(len(fixture["ids"])):
     assert addr[0]["local"] == str(ipaddress.IPv4Address(int(ipaddress.IPv4Address("10.203.0.0"))+slot*4+1))
 for slot in (0,1,31):
     name=f"veth{slot}-app"
-    ip("link","set","dev",name,"mtu","1420")
+    ip("link","set","dev",name,"mtu","1420","up")
     current=json.loads(ip("-j","link","show","dev",name))[0]
     assert current["ifindex"] == links[name]["ifindex"] and current["ifname"] == name
     assert current["ifalias"] == "app-veth:"+fixture["ids"][str(slot)]
-    assert "UP" not in current["flags"]
+    assert "UP" in current["flags"] and current["mtu"] == 1420
+    ip("link","set","dev",name,"down")
 import runpy
 module=runpy.run_path(sys.argv[1])
 module["apply_network_identity"](fixture["network"])
@@ -2386,6 +2527,13 @@ answer_value() {
 
 
 class InstallationTests(unittest.TestCase):
+    def test_descriptor_limit_covers_full_future_pool_with_peer_and_rpc_reservations(self):
+        service = read_text(TARGET / 'etc/systemd/system/app-veth.service')
+        limit = int(re.search(r'(?m)^LimitNOFILE=([0-9]+)$', service).group(1))
+        # Namespace FD + lifecycle socket + TCP/UDP reservation per slot,
+        # two Discord RPC listeners and margin for manager/command descriptors.
+        self.assertGreaterEqual(limit, 4 * 128 + 2 * 10 + 32)
+
     def test_boot_pool_is_ready_before_socket_publication_and_greeter_ordering(self):
         source = Path(broker.__file__).read_text(encoding="utf-8")
         main = source[source.index("def main():"):]

@@ -37,7 +37,9 @@ MemoryDenyWriteExecute=yes
 SystemCallArchitectures=native
 TasksMax=16
 MemoryMax=128M
-LimitNOFILE=256
+# 128 leases can each hold a namespace, control socket and two peer-port
+# reservations, in addition to Discord RPC and the broker/command descriptors.
+LimitNOFILE=1024
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=app-veth

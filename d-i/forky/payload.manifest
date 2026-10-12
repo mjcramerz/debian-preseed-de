@@ -727,7 +727,7 @@ ba92c9a41f83c93162651edb93d3dafb9e60ce17a7f3b5540a13e24e1ff7ae53  hooks/target/e
 a0faf27612a9811e064dbe1141ff885572cac5150d3e2148cd62fc279bba7b1f  hooks/target/etc/systemd/resolved.conf.d/60-app-veth.conf.tmpl
 7328826f34b21e17a623bbf7ba8a3863104dc4bdc1aaa5c5c61ebc5c0d985ca0  hooks/target/etc/systemd/system/NetworkManager-dispatcher.service.d/20-persistent.conf
 571f7185cb588124ccb60d2c6615013bd8a8c6b051db143487b7590c6e6416d3  hooks/target/etc/systemd/system/NetworkManager.service.d/20-dispatcher.conf
-37fc0d5b04f4b87523feb23eeefacc13ca527215d2c7deb74ae15934dab29842  hooks/target/etc/systemd/system/app-veth.service
+ebdf01bf8dfb531ebf87e8d373a5979c17e836817cd5bf54a4d7956539494bc3  hooks/target/etc/systemd/system/app-veth.service
 6415a894dcb59b6340ce76a6984271f59c5c424890373db048e41f6f937ea277  hooks/target/etc/systemd/system/apparmor-modes.service
 d7e26cd9d874ee68e0f59fa7ff0f5b4f60724908170b86ade4fa6e595d213295  hooks/target/etc/systemd/system/apparmor.service.d/20-cache.conf
 93eda63aa71f50257d6ee3bf994bcc4193d04691b37f8df7478f35eb8addb0ea  hooks/target/etc/systemd/system/apt-daily-upgrade.service.d/50-unattended-upgrades-notify.conf
@@ -1027,7 +1027,7 @@ fda340d4ee8f13c21e5ca06b9ebb5f3fa0e65951a13b5ae706b52cabee73909a  hooks/target/u
 a910f7c931a5192c4d9b0d8370ffee58a354288bf7b04f0ddb6840bf4bd317e4  hooks/target/usr/local/bin/labwc-keyboard-layout.tmpl
 2d675c7240da8496e45a6e786c12034b90d60c7fd99a36a42f98b6377182cd1e  hooks/target/usr/local/bin/labwc-lock.tmpl
 6d0ff770bf95a6ec0721498c743041c83e5d1a35acea253376e0d047bc634759  hooks/target/usr/local/bin/labwc-logout
-38c012ca00709737308ce74c233500f8d5c1a4d2c859260edf6473f4f1a64d42  hooks/target/usr/local/bin/labwc-main-menu.tmpl
+02bea32b2dff3a415daa0de7ce4c9c4755d72aaca96b1b94e09e61d26f7472d6  hooks/target/usr/local/bin/labwc-main-menu.tmpl
 59c09b5fe05abd4d0c3fa5252c43c7afc331304980836529f5e5a735a28dbdb8  hooks/target/usr/local/bin/labwc-maintenance-menu.tmpl
 410ba1759534862ed9bf5560603692c817c9e9b7af94a45e476ae6f864025b3a  hooks/target/usr/local/bin/labwc-network-control-action
 a1a69d67b607808632893d224be13c9240a6dfc1b6adb42342d5b69ca6dbac8f  hooks/target/usr/local/bin/labwc-network-control-menu
@@ -1227,7 +1227,7 @@ f95b6493a092838268098fac9c3b3d12993c29e95bf511595856e9074e0ab7be  hooks/target/u
 37537e4026e9d4f0dcc3d6563b33d32faccc91e7705b837da7867e7c9585a375  hooks/target/usr/local/lib/perl5/site_perl/zram-writeback/Zram/Tuning.pm
 2055c829caac4110540c1de5e1f3759b54f253efdac6977ea0cf9fdab20fe10c  hooks/target/usr/local/lib/perl5/site_perl/zram-writeback/Zram/Types.pm
 9e61e4f2c937a47e2c9f8191a1012953c29a8d7ffd8a8f58e0c4b37b9fe6456a  hooks/target/usr/local/lib/perl5/site_perl/zram-writeback/Zram.pm
-41532f3caf9ba7e88bd93dc39f2038e8ef265dfe367a28b4f0fa1deeb28b2147  hooks/target/usr/local/lib/python3.14/dist-packages/app_veth_policy.py
+6d0f5d04e28bf581c1b2bf6569b69b24833f0d7b389612a863e9d861ec5acec5  hooks/target/usr/local/lib/python3.14/dist-packages/app_veth_policy.py
 73819b74d4eafe1070750e450802c27d5ae9ff1ea8565cf86d5308397ce3020a  hooks/target/usr/local/lib/python3.14/dist-packages/gitbuild/__init__.py
 4885330aa5a00a8c1ace0d6896aa9760d992efc55f34b086317b766af4eb2229  hooks/target/usr/local/lib/python3.14/dist-packages/gitbuild/cli.py
 17069992b7ccc7c8f00a26b83c5198ecf726b8871795a40a212c66b83836cdc9  hooks/target/usr/local/lib/python3.14/dist-packages/gitbuild/core.py
@@ -1412,7 +1412,7 @@ fab3b55e8b74e2fd4636007c9595a8cc2c2343a5b7d0d7721e3d2a5b3cd0c2c3  hooks/target/u
 7102d40d083c30b8c082c2fb92b103ff21d876afdbc90757b639ef33346f5931  hooks/target/usr/local/libexec/whisper-record-toggle
 818b18b246664c4bd3a9e19113d025fae07ab0f24847624c68694c1f7817e353  hooks/target/usr/local/libexec/zram-device-setup.tmpl
 2ff2c747d7da5754cb2cbb09bc2624b92176f36ee157ef71d5520dcdc92f187b  hooks/target/usr/local/libexec/zram-writeback.tmpl
-552b501e0222e02a20a80572779cf38191aec865cba6435879a3e304fb02d1f0  hooks/target/usr/local/sbin/app-veth
+8bb642ac108ffa5431a94850b008038cf08ed627ac78676dd6cdd4068dd298c7  hooks/target/usr/local/sbin/app-veth
 ac69a5a83f2908426168497c69d9f2268ce963be8a52680807b8eca763db2445  hooks/target/usr/local/sbin/fwops-mode
 a60bce358b81a698d0a325447a14d0d0548b49077f13c8f4f4042d08ba768330  hooks/target/usr/local/sbin/greetd-power-action
 21982dcb4c7e577f093c3ad55c0ac095787f50d92eb324fcad7d3753fb4ee69b  hooks/target/usr/local/sbin/labwc-notify.tmpl
@@ -1501,7 +1501,7 @@ b9d5311b8ad4b52c8c53703fb6a8c46f48058ff97640ff4f61818f780e006449  hosts/installe
 74fb20cee0ec65f4ce346b57ded32e02bf734b946fa116ff416b886223c5ad52  hosts/installer/btrfs.env
 a7052fb781fd1c55c4a2347e0c7a02860b51ca855d259d827af37a2cf0748d4b  hosts/installer/f2fs.env
 931812fdb65775331094669c9c99a0f28b795c58e65bd88562917495182a5885  hosts/installer/hosting.env
-059ad21a07745b11bc3f68128ee0a8de8909a067ad386f616afcb6f2a28cd40b  hosts/installer/identity.env
+fe595f353e4eb494fe589f12c77e878557ceaeeadac9425a779e8472dc1d9d5f  hosts/installer/identity.env
 0cd5b7a45f281c291331a332f86c2defe837aea1d8289e39389cef3bec39462d  hosts/installer/layout.env
 28d3e08f4f3d38615cd474e76189b39d1f396f1985dfcb2c4db524e8f4ba6f14  hosts/installer/runtime.env
 a0834d3c26d1cb998ff2e3d701feb8f05171537cc0d47cc2c76e5e93e38b886b  hosts/logging/observability-schema.tsv
@@ -1533,7 +1533,7 @@ f690fbf2952acafd6eb822993d2117f31555cf38fa9d5e17aa627873c1dffa53  scripts/common
 f81d89dde2dd9d6d9ee49381dbc6b5afba4917dbc65f334226cab54e9469a1b8  scripts/common/logging-render.awk
 7a7a7fe6bf6c4a2ce64aa89032c326b25f07b8b4f0801cd942a05157eb708f20  scripts/common/logging-validate.awk
 5aaeb71e7fd81a00957e925e403c3796bb49f41c00e572678f8eb757b8567893  scripts/common/logging.sh
-956f708ade17bd50150e83610b1a7741fb4d1e7370073ccf767e8d81e514c62d  scripts/common/modules/app-veth-identity.sh
+14599aedf3a09482f6107995f5e49e18bd0834bab4ddb5edce3624ffabcf60f3  scripts/common/modules/app-veth-identity.sh
 cb5ffa1029b381c3eb69177dc2822c22acc702b08f95a6c459d6804add66e7f4  scripts/common/modules/class-metadata.sh
 0558cb183c9ef769fd35bd544415831809471a28b8d410b59c7e6493128e8a57  scripts/common/modules/class-plan.sh
 ea36ad62b4d5e9c32370e071c8f4c03b12fb8e1477cba3d6aaf80bb11a8e6998  scripts/common/modules/class-selection.sh

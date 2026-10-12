@@ -369,7 +369,6 @@ class Network:
             self.attached = True
             run([*enter, "/usr/sbin/ip", "link", "set", "dev", self.peer_name, "name", self.interface], fds=(nsfd,))
             self.peer_name = self.interface
-            run(["/usr/sbin/ip", "link", "set", "dev", self.name, "mtu", str(mtu)])
             run([*enter, "/usr/sbin/sysctl", "-q", "-w", "net.ipv6.conf.all.disable_ipv6=1"], fds=(nsfd,))
             # ip -batch stops at the first error. The guest must be UP before
             # adding its gateway route; the host peer stays DOWN until the
@@ -413,7 +412,9 @@ class Network:
                     element("incoming", f'"{self.name}" . {self.address} . tcp . {port + 10000}')
             nft("\n".join(rows) + "\n")
             self.installed = True
-            run(["/usr/sbin/ip", "link", "set", self.name, "up"])
+            # Set the host MTU and raise the link in one operation, only after
+            # the exact source/egress firewall transaction has committed.
+            run(["/usr/sbin/ip", "link", "set", "dev", self.name, "mtu", str(mtu), "up"])
             event("network_ready", self.id, app=app, uid=uid, interface=self.name, mtu=mtu)
         except BaseException:
             self.close()
@@ -478,6 +479,15 @@ def release_lease(selector, leases, channel):
             os.close(network.nsfd)
         finally:
             channel.close()
+
+
+def pinned_route_timeout(leases) -> float | None:
+    deadlines = [network.route_unavailable_since + PINNED_ROUTE_GRACE_SECONDS
+                 for network in leases.values()
+                 if network.pinned_route is not None and network.route_unavailable_since is not None]
+    if not deadlines:
+        return None  # Healthy/ordinary leases need no periodic wakeups.
+    return max(0.0, min(deadlines) - time.monotonic())
 
 
 def refresh_pinned_routes(selector, leases):
@@ -564,7 +574,7 @@ def recover_endpoints():
         alias = link.get("ifalias", "")
         tagged = re.fullmatch(r"app-veth:[0-9a-f]{32}", alias)
         if not tagged:
-            # These exact 32 slot pairs are reserved to this service. A kill
+            # These exact configured slot pairs are reserved to this service. A kill
             # between create and tag can leave both idle ends untagged. Only
             # that mutually paired, DOWN, address-free state is recoverable;
             # any other untagged or foreign-tagged interface is left alone.
@@ -651,7 +661,7 @@ def main():
                 notification.connect("\0" + notify_path[1:] if notify_path.startswith("@") else notify_path)
                 notification.sendall(b"READY=1")
         while True:
-            for key, _ in selector.select():
+            for key, _ in selector.select(pinned_route_timeout(leases)):
                 if key.fileobj is route_watch:
                     # Coalesce a bounded burst before taking the two route/link
                     # snapshots; endpoint setup generates several notifications.
@@ -725,6 +735,14 @@ def main():
                     except NetworkCleanupError as exc:
                         errors.append(exc)
                         raise
+            # A sustained route outage may generate no further notification.
+            # Check the deadline after every batch, including busy client batches.
+            if pinned_route_timeout(leases) == 0:
+                try:
+                    refresh_pinned_routes(selector, leases)
+                except NetworkCleanupError as exc:
+                    errors.append(exc)
+                    raise
     finally:
         ACTIVE_NETWORK_SETTINGS = None
         # Signals cannot interrupt cleanup and strand a later lease.
