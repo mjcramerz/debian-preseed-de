@@ -4,6 +4,17 @@
 NVIDIA cases use real temporary directories/symlinks and synthetic character
 metadata, because these tests must neither create devices nor require hardware.
 """
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[2] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import ast
 import contextlib
 import importlib.machinery
@@ -181,8 +192,8 @@ class UserStateTests(unittest.TestCase):
         with mock.patch.object(self.helper.os, 'getuid', return_value=0):
             with self.assertRaisesRegex(self.helper.Error, 'never root'): self.helper.main(['cancel'])
 
-    def test_state_and_restore_are_explicitly_user_units(self):
-        for name in ('labwc-session-state@.service', 'labwc-session-restore.service'):
+    def test_state_helper_is_explicitly_a_user_unit(self):
+        for name in ('labwc-session-state@.service',):
             content = payload_read_text(USER_UNITS / name)
             for required in ('Environment=XDG_RUNTIME_DIR=%t',
                              'Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus',
@@ -284,7 +295,7 @@ class PanelAndWiringTests(unittest.TestCase):
     def test_user_bus_helpers_inherit_bounded_apparmor_profile(self):
         text = payload_read_text(TARGET / 'etc/apparmor.d/desktop-wrappers')
         profile = text.split('profile labwc-session-state ',1)[1].split('\n}\n',1)[0]
-        self.assertIn('/usr/bin/{systemctl,systemd-run,wlrctl,wl-copy,cliphist,notify-send} rix,', profile)
+        self.assertIn('/usr/bin/{systemctl,wlrctl,wl-copy,cliphist,notify-send} rix,', profile)
         self.assertIn('owner /run/user/[0-9]*/{bus,systemd/private} rw,', profile)
         self.assertNotIn('/dev/rfkill', profile)
         for line in profile.splitlines():

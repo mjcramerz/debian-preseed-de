@@ -1,5 +1,16 @@
 #!/usr/bin/python3
 """Offline regression tests; assemble tiny fixture archives, never build software."""
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[2] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import contextlib
 import gzip
 import importlib.machinery
@@ -20,6 +31,7 @@ loader = importlib.machinery.SourceFileLoader('local_apt_repository', str(SOURCE
 spec = importlib.util.spec_from_loader(loader.name, loader)
 repo = importlib.util.module_from_spec(spec)
 loader.exec_module(repo)
+repo.ENV['HOME'] = os.environ['HOME']
 
 
 def fixture(path, version='1.0', package='fixture-app', arch='all', depends='libc6, libexample (>= 1) | libother, libextra:any'):
@@ -59,9 +71,8 @@ def install_source_template(repository):
 class RepositoryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        # Production paths reject writable ancestors. Use a root-owned private
-        # test workspace under /var/tmp's parent, not the world-writable /tmp.
-        cls.base = Path('/var/lib/apt-repo-local-tests')
+        # Keep the production ownership check and use the private guest tree.
+        cls.base = Path('/workspace/apt-repo-local-tests')
         cls.base.mkdir(mode=0o755, exist_ok=True)
 
     def setUp(self):

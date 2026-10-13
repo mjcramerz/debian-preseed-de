@@ -4,3 +4,5 @@
 # The distribution's base.d hook applies it to future ordinary app profiles.
 signal (receive) peer=desktop-btop,
 ptrace (readby) peer=desktop-btop,
+# aa-status reads confinement labels and executable links, never process memory.
+ptrace (readby) peer=desktop-launcher//apparmor-status,

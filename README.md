@@ -25,7 +25,8 @@ and current validation limits. It supersedes older logging descriptions.
 
 The current [security repair and operating gates](docs/security-hardening.md)
 cover A01-A09, rsyslog tmpfs, and the installer module/loading contract. Run `python3 -B tools/build.py`
-after editing sources; run `python3 -B tools/build.py --check` before publishing.
+after editing sources. Run `make check` before publishing, inside the
+[mandatory disposable test environment](docs/test-isolation.md).
 
 ## Network sharing
 
@@ -44,7 +45,8 @@ there is no autofs or path activation layer. The
 records the permission, boot mount and retry regression checks. Read the
 [configuration, trust model and deployment guide](docs/network-sharing.md) and
 [validation record](docs/validation/network-sharing-20260930/README.md) before
-enabling a role. `make build` validates NFS profile policy before publication.
+enabling a role. The separate `make check` validates NFS profile policy in the
+disposable environment before publication.
 The generated installer snapshot is included; see [build status](BUILD-STATUS.md)
 for the non-passing broad regression suite and outstanding live acceptance.
 
@@ -284,20 +286,27 @@ checksums and the managed HCL constraints. The installation does not invoke
 
 ## Build and verify
 
-Run from the repository root with Python 3 and the standard Debian tools:
+Generate the three installer artifacts from the repository root:
 
 ```sh
 make build
+```
+
+Run checks and tests only in the [mandatory disposable environment](docs/test-isolation.md):
+
+```sh
 make check
 make test
 make audit
 make validate
 ```
 
-The builder refreshes `d-i/forky/preseed.cfg`, `payload.manifest` and
-`payload.tar.gz`, checks module references, and refreshes the existing browser
-artifacts and self-contained lifecycle bootstrap. **It never generates, repairs
-or overwrites environment files or runtime modules.** Editing an environment
+The builder writes only `d-i/forky/preseed.cfg`, `payload.manifest` and
+`payload.tar.gz`. It performs no source validation, tests, shell execution,
+browser generation or lifecycle-source synchronization. Browser artifacts are
+generated separately with `python3 -B tools/build_browser_config.py`. Keep the
+embedded lifecycle source synchronized explicitly when editing that source.
+**The builder never generates, repairs or overwrites source inputs.** Editing an environment
 requires rebuilding the payload/pins before publishing; rebuilding packages your
 edited bytes, it does not replace them with defaults. Do not hand-edit the three
 snapshot products. The validation
@@ -305,7 +314,7 @@ runner records results under `.build/validation/` by default. Parser checks
 need the corresponding tools and Perl modules; missing dependencies must be
 reported as blocked or skipped, not treated as successful execution.
 
-Optional root-only, offline hardware-policy fixture checks:
+Optional hardware-policy fixture checks, only inside the disposable environment:
 
 ```sh
 python3 -B tools/check_hardware_tuning.py

@@ -1,6 +1,16 @@
 """Offline checks for the dedicated torrent launcher and display profile wiring."""
 from __future__ import annotations
 
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import configparser
 import contextlib
 import io
@@ -9,6 +19,7 @@ from pathlib import Path
 import pwd
 import runpy
 import shutil
+import signal
 import socket
 import stat
 import struct
@@ -39,7 +50,7 @@ def rendered_managed_config(port: str = "50309", username: str = "fixture") -> b
     text = network_identity_text(QBIT_CONFIG_TEMPLATE.read_text(encoding="utf-8"))
     return text.replace("__INSTALLER_LABWC_QBITTORRENT_PORT__", port).replace(
         "__INSTALLER_ACCOUNT_USERNAME__", username
-    ).encode("utf-8")
+    ).replace("__INSTALLER_QBITTORRENT_SAVE_ROOT__", f"/run/media/{username}/bittorrent").encode("utf-8")
 
 
 def copy_profile_home(profile_home: Path, port: str = "50309", username: str = "fixture") -> Path:
@@ -88,6 +99,7 @@ class TorrentIntegrationTests(unittest.TestCase):
                 runtime = types.SimpleNamespace(VETH_DNS_ADDRESS='10.0.2.3',
                     veth_resolv_conf=lambda: 'nameserver 10.0.2.3\n')
                 def launch(command, payload, temporary, descriptors, **options):
+                    self.assertTrue(options['graceful_shutdown'])
                     self.assertEqual(options['network'], online)
                     self.assertEqual((Path(temporary) / 'resolv.conf').read_text(encoding='ascii'),
                                      'nameserver 10.0.2.3\n' if online else '# Networking is disabled.\n')
@@ -170,12 +182,14 @@ class TorrentIntegrationTests(unittest.TestCase):
     def test_payload_command_keeps_namespace_isolation_and_drops_all_capabilities(self):
         account = pwd.struct_passwd(('fixture', 'x', os.getuid(), os.getgid(), '', '/home/fixture', '/bin/sh'))
         globals_ = QBIT['build_command'].__globals__
+        proxy_policy_reader = mock.Mock(return_value=b'fixture proxy policy\n')
         # Command construction only. Socket availability, optional host binds,
         # and GPU discovery are explicit fixtures; no namespace is created.
         with mock.patch.dict(os.environ, {'XDG_RUNTIME_DIR': f'/run/user/{os.getuid()}',
                                          'WAYLAND_DISPLAY': 'wayland-7',
                                          'QT_STYLE_OVERRIDE': 'Adwaita'}, clear=True), \
              mock.patch.dict(globals_, {'require_socket': mock.Mock(),
+                                       'read_managed_config': proxy_policy_reader,
                                        'optional_ro_bind': mock.Mock(),
                                        'add_gpu_device_binds': mock.Mock()}), \
              mock.patch.object(shutil, 'which', side_effect=lambda name: '/usr/bin/' + name):
@@ -183,6 +197,10 @@ class TorrentIntegrationTests(unittest.TestCase):
                                              Path('/run/media/fixture/bittorrent/.qbittorrent-profile'), 'launch', [],
                                              Path('/run/user/1000/fixture/resolv.conf'))
         self.assertEqual(command[0], '/usr/bin/bwrap')
+        self.assertEqual(proxy_policy_reader.call_args_list, [
+            mock.call(Path('/etc/labwc/3proxy/qbittorrent.conf')),
+            mock.call(Path('/etc/labwc/3proxy/session.json')),
+        ])
         self.assertEqual(command[-1], '/usr/bin/qbittorrent')
         self.assertEqual(command[command.index('--cap-drop') + 1], 'ALL')
         for argument in ('--unshare-all', '--new-session', '--die-with-parent', '--clearenv'):
@@ -271,6 +289,12 @@ class TorrentIntegrationTests(unittest.TestCase):
                                  "true" if "Validate" in key else "false")
             self.assertEqual(parser["Preferences"][r"WebUI\Enabled"], "false")
             self.assertEqual(parser["Network"]["PortForwardingEnabled"], "false")
+            self.assertEqual(parser['Network'][r'Proxy\Type'], '1')
+            self.assertEqual(parser['Network'][r'Proxy\IP'], '127.0.0.1')
+            self.assertEqual(parser['Network'][r'Proxy\Port'], '3128')
+            for profile in ('BitTorrent', 'RSS', 'Misc'):
+                self.assertEqual(parser['Network']['Proxy\\Profiles\\' + profile], 'true')
+            self.assertEqual(parser['BitTorrent'][r'Session\ProxyPeerConnections'], 'false')
             self.assertEqual(parser['BitTorrent'][r'Session\Interface'], 'eth0')
             self.assertEqual(parser['BitTorrent'][r'Session\InterfaceAddress'], '10.203.0.114')
             for key in (r'Session\AnnounceToAllTiers', r'Session\AnnounceToAllTrackers'):
@@ -298,6 +322,238 @@ class TorrentIntegrationTests(unittest.TestCase):
             self.assertNotIn(token, wrapper)
         self.assertIn('copy_managed_config', wrapper)
         self.assertIn('read_managed_config', wrapper)
+
+    def test_tracker_proxy_failure_reaps_torrent_without_direct_fallback(self):
+        source = TARGET / 'usr/local/libexec/labwc-proxy-session'
+        module = types.ModuleType('tested_qbittorrent_session')
+        exec(compile(network_identity_text(source.read_text(encoding='utf-8')),
+                     str(source), 'exec'), module.__dict__)
+        proxy, torrent = mock.Mock(), mock.Mock()
+        # Readiness succeeds, then the proxy fails while qBittorrent is alive.
+        proxy.poll.side_effect = [None, 1, 1]
+        torrent.poll.return_value = None
+        with mock.patch.object(module.os, 'geteuid', return_value=1000), \
+                mock.patch.object(module, 'read_policy', return_value=b'{"web_browser_port":3128,"qbittorrent_port":3128}'), \
+                mock.patch.object(module.sys, 'argv', ['session', 'qbittorrent', '/usr/bin/qbittorrent']), \
+                mock.patch.object(module.signal, 'signal'), \
+                mock.patch.object(module.socket, 'create_connection'), \
+                mock.patch.object(module.os, 'pidfd_open', side_effect=[81, 82]), \
+                mock.patch.object(module.os, 'close'), \
+                mock.patch.object(module.select, 'select', return_value=([81], [], [])), \
+                mock.patch.object(module.subprocess, 'Popen', side_effect=[proxy, torrent]) as launch:
+            with self.assertRaisesRegex(RuntimeError, 'during the application session'):
+                module.main()
+        torrent.send_signal.assert_called_once_with(module.signal.SIGINT)
+        torrent.wait.assert_called_once_with(timeout=10)
+        self.assertEqual(launch.call_args_list[1].args[0], ['/usr/bin/qbittorrent'])
+
+    def test_session_wait_uses_native_exit_notifications_and_closes_its_pidfds(self):
+        source = TARGET / 'usr/local/libexec/labwc-proxy-session'
+        module = types.ModuleType('tested_qbittorrent_session')
+        exec(compile(source.read_text(encoding='utf-8'), str(source), 'exec'), module.__dict__)
+        native_pidfd_open = os.pidfd_open
+        for failed_proxy in (False, True):
+            with self.subTest(failed_proxy=failed_proxy), contextlib.ExitStack() as resources:
+                processes = []
+                descriptors = []
+
+                def stop_fixture(process):
+                    if process.poll() is None:
+                        process.kill()
+                    process.wait(timeout=3)
+
+                for index in range(2):
+                    exits_first = index == (0 if failed_proxy else 1)
+                    code = ('import time; time.sleep(0.05); raise SystemExit(23)' if exits_first
+                            else 'import time; time.sleep(30)')
+                    process = subprocess.Popen([sys.executable, '-I', '-B', '-c', code],
+                                               stdin=subprocess.DEVNULL)
+                    resources.callback(stop_fixture, process)
+                    processes.append(process)
+
+                def pin(pid):
+                    descriptor = native_pidfd_open(pid)
+                    descriptors.append(descriptor)
+                    return descriptor
+
+                # These are real private fixture children. Any supervisor sleep
+                # would fail; exit readiness comes from the kernel, not a mock.
+                with mock.patch.object(module.os, 'pidfd_open', side_effect=pin), \
+                        mock.patch.object(module.time, 'sleep', side_effect=AssertionError('periodic polling')):
+                    if failed_proxy:
+                        with self.assertRaisesRegex(RuntimeError, 'session \\(status 23\\)'):
+                            module.wait_for_session(*processes)
+                    else:
+                        self.assertEqual(module.wait_for_session(*processes), 23)
+                self.assertEqual(len(descriptors), 2)
+                self.assertIsNone(processes[1 if failed_proxy else 0].poll())
+                for descriptor in descriptors:
+                    with self.assertRaises(OSError):
+                        os.fstat(descriptor)
+
+    def test_group_stop_keeps_the_proxy_alive_until_the_torrent_has_closed(self):
+        for stop_signal in (signal.SIGINT, signal.SIGTERM):
+            with self.subTest(stop_signal=stop_signal):
+                self.check_group_stop(stop_signal)
+
+    def check_group_stop(self, stop_signal):
+        source = TARGET / 'usr/local/libexec/labwc-proxy-session'
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'proxy.py').write_text('''import os, sys, time
+from pathlib import Path
+root = Path(sys.argv[1])
+(root / 'proxy.pid').write_text(str(os.getpid()))
+time.sleep(30)
+''', encoding='utf-8')
+            (root / 'torrent.py').write_text('''import os, select, signal, sys, time
+from pathlib import Path
+root = Path(sys.argv[1])
+def stopped(signum, frame):
+    for watched in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(watched, signal.SIG_IGN)
+    time.sleep(0.1)
+    try:
+        descriptor = os.pidfd_open(int((root / 'proxy.pid').read_text()))
+        exited = bool(select.select([descriptor], [], [], 0)[0])
+        os.close(descriptor)
+    except ProcessLookupError:
+        exited = True
+    (root / 'torrent.closed').write_text('proxy-exited' if exited else 'proxy-alive')
+    raise SystemExit(0)
+signal.signal(signal.SIGINT, stopped)
+signal.signal(signal.SIGTERM, stopped)
+(root / 'torrent.ready').write_text('ready')
+time.sleep(30)
+''', encoding='utf-8')
+            worker = '''import contextlib, runpy, subprocess, sys
+from pathlib import Path
+source, root = sys.argv[1:]
+namespace = runpy.run_path(source, run_name='fixture')
+scope = namespace['main'].__globals__
+scope['os'].geteuid = lambda: 1000
+scope['read_policy'] = lambda path: b'{"web_browser_port":3128,"qbittorrent_port":3128}'
+scope['sys'].argv = ['session', 'qbittorrent', '/usr/bin/qbittorrent']
+scope['socket'].create_connection = lambda *a, **kw: contextlib.nullcontext()
+native_popen = subprocess.Popen
+def fixture_popen(argv, **options):
+    scripts = {'/usr/bin/3proxy': 'proxy.py', '/usr/bin/qbittorrent': 'torrent.py'}
+    return native_popen([sys.executable, '-I', '-B', str(Path(root) / scripts[argv[0]]), root], **options)
+scope['subprocess'].Popen = fixture_popen
+raise SystemExit(namespace['main']())
+'''
+            # Real child processes and a private process group model systemd's
+            # control-group signal. Neither packaged application is executed.
+            process = subprocess.Popen([sys.executable, '-I', '-B', '-c', worker, str(source), directory],
+                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                start_new_session=True)
+            try:
+                deadline = time.monotonic() + 5
+                while not all((root / name).exists() for name in ('proxy.pid', 'torrent.ready')):
+                    if process.poll() is not None or time.monotonic() >= deadline:
+                        self.fail('private session fixture did not become ready')
+                    time.sleep(0.01)
+                os.killpg(process.pid, stop_signal)
+                _, errors = process.communicate(timeout=5)
+                self.assertEqual(process.returncode, 128 + stop_signal, errors.decode('utf-8'))
+                self.assertEqual((root / 'torrent.closed').read_text(encoding='utf-8'), 'proxy-alive')
+                with self.assertRaises(ProcessLookupError):
+                    os.pidfd_open(int((root / 'proxy.pid').read_text(encoding='utf-8')))
+            finally:
+                if process.poll() is None:
+                    os.killpg(process.pid, signal.SIGKILL)
+                process.communicate(timeout=5)
+
+    def test_failed_tracker_proxy_never_starts_qbittorrent(self):
+        source = TARGET / 'usr/local/libexec/labwc-proxy-session'
+        module = types.ModuleType('tested_qbittorrent_session')
+        exec(compile(network_identity_text(source.read_text(encoding='utf-8')),
+                     str(source), 'exec'), module.__dict__)
+        proxy = mock.Mock()
+        proxy.poll.return_value = 1
+        with mock.patch.object(module.os, 'geteuid', return_value=1000), \
+                mock.patch.object(module, 'read_policy', return_value=b'{"web_browser_port":3128,"qbittorrent_port":3128}'), \
+                mock.patch.object(module.sys, 'argv', ['session', 'qbittorrent', '/usr/bin/qbittorrent']), \
+                mock.patch.object(module.signal, 'signal'), \
+                mock.patch.object(module.subprocess, 'Popen', return_value=proxy) as launch:
+            with self.assertRaisesRegex(RuntimeError, 'before readiness'):
+                module.main()
+        launch.assert_called_once()
+
+    def test_offline_session_runs_without_proxy_in_the_unshared_namespace(self):
+        source = TARGET / 'usr/local/libexec/labwc-proxy-session'
+        module = types.ModuleType('tested_qbittorrent_session')
+        exec(compile(source.read_text(encoding='utf-8'), str(source), 'exec'), module.__dict__)
+        torrent = mock.Mock()
+        torrent.wait.return_value = 0
+        torrent.poll.return_value = 0
+        with mock.patch.object(module.os, 'geteuid', return_value=1000), \
+                mock.patch.object(module, 'read_policy', return_value=b'{"web_browser_port":3128,"qbittorrent_port":3128}'), \
+                mock.patch.object(module.sys, 'argv', ['session', 'qbittorrent', '--offline', '/usr/bin/qbittorrent']), \
+                mock.patch.object(module.signal, 'signal'), \
+                mock.patch.object(module.subprocess, 'Popen', return_value=torrent) as launch, \
+                mock.patch.object(module.socket, 'create_connection') as readiness:
+            self.assertEqual(module.main(), 0)
+        launch.assert_called_once_with(['/usr/bin/qbittorrent'], stdin=subprocess.DEVNULL)
+        readiness.assert_not_called()
+
+    def test_session_rejects_native_profile_overrides_before_launch(self):
+        source = TARGET / 'usr/local/libexec/labwc-proxy-session'
+        module = types.ModuleType('tested_qbittorrent_session')
+        exec(compile(source.read_text(encoding='utf-8'), str(source), 'exec'), module.__dict__)
+        for argument in ('--profile=/tmp/other', '--configuration=other', '--profile', '--configuration'):
+            with self.subTest(argument=argument), \
+                    mock.patch.object(module.os, 'geteuid', return_value=1000), \
+                mock.patch.object(module, 'read_policy', return_value=b'{"web_browser_port":3128,"qbittorrent_port":3128}'), \
+                    mock.patch.object(module.sys, 'argv', ['session', 'qbittorrent', '--privacy', '/usr/bin/qbittorrent', argument]), \
+                    mock.patch.object(module.subprocess, 'Popen') as launch, \
+                    self.assertRaisesRegex(ValueError, 'profile overrides'):
+                module.main()
+            launch.assert_not_called()
+
+    def test_install_stage_renders_both_profiles_from_the_canonical_template(self):
+        source = (FORKY / 'scripts/desktop/components/target-assets.sh').read_text(encoding='utf-8')
+        start = source.index('  if [ "$desktop_qbittorrent_enabled" = true ]; then')
+        end = source.index('  desktop_stage_role_asset usr/local/bin/labwc-qbittorrent', start)
+        block = source[start:end]
+        with tempfile.TemporaryDirectory() as directory:
+            script = '''set -eu
+. "$1/scripts/common/modules/files-logging.sh"
+. "$1/scripts/late/target-assets.sh"
+. "$1/scripts/desktop/components/rendering-access.sh"
+seed=$1; output=$2
+INSTALLER_TARGET_DIR=$output
+TMP_ENV_DIR=$output/work
+mkdir -p "$TMP_ENV_DIR"
+desktop_fatal() { printf '%s\\n' "$*" >&2; exit 1; }
+installer_fatal() { desktop_fatal "$@"; }
+installer_repo_join_var() { [ "$1" = DIR_HOOKS_TARGET ]; printf '%s/hooks/target/%s\\n' "$seed" "$2"; }
+fetch_hook() { cp -- "$1" "$2"; }
+target_normalize_systemd_config_parent_modes() { :; }
+desktop_log() { :; }
+desktop_stage_role_asset() { stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET "$1")" "$2" "$3"; }
+desktop_qbittorrent_enabled=true
+desktop_qbittorrent_address=10.203.0.114
+APP_VETH_NAMESPACE_INTERFACE=eth0
+ACCOUNT_USERNAME=fixture
+''' + block
+            result = subprocess.run(['/bin/sh', '-c', script, 'render-qbittorrent', str(FORKY), directory],
+                                    env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'HOME': directory},
+                                    capture_output=True, text=True, encoding='utf-8', timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for name, address, root in (
+                ('10-managed-security.conf', '10.203.0.114', '/run/media/fixture/bittorrent'),
+                ('20-managed-privacy.conf', '', '/home/user/Downloads'),
+            ):
+                path = Path(directory) / 'etc/qbittorrent/qBittorrent.conf.d' / name
+                data = path.read_text(encoding='utf-8')
+                self.assertNotIn('__INSTALLER_', data)
+                parser = configparser.ConfigParser(interpolation=None); parser.optionxform = str
+                parser.read_string(data)
+                self.assertEqual(parser['Network'][r'Proxy\IP'], '127.0.0.1')
+                self.assertEqual(parser['BitTorrent'][r'Session\InterfaceAddress'], address)
+                self.assertEqual(parser['BitTorrent'][r'Session\DefaultSavePath'], root + '/completed')
+            self.assertIn('desktop_stage_role_asset usr/local/libexec/labwc-proxy-session', source)
 
     def test_copy_preserves_exact_install_rendered_bytes(self):
         with tempfile.TemporaryDirectory() as directory:

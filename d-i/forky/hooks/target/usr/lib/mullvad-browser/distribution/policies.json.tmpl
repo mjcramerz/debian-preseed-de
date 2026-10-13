@@ -1,0 +1,26 @@
+{
+  "policies": {
+    "Proxy": {
+      "Mode": "manual",
+      "Locked": true,
+      "HTTPProxy": "127.0.0.1:__INSTALLER_PROXY3_PORT_LISTEN_WEB_BROWSER__",
+      "SSLProxy": "127.0.0.1:__INSTALLER_PROXY3_PORT_LISTEN_WEB_BROWSER__",
+      "UseHTTPProxyForAllProtocols": true,
+      "Passthrough": ""
+    },
+    "Preferences": {
+      "network.proxy.allow_hijacking_localhost": {
+        "Value": true,
+        "Status": "locked"
+      },
+      "network.http.http3.enable": {
+        "Value": false,
+        "Status": "locked"
+      },
+      "media.peerconnection.enabled": {
+        "Value": false,
+        "Status": "locked"
+      }
+    }
+  }
+}

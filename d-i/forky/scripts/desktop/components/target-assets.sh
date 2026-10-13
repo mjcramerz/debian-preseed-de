@@ -122,7 +122,6 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/libexec/labwc-admin-action-worker /usr/local/libexec/labwc-admin-action-worker 0755
   desktop_stage_role_asset usr/local/libexec/labwc-logout-root /usr/local/libexec/labwc-logout-root 0755
   desktop_stage_role_asset usr/local/libexec/labwc-session-state /usr/local/libexec/labwc-session-state 0755
-  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-session-restore.service /etc/skel-desktop/.config/systemd/user/labwc-session-restore.service 0644
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-session-state@.service /etc/skel-desktop/.config/systemd/user/labwc-session-state@.service 0644
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-session-state@prepare.service.d/retain-result.conf /etc/skel-desktop/.config/systemd/user/labwc-session-state@prepare.service.d/retain-result.conf 0644
   desktop_stage_role_asset etc/systemd/system/labwc-admin-action@.service.tmpl /etc/systemd/system/labwc-admin-action@.service 0644
@@ -191,6 +190,24 @@ desktop_stage_target_assets() {
     0644 \
     LABWC_MANAGED_APP_DEFAULT_EXEC "$LABWC_MANAGED_APP_DEFAULT_EXEC"
   desktop_stage_labwc_managed_app_python_modules
+  desktop_stage_role_asset usr/local/libexec/labwc-proxy-session /usr/local/libexec/labwc-proxy-session 0755
+  desktop_normalize_proxy3_directories
+  for proxy3_app in chromium microsoft-edge vivaldi mullvad-browser qbittorrent; do
+    render_target_asset_with_placeholder_map \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/labwc/3proxy/${proxy3_app}.conf.tmpl")" \
+      "/etc/labwc/3proxy/${proxy3_app}.conf" 0644 proxy3_placeholder_map
+  done
+  render_target_asset_with_placeholder_map \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/labwc/3proxy/session.json.tmpl)" \
+    /etc/labwc/3proxy/session.json 0644 proxy3_placeholder_map
+  for proxy3_family in chromium opt/chrome opt/edge vivaldi; do
+    render_target_asset_with_placeholder_map \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/${proxy3_family}/policies/managed/3proxy.json.tmpl")" \
+      "/etc/${proxy3_family}/policies/managed/3proxy.json" 0644 proxy3_placeholder_map
+  done
+  render_target_asset_with_placeholder_map \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET usr/lib/mullvad-browser/distribution/policies.json.tmpl)" \
+    /usr/lib/mullvad-browser/distribution/policies.json 0644 proxy3_placeholder_map
   desktop_stage_role_asset usr/local/bin/labwc-app /usr/local/bin/labwc-app 0755
   desktop_stage_role_asset usr/local/bin/labwc-electron-app /usr/local/bin/labwc-electron-app 0755
   desktop_stage_role_asset usr/local/bin/labwc-wayland-app /usr/local/bin/labwc-wayland-app 0755
@@ -229,6 +246,8 @@ desktop_stage_target_assets() {
       # An explicit APP_VETH_OVERRIDE may omit qBittorrent. Do not publish a
       # managed binding for an application that has no broker policy.
       remove_target_asset /etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf
+      remove_target_asset /etc/qbittorrent/qBittorrent.conf.d/20-managed-privacy.conf
+      remove_target_asset /etc/labwc/3proxy/qbittorrent.conf
       ;;
     *)
       desktop_fatal "invalid qBittorrent network policy selection"
@@ -242,9 +261,21 @@ desktop_stage_target_assets() {
       /etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf \
       0644 \
       ACCOUNT_USERNAME "$ACCOUNT_USERNAME" \
+      QBITTORRENT_SAVE_ROOT "/run/media/$ACCOUNT_USERNAME/bittorrent" \
       LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}" \
+      PROXY3_PORT_LISTEN_QBITTORRENT "${PROXY3_PORT_LISTEN_QBITTORRENT:-3128}" \
       APP_VETH_NAMESPACE_INTERFACE "$APP_VETH_NAMESPACE_INTERFACE" \
       APP_VETH_QBITTORRENT_ADDRESS "$desktop_qbittorrent_address"
+    # Same native policy, rendered at install time for the disposable HOME.
+    # Its address is allocated per lease, so only the interface is fixed.
+    desktop_render_role_target_template \
+      etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf.tmpl \
+      /etc/qbittorrent/qBittorrent.conf.d/20-managed-privacy.conf 0644 \
+      QBITTORRENT_SAVE_ROOT /home/user/Downloads \
+      LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}" \
+      PROXY3_PORT_LISTEN_QBITTORRENT "${PROXY3_PORT_LISTEN_QBITTORRENT:-3128}" \
+      APP_VETH_NAMESPACE_INTERFACE "$APP_VETH_NAMESPACE_INTERFACE" \
+      APP_VETH_QBITTORRENT_ADDRESS ""
   fi
   desktop_stage_role_asset usr/local/bin/labwc-qbittorrent /usr/local/bin/labwc-qbittorrent 0755
   desktop_stage_role_asset usr/local/bin/zoom /usr/local/bin/zoom 0755
@@ -603,6 +634,8 @@ test -x /usr/bin/update-mime-database
   desktop_stage_role_asset etc/skel-desktop/.config/microsoft-edge/Default/Preferences /etc/skel-desktop/.config/microsoft-edge/Default/Preferences 0600
   desktop_stage_role_asset etc/skel-desktop/.config/obsidian/obsidian.json /etc/skel-desktop/.config/obsidian/obsidian.json 0600
   desktop_stage_role_asset etc/skel-desktop/.config/vivaldi/Default/Preferences /etc/skel-desktop/.config/vivaldi/Default/Preferences 0600
+  desktop_stage_role_asset etc/skel-desktop/.config/vivaldi/search_engines.json /etc/skel-desktop/.config/vivaldi/search_engines.json 0600
+  desktop_stage_role_asset etc/skel-desktop/.config/vivaldi/search_engines_prompt.json /etc/skel-desktop/.config/vivaldi/search_engines_prompt.json 0600
   desktop_stage_syncthing_ignore
   install -d -m 0700 /target/etc/skel-desktop/.config/keepassxc
   desktop_stage_role_asset etc/skel-desktop/.config/keepassxc/keepassxc.ini /etc/skel-desktop/.config/keepassxc/keepassxc.ini 0600

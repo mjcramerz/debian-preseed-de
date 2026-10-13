@@ -1,4 +1,15 @@
 """Menu data boundaries and real installer integration, without a GUI session."""
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from payload_fixture import waybar_config_text
 from payload_fixture import installed_argv as payload_installed_argv, source_stat as payload_source_stat
 from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text

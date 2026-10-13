@@ -241,6 +241,7 @@ stage_target_nftables_profile_assets() {
 
 nftables_app_veth_profile_placeholder_map() {
   app_veth_identity_placeholder_map || return "$?"
+  proxy3_placeholder_map || return "$?"
   nftables_interface_placeholder_map
 }
 
@@ -1873,6 +1874,7 @@ configure_target_stubby() (
 configure_target_app_veth() {
   [ "$(late_command_nftables_profile)" != none ] ||
     installer_fatal "managed kernel namespaces require the nftables policy"
+  run_in_target "verify managed network connection cleanup command" /usr/bin/test -x /usr/sbin/conntrack
   for veth_asset in \
     etc/systemd/system/app-veth.service \
     etc/sysctl.d/91-app-veth.conf \
@@ -1884,6 +1886,9 @@ configure_target_app_veth() {
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/NetworkManager/conf.d/70-app-veth.conf.tmpl)" \
     /etc/NetworkManager/conf.d/70-app-veth.conf 0644 app_veth_identity_placeholder_map
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/sbin/app-veth)" /usr/local/sbin/app-veth 0755
+  render_target_asset_with_placeholder_map \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/app-veth.nft.tmpl)" \
+    /etc/app-veth.nft 0644 proxy3_placeholder_map
   configure_target_stubby
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/stubby.service.d/60-app-veth.conf)" /etc/systemd/system/stubby.service.d/60-app-veth.conf 0644
   render_target_asset_with_placeholder_map \

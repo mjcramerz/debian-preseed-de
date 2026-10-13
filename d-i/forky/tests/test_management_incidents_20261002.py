@@ -4,6 +4,16 @@ All commands use temporary fixtures: no daemon, GUI or firmware is operated.
 """
 from __future__ import annotations
 
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import json
 import os
 from pathlib import Path
@@ -119,14 +129,13 @@ class AppearanceLaunchTests(unittest.TestCase):
 
     def argv(self, kind, arguments):
         with mock.patch.object(self.generic, 'assert_launch_allowed'), \
-             mock.patch.object(self.generic, 'restart_token', return_value='fixture'), \
              mock.patch.dict(os.environ, {'LABWC_MENU_ACTION_WAIT': '1'}):
             return self.generic.transient_argv(kind, 'auto', arguments, {})
 
     def test_appearance_has_host_uid_semantics_and_waits_for_its_session_service(self):
         argv = self.argv('wayland', ['/usr/local/bin/labwc-desktop-appearance'])
         for property in ('PrivateUsers=no', 'PrivatePIDs=no', 'PartOf=labwc-session.target',
-                         'Requisite=labwc-session.target', 'KillMode=control-group', 'ExitType=cgroup'):
+                         'Requisite=labwc-session.target', 'KillMode=control-group', 'ExitType=main'):
             self.assertIn('--property=' + property, argv)
         self.assertIn('--wait', argv)
         self.assertNotIn('--property=PrivateTmp=yes', argv)

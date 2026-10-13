@@ -1,10 +1,17 @@
 PYTHON ?= python3
+.DEFAULT_GOAL := build
 
-.PHONY: build check test test-bootstrap test-debconf test-cuda audit validate themes
+.PHONY: build check test test-bootstrap test-debconf test-cuda audit validate themes test-isolation
+
+# Check before unittest discovery, including newly added test modules.
+test-isolation:
+	$(PYTHON) -I -B tools/isolation.py
+
+check test test-bootstrap test-debconf test-cuda audit validate: test-isolation
 build:
 	$(PYTHON) -B tools/build.py
 check:
-	$(PYTHON) -B tools/build.py --check
+	$(PYTHON) -B tools/check_build.py
 	$(PYTHON) -B tools/check_shells.py
 test:
 	$(PYTHON) -B -m unittest discover -s d-i/forky/tests -p "test_*.py"

@@ -750,6 +750,12 @@ def build_command(
     ):
         optional_ro_bind(command, source)
     command.extend(["--ro-bind", str(resolver_path), "/etc/resolv.conf"])
+    command.extend(["--dir", "/etc/labwc", "--dir", "/etc/labwc/3proxy"])
+    for proxy_policy in ("/etc/labwc/3proxy/qbittorrent.conf", "/etc/labwc/3proxy/session.json"):
+        # Host-root ownership is meaningful here, before the user namespace
+        # remaps it to the overflow UID. Reuse the bounded opened-file reader.
+        read_managed_config(pathlib.Path(proxy_policy))
+        command.extend(["--ro-bind", proxy_policy, proxy_policy])
 
     environment = {
         "PATH": "/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin",
@@ -965,9 +971,12 @@ def run_new_instance(
         if not online:
             copy_managed_config(paths["profile_home"])
         return runtime.run_veth_sandbox(
-            command[:-payload_count], command[-payload_count:], temporary, (),
+            command[:-payload_count],
+            ["/usr/local/libexec/labwc-proxy-session", "qbittorrent", *([] if online else ["--offline"]),
+             *command[-payload_count:]], temporary, (),
             app="qbittorrent",
             on_network_ready=configured if online else None, network=online,
+            graceful_shutdown=True,
         )
 
 

@@ -1,6 +1,47 @@
 #!/bin/sh
 # Shared installer-only map for network identity, desktop bindings and policy.
 # Values cross into awk through stdin as data; no eval or environment dump.
+proxy3_placeholder_map() (
+  printf '%s=%s\n' \
+    PROXY3_PORTS_ALLOW_WEB_BROWSER "${PROXY3_PORTS_ALLOW_WEB_BROWSER:-443,8443,53443}" \
+    PROXY3_PORTS_ALLOW_QBITTORRENT "${PROXY3_PORTS_ALLOW_QBITTORRENT:-443}" \
+    PROXY3_PORT_LISTEN_WEB_BROWSER "${PROXY3_PORT_LISTEN_WEB_BROWSER:-3128}" \
+    PROXY3_PORT_LISTEN_QBITTORRENT "${PROXY3_PORT_LISTEN_QBITTORRENT:-3128}" \
+    PROXY3_MAXCONN_WEB_BROWSER "${PROXY3_MAXCONN_WEB_BROWSER:-512}" \
+    PROXY3_MAXCONN_QBITTORRENT "${PROXY3_MAXCONN_QBITTORRENT:-64}" \
+    PROXY3_TIMEOUTS_WEB_BROWSER "${PROXY3_TIMEOUTS_WEB_BROWSER:-1 5 30 60 180 1800 15 60 15 5}" \
+    PROXY3_TIMEOUTS_QBITTORRENT "${PROXY3_TIMEOUTS_QBITTORRENT:-1 5 15 30 15 1800 5 30 10 5}" |
+  LC_ALL=C awk '
+    function fail(key) { failed = 1; print "fatal: invalid " key " in 3proxy policy" > "/dev/stderr"; exit 1 }
+    function uint(key, value, low, high) {
+      if (value !~ /^[1-9][0-9]*$/ || length(value) > 5 || value + 0 < low || value + 0 > high) fail(key)
+    }
+    {
+      equal = index($0, "="); key = substr($0, 1, equal - 1); value = substr($0, equal + 1)
+      if (key in values) fail(key)
+      if (key ~ /^PROXY3_PORTS_ALLOW_/) {
+        count = split(value, ports, /,/)
+        if (count < 1 || count > 32) fail(key)
+        for (member in seen) delete seen[member]
+        for (i = 1; i <= count; i++) {
+          uint(key, ports[i], 1, 65535)
+          # Plain HTTP remains forbidden independently in the broker firewall.
+          if (ports[i] == 80 || ports[i] in seen) fail(key)
+          seen[ports[i]] = 1
+        }
+      } else if (key ~ /^PROXY3_PORT_LISTEN_/) uint(key, value, 1024, 65535)
+      else if (key ~ /^PROXY3_MAXCONN_/) uint(key, value, 1, 4096)
+      else if (key ~ /^PROXY3_TIMEOUTS_/) {
+        if (value !~ /^[0-9]+( [0-9]+)*$/ || split(value, times, / /) != 10) fail(key)
+        for (i = 1; i <= 10; i++) uint(key, times[i], 1, 3600)
+      } else fail(key)
+      values[key] = value
+      records++
+    }
+    END { if (!failed && records == 8) for (key in values) print key "=" values[key] }
+  '
+)
+
 app_veth_identity_placeholder_map() (
   printf '%s=%s\n' \
     APP_VETH_IPV4_CIDR "${APP_VETH_IPV4_CIDR:-}" \

@@ -396,7 +396,6 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     /usr/local/libexec/labwc-logout-root \
     /usr/local/libexec/labwc-session-state \
     /etc/skel-desktop/.config/systemd/user/labwc-session-state@.service \
-    /etc/skel-desktop/.config/systemd/user/labwc-session-restore.service \
     /etc/systemd/system/labwc-admin-action@.service \
     /etc/systemd/system/labwc-package-sleep-guard.service \
     /etc/systemd/system/sleep.target.d/50-package-lock-guard.conf \
@@ -406,6 +405,8 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     /usr/local/bin/labwc-fuzzel \
     /usr/local/bin/labwc-computer-management \
   /usr/local/bin/labwc-network-sharing \
+    /usr/local/bin/nfsmnt \
+    /usr/local/libexec/labwc-proxy-session \
     /usr/local/bin/labwc-desktop-appearance \
     /usr/local/libexec/labwc-appearance-greeter \
     /usr/local/libexec/labwc-appearance-defaults \
@@ -538,6 +539,24 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     check_path "desktop-path-${desktop_path}" "$desktop_path"
   done
 
+  check_command desktop-proxy-policy-metadata \
+    /bin/sh -eu -c '
+      for path in /etc/labwc /etc/labwc/3proxy; do
+        [ -d "$path" ] && [ ! -L "$path" ]
+        [ "$(find -P "$path" -maxdepth 0 -printf "%U:%G:%m")" = "0:0:755" ]
+      done
+      for asset in session.json chromium.conf microsoft-edge.conf vivaldi.conf mullvad-browser.conf qbittorrent.conf; do
+        if [ "$asset" = qbittorrent.conf ] && [ ! -f /etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf ]; then
+          continue
+        fi
+        path=/etc/labwc/3proxy/$asset
+        [ -f "$path" ] && [ ! -L "$path" ]
+        [ "$(find -P "$path" -maxdepth 0 -printf "%U:%G:%m:%n")" = "0:0:644:1" ]
+      done
+      [ -x /usr/bin/3proxy ]
+      [ -x /usr/local/bin/nfsmnt ]
+      [ -x /usr/local/libexec/labwc-proxy-session ]
+    ' sh
   check_command desktop-system-dbus-service-directory-metadata \
     /bin/sh -eu -c '
       for path in /usr/local/share/dbus-1 /usr/local/share/dbus-1/services; do
@@ -998,6 +1017,9 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     labwc-fuzzel \
     labwc-computer-management \
   labwc-network-sharing \
+    nfsmnt \
+    3proxy \
+    conntrack \
     labwc-desktop-appearance \
     labwc-ai-copilots \
     labwc-ai-copilots-action \
@@ -1183,7 +1205,8 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
      grep -Fqx '  greeter-*) exec /usr/bin/systemctl --wait start "$worker_unit" ;;' /usr/local/libexec/labwc-admin-action-root 2>/dev/null &&
      grep -Fq 'if self.action not in {"reboot", "poweroff"}:' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
      grep -Fq 'run(["/usr/bin/systemctl", "--force", self.action],' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
-     grep -Fq 'if not self.external_drives_prepared:' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
+     grep -Fq 'self.best_effort("external drives", self.prepare_external_drives)' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
+     grep -Fqx 'SHUTDOWN_CLEANUP_SECONDS = 45' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
      grep -Fqx 'ExecStart=/usr/local/bin/labwc-external-drives --prepare-shutdown' /etc/systemd/system/labwc-external-drives-shutdown.service 2>/dev/null &&
      grep -Fqx 'AppArmorProfile=labwc-external-drives' /etc/systemd/system/labwc-external-drives-shutdown.service 2>/dev/null &&
      grep -Fqx 'PrivateMounts=no' /etc/systemd/system/labwc-external-drives-shutdown.service 2>/dev/null &&
@@ -1191,7 +1214,7 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
      grep -Fqx 'CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_KILL CAP_SYS_BOOT' /etc/systemd/system/labwc-admin-action@.service 2>/dev/null &&
      grep -Fqx 'SystemCallFilter=~@reboot' /etc/systemd/system/labwc-admin-action@.service 2>/dev/null &&
      grep -Fqx 'XDG_SESSION_CLASS DEFAULT=none OVERRIDE=none' /etc/security/sudo-i.conf 2>/dev/null &&
-     grep -Fq 'self.greeter_identity' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
+     grep -Fq 'if action in {"poweroff", "reboot"}:' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
      grep -Fqx 'ProtectHome=read-only' /etc/systemd/system/labwc-admin-action@.service 2>/dev/null &&
      grep -Fqx 'InaccessiblePaths=/home /root' /etc/systemd/system/labwc-admin-action@.service 2>/dev/null; then
     record "PASS desktop-greeter-power-handoff"

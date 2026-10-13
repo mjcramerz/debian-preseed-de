@@ -42,15 +42,25 @@ installer_escape_sed_replacement() {
 installer_contains_unresolved_installer_placeholders() {
   installer_placeholder_path=$1
 
-  [ -r "$installer_placeholder_path" ] || return 1
-  LC_ALL=C grep -q '__INSTALLER_' "$installer_placeholder_path"
+  [ -f "$installer_placeholder_path" ] && [ -r "$installer_placeholder_path" ] || return 2
+  # Runtime helpers deliberately contain the bare prefix as a data guard.
+  # Require a name character; still reject named markers with a missing suffix
+  # or invalid lowercase names instead of accepting a partially rendered file.
+  LC_ALL=C grep -Eq '__INSTALLER_[[:alnum:]_]' "$installer_placeholder_path"
 }
 
 installer_assert_no_unresolved_installer_placeholders() {
   installer_placeholder_path=$1
   installer_placeholder_label=${2:-$installer_placeholder_path}
 
-  installer_contains_unresolved_installer_placeholders "$installer_placeholder_path" || return 0
+  if installer_contains_unresolved_installer_placeholders "$installer_placeholder_path"; then
+    :
+  else
+    installer_placeholder_status=$?
+    [ "$installer_placeholder_status" -eq 1 ] && return 0
+    installer_fatal "cannot inspect installer placeholders: ${installer_placeholder_label}"
+    return 1
+  fi
 
   installer_unresolved_tokens=$(
     LC_ALL=C grep -o '__INSTALLER_[A-Z0-9_]\+__' "$installer_placeholder_path" 2>/dev/null |
@@ -58,6 +68,14 @@ installer_assert_no_unresolved_installer_placeholders() {
       tr '\n' ' '
   )
   installer_unresolved_tokens=${installer_unresolved_tokens%" "}
+  if [ -z "$installer_unresolved_tokens" ]; then
+    installer_unresolved_tokens=$(
+      LC_ALL=C grep -oE '__INSTALLER_[[:alnum:]_]+' "$installer_placeholder_path" 2>/dev/null |
+        sort -u |
+        tr '\n' ' '
+    )
+    installer_unresolved_tokens=${installer_unresolved_tokens%" "}
+  fi
   [ -n "$installer_unresolved_tokens" ] || installer_unresolved_tokens="unknown placeholder(s)"
   installer_fatal "${installer_placeholder_label} has unresolved installer placeholders: ${installer_unresolved_tokens}"
 }

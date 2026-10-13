@@ -1,0 +1,8 @@
+# Foreground mullvad-browser proxy inside its existing private network namespace.
+# No daemon, host listener, request log, SOCKS server or administrative service.
+maxconn __INSTALLER_PROXY3_MAXCONN_WEB_BROWSER__
+timeouts __INSTALLER_PROXY3_TIMEOUTS_WEB_BROWSER__
+auth iponly
+allow * 127.0.0.1 * __INSTALLER_PROXY3_PORTS_ALLOW_WEB_BROWSER__ HTTP_CONNECT
+deny *
+proxy -4 -a -i127.0.0.1 -p__INSTALLER_PROXY3_PORT_LISTEN_WEB_BROWSER__

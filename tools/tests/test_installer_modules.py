@@ -1,4 +1,15 @@
 """Direct editable input, runtime module inventory and publication contracts."""
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[2] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from pathlib import Path
 import importlib.util
 import os
@@ -20,8 +31,53 @@ def load(name):
 checker = load('check_modules')
 publisher = load('publication')
 builder = load('build')
+build_checks = load('check_build')
 
 class RepositoryFileModes(unittest.TestCase):
+    def test_builder_serializes_without_commands_or_source_validation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            seed = Path(directory)
+            source = seed / 'scripts/common/source.sh'
+            source.parent.mkdir(parents=True)
+            source.write_text('# BEGIN BOOTSTRAP CORE\n:;\n# END BOOTSTRAP CORE\n')
+            malformed = seed / 'scripts/not-a-valid-shell.sh'
+            malformed.write_text('if then\n')
+            private = seed / 'preseed.env'
+            private.write_text('PRIVATE_FIXTURE=never-package-this\n')
+            before = {path: path.read_bytes() for path in seed.rglob('*') if path.is_file()}
+            with mock.patch.object(builder, 'SEED', seed), \
+                 mock.patch.object(subprocess, 'Popen', side_effect=AssertionError('build executed a command')):
+                products = builder.build()
+            self.assertEqual(set(products), publisher.SNAPSHOT_PRODUCTS)
+            self.assertIn(b'scripts/not-a-valid-shell.sh', products['payload.manifest'])
+            self.assertNotIn(b'preseed.env', products['payload.manifest'])
+            self.assertEqual(before, {path: path.read_bytes() for path in before})
+
+    def test_every_python_test_and_fixture_checks_isolation_before_runtime_imports(self):
+        import ast
+        paths = sorted((ROOT / 'd-i/forky/tests').rglob('*.py')) + sorted((ROOT / 'tools/tests').rglob('*.py'))
+        for path in paths:
+            with self.subTest(path=path.relative_to(ROOT)):
+                tree = ast.parse(path.read_text(), filename=str(path))
+                calls = [index for index, node in enumerate(tree.body)
+                         if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call)
+                         and isinstance(node.value.func, ast.Name)
+                         and node.value.func.id == '_require_test_isolation']
+                self.assertEqual(len(calls), 1, 'missing mandatory host-isolation gate')
+                prefix = tree.body[:calls[0]]
+                for node in prefix:
+                    if isinstance(node, ast.Import):
+                        self.assertEqual([alias.name for alias in node.names], ['sys'])
+                    elif isinstance(node, ast.ImportFrom):
+                        self.assertIn(node.module, ('__future__', 'pathlib', 'isolation'))
+                    elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
+                        self.assertIsInstance(node.value.func, ast.Attribute)
+                        self.assertIn(node.value.func.attr, ('insert', 'pop'))
+                    else:
+                        self.assertIsInstance(node, ast.Expr)
+                        self.assertIsInstance(node.value, ast.Constant)
+                        self.assertIsInstance(node.value.value, str)
+
     def test_all_repository_source_files_are_nonexecutable(self):
         paths = [path for path in ROOT.iterdir() if path.is_file()]
         for name in ('browser-config', 'd-i', 'docs', 'tools'):
@@ -50,12 +106,12 @@ class RepositoryFileModes(unittest.TestCase):
             config = seed / 'hooks/target/etc/apparmor/modes.conf.tmpl'
             config.parent.mkdir(parents=True)
             config.write_text('__DESKTOP_APPARMOR_STATE__ optional firstboot -\n')
-            with mock.patch.object(builder, 'SEED', seed):
+            with mock.patch.object(build_checks, 'SEED', seed):
                 with self.assertRaisesRegex(ValueError, 'unmanaged repository AppArmor profile'):
-                    builder.validate_apparmor_modes()
+                    build_checks.validate_apparmor_modes()
                 config.write_text(config.read_text() +
                                   '__DESKTOP_APPARMOR_STATE__ required new-policy -\n')
-                builder.validate_apparmor_modes()
+                build_checks.validate_apparmor_modes()
 
 class ModuleContracts(unittest.TestCase):
     def setUp(self):
@@ -143,11 +199,17 @@ class ModuleContracts(unittest.TestCase):
         for path in files:
             path.write_bytes(path.read_bytes() + b'\n# administrator edit must survive publication\n')
         before = {p: (p.read_bytes(), p.stat().st_mode) for p in files}
+        generated = {self.seed / name for name in builder.GENERATED}
+        source_before = {path.relative_to(self.root): (path.read_bytes(), path.stat().st_mode)
+                         for path in self.root.rglob('*') if path.is_file() and path not in generated}
         for args in ([], ['--check']):
             result = subprocess.run([sys.executable, '-B', str(self.root / 'tools/build.py'), *args],
                                     capture_output=True, text=True, timeout=120)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertEqual(before, {p: (p.read_bytes(), p.stat().st_mode) for p in files})
+            self.assertEqual(source_before,
+                             {path.relative_to(self.root): (path.read_bytes(), path.stat().st_mode)
+                              for path in self.root.rglob('*') if path.is_file() and path not in generated})
 
 class PublicationContracts(unittest.TestCase):
     def setUp(self):

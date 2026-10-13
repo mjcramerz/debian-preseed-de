@@ -7,6 +7,17 @@ chroot installation are doubled. A separate dependency-gated test loads the full
 Moo/MooX module. No test installs a package or starts/stops a service.
 """
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from payload_fixture import read_text as payload_read_text, installed_argv as payload_installed_argv, source_stat as payload_source_stat
 
 import copy
@@ -35,7 +46,7 @@ PINS = dict(SOFTWARE_TOMAT_TAG=TAG, SOFTWARE_TOMAT_URL=URL, SOFTWARE_TOMAT_SHA25
 
 
 def load_build():
-    spec = importlib.util.spec_from_file_location('r4_build', ROOT / 'tools/build.py')
+    spec = importlib.util.spec_from_file_location('r4_build', ROOT / 'tools/check_build.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -159,7 +170,7 @@ class TomatProfilePinsTests(unittest.TestCase):
         build = load_build()
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(build, 'SEED', Path(tmp)):
             with self.assertRaises(ValueError): build.validate_tomat_profiles()
-        main = (ROOT / 'tools/build.py').read_text().split('def main() -> int:', 1)[1]
+        main = (ROOT / 'tools/check_build.py').read_text().split('def main() -> int:', 1)[1]
         self.assertLess(main.index('validate_tomat_profiles()'), main.index('products = build()'))
 
     def test_real_shell_profile_to_chroot_argv_for_every_profile(self):

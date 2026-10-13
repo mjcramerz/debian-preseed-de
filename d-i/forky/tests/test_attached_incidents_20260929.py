@@ -4,6 +4,16 @@ No user units, GUI programs, mounts, journal keys or hardware are operated.
 """
 from __future__ import annotations
 
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import contextlib
 import io
 import os
@@ -115,7 +125,6 @@ class ConnectionNamespaceTests(unittest.TestCase):
 
     def argv(self, kind, arguments):
         with mock.patch.object(self.m, 'assert_launch_allowed'), \
-             mock.patch.object(self.m, 'restart_token', return_value='fixture'), \
              mock.patch.object(self.m, 'menu_action_wait_arguments', return_value=[]):
             return self.m.transient_argv(kind, 'auto', arguments, {})
 
@@ -123,7 +132,7 @@ class ConnectionNamespaceTests(unittest.TestCase):
         argv = self.argv('wayland', ['/usr/local/bin/labwc-remote-desktop', '_connect', 'fixture'])
         self.assertIn('--property=PrivateUsers=no', argv)
         self.assertNotIn('--property=PrivateTmp=yes', argv)
-        for item in ('--property=PartOf=labwc-session.target', '--property=ExitType=cgroup',
+        for item in ('--property=PartOf=labwc-session.target', '--property=ExitType=main',
                      '--property=KillMode=control-group', '--property=SendSIGKILL=yes'):
             self.assertIn(item, argv)
 

@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import runpy
 import stat
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / 'browser-config'
@@ -79,6 +80,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true')
     args = parser.parse_args()
+    if args.check:
+        sys.path.insert(0, str(ROOT / 'tools'))
+        sys.path.insert(0, '/workspace/repository/tools')
+        from isolation import require_test_isolation
+        sys.path.pop(0)
+        require_test_isolation()
     try:
         writer = runpy.run_path(str(ROOT / 'tools/publication.py'))['atomic_write']
         changed = []

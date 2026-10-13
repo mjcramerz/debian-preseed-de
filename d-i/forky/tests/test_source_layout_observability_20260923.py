@@ -3,6 +3,17 @@
 No target reboot or Wayland compositor is simulated as live acceptance.
 """
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import contextlib
 import io
 import json
@@ -51,7 +62,9 @@ class SourceLayout(unittest.TestCase):
         self.assertNotIn('journalctl',worker)
         self.assertNotIn('power-log-capture',worker)
         unit=read_text(TARGET/'etc/systemd/system/labwc-admin-action@.service')
-        self.assertIn('StandardOutput=append:/var/lib/journal/power/action-%i.log',unit)
+        self.assertIn('StandardOutput=journal',unit)
+        self.assertIn('SyslogIdentifier=labwc-admin-action',unit)
+        self.assertNotIn('RequiresMountsFor=',unit)
         self.assertIn('StandardError=journal',unit)
         self.assertIn('sync="on"',read_text(TARGET/'etc/rsyslog.d/19-power.conf'))
     def test_firstboot_import_is_after_real_mounts(self):

@@ -7,6 +7,16 @@ short-lived fixture children, never the installed desktop/storage commands.
 """
 from __future__ import annotations
 
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[2] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from contextlib import ExitStack
 import importlib.machinery
 import importlib.util
@@ -218,7 +228,7 @@ class DesktopIsolationTests(unittest.TestCase):
         with mock.patch.object(generic, 'assert_launch_allowed'):
             argv = generic.transient_argv('wayland', 'launch', ['/usr/bin/foot'], {})
             second = generic.transient_argv('wayland', 'launch', ['/usr/bin/foot'], {})
-        for setting in ('ExitType=cgroup', 'KillMode=mixed', 'TimeoutStopSec=20s',
+        for setting in ('ExitType=main', 'KillMode=mixed', 'TimeoutStopSec=20s',
                         'Requisite=labwc-session.target', 'PartOf=labwc-session.target'):
             self.assertIn('--property=' + setting, argv)
         self.assertIn('--service-type=exec', argv)
@@ -279,8 +289,7 @@ class SessionHandoffTests(unittest.TestCase):
                 self.assertEqual(accepted.exception.code, 0)
                 compat_argv = launch.call_args.args[0]
                 compat_env = launch.call_args.kwargs['env']
-                self.assertFalse(any('FIXTURE_SECRET' in a for a in compat_argv
-                                     if a.startswith('--setenv=LABWC_SESSION_RESTORE=')))
+                self.assertFalse(any(a.startswith('--setenv=LABWC_SESSION_RESTORE=') for a in compat_argv))
             for argv, environment, arguments in ((bitwarden_argv, bitwarden_env, ['a b', '$HOME']),
                                                  (compat_argv, compat_env, [uri])):
                 self.assertEqual(environment, env)

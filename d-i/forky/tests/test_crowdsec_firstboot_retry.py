@@ -1,5 +1,15 @@
 """Exercise CrowdSec firstboot retry decisions without a daemon or remote API."""
 
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from pathlib import Path
 import os
 import shlex
@@ -27,6 +37,196 @@ def source_function(name: str, source: str = SOURCE) -> str:
 
 
 class CrowdSecFirstbootRetryTests(unittest.TestCase):
+    def test_full_late_helper_loads_resolved_identity_before_desktop_staging(self):
+        # Run only in the required disposable environment. Execute the real
+        # helper and scalar renderer; transport and every in-target command
+        # are fixtures, so no package manager, daemon or service is contacted.
+        logging = (FORKY / 'scripts/common/modules/files-logging.sh').read_text()
+        bootstrap = '\n'.join(source_function(name, logging) for name in
+                              ('installer_escape_sed_replacement', 'installer_apply_scalar_placeholders'))
+        bootstrap += r'''
+installer_fatal() { printf 'fixture-fatal: %s\n' "$*" >&2; exit 90; }
+bootstrap_source_common_lib() { :; }
+bootstrap_source_common_support_libs() { :; }
+installer_current_seed_base() { printf '%s\n' "$CASE_SEED"; }
+installer_seed_base() { printf '%s\n' "$CASE_SEED"; }
+installer_ensure_context_loaded() { :; }
+installer_selected_class_reference_is_selected() { [ "$1" = addon/crowdsec ]; }
+installer_fetch_host_env() { installer_fatal 'must use the staged host env'; }
+installer_fetch_account_env() { installer_fatal 'must use the resolved account env'; }
+installer_apt_safe_path() {
+  case "$1" in "$CASE_TARGET"/*) return 0 ;; *) return 1 ;; esac
+}
+target_normalize_systemd_config_parent_modes() { :; }
+installer_repo_join_var() {
+  case "$1" in
+    DIR_HOOKS_TARGET) printf 'hooks/target/%s\n' "$2" ;;
+    DIR_SCRIPTS_FIRSTBOOT) printf 'scripts/firstboot/%s\n' "$2" ;;
+    *) installer_fatal 'unexpected fixture repository directory' ;;
+  esac
+}
+bootstrap_fetch_seed_file() {
+  case "$2" in
+    hooks/target/etc/crowdsec/acquis.d/24-qbittorrent.yaml)
+      cp "$CASE_SEED/$2.tmpl" "$3" ;;
+    *) printf 'inert fixture\n' >"$3" ;;
+  esac
+}
+installer_apply_systemd_environment_placeholders() {
+  installer_apply_scalar_placeholders "$@"
+}
+installer_cmdline_value() { return 1; }
+run_in_target() { printf '%s\n' "$1" >>"$CASE_CALLS"; }
+'''
+        cases = ('desktop', 'server', 'missing', 'empty-file', 'missing-name',
+                 'empty-name', 'invalid-name', 'symlink')
+        for label, shell in SHELLS:
+            for case in cases:
+                with self.subTest(shell=label, case=case), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    target = root / 'target'
+                    target.mkdir()
+                    host = root / 'host.env'
+                    host.write_text('''FILE_CROWDSEC_ENROLL_TOKEN=/var/lib/firstboot/crowdsec/enroll.token
+FILE_CROWDSEC_COMPLETE=/var/lib/firstboot/crowdsec/complete
+FILE_CROWDSEC_STATUS=/var/lib/firstboot/crowdsec/status.env
+LOG_SYSTEM_SERVICES_FILE=/var/log/system/services.log
+''')
+                    account = root / 'resolved-account.env'
+                    username = 'fixture-alt_7'
+                    if case in ('desktop', 'symlink'):
+                        account.write_text('ACCOUNT_USERNAME=' + shlex.quote(username) + '\n'
+                                           "FRUUX_CALENDAR_PASSWORD='do-not-print-fixture'\n")
+                    elif case == 'empty-file':
+                        account.write_text('')
+                    elif case == 'missing-name':
+                        account.write_text('ACCOUNT_DEFAULT_GROUPS="audio video"\n')
+                    elif case == 'empty-name':
+                        account.write_text('ACCOUNT_USERNAME=""\n')
+                    elif case == 'invalid-name':
+                        account.write_text('ACCOUNT_USERNAME="../invalid"\n')
+                    if account.exists():
+                        account.chmod(0o600)
+                    if case == 'symlink':
+                        real_account = root / 'account-real.env'
+                        account.rename(real_account)
+                        account.symlink_to(real_account)
+                    library = root / 'bootstrap.sh'
+                    library.write_text(bootstrap)
+                    calls = root / 'calls'
+                    home = root / 'home'
+                    home.mkdir(mode=0o700)
+                    environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
+                                   'HOME': str(home), 'LC_ALL': 'C',
+                                   'CASE_SEED': str(FORKY), 'CASE_TARGET': str(target),
+                                   'CASE_CALLS': str(calls),
+                                   'INSTALLER_BOOTSTRAP_LIB': str(library),
+                                   'INSTALLER_RUNTIME_DIR': str(root / 'runtime'),
+                                   'INSTALLER_LATE_TMP_ENV_DIR': str(root / 'temporary'),
+                                   'INSTALLER_LATE_HOST_ENV': str(host),
+                                   'INSTALLER_LATE_ACCOUNT_ENV': str(account),
+                                   'INSTALLER_HOST_PROFILE': 'fixture',
+                                   'INSTALLER_HOST_VARIANT': 'server' if case == 'server' else 'desktop',
+                                   'ACCOUNT_USERNAME': 'inherited-must-not-mask-missing-name'}
+                    result = subprocess.run([*shell, str(FORKY / 'scripts/late/crowdsec.sh'), str(target)],
+                                            env=environment, text=True, capture_output=True, timeout=10)
+                    acquisition = target / 'etc/crowdsec/acquis.d/24-qbittorrent.yaml'
+                    self.assertNotIn('do-not-print-fixture', result.stdout + result.stderr)
+                    if case in ('desktop', 'server'):
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertTrue(calls.is_file())
+                        self.assertEqual(acquisition.exists(), case == 'desktop')
+                        if acquisition.exists():
+                            expected = (FORKY / 'hooks/target/etc/crowdsec/acquis.d/24-qbittorrent.yaml.tmpl').read_text()
+                            expected = expected.replace('__INSTALLER_ACCOUNT_USERNAME__', username)
+                            self.assertEqual(acquisition.read_text(), expected)
+                            self.assertEqual(acquisition.stat().st_mode & 0o777, 0o644)
+                    else:
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertIn('fatal:', result.stderr)
+                        self.assertNotIn('parameter not set', result.stderr)
+                        self.assertFalse(calls.exists(), 'target commands ran before identity validation')
+                        self.assertEqual(list(target.iterdir()), [])
+
+    def test_failed_config_validation_rolls_back_only_a_new_appsec_acquisition(self):
+        start = SOURCE.index('log_line bootstrap info crowdsec "hub_update=true"')
+        end = SOURCE.index('\nensure_bouncer_api_key ||', start)
+        for label, shell in SHELLS:
+            for existing in (False, True):
+                for validation_status, modified in ((0, False), (1, False), (1, True)):
+                    with self.subTest(shell=label, existing=existing, validation_status=validation_status, modified=modified), \
+                            tempfile.TemporaryDirectory() as directory:
+                        base = Path(directory) / 'crowdsec'
+                        available, active = base / 'acquis-available', base / 'acquis.d'
+                        available.mkdir(parents=True)
+                        active.mkdir()
+                        source, target = available / '25-appsec.yaml', active / '25-appsec.yaml'
+                        content = b'source: appsec\nlisten_addr: 127.0.0.1:7422\n'
+                        source.write_bytes(content)
+                        source.chmod(0o644)
+                        if existing:
+                            target.write_bytes(content)
+                            target.chmod(0o644)
+                        code = source_function('activate_appsec_acquisition') + '''
+log_line() { :; }
+run_optional_crowdsec_command() { return 0; }
+run_required_crowdsec_command() {
+  if [ "$1" = engine-config-test ]; then
+    if [ "$CASE_MODIFIED" = true ]; then
+      printf 'administrator-change\\n' >"$CASE_TARGET"
+    fi
+    return "$CASE_VALIDATE_STATUS"
+  fi
+}
+stop_bootstrap_services() { :; }
+write_status() { :; }
+''' + SOURCE[start:end]
+                        code = code.replace('/etc/crowdsec', str(base)).replace(
+                            '= 0:644:1', '= "$CASE_UID":644:1').replace('= 0 ]', '= "$CASE_UID" ]')
+                        result = subprocess.run([*shell, '-eu', '-c', code],
+                            env={'PATH': '/usr/bin:/bin', 'CASE_UID': str(os.geteuid()),
+                                 'CASE_VALIDATE_STATUS': str(validation_status),
+                                 'CASE_MODIFIED': str(modified).lower(), 'CASE_TARGET': str(target)},
+                            text=True, encoding='utf-8', capture_output=True, timeout=5)
+                        self.assertEqual(result.returncode, validation_status, result.stderr)
+                        self.assertEqual(target.exists(), existing or modified or validation_status == 0)
+                        if target.exists():
+                            self.assertEqual(target.read_bytes(), b'administrator-change\n' if modified else content)
+
+    def test_appsec_publication_rejects_links_modified_files_and_writable_parents(self):
+        function = source_function('activate_appsec_acquisition')
+        for case in ('new', 'existing', 'modified', 'symlink', 'writable-parent'):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                base = Path(directory) / 'crowdsec'
+                available, active = base / 'acquis-available', base / 'acquis.d'
+                available.mkdir(parents=True)
+                active.mkdir()
+                source, target = available / '25-appsec.yaml', active / '25-appsec.yaml'
+                content = b'source: appsec\nlisten_addr: 127.0.0.1:7422\n'
+                source.write_bytes(content)
+                source.chmod(0o644)
+                if case in ('existing', 'modified'):
+                    target.write_bytes(content if case == 'existing' else b'custom\n')
+                    target.chmod(0o644)
+                elif case == 'symlink':
+                    target.symlink_to(source)
+                elif case == 'writable-parent':
+                    active.chmod(0o777)
+                code = function.replace('/etc/crowdsec', str(base)).replace(
+                    '= 0:644:1', '= "$CASE_UID":644:1').replace('= 0 ]', '= "$CASE_UID" ]')
+                code += '\nlog_line() { :; }\nactivate_appsec_acquisition\n'
+                result = subprocess.run(['/bin/dash', '-eu', '-c', code],
+                    env={'PATH': '/usr/bin:/bin', 'CASE_UID': str(os.geteuid())},
+                    text=True, encoding='utf-8', capture_output=True, timeout=5)
+                accepted = case in ('new', 'existing')
+                self.assertEqual(result.returncode, 0 if accepted else 1, result.stderr)
+                if accepted:
+                    self.assertEqual(target.read_bytes(), content)
+                elif case == 'modified':
+                    self.assertEqual(target.read_bytes(), b'custom\n')
+                elif case == 'symlink':
+                    self.assertTrue(target.is_symlink())
+
     @unittest.skipUnless(shutil.which('systemd-analyze'), 'native systemd unit checker unavailable')
     def test_retry_unit_and_engine_dropin_parse_with_native_systemd(self):
         with tempfile.TemporaryDirectory(prefix='crowdsec-units-') as directory:
@@ -290,6 +490,7 @@ wait_for_unit() { return 0; }
 wait_for_lapi() { return 0; }
 run_optional_crowdsec_command() { return 0; }
 run_required_crowdsec_command() { return 0; }
+activate_appsec_acquisition() { return 0; }
 ensure_bouncer_api_key() { return 0; }
 ensure_capi_registration() {
   printf 'capi-register\\n' >>"$FIXTURE_CALLS"
@@ -495,6 +696,7 @@ wait_for_unit() { return 0; }
 wait_for_lapi() { return 0; }
 run_optional_crowdsec_command() { return 0; }
 run_required_crowdsec_command() { return 0; }
+activate_appsec_acquisition() { return 0; }
 ensure_capi_registration() { return 0; }
 ensure_bouncer_api_key() { return 0; }
 write_core_ready_marker() { return 0; }
@@ -563,6 +765,13 @@ log_line() { printf 'event=%s\\n' "$*"; }
         self.assertIn('      pull:\n        community: true\n        blocklists: true', OVERLAY)
         self.assertIn('cscli console enable --all', SOURCE)
         self.assertIn('community_blocklist_slots=3', SOURCE)
+        for collection in ('crowdsecurity/linux-lpe', 'crowdsecurity/base-http-scenarios',
+                           'crowdsecurity/appsec-virtual-patching', 'gilbsgilbs/qbittorrent'):
+            self.assertIn(collection, SOURCE)
+        self.assertIn('cscli parsers install crowdsecurity/nginx-logs crowdsecurity/docker-logs', SOURCE)
+        self.assertLess(SOURCE.index('cscli collections install'), SOURCE.index('activate_appsec_acquisition ||'))
+        self.assertLess(SOURCE.index('activate_appsec_acquisition ||'), SOURCE.index('systemctl restart crowdsec.service'))
+        self.assertLess(SOURCE.index('engine-config-test crowdsec -t'), SOURCE.index('systemctl restart crowdsec.service'))
         acquis = (FORKY / 'hooks/target/etc/crowdsec/acquis.d/22-nftables.yaml.tmpl').read_text(encoding='utf-8')
         self.assertIn('__INSTALLER_LOG_NFTABLES_FILE__', acquis)
         self.assertIn('type: syslog', acquis)

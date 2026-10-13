@@ -3,10 +3,9 @@ Description=Execute authorized Labwc desktop power action (%i)
 Documentation=man:systemd.service(5) man:systemctl(1) man:org.freedesktop.login1(5)
 After=systemd-logind.service systemd-tmpfiles-setup.service
 # Normal stop ordering only; the single-force handoff skips unit stop jobs.
-# Its package reservation stays held until PID 1 terminates the worker.
+# Poweroff/reboot cleanup is bounded and cannot veto the PID-1 handoff.
 # Ordering does not pull any of these optional units into startup.
 Before=apt-daily.service apt-daily-upgrade.service unattended-upgrades.service packagekit.service
-RequiresMountsFor=__INSTALLER_LOG_POWER_DIR__
 Wants=systemd-logind.service systemd-tmpfiles-setup.service
 ConditionFileIsExecutable=/usr/local/libexec/labwc-admin-action-worker
 
@@ -18,16 +17,16 @@ Type=notify
 NotifyAccess=main
 ExecStart=/usr/local/libexec/labwc-admin-action-worker %i
 TimeoutStartSec=60s
-# Package waits must outlive arbitrarily long installs. All command transports,
-# save dialogs, desktop jobs and guest hooks retain their individual timeouts.
-# Cancellation is systemctl stop, never a timeout-triggered power fallback.
+# Logout/suspend retain package reservations. Desktop poweroff/reboot first
+# allow up to 15 seconds to save open windows, then use a separate shared
+# 45-second cleanup budget before their authorized single-force request.
 RuntimeMaxSec=infinity
 RuntimeDirectory=labwc-power
 RuntimeDirectoryMode=0700
 RuntimeDirectoryPreserve=yes
 TimeoutStopSec=5s
 KillMode=control-group
-StandardOutput=append:__INSTALLER_LOG_POWER_DIR__/action-%i.log
+StandardOutput=journal
 # Record early preflight failures where journalctl can actually diagnose them.
 StandardError=journal
 SyslogIdentifier=labwc-admin-action

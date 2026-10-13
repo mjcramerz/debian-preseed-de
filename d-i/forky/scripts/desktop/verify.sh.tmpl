@@ -45,6 +45,8 @@ for cmd in \
   cage \
   app-veth \
   app-veth-podman \
+  conntrack \
+  3proxy \
   gtkgreet \
   greetd-power-action \
   labwc-greeter-output \
@@ -61,6 +63,7 @@ for cmd in \
   labwc-fuzzel \
   labwc-computer-management \
   labwc-network-sharing \
+  nfsmnt \
   labwc-desktop-appearance \
   labwc-ai-copilots \
   labwc-ai-copilots-action \
@@ -283,6 +286,22 @@ require_absent() {
     fatal "retired desktop path is still present: $path"
 }
 
+# These public, non-secret assets must be readable by namespace launchers.
+for path in /etc/labwc /etc/labwc/3proxy; do
+  [ -d "$path" ] && [ ! -L "$path" ] || fatal "unsafe managed proxy directory: $path"
+  [ "$(find -P "$path" -maxdepth 0 -printf "%U:%G:%m")" = "0:0:755" ] ||
+    fatal "managed proxy directory must be root:root mode 0755: $path"
+done
+for proxy3_asset in session.json chromium.conf microsoft-edge.conf vivaldi.conf mullvad-browser.conf qbittorrent.conf; do
+  if [ "$proxy3_asset" = qbittorrent.conf ] && [ ! -f /etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf ]; then
+    continue
+  fi
+  path=/etc/labwc/3proxy/$proxy3_asset
+  [ -f "$path" ] && [ ! -L "$path" ] || fatal "unsafe managed proxy file: $path"
+  [ "$(find -P "$path" -maxdepth 0 -printf "%U:%G:%m:%n")" = "0:0:644:1" ] ||
+    fatal "managed proxy file must be root:root mode 0644 with one link: $path"
+done
+require_executable /usr/bin/3proxy
 
 # No benchmarks during validation; the installer already performed --version
 # with dropped privileges after validating both archive and member checksums.
@@ -551,6 +570,8 @@ for path in \
   /etc/skel-desktop/.config/Recoll.org/recoll.ini \
   /etc/skel-desktop/.recoll/recoll.conf \
   /etc/skel-desktop/.config/vivaldi/Default/Preferences \
+  /etc/skel-desktop/.config/vivaldi/search_engines.json \
+  /etc/skel-desktop/.config/vivaldi/search_engines_prompt.json \
   /etc/skel-desktop/.config/systemd/user/labwc-session.target \
   /etc/skel-desktop/.config/systemd/user/labwc-health-notify.service \
   /etc/skel-desktop/.config/systemd/user/labwc-health-notify.path \
@@ -694,6 +715,8 @@ require_mode /etc/skel-desktop/.config/microsoft-edge/Default/Preferences 600
 require_mode /etc/skel-desktop/.config/obsidian 700
 require_mode /etc/skel-desktop/.config/obsidian/obsidian.json 600
 require_mode /etc/skel-desktop/.config/vivaldi/Default/Preferences 600
+require_mode /etc/skel-desktop/.config/vivaldi/search_engines.json 600
+require_mode /etc/skel-desktop/.config/vivaldi/search_engines_prompt.json 600
 require_mode /etc/skel-desktop/.config/Recoll.org 700
 require_mode /etc/skel-desktop/.config/Recoll.org/recoll.ini 600
 require_mode /etc/skel-desktop/.recoll 700
@@ -737,6 +760,8 @@ for path in \
   /usr/local/bin/labwc-fuzzel-log \
   /usr/local/bin/labwc-computer-management \
   /usr/local/bin/labwc-network-sharing \
+  /usr/local/bin/nfsmnt \
+  /usr/local/libexec/labwc-proxy-session \
   /usr/local/bin/labwc-desktop-appearance \
   /usr/local/libexec/labwc-appearance-greeter \
   /usr/local/libexec/labwc-appearance-defaults \
@@ -817,8 +842,7 @@ do
 done
 
 for path in \
-  /etc/skel-desktop/.config/systemd/user/labwc-session-state@.service \
-  /etc/skel-desktop/.config/systemd/user/labwc-session-restore.service
+  /etc/skel-desktop/.config/systemd/user/labwc-session-state@.service
 do
   require_readable "$path"
   require_mode "$path" 644
@@ -1224,6 +1248,8 @@ for path in \
   "$account_home/.config/Recoll.org/recoll.ini" \
   "$account_home/.recoll/recoll.conf" \
   "$account_home/.config/vivaldi/Default/Preferences" \
+  "$account_home/.config/vivaldi/search_engines.json" \
+  "$account_home/.config/vivaldi/search_engines_prompt.json" \
   "$account_home/.gnupg/gpg-agent.conf" \
   "$account_home/.config/systemd/user/labwc-session.target" \
   "$account_home/.config/systemd/user/labwc-health-notify.service" \
@@ -1746,7 +1772,7 @@ for config in config_roots:
                      "systemd/user/labwc-session.target.wants/labwc-workspace-broker.service"):
         path = config / relative
         require(not path.exists() and not path.is_symlink(), "retired taskbar unit remains: " + str(path))
-    for relative in ("systemd/user/waybar.service", "systemd/user/labwc-session-restore.service"):
+    for relative in ("systemd/user/waybar.service",):
         require("labwc-workspace-broker" not in (config / relative).read_text(), "retired dependency in " + relative)
     rc = ET.parse(config / "labwc/rc.xml").getroot()
     count = int(rc.findtext("desktops/number", "0"))

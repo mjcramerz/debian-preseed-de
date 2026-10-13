@@ -1,6 +1,16 @@
 """Boot-log failure, retention and filesystem contracts; no live mount or journal."""
 from __future__ import annotations
 
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import fcntl
 import grp
 import importlib.util
@@ -237,12 +247,13 @@ class BootLogTests(unittest.TestCase):
                 self.m.main()
         self.assertEqual(self.captured, [])
 
-    def test_power_action_output_is_native_append_with_private_mode(self):
+    def test_power_action_logging_cannot_require_available_log_storage(self):
         unit = read_text(TARGET / 'etc/systemd/system/labwc-admin-action@.service')
-        self.assertIn('StandardOutput=append:/var/lib/journal/power/action-%i.log', unit)
+        self.assertIn('StandardOutput=journal', unit)
         self.assertIn('StandardError=journal', unit)
+        self.assertIn('SyslogIdentifier=labwc-admin-action', unit)
         self.assertIn('UMask=0077', unit)
-        self.assertIn('RequiresMountsFor=/var/lib/journal/power', unit)
+        self.assertNotIn('RequiresMountsFor=', unit)
         self.assertNotIn('journal-snapshot', unit)
 
     def test_power_worker_never_exports_or_syncs_a_journal(self):

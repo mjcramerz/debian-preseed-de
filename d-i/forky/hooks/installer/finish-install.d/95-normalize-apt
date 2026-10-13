@@ -1,6 +1,8 @@
 #!/bin/sh
 # Finish-install hook: repair target APT sources before apt reads them, then
 # modernize and normalize generated .sources files and Debian archive stanzas.
+# The target normalizer groups the exact 3proxy archive into 3proxy.sources,
+# retaining apt-setup's scoped Signed-By key; it does not use global trust.
 set -eu
 
 RUNTIME_DIR=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}

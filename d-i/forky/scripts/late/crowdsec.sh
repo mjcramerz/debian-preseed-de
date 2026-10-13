@@ -178,6 +178,22 @@ host_env=${INSTALLER_LATE_HOST_ENV:-/tmp/install-env-late/host.env}
 # shellcheck disable=SC1090,SC1091
 . "$host_env"
 
+host_variant=$(crowdsec_host_variant)
+if [ "$host_variant" = desktop ]; then
+  # The shared late command resolves the private primary identity and writes
+  # this file before addon helpers start in separate shells.
+  account_env=${INSTALLER_LATE_ACCOUNT_ENV:-/tmp/install-env-late/account.env}
+  [ -f "$account_env" ] && [ -r "$account_env" ] && [ -s "$account_env" ] && [ ! -L "$account_env" ] ||
+    crowdsec_fatal "resolved account env is missing or unsafe: ${account_env}"
+  unset ACCOUNT_USERNAME
+  # shellcheck disable=SC1090,SC1091
+  . "$account_env"
+  [ -n "${ACCOUNT_USERNAME:-}" ] ||
+    crowdsec_fatal "ACCOUNT_USERNAME is missing from the resolved account env"
+  printf '%s\n' "$ACCOUNT_USERNAME" | LC_ALL=C grep -Eq '^[a-z_][a-z0-9_-]{0,31}$' ||
+    crowdsec_fatal "ACCOUNT_USERNAME must match ^[a-z_][a-z0-9_-]{0,31}$"
+fi
+
 # Reject unsafe existing native output paths before any tmpfiles or daemon use.
 crowdsec_stage_target_asset \
   "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/native-logging)" \
@@ -240,7 +256,6 @@ chmod 0600 "$config"
 crowdsec_validate_abs_target_path /var/lib/firstboot/bin
 install -d -m 0700 "${target_root}/var/lib/firstboot" "${target_root}/var/lib/firstboot/bin"
 
-host_variant=$(crowdsec_host_variant)
 : "${FILE_CROWDSEC_ENROLL_TOKEN:?FILE_CROWDSEC_ENROLL_TOKEN must be set}"
 : "${FILE_CROWDSEC_COMPLETE:?FILE_CROWDSEC_COMPLETE must be set}"
 : "${FILE_CROWDSEC_STATUS:?FILE_CROWDSEC_STATUS must be set}"
@@ -277,6 +292,21 @@ crowdsec_stage_target_asset \
   /etc/crowdsec/acquis.d/23-system-syslog.yaml \
   0644
 crowdsec_remove_target_asset /etc/crowdsec/acquis.d/22-server-syslog.yaml
+if [ "$host_variant" = desktop ]; then
+  crowdsec_stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/crowdsec/acquis.d/24-qbittorrent.yaml)" \
+    /etc/crowdsec/acquis.d/24-qbittorrent.yaml 0644 \
+    ACCOUNT_USERNAME "$ACCOUNT_USERNAME"
+fi
+crowdsec_stage_target_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/crowdsec/acquis-available/25-appsec.yaml)" \
+  /etc/crowdsec/acquis-available/25-appsec.yaml 0644
+crowdsec_stage_target_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/crowdsec/parsers/s00-raw/managed-podman-logs.yaml)" \
+  /etc/crowdsec/parsers/s00-raw/managed-podman-logs.yaml 0644
+crowdsec_stage_target_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/crowdsec/parsers/s01-parse/00-managed-auditd-daemon.yaml)" \
+  /etc/crowdsec/parsers/s01-parse/00-managed-auditd-daemon.yaml 0644
 # The packaged setup acquisitions target files this managed layout does not
 # create; retain only the explicit managed sources above.
 crowdsec_remove_target_asset /etc/crowdsec/acquis.d/setup.auditd.yaml

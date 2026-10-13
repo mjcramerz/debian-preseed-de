@@ -4,6 +4,17 @@ No global Path/import monkeypatches. Publisher tests use the production shell
 renderer instead of these views. Source files are never modified by fixtures.
 """
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import atexit
 from functools import lru_cache
 from pathlib import Path
@@ -15,6 +26,22 @@ import re
 import shlex
 import subprocess
 SEED = Path(__file__).resolve().parents[1]
+
+
+def minimal_bwrap_root(readonly_fixture=None):
+    """Expose image runtime files and one owned fixture, never bind the root."""
+    command = ['--tmpfs', '/', '--ro-bind', '/usr', '/usr',
+               '--symlink', 'usr/bin', '/bin', '--symlink', 'usr/lib', '/lib',
+               '--symlink', 'usr/lib64', '/lib64', '--proc', '/proc',
+               '--dev', '/dev', '--cap-drop', 'ALL']
+    if readonly_fixture is not None:
+        path = Path(readonly_fixture).resolve(strict=True)
+        if (path in {Path('/tmp'), Path('/workspace')} or not path.is_dir()
+                or not (path.is_relative_to('/tmp') or path.is_relative_to('/workspace'))
+                or path.stat().st_uid != os.geteuid() or path.stat().st_mode & 0o022):
+            raise ValueError('Bubblewrap fixture must be an owned private directory')
+        command.extend(['--ro-bind', str(path), str(path)])
+    return command
 
 @lru_cache(maxsize=1)
 def network_identity_environment():
@@ -32,6 +59,10 @@ def network_identity_values():
     return dict(line.split('=', 1) for line in result.stdout.splitlines())
 
 def network_identity_text(text):
+    if '__INSTALLER_PROXY3_' in text:
+        profile = (SEED / 'hosts/profiles/btrfs-de.env').read_text()
+        for key, raw in re.findall(r'^(PROXY3_[A-Z0-9_]+)=(.*)$', profile, re.M):
+            text = text.replace('__INSTALLER_' + key + '__', shlex.split(raw)[0])
     if '__INSTALLER_APP_VETH_' in text:
         for key, value in network_identity_values().items():
             text = text.replace('__INSTALLER_' + key + '__', value)

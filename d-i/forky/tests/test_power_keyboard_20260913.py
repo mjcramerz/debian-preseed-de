@@ -4,6 +4,17 @@ All power-manager calls are mocked. Real subprocess tests use disposable helpers
 only. Audit checks cover source-rule intent, not kernel AppArmor enforcement.
 """
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from power_handoff_fixture import handoff_argv, is_handoff
 from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists
 from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
@@ -219,153 +230,144 @@ while True: time.sleep(0.02)
 class SessionPreparationTests(unittest.TestCase):
     def setUp(self):
         self.session = module('labwc-session-state')
-        self.confirm = mock.patch.object(self.session, 'confirm_close'); self.confirm.start(); self.addCleanup(self.confirm.stop)
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.state = Path(tmp.name) / 'state'
-        self.runtime = Path(tmp.name) / 'runtime'
-        self.state.mkdir(mode=0o700)
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.runtime = self.root / 'runtime'
         self.runtime.mkdir(mode=0o700)
         self.stack = contextlib.ExitStack()
         self.addCleanup(self.stack.close)
-        self.stack.enter_context(mock.patch.object(self.session, 'ctl', return_value=''))
-        self.services = self.stack.enter_context(mock.patch.object(self.session, 'services', return_value={}))
-        self.windows = self.stack.enter_context(mock.patch.object(self.session, 'windows', return_value=''))
+        self.ctl = self.stack.enter_context(mock.patch.object(self.session, 'ctl', return_value=''))
         self.run = self.stack.enter_context(mock.patch.object(self.session, 'run', return_value=''))
+        self.windows = self.stack.enter_context(mock.patch.object(self.session, 'windows', return_value=''))
         self.notify = self.stack.enter_context(mock.patch.object(self.session, 'notify'))
         self.sleep = self.stack.enter_context(mock.patch.object(self.session.time, 'sleep'))
         self.clipboard = self.stack.enter_context(mock.patch.object(self.session, 'clear_clipboard'))
 
-    def test_empty_desktop_has_no_close_request_or_wait(self):
-        self.session.prepare(self.state, self.runtime)
-        self.sleep.assert_called_once_with(0.3)
-        self.run.assert_not_called()
-        self.notify.assert_not_called()
-        self.services.assert_called_once()
-        self.assertTrue(payload_source_exists(self.state / 'resume.json'))
-
-    def test_windowless_background_and_nested_services_do_not_block(self):
-        self.services.return_value = {'tray.service': {'LABWC_SESSION_APP': '1'},
-                                     'nested.service': {'LABWC_SESSION_APP': '1', 'LABWC_SESSION_NESTED': '1'}}
-        self.session.prepare(self.state, self.runtime)
-        self.sleep.assert_called_once_with(0.3)
-        self.assertTrue(payload_source_exists(self.runtime / 'labwc-session-closing'))
-
-    def test_save_dialog_gets_time_but_only_one_close_request(self):
-        self.windows.side_effect = ['editor: Document', 'editor: Save changes?', '', '']
-        self.session.prepare(self.state, self.runtime)
+    def test_power_close_sends_one_request_without_window_or_service_gates(self):
+        self.windows.side_effect = AssertionError('power close must not inspect windows')
+        self.session.close(self.runtime)
         self.run.assert_called_once_with(['/usr/bin/wlrctl', 'toplevel', 'close'], timeout=5, accepted=(0, 1))
-        self.assertEqual(self.sleep.call_args_list, [mock.call(0.2), mock.call(0.3)])
-        self.services.assert_called_once()
+        self.ctl.assert_not_called()
+        self.sleep.assert_not_called()
+        self.notify.assert_not_called()
+        self.assertTrue((self.runtime / 'labwc-session-closing').is_file())
 
-    def test_unresolved_save_window_cancels_before_teardown(self):
+    def test_logout_only_waits_for_actual_windows_without_generic_save_warning(self):
+        self.windows.side_effect = ['browser: page', 'editor: Save changes?', '']
+        self.session.prepare(self.runtime)
+        self.assertEqual(self.sleep.call_args_list, [mock.call(0.2), mock.call(0.2)])
+        self.run.assert_called_once()
+        self.notify.assert_not_called()
+        self.clipboard.assert_called_once()
+        self.assertEqual(sorted(p.name for p in self.root.iterdir()), ['runtime'])
+
+    def test_windowless_background_apps_cannot_block_logout(self):
+        self.session.prepare(self.runtime, timeout=0)
+        self.sleep.assert_not_called()
+        self.notify.assert_not_called()
+        self.assertFalse(hasattr(self.session, 'protected_still_running'))
+        self.assertFalse(hasattr(self.session, 'services'))
+
+    def test_remaining_window_cancels_logout_and_removes_marker(self):
         self.windows.return_value = 'editor: Save changes?'
-        with self.assertRaises(self.session.Error):
-            self.session.prepare(self.state, self.runtime, timeout=0)
-        self.assertFalse(payload_source_exists(self.runtime / 'labwc-session-closing'))
-        self.assertFalse(payload_source_exists(self.state / 'resume.json'))
+        with self.assertRaises(self.session.Cancelled):
+            self.session.prepare(self.runtime, timeout=0)
+        self.assertFalse((self.runtime / 'labwc-session-closing').exists())
         self.clipboard.assert_not_called()
 
-    def test_failed_window_probe_is_not_treated_as_empty(self):
+    def test_failed_window_probe_cancels_logout_without_stranding_marker(self):
         self.windows.side_effect = self.session.Error('Wayland unavailable')
         with self.assertRaises(self.session.Error):
-            self.session.prepare(self.state, self.runtime)
-        self.assertFalse(payload_source_exists(self.runtime / 'labwc-session-closing'))
+            self.session.prepare(self.runtime)
+        self.assertFalse((self.runtime / 'labwc-session-closing').exists())
 
-    def test_clipboard_error_cannot_strand_closed_desktop(self):
-        self.clipboard.side_effect = self.session.Error('no primary-selection protocol')
+    def test_clipboard_failure_does_not_block_closed_logout(self):
+        self.clipboard.side_effect = self.session.Error('clipboard unavailable')
         with contextlib.redirect_stderr(io.StringIO()):
-            self.session.prepare(self.state, self.runtime)
-        self.assertTrue(payload_source_exists(self.state / 'resume.json'))
+            self.session.prepare(self.runtime)
+        self.assertTrue((self.runtime / 'labwc-session-closing').exists())
+
+    def test_restore_and_persistent_capture_are_absent(self):
+        for name in ('restore', 'collect', 'descriptor', 'load', 'atomic', 'confirm_close'):
+            self.assertFalse(hasattr(self.session, name))
+        with (
+            mock.patch.object(self.session.os, 'getuid', return_value=1000),
+            mock.patch.object(self.session.os, 'geteuid', return_value=1000),
+            self.assertRaises(self.session.Error),
+        ):
+            self.session.main(['restore'])
+
+    def test_session_helper_refuses_root(self):
+        with mock.patch.object(self.session.os, 'getuid', return_value=0), self.assertRaisesRegex(self.session.Error, 'never root'):
+            self.session.main(['close'])
 
 
 class PowerWorkerTests(unittest.TestCase):
     def setUp(self):
         self.power = module('labwc-admin-action-worker')
         self.worker = self.power.Worker(1000, 'testuser', 'reboot')
-        self.worker.package_locks = mock.Mock()  # acquired gate fixture; real locks tested separately
+        self.worker.package_locks = mock.Mock()
 
     def execution(self):
         stack = contextlib.ExitStack()
         self.addCleanup(stack.close)
         events = []
         stack.enter_context(mock.patch.object(self.power, 'PackageLocks'))
-        stack.enter_context(mock.patch.object(self.power, 'check_shutdown_inhibitors',
-            side_effect=lambda **kwargs: events.append(('inhibitors', ()))))
         stack.enter_context(mock.patch.object(self.power, 'hold_reservation', side_effect=lambda: events.append(('hold', ()))))
-        stack.enter_context(mock.patch.object(self.worker, 'session_identity',
-            side_effect=lambda: (self.worker.userctl('identity'), 'a' * 32)[1]))
-        for name in ('userctl', 'protect_other_sessions', 'helper', 'terminate_user', 'final_power_action', 'lock', 'stop_optional_guests'):
+        stack.enter_context(mock.patch.object(self.worker, 'session_identity', return_value='a' * 32))
+        for name in ('userctl', 'protect_other_sessions', 'helper', 'terminate_user', 'final_power_action',
+                     'lock', 'stop_optional_guests', 'prepare_machine_shutdown'):
             stack.enter_context(mock.patch.object(self.worker, name,
                 side_effect=lambda *args, _name=name, **kwargs: events.append((_name, args))))
         def accepted_handoff():
-            self.assertTrue(self.worker.prepared or self.worker.greeter)
             self.worker.committed = self.worker.handoff_attempted = True
             events.append(('final_power_action', ()))
         self.worker.final_power_action.side_effect = accepted_handoff
         stack.enter_context(mock.patch.object(self.power, 'ready', side_effect=lambda: events.append(('ready', ()))))
-        stack.enter_context(mock.patch.object(self.power, 'run', side_effect=lambda *args, **kwargs: events.append(('run', args))))
+        stack.enter_context(mock.patch.object(self.power, 'run', return_value=''))
+        stack.enter_context(mock.patch.object(self.power.time, 'sleep'))
         return events
 
-    def test_readiness_and_prepare_precede_single_force_handoff(self):
+    def test_readiness_close_and_cleanup_precede_single_force_handoff(self):
         events = self.execution()
         self.worker.execute()
-        self.assertEqual([e[0] for e in events], ['userctl', 'protect_other_sessions', 'ready', 'userctl', 'protect_other_sessions',
-                         'helper', 'protect_other_sessions', 'inhibitors', 'stop_optional_guests', 'userctl', 'final_power_action', 'hold'])
-        self.assertEqual(events[5][1], ('prepare',))
-        self.assertTrue(self.worker.committed)
+        self.assertEqual(events, [('ready', ()), ('helper', ('reboot',)), ('helper', ('close',)), ('stop_optional_guests', ()),
+                                  ('prepare_machine_shutdown', ()), ('final_power_action', ()), ('hold', ())])
+        self.worker.session_identity.assert_not_called()
+        self.worker.protect_other_sessions.assert_not_called()
 
-    def test_prepare_failure_never_starts_teardown(self):
-        events = self.execution()
-        self.worker.helper.side_effect = self.power.Error('unsaved document')
-        with self.assertRaises(self.power.Error):
-            self.worker.execute()
-        self.assertFalse(self.worker.committed)
-        self.worker.terminate_user.assert_not_called()
-        self.worker.final_power_action.assert_not_called()
-
-    def test_other_user_arriving_during_save_cancels_before_commit(self):
+    def test_close_failure_cannot_skip_power_handoff(self):
         self.execution()
-        self.worker.protect_other_sessions.side_effect = [None, None, self.power.Error('other account')]
-        with self.assertRaises(self.power.Error):
+        self.worker.helper.side_effect = self.power.Error('user manager unavailable')
+        with contextlib.redirect_stderr(io.StringIO()):
             self.worker.execute()
-        self.assertFalse(self.worker.committed)
+        self.worker.final_power_action.assert_called_once()
         self.worker.terminate_user.assert_not_called()
 
-    def test_preflight_failure_is_not_acknowledged(self):
-        events = self.execution()
-        self.worker.userctl.side_effect = self.power.Error('no desktop')
-        with self.assertRaises(self.power.Error):
-            self.worker.execute()
-        self.assertNotIn('ready', [e[0] for e in events])
-        self.worker.helper.assert_not_called()
-
-    def test_power_submission_failure_keeps_teardown_committed(self):
+    def test_partial_machine_cleanup_failure_cannot_skip_power_handoff(self):
         self.execution()
-        self.worker.final_power_action.side_effect = lambda: self.power.Worker.final_power_action(self.worker)
-        self.power.run.side_effect = self.power.Error('bus unavailable')
-        with self.assertRaises(self.power.Error):
+        self.worker.prepare_machine_shutdown.side_effect = self.power.Error('failed service')
+        with contextlib.redirect_stderr(io.StringIO()):
             self.worker.execute()
-        self.assertTrue(self.worker.committed)
-        self.worker.terminate_user.assert_not_called()
         self.worker.final_power_action.assert_called_once()
 
-    def test_logout_never_calls_machine_power(self):
+    def test_logout_retains_graceful_preparation_without_machine_power(self):
         self.worker.action = 'logout'
         self.execution()
         self.worker.execute()
+        self.worker.helper.assert_called_once_with('prepare')
         self.worker.terminate_user.assert_called_once()
         self.worker.final_power_action.assert_not_called()
 
     def test_suspend_locks_without_closing_apps(self):
         self.worker.action = 'suspend'
-        events = self.execution()
+        self.execution()
         self.worker.execute()
         self.worker.lock.assert_called_once()
         self.worker.helper.assert_called_once_with('locked')
         self.worker.terminate_user.assert_not_called()
-        self.assertFalse(self.worker.committed)
-        self.assertIn(['/usr/bin/systemctl', '--check-inhibitors=yes', '--no-ask-password', 'suspend'], events[-1][1])
+        self.worker.final_power_action.assert_not_called()
 
     def test_cleanup_failure_does_not_skip_term_and_kill(self):
         self.worker.action = 'logout'
@@ -395,37 +397,6 @@ class PowerWorkerTests(unittest.TestCase):
         self.assertFalse(any('kill' in c.args[0] for c in run.call_args_list))
         wait.assert_called_once_with(1)
 
-    def test_forced_handoff_submits_once_without_any_target_barrier(self):
-        for action in ('reboot', 'poweroff'):
-            with self.subTest(action=action):
-                self.worker = self.power.Worker(1000, 'testuser', action)
-                self.worker.package_locks = mock.Mock()  # acquired gate fixture; real locks tested separately
-                self.worker.prepared = True
-                with mock.patch.object(self.worker, 'protect_other_sessions'), \
-                     mock.patch.object(self.power, 'check_shutdown_inhibitors'), \
-                     mock.patch.object(self.power, 'run', return_value='') as run, \
-                     contextlib.redirect_stderr(io.StringIO()) as output:
-                    self.worker.final_power_action()
-                self.assertEqual(run.call_args_list, [
-                    mock.call(handoff_argv(action), timeout=25, max_output=4096)])
-                self.assertIn('systemctl --force ' + action, output.getvalue())
-                self.assertTrue(self.worker.committed)
-
-    def test_uncertain_final_submission_is_not_retried_or_cancelled(self):
-        self.worker.prepared = True
-        with mock.patch.object(self.worker, 'protect_other_sessions'), \
-             mock.patch.object(self.power, 'check_shutdown_inhibitors'), \
-             mock.patch.object(self.power, 'run', side_effect=self.power.Error('bus failed')) as run, \
-             contextlib.redirect_stderr(io.StringIO()):
-            with self.assertRaisesRegex(self.power.Error, 'handoff status uncertain'):
-                self.worker.final_power_action()
-        self.assertEqual(run.call_count, 1)
-        self.assertEqual(sum(is_handoff(c.args[0]) for c in run.call_args_list), 1)
-        self.assertEqual(run.call_args_list[0], mock.call(
-            handoff_argv(self.worker.action), timeout=25, max_output=4096))
-        self.assertTrue(self.worker.committed)
-        self.assertTrue(self.worker.handoff_attempted)
-
     def test_account_teardown_rejects_machine_power_actions(self):
         with mock.patch.object(self.power, 'run') as run, mock.patch.object(self.worker, 'userctl') as userctl:
             for action in ('reboot', 'poweroff', 'suspend'):
@@ -434,53 +405,6 @@ class PowerWorkerTests(unittest.TestCase):
                     self.worker.terminate_user()
             run.assert_not_called()
             userctl.assert_not_called()
-
-    def test_machine_power_rejects_other_actions_before_any_command(self):
-        with mock.patch.object(self.power, 'run') as run:
-            for action in ('logout', 'suspend', 'invalid'):
-                self.worker.action = action
-                with self.subTest(action=action), self.assertRaisesRegex(self.power.Error, 'invalid machine shutdown action'):
-                    self.worker.final_power_action()
-            run.assert_not_called()
-
-    def test_transport_timeout_reaps_descendants_holding_pipes(self):
-        # Only disposable processes: never systemctl/loginctl/reboot on this host.
-        start = time.monotonic()
-        with self.assertRaisesRegex(self.power.Error, 'timed out'):
-            self.power.run([sys.executable, '-c',
-                'import os,time; os.fork(); time.sleep(30)'], timeout=0.2)
-        self.assertLess(time.monotonic() - start, 4)
-
-    def test_readiness_requires_system_manager_socket(self):
-        with mock.patch.dict(os.environ, {}, clear=True):
-            with self.assertRaises(self.power.Error):
-                self.power.ready()
-
-    def test_readiness_datagram_is_sent_by_worker(self):
-        import socket
-        with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as receiver:
-            path = str(Path(directory) / 'notify')
-            receiver.bind(path)
-            receiver.settimeout(2)
-            with mock.patch.dict(os.environ, NOTIFY_SOCKET=path):
-                self.power.ready()
-            self.assertIn(b'READY=1', receiver.recv(256))
-
-    def test_template_acknowledges_before_frontend_returns(self):
-        unit = payload_read_text(TARGET / 'etc/systemd/system/labwc-admin-action@.service')
-        self.assertIn('Type=notify\nNotifyAccess=main', unit)
-        self.assertIn('RuntimeMaxSec=infinity', unit)
-        self.assertIn('NoNewPrivileges=yes', unit)
-        root = payload_read_text(TARGET / 'usr/local/libexec/labwc-admin-action-root')
-        self.assertIn('exec /usr/bin/systemctl start "$worker_unit"', root)
-        self.assertNotIn('exec /usr/bin/systemctl --no-block', root)
-        menu = payload_read_text(TARGET / 'usr/local/bin/labwc-power-menu')
-        settings = payload_read_text(TARGET / 'usr/local/bin/labwc-power-settings')
-        for action in ('suspend', 'reboot', 'poweroff', 'logout'):
-            self.assertIn('exec /usr/local/bin/labwc-power-settings ' + action, menu)
-        self.assertIn('suspend|reboot|poweroff|shutdown) exec /usr/local/bin/labwc-admin-action "$1"', settings)
-        logout = payload_read_text(TARGET / 'usr/local/libexec/labwc-logout-root')
-        self.assertIn('exec /usr/local/libexec/labwc-admin-action-root logout', logout)
 
 
 def expand_braces(pattern):

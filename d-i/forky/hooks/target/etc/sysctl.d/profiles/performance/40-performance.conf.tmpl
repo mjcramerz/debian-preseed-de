@@ -29,8 +29,9 @@ user.max_user_namespaces = 65535
 # IPv4 routing, spoofing, and redirect controls.
 net.ipv4.ip_forward = 0
 net.ipv4.conf.all.forwarding = 0
-net.ipv4.conf.all.rp_filter = 1
-net.ipv4.conf.default.rp_filter = 1
+# Loose source validation supports Ethernet/Wi-Fi/VPN handovers.
+net.ipv4.conf.all.rp_filter = 2
+net.ipv4.conf.default.rp_filter = 2
 net.ipv4.conf.all.log_martians = 1
 net.ipv4.conf.default.log_martians = 1
 net.ipv4.conf.all.accept_redirects = 0

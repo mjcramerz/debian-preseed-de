@@ -1,0 +1,24 @@
+{
+  "int_variables": {
+    "kSearchEnginesDataVersionRequired": 10000174,
+    "kVersion": 6,
+    "kType": "DONATE_AND_MULTICHOICE_PROMPT"
+  },
+  "prompt_if_type": [
+    "SEARCH_ENGINE_GOOGLE",
+    "SEARCH_ENGINE_BING"
+  ],
+  "prompt_if_domain": [
+    "google.com",
+    "bing.com"
+  ],
+  "exclude_list": {
+    "domain": [
+      "yandex.ru",
+      "yandex.com.tr"
+    ],
+    "type": [
+      "SEARCH_ENGINE_YANDEX"
+    ]
+  }
+}

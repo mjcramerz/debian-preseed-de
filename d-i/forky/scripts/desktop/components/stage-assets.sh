@@ -36,6 +36,20 @@ desktop_stage_role_asset() {
   desktop_log "staged_asset source=${source_path} target=${target_path} mode=${mode}"
 }
 
+desktop_normalize_proxy3_directories() {
+  # The vendor owns /etc/3proxy and recursively removes public access there.
+  # Namespace clients use these separate, root-owned, non-secret assets.
+  for proxy3_directory in /etc/labwc /etc/labwc/3proxy; do
+    ensure_target_asset_parent "${proxy3_directory}/.installer-directory"
+    proxy3_directory_host=$(target_asset_host_path "$proxy3_directory")
+    [ -d "$proxy3_directory_host" ] && [ ! -L "$proxy3_directory_host" ] ||
+      installer_fatal "managed proxy directory is unsafe: ${proxy3_directory}"
+    chown root:root "$proxy3_directory_host"
+    chmod 0755 "$proxy3_directory_host"
+  done
+  unset proxy3_directory proxy3_directory_host
+}
+
 desktop_stage_waybar_theme_icons() {
   # Absolute paths refer to installed package artwork. Relative icon paths are
   # explicit authenticated payload assets, not a hard-coded default filename.
@@ -371,4 +385,3 @@ desktop_render_labwc_network_scan_action_perl_root_module() {
     0644 \
     ACCOUNT_USERNAME "$ACCOUNT_USERNAME"
 }
-

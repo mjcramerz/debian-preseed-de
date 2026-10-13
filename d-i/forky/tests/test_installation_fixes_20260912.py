@@ -4,6 +4,17 @@ No target services, installer stages, credentials or kernel profiles are run.
 Atomic publication tests mock fsync (durability needs a real target filesystem).
 """
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
 from payload_fixture import python_library
 from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
@@ -188,7 +199,7 @@ class GenericWrapperTests(unittest.TestCase):
         one = generic.transient_argv('electron', 'nvidia', args, env)
         two = generic.transient_argv('electron', 'nvidia', args, env)
         self.assertNotEqual(next(x for x in one if x.startswith('--unit=')), next(x for x in two if x.startswith('--unit=')))
-        for value in ('--collect', '--service-type=exec', '--expand-environment=no', '--property=ExitType=cgroup', '--property=KillMode=control-group', '--property=PartOf=labwc-session.target'):
+        for value in ('--collect', '--service-type=exec', '--expand-environment=no', '--property=ExitType=main', '--property=KillMode=control-group', '--property=PartOf=labwc-session.target'):
             self.assertIn(value, one)
         self.assertEqual(one[one.index('--') + 1:], args)
         self.assertIn('--setenv=TOKEN', one); self.assertNotIn('secret-value', ' '.join(one))

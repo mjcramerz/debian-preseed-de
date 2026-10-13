@@ -1,0 +1,2322 @@
+{
+  "description": "Distinct file requests from the supplied October 12 evening capture; repeated events are counted.",
+  "record_counts": {
+    "status": 426,
+    "denied": 771
+  },
+  "events": [
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n5",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 427
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n6",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 428
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n7",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 429
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n8",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 430
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n9",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 431
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n10",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 432
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n11",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 433
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n12",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 434
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n13",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 435
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n14",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 436
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n15",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 437
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n16",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 438
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n17",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 439
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n18",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 440
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n19",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 441
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n20",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 442
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n21",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 443
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n22",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 444
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n23",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 445
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n24",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 446
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n25",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 447
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n26",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 448
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n27",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 449
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n28",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 450
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n29",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 451
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n30",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 452
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n31",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 453
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n32",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 454
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n33",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 455
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n34",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 456
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n35",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 457
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n36",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 458
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n37",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 459
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n38",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 460
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n39",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 461
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n40",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 462
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n41",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 463
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n42",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 464
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n43",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 465
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n44",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 466
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n45",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 467
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n46",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 468
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n47",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 469
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n48",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 470
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n49",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 471
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n50",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 472
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n51",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 473
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n52",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 474
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n53",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 475
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n54",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 476
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n55",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 477
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n56",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 478
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n57",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 479
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n58",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 480
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n59",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 481
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n60",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 482
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n62",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 483
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n63",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 484
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n64",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 485
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n65",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 486
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n66",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 487
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n67",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 488
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n68",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 489
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n69",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 490
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n70",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 491
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n71",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 492
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n72",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 493
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n73",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 494
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n74",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 495
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n75",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 496
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n76",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 497
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n77",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 498
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n78",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 499
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n79",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 500
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n80",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 501
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n81",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 502
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n82",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 503
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n83",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 504
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n84",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 505
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n85",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 506
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n86",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 507
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n87",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 508
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n88",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 509
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n89",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 510
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n90",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 511
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n91",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 512
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n92",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 513
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n93",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 514
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n94",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 515
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n95",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 516
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n96",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 517
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n97",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 518
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n98",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 519
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n99",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 520
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n100",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 521
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n101",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 522
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n102",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 523
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n103",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 524
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n104",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 525
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n105",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 526
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n106",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 527
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n107",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 528
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n108",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 529
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n109",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 530
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n110",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 531
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n111",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 532
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n112",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 533
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n113",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 534
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n114",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 535
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n115",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 536
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n116",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 537
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n117",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 538
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n118",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 539
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n119",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 540
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n120",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 541
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n121",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 542
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n122",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 543
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n123",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 544
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n124",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 545
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n125",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 546
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n126",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 547
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n127",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 548
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n128",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 549
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n129",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 550
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n130",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 551
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n131",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 552
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n132",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 553
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n133",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 554
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n134",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 555
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n135",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 556
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n136",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 557
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n137",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 558
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n138",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 559
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n139",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 560
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n140",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 561
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n141",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 562
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n142",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 563
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n143",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 564
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n144",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 565
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n145",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 566
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n146",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 567
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n147",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 568
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n148",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 569
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n149",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 570
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n150",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 571
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n151",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 572
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n152",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 573
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n153",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 574
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n154",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 575
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n155",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 576
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n156",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 577
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n157",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 578
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n158",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 579
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n159",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 580
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n160",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 581
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n161",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 582
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n162",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 583
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n163",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 584
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n164",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 585
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n165",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 586
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n166",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 587
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n167",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 588
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n168",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 589
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n169",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 590
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n170",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 591
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n171",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 592
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n172",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 593
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n173",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 594
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n174",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 595
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n175",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 596
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n176",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 597
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n177",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 598
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n178",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 599
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n179",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 600
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n180",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 601
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n181",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 602
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n182",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 603
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n183",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 604
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n184",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 605
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n185",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 606
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n186",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 607
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n187",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 608
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n188",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 609
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n189",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 610
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n190",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 611
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n191",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 612
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n192",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 613
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n193",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 614
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n194",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 615
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n195",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 616
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n196",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 617
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n197",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 618
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n198",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 619
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n199",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 620
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n200",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 621
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n201",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 622
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n202",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 623
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n203",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 624
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n204",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 625
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n205",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 626
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n206",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 627
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n207",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 628
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n208",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 629
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n209",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 630
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n210",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 631
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n211",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 632
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n212",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 633
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n213",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 634
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n214",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 635
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n215",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 636
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n216",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 637
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n217",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 638
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n218",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 639
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n219",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 640
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n220",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 641
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n221",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 642
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n222",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 643
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n223",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 644
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n224",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 645
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n225",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 646
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n226",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 647
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n227",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 648
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n228",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 649
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n229",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 650
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n230",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 651
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n231",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 652
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n232",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 653
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n233",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 654
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n234",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 655
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n235",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 656
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n236",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 657
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n237",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 658
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n238",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 659
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n239",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 660
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n240",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 661
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n241",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 662
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n242",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 663
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n243",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 664
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n244",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 665
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n245",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 666
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n246",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 667
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n247",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 668
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n248",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 669
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n249",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 670
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n250",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 671
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n251",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 672
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n252",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 673
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n253",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 674
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n254",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 675
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n255",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 676
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n256",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 677
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n257",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 678
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n258",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 679
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n259",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 680
+    },
+    {
+      "profile": "desktop-launcher",
+      "operation": "open",
+      "name": "/run/udev/data/n260",
+      "requested_mask": "r",
+      "owner": false,
+      "count": 3,
+      "audit_line": 681
+    },
+    {
+      "profile": "labwc-network-sharing//systemctl",
+      "operation": "mkdir",
+      "name": "/run/user/1000/systemd/ask-password/",
+      "requested_mask": "c",
+      "owner": true,
+      "count": 1,
+      "audit_line": 1192
+    },
+    {
+      "profile": "labwc-network-sharing//systemctl",
+      "operation": "open",
+      "name": "/proc/12317/fdinfo/3",
+      "requested_mask": "r",
+      "owner": true,
+      "count": 5,
+      "audit_line": 1193
+    }
+  ]
+}

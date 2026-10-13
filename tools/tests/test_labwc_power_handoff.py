@@ -1,5 +1,16 @@
 #!/usr/bin/python3
 """Mocked power/state regressions. Never contact PID 1 or a live compositor."""
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[2] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import base64
 import contextlib
 import importlib.machinery
@@ -104,46 +115,26 @@ class PowerWorkerTests(unittest.TestCase):
         worker.execute()
         return worker
 
-    def test_both_actions_prepare_and_drain_guests_before_single_force(self):
+    def test_both_actions_close_and_attempt_cleanup_before_single_force(self):
         for action in ('reboot', 'poweroff'):
             with self.subTest(action=action):
                 self.calls.clear()
-                self.active_guest = True
-                self.guest_stopped = False
-                self.user_stopped = False
-                self.managed_stopped.clear()
                 self.execute(action)
-                prepare = next(i for i, c in enumerate(self.calls)
-                               if c[-2:] == ['start', 'labwc-session-state@prepare.service'])
-                guests = next(i for i, c in enumerate(self.calls)
-                              if 'stop' in c and 'podman-devops-restart.service' in c)
-                final = self.calls.index(['/usr/bin/systemctl', '--force', action])
-                self.assertLess(prepare, guests)
-                self.assertLess(guests, final)
-                self.assertEqual(final, len(self.calls) - 1)
+                self.assertEqual(self.calls[-1], handoff_argv(action))
                 self.assertEqual(sum(is_handoff(c) for c in self.calls), 1)
-                self.assertEqual(sum(c.count('--force') for c in self.calls), 1)
-                teardown = next(i for i, c in enumerate(self.calls) if 'terminate-user' in c)
-                drives = self.calls.index(['/usr/bin/systemctl', '--no-ask-password',
-                                          'start', power.EXTERNAL_DRIVES_UNIT])
-                zram = next(i for i, c in enumerate(self.calls) if 'stop' in c and 'zram-setup.service' in c)
-                fallback = next(i for i, c in enumerate(self.calls) if 'stop' in c and 'swap-fallback.service' in c)
-                self.assertLess(guests, teardown)
+                close = next(i for i, c in enumerate(self.calls) if c[-2:] == ['start', 'labwc-session-state@close.service'])
+                save = next(i for i, c in enumerate(self.calls) if c[-2:] == ['start', f'labwc-session-state@{action}.service'])
+                guests = next(i for i, c in enumerate(self.calls) if 'stop' in c and 'podman-devops-restart.service' in c)
+                drives = next(i for i, c in enumerate(self.calls) if c[-2:] == ['start', power.EXTERNAL_DRIVES_UNIT])
+                terminate = next(i for i, c in enumerate(self.calls) if 'terminate-user' in c)
+                self.assertLess(save, close)
+                self.assertLess(close, guests)
                 self.assertLess(guests, drives)
-                self.assertLess(drives, teardown)
-                self.assertLess(teardown, zram)
-                self.assertLess(zram, fallback)
-                self.assertLess(fallback, final)
-                drive_calls = [i for i, c in enumerate(self.calls) if c[-2:] ==
-                               ['start', power.EXTERNAL_DRIVES_UNIT]]
-                self.assertEqual(len(drive_calls), 2)
-                self.assertLess(fallback, drive_calls[1])
-                self.assertLess(drive_calls[1], final)
-                self.assertFalse(any('kill' in c or 'seatd.service' in c
-                                     or 'dbus-broker.service' in c for c in self.calls))
-                self.assertFalse(any('RebootWithFlags' in c or 'PowerOffWithFlags' in c
-                                     for c in self.calls))
-        self.assertEqual(self.sync.call_count, 2)
+                self.assertLess(drives, terminate)
+                self.assertEqual(sum(c[-2:] == ['start', power.EXTERNAL_DRIVES_UNIT] for c in self.calls), 1)
+                self.assertNotIn(['/usr/bin/busctl', 'ListInhibitors'], self.calls)
+                self.assertFalse(any(c[-1] == 'labwc-session-state@prepare.service' for c in self.calls))
+                self.assertIn(['/usr/bin/sync'], self.calls)
 
     def test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps(self):
         self.execute('suspend')
@@ -159,42 +150,41 @@ class PowerWorkerTests(unittest.TestCase):
         self.assertTrue(any('terminate-user' in c for c in self.calls))
         self.assertFalse(any('--force' in c for c in self.calls))
 
-    def test_prepare_failure_never_tears_down_session(self):
-        self.failure = lambda command: command[-2:] == ['start', 'labwc-session-state@prepare.service']
-        with self.assertRaises(power.Error):
+    def test_prepare_failure_does_not_veto_power(self):
+        self.failure = lambda command: command[-2:] == ['start', 'labwc-session-state@close.service']
+        with contextlib.redirect_stderr(io.StringIO()):
             self.execute('poweroff')
-        self.assertFalse(any(('stop' in c and c[-1] != 'labwc-session-state@prepare.service') or '--force' in c or c[0].endswith('/pkill') for c in self.calls))
+        self.assertEqual(self.calls[-1], handoff_argv('poweroff'))
+        self.assertEqual(sum(is_handoff(c) for c in self.calls), 1)
 
-    def test_failed_guest_stop_never_reaches_forced_power(self):
-        self.active_guest = True
+    def test_failed_save_helper_allows_grace_then_still_submits_power(self):
+        self.failure = lambda command: command[-2:] == ['start', 'labwc-session-state@poweroff.service']
+        with (mock.patch.object(power.time, 'monotonic', return_value=100),
+              mock.patch.object(power.time, 'sleep') as sleep,
+              contextlib.redirect_stderr(io.StringIO())):
+            self.execute('poweroff')
+        sleep.assert_called_once_with(15)
+        self.assertEqual(self.calls[-1], handoff_argv('poweroff'))
+        self.assertEqual(sum(is_handoff(c) for c in self.calls), 1)
+
+    def test_failed_guest_stop_does_not_veto_power(self):
         self.failure = lambda command: 'stop' in command and 'podman-devops-restart.service' in command
-        with self.assertRaises(power.Error):
-            self.execute('reboot')
-        self.assertFalse(any('--force' in c or 'terminate-user' in c for c in self.calls))
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.execute('poweroff')
+        self.assertEqual(self.calls[-1], handoff_argv('poweroff'))
+        self.assertEqual(sum(is_handoff(c) for c in self.calls), 1)
 
-    def test_external_drive_preparation_failure_keeps_the_seat_and_blocks_force(self):
-        for action in ('reboot', 'poweroff'):
-            with self.subTest(action=action):
-                self.calls.clear()
-                self.failure = lambda command: command[-2:] == ['start', power.EXTERNAL_DRIVES_UNIT]
-                with self.assertRaises(power.Error):
-                    self.execute(action)
-                self.assertFalse(any('--force' in c or 'terminate-user' in c or
-                                     ('stop' in c and 'greetd.service' in c) for c in self.calls))
+    def test_external_drive_preparation_failure_does_not_veto_power(self):
+        self.failure = lambda command: command[-2:] == ['start', power.EXTERNAL_DRIVES_UNIT]
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.execute('poweroff')
+        self.assertEqual(self.calls[-1], handoff_argv('poweroff'))
+        self.assertEqual(sum(is_handoff(c) for c in self.calls), 1)
 
-    def test_late_drive_preparation_failure_still_blocks_force_without_retry(self):
-        attempts = 0
-        def fail_final_inventory(command):
-            nonlocal attempts
-            if command[-2:] == ['start', power.EXTERNAL_DRIVES_UNIT]:
-                attempts += 1
-                return attempts == 2
-            return False
-        self.failure = fail_final_inventory
-        with self.assertRaises(power.Error):
-            self.execute('reboot')
-        self.assertEqual(attempts, 2)
-        self.assertFalse(any('--force' in c for c in self.calls))
+    def test_external_drive_cleanup_is_not_repeated_as_a_second_gate(self):
+        self.execute('reboot')
+        self.assertEqual(sum(c[-2:] == ['start', power.EXTERNAL_DRIVES_UNIT] for c in self.calls), 1)
+        self.assertEqual(sum(is_handoff(c) for c in self.calls), 1)
 
     def test_failed_lock_never_suspends(self):
         self.failure = lambda command: command[-1] == 'labwc-session-state@locked.service'
@@ -202,11 +192,11 @@ class PowerWorkerTests(unittest.TestCase):
             self.execute('suspend')
         self.assertFalse(any('--force' in c for c in self.calls))
 
-    def test_other_interactive_account_blocks_machine_action(self):
-        with mock.patch.object(power, 'login_sessions', return_value=[('c1', 1000), ('c2', 1001)]), \
-             self.assertRaisesRegex(power.Error, 'another interactive'):
+    def test_advisory_account_inventory_is_not_a_shutdown_gate(self):
+        with mock.patch.object(power, 'login_sessions', side_effect=power.Error('logind unavailable')) as sessions:
             self.execute('poweroff')
-        self.assertFalse(any(c[-1] == 'labwc-session-state@prepare.service' or '--force' in c for c in self.calls))
+        sessions.assert_not_called()
+        self.assertEqual(self.calls[-1], handoff_argv('poweroff'))
 
     def test_invalid_instance_never_executes_a_command(self):
         with mock.patch.object(power.os, 'geteuid', return_value=0):
@@ -218,100 +208,128 @@ class PowerWorkerTests(unittest.TestCase):
 
 class SessionStateTests(unittest.TestCase):
     def setUp(self):
-        self.confirm = mock.patch.object(state, 'confirm_close'); self.confirm.start(); self.addCleanup(self.confirm.stop)
+        self.session = state
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
-        self.state, self.runtime = self.root / 'state', self.root / 'run'
-        self.state.mkdir(mode=0o700)
+        self.runtime = self.root / 'runtime'
         self.runtime.mkdir(mode=0o700)
-        self.app = {'argv': ['/usr/local/bin/labwc-wayland-app', 'launch', '--', '/usr/bin/featherpad', '/home/user/document.txt'], 'cwd': '/home/user'}
-        self.token = base64.urlsafe_b64encode(json.dumps(self.app).encode()).decode()
         self.stack = contextlib.ExitStack()
         self.addCleanup(self.stack.close)
-        self.ctl = self.stack.enter_context(mock.patch.object(state, 'ctl', return_value=''))
-        self.run = self.stack.enter_context(mock.patch.object(state, 'run', return_value=''))
-        self.stack.enter_context(mock.patch.object(state, 'notify'))
-        self.clipboard = self.stack.enter_context(mock.patch.object(state, 'clear_clipboard'))
-        self.orphans = self.stack.enter_context(mock.patch.object(state, 'stop_orphans'))
+        self.ctl = self.stack.enter_context(mock.patch.object(self.session, 'ctl', return_value=''))
+        self.run = self.stack.enter_context(mock.patch.object(self.session, 'run', return_value=''))
+        self.windows = self.stack.enter_context(mock.patch.object(self.session, 'windows', return_value=''))
+        self.notify = self.stack.enter_context(mock.patch.object(self.session, 'notify'))
+        self.sleep = self.stack.enter_context(mock.patch.object(self.session.time, 'sleep'))
+        self.clipboard = self.stack.enter_context(mock.patch.object(self.session, 'clear_clipboard'))
+        self.now = 0.0
+        self.stack.enter_context(mock.patch.object(self.session.time, 'monotonic', side_effect=lambda: self.now))
+        self.sleep.side_effect = self.advance
 
-    def test_save_dialog_blocks_teardown_and_removes_launch_barrier(self):
-        with mock.patch.object(state, 'services', return_value={}), mock.patch.object(state, 'windows', return_value='FeatherPad: Save?'):
-            with self.assertRaisesRegex(state.Error, 'No session teardown'):
-                state.prepare(self.state, self.runtime, timeout=0)
-        self.assertFalse((self.runtime / 'labwc-session-closing').exists())
-        self.assertFalse((self.state / 'resume.json').exists())
+    def advance(self, seconds):
+        self.now += seconds
+
+    def test_open_editors_browsers_and_terminals_get_one_bounded_save_window(self):
+        for action in ('poweroff', 'reboot'):
+            with self.subTest(action=action):
+                self.now = 0.0
+                self.windows.return_value = ('foot: micro\nfeatherpad: document\nfocuswriter: document\n'
+                                             'gnumeric: workbook\nvivaldi: page\nmsedge: page\nchromium: page')
+                self.notify.reset_mock()
+                self.sleep.reset_mock()
+                self.session.wait_power(action)
+                self.assertEqual(self.now, 15)
+                self.notify.assert_called_once()
+                self.assertIn('in 15 seconds', self.notify.call_args.args[0])
+                self.assertIn('Save your work now', self.notify.call_args.args[0])
+                self.assertEqual(self.notify.call_args.kwargs, {'timeout': 1})
+                self.assertTrue(all(0 < call.args[0] <= 0.2 for call in self.sleep.call_args_list))
+                self.assertTrue(all(0 < call.kwargs['timeout'] <= 1
+                                    for call in self.windows.call_args_list if call.kwargs))
+        self.run.assert_not_called()
+        self.ctl.assert_not_called()
         self.clipboard.assert_not_called()
-        self.orphans.assert_not_called()
-        closes = [c for c in self.run.call_args_list if c.args[0] == ['/usr/bin/wlrctl', 'toplevel', 'close']]
-        self.assertEqual(len(closes), 1)
-        self.assertFalse(any('kill' in ' '.join(c.args[0]) for c in self.run.call_args_list))
+        self.assertEqual(list(self.runtime.iterdir()), [])
 
-    def test_success_records_state_before_clearing_clipboard_without_premature_unit_stops(self):
-        initial = {'labwc-editor.service': {'LABWC_SESSION_APP': '1', 'LABWC_SESSION_RESTORE': self.token}}
-        with mock.patch.object(state, 'services', side_effect=[initial, {}]), mock.patch.object(state, 'windows', side_effect=['editor: document', '', '']):
-            state.prepare(self.state, self.runtime, timeout=0)
-        self.assertEqual(state.load(self.state / 'resume.json'), [dict(self.app, argv=self.app['argv'][:4])])
-        self.assertEqual((self.state / 'resume.json').stat().st_mode & 0o777, 0o600)
-        self.assertTrue((self.runtime / 'labwc-session-closing').exists())
+    def test_no_visible_windows_means_no_save_warning_or_delay(self):
+        self.session.wait_power('poweroff')
+        self.windows.assert_called_once_with()
+        self.notify.assert_not_called()
+        self.sleep.assert_not_called()
+        self.run.assert_not_called()
+
+    def test_all_windows_closed_during_grace_proceeds_early(self):
+        self.windows.side_effect = ['featherpad: document', 'featherpad: document', '']
+        self.session.wait_power('reboot')
+        self.assertEqual(self.now, 0.2)
+        self.notify.assert_called_once()
+        self.run.assert_not_called()
+
+    def test_failed_window_inventory_is_bounded_and_never_vetoes_power(self):
+        self.windows.side_effect = self.session.Error('Wayland unavailable')
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.session.wait_power('poweroff')
+        self.assertEqual(self.now, 15)
+        self.notify.assert_called_once()
+        self.run.assert_not_called()
+
+    def test_power_close_sends_one_request_without_window_or_service_gates(self):
+        self.windows.side_effect = AssertionError('power close must not inspect windows')
+        self.session.close(self.runtime)
+        self.run.assert_called_once_with(['/usr/bin/wlrctl', 'toplevel', 'close'], timeout=5, accepted=(0, 1))
+        self.ctl.assert_not_called()
+        self.sleep.assert_not_called()
+        self.notify.assert_not_called()
+        self.assertTrue((self.runtime / 'labwc-session-closing').is_file())
+
+    def test_logout_only_waits_for_actual_windows_without_generic_save_warning(self):
+        self.windows.side_effect = ['browser: page', 'editor: Save changes?', '']
+        self.session.prepare(self.runtime)
+        self.assertEqual(self.sleep.call_args_list, [mock.call(0.2), mock.call(0.2)])
+        self.run.assert_called_once()
+        self.notify.assert_not_called()
         self.clipboard.assert_called_once()
-        self.orphans.assert_not_called()
+        self.assertEqual(sorted(p.name for p in self.root.iterdir()), ['runtime'])
 
-    def test_tray_process_is_left_for_the_verified_manager_stop_phase(self):
-        with mock.patch.object(state, 'services', return_value={'app.service': {'LABWC_SESSION_APP': '1'}}), mock.patch.object(state, 'windows', return_value=''):
-            state.prepare(self.state, self.runtime, timeout=0)
-        self.clipboard.assert_called_once()
-        self.orphans.assert_not_called()
+    def test_windowless_background_apps_cannot_block_logout(self):
+        self.session.prepare(self.runtime, timeout=0)
+        self.sleep.assert_not_called()
+        self.notify.assert_not_called()
+        self.assertFalse(hasattr(self.session, 'protected_still_running'))
+        self.assertFalse(hasattr(self.session, 'services'))
+
+    def test_remaining_window_cancels_logout_and_removes_marker(self):
+        self.windows.return_value = 'editor: Save changes?'
+        with self.assertRaises(self.session.Cancelled):
+            self.session.prepare(self.runtime, timeout=0)
+        self.assertFalse((self.runtime / 'labwc-session-closing').exists())
+        self.clipboard.assert_not_called()
+
+    def test_failed_window_probe_cancels_logout_without_stranding_marker(self):
+        self.windows.side_effect = self.session.Error('Wayland unavailable')
+        with self.assertRaises(self.session.Error):
+            self.session.prepare(self.runtime)
+        self.assertFalse((self.runtime / 'labwc-session-closing').exists())
+
+    def test_clipboard_failure_does_not_block_closed_logout(self):
+        self.clipboard.side_effect = self.session.Error('clipboard unavailable')
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.session.prepare(self.runtime)
         self.assertTrue((self.runtime / 'labwc-session-closing').exists())
 
-    def test_nested_service_without_windows_is_left_for_manager_quiescence(self):
-        with mock.patch.object(state, 'services', return_value={'cage.service': {'LABWC_SESSION_NESTED': '1'}}), mock.patch.object(state, 'windows', return_value=''):
-            state.prepare(self.state, self.runtime, timeout=0)
-        self.orphans.assert_not_called()
-        self.assertFalse(any('kill' in call.args[0] for call in self.run.call_args_list))
+    def test_restore_and_persistent_capture_are_absent(self):
+        for name in ('restore', 'collect', 'descriptor', 'load', 'atomic', 'confirm_close'):
+            self.assertFalse(hasattr(self.session, name))
+        with (
+            mock.patch.object(self.session.os, 'getuid', return_value=1000),
+            mock.patch.object(self.session.os, 'geteuid', return_value=1000),
+            self.assertRaises(self.session.Error),
+        ):
+            self.session.main(['restore'])
 
-    def test_null_app_id_window_is_not_mistaken_for_empty_desktop(self):
-        with mock.patch.object(state.subprocess, 'run', return_value=SimpleNamespace(returncode=0, stdout='', stderr='')):
-            self.assertEqual(state.windows(), '(unidentified toplevel)')
-
-    def test_missing_wayland_protocol_fails_closed(self):
-        with mock.patch.object(state.subprocess, 'run', return_value=SimpleNamespace(returncode=1, stdout='', stderr='missing protocol')):
-            with self.assertRaises(state.Error):
-                state.windows()
-
-    def test_restart_descriptors_reject_shells_and_traversal(self):
-        cases = [dict(self.app, argv=['/bin/sh', 'launch', '--', '/usr/bin/featherpad']),
-                 dict(self.app, argv=['/usr/local/bin/labwc-wayland-app', 'launch', '--', '/bin/sh', '-c', 'id']),
-                 dict(self.app, cwd='/home/user/../../root'), dict(self.app, extra='bad'),
-                 dict(self.app, argv=['/usr/local/bin/labwc-wayland-app', 'launch', '--', '/usr/bin/featherpad\n'])]
-        for value in cases:
-            with self.subTest(value=value), self.assertRaises(state.Error):
-                state.descriptor(value)
-        self.assertEqual(state.descriptor(self.app), self.app)
-
-    def test_restore_handoff_uses_transient_service_and_exact_cwd(self):
-        state.atomic(self.state / 'resume.json', {'format': 1, 'apps': [self.app]})
-        with mock.patch.object(Path, 'lstat', return_value=SimpleNamespace(st_mode=stat.S_IFREG | 0o755, st_uid=0)):
-            state.restore(self.state, self.runtime)
-        command = self.run.call_args.args[0]
-        self.assertEqual(command[0], '/usr/bin/systemd-run')
-        self.assertIn('--property=ExitType=cgroup', command)
-        self.assertIn('--property=KillMode=control-group', command)
-        self.assertIn('--working-directory=/home/user', command)
-        self.assertEqual(command[-len(self.app['argv']):], self.app['argv'])
-        self.assertFalse((self.state / 'resume.json').exists())
-        self.assertEqual(state.load(self.state / 'last-session.json'), [self.app])
-
-    def test_failed_restore_keeps_retryable_state(self):
-        state.atomic(self.state / 'resume.json', {'format': 1, 'apps': [self.app]})
-        self.run.side_effect = state.Error('failed exec')
-        with mock.patch.object(Path, 'lstat', return_value=SimpleNamespace(st_mode=stat.S_IFREG | 0o755, st_uid=0)):
-            state.restore(self.state, self.runtime)
-        self.assertEqual(state.load(self.state / 'resume.json'), [self.app])
-
-    def test_state_helper_refuses_root(self):
-        with mock.patch.object(state.os, 'getuid', return_value=0), self.assertRaisesRegex(state.Error, 'never root'):
-            state.main(['prepare'])
+    def test_session_helper_refuses_root(self):
+        with mock.patch.object(self.session.os, 'getuid', return_value=0), self.assertRaisesRegex(self.session.Error, 'never root'):
+            self.session.main(['close'])
 
 
 class WiringTests(unittest.TestCase):
@@ -373,23 +391,23 @@ class WiringTests(unittest.TestCase):
         from labwc_managed_app import generic
         with mock.patch.object(generic, 'assert_launch_allowed'):
             arguments = generic.transient_argv('wayland', 'launch', ['/usr/bin/thunar'], {})
-        for property_ in ('ExitType=cgroup', 'KillMode=control-group', 'PartOf=labwc-session.target'):
+        for property_ in ('ExitType=main', 'KillMode=control-group', 'PartOf=labwc-session.target'):
             self.assertIn('--property=' + property_, arguments)
         self.assertIn('--setenv=LABWC_SESSION_APP', arguments)
         for path in (module / 'session.py', TARGET / 'usr/local/bin/labwc-qbittorrent'):
             text = payload_read_text(path)
-            self.assertIn('ExitType=cgroup', text)
+            self.assertIn('ExitType=main', text)
             self.assertTrue('KillMode=control-group' in text or 'KillMode=" + ("mixed" if is_foot else "control-group")' in text)
             self.assertIn('PartOf=', text)
             self.assertIn('LABWC_SESSION_APP', text)
         self.assertIn('recovery.py', payload_read_text(module / 'integrity.py'))
 
-    def test_restore_service_is_explicitly_staged_and_started_after_session(self):
+    def test_restore_service_has_no_payload_staging_or_autostart_reference(self):
         unit = TARGET / 'etc/skel-desktop/.config/systemd/user/labwc-session-restore.service'
-        self.assertIn('After=labwc-session.target', payload_read_text(unit))
+        self.assertFalse(unit.exists())
         scripts = TARGET.parents[1] / 'scripts/desktop/components.sh'
-        self.assertIn('labwc-session-restore.service', payload_read_text(scripts))
-        self.assertIn('labwc-session-restore.service', payload_read_text(TARGET / 'usr/local/bin/labwc-autostart'))
+        self.assertNotIn('labwc-session-restore.service', payload_read_text(scripts))
+        self.assertNotIn('labwc-session-restore.service', payload_read_text(TARGET / 'usr/local/bin/labwc-autostart'))
 
 
 if __name__ == '__main__':

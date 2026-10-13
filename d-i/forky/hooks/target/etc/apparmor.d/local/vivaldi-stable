@@ -16,6 +16,8 @@ deny /dev/sound/** rwklm,
 /{,usr/}bin/{cat,dirname,readlink,tr,uname} rix,
 
 /dev/tty rw,
+# Direct terminal launches inherit the invoking user's PTY descriptors.
+owner /dev/pts/[0-9]* rw,
 /etc/os-release r,
 /usr/lib/os-release r,
 

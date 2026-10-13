@@ -451,9 +451,10 @@ software_render_seed_asset() {
     rm -f "$tmp_asset" "$tmp_rendered"
     software_fatal "failed to render software template: ${repo_path}"
   }
-  if installer_contains_unresolved_installer_placeholders "$tmp_rendered"; then
+  if ! installer_assert_no_unresolved_installer_placeholders \
+      "$tmp_rendered" "rendered software template ${repo_path}"; then
     rm -f "$tmp_asset" "$tmp_rendered"
-    software_fatal "rendered software template has unresolved installer placeholders: ${repo_path}"
+    return 1
   fi
   install -d -m 0755 "${target_root}$(dirname "$target_path")"
   install -m "$mode" "$tmp_rendered" "$target_host_path"
@@ -886,7 +887,7 @@ software_require_allowed_https_url() {
 
   url_host=$(software_https_url_host "$url" 2>/dev/null || true)
   [ -n "$url_host" ] ||
-    software_fatal "$label URL is not a supported HTTPS URL: ${url:-unset}"
+    software_fatal "$label URL is not a supported HTTPS URL"
   case " $allowed_hosts " in
     *" $url_host "*) return 0 ;;
   esac
@@ -919,7 +920,7 @@ software_download() {
   else
     case "$url" in
       https://*) ;;
-      *) software_fatal "$label download URL must use HTTPS: $url" ;;
+      *) software_fatal "$label download URL must use HTTPS" ;;
     esac
   fi
   software_validate_abs_path "$label destination" "$destination"
@@ -967,7 +968,7 @@ software_download() {
   esac
   case "$effective_url" in
     https://*) ;;
-    *) software_fatal "$label download resolved to a non-HTTPS URL: ${effective_url:-unset}" ;;
+    *) software_fatal "$label download resolved to a non-HTTPS URL" ;;
   esac
   if [ -n "$allowed_hosts" ]; then
     software_require_allowed_https_url "$label effective" "$effective_url" "$allowed_hosts"
@@ -996,7 +997,13 @@ software_download() {
   [ "$destination_size" -le "$maximum_bytes" ] ||
     software_fatal "$label download is unexpectedly large: ${destination_size} bytes"
   mv -f -- "$partial_host_path" "$destination_host_path"
-  software_info "resolved ${label} download effective_url=${effective_url} http_status=${http_status} content_type=${normalized_content_type:-unset} bytes=${destination_size}"
+  # Redirect queries may carry signed credentials. Report only the authority,
+  # with any userinfo, query and fragment removed; preserve the transport URL.
+  download_log_host=${effective_url#https://}
+  download_log_host=${download_log_host%%/*}
+  download_log_host=${download_log_host%%[\?\#]*}
+  download_log_host=${download_log_host##*@}
+  software_info "resolved ${label} download effective_host=${download_log_host} http_status=${http_status} content_type=${normalized_content_type:-unset} bytes=${destination_size}"
 }
 
 software_parse_ledger_metadata() {

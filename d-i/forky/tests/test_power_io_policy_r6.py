@@ -4,6 +4,17 @@ Never run a power command. systemd checks use verify only; calls from the
 production worker are mocked. Fixture units are not host units.
 """
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from power_handoff_fixture import handoff_argv, is_handoff
 from payload_fixture import copyfile as payload_copyfile, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
 from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
@@ -162,10 +173,11 @@ class HandoffTests(unittest.TestCase):
             worker = self.power.Worker(1000, 'desktop', action)
             worker.package_locks = mock.Mock()  # acquired gate fixture; real locks tested separately
             worker.prepared = True
-            with mock.patch.object(worker, 'protect_other_sessions'), \
-                    mock.patch.object(self.power, 'check_shutdown_inhibitors'), \
-                    mock.patch.object(self.power, 'run', return_value='') as run, \
-                    contextlib.redirect_stderr(io.StringIO()) as output:
+            with (
+                mock.patch.object(worker, 'protect_other_sessions'),
+                mock.patch.object(self.power, 'run', return_value='') as run,
+                contextlib.redirect_stderr(io.StringIO()) as output,
+            ):
                 worker.final_power_action()
             self.assertEqual(run.call_args_list, [
                 mock.call(handoff_argv(action), timeout=25, max_output=4096)])
@@ -182,10 +194,11 @@ class HandoffTests(unittest.TestCase):
 
     def test_uncertain_submission_never_retries_or_cancels(self):
         self.worker.prepared = True
-        with mock.patch.object(self.worker, 'protect_other_sessions'), \
-                mock.patch.object(self.power, 'check_shutdown_inhibitors'), \
-                mock.patch.object(self.power, 'run', side_effect=self.power.Error('lost reply')) as run, \
-                contextlib.redirect_stderr(io.StringIO()):
+        with (
+            mock.patch.object(self.worker, 'protect_other_sessions'),
+            mock.patch.object(self.power, 'run', side_effect=self.power.Error('lost reply')) as run,
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
             with self.assertRaisesRegex(self.power.Error, 'status uncertain'):
                 self.worker.final_power_action()
             with self.assertRaisesRegex(self.power.Error, 'only once'):
@@ -202,19 +215,21 @@ class HandoffTests(unittest.TestCase):
                     self.worker.final_power_action()
                 run.assert_not_called()
 
-    def test_saving_and_other_account_recheck_precede_handoff(self):
+    def test_close_cleanup_and_handoff_do_not_require_a_healthy_session(self):
         events = []
-        with mock.patch.object(self.worker, 'session_identity', side_effect=lambda: (events.append('active'), 'a' * 32)[1]), \
-             mock.patch.object(self.power, 'PackageLocks'), \
-             mock.patch.object(self.power, 'hold_reservation', side_effect=lambda: events.append('hold')), \
-             mock.patch.object(self.worker, 'protect_other_sessions', side_effect=lambda: events.append('accounts')), \
-             mock.patch.object(self.power, 'check_shutdown_inhibitors', side_effect=lambda **kwargs: events.append('inhibitors')), \
-             mock.patch.object(self.power, 'ready', side_effect=lambda: events.append('ready')), \
-             mock.patch.object(self.worker, 'helper', side_effect=lambda a: events.append(a)), \
-             mock.patch.object(self.worker, 'stop_optional_guests', side_effect=lambda: events.append('guests')), \
-             mock.patch.object(self.worker, 'final_power_action', side_effect=lambda: events.append('handoff')):
+        with (
+            mock.patch.object(self.worker, 'session_identity', side_effect=AssertionError('session preflight')),
+            mock.patch.object(self.power, 'PackageLocks', side_effect=AssertionError('package wait')),
+            mock.patch.object(self.power, 'hold_reservation', side_effect=lambda: events.append('hold')),
+            mock.patch.object(self.worker, 'protect_other_sessions', side_effect=AssertionError('advisory session check')),
+            mock.patch.object(self.power, 'ready', side_effect=lambda: events.append('ready')),
+            mock.patch.object(self.worker, 'helper', side_effect=lambda a: events.append(a)),
+            mock.patch.object(self.worker, 'stop_optional_guests', side_effect=lambda: events.append('guests')),
+            mock.patch.object(self.worker, 'prepare_machine_shutdown', side_effect=lambda: events.append('cleanup')),
+            mock.patch.object(self.worker, 'final_power_action', side_effect=lambda: events.append('handoff')),
+        ):
             self.worker.execute()
-        self.assertEqual(events, ['active', 'accounts', 'ready', 'active', 'accounts', 'prepare', 'accounts', 'inhibitors', 'guests', 'active', 'handoff', 'hold'])
+        self.assertEqual(events, ['ready', 'close', 'guests', 'cleanup', 'handoff', 'hold'])
 
 
 if __name__ == '__main__':

@@ -1,11 +1,24 @@
 #!/usr/bin/env python3
 """r3 launch/policy regressions. No compiler, target service or GUI is used."""
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_stat as payload_source_stat
 from payload_fixture import python_library
 from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 
+import configparser
 import io
+import json
 import os
 from pathlib import Path
 import re
@@ -43,7 +56,6 @@ def profile(name):
 class MullvadNamespaceTests(unittest.TestCase):
     def command(self, kind, path, *args):
         with mock.patch.object(generic, 'assert_launch_allowed'), \
-             mock.patch.object(generic, 'restart_token', return_value='fixture'), \
              mock.patch.object(generic, 'menu_action_wait_arguments', return_value=[]):
             return generic.transient_argv(kind, 'auto', [path, *args], {})
 
@@ -56,7 +68,7 @@ class MullvadNamespaceTests(unittest.TestCase):
                     self.assertFalse(any(v.startswith('--property=' + prop) for v in cmd))
                 for prop in ('PrivateUsers=no', 'PrivatePIDs=no', 'NoNewPrivileges=no', 'Requisite=labwc-session.target',
                              'PartOf=labwc-session.target', 'KillMode=control-group',
-                             'ExitType=cgroup', 'TimeoutStopSec=20s', 'SendSIGKILL=yes'):
+                             'ExitType=main', 'TimeoutStopSec=20s', 'SendSIGKILL=yes'):
                     self.assertIn('--property=' + prop, cmd)
                 self.assertNotIn('--uid=0', cmd)
                 self.assertEqual(cmd[-1], path)
@@ -86,7 +98,7 @@ class MullvadNamespaceTests(unittest.TestCase):
         self.assertIn('StartLimitBurst=20', supervisor)
         untrusted = self.command('wayland', '/tmp/waypaper')
         self.assertIn('--property=PrivateTmp=yes', untrusted)
-        self.assertIn('--property=ExitType=cgroup', untrusted)
+        self.assertIn('--property=ExitType=main', untrusted)
         self.assertFalse(any('swaybg.service' in part for part in untrusted))
         policy = profile('waypaper')
         self.assertIn('/usr/bin/swaybg rPx -> waypaper-swaybg,', policy)
@@ -383,7 +395,6 @@ class AppArmorCoverageTests(unittest.TestCase):
 
     def test_gtk_apps_follow_appearance_mode_and_thunar_disables_gl(self):
         with mock.patch.object(generic, 'assert_launch_allowed'), \
-             mock.patch.object(generic, 'restart_token', return_value='fixture'), \
              mock.patch.object(generic, 'menu_action_wait_arguments', return_value=[]):
             environment = {}
             argv = generic.transient_argv('wayland', 'auto', ['/usr/bin/thunar'], environment)
@@ -411,6 +422,8 @@ class AppArmorCoverageTests(unittest.TestCase):
             self.assertEqual(waybar.count('"on-click": "' + command + '"'), count)
         preferences = ET.fromstring(payload_read_text(skel / 'xfce4/xfconf/xfce-perchannel-xml/thunar.xml'))
         self.assertEqual(preferences.find('property[@name="misc-volume-management"]').get('value'), 'false')
+        reuse = preferences.find('property[@name="misc-open-new-window-as-tab"]')
+        self.assertEqual((reuse.get('type'), reuse.get('value')), ('bool', 'true'))
         for profile in (FORKY / 'hosts/profiles').glob('*.env'):
             self.assertIn('LABWC_FILE_MANAGER_COMMAND="thunar"', profile.read_text())
 
@@ -491,6 +504,59 @@ class AppArmorCoverageTests(unittest.TestCase):
         self.assertNotIn('SuccessExitStatus=', fragment)
         self.assertNotIn('PrivateUsers', fragment)
         self.assertEqual(set(profiles.WAYLAND_COMPAT_APPS), {'zoom', 'discord'})
+
+
+class NativeActivationTests(unittest.TestCase):
+    def command(self, arguments, environment):
+        with (
+            mock.patch.object(generic, 'assert_launch_allowed'),
+            mock.patch.object(generic, 'menu_action_wait_arguments', return_value=[]),
+            mock.patch.object(generic.os, 'getuid', return_value=1000),
+            mock.patch.object(generic.os, 'getcwd', return_value='/fixture/documents'),
+        ):
+            return generic.transient_argv('wayland', 'launch', arguments, environment)
+
+    def test_focuswriter_launches_share_only_their_private_native_ipc_directory(self):
+        environments = [{}, {}]
+        commands = [self.command(['/usr/bin/focuswriter', '/fixture/draft.odt'], env)
+                    for env in environments]
+        self.assertEqual(environments[0]['TMPDIR'], '/run/user/1000/labwc-focuswriter-tmp')
+        self.assertEqual(environments[0]['TMPDIR'], environments[1]['TMPDIR'])
+        for command in commands:
+            for property_ in ('RuntimeDirectory=labwc-focuswriter-tmp', 'RuntimeDirectoryMode=0700',
+                              'RuntimeDirectoryPreserve=yes', 'PrivateTmp=yes', 'PrivateIPC=yes',
+                              'ExitType=main', 'PartOf=labwc-session.target'):
+                self.assertIn('--property=' + property_, command)
+            self.assertIn('--setenv=TMPDIR', command)
+            self.assertNotIn('--property=PrivateTmp=no', command)
+            self.assertEqual(command[-2:], ['/usr/bin/focuswriter', '/fixture/draft.odt'])
+        units = [next(arg for arg in command if arg.startswith('--unit=')) for command in commands]
+        self.assertNotEqual(units[0], units[1])
+        policy = payload_read_text(TARGET / 'etc/apparmor.d/document-applications')
+        focuswriter = policy.split('profile focuswriter ', 1)[1].split('\n}', 1)[0]
+        self.assertIn('owner /run/user/[0-9]*/labwc-focuswriter-tmp/{,**} rwk,', focuswriter)
+        self.assertNotIn('owner /run/user/[0-9]*/**', focuswriter)
+
+    def test_shared_directory_is_limited_to_the_canonical_focuswriter_executable(self):
+        for executable in ('/tmp/focuswriter', '/usr/bin/gnumeric', '/usr/bin/qimgv'):
+            with self.subTest(executable=executable):
+                environment = {}
+                command = self.command([executable], environment)
+                self.assertNotIn('TMPDIR', environment)
+                self.assertFalse(any(arg.startswith('--property=RuntimeDirectory=') for arg in command))
+
+    def test_native_editor_preferences_reuse_windows_and_keep_workspace_trust(self):
+        from theme_fixture import render_theme_defaults
+        skel = TARGET / 'etc/skel-desktop/.config'
+        featherpad = configparser.ConfigParser(interpolation=None)
+        featherpad.read_string('[General]\n' + payload_read_text(skel / 'featherpad/fp.conf'))
+        self.assertFalse(featherpad.getboolean('window', 'openInWindows'))
+        code = json.loads(render_theme_defaults(payload_read_text(skel / 'Code/User/settings.json')))
+        for key in ('window.openFilesInNewWindow', 'window.openFoldersInNewWindow',
+                    'window.openWithoutArgumentsInNewWindow'):
+            self.assertEqual(code[key], 'off')
+        self.assertTrue(code['security.workspace.trust.enabled'])
+        self.assertEqual(code['security.workspace.trust.untrustedFiles'], 'newWindow')
 
 
 class DockDiagnosticTests(unittest.TestCase):

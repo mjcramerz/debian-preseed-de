@@ -1,0 +1,8 @@
+# Foreground qbittorrent proxy inside its existing private network namespace.
+# No daemon, host listener, request log, SOCKS server or administrative service.
+maxconn __INSTALLER_PROXY3_MAXCONN_QBITTORRENT__
+timeouts __INSTALLER_PROXY3_TIMEOUTS_QBITTORRENT__
+auth iponly
+allow * 127.0.0.1 * __INSTALLER_PROXY3_PORTS_ALLOW_QBITTORRENT__ HTTP_CONNECT
+deny *
+proxy -4 -a -i127.0.0.1 -p__INSTALLER_PROXY3_PORT_LISTEN_QBITTORRENT__

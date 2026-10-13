@@ -5,6 +5,17 @@ The Debian in-target/confmodule/debconf-get clients are real; chroot-setup is an
 explicitly reduced protocol fixture and log-output a descriptor-preserving shim.
 """
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from payload_fixture import read_text as payload_module_text
 import hashlib
 import os

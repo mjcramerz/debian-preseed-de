@@ -5,6 +5,16 @@ No artifact is downloaded or executed; run_in_target is intercepted.
 """
 from __future__ import annotations
 
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import hashlib
 import json
 import os
@@ -136,7 +146,7 @@ class IndependentPreflightTests(unittest.TestCase):
                     self.checker['check'](self.seed)
 
     def test_tomat_also_accepts_distinct_profiles_and_checks_each(self):
-        build = runpy.run_path(str(ROOT / 'tools/build.py'), run_name='profile_build')
+        build = runpy.run_path(str(ROOT / 'tools/check_build.py'), run_name='profile_build_checks')
         namespace = build['validate_tomat_profiles'].__globals__
         with mock.patch.dict(namespace, {'SEED': self.seed}):
             for number in range(13):
@@ -170,7 +180,10 @@ class BuildAndDispatchTests(unittest.TestCase):
                 result = subprocess.run(['make', target, 'PYTHON=' + sys.executable],
                                         cwd=root, env=env, capture_output=True, text=True, timeout=120)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                self.assertIn('10 profiles have independently valid release pins', result.stdout)
+                if target == 'check':
+                    self.assertIn('10 profiles have independently valid release pins', result.stdout)
+                else:
+                    self.assertNotIn('independently valid release pins', result.stdout)
             self.assertEqual(before, {str(p.relative_to(seed)): p.read_bytes() for p in profiles})
             manifest = dict(line.split('  ', 1)[::-1]
                             for line in (seed / 'payload.manifest').read_text().splitlines())
@@ -181,15 +194,15 @@ class BuildAndDispatchTests(unittest.TestCase):
                         self.assertEqual(manifest[name], hashlib.sha256(data).hexdigest())
             products = {name: (seed / name).read_bytes()
                         for name in ('payload.tar.gz', 'payload.manifest', 'preseed.cfg')}
-            # Invalid pins must still stop both commands without replacing products.
+            # Generation packages edited bytes; only the explicit check rejects
+            # invalid policy, without replacing any generated products.
             last = profiles[-1]
             last.write_text(last.read_text().replace('RESCTL_BENCH_SHA256="', 'RESCTL_BENCH_SHA256="bad', 1))
-            for target in ('build', 'check'):
-                result = subprocess.run(['make', target, 'PYTHON=' + sys.executable],
-                                        cwd=root, env=env, capture_output=True, text=True, timeout=120)
-                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
-                self.assertIn('invalid RESCTL_BENCH_SHA256', result.stderr)
-                self.assertEqual(products, {name: (seed / name).read_bytes() for name in products})
+            result = subprocess.run(['make', 'check', 'PYTHON=' + sys.executable],
+                                    cwd=root, env=env, capture_output=True, text=True, timeout=120)
+            self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('invalid RESCTL_BENCH_SHA256', result.stderr)
+            self.assertEqual(products, {name: (seed / name).read_bytes() for name in products})
 
     def test_real_shell_forwards_each_profile_pins_without_reusing_previous_release(self):
         shells = [['/bin/sh']]

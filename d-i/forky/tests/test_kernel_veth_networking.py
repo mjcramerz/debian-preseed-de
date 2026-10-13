@@ -4,6 +4,16 @@ No host routes, firewall rules, services, or namespaces are changed here.
 """
 from __future__ import annotations
 
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import array
 import contextlib
 import importlib.util
@@ -65,6 +75,9 @@ def fixture_configuration(apps):
 broker = types.ModuleType("tested_veth_broker")
 broker.__file__ = str(TARGET / "usr/local/sbin/app-veth")
 exec(compile(Path(broker.__file__).read_text(encoding="utf-8"), broker.__file__, "exec"), broker.__dict__)
+# Read canonical fixture bytes, never the image/host installed ruleset.
+broker.read_ruleset_template = lambda: network_identity_text(
+    (TARGET / "etc/app-veth.nft.tmpl").read_text(encoding="ascii"))
 broker.apply_network_identity(DEFAULT_CONFIGURATION["network"])
 podman_adapter = types.ModuleType("tested_podman_adapter")
 podman_adapter.__file__ = str(TARGET / "usr/local/libexec/app-veth-podman")
@@ -132,6 +145,16 @@ class PolicyParsingTests(unittest.TestCase):
             source['apps']['bitwarden'].update(settings)
             with self.subTest(settings=settings), self.assertRaisesRegex(ValueError, 'reserved application network slots'):
                 policy_parser.parse_configuration(json.dumps(source).encode())
+
+    def test_reconnection_uses_its_own_exact_reserved_slot(self):
+        policy = DEFAULT_POLICIES['chromium']
+        self.assertEqual(broker.application_slot(policy, {}, policy['addresses'][1]), policy['slots'][1])
+        occupied = {'other-instance': types.SimpleNamespace(slot=policy['slots'][1])}
+        with self.assertRaisesRegex(ValueError, 'slot is in use'):
+            broker.application_slot(policy, occupied, policy['addresses'][1])
+        for address in (DEFAULT_POLICIES['qbittorrent']['addresses'][0], [], '10.203.0.999'):
+            with self.subTest(address=address), self.assertRaisesRegex(ValueError, 'not reserved'):
+                broker.application_slot(policy, {}, address)
 
     def test_version_two_rejects_missing_unsafe_and_colliding_identities(self):
         source = json.loads(DEFAULT_CONFIG_RAW)
@@ -364,7 +387,7 @@ class AuthorizationTests(unittest.TestCase):
         for app in ("codex", "keepassxc"):
             with self.subTest(app=app), self.assertRaises(ValueError):
                 self.request({"app": app}, policies=policies)
-        _pid, _uid, app, descriptor = self.request({"app": "new-client"}, policies=policies)
+        _pid, _uid, app, descriptor, _address = self.request({"app": "new-client"}, policies=policies)
         os.close(descriptor)
         self.assertEqual(app, "new-client")
 
@@ -409,12 +432,24 @@ class AuthorizationTests(unittest.TestCase):
             left.close(); right.close(); os.close(descriptor)
 
     def test_real_fd_transfer_is_cloexec_and_ownership_checked(self):
-        _pid, uid, app, fd = self.request({"app": "codex"})
+        _pid, uid, app, fd, _address = self.request({"app": "codex"})
         try:
             self.assertEqual((uid, app), (os.getuid(), "codex"))
             self.assertFalse(os.get_inheritable(fd))
         finally:
             os.close(fd)
+
+    def test_reconnect_address_is_validated_before_namespace_transfer(self):
+        address = DEFAULT_POLICIES['codex']['addresses'][1]
+        _pid, _uid, _app, fd, requested = self.request({'app': 'codex', 'address': address})
+        try:
+            self.assertEqual(requested, address)
+            self.assertFalse(os.get_inheritable(fd))
+        finally:
+            os.close(fd)
+        for invalid in (None, [], DEFAULT_POLICIES['qbittorrent']['addresses'][0], '127.0.0.1'):
+            with self.subTest(address=invalid), self.assertRaisesRegex(ValueError, 'not reserved'):
+                self.request({'app': 'codex', 'address': invalid})
 
     def test_untrusted_app_or_extra_request_fields_fail_closed(self):
         before = len(list(Path("/proc/self/fd").iterdir()))
@@ -516,6 +551,116 @@ class AuthorizationTests(unittest.TestCase):
                     mock.patch.object(client.socket, "socket", return_value=channel), self.assertRaises(ValueError):
                 client.Lease(3, "podman")
             channel.sendmsg.assert_not_called()
+
+
+class LeaseRecoveryTests(unittest.TestCase):
+    def make_lease(self):
+        left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        lease = object.__new__(client.Lease)
+        lease.socket = left
+        lease.namespace_fd = os.open('/dev/null', os.O_RDONLY | os.O_CLOEXEC)
+        lease.app = 'qbittorrent'
+        lease.address = DEFAULT_POLICIES[lease.app]['addresses'][0]
+        lease.gateway = str(ipaddress.IPv4Address(lease.address) - 1)
+        lease.interface = DEFAULT_CONFIGURATION['network']['namespace_interface']
+        lease.peer_port = DEFAULT_POLICIES[lease.app]['peer_port']
+        lease.retry_at = None
+        self.addCleanup(lease.close)
+        self.addCleanup(right.close)
+        return lease, right
+
+    def channel(self, lease, *, uid=0):
+        channel = mock.Mock()
+        channel.getsockopt.return_value = struct.pack('3i', 12, uid, uid)
+        response = {'ready': True, 'address': lease.address, 'gateway': lease.gateway,
+                    'interface': lease.interface, 'peer_port': lease.peer_port}
+        channel.recvmsg.return_value = (json.dumps(response).encode(), [], 0, None)
+        return channel
+
+    def test_live_lease_has_no_periodic_retry_or_reconnection(self):
+        lease, _peer = self.make_lease()
+        with mock.patch.object(client, 'control_socket_owner') as ownership, \
+                mock.patch.object(client.time, 'monotonic') as clock:
+            lease.maintain()
+            self.assertIsNone(lease.retry_timeout())
+        ownership.assert_not_called()
+        clock.assert_not_called()
+
+    def test_broker_restart_authenticates_and_requests_the_same_namespace_and_address(self):
+        lease, peer = self.make_lease()
+        peer.close()
+        namespace = lease.namespace_fd
+        channel = self.channel(lease)
+        with mock.patch.object(client, '_configuration', return_value=DEFAULT_CONFIGURATION), \
+                mock.patch.object(client, 'control_socket_owner', return_value=0), \
+                mock.patch.object(client.socket, 'socket', return_value=channel), \
+                mock.patch.object(client, 'emit'):
+            lease.maintain()
+        self.assertIs(lease.socket, channel)
+        self.assertIsNone(lease.retry_at)
+        packet, ancillary = channel.sendmsg.call_args.args
+        self.assertEqual(json.loads(packet[0]), {'app': 'qbittorrent', 'address': lease.address})
+        self.assertEqual(list(ancillary[0][2]), [namespace])
+        self.assertFalse(os.get_inheritable(namespace))
+        lease.close()
+        channel.close.assert_called_once()
+        with self.assertRaises(OSError):
+            os.fstat(namespace)
+
+    def test_untrusted_broker_leaves_gui_offline_and_retries_only_after_deadline(self):
+        lease, peer = self.make_lease()
+        peer.close()
+        channel = self.channel(lease, uid=1000)
+        with mock.patch.object(client, 'control_socket_owner', return_value=0), \
+                mock.patch.object(client.socket, 'socket', return_value=channel) as connect, \
+                mock.patch.object(client.time, 'monotonic', return_value=100), \
+                mock.patch.object(client, 'emit'):
+            lease.maintain()
+            lease.maintain()
+            self.assertEqual(lease.retry_timeout(), 5)
+        self.assertIsNone(lease.socket)
+        self.assertEqual(lease.retry_at, 105)
+        self.assertEqual(connect.call_count, 1)
+        channel.sendmsg.assert_not_called()
+        channel.close.assert_called_once()
+        self.assertGreaterEqual(lease.namespace_fd, 0)
+
+    def test_acquisition_failure_closes_the_retained_descriptor(self):
+        source = os.open('/dev/null', os.O_RDONLY | os.O_CLOEXEC)
+        duplicate = os.dup(source)
+        try:
+            with mock.patch.object(client.os, 'dup', return_value=duplicate), \
+                    mock.patch.object(client.Lease, '__init__', side_effect=ValueError('untrusted')):
+                with self.assertRaisesRegex(ValueError, 'untrusted'):
+                    client.Lease.for_namespace(source, 'qbittorrent')
+            with self.assertRaises(OSError):
+                os.fstat(duplicate)
+            os.fstat(source)
+        finally:
+            os.close(source)
+
+
+class CommandResultTests(unittest.TestCase):
+    def test_empty_conntrack_delete_is_distinguished_from_administrative_errors(self):
+        command = ['/usr/sbin/conntrack', '-D', '-f', 'ipv4', '--orig-src', '10.203.0.114']
+        cases = ((1, b'conntrack v1.4.9 (conntrack-tools): 0 flow entries have been deleted.\n', True),
+                 (1, b'conntrack v1.4.9 (conntrack-tools): Operation failed: Permission denied\n', False),
+                 (1, b'', False), (2, b'0 flow entries have been deleted.\n', False))
+        for status, output, accepted in cases:
+            def result(argv, **options):
+                self.assertEqual(argv, command)
+                self.assertEqual(options['env'], broker.ENV)
+                self.assertEqual(options['timeout'], 5)
+                self.assertEqual(options['stdout'], subprocess.DEVNULL)
+                options['stderr'].write(output)
+                return types.SimpleNamespace(returncode=status)
+            with self.subTest(status=status, output=output), \
+                    mock.patch.object(broker.subprocess, 'run', side_effect=result):
+                if accepted:
+                    self.assertEqual(broker.run(command, empty_conntrack_delete=True), output.decode())
+                else:
+                    with self.assertRaises(RuntimeError):
+                        broker.run(command, empty_conntrack_delete=True)
 
 
 class ResolverTests(unittest.TestCase):
@@ -724,7 +869,7 @@ class AdministrationTests(unittest.TestCase):
     def test_qbittorrent_dnat_is_exact_tcp_udp_and_route_pinned(self):
         network = self.network("qbittorrent")
         self.addCleanup(network.close)
-        transaction = self.transactions[0]
+        transaction = ''.join(self.transactions)
         for transport in ("tcp", "udp"):
             self.assertIn(f'192.0.2.8 . {transport} . 50309 : 10.203.0.14 . 50309', transaction)
             self.assertIn(f'"veth3-app" . {transport} . 50309 : 192.0.2.8 . 50309', transaction)
@@ -734,6 +879,27 @@ class AdministrationTests(unittest.TestCase):
         self.assertIn('pinned { "veth3-app" . "wg0" }', transaction)
         self.assertNotIn('outbound {', transaction)
         self.assertEqual(broker.Network.reserve.call_count, 2)
+        self.assertIn('add element inet app_veth no_http { "veth3-app" }', transaction)
+        forward = broker.RULESET.split('chain forward_guard {', 1)[1]
+        self.assertLess(forward.index('iifname @no_http'), forward.index('iifname @outbound accept'))
+        self.assertLess(forward.index('iifname @no_http'), forward.index('iifname . oifname @pinned accept'))
+        network.close()
+        self.assertIn('delete element inet app_veth no_http { "veth3-app" }', self.transactions[-1])
+
+    def test_browser_port_guard_is_lease_owned_and_precedes_egress_accepts(self):
+        for app in ("chromium", "microsoft-edge", "vivaldi", "mullvad-browser"):
+            with self.subTest(app=app):
+                network = self.network(app)
+                transaction = self.transactions[-1]
+                self.assertIn('add element inet app_veth web_tls_only { "veth3-app" }', transaction)
+                network.close()
+                self.assertIn('delete element inet app_veth web_tls_only { "veth3-app" }', self.transactions[-1])
+        forward = broker.RULESET.split('chain forward_guard {', 1)[1]
+        for guard in ('meta l4proto != tcp', 'tcp dport != @web_ports'):
+            self.assertLess(forward.index(guard), forward.index('iifname @outbound accept'))
+            self.assertLess(forward.index(guard), forward.index('iifname . oifname @pinned accept'))
+        host = broker.RULESET.split('chain host_guard {', 1)[1].split('chain forward_guard', 1)[0]
+        self.assertIn('iifname @web_tls_only iifname != @lan_blocked', host)
 
     def test_discord_rpc_is_only_fixed_host_loopback_ports(self):
         network = self.network("discord")
@@ -746,12 +912,21 @@ class AdministrationTests(unittest.TestCase):
         for call in broker.Network.reserve.call_args_list:
             self.assertEqual(call.args[0], "127.0.0.1")
 
+    def test_qbittorrent_privacy_lease_also_blocks_port_80_and_reclaims_the_guard(self):
+        network = self.network('qbittorrent-privacy')
+        self.addCleanup(network.close)
+        self.assertIn('add element inet app_veth no_http { "veth3-app" }', self.transactions[0])
+        self.assertIn('outbound { "veth3-app" }', self.transactions[0])
+        network.close()
+        self.assertIn('delete element inet app_veth no_http { "veth3-app" }', self.transactions[-1])
+
     def test_freerdp_egress_is_routed_to_lan_and_wan_without_destination_or_port_pin(self):
         network = self.network("freerdp")
         self.addCleanup(network.close)
         self.assertIn('outbound { "veth3-app" }', self.transactions[0])
         self.assertNotIn('pinned {', self.transactions[0])
         self.assertNotIn('incoming {', self.transactions[0])
+        self.assertNotIn('no_http {', self.transactions[0])
         broker.route.assert_called_with(allow_lan=True)
         forward = broker.RULESET.split('chain forward_guard {', 1)[1].split('chain nat {', 1)[0]
         self.assertIn('iifname @outbound accept', forward)
@@ -895,50 +1070,95 @@ class AdministrationTests(unittest.TestCase):
         policy = fixture_configuration({"new-client": {"network": True, "peer_port": 4242}})["apps"]["new-client"]
         network = broker.Network(3, 70, "new-client", 1000, policy, ipaddress.IPv4Network("10.203.0.0/24"), self.endpoints)
         self.addCleanup(network.close)
-        self.assertIn('192.0.2.8 . tcp . 4242 : 10.203.0.14 . 4242', self.transactions[0])
-        self.assertIn('192.0.2.8 . udp . 4242 : 10.203.0.14 . 4242', self.transactions[0])
-        self.assertIn('pinned { "veth3-app" . "wg0" }', self.transactions[0])
+        self.assertIn('192.0.2.8 . tcp . 4242 : 10.203.0.14 . 4242', ''.join(self.transactions))
+        self.assertIn('192.0.2.8 . udp . 4242 : 10.203.0.14 . 4242', ''.join(self.transactions))
+        self.assertIn('pinned { "veth3-app" . "wg0" }', ''.join(self.transactions))
 
-    def test_changed_or_missing_pinned_route_revokes_only_affected_leases(self):
-        for current in (('eth0', '192.0.2.9', 1500), None):
-            with self.subTest(current=current):
-                stable = mock.Mock(pinned_route=current if current is not None else ('wg0', '192.0.2.8', 1420))
-                changed = mock.Mock(pinned_route=('wg0', '192.0.2.8', 1420))
-                unpinned = mock.Mock(pinned_route=None)
-                for lease in (stable, changed, unpinned):
-                    lease.route_unavailable_since = None
-                channels = [mock.Mock() for _ in range(3)]
-                leases = dict(zip(channels, (stable, changed, unpinned)))
-                manager = mock.Mock()
-                if current is not None:
-                    with mock.patch.object(broker, 'route', return_value=current), \
-                            mock.patch.object(broker.os, 'close') as close_fd:
-                        broker.refresh_pinned_routes(manager, leases)
-                    changed.close.assert_called_once()
-                    self.assertNotIn(channels[1], leases)
-                    stable.close.assert_not_called()
-                    self.assertIn(channels[0], leases)
-                    close_fd.assert_called_once_with(changed.nsfd)
-                else:
-                    with mock.patch.object(broker, 'route', side_effect=ValueError('route lost')), \
-                            mock.patch.object(broker.time, 'monotonic', return_value=100.0), \
-                            mock.patch.object(broker.os, 'close'):
-                        broker.refresh_pinned_routes(manager, leases)
-                    stable.close.assert_not_called()
-                    changed.close.assert_not_called()
-                    self.assertIn(channels[0], leases)
-                    self.assertIn(channels[1], leases)
-                    with mock.patch.object(broker, 'route', side_effect=ValueError('route lost')), \
-                            mock.patch.object(broker.time, 'monotonic', return_value=111.0), \
-                            mock.patch.object(broker.os, 'close') as close_fd:
-                        broker.refresh_pinned_routes(manager, leases)
-                    stable.close.assert_called_once()
-                    changed.close.assert_called_once()
-                    self.assertNotIn(channels[0], leases)
-                    self.assertNotIn(channels[1], leases)
-                    self.assertEqual(close_fd.call_count, 2)
-                unpinned.close.assert_not_called()
-                self.assertIn(channels[2], leases)
+    def test_uplink_switch_and_prolonged_outage_keep_the_same_namespace_and_lease(self):
+        network = self.network('qbittorrent')
+        self.addCleanup(network.close)
+        channel = mock.Mock()
+        leases = {channel: network}
+        original = (network.nsfd, network.slot, network.address, network.interface)
+        for current in (('wifi0', '192.0.2.9', 1500), None, None,
+                        ('eth0', '192.0.2.10', 1400), ('tailscale0', '100.64.0.1', 1280)):
+            self.calls.clear()
+            self.transactions.clear()
+            kwargs = {'return_value': current} if current is not None else {'side_effect': ValueError('offline')}
+            with mock.patch.object(broker, 'route', **kwargs):
+                broker.refresh_routes(leases)
+            self.assertEqual((network.nsfd, network.slot, network.address, network.interface), original)
+            self.assertEqual(leases, {channel: network})
+            channel.close.assert_not_called()
+            self.assertEqual(network.uplink, current)
+            if current is None:
+                self.assertFalse(any(argv[-1] == 'up' for argv, _ in self.calls))
+                self.assertEqual(network.route_remove, [])
+            else:
+                transaction = ''.join(self.transactions)
+                self.assertIn(f'"veth3-app" . "{current[0]}"', transaction)
+                self.assertIn(f'{current[1]} . tcp . 50309 : 10.203.0.14 . 50309', transaction)
+                self.assertIn(f'{current[1]} . udp . 50309 : 10.203.0.14 . 50309', transaction)
+                self.assertEqual([argv for argv, _ in self.calls if argv[0] == '/usr/sbin/conntrack'],
+                    [['/usr/sbin/conntrack', '-D', '-f', 'ipv4', direction, '10.203.0.14']
+                     for direction in ('--orig-src', '--reply-src')])
+                self.assertIn((['/usr/sbin/ip', 'link', 'set', 'dev', 'veth3-app', 'mtu', str(current[2]), 'up'], {}), self.calls)
+
+    def test_offline_initial_launch_retains_guards_and_recovers_without_recreating_links(self):
+        for app in ('qbittorrent', 'vivaldi'):
+            with self.subTest(app=app), mock.patch.object(broker, 'route', side_effect=ValueError('offline')):
+                network = self.network(app)
+            self.addCleanup(network.close)
+            self.assertTrue(network.installed)
+            self.assertTrue(network.attached)
+            self.assertIsNone(network.uplink)
+            self.calls.clear()
+            network.refresh_route(('wifi0', '192.0.2.9', 1500))
+            self.assertEqual(network.uplink, ('wifi0', '192.0.2.9', 1500))
+            self.assertFalse(any('netns' in argv or 'add' in argv for argv, _ in self.calls))
+            network.close()
+
+    def test_failed_route_transaction_keeps_link_down_and_retries_without_closing_lease(self):
+        network = self.network('qbittorrent')
+        self.addCleanup(network.close)
+        self.calls.clear()
+        target = ('wifi0', '192.0.2.9', 1500)
+        with mock.patch.object(broker, 'nft', side_effect=RuntimeError('atomic update failed')), \
+                mock.patch.object(broker.time, 'monotonic', return_value=100):
+            network.refresh_route(target)
+            network.refresh_route(target)  # Its own DOWN notification must not busy-loop.
+        self.assertEqual(network.route_retry_at, 105)
+        self.assertEqual(sum(argv[-1] == 'down' for argv, _ in self.calls), 1)
+        self.assertFalse(any(argv[-1] == 'up' for argv, _ in self.calls))
+        self.assertTrue(network.attached)
+        self.assertTrue(network.installed)
+        with mock.patch.object(broker.time, 'monotonic', return_value=105):
+            network.refresh_route(target)
+        self.assertIsNone(network.route_retry_at)
+        self.assertIn('delete element inet app_veth pinned { "veth3-app" . "wg0" }', self.transactions[-1])
+        self.assertIn('add element inet app_veth pinned { "veth3-app" . "wifi0" }', self.transactions[-1])
+
+    def test_unchanged_route_does_not_reset_live_connections_or_spawn_commands(self):
+        network = self.network('qbittorrent')
+        self.addCleanup(network.close)
+        self.calls.clear()
+        self.transactions.clear()
+        network.refresh_route(network.uplink)
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.transactions, [])
+
+    def test_mtu_only_change_preserves_firewall_ports_and_conntrack(self):
+        network = self.network('qbittorrent')
+        self.addCleanup(network.close)
+        self.calls.clear()
+        self.transactions.clear()
+        reserves = broker.Network.reserve.call_count
+        network.refresh_route(('wg0', '192.0.2.8', 1400))
+        self.assertEqual(network.uplink, ('wg0', '192.0.2.8', 1400))
+        self.assertEqual(len(self.calls), 2)
+        self.assertTrue(all('mtu' in argv and argv[-1] == '1400' for argv, _ in self.calls))
+        self.assertEqual(self.transactions, [])
+        self.assertEqual(broker.Network.reserve.call_count, reserves)
 
     def test_all_current_and_future_app_policies_reuse_fixed_host_names_without_renaming(self):
         for app in sorted(set(DEFAULT_POLICIES) | {"future-desktop-app"}):
@@ -1018,83 +1238,63 @@ class DNSFrontendReadinessTests(unittest.TestCase):
 
 
 class BrokerLifecycleTests(unittest.TestCase):
-    def test_route_deadline_uses_the_earliest_outage_without_polling_healthy_leases(self):
-        healthy = types.SimpleNamespace(pinned_route=('wg0', '192.0.2.8', 1420), route_unavailable_since=None)
-        unpinned = types.SimpleNamespace(pinned_route=None, route_unavailable_since=10)
+    def test_only_failed_administrative_updates_have_retry_deadlines(self):
+        healthy = types.SimpleNamespace(route_retry_at=None)
+        offline = types.SimpleNamespace(route_retry_at=None)
         with mock.patch.object(broker.time, 'monotonic', return_value=102) as clock:
-            self.assertIsNone(broker.pinned_route_timeout({}))
-            self.assertIsNone(broker.pinned_route_timeout({1: healthy, 2: unpinned}))
+            self.assertIsNone(broker.route_retry_timeout({}))
+            self.assertIsNone(broker.route_retry_timeout({1: healthy, 2: offline}))
             clock.assert_not_called()
-            outages = {1: types.SimpleNamespace(pinned_route=healthy.pinned_route, route_unavailable_since=100),
-                       2: types.SimpleNamespace(pinned_route=healthy.pinned_route, route_unavailable_since=101)}
-            self.assertEqual(broker.pinned_route_timeout(outages), 8)
-        with mock.patch.object(broker.time, 'monotonic', return_value=111):
-            self.assertEqual(broker.pinned_route_timeout(outages), 0)
+            failed = {1: types.SimpleNamespace(route_retry_at=105),
+                      2: types.SimpleNamespace(route_retry_at=106)}
+            self.assertEqual(broker.route_retry_timeout(failed), 3)
+        with mock.patch.object(broker.time, 'monotonic', return_value=107):
+            self.assertEqual(broker.route_retry_timeout(failed), 0)
 
-    def test_route_grace_expires_without_further_netlink_events_even_with_client_activity(self):
-        for outcome in ('quiet-outage', 'busy-outage', 'route-restored'):
-            with self.subTest(outcome=outcome), tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
-                nsfd = os.open('/dev/null', os.O_RDONLY | os.O_CLOEXEC)
-                stack.callback(supervisor.close_file_descriptor, nsfd)
-                network = mock.Mock(nsfd=nsfd, slot=28, address='10.203.0.114',
-                                    gateway='10.203.0.113', interface='eth0',
-                                    pinned_route=('wg0', '192.0.2.8', 1420), route_unavailable_since=None)
-                channel = mock.Mock()
-                rejected = mock.Mock()
-                listener = mock.Mock()
-                listener.accept.side_effect = ((channel, None), (rejected, None))
-                watcher = mock.Mock()
-                watcher.recv.side_effect = BlockingIOError
-                selector = mock.Mock()
-                clock = [100.0]
-                waits = []
-                def select_events(timeout):
-                    waits.append(timeout)
-                    if len(waits) == 1:
-                        return [(types.SimpleNamespace(fileobj=listener), 1)]
-                    if len(waits) == 2:
-                        return [(types.SimpleNamespace(fileobj=watcher), 1)]
-                    if len(waits) == 3:
-                        clock[0] = 110.0
-                        return [(types.SimpleNamespace(fileobj=listener), 1)] if outcome == 'busy-outage' else []
-                    raise KeyboardInterrupt
-                selector.select.side_effect = select_events
-                for name, value in (('recover_endpoints', None), ('wait_dns_frontend', None),
-                                    ('select_pool', ipaddress.IPv4Network('10.203.0.0/23')),
-                                    ('configuration', (1000, DEFAULT_POLICIES)), ('refresh_lan_networks', ()),
-                                    ('EndpointPool', mock.Mock()), ('Network', network), ('nft', None)):
-                    stack.enter_context(mock.patch.object(broker, name, return_value=value))
-                stack.enter_context(mock.patch.object(broker, 'receive', side_effect=(
-                    (1234, 1000, 'qbittorrent', nsfd), ValueError('invalid request'))))
-                second_route = network.pinned_route if outcome == 'route-restored' else ValueError('route lost')
-                routes = stack.enter_context(mock.patch.object(broker, 'route', side_effect=(ValueError('route lost'), second_route)))
-                events = stack.enter_context(mock.patch.object(broker, 'event'))
-                stack.enter_context(mock.patch.object(broker.os, 'geteuid', return_value=0))
-                stack.enter_context(mock.patch.object(broker.os, 'chmod'))
-                stack.enter_context(mock.patch.object(broker.Path, 'read_text', return_value='1'))
-                stack.enter_context(mock.patch.object(broker, 'SOCKET_PATH', str(Path(directory) / 'control.sock')))
-                stack.enter_context(mock.patch.object(broker.selectors, 'DefaultSelector', return_value=selector))
-                stack.enter_context(mock.patch.object(broker.socket, 'socket', side_effect=(watcher, listener)))
-                stack.enter_context(mock.patch.dict(broker.os.environ, {'NOTIFY_SOCKET': ''}))
-                stack.enter_context(mock.patch.object(broker.time, 'monotonic', side_effect=lambda: clock[0]))
-                stack.enter_context(mock.patch.object(broker.signal, 'signal'))
-                with self.assertRaises(KeyboardInterrupt):
-                    broker.main()
-                self.assertEqual(waits, [None, None, 10, None])
-                self.assertEqual(routes.call_count, 2)
-                names = [call.args[0] for call in events.call_args_list]
-                self.assertIn('network_route_unavailable', names)
-                if outcome == 'route-restored':
-                    self.assertIn('network_route_restored', names)
-                    self.assertNotIn('network_route_changed', names)
-                    selector.unregister.assert_not_called()
-                else:
-                    self.assertIn('network_route_changed', names)
-                    selector.unregister.assert_called_once_with(channel)
-                network.close.assert_called_once()
-                channel.close.assert_called_once()
-                with self.assertRaises(OSError):
-                    os.fstat(nsfd)
+    def test_main_route_notification_updates_lease_and_only_shutdown_closes_it(self):
+        with tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
+            nsfd = os.open('/dev/null', os.O_RDONLY | os.O_CLOEXEC)
+            network = mock.Mock(nsfd=nsfd, slot=28, address='10.203.0.114',
+                gateway='10.203.0.113', interface='eth0', pinned=True, route_retry_at=None)
+            channel, listener, watcher, selector = [mock.Mock() for _ in range(4)]
+            listener.accept.return_value = (channel, None)
+            watcher.recv.side_effect = BlockingIOError
+            waits = []
+            def select_events(timeout):
+                waits.append(timeout)
+                if len(waits) == 1:
+                    return [(types.SimpleNamespace(fileobj=listener), 1)]
+                if len(waits) == 2:
+                    return [(types.SimpleNamespace(fileobj=watcher), 1)]
+                network.close.assert_not_called()
+                channel.close.assert_not_called()
+                selector.unregister.assert_not_called()
+                raise KeyboardInterrupt
+            selector.select.side_effect = select_events
+            for name, value in (('recover_endpoints', None), ('wait_dns_frontend', None),
+                    ('select_pool', ipaddress.IPv4Network('10.203.0.0/23')),
+                    ('configuration', (1000, DEFAULT_POLICIES)), ('refresh_lan_networks', ()),
+                    ('EndpointPool', mock.Mock()), ('Network', network), ('nft', None)):
+                stack.enter_context(mock.patch.object(broker, name, return_value=value))
+            stack.enter_context(mock.patch.object(broker, 'receive', return_value=(1234, 1000, 'qbittorrent', nsfd, None)))
+            stack.enter_context(mock.patch.object(broker, 'route', side_effect=ValueError('offline')))
+            stack.enter_context(mock.patch.object(broker, 'event'))
+            stack.enter_context(mock.patch.object(broker.os, 'geteuid', return_value=0))
+            stack.enter_context(mock.patch.object(broker.os, 'chmod'))
+            stack.enter_context(mock.patch.object(broker.Path, 'read_text', return_value='1'))
+            stack.enter_context(mock.patch.object(broker, 'SOCKET_PATH', str(Path(directory) / 'control.sock')))
+            stack.enter_context(mock.patch.object(broker.selectors, 'DefaultSelector', return_value=selector))
+            stack.enter_context(mock.patch.object(broker.socket, 'socket', side_effect=(watcher, listener)))
+            stack.enter_context(mock.patch.dict(broker.os.environ, {'NOTIFY_SOCKET': ''}))
+            stack.enter_context(mock.patch.object(broker.signal, 'signal'))
+            with self.assertRaises(KeyboardInterrupt):
+                broker.main()
+            self.assertEqual(waits, [None, None, None])
+            network.refresh_route.assert_called_once_with(None)
+            network.close.assert_called_once()
+            channel.close.assert_called_once()
+            with self.assertRaises(OSError):
+                os.fstat(nsfd)
 
     def test_startup_failure_closes_owned_resources_and_preserves_unsafe_socket_paths(self):
         for fault in ('route', 'unsafe-socket', 'pool'):
@@ -1163,6 +1363,28 @@ class BrokerLifecycleTests(unittest.TestCase):
 
 
 class SupervisorTests(unittest.TestCase):
+    def test_sandbox_wrapper_forwards_shutdown_policy_and_callbacks_to_real_signature(self):
+        command = ['/usr/bin/bwrap', '--unshare-all', '--proc', '/proc']
+        payload = ['/usr/bin/chromium']
+        precheck, runtime_check, deadline, failure = (mock.Mock() for _ in range(4))
+        for graceful in (False, True):
+            with self.subTest(graceful=graceful), mock.patch.object(
+                    supervisor, 'run_veth_sandbox', autospec=True, return_value=37) as launch:
+                self.assertEqual(sandbox.run_veth_sandbox(
+                    command, payload, '/fixture', (7,), app='chromium',
+                    pre_payload_check=precheck, runtime_check=runtime_check,
+                    cleanup_deadline=deadline, cleanup_failure=failure,
+                    network=False, graceful_shutdown=graceful), 37)
+                launch.assert_called_once_with(
+                    command, payload, '/fixture', (7,), app='chromium',
+                    pre_payload_check=precheck, runtime_check=runtime_check,
+                    cleanup_deadline=deadline, cleanup_failure=failure,
+                    network=False, graceful_shutdown=graceful)
+        with mock.patch.object(supervisor, 'run_veth_sandbox', autospec=True, return_value=0) as launch:
+            self.assertEqual(sandbox.run_veth_sandbox(command, payload, '/fixture', (), app='keepassxc'), 0)
+            self.assertFalse(launch.call_args.kwargs['graceful_shutdown'])
+            self.assertTrue(launch.call_args.kwargs['network'])
+
     def test_native_wait_observes_child_exit_without_polling(self):
         with subprocess.Popen([sys.executable, '-I', '-B', '-c', 'raise SystemExit(37)']) as process:
             self.assertEqual(supervisor.wait_for_payload(process, None), 37)
@@ -1171,6 +1393,7 @@ class SupervisorTests(unittest.TestCase):
         left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
         lease = object.__new__(client.Lease)
         lease.socket = left
+        lease.retry_at = None
         opened = []
         native_open = os.pidfd_open
         with subprocess.Popen([sys.executable, '-I', '-B', '-c',
@@ -1196,31 +1419,25 @@ class SupervisorTests(unittest.TestCase):
                 left.close()
                 right.close()
 
-    def test_native_wait_observes_lease_loss_and_closes_its_pidfd(self):
-        left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
-        lease = object.__new__(client.Lease)
-        lease.socket = left
-        with subprocess.Popen([sys.executable, '-I', '-B', '-c',
-                               'import time; time.sleep(5)']) as process:
-            opened = []
-            native_open = os.pidfd_open
-            def open_then_disconnect(pid):
-                descriptor = native_open(pid)
-                opened.append(descriptor)
-                right.close()
-                return descriptor
-            try:
-                with mock.patch.object(supervisor.os, 'pidfd_open', side_effect=open_then_disconnect), \
-                        self.assertRaisesRegex(RuntimeError, 'lease ended'):
-                    supervisor.wait_for_payload(process, lease)
-                self.assertEqual(len(opened), 1)
-                with self.assertRaises(OSError):
-                    os.fstat(opened[0])
-            finally:
-                process.terminate()
-                process.wait(timeout=3)
-                left.close()
-                right.close()
+    def test_payload_wait_survives_broker_loss_until_normal_process_exit(self):
+        descriptor = os.open('/dev/null', os.O_RDONLY | os.O_CLOEXEC)
+        process = mock.Mock(pid=1234)
+        process.poll.return_value = None
+        process.wait.return_value = 37
+        lease = mock.Mock(socket=mock.Mock())
+        lease.retry_timeout.return_value = None
+        def disconnected():
+            lease.socket = None
+            lease.retry_timeout.return_value = 5
+        lease.maintain.side_effect = disconnected
+        with mock.patch.object(supervisor.os, 'pidfd_open', return_value=descriptor), \
+                mock.patch.object(supervisor.select, 'select', return_value=([descriptor], [], [])) as wait:
+            self.assertEqual(supervisor.wait_for_payload(process, lease), 37)
+        wait.assert_called_once_with([descriptor], [], [], 5)
+        lease.check.assert_not_called()
+        process.terminate.assert_not_called()
+        with self.assertRaises(OSError):
+            os.fstat(descriptor)
 
     def test_offline_payload_is_gated_and_its_namespace_is_reaped_without_a_lease(self):
         process = mock.Mock()
@@ -1261,22 +1478,23 @@ class SupervisorTests(unittest.TestCase):
         kill_index = next(i for i,item in enumerate(events) if item[0] == "kill")
         self.assertTrue(all(i > kill_index for i,item in enumerate(events) if item == ("close", pidfd)))
 
-    def test_lease_loss_stops_payload_and_closes_lease(self):
-        sandbox = mock.Mock()
-        sandbox.poll.return_value = None
+    def test_runtime_network_pause_does_not_stop_the_payload(self):
+        process = mock.Mock()
+        process.poll.return_value = None
+        process.wait.return_value = 37
         lease = mock.Mock()
-        lease.check.side_effect = [None, RuntimeError("lease lost")]
-        pidfd = os.open("/dev/null", os.O_RDONLY)
-        with mock.patch.object(supervisor.subprocess, "Popen", return_value=sandbox), \
-                mock.patch.object(supervisor, "_read_bwrap_sandbox_pid", return_value=1234), \
-                mock.patch.object(supervisor, "pin_sandbox_init", return_value=pidfd), \
-                mock.patch.object(client.Lease, "for_pid", return_value=lease), \
-                mock.patch.object(supervisor.signal, "pidfd_send_signal") as terminate_namespace, \
-                mock.patch.object(supervisor.os, "write"), \
-                mock.patch.object(supervisor, "_stop_subprocess") as stop, self.assertRaises(SystemExit):
-            supervisor.run_veth_sandbox(["/usr/bin/bwrap"], ["/usr/bin/true"], "/unused", (), app="codex")
-        stop.assert_called_once_with(sandbox)
-        terminate_namespace.assert_called_once_with(pidfd, supervisor.signal.SIGKILL)
+        pidfd = os.open('/dev/null', os.O_RDONLY)
+        with mock.patch.object(supervisor.subprocess, 'Popen', return_value=process), \
+                mock.patch.object(supervisor, '_read_bwrap_sandbox_pid', return_value=1234), \
+                mock.patch.object(supervisor, 'pin_sandbox_init', return_value=pidfd), \
+                mock.patch.object(client.Lease, 'for_pid', return_value=lease), \
+                mock.patch.object(supervisor.signal, 'pidfd_send_signal'), \
+                mock.patch.object(supervisor.os, 'write'), \
+                mock.patch.object(supervisor, '_stop_subprocess'):
+            self.assertEqual(supervisor.run_veth_sandbox(['/usr/bin/bwrap'], ['/usr/bin/true'],
+                '/unused', (), app='codex', runtime_check=mock.Mock()), 37)
+        lease.check.assert_called_once()  # Strict startup acknowledgment.
+        lease.maintain.assert_called_once()  # Runtime recovery does not throw for broker loss.
         lease.close.assert_called_once()
 
     def test_normal_payload_exit_ends_pinned_namespace_before_releasing_network(self):
@@ -1296,6 +1514,59 @@ class SupervisorTests(unittest.TestCase):
             self.assertEqual(supervisor.run_veth_sandbox(["bwrap"], ["app"], "/unused", (), app="mpv"), 0)
         stop.assert_called_once_with(pidfd, supervisor.signal.SIGKILL)
         self.assertEqual(events, ["namespace-stop", "lease-close"])
+
+    def test_requested_shutdown_waits_only_for_an_authorized_payload_before_namespace_cleanup(self):
+        for outcome in ('exit', 'timeout', 'setup-stop', 'lease-loss'):
+            with self.subTest(outcome=outcome):
+                events = []
+                handlers = {}
+                process = mock.Mock()
+                process.poll.return_value = None
+                lease = mock.Mock()
+                lease.close.side_effect = lambda: events.append('lease-close')
+                pidfd = os.open('/dev/null', os.O_RDONLY)
+                original_mask = signal.pthread_sigmask(signal.SIG_BLOCK, ())
+
+                def wait(timeout):
+                    self.assertEqual(timeout, supervisor.PROCESS_GRACEFUL_STOP_TIMEOUT_SECONDS)
+                    events.append('graceful-wait')
+                    if outcome == 'timeout':
+                        raise subprocess.TimeoutExpired('fixture', timeout)
+                    return 0
+
+                process.wait.side_effect = wait
+                def interrupted(*args):
+                    if outcome == 'lease-loss':
+                        raise RuntimeError('lease lost')
+                    handlers[signal.SIGINT](signal.SIGINT, None)
+
+                def register(signum, handler):
+                    previous = handlers.get(signum, signal.SIG_DFL)
+                    handlers[signum] = handler
+                    return previous
+
+                setup_check = interrupted if outcome == 'setup-stop' else None
+                with mock.patch.object(supervisor.subprocess, 'Popen', return_value=process), \
+                        mock.patch.object(supervisor, '_read_bwrap_sandbox_pid', return_value=1234), \
+                        mock.patch.object(supervisor, 'pin_sandbox_init', return_value=pidfd), \
+                        mock.patch.object(client.Lease, 'for_pid', return_value=lease), \
+                        mock.patch.object(supervisor.os, 'write'), \
+                        mock.patch.object(supervisor, 'wait_for_payload', side_effect=interrupted), \
+                        mock.patch.object(supervisor.signal, 'signal', side_effect=register), \
+                        mock.patch.object(supervisor.signal, 'pidfd_send_signal',
+                                          side_effect=lambda *args: events.append('namespace-stop')), \
+                        mock.patch.object(supervisor, '_stop_subprocess'), self.assertRaises(SystemExit):
+                    supervisor.run_veth_sandbox(['bwrap'], ['app'], '/unused', (), app='qbittorrent',
+                        pre_payload_check=setup_check, graceful_shutdown=True)
+                expected = ['namespace-stop', 'lease-close']
+                if outcome in ('exit', 'timeout'):
+                    expected.insert(0, 'graceful-wait')
+                self.assertEqual(events, expected)
+                self.assertEqual(handlers, {watched: signal.SIG_DFL for watched in
+                                           (signal.SIGHUP, signal.SIGINT, signal.SIGTERM)})
+                self.assertEqual(signal.pthread_sigmask(signal.SIG_BLOCK, ()), original_mask)
+                with self.assertRaises(OSError):
+                    os.fstat(pidfd)
 
     def test_teardown_errors_still_close_every_pipe_pidfd_and_network_lease(self):
         for fault in ('stop', 'deadline'):
@@ -1336,11 +1607,14 @@ class SupervisorTests(unittest.TestCase):
     def test_real_startup_gate_rejects_eof_and_preserves_literal_arguments(self):
         with tempfile.TemporaryDirectory() as directory:
             marker = Path(directory)/"payload"
-            for readiness in (b"", b"1"):
-                with self.subTest(readiness=readiness):
+            for gate, readiness in ((supervisor.PEER_STARTUP_GATE, b""),
+                                    (supervisor.PEER_STARTUP_GATE, b"1"),
+                                    (supervisor.GRACEFUL_PEER_STARTUP_GATE, b""),
+                                    (supervisor.GRACEFUL_PEER_STARTUP_GATE, b"1")):
+                with self.subTest(graceful=gate == supervisor.GRACEFUL_PEER_STARTUP_GATE, readiness=readiness):
                     reader, writer = os.pipe()
                     literal = 'literal $(touch unsafe); "two words"'
-                    command = [sys.executable, "-I", "-B", "-c", supervisor.PEER_STARTUP_GATE, str(reader),
+                    command = [sys.executable, "-I", "-B", "-c", gate, str(reader),
                         sys.executable, "-I", "-B", "-c", 'import sys;from pathlib import Path;Path(sys.argv[1]).write_text(sys.argv[2])', str(marker), literal]
                     with subprocess.Popen(command, pass_fds=(reader,)) as process:
                         os.close(reader)
@@ -1406,28 +1680,27 @@ class DesktopLaunchTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'more than one'):
                     client.configured_executable_application(str(alias))
 
-    def test_future_client_restore_records_the_vendor_command_before_worker_dispatch(self):
+    def test_future_client_keeps_vendor_label_without_restart_metadata(self):
         original = ["/opt/new-client/client", "literal; $HOME"]
         worker = ["/usr/local/libexec/app-veth-run", "electron", "intel", "new-client", "--", *original]
         environment = {}
-        with mock.patch.object(generic, "assert_launch_allowed"), \
-                mock.patch.object(generic, "restart_token", side_effect=json.dumps):
-            command = generic.transient_argv("electron", "intel", worker, environment, restore_arguments=original)
-        self.assertEqual(json.loads(environment["LABWC_SESSION_RESTORE"]),
-                         ["/usr/local/bin/labwc-electron-app", "intel", "--", *original])
+        with mock.patch.object(generic, "assert_launch_allowed"):
+            command = generic.transient_argv("electron", "intel", worker, environment,
+                                             application_arguments=original)
+        self.assertNotIn("LABWC_SESSION_RESTORE", environment)
         self.assertEqual(command[command.index("--") + 1:], worker)
-        self.assertEqual(set(environment[generic.CONFIGURED_ENVIRONMENT_NAMES].split()),
-                         {"LABWC_SESSION_APP", "LABWC_SESSION_RESTORE"})
+        self.assertTrue(any(value.startswith("--unit=labwc-electron-client-") for value in command))
+        self.assertEqual(set(environment[generic.CONFIGURED_ENVIRONMENT_NAMES].split()), {"LABWC_SESSION_APP"})
 
     def test_configured_worker_preserves_explicit_environment_without_importing_manager_values(self):
-        names = "HOME VENDOR_OPTION LABWC_SESSION_APP LABWC_SESSION_RESTORE"
+        names = "HOME VENDOR_OPTION LABWC_SESSION_APP"
         with mock.patch.dict(os.environ, {generic.CONFIGURED_ENVIRONMENT_NAMES: names,
                 "HOME": "/home/desktop", "VENDOR_OPTION": "literal; $HOME",
-                "LABWC_SESSION_APP": "1", "LABWC_SESSION_RESTORE": "restore-token",
+                "LABWC_SESSION_APP": "1",
                 "UNRELATED_MANAGER_SECRET": "not-forwarded"}, clear=True):
             environment = generic.configured_worker_environment({"HOME": "/home/desktop"})
         self.assertEqual(environment, {"HOME": "/home/desktop", "VENDOR_OPTION": "literal; $HOME",
-                                      "LABWC_SESSION_APP": "1", "LABWC_SESSION_RESTORE": "restore-token"})
+                                      "LABWC_SESSION_APP": "1"})
         for names, values in (("LD_PRELOAD", {"LD_PRELOAD": "/tmp/injected.so"}),
                               ("HOME", {"HOME": "/root"}), ("MISSING", {}),
                               ("OPTION OPTION", {"OPTION": "value"}),
@@ -1523,17 +1796,24 @@ class DesktopLaunchTests(unittest.TestCase):
                 stack.enter_context(mock.patch.object(sandbox, "build_environment", return_value=env))
                 stack.enter_context(mock.patch.object(sandbox, "persistent_sandbox_argv", return_value=[profiles.APPS[app]["exec"], "literal-url"]))
                 stack.enter_context(mock.patch.object(sandbox, "require_root_owned_executable", side_effect=lambda label, path: path))
+                stack.enter_context(mock.patch.object(sandbox, "require_root_owned_regular_file", side_effect=lambda label, path, **options: path))
                 optional_bind = stack.enter_context(mock.patch.object(sandbox, "add_optional_bind", wraps=sandbox.add_optional_bind))
                 stack.enter_context(mock.patch.object(sandbox, "current_user_runtime_socket", return_value=str(runtime/"wayland-0")))
-                for name in ("start_session_bus_proxy", "start_system_bus_proxy"):
-                    stack.enter_context(mock.patch.object(sandbox, name, return_value=(None, None, None)))
+                session_proxy = stack.enter_context(mock.patch.object(sandbox, "start_session_bus_proxy", return_value=(None, None, None)))
+                stack.enter_context(mock.patch.object(sandbox, "start_system_bus_proxy", return_value=(None, None, None)))
                 for name in ("stop_dbus_proxies", "require_running_dbus_proxies", "add_gpu_device_binds", "add_video_device_binds", "add_native_device_binds"):
                     stack.enter_context(mock.patch.object(sandbox, name))
                 stack.enter_context(mock.patch.object(sandbox.mounts, "add_user_media_directory_bind"))
                 def launch(command, payload, temporary, inherited, **options):
                     self.assertEqual(options["app"], app)
                     self.assertEqual(options["network"], app in policies)
-                    self.assertEqual(payload, [profiles.APPS[app]["exec"], "literal-url"])
+                    expected_payload = [profiles.APPS[app]["exec"], "literal-url"]
+                    if app in sandbox.BROWSER_PROXY_POLICIES:
+                        expected_payload = ['/usr/local/libexec/labwc-proxy-session', app,
+                                            *([] if options['network'] else ['--offline']),
+                                            *expected_payload]
+                    self.assertEqual(payload, expected_payload)
+                    self.assertEqual(options['graceful_shutdown'], app in sandbox.BROWSER_PROXY_POLICIES)
                     self.assertNotIn("literal-url", command)
                     self.assertNotIn("--share-net", command)
                     self.assertIn("--unshare-all", command)
@@ -1554,8 +1834,12 @@ class DesktopLaunchTests(unittest.TestCase):
                     if app == "code":
                         self.assertEqual(command[:4], ["/usr/bin/aa-exec", "--profile=labwc-app//code-bwrap", "--", "/usr/bin/bwrap"])
                     return 37
-                stack.enter_context(mock.patch.object(sandbox, "run_veth_sandbox", side_effect=launch))
+                stack.enter_context(mock.patch.object(supervisor, "run_veth_sandbox", autospec=True, side_effect=launch))
                 self.assertEqual(sandbox.run_persistent_sandbox(app, "launch", []), 37)
+                session_proxy.assert_called_once()
+                self.assertEqual(session_proxy.call_args.args[2],
+                                 ("org.mpris.MediaPlayer2.vivaldi.*",) if app == "vivaldi"
+                                 else profiles.PERSISTENT_SANDBOX_CONFIG[app].get("dbus_own_names", ()))
 
     def test_pure_privacy_veth_gets_payload_after_gate_and_private_resolver(self):
         with tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
@@ -1567,6 +1851,7 @@ class DesktopLaunchTests(unittest.TestCase):
             stack.enter_context(mock.patch.object(sandbox, "pure_privacy_environment", return_value=env))
             stack.enter_context(mock.patch.object(sandbox, "pure_privacy_argv", return_value=["/usr/bin/chromium", "literal-url"]))
             stack.enter_context(mock.patch.object(sandbox, "require_root_owned_executable", return_value="/usr/bin/bwrap"))
+            stack.enter_context(mock.patch.object(sandbox, "require_root_owned_regular_file", side_effect=lambda label, path, **options: path))
             stack.enter_context(mock.patch.object(sandbox, "current_user_runtime_socket", return_value=str(root/"wayland-0")))
             stack.enter_context(mock.patch.object(sandbox, "current_user_home", return_value=str(root)))
             stack.enter_context(mock.patch.object(sandbox, "start_session_bus_proxy", return_value=(None, None, None)))
@@ -1574,16 +1859,26 @@ class DesktopLaunchTests(unittest.TestCase):
             stack.enter_context(mock.patch.object(sandbox, "require_running_dbus_proxy"))
             captured = {}
             def launch(command, payload, temporary, inherited, **options):
-                captured.update(command=command, payload=payload, app=options["app"])
+                captured.update(command=command, payload=payload, **options)
                 self.assertEqual((Path(temporary)/"resolv.conf").read_text(encoding="utf-8"), sandbox.veth_resolv_conf())
                 self.assertNotIn("--share-net", command)
                 self.assertNotIn("literal-url", command)
                 sandbox.validate_private_procfs(command)
                 return 37
-            stack.enter_context(mock.patch.object(sandbox, "run_veth_sandbox", side_effect=launch))
+            stack.enter_context(mock.patch.object(supervisor, "run_veth_sandbox", autospec=True, side_effect=launch))
             self.assertEqual(sandbox.run_pure_privacy("chromium", []), 37)
-            self.assertEqual(captured["payload"], ["/usr/bin/chromium", "literal-url"])
+            self.assertEqual(captured["payload"], ['/usr/local/libexec/labwc-proxy-session', 'chromium',
+                                                   '/usr/bin/chromium', 'literal-url'])
             self.assertEqual(captured["app"], "chromium")
+            self.assertTrue(captured['graceful_shutdown'])
+            with mock.patch.object(sandbox, 'pure_privacy_argv', return_value=['/usr/bin/qbittorrent']):
+                self.assertEqual(sandbox.run_pure_privacy('qbittorrent', []), 37)
+            self.assertEqual(captured['app'], 'qbittorrent-privacy')
+            self.assertTrue(captured['graceful_shutdown'])
+            self.assertEqual(captured['payload'], ['/usr/local/libexec/labwc-proxy-session', 'qbittorrent', '--privacy', '/usr/bin/qbittorrent'])
+            readonly = [captured['command'][i+1:i+3] for i, value in enumerate(captured['command']) if value == '--ro-bind']
+            for path in ('/etc/labwc/3proxy/qbittorrent.conf', '/etc/qbittorrent/qBittorrent.conf.d/20-managed-privacy.conf'):
+                self.assertIn([path, path], readonly)
 
     def test_privacy_setup_failures_reclaim_private_files_and_started_proxy(self):
         for fault in ('resolver', 'mount'):
@@ -1672,14 +1967,16 @@ class PodmanAdapterTests(unittest.TestCase):
         exit_read, exit_write = os.pipe()
         left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
         lease = mock.Mock(socket=left)
+        lease.retry_timeout.return_value = None
         lease.close.side_effect = left.close
         os.write(exit_write, b"stop")
         try:
-            with mock.patch.object(podman_adapter, "Lease", return_value=lease) as constructor:
+            with mock.patch.object(podman_adapter, "Lease") as constructor:
+                constructor.for_namespace.return_value = lease
                 status = podman_adapter.main(["-c", "-r", str(ready_write), "-e", str(exit_read),
                                               "--netns-type=path", "--disable-host-loopback", "--mtu=65520",
                                               "/dev/null", "tap0"])
-                self.assertEqual(constructor.call_args.args[1], "podman")
+                self.assertEqual(constructor.for_namespace.call_args.args[1], "podman")
             self.assertEqual(status, 0)
             self.assertEqual(os.read(ready_read, 2), b"1")
             lease.check.assert_called_once()
@@ -1778,6 +2075,7 @@ for slot in (0,1,31):
     ip("link","set","dev",name,"down")
 import runpy
 module=runpy.run_path(sys.argv[1])
+module["apply_network_identity"].__globals__["read_ruleset_template"]=lambda:fixture["ruleset"]
 module["apply_network_identity"](fixture["network"])
 recovery=module["recover_endpoints"]
 recovery()
@@ -1788,7 +2086,7 @@ assert [row["ifname"] for row in json.loads(ip("-j","link","show"))] == ["lo"]
 print("native boot pool: fixed pairs DOWN, gateway addresses, stable names/indexes and recovery passed")
 '''
         result = subprocess.run(["/usr/bin/unshare", "-Urn", sys.executable, "-I", "-B", "-c", script, broker.__file__, str(LIBRARY)],
-                                input=json.dumps({"batch": batch, "ids": identities, "network": DEFAULT_CONFIGURATION["network"]}), capture_output=True,
+                                input=json.dumps({"batch": batch, "ids": identities, "network": DEFAULT_CONFIGURATION["network"], "ruleset": broker.read_ruleset_template()}), capture_output=True,
                                 text=True, encoding="utf-8", timeout=20)
         if result.returncode and result.stderr.startswith("unshare: unshare failed: Operation not permitted"):
             self.skipTest("unprivileged kernel namespaces are unavailable")
@@ -1805,7 +2103,10 @@ print("native boot pool: fixed pairs DOWN, gateway addresses, stable names/index
         pidfd = None
         try:
             process = subprocess.Popen([shutil.which("bwrap"), "--unshare-user", "--unshare-pid", "--unshare-net",
-                "--ro-bind", "/", "/", "--proc", "/proc", "--info-fd", str(info_write),
+                "--tmpfs", "/", "--ro-bind", "/usr", "/usr",
+                "--symlink", "usr/bin", "/bin", "--symlink", "usr/lib", "/lib",
+                "--symlink", "usr/lib64", "/lib64", "--proc", "/proc",
+                "--dev", "/dev", "--cap-drop", "ALL", "--info-fd", str(info_write),
                 "--block-fd", str(block_read), "/usr/bin/true"],
                 pass_fds=(info_write, block_read), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
             os.close(info_write); info_write = None
@@ -1836,6 +2137,83 @@ print("native boot pool: fixed pairs DOWN, gateway addresses, stable names/index
                 process.wait(timeout=5)
                 process.stderr.close()
 
+    @unittest.skipUnless(shutil.which('bwrap') and hasattr(os, 'pidfd_open'), 'native Bubblewrap or pidfds unavailable')
+    def test_real_bubblewrap_monitor_survives_group_stop_until_the_payload_closes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            payload = root / 'payload.py'
+            payload.write_text('''import signal, sys, time
+from pathlib import Path
+root = Path(sys.argv[1])
+def stopped(signum, frame):
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    time.sleep(0.1)
+    (root / 'closed').write_text('graceful')
+    raise SystemExit(0)
+signal.signal(signal.SIGINT, stopped)
+(root / 'ready').write_text('ready')
+time.sleep(30)
+''', encoding='utf-8')
+            worker = '''import subprocess, sys
+from pathlib import Path
+library, directory, bwrap = sys.argv[1:]
+sys.path.insert(0, library)
+from labwc_managed_app import network_namespace as supervisor
+root = Path(directory)
+native_pin = supervisor.pin_sandbox_init
+native_popen = subprocess.Popen
+def pin(pid):
+    descriptor = native_pin(pid)
+    (root / 'init.pid').write_text(str(pid))
+    return descriptor
+def launch(*args, **options):
+    process = native_popen(*args, **options)
+    (root / 'monitor.pid').write_text(str(process.pid))
+    return process
+supervisor.pin_sandbox_init = pin
+supervisor.subprocess.Popen = launch
+command = [bwrap, '--unshare-user', '--unshare-pid', '--unshare-net', '--new-session',
+           '--die-with-parent', '--tmpfs', '/', '--ro-bind', '/usr', '/usr',
+           '--symlink', 'usr/bin', '/bin', '--symlink', 'usr/lib', '/lib',
+           '--symlink', 'usr/lib64', '/lib64', '--ro-bind', library, library,
+           '--bind', directory, directory, '--proc', '/proc', '--dev', '/dev',
+           '--cap-drop', 'ALL']
+raise SystemExit(supervisor.run_veth_sandbox(command,
+    [sys.executable, '-I', '-B', str(root / 'payload.py'), directory], directory, (),
+    app='qbittorrent', network=False, graceful_shutdown=True))
+'''
+            process = subprocess.Popen([sys.executable, '-I', '-B', '-c', worker,
+                str(LIBRARY), directory, shutil.which('bwrap')], stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, start_new_session=True)
+            payload_pidfd = monitor_pidfd = None
+            try:
+                deadline = time.monotonic() + 5
+                while not (root / 'ready').exists():
+                    if process.poll() is not None or time.monotonic() >= deadline:
+                        self.fail('private Bubblewrap fixture did not become ready')
+                    time.sleep(0.01)
+                init_pid = int((root / 'init.pid').read_text(encoding='utf-8'))
+                children = Path(f'/proc/{init_pid}/task/{init_pid}/children').read_text(encoding='ascii').split()
+                self.assertEqual(len(children), 1)
+                payload_pidfd = os.pidfd_open(int(children[0]))
+                monitor_pidfd = os.pidfd_open(int((root / 'monitor.pid').read_text(encoding='utf-8')))
+                # Model systemd's control-group SIGINT: the monitor and payload
+                # are in different process groups because of --new-session.
+                signal.pidfd_send_signal(monitor_pidfd, signal.SIGINT)
+                signal.pidfd_send_signal(payload_pidfd, signal.SIGINT)
+                process.send_signal(signal.SIGINT)
+                _, errors = process.communicate(timeout=5)
+                self.assertEqual(process.returncode, 130, errors.decode('utf-8'))
+                self.assertTrue((root / 'closed').is_file(), 'Bubblewrap ended the payload before graceful close')
+                self.assertEqual((root / 'closed').read_text(encoding='utf-8'), 'graceful')
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                process.communicate(timeout=5)
+                for descriptor in (payload_pidfd, monitor_pidfd):
+                    if descriptor is not None:
+                        os.close(descriptor)
+
     @unittest.skipUnless(shutil.which("unshare") and shutil.which("nft"), "native nftables tools unavailable")
     def test_native_nftables_accepts_static_rules_and_all_lease_transactions(self):
         transactions = []
@@ -1857,7 +2235,7 @@ print("native boot pool: fixed pairs DOWN, gateway addresses, stable names/index
             self.skipTest("unprivileged kernel namespaces are unavailable")
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    @unittest.skipUnless(all(shutil.which(tool) for tool in ("unshare", "ip", "nft", "nsenter")), "kernel networking tools unavailable")
+    @unittest.skipUnless(all(shutil.which(tool) for tool in ("unshare", "ip", "nft", "nsenter", "conntrack")), "kernel networking tools unavailable")
     def test_real_veth_dns_and_host_isolation_inside_unprivileged_namespaces(self):
         # All links, sysctls and nft state belong to this new user/network
         # namespace. The host network is never entered or modified. A local
@@ -1875,6 +2253,8 @@ b.run(["/usr/sbin/ip","link","add","dummy0","type","dummy"])
 b.run(["/usr/sbin/ip","addr","add","192.0.2.1/24","dev","dummy0"])
 b.run(["/usr/sbin/ip","link","set","dummy0","up"])
 b.route=lambda **options:("dummy0","192.0.2.1",1500)
+b.read_ruleset_template=lambda:sys.argv[4]
+b.apply_network_identity(json.loads(sys.argv[5]))
 b.nft(b.RULESET)
 endpoints=b.EndpointPool(ipaddress.IPv4Network("10.203.0.0/24"))
 child=subprocess.Popen(["/usr/bin/unshare","-n","/usr/bin/sleep","30"])
@@ -1981,7 +2361,7 @@ finally:
     if remote is not None: remote.terminate();remote.wait(timeout=5)
     child.terminate();child.wait(timeout=5)
 '''
-        result = subprocess.run(["/usr/bin/unshare", "-Urnmpf", "--mount-proc", sys.executable, "-I", "-B", "-c", script, broker.__file__, str(LIBRARY), json.dumps(DEFAULT_POLICIES)],
+        result = subprocess.run(["/usr/bin/unshare", "-Urnmpf", "--mount-proc", sys.executable, "-I", "-B", "-c", script, broker.__file__, str(LIBRARY), json.dumps(DEFAULT_POLICIES), broker.RULESET, json.dumps(DEFAULT_CONFIGURATION["network"])],
                                 capture_output=True, text=True, encoding="utf-8", timeout=30)
         if result.returncode and result.stderr.startswith("unshare: unshare failed: Operation not permitted"):
             self.skipTest("unprivileged kernel namespaces are unavailable")

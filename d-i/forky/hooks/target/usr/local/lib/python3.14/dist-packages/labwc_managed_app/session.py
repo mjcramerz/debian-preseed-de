@@ -11,7 +11,7 @@ import tempfile
 import time
 import uuid
 
-from .recovery import assert_launch_allowed, restart_token
+from .recovery import assert_launch_allowed
 from .integrity import system_owner
 from .environment import (
     desktop_activation_environment,
@@ -48,8 +48,8 @@ WAYLAND_COMPAT_SESSION_UNIT_METADATA = {
 def menu_action_wait_arguments() -> list[str]:
     """A timing request, never an authorization or sandbox-bypass flag.
 
-    Consume this only in the launcher; do not export it into payload services
-    or saved session restore commands. Ordinary desktop launches stay detached.
+    Consume this only in the launcher; do not export it into payload services.
+    Ordinary desktop launches stay detached.
     """
     return ["--wait"] if os.environ.get("LABWC_MENU_ACTION_WAIT") == "1" else []
 
@@ -121,7 +121,6 @@ def bitwarden_session_unit_argv(
         "--property=UMask=0077",
         "--property=SyslogIdentifier=labwc-bitwarden",
         f"--setenv={BITWARDEN_SESSION_UNIT_MARKER}=1",
-        "--setenv=LABWC_SESSION_RESTORE=" + restart_token([MANAGED_APP_PATH, mode, "bitwarden", *extra_args]),
         f"--working-directory={os.getcwd()}",
         *(f"--setenv={name}" for name in sorted(environment or {})),
         "--",
@@ -273,7 +272,6 @@ def wayland_compat_session_unit_argv(
         f"--property=SyslogIdentifier={syslog_identifier}",
         f"--setenv={WAYLAND_COMPAT_SESSION_UNIT_MARKER}=1",
         "--setenv=LABWC_SESSION_NESTED=1",
-        "--setenv=LABWC_SESSION_RESTORE=" + restart_token([WAYLAND_COMPAT_MANAGED_APP_PATH, mode, app_name, *extra_args]),
         f"--working-directory={os.getcwd()}",
         *(f"--setenv={name}" for name in sorted(environment or {})),
         "--",
@@ -397,12 +395,11 @@ def redirect_native_from_private_users(
         command = [CHATGPT_SESSION_PATH, mode, *extra_args]
     environment["WAYLAND_DISPLAY"] = wayland_display
     environment["LABWC_SESSION_APP"] = "1"
-    environment["LABWC_SESSION_RESTORE"] = restart_token([MANAGED_APP_PATH, mode, app_name, *extra_args])
     if app_name == "chatgpt":
         if (os.environ.get("DEVOPS_DE_ACTIVE") == "1"
                 and os.environ.get("DEVOPS_DE_ENVIRONMENT_READY") == "1"):
             for name, value in os.environ.items():
-                if name in CHATGPT_DEVOPS_ENVIRONMENT_RESERVED or name in {"LABWC_SESSION_APP", "LABWC_SESSION_RESTORE"}:
+                if name in CHATGPT_DEVOPS_ENVIRONMENT_RESERVED or name == "LABWC_SESSION_APP":
                     continue
                 if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) is None:
                     fail("ChatGPT received an invalid environment variable name")

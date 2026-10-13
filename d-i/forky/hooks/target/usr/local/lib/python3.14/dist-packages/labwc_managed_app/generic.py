@@ -25,7 +25,7 @@ from .environment import (
     acceleration_availability_from_defaults, load_managed_defaults,
     validate_acceleration_mode,
 )
-from .recovery import assert_launch_allowed, restart_token
+from .recovery import assert_launch_allowed
 from .integrity import system_owner
 from .session import menu_action_wait_arguments, native_session_wayland_display
 from .profiles import APPS, INTEL_ACCELERATION_ENV, NVIDIA_ACCELERATION_ENV, WAYLAND_COMPAT_APPS
@@ -239,7 +239,7 @@ def configured_worker_environment(environment: dict[str, str]) -> dict[str, str]
     """Carry only names explicitly supplied by the generic launcher.
 
     The user manager may hold unrelated variables. Passing names separately
-    preserves desktop env assignments and session restore metadata without
+    preserves desktop env assignments without
     exposing values in the worker's command line or copying manager secrets.
     """
     raw = os.environ.get(CONFIGURED_ENVIRONMENT_NAMES, "")
@@ -341,7 +341,7 @@ def run_configured_network(arguments: list[str]) -> int:
 
 
 def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict[str, str],
-                   *, restore_arguments: list[str] | None = None) -> list[str]:
+                   *, application_arguments: list[str] | None = None) -> list[str]:
     assert_launch_allowed()
     if kind == "wayland" and arguments[0] == "/usr/bin/labwc-tweaks":
         labwc_pid = validated_labwc_pid()
@@ -367,12 +367,17 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
     if kind == "wayland" and arguments == ["/usr/bin/footclient"]:
         arguments = ["/usr/bin/foot"]
     environment["LABWC_SESSION_APP"] = "1"
-    restored = arguments if restore_arguments is None else restore_arguments
-    environment["LABWC_SESSION_RESTORE"] = restart_token([WRAPPERS[kind], mode, "--", *restored])
+    application = arguments if application_arguments is None else application_arguments
+    is_focuswriter = kind == "wayland" and application[0] == "/usr/bin/focuswriter"
+    if is_focuswriter:
+        # Qt's native single-instance socket and lock must survive a second
+        # launcher's private /tmp. The user manager creates this shared 0700
+        # directory; no wrapper creates or repairs paths in the user's home.
+        environment["TMPDIR"] = f"/run/user/{os.getuid()}/labwc-focuswriter-tmp"
     if arguments[0] == "/usr/local/libexec/app-veth-run":
         environment[CONFIGURED_ENVIRONMENT_NAMES] = " ".join(sorted(
             name for name in environment if name != CONFIGURED_ENVIRONMENT_NAMES))
-    label = re.sub(r"[^A-Za-z0-9_-]", "-", Path(restored[0]).name)[:48] or "app"
+    label = re.sub(r"[^A-Za-z0-9_-]", "-", Path(application[0]).name)[:48] or "app"
     unit = f"labwc-{kind}-{label}-{uuid.uuid4().hex}.service"
     # These canonical administration launchers need host UID semantics.
     # User-manager filesystem/IPC namespaces implicitly enable PrivateUsers:
@@ -425,6 +430,11 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         "--property=After=labwc-session.target" + (
             " gvfs-daemon.service labwc-gvfs-volume-monitor.service" if is_thunar else ""),
         "--property=PartOf=labwc-session.target",
+        *(["--property=RuntimeDirectory=labwc-focuswriter-tmp",
+           "--property=RuntimeDirectoryMode=0700",
+           # A secondary instance exits immediately. It must not remove the
+           # primary instance's socket, lock, or temporary document state.
+           "--property=RuntimeDirectoryPreserve=yes"] if is_focuswriter else []),
         *(["--property=Wants=gvfs-daemon.service",
            "--property=Requires=labwc-gvfs-volume-monitor.service",
            "--property=PrivateMounts=no"] if is_thunar else []),
@@ -508,7 +518,7 @@ def main(kind: str, argv: list[str] | None = None) -> int:
     environment.update(MANAGED_WAYLAND_OPENGL_ENVIRONMENT)
     environment.update(INTEL_ACCELERATION_ENV if mode == "intel" else NVIDIA_ACCELERATION_ENV if mode == "nvidia" else {})
     network_command = managed_network_command(mode, arguments, kind=kind)
-    restore_arguments = list(arguments) if network_command is not None else None
+    application_arguments = list(arguments) if network_command is not None else None
     if network_command is not None:
         arguments = network_command
     elif kind == "electron":
@@ -516,7 +526,7 @@ def main(kind: str, argv: list[str] | None = None) -> int:
     try:
         systemd_run = require_root_owned_executable("systemd-run", "/usr/bin/systemd-run")
         os.execve(systemd_run, transient_argv(kind, mode, arguments, environment,
-                                            restore_arguments=restore_arguments), environment)
+                                            application_arguments=application_arguments), environment)
     except OSError as exc:
         fail(f"desktop executable could not start: {executable}: {exc}")
     return 1

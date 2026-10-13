@@ -31,6 +31,8 @@ SHARING_CONFIG = Path("/etc/network-sharing/config.json")
 ZRAM_WORK_UNITS = ("zram-idle-writeback.timer", "zram-cold-tier.timer",
                    "zram-writebackd.service", "zram-writeback.service")
 EXTERNAL_DRIVES_UNIT = "labwc-external-drives-shutdown.service"
+SHUTDOWN_CLEANUP_SECONDS = 45
+POWER_SAVE_SECONDS = 15
 
 
 class Error(Exception):
@@ -38,8 +40,7 @@ class Error(Exception):
 
 
 class Cancelled(Error):
-    """The session helper vetoed preparation before any destructive work."""
-
+    """A visible application window cancelled logout before teardown."""
 
 
 # Never accept lock paths, commands, or timeouts from caller-controlled input.
@@ -117,8 +118,8 @@ class PackageLocks:
                 if not notified and self.on_wait is not None:
                     self.on_wait()
                     notified = True
-                # No timeout may turn a busy package database into permission
-                # to tear down a session, power off, reboot, or suspend.
+                # Logout/suspend wait for package writers. Explicit machine
+                # shutdown takes its separate bounded, best-effort path.
                 time.sleep(1)
         except BaseException:
             self.close()
@@ -308,39 +309,6 @@ def ready() -> None:
         notifier.sendall(b"READY=1\nSTATUS=Authorized desktop power request accepted")
 
 
-def check_shutdown_inhibitors() -> None:
-    """Veto known block locks; single --force bypasses logind delay handling.
-
-    This snapshot is not an atomic inhibitor reservation. The final PID 1
-    handoff does not emit logind PrepareForShutdown or wait for delay locks.
-    """
-    raw = run(["/usr/bin/busctl", "--system", "--json=short", "--timeout=5s",
-               "call", "org.freedesktop.login1", "/org/freedesktop/login1",
-               "org.freedesktop.login1.Manager", "ListInhibitors"], timeout=7, max_output=1_048_576)
-    try:
-        if len(raw) > 1_048_576:
-            raise ValueError("oversized inhibitor response")
-        result = json.loads(raw)
-        if not isinstance(result, dict) or result.get("type") != "a(ssssuu)":
-            raise ValueError("unexpected inhibitor signature")
-        data = result.get("data")
-        if not isinstance(data, list) or len(data) != 1 or not isinstance(data[0], list) or len(data[0]) > 1024:
-            raise ValueError("invalid inhibitor array")
-        for item in data[0]:
-            if (not isinstance(item, list) or len(item) != 6
-                    or any(not isinstance(value, str) or len(value) > 4096 for value in item[:4])
-                    or any(type(value) is not int or not 0 <= value < 2**32 for value in item[4:])):
-                raise ValueError("invalid inhibitor record")
-            if "shutdown" in item[0].split(":") and item[3] != "delay":
-                if item[3] not in {"block", "block-weak"}:
-                    raise Error("unrecognized shutdown inhibitor mode")
-                # Do not log caller-supplied inhibitor strings or sensitive data.
-                raise Error(f"shutdown is inhibited by uid={item[4]} pid={item[5]}; "
-                            "release the inhibitor before retrying")
-    except (ValueError, RecursionError) as exc:
-        raise Error("cannot verify shutdown inhibitors") from exc
-
-
 def login_sessions() -> list[tuple[str, int]]:
     """Read bounded, typed logind records rather than presentation columns."""
     raw = run(["/usr/bin/busctl", "--system", "--json=short", "--timeout=5s",
@@ -467,9 +435,7 @@ class Worker:
         self.prepared = False
         self.handoff_attempted = False
         self.session_stopped = False
-        self.storage_stopped = False
-        self.external_drives_prepared = False
-        self.stopped_units: list[str] = []
+        self.shutdown_deadline: float | None = None
 
     def user_run(self, argv: list[str], **kwargs) -> str:
         account = pwd.getpwuid(self.uid)
@@ -489,7 +455,7 @@ class Worker:
                               "--no-ask-password", *args], **kwargs)
 
     def helper(self, action: str) -> None:
-        if action not in {"prepare", "cancel", "locked", "error", "waiting"}:
+        if action not in {"prepare", "close", "cancel", "locked", "error", "waiting", "poweroff", "reboot"}:
             raise Error("invalid desktop state operation")
         # This is a USER unit, not a PID-1 service with User=. Its manager owns
         # the desktop environment and executes the helper without root rights.
@@ -498,8 +464,8 @@ class Worker:
             # prepare-only RemainAfterExit drop-in prevents successful status
             # 77 being garbage-collected and mistaken for a fresh status 0.
             self.userctl("stop", "labwc-session-state@prepare.service", timeout=15)
-        self.userctl("start", "labwc-session-state@" + action + ".service",
-                     timeout=300 if action == "prepare" else 15)
+        timeout = 300 if action == "prepare" else 25 if action in {"poweroff", "reboot"} else 10
+        self.userctl("start", "labwc-session-state@" + action + ".service", timeout=timeout)
         if action == "prepare":
             response = self.userctl("show", "labwc-session-state@prepare.service",
                 "--property=ActiveState,SubState,Result,ExecMainStatus", timeout=10)
@@ -637,11 +603,9 @@ class Worker:
             time.sleep(0.2)
 
     def terminate_user(self) -> None:
-        if self.action not in {"logout", "reboot", "poweroff"}:
-            raise Error("account teardown requires logout or machine shutdown")
+        if self.action != "logout":
+            raise Error("account teardown is only valid for logout")
         self.require_package_reservation()
-        if self.action in {"reboot", "poweroff"} and not self.external_drives_prepared:
-            raise Error("session teardown requires successful external-drive preparation")
         # Once committed, one failed stop must not strand a half-closed desktop.
         # Queue stops first (disabling restart), then use PID 1's cgroup-wide
         # TERM/KILL paths. No process-name matching and no caller-owned worker.
@@ -663,166 +627,68 @@ class Worker:
                 return
         raise Error("user slice did not stop; inspect the power action log")
 
-    @staticmethod
-    def unit_state(name: str, *, exec_status: bool = False) -> dict[str, str]:
-        properties = "LoadState,ActiveState,SubState,Result"
-        if exec_status:
-            properties += ",ExecMainStatus"
-        text = run(["/usr/bin/systemctl", "show", name,
-                    "--property=" + properties], timeout=10, max_output=4096)
-        props = {}
-        for line in text.splitlines():
-            key, separator, value = line.partition('=')
-            if not separator or key in props:
-                raise Error("invalid shutdown unit state: " + name)
-            props[key] = value
-        return props
+    def stop_units(self, names: tuple[str, ...]) -> None:
+        # PID 1 handles inactive, failed and absent optional units. Never turn
+        # their state or a failed stop job into a veto of authorized shutdown.
+        self.shutdown_run(["/usr/bin/systemctl", "--no-ask-password", "stop", *names])
 
-    def stop_units(self, names: tuple[str, ...], *, optional: bool = True) -> None:
-        self.require_package_reservation()
-        selected = []
-        for name in names:
-            props = self.unit_state(name)
-            if optional and props.get('LoadState') == 'not-found' and props.get('ActiveState') == 'inactive':
-                continue
-            if props.get('LoadState') not in {'loaded', 'masked'}:
-                raise Error("cannot load managed shutdown unit: " + name)
-            if props.get('ActiveState') == 'inactive':
-                self.verify_stopped_unit(name, props)
-                self.stopped_units.append(name)
-                continue
-            if props.get('ActiveState') not in {'active', 'activating', 'reloading', 'deactivating'}:
-                raise Error("cannot safely stop managed unit: " + name)
-            selected.append(name)
-        if selected:
-            status("Stopping managed units: " + ', '.join(selected))
-            # No lazy/forced unmount: a busy mount or failed ExecStop vetoes
-            # the force handoff. A transport timeout never authorizes power.
-            run(["/usr/bin/systemctl", "--no-ask-password", "stop", *selected],
-                timeout=180, max_output=16384)
-            for name in selected:
-                props = self.unit_state(name)
-                self.verify_stopped_unit(name, props)
-                self.stopped_units.append(name)
-
-    @staticmethod
-    def verify_stopped_unit(name: str, props: dict[str, str]) -> None:
-        if (props.get('LoadState') not in {'loaded', 'masked'}
-                or props.get('ActiveState') != 'inactive' or props.get('SubState') != 'dead'
-                or (not name.endswith('.target') and props.get('Result') != 'success')):
-            raise Error("managed shutdown did not complete cleanly: " + name)
+    def shutdown_run(self, argv: list[str]) -> None:
+        if self.shutdown_deadline is None:
+            self.shutdown_deadline = time.monotonic() + SHUTDOWN_CLEANUP_SECONDS
+        remaining = self.shutdown_deadline - time.monotonic()
+        if remaining <= 0:
+            status("Shutdown cleanup deadline reached; proceeding with the power request")
+            return
+        run(argv, timeout=min(10, remaining), max_output=16384)
 
     def stop_network_sharing(self) -> None:
         groups = sharing_stop_groups()
         if not groups:
             return
-        self.stop_units(tuple(name for group in groups for name in group), optional=False)
+        self.best_effort("sharing mounts", lambda: self.stop_units(
+            tuple(name for group in groups for name in group)))
         # Kernel server/export teardown precedes its userspace cache daemons.
-        self.stop_units(('nfs-server.service',))
-        self.stop_units(('nfs-mountd.service', 'nfs-idmapd.service', 'nfsdcld.service',
-                         'nfs-blkmap.service', 'rpc-gssd.service', 'rpc-svcgssd.service',
-                         'nfs-client.target'))
+        self.best_effort("NFS server", lambda: self.stop_units(('nfs-server.service',)))
+        self.best_effort("NFS clients", lambda: self.stop_units(
+            ('nfs-mountd.service', 'nfs-idmapd.service', 'nfsdcld.service',
+             'nfs-blkmap.service', 'rpc-gssd.service', 'rpc-svcgssd.service', 'nfs-client.target')))
 
-    def prepare_machine_shutdown(self, identity: str | None = None) -> None:
-        self.stop_network_sharing()
-        if not self.greeter and (identity is None or self.session_identity() != identity):
-            raise Error("desktop session changed during network sharing teardown")
-        self.protect_other_sessions()
-        check_shutdown_inhibitors()
-        self.require_package_reservation()
-        # Both Waybar and gtkgreet reach this stage after authorization, save
-        # preparation (desktop only), guest drain and sharing teardown. Keep
-        # the seat alive while drive sync/unmount/power-off can still fail.
-        self.prepare_external_drives()
-        self.protect_other_sessions()
-        check_shutdown_inhibitors()
-        self.require_package_reservation()
+    def prepare_machine_shutdown(self) -> None:
+        # All stages are bounded cleanup. Authorization has already completed;
+        # a broken manager, mount, guest, device or save helper cannot veto it.
         self.committed = True
-        # Prevent greetd from creating a fresh login while swap is drained.
-        # PID 1 and the system bus remain alive for all cleanup transactions.
-        self.stop_units(('greetd.service',))
-        self.terminate_user()
-        self.session_stopped = True
-        self.protect_other_sessions()
-        self.stop_units(ZRAM_WORK_UNITS)
-        # The existing ExecStop contracts do swapoff -> reset -> mapper close.
-        # Keep fallback swap available until zram has released its pages.
-        self.stop_units(('zram-setup.service',))
-        self.stop_units(('swap-fallback.service',))
-        self.storage_stopped = True
+        self.best_effort("network sharing", self.stop_network_sharing)
+        self.best_effort("external drives", self.prepare_external_drives)
+        self.best_effort("greeter", lambda: self.shutdown_run(
+            ["/usr/bin/systemctl", "--no-block", "stop", "greetd.service"]))
+        self.best_effort("login sessions", lambda: self.shutdown_run(
+            ["/usr/bin/loginctl", "terminate-user", str(self.uid)]))
+        self.best_effort("user manager", lambda: self.shutdown_run(
+            ["/usr/bin/systemctl", "--no-block", "stop", f"user@{self.uid}.service",
+             f"user-{self.uid}.slice"]))
+        self.best_effort("zram workers", lambda: self.stop_units(ZRAM_WORK_UNITS))
+        # Preserve the established swapoff/reset order while cleanup time remains.
+        self.best_effort("zram", lambda: self.stop_units(('zram-setup.service',)))
+        self.best_effort("fallback swap", lambda: self.stop_units(('swap-fallback.service',)))
+        self.best_effort("filesystem sync", lambda: self.shutdown_run(["/usr/bin/sync"]))
 
     def prepare_external_drives(self) -> None:
-        self.require_package_reservation()
-        self.external_drives_prepared = False
-        status("Syncing, unmounting and powering off external USB data drives")
-        # PID 1 starts the existing manager in a separate fixed service. The
-        # power worker retains PrivateDevices/ProcSubset and its own profile.
-        # One-shot completion, Result and exit status must all agree.
-        run(["/usr/bin/systemctl", "--no-ask-password", "start", EXTERNAL_DRIVES_UNIT],
-            timeout=920, max_output=4096)
-        props = self.unit_state(EXTERNAL_DRIVES_UNIT, exec_status=True)
-        self.verify_stopped_unit(EXTERNAL_DRIVES_UNIT, props)
-        if props.get("ExecMainStatus") != "0":
-            raise Error("external-drive shutdown preparation did not exit successfully")
-        self.external_drives_prepared = True
-        if EXTERNAL_DRIVES_UNIT not in self.stopped_units:
-            self.stopped_units.append(EXTERNAL_DRIVES_UNIT)
+        # The drive manager owns device access. Its failure or a stuck USB/NFS
+        # sync is logged, then PID 1 still receives the authorized power action.
+        self.shutdown_run(["/usr/bin/systemctl", "--no-ask-password", "start", EXTERNAL_DRIVES_UNIT])
 
     def stop_optional_guests(self) -> None:
-        self.require_package_reservation()
-        # These fixed names are optional when the corresponding addon is not
-        # installed. An installed, running hook must complete successfully.
-        # Stopping a oneshot with RemainAfterExit runs its vendor ExecStop. It
-        # does not start the hook, its daemon, or any shutdown barrier.
-        selected = []
-        for name in GUEST_STOP_UNITS:
-            text = run(["/usr/bin/systemctl", "show", name,
-                        "--property=LoadState,ActiveState"], timeout=10)
-            props = dict(line.split("=", 1) for line in text.splitlines() if "=" in line)
-            if props.get("LoadState") == "not-found":
-                continue
-            if props.get("ActiveState") == "inactive":
-                continue
-            if props.get("LoadState") != "loaded" or props.get("ActiveState") not in {
-                    "active", "activating", "reloading", "deactivating"}:
-                raise Error(f"cannot safely stop guest hook: {name}")
-            selected.append(name)
-        if selected:
-            run(["/usr/bin/systemctl", "--no-ask-password", "stop", *selected], timeout=180)
-            for name in selected:
-                text = run(["/usr/bin/systemctl", "show", name,
-                            "--property=ActiveState,Result"], timeout=10)
-                props = dict(line.split("=", 1) for line in text.splitlines() if "=" in line)
-                if props.get("ActiveState") != "inactive" or props.get("Result") != "success":
-                    raise Error(f"guest shutdown did not complete cleanly: {name}")
+        self.stop_units(GUEST_STOP_UNITS)
 
     def final_power_action(self) -> None:
         if self.action not in {"reboot", "poweroff"}:
             raise Error("invalid machine shutdown action")
-        if not (self.prepared or self.greeter) or self.handoff_attempted:
-            raise Error("handoff requires a prepared desktop and may run only once")
-        self.require_package_reservation()
-        if not self.session_stopped or not self.storage_stopped:
-            raise Error("handoff requires completed session and storage teardown")
-        if not self.external_drives_prepared:
-            raise Error("handoff requires successful external-drive preparation")
-        # Re-inventory after session/swap teardown: a USB data drive may have
-        # arrived during those operations. A failed second preparation still
-        # vetoes force; it never retries a failed first preparation.
-        self.prepare_external_drives()
-        self.protect_other_sessions()
-        check_shutdown_inhibitors()
-        self.require_package_reservation()
-        for name in self.stopped_units:
-            self.verify_stopped_unit(name, self.unit_state(name))
-        # All managed cleanup hooks completed. PID 1 still owns final ordinary
-        # filesystem unmount/remount and any unrelated encrypted root devices.
-        os.sync()
-        self.require_package_reservation()
-        status(f"Power handoff: systemctl --force {self.action}; single-force PID 1 shutdown")
-        self.require_package_reservation()
+        if self.handoff_attempted:
+            raise Error("power handoff may run only once")
         self.committed = True
         self.handoff_attempted = True
+        self.best_effort("handoff status", lambda: status(
+            f"Power handoff: systemctl --force {self.action}; single-force PID 1 shutdown"))
         # Exactly ONE --force is the selected path, not a failure fallback. It
         # bypasses the ordinary unit-stop transaction and logind delay handling;
         # PID 1 still terminates processes and unmounts/remounts filesystems.
@@ -852,7 +718,40 @@ class Worker:
             raise Error("cannot identify the invoking desktop session")
         return identity
 
+    def save_window(self) -> None:
+        # The user manager retains the compositor and desktop while the user
+        # helper inventories real windows. A failed helper gets a conservative
+        # bounded grace period, never an application or service veto.
+        started = time.monotonic()
+        try:
+            self.helper(self.action)
+        except (Error, OSError, subprocess.SubprocessError) as exc:
+            print(f"power save window: {exc}", file=sys.stderr, flush=True)
+            self.best_effort("save-window status", lambda: status(
+                "Desktop save helper unavailable; allowing a bounded save period before shutdown"))
+            remaining = POWER_SAVE_SECONDS - (time.monotonic() - started)
+            if remaining > 0:
+                time.sleep(remaining)
+
     def execute(self) -> None:
+        if self.action in {"poweroff", "reboot"}:
+            try:
+                self.best_effort("worker readiness", ready)
+                if not self.greeter:
+                    self.best_effort("application save window", self.save_window)
+                # The user's 15-second save opportunity precedes the independent
+                # cleanup budget. No guest, mount or desktop teardown runs early.
+                self.shutdown_deadline = time.monotonic() + SHUTDOWN_CLEANUP_SECONDS
+                if not self.greeter:
+                    self.best_effort("application close request", lambda: self.helper("close"))
+                self.best_effort("guest hooks", self.stop_optional_guests)
+                self.best_effort("machine cleanup", self.prepare_machine_shutdown)
+            finally:
+                # Cleanup errors, including unexpected ones, cannot skip the
+                # fixed authorized PID-1 power request. Never escalate to -ff.
+                self.final_power_action()
+            hold_reservation()
+            return
         identity = None if self.greeter else self.session_identity()
         self.protect_other_sessions()
         if self.action == "suspend":
@@ -868,19 +767,6 @@ class Worker:
                 if not self.greeter and self.session_identity() != identity:
                     raise Error("desktop session changed while waiting for package activity")
                 self.protect_other_sessions()
-                if self.greeter:
-                    if self.action not in {"poweroff", "reboot"}:
-                        raise Error("invalid greeter power action")
-                    self.require_package_reservation()
-                    check_shutdown_inhibitors()
-                    # No desktop belongs to this greeter request; the account
-                    # guard above has excluded other interactive users. Share
-                    # the guest-stop and single-force PID 1 handoff path.
-                    self.stop_optional_guests()
-                    self.prepare_machine_shutdown(identity)
-                    self.final_power_action()
-                    hold_reservation()
-                    return
                 if self.action == "suspend":
                     # A user may unlock the desktop during a long package wait.
                     # Cancel rather than suspending an unlocked session later.
@@ -895,22 +781,8 @@ class Worker:
                 self.prepared = True
                 self.protect_other_sessions()
                 self.require_package_reservation()
-                if self.action == "logout":
-                    self.committed = True
-                    self.terminate_user()
-                else:
-                    check_shutdown_inhibitors()
-                    # An optional guest hook can fail or time out. Complete
-                    # those checks while the desktop is still available.
-                    self.stop_optional_guests()
-                    # Detect session replacement before the single-force
-                    # handoff; keep the authorized seat alive until then.
-                    if self.session_identity() != identity:
-                        raise Error("desktop session changed during power preparation")
-                    self.prepare_machine_shutdown(identity)
-                    self.final_power_action()
-                    # Never release locks just because the enqueue call returned.
-                    hold_reservation()
+                self.committed = True
+                self.terminate_user()
             finally:
                 self.package_locks = None
 
@@ -932,6 +804,11 @@ def main(argv: list[str]) -> int:
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", account.pw_name):
         raise Error("unsafe invoking account identifier")
     os.umask(0o077)
+    if action in {"poweroff", "reboot"}:
+        # A pending sleep/package reservation is not a shutdown veto. PID 1
+        # already serializes starts of this fixed, authenticated action unit.
+        Worker(uid, account.pw_name, action, greeter=greeter).execute()
+        return 0
     with action_lock():
         worker = Worker(uid, account.pw_name, action, greeter=greeter)
         try:

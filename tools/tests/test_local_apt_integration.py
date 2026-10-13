@@ -1,5 +1,16 @@
 #!/usr/bin/python3
 """Real isolated APT index test. Root required; no install/upgrade is executed."""
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[2] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import os
 from pathlib import Path
 import shutil
@@ -14,7 +25,7 @@ from test_local_apt_repository import repo, fixture, install_source_template
                      'requires root and the distribution APT/GnuPG tools')
 class AptIntegrationTests(unittest.TestCase):
     def test_signed_file_repository_changes_candidate_without_installing(self):
-        base = Path('/var/lib/apt-repo-local-tests')
+        base = Path('/workspace/apt-repo-local-tests')
         base.mkdir(mode=0o755, exist_ok=True)
         work = Path(tempfile.mkdtemp(dir=base))
         os.chmod(work, 0o755)

@@ -5,6 +5,17 @@ patched Waybar. Backend calls are inspected/intercepted; no host control action,
 notification service, microphone or user manager is touched.
 """
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from payload_fixture import waybar_config_text
 from payload_fixture import installed_script
 from payload_fixture import installed_argv as payload_installed_argv, source_is_file as payload_source_is_file, source_path as payload_source_path

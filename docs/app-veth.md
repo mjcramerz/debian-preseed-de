@@ -61,7 +61,7 @@ clients. KeePassXC, Sleek, MPV and RetroArch have no network entry by default.
 | `network` | Required Boolean. Only `true` authorizes a lease. An omitted managed app, or an entry with `false`, launches in its private namespace without a veth. |
 | `block_lan` | Optional Boolean, default `false`. Blocks private IPv4, carrier-grade NAT, link-local, loopback, benchmark, multicast and reserved ranges, plus directly connected LAN subnets. DNS continues through the dedicated dnsmasq/Stubby path. |
 | `peer_port` | Optional integer in `1024..65535`. Reserves and forwards this TCP and UDP port on the selected Internet source address to the instance. Omission creates no inbound peer forwarding. |
-| `pin_route` | Optional Boolean. Defaults to `true` when `peer_port` is present, otherwise `false`. Pins egress to the selected interface and source address. Peer forwarding requires this setting. |
+| `pin_route` | Optional Boolean. Defaults to `true` when `peer_port` is present, otherwise `false`. Authorizes only the currently selected Internet interface and source address, updating the exact mapping after an uplink change. Peer forwarding requires this setting. |
 | `executables` | Optional list of absolute installed program paths. Used to match a newly installed package through the generic desktop launchers. Paths must be below `/usr/bin`, `/usr/local/bin`, `/usr/lib` or `/opt`; the worker checks root ownership and parent permissions before execution. |
 
 App identifiers use lowercase letters, digits, underscores and hyphens. Known
@@ -139,8 +139,8 @@ contracts and remain available for repairing the configuration.
 New generic clients retain the generic launcher's filesystem and IPC access.
 The network worker provides private network/PID namespaces, capability removal,
 private procfs, a private temporary directory and a hidden broker socket.
-Explicit desktop `env NAME=value` assignments and session restore metadata
-survive worker dispatch. Values use a private read-only payload file rather
+Explicit desktop `env NAME=value` assignments survive worker dispatch.
+Values use a private read-only payload file rather
 than command-line arguments; unrelated user-manager environment is not copied.
 Application-specific filesystem and AppArmor policy belongs to the package or
 its dedicated managed launcher. The existing private Xwayland launchers remain
@@ -166,13 +166,28 @@ setup and executable failures before starting dependent services.
 The broker's descriptor limit covers the full 128-slot capacity, including
 namespace/control descriptors, peer-port and Discord RPC reservations.
 
-A pinned lease starts a ten-second grace deadline when its Internet route becomes unavailable.
-The earliest recovery deadline bounds the event loop's next wait, so a quiet
-route outage still revokes the lease when the grace period expires. The same
-deadline is checked after busy client batches. Recovery of the original route
-clears the deadline; a changed interface, source address or MTU revokes the
-lease immediately when observed. Healthy and unpinned leases retain event-driven
-waiting without periodic route probes.
+A route change updates the existing namespace rather than revoking its lease.
+The selected kernel route can use Ethernet, Wi-Fi or a VPN. The broker lowers
+the host veth before replacing its exact egress, SNAT and peer DNAT elements in
+one nftables transaction. TCP/UDP peer-port reservations move to the selected
+source address, and both veth MTUs follow the uplink. The packaged `conntrack`
+command clears only this guest's outgoing and incoming flow bindings, including
+stale NAT state after slot reuse; it never flushes the host's connection table.
+A pinned lease without an Internet route remains allocated with its host link
+down and its old egress mappings removed, indefinitely. Ordinary leases can
+still use permitted LAN routes. Applications can also start while offline.
+Administrative update failures retain the application and retry every five
+seconds while the packet path is blocked. Healthy and offline leases wait for
+kernel notifications without periodic route probes.
+
+After a broker restart, running supervisors retain the original namespace FD
+and reconnect through the authenticated control socket. They request the same
+policy-reserved address, and the broker rejects addresses belonging to another
+application or an occupied slot. The application remains open while waiting;
+there is no host-network or direct-proxy fallback. Startup still requires the
+broker's acknowledgment before releasing the payload gate. Source-address
+changes require remote TCP connections to reconnect; keeping the GUI alive
+does not preserve an existing TCP connection across different public addresses.
 
 The namespace client resolver uses the existing private `10.0.2.3` endpoint,
 translated only to dnsmasq on `127.0.0.1:53053`. This frontend has a bounded
@@ -337,12 +352,12 @@ on normal exit or failure, then releases the lease. This also covers offline
 instances and detached descendants. Recycled peers are lowered and stripped of
 their addresses before returning to the pool. Failed cleanup keeps the guards
 installed and requires service recovery before reuse.
-Pinned leases tolerate a ten-second loss of the selected route while a carrier
-or USB Ethernet adapter is recreated. The packet mapping remains fail-closed
-while the route is absent; a different route revokes the lease immediately, and
-a prolonged outage emits `network_route_changed` and releases it. This keeps a
-recoverable link flap from killing a long-running qBittorrent process while
-preserving route pinning.
+Pinned leases retain their namespace through both prolonged outages and uplink
+changes. `network_route_offline`, `network_route_updated` and
+`network_route_update_failed` report the packet path without ending the GUI.
+Loose IPv4 reverse-path filtering validates source reachability through any
+interface, supporting overlapping Ethernet/Wi-Fi routes; exact veth source
+guards and the configured host firewall remain enforced.
 The DNS frontend and Stubby use systemd's direct automatic restart mode, so a
 temporary daemon failure does not stop every dependent veth lease. Explicit
 service stops/restarts and exhausted restart limits retain dependency teardown.
@@ -366,3 +381,90 @@ Interpreter-driven helpers and startup gates also pass `-B`. Codex sets
 writes in managed code directories while allowing Python to read existing
 distribution bytecode. No writable cache directory or AppArmor write permission
 is added to installed code paths.
+
+## Namespace-local browser and tracker proxies
+
+Chromium, Microsoft Edge, Vivaldi and Mullvad Browser now start a foreground
+3proxy inside their existing Bubblewrap/veth namespace. Persistent and
+PurePrivacy launches use the same supervisor. Each launch has its own loopback
+listener; no proxy runs in the host namespace. Existing browser singleton
+profiles and shared application temporary directories are retained. A secondary
+activation stops its short-lived proxy when the native activation process exits.
+
+All installed proxy configuration sources are under `d-i/forky/hooks/target/`,
+mirroring their destinations:
+
+- `/etc/labwc/3proxy/{chromium,microsoft-edge,vivaldi,mullvad-browser,qbittorrent}.conf`
+- `/etc/labwc/3proxy/session.json`
+- `/etc/{chromium,opt/chrome,opt/edge,vivaldi}/policies/managed/3proxy.json`
+- `/usr/lib/mullvad-browser/distribution/policies.json`
+- `/etc/app-veth.nft` (the broker static ruleset, extracted from Python)
+- `/usr/local/libexec/labwc-proxy-session` (the shared process supervisor)
+
+The managed proxy directory is separate from the vendor-owned `/etc/3proxy`:
+the upstream package maintainer script recursively restricts and changes
+ownership of its directory. Installer staging sets only `/etc/labwc` and
+`/etc/labwc/3proxy` to root:root 0755 and the managed policy files to root:root
+0644. Desktop installation and firstboot check these exact permissions. The
+policies contain no credentials and enter each sandbox through read-only binds.
+Host-root ownership is validated by the launcher before the user namespace is
+entered. Inside that namespace the supervisor checks the opened file's read-only
+mount, type, link count, permissions, size and resolved content; it does not assume
+that host UID 0 remains visible as UID 0 after namespace mapping.
+
+Every `hosts/profiles/*.env` has these pre-install settings:
+
+| Setting | Default | Contract |
+| --- | --- | --- |
+| `PROXY3_PORTS_ALLOW_WEB_BROWSER` | `443,8443,53443` | Comma-separated destination ports; Incus HTTPS is 8443, Technitium HTTPS is 53443 in the sibling server checkout. |
+| `PROXY3_PORTS_ALLOW_QBITTORRENT` | `443` | Tracker/RSS/misc CONNECT destination ports; torrent peers remain direct. |
+| `PROXY3_PORT_LISTEN_WEB_BROWSER` | `3128` | Namespace-local listener, also rendered into browser policies and supervisor settings. |
+| `PROXY3_PORT_LISTEN_QBITTORRENT` | `3128` | Namespace-local listener, also rendered into both native qBittorrent configurations. |
+| `PROXY3_MAXCONN_WEB_BROWSER` | `512` | Connection cap, 1..4096. |
+| `PROXY3_MAXCONN_QBITTORRENT` | `64` | Connection cap, 1..4096. |
+| `PROXY3_TIMEOUTS_WEB_BROWSER` | `1 5 30 60 180 1800 15 60 15 5` | Ten positive timeout values in seconds, in upstream order. |
+| `PROXY3_TIMEOUTS_QBITTORRENT` | `1 5 15 30 15 1800 5 30 10 5` | Existing tracker timeout values, exposed in the profile. |
+
+Timeout order: BYTE_SHORT, BYTE_LONG, STRING_SHORT, STRING_LONG,
+CONNECTION_SHORT, CONNECTION_LONG, DNS, CHAIN, CONNECT, CONNECTBACK.
+Ports are unique integers in 1..65535 (port 80 is rejected); listener ports are
+1024..65535. There are at most 32 destination ports. Timeouts are 1..3600.
+Invalid characters, duplicate ports and configuration-line injection fail before
+publication. Missing/empty optional values use the documented defaults.
+
+The ACL accepts only loopback clients and `HTTP_CONNECT` on the configured ports,
+then denies every other request. There is no SOCKS/admin listener, daemonization,
+request log, proxy authentication database or TLS interception. CONNECT tunnels
+TCP; it does not prove that the remote service is speaking TLS. The browser still
+performs HTTPS and certificate validation. The local proxy adds a request/port
+gate; it does not add remote anonymity or encryption beyond HTTPS.
+
+Mandatory browser policies select the local HTTP proxy without a DIRECT fallback
+or proxy bypass list. QUIC is disabled. Chromium-family WebRTC non-proxied UDP is
+disabled; Mullvad Browser WebRTC is disabled. The broker independently restricts
+browser leases to TCP on the same port allowlist, including before pinned or
+ordinary egress accepts. DNS retains the exact namespace DNS endpoint. Other
+application protocols and direct browser UDP are therefore unavailable.
+qBittorrent retains its separate direct TCP/uTP peer policy and port-80 guard.
+
+Use `https://dns.lan.icramer.com:53443/` or
+`https://incus.lan.icramer.com:8443/ui/` for the sibling server defaults. Existing
+LAN DNS and trusted server certificates are required. Remote qBittorrent WebUIs
+must have TLS enabled; add their HTTPS port before installation. This desktop's
+managed qBittorrent WebUI stays disabled. A WebUI hosted on the desktop itself
+must listen on its LAN address/name, not only host loopback: `localhost` inside
+the browser denotes its private namespace. Both host firewall hooks admit only
+browser leases on the configured ports. A custom `block_lan=true` policy retains
+its LAN and host restrictions.
+
+The supervisor waits up to ten seconds for the listener before launching the
+application and watches both children with pidfds. Proxy failure ends the
+application; application exit ends the proxy. During a service stop the proxy
+remains alive while the application closes, with the existing bounded namespace
+cleanup afterwards. Offline policies obtain no broker lease and start no proxy.
+
+3proxy is supplied by the signed upstream `current` binary APT channel as a core
+desktop dependency. The global vendor `3proxy.service` remains masked. The key
+and repository must be reachable; public GET probes on 2026-10-12 returned HTTP
+403 for the configured key and Release file. Signed package installation and
+browser policy acceptance still require a disposable fresh-install check.

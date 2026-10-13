@@ -6,6 +6,17 @@ Run from any directory with Python 3.11+:
 These tests validate code and generated policy, not kernel AppArmor enforcement.
 """
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
 from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
@@ -1684,7 +1695,7 @@ desktop_normalize_background_directories
 
     def test_tooling_resolves_python_when_sys_executable_is_empty(self):
         modules = (
-            load_script(ROOT.parents[1] / 'tools/build.py', 'tested_build'),
+            load_script(ROOT.parents[1] / 'tools/check_build.py', 'tested_build_checks'),
             load_script(ROOT.parents[1] / 'tools/validate.py', 'tested_validate'),
         )
         with tempfile.TemporaryDirectory(prefix='python-interpreter-') as directory:
@@ -1703,13 +1714,16 @@ desktop_normalize_background_directories
                     module.resolve_python_interpreter()
 
         validate = modules[1]
-        with mock.patch.dict(validate.os.environ, {'PATH': '/caller-specific'}, clear=True):
+        with mock.patch.dict(validate.os.environ, {'PATH': '/caller-specific',
+                                                  'HOME': '/workspace/home/fixture',
+                                                  'DBUS_SESSION_BUS_ADDRESS': 'discard-this'}, clear=True):
             child_environment = validate.validation_environment()
             self.assertEqual(child_environment['PATH'], validate.VALIDATION_PATH)
             self.assertEqual(validate.os.environ['PATH'], '/caller-specific')
+            self.assertNotIn('DBUS_SESSION_BUS_ADDRESS', child_environment)
         self.assertEqual(
             validate.VALIDATION_PATH,
-            '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+            '/usr/sbin:/usr/bin:/sbin:/bin',
         )
 
     def test_wayscriber_self_update_watcher_is_disabled(self):

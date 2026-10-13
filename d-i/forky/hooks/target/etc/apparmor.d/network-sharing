@@ -37,18 +37,42 @@ profile labwc-network-sharing /usr/local/bin/{labwc-network-sharing,nfsmnt} flag
     #include <abstractions/base>
     #include <abstractions/dbus-strict>
     /usr/bin/systemctl mr,
+    # systemd 262 forks both fallback agents when a controlling TTY exists,
+    # even when the wrapper captures stdout and supplies /dev/null on stdin.
+    # Keep both agents inside this unprivileged systemctl child profile.
+    /usr/bin/{pkttyagent,systemd-tty-ask-password-agent} rix,
     /etc/{passwd,group,nsswitch.conf,machine-id} r,
     /run/systemd/{system,private} rw,
     /run/systemd/system/ r,
-    /run/systemd/ask-password/ r,
+    /run/systemd/ask-password/{,ask.*} r,
+    owner /run/systemd/ask-password/sck.* w,
+    /run/systemd/ask-password-block/ rw,
+    owner /run/systemd/ask-password-block/[0-9]*:[0-9]* rw,
+    # systemd 262 creates its user request directory before adding the watch.
+    owner /run/user/[0-9]*/systemd/ask-password/ rw,
+    owner /run/user/[0-9]*/systemd/ask-password/ask.* r,
+    owner /run/user/[0-9]*/systemd/ask-password/sck.* w,
+    # Polkit 127 delegates PAM to its socket-activated root service.
+    /run/polkit/agent-helper.socket rw,
+    /proc/sys/fs/nr_open r,
     /proc/sys/kernel/random/boot_id r,
     owner @{PROC}/@{pid}/{stat,status,cgroup,mountinfo} r,
+    # Polkit 127 resolves the caller's pidfd through its own fdinfo file.
+    owner @{PROC}/@{pid}/fdinfo/[0-9]* r,
     /dev/tty rw,
+    # Observed file_inherit denial for the invoking user's terminal.
+    owner /dev/pts/[0-9]* rw,
     network unix stream,
+    # The password agent sends replies to its owned sck.* datagram socket.
+    network unix dgram,
     dbus (send, receive) bus=system peer=(name=org.freedesktop.systemd1),
+    dbus (send, receive) bus=system peer=(name=org.freedesktop.PolicyKit1),
+    dbus (receive) bus=system interface=org.freedesktop.PolicyKit1.AuthenticationAgent,
     dbus receive bus=system peer=(name=org.freedesktop.DBus),
-    # Authentication is performed by the already-running desktop agent, not
-    # by a new privileged or unconfined executable inside this process tree.
+    # The desktop agent remains primary; pkttyagent registers as a fallback.
+    # systemctl reaps its agents and pkttyagent restores/reraises TTY signals.
+    # The packaged AppArmor parser spells SIGTSTP "stp".
+    signal (send, receive) set=(hup, int, term, kill, chld, cont, stp, ttin, ttou) peer=labwc-network-sharing//systemctl,
     signal (receive) set=(term, kill) peer=labwc-network-sharing,
     signal (send) set=(chld) peer=labwc-network-sharing,
     signal (receive) set=(hup, int, term, kill) peer=desktop-launcher,

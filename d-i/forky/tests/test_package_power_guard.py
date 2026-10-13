@@ -6,6 +6,17 @@ All power, session, and readiness endpoints are intercepted at explicit test
 boundaries; the actual production lock implementation is executed unchanged.
 """
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from power_handoff_fixture import handoff_argv, is_handoff
 from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file
 from payload_fixture import installed_script
@@ -282,8 +293,6 @@ class WorkerFlowTests(LockFixture):
     def worker(self, action, *, greeter=False):
         worker = self.power.Worker(1000, 'desktop', action, greeter=greeter)
         self.events = []
-        self.stack.enter_context(mock.patch.object(self.power, 'check_shutdown_inhibitors',
-            side_effect=lambda **kwargs: self.events.append(('inhibitors', ()))))
         for name in ('lock', 'protect_other_sessions', 'helper', 'terminate_user',
                      'stop_optional_guests', 'prepare_machine_shutdown', 'final_power_action'):
             self.stack.enter_context(mock.patch.object(worker, name,
@@ -293,8 +302,8 @@ class WorkerFlowTests(LockFixture):
         self.stack.enter_context(mock.patch.object(self.power, 'hold_reservation', side_effect=lambda: self.events.append(('hold', ()))))
         return worker
 
-    def test_every_requested_desktop_action_waits_before_destructive_work(self):
-        for action in ('poweroff', 'reboot', 'logout', 'suspend'):
+    def test_logout_and_suspend_wait_before_destructive_work(self):
+        for action in ('logout', 'suspend'):
             with self.subTest(action=action):
                 worker = self.worker(action)
                 child = self.holder(self.paths[0])
@@ -319,23 +328,27 @@ class WorkerFlowTests(LockFixture):
                 else:
                     self.assertIn(('helper', ('prepare',)), self.events)
 
-    def test_greeter_waits_without_touching_any_desktop(self):
-        for action in ('poweroff','reboot'):
-            worker = self.worker(action, greeter=True)
-            child = self.holder(self.paths[0])
-            with mock.patch.object(worker, 'package_waiting', side_effect=lambda: self.release(child)), \
-                 mock.patch.object(self.power, 'run', return_value='') as run:
-                worker.execute()
-            worker.helper.assert_not_called()
-            worker.terminate_user.assert_not_called(); worker.session_identity.assert_not_called()
-            run.assert_not_called()  # Guest/final helpers are boundary mocks here.
-            worker.stop_optional_guests.assert_called_once_with()
-            worker.final_power_action.assert_called_once_with()
-            self.assertLess(self.events.index(('inhibitors', ())),
-                            self.events.index(('stop_optional_guests', ())))
-            self.assertLess(self.events.index(('stop_optional_guests', ())),
-                            self.events.index(('final_power_action', ())))
-            self.assertEqual(self.events[-1], ('hold', ()))
+    def test_desktop_and_greeter_shutdown_do_not_wait_for_package_activity(self):
+        for action in ('poweroff', 'reboot'):
+            for greeter in (False, True):
+                worker = self.worker(action, greeter=greeter)
+                child = self.holder(self.paths[0])
+                try:
+                    with (
+                        mock.patch.object(worker, 'package_waiting', side_effect=AssertionError('shutdown must not wait')),
+                        mock.patch.object(self.power, 'run', return_value=''),
+                    ):
+                        worker.execute()
+                    self.assertIsNone(child.poll())
+                    worker.session_identity.assert_not_called()
+                    worker.protect_other_sessions.assert_not_called()
+                    worker.final_power_action.assert_called_once_with()
+                    if greeter:
+                        worker.helper.assert_not_called()
+                    else:
+                        worker.helper.assert_called_once_with('close')
+                finally:
+                    self.release(child)
 
     def test_session_replacement_during_wait_cancels_without_closing_new_session(self):
         worker = self.worker('logout')
@@ -345,24 +358,21 @@ class WorkerFlowTests(LockFixture):
         worker.helper.assert_not_called(); worker.terminate_user.assert_not_called()
 
     def test_prepare_cancel_releases_locks_and_prevents_teardown(self):
-        worker = self.worker('reboot')
-        worker.helper.side_effect=self.power.Error('unsaved document')
+        worker = self.worker('logout')
+        worker.helper.side_effect=self.power.Error('remaining logout window')
         with self.assertRaises(self.power.Error): worker.execute()
         worker.stop_optional_guests.assert_not_called(); worker.final_power_action.assert_not_called()
         for path in self.paths: self.assert_writer(path, blocked=False)
 
     def test_missing_package_lock_never_prepares_suspends_or_tears_down(self):
-        worker = self.worker('reboot'); self.paths[0].unlink()
+        worker = self.worker('logout'); self.paths[0].unlink()
         with self.assertRaises(FileNotFoundError): worker.execute()
         worker.helper.assert_not_called(); worker.final_power_action.assert_not_called()
 
-    def test_destructive_methods_cannot_be_called_without_reservation(self):
-        worker = self.power.Worker(1000,'desktop','logout')
-        for method in (worker.terminate_user, worker.stop_optional_guests, worker.final_power_action):
-            worker.action = 'logout' if method == worker.terminate_user else 'reboot'
-            worker.prepared = True
-            with self.assertRaisesRegex(self.power.Error, 'reservation'):
-                method()
+    def test_logout_teardown_still_requires_package_reservation(self):
+        worker = self.power.Worker(1000, 'desktop', 'logout')
+        with self.assertRaisesRegex(self.power.Error, 'reservation'):
+            worker.terminate_user()
         self.power.run.assert_not_called()
 
     def test_sleep_guard_readiness_is_after_release_and_locks_stay_held(self):

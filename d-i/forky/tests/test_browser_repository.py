@@ -1,6 +1,17 @@
 #!/usr/bin/env python3
 """Browser clone, publication and Codex permission regressions; no vendor access."""
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import importlib.util
 import json
 import os
@@ -27,7 +38,7 @@ def load(name, path):
 
 
 SSH = load('netscape_installer', SEED/'scripts/late/ssh/ssh-install.py')
-BUILD = load('netscape_build', ROOT/'tools/build.py')
+BUILD = load('netscape_build_checks', ROOT/'tools/check_build.py')
 BROWSER = load('netscape_browser', ROOT/'tools/build_browser_config.py')
 
 
@@ -60,6 +71,25 @@ class CodexModeTests(unittest.TestCase):
 
 
 class BrowserPolicyTests(unittest.TestCase):
+    def test_vivaldi_search_cache_uses_complete_vendor_defaults_and_private_install_paths(self):
+        base = 'etc/skel-desktop/.config/vivaldi'
+        target = SEED / 'hooks/target' / base
+        data = json.loads((target / 'search_engines.json').read_text())
+        prompt = json.loads((target / 'search_engines_prompt.json').read_text())
+        self.assertEqual(set(data), {'int_variables', 'elements', 'engines', 'engines_by_country'})
+        self.assertGreaterEqual(data['int_variables']['kCurrentDataVersion'],
+                                prompt['int_variables']['kSearchEnginesDataVersionRequired'])
+        self.assertTrue(data['elements'] and data['engines'] and data['engines_by_country'])
+        self.assertIn('default', data['engines'])
+        self.assertEqual(set(prompt), {'int_variables', 'prompt_if_type', 'prompt_if_domain', 'exclude_list'})
+        staging = (SEED / 'scripts/desktop/components/target-assets.sh').read_text()
+        verifier = (SEED / 'scripts/desktop/verify.sh.tmpl').read_text()
+        for leaf in ('search_engines.json', 'search_engines_prompt.json'):
+            self.assertIn(f'desktop_stage_role_asset {base}/{leaf} /{base}/{leaf} 0600', staging)
+            self.assertIn(f'require_mode /{base}/{leaf} 600', verifier)
+            self.assertIn(f'"$account_home/.config/vivaldi/{leaf}"', verifier)
+        self.assertIn('.config/vivaldi', (SEED / 'scripts/desktop/components/user-config.sh').read_text())
+
     def test_profile_policy_rejects_missing_duplicate_injected_and_commit_pins(self):
         good = ('BROWSER_NETSCAPE_REPOSITORY_URL="' + SSH.NETSCAPE_URL + '"\n'
                 'BROWSER_NETSCAPE_REPOSITORY_BRANCH="mcr/main"\n'

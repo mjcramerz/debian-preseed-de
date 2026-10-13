@@ -5,6 +5,16 @@ AppArmor reader uses synthetic profiles; no host policy is modified or loaded.
 """
 from __future__ import annotations
 
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import importlib.util
 from pathlib import Path
 import re
@@ -28,6 +38,13 @@ def profile(file: str, name: str) -> str:
 
 
 class AppArmorGrantTests(unittest.TestCase):
+    def test_vivaldi_terminal_inheritance_is_owned_and_covers_both_attachments(self):
+        for attachment in ('vivaldi-stable', 'vivaldi-bin'):
+            policy = read_text(AA / ('local/' + attachment), encoding='utf-8')
+            self.assertIn('owner /dev/pts/[0-9]* rw,', policy)
+            self.assertNotRegex(policy, r'(?m)^\s*/dev/pts/\*\*')
+            self.assertNotRegex(policy, r'(?m)^\s*/dev/pts/\[0-9\]\*')
+
     def test_capture_can_save_its_cwd_without_reading_home_file_contents(self):
         policy = profile('desktop-wrappers', 'labwc-capture')
         self.assertIn('owner @{HOME}/ r,', policy)

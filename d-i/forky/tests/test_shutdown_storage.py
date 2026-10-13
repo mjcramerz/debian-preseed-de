@@ -1,6 +1,16 @@
 """Exercise the real shutdown coordinator with every host command intercepted."""
 from __future__ import annotations
 
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import contextlib
 import io
 import json
@@ -125,74 +135,45 @@ class ShutdownFlowTests(unittest.TestCase):
         self.stack = contextlib.ExitStack()
         self.addCleanup(self.stack.close)
         self.stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
-        for name in ('ready', 'hold_reservation', 'PackageLocks'):
+        for name in ('ready', 'hold_reservation'):
             self.stack.enter_context(mock.patch.object(self.power, name))
+        self.stack.enter_context(mock.patch.object(self.power, 'PackageLocks',
+            side_effect=AssertionError('machine shutdown must not wait for packages')))
         self.stack.enter_context(mock.patch.object(self.power, 'run', side_effect=self.mock_run))
         self.stack.enter_context(mock.patch.object(self.power.Worker, 'user_run', side_effect=self.mock_run))
         self.stack.enter_context(mock.patch.object(self.power, 'sharing_stop_groups',
             return_value=[self.mounts[:2], self.mounts[2:]]))
-        self.identity = self.stack.enter_context(mock.patch.object(
-            self.power.Worker, 'session_identity', return_value='a' * 32))
+        self.stack.enter_context(mock.patch.object(self.power.Worker, 'session_identity',
+            side_effect=AssertionError('machine shutdown must not require desktop readiness')))
+        self.stack.enter_context(mock.patch.object(self.power.Worker, 'protect_other_sessions',
+            side_effect=AssertionError('shutdown authorization is already complete')))
         self.reset()
 
     def reset(self, action='poweroff', greeter=False):
-        self.calls, self.stopped, self.absent = [], set(), set()
-        self.stop_error = self.stop_result_error = self.restart = None
-        self.veto = self.user_stopped = self.late_login = False
+        self.calls = []
+        self.failure = None
         self.worker = self.power.Worker(1000, 'desktop', action, greeter=greeter)
 
     def mock_run(self, argv, **kwargs):
         self.calls.append(argv)
-        if argv[-1] == 'ListSessions':
-            rows = [] if self.user_stopped else [
-                ['c1', 1000, 'desktop', 'seat0', '/org/freedesktop/login1/session/c1']]
-            if self.user_stopped and self.late_login:
-                rows = [['c2', 1000, 'desktop', 'seat0', '/org/freedesktop/login1/session/c2']]
-            return json.dumps({'type': 'a(susso)', 'data': [rows]})
-        if argv[-1] == 'ListInhibitors':
-            return json.dumps({'type': 'a(ssssuu)', 'data': [[]]})
-        if 'show-session' in argv:
-            if '--value' in argv:
-                return 'user\n'
-            return ('User=1000\nName=desktop\nClass=user-light\nActive=yes\nRemote=no\n'
-                    'Service=greetd-greeter\nLeader=1234\n')
-        if '--property=LoadState,ActiveState' in argv:  # Optional guest hooks.
-            return 'LoadState=not-found\nActiveState=inactive\n'
-        if '--property=LoadState,ActiveState,SubState,Result' in argv:
-            name = argv[2]
-            if name in self.absent:
-                return 'LoadState=not-found\nActiveState=inactive\nSubState=dead\n'
-            inactive = name in self.stopped
-            if self.worker.storage_stopped and name == self.restart:
-                inactive = False
-            result = 'exit-code' if inactive and name == self.stop_result_error else 'success'
-            return ('LoadState=loaded\nActiveState=' + ('inactive' if inactive else 'active')
-                    + '\nSubState=' + ('dead' if inactive else 'running') + '\nResult=' + result + '\n')
-        if '--property=ActiveState,SubState,Result,ExecMainStatus' in argv:
-            return ('ActiveState=active\nSubState=exited\nResult=success\nExecMainStatus='
-                    + ('77' if self.veto else '0') + '\n')
-        if '--property=ActiveState' in argv:
-            return 'inactive\n' if self.user_stopped else 'active\n'
-        if 'terminate-user' in argv:
-            self.user_stopped = True
-        if 'stop' in argv and '--user' not in argv and '--no-block' not in argv:
-            names = argv[argv.index('stop') + 1:]
-            if self.stop_error in names:
-                raise self.power.Error('injected busy stop')
-            self.stopped.update(names)
-        if is_handoff(argv):
-            self.assertTrue(self.user_stopped)
-            self.assertEqual(argv, ['/usr/bin/systemctl', '--force', self.worker.action])
+        self.assertFalse(any(value.startswith('--property=') for value in argv),
+                         'cleanup must not inspect retained unit results')
+        self.assertNotIn('ListSessions', argv)
+        self.assertNotIn('ListInhibitors', argv)
+        if self.failure is not None and self.failure in argv:
+            raise self.power.Error('injected failed cleanup')
         return ''
 
     def stop_index(self, name):
         return next(i for i, command in enumerate(self.calls) if 'stop' in command and name in command)
 
-    def assert_no_force(self):
-        self.assertFalse(any(is_handoff(command) for command in self.calls))
-        self.assertFalse(self.worker.handoff_attempted)
+    def assert_handoff(self):
+        handoffs = [command for command in self.calls if is_handoff(command)]
+        self.assertEqual(handoffs, [['/usr/bin/systemctl', '--force', self.worker.action]])
+        self.assertEqual(self.calls[-1], handoffs[0])
+        self.assertTrue(self.worker.committed and self.worker.handoff_attempted)
 
-    def test_desktop_and_greeter_both_actions_drain_in_order(self):
+    def test_desktop_and_greeter_both_actions_attempt_ordered_cleanup_then_submit(self):
         for action in ('poweroff', 'reboot'):
             for greeter in (False, True):
                 with self.subTest(action=action, greeter=greeter):
@@ -204,77 +185,40 @@ class ShutdownFlowTests(unittest.TestCase):
                     indices += [self.stop_index(name) for name in (
                         'zram-writebackd.service', 'zram-setup.service', 'swap-fallback.service')]
                     self.assertEqual(indices, sorted(set(indices)))
-                    mount_stop = self.calls[indices[0]]
-                    self.assertEqual(set(mount_stop[3:]), set(self.mounts))
-                    self.assertEqual(sum(is_handoff(c) for c in self.calls), 1)
-                    self.assertTrue(self.worker.session_stopped and self.worker.storage_stopped)
-                    self.assertEqual(self.calls[-1], ['/usr/bin/systemctl', '--force', action])
+                    self.assertEqual(set(self.calls[indices[0]][3:]), set(self.mounts))
+                    self.assertIn(['/usr/bin/sync'], self.calls)
+                    self.assert_handoff()
+                    close = ['start', 'labwc-session-state@close.service']
+                    requests = [c for c in self.calls if c[-2:] == close]
+                    self.assertEqual(len(requests), 0 if greeter else 1)
 
-    def test_busy_mount_preserves_session_and_blocks_handoff(self):
-        self.stop_error = self.mounts[-1]
-        with self.assertRaisesRegex(self.power.Error, 'busy'):
-            self.worker.execute()
-        self.assert_no_force()
-        self.assertFalse(self.user_stopped or self.worker.committed)
-        self.assertNotIn('nfs-server.service', self.stopped)
-
-    def test_failed_stop_transport_or_result_never_authorizes_force(self):
-        for name in ('nfs-server.service', 'greetd.service', 'zram-setup.service', 'swap-fallback.service'):
-            for field in ('stop_error', 'stop_result_error'):
-                with self.subTest(name=name, fault=field):
-                    self.reset()
-                    setattr(self, field, name)
-                    with self.assertRaises(self.power.Error):
+    def test_each_failed_cleanup_still_submits_for_desktop_and_greeter(self):
+        stages = (*self.mounts, 'nfs-server.service', 'nfs-idmapd.service',
+                  'greetd.service', 'terminate-user', self.power.EXTERNAL_DRIVES_UNIT,
+                  'zram-writebackd.service', 'zram-setup.service', 'swap-fallback.service',
+                  '/usr/bin/sync', 'labwc-session-state@close.service')
+        for action in ('poweroff', 'reboot'):
+            for greeter in (False, True):
+                for name in stages:
+                    with self.subTest(action=action, greeter=greeter, failed_stage=name):
+                        self.reset(action, greeter)
+                        self.failure = name
                         self.worker.execute()
-                    self.assert_no_force()
-                    if name == 'zram-setup.service':
-                        self.assertNotIn('swap-fallback.service', self.stopped)
+                        self.assert_handoff()
 
-    def test_save_veto_precedes_all_storage_operations(self):
-        self.veto = True
-        with self.assertRaises(self.power.Cancelled):
+    def test_untrusted_sharing_policy_skips_its_cleanup_and_still_submits(self):
+        with mock.patch.object(self.power, 'sharing_stop_groups',
+                               side_effect=self.power.Error('untrusted configuration')):
             self.worker.execute()
-        self.assertEqual(self.stopped, set())
-        self.assertFalse(self.user_stopped)
-        self.assert_no_force()
+        self.assertFalse(any(name in command for command in self.calls for name in self.mounts))
+        self.assert_handoff()
 
-    def test_session_replacement_during_unmount_is_rejected(self):
-        self.identity.side_effect = ['a' * 32] * 3 + ['b' * 32]
-        with self.assertRaisesRegex(self.power.Error, 'session changed'):
-            self.worker.execute()
-        self.assertFalse(self.user_stopped or self.worker.committed)
-        self.assert_no_force()
-
-    def test_user_teardown_failure_prevents_swap_teardown(self):
-        with mock.patch.object(self.worker, 'terminate_user', side_effect=self.power.Error('slice busy')):
-            with self.assertRaisesRegex(self.power.Error, 'slice busy'):
-                self.worker.execute()
-        self.assertNotIn('zram-setup.service', self.stopped)
-        self.assert_no_force()
-
-    def test_new_login_or_restarted_storage_prevents_final_handoff(self):
-        self.late_login = True
-        with self.assertRaisesRegex(self.power.Error, 'login session'):
-            self.worker.execute()
-        self.assert_no_force()
-        self.reset()
-        self.restart = 'zram-setup.service'
-        with self.assertRaisesRegex(self.power.Error, 'did not complete'):
-            self.worker.execute()
-        self.assert_no_force()
-
-    def test_absent_optional_units_are_never_started(self):
-        self.absent.update((*self.power.ZRAM_WORK_UNITS, 'swap-fallback.service'))
+    def test_optional_units_are_only_stopped_and_drive_cleanup_starts_once(self):
         self.worker.execute()
-        self.assertTrue(self.absent.isdisjoint(self.stopped))
-        self.assertFalse(any('start' in c and '--user' not in c for c in self.calls))
-
-    def test_prepared_flag_alone_cannot_bypass_storage_cleanup(self):
-        self.worker.prepared = True
-        self.worker.package_locks = mock.Mock()
-        with self.assertRaisesRegex(self.power.Error, 'teardown'):
-            self.worker.final_power_action()
-        self.assert_no_force()
+        starts = [command for command in self.calls if 'start' in command and '--user' not in command]
+        self.assertEqual(starts, [['/usr/bin/systemctl', '--no-ask-password', 'start',
+                                   self.power.EXTERNAL_DRIVES_UNIT]])
+        self.assert_handoff()
 
 
 if __name__ == '__main__':

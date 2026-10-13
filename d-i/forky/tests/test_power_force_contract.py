@@ -1,6 +1,16 @@
 """Single-force regression coverage: all power subprocesses are intercepted."""
 from __future__ import annotations
 
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import contextlib
 import io
 import os
@@ -26,89 +36,116 @@ class ForceContractTests(unittest.TestCase):
         self.stack = contextlib.ExitStack()
         self.addCleanup(self.stack.close)
         self.stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
-        self.stack.enter_context(mock.patch.object(self.power, 'check_shutdown_inhibitors'))
-        self.stack.enter_context(mock.patch.object(self.power.Worker, 'protect_other_sessions'))
         self.commands = self.stack.enter_context(mock.patch.object(self.power, 'run', return_value=''))
+        self.stack.enter_context(mock.patch.object(self.power, 'ready'))
+        self.stack.enter_context(mock.patch.object(self.power, 'hold_reservation'))
+        self.stack.enter_context(mock.patch.object(self.power, 'sharing_stop_groups', return_value=[]))
+        self.stack.enter_context(mock.patch.object(self.power.time, 'sleep'))
 
-    def worker(self, action, greeter=False):
-        worker = self.power.Worker(1000, 'desktop', action, greeter=greeter)
-        worker.prepared = not greeter
-        worker.session_stopped = worker.storage_stopped = True
-        worker.external_drives_prepared = True
-        # The final inventory is a hardware/service boundary; complete
-        # desktop and greeter flow tests exercise its real dispatch/order.
-        worker.prepare_external_drives = mock.Mock()
-        worker.package_locks = mock.Mock()
-        return worker
-
-    def test_literal_command_for_each_desktop_and_greeter_action(self):
+    def test_authorized_actions_submit_once_without_preparation_requirements(self):
         for action in ('reboot', 'poweroff'):
             for greeter in (False, True):
                 with self.subTest(action=action, greeter=greeter):
                     self.commands.reset_mock()
-                    worker = self.worker(action, greeter)
+                    worker = self.power.Worker(1000, 'desktop', action, greeter=greeter)
                     worker.final_power_action()
-                    self.commands.assert_called_once_with(
-                        ['/usr/bin/systemctl', '--force', action], timeout=25, max_output=4096)
+                    self.commands.assert_called_once_with(['/usr/bin/systemctl', '--force', action], timeout=25, max_output=4096)
                     self.assertTrue(worker.committed and worker.handoff_attempted)
+                    with self.assertRaisesRegex(self.power.Error, 'only once'):
+                        worker.final_power_action()
 
-    def test_sync_precedes_the_last_lock_check_and_submission(self):
-        for action in ('reboot', 'poweroff'):
-            with self.subTest(action=action):
-                events = []
-                worker = self.worker(action)
-                worker.package_locks.verify.side_effect = lambda: events.append('reservation')
-                with mock.patch.object(self.power.os, 'sync', side_effect=lambda: events.append('sync')), \
-                     mock.patch.object(self.power, 'run', side_effect=lambda *a, **k: events.append('force')):
-                    worker.final_power_action()
-                self.assertEqual(events[-4:], ['sync', 'reservation', 'reservation', 'force'])
-
-    def test_sync_failure_does_not_commit_or_submit(self):
-        for action in ('reboot', 'poweroff'):
-            with self.subTest(action=action):
-                self.commands.reset_mock()
-                worker = self.worker(action)
-                with mock.patch.object(self.power.os, 'sync', side_effect=OSError('sync failed')), \
-                     self.assertRaises(OSError):
-                    worker.final_power_action()
-                self.commands.assert_not_called()
-                self.assertFalse(worker.committed or worker.handoff_attempted)
-
-    def test_missing_external_drive_preparation_vetoes_every_force_handoff(self):
+    def test_each_preparation_failure_still_submits_for_desktop_and_greeter(self):
         for action in ('reboot', 'poweroff'):
             for greeter in (False, True):
+                for stage in ('helper', 'stop_optional_guests', 'stop_network_sharing', 'prepare_external_drives', 'shutdown_run'):
+                    for error in (self.power.Error('service failed'), OSError('unavailable'), subprocess.SubprocessError('timeout')):
+                        with self.subTest(action=action, greeter=greeter, stage=stage, error=type(error).__name__):
+                            self.commands.reset_mock()
+                            worker = self.power.Worker(1000, 'desktop', action, greeter=greeter)
+                            with (
+                                mock.patch.object(worker, 'helper'),
+                                mock.patch.object(worker, stage, side_effect=error),
+                                mock.patch.object(self.power, 'PackageLocks', side_effect=AssertionError('shutdown must not wait for packages')),
+                                mock.patch.object(worker, 'session_identity', side_effect=AssertionError('shutdown must not require a healthy desktop')),
+                                mock.patch.object(worker, 'protect_other_sessions', side_effect=AssertionError('authorization is complete')),
+                            ):
+                                worker.execute()
+                            handoffs = [c for c in self.commands.call_args_list if '--force' in c.args[0]]
+                            self.assertEqual(handoffs, [mock.call(['/usr/bin/systemctl', '--force', action], timeout=25, max_output=4096)])
+
+    def test_unexpected_cleanup_exception_cannot_skip_handoff(self):
+        worker = self.power.Worker(1000, 'desktop', 'reboot')
+        with (
+            mock.patch.object(worker, 'helper'),
+            mock.patch.object(worker, 'prepare_machine_shutdown', side_effect=ValueError('malformed fixture')),
+            self.assertRaises(ValueError),
+        ):
+            worker.execute()
+        self.assertEqual(self.commands.call_args.args[0], ['/usr/bin/systemctl', '--force', 'reboot'])
+        self.assertTrue(worker.handoff_attempted)
+
+    def test_cleanup_deadline_skips_remaining_work_but_still_submits(self):
+        worker = self.power.Worker(1000, 'desktop', 'poweroff')
+        worker.shutdown_deadline = 10
+        with mock.patch.object(self.power.time, 'monotonic', return_value=11):
+            worker.shutdown_run(['/usr/bin/sync'])
+        self.commands.assert_not_called()
+        worker.final_power_action()
+        self.commands.assert_called_once_with(['/usr/bin/systemctl', '--force', 'poweroff'], timeout=25, max_output=4096)
+
+    def test_save_stage_precedes_close_and_cleanup_and_greeter_skips_it(self):
+        for action in ('poweroff', 'reboot'):
+            for greeter in (False, True):
                 with self.subTest(action=action, greeter=greeter):
-                    worker = self.worker(action, greeter)
-                    worker.external_drives_prepared = False
-                    self.commands.reset_mock()
-                    with self.assertRaisesRegex(self.power.Error, 'external-drive preparation'):
-                        worker.final_power_action()
-                    self.commands.assert_not_called()
-                    self.assertFalse(worker.handoff_attempted)
+                    worker = self.power.Worker(1000, 'desktop', action, greeter=greeter)
+                    events = []
+                    with (mock.patch.object(worker, 'helper', side_effect=lambda op: events.append(op)),
+                          mock.patch.object(worker, 'stop_optional_guests', side_effect=lambda: events.append('guests')),
+                          mock.patch.object(worker, 'prepare_machine_shutdown', side_effect=lambda: events.append('cleanup')),
+                          mock.patch.object(worker, 'final_power_action', side_effect=lambda: events.append('force'))):
+                        worker.execute()
+                    self.assertEqual(events, ['guests', 'cleanup', 'force'] if greeter
+                                     else [action, 'close', 'guests', 'cleanup', 'force'])
+
+    def test_failed_save_helper_waits_only_the_remaining_grace(self):
+        worker = self.power.Worker(1000, 'desktop', 'poweroff')
+        for elapsed, expected in ((0, 15), (10, 5), (25, None)):
+            with (self.subTest(elapsed=elapsed),
+                  mock.patch.object(worker, 'helper', side_effect=self.power.Error('helper failed')),
+                  mock.patch.object(self.power.time, 'monotonic', side_effect=(100, 100 + elapsed)),
+                  mock.patch.object(self.power.time, 'sleep') as sleep):
+                worker.save_window()
+            if expected is None:
+                sleep.assert_not_called()
+            else:
+                sleep.assert_called_once_with(expected)
+
+    def test_save_helper_transport_is_bounded_and_uses_the_authorized_user_unit(self):
+        worker = self.power.Worker(1000, 'desktop', 'reboot')
+        with mock.patch.object(worker, 'userctl') as ctl:
+            worker.helper('reboot')
+        ctl.assert_called_once_with('start', 'labwc-session-state@reboot.service', timeout=25)
 
     def test_failed_or_uncertain_submission_never_escalates_or_retries(self):
         for action in ('reboot', 'poweroff'):
-            for error in (self.power.Error('transport deadline'), FileNotFoundError('systemctl'),
-                          subprocess.SubprocessError('lost reply')):
-                with self.subTest(action=action, error=type(error).__name__):
-                    worker = self.worker(action)
-                    with mock.patch.object(self.power, 'run', side_effect=error) as command:
-                        with self.assertRaisesRegex(self.power.Error, 'uncertain; do not retry automatically'):
-                            worker.final_power_action()
-                        with self.assertRaisesRegex(self.power.Error, 'only once'):
-                            worker.final_power_action()
-                    command.assert_called_once_with(
-                        ['/usr/bin/systemctl', '--force', action], timeout=25, max_output=4096)
-                    self.assertTrue(worker.committed and worker.handoff_attempted)
+            worker = self.power.Worker(1000, 'desktop', action)
+            with mock.patch.object(self.power, 'run', side_effect=self.power.Error('lost reply')) as command:
+                with self.assertRaisesRegex(self.power.Error, 'uncertain; do not retry automatically'):
+                    worker.final_power_action()
+                with self.assertRaisesRegex(self.power.Error, 'only once'):
+                    worker.final_power_action()
+            command.assert_called_once_with(['/usr/bin/systemctl', '--force', action], timeout=25, max_output=4096)
 
-    def test_shutdown_alias_is_normalized_before_worker_dispatch(self):
+    def test_shutdown_alias_dispatch_does_not_wait_for_sleep_or_package_lock(self):
         for instance, greeter in (('1000-shutdown', False), ('1000-greeter-shutdown', True)):
-            with self.subTest(instance=instance), \
-                 mock.patch.object(self.power.os, 'geteuid', return_value=0), \
-                 mock.patch.object(self.power.os, 'umask'), \
-                 mock.patch.object(self.power, 'action_lock', return_value=contextlib.nullcontext()), \
-                 mock.patch.object(self.power.pwd, 'getpwuid', return_value=SimpleNamespace(pw_name='desktop')), \
-                 mock.patch.object(self.power, 'Worker') as worker:
+            with (
+                self.subTest(instance=instance),
+                mock.patch.object(self.power.os, 'geteuid', return_value=0),
+                mock.patch.object(self.power.os, 'umask'),
+                mock.patch.object(self.power, 'action_lock', side_effect=AssertionError('shutdown cannot wait for another action')),
+                mock.patch.object(self.power.pwd, 'getpwuid', return_value=SimpleNamespace(pw_name='desktop')),
+                mock.patch.object(self.power, 'Worker') as worker,
+            ):
                 self.assertEqual(self.power.main([instance]), 0)
                 worker.assert_called_once_with(1000, 'desktop', 'poweroff', greeter=greeter)
                 worker.return_value.execute.assert_called_once_with()
@@ -211,85 +248,14 @@ class ForceUnitConfinementTests(unittest.TestCase):
 
 
 class ExternalDrivePreparationTests(unittest.TestCase):
-    def test_drive_completion_precedes_desktop_and_greeter_session_teardown(self):
+    def test_external_drive_stage_is_bounded_and_never_checks_clean_result(self):
         power = module()
-        for action in ('reboot', 'poweroff'):
-            for greeter in (False, True):
-                for failed in (False, True):
-                    with self.subTest(action=action, greeter=greeter, failed=failed):
-                        worker = power.Worker(1000, 'desktop', action, greeter=greeter)
-                        worker.package_locks = mock.Mock()
-                        events = []
-                        def command(argv, **kwargs):
-                            events.append(argv)
-                            if argv[-2:] == ['start', power.EXTERNAL_DRIVES_UNIT]:
-                                if failed:
-                                    raise power.Error('drive preparation failed')
-                                return ''
-                            if argv[:3] == ['/usr/bin/systemctl', 'show', power.EXTERNAL_DRIVES_UNIT]:
-                                return ('LoadState=loaded\nActiveState=inactive\nSubState=dead\n'
-                                        'Result=success\nExecMainStatus=0\n')
-                            return ''
-                        with contextlib.ExitStack() as stack:
-                            stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
-                            stack.enter_context(mock.patch.object(power, 'run', side_effect=command))
-                            stack.enter_context(mock.patch.object(power, 'check_shutdown_inhibitors'))
-                            stack.enter_context(mock.patch.object(worker, 'protect_other_sessions'))
-                            stack.enter_context(mock.patch.object(worker, 'session_identity', return_value='fixture'))
-                            stack.enter_context(mock.patch.object(worker, 'stop_network_sharing'))
-                            stops = stack.enter_context(mock.patch.object(worker, 'stop_units',
-                                side_effect=lambda names: events.append(['stop-units', *names])))
-                            userctl = stack.enter_context(mock.patch.object(worker, 'userctl',
-                                side_effect=lambda *args, **kwargs: events.append(['userctl', *args])))
-                            stack.enter_context(mock.patch.object(worker, 'wait_for_exit', return_value=True))
-                            if failed:
-                                with self.assertRaisesRegex(power.Error, 'drive preparation failed'):
-                                    worker.prepare_machine_shutdown('fixture')
-                                stops.assert_not_called()
-                                userctl.assert_not_called()
-                                self.assertFalse(worker.committed or worker.session_stopped)
-                                self.assertFalse(any('terminate-user' in event for event in events))
-                            else:
-                                worker.prepare_machine_shutdown('fixture')
-                                verified = next(i for i, event in enumerate(events) if event[:3] ==
-                                                ['/usr/bin/systemctl', 'show', power.EXTERNAL_DRIVES_UNIT])
-                                greetd = events.index(['stop-units', 'greetd.service'])
-                                terminated = events.index(['/usr/bin/loginctl', 'terminate-user', '1000'])
-                                self.assertLess(verified, greetd)
-                                self.assertLess(greetd, terminated)
-                                self.assertTrue(worker.external_drives_prepared)
-                                self.assertTrue(worker.session_stopped and worker.storage_stopped)
-
-    def test_power_session_teardown_requires_verified_drive_preparation(self):
-        power = module()
-        for action in ('reboot', 'poweroff'):
-            for greeter in (False, True):
-                with self.subTest(action=action, greeter=greeter):
-                    worker = power.Worker(1000, 'desktop', action, greeter=greeter)
-                    worker.package_locks = mock.Mock()
-                    with mock.patch.object(power, 'run') as run, \
-                         mock.patch.object(worker, 'userctl') as userctl, \
-                         self.assertRaisesRegex(power.Error, 'external-drive preparation'):
-                        worker.terminate_user()
-                    run.assert_not_called()
-                    userctl.assert_not_called()
-
-    def test_nonzero_missing_failed_or_running_service_never_marks_drives_prepared(self):
-        power = module()
-        for properties in (
-                '', 'LoadState=not-found\nActiveState=inactive\nSubState=dead\nResult=success\nExecMainStatus=0\n',
-                'LoadState=loaded\nActiveState=active\nSubState=running\nResult=success\nExecMainStatus=0\n',
-                'LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=exit-code\nExecMainStatus=1\n',
-                'LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=success\nExecMainStatus=1\n',
-                'LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=success\n'):
-            with self.subTest(properties=properties):
-                worker = power.Worker(1000, 'desktop', 'poweroff')
-                worker.package_locks = mock.Mock()
-                with mock.patch.object(power, 'run', side_effect=['', properties]) as calls, \
-                        contextlib.redirect_stderr(io.StringIO()), self.assertRaises(power.Error):
-                    worker.prepare_external_drives()
-                self.assertFalse(worker.external_drives_prepared)
-                self.assertFalse(any('--force' in call.args[0] for call in calls.call_args_list))
+        worker = power.Worker(1000, 'desktop', 'poweroff')
+        worker.shutdown_deadline = 50
+        with mock.patch.object(power.time, 'monotonic', return_value=45),              mock.patch.object(power, 'run', return_value='') as run:
+            worker.prepare_external_drives()
+        run.assert_called_once_with(['/usr/bin/systemctl', '--no-ask-password', 'start', power.EXTERNAL_DRIVES_UNIT],
+                                    timeout=5, max_output=16384)
 
 
 class FirstbootForceValidationTests(unittest.TestCase):
@@ -343,8 +309,8 @@ class FirstbootForceValidationTests(unittest.TestCase):
 
     def test_firstboot_rejects_missing_external_drive_stage_or_service(self):
         original = self.worker_source
-        self.worker.write_text(original.replace('if not self.external_drives_prepared:',
-                                                 'if False:'))
+        self.worker.write_text(original.replace('self.best_effort("external drives", self.prepare_external_drives)',
+                                                 'pass  # fixture removes drive cleanup'))
         self.check(False)
         self.worker.write_text(original)
         service = self.directory / 'etc/systemd/system/labwc-external-drives-shutdown.service'

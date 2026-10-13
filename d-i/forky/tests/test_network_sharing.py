@@ -5,6 +5,16 @@ write is performed. Root-only filesystem tests use disposable private trees.
 """
 from __future__ import annotations
 
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import importlib.machinery
 import importlib.util
 import errno
@@ -2029,6 +2039,11 @@ class IntegrationWiringTests(unittest.TestCase):
             self.assertIn('network-sharing', path.read_text())
         self.assertIn('labwc-network-sharing 0755', (SEED/'scripts/desktop/components/target-assets.sh').read_text())
         self.assertIn('usr/local/bin/nfsmnt /usr/local/bin/nfsmnt 0755', (SEED/'scripts/desktop/components/target-assets.sh').read_text())
+        self.assertFalse((TARGET/'usr/local/bin/nftmnt').exists())
+        for validation in ('scripts/desktop/verify.sh.tmpl', 'scripts/firstboot/04-validation.sh.tmpl'):
+            source = (SEED/validation).read_text()
+            self.assertIn('/usr/local/bin/nfsmnt', source)
+            self.assertRegex(source, r'(?m)^\s+nfsmnt \\\s*$')
         policy = (TARGET/'etc/apparmor.d/network-sharing').read_text()
         self.assertIn('/usr/local/bin/{labwc-network-sharing,nfsmnt}', policy)
         for rule in ('/usr/local/bin/nfsmnt r,', '/usr/local/bin/labwc-network-sharing rix,', '/etc/fstab r,', 'network inet stream,'):

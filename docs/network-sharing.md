@@ -113,7 +113,7 @@ run the build/check commands below and publish a consistent snapshot; do not
 edit the generated payload manually. NFS settings must be double-quoted data
 with, at most, `${PREVIOUS_VARIABLE}` expansion; command substitution, shell
 backticks, forward references and duplicate NFS assignments are rejected by the
-build-time gate. This gate validates the same scalar policy as the target
+separate validation gate. This gate validates the same scalar policy as the target
 configurator without executing the profile shell.
 
 ## Profile and shared policy reference
@@ -526,7 +526,8 @@ isolation is provided by the compatible systemd drop-ins described above.
 
 ## Rebuild, reruns and administrator changes
 
-From the repository root:
+From the private repository copy inside the
+[mandatory disposable environment](test-isolation.md):
 
 ```sh
 python3 -B tools/check_network_sharing.py
@@ -537,13 +538,13 @@ python3 -B tools/check_preseeds.py
 make audit
 ```
 
-The normal builder includes the NFS profile gate. `make build` regenerates
+The separate `make check` includes the NFS profile gate. `make build` only regenerates
 `preseed.cfg`, `payload.manifest` and `payload.tar.gz`; those three must match
 the source tree before serving it. The delivered archive includes them. Run
 `make test` and the complete release validator as well; do not ignore a failed
 release gate merely because the focused NFS checks pass. A full suite can take
 longer than the validator's default per-suite timeout; choose an adequate
-`tools/validate.py --test-timeout` on the release host rather than suppressing
+`tools/validate.py --test-timeout` inside the disposable environment rather than suppressing
 tests. Serve only after reviewing destructive disk choices and credentials.
 
 An identical offline configurator rerun is idempotent. A changed saved profile

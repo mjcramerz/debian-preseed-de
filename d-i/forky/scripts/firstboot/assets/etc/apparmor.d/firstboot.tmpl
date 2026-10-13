@@ -152,6 +152,7 @@ profile crowdsec-firstboot /var/lib/firstboot/bin/crowdsec-firstboot flags=(atta
 
   capability chown,
   capability dac_override,
+  capability dac_read_search,
   capability fowner,
   capability net_admin,
   capability sys_ptrace,
@@ -170,6 +171,8 @@ profile crowdsec-firstboot /var/lib/firstboot/bin/crowdsec-firstboot flags=(atta
   /usr/local/libexec/ r,
   /usr/bin/{awk,chmod,date,dirname,getent,grep,hostname,install,mawk,mkdir,mktemp,mv,rm,sha256sum,sleep,ss,find,systemctl,timeout} rix,
   /usr/{bin,sbin,local/bin,local/sbin}/cscli rix,
+  /usr/bin/crowdsec rix,
+  /usr/bin/cmp rix,
 
   /etc/crowdsec/ rw,
   /etc/crowdsec/** rwkl,
@@ -196,6 +199,9 @@ profile crowdsec-firstboot /var/lib/firstboot/bin/crowdsec-firstboot flags=(atta
   __INSTALLER_LOG_CROWDSEC_DIR__/** rwkl,
   owner /tmp/crowdsec-*.log rw,
   owner /tmp/crowdsec-enroll.*.log rw,
+  # Coraza checks its temporary directory with CreateTemp("checkfsfile")
+  # during crowdsec -t, then closes and removes the owner-only probe file.
+  owner /tmp/checkfsfile[0-9]* rw,
 
   include if exists <local/usr.local.libexec.crowdsec-firstboot>
 }

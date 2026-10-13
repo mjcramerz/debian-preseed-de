@@ -229,6 +229,26 @@ profile desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exe
   # Trailing slash restricts this to directories; file data, writes and exec
   # retain their existing policy, and ordinary DAC permissions still apply.
   /**/ r,
+  # nmtui/libudev reads one network-device record per interface index.
+  /run/udev/data/n[0-9]* r,
+  # Waybar opens nmtui in this terminal domain. NetworkManager performs Wi-Fi
+  # activation, radio changes and connection edits after its Polkit checks.
+  # The same namespace includes nmtui's SecretAgent password callbacks.
+  #include <abstractions/dbus-strict>
+  dbus (send, receive) bus=system path=/org/freedesktop/NetworkManager{,/**}
+    peer=(name=org.freedesktop.NetworkManager),
+  # libnm 1.58 enumerates devices and subscribes to their changes at this root.
+  dbus (send, receive) bus=system path=/org/freedesktop
+    interface=org.freedesktop.DBus.ObjectManager
+    member={GetManagedObjects,InterfacesAdded,InterfacesRemoved}
+    peer=(name=org.freedesktop.NetworkManager),
+  # libnm verifies the daemon's uid before registering its password agent.
+  dbus (send) bus=system path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus member=GetConnectionUnixUser
+    peer=(name=org.freedesktop.DBus),
+  dbus (receive) bus=system path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus member=NameOwnerChanged
+    peer=(name=org.freedesktop.DBus),
   #include <abstractions/devops-toolchain-data>
   #include <abstractions/desktop-runtime>
   #include <abstractions/user-documents>
@@ -292,6 +312,29 @@ profile desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exe
   # before the first script exec instead of building null learning descendants.
   /usr/bin/code rpx -> code,
   /usr/bin/btop rPx -> desktop-btop,
+  # aa-status is a native, read-only diagnostic in AppArmor 4.1.
+  # Keep it in its own child rather than granting general /usr/sbin execution.
+  /usr/sbin/aa-status rCx -> apparmor-status,
+  signal (send) set=(hup, int, term, kill) peer=desktop-launcher//apparmor-status,
+  signal (receive) set=(chld) peer=desktop-launcher//apparmor-status,
+  profile apparmor-status {
+    #include <abstractions/base>
+    # Procfs executable links require read access across process credentials.
+    # This does not grant a host capability; an authorized root caller must
+    # already possess it. Process attachment and memory writes remain denied.
+    capability sys_ptrace,
+    ptrace (read),
+    deny ptrace (trace),
+    /usr/sbin/aa-status mr,
+    owner /dev/pts/[0-9]* rw,
+    /sys/module/apparmor/{,parameters/,parameters/enabled,parameters/available} r,
+    /sys/kernel/security/{,apparmor/,apparmor/profiles} r,
+    @{PROC}/ r,
+    @{PROC}/{mounts,[0-9]*/mounts} r,
+    @{PROC}/[0-9]*/{,exe,attr/,attr/current,attr/apparmor/,attr/apparmor/current} r,
+    signal (receive) set=(hup, int, term, kill) peer=desktop-launcher,
+    signal (send) set=(chld) peer=desktop-launcher,
+  }
   /usr/share/code/{bin/code,code} rpx -> code,
   # Debian's clang frontend lives below /usr/lib; keep its linker children in
   # this existing developer domain instead of complain-mode null descendants.

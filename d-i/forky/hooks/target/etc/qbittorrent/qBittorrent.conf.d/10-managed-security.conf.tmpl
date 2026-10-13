@@ -33,7 +33,7 @@ Session\BTProtocol=0
 Session\BlockPeersOnPrivilegedPorts=true
 Session\ConnectionSpeed=30
 Session\DHTEnabled=false
-Session\DefaultSavePath=/run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/completed
+Session\DefaultSavePath=__INSTALLER_QBITTORRENT_SAVE_ROOT__/completed
 Session\DisableAutoTMMByDefault=true
 # Use libtorrent's platform backend and the kernel's bounded page cache.
 # Avoid obsolete libtorrent 1.x DiskCacheSize/TTL tuning on Forky.
@@ -45,7 +45,7 @@ Session\HashingThreadsCount=1
 Session\FilePoolSize=100
 Session\DiskQueueSize=1048576
 Session\Encryption=0
-Session\FinishedTorrentExportDirectory=/run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/torrents-completed
+Session\FinishedTorrentExportDirectory=__INSTALLER_QBITTORRENT_SAVE_ROOT__/torrents-completed
 Session\GlobalMaxRatio=-1
 Session\GlobalMaxSeedingMinutes=-1
 Session\GlobalMaxInactiveSeedingMinutes=-1
@@ -77,6 +77,7 @@ Session\MultiConnectionsPerIp=false
 Session\OutgoingPortsMin=0
 Session\OutgoingPortsMax=0
 Session\PeXEnabled=false
+Session\ProxyPeerConnections=false
 Session\PerformanceWarning=true
 Session\Port=__INSTALLER_LABWC_QBITTORRENT_PORT__
 Session\Preallocation=false
@@ -88,9 +89,9 @@ Session\SaveResumeDataInterval=5
 Session\SaveStatisticsInterval=5
 # Give private trackers time to receive the stopped announce during shutdown.
 Session\StopTrackerTimeout=5
-Session\TempPath=/run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/active
+Session\TempPath=__INSTALLER_QBITTORRENT_SAVE_ROOT__/active
 Session\TempPathEnabled=true
-Session\TorrentExportDirectory=/run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/torrents-active
+Session\TorrentExportDirectory=__INSTALLER_QBITTORRENT_SAVE_ROOT__/torrents-active
 Session\ValidateHTTPSTrackerCertificate=true
 Session\IgnoreLimitsOnLAN=false
 Session\IncludeOverheadInLimits=true
@@ -109,6 +110,18 @@ Accepted=true
 
 [Network]
 PortForwardingEnabled=false
+# The namespace-local CONNECT-only proxy rejects HTTP (including redirects)
+# and permits CONNECT on PROXY3_PORTS_ALLOW_QBITTORRENT (443 by default).
+# libtorrent cannot send UDP trackers via HTTP proxy.
+# Peers retain direct TCP/uTP through the same isolated, pinned namespace.
+Proxy\Type=1
+Proxy\IP=127.0.0.1
+Proxy\Port=__INSTALLER_PROXY3_PORT_LISTEN_QBITTORRENT__
+Proxy\AuthEnabled=false
+Proxy\HostnameLookupEnabled=true
+Proxy\Profiles\BitTorrent=true
+Proxy\Profiles\RSS=true
+Proxy\Profiles\Misc=true
 
 [Preferences]
 Connection\ResolvePeerCountries=true

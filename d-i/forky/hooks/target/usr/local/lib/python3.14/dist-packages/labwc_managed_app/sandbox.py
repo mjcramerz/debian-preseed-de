@@ -203,12 +203,14 @@ def run_veth_sandbox(
     cleanup_deadline: Callable[[], float] | None = None,
     cleanup_failure: Callable[[], None] | None = None,
     network: bool = True,
+    graceful_shutdown: bool = False,
 ) -> int:
     validate_private_procfs(command)
     return network_namespace.run_veth_sandbox(
         command, payload_argv, temp_root, inherited_fds, app=app,
         pre_payload_check=pre_payload_check, runtime_check=runtime_check,
         cleanup_deadline=cleanup_deadline, cleanup_failure=cleanup_failure, network=network,
+        graceful_shutdown=graceful_shutdown,
     )
 
 
@@ -457,6 +459,32 @@ def pure_privacy_argv(app_name: str, extra_args: list[str]) -> list[str]:
     return argv
 
 
+BROWSER_PROXY_POLICIES = {
+    "chromium": "/etc/chromium/policies/managed/3proxy.json",
+    "microsoft-edge": "/etc/opt/edge/policies/managed/3proxy.json",
+    "vivaldi": "/etc/vivaldi/policies/managed/3proxy.json",
+    "mullvad-browser": "/usr/lib/mullvad-browser/distribution/policies.json",
+}
+
+
+def proxy_session_argv(command: list[str], argv: list[str], app: str, *, online: bool) -> list[str]:
+    """Bind immutable install-rendered policy; run the proxy inside the payload netns."""
+    add_dir_chain(command, "/etc/labwc/3proxy")
+    for path in ("/etc/labwc/3proxy/session.json", "/etc/labwc/3proxy/" + app + ".conf"):
+        require_root_owned_regular_file("managed CONNECT proxy policy", path)
+        command.extend(["--ro-bind", path, path])
+    require_root_owned_executable("3proxy", "/usr/bin/3proxy")
+    if app in BROWSER_PROXY_POLICIES:
+        path = BROWSER_PROXY_POLICIES[app]
+        require_root_owned_regular_file("managed browser proxy policy", path)
+        command.extend(["--ro-bind", path, path])
+    session = require_root_owned_regular_file(
+        "managed CONNECT proxy supervisor", "/usr/local/libexec/labwc-proxy-session",
+        executable=True,
+    )
+    return [session, app, *([] if online else ["--offline"]), *argv]
+
+
 def bwrap_command(app_name: str, bwrap: str) -> list[str]:
     if app_name == "code":
         # Code's tools retain its existing application-specific execution
@@ -662,6 +690,24 @@ def _run_pure_privacy(app_name: str, extra_args: list[str], resources: ExitStack
     ):
         add_dir_chain(command, directory)
 
+    if app_name == "qbittorrent":
+        add_dir_chain(command, "/etc/labwc/3proxy")
+        for path in (
+            "/etc/labwc/3proxy/qbittorrent.conf",
+            "/etc/labwc/3proxy/session.json",
+            "/etc/qbittorrent/qBittorrent.conf.d/20-managed-privacy.conf",
+        ):
+            require_root_owned_regular_file("qBittorrent privacy policy", path)
+            command.extend(["--ro-bind", path, path])
+        session = require_root_owned_regular_file(
+            "qBittorrent session supervisor", "/usr/local/libexec/labwc-proxy-session",
+            executable=True,
+        )
+        argv = [session, "qbittorrent", "--privacy", *([] if online else ["--offline"]), *argv]
+
+    if app_name in BROWSER_PROXY_POLICIES:
+        argv = proxy_session_argv(command, argv, app_name, online=online)
+
     validate_pure_privacy_device_isolation(app_name, command)
     for key, value in env.items():
         command.extend(["--setenv", key, value])
@@ -677,6 +723,7 @@ def _run_pure_privacy(app_name: str, extra_args: list[str], resources: ExitStack
         # The dedicated persistent torrent wrapper owns peer-port
         # forwarding. A disposable profile needs outbound networking.
         app=network_app, network=online,
+        graceful_shutdown=app_name == "qbittorrent" or app_name in BROWSER_PROXY_POLICIES,
     )
 
 
@@ -1730,6 +1777,8 @@ def _run_persistent_sandbox_with_resources(
             from .network_client import codex_socket_arguments, podman_socket_arguments
             command.extend(podman_socket_arguments())
             command.extend(codex_socket_arguments())
+        if app_name in BROWSER_PROXY_POLICIES:
+            argv = proxy_session_argv(command, argv, app_name, online=veth_enabled)
         payload_argv = [*payload_argv_prefix, *argv]
         return run_veth_sandbox(
                 command,
@@ -1740,6 +1789,7 @@ def _run_persistent_sandbox_with_resources(
                     if compatibility_instance else require_running_dbus_proxies(proxy_processes)),
                 runtime_check=(lambda: (compatibility_instance.service(), require_compatibility_dbus_proxies(proxy_processes) if compatibility_instance.outcome is None else None)) if compatibility_instance else None,
                 app=app_name, network=veth_enabled,
+                graceful_shutdown=app_name in BROWSER_PROXY_POLICIES,
                 cleanup_deadline=compatibility_instance.begin_cleanup if compatibility_instance else None,
                 cleanup_failure=(lambda: setattr(compatibility_instance, "cleanup_failed", True)) if compatibility_instance else None,
             )

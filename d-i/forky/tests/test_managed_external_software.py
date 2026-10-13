@@ -1,6 +1,17 @@
 #!/usr/bin/env python3
 '''Managed external Debian repository and package-policy regressions.'''
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from payload_fixture import installed_argv as payload_installed_argv, source_is_file as payload_source_is_file
 from payload_fixture import read_text as payload_read_text
 
@@ -9,11 +20,13 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import runpy
 import subprocess
 import tarfile
 import tempfile
 import unittest
+from unittest import mock
 
 FORKY = Path(__file__).resolve().parents[1]
 PERL_LIB = FORKY / (
@@ -22,6 +35,64 @@ PERL_LIB = FORKY / (
 SERVICING = PERL_LIB / 'APTRepoLocal/Servicing'
 DISCORD_ARCHIVE_HELPER = FORKY / 'hooks/target/usr/local/libexec/discord-distro'
 SYSTEM_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+
+
+class SoftwareDownloadLoggingTests(unittest.TestCase):
+    def test_download_logging_omits_redirect_credentials_and_preserves_transport_url(self):
+        source = payload_read_text(FORKY / 'scripts/late/software.sh')
+        match = re.search(
+            r'(?ms)^  download_log_host=\$\{effective_url#https://\}.*?^  software_info [^\n]+$', source)
+        self.assertIsNotNone(match)
+        script = ('effective_url=$1\nlabel=Fixture\nhttp_status=200\n'
+                  'normalized_content_type=application/octet-stream\ndestination_size=64\n'
+                  'software_info() { printf "%s\\n" "$*"; }\n' + match[0] +
+                  '\n[ "$effective_url" = "$1" ]\n')
+        for url in (
+            'https://cdn.example/package.deb?sig=fixture-signature&jwt=fixture-token',
+            'https://fixture-user:fixture-secret@cdn.example/package.deb?token=fixture-token',
+            'https://cdn.example?sig=fixture-signature',
+            'https://cdn.example#fixture-secret',
+            'https://cdn.example/package.deb',
+        ):
+            with self.subTest(url=url):
+                result = subprocess.run(payload_installed_argv(['/bin/sh', '-eu', '-c', script, 'fixture', url]),
+                                        env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'},
+                                        text=True, capture_output=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout, 'resolved Fixture download effective_host=cdn.example '
+                                 'http_status=200 content_type=application/octet-stream bytes=64\n')
+
+
+class ProxyAPTSourceTests(unittest.TestCase):
+    def test_3proxy_archive_is_grouped_without_changing_its_scoped_key(self):
+        normalizer = runpy.run_path(str(FORKY / 'hooks/target/usr/local/libexec/apt-repo-local-normalize-sources'))
+        self.assertEqual(normalizer['vendor']('https://3proxy.org/repo/deb'), '3proxy')
+        for uri in ('https://3proxy.org/other', 'https://3proxy.org.example/repo/deb'):
+            self.assertNotEqual(normalizer['vendor'](uri), '3proxy')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            parts = root / 'etc/apt/sources.list.d'
+            parts.mkdir(parents=True)
+            key = '/etc/apt/keyrings/local11.asc'
+            (parts / 'local11.list').write_text(
+                f'deb [signed-by={key}] https://3proxy.org/repo/deb current main\n', encoding='utf-8')
+            # Root ownership is modeled; parsing, publication and idempotence
+            # use real temporary files, never the development host APT tree.
+            globals_ = normalizer['normalize'].__globals__
+            with mock.patch.dict(globals_, directory=lambda p: p.mkdir(parents=True, exist_ok=True),
+                                 regular=lambda p: p.read_bytes(), keyring_bytes=lambda *a: None):
+                self.assertEqual(normalizer['normalize'](root), ['3proxy.sources'])
+                published = (parts / '3proxy.sources').read_bytes()
+                normalizer['normalize'](root)
+                self.assertEqual((parts / '3proxy.sources').read_bytes(), published)
+            self.assertIn(('Signed-By: ' + key).encode(), published)
+            self.assertIn(b'Suites: current\nComponents: main\n', published)
+            self.assertFalse((parts / 'local11.list').exists())
+        software = (FORKY / 'classes/class-addon/software.cfg').read_text(encoding='utf-8')
+        for row in ('local11/repository string https://3proxy.org/repo/deb current main',
+                    'local11/key string https://3proxy.org/repo/3proxy-release-key.asc',
+                    'local11/source boolean false'):
+            self.assertIn(row, software)
 
 
 class ManagedAPTRepoLocalTests(unittest.TestCase):

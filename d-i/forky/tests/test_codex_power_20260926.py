@@ -1,5 +1,16 @@
 """Focused regressions; no host power, user-manager, or mount operations."""
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from power_handoff_fixture import handoff_argv, is_handoff
 import contextlib
 import io
@@ -239,40 +250,33 @@ class PowerRegressionTests(unittest.TestCase):
                  self.assertRaises(self.p.Error):
                 self.p.login_sessions()
 
-    def test_force_occurs_only_after_sync_and_reservation_recheck(self):
-        events = []
-        w = self.p.Worker(1000, 'desktop', 'reboot'); w.prepared = True
-        w.session_stopped = w.storage_stopped = True
-        w.external_drives_prepared = True
-        w.prepare_external_drives = mock.Mock(side_effect=lambda: events.append('drive-recheck'))
-        w.package_locks = mock.Mock()
-        w.package_locks.verify.side_effect = lambda: events.append('verify')
-        with mock.patch.object(w, 'protect_other_sessions', side_effect=lambda: events.append('accounts')), \
-             mock.patch.object(self.p, 'check_shutdown_inhibitors', side_effect=lambda **kw: events.append(('inhibitors',kw))), \
-             mock.patch.object(self.p.os, 'sync', side_effect=lambda: events.append('sync')), \
-             mock.patch.object(self.p, 'run', side_effect=lambda argv, **kw: events.append(argv)), \
-             contextlib.redirect_stderr(io.StringIO()):
-            w.final_power_action()
-            self.assertEqual(events[-1], handoff_argv('reboot'))
-            self.assertLess(events.index('drive-recheck'), events.index('sync'))
-            self.assertIn(('inhibitors', {}), events)
-            self.assertEqual(events[events.index('sync')+1], 'verify')
-            with self.assertRaises(self.p.Error): w.final_power_action()
-        self.assertEqual(sum(isinstance(e,list) and is_handoff(e) for e in events), 1)
+    def test_final_power_request_has_no_package_or_drive_preflight_gate(self):
+        worker = self.p.Worker(1000, 'desktop', 'reboot')
+        with mock.patch.object(self.p, 'run') as run, contextlib.redirect_stderr(io.StringIO()):
+            worker.final_power_action()
+            with self.assertRaises(self.p.Error):
+                worker.final_power_action()
+        run.assert_called_once_with(handoff_argv('reboot'), timeout=25, max_output=4096)
 
-    def test_sync_failure_never_submits_force(self):
-        w = self.p.Worker(1000, 'desktop', 'poweroff'); w.prepared = True
-        w.session_stopped = w.storage_stopped = True
-        w.external_drives_prepared = True
-        w.prepare_external_drives = mock.Mock()
-        w.package_locks = mock.Mock()
-        with mock.patch.object(w, 'protect_other_sessions'), \
-             mock.patch.object(self.p, 'check_shutdown_inhibitors'), \
-             mock.patch.object(self.p.os, 'sync', side_effect=OSError('sync failed')), \
-             mock.patch.object(self.p, 'run') as run:
-            with self.assertRaises(OSError): w.final_power_action()
-            run.assert_not_called()
-            self.assertFalse(w.handoff_attempted)
+    def test_sync_cleanup_failure_cannot_skip_final_submission(self):
+        worker = self.p.Worker(1000, 'desktop', 'poweroff')
+        calls = []
+        def command(argv, **kwargs):
+            calls.append(argv)
+            if argv == ['/usr/bin/sync']:
+                raise self.p.Error('sync timed out')
+            return ''
+        with (
+            mock.patch.object(worker, 'helper'),
+            mock.patch.object(self.p, 'ready'),
+            mock.patch.object(self.p, 'hold_reservation'),
+            mock.patch.object(self.p, 'sharing_stop_groups', return_value=[]),
+            mock.patch.object(self.p, 'run', side_effect=command),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            worker.execute()
+        self.assertEqual(calls[-1], handoff_argv('poweroff'))
+        self.assertEqual(sum('--force' in c for c in calls), 1)
 
     def test_preflight_failure_diagnostics_are_in_journal(self):
         unit = read_text(desktop.DESKTOP/'etc/systemd/system/labwc-admin-action@.service')

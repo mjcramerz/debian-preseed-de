@@ -4,6 +4,17 @@ Audit coverage checks the scoped source rules and masks, not kernel enforcement.
 No test starts host services, rewrites installed applications or loads policy.
 """
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
 from payload_fixture import python_library
 from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
@@ -287,7 +298,7 @@ class SessionOwnershipTests(unittest.TestCase):
         call = self.launch(owner=0)
         call.assert_called_once()
         argv = call.call_args.args[1]
-        self.assertIn('--property=ExitType=cgroup', argv)
+        self.assertIn('--property=ExitType=main', argv)
         self.assertIn('--property=KillMode=control-group', argv)
 
     def test_native_marker_prevents_loop(self):

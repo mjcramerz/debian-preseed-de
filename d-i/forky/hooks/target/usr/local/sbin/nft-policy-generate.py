@@ -424,8 +424,10 @@ def nft_set(values: Sequence[str], quote_strings: bool = False) -> str:
 
 def app_veth_identity(policy: Mapping[str, Any]) -> Tuple[str, str, int]:
     value = as_dict(policy.get("app_veth"), "app_veth")
-    if set(value) != {"interfaces", "dns_host_address", "dns_host_port"}:
-        raise PolicyError("app_veth: requires exact interfaces and DNS listener fields")
+    required = {"interfaces", "dns_host_address", "dns_host_port"}
+    if not required <= set(value) or set(value) - required - {"web_tls_ports"}:
+        raise PolicyError("app_veth: requires interfaces, DNS listener and optional HTTPS ports")
+    app_veth_web_tls_ports(policy)
     interfaces = as_list(value["interfaces"], "app_veth.interfaces")
     if (not 1 <= len(interfaces) <= 128 or any(not isinstance(name, str)
             or len(name) > 15 or re.fullmatch(r"[a-z][a-z0-9]*[0-9]+-[a-z][a-z0-9]*", name) is None
@@ -441,6 +443,16 @@ def app_veth_identity(policy: Mapping[str, Any]) -> Tuple[str, str, int]:
             or type(port) is not int or not 1024 <= port <= 65535):
         raise PolicyError("app_veth: DNS listener must be a canonical loopback address and unprivileged port")
     return nft_set(interfaces, quote_strings=True), address, port
+
+
+def app_veth_web_tls_ports(policy: Mapping[str, Any]) -> list[int]:
+    value = as_dict(policy.get("app_veth"), "app_veth")
+    ports = as_list(value.get("web_tls_ports", []), "app_veth.web_tls_ports")
+    if (len(ports) > 32 or any(type(port) is not int or not 1 <= port <= 65535
+                             or port == 80 for port in ports)
+            or len(set(ports)) != len(ports)):
+        raise PolicyError("app_veth: invalid, duplicate or plaintext HTTP browser ports")
+    return ports
 
 
 def nft_define_set(values: Sequence[str], quote_strings: bool = False) -> str:
@@ -1229,6 +1241,11 @@ def render_filter(policy: Mapping[str, Any], maps: Mapping[str, Dict[str, Any]],
     # app_veth.forward_guard applies first, including before established.
     app_interfaces, app_dns_address, app_dns_port = app_veth_identity(policy)
     lines.append(add_rule(policy, input_chain, f'iifname {app_interfaces} ip daddr {app_dns_address} meta l4proto {{ tcp, udp }} th dport {app_dns_port} ct status dnat accept' + comment_expr("managed namespace DNS cache")))
+    web_ports = app_veth_web_tls_ports(policy)
+    if web_ports:
+        # The earlier app_veth.host_guard admits only allocated browser leases
+        # on these ports; the base hook must also admit those host WebUI flows.
+        lines.append(add_rule(policy, input_chain, f'iifname {app_interfaces} meta l4proto tcp tcp dport {nft_set(web_ports)} accept' + comment_expr("managed browser host HTTPS")))
     lines.append(add_rule(policy, forward_chain, f'iifname {app_interfaces} accept' + comment_expr("app veth guarded egress")))
     lines.append(add_rule(policy, forward_chain, f'oifname {app_interfaces} accept' + comment_expr("app veth guarded ingress")))
 

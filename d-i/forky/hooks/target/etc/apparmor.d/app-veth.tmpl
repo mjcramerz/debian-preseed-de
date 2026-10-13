@@ -16,6 +16,7 @@ profile app-veth /usr/local/sbin/app-veth flags=(attach_disconnected, mediate_de
   /usr/local/sbin/app-veth r,
   /usr/local/lib/python3.14/dist-packages/app_veth_policy.py r,
   /etc/app-veth.json r,
+  /etc/app-veth.nft r,
   /etc/iproute2/{,**} r,
   /usr/lib/iproute2/{,**} r,
   /usr/share/iproute2/{,**} r,
@@ -24,6 +25,7 @@ profile app-veth /usr/local/sbin/app-veth flags=(attach_disconnected, mediate_de
   /etc/nftables/{,**} r,
   # Forky resolves the compatibility /usr/sbin/ip symlink to /usr/bin/ip.
   /usr/{bin,sbin}/ip rix,
+  /usr/{bin,sbin}/conntrack rix,
   /usr/sbin/{nft,sysctl} rix,
   /usr/bin/nsenter rix,
   /usr/lib/@{multiarch}/lib*.so* mr,

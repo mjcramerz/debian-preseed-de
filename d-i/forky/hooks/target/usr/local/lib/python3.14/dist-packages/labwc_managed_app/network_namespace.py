@@ -18,6 +18,7 @@ from .network_client import pin_sandbox_init
 BWRAP_INFO_MAX_BYTES = 16_384
 BWRAP_NETWORK_SETUP_TIMEOUT_SECONDS = 15
 PROCESS_STOP_TIMEOUT_SECONDS = 2
+PROCESS_GRACEFUL_STOP_TIMEOUT_SECONDS = 15
 
 
 def veth_resolv_conf() -> str:
@@ -29,6 +30,12 @@ def veth_resolv_conf() -> str:
 PEER_STARTUP_GATE = (
     "import os,sys; fd=int(sys.argv[1]); marker=os.read(fd,1); os.close(fd); "
     "sys.exit(1) if marker != b'1' else os.execv(sys.argv[2],sys.argv[2:])"
+)
+GRACEFUL_PEER_STARTUP_GATE = (
+    "import os,signal,sys; fd=int(sys.argv[1]); marker=os.read(fd,1); os.close(fd); "
+    "sys.exit(1) if marker != b'1' else None; "
+    "signal.pthread_sigmask(signal.SIG_UNBLOCK,(signal.SIGHUP,signal.SIGINT,signal.SIGTERM)); "
+    "os.execv(sys.argv[2],sys.argv[2:])"
 )
 DISCORD_RPC_PORTS = tuple(range(6463, 6473))
 DISCORD_RPC_GUEST_ADDRESS = "0.0.0.0"
@@ -279,21 +286,26 @@ def _read_bwrap_sandbox_pid(
 
 
 def wait_for_payload(sandbox: subprocess.Popen, lease) -> int:
-    """Wait for process exit or lease loss without periodic wakeups."""
+    """Watch process exit; retry a lost broker without ending the payload."""
     status = sandbox.poll()
     if status is not None:
         return status
     if lease is None:
         return sandbox.wait()
-    lease.check()
     try:
         monitor_fd = os.pidfd_open(sandbox.pid)
     except ProcessLookupError:
         return sandbox.wait()
     try:
         while True:
-            ready, _, _ = select.select([monitor_fd, lease.socket], [], [])
-            lease.check()
+            status = sandbox.poll()
+            if status is not None:
+                return status
+            lease.maintain()
+            readers = [monitor_fd]
+            if lease.socket is not None:
+                readers.append(lease.socket)
+            ready, _, _ = select.select(readers, [], [], lease.retry_timeout())
             if monitor_fd in ready:
                 return sandbox.wait()
     finally:
@@ -309,6 +321,7 @@ def run_veth_sandbox(
     cleanup_failure: Callable[[], None] | None = None,
     on_network_ready: Callable | None = None,
     network: bool = True,
+    graceful_shutdown: bool = False,
 ) -> int:
     """Supervise the private PID namespace, with an optional veth lease."""
     from .network_client import Lease
@@ -316,18 +329,41 @@ def run_veth_sandbox(
     sandbox = None
     pidfd = None
     lease = None
+    payload_started = False
+    stopping = False
+    previous_handlers = {}
+
+    def interrupted(signum, frame):
+        nonlocal stopping
+        stopping = True
+        for watched in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+            signal.signal(watched, signal.SIG_IGN)
+        raise SystemExit(128 + signum)
+
     try:
+        if graceful_shutdown:
+            for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+                previous_handlers[signum] = signal.signal(signum, interrupted)
         info_read, info_write = os.pipe()
         descriptors.update((info_read, info_write))
         block_read, block_write = os.pipe()
         descriptors.update((block_read, block_write))
         gate_read, gate_write = os.pipe()
         descriptors.update((gate_read, gate_write))
+        startup_gate = GRACEFUL_PEER_STARTUP_GATE if graceful_shutdown else PEER_STARTUP_GATE
         argv = [*command, "--info-fd", str(info_write), "--block-fd", str(block_read),
-                "/usr/bin/python3", "-I", "-B", "-c", PEER_STARTUP_GATE,
+                "/usr/bin/python3", "-I", "-B", "-c", startup_gate,
                 str(gate_read), *payload_argv]
-        sandbox = subprocess.Popen(argv, cwd="/", env=managed_subprocess_environment(),
-            pass_fds=tuple(dict.fromkeys((*inherited_fds, info_write, block_read, gate_read))))
+        # Keep Bubblewrap's monitor/reaper alive through service-stop signals.
+        # The authorized startup gate unblocks them for the application only.
+        previous_mask = (signal.pthread_sigmask(signal.SIG_BLOCK,
+            (signal.SIGHUP, signal.SIGINT, signal.SIGTERM)) if graceful_shutdown else None)
+        try:
+            sandbox = subprocess.Popen(argv, cwd="/", env=managed_subprocess_environment(),
+                pass_fds=tuple(dict.fromkeys((*inherited_fds, info_write, block_read, gate_read))))
+        finally:
+            if previous_mask is not None:
+                signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
         for fd in (info_write, block_read, gate_read):
             close_file_descriptor(fd)
             descriptors.remove(fd)
@@ -349,6 +385,7 @@ def run_veth_sandbox(
             fail("Bubblewrap stopped before kernel network readiness")
         os.write(block_write, b"1")
         os.write(gate_write, b"1")
+        payload_started = True
         for fd in (block_write, gate_write, info_read):
             close_file_descriptor(fd)
             descriptors.remove(fd)
@@ -361,7 +398,7 @@ def run_veth_sandbox(
             if status is not None:
                 return status
             if lease is not None:
-                lease.check()
+                lease.maintain()
             try:
                 return sandbox.wait(timeout=0.25)
             except subprocess.TimeoutExpired:
@@ -377,9 +414,19 @@ def run_veth_sandbox(
             # that PID namespace; a recycled numeric PID is never targeted.
             if pidfd is not None:
                 try:
-                    signal.pidfd_send_signal(pidfd, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
+                    # Group-wide service signals already reached the payload.
+                    # Keep its namespace and lease for a bounded graceful stop;
+                    # setup failure still prevents the payload from starting.
+                    if stopping and payload_started:
+                        try:
+                            sandbox.wait(timeout=PROCESS_GRACEFUL_STOP_TIMEOUT_SECONDS)
+                        except subprocess.TimeoutExpired:
+                            pass
+                finally:
+                    try:
+                        signal.pidfd_send_signal(pidfd, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
         finally:
             cleanup_ok = True
             try:
@@ -390,10 +437,14 @@ def run_veth_sandbox(
                 else:
                     _stop_subprocess(sandbox)
             finally:
-                for fd in descriptors:
-                    close_file_descriptor(fd)
-                close_file_descriptor(pidfd)
-                if lease is not None:
-                    lease.close()
+                try:
+                    for fd in descriptors:
+                        close_file_descriptor(fd)
+                    close_file_descriptor(pidfd)
+                    if lease is not None:
+                        lease.close()
+                finally:
+                    for signum, handler in previous_handlers.items():
+                        signal.signal(signum, handler)
             if not cleanup_ok and cleanup_failure is not None:
                 cleanup_failure()

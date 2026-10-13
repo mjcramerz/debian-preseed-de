@@ -5,6 +5,17 @@ Perl -c can execute BEGIN blocks: validate only a trusted source tree. This does
 not boot d-i, start target services, partition disks or install packages.
 """
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[1] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import argparse
 import datetime
 import hashlib
@@ -19,13 +30,13 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-VALIDATION_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+VALIDATION_PATH = '/usr/sbin:/usr/bin:/sbin:/bin'
 
 
 def validation_environment() -> dict[str, str]:
-    environment = os.environ.copy()
-    environment['PATH'] = VALIDATION_PATH
-    return environment
+    return {'PATH': VALIDATION_PATH, 'HOME': os.environ['HOME'],
+            'TMPDIR': '/tmp', 'LC_ALL': 'C.UTF-8', 'LANG': 'C.UTF-8',
+            'PYTHONDONTWRITEBYTECODE': '1'}
 
 
 def resolve_python_interpreter() -> str:
@@ -54,11 +65,13 @@ def main() -> int:
     if args.test_timeout < 1:
         parser.error('--test-timeout must be a positive integer')
     output = args.output_dir.resolve()
+    if not output.is_relative_to(ROOT):
+        parser.error('--output-dir must stay inside the private checkout')
     output.mkdir(parents=True,exist_ok=True)
     interpreter = resolve_python_interpreter()
     stages = [
         ('browser-check', [interpreter,'-B','tools/build_browser_config.py','--check'],30),
-        ('build-check', [interpreter,'-B','tools/build.py','--check'],90),
+        ('build-check', [interpreter,'-B','tools/check_build.py'],90),
         ('preseed-check', [interpreter,'-B','tools/check_preseeds.py'],90),
         ('shell-check', [interpreter,'-B','tools/check_shells.py','--output',str(output/'shell-check.json')],120),
         ('tests', [interpreter,'-B','-m','unittest','discover','-v','-s','d-i/forky/tests','-p','test_*.py'],args.test_timeout),

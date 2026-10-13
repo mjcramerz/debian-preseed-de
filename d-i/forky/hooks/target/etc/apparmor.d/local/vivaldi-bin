@@ -24,6 +24,8 @@ owner /run/user/[0-9]*/bus rw,
 
 /dev/video* rw,
 /dev/ r,
+# Preserve the same user-owned terminal across the wrapper -> browser transition.
+owner /dev/pts/[0-9]* rw,
 
 # Chromium's MemoryInfra thread samples root-owned sandbox helper processes.
 @{PROC}/[0-9]*/statm r,

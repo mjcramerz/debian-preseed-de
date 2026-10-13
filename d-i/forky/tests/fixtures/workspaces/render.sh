@@ -2,6 +2,7 @@
 # Test-only transport fixture; renderer and replacement functions are production.
 set -eu
 repo=$1
+/usr/bin/python3 -I -B /workspace/repository/tools/isolation.py
 destination=$2
 LABWC_WORKSPACE_COUNT=${3:-4}
 LABWC_WINDOW_SWITCHER_STYLE=${4:-thumbnail}

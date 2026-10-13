@@ -4,6 +4,17 @@ All power calls and desktop applications are mocked. FD tests run only in an
 isolated Python child; root-file tests use a temporary directory, not /etc.
 """
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_stat as payload_source_stat
 from payload_fixture import python_library
 from payload_fixture import installed_script
@@ -45,7 +56,6 @@ class FootResults(unittest.TestCase):
 
     def command(self, arguments, kind='wayland', environment=None):
         with mock.patch.object(self.m, 'assert_launch_allowed'), \
-             mock.patch.object(self.m, 'restart_token', return_value='fixture'), \
              mock.patch.object(self.m, 'menu_action_wait_arguments', return_value=[]):
             return self.m.transient_argv(kind, 'auto', arguments,
                                          {} if environment is None else environment)
@@ -72,7 +82,7 @@ class FootResults(unittest.TestCase):
 
     def test_native_stop_keeps_cgroup_cleanup_and_session_lifetime(self):
         command = self.command(['/usr/bin/foot'])
-        for item in ('KillMode=mixed', 'ExitType=cgroup', 'TimeoutStopSec=20s',
+        for item in ('KillMode=mixed', 'ExitType=main', 'TimeoutStopSec=20s',
                      'SendSIGKILL=yes', 'Restart=no', 'Requisite=labwc-session.target',
                      'After=labwc-session.target', 'PartOf=labwc-session.target'):
             self.assertIn('--property='+item, command)
@@ -87,15 +97,12 @@ class FootResults(unittest.TestCase):
                 self.assertIn('--property=KillMode=control-group', command)
                 self.assertFalse(any(item.startswith('--property=SuccessExitStatus=') for item in command))
 
-    def test_session_restore_retains_original_application_command(self):
+    def test_application_units_do_not_capture_restart_commands(self):
         environment = {}
-        with mock.patch.object(self.m, 'assert_launch_allowed'), \
-             mock.patch.object(self.m, 'restart_token', return_value='fixture') as token, \
-             mock.patch.object(self.m, 'menu_action_wait_arguments', return_value=[]):
-            self.m.transient_argv('wayland', 'auto', ['/usr/bin/foot'], environment)
-        token.assert_called_once_with([self.m.WRAPPERS['wayland'], 'auto', '--', '/usr/bin/foot'])
+        command = self.command(['/usr/bin/foot'], environment=environment)
         self.assertEqual(environment['LABWC_SESSION_APP'], '1')
-        self.assertEqual(environment['LABWC_SESSION_RESTORE'], 'fixture')
+        self.assertNotIn('LABWC_SESSION_RESTORE', environment)
+        self.assertFalse(any('LABWC_SESSION_RESTORE' in value for value in command))
 
     def test_removed_helpers_have_no_installer_or_runtime_dependencies(self):
         for name in ('labwc-foot-supervisor', 'labwc-stage-waybar-icons'):
@@ -109,101 +116,78 @@ class FootResults(unittest.TestCase):
 
 class SaveVeto(unittest.TestCase):
     def setUp(self):
-        self.m = load('labwc-session-state')
+        self.session = load('labwc-session-state')
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.runtime = self.root / 'runtime'
+        self.runtime.mkdir(mode=0o700)
+        self.stack = contextlib.ExitStack()
+        self.addCleanup(self.stack.close)
+        self.ctl = self.stack.enter_context(mock.patch.object(self.session, 'ctl', return_value=''))
+        self.run = self.stack.enter_context(mock.patch.object(self.session, 'run', return_value=''))
+        self.windows = self.stack.enter_context(mock.patch.object(self.session, 'windows', return_value=''))
+        self.notify = self.stack.enter_context(mock.patch.object(self.session, 'notify'))
+        self.sleep = self.stack.enter_context(mock.patch.object(self.session.time, 'sleep'))
+        self.clipboard = self.stack.enter_context(mock.patch.object(self.session, 'clear_clipboard'))
 
-    def response(self, code, text):
-        return mock.patch.object(self.m.subprocess, 'run', return_value=SimpleNamespace(returncode=code, stdout=text))
+    def test_power_close_sends_one_request_without_window_or_service_gates(self):
+        self.windows.side_effect = AssertionError('power close must not inspect windows')
+        self.session.close(self.runtime)
+        self.run.assert_called_once_with(['/usr/bin/wlrctl', 'toplevel', 'close'], timeout=5, accepted=(0, 1))
+        self.ctl.assert_not_called()
+        self.sleep.assert_not_called()
+        self.notify.assert_not_called()
+        self.assertTrue((self.runtime / 'labwc-session-closing').is_file())
 
-    def test_only_exact_second_index_allows_close(self):
-        with self.response(0, '1\n') as run:
-            self.m.confirm_close()
-        kw = run.call_args.kwargs
-        self.assertTrue(kw['input'].startswith('Cancel -'))
-        self.assertEqual(len(kw['input'].splitlines()), 2)
-        self.assertEqual(kw['env']['LABWC_MENU_BACKEND'], 'fuzzel')
-        self.assertEqual(kw['env']['LABWC_FUZZEL_MANAGED_ICONS'], '0')
-        self.assertIn('--no-sort', run.call_args.args[0])
-        self.assertIn('power-confirm', run.call_args.args[0])
-        self.assertTrue(kw['close_fds'])
+    def test_logout_only_waits_for_actual_windows_without_generic_save_warning(self):
+        self.windows.side_effect = ['browser: page', 'editor: Save changes?', '']
+        self.session.prepare(self.runtime)
+        self.assertEqual(self.sleep.call_args_list, [mock.call(0.2), mock.call(0.2)])
+        self.run.assert_called_once()
+        self.notify.assert_not_called()
+        self.clipboard.assert_called_once()
+        self.assertEqual(sorted(p.name for p in self.root.iterdir()), ['runtime'])
 
-    def test_cancel_default_escape_and_timeout_are_vetoes(self):
-        for code,text in ((0,'0\n'), (1,'')):
-            with self.response(code,text), self.assertRaises(self.m.Cancelled):
-                self.m.confirm_close()
-        with mock.patch.object(self.m.subprocess,'run',side_effect=subprocess.TimeoutExpired('fixture',120)), \
-             self.assertRaises(self.m.Cancelled):
-            self.m.confirm_close()
+    def test_windowless_background_apps_cannot_block_logout(self):
+        self.session.prepare(self.runtime, timeout=0)
+        self.sleep.assert_not_called()
+        self.notify.assert_not_called()
+        self.assertFalse(hasattr(self.session, 'protected_still_running'))
+        self.assertFalse(hasattr(self.session, 'services'))
 
-    def test_malformed_and_backend_errors_fail_closed(self):
-        for code,text in ((2,''), (0,''), (0,'01'), (0,'1\n0'), (0,'2'), (-9,'1')):
-            with self.subTest(code=code,text=text), self.response(code,text), self.assertRaises(self.m.Error):
-                self.m.confirm_close()
+    def test_remaining_window_cancels_logout_and_removes_marker(self):
+        self.windows.return_value = 'editor: Save changes?'
+        with self.assertRaises(self.session.Cancelled):
+            self.session.prepare(self.runtime, timeout=0)
+        self.assertFalse((self.runtime / 'labwc-session-closing').exists())
+        self.clipboard.assert_not_called()
 
-    def test_all_named_editors_and_browsers_are_protected(self):
-        for app in self.m.PROTECTED_APPS:
-            for kind in ('wayland','electron','native'):
-                name = 'labwc-' + kind + '-' + app + '-' + 'a'*32 + '.service'
-                self.assertEqual(self.m.protected_services({name:{'LABWC_SESSION_APP':'1'}}), {name})
-                self.assertEqual(self.m.protected_services({name:{}}), set())
+    def test_failed_window_probe_cancels_logout_without_stranding_marker(self):
+        self.windows.side_effect = self.session.Error('Wayland unavailable')
+        with self.assertRaises(self.session.Error):
+            self.session.prepare(self.runtime)
+        self.assertFalse((self.runtime / 'labwc-session-closing').exists())
 
-    def test_unmanaged_and_non_editor_jobs_are_not_relabelled(self):
-        apps={'labwc-wayland-foot-'+'a'*32+'.service':{'LABWC_SESSION_APP':'1'},
-              'labwc-wayland-featherpad-invalid.service':{'LABWC_SESSION_APP':'1'}}
-        self.assertEqual(self.m.protected_services(apps), set())
+    def test_clipboard_failure_does_not_block_closed_logout(self):
+        self.clipboard.side_effect = self.session.Error('clipboard unavailable')
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.session.prepare(self.runtime)
+        self.assertTrue((self.runtime / 'labwc-session-closing').exists())
 
-    def test_save_prompt_detects_managed_and_unmanaged_document_windows(self):
-        self.assertFalse(self.m.needs_save_prompt('', set()))
-        for visible in ('foot: shell', 'thunar: Downloads'):
-            self.assertFalse(self.m.needs_save_prompt(visible, set()))
-        for visible in ('org.mozilla.firefox: form', 'featherpad: draft',
-                        'code-insiders: project', 'gnumeric: sheet'):
-            self.assertTrue(self.m.needs_save_prompt(visible, set()))
-        self.assertFalse(self.m.needs_save_prompt('', {'labwc-native-featherpad-fixture.service'}))
-        self.assertTrue(self.m.needs_save_prompt('(unidentified toplevel)', set()))
-        self.assertTrue(self.m.needs_save_prompt('(unidentified toplevel)',
-                                                {'labwc-native-featherpad-fixture.service'}))
-        self.assertFalse(self.m.needs_save_prompt('foot: source code', set()))
-        self.assertTrue(self.m.needs_save_prompt('foot: source code',
-                                                {'labwc-native-featherpad-fixture.service'}))
+    def test_restore_and_persistent_capture_are_absent(self):
+        for name in ('restore', 'collect', 'descriptor', 'load', 'atomic', 'confirm_close'):
+            self.assertFalse(hasattr(self.session, name))
+        with (
+            mock.patch.object(self.session.os, 'getuid', return_value=1000),
+            mock.patch.object(self.session.os, 'geteuid', return_value=1000),
+            self.assertRaises(self.session.Error),
+        ):
+            self.session.main(['restore'])
 
-    def test_plain_windows_close_without_power_confirmation(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp); state = root/'state'; runtime = root/'runtime'
-            state.mkdir(); runtime.mkdir()
-            with mock.patch.object(self.m, 'ctl'), \
-                 mock.patch.object(self.m, 'services', return_value={}), \
-                 mock.patch.object(self.m, 'windows', side_effect=['foot: shell', '', '']), \
-                 mock.patch.object(self.m, 'confirm_close') as confirm, \
-                 mock.patch.object(self.m, 'clear_clipboard'), \
-                 mock.patch.object(self.m.time, 'sleep'), \
-                 mock.patch.object(self.m, 'run', return_value='') as commands:
-                self.m.prepare(state, runtime)
-            confirm.assert_not_called()
-            commands.assert_called_once_with(['/usr/bin/wlrctl', 'toplevel', 'close'],
-                                             timeout=5, accepted=(0, 1))
-            self.assertTrue(payload_source_exists(state/'resume.json'))
-
-    def test_protected_background_saves_require_terminal_state(self):
-        for value in ({}, {'LoadState':'loaded','ActiveState':'active'},
-                      {'LoadState':'loaded','ActiveState':'deactivating'}, {'LoadState':'error'}):
-            with mock.patch.object(self.m,'properties',return_value=value):
-                self.assertTrue(self.m.protected_still_running({'example.service'}))
-        for value in ({'LoadState':'not-found'}, {'LoadState':'loaded','ActiveState':'inactive'},
-                      {'LoadState':'loaded','ActiveState':'failed'}):
-            with mock.patch.object(self.m,'properties',return_value=value):
-                self.assertFalse(self.m.protected_still_running({'example.service'}))
-
-    def test_user_veto_removes_closing_marker_without_closing_anything(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp); state=root/'state'; runtime=root/'runtime'; state.mkdir(); runtime.mkdir()
-            with mock.patch.object(self.m,'ctl'), mock.patch.object(self.m,'services',return_value={}), \
-                 mock.patch.object(self.m,'windows',return_value='firefox: draft'), \
-                 mock.patch.object(self.m,'confirm_close',side_effect=self.m.Cancelled('fixture')), \
-                 mock.patch.object(self.m,'run') as run, self.assertRaises(self.m.Cancelled):
-                self.m.prepare(state,runtime)
-            run.assert_not_called()
-            self.assertFalse(payload_source_exists(runtime/'labwc-session-closing'))
-            self.assertFalse(payload_source_exists(state/'resume.json'))
+    def test_session_helper_refuses_root(self):
+        with mock.patch.object(self.session.os, 'getuid', return_value=0), self.assertRaisesRegex(self.session.Error, 'never root'):
+            self.session.main(['close'])
 
 
 class WorkerVeto(unittest.TestCase):

@@ -5,6 +5,17 @@ Only disposable directories and short-lived fixture processes are used. These
 are not hardware, installed-kernel AppArmor, or graphical acceptance tests.
 """
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_stat as payload_source_stat
 from payload_fixture import python_library
 from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
@@ -162,7 +173,6 @@ class TutaPolicyTests(unittest.TestCase):
 class TransientPropertyTests(unittest.TestCase):
     def command(self, executable, *arguments, kind='wayland'):
         with mock.patch.object(generic, 'assert_launch_allowed'), \
-             mock.patch.object(generic, 'restart_token', return_value='fixture'), \
              mock.patch.object(generic, 'menu_action_wait_arguments', return_value=[]):
             return generic.transient_argv(kind, 'auto', [executable, *arguments], {})
 
@@ -171,7 +181,7 @@ class TransientPropertyTests(unittest.TestCase):
         for key in ('PrivateTmp', 'PrivateIPC', 'ProtectSystem'):
             self.assertFalse(any(arg.startswith('--property=' + key + '=') for arg in command))
         for prop in ('NoNewPrivileges=no', 'Requisite=labwc-session.target', 'PartOf=labwc-session.target',
-                     'KillMode=control-group', 'ExitType=cgroup', 'SendSIGKILL=yes', 'TimeoutStopSec=20s'):
+                     'KillMode=control-group', 'ExitType=main', 'SendSIGKILL=yes', 'TimeoutStopSec=20s'):
             self.assertIn('--property=' + prop, command)
         self.assertNotIn('--uid=0', command)
         self.assertNotIn('/usr/bin/sudo', command)

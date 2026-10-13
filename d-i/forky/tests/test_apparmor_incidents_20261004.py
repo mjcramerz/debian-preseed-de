@@ -1,4 +1,15 @@
 """Regressions for every distinct denial in the supplied October 4 audit."""
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from pathlib import Path
 import json
 import importlib.util
@@ -18,6 +29,7 @@ SEED = Path(__file__).resolve().parents[1]
 AA = SEED / 'hooks/target/etc/apparmor.d'
 INCIDENTS = json.loads((SEED / 'tests/fixtures/installed-apparmor-20261004.json').read_text(encoding='utf-8'))
 OCTOBER_9 = json.loads((SEED / 'tests/fixtures/installed-apparmor-20261009.json').read_text(encoding='utf-8'))
+OCTOBER_12 = json.loads((SEED / 'tests/fixtures/installed-apparmor-20261012.json').read_text(encoding='utf-8'))
 
 
 def body(file, label):
@@ -44,7 +56,49 @@ def chatgpt_handoff_paths():
                              '.partial', 'a file.txt', 'literal[brackets].txt')]
 
 
+class MullvadLauncherDenialsTests(unittest.TestCase):
+    def test_id_ln_and_wayland_proxy_grants_are_in_the_bubblewrap_payload(self):
+        outer = body('desktop-wrappers', 'labwc-app')
+        self.assertIn('profile app-bwrap ', outer)
+        payload = body('desktop-wrappers', 'app-bwrap')
+        self.assertIn('/usr/bin/{id,ln} rix,', payload)
+        self.assertIn('owner /run/user/[0-9]*/wayland-proxy-* rw,', payload)
+        self.assertNotRegex(payload, r'(?m)^\s*/usr/bin/(?:\*|\*\*)\s+.*[iIpPuU]x')
+        self.assertNotIn('/run/user/[0-9]*/** rw,', payload)
+
+    @unittest.skipUnless(importlib.util.find_spec('apparmor'), 'native AppArmor rule reader unavailable')
+    def test_exact_reported_exec_read_and_owned_proxy_creation_permissions(self):
+        from apparmor.rule.file import FileRule
+        payload = body('desktop-wrappers', 'app-bwrap')
+        rules = [FileRule.create_instance(line.strip()) for line in payload.splitlines()
+                 if line.strip().startswith(('/usr/bin/{id,ln}', 'owner /run/user/[0-9]*/wayland-proxy-'))]
+        for executable in ('id', 'ln'):
+            requested = FileRule.create_instance(f'/usr/bin/{executable} rix,')
+            self.assertTrue(any(rule.is_covered(requested) for rule in rules))
+        for uid in ('1000', '23456'):
+            requested = FileRule.create_instance(f'owner /run/user/{uid}/wayland-proxy-12 rw,')
+            self.assertTrue(any(rule.is_covered(requested) for rule in rules))
+        for request in ('/run/user/1000/wayland-proxy-12 rw,',
+                        'owner /run/user/1000/unrelated-socket rw,'):
+            requested = FileRule.create_instance(request)
+            self.assertFalse(any(rule.is_covered(requested) for rule in rules))
+
+
 class ChatGPTFileHandoffTests(unittest.TestCase):
+    def test_october_12_status_and_nfs_terminal_denials_have_narrow_grants(self):
+        launcher = body('desktop-utilities', 'desktop-launcher')
+        self.assertIn('/usr/sbin/aa-status rCx -> apparmor-status,', launcher)
+        status = body('desktop-utilities', 'apparmor-status')
+        self.assertIn('/usr/sbin/aa-status mr,', status)
+        self.assertIn('/sys/kernel/security/{,apparmor/,apparmor/profiles} r,', status)
+        self.assertIn('deny ptrace (trace),', status)
+        self.assertNotIn('/usr/sbin/**', launcher)
+        self.assertNotIn('capability mac_admin', status)
+        self.assertNotIn('network ', status)
+        systemctl = body('network-sharing', 'systemctl')
+        self.assertIn('owner /dev/pts/[0-9]* rw,', systemctl)
+        self.assertNotIn('/dev/pts/**', systemctl)
+
     @unittest.skipUnless(shutil.which('apparmor_parser') and importlib.util.find_spec('apparmor'),
                          'native AppArmor parser/rule reader unavailable')
     def test_all_repository_profiles_parse_offline_and_expanded_proxy_covers_shared_tree(self):
@@ -154,6 +208,190 @@ class ChatGPTFileHandoffTests(unittest.TestCase):
 
 class SuppliedDenialTests(unittest.TestCase):
     @unittest.skipUnless(importlib.util.find_spec('apparmor'), 'native AppArmor rule reader unavailable')
+    def test_waybar_nmtui_networkmanager_dbus_requests_and_peer_boundaries(self):
+        from apparmor.rule.dbus import DbusRule
+        launcher = body('desktop-utilities', 'desktop-launcher')
+        rules = [DbusRule.create_instance(rule) for rule in re.findall(
+            r'(?m)^  dbus[^\n]*(?:\n    [^\n]*)*', launcher)]
+        nm = 'org.freedesktop.NetworkManager'
+        root = '/org/freedesktop/NetworkManager'
+        # Actual libnm/nmtui calls, including discovery outside the NM subtree
+        # and incoming password callbacks. These are synthetic bus messages;
+        # the isolated rule reader must never connect to a running system bus.
+        requests = [
+            ('send', '/org/freedesktop', 'org.freedesktop.DBus.ObjectManager', 'GetManagedObjects'),
+            ('receive', '/org/freedesktop', 'org.freedesktop.DBus.ObjectManager', 'InterfacesAdded'),
+            ('receive', '/org/freedesktop', 'org.freedesktop.DBus.ObjectManager', 'InterfacesRemoved'),
+            ('send', root, nm, 'ActivateConnection'),
+            ('send', root, nm, 'AddAndActivateConnection'),
+            ('send', root, nm, 'DeactivateConnection'),
+            ('send', root, nm, 'Enable'),
+            ('send', root, 'org.freedesktop.DBus.Properties', 'Set'),
+            ('send', root + '/Devices/2', nm + '.Device.Wireless', 'RequestScan'),
+            ('send', root + '/Settings', nm + '.Settings', 'AddConnection'),
+            ('send', root + '/Settings/1', nm + '.Settings.Connection', 'Update2'),
+            ('send', root + '/Settings/1', nm + '.Settings.Connection', 'Delete'),
+            ('send', root + '/AgentManager', nm + '.AgentManager', 'RegisterWithCapabilities'),
+            ('receive', root + '/SecretAgent', nm + '.SecretAgent', 'GetSecrets'),
+            ('receive', root + '/SecretAgent', nm + '.SecretAgent', 'CancelGetSecrets'),
+            ('receive', root + '/SecretAgent', nm + '.SecretAgent', 'SaveSecrets'),
+            ('receive', root + '/SecretAgent', nm + '.SecretAgent', 'DeleteSecrets'),
+            ('receive', root + '/Devices/2', 'org.freedesktop.DBus.Properties', 'PropertiesChanged'),
+        ]
+
+        def covered(access, bus, path, interface, member, peer):
+            request = DbusRule.create_instance(
+                f'dbus ({access}) bus={bus} path={path} interface={interface} '
+                f'member={member} peer=(name={peer}),')
+            return any(not rule.deny and rule.is_covered(request) for rule in rules)
+
+        for access, path, interface, member in requests:
+            with self.subTest(access=access, path=path, member=member):
+                self.assertTrue(covered(access, 'system', path, interface, member, nm))
+                self.assertFalse(covered(access, 'session', path, interface, member, nm))
+                self.assertFalse(covered(access, 'system', path, interface, member, 'org.example.Other'))
+        self.assertTrue(covered('receive', 'system', '/org/freedesktop/DBus',
+                                'org.freedesktop.DBus', 'NameOwnerChanged', 'org.freedesktop.DBus'))
+        self.assertTrue(covered('send', 'system', '/org/freedesktop/DBus',
+                                'org.freedesktop.DBus', 'GetConnectionUnixUser', 'org.freedesktop.DBus'))
+        self.assertFalse(covered('send', 'system', '/org/freedesktop/DBus',
+                                 'org.freedesktop.DBus', 'GetConnectionUnixUser', 'org.example.Other'))
+        for path in ('/org/freedesktop/NetworkManagerOther', '/org/freedesktop/hostname1'):
+            self.assertFalse(covered('send', 'system', path, nm, 'ActivateConnection', nm))
+        self.assertFalse(covered('send', 'system', '/org/freedesktop',
+                                 'org.freedesktop.DBus.Properties', 'Set', nm))
+        self.assertIn('#include <abstractions/dbus-strict>', launcher)
+        self.assertNotIn('capability net_admin', launcher)
+
+    @unittest.skipUnless(importlib.util.find_spec('apparmor'), 'native AppArmor rule reader unavailable')
+    def test_october_12_evening_file_requests_are_covered_with_owner_and_write_boundaries(self):
+        from apparmor.rule.file import FileRule
+        launcher = body('desktop-utilities', 'desktop-launcher')
+        systemctl = body('network-sharing', 'systemctl')
+        # Inspect the specific added grants. The fixture contains every distinct
+        # request, independent of source spelling, including all 255 ifindexes.
+        network_record = next(line.strip() for line in launcher.splitlines()
+                              if line.strip().startswith('/run/udev/data/n'))
+        agent_rules = [line.strip() for line in systemctl.splitlines()
+                       if line.strip().startswith(('owner /run/user/', 'owner @{PROC}/'))]
+        rules = {
+            'desktop-launcher': [FileRule.create_instance(network_record)],
+            'labwc-network-sharing//systemctl': [FileRule.create_instance(
+                line.replace('@{PROC}', '/proc').replace('@{pid}', '[0-9]*')) for line in agent_rules],
+        }
+        self.assertEqual(OCTOBER_12['record_counts'], {'status': 426, 'denied': 771})
+        self.assertEqual(sum(event['count'] for event in OCTOBER_12['events']), 771)
+        self.assertEqual(len(OCTOBER_12['events']), 257)
+        for event in OCTOBER_12['events']:
+            with self.subTest(event=event):
+                perms = {'w'} if event['operation'] == 'mkdir' else set(event['requested_mask'])
+                request = FileRule(event['name'], perms, None, FileRule.ALL,
+                                   owner=event['owner'], log_event=True)
+                self.assertTrue(any(not rule.deny and rule.is_covered(request)
+                                    for rule in rules[event['profile']]))
+        for profile, operation in (
+            ('desktop-launcher', '"/run/udev/data/n5" w,'),
+            ('desktop-launcher', '"/run/udev/data/b8:0" r,'),
+            ('desktop-launcher', '"/run/udev/data/nother" r,'),
+            ('desktop-launcher', '"/run/udev/data/n5/child" r,'),
+            ('labwc-network-sharing//systemctl', '"/proc/12317/fdinfo/3" r,'),
+            ('labwc-network-sharing//systemctl', 'owner "/proc/12317/fdinfo/3" w,'),
+            ('labwc-network-sharing//systemctl', 'owner "/proc/12317/mem" r,'),
+            ('labwc-network-sharing//systemctl', '"/run/user/1000/systemd/ask-password/" w,'),
+            ('labwc-network-sharing//systemctl', 'owner "/run/user/1000/systemd/" w,'),
+            ('labwc-network-sharing//systemctl', 'owner "/run/user/1000/systemd/ask-password/ask.fixture" w,'),
+        ):
+            with self.subTest(profile=profile, rejected_operation=operation):
+                request = FileRule.create_instance(operation)
+                self.assertFalse(any(not rule.deny and rule.is_covered(request) for rule in rules[profile]))
+
+    def test_repository_signal_sets_use_packaged_apparmor_names(self):
+        # Compatibility baseline: AppArmor v4.1.0 parser/signal.cc and the
+        # packaged apparmor.d(5) grammar. SIGTSTP is "stp"; newer upstream
+        # aliases must not silently raise the installed parser requirement.
+        supported = set(('hup int quit ill trap abrt bus fpe kill usr1 segv usr2 '
+                         'pipe alrm term stkflt chld cont stop stp ttin ttou urg '
+                         'xcpu xfsz vtalrm prof winch io pwr sys emt exists').split())
+        policies = sorted(path for path in AA.rglob('*') if path.is_file())
+        policies.append(SEED / 'scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl')
+        inspected = 0
+        for path in policies:
+            for line_number, line in enumerate(read_text(path).splitlines(), 1):
+                if not re.match(r'^\s*(?:(?:audit|allow|deny)\s+)*signal\b', line):
+                    continue
+                for match in re.finditer(r'\bset\s*=\s*(?:\(([^)]*)\)|("[^"]*"|[^\s,]+))', line):
+                    for name in re.split(r'[\s,]+', (match[1] or match[2]).strip()):
+                        name = name.strip('"')
+                        inspected += 1
+                        with self.subTest(policy=str(path.relative_to(SEED)), line=line_number, signal=name):
+                            realtime = re.fullmatch(r'rtmin\+0*([0-9]|[12][0-9]|3[0-2])', name)
+                            self.assertTrue(name in supported or realtime is not None)
+        self.assertGreater(inspected, 0)
+
+    def test_october_12_crowdsec_and_nfs_authentication_dependencies_are_confined(self):
+        firstboot = read_text(SEED / 'scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl')
+        crowdsec = firstboot.split('profile crowdsec-firstboot /', 1)[1].split('\n}', 1)[0]
+        self.assertIn('capability dac_read_search,', crowdsec)
+        self.assertIn('owner /tmp/checkfsfile[0-9]* rw,', crowdsec)
+        self.assertNotIn('/tmp/**', crowdsec)
+        self.assertIn('crowdsec -t -c /etc/crowdsec/config.yaml',
+                      read_text(SEED / 'scripts/firstboot/assets/var/lib/firstboot/bin/crowdsec-firstboot.tmpl'))
+        systemctl = body('network-sharing', 'systemctl')
+        for rule in (
+            '/usr/bin/{pkttyagent,systemd-tty-ask-password-agent} rix,',
+            '/proc/sys/fs/nr_open r,',
+            '/run/polkit/agent-helper.socket rw,',
+            'network unix dgram,',
+            '/run/systemd/ask-password/{,ask.*} r,',
+            'owner /run/systemd/ask-password/sck.* w,',
+            'owner /run/user/[0-9]*/systemd/ask-password/ rw,',
+            'owner /run/user/[0-9]*/systemd/ask-password/ask.* r,',
+            'owner @{PROC}/@{pid}/fdinfo/[0-9]* r,',
+            'owner /run/user/[0-9]*/systemd/ask-password/sck.* w,',
+            'dbus (send, receive) bus=system peer=(name=org.freedesktop.PolicyKit1),',
+            'dbus (receive) bus=system interface=org.freedesktop.PolicyKit1.AuthenticationAgent,',
+            'signal (send, receive) set=(hup, int, term, kill, chld, cont, stp, ttin, ttou) peer=labwc-network-sharing//systemctl,',
+        ):
+            self.assertIn(rule, systemctl)
+        self.assertNotIn('capability ', systemctl)
+        self.assertNotIn('/usr/bin/pkexec', systemctl)
+        self.assertNotIn('polkit-agent-helper-1', systemctl)
+        self.assertNotIn('/run/**', systemctl)
+        self.assertNotIn('/usr/bin/**', systemctl)
+
+    @unittest.skipUnless(importlib.util.find_spec('apparmor'), 'native AppArmor rule reader unavailable')
+    def test_october_12_probe_and_agent_file_operations_have_exact_permissions(self):
+        from apparmor.rule.file import FileRule
+        systemctl = body('network-sharing', 'systemctl')
+        rules = [FileRule.create_instance(line.strip()) for line in systemctl.splitlines()
+                 if line.strip().startswith(('/usr/bin/', '/proc/sys/', '/run/', 'owner /run/'))]
+        for operation in (
+            '"/usr/bin/pkttyagent" rix,',
+            '"/usr/bin/systemd-tty-ask-password-agent" rix,',
+            '"/proc/sys/fs/nr_open" r,',
+            '"/run/polkit/agent-helper.socket" rw,',
+            '"/run/systemd/ask-password/ask.fixture" r,',
+            'owner "/run/systemd/ask-password/sck.fixture" w,',
+            'owner "/run/user/1000/systemd/ask-password/ask.fixture" r,',
+            'owner "/run/user/1000/systemd/ask-password/sck.fixture" w,',
+        ):
+            with self.subTest(operation=operation):
+                requested = FileRule.create_instance(operation)
+                self.assertTrue(any(not rule.deny and rule.is_covered(requested) for rule in rules))
+        for operation in ('"/usr/bin/pkexec" ix,', '"/proc/sys/fs/nr_open" w,',
+                          '"/run/polkit/private-data" r,', '"/run/systemd/ask-password/ask.fixture" w,'):
+            self.assertFalse(any(not rule.deny and rule.is_covered(FileRule.create_instance(operation)) for rule in rules))
+        firstboot = read_text(SEED / 'scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl')
+        crowdsec = firstboot.split('profile crowdsec-firstboot /', 1)[1].split('\n}', 1)[0]
+        probe = FileRule.create_instance(next(line.strip() for line in crowdsec.splitlines()
+                                             if line.strip().startswith('owner /tmp/checkfsfile')))
+        for name in ('/tmp/checkfsfile1', '/tmp/checkfsfile3728739017', '/tmp/checkfsfile9999999999'):
+            self.assertTrue(probe.is_covered(FileRule.create_instance(f'owner "{name}" rw,')))
+            self.assertFalse(probe.is_covered(FileRule.create_instance(f'"{name}" rw,')))
+        for name in ('/tmp/checkfsfile', '/tmp/checkfsfile-other', '/tmp/checkfsfile1/child', '/tmp/unrelated'):
+            self.assertFalse(probe.is_covered(FileRule.create_instance(f'owner "{name}" rw,')))
+
+    @unittest.skipUnless(importlib.util.find_spec('apparmor'), 'native AppArmor rule reader unavailable')
     def test_october_9_signal_and_netlink_requests_are_covered_by_exact_rules(self):
         from apparmor.rule.signal import SignalRule
         from apparmor.rule.network import NetworkRule
@@ -207,7 +445,6 @@ class SuppliedDenialTests(unittest.TestCase):
                 SEED / 'hooks/target/usr/local/lib/python3.14/dist-packages')), *sys.path]):
             from labwc_managed_app import generic
         with mock.patch.object(generic, 'assert_launch_allowed'), \
-             mock.patch.object(generic, 'restart_token', return_value='fixture'), \
              mock.patch.object(generic, 'menu_action_wait_arguments', return_value=[]):
             for executable in ('/usr/bin/foot', '/usr/bin/kitty', '/usr/bin/terminal-emulator'):
                 argv = generic.transient_argv('wayland', 'auto', [executable, '-e', 'btop'], {})
@@ -617,6 +854,20 @@ class SuppliedDenialTests(unittest.TestCase):
                     for table in ('tcp', 'tcp6', 'udp', 'udp6'):
                         self.assertEqual(permissions(child, '/proc/12345/net/' + table, owned=False), {'r'})
             self.assertTrue(set('rx') <= permissions('labwc-app//app-bwrap', '/usr/bin/mpv', owned=False))
+            for path in ('/usr/bin/findmnt', '/bin/findmnt', '/usr/bin/ls', '/bin/ls',
+                         '/usr/lib/chromium/chromium'):
+                with self.subTest(chromium_launcher=path):
+                    self.assertTrue(set('rx') <= permissions('labwc-app//app-bwrap', path, owned=False))
+            component = '/home/fixture/.config/microsoft-edge/Domain Actions/3.0.0.20/libdomain_actions.so'
+            self.assertTrue(set('mr') <= permissions('labwc-app//app-bwrap', component))
+            self.assertNotIn('m', permissions('labwc-app//app-bwrap', component, owned=False))
+            self.assertNotIn('x', permissions('labwc-app//app-bwrap', component))
+            self.assertNotIn('m', permissions('labwc-app//app-bwrap', component.replace('libdomain_actions.so', 'arbitrary.so')))
+            self.assertTrue(set('rx') <= permissions('apt-repo-local', '/usr/bin/rm', owned=False))
+            self.assertNotIn('x', permissions('apt-repo-local', '/usr/bin/sudo', owned=False))
+            self.assertEqual(permissions('apt-repo-local', '/proc/190610/fd/'), {'r'})
+            self.assertNotIn('r', permissions('apt-repo-local', '/proc/190610/fd/', owned=False))
+            self.assertNotIn('w', permissions('apt-repo-local', '/proc/190610/fd/4'))
             self.assertTrue(set('rx') <= permissions('labwc-app//app-bwrap', '/usr/bin/liferea', owned=False))
             self.assertEqual(permissions('labwc-app//app-bwrap', '/proc/2/cmdline', owned=False), {'r'})
             self.assertTrue(set('rx') <= permissions('labwc-app//app-bwrap', '/usr/bin/wl-copy', owned=False))

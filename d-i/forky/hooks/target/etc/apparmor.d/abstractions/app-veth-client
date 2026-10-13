@@ -5,12 +5,16 @@
 /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
 /usr/local/lib/python3.14/dist-packages/labwc_managed_app/__init__.py r,
 /usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_client.py r,
+/usr/local/lib/python3.14/dist-packages/labwc_managed_app/events.py r,
 /usr/local/lib/python3.14/dist-packages/labwc_managed_app/integrity.py r,
 /run/ r,
 /run/systemd/resolve/stub-resolv.conf r,
 /run/app-veth/ r,
 /run/app-veth/control.sock rw,
 network unix seqpacket,
+network unix dgram,
+/dev/log w,
+/run/systemd/journal/dev-log w,
 # The supervisor inspects the blocked init in its caller-owned user namespace.
 # Linux grants the creator capabilities in that child namespace; AppArmor must
 # permit this read-side check too. No capability is added to the host process,

@@ -1,5 +1,16 @@
 """Power lifecycle regressions. All manager/power calls are mocked."""
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import contextlib
 import io
@@ -27,72 +38,39 @@ class OrderlyLifecycleTests(unittest.TestCase):
     def setUp(self):
         self.power = module()
         self.worker = self.power.Worker(1000, 'desktop', 'reboot')
-        self.events = []
         self.stack = contextlib.ExitStack()
         self.addCleanup(self.stack.close)
         self.stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
         self.stack.enter_context(mock.patch.object(self.power, 'ready'))
-        self.stack.enter_context(mock.patch.object(self.power, 'PackageLocks'))
-        self.stack.enter_context(mock.patch.object(self.power, 'hold_reservation',
-                                                   side_effect=lambda: self.events.append('hold')))
-        self.stack.enter_context(mock.patch.object(self.power, 'run',
-                                                   side_effect=AssertionError('unmocked host command')))
-        self.stack.enter_context(mock.patch.object(self.power, 'check_shutdown_inhibitors',
-                                                   side_effect=lambda: self.events.append('inhibitors')))
-        self.stack.enter_context(mock.patch.object(self.worker, 'session_identity', return_value='a'*32))
-        for name in ('protect_other_sessions', 'helper', 'stop_optional_guests'):
-            self.stack.enter_context(mock.patch.object(self.worker, name,
-                side_effect=lambda *args, method=name: self.events.append((method, args))))
-        self.stack.enter_context(mock.patch.object(self.worker, 'userctl',
-                                                   side_effect=AssertionError('premature user teardown')))
-        self.final = self.stack.enter_context(mock.patch.object(self.worker, 'final_power_action',
-                                               side_effect=self.handoff))
+        self.stack.enter_context(mock.patch.object(self.power, 'hold_reservation'))
+        self.stack.enter_context(mock.patch.object(self.worker, 'helper'))
+        self.stack.enter_context(mock.patch.object(self.worker, 'stop_optional_guests'))
+        self.stack.enter_context(mock.patch.object(self.worker, 'prepare_machine_shutdown'))
+        self.final = self.stack.enter_context(mock.patch.object(self.worker, 'final_power_action'))
 
-    def handoff(self):
-        self.assertTrue(self.worker.prepared)
-        self.assertFalse(self.worker.committed)
-        self.assertIsNotNone(self.worker.package_locks)
-        self.events.append('handoff')
+    def test_cleanup_failures_do_not_skip_power_handoff(self):
+        for stage in ('helper', 'stop_optional_guests', 'prepare_machine_shutdown'):
+            with self.subTest(stage=stage):
+                self.final.reset_mock()
+                with mock.patch.object(self.worker, stage, side_effect=self.power.Error('failed cleanup')):
+                    self.worker.execute()
+                self.final.assert_called_once()
 
-    def test_prepared_desktop_is_not_stopped_before_native_handoff(self):
-        self.worker.execute()
-        self.assertEqual(self.events[-2:], ['handoff', 'hold'])
-        self.assertLess(self.events.index(('helper', ('prepare',))), self.events.index('handoff'))
-        self.assertLess(self.events.index(('stop_optional_guests', ())), self.events.index('handoff'))
-        self.worker.userctl.assert_not_called()
-        self.power.run.assert_not_called()
-
-    def test_session_replacement_during_preparation_never_hands_off(self):
-        self.worker.session_identity.side_effect = ['a'*32, 'a'*32, 'b'*32]
-        with self.assertRaisesRegex(self.power.Error, 'session changed'):
+    def test_shutdown_does_not_wait_for_package_or_session_queries(self):
+        with (
+            mock.patch.object(self.power, 'PackageLocks', side_effect=AssertionError('package gate')),
+            mock.patch.object(self.worker, 'session_identity', side_effect=AssertionError('session gate')),
+            mock.patch.object(self.worker, 'protect_other_sessions', side_effect=AssertionError('session gate')),
+        ):
             self.worker.execute()
-        self.final.assert_not_called()
-        self.assertFalse(self.worker.committed)
-
-    def test_prepare_cancel_never_stops_guests_or_desktop(self):
-        self.worker.helper.side_effect = self.power.Cancelled('documents not saved')
-        with self.assertRaises(self.power.Cancelled):
-            self.worker.execute()
-        self.assertFalse(self.worker.prepared)
-        self.worker.stop_optional_guests.assert_not_called()
-        self.final.assert_not_called()
-        self.worker.userctl.assert_not_called()
-
-    def test_guest_stop_failure_leaves_compositor_available(self):
-        self.worker.stop_optional_guests.side_effect = self.power.Error('guest stop timed out')
-        with self.assertRaises(self.power.Error):
-            self.worker.execute()
-        self.final.assert_not_called()
-        self.worker.userctl.assert_not_called()
-        self.assertFalse(self.worker.committed)
+        self.worker.helper.assert_called_once_with('close')
+        self.final.assert_called_once()
 
     def test_handoff_environment_cannot_redirect_bus_or_select_soft_reboot(self):
         self.assertFalse({'DBUS_SYSTEM_BUS_ADDRESS', 'DBUS_SESSION_BUS_ADDRESS'} & self.power.ENV.keys())
-        source = payload_read_text(TARGET/'usr/local/libexec/labwc-admin-action-worker')
-        self.assertNotIn('"--force"', source)
-        self.assertNotIn('self.quiesce_desktop()', source)
-        self.assertIn('"--allow-interactive-authorization=no"', source)
-        self.assertIn('"org.freedesktop.login1.Manager", method, "t", "1"', source)
+        self.assertEqual(self.power.ENV['SYSTEMCTL_FORCE_BUS'], '0')
+        self.assertEqual(self.power.ENV['SYSTEMCTL_SKIP_AUTO_KEXEC'], '1')
+        self.assertEqual(self.power.ENV['SYSTEMCTL_SKIP_AUTO_SOFT_REBOOT'], '1')
 
     def test_successfully_drained_transport_is_not_killed(self):
         original = module()
@@ -102,41 +80,16 @@ class OrderlyLifecycleTests(unittest.TestCase):
 
 
 class GuestHookTests(unittest.TestCase):
-    def setUp(self):
-        self.power = module(); self.worker = self.power.Worker(1000, 'desktop', 'poweroff')
-        self.worker.package_locks = mock.Mock()
-
-    def test_optional_missing_and_inactive_hooks_do_not_start_or_stop_anything(self):
-        with mock.patch.object(self.power, 'run', side_effect=[
-                'LoadState=not-found\nActiveState=inactive\n', 'LoadState=loaded\nActiveState=inactive\n']) as run:
-            self.worker.stop_optional_guests()
-        self.assertEqual(run.call_count, 2)
-        self.assertTrue(all('show' in c.args[0] for c in run.call_args_list))
-
-    def test_running_hooks_stop_together_then_each_result_is_checked(self):
-        with mock.patch.object(self.power, 'run', side_effect=[
-                'LoadState=loaded\nActiveState=active\n', 'LoadState=loaded\nActiveState=active\n', '',
-                'ActiveState=inactive\nResult=success\n', 'ActiveState=inactive\nResult=success\n']) as run:
-            self.worker.stop_optional_guests()
-        commands = [c.args[0] for c in run.call_args_list]
-        self.assertEqual(commands[2], ['/usr/bin/systemctl', '--no-ask-password', 'stop',
-                                      'podman-devops-restart.service', 'incus-startup.service'])
-        self.assertEqual(run.call_args_list[2].kwargs['timeout'], 180)
-        self.assertFalse(any(set(c) & BARRIERS or '--no-block' in c for c in commands))
-        self.assertFalse(any(any('dbus' in word for word in c) for c in commands))
-
-    def test_ambiguous_or_failed_guest_state_aborts(self):
-        for state in ('', 'LoadState=loaded\nActiveState=failed', 'LoadState=masked\nActiveState=active'):
-            with self.subTest(state=state), mock.patch.object(self.power, 'run', return_value=state) as run:
-                with self.assertRaises(self.power.Error):
-                    self.worker.stop_optional_guests()
-                self.assertFalse(any('stop' in c.args[0] for c in run.call_args_list))
-
-    def test_guest_stop_error_is_not_ignored(self):
-        with mock.patch.object(self.power, 'run', side_effect=[
-                'LoadState=loaded\nActiveState=active', 'LoadState=not-found\nActiveState=inactive', '',
-                'ActiveState=failed\nResult=timeout']), self.assertRaises(self.power.Error):
-            self.worker.stop_optional_guests()
+    def test_fixed_guest_hooks_have_bounded_best_effort_stop(self):
+        power = module()
+        worker = power.Worker(1000, 'desktop', 'poweroff')
+        worker.shutdown_deadline = 20
+        with mock.patch.object(power.time, 'monotonic', return_value=15), mock.patch.object(power, 'run', return_value='') as run:
+            worker.stop_optional_guests()
+        run.assert_called_once_with(['/usr/bin/systemctl', '--no-ask-password', 'stop',
+                                     'podman-devops-restart.service', 'incus-startup.service'],
+                                    timeout=5, max_output=16384)
+        self.assertFalse(any('show' in c.args[0] for c in run.call_args_list))
 
 
 class LaunchGraphTests(unittest.TestCase):

@@ -1,6 +1,16 @@
 """Real desktop expansion and read-only mount regressions from attached logs."""
 from __future__ import annotations
 
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import configparser
 from contextlib import redirect_stderr
 import io
@@ -16,7 +26,7 @@ import time
 import unittest
 from unittest import mock
 
-from payload_fixture import python_library
+from payload_fixture import minimal_bwrap_root, python_library
 
 TARGET = Path(__file__).resolve().parents[1] / 'hooks/target'
 sys.path.insert(0, str(python_library(TARGET / 'usr/local/lib/python3.14/dist-packages')))
@@ -174,7 +184,7 @@ class DiscordReadOnlyOpenerTests(unittest.TestCase):
     def require_namespaces(self):
         if not Path('/usr/bin/bwrap').is_file():
             self.skipTest('Bubblewrap unavailable')
-        probe = subprocess.run(['/usr/bin/bwrap', '--unshare-all', '--ro-bind', '/', '/', '--', '/bin/true'],
+        probe = subprocess.run(['/usr/bin/bwrap', '--unshare-all', *minimal_bwrap_root(), '--', '/bin/true'],
                                capture_output=True, timeout=5)
         if probe.returncode:
             self.skipTest('private namespaces unavailable: ' + probe.stderr.decode('utf-8', 'replace')[:200])
@@ -183,7 +193,7 @@ class DiscordReadOnlyOpenerTests(unittest.TestCase):
         # Independent /bin and /usr/bin directories reproduce the alias mounts,
         # rather than assuming that replacing one inode replaces every pathname.
         before = {path: path.read_bytes() for path in self.destinations if path.exists()}
-        command = ['/usr/bin/bwrap', '--unshare-all', '--die-with-parent', '--ro-bind', '/', '/',
+        command = ['/usr/bin/bwrap', '--unshare-all', '--die-with-parent', *minimal_bwrap_root(self.root),
                    *self.mounts(), '--cap-drop', 'ALL', '--', sys.executable, '-B', '-c',
                    '''import errno,os,subprocess,sys
 for path in sys.argv[1:]:
@@ -201,7 +211,7 @@ for path in sys.argv[1:]:
 
     def test_missing_optional_local_entry_reproduces_error_then_launches_read_only(self):
         self.require_namespaces()
-        legacy = subprocess.run(['/usr/bin/bwrap', '--unshare-all', '--ro-bind', '/', '/',
+        legacy = subprocess.run(['/usr/bin/bwrap', '--unshare-all', *minimal_bwrap_root(self.root),
                                  '--ro-bind', str(self.opener), str(self.destinations[-1]), '--', '/bin/true'],
                                 capture_output=True, timeout=5)
         self.assertNotEqual(legacy.returncode, 0)

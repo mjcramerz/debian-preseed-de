@@ -4,6 +4,17 @@ Shell fixtures change only absolute executable paths to isolated test adapters.
 Worker tests execute production flow with every host transport intercepted.
 """
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from power_handoff_fixture import handoff_argv, is_handoff
 from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists
 from payload_fixture import read_text as payload_read_text
@@ -292,171 +303,59 @@ class GreeterFlowTests(unittest.TestCase):
         self.addCleanup(self.stack.close)
         self.stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
         self.calls = []
-        self.active_guest = False
         self.fail_on = None
-        self.greeter_properties = session()
-        self.inhibitors = []
-        self.stopped = set()
-        self.user_stopped = False
-        self.transport = self.stack.enter_context(mock.patch.object(self.power, 'run', side_effect=self.run_command))
-        self.reservation = self.stack.enter_context(mock.patch.object(self.power, 'PackageLocks'))
+        self.stack.enter_context(mock.patch.object(self.power, 'run', side_effect=self.run_command))
         self.stack.enter_context(mock.patch.object(self.power, 'ready'))
-        self.hold = self.stack.enter_context(mock.patch.object(self.power, 'hold_reservation'))
+        self.stack.enter_context(mock.patch.object(self.power, 'hold_reservation'))
         self.stack.enter_context(mock.patch.object(self.power, 'sharing_stop_groups', return_value=[]))
 
     def run_command(self, argv, **kwargs):
         self.calls.append(argv)
         if self.fail_on and self.fail_on(argv):
             raise self.power.Error('injected transport failure')
-        if argv[-1] == 'ListSessions':
-            return session_listing('' if self.user_stopped else 'c1 109 greeter seat0 321 greeter tty1 no -\n')
-        if argv[0] == '/usr/bin/loginctl':
-            if 'terminate-user' in argv:
-                self.user_stopped = True
-                return ''
-            return self.greeter_properties
-        if argv[-1] == 'ListInhibitors':
-            return json.dumps(dict(type='a(ssssuu)', data=[self.inhibitors]))
         if is_handoff(argv):
-            action = argv[-1]
-            self.assertEqual(argv, handoff_argv(action))
             self.assertEqual(kwargs, {'timeout': 25, 'max_output': 4096})
-            self.assertGreater(self.reservation.return_value.__enter__.return_value.verify.call_count, 0)
-            return ''
-        self.assertEqual(argv[0], '/usr/bin/systemctl')
-        if argv == ['/usr/bin/systemctl', '--no-ask-password', 'start', self.power.EXTERNAL_DRIVES_UNIT]:
-            self.assertEqual(kwargs, {'timeout': 920, 'max_output': 4096})
-            return ''
-        if '--property=LoadState,ActiveState,SubState,Result,ExecMainStatus' in argv:
-            self.assertEqual(argv[2], self.power.EXTERNAL_DRIVES_UNIT)
-            return 'LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=success\nExecMainStatus=0\n'
-        if '--property=LoadState,ActiveState,SubState,Result' in argv:
-            name = argv[2]
-            if name == self.power.EXTERNAL_DRIVES_UNIT:
-                return 'LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=success\n'
-            if name != 'greetd.service':
-                return 'LoadState=not-found\nActiveState=inactive\nSubState=dead\n'
-            inactive = name in self.stopped
-            return ('LoadState=loaded\nActiveState=' + ('inactive' if inactive else 'active')
-                    + '\nSubState=' + ('dead' if inactive else 'running') + '\nResult=success\n')
-        if '--property=ActiveState' in argv and f'user-109.slice' in argv:
-            return 'inactive\n' if self.user_stopped else 'active\n'
-        if argv == ['/usr/bin/systemctl', '--no-ask-password', 'stop', 'greetd.service']:
-            self.stopped.add('greetd.service')
-            return ''
-        if argv == ['/usr/bin/systemctl', '--no-block', 'stop', 'user@109.service', 'user-109.slice']:
-            return ''
-        if '--property=LoadState,ActiveState' in argv:
-            if self.active_guest and 'podman-devops-restart.service' in argv:
-                return 'LoadState=loaded\nActiveState=active\n'
-            return 'LoadState=not-found\nActiveState=inactive\n'
-        if 'stop' in argv and 'podman-devops-restart.service' in argv:
-            return ''
-        if argv == ['/usr/bin/systemctl', '--no-ask-password', 'start', 'power-log-capture.service']:
-            self.assertTrue(self.stopped)
-            self.assertEqual(kwargs, {'timeout': 95})
-            return ''
-        self.fail(f'unexpected host transport: {argv}')
+        else:
+            self.assertIn(argv[0], ('/usr/bin/systemctl', '/usr/bin/loginctl', '/usr/bin/sync'))
+            self.assertGreater(kwargs['timeout'], 0)
+            self.assertLessEqual(kwargs['timeout'], 10)
+        return ''
 
     def execute(self, action='reboot'):
         worker = self.power.Worker(109, 'greeter', action, greeter=True)
-        with mock.patch.object(worker, 'user_run', side_effect=AssertionError('greeter must not run desktop helpers')):
+        with (
+            mock.patch.object(worker, 'user_run', side_effect=AssertionError('greeter must not run desktop helpers')),
+            mock.patch.object(worker, 'protect_other_sessions', side_effect=AssertionError('no second authorization gate')),
+            mock.patch.object(self.power, 'PackageLocks', side_effect=AssertionError('shutdown cannot wait for packages')),
+        ):
             worker.execute()
         return worker
 
-    def test_both_greeter_actions_reach_exactly_one_verified_force_handoff(self):
+    def test_both_greeter_actions_attempt_cleanup_and_submit_once(self):
         for action in ('reboot', 'poweroff'):
             with self.subTest(action=action):
                 self.calls.clear()
-                self.stopped.clear()
-                self.user_stopped = False
                 worker = self.execute(action)
-                final = handoff_argv(action)
-                self.assertEqual(self.calls[-1], final)
-                self.assertEqual(sum(is_handoff(call) for call in self.calls), 1)
-                capture = ['/usr/bin/systemctl', '--no-ask-password', 'start', 'power-log-capture.service']
-                self.assertEqual(self.calls.count(capture), 0)
-                stop = self.calls.index(['/usr/bin/systemctl', '--no-ask-password', 'stop', 'greetd.service'])
-                drives = self.calls.index(['/usr/bin/systemctl', '--no-ask-password', 'start',
-                                           self.power.EXTERNAL_DRIVES_UNIT])
-                terminate = self.calls.index(['/usr/bin/loginctl', 'terminate-user', '109'])
-                self.assertLess(drives, stop)
-                self.assertLess(stop, terminate)
-                self.assertLess(terminate, len(self.calls) - 1)
-                self.assertTrue(worker.session_stopped and worker.storage_stopped)
-                self.assertTrue(worker.external_drives_prepared)
+                self.assertEqual(self.calls[-1], handoff_argv(action))
+                self.assertEqual(sum(is_handoff(c) for c in self.calls), 1)
+                self.assertEqual(sum(c[-2:] == ['start', self.power.EXTERNAL_DRIVES_UNIT] for c in self.calls), 1)
+                self.assertFalse(any('--user' in c or 'show-session' in c or 'ListInhibitors' in c for c in self.calls))
                 self.assertTrue(worker.committed and worker.handoff_attempted)
-                self.assertGreaterEqual(sum('show-session' in call for call in self.calls), 3)
-                self.assertFalse(any('--user' in call or 'kill' in call for call in self.calls))
-                self.assertFalse(any('dbus.service' in call or 'dbus-broker.service' in call for call in self.calls))
-                drive_calls = [i for i, c in enumerate(self.calls) if c[-2:] ==
-                               ['start', self.power.EXTERNAL_DRIVES_UNIT]]
-                self.assertEqual(len(drive_calls), 2)
-                self.assertGreater(drive_calls[1], terminate)
-                self.assertLess(drive_calls[1], len(self.calls) - 1)
 
-    def test_drive_failure_keeps_greeter_available_and_prevents_force(self):
-        for action in ('reboot', 'poweroff'):
-            with self.subTest(action=action):
-                self.calls.clear()
-                self.fail_on = lambda argv: argv[-2:] == ['start', self.power.EXTERNAL_DRIVES_UNIT]
-                with self.assertRaises(self.power.Error):
+    def test_failed_guest_drive_or_service_cleanup_never_vetoes_greeter_power(self):
+        for target in ('podman-devops-restart.service', self.power.EXTERNAL_DRIVES_UNIT,
+                       'greetd.service', 'zram-setup.service', 'swap-fallback.service', '/usr/bin/sync'):
+            for action in ('reboot', 'poweroff'):
+                with self.subTest(target=target, action=action):
+                    self.calls.clear()
+                    self.fail_on = lambda argv: target in argv
                     self.execute(action)
-                self.assertFalse(any(is_handoff(c) or 'terminate-user' in c or
-                                     ('stop' in c and 'greetd.service' in c) for c in self.calls))
+                    self.assertEqual(self.calls[-1], handoff_argv(action))
+                    self.assertEqual(sum(is_handoff(c) for c in self.calls), 1)
 
-    def test_late_drive_failure_never_submits_or_retries_force(self):
-        attempts = 0
-        def fail_final_inventory(argv):
-            nonlocal attempts
-            if argv[-2:] == ['start', self.power.EXTERNAL_DRIVES_UNIT]:
-                attempts += 1
-                return attempts == 2
-            return False
-        self.fail_on = fail_final_inventory
-        with self.assertRaises(self.power.Error):
-            self.execute()
-        self.assertEqual(attempts, 2)
-        self.assertFalse(any(is_handoff(c) for c in self.calls))
-
-    def test_unavailable_snapshot_service_is_never_contacted(self):
-        self.fail_on = lambda argv: 'power-log-capture.service' in argv
+    def test_snapshot_service_is_not_a_dependency(self):
         self.execute()
-        self.assertEqual(sum('power-log-capture.service' in c for c in self.calls), 0)
-        self.assertEqual(sum(is_handoff(c) for c in self.calls), 1)
-        self.assertEqual(self.calls[-1], handoff_argv('reboot'))
-
-    def test_known_inhibitor_vetoes_authorized_greeter_handoff(self):
-        self.inhibitors = [['shutdown', 'editor', 'unsaved', 'block', 1000, 900]]
-        with self.assertRaisesRegex(self.power.Error, 'inhibited'):
-            self.execute()
-        self.assertEqual(sum(is_handoff(c) for c in self.calls), 0)
-        self.assertFalse(any('stop' in c for c in self.calls))
-
-    def test_identity_change_after_package_wait_never_stops_a_session(self):
-        self.reservation.return_value.__enter__.side_effect = lambda: self.change_identity()
-        with self.assertRaisesRegex(self.power.Error, 'greeter session changed'):
-            self.execute()
-        self.assertFalse(any(is_handoff(c) or 'stop' in c for c in self.calls))
-
-    def change_identity(self):
-        self.greeter_properties = session(Leader='999')
-        return mock.Mock()
-
-    def test_guest_stop_failure_never_escalates_force(self):
-        self.active_guest = True
-        self.fail_on = lambda argv: 'stop' in argv and 'podman-devops-restart.service' in argv
-        with self.assertRaises(self.power.Error):
-            self.execute()
-        self.assertFalse(any(is_handoff(c) for c in self.calls))
-        self.hold.assert_not_called()
-
-    def test_uncertain_handoff_is_not_retried(self):
-        self.fail_on = lambda argv: is_handoff(argv)
-        with self.assertRaisesRegex(self.power.Error, 'do not retry automatically'):
-            self.execute()
-        self.assertEqual(sum(is_handoff(c) for c in self.calls), 1)
-        self.hold.assert_not_called()
+        self.assertFalse(any('power-log-capture.service' in c for c in self.calls))
 
 
 class ShellDispatchTests(unittest.TestCase):

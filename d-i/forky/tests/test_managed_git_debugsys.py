@@ -4,6 +4,17 @@ Only generated fixture credentials are used. Real OpenSSH checks explicitly
 skip when the package is absent; no installed boot configuration is modified.
 """
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
 from payload_fixture import installed_script
 from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
@@ -389,7 +400,7 @@ class DebugTests(Fixture):
 class PublishingGuardTests(Fixture):
     def setUp(self):
         super().setUp()
-        self.build = load('managed_publishing_guard_tests', SEED.parents[1]/'tools/build.py')
+        self.build = load('managed_publishing_guard_tests', SEED.parents[1]/'tools/check_build.py')
         patch = mock.patch.object(self.build, 'ROOT', self.root)
         patch.start(); self.addCleanup(patch.stop)
     def test_private_initrd_filenames_refused_anywhere_under_public_root(self):

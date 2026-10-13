@@ -109,10 +109,13 @@ Lifecycle has one authoritative implementation with the sole necessary embedded
 bootstrap copy in `source.sh`, which must operate before a payload is available.
 Common and storage libraries no longer carry duplicate embedded readers.
 
-Run `python3 -B tools/build.py` as the repository owner after editing. The builder
-validates inputs and module wiring, refreshes existing browser/bootstrap artifacts,
-and packages the actual editable files into the deterministic payload and manifest
-with updated preseed pins. `--check` is non-mutating and never repairs input files.
+Run `make build` as the repository owner after editing. The builder only packages
+the editable files into `payload.tar.gz`, `payload.manifest` and `preseed.cfg`.
+It executes no tests or source validators and does not refresh browser or
+bootstrap source files. Run the separate `make check` only inside the
+[mandatory disposable environment](test-isolation.md); it validates source and
+artifact consistency without repairing source inputs. `tools/build.py --check`
+is an isolated, non-mutating comparison of the three artifacts only.
 `tools/check_modules.py` validates references, module inventory, shell syntax and
 the rsyslog spool settings; it writes nothing.
 

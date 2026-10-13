@@ -76,6 +76,9 @@ if [ "${XDG_RUNTIME_DIR:-}" != "$expected_runtime_dir" ] ||
   exit 1
 fi
 export XDG_RUNTIME_DIR
+# A new compositor activation must not inherit an interrupted logout marker.
+# The runtime directory above is validated; unlink only this fixed user file.
+/usr/bin/rm -f -- "$XDG_RUNTIME_DIR/labwc-session-closing"
 session_bus_path="${XDG_RUNTIME_DIR}/bus"
 if [ ! -S "$session_bus_path" ]; then
   printf 'fatal: the managed D-Bus user socket is unavailable: %s\n' "$session_bus_path" >&2
@@ -212,7 +215,4 @@ start_health_notifier_if_enabled
 # in the journal but optional colour adjustment must not destroy the session.
 session_systemctl start labwc-wlsunset-start.service ||
   printf 'warning: wlsunset startup failed; inspect journalctl --user -b -u labwc-wlsunset-start.service -u labwc-wlsunset.service\n' >&2
-session_systemctl --no-block start labwc-session-restore.service >/dev/null 2>&1 ||
-  printf 'warning: unable to start desktop session restoration\n' >&2
-
 activation_complete=true

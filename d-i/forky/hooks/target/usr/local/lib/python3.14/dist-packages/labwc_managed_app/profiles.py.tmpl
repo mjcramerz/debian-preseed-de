@@ -678,6 +678,9 @@ PERSISTENT_SANDBOX_CONFIG = {
     "vivaldi": {
         **NATIVE_VETH_SANDBOX_DEFAULTS,
         "camera_devices": True,
+        # Chromium appends its instance PID to the MPRIS name. Own only this
+        # application's namespace through the filtered session-bus proxy.
+        "dbus_own_names": ("org.mpris.MediaPlayer2.vivaldi.*",),
         "persistent_paths": (".cache/vivaldi", ".config/vivaldi", ".pki/nssdb",
                              ".local/state/browser-devtools/vivaldi"),
         "ro_bind_paths": ("/opt/vivaldi", "/etc/vivaldi", "/etc/opt/chrome"),

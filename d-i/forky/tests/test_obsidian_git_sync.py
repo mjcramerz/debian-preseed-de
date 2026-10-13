@@ -2,6 +2,16 @@
 """Exercise vault publication with disposable, local Git repositories."""
 from __future__ import annotations
 
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import contextlib
 import importlib.util
 import os
@@ -478,7 +488,7 @@ desktop_log() { :; }
 
 class PublicationPolicyTests(unittest.TestCase):
     def test_publisher_rejects_missing_duplicate_or_unsafe_automation_flags(self):
-        build = runpy.run_path(str(SEED.parents[1]/'tools/build.py'))
+        build = runpy.run_path(str(SEED.parents[1]/'tools/check_build.py'))
         validate = build['validate_obsidian_git_profiles']
         with tempfile.TemporaryDirectory(prefix='obsidian-publication-') as directory:
             seed = Path(directory)

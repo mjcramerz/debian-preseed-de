@@ -10,7 +10,7 @@ Environment=XDG_RUNTIME_DIR=%t
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus
 ExecStart=/usr/local/libexec/labwc-session-state %i
 TimeoutStartSec=285s
-# 77 is a verified user/save veto, not permission to continue shutdown.
+# 77 records a visible window that cancelled logout; read the retained result.
 SuccessExitStatus=77
 TimeoutStopSec=5s
 KillMode=control-group

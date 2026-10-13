@@ -1,6 +1,16 @@
 """Private-display policy and real inert-child lifecycle regressions."""
 from __future__ import annotations
 
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import io
 import json
 import os
@@ -17,7 +27,7 @@ import time
 import unittest
 from unittest import mock
 
-from payload_fixture import python_library, read_text
+from payload_fixture import minimal_bwrap_root, python_library, read_text
 
 SEED = Path(__file__).resolve().parents[1]
 TARGET = SEED / 'hooks/target'
@@ -322,12 +332,9 @@ class ActivationAndPolicyTests(unittest.TestCase):
         with self.assertRaises(protocol.ProtocolError):
             protocol.activation_arguments('discord',['zoommtg://zoom.us/join'])
 
-    def test_session_restore_contains_only_safe_base_launch(self):
-        import base64
-        argv = [session.WAYLAND_COMPAT_MANAGED_APP_PATH,'intel','zoom','--url=zoommtg://zoom.us/join?pwd=SECRET']
-        saved = json.loads(base64.urlsafe_b64decode(recovery.restart_token(argv)))
-        self.assertEqual(saved['argv'], argv[:3])
-        self.assertNotIn('SECRET', json.dumps(saved))
+    def test_launchers_have_no_session_restart_descriptor(self):
+        self.assertFalse(hasattr(recovery, 'restart_token'))
+        self.assertNotIn('LABWC_SESSION_RESTORE', Path(session.__file__).read_text())
 
     def test_real_seqpacket_transport_bounds_input_and_preserves_signal(self):
         a,b = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
@@ -441,7 +448,7 @@ class NamespaceDisplayTests(unittest.TestCase):
     def test_two_concurrent_displays_are_local_and_cannot_reach_other_or_host_sockets(self):
         bwrap = '/usr/bin/bwrap'
         if not Path(bwrap).is_file(): self.skipTest('Bubblewrap is unavailable')
-        probe = subprocess.run([bwrap,'--unshare-all','--ro-bind','/','/','--','/bin/true'],
+        probe = subprocess.run([bwrap,'--unshare-all',*minimal_bwrap_root(),'--','/bin/true'],
                                capture_output=True,timeout=5)
         if probe.returncode:
             reason = probe.stderr.decode('utf-8','replace').strip()[:300]
@@ -475,7 +482,7 @@ for path in sys.argv[2:]:
                     thread=threading.Thread(target=serve,args=(server,app));thread.start();threads.append(thread)
                 for app in ('zoom','discord'):
                     other='zoom' if app=='discord' else 'discord'
-                    argv=[bwrap,'--unshare-all','--ro-bind','/','/','--tmpfs','/tmp',
+                    argv=[bwrap,'--unshare-all',*minimal_bwrap_root(),'--tmpfs','/tmp',
                           '--dir','/tmp/.X11-unix','--ro-bind',str(root/(app+'.sock')),'/tmp/.X11-unix/X0',
                           '--setenv','DISPLAY',':0','--unsetenv','WAYLAND_DISPLAY','--unsetenv','XAUTHORITY',
                           '--',sys.executable,'-B','-c',code,app,str(root/(other+'.sock')),str(root/'wayland-0')]

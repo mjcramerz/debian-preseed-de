@@ -13,7 +13,9 @@ import select
 import socket
 import stat
 import struct
+import time
 
+from .events import emit
 from .integrity import IntegrityError, require_managed_module, system_owner
 
 SOCKET_PATH = "/run/app-veth/control.sock"
@@ -26,6 +28,7 @@ CODEX_SOCKET_NAMES = (
 )
 CODEX_SOCKET_DAEMON_ROOT = Path("/tmp")
 CODEX_SOCKET_DAEMON_NAME = re.compile(r"codex-daemon-[0-9]+")
+LEASE_RETRY_SECONDS = 5
 
 
 def _configuration() -> dict:
@@ -241,7 +244,10 @@ def codex_socket_arguments() -> list[str]:
 class Lease:
     """The control socket is owned by the supervisor, never the application."""
 
-    def __init__(self, namespace_fd: int, app: str):
+    def __init__(self, namespace_fd: int, app: str, *, address: str | None = None):
+        self.namespace_fd = None
+        self.app = app
+        self.retry_at = None
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET | socket.SOCK_CLOEXEC)
         try:
             self.socket.settimeout(15)
@@ -251,7 +257,10 @@ class Lease:
                 socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i")))
             if uid != expected_uid:
                 raise ValueError("network service is not owned by root")
-            request = json.dumps({"app": app}, separators=(",", ":")).encode("ascii")
+            request = {"app": app}
+            if address is not None:
+                request["address"] = address
+            request = json.dumps(request, separators=(",", ":")).encode("ascii")
             self.socket.sendmsg([request], [(socket.SOL_SOCKET, socket.SCM_RIGHTS,
                                             array.array("i", [namespace_fd]))])
             response, _ancillary, flags, _address = self.socket.recvmsg(4096)
@@ -296,18 +305,77 @@ class Lease:
             raise
 
     @classmethod
+    def for_namespace(cls, namespace_fd: int, app: str) -> Lease:
+        """Retain the caller's exact namespace for authenticated reconnection."""
+        fd = os.dup(namespace_fd)
+        try:
+            lease = cls(fd, app)
+            lease.namespace_fd = fd
+            return lease
+        except BaseException:
+            os.close(fd)
+            raise
+
+    @classmethod
     def for_pid(cls, pid: int, app: str) -> Lease:
         # The caller pins its blocked child with a pidfd before opening this FD.
         fd = os.open(f"/proc/{pid}/ns/net", os.O_RDONLY | os.O_CLOEXEC)
         try:
-            return cls(fd, app)
+            return cls.for_namespace(fd, app)
         finally:
             os.close(fd)
 
     def check(self) -> None:
+        # Startup remains strict: no application executes before the broker
+        # has installed and acknowledged its private network policy.
+        if self.socket is None:
+            raise RuntimeError("kernel network lease is unavailable")
         readable, _, _ = select.select([self.socket], [], [], 0)
         if readable:
-            raise RuntimeError("kernel network lease ended; stopping the isolated application")
+            raise RuntimeError("kernel network lease ended before payload readiness")
+
+    def maintain(self) -> None:
+        """Keep a running application alive while its broker is unavailable."""
+        if self.socket is not None:
+            readable, _, _ = select.select([self.socket], [], [], 0)
+            if not readable:
+                return
+            self.socket.close()
+            self.socket = None
+            self.retry_at = time.monotonic()
+            emit("network_lease_paused", application=self.app)
+        if self.namespace_fd is None:
+            raise RuntimeError("network supervisor did not retain its namespace")
+        if self.retry_at is not None and time.monotonic() < self.retry_at:
+            return
+        replacement = None
+        try:
+            # The same root-owner, socket credential, namespace ownership and
+            # managed policy checks apply to every attachment. No host network
+            # or direct proxy fallback is available while disconnected.
+            replacement = type(self)(self.namespace_fd, self.app, address=self.address)
+            if ((replacement.address, replacement.gateway, replacement.interface, replacement.peer_port)
+                    != (self.address, self.gateway, self.interface, self.peer_port)):
+                raise ValueError("reconnected network identity differs from the live application")
+            self.socket = replacement.socket
+            replacement.socket = None
+            self.retry_at = None
+            emit("network_lease_restored", application=self.app)
+        except (OSError, ValueError, RuntimeError) as exc:
+            self.retry_at = time.monotonic() + LEASE_RETRY_SECONDS
+            emit("network_lease_retry", level="warning", application=self.app,
+                 cause=type(exc).__name__, retry_seconds=LEASE_RETRY_SECONDS)
+        finally:
+            if replacement is not None:
+                replacement.close()
+
+    def retry_timeout(self) -> float | None:
+        return None if self.retry_at is None else max(0.0, self.retry_at - time.monotonic())
 
     def close(self) -> None:
-        self.socket.close()
+        if self.socket is not None:
+            self.socket.close()
+            self.socket = None
+        if self.namespace_fd is not None:
+            os.close(self.namespace_fd)
+            self.namespace_fd = None

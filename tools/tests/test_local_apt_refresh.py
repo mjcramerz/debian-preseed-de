@@ -4,6 +4,17 @@
 Tiny .deb fixtures are ar/tar serialization only; no software is compiled or
 installed. Remote providers are represented by bounded metadata fixtures.
 """
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[2] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 import copy
 import hashlib
 import http.server
@@ -29,7 +40,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 class Workspace(unittest.TestCase):
     def setUp(self):
-        base = Path('/var/lib/apt-repo-local-tests')
+        base = Path('/workspace/apt-repo-local-tests')
         base.mkdir(mode=0o755, exist_ok=True)
         self.work = Path(tempfile.mkdtemp(dir=base))
         self.repository = repo.Repository(self.work / 'software', self.work / 'etc')

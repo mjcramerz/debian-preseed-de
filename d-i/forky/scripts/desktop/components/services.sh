@@ -113,6 +113,8 @@ desktop_enable_target_services() {
   desktop_enable_unit_if_available rsyslog.service system
   desktop_enable_unit_if_available logrotate.timer system
   desktop_mask_unit_if_available systemd-journald-audit.socket system
+  # 3proxy runs only inside managed browser/torrent namespaces, never on the host.
+  desktop_mask_unit_if_available 3proxy.service system
   desktop_mask_unit_if_available fwupd-refresh.service system
   desktop_mask_unit_if_available fwupd-refresh.timer system
   desktop_disable_unit_if_available mpris-proxy.service user

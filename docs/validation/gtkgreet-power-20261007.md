@@ -1,5 +1,9 @@
 # gtkgreet Reboot and Shutdown repair — 2026-10-07
 
+The shutdown cleanup and veto behavior recorded below was superseded on
+2026-10-12 by [the bounded power and native activation repair](power-native-activation-20261012.md).
+This document retains the earlier incident and verification record.
+
 ## Observed blocker
 
 The supplied LPL-697 button-press log records the greeter as `_greetd`, UID 989,

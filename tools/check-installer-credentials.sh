@@ -1,12 +1,14 @@
 #!/bin/sh
 # Check trusted installer credentials without printing any values.
 # Usage: sh tools/check-installer-credentials.sh [env-file [cmdline-file]]
-# Does not modify accounts, debconf, disks, or browser settings. May chmod the
-# credential file to 0600, exactly as the installer does. Do not run with -x.
+# Disposable-environment validation only. The shared reader may chmod a private
+# fixture credential file to 0600, exactly as the installer does. Never run on
+# the development host or with -x.
 set +x
 set +v
 set -eu
 umask 077
+/usr/bin/python3 -I -B /workspace/repository/tools/isolation.py
 if [ "$#" -gt 2 ]; then
   printf 'usage: %s [env-file [cmdline-file]]\n' "${0##*/}" >&2
   exit 2

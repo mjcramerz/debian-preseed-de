@@ -36,76 +36,23 @@ NS_GET_NSTYPE = 0xB703
 CLONE_NEWNET = 0x40000000
 NETWORK_SETTINGS = {}
 ACTIVE_NETWORK_SETTINGS = None
-# A transient carrier or USB adapter flap can remove the default route for a
-# few seconds while the interface is recreated. Keep the pinned namespace
-# alive during that bounded outage; the existing nftables mapping remains
-# fail-closed while its egress interface is absent. A sustained outage still
-# revokes the lease below.
-PINNED_ROUTE_GRACE_SECONDS = 10
+# Route changes update a live lease. Failed administrative updates leave its
+# host link down and retry; lack of Internet never ends the application.
+ROUTE_RETRY_SECONDS = 5
 # Fixed host names are created once at boot and retained for every lease.
 
-RULESET_TEMPLATE = '''destroy table inet app_veth
-table inet app_veth {
-    set links { type ifname; }
-    set sources { type ifname . ipv4_addr; }
-    set outbound { type ifname; }
-    set lan_blocked { type ifname; }
-    set lan_ipv4 { type ipv4_addr; flags interval; }
-    set pinned { type ifname . ifname; }
-    set incoming { type ifname . ipv4_addr . inet_proto . inet_service; }
-    map forwards { type ipv4_addr . inet_proto . inet_service : ipv4_addr . inet_service; }
-    map rpc { type inet_service : ipv4_addr . inet_service; }
-    map gateways { type ifname : ipv4_addr; }
-    map snat_map { type ifname : ipv4_addr; }
-    map peer_snat { type ifname . inet_proto . inet_service : ipv4_addr . inet_service; }
-    chain source_guard {
-        type filter hook prerouting priority -150; policy accept;
-        iifname __APP_INTERFACES__ meta nfproto != ipv4 drop
-        iifname __APP_INTERFACES__ iifname . ip saddr != @sources drop
-    }
-    chain dns_and_peers {
-        type nat hook prerouting priority dstnat; policy accept;
-        iifname @links ip daddr __DNS_ADDRESS__ meta l4proto { tcp, udp } th dport 53 dnat to __DNS_HOST_ADDRESS__:__DNS_HOST_PORT__
-        meta l4proto { tcp, udp } dnat ip to ip daddr . meta l4proto . th dport map @forwards
-    }
-    chain rpc_output {
-        type nat hook output priority dstnat; policy accept;
-        ip daddr 127.0.0.1 meta l4proto tcp dnat to tcp dport map @rpc
-        meta l4proto { tcp, udp } dnat ip to ip daddr . meta l4proto . th dport map @forwards
-    }
-    chain host_guard {
-        type filter hook input priority -10; policy accept;
-        iifname @links ip daddr __DNS_HOST_ADDRESS__ meta l4proto { tcp, udp } th dport __DNS_HOST_PORT__ ct status dnat accept
-        # Replies to the exact host-initiated peer/RPC DNAT maps must return
-        # to their initiating host socket; unrelated host access stays denied.
-        iifname @links ct state established,related ct status dnat accept
-        iifname __APP_INTERFACES__ drop
-    }
-    chain forward_guard {
-        type filter hook forward priority -10; policy accept;
-        iifname __APP_INTERFACES__ oifname __APP_INTERFACES__ drop
-        # Only the exact DNS endpoint is DNATed to the local cache. Block
-        # direct ordinary DNS before unpinned or pinned application egress.
-        iifname @links meta l4proto { tcp, udp } th dport 53 drop
-        iifname @lan_blocked ip daddr @lan_ipv4 drop
-        iifname @outbound accept
-        iifname . oifname @pinned accept
-        oifname @links ct state established,related accept
-        oifname . ip daddr . meta l4proto . th dport @incoming ct status dnat accept
-        iifname __APP_INTERFACES__ drop
-        oifname __APP_INTERFACES__ drop
-    }
-    chain nat {
-        type nat hook postrouting priority srcnat; policy accept;
-        # uTP, UDP trackers and incoming peers share the advertised listener.
-        # Preserve that exact TCP/UDP source port through the host NAT layer.
-        iifname @links meta l4proto { tcp, udp } snat ip to iifname . meta l4proto . th sport map @peer_snat
-        iifname @links snat ip to iifname map @snat_map
-        iifname @outbound masquerade
-        oifname @links ip saddr 127.0.0.0/8 snat ip to oifname map @gateways
-    }
-}
-'''
+
+def read_ruleset_template() -> str:
+    fd = os.open("/etc/app-veth.nft", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(fd, "rb") as handle:
+        metadata = os.fstat(handle.fileno())
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
+                or metadata.st_nlink != 1 or metadata.st_mode & 0o022):
+            raise ValueError("unsafe managed network ruleset")
+        payload = handle.read(65537)
+    if not payload.strip() or len(payload) > 65536 or b"__INSTALLER_" in payload:
+        raise ValueError("invalid managed network ruleset")
+    return payload.decode("ascii")
 
 
 def interface_name(slot: int, *, peer: bool = False) -> str:
@@ -120,13 +67,22 @@ def apply_network_identity(settings: dict) -> None:
     names = [interface_name(slot) for slot in range(MAX_LEASES)]
     INTERFACE_PATTERN = "(?:" + "|".join(re.escape(name) for name in names) + ")"
     INTERFACE_MATCH = "{ " + ", ".join(f'"{name}"' for name in names) + " }"
-    RULESET = RULESET_TEMPLATE.replace("__APP_INTERFACES__", INTERFACE_MATCH)
+    RULESET = read_ruleset_template().replace("__APP_INTERFACES__", INTERFACE_MATCH)
     for key in ("dns_address", "dns_host_address", "dns_host_port"):
         RULESET = RULESET.replace("__" + key.upper() + "__", str(settings[key]))
+    if re.search(r"__[A-Z][A-Z0-9_]*__", RULESET):
+        raise ValueError("unresolved managed network ruleset placeholder")
 
 
-def application_slot(policy: dict, leases: dict) -> int:
+def application_slot(policy: dict, leases: dict, address: str | None = None) -> int:
     occupied = {network.slot for network in leases.values()}
+    if address is not None:
+        if not isinstance(address, str) or address not in policy["addresses"]:
+            raise ValueError("requested address is not reserved to this application")
+        slot = policy["slots"][policy["addresses"].index(address)]
+        if slot in occupied:
+            raise ValueError("requested application network slot is in use")
+        return slot
     for slot in policy["slots"]:
         if slot not in occupied:
             return slot
@@ -143,16 +99,26 @@ class NetworkCleanupError(RuntimeError):
     """Keep the firewall guards installed when kernel cleanup did not finish."""
 
 
-def run(argv: list[str], *, data: str | None = None, fds: tuple[int, ...] = ()) -> str:
+def run(argv: list[str], *, data: str | None = None, fds: tuple[int, ...] = (),
+        empty_conntrack_delete: bool = False) -> str:
     # Fixed administrative executables and validated scalar arguments only.
     with tempfile.TemporaryFile() as output:
         result = subprocess.run(argv, input=data.encode("ascii") if data is not None else None,
                                 stdin=subprocess.DEVNULL if data is None else None,
-                                stdout=output, stderr=output, timeout=5, env=ENV,
+                                # Deletion prints every retired flow on stdout;
+                                # keep only its small stderr result/diagnostic.
+                                stdout=subprocess.DEVNULL if empty_conntrack_delete else output,
+                                stderr=output, timeout=5, env=ENV,
                                 pass_fds=fds, check=False)
         output.seek(0)
         text = output.read(MAX_COMMAND_OUTPUT_BYTES + 1)
-    if result.returncode or len(text) > MAX_COMMAND_OUTPUT_BYTES:
+    # conntrack -D reports status 1 for an empty selection as well as errors.
+    # Accept only its exact empty-result summary, never arbitrary status 1.
+    empty_delete = (empty_conntrack_delete and argv[:2] == ["/usr/sbin/conntrack", "-D"]
+                    and result.returncode == 1 and re.fullmatch(
+                        rb"conntrack v[0-9][0-9A-Za-z.+:~_-]* \(conntrack-tools\): "
+                        rb"0 flow entries have been deleted\.\n?", text) is not None)
+    if (result.returncode and not empty_delete) or len(text) > MAX_COMMAND_OUTPUT_BYTES:
         diagnostic = " ".join(text.decode("ascii", errors="replace").split())[:512]
         raise RuntimeError(f"{Path(argv[0]).name} failed (status {result.returncode}): {diagnostic}")
     return text.decode("ascii")
@@ -342,24 +308,25 @@ class Network:
         self.address = str(ipaddress.IPv4Address(base + 2))
         self.remove = []
         self.reservations = []
+        self.route_remove = []
+        self.route_reservations = []
         self.attached = False
         self.installed = False
-        self.pinned_route = None
-        self.route_unavailable_since = None
+        self.uplink = None
+        self.route_retry_at = None
+        self.route_initialized = False
         try:
             if policy.get("network") is not True:
                 raise ValueError("application has no network authorization")
-            peer_port = policy["peer_port"]
-            pinned = policy["pin_route"]
-            # Unpinned clients only need a connected uplink to select an MTU.
-            # They can start while the host's WAN/VPN route is being restored;
-            # nftables still applies block_lan independently to every packet.
-            # A pinned client must retain a working Internet route.
-            iface, source, mtu = route(allow_lan=not pinned)
-            if pinned:
-                self.pinned_route = (iface, source, mtu)
-            if app == "qbittorrent" and iface.startswith("tailscale"):
-                raise ValueError("qBittorrent requires a LAN or VPN Internet route")
+            self.peer_port = policy["peer_port"]
+            self.pinned = policy["pin_route"]
+            try:
+                current = route(allow_lan=not self.pinned)
+            except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+                current = None
+            # The private interface and address also exist while offline.
+            # A pinned client has no egress authorization until a route exists.
+            mtu = current[2] if current is not None else 1500
             path = f"/proc/self/fd/{nsfd}"
             enter = ["/usr/bin/nsenter", f"--net={path}", "--"]
             links = json.loads(run([*enter, "/usr/sbin/ip", "-j", "link", "show"], fds=(nsfd,)))
@@ -387,20 +354,18 @@ class Network:
                 self.remove.append(f"delete element inet app_veth {name} {{ {value.split(' : ')[0]} }}")
             element("links", f'"{self.name}"')
             element("sources", f'"{self.name}" . {self.address}')
+            if app in {"chromium", "microsoft-edge", "vivaldi", "mullvad-browser"}:
+                element("web_tls_only", f'"{self.name}"')
+            if app in {"qbittorrent", "qbittorrent-privacy"}:
+                element("no_http", f'"{self.name}"')
             element("gateways", f'"{self.name}" : {self.gateway}')
             if policy["block_lan"]:
                 element("lan_blocked", f'"{self.name}"')
-            if pinned:
-                element("pinned", f'"{self.name}" . "{iface}"')
-                element("snat_map", f'"{self.name}" : {source}')
-            else:
+            if not self.pinned:
                 element("outbound", f'"{self.name}"')
-            if peer_port is not None:
-                for protocol, socket_type in (("tcp", socket.SOCK_STREAM), ("udp", socket.SOCK_DGRAM)):
-                    self.reserve(source, peer_port, socket_type)
-                    element("peer_snat", f'"{self.name}" . {protocol} . {peer_port} : {source} . {peer_port}')
-                    element("forwards", f'{source} . {protocol} . {peer_port} : {self.address} . {peer_port}')
-                    element("incoming", f'"{self.name}" . {self.address} . {protocol} . {peer_port}')
+            if self.peer_port is not None:
+                for protocol in ("tcp", "udp"):
+                    element("incoming", f'"{self.name}" . {self.address} . {protocol} . {self.peer_port}')
             if app == "discord":
                 for port in range(6463, 6473):
                     self.reserve("127.0.0.1", port, socket.SOCK_STREAM)
@@ -412,20 +377,94 @@ class Network:
                     element("incoming", f'"{self.name}" . {self.address} . tcp . {port + 10000}')
             nft("\n".join(rows) + "\n")
             self.installed = True
-            # Set the host MTU and raise the link in one operation, only after
-            # the exact source/egress firewall transaction has committed.
-            run(["/usr/sbin/ip", "link", "set", "dev", self.name, "mtu", str(mtu), "up"])
+            self.refresh_route(current)
             event("network_ready", self.id, app=app, uid=uid, interface=self.name, mtu=mtu)
         except BaseException:
             self.close()
             raise
 
-    def reserve(self, address, port, socket_type):
+    def reserve(self, address, port, socket_type, *, route_owned=False):
         channel = socket.socket(socket.AF_INET, socket_type | socket.SOCK_CLOEXEC)
-        self.reservations.append(channel)
+        (self.route_reservations if route_owned else self.reservations).append(channel)
         channel.bind((address, port))
         if socket_type == socket.SOCK_STREAM:
             channel.listen(1)
+
+    def update_route(self, current):
+        """Replace this lease's exact egress/NAT mapping with its link quiesced."""
+        if self.route_initialized and current == self.uplink and self.route_retry_at is None:
+            return
+        enter = ["/usr/bin/nsenter", f"--net=/proc/self/fd/{self.nsfd}", "--"]
+        if (self.route_initialized and self.route_retry_at is None
+                and current is not None and self.uplink is not None
+                and current[:2] == self.uplink[:2]):
+            # An MTU-only notification need not drop live connections or rebind
+            # peer ports. The egress identity and firewall elements are unchanged.
+            run([*enter, "/usr/sbin/ip", "link", "set", "dev", self.interface, "mtu", str(current[2])],
+                fds=(self.nsfd,))
+            run(["/usr/sbin/ip", "link", "set", "dev", self.name, "mtu", str(current[2])])
+            self.uplink = current
+            event("network_mtu_updated", self.id, app=self.app, uid=self.uid, mtu=current[2])
+            return
+        run(["/usr/sbin/ip", "link", "set", "dev", self.name, "down"])
+        rows = list(self.route_remove)
+        remove = []
+        def element(name, value):
+            rows.append(f"add element inet app_veth {name} {{ {value} }}")
+            remove.append(f"delete element inet app_veth {name} {{ {value.split(' : ')[0]} }}")
+        for channel in self.route_reservations:
+            channel.close()
+        self.route_reservations.clear()
+        if current is not None and self.pinned:
+            iface, source, _mtu = current
+            element("pinned", f'"{self.name}" . "{iface}"')
+            element("snat_map", f'"{self.name}" : {source}')
+            if self.peer_port is not None:
+                for protocol, kind in (("tcp", socket.SOCK_STREAM), ("udp", socket.SOCK_DGRAM)):
+                    self.reserve(source, self.peer_port, kind, route_owned=True)
+                    element("peer_snat", f'"{self.name}" . {protocol} . {self.peer_port} : {source} . {self.peer_port}')
+                    element("forwards", f'{source} . {protocol} . {self.peer_port} : {self.address} . {self.peer_port}')
+        if rows:
+            # Deletes and replacements commit together, including DHCP changes
+            # on the same device. No partially updated forwarding policy leaks.
+            nft("\n".join(rows) + "\n")
+        self.route_remove = remove
+        # Old SNAT/DNAT bindings survive map changes and slot reuse. Remove
+        # only flows belonging to this guest, including inbound peer flows,
+        # before first use or any egress replacement.
+        for direction in ("--orig-src", "--reply-src"):
+            run(["/usr/sbin/conntrack", "-D", "-f", "ipv4", direction, self.address],
+                empty_conntrack_delete=True)
+        mtu = current[2] if current is not None else 1500
+        run([*enter, "/usr/sbin/ip", "link", "set", "dev", self.interface, "mtu", str(mtu)],
+            fds=(self.nsfd,))
+        # Ordinary leases can still reach permitted LAN destinations without a
+        # WAN route. Pinned leases remain down until validated egress returns.
+        if current is not None or not self.pinned:
+            run(["/usr/sbin/ip", "link", "set", "dev", self.name, "mtu", str(mtu), "up"])
+        self.uplink = current
+        self.route_initialized = True
+        self.route_retry_at = None
+        event("network_route_updated" if current is not None else "network_route_offline",
+              self.id, app=self.app, uid=self.uid, interface=self.name,
+              egress=current[0] if current is not None else None, mtu=mtu)
+
+    def refresh_route(self, current):
+        # Self-generated netlink notifications must not turn a failed update
+        # into a busy retry loop. A new physical route gets an immediate try.
+        if (self.route_retry_at is not None and current == self.uplink
+                and time.monotonic() < self.route_retry_at):
+            return
+        try:
+            self.update_route(current)
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+            # update_route lowers the link before any mapping mutation. A
+            # failed update retains the namespace/GUI and retries while blocked.
+            self.uplink = current
+            self.route_retry_at = time.monotonic() + ROUTE_RETRY_SECONDS
+            event("network_route_update_failed", self.id, app=self.app, uid=self.uid,
+                  retry_seconds=ROUTE_RETRY_SECONDS, cause=type(exc).__name__,
+                  detail=" ".join(str(exc).split())[:512])
 
     def close(self):
         # Quiesce the packet path first; keep the boot-created endpoint for
@@ -453,16 +492,18 @@ class Network:
             errors.append(exc)
         try:
             if self.installed:
-                nft("\n".join(self.remove) + "\n")
+                nft("\n".join((*self.route_remove, *self.remove)) + "\n")
                 self.installed = False
         except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
             errors.append(exc)
         finally:
             if not self.installed:
                 self.remove.clear()
-            for channel in self.reservations:
+                self.route_remove.clear()
+            for channel in (*self.route_reservations, *self.reservations):
                 channel.close()
             self.reservations.clear()
+            self.route_reservations.clear()
         event("network_cleanup_failed" if errors else "network_removed", self.id, app=self.app, uid=self.uid)
         if errors:
             raise NetworkCleanupError("managed network cleanup failed") from errors[0]
@@ -481,50 +522,29 @@ def release_lease(selector, leases, channel):
             channel.close()
 
 
-def pinned_route_timeout(leases) -> float | None:
-    deadlines = [network.route_unavailable_since + PINNED_ROUTE_GRACE_SECONDS
-                 for network in leases.values()
-                 if network.pinned_route is not None and network.route_unavailable_since is not None]
+def route_retry_timeout(leases) -> float | None:
+    deadlines = [network.route_retry_at for network in leases.values()
+                 if network.route_retry_at is not None]
     if not deadlines:
         return None  # Healthy/ordinary leases need no periodic wakeups.
     return max(0.0, min(deadlines) - time.monotonic())
 
 
-def refresh_pinned_routes(selector, leases):
-    pinned = [(channel, network) for channel, network in leases.items()
-              if network.pinned_route is not None]
-    if not pinned:
+def refresh_routes(leases):
+    if not leases:
         return
     try:
         current = route()
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
         current = None
-    now = time.monotonic()
-    for channel, network in pinned:
-        if current is None:
-            if network.route_unavailable_since is None:
-                network.route_unavailable_since = now
-                event("network_route_unavailable", network.id, app=network.app,
-                      uid=network.uid, grace_seconds=PINNED_ROUTE_GRACE_SECONDS)
-                continue
-            if now - network.route_unavailable_since < PINNED_ROUTE_GRACE_SECONDS:
-                continue
-            # The route stayed unavailable beyond the bounded recovery window.
-            # Revoke the lease rather than leaving a stale peer-port mapping.
-            event("network_route_changed", network.id, app=network.app, uid=network.uid,
-                  reason="route_unavailable")
-            release_lease(selector, leases, channel)
-            continue
-
-        if network.route_unavailable_since is not None:
-            network.route_unavailable_since = None
-            event("network_route_restored", network.id, app=network.app, uid=network.uid)
-        if current != network.pinned_route:
-            # Never silently move a torrent from its selected VPN/LAN egress,
-            # or keep advertising a peer port on an address no longer in use.
-            event("network_route_changed", network.id, app=network.app, uid=network.uid,
-                  reason="route_replaced")
-            release_lease(selector, leases, channel)
+    lan = current
+    if current is None and any(not network.pinned for network in leases.values()):
+        try:
+            lan = route(allow_lan=True)
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+            lan = None
+    for network in leases.values():
+        network.refresh_route(current if network.pinned else lan)
 
 
 def receive(channel, desktop_uid, policies):
@@ -547,7 +567,7 @@ def receive(channel, desktop_uid, policies):
         if flags & (socket.MSG_TRUNC | socket.MSG_CTRUNC) or len(descriptors) != 1:
             raise ValueError("exactly one bounded namespace FD is required")
         request = json.loads(packet)
-        if (not isinstance(request, dict) or set(request) != {"app"}
+        if (not isinstance(request, dict) or set(request) not in ({"app"}, {"app", "address"})
                 or not isinstance(request["app"], str)
                 or request["app"] not in policies
                 or policies[request["app"]]["network"] is not True):
@@ -556,9 +576,12 @@ def receive(channel, desktop_uid, policies):
         expected = podman_uid if app == "podman" else desktop_uid
         if uid != expected or uid == 0:
             raise ValueError("caller is not authorized for this network policy")
+        address = request.get("address")
+        if "address" in request and (not isinstance(address, str) or address not in policies[app]["addresses"]):
+            raise ValueError("requested address is not reserved to this application")
         namespace_owner(descriptors[0], uid)
         fd = descriptors.pop()
-        return pid, uid, app, fd
+        return pid, uid, app, fd, address
     finally:
         for fd in descriptors:
             os.close(fd)
@@ -661,7 +684,7 @@ def main():
                 notification.connect("\0" + notify_path[1:] if notify_path.startswith("@") else notify_path)
                 notification.sendall(b"READY=1")
         while True:
-            for key, _ in selector.select(pinned_route_timeout(leases)):
+            for key, _ in selector.select(route_retry_timeout(leases)):
                 if key.fileobj is route_watch:
                     # Coalesce a bounded burst before taking the two route/link
                     # snapshots; endpoint setup generates several notifications.
@@ -671,11 +694,7 @@ def main():
                         except BlockingIOError:
                             break
                     lan_snapshot = refresh_lan_networks(lan_snapshot)
-                    try:
-                        refresh_pinned_routes(selector, leases)
-                    except NetworkCleanupError as exc:
-                        errors.append(exc)
-                        raise
+                    refresh_routes(leases)
                 elif key.fileobj is listener:
                     channel, _ = listener.accept()
                     channel.settimeout(2)
@@ -685,12 +704,12 @@ def main():
                         # Re-read the complete trusted file for each request:
                         # adding/removing an app takes effect on its next run.
                         desktop_uid, policies = configuration()
-                        _pid, uid, app, nsfd = receive(channel, desktop_uid, policies)
+                        _pid, uid, app, nsfd, address = receive(channel, desktop_uid, policies)
                         if len(leases) >= MAX_LEASES:
                             raise ValueError("network lease limit reached")
                         if any(os.fstat(n.nsfd).st_ino == os.fstat(nsfd).st_ino for n in leases.values()):
                             raise ValueError("namespace already has a lease")
-                        slot = application_slot(policies[app], leases)
+                        slot = application_slot(policies[app], leases, address)
                         network = Network(slot, nsfd, app, uid, policies[app], pool, endpoints)
                         response = {"ready": True, "address": network.address,
                                     "gateway": network.gateway, "interface": network.interface}
@@ -726,8 +745,8 @@ def main():
                             channel.close()
                 else:
                     channel = key.fileobj
-                    # A route event earlier in this readiness batch may have
-                    # already revoked and closed this exact lease.
+                    # Only supervisor exit releases a lease; uplink changes
+                    # update its packet path without ending the application.
                     if channel not in leases:
                         continue
                     try:
@@ -735,14 +754,8 @@ def main():
                     except NetworkCleanupError as exc:
                         errors.append(exc)
                         raise
-            # A sustained route outage may generate no further notification.
-            # Check the deadline after every batch, including busy client batches.
-            if pinned_route_timeout(leases) == 0:
-                try:
-                    refresh_pinned_routes(selector, leases)
-                except NetworkCleanupError as exc:
-                    errors.append(exc)
-                    raise
+            if route_retry_timeout(leases) == 0:
+                refresh_routes(leases)
     finally:
         ACTIVE_NETWORK_SETTINGS = None
         # Signals cannot interrupt cleanup and strand a later lease.
@@ -776,7 +789,7 @@ if __name__ == "__main__":
         signal.signal(sig, lambda number, _frame: sys.exit(128 + number))
     try:
         if sys.argv[1:] == ["--check-config"]:
-            desktop_uid, policies = configuration()
+            desktop_uid, policies = configuration(activate=True)
             event("network_configuration_validated", uuid.uuid4().hex,
                   uid=desktop_uid, network_apps=sum(row["network"] for row in policies.values()))
         elif sys.argv[1:]:

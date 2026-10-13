@@ -1,0 +1,171 @@
+#!/usr/bin/python3 -IB
+"""Keep an application and its namespace-local foreground CONNECT proxy alive together."""
+
+import os
+import json
+from contextlib import ExitStack
+from pathlib import Path
+import select
+import signal
+import socket
+import stat
+import subprocess
+import sys
+import time
+
+PROXY_ADDRESS = "127.0.0.1"
+STOP_SIGNALS = (signal.SIGHUP, signal.SIGINT, signal.SIGTERM)
+
+
+def read_policy(path, maximum_bytes=65536):
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(fd, "rb") as handle:
+        metadata = os.fstat(handle.fileno())
+        # The launcher validates host-root ownership before the read-only bind.
+        # Host UID 0 is unmapped in the payload user namespace; fstat can report
+        # its overflow UID instead. Check the immutable opened mount here.
+        if (not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_nlink != 1 or metadata.st_mode & 0o022):
+            raise ValueError("unsafe managed proxy configuration")
+        if not os.fstatvfs(handle.fileno()).f_flag & os.ST_RDONLY:
+            raise ValueError("managed proxy configuration must be bound read-only")
+        payload = handle.read(maximum_bytes + 1)
+    if not payload.strip() or len(payload) > maximum_bytes or b"__INSTALLER_" in payload:
+        raise ValueError("invalid managed proxy configuration")
+    return payload
+
+
+def copy_privacy_config():
+    # Copy exact install-rendered bytes into the fresh Bubblewrap HOME.
+    # No native-key parsing, runtime rendering or host profile persistence.
+    source = "/etc/qbittorrent/qBittorrent.conf.d/20-managed-privacy.conf"
+    payload = read_policy(source, maximum_bytes=1024 * 1024)
+    target = Path("/home/user/.config/qBittorrent/qBittorrent.conf")
+    target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(payload)
+
+
+def stop(process, signum):
+    if process is None or process.poll() is not None:
+        return
+    try:
+        process.send_signal(signum)
+    except ProcessLookupError:
+        return
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
+
+
+def wait_for_session(proxy: subprocess.Popen, payload: subprocess.Popen) -> int:
+    """Wake on either child's exit without a periodic polling loop."""
+    with ExitStack() as resources:
+        descriptors = []
+        for process in (proxy, payload):
+            descriptor = os.pidfd_open(process.pid)
+            resources.callback(os.close, descriptor)
+            descriptors.append(descriptor)
+        select.select(descriptors, [], [])
+        payload_status = payload.poll()
+        if payload_status is not None:
+            return payload_status
+        proxy_status = proxy.poll()
+        raise RuntimeError(f"CONNECT proxy exited during the application session (status {proxy_status})")
+
+
+def main():
+    arguments = sys.argv[1:]
+    commands = {
+        "chromium": "/usr/bin/chromium",
+        "microsoft-edge": "/usr/bin/microsoft-edge-stable",
+        "vivaldi": "/usr/bin/vivaldi-stable",
+        "mullvad-browser": "/usr/bin/mullvad-browser",
+        "qbittorrent": "/usr/bin/qbittorrent",
+    }
+    if not arguments or arguments[0] not in commands:
+        raise ValueError("unknown managed proxy application")
+    app = arguments.pop(0)
+    privacy = arguments[:1] == ["--privacy"]
+    if privacy:
+        arguments = arguments[1:]
+    offline = arguments[:1] == ["--offline"]
+    if offline:
+        arguments = arguments[1:]
+    if os.geteuid() == 0 or not arguments or arguments[0] != commands[app]:
+        raise ValueError("managed proxy session requires an unprivileged managed payload")
+    if app == "qbittorrent" and any(argument.partition("=")[0] in {"--profile", "--configuration"}
+           for argument in arguments[1:]):
+        raise ValueError("managed qBittorrent forbids profile overrides")
+    if privacy:
+        if app != "qbittorrent":
+            raise ValueError("privacy configuration copy is specific to qBittorrent")
+        copy_privacy_config()
+    settings = json.loads(read_policy("/etc/labwc/3proxy/session.json"))
+    if type(settings) is not dict or set(settings) != {"web_browser_port", "qbittorrent_port"} or any(
+            type(port) is not int or not 1024 <= port <= 65535 for port in settings.values()):
+        raise ValueError("invalid proxy listener configuration")
+    port = settings["qbittorrent_port" if app == "qbittorrent" else "web_browser_port"]
+    proxy_config = "/etc/labwc/3proxy/" + app + ".conf"
+    read_policy(proxy_config)
+    proxy = payload = None
+
+    def interrupted(signum, frame):
+        raise SystemExit(128 + signum)
+
+    for signum in STOP_SIGNALS:
+        signal.signal(signum, interrupted)
+    try:
+        # Offline callers keep Bubblewrap's unshared network namespace without
+        # a broker lease. There is no route or reachable CONNECT proxy.
+        if offline:
+            payload = subprocess.Popen(arguments, stdin=subprocess.DEVNULL)
+            return payload.wait()
+        # No daemonization: both children remain in the existing transient unit
+        # and bubblewrap namespaces. A failed proxy never falls back to HTTP.
+        # The proxy inherits blocked service-stop signals, keeping CONNECT
+        # connections alive while the application closes. Restore our own mask
+        # only after recording the child so a pending signal cannot orphan it.
+        previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, STOP_SIGNALS)
+        try:
+            proxy = subprocess.Popen(
+                ["/usr/bin/3proxy", proxy_config],
+                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        finally:
+            signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
+        deadline = time.monotonic() + 10
+        while True:
+            proxy_status = proxy.poll()
+            if proxy_status is not None:
+                raise RuntimeError(f"CONNECT proxy exited before readiness (status {proxy_status})")
+            try:
+                with socket.create_connection((PROXY_ADDRESS, port), timeout=0.2):
+                    break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise RuntimeError("CONNECT proxy readiness timed out") from None
+                time.sleep(0.1)
+        payload = subprocess.Popen(arguments, stdin=subprocess.DEVNULL)
+        return wait_for_session(proxy, payload)
+    finally:
+        for signum in STOP_SIGNALS:
+            signal.signal(signum, signal.SIG_IGN)
+        try:
+            stop(payload, signal.SIGINT)
+        finally:
+            # The foreground proxy has no persistent state or request logs.
+            # Explicit kill bypasses its inherited blocked stop signals.
+            stop(proxy, signal.SIGKILL)
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"managed proxy session failed: {exc}", file=sys.stderr)
+        raise SystemExit(1)

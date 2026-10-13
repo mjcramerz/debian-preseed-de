@@ -1,5 +1,16 @@
 """Power finalization regressions: all host commands are mocked, never executed."""
 from __future__ import annotations
+
+# Refuse host execution before importing runtime helpers or creating fixtures.
+from pathlib import Path as _IsolationPath
+import sys as _isolation_sys
+_isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] / 'tools'))
+# Copied checker/GUI fixtures still use the verified private checkout gate.
+_isolation_sys.path.insert(0, '/workspace/repository/tools')
+from isolation import require_test_isolation as _require_test_isolation
+_isolation_sys.path.pop(0)
+_require_test_isolation()
+
 from power_handoff_fixture import handoff_argv, is_handoff
 from payload_fixture import read_text as payload_read_text
 import contextlib
@@ -25,72 +36,18 @@ def module():
     return result
 
 
-class InhibitorsTests(unittest.TestCase):
-    def setUp(self):
-        self.power = module()
-
-    def check(self, records):
-        raw = json.dumps({'type': 'a(ssssuu)', 'data': [records]})
-        with mock.patch.object(self.power, 'run', return_value=raw) as run:
-            self.power.check_shutdown_inhibitors()
-        command = run.call_args.args[0]
-        self.assertEqual(command[0], '/usr/bin/busctl')
-        self.assertEqual(command[-1], 'ListInhibitors')
-        self.assertIn('--timeout=5s', command)
-
-    def test_empty_list_permits_shutdown(self):
-        self.check([])
-
-    def test_block_and_weak_and_unknown_shutdown_modes_veto(self):
-        for mode in ('block', 'block-weak', 'future-mode', ''):
-            with self.subTest(mode=mode), self.assertRaisesRegex(self.power.Error, 'inhibited|unrecognized'):
-                self.check([['shutdown:sleep', 'application', 'unsaved', mode, 1000, 123]])
-
-    def test_delay_is_not_misrepresented_as_blocking(self):
-        self.check([['shutdown', 'application', 'flush', 'delay', 1000, 123]])
-        self.assertIn('bypasses logind delay handling', self.power.check_shutdown_inhibitors.__doc__)
-
-    def test_unrelated_inhibitors_are_not_shutdown_vetoes(self):
-        self.check([['sleep:idle', 'player', 'playing', 'block', 1000, 123]])
-
-    def test_invalid_json_signatures_and_record_types_fail_closed(self):
-        invalid = ['{', 'null', '[]', '{"type":"s","data":[[]]}',
-                   '{"type":"a(ssssuu)","data":[]}',
-                   '{"type":"a(ssssuu)","data":[{}]}']
-        records = [['shutdown', 'a', 'b', 'block', True, 1],
-                   ['shutdown', 'a', 'b', 'delay', -1, 1],
-                   ['shutdown', 'a', 'b', 'delay', 1, 2**32],
-                   ['shutdown', 'a', 'b', 'delay', 1],
-                   ['shutdown', ['a'], 'b', 'delay', 1, 1]]
-        invalid += [json.dumps({'type': 'a(ssssuu)', 'data': [[record]]}) for record in records]
-        for raw in invalid:
-            with self.subTest(raw=raw), mock.patch.object(self.power, 'run', return_value=raw), \
-                 self.assertRaisesRegex(self.power.Error, 'cannot verify'):
-                self.power.check_shutdown_inhibitors()
-
-    def test_bounded_response_records_and_strings(self):
-        invalid = [' ' * 1_048_577,
-                   json.dumps({'type':'a(ssssuu)', 'data':[[[]]*1025]}),
-                   json.dumps({'type':'a(ssssuu)', 'data':[[['sleep', 'a'*4097, '', 'delay', 0, 1]]]})]
-        for raw in invalid:
-            with mock.patch.object(self.power, 'run', return_value=raw), self.assertRaises(self.power.Error):
-                self.power.check_shutdown_inhibitors()
-
-    def test_unavailable_bus_never_silently_authorizes(self):
-        with mock.patch.object(self.power, 'run', side_effect=self.power.Error('timeout')), \
-             self.assertRaisesRegex(self.power.Error, 'timeout'):
-            self.power.check_shutdown_inhibitors()
+class ShutdownGateRemovalTests(unittest.TestCase):
+    def test_inhibitor_probe_is_not_an_authorized_shutdown_gate(self):
+        self.assertFalse(hasattr(module(), 'check_shutdown_inhibitors'))
 
 
 
 class DirectHandoffTests(unittest.TestCase):
-    """One single-force handoff after reservation and block-inhibitor checks."""
+    """One authorized single-force handoff without cleanup vetoes."""
     def setUp(self):
         self.power = module()
         self.worker = self.power.Worker(1000, 'desktop', 'poweroff')
         self.worker.prepared = True
-        self.worker.session_stopped = self.worker.storage_stopped = True
-        self.worker.external_drives_prepared = True
         self.worker.prepare_external_drives = mock.Mock()
         self.worker.package_locks = mock.Mock()
         self.events = []
@@ -125,40 +82,25 @@ class DirectHandoffTests(unittest.TestCase):
                     self.assertFalse(any('stop' in c for c in commands))
                     self.assertEqual(sum(c.count('--force') for c in commands), 1)
                     self.assertTrue(self.worker.committed and self.worker.handoff_attempted)
-                    self.assertGreaterEqual(self.worker.package_locks.verify.call_count, 2)
+                    self.worker.package_locks.verify.assert_not_called()
 
-    def test_other_account_and_known_inhibitor_both_veto(self):
-        with mock.patch.object(self.worker, 'protect_other_sessions', side_effect=self.power.Error('other account')):
-            with self.assertRaisesRegex(self.power.Error, 'other account'):
-                self.worker.final_power_action()
-        self.assertFalse(self.events)
-        self.assertFalse(self.worker.handoff_attempted)
-        raw = json.dumps({'type':'a(ssssuu)',
-                          'data':[[['shutdown', 'editor', 'unsaved', 'block', 1000, 1]]]})
-        with mock.patch.object(self.power, 'run', return_value=raw) as run:
-            with self.assertRaisesRegex(self.power.Error, 'inhibited'):
-                self.worker.final_power_action()
-        self.assertFalse(self.worker.handoff_attempted)
-        self.assertFalse(any(is_handoff(c.args[0]) for c in run.call_args_list))
+    def test_other_account_checks_are_not_a_second_shutdown_authorization_gate(self):
+        with mock.patch.object(self.worker, 'protect_other_sessions', side_effect=self.power.Error('unavailable session list')) as accounts:
+            self.worker.final_power_action()
+        accounts.assert_not_called()
+        self.assertEqual(self.events, [handoff_argv('poweroff')])
 
-    def test_missing_reservation_or_unprepared_session_fails_without_commands(self):
+    def test_missing_package_reservation_and_unprepared_desktop_do_not_veto(self):
         self.worker.package_locks = None
-        with self.assertRaisesRegex(self.power.Error, 'reservation'):
-            self.worker.final_power_action()
-        self.worker.package_locks = mock.Mock()
         self.worker.prepared = False
-        with self.assertRaisesRegex(self.power.Error, 'prepared'):
-            self.worker.final_power_action()
-        self.assertFalse(self.events)
+        self.worker.final_power_action()
+        self.assertEqual(self.events, [handoff_argv('poweroff')])
 
-    def test_reservation_loss_after_announcement_never_submits(self):
-        def lose_lock(message):
-            self.worker.package_locks.verify.side_effect = self.power.Error('reservation lost')
-        with mock.patch.object(self.power, 'status', side_effect=lose_lock):
-            with self.assertRaisesRegex(self.power.Error, 'reservation lost'):
-                self.worker.final_power_action()
-        self.assertFalse(any(is_handoff(c) for c in self.events if isinstance(c, list)))
-        self.assertFalse(self.worker.handoff_attempted)
+    def test_failed_status_notification_does_not_veto_submission(self):
+        with mock.patch.object(self.power, 'status', side_effect=OSError('notification unavailable')):
+            self.worker.final_power_action()
+        self.assertEqual(self.events, [handoff_argv('poweroff')])
+        self.assertTrue(self.worker.handoff_attempted)
 
     def test_uncertain_submission_never_retries_or_stops_root_services(self):
         def failed(argv, **kwargs):

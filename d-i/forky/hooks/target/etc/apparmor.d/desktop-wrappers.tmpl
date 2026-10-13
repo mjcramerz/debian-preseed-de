@@ -565,11 +565,10 @@ profile labwc-session-state /usr/local/libexec/labwc-session-state flags=(attach
   #include <abstractions/wrapper-wayland>
   #include <abstractions/wrapper-python>
   /usr/local/libexec/labwc-session-state rix,
-  /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
   # PUx sets AT_SECURE: systemd's secure_getenv then ignores both user-bus
   # variables even when they are present. Inherit this bounded user profile;
   # do not substitute an unconfined or environment-preserving ux fallback.
-  /usr/bin/{systemctl,systemd-run,wlrctl,wl-copy,cliphist,notify-send} rix,
+  /usr/bin/{systemctl,wlrctl,wl-copy,cliphist,notify-send} rix,
   #include <abstractions/dbus-session-strict>
   network unix stream,
   owner /run/user/[0-9]*/{bus,systemd/private} rw,
@@ -578,20 +577,13 @@ profile labwc-session-state /usr/local/libexec/labwc-session-state flags=(attach
   dbus (send) bus=session peer=(name=org.freedesktop.Notifications),
   dbus (receive) bus=session peer=(label=unconfined),
   dbus (receive) bus=session peer=(label=session-controls),
+  # User units default to the account's home as their working directory.
+  owner @{HOME}/ r,
   owner @{HOME}/.cache/ r,
   owner @{HOME}/.cache/cliphist/ rw,
   owner @{HOME}/.cache/cliphist/** rwk,
-  /usr/local/bin/labwc-{app,wayland-compat-app,wayland-app,electron-app} r,
-  owner @{HOME}/ r,
-  owner @{HOME}/.local/ rw,
-  owner @{HOME}/.local/state/ rw,
-  owner @{HOME}/.local/state/labwc-session/ rw,
-  owner @{HOME}/.local/state/labwc-session/** rwk,
-  owner @{HOME}/**/ r,
   owner /run/user/[0-9]*/labwc-session-closing rw,
   owner /run/user/[0-9]*/labwc-swaylock.lock rk,
-  signal (send) set=(term, kill) peer=labwc-fuzzel,
-  signal (receive) set=(chld) peer=labwc-fuzzel,
   signal (send, receive) peer=unconfined,
   include if exists <local/usr.local.libexec.labwc-session-state>
 }
@@ -653,9 +645,10 @@ profile labwc-autostart /usr/local/bin/labwc-autostart flags=(attach_disconnecte
   /usr/local/bin/labwc-wlsunset rPx -> labwc-wlsunset,
   signal (receive) set=(chld) peer=labwc-wlsunset,
   /usr/local/libexec/labwc-output-watch rPx -> labwc-output-watch,
-  /usr/bin/{sleep,find,timeout} rix,
+  /usr/bin/{sleep,find,rm,timeout} rix,
   /usr/bin/{dbus-update-activation-environment,systemctl} pux,
   owner /run/user/[0-9]*/bus r,
+  owner /run/user/[0-9]*/labwc-session-closing w,
   owner /run/user/[0-9]*/systemd/ r,
   owner @{HOME}/.config/{mako,waybar}/ r,
   owner @{HOME}/.config/{mako,waybar}/** r,
@@ -2252,6 +2245,9 @@ profile labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected, mediate
 
 profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   #include <abstractions/app-veth-client>
+  /etc/qbittorrent/{,qBittorrent.conf.d/,qBittorrent.conf.d/20-managed-privacy.conf} r,
+  /etc/labwc/ r,
+  /etc/labwc/3proxy/{,session.json,chromium.conf,microsoft-edge.conf,vivaldi.conf,mullvad-browser.conf,qbittorrent.conf} r,
   # Explicit launches can inherit their caller's terminal before systemd owns
   # the app cgroup; do not reject these inherited descriptors.
   owner /dev/pts/[0-9]* rw,
@@ -2394,6 +2390,8 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   /opt/{Bitwarden,Filen,Obsidian,ledger-live,postman,sleek,tuta-mail}/** r,
   /usr/{lib32,lib64,sbin}/ r,
   /usr/bin/{chromium,code,keepassxc,liferea,microsoft-edge-stable,mpv,mullvad-browser,qbittorrent,qoredb,retroarch,sdl-freerdp,sdl-freerdp3,spotify,telegram-desktop,vivaldi-stable} r,
+  /usr/lib/mullvad-browser/distribution/{,policies.json} r,
+  /usr/local/libexec/labwc-proxy-session r,
   /etc/freerdp/{,**} r,
   /etc/krb5.conf{,.d/,.d/**} r,
   /usr/local/bin/labwc-freerdp-askpass r,
@@ -2436,6 +2434,14 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   # abstraction and explicitly inherit execution for the fixed managed
   # application allowlist.
   profile app-bwrap flags=(attach_disconnected, mediate_deleted) {
+    /usr/local/libexec/labwc-proxy-session rix,
+    /usr/bin/3proxy rix,
+    /etc/qbittorrent/qBittorrent.conf.d/20-managed-privacy.conf r,
+    # Writable owner directories exist only in the private synthetic /etc.
+    # Host policy directories are root-owned; bound policy files stay read-only.
+    /etc/labwc/ r,
+    owner /etc/labwc/{,3proxy/} rw,
+    /etc/labwc/3proxy/{,session.json,chromium.conf,microsoft-edge.conf,vivaldi.conf,mullvad-browser.conf,qbittorrent.conf} r,
     ptrace (readby) peer=labwc-app,
     owner /run/user/[0-9]*/labwc-*-tmp/{,**} rwkl,
     #include <abstractions/bwrap-common>
@@ -2490,6 +2496,7 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     # Do not add Px/Ux transitions after Bubblewrap has set no_new_privs.
     #include <abstractions/wrapper-python>
     /usr/bin/{xdg-open,systemd-run} rix,
+    # Mullvad Browser's shell launcher keeps these helpers in app-bwrap.
     /usr/bin/{id,ln} rix,
     /usr/local/bin/labwc-wayland-app rix,
     /usr/local/lib/python3.14/dist-packages/ r,
@@ -2497,6 +2504,7 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,integrity,generic,environment,commands,compat_protocol,profiles,browsers,runtime,events,electron,user_state,recovery,session,network_client}.py r,
     owner /run/user/[0-9]*/labwc-session-closing r,
     owner /run/user/[0-9]*/.obsidian-cli.sock rw,
+    # Mullvad Browser creates its same-owner Wayland proxy socket here.
     owner /run/user/[0-9]*/wayland-proxy-* rw,
     include if exists <abstractions/user-tmp>
 
@@ -2592,6 +2600,11 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     /usr/bin/sleek rix,
     /usr/bin/spotify rix,
     /usr/bin/{chromium,code,keepassxc,liferea,microsoft-edge-stable,mpv,mullvad-browser,qbittorrent,retroarch,sdl-freerdp,sdl-freerdp3,telegram-desktop,vivaldi-stable} rix,
+    # Debian's Chromium launcher probes mounts and the packaged payload.
+    /{,usr/}bin/{findmnt,ls} rix,
+    /usr/lib/chromium/chromium rix,
+    # Edge downloads this component into its own versioned profile directory.
+    owner "@{HOME}/.config/microsoft-edge/Domain Actions/[0-9]*/libdomain_actions.so" mr,
     /usr/lib/mullvad-browser/start-mullvad-browser rix,
     /usr/share/code/{bin/code,code} rix,
     /usr/share/spotify/ r,
@@ -2877,9 +2890,11 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
   owner /run/user/[0-9]*/labwc-session-closing r,
   /usr/bin/bwrap rCx -> qbittorrent-bwrap,
   /etc/labwc/desktop.conf r,
+  /etc/labwc/ r,
   /etc/qbittorrent/ r,
   /etc/qbittorrent/qBittorrent.conf.d/ r,
   /etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf r,
+  /etc/labwc/3proxy/{,session.json,qbittorrent.conf} r,
   /run/media/ r,
   /run/media/*/ r,
   /run/media/*/bittorrent/ rw,
@@ -2957,6 +2972,11 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
     # of requesting a payload transition the kernel can reject under NNP.
     # Direct launches retain the separate qbittorrent attachment.
     /usr/bin/qbittorrent rix,
+    /usr/local/libexec/labwc-proxy-session rix,
+    /usr/bin/3proxy rix,
+    /etc/labwc/3proxy/{,session.json,qbittorrent.conf} r,
+    /etc/labwc/ r,
+    owner /etc/labwc/{,3proxy/} rw,
   }
 
   include if exists <local/usr.local.bin.labwc-qbittorrent>
@@ -4082,6 +4102,8 @@ profile apt-repo-local /usr/local/{bin/apt-repo-init,libexec/apt-repo-local} fla
   /dev/log w,
   /run/lock/apt-repo-local-software-update.lock rwk,
   /usr/bin/{curl,dpkg,dpkg-deb,gpg,gpg-agent,gpgv,gpgconf,unsquashfs} rix,
+  # dpkg-deb invokes rm for extraction cleanup; it retains this confinement.
+  /usr/bin/rm rix,
   /usr/bin/{gzip,xz,zstd,bzip2,lzma} rix,
   /usr/lib/gnupg/{,**} mr,
   /usr/share/gnupg/{,**} r,
@@ -4089,6 +4111,8 @@ profile apt-repo-local /usr/local/{bin/apt-repo-init,libexec/apt-repo-local} fla
   /etc/dpkg/{,**} r,
   /var/lib/dpkg/{,**} r,
   /root/.dpkg.cfg r,
+  # GnuPG enumerates its descriptors; directory access grants no target writes.
+  owner @{PROC}/[0-9]*/fd/ r,
   /dev/tty rw,
   /dev/tty[0-9]* rw,
   /dev/pts/[0-9]* rw,
