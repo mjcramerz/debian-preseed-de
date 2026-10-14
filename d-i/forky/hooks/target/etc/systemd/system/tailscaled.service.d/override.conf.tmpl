@@ -9,6 +9,10 @@ Wants=systemd-modules-load.service network-online.target nss-lookup.target time-
 After=systemd-modules-load.service NetworkManager.service network.target network-online.target nss-lookup.target time-sync.target
 
 [Service]
+# Signed APT owns package updates. A remote client update otherwise tries to
+# escape the daemon's lifecycle through systemd-run and run dpkg/apt as root.
+# Disable that entry point; bootstrap also clears AutoUpdate.Apply.
+Environment=TS_ALLOW_ADMIN_CONSOLE_REMOTE_UPDATE=false
 # Preserve Tailscale's automatic port 80 Noise to HTTPS/443 fallback.
 # Upstream tailscaled performs DNS and router cleanup unconditionally before it
 # starts the daemon. Do not duplicate that cleanup in a repository-owned

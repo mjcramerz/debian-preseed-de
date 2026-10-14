@@ -908,7 +908,7 @@ software_download() {
   partial_host_path="${target_root}${partial_destination}"
 
   case "$content_policy" in
-    artifact|metadata) ;;
+    artifact|metadata|signature) ;;
     *) software_fatal "$label content policy is unsupported: $content_policy" ;;
   esac
   case "$transport_policy" in
@@ -983,6 +983,11 @@ software_download() {
       ;;
     metadata:*)
       software_fatal "$label download returned an unsupported metadata content type: $normalized_content_type"
+      ;;
+    signature:application/pgp-keys|signature:application/pgp-signature|signature:application/octet-stream|signature:text/plain)
+      ;;
+    signature:*)
+      software_fatal "$label download returned an unsupported signature content type: $normalized_content_type"
       ;;
   esac
 
@@ -1830,6 +1835,11 @@ install -d -m 0700 "${target_root}${work_dir}" "$tmp_env_dir"
 trap software_cleanup_work_dir EXIT HUP INT TERM
 software_ensure_temporary_unshare
 software_stage_external_servicing_runtime
+tor_browser_module="${tmp_env_dir}/tor-browser.sh"
+fetch_hook_file "$(installer_repo_join_var DIR_SCRIPTS_LATE tor-browser.sh)" "$tor_browser_module"
+# shellcheck disable=SC1090,SC1091
+. "$tor_browser_module"
+software_install_tor_browser
 software_stage_seed_asset \
   "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apt/sources.list.d/apt-repo-local.sources)" \
   "$software_deb_repository_source" \

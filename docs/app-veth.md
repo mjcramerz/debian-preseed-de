@@ -33,7 +33,7 @@ from `d-i/forky/hosts/installer/identity.env`, using the shared validated
       "network": true,
       "block_lan": false,
       "pin_route": true,
-      "peer_port": 50309,
+      "peer_port": {"ethernet": 50309, "wifi": 50410},
       "slots": [28],
       "addresses": ["10.203.0.114"]
     },
@@ -41,10 +41,10 @@ from `d-i/forky/hosts/installer/identity.env`, using the shared validated
       "network": true,
       "block_lan": true,
       "executables": ["/opt/new-client/client"],
-      "slots": [45, 46],
-      "addresses": ["10.203.0.182", "10.203.0.186"]
+      "slots": [47, 48],
+      "addresses": ["10.203.0.190", "10.203.0.194"]
     },
-    "keepassxc": {"network": false, "slots": [47], "addresses": ["10.203.0.190"]}
+    "keepassxc": {"network": false, "slots": [49], "addresses": ["10.203.0.198"]}
   }
 }
 ```
@@ -60,7 +60,7 @@ clients. KeePassXC, Sleek, MPV and RetroArch have no network entry by default.
 | `addresses` | Required canonical IPv4 addresses in slot order. The installer derives them from the subnet and reservations; the parser rejects missing or inconsistent addresses. |
 | `network` | Required Boolean. Only `true` authorizes a lease. An omitted managed app, or an entry with `false`, launches in its private namespace without a veth. |
 | `block_lan` | Optional Boolean, default `false`. Blocks private IPv4, carrier-grade NAT, link-local, loopback, benchmark, multicast and reserved ranges, plus directly connected LAN subnets. DNS continues through the dedicated dnsmasq/Stubby path. |
-| `peer_port` | Optional integer in `1024..65535`. Reserves and forwards this TCP and UDP port on the selected Internet source address to the instance. Omission creates no inbound peer forwarding. |
+| `peer_port` | Optional integer in `1024..65535`. For `qbittorrent` only, also accepts an object with exactly `ethernet` and `wifi`, each a distinct integer in that range. Reserves and forwards the active TCP and UDP port on the selected Internet source address to the instance. Omission creates no inbound peer forwarding. |
 | `pin_route` | Optional Boolean. Defaults to `true` when `peer_port` is present, otherwise `false`. Authorizes only the currently selected Internet interface and source address, updating the exact mapping after an uplink change. Peer forwarding requires this setting. |
 | `executables` | Optional list of absolute installed program paths. Used to match a newly installed package through the generic desktop launchers. Paths must be below `/usr/bin`, `/usr/local/bin`, `/usr/lib` or `/opt`; the worker checks root ownership and parent permissions before execution. |
 
@@ -110,15 +110,78 @@ or firewall state. Both the launchers and broker read the policy for a new
 launch/request; an app restart applies changed settings to its next instance.
 Existing leases keep their creation policy until the instance exits.
 
+## qBittorrent Ethernet and Wi-Fi ports
+
+Each host profile sets `LABWC_QBITTORRENT_PORT="Ethernet,Wi-Fi"`. The first
+value preserves its existing Ethernet port. The installer validates both values
+once through the shared map, then renders the typed broker policy and the native
+configuration's initial Ethernet listener. A scalar value remains supported for
+existing custom profiles. No peer-port host INPUT allowances are installed.
+
+| Profile | Ethernet | Wi-Fi |
+| --- | --- | --- |
+| `btrfs-de-p15s` | 50308 | 50408 |
+| `btrfs-de-p15s-duo` | 50309 | 50408 |
+| `btrfs-de-flex`, `btrfs-de-flex-duo` | 50309 | 50409 |
+| `btrfs-de`, `btrfs-de-duo` | 50309 | 50410 |
+| `f2fs-de-hp14`, `f2fs-de-hp14-duo` | 50309 | 50410 |
+| `f2fs-de-x360`, `f2fs-de-x360-duo` | 50309 | 50410 |
+
+The broker uses its existing Internet route lookup and the selected interface's
+`wireless` directory or `phy80211` association in sysfs. It does not infer the
+link type from its name. The Wi-Fi port applies when that actual egress interface
+is wireless; Ethernet and non-wireless interfaces, including a selected VPN
+interface, use the first port. VPN routing and router configuration are not
+changed. Router TCP and UDP forwards must match the assigned port and address
+for each uplink. Software selection does not automatically select the
+`qbittorrent` host service overlay. That supported overlay is an empty
+`services: {}` declaration, so an explicit selection cannot add host INPUT
+permissions for either IPv4 or IPv6. Peer DNAT uses the forwarding path.
+
+qBittorrent has one native peer listener. The broker installs only the active
+source-address/port DNAT and SNAT maps and the matching TCP/UDP `incoming` set
+entries. These peer ingress entries belong to the active route, not the whole
+lease: an offline route has none. The broker keeps the host veth DOWN while
+deleting the previous route's entries and adding all replacements in one nftables
+transaction. After a successful commit it retains the exact new cleanup entries,
+clears the old guest's conntrack state, and sends the owning supervisor a
+validated port event on its existing private lease socket. The supervisor forwards only that numeric
+selection through an inherited private Unix seqpacket descriptor into the
+existing Bubblewrap namespace. This creates no TCP management endpoint and
+does not enable the WebUI.
+
+A failed nftables transaction leaves the old cleanup state intact and the veth
+blocked. A failure after the commit retains the new cleanup state and also keeps
+the veth blocked. The existing bounded route retry replaces that exact state;
+closing the lease removes its active peer permissions with its NAT maps. An
+unchanged route or MTU-only change does not rewrite peer permissions. Discord's
+fixed RPC entries retain their existing lease lifetime.
+
+On a changed port, the namespace-local supervisor sends qBittorrent `SIGINT`
+and waits up to 15 seconds for status 0. It then copies the exact immutable
+install-rendered native configuration into the private profile and starts
+qBittorrent with `--torrenting-port=<selected>`. Saved torrents resume from the
+existing profile; original launch inputs are not replayed. `Session\AnnouncePort=0`
+makes tracker announcements follow the actual listener. There is no runtime
+native-key parser, renderer or merge. A timeout or unsuccessful exit stops the
+session and refuses automatic restart. A user close takes precedence over a
+simultaneous port event.
+
+An MTU-only change, or an address/interface change retaining the same port,
+does not restart the GUI. Losing connectivity leaves the GUI alive with its
+pinned packet path blocked. The same reserved network identity can reconnect
+after a broker restart, including a newly selected port from the unchanged
+policy. Offline and disposable privacy actions retain their existing behavior.
+
 ## Adding a package
 
 Add its identifier, unused reserved slots, and actual executable paths to the
 installed root-owned `/etc/app-veth.json` `apps` object. There is no runtime
 allowlist restricted to the installer defaults. The complete default policy
-uses slots 0–44, leaving slots 45–127 (83 slots) for future applications without
+uses slots 0–46, leaving slots 47–127 (81 slots) for future applications without
 shrinking the `/23` pool or restarting the broker. The four F2FS host profiles
-select six applications, use 12 slots, and retain their 64-slot capacity;
-their unused slots start at 12. Always use the actual installed policy's free
+select seven applications including Tor Browser, use 14 slots, and retain their 64-slot capacity;
+their unused slots start at 14. Always use the actual installed policy's free
 slots because host filtering changes the reservation layout. The existing desktop
 entry wrapping mechanism routes package desktop entries through
 `labwc-wayland-app` or `labwc-electron-app`. On its next managed launch, the

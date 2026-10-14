@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from urllib.parse import urlsplit
 
 from .profiles import APPS, WAYLAND_COMPAT_APPS
 from .compat_protocol import ProtocolError, activation_arguments
@@ -65,6 +66,18 @@ def normalize_managed_arguments(app_name: str, extra_args: list[str]) -> list[st
 
 
 def validate_managed_arguments(mode: str, extra_args: list[str], *, app_name: str | None = None) -> None:
+    if app_name == "tor-browser":
+        if len(extra_args) > 1:
+            fail("Tor Browser accepts at most one web URI")
+        for argument in extra_args:
+            try:
+                uri = urlsplit(argument)
+                accepted = uri.scheme in {"http", "https"} and uri.hostname and uri.username is None and uri.password is None
+            except ValueError:
+                accepted = False
+            if not accepted or len(argument) > 8192 or any(ord(c) < 32 or ord(c) == 127 for c in argument):
+                fail("Tor Browser accepts only HTTP or HTTPS web/onion URIs")
+        return
     if app_name in WAYLAND_COMPAT_APPS:
         try:
             activation_arguments(app_name, extra_args)

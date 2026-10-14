@@ -285,7 +285,7 @@ def _read_bwrap_sandbox_pid(
     return sandbox_pid
 
 
-def wait_for_payload(sandbox: subprocess.Popen, lease) -> int:
+def wait_for_payload(sandbox: subprocess.Popen, lease, on_network_change: Callable | None = None) -> int:
     """Watch process exit; retry a lost broker without ending the payload."""
     status = sandbox.poll()
     if status is not None:
@@ -302,6 +302,8 @@ def wait_for_payload(sandbox: subprocess.Popen, lease) -> int:
             if status is not None:
                 return status
             lease.maintain()
+            if on_network_change is not None:
+                on_network_change(lease)
             readers = [monitor_fd]
             if lease.socket is not None:
                 readers.append(lease.socket)
@@ -320,6 +322,7 @@ def run_veth_sandbox(
     cleanup_deadline: Callable[[], float] | None = None,
     cleanup_failure: Callable[[], None] | None = None,
     on_network_ready: Callable | None = None,
+    on_network_change: Callable | None = None,
     network: bool = True,
     graceful_shutdown: bool = False,
 ) -> int:
@@ -381,6 +384,8 @@ def run_veth_sandbox(
             runtime_check()
         if lease is not None:
             lease.check()
+            if on_network_change is not None:
+                on_network_change(lease)
         if sandbox.poll() is not None:
             fail("Bubblewrap stopped before kernel network readiness")
         os.write(block_write, b"1")
@@ -390,7 +395,7 @@ def run_veth_sandbox(
             close_file_descriptor(fd)
             descriptors.remove(fd)
         if runtime_check is None:
-            return wait_for_payload(sandbox, lease)
+            return wait_for_payload(sandbox, lease, on_network_change)
         while True:
             if runtime_check is not None:
                 runtime_check()
@@ -399,6 +404,8 @@ def run_veth_sandbox(
                 return status
             if lease is not None:
                 lease.maintain()
+                if on_network_change is not None:
+                    on_network_change(lease)
             try:
                 return sandbox.wait(timeout=0.25)
             except subprocess.TimeoutExpired:

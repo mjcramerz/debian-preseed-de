@@ -73,6 +73,20 @@ WAYLAND_COMPAT_RUNTIME_ROOT = "/opt/xwayland"
 
 
 APPS = {
+    "tor-browser": {
+        "exec": "/usr/local/libexec/tor-browser-run",
+        "env": {"MOZ_ENABLE_WAYLAND": "1", "GDK_BACKEND": "wayland", "MOZ_CRASHREPORTER_DISABLE": "1"},
+        "args": [], "intel_env": {"MOZ_WEBRENDER": "1"}, "intel_args": [],
+        "nvidia_env": {"MOZ_WEBRENDER": "1"}, "nvidia_args": [],
+        "pure_privacy": True, "privacy_args": ("--anon",),
+        "privacy_dbus": False, "bind_workspace": False,
+        "ram_sandbox": True,
+        "required_runtime_files": (
+            "/opt/tor-browser/Browser/firefox.real",
+            "/opt/tor-browser/Browser/TorBrowser/Tor/tor",
+            "/opt/tor-browser/Browser/distribution/policies.json",
+        ),
+    },
     "chromium": {
         "exec": "/usr/bin/chromium",
         "env": {},

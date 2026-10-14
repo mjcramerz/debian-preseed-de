@@ -347,6 +347,9 @@ def create_veth_resolver_file(temp_root: str) -> str:
     return resolver_path
 
 
+TOR_NO_DNS_RESOLV_CONF = "# Tor Browser transport uses relay IPs; host DNS is disabled.\n"
+
+
 def reserve_outer_wayland_socket_name(
     command: list[str],
     temp_root: str,
@@ -379,8 +382,8 @@ def reserve_outer_wayland_socket_name(
     return reservation_fd
 
 
-def pure_privacy_environment(app_name: str) -> dict[str, str]:
-    env = build_environment(app_name, "launch")
+def pure_privacy_environment(app_name: str, mode: str = "launch") -> dict[str, str]:
+    env = build_environment(app_name, mode)
     sandbox_home = "/home/user"
     sandbox_runtime = f"/run/user/{os.getuid()}"
     env.update(
@@ -416,7 +419,7 @@ def pure_privacy_argv(app_name: str, extra_args: list[str]) -> list[str]:
     app = APPS[app_name]
     executable = resolved_executable(app_name, "pure-privacy")
     extra_args = normalize_managed_arguments(app_name, extra_args)
-    validate_managed_arguments("pure-privacy", extra_args)
+    validate_managed_arguments("pure-privacy", extra_args, app_name=app_name)
     if app_name in {"chromium", "microsoft-edge", "vivaldi"}:
         argv = [
             executable,
@@ -486,6 +489,9 @@ def proxy_session_argv(command: list[str], argv: list[str], app: str, *, online:
 
 
 def bwrap_command(app_name: str, bwrap: str) -> list[str]:
+    if app_name == "tor-browser":
+        aa_exec = require_root_owned_executable("aa-exec", "/usr/bin/aa-exec")
+        return [aa_exec, "--profile=labwc-app//tor-bwrap", "--", bwrap]
     if app_name == "code":
         # Code's tools retain its existing application-specific execution
         # policy. Do not grant IDE execution rights to every browser payload.
@@ -499,7 +505,17 @@ def run_pure_privacy(app_name: str, extra_args: list[str]) -> int:
         return _run_pure_privacy(app_name, extra_args, resources)
 
 
-def _run_pure_privacy(app_name: str, extra_args: list[str], resources: ExitStack) -> int:
+def run_tor_ram(mode: str, extra_args: list[str]) -> int:
+    if mode not in {"launch", "intel", "nvidia"}:
+        fail("invalid Tor Browser RAM acceleration mode")
+    with ExitStack() as resources:
+        return _run_pure_privacy("tor-browser", extra_args, resources, accelerator_mode=mode)
+
+
+def _run_pure_privacy(app_name: str, extra_args: list[str], resources: ExitStack,
+                      *, accelerator_mode: str | None = None) -> int:
+    if accelerator_mode is not None and app_name != "tor-browser":
+        fail("RAM acceleration is specific to Tor Browser")
     if not APPS[app_name].get("pure_privacy", False):
         fail(f"pure-privacy mode is not supported for {app_name}")
     from .network_client import network_enabled
@@ -511,18 +527,22 @@ def _run_pure_privacy(app_name: str, extra_args: list[str], resources: ExitStack
 
     bwrap = require_root_owned_executable("bubblewrap", "/usr/bin/bwrap")
 
-    env = pure_privacy_environment(app_name)
+    env = (pure_privacy_environment(app_name) if accelerator_mode is None
+           else pure_privacy_environment(app_name, accelerator_mode))
     host_runtime_dir = env["XDG_RUNTIME_DIR"]
     sandbox_runtime_dir = env["XDG_RUNTIME_DIR"]
     home_dir = env["HOME"]
     validate_absolute_path("host XDG_RUNTIME_DIR", host_runtime_dir)
     validate_absolute_path("sandbox HOME", home_dir)
 
-    argv = pure_privacy_argv(app_name, extra_args)
+    argv = (pure_privacy_argv(app_name, extra_args) if accelerator_mode is None
+            else build_argv(app_name, accelerator_mode, extra_args))
     wayland_display = env["WAYLAND_DISPLAY"]
     host_wayland_socket = current_user_runtime_socket("Wayland socket", wayland_display)
     sandbox_wayland_socket = os.path.join(sandbox_runtime_dir, wayland_display)
 
+    if app_name == "tor-browser" and not os.path.isdir(host_runtime_dir):
+        fail("Tor Browser requires its private user runtime directory")
     temp_root = tempfile.mkdtemp(prefix=f"labwc-{app_name}-privacy-", dir=host_runtime_dir if os.path.isdir(host_runtime_dir) else None)
     resources.callback(shutil.rmtree, temp_root, ignore_errors=True)
     machine_id_path = os.path.join(temp_root, "machine-id")
@@ -545,7 +565,8 @@ def _run_pure_privacy(app_name: str, extra_args: list[str], resources: ExitStack
     with open(hosts_path, "w", encoding="utf-8") as handle:
         handle.write(f"127.0.0.1 localhost\n::1 localhost\n127.0.1.1 {fake_hostname}\n")
     with open(resolv_path, "w", encoding="utf-8") as handle:
-        handle.write(veth_resolv_conf() if online else "# Networking is disabled.\n")
+        handle.write(TOR_NO_DNS_RESOLV_CONF if app_name == "tor-browser"
+                     else veth_resolv_conf() if online else "# Networking is disabled.\n")
     with open(nsswitch_path, "w", encoding="utf-8") as handle:
         handle.write(
             "passwd: files\n"
@@ -564,7 +585,7 @@ def _run_pure_privacy(app_name: str, extra_args: list[str], resources: ExitStack
     proxy_process, proxy_socket, proxy_lifecycle = start_session_bus_proxy(
         temp_root,
         APPS[app_name].get("privacy_dbus_names", ()),
-    )
+    ) if APPS[app_name].get("privacy_dbus", True) else (None, None, None)
     resources.callback(stop_dbus_proxy, proxy_process, proxy_lifecycle, proxy_socket)
 
     command = [
@@ -708,7 +729,17 @@ def _run_pure_privacy(app_name: str, extra_args: list[str], resources: ExitStack
     if app_name in BROWSER_PROXY_POLICIES:
         argv = proxy_session_argv(command, argv, app_name, online=online)
 
-    validate_pure_privacy_device_isolation(app_name, command)
+    if accelerator_mode is not None:
+        add_optional_bind(command, "--ro-bind", "/sys", "/sys")
+        add_synthetic_sysfs_masks(command)
+        add_gpu_device_binds(command, accelerator_mode)
+        for runtime_socket in ("pipewire-0", "pulse/native"):
+            add_runtime_bind(command, host_runtime_dir, sandbox_runtime_dir,
+                             runtime_socket, "socket", required=False)
+        validate_no_host_audio_device_binds(app_name, command)
+        validate_no_host_display_device_binds(app_name, command)
+    else:
+        validate_pure_privacy_device_isolation(app_name, command)
     for key, value in env.items():
         command.extend(["--setenv", key, value])
     validate_private_procfs(command)
@@ -723,7 +754,7 @@ def _run_pure_privacy(app_name: str, extra_args: list[str], resources: ExitStack
         # The dedicated persistent torrent wrapper owns peer-port
         # forwarding. A disposable profile needs outbound networking.
         app=network_app, network=online,
-        graceful_shutdown=app_name == "qbittorrent" or app_name in BROWSER_PROXY_POLICIES,
+        graceful_shutdown=app_name in {"qbittorrent", "tor-browser"} or app_name in BROWSER_PROXY_POLICIES,
     )
 
 

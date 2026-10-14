@@ -8,22 +8,109 @@ _isolation_sys.path.pop(0)
 _require_test_isolation()
 
 import ast
+from contextlib import ExitStack
 import json
 import os
 from pathlib import Path
 import re
 import stat
+import signal
+import socket
 import subprocess
+import sys
 import tempfile
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 SEED = Path(__file__).resolve().parents[1]
 TARGET = SEED / "hooks/target"
 MODULE = SEED / "scripts/common/modules/app-veth-identity.sh"
 PROFILES = tuple(sorted((SEED / "hosts/profiles").glob("*.env")))
 TOKEN = re.compile(r"__INSTALLER_(PROXY3_[A-Z0-9_]+)__")
+
+
+class PeerPortControllerTests(unittest.TestCase):
+    def functions(self, **overrides):
+        source = (TARGET / 'usr/local/libexec/labwc-proxy-session').read_text()
+        names = {'peer_port_policy', 'receive_peer_port', 'run_peer_payload'}
+        nodes = [node for node in ast.parse(source).body
+                 if isinstance(node, ast.FunctionDef) and node.name in names]
+        namespace = {'socket': socket, 'json': json, 'signal': signal, 'sys': sys,
+                     'ExitStack': ExitStack, **overrides}
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), 'fixture-peer-controller', 'exec'), namespace)
+        return namespace
+
+    def test_private_controller_coalesces_selections_and_rejects_bad_frames(self):
+        receive = self.functions()['receive_peer_port']
+        for messages, expected in (((b'50309', b'50409'), 50409), ((b'50409', b'50309'), 50309)):
+            left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+            with left, right:
+                left.setblocking(False)
+                for message in messages:
+                    right.send(message)
+                self.assertEqual(receive(left, (50309, 50409)), expected)
+        for message in (b'50410', b'050309', b'50409x', b'x' * 7, b''):
+            left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+            with left, right, self.subTest(message=message):
+                left.setblocking(False)
+                if message:
+                    right.send(message)
+                else:
+                    right.close()
+                with self.assertRaises(ValueError):
+                    receive(left, (50309, 50409))
+
+    def lifecycle(self, *, saved_status=0, timeout=False, user_close=False):
+        channel = object()
+        proxy = Mock(pid=1); proxy.poll.return_value = None
+        first = Mock(pid=2); second = Mock(pid=3)
+        first.wait.return_value = 37 if user_close else saved_status
+        second.wait.return_value = 37
+        if timeout:
+            first.wait.side_effect = [subprocess.TimeoutExpired(['/usr/bin/qbittorrent'], 15), 0]
+        events = []
+        def start(arguments, **options):
+            events.append(('start', arguments))
+            return first if len([event for event in events if event[0] == 'start']) == 1 else second
+        popen = Mock(side_effect=start)
+        select_results = [([channel], [], []), ([12, channel] if user_close else [channel], [], [])]
+        if not (user_close or timeout or saved_status):
+            select_results.append(([14], [], []))
+        namespace = self.functions(
+            os=SimpleNamespace(pidfd_open=Mock(side_effect=[11, 12, 13, 14]), close=Mock()),
+            select=SimpleNamespace(select=Mock(side_effect=select_results)),
+            subprocess=SimpleNamespace(Popen=popen, DEVNULL=subprocess.DEVNULL,
+                                       TimeoutExpired=subprocess.TimeoutExpired),
+            stop=Mock(), restore_native_config=Mock(side_effect=lambda: events.append(('restore', None))))
+        namespace['peer_port_policy'] = Mock(return_value=(50309, 50409))
+        namespace['receive_peer_port'] = Mock(side_effect=[50309, 50409, 50409])
+        return namespace, proxy, first, second, channel, events
+
+    def test_port_change_saves_then_restores_config_and_restarts_without_replaying_inputs(self):
+        namespace, proxy, first, _second, channel, events = self.lifecycle()
+        self.assertEqual(namespace['run_peer_payload'](
+            proxy, ['/usr/bin/qbittorrent', 'magnet:?xt=urn:btih:fixture'], channel), 37)
+        first.send_signal.assert_called_once_with(signal.SIGINT)
+        first.wait.assert_called_once_with(timeout=15)
+        self.assertEqual(events, [
+            ('start', ['/usr/bin/qbittorrent', '--torrenting-port=50309', 'magnet:?xt=urn:btih:fixture']),
+            ('restore', None), ('start', ['/usr/bin/qbittorrent', '--torrenting-port=50409'])])
+
+    def test_failed_save_refuses_restart_and_user_close_takes_priority(self):
+        for options in ({'saved_status': 2}, {'timeout': True}, {'user_close': True}):
+            namespace, proxy, first, _second, channel, _events = self.lifecycle(**options)
+            with self.subTest(options=options):
+                if options.get('user_close'):
+                    self.assertEqual(namespace['run_peer_payload'](proxy, ['/usr/bin/qbittorrent'], channel), 37)
+                    first.send_signal.assert_not_called()
+                else:
+                    with self.assertRaisesRegex(RuntimeError, 'automatic restart refused'):
+                        namespace['run_peer_payload'](proxy, ['/usr/bin/qbittorrent'], channel)
+                namespace['subprocess'].Popen.assert_called_once()
+                namespace['restore_native_config'].assert_not_called()
+                if options.get('timeout'):
+                    first.kill.assert_called_once()
 
 
 class ProxyConfigurationTests(unittest.TestCase):

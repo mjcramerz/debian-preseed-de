@@ -1,0 +1,85 @@
+#!/usr/bin/python3 -IB
+"""Install a verified Tor Browser archive without executing its contents."""
+
+import hashlib
+import os
+from pathlib import Path, PurePosixPath
+import re
+import shutil
+import stat
+import sys
+import tarfile
+import tempfile
+
+
+def main():
+    if os.geteuid() != 0 or len(sys.argv) != 3:
+        raise ValueError("requires installer root, archive and pinned SHA-256")
+    archive, expected = Path(sys.argv[1]), sys.argv[2]
+    if not re.fullmatch(r"[0-9a-f]{64}", expected):
+        raise ValueError("invalid archive digest")
+    if (archive.parent != Path("/tmp/installer-software") or archive.is_symlink()
+            or not archive.is_file() or not 100_000_000 <= archive.stat().st_size <= 167_772_160):
+        raise ValueError("invalid installer archive path or size")
+    destination = Path("/opt/tor-browser")
+    if destination.exists() or destination.is_symlink():
+        raise ValueError("fresh Tor Browser installation requires an absent destination")
+    with archive.open("rb") as handle:
+        if hashlib.file_digest(handle, "sha256").hexdigest() != expected:
+            raise ValueError("archive differs from the authenticated pin")
+    temporary = Path(tempfile.mkdtemp(prefix=".tor-browser-", dir="/opt"))
+    try:
+        with tarfile.open(archive, "r:xz") as bundle:
+            members = []
+            names = set()
+            expanded = 0
+            for member in bundle:
+                if len(members) >= 2048:
+                    raise ValueError("too many archive members")
+                name = PurePosixPath(member.name)
+                if (not name.parts or len(name.parts) > 32 or len(member.name) > 512
+                        or name.parts[0] != "tor-browser"
+                        or name.is_absolute() or ".." in name.parts
+                        or str(name) != member.name.rstrip("/")
+                        or str(name) in names or not (member.isdir() or member.isfile())
+                        or member.mode & 0o7000 or not 0 <= member.size <= 268_435_456):
+                    raise ValueError("unsafe Tor Browser archive member")
+                names.add(str(name))
+                expanded += member.size
+                if expanded > 536_870_912:
+                    raise ValueError("expanded archive exceeds its budget")
+                members.append(member)
+            for member in members:
+                output = temporary.joinpath(*PurePosixPath(member.name).parts[1:])
+                if member.isdir():
+                    output.mkdir(mode=0o755, parents=True, exist_ok=True)
+                    continue
+                output.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+                with bundle.extractfile(member) as source, output.open("xb") as target:
+                    shutil.copyfileobj(source, target, length=1_048_576)
+                output.chmod(0o755 if member.mode & 0o111 else 0o644)
+        # mkdir modes are filtered by the installer's private umask. These are
+        # only newly extracted, root-owned bundle directories; publish them
+        # searchable by the unprivileged browser without widening user state.
+        for path in temporary.rglob("*"):
+            if path.is_dir():
+                path.chmod(0o755)
+        for relative in ("Browser/firefox", "Browser/firefox.real", "Browser/TorBrowser/Tor/tor"):
+            path = temporary / relative
+            if not path.is_file() or not path.stat().st_mode & stat.S_IXUSR:
+                raise ValueError("required Tor Browser executable is missing")
+        if not (temporary / "Browser/TorBrowser/Data/Browser/profile.default").is_dir():
+            raise ValueError("vendor profile seed is missing")
+        temporary.chmod(0o755)
+        os.rename(temporary, destination)
+    finally:
+        if temporary.exists():
+            shutil.rmtree(temporary)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, ValueError, tarfile.TarError) as error:
+        print(f"Tor Browser installation failed: {error}", file=sys.stderr)
+        raise SystemExit(1)

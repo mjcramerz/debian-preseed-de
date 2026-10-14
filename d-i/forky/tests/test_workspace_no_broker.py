@@ -169,7 +169,7 @@ class NativeWorkspaceRenderingTests(unittest.TestCase):
     def test_switcher_enums_reject_invalid_values(self):
         source = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/detect.sh'))
         start = source.index('  case "${LABWC_WINDOW_SWITCHER_STYLE:-thumbnail}"')
-        end = source.index('  desktop_validate_uint_range LABWC_QBITTORRENT_PORT', start)
+        end = source.index('  qbittorrent_peer_port_placeholder_map >/dev/null', start)
         checks = source[start:end]
         for key, value in (('STYLE', 'broken'), ('STYLE', 'classic'), ('ORDER', 'focus" />'), ('PREVIEW', 'true'),
                            ('OUTLINES', 'yes; id'), ('UNSHADE', 'YES'), ('OSD_OUTPUT', 'HDMI-A-1'),

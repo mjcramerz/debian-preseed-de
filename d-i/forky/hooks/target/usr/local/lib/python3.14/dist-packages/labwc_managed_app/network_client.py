@@ -297,7 +297,9 @@ class Lease:
             self.peer_port = result.get("peer_port")
             if self.peer_port is not None and (type(self.peer_port) is not int or not 1024 <= self.peer_port <= 65535):
                 raise ValueError("invalid private peer forwarding port")
-            if self.peer_port != policy["peer_port"]:
+            self.peer_port_policy = policy["peer_port"]
+            if (self.peer_port not in self.peer_port_policy.values() if isinstance(self.peer_port_policy, dict)
+                    else self.peer_port != self.peer_port_policy):
                 raise ValueError("private peer forwarding port differs from managed policy")
             self.socket.setblocking(False)
         except BaseException:
@@ -331,14 +333,39 @@ class Lease:
         if self.socket is None:
             raise RuntimeError("kernel network lease is unavailable")
         readable, _, _ = select.select([self.socket], [], [], 0)
-        if readable:
+        if readable and not self._consume_updates():
             raise RuntimeError("kernel network lease ended before payload readiness")
+
+    def _consume_updates(self) -> bool:
+        """Read bounded port events; EOF still follows the broker-retry path."""
+        for _ in range(64):
+            try:
+                data, ancillary, flags, _address = self.socket.recvmsg(4096)
+            except BlockingIOError:
+                return True
+            if ancillary or flags & (socket.MSG_TRUNC | socket.MSG_CTRUNC):
+                raise ValueError("invalid peer port notification framing")
+            if not data:
+                return False
+            try:
+                update = json.loads(data)
+            except (UnicodeError, json.JSONDecodeError) as exc:
+                raise ValueError("invalid peer port notification") from exc
+            if (not isinstance(update, dict) or set(update) != {"peer_port"}
+                    or not isinstance(self.peer_port_policy, dict)
+                    or type(update["peer_port"]) is not int
+                    or update["peer_port"] not in self.peer_port_policy.values()):
+                raise ValueError("peer port notification differs from managed policy")
+            self.peer_port = update["peer_port"]
+        return True
 
     def maintain(self) -> None:
         """Keep a running application alive while its broker is unavailable."""
         if self.socket is not None:
             readable, _, _ = select.select([self.socket], [], [], 0)
             if not readable:
+                return
+            if self._consume_updates():
                 return
             self.socket.close()
             self.socket = None
@@ -354,9 +381,10 @@ class Lease:
             # managed policy checks apply to every attachment. No host network
             # or direct proxy fallback is available while disconnected.
             replacement = type(self)(self.namespace_fd, self.app, address=self.address)
-            if ((replacement.address, replacement.gateway, replacement.interface, replacement.peer_port)
-                    != (self.address, self.gateway, self.interface, self.peer_port)):
+            if ((replacement.address, replacement.gateway, replacement.interface, replacement.peer_port_policy)
+                    != (self.address, self.gateway, self.interface, self.peer_port_policy)):
                 raise ValueError("reconnected network identity differs from the live application")
+            self.peer_port = replacement.peer_port
             self.socket = replacement.socket
             replacement.socket = None
             self.retry_at = None

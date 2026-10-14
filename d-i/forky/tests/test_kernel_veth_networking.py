@@ -96,6 +96,20 @@ class PolicyParsingTests(unittest.TestCase):
         self.assertEqual(rows["future-client"]["executables"], ("/opt/future-client/client",))
         self.assertIsNone(rows["offline"]["peer_port"])
 
+    def test_qbittorrent_accepts_exact_distinct_ethernet_wifi_ports(self):
+        ports = {"ethernet": 50309, "wifi": 50409}
+        row = self.parse({"qbittorrent": {"network": True, "peer_port": ports}})["apps"]["qbittorrent"]
+        self.assertEqual(row["peer_port"], ports)
+        self.assertTrue(row["pin_route"])
+        invalid = ({"ethernet": 50309}, {"ethernet": 50309, "wifi": 50309},
+                   {"ethernet": True, "wifi": 50409}, {"ethernet": 50309, "wifi": 65536},
+                   {"ethernet": 50309, "wifi": "50409"}, {**ports, "extra": 50410})
+        for value in invalid:
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.parse({"qbittorrent": {"network": True, "peer_port": value}})
+        with self.assertRaises(ValueError):
+            self.parse({"future-client": {"network": True, "peer_port": ports}})
+
     def test_explicit_slots_are_stable_across_launch_order_and_reuse(self):
         rows = DEFAULT_POLICIES
         self.assertEqual(broker.application_slot(rows['qbittorrent'], {}), 28)
@@ -115,27 +129,27 @@ class PolicyParsingTests(unittest.TestCase):
         self.assertEqual(broker.application_slot(rows['chromium'], active), 4)
 
     def test_builtin_apps_have_two_slots_with_singleton_qbittorrent_and_future_capacity(self):
-        self.assertEqual(len(DEFAULT_POLICIES), 23)
+        self.assertEqual(len(DEFAULT_POLICIES), 24)
         used = set()
         for app, policy in DEFAULT_POLICIES.items():
             with self.subTest(app=app):
                 self.assertEqual(len(policy['slots']), 1 if app == 'qbittorrent' else 2)
                 self.assertFalse(used.intersection(policy['slots']))
                 used.update(policy['slots'])
-        self.assertEqual(used, set(range(45)))
+        self.assertEqual(used, set(range(47)))
         self.assertEqual(DEFAULT_CONFIGURATION['network']['max_leases'], 128)
-        self.assertEqual(len(set(range(128)) - used), 83)
+        self.assertEqual(len(set(range(128)) - used), 81)
 
     def test_future_apps_accept_unused_slots_without_a_builtin_allowlist(self):
         source = json.loads(DEFAULT_CONFIG_RAW)
         source['apps']['future-client'] = {
             'network': True, 'executables': ['/opt/future-client/client'],
-            'slots': [45, 46], 'addresses': ['10.203.0.182', '10.203.0.186']}
+            'slots': [47, 48], 'addresses': ['10.203.0.190', '10.203.0.194']}
         policy = policy_parser.parse_configuration(json.dumps(source).encode())['apps']['future-client']
-        self.assertEqual(broker.application_slot(policy, {}), 45)
-        occupied = {'first': types.SimpleNamespace(slot=45)}
-        self.assertEqual(broker.application_slot(policy, occupied), 46)
-        occupied['second'] = types.SimpleNamespace(slot=46)
+        self.assertEqual(broker.application_slot(policy, {}), 47)
+        occupied = {'first': types.SimpleNamespace(slot=47)}
+        self.assertEqual(broker.application_slot(policy, occupied), 48)
+        occupied['second'] = types.SimpleNamespace(slot=48)
         with self.assertRaisesRegex(ValueError, 'reserved network slots'):
             broker.application_slot(policy, occupied)
 
@@ -304,10 +318,22 @@ apply_placeholder_map_to_target "$2/apparmor.conf" app_veth_identity_placeholder
 
     def test_invalid_network_policy_fails_during_rendering(self):
         for account, port in (("root", "50309"), ("desktop", "1023"), ("desktop", "65536"),
-                              ("desktop", "050309"), ("desktop", "50309\nmalformed")):
+                              ("desktop", "050309"), ("desktop", "50309\nmalformed"),
+                              ("desktop", "50309,50309"), ("desktop", "50309,65536"),
+                              ("desktop", "50309,50409,50410")):
             with self.subTest(account=account, port=port), tempfile.TemporaryDirectory() as directory:
                 for result in self.render(directory, account=account, port=port):
                     self.assertNotEqual(result.returncode, 0)
+
+    def test_each_profile_pair_renders_the_typed_qbittorrent_policy(self):
+        for port in ("50308,50408", "50309,50408", "50309,50409", "50309,50410"):
+            with self.subTest(port=port), tempfile.TemporaryDirectory() as directory:
+                for result in self.render(directory, port=port):
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    data = (Path(directory) / "config.json").read_bytes()
+                    row = policy_parser.parse_configuration(data)["apps"]["qbittorrent"]
+                    self.assertEqual(row["peer_port"], dict(zip(("ethernet", "wifi"), map(int, port.split(',')))))
+                    self.assertEqual(row["slots"], (28,))
 
     def test_app_veth_override_renders_only_selected_two_slot_apps(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -331,10 +357,10 @@ apply_placeholder_map_to_target "$2/apparmor.conf" app_veth_identity_placeholder
                     self.assertEqual(result.returncode, 0, result.stderr)
                     data = policy_parser.parse_configuration((Path(directory) / 'config.json').read_bytes())
                     self.assertEqual(set(data['apps']), set(overrides['APP_VETH_OVERRIDE'].split(',')))
-                    self.assertEqual(len(data['apps']), 6)
+                    self.assertEqual(len(data['apps']), 7)
                     self.assertTrue(all(len(policy['slots']) == 2 for policy in data['apps'].values()))
                     self.assertEqual(data['network']['max_leases'], 64)
-                    self.assertEqual(sum(len(policy['slots']) for policy in data['apps'].values()), 12)
+                    self.assertEqual(sum(len(policy['slots']) for policy in data['apps'].values()), 14)
                     import yaml
                     firewall = yaml.safe_load((Path(directory) / 'firewall.yml').read_text(encoding='utf-8'))['app_veth']
                     self.assertEqual(len(firewall['interfaces']), 64)
@@ -556,6 +582,7 @@ class AuthorizationTests(unittest.TestCase):
 class LeaseRecoveryTests(unittest.TestCase):
     def make_lease(self):
         left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        left.setblocking(False)
         lease = object.__new__(client.Lease)
         lease.socket = left
         lease.namespace_fd = os.open('/dev/null', os.O_RDONLY | os.O_CLOEXEC)
@@ -564,6 +591,7 @@ class LeaseRecoveryTests(unittest.TestCase):
         lease.gateway = str(ipaddress.IPv4Address(lease.address) - 1)
         lease.interface = DEFAULT_CONFIGURATION['network']['namespace_interface']
         lease.peer_port = DEFAULT_POLICIES[lease.app]['peer_port']
+        lease.peer_port_policy = lease.peer_port
         lease.retry_at = None
         self.addCleanup(lease.close)
         self.addCleanup(right.close)
@@ -585,6 +613,48 @@ class LeaseRecoveryTests(unittest.TestCase):
             self.assertIsNone(lease.retry_timeout())
         ownership.assert_not_called()
         clock.assert_not_called()
+
+    def test_typed_peer_port_notification_updates_the_live_lease_without_reconnecting(self):
+        lease, peer = self.make_lease()
+        lease.peer_port_policy = {"ethernet": 50309, "wifi": 50409}
+        peer.send(b'{"peer_port":50409}')
+        with mock.patch.object(client, 'control_socket_owner') as ownership:
+            lease.maintain()
+        self.assertEqual(lease.peer_port, 50409)
+        self.assertIsNone(lease.retry_at)
+        ownership.assert_not_called()
+
+    def test_peer_port_notifications_reject_unknown_and_malformed_frames(self):
+        for data in (b'{"peer_port":50410}', b'{"peer_port":true}', b'{"peer_port":"50409"}',
+                     b'{"peer_port":50409,"extra":1}', b'bad', b'x' * 4097):
+            with self.subTest(data=data[:60]):
+                lease, peer = self.make_lease()
+                lease.peer_port_policy = {"ethernet": 50309, "wifi": 50409}
+                peer.send(data)
+                with self.assertRaises(ValueError):
+                    lease.maintain()
+                self.assertEqual(lease.peer_port, 50309)
+
+    def test_reconnect_accepts_another_selected_port_from_the_same_typed_policy(self):
+        lease, peer = self.make_lease()
+        ports = {"ethernet": 50309, "wifi": 50409}
+        lease.peer_port_policy = ports
+        configuration = json.loads(DEFAULT_CONFIG_RAW)
+        configuration['apps']['qbittorrent']['peer_port'] = ports
+        configuration = policy_parser.parse_configuration(json.dumps(configuration).encode())
+        channel = self.channel(lease)
+        response = {'ready': True, 'address': lease.address, 'gateway': lease.gateway,
+                    'interface': lease.interface, 'peer_port': 50409}
+        channel.recvmsg.return_value = (json.dumps(response).encode(), [], 0, None)
+        peer.close()
+        with mock.patch.object(client, '_configuration', return_value=configuration), \
+                mock.patch.object(client, 'control_socket_owner', return_value=0), \
+                mock.patch.object(client.socket, 'socket', return_value=channel), \
+                mock.patch.object(client, 'emit'):
+            lease.maintain()
+        self.assertIs(lease.socket, channel)
+        self.assertEqual(lease.peer_port, 50409)
+        self.assertEqual(lease.peer_port_policy, ports)
 
     def test_broker_restart_authenticates_and_requests_the_same_namespace_and_address(self):
         lease, peer = self.make_lease()
@@ -886,6 +956,150 @@ class AdministrationTests(unittest.TestCase):
         network.close()
         self.assertIn('delete element inet app_veth no_http { "veth3-app" }', self.transactions[-1])
 
+    def dual_port_network(self):
+        policy = {**DEFAULT_POLICIES['qbittorrent'], 'peer_port': {'ethernet': 50309, 'wifi': 50409}}
+        # No real sysfs discovery: this fixture's two names define the link type.
+        self.stack.enter_context(mock.patch.object(broker, 'wireless_interface', side_effect=lambda name: name == 'wifi-fixture'))
+        return broker.Network(3, 70, 'qbittorrent', 1000, policy,
+                              ipaddress.IPv4Network('10.203.0.0/24'), self.endpoints)
+
+    def test_peer_ingress_exists_only_in_the_active_route_transaction(self):
+        for route, port in ((('ethernet-fixture', '192.0.2.8', 1500), 50309),
+                            (('wifi-fixture', '192.0.2.9', 1500), 50409), (None, None)):
+            with self.subTest(route=route), mock.patch.object(broker, 'route', return_value=route):
+                self.transactions.clear()
+                network = self.dual_port_network()
+                try:
+                    self.assertNotIn('incoming {', self.transactions[0])
+                    self.assertFalse(any('incoming {' in row for row in network.remove))
+                    if port is None:
+                        self.assertEqual(network.route_remove, [])
+                        self.assertEqual(len(self.transactions), 1)
+                    else:
+                        self.assertEqual(len(self.transactions), 2)
+                        transaction = self.transactions[1]
+                        self.assertEqual(transaction.count('add element inet app_veth incoming'), 2)
+                        for protocol in ('tcp', 'udp'):
+                            self.assertIn(f'incoming {{ "veth3-app" . 10.203.0.14 . {protocol} . {port} }}', transaction)
+                        other = 50409 if port == 50309 else 50309
+                        self.assertNotIn(f' . {other}', transaction)
+                        self.assertEqual(sum('incoming {' in row for row in network.route_remove), 2)
+                finally:
+                    network.close()
+
+    def test_wifi_switch_replaces_both_transport_maps_and_notifies_only_its_owner(self):
+        network = self.dual_port_network()
+        self.addCleanup(network.close)
+        network.channel = mock.Mock()
+        network.channel.send.side_effect = len
+        self.calls.clear(); self.transactions.clear()
+        network.refresh_route(('wifi-fixture', '192.0.2.9', 1500))
+        self.assertEqual(network.peer_port, 50409)
+        transaction = ''.join(self.transactions)
+        self.assertEqual(len(self.transactions), 1)
+        for protocol in ('tcp', 'udp'):
+            self.assertIn(f'delete element inet app_veth incoming {{ "veth3-app" . 10.203.0.14 . {protocol} . 50309 }}', transaction)
+            self.assertIn(f'add element inet app_veth incoming {{ "veth3-app" . 10.203.0.14 . {protocol} . 50409 }}', transaction)
+            self.assertIn(f'delete element inet app_veth forwards {{ 192.0.2.8 . {protocol} . 50309 }}', transaction)
+            self.assertIn(f'192.0.2.9 . {protocol} . 50409 : 10.203.0.14 . 50409', transaction)
+            self.assertIn(f'"veth3-app" . {protocol} . 50409 : 192.0.2.9 . 50409', transaction)
+        self.assertEqual(json.loads(network.channel.send.call_args.args[0]), {'peer_port': 50409})
+        network.channel.send.reset_mock()
+        self.transactions.clear()
+        network.refresh_route(('wifi-fixture', '192.0.2.9', 1400))
+        network.channel.send.assert_not_called()
+        self.assertEqual(self.transactions, [])
+        network.refresh_route(None)
+        self.assertEqual(network.peer_port, 50409)
+        self.assertEqual(network.route_remove, [])
+        offline = self.transactions[-1]
+        self.assertNotIn('add element', offline)
+        for protocol in ('tcp', 'udp'):
+            self.assertIn(f'delete element inet app_veth incoming {{ "veth3-app" . 10.203.0.14 . {protocol} . 50409 }}', offline)
+        network.channel.send.assert_not_called()
+        network.refresh_route(('ethernet-fixture', '192.0.2.10', 1500))
+        self.assertEqual(network.peer_port, 50309)
+        self.assertEqual(json.loads(network.channel.send.call_args.args[0]), {'peer_port': 50309})
+
+    def test_ingress_and_nat_commit_together_between_host_link_down_and_up(self):
+        network = self.dual_port_network()
+        self.addCleanup(network.close)
+        events = []
+        def command(argv, **options):
+            events.append(('command', argv))
+            return self.commands(argv, **options)
+        with mock.patch.object(broker, 'run', side_effect=command), \
+                mock.patch.object(broker, 'nft', side_effect=lambda text: events.append(('nft', text))):
+            network.update_route(('wifi-fixture', '192.0.2.9', 1500))
+        commits = [i for i, event in enumerate(events) if event[0] == 'nft']
+        self.assertEqual(len(commits), 1)
+        down = events.index(('command', ['/usr/sbin/ip', 'link', 'set', 'dev', 'veth3-app', 'down']))
+        up = events.index(('command', ['/usr/sbin/ip', 'link', 'set', 'dev', 'veth3-app', 'mtu', '1500', 'up']))
+        self.assertLess(down, commits[0]); self.assertLess(commits[0], up)
+        transaction = events[commits[0]][1]
+        for element in ('incoming', 'forwards', 'peer_snat'):
+            self.assertIn(f'delete element inet app_veth {element}', transaction)
+            self.assertIn(f'add element inet app_veth {element}', transaction)
+        self.assertFalse(any('50309' in row for row in transaction.splitlines()
+                             if row.startswith('add element')))
+
+    def test_rejected_route_transaction_keeps_exact_old_ingress_cleanup_for_retry(self):
+        network = self.dual_port_network()
+        self.addCleanup(network.close)
+        previous = list(network.route_remove)
+        self.calls.clear()
+        target = ('wifi-fixture', '192.0.2.9', 1500)
+        with mock.patch.object(broker, 'nft', side_effect=RuntimeError('fixture atomic rejection')), \
+                mock.patch.object(broker.time, 'monotonic', return_value=100):
+            network.refresh_route(target)
+        self.assertEqual(network.route_remove, previous)
+        self.assertEqual(network.peer_port, 50309)
+        self.assertEqual(network.route_retry_at, 105)
+        self.assertFalse(any(argv[-1] == 'up' for argv, _ in self.calls))
+        with mock.patch.object(broker.time, 'monotonic', return_value=105):
+            network.refresh_route(target)
+        for protocol in ('tcp', 'udp'):
+            self.assertIn(f'delete element inet app_veth incoming {{ "veth3-app" . 10.203.0.14 . {protocol} . 50309 }}', self.transactions[-1])
+        self.assertEqual(network.peer_port, 50409)
+
+    def test_post_commit_failure_retains_new_ingress_cleanup_and_link_stays_down(self):
+        network = self.dual_port_network()
+        self.addCleanup(network.close)
+        target = ('wifi-fixture', '192.0.2.9', 1500)
+        self.calls.clear()
+        def command(argv, **options):
+            result = self.commands(argv, **options)
+            if argv[0] == '/usr/sbin/conntrack':
+                raise RuntimeError('fixture conntrack failure after commit')
+            return result
+        with mock.patch.object(broker, 'run', side_effect=command), \
+                mock.patch.object(broker.time, 'monotonic', return_value=100):
+            network.refresh_route(target)
+        self.assertFalse(any(argv[-1] == 'up' for argv, _ in self.calls))
+        self.assertEqual(network.peer_port, 50309)
+        self.assertTrue(any('incoming {' in row and '50409' in row for row in network.route_remove))
+        self.assertFalse(any('50309' in row for row in network.route_remove))
+        with mock.patch.object(broker.time, 'monotonic', return_value=105):
+            network.refresh_route(target)
+        self.assertEqual(network.peer_port, 50409)
+        network.close()
+        for protocol in ('tcp', 'udp'):
+            self.assertIn(f'delete element inet app_veth incoming {{ "veth3-app" . 10.203.0.14 . {protocol} . 50409 }}', self.transactions[-1])
+        self.assertEqual(network.route_remove, [])
+
+    def test_stalled_port_receiver_leaves_host_link_down_until_bounded_retry(self):
+        network = self.dual_port_network()
+        self.addCleanup(network.close)
+        network.channel = mock.Mock()
+        network.channel.send.side_effect = BlockingIOError('fixture receiver full')
+        self.calls.clear()
+        with mock.patch.object(broker.time, 'monotonic', return_value=100):
+            network.refresh_route(('wifi-fixture', '192.0.2.9', 1500))
+        self.assertEqual(network.peer_port, 50309)
+        self.assertEqual(network.route_retry_at, 105)
+        self.assertTrue(any(argv[-2:] == ['veth3-app', 'down'] for argv, _ in self.calls))
+        self.assertFalse(any(argv[-1] == 'up' for argv, _ in self.calls))
+
     def test_browser_port_guard_is_lease_owned_and_precedes_egress_accepts(self):
         for app in ("chromium", "microsoft-edge", "vivaldi", "mullvad-browser"):
             with self.subTest(app=app):
@@ -900,6 +1114,26 @@ class AdministrationTests(unittest.TestCase):
             self.assertLess(forward.index(guard), forward.index('iifname . oifname @pinned accept'))
         host = broker.RULESET.split('chain host_guard {', 1)[1].split('chain forward_guard', 1)[0]
         self.assertIn('iifname @web_tls_only iifname != @lan_blocked', host)
+
+    def test_tor_lease_blocks_dns_before_dnat_and_randomizes_only_the_guest_mac(self):
+        with mock.patch.object(broker.os, 'urandom', return_value=b'\xff\x01\x02\x03\x04\x05'):
+            network = self.network('tor-browser')
+        self.addCleanup(network.close)
+        transaction = self.transactions[-1]
+        self.assertIn('add element inet app_veth tor_transport { "veth3-app" }', transaction)
+        self.assertIn('add element inet app_veth lan_blocked { "veth3-app" }', transaction)
+        self.assertNotIn('web_tls_only', transaction)
+        guest = next(options['data'] for argv, options in self.calls
+                     if '--' in argv and argv[-2:] == ['-batch', '-'])
+        self.assertIn('link set eth0 address fe:01:02:03:04:05\n', guest)
+        self.assertLess(guest.index(' address '), guest.index('link set eth0 up'))
+        self.assertFalse(any('address' in argv and '--' not in argv for argv, _ in self.calls))
+        guard = broker.RULESET.split('chain source_guard {', 1)[1].split('chain dns_and_peers', 1)[0]
+        self.assertIn('priority -150', guard)
+        self.assertIn('iifname @tor_transport meta l4proto { tcp, udp } th dport 53 counter drop', guard)
+        self.assertIn('iifname @tor_transport meta l4proto != tcp counter drop', guard)
+        network.close()
+        self.assertIn('delete element inet app_veth tor_transport { "veth3-app" }', self.transactions[-1])
 
     def test_discord_rpc_is_only_fixed_host_loopback_ports(self):
         network = self.network("discord")
@@ -1659,6 +1893,18 @@ class DesktopLaunchTests(unittest.TestCase):
         patch = mock.patch.object(client, "_configuration", return_value=DEFAULT_CONFIGURATION)
         patch.start()
         self.addCleanup(patch.stop)
+
+    def test_tor_actions_accept_web_uris_and_reject_runtime_switches(self):
+        for mode in ('launch', 'intel', 'nvidia', 'pure-privacy'):
+            for arguments in ([], ['https://example.org/'], ['http://example.onion/']):
+                with self.subTest(mode=mode, arguments=arguments):
+                    sandbox.validate_managed_arguments(mode, arguments, app_name='tor-browser')
+            for arguments in (['--profile=/tmp/unsafe'], ['--no-sandbox'], ['--anon'],
+                              ['file:///etc/passwd'], ['https://user:password@example.org/'],
+                              ['https://example.org/\n'], ['https://example.org/', 'https://second.org/']):
+                with self.subTest(mode=mode, arguments=arguments), self.assertRaises(SystemExit):
+                    sandbox.validate_managed_arguments(mode, arguments, app_name='tor-browser')
+
     def test_known_desktop_executables_and_aliases_reenter_managed_launchers(self):
         for app, policy in profiles.APPS.items():
             for executable in (policy["exec"], *generic.MANAGED_EXECUTABLE_ALIASES.get(app, ())):
@@ -1901,6 +2147,54 @@ class DesktopLaunchTests(unittest.TestCase):
             readonly = [captured['command'][i+1:i+3] for i, value in enumerate(captured['command']) if value == '--ro-bind']
             for path in ('/etc/labwc/3proxy/qbittorrent.conf', '/etc/qbittorrent/qBittorrent.conf.d/20-managed-privacy.conf'):
                 self.assertIn([path, path], readonly)
+
+    def test_tor_ram_actions_share_native_transport_without_proxy_or_host_home(self):
+        for mode in ('launch', 'intel', 'nvidia', 'pure-privacy'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
+                root = Path(directory)
+                env = {'HOME': '/home/user', 'XDG_RUNTIME_DIR': str(root), 'WAYLAND_DISPLAY': 'wayland-0',
+                       'XDG_CONFIG_HOME': '/home/user/.config', 'XDG_CACHE_HOME': '/home/user/.cache',
+                       'XDG_DATA_HOME': '/home/user/.local/share', 'XDG_STATE_HOME': '/home/user/.local/state',
+                       'TMPDIR': '/home/user/.tmp'}
+                stack.enter_context(mock.patch.object(sandbox, 'pure_privacy_environment', return_value=env))
+                stack.enter_context(mock.patch.object(sandbox, 'pure_privacy_argv',
+                    return_value=['/usr/local/libexec/tor-browser-run', '--anon']))
+                stack.enter_context(mock.patch.object(sandbox, 'build_argv',
+                    return_value=['/usr/local/libexec/tor-browser-run']))
+                stack.enter_context(mock.patch.object(sandbox, 'require_root_owned_executable', return_value='/usr/bin/bwrap'))
+                stack.enter_context(mock.patch.object(sandbox, 'bwrap_command', return_value=['/usr/bin/bwrap']))
+                stack.enter_context(mock.patch.object(sandbox, 'current_user_runtime_socket', return_value=str(root/'wayland-0')))
+                stack.enter_context(mock.patch.object(sandbox, 'current_user_home', return_value=str(root/'host-home')))
+                stack.enter_context(mock.patch.object(sandbox, 'add_optional_bind'))
+                stack.enter_context(mock.patch.object(sandbox, 'add_runtime_bind'))
+                stack.enter_context(mock.patch.object(sandbox, 'add_synthetic_sysfs_masks'))
+                gpu = stack.enter_context(mock.patch.object(sandbox, 'add_gpu_device_binds'))
+                dbus = stack.enter_context(mock.patch.object(sandbox, 'start_session_bus_proxy'))
+                stack.enter_context(mock.patch.object(sandbox, 'stop_dbus_proxy'))
+                stack.enter_context(mock.patch.object(sandbox, 'require_running_dbus_proxy'))
+                captured = {}
+                def launch(command, payload, temporary, inherited, **options):
+                    captured.update(command=command, payload=payload, **options)
+                    self.assertEqual((Path(temporary)/'resolv.conf').read_text(), sandbox.TOR_NO_DNS_RESOLV_CONF)
+                    self.assertIn(['--tmpfs', '/home/user'], [command[i:i+2] for i in range(len(command)-1)])
+                    self.assertIn('--unshare-all', command)
+                    self.assertNotIn(str(root/'host-home'), command)
+                    self.assertNotIn('DBUS_SESSION_BUS_ADDRESS', env)
+                    return 37
+                stack.enter_context(mock.patch.object(supervisor, 'run_veth_sandbox', autospec=True, side_effect=launch))
+                result = (sandbox.run_pure_privacy('tor-browser', []) if mode == 'pure-privacy'
+                          else sandbox.run_tor_ram(mode, []))
+                self.assertEqual(result, 37)
+                self.assertEqual(captured['app'], 'tor-browser')
+                self.assertTrue(captured['graceful_shutdown'])
+                self.assertEqual(captured['payload'], ['/usr/local/libexec/tor-browser-run', '--anon']
+                                 if mode == 'pure-privacy' else ['/usr/local/libexec/tor-browser-run'])
+                dbus.assert_not_called()
+                if mode == 'pure-privacy':
+                    gpu.assert_not_called()
+                else:
+                    gpu.assert_called_once_with(captured['command'], mode)
+                self.assertEqual(list(root.iterdir()), [])
 
     def test_privacy_setup_failures_reclaim_private_files_and_started_proxy(self):
         for fault in ('resolver', 'mount'):

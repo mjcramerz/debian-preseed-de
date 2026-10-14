@@ -197,10 +197,6 @@ late_command_nftables_effective_services() {
     effective_services=$(nftables_merge_selected_services "$effective_services" qemu)
   fi
 
-  if nftables_software_selected; then
-    effective_services=$(nftables_merge_selected_services "$effective_services" qbittorrent)
-  fi
-
   if [ "$effective_services" != "$selected_services" ]; then
     installer_info "nftables service overlays adjusted from ${selected_services:-none} to $(printf '%s' "$effective_services" | tr ' ' ',')"
   fi
@@ -217,7 +213,6 @@ stage_target_nftables_service_assets() {
       syncthing) placeholder_map=nftables_syncthing_service_placeholder_map ;;
       tailscale) placeholder_map=nftables_tailscale_service_placeholder_map ;;
       qemu) placeholder_map=nftables_qemu_service_placeholder_map ;;
-      qbittorrent) placeholder_map=nftables_qbittorrent_service_placeholder_map ;;
       nfs-server|nfs-client) placeholder_map=network_sharing_nftables_placeholder_map ;;
       *) placeholder_map=nftables_interface_placeholder_map ;;
     esac
@@ -331,19 +326,6 @@ nftables_validate_port_value() {
   esac
   [ "$value" -ge 1 ] && [ "$value" -le 65535 ] ||
     installer_fatal "${label} must be in range 1..65535"
-}
-
-nftables_qbittorrent_service_placeholder_map() {
-  qbittorrent_port=${LABWC_QBITTORRENT_PORT:-50309}
-  case "$qbittorrent_port" in
-    [1-9][0-9][0-9][0-9]|[1-9][0-9][0-9][0-9][0-9]) ;;
-    *) installer_fatal "LABWC_QBITTORRENT_PORT must be a decimal port in 1024..65535" ;;
-  esac
-  nftables_validate_port_value LABWC_QBITTORRENT_PORT "$qbittorrent_port"
-  [ "$qbittorrent_port" -ge 1024 ] ||
-    installer_fatal "LABWC_QBITTORRENT_PORT must be in range 1024..65535"
-  nftables_interface_placeholder_map
-  printf 'LABWC_QBITTORRENT_PORT=%s\n' "$qbittorrent_port"
 }
 
 nftables_validate_cidr_token() {
@@ -558,11 +540,6 @@ nftables_tailscale_selected() {
 
 nftables_qemu_selected() {
   installer_selected_class_reference_is_selected addon/qemu 2>/dev/null || return 1
-  [ "${INSTALLER_HOST_VARIANT:-}" = desktop ]
-}
-
-nftables_software_selected() {
-  installer_selected_class_reference_is_selected addon/software 2>/dev/null || return 1
   [ "${INSTALLER_HOST_VARIANT:-}" = desktop ]
 }
 
@@ -788,6 +765,7 @@ EOF
 apparmor_managed_desktop_profile_files() {
   cat <<'EOF'
 desktop-wrappers
+tor-browser
 zoom-discord-compat
 labwc-appearance
 compz
@@ -1230,6 +1208,10 @@ stage_target_desktop_apparmor_profiles() {
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/bwrap-common)" \
     "/etc/apparmor.d/abstractions/bwrap-common" \
+    0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/tor-browser-runtime)" \
+    "/etc/apparmor.d/abstractions/tor-browser-runtime" \
     0644
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/bwrap-compat-preparation)" \
@@ -1818,7 +1800,6 @@ app_veth_dns_placeholder_map() (
 app_veth_placeholder_map() {
   app_veth_identity_placeholder_map || return "$?"
   apparmor_document_media_placeholder_map
-  nftables_qbittorrent_service_placeholder_map
 }
 
 configure_target_stubby() (

@@ -2,30 +2,10 @@ apiVersion: cybops.nftables/v1
 kind: NftablesServiceOverlay
 metadata:
   name: qbittorrent
-  description: qBittorrent fixed peer-listener overlay for the managed desktop software bundle.
+  description: qBittorrent peer ingress is owned by the active app-veth lease; no host INPUT allowances.
   merge_priority: 50
   applies_to_profiles:
   - desktop
-services:
-  qbittorrent_incoming:
-    enabled: true
-    direction: inbound
-    protocols:
-    - tcp
-    - udp
-    ports:
-    - __INSTALLER_LABWC_QBITTORRENT_PORT__
-    allow:
-      ipv4:
-      - 0.0.0.0/0
-      ipv6:
-      - ::/0
-      interfaces:
-      - eth0
-      - en*
-      - __INSTALLER_MANAGED_NETWORK_ETHERNET_IFACE__
-      - wlan0
-      - wl*
-      - __INSTALLER_MANAGED_NETWORK_WIFI_IFACE__
-      - wg0
-    log: false
+# Keep the supported NFT_SERVICES name inert, including explicit selections.
+# Peer packets are DNATed into the private veth and use FORWARD, never INPUT.
+services: {}

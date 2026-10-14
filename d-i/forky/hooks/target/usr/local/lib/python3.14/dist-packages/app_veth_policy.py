@@ -91,6 +91,12 @@ def parse_configuration(raw: bytes) -> dict:
         enabled = policy["network"]
         block_lan = policy.get("block_lan", False)
         port = policy.get("peer_port")
+        if isinstance(port, dict):
+            if (name != "qbittorrent" or set(port) != {"ethernet", "wifi"}
+                    or any(type(value) is not int or not 1024 <= value <= 65535 for value in port.values())
+                    or port["ethernet"] == port["wifi"]):
+                raise ValueError("invalid qBittorrent Ethernet/Wi-Fi peer ports")
+            port = dict(port)
         pinned = policy.get("pin_route", port is not None)
         executables = policy.get("executables", [])
         slots = policy.get("slots")
@@ -105,7 +111,8 @@ def parse_configuration(raw: bytes) -> dict:
             raise ValueError("missing or inconsistent reserved application IPv4 addresses")
         if (type(enabled) is not bool or type(block_lan) is not bool
                 or type(pinned) is not bool
-                or (port is not None and (type(port) is not int or not 1024 <= port <= 65535))
+                or (port is not None and not isinstance(port, dict)
+                    and (type(port) is not int or not 1024 <= port <= 65535))
                 or (not enabled and port is not None)
                 or (port is not None and not pinned)
                 or not isinstance(executables, list) or len(executables) > 16):

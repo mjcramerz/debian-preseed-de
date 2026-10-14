@@ -11,6 +11,7 @@ import socket
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 
 PROXY_ADDRESS = "127.0.0.1"
@@ -77,6 +78,112 @@ def wait_for_session(proxy: subprocess.Popen, payload: subprocess.Popen) -> int:
         raise RuntimeError(f"CONNECT proxy exited during the application session (status {proxy_status})")
 
 
+def peer_port_policy() -> tuple[int, ...]:
+    policy = json.loads(read_policy("/etc/app-veth.json"))
+    apps = policy.get("apps") if isinstance(policy, dict) else None
+    app = apps.get("qbittorrent") if isinstance(apps, dict) else None
+    value = app.get("peer_port") if isinstance(app, dict) else None
+    if type(value) is int and 1024 <= value <= 65535:
+        return (value,)
+    if (isinstance(value, dict) and set(value) == {"ethernet", "wifi"}
+            and all(type(port) is int and 1024 <= port <= 65535 for port in value.values())
+            and value["ethernet"] != value["wifi"]):
+        return (value["ethernet"], value["wifi"])
+    raise ValueError("invalid immutable qBittorrent peer-port policy")
+
+
+def receive_peer_port(channel, allowed, *, current=None):
+    # Coalesce a bounded burst; only the inherited controller FD is used.
+    selected = current
+    for _ in range(64):
+        try:
+            message, ancillary, flags, _address = channel.recvmsg(6)
+        except BlockingIOError:
+            break
+        if (not message or ancillary or flags & (socket.MSG_TRUNC | socket.MSG_CTRUNC)
+                or not 4 <= len(message) <= 5 or not message.isdigit() or message[:1] == b"0"
+                or int(message) not in allowed):
+            raise ValueError("invalid or closed qBittorrent peer-port controller")
+        selected = int(message)
+    if selected is None:
+        raise ValueError("qBittorrent peer-port controller has no initial selection")
+    return selected
+
+
+def restore_native_config():
+    # Copy exact installed bytes; never parse, merge or render native settings.
+    data = read_policy("/etc/qbittorrent/qBittorrent.conf.d/10-security.conf", 1024 * 1024)
+    target = Path("/home/user/.config/qBittorrent/qBittorrent.conf")
+    if target.parent.resolve() != target.parent:
+        raise ValueError("qBittorrent configuration has symlink parents")
+    for directory in (target.parent, target.parent.parent):
+        info = directory.lstat()
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+            raise ValueError("qBittorrent configuration directory is not private")
+    info = target.lstat()
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+            or info.st_nlink != 1 or info.st_mode & 0o077):
+        raise ValueError("unsafe qBittorrent runtime configuration")
+    descriptor, temporary = tempfile.mkstemp(prefix=".peer-port-", dir=target.parent)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(data)
+            os.fchmod(handle.fileno(), 0o600)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, target)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def run_peer_payload(proxy, arguments, channel):
+    allowed = peer_port_policy()
+    if not select.select([channel], [], [], 2)[0]:
+        raise RuntimeError("qBittorrent initial peer-port selection timed out")
+    active_port = receive_peer_port(channel, allowed)
+    payload = None
+    first_arguments = arguments[1:]
+    try:
+        while True:
+            payload = subprocess.Popen([arguments[0], f"--torrenting-port={active_port}", *first_arguments],
+                                       stdin=subprocess.DEVNULL)
+            first_arguments = []  # Restored torrents come from the saved profile.
+            with ExitStack() as resources:
+                proxy_fd = os.pidfd_open(proxy.pid)
+                resources.callback(os.close, proxy_fd)
+                payload_fd = os.pidfd_open(payload.pid)
+                resources.callback(os.close, payload_fd)
+                while True:
+                    ready, _, _ = select.select([proxy_fd, payload_fd, channel], [], [])
+                    # A user close or child failure takes precedence over a
+                    # simultaneous port event; never resurrect a closed GUI.
+                    if payload_fd in ready:
+                        return payload.wait()
+                    if proxy_fd in ready:
+                        raise RuntimeError("CONNECT proxy exited during the qBittorrent session")
+                    selected = receive_peer_port(channel, allowed, current=active_port)
+                    if selected == active_port:
+                        continue
+                    print(f"qBittorrent saving state for peer-port change {active_port} -> {selected}", file=sys.stderr)
+                    payload.send_signal(signal.SIGINT)
+                    try:
+                        status = payload.wait(timeout=15)
+                    except subprocess.TimeoutExpired:
+                        payload.kill()
+                        payload.wait(timeout=5)
+                        raise RuntimeError("qBittorrent did not save and close in time; automatic restart refused") from None
+                    if status != 0:
+                        raise RuntimeError("qBittorrent did not close cleanly; automatic restart refused")
+                    if proxy.poll() is not None:
+                        raise RuntimeError("CONNECT proxy exited during the peer-port change")
+                    active_port = receive_peer_port(channel, allowed, current=selected)
+                    restore_native_config()
+                    break
+    finally:
+        stop(payload, signal.SIGINT)
+
+
 def main():
     arguments = sys.argv[1:]
     commands = {
@@ -95,11 +202,21 @@ def main():
     offline = arguments[:1] == ["--offline"]
     if offline:
         arguments = arguments[1:]
+    peer_descriptor = None
+    if arguments and arguments[0].startswith("--peer-port-fd="):
+        value = arguments.pop(0).split("=", 1)[1]
+        if (app != "qbittorrent" or privacy or offline or not value.isascii() or not value.isdigit()
+                or len(value) > 7 or not 3 <= int(value) <= 1048576):
+            raise ValueError("invalid qBittorrent peer-port controller descriptor")
+        peer_descriptor = int(value)
     if os.geteuid() == 0 or not arguments or arguments[0] != commands[app]:
         raise ValueError("managed proxy session requires an unprivileged managed payload")
     if app == "qbittorrent" and any(argument.partition("=")[0] in {"--profile", "--configuration"}
            for argument in arguments[1:]):
         raise ValueError("managed qBittorrent forbids profile overrides")
+    if peer_descriptor is not None and any(argument.partition("=")[0] == "--torrenting-port"
+                                          for argument in arguments[1:]):
+        raise ValueError("managed qBittorrent forbids peer-port overrides")
     if privacy:
         if app != "qbittorrent":
             raise ValueError("privacy configuration copy is specific to qBittorrent")
@@ -150,6 +267,13 @@ def main():
                 if time.monotonic() >= deadline:
                     raise RuntimeError("CONNECT proxy readiness timed out") from None
                 time.sleep(0.1)
+        if peer_descriptor is not None:
+            with socket.socket(fileno=peer_descriptor) as channel:
+                if channel.family != socket.AF_UNIX or channel.getsockopt(socket.SOL_SOCKET, socket.SO_TYPE) != socket.SOCK_SEQPACKET:
+                    raise ValueError("qBittorrent peer controller requires a private Unix seqpacket socket")
+                os.set_inheritable(peer_descriptor, False)
+                channel.setblocking(False)
+                return run_peer_payload(proxy, arguments, channel)
         payload = subprocess.Popen(arguments, stdin=subprocess.DEVNULL)
         return wait_for_session(proxy, payload)
     finally:
@@ -168,4 +292,8 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except (OSError, ValueError, RuntimeError) as exc:
         print(f"managed proxy session failed: {exc}", file=sys.stderr)
+        raise SystemExit(1)
+    except subprocess.TimeoutExpired:
+        # Popen's timeout repr includes argv; torrent URIs can carry passkeys.
+        print("managed proxy session process cleanup timed out", file=sys.stderr)
         raise SystemExit(1)

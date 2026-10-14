@@ -341,6 +341,10 @@ tailscale_validate_config
 auth_key_arg=
 [ -x /usr/bin/tailscale ] || tailscale_fatal "tailscale CLI is unavailable"
 tailscale_wait_for_daemon
+# Apply this before the already-joined fast path as well as fresh enrollment.
+# Package updates are handled by the existing signed APT maintenance flow.
+/usr/bin/tailscale set --auto-update=false ||
+  tailscale_fatal "cannot disable Tailscale self-updates; signed APT owns package updates"
 if tailscale_is_joined && ! tailscale_bool_is_true "${TAILSCALE_FORCE_REAUTH:-false}"; then
   touch "$TAILSCALE_COMPLETE_FILE"
   chmod 0600 "$TAILSCALE_COMPLETE_FILE" 2>/dev/null || true

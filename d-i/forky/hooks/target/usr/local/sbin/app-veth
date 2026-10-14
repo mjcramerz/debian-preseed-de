@@ -304,6 +304,21 @@ class EndpointPool:
                 self.host_fd = None
 
 
+def wireless_interface(interface: str) -> bool:
+    # Interface names come from the validated route response, never a request.
+    for name in ("wireless", "phy80211"):
+        try:
+            info = (Path("/sys/class/net") / interface / name).stat()
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise RuntimeError("cannot classify Internet interface for peer-port selection") from exc
+        if not stat.S_ISDIR(info.st_mode):
+            raise ValueError("invalid wireless interface metadata")
+        return True
+    return False
+
+
 class Network:
     def __init__(self, slot: int, nsfd: int, app: str, uid: int, policy: dict, pool, endpoints: EndpointPool):
         self.slot, self.nsfd, self.app, self.uid = slot, nsfd, app, uid
@@ -329,7 +344,10 @@ class Network:
         try:
             if policy.get("network") is not True:
                 raise ValueError("application has no network authorization")
-            self.peer_port = policy["peer_port"]
+            self.peer_port_policy = policy["peer_port"]
+            self.peer_port = (self.peer_port_policy["ethernet"] if isinstance(self.peer_port_policy, dict)
+                              else self.peer_port_policy)
+            self.channel = None
             self.pinned = policy["pin_route"]
             try:
                 current = route(allow_lan=not self.pinned)
@@ -351,8 +369,16 @@ class Network:
             # ip -batch stops at the first error. The guest must be UP before
             # adding its gateway route; the host peer stays DOWN until the
             # firewall commits, so setup cannot release application packets.
+            guest_mac = ""
+            if app == "tor-browser":
+                # The precreated pool can reuse a pair. Replace its guest MAC
+                # on every Tor lease with a local, unicast random address.
+                octets = bytearray(os.urandom(6))
+                octets[0] = (octets[0] & 0xfe) | 0x02
+                guest_mac = f"link set {self.interface} address {':'.join(f'{byte:02x}' for byte in octets)}\n"
             guest_setup = (
                 "link set lo up\n"
+                + guest_mac +
                 f"link set {self.interface} mtu {mtu}\n"
                 f"addr add {self.address}/30 dev {self.interface}\n"
                 f"link set {self.interface} up\n"
@@ -365,6 +391,8 @@ class Network:
                 self.remove.append(f"delete element inet app_veth {name} {{ {value.split(' : ')[0]} }}")
             element("links", f'"{self.name}"')
             element("sources", f'"{self.name}" . {self.address}')
+            if app == "tor-browser":
+                element("tor_transport", f'"{self.name}"')
             if app in {"chromium", "microsoft-edge", "vivaldi", "mullvad-browser"}:
                 element("web_tls_only", f'"{self.name}"')
             if app in {"qbittorrent", "qbittorrent-privacy"}:
@@ -374,9 +402,6 @@ class Network:
                 element("lan_blocked", f'"{self.name}"')
             if not self.pinned:
                 element("outbound", f'"{self.name}"')
-            if self.peer_port is not None:
-                for protocol in ("tcp", "udp"):
-                    element("incoming", f'"{self.name}" . {self.address} . {protocol} . {self.peer_port}')
             if app == "discord":
                 for port in range(6463, 6473):
                     self.reserve("127.0.0.1", port, socket.SOCK_STREAM)
@@ -426,15 +451,21 @@ class Network:
         for channel in self.route_reservations:
             channel.close()
         self.route_reservations.clear()
+        peer_port = self.peer_port
+        if current is not None and isinstance(self.peer_port_policy, dict):
+            peer_port = self.peer_port_policy["wifi" if wireless_interface(current[0]) else "ethernet"]
         if current is not None and self.pinned:
             iface, source, _mtu = current
             element("pinned", f'"{self.name}" . "{iface}"')
             element("snat_map", f'"{self.name}" : {source}')
-            if self.peer_port is not None:
+            if peer_port is not None:
                 for protocol, kind in (("tcp", socket.SOCK_STREAM), ("udp", socket.SOCK_DGRAM)):
-                    self.reserve(source, self.peer_port, kind, route_owned=True)
-                    element("peer_snat", f'"{self.name}" . {protocol} . {self.peer_port} : {source} . {self.peer_port}')
-                    element("forwards", f'{source} . {protocol} . {self.peer_port} : {self.address} . {self.peer_port}')
+                    self.reserve(source, peer_port, kind, route_owned=True)
+                    # Peer ingress has the same active-route lifetime as its
+                    # DNAT/SNAT maps. Commit all three with the veth still DOWN.
+                    element("incoming", f'"{self.name}" . {self.address} . {protocol} . {peer_port}')
+                    element("peer_snat", f'"{self.name}" . {protocol} . {peer_port} : {source} . {peer_port}')
+                    element("forwards", f'{source} . {protocol} . {peer_port} : {self.address} . {peer_port}')
         if rows:
             # Deletes and replacements commit together, including DHCP changes
             # on the same device. No partially updated forwarding policy leaks.
@@ -449,6 +480,13 @@ class Network:
         mtu = current[2] if current is not None else 1500
         run([*enter, "/usr/sbin/ip", "link", "set", "dev", self.interface, "mtu", str(mtu)],
             fds=(self.nsfd,))
+        changed_port = peer_port != self.peer_port
+        if changed_port and self.channel is not None:
+            # Notify only the owning supervisor while the host link is down.
+            # A stalled receiver keeps the packet path blocked until retry.
+            message = json.dumps({"peer_port": peer_port}).encode("ascii")
+            if self.channel.send(message) != len(message):
+                raise RuntimeError("incomplete peer port notification")
         # Ordinary leases can still reach permitted LAN destinations without a
         # WAN route. Pinned leases remain down until validated egress returns.
         if current is not None or not self.pinned:
@@ -456,6 +494,7 @@ class Network:
         self.uplink = current
         self.route_initialized = True
         self.route_retry_at = None
+        self.peer_port = peer_port
         event("network_route_updated" if current is not None else "network_route_offline",
               self.id, app=self.app, uid=self.uid, interface=self.name,
               egress=current[0] if current is not None else None, mtu=mtu)
@@ -724,10 +763,11 @@ def main():
                         network = Network(slot, nsfd, app, uid, policies[app], pool, endpoints)
                         response = {"ready": True, "address": network.address,
                                     "gateway": network.gateway, "interface": network.interface}
-                        if policies[app]["peer_port"] is not None:
-                            response["peer_port"] = policies[app]["peer_port"]
+                        if network.peer_port is not None:
+                            response["peer_port"] = network.peer_port
                         channel.send(json.dumps(response).encode("ascii"))
                         channel.setblocking(False)
+                        network.channel = channel
                         leases[channel] = network
                         selector.register(channel, selectors.EVENT_READ)
                     except (OSError, ValueError, RuntimeError, KeyError, subprocess.SubprocessError) as exc:

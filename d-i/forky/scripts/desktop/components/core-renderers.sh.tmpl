@@ -38,6 +38,7 @@ desktop_render_labwc_default_config() {
     LABWC_GDK_DISABLE "$(desktop_shell_config_value "${LABWC_GDK_DISABLE-vulkan}")" \
     LABWC_WLR_NO_HARDWARE_CURSORS "$(desktop_shell_config_value "${LABWC_WLR_NO_HARDWARE_CURSORS-1}")" \
     LABWC_WLR_SCENE_DISABLE_DIRECT_SCANOUT "$(desktop_shell_config_value "${LABWC_WLR_SCENE_DISABLE_DIRECT_SCANOUT-1}")" \
+    LABWC_WLR_DRM_NO_ATOMIC "$(desktop_shell_config_value "${LABWC_WLR_DRM_NO_ATOMIC:-0}")" \
     LABWC_INTEL_ACCELERATION_AVAILABLE "$(desktop_shell_config_value "$LABWC_INTEL_ACCELERATION_AVAILABLE")" \
     LABWC_NVIDIA_ACCELERATION_AVAILABLE "$(desktop_shell_config_value "$LABWC_NVIDIA_ACCELERATION_AVAILABLE")" \
     LABWC_MANAGED_APP_DEFAULT_EXEC "$(desktop_shell_config_value "$LABWC_MANAGED_APP_DEFAULT_EXEC")" \

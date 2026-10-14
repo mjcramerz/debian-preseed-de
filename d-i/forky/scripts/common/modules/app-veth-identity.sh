@@ -1,6 +1,22 @@
 #!/bin/sh
 # Shared installer-only map for network identity, desktop bindings and policy.
 # Values cross into awk through stdin as data; no eval or environment dump.
+qbittorrent_peer_port_placeholder_map() (
+  printf '%s\n' "${LABWC_QBITTORRENT_PORT:-50309}" | LC_ALL=C awk '
+    function fail() { failed = 1; print "fatal: LABWC_QBITTORRENT_PORT requires one decimal port or Ethernet,Wi-Fi ports in 1024..65535" > "/dev/stderr"; exit 1 }
+    {
+      if (NR != 1 || length($0) > 11) fail()
+      count = split($0, ports, /,/)
+      if (count < 1 || count > 2) fail()
+      for (i = 1; i <= count; i++)
+        if (ports[i] !~ /^[1-9][0-9]*$/ || length(ports[i]) > 5 || ports[i]+0 < 1024 || ports[i]+0 > 65535) fail()
+      if (count == 2 && ports[1] == ports[2]) fail()
+      print "LABWC_QBITTORRENT_ETHERNET_PORT=" ports[1]
+      print "LABWC_QBITTORRENT_WIFI_PORT=" (count == 2 ? ports[2] : ports[1])
+    }
+  '
+)
+
 proxy3_placeholder_map() (
   printf '%s=%s\n' \
     PROXY3_PORTS_ALLOW_WEB_BROWSER "${PROXY3_PORTS_ALLOW_WEB_BROWSER:-443,8443,53443}" \
@@ -43,6 +59,7 @@ proxy3_placeholder_map() (
 )
 
 app_veth_identity_placeholder_map() (
+  qbittorrent_ports=$(qbittorrent_peer_port_placeholder_map) || exit 1
   printf '%s=%s\n' \
     APP_VETH_IPV4_CIDR "${APP_VETH_IPV4_CIDR:-}" \
     APP_VETH_MAX_LEASES "${APP_VETH_MAX_LEASES:-}" \
@@ -56,7 +73,8 @@ app_veth_identity_placeholder_map() (
     APP_VETH_TLS_HOST_ADDRESS "${APP_VETH_TLS_HOST_ADDRESS:-}" \
     APP_VETH_TLS_HOST_PORT "${APP_VETH_TLS_HOST_PORT:-}" \
     APP_VETH_OVERRIDE "${APP_VETH_OVERRIDE:-}" \
-    LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}" |
+    LABWC_QBITTORRENT_ETHERNET_PORT "$(printf '%s\n' "$qbittorrent_ports" | awk -F= '$1 == "LABWC_QBITTORRENT_ETHERNET_PORT" {print $2}')" \
+    LABWC_QBITTORRENT_WIFI_PORT "$(printf '%s\n' "$qbittorrent_ports" | awk -F= '$1 == "LABWC_QBITTORRENT_WIFI_PORT" {print $2}')" |
   LC_ALL=C awk '
     function fail(key) { failed = 1; print "fatal: invalid " key " in app-veth identity" > "/dev/stderr"; exit 1 }
     function integer(key, low, high, value) {
@@ -103,7 +121,8 @@ app_veth_identity_placeholder_map() (
     BEGIN {
       # This order is the stable address order. APP_VETH_OVERRIDE only filters
       # the set; it cannot make addresses depend on launch order.
-      app_count = split("bitwarden,chatgpt,chromium,code,codex,discord,filen,freerdp,ledger-live,liferea,microsoft-edge,mullvad-browser,obsidian,postman,qbittorrent,qbittorrent-privacy,qoredb,spotify,telegram-desktop,tutanota,vivaldi,zoom,podman", apps, /,/)
+      app_count = split("bitwarden,chatgpt,chromium,code,codex,discord,filen,freerdp,ledger-live,liferea,microsoft-edge,mullvad-browser,obsidian,postman,qbittorrent,qbittorrent-privacy,qoredb,spotify,telegram-desktop,tutanota,vivaldi,zoom,podman,tor-browser", apps, /,/)
+      block_lan["tor-browser"] = 1
       block_lan["bitwarden"] = 1
       block_lan["discord"] = 1
       block_lan["filen"] = 1
@@ -141,7 +160,8 @@ app_veth_identity_placeholder_map() (
       loopback("APP_VETH_DNS_HOST_ADDRESS"); loopback("APP_VETH_TLS_HOST_ADDRESS")
       integer("APP_VETH_DNS_HOST_PORT", 1024, 65535); integer("APP_VETH_TLS_HOST_PORT", 1024, 65535)
       if (values["APP_VETH_DNS_HOST_ADDRESS"] == values["APP_VETH_TLS_HOST_ADDRESS"] && values["APP_VETH_DNS_HOST_PORT"] == values["APP_VETH_TLS_HOST_PORT"]) fail("APP_VETH DNS listener collision")
-      port = integer("LABWC_QBITTORRENT_PORT", 1024, 65535)
+      port = integer("LABWC_QBITTORRENT_ETHERNET_PORT", 1024, 65535)
+      wifi_port = integer("LABWC_QBITTORRENT_WIFI_PORT", 1024, 65535)
 
       override = values["APP_VETH_OVERRIDE"]
       if (override != "") {
@@ -170,7 +190,10 @@ app_veth_identity_placeholder_map() (
         if (rendered_apps++) apps_json = apps_json ","
         apps_json = apps_json "\"" app "\":{"
         apps_json = apps_json "\"network\":true,\"block_lan\":" json_bool(app in block_lan)
-        if (app == "qbittorrent") apps_json = apps_json ",\"pin_route\":true,\"peer_port\":" port
+        if (app == "qbittorrent") {
+          peer_port = (port == wifi_port ? port : "{\"ethernet\":" port ",\"wifi\":" wifi_port "}")
+          apps_json = apps_json ",\"pin_route\":true,\"peer_port\":" peer_port
+        }
         apps_json = apps_json ",\"slots\":" slots_json ",\"addresses\":" addresses_json "}"
         if (app == "qbittorrent") {
           values["APP_VETH_QBITTORRENT_ADDRESS"] = address(base + slot * 4 + 2)

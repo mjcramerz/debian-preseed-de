@@ -374,15 +374,15 @@ class IntegrationTests(unittest.TestCase):
         self.assertIn('gio-launch-desktop rix,',render_theme_defaults(payload_read_text(AA/'usr.bin.spotify')))
         self.assertIn('profile wpctl ',render_theme_defaults(payload_read_text(AA/'labwc-session')))
 
-    def test_graphics_selection_does_not_disable_gpu_or_atomic_kms(self):
+    def test_graphics_selection_preserves_gpu_and_scopes_legacy_kms(self):
         electrons=render_theme_defaults(payload_read_text(TARGET/'usr/local/lib/python3.14/dist-packages/labwc_managed_app/electron.py'))
         self.assertIn('"--use-webgpu-adapter=opengles"',electrons)
         delta=electrons[electrons.index('    "chatgpt": {'):electrons.index('    "code": {')]
         self.assertNotIn('--disable-gpu"',delta)
         self.assertNotIn('--no-sandbox',delta)
-        self.assertNotIn('LABWC_WLR_DRM_', render_theme_defaults(payload_read_text(TARGET/'etc/labwc/desktop.conf.tmpl')))
+        self.assertIn('LABWC_WLR_DRM_NO_ATOMIC=', render_theme_defaults(payload_read_text(TARGET/'etc/labwc/desktop.conf.tmpl')))
         session = render_theme_defaults(payload_read_text(TARGET/'usr/local/bin/labwc-session.tmpl'))
-        self.assertNotIn('LABWC_WLR_DRM_', session)
+        self.assertIn('LABWC_WLR_DRM_NO_ATOMIC', session)
         self.assertIn('unset WLR_DRM_NO_ATOMIC', session)
 
 

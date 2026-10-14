@@ -1,0 +1,14 @@
+# Direct browser invocation remains confined. Managed launches enter the
+# narrower nested browser domain under labwc-app//tor-bwrap before exec.
+abi "/usr/share/apparmor-features/features",
+#include <tunables/global>
+
+profile tor-browser /opt/tor-browser/Browser/{firefox,firefox.real} flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/tor-browser-runtime>
+  #include <abstractions/wrapper-base>
+  /opt/tor-browser/Browser/{firefox,firefox.real,abicheck,glxtest,vaapitest} rix,
+  /usr/bin/dirname rix,
+  deny network inet,
+  deny network inet6,
+  include if exists <local/tor-browser>
+}

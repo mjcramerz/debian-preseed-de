@@ -23,7 +23,8 @@ Session\AddExtensionToIncompleteFiles=true
 Session\AnnounceToAllTiers=false
 Session\AnnounceToAllTrackers=false
 Session\AnnounceIP=
-Session\AnnouncePort=__INSTALLER_LABWC_QBITTORRENT_PORT__
+# Zero follows the active native listener selected by the managed veth lease.
+Session\AnnouncePort=0
 Session\AnonymousModeEnabled=false
 # Do not add public fallback trackers to private-tracker torrents.
 Session\AddTrackersEnabled=false
@@ -79,7 +80,8 @@ Session\OutgoingPortsMax=0
 Session\PeXEnabled=false
 Session\ProxyPeerConnections=false
 Session\PerformanceWarning=true
-Session\Port=__INSTALLER_LABWC_QBITTORRENT_PORT__
+# Offline/privacy default; the online controller supplies the lease's port.
+Session\Port=__INSTALLER_LABWC_QBITTORRENT_ETHERNET_PORT__
 Session\Preallocation=false
 Session\QueueingSystemEnabled=false
 Session\ReannounceWhenAddressChanged=true

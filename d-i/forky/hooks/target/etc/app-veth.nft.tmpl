@@ -6,6 +6,7 @@ table inet app_veth {
     set lan_blocked { type ifname; }
     set no_http { type ifname; }
     set web_tls_only { type ifname; }
+    set tor_transport { type ifname; }
     set web_ports { type inet_service; elements = { __INSTALLER_PROXY3_PORTS_ALLOW_WEB_BROWSER__ }; }
     set lan_ipv4 { type ipv4_addr; flags interval; }
     set pinned { type ifname . ifname; }
@@ -19,6 +20,10 @@ table inet app_veth {
         type filter hook prerouting priority -150; policy accept;
         iifname __APP_INTERFACES__ meta nfproto != ipv4 drop
         iifname __APP_INTERFACES__ iifname . ip saddr != @sources drop
+        # Tor uses relay IPs from its authenticated directory information.
+        # Deny ordinary DNS before the shared DNS DNAT hook can see it.
+        iifname @tor_transport meta l4proto { tcp, udp } th dport 53 counter drop
+        iifname @tor_transport meta l4proto != tcp counter drop
     }
     chain dns_and_peers {
         type nat hook prerouting priority dstnat; policy accept;
@@ -32,6 +37,7 @@ table inet app_veth {
     }
     chain host_guard {
         type filter hook input priority -10; policy accept;
+        iifname @tor_transport meta l4proto { tcp, udp } th dport 53 counter drop
         iifname @links ip daddr __DNS_HOST_ADDRESS__ meta l4proto { tcp, udp } th dport __DNS_HOST_PORT__ ct status dnat accept
         # Replies to the exact host-initiated peer/RPC DNAT maps must return
         # to their initiating host socket; unrelated host access stays denied.

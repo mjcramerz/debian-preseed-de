@@ -1,5 +1,6 @@
 #!/usr/bin/python3 -IB
 import errno
+from contextlib import ExitStack
 import fcntl
 import hashlib
 import os
@@ -156,10 +157,17 @@ def configured_account(defaults: dict[str, str]) -> tuple[pwd.struct_passwd, pat
 
 
 def configured_peer_port(defaults: dict[str, str]) -> int:
+    return configured_peer_ports(defaults)[0]
+
+
+def configured_peer_ports(defaults: dict[str, str]) -> tuple[int, ...]:
     value = defaults.get("LABWC_QBITTORRENT_PORT", "")
-    if not re.fullmatch(r"[1-9][0-9]{3,4}", value) or not 1024 <= int(value) <= 65535:
-        fail("LABWC_QBITTORRENT_PORT must be a decimal port in 1024..65535")
-    return int(value)
+    parts = value.split(",")
+    if (not 1 <= len(parts) <= 2 or len(value) > 11
+            or any(not re.fullmatch(r"[1-9][0-9]{3,4}", part) or not 1024 <= int(part) <= 65535 for part in parts)
+            or len(set(parts)) != len(parts)):
+        fail("LABWC_QBITTORRENT_PORT requires one port or Ethernet,Wi-Fi ports in 1024..65535")
+    return tuple(int(part) for part in parts)
 
 
 def select_storage_root(
@@ -756,6 +764,11 @@ def build_command(
         # remaps it to the overflow UID. Reuse the bounded opened-file reader.
         read_managed_config(pathlib.Path(proxy_policy))
         command.extend(["--ro-bind", proxy_policy, proxy_policy])
+    # The route controller validates its allowed ports and restores exact
+    # install-rendered bytes after a saved, graceful payload restart.
+    for policy in ("/etc/app-veth.json", str(MANAGED_POLICY_DROPIN)):
+        read_managed_config(pathlib.Path(policy))
+        command.extend(["--ro-bind", policy, policy])
 
     environment = {
         "PATH": "/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin",
@@ -910,7 +923,7 @@ def main() -> int:
     redirect_to_user_service()
     defaults = load_defaults(DEFAULTS_PATH)
     account, configured_root = configured_account(defaults)
-    port = configured_peer_port(defaults)
+    ports = configured_peer_ports(defaults)
     root = select_storage_root(account, configured_root)
     paths = prepare_storage(root)
     acceleration_mode, raw_launch_arguments = select_acceleration_mode(defaults, sys.argv[1:])
@@ -919,14 +932,14 @@ def main() -> int:
     if launch_lock is None:
         return 0
     try:
-        return run_new_instance(account, root, paths, acceleration_mode, launch_arguments, port)
+        return run_new_instance(account, root, paths, acceleration_mode, launch_arguments, ports)
     finally:
         os.close(launch_lock)
 
 
 def run_new_instance(
     account: pwd.struct_passwd, root: pathlib.Path, paths: dict[str, pathlib.Path],
-    acceleration_mode: str, launch_arguments: list[str], port: int,
+    acceleration_mode: str, launch_arguments: list[str], ports: tuple[int, ...] | int,
 ) -> int:
     runtime = network_runtime()
     from labwc_managed_app.network_client import configured_network_policy
@@ -935,10 +948,14 @@ def run_new_instance(
     except (OSError, ValueError, RuntimeError) as exc:
         fail(f"managed qBittorrent network policy failed: {exc}")
     online = network_policy is not None and network_policy["network"]
+    ports = (ports,) if type(ports) is int else ports
     if online:
         if network_policy["peer_port"] is None:
             fail("online qBittorrent requires a TCP/UDP peer_port in the managed network policy")
-        port = network_policy["peer_port"]
+        policy = network_policy["peer_port"]
+        policy_ports = ((policy["ethernet"], policy["wifi"]) if isinstance(policy, dict) else (policy,))
+        if ports != policy_ports:
+            fail("qBittorrent Ethernet/Wi-Fi ports differ between desktop defaults and managed network policy")
     # Raising on termination lets the supervisor reap both children and
     # close every setup/exit FD before our private runtime directory is removed.
     def interrupted(signum, frame):
@@ -949,7 +966,7 @@ def run_new_instance(
         signal.signal(signum, interrupted)
     with tempfile.TemporaryDirectory(
         prefix="labwc-qbittorrent-sandbox-", dir=f"/run/user/{os.getuid()}",
-    ) as temporary:
+    ) as temporary, ExitStack() as resources:
         resolver = pathlib.Path(temporary) / "resolv.conf"
         resolver_configuration = getattr(runtime, "veth_resolv_conf", None)
         resolver.write_text(
@@ -964,18 +981,37 @@ def run_new_instance(
             launch_arguments, resolver,
         )
         payload_count = 1 + len(launch_arguments)
+        controller = receiver = None
+        sent_port = None
+        if online:
+            controller, receiver = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+            resources.callback(controller.close)
+            resources.callback(receiver.close)
+            controller.settimeout(2)
+        def port_changed(lease):
+            nonlocal sent_port
+            if lease.peer_port not in ports:
+                fail("qBittorrent peer port differs from managed network policy")
+            if lease.peer_port != sent_port:
+                message = str(lease.peer_port).encode("ascii")
+                if controller.send(message) != len(message):
+                    fail("qBittorrent peer-port controller did not receive a complete update")
+                sent_port = lease.peer_port
         def configured(lease):
-            if lease.peer_port != port:
-                fail("qBittorrent peer port differs from the managed network service configuration")
+            if lease.peer_port not in ports:
+                fail("qBittorrent peer port differs from managed network policy")
             copy_managed_config(paths["profile_home"])
+            port_changed(lease)
         if not online:
             copy_managed_config(paths["profile_home"])
         return runtime.run_veth_sandbox(
             command[:-payload_count],
             ["/usr/local/libexec/labwc-proxy-session", "qbittorrent", *([] if online else ["--offline"]),
-             *command[-payload_count:]], temporary, (),
+             *([f"--peer-port-fd={receiver.fileno()}"] if online else []),
+             *command[-payload_count:]], temporary, (receiver.fileno(),) if online else (),
             app="qbittorrent",
-            on_network_ready=configured if online else None, network=online,
+            on_network_ready=configured if online else None,
+            on_network_change=port_changed if online else None, network=online,
             graceful_shutdown=True,
         )
 

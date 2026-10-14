@@ -274,7 +274,8 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/libexec/labwc-zoom-discord-compat-runtime /usr/local/libexec/labwc-zoom-discord-compat-runtime 0755
   desktop_stage_role_asset usr/local/libexec/labwc-private-xwayland /usr/local/libexec/labwc-private-xwayland 0755
   desktop_stage_role_asset usr/local/libexec/labwc-compat-open-uri /usr/local/libexec/labwc-compat-open-uri 0755
-  desktop_validate_uint_range LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}" 1024 65535
+  desktop_qbittorrent_ports=$(qbittorrent_peer_port_placeholder_map) || desktop_fatal "invalid qBittorrent peer ports"
+  desktop_qbittorrent_ethernet_port=$(printf '%s\n' "$desktop_qbittorrent_ports" | awk -F= '$1 == "LABWC_QBITTORRENT_ETHERNET_PORT" {print $2}')
   desktop_veth_identity=$(app_veth_identity_placeholder_map) || desktop_fatal "invalid application network identity"
   desktop_qbittorrent_enabled=$(printf "%s\n" "$desktop_veth_identity" | awk -F= '$1 == "APP_VETH_QBITTORRENT_ENABLED" { print $2 }')
   case "$desktop_qbittorrent_enabled" in
@@ -300,7 +301,7 @@ desktop_stage_target_assets() {
       0644 \
       ACCOUNT_USERNAME "$ACCOUNT_USERNAME" \
       QBITTORRENT_SAVE_ROOT "/run/media/$ACCOUNT_USERNAME/bittorrent" \
-      LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}" \
+      LABWC_QBITTORRENT_ETHERNET_PORT "$desktop_qbittorrent_ethernet_port" \
       PROXY3_PORT_LISTEN_QBITTORRENT "${PROXY3_PORT_LISTEN_QBITTORRENT:-3128}" \
       APP_VETH_NAMESPACE_INTERFACE "$APP_VETH_NAMESPACE_INTERFACE" \
       APP_VETH_QBITTORRENT_ADDRESS "$desktop_qbittorrent_address"
@@ -310,7 +311,7 @@ desktop_stage_target_assets() {
       etc/qbittorrent/qBittorrent.conf.d/10-security.conf.tmpl \
       /etc/qbittorrent/qBittorrent.conf.d/20-managed-privacy.conf 0644 \
       QBITTORRENT_SAVE_ROOT /home/user/Downloads \
-      LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}" \
+      LABWC_QBITTORRENT_ETHERNET_PORT "$desktop_qbittorrent_ethernet_port" \
       PROXY3_PORT_LISTEN_QBITTORRENT "${PROXY3_PORT_LISTEN_QBITTORRENT:-3128}" \
       APP_VETH_NAMESPACE_INTERFACE "$APP_VETH_NAMESPACE_INTERFACE" \
       APP_VETH_QBITTORRENT_ADDRESS ""

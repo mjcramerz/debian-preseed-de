@@ -48,7 +48,7 @@ QBIT_CONFIG_TEMPLATE = TARGET / "etc/qbittorrent/qBittorrent.conf.d/10-security.
 
 def rendered_managed_config(port: str = "50309", username: str = "fixture") -> bytes:
     text = network_identity_text(QBIT_CONFIG_TEMPLATE.read_text(encoding="utf-8"))
-    return text.replace("__INSTALLER_LABWC_QBITTORRENT_PORT__", port).replace(
+    return text.replace("__INSTALLER_LABWC_QBITTORRENT_ETHERNET_PORT__", port).replace(
         "__INSTALLER_ACCOUNT_USERNAME__", username
     ).replace("__INSTALLER_QBITTORRENT_SAVE_ROOT__", f"/run/media/{username}/bittorrent").encode("utf-8")
 
@@ -112,7 +112,7 @@ class TorrentIntegrationTests(unittest.TestCase):
                     config.optionxform = str
                     config.read(paths['profile_home'] / '.config/qBittorrent/qBittorrent.conf', encoding='utf-8')
                     self.assertEqual(config['BitTorrent'][r'Session\Port'], str(expected_port))
-                    self.assertEqual(config['BitTorrent'][r'Session\AnnouncePort'], str(expected_port))
+                    self.assertEqual(config['BitTorrent'][r'Session\AnnouncePort'], '0')
                     self.assertEqual(config['BitTorrent'][r'Session\Interface'], 'eth0')
                     self.assertEqual(config['BitTorrent'][r'Session\InterfaceAddress'], '10.203.0.114')
                     return 0
@@ -166,6 +166,44 @@ class TorrentIntegrationTests(unittest.TestCase):
                         with self.assertRaises(SystemExit):
                             QBIT['run_new_instance'](account, root, paths, 'launch', [], 50309)
                         self.assertFalse((paths['profile_home'] / '.config/qBittorrent/qBittorrent.conf').exists())
+
+    def test_profile_pair_reaches_the_inherited_controller_without_runtime_config_rendering(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = QBIT['prepare_storage'](root)
+            account = pwd.struct_passwd(('fixture', 'x', os.getuid(), os.getgid(), '', str(root), '/bin/sh'))
+            policy = {'network': True, 'peer_port': {'ethernet': 50309, 'wifi': 50409}}
+            def launch(command, payload, temporary, descriptors, **options):
+                self.assertEqual(len(descriptors), 1)
+                self.assertIn(f'--peer-port-fd={descriptors[0]}', payload)
+                with socket.socket(fileno=os.dup(descriptors[0])) as receiver:
+                    receiver.settimeout(1)
+                    lease = types.SimpleNamespace(peer_port=50309)
+                    options['on_network_ready'](lease)
+                    self.assertEqual(receiver.recv(16), b'50309')
+                    lease.peer_port = 50409
+                    options['on_network_change'](lease)
+                    self.assertEqual(receiver.recv(16), b'50409')
+                    options['on_network_change'](lease)
+                    receiver.setblocking(False)
+                    with self.assertRaises(BlockingIOError):
+                        receiver.recv(16)
+                config = paths['profile_home'] / '.config/qBittorrent/qBittorrent.conf'
+                self.assertEqual(config.read_bytes(), rendered_managed_config())
+                return 0
+            runtime = types.SimpleNamespace(run_veth_sandbox=launch, veth_resolv_conf=lambda: 'nameserver 10.0.2.3\n')
+            temporary_directory = tempfile.TemporaryDirectory
+            globals_ = QBIT['run_new_instance'].__globals__
+            with mock.patch.object(network_client, 'configured_network_policy', return_value=policy), \
+                    mock.patch.dict(globals_, network_runtime=lambda: runtime,
+                                    build_command=lambda *args: ['bwrap', '/usr/bin/qbittorrent'],
+                                    copy_managed_config=copy_profile_home), \
+                    mock.patch.object(globals_['signal'], 'signal'), \
+                    mock.patch.object(tempfile, 'TemporaryDirectory',
+                                      side_effect=lambda **options: temporary_directory(dir=directory)):
+                self.assertEqual(QBIT['run_new_instance'](account, root, paths, 'launch', [], (50309, 50409)), 0)
+                with self.assertRaises(SystemExit):
+                    QBIT['run_new_instance'](account, root, paths, 'launch', [], (50309, 50410))
 
     def test_copy_replaces_previous_profile_configuration_with_install_policy(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -299,7 +337,7 @@ class TorrentIntegrationTests(unittest.TestCase):
             self.assertEqual(parser['BitTorrent'][r'Session\InterfaceAddress'], '10.203.0.114')
             for key in (r'Session\AnnounceToAllTiers', r'Session\AnnounceToAllTrackers'):
                 self.assertEqual(parser['BitTorrent'][key], 'false')
-            self.assertEqual(parser['BitTorrent'][r'Session\AnnouncePort'], '50309')
+            self.assertEqual(parser['BitTorrent'][r'Session\AnnouncePort'], '0')
             self.assertEqual(parser['BitTorrent'][r'Session\BlockPeersOnPrivilegedPorts'], 'true')
             self.assertEqual(parser['Application'][r'FileLogger\Path'],
                              '/home/user/.local/share/qBittorrent/logs')
@@ -626,15 +664,34 @@ ACCOUNT_USERNAME=fixture
                      TARGET / 'etc/apparmor.d/abstractions/qbittorrent-runtime'):
             self.assertFalse('@{HOME}/bittorrent/' in path.read_text(encoding='utf-8'), str(path))
 
-    def test_firewall_peer_port_has_no_packet_cap(self):
+    def test_qbittorrent_overlay_declares_no_host_input_service(self):
+        import yaml
         overlay = (TARGET / "etc/nftables/services/qbittorrent.yml.tmpl").read_text()
-        self.assertIn("- tcp", overlay)
-        self.assertIn("- udp", overlay)
-        self.assertIn("- __INSTALLER_LABWC_QBITTORRENT_PORT__", overlay)
-        self.assertNotIn("rate_limit:", overlay)
-        self.assertIn("qbittorrent)", (FORKY / "scripts/late/security.sh").read_text())
+        self.assertEqual(yaml.safe_load(overlay)['services'], {})
+        self.assertNotIn('__INSTALLER_', overlay)
+        self.assertNotIn('direction:', overlay)
 
-    def test_install_profile_peer_port_is_rendered_into_both_application_keys(self):
+    def test_software_does_not_automatically_select_a_qbittorrent_host_overlay(self):
+        code = '''set -eu
+. "$1/scripts/late/security.sh"
+installer_fatal() { printf '%s\\n' "$*" >&2; exit 91; }
+installer_info() { :; }
+installer_selected_class_reference_is_selected() { [ "$1" = addon/software ]; }
+NFT_SERVICES=$2
+INSTALLER_HOST_VARIANT=desktop
+SSH_SERVER_ENABLED=false
+NFS_SERVER_ENABLE=false
+NFS_CLIENT_ENABLE=false
+late_command_nftables_effective_services
+'''
+        for selected in ('none', 'lan-share', 'qbittorrent'):
+            result = subprocess.run(['/bin/sh', '-c', code, 'qbit-selection-fixture', str(FORKY), selected],
+                env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'}, capture_output=True, text=True, timeout=5)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.split().count('qbittorrent'), int(selected == 'qbittorrent'))
+            self.assertEqual(result.stdout.split().count('dns-client'), 1)
+
+    def test_install_profile_peer_port_is_rendered_and_announcements_follow_the_listener(self):
         for value in ('1024', '50308', '50309', '65535'):
             port = QBIT['configured_peer_port']({'LABWC_QBITTORRENT_PORT': value})
             with tempfile.TemporaryDirectory() as directory:
@@ -643,16 +700,22 @@ ACCOUNT_USERNAME=fixture
                 parser = configparser.ConfigParser(interpolation=None)
                 parser.optionxform = str; parser.read(config, encoding='utf-8')
                 self.assertEqual(parser['BitTorrent'][r'Session\Port'], value)
-                self.assertEqual(parser['BitTorrent'][r'Session\AnnouncePort'], value)
-        for value in ('', '22', '1023', '65536', '-50309', '050309', '50309;id', '9' * 1024):
+                self.assertEqual(parser['BitTorrent'][r'Session\AnnouncePort'], '0')
+        for value in ('50308,50408', '50309,50409', '50309,50410'):
+            self.assertEqual(QBIT['configured_peer_ports']({'LABWC_QBITTORRENT_PORT': value}),
+                             tuple(map(int, value.split(','))))
+        for value in ('', '22', '1023', '65536', '-50309', '050309', '50309;id', '9' * 1024,
+                      '50309,50309', '50309, 50409', '50309,50409,50410', ',50409', '50309,'):
             with self.subTest(invalid_port=value[:20]), self.assertRaises(SystemExit):
                 QBIT['configured_peer_port']({'LABWC_QBITTORRENT_PORT': value})
 
-    def test_profile_peer_port_reaches_the_actual_firewall_publisher_in_dash_and_ash(self):
+    def test_explicit_qbittorrent_overlay_publisher_and_generator_never_open_host_ports(self):
+        import yaml
         code = '''set -eu
 QBIT_SEED=$1
 installer_fatal() { printf '%s\\n' "$*" >&2; exit 91; }
 . "$QBIT_SEED/scripts/common/modules/files-logging.sh"
+. "$QBIT_SEED/scripts/common/modules/app-veth-identity.sh"
 . "$QBIT_SEED/scripts/common/target.sh"
 . "$QBIT_SEED/scripts/late/target-assets.sh"
 . "$QBIT_SEED/scripts/late/security.sh"
@@ -660,16 +723,15 @@ installer_repo_join_var() { printf '%s/hooks/target/%s\\n' "$QBIT_SEED" "$2"; }
 fetch_hook() { cp "$1.tmpl" "$2"; }
 stage_target_nftables_service_assets qbittorrent
 '''
-        ports = {QBIT['configured_peer_port']({'LABWC_QBITTORRENT_PORT':
-                    next(line.split('=', 1)[1].strip('"') for line in profile.read_text(encoding='utf-8').splitlines()
-                         if line.startswith('LABWC_QBITTORRENT_PORT='))})
+        ports = {next(line.split('=', 1)[1].strip('"') for line in profile.read_text(encoding='utf-8').splitlines()
+                      if line.startswith('LABWC_QBITTORRENT_PORT='))
                  for profile in (FORKY/'hosts/profiles').glob('*.env')}
         self.assertTrue(ports)
         shells = [['/bin/dash']]
         if shutil.which('busybox'):
             shells.append([shutil.which('busybox'), 'sh'])
         for shell in shells:
-            for port in (*sorted(ports), 1024, 65535, 22, 65536, '050309', '50309;id'):
+            for port in sorted(ports):
                 with tempfile.TemporaryDirectory() as directory:
                     environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C',
                                    'INSTALLER_TARGET_DIR': directory, 'TMP_ENV_DIR': directory,
@@ -678,16 +740,25 @@ stage_target_nftables_service_assets qbittorrent
                         env=environment, capture_output=True, text=True, encoding='utf-8', timeout=10)
                     published = Path(directory)/'etc/nftables/services/qbittorrent.yml'
                     with self.subTest(shell=shell, port=port):
-                        if type(port) is int and 1024 <= port <= 65535:
-                            self.assertEqual(result.returncode, 0, result.stderr)
-                            text = published.read_text(encoding='utf-8')
-                            self.assertIn('    - ' + str(port) + '\n', text)
-                            self.assertIn('- tcp', text); self.assertIn('- udp', text)
-                            self.assertNotIn('__INSTALLER_', text)
-                            self.assertEqual(published.stat().st_mode & 0o777, 0o644)
-                        else:
-                            self.assertNotEqual(result.returncode, 0)
-                            self.assertFalse(published.exists())
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        text = published.read_text(encoding='utf-8')
+                        self.assertEqual(yaml.safe_load(text)['services'], {})
+                        self.assertNotIn('__INSTALLER_', text)
+                        self.assertEqual(published.stat().st_mode & 0o777, 0o644)
+                        profile = Path(directory) / 'desktop.yml'
+                        profile.write_text(network_identity_text(
+                            (TARGET / 'etc/nftables/profiles/desktop.yml.tmpl').read_text()).replace(
+                            '__INSTALLER_MANAGED_NETWORK_ETHERNET_IFACE__', 'enp1s0').replace(
+                            '__INSTALLER_MANAGED_NETWORK_WIFI_IFACE__', 'wlan0'), encoding='utf-8')
+                        generated = subprocess.run([sys.executable, '-I', '-B',
+                            str(TARGET / 'usr/local/sbin/nft-policy-generate.py'), '--profile', str(profile),
+                            '--overlay', str(published), '--print'], env={
+                                'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'HOME': directory},
+                            capture_output=True, text=True, timeout=10)
+                        self.assertEqual(generated.returncode, 0, generated.stderr)
+                        self.assertNotIn('service qbittorrent', generated.stdout)
+                        for candidate in port.split(','):
+                            self.assertNotIn('dport ' + candidate, generated.stdout)
 
     def test_repeated_launch_sends_qt_ipc_without_starting_another_network_helper(self):
         with tempfile.TemporaryDirectory() as directory:

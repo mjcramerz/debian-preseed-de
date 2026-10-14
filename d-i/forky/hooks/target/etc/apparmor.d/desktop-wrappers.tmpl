@@ -2283,6 +2283,12 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   /usr/bin/bwrap rCx -> app-bwrap,
   /usr/bin/aa-exec rix,
   change_profile -> labwc-app//code-bwrap,
+  change_profile -> labwc-app//tor-bwrap,
+  signal (send) set=(hup int term kill) peer=labwc-app//tor-bwrap,
+  ptrace (read) peer=labwc-app//tor-bwrap,
+  /usr/local/libexec/tor-browser-run r,
+  /opt/tor-browser/{,**} r,
+  /sys/fs/cgroup/**/memory.swap.max r,
   signal (send) set=(kill term) peer=labwc-app//code-bwrap,
   ptrace (read) peer=labwc-app//code-bwrap,
   # Device metadata used to retain only the explicitly configured native
@@ -2650,6 +2656,78 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     deny /tmp/.X11-unix/{,**} rw,
   }
 
+  # Bundled Tor uses the dedicated veth; Tor Browser's UI/content processes
+  # execute in a second namespace with no IP connectivity. No host DNS/proxy.
+  profile tor-bwrap flags=(attach_disconnected, mediate_deleted) {
+    #include <abstractions/bwrap-common>
+    #include <abstractions/wrapper-python>
+    #include <abstractions/tor-browser-runtime>
+    /usr/bin/bwrap rix,
+    /usr/local/libexec/tor-browser-run rix,
+    /{bin,lib,lib32,lib64,opt,sbin,usr}/ r,
+    /usr/{lib32,lib64,sbin}/ r,
+    # Preserve only the trusted runtime's fixed bundled-library environment.
+    /opt/tor-browser/Browser/TorBrowser/Tor/tor rcx -> transport,
+    network inet stream,
+    network inet6 stream,
+    # Bubblewrap uses a datagram socket for private loopback setup. The Tor
+    # transport child denies datagrams; the veth guard blocks all DNS/UDP.
+    network inet dgram,
+    network inet6 dgram,
+    /sys/{,**} r,
+    /etc/{alternatives,ca-certificates,chromium,chromium.d,fonts,ld.so.conf.d,pki,ssl,xdg}/{,**} r,
+    /etc/{group,hostname,hosts,localtime,machine-id,nsswitch.conf,passwd,resolv.conf} r,
+    /var/lib/dbus/{,machine-id} r,
+    owner /run/user/[0-9]*/labwc-tor-browser-{sandbox,privacy}-*/{,**} rwkl,
+    owner /run/user/[0-9]*/labwc-tor-browser-tmp/{,**} rwkl,
+    owner /tmp/labwc-tor-browser-{sandbox,privacy}-*/{,**} rwkl,
+    signal (receive) set=(hup int term kill) peer=labwc-app,
+    ptrace (readby) peer=labwc-app,
+    signal (send, receive) peer=labwc-app//tor-bwrap//browser,
+    ptrace (read) peer=labwc-app//tor-bwrap//browser,
+    signal (send, receive) peer=labwc-app//tor-bwrap//transport,
+    ptrace (read) peer=labwc-app//tor-bwrap//transport,
+    /opt/tor-browser/Browser/firefox rCx -> browser,
+    profile transport flags=(attach_disconnected, mediate_deleted) {
+      #include <abstractions/base>
+      #include <abstractions/nameservice-strict>
+      include if exists <abstractions/openssl>
+      /opt/tor-browser/{,**} mr,
+      /opt/tor-browser/Browser/TorBrowser/Tor/tor rix,
+      # Pluggable transports can perform external bootstrap/DNS exchanges.
+      # This runtime accepts native Tor/IP bridges only, including in complain.
+      deny /opt/tor-browser/Browser/TorBrowser/Tor/PluggableTransports/** x,
+      network inet stream,
+      network inet6 stream,
+      deny network inet dgram,
+      deny network inet6 dgram,
+      unix,
+      /etc/{hosts,nsswitch.conf,resolv.conf} r,
+      owner @{HOME}/.local/share/tor-browser/tor/{,**} rwkl,
+      owner /run/user/[0-9]*/tor-*/transport/{,**} rwkl,
+      @{PROC}/[0-9]*/{stat,status} r,
+      signal (send, receive) peer=@{profile_name},
+      signal (send, receive) peer=labwc-app//tor-bwrap,
+      ptrace (readby) peer=labwc-app//tor-bwrap,
+      deny /dev/dri/{,**} rw,
+      deny /dev/nvidia* rw,
+      deny /dev/snd/{,**} rw,
+    }
+    # Cookie/SOCKS IPC remains usable; even a proxy preference override cannot
+    # give this child IPv4/IPv6 socket access or invoke the transport executable.
+    profile browser flags=(attach_disconnected, mediate_deleted) {
+      #include <abstractions/tor-browser-runtime>
+      #include <abstractions/wrapper-base>
+      #include <abstractions/bwrap-common>
+      /opt/tor-browser/Browser/{firefox,firefox.real,abicheck,glxtest,vaapitest} rix,
+      /usr/bin/dirname rix,
+      deny network inet,
+      deny network inet6,
+      signal (send, receive) peer=labwc-app//tor-bwrap,
+      ptrace (readby) peer=labwc-app//tor-bwrap,
+    }
+  }
+
   include if exists <local/usr.local.bin.labwc-app>
 }
 
@@ -2931,6 +3009,8 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
   # direct qBittorrent launch therefore enters the qbittorrent attachment
   # without namespace-construction permissions.
   profile qbittorrent-bwrap flags=(attach_disconnected, mediate_deleted) {
+    # Inherited endpoint used only for the unprivileged peer-port controller.
+    network unix seqpacket,
     ptrace (readby) peer=labwc-qbittorrent,
     #include <abstractions/bwrap-common>
     #include <abstractions/qbittorrent-runtime>
@@ -2942,6 +3022,7 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
 
     signal (receive) set=(exists kill term) peer=labwc-qbittorrent,
     /etc/labwc/desktop.conf r,
+    /etc/app-veth.json r,
     owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/resolv.conf r,
     /run/media/ r,
     /run/media/*/ r,

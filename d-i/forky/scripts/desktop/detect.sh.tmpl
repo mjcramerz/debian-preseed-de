@@ -587,10 +587,7 @@ desktop_validate_policy_env() {
     all|focused|cursor) ;;
     *) desktop_fatal "invalid LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT" ;;
   esac
-  desktop_validate_uint_range LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}" 1024 65535
-  case "${LABWC_QBITTORRENT_PORT:-50309}" in
-    0*) desktop_fatal "LABWC_QBITTORRENT_PORT must not have leading zeroes" ;;
-  esac
+  qbittorrent_peer_port_placeholder_map >/dev/null || desktop_fatal "invalid qBittorrent Ethernet/Wi-Fi peer ports"
   idle_lock_seconds=${LABWC_IDLE_LOCK_SECONDS:-1844}
   idle_dpms_seconds=${LABWC_IDLE_DPMS_SECONDS:-3800}
   idle_suspend_seconds=${LABWC_IDLE_SUSPEND_SECONDS:-0}
@@ -621,6 +618,10 @@ desktop_validate_policy_env() {
   desktop_validate_identifier_list LABWC_GDK_DISABLE "${LABWC_GDK_DISABLE-vulkan}"
   desktop_validate_identifier_list LABWC_WLR_NO_HARDWARE_CURSORS "${LABWC_WLR_NO_HARDWARE_CURSORS-1}"
   desktop_validate_identifier_list LABWC_WLR_SCENE_DISABLE_DIRECT_SCANOUT "${LABWC_WLR_SCENE_DISABLE_DIRECT_SCANOUT-1}"
+  case "${LABWC_WLR_DRM_NO_ATOMIC:-0}" in
+    0|1) ;;
+    *) desktop_fatal "LABWC_WLR_DRM_NO_ATOMIC must be 0 or 1" ;;
+  esac
   desktop_validate_identifier_list LABWC_GREETER_WLR_RENDERER "${LABWC_GREETER_WLR_RENDERER-gles2}"
   desktop_validate_identifier_list LABWC_GREETER_GSK_RENDERER "${LABWC_GREETER_GSK_RENDERER-opengl}"
   desktop_validate_identifier_list LABWC_GREETER_GDK_DISABLE "${LABWC_GREETER_GDK_DISABLE-vulkan}"

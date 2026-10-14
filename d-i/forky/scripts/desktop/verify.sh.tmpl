@@ -302,6 +302,13 @@ for proxy3_asset in session.json chromium.conf microsoft-edge.conf vivaldi.conf 
     fatal "managed proxy file must be root:root mode 0644 with one link: $path"
 done
 require_executable /usr/bin/3proxy
+if [ -e /opt/tor-browser/Browser/firefox.real ]; then
+  require_executable /usr/local/libexec/tor-browser-run
+  require_executable /opt/tor-browser/Browser/firefox.real
+  require_executable /opt/tor-browser/Browser/TorBrowser/Tor/tor
+  require_readable /usr/local/share/applications/tor-browser.desktop
+  require_readable /opt/tor-browser/Browser/distribution/policies.json
+fi
 
 # No benchmarks during validation; the installer already performed --version
 # with dropped privileges after validating both archive and member checksums.

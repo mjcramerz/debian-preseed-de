@@ -45,7 +45,6 @@ The generator is still backward-compatible with the old group keys, but this bun
   --overlay /etc/nftables/services/ssh-client.yml \
   --overlay /etc/nftables/services/kdeconnect.yml \
   --overlay /etc/nftables/services/syncthing.yml \
-  --overlay /etc/nftables/services/qbittorrent.yml \
   --write \
   --check
 ```
@@ -60,12 +59,18 @@ Concrete `hosts/profiles/<family>/<role>.env` files control installer staging:
   `profiles/desktop.yml`.
 - `NFT_PROFILE=baseline|desktop|server` applies that explicit profile.
 - `NFT_SERVICES=none` applies only the selected profile.
-- `NFT_SERVICES=ssh-server,qbittorrent` applies those service overlays, but only when `NFT_PROFILE` is not `none`.
-- Selecting `addon/software` on a desktop automatically adds the qBittorrent
-  overlay and opens the stable TCP/UDP peer port selected by
-  `LABWC_QBITTORRENT_PORT` (default `50309`). Match both router forwards to this
-  host-specific port; the launcher forwards both transports into its private
-  kernel veth namespace before starting qBittorrent.
+- `NFT_SERVICES=ssh-server,syncthing` applies those service overlays, but only when `NFT_PROFILE` is not `none`.
+- qBittorrent peer ingress belongs exclusively to `app-veth`. Software selection
+  does not add a host INPUT service. The supported `qbittorrent` overlay name
+  contains `services: {}`, so explicitly selecting it also opens no host ports.
+  `LABWC_QBITTORRENT_PORT="Ethernet,Wi-Fi"` selects one TCP/UDP peer port for
+  each uplink; a legacy scalar (default `50309`) uses the same port for both.
+  Match router TCP and UDP forwards to each interface's assigned port and host
+  address. With the veth DOWN, the broker atomically replaces the active peer
+  ingress entries and DNAT/SNAT maps. It then clears the guest's stale conntrack
+  entries before enabling the link. An offline route or closed lease removes
+  its peer ingress entries. A changed port asks qBittorrent to save and exit,
+  then restarts it with the new listener; the WebUI remains disabled.
 - Selecting the installer addon class `ssh` automatically merges the
   `ssh-server` service overlay into the effective staged firewall policy.
 - `NFTABLES_LOG_LEVEL=none|error|warning|info|debug` controls only

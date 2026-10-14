@@ -271,22 +271,28 @@ os.write(1,b'closed; stdout retained')
 
 
 class AtomicKMS(unittest.TestCase):
-    def test_no_legacy_backend_policy_or_host_allowlist_remains(self):
+    def test_legacy_kms_is_selected_by_profile_without_hostname_allowlist(self):
         paths = (TARGET/'etc/labwc/desktop.conf.tmpl',
                  TARGET/'usr/local/bin/labwc-session.tmpl',
                  TARGET.parents[1]/'scripts/desktop/components.sh', TARGET.parents[1]/'scripts/desktop/detect.sh')
         for path in paths:
             text = render_theme_defaults(payload_read_text(path))
-            self.assertNotIn('LABWC_WLR_DRM_', text, str(path))
             self.assertNotIn('select_drm_no_atomic', text, str(path))
+        profiles = TARGET.parents[1]/'hosts/profiles'
+        selected = [p.name for p in profiles.glob('*.env')
+                    if 'LABWC_WLR_DRM_NO_ATOMIC="1"' in p.read_text()]
+        self.assertEqual(sorted(selected), ['btrfs-de-flex-duo.env', 'btrfs-de-flex.env'])
+        session = payload_read_text(TARGET/'usr/local/bin/labwc-session.tmpl')
+        self.assertIn('0) ;;', session)
+        self.assertIn('1) export WLR_DRM_NO_ATOMIC=1 ;;', session)
         self.assertNotIn('LPL-264', render_theme_defaults(payload_read_text(TARGET/'usr/local/bin/labwc-session.tmpl')))
 
-    def test_old_override_is_unset_and_never_imported(self):
+    def test_inherited_override_is_cleared_before_profile_value_is_imported(self):
         text = render_theme_defaults(payload_read_text(TARGET/'usr/local/bin/labwc-session.tmpl'))
         cleanup = re.search(r'cleanup_environment_names="([^"]*)"', text).group(1).split()
         imported = re.search(r"compositor_environment_names='([^']*)'", text).group(1).split()
         self.assertIn('WLR_DRM_NO_ATOMIC', cleanup)
-        self.assertNotIn('WLR_DRM_NO_ATOMIC', imported)
+        self.assertIn('WLR_DRM_NO_ATOMIC', imported)
         self.assertIn('unset WLR_DRM_NO_ATOMIC', text)
         self.assertNotRegex(text, r'(?m)^\s*(?:export )?WLR_DRM_NO_ATOMIC=')
         start = text.index('--user --wait start labwc-compositor.service')

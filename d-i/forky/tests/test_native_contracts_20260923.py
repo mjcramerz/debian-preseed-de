@@ -72,6 +72,15 @@ class NativeContractTests(unittest.TestCase):
         self.assertIn('exit 75', pending)
         self.assertNotIn('touch ', pending)
 
+    def test_tailscale_self_updates_are_disabled_without_package_manager_grants(self):
+        source = (SEED / 'scripts/firstboot/assets/var/lib/firstboot/bin/tailscale-up').read_text()
+        self.assertLess(source.index('/usr/bin/tailscale set --auto-update=false'),
+                        source.index('if tailscale_is_joined &&'))
+        unit = read_text(TARGET / 'etc/systemd/system/tailscaled.service.d/override.conf.tmpl')
+        self.assertIn('Environment=TS_ALLOW_ADMIN_CONSOLE_REMOTE_UPDATE=false', unit)
+        profile = (TARGET / 'etc/apparmor.d/usr.sbin.tailscaled').read_text()
+        self.assertNotRegex(profile, r'(?m)^\s*/usr/bin/(?:systemd-run|dpkg|apt-get)\s+[^#\n]*x')
+
     def test_authoritative_audit_and_requested_categories(self):
         env = read_text(SEED / 'hosts/logging/observability.env')
         self.assertIn('LOG_AUDIT_FILE="${LOG_AUDIT_DIR}/auditd.log"', env)

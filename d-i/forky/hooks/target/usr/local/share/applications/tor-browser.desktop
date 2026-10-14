@@ -1,0 +1,25 @@
+[Desktop Entry]
+Type=Application
+Name=Tor Browser
+Comment=Browse websites and onion services through Tor
+Exec=/usr/local/bin/labwc-app launch tor-browser %u
+TryExec=/usr/local/libexec/tor-browser-run
+Icon=/opt/tor-browser/Browser/browser/chrome/icons/default/default128.png
+Terminal=false
+Categories=Network;WebBrowser;
+MimeType=x-scheme-handler/http;x-scheme-handler/https;
+StartupNotify=true
+StartupWMClass=Tor Browser
+Actions=Intel;Nvidia;ANOM;
+
+[Desktop Action Intel]
+Name=Tor Browser — Intel OpenGL
+Exec=/usr/local/bin/labwc-app intel tor-browser
+
+[Desktop Action Nvidia]
+Name=Tor Browser — NVIDIA OpenGL
+Exec=/usr/local/bin/labwc-app nvidia tor-browser
+
+[Desktop Action ANOM]
+Name=Tor Browser — ANOM (temporary state, Safest security)
+Exec=/usr/local/bin/labwc-app pure-privacy tor-browser

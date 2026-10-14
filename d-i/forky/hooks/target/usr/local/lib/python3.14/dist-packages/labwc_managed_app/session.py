@@ -357,6 +357,26 @@ def redirect_wayland_compat_to_session_unit(
         fail("manager launch acknowledgement timed out")
 
 
+def require_tor_ram_swap_policy() -> None:
+    """Verify our manager-owned cgroup before creating any RAM state."""
+    try:
+        with Path("/proc/self/cgroup").open(encoding="ascii") as handle:
+            membership = handle.read(65537)
+    except (OSError, UnicodeError) as exc:
+        fail(f"cannot inspect Tor Browser's service cgroup: {exc}")
+    rows = [line[3:] for line in membership.splitlines() if line.startswith("0::")]
+    if (len(membership) > 65536 or len(rows) != 1 or not rows[0].startswith("/")
+            or ".." in Path(rows[0]).parts or "\0" in rows[0]):
+        fail("Tor Browser requires a valid unified service cgroup")
+    try:
+        with (Path("/sys/fs/cgroup") / rows[0].lstrip("/") / "memory.swap.max").open(encoding="ascii") as handle:
+            swap_max = handle.read(33)
+    except OSError as exc:
+        fail(f"cannot verify Tor Browser's no-swap RAM policy: {exc}")
+    if swap_max != "0\n":
+        fail("Tor Browser RAM runtime requires MemorySwapMax=0")
+
+
 def redirect_native_from_private_users(
     app_name: str, mode: str, extra_args: list[str],
 ) -> None:
@@ -374,6 +394,8 @@ def redirect_native_from_private_users(
     if marker:
         if private_users:
             fail("managed application user manager still hides host ownership")
+        if app_name == "tor-browser":
+            require_tor_ram_swap_policy()
         return
     assert_launch_allowed()
     # Every native launch gets its own service, including terminal launches.
@@ -444,6 +466,9 @@ def redirect_native_from_private_users(
         "--property=UnsetEnvironment=LABWC_MENU_ACTION_WAIT",
         "--property=KillMode=control-group", "--property=TimeoutStopSec=20s",
         "--property=SendSIGKILL=yes", "--property=Restart=no", "--property=UMask=0077",
+        *(["--property=MemorySwapMax=0", "--property=MemoryZSwapMax=0",
+           "--property=LimitCORE=0", "--property=CoredumpFilter=0x0"]
+          if app_name == "tor-browser" else []),
         f"--working-directory={os.getcwd()}",
         f"--setenv={NATIVE_SESSION_UNIT_MARKER}=1",
         # Values, including optional credentials, are not exposed in argv.

@@ -31,6 +31,8 @@ profile usr.sbin.tailscaled /usr/sbin/tailscaled flags=(attach_disconnected, med
   # Daemon-spawned CLI calls retain this confinement under NoNewPrivileges=true.
   # Direct CLI invocations continue to attach to usr.bin.tailscale below.
   /usr/bin/tailscale rix,
+  # The managed service and bootstrap disable self-updates. Do not give the
+  # network daemon systemd-run, dpkg, or apt execution rights for that feature.
   /usr/sbin/{ip6tables,ip6tables-restore,ip6tables-save,iptables,iptables-restore,iptables-save,xtables-nft-multi} rix,
   /usr/sbin/resolvconf rix,
   /{,usr/}bin/{flock,sed} rix,

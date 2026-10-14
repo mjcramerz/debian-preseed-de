@@ -27,7 +27,7 @@ from .profiles import APPS, WAYLAND_COMPAT_APPS
 from .compat_protocol import (Outcome, ProtocolError, RequiredComponentError, activation_arguments,
                               INFRASTRUCTURE_RESULT, STARTUP_RESULT)
 from .runtime import MANAGED_DEFAULTS_PATH, current_user_home, current_user_runtime_dir, fail
-from .sandbox import run_persistent_sandbox, run_pure_privacy
+from .sandbox import run_persistent_sandbox, run_pure_privacy, run_tor_ram
 from .session import (
     redirect_bitwarden_to_session_unit,
     redirect_native_from_private_users,
@@ -268,6 +268,12 @@ def main(
             if mode == "pure-privacy":
                 emit("sandbox-starting", sandbox="ephemeral")
                 result = run_pure_privacy(options.application, options.args)
+                emit("completed", status=result)
+                return result
+
+            if app.get("ram_sandbox", False):
+                emit("sandbox-starting", sandbox="ram")
+                result = run_tor_ram(mode, options.args)
                 emit("completed", status=result)
                 return result
 

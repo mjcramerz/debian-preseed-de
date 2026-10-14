@@ -70,6 +70,11 @@ MANAGED_EXECUTABLE_ALIASES = {
     "vivaldi": ("/opt/vivaldi/vivaldi", "/opt/vivaldi/vivaldi-bin"),
     "code": ("/usr/share/code/code", "/usr/share/code/bin/code"),
     "mullvad-browser": ("/usr/lib/mullvad-browser/start-mullvad-browser",),
+    "tor-browser": (
+        "/opt/tor-browser/Browser/start-tor-browser",
+        "/opt/tor-browser/Browser/firefox",
+        "/opt/tor-browser/Browser/firefox.real",
+    ),
     "spotify": ("/usr/share/spotify/spotify",),
 }
 

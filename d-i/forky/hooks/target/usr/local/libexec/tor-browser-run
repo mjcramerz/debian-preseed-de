@@ -1,0 +1,325 @@
+#!/usr/bin/python3 -IB
+"""Supervise bundled Tor and a browser with no IP network access.
+
+Runs inside the managed outer Bubblewrap sandbox with its dedicated veth pair.
+The inner Bubblewrap binds that synthetic root, never the real host root.
+"""
+
+from contextlib import ExitStack
+import fcntl
+import json
+import os
+from pathlib import Path
+import re
+import select
+import shutil
+import signal
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+import uuid
+from urllib.parse import urlsplit
+
+BROWSER = Path("/opt/tor-browser/Browser")
+STOP_SIGNALS = (signal.SIGHUP, signal.SIGINT, signal.SIGTERM)
+
+
+def immutable_file(path, maximum=65536):
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(descriptor, "rb") as handle:
+        info = os.fstat(handle.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                or info.st_mode & 0o022 or not os.fstatvfs(handle.fileno()).f_flag & os.ST_RDONLY):
+            raise ValueError("Tor Browser policy must be an immutable regular file")
+        data = handle.read(maximum + 1)
+    if not data or len(data) > maximum or b"__INSTALLER_" in data:
+        raise ValueError("invalid Tor Browser policy")
+    return data
+
+
+def private_directory(path):
+    if not path.is_absolute() or path.resolve() != path:
+        raise ValueError("Tor Browser state path must have no symlink parents")
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    info = path.lstat()
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid()
+            or stat.S_IMODE(info.st_mode) != 0o700):
+        raise ValueError("Tor Browser state directory must be private and user-owned")
+    return path
+
+
+def require_tmpfs(path):
+    """RAM state must be on sandbox tmpfs, never a disk fallback."""
+    with open("/proc/self/mountinfo", encoding="ascii") as handle:
+        data = handle.read(262145)
+    if len(data) > 262144:
+        raise ValueError("mount inventory exceeds its budget")
+    matches = []
+    for line in data.splitlines():
+        fields, separator, tail = line.partition(" - ")
+        words = fields.split()
+        if not separator or len(words) < 6 or not tail.split():
+            raise ValueError("invalid private mount inventory")
+        mountpoint = re.sub(r"\\([0-7]{3})", lambda m: chr(int(m[1], 8)), words[4])
+        if str(path) == mountpoint or str(path).startswith(mountpoint.rstrip("/") + "/"):
+            matches.append((len(mountpoint), tail.split()[0]))
+    if not matches or max(matches)[1] != "tmpfs":
+        raise ValueError("Tor Browser requires tmpfs for its RAM working state")
+
+
+def copy_ram_bundle(destination):
+    """Copy only the authenticated immutable bundle, with bounded RAM use."""
+    count = total = 0
+    for source in BROWSER.parent.rglob("*"):
+        info = source.lstat()
+        count += 1
+        if (count > 2048 or info.st_mode & 0o022
+                or not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode))):
+            raise ValueError("unsafe immutable Tor Browser bundle")
+        if stat.S_ISREG(info.st_mode):
+            total += info.st_size
+        if total > 536870912:
+            raise ValueError("Tor Browser RAM copy exceeds its budget")
+    shutil.copytree(BROWSER.parent, destination, symlinks=False)
+
+
+def stop(process, signum=signal.SIGINT):
+    if process is None or process.poll() is not None:
+        return
+    try:
+        process.send_signal(signum)
+    except ProcessLookupError:
+        return
+    try:
+        process.wait(timeout=3)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=1)
+
+
+def main():
+    arguments = sys.argv[1:]
+    anonymous = arguments[:1] == ["--anon"]
+    if anonymous:
+        arguments = arguments[1:]
+    if os.geteuid() == 0 or len(arguments) > 1:
+        raise ValueError("requires an unprivileged sandbox and at most one web URI")
+    for argument in arguments:
+        uri = urlsplit(argument)
+        if (len(argument) > 8192 or any(ord(c) < 32 or ord(c) == 127 for c in argument)
+                or uri.scheme not in {"http", "https"} or not uri.hostname
+                or uri.username is not None or uri.password is not None):
+            raise ValueError("Tor Browser accepts only HTTP or HTTPS web/onion URIs")
+    policy = json.loads(immutable_file(BROWSER / "distribution/policies.json"))
+    if policy != {"policies": {"DisableAppUpdate": True}}:
+        raise ValueError("invalid immutable Tor Browser update policy")
+    home = Path(os.environ["HOME"])
+    require_tmpfs(home)
+    state = private_directory(home / ".local/share/tor-browser")
+    profile = state / "profile"
+    seed = BROWSER / "TorBrowser/Data/Browser/profile.default"
+    runtime = Path(os.environ["XDG_RUNTIME_DIR"])
+    if not runtime.is_absolute() or runtime.resolve() != runtime:
+        raise ValueError("runtime path must have no symlink parents")
+    require_tmpfs(runtime)
+    wayland = os.environ.get("WAYLAND_DISPLAY", "")
+    if not re.fullmatch(r"wayland-[A-Za-z0-9_.-]{1,96}", wayland):
+        raise ValueError("Tor Browser requires a private Wayland socket name")
+    wayland_socket = runtime / wayland
+    if not stat.S_ISSOCK(wayland_socket.lstat().st_mode):
+        raise ValueError("Tor Browser requires its private native Wayland socket")
+    with ExitStack() as resources:
+        lock = os.open(state / "session.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+        resources.callback(os.close, lock)
+        lock_info = os.fstat(lock)
+        if (not stat.S_ISREG(lock_info.st_mode) or lock_info.st_uid != os.getuid()
+                or lock_info.st_nlink != 1 or stat.S_IMODE(lock_info.st_mode) != 0o600):
+            raise ValueError("unsafe Tor Browser session lock")
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ValueError("Tor Browser is already running with this profile") from None
+        if not profile.exists():
+            staged_profile = Path(tempfile.mkdtemp(prefix=".profile-", dir=state))
+            try:
+                shutil.copytree(seed, staged_profile, symlinks=False, dirs_exist_ok=True)
+                staged_profile.chmod(0o700)
+                os.rename(staged_profile, profile)
+            finally:
+                if staged_profile.exists():
+                    shutil.rmtree(staged_profile)
+        private_directory(profile)
+        tor_data = private_directory(state / "tor")
+        onion_auth = private_directory(tor_data / "onion-auth")
+        ipc = Path(tempfile.mkdtemp(prefix="tor-", dir=runtime))
+        resources.callback(shutil.rmtree, ipc)
+        ram_directory = Path(tempfile.mkdtemp(prefix="tor-bundle-", dir=runtime))
+        resources.callback(shutil.rmtree, ram_directory)
+        ram_bundle = ram_directory / "tor-browser"
+        copy_ram_bundle(ram_bundle)
+        tor_ipc = private_directory(ipc / "transport")
+        socks, control, cookie = (tor_ipc / name for name in ("socks", "control", "cookie"))
+        if len(os.fsencode(control)) > 100:
+            raise ValueError("Tor IPC socket path exceeds its budget")
+        # Tor's own SOCKS authentication/circuit isolation and fingerprint
+        # defenses remain authoritative. The bundled Tor daemon connects
+        # directly to Tor relays through its dedicated veth, with no host DNS.
+        prefs = {
+            "torbrowser.settings.proxy.enabled": False,
+            "torbrowser.settings.firewall.enabled": False,
+            "extensions.torlauncher.torrc_path": str(tor_data / "torrc"),
+            "extensions.torlauncher.tordatadir_path": str(tor_data),
+            "extensions.torlauncher.toronionauthdir_path": str(onion_auth),
+            "extensions.torlauncher.torrc-defaults_path": str(BROWSER / "TorBrowser/Data/Tor/torrc-defaults"),
+            "browser.shell.checkDefaultBrowser": False,
+            "app.update.auto": False,
+            "app.update.enabled": False,
+        }
+        if anonymous:
+            prefs["browser.security_level.security_slider"] = 1
+        user_js = ipc / "user.js"
+        user_js.write_text("".join(f"user_pref({json.dumps(key)}, {json.dumps(value)});\n"
+                                   for key, value in prefs.items()), encoding="utf-8")
+        user_js.chmod(0o600)
+        target_prefs = profile / "user.js"
+        if target_prefs.is_symlink():
+            raise ValueError("profile user.js must not be a symlink")
+        descriptor = os.open(target_prefs, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, 0o600)
+        try:
+            info = os.fstat(descriptor)
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                    or info.st_nlink != 1 or info.st_mode & 0o077):
+                raise ValueError("profile user.js must be a private regular file")
+        finally:
+            os.close(descriptor)
+        tor_command = [
+            str(BROWSER / "TorBrowser/Tor/tor"),
+            "--defaults-torrc", str(BROWSER / "TorBrowser/Data/Tor/torrc-defaults"),
+            "-f", str(tor_data / "torrc"), "--ignore-missing-torrc",
+            "DataDirectory", str(tor_data), "ClientOnionAuthDir", str(onion_auth),
+            "GeoIPFile", str(BROWSER / "TorBrowser/Data/Tor/geoip"),
+            "GeoIPv6File", str(BROWSER / "TorBrowser/Data/Tor/geoip6"),
+            "SocksPort", f"unix:{socks} ExtendedErrors IPv6Traffic PreferIPv6 IsolateSOCKSAuth KeepAliveIsolateSOCKSAuth",
+            "ControlPort", f"unix:{control}", "CookieAuthentication", "1",
+            "CookieAuthFile", str(cookie), "ClientOnly", "1", "AvoidDiskWrites", "1",
+            "ReachableAddresses", "reject *:53,accept *:*",
+            "Log", "notice stdout",
+        ]
+        environment = dict(os.environ)
+        hardware_webrender = environment.get("MOZ_WEBRENDER") == "1"
+        for name in tuple(environment):
+            if name.startswith(("TOR_", "MOZ_", "LD_")) or name in {
+                    "DBUS_SESSION_BUS_ADDRESS", "DBUS_SYSTEM_BUS_ADDRESS", "DISPLAY", "XAUTHORITY",
+                    "SESSION_MANAGER", "BASH_ENV", "ENV"}:
+                environment.pop(name)
+        environment.update({"MOZ_ENABLE_WAYLAND": "1", "MOZ_CRASHREPORTER_DISABLE": "1",
+                            "MOZ_NO_REMOTE": "1", "GDK_BACKEND": "wayland", "GSETTINGS_BACKEND": "memory",
+                            "__GL_SHADER_DISK_CACHE": "0", "PATH": "/usr/bin:/bin"})
+        if anonymous:
+            environment.update({"MOZ_WEBRENDER": "1", "MOZ_WEBRENDER_SOFTWARE": "1"})
+        elif hardware_webrender:
+            environment["MOZ_WEBRENDER"] = "1"
+        tor_environment = dict(environment)
+        # Match the vendor TorProcess launcher: use the bundled Tor libraries.
+        tor_environment["LD_LIBRARY_PATH"] = str(BROWSER / "TorBrowser/Tor")
+        tor = browser = None
+
+        def interrupted(signum, _frame):
+            raise SystemExit(128 + signum)
+
+        for signum in STOP_SIGNALS:
+            signal.signal(signum, interrupted)
+        try:
+            # Transport has a separate PID/mount namespace. Its RAM bundle
+            # and alternate paths to those inodes are read-only; Tor data and
+            # IPC are writable. It cannot inspect the runtime supervisor.
+            tor_worker = [
+                "/usr/bin/bwrap", "--unshare-user", "--unshare-pid", "--unshare-ipc",
+                "--unshare-uts", "--new-session", "--die-with-parent", "--cap-drop", "ALL",
+                "--uid", str(os.getuid()), "--gid", str(os.getgid()),
+                "--ro-bind", "/", "/", "--ro-bind", str(ram_bundle), str(BROWSER.parent),
+                "--bind", str(tor_data), str(tor_data),
+                "--bind", str(tor_ipc), str(tor_ipc), "--proc", "/proc", "--dev", "/dev",
+                "--tmpfs", "/tmp", "--tmpfs", "/var/tmp",
+                "--chdir", str(BROWSER), "--", *tor_command,
+            ]
+            tor = subprocess.Popen(tor_worker, env=tor_environment, stdin=subprocess.DEVNULL)
+            deadline = time.monotonic() + 15
+            while True:
+                if tor.poll() is not None:
+                    raise RuntimeError("bundled Tor exited before local IPC readiness")
+                if all(path.exists() for path in (socks, control, cookie)):
+                    if (not stat.S_ISSOCK(socks.lstat().st_mode) or not stat.S_ISSOCK(control.lstat().st_mode)
+                            or not stat.S_ISREG(cookie.lstat().st_mode) or cookie.stat().st_size != 32):
+                        raise ValueError("invalid Tor IPC objects")
+                    break
+                if time.monotonic() >= deadline:
+                    raise RuntimeError("Tor local IPC readiness timed out")
+                time.sleep(0.05)
+            environment.update({"TOR_SKIP_LAUNCH": "1", "TOR_SOCKS_IPC_PATH": str(socks),
+                                "TOR_CONTROL_IPC_PATH": str(control), "TOR_CONTROL_COOKIE_AUTH_FILE": str(cookie)})
+            # Every source is inside the already constructed outer sandbox.
+            # Unix sockets cross this boundary; IPv4/IPv6 connections cannot.
+            browser_command = [
+                "/usr/bin/bwrap", "--unshare-user", "--unshare-net", "--unshare-pid",
+                "--unshare-ipc", "--unshare-uts", "--new-session", "--die-with-parent",
+                "--cap-drop", "ALL", "--ro-bind", "/", "/",
+                "--uid", str(os.getuid()), "--gid", str(os.getgid()),
+                "--ro-bind", str(ram_bundle), str(BROWSER.parent),
+                "--bind", str(home), str(home),
+                "--tmpfs", str(runtime), "--chmod", "0700", str(runtime),
+                "--ro-bind", str(ipc), str(ipc),
+                "--dev-bind", "/dev", "/dev", "--proc", "/proc",
+                "--tmpfs", "/tmp", "--tmpfs", "/var/tmp",
+                "--ro-bind", str(user_js), str(target_prefs),
+            ]
+            browser_command.extend(["--bind", str(wayland_socket), str(wayland_socket)])
+            for relative in ("pipewire-0", "pulse/native"):
+                source = runtime / relative
+                if source.exists():
+                    if not stat.S_ISSOCK(source.lstat().st_mode):
+                        raise ValueError("invalid private audio socket")
+                    browser_command.extend(["--bind", str(source), str(source)])
+            if anonymous:
+                # Hide these local identifiers without modifying kernel or host
+                # state. Tor Browser's fingerprint defenses remain unchanged.
+                cpuinfo = ipc / "cpuinfo"
+                cpuinfo.write_text("processor\t: 0\nmodel name\t: Generic x86_64 CPU\n"
+                                   "cpu cores\t: 1\nsiblings\t: 1\n", encoding="ascii")
+                boot_id = ipc / "boot-id"
+                boot_id.write_text(str(uuid.uuid4()) + "\n", encoding="ascii")
+                for source, target in ((cpuinfo, "/proc/cpuinfo"),
+                                       (boot_id, "/proc/sys/kernel/random/boot_id")):
+                    browser_command.extend(["--ro-bind", str(source), target])
+            browser_command.extend(["--chdir", str(BROWSER), "--", str(BROWSER / "firefox"),
+                                    "--no-remote", "--profile", str(profile), *arguments])
+            browser = subprocess.Popen(browser_command, env=environment, stdin=subprocess.DEVNULL)
+            # Keep descriptors explicit so neither child's failure can leave
+            # the other running. No busy polling during the browsing session.
+            with ExitStack() as descriptors:
+                tor_fd = os.pidfd_open(tor.pid)
+                descriptors.callback(os.close, tor_fd)
+                browser_fd = os.pidfd_open(browser.pid)
+                descriptors.callback(os.close, browser_fd)
+                select.select([tor_fd, browser_fd], [], [])
+            result = browser.poll()
+            if result is None:
+                raise RuntimeError("Tor transport exited during the browser session")
+            return 128 - result if result < 0 else result
+        finally:
+            for signum in STOP_SIGNALS:
+                signal.signal(signum, signal.SIG_IGN)
+            try:
+                stop(browser)
+            finally:
+                stop(tor)
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, RuntimeError) as error:
+        print(f"Tor Browser session failed: {error}", file=sys.stderr)
+        raise SystemExit(1)
