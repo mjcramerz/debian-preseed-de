@@ -312,9 +312,7 @@ sub _enable_interface {
     my ($self, $interface, $type) = @_;
 
     if ($type eq 'wifi') {
-        if (my $rfkill = $self->command()->executable('rfkill')) {
-            $self->command()->run($rfkill, 'unblock', 'wlan');
-        }
+        $self->command()->exec('/usr/local/libexec/network-wifi-configure', $interface);
     }
     if ($self->_ifupdown_configured($interface)) {
         my $ifup = $self->command()->require_executable('ifup');
@@ -322,9 +320,6 @@ sub _enable_interface {
     }
     if ($self->_networkmanager_managed($interface)) {
         my $nmcli = $self->command()->require_executable('nmcli');
-        if ($type eq 'wifi') {
-            $self->command()->run_or_die('enabling NetworkManager WiFi radio', $nmcli, '--wait', '30', 'radio', 'wifi', 'on');
-        }
         $self->command()->exec($nmcli, '--wait', '60', 'device', 'connect', $interface);
     }
     my $ip = $self->command()->require_executable('ip');
@@ -499,6 +494,11 @@ sub _randomize_physical_adapters {
 sub _dispatch {
     my ($self, $invoker_uid, $action, @args) = @_;
 
+    if ($action eq 'configure-wifi') {
+        @args == 1 or die "$action requires one interface\n";
+        my $interface = $self->_validate_physical_interface($args[0], 'wifi');
+        $self->command()->exec('/usr/local/libexec/network-wifi-configure', $interface);
+    }
     if ($action eq 'enable-ethernet' || $action eq 'disable-ethernet') {
         @args == 1 or die "$action requires one interface\n";
         my $interface = $self->_validate_physical_interface($args[0], 'ethernet');

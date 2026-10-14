@@ -43,11 +43,17 @@ Environment="TAILSCALE_AUTH_KEY_REQUIRED=__INSTALLER_TAILSCALE_AUTH_KEY_REQUIRED
 Environment="TAILSCALE_FORCE_REAUTH=__INSTALLER_TAILSCALE_FORCE_REAUTH__"
 Environment="TAILSCALE_TIMEOUT=__INSTALLER_TAILSCALE_TIMEOUT__"
 Environment="TAILSCALE_DAEMON_WAIT_SECONDS=__INSTALLER_TAILSCALE_DAEMON_WAIT_SECONDS__"
-Type=oneshot
+# Pending device approval is a successful registration, still needing a later
+# status check. Type=exec permits that successful exit to schedule a restart;
+# oneshot services deliberately cannot restart after a successful exit.
+Type=exec
 ExecStart=/var/lib/firstboot/bin/tailscale-up --if-auth-key-present
+SuccessExitStatus=75
+RestartForceExitStatus=75
 Restart=on-failure
 RestartSec=15min
 TimeoutStartSec=15min
+RuntimeMaxSec=15min
 TimeoutStopSec=30s
 UMask=0077
 PrivateTmp=true

@@ -203,10 +203,21 @@ def route_interface(item) -> tuple[str, str, int, bool]:
     mtu = links[0].get("mtu")
     if type(mtu) is not int or not 576 <= mtu <= 65535:
         raise ValueError("invalid Internet MTU")
-    return iface, str(address), mtu, "UP" in links[0].get("flags", [])
+    route_flags = item.get("flags", [])
+    if not isinstance(route_flags, list) or any(not isinstance(flag, str) for flag in route_flags):
+        raise ValueError("invalid IPv4 route flags")
+    flags = links[0]["flags"]
+    operstate = links[0].get("operstate")
+    if operstate is not None and not isinstance(operstate, str):
+        raise ValueError("invalid Internet operational state")
+    active = ("UP" in flags and "NO-CARRIER" not in flags and "linkdown" not in route_flags
+              and operstate not in {"DOWN", "LOWERLAYERDOWN", "NOTPRESENT"})
+    return iface, str(address), mtu, active
 
 
 def route(*, allow_lan: bool = False) -> tuple[str, str, int]:
+    # The host FIB owns Ethernet/Wi-Fi metrics and VPN policy. Both physical
+    # links use this same lease/NAT path; never override the kernel's choice.
     try:
         routes = json.loads(run(["/usr/sbin/ip", "-j", "-4", "route", "get", "1.1.1.1"]))
     except RuntimeError:

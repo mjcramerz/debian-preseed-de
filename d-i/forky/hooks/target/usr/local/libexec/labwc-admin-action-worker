@@ -32,7 +32,7 @@ ZRAM_WORK_UNITS = ("zram-idle-writeback.timer", "zram-cold-tier.timer",
                    "zram-writebackd.service", "zram-writeback.service")
 EXTERNAL_DRIVES_UNIT = "labwc-external-drives-shutdown.service"
 SHUTDOWN_CLEANUP_SECONDS = 45
-POWER_SAVE_SECONDS = 15
+POWER_SAVE_SECONDS = 10
 
 
 class Error(Exception):
@@ -720,8 +720,9 @@ class Worker:
 
     def save_window(self) -> None:
         # The user manager retains the compositor and desktop while the user
-        # helper inventories real windows. A failed helper gets a conservative
-        # bounded grace period, never an application or service veto.
+        # helper sends one native close request and waits for save dialogs.
+        # A failed helper gets only the remaining ten-second opportunity,
+        # never an application or service veto.
         started = time.monotonic()
         try:
             self.helper(self.action)
@@ -739,11 +740,15 @@ class Worker:
                 self.best_effort("worker readiness", ready)
                 if not self.greeter:
                     self.best_effort("application save window", self.save_window)
-                # The user's 15-second save opportunity precedes the independent
+                # The user's ten-second close/save opportunity precedes the independent
                 # cleanup budget. No guest, mount or desktop teardown runs early.
                 self.shutdown_deadline = time.monotonic() + SHUTDOWN_CLEANUP_SECONDS
                 if not self.greeter:
-                    self.best_effort("application close request", lambda: self.helper("close"))
+                    # Stop managed application cgroups, including terminals and
+                    # their jobs, before unmounting the filesystems they use.
+                    # No second window-close request may dismiss save dialogs.
+                    self.best_effort("desktop application services", lambda: self.userctl(
+                        "stop", DESKTOP_TARGET, timeout=30))
                 self.best_effort("guest hooks", self.stop_optional_guests)
                 self.best_effort("machine cleanup", self.prepare_machine_shutdown)
             finally:

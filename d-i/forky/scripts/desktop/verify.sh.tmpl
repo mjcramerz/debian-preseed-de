@@ -570,8 +570,6 @@ for path in \
   /etc/skel-desktop/.config/Recoll.org/recoll.ini \
   /etc/skel-desktop/.recoll/recoll.conf \
   /etc/skel-desktop/.config/vivaldi/Default/Preferences \
-  /etc/skel-desktop/.config/vivaldi/search_engines.json \
-  /etc/skel-desktop/.config/vivaldi/search_engines_prompt.json \
   /etc/skel-desktop/.config/systemd/user/labwc-session.target \
   /etc/skel-desktop/.config/systemd/user/labwc-health-notify.service \
   /etc/skel-desktop/.config/systemd/user/labwc-health-notify.path \
@@ -715,8 +713,6 @@ require_mode /etc/skel-desktop/.config/microsoft-edge/Default/Preferences 600
 require_mode /etc/skel-desktop/.config/obsidian 700
 require_mode /etc/skel-desktop/.config/obsidian/obsidian.json 600
 require_mode /etc/skel-desktop/.config/vivaldi/Default/Preferences 600
-require_mode /etc/skel-desktop/.config/vivaldi/search_engines.json 600
-require_mode /etc/skel-desktop/.config/vivaldi/search_engines_prompt.json 600
 require_mode /etc/skel-desktop/.config/Recoll.org 700
 require_mode /etc/skel-desktop/.config/Recoll.org/recoll.ini 600
 require_mode /etc/skel-desktop/.recoll 700
@@ -831,6 +827,8 @@ for path in \
   /usr/local/libexec/labwc-system-action-root \
   /usr/local/libexec/labwc-recovery-action-root \
   /usr/local/libexec/labwc-network-control-action-root \
+  /usr/local/libexec/network-wifi-configure \
+  /usr/local/bin/nmtui \
   /usr/local/libexec/labwc-firewall-action-root \
   /usr/local/libexec/labwc-network-scan-action-root \
   /usr/local/libexec/labwc-samsung-firmware-extract \
@@ -903,6 +901,8 @@ if [ -r /usr/share/dbus-1/system-services/org.freedesktop.nm_dispatcher.service 
   nm_dispatcher_alias=/etc/systemd/system/dbus-org.freedesktop.nm-dispatcher.service
   nm_dispatcher_unit=
   require_readable /etc/systemd/system/NetworkManager.service.d/20-dispatcher.conf
+  require_readable /etc/systemd/system/NetworkManager.service.d/30-wifi-manual.conf
+  require_readable /etc/systemd/system/managed-wifi-firstboot.service
   require_readable /etc/systemd/system/NetworkManager-dispatcher.service.d/20-persistent.conf
   if [ -r /usr/lib/systemd/system/NetworkManager-dispatcher.service ]; then
     nm_dispatcher_unit=/usr/lib/systemd/system/NetworkManager-dispatcher.service
@@ -1248,8 +1248,6 @@ for path in \
   "$account_home/.config/Recoll.org/recoll.ini" \
   "$account_home/.recoll/recoll.conf" \
   "$account_home/.config/vivaldi/Default/Preferences" \
-  "$account_home/.config/vivaldi/search_engines.json" \
-  "$account_home/.config/vivaldi/search_engines_prompt.json" \
   "$account_home/.gnupg/gpg-agent.conf" \
   "$account_home/.config/systemd/user/labwc-session.target" \
   "$account_home/.config/systemd/user/labwc-health-notify.service" \

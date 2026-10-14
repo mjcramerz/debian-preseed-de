@@ -115,6 +115,7 @@ sub _validate_request {
         'disable-ethernet' => ['Ethernet disabled', 'Disabled Ethernet adapter %s.'],
         'enable-wifi'      => ['WiFi enabled',      'Enabled WiFi adapter %s.'],
         'disable-wifi'     => ['WiFi disabled',     'Disabled WiFi adapter %s.'],
+        'configure-wifi'   => ['WiFi configured',   'Configured WiFi authentication for adapter %s.'],
     );
     if (my $notification = $interface_actions{$action}) {
         @args == 1 or die "$action requires one interface\n";
@@ -218,6 +219,19 @@ sub _run {
         @argv == 1 or die "show-dns-status does not accept arguments\n";
         my $terminal = $self->command()->require_executable('labwc-terminal');
         $self->command()->exec($terminal, '-e', $self->self_path(), '--run-status', 'show-dns-status');
+    }
+
+    if ($argv[0] eq '--run-wifi') {
+        @argv == 2 or die "--run-wifi requires one interface\n";
+        my $interface = $self->validator()->interface_name($argv[1]);
+        my $status = $self->_run_root_action('configure-wifi', $interface);
+        return $self->_finish_status($status);
+    }
+    if ($argv[0] eq 'configure-wifi' || $argv[0] eq 'enable-wifi') {
+        @argv == 2 or die "configure-wifi requires one interface\n";
+        my $interface = $self->validator()->interface_name($argv[1]);
+        my $terminal = $self->command()->require_executable('labwc-terminal');
+        $self->command()->exec($terminal, '-e', $self->self_path(), '--run-wifi', $interface);
     }
 
     my $action = shift @argv;

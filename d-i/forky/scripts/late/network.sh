@@ -5,12 +5,24 @@ target_network_selected_class() {
   installer_selected_class_for_purpose network 2>/dev/null || printf '%s' "${INSTALLER_NETWORK_CLASS:-}"
 }
 
+target_wifi_setting() {
+  case "$1" in
+    wifi_interface) wifi_override=${WIFI_INTERFACE:-} ;;
+    wifi_essid) wifi_override=${WIFI_ESSID:-} ;;
+    wifi_security) wifi_override=${WIFI_SECURITY:-} ;;
+    wifi_cidr) wifi_override=${WIFI_CIDR:-} ;;
+    wifi_wpa|wifi_wep) wifi_override=${WIFI_PASSPHRASE:-} ;;
+    *) return 2 ;;
+  esac
+  if [ -n "$wifi_override" ]; then
+    printf '%s\n' "$wifi_override"
+    return 0
+  fi
+  installer_preseed_env_value "$1"
+}
+
 target_wifi_essid_answer() {
-  network_answer_value \
-    netcfg/wireless_essid \
-    wireless_essid \
-    wifi_essid \
-    essid
+  target_wifi_setting wifi_essid
 }
 
 target_wifi_essid_again_answer() {
@@ -22,24 +34,24 @@ target_wifi_essid_again_answer() {
 }
 
 target_wifi_security_answer() {
-  network_answer_value \
-    netcfg/wireless_security_type \
-    wireless_security_type \
-    wifi_security_type
+  if wifi_value=$(target_wifi_setting wifi_security); then
+    case "$wifi_value" in
+      '') wifi_value=open ;;
+      legacy|wep-legacy|'legacy wep') wifi_value=legacy-wep ;;
+    esac
+    printf '%s\n' "$wifi_value"
+    return 0
+  else
+    return "$?"
+  fi
 }
 
 target_wifi_wpa_answer() {
-  network_answer_value \
-    netcfg/wireless_wpa \
-    wireless_wpa \
-    wifi_wpa
+  target_wifi_setting wifi_wpa
 }
 
 target_wifi_wep_answer() {
-  network_answer_value \
-    netcfg/wireless_wep \
-    wireless_wep \
-    wifi_wep
+  target_wifi_setting wifi_wep
 }
 
 target_wifi_static_config_requested() {
@@ -49,10 +61,8 @@ target_wifi_static_config_requested() {
 
 target_wifi_handoff_requested() {
   target_static_network_selected || return 1
-  target_wifi_static_config_requested || return 1
-  # Retain supplied Wi-Fi configuration even when Ethernet carries the
-  # installer. The caller also requires a real Wi-Fi adapter. Existing route
-  # metrics prefer Ethernet and keep Wi-Fi usable after a dock is detached.
+  # Address ownership must not depend on having installation-time credentials.
+  # Otherwise NetworkManager can create a DHCP profile for the same adapter.
   return 0
 }
 
@@ -85,9 +95,13 @@ target_managed_network_link_types() {
     if installer_network_interface_for_handoff ethernet >/dev/null 2>&1; then
       link_types=ethernet
     fi
-    if target_wifi_handoff_requested &&
-       installer_network_interface_for_handoff wifi >/dev/null 2>&1; then
-      link_types="${link_types:+$link_types }wifi"
+    if target_wifi_handoff_requested; then
+      if installer_network_interface_for_handoff wifi >/dev/null; then
+        link_types="${link_types:+$link_types }wifi"
+      else
+        wifi_status=$?
+        [ "$wifi_status" -eq 1 ] || installer_fatal "could not select the configured Wi-Fi adapter"
+      fi
     fi
     [ -n "$link_types" ] ||
       installer_fatal "no Ethernet or Wi-Fi adapter detected for static target networking"
@@ -227,6 +241,26 @@ installer_network_interface_for_handoff() {
   link_type=$1
   iface=
 
+  if [ "$link_type" = wifi ]; then
+    if iface=$(target_wifi_setting wifi_interface); then
+      case "$iface" in
+        auto) ;;
+        *)
+          if ! valid_installer_network_interface_name "$iface"; then
+            printf '%s\n' 'error: invalid Wi-Fi interface policy' >&2
+            return 2
+          fi
+          installer_interface_matches_link_type "$iface" wifi || return 1
+          printf '%s\n' "$iface"
+          return 0
+          ;;
+      esac
+    else
+      wifi_status=$?
+      [ "$wifi_status" -eq 1 ] || return "$wifi_status"
+    fi
+  fi
+
   iface=$(installer_default_route_interface 2>/dev/null || true)
   if [ -n "$iface" ] && installer_interface_matches_link_type "$iface" "$link_type"; then
     printf '%s\n' "$iface"
@@ -353,7 +387,7 @@ validate_network_wifi_wpa() {
   value=$2
   length=${#value}
 
-  validate_network_single_line_token "$label" "$value"
+  case "$value" in ''|*[![:print:]]*) installer_fatal "${label} must be printable single-line data" ;; esac
   if [ "$length" -ge 8 ] && [ "$length" -le 63 ]; then
     return 0
   fi
@@ -369,7 +403,7 @@ validate_network_wifi_essid() {
   label=$1
   value=$2
 
-  validate_network_single_line_token "$label" "$value"
+  case "$value" in ''|*[![:print:]]*) installer_fatal "${label} must be printable single-line data" ;; esac
   [ "${#value}" -le 32 ] || installer_fatal "${label} must be 32 characters or shorter"
 }
 
@@ -439,8 +473,8 @@ validate_network_wifi_psk_security() {
   value=$2
 
   case "$value" in
-    open|wep|open/wep|wpa|sae) ;;
-    *) installer_fatal "${label} must be open, wep, open/wep, wpa, or sae" ;;
+    open|wep|legacy-wep|open/wep|wpa|sae) ;;
+    *) installer_fatal "${label} must be open, wep, legacy-wep, open/wep, wpa, or sae" ;;
   esac
 }
 
@@ -471,6 +505,7 @@ network_input_placeholder_map() {
   write_shell_config_var MANAGED_NETWORK_WIFI_ESSID "$wifi_essid"
   write_shell_config_var MANAGED_NETWORK_WIFI_ESSID_AGAIN "$wifi_essid_again"
   write_shell_config_var MANAGED_NETWORK_WIFI_PSK_SECURITY "${wifi_security:-wpa}"
+  write_shell_config_var MANAGED_NETWORK_WIFI_CIDR "$wifi_cidr"
   write_shell_config_var MANAGED_NETWORK_WIFI_WPA "$wifi_wpa"
   write_shell_config_var MANAGED_NETWORK_WIFI_WEP "$wifi_wep"
   write_shell_config_var MANAGED_NETWORK_IPV4_ADDRESS "$static_ip"
@@ -484,6 +519,9 @@ network_input_placeholder_map() {
 }
 
 write_target_managed_network_input() {
+  # This operation handles the private passphrase; caller tracing must not echo it.
+  set +x
+  set +v
   network_mode=$1
   link_types=$2
   installer_mac=
@@ -505,6 +543,7 @@ write_target_managed_network_input() {
   wifi_security=
   wifi_wpa=
   wifi_wep=
+  wifi_cidr=
 
   [ "$network_mode" = static ] ||
     installer_fatal "managed network generator only supports static target networking"
@@ -544,37 +583,46 @@ write_target_managed_network_input() {
 
   case " $link_types " in
     *" wifi "*)
-      wifi_essid=$(target_wifi_essid_answer 2>/dev/null || true)
+      if wifi_cidr=$(target_wifi_setting wifi_cidr); then
+        :
+      else
+        wifi_status=$?
+        [ "$wifi_status" -eq 1 ] || installer_fatal "could not read private Wi-Fi address range"
+        wifi_cidr=
+      fi
+      if wifi_essid=$(target_wifi_essid_answer); then
+        :
+      else
+        wifi_status=$?
+        [ "$wifi_status" -eq 1 ] || installer_fatal "could not read Wi-Fi SSID policy"
+        wifi_essid=
+      fi
+      if wifi_security=$(target_wifi_security_answer); then
+        :
+      else
+        wifi_status=$?
+        [ "$wifi_status" -eq 1 ] || installer_fatal "could not read Wi-Fi security policy"
+        wifi_security=open
+      fi
       if [ -n "$wifi_essid" ]; then
         validate_network_wifi_essid MANAGED_NETWORK_WIFI_ESSID "$wifi_essid"
-        wifi_essid_again=$(target_wifi_essid_again_answer 2>/dev/null || true)
-        if [ -n "$wifi_essid_again" ]; then
-          validate_network_wifi_essid MANAGED_NETWORK_WIFI_ESSID_AGAIN "$wifi_essid_again"
-          [ "$wifi_essid_again" = "$wifi_essid" ] ||
-            installer_fatal "MANAGED_NETWORK_WIFI_ESSID_AGAIN must match MANAGED_NETWORK_WIFI_ESSID"
+        if wifi_wpa=$(target_wifi_wpa_answer); then
+          :
+        else
+          wifi_status=$?
+          [ "$wifi_status" -eq 1 ] || installer_fatal "could not read Wi-Fi passphrase"
+          wifi_wpa=
         fi
-
-        wifi_security=$(target_wifi_security_answer 2>/dev/null || true)
-        wifi_wpa=$(target_wifi_wpa_answer 2>/dev/null || true)
-        wifi_wep=$(target_wifi_wep_answer 2>/dev/null || true)
-        if [ -z "$wifi_security" ]; then
-          if [ -n "$wifi_wpa" ]; then
-            wifi_security=wpa
-          elif [ -n "$wifi_wep" ]; then
-            wifi_security=wep
-          else
-            wifi_security=open
-          fi
-        fi
+        wifi_wep=$wifi_wpa
         validate_network_wifi_psk_security MANAGED_NETWORK_WIFI_PSK_SECURITY "$wifi_security"
         case "$wifi_security" in
           wpa|sae)
             [ -n "$wifi_wpa" ] || installer_fatal "MANAGED_NETWORK_WIFI_WPA is required for ${wifi_security} Wi-Fi"
             validate_network_wifi_wpa MANAGED_NETWORK_WIFI_WPA "$wifi_wpa"
             ;;
-          wep)
+          wep|legacy-wep)
             [ -n "$wifi_wep" ] || installer_fatal "MANAGED_NETWORK_WIFI_WEP is required when Wi-Fi security is set to wep"
-            validate_network_single_line_token MANAGED_NETWORK_WIFI_WEP "$wifi_wep"
+            case "$wifi_wep" in *[![:print:]]*) installer_fatal "Wi-Fi WEP key must be printable single-line data" ;; esac
             ;;
           open/wep)
             if [ -n "$wifi_wep" ]; then
@@ -583,10 +631,8 @@ write_target_managed_network_input() {
             ;;
         esac
       else
-        link_types=$(printf '%s\n' "$link_types" | sed 's/\<wifi\>//g; s/[[:space:]][[:space:]]*/ /g; s/^ //; s/ $//')
-        installer_info "skipping Wi-Fi static handoff because no Wi-Fi ESSID was supplied"
-        [ -n "$link_types" ] ||
-          installer_fatal "no managed network interface remains after skipping unconfigured Wi-Fi handoff"
+        validate_network_wifi_psk_security MANAGED_NETWORK_WIFI_PSK_SECURITY "$wifi_security"
+        installer_info "retaining Wi-Fi static address policy; credentials can be configured after installation"
       fi
       ;;
   esac

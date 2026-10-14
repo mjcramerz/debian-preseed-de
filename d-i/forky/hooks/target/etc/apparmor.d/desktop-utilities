@@ -206,10 +206,23 @@ profile desktop-media /usr/bin/{mpv,recoll,recollindex,recollq,liferea} flags=(a
   include if exists <local/desktop-media>
 }
 
+# Terminals are the user's general command entry point. Permit arbitrary
+# executable locations, including versioned toolchains, mounted workspaces,
+# and newly installed tools. Direct descendants inherit this unrestricted
+# command domain even when another executable attachment exists. DAC, kernel
+# capabilities and authentication still apply. Explicit permissions survive
+# the managed mode controller without a default_allow exception.
+profile desktop-terminal /usr/bin/{foot,footclient,kitty} flags=(attach_disconnected, mediate_deleted) {
+  allow all,
+  # Keep arbitrary inherited execution explicit: never attach an implicit
+  # compiler/application profile to a command launched from this terminal.
+  /** rix,
+}
+
 # These are intentional user-command launchers/file managers, not document
 # parsers. An existing narrower profile wins; otherwise children stay in this
 # developer domain. There is no general unconfined execution fallback.
-profile desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exec,thunar,Thunar,xarchiver,nnn} flags=(attach_disconnected, mediate_deleted) {
+profile desktop-launcher /usr/bin/{fuzzel,xdg-terminal-exec,thunar,Thunar,xarchiver,nnn} flags=(attach_disconnected, mediate_deleted) {
   # btop reads statistics; this does not authorize ptrace attachment/writes.
   ptrace (read) peer=hardware-tuning-client,
   signal (send) set=(hup) peer=session-controls,

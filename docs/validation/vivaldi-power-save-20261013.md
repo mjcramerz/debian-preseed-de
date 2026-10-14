@@ -1,5 +1,11 @@
 # Vivaldi warnings and desktop power save window — 2026-10-13
 
+The power contract recorded below is historical. The subsequent
+[poweroff/reboot repair](poweroff-reboot-close-20261013.md) supersedes its
+15-second warning with one native close request, a shared ten-second save-dialog
+opportunity, and teardown regardless of unresolved dialogs. Terminals require no
+save acknowledgement.
+
 ## Scope and execution boundary
 
 Reviewed the Vivaldi records in the LPL-223 snapshot under `todo/`, the managed

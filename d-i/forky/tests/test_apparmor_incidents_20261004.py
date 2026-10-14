@@ -568,16 +568,18 @@ class SuppliedDenialTests(unittest.TestCase):
             self.assertFalse(rule.deny)
 
     @unittest.skipUnless(importlib.util.find_spec('apparmor'), 'native AppArmor rule reader unavailable')
-    def test_tailscale_desktop_probe_inherits_confinement_under_no_new_privileges(self):
+    def test_tailscale_daemon_helpers_inherit_confinement_under_no_new_privileges(self):
         from apparmor.rule.file import FileRule
         parent = body('usr.sbin.tailscaled', 'usr.sbin.tailscaled')
-        lines = [line.strip() for line in parent.splitlines()
-                 if line.strip().startswith('/usr/bin/loginctl ')]
-        self.assertEqual(len(lines), 1)
-        rule = FileRule.create_instance(lines[0])
-        self.assertEqual(rule.exec_perms, 'ix')
-        self.assertTrue(rule.all_targets)
-        self.assertFalse(rule.deny)
+        for executable in ('/usr/bin/loginctl', '/usr/bin/tailscale'):
+            with self.subTest(executable=executable):
+                lines = [line.strip() for line in parent.splitlines()
+                         if line.strip().startswith(executable + ' ')]
+                self.assertEqual(len(lines), 1)
+                rule = FileRule.create_instance(lines[0])
+                self.assertEqual(rule.exec_perms, 'ix')
+                self.assertTrue(rule.all_targets)
+                self.assertFalse(rule.deny)
         self.assertNotIn('profile loginctl ', parent)
         service = read_text(SEED / 'hooks/target/etc/systemd/system/tailscaled.service.d/override.conf')
         self.assertIn('NoNewPrivileges=true', service)
@@ -602,6 +604,46 @@ class SuppliedDenialTests(unittest.TestCase):
         self.assertIn('/usr/bin/** rPix,', launcher)
         self.assertRegex(read_text(AA / 'desktop-utilities'),
                          r'(?m)^profile desktop-launcher /usr/bin/\{[^}]*\bthunar\b')
+
+    @unittest.skipUnless(importlib.util.find_spec('apparmor'), 'native AppArmor rule reader unavailable')
+    def test_terminal_exec_accepts_arbitrary_paths_without_implicit_profile_attachment(self):
+        from apparmor.rule.file import FileRule
+        policy = read_text(AA / 'desktop-utilities')
+        self.assertRegex(policy, r'(?m)^profile desktop-terminal /usr/bin/\{foot,footclient,kitty\}')
+        launcher_header = next(line for line in policy.splitlines()
+                               if line.startswith('profile desktop-launcher '))
+        self.assertNotRegex(launcher_header, r'\b(?:foot|footclient|kitty)\b')
+        terminal = body('desktop-utilities', 'desktop-terminal')
+        rule = FileRule.create_instance('/** rix,')
+        self.assertIn('/** rix,', terminal)
+        self.assertIn('allow all,', terminal)
+        self.assertEqual(rule.exec_perms, 'ix')
+        for executable in ('/usr/lib/go-1.27/bin/go',
+                           '/usr/lib/go-1.27/pkg/tool/linux_amd64/compile',
+                           '/usr/lib/llvm-22/bin/clang', '/usr/sbin/ethtool',
+                           '/usr/local/lib/node-26/bin/node', '/opt/future/bin/tool',
+                           '/srv/project/bin/tool', '/data/sharing/nfs-client/bin/tool',
+                           '/mnt/workspace/bin/tool', '/home/example/Workspace/build/tool',
+                           '/tmp/build/tool', '/future/location/tool'):
+            with self.subTest(executable=executable):
+                self.assertTrue(rule.is_covered(FileRule.create_instance(executable + ' rix,')))
+        self.assertNotIn('default_allow', terminal)
+        self.assertNotIn('unconfined', terminal)
+        self.assertNotIn('->', terminal)
+        self.assertNotRegex(terminal, r'(?m)^\s*(?:include|#include|deny)\b')
+        for executable in ('/usr/bin/sudo', '/usr/bin/pkexec',
+                           '/usr/bin/code', '/data/codex/lib/codex'):
+            self.assertTrue(rule.is_covered(FileRule.create_instance(executable + ' rix,')))
+        receiver = read_text(AA / 'abstractions/base.d/managed-process-monitor')
+        self.assertIn('signal (receive) peer=desktop-terminal,', receiver)
+        self.assertIn('signal (send) set=(chld) peer=desktop-terminal,', receiver)
+        self.assertIn('ptrace (readby) peer=desktop-terminal,', receiver)
+        self.assertNotIn('ptrace (tracedby) peer=desktop-terminal,', receiver)
+        self.assertIn('signal (send) set=(term) peer=desktop-terminal,',
+                      body('desktop-wrappers', 'labwc-fuzzel'))
+        staging = read_text(SEED / 'scripts/late/security.sh')
+        self.assertIn('desktop-utilities', staging)
+        self.assertIn('"/etc/apparmor.d/abstractions/base.d/managed-process-monitor" 0644', staging)
 
     @unittest.skipUnless(shutil.which('apparmor_parser'), 'native AppArmor parser unavailable')
     def test_native_parser_permissions_cover_nested_documents_usb_and_unclean_journals(self):

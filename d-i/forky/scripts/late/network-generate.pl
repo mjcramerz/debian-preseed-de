@@ -43,6 +43,7 @@ my %CFG = (
     MANAGED_NETWORK_WIFI_WPA            => '',
     MANAGED_NETWORK_WIFI_WEP            => '',
     MANAGED_NETWORK_WIFI_PSK_SECURITY   => 'wpa',
+    MANAGED_NETWORK_WIFI_CIDR           => '',
 );
 my %SUPPORTED_KEY = map { $_ => 1 } keys %CFG;
 my %WARNED;
@@ -309,10 +310,6 @@ sub link_types {
     for my $item (split /[;,\s]+/, lc($CFG{MANAGED_NETWORK_LINK_TYPES} // '')) {
         next if $item eq '';
         fatal("unsupported link type: $item") if $item ne 'ethernet' && $item ne 'wifi';
-        if ($item eq 'wifi' && $CFG{MANAGED_NETWORK_WIFI_ESSID} eq '') {
-            warn_once('wifi-without-essid', 'MANAGED_NETWORK_LINK_TYPES includes wifi but no Wi-Fi ESSID was supplied; skipping Wi-Fi handoff');
-            next;
-        }
         next if $seen{$item}++;
         push @out, $item;
     }
@@ -691,8 +688,21 @@ sub select_ipv4 {
         if $candidate_int > 0xffffffff;
 
     my $candidate = format_ipv4($candidate_int);
+    if ($link_type eq 'wifi' && $CFG{MANAGED_NETWORK_WIFI_CIDR} ne '') {
+        my ($address, $bits) = $CFG{MANAGED_NETWORK_WIFI_CIDR} =~ /\A([^\/]+)\/([0-9]{1,2})\z/
+            or fatal('MANAGED_NETWORK_WIFI_CIDR must use IPv4/CIDR notation');
+        my $range = parse_ipv4('MANAGED_NETWORK_WIFI_CIDR', $address);
+        my $range_prefix = parse_prefix('MANAGED_NETWORK_WIFI_CIDR prefix', $bits, 32);
+        $CFG{MANAGED_NETWORK_WIFI_CIDR} = format_ipv4($range) . "/$range_prefix";
+        fatal('Ethernet IPv4 +1 is outside PRESEED_WIFI_CIDR')
+            if ipv4_network_cidr($candidate_int, $range_prefix) ne ipv4_network_cidr($range, $range_prefix);
+    }
+    fatal("derived $link_type IPv4 address leaves the Ethernet subnet: $candidate/$prefix")
+        if ipv4_network_cidr($candidate_int, $prefix) ne ipv4_network_cidr($base, $prefix);
     fatal("derived $link_type IPv4 address collides with MANAGED_NETWORK_IPV4_GATEWAY: $candidate")
         if $candidate_int == $gateway;
+    fatal("$link_type IPv4 gateway is outside its subnet")
+        if ipv4_network_cidr($candidate_int, $prefix) ne ipv4_network_cidr($gateway, $prefix);
     fatal("derived $link_type IPv4 address is a network or broadcast address: $candidate/$prefix")
         if ipv4_host_is_network_or_broadcast($candidate_int, $prefix);
     fatal("derived $link_type IPv4 address is duplicated: $candidate")
@@ -723,6 +733,8 @@ sub select_ipv6 {
         if same_ipv6($candidate_bytes, $gateway);
 
     my $candidate = bytes_to_ipv6($candidate_bytes);
+    fatal("derived $link_type IPv6 address leaves the Ethernet subnet")
+        if ipv6_network_cidr($candidate_bytes, $prefix) ne ipv6_network_cidr($base, $prefix);
     fatal("derived $link_type IPv6 address is duplicated: $candidate")
         if $allocated->{$candidate}++;
 
@@ -741,26 +753,33 @@ sub validate_wifi {
     return if !$has_wifi;
     return if $CFG{MANAGED_NETWORK_WIFI_ESSID} eq '';
     fatal('MANAGED_NETWORK_WIFI_ESSID is required for Wi-Fi static configuration')
-        if !valid_token($CFG{MANAGED_NETWORK_WIFI_ESSID}) || length($CFG{MANAGED_NETWORK_WIFI_ESSID}) > 32;
+        if $CFG{MANAGED_NETWORK_WIFI_ESSID} !~ /\A[[:print:]]{1,32}\z/;
     if ($CFG{MANAGED_NETWORK_WIFI_ESSID_AGAIN} ne ''
         && $CFG{MANAGED_NETWORK_WIFI_ESSID_AGAIN} ne $CFG{MANAGED_NETWORK_WIFI_ESSID}) {
         fatal('MANAGED_NETWORK_WIFI_ESSID_AGAIN must match MANAGED_NETWORK_WIFI_ESSID');
     }
     my $security = lc($CFG{MANAGED_NETWORK_WIFI_PSK_SECURITY});
-    fatal('MANAGED_NETWORK_WIFI_PSK_SECURITY must be open, wep, open/wep, wpa, or sae')
+    fatal('MANAGED_NETWORK_WIFI_PSK_SECURITY must be open, wep, legacy-wep, open/wep, wpa, or sae')
         if $security ne 'open' && $security ne 'wep' && $security ne 'open/wep'
-        && $security ne 'wpa' && $security ne 'sae';
+        && $security ne 'legacy-wep' && $security ne 'wpa' && $security ne 'sae';
     if ($security eq 'wpa' || $security eq 'sae') {
         my $psk = $CFG{MANAGED_NETWORK_WIFI_WPA};
         fatal('MANAGED_NETWORK_WIFI_WPA is required for WPA/SAE Wi-Fi')
-            if !valid_token($psk);
+            if $psk !~ /\A[[:print:]]+\z/;
         my $length = length($psk);
         return if $length >= 8 && $length <= 63;
         fatal('MANAGED_NETWORK_WIFI_WPA must be 8-63 printable characters or 64 hex characters')
             if $psk !~ /\A[0-9A-Fa-f]{64}\z/;
     }
-    if ($security eq 'wep' && !valid_token($CFG{MANAGED_NETWORK_WIFI_WEP})) {
-        fatal('MANAGED_NETWORK_WIFI_WEP is required when WIFI_PSK_SECURITY=wep');
+    if (($security eq 'wep' || $security eq 'legacy-wep')
+        && $CFG{MANAGED_NETWORK_WIFI_WEP} !~ /\A[[:print:]]+\z/) {
+        fatal('MANAGED_NETWORK_WIFI_WEP is required for WEP security');
+    }
+    if ($security eq 'wep') {
+        my $key = $CFG{MANAGED_NETWORK_WIFI_WEP};
+        fatal('Wi-Fi WEP requires 5/13 ASCII characters or 10/26 hexadecimal digits')
+            if length($key) != 5 && length($key) != 13
+            && $key !~ /\A(?:[0-9a-fA-F]{10}|[0-9a-fA-F]{26})\z/;
     }
 }
 
@@ -821,14 +840,50 @@ sub iface_performance_options {
     return render_native($FRAGMENTS, 'performance.tmpl', METRIC => $metric);
 }
 
-sub wifi_options {
-    return '' if $CFG{MANAGED_NETWORK_WIFI_ESSID} eq '';
+sub keyfile_string {
+    my ($value) = @_;
+    $value =~ s/\\/\\\\/g;
+    $value =~ s/ /\\s/g;
+    $value =~ s/\t/\\t/g;
+    $value =~ s/\n/\\n/g;
+    $value =~ s/\r/\\r/g;
+    return $value;
+}
+
+sub render_wifi_profile {
+    my ($record) = @_;
+    my $ssid = $CFG{MANAGED_NETWORK_WIFI_ESSID};
     my $security = lc($CFG{MANAGED_NETWORK_WIFI_PSK_SECURITY});
     $security = 'wep' if $security eq 'open/wep' && $CFG{MANAGED_NETWORK_WIFI_WEP} ne '';
     $security = 'open' if $security eq 'open/wep';
-    return render_native($FRAGMENTS, "wifi-$security.tmpl",
-        SSID => $CFG{MANAGED_NETWORK_WIFI_ESSID},
-        KEY => $security eq 'wep' ? $CFG{MANAGED_NETWORK_WIFI_WEP} : $CFG{MANAGED_NETWORK_WIFI_WPA});
+    my $auth = '';
+    if ($ssid eq '') {
+        # A valid editable profile keeps the static policy available even when
+        # the installer has no SSID. The user supplies SSID/security in nmtui.
+        $ssid = 'Configure Wi-Fi SSID';
+        $security = 'wpa';
+        $auth = "[wifi-security]\nkey-mgmt=wpa-psk\npsk-flags=2\n";
+    } elsif ($security eq 'wpa' || $security eq 'sae') {
+        $auth = "[wifi-security]\nkey-mgmt=" . ($security eq 'sae' ? 'sae' : 'wpa-psk')
+            . "\nproto=rsn;\npsk=" . keyfile_string($CFG{MANAGED_NETWORK_WIFI_WPA}) . "\n";
+        $auth .= "pmf=3\n" if $security eq 'sae';
+    } elsif ($security eq 'wep' || $security eq 'legacy-wep') {
+        $auth = "[wifi-security]\nkey-mgmt=none\nwep-key-type=" . ($security eq 'wep' ? '1' : '2') . "\nwep-key0="
+            . keyfile_string($CFG{MANAGED_NETWORK_WIFI_WEP}) . "\n";
+    }
+    my $link_dns = $CFG{MANAGED_NETWORK_DNS_MODE} eq 'link';
+    my $ipv6 = "method=disabled\n";
+    if ($CFG{MANAGED_NETWORK_IPV6_ENABLED} eq 'true') {
+        $ipv6 = "method=manual\naddress1=$record->{ipv6_cidr}\ngateway=$CFG{MANAGED_NETWORK_IPV6_GATEWAY}\n"
+            . 'dns=' . ($link_dns ? join(';', split / /, $CFG{MANAGED_NETWORK_IPV6_DNS}) . ';' : '')
+            . "\nmay-fail=false\n";
+    }
+    return render_native($TARGET_TEMPLATES, 'etc/NetworkManager/system-connections/managed-wifi.nmconnection.tmpl',
+        IFACE => $record->{iface}, MAC => $record->{mac}, SSID => keyfile_string($ssid), SECURITY => $auth,
+        IPV4_CIDR => $record->{ipv4_cidr},
+        IPV4_GATEWAY => $CFG{MANAGED_NETWORK_IPV4_GATEWAY},
+        IPV4_DNS => $link_dns ? join(';', split / /, $CFG{MANAGED_NETWORK_IPV4_DNS}) . ';' : '',
+        DOMAIN => $CFG{MANAGED_NETWORK_DOMAIN} eq '' ? '' : $CFG{MANAGED_NETWORK_DOMAIN} . ';', IPV6 => $ipv6);
 }
 
 sub render_iface_stanza {
@@ -838,13 +893,18 @@ sub render_iface_stanza {
         render_native($FRAGMENTS, 'dns-search.tmpl', DOMAIN => $CFG{MANAGED_NETWORK_DOMAIN});
     my $text = render_native($FRAGMENTS, 'inet4.tmpl',
         LINK_TYPE => $link_type, IFACE => $record->{iface}, MAC => $record->{mac},
+        ACTIVATION => $link_type eq 'wifi'
+            ? '# Wi-Fi stays down until an explicit user connection request.'
+            : 'allow-hotplug ' . $record->{iface},
         DETECTED_IFACE => $record->{detected_iface}, ADDRESS => $record->{ipv4_address},
+        CIDR => $record->{ipv4_cidr}, METRIC => $metric,
         NETMASK => $record->{ipv4_netmask}, GATEWAY => $CFG{MANAGED_NETWORK_IPV4_GATEWAY},
         DNS => $CFG{MANAGED_NETWORK_IPV4_DNS}, SEARCH => $search,
-        WIFI => $link_type eq 'wifi' ? wifi_options() : '', PERFORMANCE => $performance);
+        WIFI => '', PERFORMANCE => $performance);
     if ($CFG{MANAGED_NETWORK_IPV6_ENABLED} eq 'true') {
         $text .= render_native($FRAGMENTS, 'inet6.tmpl',
             IFACE => $record->{iface}, ADDRESS => $record->{ipv6_address},
+            CIDR => $record->{ipv6_cidr}, METRIC => $metric,
             NETMASK => $CFG{MANAGED_NETWORK_IPV6_PREFIXLEN}, GATEWAY => $CFG{MANAGED_NETWORK_IPV6_GATEWAY},
             DNS => $CFG{MANAGED_NETWORK_IPV6_DNS}, PERFORMANCE => $performance);
     }
@@ -872,12 +932,14 @@ sub render_networkmanager_unmanaged {
     my %seen;
 
     for my $link_type (link_types()) {
+        next if $link_type eq 'wifi';
         next if !exists $selected->{$link_type};
         my $match = "interface-name:$selected->{$link_type}->{iface}";
         push @matches, $match if !$seen{$match}++;
     }
 
     for my $link_type (link_types()) {
+        next if $link_type eq 'wifi';
         next if !exists $selected->{$link_type};
         my $mac = normalize_mac($selected->{$link_type}->{mac});
         next if !valid_mac($mac);
@@ -886,7 +948,9 @@ sub render_networkmanager_unmanaged {
     }
 
     return render_native($TARGET_TEMPLATES, 'etc/NetworkManager/conf.d/90-network-unmanaged.conf.tmpl',
-        MATCHES => join(';', @matches));
+        MATCHES => join(';', @matches),
+        WIFI_DEVICE => exists($selected->{wifi})
+            ? "\n[device-managed-wifi]\nmatch-device=interface-name:$selected->{wifi}->{iface}\nmanaged=1\n" : '');
 }
 
 sub render_interfaces_base {
@@ -999,10 +1063,9 @@ sub main {
     }
 
     my @parts;
-    my $metric = 100;
     for my $link_type (@links) {
-        push @parts, render_iface_stanza($link_type, $selected{$link_type}, $metric);
-        $metric += 100;
+        next if $link_type eq 'wifi';
+        push @parts, render_iface_stanza($link_type, $selected{$link_type}, $link_type eq 'wifi' ? 200 : 100);
     }
 
     make_path(
@@ -1036,6 +1099,11 @@ sub main {
         render_networkmanager_unmanaged(\%selected),
     );
     write_runtime_defaults(\%selected);
+    if (exists $selected{wifi}) {
+        make_path(target_path('/etc/NetworkManager/system-connections'), { mode => 0700 });
+        write_file_atomic(target_path('/etc/network/managed-wifi.nmconnection'),
+            0600, render_wifi_profile($selected{wifi}));
+    }
     write_state_env(\%selected);
 
     my $summary = join ', ', map {

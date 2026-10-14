@@ -71,23 +71,15 @@ class CodexModeTests(unittest.TestCase):
 
 
 class BrowserPolicyTests(unittest.TestCase):
-    def test_vivaldi_search_cache_uses_complete_vendor_defaults_and_private_install_paths(self):
+    def test_vivaldi_owns_signed_search_engine_caches(self):
         base = 'etc/skel-desktop/.config/vivaldi'
         target = SEED / 'hooks/target' / base
-        data = json.loads((target / 'search_engines.json').read_text())
-        prompt = json.loads((target / 'search_engines_prompt.json').read_text())
-        self.assertEqual(set(data), {'int_variables', 'elements', 'engines', 'engines_by_country'})
-        self.assertGreaterEqual(data['int_variables']['kCurrentDataVersion'],
-                                prompt['int_variables']['kSearchEnginesDataVersionRequired'])
-        self.assertTrue(data['elements'] and data['engines'] and data['engines_by_country'])
-        self.assertIn('default', data['engines'])
-        self.assertEqual(set(prompt), {'int_variables', 'prompt_if_type', 'prompt_if_domain', 'exclude_list'})
         staging = (SEED / 'scripts/desktop/components/target-assets.sh').read_text()
         verifier = (SEED / 'scripts/desktop/verify.sh.tmpl').read_text()
         for leaf in ('search_engines.json', 'search_engines_prompt.json'):
-            self.assertIn(f'desktop_stage_role_asset {base}/{leaf} /{base}/{leaf} 0600', staging)
-            self.assertIn(f'require_mode /{base}/{leaf} 600', verifier)
-            self.assertIn(f'"$account_home/.config/vivaldi/{leaf}"', verifier)
+            self.assertFalse((target / leaf).exists())
+            self.assertNotIn(f'{base}/{leaf}', staging)
+            self.assertNotIn(f'{base}/{leaf}', verifier)
         self.assertIn('.config/vivaldi', (SEED / 'scripts/desktop/components/user-config.sh').read_text())
 
     def test_profile_policy_rejects_missing_duplicate_injected_and_commit_pins(self):

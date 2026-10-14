@@ -1538,6 +1538,7 @@ profile labwc-fuzzel /usr/local/bin/labwc-fuzzel flags=(attach_disconnected) {
   signal (send) set=(chld) peer=labwc-session-state,
   signal (send) peer=unconfined,
   signal (send) set=(term) peer=desktop-launcher,
+  signal (send) set=(term) peer=desktop-terminal,
   owner @{HOME}/.config/fuzzel/ r,
   owner @{HOME}/.config/fuzzel/** r,
   owner /run/user/[0-9]*/labwc-external-drives.lock rw,
@@ -3560,6 +3561,7 @@ profile labwc-network-control-action-root /usr/local/libexec/labwc-network-contr
 
   /usr/local/libexec/labwc-network-control-action-root rix,
   /usr/local/libexec/network-openvpn-import rPx -> network-openvpn-import,
+  /usr/local/libexec/network-wifi-configure rPx -> network-wifi-configure,
   /usr/local/lib/perl5/site_perl/labwc-network-control-action/ r,
   /usr/local/lib/perl5/site_perl/labwc-network-control-action/** r,
   /usr/local/lib/perl5/site_perl/runtime/ r,
@@ -3584,6 +3586,51 @@ profile labwc-network-control-action-root /usr/local/libexec/labwc-network-contr
   /sys/devices/**/net/*/{type,flags} r,
   /sys/devices/**/net/*/{device,wireless}/ r,
 
+}
+
+profile network-wifi-nmtui /usr/local/bin/nmtui flags=(attach_disconnected) {
+  #include <abstractions/wrapper-terminal>
+  #include <abstractions/wrapper-base>
+  /usr/local/bin/nmtui rix,
+  /etc/network/managed-wifi.nmconnection r,
+  /usr/bin/{pkexec,nmtui} PUx,
+}
+
+profile network-wifi-configure /usr/local/libexec/network-wifi-configure flags=(attach_disconnected) {
+  #include <abstractions/wrapper-terminal>
+  #include <abstractions/wrapper-base>
+  #include <abstractions/wrapper-python>
+
+  /usr/local/libexec/network-wifi-configure rix,
+  /sys/class/net/ r,
+  /sys/class/net/*/ r,
+  /sys/devices/**/net/*/ r,
+  / r,
+  /run/ r,
+  /run/lock/ r,
+  /etc/ r,
+  /etc/network/ r,
+  /etc/network/interfaces.d/ r,
+  /etc/network/host.conf r,
+  /etc/network/managed-wifi.nmconnection r,
+  /etc/NetworkManager/ r,
+  /etc/NetworkManager/system-connections/ rw,
+  /etc/NetworkManager/system-connections/managed-wifi.nmconnection rw,
+  /etc/NetworkManager/system-connections/.managed-wifi-* rw,
+  /var/ r,
+  /var/lib/ r,
+  /var/lib/NetworkManager/ rw,
+  /var/lib/NetworkManager/NetworkManager.state rw,
+  /var/lib/NetworkManager/.managed-wifi-* rw,
+  /var/lib/network-wifi/ rw,
+  /var/lib/network-wifi/firstboot.complete rw,
+  /var/lib/network-wifi/.managed-wifi-* rw,
+  /run/lock/managed-wifi.lock rwk,
+  /usr/sbin/rfkill PUx,
+  /usr/bin/{nmcli,nmtui} PUx,
+  signal (send) set=(term, kill),
+  signal (receive) peer=labwc-network-control-action-root,
+  signal (receive) peer=unconfined,
 }
 
 profile labwc-network-scan-action-root /usr/local/libexec/labwc-network-scan-action-root flags=(attach_disconnected) {

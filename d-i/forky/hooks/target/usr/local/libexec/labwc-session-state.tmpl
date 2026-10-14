@@ -12,7 +12,7 @@ import time
 
 TARGET = "labwc-session.target"
 MAX_STATE = 1024 * 1024
-POWER_SAVE_SECONDS = 15
+POWER_SAVE_SECONDS = 10
 
 
 class Error(Exception):
@@ -96,24 +96,35 @@ def close(runtime: Path) -> None:
     run(["/usr/bin/wlrctl", "toplevel", "close"], timeout=5, accepted=(0, 1))
 
 
-def wait_power(action: str) -> None:
+def wait_power(runtime: Path, action: str) -> None:
     if action not in {"poweroff", "reboot"}:
         raise Error("invalid save-window power action")
-    # Toplevels include terminals running micro, but exclude background services
-    # and layer-shell panels. Leave every window usable: closing a terminal now
-    # would kill its editor before the user could save. Do not inspect titles,
-    # infer unsaved state, signal applications or create a session-closing marker.
-    inventory_failed = False
+    # Ask applications to quit before waiting, so their native Save/Discard
+    # dialogs appear. Terminals may close immediately, as explicitly requested.
+    # Never repeat close: doing so could dismiss a newly opened save dialog.
+    # One deadline covers the close command, inventory and notification too.
+    deadline = time.monotonic() + POWER_SAVE_SECONDS
     try:
-        if not windows():
+        close(runtime)
+    except (Error, OSError, subprocess.SubprocessError) as exc:
+        print(f"power application close: {exc}", file=sys.stderr)
+    inventory_failed = False
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        return
+    try:
+        if not windows(timeout=min(1, remaining)):
             return
     except (Error, OSError, subprocess.SubprocessError) as exc:
         print(f"power window inventory: {exc}", file=sys.stderr)
         inventory_failed = True
-    deadline = time.monotonic() + POWER_SAVE_SECONDS
     verb = "Power off" if action == "poweroff" else "Reboot"
-    notify(f"{verb} in 15 seconds. Save your work now. Close all application windows "
-           "to proceed sooner. The power action will continue when time expires.", timeout=1)
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        return
+    notify(f"{verb}: finish application save dialogs within 10 seconds. "
+           "Teardown will continue when time expires; terminals close without a save prompt.",
+           timeout=min(1, remaining))
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -132,7 +143,7 @@ def wait_power(action: str) -> None:
 
 def prepare(runtime: Path, *, timeout: float = 120) -> None:
     # Logout retains the application's normal close protocol. Poweroff/reboot
-    # use a separate fixed save window; only logout permits a save-dialog veto.
+    # use a bounded close/save window; only logout permits a save-dialog veto.
     marker = runtime / "labwc-session-closing"
     try:
         ctl("--quiet", "is-active", TARGET)
@@ -191,7 +202,7 @@ def main(argv: list[str]) -> int:
     elif action == "prepare":
         prepare(runtime)
     elif action in {"poweroff", "reboot"}:
-        wait_power(action)
+        wait_power(runtime, action)
     else:
         close(runtime)
     return 0

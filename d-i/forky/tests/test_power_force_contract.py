@@ -41,6 +41,7 @@ class ForceContractTests(unittest.TestCase):
         self.stack.enter_context(mock.patch.object(self.power, 'hold_reservation'))
         self.stack.enter_context(mock.patch.object(self.power, 'sharing_stop_groups', return_value=[]))
         self.stack.enter_context(mock.patch.object(self.power.time, 'sleep'))
+        self.stack.enter_context(mock.patch.object(self.power.Worker, 'userctl', return_value=''))
 
     def test_authorized_actions_submit_once_without_preparation_requirements(self):
         for action in ('reboot', 'poweroff'):
@@ -93,23 +94,24 @@ class ForceContractTests(unittest.TestCase):
         worker.final_power_action()
         self.commands.assert_called_once_with(['/usr/bin/systemctl', '--force', 'poweroff'], timeout=25, max_output=4096)
 
-    def test_save_stage_precedes_close_and_cleanup_and_greeter_skips_it(self):
+    def test_close_save_stage_precedes_application_services_and_cleanup(self):
         for action in ('poweroff', 'reboot'):
             for greeter in (False, True):
                 with self.subTest(action=action, greeter=greeter):
                     worker = self.power.Worker(1000, 'desktop', action, greeter=greeter)
                     events = []
                     with (mock.patch.object(worker, 'helper', side_effect=lambda op: events.append(op)),
+                          mock.patch.object(worker, 'userctl', side_effect=lambda *args, **kwargs: events.append('apps')),
                           mock.patch.object(worker, 'stop_optional_guests', side_effect=lambda: events.append('guests')),
                           mock.patch.object(worker, 'prepare_machine_shutdown', side_effect=lambda: events.append('cleanup')),
                           mock.patch.object(worker, 'final_power_action', side_effect=lambda: events.append('force'))):
                         worker.execute()
                     self.assertEqual(events, ['guests', 'cleanup', 'force'] if greeter
-                                     else [action, 'close', 'guests', 'cleanup', 'force'])
+                                     else [action, 'apps', 'guests', 'cleanup', 'force'])
 
     def test_failed_save_helper_waits_only_the_remaining_grace(self):
         worker = self.power.Worker(1000, 'desktop', 'poweroff')
-        for elapsed, expected in ((0, 15), (10, 5), (25, None)):
+        for elapsed, expected in ((0, 10), (7, 3), (10, None), (25, None)):
             with (self.subTest(elapsed=elapsed),
                   mock.patch.object(worker, 'helper', side_effect=self.power.Error('helper failed')),
                   mock.patch.object(self.power.time, 'monotonic', side_effect=(100, 100 + elapsed)),

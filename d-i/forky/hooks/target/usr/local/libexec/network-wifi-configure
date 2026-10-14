@@ -1,0 +1,328 @@
+#!/usr/bin/python3 -IB
+"""Open native nmtui for the installer-owned static Wi-Fi profile."""
+import configparser
+import fcntl
+import io
+import ipaddress
+import os
+from pathlib import Path
+import re
+import selectors
+import shlex
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+
+POLICY = Path('/etc/network/host.conf')
+PREPARED = Path('/etc/network/managed-wifi.nmconnection')
+PROFILE = Path('/etc/NetworkManager/system-connections/managed-wifi.nmconnection')
+STATE = Path('/var/lib/NetworkManager/NetworkManager.state')
+FIRSTBOOT_DONE = Path('/var/lib/network-wifi/firstboot.complete')
+PROFILE_UUID = '3f1b70be-cc3f-4e77-9e31-66f7a5e16994'
+ENVIRONMENT = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C.UTF-8'}
+
+
+class ConfigurationError(ValueError):
+    """A safe diagnostic that never includes configuration contents or secrets."""
+
+
+def owned_parents(path):
+    for parent in path.parents:
+        info = parent.lstat()
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+            raise ConfigurationError('unsafe managed configuration parent')
+
+
+def read_owned(path, modes=(0o600,)):
+    owned_parents(path)
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(descriptor, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1
+                or stat.S_IMODE(info.st_mode) not in modes):
+            raise ConfigurationError('managed configuration must be a private root-owned regular file')
+        data = stream.read(65537)
+    if len(data) > 65536:
+        raise ConfigurationError('managed configuration exceeds its size limit')
+    return data.decode('utf-8')
+
+
+def parse_policy(text):
+    values = {}
+    for line in text.split('\n'):
+        if not line or line.startswith('#'):
+            continue
+        key, separator, raw = line.partition('=')
+        if not separator or not re.fullmatch(r'MANAGED_NETWORK_[A-Z0-9_]+', key) or key in values:
+            raise ConfigurationError('invalid or duplicate network policy assignment')
+        parts = shlex.split(raw, comments=False)
+        if len(parts) != 1:
+            raise ConfigurationError('invalid network policy value')
+        values[key] = parts[0]
+    return values
+
+
+def keyfile(text):
+    result = configparser.ConfigParser(interpolation=None, strict=True, delimiters=('=',))
+    result.optionxform = str
+    result.read_string(text)
+    if result.defaults():
+        raise ConfigurationError('managed keyfile must not have inherited defaults')
+    return result
+
+
+def publish(path, text):
+    owned_parents(path)
+    descriptor, temporary = tempfile.mkstemp(prefix='.managed-wifi-', dir=path.parent)
+    try:
+        with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def run(argv, check=True):
+    result = subprocess.run(argv, env=ENVIRONMENT, stdin=subprocess.DEVNULL,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=35)
+    if check and result.returncode:
+        raise ConfigurationError('Wi-Fi adapter command failed: ' + Path(argv[0]).name + ' (status ' + str(result.returncode) + ')')
+    return result.returncode
+
+
+def capture(argv):
+    # Radio data is untrusted. Bound bytes and elapsed time without inheriting
+    # a caller environment or letting subprocess output reach the journal.
+    deadline = time.monotonic() + 35
+    data = bytearray()
+    with subprocess.Popen(argv, env=ENVIRONMENT, stdin=subprocess.DEVNULL,
+                          stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) as process:
+        try:
+            with selectors.DefaultSelector() as selector:
+                selector.register(process.stdout, selectors.EVENT_READ)
+                while selector.get_map():
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise ConfigurationError('Wi-Fi scan timed out')
+                    for key, _ in selector.select(remaining):
+                        chunk = os.read(key.fd, 4096)
+                        if not chunk:
+                            selector.unregister(key.fileobj)
+                            continue
+                        data.extend(chunk)
+                        if len(data) > 262144:
+                            raise ConfigurationError('Wi-Fi scan exceeded its output limit')
+            status = process.wait(timeout=max(0.01, deadline - time.monotonic()))
+            if status:
+                raise ConfigurationError('Wi-Fi scan command failed (status ' + str(status) + ')')
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=2)
+    return data.decode('ascii')
+
+
+def wifi_policy(interface):
+    policy = parse_policy(read_owned(POLICY))
+    if (policy.get('MANAGED_NETWORK_MODE') != 'static'
+            or 'wifi' not in policy.get('MANAGED_NETWORK_LINK_TYPES', '').split()
+            or policy.get('MANAGED_NETWORK_WIFI_IFACE') != interface):
+        raise ConfigurationError('selected Wi-Fi adapter is not owned by the static network policy')
+    wifi = ipaddress.IPv4Interface(policy['MANAGED_NETWORK_WIFI_IPV4_CIDR'])
+    if policy.get('MANAGED_NETWORK_WIFI_CIDR'):
+        if wifi.ip not in ipaddress.IPv4Network(policy['MANAGED_NETWORK_WIFI_CIDR'], strict=False):
+            raise ConfigurationError('Ethernet IPv4 +1 is outside PRESEED_WIFI_CIDR')
+    ethernet_cidr = policy.get('MANAGED_NETWORK_ETHERNET_IPV4_CIDR')
+    if ethernet_cidr:
+        ethernet = ipaddress.IPv4Interface(ethernet_cidr)
+        if wifi.network != ethernet.network or int(wifi.ip) != int(ethernet.ip) + 1:
+            raise ConfigurationError('Wi-Fi must be Ethernet IPv4 +1 in the same subnet')
+    if policy.get('MANAGED_NETWORK_IPV6_ENABLED') == 'true':
+        wifi6 = ipaddress.IPv6Interface(policy['MANAGED_NETWORK_WIFI_IPV6_CIDR'])
+        ethernet6_cidr = policy.get('MANAGED_NETWORK_ETHERNET_IPV6_CIDR')
+        if ethernet6_cidr:
+            ethernet6 = ipaddress.IPv6Interface(ethernet6_cidr)
+            if wifi6.network != ethernet6.network or int(wifi6.ip) != int(ethernet6.ip) + 1:
+                raise ConfigurationError('Wi-Fi must be Ethernet IPv6 +1 in the same subnet')
+    return policy
+
+
+def profile_path():
+    return PROFILE if PROFILE.exists() or PROFILE.is_symlink() else PREPARED
+
+
+def validate_profile(policy, path=None):
+    profile = keyfile(read_owned(path or profile_path()))
+    expected = {('connection', 'uuid'): PROFILE_UUID,
+                ('connection', 'type'): 'wifi',
+                ('connection', 'interface-name'): policy['MANAGED_NETWORK_WIFI_IFACE'],
+                ('connection', 'autoconnect'): 'false', ('wifi', 'mode'): 'infrastructure',
+                ('ipv4', 'forwarding'): '1',
+                ('wifi', 'mac-address'): policy['MANAGED_NETWORK_WIFI_MAC']}
+    for family in (4, 6):
+        group = 'ipv' + str(family)
+        enabled = family == 4 or policy.get('MANAGED_NETWORK_IPV6_ENABLED') == 'true'
+        expected[(group, 'method')] = 'manual' if enabled else 'disabled'
+        expected[(group, 'route-metric')] = '200'
+        expected[(group, 'ignore-auto-dns')] = 'true'
+        expected[(group, 'ignore-auto-routes')] = 'true'
+        if enabled:
+            expected[(group, 'address1')] = policy['MANAGED_NETWORK_WIFI_IPV' + str(family) + '_CIDR']
+            expected[(group, 'gateway')] = policy['MANAGED_NETWORK_IPV' + str(family) + '_GATEWAY']
+            dns = policy['MANAGED_NETWORK_IPV' + str(family) + '_DNS'].split()
+            expected[(group, 'dns')] = ';'.join(dns) + ';' if policy['MANAGED_NETWORK_DNS_MODE'] == 'link' else ''
+    for (group, name), value in expected.items():
+        if profile.get(group, name, fallback='' if value == '' else None) != value:
+            raise ConfigurationError('managed Wi-Fi profile has incorrect ' + group + '.' + name)
+    return profile
+
+
+def publish_profile(policy):
+    validate_profile(policy, PREPARED)
+    PROFILE.parent.mkdir(mode=0o700, exist_ok=True)
+    publish(PROFILE, read_owned(PREPARED))
+    run(['/usr/bin/nmcli', '--wait', '30', 'connection', 'load', str(PROFILE)])
+
+
+def ssid_visible(output, ssid):
+    # Use raw SSID bytes, never display names: a hostile SSID containing control
+    # characters cannot forge records or trick the firstboot presence check.
+    expected = ssid.encode('utf-8').hex().lower()
+    records = output.splitlines()
+    if any(line not in {'', '--'} and not re.fullmatch(r'(?:[0-9a-fA-F]{2}){1,32}', line) for line in records):
+        raise ConfigurationError('invalid SSID-HEX scan output')
+    return expected in {line.lower() for line in records}
+
+
+def firstboot():
+    policy = parse_policy(read_owned(POLICY))
+    if 'wifi' not in policy.get('MANAGED_NETWORK_LINK_TYPES', '').split():
+        return
+    policy = wifi_policy(policy['MANAGED_NETWORK_WIFI_IFACE'])
+    validate_profile(policy, PREPARED)
+    if not (Path('/sys/class/net') / policy['MANAGED_NETWORK_WIFI_IFACE']).is_dir():
+        outcome = 'skipped-adapter-absent'
+    elif not policy.get('MANAGED_NETWORK_WIFI_ESSID'):
+        outcome = 'skipped-missing-ssid'
+    else:
+        try:
+            run(['/usr/sbin/rfkill', 'unblock', 'wlan'])
+            run(['/usr/bin/nmcli', '--wait', '30', 'radio', 'wifi', 'on'])
+            output = capture(['/usr/bin/nmcli', '--wait', '30', '--terse', '--fields', 'SSID-HEX',
+                              'device', 'wifi', 'list', 'ifname', policy['MANAGED_NETWORK_WIFI_IFACE'],
+                              '--rescan', 'yes'])
+            if ssid_visible(output, policy['MANAGED_NETWORK_WIFI_ESSID']):
+                publish_profile(policy)
+                outcome = 'prepared-visible-ssid'
+            else:
+                outcome = 'skipped-ssid-not-visible'
+        finally:
+            run(['/usr/bin/nmcli', '--wait', '30', 'radio', 'wifi', 'off'])
+    FIRSTBOOT_DONE.parent.mkdir(mode=0o700, exist_ok=True)
+    publish(FIRSTBOOT_DONE, outcome + '\n')
+    print('Wi-Fi firstboot:', outcome, '; automatic connection remains disabled.')
+
+
+def prepare():
+    # Called before NetworkManager starts. No D-Bus, radio or service commands.
+    try:
+        policy = parse_policy(read_owned(POLICY))
+    except FileNotFoundError:
+        return
+    if 'wifi' not in policy.get('MANAGED_NETWORK_LINK_TYPES', '').split():
+        return
+    validate_profile(wifi_policy(policy['MANAGED_NETWORK_WIFI_IFACE']))
+    STATE.parent.mkdir(mode=0o700, exist_ok=True)
+    try:
+        state = keyfile(read_owned(STATE, modes=(0o600, 0o644)))
+    except FileNotFoundError:
+        state = keyfile('[main]\n')
+    if not state.has_section('main'):
+        state.add_section('main')
+    state.set('main', 'WirelessEnabled', 'false')
+    result = io.StringIO()
+    state.write(result, space_around_delimiters=False)
+    publish(STATE, result.getvalue())
+
+
+def configure(interface, ui_args=()):
+    policy = wifi_policy(interface)
+    validate_profile(policy)
+    if profile_path() == PREPARED:
+        # An explicit later request may prepare the saved profile after firstboot
+        # skipped an absent SSID. This does not silently activate the connection.
+        publish_profile(policy)
+    print('Wi-Fi uses', policy['MANAGED_NETWORK_WIFI_IPV4_CIDR'], 'and the Ethernet gateway and resolver policy.')
+    print('In nmtui, edit Managed Wi-Fi for a new SSID; keep Manual IP settings and automatic connection off.')
+    run(['/usr/sbin/rfkill', 'unblock', 'wlan'])
+    run(['/usr/bin/nmcli', '--wait', '30', 'radio', 'wifi', 'on'])
+    environment = dict(ENVIRONMENT, TERM=os.environ.get('TERM', 'xterm-256color'))
+    # The native terminal UI owns selection and secret prompting. Never create
+    # an implicit DHCP profile with `nmcli device connect` or run ifup on Wi-Fi.
+    result = subprocess.run(['/usr/bin/nmtui', *ui_args], env=environment, timeout=900)
+    if result.returncode:
+        raise ConfigurationError('nmtui exited with status ' + str(result.returncode))
+    validate_profile(policy)
+
+
+def main():
+    if os.geteuid() == 0 and sys.argv[1:] == ['--prepare']:
+        os.umask(0o077)
+        prepare()
+        return
+    boot = sys.argv[1:] == ['--firstboot']
+    native = sys.argv[1:2] == ['--nmtui']
+    if native:
+        if (os.geteuid() != 0 or not sys.stdin.isatty() or len(sys.argv) > 4
+                or any(len(arg) > 128 or any(ord(c) < 32 or ord(c) == 127 for c in arg) for arg in sys.argv[2:])):
+            raise ConfigurationError('nmtui requires an interactive authorized terminal')
+        if sys.argv[2:] and sys.argv[2] not in {'edit', 'connect', 'hostname', '--help', '--version'}:
+            raise ConfigurationError('unsupported nmtui command')
+    if not boot and not native and (os.geteuid() != 0 or not re.fullmatch(r'[1-9][0-9]*', os.environ.get('PKEXEC_UID', ''))
+            or len(sys.argv) != 2 or not re.fullmatch(r'[A-Za-z0-9_.-]{1,15}', sys.argv[1])
+            or not sys.stdin.isatty()):
+        raise ConfigurationError('use the Wi-Fi connection action from the desktop network menu')
+    if os.geteuid() != 0:
+        raise ConfigurationError('Wi-Fi firstboot requires root')
+    os.umask(0o077)
+    descriptor = os.open('/run/lock/managed-wifi.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    with os.fdopen(descriptor, 'r+') as lock:
+        info = os.fstat(lock.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1 or info.st_mode & 0o077:
+            raise ConfigurationError('unsafe Wi-Fi configuration lock')
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if boot:
+            firstboot()
+        elif native:
+            policy = parse_policy(read_owned(POLICY))
+            configure(policy['MANAGED_NETWORK_WIFI_IFACE'], sys.argv[2:])
+        else:
+            configure(sys.argv[1])
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, ValueError, KeyError, RuntimeError, configparser.Error,
+            subprocess.TimeoutExpired, EOFError, KeyboardInterrupt) as error:
+        # Never print configuration, credentials, or subprocess output.
+        if isinstance(error, ConfigurationError):
+            print('Wi-Fi configuration did not complete: ' + str(error), file=sys.stderr)
+        else:
+            print('Wi-Fi configuration did not complete (' + type(error).__name__ + '). Check the static network policy and credentials.', file=sys.stderr)
+        raise SystemExit(1)

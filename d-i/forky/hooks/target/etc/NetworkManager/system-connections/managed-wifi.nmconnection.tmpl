@@ -1,0 +1,33 @@
+# Managed static addressing. Edit SSID/security in nmtui; keep autoconnect off.
+[connection]
+id=Managed Wi-Fi
+uuid=3f1b70be-cc3f-4e77-9e31-66f7a5e16994
+type=wifi
+interface-name=__INSTALLER_IFACE__
+autoconnect=false
+
+[wifi]
+mode=infrastructure
+ssid=__INSTALLER_SSID__
+mac-address=__INSTALLER_MAC__
+cloned-mac-address=random
+
+__INSTALLER_SECURITY__
+[ipv4]
+method=manual
+# The existing app-veth firewall owns forwarding policy; retain its packet path.
+forwarding=1
+address1=__INSTALLER_IPV4_CIDR__
+gateway=__INSTALLER_IPV4_GATEWAY__
+dns=__INSTALLER_IPV4_DNS__
+dns-search=__INSTALLER_DOMAIN__
+route-metric=200
+ignore-auto-dns=true
+ignore-auto-routes=true
+may-fail=false
+
+[ipv6]
+__INSTALLER_IPV6__
+route-metric=200
+ignore-auto-dns=true
+ignore-auto-routes=true

@@ -30,6 +30,7 @@ my @CONFIG_KEYS = qw(
   MANAGED_NETWORK_IPV6_GATEWAY
   MANAGED_NETWORK_IPV6_DNS
   MANAGED_NETWORK_WIFI_PSK_SECURITY
+  MANAGED_NETWORK_WIFI_CIDR
   MANAGED_NETWORK_WIFI_ESSID
   MANAGED_NETWORK_ETHERNET_MAC
   MANAGED_NETWORK_ETHERNET_IPV4_CIDR
@@ -193,6 +194,32 @@ sub _valid_ipv6_cidr {
     return $prefix >= 1 && $prefix <= 128 ? 1 : 0;
 }
 
+sub _ipv6_is_next_host {
+    my ($self, $ethernet, $wifi) = @_;
+
+    my ($ea, $ep) = split m{/}, $ethernet;
+    my ($wa, $wp) = split m{/}, $wifi;
+    return 0 if $ep != $wp;
+    my @ethernet = unpack 'C16', inet_pton(AF_INET6, $ea);
+    my @wifi = unpack 'C16', inet_pton(AF_INET6, $wa);
+    my @next = @ethernet;
+    my $carry = 1;
+    for my $i (reverse 0 .. 15) {
+        my $sum = $next[$i] + $carry;
+        $next[$i] = $sum & 0xff;
+        $carry = $sum >> 8;
+        last if !$carry;
+    }
+    return 0 if $carry || pack('C16', @next) ne pack('C16', @wifi);
+    for my $i (0 .. 15) {
+        my $bits = $ep - ($i * 8);
+        last if $bits <= 0;
+        my $shift = $bits < 8 ? 8 - $bits : 0;
+        return 0 if ($ethernet[$i] >> $shift) != ($wifi[$i] >> $shift);
+    }
+    return 1;
+}
+
 sub _valid_domain {
     my ($self, $value) = @_;
 
@@ -295,8 +322,47 @@ sub _validate_config_values {
             or die "MANAGED_NETWORK_IPV6_DNS requires MANAGED_NETWORK_IPV6_ENABLED=true\n";
     }
     if ($managed_type{wifi} && $config->{MANAGED_NETWORK_WIFI_ESSID} ne q{}) {
-        lc($config->{MANAGED_NETWORK_WIFI_PSK_SECURITY}) =~ /\A(?:open|wep|open\/wep|wpa|sae)\z/
+        lc($config->{MANAGED_NETWORK_WIFI_PSK_SECURITY}) =~ /\A(?:open|wep|legacy-wep|open\/wep|wpa|sae)\z/
             or die "MANAGED_NETWORK_WIFI_PSK_SECURITY is invalid\n";
+    }
+    for my $link_type (@types) {
+        my $upper = uc($link_type);
+        $self->_valid_ipv4_cidr($config->{"MANAGED_NETWORK_${upper}_IPV4_CIDR"})
+            or die "invalid IPv4 CIDR for $link_type\n";
+        if (lc($config->{MANAGED_NETWORK_IPV6_ENABLED}) eq 'true') {
+            $self->_valid_ipv6_cidr($config->{"MANAGED_NETWORK_${upper}_IPV6_CIDR"})
+                or die "invalid IPv6 CIDR for $link_type\n";
+        }
+    }
+    if ($managed_type{wifi} && $config->{MANAGED_NETWORK_WIFI_CIDR} ne q{}) {
+        $self->_valid_ipv4_cidr($config->{MANAGED_NETWORK_WIFI_CIDR})
+            or die "invalid PRESEED_WIFI_CIDR constraint\n";
+        my ($range, $prefix) = split m{/}, $config->{MANAGED_NETWORK_WIFI_CIDR};
+        my ($wifi) = split m{/}, $config->{MANAGED_NETWORK_WIFI_IPV4_CIDR};
+        my ($ri, $wi) = (0, 0);
+        $ri = ($ri << 8) + $_ for split /\./, $range;
+        $wi = ($wi << 8) + $_ for split /\./, $wifi;
+        my $mask = (0xffffffff << (32 - $prefix)) & 0xffffffff;
+        ($ri & $mask) == ($wi & $mask)
+            or die "Ethernet IPv4 +1 is outside PRESEED_WIFI_CIDR\n";
+    }
+    if ($managed_type{ethernet} && $managed_type{wifi}) {
+        my ($ethernet, $ep) = split m{/}, $config->{MANAGED_NETWORK_ETHERNET_IPV4_CIDR};
+        my ($wifi, $wp) = split m{/}, $config->{MANAGED_NETWORK_WIFI_IPV4_CIDR};
+        $self->_valid_ipv4_cidr($config->{MANAGED_NETWORK_ETHERNET_IPV4_CIDR})
+            && $self->_valid_ipv4_cidr($config->{MANAGED_NETWORK_WIFI_IPV4_CIDR})
+            or die "invalid Ethernet/Wi-Fi IPv4 address policy\n";
+        my ($ei, $wi) = (0, 0);
+        $ei = ($ei << 8) + $_ for split /\./, $ethernet;
+        $wi = ($wi << 8) + $_ for split /\./, $wifi;
+        my $mask = (0xffffffff << (32 - $ep)) & 0xffffffff;
+        $ep == $wp && $wi == $ei + 1 && ($ei & $mask) == ($wi & $mask)
+            or die "Wi-Fi must use Ethernet IPv4 +1 within the same subnet\n";
+        if (lc($config->{MANAGED_NETWORK_IPV6_ENABLED}) eq 'true') {
+            $self->_ipv6_is_next_host($config->{MANAGED_NETWORK_ETHERNET_IPV6_CIDR},
+                                     $config->{MANAGED_NETWORK_WIFI_IPV6_CIDR})
+                or die "Wi-Fi must use Ethernet IPv6 +1 within the same subnet\n";
+        }
     }
     return @types;
 }
@@ -367,7 +433,10 @@ sub _validate_expected_interface {
     -d $sys_iface
         or die "expected $link_type interface is absent: $iface\n";
     my $actual_mac = $self->_normalize_mac($self->_read_sys_value("$sys_iface/address") // q{});
-    $actual_mac eq $mac
+    # NM's profile matches the permanent MAC, then assigns a random association
+    # MAC under the existing privacy policy. Preserve strict checks otherwise.
+    ($actual_mac eq $mac || ($link_type eq 'wifi'
+        && ($self->_read_sys_value("$sys_iface/addr_assign_type") // q{}) eq '3'))
         or die "expected $link_type interface $iface has MAC $actual_mac, expected $mac\n";
     my $type = $self->_read_sys_value("$sys_iface/type") // q{};
     $type eq '1'
@@ -380,6 +449,71 @@ sub _validate_expected_interface {
         !$self->_iface_is_wifi($sys_iface)
             or die "expected Ethernet interface $iface is marked wireless\n";
     }
+    return;
+}
+
+sub _validate_wifi_profile {
+    my ($self, $config, $selection) = @_;
+    my $iface = $config->{MANAGED_NETWORK_WIFI_IFACE};
+    $selection !~ /^iface[ \t]+\Q$iface\E[ \t]/m
+        or die "Wi-Fi must be owned only by NetworkManager, not ifupdown\n";
+    $selection =~ s/\\\n[ \t]*/ /g;
+    for my $list ($selection =~ /^[ \t]*(?:auto|allow-\S+)[ \t]+([^\n]+)$/mg) {
+        for my $name (split /[ \t]+/, $list) {
+            ($name eq 'lo' || $self->_valid_iface_name($name))
+                or die "automatic activation lists must use literal interface names\n";
+            $name ne $iface or die "ifupdown must not automatically activate Wi-Fi\n";
+        }
+    }
+    my $path = $self->_target_path('/etc/NetworkManager/system-connections/managed-wifi.nmconnection');
+    $path = $self->_target_path('/etc/network/managed-wifi.nmconnection') if !-e $path;
+    $self->_file_mode($path) eq '0600' or die "$path must be mode 0600\n";
+    my %values;
+    my $group = q{};
+    for my $line (split /\n/, $self->_slurp_limited($path)) {
+        next if $line =~ /\A\s*(?:#|\z)/;
+        if ($line =~ /\A\[([a-z0-9-]+)\]\z/) { $group = $1; next; }
+        my ($key, $value) = $line =~ /\A([a-z0-9-]+)=(.*)\z/;
+        defined($key) && $group ne q{} or die "invalid managed Wi-Fi keyfile\n";
+        !exists($values{"$group.$key"}) or die "duplicate managed Wi-Fi keyfile property\n";
+        $values{"$group.$key"} = $value;
+    }
+    my @expected = (
+        ['connection.type', 'wifi'], ['connection.interface-name', $iface],
+        ['connection.autoconnect', 'false'], ['wifi.mode', 'infrastructure'],
+        ['wifi.mac-address', $config->{MANAGED_NETWORK_WIFI_MAC}],
+        ['ipv4.method', 'manual'],
+        ['ipv4.forwarding', '1'],
+        ['ipv4.address1', $config->{MANAGED_NETWORK_WIFI_IPV4_CIDR}],
+        ['ipv4.gateway', $config->{MANAGED_NETWORK_IPV4_GATEWAY}],
+    );
+    my $ipv6_enabled = lc($config->{MANAGED_NETWORK_IPV6_ENABLED}) eq 'true';
+    push @expected, ['ipv6.method', $ipv6_enabled ? 'manual' : 'disabled'];
+    push @expected, ['ipv6.address1', $config->{MANAGED_NETWORK_WIFI_IPV6_CIDR}],
+        ['ipv6.gateway', $config->{MANAGED_NETWORK_IPV6_GATEWAY}]
+        if $ipv6_enabled;
+    for my $family (4, 6) {
+        push @expected, ["ipv$family.route-metric", '200'],
+            ["ipv$family.ignore-auto-dns", 'true'], ["ipv$family.ignore-auto-routes", 'true'];
+        next if $family == 6 && !$ipv6_enabled;
+        my $dns = $config->{MANAGED_NETWORK_DNS_MODE} eq 'link'
+            ? join(';', $self->_words($config->{"MANAGED_NETWORK_IPV${family}_DNS"})) . ';' : q{};
+        push @expected, ["ipv$family.dns", $dns], ["ipv$family.may-fail", 'false'];
+    }
+    for my $field (@expected) {
+        my ($key, $expected) = @{$field};
+        ($values{$key} // q{}) eq $expected
+            or die "$path has incorrect $key\n";
+    }
+    # SSID and secrets belong to NM/nmtui. They may be edited independently of
+    # the installer address policy; never print them in validation diagnostics.
+    my $nm_path = $self->_target_path('/etc/NetworkManager/conf.d/90-network-unmanaged.conf');
+    my $nm = $self->_slurp_limited($nm_path);
+    $nm !~ /^unmanaged-devices=[^\n]*interface-name:\Q$iface\E(?:[;\n]|\z)/m
+        && $nm !~ /^unmanaged-devices=[^\n]*mac:\Q$config->{MANAGED_NETWORK_WIFI_MAC}\E(?:[;\n]|\z)/m
+        or die "$nm_path must not exclude Wi-Fi\n";
+    $nm =~ /\[device-managed-wifi\]\nmatch-device=interface-name:\Q$iface\E\nmanaged=1\n/
+        or die "$nm_path must make Wi-Fi managed\n";
     return;
 }
 
@@ -407,6 +541,10 @@ sub _validate_staged_files {
     }
     my $ipv6_enabled = lc($config->{MANAGED_NETWORK_IPV6_ENABLED}) eq 'true' ? 1 : 0;
     for my $link_type (@types) {
+        if ($link_type eq 'wifi') {
+            $self->_validate_wifi_profile($config, $base . "\n" . $content);
+            next;
+        }
         my $upper = uc($link_type);
         my $iface = $config->{"MANAGED_NETWORK_${upper}_IFACE"};
         $content =~ /^iface[ \t]+\Q$iface\E[ \t]+inet[ \t]+static\b/m
@@ -419,25 +557,41 @@ sub _validate_staged_files {
             $content !~ /^iface[ \t]+\Q$iface\E[ \t]+inet6[ \t]+static\b/m
                 or die "$managed must not contain static IPv6 stanzas when IPv6 is disabled\n";
         }
-        next if $link_type ne 'wifi' || $config->{MANAGED_NETWORK_WIFI_ESSID} eq q{};
-        $content =~ /^[ \t]+wpa-ssid[ \t]+\Q$config->{MANAGED_NETWORK_WIFI_ESSID}\E[ \t]*$/m
-            or die "$managed lacks Wi-Fi SSID stanza\n";
-        my $security = lc($config->{MANAGED_NETWORK_WIFI_PSK_SECURITY});
-        if ($security eq 'sae') {
-            $content =~ /^[ \t]+wpa-key-mgmt[ \t]+SAE[ \t]*$/m
-                or die "$managed lacks SAE key management\n";
-            $content =~ /^[ \t]+wpa-psk[ \t]+\S+[ \t]*$/m
-                or die "$managed lacks WPA/SAE PSK material\n";
+        my @stanzas = $content =~ /^iface[ \t]+\Q$iface\E[ \t]+inet[ \t]+static[ \t]*\n((?:(?!^(?:iface|auto|allow-\S+|mapping|source)\b).*\n)*)/mg;
+        @stanzas == 1 or die "$managed must contain exactly one IPv4 stanza for $iface\n";
+        my ($address, $prefix) = split m{/}, $config->{"MANAGED_NETWORK_${upper}_IPV4_CIDR"};
+        my $mask = (0xffffffff << (32 - $prefix)) & 0xffffffff;
+        my $netmask = join '.', map { ($mask >> (8 * $_)) & 255 } reverse 0 .. 3;
+        for my $field ([address => $address], [netmask => $netmask],
+                       [gateway => $config->{MANAGED_NETWORK_IPV4_GATEWAY}],
+                       [metric => $link_type eq 'wifi' ? 200 : 100]) {
+            my ($key, $expected) = @{$field};
+            my @values = $stanzas[0] =~ /^[ \t]+\Q$key\E[ \t]+([^\n]+)$/mg;
+            @values == 1 && $values[0] eq $expected
+                or die "$managed has incorrect $key for $iface\n";
         }
-        elsif ($security eq 'wpa') {
-            $content =~ /^[ \t]+wpa-key-mgmt[ \t]+WPA-PSK[ \t]*$/m
-                or die "$managed lacks WPA-PSK key management\n";
-            $content =~ /^[ \t]+wpa-psk[ \t]+\S+[ \t]*$/m
-                or die "$managed lacks WPA/SAE PSK material\n";
+        if ($config->{MANAGED_NETWORK_DNS_MODE} eq 'link') {
+            my @dns = $stanzas[0] =~ /^[ \t]+dns-nameservers[ \t]+([^\n]+)$/mg;
+            @dns == 1 && $dns[0] eq $config->{MANAGED_NETWORK_IPV4_DNS}
+                or die "$managed has incorrect IPv4 DNS for $iface\n";
         }
-        elsif ($security eq 'wep') {
-            $content =~ /^[ \t]+wpa-wep-key0[ \t]+\S+[ \t]*$/m
-                or die "$managed lacks WEP key material\n";
+        if ($ipv6_enabled) {
+            my @ipv6_stanzas = $content =~ /^iface[ \t]+\Q$iface\E[ \t]+inet6[ \t]+static[ \t]*\n((?:(?!^(?:iface|auto|allow-\S+|mapping|source)\b).*\n)*)/mg;
+            @ipv6_stanzas == 1 or die "$managed must contain exactly one IPv6 stanza for $iface\n";
+            my ($ipv6_address, $ipv6_prefix) = split m{/}, $config->{"MANAGED_NETWORK_${upper}_IPV6_CIDR"};
+            for my $field ([address => $ipv6_address], [netmask => $ipv6_prefix],
+                           [gateway => $config->{MANAGED_NETWORK_IPV6_GATEWAY}],
+                           [metric => $link_type eq 'wifi' ? 200 : 100]) {
+                my ($key, $expected) = @{$field};
+                my @values = $ipv6_stanzas[0] =~ /^[ \t]+\Q$key\E[ \t]+([^\n]+)$/mg;
+                @values == 1 && $values[0] eq $expected
+                    or die "$managed has incorrect IPv6 $key for $iface\n";
+            }
+            if ($config->{MANAGED_NETWORK_DNS_MODE} eq 'link') {
+                my @dns = $ipv6_stanzas[0] =~ /^[ \t]+dns-nameservers[ \t]+([^\n]+)$/mg;
+                @dns == 1 && $dns[0] eq $config->{MANAGED_NETWORK_IPV6_DNS}
+                    or die "$managed has incorrect IPv6 DNS for $iface\n";
+            }
         }
     }
     return;

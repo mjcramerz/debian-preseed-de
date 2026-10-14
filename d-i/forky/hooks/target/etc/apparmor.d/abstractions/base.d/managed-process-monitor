@@ -6,3 +6,9 @@ signal (receive) peer=desktop-btop,
 ptrace (readby) peer=desktop-btop,
 # aa-status reads confinement labels and executable links, never process memory.
 ptrace (readby) peer=desktop-launcher//apparmor-status,
+# Foot/Kitty now use their own general command domain. Terminal close, Ctrl-C,
+# timeout and process-status tools retain their reciprocal permissions. Kernel
+# UID/capability checks still apply; existing explicit deny rules still win.
+signal (receive) peer=desktop-terminal,
+signal (send) set=(chld) peer=desktop-terminal,
+ptrace (readby) peer=desktop-terminal,

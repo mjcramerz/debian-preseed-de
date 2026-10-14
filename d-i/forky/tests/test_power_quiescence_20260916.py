@@ -44,6 +44,8 @@ class OrderlyLifecycleTests(unittest.TestCase):
         self.stack.enter_context(mock.patch.object(self.power, 'ready'))
         self.stack.enter_context(mock.patch.object(self.power, 'hold_reservation'))
         self.stack.enter_context(mock.patch.object(self.worker, 'helper'))
+        self.stack.enter_context(mock.patch.object(self.worker, 'userctl', return_value=''))
+        self.stack.enter_context(mock.patch.object(self.power.time, 'sleep'))
         self.stack.enter_context(mock.patch.object(self.worker, 'stop_optional_guests'))
         self.stack.enter_context(mock.patch.object(self.worker, 'prepare_machine_shutdown'))
         self.final = self.stack.enter_context(mock.patch.object(self.worker, 'final_power_action'))
@@ -63,7 +65,8 @@ class OrderlyLifecycleTests(unittest.TestCase):
             mock.patch.object(self.worker, 'protect_other_sessions', side_effect=AssertionError('session gate')),
         ):
             self.worker.execute()
-        self.worker.helper.assert_called_once_with('close')
+        self.worker.helper.assert_called_once_with('reboot')
+        self.worker.userctl.assert_called_once_with('stop', 'labwc-session.target', timeout=30)
         self.final.assert_called_once()
 
     def test_handoff_environment_cannot_redirect_bus_or_select_soft_reboot(self):

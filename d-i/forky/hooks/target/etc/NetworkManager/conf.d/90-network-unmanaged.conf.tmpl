@@ -1,3 +1,4 @@
-# ifupdown owns these adapters; do not race it through NetworkManager.
+# ifupdown owns Ethernet; Wi-Fi is a native, manually activated NM profile.
 [keyfile]
 unmanaged-devices=__INSTALLER_MATCHES__
+__INSTALLER_WIFI_DEVICE__

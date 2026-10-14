@@ -255,13 +255,36 @@ raise SystemExit(0 if backend == "Running" and ips else 1)
 ' >/dev/null 2>&1
 }
 
+tailscale_waiting_for_approval() {
+  tailscale_status_json | /usr/bin/python3 -B -c '
+import json, sys
+data = json.load(sys.stdin)
+raise SystemExit(0 if data.get("BackendState") == "NeedsMachineAuth" and data.get("HaveNodeKey") else 1)
+' >/dev/null 2>&1
+}
+
+tailscale_report_pending_approval() {
+  # Registration has consumed the key. Retain the node identity in tailscaled,
+  # not the installer credential; an approval check must not authenticate again.
+  tailscale_remove_auth_key
+  tailscale_write_status false pending-machine-approval
+  tailscale_log "device approval is pending in the Tailscale admin console; retaining bootstrap state; systemd will check again without reusing the auth key"
+  exit 75
+}
+
 tailscale_append_diagnostics() {
   {
     printf '\n[tailscale] final bootstrap diagnostics\n'
     printf '\n[tailscale] version\n'
     /usr/bin/tailscale version || true
     printf '\n[tailscale] status\n'
-    /usr/bin/tailscale status --json || true
+    tailscale_status_json | /usr/bin/python3 -B -c '
+import json, sys
+data = json.load(sys.stdin)
+print(json.dumps({"BackendState": data.get("BackendState"),
+                  "HaveNodeKey": bool(data.get("HaveNodeKey")),
+                  "health_count": len(data.get("Health") or [])}))
+' || true
     if [ -x /usr/bin/timeout ]; then
       printf '\n[tailscale] netcheck\n'
       /usr/bin/timeout --signal=TERM --kill-after=5s 30s /usr/bin/tailscale netcheck || true
@@ -316,22 +339,22 @@ tailscale_validate_config
 [ "$mode" = --validate-config ] && exit 0
 
 auth_key_arg=
-if [ -s "$TAILSCALE_AUTH_KEY_FILE" ]; then
-  tailscale_normalize_auth_key_file
-  auth_key_arg="--auth-key=file:${TAILSCALE_AUTH_KEY_FILE}"
-fi
-
 [ -x /usr/bin/tailscale ] || tailscale_fatal "tailscale CLI is unavailable"
 tailscale_wait_for_daemon
 if tailscale_is_joined && ! tailscale_bool_is_true "${TAILSCALE_FORCE_REAUTH:-false}"; then
   touch "$TAILSCALE_COMPLETE_FILE"
   chmod 0600 "$TAILSCALE_COMPLETE_FILE" 2>/dev/null || true
-  if [ -n "$auth_key_arg" ]; then
-    tailscale_remove_auth_key
-  fi
+  tailscale_remove_auth_key
   tailscale_write_status true already-joined
   tailscale_log "tailscale is already joined; skipping bootstrap"
   exit 0
+fi
+if tailscale_waiting_for_approval && ! tailscale_bool_is_true "${TAILSCALE_FORCE_REAUTH:-false}"; then
+  tailscale_report_pending_approval
+fi
+if [ -s "$TAILSCALE_AUTH_KEY_FILE" ]; then
+  tailscale_normalize_auth_key_file
+  auth_key_arg="--auth-key=file:${TAILSCALE_AUTH_KEY_FILE}"
 fi
 if [ -z "$auth_key_arg" ] && [ "$mode" = --if-auth-key-present ]; then
   if tailscale_bool_is_true "${TAILSCALE_AUTH_KEY_REQUIRED:-true}"; then
@@ -406,6 +429,9 @@ if tailscale_is_joined; then
   exit 0
 fi
 
+if tailscale_waiting_for_approval; then
+  tailscale_report_pending_approval
+fi
 tailscale_append_diagnostics
 tailscale_write_status false tailscale-up-failed
 tailscale_fatal "tailscale up did not establish a joined state (status ${tailscale_up_status}); systemd will retry within its bounded policy; inspect ${TAILSCALE_LOG_FILE}"

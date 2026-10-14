@@ -137,6 +137,10 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/bin/labwc-computer-management /usr/local/bin/labwc-computer-management 0755
   desktop_stage_role_asset usr/local/bin/labwc-network-sharing /usr/local/bin/labwc-network-sharing 0755
   desktop_stage_role_asset usr/local/bin/nfsmnt /usr/local/bin/nfsmnt 0755
+  desktop_stage_role_asset usr/local/libexec/network-wifi-configure /usr/local/libexec/network-wifi-configure 0755
+  desktop_stage_role_asset usr/local/bin/nmtui /usr/local/bin/nmtui 0755
+  desktop_stage_role_asset etc/systemd/system/NetworkManager.service.d/30-wifi-manual.conf /etc/systemd/system/NetworkManager.service.d/30-wifi-manual.conf 0644
+  desktop_stage_role_asset etc/systemd/system/managed-wifi-firstboot.service /etc/systemd/system/managed-wifi-firstboot.service 0644
   desktop_stage_role_asset usr/local/bin/labwc-ai-copilots /usr/local/bin/labwc-ai-copilots 0755
   desktop_stage_ai_copilots_perl_modules
   desktop_stage_ai_copilots_catalogs
@@ -634,8 +638,8 @@ test -x /usr/bin/update-mime-database
   desktop_stage_role_asset etc/skel-desktop/.config/microsoft-edge/Default/Preferences /etc/skel-desktop/.config/microsoft-edge/Default/Preferences 0600
   desktop_stage_role_asset etc/skel-desktop/.config/obsidian/obsidian.json /etc/skel-desktop/.config/obsidian/obsidian.json 0600
   desktop_stage_role_asset etc/skel-desktop/.config/vivaldi/Default/Preferences /etc/skel-desktop/.config/vivaldi/Default/Preferences 0600
-  desktop_stage_role_asset etc/skel-desktop/.config/vivaldi/search_engines.json /etc/skel-desktop/.config/vivaldi/search_engines.json 0600
-  desktop_stage_role_asset etc/skel-desktop/.config/vivaldi/search_engines_prompt.json /etc/skel-desktop/.config/vivaldi/search_engines_prompt.json 0600
+  # Vivaldi owns its signed search-engine caches; do not seed unsigned JSON
+  # copies that the browser rejects.
   desktop_stage_syncthing_ignore
   install -d -m 0700 /target/etc/skel-desktop/.config/keepassxc
   desktop_stage_role_asset etc/skel-desktop/.config/keepassxc/keepassxc.ini /etc/skel-desktop/.config/keepassxc/keepassxc.ini 0600

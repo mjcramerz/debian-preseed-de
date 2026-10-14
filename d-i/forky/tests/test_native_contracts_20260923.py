@@ -63,6 +63,14 @@ class NativeContractTests(unittest.TestCase):
         self.assertNotIn('EnvironmentFile=', unit)
         self.assertIn('Environment="TAILSCALE_HOSTNAME=', unit)
         self.assertIn('/var/lib/firstboot/bin/tailscale-up', unit)
+        self.assertIn('Type=exec\n', unit)
+        self.assertIn('SuccessExitStatus=75\n', unit)
+        self.assertIn('RestartForceExitStatus=75\n', unit)
+        self.assertIn('RuntimeMaxSec=15min\n', unit)
+        pending = re.search(r'^tailscale_report_pending_approval\(\) \{\n.*?^\}', text, re.M | re.S).group(0)
+        self.assertIn('tailscale_remove_auth_key', pending)
+        self.assertIn('exit 75', pending)
+        self.assertNotIn('touch ', pending)
 
     def test_authoritative_audit_and_requested_categories(self):
         env = read_text(SEED / 'hosts/logging/observability.env')

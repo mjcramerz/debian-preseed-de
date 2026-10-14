@@ -934,6 +934,9 @@ class InstalledFailureRegressionTests(unittest.TestCase):
         sanitizer = render_theme_defaults(payload_read_text(ROOT / 'scripts/late/storage-maintenance.sh'))
         self.assertIn("sed '/^[[:space:]]*CPUAccounting[[:space:]]*=/d'", sanitizer)
         self.assertIn('CPUAccounting directive:', sanitizer)
+        self.assertIn('xfs_healer@.service', sanitizer)
+        self.assertIn('xfs_healer_start.service', sanitizer)
+        self.assertIn('system-xfs_healer.slice', sanitizer)
 
     def test_wallpaper_and_xwayland_boot_contracts_are_explicit(self):
         expected = '/' + theme_values()['LABWC_WALLPAPER_DESKTOP_SWAYBG'].removeprefix('hooks/target/')

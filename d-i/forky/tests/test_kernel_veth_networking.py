@@ -961,23 +961,45 @@ class AdministrationTests(unittest.TestCase):
         self.assertFalse(any('veth3-app' in argv and argv[-1] == 'up' for argv, _ in self.calls))
 
     def test_internet_route_rejects_a_down_interface(self):
-        def replies(argv, **options):
-            if argv[-2:] == ['get', '1.1.1.1']:
-                return json.dumps([{'dev': 'eth0', 'prefsrc': '192.0.2.8'}])
-            return json.dumps([{'mtu': 1500, 'flags': []}])
-        with mock.patch.object(broker, 'run', side_effect=replies), \
-                self.assertRaisesRegex(ValueError, 'Internet interface is down'):
-            self.original_route()
+        for flags, operstate, route_flags in (([], 'DOWN', []),
+                (['UP', 'NO-CARRIER'], 'DOWN', []), (['UP'], 'LOWERLAYERDOWN', []),
+                (['UP', 'LOWER_UP'], 'UP', ['linkdown'])):
+            with self.subTest(flags=flags, operstate=operstate, route_flags=route_flags):
+                def replies(argv, **options):
+                    if argv[-2:] == ['get', '1.1.1.1']:
+                        return json.dumps([{'dev': 'eth0', 'prefsrc': '192.0.2.56', 'flags': route_flags}])
+                    return json.dumps([{'mtu': 1500, 'flags': flags, 'operstate': operstate}])
+                with mock.patch.object(broker, 'run', side_effect=replies), \
+                        self.assertRaisesRegex(ValueError, 'Internet interface is down'):
+                    self.original_route()
+
+    def test_kernel_selected_ethernet_wifi_and_vpn_use_the_same_route_reader(self):
+        for iface, source, state in (('eth0', '192.0.2.56', 'UP'),
+                                    ('wifi0', '192.0.2.57', 'UP'),
+                                    ('wg0', '198.51.100.2', 'UNKNOWN')):
+            with self.subTest(iface=iface):
+                def replies(argv, **options):
+                    if argv[-2:] == ['get', '1.1.1.1']:
+                        return json.dumps([{'dev': iface, 'prefsrc': source}])
+                    return json.dumps([{'mtu': 1500, 'flags': ['UP'], 'operstate': state}])
+                with mock.patch.object(broker, 'run', side_effect=replies) as commands:
+                    self.assertEqual(self.original_route(), (iface, source, 1500))
+                self.assertEqual(commands.call_args_list[0].args[0],
+                    ['/usr/sbin/ip', '-j', '-4', 'route', 'get', '1.1.1.1'])
 
     def test_malformed_route_and_link_snapshots_fail_with_a_controlled_error(self):
         for route in (None, [], {}, {'dev': []}, {'dev': 'eth0', 'prefsrc': True}):
             with self.subTest(route=route), self.assertRaises(ValueError):
                 broker.route_interface(route)
         for links in ([], {}, [None], [{'mtu': 1500}], [{'mtu': True, 'flags': ['UP']}],
-                      [{'mtu': 1500, 'flags': 'UP'}]):
+                      [{'mtu': 1500, 'flags': 'UP'}], [{'mtu': 1500, 'flags': ['UP'], 'operstate': {}}]):
             with self.subTest(links=links), mock.patch.object(broker, 'run', return_value=json.dumps(links)), \
                     self.assertRaises(ValueError):
                 broker.route_interface({'dev': 'eth0', 'prefsrc': '192.0.2.8'})
+        for flags in (None, 'linkdown', [False]):
+            with self.subTest(route_flags=flags), mock.patch.object(broker, 'run',
+                    return_value=json.dumps([{'mtu': 1500, 'flags': ['UP']}])), self.assertRaises(ValueError):
+                broker.route_interface({'dev': 'eth0', 'prefsrc': '192.0.2.8', 'flags': flags})
 
     def test_close_removes_packet_path_before_rule_elements(self):
         network = self.network()
@@ -1080,8 +1102,8 @@ class AdministrationTests(unittest.TestCase):
         channel = mock.Mock()
         leases = {channel: network}
         original = (network.nsfd, network.slot, network.address, network.interface)
-        for current in (('wifi0', '192.0.2.9', 1500), None, None,
-                        ('eth0', '192.0.2.10', 1400), ('tailscale0', '100.64.0.1', 1280)):
+        for current in (('eth0', '192.0.2.56', 1500), ('wifi0', '192.0.2.57', 1500), None, None,
+                        ('eth0', '192.0.2.56', 1400), ('tailscale0', '100.64.0.1', 1280)):
             self.calls.clear()
             self.transactions.clear()
             kwargs = {'return_value': current} if current is not None else {'side_effect': ValueError('offline')}

@@ -122,13 +122,14 @@ class PowerWorkerTests(unittest.TestCase):
                 self.execute(action)
                 self.assertEqual(self.calls[-1], handoff_argv(action))
                 self.assertEqual(sum(is_handoff(c) for c in self.calls), 1)
-                close = next(i for i, c in enumerate(self.calls) if c[-2:] == ['start', 'labwc-session-state@close.service'])
                 save = next(i for i, c in enumerate(self.calls) if c[-2:] == ['start', f'labwc-session-state@{action}.service'])
+                apps = next(i for i, c in enumerate(self.calls) if c[-2:] == ['stop', 'labwc-session.target'])
                 guests = next(i for i, c in enumerate(self.calls) if 'stop' in c and 'podman-devops-restart.service' in c)
                 drives = next(i for i, c in enumerate(self.calls) if c[-2:] == ['start', power.EXTERNAL_DRIVES_UNIT])
                 terminate = next(i for i, c in enumerate(self.calls) if 'terminate-user' in c)
-                self.assertLess(save, close)
-                self.assertLess(close, guests)
+                self.assertLess(save, apps)
+                self.assertLess(apps, guests)
+                self.assertFalse(any(c[-1] == 'labwc-session-state@close.service' for c in self.calls))
                 self.assertLess(guests, drives)
                 self.assertLess(drives, terminate)
                 self.assertEqual(sum(c[-2:] == ['start', power.EXTERNAL_DRIVES_UNIT] for c in self.calls), 1)
@@ -151,7 +152,7 @@ class PowerWorkerTests(unittest.TestCase):
         self.assertFalse(any('--force' in c for c in self.calls))
 
     def test_prepare_failure_does_not_veto_power(self):
-        self.failure = lambda command: command[-2:] == ['start', 'labwc-session-state@close.service']
+        self.failure = lambda command: command[-2:] == ['stop', 'labwc-session.target']
         with contextlib.redirect_stderr(io.StringIO()):
             self.execute('poweroff')
         self.assertEqual(self.calls[-1], handoff_argv('poweroff'))
@@ -163,7 +164,7 @@ class PowerWorkerTests(unittest.TestCase):
               mock.patch.object(power.time, 'sleep') as sleep,
               contextlib.redirect_stderr(io.StringIO())):
             self.execute('poweroff')
-        sleep.assert_called_once_with(15)
+        sleep.assert_called_once_with(10)
         self.assertEqual(self.calls[-1], handoff_argv('poweroff'))
         self.assertEqual(sum(is_handoff(c) for c in self.calls), 1)
 
@@ -237,41 +238,92 @@ class SessionStateTests(unittest.TestCase):
                                              'gnumeric: workbook\nvivaldi: page\nmsedge: page\nchromium: page')
                 self.notify.reset_mock()
                 self.sleep.reset_mock()
-                self.session.wait_power(action)
-                self.assertEqual(self.now, 15)
+                self.run.reset_mock()
+                self.session.wait_power(self.runtime, action)
+                self.assertEqual(self.now, 10)
                 self.notify.assert_called_once()
-                self.assertIn('in 15 seconds', self.notify.call_args.args[0])
-                self.assertIn('Save your work now', self.notify.call_args.args[0])
+                self.assertIn('within 10 seconds', self.notify.call_args.args[0])
+                self.assertIn('terminals close without a save prompt', self.notify.call_args.args[0])
                 self.assertEqual(self.notify.call_args.kwargs, {'timeout': 1})
+                self.run.assert_called_once_with(['/usr/bin/wlrctl', 'toplevel', 'close'], timeout=5, accepted=(0, 1))
                 self.assertTrue(all(0 < call.args[0] <= 0.2 for call in self.sleep.call_args_list))
                 self.assertTrue(all(0 < call.kwargs['timeout'] <= 1
                                     for call in self.windows.call_args_list if call.kwargs))
-        self.run.assert_not_called()
         self.ctl.assert_not_called()
         self.clipboard.assert_not_called()
-        self.assertEqual(list(self.runtime.iterdir()), [])
+        self.assertTrue((self.runtime / 'labwc-session-closing').is_file())
 
     def test_no_visible_windows_means_no_save_warning_or_delay(self):
-        self.session.wait_power('poweroff')
-        self.windows.assert_called_once_with()
+        self.session.wait_power(self.runtime, 'poweroff')
+        self.windows.assert_called_once_with(timeout=1)
         self.notify.assert_not_called()
         self.sleep.assert_not_called()
-        self.run.assert_not_called()
+        self.run.assert_called_once_with(['/usr/bin/wlrctl', 'toplevel', 'close'], timeout=5, accepted=(0, 1))
 
     def test_all_windows_closed_during_grace_proceeds_early(self):
         self.windows.side_effect = ['featherpad: document', 'featherpad: document', '']
-        self.session.wait_power('reboot')
+        self.session.wait_power(self.runtime, 'reboot')
         self.assertEqual(self.now, 0.2)
         self.notify.assert_called_once()
-        self.run.assert_not_called()
+        self.run.assert_called_once_with(['/usr/bin/wlrctl', 'toplevel', 'close'], timeout=5, accepted=(0, 1))
 
     def test_failed_window_inventory_is_bounded_and_never_vetoes_power(self):
         self.windows.side_effect = self.session.Error('Wayland unavailable')
         with contextlib.redirect_stderr(io.StringIO()):
-            self.session.wait_power('poweroff')
-        self.assertEqual(self.now, 15)
+            self.session.wait_power(self.runtime, 'poweroff')
+        self.assertEqual(self.now, 10)
         self.notify.assert_called_once()
-        self.run.assert_not_called()
+        self.run.assert_called_once_with(['/usr/bin/wlrctl', 'toplevel', 'close'], timeout=5, accepted=(0, 1))
+
+    def test_close_probe_and_notification_delays_share_the_ten_second_deadline(self):
+        def close_command(argv, **kwargs):
+            self.advance(4)
+            return ''
+        def window_probe(**kwargs):
+            self.advance(min(0.4, kwargs['timeout']))
+            return 'featherpad: Save changes?'
+        self.run.side_effect = close_command
+        self.windows.side_effect = window_probe
+        self.notify.side_effect = lambda *args, **kwargs: self.advance(0.3)
+        self.session.wait_power(self.runtime, 'reboot')
+        self.assertEqual(self.now, 10)
+        self.assertEqual(self.run.call_count, 1)
+        self.ctl.assert_not_called()
+        self.clipboard.assert_not_called()
+
+    def test_failed_close_request_is_not_retried_or_a_power_veto(self):
+        self.run.side_effect = self.session.Error('close transport failed')
+        self.windows.return_value = 'featherpad: document'
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.session.wait_power(self.runtime, 'poweroff')
+        self.assertEqual(self.now, 10)
+        self.assertEqual(self.run.call_count, 1)
+
+    def test_unfinished_dialogs_proceed_to_application_teardown_and_one_handoff(self):
+        for action in ('poweroff', 'reboot'):
+            with self.subTest(action=action):
+                self.now = 0
+                self.run.reset_mock()
+                self.windows.return_value = 'featherpad: Save changes?\nfoot: micro'
+                events = []
+                worker = power.Worker(1000, 'desktop', action)
+                def userctl(*argv, **kwargs):
+                    events.append((self.now, argv))
+                    return ''
+                def handoff(argv, **kwargs):
+                    events.append((self.now, tuple(argv)))
+                    return ''
+                with (mock.patch.object(power, 'ready'),
+                      mock.patch.object(power, 'hold_reservation'),
+                      mock.patch.object(worker, 'helper', side_effect=lambda op: self.session.wait_power(self.runtime, op)),
+                      mock.patch.object(worker, 'userctl', side_effect=userctl),
+                      mock.patch.object(worker, 'stop_optional_guests'),
+                      mock.patch.object(worker, 'prepare_machine_shutdown'),
+                      mock.patch.object(power, 'run', side_effect=handoff)):
+                    worker.execute()
+                self.assertEqual(events, [(10, ('stop', 'labwc-session.target')),
+                                          (10, tuple(handoff_argv(action)))])
+                self.run.assert_called_once_with(['/usr/bin/wlrctl', 'toplevel', 'close'], timeout=5, accepted=(0, 1))
 
     def test_power_close_sends_one_request_without_window_or_service_gates(self):
         self.windows.side_effect = AssertionError('power close must not inspect windows')

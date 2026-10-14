@@ -332,7 +332,7 @@ class PowerWorkerTests(unittest.TestCase):
     def test_readiness_close_and_cleanup_precede_single_force_handoff(self):
         events = self.execution()
         self.worker.execute()
-        self.assertEqual(events, [('ready', ()), ('helper', ('reboot',)), ('helper', ('close',)), ('stop_optional_guests', ()),
+        self.assertEqual(events, [('ready', ()), ('helper', ('reboot',)), ('userctl', ('stop', 'labwc-session.target')), ('stop_optional_guests', ()),
                                   ('prepare_machine_shutdown', ()), ('final_power_action', ()), ('hold', ())])
         self.worker.session_identity.assert_not_called()
         self.worker.protect_other_sessions.assert_not_called()

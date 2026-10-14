@@ -213,6 +213,7 @@ connection_profiles_menu() {
         'Deactivate Active Connection' \
         'Enable Ethernet Adapter' \
         'Disable Ethernet Adapter' \
+        'Connect WiFi Network' \
         'Enable WiFi Adapter' \
         'Disable WiFi Adapter' \
         'Generate Random MAC Addresses' \
@@ -241,6 +242,11 @@ connection_profiles_menu() {
         ethernet_adapter=$(choose_adapter ethernet)
         [ -n "$ethernet_adapter" ] &&
           run_network_action disable-ethernet "$ethernet_adapter"
+        ;;
+      'Connect WiFi Network')
+        wifi_adapter=$(choose_adapter wifi)
+        [ -n "$wifi_adapter" ] &&
+          run_network_action configure-wifi "$wifi_adapter"
         ;;
       'Enable WiFi Adapter')
         wifi_adapter=$(choose_adapter wifi)

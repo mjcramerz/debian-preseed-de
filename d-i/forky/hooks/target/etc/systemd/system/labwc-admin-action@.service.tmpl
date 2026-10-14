@@ -18,8 +18,9 @@ NotifyAccess=main
 ExecStart=/usr/local/libexec/labwc-admin-action-worker %i
 TimeoutStartSec=60s
 # Logout/suspend retain package reservations. Desktop poweroff/reboot first
-# allow up to 15 seconds to save open windows, then use a separate shared
-# 45-second cleanup budget before their authorized single-force request.
+# request native application close, allow up to 10 seconds for save dialogs,
+# then use a separate shared 45-second budget to stop managed application
+# services and clean up before their authorized single-force request.
 RuntimeMaxSec=infinity
 RuntimeDirectory=labwc-power
 RuntimeDirectoryMode=0700

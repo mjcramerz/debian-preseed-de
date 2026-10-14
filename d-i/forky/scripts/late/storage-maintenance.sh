@@ -385,7 +385,10 @@ target_xfs_scrub_cpuaccounting_units() {
     xfs_scrub@.service \
     xfs_scrub_all.service \
     xfs_scrub_media@.service \
-    system-xfs_scrub.slice
+    system-xfs_scrub.slice \
+    xfs_healer@.service \
+    xfs_healer_start.service \
+    system-xfs_healer.slice
 }
 
 sanitize_target_xfs_scrub_systemd_units() {

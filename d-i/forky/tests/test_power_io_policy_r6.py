@@ -224,12 +224,13 @@ class HandoffTests(unittest.TestCase):
             mock.patch.object(self.worker, 'protect_other_sessions', side_effect=AssertionError('advisory session check')),
             mock.patch.object(self.power, 'ready', side_effect=lambda: events.append('ready')),
             mock.patch.object(self.worker, 'helper', side_effect=lambda a: events.append(a)),
+            mock.patch.object(self.worker, 'userctl', side_effect=lambda *args, **kwargs: events.append('apps')),
             mock.patch.object(self.worker, 'stop_optional_guests', side_effect=lambda: events.append('guests')),
             mock.patch.object(self.worker, 'prepare_machine_shutdown', side_effect=lambda: events.append('cleanup')),
             mock.patch.object(self.worker, 'final_power_action', side_effect=lambda: events.append('handoff')),
         ):
             self.worker.execute()
-        self.assertEqual(events, ['ready', 'close', 'guests', 'cleanup', 'handoff', 'hold'])
+        self.assertEqual(events, ['ready', 'reboot', 'apps', 'guests', 'cleanup', 'handoff', 'hold'])
 
 
 if __name__ == '__main__':

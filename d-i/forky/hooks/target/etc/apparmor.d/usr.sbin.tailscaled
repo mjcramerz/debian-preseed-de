@@ -1,9 +1,9 @@
 # Managed by unattended-installer.
 #
 # The daemon owns network, state, TPM, and packet-filter access. The CLI has a
-# separate attachment limited to the local API, bounded diagnostics, and the
-# installer-staged bootstrap key. Both profiles are enforced after review of
-# fresh-install daemon and bootstrap activity.
+# separate attachment for direct invocations, limited to the local API, bounded
+# diagnostics, and the installer-staged bootstrap key. Both profiles are enforced
+# after review of fresh-install daemon and bootstrap activity.
 
 abi "/usr/share/apparmor-features/features",
 
@@ -28,6 +28,9 @@ profile usr.sbin.tailscaled /usr/sbin/tailscaled flags=(attach_disconnected, med
   ptrace (read) peer=unconfined,
 
   /usr/sbin/tailscaled rix,
+  # Daemon-spawned CLI calls retain this confinement under NoNewPrivileges=true.
+  # Direct CLI invocations continue to attach to usr.bin.tailscale below.
+  /usr/bin/tailscale rix,
   /usr/sbin/{ip6tables,ip6tables-restore,ip6tables-save,iptables,iptables-restore,iptables-save,xtables-nft-multi} rix,
   /usr/sbin/resolvconf rix,
   /{,usr/}bin/{flock,sed} rix,

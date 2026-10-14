@@ -6,6 +6,11 @@
 
 preseed_env_variable_name() {
   case "${1:-}" in
+    wifi_interface) printf '%s\n' PRESEED_WIFI_INTERFACE ;;
+    wifi_essid) printf '%s\n' PRESEED_WIFI_ESSID ;;
+    wifi_security) printf '%s\n' PRESEED_WIFI_SECURITY ;;
+    wifi_cidr) printf '%s\n' PRESEED_WIFI_CIDR ;;
+    wifi_wep) printf '%s\n' PRESEED_WIFI_PASSPHRASE ;;
     netcfg/wireless_wpa|wireless_wpa|wifi_wpa) printf '%s\n' PRESEED_WIFI_PASSPHRASE ;;
     fruux_username) printf '%s\n' PRESEED_FRUUX_USERNAME ;;
     fruux_password) printf '%s\n' PRESEED_FRUUX_PASSWORD ;;
@@ -150,7 +155,9 @@ preseed_env_read_value() (
   if ! /bin/sh -n "$preseed_read_tmp" >/dev/null 2>&1; then
     preseed_env_error 'credential file has invalid shell syntax; check assignment quoting without displaying passwords'; return 2
   fi
-  unset PRESEED_WIFI_PASSPHRASE PRESEED_FRUUX_USERNAME PRESEED_FRUUX_PASSWORD \
+  unset PRESEED_WIFI_INTERFACE PRESEED_WIFI_ESSID PRESEED_WIFI_SECURITY \
+    PRESEED_WIFI_CIDR PRESEED_WIFI_GATEWAY PRESEED_WIFI_NAMESERVERS \
+    PRESEED_WIFI_PASSPHRASE PRESEED_FRUUX_USERNAME PRESEED_FRUUX_PASSWORD \
     PRESEED_PRIMARY_USERNAME PRESEED_PRIMARY_FULLNAME PRESEED_PRIMARY_PASSWORD PRESEED_PRIMARY_GPG_PASSPHRASE \
     PRESEED_GIT_SSH_PASSPHRASE PRESEED_SHIM_SIGNED_PASSPHRASE PRESEED_ROOT_PASSWORD PRESEED_CROWDSEC_TOKEN PRESEED_TAILSCALE_TOKEN \
     PRESEED_TELEGRAM_CHAT_ID PRESEED_TELEGRAM_API_KEY PRESEED_CF_APTLY_ACCESS_KEY \
@@ -165,8 +172,20 @@ preseed_env_read_value() (
   # The only inserted text is an identifier from the fixed mapping above.
   # The value is expanded once as data, never re-evaluated as shell input.
   eval 'preseed_read_result=${'"$preseed_read_name"'-}'
-  [ -n "$preseed_read_result" ] || return 1
+  if [ "$preseed_read_name" = PRESEED_WIFI_SECURITY ]; then
+    # An explicitly empty security setting means an open network. Missing is
+    # distinct: only missing values may fall back to the selected host profile.
+    eval 'preseed_read_present=${'"$preseed_read_name"'+x}'
+    [ "$preseed_read_present" = x ] || return 1
+  else
+    [ -n "$preseed_read_result" ] || return 1
+  fi
   case "$preseed_read_name" in
+    PRESEED_WIFI_*)
+      case "$preseed_read_result" in
+        *[![:print:]]*) preseed_env_error 'Wi-Fi values must be printable single-line data'; return 2 ;;
+      esac
+      ;;
     PRESEED_PRIMARY_USERNAME|PRESEED_PRIMARY_FULLNAME|PRESEED_PRIMARY_PASSWORD)
       # Check BEFORE command substitution can strip trailing newlines. Never
       # include a primary identity/password value in the diagnostic.

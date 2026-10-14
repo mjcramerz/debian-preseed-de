@@ -38,6 +38,11 @@ if shutil.which('bash'):
 if shutil.which('busybox'):
     SHELLS.append(('busybox-ash', [shutil.which('busybox'), 'sh']))
 MAPPING = {
+    'wifi_interface': 'PRESEED_WIFI_INTERFACE',
+    'wifi_essid': 'PRESEED_WIFI_ESSID',
+    'wifi_security': 'PRESEED_WIFI_SECURITY',
+    'wifi_cidr': 'PRESEED_WIFI_CIDR',
+    'wifi_wep': 'PRESEED_WIFI_PASSPHRASE',
     'netcfg/wireless_wpa': 'PRESEED_WIFI_PASSPHRASE',
     'wireless_wpa': 'PRESEED_WIFI_PASSPHRASE',
     'wifi_wpa': 'PRESEED_WIFI_PASSPHRASE',
@@ -104,6 +109,18 @@ class CredentialFixture(unittest.TestCase):
         self.assertNotIn(self.values['PRESEED_ROOT_PASSWORD'], result.stderr)
 
 class InitrdCredentialTests(CredentialFixture):
+    @skip_unless_trusted_credential_ancestry
+    def test_empty_wifi_security_means_open_while_missing_is_absent(self):
+        self.values['PRESEED_WIFI_SECURITY'] = ''
+        self.write_env()
+        for prefix in ('installer', 'runtime'):
+            result = self.run_lookup(prefix, 'wifi_security')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, '\n')
+        del self.values['PRESEED_WIFI_SECURITY']
+        self.write_env()
+        self.assertEqual(self.run_lookup('installer', 'wifi_security').returncode, 1)
+
     def test_both_entrypoints_source_one_canonical_reader(self):
         for lib, _ in LIBS:
             entry = lib.read_text()

@@ -1,0 +1,30 @@
+[Unit]
+Description=Prepare manual static Wi-Fi only when the configured SSID is visible
+Requires=NetworkManager.service
+After=NetworkManager.service
+Before=greetd.service
+ConditionPathExists=/etc/network/managed-wifi.nmconnection
+ConditionPathExists=!/var/lib/network-wifi/firstboot.complete
+StartLimitIntervalSec=10min
+StartLimitBurst=2
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/network-wifi-configure --firstboot
+TimeoutStartSec=3min
+TimeoutStopSec=10s
+Restart=on-failure
+RestartSec=30s
+UMask=0077
+PrivateTmp=true
+ProtectHome=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+# Preserve the explicit transitions into native nmcli/rfkill profiles.
+NoNewPrivileges=false
+
+[Install]
+WantedBy=multi-user.target

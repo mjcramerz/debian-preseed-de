@@ -29,6 +29,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -581,12 +582,18 @@ MANAGED_NETWORK_ETHERNET_IFACE=enp1s0
 MANAGED_NETWORK_ETHERNET_MAC=02:00:00:00:00:01
 MANAGED_NETWORK_ETHERNET_IPV4_CIDR=192.0.2.2/24
 MANAGED_NETWORK_IPV4_GATEWAY=192.0.2.1
+MANAGED_NETWORK_IPV4_DNS=192.0.2.53
 MANAGED_NETWORK_IPV6_ENABLED=false
 """)
         self.config.chmod(0o600)
         (self.root / 'etc/network/interfaces').write_text('source /etc/network/interfaces.d/*\n')
         self.staged = self.root / 'etc/network/interfaces.d/50-network'
-        self.staged.write_text('iface enp1s0 inet static\n')
+        self.staged.write_text('iface enp1s0 inet static\n'
+                              '    address 192.0.2.2\n'
+                              '    netmask 255.255.255.0\n'
+                              '    gateway 192.0.2.1\n'
+                              '    dns-nameservers 192.0.2.53\n'
+                              '    metric 100\n')
         self.staged.chmod(0o600)
         self.env.update(MANAGED_TARGET_ROOT=str(self.root), MANAGED_SYS_CLASS_NET=str(self.sysfs), SYSTEMD_LOG_LEVEL='info')
 
@@ -597,6 +604,21 @@ MANAGED_NETWORK_IPV6_ENABLED=false
         (p / 'type').write_text(type_ + '\n')
         if wireless:
             (p / 'wireless').mkdir(exist_ok=True)
+
+    def wifi_profile_fixture(self):
+        profile = self.root / 'etc/network/managed-wifi.nmconnection'
+        profile.write_text('[connection]\ntype=wifi\ninterface-name=wlan0\nautoconnect=false\n'
+                           '[wifi]\nmode=infrastructure\nmac-address=02:00:00:00:00:02\n'
+                           '[ipv4]\nmethod=manual\nforwarding=1\naddress1=192.0.2.3/24\ngateway=192.0.2.1\n'
+                           'dns=192.0.2.53;\nroute-metric=200\nignore-auto-dns=true\n'
+                           'ignore-auto-routes=true\nmay-fail=false\n'
+                           '[ipv6]\nmethod=disabled\nroute-metric=200\n'
+                           'ignore-auto-dns=true\nignore-auto-routes=true\n')
+        profile.chmod(0o600)
+        nm = self.root / 'etc/NetworkManager/conf.d/90-network-unmanaged.conf'
+        nm.parent.mkdir(parents=True, exist_ok=True)
+        nm.write_text('[keyfile]\nunmanaged-devices=interface-name:enp1s0\n'
+                      '[device-managed-wifi]\nmatch-device=interface-name:wlan0\nmanaged=1\n')
 
     def validate(self, *args):
         return subprocess.run(payload_installed_argv([PERL, str(TARGET / 'usr/local/libexec/network-run'), 'validate', *args]),
@@ -761,8 +783,7 @@ MANAGED_NETWORK_IPV6_ENABLED=false
             fh.write("MANAGED_NETWORK_LINK_TYPES='ethernet wifi'\nMANAGED_NETWORK_WIFI_IFACE=wlan0\n"
                      'MANAGED_NETWORK_WIFI_MAC=02:00:00:00:00:02\n'
                      'MANAGED_NETWORK_WIFI_IPV4_CIDR=192.0.2.3/24\n')
-        with self.staged.open('a') as fh:
-            fh.write('iface wlan0 inet static\n')
+        self.wifi_profile_fixture()
         self.adapter('wlan0', mac='02:00:00:00:00:02', wireless=True)
         start = time.monotonic()
         result = self.validate('--wait-seconds', '2', '--allow-absent')
@@ -810,14 +831,126 @@ MANAGED_NETWORK_IPV6_ENABLED=false
 
     def test_both_adapters_share_one_deadline(self):
         with self.config.open('a') as fh:
-            fh.write("MANAGED_NETWORK_LINK_TYPES='ethernet wifi'\nMANAGED_NETWORK_WIFI_IFACE=wlan0\n")
-        with self.staged.open('a') as fh:
-            fh.write('iface wlan0 inet static\n')
+            fh.write("MANAGED_NETWORK_LINK_TYPES='ethernet wifi'\nMANAGED_NETWORK_WIFI_IFACE=wlan0\n"
+                     'MANAGED_NETWORK_WIFI_MAC=02:00:00:00:00:02\n'
+                     'MANAGED_NETWORK_WIFI_IPV4_CIDR=192.0.2.3/24\n')
+        self.wifi_profile_fixture()
         start = time.monotonic()
         result = self.validate('--wait-seconds', '1')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('enp1s0,wlan0', result.stderr)
         self.assertLess(time.monotonic() - start, 2)
+
+    def test_wifi_native_profile_preserves_static_address_and_dns_policy(self):
+        self.adapter()
+        self.adapter('wlp2s0', mac='02:00:00:00:00:02', wireless=True)
+        for name in ('enp1s0', 'wlp2s0'):
+            (self.sysfs / name / 'device').mkdir()
+        values = {'MANAGED_NETWORK_TARGET_ROOT': str(self.root),
+                  'MANAGED_NETWORK_SYS_CLASS_NET': str(self.sysfs),
+                  'MANAGED_NETWORK_LINK_TYPES': 'ethernet wifi',
+                  'MANAGED_NETWORK_IPV4_ADDRESS': '192.168.50.88',
+                  'MANAGED_NETWORK_IPV4_NETMASK': '255.255.255.0',
+                  'MANAGED_NETWORK_IPV4_GATEWAY': '192.168.50.1',
+                  'MANAGED_NETWORK_IPV4_DNS': '192.168.50.1',
+                  'MANAGED_NETWORK_WIFI_CIDR': '192.168.50.1/24',
+                  'MANAGED_NETWORK_IPV6_ENABLED': 'true',
+                  'MANAGED_NETWORK_IPV6_ADDRESS': '2001:db8::88/64',
+                  'MANAGED_NETWORK_IPV6_GATEWAY': '2001:db8::1',
+                  'MANAGED_NETWORK_IPV6_DNS': '2001:db8::53'}
+        input_path = self.root / 'network-input.env'
+        prepared = self.root / 'etc/network/managed-wifi.nmconnection'
+        for mode in ('link', 'global'):
+            for ssid, security, password in (('', 'open', ''), ('Fixture Wi-Fi', 'open', ''),
+                                             ('Fixture Wi-Fi', 'wpa', 'fixture passphrase'),
+                                             ('Fixture Wi-Fi', 'sae', 'fixture passphrase'),
+                                             ('Fixture Wi-Fi', 'wep', 'abcde'),
+                                             ('Fixture Wi-Fi', 'legacy-wep', 'legacy passphrase')):
+                with self.subTest(mode=mode, security=security, ssid=ssid):
+                    values.update(MANAGED_NETWORK_DNS_MODE=mode, MANAGED_NETWORK_WIFI_ESSID=ssid,
+                                  MANAGED_NETWORK_WIFI_PSK_SECURITY=security,
+                                  MANAGED_NETWORK_WIFI_WPA=password, MANAGED_NETWORK_WIFI_WEP=password)
+                    input_path.write_text(''.join(key + '=' + shlex.quote(value) + '\n' for key, value in values.items()))
+                    generated = subprocess.run([PERL, str(FORKY / 'scripts/late/network-generate.pl'),
+                        '--input', str(input_path), '--target-templates', str(TARGET),
+                        '--fragments', str(FORKY / 'scripts/late/templates/network')],
+                        env=self.env, capture_output=True, text=True, timeout=5)
+                    self.assertEqual(generated.returncode, 0, generated.stderr)
+                    self.assertEqual(self.validate('--staged-only').returncode, 0)
+                    content = self.staged.read_text()
+                    self.assertIn('address 192.168.50.88\n', content)
+                    self.assertIn('allow-hotplug eth0\n', content)
+                    self.assertNotIn('iface wifi0 ', content)
+                    native = prepared.read_text()
+                    self.assertEqual(prepared.stat().st_mode & 0o777, 0o600)
+                    self.assertIn('address1=192.168.50.89/24\n', native)
+                    self.assertIn('address1=2001:db8::89/64\n', native)
+                    self.assertIn('gateway=192.168.50.1\n', native)
+                    self.assertIn('gateway=2001:db8::1\n', native)
+                    self.assertEqual(native.count('route-metric=200\n'), 2)
+                    self.assertIn('autoconnect=false\n', native)
+                    self.assertIn('dns=' + ('192.168.50.1;' if mode == 'link' else '') + '\n', native)
+                    self.assertIn('dns=' + ('2001:db8::53;' if mode == 'link' else '') + '\n', native)
+                    unmanaged = (self.root / 'etc/NetworkManager/conf.d/90-network-unmanaged.conf').read_text()
+                    self.assertNotRegex(unmanaged, r'unmanaged-devices=[^\n]*wifi0')
+                    self.assertIn('match-device=interface-name:wifi0\nmanaged=1', unmanaged)
+                    self.assertFalse((self.root / 'etc/NetworkManager/system-connections/managed-wifi.nmconnection').exists())
+                    for original, replacement in (('192.168.50.89/24', '192.168.50.162/24'),
+                                                   ('2001:db8::89/64', '2001:db8::162/64'),
+                                                   ('autoconnect=false', 'autoconnect=true'),
+                                                   ('route-metric=200', 'route-metric=50')):
+                        prepared.write_text(native.replace(original, replacement))
+                        self.assertNotEqual(self.validate('--staged-only').returncode, 0)
+                    prepared.write_text(native)
+        values['MANAGED_NETWORK_WIFI_CIDR'] = '192.168.51.1/24'
+        input_path.write_text(''.join(key + '=' + shlex.quote(value) + '\n' for key, value in values.items()))
+        result = subprocess.run([PERL, str(FORKY / 'scripts/late/network-generate.pl'),
+            '--input', str(input_path), '--target-templates', str(TARGET),
+            '--fragments', str(FORKY / 'scripts/late/templates/network')],
+            env=self.env, capture_output=True, text=True, timeout=5)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('outside PRESEED_WIFI_CIDR', result.stderr)
+
+    def test_wifi_ipv6_increment_carries_and_preserves_link_order(self):
+        self.adapter()
+        self.adapter('wlp2s0', mac='02:00:00:00:00:02', wireless=True)
+        for name in ('enp1s0', 'wlp2s0'):
+            (self.sysfs / name / 'device').mkdir()
+        values = {'MANAGED_NETWORK_TARGET_ROOT': str(self.root),
+                  'MANAGED_NETWORK_SYS_CLASS_NET': str(self.sysfs),
+                  'MANAGED_NETWORK_IPV4_ADDRESS': '192.168.50.56',
+                  'MANAGED_NETWORK_IPV4_NETMASK': '255.255.255.0',
+                  'MANAGED_NETWORK_IPV4_GATEWAY': '192.168.50.1',
+                  'MANAGED_NETWORK_IPV4_DNS': '192.168.50.1',
+                  'MANAGED_NETWORK_IPV6_ENABLED': 'true',
+                  'MANAGED_NETWORK_IPV6_GATEWAY': '2001:db8::1',
+                  'MANAGED_NETWORK_IPV6_DNS': '2001:db8::53'}
+        input_path = self.root / 'network-input.env'
+        for order in ('ethernet wifi', 'wifi ethernet'):
+            values['MANAGED_NETWORK_LINK_TYPES'] = order
+            for ethernet, wifi in (('2001:db8::56/64', '2001:db8::57'),
+                                    ('2001:db8::ff/64', '2001:db8::100'),
+                                    ('2001:db8::ffff/64', '2001:db8::1:0'),
+                                    ('2001:db8::7f/121', '')):
+                with self.subTest(order=order, ethernet=ethernet):
+                    values['MANAGED_NETWORK_IPV6_ADDRESS'] = ethernet
+                    input_path.write_text(''.join(key + "='" + value + "'\n" for key, value in values.items()))
+                    result = subprocess.run([PERL, str(FORKY / 'scripts/late/network-generate.pl'),
+                        '--input', str(input_path), '--target-templates', str(TARGET),
+                        '--fragments', str(FORKY / 'scripts/late/templates/network')],
+                        env=self.env, capture_output=True, text=True, timeout=5)
+                    if not wifi:
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertIn('leaves the Ethernet subnet', result.stderr)
+                        continue
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(self.validate('--staged-only').returncode, 0)
+                    content = self.staged.read_text()
+                    self.assertIn('address 192.168.50.56\n', content)
+                    native = (self.root / 'etc/network/managed-wifi.nmconnection').read_text()
+                    self.assertIn('address1=192.168.50.57/24\n', native)
+                    self.assertIn('address1=' + wifi + '/64\n', native)
+                    self.assertIn('route-metric=200\n', native)
 
 
 class IntegrationTests(unittest.TestCase):
@@ -986,6 +1119,110 @@ target_managed_network_link_types
         self.assertIn('.config/wayscriber \\', components)
         for path in ('scripts/desktop/verify.sh', 'scripts/firstboot/04-validation.sh'):
             self.assertIn('.config/wayscriber/config.toml', render_theme_defaults(payload_read_text(FORKY / path)))
+
+
+class WiFiAuthenticationTests(unittest.TestCase):
+    def setUp(self):
+        path = TARGET / 'usr/local/libexec/network-wifi-configure'
+        self.module = types.ModuleType('wifi_authentication_fixture')
+        self.module.__file__ = str(path)
+        exec(compile(payload_read_bytes(path), str(path), 'exec'), self.module.__dict__)
+
+    def test_connection_rejects_ipv6_policy_drift_before_prompt_or_commands(self):
+        for ethernet, wifi in (('2001:db8::56/64', '2001:db8::58/64'),
+                                ('2001:db8::56/64', '2001:db8::57/63'),
+                                ('2001:db8::7f/121', '2001:db8::80/121')):
+            policy = {'MANAGED_NETWORK_MODE': 'static', 'MANAGED_NETWORK_LINK_TYPES': 'ethernet wifi',
+                      'MANAGED_NETWORK_WIFI_IFACE': 'wifi0',
+                      'MANAGED_NETWORK_ETHERNET_IPV4_CIDR': '192.168.50.56/24',
+                      'MANAGED_NETWORK_WIFI_IPV4_CIDR': '192.168.50.57/24',
+                      'MANAGED_NETWORK_IPV6_ENABLED': 'true',
+                      'MANAGED_NETWORK_ETHERNET_IPV6_CIDR': ethernet,
+                      'MANAGED_NETWORK_WIFI_IPV6_CIDR': wifi}
+            content = ''.join(key + "='" + value + "'\n" for key, value in policy.items())
+            with self.subTest(ethernet=ethernet, wifi=wifi), \
+                    mock.patch.object(self.module, 'read_owned', return_value=content) as read, \
+                    mock.patch.object(self.module, 'run') as commands, \
+                    mock.patch('builtins.input') as prompt, \
+                    self.assertRaisesRegex(self.module.ConfigurationError, 'Ethernet IPv6 \\+1'):
+                self.module.configure('wifi0')
+            read.assert_called_once_with(self.module.POLICY)
+            commands.assert_not_called()
+            prompt.assert_not_called()
+
+    def test_scan_compares_exact_ssid_bytes_and_rejects_record_injection(self):
+        self.assertTrue(self.module.ssid_visible('49454545\n', 'IEEE'))
+        self.assertFalse(self.module.ssid_visible('49454545\n', 'OTHER'))
+        for value in ('IEEE\n', '4945454Z\n', '4945:4545\n'):
+            with self.subTest(value=value), self.assertRaises(self.module.ConfigurationError):
+                self.module.ssid_visible(value, 'IEEE')
+
+    def test_firstboot_publishes_only_visible_ssid_and_always_disables_radio(self):
+        for visible in (False, True):
+            policy = {'MANAGED_NETWORK_LINK_TYPES': 'ethernet wifi',
+                      'MANAGED_NETWORK_WIFI_IFACE': 'wifi0', 'MANAGED_NETWORK_WIFI_ESSID': 'IEEE'}
+            content = ''.join(key + '=' + shlex.quote(value) + '\n' for key, value in policy.items())
+            with self.subTest(visible=visible), \
+                    mock.patch.object(self.module, 'read_owned', return_value=content), \
+                    mock.patch.object(self.module, 'wifi_policy', return_value=policy), \
+                    mock.patch.object(self.module, 'validate_profile'), \
+                    mock.patch.object(self.module, 'capture', return_value='49454545\n' if visible else '4f54484552\n'), \
+                    mock.patch.object(self.module, 'publish_profile') as profiles, \
+                    mock.patch.object(self.module, 'publish') as state, \
+                    mock.patch.object(self.module, 'run') as commands, \
+                    mock.patch.object(self.module.Path, 'is_dir', return_value=True), \
+                    mock.patch.object(self.module.Path, 'mkdir'):
+                self.module.firstboot()
+                self.assertEqual(profiles.call_count, int(visible))
+                self.assertEqual(commands.call_args.args[0][-3:], ['radio', 'wifi', 'off'])
+                self.assertIn('prepared-visible' if visible else 'skipped-ssid', state.call_args.args[1])
+
+    def test_profile_overrides_win_and_empty_values_use_private_input(self):
+        text = payload_read_text(FORKY / 'scripts/late/network.sh')
+        start = text.index('target_wifi_setting() {')
+        helper = text[start:text.index('\n}\n', start) + 2]
+        for key, override in [('wifi_interface', 'WIFI_INTERFACE'), ('wifi_essid', 'WIFI_ESSID'),
+                              ('wifi_security', 'WIFI_SECURITY'), ('wifi_cidr', 'WIFI_CIDR'),
+                              ('wifi_wpa', 'WIFI_PASSPHRASE')]:
+            for value, expected in [('', 'private-value'), ('profile-value', 'profile-value')]:
+                with self.subTest(key=key, value=value):
+                    script = helper + '\ninstaller_preseed_env_value() { printf "%s\\n" private-value; }\n'
+                    script += override + '=' + shlex.quote(value) + '\n'
+                    script += 'target_wifi_setting ' + shlex.quote(key) + '\n'
+                    result = subprocess.run(['/bin/sh', '-eu', '-c', script],
+                        env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'},
+                        capture_output=True, text=True, timeout=5)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout, expected + '\n')
+
+    def test_scan_failure_disables_radio_and_does_not_publish(self):
+        policy = {'MANAGED_NETWORK_LINK_TYPES': 'ethernet wifi',
+                  'MANAGED_NETWORK_WIFI_IFACE': 'wifi0', 'MANAGED_NETWORK_WIFI_ESSID': 'IEEE'}
+        content = ''.join(key + '=' + shlex.quote(value) + '\n' for key, value in policy.items())
+        with mock.patch.object(self.module, 'read_owned', return_value=content), \
+                mock.patch.object(self.module, 'wifi_policy', return_value=policy), \
+                mock.patch.object(self.module, 'validate_profile'), \
+                mock.patch.object(self.module.Path, 'is_dir', return_value=True), \
+                mock.patch.object(self.module, 'capture', side_effect=self.module.ConfigurationError('scan failed')), \
+                mock.patch.object(self.module, 'publish_profile') as profiles, \
+                mock.patch.object(self.module, 'publish') as state, \
+                mock.patch.object(self.module, 'run') as commands:
+            with self.assertRaises(self.module.ConfigurationError):
+                self.module.firstboot()
+            profiles.assert_not_called()
+            state.assert_not_called()
+            self.assertEqual(commands.call_args.args[0][-3:], ['radio', 'wifi', 'off'])
+
+    def test_configuration_validates_policy_before_prompting_or_running_commands(self):
+        values = "MANAGED_NETWORK_MODE='static'\nMANAGED_NETWORK_LINK_TYPES='ethernet wifi'\n"
+        values += "MANAGED_NETWORK_WIFI_IFACE='wifi0'\nMANAGED_NETWORK_WIFI_IPV4_CIDR='192.168.50.162/24'\n"
+        values += "MANAGED_NETWORK_ETHERNET_IPV4_CIDR='192.168.50.88/24'\n"
+        with mock.patch.object(self.module, 'read_owned', return_value=values), \
+             mock.patch.object(self.module, 'run') as run, mock.patch('builtins.input') as prompt:
+            with self.assertRaisesRegex(ValueError, 'Ethernet IPv4'):
+                self.module.configure('wifi0')
+            run.assert_not_called()
+            prompt.assert_not_called()
 
 
 class LauncherObservabilityTests(unittest.TestCase):

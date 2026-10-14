@@ -1,0 +1,668 @@
+{
+  "summary": {
+    "files": 94,
+    "bytes": 9364013,
+    "physical_lines": 47490,
+    "empty_files": 22
+  },
+  "files": [
+    {
+      "path": "todo/error",
+      "bytes": 656,
+      "physical_lines": 4,
+      "sha256": "b0f2a90715913c7d8ec81611d21f275fe297397fd7fd447ad8ee7bece2e00cf5",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/installer.log",
+      "bytes": 771470,
+      "physical_lines": 5381,
+      "sha256": "b28e59025bc9dce61aebbfe437e827adebe105455fa99507ebc9a301bf53a6ad",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/20-firstboot.log",
+      "bytes": 72,
+      "physical_lines": 1,
+      "sha256": "9cd952dbf952eee9b39ffa6346d5d872be57677aadbb57dda287391f87e32f1f",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/apparmor-status.json",
+      "bytes": 16480,
+      "physical_lines": 521,
+      "sha256": "8e66fa569eb1a2c1bbf55a70936a9ed1bcd91aba400c1b2e5a14610ad9e855da",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/block-devices.txt",
+      "bytes": 3339,
+      "physical_lines": 31,
+      "sha256": "19507d351afc85943a23627eb4b221b4f273ee2aeb0569f5766d509c54a5e77c",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/boot.env",
+      "bytes": 195,
+      "physical_lines": 7,
+      "sha256": "afff50e83c049b13207eb746dffc5a72a1cd86c6b1717d0028800a974498806d",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/cleanup.txt",
+      "bytes": 114,
+      "physical_lines": 3,
+      "sha256": "0318a60da378208b4e247ad16050d258b479a8cd253ef4b525bfb49d517052ae",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/cmdline.txt",
+      "bytes": 1257,
+      "physical_lines": 1,
+      "sha256": "afec00f76473d15e18ebe27c24439084f42f672355496fff36cc3d5324f9fc02",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/desktop-units.txt",
+      "bytes": 8817,
+      "physical_lines": 88,
+      "sha256": "19acd8e11f515ddfbea5068908a0c68ff79e23ab78c97361d6cc651640c2d90b",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/desktop-user-unit-files.txt",
+      "bytes": 383,
+      "physical_lines": 8,
+      "sha256": "61572e096e80eeb6783977a3a51c6ba8249db3cb32e9bad1384c970c9756ec45",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/dmesg-warnings.txt",
+      "bytes": 3891,
+      "physical_lines": 33,
+      "sha256": "759496c6593ebf12602cafab70e2a0c97e24ef8642208be05cb76b8986850364",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/findmnt-verify.txt",
+      "bytes": 8408,
+      "physical_lines": 197,
+      "sha256": "93cfa488fb2bce4e3d2403efadb81373fb8f12f446a3aa66f78fde8437486686",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/fstab.txt",
+      "bytes": 10040,
+      "physical_lines": 46,
+      "sha256": "e1f46a67a50bbb2e90677ab8da0bfa0cf0e800e5f8a0eb49b4ee1515343c1605",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/hostnamectl.txt",
+      "bytes": 689,
+      "physical_lines": 18,
+      "sha256": "81559bde4ba57ca3d6db7b8b8fbb0d0766aaa58dc16916b9dec43d54afaa16fa",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/initramfs-log-files.txt",
+      "bytes": 461,
+      "physical_lines": 8,
+      "sha256": "724c2118ab8bf023fa98cea098248fe5a4517d5010ed7f9dcaee24216d5e4d64",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/ip-address.txt",
+      "bytes": 56695,
+      "physical_lines": 793,
+      "sha256": "a4ed559dd78ee051b82f06d12aad49f9cfea4520ff1da935827dba0ce40facb7",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/ip-brief-address.txt",
+      "bytes": 12375,
+      "physical_lines": 261,
+      "sha256": "a30ce4a599ce1de454e745fabbeb760f2f171161c5478bbd945aeed3a3b30447",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/ip-route.txt",
+      "bytes": 141,
+      "physical_lines": 3,
+      "sha256": "ecc84596cb27063ead4f1f17fbd08ecf5c149d991f5c67b632fcf074c579a2ad",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/ip-rule.txt",
+      "bytes": 284,
+      "physical_lines": 8,
+      "sha256": "dc15acda8b63bd431082492b0b71c040ecac5f371b7a4eb117221a589b5e087e",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/journal-warnings.txt",
+      "bytes": 403,
+      "physical_lines": 3,
+      "sha256": "eb34b24c6466f717baeae704b014b933e1d8b2d096a2ce9f48cd20809480f758",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/mok-enrollment.txt",
+      "bytes": 10722,
+      "physical_lines": 202,
+      "sha256": "2a6527782eccb0269c9b5111ba6fcb419d515943bb87e803badb53b351c46a8c",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/mounts.txt",
+      "bytes": 8043,
+      "physical_lines": 49,
+      "sha256": "a3996dccf5b30ede686e71f76f8d046c521c15c787fb933965437b97c270135c",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/network-interfaces.txt",
+      "bytes": 104,
+      "physical_lines": 5,
+      "sha256": "2308a3c5294acdd171ec1efe1bd43fa6dde4b6505fd03514e0494a85e985489d",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/network-network-default.txt",
+      "bytes": 1657,
+      "physical_lines": 28,
+      "sha256": "4afbda60afe2ea8d2a2eeee034e0801092104c33f0c787efb5876328acda3f14",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/network-network.txt",
+      "bytes": 1172,
+      "physical_lines": 28,
+      "sha256": "bf7ab7181ff168a04fc6e9d09e0b93a14490c0577056440067f8273e00e9317c",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/network-targets.txt",
+      "bytes": 11550,
+      "physical_lines": 138,
+      "sha256": "dd65509276d3f486f1e65c667ef4bf24062902899e621868b89402bc9c75a33f",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/networkctl-list.txt",
+      "bytes": 12581,
+      "physical_lines": 264,
+      "sha256": "26317b7438d10d72abb82aac9e3fd06245c828e45bd3654c556f70c3ab3c809e",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/networkctl-status.txt",
+      "bytes": 284,
+      "physical_lines": 2,
+      "sha256": "06b7d5660bbd0c9f34dbf8b887f2e884499453b76dbad6942333254dfb5f6339",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/resolv.conf.txt",
+      "bytes": 920,
+      "physical_lines": 23,
+      "sha256": "ebdf560272a77357195c39e98340b77e18c8a8ce2025ee950e9e0c7b01467ab8",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/resolvectl-status.txt",
+      "bytes": 49497,
+      "physical_lines": 1560,
+      "sha256": "415e5b17261d2ab22bd6308332f009a1fa52c4d11b115307979fb094ceb84c96",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/secureboot-state.txt",
+      "bytes": 49,
+      "physical_lines": 2,
+      "sha256": "6bd53709a4c5f9e2baf886329c8397604128c7b1bfa5d9a09ff201445abecc41",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/security-baseline-units.txt",
+      "bytes": 8731,
+      "physical_lines": 109,
+      "sha256": "52664fc4df06851086a31cde0f1692aa326d099c4acc68f7edccf11f3f2e2009",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/sockets-listening.txt",
+      "bytes": 1937,
+      "physical_lines": 23,
+      "sha256": "a21b4610fee6dc5ca9f33e1ef1f88f35e763ea76c560d051affaabd2e44a218d",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/systemctl-failed.txt",
+      "bytes": 106,
+      "physical_lines": 4,
+      "sha256": "ee7382abf46187cee64a319690ca729fd34d8d337de598fcdfb4507422a6d485",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/systemctl-jobs.txt",
+      "bytes": 920,
+      "physical_lines": 18,
+      "sha256": "26f58f9f4f604377d91e8867cdfd06f8c19c6ffe75e9fd5631afed6cdc154b79",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/systemd-analyze-blame.txt",
+      "bytes": 2267,
+      "physical_lines": 80,
+      "sha256": "d3aa80a243ce7d90f3e9206d63b87a1d95bee1cc8a2a1c060c9cc275db29f268",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/systemd-analyze-time.txt",
+      "bytes": 206,
+      "physical_lines": 5,
+      "sha256": "5de01b959746527bc83f8c75fdaac4e9f6524bfc9ea53ab5e03f498962b048de",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/systemd-boot-state.txt",
+      "bytes": 1775,
+      "physical_lines": 40,
+      "sha256": "4778a08f385b0bb9a541d4085fa40306bd765993b705e11d8ecc5027d7070325",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/systemd-failed.txt",
+      "bytes": 106,
+      "physical_lines": 4,
+      "sha256": "ee7382abf46187cee64a319690ca729fd34d8d337de598fcdfb4507422a6d485",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/systemd-targets.txt",
+      "bytes": 11488,
+      "physical_lines": 84,
+      "sha256": "5688d01caa032a47088e65300559c93c64a59ea1a62d4560119d1bcc36f9f300",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/systemd-version.txt",
+      "bytes": 339,
+      "physical_lines": 3,
+      "sha256": "1751a2e70105d4e888188b753f800d3285beaf14c5e40b42fa79377448da8cd8",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/data/validation-results.txt",
+      "bytes": 42672,
+      "physical_lines": 477,
+      "sha256": "64eb9b8409966c6910adb7a1cf4c540bbd655cb3aefd08928f1aa71fbab1eae1",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/logs/firstboot/status.env",
+      "bytes": 40,
+      "physical_lines": 2,
+      "sha256": "c40fba25ef243c6a14b3547852e37599bbe1989a5fb5610d708ef5a23e28f9bc",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/installer-state/target-validated",
+      "bytes": 52,
+      "physical_lines": 2,
+      "sha256": "75a073acffbc61aa6508ea1e513f01efee97fc90e10311e7ff1cc8c381c0a65e",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/journalctl",
+      "bytes": 277252,
+      "physical_lines": 1977,
+      "sha256": "6c32b67b673b36088d42cbf924679bb1695dab7039935bea3ec51801512c819c",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/apps/apps.log",
+      "bytes": 39195,
+      "physical_lines": 279,
+      "sha256": "ecd119586210d562048243835e53e704515447900cc936f0398a51af068b2820",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/models/openai/chatgpt/chatgpt.log",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/models/openai/chatgpt/runtime/codex-login.log",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/models/openai/chatgpt/runtime/codex-tui.log",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/models/openai/codex/codex-login.log",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/models/openai/codex/codex-tui.log",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/models/whisper/whisper.log",
+      "bytes": 150,
+      "physical_lines": 1,
+      "sha256": "4b0b66cc6b8ed9d4187f0f9e821d07d5940ef8fc3e0153108a2f9b7eeb4b1720",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/network/veth.log",
+      "bytes": 1677,
+      "physical_lines": 8,
+      "sha256": "6f3d37683557b05bd3c6eae0f6b006a6c74a031c4b11525a603afc0c1bf06e75",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/apparmor/apparmor.log",
+      "bytes": 74209,
+      "physical_lines": 426,
+      "sha256": "5fe611aac4adb0797a628fb2de282c5b4f150867639415f24b782172bc03ee94",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/apparmor/modes.log",
+      "bytes": 8017,
+      "physical_lines": 59,
+      "sha256": "1e8e223b301b25f041403aacc404a934f41ba37b3e2476fd8d55baca4662d34c",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/audit/auditd.log",
+      "bytes": 1013644,
+      "physical_lines": 4176,
+      "sha256": "d6b6104f65f58235b8f0a607e7a5f3dfd99c5b71522b2115a5804552bcfb8db2",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/audit/auditd.log.1",
+      "bytes": 2097224,
+      "physical_lines": 8481,
+      "sha256": "36f81550a3d2f45c34961ca6ce3eacecf5aee6caecc9cefe6b6ee6de8c59fce2",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/audit/auditd.log.2",
+      "bytes": 2097250,
+      "physical_lines": 8630,
+      "sha256": "6ff1081cae0b7c4872db1e6fad1b97992b0c64c48e789cdaa356f8d6231e87b5",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/audit/auditd.log.3",
+      "bytes": 2097294,
+      "physical_lines": 8387,
+      "sha256": "e63e807f383474e43d21a5129825500ffeb2a86ecc815e4ddd1c2c88efd6e9ac",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/auth/auth.log",
+      "bytes": 4941,
+      "physical_lines": 45,
+      "sha256": "a7e938d44c83bf808cf6a1c5c07f738eba34d79ce55f1ea51b9ba33b05845d63",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/chkrootkit/chkrootkit.log",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/chkrootkit/daily.log",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/chkrootkit/daily.log.raw",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/chkrootkit/log.expected",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/clamav/clamav.log",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/clamav/freshclam.log",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/clamscan/clamscan.log",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/crowdsec/crowdsec-firewall-bouncer.log",
+      "bytes": 1742,
+      "physical_lines": 18,
+      "sha256": "5368e67f49636ed4fb5a9a35f31d28deca62396fd6579d2143c018df94d41ae3",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/crowdsec/crowdsec.log",
+      "bytes": 143993,
+      "physical_lines": 1227,
+      "sha256": "aba8353951ea7ebb6851c48d316ebc7fdfe620b6af572cf25d8b0e92ff637a4c",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/crowdsec/crowdsec_api.log",
+      "bytes": 19573,
+      "physical_lines": 71,
+      "sha256": "bfb4a203b27e67bd7e32972f65e9340f25d7fd3e2f3a9e48a64d9b28c2ba67d0",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/debsecan/debsecan.log",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/debsums/debsums.log",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/fail2ban/fail2ban.log",
+      "bytes": 1828,
+      "physical_lines": 19,
+      "sha256": "f84137be7ce905b7baa34d0c89df50b88110978d00fc525fdfc86d78751644aa",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/lynis/lynis-report.dat",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/lynis/lynis.log",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/lynis/scan.log",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/nftables/nftables.log",
+      "bytes": 12114,
+      "physical_lines": 55,
+      "sha256": "886d3533b368ccf829b70e7f41355eae4ea40494a5493ef9d4e5bdb1ccdf4636",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/rkhunter/rkhunter.log",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/rkhunter/scan.log",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/security/spectre-meltdown-checker/spectre-meltdown-checker.log",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/system/fwupd/security-scan.log",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/system/initramfs/01-init-top.log",
+      "bytes": 1901,
+      "physical_lines": 49,
+      "sha256": "d9f3f8ed4b8f5b19a0290bb685b1f1107224e1d247a8224b70067f6ee54c4b55",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/system/initramfs/02-init-premount.log",
+      "bytes": 4909,
+      "physical_lines": 53,
+      "sha256": "b8a14c8e0a5d989204ca4ee2c632f06d982a30987014e564e4a345b5e63d6306",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/system/initramfs/03-local-top.log",
+      "bytes": 3856,
+      "physical_lines": 55,
+      "sha256": "8f587d75ae6d80c4c43a39b61e64d31390f14445ded7b3233ee3d57ca7f09496",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/system/initramfs/04-local-block.log",
+      "bytes": 126,
+      "physical_lines": 5,
+      "sha256": "09b27209435e6068dc6d3db0aa87be53b8eae70bfb4c110fd9950b21052b431f",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/system/initramfs/05-local-premount.log",
+      "bytes": 2009,
+      "physical_lines": 25,
+      "sha256": "2d1ba2abcd0845ca8296b70376d2271df21d5c35c77d6b9a11405de5798fe48a",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/system/initramfs/06-local-bottom.log",
+      "bytes": 2232,
+      "physical_lines": 33,
+      "sha256": "0b3847750f10eac3cc172851c2b0e362a10210ef1024853dd8e0e091329e4e73",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/system/initramfs/07-init-bottom.log",
+      "bytes": 4836,
+      "physical_lines": 85,
+      "sha256": "d1b2174cc2b43687e6171355f8304da8dd2368b2ba670f2f4df89a75295d5afa",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/system/kernel.log",
+      "bytes": 107474,
+      "physical_lines": 973,
+      "sha256": "7d0645b007bbf9822694d43b3439e0db9b0bf88c99b5f4134948d3f84fbc3062",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/system/storage/storage.log",
+      "bytes": 0,
+      "physical_lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/system/system.log",
+      "bytes": 269107,
+      "physical_lines": 1656,
+      "sha256": "3a99090098d6dc2d0be25a99009d1eca52fc0c123fc8fe9e72924056b97e7d87",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/system/timeshift/timeshift.log",
+      "bytes": 2618,
+      "physical_lines": 24,
+      "sha256": "79af7114917b290193fe65a673d2cfbc683e6df20b8b931ebd174065dc78e33c",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/system/usb/usb.log",
+      "bytes": 11040,
+      "physical_lines": 103,
+      "sha256": "007dcb6190cc9d821f7aa22d67242117d421d7b210a0b698084ac1f5f6b40064",
+      "review": "read as data; no log commands executed"
+    },
+    {
+      "path": "todo/managed/system/zram/zram.log",
+      "bytes": 414,
+      "physical_lines": 3,
+      "sha256": "30ebbf766c92f6d957501e043b4f430755314a3ec1103e42256f331c61158a52",
+      "review": "read as data; no log commands executed"
+    }
+  ]
+}
