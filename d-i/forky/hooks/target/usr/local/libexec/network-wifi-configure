@@ -16,8 +16,8 @@ import tempfile
 import time
 
 POLICY = Path('/etc/network/host.conf')
-PREPARED = Path('/etc/network/managed-wifi.nmconnection')
-PROFILE = Path('/etc/NetworkManager/system-connections/managed-wifi.nmconnection')
+PREPARED = Path('/etc/network/wifi.nmconnection')
+PROFILE = Path('/etc/NetworkManager/system-connections/wifi.nmconnection')
 STATE = Path('/var/lib/NetworkManager/NetworkManager.state')
 FIRSTBOOT_DONE = Path('/var/lib/network-wifi/firstboot.complete')
 PROFILE_UUID = '3f1b70be-cc3f-4e77-9e31-66f7a5e16994'
@@ -75,7 +75,7 @@ def keyfile(text):
 
 def publish(path, text):
     owned_parents(path)
-    descriptor, temporary = tempfile.mkstemp(prefix='.managed-wifi-', dir=path.parent)
+    descriptor, temporary = tempfile.mkstemp(prefix='.wifi-', dir=path.parent)
     try:
         with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
             os.fchmod(stream.fileno(), 0o600)
@@ -268,7 +268,7 @@ def configure(interface, ui_args=()):
         # skipped an absent SSID. This does not silently activate the connection.
         publish_profile(policy)
     print('Wi-Fi uses', policy['MANAGED_NETWORK_WIFI_IPV4_CIDR'], 'and the Ethernet gateway and resolver policy.')
-    print('In nmtui, edit Managed Wi-Fi for a new SSID; keep Manual IP settings and automatic connection off.')
+    print('In nmtui, edit Wi-Fi for a new SSID; keep Manual IP settings and automatic connection off.')
     run(['/usr/sbin/rfkill', 'unblock', 'wlan'])
     run(['/usr/bin/nmcli', '--wait', '30', 'radio', 'wifi', 'on'])
     environment = dict(ENVIRONMENT, TERM=os.environ.get('TERM', 'xterm-256color'))
@@ -300,7 +300,7 @@ def main():
     if os.geteuid() != 0:
         raise ConfigurationError('Wi-Fi firstboot requires root')
     os.umask(0o077)
-    descriptor = os.open('/run/lock/managed-wifi.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    descriptor = os.open('/run/lock/wifi.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
     with os.fdopen(descriptor, 'r+') as lock:
         info = os.fstat(lock.fileno())
         if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1 or info.st_mode & 0o077:

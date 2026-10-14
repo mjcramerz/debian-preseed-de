@@ -6,9 +6,9 @@ if (
   $programname == "zram-writeback" or
   $programname == "zram-device-setup"
 ) then {
-  set $.managed_security_routed = "on";
+  set $.security_routed = "on";
   action(
-    name="managed_zram_log"
+    name="zram_log"
     type="omfile"
     file="__INSTALLER_LOG_ZRAM_FILE__"
     fileOwner="__INSTALLER_LOG_OWNER__"

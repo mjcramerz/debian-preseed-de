@@ -304,7 +304,11 @@ class RoutingContractTests(unittest.TestCase):
                 active = '\n'.join(line for line in text.splitlines() if not line.lstrip().startswith('#'))
                 if path.name == '30-apparmor.conf.tmpl':
                     self.assertIn('File="/var/log/managed/security/audit/auditd.log"', active)
-                    self.assertEqual(active.count('module(load="imfile" mode="polling" pollingInterval="2")'), 1)
+                    self.assertEqual(active.count('module(load="imfile" mode="inotify")'), 1)
+                    self.assertNotIn('pollingInterval=', active)
+                    self.assertIn('PersistStateInterval="64"', active)
+                    self.assertIn('persistStateAfterSubmission="on"', active)
+                    self.assertIn('MaxSubmitAtOnce="64"', active)
                 else:
                     self.assertNotRegex(active, r'\bimfile\b|/(?:vendor|runtime)\.log')
         for path in TARGET.glob('etc/audit/*/auditd.conf.tmpl'):

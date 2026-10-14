@@ -1,0 +1,12 @@
+{
+  "name": "local/nftables-nondrop",
+  "description": "Exclude managed accepted/audited packets before the upstream drop parser",
+  "filter": "evt.Line.Labels.firewall == 'nftables' and evt.Parsed.program == 'kernel' and (evt.Parsed.message contains 'nftables accept ' or evt.Parsed.message contains 'nftables audit ')",
+  "onsuccess": "next_stage",
+  "statics": [
+    {
+      "meta": "log_type",
+      "value": "nftables_non_drop"
+    }
+  ]
+}

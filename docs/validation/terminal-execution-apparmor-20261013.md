@@ -47,7 +47,7 @@ managed mode controller rejects/removes `default_allow` and `unconfined` flags;
 it can therefore continue selecting enforce/complain for this source without a
 terminal exception or controller modification.
 
-`abstractions/base.d/managed-process-monitor` adds reciprocal signal-receive and
+`abstractions/base.d/process-monitor` adds reciprocal signal-receive and
 ptrace-readby permissions for `desktop-terminal`, plus the child-exit signal
 back to the terminal. This preserves terminal
 close, Ctrl-C, timeout, and process-status operations against separately
@@ -163,7 +163,7 @@ unchanged from HEAD. The existing launcher body and other existing profiles in
 
 - `d-i/forky/hooks/target/etc/apparmor.d/desktop-utilities`
 - `d-i/forky/hooks/target/etc/apparmor.d/desktop-wrappers.tmpl`
-- `d-i/forky/hooks/target/etc/apparmor.d/abstractions/base.d/managed-process-monitor`
+- `d-i/forky/hooks/target/etc/apparmor.d/abstractions/base.d/process-monitor`
 - `d-i/forky/tests/test_apparmor_incidents_20261004.py`
 - `d-i/forky/payload.tar.gz`
 - `d-i/forky/payload.manifest`

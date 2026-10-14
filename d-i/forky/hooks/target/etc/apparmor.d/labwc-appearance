@@ -59,7 +59,7 @@ profile labwc-desktop-appearance /usr/local/bin/labwc-desktop-appearance flags=(
 }
 
 profile labwc-appearance-auth flags=(attach_disconnected) {
-  #include <abstractions/managed-workflow-auth>
+  #include <abstractions/workflow-auth>
   /usr/local/libexec/labwc-appearance-greeter rPx -> labwc-appearance-greeter,
   signal (send, receive) peer=labwc-desktop-appearance,
   signal (send, receive) peer=labwc-appearance-greeter,

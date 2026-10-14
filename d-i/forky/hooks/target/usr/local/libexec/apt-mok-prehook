@@ -138,8 +138,17 @@ def notify(summary: str, body: str, urgency: str = 'normal') -> None:
             pass  # Notification delivery never changes APT/signing outcomes.
 
 
+def state_query(action: str) -> bool:
+    # Native probes use 0=yes, 1=no, 2=inspection failure. Preserve stderr so
+    # policy/configuration failures cannot become a misleading unlock attempt.
+    result = run([TOOL, action], check=False)
+    if result.returncode not in (0, 1):
+        raise subprocess.CalledProcessError(result.returncode, result.args)
+    return result.returncode == 0
+
+
 def ready() -> bool:
-    return run([TOOL, 'state-ready'], check=False, quiet=True).returncode == 0
+    return state_query('state-ready')
 
 
 def cleanup() -> None:
@@ -188,7 +197,7 @@ def main(argv=None) -> int:
         cleanup()
         if ready():
             return 0  # An administrator owns this open; do not close it later.
-        if run([TOOL, 'state-mounted'], check=False, quiet=True).returncode == 0:
+        if state_query('state-mounted'):
             raise ValueError('MOK state is mounted but its key/certificate is unavailable')
         marker_fd = os.open(MARKER, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
         with os.fdopen(marker_fd, 'w', encoding='ascii') as marker:

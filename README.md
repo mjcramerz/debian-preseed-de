@@ -167,7 +167,7 @@ EOF; failed setup also kills the pinned namespace. A bounded startup lock
 serializes concurrent first launches, and later requests use the existing
 application's local IPC socket.
 The installer renders the complete native qBittorrent configuration into the
-root-owned `/etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf`
+root-owned `/etc/qbittorrent/qBittorrent.conf.d/10-security.conf`
 asset, including `Session\BlockPeersOnPrivilegedPorts=true`, the selected peer
 port, storage paths, and the private `eth0` namespace binding. The launcher only
 validates and copies that rendered file into the persistent profile before a new

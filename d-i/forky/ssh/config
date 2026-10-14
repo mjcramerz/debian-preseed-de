@@ -20,7 +20,7 @@ Host gitlab.com github.com
 
 # Keep unrelated PKI configuration available without adding identities to Git hosts.
 Host * !gitlab.com !github.com
-  Include /data/pki/ssh/config.d/*.conf
+  Include __INSTALLER_DIR_DATA_PKI__/ssh/config.d/*.conf
 
 Host *
   AddKeysToAgent no

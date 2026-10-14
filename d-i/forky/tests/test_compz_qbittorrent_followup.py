@@ -43,7 +43,7 @@ LAUNCHERS = runpy.run_path(
     str(TARGET / "usr/local/bin/labwc-sync-application-launchers.tmpl"),
     run_name="test",
 )
-QBIT_CONFIG_TEMPLATE = TARGET / "etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf.tmpl"
+QBIT_CONFIG_TEMPLATE = TARGET / "etc/qbittorrent/qBittorrent.conf.d/10-security.conf.tmpl"
 
 
 def rendered_managed_config(port: str = "50309", username: str = "fixture") -> bytes:
@@ -542,7 +542,7 @@ ACCOUNT_USERNAME=fixture
                                     capture_output=True, text=True, encoding='utf-8', timeout=10)
             self.assertEqual(result.returncode, 0, result.stderr)
             for name, address, root in (
-                ('10-managed-security.conf', '10.203.0.114', '/run/media/fixture/bittorrent'),
+                ('10-security.conf', '10.203.0.114', '/run/media/fixture/bittorrent'),
                 ('20-managed-privacy.conf', '', '/home/user/Downloads'),
             ):
                 path = Path(directory) / 'etc/qbittorrent/qBittorrent.conf.d' / name

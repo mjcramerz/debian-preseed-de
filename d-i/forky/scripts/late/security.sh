@@ -1268,8 +1268,8 @@ stage_target_desktop_apparmor_profiles() {
     "/etc/apparmor.d/abstractions/desktop-runtime" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-app-config)" \
-    "/etc/apparmor.d/abstractions/managed-app-config" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/app-config)" \
+    "/etc/apparmor.d/abstractions/app-config" \
     0644
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/desktop-application)" \
@@ -1281,8 +1281,8 @@ stage_target_desktop_apparmor_profiles() {
     0644
 
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-workflow-auth)" \
-    "/etc/apparmor.d/abstractions/managed-workflow-auth" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/workflow-auth)" \
+    "/etc/apparmor.d/abstractions/workflow-auth" \
     0644
 
   for apparmor_profile in $(apparmor_managed_desktop_profile_files); do
@@ -1627,7 +1627,7 @@ configure_target_fail2ban() {
     0644
   for fail2ban_managed_asset in \
     action.d/nftables.local \
-    fail2ban.d/10-managed.local \
+    fail2ban.d/10-security.local \
     filter.d/sshd.local \
     paths-overrides.local; do
     stage_target_asset \
@@ -1962,7 +1962,7 @@ configure_target_apparmor_auditd() {
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor/easyprof.conf)" "/etc/apparmor/easyprof.conf" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor/logprof.conf)" "/etc/apparmor/logprof.conf" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/app-veth-client)" "/etc/apparmor.d/abstractions/app-veth-client" 0644
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/base.d/managed-process-monitor)" "/etc/apparmor.d/abstractions/base.d/managed-process-monitor" 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/base.d/process-monitor)" "/etc/apparmor.d/abstractions/base.d/process-monitor" 0644
   stage_target_system_apparmor_profiles
   if security_target_is_desktop; then
     install -d -m 0755 \

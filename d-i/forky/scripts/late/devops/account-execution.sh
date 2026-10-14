@@ -4,6 +4,13 @@
 devops_run_as_account() {
   run_label=$1
   shift
+  devops_validate_account_name "$ACCOUNT_USERNAME"
+  case "${account_ids%%:*}" in
+    ''|0|*[!0-9]*) devops_fatal "tool execution requires a non-root target UID" ;;
+  esac
+  case "$ACCOUNT_HOME" in
+    /root|/root/*) devops_fatal "tool execution must not use root's home" ;;
+  esac
 
   run_in_target \
     "$run_label" \
@@ -26,6 +33,13 @@ devops_run_as_account() {
         RUSTUP_HOME="$RUSTUP_HOME" \
         RUSTUP_TOOLCHAIN="$DEVOPS_RUSTUP_TOOLCHAIN" \
         SCCACHE_DIR="$SCCACHE_DIR" \
+        GOPATH="$GOPATH" \
+        GOBIN="${GOPATH}/bin" \
+        GOMODCACHE="$GOMODCACHE" \
+        GOCACHE="$GOCACHE" \
+        GOENV="$GOENV" \
+        GOTMPDIR="$GOTMPDIR" \
+        GOTOOLCHAIN=local \
         MISE_CONFIG_DIR="${ACCOUNT_HOME}/.config/mise" \
         MISE_DATA_DIR="$MISE_DATA_DIR" \
         MISE_STATE_DIR="$MISE_STATE_DIR" \

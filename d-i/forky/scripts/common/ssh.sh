@@ -129,7 +129,8 @@ render_ssh_user_config_template() {
 
   installer_apply_scalar_placeholders "$src" "$dest" \
     ACCOUNT_USERNAME "$ACCOUNT_USERNAME" \
-    ACCOUNT_HOME "$ACCOUNT_HOME"
+    ACCOUNT_HOME "$ACCOUNT_HOME" \
+    DIR_DATA_PKI "$DIR_DATA_PKI"
   installer_assert_no_unresolved_installer_placeholders "$dest" "SSH user template ${src}"
   chmod "$mode" "$dest"
 }

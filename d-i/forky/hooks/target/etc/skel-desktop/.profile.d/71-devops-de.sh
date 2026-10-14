@@ -276,6 +276,19 @@ devops_de_apply_environment() {
       return 64
       ;;
   esac
+  devops_de_account_uid=$(/usr/bin/id -u) || return 1
+  case "$devops_de_account_uid" in
+    ''|0|*[!0-9]*)
+      printf '%s\n' 'devops: compilation tools must run as a non-root desktop account' >&2
+      return 1
+      ;;
+  esac
+  devops_de_account_name=$(/usr/bin/id -un) || return 1
+  devops_de_account_home=$(/usr/bin/getent passwd "$devops_de_account_uid" | /usr/bin/cut -d: -f6) || return 1
+  [ "${USER:-}" = "$devops_de_account_name" ] && [ "${HOME:-}" = "$devops_de_account_home" ] || {
+    printf '%s\n' 'devops: USER and HOME must match the current account' >&2
+    return 1
+  }
   case "${USER:-}" in
     ''|.|..|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.@-]*)
       printf '%s\n' 'devops: the current account name is unsafe for managed paths' >&2
@@ -361,7 +374,13 @@ devops_de_apply_environment() {
     VIRTUAL_ENV \
     VIRTUAL_ENV_PROMPT \
     GOPATH \
+    GOROOT \
+    GOBIN \
     GOMODCACHE \
+    GOCACHE \
+    GOENV \
+    GOTMPDIR \
+    GOTOOLCHAIN \
     ANSIBLE_HOME \
     ANSIBLE_GALAXY_CACHE_DIR \
     ANSIBLE_LOCAL_TEMP \
@@ -542,7 +561,13 @@ devops_de_apply_environment() {
   # roots. Managed publication wrappers are prepended below and therefore
   # cannot be shadowed by a binary installed into GOPATH/bin.
   export GOPATH="${devops_de_build_home}/go"
+  export GOBIN="${GOPATH}/bin"
   export GOMODCACHE="${devops_de_cache_home}/go-mod"
+  export GOCACHE="${devops_de_cache_home}/go-build"
+  export GOENV="${devops_de_db_home}/go/env"
+  export GOTMPDIR="${devops_de_build_home}/go/tmp"
+  # Use Debian's system toolchain; module directives cannot download another compiler.
+  export GOTOOLCHAIN=local
   devops_de_prepend_path "${GOPATH}/bin" || return 1
 
   # Expose only the class-gated publication command entrypoints.
@@ -705,6 +730,9 @@ devops_de_apply_environment() {
   export DEVOPS_DE_ACTIVE DEVOPS_DE_ENVIRONMENT_READY PATH
   unset \
     devops_de_pool_root \
+    devops_de_account_uid \
+    devops_de_account_name \
+    devops_de_account_home \
     devops_de_build_home \
     devops_de_cache_home \
     devops_de_db_home \

@@ -606,7 +606,7 @@ MANAGED_NETWORK_IPV6_ENABLED=false
             (p / 'wireless').mkdir(exist_ok=True)
 
     def wifi_profile_fixture(self):
-        profile = self.root / 'etc/network/managed-wifi.nmconnection'
+        profile = self.root / 'etc/network/wifi.nmconnection'
         profile.write_text('[connection]\ntype=wifi\ninterface-name=wlan0\nautoconnect=false\n'
                            '[wifi]\nmode=infrastructure\nmac-address=02:00:00:00:00:02\n'
                            '[ipv4]\nmethod=manual\nforwarding=1\naddress1=192.0.2.3/24\ngateway=192.0.2.1\n'
@@ -615,10 +615,10 @@ MANAGED_NETWORK_IPV6_ENABLED=false
                            '[ipv6]\nmethod=disabled\nroute-metric=200\n'
                            'ignore-auto-dns=true\nignore-auto-routes=true\n')
         profile.chmod(0o600)
-        nm = self.root / 'etc/NetworkManager/conf.d/90-network-unmanaged.conf'
+        nm = self.root / 'etc/NetworkManager/conf.d/90-network-external.conf'
         nm.parent.mkdir(parents=True, exist_ok=True)
         nm.write_text('[keyfile]\nunmanaged-devices=interface-name:enp1s0\n'
-                      '[device-managed-wifi]\nmatch-device=interface-name:wlan0\nmanaged=1\n')
+                      '[device-wifi]\nmatch-device=interface-name:wlan0\nmanaged=1\n')
 
     def validate(self, *args):
         return subprocess.run(payload_installed_argv([PERL, str(TARGET / 'usr/local/libexec/network-run'), 'validate', *args]),
@@ -859,7 +859,7 @@ MANAGED_NETWORK_IPV6_ENABLED=false
                   'MANAGED_NETWORK_IPV6_GATEWAY': '2001:db8::1',
                   'MANAGED_NETWORK_IPV6_DNS': '2001:db8::53'}
         input_path = self.root / 'network-input.env'
-        prepared = self.root / 'etc/network/managed-wifi.nmconnection'
+        prepared = self.root / 'etc/network/wifi.nmconnection'
         for mode in ('link', 'global'):
             for ssid, security, password in (('', 'open', ''), ('Fixture Wi-Fi', 'open', ''),
                                              ('Fixture Wi-Fi', 'wpa', 'fixture passphrase'),
@@ -891,10 +891,10 @@ MANAGED_NETWORK_IPV6_ENABLED=false
                     self.assertIn('autoconnect=false\n', native)
                     self.assertIn('dns=' + ('192.168.50.1;' if mode == 'link' else '') + '\n', native)
                     self.assertIn('dns=' + ('2001:db8::53;' if mode == 'link' else '') + '\n', native)
-                    unmanaged = (self.root / 'etc/NetworkManager/conf.d/90-network-unmanaged.conf').read_text()
+                    unmanaged = (self.root / 'etc/NetworkManager/conf.d/90-network-external.conf').read_text()
                     self.assertNotRegex(unmanaged, r'unmanaged-devices=[^\n]*wifi0')
                     self.assertIn('match-device=interface-name:wifi0\nmanaged=1', unmanaged)
-                    self.assertFalse((self.root / 'etc/NetworkManager/system-connections/managed-wifi.nmconnection').exists())
+                    self.assertFalse((self.root / 'etc/NetworkManager/system-connections/wifi.nmconnection').exists())
                     for original, replacement in (('192.168.50.89/24', '192.168.50.162/24'),
                                                    ('2001:db8::89/64', '2001:db8::162/64'),
                                                    ('autoconnect=false', 'autoconnect=true'),
@@ -947,7 +947,7 @@ MANAGED_NETWORK_IPV6_ENABLED=false
                     self.assertEqual(self.validate('--staged-only').returncode, 0)
                     content = self.staged.read_text()
                     self.assertIn('address 192.168.50.56\n', content)
-                    native = (self.root / 'etc/network/managed-wifi.nmconnection').read_text()
+                    native = (self.root / 'etc/network/wifi.nmconnection').read_text()
                     self.assertIn('address1=192.168.50.57/24\n', native)
                     self.assertIn('address1=' + wifi + '/64\n', native)
                     self.assertIn('route-metric=200\n', native)

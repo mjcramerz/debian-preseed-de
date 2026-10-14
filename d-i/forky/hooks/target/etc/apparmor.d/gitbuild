@@ -54,7 +54,7 @@ profile gitbuild /usr/local/bin/gitbuild flags=(attach_disconnected) {
 }
 
 profile gitbuild-auth flags=(attach_disconnected) {
-  #include <abstractions/managed-workflow-auth>
+  #include <abstractions/workflow-auth>
   /usr/local/libexec/gitbuild-import-local rPx -> gitbuild-import-local,
   signal (send, receive) peer=gitbuild,
   signal (send, receive) peer=gitbuild-import-local,

@@ -10,7 +10,7 @@ CONF=${SECURE_BOOT_CONFIG_PATH:-${SECURE_BOOT_TARGET_ROOT}/etc/secure-boot.conf}
 
 [ -r "$CONF" ] || {
   printf 'fatal: missing Secure Boot config %s\n' "$CONF" >&2
-  exit 1
+  exit 2
 }
 
 # shellcheck disable=SC1090
@@ -34,7 +34,7 @@ resolve_secure_boot_state_mode() (
   esac
 )
 
-SECURE_BOOT_STATE_MODE=$(resolve_secure_boot_state_mode)
+SECURE_BOOT_STATE_MODE=$(resolve_secure_boot_state_mode) || exit 2
 SECURE_BOOT_MODE=$SECURE_BOOT_STATE_MODE
 
 log() {
@@ -275,7 +275,7 @@ mounted_source_for_target() {
     mountpoint_matches_target "$mount_path" "$mountpoint" || continue
     printf '%s\n' "$mount_source"
     return 0
-  done </proc/self/mounts
+  done </proc/self/mounts || return 2
   return 0
 }
 
@@ -285,7 +285,7 @@ mounted_fstype_for_target() {
     mountpoint_matches_target "$mount_path" "$mountpoint" || continue
     printf '%s\n' "$mount_type"
     return 0
-  done </proc/self/mounts
+  done </proc/self/mounts || return 2
   return 0
 }
 
@@ -344,9 +344,29 @@ secure_boot_state_is_mounted() (
     return
   fi
 
-  mounted_src=$(mounted_source_for_target "$SECURE_BOOT_STATE_MOUNTPOINT")
+  # Status 1 means absent; status 2 means inspection failed. Do not rely on
+  # set -e inside predicates: callers in if/|| contexts suppress it.
+  mounted_src=$(mounted_source_for_target "$SECURE_BOOT_STATE_MOUNTPOINT") || return 2
   [ -n "$mounted_src" ] || return 1
-  same_device_path "$mounted_src" "$SECURE_BOOT_LUKS_MAPPER"
+  same_device_path "$mounted_src" "$SECURE_BOOT_LUKS_MAPPER" || {
+    log "fatal: ${SECURE_BOOT_STATE_MOUNTPOINT} is mounted from ${mounted_src}, expected ${SECURE_BOOT_LUKS_MAPPER}"
+    return 2
+  }
+)
+
+secure_boot_state_is_ready() (
+  # Silent negative result for APT; retain diagnostics for inspection errors.
+  secure_boot_state_is_mounted || return "$?"
+  if secure_boot_state_uses_luks; then
+    mounted_fstype=$(mounted_fstype_for_target "$SECURE_BOOT_STATE_MOUNTPOINT") || return 2
+    [ "$mounted_fstype" = "ext4" ] || {
+      log "fatal: Secure Boot state must be mounted as ext4 at ${SECURE_BOOT_STATE_MOUNTPOINT}, got ${mounted_fstype:-unknown}"
+      return 2
+    }
+  fi
+  [ -s "$SECURE_BOOT_MOK_KEY" ] && [ -r "$SECURE_BOOT_MOK_KEY" ] &&
+    [ -s "$SECURE_BOOT_MOK_CERT_PEM" ] && [ -r "$SECURE_BOOT_MOK_CERT_PEM" ] &&
+    [ -s "$SECURE_BOOT_MOK_CERT_DER" ] && [ -r "$SECURE_BOOT_MOK_CERT_DER" ]
 )
 
 require_secure_boot_state_mount() (
@@ -356,8 +376,14 @@ require_secure_boot_state_mount() (
     return 0
   fi
 
-  secure_boot_state_is_mounted || fatal "Secure Boot state is not mounted at ${SECURE_BOOT_STATE_MOUNTPOINT}; run luks-mok-open first"
-  mounted_fstype=$(mounted_fstype_for_target "$SECURE_BOOT_STATE_MOUNTPOINT")
+  if secure_boot_state_is_mounted; then
+    :
+  else
+    mount_status=$?
+    [ "$mount_status" -eq 1 ] || return "$mount_status"
+    fatal "Secure Boot state is not mounted at ${SECURE_BOOT_STATE_MOUNTPOINT}; run luks-mok-open first"
+  fi
+  mounted_fstype=$(mounted_fstype_for_target "$SECURE_BOOT_STATE_MOUNTPOINT") || return 2
   [ "$mounted_fstype" = "ext4" ] || fatal "Secure Boot state must be mounted as ext4 at ${SECURE_BOOT_STATE_MOUNTPOINT}, got ${mounted_fstype:-unknown}"
 )
 
@@ -378,14 +404,12 @@ open_secure_boot_state() (
   fi
 
   install -d -m 0700 "$SECURE_BOOT_STATE_MOUNTPOINT"
-  if secure_boot_state_is_mounted; then
+  mounted_src=$(mounted_source_for_target "$SECURE_BOOT_STATE_MOUNTPOINT") || return 2
+  if [ -n "$mounted_src" ]; then
+    same_device_path "$mounted_src" "$SECURE_BOOT_LUKS_MAPPER" || \
+      fatal "${SECURE_BOOT_STATE_MOUNTPOINT} is already mounted from ${mounted_src}"
     chmod 0700 "$SECURE_BOOT_STATE_MOUNTPOINT"
     return 0
-  fi
-
-  mounted_src=$(mounted_source_for_target "$SECURE_BOOT_STATE_MOUNTPOINT")
-  if [ -n "$mounted_src" ]; then
-    fatal "${SECURE_BOOT_STATE_MOUNTPOINT} is already mounted from ${mounted_src}"
   fi
 
   if [ ! -b "$SECURE_BOOT_LUKS_MAPPER" ]; then
@@ -411,7 +435,7 @@ close_secure_boot_state() (
   require_command cryptsetup
   require_command umount
 
-  mounted_src=$(mounted_source_for_target "$SECURE_BOOT_STATE_MOUNTPOINT")
+  mounted_src=$(mounted_source_for_target "$SECURE_BOOT_STATE_MOUNTPOINT") || return 2
   if [ -n "$mounted_src" ]; then
     same_device_path "$mounted_src" "$SECURE_BOOT_LUKS_MAPPER" || \
       fatal "${SECURE_BOOT_STATE_MOUNTPOINT} is mounted from ${mounted_src}, expected ${SECURE_BOOT_LUKS_MAPPER}"
@@ -430,9 +454,13 @@ change_secure_boot_state_passphrase() {
   require_command cryptsetup
   [ -b "$SECURE_BOOT_LUKS_DEVICE" ] || fatal "Secure Boot LUKS device is missing: $SECURE_BOOT_LUKS_DEVICE"
 
-  if secure_boot_state_is_mounted || [ -b "$SECURE_BOOT_LUKS_MAPPER" ]; then
+  if secure_boot_state_is_mounted; then
     fatal "close the Secure Boot state partition before changing its passphrase"
+  else
+    mount_status=$?
+    [ "$mount_status" -eq 1 ] || return "$mount_status"
   fi
+  [ ! -b "$SECURE_BOOT_LUKS_MAPPER" ] || fatal "close the Secure Boot state partition before changing its passphrase"
 
   command_with_tty cryptsetup luksChangeKey "$SECURE_BOOT_LUKS_DEVICE"
 }
@@ -522,7 +550,8 @@ ensure_directory_layout() {
 
 sync_mok_enrollment_copy() {
   [ -r "$SECURE_BOOT_MOK_CERT_DER" ] || fatal "generated MOK DER certificate is missing at $SECURE_BOOT_MOK_CERT_DER"
-  if [ -z "$(mounted_source_for_target /boot/efi)" ]; then
+  esp_source=$(mounted_source_for_target /boot/efi) || return 2
+  if [ -z "$esp_source" ]; then
     log "warn: /boot/efi is not mounted yet; deferring MOK enrollment certificate sync"
     return 0
   fi
@@ -1195,10 +1224,7 @@ case "${1:-}" in
     ;;
   state-ready)
     require_root
-    require_secure_boot_state_mount
-    [ -s "$SECURE_BOOT_MOK_KEY" ] && [ -r "$SECURE_BOOT_MOK_KEY" ] &&
-      [ -s "$SECURE_BOOT_MOK_CERT_PEM" ] && [ -r "$SECURE_BOOT_MOK_CERT_PEM" ] &&
-      [ -s "$SECURE_BOOT_MOK_CERT_DER" ] && [ -r "$SECURE_BOOT_MOK_CERT_DER" ]
+    secure_boot_state_is_ready
     ;;
   state-close)
     shift

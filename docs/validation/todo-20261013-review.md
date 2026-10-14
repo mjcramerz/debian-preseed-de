@@ -85,7 +85,7 @@ reference. These checks apply even when an adapter is detached. Generated host
 CIDR state includes both addresses for the existing firewall consumers.
 
 Wi-Fi authentication lives separately in the root-owned mode-0600
-`/etc/wpa_supplicant/managed-wifi.conf`. It disables configuration writes and P2P.
+`/etc/wpa_supplicant/wifi.conf`. It disables configuration writes and P2P.
 With installer credentials, the generator emits the native WPA/SAE/open/WEP
 network block; otherwise it emits an empty network list ready for later entry.
 No credential is included in runtime host defaults.
@@ -193,7 +193,7 @@ as recorded above. They have not been published or installed on the target.
 - `d-i/forky/hooks/target/etc/skel-desktop/.config/vivaldi/search_engines_prompt.json`
 - `d-i/forky/hooks/target/etc/systemd/system.conf.d/60-resource-accounting.conf.tmpl`
 - `d-i/forky/hooks/target/etc/systemd/user.conf.d/60-resource-accounting.conf.tmpl`
-- `d-i/forky/hooks/target/etc/wpa_supplicant/managed-wifi.conf.tmpl`
+- `d-i/forky/hooks/target/etc/wpa_supplicant/wifi.conf.tmpl`
 - `d-i/forky/hooks/target/usr/local/bin/labwc-network-control-menu`
 - `d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-network-control-action/LabwcNetworkControlAction/Client.pm.tmpl`
 - `d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-network-control-action/LabwcNetworkControlAction/Root.pm`

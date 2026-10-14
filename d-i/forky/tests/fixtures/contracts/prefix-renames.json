@@ -1,6 +1,6 @@
 {
   "d-i/forky/hooks/target/etc/NetworkManager/conf.d/80-x-link-privacy.conf": "d-i/forky/hooks/target/etc/NetworkManager/conf.d/80-link-privacy.conf",
-  "d-i/forky/hooks/target/etc/NetworkManager/conf.d/90-x-network-unmanaged.conf.tmpl": "d-i/forky/hooks/target/etc/NetworkManager/conf.d/90-network-unmanaged.conf.tmpl",
+  "d-i/forky/hooks/target/etc/NetworkManager/conf.d/90-x-network-unmanaged.conf.tmpl": "d-i/forky/hooks/target/etc/NetworkManager/conf.d/90-network-external.conf.tmpl",
   "d-i/forky/hooks/target/etc/apparmor/x-modes.conf.tmpl": "d-i/forky/hooks/target/etc/apparmor/modes.conf.tmpl",
   "d-i/forky/hooks/target/etc/apparmor.d/abstractions/audio.d/x-no-raw-audio": "d-i/forky/hooks/target/etc/apparmor.d/abstractions/audio.d/no-raw-audio",
   "d-i/forky/hooks/target/etc/apparmor.d/abstractions/x-bwrap-common": "d-i/forky/hooks/target/etc/apparmor.d/abstractions/bwrap-common",

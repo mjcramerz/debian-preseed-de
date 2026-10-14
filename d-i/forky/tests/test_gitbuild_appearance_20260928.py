@@ -13,6 +13,8 @@ _isolation_sys.path.pop(0)
 _require_test_isolation()
 
 import contextlib
+import errno
+import fcntl
 import hashlib
 import importlib.util
 import io
@@ -33,7 +35,7 @@ SEED = Path(__file__).resolve().parents[1]
 TARGET = SEED / 'hooks/target'
 LIB = TARGET / 'usr/local/lib/python3.14/dist-packages'
 sys.path.insert(0, str(LIB))
-from managed_workflows.fs import Tree, parts
+from managed_workflows.fs import Tree, open_directory, parts
 from managed_workflows import process
 from gitbuild import core, cli as build_cli, worker, publish, import_local
 from labwc_appearance import catalog, native, editors, transaction, engine, defaults, greeter
@@ -96,6 +98,51 @@ class Temporary(unittest.TestCase):
 
 
 class FilesystemTests(Temporary):
+    def test_search_only_pki_parents_keep_store_io_readable(self):
+        pki = self.root / 'pki'; pki.mkdir(mode=0o711)
+        exports = pki / 'exports'; exports.mkdir(mode=0o711)
+        store = exports / 'ssh'; store.mkdir(mode=0o700)
+        protected = {(info.st_dev, info.st_ino) for info in (pki.stat(), exports.stat())}
+        original_open = os.open
+        def fixture_open(path, flags, *args, **options):
+            fd = original_open(path, flags, *args, **options)
+            info = os.fstat(fd)
+            # Explicitly emulate the desktop user's missing read permission,
+            # even when the disposable test image runs as root. Only these
+            # two owned fixture directories receive the simulated denial.
+            if not flags & os.O_PATH and (info.st_dev, info.st_ino) in protected:
+                os.close(fd)
+                raise PermissionError(errno.EACCES, 'fixture parent forbids listing', path)
+            return fd
+        with mock.patch('managed_workflows.fs.os.open', side_effect=fixture_open):
+            with Tree(store, private=True) as tree, tree.lock('operation.lock'):
+                tree.write('identity.pub', b'fixture public key')
+                tree.copy('copy.pub', tree, 'identity.pub')
+                self.assertEqual(tree.read('copy.pub'), b'fixture public key')
+                self.assertIn('identity.pub', os.listdir(tree.fd))
+                os.fsync(tree.fd)
+
+    def test_metadata_directory_fd_does_not_require_listing(self):
+        fd = open_directory(self.root, readable=False)
+        try:
+            self.assertEqual(os.fstat(fd).st_ino, self.root.stat().st_ino)
+            self.assertTrue(fcntl.fcntl(fd, fcntl.F_GETFL) & os.O_PATH)
+            with self.assertRaises(OSError) as failure:
+                os.listdir(fd)
+            self.assertEqual(failure.exception.errno, errno.EBADF)
+        finally:
+            os.close(fd)
+
+    def test_absolute_directory_walk_refuses_symlink_components(self):
+        directory = self.root / 'directory'; directory.mkdir()
+        child = directory / 'child'; child.mkdir()
+        link = self.root / 'link'; link.symlink_to(directory, target_is_directory=True)
+        for path in (link, link / 'child'):
+            for readable in (True, False):
+                with self.subTest(path=path, readable=readable), self.assertRaises(OSError):
+                    fd = open_directory(path, readable=readable)
+                    os.close(fd)
+
     def test_atomic_read_write_copy_and_delete(self):
         with Tree(self.root) as tree:
             tree.write('a/one', b'content')

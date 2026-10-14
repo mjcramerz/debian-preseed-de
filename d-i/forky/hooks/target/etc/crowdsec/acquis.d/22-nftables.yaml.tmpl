@@ -3,5 +3,7 @@
 # verdict fields; the official iptables parser consumes that format.
 filenames:
   - __INSTALLER_LOG_NFTABLES_FILE__
+poll_without_inotify: false
 labels:
   type: syslog
+  firewall: nftables

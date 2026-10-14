@@ -1,10 +1,16 @@
-# Managed root and network syslog sources. The linux collection's syslog
-# parser keeps these records available to current and future Hub scenarios.
-# Dedicated nftables, auditd, and SSH routes remain separate so the same record
-# is not intentionally acquired twice; application/model logs are not sources.
+# journald ReadKMsg=no: rsyslog imklog owns the managed kernel stream.
+# Firewall packets are routed to their dedicated file before this fallback.
+# Follow current kernel content through notifications, without stat polling.
+source: file
 filenames:
-  - __INSTALLER_LOG_SYSTEM_SERVICES_FILE__
   - __INSTALLER_LOG_KERNEL_FILE__
-  - __INSTALLER_LOG_VETH_FILE__
+poll_without_inotify: false
+labels:
+  type: syslog
+---
+# pkexec uses authpriv, which is kept out of the general system log.
+source: journalctl
+journalctl_filter:
+  - _COMM=pkexec
 labels:
   type: syslog

@@ -5,7 +5,7 @@
 # sudo records remain available in auth.log without creating desktop noise.
 
 template(
-  name="ManagedAuthDesktopSignal"
+  name="AuthDesktopSignal"
   type="string"
   string="auth\n"
 )
@@ -14,9 +14,9 @@ if (
   $syslogfacility-text == "auth" or
   $syslogfacility-text == "authpriv"
 ) then {
-  set $.managed_security_routed = "on";
+  set $.security_routed = "on";
   action(
-    name="managed_auth_log"
+    name="auth_log"
     type="omfile"
     file="__INSTALLER_LOG_AUTH_FILE__"
     fileOwner="__INSTALLER_LOG_OWNER__"
@@ -41,7 +41,7 @@ if (
     $msg contains "account is locked"
   ) then {
     action(
-      name="managed_auth_desktop_signal"
+      name="auth_desktop_signal"
       type="omfile"
       file="/var/lib/labwc-notifications/security/auth.signal"
       fileOwner="__INSTALLER_LOG_OWNER__"
@@ -51,7 +51,7 @@ if (
       dirGroup="logreader"
       dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
       createDirs="on"
-      template="ManagedAuthDesktopSignal"
+      template="AuthDesktopSignal"
       rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
       rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
       rotation.sizeLimitCommandPassFileName="on"

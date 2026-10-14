@@ -61,6 +61,12 @@ unset pool_root
 account_ids=$(devops_target_passwd_ids "$ACCOUNT_USERNAME")
 [ -n "$account_ids" ] ||
   devops_fatal "target primary account is missing: $ACCOUNT_USERNAME"
+case "${account_ids%%:*}" in
+  ''|0|*[!0-9]*) devops_fatal "DevOps tool provisioning must use a non-root target UID" ;;
+esac
+case "$ACCOUNT_HOME" in
+  /root|/root/*) devops_fatal "DevOps tool state must not use root's home" ;;
+esac
 
 DEVOPS_CODEX_STANDALONE_INSTALLER_HELPER=/usr/local/bin/codex-standalone-install
 DEVOPS_CODEX_INSTALLER_SESSION_HELPER="${DEVOPS_CODEX_ROOT}/.installer-codex-standalone.session.py"
@@ -86,6 +92,9 @@ RUSTUP_HOME="${DIR_POOL_DB}/${ACCOUNT_USERNAME}/rustup"
 SCCACHE_DIR="${DIR_POOL_CACHE}/${ACCOUNT_USERNAME}/sccache"
 GOPATH="${DIR_POOL_BUILD}/${ACCOUNT_USERNAME}/go"
 GOMODCACHE="${DIR_POOL_CACHE}/${ACCOUNT_USERNAME}/go-mod"
+GOCACHE="${DIR_POOL_CACHE}/${ACCOUNT_USERNAME}/go-build"
+GOENV="${DIR_POOL_DB}/${ACCOUNT_USERNAME}/go/env"
+GOTMPDIR="${DIR_POOL_BUILD}/${ACCOUNT_USERNAME}/go/tmp"
 MISE_DATA_DIR="${DIR_POOL_DB}/${ACCOUNT_USERNAME}/mise/data"
 MISE_STATE_DIR="${DIR_POOL_DB}/${ACCOUNT_USERNAME}/mise/state"
 MISE_CACHE_DIR="${DIR_POOL_CACHE}/${ACCOUNT_USERNAME}/mise"
@@ -131,6 +140,9 @@ for devops_path in \
   "$TF_PLUGIN_CACHE_DIR" \
   "$GOPATH" \
   "$GOMODCACHE" \
+  "$GOCACHE" \
+  "$GOENV" \
+  "$GOTMPDIR" \
   "$APTLY_ROOT_DIR" \
   "$APTLY_CONFIG" \
   "$OSC_STATE_DIR" \
@@ -193,6 +205,7 @@ for runtime_path in \
   "$build_root/$account_user/deno/bin" \
   "$build_root/$account_user/go" \
   "$build_root/$account_user/go/bin" \
+  "$build_root/$account_user/go/tmp" \
   "$build_root/$account_user/npm-global" \
   "$build_root/$account_user/pnpm" \
   "$build_root/$account_user/pnpm/bin" \
@@ -211,6 +224,7 @@ for runtime_path in \
   "$cache_root/$account_user/npm" \
   "$cache_root/$account_user/corepack" \
   "$cache_root/$account_user/go-mod" \
+  "$cache_root/$account_user/go-build" \
   "$cache_root/$account_user/pnpm" \
   "$cache_root/$account_user/pnpm/cache" \
   "$cache_root/$account_user/pnpm/store" \
@@ -233,6 +247,7 @@ for runtime_path in \
   "$db_root/$account_user" \
   "$db_root/$account_user/ansible" \
   "$db_root/$account_user/deno" \
+  "$db_root/$account_user/go" \
   "$db_root/$account_user/mise" \
   "$db_root/$account_user/mise/data" \
   "$db_root/$account_user/mise/state" \
@@ -257,6 +272,33 @@ done
   "$DEVOPS_BAZEL_REPOSITORY_CACHE_SUBDIR" \
   "$DEVOPS_BAZEL_OUTPUT_USER_ROOT_SUBDIR" \
   "$DEVOPS_BAZELISK_HOME_SUBDIR"
+
+# Inspection only: never compile or download a Go toolchain during provisioning.
+# shellcheck disable=SC2016
+devops_run_as_account "verify packaged Go and account-owned Go state" /bin/sh -eu -c '
+[ "$(id -u)" -ne 0 ] || exit 1
+[ "$GOTOOLCHAIN" = local ] || exit 1
+for go_variable in GOPATH GOBIN GOMODCACHE GOCACHE GOENV GOTMPDIR; do
+  case "$go_variable" in
+    GOPATH) expected=$GOPATH ;;
+    GOBIN) expected=$GOBIN ;;
+    GOMODCACHE) expected=$GOMODCACHE ;;
+    GOCACHE) expected=$GOCACHE ;;
+    GOENV) expected=$GOENV ;;
+    GOTMPDIR) expected=$GOTMPDIR ;;
+  esac
+  actual=$(/usr/bin/go env "$go_variable")
+  [ "$actual" = "$expected" ] || {
+    printf "fatal: Go %s does not match the desktop account policy\n" "$go_variable" >&2
+    exit 1
+  }
+done
+go_root=$(/usr/bin/go env GOROOT)
+case "$go_root" in
+  /usr/lib/go|/usr/lib/go-*) ;;
+  *) printf "fatal: Go must use the packaged system toolchain\n" >&2; exit 1 ;;
+esac
+' sh
 
 install -d -m 0700 "$tmp_env_dir"
 devops_prepare_publishing_layout

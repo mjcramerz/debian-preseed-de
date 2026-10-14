@@ -1,0 +1,26 @@
+#!/usr/bin/python3 -IB
+"""Installed terminal entrypoint; never import from the working directory."""
+import os
+import resource
+import signal
+import sys
+
+sys.path.insert(0, '/usr/local/lib/python3.14/dist-packages')
+from key_manager.cli import main
+
+if __name__ == '__main__':
+    os.umask(0o077)
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    def interrupted(_signum, _frame):
+        raise KeyboardInterrupt
+    for signum in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(signum, interrupted)
+    try:
+        raise SystemExit(main())
+    except (KeyboardInterrupt, EOFError):
+        print('\nOperation cancelled.', file=sys.stderr)
+        raise SystemExit(130)
+    except (OSError, ValueError, RuntimeError) as error:
+        print('key-manager: ' + ''.join(c if c.isprintable() else '?' for c in str(error)),
+              file=sys.stderr)
+        raise SystemExit(1)

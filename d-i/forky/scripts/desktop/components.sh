@@ -3,7 +3,7 @@
 # The late desktop entrypoint has already initialized the shared bootstrap.
 
 bootstrap_source_module 'scripts/desktop/components/stage-assets.sh' || return "$?"
-bootstrap_source_module 'scripts/desktop/components/managed-apps.sh' || return "$?"
+bootstrap_source_module 'scripts/desktop/components/apps.sh' || return "$?"
 bootstrap_source_module 'scripts/desktop/components/artifacts-identities.sh' || return "$?"
 bootstrap_source_module 'scripts/desktop/components/rendering-access.sh' || return "$?"
 bootstrap_source_module 'scripts/desktop/components/devices-network.sh' || return "$?"

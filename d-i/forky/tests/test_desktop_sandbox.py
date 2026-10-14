@@ -865,7 +865,7 @@ class InstalledFailureRegressionTests(unittest.TestCase):
             self.assertFalse(any(pattern in message for pattern in patterns), message)
         for message in failed_messages:
             self.assertTrue(any(pattern in message for pattern in patterns), message)
-        self.assertLess(policy.index('name="managed_auth_log"'), start)
+        self.assertLess(policy.index('name="auth_log"'), start)
         notifier = render_theme_defaults(payload_read_text(DESKTOP / 'usr/local/bin/labwc-health-notify'))
         self.assertIn('"Failed authentication detected"', notifier)
         self.assertNotIn('"Authentication activity detected"', notifier)

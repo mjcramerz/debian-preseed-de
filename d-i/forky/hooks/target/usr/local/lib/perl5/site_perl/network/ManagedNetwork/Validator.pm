@@ -465,8 +465,8 @@ sub _validate_wifi_profile {
             $name ne $iface or die "ifupdown must not automatically activate Wi-Fi\n";
         }
     }
-    my $path = $self->_target_path('/etc/NetworkManager/system-connections/managed-wifi.nmconnection');
-    $path = $self->_target_path('/etc/network/managed-wifi.nmconnection') if !-e $path;
+    my $path = $self->_target_path('/etc/NetworkManager/system-connections/wifi.nmconnection');
+    $path = $self->_target_path('/etc/network/wifi.nmconnection') if !-e $path;
     $self->_file_mode($path) eq '0600' or die "$path must be mode 0600\n";
     my %values;
     my $group = q{};
@@ -507,12 +507,12 @@ sub _validate_wifi_profile {
     }
     # SSID and secrets belong to NM/nmtui. They may be edited independently of
     # the installer address policy; never print them in validation diagnostics.
-    my $nm_path = $self->_target_path('/etc/NetworkManager/conf.d/90-network-unmanaged.conf');
+    my $nm_path = $self->_target_path('/etc/NetworkManager/conf.d/90-network-external.conf');
     my $nm = $self->_slurp_limited($nm_path);
     $nm !~ /^unmanaged-devices=[^\n]*interface-name:\Q$iface\E(?:[;\n]|\z)/m
         && $nm !~ /^unmanaged-devices=[^\n]*mac:\Q$config->{MANAGED_NETWORK_WIFI_MAC}\E(?:[;\n]|\z)/m
         or die "$nm_path must not exclude Wi-Fi\n";
-    $nm =~ /\[device-managed-wifi\]\nmatch-device=interface-name:\Q$iface\E\nmanaged=1\n/
+    $nm =~ /\[device-wifi\]\nmatch-device=interface-name:\Q$iface\E\nmanaged=1\n/
         or die "$nm_path must make Wi-Fi managed\n";
     return;
 }

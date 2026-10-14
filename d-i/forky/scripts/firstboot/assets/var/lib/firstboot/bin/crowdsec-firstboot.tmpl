@@ -13,7 +13,7 @@ CROWDSEC_COMPLETE_FILE=${CROWDSEC_COMPLETE_FILE:-${CROWDSEC_STATE_DIR}/complete}
 CROWDSEC_CORE_READY_FILE=${CROWDSEC_STATE_DIR}/core-ready
 CROWDSEC_CAPI_ACTIVATED_FILE=${CROWDSEC_STATE_DIR}/capi-activated
 CROWDSEC_ENROLL_TOKEN_FILE=${CROWDSEC_ENROLL_TOKEN_FILE:-${CROWDSEC_STATE_DIR}/enroll.token}
-CROWDSEC_HOST_VARIANT=${CROWDSEC_HOST_VARIANT:-server}
+CROWDSEC_HOST_VARIANT=desktop
 CROWDSEC_ENROLL_ATTEMPTS=${CROWDSEC_ENROLL_ATTEMPTS:-1}
 CROWDSEC_ENROLL_RETRY_DELAY_SECONDS=${CROWDSEC_ENROLL_RETRY_DELAY_SECONDS:-10}
 
@@ -213,40 +213,6 @@ normalize_crowdsec_token() {
       ;;
   esac
   printf '%s\n' "$crowdsec_token_value"
-}
-
-activate_appsec_acquisition() {
-  # Initial engine startup precedes Hub installation. Publish this acquisition
-  # only after the rule set exists, then restart the engine below.
-  appsec_source=/etc/crowdsec/acquis-available/25-appsec.yaml
-  appsec_target=/etc/crowdsec/acquis.d/25-appsec.yaml
-  appsec_acquisition_new=false
-  for path in /etc/crowdsec /etc/crowdsec/acquis-available /etc/crowdsec/acquis.d; do
-    [ -d "$path" ] && [ ! -L "$path" ] &&
-      [ "$(find -P "$path" -maxdepth 0 -printf %U)" = 0 ] || return 1
-    case "$(find -P "$path" -maxdepth 0 -printf %m)" in
-      *[2367][0-7]|*[0-7][2367]) return 1 ;;
-    esac
-  done
-  [ -f "$appsec_source" ] && [ ! -L "$appsec_source" ] &&
-    [ "$(find -P "$appsec_source" -maxdepth 0 -printf %U:%m:%n)" = 0:644:1 ] || return 1
-  if [ -e "$appsec_target" ] || [ -L "$appsec_target" ]; then
-    [ -f "$appsec_target" ] && [ ! -L "$appsec_target" ] &&
-      [ "$(find -P "$appsec_target" -maxdepth 0 -printf %U:%m:%n)" = 0:644:1 ] &&
-      cmp -s "$appsec_source" "$appsec_target" || {
-        log_line bootstrap error crowdsec "appsec_acquisition=unsafe-or-modified"
-        return 1
-      }
-    return 0
-  fi
-  appsec_tmp=$(mktemp /etc/crowdsec/acquis.d/.appsec.XXXXXX) || return 1
-  if install -m 0644 "$appsec_source" "$appsec_tmp" &&
-     mv -fT -- "$appsec_tmp" "$appsec_target"; then
-    appsec_acquisition_new=true
-    return 0
-  fi
-  rm -f -- "$appsec_tmp"
-  return 1
 }
 
 ensure_bouncer_api_key() {
@@ -490,37 +456,17 @@ log_line bootstrap info crowdsec "hub_update=true"
 if ! run_optional_crowdsec_command hub-update cscli hub update; then
   log_line bootstrap warning crowdsec "hub_update=fallback-to-packaged-index"
 fi
-log_line bootstrap info crowdsec "installing_collections=true collections=crowdsecurity/linux,crowdsecurity/sshd,crowdsecurity/auditd,crowdsecurity/iptables,crowdsecurity/whitelist-good-actors,crowdsecurity/linux-lpe,crowdsecurity/base-http-scenarios,crowdsecurity/appsec-virtual-patching,gilbsgilbs/qbittorrent"
+log_line bootstrap info crowdsec "installing_collections=true collections=crowdsecurity/linux,crowdsecurity/sshd,crowdsecurity/auditd,crowdsecurity/iptables,crowdsecurity/whitelist-good-actors,crowdsecurity/linux-lpe,gilbsgilbs/qbittorrent"
 run_required_crowdsec_command collections-install \
   cscli collections install crowdsecurity/linux crowdsecurity/sshd crowdsecurity/auditd crowdsecurity/iptables crowdsecurity/whitelist-good-actors \
-    crowdsecurity/linux-lpe crowdsecurity/base-http-scenarios crowdsecurity/appsec-virtual-patching gilbsgilbs/qbittorrent || {
+    crowdsecurity/linux-lpe gilbsgilbs/qbittorrent || {
   stop_bootstrap_services
   write_status 1 error
   exit 1
 }
-# Base HTTP scenarios consume parsed application access logs. Include the
-# standard combined-log parser and Docker JSON wrapper for reviewed sources.
-run_required_crowdsec_command parsers-install \
-  cscli parsers install crowdsecurity/nginx-logs crowdsecurity/docker-logs || {
-  stop_bootstrap_services
-  write_status 1 error
-  exit 1
-}
-activate_appsec_acquisition || {
-  stop_bootstrap_services
-  write_status 1 error
-  exit 1
-}
+# Collection dependencies install the parsers needed by the actual acquisitions.
+# Web/HTTP/WAF collections require a configured producer and remediation path.
 run_required_crowdsec_command engine-config-test crowdsec -t -c /etc/crowdsec/config.yaml || {
-  # A rejected new acquisition must not prevent the next bootstrap from
-  # starting the engine. Preserve pre-existing or subsequently modified files.
-  if [ "$appsec_acquisition_new" = true ] &&
-     [ -f "$appsec_target" ] && [ ! -L "$appsec_target" ] &&
-     [ "$(find -P "$appsec_target" -maxdepth 0 -printf %U:%m:%n)" = 0:644:1 ] &&
-     cmp -s "$appsec_source" "$appsec_target"; then
-    rm -f -- "$appsec_target" ||
-      log_line bootstrap error crowdsec "appsec_acquisition=rollback-failed"
-  fi
   stop_bootstrap_services
   write_status 1 error
   exit 1

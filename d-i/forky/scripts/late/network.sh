@@ -907,7 +907,7 @@ remove_target_managed_network_handoff() {
       remove_target_asset "/usr/local/lib/perl5/site_perl/network/${managed_network_module}"
     done
   remove_target_asset "${FILE_MANAGED_NETWORK_SERVICE:-/etc/systemd/system/network.service}"
-  remove_target_asset "${FILE_NETWORKMANAGER_MANAGED_UNMANAGED_CONF:-/etc/NetworkManager/conf.d/90-network-unmanaged.conf}"
+  remove_target_asset "${FILE_NETWORKMANAGER_MANAGED_UNMANAGED_CONF:-/etc/NetworkManager/conf.d/90-network-external.conf}"
   remove_target_asset "/etc/systemd/system/sysinit.target.wants/network.service"
   remove_target_asset "/etc/systemd/network/10-ethernet.link"
   remove_target_asset "/etc/systemd/network/11-wifi.link"

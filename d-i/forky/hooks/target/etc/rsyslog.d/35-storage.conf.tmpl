@@ -3,7 +3,7 @@
 # serial numbers, filesystem labels, usernames, and command content.
 
 template(
-  name="ManagedStorageDesktopSignal"
+  name="StorageDesktopSignal"
   type="string"
   string="storage\n"
 )
@@ -68,9 +68,9 @@ if (
     )
   )
 ) then {
-  set $.managed_security_routed = "on";
+  set $.security_routed = "on";
   action(
-    name="managed_storage_log"
+    name="storage_log"
     type="omfile"
     file="__INSTALLER_LOG_STORAGE_FILE__"
     fileOwner="__INSTALLER_LOG_OWNER__"
@@ -86,7 +86,7 @@ if (
     rotation.sizeLimitCommandPassFileName="on"
   )
   action(
-    name="managed_storage_desktop_signal"
+    name="storage_desktop_signal"
     type="omfile"
     file="/var/lib/labwc-notifications/security/storage.signal"
     fileOwner="__INSTALLER_LOG_OWNER__"
@@ -96,7 +96,7 @@ if (
     dirGroup="logreader"
     dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
     createDirs="on"
-    template="ManagedStorageDesktopSignal"
+    template="StorageDesktopSignal"
     rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
     rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
     rotation.sizeLimitCommandPassFileName="on"

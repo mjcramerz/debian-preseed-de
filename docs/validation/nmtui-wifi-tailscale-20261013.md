@@ -43,7 +43,7 @@ increment uses full-width byte arithmetic and retains the Ethernet prefix.
 
 The explicit unmanaged list now contains Ethernet only. Wi-Fi has a managed
 NetworkManager device section and no ifupdown stanza. The native static keyfile
-is prepared privately at `/etc/network/managed-wifi.nmconnection`, mode 0600.
+is prepared privately at `/etc/network/wifi.nmconnection`, mode 0600.
 It contains manual IPv4/IPv6, metric 200, autoconnect disabled and the existing
 random MAC privacy policy. Ethernet retains ifupdown and metric 100.
 
@@ -59,7 +59,7 @@ Typing `nmtui` uses a small installed `/usr/local/bin/nmtui` wrapper. This expli
 user action prepares the saved profile if firstboot skipped it, enables the radio
 and opens `/usr/bin/nmtui`. The packaged program is unchanged. The desktop Wi-Fi
 actions use the same helper and terminal flow. Native nmtui owns SSID/security
-editing and secret prompting. For another SSID, edit **Managed Wi-Fi** while
+editing and secret prompting. For another SSID, edit **Wi-Fi** while
 retaining Manual addressing and leaving automatic connection unchecked; creating
 an unrelated new profile in native nmtui does not inherit this installer's policy.
 
@@ -172,10 +172,10 @@ systemd deferred status, and live dual-link/veth/DNS failover remain unverified.
 
 ## Changed paths for this follow-up
 
-- `hooks/target/etc/NetworkManager/conf.d/90-network-unmanaged.conf.tmpl`
-- New `hooks/target/etc/NetworkManager/system-connections/managed-wifi.nmconnection.tmpl`
+- `hooks/target/etc/NetworkManager/conf.d/90-network-external.conf.tmpl`
+- New `hooks/target/etc/NetworkManager/system-connections/wifi.nmconnection.tmpl`
 - New `hooks/target/etc/systemd/system/NetworkManager.service.d/30-wifi-manual.conf`
-- New `hooks/target/etc/systemd/system/managed-wifi-firstboot.service`
+- New `hooks/target/etc/systemd/system/wifi-firstboot.service`
 - `hooks/target/etc/network/host.conf.tmpl`
 - `hooks/target/etc/apparmor.d/{desktop-wrappers,system-wrappers}.tmpl`
 - New `hooks/target/usr/local/bin/nmtui` and updated `hooks/target/usr/local/libexec/network-wifi-configure`

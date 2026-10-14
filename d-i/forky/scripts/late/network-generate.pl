@@ -878,7 +878,7 @@ sub render_wifi_profile {
             . 'dns=' . ($link_dns ? join(';', split / /, $CFG{MANAGED_NETWORK_IPV6_DNS}) . ';' : '')
             . "\nmay-fail=false\n";
     }
-    return render_native($TARGET_TEMPLATES, 'etc/NetworkManager/system-connections/managed-wifi.nmconnection.tmpl',
+    return render_native($TARGET_TEMPLATES, 'etc/NetworkManager/system-connections/wifi.nmconnection.tmpl',
         IFACE => $record->{iface}, MAC => $record->{mac}, SSID => keyfile_string($ssid), SECURITY => $auth,
         IPV4_CIDR => $record->{ipv4_cidr},
         IPV4_GATEWAY => $CFG{MANAGED_NETWORK_IPV4_GATEWAY},
@@ -947,10 +947,10 @@ sub render_networkmanager_unmanaged {
         push @matches, $match if !$seen{$match}++;
     }
 
-    return render_native($TARGET_TEMPLATES, 'etc/NetworkManager/conf.d/90-network-unmanaged.conf.tmpl',
+    return render_native($TARGET_TEMPLATES, 'etc/NetworkManager/conf.d/90-network-external.conf.tmpl',
         MATCHES => join(';', @matches),
         WIFI_DEVICE => exists($selected->{wifi})
-            ? "\n[device-managed-wifi]\nmatch-device=interface-name:$selected->{wifi}->{iface}\nmanaged=1\n" : '');
+            ? "\n[device-wifi]\nmatch-device=interface-name:$selected->{wifi}->{iface}\nmanaged=1\n" : '');
 }
 
 sub render_interfaces_base {
@@ -1094,14 +1094,14 @@ sub main {
         write_file_atomic(target_path($link_path), 0644, render_link_file($link_type, $link_files{$link_type}));
     }
     write_file_atomic(
-        target_path('/etc/NetworkManager/conf.d/90-network-unmanaged.conf'),
+        target_path('/etc/NetworkManager/conf.d/90-network-external.conf'),
         0644,
         render_networkmanager_unmanaged(\%selected),
     );
     write_runtime_defaults(\%selected);
     if (exists $selected{wifi}) {
         make_path(target_path('/etc/NetworkManager/system-connections'), { mode => 0700 });
-        write_file_atomic(target_path('/etc/network/managed-wifi.nmconnection'),
+        write_file_atomic(target_path('/etc/network/wifi.nmconnection'),
             0600, render_wifi_profile($selected{wifi}));
     }
     write_state_env(\%selected);

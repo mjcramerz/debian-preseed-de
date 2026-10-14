@@ -29,7 +29,7 @@ The temporary-file test verifies the actual normalized contents, idempotence
 and rejection of lookalike host/path classifications.
 
 All native qBittorrent settings remain in
-`hooks/target/etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf.tmpl`.
+`hooks/target/etc/qbittorrent/qBittorrent.conf.d/10-security.conf.tmpl`.
 The installer renders the persistent profile and a disposable PurePrivacy
 profile from that same canonical template. Launchers copy exact rendered bytes;
 they do not parse native keys, render templates or merge previous settings.

@@ -546,7 +546,7 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
         [ "$(find -P "$path" -maxdepth 0 -printf "%U:%G:%m")" = "0:0:755" ]
       done
       for asset in session.json chromium.conf microsoft-edge.conf vivaldi.conf mullvad-browser.conf qbittorrent.conf; do
-        if [ "$asset" = qbittorrent.conf ] && [ ! -f /etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf ]; then
+        if [ "$asset" = qbittorrent.conf ] && [ ! -f /etc/qbittorrent/qBittorrent.conf.d/10-security.conf ]; then
           continue
         fi
         path=/etc/labwc/3proxy/$asset

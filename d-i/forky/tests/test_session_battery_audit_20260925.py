@@ -92,11 +92,11 @@ class IntegrationContracts(unittest.TestCase):
                       (ROOT / 'hosts/logging/observability.env').read_text())
         rsyslog = source('etc/rsyslog.d/30-apparmor.conf')
         self.assertIn('File="__INSTALLER_LOG_AUDIT_FILE__"', rsyslog)
-        self.assertIn('Ruleset="managed_apparmor_from_audit"', rsyslog)
+        self.assertIn('Ruleset="apparmor_from_audit"', rsyslog)
         self.assertIn('string="%msg%\\n"', rsyslog)
-        self.assertIn('ruleset(name="managed_apparmor_from_audit" queue.type="LinkedList"', rsyslog)
-        self.assertEqual(rsyslog.count('name="managed_apparmor_log"'), 1)
-        self.assertEqual(rsyslog.count('name="managed_apparmor_desktop_signal"'), 1)
+        self.assertIn('ruleset(name="apparmor_from_audit" queue.type="LinkedList"', rsyslog)
+        self.assertEqual(rsyslog.count('name="apparmor_log"'), 1)
+        self.assertEqual(rsyslog.count('name="apparmor_desktop_signal"'), 1)
         self.assertNotIn('$inputname == "imklog"', rsyslog)
 
     def test_battery_probe_has_a_named_read_only_profile(self):
@@ -127,7 +127,7 @@ class IntegrationContracts(unittest.TestCase):
             self.assertIn(grant, firstboot_policy)
         self.assertNotIn('/var/lib/journal-sealing/** rw', firstboot_policy)
         self.assertIn('check_command apparmor-log-delivery apparmor_log_delivery', firstboot)
-        self.assertIn('module(load="imfile" mode="polling" pollingInterval="2")',
+        self.assertIn('module(load="imfile" mode="inotify")',
                       source('etc/rsyslog.d/30-apparmor.conf'))
 
     def test_secret_service_readiness_does_not_dump_bus_introspection(self):

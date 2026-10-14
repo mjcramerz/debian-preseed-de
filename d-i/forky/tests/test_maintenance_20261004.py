@@ -23,6 +23,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -86,6 +87,39 @@ class MokProtocolTests(unittest.TestCase):
                              ('st_mode', stat.S_IFLNK | 0o600), ('st_nlink', 2)):
             with self.subTest(field=field, value=value), self.assertRaises(ValueError):
                 self.m.trusted(types.SimpleNamespace(**{**valid, field: value}))
+
+    def test_state_query_distinguishes_negative_results_from_helper_errors(self):
+        for action in ('state-ready', 'state-mounted'):
+            for status in (0, 1, 2, 126, -signal.SIGTERM):
+                with self.subTest(action=action, status=status), \
+                     mock.patch.object(self.m, 'run', return_value=subprocess.CompletedProcess([self.m.TOOL, action], status)) as run:
+                    if status in (0, 1):
+                        self.assertEqual(self.m.state_query(action), status == 0)
+                    else:
+                        with self.assertRaises(subprocess.CalledProcessError) as error:
+                            self.m.state_query(action)
+                        self.assertEqual(error.exception.returncode, status)
+                    run.assert_called_once_with([self.m.TOOL, action], check=False)
+
+    def test_mount_table_open_failure_survives_a_conditional_caller(self):
+        source = (TARGET / 'usr/libexec/install-tools/secure-boot-tool.tmpl').read_text(encoding='utf-8')
+        with tempfile.TemporaryDirectory(prefix='mok-mount-query-') as temporary:
+            root = Path(temporary)
+            # Extract only the two readers as data. Their sole file input is
+            # redirected to our nonexistent fixture, never real procfs.
+            for name in ('mounted_source_for_target', 'mounted_fstype_for_target'):
+                with self.subTest(reader=name):
+                    body = re.search(r'^' + name + r'\(\) \{\n.*?^\}', source, re.M | re.S).group()
+                    body = body.replace('/proc/self/mounts', shlex.quote(str(root / 'missing-mounts')))
+                    script = ('set -eu\n' + body + '\n'
+                              'mountpoint_matches_target() { return 1; }\n'
+                              f'if value=$({name} /fixture-mok); then exit 99; else status=$?; fi\n'
+                              'printf "%s\\n" "$status"\n')
+                    result = subprocess.run(['/bin/sh', '-c', script], cwd=root,
+                                            env={'PATH': '/usr/bin:/bin', 'HOME': str(root), 'LC_ALL': 'C'},
+                                            capture_output=True, text=True, timeout=5)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout, '2\n')
 
     def test_helper_timeout_kills_and_reaps_the_process_group(self):
         # An actual subprocess, with no MOK helper, mount, key or terminal.
@@ -182,6 +216,21 @@ class MokLifecycleTests(unittest.TestCase):
             self.pre()
         self.assertFalse(self.m.MARKER.exists())
         self.assertNotIn(mock.call([self.m.CLOSE]), self.run.call_args_list)
+
+    def test_inspection_failure_does_not_claim_open_or_close_storage(self):
+        self.ready.side_effect = lambda: self.m.state_query('state-ready')
+        for action in ('state-ready', 'state-mounted'):
+            def failed_query(command, **options):
+                status = 2 if command == [self.m.TOOL, action] else 1
+                return subprocess.CompletedProcess(command, status)
+            with self.subTest(action=action):
+                self.run.reset_mock()
+                self.run.side_effect = failed_query
+                with self.assertRaises(subprocess.CalledProcessError):
+                    self.pre()
+                self.assertFalse(self.m.MARKER.exists())
+                self.assertNotIn(mock.call([self.m.OPEN]), self.run.call_args_list)
+                self.assertNotIn(mock.call([self.m.CLOSE]), self.run.call_args_list)
 
 
 class DesktopTransactionTests(unittest.TestCase):

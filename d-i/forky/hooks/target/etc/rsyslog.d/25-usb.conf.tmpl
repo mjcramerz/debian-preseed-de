@@ -2,7 +2,7 @@
 # desktop signal contains only a category marker, never raw device metadata.
 
 template(
-  name="ManagedUsbDesktopSignal"
+  name="UsbDesktopSignal"
   type="string"
   string="usb\n"
 )
@@ -32,9 +32,9 @@ if (
     $msg contains "Type-C"
   )
 ) then {
-  set $.managed_security_routed = "on";
+  set $.security_routed = "on";
   action(
-    name="managed_usb_log"
+    name="usb_log"
     type="omfile"
     file="__INSTALLER_LOG_USB_FILE__"
     fileOwner="__INSTALLER_LOG_OWNER__"
@@ -50,7 +50,7 @@ if (
     rotation.sizeLimitCommandPassFileName="on"
   )
   action(
-    name="managed_usb_desktop_signal"
+    name="usb_desktop_signal"
     type="omfile"
     file="/var/lib/labwc-notifications/security/usb.signal"
     fileOwner="__INSTALLER_LOG_OWNER__"
@@ -60,7 +60,7 @@ if (
     dirGroup="logreader"
     dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
     createDirs="on"
-    template="ManagedUsbDesktopSignal"
+    template="UsbDesktopSignal"
     rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
     rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
     rotation.sizeLimitCommandPassFileName="on"

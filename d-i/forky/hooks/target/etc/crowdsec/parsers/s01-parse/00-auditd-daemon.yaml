@@ -1,7 +1,7 @@
 # The system syslog acquisition also sees auditd's rotation notice. It is not
 # an audit key/value record; preserve it without feeding auditd-logs ParseKV.
 # Native audit records still use the separate type: auditd acquisition.
-name: local/managed-auditd-daemon
+name: local/auditd-daemon
 filter: "evt.Line.Labels.type == 'syslog' and evt.Parsed.program == 'auditd' and evt.Parsed.message == 'Audit daemon rotating log files'"
 onsuccess: next_stage
 statics:

@@ -1,0 +1,25 @@
+[Unit]
+Description=Renew key-manager ACME certificates
+Wants=network-online.target
+After=network-online.target
+ConditionPathIsDirectory=__INSTALLER_DIR_DATA_PKI__/tls/acme/config/renewal
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/certbot --config /etc/key-manager/certbot.ini renew --non-interactive --config-dir __INSTALLER_DIR_DATA_PKI__/tls/acme/config --work-dir __INSTALLER_DIR_DATA_PKI__/tls/acme/work --logs-dir __INSTALLER_DIR_DATA_PKI__/tls/acme/logs
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+# HTTP-01 also needs the root-owned /var/www or /srv webroot recorded by Certbot.
+ProtectSystem=full
+ProtectHome=yes
+ReadWritePaths=__INSTALLER_DIR_DATA_PKI__/tls/acme
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+LimitCORE=0
+KillMode=control-group
+TimeoutStartSec=30min
+TimeoutStopSec=15s

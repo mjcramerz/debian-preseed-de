@@ -1,16 +1,11 @@
 # The external storage volume and log may appear after CrowdSec starts.
 # Rescan the exact native log path; never ingest rotated files a second time.
+# File discovery is periodic; existing file content uses inotify notifications.
 source: file
 filenames:
   - /run/media/__INSTALLER_ACCOUNT_USERNAME__/bittorrent/.qbittorrent-profile/.local/share/qBittorrent/logs/qbittorrent.log
 discovery_poll_enable: true
-discovery_poll_interval: 10s
+discovery_poll_interval: 30s
+poll_without_inotify: false
 labels:
   type: qbittorrent
----
-# pkexec uses authpriv, which is kept out of the general system log.
-source: journalctl
-journalctl_filter:
-  - _COMM=pkexec
-labels:
-  type: syslog

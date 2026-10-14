@@ -21,14 +21,24 @@ def parts(value: str) -> tuple[str, ...]:
     return path.parts
 
 
-def open_directory(path: Path) -> int:
-    """Open an absolute directory without following *any* symlink component."""
+def open_directory(path: Path, *, readable: bool = True) -> int:
+    """Pin a no-follow path, requiring read access only to the final directory.
+
+    Traversable parents may deliberately forbid directory listing (e.g. the
+    root-owned 0711 PKI parents). Metadata-only callers keep an O_PATH fd;
+    ordinary callers receive a readable fd for listdir and directory fsync.
+    """
     if not path.is_absolute() or '..' in path.parts:
         raise ValueError('directory must be absolute and normalized')
-    fd = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    fd = os.open('/', os.O_PATH | os.O_DIRECTORY | os.O_CLOEXEC)
     try:
         for name in path.parts[1:]:
-            new = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW |
+            new = os.open(name, os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW |
+                          os.O_CLOEXEC, dir_fd=fd)
+            os.close(fd)
+            fd = new
+        if readable:
+            new = os.open('.', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW |
                           os.O_CLOEXEC, dir_fd=fd)
             os.close(fd)
             fd = new

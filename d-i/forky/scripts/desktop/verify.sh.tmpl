@@ -293,7 +293,7 @@ for path in /etc/labwc /etc/labwc/3proxy; do
     fatal "managed proxy directory must be root:root mode 0755: $path"
 done
 for proxy3_asset in session.json chromium.conf microsoft-edge.conf vivaldi.conf mullvad-browser.conf qbittorrent.conf; do
-  if [ "$proxy3_asset" = qbittorrent.conf ] && [ ! -f /etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf ]; then
+  if [ "$proxy3_asset" = qbittorrent.conf ] && [ ! -f /etc/qbittorrent/qBittorrent.conf.d/10-security.conf ]; then
     continue
   fi
   path=/etc/labwc/3proxy/$proxy3_asset
@@ -592,7 +592,7 @@ for application_family in wayland electron native devops bitwarden qbittorrent c
 done
 require_mode /etc/systemd/user/labwc-wayland-foot-.service.d/60-terminal-lifecycle.conf 644
 require_mode /etc/systemd/user/labwc-devops-.service.d/60-stop-budget.conf 644
-require_mode /etc/apparmor.d/abstractions/base.d/managed-process-monitor 644
+require_mode /etc/apparmor.d/abstractions/base.d/process-monitor 644
 require_mode /usr/local/libexec/labwc-gvfs-volume-monitor 755
 require_mode /usr/share/dbus-1/services/org.gtk.vfs.LabwcVolumeMonitor.service 644
 require_mode /usr/share/gvfs/remote-volume-monitors/labwc.monitor 644
@@ -902,7 +902,7 @@ if [ -r /usr/share/dbus-1/system-services/org.freedesktop.nm_dispatcher.service 
   nm_dispatcher_unit=
   require_readable /etc/systemd/system/NetworkManager.service.d/20-dispatcher.conf
   require_readable /etc/systemd/system/NetworkManager.service.d/30-wifi-manual.conf
-  require_readable /etc/systemd/system/managed-wifi-firstboot.service
+  require_readable /etc/systemd/system/wifi-firstboot.service
   require_readable /etc/systemd/system/NetworkManager-dispatcher.service.d/20-persistent.conf
   if [ -r /usr/lib/systemd/system/NetworkManager-dispatcher.service ]; then
     nm_dispatcher_unit=/usr/lib/systemd/system/NetworkManager-dispatcher.service

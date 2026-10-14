@@ -1,0 +1,22 @@
+{
+  "type": "leaky",
+  "name": "local/apparmor-denial-burst",
+  "description": "Alert on repeated enforced AppArmor denials for one confined process",
+  "filter": "evt.Meta.log_type == 'apparmor_denied' and evt.Meta.apparmor_profile != '' and evt.Meta.apparmor_pid != ''",
+  "groupby": "evt.Meta.apparmor_profile + ':' + evt.Meta.apparmor_pid",
+  "capacity": 9,
+  "leakspeed": "10s",
+  "blackhole": "5m",
+  "labels": {
+    "service": "linux",
+    "remediation": false,
+    "confidence": 1,
+    "spoofable": 0,
+    "behavior": "linux:access-denied",
+    "label": "Repeated AppArmor denials"
+  },
+  "scope": {
+    "type": "pid",
+    "expression": "evt.Meta.apparmor_pid"
+  }
+}

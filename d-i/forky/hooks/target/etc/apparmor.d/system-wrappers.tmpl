@@ -201,9 +201,9 @@ profile network-run /usr/local/libexec/network-run flags=(attach_disconnected) {
   /etc/network/interfaces r,
   /etc/network/interfaces.d/ r,
   /etc/network/interfaces.d/50-network r,
-  /etc/NetworkManager/conf.d/90-network-unmanaged.conf r,
-  /etc/NetworkManager/system-connections/managed-wifi.nmconnection r,
-  /etc/network/managed-wifi.nmconnection r,
+  /etc/NetworkManager/conf.d/90-network-external.conf r,
+  /etc/NetworkManager/system-connections/wifi.nmconnection r,
+  /etc/network/wifi.nmconnection r,
   /sys/class/net/ r,
   /sys/class/net/** r,
   @{sys}/devices/**/net/{eth,wifi}[0-9]*/{address,type} r,
@@ -669,6 +669,8 @@ profile secure-boot-tool /usr/libexec/install-tools/secure-boot-tool flags=(atta
   /dev/disk/** r,
   /dev/mapper/ rw,
   /dev/mapper/** rw,
+  # /dev/mapper names resolve to kernel device-mapper nodes.
+  /dev/dm-[0-9]* rw,
   /dev/{mmcblk*,nvme*,sd*,vd*} rw,
   /dev/tty rw,
   /etc/secure-boot.conf r,
@@ -685,7 +687,10 @@ profile secure-boot-tool /usr/libexec/install-tools/secure-boot-tool flags=(atta
   /lib/modules/ rw,
   /lib/modules/** rwkl,
   /usr/lib/modules/{,**} rwkl,
-  /proc/self/mounts r,
+  # /proc/self resolves to a numeric PID; libmount also reads mountinfo.
+  owner @{PROC}/@{pid}/{mounts,mountinfo} r,
+  # libdevmapper discovers the device-mapper major number here.
+  @{PROC}/devices r,
   /run/dbus/system_bus_socket rw,
   /run/lock/ rw,
   /run/lock/** rwkl,

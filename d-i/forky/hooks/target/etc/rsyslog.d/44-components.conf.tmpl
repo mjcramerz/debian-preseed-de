@@ -1,7 +1,7 @@
 # Constant-path fallback only. Native security routes above already own their
 # records; ordinary applications already stopped in 21-apps. No application
 # names, message parsing, regex chain, dynamic filenames, or JSON serialization.
-if ($.managed_security_routed != "on") then {
+if ($.security_routed != "on") then {
   if ($inputname == "imklog") then {
     action(type="omfile" file="__INSTALLER_LOG_KERNEL_FILE__"
            template="RSYSLOG_FileFormat" createDirs="off" sync="off"
@@ -19,5 +19,5 @@ if ($.managed_security_routed != "on") then {
          rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
          rotation.sizeLimitCommandPassFileName="on")
   }
-  set $.managed_security_routed = "on";
+  set $.security_routed = "on";
 }

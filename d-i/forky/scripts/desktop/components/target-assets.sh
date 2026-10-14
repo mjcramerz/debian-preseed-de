@@ -76,7 +76,41 @@ tree.write(path, encoding="utf-8", xml_declaration=True)
   done
 }
 
+desktop_stage_key_manager() (
+  set -eu
+  for directory in /usr/local/bin /usr/local/lib /usr/local/lib/python3.14 \
+    /usr/local/lib/python3.14/dist-packages /usr/local/lib/python3.14/dist-packages/managed_workflows \
+    /usr/local/lib/python3.14/dist-packages/key_manager /usr/local/share \
+    /usr/local/share/key-manager /etc/key-manager; do
+    ensure_target_asset_parent "${directory}/.installer-parent"
+    host_directory=$(target_asset_host_path "$directory")
+    [ ! -L "$host_directory" ] || installer_fatal "unsafe key-manager directory: $directory"
+    chown root:root "$host_directory"
+    chmod 0755 "$host_directory"
+  done
+  desktop_stage_role_asset usr/local/bin/key-manager /usr/local/bin/key-manager 0755
+  desktop_stage_role_asset etc/skel-desktop/.gnupg/gpg-agent.conf \
+    /usr/local/share/key-manager/gpg-agent.conf 0644
+  for module in __init__ fs; do
+    path="usr/local/lib/python3.14/dist-packages/managed_workflows/${module}.py"
+    desktop_stage_role_asset "$path" "/$path" 0644
+  done
+  for module in __init__ core cli ssh gpg tls tls_profiles pqc; do
+    path="usr/local/lib/python3.14/dist-packages/key_manager/${module}.py"
+    desktop_stage_role_asset "$path" "/$path" 0644
+  done
+  desktop_render_role_target_template etc/key-manager/settings.json.tmpl \
+    /etc/key-manager/settings.json 0644 \
+    DIR_DATA_PKI "$DIR_DATA_PKI" ACCOUNT_USERNAME "$ACCOUNT_USERNAME"
+  desktop_stage_role_asset etc/key-manager/certbot.ini /etc/key-manager/certbot.ini 0644
+  desktop_stage_role_asset etc/systemd/system/key-manager-acme-renew.timer \
+    /etc/systemd/system/key-manager-acme-renew.timer 0644
+  desktop_render_role_target_template etc/systemd/system/key-manager-acme-renew.service.tmpl \
+    /etc/systemd/system/key-manager-acme-renew.service 0644 DIR_DATA_PKI "$DIR_DATA_PKI"
+)
+
 desktop_stage_target_assets() {
+  desktop_stage_key_manager
   desktop_stage_appearance
   desktop_stage_waybar_native_menus
   desktop_stage_session_repairs
@@ -140,7 +174,7 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/libexec/network-wifi-configure /usr/local/libexec/network-wifi-configure 0755
   desktop_stage_role_asset usr/local/bin/nmtui /usr/local/bin/nmtui 0755
   desktop_stage_role_asset etc/systemd/system/NetworkManager.service.d/30-wifi-manual.conf /etc/systemd/system/NetworkManager.service.d/30-wifi-manual.conf 0644
-  desktop_stage_role_asset etc/systemd/system/managed-wifi-firstboot.service /etc/systemd/system/managed-wifi-firstboot.service 0644
+  desktop_stage_role_asset etc/systemd/system/wifi-firstboot.service /etc/systemd/system/wifi-firstboot.service 0644
   desktop_stage_role_asset usr/local/bin/labwc-ai-copilots /usr/local/bin/labwc-ai-copilots 0755
   desktop_stage_ai_copilots_perl_modules
   desktop_stage_ai_copilots_catalogs
@@ -249,7 +283,7 @@ desktop_stage_target_assets() {
     false)
       # An explicit APP_VETH_OVERRIDE may omit qBittorrent. Do not publish a
       # managed binding for an application that has no broker policy.
-      remove_target_asset /etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf
+      remove_target_asset /etc/qbittorrent/qBittorrent.conf.d/10-security.conf
       remove_target_asset /etc/qbittorrent/qBittorrent.conf.d/20-managed-privacy.conf
       remove_target_asset /etc/labwc/3proxy/qbittorrent.conf
       ;;
@@ -261,8 +295,8 @@ desktop_stage_target_assets() {
   if [ "$desktop_qbittorrent_enabled" = true ]; then
     [ -n "$desktop_qbittorrent_address" ] || desktop_fatal "missing qBittorrent network identity"
     desktop_render_role_target_template \
-      etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf.tmpl \
-      /etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf \
+      etc/qbittorrent/qBittorrent.conf.d/10-security.conf.tmpl \
+      /etc/qbittorrent/qBittorrent.conf.d/10-security.conf \
       0644 \
       ACCOUNT_USERNAME "$ACCOUNT_USERNAME" \
       QBITTORRENT_SAVE_ROOT "/run/media/$ACCOUNT_USERNAME/bittorrent" \
@@ -273,7 +307,7 @@ desktop_stage_target_assets() {
     # Same native policy, rendered at install time for the disposable HOME.
     # Its address is allocated per lease, so only the interface is fixed.
     desktop_render_role_target_template \
-      etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf.tmpl \
+      etc/qbittorrent/qBittorrent.conf.d/10-security.conf.tmpl \
       /etc/qbittorrent/qBittorrent.conf.d/20-managed-privacy.conf 0644 \
       QBITTORRENT_SAVE_ROOT /home/user/Downloads \
       LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}" \

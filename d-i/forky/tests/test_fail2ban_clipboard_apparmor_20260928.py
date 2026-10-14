@@ -94,7 +94,7 @@ fail2ban_jail_placeholder_map
         jail = configparser.RawConfigParser()
         jail.read_string((FAIL2BAN / "jail.d/10-sshd.local.tmpl").read_text())
         database = configparser.RawConfigParser()
-        database.read(FAIL2BAN / "fail2ban.d/10-managed.local")
+        database.read(FAIL2BAN / "fail2ban.d/10-security.local")
         self.assertTrue(jail.getboolean("DEFAULT", "bantime.increment"))
         self.assertEqual(jail.get("DEFAULT", "bantime.maxtime"), "1w")
         self.assertEqual(database.get("DEFAULT", "dbpurgeage"), "14d")
@@ -113,7 +113,7 @@ fail2ban_jail_placeholder_map
     def test_package_defaults_are_extended_with_staged_local_policies(self):
         installer = (SEED / "scripts/late/security.sh").read_text()
         for path in (
-            "action.d/nftables.local", "fail2ban.d/10-managed.local",
+            "action.d/nftables.local", "fail2ban.d/10-security.local",
             "filter.d/sshd.local", "paths-overrides.local",
         ):
             with self.subTest(path=path):

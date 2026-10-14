@@ -428,12 +428,12 @@ class SuppliedDenialTests(unittest.TestCase):
         self.assertNotRegex(monitor, r'(?m)^\s*/(?:usr/bin|bin)/[^\n]*\s+[^,]*x')
         self.assertIn('/usr/bin/btop rPx -> desktop-btop,', body('desktop-utilities', 'desktop-launcher'))
         self.assertIn('/usr/bin/btop rPx -> desktop-btop,', body('labwc-session', 'waybar'))
-        receiver = read_text(AA / 'abstractions/base.d/managed-process-monitor')
+        receiver = read_text(AA / 'abstractions/base.d/process-monitor')
         self.assertIn('signal (receive) peer=desktop-btop,', receiver)
         self.assertIn('ptrace (readby) peer=desktop-btop,', receiver)
         self.assertNotRegex(receiver, r'(?m)^\s*(?:signal \(send|ptrace \(trace|capability|/[^\n]+\s+[^,]*[wx])')
         stages = read_text(SEED / 'scripts/late/security.sh')
-        self.assertIn('"/etc/apparmor.d/abstractions/base.d/managed-process-monitor" 0644', stages)
+        self.assertIn('"/etc/apparmor.d/abstractions/base.d/process-monitor" 0644', stages)
         waybar = read_text(SEED / 'hooks/target/etc/skel-desktop/.config/waybar/config.tmpl')
         btop_actions = [line for line in waybar.splitlines() if 'labwc-terminal -e btop' in line]
         self.assertEqual(len(btop_actions), 4)
@@ -593,13 +593,13 @@ class SuppliedDenialTests(unittest.TestCase):
         self.assertNotRegex(policy, r'/usr/bin/\*\s+[^,]*[uU]')
         generic = body('desktop-wrappers', 'labwc-generic-app')
         self.assertIn('/usr/local/bin/labwc-{electron,wayland}-app rix,', generic)
-        self.assertIn('#include <abstractions/managed-app-config>', generic)
-        config = read_text(AA / 'abstractions/managed-app-config')
+        self.assertIn('#include <abstractions/app-config>', generic)
+        config = read_text(AA / 'abstractions/app-config')
         for location in ('.cache', '.config', '.local/share', '.local/state', '.var/app'):
             self.assertIn(f'owner @{{HOME}}/{location}/** rwkl,', config)
         staging = read_text(SEED / 'scripts/late/security.sh')
-        self.assertIn('etc/apparmor.d/abstractions/managed-app-config', staging)
-        self.assertIn('"/etc/apparmor.d/abstractions/managed-app-config"', staging)
+        self.assertIn('etc/apparmor.d/abstractions/app-config', staging)
+        self.assertIn('"/etc/apparmor.d/abstractions/app-config"', staging)
         launcher = body('desktop-utilities', 'desktop-launcher')
         self.assertIn('/usr/bin/** rPix,', launcher)
         self.assertRegex(read_text(AA / 'desktop-utilities'),
@@ -634,7 +634,7 @@ class SuppliedDenialTests(unittest.TestCase):
         for executable in ('/usr/bin/sudo', '/usr/bin/pkexec',
                            '/usr/bin/code', '/data/codex/lib/codex'):
             self.assertTrue(rule.is_covered(FileRule.create_instance(executable + ' rix,')))
-        receiver = read_text(AA / 'abstractions/base.d/managed-process-monitor')
+        receiver = read_text(AA / 'abstractions/base.d/process-monitor')
         self.assertIn('signal (receive) peer=desktop-terminal,', receiver)
         self.assertIn('signal (send) set=(chld) peer=desktop-terminal,', receiver)
         self.assertIn('ptrace (readby) peer=desktop-terminal,', receiver)
@@ -643,7 +643,7 @@ class SuppliedDenialTests(unittest.TestCase):
                       body('desktop-wrappers', 'labwc-fuzzel'))
         staging = read_text(SEED / 'scripts/late/security.sh')
         self.assertIn('desktop-utilities', staging)
-        self.assertIn('"/etc/apparmor.d/abstractions/base.d/managed-process-monitor" 0644', staging)
+        self.assertIn('"/etc/apparmor.d/abstractions/base.d/process-monitor" 0644', staging)
 
     @unittest.skipUnless(shutil.which('apparmor_parser'), 'native AppArmor parser unavailable')
     def test_native_parser_permissions_cover_nested_documents_usb_and_unclean_journals(self):

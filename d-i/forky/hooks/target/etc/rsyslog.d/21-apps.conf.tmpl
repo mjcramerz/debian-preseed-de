@@ -2,7 +2,7 @@
 # processes then bypass every remaining component/security matcher. Debian's
 # regular account range excludes system/dynamic/nobody UIDs. Missing credentials
 # fail closed into system.log, never into a security-specific file.
-if ($.managed_security_routed == "on") then { stop }
+if ($.security_routed == "on") then { stop }
 if ($inputname == "imuxsock" and exists($!uid) and
     cnum($!uid) >= 1000 and cnum($!uid) <= 59999) then {
   action(type="omfile" file="__INSTALLER_LOG_APPLICATIONS_FILE__"

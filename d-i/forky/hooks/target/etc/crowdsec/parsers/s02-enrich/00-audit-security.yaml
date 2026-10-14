@@ -1,0 +1,51 @@
+{
+  "name": "local/audit-security",
+  "description": "Normalize supported exec ABIs and authoritative AppArmor denials without extra acquisition",
+  "filter": "evt.Line.Labels.type == 'auditd' and evt.Parsed.program == 'auditd'",
+  "onsuccess": "continue",
+  "nodes": [
+    {
+      "filter": "evt.Unmarshaled.auditd.type == 'SYSCALL' and evt.Unmarshaled.auditd.auid != '' and evt.Unmarshaled.auditd.auid != '4294967295' and ((evt.Unmarshaled.auditd.arch == 'c000003e' and evt.Unmarshaled.auditd.syscall in ['59', '322']) or (evt.Unmarshaled.auditd.arch == '40000003' and evt.Unmarshaled.auditd.syscall in ['11', '358']) or (evt.Unmarshaled.auditd.arch == 'c00000b7' and evt.Unmarshaled.auditd.syscall in ['221', '281']) or (evt.Unmarshaled.auditd.arch == '40000028' and evt.Unmarshaled.auditd.syscall in ['11', '387']))",
+      "statics": [
+        {
+          "target": "evt.Meta.parent_progname",
+          "expression": "GetFromStash('audit_security_pid_progname', evt.Unmarshaled.auditd.ppid)"
+        },
+        {
+          "meta": "log_type",
+          "value": "execve"
+        }
+      ],
+      "stash": [
+        {
+          "name": "audit_security_pid_progname",
+          "key": "evt.Unmarshaled.auditd.pid",
+          "value": "evt.Unmarshaled.auditd.exe",
+          "ttl": "1m",
+          "size": 100
+        }
+      ]
+    },
+    {
+      "filter": "evt.Unmarshaled.auditd.type in ['AVC', '1400', 'APPARMOR_DENIED'] and evt.Unmarshaled.auditd.apparmor == 'DENIED' and evt.Unmarshaled.auditd.profile != '' and evt.Unmarshaled.auditd.pid != ''",
+      "statics": [
+        {
+          "meta": "log_type",
+          "value": "apparmor_denied"
+        },
+        {
+          "meta": "apparmor_profile",
+          "expression": "evt.Unmarshaled.auditd.profile"
+        },
+        {
+          "meta": "apparmor_pid",
+          "expression": "evt.Unmarshaled.auditd.pid"
+        },
+        {
+          "meta": "apparmor_operation",
+          "expression": "evt.Unmarshaled.auditd.operation"
+        }
+      ]
+    }
+  ]
+}

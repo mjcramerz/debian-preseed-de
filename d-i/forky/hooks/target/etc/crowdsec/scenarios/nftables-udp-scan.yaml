@@ -1,0 +1,22 @@
+{
+  "type": "leaky",
+  "name": "local/nftables-udp-scan",
+  "description": "Alert on sampled UDP probes across distinct dropped host ports; spoofable datagrams do not trigger bans",
+  "filter": "evt.Line.Labels.firewall == 'nftables' and evt.Meta.log_type == 'iptables_drop' and evt.Meta.service == 'udp' and evt.Parsed.message contains 'nftables drop input ' and evt.Meta.source_ip != '' and evt.Parsed.dst_port != ''",
+  "groupby": "evt.Meta.source_ip",
+  "distinct": "evt.Parsed.dst_port",
+  "capacity": 7,
+  "leakspeed": "60s",
+  "blackhole": "5m",
+  "labels": {
+    "service": "udp",
+    "remediation": false,
+    "confidence": 1,
+    "spoofable": 3,
+    "behavior": "udp:scan",
+    "label": "Sampled UDP closed-port scan",
+    "classification": [
+      "attack.T1046"
+    ]
+  }
+}

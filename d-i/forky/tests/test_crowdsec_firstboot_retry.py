@@ -11,6 +11,7 @@ _isolation_sys.path.pop(0)
 _require_test_isolation()
 
 from pathlib import Path
+import json
 import os
 import shlex
 import shutil
@@ -67,8 +68,12 @@ installer_repo_join_var() {
 }
 bootstrap_fetch_seed_file() {
   case "$2" in
+    hooks/target/etc/crowdsec/acquis.d/23-system-syslog.yaml)
+      installer_apply_scalar_placeholders "$CASE_SEED/$2.tmpl" "$3" LOG_KERNEL_FILE "$LOG_KERNEL_FILE" ;;
     hooks/target/etc/crowdsec/acquis.d/24-qbittorrent.yaml)
       cp "$CASE_SEED/$2.tmpl" "$3" ;;
+    hooks/target/etc/crowdsec/parsers/s01-parse/00-nftables-nondrop.yaml|hooks/target/etc/crowdsec/parsers/s02-enrich/00-audit-security.yaml|hooks/target/etc/crowdsec/scenarios/*.yaml)
+      cp "$CASE_SEED/$2" "$3" ;;
     *) printf 'inert fixture\n' >"$3" ;;
   esac
 }
@@ -78,7 +83,7 @@ installer_apply_systemd_environment_placeholders() {
 installer_cmdline_value() { return 1; }
 run_in_target() { printf '%s\n' "$1" >>"$CASE_CALLS"; }
 '''
-        cases = ('desktop', 'server', 'missing', 'empty-file', 'missing-name',
+        cases = ('desktop', 'missing', 'empty-file', 'missing-name',
                  'empty-name', 'invalid-name', 'symlink')
         for label, shell in SHELLS:
             for case in cases:
@@ -91,6 +96,7 @@ run_in_target() { printf '%s\n' "$1" >>"$CASE_CALLS"; }
 FILE_CROWDSEC_COMPLETE=/var/lib/firstboot/crowdsec/complete
 FILE_CROWDSEC_STATUS=/var/lib/firstboot/crowdsec/status.env
 LOG_SYSTEM_SERVICES_FILE=/var/log/system/services.log
+LOG_KERNEL_FILE=/var/log/system/kernel.log
 ''')
                     account = root / 'resolved-account.env'
                     username = 'fixture-alt_7'
@@ -126,21 +132,37 @@ LOG_SYSTEM_SERVICES_FILE=/var/log/system/services.log
                                    'INSTALLER_LATE_HOST_ENV': str(host),
                                    'INSTALLER_LATE_ACCOUNT_ENV': str(account),
                                    'INSTALLER_HOST_PROFILE': 'fixture',
-                                   'INSTALLER_HOST_VARIANT': 'server' if case == 'server' else 'desktop',
+                                   'INSTALLER_HOST_VARIANT': 'desktop',
                                    'ACCOUNT_USERNAME': 'inherited-must-not-mask-missing-name'}
                     result = subprocess.run([*shell, str(FORKY / 'scripts/late/crowdsec.sh'), str(target)],
                                             env=environment, text=True, capture_output=True, timeout=10)
-                    acquisition = target / 'etc/crowdsec/acquis.d/24-qbittorrent.yaml'
+                    acquisition = target / 'etc/crowdsec/acquis.d/23-system-syslog.yaml'
                     self.assertNotIn('do-not-print-fixture', result.stdout + result.stderr)
-                    if case in ('desktop', 'server'):
+                    if case == 'desktop':
                         self.assertEqual(result.returncode, 0, result.stderr)
                         self.assertTrue(calls.is_file())
-                        self.assertEqual(acquisition.exists(), case == 'desktop')
-                        if acquisition.exists():
+                        self.assertTrue(acquisition.exists())
+                        self.assertEqual(acquisition.read_text(),
+                                         (FORKY / 'hooks/target/etc/crowdsec/acquis.d/23-system-syslog.yaml.tmpl').read_text().replace(
+                                             '__INSTALLER_LOG_KERNEL_FILE__', '/var/log/system/kernel.log'))
+                        self.assertEqual(acquisition.stat().st_mode & 0o777, 0o644)
+                        qbittorrent = target / 'etc/crowdsec/acquis.d/24-qbittorrent.yaml'
+                        self.assertTrue(qbittorrent.exists())
+                        if qbittorrent.exists():
                             expected = (FORKY / 'hooks/target/etc/crowdsec/acquis.d/24-qbittorrent.yaml.tmpl').read_text()
-                            expected = expected.replace('__INSTALLER_ACCOUNT_USERNAME__', username)
-                            self.assertEqual(acquisition.read_text(), expected)
-                            self.assertEqual(acquisition.stat().st_mode & 0o777, 0o644)
+                            self.assertEqual(qbittorrent.read_text(), expected.replace('__INSTALLER_ACCOUNT_USERNAME__', username))
+                        for inactive in ('acquis.d/25-appsec.yaml',
+                                         'acquis-available/25-appsec.yaml', 'parsers/s00-raw/podman-logs.yaml'):
+                            self.assertFalse((target / 'etc/crowdsec' / inactive).exists())
+                        for relative in ('parsers/s01-parse/00-nftables-nondrop.yaml',
+                                         'parsers/s02-enrich/00-audit-security.yaml',
+                                         'scenarios/nftables-tcp-scan.yaml',
+                                         'scenarios/nftables-udp-scan.yaml',
+                                         'scenarios/apparmor-denial-burst.yaml'):
+                            installed = target / 'etc/crowdsec' / relative
+                            self.assertEqual(installed.read_bytes(),
+                                             (FORKY / 'hooks/target/etc/crowdsec' / relative).read_bytes())
+                            self.assertEqual(installed.stat().st_mode & 0o777, 0o644)
                     else:
                         self.assertNotEqual(result.returncode, 0)
                         self.assertIn('fatal:', result.stderr)
@@ -148,84 +170,54 @@ LOG_SYSTEM_SERVICES_FILE=/var/log/system/services.log
                         self.assertFalse(calls.exists(), 'target commands ran before identity validation')
                         self.assertEqual(list(target.iterdir()), [])
 
-    def test_failed_config_validation_rolls_back_only_a_new_appsec_acquisition(self):
+    def test_core_collection_config_failure_stops_bootstrap_without_appsec_writes(self):
         start = SOURCE.index('log_line bootstrap info crowdsec "hub_update=true"')
         end = SOURCE.index('\nensure_bouncer_api_key ||', start)
         for label, shell in SHELLS:
             for existing in (False, True):
-                for validation_status, modified in ((0, False), (1, False), (1, True)):
-                    with self.subTest(shell=label, existing=existing, validation_status=validation_status, modified=modified), \
+                for validation_status in (0, 1):
+                    with self.subTest(shell=label, existing=existing, validation_status=validation_status), \
                             tempfile.TemporaryDirectory() as directory:
                         base = Path(directory) / 'crowdsec'
-                        available, active = base / 'acquis-available', base / 'acquis.d'
-                        available.mkdir(parents=True)
-                        active.mkdir()
-                        source, target = available / '25-appsec.yaml', active / '25-appsec.yaml'
-                        content = b'source: appsec\nlisten_addr: 127.0.0.1:7422\n'
-                        source.write_bytes(content)
-                        source.chmod(0o644)
+                        active = base / 'acquis.d'; active.mkdir(parents=True)
+                        target = active / '25-appsec.yaml'
+                        content = b'administrator-managed appsec fixture\n'
                         if existing:
                             target.write_bytes(content)
                             target.chmod(0o644)
-                        code = source_function('activate_appsec_acquisition') + '''
+                        calls = Path(directory) / 'calls'
+                        code = '''
 log_line() { :; }
 run_optional_crowdsec_command() { return 0; }
 run_required_crowdsec_command() {
+  printf '%s\\n' "$*" >>"$CASE_CALLS"
   if [ "$1" = engine-config-test ]; then
-    if [ "$CASE_MODIFIED" = true ]; then
-      printf 'administrator-change\\n' >"$CASE_TARGET"
-    fi
     return "$CASE_VALIDATE_STATUS"
   fi
+  return 0
 }
-stop_bootstrap_services() { :; }
+stop_bootstrap_services() { printf 'stopped\\n' >>"$CASE_CALLS"; }
 write_status() { :; }
 ''' + SOURCE[start:end]
-                        code = code.replace('/etc/crowdsec', str(base)).replace(
-                            '= 0:644:1', '= "$CASE_UID":644:1').replace('= 0 ]', '= "$CASE_UID" ]')
+                        code = code.replace('/etc/crowdsec', str(base))
                         result = subprocess.run([*shell, '-eu', '-c', code],
-                            env={'PATH': '/usr/bin:/bin', 'CASE_UID': str(os.geteuid()),
+                            env={'PATH': '/usr/bin:/bin', 'HOME': directory, 'LC_ALL': 'C',
                                  'CASE_VALIDATE_STATUS': str(validation_status),
-                                 'CASE_MODIFIED': str(modified).lower(), 'CASE_TARGET': str(target)},
+                                 'CASE_CALLS': str(calls)},
                             text=True, encoding='utf-8', capture_output=True, timeout=5)
                         self.assertEqual(result.returncode, validation_status, result.stderr)
-                        self.assertEqual(target.exists(), existing or modified or validation_status == 0)
-                        if target.exists():
-                            self.assertEqual(target.read_bytes(), b'administrator-change\n' if modified else content)
-
-    def test_appsec_publication_rejects_links_modified_files_and_writable_parents(self):
-        function = source_function('activate_appsec_acquisition')
-        for case in ('new', 'existing', 'modified', 'symlink', 'writable-parent'):
-            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
-                base = Path(directory) / 'crowdsec'
-                available, active = base / 'acquis-available', base / 'acquis.d'
-                available.mkdir(parents=True)
-                active.mkdir()
-                source, target = available / '25-appsec.yaml', active / '25-appsec.yaml'
-                content = b'source: appsec\nlisten_addr: 127.0.0.1:7422\n'
-                source.write_bytes(content)
-                source.chmod(0o644)
-                if case in ('existing', 'modified'):
-                    target.write_bytes(content if case == 'existing' else b'custom\n')
-                    target.chmod(0o644)
-                elif case == 'symlink':
-                    target.symlink_to(source)
-                elif case == 'writable-parent':
-                    active.chmod(0o777)
-                code = function.replace('/etc/crowdsec', str(base)).replace(
-                    '= 0:644:1', '= "$CASE_UID":644:1').replace('= 0 ]', '= "$CASE_UID" ]')
-                code += '\nlog_line() { :; }\nactivate_appsec_acquisition\n'
-                result = subprocess.run(['/bin/dash', '-eu', '-c', code],
-                    env={'PATH': '/usr/bin:/bin', 'CASE_UID': str(os.geteuid())},
-                    text=True, encoding='utf-8', capture_output=True, timeout=5)
-                accepted = case in ('new', 'existing')
-                self.assertEqual(result.returncode, 0 if accepted else 1, result.stderr)
-                if accepted:
-                    self.assertEqual(target.read_bytes(), content)
-                elif case == 'modified':
-                    self.assertEqual(target.read_bytes(), b'custom\n')
-                elif case == 'symlink':
-                    self.assertTrue(target.is_symlink())
+                        self.assertEqual(target.exists(), existing)
+                        if existing:
+                            self.assertEqual(target.read_bytes(), content)
+                        commands = calls.read_text().splitlines()
+                        expected = ['crowdsecurity/linux', 'crowdsecurity/sshd',
+                                    'crowdsecurity/auditd', 'crowdsecurity/iptables',
+                                    'crowdsecurity/whitelist-good-actors', 'crowdsecurity/linux-lpe',
+                                    'gilbsgilbs/qbittorrent']
+                        self.assertEqual(commands[0].split(),
+                                         ['collections-install', 'cscli', 'collections', 'install', *expected])
+                        self.assertEqual(len(commands), 2 + validation_status)
+                        self.assertEqual(commands[-1] == 'stopped', validation_status == 1)
 
     @unittest.skipUnless(shutil.which('systemd-analyze'), 'native systemd unit checker unavailable')
     def test_retry_unit_and_engine_dropin_parse_with_native_systemd(self):
@@ -490,7 +482,6 @@ wait_for_unit() { return 0; }
 wait_for_lapi() { return 0; }
 run_optional_crowdsec_command() { return 0; }
 run_required_crowdsec_command() { return 0; }
-activate_appsec_acquisition() { return 0; }
 ensure_bouncer_api_key() { return 0; }
 ensure_capi_registration() {
   printf 'capi-register\\n' >>"$FIXTURE_CALLS"
@@ -641,6 +632,7 @@ fi
         )
         code = """
 CROWDSEC_CORE_READY_FILE=$1
+CROWDSEC_HOST_VARIANT=desktop
 systemctl() {
   case "$1" in
     is-enabled|is-active)
@@ -696,7 +688,6 @@ wait_for_unit() { return 0; }
 wait_for_lapi() { return 0; }
 run_optional_crowdsec_command() { return 0; }
 run_required_crowdsec_command() { return 0; }
-activate_appsec_acquisition() { return 0; }
 ensure_capi_registration() { return 0; }
 ensure_bouncer_api_key() { return 0; }
 write_core_ready_marker() { return 0; }
@@ -765,22 +756,74 @@ log_line() { printf 'event=%s\\n' "$*"; }
         self.assertIn('      pull:\n        community: true\n        blocklists: true', OVERLAY)
         self.assertIn('cscli console enable --all', SOURCE)
         self.assertIn('community_blocklist_slots=3', SOURCE)
-        for collection in ('crowdsecurity/linux-lpe', 'crowdsecurity/base-http-scenarios',
-                           'crowdsecurity/appsec-virtual-patching', 'gilbsgilbs/qbittorrent'):
-            self.assertIn(collection, SOURCE)
-        self.assertIn('cscli parsers install crowdsecurity/nginx-logs crowdsecurity/docker-logs', SOURCE)
-        self.assertLess(SOURCE.index('cscli collections install'), SOURCE.index('activate_appsec_acquisition ||'))
-        self.assertLess(SOURCE.index('activate_appsec_acquisition ||'), SOURCE.index('systemctl restart crowdsec.service'))
+        self.assertIn('crowdsecurity/linux-lpe', SOURCE)
+        self.assertIn('crowdsecurity/linux-lpe gilbsgilbs/qbittorrent ||', SOURCE)
+        self.assertIn('CROWDSEC_HOST_VARIANT=desktop', SOURCE)
+        self.assertNotIn('if [ "$CROWDSEC_HOST_VARIANT" = desktop ]; then', SOURCE)
+        self.assertNotIn('if [ "$host_variant" = desktop ]; then', LATE)
+        self.assertIn('etc/audit/crowdsec/desktop.rules', LATE)
+        for unused in ('crowdsecurity/base-http-scenarios', 'crowdsecurity/appsec-virtual-patching',
+                       'crowdsecurity/nginx-logs', 'crowdsecurity/docker-logs',
+                       'activate_appsec_acquisition'):
+            self.assertNotIn(unused, SOURCE)
+        self.assertLess(SOURCE.index('cscli collections install'), SOURCE.index('engine-config-test crowdsec -t'))
         self.assertLess(SOURCE.index('engine-config-test crowdsec -t'), SOURCE.index('systemctl restart crowdsec.service'))
         acquis = (FORKY / 'hooks/target/etc/crowdsec/acquis.d/22-nftables.yaml.tmpl').read_text(encoding='utf-8')
         self.assertIn('__INSTALLER_LOG_NFTABLES_FILE__', acquis)
         self.assertIn('type: syslog', acquis)
         self.assertIn('/etc/crowdsec/acquis.d/22-nftables.yaml', LATE)
         system_acquis = (FORKY / 'hooks/target/etc/crowdsec/acquis.d/23-system-syslog.yaml.tmpl').read_text(encoding='utf-8')
-        for placeholder in ('__INSTALLER_LOG_SYSTEM_SERVICES_FILE__', '__INSTALLER_LOG_KERNEL_FILE__',
-                            '__INSTALLER_LOG_VETH_FILE__'):
-            self.assertIn(placeholder, system_acquis)
+        for unrelated in ('__INSTALLER_LOG_SYSTEM_SERVICES_FILE__', '__INSTALLER_LOG_VETH_FILE__'):
+            self.assertNotIn(unrelated, system_acquis)
+        self.assertIn('__INSTALLER_LOG_KERNEL_FILE__', system_acquis)
+        self.assertIn('poll_without_inotify: false', system_acquis)
+        self.assertNotIn('_TRANSPORT=kernel', system_acquis)
+        self.assertIn('ReadKMsg=no', (FORKY / 'hooks/target/etc/systemd/journald.conf.d/10-storage.conf.tmpl').read_text())
+        self.assertIn('_COMM=pkexec', system_acquis)
+        self.assertEqual(system_acquis.count('source: journalctl'), 1)
+        self.assertEqual(system_acquis.count('source: file'), 1)
+        qbit_acquis = (FORKY / 'hooks/target/etc/crowdsec/acquis.d/24-qbittorrent.yaml.tmpl').read_text(encoding='utf-8')
+        self.assertIn('discovery_poll_enable: true', qbit_acquis)
+        self.assertIn('discovery_poll_interval: 30s', qbit_acquis)
+        self.assertIn('poll_without_inotify: false', qbit_acquis)
+        self.assertNotIn('_COMM=pkexec', qbit_acquis)
+        for filename in ('21-auditd.yaml.tmpl', '22-nftables.yaml.tmpl'):
+            file_acquis = (FORKY / 'hooks/target/etc/crowdsec/acquis.d' / filename).read_text(encoding='utf-8')
+            self.assertNotIn('discovery_poll_enable: true', file_acquis)
+            self.assertIn('poll_without_inotify: false', file_acquis)
         self.assertIn('/etc/crowdsec/acquis.d/23-system-syslog.yaml', LATE)
+
+    def test_managed_detection_sources_are_separated_and_remediation_is_scoped(self):
+        root = FORKY / 'hooks/target/etc/crowdsec'
+        guard = json.loads((root / 'parsers/s01-parse/00-nftables-nondrop.yaml').read_text())
+        self.assertIn("evt.Line.Labels.firewall == 'nftables'", guard['filter'])
+        self.assertIn('nftables accept ', guard['filter'])
+        self.assertIn('nftables audit ', guard['filter'])
+        self.assertEqual(guard['onsuccess'], 'next_stage')
+        route = (FORKY / 'hooks/target/etc/rsyslog.d/40-nftables.conf.tmpl').read_text()
+        self.assertIn('$inputname == "imklog" and', route)
+        for protocol in ('tcp', 'udp'):
+            scenario = json.loads((root / f'scenarios/nftables-{protocol}-scan.yaml').read_text())
+            self.assertIn('nftables drop input ', scenario['filter'])
+            self.assertIn(f"evt.Meta.service == '{protocol}'", scenario['filter'])
+            self.assertEqual(scenario['distinct'], 'evt.Parsed.dst_port')
+            self.assertLess(scenario['capacity'], 10)  # Managed logging permits a burst of ten.
+            self.assertEqual(scenario['leakspeed'], '60s')
+            self.assertEqual(scenario['labels']['remediation'], protocol == 'tcp')
+        apparmor = json.loads((root / 'scenarios/apparmor-denial-burst.yaml').read_text())
+        self.assertFalse(apparmor['labels']['remediation'])
+        self.assertEqual(apparmor['scope']['type'], 'pid')
+        bridge = json.loads((root / 'parsers/s02-enrich/00-audit-security.yaml').read_text())
+        self.assertEqual(bridge['onsuccess'], 'continue')
+        self.assertIn("evt.Line.Labels.type == 'auditd'", bridge['filter'])
+        execution, denials = bridge['nodes']
+        for architecture in ('c000003e', '40000003', 'c00000b7', '40000028'):
+            self.assertIn(architecture, execution['filter'])
+        self.assertIn("evt.Unmarshaled.auditd.syscall in ['59', '322']", execution['filter'])
+        self.assertEqual(execution['stash'][0]['name'], 'audit_security_pid_progname')
+        self.assertIn("GetFromStash('audit_security_pid_progname'", execution['statics'][0]['expression'])
+        self.assertIn("evt.Unmarshaled.auditd.apparmor == 'DENIED'", denials['filter'])
+        self.assertNotIn('USER_CMD', denials['filter'])
 
     def test_secondboot_cleans_completed_helpers_before_firstboot_marker(self):
         self.assertNotIn("ConditionPathExists=/var/lib/firstboot/state/complete", SECONDBOOT_UNIT)

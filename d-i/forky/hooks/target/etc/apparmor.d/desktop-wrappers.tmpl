@@ -2262,7 +2262,7 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   owner /run/user/[0-9]*/labwc-session-closing r,
   owner /run/user/[0-9]*/labwc-activation-* rw,
   #include <abstractions/wrapper-wayland>
-  #include <abstractions/managed-app-config>
+  #include <abstractions/app-config>
   #include <abstractions/wrapper-python>
   # Launcher metadata/access checks cover the same document roots as its
   # Bubblewrap child; actual content is exposed by the per-app mount policy.
@@ -2894,7 +2894,7 @@ profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconn
   /etc/labwc/ r,
   /etc/qbittorrent/ r,
   /etc/qbittorrent/qBittorrent.conf.d/ r,
-  /etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf r,
+  /etc/qbittorrent/qBittorrent.conf.d/10-security.conf r,
   /etc/labwc/3proxy/{,session.json,qbittorrent.conf} r,
   /run/media/ r,
   /run/media/*/ r,
@@ -3592,7 +3592,7 @@ profile network-wifi-nmtui /usr/local/bin/nmtui flags=(attach_disconnected) {
   #include <abstractions/wrapper-terminal>
   #include <abstractions/wrapper-base>
   /usr/local/bin/nmtui rix,
-  /etc/network/managed-wifi.nmconnection r,
+  /etc/network/wifi.nmconnection r,
   /usr/bin/{pkexec,nmtui} PUx,
 }
 
@@ -3612,20 +3612,20 @@ profile network-wifi-configure /usr/local/libexec/network-wifi-configure flags=(
   /etc/network/ r,
   /etc/network/interfaces.d/ r,
   /etc/network/host.conf r,
-  /etc/network/managed-wifi.nmconnection r,
+  /etc/network/wifi.nmconnection r,
   /etc/NetworkManager/ r,
   /etc/NetworkManager/system-connections/ rw,
-  /etc/NetworkManager/system-connections/managed-wifi.nmconnection rw,
-  /etc/NetworkManager/system-connections/.managed-wifi-* rw,
+  /etc/NetworkManager/system-connections/wifi.nmconnection rw,
+  /etc/NetworkManager/system-connections/.wifi-* rw,
   /var/ r,
   /var/lib/ r,
   /var/lib/NetworkManager/ rw,
   /var/lib/NetworkManager/NetworkManager.state rw,
-  /var/lib/NetworkManager/.managed-wifi-* rw,
+  /var/lib/NetworkManager/.wifi-* rw,
   /var/lib/network-wifi/ rw,
   /var/lib/network-wifi/firstboot.complete rw,
-  /var/lib/network-wifi/.managed-wifi-* rw,
-  /run/lock/managed-wifi.lock rwk,
+  /var/lib/network-wifi/.wifi-* rw,
+  /run/lock/wifi.lock rwk,
   /usr/sbin/rfkill PUx,
   /usr/bin/{nmcli,nmtui} PUx,
   signal (send) set=(term, kill),
@@ -4059,7 +4059,7 @@ profile labwc-generic-app /usr/local/bin/labwc-{electron,wayland}-app flags=(att
   owner /run/user/[0-9]*/labwc-session-closing r,
   owner /run/user/[0-9]*/labwc-activation-* rw,
   #include <abstractions/wrapper-wayland>
-  #include <abstractions/managed-app-config>
+  #include <abstractions/app-config>
   #include <abstractions/wrapper-python>
   include if exists <abstractions/dbus-session-strict>
   /usr/local/bin/labwc-{electron,wayland}-app rix,

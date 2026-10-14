@@ -7,7 +7,7 @@ esac
 
 # Opening the network UI is an explicit user request to enable Wi-Fi. Keep the
 # package's native nmtui untouched; prepare the fixed profile before selection.
-if [ -f /etc/network/managed-wifi.nmconnection ]; then
+if [ -f /etc/network/wifi.nmconnection ]; then
   exec /usr/bin/pkexec /usr/local/libexec/network-wifi-configure --nmtui "$@"
 fi
 exec /usr/bin/nmtui "$@"

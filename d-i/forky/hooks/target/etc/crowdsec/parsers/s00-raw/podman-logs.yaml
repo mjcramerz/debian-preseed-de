@@ -1,6 +1,6 @@
 # Podman's managed k8s-file driver is not Docker JSON. Keep labels explicit:
 # each acquisition must name the application parser, e.g. program: nginx.
-name: local/managed-podman-logs
+name: local/podman-logs
 description: Decode complete Podman CRI log records for an explicit application
 filter: "evt.Line.Labels.type == 'podman' and 'program' in evt.Line.Labels"
 onsuccess: next_stage

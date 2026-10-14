@@ -106,13 +106,16 @@ desktop_enable_target_services() {
   desktop_enable_unit_if_available systemd-timesyncd.service system
   desktop_enable_unit_if_available NetworkManager.service system
   desktop_enable_unit_if_available NetworkManager-dispatcher.service system
-  desktop_enable_unit_if_available managed-wifi-firstboot.service system
+  desktop_enable_unit_if_available wifi-firstboot.service system
   if desktop_mullvad_selected; then
     desktop_enable_unit_if_available systemd-resolved.service system
     desktop_disable_unit_if_available mullvad-daemon.service system
   fi
   desktop_enable_unit_if_available rsyslog.service system
   desktop_enable_unit_if_available logrotate.timer system
+  # Renew the installer-owned PKI state with its dedicated configuration.
+  desktop_disable_unit_if_available certbot.timer system
+  desktop_enable_unit_if_available key-manager-acme-renew.timer system
   desktop_mask_unit_if_available systemd-journald-audit.socket system
   # 3proxy runs only inside managed browser/torrent namespaces, never on the host.
   desktop_mask_unit_if_available 3proxy.service system

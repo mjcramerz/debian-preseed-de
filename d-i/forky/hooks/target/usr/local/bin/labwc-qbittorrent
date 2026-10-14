@@ -22,7 +22,7 @@ import uuid
 
 DEFAULTS_PATH = pathlib.Path("/etc/labwc/desktop.conf")
 MANAGED_POLICY_DROPIN = pathlib.Path(
-    "/etc/qbittorrent/qBittorrent.conf.d/10-managed-security.conf"
+    "/etc/qbittorrent/qBittorrent.conf.d/10-security.conf"
 )
 MAX_DEFAULTS_BYTES = 65536
 MAX_CONFIG_BYTES = 1024 * 1024

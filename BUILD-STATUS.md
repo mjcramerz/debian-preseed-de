@@ -223,7 +223,7 @@ failures remain outside this focused repair.
 
 ## Previous snapshot record - 2026-10-07 GitOps and managed log review
 
-The [GitOps and managed validation record](docs/validation/gitops-managed-20261007.md)
+The [GitOps and managed validation record](docs/validation/gitops-20261007.md)
 covers all 48 current TODO files, the reproduced symbolic-reference transaction
 failure, detached-HEAD recovery, and the initramfs IOMMU redaction correction.
 The existing qBittorrent style and AppArmor repairs were verified against the

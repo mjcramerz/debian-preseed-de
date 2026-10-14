@@ -57,21 +57,6 @@ crowdsec_cmdline_token() {
   printf '%s\n' "$crowdsec_token"
 }
 
-crowdsec_host_variant() {
-  host_variant=${INSTALLER_HOST_VARIANT:-}
-  if [ -z "$host_variant" ]; then
-    host_variant=$(installer_selected_class_for_purpose host-variant 2>/dev/null || true)
-  fi
-  case "$host_variant" in
-    desktop|server)
-      printf '%s\n' "$host_variant"
-      ;;
-    *)
-      crowdsec_fatal "unsupported host variant for crowdsec helper: ${host_variant:-unset}"
-      ;;
-  esac
-}
-
 crowdsec_stage_target_asset() {
   repo_path=$1
   target_path=$2
@@ -178,21 +163,18 @@ host_env=${INSTALLER_LATE_HOST_ENV:-/tmp/install-env-late/host.env}
 # shellcheck disable=SC1090,SC1091
 . "$host_env"
 
-host_variant=$(crowdsec_host_variant)
-if [ "$host_variant" = desktop ]; then
-  # The shared late command resolves the private primary identity and writes
-  # this file before addon helpers start in separate shells.
-  account_env=${INSTALLER_LATE_ACCOUNT_ENV:-/tmp/install-env-late/account.env}
-  [ -f "$account_env" ] && [ -r "$account_env" ] && [ -s "$account_env" ] && [ ! -L "$account_env" ] ||
-    crowdsec_fatal "resolved account env is missing or unsafe: ${account_env}"
-  unset ACCOUNT_USERNAME
-  # shellcheck disable=SC1090,SC1091
-  . "$account_env"
-  [ -n "${ACCOUNT_USERNAME:-}" ] ||
-    crowdsec_fatal "ACCOUNT_USERNAME is missing from the resolved account env"
-  printf '%s\n' "$ACCOUNT_USERNAME" | LC_ALL=C grep -Eq '^[a-z_][a-z0-9_-]{0,31}$' ||
-    crowdsec_fatal "ACCOUNT_USERNAME must match ^[a-z_][a-z0-9_-]{0,31}$"
-fi
+# This repository installs desktops. Resolve the identity before staging the
+# account-specific qBittorrent acquisition.
+account_env=${INSTALLER_LATE_ACCOUNT_ENV:-/tmp/install-env-late/account.env}
+[ -f "$account_env" ] && [ -r "$account_env" ] && [ -s "$account_env" ] && [ ! -L "$account_env" ] ||
+  crowdsec_fatal "resolved account env is missing or unsafe: ${account_env}"
+unset ACCOUNT_USERNAME
+# shellcheck disable=SC1090,SC1091
+. "$account_env"
+[ -n "${ACCOUNT_USERNAME:-}" ] ||
+  crowdsec_fatal "ACCOUNT_USERNAME is missing from the resolved account env"
+printf '%s\n' "$ACCOUNT_USERNAME" | LC_ALL=C grep -Eq '^[a-z_][a-z0-9_-]{0,31}$' ||
+  crowdsec_fatal "ACCOUNT_USERNAME must match ^[a-z_][a-z0-9_-]{0,31}$"
 
 # Reject unsafe existing native output paths before any tmpfiles or daemon use.
 crowdsec_stage_target_asset \
@@ -292,21 +274,28 @@ crowdsec_stage_target_asset \
   /etc/crowdsec/acquis.d/23-system-syslog.yaml \
   0644
 crowdsec_remove_target_asset /etc/crowdsec/acquis.d/22-server-syslog.yaml
-if [ "$host_variant" = desktop ]; then
+crowdsec_stage_target_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/crowdsec/acquis.d/24-qbittorrent.yaml)" \
+  /etc/crowdsec/acquis.d/24-qbittorrent.yaml 0644 \
+  ACCOUNT_USERNAME "$ACCOUNT_USERNAME"
+# No HTTP access-log or AppSec bouncer integration is configured. Keep the
+# requested qBittorrent source without loading unrelated web/container parsers.
+crowdsec_stage_target_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/crowdsec/parsers/s01-parse/00-auditd-daemon.yaml)" \
+  /etc/crowdsec/parsers/s01-parse/00-auditd-daemon.yaml 0644
+# Local rules match the managed producers and retain the existing log budget.
+# JSON documents are valid YAML and keep complex expressions unambiguously quoted.
+for crowdsec_detection_asset in \
+  parsers/s01-parse/00-nftables-nondrop.yaml \
+  parsers/s02-enrich/00-audit-security.yaml \
+  scenarios/nftables-tcp-scan.yaml \
+  scenarios/nftables-udp-scan.yaml \
+  scenarios/apparmor-denial-burst.yaml; do
   crowdsec_stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/crowdsec/acquis.d/24-qbittorrent.yaml)" \
-    /etc/crowdsec/acquis.d/24-qbittorrent.yaml 0644 \
-    ACCOUNT_USERNAME "$ACCOUNT_USERNAME"
-fi
-crowdsec_stage_target_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/crowdsec/acquis-available/25-appsec.yaml)" \
-  /etc/crowdsec/acquis-available/25-appsec.yaml 0644
-crowdsec_stage_target_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/crowdsec/parsers/s00-raw/managed-podman-logs.yaml)" \
-  /etc/crowdsec/parsers/s00-raw/managed-podman-logs.yaml 0644
-crowdsec_stage_target_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/crowdsec/parsers/s01-parse/00-managed-auditd-daemon.yaml)" \
-  /etc/crowdsec/parsers/s01-parse/00-managed-auditd-daemon.yaml 0644
+    "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/crowdsec/${crowdsec_detection_asset}")" \
+    "/etc/crowdsec/${crowdsec_detection_asset}" 0644
+done
+unset crowdsec_detection_asset
 # The packaged setup acquisitions target files this managed layout does not
 # create; retain only the explicit managed sources above.
 crowdsec_remove_target_asset /etc/crowdsec/acquis.d/setup.auditd.yaml
@@ -319,7 +308,7 @@ crowdsec_stage_target_asset \
   /etc/systemd/system/crowdsec-firewall-bouncer.service.d/override.conf \
   0644
 crowdsec_stage_target_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/audit/crowdsec/${host_variant}.rules")" \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/audit/crowdsec/desktop.rules)" \
   /etc/audit/rules.d/zz-crowdsec.rules \
   0640
 crowdsec_stage_target_asset \
@@ -330,7 +319,7 @@ crowdsec_stage_target_asset \
   "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/etc/systemd/system/crowdsec-firstboot.service.tmpl)" \
   /etc/systemd/system/crowdsec-firstboot.service \
   0644 --environment \
-  CROWDSEC_HOST_VARIANT "$host_variant" \
+  CROWDSEC_HOST_VARIANT desktop \
   CROWDSEC_ENROLL_TOKEN_FILE "$token_file" \
   CROWDSEC_COMPLETE_FILE "$complete_file" \
   CROWDSEC_STATUS_FILE "$status_file"
@@ -365,4 +354,4 @@ systemctl --root=/ is-enabled crowdsec-firstboot.service >/dev/null
 ! systemctl --root=/ is-enabled crowdsec-firewall-bouncer.service >/dev/null 2>&1
 ' sh
 
-crowdsec_info "staged CrowdSec target assets for host_variant=${host_variant}"
+crowdsec_info "staged CrowdSec target assets for host_variant=desktop"

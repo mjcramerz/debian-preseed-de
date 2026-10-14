@@ -1,0 +1,22 @@
+{
+  "type": "leaky",
+  "name": "local/nftables-tcp-scan",
+  "description": "Detect sampled TCP probes across distinct dropped host ports within the managed log budget",
+  "filter": "evt.Line.Labels.firewall == 'nftables' and evt.Meta.log_type == 'iptables_drop' and evt.Meta.service == 'tcp' and evt.Parsed.message contains 'nftables drop input ' and evt.Meta.source_ip != '' and evt.Parsed.dst_port != ''",
+  "groupby": "evt.Meta.source_ip",
+  "distinct": "evt.Parsed.dst_port",
+  "capacity": 7,
+  "leakspeed": "60s",
+  "blackhole": "5m",
+  "labels": {
+    "service": "tcp",
+    "remediation": true,
+    "confidence": 1,
+    "spoofable": 3,
+    "behavior": "tcp:scan",
+    "label": "Sampled TCP closed-port scan",
+    "classification": [
+      "attack.T1046"
+    ]
+  }
+}

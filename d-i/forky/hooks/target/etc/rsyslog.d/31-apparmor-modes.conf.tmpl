@@ -2,9 +2,9 @@
 # from audit events so aa-logprof continues to consume only AppArmor records.
 
 if ($programname == "apparmor-modes") then {
-  set $.managed_security_routed = "on";
+  set $.security_routed = "on";
   action(
-    name="managed_apparmor_modes_log"
+    name="apparmor_modes_log"
     type="omfile"
     file="__INSTALLER_LOG_APPARMOR_MODES_FILE__"
     fileOwner="__INSTALLER_LOG_OWNER__"

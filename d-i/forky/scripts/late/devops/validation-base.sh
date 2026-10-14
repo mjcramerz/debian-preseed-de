@@ -77,6 +77,9 @@ devops_validate_aptly_signing_key_path() {
 
 devops_validate_account_name() {
   case "${1:-}" in
+    root|nobody|nogroup) devops_fatal "DevOps tools require a primary non-root account" ;;
+  esac
+  case "${1:-}" in
     [abcdefghijklmnopqrstuvwxyz_]*)
       ;;
     *)

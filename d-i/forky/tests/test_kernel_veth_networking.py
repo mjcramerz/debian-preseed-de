@@ -3138,7 +3138,7 @@ configure_target_rootless_podman
             self.assertIn(path, source)
         self.assertNotIn("/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_client.py", source)
         self.assertIn('/usr/local/sbin/app-veth --check-config', source)
-        managed_apps = read_text(SEED/"scripts/desktop/components/managed-apps.sh")
+        managed_apps = read_text(SEED/"scripts/desktop/components/apps.sh")
         self.assertNotIn("managed application package destination already exists in fresh target", managed_apps)
         self.assertIn('mv -- "$managed_app_stage_dir" "$managed_app_package_dir"', managed_apps)
         self.assertIn('LOG_VETH_FILE="${LOG_NETWORK_DIR}/veth.log"', (SEED/"hosts/logging/observability.env").read_text(encoding="utf-8"))
