@@ -26,6 +26,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import types
 import unittest
 from unittest import mock
@@ -359,6 +360,76 @@ class BuildTests(Temporary):
         with mock.patch.object(process.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0)) as run:
             process.checked(['/usr/bin/true'], env={})
         self.assertEqual(run.call_args.kwargs['env'], {})
+
+    def test_checked_capture_multiplexes_output_and_bounded_input(self):
+        code = ("import sys; sys.stdout.buffer.write(b'x'*200000); sys.stdout.flush(); "
+                "sys.stderr.buffer.write(b'y'*200000); sys.stderr.flush(); "
+                "print(len(sys.stdin.buffer.read()))")
+        output = process.checked(['/usr/bin/python3', '-I', '-c', code],
+                                 env={'LC_ALL': 'C.UTF-8'}, capture=True,
+                                 input='z' * 1000000, timeout=5)
+        self.assertEqual(output, 'x' * 200000 + '1000000\n')
+
+    def test_checked_capture_preserves_text_newlines_unicode_and_nul(self):
+        code = "import os; os.write(1,b'\\xc3\\xa9\\r\\nA\\rB\\x00')"
+        output = process.checked(['/usr/bin/python3', '-I', '-c', code],
+                                 env={'LC_ALL': 'C.UTF-8'}, capture=True, timeout=5)
+        self.assertEqual(output, '\u00e9\nA\nB\0')
+
+    def test_checked_capture_handles_empty_input_and_early_stdin_close(self):
+        for value in ('', 'x' * 1000000):
+            with self.subTest(input_bytes=len(value)):
+                code = 'import os; os.close(0); os.write(1,b"complete")'
+                self.assertEqual(process.checked(['/usr/bin/python3', '-I', '-c', code],
+                                 env={}, capture=True, input=value, timeout=5), 'complete')
+
+    def test_checked_capture_bounds_both_output_streams(self):
+        for stream in (1, 2):
+            with self.subTest(stream=stream), mock.patch.object(process, 'MAX_CAPTURE_BYTES', 4096):
+                code = f'import os,time; os.write({stream}, b"x"*20000); time.sleep(30)'
+                start = time.monotonic()
+                with self.assertRaisesRegex(process.CommandError, 'output exceeds the limit'):
+                    process.checked(['/usr/bin/python3', '-I', '-c', code],
+                                    env={}, capture=True, timeout=5)
+                self.assertLess(time.monotonic() - start, 4)
+
+    def test_checked_capture_failure_does_not_expose_captured_output(self):
+        code = 'import sys; print("fixture-private-data", file=sys.stderr); sys.exit(17)'
+        with self.assertRaisesRegex(process.CommandError, 'status 17') as caught:
+            process.checked(['/usr/bin/python3', '-I', '-c', code],
+                            env={}, capture=True, timeout=5)
+        self.assertNotIn('fixture-private-data', str(caught.exception))
+
+    def test_checked_capture_inherited_pipe_deadline_kills_remaining_group(self):
+        pidfile = self.root / 'descendant.pid'
+        code = ('import os,time; child=os.fork(); '
+                'os._exit(0) if child else None; '
+                f'open({str(pidfile)!r},"w").write(str(os.getpid())); time.sleep(30)')
+        start = time.monotonic()
+        with self.assertRaises(subprocess.TimeoutExpired):
+            process.checked(['/usr/bin/python3', '-I', '-c', code],
+                            env={}, capture=True, timeout=1)
+        self.assertLess(time.monotonic() - start, 4)
+        self.assertTrue(pidfile.is_file())
+        state = Path('/proc') / pidfile.read_text() / 'stat'
+        if state.exists():
+            self.assertEqual(state.read_text().rsplit(')', 1)[1].split()[0], 'Z')
+
+    def test_checked_capture_deadline_also_covers_closed_streams(self):
+        code = 'import os,time; os.close(1); os.close(2); time.sleep(30)'
+        start = time.monotonic()
+        with self.assertRaises(subprocess.TimeoutExpired):
+            process.checked(['/usr/bin/python3', '-I', '-c', code],
+                            env={}, capture=True, timeout=1)
+        self.assertLess(time.monotonic() - start, 4)
+
+    def test_checked_capture_rejects_oversized_input_before_spawn(self):
+        for value in ('x' * 5, '\u00e9' * 3):
+            with self.subTest(value=value), mock.patch.object(process, 'MAX_CAPTURE_BYTES', 4), \
+                    mock.patch.object(process.subprocess, 'Popen') as popen:
+                with self.assertRaisesRegex(process.CommandError, 'input exceeds the limit'):
+                    process.checked(['/fixture/command'], capture=True, env={}, input=value)
+                popen.assert_not_called()
 
     def test_transient_service_has_cgroup_limits_and_unique_identity(self):
         child = mock.Mock(); child.wait.return_value = 0; child.poll.return_value = 0

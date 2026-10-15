@@ -340,20 +340,20 @@ bootstrap_seed_cache_path() (
 
 bootstrap_persist_seed_source() {
   seed_base=$1
-  seed_type=$(bootstrap_seed_source_type "$seed_base")
-  seed_url_path=$(bootstrap_seed_url_path)
-  seed_file_path=$(bootstrap_seed_file_path)
+  seed_type=$(bootstrap_seed_source_type "$seed_base") || return $?
+  seed_url_path=$(bootstrap_seed_url_path) || return $?
+  seed_file_path=$(bootstrap_seed_file_path) || return $?
 
-  install -d -m 0700 "$(bootstrap_runtime_bootstrap_dir)"
+  install -d -m 0700 "${seed_file_path%/*}" || return $?
 
   case "$seed_type" in
     file)
-      printf '%s\n' "$seed_base" >"$seed_file_path"
-      rm -f "$seed_url_path"
+      printf '%s\n' "$seed_base" >"$seed_file_path" || return $?
+      rm -f "$seed_url_path" || return $?
       ;;
     url)
-      printf '%s\n' "$seed_base" >"$seed_url_path"
-      rm -f "$seed_file_path"
+      printf '%s\n' "$seed_base" >"$seed_url_path" || return $?
+      rm -f "$seed_file_path" || return $?
       ;;
     *)
       bootstrap_fatal "unsupported installation source type: $seed_type"
@@ -597,40 +597,39 @@ bootstrap_source_common_support_libs() {
 bootstrap_run_preseed_phase() {
   phase=$1
   requested_seed_base=${2:-}
-  seed_base=$(bootstrap_require_seed_base "$requested_seed_base")
-  bootstrap_ensure_repo_env "$seed_base"
+  seed_base=$(bootstrap_require_seed_base "$requested_seed_base") || return $?
+  bootstrap_ensure_repo_env "$seed_base" || return $?
 
   case "$phase" in
     prepare-context|apply)
-      runner_src=$(bootstrap_repo_join_var DIR_SCRIPTS_PRESEED answers.sh)
-      runner=${3:-$(bootstrap_phase_runner_path preseed-answers.sh)}
-      runner_args="$phase $seed_base"
+      runner_src=$(bootstrap_repo_join_var DIR_SCRIPTS_PRESEED answers.sh) || return $?
+      runner=${3:-$(bootstrap_phase_runner_path preseed-answers.sh)} || return $?
+      set -- "$phase" "$seed_base"
       ;;
     early)
-      runner_src=$(bootstrap_repo_join_var DIR_SCRIPTS_EARLY dispatch.sh)
-      runner=${3:-$(bootstrap_phase_runner_path early-dispatch.sh)}
-      runner_args="$seed_base"
+      runner_src=$(bootstrap_repo_join_var DIR_SCRIPTS_EARLY dispatch.sh) || return $?
+      runner=${3:-$(bootstrap_phase_runner_path early-dispatch.sh)} || return $?
+      set -- "$seed_base"
       ;;
     partman)
-      runner_src=$(bootstrap_repo_join_var DIR_SCRIPTS_PARTMAN dispatch.sh)
-      runner=${3:-$(bootstrap_phase_runner_path partman-dispatch.sh)}
-      runner_args="$seed_base"
+      runner_src=$(bootstrap_repo_join_var DIR_SCRIPTS_PARTMAN dispatch.sh) || return $?
+      runner=${3:-$(bootstrap_phase_runner_path partman-dispatch.sh)} || return $?
+      set -- "$seed_base"
       ;;
     late)
-      runner_src=$(bootstrap_repo_join_var DIR_SCRIPTS_LATE dispatch.sh)
-      runner=${3:-$(bootstrap_phase_runner_path late-dispatch.sh)}
-      runner_args="$seed_base"
+      runner_src=$(bootstrap_repo_join_var DIR_SCRIPTS_LATE dispatch.sh) || return $?
+      runner=${3:-$(bootstrap_phase_runner_path late-dispatch.sh)} || return $?
+      set -- "$seed_base"
       ;;
     *)
       bootstrap_fatal "unsupported preseed phase: ${phase}"
       ;;
   esac
 
-  bootstrap_persist_seed_source "$seed_base"
-  bootstrap_fetch_seed_file "$seed_base" "$runner_src" "$runner" 0755 "phase runner"
+  bootstrap_persist_seed_source "$seed_base" || return $?
+  bootstrap_fetch_seed_file "$seed_base" "$runner_src" "$runner" 0755 "phase runner" || return $?
   bootstrap_log "info: invoking preseed phase ${phase}"
-  # shellcheck disable=SC2086
-  INSTALLER_BOOTSTRAP_LIB=${INSTALLER_BOOTSTRAP_LIB:-$(bootstrap_lib_path)} "$runner" $runner_args
+  INSTALLER_BOOTSTRAP_LIB=${INSTALLER_BOOTSTRAP_LIB:-$(bootstrap_lib_path)} "$runner" "$@"
 }
 
 bootstrap_load_source_library() {

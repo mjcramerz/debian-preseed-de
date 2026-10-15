@@ -99,6 +99,82 @@ class DesktopOverrideTests(unittest.TestCase):
 
 class PanelTests(unittest.TestCase):
     def setUp(self): self.panel = load('labwc-panel-run')
+
+    def command(self, child):
+        code = "import runpy,sys; panel=runpy.run_path(sys.argv[1]); raise SystemExit(panel['supervise']([sys.executable,'-c',sys.argv[2]],set()))"
+        return [sys.executable, '-B', '-c', code, str(TARGET / 'usr/local/libexec/labwc-panel-run'), child]
+
+    def fixture_environment(self, home):
+        return {'PATH': '/usr/bin:/bin', 'HOME': str(home), 'TMPDIR': str(home),
+                'LC_ALL': 'C.UTF-8', 'PYTHONDONTWRITEBYTECODE': '1'}
+
+    def test_output_queue_retains_partial_and_blocked_writes(self):
+        stream = mock.Mock()
+        stream.fileno.return_value = 42
+        with mock.patch.object(self.panel.os, 'get_blocking', return_value=True), \
+             mock.patch.object(self.panel.os, 'set_blocking') as blocking, \
+             mock.patch.object(self.panel.os, 'write', side_effect=[2, BlockingIOError(), 3]):
+            output = self.panel.OutputBuffer(stream)
+            output.write(b'abcde')
+            output.drain()
+            self.assertEqual(output.pending, b'cde')
+            output.drain()
+            self.assertEqual(output.pending, b'cde')
+            output.drain()
+            self.assertEqual(output.pending, b'')
+            output.restore()
+        self.assertEqual(blocking.call_args_list, [mock.call(42, False), mock.call(42, True)])
+
+    def test_bulk_output_is_lossless_with_regular_file_destination(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            expected = b'normal message\n' * 50000 + b'partial tail'
+            child = "import os; os.write(1,b'normal message\\n'*50000+b'partial tail'); raise SystemExit(17)"
+            with (root / 'output').open('wb') as output:
+                result = subprocess.run(self.command(child), stdout=output, stderr=subprocess.PIPE,
+                                        env=self.fixture_environment(root), timeout=10)
+            self.assertEqual(result.returncode, 17, result.stderr)
+            self.assertEqual((root / 'output').read_bytes(), expected)
+
+    def test_spawn_failure_restores_output_flags_in_reverse_order(self):
+        outputs = [mock.Mock(), mock.Mock()]
+        restored = []
+        for index, output in enumerate(outputs):
+            output.restore.side_effect = lambda index=index: restored.append(index)
+        with mock.patch.object(self.panel, 'OutputBuffer', side_effect=outputs), \
+             mock.patch.object(self.panel.subprocess, 'Popen', side_effect=FileNotFoundError()), \
+             self.assertRaises(FileNotFoundError):
+            self.panel.supervise(['/fixture/missing'], set(), signals=())
+        self.assertEqual(restored, [1, 0])
+
+    def test_full_output_pipe_cannot_block_termination_deadline(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ready = root / 'ready'
+            child = ("import os,pathlib,signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); "
+                     f"pathlib.Path({str(ready)!r}).touch(); os.write(1,b'x'*8388608); time.sleep(60)")
+            process = subprocess.Popen(self.command(child), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                       env=self.fixture_environment(root), start_new_session=True)
+            try:
+                deadline = time.monotonic() + 5
+                while not ready.exists() and time.monotonic() < deadline:
+                    time.sleep(.02)
+                self.assertTrue(ready.exists())
+                time.sleep(.2)  # Leave stdout unread so both pipe and queue fill.
+                started = time.monotonic()
+                process.send_signal(signal.SIGTERM)
+                process.wait(timeout=9)
+                self.assertEqual(process.returncode, 247)  # Child -SIGKILL through SystemExit.
+                self.assertLess(time.monotonic() - started, 8)
+            finally:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                process.wait(timeout=3)
+                process.stdout.close()
+                process.stderr.close()
+
     def test_only_exact_repeats_coalesced(self):
         output = io.BytesIO(); c=self.panel.Coalescer({b'Plugged'})
         for line in (b'Plugged\n',b'Plugged\n',b'Plugged\n',b'ERROR actual failure\n',b'Plugged device X\n'):

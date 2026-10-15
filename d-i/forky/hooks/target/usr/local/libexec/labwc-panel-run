@@ -1,8 +1,9 @@
 #!/usr/bin/python3 -IB
 """Run the fixed native dock, coalescing exact known upstream diagnostic floods.
 
-The first occurrence, all other output and the real exit status remain visible.
-This is a journal-volume workaround, not a patch of the dock binary.
+Preserve the first occurrence, other diagnostics and the real exit status.
+Output drains for a bounded interval after the child exits. This is a
+journal-volume workaround, not a patch of the dock binary.
 """
 import os
 import selectors
@@ -15,6 +16,36 @@ MESSAGES = {
     'crystal-dock': {b'LayerShellQt.Window.screenConfiguration is deprecated use screen and wantsToBeOnActiveScreen instead'},
 }
 SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGUSR1, signal.SIGUSR2)
+OUTPUT_BUFFER_LIMIT = 262144
+
+
+class OutputBuffer:
+    """Batch writes without letting a full journal stall process supervision."""
+
+    def __init__(self, stream):
+        self.fd = stream.fileno()
+        self.blocking = os.get_blocking(self.fd)
+        self.pending = bytearray()
+        os.set_blocking(self.fd, False)
+
+    def write(self, data: bytes) -> None:
+        self.pending.extend(data)
+
+    def flush(self) -> None:
+        # Coalescer queues complete lines; poll drives actual output writes.
+        pass
+
+    def drain(self) -> None:
+        try:
+            written = os.write(self.fd, self.pending)
+        except BlockingIOError:
+            return
+        if not written:
+            raise OSError('panel output made no progress')
+        del self.pending[:written]
+
+    def restore(self) -> None:
+        os.set_blocking(self.fd, self.blocking)
 
 
 class Coalescer:
@@ -51,8 +82,9 @@ class Coalescer:
 def supervise(command: list[str], messages: set[bytes], *, signals=SIGNALS) -> int:
     """Supervise the dock, preserving its exit status and bounded teardown.
 
-    Closing stdout is not mistaken for process termination. Waybar is directly
-    supervised by systemd and never enters this diagnostic adapter.
+    Output backpressure pauses child reads within a bounded queue. After exit,
+    inherited writers and blocked output share the existing two-second drain
+    budget. Waybar is directly supervised by systemd and never enters this adapter.
     """
     child = None
     pending = set()
@@ -70,41 +102,23 @@ def supervise(command: list[str], messages: set[bytes], *, signals=SIGNALS) -> i
     previous = {number: signal.signal(number, forward) for number in signals}
     coalescer = Coalescer(messages)
     buffers = {}
+    outputs = []
     exited_at = None
     try:
-        with selectors.DefaultSelector() as selector:
+        # poll accepts regular-file output as well as pipes/journal sockets.
+        with selectors.PollSelector() as selector:
+            for stream in (sys.stdout.buffer, sys.stderr.buffer):
+                outputs.append(OutputBuffer(stream))
             child = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE, close_fds=True, bufsize=0)
-            for source, destination in ((child.stdout, sys.stdout.buffer),
-                                        (child.stderr, sys.stderr.buffer)):
+            sources = dict(zip((child.stdout, child.stderr), outputs))
+            for source in sources:
                 os.set_blocking(source.fileno(), False)
-                selector.register(source, selectors.EVENT_READ, destination)
                 buffers[source] = bytearray()
             for number in pending:
                 child.send_signal(number)
             pending.clear()
-            while selector.get_map() or child.poll() is None:
-                for key, _ in selector.select(timeout=0.25):
-                    source, destination = key.fileobj, key.data
-                    try:
-                        data = os.read(source.fileno(), 65536)
-                    except BlockingIOError:
-                        continue
-                    if not data:
-                        if buffers[source]:
-                            coalescer.line(destination, bytes(buffers[source]))
-                        selector.unregister(source)
-                        source.close()
-                        continue
-                    buffer = buffers[source]
-                    buffer.extend(data)
-                    while b'\n' in buffer:
-                        end = buffer.index(b'\n') + 1
-                        coalescer.line(destination, bytes(buffer[:end]))
-                        del buffer[:end]
-                    if len(buffer) > 8192:
-                        coalescer.line(destination, bytes(buffer))
-                        buffer.clear()
+            while True:
                 coalescer.flush()
                 now = time.monotonic()
                 status = child.poll()
@@ -112,32 +126,84 @@ def supervise(command: list[str], messages: set[bytes], *, signals=SIGNALS) -> i
                     child.kill()
                 if status is not None:
                     exited_at = exited_at or now
-                    # Inherited pipes cannot pin an exited dock indefinitely;
-                    # systemd subsequently cleans its service control group.
+                    if not sources:
+                        coalescer.flush(final=True)
+                        if not any(output.pending for output in outputs):
+                            break
                     if now - exited_at >= 2:
-                        for key in list(selector.get_map().values()):
-                            if buffers[key.fileobj]:
-                                coalescer.line(key.data, bytes(buffers[key.fileobj]))
-                            selector.unregister(key.fileobj)
-                            key.fileobj.close()
+                        for source, destination in sources.items():
+                            if buffers[source]:
+                                coalescer.line(destination, bytes(buffers[source]))
+                        coalescer.flush(final=True)
+                        for output in outputs:
+                            if output.pending:
+                                output.drain()
                         break
+                for source, destination in sources.items():
+                    reading = source in selector.get_map()
+                    can_read = len(destination.pending) + len(buffers[source]) < OUTPUT_BUFFER_LIMIT
+                    if can_read and not reading:
+                        selector.register(source, selectors.EVENT_READ, destination)
+                    elif reading and not can_read:
+                        selector.unregister(source)
+                for output in outputs:
+                    writing = output.fd in selector.get_map()
+                    if output.pending and not writing:
+                        selector.register(output.fd, selectors.EVENT_WRITE, output)
+                    elif writing and not output.pending:
+                        selector.unregister(output.fd)
+                for key, _ in selector.select(timeout=0.25):
+                    if isinstance(key.fileobj, int):
+                        key.data.drain()
+                        continue
+                    source, destination = key.fileobj, key.data
+                    try:
+                        capacity = OUTPUT_BUFFER_LIMIT - len(destination.pending) - len(buffers[source])
+                        data = os.read(source.fileno(), min(65536, capacity))
+                    except BlockingIOError:
+                        continue
+                    if not data:
+                        if buffers[source]:
+                            coalescer.line(destination, bytes(buffers[source]))
+                        selector.unregister(source)
+                        del sources[source]
+                        source.close()
+                        continue
+                    buffer = buffers[source]
+                    buffer.extend(data)
+                    lines = buffer.split(b'\n')
+                    buffer[:] = lines.pop()
+                    for line in lines:
+                        coalescer.line(destination, bytes(line) + b'\n')
+                    if len(buffer) > 8192:
+                        coalescer.line(destination, bytes(buffer))
+                        buffer.clear()
         status = child.wait()
-        coalescer.flush(final=True)
         return status
     finally:
-        if child is not None:
-            if child.poll() is None:
-                child.terminate()
+        try:
+            if child is not None:
+                try:
+                    if child.poll() is None:
+                        child.terminate()
+                    try:
+                        child.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        child.kill()
+                        child.wait()
+                finally:
+                    for stream in (child.stdout, child.stderr):
+                        if stream is not None:
+                            stream.close()
+        finally:
             try:
-                child.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                child.kill()
-                child.wait()
-            for stream in (child.stdout, child.stderr):
-                if stream is not None:
-                    stream.close()
-        for number, handler in previous.items():
-            signal.signal(number, handler)
+                # stdout/stderr may share an open-file description; reverse
+                # setup order restores its original blocking state as well.
+                for output in reversed(outputs):
+                    output.restore()
+            finally:
+                for number, handler in previous.items():
+                    signal.signal(number, handler)
 
 
 def main(args: list[str]) -> int:

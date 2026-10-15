@@ -1,12 +1,18 @@
 """Foreground commands with bounded lifetime and whole-cgroup cancellation."""
 from __future__ import annotations
+from contextlib import ExitStack
+import locale
 import os
 from pathlib import Path
 import pwd
 import re
+import selectors
 import signal
 import subprocess
+import time
 import uuid
+
+MAX_CAPTURE_BYTES = 64 * 1024 * 1024
 
 
 class CommandError(RuntimeError):
@@ -33,17 +39,108 @@ def environment(*, desktop: bool = False) -> dict[str, str]:
     return env
 
 
+def _checked_capture(argv: list[str], *, cwd: Path | None, env: dict,
+                     timeout: int, input: str | None) -> str:
+    """Capture non-interactive commands with one output budget and deadline.
+
+    Keep the direct child unreaped while draining pipes so cancellation can
+    safely signal its process group, including descendants retaining a pipe.
+    Deliberately daemonizing commands belong in a supervised service instead.
+    """
+    encoding = locale.getpreferredencoding(False)
+    with ExitStack() as stack:
+        data = None
+        if input is not None:
+            if len(input) > MAX_CAPTURE_BYTES:
+                raise CommandError('command input exceeds the limit')
+            data = input.encode(encoding)
+            if len(data) > MAX_CAPTURE_BYTES:
+                raise CommandError('command input exceeds the limit')
+        child = subprocess.Popen(argv, cwd=cwd, env=env,
+                                 stdin=subprocess.PIPE if data is not None else None,
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                 process_group=0)
+        stack.callback(child.stdout.close)
+        stack.callback(child.stderr.close)
+        if child.stdin is not None:
+            stack.callback(child.stdin.close)
+        try:
+            deadline = time.monotonic() + timeout
+            output = bytearray()
+            captured = 0
+            offset = 0
+            with selectors.DefaultSelector() as selector:
+                selector.register(child.stdout, selectors.EVENT_READ)
+                selector.register(child.stderr, selectors.EVENT_READ)
+                if data:
+                    os.set_blocking(child.stdin.fileno(), False)
+                    selector.register(child.stdin, selectors.EVENT_WRITE)
+                elif child.stdin is not None:
+                    child.stdin.close()
+                while selector.get_map():
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise subprocess.TimeoutExpired(argv, timeout)
+                    for key, _ in selector.select(remaining):
+                        if key.fileobj is child.stdin:
+                            try:
+                                count = os.write(key.fd, data[offset:offset + 65536])
+                            except BlockingIOError:
+                                continue
+                            except BrokenPipeError:
+                                selector.unregister(key.fileobj)
+                                child.stdin.close()
+                                continue
+                            if count <= 0:
+                                raise CommandError('command input made no progress')
+                            offset += count
+                            if offset == len(data):
+                                selector.unregister(key.fileobj)
+                                child.stdin.close()
+                            continue
+                        chunk = os.read(key.fd, 65536)
+                        if not chunk:
+                            selector.unregister(key.fileobj)
+                            continue
+                        captured += len(chunk)
+                        if captured > MAX_CAPTURE_BYTES:
+                            raise CommandError('command output exceeds the limit')
+                        if key.fileobj is child.stdout:
+                            output.extend(chunk)
+            status = child.wait(timeout=max(0.01, deadline - time.monotonic()))
+            if status:
+                raise CommandError(f'{Path(argv[0]).name} failed with status {status}')
+            # Preserve subprocess.run(text=True)'s decoding and newline contract.
+            return output.decode(encoding).replace('\r\n', '\n').replace('\r', '\n')
+        except BaseException as failure:
+            if child.returncode is None:
+                try:
+                    os.killpg(child.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                except OSError as error:
+                    failure.add_note('command group cancellation failed: ' + str(error))
+                try:
+                    child.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    failure.add_note('command could not be reaped after cancellation')
+            raise
+
+
 def checked(argv: list[str], *, cwd: Path | None = None, env=None,
             capture: bool = False, timeout: int = 300, input: str | None = None) -> str:
     if not argv or not argv[0].startswith('/'):
         raise ValueError('an absolute executable is required')
-    result = subprocess.run(argv, cwd=cwd, env=environment(desktop=True) if env is None else env,
-                            text=True, input=input, capture_output=capture,
+    command_env = environment(desktop=True) if env is None else env
+    if capture:
+        return _checked_capture(argv, cwd=cwd, env=command_env, timeout=timeout, input=input)
+    result = subprocess.run(argv, cwd=cwd, env=command_env,
+                            text=True, input=input,
                             timeout=timeout, check=False)
     if result.returncode:
         # Do not copy arbitrary subprocess bytes (or secrets) into menu prompts.
         raise CommandError(f'{Path(argv[0]).name} failed with status {result.returncode}')
-    return result.stdout if capture else ''
+    return ''
 
 
 def supervised(argv: list[str], *, cwd: Path,

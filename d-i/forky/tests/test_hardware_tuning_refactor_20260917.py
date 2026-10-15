@@ -35,6 +35,52 @@ import test_hardware_tuning_20260916 as base
 import system_state
 
 
+class OrderingTests(unittest.TestCase):
+    def setUp(self):
+        self.backend = base.FakeBackend()
+        # Ordering needs only an in-memory inventory, never driver discovery or
+        # a recovery journal. No host or image hardware paths are opened.
+        self.work = object.__new__(base.engine.Engine)
+        self.work.backend = self.backend
+
+    def test_many_pairs_keep_safe_order_with_linear_inventory_lookups(self):
+        class CountingInventory(dict):
+            lookups = 0
+            def __getitem__(self, key):
+                self.lookups += 1
+                return super().__getitem__(key)
+        values, expected = {}, []
+        for index in range(128):
+            pair = f'pair-{index:04}'
+            low, high = pair + '-low', pair + '-high'
+            self.backend.add(low, 'MIN', 2, pair=pair, side='min')
+            self.backend.add(high, 'MAX', 10, pair=pair, side='max')
+            values[high], values[low] = 9, 1
+            expected.extend(((low, 1), (high, 9)))
+        self.backend.knobs = CountingInventory(self.backend.knobs)
+        self.assertEqual(list(self.work.ordered(values)), expected)
+        self.assertLess(self.backend.knobs.lookups, 20 * len(values))
+        self.assertEqual(self.backend.writes, [])
+
+    def test_pair_boundary_is_read_after_preceding_governor_yield(self):
+        self.backend.add('governor', 'CPU_GOVERNOR', 'powersave', choices=('powersave', 'performance'))
+        self.backend.add('low', 'MIN', 2, pair='cpu', side='min')
+        high = self.backend.add('high', 'MAX', 4, pair='cpu', side='max')
+        with patch.object(high, 'read', wraps=high.read) as read:
+            ordering = self.work.ordered({'low': 6, 'high': 9, 'governor': 'performance'})
+            self.assertEqual(next(ordering), ('governor', 'performance'))
+            read.assert_not_called()
+            self.backend.values['high'] = 10  # Simulated governor side effect.
+            self.assertEqual(list(ordering), [('low', 6), ('high', 9)])
+            read.assert_called_once_with()
+
+    def test_unrequested_pair_member_is_not_added_or_read(self):
+        self.backend.add('low', 'MIN', 2, pair='cpu', side='min')
+        high = self.backend.add('high', 'MAX', 10, pair='cpu', side='max')
+        with patch.object(high, 'read', side_effect=AssertionError('unrequested member read')):
+            self.assertEqual(list(self.work.ordered({'low': 3})), [('low', 3)])
+
+
 class TransactionTests(unittest.TestCase):
     def setUp(self):
         self.temp = base.private_temp()

@@ -13,6 +13,7 @@ _require_test_isolation()
 from pathlib import Path
 import importlib.util
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -210,6 +211,127 @@ class ModuleContracts(unittest.TestCase):
             self.assertEqual(source_before,
                              {path.relative_to(self.root): (path.read_bytes(), path.stat().st_mode)
                               for path in self.root.rglob('*') if path.is_file() and path not in generated})
+
+class PhaseDispatchContracts(unittest.TestCase):
+    """Dispatch only fixture runners; never enter an installer phase."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(prefix='phase-dispatch-')
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.output = self.root / 'arguments'
+        self.runner = self.root / 'fixture runner'
+        self.runner.write_text('#!/bin/sh\nprintf "%s\\n" "$#" "$@" >"$PHASE_OUTPUT"\nexit "${PHASE_RUNNER_STATUS:-0}"\n')
+        self.runner.chmod(0o700)
+        (self.root / 'sourcea').mkdir()
+        self.state = self.root / 'runtime/bootstrap'
+        self.state.mkdir(parents=True)
+        self.trace = self.root / 'operations'
+        self.shells = [['/bin/dash']]
+        if busybox := shutil.which('busybox'):
+            self.shells.append([busybox, 'sh'])
+
+    def dispatch(self, shell, phase, source, *, explicit_runner=False, **values):
+        self.output.unlink(missing_ok=True)
+        bootstrap = ROOT / 'd-i/forky/scripts/common/bootstrap.sh'
+        code = '. ' + shlex.quote(str(bootstrap)) + '''
+bootstrap_require_seed_base() { printf '%s\\n' "$1"; return "${PHASE_RESOLVE_STATUS:-0}"; }
+bootstrap_ensure_repo_env() { return "${PHASE_ENV_STATUS:-0}"; }
+bootstrap_repo_join_var() { printf '%s/%s\\n' "$1" "$2"; return "${PHASE_PATH_STATUS:-0}"; }
+bootstrap_phase_runner_path() { printf '%s\\n' "$PHASE_RUNNER"; return "${PHASE_RUNNER_PATH_STATUS:-0}"; }
+bootstrap_persist_seed_source() { return "${PHASE_PERSIST_STATUS:-0}"; }
+bootstrap_fetch_seed_file() { return "${PHASE_FETCH_STATUS:-0}"; }
+if bootstrap_run_preseed_phase "$@"; then exit 0; else exit "$?"; fi
+'''
+        env = {'PATH': '/usr/bin:/bin', 'HOME': str(self.root), 'LC_ALL': 'C',
+               'PHASE_OUTPUT': str(self.output), 'PHASE_RUNNER': str(self.runner),
+               'INSTALLER_BOOTSTRAP_LIB': str(bootstrap), **values}
+        return subprocess.run([*shell, '-eu', '-c', code, 'phase-fixture', phase, source,
+                               *([str(self.runner)] if explicit_runner else [])],
+                              cwd=self.root, env=env, text=True, capture_output=True, timeout=10)
+
+    def persist(self, shell, source, **values):
+        self.trace.unlink(missing_ok=True)
+        bootstrap = ROOT / 'd-i/forky/scripts/common/bootstrap.sh'
+        code = '. ' + shlex.quote(str(bootstrap)) + '''
+install() { printf 'install\\n' >>"$PERSIST_TRACE"; return "${PERSIST_INSTALL_STATUS:-0}"; }
+rm() { printf 'cleanup\\n' >>"$PERSIST_TRACE"; return "${PERSIST_CLEANUP_STATUS:-0}"; }
+if bootstrap_persist_seed_source "$1"; then exit 0; else exit "$?"; fi
+'''
+        env = {'PATH': '/usr/bin:/bin', 'HOME': str(self.root), 'LC_ALL': 'C',
+               'INSTALLER_RUNTIME_DIR': str(self.state.parent),
+               'PERSIST_TRACE': str(self.trace), **values}
+        return subprocess.run([*shell, '-eu', '-c', code, 'persistence-fixture', source],
+                              cwd=self.root, env=env, text=True, capture_output=True, timeout=10)
+
+    def test_all_phase_arguments_preserve_spaces_and_globs(self):
+        for shell in self.shells:
+            for phase in ('prepare-context', 'apply', 'early', 'partman', 'late'):
+                for source in ('/fixture/source with spaces', str(self.root / 'source[ab]*'),
+                               'https://fixture.invalid/repo[ab]*'):
+                    with self.subTest(shell=shell, phase=phase, source=source):
+                        result = self.dispatch(shell, phase, source)
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        arguments = [phase, source] if phase in ('prepare-context', 'apply') else [source]
+                        self.assertEqual(self.output.read_text().splitlines(), [str(len(arguments)), *arguments])
+
+    def test_preparation_failure_never_executes_a_stale_runner(self):
+        for shell in self.shells:
+            for name in ('RESOLVE', 'ENV', 'PATH', 'RUNNER_PATH', 'PERSIST', 'FETCH'):
+                with self.subTest(shell=shell, failure=name):
+                    result = self.dispatch(shell, 'late', '/fixture/source', **{'PHASE_' + name + '_STATUS': '37'})
+                    self.assertEqual(result.returncode, 37, result.stderr)
+                    self.assertFalse(self.output.exists())
+
+    def test_runner_status_is_preserved(self):
+        for shell in self.shells:
+            with self.subTest(shell=shell):
+                result = self.dispatch(shell, 'early', '/fixture/source', PHASE_RUNNER_STATUS='23')
+                self.assertEqual(result.returncode, 23, result.stderr)
+
+    def test_explicit_runner_skips_default_runner_path_resolution(self):
+        for shell in self.shells:
+            with self.subTest(shell=shell):
+                result = self.dispatch(shell, 'early', '/fixture/source', explicit_runner=True,
+                                       PHASE_RUNNER_PATH_STATUS='37')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(self.output.read_text().splitlines(), ['1', '/fixture/source'])
+
+    def test_real_persistence_setup_failure_never_writes_or_cleans_state(self):
+        for shell in self.shells:
+            for source in ('/fixture/source', 'https://fixture.invalid/repo'):
+                with self.subTest(shell=shell, source=source):
+                    result = self.persist(shell, source, PERSIST_INSTALL_STATUS='37')
+                    self.assertEqual(result.returncode, 37, result.stderr)
+                    self.assertEqual(list(self.state.iterdir()), [])
+                    self.assertEqual(self.trace.read_text().splitlines(), ['install'])
+
+    def test_real_persistence_write_failure_keeps_the_other_source(self):
+        for shell in self.shells:
+            for source, kind, other in (('/fixture/source', 'file', 'url'),
+                                        ('https://fixture.invalid/repo', 'url', 'file')):
+                with self.subTest(shell=shell, source=source):
+                    destination = self.state / ('seed.' + kind)
+                    previous = self.state / ('seed.' + other)
+                    destination.mkdir()  # Redirection fails even as image root.
+                    previous.write_text('retained source\n')
+                    try:
+                        result = self.persist(shell, source)
+                        self.assertNotEqual(result.returncode, 0, result.stderr)
+                        self.assertEqual(previous.read_text(), 'retained source\n')
+                        self.assertEqual(self.trace.read_text().splitlines(), ['install'])
+                    finally:
+                        destination.rmdir()
+                        previous.unlink()
+
+    def test_real_persistence_cleanup_failure_keeps_its_status(self):
+        for shell in self.shells:
+            for source, kind in (('/fixture/source', 'file'), ('https://fixture.invalid/repo', 'url')):
+                with self.subTest(shell=shell, source=source):
+                    result = self.persist(shell, source, PERSIST_CLEANUP_STATUS='41')
+                    self.assertEqual(result.returncode, 41, result.stderr)
+                    self.assertEqual((self.state / ('seed.' + kind)).read_text(), source + '\n')
+                    self.assertEqual(self.trace.read_text().splitlines(), ['install', 'cleanup'])
 
 class PublicationContracts(unittest.TestCase):
     def setUp(self):

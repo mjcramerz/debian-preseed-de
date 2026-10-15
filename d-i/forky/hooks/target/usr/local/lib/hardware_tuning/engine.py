@@ -78,12 +78,17 @@ class Engine:
         knobs = self.backend.knobs
         early = {"CPU_GOVERNOR": 0, "CPU_NO_TURBO": 1, "CPU_MIN_PERF_PCT": 2, "CPU_MAX_PERF_PCT": 2}
         late = {"CPU_EPP": 5, "CPU_EPB": 6, "AUTO_BOOST": 7}
+        pairs = {}
+        for key in values:
+            pair = knobs[key].pair
+            if pair:
+                pairs.setdefault(pair, []).append(key)
         done = set()
         for key in sorted(values, key=lambda k: (early.get(knobs[k].setting, late.get(knobs[k].setting, 3)), k)):
             if key in done:
                 continue
             knob = knobs[key]
-            group = [k for k in values if knob.pair and knobs[k].pair == knob.pair]
+            group = pairs.get(knob.pair, ())
             if len(group) == 2:
                 lo = next(k for k in group if knobs[k].side == "min")
                 hi = next(k for k in group if knobs[k].side == "max")

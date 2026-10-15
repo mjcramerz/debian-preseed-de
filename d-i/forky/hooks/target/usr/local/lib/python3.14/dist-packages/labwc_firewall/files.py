@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager, suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import fcntl
 import os
 from pathlib import Path
@@ -134,7 +134,7 @@ def _atomic_restore(source: Path, target: Path) -> None:
             source.read_text(encoding="utf-8"),
         )
         os.replace(temporary, target)
-    except OSError as exc:
+    except (OSError, UnicodeError) as exc:
         raise FirewallError(
             f"cannot restore managed firewall file {target}: {exc}"
         ) from exc
@@ -151,6 +151,7 @@ class PendingMutation:
     fragment_backup: Path
     state_candidate: Path | None = None
     fragment_candidate: Path | None = None
+    rollback_failed: bool = field(default=False, init=False)
 
     @classmethod
     def create(cls, paths: FirewallPaths) -> "PendingMutation":
@@ -196,16 +197,29 @@ class PendingMutation:
             ) from exc
 
     def rollback(self) -> None:
-        _atomic_restore(self.state_backup, self.paths.state_file)
-        _atomic_restore(self.fragment_backup, self.paths.fragment_file)
+        # Retain recovery material even if restoration is interrupted.
+        self.rollback_failed = True
+        errors = []
+        for backup, target in (
+            (self.state_backup, self.paths.state_file),
+            (self.fragment_backup, self.paths.fragment_file),
+        ):
+            try:
+                _atomic_restore(backup, target)
+            except FirewallError as exc:
+                errors.append(str(exc))
+        self.rollback_failed = bool(errors)
+        if errors:
+            raise FirewallError(
+                "; ".join(errors)
+                + f"; recovery backups retained: {self.state_backup}, {self.fragment_backup}"
+            )
 
     def cleanup(self) -> None:
-        for path in (
-            self.state_candidate,
-            self.fragment_candidate,
-            self.state_backup,
-            self.fragment_backup,
-        ):
+        paths = [self.state_candidate, self.fragment_candidate]
+        if not self.rollback_failed:
+            paths.extend((self.state_backup, self.fragment_backup))
+        for path in paths:
             if path is None:
                 continue
             try:

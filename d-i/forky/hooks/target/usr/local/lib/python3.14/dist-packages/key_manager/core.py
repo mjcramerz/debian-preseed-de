@@ -159,15 +159,19 @@ def run(argv: list[str], *, capture: bool = False, timeout: int = 300,
         terminal = None
         previous_group = None
         old_ttou = signal.signal(signal.SIGTTOU, signal.SIG_IGN)
+        stack.callback(signal.signal, signal.SIGTTOU, old_ttou)
         child = None
         try:
             if (not capture or interactive) and os.isatty(0):
                 terminal = 0
                 previous_group = os.tcgetpgrp(terminal)
+                stack.callback(os.tcsetpgrp, terminal, previous_group)
             child = subprocess.Popen(argv, env=environment() if env is None else env,
                                      stdin=source, stdout=subprocess.PIPE if capture else None,
                                      stderr=subprocess.DEVNULL if capture and not terminal_output else None,
                                      process_group=0, umask=0o077)
+            if child.stdout is not None:
+                stack.callback(child.stdout.close)
             if terminal is not None:
                 os.tcsetpgrp(terminal, child.pid)
                 # A native tool may have attempted /dev/tty before the handoff.
@@ -178,9 +182,10 @@ def run(argv: list[str], *, capture: bool = False, timeout: int = 300,
                 with selectors.DefaultSelector() as selector:
                     selector.register(child.stdout, selectors.EVENT_READ)
                     while selector.get_map():
-                        if time.monotonic() >= deadline:
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
                             raise RuntimeError(f'{Path(argv[0]).name} timed out')
-                        for key, _ in selector.select(min(0.2, max(0, deadline - time.monotonic()))):
+                        for key, _ in selector.select(remaining):
                             chunk = os.read(key.fd, 65536)
                             if not chunk:
                                 selector.unregister(key.fileobj)
@@ -201,23 +206,21 @@ def run(argv: list[str], *, capture: bool = False, timeout: int = 300,
                     on_cancel()
                 except (OSError, ValueError, RuntimeError) as cleanup_error:
                     failure.add_note('privileged job cancellation failed: ' + str(cleanup_error))
-            if child is not None:
+            # Only an unreaped child still pins this process-group identifier.
+            if child is not None and child.returncode is None:
                 try:
                     os.killpg(child.pid, signal.SIGKILL)
                 except (ProcessLookupError, PermissionError):
                     pass
             raise
         finally:
-            if terminal is not None and previous_group is not None:
-                os.tcsetpgrp(terminal, previous_group)
-            signal.signal(signal.SIGTTOU, old_ttou)
-            if child is not None:
+            # ExitStack closes stdout and restores terminal/signal state even
+            # if waiting or terminal restoration itself fails during cleanup.
+            if child is not None and child.returncode is None:
                 try:
                     child.wait(timeout=5)
                 except subprocess.TimeoutExpired as error:
                     raise RuntimeError('command client did not exit after cancellation') from error
-                if child.stdout is not None:
-                    child.stdout.close()
 
 
 def public_command(argv: list[str]) -> bytes:

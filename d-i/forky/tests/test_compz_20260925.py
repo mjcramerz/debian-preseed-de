@@ -169,6 +169,15 @@ class SafeIOTests(Temporary):
         self.assertFalse((self.root / 'source').exists())
         self.assertEqual((self.root / 'destination').read_bytes(), b'complete')
 
+    def test_destination_open_failure_closes_source_directory_without_publication(self):
+        with mock.patch.object(safeio.os, 'open', side_effect=[123, PermissionError('fixture destination denied')]), \
+                mock.patch.object(safeio.os, 'close') as close, \
+                mock.patch.object(safeio.ctypes, 'CDLL') as library:
+            with self.assertRaisesRegex(PermissionError, 'destination denied'):
+                safeio.publish(self.root / 'source', self.root / 'destination')
+        close.assert_called_once_with(123)
+        library.assert_not_called()
+
     def test_audit_rejects_symlink(self):
         (self.root / 'bad').symlink_to('/etc/passwd')
         with self.assertRaises(CompzError):

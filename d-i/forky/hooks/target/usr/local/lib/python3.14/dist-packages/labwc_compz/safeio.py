@@ -233,18 +233,21 @@ def publish(source: Path, destination: Path) -> None:
     """Linux atomic RENAME_NOREPLACE; no racy exists()+rename() fallback."""
     if destination.name in ('', '.', '..'):
         raise CompzError('Invalid output name.')
-    old_fd, new_fd = os.open(source.parent, DIRECTORY), os.open(destination.parent, DIRECTORY)
+    old_fd = os.open(source.parent, DIRECTORY)
     try:
-        libc = ctypes.CDLL(None, use_errno=True)
-        rename = libc.renameat2
-        rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
-        rename.restype = ctypes.c_int
-        if rename(old_fd, os.fsencode(source.name), new_fd, os.fsencode(destination.name), 1):
-            code = ctypes.get_errno()
-            if code == errno.EEXIST:
-                raise CompzError('Destination already exists; it was not changed.')
-            raise OSError(code, os.strerror(code))
-        os.fsync(new_fd)
+        new_fd = os.open(destination.parent, DIRECTORY)
+        try:
+            libc = ctypes.CDLL(None, use_errno=True)
+            rename = libc.renameat2
+            rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+            rename.restype = ctypes.c_int
+            if rename(old_fd, os.fsencode(source.name), new_fd, os.fsencode(destination.name), 1):
+                code = ctypes.get_errno()
+                if code == errno.EEXIST:
+                    raise CompzError('Destination already exists; it was not changed.')
+                raise OSError(code, os.strerror(code))
+            os.fsync(new_fd)
+        finally:
+            os.close(new_fd)
     finally:
         os.close(old_fd)
-        os.close(new_fd)

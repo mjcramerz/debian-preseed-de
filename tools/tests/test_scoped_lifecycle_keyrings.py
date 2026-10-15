@@ -337,6 +337,85 @@ class SessionHandoffTests(unittest.TestCase):
 
 
 class PythonLifecycleTests(unittest.TestCase):
+    def firewall_mutation(self, root):
+        paths = firewall_files.FirewallPaths(
+            state_file=root / 'state', fragment_file=root / 'fragment',
+            nft_conf=root / 'nft.conf', lock_file=root / 'lock')
+        backups = (root / 'state.backup', root / 'fragment.backup')
+        candidates = (root / 'state.candidate', root / 'fragment.candidate')
+        for target, backup, candidate in zip(
+                (paths.state_file, paths.fragment_file), backups, candidates):
+            target.write_text('current', encoding='utf-8')
+            backup.write_text('original', encoding='utf-8')
+            backup.chmod(0o600)
+            candidate.write_text('candidate', encoding='utf-8')
+        return firewall_files.PendingMutation(paths, *backups, *candidates)
+
+    def test_firewall_rollback_restores_other_file_and_retains_recovery_backups(self):
+        for failed_file in ('state', 'fragment'):
+            with self.subTest(failed_file=failed_file), tempfile.TemporaryDirectory() as name:
+                root = Path(name)
+                mutation = self.firewall_mutation(root)
+                restore = firewall_files._atomic_restore
+                def restore_or_fail(source, target):
+                    if target.name == failed_file:
+                        raise FirewallError('fixture restore failure: ' + target.name)
+                    return restore(source, target)
+                with mock.patch.object(firewall_files, '_atomic_restore', side_effect=restore_or_fail) as calls:
+                    with self.assertRaisesRegex(FirewallError, 'recovery backups retained') as caught:
+                        mutation.rollback()
+                self.assertEqual(calls.call_count, 2)
+                mutation.cleanup()
+                for target in (mutation.paths.state_file, mutation.paths.fragment_file):
+                    self.assertEqual(target.read_text(encoding='utf-8'),
+                                     'current' if target.name == failed_file else 'original')
+                for backup in (mutation.state_backup, mutation.fragment_backup):
+                    self.assertEqual(backup.read_text(encoding='utf-8'), 'original')
+                    self.assertIn(str(backup), str(caught.exception))
+                    self.assertEqual(backup.stat().st_mode & 0o777, 0o600)
+                self.assertFalse(mutation.state_candidate.exists())
+                self.assertFalse(mutation.fragment_candidate.exists())
+
+    def test_firewall_rollback_reports_both_failures_and_can_retry(self):
+        with tempfile.TemporaryDirectory() as name:
+            mutation = self.firewall_mutation(Path(name))
+            with mock.patch.object(firewall_files, '_atomic_restore', side_effect=[
+                    FirewallError('state restore failed'), FirewallError('fragment restore failed')]):
+                with self.assertRaises(FirewallError) as caught:
+                    mutation.rollback()
+            self.assertIn('state restore failed', str(caught.exception))
+            self.assertIn('fragment restore failed', str(caught.exception))
+            self.assertTrue(mutation.rollback_failed)
+            mutation.rollback()
+            self.assertFalse(mutation.rollback_failed)
+            mutation.cleanup()
+            self.assertFalse(mutation.state_backup.exists())
+            self.assertFalse(mutation.fragment_backup.exists())
+            self.assertEqual(mutation.paths.state_file.read_text(encoding='utf-8'), 'original')
+            self.assertEqual(mutation.paths.fragment_file.read_text(encoding='utf-8'), 'original')
+
+    def test_firewall_restore_invalid_utf8_is_reported_as_a_firewall_error(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            backup = root / 'backup'; backup.write_bytes(b'\xff')
+            target = root / 'target'; target.write_text('current', encoding='utf-8')
+            with self.assertRaisesRegex(FirewallError, 'cannot restore managed firewall file'):
+                firewall_files._atomic_restore(backup, target)
+            self.assertEqual(target.read_text(encoding='utf-8'), 'current')
+            self.assertEqual(set(root.iterdir()), {backup, target})
+
+    def test_interrupted_firewall_rollback_retains_recovery_backups(self):
+        with tempfile.TemporaryDirectory() as name:
+            mutation = self.firewall_mutation(Path(name))
+            with mock.patch.object(firewall_files, '_atomic_restore', side_effect=KeyboardInterrupt):
+                with self.assertRaises(KeyboardInterrupt):
+                    mutation.rollback()
+            mutation.cleanup()
+            self.assertTrue(mutation.state_backup.is_file())
+            self.assertTrue(mutation.fragment_backup.is_file())
+            self.assertFalse(mutation.state_candidate.exists())
+            self.assertFalse(mutation.fragment_candidate.exists())
+
     def test_partial_firewall_backup_setup_removes_first_backup(self):
         with tempfile.TemporaryDirectory() as directory:
             backup = Path(directory) / 'backup'; backup.write_bytes(b'original')
