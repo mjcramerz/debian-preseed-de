@@ -1306,7 +1306,7 @@ c6ec0ce311e4bd4a2738ae69a156bcddb76eb9bccff1de304ca922e190182342  hooks/target/u
 bc5693a8ddff6e2b7e9cfc1edc1479dc2f4a48f8baf348b8552d9eaba7c40677  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_firewall/validation.py
 71a732c5641d07111a1259dd73159c8a2224dfe9147701ea976c3c46333330a4  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/__init__.py
 20d90d906da3674751e00b0c8401d4636adb33f5832e5a9e9d1ac0fd1b680303  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/bootstrap.py
-bace21a785cf0cdc5fe998dd0f1c14a1af92740a906fbac27d3e4baba129708b  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/browsers.py
+c24de701ec62eb5b4743ad05b0c5f4dc97341484fa9a17b01042ce97bd630407  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/browsers.py
 f89632f47ab25bc303bedbbb4f92ccc5f7eddd435c56c2b6126f39240fee6659  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/bubblewrap.py
 169d4769e898d60a1523ed9831f6576430b9d4261e47ecf9416af54ea2d36223  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/cli.py
 57e4ce187285978844e384812efc98f85e1289fa2feb443e249935d758f815a9  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/commands.py

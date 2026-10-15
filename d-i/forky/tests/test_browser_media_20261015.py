@@ -118,16 +118,18 @@ class VivaldiMediaTests(unittest.TestCase):
 
 
 class BrowserGraphicsAndTorTests(unittest.TestCase):
-    def test_vivaldi_uses_early_native_gpu_sandbox_and_one_opengl_backend(self):
-        for mode in ('launch', 'intel', 'nvidia'):
-            argv = browsers.browser_args('vivaldi', mode)
-            self.assertIn('--gpu-sandbox-start-early', argv)
-            self.assertEqual(argv.count('--use-webgpu-adapter=opengles'), 1)
-            self.assertIn('--use-gl=angle', argv)
-            self.assertIn('--use-angle=gl', argv)
-            self.assertNotIn('--ignore-gpu-blocklist', argv)
-            self.assertFalse(any('disable-gpu-sandbox' in arg for arg in argv))
-            self.assertFalse(any('enable-angle-features' in arg for arg in argv))
+    def test_browser_modes_do_not_force_early_gpu_sandbox(self):
+        for browser in ('chromium', 'microsoft-edge', 'vivaldi'):
+            for mode in ('launch', 'intel', 'nvidia'):
+                argv = browsers.browser_args(browser, mode)
+                self.assertNotIn('--gpu-sandbox-start-early', argv)
+                self.assertEqual(argv.count('--use-webgpu-adapter=opengles'), 1)
+                self.assertIn('--use-gl=angle', argv)
+                self.assertIn('--use-angle=gl', argv)
+                if browser == 'vivaldi':
+                    self.assertNotIn('--ignore-gpu-blocklist', argv)
+                self.assertFalse(any('disable-gpu-sandbox' in arg for arg in argv))
+                self.assertFalse(any('enable-angle-features' in arg for arg in argv))
 
     def test_accelerated_browser_modes_use_current_decoder_feature_names(self):
         for browser in ('chromium', 'microsoft-edge', 'vivaldi'):

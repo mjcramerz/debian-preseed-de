@@ -138,12 +138,15 @@ these profiles. Duplicate `--use-webgpu-adapter=opengles` arguments were
 removed. The matching Chromium source defines these current features in
 [media_switches.cc](https://raw.githubusercontent.com/chromium/chromium/ef1ce85f6dbc0471fbf7154a539bdbf53c0d73c7/media/base/media_switches.cc).
 
-Vivaldi additionally requests `--gpu-sandbox-start-early`, entering its native
-GPU sandbox before GL context creation can start driver threads. This is a
-supported preference in the exact Chromium revision from the report, wired
-through [gpu_utils.cc](https://raw.githubusercontent.com/chromium/chromium/ef1ce85f6dbc0471fbf7154a539bdbf53c0d73c7/content/public/browser/gpu_utils.cc)
-and [gpu_init.cc](https://raw.githubusercontent.com/chromium/chromium/ef1ce85f6dbc0471fbf7154a539bdbf53c0d73c7/gpu/ipc/service/gpu_init.cc).
-Its effect on the supplied hardware remains a live acceptance item.
+The later October 15 managed logs show ANGLE failing to open native
+`libEGL.so.1` (`Permission denied`), followed by three GPU process
+initialization failures. The captured launch forces
+`--gpu-sandbox-start-early`, consistent with this library-access failure.
+That override has been removed from every Vivaldi mode. Chromium's normal
+Linux order loads GL before entering its GPU sandbox, as shown in
+[gpu_init.cc](https://raw.githubusercontent.com/chromium/chromium/ef1ce85f6dbc0471fbf7154a539bdbf53c0d73c7/gpu/ipc/service/gpu_init.cc).
+The GPU sandbox remains enabled. Runtime acceptance on the supplied hardware
+is still required; no browser was launched on the development host.
 
 ANGLE remains the OpenGL backend, Dawn uses OpenGLES, and the existing Vulkan
 exclusions remain. Shader caching and driver-selected workarounds are retained.

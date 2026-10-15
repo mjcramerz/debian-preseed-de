@@ -141,17 +141,16 @@ BROWSER_PROFILES = {
 
 def browser_args(app_name: str, mode: str) -> list[str]:
     profile = BROWSER_PROFILES[app_name]
-    # Mesa can start driver threads during context creation. Enter Chromium's
-    # own GPU sandbox first, while retaining its seccomp/namespace protection.
-    # Keep this correction scoped to the reported Vivaldi OpenGL path.
-    sandbox_args = ("--gpu-sandbox-start-early",) if app_name == "vivaldi" else ()
+    # Keep Chromium's Linux initialization order: ANGLE must load the native
+    # EGL/GL driver before the GPU sandbox restricts library access. Forcing
+    # --gpu-sandbox-start-early makes Vivaldi fail to dlopen libEGL.so.1.
+    # Chromium still installs its GPU sandbox after driver initialization.
     if mode == "launch":
         return [
             *wayland_ozone_args(
                 disable_features=profile["launch_disable_features"],
             ),
             *ANGLE_GL_ARGS,
-            *sandbox_args,
         ]
 
     features = profile[f"{mode}_features"]
@@ -165,6 +164,5 @@ def browser_args(app_name: str, mode: str) -> list[str]:
             "--ignore-gpu-blocklist", "--enable-gpu-rasterization",
         )),
         *ANGLE_GL_ARGS,
-        *sandbox_args,
         *profile[f"{mode}_extra_args"],
     ]
