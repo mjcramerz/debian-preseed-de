@@ -2252,6 +2252,8 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   # Explicit launches can inherit their caller's terminal before systemd owns
   # the app cgroup; do not reject these inherited descriptors.
   owner /dev/pts/[0-9]* rw,
+  # Python closes inherited descriptors before spawning sandbox helpers.
+  owner @{PROC}/@{pid}/fd/ r,
   # Ancestor metadata used by Python's import/path validation (directories only).
   / r,
   /home/ r,
@@ -2666,8 +2668,13 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     /usr/local/libexec/tor-browser-run rix,
     /{bin,lib,lib32,lib64,opt,sbin,usr}/ r,
     /usr/{lib32,lib64,sbin}/ r,
-    # Preserve only the trusted runtime's fixed bundled-library environment.
-    /opt/tor-browser/Browser/TorBrowser/Tor/tor rcx -> transport,
+    # Tor reads the root-owned kernel UUID source; both stacked profiles apply.
+    @{PROC}/sys/kernel/random/uuid r,
+    # Bubblewrap has set no_new_privs. Retain this profile in each exec stack
+    # and add the narrower child, so confinement can only become stricter.
+    # Lowercase px retains the fixed bundled Tor library environment.
+    /opt/tor-browser/Browser/TorBrowser/Tor/tor rpx -> "labwc-app//tor-bwrap//&labwc-app//tor-bwrap//transport",
+    /opt/tor-browser/Browser/{firefox.real,abicheck,glxtest,vaapitest} rix,
     network inet stream,
     network inet6 stream,
     # Bubblewrap uses a datagram socket for private loopback setup. The Tor
@@ -2687,7 +2694,10 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     ptrace (read) peer=labwc-app//tor-bwrap//browser,
     signal (send, receive) peer=labwc-app//tor-bwrap//transport,
     ptrace (read) peer=labwc-app//tor-bwrap//transport,
-    /opt/tor-browser/Browser/firefox rCx -> browser,
+    signal (send, receive) peer="labwc-app//tor-bwrap//&labwc-app//tor-bwrap//{browser,transport}",
+    ptrace (read, trace, readby, tracedby) peer="labwc-app//tor-bwrap//&labwc-app//tor-bwrap//browser",
+    ptrace (read, readby) peer="labwc-app//tor-bwrap//&labwc-app//tor-bwrap//transport",
+    /opt/tor-browser/Browser/firefox rPx -> "labwc-app//tor-bwrap//&labwc-app//tor-bwrap//browser",
     profile transport flags=(attach_disconnected, mediate_deleted) {
       #include <abstractions/base>
       #include <abstractions/nameservice-strict>
@@ -2699,6 +2709,8 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
       deny /opt/tor-browser/Browser/TorBrowser/Tor/PluggableTransports/** x,
       network inet stream,
       network inet6 stream,
+      # Route/interface enumeration uses NETLINK_ROUTE, not an IP raw socket.
+      network netlink raw,
       deny network inet dgram,
       deny network inet6 dgram,
       unix,
@@ -2706,9 +2718,12 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
       owner @{HOME}/.local/share/tor-browser/tor/{,**} rwkl,
       owner /run/user/[0-9]*/tor-*/transport/{,**} rwkl,
       @{PROC}/[0-9]*/{stat,status} r,
+      @{PROC}/sys/kernel/random/uuid r,
       signal (send, receive) peer=@{profile_name},
       signal (send, receive) peer=labwc-app//tor-bwrap,
+      signal (send, receive) peer="labwc-app//tor-bwrap//&labwc-app//tor-bwrap//transport",
       ptrace (readby) peer=labwc-app//tor-bwrap,
+      ptrace (read, readby) peer="labwc-app//tor-bwrap//&labwc-app//tor-bwrap//transport",
       deny /dev/dri/{,**} rw,
       deny /dev/nvidia* rw,
       deny /dev/snd/{,**} rw,
@@ -2725,6 +2740,8 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
       deny network inet6,
       signal (send, receive) peer=labwc-app//tor-bwrap,
       ptrace (readby) peer=labwc-app//tor-bwrap,
+      signal (send, receive) peer="labwc-app//tor-bwrap//&labwc-app//tor-bwrap//browser",
+      ptrace (read, trace, readby, tracedby) peer="labwc-app//tor-bwrap//&labwc-app//tor-bwrap//browser",
     }
   }
 

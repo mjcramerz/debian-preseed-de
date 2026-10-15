@@ -164,7 +164,7 @@ class BuildAndDispatchTests(unittest.TestCase):
     def test_real_make_build_and_check_preserve_ten_distinct_pin_sets(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            for directory in ('d-i', 'tools', 'browser-config'):
+            for directory in ('d-i', 'tools'):
                 shutil.copytree(ROOT / directory, root / directory,
                                 ignore=shutil.ignore_patterns('tests', '__pycache__', '.pytest_cache'))
             shutil.copyfile(ROOT / 'Makefile', root / 'Makefile')

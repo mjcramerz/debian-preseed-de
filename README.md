@@ -71,7 +71,7 @@ HDMI/translation freeze and remaining installed-host acceptance.
 - `d-i/forky/hooks/target/`: target-side files and renderable configuration.
 - `d-i/forky/scripts/`: small installer entrypoints and shared runtime modules, detailed below.
 - `d-i/forky/tests/` and `tools/`: executable regression tests and build checks.
-- `browser-config/`: browser policies; extension exports are cloned over SSH into `~/Workspace/netscape` from `git@gitlab.com:core-assets/helpers/netscape.git` on `mcr/main`. Extension settings remain user-editable; exports are imported manually in each extension. Current Chromium-family browsers use uBlock Origin Lite (Manifest V3).
+- `d-i/forky/hooks/target/etc/{vivaldi,chromium,opt/edge,opt/chrome}/policies/`: authoritative native browser policies, edited directly and staged without generation. Extension exports are cloned over SSH into `~/Workspace/netscape` from `git@gitlab.com:core-assets/helpers/netscape.git` on `mcr/main`. Extension settings remain user-editable; exports are imported manually in each extension. Current Chromium-family browsers use uBlock Origin Lite (Manifest V3).
 
 ### Installer implementation
 
@@ -303,8 +303,12 @@ make validate
 
 The builder writes only `d-i/forky/preseed.cfg`, `payload.manifest` and
 `payload.tar.gz`. It performs no source validation, tests, shell execution,
-browser generation or lifecycle-source synchronization. Browser artifacts are
-generated separately with `python3 -B tools/build_browser_config.py`. Keep the
+browser generation or lifecycle-source synchronization. Edit each browser's
+native policy JSON under `d-i/forky/hooks/target` directly; no separate browser
+generator or canonical configuration exists. `make check` and `make validate`
+inspect those files with `tools/check_browser_policies.py` only inside the
+disposable validation environment. Existing recommended policy defaults and
+profile preference seeds remain in their native installed-path files. Keep the
 embedded lifecycle source synchronized explicitly when editing that source.
 **The builder never generates, repairs or overwrites source inputs.** Editing an environment
 requires rebuilding the payload/pins before publishing; rebuilding packages your

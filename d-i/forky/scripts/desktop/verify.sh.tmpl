@@ -506,6 +506,8 @@ for path in \
   /etc/vivaldi/policies/managed/security.json \
   /etc/vivaldi/policies/managed/performance.json \
   /etc/vivaldi/policies/recommended/defaults.json \
+  /etc/vivaldi/search-engines/search_engines.json.signed \
+  /etc/vivaldi/search-engines/search_engines_prompt.json.signed \
   /opt/glibc/2.44-1/satty/.release \
   /etc/systemd/user/dbus-broker.service.d/10-broker-hardening.conf \
   /etc/systemd/system/dbus-broker.service.d/60-stop-timeout.conf \
@@ -705,7 +707,9 @@ for path in \
   /etc/vivaldi/policies/managed/extensions.json \
   /etc/vivaldi/policies/managed/security.json \
   /etc/vivaldi/policies/managed/performance.json \
-  /etc/vivaldi/policies/recommended/defaults.json
+  /etc/vivaldi/policies/recommended/defaults.json \
+  /etc/vivaldi/search-engines/search_engines.json.signed \
+  /etc/vivaldi/search-engines/search_engines_prompt.json.signed
 do
   require_mode "$path" 644
 done

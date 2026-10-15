@@ -6,6 +6,7 @@ abi "/usr/share/apparmor-features/features",
 profile labwc-compositor /usr/bin/labwc flags=(attach_disconnected, mediate_deleted) {
   owner /tmp/.org.chromium.Chromium.* rw,
   /opt/postman/app/resources/app/assets/icon.png r,
+  /opt/tor-browser/Browser/browser/chrome/icons/default/default128.png r,
   owner @{HOME}/.local/share/icons/{,**} r,
   # The virtual keyboard transfers its unlinked, user-owned keymap fd.
   owner /tmp/wtype-?????? rw,
@@ -142,6 +143,7 @@ profile labwc-waybar-battery /usr/local/libexec/labwc-waybar-battery flags=(atta
 
 profile crystal-dock /usr/bin/crystal-dock flags=(attach_disconnected, mediate_deleted) {
   /opt/postman/app/resources/app/assets/icon.png r,
+  /opt/tor-browser/Browser/browser/chrome/icons/default/default128.png r,
   #include <abstractions/session-client>
   owner @{HOME}/.config/{crystal-dock,crystal-dockrc}* rwkl,
   owner "@{HOME}/.config/Crystal Dock*" rwkl,

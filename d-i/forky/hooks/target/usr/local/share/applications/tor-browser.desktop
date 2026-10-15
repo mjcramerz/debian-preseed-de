@@ -10,16 +10,8 @@ Categories=Network;WebBrowser;
 MimeType=x-scheme-handler/http;x-scheme-handler/https;
 StartupNotify=true
 StartupWMClass=Tor Browser
-Actions=Intel;Nvidia;ANOM;
-
-[Desktop Action Intel]
-Name=Tor Browser — Intel OpenGL
-Exec=/usr/local/bin/labwc-app intel tor-browser
-
-[Desktop Action Nvidia]
-Name=Tor Browser — NVIDIA OpenGL
-Exec=/usr/local/bin/labwc-app nvidia tor-browser
+Actions=ANOM;
 
 [Desktop Action ANOM]
-Name=Tor Browser — ANOM (temporary state, Safest security)
+Name=ANOM (temporary state, Safest security)
 Exec=/usr/local/bin/labwc-app pure-privacy tor-browser

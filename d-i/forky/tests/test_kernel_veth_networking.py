@@ -2148,7 +2148,7 @@ class DesktopLaunchTests(unittest.TestCase):
             for path in ('/etc/labwc/3proxy/qbittorrent.conf', '/etc/qbittorrent/qBittorrent.conf.d/20-managed-privacy.conf'):
                 self.assertIn([path, path], readonly)
 
-    def test_tor_ram_actions_share_native_transport_without_proxy_or_host_home(self):
+    def test_tor_ram_actions_keep_transport_native_and_filter_all_host_bus_services(self):
         for mode in ('launch', 'intel', 'nvidia', 'pure-privacy'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
                 root = Path(directory)
@@ -2170,7 +2170,14 @@ class DesktopLaunchTests(unittest.TestCase):
                 stack.enter_context(mock.patch.object(sandbox, 'add_synthetic_sysfs_masks'))
                 gpu = stack.enter_context(mock.patch.object(sandbox, 'add_gpu_device_binds'))
                 dbus = stack.enter_context(mock.patch.object(sandbox, 'start_session_bus_proxy'))
-                stack.enter_context(mock.patch.object(sandbox, 'stop_dbus_proxy'))
+                stack.enter_context(mock.patch.dict(os.environ,
+                    {'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/fixture/session-bus'}, clear=True))
+                validate_bus = stack.enter_context(mock.patch.object(sandbox, 'validate_session_bus_address',
+                    return_value='unix:path=/fixture/session-bus'))
+                proxy, lifecycle = mock.Mock(), mock.Mock()
+                filtered = stack.enter_context(mock.patch.object(sandbox, 'start_filtered_dbus_proxy',
+                    return_value=(proxy, '/fixture/filtered-bus', lifecycle)))
+                stopped = stack.enter_context(mock.patch.object(sandbox, 'stop_dbus_proxy'))
                 stack.enter_context(mock.patch.object(sandbox, 'require_running_dbus_proxy'))
                 captured = {}
                 def launch(command, payload, temporary, inherited, **options):
@@ -2179,7 +2186,10 @@ class DesktopLaunchTests(unittest.TestCase):
                     self.assertIn(['--tmpfs', '/home/user'], [command[i:i+2] for i in range(len(command)-1)])
                     self.assertIn('--unshare-all', command)
                     self.assertNotIn(str(root/'host-home'), command)
-                    self.assertNotIn('DBUS_SESSION_BUS_ADDRESS', env)
+                    self.assertEqual(env['DBUS_SESSION_BUS_ADDRESS'], f'unix:path={root}/bus')
+                    self.assertIn(['--bind', '/fixture/filtered-bus', str(root/'bus')],
+                                  [command[i:i+3] for i in range(len(command)-2)])
+                    self.assertNotIn('/fixture/session-bus', command)
                     return 37
                 stack.enter_context(mock.patch.object(supervisor, 'run_veth_sandbox', autospec=True, side_effect=launch))
                 result = (sandbox.run_pure_privacy('tor-browser', []) if mode == 'pure-privacy'
@@ -2190,6 +2200,11 @@ class DesktopLaunchTests(unittest.TestCase):
                 self.assertEqual(captured['payload'], ['/usr/local/libexec/tor-browser-run', '--anon']
                                  if mode == 'pure-privacy' else ['/usr/local/libexec/tor-browser-run'])
                 dbus.assert_not_called()
+                validate_bus.assert_called_once_with('unix:path=/fixture/session-bus')
+                self.assertEqual(filtered.call_count, 1)
+                self.assertEqual(filtered.call_args.args[1:],
+                                 ('session-bus', 'unix:path=/fixture/session-bus', ()))
+                stopped.assert_called_once_with(proxy, lifecycle, '/fixture/filtered-bus')
                 if mode == 'pure-privacy':
                     gpu.assert_not_called()
                 else:

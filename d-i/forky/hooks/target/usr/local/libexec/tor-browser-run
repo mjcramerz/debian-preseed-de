@@ -130,6 +130,12 @@ def main():
     wayland_socket = runtime / wayland
     if not stat.S_ISSOCK(wayland_socket.lstat().st_mode):
         raise ValueError("Tor Browser requires its private native Wayland socket")
+    bus_socket = runtime / "bus"
+    if os.environ.get("DBUS_SESSION_BUS_ADDRESS") != f"unix:path={bus_socket}":
+        raise ValueError("Tor Browser requires its filtered session bus")
+    bus_info = bus_socket.lstat()
+    if not stat.S_ISSOCK(bus_info.st_mode) or bus_info.st_uid != os.getuid():
+        raise ValueError("Tor Browser requires a user-owned filtered bus socket")
     with ExitStack() as resources:
         lock = os.open(state / "session.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
         resources.callback(os.close, lock)
@@ -241,6 +247,7 @@ def main():
                 "--uid", str(os.getuid()), "--gid", str(os.getgid()),
                 "--ro-bind", "/", "/", "--ro-bind", str(ram_bundle), str(BROWSER.parent),
                 "--bind", str(tor_data), str(tor_data),
+                "--tmpfs", str(runtime), "--chmod", "0700", str(runtime),
                 "--bind", str(tor_ipc), str(tor_ipc), "--proc", "/proc", "--dev", "/dev",
                 "--tmpfs", "/tmp", "--tmpfs", "/var/tmp",
                 "--chdir", str(BROWSER), "--", *tor_command,
@@ -260,6 +267,9 @@ def main():
                 time.sleep(0.05)
             environment.update({"TOR_SKIP_LAUNCH": "1", "TOR_SOCKS_IPC_PATH": str(socks),
                                 "TOR_CONTROL_IPC_PATH": str(control), "TOR_CONTROL_COOKIE_AUTH_FILE": str(cookie)})
+            # Only the browser receives this deny-by-default proxy. The Tor
+            # transport retains neither a session bus address nor its socket.
+            environment["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={bus_socket}"
             # Every source is inside the already constructed outer sandbox.
             # Unix sockets cross this boundary; IPv4/IPv6 connections cannot.
             browser_command = [
@@ -276,6 +286,7 @@ def main():
                 "--ro-bind", str(user_js), str(target_prefs),
             ]
             browser_command.extend(["--bind", str(wayland_socket), str(wayland_socket)])
+            browser_command.extend(["--bind", str(bus_socket), str(bus_socket)])
             for relative in ("pipewire-0", "pulse/native"):
                 source = runtime / relative
                 if source.exists():

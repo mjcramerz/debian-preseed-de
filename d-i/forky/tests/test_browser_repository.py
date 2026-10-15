@@ -39,7 +39,7 @@ def load(name, path):
 
 SSH = load('netscape_installer', SEED/'scripts/late/ssh/ssh-install.py')
 BUILD = load('netscape_build_checks', ROOT/'tools/check_build.py')
-BROWSER = load('netscape_browser', ROOT/'tools/build_browser_config.py')
+BROWSER = load('native_browser_policies', ROOT/'tools/check_browser_policies.py')
 
 
 class CodexModeTests(unittest.TestCase):
@@ -80,6 +80,10 @@ class BrowserPolicyTests(unittest.TestCase):
             self.assertFalse((target / leaf).exists())
             self.assertNotIn(f'{base}/{leaf}', staging)
             self.assertNotIn(f'{base}/{leaf}', verifier)
+            source = f'etc/vivaldi/search-engines/{leaf}.signed'
+            self.assertTrue((SEED / 'hooks/target' / source).read_bytes().startswith(b'// '))
+            self.assertIn(f'desktop_stage_role_asset {source} /{source} 0644', staging)
+            self.assertIn('/' + source, verifier)
         self.assertIn('.config/vivaldi', (SEED / 'scripts/desktop/components/user-config.sh').read_text())
 
     def test_profile_policy_rejects_missing_duplicate_injected_and_commit_pins(self):
@@ -111,26 +115,82 @@ class BrowserPolicyTests(unittest.TestCase):
                 BUILD.validate_browser_repository_profiles()
 
     def test_managed_storage_and_locked_extension_options_are_rejected(self):
-        original = json.loads((BROWSER.CONFIG/'policies.json').read_text())
-        with tempfile.TemporaryDirectory() as directory, mock.patch.object(BROWSER, 'CONFIG', Path(directory)):
-            path = Path(directory)/'policies.json'
-            for mutation in ('managed-storage', 'file-urls', 'force-install', 'wrong-id', 'duplicate-key'):
-                with self.subTest(mutation=mutation):
-                    data = json.loads(json.dumps(original))
-                    if mutation == 'managed-storage':
-                        data['extensions']['3rdparty'] = {'extensions': {BROWSER.BADGER: {'learnLocally': False}}}
-                    elif mutation == 'file-urls':
-                        data['extensions']['ExtensionSettings'][BROWSER.NOSCRIPT]['file_url_navigation_allowed'] = False
-                    elif mutation == 'force-install':
-                        data['extensions']['ExtensionSettings'][BROWSER.UBOL]['installation_mode'] = 'force_installed'
-                    elif mutation == 'wrong-id':
-                        data['extensions']['ExtensionSettings']['a'*32] = data['extensions']['ExtensionSettings'].pop(BROWSER.UBOL)
-                    value = json.dumps(data)
-                    if mutation == 'duplicate-key':
-                        value = value.replace('"security":', '"security": {}, "security":', 1)
-                    path.write_text(value)
+        for mutation in ('managed-storage', 'file-urls', 'force-install', 'wrong-id',
+                         'vivaldi-storage', 'vivaldi-force', 'vivaldi-reinstall', 'vivaldi-allowed',
+                         'vivaldi-blocked', 'vivaldi-update-url', 'vivaldi-pin', 'vivaldi-id', 'duplicate-key'):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+                target = Path(directory)
+                for family in BROWSER.FAMILIES:
+                    shutil.copytree(SEED/'hooks/target'/family/'policies', target/family/'policies')
+                family = 'etc/vivaldi' if mutation.startswith('vivaldi-') else 'etc/chromium'
+                path = target/family/'policies/managed/extensions.json'
+                data = json.loads(path.read_text())
+                settings = data['ExtensionSettings']
+                if mutation in {'managed-storage', 'vivaldi-storage'}:
+                    data['3rdparty'] = {'extensions': {BROWSER.BADGER: {'learnLocally': False}}}
+                elif mutation == 'file-urls':
+                    settings[BROWSER.NOSCRIPT]['file_url_navigation_allowed'] = False
+                elif mutation == 'force-install':
+                    settings[BROWSER.UBOL]['installation_mode'] = 'force_installed'
+                elif mutation == 'wrong-id':
+                    settings['a'*32] = settings.pop(BROWSER.UBOL)
+                elif mutation == 'vivaldi-force':
+                    settings[BROWSER.PROTON_VPN]['installation_mode'] = 'force_installed'
+                elif mutation in {'vivaldi-reinstall', 'vivaldi-allowed', 'vivaldi-blocked'}:
+                    settings[BROWSER.PROTON_VPN]['installation_mode'] = {
+                        'vivaldi-reinstall': 'normal_installed', 'vivaldi-allowed': 'allowed',
+                        'vivaldi-blocked': 'blocked'}[mutation]
+                elif mutation == 'vivaldi-update-url':
+                    settings[BROWSER.PROTON_VPN]['update_url'] = 'https://clients2.google.com/service/update2/crx'
+                elif mutation == 'vivaldi-pin':
+                    settings[BROWSER.PROTON_VPN]['toolbar_pin'] = 'default_pinned'
+                elif mutation == 'vivaldi-id':
+                    settings['a'*32] = settings.pop(BROWSER.PROTON_VPN)
+                value = json.dumps(data)
+                if mutation == 'duplicate-key':
+                    value = value.replace('"ExtensionSettings":',
+                                          '"ExtensionSettings": {}, "ExtensionSettings":', 1)
+                path.write_text(value)
+                with self.assertRaises(ValueError):
+                    BROWSER.check(target)
+
+    def test_native_policy_edits_are_authoritative_and_validation_never_rewrites_them(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory)
+            for family in BROWSER.FAMILIES:
+                shutil.copytree(SEED/'hooks/target'/family/'policies', target/family/'policies')
+            path = target/'etc/vivaldi/policies/managed/performance.json'
+            path.write_text('{"BackgroundModeEnabled": false}\n')
+            before = {p.relative_to(target): p.read_bytes() for p in target.rglob('*') if p.is_file()}
+            BROWSER.check(target)
+            self.assertEqual(before, {p.relative_to(target): p.read_bytes()
+                                      for p in target.rglob('*') if p.is_file()})
+            for invalid in ('duplicate-file', 'invalid-root', 'invalid-json',
+                            'invalid-utf8', 'symlink-file', 'oversized', 'missing-file'):
+                with self.subTest(invalid=invalid):
+                    if invalid == 'duplicate-file':
+                        extra = path.with_name('extra.json')
+                        extra.write_bytes(path.read_bytes())
+                    elif invalid == 'invalid-root':
+                        path.write_text('[]\n')
+                    elif invalid == 'invalid-json':
+                        path.write_text('{\n')
+                    elif invalid == 'invalid-utf8':
+                        path.write_bytes(b'\xff')
+                    elif invalid == 'symlink-file':
+                        path.unlink()
+                        path.symlink_to(path.with_name('security.json'))
+                    elif invalid == 'oversized':
+                        path.write_bytes(b' ' * (1024 * 1024 + 1))
+                    else:
+                        path.unlink()
                     with self.assertRaises(ValueError):
-                        BROWSER.generate()
+                        BROWSER.check(target)
+                    if invalid == 'duplicate-file':
+                        extra.unlink()
+                    if path.is_symlink():
+                        path.unlink()
+                    path.write_bytes(before[path.relative_to(target)])
 
     def test_all_ten_profiles_and_target_staging_are_wired(self):
         profiles = list((SEED/'hosts/profiles').glob('*.env'))
@@ -156,7 +216,7 @@ class BrowserPolicyTests(unittest.TestCase):
 
     def test_served_source_permission_contract(self):
         paths = [p for p in ROOT.iterdir() if p.is_file()]
-        for scope in ('browser-config', 'd-i', 'docs', 'tools'):
+        for scope in ('d-i', 'docs', 'tools'):
             paths.extend(p for p in (ROOT/scope).rglob('*')
                          if not {'__pycache__', '.build', '.git', '.pytest_cache'} & set(p.relative_to(ROOT).parts))
         for path in paths:
@@ -418,6 +478,89 @@ class NetscapePublicationTests(unittest.TestCase):
         workspace = self.home/'Workspace'
         self.assertEqual((workspace/'netscape/user.json').read_text(), 'preserve')
         self.assertFalse(list(workspace.glob('.netscape-clone.*')))
+
+class VivaldiSearchCacheTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix='vivaldi-search-cache-')
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        program = self.root / 'proxy_session.py'
+        program.write_bytes((SEED / 'hooks/target/usr/local/libexec/labwc-proxy-session').read_bytes())
+        self.session = load('vivaldi_search_cache_session', program)
+        self.directory = self.root / '.config/vivaldi'
+        environment = mock.patch.dict(os.environ, {'HOME': str(self.root)}, clear=True)
+        environment.start()
+        self.addCleanup(environment.stop)
+        self.vendor_data = b'// signed vendor fixture\n{"int_variables": {"kVersion": 1}}\n'
+        reader = mock.patch.object(self.session, 'read_policy', return_value=self.vendor_data)
+        self.reader = reader.start()
+        self.addCleanup(reader.stop)
+
+    def test_missing_caches_are_private_exact_copies_and_vendor_updates_are_preserved(self):
+        self.session.seed_vivaldi_search_caches()
+        self.assertEqual(stat.S_IMODE(self.directory.stat().st_mode), 0o700)
+        for leaf in ('search_engines.json', 'search_engines_prompt.json'):
+            path = self.directory / leaf
+            self.assertEqual(path.read_bytes(), self.vendor_data)
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+            self.assertEqual(path.stat().st_nlink, 1)
+        self.assertEqual(self.reader.call_args_list, [
+            mock.call('/etc/vivaldi/search-engines/search_engines.json.signed', 1024 * 1024),
+            mock.call('/etc/vivaldi/search-engines/search_engines_prompt.json.signed', 1024 * 1024),
+        ])
+        updated = self.directory / 'search_engines.json'
+        updated.write_bytes(b'vendor-updated cache')
+        self.reader.reset_mock()
+        self.session.seed_vivaldi_search_caches()
+        self.assertEqual(updated.read_bytes(), b'vendor-updated cache')
+        self.reader.assert_not_called()
+        self.assertEqual(sorted(path.name for path in self.directory.iterdir()),
+                         ['search_engines.json', 'search_engines_prompt.json'])
+
+    def test_symlink_parent_is_rejected_before_writing_outside_the_profile(self):
+        outside = self.root / 'outside'
+        outside.mkdir()
+        (self.root / '.config').symlink_to(outside, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, 'symlink parents'):
+            self.session.seed_vivaldi_search_caches()
+        self.assertEqual(list(outside.iterdir()), [])
+        self.reader.assert_not_called()
+
+    def test_unsafe_existing_cache_is_preserved_and_rejected(self):
+        self.directory.mkdir(mode=0o700, parents=True)
+        outside = self.root / 'outside'
+        outside.write_bytes(b'untouched')
+        path = self.directory / 'search_engines.json'
+        for kind in ('symlink', 'hardlink', 'directory'):
+            with self.subTest(kind=kind):
+                if kind == 'symlink':
+                    path.symlink_to(outside)
+                elif kind == 'hardlink':
+                    os.link(outside, path)
+                else:
+                    path.mkdir()
+                with self.assertRaisesRegex(ValueError, 'unsafe Vivaldi search cache'):
+                    self.session.seed_vivaldi_search_caches()
+                self.assertEqual(outside.read_bytes(), b'untouched')
+                path.rmdir() if kind == 'directory' else path.unlink()
+        self.reader.assert_not_called()
+
+    def test_concurrent_cache_creation_is_preserved_and_temporary_copy_is_removed(self):
+        def create_concurrently(source, target, **options):
+            Path(target).write_bytes(b'concurrent vendor cache')
+            raise FileExistsError(target)
+        with mock.patch.object(self.session.os, 'link', side_effect=create_concurrently):
+            self.session.seed_vivaldi_search_caches()
+        for path in self.directory.iterdir():
+            self.assertFalse(path.name.startswith('.search-engines-'))
+            self.assertEqual(path.read_bytes(), b'concurrent vendor cache')
+
+    def test_failed_publication_leaves_no_partial_cache(self):
+        with mock.patch.object(self.session.os, 'link', side_effect=OSError('fixture publication failure')):
+            with self.assertRaisesRegex(OSError, 'fixture publication failure'):
+                self.session.seed_vivaldi_search_caches()
+        self.assertEqual(list(self.directory.iterdir()), [])
+
 
 class DescriptorPublicationTests(NetscapePublicationTests):
     """Real copies/renames with simulated ownership; native ownership stays separate."""

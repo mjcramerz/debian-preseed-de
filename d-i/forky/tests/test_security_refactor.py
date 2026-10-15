@@ -123,54 +123,65 @@ class ExternalVendorTransportTests(TransportFixture):
 class BrowserConfigurationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.builder = module('browser_build_security_test', ROOT/'tools/build_browser_config.py')
-        cls.products = cls.builder.generate()
+        cls.checker = module('browser_policy_security_test', ROOT/'tools/check_browser_policies.py')
+        paths = [path for family in cls.checker.FAMILIES
+                 for path in (TARGET/family/'policies').glob('*/*.json')]
+        paths.extend(TARGET/'etc/skel-desktop/.config'/profile/'Default/Preferences'
+                     for profile in ('chromium', 'microsoft-edge', 'vivaldi'))
+        cls.documents = {path: payload_read_bytes(path) for path in paths}
 
-    def test_generated_files_are_reproducible_and_current(self):
-        self.assertEqual(self.products, self.builder.generate())
-        self.assertEqual(len(self.products), 23)
-        for path, data in self.products.items():
-            self.assertEqual(payload_read_bytes(path), data, str(path))
+    def test_native_files_are_valid_and_staged_directly(self):
+        self.checker.check()
+        self.assertEqual(len(self.documents), 23)
+        staging = (SEED/'scripts/desktop/components/target-assets.sh').read_text()
+        for path in self.documents:
+            relative = path.relative_to(TARGET).as_posix()
+            mode = '0600' if path.name == 'Preferences' else '0644'
+            self.assertIn(f'desktop_stage_role_asset {relative} /{relative} {mode}', staging)
             self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o644)
 
     def test_exports_are_not_bundled_or_published_to_downloads(self):
         self.assertFalse(EXPORT.exists())
         self.assertFalse((TARGET/'usr/local/libexec/install-browser-imports').exists())
-        self.assertEqual({p.name for p in self.builder.CONFIG.iterdir()}, {'policies.json'})
-        for path in self.products:
+        for path in self.documents:
             self.assertNotIn('browser-imports', str(path))
         installer = (SEED/'scripts/desktop/components/user-config.sh').read_text()
         self.assertNotIn('install-browser-imports', installer)
         self.assertIn('desktop_install_browser_repository', installer)
 
-    def test_each_browser_installs_the_same_user_adjustable_extensions(self):
-        for family in self.builder.FAMILIES:
+    def test_shared_extensions_are_user_adjustable_and_vivaldi_proton_is_removed(self):
+        for family in self.checker.FAMILIES:
             with self.subTest(browser=family):
-                ext = json.loads(self.products[TARGET/family/'policies/managed/extensions.json'])
+                ext = json.loads(self.documents[TARGET/family/'policies/managed/extensions.json'])
                 self.assertEqual(set(ext), {'ExtensionSettings'})
-                self.assertEqual(set(ext['ExtensionSettings']),
-                                 {self.builder.UBOL, self.builder.NOSCRIPT, self.builder.BADGER})
-                for setting in ext['ExtensionSettings'].values():
-                    self.assertEqual(setting, {'installation_mode': 'normal_installed',
-                        'update_url': 'https://clients2.google.com/service/update2/crx',
-                        'toolbar_pin': 'default_pinned'})
+                expected_ids = {self.checker.UBOL, self.checker.NOSCRIPT, self.checker.BADGER}
+                if family == 'etc/vivaldi':
+                    expected_ids.add(self.checker.PROTON_VPN)
+                self.assertEqual(set(ext['ExtensionSettings']), expected_ids)
+                for extension_id, setting in ext['ExtensionSettings'].items():
+                    if extension_id == self.checker.PROTON_VPN:
+                        self.assertEqual(setting, {'installation_mode': 'removed'})
+                    else:
+                        self.assertEqual(setting, {'installation_mode': 'normal_installed',
+                            'update_url': 'https://clients2.google.com/service/update2/crx',
+                            'toolbar_pin': 'default_pinned'})
 
     def test_devtools_and_extension_settings_are_available(self):
-        for family in self.builder.FAMILIES:
-            security = json.loads(self.products[TARGET/family/'policies/managed/security.json'])
+        for family in self.checker.FAMILIES:
+            security = json.loads(self.documents[TARGET/family/'policies/managed/security.json'])
             self.assertEqual(security['DeveloperToolsAvailability'], 1)
             self.assertTrue(security['RemoteDebuggingAllowed'])
             self.assertEqual(security['ExtensionDeveloperModeSettings'], 0)
-        for data in self.products.values():
+        for data in self.documents.values():
             self.assertNotIn('3rdparty', json.loads(data))
 
     def test_security_and_telemetry_policies_remain_enforced(self):
-        for family in self.builder.FAMILIES:
-            security = json.loads(self.products[TARGET/family/'policies/managed/security.json'])
+        for family in self.checker.FAMILIES:
+            security = json.loads(self.documents[TARGET/family/'policies/managed/security.json'])
             self.assertFalse(security['SSLErrorOverrideAllowed'])
             self.assertEqual(security['DefaultInsecureContentSetting'], 2)
             self.assertEqual(security['DownloadRestrictions'], 1)
-            telemetry = json.loads(self.products[TARGET/family/'policies/managed/telemetry.json'])
+            telemetry = json.loads(self.documents[TARGET/family/'policies/managed/telemetry.json'])
             self.assertFalse(telemetry['SpellCheckServiceEnabled'])
             if family != 'etc/opt/edge':
                 self.assertTrue(security['DisableSafeBrowsingProceedAnyway'])
@@ -178,13 +189,13 @@ class BrowserConfigurationTests(unittest.TestCase):
                 self.assertFalse(telemetry['MetricsReportingEnabled'])
 
     def test_only_recommendable_policies_and_no_invented_dnt_policy(self):
-        for path, data in self.products.items():
+        for path, data in self.documents.items():
             if path.name == 'defaults.json':
-                self.assertLessEqual(json.loads(data).keys(), self.builder.RECOMMENDABLE)
+                self.assertLessEqual(json.loads(data).keys(), self.checker.RECOMMENDABLE)
             if '/policies/' in str(path):
                 self.assertNotIn('EnableDoNotTrack', json.loads(data))
         for profile in ('vivaldi', 'microsoft-edge', 'chromium'):
-            prefs = json.loads(self.products[TARGET/'etc/skel-desktop/.config'/profile/'Default/Preferences'])
+            prefs = json.loads(self.documents[TARGET/'etc/skel-desktop/.config'/profile/'Default/Preferences'])
             self.assertFalse(prefs['enable_do_not_track'])
 
 

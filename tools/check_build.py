@@ -310,7 +310,7 @@ def main() -> int:
         runpy.run_path(str(ROOT / 'tools/check_network_sharing.py'))['check'](SEED)
         validate_dns_policy()
         subprocess.run([resolve_python_interpreter(), '-I', '-B',
-                        str(ROOT / 'tools/build_browser_config.py'), '--check'], check=True)
+                        str(ROOT / 'tools/check_browser_policies.py')], check=True)
         verify_lifecycle_helpers()
         validate(payload_files())
         products = build()

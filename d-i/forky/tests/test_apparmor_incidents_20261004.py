@@ -208,6 +208,55 @@ class ChatGPTFileHandoffTests(unittest.TestCase):
 
 class SuppliedDenialTests(unittest.TestCase):
     @unittest.skipUnless(importlib.util.find_spec('apparmor'), 'native AppArmor rule reader unavailable')
+    def test_tor_transport_route_netlink_request_has_no_other_raw_network_grant(self):
+        from apparmor.rule.network import NetworkRule
+        transport = body('desktop-wrappers', 'transport')
+        allows = [NetworkRule.create_instance(line.strip()) for line in transport.splitlines()
+                  if line.strip().startswith('network ')]
+        request = NetworkRule.create_instance('network netlink raw,')
+        self.assertTrue(any(rule.is_covered(request) for rule in allows))
+        for operation in ('network inet raw,', 'network inet6 raw,',
+                          'network inet dgram,', 'network inet6 dgram,', 'network packet raw,'):
+            with self.subTest(rejected=operation):
+                self.assertFalse(any(rule.is_covered(NetworkRule.create_instance(operation)) for rule in allows))
+
+    def test_tor_exec_stacks_retain_the_no_new_privs_profile_without_fallback(self):
+        # The October 15 audit reaches the correct child but rejects replacing
+        # the no_new_privs profile. Each exec must retain it in the target stack.
+        parent = body('desktop-wrappers', 'labwc-app')
+        wrapper = body('desktop-wrappers', 'tor-bwrap')
+        self.assertIn('change_profile -> labwc-app//tor-bwrap,', parent)
+        transitions = re.findall(r'(?m)^    (/opt/tor-browser/\S+)\s+(\S+)\s+->\s+"([^"]+)",$', wrapper)
+        self.assertEqual(transitions, [
+            ('/opt/tor-browser/Browser/TorBrowser/Tor/tor', 'rpx',
+             'labwc-app//tor-bwrap//&labwc-app//tor-bwrap//transport'),
+            ('/opt/tor-browser/Browser/firefox', 'rPx',
+             'labwc-app//tor-bwrap//&labwc-app//tor-bwrap//browser'),
+        ])
+        for _executable, _mode, target in transitions:
+            self.assertIn('labwc-app//tor-bwrap', target.split('//&'))
+        self.assertIn('/opt/tor-browser/Browser/{firefox.real,abicheck,glxtest,vaapitest} rix,', wrapper)
+        # Verify the targets exist in this parent, with reciprocal lifecycle
+        # grants and separate transport/browser network permissions.
+        for leaf in ('transport', 'browser'):
+            child = body('desktop-wrappers', leaf)
+            self.assertIn(f'profile {leaf} ', wrapper)
+            self.assertIn(f'signal (send, receive) peer=labwc-app//tor-bwrap//{leaf},', wrapper)
+            self.assertIn('signal (send, receive) peer=labwc-app//tor-bwrap,', child)
+            self.assertIn(f'signal (send, receive) peer="labwc-app//tor-bwrap//&labwc-app//tor-bwrap//{leaf}",', child)
+        self.assertIn('signal (send, receive) peer="labwc-app//tor-bwrap//&labwc-app//tor-bwrap//{browser,transport}",', wrapper)
+        self.assertIn('ptrace (read, trace, readby, tracedby) peer="labwc-app//tor-bwrap//&labwc-app//tor-bwrap//browser",', wrapper)
+        self.assertIn('ptrace (read, readby) peer="labwc-app//tor-bwrap//&labwc-app//tor-bwrap//transport",', wrapper)
+        transport = body('desktop-wrappers', 'transport')
+        browser = body('desktop-wrappers', 'browser')
+        self.assertIn('ptrace (read, readby) peer="labwc-app//tor-bwrap//&labwc-app//tor-bwrap//transport",', transport)
+        self.assertIn('ptrace (read, trace, readby, tracedby) peer="labwc-app//tor-bwrap//&labwc-app//tor-bwrap//browser",', browser)
+        for family in ('inet', 'inet6'):
+            self.assertIn(f'network {family} stream,', transport)
+            self.assertIn(f'deny network {family} dgram,', transport)
+            self.assertIn(f'deny network {family},', browser)
+
+    @unittest.skipUnless(importlib.util.find_spec('apparmor'), 'native AppArmor rule reader unavailable')
     def test_waybar_nmtui_networkmanager_dbus_requests_and_peer_boundaries(self):
         from apparmor.rule.dbus import DbusRule
         launcher = body('desktop-utilities', 'desktop-launcher')
@@ -710,6 +759,37 @@ class SuppliedDenialTests(unittest.TestCase):
                     if expression.fullmatch(filename):
                         result.update(owner if owned else other)
                 return result
+            # October 14: subprocess closes inherited descriptors using this
+            # directory. It needs no other user's descriptor or content access.
+            self.assertEqual(permissions('labwc-app', '/proc/13926/fd/'), {'r'})
+            self.assertFalse(permissions('labwc-app', '/proc/13926/fd/', owned=False))
+            # October 15: Tor's files are root-owned. Check both components
+            # of each stack; owner-only or single-profile fixes are insufficient.
+            tor_wrapper = 'labwc-app//tor-bwrap'
+            for label in (tor_wrapper, tor_wrapper + '//transport'):
+                with self.subTest(tor_uuid_profile=label):
+                    self.assertEqual(permissions(label, '/proc/sys/kernel/random/uuid', owned=False), {'r'})
+            for label in (tor_wrapper, tor_wrapper + '//browser'):
+                self.assertTrue(set('rw') <= permissions(label, '/run/user/1000/bus'))
+                self.assertNotIn('x', permissions(label, '/run/user/1000/bus'))
+                for path in ('/usr/share/glycin-loaders/2+/conf.d/',
+                             '/usr/share/glycin-loaders/2+/conf.d/glycin-image-rs.conf',
+                             '/usr/share/glycin-loaders/2+/conf.d/glycin-svg.conf'):
+                    with self.subTest(tor_image_config_profile=label, path=path):
+                        self.assertEqual(permissions(label, path, owned=False), {'r'})
+                for path in ('/usr/bin/bwrap', '/usr/bin/true',
+                             '/usr/libexec/glycin-loaders/2+/glycin-image-rs',
+                             '/usr/libexec/glycin-loaders/2+/glycin-svg'):
+                    with self.subTest(tor_image_helper_profile=label, path=path):
+                        self.assertTrue(set('rx') <= permissions(label, path, owned=False))
+                        self.assertNotIn('w', permissions(label, path, owned=False))
+                self.assertNotIn('x', permissions(label, '/usr/libexec/glycin-loaders/2+/untrusted-loader', owned=False))
+            icon = '/opt/tor-browser/Browser/browser/chrome/icons/default/default128.png'
+            for label in ('labwc-compositor', 'crystal-dock'):
+                with self.subTest(tor_icon_profile=label):
+                    self.assertEqual(permissions(label, icon, owned=False), {'r'})
+                    self.assertFalse(permissions(label, icon + '.exe', owned=False))
+                    self.assertFalse(permissions(label, '/opt/tor-browser/Browser/TorBrowser/Tor/tor', owned=False))
             for event in OCTOBER_9['events']:
                 if event['class'] != 'file':
                     continue

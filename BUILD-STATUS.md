@@ -483,9 +483,12 @@ regular data files are `0600`, and executable repository files are `0700`.
 Symlinks, hard-linked files and special files are rejected. Target verification
 checks the checkout ownership, modes, entry types and branch.
 
-Browser policies are generated from `browser-config/policies.json` and staged
-for Vivaldi, Chromium, Chrome and Edge. NoScript, Privacy Badger and uBlock Origin
-Lite use `normal_installed` and default toolbar pinning. Managed extension storage
+Browser policies are authoritative native JSON files under each browser's
+`hooks/target/etc/.../policies/` directory and are staged directly for Vivaldi,
+Chromium, Chrome and Edge. No separate browser configuration or generator is
+used; isolated checks read the native files without rewriting them. Vivaldi's
+Proton VPN entry remains `installation_mode: removed`. NoScript, Privacy Badger
+and uBlock Origin Lite use `normal_installed` and default toolbar pinning. Managed extension storage
 and the locked file-URL option are absent; users control extension settings and
 manually import exports from the netscape checkout. Full uBlock Origin is Manifest
 V2 and cannot be deployed to current Chrome through the Chrome Web Store. Edge's

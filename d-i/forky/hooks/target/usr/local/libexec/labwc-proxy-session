@@ -48,6 +48,43 @@ def copy_privacy_config():
         handle.write(payload)
 
 
+def seed_vivaldi_search_caches():
+    # Preserve the vendor signatures and any cache Vivaldi has already updated.
+    # This runs inside either sandbox, so disposable profiles stay disposable.
+    directory = Path(os.environ["HOME"]) / ".config/vivaldi"
+    if not directory.is_absolute() or directory.resolve() != directory:
+        raise ValueError("Vivaldi cache directory must have no symlink parents")
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    info = directory.lstat()
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid()
+            or info.st_mode & 0o077):
+        raise ValueError("Vivaldi cache directory must be private and user-owned")
+    for leaf in ("search_engines.json", "search_engines_prompt.json"):
+        target = directory / leaf
+        try:
+            info = target.lstat()
+        except FileNotFoundError:
+            data = read_policy(f"/etc/vivaldi/search-engines/{leaf}.signed", 1024 * 1024)
+            descriptor, temporary = tempfile.mkstemp(prefix=".search-engines-", dir=directory)
+            try:
+                with os.fdopen(descriptor, "wb") as handle:
+                    handle.write(data)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                try:
+                    # Atomic publication without replacing a concurrent vendor
+                    # update or another launcher's completed initialization.
+                    os.link(temporary, target, follow_symlinks=False)
+                except FileExistsError:
+                    pass
+            finally:
+                os.unlink(temporary)
+            info = target.lstat()
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                or info.st_nlink != 1 or info.st_mode & 0o022):
+            raise ValueError("unsafe Vivaldi search cache")
+
+
 def stop(process, signum):
     if process is None or process.poll() is not None:
         return
@@ -221,6 +258,8 @@ def main():
         if app != "qbittorrent":
             raise ValueError("privacy configuration copy is specific to qBittorrent")
         copy_privacy_config()
+    if app == "vivaldi":
+        seed_vivaldi_search_caches()
     settings = json.loads(read_policy("/etc/labwc/3proxy/session.json"))
     if type(settings) is not dict or set(settings) != {"web_browser_port", "qbittorrent_port"} or any(
             type(port) is not int or not 1024 <= port <= 65535 for port in settings.values()):

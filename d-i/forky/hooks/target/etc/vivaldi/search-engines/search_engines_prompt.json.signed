@@ -1,0 +1,35 @@
+// MIGIAkIBHNFK05Oczz2JGMnZq4KmwwcL6fz/xQuzZWKN+lasX7INo/qEL3sJCFItOgq2L6EviNTTWLrJBnsKf66Dh2NocFkCQgFDWGv3ieiVjqbufizOV5CTpNHO3yGzdCOmeX6KqMJyAe54ZtcGv2yzL+mjAbsdqSEUCaDRjr/nuXcLm8cbH8dAJQ==
+// Copyright 2025 Vivaldi Technologies AS. All rights reserved.
+{
+  "int_variables": {
+    // The lowest version of search_engines.json,
+    // which defines the expected default search engines for the dialog.
+    "kSearchEnginesDataVersionRequired": 10000174,
+    // Update the version each time the data is changed.
+    "kVersion": 6,
+    // Type of the UI dialog to show.
+    "kType": "DONATE_AND_MULTICHOICE_PROMPT"
+  },
+  // Add only types that exist in
+  // chromium/components/search_engines/search_engine_type.h
+  "prompt_if_type": [
+    "SEARCH_ENGINE_GOOGLE",
+    "SEARCH_ENGINE_BING"
+  ],
+  // Fallback domain, if the type cannot be identified.
+  // Domain will match on all subdomains, e.g. google.com == www.google.com
+  "prompt_if_domain": [
+    "google.com",
+    "bing.com"
+  ],
+  // Exclude list to NOT show command prompt if default search engine is type or domain
+  "exclude_list": {
+    "domain": [
+      "yandex.ru",
+      "yandex.com.tr"
+    ],
+    "type": [
+      "SEARCH_ENGINE_YANDEX"
+    ]
+  }
+}

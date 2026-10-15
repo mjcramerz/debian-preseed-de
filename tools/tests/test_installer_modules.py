@@ -80,7 +80,7 @@ class RepositoryFileModes(unittest.TestCase):
 
     def test_all_repository_source_files_are_nonexecutable(self):
         paths = [path for path in ROOT.iterdir() if path.is_file()]
-        for name in ('browser-config', 'd-i', 'docs', 'tools'):
+        for name in ('d-i', 'docs', 'tools'):
             paths.extend(path for path in (ROOT / name).rglob('*') if path.is_file())
         self.assertTrue(paths)
         self.assertEqual([str(path.relative_to(ROOT)) for path in paths
@@ -192,7 +192,7 @@ class ModuleContracts(unittest.TestCase):
 
     def test_build_and_check_preserve_every_edited_environment_file(self):
         # A full repository copy: edits exist in the actual served files only.
-        for name in ('tools', 'browser-config', 'd-i'):
+        for name in ('tools', 'd-i'):
             shutil.copytree(ROOT / name, self.root / name, dirs_exist_ok=True,
                             ignore=shutil.ignore_patterns('tests', '__pycache__'))
         files = list(self.seed.rglob('*.env'))

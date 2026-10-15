@@ -70,7 +70,7 @@ def main() -> int:
     output.mkdir(parents=True,exist_ok=True)
     interpreter = resolve_python_interpreter()
     stages = [
-        ('browser-check', [interpreter,'-B','tools/build_browser_config.py','--check'],30),
+        ('browser-check', [interpreter,'-B','tools/check_browser_policies.py'],30),
         ('build-check', [interpreter,'-B','tools/check_build.py'],90),
         ('preseed-check', [interpreter,'-B','tools/check_preseeds.py'],90),
         ('shell-check', [interpreter,'-B','tools/check_shells.py','--output',str(output/'shell-check.json')],120),

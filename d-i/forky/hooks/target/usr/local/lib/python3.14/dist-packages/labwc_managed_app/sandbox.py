@@ -481,6 +481,13 @@ def proxy_session_argv(command: list[str], argv: list[str], app: str, *, online:
         path = BROWSER_PROXY_POLICIES[app]
         require_root_owned_regular_file("managed browser proxy policy", path)
         command.extend(["--ro-bind", path, path])
+    if app == "vivaldi":
+        # Both sandbox modes bind /etc/vivaldi read-only. Validate these
+        # public vendor seeds before their UID becomes unmapped in the worker.
+        for leaf in ("search_engines.json", "search_engines_prompt.json"):
+            require_root_owned_regular_file(
+                "Vivaldi signed search data", f"/etc/vivaldi/search-engines/{leaf}.signed",
+            )
     session = require_root_owned_regular_file(
         "managed CONNECT proxy supervisor", "/usr/local/libexec/labwc-proxy-session",
         executable=True,
@@ -582,10 +589,21 @@ def _run_pure_privacy(app_name: str, extra_args: list[str], resources: ExitStack
             "netgroup: files\n"
         )
 
-    proxy_process, proxy_socket, proxy_lifecycle = start_session_bus_proxy(
-        temp_root,
-        APPS[app_name].get("privacy_dbus_names", ()),
-    ) if APPS[app_name].get("privacy_dbus", True) else (None, None, None)
+    if app_name == "tor-browser":
+        # Firefox initializes its accessibility proxy even on native Wayland.
+        # An empty filter hides every host service and prevents GLib's X11
+        # bus-autolaunch fallback without exposing portals or the a11y bus.
+        bus_address = validate_session_bus_address(
+            os.environ.get("DBUS_SESSION_BUS_ADDRESS", "")
+        )
+        proxy_process, proxy_socket, proxy_lifecycle = start_filtered_dbus_proxy(
+            temp_root, "session-bus", bus_address, (),
+        )
+    else:
+        proxy_process, proxy_socket, proxy_lifecycle = start_session_bus_proxy(
+            temp_root,
+            APPS[app_name].get("privacy_dbus_names", ()),
+        ) if APPS[app_name].get("privacy_dbus", True) else (None, None, None)
     resources.callback(stop_dbus_proxy, proxy_process, proxy_lifecycle, proxy_socket)
 
     command = [

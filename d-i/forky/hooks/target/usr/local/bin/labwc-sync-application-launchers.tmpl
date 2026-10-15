@@ -98,6 +98,14 @@ APP_CONFIG = (
         "field_code": "%F",
     },
     {
+        # The system entry is accelerator-neutral. Add only the GPU actions
+        # enabled by the installed class/hardware policy; retain its ANOM action.
+        "desktop_names": ("tor-browser.desktop",),
+        "action_app": "tor-browser",
+        "field_code": "%u",
+        "actions": ("IntelAccelerated", "NvidiaAccelerated"),
+    },
+    {
         "desktop_names": (
             "bitwarden.desktop",
             "com.bitwarden.Bitwarden.desktop",

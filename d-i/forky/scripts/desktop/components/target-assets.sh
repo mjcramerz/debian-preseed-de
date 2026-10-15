@@ -475,6 +475,8 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset etc/vivaldi/policies/managed/security.json /etc/vivaldi/policies/managed/security.json 0644
   desktop_stage_role_asset etc/vivaldi/policies/managed/performance.json /etc/vivaldi/policies/managed/performance.json 0644
   desktop_stage_role_asset etc/vivaldi/policies/recommended/defaults.json /etc/vivaldi/policies/recommended/defaults.json 0644
+  desktop_stage_role_asset etc/vivaldi/search-engines/search_engines.json.signed /etc/vivaldi/search-engines/search_engines.json.signed 0644
+  desktop_stage_role_asset etc/vivaldi/search-engines/search_engines_prompt.json.signed /etc/vivaldi/search-engines/search_engines_prompt.json.signed 0644
   desktop_stage_role_asset etc/opt/chrome/policies/managed/security.json /etc/opt/chrome/policies/managed/security.json 0644
   desktop_stage_role_asset etc/opt/chrome/policies/managed/extensions.json /etc/opt/chrome/policies/managed/extensions.json 0644
   desktop_stage_role_asset etc/opt/chrome/policies/managed/telemetry.json /etc/opt/chrome/policies/managed/telemetry.json 0644
@@ -673,8 +675,8 @@ test -x /usr/bin/update-mime-database
   desktop_stage_role_asset etc/skel-desktop/.config/microsoft-edge/Default/Preferences /etc/skel-desktop/.config/microsoft-edge/Default/Preferences 0600
   desktop_stage_role_asset etc/skel-desktop/.config/obsidian/obsidian.json /etc/skel-desktop/.config/obsidian/obsidian.json 0600
   desktop_stage_role_asset etc/skel-desktop/.config/vivaldi/Default/Preferences /etc/skel-desktop/.config/vivaldi/Default/Preferences 0600
-  # Vivaldi owns its signed search-engine caches; do not seed unsigned JSON
-  # copies that the browser rejects.
+  # The sandbox session seeds missing Vivaldi caches from signed vendor data;
+  # subsequent cache updates remain owned by the browser.
   desktop_stage_syncthing_ignore
   install -d -m 0700 /target/etc/skel-desktop/.config/keepassxc
   desktop_stage_role_asset etc/skel-desktop/.config/keepassxc/keepassxc.ini /etc/skel-desktop/.config/keepassxc/keepassxc.ini 0600

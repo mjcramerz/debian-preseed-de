@@ -71,6 +71,36 @@ class LauncherSynchronizationTests(unittest.TestCase):
         self.desktop = Path(self.temporary.name) / 'code.desktop'
         self.desktop.write_text('[Desktop Entry]\nName=Code\nType=Application\n')
 
+    def test_tor_actions_follow_target_gpu_availability_and_keep_anom(self):
+        config = next(item for item in self.launcher.APP_CONFIG if item['action_app'] == 'tor-browser')
+        source = payload_read_text(SHARED / 'usr/local/share/applications/tor-browser.desktop')
+        self.assertNotIn('nvidia', source.lower())
+        for intel, nvidia in ((False, False), (True, False), (False, True), (True, True)):
+            with self.subTest(intel=intel, nvidia=nvidia):
+                parser = self.launcher.configparser.ConfigParser(interpolation=None)
+                parser.optionxform = str
+                parser.read_string(source)
+                self.launcher.add_actions(parser, 'tor-browser', config['field_code'],
+                    self.launcher.available_actions(config['actions'], {'intel': intel, 'nvidia': nvidia}))
+                expected = ['ANOM']
+                if intel:
+                    expected.append('IntelAccelerated')
+                if nvidia:
+                    expected.append('NvidiaAccelerated')
+                self.assertEqual(parser['Desktop Entry']['Actions'], ';'.join(expected) + ';')
+                self.assertEqual(parser.has_section('Desktop Action NvidiaAccelerated'), nvidia)
+                self.assertEqual(parser.has_section('Desktop Action IntelAccelerated'), intel)
+                self.assertEqual(parser['Desktop Action ANOM']['Exec'],
+                                 '/usr/local/bin/labwc-app pure-privacy tor-browser')
+                action_name = parser['Desktop Action ANOM']['Name']
+                self.assertEqual(action_name, 'ANOM (temporary state, Safest security)')
+                menu_name = parser['Desktop Entry']['Name'] + ' — ' + action_name
+                self.assertEqual(menu_name.count('Tor Browser'), 1)
+                for action, mode in (('IntelAccelerated', 'intel'), ('NvidiaAccelerated', 'nvidia')):
+                    if action in expected:
+                        self.assertEqual(parser[f'Desktop Action {action}']['Exec'],
+                                         f'/usr/local/bin/labwc-app {mode} tor-browser %u')
+
     def read_with_metadata(self, *, mode: int, uid: int, gid: int,
                            allow_root_group_write: bool) -> str:
         metadata = types.SimpleNamespace(
