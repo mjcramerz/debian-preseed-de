@@ -27,8 +27,8 @@ Environment=XDG_DATA_HOME=%h/.local/share XDG_STATE_HOME=%h/.local/state
 # Keep its safe allowlist default even when the override file is absent.
 Environment=CODEX_APP_SERVER_SECRET_ENV_NAMES=CODEX_MCP_API_KEY
 EnvironmentFile=-/etc/codex/app-server.env
-# CODEX_HOME/auth.json is application-managed and absent until user login.
-# Never synthesize, load as a credential, or read-only-overmount that file.
+# CODEX_HOME/auth.json is created by codex login before backend use.
+# The wrapper mounts it read-only; never synthesize or load it as a credential.
 LoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env
 EnvironmentFile=-%d/codex-mcp.env
 WorkingDirectory=%h/Workspace

@@ -24,6 +24,7 @@ mounts.py
 network_namespace.py
 network_client.py
 profiles.py
+project_identity.py
 recovery.py
 runtime.py
 sandbox.py

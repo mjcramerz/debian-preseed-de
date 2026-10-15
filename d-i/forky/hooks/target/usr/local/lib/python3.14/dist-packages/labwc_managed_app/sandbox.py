@@ -24,7 +24,7 @@ from . import network_namespace
 from . import compat_gpu
 from .compat_protocol import CONTROL_DIRECTORY, ProtocolError, RequiredComponentError
 from .bubblewrap import PRIVATE_PROCFS_ARGUMENTS, validate_private_procfs
-from .browsers import EDGE_ON_DEVICE_MODEL_DISABLE_FEATURE
+from .browsers import EDGE_ON_DEVICE_MODEL_DISABLE_FEATURE, vivaldi_media_directory
 from .commands import build_argv, normalize_managed_arguments, resolved_executable, validate_managed_arguments
 from .environment import (
     build_environment,
@@ -140,11 +140,13 @@ def start_system_bus_proxy(
     additional_talk_names: tuple[str, ...] = (),
     *,
     required: bool = False,
+    policy_arguments: tuple[str, ...] = (),
 ) -> tuple[subprocess.Popen | None, str | None, socket.socket | None]:
     return dbus_proxy.start_system_bus_proxy(
         temp_root,
         additional_talk_names,
         required=required,
+        policy_arguments=policy_arguments,
         runtime=_dbus_proxy_runtime(),
     )
 
@@ -428,9 +430,9 @@ def pure_privacy_argv(app_name: str, extra_args: list[str]) -> list[str]:
                 disable_features=(
                     "InterestGroupStorage",
                     "TopicsAPI",
-                    "VaapiVideoDecoder",
-                    "VaapiVideoEncoder",
-                    "UseChromeOSDirectVideoDecoder",
+                    "AcceleratedVideoDecoder",
+                    "AcceleratedVideoDecodeLinuxGL",
+                    "AcceleratedVideoEncoder",
                     *(
                         (EDGE_ON_DEVICE_MODEL_DISABLE_FEATURE,)
                         if app_name == "microsoft-edge"
@@ -482,6 +484,15 @@ def proxy_session_argv(command: list[str], argv: list[str], app: str, *, online:
         require_root_owned_regular_file("managed browser proxy policy", path)
         command.extend(["--ro-bind", path, path])
     if app == "vivaldi":
+        try:
+            media_directory = vivaldi_media_directory()
+        except (OSError, ValueError) as exc:
+            fail(f"Vivaldi media support is unavailable: {exc}")
+        # The vendor launcher preloads its version-matched H.264/AAC codec
+        # from /var/opt, outside the shared /usr and /opt mounts. This path is
+        # required in both persistent and disposable browser namespaces.
+        add_dir_chain(command, os.path.dirname(media_directory))
+        command.extend(["--ro-bind", media_directory, media_directory])
         # Both sandbox modes bind /etc/vivaldi read-only. Validate these
         # public vendor seeds before their UID becomes unmapped in the worker.
         for leaf in ("search_engines.json", "search_engines_prompt.json"):
@@ -606,6 +617,15 @@ def _run_pure_privacy(app_name: str, extra_args: list[str], resources: ExitStack
         ) if APPS[app_name].get("privacy_dbus", True) else (None, None, None)
     resources.callback(stop_dbus_proxy, proxy_process, proxy_lifecycle, proxy_socket)
 
+    system_proxy_process = system_proxy_socket = system_proxy_lifecycle = None
+    if app_name == "tor-browser" and accelerator_mode is not None:
+        # Normal Tor launches can read UPower telemetry through an allowlisted
+        # proxy. ANOM retains its existing absence of host power information.
+        system_proxy_process, system_proxy_socket, system_proxy_lifecycle = start_system_bus_proxy(
+            temp_root, required=True, policy_arguments=dbus_proxy.READ_ONLY_UPOWER_POLICY,
+        )
+        resources.callback(stop_dbus_proxy, system_proxy_process, system_proxy_lifecycle, system_proxy_socket)
+
     command = [
         *bwrap_command(app_name, bwrap),
         "--unshare-all",
@@ -707,6 +727,10 @@ def _run_pure_privacy(app_name: str, extra_args: list[str], resources: ExitStack
     else:
         env.pop("DBUS_SESSION_BUS_ADDRESS", None)
 
+    if system_proxy_socket is not None:
+        add_system_bus_proxy_bind(command, system_proxy_socket)
+        env["DBUS_SYSTEM_BUS_ADDRESS"] = SYSTEM_BUS_ADDRESS
+
     host_home_dir = current_user_home()
     for relative_path in APPS[app_name].get("privacy_home_ro_paths", ()):
         source_path = resolve_home_relative_file(host_home_dir, relative_path)
@@ -762,13 +786,17 @@ def _run_pure_privacy(app_name: str, extra_args: list[str], resources: ExitStack
         command.extend(["--setenv", key, value])
     validate_private_procfs(command)
 
-    require_running_dbus_proxy(proxy_process, proxy_socket)
+    def require_proxies() -> None:
+        require_running_dbus_proxy(proxy_process, proxy_socket)
+        require_running_dbus_proxy(system_proxy_process, system_proxy_socket)
+
+    require_proxies()
     return run_veth_sandbox(
         command,
         argv,
         temp_root,
         (),
-        pre_payload_check=lambda: require_running_dbus_proxy(proxy_process, proxy_socket),
+        pre_payload_check=require_proxies,
         # The dedicated persistent torrent wrapper owns peer-port
         # forwarding. A disposable profile needs outbound networking.
         app=network_app, network=online,
@@ -1134,12 +1162,14 @@ def create_synthetic_identity_files(
     *,
     resolv_conf: str | None = None,
     shell_path: str = "/bin/sh",
+    project_directory: str | None = None,
 ) -> dict[str, str]:
     return identity.create_synthetic_identity_files(
         temp_root,
         home_dir,
         resolv_conf=resolv_conf,
         shell_path=shell_path,
+        project_directory=project_directory,
         runtime=_identity_runtime(),
     )
 
@@ -1460,6 +1490,7 @@ def _run_persistent_sandbox_with_resources(
                 else None
             ),
             shell_path=env["SHELL"],
+            project_directory=sandbox_chdir,
         )
         if sandbox.get("synthetic_identity", False)
         else None
@@ -1809,8 +1840,11 @@ def _run_persistent_sandbox_with_resources(
             if stale_cleanup_allowed:
                 remove_stale_chatgpt_singletons(home_dir)
                 fcntl.flock(lifecycle_lock_fd, fcntl.LOCK_SH)
-            # CODEX_HOME owns its persistent installation_id just as auth.json.
-            # Do not shadow it with a different identity for the GUI process.
+            # Apply after persistent directory mounts so every GUI launch sees
+            # its disposable project UUID copy. Native fallback stays writable.
+            add_synthetic_codex_installation_id_mount(
+                command, synthetic_identity["installation_id"]
+            )
         for key, value in env.items():
             command.extend(["--setenv", key, value])
         validate_private_procfs(command)

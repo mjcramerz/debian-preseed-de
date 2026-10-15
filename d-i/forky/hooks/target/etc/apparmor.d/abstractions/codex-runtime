@@ -10,6 +10,11 @@
 
 userns,
 
+# Selected project installation UUID only. Bubblewrap consumes this anonymous file
+# before starting the payload and exposes a disposable writable copy. Native
+# Codex opens installation_id read/write even when its UUID is already valid.
+/memfd:codex-installation-id rw,
+
 # Chromium-derived sandbox children request these only after entering an
 # unprivileged user namespace. AppArmor permission does not grant capabilities
 # that the process does not hold in its current namespace.

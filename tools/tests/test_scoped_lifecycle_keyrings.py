@@ -518,7 +518,9 @@ class WiringTests(unittest.TestCase):
         text = payload_read_text(TARGET / 'etc/apparmor.d/desktop-wrappers')
         for profile in ('labwc-chatgpt', 'labwc-app'):
             block = text.split('profile ' + profile + ' ', 1)[1].split('\nprofile ', 1)[0]
-            self.assertIn('network_namespace,profiles,recovery,runtime', block)
+            modules = ('network_namespace,profiles,project_identity,recovery,runtime'
+                       if profile == 'labwc-chatgpt' else 'network_namespace,profiles,recovery,runtime')
+            self.assertIn(modules, block)
         for profile in ('labwc-adb-action', 'labwc-output-watch',
                         'labwc-mute-default-microphone', 'whisper-record-toggle'):
             block = text.split('profile ' + profile + ' ', 1)[1].split('\nprofile ', 1)[0]

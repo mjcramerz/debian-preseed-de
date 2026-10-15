@@ -1,4 +1,4 @@
-"""Deterministic synthetic host identity for privacy sandboxes."""
+"""Synthetic host identity and project installation IDs for privacy sandboxes."""
 
 from __future__ import annotations
 
@@ -37,8 +37,10 @@ def create_synthetic_identity_files(
     *,
     resolv_conf: str | None = None,
     shell_path: str = "/bin/sh",
+    project_directory: str | None = None,
     runtime: IdentityRuntime,
 ) -> dict[str, str]:
+    from .project_identity import ProjectIdentityError, select_project_uuid
     if shell_path not in {"/bin/sh", "/bin/zsh"}:
         runtime.fail(f"unsupported synthetic account shell: {shell_path}")
     machine_id_path = runtime.require_root_owned_regular_file(
@@ -70,19 +72,18 @@ def create_synthetic_identity_files(
             version=5,
         )
     )
-    installation_id = str(
-        uuid.UUID(
-            bytes=hashlib.sha256(
-                identity_seed + b"\0installation-id"
-            ).digest()[:16],
-            version=5,
+    try:
+        installation_id = select_project_uuid(
+            os.getcwd() if project_directory is None else project_directory
         )
-    )
+    except ProjectIdentityError as exc:
+        runtime.fail(str(exc))
     hostname = f"chatgpt-{machine_id[:12]}"
     identity = {
         "machine_id": os.path.join(temp_root, "machine-id"),
         "boot_id": os.path.join(temp_root, "boot-id"),
-        "installation_id": os.path.join(temp_root, "installation_id"),
+        "installation_id": (os.path.join(temp_root, "installation_id")
+                            if installation_id is not None else MANAGED_CODEX_INSTALLATION_ID),
         "hostname": os.path.join(temp_root, "hostname"),
         "passwd": os.path.join(temp_root, "passwd"),
         "group": os.path.join(temp_root, "group"),
@@ -105,7 +106,6 @@ def create_synthetic_identity_files(
     content = {
         "machine_id": f"{machine_id}\n",
         "boot_id": f"{boot_id}\n",
-        "installation_id": installation_id,
         "hostname": f"{hostname}\n",
         "passwd": (
             "root:x:0:0:root:/root:/usr/sbin/nologin\n"
@@ -137,9 +137,13 @@ def create_synthetic_identity_files(
         "cmdline": "root=/dev/mapper/root ro quiet\n",
         "empty": "",
     }
+    if installation_id is not None:
+        content["installation_id"] = installation_id + "\n"
     for name, value in content.items():
         with open(identity[name], "w", encoding="utf-8") as handle:
             handle.write(value)
+        # Codex opens installation_id read/write and normalizes it to 0644.
+        # This launch copy lives in the private mode 0700 temporary directory.
         os.chmod(identity[name], 0o644 if name == "installation_id" else 0o600)
     return identity
 
@@ -150,10 +154,17 @@ def add_synthetic_codex_installation_id_mount(
     *,
     runtime: IdentityRuntime,
 ) -> None:
+    from .project_identity import ProjectIdentityError, ensure_installation_id_target
     runtime.validate_absolute_path(
         "synthetic Codex installation id",
         installation_id_path,
     )
+    if installation_id_path == MANAGED_CODEX_INSTALLATION_ID:
+        return  # No project override: preserve native read/write initialization.
+    try:
+        ensure_installation_id_target(MANAGED_CODEX_INSTALLATION_ID)
+    except ProjectIdentityError as exc:
+        runtime.fail(str(exc))
     try:
         installation_id_stat = os.lstat(installation_id_path)
     except OSError as exc:
@@ -161,15 +172,35 @@ def add_synthetic_codex_installation_id_mount(
     if (
         stat.S_ISLNK(installation_id_stat.st_mode)
         or not stat.S_ISREG(installation_id_stat.st_mode)
+        or os.path.realpath(installation_id_path) != installation_id_path
+        or installation_id_stat.st_nlink > 1
         or installation_id_stat.st_uid != os.getuid()
         or stat.S_IMODE(installation_id_stat.st_mode) != 0o644
     ):
         runtime.fail(
             "synthetic Codex installation id must be a current-user-owned "
-            f"regular file with mode 0644: {installation_id_path}"
+            f"regular file without hard links and with a safe mode: {installation_id_path}"
+        )
+    # Preserve the native default while selecting an optional project override.
+    try:
+        target_stat = os.lstat(MANAGED_CODEX_INSTALLATION_ID)
+    except OSError as exc:
+        runtime.fail(f"cannot inspect managed Codex installation ID mount target: {exc}")
+    if (
+        not stat.S_ISREG(target_stat.st_mode)
+        or os.path.realpath(MANAGED_CODEX_INSTALLATION_ID) != MANAGED_CODEX_INSTALLATION_ID
+        or target_stat.st_nlink > 1
+        or target_stat.st_uid != os.getuid()
+        or stat.S_IMODE(target_stat.st_mode) not in {0o600, 0o644}
+    ):
+        runtime.fail(
+            "managed Codex installation ID mount target must be a direct, "
+            "current-user-owned mode 0600 or 0644 file without hard links"
         )
     command.extend(
         [
+            # Native Codex requires a writable file, including for valid IDs.
+            # Only this disposable launch copy is exposed, not the project record.
             "--bind",
             installation_id_path,
             MANAGED_CODEX_INSTALLATION_ID,
@@ -207,5 +238,4 @@ def add_synthetic_identity_mounts(
     ):
         if os.path.exists(destination):
             command.extend(["--ro-bind", identity["empty"], destination])
-
 

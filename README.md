@@ -61,6 +61,12 @@ USB policy, document app access, native display recovery, Vivaldi driver safety,
 and Zathura defaults. It separates the verified repository fixes from the
 HDMI/translation freeze and remaining installed-host acceptance.
 
+The [2026-10-15 browser media review](docs/validation/browser-media-20261015.md)
+records Vivaldi system codec provisioning and read-only mounts, Forky media
+packages, Tor audio/UPower confinement, current Chromium graphics features,
+and the disposition of all supplied `todo/` evidence. Live browser playback
+and enforcing-policy acceptance remain required in the disposable environment.
+
 ## Source layout
 
 - `d-i/forky/repo.env`: repository role, path contract and default selections.
@@ -283,6 +289,55 @@ The DevOps installer authenticates the exact Packer plugin releases, installs
 their binaries into the account's private plugin directory, then checks local
 checksums and the managed HCL constraints. The installation does not invoke
 `packer init`, which would repeat remote plugin discovery.
+
+### Codex installation identity and authentication
+
+Codex installation UUID overrides are opt-in and persistent for the physical
+directory from which the wrapper is launched. `--new-uuid` generates a random
+UUID and atomically saves it for that directory. Later launches reuse that UUID
+until another `--new-uuid` replaces it. Without a saved override, the wrapper
+leaves `$CODEX_HOME/installation_id` native and does not generate a spoofed UUID.
+
+```sh
+cd /home/mcramer/Workspace/debian-preseed-de
+codex --new-uuid --profile default  # Create or rotate this directory's UUID.
+codex --profile default             # Reuse it; otherwise use the native ID.
+codex --new-uuid login              # Rotate it and run an explicit login.
+```
+
+Wrapper switches (`--new-uuid`, `--no-bwrap`, `--isolated-network`) form a prefix
+before native options/subcommands. A literal `--` ends wrapper option handling;
+prompt text and child command arguments are never treated as wrapper switches.
+The project key is the physical launch directory, not a Git-root search or a
+native `--cd` option: symlink aliases share an identity, while subdirectories,
+renamed directories and separate checkouts have separate keys.
+
+State is stored outside the project tree in private mode `0700`
+`/data/codex/runtime/project-identities`, using mode `0600` records keyed by a
+SHA-256 digest of the directory path. Ordinary launches create no mapping.
+Saved UUIDs are copied into anonymous memory; Bubblewrap mounts a disposable,
+writable mode `0644` copy at `$CODEX_HOME/installation_id`. Codex `0.159.0`
+opens this file read/write and normalizes its mode even for a valid UUID, so a
+read-only mount fails at startup with `Read-only file system (os error 30)`.
+Changes to the launch copy do not update the saved project record or native ID;
+the normal sandbox masks the project-state directory. Existing native ID
+contents are preserved. If a spoofed launch needs a mount target before the
+native ID exists, it initializes an independent native default once; other
+projects continue to use that default.
+
+Normal launches, including the managed app-server, bind an existing, private
+`$CODEX_HOME/auth.json` read-only after the writable runtime mounts. They require
+login first and cannot persist token refreshes or logout through that file.
+An explicit leading `login` subcommand allows authentication writes inside the
+full sandbox, including `codex --new-uuid login`. `codex --no-bwrap ...` retains
+host access and leaves authentication directly writable. When a saved project
+UUID is selected, that mode still requires Bubblewrap for its disposable ID
+mount. Without a project override, `--no-bwrap` directly executes native Codex.
+
+The ChatGPT app wrapper reads the same project mapping for its selected working
+directory and mounts a disposable writable copy after its persistent directory
+mounts. It never rotates or creates project mappings. When none exists, it uses
+the native installation ID without a separate mount, allowing native initialization.
 
 ## Build and verify
 

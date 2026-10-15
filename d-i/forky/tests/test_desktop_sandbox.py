@@ -385,11 +385,12 @@ class CodexTests(unittest.TestCase):
         with self.assertRaises(self.codex.CodexError):
             self.codex.codex_select_sandbox_cwd('/data/codex/runtime/control')
 
-    def bwrap_arguments(self, service=False):
+    def bwrap_arguments(self, service=False, installation_id_fd=123, login=False):
         c = self.codex
         c.CODEX_CONTROL_DIR = '/control'
         c.CODEX_SANDBOX_PATH = '/usr/bin:/bin'
         c.CODEX_APP_SERVER_MODE = service
+        c.CODEX_LOGIN_MODE = login
         def bind(source, destination):
             c.BWRAP_ARGS.extend(['--ro-bind', source, destination])
         with ExitStack() as stack:
@@ -402,7 +403,10 @@ class CodexTests(unittest.TestCase):
             stack.enter_context(mock.patch.object(c, 'codex_append_ro_bind_if_present', side_effect=bind))
             stack.enter_context(mock.patch.object(c, 'codex_append_ro_bind_to_existing_path', side_effect=bind))
             stack.enter_context(mock.patch.object(c, 'codex_append_required_ro_bind_to_existing_path', side_effect=lambda _, s, d: bind(s, d)))
-            return c.codex_build_bwrap_args(1000, 1000)
+            stack.enter_context(mock.patch.object(c, 'codex_require_private_runtime_file'))
+            stack.enter_context(mock.patch.object(c, 'codex_prepare_installation_id_target',
+                                                  return_value='/data/codex/usr/home/installation_id'))
+            return c.codex_build_bwrap_args(1000, 1000, installation_id_fd)
 
     def test_mount_plan_writable_roots_and_readonly_release(self):
         args = self.bwrap_arguments()
@@ -418,15 +422,37 @@ class CodexTests(unittest.TestCase):
         self.assertEqual(args.count('/proc'), 1)
         self.assertFalse(any('/usr/bin/uname' == x for x in args))
 
-    def test_service_keeps_codex_home_writable_without_auth_overmount(self):
+    def test_service_protects_auth_and_uses_disposable_id_after_writable_home(self):
         args = self.bwrap_arguments(service=True)
+        self.assertEqual(args.count('--bind-data'), 1)
         self.assertNotIn('--ro-bind-data', args)
+        self.assertIn(['--perms', '0644', '--bind-data', '123', '/data/codex/usr/home/installation_id'],
+                      [args[i:i+5] for i in range(len(args)-4)])
         binds = [args[i+1:i+3] for i, value in enumerate(args) if value == '--bind']
         self.assertIn(['/data/codex/usr/home', '/data/codex/usr/home'], binds)
         self.assertIn(['--tmpfs', '/data/codex/credentials'],
                       [args[i:i+2] for i in range(len(args)-1)])
-        self.assertNotIn('/data/codex/usr/home/auth.json', args)
+        auth = '/data/codex/usr/home/auth.json'
+        readonly = [args[i+1:i+3] for i, value in enumerate(args) if value == '--ro-bind']
+        self.assertIn([auth, auth], readonly)
+        self.assertGreater(args.index(auth), args.index('/data/codex/usr/home'))
+        self.assertGreater(args.index('/data/codex/usr/home/installation_id'),
+                           args.index('/data/codex/usr/home'))
+        self.assertNotIn([auth, auth], binds)
         self.assertNotIn('/data/codex/credentials/auth.json', args)
+
+    def test_native_identity_fallback_has_no_spoof_mount(self):
+        args = self.bwrap_arguments(installation_id_fd=None)
+        self.assertNotIn('--bind-data', args)
+        self.assertNotIn('--ro-bind-data', args)
+        self.assertNotIn('/data/codex/usr/home/installation_id', args)
+        self.assertIn('/data/codex/usr/home/auth.json', args)
+
+    def test_explicit_login_keeps_uuid_mount_and_allows_auth_writes(self):
+        args = self.bwrap_arguments(login=True)
+        self.assertIn('/data/codex/usr/home/installation_id', args)
+        self.assertNotIn('/data/codex/usr/home/auth.json', args)
+        self.assertIn('--unshare-net', args)
 
     def test_generated_launcher_compiles_and_accepts_empty_bounding_set(self):
         with tempfile.TemporaryDirectory() as tmp:

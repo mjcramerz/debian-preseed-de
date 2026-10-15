@@ -30,7 +30,8 @@ from typing import NoReturn
 # The wrapper directory is the only managed Codex directory on the host PATH.
 # This remains the public ``codex`` command and starts Codex in a Bubblewrap
 # sandbox unless the caller explicitly supplies the wrapper-only ``--no-bwrap``
-# escape hatch. Sandboxed launches use managed kernel namespace networking.
+# escape hatch. A saved project installation ID remains mounted in that mode.
+# Sandboxed launches use managed kernel namespace networking.
 # Unix socket MCP/container connections remain available. Release
 # siblings are added only to the sanitized payload PATH.
 
@@ -339,6 +340,8 @@ CODEX_DEVOPS_ENV_NAMES: list[str] = []
 CODEX_APP_SERVER_ENVIRONMENT: dict[str, str] = {}
 CODEX_APP_SERVER_MODE = False
 CODEX_USE_BWRAP = True
+CODEX_NEW_UUID = False
+CODEX_LOGIN_MODE = False
 CODEX_ISOLATED_NETWORK = True
 CODEX_NETWORK_ENABLED = True
 CODEX_SANDBOX_PATH = ""
@@ -480,7 +483,9 @@ def codex_generate_uuid() -> str:
 
 def codex_parse_arguments(arguments: Sequence[str]) -> tuple[bool, list[str]]:
     global CODEX_APP_SERVER_MODE, CODEX_ARGS, CODEX_USE_BWRAP, CODEX_ISOLATED_NETWORK
+    global CODEX_NEW_UUID, CODEX_LOGIN_MODE
     CODEX_USE_BWRAP = True
+    CODEX_NEW_UUID = False
     CODEX_ISOLATED_NETWORK = True
     isolation_requested = False
     # Wrapper switches are a prefix, never tokens extracted from a Codex prompt
@@ -490,6 +495,8 @@ def codex_parse_arguments(arguments: Sequence[str]) -> tuple[bool, list[str]]:
         argument = arguments[index]
         if argument == "--no-bwrap":
             CODEX_USE_BWRAP = False
+        elif argument == "--new-uuid":
+            CODEX_NEW_UUID = True
         elif argument == "--isolated-network":
             CODEX_ISOLATED_NETWORK = True
             isolation_requested = True
@@ -497,6 +504,7 @@ def codex_parse_arguments(arguments: Sequence[str]) -> tuple[bool, list[str]]:
             break
         index += 1
     CODEX_ARGS = list(arguments[index:])
+    CODEX_LOGIN_MODE = bool(CODEX_ARGS and CODEX_ARGS[0] == "login")
     CODEX_APP_SERVER_MODE = tuple(CODEX_ARGS) == CODEX_APP_SERVER_ARGUMENTS
     if CODEX_APP_SERVER_MODE and not CODEX_USE_BWRAP:
         codex_die("the managed app-server service requires Bubblewrap isolation")
@@ -1499,6 +1507,55 @@ if __name__ == "__main__":
     _write_file(target, script.encode("utf-8"), 0o600)
 
 
+def codex_require_private_runtime_file(label: str, path: str, missing_hint: str) -> None:
+    codex_require_abs_path(label, path)
+    try:
+        metadata = os.stat(path, follow_symlinks=False)
+    except FileNotFoundError:
+        codex_die(f"{label} is missing; {missing_hint}")
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or os.path.realpath(path) != path
+        # Bubblewrap's anonymous data mounts have zero links.
+        or metadata.st_nlink > 1
+        or metadata.st_uid != os.getuid()
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+        or not _access(path, os.R_OK)
+    ):
+        codex_die(f"{label} must be a direct, account-owned mode 0600 file without hard links")
+
+
+def codex_select_project_uuid() -> str | None:
+    from labwc_managed_app.project_identity import ProjectIdentityError, select_project_uuid
+    try:
+        return select_project_uuid(
+            os.getcwd(), rotate=CODEX_NEW_UUID,
+            state_directory=f"{CODEX_RUNTIME_ROOT}/project-identities",
+        )
+    except ProjectIdentityError as exc:
+        codex_die(str(exc))
+
+
+def codex_prepare_installation_id_target() -> str:
+    from labwc_managed_app.project_identity import ProjectIdentityError, ensure_installation_id_target
+    destination = f"{CODEX_RUNTIME_HOME}/installation_id"
+    try:
+        ensure_installation_id_target(destination)
+    except ProjectIdentityError as exc:
+        codex_die(str(exc))
+    return destination
+
+
+def codex_installation_id_bind_arguments(installation_id_fd: int | None) -> list[str]:
+    if installation_id_fd is None:
+        return []  # No project override: leave the native installation_id alone.
+    destination = codex_prepare_installation_id_target()
+    # Codex 0.159.0 opens this file O_RDWR|O_CREAT and requires mode 0644,
+    # even when the UUID is valid. Give it Bubblewrap's disposable copy;
+    # neither the saved project record nor the native ID is the backing file.
+    return ["--perms", "0644", "--bind-data", str(installation_id_fd), destination]
+
+
 def codex_prepare_identity_files(uid: int, gid: int) -> str:
     global CODEX_CONTROL_DIR
     try:
@@ -1738,7 +1795,7 @@ def validate_private_procfs(arguments: Sequence[str]) -> None:
             codex_die("Codex Bubblewrap must not bind or mask the private procfs")
 
 
-def codex_build_bwrap_args(uid: int, gid: int) -> list[str]:
+def codex_build_bwrap_args(uid: int, gid: int, installation_id_fd: int | None) -> list[str]:
     global BWRAP_ARGS
     sandbox_cwd = codex_select_sandbox_cwd()
     hostname = _read_bounded_text(f"{CODEX_CONTROL_DIR}/hostname", 128, "synthetic hostname")
@@ -1874,9 +1931,8 @@ def codex_build_bwrap_args(uid: int, gid: int) -> list[str]:
             "--bind", CODEX_STORAGE_ROOT, CODEX_STORAGE_ROOT,
             "--bind", CODEX_SHARED_DOWNLOADS_ROOT, CODEX_SHARED_DOWNLOADS_ROOT,
             "--bind", CODEX_SHARED_TMP_ROOT, CODEX_SHARED_TMP_ROOT,
-            # Repository policy deliberately persists the complete managed Codex
-            # home, including auth state and the stable installation identity.
-            # Both are application-owned; neither is shadowed per launch.
+            # Persist runtime state; protect auth and replace installation_id
+            # after every broader writable bind below.
             "--bind", CODEX_RUNTIME_HOME, CODEX_RUNTIME_HOME,
             "--bind", CODEX_HOST_LOG_ROOT, CODEX_LOG_ROOT,
             "--bind", CODEX_SQLITE_ROOT, CODEX_SQLITE_ROOT,
@@ -1905,6 +1961,14 @@ def codex_build_bwrap_args(uid: int, gid: int) -> list[str]:
     # build parallelism, compiler selection, and nested container tooling.
     codex_append_selective_home_access()
     codex_append_accelerator_device_binds()
+    BWRAP_ARGS.extend(codex_installation_id_bind_arguments(installation_id_fd))
+    auth_path = f"{CODEX_RUNTIME_HOME}/auth.json"
+    if not CODEX_LOGIN_MODE or os.path.lexists(auth_path):
+        codex_require_private_runtime_file(
+            "Codex authentication state", auth_path, "run codex login first"
+        )
+    if not CODEX_LOGIN_MODE:
+        BWRAP_ARGS.extend(("--ro-bind", auth_path, auth_path))
     for name in SANDBOX_UNSET_ENV_NAMES:
         BWRAP_ARGS.extend(("--unsetenv", name))
     codex_append_devops_environment()
@@ -2068,7 +2132,7 @@ def codex_handle_signal(signum: int, _frame: object = None) -> None:
     raise SystemExit(128 + signum)
 
 
-def codex_run_sandboxed() -> int:
+def codex_run_sandboxed(installation_id_fd: int | None) -> int:
     global CODEX_BWRAP_PROCESS, CODEX_SANDBOX_PID, CODEX_SANDBOX_PIDFD, CODEX_NETWORK_LEASE
     global CODEX_NETWORK_ENABLED
     from labwc_managed_app.network_client import Lease, pin_sandbox_init, network_enabled
@@ -2079,7 +2143,7 @@ def codex_run_sandboxed() -> int:
     uid, gid = os.getuid(), os.getgid()
     codex_prepare_control_state()
     codex_prepare_identity_files(uid, gid)
-    command = codex_build_bwrap_args(uid, gid)
+    command = codex_build_bwrap_args(uid, gid, installation_id_fd)
     descriptors = set()
     try:
         info_read, info_write = os.pipe()
@@ -2095,7 +2159,8 @@ def codex_run_sandboxed() -> int:
             "/usr/bin/python3", "-I", "-B", "/run/codex-synthetic-bin/payload-launcher.py",
             CODEX_RAW_BINARY, *CODEX_ARGS]
         CODEX_BWRAP_PROCESS = subprocess.Popen(bwrap_command, close_fds=True,
-            pass_fds=(info_write, block_read, gate_read))
+            pass_fds=(info_write, block_read, gate_read,
+                      *((installation_id_fd,) if installation_id_fd is not None else ())))
         codex_clear_app_server_environment()
         for fd in (info_write, block_read, gate_read):
             _close_fd(fd)
@@ -2142,6 +2207,29 @@ def codex_run_sandboxed() -> int:
             CODEX_NETWORK_LEASE = None
 
 
+def codex_run_identity_only(installation_id_fd: int) -> int:
+    """Keep host access and writable login state, with a private installation ID."""
+    global CODEX_BWRAP_PROCESS
+    for name in AMBIENT_X11_ENV_NAMES:
+        os.environ.pop(name, None)
+    os.environ["PATH"] = CODEX_SANDBOX_PATH
+    codex_require_devops_shared_account_directory("Codex home", CODEX_RUNTIME_HOME)
+    command = [
+        BWRAP_BINARY, "--die-with-parent", "--unshare-user",
+        # Keep devices, networking, cwd, TTY, environment and host files
+        # available. In particular, auth.json has no separate bind mount.
+        "--dev-bind", "/", "/",
+        *codex_installation_id_bind_arguments(installation_id_fd),
+        "--", CODEX_RAW_BINARY, *CODEX_ARGS,
+    ]
+    CODEX_BWRAP_PROCESS = subprocess.Popen(
+        command, close_fds=True, pass_fds=(installation_id_fd,)
+    )
+    status = CODEX_BWRAP_PROCESS.wait()
+    CODEX_BWRAP_PROCESS = None
+    return status if status >= 0 else 128 - status
+
+
 def _exec_raw_codex() -> NoReturn:
     for name in AMBIENT_X11_ENV_NAMES:
         os.environ.pop(name, None)
@@ -2157,23 +2245,37 @@ def main(arguments: Sequence[str]) -> int:
     codex_prepare_environment()
     codex_restore_app_server_environment()
     codex_require_executable("raw Codex binary", CODEX_RAW_BINARY)
-    if not CODEX_USE_BWRAP:
-        codex_warn("--no-bwrap explicitly disables host-identity and runtime mount isolation")
+    project_uuid = codex_select_project_uuid()
+    if not CODEX_USE_BWRAP and project_uuid is None:
+        codex_warn("--no-bwrap explicitly enables direct host execution")
         _exec_raw_codex()
-    codex_require_managed_work_areas()
-    codex_require_devops_shared_account_directory("Codex log directory", CODEX_LOG_ROOT)
-    codex_require_devops_shared_account_directory("Codex SQLite directory", CODEX_SQLITE_ROOT)
-    codex_prepare_repository_metadata()
-    codex_prepare_memory_area()
-    codex_require_devops_shared_account_directory(
-        "managed Codex host log directory", CODEX_HOST_LOG_ROOT
-    )
     codex_require_executable("Bubblewrap", BWRAP_BINARY)
     codex_require_user_namespace_support()
     for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGQUIT, signal.SIGTERM):
         signal.signal(signum, codex_handle_signal)
+    if CODEX_USE_BWRAP:
+        codex_require_managed_work_areas()
+        codex_require_devops_shared_account_directory("Codex log directory", CODEX_LOG_ROOT)
+        codex_require_devops_shared_account_directory("Codex SQLite directory", CODEX_SQLITE_ROOT)
+        codex_prepare_repository_metadata()
+        codex_prepare_memory_area()
+        codex_require_devops_shared_account_directory(
+            "managed Codex host log directory", CODEX_HOST_LOG_ROOT
+        )
+    else:
+        codex_warn("--no-bwrap retains the project installation ID mount; host access and auth writes remain enabled")
     try:
-        return codex_run_sandboxed()
+        if project_uuid is None:
+            return codex_run_sandboxed(None)
+        # Copy the saved UUID to anonymous data, independent of later rotations.
+        with os.fdopen(
+            os.memfd_create("codex-installation-id", os.MFD_CLOEXEC), "w+b"
+        ) as installation_id:
+            installation_id.write(f"{project_uuid}\n".encode("ascii"))
+            installation_id.seek(0)
+            if CODEX_USE_BWRAP:
+                return codex_run_sandboxed(installation_id.fileno())
+            return codex_run_identity_only(installation_id.fileno())
     finally:
         codex_cleanup()
 

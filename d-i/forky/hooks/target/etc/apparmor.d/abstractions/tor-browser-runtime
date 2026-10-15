@@ -37,6 +37,21 @@ owner /run/user/[0-9]*/bus rw,
 owner /run/user/[0-9]*/wayland-[0-9]* rw,
 owner /run/user/[0-9]*/wayland-proxy-* rw,
 owner /run/user/[0-9]*/{pipewire-0,pulse/native} rw,
+# libpulse opens and cleans up its private runtime directory. Both stacked
+# Tor profiles include this rule; no other PulseAudio files are exposed.
+owner /run/user/[0-9]*/pulse/ rw,
+# Normal launches expose a proxy restricted to UPower reads. ANOM mounts none.
+# The bus handshake and service discovery precede any UPower method call.
+#include <abstractions/dbus-strict>
+dbus (receive) bus=system
+  path=/org/freedesktop/DBus interface=org.freedesktop.DBus
+  member=NameOwnerChanged peer=(name=org.freedesktop.DBus),
+dbus (send) bus=system
+  path=/org/freedesktop/UPower{,/devices/*}
+  interface={org.freedesktop.UPower,org.freedesktop.DBus.Properties}
+  member={EnumerateDevices,GetDisplayDevice,Get,GetAll}
+  peer=(name=org.freedesktop.UPower),
+dbus (receive) bus=system peer=(name=org.freedesktop.UPower),
 owner @{HOME}/ r,
 owner @{HOME}/.local/{,share/} rw,
 owner @{HOME}/.local/share/tor-browser/{,**} rwkl,

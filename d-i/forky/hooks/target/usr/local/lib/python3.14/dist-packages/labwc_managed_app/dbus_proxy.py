@@ -22,6 +22,21 @@ from .profiles import (
 
 SYSTEM_BUS_SOCKET_PATH = "/run/dbus/system_bus_socket"
 SYSTEM_BUS_ADDRESS = f"unix:path={SYSTEM_BUS_SOCKET_PATH}"
+# Firefox's battery observer needs only UPower enumeration and property reads.
+# Do not expose a general system bus or any device/power control methods.
+READ_ONLY_UPOWER_POLICY = (
+    "--see=org.freedesktop.UPower",
+    "--call=org.freedesktop.UPower=org.freedesktop.UPower.EnumerateDevices@/org/freedesktop/UPower",
+    "--call=org.freedesktop.UPower=org.freedesktop.UPower.GetDisplayDevice@/org/freedesktop/UPower",
+    *(
+        f"--call=org.freedesktop.UPower=org.freedesktop.DBus.Properties.{method}@{path}"
+        for method in ("Get", "GetAll")
+        for path in ("/org/freedesktop/UPower", "/org/freedesktop/UPower/devices/*")
+    ),
+    "--broadcast=org.freedesktop.UPower=org.freedesktop.DBus.Properties.PropertiesChanged@/org/freedesktop/UPower/*",
+    "--broadcast=org.freedesktop.UPower=org.freedesktop.UPower.DeviceAdded@/org/freedesktop/UPower",
+    "--broadcast=org.freedesktop.UPower=org.freedesktop.UPower.DeviceRemoved@/org/freedesktop/UPower",
+)
 PROXY_READY_TIMEOUT_SECONDS = 5
 PROXY_STOP_TIMEOUT_SECONDS = 2
 PROXY_DIAGNOSTIC_MAX_CHARACTERS = 8_192
@@ -430,6 +445,7 @@ def start_system_bus_proxy(
     additional_talk_names: tuple[str, ...] = (),
     *,
     required: bool = False,
+    policy_arguments: tuple[str, ...] = (),
     runtime: ProxyRuntime,
 ) -> tuple[subprocess.Popen | None, str | None, socket.socket | None]:
     try:
@@ -453,9 +469,9 @@ def start_system_bus_proxy(
             f"{SYSTEM_BUS_SOCKET_PATH}"
         )
 
-    policy_arguments = tuple(
+    policy_arguments = (*policy_arguments, *(
         f"--talk={bus_name}" for bus_name in additional_talk_names
-    )
+    ))
     return start_filtered_dbus_proxy(
         temp_root,
         "system-bus",

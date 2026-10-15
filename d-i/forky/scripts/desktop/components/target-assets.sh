@@ -228,6 +228,34 @@ desktop_stage_target_assets() {
     0644 \
     LABWC_MANAGED_APP_DEFAULT_EXEC "$LABWC_MANAGED_APP_DEFAULT_EXEC"
   desktop_stage_labwc_managed_app_python_modules
+  if [ -e /target/opt/vivaldi/vivaldi ]; then
+    [ -x /target/opt/vivaldi/update-ffmpeg ] &&
+      [ ! -L /target/opt/vivaldi/update-ffmpeg ] ||
+      installer_fatal "installed Vivaldi is missing its packaged codec updater"
+    # The signed package's postinst starts this updater asynchronously. Its
+    # cleanup removes partial downloads, so wait for that process before
+    # running the checked system installation. procps is a desktop dependency;
+    # pidwait observes exact root-owned updater processes without signalling.
+    run_in_target "install compatible Vivaldi proprietary media codecs" \
+      /usr/bin/env -i PATH=/usr/bin:/bin HOME=/root USER=root LANG=C.UTF-8 \
+      /usr/bin/timeout --signal=TERM --kill-after=5s 180s \
+      /bin/sh -eu -c '
+if /usr/bin/pidwait --exact --uid 0 -- update-ffmpeg; then
+  :
+else
+  status=$?
+  [ "$status" -eq 1 ] || exit "$status"
+fi
+exec /opt/vivaldi/update-ffmpeg --system
+'
+    run_in_target "verify Vivaldi system codec compatibility and ownership" \
+      /usr/bin/python3 -I -B -c '
+import sys
+sys.path.insert(0, "/usr/local/lib/python3.14/dist-packages")
+from labwc_managed_app.browsers import vivaldi_media_directory
+print("Vivaldi compatible system media: " + vivaldi_media_directory())
+'
+  fi
   desktop_stage_role_asset usr/local/libexec/labwc-proxy-session /usr/local/libexec/labwc-proxy-session 0755
   desktop_normalize_proxy3_directories
   for proxy3_app in chromium microsoft-edge vivaldi mullvad-browser qbittorrent; do

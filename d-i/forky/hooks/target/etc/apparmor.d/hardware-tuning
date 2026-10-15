@@ -83,6 +83,8 @@ profile hardware-tuning-client /usr/local/bin/labwc-hardware-tuning flags=(attac
   signal (send) set=(chld) peer=desktop-launcher,
   signal (send) set=(chld) peer=labwc-computer-management,
   ptrace (read) peer=desktop-launcher,
+  # DevOps lifetime tracking reads the same user's terminal parent via /proc.
+  ptrace (read) peer=desktop-terminal,
   /usr/local/bin/labwc-hardware-tuning r,
   /usr/local/lib/hardware_tuning/ r,
   /usr/local/lib/hardware_tuning/{common,client}.py r,

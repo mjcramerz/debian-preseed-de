@@ -1132,6 +1132,9 @@ profile codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, mediate_
   owner @{HOME}/Workspace/{,**/} r,
   #include <abstractions/wrapper-python>
 
+  # Anonymous installation UUID passed to the Bubblewrap child only.
+  /memfd:codex-installation-id rw,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/project_identity.py r,
   unix,
   # The account user manager supervises the foreground wrapper. Permit only
   # lifecycle and liveness signals from its unconfined user-manager domain.
@@ -1149,6 +1152,8 @@ profile codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, mediate_
   /data/codex/usr/ rw,
   owner /data/codex/usr/.git/ rw,
   /data/codex/usr/home/ rw,
+  /data/codex/usr/home/auth.json r,
+  /data/codex/usr/home/installation_id rw,
   /data/codex/usr/home/memories/ rw,
   /data/codex/log/ rw,
   /data/codex/runtime/ rw,
@@ -1919,7 +1924,7 @@ profile labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected, mediate
   /usr/local/bin/labwc-app rix,
   /usr/local/lib/python3.14/dist-packages/ r,
   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
-  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,compat_gpu,compat_instance,compat_protocol,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_client,network_namespace,profiles,recovery,runtime,sandbox,session,user_state}.py r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,compat_gpu,compat_instance,compat_protocol,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_client,network_namespace,profiles,project_identity,recovery,runtime,sandbox,session,user_state}.py r,
   deny /usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat{,_runtime}.py r,
   # ChatGPT lifecycle events use stderr so the existing capture runner sends
   # them only to its private rsyslog socket; generic syslog remains denied.
@@ -2406,6 +2411,8 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   /usr/local/bin/labwc-freerdp-askpass r,
   /etc/opt/{,chrome/,chrome/**,edge/,edge/**} r,
   /etc/vivaldi/{,**} r,
+  # Validate the installed launcher's compatible codec inventory before bwrap.
+  /var/{opt/,opt/vivaldi/,opt/vivaldi/media-codecs-*/} r,
   /var/lib/dbus/ r,
   /var/lib/dbus/machine-id r,
   # labwc-app constructs a fixed allowlisted environment before these
@@ -2471,6 +2478,10 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     # Only the probed directories are writable; host policy files stay read-only.
     owner /etc/opt/{,chrome/,chrome/native-messaging-hosts/} rw,
     /etc/vivaldi/{,**} r,
+    # The Vivaldi launcher selects this system-installed H.264/AAC library.
+    # The mount is read-only and only libraries in vendor codec directories map.
+    /var/{opt/,opt/vivaldi/,opt/vivaldi/media-codecs-*/} r,
+    /var/opt/vivaldi/media-codecs-*/libffmpeg.so mr,
     # File-chooser selection does not grant AppArmor access by itself. Tuta's
     # attachments/downloads and managed browser file access use these roots;
     # Bubblewrap still controls which of them each application can see.

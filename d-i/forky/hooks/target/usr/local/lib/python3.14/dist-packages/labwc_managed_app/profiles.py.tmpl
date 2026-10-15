@@ -85,6 +85,11 @@ APPS = {
             "/opt/tor-browser/Browser/firefox.real",
             "/opt/tor-browser/Browser/TorBrowser/Tor/tor",
             "/opt/tor-browser/Browser/distribution/policies.json",
+            # Tor Browser 15's Firefox ESR supports this Forky FFmpeg ABI.
+            # Both nested sandboxes retain the immutable system /usr tree.
+            "/usr/lib/x86_64-linux-gnu/libavcodec.so.62",
+            "/usr/lib/x86_64-linux-gnu/libavutil.so.60",
+            "/usr/lib/x86_64-linux-gnu/libswresample.so.6",
         ),
     },
     "chromium": {

@@ -601,6 +601,11 @@ class ClientAndInstallTests(unittest.TestCase):
         text = payload_read_text(base.FORKY / "hooks/target/etc/apparmor.d/hardware-tuning")
         client = text.split("profile hardware-tuning-client ", 1)[1].split("profile hardware-tuning-policy ", 1)[0]
         self.assertIn("owner /proc/[0-9]*/{stat,status,cgroup} r,", client)
+        self.assertIn("ptrace (read) peer=desktop-terminal,", client)
+        self.assertNotIn("ptrace (trace) peer=desktop-terminal,", client)
+        terminal_policy = payload_read_text(base.FORKY / "hooks/target/etc/apparmor.d/desktop-utilities")
+        terminal = terminal_policy.split("profile desktop-terminal ", 1)[1].split("\n}", 1)[0]
+        self.assertIn("allow all,", terminal)
         self.assertNotIn("systemd1.Manager", client)
         broker = text.split("profile hardware-tuning-broker ", 1)[1].split("profile hardware-tuning-worker ", 1)[0]
         self.assertNotIn("systemd1.Manager", broker)

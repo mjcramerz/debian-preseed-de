@@ -136,6 +136,12 @@ def main():
     bus_info = bus_socket.lstat()
     if not stat.S_ISSOCK(bus_info.st_mode) or bus_info.st_uid != os.getuid():
         raise ValueError("Tor Browser requires a user-owned filtered bus socket")
+    power_bus = Path("/run/dbus/system_bus_socket")
+    if not anonymous:
+        power_info = power_bus.lstat()
+        if (not stat.S_ISSOCK(power_info.st_mode) or power_info.st_uid != os.getuid()
+                or os.environ.get("DBUS_SYSTEM_BUS_ADDRESS") != f"unix:path={power_bus}"):
+            raise ValueError("Tor Browser requires its filtered UPower socket")
     with ExitStack() as resources:
         lock = os.open(state / "session.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
         resources.callback(os.close, lock)
@@ -227,6 +233,13 @@ def main():
             environment.update({"MOZ_WEBRENDER": "1", "MOZ_WEBRENDER_SOFTWARE": "1"})
         elif hardware_webrender:
             environment["MOZ_WEBRENDER"] = "1"
+        if not anonymous:
+            # The primary DRM card is intentionally hidden. Firefox's glxtest
+            # can still probe its EGL name before falling back to a render
+            # node; give DMABuf an unambiguous render node when there is one.
+            render_nodes = sorted(Path("/dev/dri").glob("renderD[0-9]*"))
+            if len(render_nodes) == 1 and stat.S_ISCHR(render_nodes[0].lstat().st_mode):
+                environment["MOZ_DRM_DEVICE"] = str(render_nodes[0])
         tor_environment = dict(environment)
         # Match the vendor TorProcess launcher: use the bundled Tor libraries.
         tor_environment["LD_LIBRARY_PATH"] = str(BROWSER / "TorBrowser/Tor")
@@ -247,6 +260,7 @@ def main():
                 "--uid", str(os.getuid()), "--gid", str(os.getgid()),
                 "--ro-bind", "/", "/", "--ro-bind", str(ram_bundle), str(BROWSER.parent),
                 "--bind", str(tor_data), str(tor_data),
+                *(["--tmpfs", "/run/dbus"] if not anonymous else []),
                 "--tmpfs", str(runtime), "--chmod", "0700", str(runtime),
                 "--bind", str(tor_ipc), str(tor_ipc), "--proc", "/proc", "--dev", "/dev",
                 "--tmpfs", "/tmp", "--tmpfs", "/var/tmp",
@@ -270,6 +284,8 @@ def main():
             # Only the browser receives this deny-by-default proxy. The Tor
             # transport retains neither a session bus address nor its socket.
             environment["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={bus_socket}"
+            if not anonymous:
+                environment["DBUS_SYSTEM_BUS_ADDRESS"] = f"unix:path={power_bus}"
             # Every source is inside the already constructed outer sandbox.
             # Unix sockets cross this boundary; IPv4/IPv6 connections cannot.
             browser_command = [
@@ -293,6 +309,8 @@ def main():
                     if not stat.S_ISSOCK(source.lstat().st_mode):
                         raise ValueError("invalid private audio socket")
                     browser_command.extend(["--bind", str(source), str(source)])
+                    if relative == "pulse/native":
+                        environment["PULSE_SERVER"] = f"unix:{source}"
             if anonymous:
                 # Hide these local identifiers without modifying kernel or host
                 # state. Tor Browser's fingerprint defenses remain unchanged.

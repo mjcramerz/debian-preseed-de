@@ -9,11 +9,12 @@ d __INSTALLER_DEVOPS_CODEX_USER_ROOT__ 0750 __INSTALLER_ACCOUNT_USERNAME__ devop
 d __INSTALLER_DEVOPS_CODEX_AGENTS__ 0750 __INSTALLER_ACCOUNT_USERNAME__ devops -
 d __INSTALLER_DEVOPS_CODEX_SKILLS__ 0750 __INSTALLER_ACCOUNT_USERNAME__ devops -
 d __INSTALLER_DEVOPS_CODEX_HOME__ 2770 __INSTALLER_ACCOUNT_USERNAME__ devops -
+# installation_id remains native application state, never an empty placeholder.
 # The account user manager owns the public activation socket and proxies it to
 # a wrapper-backed private listener only while clients are connected. Its
 # canonical startup lock remains below CODEX_HOME; both sockets stay inside the
 # private /data/codex/sockets directory.
-# auth.json is deliberately omitted: Codex creates it only after user login.
+# auth.json is deliberately omitted: an explicit Codex login creates it.
 d __INSTALLER_DEVOPS_CODEX_HOME__/app-server-control 0700 __INSTALLER_ACCOUNT_USERNAME__ devops -
 # Settings are versioned in codex-home; the process manager owns live PID state.
 # Retain account-only permissions without recreating or truncating settings.
@@ -38,6 +39,8 @@ d __INSTALLER_DEVOPS_CODEX_RUNTIME_ROOT__ 2770 __INSTALLER_ACCOUNT_USERNAME__ de
 # Wrapper coordination is intentionally private even though its parent runtime
 # root is shared with the managed devops group.
 d __INSTALLER_DEVOPS_CODEX_RUNTIME_ROOT__/.control 0700 __INSTALLER_ACCOUNT_USERNAME__ devops -
+# Durable project-directory UUID overrides; separate from temporary launch state.
+d __INSTALLER_DEVOPS_CODEX_RUNTIME_ROOT__/project-identities 0700 __INSTALLER_ACCOUNT_USERNAME__ devops -
 
 L __INSTALLER_DEVOPS_CODEX_HOME__/packages - __INSTALLER_ACCOUNT_USERNAME__ devops - __INSTALLER_DEVOPS_CODEX_ROOT__/packages
 

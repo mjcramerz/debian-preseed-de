@@ -52,6 +52,30 @@ software_install_tor_browser() (
   software_stage_seed_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/share/applications/tor-browser.desktop)" \
     /usr/local/share/applications/tor-browser.desktop 0644
+  # Firefox uses the distribution FFmpeg library for H.264/AAC. Check the
+  # actual target ABI and decoders, not merely the ffmpeg command's presence.
+  # This is installer target execution with dropped privileges, never a host
+  # test or a decode of untrusted media. No alternate-release libraries load.
+  run_in_target "verify Tor Browser system media decoders" \
+    /usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 \
+    /usr/sbin/runuser -u "$ACCOUNT_USERNAME" -- /usr/bin/python3 -I -B -c '
+import ctypes
+library = ctypes.CDLL("/usr/lib/x86_64-linux-gnu/libavcodec.so.62")
+library.avcodec_find_decoder_by_name.argtypes = [ctypes.c_char_p]
+library.avcodec_find_decoder_by_name.restype = ctypes.c_void_p
+required = {
+    "h264": ("h264",), "aac": ("aac",), "mp3": ("mp3", "mp3float"),
+    "flac": ("flac",), "opus": ("opus", "libopus"),
+    "vp8": ("vp8", "libvpx"), "vp9": ("vp9", "libvpx-vp9"),
+    "av1": ("libdav1d", "libaom-av1", "av1"),
+}
+missing = [name for name, alternatives in required.items()
+           if not any(library.avcodec_find_decoder_by_name(decoder.encode("ascii"))
+                      for decoder in alternatives)]
+if missing:
+    raise SystemExit("Tor Browser system media decoders missing: " + ", ".join(missing))
+print("Tor Browser FFmpeg ABI 62 decoder availability: " + ", ".join(required))
+'
   chroot "$target_root" /usr/bin/desktop-file-validate /usr/local/share/applications/tor-browser.desktop
   software_info "installed authenticated Tor Browser version=${tor_version} sha256=${tor_sha}"
 )

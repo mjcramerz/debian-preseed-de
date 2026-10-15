@@ -69,7 +69,7 @@ class WrapperRegressionTests(unittest.TestCase):
             self.assertEqual(args.count('--unshare-net'), int(isolated))
             for flag in ('--unshare-user', '--unshare-pid', '--unshare-ipc', '--unshare-uts'):
                 self.assertIn(flag, args)
-            self.assertFalse(any('installation_id' in value for value in args))
+            self.assertIn('/data/codex/usr/home/installation_id', args)
 
     def test_kernel_network_releases_payload_and_reaps_supervision(self):
         self._check_kernel_network(True)
@@ -100,8 +100,9 @@ class WrapperRegressionTests(unittest.TestCase):
                      mock.patch.object(self.c.signal, 'pidfd_send_signal', side_effect=lambda *args: events.append('namespace-stop')) as stop, \
                      mock.patch.object(self.c.os, 'write', return_value=1) as release, \
                      mock.patch.object(self.c.subprocess, 'Popen', return_value=process) as spawn:
-                    self.assertEqual(self.c.codex_run_sandboxed(), 0)
+                    self.assertEqual(self.c.codex_run_sandboxed(123), 0)
                     self.assertEqual(spawn.call_count, 1)
+                    self.assertIn(123, spawn.call_args.kwargs['pass_fds'])
                     if online:
                         acquire.assert_called_once_with(4321, 'codex')
                     else:

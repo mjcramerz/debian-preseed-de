@@ -2053,6 +2053,9 @@ class DesktopLaunchTests(unittest.TestCase):
                 root = Path(directory)
                 home, runtime = root / "home", root / "runtime"
                 home.mkdir(); runtime.mkdir(mode=0o700)
+                # Codec discovery belongs to the private media fixtures, never
+                # the test image's installed browser or /var/opt state.
+                stack.enter_context(mock.patch.object(sandbox, "vivaldi_media_directory", return_value=str(root / "vivaldi-codecs")))
                 for path in ("Downloads", "Documents", "Pictures", "Workspace", "Music", "Videos"):
                     (home/path).mkdir()
                 env = {"HOME": str(home), "XDG_RUNTIME_DIR": str(runtime), "WAYLAND_DISPLAY": "wayland-0"}
@@ -2148,7 +2151,7 @@ class DesktopLaunchTests(unittest.TestCase):
             for path in ('/etc/labwc/3proxy/qbittorrent.conf', '/etc/qbittorrent/qBittorrent.conf.d/20-managed-privacy.conf'):
                 self.assertIn([path, path], readonly)
 
-    def test_tor_ram_actions_keep_transport_native_and_filter_all_host_bus_services(self):
+    def test_tor_ram_actions_filter_host_services_and_allow_only_normal_power_reads(self):
         for mode in ('launch', 'intel', 'nvidia', 'pure-privacy'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
                 root = Path(directory)
@@ -2177,6 +2180,9 @@ class DesktopLaunchTests(unittest.TestCase):
                 proxy, lifecycle = mock.Mock(), mock.Mock()
                 filtered = stack.enter_context(mock.patch.object(sandbox, 'start_filtered_dbus_proxy',
                     return_value=(proxy, '/fixture/filtered-bus', lifecycle)))
+                power_proxy, power_lifecycle = mock.Mock(), mock.Mock()
+                power = stack.enter_context(mock.patch.object(sandbox, 'start_system_bus_proxy',
+                    return_value=(power_proxy, '/fixture/power-bus', power_lifecycle)))
                 stopped = stack.enter_context(mock.patch.object(sandbox, 'stop_dbus_proxy'))
                 stack.enter_context(mock.patch.object(sandbox, 'require_running_dbus_proxy'))
                 captured = {}
@@ -2190,6 +2196,10 @@ class DesktopLaunchTests(unittest.TestCase):
                     self.assertIn(['--bind', '/fixture/filtered-bus', str(root/'bus')],
                                   [command[i:i+3] for i in range(len(command)-2)])
                     self.assertNotIn('/fixture/session-bus', command)
+                    if mode != 'pure-privacy':
+                        self.assertEqual(env['DBUS_SYSTEM_BUS_ADDRESS'], sandbox.SYSTEM_BUS_ADDRESS)
+                        self.assertIn(['--bind', '/fixture/power-bus', sandbox.SYSTEM_BUS_SOCKET_PATH],
+                                      [command[i:i+3] for i in range(len(command)-2)])
                     return 37
                 stack.enter_context(mock.patch.object(supervisor, 'run_veth_sandbox', autospec=True, side_effect=launch))
                 result = (sandbox.run_pure_privacy('tor-browser', []) if mode == 'pure-privacy'
@@ -2204,10 +2214,16 @@ class DesktopLaunchTests(unittest.TestCase):
                 self.assertEqual(filtered.call_count, 1)
                 self.assertEqual(filtered.call_args.args[1:],
                                  ('session-bus', 'unix:path=/fixture/session-bus', ()))
-                stopped.assert_called_once_with(proxy, lifecycle, '/fixture/filtered-bus')
                 if mode == 'pure-privacy':
+                    power.assert_not_called()
+                    stopped.assert_called_once_with(proxy, lifecycle, '/fixture/filtered-bus')
                     gpu.assert_not_called()
                 else:
+                    self.assertEqual(power.call_args.kwargs,
+                                     {'required': True, 'policy_arguments': sandbox.dbus_proxy.READ_ONLY_UPOWER_POLICY})
+                    self.assertEqual(stopped.call_args_list,
+                                     [mock.call(power_proxy, power_lifecycle, '/fixture/power-bus'),
+                                      mock.call(proxy, lifecycle, '/fixture/filtered-bus')])
                     gpu.assert_called_once_with(captured['command'], mode)
                 self.assertEqual(list(root.iterdir()), [])
 
