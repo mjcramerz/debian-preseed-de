@@ -7,6 +7,12 @@ ConditionPathExists=/var/lib/firstboot/bin/secondboot-cleanup
 [Service]
 Type=oneshot
 ExecStart=/var/lib/firstboot/bin/secondboot-cleanup
+# A natural bootstrap exit can still be running ExecStopPost after its start
+# job finished. Retry only the helper's busy result; real failures stay visible.
+Restart=no
+RestartForceExitStatus=75
+RestartMode=direct
+RestartSec=5s
 TimeoutStartSec=5min
 TimeoutStopSec=30s
 KillMode=control-group

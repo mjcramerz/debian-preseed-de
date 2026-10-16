@@ -12,7 +12,10 @@ StartLimitBurst=2
 Type=oneshot
 ExecStart=/usr/local/libexec/network-wifi-configure --firstboot
 TimeoutStartSec=3min
-TimeoutStopSec=10s
+# Allow capture termination plus the 26s release/radio/management budget.
+TimeoutStopSec=35s
+# Let the wrapper unwind and own its bounded child cleanup before group KILL.
+KillMode=mixed
 Restart=on-failure
 RestartSec=30s
 UMask=0077

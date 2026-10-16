@@ -9,7 +9,6 @@ Wants=network-online.target nss-lookup.target time-sync.target systemd-resolved.
 Requires=nftables.service stubby.service
 ConditionPathExists=!/var/lib/firstboot/tailscale/complete
 ConditionFileIsExecutable=/var/lib/firstboot/bin/tailscale-up
-OnSuccess=secondboot.service
 # A transient control-plane outage must not cause rapid reauthentication or
 # recycle the long-running daemon. The bootstrap helper fails independently and
 # systemd spaces later attempts; tailscaled.service owns its own restart policy.
@@ -48,6 +47,7 @@ Environment="TAILSCALE_DAEMON_WAIT_SECONDS=__INSTALLER_TAILSCALE_DAEMON_WAIT_SEC
 # oneshot services deliberately cannot restart after a successful exit.
 Type=exec
 ExecStart=/var/lib/firstboot/bin/tailscale-up --if-auth-key-present
+ExecStopPost=/var/lib/firstboot/bin/secondboot-cleanup --queue
 SuccessExitStatus=75
 RestartForceExitStatus=75
 Restart=on-failure

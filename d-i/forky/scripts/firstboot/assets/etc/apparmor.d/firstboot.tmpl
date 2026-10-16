@@ -220,7 +220,7 @@ profile secondboot-cleanup /var/lib/firstboot/bin/secondboot-cleanup flags=(atta
   dbus,
 
   /var/lib/firstboot/bin/secondboot-cleanup rix,
-  /usr/bin/{chmod,grep,id,rm,rmdir} rix,
+  /usr/bin/{chmod,grep,id,mktemp,mv,rm,rmdir} rix,
   /usr/bin/systemctl PUx,
   /usr/sbin/update-initramfs rPx -> update-initramfs,
   /boot/ r,

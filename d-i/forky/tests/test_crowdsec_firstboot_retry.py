@@ -38,6 +38,101 @@ def source_function(name: str, source: str = SOURCE) -> str:
 
 
 class CrowdSecFirstbootRetryTests(unittest.TestCase):
+    def test_busy_cleanup_schedules_retry_and_never_reaches_removal(self):
+        cleanup = (FORKY / 'scripts/firstboot/assets/var/lib/firstboot/bin/secondboot-cleanup').read_text()
+        start = cleanup.index('if [ "$SECONDBOOT_ROOT" = / ]; then\n  if bootstrap_processes_exited; then')
+        gate = cleanup[start:cleanup.index('\nremove_transient_secret() {', start)]
+        code = '''SECONDBOOT_ROOT=/
+bootstrap_processes_exited() { return "$FIXTURE_STATUS"; }
+''' + gate + "\nprintf '%s\\n' removal-reached\n"
+        self.assertIn('Restart=no\n', SECONDBOOT_UNIT)
+        self.assertIn('RestartForceExitStatus=75\n', SECONDBOOT_UNIT)
+        self.assertIn('RestartMode=direct\n', SECONDBOOT_UNIT)
+        self.assertIn('RestartSec=5s\n', SECONDBOOT_UNIT)
+        # A oneshot success status would suppress RestartForceExitStatus.
+        self.assertNotIn('SuccessExitStatus=', SECONDBOOT_UNIT)
+        for label, shell in SHELLS:
+            for status, expected in ((0, 0), (1, 75), (2, 1)):
+                with self.subTest(shell=label, status=status):
+                    result = subprocess.run([*shell, '-eu', '-c', code],
+                        env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'FIXTURE_STATUS': str(status)},
+                        capture_output=True, text=True, timeout=5)
+                    self.assertEqual(result.returncode, expected, result.stderr)
+                    self.assertEqual(result.stdout, 'removal-reached\n' if status == 0 else '')
+
+    def test_cleanup_waits_for_main_and_stop_processes_and_rejects_incomplete_manager_data(self):
+        cleanup = (FORKY / 'scripts/firstboot/assets/var/lib/firstboot/bin/secondboot-cleanup').read_text()
+        code = source_function('bootstrap_processes_exited', cleanup) + '''
+log() { :; }
+systemctl() { printf '%s\\n' "$FIXTURE_FIELDS"; return "$FIXTURE_STATUS"; }
+bootstrap_processes_exited
+'''
+        idle = 'MainPID=0\nControlPID=0\nSubState=dead\n'
+        ready = idle * 3
+        for label, shell in SHELLS:
+            for fields, command_status, expected in (
+                    (ready, 0, 0), (ready.replace('dead', 'auto-restart'), 0, 0),
+                    (ready.replace('MainPID=0', 'MainPID=123', 1), 0, 1),
+                    (ready.replace('ControlPID=0', 'ControlPID=123', 1), 0, 1),
+                    (ready.replace('dead', 'stop-post', 1), 0, 1),
+                    (idle, 0, 2), ('', 0, 2), ('MainPID=invalid', 0, 2),
+                    (ready, 1, 2)):
+                with self.subTest(shell=label, fields=fields, status=command_status):
+                    result = subprocess.run([*shell, '-eu', '-c', code],
+                        env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'FIXTURE_FIELDS': fields,
+                             'FIXTURE_STATUS': str(command_status)},
+                        capture_output=True, text=True, timeout=5)
+                    self.assertEqual(result.returncode, expected, result.stderr)
+
+    def test_cleanup_request_is_private_atomic_and_consumed_without_retiring_pending_work(self):
+        helper = FORKY / 'scripts/firstboot/assets/var/lib/firstboot/bin/secondboot-cleanup'
+        for label, shell in SHELLS:
+            with self.subTest(shell=label), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory) / 'target'
+                state = root / 'var/lib/firstboot/state'
+                state.mkdir(parents=True, mode=0o700)
+                for relative in ('var/lib/firstboot/bin/firstboot.sh',
+                                 'var/lib/firstboot/bin/tailscale-up',
+                                 'var/lib/firstboot/bin/secondboot-cleanup',
+                                 'etc/systemd/system/firstboot.service',
+                                 'etc/systemd/system/tailscale-bootstrap.service',
+                                 'etc/systemd/system/secondboot.service',
+                                 'etc/systemd/system/secondboot.path'):
+                    path = root / relative
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text('inert fixture\n')
+                environment = {'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'SECONDBOOT_ROOT': str(root)}
+                request = state / 'cleanup-request'
+                victim = Path(directory) / 'unrelated-fixture'
+                victim.write_text('preserve\n')
+                request.symlink_to(victim)
+                for _ in range(2):
+                    queued = subprocess.run([*shell, str(helper), '--queue'], env=environment,
+                                            capture_output=True, text=True, timeout=5)
+                    self.assertEqual(queued.returncode, 0, queued.stderr)
+                    self.assertFalse(request.is_symlink())
+                    self.assertEqual(request.stat().st_mode & 0o777, 0o600)
+                    self.assertEqual(victim.read_text(), 'preserve\n')
+                partial = subprocess.run([*shell, str(helper)], env=environment,
+                                         capture_output=True, text=True, timeout=5)
+                self.assertEqual(partial.returncode, 0, partial.stderr)
+                self.assertFalse(request.exists())
+                self.assertTrue((root / 'etc/systemd/system/secondboot.path').is_file())
+                self.assertTrue((root / 'var/lib/firstboot/bin/tailscale-up').is_file())
+                (state / 'complete').write_text('status=0\n')
+                tailscale = root / 'var/lib/firstboot/tailscale'
+                tailscale.mkdir()
+                (tailscale / 'complete').write_text('complete\n')
+                queued = subprocess.run([*shell, str(helper), '--queue'], env=environment,
+                                        capture_output=True, text=True, timeout=5)
+                self.assertEqual(queued.returncode, 0, queued.stderr)
+                completed = subprocess.run([*shell, str(helper)], env=environment,
+                                          capture_output=True, text=True, timeout=5)
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertFalse((root / 'var/lib/firstboot').exists())
+                self.assertFalse((root / 'etc/systemd/system/secondboot.path').exists())
+                self.assertEqual(victim.read_text(), 'preserve\n')
+
     def test_full_late_helper_loads_resolved_identity_before_desktop_staging(self):
         # Run only in the required disposable environment. Execute the real
         # helper and scalar renderer; transport and every in-target command
@@ -561,7 +656,9 @@ stop_bootstrap_services() { systemctl stop crowdsec-firewall-bouncer.service cro
                 self.assertIn("removed completed Tailscale bootstrap artifacts", cleanup.stdout)
                 self.assertFalse((target / "var/lib/firstboot").exists())
                 self.assertFalse((target / "etc/systemd/system/secondboot.service").exists())
-                self.assertIn("OnSuccess=secondboot.service", (FORKY / "scripts/firstboot/assets/etc/systemd/system/firstboot.service").read_text(encoding="utf-8"))
+                unit = (FORKY / "scripts/firstboot/assets/etc/systemd/system/firstboot.service").read_text(encoding="utf-8")
+                self.assertIn("ExecStopPost=/var/lib/firstboot/bin/secondboot-cleanup --queue", unit)
+                self.assertNotIn("OnSuccess=", unit)
 
     def test_hub_failures_distinguish_remote_forbidden_from_local_permissions(self):
         code = source_function("run_crowdsec_command") + """

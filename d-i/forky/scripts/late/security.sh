@@ -1876,6 +1876,7 @@ configure_target_app_veth() {
     /etc/app-veth.nft 0644 proxy3_placeholder_map
   configure_target_stubby
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/stubby.service.d/60-app-veth.conf)" /etc/systemd/system/stubby.service.d/60-app-veth.conf 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/systemd-resolved.service.d/60-stubby.conf)" /etc/systemd/system/systemd-resolved.service.d/60-stubby.conf 0644
   render_target_asset_with_placeholder_map \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/dnsmasq-app-veth.conf.tmpl)" \
     /etc/dnsmasq-app-veth.conf 0644 app_veth_dns_placeholder_map

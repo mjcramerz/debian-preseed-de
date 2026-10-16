@@ -1127,6 +1127,10 @@ class WiFiAuthenticationTests(unittest.TestCase):
         self.module = types.ModuleType('wifi_authentication_fixture')
         self.module.__file__ = str(path)
         exec(compile(payload_read_bytes(path), str(path), 'exec'), self.module.__dict__)
+        # Fixture cleanup must never change the test runner's signal handlers.
+        signals = mock.patch.object(self.module.signal, 'signal')
+        self.signals = signals.start()
+        self.addCleanup(signals.stop)
 
     def test_connection_rejects_ipv6_policy_drift_before_prompt_or_commands(self):
         for ethernet, wifi in (('2001:db8::56/64', '2001:db8::58/64'),
@@ -1170,11 +1174,15 @@ class WiFiAuthenticationTests(unittest.TestCase):
                     mock.patch.object(self.module, 'publish_profile') as profiles, \
                     mock.patch.object(self.module, 'publish') as state, \
                     mock.patch.object(self.module, 'run') as commands, \
+                    mock.patch.object(self.module, 'wait_supplicant_release') as release, \
                     mock.patch.object(self.module.Path, 'is_dir', return_value=True), \
                     mock.patch.object(self.module.Path, 'mkdir'):
                 self.module.firstboot()
                 self.assertEqual(profiles.call_count, int(visible))
-                self.assertEqual(commands.call_args.args[0][-3:], ['radio', 'wifi', 'off'])
+                self.assertEqual([call.args[0][3:] for call in commands.call_args_list[-3:]], [
+                    ['device', 'set', 'wifi0', 'managed', 'no'], ['radio', 'wifi', 'off'],
+                    ['device', 'set', 'wifi0', 'managed', 'yes']])
+                release.assert_called_once_with('wifi0')
                 self.assertIn('prepared-visible' if visible else 'skipped-ssid', state.call_args.args[1])
 
     def test_profile_overrides_win_and_empty_values_use_private_input(self):
@@ -1195,23 +1203,82 @@ class WiFiAuthenticationTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertEqual(result.stdout, expected + '\n')
 
-    def test_scan_failure_disables_radio_and_does_not_publish(self):
+    def test_scan_failure_or_stop_disables_radio_and_does_not_publish(self):
         policy = {'MANAGED_NETWORK_LINK_TYPES': 'ethernet wifi',
                   'MANAGED_NETWORK_WIFI_IFACE': 'wifi0', 'MANAGED_NETWORK_WIFI_ESSID': 'IEEE'}
         content = ''.join(key + '=' + shlex.quote(value) + '\n' for key, value in policy.items())
+        for error in (self.module.ConfigurationError('scan failed'), InterruptedError('fixture stop')):
+            self.check_scan_failure(policy, content, error)
+
+    def check_scan_failure(self, policy, content, error):
         with mock.patch.object(self.module, 'read_owned', return_value=content), \
                 mock.patch.object(self.module, 'wifi_policy', return_value=policy), \
                 mock.patch.object(self.module, 'validate_profile'), \
                 mock.patch.object(self.module.Path, 'is_dir', return_value=True), \
-                mock.patch.object(self.module, 'capture', side_effect=self.module.ConfigurationError('scan failed')), \
+                mock.patch.object(self.module, 'capture', side_effect=error), \
                 mock.patch.object(self.module, 'publish_profile') as profiles, \
                 mock.patch.object(self.module, 'publish') as state, \
+                mock.patch.object(self.module, 'wait_supplicant_release'), \
                 mock.patch.object(self.module, 'run') as commands:
-            with self.assertRaises(self.module.ConfigurationError):
+            with self.assertRaises(type(error)):
                 self.module.firstboot()
             profiles.assert_not_called()
             state.assert_not_called()
-            self.assertEqual(commands.call_args.args[0][-3:], ['radio', 'wifi', 'off'])
+            self.assertEqual(commands.call_args_list[-2].args[0][-3:], ['radio', 'wifi', 'off'])
+            self.assertEqual(commands.call_args.args[0][-2:], ['managed', 'yes'])
+
+    def test_radio_cleanup_orders_release_before_rfkill_and_restores_management_on_failure(self):
+        for failure in ('none', 'unmanage', 'release', 'radio-off'):
+            events = []
+
+            def command(argv, **kwargs):
+                self.signals.assert_called_once_with(self.module.signal.SIGTERM, self.module.signal.SIG_IGN)
+                action = 'radio-off' if argv[-1] == 'off' else 'unmanage' if argv[-1] == 'no' else 'manage'
+                events.append(action)
+                self.assertEqual(kwargs['timeout'], 7)
+                if action == failure:
+                    raise self.module.ConfigurationError('fixture command failure')
+
+            def release(interface):
+                events.append('release')
+                self.assertEqual(interface, 'wifi0')
+                if failure == 'release':
+                    raise self.module.ConfigurationError('fixture release timeout')
+
+            with self.subTest(failure=failure), \
+                    mock.patch.object(self.module, 'run', side_effect=command), \
+                    mock.patch.object(self.module, 'wait_supplicant_release', side_effect=release):
+                if failure == 'none':
+                    self.module.disable_firstboot_radio('wifi0')
+                else:
+                    with self.assertRaises(self.module.ConfigurationError):
+                        self.module.disable_firstboot_radio('wifi0')
+            self.assertEqual(events, ['unmanage', *([] if failure == 'unmanage' else ['release']),
+                                      'radio-off', 'manage'])
+            self.signals.reset_mock()
+
+    def test_release_waits_for_both_control_sockets_and_has_a_deadline(self):
+        attempts = []
+
+        def socket_state(path):
+            attempts.append(path)
+            if len(attempts) > 2:
+                raise FileNotFoundError
+            return mock.Mock()
+
+        with mock.patch.object(self.module.Path, 'lstat', socket_state), \
+                mock.patch.object(self.module.time, 'monotonic', side_effect=[10, 10.1]), \
+                mock.patch.object(self.module.time, 'sleep') as sleep:
+            self.module.wait_supplicant_release('wifi0')
+        self.assertEqual([p.name for p in attempts], ['wifi0', 'p2p-dev-wifi0'] * 2)
+        self.assertTrue(all(p.parent == self.module.SUPPLICANT_CONTROL for p in attempts))
+        sleep.assert_called_once()
+        with mock.patch.object(self.module.Path, 'lstat', return_value=mock.Mock()), \
+                mock.patch.object(self.module.time, 'monotonic', side_effect=[10, 16]), \
+                mock.patch.object(self.module.time, 'sleep') as sleep, \
+                self.assertRaisesRegex(self.module.ConfigurationError, 'release timed out'):
+            self.module.wait_supplicant_release('wifi0')
+        sleep.assert_not_called()
 
     def test_configuration_validates_policy_before_prompting_or_running_commands(self):
         values = "MANAGED_NETWORK_MODE='static'\nMANAGED_NETWORK_LINK_TYPES='ethernet wifi'\n"

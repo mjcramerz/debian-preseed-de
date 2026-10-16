@@ -520,6 +520,7 @@ install_target_firstboot_logger() {
   stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/etc/systemd/system/firstboot.service)" "${FILE_FIRSTBOOT_SERVICE}" 0644
   stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/var/lib/firstboot/bin/secondboot-cleanup)" "${FILE_SECONDBOOT_HELPER}" 0755
   stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/etc/systemd/system/secondboot.service)" "${FILE_SECONDBOOT_SERVICE}" 0644
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/etc/systemd/system/secondboot.path)" /etc/systemd/system/secondboot.path 0644
 
   install -d -m 0700 \
     "/target${LOG_INITRAMFS_DIR}" \
@@ -531,6 +532,7 @@ install_target_firstboot_logger() {
 
   stage_target_systemd_unit_enabled firstboot.service system
   stage_target_systemd_unit_enabled secondboot.service system
+  stage_target_systemd_unit_enabled secondboot.path system
   installer_append_log_category late target_customization info firstboot "staged target first-boot wrapper ${FILE_FIRSTBOOT_HELPER}" || true
   installer_append_log_category late target_customization info secondboot "staged target cleanup service ${FILE_SECONDBOOT_SERVICE} automatic_after_completed_enrollment=true" || true
   installer_append_log_category bootloader bootloader info initramfs "staged initramfs health hooks under ${DIR_INITRAMFS_SCRIPTS}" || true

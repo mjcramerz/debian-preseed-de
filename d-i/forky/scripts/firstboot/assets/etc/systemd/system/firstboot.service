@@ -1,7 +1,6 @@
 [Unit]
 Description=First boot provisioning and validation wrapper
 Documentation=man:systemd.service(5)
-OnSuccess=secondboot.service
 
 # Collect persistent diagnostics even when the collector cannot start.
 # Validation still fails until rsyslog.service and syslog.socket are active.
@@ -24,6 +23,9 @@ Type=exec
 # Rebuild the cache; --skip-cache conflicts with parser.conf's write-cache.
 ExecStartPre=/usr/sbin/apparmor_parser --replace --skip-read-cache --write-cache /etc/apparmor.d/firstboot
 ExecStart=/var/lib/firstboot/bin/firstboot.sh
+# Publish a request after the wrapper exits. A shared OnSuccess handler has
+# ambiguous MONITOR_* sources when independent bootstraps complete together.
+ExecStopPost=/var/lib/firstboot/bin/secondboot-cleanup --queue
 
 StandardOutput=journal
 StandardError=journal

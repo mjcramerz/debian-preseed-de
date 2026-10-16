@@ -362,6 +362,16 @@ policy; this resolver separation does not install physical-uplink routing or
 override a VPN kill switch. Cached answers do not depend on VPN DNS scope, so
 VPN DNS changes do not require cache invalidation.
 
+Stubby's local listener starts after local filesystems and AppArmor, before
+resolved and `sysinit.target`. Its packaged `Type=notify` readiness notification
+follows listener binding. The managed drop-in clears the package's
+`network-online.target` dependency: numeric upstream addresses do not require
+DNS to bind a loopback listener, and waiting for networking here would cycle
+back through the early host resolver. Resolved wants and starts after Stubby;
+it remains available for per-link VPN DNS if Stubby fails later. Strict upstream
+TLS authentication, DNSSEC validation and the empty global fallback stay in
+place. Listener readiness does not establish upstream reachability.
+
 After changing installed Stubby upstream or validation policy, validate its
 configuration and restart `stubby.service`. `PartOf=stubby.service` restarts
 the dnsmasq frontend too, replacing its cache before new queries are served.
@@ -434,9 +444,17 @@ A successful CrowdSec console enrollment request records
 `enrollment=pending-approval`, publishes its completion marker and exits zero.
 Console approval remains a later remote step. Genuine authentication, API and
 registration failures retain retry/failure behavior. CrowdSec and Tailscale
-completion can trigger secondboot cleanup; firstboot success also triggers it
-to cover validation finishing last. Cleanup uses the component markers and
-retains unfinished enrollment artifacts.
+completion can trigger secondboot cleanup; firstboot completion also triggers
+it to cover validation finishing last. Each bootstrap's `ExecStopPost` atomically
+publishes `/var/lib/firstboot/state/cleanup-request`. `secondboot.path` watches
+that private file and rechecks it when cleanup exits, retaining requests that
+arrive during another cleanup run. This avoids ambiguous shared `OnSuccess=`
+monitor-source propagation. Cleanup verifies that bootstrap main and stop
+processes have exited, consumes the request before work, uses component markers
+to authorize removal and retains unfinished enrollment artifacts. Unit removals
+use `--no-reload` and one final manager reload. Full completion retires the path
+unit as well as the bootstrap services; next-boot cleanup remains available for
+unfinished work.
 
 Installed Python entrypoints use `-B`, including `-IB` for isolated shebangs.
 Interpreter-driven helpers and startup gates also pass `-B`. Codex sets

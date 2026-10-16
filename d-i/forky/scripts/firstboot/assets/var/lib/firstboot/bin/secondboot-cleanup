@@ -44,6 +44,96 @@ log() {
   printf '[secondboot] %s\n' "$*"
 }
 
+cleanup_request=$(root_path /var/lib/firstboot/state/cleanup-request)
+
+# ExecStopPost publishes a private request after the bootstrap process exits.
+# The path unit rechecks it after cleanup exits, so concurrent requests cannot
+# disappear into an already-running start job. Markers alone authorize removal,
+# including partial cleanup after another component's failed attempt.
+case "$#:${1:-}" in
+  0:) ;;
+  1:--queue)
+    queue_temporary=$(mktemp "${cleanup_request}.XXXXXX")
+    trap 'rm -f -- "$queue_temporary"' EXIT
+    trap 'exit 129' HUP
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    mv -fT -- "$queue_temporary" "$cleanup_request"
+    exit 0
+    ;;
+  *) printf 'fatal: unsupported secondboot cleanup arguments\n' >&2; exit 1 ;;
+esac
+
+systemd_changed=false
+
+finish_cleanup() {
+  cleanup_status=$?
+  trap - EXIT
+  if [ "$systemd_changed" = true ] && [ "$SECONDBOOT_ROOT" = / ]; then
+    # disable --no-reload and explicit unlinking are committed once, including
+    # partial cleanup and error exits. Never reload once per completed helper.
+    if ! systemctl daemon-reload; then
+      log "warning: could not reload removed bootstrap units"
+      [ "$cleanup_status" -ne 0 ] || cleanup_status=1
+    fi
+    systemctl reset-failed firstboot.service crowdsec-firstboot.service \
+      tailscale-bootstrap.service >/dev/null 2>&1 || true
+  fi
+  exit "$cleanup_status"
+}
+trap finish_cleanup EXIT
+
+bootstrap_processes_exited() {
+  bootstrap_fields=$(systemctl show --property=MainPID --property=ControlPID --property=SubState \
+    firstboot.service crowdsec-firstboot.service tailscale-bootstrap.service) || {
+    log "could not inspect bootstrap processes; retained boot retry"
+    return 2
+  }
+  [ -n "$bootstrap_fields" ] || { log "missing bootstrap process state; retained boot retry"; return 2; }
+  bootstrap_pid_count=0
+  bootstrap_state_count=0
+  for bootstrap_field in $bootstrap_fields; do
+    case "$bootstrap_field" in
+      MainPID=0|ControlPID=0) bootstrap_pid_count=$((bootstrap_pid_count + 1)) ;;
+      MainPID=*|ControlPID=*)
+        case "${bootstrap_field#*=}" in
+          ''|*[!0-9]*) log "invalid bootstrap process state; retained boot retry"; return 2 ;;
+        esac
+        log "deferring cleanup until bootstrap processes and stop commands exit"
+        return 1
+        ;;
+      SubState=dead|SubState=failed|SubState=auto-restart|SubState=auto-restart-queued)
+        bootstrap_state_count=$((bootstrap_state_count + 1))
+        ;;
+      SubState=*)
+        # MainPID can already be zero before the stop command is spawned.
+        log "deferring cleanup until bootstrap service transitions finish"
+        return 1
+        ;;
+      *) log "invalid bootstrap process state; retained boot retry"; return 2 ;;
+    esac
+  done
+  [ "$bootstrap_pid_count" -eq 6 ] && [ "$bootstrap_state_count" -eq 3 ] || {
+    log "incomplete bootstrap process state; retained boot retry"
+    return 2
+  }
+}
+
+# Consume this run's request before doing work. A later atomic publication is
+# a new request and is left for the path unit to activate after this run exits.
+# If a bootstrap is still busy, status 75 schedules a delayed service retry;
+# After= alone cannot wait for natural exits after their start jobs finish.
+rm -f -- "$cleanup_request"
+if [ "$SECONDBOOT_ROOT" = / ]; then
+  if bootstrap_processes_exited; then
+    :
+  else
+    process_status=$?
+    [ "$process_status" -eq 1 ] && exit 75
+    exit 1
+  fi
+fi
+
 remove_transient_secret() {
   secret_path=$1
   [ -e "$secret_path" ] || [ -L "$secret_path" ] || return 0
@@ -71,7 +161,7 @@ defer_cleanup() {
 disable_remove_unit() {
   unit_name=$1
   case "$unit_name" in
-    firstboot.service|crowdsec-firstboot.service|tailscale-bootstrap.service|secondboot.service) ;;
+    firstboot.service|crowdsec-firstboot.service|tailscale-bootstrap.service|secondboot.service|secondboot.path) ;;
     *)
       printf 'fatal: refusing unexpected cleanup unit: %s\n' "$unit_name" >&2
       exit 1
@@ -79,16 +169,15 @@ disable_remove_unit() {
   esac
 
   if [ "$SECONDBOOT_ROOT" = / ] && command -v systemctl >/dev/null 2>&1; then
-    case "$unit_name" in
-      secondboot.service)
-        systemctl disable "$unit_name" >/dev/null 2>&1 || true
-        ;;
-      *)
-        systemctl disable --now "$unit_name" >/dev/null 2>&1 || true
-        ;;
-    esac
+    # Completion markers authorize removal, never stopping another process.
+    if [ "$unit_name" = secondboot.path ]; then
+      systemctl --no-reload disable --now "$unit_name" >/dev/null 2>&1 || true
+    else
+      systemctl --no-reload disable "$unit_name" >/dev/null 2>&1 || true
+    fi
   fi
 
+  systemd_changed=true
   systemd_dir=$(root_path /etc/systemd/system)
   for link_dir in "$systemd_dir"/*.wants "$systemd_dir"/*.requires; do
     [ -d "$link_dir" ] || continue
@@ -256,29 +345,15 @@ rm -rf -- \
   "$(root_path /run/initramfs-health)" \
   "$(root_path /run/initramfs/initramfs-health)"
 
-if [ "$SECONDBOOT_ROOT" = / ] && command -v systemctl >/dev/null 2>&1; then
-  systemctl daemon-reload
-  systemctl reset-failed \
-    firstboot.service \
-    crowdsec-firstboot.service \
-    tailscale-bootstrap.service >/dev/null 2>&1 || true
-fi
-
 if [ "$cleanup_deferred" = true ]; then
-  if [ "$SECONDBOOT_ROOT" = / ] && command -v systemctl >/dev/null 2>&1; then
-    systemctl daemon-reload >/dev/null 2>&1 || true
-  fi
   log "removed completed first-boot artifacts; retained pending enrollment artifacts and secondboot retry service"
   exit 0
 fi
 
+disable_remove_unit secondboot.path
 rm -f -- "$(root_path /var/lib/firstboot/bin/secondboot-cleanup)"
 disable_remove_unit secondboot.service
 rm -f -- "$(root_path /etc/apparmor.d/firstboot)"
-
-if [ "$SECONDBOOT_ROOT" = / ] && command -v systemctl >/dev/null 2>&1; then
-  systemctl daemon-reload >/dev/null 2>&1 || true
-fi
 
 # No bootstrap credentials survive. Permanent TPM reenrollment and release evidence remain.
 rm -f -- "$(root_path /var/lib/firstboot/state/complete)" "$(root_path /var/lib/firstboot/state/lock)"

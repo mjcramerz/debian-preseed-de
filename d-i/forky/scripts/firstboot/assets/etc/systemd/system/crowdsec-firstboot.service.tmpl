@@ -6,7 +6,6 @@ After=network-online.target nss-lookup.target time-sync.target auditd.service
 ConditionPathExists=!/var/lib/firstboot/crowdsec/complete
 # Accepted console requests (pending approval) publish complete and exit 0.
 # Cleanup is gated by the helpers' markers, not propagated trigger status.
-OnSuccess=secondboot.service
 
 [Service]
 Environment="CROWDSEC_HOST_VARIANT=__INSTALLER_CROWDSEC_HOST_VARIANT__"
@@ -17,6 +16,7 @@ Type=oneshot
 Environment=CROWDSEC_ENROLL_ATTEMPTS=1
 Environment=CROWDSEC_ENROLL_RETRY_DELAY_SECONDS=10
 ExecStart=/var/lib/firstboot/bin/crowdsec-firstboot
+ExecStopPost=/var/lib/firstboot/bin/secondboot-cleanup --queue
 StandardOutput=journal
 StandardError=journal
 Restart=on-failure

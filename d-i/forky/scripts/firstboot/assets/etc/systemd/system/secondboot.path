@@ -1,0 +1,13 @@
+[Unit]
+Description=Watch for installer bootstrap cleanup requests
+After=local-fs.target
+Before=firstboot.service crowdsec-firstboot.service tailscale-bootstrap.service
+ConditionPathExists=/var/lib/firstboot/bin/secondboot-cleanup
+
+[Path]
+# Rechecked when secondboot exits: a request arriving during cleanup is retained.
+PathExists=/var/lib/firstboot/state/cleanup-request
+Unit=secondboot.service
+
+[Install]
+WantedBy=multi-user.target
