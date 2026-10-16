@@ -1,0 +1,18 @@
+# Managed per-user Llama/Whisper admission and recovery state.
+/usr/local/libexec/llama-whisper-coordinate rix,
+/usr/local/lib/python3.14/dist-packages/ r,
+/usr/local/lib/python3.14/dist-packages/labwc_ai_copilots/ r,
+/usr/local/lib/python3.14/dist-packages/labwc_ai_copilots/{__init__,gguf,resources}.py r,
+/usr/bin/{systemctl,nvidia-smi} rix,
+@{PROC}/meminfo r,
+@{PROC}/devices r,
+owner /run/user/[0-9]*/ rw,
+owner /run/user/[0-9]*/llama-whisper/ rw,
+owner /run/user/[0-9]*/llama-whisper/** rwk,
+owner /run/user/[0-9]*/systemd/private rw,
+owner /run/user/[0-9]*/bus rw,
+network unix stream,
+include if exists <abstractions/dbus-session-strict>
+dbus (send, receive)
+  bus=session
+  peer=(name=org.freedesktop.systemd1),

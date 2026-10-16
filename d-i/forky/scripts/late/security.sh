@@ -1165,6 +1165,10 @@ apparmor_document_media_placeholder_map() {
 
 stage_target_desktop_apparmor_profiles() {
   stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/llama-whisper-coordination)" \
+    "/etc/apparmor.d/abstractions/llama-whisper-coordination" \
+    0644
+  stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/devops-toolchain-data)" \
     "/etc/apparmor.d/abstractions/devops-toolchain-data" \
     0644
@@ -1875,6 +1879,7 @@ configure_target_app_veth() {
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/app-veth.nft.tmpl)" \
     /etc/app-veth.nft 0644 proxy3_placeholder_map
   configure_target_stubby
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/stubby.service)" /etc/systemd/system/stubby.service 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/stubby.service.d/60-app-veth.conf)" /etc/systemd/system/stubby.service.d/60-app-veth.conf 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/systemd-resolved.service.d/60-stubby.conf)" /etc/systemd/system/systemd-resolved.service.d/60-stubby.conf 0644
   render_target_asset_with_placeholder_map \

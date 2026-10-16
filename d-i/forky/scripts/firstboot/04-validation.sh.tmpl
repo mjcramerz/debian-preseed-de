@@ -91,6 +91,38 @@ check_command() {
   fi
 }
 
+validate_stubby_boot_order() {
+  stubby_properties=$(timeout --signal=TERM --kill-after=2s 20s \
+    systemctl show stubby.service --property=FragmentPath --property=After --property=Before) || return "$?"
+  stubby_fragment=$(printf '%s\n' "$stubby_properties" | sed -n 's/^FragmentPath=//p')
+  stubby_after=$(printf '%s\n' "$stubby_properties" | sed -n 's/^After=//p')
+  stubby_before=$(printf '%s\n' "$stubby_properties" | sed -n 's/^Before=//p')
+  if [ "$stubby_fragment" != /etc/systemd/system/stubby.service ]; then
+    printf '%s\n' 'managed Stubby base unit is not loaded' >&2
+    return 1
+  fi
+  for stubby_dependency in network-online.target network.target basic.target sysinit.target; do
+    case " $stubby_after " in
+      *" $stubby_dependency "*)
+        printf 'unexpected Stubby ordering: After=%s\n' "$stubby_dependency" >&2
+        return 1
+        ;;
+    esac
+  done
+  for stubby_dependency in local-fs.target systemd-sysusers.service apparmor.service; do
+    case " $stubby_after " in
+      *" $stubby_dependency "*) ;;
+      *) printf 'missing Stubby ordering: After=%s\n' "$stubby_dependency" >&2; return 1 ;;
+    esac
+  done
+  for stubby_dependency in sysinit.target systemd-resolved.service shutdown.target; do
+    case " $stubby_before " in
+      *" $stubby_dependency "*) ;;
+      *) printf 'missing Stubby ordering: Before=%s\n' "$stubby_dependency" >&2; return 1 ;;
+    esac
+  done
+}
+
 # The required one-shot has already provisioned the on-disk FSS generation.
 # This also checks its state without exposing the off-host verification key.
 check_command journal-sealing-status /usr/local/libexec/journal-sealing --status
@@ -1347,6 +1379,12 @@ if command -v systemctl >/dev/null 2>&1; then
     failures=$((failures + 1))
   else
     record "PASS failed-units-absent"
+  fi
+  if [ -f /etc/systemd/system/stubby.service.d/60-app-veth.conf ]; then
+    # A job deleted to break an ordering cycle need not appear in --failed.
+    check_command managed-stubby-boot-order validate_stubby_boot_order
+    check_command managed-stubby-active timeout --signal=TERM --kill-after=2s 20s \
+      systemctl is-active --quiet stubby.service
   fi
 fi
 

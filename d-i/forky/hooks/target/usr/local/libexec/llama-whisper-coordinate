@@ -1,0 +1,26 @@
+#!/usr/bin/python3 -IB
+"""Coordinate the managed Llama and Whisper runtimes for this user."""
+import stat
+import sys
+from pathlib import Path
+
+PACKAGE_ROOT = Path('/usr/local/lib/python3.14/dist-packages')
+PACKAGE = PACKAGE_ROOT / 'labwc_ai_copilots'
+
+try:
+    anchor = Path('/usr').stat()
+    owner = (anchor.st_uid, anchor.st_gid)
+    for path in (*reversed(PACKAGE.parents), PACKAGE,
+                 *(PACKAGE / name for name in ('__init__.py', 'gguf.py', 'resources.py'))):
+        metadata = path.lstat()
+        kind = stat.S_ISREG if path.suffix == '.py' else stat.S_ISDIR
+        if (not kind(metadata.st_mode) or (metadata.st_uid, metadata.st_gid) != owner
+                or metadata.st_mode & 0o022):
+            raise ValueError(f'unsafe managed package path: {path}')
+    sys.path.insert(0, str(PACKAGE_ROOT))
+    from labwc_ai_copilots.resources import main
+except (OSError, ValueError) as error:
+    print(f'llama-whisper: package unavailable: {error}', file=sys.stderr)
+    raise SystemExit(1)
+
+raise SystemExit(main())

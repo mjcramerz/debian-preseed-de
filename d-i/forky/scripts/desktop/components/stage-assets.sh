@@ -295,6 +295,7 @@ desktop_ai_copilots_python_modules() {
 __init__.py
 cli.py
 gguf.py
+resources.py
 EOF
 }
 

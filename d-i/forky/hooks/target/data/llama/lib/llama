@@ -228,15 +228,17 @@ llama_exec() {
   llama_binary="${llama_binary_dir}/${llama_binary_name}"
 
   llama_require_root_file "$llama_binary" 755 "${llama_binary_name} binary"
+  llama_coordinator=/usr/local/libexec/llama-whisper-coordinate
+  llama_require_root_file "$llama_coordinator" 755 "resource coordinator"
   for llama_argument do
     case "$llama_argument" in
       -tb|--threads-batch|--threads_batch)
-        exec "$llama_binary" "$@"
+        exec "$llama_coordinator" run "$llama_binary" "$@"
         ;;
     esac
   done
 
-  exec "$llama_binary" \
+  exec "$llama_coordinator" run "$llama_binary" \
     --threads-batch "$LLAMA_ARG_THREADS_BATCH" \
     "$@"
 }

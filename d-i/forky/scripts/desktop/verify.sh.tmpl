@@ -535,6 +535,7 @@ for path in \
   /etc/skel-desktop/.config/systemd/user/app-.scope.d/60-resource-class.conf \
   /etc/skel-desktop/.config/systemd/user/labwc-adb-server.service \
   /etc/skel-desktop/.config/systemd/user/llama-server.service \
+  /etc/systemd/user/llama-whisper-guard.service \
   /etc/skel-desktop/.config/systemd/user/labwc-output-watch.service \
   /etc/skel-desktop/.config/systemd/user/labwc-mute-default-microphone.service \
   /etc/skel-desktop/.config/systemd/user/swaybg.service \
@@ -595,6 +596,10 @@ done
 require_mode /etc/systemd/system/labwc-admin-action@.service 644
 require_mode /etc/systemd/system/labwc-external-drives-shutdown.service 644
 require_mode /etc/systemd/user/labwc-gvfs-volume-monitor.service 644
+require_mode /etc/systemd/user/llama-whisper-guard.service 644
+require_mode /usr/local/libexec/llama-whisper-coordinate 755
+require_mode /usr/local/lib/python3.14/dist-packages/labwc_ai_copilots/resources.py 644
+require_mode /etc/apparmor.d/abstractions/llama-whisper-coordination 644
 require_mode /etc/systemd/user/thunar.service.d/50-labwc-session.conf 644
 for application_family in wayland electron native devops bitwarden qbittorrent compat; do
   lifecycle_policy="/etc/systemd/user/labwc-${application_family}-.service.d/50-app-lifecycle.conf"
@@ -781,6 +786,7 @@ for path in \
   /usr/local/bin/labwc-ai-copilots \
   /usr/local/bin/labwc-ai-copilots-action \
   /usr/local/libexec/labwc-ai-llama-server \
+  /usr/local/libexec/llama-whisper-coordinate \
   /usr/local/libexec/labwc-ai-model-install-root \
   /usr/local/libexec/labwc-ai-model-info \
   /usr/local/bin/labwc-display-configuration \

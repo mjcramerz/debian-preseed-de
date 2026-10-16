@@ -180,6 +180,8 @@ desktop_stage_target_assets() {
   desktop_stage_ai_copilots_catalogs
   desktop_stage_role_asset usr/local/bin/labwc-ai-copilots-action /usr/local/bin/labwc-ai-copilots-action 0755
   desktop_stage_role_asset usr/local/libexec/labwc-ai-llama-server /usr/local/libexec/labwc-ai-llama-server 0755
+  desktop_stage_role_asset usr/local/libexec/llama-whisper-coordinate /usr/local/libexec/llama-whisper-coordinate 0755
+  desktop_stage_role_asset etc/systemd/user/llama-whisper-guard.service /etc/systemd/user/llama-whisper-guard.service 0644
   desktop_stage_role_asset usr/local/libexec/labwc-ai-model-install-root /usr/local/libexec/labwc-ai-model-install-root 0755
   desktop_stage_ai_copilots_python_modules
   desktop_stage_role_asset usr/local/libexec/labwc-ai-model-info /usr/local/libexec/labwc-ai-model-info 0755

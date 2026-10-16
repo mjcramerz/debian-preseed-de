@@ -955,6 +955,8 @@ profile labwc-ai-model-info /usr/local/libexec/labwc-ai-model-info flags=(attach
 
 profile labwc-ai-llama-server /usr/local/libexec/labwc-ai-llama-server flags=(attach_disconnected) {
   #include <abstractions/wrapper-perl>
+  #include <abstractions/wrapper-python>
+  #include <abstractions/llama-whisper-coordination>
   #include <abstractions/desktop-graphics>
 
   network unix stream,
@@ -1329,6 +1331,7 @@ profile codex-runtime /data/codex/share/bin/* flags=(attach_disconnected, mediat
 
 profile devops-toolchain /{data/llama/lib/llama,data/llama/bin/{llama-bench,llama-cli,llama-gguf-split,llama-quantize,llama-server},usr/local/lib/bazelisk/bazel,usr/local/lib/rustup/bin/rustup-init,usr/local/lib/node-{22,24,26}/**,pool/cache/*/cargo/bin/**,pool/db/*/{bazelisk,mise,rustup}/**,pool/build/*/{cargo/{install,target}/**,npm-global/bin/**,pnpm/bin/**,yarn-global/bin/**}} flags=(attach_disconnected) {
   #include <abstractions/devops-toolchain-runtime>
+  #include <abstractions/llama-whisper-coordination>
 
   # JVM tooling enumerates peer processes and updates its own core-dump policy.
   capability sys_ptrace,
@@ -1347,6 +1350,14 @@ profile devops-toolchain /{data/llama/lib/llama,data/llama/bin/{llama-bench,llam
   /data/llama/bin/{llama-bench,llama-cli,llama-gguf-split,llama-quantize,llama-server} mrix,
 
   include if exists <local/usr.local.lib.devops-toolchain>
+}
+
+profile llama-whisper-coordinate /usr/local/libexec/llama-whisper-coordinate flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/desktop-graphics>
+  #include <abstractions/llama-whisper-coordination>
+
+  signal (receive) set=(kill term) peer=unconfined,
 }
 
 # Keep credential-bearing publication commands out of the general Node, Rust,

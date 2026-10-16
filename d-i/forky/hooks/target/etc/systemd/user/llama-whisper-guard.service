@@ -1,0 +1,28 @@
+[Unit]
+Description=Restore persistent Whisper after managed Llama releases memory
+PartOf=labwc-session.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+ExecStart=/usr/local/libexec/llama-whisper-coordinate watch
+Environment=XDG_RUNTIME_DIR=%t
+Environment=PATH=/usr/bin:/bin
+SyslogIdentifier=llama-whisper-guard
+StandardOutput=journal
+StandardError=journal
+Restart=always
+RestartSec=1s
+TimeoutStartSec=10s
+TimeoutStopSec=5s
+KillMode=control-group
+KillSignal=SIGTERM
+SendSIGKILL=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+UMask=0077

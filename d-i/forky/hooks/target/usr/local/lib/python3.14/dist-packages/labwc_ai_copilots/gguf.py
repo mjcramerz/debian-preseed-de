@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import grp
 import os
+import stat
 import struct
 from collections import Counter
 from dataclasses import dataclass
@@ -251,8 +252,12 @@ def _validate_model_path(path_text: str) -> Path:
 
 
 def _inspect_gguf_file(path: Path) -> GGUFInfo:
-    file_size = path.stat().st_size
-    with path.open("rb", buffering=0) as handle:
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(descriptor, "rb", buffering=0) as handle:
+        metadata = os.fstat(handle.fileno())
+        file_size = metadata.st_size
+        if not stat.S_ISREG(metadata.st_mode) or not 24 <= file_size <= 107_374_182_400:
+            raise GGUFError("model must be a bounded regular file")
         reader = _Reader(handle, file_size)
         if reader.read_exact(4) != b"GGUF":
             raise GGUFError("model does not contain GGUF magic")
@@ -274,7 +279,13 @@ def _inspect_gguf_file(path: Path) -> GGUFInfo:
             if not key or len(key) > 4096:
                 raise GGUFError("GGUF metadata key is invalid")
             value_type = int(reader.unpack("<I"))
-            retain = key in _INTERESTING_KEYS or key.endswith(".context_length")
+            retain = key in _INTERESTING_KEYS or key.endswith((
+                ".context_length", ".block_count", ".embedding_length",
+                ".attention.head_count", ".attention.head_count_kv",
+                ".attention.key_length", ".attention.value_length",
+            ))
+            if value_type == _ARRAY_TYPE and key not in _INTERESTING_KEYS:
+                retain = False
             value = reader.read_value(value_type, retain=retain)
             if retain and value is not None:
                 metadata[key] = value
@@ -317,3 +328,15 @@ def inspect_gguf(path_text: str) -> GGUFInfo:
     """Inspect one root:devops GGUF below the managed Llama model directory."""
 
     return _inspect_gguf_file(_validate_model_path(path_text))
+
+
+def inspect_gguf_for_resources(path_text: str) -> GGUFInfo:
+    """Inspect a CLI-selected readable model without changing its ownership contract.
+
+    The managed model viewer retains its stricter root:devops policy. A direct
+    Llama CLI may also select another readable model; reads remain bounded and
+    reject devices, FIFOs and a replaced final symlink at open time.
+    """
+    if not path_text or '\x00' in path_text:
+        raise GGUFError('model path is invalid')
+    return _inspect_gguf_file(Path(path_text).resolve(strict=True))

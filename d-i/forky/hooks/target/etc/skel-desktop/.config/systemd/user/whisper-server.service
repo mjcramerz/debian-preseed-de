@@ -18,6 +18,7 @@ StandardOutput=journal
 StandardError=journal
 ExecCondition=/usr/local/libexec/labwc-session-check session-ready
 ExecCondition=/usr/local/libexec/whisper-record-toggle server-enabled
+ExecCondition=/usr/local/libexec/llama-whisper-coordinate whisper-allowed
 ExecStart=/usr/local/libexec/whisper-record-toggle server
 ExecStartPost=/usr/local/libexec/whisper-record-toggle server-ready
 Restart=on-failure
