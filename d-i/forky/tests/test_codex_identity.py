@@ -188,6 +188,7 @@ class CodexIdentityTests(unittest.TestCase):
         self.assertFalse(self.c.CODEX_NEW_UUID)
 
     def test_identity_only_passes_login_and_id_fd_without_auth_or_network_mounts(self):
+        self.c.CODEX_USE_BWRAP = False
         self.c.CODEX_ARGS = ['login', '--device-auth']
         self.c.CODEX_SANDBOX_PATH = '/usr/bin:/bin'
         process = mock.Mock()
@@ -198,7 +199,9 @@ class CodexIdentityTests(unittest.TestCase):
             self.assertEqual(self.c.codex_run_identity_only(123), 130)
             self.assertNotIn('DISPLAY', os.environ)
         command = spawn.call_args.args[0]
-        self.assertEqual(command[-4:], ['--', self.c.CODEX_RAW_BINARY, 'login', '--device-auth'])
+        self.assertEqual(command[command.index('--') + 1:],
+                         [self.c.CODEX_RAW_BINARY, '--config',
+                          'log_dir=' + json.dumps(self.c.CODEX_HOST_LOG_ROOT), 'login', '--device-auth'])
         self.assertIn('--bind-data', command)
         self.assertNotIn('--ro-bind-data', command)
         self.assertIn(str(self.target), command)

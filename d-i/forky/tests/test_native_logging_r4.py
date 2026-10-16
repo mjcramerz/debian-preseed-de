@@ -70,6 +70,30 @@ class CatalogTests(unittest.TestCase):
     def test_invalid_queue_and_mode_rejected(self):
         for key,value in [('LOG_RSYSLOG_QUEUE_HIGH','1'),('LOG_FILE_MODE','0666')]:
             with self.subTest(key=key):self.reject(re.sub(r'^'+key+r'="[^"]*"',key+'="'+value+'"',self.original,flags=re.M))
+    def test_private_socket_paths_match_created_parents_and_linux_path_limit(self):
+        for key, parent in (
+            ('LOG_SCANNER_SOCKET', '/run/rsyslog/security-scanners'),
+            ('LOG_CHATGPT_SOCKET', '/run/rsyslog/openai'),
+            ('LOG_APPS_SOCKET', '/run/rsyslog/apps'),
+        ):
+            for value in (parent + '/alternate.sock', parent + '/' + 's' * (106 - len(parent))):
+                with self.subTest(key=key, accepted_length=len(value)):
+                    catalog = re.sub(r'^'+key+r'="[^"]*"', key+'="'+value+'"', self.original, flags=re.M)
+                    result = self.validate(catalog)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+            for value in (parent + '/nested/collector.sock', parent + '/' + 's' * (107 - len(parent))):
+                with self.subTest(key=key, rejected_length=len(value)):
+                    self.reject(re.sub(r'^'+key+r'="[^"]*"', key+'="'+value+'"', self.original, flags=re.M))
+    def test_zero_disables_only_rate_intervals_and_other_zero_values_remain_invalid(self):
+        for key in ('LOG_SCANNER_RATE_INTERVAL', 'LOG_SYSLOG_RATE_INTERVAL'):
+            self.assertEqual(VALUES[key], '0')
+            for value in ('0', '1', '3600'):
+                result = self.validate(re.sub(r'^'+key+r'="[^"]*"', key+'="'+value+'"', self.original, flags=re.M))
+                self.assertEqual(result.returncode, 0, result.stderr)
+            for value in ('00', '01', '3601', '-1'):
+                self.reject(re.sub(r'^'+key+r'="[^"]*"', key+'="'+value+'"', self.original, flags=re.M))
+        for key in ('LOG_RSYSLOG_QUEUE_MESSAGES', 'LOG_RSYSLOG_ROTATE_BYTES'):
+            self.reject(re.sub(r'^'+key+r'="[^"]*"', key+'="0"', self.original, flags=re.M))
     def test_root_relocation_propagates(self):
         result=self.validate(self.original.replace('LOG_ROOT="/var/log/managed"','LOG_ROOT="/var/log/managed-relocated"'))
         self.assertEqual(result.returncode,0,result.stderr)

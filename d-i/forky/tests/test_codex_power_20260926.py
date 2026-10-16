@@ -60,6 +60,17 @@ class WrapperRegressionTests(unittest.TestCase):
             with self.subTest(argv=argv), self.assertRaises(self.c.CodexError):
                 self.c.codex_parse_arguments(argv)
 
+    def test_native_log_setting_selects_managed_sink_for_each_execution_mode(self):
+        for prefix, destination in (([], self.c.CODEX_LOG_ROOT),
+                                    (['--no-bwrap'], self.c.CODEX_HOST_LOG_ROOT)):
+            with self.subTest(prefix=prefix):
+                self.c.codex_parse_arguments([*prefix, 'exec', '--', 'literal log_dir=prompt'])
+                argv = self.c.codex_payload_argv()
+                self.assertEqual(argv[:2], [self.c.CODEX_RAW_BINARY, '--config'])
+                self.assertEqual(json.loads(argv[2].split('=', 1)[1]), destination)
+                self.assertEqual(argv[3:], ['exec', '--', 'literal log_dir=prompt'])
+                self.assertEqual(self.c.codex_log_directory(), destination)
+
     def test_mount_plan_keeps_isolation_without_default_network_namespace(self):
         fixture = desktop.CodexTests()
         fixture.codex = self.c

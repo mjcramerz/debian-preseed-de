@@ -9,6 +9,9 @@ d __INSTALLER_DEVOPS_CODEX_USER_ROOT__ 0750 __INSTALLER_ACCOUNT_USERNAME__ devop
 d __INSTALLER_DEVOPS_CODEX_AGENTS__ 0750 __INSTALLER_ACCOUNT_USERNAME__ devops -
 d __INSTALLER_DEVOPS_CODEX_SKILLS__ 0750 __INSTALLER_ACCOUNT_USERNAME__ devops -
 d __INSTALLER_DEVOPS_CODEX_HOME__ 2770 __INSTALLER_ACCOUNT_USERNAME__ devops -
+# Existing native default log spelling; ChatGPT binds its managed runtime
+# destination here before the bundled Codex starts.
+d __INSTALLER_DEVOPS_CODEX_HOME__/log 2770 __INSTALLER_ACCOUNT_USERNAME__ devops -
 # installation_id remains native application state, never an empty placeholder.
 # The account user manager owns the public activation socket and proxies it to
 # a wrapper-backed private listener only while clients are connected. Its

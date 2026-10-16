@@ -69,8 +69,9 @@ devops_stage_codex_app_server() {
   fi
   grep -Fqx 'CODEX_APP_SERVER_SECRET_ENV_NAMES=CODEX_MCP_API_KEY' "$environment_tmp" ||
     devops_fatal "Codex app-server environment policy does not contain the approved secret-name allowlist"
+  # Require the logging supervisor and the canonical Codex wrapper together.
   grep -Fqx \
-    'ExecStart=/data/codex/lib/codex app-server --listen unix:///data/codex/sockets/app-server-backend.sock' \
+    'ExecStart=/usr/local/libexec/rsyslog-app-run codex-app-server -- /data/codex/lib/codex app-server --listen unix:///data/codex/sockets/app-server-backend.sock' \
     "$service_tmp" ||
     devops_fatal "Codex app-server backend does not use the managed wrapper command"
   grep -Fqx 'PartOf=codex-app-server.socket' "$service_tmp" ||

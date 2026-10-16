@@ -1,14 +1,16 @@
-# Local socket transport; no journal database reader, cursor, network input,
-# or output feedback loop. journald forwards original SCM_CREDENTIALS. Only
+# Local socket transport; no journal database reader, cursor or network input.
+# journald forwards original SCM_CREDENTIALS. Only
 # kernel-attested uid/pid and live /proc executable identity are used as trust
 # evidence; application tags are routing hints, never authorization.
 # Socket forwarding has no replay after collector downtime. The host-selected
 # journal storage policy remains independent and retains structured records.
+# Private app inputs reflect only warning/error records into the journal;
+# IgnoreOwnMessages prevents those copies from entering the collector again.
 
 global(maxMessageSize="__INSTALLER_LOG_RSYSLOG_MESSAGE_KIB__k"
        compatibility.defaults.secure="strict")
 $WorkDirectory __INSTALLER_LOG_RSYSLOG_SPOOL_DIR__
-module(load="imuxsock" SysSock.Use="on"
+module(load="imuxsock" SysSock.Use="on" SysSock.IgnoreOwnMessages="on"
        SysSock.Annotate="on" SysSock.ParseTrusted="on"
        SysSock.UsePIDFromSystem="on" SysSock.FlowControl="off"
        SysSock.RateLimit.Interval="__INSTALLER_LOG_SYSLOG_RATE_INTERVAL__"
@@ -16,6 +18,18 @@ module(load="imuxsock" SysSock.Use="on"
        SysSock.RateLimit.Severity="5")
 # journald ReadKMsg=no: imklog remains the single managed kernel-log input.
 module(load="imklog")
+# Only warnings/errors from the private application inputs return to journal.
+# IgnoreOwnMessages above prevents the journal socket from feeding them back.
+module(load="omjournal")
+# Keep PRIORITY in journald's native 0..7 range (never facility|severity).
+# omjournal consumes named fields directly; no text JSON escaping is needed.
+template(name="ManagedApplicationJournal" type="list") {
+  property(outname="MESSAGE" name="msg")
+  property(outname="PRIORITY" name="syslogseverity")
+  property(outname="SYSLOG_IDENTIFIER" name="programname")
+  property(outname="SYSLOG_PID" name="$!pid")
+  property(outname="MANAGED_UID" name="$!uid")
+}
 
 $FileOwner __INSTALLER_LOG_OWNER__
 $FileGroup __INSTALLER_LOG_GROUP__

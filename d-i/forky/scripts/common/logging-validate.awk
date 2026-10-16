@@ -38,9 +38,14 @@ FILENAME == ARGV[1] {
     } else if (type == "state") {
         if (!normalized(val) || index(val,bound[name] "/") != 1)
             fail("invalid protected state path: " name)
+        # Startup creates only these protected parents; imuxsock CreatePath is
+        # off. Linux pathname sockets allow at most 107 non-NUL path bytes.
+        if (name ~ /^LOG_(SCANNER|CHATGPT|APPS)_SOCKET$/ &&
+            (substr(val,length(bound[name])+2) ~ /\// || length(val)>107))
+            fail("socket must be a short direct child of its protected parent: " name)
     } else if (type == "int") {
         split(bound[name], limits, ",")
-        if (val !~ /^[1-9][0-9]*$/ || length(val)>9 || val+0<limits[1]+0 || val+0>limits[2]+0)
+        if ((val != "0" && val !~ /^[1-9][0-9]*$/) || length(val)>9 || val+0<limits[1]+0 || val+0>limits[2]+0)
             fail("integer out of range: " name)
     } else if (type == "enum") {
         if (index("," bound[name] ",", "," val ",") == 0)

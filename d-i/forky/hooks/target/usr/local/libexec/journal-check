@@ -13,7 +13,8 @@ import subprocess
 import sys
 
 MANAGED = Path('/etc/systemd/journald.conf.d/10-storage.conf')
-CRITICAL = ('Storage', 'ForwardToSyslog', 'ReadKMsg', 'Seal')
+CRITICAL = ('Storage', 'ForwardToSyslog', 'ReadKMsg', 'Seal',
+            'MaxLevelStore', 'MaxLevelSyslog', 'RateLimitIntervalSec', 'RateLimitBurst')
 
 
 class PolicyError(ValueError):
@@ -56,6 +57,11 @@ def check(managed_text: str, effective_text: str) -> None:
         raise PolicyError('managed imuxsock/imklog input policy is incomplete')
     if managed.get('Seal') not in ('yes', 'no'):
         raise PolicyError('managed Seal must be explicitly yes or no')
+    if (managed.get('MaxLevelStore') != 'debug'
+            or managed.get('MaxLevelSyslog') != 'info'
+            or managed.get('RateLimitIntervalSec') != '30s'
+            or managed.get('RateLimitBurst') != '10000'):
+        raise PolicyError('managed journal must retain system diagnostics with bounded burst protection')
     if managed['Storage'] == 'volatile' and managed['Seal'] != 'no':
         raise PolicyError('volatile journals must not claim forward-secure sealing')
     effective = journal_settings(effective_text)

@@ -4,6 +4,9 @@ RequiresMountsFor=__INSTALLER_LOG_POWER_DIR__ __INSTALLER_LOG_ROOT__ __INSTALLER
 After=systemd-journald.service systemd-tmpfiles-setup.service
 
 [Service]
+# Debian sends stdout to null; inherited stderr would discard startup failures
+# from the pre/post commands as well. Keep their error causes in the journal.
+StandardError=journal
 LimitNOFILE=__INSTALLER_LOG_RSYSLOG_MAX_OPEN_FILES__
 ExecStartPre=/usr/bin/test -x /usr/local/libexec/rsyslog-size-rotate
 ExecStartPre=/usr/local/libexec/journal-check

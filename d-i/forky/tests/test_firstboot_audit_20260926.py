@@ -90,8 +90,110 @@ class FirstbootDeliveryTests(unittest.TestCase):
         unit = (FIRSTBOOT / 'assets/etc/systemd/system/firstboot.service').read_text()
         for setting in ('Requires', 'After'):
             services = re.search(r'^' + setting + '=(.*)$', unit, re.M)[1].split()
-            for service in ('auditd.service', 'rsyslog.service', 'journal-sealing.service'):
+            for service in ('apparmor.service', 'auditd.service', 'journal-sealing.service'):
                 self.assertIn(service, services)
+        self.assertIn('rsyslog.service', re.search(r'^After=(.*)$', unit, re.M)[1].split())
+        self.assertIn('rsyslog.service', re.search(r'^Wants=(.*)$', unit, re.M)[1].split())
+        self.assertNotIn('rsyslog.service', re.search(r'^Requires=(.*)$', unit, re.M)[1].split())
+
+    def test_collector_failure_is_recorded_without_short_circuiting_validation(self):
+        source = (FIRSTBOOT / '04-validation.sh.tmpl').read_text()
+        checker = 'check_command() {' + source.split('check_command() {', 1)[1].split(
+            '\n# The required one-shot', 1)[0]
+        checks = source.split('# These checks are explicit:', 1)[1].split(
+            '\nif [ "$failures" -eq 0 ]; then', 1)[0]
+        checks = '\n'.join(line for line in checks.splitlines()[1:] if not line.startswith('#') and line.strip())
+        commands = self.root / 'commands'; commands.mkdir()
+        manager = commands / 'systemctl'
+        manager.write_text('''#!/bin/sh
+set -eu
+[ "$1" = is-active ] && [ "$2" = --quiet ] || exit 90
+case "$3" in
+  rsyslog.service) exit "$FIXTURE_RSYSLOG_STATUS" ;;
+  syslog.socket) exit "$FIXTURE_SYSLOG_STATUS" ;;
+  *) exit 91 ;;
+esac
+''')
+        manager.chmod(0o700)
+        checks = checks.replace('/usr/bin/systemctl', shlex.quote(str(manager)))
+        validation = self.root / 'validation.txt'
+        for service_status, socket_status, expected in ((0, 0, 0), (3, 0, 1), (0, 3, 1), (3, 3, 2)):
+            with self.subTest(service_status=service_status, socket_status=socket_status):
+                validation.write_text('')
+                script = '''set -u
+failures=0
+VALIDATION_FILE=$1
+record() { printf '%s\\n' "$*" >>"$VALIDATION_FILE"; }
+log_line() { :; }
+capture() { record "capture=$1"; }
+''' + checker + '\n' + checks + '\nrecord "failures=$failures"\n'
+                result = subprocess.run(
+                    ['/bin/sh', '-c', script, 'fixture', str(validation)], cwd=self.root,
+                    env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C',
+                         'FIXTURE_RSYSLOG_STATUS': str(service_status),
+                         'FIXTURE_SYSLOG_STATUS': str(socket_status)},
+                    stdin=subprocess.DEVNULL, text=True, capture_output=True, timeout=3,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                report = validation.read_text()
+                self.assertIn(f'failures={expected}\n', report)
+                self.assertIn('capture=logging-units.txt\n', report)
+                self.assertIn(('FAIL' if service_status else 'PASS') + ' rsyslog-service', report)
+                self.assertIn(('FAIL' if socket_status else 'PASS') + ' syslog-socket', report)
+
+    def test_failed_wrapper_remains_retryable_and_only_success_publishes_completion(self):
+        scripts = self.root / 'stages'; scripts.mkdir()
+        trace = self.root / 'stages-run.txt'
+        healthy = self.root / 'collector-healthy'
+        report = self.root / 'validation-result.txt'
+        for name in ('01-early.sh', '02-collect.sh', '03-network.sh', '04-validation.sh'):
+            body = '#!/bin/sh\nset -eu\nprintf "%s\\n" ' + shlex.quote(name) + ' >>' + shlex.quote(str(trace)) + '\n'
+            if name == '04-validation.sh':
+                body += ('if [ -f ' + shlex.quote(str(healthy)) + ' ]; then\n'
+                         '  printf "PASS collector\\n" >' + shlex.quote(str(report)) + '\n'
+                         'else\n'
+                         '  printf "FAIL collector\\n" >' + shlex.quote(str(report)) + '\n'
+                         '  exit 1\n'
+                         'fi\n')
+            stage = scripts / name
+            stage.write_text(body); stage.chmod(0o700)
+        # Exercise the real wrapper and marker publisher. All stages and state
+        # belong to this fixture; no service manager or installed helper runs.
+        cleanup = scripts / '05-cleanup.sh'
+        cleanup.write_text((FIRSTBOOT / '05-cleanup.sh').read_text().replace(
+            '/var/lib/firstboot/lib/logging.sh', str(scripts / 'logging.sh')))
+        cleanup.chmod(0o700)
+        wrapper = self.root / 'firstboot.sh'
+        wrapper.write_text((FIRSTBOOT / 'firstboot.sh').read_text())
+        environment = {
+            'PATH': '/usr/bin:/bin', 'HOME': str(self.root), 'LC_ALL': 'C',
+            'FIRSTBOOT_SCRIPT_DIR': str(scripts),
+            'FIRSTBOOT_STATE_DIR': str(self.root / 'state'),
+            'FIRSTBOOT_LOG_DIR': str(self.root / 'logs'),
+            'FIRSTBOOT_STAGE_TIMEOUT': '2',
+        }
+        complete = self.root / 'state/complete'
+        status = self.root / 'logs/status.env'
+        def invoke():
+            return subprocess.run(['/bin/sh', str(wrapper)], cwd=self.root, env=environment,
+                                  stdin=subprocess.DEVNULL, text=True, capture_output=True, timeout=5)
+        failed = invoke()
+        self.assertEqual(failed.returncode, 1, failed.stderr)
+        self.assertFalse(complete.exists())
+        self.assertIn('status=1\n', status.read_text())
+        self.assertEqual(report.read_text(), 'FAIL collector\n')
+        self.assertEqual(len(trace.read_text().splitlines()), 4)
+        healthy.touch()
+        retried = invoke()
+        self.assertEqual(retried.returncode, 0, retried.stderr)
+        self.assertIn('status=0\n', status.read_text())
+        self.assertIn('status=0\n', complete.read_text())
+        self.assertEqual(report.read_text(), 'PASS collector\n')
+        self.assertEqual(len(trace.read_text().splitlines()), 8)
+        repeated = invoke()
+        self.assertEqual(repeated.returncode, 0, repeated.stderr)
+        self.assertIn('successful completion already recorded', repeated.stdout)
+        self.assertEqual(len(trace.read_text().splitlines()), 8)
 
     def test_desktop_diagnostics_distinguish_system_and_user_units(self):
         source = (FIRSTBOOT / '04-validation.sh.tmpl').read_text()

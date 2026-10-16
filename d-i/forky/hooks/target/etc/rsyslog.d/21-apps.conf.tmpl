@@ -1,11 +1,13 @@
 # Security/authentication and explicit power events have priority. Normal user
 # processes then bypass every remaining component/security matcher. Debian's
-# regular account range excludes system/dynamic/nobody UIDs. Missing credentials
-# fail closed into system.log, never into a security-specific file.
-if ($.security_routed == "on") then { stop }
-if ($inputname == "imuxsock" and exists($!uid) and
-    cnum($!uid) >= 1000 and cnum($!uid) <= 59999) then {
-  action(type="omfile" file="__INSTALLER_LOG_APPLICATIONS_FILE__"
+# regular account range excludes system/dynamic/nobody UIDs. The private input
+# rejects missing credentials; legacy warnings use the system fallback.
+ruleset(name="managed_application_output" queue.type="LinkedList"
+        queue.size="__INSTALLER_LOG_RSYSLOG_QUEUE_MESSAGES__"
+        queue.workerThreads="1" queue.timeoutEnqueue="0") {
+  if (exists($!uid) and
+      cnum($!uid) >= 1000 and cnum($!uid) <= 59999) then {
+    action(type="omfile" file="__INSTALLER_LOG_APPLICATIONS_FILE__"
          template="RSYSLOG_FileFormat" createDirs="off" sync="off"
          queue.type="LinkedList" queue.filename="apps"
          queue.size="__INSTALLER_LOG_RSYSLOG_QUEUE_MESSAGES__"
@@ -20,5 +22,25 @@ if ($inputname == "imuxsock" and exists($!uid) and
          rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
          rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
          rotation.sizeLimitCommandPassFileName="on")
+    if ($syslogseverity <= 4 and $.application_from_journal != "on") then {
+      action(type="omjournal" template="ManagedApplicationJournal")
+    }
+  }
+  stop
+}
+
+if ($.security_routed == "on") then { stop }
+if ($inputname == "imuxsock" and exists($!uid) and
+    cnum($!uid) >= 1000 and cnum($!uid) <= 59999) then {
+  # A capture/collector failure is already recorded in the source journal.
+  # Do not loop its fallback copy through the direct application writer.
+  if ($msg startswith " managed-app-warning " or
+      $msg startswith "managed-app-warning ") then { stop }
+  # User-manager lifecycle records belong to the system journal.
+  if ($!exe == "/usr/lib/systemd/systemd") then { stop }
+  # Legacy messages already have a source journal record. Route them through
+  # the file writer only, without reflecting them back into the journal.
+  set $.application_from_journal = "on";
+  call managed_application_output
   stop
 }

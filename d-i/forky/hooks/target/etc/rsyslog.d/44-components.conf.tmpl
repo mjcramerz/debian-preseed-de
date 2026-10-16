@@ -1,5 +1,6 @@
-# Constant-path fallback only. Native security routes above already own their
-# records; ordinary applications already stopped in 21-apps. No application
+# Constant-path fallback only. Routine system/service records stay in the
+# journal. Only system warnings/errors are copied here. Native security routes
+# already own their records; ordinary applications already stopped in 21-apps. No application
 # names, message parsing, regex chain, dynamic filenames, or JSON serialization.
 if ($.security_routed != "on") then {
   if ($inputname == "imklog") then {
@@ -10,7 +11,7 @@ if ($.security_routed != "on") then {
          rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
          rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
          rotation.sizeLimitCommandPassFileName="on")
-  } else {
+  } else if ($syslogseverity <= 4) then {
     action(type="omfile" file="__INSTALLER_LOG_SYSTEM_SERVICES_FILE__"
            template="RSYSLOG_FileFormat" createDirs="off" sync="off"
            action.resumeRetryCount="-1"

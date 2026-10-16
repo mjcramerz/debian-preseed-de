@@ -254,6 +254,20 @@ profile rsyslog-security-socket /usr/local/libexec/rsyslog-security-socket flags
   include if exists <local/usr.local.libexec.rsyslog-security-socket>
 }
 
+profile rsyslog-app-socket /usr/local/libexec/rsyslog-app-socket flags=(attach_disconnected) {
+  #include <abstractions/wrapper-base>
+
+  capability chown,
+  capability fowner,
+
+  /usr/local/libexec/rsyslog-app-socket rix,
+  /usr/bin/{chmod,chown,sleep} rix,
+  /run/rsyslog/apps/ rw,
+  __INSTALLER_LOG_APPS_SOCKET__ rw,
+
+  include if exists <local/usr.local.libexec.rsyslog-app-socket>
+}
+
 profile rsyslog-openai-socket /usr/local/libexec/rsyslog-openai-socket flags=(attach_disconnected) {
   #include <abstractions/wrapper-base>
 
@@ -261,9 +275,10 @@ profile rsyslog-openai-socket /usr/local/libexec/rsyslog-openai-socket flags=(at
   capability fowner,
 
   /usr/local/libexec/rsyslog-openai-socket rix,
-  /usr/bin/{chmod,chown,getent,sleep} rix,
+  /usr/bin/{chmod,chown,getent,sleep,stat} rix,
   /run/rsyslog/openai/ rw,
   __INSTALLER_LOG_CHATGPT_SOCKET__ rw,
+  __INSTALLER_LOG_CHATGPT_RUNTIME_DIR__/ r,
 
   include if exists <local/usr.local.libexec.rsyslog-openai-socket>
 }

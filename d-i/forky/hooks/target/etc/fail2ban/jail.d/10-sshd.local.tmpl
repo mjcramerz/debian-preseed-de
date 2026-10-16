@@ -15,8 +15,10 @@ chain = fail2ban_input
 
 [sshd]
 enabled = true
-backend = systemd
-journalmatch = _SYSTEMD_UNIT=ssh.service
+# INFO authentication events are retained in the journal and forwarded to rsyslog.
+# Watch the existing rsyslog auth sink using inotify, including file rotation.
+backend = pyinotify
+logpath = __INSTALLER_LOG_AUTH_FILE__
 mode = normal
 port = __INSTALLER_SSH_PORT__
 protocol = tcp

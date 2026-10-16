@@ -484,7 +484,7 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         f"--working-directory={os.getcwd()}",
         # Passing only names keeps tokens and other values out of argv.
         *(f"--setenv={name}" for name in sorted(environment)),
-        "--", *arguments,
+        "--", "/usr/local/libexec/rsyslog-app-run", f"labwc-{label}", "--", *arguments,
     ]
 
 
@@ -517,6 +517,10 @@ def main(kind: str, argv: list[str] | None = None) -> int:
     executable = shutil.which(arguments[0], path=environment["PATH"])
     if executable is None:
         fail(f"desktop executable is unavailable: {arguments[0]}")
+    # which() preserves a supplied relative path. Anchor it before handing
+    # off to the manager; preserve symlink/.. traversal and argv[0] spelling.
+    if not os.path.isabs(executable):
+        executable = os.path.join(os.getcwd(), executable)
     if os.path.realpath(executable) in WRAPPERS.values():
         fail("recursive desktop wrapper command")
     arguments[0] = executable

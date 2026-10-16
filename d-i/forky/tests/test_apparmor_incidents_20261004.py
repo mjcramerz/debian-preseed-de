@@ -30,6 +30,7 @@ AA = SEED / 'hooks/target/etc/apparmor.d'
 INCIDENTS = json.loads((SEED / 'tests/fixtures/installed-apparmor-20261004.json').read_text(encoding='utf-8'))
 OCTOBER_9 = json.loads((SEED / 'tests/fixtures/installed-apparmor-20261009.json').read_text(encoding='utf-8'))
 OCTOBER_12 = json.loads((SEED / 'tests/fixtures/installed-apparmor-20261012.json').read_text(encoding='utf-8'))
+OCTOBER_16 = json.loads((SEED / 'tests/fixtures/installed-apparmor-20261016.json').read_text(encoding='utf-8'))
 
 
 def body(file, label):
@@ -199,6 +200,7 @@ class ChatGPTFileHandoffTests(unittest.TestCase):
         self.assertIn('owner /run/user/[0-9]*/labwc-chatgpt-tmp/{,**} rwkl,', documents)
         self.assertIn('#include <abstractions/user-documents>', body('desktop-utilities', 'desktop-launcher'))
         parent = body('desktop-wrappers', 'labwc-chatgpt')
+        self.assertIn('/usr/bin/{cut,getent} rix,', parent)
         self.assertIn('/usr/bin/xdg-dbus-proxy rCx -> chatgpt-dbus-proxy,', parent)
         self.assertIn('/usr/bin/bwrap rCx -> chatgpt-bwrap,', parent)
         child = body('desktop-wrappers', 'chatgpt-bwrap')
@@ -759,6 +761,17 @@ class SuppliedDenialTests(unittest.TestCase):
                     if expression.fullmatch(filename):
                         result.update(owner if owned else other)
                 return result
+            # October 16 follow-up: the launcher sources the managed DevOps
+            # profile, which runs getent passwd UID | cut -d: -f6.
+            for label in ('labwc-chatgpt', 'codex-wrapper'):
+                for helper in ('getent', 'cut'):
+                    with self.subTest(account_helper_profile=label, helper=helper):
+                        self.assertTrue(set('rx') <= permissions(label, '/usr/bin/' + helper, owned=False))
+                        self.assertNotIn('w', permissions(label, '/usr/bin/' + helper, owned=False))
+                for database in ('passwd', 'nsswitch.conf'):
+                    self.assertEqual(permissions(label, '/etc/' + database, owned=False), {'r'})
+            self.assertIn('w', permissions('labwc-remote-desktop',
+                                          '/run/rsyslog/apps/apps.sock', owned=False))
             # October 14: subprocess closes inherited descriptors using this
             # directory. It needs no other user's descriptor or content access.
             self.assertEqual(permissions('labwc-app', '/proc/13926/fd/'), {'r'})
@@ -804,6 +817,42 @@ class SuppliedDenialTests(unittest.TestCase):
                 self.assertTrue(set('rw') <= permissions('desktop-btop', filename))
                 self.assertNotIn('w', permissions('desktop-btop', filename, owned=False))
             payload = 'labwc-app//app-bwrap'
+            # October 16: replay every distinct root-owned RetroArch read,
+            # including the hex-encoded filename containing spaces.
+            self.assertEqual(OCTOBER_16['profile'], payload)
+            self.assertEqual(OCTOBER_16['record_counts'], {'STATUS': 433, 'DENIED': 191})
+            self.assertEqual(len(OCTOBER_16['file_requests']), 138)
+            self.assertEqual(sum(event['count'] for event in OCTOBER_16['file_requests']), 176)
+            for event in OCTOBER_16['file_requests']:
+                with self.subTest(retroarch_read=event['name']):
+                    self.assertEqual(permissions(payload, event['name'], owned=False), {'r'})
+            self.assertEqual(len(OCTOBER_16['additional_file_requests']), 11)
+            self.assertEqual(sum(event['count'] for event in OCTOBER_16['additional_file_requests']), 15)
+            for event in OCTOBER_16['additional_file_requests']:
+                with self.subTest(installed_october_16=event):
+                    required = set(event['requested_mask'].replace('c', 'w'))
+                    self.assertLessEqual(required, permissions(event['profile'], event['name'],
+                                                             owned=event['owner']))
+            for label in (payload, 'postman'):
+                archive = '/opt/postman/Postman-1792133785164.tar.gz'
+                self.assertEqual(permissions(label, archive), {'r', 'w'})
+                self.assertFalse(permissions(label, archive, owned=False))
+                self.assertNotIn('w', permissions(label, '/opt/postman/app/Postman', owned=False))
+                self.assertNotIn('x', permissions(label, '/usr/bin/unrelated-helper', owned=False))
+                for helper in ('curl', 'date', 'gzip', 'tar', 'zsh'):
+                    self.assertTrue(set('rx') <= permissions(label, '/usr/bin/' + helper, owned=False))
+                    self.assertNotIn('w', permissions(label, '/usr/bin/' + helper, owned=False))
+                cli = '/home/fixture/.local/bin/postman'
+                self.assertTrue(set('rwxm') <= permissions(label, cli))
+                self.assertFalse(permissions(label, cli, owned=False))
+                self.assertNotIn('x', permissions(label, '/home/fixture/.local/bin/unrelated-helper'))
+            self.assertNotIn('x', permissions(payload, '/usr/lib/chromium/unrelated-handler', owned=False))
+            for path in ('/usr/share/libretro/unrelated.bin',
+                         '/usr/share/libretro/assets-other/menu.png',
+                         '/sys/devices/fixture/power_supply/BAT0/charge_control_start_threshold',
+                         '/sys/devices/fixture/power_supply/AC0/type'):
+                with self.subTest(retroarch_outside_read_scope=path):
+                    self.assertFalse(permissions(payload, path, owned=False))
             # Replay the new browser/notification denials with compiler-expanded
             # owner bounds and inherited execution in the existing payload.
             for helper in ('hostname', 'file', 'expr'):

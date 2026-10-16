@@ -1527,6 +1527,7 @@ def _run_persistent_sandbox_with_resources(
             )
         if (
             "system_dbus_names" in sandbox
+            or "system_dbus_policy_arguments" in sandbox
             or sandbox.get("require_system_bus", False)
         ):
             (
@@ -1537,6 +1538,7 @@ def _run_persistent_sandbox_with_resources(
                 temp_root,
                 sandbox.get("system_dbus_names", ()),
                 required=sandbox.get("require_system_bus", False),
+                policy_arguments=sandbox.get("system_dbus_policy_arguments", ()),
             )
             if system_proxy_process is not None:
                 proxy_processes.append(

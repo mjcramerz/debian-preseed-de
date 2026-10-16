@@ -51,10 +51,8 @@ done
     /target/etc/systemd/system/rsyslog.service.d \
     /target/usr/local/libexec
 
-  stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.conf)" \
-    /etc/rsyslog.conf \
-    0644
+  # The shared logging foundation already installed rsyslog.conf and its
+  # rotation callback before the selected application helpers ran.
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/15-audit.conf)" \
     /etc/rsyslog.d/15-audit.conf \
@@ -63,9 +61,10 @@ done
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/21-apps.conf)" \
     /etc/rsyslog.d/21-apps.conf 0644
-  stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/rsyslog-size-rotate)" \
-    /usr/local/libexec/rsyslog-size-rotate 0755
+  desktop_stage_role_asset etc/rsyslog.d/22-apps-socket.conf.tmpl /etc/rsyslog.d/22-apps-socket.conf 0644
+  desktop_stage_role_asset usr/local/libexec/rsyslog-app-run.tmpl /usr/local/libexec/rsyslog-app-run 0755
+  desktop_stage_role_asset usr/local/libexec/rsyslog-app-socket.tmpl /usr/local/libexec/rsyslog-app-socket 0755
+  desktop_stage_role_asset etc/systemd/system/rsyslog.service.d/32-apps-socket.conf /etc/systemd/system/rsyslog.service.d/32-apps-socket.conf 0644
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/20-auth.conf)" \
     /etc/rsyslog.d/20-auth.conf \
@@ -195,7 +194,7 @@ done
     /etc/systemd/system/rsyslog.service.d/30-security-scanner-socket.conf \
     0644
   desktop_stage_role_asset \
-    usr/local/bin/labwc-fuzzel-log \
+    usr/local/bin/labwc-fuzzel-log.tmpl \
     /usr/local/bin/labwc-fuzzel-log \
     0755
 
@@ -282,4 +281,3 @@ done
 
   desktop_log "staged_logging_policy journal_input=imuxsock apps=__INSTALLER_LOG_APPLICATIONS_FILE__ system=__INSTALLER_LOG_SYSTEM_SERVICES_FILE__ kernel=__INSTALLER_LOG_KERNEL_FILE__ auth=__INSTALLER_LOG_AUTH_FILE__ apparmor=__INSTALLER_LOG_APPARMOR_FILE__ rotation=writer-size threshold_bytes=__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__ archives=__INSTALLER_LOG_ROTATE_COUNT__ scanner_socket=__INSTALLER_LOG_SCANNER_SOCKET__ log_group=__INSTALLER_LOG_GROUP__"
 }
-

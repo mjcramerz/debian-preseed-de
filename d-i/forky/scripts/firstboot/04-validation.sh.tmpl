@@ -1385,6 +1385,13 @@ else
   failures=$((failures + 1))
 fi
 
+# These checks are explicit: firstboot must collect diagnostics after a logging
+# startup failure, but must never publish successful completion without it.
+# Check at the end so an earlier native record cannot hide a stopped collector.
+check_command rsyslog-service /usr/bin/timeout --kill-after=2s 10s /usr/bin/systemctl is-active --quiet rsyslog.service
+check_command syslog-socket /usr/bin/timeout --kill-after=2s 10s /usr/bin/systemctl is-active --quiet syslog.socket
+capture logging-units.txt /usr/bin/systemctl status rsyslog.service syslog.socket --no-pager --lines=40
+
 if [ "$failures" -eq 0 ]; then
   record "validation_status=pass"
   log_line validation info validation "validation_status=pass"

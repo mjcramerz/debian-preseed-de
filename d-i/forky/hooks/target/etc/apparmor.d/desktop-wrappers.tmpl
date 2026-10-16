@@ -1176,6 +1176,8 @@ profile codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, mediate_
   /usr/local/bin/git-ssh rpx -> git-ssh,
   signal (send) set=(hup int quit kill term) peer=git-ssh,
   /usr/bin/{chmod,id,mkdir,readlink,find} rix,
+  # The same authoritative DevOps profile is applied by the Codex wrapper.
+  /usr/bin/{cut,getent} rix,
   /usr/bin/{mise,pwsh,sccache} rix,
   /usr/lib/llvm-24/bin/ r,
   /usr/lib/llvm-24/bin/{clang,clang++,ld.lld,lld,lldb,llvm-config} rix,
@@ -1560,6 +1562,7 @@ profile labwc-fuzzel-log /usr/local/bin/labwc-fuzzel-log flags=(attach_disconnec
   /usr/local/bin/labwc-fuzzel-log rix,
   /dev/log w,
   /run/systemd/journal/dev-log w,
+  __INSTALLER_LOG_APPS_SOCKET__ w,
   owner /run/user/[0-9]*/labwc-external-drives.lock rw,
   owner /run/user/[0-9]*/labwc-fuzzel.lock rwk,
 
@@ -1933,6 +1936,9 @@ profile labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected, mediate
   /usr/local/bin/git-ssh rpx -> git-ssh,
   signal (send) set=(hup int quit kill term) peer=git-ssh,
   /usr/bin/{chmod,id,mkdir,readlink,find} rix,
+  # The managed DevOps profile resolves HOME from the account database.
+  # Keep both fixed pipeline helpers inside the launcher profile.
+  /usr/bin/{cut,getent} rix,
   /usr/bin/busctl rix,
   include if exists <abstractions/dbus-session-strict>
   dbus send
@@ -2505,6 +2511,10 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     owner @{HOME}/.var/app/com.microsoft.Edge/config/microsoft-edge/NativeMessagingHosts/{,**} rwkl,
     owner @{HOME}/.config/retroarch/cores/*.so mr,
     owner @{HOME}/.local/share/retroarch/cores/*.so mr,
+    # RetroArch inherits this domain after Bubblewrap sets no_new_privs.
+    # Its packaged menu assets and battery indicators need read access here.
+    /usr/share/libretro/assets/{,**} r,
+    /sys/devices/**/power_supply/BAT[0-9]*/{status,type} r,
     # Filen updates its per-user rclone helper in a versioned directory and
     # executes only these two fixed helper names from the Bubblewrap payload.
     owner @{HOME}/.config/@filen/desktop/rclone/bin/*/{rclone,.copy-*} rwklmrix,
@@ -2518,6 +2528,18 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     /usr/bin/{xdg-open,systemd-run} rix,
     # Mullvad Browser's shell launcher keeps these helpers in app-bwrap.
     /usr/bin/{id,ln} rix,
+    # Postman's login-shell probe and CLI/plugin installer inherit this
+    # domain after no_new_privs; direct-attachment grants do not apply here.
+    /usr/bin/{dircolors,env,git,run-parts,ssh-agent,starship,zsh} rix,
+    /{,usr/}bin/{curl,date,gzip,tar} rix,
+    /etc/{profile,profile.d/,profile.d/**,zsh/,zsh/**} r,
+    /usr/share/{terminfo,zsh,zsh-autosuggestions,zsh-syntax-highlighting}/{,**} r,
+    /usr/share/doc/fzf/examples/{,**} r,
+    # Only the owner's download archive in Postman's synthetic parent is
+    # writable. The installed application remains a root-owned read-only bind.
+    owner /opt/postman/Postman-[0-9]*.tar.gz rw,
+    owner @{HOME}/.local/bin/ rw,
+    owner @{HOME}/.local/bin/postman rwklmrix,
     /usr/local/bin/labwc-wayland-app rix,
     /usr/local/lib/python3.14/dist-packages/ r,
     /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
@@ -2579,7 +2601,8 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     owner /tmp/labwc-*-sandbox-*/ rw,
     owner /tmp/labwc-*-sandbox-*/** rwkl,
     /opt/{Bitwarden,Filen,Obsidian,ledger-live,postman,sleek,tuta-mail}/ r,
-    /opt/{Bitwarden,Filen,Obsidian,ledger-live,postman,sleek,tuta-mail}/** mrix,
+    /opt/{Bitwarden,Filen,Obsidian,ledger-live,sleek,tuta-mail}/** mrix,
+    /opt/postman/app/{,**} mrix,
     /opt/microsoft/msedge/** mrix,
     /opt/vivaldi/** mrix,
     /usr/{lib32,lib64,sbin}/ r,
@@ -2623,6 +2646,7 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
     # Debian's Chromium launcher probes mounts and the packaged payload.
     /{,usr/}bin/{findmnt,ls} rix,
     /usr/lib/chromium/chromium rix,
+    /usr/lib/chromium/chrome_crashpad_handler rix,
     # Edge downloads this component into its own versioned profile directory.
     owner "@{HOME}/.config/microsoft-edge/Domain Actions/[0-9]*/libdomain_actions.so" mr,
     /usr/lib/mullvad-browser/start-mullvad-browser rix,
@@ -3112,6 +3136,8 @@ profile labwc-remote-desktop /usr/local/bin/labwc-remote-desktop flags=(attach_d
   #include <abstractions/wrapper-python>
 
   /usr/local/bin/labwc-remote-desktop rix,
+  # Forward the bounded nonblocking diagnostic copy to the managed apps sink.
+  __INSTALLER_LOG_APPS_SOCKET__ w,
   /usr/local/bin/labwc-app rPx -> labwc-app,
   /usr/bin/notify-send pux,
   /usr/bin/{freerdp-sdl,sdl-freerdp,sdl-freerdp3,thunar,wlfreerdp,xfreerdp} pux,

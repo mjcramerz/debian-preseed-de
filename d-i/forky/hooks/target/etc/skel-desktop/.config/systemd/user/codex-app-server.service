@@ -33,7 +33,7 @@ LoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env
 EnvironmentFile=-%d/codex-mcp.env
 WorkingDirectory=%h/Workspace
 ExecStartPre=/usr/bin/rm -f -- /data/codex/sockets/app-server-backend.sock
-ExecStart=/data/codex/lib/codex app-server --listen unix:///data/codex/sockets/app-server-backend.sock
+ExecStart=/usr/local/libexec/rsyslog-app-run codex-app-server -- /data/codex/lib/codex app-server --listen unix:///data/codex/sockets/app-server-backend.sock
 ExecStartPost=/usr/local/libexec/codex-app-server-wait-ready
 ExecStopPost=/usr/bin/rm -f -- /data/codex/sockets/app-server-backend.sock
 # The wrapper performs bounded cleanup, then reports a manager-requested

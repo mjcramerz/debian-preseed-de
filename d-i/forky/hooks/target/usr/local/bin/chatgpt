@@ -53,23 +53,10 @@ case "$HOME" in
     ;;
 esac
 
-profile_path="${HOME}/.profile.d/71-devops-de.sh"
-[ ! -L "$profile_path" ] ||
-  chatgpt_fatal "managed DevOps profile must not be a symlink: $profile_path"
-profile_real=$(/usr/bin/readlink -f -- "$profile_path" 2>/dev/null) ||
-  chatgpt_fatal "managed DevOps profile is unavailable: $profile_path"
-[ "$profile_real" = "$profile_path" ] ||
-  chatgpt_fatal "managed DevOps profile must not traverse symlinks: $profile_path"
-
-profile_metadata=$(
-  /usr/bin/find -P "$profile_path" -maxdepth 0 \
-    -type f -size +0c -printf '%U' 2>/dev/null
-) || chatgpt_fatal "managed DevOps profile is unavailable: $profile_path"
-[ "$profile_metadata" = "$(/usr/bin/id -u)" ] ||
-  chatgpt_fatal "managed DevOps profile is unsafe: $profile_path"
-[ -r "$profile_path" ] ||
-  chatgpt_fatal "managed DevOps profile is unreadable: $profile_path"
-
+# Start private capture before the managed Python launcher validates and
+# activates 71-devops-de.sh. Its authoritative environment loader checks the
+# profile's path, ownership, mode, link count and size; failures now reach the
+# same protected log as application output instead of disappearing below.
 exec /usr/bin/env -i \
   HOME="$HOME" \
   USER="$USER" \
@@ -86,26 +73,6 @@ exec /usr/bin/env -i \
   LC_ALL="${LC_ALL:-}" \
   LC_CTYPE="${LC_CTYPE:-}" \
   TZ="${TZ:-}" \
-  /bin/sh -eu -c '
-    profile_path=$1
-    shift
-    # shellcheck source=/dev/null
-    . "$profile_path"
-    command -v devops_de_apply_environment >/dev/null 2>&1 || {
-      printf "%s\n" "managed DevOps environment function is unavailable" >&2
-      exit 1
-    }
-    devops_de_apply_environment || {
-      printf "%s\n" "managed DevOps environment activation failed" >&2
-      exit 1
-    }
-    [ "${DEVOPS_DE_ACTIVE:-}" = 1 ] || {
-      printf "%s\n" "managed DevOps environment marker is missing" >&2
-      exit 1
-    }
-    exec "$@"
-  ' chatgpt-devops-environment \
-  "$profile_path" \
   /usr/local/libexec/labwc-chatgpt-log-runner \
   "$mode" \
   "$@" \

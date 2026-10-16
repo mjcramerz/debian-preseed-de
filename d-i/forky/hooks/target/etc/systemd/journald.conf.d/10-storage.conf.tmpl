@@ -1,8 +1,8 @@
 # Managed journal policy. Rendered from the selected installation profile.
 # Storage changes only the journal backend, never partitioning, mounts, or old
 # /var/log/journal data. The same owned file is replaced atomically on reruns.
-# Forward once to imuxsock; imklog remains the only kernel reader.
-# journals. Disable the parallel syslog socket feed to prevent duplicates.
+# Rsyslog consumes the local socket once. Keep system diagnostics in the
+# journal; application volume must be controlled at its own logging source.
 # imklog remains the single kernel source; auditd owns audit-netlink as before.
 # Private scanner/model sockets continue to bypass the journal deliberately.
 
@@ -34,7 +34,9 @@ ForwardToKMsg=no
 ForwardToConsole=no
 ForwardToWall=yes
 MaxLevelStore=debug
-MaxLevelSyslog=debug
+# Preserve INFO authentication/component inputs, without copying general DEBUG
+# traffic into rsyslog. Private application sockets retain their own levels.
+MaxLevelSyslog=info
 MaxLevelKMsg=notice
 MaxLevelConsole=info
 MaxLevelWall=emerg

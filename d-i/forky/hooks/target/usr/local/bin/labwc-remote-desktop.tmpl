@@ -24,6 +24,8 @@ FREERDP_EXECUTABLE = FREERDP_EXECUTABLE_CANDIDATES[0]
 FREERDP_ASKPASS_HELPER = "/usr/local/bin/labwc-freerdp-askpass"
 REMOVABLE_MEDIA_ROOT = pathlib.Path("/run/media")
 MAX_CONNECTION_LOG_BYTES = 1048576
+MAX_SYSLOG_MESSAGE_BYTES = 1800
+APPLICATION_LOG_SOCKET = "__INSTALLER_LOG_APPS_SOCKET__"
 PROFILE_NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 HOSTNAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,252}")
 DISPLAY_CHOICES = {
@@ -801,6 +803,27 @@ def read_connection_log(log_path: pathlib.Path) -> str:
         return ""
 
 
+def forward_connection_output(block: bytes) -> None:
+    # Only diagnostic output, never the connection argv or askpass response.
+    # A stopped/full collector must not stop draining the client's output pipe.
+    # The bounded private preview is already written before this best-effort copy.
+    text = re.sub(rb'[^\x20-\x7e]',
+                  lambda match: f'\\x{match[0][0]:02x}'.encode('ascii'), block)
+    prefix = f'<14>labwc-freerdp[{os.getpid()}]: stream=freerdp message='.encode('ascii')
+    limit = MAX_SYSLOG_MESSAGE_BYTES - len(prefix)
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as transport:
+            transport.setblocking(False)
+            for offset in range(0, len(text), limit):
+                packet = prefix + text[offset:offset + limit]
+                if transport.sendto(packet, APPLICATION_LOG_SOCKET) != len(packet):
+                    return
+    except OSError:
+        # Datagram delivery has no replay guarantee. Keep connection lifetime
+        # and status independent of the optional collector copy.
+        return
+
+
 def run_freerdp_command(command: list[str], log_path: pathlib.Path) -> int:
     environment = freerdp_connection_environment()
     ensure_profile_directory(log_path.parent)
@@ -838,6 +861,7 @@ def run_freerdp_command(command: list[str], log_path: pathlib.Path) -> int:
                         raise OSError("Remote Desktop log write made no progress")
                     pending = pending[written:]
                 size += len(block)
+                forward_connection_output(block)
             return process.wait()
         finally:
             if process.poll() is None:

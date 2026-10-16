@@ -28,11 +28,14 @@ import re
 import shlex
 import shutil
 import signal
+import socket
 import stat
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 import test_systemd_resource_policy as resource
 
@@ -59,7 +62,8 @@ def module(name, relative):
 
 journal = module('managed_journal_check_r3', 'usr/local/libexec/journal-check')
 layout = module('managed_log_layout_r3', 'usr/local/libexec/log-layout')
-BASE = '[Journal]\nStorage=volatile\nForwardToSyslog=yes\nReadKMsg=no\nSeal=no\n'
+BASE = ('[Journal]\nStorage=volatile\nForwardToSyslog=yes\nReadKMsg=no\nSeal=no\n'
+        'MaxLevelStore=debug\nMaxLevelSyslog=info\nRateLimitIntervalSec=30s\nRateLimitBurst=10000\n')
 
 
 class JournalPolicyTests(unittest.TestCase):
@@ -87,6 +91,10 @@ validate_target_journal_storage_policy
                     self.assertEqual(journal.journal_settings(rendered)['Storage'], value)
                     self.assertIn('ForwardToSyslog=yes\n', rendered)
                     self.assertIn('ReadKMsg=no\n', rendered)
+                    self.assertIn('MaxLevelStore=debug\n', rendered)
+                    self.assertIn('MaxLevelSyslog=info\n', rendered)
+                    self.assertIn('RateLimitIntervalSec=30s\n', rendered)
+                    self.assertIn('RateLimitBurst=10000\n', rendered)
                     self.assertEqual(payload_read_bytes(persistent), b'old journal untouched')
                     self.assertEqual(payload_read_bytes(fstab), b'original mount policy\n')
                     self.assertFalse(resource.TOKEN.search(rendered))
@@ -127,7 +135,9 @@ render_target_resource_asset hooks/target/etc/systemd/journald.conf.d/10-storage
 
     def test_conflicts_duplicates_missing_and_multiline_fail_closed(self):
         journal.check(BASE, BASE)
-        for key, bad in [('Storage', 'persistent'), ('ForwardToSyslog', 'no'), ('ReadKMsg', 'yes')]:
+        for key, bad in [('Storage', 'persistent'), ('ForwardToSyslog', 'no'), ('ReadKMsg', 'yes'),
+                         ('MaxLevelStore', 'warning'), ('MaxLevelSyslog', 'warning'),
+                         ('RateLimitIntervalSec', '0'), ('RateLimitBurst', '1')]:
             with self.subTest(key=key):
                 with self.assertRaises(journal.PolicyError):
                     journal.check(BASE, BASE + f'{key}={bad}\n')
@@ -262,6 +272,15 @@ class LogLayoutTests(unittest.TestCase):
 
 
 class RoutingContractTests(unittest.TestCase):
+    def test_recording_diagnostics_use_the_existing_application_sink(self):
+        capture = payload_read_text(TARGET / 'usr/local/bin/labwc-capture')
+        for setting in ('StandardOutput=journal', 'StandardError=journal',
+                        'SyslogIdentifier=labwc-screen-recording'):
+            self.assertIn(setting, capture)
+        self.assertIn('RECORDING_LOG="/var/log/managed/apps/apps.log"', capture)
+        self.assertNotIn('>>"$RECORDING_LOG"', capture)
+        self.assertNotIn(': >"$RECORDING_LOG"', capture)
+
     def test_journal_input_and_private_sockets_are_not_duplicated(self):
         text = payload_read_text(TARGET / 'etc/rsyslog.conf')
         self.assertIn('module(load="imuxsock" SysSock.Use="on"', text)
@@ -269,7 +288,7 @@ class RoutingContractTests(unittest.TestCase):
         self.assertNotIn('module(load="imjournal"', text)
         self.assertEqual(text.count('module(load="imklog")'), 1)
         self.assertNotIn('StateFile=', text)
-        self.assertNotIn('load="omjournal"', text)
+        self.assertEqual(text.count('module(load="omjournal")'), 1)
         for name in ('38-openai-chatgpt.conf', '39-security-scanners.conf'):
             private = payload_read_text(TARGET / 'etc/rsyslog.d' / name)
             self.assertIn('type="imuxsock"', private)
@@ -332,6 +351,24 @@ class RoutingContractTests(unittest.TestCase):
 @unittest.skipUnless(os.geteuid() == 0 and shutil.which('rsyslogd'),
                      'packaged rsyslogd is unavailable; target installer and boot enforce native -N1')
 class NativeRsyslogTests(unittest.TestCase):
+    def test_chatgpt_config_parses_before_desktop_rules_are_staged(self):
+        # Both storage families publish the foundation before selected helpers.
+        # At ChatGPT's validation point the other desktop drop-ins do not exist.
+        foundation = (SEED / 'scripts/late/target-assets.sh').read_text()
+        self.assertIn('etc/rsyslog.conf', foundation.split('stage_target_logging_foundation() {', 1)[1])
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); (root / 'spool').mkdir()
+            dropins = root / 'rsyslog.d'; dropins.mkdir()
+            (dropins / '38-openai-chatgpt.conf').write_text(
+                payload_read_text(TARGET / 'etc/rsyslog.d/38-openai-chatgpt.conf'))
+            config = root / 'rsyslog.conf'
+            config.write_text(payload_read_text(TARGET / 'etc/rsyslog.conf')
+                .replace('/var/spool/rsyslog', str(root / 'spool'))
+                .replace('/etc/rsyslog.d/*.conf', str(dropins / '*.conf')))
+            result = subprocess.run(['rsyslogd', '-N1', '-f', str(config)],
+                                    text=True, capture_output=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_complete_production_config_parses(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); (root / 'spool').mkdir()
@@ -349,6 +386,334 @@ class NativeRsyslogTests(unittest.TestCase):
     def test_runtime_delivery_size_rotation_and_restart(self):
         from test_logging_size_20260924 import exercise_native_rsyslog
         exercise_native_rsyslog(self)
+
+
+class ApplicationCaptureTests(unittest.TestCase):
+    """Fixture sockets/processes only, inside the mandatory disposable image."""
+
+    def test_cli_preserves_large_literal_argument_lists_and_status(self):
+        capture = module('managed_app_capture_arguments', 'usr/local/libexec/rsyslog-app-run')
+        arguments = ['/usr/bin/fixture-app', *('file with spaces' for _ in range(300)),
+                     '--', '-literal-option', '$(literal)', 'literal;value', '\u00e5\u00e4\u00f6']
+        with mock.patch.object(capture.os, 'getuid', return_value=1000), \
+             mock.patch.object(capture.sys, 'argv', ['rsyslog-app-run', 'fixture-app', '--', *arguments]), \
+             mock.patch.object(capture, 'supervise', return_value=37) as supervise:
+            self.assertEqual(capture.main(), 37)
+        supervise.assert_called_once_with('fixture-app', arguments)
+
+    def test_cli_rejects_privileged_or_ambiguous_launches_before_spawning(self):
+        capture = module('managed_app_capture_validation', 'usr/local/libexec/rsyslog-app-run')
+        for uid, identifier, command in (
+            (0, 'fixture-app', ['/usr/bin/fixture-app']),
+            (1000, 'invalid\nidentifier', ['/usr/bin/fixture-app']),
+            (1000, 'fixture-app', ['relative-executable']),
+            (1000, 'fixture-app', []),
+        ):
+            with self.subTest(uid=uid, identifier=identifier, command=command), \
+                 mock.patch.object(capture.os, 'getuid', return_value=uid), \
+                 mock.patch.object(capture.sys, 'argv', ['rsyslog-app-run', identifier, '--', *command]), \
+                 mock.patch.object(capture, 'supervise') as supervise, \
+                 mock.patch.object(capture.sys, 'stderr'), \
+                 self.assertRaises(SystemExit) as failure:
+                capture.main()
+            self.assertEqual(failure.exception.code, 2)
+            supervise.assert_not_called()
+
+    def test_levels_and_untrusted_bytes(self):
+        capture = module('managed_app_capture_levels', 'usr/local/libexec/rsyslog-app-run')
+        for line, stream, expected in (
+            (b'<3>fatal launch failure', 'stdout', 3),
+            (b'[2026-10-16] [info] ready', 'stderr', 6),
+            (b'[123:ERROR:handler.cc] failure', 'stderr', 3),
+            (b'warning: no device', 'stdout', 4),
+            (b'unclassified diagnostic', 'stderr', 4),
+            (b'ready', 'stdout', 6),
+        ):
+            with self.subTest(line=line):
+                self.assertEqual(capture.severity(line, stream), expected)
+        self.assertEqual(capture.escaped(b'hello\n\x1b\x00\xff'), r'hello\x0a\x1b\x00\xff')
+
+    def test_fatal_diagnostic_is_nonblocking_redacted_and_restores_descriptor_flags(self):
+        capture = module('managed_app_capture_fatal', 'usr/local/libexec/rsyslog-app-run')
+        for blocking, failure in ((True, None), (True, BlockingIOError()),
+                                  (False, BrokenPipeError())):
+            with self.subTest(blocking=blocking, failure=type(failure).__name__), \
+                 mock.patch.object(capture.sys, 'stderr') as stderr, \
+                 mock.patch.object(capture.os, 'get_blocking', return_value=blocking), \
+                 mock.patch.object(capture.os, 'set_blocking') as set_blocking, \
+                 mock.patch.object(capture.os, 'write', side_effect=failure) as write:
+                stderr.fileno.return_value = 42
+                operations = mock.Mock()
+                operations.attach_mock(set_blocking, 'flags')
+                operations.attach_mock(write, 'write')
+                capture.report_capture_failure(OSError('fixture private command details'))
+                self.assertEqual(operations.mock_calls, [
+                    mock.call.flags(42, False),
+                    mock.call.write(42, b'<3>managed-app-warning event=capture-failed error=OSError\n'),
+                    mock.call.flags(42, blocking),
+                ])
+        with mock.patch.object(capture.sys, 'stderr') as stderr, \
+             mock.patch.object(capture.os, 'write') as write:
+            stderr.fileno.side_effect = ValueError('closed fixture stream')
+            capture.report_capture_failure(ValueError('fixture private command details'))
+            write.assert_not_called()
+
+    def _capture(self, root: Path, destination: Path, script: str):
+        helper = installed_script(TARGET / 'usr/local/libexec/rsyslog-app-run')
+        driver = (
+            'import runpy,sys; '
+            'scope=runpy.run_path(sys.argv[1],run_name="isolated_capture_fixture"); '
+            'run=scope["supervise"]; run.__globals__["SOCKET"]=sys.argv[2]; '
+            'status=run("fixture-app",[sys.executable,"-I","-c",sys.argv[3]]); '
+            'sys.exit(status if status>=0 else 128-status)'
+        )
+        return subprocess.run(
+            [sys.executable, '-I', '-B', '-c', driver, str(helper), str(destination), script],
+            cwd=root, env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'},
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            timeout=5, check=False,
+        )
+
+    def test_output_bypasses_journal_and_preserves_failure_status(self):
+        with tempfile.TemporaryDirectory(prefix='app-capture-') as temporary:
+            root = Path(temporary)
+            destination = root / 'collector.sock'
+            with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as collector:
+                collector.bind(str(destination)); collector.settimeout(0.1)
+                result = self._capture(root, destination,
+                    'import os; os.write(1,b"ordinary output\\n"); '
+                    'os.write(2,b"[info] diagnostic\\nERROR: failed\\n"); raise SystemExit(7)')
+                records = []
+                while True:
+                    try:
+                        records.append(collector.recv(8192))
+                    except TimeoutError:
+                        break
+            self.assertEqual(result.returncode, 7, result.stderr)
+            self.assertEqual(len(records), 3)
+            self.assertEqual(result.stderr, b'')  # rsyslog reflects selected warnings.
+            self.assertTrue(any(record.startswith(b'<11>') and b'ERROR: failed' in record for record in records))
+            self.assertTrue(any(record.startswith(b'<14>') and b'ordinary output' in record for record in records))
+
+    def test_collector_outage_keeps_app_status_and_fallback_diagnostics(self):
+        with tempfile.TemporaryDirectory(prefix='app-capture-outage-') as temporary:
+            root = Path(temporary)
+            result = self._capture(root, root / 'absent.sock',
+                                   'print("fixture diagnostic"); raise SystemExit(9)')
+            self.assertEqual(result.returncode, 9, result.stderr)
+            self.assertIn(b'event=rsyslog-unavailable', result.stderr)
+            self.assertIn(b'fixture diagnostic', result.stderr)
+
+    @unittest.skipUnless(shutil.which('perl'), 'packaged Perl is unavailable in the disposable image')
+    def test_fuzzel_direct_delivery_and_journal_fallback_use_fixture_sockets(self):
+        source = payload_read_text(TARGET / 'usr/local/bin/labwc-fuzzel-log')
+        self.assertEqual(source.count('/run/rsyslog/apps/apps.sock'), 1)
+        self.assertEqual(source.count("'/dev/log'"), 1)
+        with tempfile.TemporaryDirectory(prefix='fuzzel-log-') as temporary:
+            root = Path(temporary)
+            direct = root / 'apps.sock'
+            fallback = root / 'journal.sock'
+            helper = root / 'logger'
+            helper.write_text(source.replace('/run/rsyslog/apps/apps.sock', str(direct))
+                              .replace("'/dev/log'", repr(str(fallback))))
+            with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as collector, \
+                 socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as journal:
+                collector.bind(str(direct)); collector.settimeout(0.2)
+                journal.bind(str(fallback)); journal.settimeout(0.2)
+                for outage in (False, True):
+                    with self.subTest(outage=outage):
+                        if outage:
+                            direct.unlink()  # Only this fixture's directory entry.
+                        result = subprocess.run(
+                            [shutil.which('perl'), str(helper), 'action', 'launch-failed',
+                             'application=fixture\nname'], cwd=root,
+                            env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'},
+                            stdin=subprocess.DEVNULL, capture_output=True, timeout=2,
+                        )
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        packet = (journal if outage else collector).recv(8192)
+                        self.assertTrue(packet.startswith(b'<11>'), packet)
+                        self.assertIn(b'labwc-fuzzel-action[', packet)
+                        self.assertIn(b'event=launch-failed application=fixture_name', packet)
+                        self.assertNotIn(b'\n', packet)
+
+    def test_direct_input_is_isolated_and_warning_reflection_cannot_loop(self):
+        config = payload_read_text(TARGET / 'etc/rsyslog.conf')
+        direct = payload_read_text(TARGET / 'etc/rsyslog.d/22-apps-socket.conf')
+        apps = payload_read_text(TARGET / 'etc/rsyslog.d/21-apps.conf')
+        self.assertIn('SysSock.IgnoreOwnMessages="on"', config)
+        self.assertIn('name="syslogseverity"', config)
+        self.assertNotIn('format="jsonf"', config)
+        self.assertNotIn('option.jsonf=', config)
+        self.assertIn('Ruleset="managed_application_output"', direct)
+        self.assertIn('ParseTrusted="on"', direct)
+        self.assertIn('$.application_from_journal != "on"', apps)
+        ruleset = apps.split('ruleset(name="managed_application_output"', 1)[1].split(') {', 1)[0]
+        self.assertIn('queue.type="LinkedList"', ruleset)
+        self.assertIn('queue.size=', ruleset)
+        self.assertIn('queue.workerThreads="1"', ruleset)
+        self.assertIn('queue.timeoutEnqueue="0"', ruleset)
+        fallback = payload_read_text(TARGET / 'etc/rsyslog.d/44-components.conf')
+        self.assertIn('else if ($syslogseverity <= 4)', fallback)
+
+    @unittest.skipUnless(shutil.which('perl') and shutil.which('setsid'), 'packaged Perl/setsid unavailable')
+    def test_chatgpt_private_capture_preserves_status_during_collector_outage(self):
+        source = payload_read_text(TARGET / 'usr/local/libexec/labwc-chatgpt-log-runner')
+        profiles = payload_read_text(TARGET / 'etc/apparmor.d/desktop-wrappers')
+        capture_profile = profiles.split('profile labwc-chatgpt-log-runner ', 1)[1].split('\n}', 1)[0]
+        for rule in ('deny /dev/log rw,', 'deny /{,var/}run/systemd/journal/ r,',
+                     'deny /{,var/}run/systemd/journal/** rw,'):
+            self.assertIn(rule, capture_profile)
+        self.assertNotIn('/dev/log', source)
+        self.assertNotIn('/run/systemd/journal', source)
+        for transport in ('direct', 'unavailable', 'full'):
+            with self.subTest(transport=transport), tempfile.TemporaryDirectory(prefix='chatgpt-log-outage-') as tmp:
+                root = Path(tmp)
+                direct = root / 'direct.sock'
+                child = root / 'child'
+                child.write_text('#!/bin/sh\nprintf "fixture output\\n"\nexit 7\n')
+                child.chmod(0o700)
+                fixture = source
+                for constant, value in (('CHILD_EXECUTABLE', child), ('SOCKET_PATH', direct)):
+                    fixture, count = re.subn(r"(?m)^(\s*" + constant + r"\s*=>\s*)'[^']*'",
+                                            lambda match: match[1] + repr(str(value)), fixture)
+                    self.assertEqual(count, 1, constant)
+                logger = root / 'logger.pl'; logger.write_text(fixture)
+                with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as collector:
+                    if transport != 'unavailable':
+                        collector.bind(str(direct))
+                        collector.settimeout(0.2)
+                    if transport == 'full':
+                        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as filler:
+                            filler.setblocking(False)
+                            for _ in range(256):
+                                try:
+                                    filler.sendto(b'fixture queue filler', str(direct))
+                                except BlockingIOError:
+                                    break
+                            else:
+                                self.fail('fixture collector queue did not fill within the bound')
+                    result = subprocess.run(['/usr/bin/perl', str(logger), 'launch'], cwd=root,
+                        env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'}, stdin=subprocess.DEVNULL,
+                        capture_output=True, timeout=3)
+                    self.assertEqual(result.returncode, 7, result.stderr)
+                    if transport == 'direct':
+                        messages = [collector.recv(8192) for _ in range(3)]
+                        self.assertTrue(any(b'fixture output' in packet for packet in messages))
+                        self.assertTrue(any(b'event=completed status=7' in packet for packet in messages))
+
+    @unittest.skipUnless(shutil.which('perl') and shutil.which('setsid'), 'packaged Perl/setsid unavailable')
+    def test_chatgpt_capture_follows_replaced_collector_socket(self):
+        with tempfile.TemporaryDirectory(prefix='chatgpt-log-restart-') as tmp:
+            root = Path(tmp)
+            direct, ready = root / 'direct.sock', root / 'continue'
+            child = root / 'child'
+            child.write_text('#!/usr/bin/python3\nimport sys,time\nfrom pathlib import Path\n'
+                             'print("before restart",flush=True)\n'
+                             'deadline=time.monotonic()+2\n'
+                             f'while not Path({str(ready)!r}).exists():\n'
+                             ' if time.monotonic()>deadline: sys.exit(99)\n'
+                             ' time.sleep(.01)\n'
+                             'print("after restart",flush=True)\nsys.exit(7)\n')
+            child.chmod(0o700)
+            source = payload_read_text(TARGET / 'usr/local/libexec/labwc-chatgpt-log-runner')
+            for constant, value in (('CHILD_EXECUTABLE', child), ('SOCKET_PATH', direct)):
+                source, count = re.subn(r"(?m)^(\s*" + constant + r"\s*=>\s*)'[^']*'",
+                                       lambda match: match[1] + repr(str(value)), source)
+                self.assertEqual(count, 1, constant)
+            logger = root / 'logger.pl'; logger.write_text(source)
+            with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as initial:
+                initial.bind(str(direct)); initial.settimeout(1)
+                process = subprocess.Popen(['/usr/bin/perl', str(logger), 'launch'], cwd=root,
+                    env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'}, stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                try:
+                    self.assertIn(b'event=started', initial.recv(8192))
+                    self.assertIn(b'before restart', initial.recv(8192))
+                    initial.close(); direct.unlink()
+                    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as replacement:
+                        replacement.bind(str(direct)); replacement.settimeout(1)
+                        ready.touch()
+                        _, errors = process.communicate(timeout=3)
+                        self.assertEqual(process.returncode, 7, errors)
+                        messages = [replacement.recv(8192) for _ in range(2)]
+                        self.assertTrue(any(b'after restart' in packet for packet in messages))
+                        self.assertTrue(any(b'event=completed status=7' in packet for packet in messages))
+                finally:
+                    if process.poll() is None:
+                        process.kill()
+                    process.communicate(timeout=3)
+
+    def test_chatgpt_socket_uses_the_mapped_account_without_supplementary_groups(self):
+        source = payload_read_text(TARGET / 'usr/local/libexec/rsyslog-openai-socket')
+        self.assertEqual(source.count('/run/rsyslog/openai/chatgpt.sock'), 1)
+        self.assertEqual(source.count('/var/log/managed/models/openai/chatgpt/runtime'), 1)
+        with tempfile.TemporaryDirectory(prefix='chatgpt-socket-owner-') as temporary:
+            root = Path(temporary)
+            runtime = root / 'runtime'; runtime.mkdir()
+            destination = root / 'collector.sock'
+            commands = root / 'bin'; commands.mkdir()
+            trace = root / 'trace'
+            for name, body in {
+                'getent': 'exit 0',
+                'stat': 'printf "%s\\n" "$FIXTURE_UID"',
+                # Model the Debian service boundary: CAP_CHOWN is available,
+                # CAP_FOWNER is absent. chmod must run while root owns it.
+                'chown': '''printf "chown %s\\n" "$1" >>"$FIXTURE_TRACE"
+[ "${FIXTURE_FAIL:-}" != "$1" ] || exit 1
+printf '%s\\n' "${1%%:*}" >"$FIXTURE_OWNER"''',
+                'chmod': '''printf "chmod %s\\n" "$1" >>"$FIXTURE_TRACE"
+[ "${FIXTURE_FAIL:-}" != chmod ] || exit 1
+IFS= read -r owner <"$FIXTURE_OWNER"
+[ "$owner" = root ]''',
+            }.items():
+                command = commands / name
+                command.write_text('#!/bin/sh\nset -eu\n' + body + '\n')
+                command.chmod(0o700)
+            helper = root / 'socket-helper'
+            helper.write_text(source.replace('/run/rsyslog/openai/chatgpt.sock', str(destination))
+                              .replace('/var/log/managed/models/openai/chatgpt/runtime', str(runtime)))
+            with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as collector:
+                collector.bind(str(destination))
+                cases = (
+                    ('1000', 'root', '', 0, 'chown root:openailogger\nchmod 0660\nchown 1000:openailogger\n'),
+                    ('1000', '1000', '', 0, 'chown root:openailogger\nchmod 0660\nchown 1000:openailogger\n'),
+                    ('1000', 'root', 'root:openailogger', 1, 'chown root:openailogger\n'),
+                    ('1000', 'root', 'chmod', 1, 'chown root:openailogger\nchmod 0660\n'),
+                    ('1000', 'root', '1000:openailogger', 1, 'chown root:openailogger\nchmod 0660\nchown 1000:openailogger\n'),
+                    ('0', 'root', '', 1, ''),
+                    ('60000', 'root', '', 1, ''),
+                    ('invalid', 'root', '', 1, ''),
+                )
+                for owner, initial_owner, fail, expected, commands_run in cases:
+                    with self.subTest(owner=owner, initial_owner=initial_owner, fail=fail):
+                        trace.unlink(missing_ok=True)
+                        owner_file = root / 'socket-owner'
+                        owner_file.write_text(initial_owner + '\n')
+                        result = subprocess.run(
+                            ['/bin/sh', '-eu', str(helper)], cwd=root,
+                            env={'PATH': str(commands), 'LC_ALL': 'C',
+                                 'FIXTURE_UID': owner, 'FIXTURE_TRACE': str(trace),
+                                 'FIXTURE_OWNER': str(owner_file), 'FIXTURE_FAIL': fail},
+                            stdin=subprocess.DEVNULL, capture_output=True, timeout=2,
+                        )
+                        self.assertEqual(result.returncode, expected, result.stderr)
+                        if commands_run:
+                            self.assertEqual(trace.read_text(), commands_run)
+                        else:
+                            self.assertFalse(trace.exists())
+                        if fail:
+                            self.assertIn(b'fatal: managed OpenAI log socket:', result.stderr)
+                        if expected == 0:
+                            self.assertEqual(owner_file.read_text(), '1000\n')
+        for relative in ('etc/systemd/system/rsyslog.service.d/35-openai-chatgpt-socket.conf',
+                         'etc/tmpfiles.d/61-openai-chatgpt.conf'):
+            self.assertIn('0751', payload_read_text(TARGET / relative))
+
+    def test_collector_startup_errors_have_an_independent_journal_sink(self):
+        unit = payload_read_text(TARGET / 'etc/systemd/system/rsyslog.service.d/20-log-layout.conf')
+        self.assertIn('\nStandardError=journal\n', unit)
+        self.assertNotIn('CapabilityBoundingSet=', unit)
 
 
 if __name__ == '__main__':

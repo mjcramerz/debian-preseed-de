@@ -124,6 +124,7 @@ def bitwarden_session_unit_argv(
         f"--working-directory={os.getcwd()}",
         *(f"--setenv={name}" for name in sorted(environment or {})),
         "--",
+        "/usr/local/libexec/rsyslog-app-run", "labwc-bitwarden", "--",
         MANAGED_APP_PATH,
         mode,
         "bitwarden",
@@ -415,6 +416,8 @@ def redirect_native_from_private_users(
     command = [MANAGED_APP_PATH, mode, app_name, *extra_args]
     if app_name == "chatgpt":
         command = [CHATGPT_SESSION_PATH, mode, *extra_args]
+    else:
+        command = ["/usr/local/libexec/rsyslog-app-run", f"labwc-{app_name}", "--", *command]
     environment["WAYLAND_DISPLAY"] = wayland_display
     environment["LABWC_SESSION_APP"] = "1"
     if app_name == "chatgpt":

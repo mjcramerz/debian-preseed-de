@@ -87,7 +87,7 @@ def check(seed: Path = SEED) -> dict[str, int]:
                 # AppArmor side log; broad journal or category mirrors remain
                 # forbidden.
                 if rel == 'hooks/target/etc/rsyslog.d/30-apparmor.conf.tmpl':
-                    module = 'module(load="imfile" mode="polling" pollingInterval="2")'
+                    module = 'module(load="imfile" mode="inotify")'
                     if (active.count(module) != 1 or
                             active.count('input(type="imfile" File="__INSTALLER_LOG_AUDIT_FILE__"') != 1):
                         raise ValueError(f'invalid native audit file input: {rel}')

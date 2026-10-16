@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 import subprocess
 import unittest
+from payload_fixture import read_text as payload_read_text
 
 
 SEED = Path(__file__).resolve().parents[1]
@@ -89,6 +90,7 @@ fail2ban_jail_placeholder_map
             with self.subTest(profile=profile):
                 packages = (SEED / f"classes/class-select/security/{profile}.cfg").read_text()
                 self.assertIn(" nftables fail2ban ", packages)
+                self.assertIn(" python3-pyinotify ", packages)
 
     def test_repeat_bans_have_bounded_duration_and_retained_history(self):
         jail = configparser.RawConfigParser()
@@ -100,14 +102,17 @@ fail2ban_jail_placeholder_map
         self.assertEqual(database.get("DEFAULT", "dbpurgeage"), "14d")
 
     def test_crowdsec_and_tailscale_have_separate_signals_and_ban_owners(self):
-        crowdsec_acquisition = (TARGET / "etc/crowdsec/acquis.d/20-sshd.yaml").read_text()
+        crowdsec_acquisition = payload_read_text(TARGET / "etc/crowdsec/acquis.d/20-sshd.yaml")
         crowdsec_bouncer = (TARGET / "etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml.local.tmpl").read_text()
         nft_action = (FAIL2BAN / "action.d/nftables.local").read_text()
-        ssh_jail = (FAIL2BAN / "jail.d/10-sshd.local.tmpl").read_text()
-        self.assertIn('_SYSTEMD_UNIT=ssh.service', crowdsec_acquisition)
+        ssh_jail = payload_read_text(FAIL2BAN / "jail.d/10-sshd.local")
+        self.assertIn('source: file', crowdsec_acquisition)
+        self.assertIn('/var/log/managed/security/auth/auth.log', crowdsec_acquisition)
         self.assertIn('mode: nftables', crowdsec_bouncer)
         self.assertIn('table = fail2ban', nft_action)
-        self.assertIn('journalmatch = _SYSTEMD_UNIT=ssh.service', ssh_jail)
+        self.assertIn('backend = pyinotify', ssh_jail)
+        self.assertIn('logpath = /var/log/managed/security/auth/auth.log', ssh_jail)
+        self.assertNotIn('backend = systemd', ssh_jail)
         self.assertNotIn('tailscaled.service', ssh_jail)
 
     def test_package_defaults_are_extended_with_staged_local_policies(self):
@@ -125,7 +130,10 @@ fail2ban_jail_placeholder_map
             (FAIL2BAN / "filter.d/sshd.local").read_text().split("journalmatch = ", 1)[1].strip(),
             "_SYSTEMD_UNIT=ssh.service",
         )
-        self.assertIn("journalmatch = _SYSTEMD_UNIT=ssh.service", (FAIL2BAN / "jail.d/10-sshd.local.tmpl").read_text())
+        self.assertIn("backend = pyinotify", (FAIL2BAN / "jail.d/10-sshd.local.tmpl").read_text())
+        self.assertIn("/etc/tmpfiles.d/59-log-layout.conf", installer)
+        stage = installer.split("configure_target_fail2ban() {", 1)[1].split("\nconfigure_target_apparmor_auditd()", 1)[0]
+        self.assertLess(stage.index('"create Fail2ban managed state"'), stage.index('"validate Fail2ban configuration"'))
         action = (FAIL2BAN / "action.d/nftables.local").read_text()
         self.assertIn("table_family = inet", action)
         self.assertIn("chain_hook = input", action)

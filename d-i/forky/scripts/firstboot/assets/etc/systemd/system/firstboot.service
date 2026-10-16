@@ -3,8 +3,10 @@ Description=First boot provisioning and validation wrapper
 Documentation=man:systemd.service(5)
 OnSuccess=secondboot.service
 
-Wants=network-online.target apparmor-modes.service
-Requires=apparmor.service local-fs.target systemd-tmpfiles-setup.service journal-sealing.service auditd.service rsyslog.service
+# Collect persistent diagnostics even when the collector cannot start.
+# Validation still fails until rsyslog.service and syslog.socket are active.
+Wants=network-online.target apparmor-modes.service rsyslog.service
+Requires=apparmor.service local-fs.target systemd-tmpfiles-setup.service journal-sealing.service auditd.service
 After=apparmor.service local-fs.target systemd-tmpfiles-setup.service systemd-journald.socket journal-sealing.service network-online.target apparmor-modes.service auditd.service rsyslog.service
 
 # The wrapper skips a successful marker under its lock. Failed legacy markers

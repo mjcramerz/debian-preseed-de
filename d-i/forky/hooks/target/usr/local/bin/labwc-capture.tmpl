@@ -101,8 +101,7 @@ initialize_paths() {
   STATE_HOME="${XDG_STATE_HOME:-${HOME}/.local/state}"
   SCREENSHOT_DIR="${HOME}/Pictures/Screenshots"
   RECORDING_DIR="${HOME}/Videos/Recordings"
-  RECORDING_LOG_DIR="${STATE_HOME}/labwc-capture"
-  RECORDING_LOG="${RECORDING_LOG_DIR}/recording.log"
+  RECORDING_LOG="__INSTALLER_LOG_APPLICATIONS_FILE__"
   SATTY_CONFIG="${XDG_CONFIG_HOME:-${HOME}/.config}/satty/config.toml"
   PIPEWIRE_REMOTE_NAME="${PIPEWIRE_REMOTE:-pipewire-0}"
 
@@ -114,7 +113,7 @@ initialize_paths() {
       ;;
   esac
 
-  install -d -m 0700 "$STATE_DIR" "$RECORDING_LOG_DIR"
+  install -d -m 0700 "$STATE_DIR"
 }
 
 require_wayland_session() {
@@ -353,7 +352,6 @@ start_recording() {
 
   install -d -m 0700 "$RECORDING_DIR"
   recording_path=$(next_output_path "$RECORDING_DIR" Recording "$recording_format")
-  : >"$RECORDING_LOG"
   systemctl --user reset-failed "$RECORDING_UNIT" >/dev/null 2>&1 || true
 
   if ! systemd-run \
@@ -371,6 +369,10 @@ start_recording() {
     --property=KillSignal=SIGINT \
     --property=TimeoutStopSec=20s \
     --property=UMask=0077 \
+    --property=StandardInput=null \
+    --property=StandardOutput=journal \
+    --property=StandardError=journal \
+    --property=SyslogIdentifier=labwc-screen-recording \
     --setenv="HOME=${HOME}" \
     --setenv="PATH=${PATH}" \
     --setenv="LABWC_SESSION_OWNER=${LABWC_SESSION_OWNER}" \
@@ -512,7 +514,8 @@ record_worker() {
   trap forward_recording_signal HUP INT TERM
 
   set +e
-  "$@" >>"$RECORDING_LOG" 2>&1 &
+  # Inherit the recording service's diagnostic streams for rsyslog forwarding.
+  "$@" &
   recording_child=$!
   while :; do
     wait "$recording_child"

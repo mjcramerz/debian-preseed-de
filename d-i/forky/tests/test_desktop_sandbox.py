@@ -719,7 +719,8 @@ class SessionAndIntegrationTests(unittest.TestCase):
         self.assertIn('PartOf=codex-app-server.socket\n', proxy)
         self.assertNotIn('ExecStartPre=/usr/bin/test -r /etc/codex/app-server.env', backend)
         self.assertIn(
-            'ExecStart=/data/codex/lib/codex app-server --listen '
+            'ExecStart=/usr/local/libexec/rsyslog-app-run codex-app-server -- '
+            '/data/codex/lib/codex app-server --listen '
             'unix:///data/codex/sockets/app-server-backend.sock\n',
             backend,
         )

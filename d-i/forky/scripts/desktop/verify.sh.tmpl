@@ -424,6 +424,7 @@ for path in \
   /etc/rsyslog.d/18-app-veth.conf \
   /etc/rsyslog.d/20-auth.conf \
   /etc/rsyslog.d/21-apps.conf \
+  /etc/rsyslog.d/22-apps-socket.conf \
   /etc/rsyslog.d/25-usb.conf \
   /etc/rsyslog.d/30-apparmor.conf \
   /etc/rsyslog.d/31-apparmor-modes.conf \
@@ -437,6 +438,9 @@ for path in \
   /etc/rsyslog.d/44-components.conf \
   /etc/tmpfiles.d/59-log-layout.conf \
   /etc/systemd/system/rsyslog.service.d/20-log-layout.conf \
+  /etc/systemd/system/rsyslog.service.d/32-apps-socket.conf \
+  /usr/local/libexec/rsyslog-app-run \
+  /usr/local/libexec/rsyslog-app-socket \
   /usr/local/libexec/journal-check \
   /usr/local/libexec/log-layout \
   /usr/local/libexec/rsyslog-size-rotate \

@@ -1209,6 +1209,17 @@ def codex_client_environment() -> dict[str, str]:
     return selected
 
 
+def codex_log_directory() -> str:
+    return CODEX_LOG_ROOT if CODEX_USE_BWRAP else CODEX_HOST_LOG_ROOT
+
+
+def codex_payload_argv() -> list[str]:
+    # Use Codex's native setting as well as the wrapper's environment. This
+    # also enables its file logger when no user config has selected a log_dir.
+    return [CODEX_RAW_BINARY, "--config",
+            "log_dir=" + json.dumps(codex_log_directory()), *CODEX_ARGS]
+
+
 def codex_prepare_environment() -> None:
     client_environment = codex_client_environment()
     codex_activate_devops_environment()
@@ -1217,7 +1228,7 @@ def codex_prepare_environment() -> None:
         {
             "CODEX_AGENTS": CODEX_AGENTS_ROOT,
             "CODEX_HOME": CODEX_RUNTIME_HOME,
-            "CODEX_LOG_DIR": CODEX_LOG_ROOT,
+            "CODEX_LOG_DIR": codex_log_directory(),
             "CODEX_SKILLS": CODEX_SKILLS_ROOT,
             "CODEX_SQLITE_HOME": CODEX_SQLITE_ROOT,
             "SHELL": "/bin/zsh",
@@ -2157,7 +2168,7 @@ def codex_run_sandboxed(installation_id_fd: int | None) -> int:
         bwrap_command = [*command, "--info-fd", str(info_write), "--block-fd", str(block_read),
             "--", "/usr/bin/python3", "-I", "-B", "-c", gate, str(gate_read),
             "/usr/bin/python3", "-I", "-B", "/run/codex-synthetic-bin/payload-launcher.py",
-            CODEX_RAW_BINARY, *CODEX_ARGS]
+            *codex_payload_argv()]
         CODEX_BWRAP_PROCESS = subprocess.Popen(bwrap_command, close_fds=True,
             pass_fds=(info_write, block_read, gate_read,
                       *((installation_id_fd,) if installation_id_fd is not None else ())))
@@ -2220,7 +2231,7 @@ def codex_run_identity_only(installation_id_fd: int) -> int:
         # available. In particular, auth.json has no separate bind mount.
         "--dev-bind", "/", "/",
         *codex_installation_id_bind_arguments(installation_id_fd),
-        "--", CODEX_RAW_BINARY, *CODEX_ARGS,
+        "--", *codex_payload_argv(),
     ]
     CODEX_BWRAP_PROCESS = subprocess.Popen(
         command, close_fds=True, pass_fds=(installation_id_fd,)
@@ -2234,7 +2245,7 @@ def _exec_raw_codex() -> NoReturn:
     for name in AMBIENT_X11_ENV_NAMES:
         os.environ.pop(name, None)
     os.environ["PATH"] = CODEX_SANDBOX_PATH
-    os.execve(CODEX_RAW_BINARY, [CODEX_RAW_BINARY, *CODEX_ARGS], dict(os.environ))
+    os.execve(CODEX_RAW_BINARY, codex_payload_argv(), dict(os.environ))
 
 
 def main(arguments: Sequence[str]) -> int:
@@ -2245,6 +2256,9 @@ def main(arguments: Sequence[str]) -> int:
     codex_prepare_environment()
     codex_restore_app_server_environment()
     codex_require_executable("raw Codex binary", CODEX_RAW_BINARY)
+    codex_require_devops_shared_account_directory(
+        "managed Codex host log directory", CODEX_HOST_LOG_ROOT
+    )
     project_uuid = codex_select_project_uuid()
     if not CODEX_USE_BWRAP and project_uuid is None:
         codex_warn("--no-bwrap explicitly enables direct host execution")
@@ -2259,9 +2273,6 @@ def main(arguments: Sequence[str]) -> int:
         codex_require_devops_shared_account_directory("Codex SQLite directory", CODEX_SQLITE_ROOT)
         codex_prepare_repository_metadata()
         codex_prepare_memory_area()
-        codex_require_devops_shared_account_directory(
-            "managed Codex host log directory", CODEX_HOST_LOG_ROOT
-        )
     else:
         codex_warn("--no-bwrap retains the project installation ID mount; host access and auth writes remain enabled")
     try:

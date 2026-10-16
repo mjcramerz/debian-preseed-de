@@ -403,4 +403,10 @@ stage_target_logging_foundation() {
     /etc/tmpfiles.d/65-audit-syslog.conf 0644 || return $?
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/log-layout)" \
     /usr/local/libexec/log-layout 0755 || return $?
+  # Selected helpers validate their rsyslog drop-ins before desktop setup.
+  # Publish the module/template definitions and rotation callback first.
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/rsyslog-size-rotate)" \
+    /usr/local/libexec/rsyslog-size-rotate 0755 || return $?
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.conf)" \
+    /etc/rsyslog.conf 0644 || return $?
 }

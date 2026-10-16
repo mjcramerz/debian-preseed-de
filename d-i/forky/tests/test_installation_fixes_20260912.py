@@ -35,7 +35,7 @@ from unittest import mock
 FORKY = Path(__file__).resolve().parents[1]
 TARGET = FORKY / 'hooks/target'
 sys.path.insert(0, str(python_library(TARGET / 'usr/local/lib/python3.14/dist-packages')))
-from labwc_managed_app import environment, generic, integrity, runtime, session
+from labwc_managed_app import environment, generic, integrity, profiles, runtime, session
 
 
 def load_source(path: Path, name: str):
@@ -201,7 +201,8 @@ class GenericWrapperTests(unittest.TestCase):
         self.assertNotEqual(next(x for x in one if x.startswith('--unit=')), next(x for x in two if x.startswith('--unit=')))
         for value in ('--collect', '--service-type=exec', '--expand-environment=no', '--property=ExitType=main', '--property=KillMode=control-group', '--property=PartOf=labwc-session.target'):
             self.assertIn(value, one)
-        self.assertEqual(one[one.index('--') + 1:], args)
+        self.assertEqual(one[one.index('--') + 1:],
+                         ['/usr/local/libexec/rsyslog-app-run', 'labwc-demo', '--', *args])
         self.assertIn('--setenv=TOKEN', one); self.assertNotIn('secret-value', ' '.join(one))
         unset = next(x for x in one if x.startswith('--property=UnsetEnvironment='))
         self.assertNotIn('LIBVA_DRIVER_NAME', unset)
@@ -228,9 +229,38 @@ class GenericWrapperTests(unittest.TestCase):
                 execute = stack.enter_context(mock.patch.object(generic.os, 'execve'))
                 generic.main('wayland', [mode, '--', 'demo', 'a b'])
                 _, argv, env = execute.call_args.args
-                self.assertEqual(argv[argv.index('--') + 1:], ['/usr/bin/demo', 'a b'])
+                self.assertEqual(argv[argv.index('--') + 1:],
+                                 ['/usr/local/libexec/rsyslog-app-run', 'labwc-demo', '--', '/usr/bin/demo', 'a b'])
                 self.assertEqual(env['LIBVA_DRIVER_NAME'], expected)
                 self.assertEqual(env['QT_QPA_PLATFORM'], 'wayland')
+
+    def test_relative_lookup_result_becomes_absolute_before_capture_handoff(self):
+        with tempfile.TemporaryDirectory(prefix='generic-relative-launch-') as temporary:
+            directory = Path(temporary) / 'project'; directory.mkdir()
+            for lookup, expected in (
+                ('./fixture app', f'{directory}/./fixture app'),
+                ('../bin/fixture', f'{directory}/../bin/fixture'),
+                ('linked/../fixture', f'{directory}/linked/../fixture'),
+            ):
+                with self.subTest(lookup=lookup), ExitStack() as stack:
+                    stack.enter_context(mock.patch.object(generic.os, 'geteuid', return_value=1000))
+                    stack.enter_context(mock.patch.object(generic.os, 'getuid', return_value=1000))
+                    stack.enter_context(mock.patch.object(generic.os, 'getcwd', return_value=str(directory)))
+                    stack.enter_context(mock.patch.object(generic, 'system_owner', return_value=(0, 0)))
+                    stack.enter_context(mock.patch.object(generic, 'session_environment', return_value={'PATH': '/usr/bin:/bin'}))
+                    stack.enter_context(mock.patch.object(generic, 'load_managed_defaults', return_value={}))
+                    stack.enter_context(mock.patch.object(generic, 'acceleration_availability_from_defaults', return_value={}))
+                    stack.enter_context(mock.patch.object(generic.shutil, 'which', return_value=lookup))
+                    network = stack.enter_context(mock.patch.object(generic, 'managed_network_command', return_value=None))
+                    stack.enter_context(mock.patch.object(generic, 'require_root_owned_executable', return_value='/usr/bin/systemd-run'))
+                    execute = stack.enter_context(mock.patch.object(generic.os, 'execve'))
+                    arguments = ['a b', '$(literal)', ';literal', '--literal']
+                    generic.main('wayland', ['launch', '--', lookup, *arguments])
+                    _, argv, _ = execute.call_args.args
+                    self.assertEqual(argv[argv.index('--') + 1:],
+                                     ['/usr/local/libexec/rsyslog-app-run',
+                                      'labwc-' + Path(expected).name.replace(' ', '-'), '--', expected, *arguments])
+                    network.assert_called_once_with('launch', [expected, *arguments], kind='wayland')
 
     def test_new_scopes_participate_in_integrity_inventory(self):
         for scope in (integrity.PackageScope.ELECTRON, integrity.PackageScope.WAYLAND):
@@ -239,6 +269,26 @@ class GenericWrapperTests(unittest.TestCase):
 
 
 class ChatGPTEnvironmentTests(unittest.TestCase):
+    def test_both_native_log_spellings_bind_the_same_managed_runtime_directory(self):
+        pairs = profiles.PERSISTENT_SANDBOX_CONFIG['chatgpt']['rw_bind_directory_pairs']
+        selected = [(source, destination) for source, destination in pairs
+                    if destination in ('/data/codex/log', '/data/codex/usr/home/log')]
+        self.assertEqual({destination for _, destination in selected},
+                         {'/data/codex/log', '/data/codex/usr/home/log'})
+        self.assertEqual({source for source, _ in selected},
+                         {'/var/log/managed/models/openai/chatgpt/runtime'})
+        tmpfiles = payload_read_text(TARGET / 'etc/tmpfiles.d/80-codex-storage.conf')
+        self.assertIn('d __INSTALLER_DEVOPS_CODEX_HOME__/log 2770 ', tmpfiles)
+
+    def test_private_capture_precedes_authoritative_environment_activation(self):
+        wrapper = payload_read_text(TARGET / 'usr/local/bin/chatgpt')
+        self.assertIn('exec /usr/bin/env -i', wrapper)
+        self.assertIn('/usr/local/libexec/labwc-chatgpt-log-runner', wrapper)
+        self.assertNotIn('. "$profile_path"', wrapper)
+        self.assertNotIn('/bin/sh -eu -c', wrapper)
+        loader = payload_read_text(TARGET / 'usr/local/lib/python3.14/dist-packages/labwc_managed_app/environment.py')
+        self.assertIn("'. \"$1\" >&2; devops_de_apply_environment >&2; exec /usr/bin/env -0'", loader)
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(); self.addCleanup(self.temporary.cleanup)
         self.home = Path(self.temporary.name); directory = self.home / '.profile.d'; directory.mkdir(mode=0o700)
@@ -275,7 +325,7 @@ class ChatGPTEnvironmentTests(unittest.TestCase):
         text = payload_read_text(TARGET / 'etc/skel-desktop/.config/systemd/user/codex-app-server.service')
         for expected in ('Environment=HOME=%h USER=%u LOGNAME=%u XDG_RUNTIME_DIR=%t',
                          'Environment=CODEX_HOME=/data/codex/usr/home',
-                         'ExecStart=/data/codex/lib/codex app-server --listen unix:///data/codex/sockets/app-server-backend.sock'):
+                         'ExecStart=/usr/local/libexec/rsyslog-app-run codex-app-server -- /data/codex/lib/codex app-server --listen unix:///data/codex/sockets/app-server-backend.sock'):
             self.assertIn(expected, text)
         wrapper = payload_read_text(TARGET / 'data/codex/lib/codex')
         self.assertIn('devops_de_apply_environment', wrapper)
@@ -313,6 +363,17 @@ class ChatGPTEnvironmentTests(unittest.TestCase):
 
 
 class InstallerRegressionTests(unittest.TestCase):
+    def test_codex_backend_command_matches_the_actual_installer_guard(self):
+        source = payload_read_text(FORKY / 'scripts/late/devops/codex-appserver.sh')
+        failure = source.index('devops_fatal "Codex app-server backend does not use the managed wrapper command"')
+        start = source.rfind('  grep -Fqx', 0, failure)
+        self.assertGreaterEqual(start, 0)
+        command = shlex.split(source[start:failure].replace('\\\n', ''))
+        self.assertEqual(command[:2], ['grep', '-Fqx'])
+        self.assertEqual(command[3:], ['$service_tmp', '||'])
+        backend = payload_read_text(TARGET / 'etc/skel-desktop/.config/systemd/user/codex-app-server.service')
+        self.assertIn(command[2], backend.splitlines())
+
     def test_every_host_profile_defines_both_launchers(self):
         profiles = list((FORKY / 'hosts/profiles').glob('*.env')); self.assertTrue(profiles)
         for path in profiles:

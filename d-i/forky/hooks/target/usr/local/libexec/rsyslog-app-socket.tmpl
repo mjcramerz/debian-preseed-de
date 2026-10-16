@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+socket_path=__INSTALLER_LOG_APPS_SOCKET__
+attempt=0
+while [ ! -S "$socket_path" ] && [ "$attempt" -lt 10 ]; do
+  sleep 1
+  attempt=$((attempt + 1))
+done
+[ -S "$socket_path" ] || {
+  printf 'fatal: rsyslog did not create the managed application socket\n' >&2
+  exit 1
+}
+# Generic user units may have a private user namespace that hides supplementary
+# groups. The root-owned directory cannot be replaced by clients. Only the
+# collector's kernel-attested regular-account UID rule admits these datagrams;
+# this socket can reach the ordinary application file, never security routes.
+chown root:root "$socket_path"
+chmod 0666 "$socket_path"

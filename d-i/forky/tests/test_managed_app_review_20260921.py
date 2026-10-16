@@ -30,6 +30,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -37,7 +38,7 @@ from test_dynamic_storage_sizing_20260921 import TARGET
 LIB = python_library(TARGET / 'usr/local/lib/python3.14/dist-packages')
 if str(LIB) not in sys.path:
     sys.path.insert(0, str(LIB))
-from labwc_managed_app import browsers, commands, environment, generic, integrity, mounts, profiles, sandbox, user_state
+from labwc_managed_app import browsers, commands, dbus_proxy, environment, generic, integrity, mounts, profiles, sandbox, user_state
 
 
 class ManagedArgumentReviewTests(unittest.TestCase):
@@ -426,6 +427,60 @@ class UserStateReviewTests(unittest.TestCase):
                 user_state.load_user_json_object(str(self.path), limit)
         self.path.write_bytes(b'\xff')
         with self.assertRaises(SystemExit): user_state.load_user_json_object(str(self.path), 100)
+
+
+class SuppliedApplicationFailureTests(unittest.TestCase):
+    def test_postman_cli_directory_is_private_persistent_and_separate_from_host_launchers(self):
+        config = profiles.PERSISTENT_SANDBOX_CONFIG['postman']
+        pairs = config['integration_directory_binds']
+        self.assertEqual(pairs, ((".local/share/Postman/cli-bin", ".local/bin"),))
+        with tempfile.TemporaryDirectory() as home:
+            host_bin = Path(home)/'.local/bin'
+            host_bin.mkdir(parents=True)
+            unrelated = host_bin/'unrelated-helper'
+            unrelated.write_text('account launcher')
+            command = []
+            sandbox.add_persistent_directory_binds(command, home, pairs)
+            self.assertEqual(command[-3:], ['--bind', str(Path(home)/pairs[0][0]), str(host_bin)])
+            self.assertNotIn(str(unrelated), command)
+            self.assertNotEqual(command[-2], command[-1])
+            self.assertEqual(unrelated.read_text(), 'account launcher')
+        self.assertEqual(profiles.APPS['postman']['env']['POSTMAN_CLI_SYSTEM_INSTALL'], '0')
+        self.assertEqual(profiles.APPS['postman']['env']['POSTMAN_CLI_NO_MODIFY_PATH'], '1')
+        self.assertEqual(config['ro_bind_paths'][0], '/opt/postman/app')
+        self.assertNotIn('/opt/postman', config.get('rw_bind_paths', ()))
+
+    def test_bitwarden_tray_requests_its_exact_private_pid_namespace_name(self):
+        config = profiles.PERSISTENT_SANDBOX_CONFIG['bitwarden']
+        own_names = config['dbus_own_names']
+        self.assertEqual(own_names, ('org.freedesktop.StatusNotifierItem-2-1',))
+        runtime = mock.Mock()
+        runtime.validate_session_bus_address.return_value = 'unix:path=/fixture/bus'
+        with mock.patch.dict(os.environ, {'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/fixture/bus'}, clear=True), \
+             mock.patch.object(dbus_proxy, 'start_filtered_dbus_proxy', return_value=(None, None, None)) as start:
+            dbus_proxy.start_session_bus_proxy('/fixture', config['dbus_names'], own_names, runtime=runtime)
+        policy = start.call_args.args[3]
+        self.assertIn('--own=org.freedesktop.StatusNotifierItem-2-1', policy)
+        self.assertFalse(any('*' in value for value in policy if value.startswith('--own=')))
+
+    def test_code_inhibition_is_one_method_and_not_unrestricted_login_manager_access(self):
+        config = profiles.PERSISTENT_SANDBOX_CONFIG['code']
+        policy = config['system_dbus_policy_arguments']
+        self.assertEqual(policy, (
+            '--see=org.freedesktop.login1',
+            '--call=org.freedesktop.login1=org.freedesktop.login1.Manager.Inhibit@/org/freedesktop/login1',
+        ))
+        runtime = mock.Mock()
+        with mock.patch.object(dbus_proxy.os, 'lstat', return_value=SimpleNamespace(st_mode=stat.S_IFSOCK | 0o600)), \
+             mock.patch.object(dbus_proxy, 'start_filtered_dbus_proxy', return_value=(None, None, None)) as start:
+            dbus_proxy.start_system_bus_proxy('/fixture', config['system_dbus_names'],
+                                             policy_arguments=policy, runtime=runtime)
+        arguments = start.call_args.args[3]
+        for argument in policy:
+            self.assertIn(argument, arguments)
+        self.assertNotIn('--talk=org.freedesktop.login1', arguments)
+        self.assertNotIn('--own=org.freedesktop.login1', arguments)
+        self.assertNotIn('PowerOff', ' '.join(arguments))
 
 
 class PreservedCompatibilityReviewTests(unittest.TestCase):

@@ -1,0 +1,6 @@
+# Ordinary application output bypasses journal storage. This input can write
+# only the existing apps/apps.log sink; it never enters security classifiers.
+input(type="imuxsock" Socket="__INSTALLER_LOG_APPS_SOCKET__" CreatePath="off"
+      Ruleset="managed_application_output"
+      Annotate="on" ParseTrusted="on" UsePIDFromSystem="on"
+      FlowControl="off" RateLimit.Interval="0")

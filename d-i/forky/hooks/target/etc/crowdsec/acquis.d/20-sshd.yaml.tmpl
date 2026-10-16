@@ -1,0 +1,9 @@
+# Managed by unattended-installer.
+# One auth acquisition covers sshd, PAM, sudo and pkexec without duplicate
+# ingestion of the same authentication records from journal and file readers.
+source: file
+filenames:
+  - __INSTALLER_LOG_AUTH_FILE__
+poll_without_inotify: false
+labels:
+  type: syslog

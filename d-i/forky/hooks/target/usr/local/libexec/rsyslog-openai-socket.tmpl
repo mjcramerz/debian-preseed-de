@@ -2,7 +2,13 @@
 set -eu
 
 socket_path=__INSTALLER_LOG_CHATGPT_SOCKET__
+runtime_path=__INSTALLER_LOG_CHATGPT_RUNTIME_DIR__
 socket_group=openailogger
+
+fatal() {
+  printf 'fatal: managed OpenAI log socket: %s\n' "$*" >&2
+  exit 1
+}
 
 command -v getent >/dev/null 2>&1 || {
   printf 'fatal: getent is required to configure the managed OpenAI log socket\n' >&2
@@ -13,15 +19,39 @@ getent group "$socket_group" >/dev/null 2>&1 || {
   exit 1
 }
 
+# The launcher can still be inside the compositor's user namespace here.
+# Its account UID is mapped, but supplementary log-writer groups may not be.
+# The installer-owned parent protects this account-owned runtime directory.
+[ -d "$runtime_path" ] && [ ! -L "$runtime_path" ] || {
+  printf 'fatal: managed OpenAI runtime directory is unavailable\n' >&2
+  exit 1
+}
+socket_owner=$(stat -c '%u' -- "$runtime_path") ||
+  fatal 'cannot inspect the managed runtime directory owner'
+case "$socket_owner" in
+  ''|*[!0123456789]*)
+    printf 'fatal: managed OpenAI socket owner is invalid\n' >&2
+    exit 1
+    ;;
+esac
+[ "$socket_owner" -ge 1000 ] && [ "$socket_owner" -le 59999 ] || {
+  printf 'fatal: managed OpenAI socket owner is outside the desktop account range\n' >&2
+  exit 1
+}
+
 attempt=1
 while [ ! -S "$socket_path" ] && [ "$attempt" -le 10 ]; do
   sleep 1
   attempt=$((attempt + 1))
 done
-[ -S "$socket_path" ] || {
+[ -S "$socket_path" ] && [ ! -L "$socket_path" ] || {
   printf 'fatal: rsyslog did not create the managed OpenAI socket: %s\n' "$socket_path" >&2
   exit 1
 }
 
-chown "root:${socket_group}" "$socket_path"
-chmod 0660 "$socket_path"
+# Debian's rsyslog.service permits CAP_CHOWN but excludes CAP_FOWNER. Reclaim
+# root ownership first (also safe after a partial previous attempt), set the
+# mode while still the owner, and hand the socket to the mapped account last.
+chown "root:${socket_group}" "$socket_path" || fatal 'cannot prepare root socket ownership'
+chmod 0660 "$socket_path" || fatal 'cannot set socket mode 0660'
+chown "${socket_owner}:${socket_group}" "$socket_path" || fatal 'cannot assign the mapped account socket owner'

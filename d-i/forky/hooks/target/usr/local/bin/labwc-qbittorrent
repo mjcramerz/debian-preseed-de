@@ -893,7 +893,8 @@ def redirect_to_user_service() -> None:
             "--setenv=LABWC_SESSION_APP=1",
             "--setenv=LABWC_QBITTORRENT_SESSION_UNIT=1",
             *("--setenv=" + name for name in sorted(environment)),
-            "--", "/usr/local/bin/labwc-qbittorrent", *sys.argv[1:]]
+            "--", "/usr/local/libexec/rsyslog-app-run", "labwc-qbittorrent", "--",
+            "/usr/local/bin/labwc-qbittorrent", *sys.argv[1:]]
     os.execve(argv[0], argv, environment)
 
 

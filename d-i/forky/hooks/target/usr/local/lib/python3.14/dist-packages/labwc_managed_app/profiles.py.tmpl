@@ -263,6 +263,8 @@ APPS = {
         "env": {
             "ELECTRON_OZONE_PLATFORM_HINT": "wayland",
             "GTK_USE_PORTAL": "1",
+            "POSTMAN_CLI_SYSTEM_INSTALL": "0",
+            "POSTMAN_CLI_NO_MODIFY_PATH": "1",
         },
         "args": electron_args("postman", "launch"),
         "intel_env": {},
@@ -712,6 +714,10 @@ PERSISTENT_SANDBOX_CONFIG = {
     },
     "code": {
         **NATIVE_VETH_SANDBOX_DEFAULTS,
+        "system_dbus_policy_arguments": (
+            "--see=org.freedesktop.login1",
+            "--call=org.freedesktop.login1=org.freedesktop.login1.Manager.Inhibit@/org/freedesktop/login1",
+        ),
         "persistent_paths": (".cache/Code", ".cache/Microsoft/DeveloperTools",
                              ".config/Code", ".local/share/code", ".vscode", ".vscode-shared"),
         "rw_bind_home_directories": ("Workspace", "Documents", "Downloads"),
@@ -724,6 +730,8 @@ PERSISTENT_SANDBOX_CONFIG = {
     },
     "bitwarden": {
         **NATIVE_VETH_SANDBOX_DEFAULTS,
+        # Electron's main process is PID 2 in this private PID namespace.
+        "dbus_own_names": ("org.freedesktop.StatusNotifierItem-2-1",),
         "persistent_paths": (".cache/Bitwarden", ".cache/com.bitwarden.desktop",
                              ".config/Bitwarden", ".local/share/Bitwarden",
                              ".config/chromium/NativeMessagingHosts",
@@ -754,7 +762,10 @@ PERSISTENT_SANDBOX_CONFIG = {
     "postman": {
         **NATIVE_VETH_SANDBOX_DEFAULTS,
         "persistent_paths": (".cache/Postman", ".config/Postman", ".local/share/Postman", "Postman"),
-        "ro_bind_paths": ("/opt/postman/app",),
+        # Persist only Postman's own CLI tools at the native lookup location;
+        # the account's actual .local/bin and other launchers remain hidden.
+        "integration_directory_binds": ((".local/share/Postman/cli-bin", ".local/bin"),),
+        "ro_bind_paths": ("/opt/postman/app", "/etc/zsh", "/etc/profile", "/etc/profile.d"),
         "rw_bind_home_directories": ("Workspace", "Documents", "Downloads"),
     },
     "keepassxc": {
@@ -853,6 +864,12 @@ PERSISTENT_SANDBOX_CONFIG = {
             (
                 "__INSTALLER_LOG_CHATGPT_RUNTIME_DIR__",
                 "/data/codex/log",
+            ),
+            # Codex's native default is CODEX_HOME/log. Bind that spelling
+            # to the same managed destination as the explicit wrapper path.
+            (
+                "__INSTALLER_LOG_CHATGPT_RUNTIME_DIR__",
+                "/data/codex/usr/home/log",
             ),
         ),
         "preserve_working_directory": True,

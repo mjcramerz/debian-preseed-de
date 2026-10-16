@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 
-use Errno qw(EAGAIN EINTR EWOULDBLOCK);
+use Errno qw(EINTR);
 use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
 use IO::Select;
 use IPC::Open3 qw(open3);
@@ -20,8 +20,6 @@ use constant {
     MAXIMUM_ARGUMENT_BYTES  => 16_384,
     MAXIMUM_LINE_BYTES      => 1_800,
     READ_CHUNK_BYTES        => 8_192,
-    SEND_RETRY_DELAY_SECS   => 0.02,
-    SEND_RETRY_LIMIT        => 5,
     SESSION_EXECUTABLE      => '/usr/bin/setsid',
     SOCKET_PATH             => '__INSTALLER_LOG_CHATGPT_SOCKET__',
     SYSLOG_TAG              => 'openai-chatgpt',
@@ -66,13 +64,9 @@ sub _syslog_timestamp {
     );
 }
 
-sub _connect_log_socket {
-    -S SOCKET_PATH
-        or die "managed ChatGPT log socket is unavailable\n";
+sub _open_log_socket {
     socket($log_socket, AF_UNIX, SOCK_DGRAM, 0)
         or die "cannot create the managed ChatGPT log socket\n";
-    connect($log_socket, sockaddr_un(SOCKET_PATH))
-        or die "cannot connect to the managed ChatGPT log socket\n";
 
     my $flags = fcntl($log_socket, F_GETFL, 0);
     defined($flags)
@@ -86,7 +80,7 @@ sub _send_syslog {
     my ($priority, $message) = @_;
 
     defined($log_socket)
-        or die "managed ChatGPT log socket is not connected\n";
+        or die "managed ChatGPT log transport is not open\n";
     my $packet = sprintf(
         '<%d>%s %s[%d]: %s' . "\n\0",
         $priority,
@@ -95,26 +89,27 @@ sub _send_syslog {
         $$,
         $message,
     );
-    for my $attempt (1 .. SEND_RETRY_LIMIT) {
-        my $sent = send($log_socket, $packet, 0);
-        if (defined $sent) {
-            $sent == length($packet)
-                or die "managed ChatGPT log datagram was truncated\n";
-            return;
-        }
-        next if $! == EINTR;
-        if ($! == EAGAIN || $! == EWOULDBLOCK) {
-            select undef, undef, undef, SEND_RETRY_DELAY_SECS;
-            next;
-        }
-        die "cannot send managed ChatGPT log datagram\n";
-    }
-    die "managed ChatGPT log socket remained unavailable\n";
+    # Resolve the private socket path for every datagram so a collector restart
+    # needs no reconnect. A failed nonblocking send drops only this record;
+    # logging must not block or terminate the application.
+    send($log_socket, $packet, 0, sockaddr_un(SOCKET_PATH));
+    return;
 }
 
 sub _write_syslog_line {
     my ($stream, $line) = @_;
 
+    my $priority = LOG_PRIORITY_INFO;
+    if ($line =~ /\A<([0-7])>/) {
+        $priority = 8 + $1;
+    } elsif (substr($line, 0, 160) =~ /(?:\A|[\s\[:=])(?:ERROR|FATAL|CRITICAL)(?:\z|[\s\]:])/i) {
+        $priority = LOG_PRIORITY_ERROR;
+    } elsif (substr($line, 0, 160) =~ /(?:\A|[\s\[:=])WARN(?:ING)?(?:\z|[\s\]:])/i) {
+        $priority = LOG_PRIORITY_WARNING;
+    } elsif ($stream eq 'stderr' &&
+             substr($line, 0, 160) !~ /(?:\A|[\s\[:=])(?:INFO|NOTICE|DEBUG|TRACE)(?:\z|[\s\]:])/i) {
+        $priority = LOG_PRIORITY_WARNING;
+    }
     $line = _sanitize_bytes($line);
     $line = '(empty line)' if $line eq q{};
 
@@ -127,11 +122,11 @@ sub _write_syslog_line {
     while (length($line) > $available) {
         my $chunk = substr($line, 0, $chunk_bytes, q{});
         _send_syslog(
-            LOG_PRIORITY_INFO,
+            $priority,
             "${prefix}${chunk}${continuation}",
         );
     }
-    _send_syslog(LOG_PRIORITY_INFO, "${prefix}${line}");
+    _send_syslog($priority, "${prefix}${line}");
     return;
 }
 
@@ -206,7 +201,7 @@ my $error = q{};
 
 eval {
     my ($mode, @extra_arguments) = _validate_arguments(@ARGV);
-    _connect_log_socket();
+    _open_log_socket();
     $logger_ready = 1;
     _send_syslog(LOG_PRIORITY_INFO, "event=started mode=$mode");
 

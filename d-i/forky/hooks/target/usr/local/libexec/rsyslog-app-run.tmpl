@@ -1,0 +1,233 @@
+#!/usr/bin/python3 -IB
+"""Capture managed GUI output directly in rsyslog; retain journal warnings.
+
+The user service still owns the complete cgroup. This unprivileged supervisor
+forwards signals, preserves the child's status and bounds inherited-pipe drain.
+It never logs command arguments or environment variables.
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import selectors
+import signal
+import socket
+import subprocess
+import sys
+import time
+
+SOCKET = '__INSTALLER_LOG_APPS_SOCKET__'
+LINE_LIMIT = 8192
+PACKET_TEXT_LIMIT = 1600
+SIGNALS = (signal.SIGHUP, signal.SIGINT, signal.SIGTERM, signal.SIGUSR1, signal.SIGUSR2)
+
+
+def severity(line: bytes, stream: str) -> int:
+    prefix = re.match(rb'^<([0-7])>', line)
+    if prefix:
+        return int(prefix[1])
+    # Recognize explicit upstream levels before using the stream default.
+    header = line[:160].upper()
+    for level, words in ((3, rb'ERROR|FATAL|CRITICAL'), (4, rb'WARN|WARNING'),
+                         (6, rb'INFO|NOTICE'), (7, rb'DEBUG|TRACE')):
+        if re.search(rb'(?:^|[\s\[:=])(?:' + words + rb')(?:$|[\s\]:])', header):
+            return level
+    return 4 if stream == 'stderr' else 6
+
+
+def escaped(line: bytes) -> str:
+    return re.sub(rb'[^\x20-\x7e]',
+                  lambda match: f'\\x{match[0][0]:02x}'.encode('ascii'), line).decode('ascii')
+
+
+def report_capture_failure(error: BaseException) -> None:
+    """Report only the error class, without blocking failure exit on journald."""
+    descriptor = None
+    blocking = None
+    try:
+        descriptor = sys.stderr.fileno()
+        blocking = os.get_blocking(descriptor)
+        os.set_blocking(descriptor, False)
+        os.write(descriptor,
+                 f'<3>managed-app-warning event=capture-failed error={type(error).__name__}\n'.encode('ascii'))
+    except (OSError, ValueError):
+        pass
+    finally:
+        if descriptor is not None and blocking is not None:
+            try:
+                os.set_blocking(descriptor, blocking)
+            except OSError:
+                pass
+
+
+def supervise(identifier: str, command: list[str]) -> int:
+    stopping = None
+    exited = None
+    child = None
+    child_fd = None
+    pending_signals: set[int] = set()
+    collector_failed = False
+    retry_at = 0.0
+    journal_fd = sys.stderr.fileno()
+    journal_blocking = os.get_blocking(journal_fd)
+    os.set_blocking(journal_fd, False)
+
+    def journal(priority: int, message: str) -> None:
+        # Unit stderr remains a journal stream with native priority prefixes.
+        # Never let a blocked diagnostic stream stall termination or the app.
+        try:
+            os.write(journal_fd, f'<{priority}>managed-app-warning application={identifier} {message}\n'.encode('ascii'))
+        except OSError:
+            pass
+
+    def forward(number, _frame):
+        nonlocal stopping
+        if number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+            stopping = stopping or time.monotonic()
+        if child is None:
+            pending_signals.add(number)
+        elif child.poll() is None:
+            try:
+                child.send_signal(number)
+            except ProcessLookupError:
+                pass
+
+    def deliver(transport: socket.socket, stream: str, line: bytes) -> None:
+        nonlocal collector_failed, retry_at
+        priority = severity(line, stream)
+        text = escaped(line.rstrip(b'\r')) or '(empty line)'
+        clock = time.localtime()
+        month = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')[clock.tm_mon - 1]
+        timestamp = f'{month} {clock.tm_mday:2d} {clock.tm_hour:02d}:{clock.tm_min:02d}:{clock.tm_sec:02d}'
+        header = f'<{8 + priority}>{timestamp} {identifier}[{os.getpid()}]: '
+        # Each escaped chunk is bounded, even for binary/unterminated output.
+        for offset in range(0, len(text), PACKET_TEXT_LIMIT):
+            message = f'stream={stream} message={text[offset:offset + PACKET_TEXT_LIMIT]}'
+            packet = (header + message).encode('ascii')
+            if time.monotonic() >= retry_at:
+                try:
+                    sent = transport.sendto(packet, SOCKET)
+                    if sent != len(packet):
+                        raise OSError('truncated application log datagram')
+                except OSError:
+                    if not collector_failed:
+                        journal(3, 'event=rsyslog-unavailable fallback=journal')
+                    collector_failed = True
+                    retry_at = time.monotonic() + 1.0
+                else:
+                    collector_failed = False
+                    continue
+            # A collector outage must not freeze a GUI. Preserve affected
+            # records in the journal until the direct socket is available.
+            journal(priority, 'event=rsyslog-fallback ' + message)
+
+    previous = {number: signal.signal(number, forward) for number in SIGNALS}
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as transport, selectors.PollSelector() as poll:
+            # Allow the existing collector to drain a short burst. There is no
+            # second userspace queue; a stopped collector gets a bounded wait.
+            transport.settimeout(0.05)
+            child = subprocess.Popen(command, stdin=None, stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE, close_fds=True, bufsize=0)
+            child_fd = os.pidfd_open(child.pid)
+            poll.register(child_fd, selectors.EVENT_READ)
+            for number in pending_signals:
+                forward(number, None)
+            sources = {child.stdout: ('stdout', bytearray()), child.stderr: ('stderr', bytearray())}
+            for source in sources:
+                os.set_blocking(source.fileno(), False)
+                poll.register(source, selectors.EVENT_READ)
+            while True:
+                now = time.monotonic()
+                status = child.poll()
+                if status is not None:
+                    exited = exited or now
+                if status is None and stopping is not None and now - stopping >= 15:
+                    child.kill()
+                if not sources and status is not None:
+                    break
+                if exited is not None and now - exited >= 0.2:
+                    # The application has exited. Do not let descendants or a
+                    # stopped collector keep its service alive indefinitely.
+                    for stream, buffer in sources.values():
+                        if buffer:
+                            deliver(transport, stream, bytes(buffer))
+                    if sources:
+                        journal(4, 'event=output-drain-expired inherited_pipe=true')
+                    break
+                for key, _ in poll.select(0.2 if exited is not None else 1.0):
+                    if key.fileobj == child_fd:
+                        poll.unregister(child_fd)
+                        continue
+                    source = key.fileobj
+                    stream, buffer = sources[source]
+                    try:
+                        data = os.read(source.fileno(), LINE_LIMIT)
+                    except BlockingIOError:
+                        continue
+                    if not data:
+                        if buffer:
+                            deliver(transport, stream, bytes(buffer))
+                        poll.unregister(source)
+                        del sources[source]
+                        source.close()
+                        continue
+                    buffer.extend(data)
+                    lines = buffer.split(b'\n')
+                    buffer[:] = lines.pop()
+                    for line in lines:
+                        deliver(transport, stream, bytes(line))
+                    if len(buffer) >= LINE_LIMIT:
+                        deliver(transport, stream, bytes(buffer))
+                        buffer.clear()
+            return child.wait()
+    finally:
+        try:
+            if child is not None:
+                if child.poll() is None:
+                    child.terminate()
+                    try:
+                        child.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        child.kill()
+                        child.wait()
+                for source in (child.stdout, child.stderr):
+                    if source is not None:
+                        source.close()
+        finally:
+            if child_fd is not None:
+                os.close(child_fd)
+            os.set_blocking(journal_fd, journal_blocking)
+            for number, handler in previous.items():
+                signal.signal(number, handler)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('identifier')
+    parser.add_argument('command', nargs=argparse.REMAINDER)
+    options = parser.parse_args()
+    command = options.command
+    if command[:1] == ['--']:
+        command = command[1:]
+    if (os.getuid() == 0 or re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}', options.identifier) is None
+            or not command or not os.path.isabs(command[0])):
+        parser.error('requires a user, a bounded identifier and an absolute executable')
+    return supervise(options.identifier, command)
+
+
+if __name__ == '__main__':
+    try:
+        result = main()
+        if result < 0:
+            number = -result
+            if number not in (signal.SIGKILL, signal.SIGSTOP):
+                signal.signal(number, signal.SIG_DFL)
+            signal.pthread_sigmask(signal.SIG_UNBLOCK, {number})
+            os.kill(os.getpid(), number)
+            result = 128 + number
+        raise SystemExit(result)
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        report_capture_failure(exc)
+        raise SystemExit(1)

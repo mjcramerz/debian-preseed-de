@@ -20,6 +20,7 @@ profile postman /opt/postman/app/{Postman,postman} flags=(attach_disconnected) {
   /dev/tty rw,
   /{,usr/}bin/{bash,dash,sh} rix,
   /usr/bin/{dircolors,env,git,id,run-parts,ssh-agent,starship,zsh} rix,
+  /{,usr/}bin/{curl,date,gzip,tar} rix,
   /etc/profile r,
   /etc/profile.d/ r,
   /etc/profile.d/** r,
@@ -37,7 +38,8 @@ profile postman /opt/postman/app/{Postman,postman} flags=(attach_disconnected) {
   /usr/share/zsh-syntax-highlighting/ r,
   /usr/share/zsh-syntax-highlighting/** r,
   /opt/postman/ r,
-  /opt/postman/** mrix,
+  /opt/postman/app/{,**} mrix,
+  owner /opt/postman/Postman-[0-9]*.tar.gz rw,
 
   # The managed zsh profile has bounded, user-owned state for completion,
   # prompt rendering, dircolors, and its optional per-user SSH agent.
@@ -75,6 +77,8 @@ profile postman /opt/postman/app/{Postman,postman} flags=(attach_disconnected) {
   owner @{HOME}/.config/Postman/** rwkl,
   owner @{HOME}/.local/share/Postman/ rw,
   owner @{HOME}/.local/share/Postman/** rwkl,
+  owner @{HOME}/.local/bin/ rw,
+  owner @{HOME}/.local/bin/postman rwklmrix,
   owner @{HOME}/Postman/ rw,
   owner @{HOME}/Postman/** rwkl,
   owner @{HOME}/@{XDG_DOCUMENTS_DIR}/ rw,

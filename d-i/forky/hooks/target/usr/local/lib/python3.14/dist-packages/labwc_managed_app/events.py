@@ -79,7 +79,7 @@ def emit(event: str, *, level: str = "info", **fields: object) -> bool:
         or context.get("entrypoint") == "compat-runtime"
     )
     if stderr_transport:
-        print(f"{IDENTIFIER}: {message}", file=sys.stderr)
+        print(f"<{priority}>{IDENTIFIER}: {message}", file=sys.stderr)
         return True
     try:
         syslog.openlog(

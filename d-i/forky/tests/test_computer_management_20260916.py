@@ -11,7 +11,7 @@ from isolation import require_test_isolation as _require_test_isolation
 _isolation_sys.path.pop(0)
 _require_test_isolation()
 
-from payload_fixture import source_exists as payload_source_exists, source_stat as payload_source_stat
+from payload_fixture import installed_script, source_exists as payload_source_exists, source_stat as payload_source_stat
 from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import base64
 import contextlib
@@ -21,6 +21,7 @@ import os
 from pathlib import Path
 import re
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -219,9 +220,13 @@ class RemoteLogTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name); self.log = self.root / 'session.log'
-        mock.patch.object(REMOTE, 'freerdp_connection_environment', return_value=os.environ.copy()).start()
+        mock.patch.object(REMOTE, 'freerdp_connection_environment',
+                          return_value={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'HOME': str(self.root)}).start()
         mock.patch.object(REMOTE, 'ensure_profile_directory').start()
         mock.patch.object(REMOTE, 'notify').start()
+        transport = mock.patch.object(REMOTE.socket, 'socket').start().return_value.__enter__.return_value
+        self.forwarded = transport.sendto
+        self.forwarded.side_effect = lambda packet, destination: len(packet)
         self.addCleanup(mock.patch.stopall)
 
     def test_hardlink_rejection_does_not_truncate_original(self):
@@ -246,6 +251,25 @@ class RemoteLogTests(unittest.TestCase):
         self.assertLessEqual(payload_source_stat(self.log).st_size, REMOTE.MAX_CONNECTION_LOG_BYTES)
         self.assertTrue(payload_read_bytes(self.log).endswith(b'FINAL\n'))
         self.assertEqual(payload_source_stat(self.log).st_mode & 0o777, 0o600)
+        self.assertTrue(self.forwarded.called)
+        self.assertTrue(all(len(call.args[0]) <= REMOTE.MAX_SYSLOG_MESSAGE_BYTES
+                            for call in self.forwarded.call_args_list))
+
+    def test_forwarded_diagnostics_escape_controls_and_preserve_percent_literals(self):
+        REMOTE.forward_connection_output(b'100% complete\n\x00\x1b' + b'x' * 8000)
+        messages = [call.args[0] for call in self.forwarded.call_args_list]
+        self.assertIn(b'100% complete\\x0a\\x00\\x1b', messages[0])
+        self.assertGreater(len(messages), 1)
+        self.assertTrue(all(len(message) <= REMOTE.MAX_SYSLOG_MESSAGE_BYTES for message in messages))
+        self.assertTrue(all(call.args[1] == REMOTE.APPLICATION_LOG_SOCKET
+                            for call in self.forwarded.call_args_list))
+
+    def test_collector_failure_keeps_the_client_status_and_private_preview(self):
+        self.forwarded.side_effect = BlockingIOError('fixture collector is full')
+        result = REMOTE.run_freerdp_command(
+            [sys.executable, '-I', '-c', 'print("FINAL"); raise SystemExit(7)'], self.log)
+        self.assertEqual(result, 7)
+        self.assertEqual(self.log.read_bytes(), b'FINAL\n')
 
     def test_saved_connection_runs_the_client_through_the_app_veth_launcher(self):
         command = ['/usr/bin/sdl-freerdp', '/v:192.168.10.25:3389', '/u:fixture', '/from-stdin:force']
@@ -256,6 +280,54 @@ class RemoteLogTests(unittest.TestCase):
                 mock.patch.object(REMOTE, 'run_freerdp_command', return_value=0) as run:
             REMOTE.run_encoded_connection('fixture')
         run.assert_called_once_with(['/usr/local/bin/labwc-app', 'launch', 'freerdp', *command[1:]], self.log)
+
+class RemoteCollectorOutageTests(unittest.TestCase):
+    def test_fixture_delivery_and_outages_never_block_the_output_drain(self):
+        helper = installed_script(TARGET / 'usr/local/bin/labwc-remote-desktop')
+        driver = '''import runpy,sys
+scope = runpy.run_path(sys.argv[1], run_name='isolated_remote_fixture')
+run = scope['run_freerdp_command']
+run.__globals__.update(
+    APPLICATION_LOG_SOCKET=sys.argv[2],
+    freerdp_connection_environment=lambda: {'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'},
+    ensure_profile_directory=lambda path: None,
+)
+command = [sys.executable, '-I', '-c',
+           'import os; os.write(1,b"x"*200000); print("FINAL"); raise SystemExit(7)']
+raise SystemExit(run(command, scope['pathlib'].Path(sys.argv[3])))
+'''
+        for state in ('available', 'absent', 'full'):
+            with self.subTest(state=state), tempfile.TemporaryDirectory(prefix='rdp-log-outage-') as tmp:
+                root = Path(tmp)
+                destination, preview = root / 'collector.sock', root / 'preview.log'
+                with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as collector:
+                    if state != 'absent':
+                        collector.bind(str(destination))
+                        collector.settimeout(0.2)
+                    if state == 'full':
+                        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as filler:
+                            filler.setblocking(False)
+                            for _ in range(256):
+                                try:
+                                    filler.sendto(b'fixture filler', str(destination))
+                                except BlockingIOError:
+                                    break
+                            else:
+                                self.fail('fixture queue did not fill within the bound')
+                    result = subprocess.run(
+                        [sys.executable, '-I', '-B', '-c', driver,
+                         str(helper), str(destination), str(preview)],
+                        cwd=root, env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'},
+                        stdin=subprocess.DEVNULL, capture_output=True, timeout=5,
+                    )
+                    self.assertEqual(result.returncode, 7, result.stderr)
+                    self.assertTrue(preview.read_bytes().endswith(b'FINAL\n'))
+                    if state == 'available':
+                        packet = collector.recv(8192)
+                        self.assertTrue(packet.startswith(b'<14>labwc-freerdp['), packet)
+                        self.assertIn(b'stream=freerdp message=', packet)
+                        self.assertLessEqual(len(packet), REMOTE.MAX_SYSLOG_MESSAGE_BYTES)
+
 
 class IntegrationContractTests(unittest.TestCase):
     def test_new_workers_and_units_are_staged(self):

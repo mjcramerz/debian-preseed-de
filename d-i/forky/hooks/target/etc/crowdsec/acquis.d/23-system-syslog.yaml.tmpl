@@ -7,10 +7,3 @@ filenames:
 poll_without_inotify: false
 labels:
   type: syslog
----
-# pkexec uses authpriv, which is kept out of the general system log.
-source: journalctl
-journalctl_filter:
-  - _COMM=pkexec
-labels:
-  type: syslog

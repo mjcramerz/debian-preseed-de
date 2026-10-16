@@ -1617,9 +1617,12 @@ configure_target_fail2ban() {
       "/etc/fail2ban/$fail2ban_managed_asset" \
       0644
   done
-  # Monitor the SSH journal even before OpenSSH is installed. Its absence
-  # yields no matches. Tailscale SSH has its own identity and log pipeline;
-  # CrowdSec keeps its separate SSH acquisition and nftables bouncer.
+  # Create the canonical managed auth sink even before OpenSSH is installed.
+  # Journald retains INFO authentication events and forwards them to rsyslog.
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/tmpfiles.d/59-log-layout.conf)" \
+    /etc/tmpfiles.d/59-log-layout.conf \
+    0644
   render_target_asset_with_placeholder_map \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/fail2ban/jail.d/10-sshd.local.tmpl)" \
     /etc/fail2ban/jail.d/10-sshd.local \
@@ -1651,6 +1654,7 @@ configure_target_fail2ban() {
     "create Fail2ban managed state" \
     /usr/bin/systemd-tmpfiles \
     --create \
+    /etc/tmpfiles.d/59-log-layout.conf \
     /etc/tmpfiles.d/62-fail2ban.conf
   run_in_target \
     "validate Fail2ban configuration" \
