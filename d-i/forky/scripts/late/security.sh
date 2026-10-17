@@ -723,6 +723,9 @@ nftables_tailscale_service_placeholder_map() {
     *) installer_fatal "TAILSCALE_RUN_SSH_SERVER must be true or false for nftables rendering" ;;
   esac
   nftables_interface_placeholder_map
+  printf 'TAILSCALE_INTERFACE=%s\n' "$tailscale_iface"
+  printf 'APP_VETH_DNS_HOST_ADDRESS=%s\n' "${APP_VETH_DNS_HOST_ADDRESS:?APP_VETH_DNS_HOST_ADDRESS must be set}"
+  printf 'APP_VETH_DNS_HOST_PORT=%s\n' "${APP_VETH_DNS_HOST_PORT:?APP_VETH_DNS_HOST_PORT must be set}"
   printf 'TAILSCALE_UDP_PORT=%s\n' "$tailscale_udp_port"
   printf 'TAILSCALE_RUN_SSH_SERVER=%s\n' "$tailscale_ssh_enabled"
   printf 'NFTABLES_TAILSCALE_ALLOW_IPV4=%s\n' "$(nftables_yaml_inline_list $(nftables_tailscale_allow_ipv4_cidrs))"

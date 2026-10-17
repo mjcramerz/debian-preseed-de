@@ -744,6 +744,14 @@ MANAGED_NETWORK_IPV6_ENABLED=false
                               '    dns-nameservers 192.0.2.53\n'
                               '    metric 100\n')
         self.staged.chmod(0o600)
+        for relative, mode in (
+            ('usr/local/libexec/network-ifup-hotplug', 0o755),
+            ('etc/systemd/system/ifup@.service.d/40-device-lifecycle.conf', 0o644),
+        ):
+            path = self.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(payload_read_text(TARGET / relative), encoding='utf-8')
+            path.chmod(mode)
         self.env.update(MANAGED_TARGET_ROOT=str(self.root), MANAGED_SYS_CLASS_NET=str(self.sysfs), SYSTEMD_LOG_LEVEL='info')
 
     def adapter(self, name='enp1s0', mac='02:00:00:00:00:01', type_='1', wireless=False):
@@ -843,6 +851,47 @@ MANAGED_NETWORK_IPV6_ENABLED=false
         self.env['MANAGED_SYS_CLASS_NET'] = str(self.root / 'unmounted-sysfs')
         self.assertEqual(self.validate('--staged-only').returncode, 0)
         self.assertNotEqual(self.validate('--allow-absent').returncode, 0)
+
+    def test_hotplug_assets_must_exist_and_have_private_code_authority(self):
+        helper = self.root / 'usr/local/libexec/network-ifup-hotplug'
+        original = helper.read_bytes()
+        for kind in ('missing', 'writable', 'symlink', 'hardlink', 'placeholder'):
+            with self.subTest(kind=kind):
+                helper.unlink()
+                helper.write_bytes(original)
+                helper.chmod(0o755)
+                alias = self.root / 'helper-alias'
+                if kind == 'missing':
+                    helper.unlink()
+                elif kind == 'writable':
+                    helper.chmod(0o777)
+                elif kind == 'symlink':
+                    alias.write_bytes(original)
+                    helper.unlink()
+                    helper.symlink_to(alias)
+                elif kind == 'hardlink':
+                    os.link(helper, alias)
+                else:
+                    helper.write_bytes(original + b'\n# __INSTALLER_UNRESOLVED__\n')
+                result = self.validate('--staged-only')
+                self.assertNotEqual(result.returncode, 0)
+                alias.unlink(missing_ok=True)
+                if not helper.exists() and not helper.is_symlink():
+                    helper.write_bytes(original)
+        helper.unlink()
+        helper.write_bytes(original)
+        helper.chmod(0o755)
+
+    def test_hotplug_unit_cannot_override_its_delegate_or_lifecycle(self):
+        unit = self.root / 'etc/systemd/system/ifup@.service.d/40-device-lifecycle.conf'
+        original = unit.read_text()
+        for suffix in ('Type=simple\n', 'ExecStart=/unexpected/helper\n', 'KillMode=process\n'):
+            with self.subTest(suffix=suffix):
+                unit.write_text(original + suffix)
+                result = self.validate('--staged-only')
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('invalid managed hotplug service contract', result.stderr)
+        unit.write_text(original)
 
     def test_staged_only_rejects_boot_hardware_options_and_duplicates(self):
         for options in (('--staged-only', '--allow-absent'),

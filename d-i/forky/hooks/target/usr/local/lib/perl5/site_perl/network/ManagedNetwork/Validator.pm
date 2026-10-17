@@ -6,6 +6,7 @@ use warnings;
 use Moo;
 use MooX::StrictConstructor;
 use MooX::TypeTiny;
+use Fcntl qw(S_ISREG);
 use Socket qw(AF_INET6 inet_pton);
 use Types::Standard qw(Bool Int Str);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC sleep);
@@ -524,6 +525,27 @@ sub _validate_staged_files {
     my $managed = $self->_target_path('/etc/network/interfaces.d/50-network');
     -r $interfaces or die "missing $interfaces\n";
     -r $managed or die "missing $managed\n";
+    for my $entry (
+        ['/usr/local/libexec/network-ifup-hotplug', '0755'],
+        ['/etc/systemd/system/ifup@.service.d/40-device-lifecycle.conf', '0644'],
+    ) {
+        my ($relative, $mode) = @{$entry};
+        my $path = $self->_target_path($relative);
+        my @metadata = lstat $path;
+        @metadata && S_ISREG($metadata[2]) && $metadata[3] == 1
+            && $metadata[4] == 0 && $metadata[5] == 0 && $self->_file_mode($path) eq $mode
+            or die "untrusted managed hotplug asset: $path\n";
+        my $source = $self->_slurp_limited($path);
+        $source !~ /__[A-Z][A-Z0-9_]{2,}__/
+            or die "unresolved token in managed hotplug asset: $path\n";
+        if ($relative =~ /[.]conf\z/) {
+            my @directives = grep { /\S/ && !/\A\s*#/ } split /\n/, $source;
+            join("\n", @directives) eq join("\n",
+                '[Service]', 'ExecStart=',
+                'ExecStart=/usr/local/libexec/network-ifup-hotplug %I')
+                or die "invalid managed hotplug service contract: $path\n";
+        }
+    }
     $self->_file_mode($self->config_path()) eq '0600'
         or die $self->config_path() . " must be mode 0600\n";
     if (grep { $_ eq 'wifi' } @types) {

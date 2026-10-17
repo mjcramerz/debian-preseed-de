@@ -1,0 +1,67 @@
+#!/usr/bin/python3 -IB
+"""Return an authenticated Tailscale login/su delegate to the host namespaces.
+
+Only tailscaled's named AppArmor transition may execute these private mounts.
+The helper offers no arbitrary executable or namespace selector. Authentication,
+account selection, environment filtering and PAM stay in the native SSH path.
+"""
+import fcntl
+import os
+from pathlib import Path
+import stat
+import sys
+
+
+def main() -> None:
+    executable = {'/usr/bin/login': '/usr/bin/login', '/bin/login': '/usr/bin/login',
+                  '/usr/bin/su': '/usr/bin/su', '/bin/su': '/usr/bin/su'}.get(sys.argv[0])
+    if (os.geteuid() != 0 or executable is None or len(sys.argv) > 64
+            or sum(len(argument) for argument in sys.argv) > 131072):
+        raise RuntimeError('invalid SSH host delegate invocation')
+    descriptors = []
+    try:
+        root = Path('/run/tailscale-netkit')
+        info = root.lstat()
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or stat.S_IMODE(info.st_mode) != 0o700:
+            raise RuntimeError('untrusted SSH namespace directory')
+        for name, kind in (('host.net', os.CLONE_NEWNET), ('host.mnt', os.CLONE_NEWNS)):
+            fd = os.open(root / name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+            descriptors.append(fd)
+            if fcntl.ioctl(fd, 0xb703) != kind:
+                raise RuntimeError('incorrect SSH namespace handle')
+        # setns() changes the mount table, not this process's root directory.
+        # PID 1 is the fixed host init (the daemon keeps the host PID namespace).
+        # Pin its root before changing namespaces, and reject a changed init
+        # mount namespace before following the root handle.
+        current = os.open('/proc/1/ns/mnt', os.O_RDONLY | os.O_CLOEXEC)
+        try:
+            if ((os.fstat(current).st_dev, os.fstat(current).st_ino)
+                    != (os.fstat(descriptors[1]).st_dev, os.fstat(descriptors[1]).st_ino)):
+                raise RuntimeError('host init mount namespace changed')
+            host_root = os.open('/proc/1/root', os.O_PATH | os.O_DIRECTORY | os.O_CLOEXEC)
+            descriptors.append(host_root)
+        finally:
+            os.close(current)
+        root_info = os.fstat(host_root)
+        if not stat.S_ISDIR(root_info.st_mode) or root_info.st_uid != 0 or root_info.st_mode & 0o022:
+            raise RuntimeError('untrusted host root descriptor')
+        # Both handles were opened and checked before either namespace changes.
+        # Mount restoration removes the private login/su overlay, so the final
+        # exec reaches the distribution executable and its native PAM policy.
+        os.setns(descriptors[0], os.CLONE_NEWNET)
+        os.setns(descriptors[1], os.CLONE_NEWNS)
+        os.fchdir(host_root)
+        os.chroot('.')
+        os.chdir('/')
+    finally:
+        for fd in descriptors:
+            os.close(fd)
+    os.execv(executable, [executable, *sys.argv[1:]])
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, RuntimeError) as exc:
+        print(f'tailscale_ssh_host outcome=failed cause={type(exc).__name__}', file=sys.stderr)
+        raise SystemExit(1)

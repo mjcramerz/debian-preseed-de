@@ -140,7 +140,7 @@ sync_calendar() {
   [ "$#" -eq 0 ] || fatal "unsupported labwc-calendar sync arguments"
 
   ensure_calendar_environment
-  require_command vdirsyncer
+  vdirsyncer_command=$(command -v vdirsyncer) || fatal "required command is not installed: vdirsyncer"
   require_file "$VDIRSYNCER_CONFIG"
 
   ensure_private_directory "${data_root}/calendars/personal"
@@ -192,7 +192,7 @@ sync_calendar() {
   sync_command() {
     command_timeout=$1
     shift
-    timeout --signal=TERM --kill-after=2s "$command_timeout" vdirsyncer "$@" </dev/null >>"$sync_log" 2>&1 &
+    timeout --signal=TERM --kill-after=2s "$command_timeout" "$vdirsyncer_command" "$@" </dev/null >>"$sync_log" 2>&1 &
     sync_pid=$!
     command_status=0
     wait "$sync_pid" || command_status=$?

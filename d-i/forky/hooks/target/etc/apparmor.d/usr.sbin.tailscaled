@@ -2,14 +2,17 @@
 #
 # The daemon owns network, state, TPM, and packet-filter access. The CLI has a
 # separate attachment for direct invocations, limited to the local API, bounded
-# diagnostics, and the installer-staged bootstrap key. Both profiles are enforced
-# after review of fresh-install daemon and bootstrap activity.
+# diagnostics, and the installer-staged bootstrap key. All profiles in this file
+# follow the desktop mode selected through /etc/apparmor/modes.conf.
 
 abi "/usr/share/apparmor-features/features",
 
 #include <tunables/global>
 
-profile usr.sbin.tailscaled /usr/sbin/tailscaled flags=(attach_disconnected, mediate_deleted) {
+# Explicitly entered by the service constructor. Do not attach every execution
+# of the package binary: authenticated host-side SFTP sessions re-exec it as
+# `be-child sftp` after login/su and must retain that account's ordinary policy.
+profile usr.sbin.tailscaled flags=(attach_disconnected, mediate_deleted) {
   #include <abstractions/base>
   #include <abstractions/nameservice>
   #include <abstractions/dbus-strict>
@@ -19,6 +22,10 @@ profile usr.sbin.tailscaled /usr/sbin/tailscaled flags=(attach_disconnected, med
   capability net_raw,
   capability dac_override,
   capability sys_ptrace,
+  # Native SSH incubators drop to the already-authorized local account.
+  capability setuid,
+  capability setgid,
+  deny capability sys_admin,
   network inet stream,
   network inet6 stream,
   network inet dgram,
@@ -26,20 +33,31 @@ profile usr.sbin.tailscaled /usr/sbin/tailscaled flags=(attach_disconnected, med
   network inet raw,
   network netlink raw,
   ptrace (read) peer=unconfined,
+  ptrace (read) peer=tailscale-netkit,
 
   /usr/sbin/tailscaled rix,
-  # Daemon-spawned CLI calls retain this confinement under NoNewPrivileges=true.
+  # Daemon-spawned CLI calls retain this confinement.
   # Direct CLI invocations continue to attach to usr.bin.tailscale below.
   /usr/bin/tailscale rix,
+  /usr/bin/true rix,
+  /usr/bin/{login,su} rPx -> tailscale-ssh-host,
+  signal (receive) set=(term,kill) peer=tailscale-netkit,
+  signal (send, receive) peer=usr.sbin.tailscaled,
+  signal (receive) set=(chld) peer=tailscale-ssh-host,
+  /dev/ptmx rw,
+  /dev/pts/{,ptmx,[0-9]*} rw,
   # The managed service and bootstrap disable self-updates. Do not give the
   # network daemon systemd-run, dpkg, or apt execution rights for that feature.
   /usr/sbin/{ip6tables,ip6tables-restore,ip6tables-save,iptables,iptables-restore,iptables-save,xtables-nft-multi} rix,
   /usr/sbin/resolvconf rix,
   /{,usr/}bin/{flock,sed} rix,
   # Tailscale 1.104.1's hostinfo desktop detection invokes loginctl to list
-  # sessions and read their Type. Inherit this profile: tailscaled.service sets
-  # NoNewPrivileges=true, which can reject a transition to a separate profile.
+  # sessions and read their Type. Inherit this profile.
   /usr/bin/loginctl rix,
+  # The direct DNS backend probes is-active before considering a restart.
+  # The private /run exposes no manager or bus socket, so this reports inactive
+  # without an AppArmor exec denial and cannot reach the host manager.
+  /usr/bin/systemctl rix,
   network unix stream,
   dbus (send) bus=system path=/org/freedesktop/login1
     interface=org.freedesktop.login1.Manager
@@ -82,12 +100,18 @@ profile usr.sbin.tailscaled /usr/sbin/tailscaled flags=(attach_disconnected, med
   /etc/resolvconf/update-libc.d/ rw,
   /etc/resolvconf/update-libc.d/tailscale rw,
   /etc/resolvconf/update-libc.d/tailscale.tmp[0-9]* rw,
+  # /etc is a private writable DNS directory in the daemon's mount namespace.
+  /etc/resolv.conf rw,
+  /etc/resolv.conf.[0-9a-f]*.tmp rw,
+  /etc/resolv.pre-tailscale-backup.conf rw,
+  /etc/resolv.tailscale.conf rw,
   /etc/ssl/ r,
   /etc/ssl/** r,
   /run/tailscale/ rw,
   /run/tailscale/** rwkl,
   /var/lib/tailscale/ rw,
   /var/lib/tailscale/** rwkl,
+  /var/cache/tailscale/{,**} rwkl,
 
   owner @{PROC}/@{pid}/{cgroup,mountinfo,mounts} r,
   owner @{PROC}/@{pid}/net/unix r,
@@ -104,6 +128,106 @@ profile usr.sbin.tailscaled /usr/sbin/tailscaled flags=(attach_disconnected, med
   include if exists <local/usr.sbin.tailscaled>
 }
 
+# This constructor is the only service process with host network/mount
+# namespace authority. It cannot execute account programs or a shell.
+profile tailscale-netkit /usr/local/libexec/tailscale-netkit flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/dbus-strict>
+  deny /{,usr/}bin/{sh,bash,dash} x,
+  capability sys_admin,
+  capability net_admin,
+  capability net_raw,
+  capability sys_ptrace,
+  capability dac_override,
+  capability setpcap,
+  capability setuid,
+  capability setgid,
+  capability sys_chroot,
+  ptrace (read) peer=unconfined,
+  ptrace (readby) peer=usr.sbin.tailscaled,
+  network netlink raw,
+  network netlink dgram,
+  network unix stream,
+  network unix seqpacket,
+  network unix dgram,
+  /usr/local/libexec/tailscale-netkit rix,
+  /usr/local/libexec/tailscale-ssh-host r,
+  /usr/sbin/tailscaled rPx -> usr.sbin.tailscaled,
+  /usr/bin/tailscale rPx -> usr.bin.tailscale,
+  /usr/{bin,sbin}/ip rix,
+  /usr/sbin/{nft,sysctl} rix,
+  /usr/bin/{bwrap,mount,umount,nsenter,resolvectl} rix,
+  /etc/tailscale/netkit.json r,
+  /etc/apparmor.d/usr.sbin.tailscaled r,
+  /etc/default/tailscaled r,
+  /etc/systemd/system/tailscaled.service.d/override.conf r,
+  /etc/systemd/system/dnsmasq-app-veth.service r,
+  /etc/dnsmasq-app-veth.conf r,
+  /etc/NetworkManager/conf.d/75-tailscale-netkit.conf r,
+  /etc/sysctl.d/92-tailscale-netkit.conf r,
+  /boot/{,config-*} r,
+  /etc/{iproute2,ssl}/{,**} r,
+  /usr/{lib,share}/iproute2/{,**} r,
+  /etc/{passwd,group,nsswitch.conf,hosts,host.conf,gai.conf,protocols,services,localtime,debian_version,machine-id} r,
+  /run/tailscale/ rw,
+  /run/tailscale/** rwkl,
+  /run/tailscale-netkit/ rw,
+  /run/tailscale-netkit/** rwkl,
+  /run/systemd/notify w,
+  /run/systemd/resolve/io.systemd.Resolve rw,
+  /run/dbus/system_bus_socket rw,
+  /var/lib/tailscale/{,**} rwkl,
+  /var/cache/tailscale/{,**} rwkl,
+  /tmp/{,**} rwkl,
+  /sys/{,**} r,
+  /dev/{,**} r,
+  @{PROC}/@{pid}/{fd/,fd/[0-9]*,ns/net,mounts,mountinfo,stat,status} r,
+  @{PROC}/1/ns/mnt r,
+  @{PROC}/filesystems r,
+  @{PROC}/sys/net/ipv4/ip_forward rw,
+  @{PROC}/sys/net/{ipv4,ipv6}/conf/*/{rp_filter,route_localnet,forwarding} rw,
+  /net:\[[0-9]*\] r,
+  /mnt:\[[0-9]*\] r,
+  / r,
+  /proc/ w,
+  /{bindfile*,oldroot,newroot}/ rw,
+  /{oldroot,newroot}/** rwkl,
+  @{PROC}/ r,
+  @{PROC}/sys/kernel/{osrelease,overflowgid,overflowuid} r,
+  @{PROC}/[0-9]*/{mountinfo,ns/,ns/mnt} r,
+  # bwrap constructs its fixed mount tree; no arbitrary command or client path
+  # can reach this root-only service entrypoint.
+  mount,
+  umount,
+  pivot_root,
+  signal (send, receive) peer=tailscale-netkit,
+  signal (send) set=(term,kill) peer=usr.sbin.tailscaled,
+  signal (send) set=(term,kill) peer=usr.bin.tailscale,
+  signal (receive) set=(chld) peer=usr.bin.tailscale,
+  dbus (send, receive) bus=system peer=(name=org.freedesktop.resolve1),
+  dbus (send, receive) bus=system peer=(name=org.freedesktop.DBus),
+  include if exists <local/usr.local.libexec.tailscale-netkit>
+}
+
+profile tailscale-ssh-host flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/wrapper-python>
+  deny /{,usr/}bin/{sh,bash,dash} x,
+  capability sys_admin,
+  capability sys_chroot,
+  capability sys_ptrace,
+  ptrace (read) peer=unconfined,
+  /usr/bin/{login,su} rPUx,
+  /run/tailscale-netkit/ r,
+  /run/tailscale-netkit/host.{net,mnt} r,
+  @{PROC}/1/ns/mnt r,
+  @{PROC}/1/root/ r,
+  /net:\[[0-9]*\] r,
+  /mnt:\[[0-9]*\] r,
+  / r,
+  signal (send) set=(chld) peer=usr.sbin.tailscaled,
+  include if exists <local/usr.local.libexec.tailscale-ssh-host>
+}
+
 profile usr.bin.tailscale /usr/bin/tailscale flags=(attach_disconnected, mediate_deleted) {
   #include <abstractions/base>
   #include <abstractions/nameservice>
@@ -111,6 +235,8 @@ profile usr.bin.tailscale /usr/bin/tailscale flags=(attach_disconnected, mediate
   # netcheck uses marked sockets and ICMP probes. On the target kernel,
   # CAP_NET_RAW also authorizes SO_MARK; the CLI needs no CAP_NET_ADMIN.
   capability net_raw,
+  signal (receive) set=(term,kill) peer=tailscale-netkit,
+  signal (send) set=(chld) peer=tailscale-netkit,
   network inet raw,
   network inet6 raw,
   network inet stream,

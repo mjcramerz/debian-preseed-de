@@ -300,6 +300,11 @@ def merge_overlay(policy: Dict[str, Any], overlay: Dict[str, Any], overlay_path:
     if "logging" in overlay:
         policy["logging"] = deep_merge(policy.get("logging", {}), overlay["logging"])
 
+    if "tailscale_netkit" in overlay:
+        if "tailscale_netkit" in policy:
+            raise PolicyError("tailscale_netkit: duplicate transport ownership")
+        policy["tailscale_netkit"] = copy.deepcopy(overlay["tailscale_netkit"])
+
     return policy
 
 
@@ -456,6 +461,39 @@ def app_veth_identity(policy: Mapping[str, Any]) -> Tuple[str, str, int]:
             or type(port) is not int or not 1024 <= port <= 65535):
         raise PolicyError("app_veth: DNS listener must be a canonical loopback address and unprivileged port")
     return nft_set(interfaces, quote_strings=True), address, port
+
+
+def tailscale_netkit_rules(policy: Mapping[str, Any], input_chain: str, forward_chain: str) -> list[str]:
+    """Admit only the fixed private transport; its earlier owner hook guards it."""
+    if "tailscale_netkit" not in policy:
+        return []
+    value = as_dict(policy["tailscale_netkit"], "tailscale_netkit")
+    if set(value) != {"interface", "physical_interfaces", "dns_host_address", "dns_host_port", "udp_port"}:
+        raise PolicyError("tailscale_netkit: invalid transport schema")
+    physical = value["physical_interfaces"]
+    names = [value["interface"], *physical] if isinstance(physical, list) else []
+    if (len(names) != 3 or any(not isinstance(name, str)
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,14}", name)
+            or name in {"lo", "ts-uplink"} or name.startswith("veth") for name in names)
+            or len(set(names)) != 3):
+        raise PolicyError("tailscale_netkit: invalid or overlapping interface identities")
+    if (value["dns_host_address"] != "127.0.0.1" or type(value["dns_host_port"]) is not int
+            or not 1024 <= value["dns_host_port"] <= 65535 or type(value["udp_port"]) is not int
+            or not 1 <= value["udp_port"] <= 65535):
+        raise PolicyError("tailscale_netkit: invalid DNS or transport port")
+    interface = quote_nft_string(value["interface"])
+    uplinks = nft_set(physical, quote_strings=True)
+    result = [add_rule(policy, input_chain,
+        f'iifname {interface} ip saddr 169.254.253.2 ip daddr 127.0.0.1 meta l4proto {{ tcp, udp }} '
+        f'th dport {value["dns_host_port"]} ct status dnat accept' + comment_expr("private Tailscale bootstrap DNS"))]
+    for family, peer in (("ip", "169.254.253.2"), ("ip6", "fd6b:bbad:cd4e:104::2")):
+        result.append(add_rule(policy, forward_chain,
+            f'iifname {interface} {family} saddr {peer} oifname {uplinks} accept'
+            + comment_expr("private Tailscale transport egress")))
+        result.append(add_rule(policy, forward_chain,
+            f'iifname {uplinks} oifname {interface} {family} daddr {peer} udp dport {value["udp_port"]} '
+            'ct status dnat accept' + comment_expr("private Tailscale transport ingress")))
+    return result
 
 
 def app_veth_web_tls_ports(policy: Mapping[str, Any]) -> list[int]:
@@ -1274,6 +1312,7 @@ def render_filter(policy: Mapping[str, Any], maps: Mapping[str, Dict[str, Any]],
         lines.append(add_rule(policy, input_chain, f'iifname {app_interfaces} meta l4proto tcp tcp dport {nft_set(web_ports)} accept' + comment_expr("managed browser host HTTPS")))
     lines.append(add_rule(policy, forward_chain, f'iifname {app_interfaces} accept' + comment_expr("app veth guarded egress")))
     lines.append(add_rule(policy, forward_chain, f'oifname {app_interfaces} accept' + comment_expr("app veth guarded ingress")))
+    lines.extend(tailscale_netkit_rules(policy, input_chain, forward_chain))
 
     lines.extend(build_allowlist_guards(policy, maps, ctx))
 

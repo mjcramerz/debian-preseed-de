@@ -1,0 +1,7 @@
+# The private Tailscale transport is forwarded only through these two links.
+# The nftables policy still denies all unlisted forwarding.
+# Keep RA acceptance independent from these interfaces' router flag.
+-net/ipv6/conf/__INSTALLER_ETHERNET_INTERFACE__/forwarding = 1
+-net/ipv6/conf/__INSTALLER_ETHERNET_INTERFACE__/accept_ra = 2
+-net/ipv6/conf/__INSTALLER_WIFI_INTERFACE__/forwarding = 1
+-net/ipv6/conf/__INSTALLER_WIFI_INTERFACE__/accept_ra = 2

@@ -4,6 +4,14 @@ metadata:
   name: tailscale
   description: Tailscale transport and Tailscale SSH overlay.
   merge_priority: 50
+tailscale_netkit:
+  interface: "__INSTALLER_TAILSCALE_INTERFACE__"
+  physical_interfaces:
+  - "__INSTALLER_MANAGED_NETWORK_ETHERNET_IFACE__"
+  - "__INSTALLER_MANAGED_NETWORK_WIFI_IFACE__"
+  dns_host_address: "__INSTALLER_APP_VETH_DNS_HOST_ADDRESS__"
+  dns_host_port: __INSTALLER_APP_VETH_DNS_HOST_PORT__
+  udp_port: __INSTALLER_TAILSCALE_UDP_PORT__
 services:
   tailscale_udp:
     enabled: true
@@ -18,11 +26,7 @@ services:
       ipv6:
       - ::/0
       interfaces:
-      - eth0
-      - en*
       - __INSTALLER_MANAGED_NETWORK_ETHERNET_IFACE__
-      - wlan0
-      - wl*
       - __INSTALLER_MANAGED_NETWORK_WIFI_IFACE__
   tailscale_ssh:
     enabled: __INSTALLER_TAILSCALE_RUN_SSH_SERVER__

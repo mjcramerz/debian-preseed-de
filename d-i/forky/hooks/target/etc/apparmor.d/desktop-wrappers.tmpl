@@ -2387,6 +2387,7 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   # directories. Keep creation and chmod access on the exact directory chain.
   owner @{HOME}/.mozilla/ rw,
   owner @{HOME}/.mozilla/native-messaging-hosts/ rw,
+  owner @{HOME}/.mozilla/native-messaging-hosts/{.bitwarden_desktop_proxy,.bitwarden-proxy-*} rwkl,
   owner @{HOME}/.var/ rw,
   owner @{HOME}/.var/app/ rw,
   owner @{HOME}/.var/app/org.mozilla.firefox/ rw,
@@ -2404,6 +2405,10 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   owner @{HOME}/.var/app/com.microsoft.Edge/config/ rw,
   owner @{HOME}/.var/app/com.microsoft.Edge/config/microsoft-edge/ rw,
   owner @{HOME}/.var/app/com.microsoft.Edge/config/microsoft-edge/NativeMessagingHosts/ rw,
+  owner @{HOME}/.var/app/org.mozilla.firefox/.mozilla/native-messaging-hosts/{.bitwarden_desktop_proxy,.bitwarden-proxy-*} rwkl,
+  owner @{HOME}/.var/app/com.google.Chrome/config/google-chrome/NativeMessagingHosts/{.bitwarden_desktop_proxy,.bitwarden-proxy-*} rwkl,
+  owner @{HOME}/.var/app/org.chromium.Chromium/config/chromium/NativeMessagingHosts/{.bitwarden_desktop_proxy,.bitwarden-proxy-*} rwkl,
+  owner @{HOME}/.var/app/com.microsoft.Edge/config/microsoft-edge/NativeMessagingHosts/{.bitwarden_desktop_proxy,.bitwarden-proxy-*} rwkl,
   owner @{HOME}/.cache/ rw,
   owner @{HOME}/.cache/** rwkl,
   owner @{HOME}/.config/ rw,

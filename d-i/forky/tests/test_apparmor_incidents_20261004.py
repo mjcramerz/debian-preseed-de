@@ -619,7 +619,7 @@ class SuppliedDenialTests(unittest.TestCase):
             self.assertFalse(rule.deny)
 
     @unittest.skipUnless(importlib.util.find_spec('apparmor'), 'native AppArmor rule reader unavailable')
-    def test_tailscale_daemon_helpers_inherit_confinement_under_no_new_privileges(self):
+    def test_tailscale_daemon_helpers_inherit_confinement_with_explicit_ssh_transition(self):
         from apparmor.rule.file import FileRule
         parent = body('usr.sbin.tailscaled', 'usr.sbin.tailscaled')
         for executable in ('/usr/bin/loginctl', '/usr/bin/tailscale'):
@@ -633,7 +633,10 @@ class SuppliedDenialTests(unittest.TestCase):
                 self.assertFalse(rule.deny)
         self.assertNotIn('profile loginctl ', parent)
         service = read_text(SEED / 'hooks/target/etc/systemd/system/tailscaled.service.d/override.conf')
-        self.assertIn('NoNewPrivileges=true', service)
+        self.assertIn('NoNewPrivileges=false', service)
+        self.assertIn('/usr/bin/{login,su} rPx -> tailscale-ssh-host,', parent)
+        self.assertIn('deny capability sys_admin,', parent)
+        self.assertNotRegex(parent, r'(?m)^\s*capability sys_admin,')
 
     def test_compositor_env_helper_inherits_confinement_without_missing_transition(self):
         policy = body('labwc-session', 'labwc-compositor')

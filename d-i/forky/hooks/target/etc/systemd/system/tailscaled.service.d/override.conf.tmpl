@@ -3,12 +3,27 @@
 # control-plane TLS session, not merely a configured link.
 # Load the TUN driver before tailscaled creates or cleans up its managed link.
 Wants=systemd-modules-load.service network-online.target nss-lookup.target time-sync.target
+Requires=nftables.service dnsmasq-app-veth.service apparmor.service
+BindsTo=nftables.service dnsmasq-app-veth.service apparmor.service
+PartOf=nftables.service dnsmasq-app-veth.service apparmor.service
 # Ordering after the network manager and network target does not pull either
 # unit into the transaction. It keeps the physical network stack available
 # until tailscaled has drained its own shutdown work queue.
 After=systemd-modules-load.service NetworkManager.service network.target network-online.target nss-lookup.target time-sync.target
+After=nftables.service dnsmasq-app-veth.service apparmor.service systemd-sysctl.service
 
 [Service]
+ExecStart=
+ExecStart=/usr/local/libexec/tailscale-netkit run --state=/var/lib/tailscale/tailscaled.state --socket=/run/tailscale/tailscaled.sock --port=${PORT} $FLAGS
+ExecStopPost=
+ExecStopPost=/usr/local/libexec/tailscale-netkit cleanup
+Type=notify
+NotifyAccess=all
+RuntimeDirectory=
+RuntimeDirectory=tailscale-netkit
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+PrivateMounts=yes
 # Signed APT owns package updates. A remote client update otherwise tries to
 # escape the daemon's lifecycle through systemd-run and run dpkg/apt as root.
 # Disable that entry point; bootstrap also clears AutoUpdate.Apply.
@@ -17,12 +32,16 @@ Environment=TS_ALLOW_ADMIN_CONSOLE_REMOTE_UPDATE=false
 # Upstream tailscaled performs DNS and router cleanup unconditionally before it
 # starts the daemon. Do not duplicate that cleanup in a repository-owned
 # ExecStartPre. Running tailscaled --cleanup again after the daemon exits also
-# races the daemon's own teardown, so clear the package ExecStopPost.
-ExecStopPost=
+# races the daemon's own teardown. Replace the package ExecStopPost with
+# identity-checked cleanup of this service's own netkit resources.
 UMask=0077
 Restart=on-failure
 RestartSec=5s
-TimeoutStopSec=30s
+TimeoutStartSec=90s
+TimeoutStopSec=60s
+KillMode=control-group
+SendSIGKILL=yes
+RestartPreventExitStatus=78 79
 # Upstream cleanup is explicitly best-effort and logs this exact diagnostic
 # when the configured TUN link does not exist yet. Discard only that no-op
 # startup condition; keep every other router and control-plane diagnostic.
@@ -33,7 +52,10 @@ LogFilterPatterns=~^router: enumerating __INSTALLER_TAILSCALE_INTERFACE_REGEX__ 
 # shutdown diagnostic; retain every other tailscaled message.
 LogFilterPatterns=~^ipnext: work queue shutdown failed: execqueue shut down$
 PrivateTmp=true
-NoNewPrivileges=true
+# AppArmor denies namespace authority to the daemon. Its explicit login/su
+# transition returns authenticated SSH sessions to the host namespaces/PAM.
+# That named transition needs to acquire its narrowly scoped constructor label.
+NoNewPrivileges=false
 ProtectControlGroups=true
 ProtectKernelLogs=true
 RestrictSUIDSGID=true

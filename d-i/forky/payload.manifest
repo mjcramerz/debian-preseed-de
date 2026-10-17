@@ -11,7 +11,7 @@ f1931400558888edd2aaf6794853d812bf7e89154f6d965d26c4cb59517b4206  classes/class-
 832a24799a9b26e0d95c49f1d91b1c4227c4e678a4dfb44b9445a3fc4c182152  classes/class-addon/qemu.cfg
 07398177fcf946fac61b00767185da7501f57e6bb1361d9c4653041f07bdd3cf  classes/class-addon/software.cfg
 d8baaa0d400d815e13be2ffc1a3359f9512cc4cab3e54ba0ca6b1e9f399881b2  classes/class-addon/ssh.cfg
-f1bfe94ccb6525988b67b3f9496e812f88f1751b5e7b8aeafd4e4c1e2f723e5c  classes/class-addon/tailscale.cfg
+24bb14167db4af525ab3fb337d475d5dba696e596e735ce928466d436e25a8b0  classes/class-addon/tailscale.cfg
 8b3ecb5a166a62e814cd4f7e31a98eb880e966a455bd7a65ef8d9163f15f20cb  classes/class-addon/timeshift.cfg
 acd13f4e6cf531414f64ba28d77c9f46ea4e294bde5a0953eaec2cdb26946740  classes/class-addon/whisper.cfg
 44ed14c02ded62f3e852faa719a16f64e06e5e8c66adf3dbb436022616a29558  classes/class-addon/wifi.cfg
@@ -109,6 +109,7 @@ d1b7a54c7c1e415781123d46de704ac60b3db6375b3391bb820206cc5e3690fc  hooks/target/d
 4768f64f7ee152a45030039babca78602139878ba79f45101c4f6f094fb23210  hooks/target/data/docs/podman-devops.md
 142293b0bc325037822cca2153b0852246eaa4ceab776b28c07ea5e18db7c40b  hooks/target/data/llama/lib/llama
 8f5a4181c417232d50de51602eb7c9410eb3defa100e9dec3cbbaf5c157107a5  hooks/target/etc/NetworkManager/conf.d/70-app-veth.conf.tmpl
+f9e5307dfb17c80a09f5cecf5181a165367526e4a8f584131b332a36ca20a95c  hooks/target/etc/NetworkManager/conf.d/75-tailscale-netkit.conf.tmpl
 d060aca81e0d15b739cf16af6b7b78a1c51d0de0edc973b1f6cd5916eeee640c  hooks/target/etc/NetworkManager/conf.d/80-link-privacy.conf
 0ba0994e88a3fb6f2eb1291c94777d465460dc123d9807805f78a11a1dec4c75  hooks/target/etc/NetworkManager/conf.d/90-network-external.conf.tmpl
 57d3293e29d2995bbc2e439c8100beb4ce84983d0a04655c68e61bfb7046dd2d  hooks/target/etc/NetworkManager/system-connections/wifi.nmconnection.tmpl
@@ -165,7 +166,7 @@ edbdf14c3009aa22e3c38d7502342bbaf1c560354cc0caba51f0b77f62276502  hooks/target/e
 a8e8fba190c12bd77dfaef16ea28dd52824bf899a7a695535b925e6ad9e51174  hooks/target/etc/apparmor.d/crun
 e431f5d17cfc99228c205f06f742cccaa346b390541691704248220d41482dc9  hooks/target/etc/apparmor.d/debugsys
 80c56b21c29cbe2ad5d3ae38a24f2d8c403489c638df35a643bccb8d0390918c  hooks/target/etc/apparmor.d/desktop-utilities
-484fe08929e1d245f633eeef99d7a6b529550e2aeaf70dfb197a64a0cc76b95a  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
+e6a45cb0cde2f2562ff8c314d7cc0fea98114616fc2f411699018182bbfc6672  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
 61c1b61fdd1ee7eebd220590c456e1fd6cab718ede87a66d94573dd14201b877  hooks/target/etc/apparmor.d/document-applications
 665d3dd65c42e998df1f0b1edb50554757aa505d711fb1099f803a399a998ffe  hooks/target/etc/apparmor.d/gitbuild
 f4ca1013031c0a890345a7f7c806604ba45bfd8f0ab1a2f3a65f4d0de1c5de0e  hooks/target/etc/apparmor.d/gitbuild-worker
@@ -195,7 +196,7 @@ ed3cbabc262a42f5979bc439836eceb67030dcd6e50f0882e0c7f5af72f2089a  hooks/target/e
 c65d7cbee794164db2d50bfa5e8311341262138b49e3ddf04321595d7d4c4f9c  hooks/target/etc/apparmor.d/opt.postman.app.Postman
 4f0dc5b21f00318037328bc4354172034e11098d2e4357d5140aafa2e34a30d0  hooks/target/etc/apparmor.d/opt.tuta-mail.AppRun
 7717401f206be4131da2361d58ae1663b81cf505c6d20c5c2410b0ca0b879f70  hooks/target/etc/apparmor.d/sleek
-32a44320ad7674862895a8357c78ac4ea3839c86a58aad6f12d44d919e3f2b8a  hooks/target/etc/apparmor.d/system-wrappers.tmpl
+58e36adf5a53948bde6844662cbdfb359ccc66d0cc34fd0efdd6ce291e526eab  hooks/target/etc/apparmor.d/system-wrappers.tmpl
 6b15659295890ec00528fd9256eba51af5169ce91778bed8dc10a3d7226631dd  hooks/target/etc/apparmor.d/timeshift
 2135a1af2922cbc468a7217fda16effece19625db138e6439064b60d3626db2c  hooks/target/etc/apparmor.d/tomat
 749c919cd308bc3e6a0cdb7465379fd4269d3da9c7f51f11636831241e2dc11f  hooks/target/etc/apparmor.d/tor-browser
@@ -213,7 +214,7 @@ ccdeb5330a5be0b4fbaf4666cfdddfdc92796c05bf049c7827229107ab5fd830  hooks/target/e
 97c8862dc42168d4cf288959e61d780c311b7d4b1e5bf0b6960043b3231f44f1  hooks/target/etc/apparmor.d/usr.sbin.aa-status
 6c31bfce85175a362e12986e01d9bf417e200ba06ef8164a97d66fbc19067f70  hooks/target/etc/apparmor.d/usr.sbin.apt-cacher-ng
 68b28cbc90cf4da6dad1bffb42ba353c9e2a744316ce2bc6e0515681abc84e97  hooks/target/etc/apparmor.d/usr.sbin.avahi-daemon
-a6f6da365b9697fdd78b885dc0c7bcbbab637d63766ecd1eaae21f9721fb672c  hooks/target/etc/apparmor.d/usr.sbin.tailscaled
+73d2f50f6600e76e57ab831c5651e896ebb33f057b1725fe6a9f953d513f4836  hooks/target/etc/apparmor.d/usr.sbin.tailscaled
 6cda9d80bda900ecbf995263474bd45be88f4184ab12a71c2107c5ba66bcdb0e  hooks/target/etc/apparmor.d/vivaldi-bin
 2dc80e72d8319adbfa98f92a6beee85ccf5fef8a207c3884004df407c78ad812  hooks/target/etc/apparmor.d/vivaldi-stable
 4792262c938079db935d12695e47e41e56e33e8a7e0f4bdb54099fed749d778d  hooks/target/etc/apparmor.d/waybar-menus
@@ -328,7 +329,7 @@ f9eecd12125618b127556b49c04dd4e567e7dd54a4e8e6d77d563ed9f7e706f7  hooks/target/e
 94d70c45bf05a06538a907fc1a582b67c2b62e1d8cb356da362ae7b0c3b38fbb  hooks/target/etc/fail2ban/jail.d/10-sshd.local.tmpl
 cce94f2a7d614b3845c49946de5adc79e9b2941d5221ae294f862396ce53af1c  hooks/target/etc/fail2ban/jail.d/20-nginx-botsearch.local
 0701d640973c1ef43604abee63889ae7b10947fc6de188e4562e6c1e08350680  hooks/target/etc/fail2ban/paths-overrides.local
-32edf4198e1d99f31d9414f4f559c5b1dfc990c63ecad699cb174630b18b9f18  hooks/target/etc/fangfrisch.conf
+90aced2b74fce8142a2fbefc97a6ee0bbc1294d361eafa61ffbf78a0ed750306  hooks/target/etc/fangfrisch.conf
 075035a9b71f13e6085103e2f1af3ba56089f38ea8dc5111f72b5d162d5b3bad  hooks/target/etc/fstab.tmpl
 eda45a4ae16837e37f15823e6078e9450a3593c1b53b663c779bd63f1be6b9c4  hooks/target/etc/gitops/aliases.gitconfig
 7e304d9819b7e44497f945d0775a8da91180a18551f352558b33ad72b3e944d1  hooks/target/etc/greetd/config.toml.tmpl
@@ -422,7 +423,7 @@ ab24ff5d71f2e1b6e8df0fabff1b29d8e82186359e378f1f9eedeb35c0ea0632  hooks/target/e
 43b58dc61c69041c1efb677ccc2395f0c08e24536b9e184217c58a6d36e34014  hooks/target/etc/modules-load.d/37-virt-host.conf
 2abbed8acc1d7ca500ff470aa92ffff225d0b4835cb8f0c1a7866371318cf265  hooks/target/etc/modules-load.d/37-virt-host.generic-arm64.conf
 7cae41d1a46eef0abc265d3ffc4dabefdbb9994f2169505dd84e754121496cb6  hooks/target/etc/modules-load.d/40-zram.conf
-64d5db8f2e4244338bff305de7337887d7d48b22c9f9b8f4d20cc5c1347b7e1a  hooks/target/etc/modules-load.d/50-tailscale.conf
+15379aa30f1a1181f2ef5ea4755bebffefa625c97bf43f2b97565033a0c4fd4e  hooks/target/etc/modules-load.d/50-tailscale.conf
 48f2bb3de3d51f5a4064180a4c80197aa816ce94b5a11e093aed0a2be988409f  hooks/target/etc/modules-load.d/app-veth.conf
 c38c2a7ddc673d9f6e4a3d17f638fb14387dc6604c3b1c1d611da7cf0024750c  hooks/target/etc/network/host.conf.tmpl
 2308a3c5294acdd171ec1efe1bd43fa6dde4b6505fd03514e0494a85e985489d  hooks/target/etc/network/interfaces
@@ -458,7 +459,7 @@ bbb589a1890295bd7d3754e3c35531ffd80025323ae39f52ed0e62fafc658aa0  hooks/target/e
 833202f59fcf4ceb5dee89bfa5b1c17cb17d8a27bb7c4048e743b08e296b1f8b  hooks/target/etc/nftables/services/ssh-client.yml
 879fd4614a67291bfd5ebb986601d963d7ab5c513091a84ec69f6120602ac9be  hooks/target/etc/nftables/services/ssh-server.yml.tmpl
 ae90234b998e58948a7abf21522630ec5d39d07ec26c70d3f1a9fcceb193ce68  hooks/target/etc/nftables/services/syncthing.yml.tmpl
-597c309e4fe65ff1f6eab9a6ce25bb2312c8677295023f204be9d69554cc5583  hooks/target/etc/nftables/services/tailscale.yml.tmpl
+7d383d72ebbc4cfcc7a024a71eaf15259eba1e50f05eb84944dc0db0a512a1c8  hooks/target/etc/nftables/services/tailscale.yml.tmpl
 5030d565c256fb8c4e742d441377efbe00c0d6e6f1a135cfa358c5cd085f7435  hooks/target/etc/nftables/services/wazuh-agent.yml
 a74615024147d51f3d794795f7bbf576b66b780657313b9249834be1eeb61ef9  hooks/target/etc/nftables/services/wireguard.yml.tmpl
 a209466ee37e5d0e41122d3bec664b2f1e145086aded3b44a34566d473d2c861  hooks/target/etc/nftables/services/zerotier.yml.tmpl
@@ -636,7 +637,7 @@ d72459b82b41e87ccfa1fe831e603fc62ec91f614e1f0d603bdc3b81feaa159f  hooks/target/e
 800af3bdd87d6bd9d59ec822ebd42f27625fae38582776384ff7f41fc93459dc  hooks/target/etc/skel-desktop/.config/systemd/user/obsidian-git-sync.timer
 1692ba4f49906b7b92aa15719be918d3fa85cdb588aab8b14c57eef00493b3d7  hooks/target/etc/skel-desktop/.config/systemd/user/session.slice.d/60-resources.conf.tmpl
 b9a27cdb1f541835f7620dc595de7f5f6424fc7c788223b95ad17b95500a98cc  hooks/target/etc/skel-desktop/.config/systemd/user/swaybg.service
-1c4177391430440a2f5aa0c2f7279a89c4ffad608b887946a396395bb6714d1d  hooks/target/etc/skel-desktop/.config/systemd/user/swayidle.service
+a5fdd85a75084f89eb314484988f76b4bfadb4c08f7d133d2c517b98705cd83b  hooks/target/etc/skel-desktop/.config/systemd/user/swayidle.service
 697ba74dccad97c9f37b7a71dbc89cad39897d41827ab8a2ea3421e7e7717ae4  hooks/target/etc/skel-desktop/.config/systemd/user/swayidle.service.d/60-resource-class.conf
 c0e44cdf098db1d1024d47531685108e480767f36cc48982164beaa8f7857cbc  hooks/target/etc/skel-desktop/.config/systemd/user/waybar.service
 76d4e1aee2e6eb3536ae8898b370500be8f1b01c6d88a754dab2d639d744daf5  hooks/target/etc/skel-desktop/.config/systemd/user/waybar.service.d/20-tray-compat.conf
@@ -739,6 +740,7 @@ f7306587bb4caefb0b4839ecf0de5614b42c96f74995c872a9400bac8cce708c  hooks/target/e
 51e9d9c7bf2ea425e8e591b63dc481b9e29642298b5e9527604aab9c2dff22e1  hooks/target/etc/sysctl.d/90-codex-bwrap.conf.tmpl
 dceb3de09712e22bd8a40c30a9403840777912a300deddf73cc62537c9764b10  hooks/target/etc/sysctl.d/90-podman-rootless.conf
 3860e81ac33a341c12b244dce3ba1cfdea91c7bc9fe61cccc8bbb5bd69635491  hooks/target/etc/sysctl.d/91-app-veth.conf
+3a91e03a615a8690c298579d788270f3a2ce0e19a4dfe2cbffca6c25c9f2b994  hooks/target/etc/sysctl.d/92-tailscale-netkit.conf.tmpl
 3f22729b2d411409d0e0d5fec26479091db405e53ca89635ba555e4f20910163  hooks/target/etc/sysctl.d/profiles/balanced/40-balanced.conf.tmpl
 0c15c0187d1754144fed4f336ae33dde0ca46a8b005e408b98b6b9c2de104061  hooks/target/etc/sysctl.d/profiles/hardened/40-hardened.conf.tmpl
 9dd54362518c88682c00c698bd187cf7d05157e1c4506b57ce30190f33f85809  hooks/target/etc/sysctl.d/profiles/performance/40-performance.conf.tmpl
@@ -800,6 +802,7 @@ ff683feb591e9dd6f2dfb6d8e52eb9b0afc995dd9ba30cb76a1c5ddb7589c145  hooks/target/e
 ae2fc048728e9eeeed76c78853a58607aa0c727a224000f1c1ffdd09398c0994  hooks/target/etc/systemd/system/hardware-tuning-sleep.service
 7d8a2aacca22459e02e890fdeac9a86ee8e3c57aab788c1625b8a37f5000773c  hooks/target/etc/systemd/system/hardware-tuning.service.tmpl
 ba4d5142e7c290ad800fbc655be8efd8c72b40308e792f824f74a75ec0a5d696  hooks/target/etc/systemd/system/hardware-tuning.socket.tmpl
+065748f5d2eed08a3215abdec5b24f36d1b26215238397160c06887d138b1b27  hooks/target/etc/systemd/system/ifup@.service.d/40-device-lifecycle.conf
 a67ef0a24fb6744a8e19baa61a71e9b9edd542abc0fb5108eb15deebf5dee944  hooks/target/etc/systemd/system/incus-host.service
 5c98a7ccb954c99d878ae8d57d7e8a506f0ac440e95d7ecd2974e50c33fac554  hooks/target/etc/systemd/system/incus-user.service.d/20-bootstrap.conf
 fa8b860824644ab141803b7c89fb3879885213e79af79e463032cb76be2e57d0  hooks/target/etc/systemd/system/journal-sealing.service
@@ -856,7 +859,7 @@ a1da6ce4bdfe16a9ab753cb7625ae39b1e6cc785f710b1b33819832b7b142a92  hooks/target/e
 dd9fbd94b57fe9533cab715512349c2e4ab9d30878e9f1f743893d6b89a8df05  hooks/target/etc/systemd/system/systemd-suspend-then-hibernate.service.d/20-nvidia-preserve.conf
 8b48923e766d44d7326440f054b42db80ca2bb5a12cdf04b539c28d9649b4578  hooks/target/etc/systemd/system/systemd-suspend.service.d/20-nvidia-preserve.conf
 4c4815d0af8fc934ae96a3f4a9b18f7187853018710b1efca961e4b07d7f1c9a  hooks/target/etc/systemd/system/tailscaled.service.d/30-mullvad-exclusion.conf
-2912a08869d5d9c47851db811b3ec734b0a9a788665001597b517f3f1cc43907  hooks/target/etc/systemd/system/tailscaled.service.d/override.conf.tmpl
+91bfa003f5fce0b0664cb4f0c10e8259c8731f016dc37fc709a3aef3eef7423c  hooks/target/etc/systemd/system/tailscaled.service.d/override.conf.tmpl
 d2264eb2176949c6762e53b0e55076cc09fffcbc192d214b3bcb372d21bcc372  hooks/target/etc/systemd/system/timeshift-.service.d/60-resource-class.conf
 48a08df2efaa19f0087763bdc3e277b465f4df7c9464c042fadb273ef57cd377  hooks/target/etc/systemd/system/timeshift-daily.service
 11579e62781dae302c6bb9cc0fe83288c704df76e9b727abd0b818a7604b4885  hooks/target/etc/systemd/system/timeshift-daily.timer
@@ -947,6 +950,7 @@ b5efe0d0c34ace7ad252b14c000a76eb489909d8288554dabd7fc24e6ff00d28  hooks/target/e
 ee210985c57db3fc44258fb147617196ae49bdb87326ef56ff8c084b3936f18e  hooks/target/etc/systemd/user.conf.d/50-resource-defaults.conf
 8892cab7ad4af7673a104a78ed63f8814381d22242787eff89a8280a05c8c415  hooks/target/etc/systemd/user.conf.d/60-resource-accounting.conf.tmpl
 2b719caa7dce369cbc1a17e0e359eb03884283466a3399fbecf3e71e414d08bf  hooks/target/etc/sysusers.d/swtpm-sysusers.conf
+ac2db94d79842f4d893d795afd2cef04361ddb432a73f6c20761b7b5cb8245d2  hooks/target/etc/tailscale/netkit.json.tmpl
 3fa406481eceea376f0e08faea798f652e2db2a36e41a8af6377f7b057a0c492  hooks/target/etc/timeshift/backup-hooks.d/90-grub-btrfs-refresh
 753959cf4f3c3ecb9a5476000baf04c3796ca81760ac5089bf09f7880934a96d  hooks/target/etc/timeshift/timeshift.json.tmpl
 a9f35817a613f72c2cc10b4b7f5ad9eff45c2d17f62d040fd4826ebf4ce43f23  hooks/target/etc/tmpfiles.d/10-runtime-storage-roots.conf.tmpl
@@ -1203,7 +1207,7 @@ daed2a6aa39bfcb4f9bd5fae653532c2e820c958062b1c24c5940915a6a595d4  hooks/target/u
 cfc154b9e68dbf8dc0cd6675df27f4864c8fc7517d27e560cb90570553b71dfd  hooks/target/usr/local/lib/perl5/site_perl/network/ManagedNetwork/CLI.pm
 c4f344e860b843a7007a97e825455edcad982e28a59377b683129a353eb3d324  hooks/target/usr/local/lib/perl5/site_perl/network/ManagedNetwork/Config.pm
 061c08456c543685a36c3a7c1513e79e82e419359765296c139c796b8bf0efd0  hooks/target/usr/local/lib/perl5/site_perl/network/ManagedNetwork/Logger.pm
-28de6f56e273d4f515f12583285a32ed8287e7e71c5dce12afd28864f9fd9d10  hooks/target/usr/local/lib/perl5/site_perl/network/ManagedNetwork/Validator.pm
+d03370e0418a913a1a7122e2104b219f45a43bdb415378aea3afa397a574f5e5  hooks/target/usr/local/lib/perl5/site_perl/network/ManagedNetwork/Validator.pm
 3a4a6e1765278255d53a67e2023a0496d30b756bf73941fdd8bc4b979883e0b7  hooks/target/usr/local/lib/perl5/site_perl/runtime/Managed/PolicyLock.pm
 bdbc8bb2553d209621b39bb895c9d1c7370a32a35e6115c2a383c97602513977  hooks/target/usr/local/lib/perl5/site_perl/runtime/Managed/Process.pm
 75143d0a81b761af15462abd8fc0a826fed1403989f9f40e8599c04c54f5d884  hooks/target/usr/local/lib/perl5/site_perl/timeshift/TimeshiftManaged/CLI.pm
@@ -1333,11 +1337,11 @@ f7b83a2ff28dd2921447d9035c614704eb56f1ca92a3ffd144b798a2ea35e715  hooks/target/u
 ae665a85c88c409d21163551dd292f9ef7367917f22c0f2003e356d36a4f2f8c  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/mounts.py
 4a833a0f9ed205a97598e57778de98146f8a23cbb81d56f54992e3bd22cf47b3  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_client.py
 3b476ce896279724ae8eb0928de43680b9e3f6e1a70c273ba11b80c6ce8f5a3e  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_namespace.py
-9406e52d6775eae4590763d7d4801c8fa7276865e992d807c335c87a1498c6ff  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py.tmpl
+9a9f5b45523c7d22825bd80b3d0bf604ca392bd7758cf77d1eb28d9ddcbd5ed0  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py.tmpl
 42615fe72bb33e110dd45a37ee1554355e9bc6b8aaadf5de0114383212d4a311  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/project_identity.py
 aef10dc754a7cc7c698c2b0858f7601545e5ed88a5ade34f675f728fd88c582b  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/recovery.py
 1d75efe59fa09fec405e87d335f8f5042ecd683d2589ff6f5fc7fbc1324e8209  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/runtime.py
-40ce2ea685f95d8edbdc5eea8762aa583fb3c4a627e43dae4da023f1ab933ed6  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/sandbox.py
+5f640e32f2098f196ad3216746381b826d5dd39c95e426ad501acae5d9250446  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/sandbox.py
 2a0c280df49285d699290baee58d49870d7f78c5cc21b06062c22402222a81f4  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py
 079f08df43785665889a22dcd63367415fa8ddccdc8868f0e5f82b2fadb0cdd3  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/user_state.py
 df51dcbb6d743225d3a8fc3730b7bb1112fc3e5fb5e85e004af6e0098cd389e0  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat.py
@@ -1391,7 +1395,7 @@ c07e0eac0b2b6313dd0e8b2f53feeeeaf818822944c63757ebbdfcdac9289084  hooks/target/u
 0d174cfde4a0d96af44996c7deb32dbf884e44941bd841f6c1d378fe4531d306  hooks/target/usr/local/libexec/labwc-apparmor-policy-worker
 50e4733646d2cdc495a581e7cb0993a5f0822ee44a304029bc0511164edcf045  hooks/target/usr/local/libexec/labwc-appearance-defaults
 a7a64327ceecff80122260b376bb1e756420d7a1001a35d58372bf0de330df02  hooks/target/usr/local/libexec/labwc-appearance-greeter
-f0079c64333a93a32eb419a58e7873fa8bfdd221ecf69d00724df174809825e8  hooks/target/usr/local/libexec/labwc-calendar
+2cb935b74108e2d2fdf430390295534a9b92e6c42d2b91eab912fb2292ae0186  hooks/target/usr/local/libexec/labwc-calendar
 021e878a0282456ea4ba3a5675a95d588fb225f74cd0beacf7cf812adfcc538b  hooks/target/usr/local/libexec/labwc-chatgpt-log-runner.tmpl
 b7759169b79b9cf967045b57b5b7dacc0434d3f5b2442402a7d4067878cda9df  hooks/target/usr/local/libexec/labwc-chatgpt-session
 e39c1c15ceefe999bb04da384136c5575cb36545099844b1af078bd33b8b1133  hooks/target/usr/local/libexec/labwc-compat-open-uri
@@ -1438,6 +1442,7 @@ a7b8f1767dc75ffdf0b3406fea6b749d3cb05df3be11e67f2302591e8252f027  hooks/target/u
 8cb759124db01d9e01b5910fa5a6ccaff27863173bf23d443b12178ff8687115  hooks/target/usr/local/libexec/mullvad-lan-allow
 55ac5df039c8dd1f73cdb2a7f35358bf04f750c62ff9a5798200c582db2eb720  hooks/target/usr/local/libexec/mullvad-tailscale-coordinator
 8a1c67a3802d96b90f9e838f151cfa20c1886a72d01d317f6c0fa78349fdce8b  hooks/target/usr/local/libexec/native-logging.tmpl
+bec8d8486dbb1afdd385ad205c7df3eb16fa88a2474bb4ef98d8985b2f778e62  hooks/target/usr/local/libexec/network-ifup-hotplug
 589482be82f4e6d97cba58b319b77f7ee668b6ba08f0b1ce82aaec4cebb2e518  hooks/target/usr/local/libexec/network-openvpn-import
 df2886d2fe34871786ac481c30dd6c7e182c999994a0b09fa3e34f7efecfd4e1  hooks/target/usr/local/libexec/network-run
 db0904cb8dad276acb18dc3df9d773fc0ead8bb6bdd10714836aa3889ffbd09b  hooks/target/usr/local/libexec/network-sharing-identity
@@ -1458,6 +1463,8 @@ bc276cd12a5f202c60ad2c35c95b2fbbf31dff09a9962f6912b36e7f10693b68  hooks/target/u
 50e3092c7d117a602b51fd3a2f6e708094d0b65f203281c36e645e0439c27098  hooks/target/usr/local/libexec/ssh-checks
 40fdf8ae732d0d19efb6620b369ab8704d4b9301a5bc0ee1f7fa6d56ad6b0a9d  hooks/target/usr/local/libexec/swap-fallback-setup.tmpl
 3b435a395f79c2b41aa8e37d8f731fb855bfcfb0e9352966d3a2e1d392834da6  hooks/target/usr/local/libexec/syncthing-configure
+5a971ba872422f6799931853568e090d9eacedfb72cdb764366807642e9ec264  hooks/target/usr/local/libexec/tailscale-netkit
+6e65d184a3cff4e701e2f24a19078b4a670b17876c77da1476466c9f52d95355  hooks/target/usr/local/libexec/tailscale-ssh-host
 0d34ed331e561132cb21844652b7b802690d878b5640f96839233840c95704f1  hooks/target/usr/local/libexec/timeshift/notify-send
 162316c49cfa3c959726d4c4e2077bbf93156faa13305fc07bf140047affef0b  hooks/target/usr/local/libexec/timeshift-snapshot
 2757fa022fc69e2d3e859076fac7685584bcd6753ea43e2cb284222101bbb5f8  hooks/target/usr/local/libexec/tmpfs-pre-clean.tmpl
@@ -1478,7 +1485,7 @@ a60bce358b81a698d0a325447a14d0d0548b49077f13c8f4f4042d08ba768330  hooks/target/u
 e74fefdec32c18e9e940a9d33d09c6417a49230d08bfb09fa44cfce9c554860a  hooks/target/usr/local/sbin/luks-mok-close.tmpl
 5470640dbbafa9560346a0576f8e934871b5163775b33b61c7deefe4f1f9815f  hooks/target/usr/local/sbin/luks-mok-open.tmpl
 4c12db0590e1fa2d9d9d4e2110d5c2a8deccf77f0971af908e96b078a49b045f  hooks/target/usr/local/sbin/luks-mok-passwd.tmpl
-b91f44693b71a28707f0bcb7f0c8a99f60c655e363484c5d81c74ae6e63dc2ad  hooks/target/usr/local/sbin/nft-policy-generate.py
+980d56e827b7acdaf598bf4d2d86afb09216fc4eb8f402fe60e6a5406a086a34  hooks/target/usr/local/sbin/nft-policy-generate.py
 302c039224316e90292cd4d16943c55b2127a0c0b368ea26e2f082de8a264669  hooks/target/usr/local/sbin/nvme-pcie-status
 e4136f39533f06cc2ca273f8cda55e2a4924ba7e5184d7193e3473d1a007caf2  hooks/target/usr/local/share/applications/chatgpt.desktop.tmpl
 79ed11b4be86e437e2386d87dea540676eed06f90778b668cdc312dcd434be0a  hooks/target/usr/local/share/applications/code.desktop
@@ -1726,11 +1733,11 @@ e1238c62f49ad9e89210106474c09cd7a642addda7d273ca5a3b48f028d1db9e  scripts/late/g
 b590472f3b98cd72205a86b8e1972b697a97c10370a5f4e083f1fb043f864bd5  scripts/late/network-generate.pl
 bbba75c7231ecb2efe31b61025c1a5aa44e601d552165879fb7b48792e0abc42  scripts/late/network-sharing.py
 ed933c0c04be5285663c2a3f8a7a494677fc35195f66a02ee967adeef79a4af7  scripts/late/network-sharing.sh
-4134f33163fbc575cbc6f9e570c0c9647d9e263995ff1341579dc79742629855  scripts/late/network.sh
+9accf7da536620a89b6c7b81d21ec845cd442e13419b343c86dfa5fe31028be4  scripts/late/network.sh
 fa87a7a3db805c8ddde73eb8fb4de75404828d4db780e8954d3b7be7e2cdc4d4  scripts/late/packer-plugins.py
 b058be07a957614fc19133275a4bf25eb0dcaed2cab4174b3676c9931240b401  scripts/late/podman.sh
 364a14ea9dd3a35b53d0ea9232a5b78b99d33412b26858db2475c4f680c13c3c  scripts/late/qemu.sh
-18a0dd46cab076be08d18ba1b80165785685998535d66b7cd54fd017ed24e930  scripts/late/security.sh
+c5ec6c39669bb7f34a4eb70d2d2e7aefb91df73e71373ecda41a0942f3d8b913  scripts/late/security.sh
 241a0705496e9d21086a6d3ab4bc031324ad67eb151f12fdc0052126841503b3  scripts/late/software.sh.tmpl
 f101b124fe56049a61822263fd64c4c74efbc181de8a2900b2e32748925adf64  scripts/late/ssh/clone.conf.tmpl
 faa9af215ec6cf661dec19aa3915e2e821c1f3993a184fdd582eb03ac207d340  scripts/late/ssh/ssh-install-askpass
@@ -1738,7 +1745,7 @@ faa9af215ec6cf661dec19aa3915e2e821c1f3993a184fdd582eb03ac207d340  scripts/late/s
 a52a3c013a0e3160bad5e37dc1a6f640d059948bcd1a48ec7feca2443efb2d8e  scripts/late/standard.sh
 263d9af91cd4319f3262dfc0d28efaa5be600c7b7bad0407417cdf6bc568e914  scripts/late/storage-maintenance.sh
 1e27fe6bffeb714083d300fa3fdbbf2652735e58642d5fbafb8b5842852cc5e5  scripts/late/stubby-config.py
-3d273df2582b8e8724ad83f0c58668130a849f357909c7c807f3ad5c2353ea9e  scripts/late/tailscale.sh
+74ce96db5c991b7abea3a5b4feaf3c393826b93e6dc2163d98d8bf90be1b1fc0  scripts/late/tailscale.sh
 ab0e207b2d4bc4053dff0c7661735b3602613702cb99b583086305c5d442ccb7  scripts/late/target-assets.sh
 31d93998e6cf812e3e7ee9b5e96e888d9214277238736a4fa541e1512e21825d  scripts/late/templates/network/dns-search.tmpl
 42575c5d0818436949807c36edf4f7fc5ce3930033b0bac0c525281db103fba9  scripts/late/templates/network/inet4.tmpl

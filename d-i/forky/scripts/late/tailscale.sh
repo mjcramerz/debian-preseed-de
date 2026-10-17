@@ -219,8 +219,25 @@ tailscale_validate_port TAILSCALE_UDP_PORT "${TAILSCALE_UDP_PORT:-41641}"
 tailscale_validate_port SYNCTHING_TCP_PORT "${SYNCTHING_TCP_PORT:-35000}"
 tailscale_validate_bool TAILSCALE_RUN_SSH_SERVER "${TAILSCALE_RUN_SSH_SERVER:-true}"
 tailscale_validate_bool TAILSCALE_AUTH_KEY_REQUIRED "${TAILSCALE_AUTH_KEY_REQUIRED:-true}"
+tailscale_validate_bool TAILSCALE_ACCEPT_DNS "${TAILSCALE_ACCEPT_DNS:-false}"
 tailscale_interface=${TAILSCALE_INTERFACE:-tailscale0}
 tailscale_validate_iface_name TAILSCALE_INTERFACE "$tailscale_interface"
+tailscale_ethernet_interface=${MANAGED_NETWORK_ETHERNET_IFACE:-eth0}
+tailscale_wifi_interface=${MANAGED_NETWORK_WIFI_IFACE:-wifi0}
+tailscale_validate_iface_name MANAGED_NETWORK_ETHERNET_IFACE "$tailscale_ethernet_interface"
+tailscale_validate_iface_name MANAGED_NETWORK_WIFI_IFACE "$tailscale_wifi_interface"
+for tailscale_name in "$tailscale_interface" "$tailscale_ethernet_interface" "$tailscale_wifi_interface"; do
+  case "$tailscale_name" in
+    veth*|ts-uplink) tailscale_fatal "netkit interface identities must not overlap application interfaces" ;;
+  esac
+done
+[ "$tailscale_interface" != "$tailscale_ethernet_interface" ] &&
+  [ "$tailscale_interface" != "$tailscale_wifi_interface" ] &&
+  [ "$tailscale_ethernet_interface" != "$tailscale_wifi_interface" ] ||
+  tailscale_fatal "Tailscale, Ethernet and Wi-Fi interface identities must differ"
+[ "${APP_VETH_DNS_HOST_ADDRESS:-}" = 127.0.0.1 ] || tailscale_fatal "netkit requires the managed loopback DNS cache"
+tailscale_validate_port APP_VETH_DNS_HOST_PORT "${APP_VETH_DNS_HOST_PORT:-}"
+[ "$APP_VETH_DNS_HOST_PORT" -ge 1024 ] || tailscale_fatal "managed DNS cache port must be unprivileged"
 tailscale_interface_log_regex=$(printf '%s\n' "$tailscale_interface" | sed 's/[.]/[.]/g')
 
 : "${FILE_TAILSCALED_DEFAULT:?FILE_TAILSCALED_DEFAULT must be set}"
@@ -342,6 +359,30 @@ tailscale_stage_target_asset \
   "$(installer_repo_join_var DIR_HOOKS_TARGET etc/modules-load.d/50-tailscale.conf)" \
   "${FILE_TAILSCALE_TUN_MODULES_LOAD}" \
   0644
+tailscale_stage_target_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/tailscale-netkit)" \
+  /usr/local/libexec/tailscale-netkit 0755
+tailscale_stage_target_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/tailscale-ssh-host)" \
+  /usr/local/libexec/tailscale-ssh-host 0755
+tailscale_render_target_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/tailscale/netkit.json.tmpl)" \
+  /etc/tailscale/netkit.json 0644 \
+  TAILSCALE_INTERFACE "$tailscale_interface" \
+  ETHERNET_INTERFACE "$tailscale_ethernet_interface" WIFI_INTERFACE "$tailscale_wifi_interface" \
+  TAILSCALE_UDP_PORT "${TAILSCALE_UDP_PORT:-41641}" \
+  DNS_HOST_ADDRESS "$APP_VETH_DNS_HOST_ADDRESS" DNS_HOST_PORT "$APP_VETH_DNS_HOST_PORT" \
+  TAILSCALE_ACCEPT_DNS "${TAILSCALE_ACCEPT_DNS:-false}"
+tailscale_render_target_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/NetworkManager/conf.d/75-tailscale-netkit.conf.tmpl)" \
+  /etc/NetworkManager/conf.d/75-tailscale-netkit.conf 0644 \
+  TAILSCALE_INTERFACE "$tailscale_interface"
+tailscale_render_target_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/sysctl.d/92-tailscale-netkit.conf.tmpl)" \
+  /etc/sysctl.d/92-tailscale-netkit.conf 0644 \
+  ETHERNET_INTERFACE "$tailscale_ethernet_interface" WIFI_INTERFACE "$tailscale_wifi_interface"
+tailscale_run_target_chroot "verify private Tailscale assets without activation" \
+  /usr/local/libexec/tailscale-netkit validate-target
 tailscale_stage_target_asset \
   "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/syncthing-configure)" \
   "${FILE_MANAGED_SYNCTHING_HELPER}" \

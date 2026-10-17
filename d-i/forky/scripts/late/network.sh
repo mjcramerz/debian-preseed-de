@@ -975,6 +975,12 @@ install_target_managed_network_handoff() {
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/network.service)" \
     "${FILE_MANAGED_NETWORK_SERVICE}" \
     0644
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/network-ifup-hotplug)" \
+    /usr/local/libexec/network-ifup-hotplug 0755
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/ifup@.service.d/40-device-lifecycle.conf)" \
+    /etc/systemd/system/ifup@.service.d/40-device-lifecycle.conf 0644
   # Exercise the installed reader against the generated policy before enabling
   # its boot unit. Hardware is checked at boot after the udev renames apply.
   run_in_target "managed network policy validation" \

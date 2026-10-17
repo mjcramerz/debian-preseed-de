@@ -33,6 +33,7 @@ from .environment import (
 )
 from .profiles import (
     APPS,
+    BITWARDEN_NATIVE_MESSAGING_PATHS,
     PERSISTENT_SANDBOX_CONFIG,
     TUTA_INTEGRATION_DIRECTORY_BINDS,
     WAYLAND_COMPAT_APPS,
@@ -254,6 +255,79 @@ def add_persistent_directory_binds(
         )
         add_dir_chain(command, destination_path)
         command.extend(["--bind", source_path, destination_path])
+
+
+def _bitwarden_proxy_bytes() -> bytes:
+    source = require_root_owned_regular_file(
+        "Bitwarden native messaging proxy", "/opt/Bitwarden/desktop_proxy", executable=True,
+    )
+    fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as stream:
+        metadata = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
+                or metadata.st_mode & 0o022 or not metadata.st_mode & 0o100
+                or not 0 < metadata.st_size <= 32 * 1024 * 1024):
+            fail("unsafe Bitwarden native messaging proxy")
+        content = stream.read(32 * 1024 * 1024 + 1)
+        after = os.fstat(stream.fileno())
+        if (len(content) != metadata.st_size or after.st_size != metadata.st_size
+                or after.st_mtime_ns != metadata.st_mtime_ns or after.st_ctime_ns != metadata.st_ctime_ns):
+            fail("Bitwarden native messaging proxy changed while reading")
+    return content
+
+
+def prepare_bitwarden_integration(home_dir: str) -> None:
+    """Copy missing native proxies before launch; never replace account files.
+
+    Publish from a complete private copy on the destination filesystem. The
+    vendor's later manifest refresh may still try its own cross-device link.
+    Directory FDs keep publication bound to the directories we inspected.
+    """
+    name = ".bitwarden_desktop_proxy"
+    content = None
+    try:
+        for relative in BITWARDEN_NATIVE_MESSAGING_PATHS:
+            directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+            directory_fd = os.open(home_dir, directory_flags)
+            try:
+                for part in relative.split("/"):
+                    child_fd = os.open(part, directory_flags, dir_fd=directory_fd)
+                    os.close(directory_fd)
+                    directory_fd = child_fd
+                metadata = os.fstat(directory_fd)
+                if metadata.st_uid != os.getuid() or metadata.st_mode & 0o022:
+                    fail("unsafe Bitwarden native messaging directory")
+                try:
+                    existing = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+                except FileNotFoundError:
+                    if content is None:
+                        content = _bitwarden_proxy_bytes()
+                    temporary = ".bitwarden-proxy-" + uuid.uuid4().hex
+                    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                                 0o600, dir_fd=directory_fd)
+                    try:
+                        with os.fdopen(fd, "wb") as output:
+                            output.write(content)
+                            os.fchmod(output.fileno(), 0o700)
+                            output.flush()
+                            os.fsync(output.fileno())
+                        try:
+                            os.link(temporary, name, src_dir_fd=directory_fd, dst_dir_fd=directory_fd,
+                                    follow_symlinks=False)
+                            os.fsync(directory_fd)
+                        except FileExistsError:
+                            pass  # A concurrent launch published first.
+                    finally:
+                        os.unlink(temporary, dir_fd=directory_fd)
+                        os.fsync(directory_fd)
+                    existing = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+                if (not stat.S_ISREG(existing.st_mode) or existing.st_uid not in {os.getuid(), 0}
+                        or existing.st_mode & 0o022 or not existing.st_mode & 0o100):
+                    fail("unsafe existing Bitwarden native messaging proxy")
+            finally:
+                os.close(directory_fd)
+    except OSError as exc:
+        fail(f"cannot prepare Bitwarden native messaging proxies: {exc.strerror}")
 
 
 def prepare_tuta_integration(home_dir: str) -> None:
@@ -1445,6 +1519,8 @@ def _run_persistent_sandbox_with_resources(
     ]
     if app_name == "tutanota":
         prepare_tuta_integration(home_dir)
+    if app_name == "bitwarden":
+        prepare_bitwarden_integration(home_dir)
     shared_temp_directory = None
     shared_temp_entry = sandbox.get("shared_temp_directory")
     if shared_temp_entry is None and sandbox.get("shared_temp_directory_by_application", False):

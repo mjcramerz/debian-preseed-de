@@ -1,0 +1,1015 @@
+#!/usr/bin/python3 -IB
+"""Own a non-veth Tailscale uplink; never move the host's physical devices.
+
+The supervisor stays in the host network namespace. Only its fixed daemon
+delegate enters the private namespace. Namespace FDs never reach tailscaled.
+The native daemon, SSH children and constructor remain in tailscaled.service.
+"""
+from __future__ import annotations
+
+import array
+import ast
+import contextlib
+import fcntl
+import ipaddress
+import json
+import os
+from pathlib import Path
+import re
+import selectors
+import signal
+import socket
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+import uuid
+
+CONFIG = Path('/etc/tailscale/netkit.json')
+RUNTIME = Path('/run/tailscale-netkit')
+SELF = '/usr/local/libexec/tailscale-netkit'
+SSH = '/usr/local/libexec/tailscale-ssh-host'
+IP = '/usr/sbin/ip'
+UPLINK = 'ts-uplink'
+HOST4, PEER4 = '169.254.253.1', '169.254.253.2'
+HOST6, PEER6 = 'fd6b:bbad:cd4e:104::1', 'fd6b:bbad:cd4e:104::2'
+PREFIX4, PREFIX6 = '169.254.253.0/30', 'fd6b:bbad:cd4e:104::/126'
+TAIL4, TAIL6 = ipaddress.ip_network('100.64.0.0/10'), ipaddress.ip_network('fd7a:115c:a1e0::/48')
+ROUTE_PROTOCOL = '242'
+NS_GET_NSTYPE = 0xb703
+ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C.UTF-8', 'HOME': '/root'}
+STOP = False
+CLEANUP_DEADLINE: float | None = None
+
+
+class Error(RuntimeError):
+    pass
+
+
+class OutcomeUnknown(Error):
+    pass
+
+
+class CommandFailed(Error):
+    pass
+
+
+def regular(path: Path, mode: int | None = None, maximum: int = 65536) -> bytes:
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(fd, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_gid != 0
+                or info.st_nlink != 1 or info.st_mode & 0o022
+                or (mode is not None and stat.S_IMODE(info.st_mode) != mode)
+                or info.st_size > maximum):
+            raise Error('untrusted managed file: ' + str(path))
+        data = stream.read(maximum + 1)
+        if len(data) > maximum:
+            raise Error('managed file exceeds limit: ' + str(path))
+        return data
+
+
+def unique(pairs):
+    value = dict(pairs)
+    if len(value) != len(pairs):
+        raise Error('duplicate configuration key')
+    return value
+
+
+def configuration(path: Path = CONFIG) -> dict:
+    value = json.loads(regular(path, 0o644), object_pairs_hook=unique)
+    if (not isinstance(value, dict) or set(value) != {'version', 'interface', 'physical_interfaces',
+            'port', 'dns_address', 'dns_port', 'accept_dns'} or type(value['version']) is not int
+            or value['version'] != 1 or type(value['accept_dns']) is not bool):
+        raise Error('invalid netkit configuration schema')
+    names = [value['interface'], *value['physical_interfaces']] if isinstance(value['physical_interfaces'], list) else []
+    if (len(names) != 3
+            or any(not isinstance(name, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,14}', name)
+                   or name in {'lo', '.', '..'} or name.startswith('veth') for name in names)
+            or len(set(names)) != 3 or UPLINK in names):
+        raise Error('invalid or overlapping netkit interface identifiers')
+    if (type(value['port']) is not int or not 1 <= value['port'] <= 65535
+            or type(value['dns_port']) is not int or not 1024 <= value['dns_port'] <= 65535
+            or value['dns_address'] != '127.0.0.1'):
+        raise Error('invalid netkit transport or DNS endpoint')
+    return value
+
+
+def validate_target() -> None:
+    """Offline installation gate: files only, no manager or network queries."""
+    config = configuration()
+    if sys.version_info < (3, 14) or any(not hasattr(os, name) for name in ('setns', 'unshare', 'pidfd_open')):
+        raise Error('target Python namespace/pidfd runtime is unavailable')
+    for path in (SELF, SSH):
+        ast.parse(regular(Path(path), 0o755, 131072), filename=path)
+    required = {
+        '/etc/systemd/system/tailscaled.service.d/override.conf': 0o644,
+        '/etc/NetworkManager/conf.d/75-tailscale-netkit.conf': 0o644,
+        '/etc/sysctl.d/92-tailscale-netkit.conf': 0o644,
+        '/etc/apparmor.d/usr.sbin.tailscaled': 0o644,
+        '/etc/default/tailscaled': 0o644,
+        '/etc/systemd/system/dnsmasq-app-veth.service': 0o644,
+        '/etc/dnsmasq-app-veth.conf': 0o644,
+    }
+    contents = {}
+    for path, mode in required.items():
+        contents[path] = regular(Path(path), mode).decode('utf-8')
+        if '__INSTALLER_' in contents[path]:
+            raise Error('unresolved installation token: ' + path)
+    for path in (CONFIG, Path(SELF), Path(SSH), *(Path(item) for item in required)):
+        for parent in path.parents:
+            info = parent.lstat()
+            if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+                raise Error('unsafe managed asset parent: ' + str(parent))
+    nm = [line.strip() for line in contents['/etc/NetworkManager/conf.d/75-tailscale-netkit.conf'].splitlines()
+          if line.strip() and not line.lstrip().startswith('#')]
+    if nm != ['[device-tailscale-netkit]', 'match-device=interface-name:' + config['interface'], 'managed=0']:
+        raise Error('NetworkManager ownership differs from the netkit contract')
+    sysctl = [line.strip() for line in contents['/etc/sysctl.d/92-tailscale-netkit.conf'].splitlines()
+              if line.strip() and not line.lstrip().startswith('#')]
+    if sysctl != [f'-net/ipv6/conf/{name}/{setting} = {value}'
+                  for name in config['physical_interfaces'] for setting, value in (('forwarding', 1), ('accept_ra', 2))]:
+        raise Error('IPv6 transport forwarding differs from the netkit contract')
+    dns = contents['/etc/dnsmasq-app-veth.conf'].splitlines()
+    if ([line for line in dns if line.startswith('port=')] != [f'port={config["dns_port"]}']
+            or [line for line in dns if line.startswith('listen-address=')] != ['listen-address=127.0.0.1']):
+        raise Error('private DNS endpoint differs from the managed cache')
+    unit = contents['/etc/systemd/system/tailscaled.service.d/override.conf']
+    delegates = [line.strip() for line in unit.splitlines() if line.startswith(('ExecStart=', 'ExecStopPost='))]
+    if delegates != ['ExecStart=',
+            'ExecStart=' + SELF + ' run --state=/var/lib/tailscale/tailscaled.state --socket=/run/tailscale/tailscaled.sock --port=${PORT} $FLAGS',
+            'ExecStopPost=', 'ExecStopPost=' + SELF + ' cleanup']:
+        raise Error('service delegates differ from the namespace contract')
+    for path in (IP, '/usr/sbin/nft', '/usr/sbin/sysctl', '/usr/bin/bwrap', '/usr/bin/mount',
+                 '/usr/bin/umount', '/usr/bin/nsenter', '/usr/bin/resolvectl', '/usr/bin/tailscale',
+                 '/usr/sbin/tailscaled', '/usr/bin/login', '/usr/bin/su'):
+        # Distribution alternatives/symlinks are permitted only after resolving
+        # to root-owned packaged code beneath the target's /usr tree.
+        resolved = Path(path).resolve(strict=True)
+        if not resolved.is_relative_to('/usr'):
+            raise Error('native delegate resolves outside /usr: ' + path)
+        info = resolved.stat()
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_gid != 0
+                or info.st_mode & 0o022 or not info.st_mode & 0o111):
+            raise Error('untrusted native delegate: ' + path)
+    configs = []
+    for path in Path('/boot').glob('config-*'):
+        configs.append(path)
+        if len(configs) > 8:
+            raise Error('ambiguous target kernel configuration set')
+    if not configs or any(not re.search(rb'^CONFIG_NETKIT=[ym]$', regular(path, maximum=1048576), re.M)
+                          for path in configs):
+        raise Error('installed target kernel lacks packaged netkit support')
+    defaults = contents['/etc/default/tailscaled']
+    if f'--tun={config["interface"]} --no-logs-no-support' not in defaults:
+        raise Error('daemon defaults differ from the namespace contract')
+    print('tailscale_netkit outcome=offline-assets-verified')
+
+
+def run(argv: list[str], *, data: bytes | None = None, fds: tuple[int, ...] = (),
+        timeout: float = 10, accepted: tuple[int, ...] = (0,)) -> bytes:
+    """Bound streaming, final wait and identity-pinned termination separately."""
+    if CLEANUP_DEADLINE is not None:
+        timeout = min(timeout, CLEANUP_DEADLINE - time.monotonic())
+    if timeout <= 0:
+        raise Error('cleanup deadline exceeded; recovery evidence retained')
+    output, errors = bytearray(), bytearray()
+    with contextlib.ExitStack() as stack:
+        source = subprocess.DEVNULL
+        if data is not None:
+            if len(data) > 65536:
+                raise Error('command input exceeds limit')
+            source = stack.enter_context(tempfile.TemporaryFile(dir=RUNTIME))
+            source.write(data)
+            source.seek(0)
+        process = subprocess.Popen(argv, stdin=source, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   env=ENV, close_fds=True, pass_fds=fds)
+        try:
+            pinned = os.pidfd_open(process.pid)
+        except BaseException:
+            # The owning service cgroup remains responsible if pinning fails.
+            process.stdout.close()
+            process.stderr.close()
+            raise OutcomeUnknown('cannot pin command identity; service cgroup must terminate it') from None
+        stack.callback(os.close, pinned)
+        selector = stack.enter_context(selectors.DefaultSelector())
+        for stream, target in ((process.stdout, output), (process.stderr, errors)):
+            stack.callback(stream.close)
+            os.set_blocking(stream.fileno(), False)
+            selector.register(stream, selectors.EVENT_READ, target)
+        deadline = time.monotonic() + timeout
+        try:
+            while selector.get_map():
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise Error('command deadline exceeded')
+                for event, _mask in selector.select(min(remaining, .25)):
+                    chunk = os.read(event.fileobj.fileno(), 16384)
+                    if not chunk:
+                        selector.unregister(event.fileobj)
+                        continue
+                    event.data.extend(chunk)
+                    if len(output) + len(errors) > 1024 * 1024:
+                        raise Error('command output exceeds limit')
+            status = process.wait(timeout=max(.001, deadline - time.monotonic()))
+        except BaseException:
+            with contextlib.suppress(ProcessLookupError):
+                signal.pidfd_send_signal(pinned, signal.SIGKILL)
+            try:
+                process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                raise OutcomeUnknown('command termination outcome unknown; service cgroup retained') from None
+            raise
+        if status not in accepted:
+            diagnostic = json.dumps(errors[:512].decode('utf-8', errors='replace'))
+            raise CommandFailed(f'command failed executable={Path(argv[0]).name} status={status} diagnostic={diagnostic}')
+    return bytes(output)
+
+
+def ip(arguments: list[str], namespace: int | None = None) -> bytes:
+    if namespace is None:
+        return run([IP, '-N', *arguments])
+    return run(['/usr/bin/nsenter', f'--net=/proc/self/fd/{namespace}', '--', IP, '-N', *arguments], fds=(namespace,))
+
+
+def objects(arguments: list[str], namespace: int | None = None) -> list[dict]:
+    value = json.loads(ip(['-j', *arguments], namespace))
+    if not isinstance(value, list) or len(value) > 4096 or any(not isinstance(item, dict) for item in value):
+        raise Error('invalid or excessive iproute2 response')
+    return value
+
+
+def device_objects(arguments: list[str], name: str) -> list[dict]:
+    try:
+        return objects([*arguments, 'dev', name])
+    except CommandFailed:
+        if not (Path('/sys/class/net') / name).exists():
+            return []  # An absent or concurrently unplugged configured device.
+        raise
+
+
+def table_routes(family: str, table: str, namespace: int | None = None) -> list[dict]:
+    # Querying an as-yet absent numeric FIB table can return an error on a fresh
+    # kernel. A complete route dump distinguishes absence from a failed query.
+    return [item for item in objects([family, 'route', 'show', 'table', 'all'], namespace)
+            if str(item.get('table', 'main')) == table]
+
+
+def route_key(record: dict) -> tuple[str, str]:
+    kind = record.get('type', 'unicast')
+    if kind not in {'unicast', 'throw', 'unreachable', 'blackhole', 'prohibit'}:
+        raise Error('unsupported private tailnet route type')
+    destination = record.get('dst', 'default')
+    return kind, str(ipaddress.ip_network(destination, strict=False)) if destination != 'default' else 'default'
+
+
+def owned_routes(config: dict, family: str) -> dict[tuple[str, str], dict]:
+    peer = PEER4 if family == '-4' else PEER6
+    result = {}
+    for record in table_routes(family, '52'):
+        key = route_key(record)
+        if (str(record.get('protocol')) != ROUTE_PROTOCOL or any(old[1] == key[1] for old in result)
+                or (key[0] == 'unicast' and (record.get('dev') != config['interface'] or record.get('gateway') != peer))
+                or (key[0] != 'unicast' and (record.get('dev') or record.get('gateway')))):
+            raise Error('host tailnet route ownership changed')
+        result[key] = record
+    return result
+
+
+def route_arguments(config: dict, family: str, operation: str, key: tuple[str, str], source: str | None = None) -> list[str]:
+    kind, destination = key
+    if kind != 'unicast':
+        return [family, 'route', operation, kind, 'table', '52', destination, 'protocol', ROUTE_PROTOCOL]
+    peer = PEER4 if family == '-4' else PEER6
+    return [family, 'route', operation, 'table', '52', destination, 'via', peer, 'dev', config['interface'],
+            *(['src', source] if source is not None else []), 'protocol', ROUTE_PROTOCOL]
+
+
+def ns_type(fd: int, expected: int) -> None:
+    if fcntl.ioctl(fd, NS_GET_NSTYPE) != expected:
+        raise Error('incorrect namespace descriptor type')
+
+
+def new_network_namespace() -> int:
+    parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET | socket.SOCK_CLOEXEC)
+    parent.settimeout(5)
+    worker = os.fork()
+    if worker == 0:
+        parent.close()
+        try:
+            os.unshare(os.CLONE_NEWNET)
+            fd = os.open('/proc/self/ns/net', os.O_RDONLY | os.O_CLOEXEC)
+            try:
+                child.sendmsg([b'N'], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array('i', [fd]))])
+            finally:
+                os.close(fd)
+            os._exit(0)
+        except BaseException:
+            os._exit(1)
+    child.close()
+    try:
+        pinned = os.pidfd_open(worker)
+    except OSError:
+        parent.close()
+        raise OutcomeUnknown('cannot pin namespace constructor; service cgroup must terminate it') from None
+    received: list[int] = []
+    reaped = False
+    try:
+        data, controls, flags, _ = parent.recvmsg(1, socket.CMSG_SPACE(array.array('i').itemsize), socket.MSG_CMSG_CLOEXEC)
+        for level, kind, payload in controls:
+            if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:
+                descriptors = array.array('i')
+                descriptors.frombytes(payload)
+                received.extend(descriptors)
+        if data != b'N' or flags & (socket.MSG_TRUNC | socket.MSG_CTRUNC) or len(received) != 1:
+            raise Error('invalid constructor namespace response')
+        ns_type(received[0], os.CLONE_NEWNET)
+        deadline = time.monotonic() + 5
+        while True:
+            done, status = os.waitpid(worker, os.WNOHANG)
+            if done:
+                reaped = True
+                if status:
+                    raise Error('namespace constructor failed')
+                return received.pop()
+            if time.monotonic() >= deadline:
+                raise Error('namespace constructor did not finish')
+            time.sleep(.01)
+    finally:
+        parent.close()
+        for fd in received:
+            os.close(fd)
+        # A pinned, already-reaped child yields ESRCH; no numeric-PID fallback.
+        try:
+            signal.pidfd_send_signal(pinned, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        try:
+            deadline = time.monotonic() + 3
+            while not reaped:
+                done, _status = os.waitpid(worker, os.WNOHANG)
+                if done:
+                    reaped = True
+                elif time.monotonic() >= deadline:
+                    raise OutcomeUnknown('namespace constructor termination outcome unknown')
+                else:
+                    time.sleep(.01)
+        finally:
+            os.close(pinned)
+
+
+def write_state(state: dict) -> None:
+    temporary = RUNTIME / ('.state-' + uuid.uuid4().hex)
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        with os.fdopen(fd, 'w') as stream:
+            json.dump(state, stream, sort_keys=True)
+            stream.write('\n')
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, RUNTIME / 'state.json')
+        directory = os.open(RUNTIME, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def owned_link(config: dict, state: dict) -> dict | None:
+    found = device_objects(['-d', 'link', 'show'], config['interface'])
+    if not found:
+        return None
+    item = found[0]
+    if (item.get('linkinfo', {}).get('info_kind') != 'netkit' or item.get('ifalias') != state['alias']
+            or (state.get('ifindex') is not None and item.get('ifindex') != state['ifindex'])):
+        raise Error('netkit interface identity changed; recovery evidence retained')
+    return item
+
+
+def packet_policy(config: dict, alias: str) -> bytes:
+    interface = json.dumps(config['interface'])
+    physical = '{ ' + ', '.join(json.dumps(item) for item in config['physical_interfaces']) + ' }'
+    return f'''add table inet tailscale_netkit {{ comment "{alias}"; }}
+add chain inet tailscale_netkit source_guard {{ type filter hook prerouting priority -160; policy accept; }}
+add rule inet tailscale_netkit source_guard iifname {interface} meta nfproto ipv4 ip saddr != {{ {PEER4}, {TAIL4} }} drop
+add rule inet tailscale_netkit source_guard iifname {interface} meta nfproto ipv6 ip6 saddr != {{ {PEER6}, {TAIL6} }} drop
+add chain inet tailscale_netkit dns_and_transport {{ type nat hook prerouting priority dstnat; policy accept; }}
+add rule inet tailscale_netkit dns_and_transport iifname {interface} ip saddr {PEER4} ip daddr {HOST4} meta l4proto {{ tcp, udp }} th dport 53 dnat ip to {config['dns_address']}:{config['dns_port']}
+add rule inet tailscale_netkit dns_and_transport iifname {physical} meta nfproto ipv4 fib daddr type local udp dport {config['port']} dnat ip to {PEER4}:{config['port']}
+add rule inet tailscale_netkit dns_and_transport iifname {physical} meta nfproto ipv6 fib daddr type local udp dport {config['port']} dnat ip6 to [{PEER6}]:{config['port']}
+add chain inet tailscale_netkit host_guard {{ type filter hook input priority -10; policy accept; }}
+add rule inet tailscale_netkit host_guard iifname {interface} ip saddr {PEER4} ip daddr {config['dns_address']} meta l4proto {{ tcp, udp }} th dport {config['dns_port']} ct status dnat accept
+add rule inet tailscale_netkit host_guard iifname {interface} ip saddr {PEER4} drop
+add rule inet tailscale_netkit host_guard iifname {interface} ip6 saddr {PEER6} drop
+add chain inet tailscale_netkit egress_guard {{ type filter hook forward priority -10; policy accept; }}
+add rule inet tailscale_netkit egress_guard iifname {interface} ip saddr {PEER4} oifname != {physical} drop
+add rule inet tailscale_netkit egress_guard iifname {interface} ip6 saddr {PEER6} oifname != {physical} drop
+add chain inet tailscale_netkit transport_nat {{ type nat hook postrouting priority srcnat; policy accept; }}
+add rule inet tailscale_netkit transport_nat iifname {interface} ip saddr {PEER4} oifname {physical} masquerade
+add rule inet tailscale_netkit transport_nat iifname {interface} ip6 saddr {PEER6} oifname {physical} masquerade
+'''.encode()
+
+
+def cleanup(config: dict) -> None:
+    global CLEANUP_DEADLINE
+    CLEANUP_DEADLINE = time.monotonic() + 15
+    try:
+        cleanup_owned(config)
+    finally:
+        CLEANUP_DEADLINE = None
+
+
+def cleanup_owned(config: dict) -> None:
+    try:
+        state = json.loads(regular(RUNTIME / 'state.json', 0o600), object_pairs_hook=unique)
+    except FileNotFoundError:
+        return
+    if (not isinstance(state, dict) or not isinstance(state.get('alias'), str)
+            or not re.fullmatch(r'tailscale-netkit:[0-9a-f]{32}', state['alias'])
+            or set(state) not in ({'interface', 'alias'}, {'interface', 'alias', 'ifindex'})
+            or ('ifindex' in state and (type(state['ifindex']) is not int or state['ifindex'] < 1))
+            or state.get('interface') != config['interface']):
+        raise Error('invalid recovery identity; evidence retained')
+    link = owned_link(config, state)
+    tables = json.loads(run(['/usr/sbin/nft', '-j', 'list', 'tables']))['nftables']
+    found = [item['table'] for item in tables if 'table' in item
+             and item['table'].get('family') == 'inet' and item['table'].get('name') == 'tailscale_netkit']
+    if found:
+        table = json.loads(run(['/usr/sbin/nft', '-j', 'list', 'table', 'inet', 'tailscale_netkit']))['nftables']
+        if not any(item.get('table', {}).get('comment') == state['alias'] for item in table):
+            raise Error('packet policy identity changed; evidence retained')
+    owned_rules, routes = [], []
+    for family in ('-4', '-6'):
+        routes.extend((family, key) for key in owned_routes(config, family))
+        for item in objects([family, 'rule', 'show']):
+            if str(item.get('protocol')) == ROUTE_PROTOCOL:
+                peer = PEER4 if family == '-4' else PEER6
+                source = item.get('src', 'all')
+                if source != 'all':
+                    source = str(ipaddress.ip_interface(source).ip)
+                expected = ((item.get('priority') == 5190 and source == peer and item.get('table') in {'main', 254})
+                            or (item.get('priority') == 5191 and source == peer and item.get('type') == 'unreachable')
+                            or (item.get('priority') == 5270 and source == 'all' and str(item.get('table')) == '52'))
+                if (not expected or item.get('dst', 'all') != 'all'
+                        or (item.get('priority') != 5191 and item.get('type') not in {None, 'unicast'})
+                        or set(item) - {'priority', 'src', 'dst', 'table', 'protocol', 'flags', 'type'}
+                        or item.get('flags', [])):
+                    raise Error('unexpected managed route rule; evidence retained')
+                owned_rules.append((family, item['priority']))
+    # Validate every owned identity before the first removal.
+    if found:
+        run(['/usr/sbin/nft', 'delete', 'table', 'inet', 'tailscale_netkit'])
+    for family, key in routes:
+        ip(route_arguments(config, family, 'delete', key))
+    if link is not None:
+        if config['accept_dns']:
+            run(['/usr/bin/resolvectl', 'revert', config['interface']])
+        # Deleting only the pinned primary also deletes its peer, addresses and
+        # routes. Never remove a foreign interface or flush a shared route table.
+        ip(['link', 'delete', 'dev', config['interface']])
+    for family, priority in owned_rules:
+        ip([family, 'rule', 'delete', 'pref', str(priority), 'protocol', ROUTE_PROTOCOL])
+    for name, kind in (('host.net', os.CLONE_NEWNET), ('host.mnt', os.CLONE_NEWNS)):
+        path = RUNTIME / name
+        if path.exists():
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+            try:
+                # A partial setup may have created the empty mount point but
+                # not mounted its handle. Only an empty owned file is removable.
+                info = os.fstat(fd)
+                try:
+                    ns_type(fd, kind)
+                except OSError:
+                    if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_size != 0:
+                        raise Error('unexpected namespace mount identity; evidence retained') from None
+                else:
+                    run(['/usr/bin/umount', '--', str(path)])
+            finally:
+                os.close(fd)
+            path.unlink()
+    directory = RUNTIME / 'etc'
+    if directory.exists():
+        allowed = {'resolv.conf', 'resolv.pre-tailscale-backup.conf', 'resolv.tailscale.conf',
+                   'passwd', 'group', 'nsswitch.conf', 'hosts', 'host.conf', 'gai.conf', 'protocols',
+                   'services', 'localtime', 'debian_version', 'machine-id', 'ssl'}
+        entries = []
+        for path in directory.iterdir():
+            entries.append(path)
+            if len(entries) > 64:
+                raise Error('unexpected private DNS state; evidence retained')
+        for path in entries:
+            if path.name not in allowed and not re.fullmatch(r'resolv[.]conf[.][0-9a-f]{24}[.]tmp', path.name):
+                raise Error('unexpected private DNS file; evidence retained')
+            info = path.lstat()
+            if info.st_uid != 0 or stat.S_ISLNK(info.st_mode):
+                raise Error('private DNS ownership changed; evidence retained')
+            if stat.S_ISDIR(info.st_mode):
+                path.rmdir()  # Only empty mount-target directories are owned.
+            else:
+                path.unlink()
+        directory.rmdir()
+    socket_path = RUNTIME / 'builder.sock'
+    try:
+        info = socket_path.lstat()
+    except FileNotFoundError:
+        pass
+    else:
+        if not stat.S_ISSOCK(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+            raise Error('constructor socket identity changed; evidence retained')
+        socket_path.unlink()
+    (RUNTIME / 'state.json').unlink()
+
+
+def setup(config: dict, namespace: int) -> dict:
+    if any(item.get('ifname') in {config['interface'], UPLINK} for item in objects(['link', 'show'])):
+        raise Error('host Tailscale interface already exists')
+    tables = json.loads(run(['/usr/sbin/nft', '-j', 'list', 'tables']))['nftables']
+    if any(item.get('table', {}).get('family') == 'inet'
+           and item.get('table', {}).get('name') == 'tailscale_netkit' for item in tables):
+        raise Error('private Tailscale packet table is already owned')
+    for family, prefix in (('-4', PREFIX4), ('-6', PREFIX6)):
+        for route in objects([family, 'route', 'show', 'table', 'all']):
+            destination = route.get('dst', 'default')
+            if destination != 'default' and ipaddress.ip_network(destination, strict=False).overlaps(ipaddress.ip_network(prefix)):
+                raise Error('netkit transit subnet overlaps an existing route')
+        if table_routes(family, '52'):
+            raise Error('Tailscale host route table is already owned')
+        if any(5190 <= item.get('priority', -1) <= 5270 or str(item.get('protocol')) == ROUTE_PROTOCOL
+               for item in objects([family, 'rule', 'show'])):
+            raise Error('Tailscale route policy priorities are already owned')
+    state = {'interface': config['interface'], 'alias': 'tailscale-netkit:' + uuid.uuid4().hex}
+    write_state(state)
+    ip(['link', 'add', 'name', config['interface'], 'alias', state['alias'],
+        'type', 'netkit', 'mode', 'l3', 'forward', 'peer', 'forward', 'name', UPLINK])
+    link = owned_link(config, state)
+    if link is None:
+        raise Error('new netkit interface is absent')
+    state['ifindex'] = link['ifindex']
+    write_state(state)
+    run([IP, 'link', 'set', 'dev', UPLINK, 'netns', f'/proc/self/fd/{namespace}'], fds=(namespace,))
+    # IPv6 nexthop validation requires an administratively up uplink. Bring
+    # both owned endpoints up before adding gateway routes; no daemon or
+    # untrusted process has entered this namespace during construction.
+    ip(['link', 'set', 'dev', config['interface'], 'up'])
+    ip(['link', 'set', 'dev', UPLINK, 'up'], namespace)
+    ip(['link', 'set', 'dev', 'lo', 'up'], namespace)
+    for family, host, peer, prefix in (('-4', HOST4, PEER4, '30'), ('-6', HOST6, PEER6, '126')):
+        ip([family, 'address', 'add', f'{host}/{prefix}', 'dev', config['interface'], *(['nodad'] if family == '-6' else [])])
+        ip([family, 'address', 'add', f'{peer}/{prefix}', 'dev', UPLINK, *(['nodad'] if family == '-6' else [])], namespace)
+        ip([family, 'route', 'add', 'default', 'via', host, 'dev', UPLINK], namespace)
+        # Deliver decoded packets for our own tailnet address to the host, ahead
+        # of the private namespace's local-address rule. Tailscale owns table 52.
+        ip([family, 'rule', 'add', 'pref', '100', 'lookup', 'local'], namespace)
+        ip([family, 'rule', 'delete', 'pref', '0', 'lookup', 'local'], namespace)
+        ip([family, 'rule', 'add', 'pref', '50', 'iif', config['interface'], 'lookup', '53'], namespace)
+        # The outer transport always follows host main routing, including when
+        # accepted tailnet routes later contain an exit-node default route.
+        ip([family, 'rule', 'add', 'pref', '5190', 'from', peer, 'lookup', 'main', 'protocol', ROUTE_PROTOCOL])
+        ip([family, 'rule', 'add', 'pref', '5191', 'from', peer, 'unreachable', 'protocol', ROUTE_PROTOCOL])
+        ip([family, 'rule', 'add', 'pref', '5270', 'lookup', '52', 'protocol', ROUTE_PROTOCOL])
+    run(['/usr/sbin/sysctl', '-q', '-w', f'net/ipv4/conf/{config["interface"]}/route_localnet=1',
+         f'net/ipv4/conf/{config["interface"]}/rp_filter=0', f'net/ipv6/conf/{config["interface"]}/forwarding=1'])
+    run(['/usr/bin/nsenter', f'--net=/proc/self/fd/{namespace}', '--', '/usr/sbin/sysctl', '-q', '-w',
+         'net.ipv4.ip_forward=1', 'net.ipv4.conf.all.rp_filter=0',
+         f'net.ipv4.conf.{UPLINK}.rp_filter=0', 'net.ipv6.conf.all.forwarding=1'], fds=(namespace,))
+    run(['/usr/sbin/nft', '-f', '-'], data=packet_policy(config, state['alias']))
+    return state
+
+
+def mirror(config: dict, namespace: int, previous: tuple, status: dict | None = None) -> tuple:
+    """Mirror only daemon-owned routes/addresses, never enumerate application links."""
+    if status is None:
+        status = json.loads(run(['/usr/bin/tailscale', 'status', '--json'], timeout=5))
+    if not isinstance(status, dict):
+        raise Error('invalid daemon status response')
+    active = status.get('BackendState') == 'Running'
+    identity = status.get('Self') or {}
+    if not isinstance(identity, dict):
+        raise Error('invalid daemon self identity')
+    addresses = identity.get('TailscaleIPs', []) if active else []
+    if not isinstance(addresses, list) or len(addresses) > 2:
+        raise Error('invalid daemon address response')
+    desired = set()
+    for raw in addresses:
+        address = ipaddress.ip_address(raw)
+        if address not in (TAIL4 if address.version == 4 else TAIL6):
+            raise Error('daemon returned a non-tailnet host address')
+        desired.add(str(address))
+    routes = []
+    for family, peer, host in (('-4', PEER4, HOST4), ('-6', PEER6, HOST6)):
+        version = 4 if family == '-4' else 6
+        tailnet = TAIL4 if family == '-4' else TAIL6
+        current = {item['local'] for record in objects([family, 'address', 'show', 'dev', config['interface']])
+                   for item in record.get('addr_info', []) if ipaddress.ip_address(item['local']) in tailnet}
+        wanted = {item for item in desired if ipaddress.ip_address(item).version == version}
+        if len(wanted) > 1:
+            raise Error('ambiguous daemon source address')
+        for address in sorted(wanted - current):
+            ip([family, 'route', 'replace', 'table', '53', address, 'via', host, 'dev', UPLINK], namespace)
+            ip([family, 'address', 'add', address, 'dev', config['interface'], *(['nodad'] if family == '-6' else [])])
+        for address in sorted(current - wanted):
+            ip([family, 'address', 'delete', address, 'dev', config['interface']])
+            ip([family, 'route', 'delete', 'table', '53', address, 'via', host, 'dev', UPLINK], namespace)
+        wanted_routes = set()
+        if active:
+            for record in table_routes(family, '52', namespace):
+                key = route_key(record)
+                if key[0] == 'unicast':
+                    if record.get('dev') != config['interface']:
+                        continue
+                    if not wanted:
+                        continue
+                wanted_routes.add(key)
+        routes.extend((family, *key) for key in wanted_routes)
+        existing = owned_routes(config, family)
+        source = next(iter(wanted), None)
+        wrong_source = {key for key, record in existing.items() if key[0] == 'unicast' and record.get('prefsrc') != source}
+        # Include throw routes for exit-node LAN exceptions and unreachable
+        # routes that prevent address-family leaks. They have no link identity
+        # and therefore also require explicit owned removal during cleanup.
+        wanted_destinations = {key[1] for key in wanted_routes}
+        if len(wanted_destinations) != len(wanted_routes):
+            raise Error('ambiguous private tailnet route destinations')
+        for key in sorted(wanted_routes - set(existing) | (wanted_routes & wrong_source)):
+            ip(route_arguments(config, family, 'replace', key, source))
+        for key in sorted(key for key in existing if key[1] not in wanted_destinations):
+            ip(route_arguments(config, family, 'delete', key))
+    result = (tuple(sorted(desired)), tuple(sorted(routes)))
+    if result != previous:
+        print(f'tailscale_netkit outcome=routes-updated addresses={len(desired)} routes={len(routes)}', flush=True)
+    return result
+
+
+def interrupted(_number, _frame) -> None:
+    global STOP
+    STOP = True
+
+
+def physical_state(config: dict) -> tuple:
+    records = []
+    for name in config['physical_interfaces']:
+        # These are the two configured physical identities only. No veth dump,
+        # subscription or app lifecycle event reaches the daemon's monitor.
+        paths = Path('/sys/class/net') / name
+        if not paths.exists():
+            continue
+        for item in device_objects(['address', 'show'], name):
+            addresses = tuple(sorted((entry['local'], entry.get('prefixlen')) for entry in item.get('addr_info', [])
+                                     if entry.get('scope') == 'global'))
+            records.append((name, item['ifindex'], item['mtu'], 'LOWER_UP' in item.get('flags', []), addresses))
+    routes = []
+    for family in ('-4', '-6'):
+        for record in objects([family, 'route', 'show', 'table', 'main', 'default']):
+            if record.get('dev') in config['physical_interfaces']:
+                routes.append((family, record['dev'], record.get('gateway', ''), record.get('metric', 0),
+                               'linkdown' not in record.get('flags', [])))
+    return tuple(sorted(records)), tuple(sorted(routes))
+
+
+def prepare_files() -> None:
+    api = Path('/run/tailscale')
+    try:
+        api.mkdir(mode=0o755)
+    except FileExistsError:
+        info = api.lstat()
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+            raise Error('untrusted native API directory') from None
+    for name, kind, source in (('host.net', os.CLONE_NEWNET, '/proc/self/ns/net'),
+                               ('host.mnt', os.CLONE_NEWNS, '/proc/1/ns/mnt')):
+        fd = os.open(source, os.O_RDONLY | os.O_CLOEXEC)
+        try:
+            ns_type(fd, kind)
+            target = RUNTIME / name
+            descriptor = os.open(target, os.O_RDONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+            os.close(descriptor)
+            run(['/usr/bin/mount', '--bind', f'/proc/self/fd/{fd}', str(target)], fds=(fd,))
+        finally:
+            os.close(fd)
+    private = RUNTIME / 'etc'
+    private.mkdir(mode=0o755)
+    (private / 'resolv.conf').write_text(f'nameserver {HOST4}\noptions timeout:2 attempts:2\n')
+    (private / 'resolv.conf').chmod(0o644)
+
+
+def mirror_dns(config: dict, previous: tuple) -> tuple:
+    if not config['accept_dns']:
+        return ()
+    content = regular(RUNTIME / 'etc/resolv.conf', maximum=65536).decode('ascii')
+    servers, domains = [], []
+    for line in content.splitlines():
+        words = line.split()
+        if not words or words[0].startswith('#'):
+            continue
+        if words[0] == 'nameserver' and len(words) == 2:
+            server = str(ipaddress.ip_address(words[1]))
+            # The private base resolver must not become a host DNS uplink.
+            if server in {'100.100.100.100', 'fd7a:115c:a1e0::53'}:
+                servers.append(server)
+        elif words[0] in {'search', 'domain'}:
+            for domain in words[1:]:
+                if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.-]{0,252}', domain):
+                    raise Error('invalid private DNS search domain')
+                domains.append(domain)
+    desired = (tuple(servers), tuple(domains))
+    if desired != previous:
+        if servers:
+            run(['/usr/bin/resolvectl', 'dns', config['interface'], *servers])
+            run(['/usr/bin/resolvectl', 'domain', config['interface'], '~.', *domains])
+        else:
+            run(['/usr/bin/resolvectl', 'revert', config['interface']])
+    return desired
+
+
+def mount_handoff() -> None:
+    """Bwrap's sole payload transfers only its own mount tree, then exits."""
+    with socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET | socket.SOCK_CLOEXEC) as connection:
+        connection.settimeout(10)
+        connection.connect(str(RUNTIME / 'builder.sock'))
+        descriptors = []
+        try:
+            descriptors.append(os.open('/proc/self/ns/mnt', os.O_RDONLY | os.O_CLOEXEC))
+            descriptors.append(os.open('/', os.O_PATH | os.O_DIRECTORY | os.O_CLOEXEC))
+            connection.sendmsg([b'M'], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array('i', descriptors))])
+        finally:
+            for fd in descriptors:
+                os.close(fd)
+
+
+def build_mount_namespace(namespace: int) -> tuple[int, int]:
+    path = RUNTIME / 'builder.sock'
+    received = []
+    with socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET | socket.SOCK_CLOEXEC) as listener:
+        listener.settimeout(15)
+        listener.bind(str(path))
+        listener.listen(1)
+        process = subprocess.Popen([SELF, 'builder', str(namespace)], pass_fds=(namespace,),
+                                   env={**ENV, 'NOTIFY_SOCKET': os.environ.get('NOTIFY_SOCKET', '')})
+        try:
+            pinned = os.pidfd_open(process.pid)
+        except OSError:
+            path.unlink()
+            raise OutcomeUnknown('cannot pin Bubblewrap constructor; recovery evidence retained') from None
+        try:
+            connection, _address = listener.accept()
+            with connection:
+                connection.settimeout(5)
+                # The socket's parent is root-only, the peer is root, and the
+                # daemon profile has no access to this construction endpoint.
+                import struct
+                _pid, uid, gid = struct.unpack('3i', connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
+                if uid != 0 or gid != 0:
+                    raise Error('untrusted mount constructor peer')
+                data, controls, flags, _ = connection.recvmsg(1, socket.CMSG_SPACE(2 * array.array('i').itemsize), socket.MSG_CMSG_CLOEXEC)
+                for level, kind, payload in controls:
+                    if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:
+                        descriptors = array.array('i')
+                        descriptors.frombytes(payload)
+                        received.extend(descriptors)
+                if data != b'M' or flags & (socket.MSG_TRUNC | socket.MSG_CTRUNC) or len(received) != 2:
+                    raise Error('invalid mount constructor response')
+                ns_type(received[0], os.CLONE_NEWNS)
+                root = os.fstat(received[1])
+                if not stat.S_ISDIR(root.st_mode) or root.st_uid != 0 or root.st_mode & 0o022:
+                    raise Error('untrusted private root descriptor')
+            if process.wait(timeout=5) != 0:
+                raise Error('Bubblewrap constructor failed')
+            result = tuple(received)
+            received = []
+            return result
+        except BaseException:
+            with contextlib.suppress(ProcessLookupError):
+                signal.pidfd_send_signal(pinned, signal.SIGKILL)
+            try:
+                process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                raise OutcomeUnknown('Bubblewrap termination outcome unknown; recovery evidence retained') from None
+            # Failed construction can leave a bwrap descendant. The service
+            # manager drains the complete cgroup before ExecStopPost cleanup.
+            raise
+        finally:
+            os.close(pinned)
+            for fd in received:
+                os.close(fd)
+            path.unlink(missing_ok=True)
+
+
+def builder(namespace: int) -> None:
+    ns_type(namespace, os.CLONE_NEWNET)
+    os.setns(namespace, os.CLONE_NEWNET)
+    os.close(namespace)
+    # A newly mounted sysfs is tagged with this network namespace. Rebinding
+    # the host's sysfs would expose the host's interface directories.
+    os.unshare(os.CLONE_NEWNS)
+    run(['/usr/bin/mount', '--make-rprivate', '/'])
+    run(['/usr/bin/mount', '-t', 'sysfs', '-o', 'ro,nosuid,nodev,noexec', 'sysfs', '/sys'])
+    # Bwrap always sets no_new_privs. It constructs the mount tree only; the
+    # supervisor later enters the pinned tree and starts the daemon with the
+    # explicit AppArmor transition needed by native SSH login/su sessions.
+    # Keep the host PID view so those authenticated sessions can restore their
+    # real host root through the fixed init process, without exposing it to the
+    # confined daemon. Netlink and fresh sysfs use only the private network NS.
+    command = ['/usr/bin/bwrap', '--die-with-parent', '--unshare-ipc',
+               '--ro-bind', '/', '/', '--proc', '/proc', '--dev-bind', '/dev', '/dev',
+               '--ro-bind', '/sys', '/sys', '--tmpfs', '/tmp', '--tmpfs', '/run',
+               '--bind', '/run/tailscale', '/run/tailscale',
+               '--ro-bind', str(RUNTIME), str(RUNTIME),
+               '--bind', '/var/lib/tailscale', '/var/lib/tailscale',
+               '--bind', '/var/cache/tailscale', '/var/cache/tailscale',
+               '--bind', str(RUNTIME / 'etc'), '/etc',
+               '--ro-bind', SSH, '/usr/bin/login', '--ro-bind', SSH, '/usr/bin/su',
+               '--cap-add', 'CAP_NET_ADMIN', '--cap-add', 'CAP_NET_RAW',
+               '--cap-add', 'CAP_SYS_ADMIN', '--cap-add', 'CAP_SETUID', '--cap-add', 'CAP_SETGID',
+               '--cap-add', 'CAP_DAC_OVERRIDE', '--cap-add', 'CAP_SYS_CHROOT']
+    for relative in ('passwd', 'group', 'nsswitch.conf', 'hosts', 'host.conf', 'gai.conf',
+                     'protocols', 'services', 'localtime', 'debian_version', 'machine-id', 'ssl'):
+        source = Path('/etc') / relative
+        if source.exists():
+            command.extend(['--ro-bind', str(source), str(source)])
+    # No host bus/resolved socket is passed. The private /etc makes the direct
+    # DNS configurator independent from host interface indices and host DNS.
+    notify = os.environ.get('NOTIFY_SOCKET', '')
+    if notify.startswith('/'):
+        command.extend(['--bind', notify, notify])
+    command.extend(['--', SELF, 'mount-handoff'])
+    os.execve(command[0], command, ENV)
+
+
+def daemon(namespace: int, mounts: int, root: int, arguments: list[str]) -> None:
+    ns_type(namespace, os.CLONE_NEWNET)
+    ns_type(mounts, os.CLONE_NEWNS)
+    try:
+        os.setns(namespace, os.CLONE_NEWNET)
+        os.setns(mounts, os.CLONE_NEWNS)
+        os.fchdir(root)
+        os.chroot('.')
+        os.chdir('/')
+    finally:
+        for fd in (namespace, mounts, root):
+            os.close(fd)
+    os.execve('/usr/sbin/tailscaled', ['/usr/sbin/tailscaled', *arguments],
+              {**ENV, 'NOTIFY_SOCKET': os.environ.get('NOTIFY_SOCKET', ''),
+               'TS_ALLOW_ADMIN_CONSOLE_REMOTE_UPDATE': 'false', 'TMPDIR': '/run/tailscale'})
+
+
+def supervise(config: dict, arguments: list[str]) -> int:
+    namespace = new_network_namespace()
+    process = None
+    pinned = None
+    previous_routes: tuple = ()
+    previous_physical: tuple = ()
+    previous_dns: tuple = ()
+    try:
+        state = setup(config, namespace)
+        prepare_files()
+        mounts, root = build_mount_namespace(namespace)
+        try:
+            process = subprocess.Popen([SELF, 'daemon', str(namespace), str(mounts), str(root), *arguments],
+                                       pass_fds=(namespace, mounts, root),
+                                       env={**ENV, 'NOTIFY_SOCKET': os.environ.get('NOTIFY_SOCKET', '')})
+        finally:
+            os.close(mounts)
+            os.close(root)
+        try:
+            pinned = os.pidfd_open(process.pid)
+        except OSError:
+            raise OutcomeUnknown('cannot pin daemon; cgroup termination required, recovery evidence retained') from None
+        socket_ready = False
+        ready_deadline = time.monotonic() + 60
+        while not STOP and process.poll() is None:
+            if owned_link(config, state) is None:
+                raise Error('owned netkit uplink disappeared')
+            physical = physical_state(config)
+            if physical != previous_physical:
+                mtu = min((item[2] for item in physical[0] if item[3]), default=1280)
+                if not 1280 <= mtu <= 65535:
+                    raise Error('physical MTU is incompatible with the tailnet')
+                ip(['link', 'set', 'dev', config['interface'], 'mtu', str(mtu)])
+                ip(['link', 'set', 'dev', UPLINK, 'mtu', str(mtu), 'up'], namespace)
+                if socket_ready:
+                    run(['/usr/bin/tailscale', 'debug', 'rebind'], timeout=5)
+                previous_physical = physical
+            if Path('/run/tailscale/tailscaled.sock').is_socket():
+                try:
+                    status = json.loads(run(['/usr/bin/tailscale', 'status', '--json'], timeout=5))
+                except CommandFailed:
+                    if socket_ready or time.monotonic() >= ready_deadline:
+                        raise
+                    # A stale socket or the daemon's short initialization
+                    # window is retryable; no mutation has been attempted.
+                else:
+                    previous_routes = mirror(config, namespace, previous_routes, status)
+                    previous_dns = mirror_dns(config, previous_dns)
+                    socket_ready = True
+            if not socket_ready and time.monotonic() >= ready_deadline:
+                raise Error('daemon local API startup deadline exceeded')
+            # A short, interruptible poll follows only physical state and the
+            # private daemon's routes. Application veth changes are irrelevant.
+            for _ in range(20):
+                if STOP:
+                    break
+                time.sleep(.1)
+        return 0 if STOP else (process.returncode or 1)
+    finally:
+        try:
+            if process is not None and pinned is not None and process.poll() is None:
+                with contextlib.suppress(ProcessLookupError):
+                    signal.pidfd_send_signal(pinned, signal.SIGTERM)
+                try:
+                    process.wait(timeout=20)
+                except subprocess.TimeoutExpired:
+                    with contextlib.suppress(ProcessLookupError):
+                        signal.pidfd_send_signal(pinned, signal.SIGKILL)
+                    try:
+                        process.wait(timeout=3)
+                    except subprocess.TimeoutExpired:
+                        raise OutcomeUnknown('daemon termination outcome unknown; recovery evidence retained') from None
+        finally:
+            if pinned is not None:
+                os.close(pinned)
+            os.close(namespace)
+        # Only ExecStopPost removes resources, after the entire owning cgroup
+        # (including authenticated SSH descendants) has drained.
+
+
+def cleanup_cgroup_is_drained() -> None:
+    with open('/proc/self/cgroup', 'rb') as stream:
+        if stream.read(4097).strip() not in {b'0::/system.slice/tailscaled.service',
+                                            b'0::/system.slice/tailscaled.service/.control'}:
+            raise OutcomeUnknown('cleanup is outside the owning service cgroup; evidence retained')
+    directories = [Path('/sys/fs/cgroup/system.slice/tailscaled.service')]
+    processes, total = set(), 0
+    # systemd 262 may put ExecStopPost in .control. Inspect the complete bounded
+    # subtree, so a remaining descendant in another subgroup is not overlooked.
+    for directory in directories:
+        with open(directory / 'cgroup.procs', 'rb') as stream:
+            data = stream.read(65537 - total)
+        total += len(data)
+        if total > 65536 or not re.fullmatch(rb'(?:[1-9][0-9]*\n)*', data):
+            raise OutcomeUnknown('cannot verify service process termination; evidence retained')
+        processes.update(int(value) for value in data.splitlines())
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                if entry.is_dir(follow_symlinks=False):
+                    if len(directories) >= 32:
+                        raise OutcomeUnknown('service cgroup subtree exceeds limit; evidence retained')
+                    directories.append(Path(entry.path))
+    if processes != {os.getpid()}:
+        raise OutcomeUnknown('other service processes remain; recovery evidence retained')
+
+
+def main(arguments: list[str]) -> int:
+    if os.geteuid() != 0:
+        raise Error('root service identity required')
+    if arguments == ['validate-target']:
+        validate_target()
+        return 0
+    if arguments == ['mount-handoff']:
+        mount_handoff()
+        return 0
+    if arguments[:1] == ['builder'] and len(arguments) == 2 and arguments[1].isdecimal():
+        builder(int(arguments[1]))
+        return 1
+    if arguments[:1] == ['daemon'] and len(arguments) >= 5 and all(item.isdecimal() for item in arguments[1:4]):
+        daemon(*(int(item) for item in arguments[1:4]), arguments[4:])
+        return 1
+    config = configuration()
+    info = RUNTIME.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or stat.S_IMODE(info.st_mode) != 0o700:
+        raise Error('untrusted runtime directory')
+    lock = os.open(RUNTIME / 'lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        lock_info = os.fstat(lock)
+        if (not stat.S_ISREG(lock_info.st_mode) or lock_info.st_uid != 0 or lock_info.st_gid != 0
+                or lock_info.st_nlink != 1 or stat.S_IMODE(lock_info.st_mode) != 0o600):
+            raise Error('untrusted namespace ownership lock')
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if arguments == ['cleanup']:
+            cleanup_cgroup_is_drained()
+            cleanup(config)
+            return 0
+        if not arguments or arguments[0] != 'run':
+            raise Error('usage: tailscale-netkit {run DAEMON_ARGS|cleanup}')
+        if (RUNTIME / 'state.json').exists():
+            raise Error('previous recovery evidence exists; refusing automatic mutation')
+        expected = {f'--tun={config["interface"]}', f'--port={config["port"]}',
+                    '--state=/var/lib/tailscale/tailscaled.state', '--socket=/run/tailscale/tailscaled.sock',
+                    '--no-logs-no-support'}
+        if len(arguments[1:]) != len(expected) or set(arguments[1:]) != expected:
+            raise Error('native daemon arguments differ from the staged namespace contract')
+        for watched in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+            signal.signal(watched, interrupted)
+        return supervise(config, arguments[1:])
+    finally:
+        os.close(lock)
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except (Error, OSError, ValueError, subprocess.SubprocessError) as exc:
+        outcome = 'unknown' if isinstance(exc, OutcomeUnknown) else 'failed'
+        print(f'tailscale_netkit outcome={outcome} cause={type(exc).__name__} detail={exc}', file=sys.stderr)
+        raise SystemExit(79 if isinstance(exc, OutcomeUnknown) else 1 if isinstance(exc, CommandFailed) else 78)

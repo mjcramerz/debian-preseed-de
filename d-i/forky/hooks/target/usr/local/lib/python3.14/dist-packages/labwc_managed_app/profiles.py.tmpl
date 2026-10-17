@@ -654,8 +654,20 @@ CHATGPT_DEVOPS_READ_WRITE_PATHS = (
     "/data/codex",
     "/data/downloads",
 )
+BITWARDEN_NATIVE_MESSAGING_PATHS = (
+    ".config/chromium/NativeMessagingHosts",
+    ".config/google-chrome/NativeMessagingHosts",
+    ".config/microsoft-edge/NativeMessagingHosts",
+    ".config/vivaldi/NativeMessagingHosts",
+    ".mozilla/native-messaging-hosts",
+    ".var/app/org.mozilla.firefox/.mozilla/native-messaging-hosts",
+    ".var/app/com.google.Chrome/config/google-chrome/NativeMessagingHosts",
+    ".var/app/org.chromium.Chromium/config/chromium/NativeMessagingHosts",
+    ".var/app/com.microsoft.Edge/config/microsoft-edge/NativeMessagingHosts",
+)
+
 # Reuse the existing persistent sandbox and explicitly retain only application
-# state, documents and client IPC.  Every online policy unshares the host network
+# state, documents and client IPC. Every online policy unshares the host network
 # before obtaining a veth lease; the payload never receives the lease socket.
 NATIVE_VETH_SANDBOX_DEFAULTS = {
     "chdir": ".",
@@ -734,15 +746,7 @@ PERSISTENT_SANDBOX_CONFIG = {
         "dbus_own_names": ("org.freedesktop.StatusNotifierItem-2-1",),
         "persistent_paths": (".cache/Bitwarden", ".cache/com.bitwarden.desktop",
                              ".config/Bitwarden", ".local/share/Bitwarden",
-                             ".config/chromium/NativeMessagingHosts",
-                             ".config/google-chrome/NativeMessagingHosts",
-                             ".config/microsoft-edge/NativeMessagingHosts",
-                             ".config/vivaldi/NativeMessagingHosts",
-                             ".mozilla/native-messaging-hosts",
-                             ".var/app/org.mozilla.firefox/.mozilla/native-messaging-hosts",
-                             ".var/app/com.google.Chrome/config/google-chrome/NativeMessagingHosts",
-                             ".var/app/org.chromium.Chromium/config/chromium/NativeMessagingHosts",
-                             ".var/app/com.microsoft.Edge/config/microsoft-edge/NativeMessagingHosts"),
+                             *BITWARDEN_NATIVE_MESSAGING_PATHS),
         "ro_bind_paths": ("/opt/Bitwarden",),
     },
     "obsidian": {

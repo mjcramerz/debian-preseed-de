@@ -204,11 +204,29 @@ profile network-run /usr/local/libexec/network-run flags=(attach_disconnected) {
   /etc/NetworkManager/conf.d/90-network-external.conf r,
   /etc/NetworkManager/system-connections/wifi.nmconnection r,
   /etc/network/wifi.nmconnection r,
+  /usr/local/libexec/network-ifup-hotplug r,
+  /etc/systemd/system/ifup@.service.d/40-device-lifecycle.conf r,
   /sys/class/net/ r,
   /sys/class/net/** r,
   @{sys}/devices/**/net/{eth,wifi}[0-9]*/{address,type} r,
 
   include if exists <local/usr.local.libexec.network-run>
+}
+
+profile network-ifup-hotplug /usr/local/libexec/network-ifup-hotplug flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+
+  /usr/local/libexec/network-ifup-hotplug rix,
+  /sys/class/net/ r,
+  /sys/class/net/*/ r,
+  @{sys}/devices/**/net/*/ r,
+  @{sys}/devices/**/net/*/ifindex r,
+  # Keep ifupdown and its packaged hooks in their existing native policy.
+  /usr/sbin/ifup PUx,
+  signal (receive) set=(chld),
+  signal (send, receive) peer=network-ifup-hotplug,
+
+  include if exists <local/usr.local.libexec.network-ifup-hotplug>
 }
 
 profile syncthing-configure /usr/local/libexec/syncthing-configure flags=(attach_disconnected) {

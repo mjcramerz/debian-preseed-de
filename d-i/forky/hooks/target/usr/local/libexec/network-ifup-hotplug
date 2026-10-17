@@ -1,0 +1,73 @@
+#!/usr/bin/python3 -IB
+"""Preserve ifup errors unless the hotplug device actually disappeared."""
+
+import os
+from pathlib import Path
+import re
+import signal
+import stat
+import subprocess
+import sys
+
+
+def device_identity(interface: str) -> tuple[int, int, int] | None:
+    path = Path("/sys/class/net") / interface
+    try:
+        directory = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        try:
+            metadata = os.fstat(directory)
+            fd = os.open("ifindex", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=directory)
+            with os.fdopen(fd, encoding="ascii") as stream:
+                value = stream.read(32)
+        finally:
+            os.close(directory)
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISDIR(metadata.st_mode) or not re.fullmatch(r"[1-9][0-9]*\n?", value):
+        raise ValueError("invalid network device identity")
+    return metadata.st_dev, metadata.st_ino, int(value)
+
+
+def main(arguments: list[str]) -> int:
+    if (len(arguments) != 1 or not re.fullmatch(r"[A-Za-z0-9_.-]{1,15}", arguments[0])
+            or arguments[0] in {".", "..", "lo"} or arguments[0].startswith("-")):
+        print("network-ifup-hotplug: invalid interface", file=sys.stderr)
+        return 2
+    interface = arguments[0]
+    try:
+        before = device_identity(interface)
+        if before is None:
+            print(f"network_ifup interface={interface} outcome=device-absent", flush=True)
+            return 0
+        # The packaged systemd unit still owns this process and every ifup
+        # descendant, including its existing hotplug BindsTo/After contract.
+        status = subprocess.run(
+            ["/usr/sbin/ifup", "--allow=hotplug", interface],
+            stdin=subprocess.DEVNULL,
+            env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C"},
+            check=False,
+        ).returncode
+        # Signals and actual configuration failures remain failures. Only
+        # ordinary ifup failure after removal is expected hotplug cancellation.
+        if status == 1 and device_identity(interface) is None:
+            print(f"network_ifup interface={interface} outcome=device-removed status={status}", flush=True)
+            return 0
+        if status == 0 and device_identity(interface) not in {None, before}:
+            print(f"network_ifup interface={interface} outcome=device-replaced", file=sys.stderr)
+            return 1
+        return status
+    except (OSError, ValueError) as exc:
+        print(f"network_ifup interface={interface} outcome=failed cause={type(exc).__name__} "
+              f"errno={getattr(exc, 'errno', None) or 0}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    status = main(sys.argv[1:])
+    if status < 0:
+        # Keep systemd's native signal classification, including clean TERM
+        # cancellation. Do not turn a signal into an ordinary exit status.
+        if -status not in {signal.SIGKILL, signal.SIGSTOP}:
+            signal.signal(-status, signal.SIG_DFL)
+        os.kill(os.getpid(), -status)
+    raise SystemExit(status)

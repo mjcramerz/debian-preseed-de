@@ -13,7 +13,8 @@ PartOf=labwc-session.target
 TimeoutStartSec=30s
 KillMode=control-group
 Type=exec
-Environment=PATH=/usr/local/bin:/usr/bin:/bin
+# Swayidle resolves its internal "sh -c" through PATH.
+Environment=PATH=/usr/bin:/bin:/usr/local/bin
 ExecCondition=/usr/local/libexec/labwc-session-check session-ready
 ExecStart=/usr/local/libexec/labwc-swayidle
 Restart=on-failure
