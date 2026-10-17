@@ -125,16 +125,65 @@ class TimeoutPortabilityTests(unittest.TestCase):
         self.assertEqual(sum(web.counts.values()), 0)
 
     @skip_unless_loopback_inet
-    def test_redirect_to_another_authority_is_rejected_before_contact(self):
+    def test_repository_asset_redirect_to_another_authority_is_rejected_before_contact(self):
         allowed, denied = Endpoint(FORKY), Endpoint(FORKY)
         self.addCleanup(allowed.close); self.addCleanup(denied.close)
-        allowed.redirects['/escape'] = denied.base + '/preseed.cfg'
+        allowed.redirects[RAW_PREFIX + '/escape'] = denied.base + '/preseed.cfg'
         for name, shell in SHELLS:
-            result = self.run_shell(shell, 'source_http_get ' + Q(allowed.url + '/escape') + ' ' +
+            result = self.run_shell(shell, 'source_transfer ' + Q(allowed.base) + ' escape ' +
                                     Q(str(self.root / ('redirect-' + name))))
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('approved authority', result.stderr)
         self.assertEqual(sum(denied.counts.values()), 0)
+
+    def test_seed_discovery_rejects_unsafe_redirects_before_contact(self):
+        bindir = self.root / 'bin'
+        bindir.mkdir()
+        wget = bindir / 'wget'
+        wget.write_text('#!/bin/sh\n'
+                        'if [ "$1" = --help ]; then echo --max-redirect; exit 0; fi\n'
+                        'for url in "$@"; do :; done\n'
+                        'printf "%s\\n" "$url" >>"$ATTEMPTS"\n'
+                        'printf "  HTTP/1.1 302 Found\\n  Location: %s\\n" "$REDIRECT_LOCATION" >&2\n'
+                        'exit 8\n')
+        wget.chmod(0o755)
+        locations = ('http://repository.invalid/preseed.cfg', 'file:///etc/passwd',
+                     '//user:password@repository.invalid/preseed.cfg',
+                     'https://repository.invalid/a b')
+        for name, shell in SHELLS:
+            for index, location in enumerate(locations):
+                with self.subTest(shell=name, location=location):
+                    attempts = self.root / f'attempts-{name}-{index}'
+                    destination = self.root / f'document-{name}-{index}'
+                    effective = self.root / f'effective-{name}-{index}'
+                    destination.write_text('previous document')
+                    result = self.run_shell(shell,
+                        'source_http_get https://shortener.invalid/start ' + Q(str(destination)) +
+                        ' ' + Q(str(effective)) + ' seed',
+                        env={'PATH': str(bindir) + ':' + os.environ['PATH'], 'ATTEMPTS': str(attempts),
+                             'REDIRECT_LOCATION': location})
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(attempts.read_text().splitlines(), ['https://shortener.invalid/start'])
+                    self.assertEqual(destination.read_text(), 'previous document')
+                    self.assertFalse(effective.exists())
+                    self.assertFalse(list(self.root.glob(destination.name + '.part.*')))
+
+    @skip_unless_loopback_inet
+    def test_seed_discovery_cross_authority_loop_stops_at_redirect_limit(self):
+        first, second = Endpoint(FORKY), Endpoint(FORKY)
+        self.addCleanup(first.close); self.addCleanup(second.close)
+        first.redirects['/loop'] = second.url + '/loop'
+        second.redirects['/loop'] = first.url + '/loop'
+        for name, shell in SHELLS:
+            with self.subTest(shell=name):
+                first.counts.clear(); second.counts.clear()
+                destination = self.root / ('loop-' + name)
+                result = self.run_shell(shell, 'source_http_get ' + Q(first.url + '/loop') + ' ' +
+                                        Q(str(destination)) + " '' seed", timeout=25)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('redirect loop or limit', result.stderr)
+                self.assertEqual(sum(first.counts.values()) + sum(second.counts.values()), 11)
+                self.assertFalse(destination.exists())
 
     def test_no_arithmetic_or_fractional_sleep_in_embedded_bootstrap(self):
         # This protects the generated copy, not just the readable implementation.
@@ -364,6 +413,16 @@ class GeneratedInstallerShellTests(unittest.TestCase):
         self.assertEqual(web.counts[RAW_PREFIX + '/payload.tar.gz'], 1)
         self.assertEqual(web.counts[RAW_PREFIX + '/payload.manifest'], 1)
         self.assertEqual(sum(web.counts.values()), 5, dict(web.counts))
+
+    def test_generated_bootstrap_resolves_shortener_on_another_authority(self):
+        shortener, web = self.endpoint(), self.endpoint()
+        shortener.redirects['/short'] = web.url + '/chain/start'
+        result = self.include(f'url={shortener.url}/short classes=prod;desktop;standard;dhcp;ssh')
+        self.assert_bootstrapped(result)
+        self.assertEqual(dict(shortener.counts), {'/short': 1})
+        self.assertEqual((self.box.runtime / 'bootstrap/seed.url').read_text().strip(), web.base)
+        for relative in ('scripts/common/source.sh', 'payload.tar.gz', 'payload.manifest'):
+            self.assertEqual(web.counts[RAW_PREFIX + '/' + relative], 1)
 
     def test_generated_http_bootstrap_handles_decimal_padded_timeouts(self):
         web = self.endpoint()

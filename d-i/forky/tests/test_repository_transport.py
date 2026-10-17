@@ -148,19 +148,31 @@ class TransportTests(TransportFixture):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), web.base)
     def test_shortener_and_relative_redirect_chain(self):
-        web = self.endpoint()
-        result = self.shell('source_resolve_seed', env={'INSTALLER_CMDLINE': f'preseed/url={web.url}/chain/start'})
+        shortener, web = self.endpoint(), self.endpoint()
+        shortener.redirects['/short'] = web.url + '/chain/start'
+        result = self.shell('source_resolve_seed', env={'INSTALLER_CMDLINE': f'preseed/url={shortener.url}/chain/start'})
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), web.base)
+        self.assertEqual(dict(shortener.counts), {'/chain/start': 1, '/short': 1})
         self.assertEqual(web.counts['/short'], 1)
     def test_persisted_effective_url_wins_without_re_download(self):
-        web = self.endpoint()
-        env = {'INSTALLER_CMDLINE': f'url={web.url}/short'}
+        shortener, web = self.endpoint(), self.endpoint()
+        effective = web.base + '/preseed.cfg?fixture=1#selected'
+        shortener.redirects['/short'] = effective
+        env = {'INSTALLER_CMDLINE': f'url={shortener.url}/short'}
         first = self.shell('source_resolve_seed', env=env)
-        second = self.shell('source_resolve_seed', env=env)
+        destination = self.root / 'repo.env'
+        second = self.shell('base=$(source_resolve_seed); printf "%s\\n" "$base"; '
+                            'source_transfer "$base" repo.env ' + shlex.quote(str(destination)), env=env)
         self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(second.returncode, 0, second.stderr)
         self.assertEqual(second.stdout, first.stdout)
-        self.assertEqual(web.counts['/short'], 1)
+        self.assertEqual(first.stdout.strip(), web.base)
+        self.assertEqual(payload_read_text(self.runtime / 'bootstrap/seed.effective-url').strip(), effective)
+        self.assertEqual(payload_read_text(self.runtime / 'bootstrap/seed.url').strip(), web.base)
+        self.assertEqual(destination.read_bytes(), payload_read_bytes(FORKY / 'repo.env'))
+        self.assertEqual(dict(shortener.counts), {'/short': 1})
+        self.assertEqual(dict(web.counts), {RAW_PREFIX + '/preseed.cfg': 1, RAW_PREFIX + '/repo.env': 1})
     def test_file_and_preseed_file_aliases(self):
         for alias in ('file', 'preseed/file'):
             with self.subTest(alias=alias):

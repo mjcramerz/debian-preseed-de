@@ -28,6 +28,13 @@ cover A01-A09, rsyslog tmpfs, and the installer module/loading contract. Run `py
 after editing sources. Run `make check` before publishing, inside the
 [mandatory disposable test environment](docs/test-isolation.md).
 
+The initial `url=` or `preseed/url=` may use TinyURL or another HTTP redirect
+service. Initial preseed discovery validates every destination before following
+cross-host redirects, then saves the final repository base. Subsequent source
+and payload downloads use that base and reject redirects to another authority.
+HTTPS certificate verification, downgrade rejection, the ten-redirect limit
+and the shared transfer deadline apply throughout.
+
 ## Network sharing
 
 All ten profiles have explicit NFS server/client and home-bind controls.

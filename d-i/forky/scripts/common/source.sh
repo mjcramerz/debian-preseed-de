@@ -366,7 +366,8 @@ source_effective_url() {
 source_http_get() (
   set -eu;
   umask 077;
-  url=$1; destination=$2; effective=${3:-};
+  url=$1; destination=$2; effective=${3:-}; redirect_scope=${4:-repository};
+  case "$redirect_scope" in repository|seed) ;; *) source_error 'invalid repository redirect scope'; exit 125 ;; esac;
   read_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_TIMEOUT:-45}") || {
     source_error 'INSTALLER_FETCH_TIMEOUT must be 1 through 900 integer seconds' || :; exit 125;
   };
@@ -396,7 +397,10 @@ source_http_get() (
   else
     status=$?; [ "$status" -eq 1 ] || exit "$status";
   fi;
-  # One deadline covers every retry and validated same-authority hop. The
+  # Seed discovery follows the operator-selected shortener across authorities.
+  # Repository assets stay pinned to the resolved source authority. Each next
+  # URL is validated before contact in either scope; HTTPS cannot downgrade.
+  # One deadline covers every retry and validated redirect hop. The
   # native file-size limit also bounds chunked responses and header logs.
   ulimit -f 524288 || { source_error 'cannot enforce repository transfer size limit'; exit 125; };
   started=$(source_monotonic_seconds) || exit 125;
@@ -419,7 +423,9 @@ source_http_get() (
       resolved=$(source_effective_url "$url" "$headers") || { source_error 'unsafe redirect destination'; exit 1; };
       source_validate_url "$resolved" || exit 1;
       authority=${resolved#*://}; authority=${authority%%/*};
-      [ "$authority" = "$origin" ] || { source_error 'repository redirect leaves its approved authority'; exit 1; };
+      if [ "$redirect_scope" = repository ] && [ "$authority" != "$origin" ]; then
+        source_error 'repository redirect leaves its approved authority'; exit 1;
+      fi;
       [ "$resolved" != "$url" ] && [ "$hops" -lt 10 ] || { source_error 'repository redirect loop or limit'; exit 1; };
       url=$resolved; hops=$(expr "$hops" + 1); redirected=true; break ;;
     esac;
@@ -493,7 +499,7 @@ source_resolve_seed() (
     case "$base" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/-]*) source_error 'unsupported local repository path'; exit 1 ;; esac;
     printf '%s\n' "$base" >"$boot/seed.file";
   elif [ -n "$url" ]; then
-    source_http_get "$url" "$boot/seed.document" "$boot/seed.effective-url" || exit "$?";
+    source_http_get "$url" "$boot/seed.document" "$boot/seed.effective-url" seed || exit "$?";
     resolved=$(cat "$boot/seed.effective-url"); resolved=${resolved%%\#*}; resolved=${resolved%%\?*};
     base=${resolved%/*}; source_validate_url "$base/" || exit 1;
     printf '%s\n' "$base" >"$boot/seed.url";
