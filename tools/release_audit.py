@@ -29,26 +29,69 @@ import stat
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
+MAX_SOURCE_ENTRIES = 100_000
+
+
+def release_entries(root: Path, output: Path):
+    """Classify entries without following directory links or scanning evidence."""
+    root = root.resolve(strict=True)
+    if '..' in output.parts:
+        raise ValueError('release evidence must not contain parent traversal')
+    output = output.absolute()
+    if not output.is_relative_to(root) or output == root:
+        raise ValueError('release evidence must stay inside the private checkout')
+    for parent in (output, *output.parents):
+        if parent == root:
+            break
+        if parent.is_symlink():
+            raise ValueError('release evidence must not use symlinks')
+    excluded = {root / '.git', root / '.build/validation', root / 'validation'}
+    # A file directly in the source root excludes only itself. A dedicated
+    # evidence directory excludes all earlier runs as well as the current one.
+    excluded.add(output.parent if output.parent != root else output)
+    pending = [root]
+    count = 0
+    while pending:
+        directory = pending.pop()
+        entries = []
+        with os.scandir(directory) as scan:
+            for entry in scan:
+                count += 1
+                if count > MAX_SOURCE_ENTRIES:
+                    raise ValueError('release source entry limit exceeded')
+                path = Path(entry.path)
+                if path in excluded:
+                    continue
+                info = entry.stat(follow_symlinks=False)
+                entries.append((path, info))
+        for path, info in sorted(entries, key=lambda item: item[0].name):
+            if stat.S_ISDIR(info.st_mode):
+                pending.append(path)
+            else:
+                yield path, info
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=ROOT/'.build/validation/whole-tree.json')
     args = parser.parse_args()
+    args.output = args.output.absolute()
     records = []
     errors = []
     busybox = shutil.which('busybox')
-    for path in sorted(ROOT.rglob('*')):
+    for path, info in release_entries(ROOT, args.output):
         rel = path.relative_to(ROOT)
-        if '.git' in rel.parts or rel.parts[0] == 'validation' or path.is_dir():
-            continue
-        info = path.lstat()
         item = {'path':str(rel), 'mode':oct(stat.S_IMODE(info.st_mode)), 'bytes':info.st_size}
         records.append(item)
-        if path.is_symlink():
+        if stat.S_ISLNK(info.st_mode):
             item['kind'] = 'symlink'
-            if not path.resolve().is_relative_to(ROOT):
-                errors.append(str(rel)+': escaping symlink')
+            try:
+                target = path.resolve(strict=True)
+            except (OSError, RuntimeError):
+                errors.append(str(rel)+': unresolved symlink')
+            else:
+                if not target.is_relative_to(ROOT):
+                    errors.append(str(rel)+': escaping symlink')
             continue
         if not stat.S_ISREG(info.st_mode):
             errors.append(str(rel)+': unsupported file type')

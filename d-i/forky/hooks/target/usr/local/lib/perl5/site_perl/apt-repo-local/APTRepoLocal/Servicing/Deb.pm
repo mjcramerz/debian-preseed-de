@@ -3,6 +3,9 @@ package APTRepoLocal::Servicing::Deb;
 use strict;
 use warnings;
 
+use lib '/usr/local/lib/perl5/site_perl/runtime';
+use Managed::Process qw(capture_command);
+
 use Moo;
 use MooX::StrictConstructor;
 
@@ -17,51 +20,26 @@ has repository => (is => 'ro', required => 1);
 
 sub _capture {
     my ($self, @command) = @_;
-    open my $fh, '-|', @command or return;
-    my $output = do { local $/; <$fh> // q{} };
-    close $fh or return;
-    return $output;
+    @command or return;
+    my $result = capture_command(argv => \@command, timeout => 120, limit => 1_048_576);
+    if ($result->{status} != 0) { return; }
+    return $result->{stdout};
 }
 
 sub _capture_limited {
     my ($self, $maximum, @command) = @_;
-    defined $maximum && $maximum =~ /\A[1-9][0-9]*\z/
-        or die "command output limit is invalid\n";
-    open my $fh, '-|', @command or return;
-    binmode $fh;
-    my $output = q{};
-    while (1) {
-        my $read = read $fh, my $chunk, 65_536;
-        if (!defined $read) {
-            close $fh;
-            return;
-        }
-        last if $read == 0;
-        if (length($output) + $read > $maximum) {
-            close $fh;
-            die "command output exceeds its limit\n";
-        }
-        $output .= $chunk;
-    }
-    close $fh or return;
-    return $output;
+    @command or return;
+    my $result = capture_command(argv => \@command, timeout => 120, limit => $maximum);
+    if ($result->{status} != 0) { return; }
+    return $result->{stdout};
 }
 
 sub _capture_quiet {
     my ($self, @command) = @_;
-    return if !@command;
-
-    my $pid = open my $fh, '-|';
-    return if !defined $pid;
-    if ($pid == 0) {
-        open STDERR, '>', File::Spec->devnull()
-            or _exit(127);
-        exec { $command[0] } @command or _exit(127);
-    }
-
-    my $output = do { local $/; <$fh> // q{} };
-    close $fh or return;
-    return $output;
+    @command or return;
+    my $result = capture_command(argv => \@command, timeout => 120, limit => 1_048_576);
+    if ($result->{status} != 0) { return; }
+    return $result->{stdout};
 }
 
 sub control {
@@ -689,12 +667,20 @@ sub install {
     $reinstall == 0 || $reinstall == 1
         or die "managed Debian package reinstall flag is invalid\n";
     my @reinstall_args = $reinstall ? ('--reinstall') : ();
+    my (@handoff_environment, @handoff_options);
+    if (($ENV{MANAGED_CHATGPT_POLICY_DEFER} // q{}) eq '1') {
+        my $fd = $ENV{MANAGED_APPARMOR_POLICY_LOCK_FD} // q{};
+        $fd =~ /\A[0-9]{1,8}\z/ && $fd > 2 or die "invalid package policy lock descriptor\n";
+        @handoff_environment = ("MANAGED_APPARMOR_POLICY_LOCK_FD=$fd", 'MANAGED_CHATGPT_POLICY_DEFER=1');
+        @handoff_options = ('-o', "APT::Keep-Fds::=$fd");
+    }
     system(
         '/usr/bin/env', '-i',
+        @handoff_environment,
         'DEBIAN_FRONTEND=noninteractive', 'DEBCONF_NONINTERACTIVE_SEEN=true',
         'HOME=/root', 'LC_ALL=C.UTF-8', 'NEEDRESTART_SUSPEND=1',
         'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
-        '/usr/bin/apt-get', '-y', '-o', 'Acquire::Retries=3',
+        '/usr/bin/apt-get', '-y', @handoff_options, '-o', 'Acquire::Retries=3',
         '-o', 'Acquire::http::Timeout=30', '-o', 'Acquire::https::Timeout=30',
         '-o', 'DPkg::Lock::Timeout=120', '-o', 'DPkg::Use-Pty=0',
         '-o', 'APT::Get::AllowUnauthenticated=false',

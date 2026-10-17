@@ -357,11 +357,26 @@ def publish(tree: Tree, values: dict[str, bytes]) -> None:
         if tree.read(path, missing=True) is not None:
             raise ValueError('destination already exists: ' + path)
     written = []
+    identities: dict[str, tuple[int, int]] = {}
     try:
         for path, value in values.items():
-            tree.write(path, value)
+            # Publication may commit and then raise during directory fsync.
+            # Record the attempt first; reconcile only our expected content.
             written.append(path)
-    except BaseException:
+            tree.write(path, value, replace=False, publication=identities)
+    except BaseException as failure:
         for path in reversed(written):
-            tree.write(path, None)
+            try:
+                with tree.parent(path) as (parent, leaf):
+                    try:
+                        info = os.stat(leaf, dir_fd=parent, follow_symlinks=False)
+                    except FileNotFoundError:
+                        continue
+                    if (info.st_dev, info.st_ino) == identities.get(path):
+                        os.unlink(leaf, dir_fd=parent)
+                        os.fsync(parent)
+                    else:
+                        failure.add_note('publication destination changed; retained: ' + path)
+            except (OSError, ValueError) as recovery_error:
+                failure.add_note('publication recovery failed for ' + path + ': ' + str(recovery_error))
         raise

@@ -250,9 +250,13 @@ require_command() {
 require_secure_boot_signing_commands() {
   require_command sbsign
   require_command sbverify
+  require_command sync
 }
 
 require_secure_boot_module_signing_commands() {
+  require_command python3
+  require_command sync
+  [ -f /usr/libexec/install-tools/verify-module-signature.py ] || fatal 'missing managed module signature verifier'
   require_command modinfo
   require_command depmod
   require_command gzip
@@ -660,17 +664,30 @@ ensure_dkms_framework_config() {
 reset_mok_state() (
 
   require_command mokutil
-  if ! mokutil --list-enrolled | grep -Fq -- "Unattended"; then
-    log "info: no enrolled Unattended MOK certificates; skipping MOK reset"
-    return 0
+  require_command timeout
+  # Reset the complete list only when an enrolled certificate is reported;
+  # querying only the newly generated key would miss previous installations.
+  if ! mok_enrolled=$(LC_ALL=C timeout --kill-after=2 15 mokutil --list-enrolled 2>/dev/null); then
+    fatal "could not query enrolled MOK certificates; skipping reset"
   fi
-
-  mok_reset_password=$(resolve_mok_delete_password)
-
-  if ! printf '%s\n%s\n' "$mok_reset_password" "$mok_reset_password" | mokutil --reset >/dev/null 2>&1; then
-    fatal "failed to reset MOK state"
+  case "$mok_enrolled" in
+    *'SHA1 Fingerprint: '*) ;;
+    *)
+      log "info: no enrolled MOK certificates reported; skipping reset"
+      return 0
+      ;;
+  esac
+  # The installer treats failure as a warning and does not retry an uncertain
+  # firmware write. MokManager still requires physical confirmation at reboot.
+  mok_reset_password=$(resolve_mok_delete_password) || fatal "MOK reset password is unavailable"
+  if ! printf '%s\n%s\n' "$mok_reset_password" "$mok_reset_password" |
+    LC_ALL=C timeout --kill-after=2 30 mokutil --reset >/dev/null 2>&1; then
+    fatal "full MOK reset request could not be confirmed; a request may already be pending"
   fi
-  mokutil --timeout 900
+  if ! LC_ALL=C timeout --kill-after=2 15 mokutil --timeout 900 >/dev/null 2>&1; then
+    log "warn: MOK reset is queued, but the MokManager timeout could not be set"
+  fi
+  log "info: full MOK reset queued; confirm the reset in MokManager before enrolling the new certificate"
 )
 
 module_compression_kind() {
@@ -684,15 +701,7 @@ module_compression_kind() {
 }
 
 decompress_module_copy() {
-  module_path=$1
-  output_path=$2
-
-  case "$(module_compression_kind "$module_path")" in
-    none) cp -f -- "$module_path" "$output_path" ;;
-    gzip) gzip -d -c -- "$module_path" >"$output_path" ;;
-    xz) xz -d -c -- "$module_path" >"$output_path" ;;
-    zstd) zstd -d -q -c -- "$module_path" >"$output_path" ;;
-  esac
+  python3 -ISB /usr/libexec/install-tools/verify-module-signature.py --decompress "$1" "$2"
 }
 
 recompress_module_copy() {
@@ -807,7 +816,8 @@ module_has_any_signature() {
 }
 
 module_has_managed_signature() {
-  [ "$(module_signer "$1")" = "$SECURE_BOOT_MOK_COMMON_NAME" ]
+  /usr/bin/python3 -I -S -B /usr/libexec/install-tools/verify-module-signature.py \
+    "$1" "$SECURE_BOOT_MOK_CERT_PEM"
 }
 
 module_has_debian_signature() {
@@ -821,34 +831,63 @@ sign_module_in_place() {
   SIGN_MODULE_CHANGED=0
   require_secure_boot_module_signing_commands
 
-  # Leave Debian-signed modules and modules already signed by our managed MOK
-  # alone; re-sign everything else.
-  module_has_debian_signature "$module_path" && return 0
-  module_has_managed_signature "$module_path" && return 0
+  # A signer display name is not proof of an authorized signing identity.
+  # Only cryptographic verification against the managed MOK can skip signing.
 
-  tmpdir=$(mktemp -d) || fatal "failed to create temporary module-signing directory"
+  tmpdir=$(mktemp -d /tmp/secure-boot.module.XXXXXX) || fatal "failed to create temporary module-signing directory"
   raw_module="$tmpdir/module.ko"
   signed_module="$tmpdir/module.signed"
   kind=$(module_compression_kind "$module_path")
   sign_file=$(resolve_sign_file "$kernelver")
   sig_hash=$(resolve_module_sig_hash "$kernelver")
 
-  decompress_module_copy "$module_path" "$raw_module" || {
+  if decompress_module_copy "$module_path" "$raw_module"; then
+    :
+  else
+    decompression_status=$?
+    if [ "$decompression_status" -eq 3 ]; then
+      fatal "module decompressor outcome unknown; recovery retained in $tmpdir"
+    fi
     rm -rf "$tmpdir"
     fatal "failed to decompress module before signing: $module_path"
-  }
+  fi
+  if module_has_managed_signature "$raw_module"; then
+    rm -rf "$tmpdir"
+    return 0
+  else
+    verification_status=$?
+    if [ "$verification_status" -ne 1 ]; then
+      rm -rf "$tmpdir"
+      fatal "managed module signature verification is unavailable: $module_path"
+    fi
+  fi
   if ! "$sign_file" "$sig_hash" "$SECURE_BOOT_MOK_KEY" "$SECURE_BOOT_MOK_CERT_PEM" "$raw_module"; then
     rm -rf "$tmpdir"
     fatal "failed to sign module $module_path for kernel $kernelver using $sign_file"
+  fi
+  if ! module_has_managed_signature "$raw_module"; then
+    rm -rf "$tmpdir"
+    fatal "signed module failed cryptographic verification against the managed MOK: $module_path"
   fi
   recompress_module_copy "$kind" "$raw_module" "$signed_module" || {
     rm -rf "$tmpdir"
     fatal "failed to recompress signed module: $module_path"
   }
-  install -m 0644 "$signed_module" "$module_path" || {
+  module_replacement=$(mktemp "${module_path}.signed.XXXXXX") || {
     rm -rf "$tmpdir"
-    fatal "failed to install signed module over original: $module_path"
+    fatal "failed to stage signed module beside original: $module_path"
   }
+  if ! install -m 0644 "$signed_module" "$module_replacement" ||
+     ! sync -- "$module_replacement" ||
+     ! mv -fT -- "$module_replacement" "$module_path"; then
+    rm -f -- "$module_replacement"
+    rm -rf "$tmpdir"
+    fatal "failed to publish signed module over original: $module_path"
+  fi
+  if ! sync -- "$(dirname -- "$module_path")"; then
+    rm -rf "$tmpdir"
+    fatal "signed module was replaced but its directory sync failed: $module_path"
+  fi
   SIGN_MODULE_CHANGED=1
   rm -rf "$tmpdir"
 }
@@ -923,15 +962,7 @@ EOF_MODULES
 }
 
 kernel_image_has_managed_signature() {
-  kernel_image=$1
-  sbverify --cert "$SECURE_BOOT_MOK_CERT_PEM" "$kernel_image" >/dev/null 2>&1
-}
-
-kernel_image_has_debian_signature() {
-  kernel_image=$1
-  sbverify --list "$kernel_image" 2>/dev/null |
-    tr '[:upper:]' '[:lower:]' |
-    grep -E -q 'subject:.*debian|issuer:.*debian'
+  sbverify --cert "$SECURE_BOOT_MOK_CERT_PEM" "$1" >/dev/null 2>&1
 }
 
 kernel_image_has_any_signature() {
@@ -968,36 +999,38 @@ sign_kernel_image() {
   kernel_image="/boot/vmlinuz-$kernelver"
   [ -f "$kernel_image" ] || return 0
   require_secure_boot_signing_commands
-  kernel_image_has_debian_signature "$kernel_image" && return 0
   kernel_image_has_managed_signature "$kernel_image" && return 0
 
-  tmpdir=$(mktemp -d) || fatal "failed to create temporary kernel-signing directory for $kernelver"
+  tmpdir=$(mktemp -d /tmp/secure-boot.kernel.XXXXXX) || fatal "failed to create temporary kernel-signing directory for $kernelver"
   unsigned_image="$tmpdir/vmlinuz.unsigned"
+  signed_image="$tmpdir/vmlinuz.signed"
   sbsign_err="$tmpdir/sbsign.stderr"
 
   cp -f -- "$kernel_image" "$unsigned_image" || {
     rm -rf "$tmpdir"
     fatal "failed to preserve unsigned kernel image before signing: $kernel_image"
   }
-  if ! sbsign --key "$SECURE_BOOT_MOK_KEY" --cert "$SECURE_BOOT_MOK_CERT_PEM" --output "$kernel_image" "$unsigned_image" 2>"$sbsign_err"; then
+  if ! sbsign --key "$SECURE_BOOT_MOK_KEY" --cert "$SECURE_BOOT_MOK_CERT_PEM" --output "$signed_image" "$unsigned_image" 2>"$sbsign_err"; then
     log_file_with_prefix sbsign "$sbsign_err"
-    if [ -f "$unsigned_image" ]; then
-      write_file_from_copy "$unsigned_image" "$kernel_image" 0644 "kernel image restore"
-    fi
     rm -rf "$tmpdir"
-    fatal "failed to sign Secure Boot kernel image in place: $kernel_image"
+    fatal "failed to stage signed Secure Boot kernel image: $kernel_image"
   fi
-  if ! kernel_image_has_managed_signature "$kernel_image"; then
-    if [ -f "$unsigned_image" ]; then
-      write_file_from_copy "$unsigned_image" "$kernel_image" 0644 "kernel image restore"
-    fi
+  if ! kernel_image_has_managed_signature "$signed_image"; then
     rm -rf "$tmpdir"
-    fatal "signed kernel image failed managed MOK verification after in-place signing: $kernel_image"
+    fatal "staged kernel image failed managed MOK verification: $kernel_image"
   fi
-  chmod 0644 "$kernel_image" || {
+  kernel_replacement=$(mktemp "${kernel_image}.signed.XXXXXX") || {
     rm -rf "$tmpdir"
-    fatal "failed to normalize mode on signed kernel image: $kernel_image"
+    fatal "failed to reserve signed kernel image beside original: $kernel_image"
   }
+  if ! install -m 0644 "$signed_image" "$kernel_replacement" ||
+     ! sync -- "$kernel_replacement" ||
+     ! mv -fT -- "$kernel_replacement" "$kernel_image"; then
+    rm -f -- "$kernel_replacement"
+    rm -rf "$tmpdir"
+    fatal "failed to publish verified signed kernel image: $kernel_image"
+  fi
+  sync -- /boot || fatal "signed kernel image publication outcome unknown; original retained in $tmpdir"
   rm -rf "$tmpdir"
 }
 
@@ -1007,13 +1040,22 @@ sign_initrd_sidecar() {
   sig_path="${initrd}.sig"
 
   [ -f "$initrd" ] || return 0
-  tmp_sig=$(mktemp) || fatal "failed to create temporary initrd signature path for $kernelver"
+  require_command sync
+  tmp_sig=$(mktemp "${sig_path}.pending.XXXXXX") || fatal "failed to reserve initrd signature beside original for $kernelver"
   if ! openssl dgst -sha256 -sign "$SECURE_BOOT_MOK_KEY" -out "$tmp_sig" "$initrd"; then
     rm -f "$tmp_sig"
     fatal "failed to sign initramfs sidecar for kernel $kernelver"
   fi
-  write_file_from_copy "$tmp_sig" "$sig_path" 0644 "initramfs sidecar signature"
-  rm -f "$tmp_sig"
+  if ! openssl x509 -in "$SECURE_BOOT_MOK_CERT_PEM" -pubkey -noout |
+       openssl dgst -sha256 -verify /dev/stdin -signature "$tmp_sig" "$initrd" >/dev/null 2>&1; then
+    rm -f -- "$tmp_sig"
+    fatal "initramfs sidecar failed managed MOK verification for kernel $kernelver"
+  fi
+  if ! chmod 0644 "$tmp_sig" || ! sync -- "$tmp_sig" || ! mv -fT -- "$tmp_sig" "$sig_path"; then
+    rm -f -- "$tmp_sig"
+    fatal "failed to publish verified initramfs signature for kernel $kernelver"
+  fi
+  sync -- /boot || fatal "initramfs signature publication outcome unknown for kernel $kernelver"
 }
 
 refresh_initramfs_for_kernel() {
@@ -1050,12 +1092,12 @@ repair_kernel() {
   modules_changed=${SIGN_MODULES_CHANGED:-0}
 
   [ -f "$kernel_image" ] || return 0
-  if kernel_image_has_debian_signature "$kernel_image"; then
+  if kernel_image_has_managed_signature "$kernel_image"; then
     if [ "$modules_changed" -eq 1 ] || [ ! -s "/boot/initrd.img-$kernelver" ]; then
       refresh_initramfs_for_kernel "$kernelver"
     fi
-    log "info: leaving Debian-signed kernel image untouched for $kernelver"
-    cleanup_kernel_artifacts "$kernelver"
+    sign_initrd_sidecar "$kernelver" || fatal "failed to sign initramfs sidecar for $kernelver"
+    log "info: retaining cryptographically verified managed kernel image for $kernelver"
     return 0
   fi
   refresh_initramfs_for_kernel "$kernelver"
@@ -1245,7 +1287,7 @@ case "${1:-}" in
     done
     ;;
   *)
-    echo "usage: ${0##*/} {prepare|prepare-dkms|sign-installed-modules|repair-installed-kernels|kernel-postinst <version>|kernel-header-postinst <version>|kernel-postrm <version>|delete-moks|state-open|state-close|state-mounted|state-ready|state-passwd|sign-module <module...>|<kernel-version> <module-path>}" >&2
+    echo "usage: ${0##*/} {prepare|prepare-dkms|sign-installed-modules|repair-installed-kernels|kernel-postinst <version>|kernel-header-postinst <version>|kernel-postrm <version>|reset-moks|state-open|state-close|state-mounted|state-ready|state-passwd|sign-module <module...>|<kernel-version> <module-path>}" >&2
     exit 1
     ;;
 esac

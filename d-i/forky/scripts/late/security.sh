@@ -1956,6 +1956,8 @@ configure_target_apparmor_auditd() {
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/base.d/process-monitor)" "/etc/apparmor.d/abstractions/base.d/process-monitor" 0644
   stage_target_system_apparmor_profiles
   if security_target_is_desktop; then
+    stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/lib/perl5/site_perl/runtime/Managed/PolicyLock.pm)" \
+      /usr/local/lib/perl5/site_perl/runtime/Managed/PolicyLock.pm 0644
     install -d -m 0755 \
       /target/usr/local/lib/perl5/site_perl/apparmor-modes/AppArmor/ManagedModes
     stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor/modes.conf.tmpl)" "/etc/apparmor/modes.conf" 0644

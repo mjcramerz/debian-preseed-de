@@ -224,11 +224,20 @@ sub _fork_exec {
     # Interactive, explicitly unbounded ADB shells retain the foreground
     # terminal group; putting those in a background group causes SIGTTIN.
     my $group = @{$argv} >= 4 && $argv->[1] =~ /\A--signal=(?:TERM|INT)\z/;
+    my $deadline;
+    if ($group) {
+        my ($seconds) = $argv->[3] =~ /\A([1-9][0-9]*)s\z/;
+        my ($grace) = $argv->[2] =~ /\A--kill-after=([1-9][0-9]*)s\z/;
+        defined($seconds) && defined($grace) or fail('invalid bounded Android invocation');
+        $deadline = Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC())
+            + $seconds + $grace + 2;
+    }
     my $interrupted;
     my %previous = map { $_ => $SIG{$_} } qw(HUP INT TERM);
     local $SIG{HUP} = sub { $interrupted //= 'HUP' };
     local $SIG{INT} = sub { $interrupted //= 'INT' };
     local $SIG{TERM} = sub { $interrupted //= 'TERM' };
+    local $SIG{CHLD} = 'DEFAULT';
     my $pid = fork();
     defined($pid) or fail("unable to fork Android command: $!");
     if (!$pid) {
@@ -241,20 +250,31 @@ sub _fork_exec {
     my $status;
     while (1) {
         # Never reap before escalation: a reaped PID may already be reused.
-        if ($interrupted) {
-            kill $interrupted, ($group ? -$pid : $pid);
-            kill $interrupted, $pid;
+        my $expired = defined($deadline)
+            && Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC()) >= $deadline;
+        if ($interrupted || $expired) {
+            my $stop_signal = $interrupted // 'TERM';
+            kill $stop_signal, ($group ? -$pid : $pid);
+            kill $stop_signal, $pid;
             Time::HiRes::sleep(0.2);
             kill 'KILL', -$pid if $group;
             kill 'KILL', $pid;
-            while (1) {
-                my $waited = waitpid($pid, 0);
+            my $cleanup_deadline = Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC()) + 2;
+            my $reaped = 0;
+            while (Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC()) < $cleanup_deadline) {
+                my $waited = waitpid($pid, POSIX::WNOHANG());
+                if ($waited == $pid) { $reaped = 1; last; }
                 next if $waited < 0 && $! == EINTR;
-                last;
+                last if $waited < 0;
+                Time::HiRes::sleep(0.02);
             }
-            my $handler = $previous{$interrupted};
-            $handler->($interrupted) if ref($handler) eq 'CODE';
-            return 128 + ({HUP => 1, INT => 2, TERM => 15}->{$interrupted});
+            $reaped or fail('Android command cleanup outcome unknown; owning service and output must be retained');
+            if ($interrupted) {
+                my $handler = $previous{$interrupted};
+                $handler->($interrupted) if ref($handler) eq 'CODE';
+                return 128 + ({HUP => 1, INT => 2, TERM => 15}->{$interrupted});
+            }
+            return 124;
         }
         my $waited = waitpid($pid, POSIX::WNOHANG());
         if ($waited == $pid) { $status = $?; last; }
@@ -296,15 +316,6 @@ sub _redirect_handle {
         open STDERR, '>&', $file
             or POSIX::_exit(127);
     }
-}
-
-sub _terminate_child {
-    my ($self, $pid) = @_;
-    kill 'TERM', $pid;
-    select undef, undef, undef, 0.2;
-    kill 'KILL', $pid;
-    while (waitpid($pid, 0) < 0) { last if $! != EINTR; }
-    return;
 }
 
 sub _normalize_status {

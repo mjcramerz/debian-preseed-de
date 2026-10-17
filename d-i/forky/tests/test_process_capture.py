@@ -39,6 +39,35 @@ print encode_json($result);
 
 
 class ProcessCaptureTests(unittest.TestCase):
+    def test_adb_file_runner_bounds_an_unresponsive_timeout_delegate(self) -> None:
+        libraries = FORKY / 'hooks/target/usr/local/lib/perl5/site_perl'
+        with tempfile.TemporaryDirectory(prefix='adb-deadline-') as directory:
+            root = Path(directory)
+            delegate = root / 'timeout'
+            delegate.write_text('#!/usr/bin/python3\nimport signal,time\n'
+                                'signal.signal(signal.SIGTERM, signal.SIG_IGN)\n'
+                                'time.sleep(30)\n')
+            delegate.chmod(0o700)
+            code = r'''
+use AndroidADB::Command;
+{ package FixtureConfig;
+  sub require_tool { return $_[0]->{timeout}; }
+  sub tool { return undef; }
+}
+my $config = bless {timeout => $ARGV[0]}, 'FixtureConfig';
+my $command = AndroidADB::Command->new(config => $config);
+print $command->run_to_file_signal('TERM', 1, 1, $ARGV[1], $ARGV[2], '/bin/true'), "\n";
+'''
+            started = time.monotonic()
+            result = subprocess.run(['/usr/bin/perl', '-I' + str(LIB),
+                '-I' + str(libraries / 'labwc-adb'), '-e', code, str(delegate),
+                str(root / 'stdout'), str(root / 'stderr')],
+                env={'PATH': '/usr/bin:/bin', 'HOME': str(root), 'LC_ALL': 'C'},
+                stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, '124\n')
+            self.assertLess(time.monotonic() - started, 8)
+
     def command(self, *argv: str, seconds: float = 3, limit: int = 1048576) -> list[str]:
         return ["/usr/bin/perl", "-I", str(LIB), "-e", RUNNER, str(seconds), str(limit), *argv]
 

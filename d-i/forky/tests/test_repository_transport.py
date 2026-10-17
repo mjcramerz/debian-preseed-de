@@ -258,7 +258,7 @@ installer_seed_path_exists {p(web.base)} repo.env
             self.assertIn("bypass is forbidden", result.stderr)
         explicit_false = self.shell(command, env={'INSTALLER_CMDLINE': 'allow_unauthenticated_ssl=false'})
         self.assertNotEqual(explicit_false.returncode, 0)
-    def test_busybox_wget_redirects(self):
+    def test_downloader_without_redirect_control_is_unavailable_before_contact(self):
         busybox = shutil.which('busybox')
         if not busybox:
             self.skipTest('BusyBox is not installed')
@@ -267,11 +267,14 @@ installer_seed_path_exists {p(web.base)} repo.env
         wget = bindir / 'wget'
         wget.write_text('#!/bin/sh\nexec ' + shlex.quote(busybox) + ' wget "$@"\n')
         wget.chmod(0o755)
+        anna = bindir / 'anna-install'
+        anna.write_text('#!/bin/sh\nexit 1\n')
+        anna.chmod(0o755)
         web = self.endpoint()
         result = self.shell('source_resolve_seed', env={'PATH': str(bindir) + ':' + os.environ['PATH'],
                             'INSTALLER_CMDLINE': f'url={web.url}/short'})
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.strip(), web.base)
+        self.assertEqual(result.returncode, 125, result.stderr)
+        self.assertEqual(sum(web.counts.values()), 0)
 
 class SnapshotTests(TransportFixture):
     def make_payload(self, files=None, special=None):

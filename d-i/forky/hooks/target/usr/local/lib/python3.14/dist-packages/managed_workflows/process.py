@@ -19,6 +19,10 @@ class CommandError(RuntimeError):
     pass
 
 
+class OutputLimitError(CommandError):
+    pass
+
+
 def environment(*, desktop: bool = False) -> dict[str, str]:
     account = pwd.getpwuid(os.getuid())
     env = {'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': account.pw_dir,
@@ -40,13 +44,18 @@ def environment(*, desktop: bool = False) -> dict[str, str]:
 
 
 def _checked_capture(argv: list[str], *, cwd: Path | None, env: dict,
-                     timeout: int, input: str | None) -> str:
+                     timeout: int, input: str | None,
+                     max_output_bytes: int | None) -> str:
     """Capture non-interactive commands with one output budget and deadline.
 
     Keep the direct child unreaped while draining pipes so cancellation can
     safely signal its process group, including descendants retaining a pipe.
     Deliberately daemonizing commands belong in a supervised service instead.
     """
+    output_limit = MAX_CAPTURE_BYTES if max_output_bytes is None else max_output_bytes
+    if (isinstance(output_limit, bool) or not isinstance(output_limit, int)
+            or not 1 <= output_limit <= MAX_CAPTURE_BYTES):
+        raise ValueError('command output limit must be between 1 and MAX_CAPTURE_BYTES')
     encoding = locale.getpreferredencoding(False)
     with ExitStack() as stack:
         data = None
@@ -103,8 +112,8 @@ def _checked_capture(argv: list[str], *, cwd: Path | None, env: dict,
                             selector.unregister(key.fileobj)
                             continue
                         captured += len(chunk)
-                        if captured > MAX_CAPTURE_BYTES:
-                            raise CommandError('command output exceeds the limit')
+                        if captured > output_limit:
+                            raise OutputLimitError('command output exceeds the limit')
                         if key.fileobj is child.stdout:
                             output.extend(chunk)
             status = child.wait(timeout=max(0.01, deadline - time.monotonic()))
@@ -128,12 +137,14 @@ def _checked_capture(argv: list[str], *, cwd: Path | None, env: dict,
 
 
 def checked(argv: list[str], *, cwd: Path | None = None, env=None,
-            capture: bool = False, timeout: int = 300, input: str | None = None) -> str:
+            capture: bool = False, timeout: int = 300, input: str | None = None,
+            max_output_bytes: int | None = None) -> str:
     if not argv or not argv[0].startswith('/'):
         raise ValueError('an absolute executable is required')
     command_env = environment(desktop=True) if env is None else env
     if capture:
-        return _checked_capture(argv, cwd=cwd, env=command_env, timeout=timeout, input=input)
+        return _checked_capture(argv, cwd=cwd, env=command_env, timeout=timeout,
+                                input=input, max_output_bytes=max_output_bytes)
     result = subprocess.run(argv, cwd=cwd, env=command_env,
                             text=True, input=input,
                             timeout=timeout, check=False)
@@ -187,4 +198,9 @@ def supervised(argv: list[str], *, cwd: Path,
                 child.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 child.kill()
-                child.wait()
+                try:
+                    child.wait(timeout=5)
+                except subprocess.TimeoutExpired as exc:
+                    raise CommandError(
+                        f'job transport termination outcome unknown; retain job state and reconcile {unit}'
+                    ) from exc

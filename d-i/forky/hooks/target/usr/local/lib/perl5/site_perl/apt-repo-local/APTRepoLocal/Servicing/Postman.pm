@@ -3,6 +3,9 @@ package APTRepoLocal::Servicing::Postman;
 use strict;
 use warnings;
 
+use lib '/usr/local/lib/perl5/site_perl/runtime';
+use Managed::Process qw(capture_command);
+
 use Moo;
 use MooX::StrictConstructor;
 
@@ -20,25 +23,10 @@ has state => (is => 'ro', required => 1);
 
 sub _capture_limited {
     my ($self, $limit, @command) = @_;
-    $limit =~ /\A[0-9]+\z/ && $limit > 0 && $limit <= 16 * 1024 * 1024
-        or die "Postman command output limit is invalid\n";
-    open my $fh, '-|', @command
-        or die "cannot execute Postman archive inspection\n";
-    binmode $fh, ':raw';
-    my $output = q{};
-    while (1) {
-        my $chunk = q{};
-        my $read = read $fh, $chunk, 8192;
-        defined $read
-            or die "cannot read Postman archive inspection output: $!\n";
-        last if $read == 0;
-        length($output) + $read <= $limit
-            or die "Postman archive inspection output exceeds safe bounds\n";
-        $output .= $chunk;
-    }
-    close $fh
-        or die "Postman archive inspection failed\n";
-    return $output;
+    @command or return;
+    my $result = capture_command(argv => \@command, timeout => 120, limit => $limit);
+    if ($result->{status} != 0) { die "Postman archive inspection failed\n"; }
+    return $result->{stdout};
 }
 
 sub _sha256 {

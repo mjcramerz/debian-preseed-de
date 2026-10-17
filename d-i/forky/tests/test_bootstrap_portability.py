@@ -124,6 +124,18 @@ class TimeoutPortabilityTests(unittest.TestCase):
                     self.assertIn(variable, result.stderr)
         self.assertEqual(sum(web.counts.values()), 0)
 
+    @skip_unless_loopback_inet
+    def test_redirect_to_another_authority_is_rejected_before_contact(self):
+        allowed, denied = Endpoint(FORKY), Endpoint(FORKY)
+        self.addCleanup(allowed.close); self.addCleanup(denied.close)
+        allowed.redirects['/escape'] = denied.base + '/preseed.cfg'
+        for name, shell in SHELLS:
+            result = self.run_shell(shell, 'source_http_get ' + Q(allowed.url + '/escape') + ' ' +
+                                    Q(str(self.root / ('redirect-' + name))))
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('approved authority', result.stderr)
+        self.assertEqual(sum(denied.counts.values()), 0)
+
     def test_no_arithmetic_or_fractional_sleep_in_embedded_bootstrap(self):
         # This protects the generated copy, not just the readable implementation.
         for question, command in generated_commands().items():
@@ -182,7 +194,7 @@ installer_run_bounded 001 /bin/sh -c 'sleep 30'
         bin_dir = self.root / 'bin'
         bin_dir.mkdir()
         script = bin_dir / 'wget'
-        script.write_text('#!/bin/sh\n[ "$1" != --help ] || exit 0\necho attempted >>"$ATTEMPTS"\necho download-error >&2\nexit 6\n')
+        script.write_text('#!/bin/sh\nif [ "$1" = --help ]; then echo --max-redirect; exit 0; fi\necho attempted >>"$ATTEMPTS"\necho download-error >&2\nexit 6\n')
         script.chmod(0o755)
         for name, shell in SHELLS:
             dest = self.root / ('seed.document-' + name)
@@ -226,6 +238,7 @@ class InstallerShellSandbox:
         (root / 'etc/passwd').write_text('root:x:0:0:root:/root:/bin/sh\n')
         (root / 'etc/group').write_text('root:x:0:\n')
         (root / 'proc/cmdline').write_text('\n')
+        (root / 'proc/uptime').write_text('100.00 100.00\n')
         (root / 'proc/cpuinfo').write_text('vendor_id : GenuineIntel\nmodel name : test-only cpu\n')
         (root / 'proc/mounts').write_text('')
         (root / 'sys/block/nvme0n1/removable').write_text('0\n')

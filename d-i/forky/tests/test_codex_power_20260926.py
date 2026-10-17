@@ -123,8 +123,8 @@ class WrapperRegressionTests(unittest.TestCase):
                     self.assertTrue(all(call.args[1] == b'1' for call in release.call_args_list))
                     self.assertEqual(spawn.call_args_list[0].args[0][-2:], ['exec', 'hello'])
                 self.assertIsNone(self.c.CODEX_BWRAP_PROCESS)
-                self.assertEqual(events, ['namespace-stop', 'lease-close'] if online else ['namespace-stop'])
-                stop.assert_called_once_with(pidfd, self.c.signal.SIGKILL)
+                self.assertEqual(events, ['namespace-stop', 'namespace-stop', 'lease-close'] if online else ['namespace-stop', 'namespace-stop'])
+                self.assertEqual(stop.call_args_list, [mock.call(pidfd, self.c.signal.SIGTERM), mock.call(pidfd, self.c.signal.SIGKILL)])
                 self.assertIsNone(self.c.CODEX_NETWORK_LEASE)
                 self.assertIsNone(self.c.CODEX_SANDBOX_PIDFD)
                 with self.assertRaises(OSError): os.fstat(pidfd)
@@ -135,7 +135,7 @@ class WrapperRegressionTests(unittest.TestCase):
         self.c.CODEX_NETWORK_LEASE.close.side_effect = lambda: events.append('lease-close')
         with mock.patch.object(self.c, 'codex_clear_app_server_environment'), \
                 mock.patch.object(self.c, '_signal_sandbox', side_effect=lambda sig: events.append(sig)), \
-                mock.patch.object(self.c, '_terminate_process'), \
+                mock.patch.object(self.c, '_terminate_process', return_value=True), \
                 mock.patch.object(self.c, '_close_fd'):
             self.c.codex_cleanup()
         self.assertEqual(events, [self.c.signal.SIGTERM, self.c.signal.SIGKILL, 'lease-close'])
@@ -151,6 +151,38 @@ class WrapperRegressionTests(unittest.TestCase):
             with mock.patch.dict(os.environ, {'RUST_LOG': value}, clear=True), \
                  self.assertRaises(self.c.CodexError):
                 self.c.codex_client_environment()
+
+    def test_uncertain_cleanup_retains_control_and_network_ownership(self):
+        with tempfile.TemporaryDirectory(prefix='codex-retained-') as temporary:
+            self.c.CODEX_CONTROL_DIR = temporary
+            self.c.CODEX_BWRAP_PROCESS = mock.Mock()
+            lease = self.c.CODEX_NETWORK_LEASE = mock.Mock()
+            with mock.patch.object(self.c, '_signal_sandbox'), \
+                    mock.patch.object(self.c, '_terminate_process', return_value=False), \
+                    mock.patch.object(self.c, '_close_fd') as close_fd, \
+                    contextlib.redirect_stderr(io.StringIO()):
+                self.assertFalse(self.c.codex_cleanup())
+                self.assertFalse(self.c.codex_cleanup())
+            lease.close.assert_not_called()
+            close_fd.assert_not_called()
+            self.assertEqual(self.c.CODEX_CONTROL_DIR, temporary)
+            self.assertTrue(Path(temporary).is_dir())
+
+    def test_signal_permission_failure_blocks_cleanup_retry(self):
+        with tempfile.TemporaryDirectory(prefix='codex-signal-failed-') as temporary:
+            self.c.CODEX_CONTROL_DIR = temporary
+            self.c.CODEX_BWRAP_PROCESS = mock.Mock()
+            lease = self.c.CODEX_NETWORK_LEASE = mock.Mock()
+            with mock.patch.object(self.c, '_signal_sandbox'), \
+                    mock.patch.object(self.c, '_terminate_process', side_effect=PermissionError('fixture')) as terminate, \
+                    mock.patch.object(self.c, '_close_fd') as close_fd, \
+                    contextlib.redirect_stderr(io.StringIO()):
+                self.assertFalse(self.c.codex_cleanup())
+                self.assertFalse(self.c.codex_cleanup())
+            terminate.assert_called_once()
+            lease.close.assert_not_called()
+            close_fd.assert_not_called()
+            self.assertTrue(Path(temporary).is_dir())
 
     def test_total_client_environment_size_is_bounded(self):
         values = {name: 'x' * 65536 for name in sorted(self.c.CLIENT_ENVIRONMENT_NAMES)[:5]}

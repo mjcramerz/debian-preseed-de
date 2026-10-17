@@ -342,7 +342,14 @@ def execute(current: Path, plan: dict, passphrase: str = '') -> Path | None:
                             process.wait(timeout=10)
                         except subprocess.TimeoutExpired:
                             process.kill()
-                            process.wait()
+                            try:
+                                process.wait(timeout=5)
+                            except subprocess.TimeoutExpired as exc:
+                                keep = True
+                                raise CompzError(
+                                    'Archive transport termination outcome unknown; '
+                                    'private workspace retained: ' + display(str(workspace))
+                                ) from exc
             if not keep:
                 shutil.rmtree(workspace)
                 if plan_directory is not None:

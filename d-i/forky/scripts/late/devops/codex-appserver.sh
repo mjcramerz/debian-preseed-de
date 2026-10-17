@@ -93,8 +93,9 @@ devops_stage_codex_app_server() {
     devops_fatal "Codex app-server unit is missing its non-secret environment policy"
   grep -Fqx 'LoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env' "$service_tmp" ||
     devops_fatal "Codex app-server unit is missing its MCP credential environment"
-  grep -Fqx 'EnvironmentFile=-%d/codex-mcp.env' "$service_tmp" ||
-    devops_fatal "Codex app-server unit does not let systemd decode the MCP credential environment"
+  if grep -Eq '^EnvironmentFile=-?%d/' "$service_tmp"; then
+    devops_fatal "Codex app-server credentials must be consumed by the execution wrapper"
+  fi
   grep -Fqx \
     'ExecStart=/usr/lib/systemd/systemd-socket-proxyd --exit-idle-time=10min /data/codex/sockets/app-server-backend.sock' \
     "$proxy_tmp" ||

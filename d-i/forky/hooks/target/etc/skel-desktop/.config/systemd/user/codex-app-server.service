@@ -30,7 +30,7 @@ EnvironmentFile=-/etc/codex/app-server.env
 # CODEX_HOME/auth.json is created by codex login before backend use.
 # The wrapper mounts it read-only; never synthesize or load it as a credential.
 LoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env
-EnvironmentFile=-%d/codex-mcp.env
+# The launched wrapper reads CREDENTIALS_DIRECTORY after credential setup.
 WorkingDirectory=%h/Workspace
 ExecStartPre=/usr/bin/rm -f -- /data/codex/sockets/app-server-backend.sock
 ExecStart=/usr/local/libexec/rsyslog-app-run codex-app-server -- /data/codex/lib/codex app-server --listen unix:///data/codex/sockets/app-server-backend.sock

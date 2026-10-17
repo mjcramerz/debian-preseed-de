@@ -29,6 +29,15 @@ ALIASES = {
     'org.xfce.Tumbler.Manager1.service': 'org.freedesktop.thumbnails.Manager1',
     'org.xfce.Tumbler.Thumbnailer1.service': 'org.freedesktop.thumbnails.Thumbnailer1',
 }
+ALIAS_PACKAGES = {
+    'fr.emersion.mako.service': 'mako-notifier',
+    'org.xfce.Thunar.FileManager1.service': 'thunar',
+    'org.xfce.Tumbler.Cache1.service': 'tumbler',
+    'org.xfce.Tumbler.Manager1.service': 'tumbler',
+    'org.xfce.Tumbler.Thumbnailer1.service': 'tumbler',
+}
+MAKO_ALIAS = (b'[D-BUS Service]\nName=org.freedesktop.Notifications\n'
+              b'SystemdService=mako.service\nExec=/usr/bin/false\n')
 DOCTYPE = ('<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"\n'
            ' "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">\n')
 
@@ -123,6 +132,50 @@ def broker_session_config(data: bytes) -> bytes:
     return (DOCTYPE + ET.tostring(root, encoding='unicode') + '\n').encode('utf-8')
 
 
+def optional_package_absent(package: str) -> bool:
+    result = subprocess.run(['/usr/bin/dpkg-query', '--show', '--showformat=${db:Status-Status}', package],
+                            stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=15,
+                            env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'})
+    if result.returncode == 0:
+        status = result.stdout.strip()
+        if status in ('not-installed', 'config-files'):
+            return True
+        if status in ('installed', 'unpacked', 'half-installed', 'half-configured',
+                      'triggers-awaited', 'triggers-pending'):
+            return False
+    if (result.returncode == 1 and not result.stdout
+            and result.stderr.strip() == f'dpkg-query: no packages found matching {package}'):
+        return True
+    raise RuntimeError('cannot establish optional D-Bus package absence')
+
+
+def remove_absent_optional(path: Path, diverted: Path) -> None:
+    package = ALIAS_PACKAGES.get(path.name)
+    if package is None or not optional_package_absent(package):
+        raise RuntimeError(f'missing mandatory or installed-package diversion source: {diverted}')
+    if path.exists() or path.is_symlink():
+        raise RuntimeError(f'unexpected original file while removing absent optional diversion: {path}')
+    alias = LOCAL_SERVICES / f'{ALIASES[path.name]}.service'
+    if alias.exists() or alias.is_symlink():
+        metadata = alias.lstat()
+        if metadata.st_uid != 0 or metadata.st_nlink != 1:
+            raise RuntimeError(f'foreign optional activation alias: {alias}')
+        if stat.S_ISLNK(metadata.st_mode):
+            owned = os.readlink(alias) == str(diverted)
+        else:
+            owned = path.name == 'fr.emersion.mako.service' and read_owned_file(alias) == MAKO_ALIAS
+        if not owned:
+            raise RuntimeError(f'foreign optional activation alias: {alias}')
+        alias.unlink()
+        directory = os.open(alias.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    command(['/usr/bin/dpkg-divert', '--quiet', '--local', '--rename', '--remove',
+             '--divert', str(diverted), str(path)])
+
+
 def diverted_source(path: Path) -> Path | None:
     diverted = Path(str(path) + '.distrib')
     owner = command(['/usr/bin/dpkg-divert', '--listpackage', str(path)])
@@ -130,6 +183,9 @@ def diverted_source(path: Path) -> Path | None:
         actual = command(['/usr/bin/dpkg-divert', '--truename', str(path)])
         if owner != 'LOCAL' or actual != str(diverted):
             raise RuntimeError(f'foreign diversion must not be replaced: {path}')
+        if not diverted.exists() and not diverted.is_symlink():
+            remove_absent_optional(path, diverted)
+            return None
         read_owned_file(diverted)
         return diverted
     if not path.exists():
@@ -185,8 +241,7 @@ def refresh_files() -> None:
             # The vendor Exec starts an unmanaged second Mako while the
             # session service waits. Keep one systemd owner across both login
             # and D-Bus activation, including later package refreshes.
-            atomic_write(alias, b'[D-BUS Service]\nName=org.freedesktop.Notifications\n'
-                         b'SystemdService=mako.service\nExec=/usr/bin/false\n')
+            atomic_write(alias, MAKO_ALIAS)
             continue
         if alias.is_symlink() and os.readlink(alias) == str(source):
             continue

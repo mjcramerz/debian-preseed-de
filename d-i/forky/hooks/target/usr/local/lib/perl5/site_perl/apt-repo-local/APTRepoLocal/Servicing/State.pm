@@ -25,7 +25,7 @@ sub deb_dir   { return $_[0]->root() . '/repo'; }
 sub inbox_dir { return $_[0]->root() . '/inbox'; }
 sub artifact_dir { return $_[0]->root() . '/artifacts'; }
 sub state_dir { return $_[0]->root() . '/state'; }
-sub lock_path { return '/run/lock/apt-repo-local-software-update.lock'; }
+sub lock_path { return $_[0]->root() . '/.update-owner/update.lock'; }
 
 sub prepare {
     my ($self) = @_;
@@ -132,8 +132,19 @@ sub lock {
     my ($self) = @_;
     my $path = $self->lock_path();
     APTRepoLocal::Servicing::Atomic->assert_absolute_path('managed updater lock', $path);
-    sysopen my $fh, $path, O_CREAT | O_NOFOLLOW | O_RDWR, 0600
+    APTRepoLocal::Servicing::Atomic->ensure_root_directory($self->root(), 0755);
+    my $directory = $self->root() . '/.update-owner';
+    if (!-e $directory && !-l $directory) {
+        mkdir $directory, 0700 or $!{EEXIST} or die "cannot reserve private updater lock directory: $!\n";
+    }
+    my @directory = lstat $directory;
+    @directory && -d _ && !-l _ && $directory[4] == 0 && ($directory[2] & 0077) == 0
+        or die "unsafe private updater lock directory\n";
+    sysopen my $fh, $path, O_CREAT | O_NOFOLLOW | O_NONBLOCK | O_RDWR, 0600
         or die "failed to open updater lock: $!\n";
+    my @opened = stat $fh;
+    @opened && -f _ && $opened[4] == 0 && $opened[3] == 1 && ($opened[2] & 0077) == 0
+        or die "unsafe updater lock inode\n";
     fcntl($fh, F_SETFD, FD_CLOEXEC) or die "failed to protect updater lock: $!\n";
     return undef if !flock($fh, LOCK_EX | LOCK_NB);
     return $fh;

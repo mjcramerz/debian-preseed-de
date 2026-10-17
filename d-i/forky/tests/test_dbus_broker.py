@@ -90,6 +90,59 @@ class BrokerPolicyTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'foreign diversion'):
                 self.helper.diverted_source(Path('/usr/share/dbus-1/session.conf'))
 
+    @unittest.skipUnless(os.geteuid() == 0, 'root-owned fixtures require the disposable environment')
+    def test_removed_optional_package_releases_only_its_owned_diversion(self):
+        h = self.helper
+        with tempfile.TemporaryDirectory(prefix='broker-removal-') as directory:
+            root = Path(directory)
+            local = root / 'local'; local.mkdir()
+            path = root / 'fr.emersion.mako.service'
+            diverted = Path(str(path) + '.distrib')
+            alias = local / 'org.freedesktop.Notifications.service'
+            alias.write_bytes(h.MAKO_ALIAS); alias.chmod(0o644)
+            with mock.patch.object(h, 'LOCAL_SERVICES', local), \
+                    mock.patch.object(h, 'optional_package_absent', return_value=True) as absence, \
+                    mock.patch.object(h, 'command', side_effect=['LOCAL', str(diverted), '']) as command:
+                self.assertIsNone(h.diverted_source(path))
+            absence.assert_called_once_with('mako-notifier')
+            self.assertFalse(alias.exists())
+            self.assertIn('--remove', command.call_args.args[0])
+            self.assertFalse(path.exists())
+
+    @unittest.skipUnless(os.geteuid() == 0, 'root-owned fixtures require the disposable environment')
+    def test_missing_source_from_installed_package_keeps_alias_and_diversion(self):
+        h = self.helper
+        with tempfile.TemporaryDirectory(prefix='broker-missing-') as directory:
+            root = Path(directory)
+            local = root / 'local'; local.mkdir()
+            path = root / 'fr.emersion.mako.service'
+            alias = local / 'org.freedesktop.Notifications.service'
+            alias.write_bytes(h.MAKO_ALIAS); alias.chmod(0o644)
+            with mock.patch.object(h, 'LOCAL_SERVICES', local), \
+                    mock.patch.object(h, 'optional_package_absent', return_value=False), \
+                    mock.patch.object(h, 'command', side_effect=['LOCAL', str(path) + '.distrib']) as command:
+                with self.assertRaisesRegex(RuntimeError, 'installed-package'):
+                    h.diverted_source(path)
+            self.assertEqual(alias.read_bytes(), h.MAKO_ALIAS)
+            self.assertEqual(command.call_count, 2)
+
+    @unittest.skipUnless(os.geteuid() == 0, 'root-owned fixtures require the disposable environment')
+    def test_absent_package_does_not_authorize_foreign_alias_removal(self):
+        h = self.helper
+        with tempfile.TemporaryDirectory(prefix='broker-foreign-') as directory:
+            root = Path(directory)
+            local = root / 'local'; local.mkdir()
+            path = root / 'fr.emersion.mako.service'
+            alias = local / 'org.freedesktop.Notifications.service'
+            alias.write_bytes(b'foreign configuration\n'); alias.chmod(0o644)
+            with mock.patch.object(h, 'LOCAL_SERVICES', local), \
+                    mock.patch.object(h, 'optional_package_absent', return_value=True), \
+                    mock.patch.object(h, 'command', side_effect=['LOCAL', str(path) + '.distrib']) as command:
+                with self.assertRaisesRegex(RuntimeError, 'foreign optional'):
+                    h.diverted_source(path)
+            self.assertEqual(alias.read_bytes(), b'foreign configuration\n')
+            self.assertEqual(command.call_count, 2)
+
     def test_fifo_configuration_is_rejected_without_waiting_for_a_writer(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)/'config'

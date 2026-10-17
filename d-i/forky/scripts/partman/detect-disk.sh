@@ -105,7 +105,21 @@ disk_canonical() (
 
 disk_identity() (
   disk=$(disk_canonical "$1") || exit 1
+  disk_current_identity "$disk"
+)
+
+# Recheck an already authorized disk after the installer has created its own
+# mounts/mappings. This does not select a disk or authorize a new target.
+disk_current_identity() (
+  disk=$(readlink -f "$1") || exit 1
+  case "$disk" in "$disk_dev_root/"*) ;; *) exit 1 ;; esac
+  leaf=${disk#"$disk_dev_root/"}
+  case "$leaf" in ''|*/*|*[!A-Za-z0-9_.-]*) exit 1 ;; esac
+  disk_is_block "$disk" && is_install_disk_name "$leaf" || exit 1
   sys=$disk_sys_root/${disk##*/}
+  [ -d "$sys" ] && [ ! -e "$sys/partition" ] || exit 1
+  sequence=$(cat "$sys/diskseq") || exit 1
+  case "$sequence" in ''|*[!0-9]*) exit 1 ;; esac
   device_number=$(cat "$sys/dev") || exit 1
   case "$device_number" in *[!0-9:]*|:*|*:) exit 1 ;; *:*) ;; *) exit 1 ;; esac
   sectors=$(cat "$sys/size") || exit 1
@@ -118,8 +132,48 @@ disk_identity() (
   done
   # All fallible producers ran above, outside the pipeline. printf has only
   # validated arguments; sha256sum status is the status of this function.
-  printf 'device=%s\nnumber=%s\nsectors512=%s\nlogical=%s\nids=%s\n' \
-    "$disk" "$device_number" "$sectors" "$logical" "$identifiers" | sha256sum
+  sequence_after=$(cat "$sys/diskseq") || exit 1
+  [ "$sequence" = "$sequence_after" ] || exit 1
+  printf 'device=%s\nsequence=%s\nnumber=%s\nsectors512=%s\nlogical=%s\nids=%s\n' \
+    "$disk" "$sequence" "$device_number" "$sectors" "$logical" "$identifiers" | sha256sum
+)
+
+disk_verify_identity() (
+  record=$2
+  [ -f "$record" ] && [ ! -L "$record" ] || exit 1
+  current=$(disk_current_identity "$1") || exit 1
+  printf '%s\n' "$current" | cmp -s - "$record" || exit 1
+  [ "$#" -lt 3 ] || disk_member_of "$1" "$3"
+)
+
+disk_member_of() (
+  selected=$(readlink -f "$1") || exit 1
+  member=$(readlink -f "$2") || exit 1
+  depth=0
+  while [ "$depth" -lt 16 ]; do
+    disk_is_block "$member" || exit 1
+    [ "$member" != "$selected" ] || exit 0
+    case "$member" in "$disk_dev_root/"*) ;; *) exit 1 ;; esac
+    leaf=${member#"$disk_dev_root/"}
+    case "$leaf" in ''|*/*|*[!A-Za-z0-9_.-]*) exit 1 ;; esac
+    sys=$disk_sys_root/$leaf
+    if [ -f "$sys/partition" ]; then
+      parent=$(readlink -f "$sys") || exit 1
+      parent=${parent%/*}
+      member=$disk_dev_root/${parent##*/}
+    else
+      backing=
+      for slave in "$sys/slaves/"*; do
+        [ -e "$slave" ] || continue
+        [ -z "$backing" ] || exit 1
+        backing=$disk_dev_root/${slave##*/}
+      done
+      [ -n "$backing" ] || exit 1
+      member=$backing
+    fi
+    depth=$((depth + 1))
+  done
+  exit 1
 )
 
 detect_disk_main() {
@@ -136,6 +190,7 @@ detect_disk_main() {
 
 detect_disk_select() {
   if [ "${1:-}" = --identity ]; then disk_identity "$2"; return; fi
+  if [ "${1:-}" = --verify-identity ]; then shift; disk_verify_identity "$@"; return; fi
   if [ -n "${DEV_INSTALL_DISK:-}" ]; then
     disk_canonical "$DEV_INSTALL_DISK" || fatal 'explicit install disk is unavailable, unsafe, mounted, or installation media'
     return 0

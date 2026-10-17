@@ -317,13 +317,15 @@ pair_device_in_terminal() {
     --timeout 90 \
     pair "$address"
   then
-    run_device_command trust "$address" || true
-    run_device_command connect "$address" || true
+    trust_result=failed
+    connect_result=failed
+    result=0
+    if run_device_command trust "$address"; then trust_result=trusted; else result=1; fi
+    if run_device_command connect "$address"; then connect_result=connected; else result=1; fi
     notify_bluetooth normal bluetooth device.added \
       "Bluetooth device paired" \
-      "Paired, trusted, and connected ${address}."
+      "Paired ${address}. Trust: ${trust_result}. Connection: ${connect_result}."
     refresh_waybar
-    result=0
   else
     notify_bluetooth critical __THEME_MAKO_BLUETOOTH_ERROR_ICON_NAME__ device.error \
       "Bluetooth pairing failed" \

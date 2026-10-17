@@ -136,7 +136,9 @@ class Tree:
         finally:
             os.close(fd)
 
-    def write(self, relative: str, data: bytes | None, *, mode: int = 0o600) -> None:
+    def write(self, relative: str, data: bytes | None, *, mode: int = 0o600,
+              replace: bool = True,
+              publication: dict[str, tuple[int, int]] | None = None) -> None:
         with self.parent(relative, create=data is not None) as (parent, name):
             try:
                 old = os.stat(name, dir_fd=parent, follow_symlinks=False)
@@ -159,7 +161,15 @@ class Tree:
                     stream.write(data)
                     stream.flush()
                     os.fsync(fd)
-                os.replace(temporary, name, src_dir_fd=parent, dst_dir_fd=parent)
+                if publication is not None:
+                    identity = os.fstat(fd)
+                    publication[relative] = (identity.st_dev, identity.st_ino)
+                if replace:
+                    os.replace(temporary, name, src_dir_fd=parent, dst_dir_fd=parent)
+                else:
+                    os.link(temporary, name, src_dir_fd=parent, dst_dir_fd=parent,
+                            follow_symlinks=False)
+                    os.unlink(temporary, dir_fd=parent)
                 os.fsync(parent)
             finally:
                 os.close(fd)

@@ -362,6 +362,7 @@ sub _supervise_recording {
     local $SIG{INT} = sub { $requested = 1 };
     local $SIG{TERM} = sub { $requested = 1 };
     local $SIG{HUP} = sub { $requested = 1 };
+    local $SIG{CHLD} = 'DEFAULT';
     my $pid = fork;
     defined $pid or _fatal("cannot start pw-record: $!");
     if (!$pid) {
@@ -386,6 +387,9 @@ sub _supervise_recording {
         } elsif ($sent && !$killed && $now >= $deadline) {
             kill 'KILL', $pid;
             $killed = 1;
+            $deadline = $now + 2;
+        } elsif ($killed && $now >= $deadline) {
+            _fatal('pw-record termination outcome unknown; recording retained and owning service must be reconciled');
         }
         sleep 0.02;
     }

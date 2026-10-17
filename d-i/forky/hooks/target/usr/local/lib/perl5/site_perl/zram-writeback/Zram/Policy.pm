@@ -262,6 +262,9 @@ sub _truncate_page_index_spec {
 
 sub _add_writeback {
     my ($plan, $stats, $kind, $remaining_ref) = @_;
+    # Even preselected indexes from an incomplete scan are not authoritative.
+    # Explicit manual indexes are admitted separately in policy_plan.
+    return if !block_state_authoritative($stats);
     my $spec_key = $kind . '_writeback_specs';
     my $targeted = $stats->{$spec_key} || [];
     for my $spec (@{$targeted}) {

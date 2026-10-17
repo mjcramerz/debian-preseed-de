@@ -23,11 +23,13 @@ import json
 import os
 from pathlib import Path
 import re
-import signal
 import shutil
 import subprocess
 import sys
 import time
+import tempfile
+
+from stage_process import CleanupUnknown, run_stage
 
 ROOT = Path(__file__).resolve().parents[1]
 VALIDATION_PATH = '/usr/sbin:/usr/bin:/sbin:/bin'
@@ -68,6 +70,9 @@ def main() -> int:
     if not output.is_relative_to(ROOT):
         parser.error('--output-dir must stay inside the private checkout')
     output.mkdir(parents=True,exist_ok=True)
+    # Every report belongs to one fresh run. Never consume a prior audit.json
+    # after an interrupted or failed current audit stage.
+    output = Path(tempfile.mkdtemp(prefix='run-', dir=output))
     interpreter = resolve_python_interpreter()
     stages = [
         ('browser-check', [interpreter,'-B','tools/check_browser_policies.py'],30),
@@ -86,25 +91,14 @@ def main() -> int:
         log=output/(name+'.log')
         timed_out=False
         with log.open('w') as stream:
-            process=subprocess.Popen(
-                command,
-                cwd=ROOT,
-                env=child_environment,
-                stdout=stream,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-            )
             try:
-                status=process.wait(timeout=timeout)
-            except subprocess.TimeoutExpired:
-                timed_out=True
-                os.killpg(process.pid,signal.SIGTERM)
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    os.killpg(process.pid,signal.SIGKILL)
-                    process.wait()
-                status=124
+                result = run_stage(command, cwd=ROOT, env=child_environment,
+                                   stdout=stream, stderr=subprocess.STDOUT, timeout=timeout)
+            except CleanupUnknown as error:
+                print('Validation outcome unknown; evidence retained at ' + str(output), flush=True)
+                stream.write(str(error) + '\n')
+                return 75
+            status, timed_out = result.returncode, result.timed_out
         record={'stage':name,'returncode':status,'timed_out':timed_out,
                 'seconds':round(time.monotonic()-start,3),'log':log.name}
         if name in ('tests', 'tools-tests'):
@@ -112,11 +106,14 @@ def main() -> int:
             record['tests_run'], record['skipped'] = unittest_counts(text)
         results.append(record)
         print(f'[{name}] {"PASS" if status==0 else "FAIL"} ({status})',flush=True)
+        if result.cancelled is not None:
+            break
     audit={}
     if (output/'audit.json').is_file():
         audit=json.loads((output/'audit.json').read_text())
     report={'repository':ROOT.name,'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            'stages':results,'success':all(r['returncode']==0 for r in results),
+            'stages':results,'not_run':[name for name, _, _ in stages[len(results):]],
+            'success':len(results)==len(stages) and all(r['returncode']==0 for r in results),
             'audit_check_counts':audit.get('check_counts',{}),
             'runtime_product_sha256':{name:hashlib.sha256((ROOT/'d-i/forky'/name).read_bytes()).hexdigest()
                                      for name in ('preseed.cfg','payload.manifest','payload.tar.gz')},

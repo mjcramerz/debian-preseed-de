@@ -3,6 +3,9 @@ package APTRepoLocal::Servicing::Discord;
 use strict;
 use warnings;
 
+use lib '/usr/local/lib/perl5/site_perl/runtime';
+use Managed::Process qw(capture_command);
+
 use Moo;
 use MooX::StrictConstructor;
 
@@ -65,25 +68,10 @@ sub _assert_required_modules {
 
 sub _capture_limited {
     my ($self, $limit, @command) = @_;
-    $limit =~ /\A[0-9]+\z/ && $limit > 0 && $limit <= 16 * 1024 * 1024
-        or die "Discord command output limit is invalid\n";
-    open my $fh, '-|', @command
-        or die "cannot execute Discord validation command\n";
-    binmode $fh, ':raw';
-    my $output = q{};
-    while (1) {
-        my $chunk = q{};
-        my $read = read $fh, $chunk, 8192;
-        defined $read
-            or die "cannot read Discord validation output: $!\n";
-        last if $read == 0;
-        length($output) + $read <= $limit
-            or die "Discord validation output exceeds safe bounds\n";
-        $output .= $chunk;
-    }
-    close $fh
-        or die "Discord validation command failed\n";
-    return $output;
+    @command or return;
+    my $result = capture_command(argv => \@command, timeout => 120, limit => $limit);
+    if ($result->{status} != 0) { die "Discord archive inspection failed\n"; }
+    return $result->{stdout};
 }
 
 sub _sha256 {
@@ -1158,7 +1146,7 @@ sub apply {
     my ($result, $reason) = $self->_publish(
         $work,
         $pending,
-        $installed_runtime_valid ? $installed : undef,
+        $installed,
     );
     if ($result == 0) {
         $self->event()->emit(

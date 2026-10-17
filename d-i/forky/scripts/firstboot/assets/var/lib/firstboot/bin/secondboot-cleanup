@@ -265,7 +265,15 @@ cleanup_tpm2_enrollment() {
 
 remove_initramfs_health_hooks() {
   initramfs_root=$(root_path /etc/initramfs-tools/scripts)
+  initramfs_pending=$(root_path /var/lib/firstboot/state/initramfs-cleanup.pending)
   initramfs_changed=0
+  if [ -e "$initramfs_pending" ] || [ -L "$initramfs_pending" ]; then
+    regular_file_exists "$initramfs_pending" || {
+      printf 'fatal: invalid pending initramfs cleanup record\n' >&2
+      exit 1
+    }
+    initramfs_changed=1
+  fi
 
   for hook_path in \
     "${initramfs_root}/installer-health-common" \
@@ -283,7 +291,15 @@ remove_initramfs_health_hooks() {
     "${initramfs_root}/init-bottom/health-init-bottom"
   do
     [ -e "$hook_path" ] || [ -L "$hook_path" ] || continue
+    if [ ! -e "$initramfs_pending" ]; then
+      pending_candidate=$(mktemp "${initramfs_pending}.XXXXXX")
+      printf '%s\n' 'format=1' 'operation=remove-installer-health-hooks' >"$pending_candidate"
+      sync -f "$pending_candidate"
+      mv -fT -- "$pending_candidate" "$initramfs_pending"
+      sync -f "$(dirname "$initramfs_pending")"
+    fi
     rm -f -- "$hook_path"
+    sync -f "$(dirname "$hook_path")"
     initramfs_changed=1
   done
 
@@ -293,12 +309,77 @@ remove_initramfs_health_hooks() {
       exit 1
     }
     /usr/sbin/update-initramfs -u -k all
+    # Keep pending work across failed rebuilds and interrupted verification.
+    verified_images=0
+    listing_limit_bytes=16777216
+    listing_probe_bytes=$((listing_limit_bytes + 1))
+    for boot_image in /boot/initrd.img-*; do
+      # The signing hook publishes detached signatures beside the real images.
+      case "$boot_image" in *.sig) continue ;; esac
+      [ -f "$boot_image" ] || continue
+      listing=$(mktemp /run/secondboot-initramfs.XXXXXX)
+      listing_status_file=$(mktemp /run/secondboot-initramfs-status.XXXXXX)
+      if ! (
+        if /usr/bin/lsinitramfs "$boot_image"; then
+          printf '%s\n' 0 >"$listing_status_file"
+        else
+          listing_status=$?
+          printf '%s\n' "$listing_status" >"$listing_status_file"
+        fi
+      ) | /usr/bin/head -c "$listing_probe_bytes" >"$listing"; then
+        rm -f -- "$listing" "$listing_status_file"
+        printf 'fatal: cannot verify rebuilt initramfs\n' >&2
+        exit 1
+      fi
+      listing_bytes=$(/usr/bin/wc -c <"$listing") || {
+        rm -f -- "$listing" "$listing_status_file"
+        printf 'fatal: cannot measure rebuilt initramfs listing\n' >&2
+        exit 1
+      }
+      case "$listing_bytes" in
+        ''|*[!0-9\ ]*)
+          rm -f -- "$listing" "$listing_status_file"
+          printf 'fatal: rebuilt initramfs listing size is invalid\n' >&2
+          exit 1
+          ;;
+      esac
+      while [ "${listing_bytes# }" != "$listing_bytes" ]; do
+        listing_bytes=${listing_bytes# }
+      done
+      if [ "$listing_bytes" -gt "$listing_limit_bytes" ]; then
+        rm -f -- "$listing" "$listing_status_file"
+        printf 'fatal: rebuilt initramfs listing exceeds its size limit\n' >&2
+        exit 1
+      fi
+      if ! IFS= read -r listing_status <"$listing_status_file" ||
+         [ "$listing_status" != 0 ]; then
+        rm -f -- "$listing" "$listing_status_file"
+        printf 'fatal: cannot verify rebuilt initramfs\n' >&2
+        exit 1
+      fi
+      rm -f -- "$listing_status_file"
+      if grep -E -q '(^|/)(90-installer-health|installer-health-common|health-(init-top|local-top|local-premount|local-bottom|init-bottom))$' "$listing"; then
+        rm -f -- "$listing"
+        printf 'fatal: rebuilt initramfs retains temporary health hooks\n' >&2
+        exit 1
+      fi
+      rm -f -- "$listing"
+      verified_images=$((verified_images + 1))
+    done
+    [ "$verified_images" -gt 0 ] || {
+      printf 'fatal: no rebuilt initramfs was available for verification\n' >&2
+      exit 1
+    }
   fi
   # The final PCR-bound token must be enrolled only after booting the image
   # produced by this cleanup, not a soon-to-be-retired diagnostic initramfs.
   if [ "$SECONDBOOT_ROOT" = / ] && [ -e "$crypto_config" ] &&
      { [ "$initramfs_changed" -eq 1 ] || [ ! -e /var/lib/tpm2-enrollment/boot-artifacts-cleaned ]; }; then
     /usr/local/libexec/tpm2-policy-check --mark-boot-artifacts
+  fi
+  if [ "$SECONDBOOT_ROOT" = / ] && [ "$initramfs_changed" -eq 1 ]; then
+    rm -f -- "$initramfs_pending"
+    sync -f "$(dirname "$initramfs_pending")"
   fi
 }
 

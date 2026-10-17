@@ -8,6 +8,7 @@ import hashlib
 import os
 from pathlib import Path
 import pwd
+import selectors
 import signal
 import stat
 import subprocess
@@ -18,6 +19,8 @@ URL = 'git@gitlab.com:core-assets/docs/obsidian-md.git'
 BRANCHES = ('mcr/main', 'mcr/staging', 'mcr/release')
 QUIET_SECONDS = 30
 AUTO_POLICY = Path('/etc/obsidian-git-sync.conf')
+MAX_GIT_OUTPUT_BYTES = 16 * 1024 * 1024
+MAX_VAULT_ENTRIES = 50_000
 
 
 class SyncError(Exception):
@@ -75,6 +78,9 @@ def parse_auto_policy(value: bytes) -> bool:
 
 
 def git(root: Path, *args: str) -> bytes:
+    pending = root / '.git/obsidian-git-sync.pending'
+    if os.path.lexists(pending):
+        raise SyncError('previous Git termination is unresolved; reconcile .git/obsidian-git-sync.pending before retrying')
     env = {key: value for key, value in os.environ.items()
            if not key.startswith('GIT_') and key not in ('SSH_ASKPASS', 'SSH_AGENT_PID')}
     env.update(GIT_CONFIG_NOSYSTEM='1', GIT_TERMINAL_PROMPT='0',
@@ -87,22 +93,59 @@ def git(root: Path, *args: str) -> bytes:
         stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL, start_new_session=True)
     try:
+        deadline = time.monotonic() + 180
+        output = bytearray()
         try:
-            output, _ = proc.communicate(timeout=180)
+            with selectors.DefaultSelector() as selector:
+                selector.register(proc.stdout, selectors.EVENT_READ)
+                while selector.get_map():
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise subprocess.TimeoutExpired(proc.args, 180)
+                    for key, _ in selector.select(remaining):
+                        chunk = os.read(key.fd, 65536)
+                        if not chunk:
+                            selector.unregister(key.fileobj)
+                            continue
+                        if len(output) + len(chunk) > MAX_GIT_OUTPUT_BYTES:
+                            raise SyncError('Git output exceeded 16 MiB')
+                        output.extend(chunk)
+            proc.wait(timeout=max(0.01, deadline - time.monotonic()))
         except subprocess.TimeoutExpired as exc:
             raise SyncError(f'Git {args[0]} timed out') from exc
         if proc.returncode:
             raise SyncError(f'Git {args[0]} failed (exit {proc.returncode})')
-        return output
+        return bytes(output)
     finally:
         try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        proc.wait()
-        for stream in (proc.stdout, proc.stderr):
-            if stream is not None:
-                stream.close()
+            if proc.returncode is None:
+                # No poll/reap occurs between group signals: the unreaped
+                # leader pins the group identity even if it has already exited.
+                try:
+                    os.killpg(proc.pid, signal.SIGTERM)
+                    time.sleep(0.2)
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                try:
+                    proc.wait(timeout=4.8)
+                except subprocess.TimeoutExpired as exc:
+                    fd = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL |
+                                 os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+                    with os.fdopen(fd, 'wb') as stream:
+                        stream.write(b'Git process termination outcome unknown; reconcile before retry.\n')
+                        stream.flush()
+                        os.fsync(stream.fileno())
+                    directory = os.open(pending.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+                    try:
+                        os.fsync(directory)
+                    finally:
+                        os.close(directory)
+                    raise SyncError('Git termination outcome unknown; vault and recovery marker retained') from exc
+        finally:
+            for stream in (proc.stdout, proc.stderr):
+                if stream is not None:
+                    stream.close()
 
 
 def owned_dir(path: Path) -> None:
@@ -114,9 +157,21 @@ def owned_dir(path: Path) -> None:
 def snapshot(root: Path, known: set[bytes] | None = None) -> dict[bytes, tuple]:
     """Read the same files Git can add, without following symlinks or FIFOs."""
     # HEAD retains tracked deletions even after add -A removes index entries.
-    names = set(git(root, 'ls-tree', '-r', '--name-only', '-z', 'HEAD').split(b'\0'))
-    names.update(git(root, 'ls-files', '--cached', '--others', '--exclude-standard', '-z').split(b'\0'))
-    names.discard(b'')
+    names = set()
+    for arguments in (('ls-tree', '-r', '--name-only', '-z', 'HEAD'),
+                      ('ls-files', '--cached', '--others', '--exclude-standard', '-z')):
+        data = git(root, *arguments)
+        offset = 0
+        while offset < len(data):
+            end = data.find(b'\0', offset)
+            if end < 0:
+                raise SyncError('Git returned an incomplete vault entry list')
+            name = data[offset:end]
+            offset = end + 1
+            if name:
+                names.add(name)
+                if len(names) > MAX_VAULT_ENTRIES:
+                    raise SyncError('vault entry count exceeds 50000')
     if known is not None:
         if names - known:
             raise SyncError('new vault entries appeared during staging')

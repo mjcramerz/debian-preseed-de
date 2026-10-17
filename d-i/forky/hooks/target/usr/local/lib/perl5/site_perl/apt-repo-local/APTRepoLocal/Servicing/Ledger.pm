@@ -3,6 +3,9 @@ package APTRepoLocal::Servicing::Ledger;
 use strict;
 use warnings;
 
+use lib '/usr/local/lib/perl5/site_perl/runtime';
+use Managed::Process qw(capture_command);
+
 use Moo;
 use MooX::StrictConstructor;
 
@@ -24,13 +27,10 @@ use constant KEY_FINGERPRINT => '0381bccfa5505e834f9fda30eeba257055782f30c495ba0
 
 sub _capture_bytes {
     my ($self, @command) = @_;
-    open my $fh, '-|', @command
-        or return;
-    binmode $fh, ':raw';
-    my $bytes = do { local $/; <$fh> // q{} };
-    close $fh
-        or return;
-    return $bytes;
+    @command or return;
+    my $result = capture_command(argv => \@command, timeout => 120, limit => 1_048_576);
+    if ($result->{status} != 0) { return; }
+    return $result->{stdout};
 }
 
 sub _digest {

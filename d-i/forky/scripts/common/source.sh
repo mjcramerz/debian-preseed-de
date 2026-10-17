@@ -1,5 +1,5 @@
 #!/bin/sh
-# Repository transport. POSIX shell; no Python, curl or GNU-only wget required.
+# Repository transport. POSIX shell; wget-udeb supplies controlled redirects.
 # The bootstrap core is embedded by tools/build.py, not maintained twice.
 # BEGIN BOOTSTRAP CORE
 # BEGIN EMBEDDED LIFECYCLE
@@ -351,8 +351,15 @@ source_validate_url() {
   case "$1" in http://?*/*|https://?*/*) ;; *) source_error 'repository URLs must be absolute HTTP or HTTPS URLs with a path'; return 1 ;; esac;
   case "$1" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~:/?#@\!\$\&\(\)\*+,\;=%-]*) source_error 'repository URL contains unsupported characters'; return 1 ;; esac;
   source_authority=${1#*://}; source_authority=${source_authority%%/*};
-  case "$source_authority" in ''|*@*) source_error 'empty URL authority or embedded credentials are not allowed'; return 1 ;; esac;
+  case "$source_authority" in ''|*@*|*\?*|*\#*) source_error 'empty or invalid URL authority or embedded credentials are not allowed'; return 1 ;; esac;
 };
+source_monotonic_seconds() (
+  IFS=' ' read -r seconds remainder </proc/uptime || exit 1;
+  seconds=${seconds%%.*};
+  case "$seconds" in ''|*[!0-9]*) exit 1 ;; esac;
+  [ "${#seconds}" -le 12 ] || exit 1;
+  printf '%s\n' "$seconds";
+);
 source_effective_url() {
   awk -v initial="$1" 'function join(b,l, a,n,i,out,scheme,host,path,q) { if(l ~ /^https?:\/\//) return l; if(l ~ /^[A-Za-z][A-Za-z0-9+.-]*:/) {bad=1; return l}; scheme=b; sub(/:.*/,"",scheme); host=b; sub(/^https?:\/\//,"",host); sub(/\/.*/,"",host); if(l ~ /^\/\//) return scheme ":" l; sub(/[?#].*/,"",b); if(l ~ /^\//) path=l; else if(l ~ /^\?/) return b l; else {path=b; sub(/^https?:\/\/[^\/]+/,"",path); sub(/[^\/]*$/,"",path); path=path l}; q=path; sub(/^[^?#]*/,"",q); sub(/[?#].*/,"",path); n=split(path,a,"/"); out=""; for(i=1;i<=n;i++){if(a[i]=="" || a[i]==".") continue; if(a[i]=="..") sub(/\/[^\/]*$/,"",out); else out=out "/" a[i]}; return scheme "://" host out q } BEGIN {url=initial; bad=0; count=0} {line=$0; sub(/^[ \t]+/,"",line); if(tolower(line) ~ /^location:/) {sub(/^[^:]*:[ \t]*/,"",line); sub(/\r$/,"",line); sub(/[ \t]+\[following\].*$/,"",line); sub(/[ \t]+$/,"",line); nexturl=join(url,line); if(url ~ /^https:/ && nexturl !~ /^https:/) bad=1; url=nexturl; count++}} END {if(bad || count>10) exit 1; print url}' "$2";
 };
@@ -368,38 +375,69 @@ source_http_get() (
   };
   source_validate_url "$url" || exit 1;
   command -v wget >/dev/null 2>&1 || { source_error 'wget is required in the installer'; exit 1; };
+  # BusyBox wget follows redirects internally without a per-hop stop option.
+  # Load the packaged installer tool before contacting repository content.
+  help=$(wget --help 2>&1 || :);
+  case "$help" in *--max-redirect*) ;; *)
+    command -v anna-install >/dev/null 2>&1 &&
+      installer_run_bounded 60 anna-install wget-udeb || {
+        source_error 'wget-udeb with redirect control is required in the installer image'; exit 125;
+      };
+    help=$(wget --help 2>&1 || :);
+    case "$help" in *--max-redirect*) ;; *) source_error 'installer wget cannot disable automatic redirects'; exit 125 ;; esac;
+  esac;
   mkdir -p "$(dirname "$destination")" || exit 1;
   temp=$(mktemp "${destination}.part.XXXXXX") || exit 1; headers=${temp}.headers;
   trap 'rm -f "$temp" "$headers"' 0;
   trap 'exit 130' INT; trap 'exit 143' TERM; trap 'exit 129' HUP;
-  help=$(wget --help 2>&1 || :);
-  set -- wget -S -T "$read_timeout" -O "$temp";
-  case "$help" in *--tries*) set -- "$@" --tries=1 ;; esac;
-  case "$help" in *--max-redirect*) set -- "$@" --max-redirect=10 ;; esac;
+  set -- wget --no-config -S -T "$read_timeout" -O "$temp" --tries=1 --max-redirect=0;
   if source_insecure; then
     source_error 'TLS authentication bypass is forbidden for executable repository content'; exit 1;
   else
     status=$?; [ "$status" -eq 1 ] || exit "$status";
   fi;
-  # wget -T is an inactivity timeout; a slow trickle must not extend a fetch
-  # forever. The independent wall-clock bound also covers BusyBox retries.
+  # One deadline covers every retry and validated same-authority hop. The
+  # native file-size limit also bounds chunked responses and header logs.
+  ulimit -f 524288 || { source_error 'cannot enforce repository transfer size limit'; exit 125; };
+  started=$(source_monotonic_seconds) || exit 125;
+  deadline=$(expr "$started" + "$wall_timeout") || exit 125;
+  origin=${url#*://}; origin=${origin%%/*};
+  hops=0; attempts=0;
   success=false; fetch_status=1;
+  while :; do
+  redirected=false;
   for attempt in 1 2 3; do
-    if installer_run_bounded "$wall_timeout" "$@" "$url" >"$headers" 2>&1; then
+    now=$(source_monotonic_seconds) || exit 125;
+    remaining=$(expr "$deadline" - "$now") || :;
+    if [ "$remaining" -le 0 ]; then fetch_status=124; break; fi;
+    attempts=$(expr "$attempts" + 1);
+    if installer_run_bounded "$remaining" "$@" "$url" >"$headers" 2>&1; then
       success=true; break;
     else fetch_status=$?; fi;
+    response=$(awk '/^[ \t]*HTTP\/[0-9.]+ / {code=$2} END {print code}' "$headers");
+    case "$response" in 301|302|303|307|308)
+      resolved=$(source_effective_url "$url" "$headers") || { source_error 'unsafe redirect destination'; exit 1; };
+      source_validate_url "$resolved" || exit 1;
+      authority=${resolved#*://}; authority=${authority%%/*};
+      [ "$authority" = "$origin" ] || { source_error 'repository redirect leaves its approved authority'; exit 1; };
+      [ "$resolved" != "$url" ] && [ "$hops" -lt 10 ] || { source_error 'repository redirect loop or limit'; exit 1; };
+      url=$resolved; hops=$(expr "$hops" + 1); redirected=true; break ;;
+    esac;
     # Invalid options, local I/O, TLS/authentication and supervisor errors do
     # not become valid by retrying. Retry only potentially transient failures.
     case "$fetch_status" in 2|3|5|6|125|126|127|129|130|143) break ;; esac;
     if grep -Eq 'HTTP/[0-9.]+ (401|403|404|410)' "$headers"; then break; fi;
     [ "$attempt" -eq 3 ] || sleep 1;
   done;
+  [ "$success" != true ] || break;
+  [ "$redirected" = true ] || break;
+  done;
   if [ "$success" != true ]; then
     # Never follow an existing diagnostic symlink or lose the downloader's
     # status behind a generic fetch error. The first failure owns the record.
-    { printf 'status=%s\nattempts=%s\n' "$fetch_status" "$attempt"; cat "$headers"; } >"$temp";
+    { printf 'status=%s\nattempts=%s\n' "$fetch_status" "$attempts"; cat "$headers"; } >"$temp";
     chmod 0600 "$temp" && mv -f "$temp" "${destination}.fetch-error" || :;
-    source_error "repository HTTP fetch failed status=$fetch_status attempts=$attempt; response details: ${destination}.fetch-error" || :;
+    source_error "repository HTTP fetch failed status=$fetch_status attempts=$attempts; response details: ${destination}.fetch-error" || :;
     exit "$fetch_status";
   fi;
   if grep -qi 'certificate validation not implemented' "$headers"; then

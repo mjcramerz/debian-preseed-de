@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -B
+#!/usr/bin/python3 -IB
 """Account-scoped OBS/osc source-publication entrypoints."""
 
 from __future__ import annotations
@@ -17,6 +17,9 @@ import urllib.parse
 from dataclasses import dataclass
 from typing import Callable, NoReturn
 
+sys.path.insert(0, "/usr/local/lib/python3.14/dist-packages")
+from managed_workflows.process import CommandError, OutputLimitError, checked
+
 
 ACCOUNT_RE = re.compile(r"[A-Za-z0-9_.@+-]+\Z")
 PACKAGE_RE = re.compile(r"[A-Za-z0-9+._-]+\Z")
@@ -26,6 +29,7 @@ KEYRING_BACKEND_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*\Z")
 OSC_BINARY = pathlib.Path("/usr/local/lib/osc/bin/osc")
 COMMAND_TIMEOUT_SECONDS = 3600
 STATUS_TIMEOUT_SECONDS = 300
+STATUS_OUTPUT_LIMIT_BYTES = 8 * 1024 * 1024
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_SECRET_BYTES = 8192
 
@@ -86,7 +90,7 @@ def require_private_regular_file(
     uid: int,
     maximum_bytes: int,
 ) -> bytes:
-    flags = os.O_RDONLY
+    flags = os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC
     if not hasattr(os, "O_NOFOLLOW"):
         fail("the kernel does not support no-follow file reads")
     flags |= os.O_NOFOLLOW
@@ -98,6 +102,8 @@ def require_private_regular_file(
         file_stat = os.fstat(descriptor)
         if not stat.S_ISREG(file_stat.st_mode):
             fail(f"{label} must be a regular non-symlink file: {path}")
+        if file_stat.st_nlink != 1:
+            fail(f"{label} must not have additional hard links: {path}")
         if file_stat.st_uid != uid:
             fail(f"{label} must be owned by the current account: {path}")
         if stat.S_IMODE(file_stat.st_mode) != 0o600:
@@ -123,6 +129,8 @@ def require_private_regular_file(
         or final_stat.st_size != file_stat.st_size
         or final_stat.st_ino != file_stat.st_ino
         or final_stat.st_dev != file_stat.st_dev
+        or final_stat.st_mtime_ns != file_stat.st_mtime_ns
+        or final_stat.st_ctime_ns != file_stat.st_ctime_ns
     ):
         fail(f"{label} changed while it was being read: {path}")
     return data
@@ -501,6 +509,56 @@ def obs_checkout_source(arguments: list[str]) -> None:
         fail("managed osc checkout could not start")
 
 
+def working_copy_identity(metadata: pathlib.Path, context: OscContext) -> tuple:
+    """Bind osc's stored origin and project to the selected publication target."""
+    descriptor = os.open(metadata, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        directory = os.fstat(descriptor)
+        if directory.st_uid != os.getuid() or directory.st_mode & 0o022:
+            fail("OBS working-copy metadata directory has unsafe ownership or permissions")
+        values = {}
+        identities = []
+        for name in ("_apiurl", "_project", "_package"):
+            fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+                         dir_fd=descriptor)
+            try:
+                before = os.fstat(fd)
+                if (not stat.S_ISREG(before.st_mode) or before.st_uid != os.getuid()
+                        or before.st_nlink != 1 or before.st_mode & 0o022
+                        or not 1 <= before.st_size <= 4096):
+                    fail("OBS working-copy identity metadata is unsafe")
+                data = bytearray()
+                while len(data) <= 4096:
+                    chunk = os.read(fd, 4097 - len(data))
+                    if not chunk:
+                        break
+                    data.extend(chunk)
+                after = os.fstat(fd)
+                identity = (before.st_dev, before.st_ino, before.st_size,
+                            before.st_mtime_ns, before.st_ctime_ns)
+                if (len(data) != before.st_size or identity != (
+                        after.st_dev, after.st_ino, after.st_size,
+                        after.st_mtime_ns, after.st_ctime_ns)):
+                    fail("OBS working-copy identity metadata changed while being read")
+                try:
+                    values[name] = data.decode("utf-8").strip()
+                except UnicodeError:
+                    fail("OBS working-copy identity metadata must be UTF-8 text")
+                identities.append(identity)
+            finally:
+                os.close(fd)
+    finally:
+        os.close(descriptor)
+    if values["_apiurl"].rstrip("/") != context.apiurl.rstrip("/"):
+        fail("OBS working-copy API origin does not match the managed API origin")
+    if values["_project"] != context.project:
+        fail("OBS working copy does not belong to the oscrc managed project")
+    if PACKAGE_RE.fullmatch(values["_package"]) is None:
+        fail("OBS working-copy package name is invalid")
+    return ((directory.st_dev, directory.st_ino), tuple(identities),
+            values["_project"], values["_package"])
+
+
 def obs_publish_source(arguments: list[str]) -> None:
     if len(arguments) != 2:
         fail("usage: obs-publish-source <osc-working-copy> <commit-message>")
@@ -524,55 +582,42 @@ def obs_publish_source(arguments: list[str]) -> None:
     metadata = working_copy / ".osc"
     if metadata.is_symlink() or not metadata.is_dir():
         fail(f"OBS working copy metadata is missing: {metadata}")
-    project_file = metadata / "_project"
-    package_file = metadata / "_package"
-    for metadata_file, label in (
-        (project_file, "OBS project metadata"),
-        (package_file, "OBS package metadata"),
-    ):
-        try:
-            metadata_stat = metadata_file.lstat()
-        except FileNotFoundError:
-            fail(f"{label} is missing: {metadata_file}")
-        if metadata_file.is_symlink() or not stat.S_ISREG(metadata_stat.st_mode):
-            fail(f"{label} must be a regular non-symlink file: {metadata_file}")
-        if metadata_stat.st_size < 1 or metadata_stat.st_size > 4096:
-            fail(f"{label} has an invalid size: {metadata_file}")
-    try:
-        working_project = project_file.read_text(encoding="utf-8").strip()
-        working_package = package_file.read_text(encoding="utf-8").strip()
-    except UnicodeError:
-        fail("OBS working-copy metadata must be UTF-8 text")
-    if working_project != context.project:
-        fail("OBS working copy does not belong to the oscrc managed project")
-    if PACKAGE_RE.fullmatch(working_package) is None:
-        fail("OBS working-copy package name is invalid")
+    identity = working_copy_identity(metadata, context)
+    _, _, working_project, working_package = identity
+
+    def verify_identity() -> None:
+        if working_copy_identity(metadata, context) != identity:
+            fail("OBS working-copy identity changed; publication stopped")
+
     environment = osc_environment_with_credentials(context)
+    verify_identity()
     run_checked(
         osc_argv(context, ["addremove", str(working_copy)]),
         "updating the OBS source file list",
         environment=environment,
     )
     try:
-        status_result = subprocess.run(
+        verify_identity()
+        status_output = checked(
             osc_argv(context, ["status", str(working_copy)]),
-            check=False,
             env=environment,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
+            capture=True,
             timeout=STATUS_TIMEOUT_SECONDS,
+            max_output_bytes=STATUS_OUTPUT_LIMIT_BYTES,
         )
     except subprocess.TimeoutExpired:
         fail("reading OBS working-copy status timed out")
+    except OutputLimitError:
+        fail("reading OBS working-copy status exceeded its output limit")
+    except CommandError:
+        fail("reading OBS working-copy status failed")
     except OSError:
         fail("reading OBS working-copy status could not start")
-    if status_result.returncode != 0:
-        fail("reading OBS working-copy status failed")
-    if not status_result.stdout.strip():
+    if not status_output.strip():
         print(f"OBS package {working_project}/{working_package} is already up to date")
         return
-    print(status_result.stdout, end="" if status_result.stdout.endswith("\n") else "\n")
+    print(status_output, end="" if status_output.endswith("\n") else "\n")
+    verify_identity()
     run_checked(
         osc_argv(context, ["commit", "-m", message, str(working_copy)]),
         "publishing sources to OBS",

@@ -110,7 +110,7 @@ class ManagedAPTRepoLocalTests(unittest.TestCase):
                           + '; install libmoo-perl libmoox-strictconstructor-perl libmoox-types-mooselike-perl')
         self.assertEqual(probe.returncode, 0, probe.stderr)
         return subprocess.run(
-            payload_installed_argv(['/usr/bin/perl', '-I', str(PERL_LIB), '-e', source,
+            payload_installed_argv(['/usr/bin/perl', '-I', str(PERL_LIB), '-I', str(PERL_LIB.parent / 'runtime'), '-e', source,
              *(str(argument) for argument in arguments)]),
             env={**os.environ, 'LC_ALL': 'C.UTF-8', 'PATH': SYSTEM_PATH},
             text=True,
@@ -438,6 +438,111 @@ print join('|', $result, $reason, $cli->apply_failure_detail()), "\n";
             '1|validation|repository: synthetic repository failure\n',
         )
 
+    def test_repository_import_outlives_query_deadline_and_retains_exact_path(self):
+        source = r'''
+use strict;
+use warnings;
+use APTRepoLocal::Servicing::Repository;
+my @deadlines;
+no warnings 'redefine';
+local *APTRepoLocal::Servicing::Repository::capture_command = sub {
+    my %args = @_;
+    push @deadlines, $args{timeout};
+    if ($args{argv}[1] eq 'import') {
+        # Model an import whose native payload phase needs 180 seconds.
+        return {status => 124 << 8, error => 'timeout', stderr => q{}, stdout => q{}}
+            if $args{timeout} < 180;
+        return {status => 0, stdout => '/fixture/repo/pool/chatgpt/' . ('a' x 64)
+                . "/chatgpt_1.0+localrepo1_amd64.deb\n"};
+    }
+    return {status => 0, stdout => "catalogue\n"};
+};
+my $repository = APTRepoLocal::Servicing::Repository->new(directory => '/fixture/repo');
+my ($path, $created) = $repository->retain('/fixture/download.deb', {package => 'chatgpt'});
+die 'missing import result' unless $created == 1;
+print "$path\n";
+$repository->_capture(APTRepoLocal::Servicing::Repository::HELPER(), 'list');
+print join('|', @deadlines), "\n";
+'''
+        result = self.run_perl(source)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        lines = result.stdout.splitlines()
+        self.assertEqual(lines[0], '/fixture/repo/pool/chatgpt/' + 'a' * 64
+                         + '/chatgpt_1.0+localrepo1_amd64.deb')
+        imported, queried = map(int, lines[1].split('|'))
+        self.assertGreater(imported, 240)
+        self.assertLessEqual(imported, 1200)
+        self.assertEqual(queried, 120)
+
+    def test_repository_import_failure_preserves_managed_diagnostic_and_redacts_url(self):
+        source = r'''
+use strict;
+use warnings;
+use APTRepoLocal::Servicing::Repository;
+no warnings 'redefine';
+local *APTRepoLocal::Servicing::Repository::capture_command = sub {
+    return {status => 2 << 8, stdout => q{}, stderr =>
+        "unmanaged-secret-line\napt-repo-local: package validation failed https://user:password\@vendor.invalid/file?token=secret\nraw-hostile-payload\n"};
+};
+my $repository = APTRepoLocal::Servicing::Repository->new();
+eval { $repository->retain('/fixture/package.deb', {package => 'chatgpt'}); };
+print $@;
+'''
+        result = self.run_perl(source)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('managed repository import failed (exit 2: package validation failed [redacted-url])', result.stdout)
+        for value in ('password', 'token=', 'unmanaged-secret-line', 'raw-hostile-payload'):
+            self.assertNotIn(value, result.stdout + result.stderr)
+
+    def test_repository_failure_distinguishes_timeout_and_signal_status(self):
+        source = r'''
+use strict;
+use warnings;
+use APTRepoLocal::Servicing::Repository;
+no warnings 'redefine';
+for my $result ({status => 124 << 8, error => 'timeout'}, {status => 9}) {
+    local *APTRepoLocal::Servicing::Repository::capture_command = sub { return $result; };
+    my $repository = APTRepoLocal::Servicing::Repository->new();
+    eval { $repository->retain('/fixture/package.deb', {package => 'chatgpt'}); };
+    print $@;
+}
+'''
+        result = self.run_perl(source)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('deadline exceeded after 1200s; import outcome may be unknown', result.stdout)
+        self.assertIn('managed repository import failed (signal 9)', result.stdout)
+        self.assertNotIn('exit 124', result.stdout)
+
+    def test_chatgpt_import_failure_is_not_labelled_as_download_failure(self):
+        source = r'''
+use strict;
+use warnings;
+use APTRepoLocal::Servicing::CLI;
+{
+    package FixtureChatGPT;
+    sub enabled { 1 }
+    sub spec { {name => 'chatgpt'} }
+    package FixtureState;
+    sub deb_dir { '/fixture/repo' }
+}
+no warnings 'redefine';
+local *APTRepoLocal::Servicing::ChatGPT::new = sub { bless {}, 'FixtureChatGPT' };
+local *APTRepoLocal::Servicing::HTTP::new = sub { bless {}, 'FixtureHTTP' };
+local *APTRepoLocal::Servicing::Repository::new = sub { bless {}, 'FixtureRepository' };
+local *APTRepoLocal::Servicing::Deb::new = sub { bless {}, 'FixtureDeb' };
+local *APTRepoLocal::Servicing::CLI::_fetch_generic_deb = sub {
+    $_[0]->{apply_failure_detail} = 'repository: managed repository import failed (exit 2)';
+    return (1, 'validation');
+};
+my $cli = APTRepoLocal::Servicing::CLI->new();
+eval { $cli->_run_bootstrap_chatgpt(bless({}, 'FixtureState'), undef, '/fixture'); };
+print $@;
+'''
+        result = self.run_perl(source)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('ChatGPT bootstrap repository import failed:', result.stdout)
+        self.assertNotIn('ChatGPT bootstrap download failed:', result.stdout)
+
     def test_chatgpt_forbidden_installed_dependencies_fail_postinstall(self):
         source = r'''
 use strict;
@@ -477,6 +582,8 @@ use APTRepoLocal::Servicing::CLI;
     package TestChatGPT;
     sub prepare_install { return 1; }
     sub finalize_install { return 1; }
+    sub commit_install { return 1; }
+    sub package_install { return $_[1]->(); }
     sub abort_install { return 1; }
     sub policy_valid { return 1; }
 }

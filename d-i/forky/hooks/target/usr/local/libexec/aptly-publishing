@@ -1,9 +1,11 @@
-#!/usr/bin/python3 -B
+#!/usr/bin/python3 -IB
 """Account-scoped Aptly/R2 publication entrypoints."""
 
 from __future__ import annotations
 
 import datetime as dt
+import fcntl
+import hashlib
 import hmac
 import json
 import os
@@ -14,11 +16,15 @@ import stat
 import subprocess
 import sys
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
+import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Callable, NoReturn
+
+sys.path.insert(0, "/usr/local/lib/python3.14/dist-packages")
+from managed_workflows.fs import Tree
+from managed_workflows.process import CommandError, checked
 
 
 ACCESS_KEY_RE = re.compile(r"[0-9A-Fa-f]{32}\Z")
@@ -38,10 +44,30 @@ KEYRING_BACKEND_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*\Z")
 APTLY_BINARY = pathlib.Path("/usr/local/lib/aptly/bin/aptly")
 COMMAND_TIMEOUT_SECONDS = 3600
 PROBE_TIMEOUT_SECONDS = 60
+PUBLIC_INRELEASE_MAX_BYTES = 4 * 1024 * 1024
+PUBLIC_FETCH_TIMEOUT_SECONDS = 30
+PUBLICATION_PROPAGATION_TIMEOUT_SECONDS = 120
+PUBLICATION_POLL_INTERVAL_SECONDS = 2
+PUBLICATION_LOCK_TIMEOUT_SECONDS = 60
+PUBLICATION_OPERATION_TIMEOUT_SECONDS = 3000
+PUBLICATION_RECEIPT = ".publication.json"
+MAX_PUBLICATION_RECEIPT_BYTES = 16384
 
 
 class PublishingError(RuntimeError):
     """Expected validation or publication failure."""
+
+
+class PublicReleaseError(PublishingError):
+    """The public signed release could not be fetched or verified."""
+
+
+class PublicationPending(PublishingError):
+    """The native publication committed; public propagation is unverified."""
+
+
+class PublicationUnknown(PublishingError):
+    """A remote mutation was attempted without a confirmed final result."""
 
 
 @dataclass(frozen=True)
@@ -58,6 +84,12 @@ class AptlyContext:
     component: str
     publish_target: str
     public_base_url: str
+
+
+@dataclass(frozen=True)
+class PublicationState:
+    tree: Tree
+    lock_fd: int
 
 
 def fail(message: str) -> NoReturn:
@@ -100,7 +132,7 @@ def require_private_regular_file(
     uid: int,
     maximum_bytes: int,
 ) -> bytes:
-    flags = os.O_RDONLY
+    flags = os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC
     if not hasattr(os, "O_NOFOLLOW"):
         fail("the kernel does not support no-follow file reads")
     flags |= os.O_NOFOLLOW
@@ -112,6 +144,8 @@ def require_private_regular_file(
         file_stat = os.fstat(descriptor)
         if not stat.S_ISREG(file_stat.st_mode):
             fail(f"{label} must be a regular non-symlink file: {path}")
+        if file_stat.st_nlink != 1:
+            fail(f"{label} must not have additional hard links: {path}")
         if file_stat.st_uid != uid:
             fail(f"{label} must be owned by the current account: {path}")
         if stat.S_IMODE(file_stat.st_mode) != 0o600:
@@ -137,6 +171,8 @@ def require_private_regular_file(
         or final_stat.st_size != file_stat.st_size
         or final_stat.st_ino != file_stat.st_ino
         or final_stat.st_dev != file_stat.st_dev
+        or final_stat.st_mtime_ns != file_stat.st_mtime_ns
+        or final_stat.st_ctime_ns != file_stat.st_ctime_ns
     ):
         fail(f"{label} changed while it was being read: {path}")
     return data
@@ -346,7 +382,16 @@ def load_aptly_context() -> AptlyContext:
     )
 
 
-def require_aptly_signing_key(context: AptlyContext) -> None:
+def remaining_timeout(deadline: float | None, maximum: float) -> float:
+    if deadline is None:
+        return maximum
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        fail("the managed Aptly operation deadline expired")
+    return min(maximum, remaining)
+
+
+def require_aptly_signing_key(context: AptlyContext, *, deadline: float | None = None) -> None:
     try:
         result = subprocess.run(
             [
@@ -362,7 +407,7 @@ def require_aptly_signing_key(context: AptlyContext) -> None:
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             text=True,
-            timeout=30,
+            timeout=remaining_timeout(deadline, 30),
         )
     except (OSError, subprocess.TimeoutExpired):
         fail("failed to inspect the configured Aptly OpenPGP secret key")
@@ -558,13 +603,24 @@ def run_aptly(arguments: list[str]) -> None:
     context = load_aptly_context()
     binary = require_root_owned_executable(APTLY_BINARY, "managed Aptly binary")
     arguments = aptly_arguments_with_managed_signing(context, arguments)
-    environment = os.environ.copy()
-    if aptly_publish_mutates_remote(arguments):
-        environment = aptly_environment_with_credentials(context)
-    try:
-        os.execve(str(binary), aptly_argv(context, arguments), environment)
-    except OSError:
-        fail("managed Aptly binary could not start")
+    with local_publication_lock(context) as state:
+        read_only = arguments == ["version"] or tuple(arguments[:2]) in {
+            (kind, action)
+            for kind in ("publish", "repo", "snapshot", "mirror", "package", "config")
+            for action in ("show", "list", "search")
+        }
+        if not read_only:
+            require_reconciled_publication(context, state)
+        environment = os.environ.copy()
+        if aptly_publish_mutates_remote(arguments):
+            environment = aptly_environment_with_credentials(context)
+        try:
+            # The managed Aptly process keeps the same lock while exec replaces
+            # this wrapper, so direct CLI mutations cannot race the publisher.
+            os.set_inheritable(state.lock_fd, True)
+            os.execve(str(binary), aptly_argv(context, arguments), environment)
+        except OSError:
+            fail("managed Aptly binary could not start")
 
 
 def run_dpkg_buildpackage(arguments: list[str]) -> None:
@@ -617,59 +673,341 @@ def run_checked(
     label: str,
     environment: dict[str, str] | None = None,
     quiet: bool = False,
-    timeout: int = COMMAND_TIMEOUT_SECONDS,
+    timeout: float = COMMAND_TIMEOUT_SECONDS,
+    lock_fd: int | None = None,
 ) -> None:
     try:
-        result = subprocess.run(
+        child = subprocess.Popen(
             arguments,
-            check=False,
             env=environment,
             stdin=None,
             stdout=subprocess.DEVNULL if quiet else None,
             stderr=subprocess.DEVNULL if quiet else None,
-            timeout=timeout,
+            pass_fds=() if lock_fd is None else (lock_fd,),
         )
-    except subprocess.TimeoutExpired:
-        fail(f"{label} exceeded its {timeout}-second timeout")
     except OSError:
         fail(f"{label} could not start")
-    if result.returncode != 0:
-        fail(f"{label} failed with status {result.returncode}")
+    try:
+        status = child.wait(timeout=timeout)
+    except BaseException as failure:
+        # Keep the foreground process group: native GPG/pinentry may deliberately
+        # use the controlling terminal. The unreaped direct child remains a
+        # stable identity. Its remote attempt receipt blocks an unsafe retry.
+        if child.returncode is None:
+            try:
+                child.kill()
+            except ProcessLookupError:
+                pass
+            except OSError as exc:
+                failure.add_note(f"{label}: command cancellation failed: {exc}")
+            try:
+                child.wait(timeout=5)
+            except subprocess.TimeoutExpired as exc:
+                raise PublicationUnknown(
+                    f"{label}: command termination is unknown; retain operation state"
+                ) from exc
+        if isinstance(failure, subprocess.TimeoutExpired):
+            fail(f"{label} exceeded its operation deadline")
+        raise
+    if status != 0:
+        fail(f"{label} failed with status {status}")
 
 
-def public_distribution_exists(
+@contextmanager
+def local_publication_lock(context: AptlyContext):
+    """Serialize every managed mutation of this account's Aptly state."""
+    try:
+        tree = Tree(context.state_dir, private=True)
+    except (OSError, ValueError):
+        fail("Aptly publication state directory could not be opened safely")
+    lock_fd = None
+    try:
+        directory = os.fstat(tree.fd)
+        if (
+            not stat.S_ISDIR(directory.st_mode)
+            or directory.st_uid != os.getuid()
+            or stat.S_IMODE(directory.st_mode) != 0o700
+        ):
+            fail("Aptly publication state directory is not private")
+        try:
+            lock_fd = os.open(
+                ".publication.lock",
+                os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+                0o600,
+                dir_fd=tree.fd,
+            )
+        except OSError:
+            fail("Aptly publication lock could not be opened safely")
+        lock_stat = os.fstat(lock_fd)
+        if (
+            not stat.S_ISREG(lock_stat.st_mode)
+            or lock_stat.st_uid != os.getuid()
+            or stat.S_IMODE(lock_stat.st_mode) != 0o600
+            or lock_stat.st_nlink != 1
+        ):
+            fail("Aptly publication lock is not a private regular file")
+        lock_deadline = time.monotonic() + PUBLICATION_LOCK_TIMEOUT_SECONDS
+        while True:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                remaining = lock_deadline - time.monotonic()
+                if remaining <= 0:
+                    fail("another managed Aptly publication is still active")
+                time.sleep(min(0.1, remaining))
+            except InterruptedError:
+                if time.monotonic() >= lock_deadline:
+                    fail("timed out while acquiring the Aptly publication lock")
+                continue
+            except OSError:
+                fail("Aptly publication lock could not be acquired")
+        yield PublicationState(tree, lock_fd)
+    finally:
+        try:
+            if lock_fd is not None:
+                os.close(lock_fd)
+        finally:
+            tree.close()
+
+
+def publication_receipt(context: AptlyContext, state: PublicationState) -> dict | None:
+    try:
+        data = state.tree.read(
+            PUBLICATION_RECEIPT, limit=MAX_PUBLICATION_RECEIPT_BYTES, missing=True,
+        )
+        if data is None:
+            return None
+        receipt = json.loads(data)
+    except (OSError, ValueError, RecursionError):
+        fail("the Aptly publication receipt could not be read safely; retain it for recovery")
+    if (
+        not isinstance(receipt, dict)
+        or receipt.get("schema") != 1
+        or not isinstance(receipt.get("status"), str)
+        or receipt.get("status") not in {"attempting", "committed", "unknown", "verified"}
+        or not isinstance(receipt.get("distribution"), str)
+        or receipt["distribution"] not in context.distributions
+        or not isinstance(receipt.get("snapshot"), str)
+        or re.fullmatch(
+            r"local-" + re.escape(receipt["distribution"]) + r"-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}",
+            receipt["snapshot"],
+        ) is None
+        or receipt.get("target") != context.publish_target
+        or receipt.get("public_base_url") != context.public_base_url
+        or receipt.get("signing_key") != context.signing_key
+        or receipt.get("component") != context.component
+        or (
+            receipt.get("status") == "verified"
+            and (
+                not isinstance(receipt.get("inrelease_sha256"), str)
+                or re.fullmatch(r"[0-9a-f]{64}", receipt["inrelease_sha256"]) is None
+            )
+        )
+    ):
+        fail("the Aptly publication receipt differs from managed policy; retain it for recovery")
+    return receipt
+
+
+def require_reconciled_publication(context: AptlyContext, state: PublicationState) -> None:
+    receipt = publication_receipt(context, state)
+    if receipt is not None and receipt["status"] != "verified":
+        result = PublicationPending if receipt["status"] == "committed" else PublicationUnknown
+        raise result(
+            f"publication {receipt['snapshot']} is unresolved; run "
+            f"aptly-publish-local --reconcile {receipt['distribution']} before another mutation"
+        )
+
+
+def save_publication_receipt(state: PublicationState, receipt: dict) -> None:
+    try:
+        state.tree.put_json(PUBLICATION_RECEIPT, receipt)
+    except (OSError, ValueError):
+        fail("the Aptly publication receipt could not be committed durably; retain state for recovery")
+
+
+def fetch_public_inrelease(
     context: AptlyContext,
     distribution: str,
-    attempts: int = 1,
-) -> bool:
-    url = (
-        f"{context.public_base_url}/dists/"
-        f"{urllib.parse.quote(distribution, safe='')}/InRelease"
-    )
-    for attempt in range(attempts):
-        request = urllib.request.Request(
-            url,
-            method="HEAD",
-            headers={"User-Agent": "aptly-publisher/1"},
+    *,
+    deadline: float | None = None,
+) -> bytes | None:
+    """Fetch one response with a transfer deadline, size cap and no redirects.
+
+    Packaged curl owns DNS, TLS, headers and body under the same --max-time.
+    The shared capture runner bounds output and final process cleanup as well.
+    """
+    parsed = urllib.parse.urlsplit(context.public_base_url)
+    try:
+        port = parsed.port
+    except ValueError:
+        raise PublicReleaseError("the public Aptly URL has an invalid port") from None
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or port is not None
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise PublicReleaseError("the public Aptly URL must remain one HTTPS origin")
+    if deadline is None:
+        deadline = time.monotonic() + PUBLIC_FETCH_TIMEOUT_SECONDS
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise PublicReleaseError("the public Aptly release request timed out")
+    timeout = min(remaining, PUBLIC_FETCH_TIMEOUT_SECONDS)
+    path = f"/dists/{urllib.parse.quote(distribution, safe='')}/InRelease"
+    try:
+        output = checked(
+            [
+                "/usr/bin/curl", "--disable", "--silent", "--show-error",
+                "--proto", "=https", "--proxy", "",
+                "--max-time", str(timeout),
+                "--connect-timeout", str(min(timeout, 10)),
+                "--max-filesize", str(PUBLIC_INRELEASE_MAX_BYTES),
+                "--header", "Accept-Encoding: identity",
+                "--user-agent", "aptly-publisher/1",
+                "--write-out", "\n%{http_code}",
+                "--url", f"https://{parsed.hostname}{path}",
+            ],
+            capture=True,
+            timeout=timeout,
+            max_output_bytes=PUBLIC_INRELEASE_MAX_BYTES + 4096,
         )
-        try:
-            with urllib.request.urlopen(request, timeout=20) as response:
-                if response.status in {200, 206}:
-                    return True
-                fail("the public Aptly Worker returned an unexpected success status")
-        except urllib.error.HTTPError as exc:
-            if exc.code == 404:
-                if attempt + 1 < attempts:
-                    time.sleep(2)
-                    continue
-                return False
-            fail(f"the public Aptly Worker preflight failed with HTTP status {exc.code}")
-        except (OSError, urllib.error.URLError):
-            if attempt + 1 < attempts:
-                time.sleep(2)
+    except subprocess.TimeoutExpired as exc:
+        raise PublicReleaseError("the public Aptly release request timed out") from exc
+    except (OSError, CommandError, UnicodeError) as exc:
+        raise PublicReleaseError("the public Aptly release request failed") from exc
+    body, separator, status = output.rpartition("\n")
+    if not separator or re.fullmatch(r"[0-9]{3}", status) is None:
+        raise PublicReleaseError("the public Aptly HTTP response is invalid")
+    if status == "404":
+        return None
+    if status != "200":
+        raise PublicReleaseError(f"the public Aptly Worker returned HTTP status {status}")
+    data = body.encode("utf-8")
+    if len(data) > PUBLIC_INRELEASE_MAX_BYTES:
+        raise PublicReleaseError("the public Aptly InRelease exceeds its size limit")
+    return data
+
+
+def signed_release_fields(data: bytes) -> dict[str, str]:
+    """Read fields only from one unambiguous clear-signed Release message."""
+    normalized = data.replace(b"\r\n", b"\n")
+    if b"\r" in normalized or not normalized.startswith(b"-----BEGIN PGP SIGNED MESSAGE-----\n"):
+        raise PublicReleaseError("the public Aptly InRelease is not a clear-signed message")
+    headers, separator, message = normalized.partition(b"\n\n")
+    if not separator or not headers.splitlines()[1:] or any(
+        not line.startswith(b"Hash: ") for line in headers.splitlines()[1:]
+    ):
+        raise PublicReleaseError("the public Aptly InRelease armor headers are invalid")
+    body, separator, signature = message.partition(b"\n-----BEGIN PGP SIGNATURE-----\n")
+    if (
+        not separator
+        or not signature.endswith((b"\n-----END PGP SIGNATURE-----\n", b"\n-----END PGP SIGNATURE-----"))
+        or signature.count(b"-----END PGP SIGNATURE-----") != 1
+        or b"-----BEGIN PGP" in signature
+    ):
+        raise PublicReleaseError("the public Aptly InRelease signature envelope is ambiguous")
+    fields: dict[str, str] = {}
+    seen = set()
+    identity_fields = {"version", "codename", "suite", "components"}
+    current = None
+    try:
+        for raw_line in body.rstrip(b"\n").split(b"\n"):
+            if raw_line.startswith(b"- "):
+                raw_line = raw_line[2:]
+            elif raw_line.startswith(b"-"):
+                raise ValueError("invalid dash escaping")
+            line = raw_line.decode("utf-8")
+            if line.startswith((" ", "\t")):
+                if current is None:
+                    raise ValueError("orphaned continuation")
+                if current in identity_fields:
+                    raise ValueError("multiline release identity")
                 continue
-            fail("the public Aptly Worker preflight request failed")
-    return False
+            key, colon, value = line.partition(":")
+            if not colon or re.fullmatch(r"[A-Za-z][A-Za-z0-9-]*", key) is None:
+                raise ValueError("invalid release field")
+            current = key.lower()
+            if current in seen:
+                raise ValueError("duplicate release field")
+            seen.add(current)
+            if current in identity_fields:
+                fields[current] = value.strip()
+    except (UnicodeError, ValueError) as exc:
+        raise PublicReleaseError("the signed Aptly Release fields are invalid") from exc
+    return fields
+
+
+def verify_public_inrelease(
+    context: AptlyContext,
+    data: bytes,
+    *,
+    deadline: float | None = None,
+    expected_snapshot: str | None = None,
+    distribution: str | None = None,
+) -> str:
+    """Return the signed response digest only for the managed signing key."""
+    if not data or len(data) > PUBLIC_INRELEASE_MAX_BYTES:
+        raise PublicReleaseError("the public Aptly InRelease has an invalid size")
+    timeout = PROBE_TIMEOUT_SECONDS
+    if deadline is not None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise PublicReleaseError("the public Aptly signature check timed out")
+        timeout = min(timeout, remaining)
+    try:
+        result = subprocess.run(
+            [
+                "/usr/bin/gpg",
+                "--batch",
+                "--no-auto-key-retrieve",
+                "--status-fd=1",
+                "--verify",
+                "-",
+            ],
+            input=data,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=timeout,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise PublicReleaseError("the public Aptly signature check could not complete") from exc
+    if result.returncode != 0:
+        raise PublicReleaseError("the public Aptly InRelease signature is invalid")
+    expected = context.signing_key.upper()
+    matching = False
+    for line in result.stdout.decode("utf-8", errors="replace").splitlines():
+        if line.startswith(tuple(
+            "[GNUPG:] " + status + " "
+            for status in ("BADSIG", "ERRSIG", "EXPSIG", "EXPKEYSIG", "REVKEYSIG")
+        )):
+            raise PublicReleaseError("the public Aptly signing key or signature is not valid")
+        if not line.startswith("[GNUPG:] VALIDSIG "):
+            continue
+        fields = line.split()
+        fingerprints = {fields[index].upper() for index in (2, 11) if len(fields) > index}
+        if expected in fingerprints:
+            matching = True
+    if not matching:
+        raise PublicReleaseError(
+            "the public Aptly InRelease is not signed by the managed repository key"
+        )
+    if expected_snapshot is not None:
+        fields = signed_release_fields(data)
+        if (
+            fields.get("version") != expected_snapshot
+            or fields.get("codename") != distribution
+            or fields.get("suite") != distribution
+            or fields.get("components", "").split() != [context.component]
+        ):
+            raise PublicReleaseError("the signed Aptly Release does not identify the expected snapshot")
+    return hashlib.sha256(data).hexdigest()
 
 
 def validated_package_paths(raw_paths: list[str]) -> list[str]:
@@ -728,6 +1066,8 @@ def source_descriptor_paths(package_paths: list[str]) -> list[pathlib.Path]:
 def require_signed_source_descriptors(
     context: AptlyContext,
     package_paths: list[str],
+    *,
+    deadline: float | None = None,
 ) -> None:
     for descriptor in source_descriptor_paths(package_paths):
         try:
@@ -735,6 +1075,7 @@ def require_signed_source_descriptors(
                 [
                     "/usr/bin/gpg",
                     "--batch",
+                    "--no-auto-key-retrieve",
                     "--status-fd=1",
                     "--verify",
                     str(descriptor),
@@ -743,7 +1084,7 @@ def require_signed_source_descriptors(
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 text=True,
-                timeout=30,
+                timeout=remaining_timeout(deadline, 30),
             )
         except (OSError, subprocess.TimeoutExpired):
             fail(f"source package signature could not be verified: {descriptor}")
@@ -770,9 +1111,37 @@ def require_signed_source_descriptors(
 
 
 def aptly_publish_local(arguments: list[str]) -> None:
+    reconcile = len(arguments) == 2 and arguments[0] == "--reconcile"
     if len(arguments) < 2:
-        fail("usage: aptly-publish-local <distribution> <package-file-or-directory> [...]")
+        fail("usage: aptly-publish-local <distribution> <package-file-or-directory> [...] | --reconcile <distribution>")
     context = load_aptly_context()
+    with local_publication_lock(context) as state:
+        deadline = time.monotonic() + PUBLICATION_OPERATION_TIMEOUT_SECONDS
+        if reconcile:
+            receipt = publication_receipt(context, state)
+            if receipt is None or receipt["distribution"] != arguments[1]:
+                fail("there is no matching managed Aptly operation to reconcile")
+            try:
+                verify_publication(context, state, receipt)
+            except (PublicReleaseError, CommandError, subprocess.TimeoutExpired, OSError) as exc:
+                outcome = PublicationPending if receipt["status"] == "committed" else PublicationUnknown
+                raise outcome(
+                    f"publication {receipt['snapshot']} could not be reconciled; "
+                    "its receipt and snapshot are retained; no mutation was retried"
+                ) from exc
+            print(f"Reconciled and verified {receipt['snapshot']}.")
+            return
+        require_reconciled_publication(context, state)
+        aptly_publish_local_locked(context, arguments, state, deadline=deadline)
+
+
+def aptly_publish_local_locked(
+    context: AptlyContext,
+    arguments: list[str],
+    state: PublicationState,
+    *,
+    deadline: float,
+) -> None:
     require_root_owned_executable(APTLY_BINARY, "managed Aptly binary")
     distribution = arguments[0]
     if distribution not in context.distributions:
@@ -783,10 +1152,51 @@ def aptly_publish_local(arguments: list[str]) -> None:
     component = context.component
     public_base = context.public_base_url
     package_paths = validated_package_paths(arguments[1:])
-    require_aptly_signing_key(context)
-    require_signed_source_descriptors(context, package_paths)
+    require_aptly_signing_key(context, deadline=deadline)
+    require_signed_source_descriptors(context, package_paths, deadline=deadline)
     repository = f"local-{distribution}"
     target = context.publish_target
+
+    try:
+        published = (
+            subprocess.run(
+                aptly_argv(context, ["publish", "show", distribution, target]),
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=remaining_timeout(deadline, PROBE_TIMEOUT_SECONDS),
+                pass_fds=(state.lock_fd,),
+            ).returncode
+            == 0
+        )
+    except subprocess.TimeoutExpired:
+        fail("checking the managed Aptly publication timed out")
+    except OSError:
+        fail("checking the managed Aptly publication could not start")
+    try:
+        public_before = fetch_public_inrelease(
+            context,
+            distribution,
+            deadline=min(deadline, time.monotonic() + PUBLIC_FETCH_TIMEOUT_SECONDS),
+        )
+    except PublicReleaseError as exc:
+        fail(str(exc))
+    public_exists = public_before is not None
+    if public_before is not None:
+        try:
+            verify_public_inrelease(context, public_before, deadline=deadline)
+        except PublicReleaseError as exc:
+            fail(str(exc))
+    if published != public_exists:
+        if public_exists:
+            fail(
+                "the public distribution already exists but this account-local Aptly "
+                "database does not own its publication state"
+            )
+        fail(
+            "the account-local Aptly database records a publication that is missing "
+            "from the public Worker"
+        )
 
     show_repo = aptly_argv(context, ["repo", "show", repository])
     try:
@@ -796,7 +1206,8 @@ def aptly_publish_local(arguments: list[str]) -> None:
                 check=False,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                timeout=PROBE_TIMEOUT_SECONDS,
+                timeout=remaining_timeout(deadline, PROBE_TIMEOUT_SECONDS),
+                pass_fds=(state.lock_fd,),
             ).returncode
             == 0
         )
@@ -817,52 +1228,36 @@ def aptly_publish_local(arguments: list[str]) -> None:
                 ],
             ),
             f"creating Aptly repository {repository}",
+            lock_fd=state.lock_fd,
+            timeout=remaining_timeout(deadline, COMMAND_TIMEOUT_SECONDS),
         )
 
     run_checked(
         aptly_argv(context, ["repo", "add", "-force-replace", repository, *package_paths]),
         f"adding packages to Aptly repository {repository}",
+        lock_fd=state.lock_fd,
+        timeout=remaining_timeout(deadline, COMMAND_TIMEOUT_SECONDS),
     )
     timestamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    snapshot = f"{repository}-{timestamp}-{os.getpid()}"
+    snapshot = f"{repository}-{timestamp}-{uuid.uuid4().hex[:12]}"
     run_checked(
         aptly_argv(context, ["snapshot", "create", snapshot, "from", "repo", repository]),
         f"creating Aptly snapshot {snapshot}",
+        lock_fd=state.lock_fd,
+        timeout=remaining_timeout(deadline, COMMAND_TIMEOUT_SECONDS),
     )
 
-    try:
-        published = (
-            subprocess.run(
-                aptly_argv(context, ["publish", "show", distribution, target]),
-                check=False,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=PROBE_TIMEOUT_SECONDS,
-            ).returncode
-            == 0
-        )
-    except subprocess.TimeoutExpired:
-        fail("checking the managed Aptly publication timed out")
-    except OSError:
-        fail("checking the managed Aptly publication could not start")
-    public_exists = public_distribution_exists(context, distribution)
-    if published != public_exists:
-        if public_exists:
-            fail(
-                "the public distribution already exists but this account-local Aptly "
-                "database does not own its publication state"
-            )
-        fail(
-            "the account-local Aptly database records a publication that is missing "
-            "from the public Worker"
-        )
     publish_environment = aptly_environment_with_credentials(context)
+    # Secret Service and interactive authentication remain native operations;
+    # do not begin a remote mutation if they have consumed the operation budget.
+    remaining_timeout(deadline, COMMAND_TIMEOUT_SECONDS)
     if published:
         publish_arguments = [
             "publish",
             "switch",
             f"-component={component}",
             f"-gpg-key={context.signing_key}",
+            f"-version={snapshot}",
             distribution,
             target,
             snapshot,
@@ -874,18 +1269,101 @@ def aptly_publish_local(arguments: list[str]) -> None:
             f"-distribution={distribution}",
             f"-component={component}",
             f"-gpg-key={context.signing_key}",
+            f"-version={snapshot}",
             "-acquire-by-hash",
             snapshot,
             target,
         ]
-    run_checked(
-        aptly_argv(context, publish_arguments),
-        f"publishing Aptly snapshot {snapshot} to R2",
-        environment=publish_environment,
+    receipt = {
+        "schema": 1, "status": "attempting", "snapshot": snapshot,
+        "distribution": distribution, "component": component,
+        "target": target, "public_base_url": public_base,
+        "signing_key": context.signing_key,
+    }
+    save_publication_receipt(state, receipt)
+    try:
+        run_checked(
+            aptly_argv(context, publish_arguments),
+            f"publishing Aptly snapshot {snapshot} to R2",
+            environment=publish_environment,
+            lock_fd=state.lock_fd,
+            timeout=remaining_timeout(deadline, COMMAND_TIMEOUT_SECONDS),
+        )
+    except BaseException as exc:
+        receipt["status"] = "unknown"
+        save_publication_receipt(state, receipt)
+        if not isinstance(exc, Exception):
+            raise
+        raise PublicationUnknown(
+            f"publication {snapshot} has an unknown outcome; its receipt is retained; "
+            f"run aptly-publish-local --reconcile {distribution} before another mutation"
+        ) from exc
+    receipt["status"] = "committed"
+    save_publication_receipt(state, receipt)
+    propagation_deadline = min(deadline, time.monotonic() + PUBLICATION_PROPAGATION_TIMEOUT_SECONDS)
+    while True:
+        try:
+            verify_publication(
+                context, state, receipt, deadline=propagation_deadline,
+            )
+        except (PublicReleaseError, CommandError, subprocess.TimeoutExpired, OSError):
+            remaining = propagation_deadline - time.monotonic()
+            if remaining <= 0:
+                raise PublicationPending(
+                    f"snapshot {snapshot} committed; public propagation is pending; "
+                    f"run aptly-publish-local --reconcile {distribution} before another mutation"
+                ) from None
+            time.sleep(min(PUBLICATION_POLL_INTERVAL_SECONDS, remaining))
+        else:
+            print(
+                f"Published and verified {snapshot} at "
+                f"{public_base}/dists/{distribution}/"
+            )
+            return
+
+
+def verify_publication(
+    context: AptlyContext,
+    state: PublicationState,
+    receipt: dict,
+    *,
+    deadline: float | None = None,
+) -> None:
+    """Reconcile the exact local snapshot and signed public identity; never retry a mutation."""
+    if deadline is None:
+        deadline = time.monotonic() + PROBE_TIMEOUT_SECONDS
+    require_root_owned_executable(APTLY_BINARY, "managed Aptly binary")
+    distribution, snapshot = receipt["distribution"], receipt["snapshot"]
+    public = fetch_public_inrelease(context, distribution, deadline=deadline)
+    if public is None:
+        raise PublicReleaseError("the expected Aptly Release is not publicly available")
+    digest = verify_public_inrelease(
+        context, public, deadline=deadline,
+        expected_snapshot=snapshot, distribution=distribution,
     )
-    if not public_distribution_exists(context, distribution, attempts=5):
-        fail("Aptly reported success but the published distribution is not readable through the Worker")
-    print(f"Published {snapshot} at {public_base}/dists/{distribution}/")
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise PublicReleaseError("local publication reconciliation timed out")
+    metadata = checked(
+        aptly_argv(context, ["publish", "show", "-json", distribution, context.publish_target]),
+        capture=True, timeout=min(PROBE_TIMEOUT_SECONDS, remaining),
+        max_output_bytes=MAX_CONFIG_BYTES,
+    )
+    try:
+        local = json.loads(metadata)
+    except ValueError as exc:
+        raise PublicReleaseError("the local Aptly publication record is invalid") from exc
+    if (
+        not isinstance(local, dict)
+        or local.get("Distribution") != distribution
+        or local.get("Version") != snapshot
+        or local.get("SourceKind") != "snapshot"
+        or local.get("Sources") != [{"Component": context.component, "Name": snapshot}]
+    ):
+        raise PublicReleaseError("local Aptly state does not confirm the expected snapshot")
+    receipt["status"] = "verified"
+    receipt["inrelease_sha256"] = digest
+    save_publication_receipt(state, receipt)
 
 
 def main() -> int:
@@ -900,8 +1378,12 @@ def main() -> int:
             run_dpkg_buildpackage(arguments)
         else:
             fail(f"unsupported managed Aptly publication command: {command}")
-    except PublishingError as exc:
+    except (PublishingError, CommandError, subprocess.TimeoutExpired, OSError) as exc:
         print(f"fatal: {exc}", file=sys.stderr)
+        if isinstance(exc, PublicationPending):
+            return 75
+        if isinstance(exc, PublicationUnknown):
+            return 76
         return 1
     return 0
 

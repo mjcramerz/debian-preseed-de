@@ -15,6 +15,7 @@ use Moo;
 use MooX::StrictConstructor;
 use MooX::TypeTiny;
 use Types::Standard qw(Object Str);
+use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC sleep);
 
 use AICopilots::ModelCatalog;
 use lib '/usr/local/lib/perl5/site_perl/runtime';
@@ -40,6 +41,10 @@ has model_catalog => (
     isa     => Object,
     lazy    => 1,
     builder => sub { AICopilots::ModelCatalog->new() },
+);
+has admission_directory => (
+    is => 'ro', isa => Str,
+    default => sub { '/var/lib/ai-model-download' },
 );
 
 sub _fatal {
@@ -335,8 +340,13 @@ sub _validate_model {
 
 sub _open_lock {
     my ($path, $nonblocking) = @_;
-    sysopen my $fh, $path, O_CREAT | O_RDWR | O_NOFOLLOW, 0600
+    sysopen my $fh, $path, O_CREAT | O_RDWR | O_NOFOLLOW | O_NONBLOCK, 0600
         or _fatal("cannot open model download lock: $!");
+    my @opened = stat $fh;
+    my @named = lstat $path;
+    @opened && -f $fh && $opened[3] == 1 && $opened[4] == 0
+        && @named && $opened[0] == $named[0] && $opened[1] == $named[1]
+        or _fatal('model lock identity is unsafe');
     chown 0, _devops_gid(), $path
         or _fatal("cannot set model download lock ownership: $!");
     chmod 0600, $path
@@ -345,11 +355,48 @@ sub _open_lock {
     -f _ && !-l $path && $stat[4] == 0 && $stat[5] == _devops_gid()
         && ($stat[2] & 07777) == 0600
         or _fatal('model download lock ownership or mode is unsafe');
-    if (!flock($fh, LOCK_EX | ($nonblocking ? LOCK_NB : 0))) {
-        return undef if $nonblocking && ($! == EAGAIN || $! == EWOULDBLOCK);
-        _fatal("cannot lock model download: $!");
+    my $end = clock_gettime(CLOCK_MONOTONIC) + 5;
+    while (!flock($fh, LOCK_EX | LOCK_NB)) {
+        ($! == EAGAIN || $! == EWOULDBLOCK) or _fatal("cannot lock model download: $!");
+        return undef if $nonblocking;
+        clock_gettime(CLOCK_MONOTONIC) < $end or _fatal('model download is busy; retry after the owning operation finishes');
+        sleep 0.05;
     }
     return $fh;
+}
+
+sub _admit_download {
+    my ($self, $directory, $expected_bytes) = @_;
+    my $state = $self->admission_directory();
+    defined($state) && $state =~ m{\A/(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+\z}
+        && !grep { $_ eq q{.} || $_ eq q{..} } split m{/}, $state
+        or _fatal('invalid model admission directory');
+    for my $parent ($state, dirname($state)) {
+        next if $parent eq $state && !-e $state && !-l $state;
+        my @st = lstat $parent;
+        @st && -d _ && !-l _ && $st[4] == 0 && !($st[2] & 0022)
+            or _fatal('unsafe model admission ancestry');
+    }
+    if (!-e $state) {
+        mkdir $state, 0700 or $!{EEXIST} or _fatal("cannot create model admission state: $!");
+    }
+    my @state = lstat $state;
+    @state && -d _ && !-l _ && $state[4] == 0 && ($state[2] & 0077) == 0
+        or _fatal('model admission state must be root-private');
+    # One admission owner covers both families until publication/cleanup.
+    # Per-model locks remain authoritative for readers, pruning and reset.
+    my $guard = _open_lock("$state/download.lock");
+    !-e "$state/pending" && !-l "$state/pending"
+        or _fatal("model writer outcome unknown; reconcile retained recovery at $state/pending before download or prune");
+    return $guard if !defined($directory);
+    my $space = capture_command(argv => ['/usr/bin/stat', '-f', '-c', '%a %S', '--', $directory],
+                                timeout => 5, limit => 1024);
+    $space->{status} == 0 && $space->{stdout} =~ /\A([0-9]{1,18}) ([0-9]{1,9})\s*\z/
+        or _fatal('available model filesystem space is unknown');
+    my $free = $1 * $2;
+    $free >= $expected_bytes + 1_073_741_824
+        or _fatal('model download requires its full byte count plus 1 GiB of free headroom');
+    return $guard;
 }
 
 sub _download {
@@ -379,9 +426,11 @@ sub _download {
         print "$target\n";
         return 0;
     }
+    my $admission = $self->_admit_download($directory, $expected_bytes);
 
     my $partial;
     my $published = 0;
+    my $writer_pending = 0;
     my $completed = eval {
         my ($fh, $temporary) = tempfile(
             ".$filename.partial.XXXXXX",
@@ -424,8 +473,21 @@ sub _download {
             '--output', $partial,
             $url,
         );
-        my $status = system { $command[0] } @command;
-        $status == 0
+        my $pending = $self->admission_directory() . '/pending';
+        sysopen my $receipt, $pending, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600
+            or _fatal("cannot reserve model writer recovery receipt: $!");
+        print {$receipt} "$partial\n" or _fatal("cannot write model writer receipt: $!");
+        $receipt->flush() && $receipt->sync() or _fatal("cannot synchronize model writer receipt: $!");
+        close $receipt or _fatal("cannot close model writer receipt: $!");
+        sysopen my $state_fh, $self->admission_directory(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            or _fatal("cannot open model admission directory: $!");
+        $state_fh->sync() or _fatal("cannot synchronize model admission directory: $!");
+        $writer_pending = 1;
+        my $result = capture_command(argv => \@command, timeout => 14400, limit => 1_048_576);
+        unlink $pending or _fatal("cannot retire model writer recovery receipt: $!");
+        $state_fh->sync() or _fatal("cannot synchronize completed model writer: $!");
+        $writer_pending = 0;
+        $result->{status} == 0
             or _fatal('model download failed');
 
         $self->_validate_model(
@@ -464,6 +526,11 @@ sub _download {
     };
     if (!$completed) {
         my $error = $@ || "model installation failed\n";
+        if ($writer_pending) {
+            print STDERR "model writer outcome unknown; partial file and recovery receipt retained; reconcile "
+                . $self->admission_directory() . "/pending before retry or prune\n";
+            return 3;
+        }
         if ($published) {
             print STDERR "model publication outcome unknown; verify $target before retrying\n";
             return 3;
@@ -494,6 +561,7 @@ sub _download_catalog {
 
 sub _prune {
     my ($self, $family) = @_;
+    my $admission = $self->_admit_download(undef, undef);
     my $policy = $self->_assert_directory_contract($family);
     my $directory = $policy->{directory};
     opendir my $dh, $directory

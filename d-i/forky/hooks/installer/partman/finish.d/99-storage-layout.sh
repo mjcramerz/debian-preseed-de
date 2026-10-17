@@ -57,6 +57,38 @@ fatal() {
   exit 1
 }
 
+layout_assert_selected_disk() (
+  "${TMP_ENV_DIR:?TMP_ENV_DIR must be set}/detect-disk.sh" --verify-identity \
+    "${DEV_INSTALL_DISK:-${DEV_DISK_BLOCK:?selected disk must be set}}" \
+    "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/state/selected-disk.identity" \
+    "${1:-${DEV_INSTALL_DISK:-${DEV_DISK_BLOCK:?selected disk must be set}}}" ||
+    fatal 'selected physical disk identity changed before storage mutation'
+)
+
+layout_validate_f2fs_runtime() (
+  selected=${DEV_INSTALL_DISK:?selected disk must be set}
+  case "$selected" in *[0-9]) prefix=${selected}p ;; *) prefix=$selected ;; esac
+  [ "${DEV_PART_PREFIX:-}" = "$prefix" ] || fatal 'inconsistent F2FS partition prefix'
+  seen=' '
+  for role in EFI BOOT ROOT HOME POOL VAR_LIB_SHSIGNED VAR_LOG_JOURNAL RAW_SWAP RAW_ZRAM; do
+    # Both variable names come only from this fixed role list.
+    eval 'slot=${RUNTIME_'"$role"'_SLOT-__MISSING__}'
+    eval 'device=${DEV_PART_'"$role"'-__MISSING__}'
+    [ "$slot" != __MISSING__ ] && [ "$device" != __MISSING__ ] ||
+      fatal "incomplete F2FS phase state for ${role}"
+    case "$role" in
+      HOME|POOL|VAR_LIB_SHSIGNED)
+        if [ -z "$slot" ] && [ -z "$device" ]; then continue; fi ;;
+    esac
+    case "$slot" in ''|*[!0-9]*) fatal "invalid F2FS partition slot for ${role}" ;; esac
+    [ "${#slot}" -le 9 ] && [ "$slot" -gt 0 ] || fatal "invalid F2FS partition slot for ${role}"
+    case "$seen" in *" $slot "*) fatal 'duplicate F2FS partition slot' ;; esac
+    seen="${seen}${slot} "
+    [ "$device" = "${prefix}${slot}" ] || fatal "inconsistent F2FS device for ${role}"
+    layout_assert_selected_disk "$device"
+  done
+)
+
 init_logging() {
   if ! layout_debug_logs_enabled; then
     return 0
@@ -154,11 +186,22 @@ layout_mapper_for_raw_device() {
 
 layout_require_luks2() {
   raw_device=$1
+  layout_assert_selected_disk "$raw_device"
   ensure_installer_command cryptsetup cryptsetup-udeb
   cryptsetup isLuks "$raw_device" >/dev/null 2>&1 || fatal "${raw_device} is not a LUKS container"
-  luks_version=$(cryptsetup luksDump "$raw_device" 2>/dev/null |
+  luks_version=$(LC_ALL=C cryptsetup luksDump "$raw_device" 2>/dev/null |
     awk '$1 == "Version:" { print $2; exit }')
   [ "$luks_version" = 2 ] || fatal "${raw_device} is not LUKS2"
+  if [ -n "${3:-}" ]; then
+    luks_label=$(LC_ALL=C cryptsetup luksDump "$raw_device" 2>/dev/null |
+      awk '$1 == "Label:" { print $2; exit }')
+    [ "$luks_label" = "$3" ] || fatal "${raw_device} has an unexpected LUKS2 label"
+  fi
+  if [ -n "${2:-}" ]; then
+    layout_assert_selected_disk "$raw_device"
+    cryptsetup open --test-passphrase --type luks2 --key-file "$2" "$raw_device" >/dev/null 2>&1 ||
+      fatal "${raw_device} does not accept the managed bootstrap key"
+  fi
 }
 
 layout_crypto_bootstrap_key_file() {
@@ -178,11 +221,12 @@ layout_format_luks2_partition() {
   ensure_installer_command cryptsetup cryptsetup-udeb
 
   if cryptsetup isLuks "$raw_device" >/dev/null 2>&1; then
-    layout_require_luks2 "$raw_device"
+    layout_require_luks2 "$raw_device" "$key_file" "$mapper_name"
     return 0
   fi
 
   wipe_block_device "$raw_device"
+  layout_assert_selected_disk "$raw_device"
   cryptsetup luksFormat \
     --batch-mode \
     --type luks2 \
@@ -193,6 +237,7 @@ layout_format_luks2_partition() {
     --key-file "$key_file" \
     "$raw_device" ||
     fatal "failed to format ${raw_device} as LUKS2"
+  layout_require_luks2 "$raw_device" "$key_file" "$mapper_name"
 }
 
 layout_open_luks2_partition() {
@@ -201,11 +246,13 @@ layout_open_luks2_partition() {
   key_file=$3
   mapper_path="/dev/mapper/${mapper_name}"
 
+  layout_require_luks2 "$raw_device" "$key_file" "$mapper_name"
   if [ -b "$mapper_path" ]; then
     active_mapper=$(layout_mapper_for_raw_device "$raw_device")
     [ "$active_mapper" = "$mapper_path" ] ||
       fatal "active mapper ${mapper_path} does not reference ${raw_device}"
   else
+    layout_assert_selected_disk "$raw_device"
     cryptsetup open \
       --type luks2 \
       --allow-discards \
@@ -225,7 +272,7 @@ layout_resolve_root_home_filesystem_devices() {
   layout_bool_is_true "$ROOT_HOME_CRYPTO_ENABLED" || return 0
 
   bootstrap_key_file=$(layout_crypto_bootstrap_key_file)
-  layout_require_luks2 "$DEV_PART_ROOT"
+  layout_require_luks2 "$DEV_PART_ROOT" "$bootstrap_key_file"
   DEV_PART_ROOT=$(layout_mapper_for_raw_device "$DEV_PART_ROOT")
   layout_format_luks2_partition "$DEV_PART_HOME" "$HOME_CRYPT_NAME" "$bootstrap_key_file"
   DEV_PART_HOME=$(layout_open_luks2_partition "$DEV_PART_HOME" "$HOME_CRYPT_NAME" "$bootstrap_key_file")
@@ -321,6 +368,7 @@ device_fs_label() {
 
 wipe_block_device() {
   dev=$1
+  layout_assert_selected_disk "$dev"
   if command -v swapoff >/dev/null 2>&1; then
     swapoff "$dev" 2>/dev/null || true
   fi
@@ -583,6 +631,7 @@ log_block_device_geometry() {
 
 wipe_block_device() {
   dev=$1
+  layout_assert_selected_disk "$dev"
   if command -v swapoff >/dev/null 2>&1; then
     swapoff "$dev" 2>/dev/null || true
   fi
@@ -616,6 +665,7 @@ ensure_btrfs_filesystem() {
   wipe_block_device "$dev"
   log_warn "Formatting $dev as btrfs with label $label"
   # shellcheck disable=SC2086
+  layout_assert_selected_disk "$dev"
   mkfs.btrfs $opts "$dev"
   if command -v udevadm >/dev/null 2>&1; then
     udevadm settle || log_warn "udevadm settle failed after mkfs.btrfs on $dev"
@@ -653,6 +703,7 @@ ensure_xfs_filesystem() {
   wipe_block_device "$dev"
   log_warn "Formatting $dev as xfs with label $label"
   # shellcheck disable=SC2086
+  layout_assert_selected_disk "$dev"
   mkfs.xfs $opts "$dev"
   if command -v udevadm >/dev/null 2>&1; then
     udevadm settle || log_warn "udevadm settle failed after mkfs.xfs on $dev"
@@ -685,6 +736,7 @@ ensure_ext4_filesystem() {
   wipe_block_device "$dev"
   log_warn "Formatting $dev as ext4 with label $label"
   # shellcheck disable=SC2086
+  layout_assert_selected_disk "$dev"
   mkfs.ext4 $opts "$dev"
   if command -v udevadm >/dev/null 2>&1; then
     udevadm settle || log_warn "udevadm settle failed after mkfs.ext4 on $dev"
@@ -721,6 +773,7 @@ ensure_vfat_filesystem() {
   wipe_block_device "$dev"
   log_warn "Formatting $dev as vfat with label $label"
   # shellcheck disable=SC2086
+  layout_assert_selected_disk "$dev"
   mkfs.fat $opts "$dev"
   if command -v udevadm >/dev/null 2>&1; then
     udevadm settle || log_warn "udevadm settle failed after mkfs.fat on $dev"
@@ -1213,6 +1266,7 @@ RUNTIME_ENV="${TMP_ENV_DIR}/runtime.env"
 # shellcheck disable=SC1090,SC1091
 . "$ACCOUNT_ENV"
 
+layout_validate_f2fs_runtime
 init_logging
 validate_tmpfs_policy_config
 layout_resolve_root_home_filesystem_devices
@@ -1274,6 +1328,7 @@ device_fs_label() {
 
 wipe_block_device() {
   dev=$1
+  layout_assert_selected_disk "$dev"
   if command -v swapoff >/dev/null 2>&1; then
     swapoff "$dev" 2>/dev/null || true
   fi
@@ -1313,6 +1368,7 @@ ensure_f2fs_filesystem() {
   command -v mkfs.f2fs >/dev/null 2>&1 || fatal "mkfs.f2fs is unavailable"
   wipe_block_device "$dev"
   # shellcheck disable=SC2086
+  layout_assert_selected_disk "$dev"
   mkfs.f2fs $opts "$dev"
   wait_for_signature "$dev" f2fs "$label"
 }
@@ -1329,6 +1385,7 @@ ensure_ext4_filesystem() {
   command -v mkfs.ext4 >/dev/null 2>&1 || fatal "mkfs.ext4 is unavailable"
   wipe_block_device "$dev"
   # shellcheck disable=SC2086
+  layout_assert_selected_disk "$dev"
   mkfs.ext4 $opts "$dev"
   wait_for_signature "$dev" ext4 "$label"
 }
@@ -1339,6 +1396,13 @@ ensure_vfat_filesystem() {
   label=$3
   current_type=$(device_fs_type "$dev")
   current_label=$(device_fs_label "$dev")
+  if [ "${DUALBOOT_ENABLED:-false}" = true ]; then
+    [ "$dev" = "$DEV_PART_EFI" ] || fatal "unexpected preserved EFI device"
+    case "$current_type" in
+      vfat|fat|fat12|fat16|fat32) return 0 ;;
+      *) fatal "preserved EFI filesystem is no longer FAT; refusing to format" ;;
+    esac
+  fi
   case "$current_type" in
     vfat|fat|fat12|fat16|fat32)
       [ "$current_label" = "$label" ] && return 0
@@ -1347,6 +1411,7 @@ ensure_vfat_filesystem() {
   command -v mkfs.fat >/dev/null 2>&1 || fatal "mkfs.fat is unavailable"
   wipe_block_device "$dev"
   # shellcheck disable=SC2086
+  layout_assert_selected_disk "$dev"
   mkfs.fat $opts "$dev"
   wait_for_signature "$dev" vfat "$label"
 }

@@ -312,6 +312,52 @@ class CodexTests(unittest.TestCase):
     def setUp(self):
         self.codex = load_script(SHARED / 'data/codex/lib/codex', 'tested_codex')
 
+    def test_app_server_reads_execution_credential_without_ambient_fallback(self):
+        c = self.codex
+        c.CODEX_APP_SERVER_MODE = True
+        with tempfile.TemporaryDirectory(prefix='codex-credential-') as temporary:
+            directory = Path(temporary)
+            credential = directory / 'codex-mcp.env'
+            credential.write_text('CODEX_MCP_API_KEY="fixture-$literal\\\\value"\n')
+            credential.chmod(0o600)
+            with mock.patch.dict(os.environ, {'CREDENTIALS_DIRECTORY': str(directory),
+                    'CODEX_APP_SERVER_SECRET_ENV_NAMES': 'CODEX_MCP_API_KEY',
+                    'CODEX_MCP_API_KEY': 'ambient-must-not-win'}, clear=True):
+                self.assertEqual(c.codex_capture_app_server_environment(),
+                                 {'CODEX_MCP_API_KEY': 'fixture-$literal\\value'})
+                self.assertNotIn('CODEX_MCP_API_KEY', os.environ)
+                self.assertNotIn('CREDENTIALS_DIRECTORY', os.environ)
+            credential.write_text('# deliberately empty credential\n')
+            with mock.patch.dict(os.environ, {'CREDENTIALS_DIRECTORY': str(directory),
+                    'CODEX_APP_SERVER_SECRET_ENV_NAMES': 'CODEX_MCP_API_KEY',
+                    'CODEX_MCP_API_KEY': 'ambient-must-not-win'}, clear=True):
+                self.assertEqual(c.codex_capture_app_server_environment(), {})
+
+    def test_app_server_rejects_unsafe_credential_before_exposing_values(self):
+        c = self.codex
+        c.CODEX_APP_SERVER_MODE = True
+        with tempfile.TemporaryDirectory(prefix='codex-credential-') as temporary:
+            directory = Path(temporary)
+            credential = directory / 'codex-mcp.env'
+            for text in ('LD_PRELOAD=/fixture/forbidden\n', 'CODEX_MCP_API_KEY=a\nCODEX_MCP_API_KEY=b\n',
+                         'CODEX_MCP_API_KEY="unterminated\n', 'CODEX_MCP_API_KEY=' + 'x' * 65537 + '\n'):
+                credential.write_text(text)
+                credential.chmod(0o600)
+                with mock.patch.dict(os.environ, {'CREDENTIALS_DIRECTORY': str(directory),
+                        'CODEX_APP_SERVER_SECRET_ENV_NAMES': 'CODEX_MCP_API_KEY'}, clear=True), \
+                        self.assertRaises(c.CodexError):
+                    c.codex_capture_app_server_environment()
+                self.assertEqual(c.CODEX_APP_SERVER_ENVIRONMENT, {})
+            credential.unlink()
+            target = directory / 'other'
+            target.write_text('CODEX_MCP_API_KEY=fixture\n')
+            target.chmod(0o600)
+            credential.symlink_to(target)
+            with mock.patch.dict(os.environ, {'CREDENTIALS_DIRECTORY': str(directory),
+                    'CODEX_APP_SERVER_SECRET_ENV_NAMES': 'CODEX_MCP_API_KEY'}, clear=True), \
+                    self.assertRaises(OSError):
+                c.codex_capture_app_server_environment()
+
     def test_memories_git_metadata_is_not_a_wrapper_precondition(self):
         c = self.codex
         with tempfile.TemporaryDirectory() as tmp:
@@ -706,7 +752,7 @@ class SessionAndIntegrationTests(unittest.TestCase):
         )
         self.assertNotIn('auth.json', active)
         self.assertIn('LoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env\n',data)
-        self.assertIn('EnvironmentFile=-%d/codex-mcp.env\n',data)
+        self.assertNotIn('EnvironmentFile=-%d/',data)
 
     def test_codex_app_server_is_socket_owned_and_survives_proxy_idle(self):
         unit_dir = DESKTOP / 'etc/skel-desktop/.config/systemd/user'
@@ -956,6 +1002,19 @@ class InstalledFailureRegressionTests(unittest.TestCase):
         self.assertIn('EnvironmentFile=/etc/labwc/plans.conf\n', plans)
         self.assertNotIn('LoadCredential=', plans)
         self.assertNotIn('EnvironmentFile=%d/', plans)
+        # Root-owned live policy must retain UID 0 inside this user service.
+        # User-manager mount/UTS hardening implicitly creates PrivateUsers=self.
+        settings = {line.split('=', 1)[0] for line in plans.splitlines()
+                    if '=' in line and not line.lstrip().startswith('#')}
+        self.assertFalse(settings & {
+            'PrivateUsers', 'PrivateTmp', 'PrivateDevices', 'ProtectSystem',
+            'ProtectHome', 'ReadOnlyPaths', 'ReadWritePaths', 'ProtectClock',
+            'ProtectControlGroups', 'ProtectHostname', 'ProtectKernelLogs',
+            'ProtectKernelModules', 'ProtectKernelTunables', 'ProtectProc', 'ProcSubset',
+        })
+        for restriction in ('NoNewPrivileges=yes', 'RestrictNamespaces=yes',
+                            'SystemCallFilter=@system-service', 'UMask=0077'):
+            self.assertIn(restriction + '\n', plans)
 
         staging = render_theme_defaults(payload_read_text(ROOT / 'scripts/desktop/components.sh'))
         for module in ('Audio.pm', 'State.pm', 'Systemd.pm'):

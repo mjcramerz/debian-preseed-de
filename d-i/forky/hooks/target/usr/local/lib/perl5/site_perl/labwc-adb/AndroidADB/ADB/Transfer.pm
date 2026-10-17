@@ -122,24 +122,32 @@ sub screenrecord {
         $remote_path,
         $local_path,
     );
-    $self->device->run_serial(
-        $self->config->adb_command_seconds,
-        $serial,
-        'shell',
-        'rm',
-        '-f',
-        $remote_path,
-    );
     if ($status != 0) {
-        unlink $local_path if -e $local_path || -l $local_path;
-        fail('Android screen recording pull failed');
+        fail("Android screen recording pull failed; device recovery copy retained at $remote_path; partial local copy: $local_path");
     }
     $self->_require_nonempty_file(
         $local_path,
-        'Android screen recording pull produced an empty file',
+        "Android screen recording pull produced an empty file; device recovery copy retained at $remote_path",
     );
     chmod 0600, $local_path
         or fail("unable to protect Android screen recording: $!");
+    # A successful pull and a nonempty file do not prove a finalized MP4.
+    my $probe = $self->command->capture(
+        30, $self->config->require_tool('ffprobe'), '-v', 'error',
+        '-select_streams', 'v:0', '-show_entries', 'stream=codec_type:format=duration',
+        '-of', 'default=noprint_wrappers=1', $local_path,
+    );
+    my ($duration) = $probe->{stdout} =~ /^duration=([0-9]+(?:\.[0-9]+)?)$/m;
+    $probe->{status} == 0 && $probe->{stdout} =~ /^codec_type=video$/m && defined($duration) && $duration > 0
+        or fail("Android recording validation failed; device recovery copy retained at $remote_path; local copy: $local_path");
+    my $cleanup_status = $self->device->run_serial(
+        $self->config->adb_command_seconds, $serial, 'shell', 'rm', '-f', $remote_path,
+    );
+    if ($cleanup_status != 0) {
+        print STDERR "Recording copied and validated; device cleanup failed; retained device copy: $remote_path\n";
+        print "Saved screen recording: $local_path\n";
+        return 1;
+    }
     print "Saved screen recording: $local_path\n";
     return 0;
 }

@@ -2,6 +2,9 @@ package APTRepoLocal::Servicing::Repository;
 
 use strict;
 use warnings;
+
+use lib '/usr/local/lib/perl5/site_perl/runtime';
+use Managed::Process qw(capture_command);
 use Moo;
 use MooX::StrictConstructor;
 use MooX::Types::MooseLike::Base qw(Str);
@@ -15,13 +18,39 @@ use APTRepoLocal::Servicing::Process;
 # installs packages or invokes APT from an APT update hook.
 has directory => (is => 'ro', isa => Str, default => sub { '/var/lib/software/repo' });
 use constant HELPER => '/usr/local/libexec/apt-repo-local';
+use constant IMPORT_TIMEOUT_SECONDS => 1200;
 
 sub _capture {
     my ($self, @command) = @_;
-    open my $fh, '-|', @command or return;
-    my $output = do { local $/; <$fh> // q{} };
-    close $fh or return;
-    return $output;
+    @command or return;
+    delete $self->{capture_failure_detail};
+    # An import validates the original, rewrites policy-controlled payloads,
+    # validates the result and signs a generation. Its native payload phases
+    # each allow 240 seconds; the query deadline must not kill that writer at
+    # 120 seconds while it is legitimately processing a large desktop package.
+    my $timeout = $command[0] eq HELPER && ($command[1] // q{}) eq 'import'
+        ? IMPORT_TIMEOUT_SECONDS : 120;
+    my $result = capture_command(argv => \@command, timeout => $timeout, limit => 4_194_304);
+    if ($result->{status} != 0) {
+        # Keep the shared capture status raw. Decode once for this public
+        # diagnostic; never mistake a timeout or signal for an ordinary exit.
+        my $status = $result->{status};
+        my $detail = ($result->{error} // q{}) eq 'timeout'
+            ? "deadline exceeded after ${timeout}s; import outcome may be unknown"
+            : ($status & 127) ? 'signal ' . ($status & 127)
+            : 'exit ' . ($status >> 8);
+        # The importer emits a bounded managed diagnostic. Do not expose raw
+        # subprocess output or URL credentials/query strings from child errors.
+        my ($managed) = ($result->{stderr} // q{}) =~ /^apt-repo-local: ([^\r\n]*)/m;
+        if (defined $managed) {
+            $managed =~ s{https?://\S+}{[redacted-url]}gi;
+            $managed =~ s/[\x00-\x1f\x7f]/?/g;
+            $detail .= ': ' . substr($managed, 0, 512);
+        }
+        $self->{capture_failure_detail} = $detail;
+        return;
+    }
+    return $result->{stdout};
 }
 
 sub refresh {
@@ -41,7 +70,8 @@ sub write_source {
 sub retain {
     my ($self, $source, $metadata) = @_;
     my $path = $self->_capture(HELPER, 'import', '--', $source);
-    defined $path or die "managed repository import failed\n";
+    defined $path or die 'managed repository import failed ('
+        . ($self->{capture_failure_detail} // 'no importer result') . ")\n";
     chomp $path;
     my $directory = $self->directory();
     $path =~ m{\A\Q$directory\E/pool/[a-z0-9][a-z0-9+.-]+/[0-9a-f]{64}/[A-Za-z0-9_.+:~-]+\.deb\z}

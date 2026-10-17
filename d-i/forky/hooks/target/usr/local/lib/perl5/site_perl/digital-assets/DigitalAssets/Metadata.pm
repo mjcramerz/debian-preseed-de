@@ -19,6 +19,8 @@ sub read {
 
 sub edit {
     my ($self, $input_path, $output_kind) = @_;
+    die "DOCX metadata mutation is unavailable; the managed backend supports reading only\n"
+        if $output_kind eq 'docx';
     my $context = $self->context();
     my %metadata = (
         Title    => $context->prompt_line('Title (leave blank to preserve): '),
@@ -33,7 +35,10 @@ sub edit {
     grep { length $metadata{$_} } keys %metadata
         or die "labwc-digital-assets-action: provide at least one metadata value to edit\n";
 
-    my $output = $context->prepare_output_file('metadata-edited', $output_kind, $input_path);
+    my $directory = $context->prepare_output_directory('metadata-edited');
+    my $output = "$directory/result.$output_kind";
+    print "PDF edits change visible metadata; previous metadata may remain recoverable.\n"
+        if $output_kind eq 'pdf';
     my @command = ($context->command_path('exiftool'), '-o', $output);
     for my $key (qw(Title Author Subject Keywords)) {
         push @command, "-$key=$metadata{$key}" if length $metadata{$key};
@@ -45,8 +50,13 @@ sub edit {
 
 sub remove {
     my ($self, $input_path, $output_kind) = @_;
+    die "DOCX metadata mutation is unavailable; the managed backend supports reading only\n"
+        if $output_kind eq 'docx';
     my $context = $self->context();
-    my $output = $context->prepare_output_file('metadata-removed', $output_kind, $input_path);
+    my $directory = $context->prepare_output_directory('metadata-removed');
+    my $output = "$directory/result.$output_kind";
+    print "PDF removal changes visible metadata only; this is not privacy sanitization and previous metadata may remain recoverable.\n"
+        if $output_kind eq 'pdf';
     $context->run_timed(
         $context->command_path('exiftool'),
         '-all=', '-o', $output, '--', $input_path,

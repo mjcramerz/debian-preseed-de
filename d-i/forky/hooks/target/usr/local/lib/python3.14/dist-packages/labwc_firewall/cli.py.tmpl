@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 from .files import FirewallPaths, PendingMutation, locked, validate_managed_file
-from .nftables import CommandRunner, validate_and_apply
+from .nftables import CommandRunner, OutcomeUnknown, validate_and_apply
 from .renderer import render_fragment
 from .state import MAX_RULES, Rule, format_status, load_state, next_rule_id, serialize_state
 from .validation import FirewallError, normalize_cidr, require, validate_rule_fields, validate_rule_id
@@ -183,10 +183,14 @@ def run_client(argv: list[str]) -> int:
     if status == 0:
         _notify("normal", summary, body)
         return 0
+    if status == 75:
+        _notify("critical", "Firewall outcome unknown",
+                "Recovery information was retained. Reconcile the pending firewall operation before retrying.")
+        return status
     _notify(
         "critical",
         "Firewall action failed",
-        "The requested nftables change did not complete; the previous rules were retained.",
+        "The requested nftables change failed. Review the action's diagnostic output before retrying.",
     )
     return status
 
@@ -340,6 +344,9 @@ def main(role: str, argv: list[str]) -> int:
         if role == "root":
             return run_root(argv)
         raise FirewallError("invalid Labwc firewall action role")
+    except OutcomeUnknown as exc:
+        print(f"fatal: firewall outcome unknown: {exc}", file=sys.stderr)
+        return 75
     except FirewallError as exc:
         print(f"fatal: {exc}", file=sys.stderr)
         return 1

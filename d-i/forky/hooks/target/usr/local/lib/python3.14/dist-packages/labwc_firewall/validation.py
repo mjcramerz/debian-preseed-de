@@ -9,6 +9,10 @@ class FirewallError(RuntimeError):
     """A safe, user-facing firewall action error."""
 
 
+class OutcomeUnknown(FirewallError):
+    """Reconciliation is required before another firewall mutation."""
+
+
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise FirewallError(message)

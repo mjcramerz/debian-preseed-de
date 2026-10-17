@@ -173,5 +173,5 @@ if [ "$controller_count" -eq 0 ]; then
   exit 0
 fi
 
-log_message info "initialized ${controller_count} Bluetooth controller(s)"
+log_message info "processed ${controller_count} Bluetooth controller(s); optional requests do not confirm powered state"
 exit 0

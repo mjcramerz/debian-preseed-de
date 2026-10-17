@@ -220,7 +220,8 @@ profile secondboot-cleanup /var/lib/firstboot/bin/secondboot-cleanup flags=(atta
   dbus,
 
   /var/lib/firstboot/bin/secondboot-cleanup rix,
-  /usr/bin/{chmod,grep,id,mktemp,mv,rm,rmdir} rix,
+  /usr/bin/{chmod,dirname,grep,head,id,mktemp,mv,rm,rmdir,sync,wc} rix,
+  /usr/bin/lsinitramfs rPx -> update-initramfs,
   /usr/bin/systemctl PUx,
   /usr/sbin/update-initramfs rPx -> update-initramfs,
   /boot/ r,
@@ -234,6 +235,8 @@ profile secondboot-cleanup /var/lib/firstboot/bin/secondboot-cleanup flags=(atta
   /run/dbus/system_bus_socket rw,
   /run/initramfs-health/ rw,
   /run/initramfs-health/** rwkl,
+  /run/secondboot-initramfs.* rw,
+  /run/secondboot-initramfs-status.?????? rw,
   /run/lock/tpm2-enroll.lock rw,
   /run/systemd/private rw,
   /usr/local/bin/tpm2-enroll-launch rw,

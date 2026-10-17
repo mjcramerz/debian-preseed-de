@@ -476,7 +476,7 @@ fi
 
 autopartition "$dev" "$id"
 code=$?
-if [ "$code" -eq 0 ]; then
+if [ "$code" -eq 0 ] && [ "${DUALBOOT_ENABLED:-false}" = true ]; then
   mark_existing_esp_for_partman || code=1
 fi
 if [ "$code" -eq 255 ]; then
@@ -506,6 +506,12 @@ fresh_install_prep() {
   installer_info "ensured partition tooling via anna/choose_modules and anna-install fallbacks"
 
   ensure_partman_state_dir
+
+  if runtime_root_home_crypto_enabled; then
+    install_target_free_option
+    [ -x /lib/partman/automatically_partition/installer_target_free/do_option ] ||
+      fatal "selected target-disk partition handler is unavailable"
+  fi
 
   if [ -f "$PREP_STAMP" ]; then
     if layout_matches_expected; then

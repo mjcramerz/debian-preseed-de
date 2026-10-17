@@ -220,7 +220,10 @@ else
   install -d -m 0755 "$output_directory"
   base_name=${input_path##*/}
   base_name=${base_name%.*}
-  output_base="${output_directory}/${base_name}"
+  # Each invocation owns a fresh private destination. Equal basenames never
+  # overwrite an earlier recognition result, including a valid empty text file.
+  operation_directory=$(mktemp -d "${output_directory}/ocr.XXXXXX")
+  output_base="${operation_directory}/${base_name}"
 fi
 
 set -- "$input_path" "$output_base" -l "$languages" --oem "$engine_mode" --psm "$page_segmentation_mode"
@@ -245,7 +248,11 @@ case "$output_format" in
   *) fatal "unsupported OCR output format after execution: $output_format" ;;
 esac
 
-[ -r "$result_path" ] || fatal "OCR result is missing: $result_path"
+[ -f "$result_path" ] && [ ! -L "$result_path" ] && [ -r "$result_path" ] ||
+  fatal "OCR result is missing or not a regular file: $result_path"
+if [ "$output_format" = pdf ]; then
+  [ "$(head -c 5 -- "$result_path")" = '%PDF-' ] || fatal "OCR did not produce a PDF"
+fi
 if [ "$open_result" = 1 ] && command -v xdg-open >/dev/null 2>&1; then
   xdg-open "$result_path" >/dev/null 2>&1 &
 fi

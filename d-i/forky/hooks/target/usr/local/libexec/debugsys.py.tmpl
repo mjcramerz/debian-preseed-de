@@ -263,6 +263,9 @@ FILES.update({
 class DebugError(ValueError):
     pass
 
+class OutcomeUnknown(DebugError):
+    pass
+
 def stamp() -> str:
     return dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
 
@@ -312,6 +315,11 @@ def atomic_write(path: Path, data: bytes, mode: int = 0o600) -> None:
             os.fchmod(stream.fileno(), mode)
             stream.write(data); stream.flush(); os.fsync(stream.fileno())
         os.replace(temporary, path)
+        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
     finally:
         Path(temporary).unlink(missing_ok=True)
 
@@ -357,24 +365,33 @@ def run(argv: list[str], timeout: int = 30, cap: int = MAX_OUTPUT) -> tuple[str,
                         status = 'output-limit'; break
                 if status != 'ok':
                     break
-        if status == 'ok':
-            try:
-                proc.wait(timeout=max(.1, timeout-(time.monotonic()-start)))
-            except subprocess.TimeoutExpired:
-                status = 'timeout'
-        if status == 'ok' and proc.returncode:
-            status = 'nonzero'
+        # Keep the leader, including a zombie, until group cleanup is over.
+        while status == 'ok' and not os.waitid(os.P_PID, proc.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT):
+            if time.monotonic() - start >= timeout:
+                status = 'timeout'; break
+            time.sleep(.02)
     finally:
         # Handles grandchildren keeping stdout open and cancellation as well.
         try:
+            os.waitid(os.P_PID, proc.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+            if os.getsid(proc.pid) != proc.pid:
+                raise OutcomeUnknown('diagnostic child session identity changed')
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
+        except ChildProcessError as exc:
+            proc.stdout.close()
+            raise OutcomeUnknown('diagnostic child identity lost; no group signal sent') from exc
+        except OSError as exc:
+            proc.stdout.close()
+            raise OutcomeUnknown('diagnostic child cancellation could not be verified') from exc
         try:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             status = 'cleanup-timeout'
         proc.stdout.close()
+    if status == 'ok' and proc.returncode:
+        status = 'nonzero'
     return redact(out.decode(errors='replace')), {'status':status, 'returncode':proc.returncode,
                                                  'seconds':round(time.monotonic()-start,3)}
 
@@ -1075,6 +1092,8 @@ def successful(argv: list[str], journal: Path, label: str, timeout: int = 60) ->
     atomic_write(journal/(label+'.log'), text.encode())
     atomic_write(journal/(label+'.json'), json.dumps(meta,indent=2).encode())
     if meta['status'] != 'ok':
+        if argv[0] == 'update-initramfs' and meta['status'] in {'timeout', 'cleanup-timeout', 'output-limit'}:
+            raise OutcomeUnknown(f'{label} writer outcome unknown; reconcile before any replacement rebuild: {journal}')
         raise DebugError(f'{label} failed ({meta["status"]}); details: {journal}')
     return text
 
@@ -1104,6 +1123,9 @@ def verify_images(enabled: bool, journal: Path):
             raise DebugError(f'initramfs hook verification failed: {image}')
 
 def change_hooks(enabled: bool):
+    pending = STATE / 'pending-hook-transaction'
+    if pending.exists() or pending.is_symlink():
+        raise OutcomeUnknown(f'previous hook transaction requires reconciliation; recovery pointer: {pending}')
     files = hook_files()
     armed = STATE/'armed'
     desired = dict(files)
@@ -1120,6 +1142,7 @@ def change_hooks(enabled: bool):
             atomic_write(journal/backup,before[0],before[1])
         manifest.append({'path':str(path),'backup':backup,'mode':before[1] if before else None})
     atomic_write(journal/'before.json',json.dumps(manifest,indent=2).encode())
+    atomic_write(pending, (str(journal) + '\n').encode())
     _, unit_meta = run(['systemctl','is-enabled',UNIT])
     was_enabled = unit_meta['status'] == 'ok'
     changed = False
@@ -1138,6 +1161,11 @@ def change_hooks(enabled: bool):
         successful(['systemctl','enable' if enabled else 'disable',UNIT],journal,'unit-state')
         atomic_write(journal/'result.json',json.dumps({'success':True,'enabled':enabled}).encode())
     except BaseException as exc:
+        if isinstance(exc, (OutcomeUnknown, KeyboardInterrupt, SystemExit)):
+            atomic_write(journal/'result.json', json.dumps({'success': False, 'outcome': 'unknown',
+                'error': str(exc), 'recovery_retained': True}, indent=2).encode())
+            raise OutcomeUnknown(f'Hook writer outcome unknown; no competing rollback rebuild started. '
+                                 f'Recovery retained: {journal}; reconcile {pending} before retrying.') from exc
         # A failed update may already have rewritten some kernel images. Restore
         # every before-image and rebuild ALL kernels again, not just the last one.
         failures = []
@@ -1159,8 +1187,21 @@ def change_hooks(enabled: bool):
             except (DebugError,OSError) as error:
                 failures.append(str(error))
         atomic_write(journal/'result.json',json.dumps({'success':False,'error':str(exc),'rollback_errors':failures},indent=2).encode())
+        if not failures:
+            pending.unlink()
+            directory_fd = os.open(STATE, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
         suffix = (' ROLLBACK INCOMPLETE: '+ '; '.join(failures)+'. Do not reboot until repaired.') if failures else ' Previous hooks restored and images rebuilt.'
         raise DebugError(f'Hook transaction failed: {exc}.{suffix} Recovery records: {journal}') from exc
+    pending.unlink()
+    directory_fd = os.open(STATE, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
     print(('Early-boot capture is armed for the next boot; hooks remain until removed.' if enabled
            else 'Managed hooks removed; all initramfs images rebuilt and verified. Existing reports retained.'),flush=True)
     print(f'Operation record: {journal}',flush=True)

@@ -211,5 +211,81 @@ class ChatGPTPackageAlias(unittest.TestCase):
                 self.alias.unlink()
 
 
+class ChatGPTCandidateValidation(unittest.TestCase):
+    """Exact entrypoint bodies with every external effect replaced by a spy."""
+    def test_invalid_candidate_precedes_every_prepare_and_finalize_mutation(self):
+        common = '''package APTRepoLocal::Servicing::ChatGPT;
+use strict; use warnings;
+use constant CANONICAL_APPARMOR => '/fixture/canonical-policy';
+use constant APPARMOR_PATH => '/fixture/installed-policy';
+use constant APPARMOR_PARSER => '/fixture/policy-parser';
+use constant CANONICAL_ICON => '/fixture/icon';
+use constant ICON_PATH => '/fixture/installed-icon';
+use constant CANONICAL_DESKTOP => '/fixture/desktop';
+use constant DESKTOP_PATH => '/fixture/installed-desktop';
+sub _root_owned_source_text { print "read $_[1]\\n"; return "fixture candidate"; }
+sub _assert_root_owned_regular_executable { print "tool $_[2]\\n"; return 1; }
+sub _run_policy_syntax_validation { print "parse $_[1]\\n"; return 0; }
+sub _install_managed_policy_files { die "UNEXPECTED mutation: policy files\\n"; }
+sub _clear_package_default_link { die "UNEXPECTED mutation: compatibility link\\n"; }
+sub _install_package_script_guard { die "UNEXPECTED mutation: package guard\\n"; }
+sub _install_package_default_link { die "UNEXPECTED mutation: package defaults\\n"; }
+'''
+        common += method('ChatGPT.pm', '_validate_policy_syntax')
+        common += method('ChatGPT.pm', 'prepare_install')
+        common += method('ChatGPT.pm', 'finalize_install')
+        common += '''package main;
+my $object = bless {}, 'APTRepoLocal::Servicing::ChatGPT';
+my $action = $ARGV[0];
+my $ok = eval { $object->$action('installer'); 1 };
+die "invalid candidate was accepted\\n" if $ok;
+die $@ if $@ !~ /failed offline validation/;
+'''
+        with tempfile.TemporaryDirectory(prefix='chatgpt-candidate-') as temporary:
+            workspace = Path(temporary)
+            harness = workspace / 'candidate.pl'
+            harness.write_text(common)
+            for entrypoint in ('prepare_install', 'finalize_install'):
+                with self.subTest(entrypoint=entrypoint):
+                    result = subprocess.run(
+                        ['/usr/bin/perl', str(harness), entrypoint],
+                        capture_output=True, text=True, timeout=5,
+                        env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'HOME': str(workspace)},
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout.splitlines(), [
+                        'read /fixture/canonical-policy', 'tool /fixture/policy-parser',
+                        'parse /fixture/canonical-policy',
+                    ])
+
+    def test_parser_receives_candidate_with_offline_flags(self):
+        with tempfile.TemporaryDirectory(prefix='chatgpt-offline-') as temporary:
+            workspace = Path(temporary)
+            parser = workspace / 'parser'
+            arguments = workspace / 'arguments'
+            parser.write_text('#!/bin/sh\nprintf "%s\\n" "$@" >' + shlex.quote(str(arguments)) + '\n')
+            parser.chmod(0o700)
+            harness = workspace / 'offline.pl'
+            harness.write_text(
+                'package APTRepoLocal::Servicing::ChatGPT;\nuse strict; use warnings;\n'
+                + 'use Managed::Process qw(capture_command);\n'
+                + "use constant APPARMOR_PARSER => '" + str(parser) + "';\n"
+                + "use constant APPARMOR_PATH => '/fixture/installed';\n"
+                + method('ChatGPT.pm', '_run_policy_syntax_validation')
+                + "package main; my $o=bless {}, 'APTRepoLocal::Servicing::ChatGPT'; "
+                + "$o->_run_policy_syntax_validation('/fixture/candidate') or die 'parser failed';\n"
+            )
+            result = subprocess.run(
+                ['/usr/bin/perl', '-I' + str(TARGET / 'usr/local/lib/perl5/site_perl/runtime'), str(harness)],
+                capture_output=True, text=True, timeout=5,
+                env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'HOME': str(workspace)},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            argv = arguments.read_text().splitlines()
+            self.assertIn('--skip-kernel-load', argv)
+            self.assertIn('--skip-cache', argv)
+            self.assertEqual(argv[-1], '/fixture/candidate')
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -102,13 +102,24 @@ def validate_managed_arguments(mode: str, extra_args: list[str], *, app_name: st
         "--in-process-gpu",
         "--single-process",
     }
+    operands = False
+    renderer_value_options = {
+        "--use-angle", "--use-gl", "--use-vulkan", "--enable-features",
+        "--disable-features", "--use-skia-renderer", "--skia-graphite-backend",
+    }
     for argument in extra_args:
-        normalized = argument.strip().lower()
+        if argument == "--":
+            operands = True
+            continue
+        if operands or not argument.startswith("-"):
+            continue
+        normalized = argument.lower()
         # Chromium accepts both '-' and '--' switches. A boolean switch remains
         # present with '=false' or any other value; match its name, not its value.
         if normalized.startswith("-") and not normalized.startswith("--"):
             normalized = "-" + normalized
         option, separator, _value = normalized.partition("=")
+        renderer_argument = option + ("=" + _value if option in renderer_value_options else "")
         if option in sandbox_weakening_arguments:
             fail(f"managed launchers forbid sandbox-disabling arguments: {argument}")
         if option in {
@@ -125,12 +136,12 @@ def validate_managed_arguments(mode: str, extra_args: list[str], *, app_name: st
             fail(f"refusing non-Wayland Ozone platform hint: {argument}")
         if normalized.startswith("--disable-features=") and "useozoneplatform" in normalized:
             fail(f"refusing argument that disables the managed Wayland platform: {argument}")
-        if "vulkan" in normalized:
+        if "vulkan" in renderer_argument:
             fail(f"managed Wayland launchers forbid Vulkan arguments: {argument}")
-        if "graphite" in normalized:
+        if "graphite" in renderer_argument:
             fail(f"managed Wayland launchers forbid Skia Graphite arguments: {argument}")
         if mode == "launch" and normalized.startswith("--") and any(
-            token in normalized for token in hardware_tokens
+            token in renderer_argument for token in hardware_tokens
         ):
             fail(f"normal launch accepts Wayland flags only, not GPU overrides: {argument}")
         if mode in {"intel", "nvidia"}:

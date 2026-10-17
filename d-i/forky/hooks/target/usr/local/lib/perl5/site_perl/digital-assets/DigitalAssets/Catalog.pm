@@ -44,20 +44,6 @@ my @ENTRIES = (
         prompt   => 'DOCX metadata',
     },
     {
-        category => 'docx',
-        action   => 'docx-edit-metadata',
-        selector => 'docx',
-        label    => 'Edit Metadata',
-        prompt   => 'DOCX metadata to edit',
-    },
-    {
-        category => 'docx',
-        action   => 'docx-remove-metadata',
-        selector => 'docx',
-        label    => 'Remove All Metadata',
-        prompt   => 'DOCX metadata to remove',
-    },
-    {
         category => 'pdf',
         action   => 'pdf-to-png',
         selector => 'pdf',
@@ -229,8 +215,8 @@ my @ENTRIES = (
         category => 'pdf',
         action   => 'pdf-remove-metadata',
         selector => 'pdf',
-        label    => 'Remove All Metadata',
-        prompt   => 'PDF metadata to remove',
+        label    => 'Remove Visible Metadata (History Remains)',
+        prompt   => 'PDF visible metadata to remove',
     },
     {
         category => 'image',

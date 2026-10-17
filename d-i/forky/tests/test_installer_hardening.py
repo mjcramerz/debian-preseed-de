@@ -854,7 +854,7 @@ class StorageSafetyTests(unittest.TestCase):
     def disk(self, name='nvme0n1', removable='0', logical='4096'):
         dev = self.root / 'dev' / name; dev.touch()
         base = self.root / 'sys' / name; (base / 'queue').mkdir(parents=True)
-        for name, val in [('removable',removable),('ro','0'),('size','100000000'),('dev','259:0'),('queue/logical_block_size',logical)]:
+        for name, val in [('removable',removable),('ro','0'),('size','100000000'),('dev','259:0'),('diskseq','42'),('queue/logical_block_size',logical)]:
             (base / name).write_text(val+'\n')
         return dev
 
@@ -865,6 +865,52 @@ class StorageSafetyTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(result.stdout.split()[0]), 64)
         self.assertEqual(payload_read_text(self.root/'sys/nvme0n1/size').strip(), '100000000')
+
+    def test_replaced_disk_is_rejected_even_with_the_same_path_and_geometry(self):
+        dev = self.disk()
+        record = self.root / 'selected.identity'
+        original = self.run_disk(f'disk_identity {Q(str(dev))}')
+        self.assertEqual(original.returncode, 0, original.stderr)
+        record.write_text(original.stdout)
+        (self.root / 'sys/nvme0n1/diskseq').write_text('43\n')
+        result = self.run_disk(f'disk_verify_identity {Q(str(dev))} {Q(str(record))}')
+        self.assertNotEqual(result.returncode, 0)
+
+    def test_owned_mount_does_not_hide_a_matching_generation_recheck(self):
+        dev = self.disk()
+        record = self.root / 'selected.identity'
+        original = self.run_disk(f'disk_identity {Q(str(dev))}')
+        self.assertEqual(original.returncode, 0, original.stderr)
+        record.write_text(original.stdout)
+        (self.root / 'mounts').write_text(f'{dev} /target ext4 rw 0 0\n')
+        self.assertNotEqual(self.run_disk(f'disk_identity {Q(str(dev))}').returncode, 0)
+        result = self.run_disk(f'disk_verify_identity {Q(str(dev))} {Q(str(record))}')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_missing_generation_evidence_is_never_accepted(self):
+        dev = self.disk()
+        (self.root / 'sys/nvme0n1/diskseq').unlink()
+        self.assertNotEqual(self.run_disk(f'disk_identity {Q(str(dev))}').returncode, 0)
+
+    def test_partition_and_mapper_membership_never_accepts_another_disk(self):
+        selected = self.disk('sda')
+        unrelated = self.disk('sdaa')
+        part = self.root / 'sys/sda/sda1'
+        part.mkdir()
+        (part / 'partition').write_text('1\n')
+        (self.root / 'sys/sda1').symlink_to(part, target_is_directory=True)
+        child = self.root / 'dev/sda1'
+        child.touch()
+        mapper = self.root / 'dev/dm-0'
+        mapper.touch()
+        slaves = self.root / 'sys/dm-0/slaves'
+        slaves.mkdir(parents=True)
+        (slaves / 'sda1').symlink_to(part, target_is_directory=True)
+        for member in (child, mapper):
+            result = self.run_disk(f'disk_member_of {Q(str(selected))} {Q(str(member))}')
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(self.run_disk(
+            f'disk_member_of {Q(str(selected))} {Q(str(unrelated))}').returncode, 0)
 
     def test_removable_installer_is_rejected_even_when_explicit(self):
         dev = self.disk('sda', '1'); result = self.run_disk(f'disk_canonical {Q(str(dev))}')
@@ -898,6 +944,59 @@ class StorageSafetyTests(unittest.TestCase):
         result=self.run_disk(f'DEV_INSTALL_DISK={Q(str(bad))}; INSTALL_DISK_CANDIDATES={Q(str(good))}; detect_disk_select')
         self.assertNotEqual(result.returncode,0)
         self.assertNotIn(str(good),result.stdout)
+
+
+class StoragePhaseContractTests(unittest.TestCase):
+    def setUp(self):
+        self.source = payload_read_text(
+            ROOT / 'hooks/installer/partman/finish.d/99-storage-layout.sh')
+
+    def function(self, name, delimiter):
+        head = name + '() ' + delimiter + '\n'
+        close = ')' if delimiter == '(' else '}'
+        return head + self.source.split(head, 1)[1].split('\n' + close + '\n', 1)[0] + '\n' + close + '\n'
+
+    def test_f2fs_rejects_incomplete_duplicate_or_misdirected_phase_state(self):
+        values = {'DEV_INSTALL_DISK': '/dev/nvme0n1', 'DEV_PART_PREFIX': '/dev/nvme0n1p'}
+        roles = ('EFI', 'BOOT', 'ROOT', 'HOME', 'POOL', 'VAR_LIB_SHSIGNED',
+                 'VAR_LOG_JOURNAL', 'RAW_SWAP', 'RAW_ZRAM')
+        for number, role in enumerate(roles, 1):
+            values['RUNTIME_' + role + '_SLOT'] = str(number)
+            values['DEV_PART_' + role] = '/dev/nvme0n1p' + str(number)
+        variants = [values, {key: value for key, value in values.items() if key != 'RUNTIME_EFI_SLOT'},
+                    {**values, 'RUNTIME_ROOT_SLOT': '2', 'DEV_PART_ROOT': '/dev/nvme0n1p2'},
+                    {**values, 'DEV_PART_ROOT': '/dev/sdaa3'}]
+        source = self.function('layout_validate_f2fs_runtime', '(')
+        for index, candidate in enumerate(variants):
+            with self.subTest(index=index):
+                program = 'fatal() { printf "%s\\n" "$*" >&2; exit 1; }\n'
+                program += 'layout_assert_selected_disk() { :; }\n' + source
+                program += '\n'.join(key + '=' + Q(value) for key, value in candidate.items())
+                result = shell(program + '\nlayout_validate_f2fs_runtime\n')
+                self.assertEqual(result.returncode == 0, index == 0, result.stderr)
+
+    def test_reused_luks_requires_the_expected_label_and_bootstrap_key(self):
+        source = self.function('layout_require_luks2', '{')
+        program = r'''
+fatal() { printf '%s\n' "$*" >&2; exit 1; }
+layout_assert_selected_disk() { :; }
+ensure_installer_command() { :; }
+cryptsetup() {
+  case "$1" in
+    isLuks) return 0 ;;
+    luksDump) printf 'Version: 2\nLabel: %s\n' "$FIXTURE_LABEL" ;;
+    open) [ "$2" = --test-passphrase ] || exit 99; return "$FIXTURE_KEY_STATUS" ;;
+    *) exit 98 ;;
+  esac
+}
+'''
+        for label, key_status, valid in (('crypthome', '0', True),
+                                          ('foreign', '0', False), ('crypthome', '7', False)):
+            with self.subTest(label=label, key_status=key_status):
+                invocation = (f'FIXTURE_LABEL={Q(label)}\nFIXTURE_KEY_STATUS={key_status}\n'
+                              'layout_require_luks2 /fixture/raw /fixture/key crypthome\n')
+                result = shell(program + source + invocation)
+                self.assertEqual(result.returncode == 0, valid, result.stderr)
 
 
 class DispatchAndPublicationTests(unittest.TestCase):
@@ -1133,7 +1232,7 @@ queue_target_grub_mok_enrollment_boot
             result=shell(body+'sbverify() { printf "%s\\n" '+Q(listing)+'; }\nrequire_signature fixture')
             self.assertEqual(result.returncode,status,result.stderr)
 
-    def test_missing_debian_kernel_initrd_is_rebuilt_even_without_module_changes(self):
+    def test_missing_managed_kernel_initrd_is_rebuilt_even_without_module_changes(self):
         source=payload_read_text(ROOT/'hooks/target/usr/libexec/install-tools/secure-boot-tool.tmpl')
         body=source[source.index('repair_kernel() {'):].split('\n}',1)[0]+'\n}\n'
         with tempfile.TemporaryDirectory(prefix='boot-repair-') as tmp:
@@ -1144,7 +1243,8 @@ queue_target_grub_mok_enrollment_boot
 log() {{ :; }}
 fatal() {{ exit 1; }}
 sign_modules_for_kernel() {{ SIGN_MODULES_CHANGED=0; }}
-kernel_image_has_debian_signature() {{ return 0; }}
+kernel_image_has_managed_signature() {{ return 0; }}
+sign_initrd_sidecar() {{ :; }}
 refresh_initramfs_for_kernel() {{ printf initrd >{Q(str(root/'boot/initrd.img-fixture'))}; }}
 cleanup_kernel_artifacts() {{ :; }}
 repair_kernel fixture

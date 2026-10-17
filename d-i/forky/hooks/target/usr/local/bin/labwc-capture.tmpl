@@ -525,8 +525,19 @@ record_worker() {
   set -e
   trap - HUP INT TERM
 
-  if [ -s "$recording_path" ] &&
-     { [ "$recording_status" -eq 0 ] || [ "$recording_stopping" -eq 1 ]; }
+  # wf-recorder handles SIGINT and normally returns zero. A stop request does
+  # not excuse an independent encoder/write error. Preserve partial output.
+  recording_duration=
+  if [ "$recording_status" -eq 0 ] && [ -s "$recording_path" ]; then
+    recording_duration=$(timeout --signal=TERM --kill-after=2s 15s \
+      /usr/bin/ffprobe -v error -select_streams v:0 -show_entries stream=codec_type:format=duration \
+      -of default=noprint_wrappers=1 "$recording_path") || recording_duration=
+  fi
+  if [ "$recording_status" -eq 0 ] &&
+     printf '%s\n' "$recording_duration" | awk '
+       /^codec_type=video$/ { video=1 }
+       /^duration=[0-9]+([.][0-9]+)?$/ { split($0,a,"="); if (a[2] + 0 > 0) valid=1 }
+       END { exit !(valid && video) }'
   then
     notify_user normal video-x-generic x-labwc.screen-recording "Screen recording saved" "$recording_path"
     exit 0

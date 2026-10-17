@@ -800,7 +800,7 @@ def _run_pure_privacy(app_name: str, extra_args: list[str], resources: ExitStack
         # The dedicated persistent torrent wrapper owns peer-port
         # forwarding. A disposable profile needs outbound networking.
         app=network_app, network=online,
-        graceful_shutdown=app_name in {"qbittorrent", "tor-browser"} or app_name in BROWSER_PROXY_POLICIES,
+        graceful_shutdown=True,
     )
 
 
@@ -1874,7 +1874,7 @@ def _run_persistent_sandbox_with_resources(
                     if compatibility_instance else require_running_dbus_proxies(proxy_processes)),
                 runtime_check=(lambda: (compatibility_instance.service(), require_compatibility_dbus_proxies(proxy_processes) if compatibility_instance.outcome is None else None)) if compatibility_instance else None,
                 app=app_name, network=veth_enabled,
-                graceful_shutdown=app_name in BROWSER_PROXY_POLICIES,
+                graceful_shutdown=True,
                 cleanup_deadline=compatibility_instance.begin_cleanup if compatibility_instance else None,
                 cleanup_failure=(lambda: setattr(compatibility_instance, "cleanup_failed", True)) if compatibility_instance else None,
             )

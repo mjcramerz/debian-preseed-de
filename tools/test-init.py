@@ -16,14 +16,13 @@ import argparse
 import ctypes
 from pathlib import Path
 import shutil
-import signal
-import subprocess
 
 SOURCE = Path('/opt/preseed-test-source')
 if Path(__file__).resolve() != SOURCE / 'tools/test-init.py':
     raise SystemExit('TEST EXECUTION REFUSED: the source must be packaged in the disposable image')
 sys.path.insert(0, str(SOURCE / 'tools'))
 from isolation import fixture_environment, verify_disposable_image
+from stage_process import CleanupUnknown, run_stage
 
 
 def main() -> int:
@@ -42,7 +41,9 @@ def main() -> int:
     destination = Path('/workspace/repository')
     # The root image is immutable and the destination is a private tmpfs. No
     # host source mount or host output mount is accepted by the boundary check.
-    shutil.copytree(SOURCE, destination, symlinks=False,
+    # Preserve links for explicit source classification; never copy their
+    # destinations from elsewhere in the image into the fixture checkout.
+    shutil.copytree(SOURCE, destination, symlinks=True,
                     ignore=shutil.ignore_patterns('.git', '.build', '__pycache__',
                                                   '.pytest_cache', 'preseed.env',
                                                   'git_ed25519', 'git_ed25519.pub', 'id_git_ed25519'))
@@ -59,30 +60,12 @@ def main() -> int:
     }
     environment = fixture_environment(home)
     for command in stages[args.stage]:
-        process = subprocess.Popen(command, cwd=destination, env=environment,
-                                   stdin=subprocess.DEVNULL, start_new_session=True)
-        def forward(signum, frame):
-            try:
-                os.killpg(process.pid, signum)
-            except ProcessLookupError:
-                pass
-        previous = {signum: signal.signal(signum, forward)
-                    for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM)}
         try:
-            status = process.wait(timeout=3600)
-        finally:
-            for signum in (signal.SIGTERM, signal.SIGKILL):
-                try:
-                    os.killpg(process.pid, signum)
-                except ProcessLookupError:
-                    pass
-                if process.poll() is None:
-                    try:
-                        process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        continue
-            for signum, handler in previous.items():
-                signal.signal(signum, handler)
+            result = run_stage(command, cwd=destination, env=environment, timeout=3600)
+        except CleanupUnknown as error:
+            print('TEST OUTCOME UNKNOWN: ' + str(error), file=sys.stderr)
+            return 75
+        status = result.returncode
         if status:
             return status if status > 0 else 128 - status
     return 0

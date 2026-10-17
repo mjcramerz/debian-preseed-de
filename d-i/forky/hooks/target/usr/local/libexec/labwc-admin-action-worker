@@ -150,7 +150,7 @@ def status(message: str) -> None:
 
 
 @contextlib.contextmanager
-def action_lock(*, wait: bool = False):
+def action_lock(*, wait: bool = False, terminal: bool = False):
     """Serialize desktop/greeter requests and the whole system sleep cycle.
 
     Sleep waits for a queued desktop action to finish; explicit desktop actions
@@ -162,7 +162,7 @@ def action_lock(*, wait: bool = False):
     st = directory.lstat()
     if not stat.S_ISDIR(st.st_mode) or st.st_uid != 0 or stat.S_IMODE(st.st_mode) != 0o700:
         raise Error("unsafe system power lock directory")
-    path = directory / "action.lock"
+    path = directory / ("terminal.lock" if terminal else "action.lock")
     fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
     try:
         st = os.fstat(fd)
@@ -175,7 +175,8 @@ def action_lock(*, wait: bool = False):
                 break
             except BlockingIOError:
                 if not wait:
-                    raise Error("another managed power action or sleep request is pending") from None
+                    raise Error("another terminal power action is already pending" if terminal
+                                else "another managed power action or sleep request is pending") from None
                 now = time.monotonic()
                 if now >= next_report:
                     message = "Waiting for the existing managed power action before sleep"
@@ -861,9 +862,25 @@ def main(argv: list[str]) -> int:
         raise Error("unsafe invoking account identifier")
     os.umask(0o077)
     if action in {"poweroff", "reboot"}:
-        # A pending sleep/package reservation is not a shutdown veto. PID 1
-        # already serializes starts of this fixed, authenticated action unit.
-        Worker(uid, account.pw_name, action, greeter=greeter).execute()
+        # One reservation spans both terminal actions and all users. It is
+        # independent of the package/sleep lock and remains held after handoff.
+        # The receipt also blocks retries if the owner dies with unknown state.
+        with action_lock(terminal=True):
+            receipt = ACTION_LOCK_DIRECTORY / 'terminal.pending'
+            try:
+                fd = os.open(receipt, os.O_WRONLY | os.O_CREAT | os.O_EXCL |
+                             os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+            except FileExistsError:
+                raise Error('a terminal power action is already pending; reconcile it before another request') from None
+            with os.fdopen(fd, 'w', encoding='ascii') as stream:
+                stream.write(f'format=1\nuid={uid}\naction={action}\n')
+            worker = Worker(uid, account.pw_name, action, greeter=greeter)
+            try:
+                worker.execute()
+            except BaseException:
+                if not worker.committed and not worker.handoff_attempted:
+                    receipt.unlink()
+                raise
         return 0
     with action_lock():
         worker = Worker(uid, account.pw_name, action, greeter=greeter)

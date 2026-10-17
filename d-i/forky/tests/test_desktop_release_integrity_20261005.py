@@ -12,21 +12,84 @@ _isolation_sys.path.pop(0)
 _require_test_isolation()
 
 import hashlib
+import importlib.util
 import os
 from pathlib import Path
 import re
 import shlex
 import shutil
 import stat
+import struct
 import subprocess
 import sys
 import tempfile
 import unittest
 import zipfile
+from unittest import mock
 
 SEED = Path(__file__).resolve().parents[1]
 WAYPAPER = SEED / 'scripts/desktop/waypaper.sh'
 SAMLOADER = SEED / 'scripts/desktop/samloader.sh'
+
+
+class PlatformToolsArchiveTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix='platform-tools-zip-')
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.archive = self.root / 'platform-tools.zip'
+        self.output = self.root / 'output'
+        self.output.mkdir(mode=0o700)
+        spec = importlib.util.spec_from_file_location('platform_tools_extract',
+            SEED / 'scripts/desktop/android-platform-tools-extract.py')
+        self.extractor = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.extractor)
+
+    def write_archive(self, extra=()):
+        with zipfile.ZipFile(self.archive, 'w') as archive:
+            for name in sorted(self.extractor.REQUIRED):
+                info = zipfile.ZipInfo(name)
+                info.external_attr = (stat.S_IFREG | 0o755) << 16
+                archive.writestr(info, b'fixture bytes')
+            for name, data in extra:
+                archive.writestr(name, data)
+
+    def test_required_files_extract_with_executable_modes_and_exact_bytes(self):
+        self.write_archive()
+        self.extractor.extract(self.archive, self.output, 1000, 20)
+        for name in self.extractor.REQUIRED:
+            self.assertEqual((self.output / name).read_bytes(), b'fixture bytes')
+        self.assertEqual((self.output / 'platform-tools/adb').stat().st_mode & 0o777, 0o700)
+
+    def test_declared_aggregate_limit_and_unsafe_nodes_fail_before_any_output(self):
+        link = zipfile.ZipInfo('platform-tools/link')
+        link.external_attr = (stat.S_IFLNK | 0o777) << 16
+        for extra, maximum in (((), 1), ((('../escape', b'bad'),), 1000),
+                               (((link, b'outside'),), 1000)):
+            with self.subTest(extra=extra, maximum=maximum):
+                self.write_archive(extra)
+                with self.assertRaises(ValueError):
+                    self.extractor.extract(self.archive, self.output, maximum, 20)
+                self.assertEqual(list(self.output.iterdir()), [])
+                self.assertFalse((self.root / 'escape').exists())
+
+    def test_forged_entry_count_is_rejected_before_zipfile_allocation(self):
+        self.write_archive()
+        data = bytearray(self.archive.read_bytes())
+        end = data.rfind(b'PK\x05\x06')
+        struct.pack_into('<2H', data, end + 8, 1, 1)
+        self.archive.write_bytes(data)
+        with mock.patch.object(self.extractor.zipfile, 'ZipFile',
+                               side_effect=AssertionError('unbounded entry allocation')):
+            with self.assertRaisesRegex(ValueError, 'count mismatch'):
+                self.extractor.extract(self.archive, self.output, 1000, 20)
+        self.assertEqual(list(self.output.iterdir()), [])
+
+    def test_implicit_directories_are_included_in_the_node_limit(self):
+        self.write_archive((('platform-tools/a/b/c/d/file', b'data'),))
+        with self.assertRaisesRegex(ValueError, 'node limit'):
+            self.extractor.extract(self.archive, self.output, 1000, 8)
+        self.assertEqual(list(self.output.iterdir()), [])
 
 
 def values(path: Path) -> dict[str, str]:

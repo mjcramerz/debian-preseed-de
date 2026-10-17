@@ -426,6 +426,7 @@ profile labwc-adb-action /usr/local/bin/labwc-adb-action flags=(attach_disconnec
   /usr/local/lib/perl5/site_perl/labwc-adb/** r,
   /usr/bin/{awk,basename,cat,chmod,date,find,gawk,grep,head,id,install,mawk,mkdir,mv,nawk,readlink,rm,rmdir,sed,sha256sum,sleep,systemctl,timeout,tr} rix,
   /usr/bin/{df,notify-send,ss} pux,
+  /usr/bin/ffprobe rix,
   /{bin,usr/bin}/{adb,fastboot} rPx -> android-platform-tools,
   /usr/local/bin/{adb,fastboot} rPx -> android-platform-tools,
   /usr/local/lib/android-sdk/platform-tools/{adb,fastboot} rPx -> android-platform-tools,
@@ -548,6 +549,8 @@ profile labwc-admin-action-worker /usr/local/libexec/labwc-admin-action-worker f
   # grants or unconfined pkill subprocesses are needed by this controller.
   /run/labwc-power/ r,
   /run/labwc-power/action.lock rwk,
+  /run/labwc-power/terminal.lock rwk,
+  /run/labwc-power/terminal.pending rw,
   signal (send, receive) set=(kill chld) peer=labwc-admin-action-worker,
   signal (receive) peer=unconfined,
 
@@ -737,7 +740,7 @@ profile labwc-capture /usr/local/bin/labwc-capture flags=(attach_disconnected) {
   # Permit the user's home directory itself, without recursive file access.
   owner @{HOME}/ r,
   /usr/local/bin/labwc-capture rix,
-  /usr/bin/{awk,date,gawk,grep,install,mawk,mktemp,nawk,rm,sleep,find,tr,wc} rix,
+  /usr/bin/{awk,date,gawk,grep,install,mawk,mktemp,nawk,rm,sleep,find,tr,wc,timeout,ffprobe} rix,
   /usr/bin/{grim,notify-send,slurp,systemctl,systemd-run,wf-recorder,wlr-randr} pux,
   /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
   /usr/local/bin/satty rPx -> satty,
@@ -892,6 +895,10 @@ profile labwc-ai-copilots-action /usr/local/bin/labwc-ai-copilots-action flags=(
 }
 
 profile labwc-ai-model-install-root /usr/local/libexec/labwc-ai-model-install-root flags=(attach_disconnected) {
+  /usr/bin/stat rix,
+  /var/lib/ai-model-download/ rw,
+  /var/lib/ai-model-download/download.lock rwk,
+  /var/lib/ai-model-download/pending rw,
   #include <abstractions/wrapper-terminal>
   #include <abstractions/wrapper-perl>
 
@@ -1135,6 +1142,8 @@ profile digital-assets-python-runtime /usr/local/lib/digital-assets/{bin/**,pipx
 }
 
 profile codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, mediate_deleted) {
+  owner /run/user/[0-9]*/credentials/codex-app-server.service/ r,
+  owner /run/user/[0-9]*/credentials/codex-app-server.service/codex-mcp.env r,
   #include <abstractions/app-veth-client>
   owner @{HOME}/Workspace/{,**/} r,
   #include <abstractions/wrapper-python>
@@ -1590,7 +1599,9 @@ profile labwc-greeter-output /usr/local/bin/labwc-greeter-output flags=(attach_d
   #include <abstractions/wrapper-perl>
 
   /usr/local/bin/labwc-greeter-output rix,
+  /usr/local/lib/perl5/site_perl/runtime/{,Managed/,Managed/Process.pm} r,
   /usr/bin/{udevadm,wlr-randr} pux,
+  signal (send, receive) peer=labwc-greeter-output,
   signal (send) peer=unconfined,
   signal (receive) peer=labwc-greeter-client,
   /run/user/[0-9]*/labwc-greeter.*/ rw,
@@ -1727,6 +1738,9 @@ profile labwc-plans /usr/local/libexec/labwc-plans.pl flags=(attach_disconnected
   network inet6 dgram,
 
   /usr/local/libexec/labwc-plans.pl rix,
+  # The root-owned policy is reread before delivery to honor disabling/backlog
+  # changes. Its account-group DAC restriction remains authoritative.
+  /etc/labwc/plans.conf r,
   /etc/localtime r,
   /etc/timezone r,
   /usr/share/zoneinfo/ r,
@@ -2912,7 +2926,7 @@ profile labwc-ocr /usr/local/bin/labwc-ocr flags=(attach_disconnected) {
   #include <abstractions/wrapper-desktop>
 
   /usr/local/bin/labwc-ocr rix,
-  /usr/bin/{cat,install,mktemp,rm} rix,
+  /usr/bin/{cat,head,install,mktemp,rm} rix,
   /usr/bin/{grim,notify-send,slurp,tesseract,xdg-open} pux,
   owner @{HOME}/ r,
   owner @{HOME}/** r,
@@ -3687,6 +3701,9 @@ profile labwc-firewall-action-root /usr/local/libexec/labwc-firewall-action-root
   /usr/local/libexec/labwc-firewall-action-root rix,
   /usr/local/lib/python3.14/dist-packages/labwc_firewall/ r,
   /usr/local/lib/python3.14/dist-packages/labwc_firewall/** r,
+  signal (send) set=(term kill) peer=unconfined,
+  signal (receive) set=(chld) peer=unconfined,
+  signal (send, receive) peer=labwc-firewall-action-root,
   /usr/bin/{getent,python3} rix,
   /usr/sbin/nft PUx,
   /usr/bin/systemctl PUx,
@@ -3698,6 +3715,8 @@ profile labwc-firewall-action-root /usr/local/libexec/labwc-firewall-action-root
   /etc/nftables/ rw,
   /etc/nftables/.firewall-security-candidate.* rw,
   /etc/nftables/.labwc-firewall-restore.* rw,
+  /etc/nftables/.labwc-firewall-recovery.*/ rw,
+  /etc/nftables/.labwc-firewall-recovery.*/{state.*,fragment.*,.receipt.*,receipt.json,.live.*,live.nft,live.json} rw,
   /etc/nftables/firewall-security.rules rw,
   /run/lock/labwc-firewall-security.lock rwk,
   owner /tmp/firewall-security-* rw,
@@ -3840,6 +3859,9 @@ profile labwc-samsung-firmware-extract /usr/local/libexec/labwc-samsung-firmware
 }
 
 profile apparmor-modes /usr/local/libexec/apparmor-modes-run flags=(attach_disconnected) {
+  /usr/local/lib/perl5/site_perl/runtime/{,Managed/,Managed/PolicyLock.pm} r,
+  /var/lib/labwc-apparmor-policy/ rw,
+  /var/lib/labwc-apparmor-policy/policy.lock rwk,
   #include <abstractions/wrapper-terminal>
   #include <abstractions/wrapper-base>
   #include <abstractions/wrapper-perl>
@@ -3868,6 +3890,8 @@ profile apparmor-modes /usr/local/libexec/apparmor-modes-run flags=(attach_disco
 }
 
 profile apparmor-rule-generator /usr/local/libexec/apparmor-generate-rules flags=(attach_disconnected) {
+  /var/lib/labwc-apparmor-policy/ rw,
+  /var/lib/labwc-apparmor-policy/policy.lock rwk,
   #include <abstractions/wrapper-terminal>
   #include <abstractions/wrapper-base>
   #include <abstractions/wrapper-perl>
@@ -4078,6 +4102,17 @@ profile discord-distro /usr/local/libexec/discord-distro flags=(attach_disconnec
 }
 
 profile apt-repo-local-software-update /usr/local/libexec/apt-repo-local-software-update flags=(attach_disconnected) {
+  # Managed::Process owns the foreground repository import and its cleanup.
+  signal (send) set=(term kill) peer=apt-repo-local,
+  signal (receive) set=(chld) peer=apt-repo-local,
+  /etc/{default,apparmor.d}/ r,
+  /usr/share/{keyrings,pixmaps}/ r,
+  /etc/{default,apparmor.d,apparmor.d/disable,apt/sources.list.d}/.publish.* rw,
+  /usr/share/{keyrings,pixmaps}/.publish.* rw,
+  /usr/local/share/applications/.publish.* rw,
+  /usr/local/lib/perl5/site_perl/runtime/{,Managed/,Managed/PolicyLock.pm,Managed/Process.pm} r,
+  /var/lib/labwc-apparmor-policy/ rw,
+  /var/lib/labwc-apparmor-policy/policy.lock rwk,
   #include <abstractions/wrapper-base>
   #include <abstractions/wrapper-perl>
   #include <abstractions/openssl>
@@ -4156,7 +4191,8 @@ profile apt-repo-local-software-update /usr/local/libexec/apt-repo-local-softwar
   /opt/.{ledger-live,tuta-mail}.previous/** rwkl,
   /opt/.{ledger-live,tuta-mail}.new.*/ rw,
   /opt/.{ledger-live,tuta-mail}.new.*/** rwkl,
-  /run/lock/apt-repo-local-software-update.lock rwk,
+  /var/lib/software/.update-owner/ rw,
+  /var/lib/software/.update-owner/update.lock rwk,
   /run/user/0/ rw,
   /run/user/0/gnupg/ rw,
   /run/user/0/gnupg/** rwkl,
@@ -4269,6 +4305,8 @@ profile labwc-wrap-desktop-files /usr/local/libexec/labwc-wrap-desktop-files fla
 # Repository maintenance is not an installer: inspection/decompression/signing
 # are inherited, but apt execution and dpkg database writes are not granted.
 profile apt-repo-local /usr/local/{bin/apt-repo-init,libexec/apt-repo-local} flags=(attach_disconnected) {
+  signal (receive) set=(term kill) peer=apt-repo-local-software-update,
+  signal (send) set=(chld) peer=apt-repo-local-software-update,
   #include <abstractions/wrapper-python>
   #include <abstractions/wrapper-perl>
   #include <abstractions/nameservice>
@@ -4303,7 +4341,8 @@ profile apt-repo-local /usr/local/{bin/apt-repo-init,libexec/apt-repo-local} fla
   /usr/local/lib/perl5/site_perl/runtime/{,Managed/,Managed/Process.pm} r,
   /usr/bin/{openssl,tar,brotli,dpkg-query} rix,
   /dev/log w,
-  /run/lock/apt-repo-local-software-update.lock rwk,
+  /var/lib/software/.update-owner/ rw,
+  /var/lib/software/.update-owner/update.lock rwk,
   /usr/bin/{curl,dpkg,dpkg-deb,gpg,gpg-agent,gpgv,gpgconf,unsquashfs} rix,
   # dpkg-deb invokes rm for extraction cleanup; it retains this confinement.
   /usr/bin/rm rix,
@@ -4340,6 +4379,15 @@ profile apt-repo-local /usr/local/{bin/apt-repo-init,libexec/apt-repo-local} fla
 # bytes under the inbox, but it cannot publish to /opt or run apt/dpkg installs.
 # Repacked ChatGPT alone calls its package-local configure action; no global hooks.
 profile apt-repo-local-vendor /usr/local/libexec/apt-repo-local-vendor flags=(attach_disconnected) {
+  /usr/bin/chown rix,
+  /etc/{default,apparmor.d}/ r,
+  /usr/share/{keyrings,pixmaps}/ r,
+  /etc/{default,apparmor.d,apparmor.d/disable,apt/sources.list.d}/.publish.* rw,
+  /usr/share/{keyrings,pixmaps}/.publish.* rw,
+  /usr/local/share/applications/.publish.* rw,
+  /usr/local/lib/perl5/site_perl/runtime/Managed/PolicyLock.pm r,
+  /var/lib/labwc-apparmor-policy/ rw,
+  /var/lib/labwc-apparmor-policy/policy.lock rwk,
   #include <abstractions/wrapper-perl>
   #include <abstractions/nameservice>
   #include <abstractions/openssl>
@@ -4360,7 +4408,8 @@ profile apt-repo-local-vendor /usr/local/libexec/apt-repo-local-vendor flags=(at
   /usr/bin/{gzip,xz,zstd,bzip2} rix,
   /dev/log w,
   /var/lib/software/{,**} rwkl,
-  /run/lock/apt-repo-local-software-update.lock rwk,
+  /var/lib/software/.update-owner/ rw,
+  /var/lib/software/.update-owner/update.lock rwk,
   /usr/local/share/software/{,**} r,
   /etc/dpkg/{,**} r,
   /var/lib/dpkg/{,**} r,

@@ -596,6 +596,14 @@ runtime_write_runtime_env() {
     printf 'PARTMAN_RECIPE_NAME=%s\n' "$(runtime_shell_quote "$PARTMAN_RECIPE_NAME")"
     printf 'DEV_INSTALL_DISK=%s\n' "$(runtime_shell_quote "$DEV_INSTALL_DISK")"
     printf 'DEV_PART_PREFIX=%s\n' "$(runtime_shell_quote "$DEV_PART_PREFIX")"
+    printf 'RUNTIME_EFI_SLOT=%s\n' "$(runtime_shell_quote "$RUNTIME_EFI_SLOT")"
+    printf 'RUNTIME_BOOT_SLOT=%s\n' "$(runtime_shell_quote "$RUNTIME_BOOT_SLOT")"
+    printf 'RUNTIME_ROOT_SLOT=%s\n' "$(runtime_shell_quote "$RUNTIME_ROOT_SLOT")"
+    printf 'RUNTIME_HOME_SLOT=%s\n' "$(runtime_shell_quote "${RUNTIME_HOME_SLOT:-}")"
+    printf 'RUNTIME_POOL_SLOT=%s\n' "$(runtime_shell_quote "${RUNTIME_POOL_SLOT:-}")"
+    printf 'RUNTIME_VAR_LOG_JOURNAL_SLOT=%s\n' "$(runtime_shell_quote "$RUNTIME_VAR_LOG_JOURNAL_SLOT")"
+    printf 'RUNTIME_RAW_SWAP_SLOT=%s\n' "$(runtime_shell_quote "$RUNTIME_RAW_SWAP_SLOT")"
+    printf 'RUNTIME_RAW_ZRAM_SLOT=%s\n' "$(runtime_shell_quote "$RUNTIME_RAW_ZRAM_SLOT")"
     printf 'DEV_PART_EFI=%s\n' "$(runtime_shell_quote "$DEV_PART_EFI")"
     printf 'DEV_PART_BOOT=%s\n' "$(runtime_shell_quote "$DEV_PART_BOOT")"
     printf 'DEV_PART_ROOT=%s\n' "$(runtime_shell_quote "$DEV_PART_ROOT")"
@@ -629,6 +637,15 @@ runtime_write_runtime_env() {
     printf 'SWAP_FALLBACK_RAW_DEVICE=%s\n' "$(runtime_shell_quote "$SWAP_FALLBACK_RAW_DEVICE")"
     printf 'SWAP_FALLBACK_MAPPER_NAME=%s\n' "$(runtime_shell_quote "$SWAP_FALLBACK_MAPPER_NAME")"
     printf 'SWAP_FALLBACK_MAPPER=%s\n' "$(runtime_shell_quote "$SWAP_FALLBACK_MAPPER")"
+    if [ "$DUALBOOT_ENABLED" = true ]; then
+      slot=1
+      while [ "$slot" -lt "$RUNTIME_DEBIAN_START_SLOT" ]; do
+        size_mb=$(runtime_get_partition_size_mb "$slot") ||
+          runtime_fatal "missing measured partition size for preserved slot ${slot}"
+        printf 'RUNTIME_PARTITION_%s_SIZE_MB=%s\n' "$slot" "$(runtime_shell_quote "$size_mb")"
+        slot=$((slot + 1))
+      done
+    fi
   } >"$dest"
   chmod 0600 "$dest"
 }

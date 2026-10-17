@@ -351,6 +351,11 @@ managed_git_ssh_target_action() (
   managed_ssh_cleanup() {
     saved_status=$?
     trap - 0
+    if [ "$saved_status" -eq 76 ] || [ -e "$stage/cleanup-outcome-unknown" ]; then
+      unset secret
+      printf '%s\n' "SSH cleanup outcome unknown; staging and owned runtime mounts retained: $stage" >&2
+      exit 76
+    fi
     rm -rf -- "$stage" || { [ "$saved_status" -ne 0 ] || saved_status=1; }
     unset secret
     if [ "$own_proc" -eq 1 ]; then

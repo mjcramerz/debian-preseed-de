@@ -40,6 +40,8 @@ use AppArmor::ManagedModes::Verify qw(
     verify_source_profile_modes
 );
 use AppArmor::ManagedModes::Workspace;
+use lib '/usr/local/lib/perl5/site_perl/runtime';
+use Managed::PolicyLock qw(acquire_policy_lock);
 
 my $options = parse_args(@ARGV);
 
@@ -50,6 +52,7 @@ validate_absolute_path('loaded profiles path', $options->{loaded_profiles_path})
 validate_real_directory('profile directory', $options->{profile_dir});
 
 umask 0077;
+my $policy_lock = acquire_policy_lock();
 
 my $workspace = AppArmor::ManagedModes::Workspace->new();
 END {

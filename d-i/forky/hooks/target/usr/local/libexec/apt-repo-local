@@ -1585,6 +1585,7 @@ class Repository:
     def publish(self, force: bool = False) -> None:
         self.ensure_policies()
         if not (force or self.changed or not (self.repo / "current").is_symlink()):
+            self.write_source()
             self.finish_inbox()
             return
         fingerprint = self.signing_key()

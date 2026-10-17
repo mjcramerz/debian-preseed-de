@@ -3,6 +3,7 @@
 use strict;
 use warnings;
 use lib '/usr/local/lib/perl5/site_perl/apt-repo-local';
-use APTRepoLocal::Servicing::CLI;
+use APTRepoLocal::Servicing::Notifier;
 
-exit APTRepoLocal::Servicing::CLI->new()->run_notifier(@ARGV);
+@ARGV == 0 or die "usage: apt-repo-local-software-notify\n";
+exit APTRepoLocal::Servicing::Notifier->new()->run();

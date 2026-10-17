@@ -1150,10 +1150,22 @@ def sensitive_public_violation(maps: Mapping[str, Dict[str, Any]], service: Mapp
         direct4, _ = parse_networks(as_list(allow.get("ipv4"), "allow.ipv4"), "allow.ipv4", dummy)
     if allow.get("ipv6"):
         _, direct6 = parse_networks(as_list(allow.get("ipv6"), "allow.ipv6"), "allow.ipv6", dummy)
-    if "any_ipv4" in groups4 or "any_ipv6" in groups6:
-        return True
-    if "0.0.0.0/0" in direct4 or "::/0" in direct6:
-        return True
+    resolved = list(direct4) + list(direct6)
+    for category, groups in (("cidr4", groups4), ("cidr6", groups6)):
+        for group in groups:
+            item = maps.get(category, {}).get(group)
+            if not item or not item.get("values"):
+                raise PolicyError(f"allow: unknown CIDR group {group!r}")
+            resolved.extend(item["values"])
+    # This interlock rejects unrestricted address coverage. A globally numbered
+    # subnet can still be a managed LAN (especially IPv6); its routability does
+    # not make an explicit subnet/interface allowlist unrestricted. Resolve
+    # aliases and collapse each family so split default routes cannot bypass it.
+    networks = [ipaddress.ip_network(value, strict=False) for value in resolved]
+    for version in (4, 6):
+        family = (network for network in networks if network.version == version)
+        if any(network.prefixlen == 0 for network in ipaddress.collapse_addresses(family)):
+            return True
     return False
 
 
@@ -1465,6 +1477,8 @@ def render_filter(policy: Mapping[str, Any], maps: Mapping[str, Dict[str, Any]],
                 4,
                 f"forwarding.rules.{rule_name}.destination_ipv4_groups",
             )
+            if len(src4_refs) > 1 or len(dst4_refs) > 1:
+                raise PolicyError(f"forwarding.rules.{rule_name}: multiple CIDR groups per side are unsupported; use one composed group")
             direct_src4 = direct_cidrs_for_version(as_list(rule.get("source_ipv4"), f"forwarding.rules.{rule_name}.source_ipv4"), 4, f"forwarding.rules.{rule_name}.source_ipv4", ctx)
             direct_dst4 = direct_cidrs_for_version(as_list(rule.get("destination_ipv4"), f"forwarding.rules.{rule_name}.destination_ipv4"), 4, f"forwarding.rules.{rule_name}.destination_ipv4", ctx)
             for fi in from_exprs:

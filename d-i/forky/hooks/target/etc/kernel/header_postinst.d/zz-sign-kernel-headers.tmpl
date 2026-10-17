@@ -2,7 +2,9 @@
 set -eu
 kernelver=${1:-}
 [ -n "$kernelver" ] || exit 0
-if ! "__INSTALLER_FILE_SECURE_BOOT_TOOL__" kernel-header-postinst "$kernelver"; then
+if "__INSTALLER_FILE_SECURE_BOOT_TOOL__" kernel-header-postinst "$kernelver"; then
+  :
+else
   status=$?
   case "__INSTALLER_SECURE_BOOT_DEFER_HOOK_FAILURES__" in
     1|true|yes)

@@ -53,7 +53,20 @@ if ($action eq 'configure-chatgpt') {
     # Repacked ChatGPT's own postinst calls this, never an unrelated dpkg transaction.
     exit 0 if ($ENV{DPKG_ROOT} // '/') ne '/' && ($ENV{DPKG_ROOT} // q{}) ne q{};
     exit 0 if ($ENV{DPKG_ADMINDIR} // '/var/lib/dpkg') ne '/var/lib/dpkg';
-    $chatgpt->finalize_install(-d '/run/systemd/system' ? 'runtime' : 'installer');
+    if (($ENV{MANAGED_CHATGPT_POLICY_DEFER} // q{}) eq '1') {
+        $chatgpt->verify_deferred_prepare();
+        exit 0; # The verified outer owner finalizes after APT returns.
+    }
+    my $configured = eval {
+        $chatgpt->finalize_install(-d '/run/systemd/system' ? 'runtime' : 'installer');
+        $chatgpt->commit_install();
+        1;
+    };
+    if (!$configured) {
+        my $error = $@ || "ChatGPT configuration failed\n";
+        eval { $chatgpt->abort_install(); 1 } or $error .= $@;
+        die $error;
+    }
     exit 0;
 }
 

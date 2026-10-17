@@ -5,6 +5,12 @@ umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C
 phase=${1:-}
 case "$phase" in init-top|init-premount|local-top|local-premount|local-bottom|init-bottom) ;; *) exit 0 ;; esac
+if [ "${2:-}" != --bounded-worker ]; then
+    # Bound the complete collection, including file reads, redaction and final
+    # pipeline waits. Diagnostic failure must never block the boot contract.
+    timeout -k 1 30 "$0" "$phase" --bounded-worker >/dev/null 2>&1
+    exit 0
+fi
 base=/run/initramfs/debugsys
 [ -d /run ] && [ ! -L /run ] || exit 0
 [ ! -L /run/initramfs ] && [ ! -L "$base" ] || exit 0
@@ -22,19 +28,19 @@ out="$base/$phase.log"
     for source in /proc/uptime /proc/cmdline /proc/mounts /proc/modules /proc/meminfo /proc/partitions /proc/pressure/cpu /proc/pressure/memory /proc/pressure/io; do
         [ -r "$source" ] || continue
         printf '\n--- %s ---\n' "$source"
-        head -c 65536 "$source" 2>/dev/null
+        timeout -k 1 2 head -c 65536 "$source" 2>/dev/null
     done
     printf '\n--- kernel ring buffer (bounded tail unavailable on minimal initrd) ---\n'
-    timeout 5 dmesg 2>/dev/null
+    timeout -k 1 5 dmesg 2>/dev/null
     printf '\n--- interfaces and routes ---\n'
-    timeout 5 ip -brief address 2>/dev/null
-    timeout 5 ip route show table all 2>/dev/null
+    timeout -k 1 5 ip -brief address 2>/dev/null
+    timeout -k 1 5 ip route show table all 2>/dev/null
     count=0
     for source in /sys/class/block/*/dev /sys/class/block/*/size /sys/class/block/*/queue/rotational /sys/class/drm/card*/device/uevent; do
         [ -r "$source" ] || continue
         count=$((count+1)); [ "$count" -le 64 ] || break
         printf '\n--- %s ---\n' "$source"
-        head -c 4096 "$source" 2>/dev/null
+        timeout -k 1 2 head -c 4096 "$source" 2>/dev/null
     done
 ) 2>/dev/null | sed -E 's/^.*([[:alnum:]_.-]*([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Aa][Ss][Ss][Pp][Hh][Rr][Aa][Ss][Ee]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Aa][Pp][Ii]_[Kk][Ee][Yy])[[:alnum:]_.-]*=).*$/[REDACTED: credential-bearing line]/' | head -c 1048576 >"$out" 2>/dev/null
 exit 0

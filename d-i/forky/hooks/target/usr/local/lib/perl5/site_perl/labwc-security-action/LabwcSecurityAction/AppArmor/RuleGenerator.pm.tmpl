@@ -21,6 +21,8 @@ use LabwcSecurityAction::AppArmor::AuditLog;
 use LabwcSecurityAction::AppArmor::ProfileIndex;
 use LabwcSecurityAction::AppArmor::RuleRenderer;
 use LabwcSecurityAction::Command;
+use lib '/usr/local/lib/perl5/site_perl/runtime';
+use Managed::PolicyLock qw(acquire_policy_lock);
 
 my $GENERATED_BEGIN = '# BEGIN managed generated AppArmor rules';
 my $GENERATED_END   = '# END managed generated AppArmor rules';
@@ -126,6 +128,7 @@ sub run {
     defined($confirmation) &&
         $confirmation eq 'confirmed-apparmor-rule-generation'
         or die "AppArmor rule generation requires explicit confirmation\n";
+    my $policy_lock = acquire_policy_lock();
     $self->_prepare_backup_dir();
     my $lock_fh = $self->_acquire_lock();
     my ($records, $parse_rejections) =

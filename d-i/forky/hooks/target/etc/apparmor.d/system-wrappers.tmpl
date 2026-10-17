@@ -669,6 +669,7 @@ profile secure-boot-tool /usr/libexec/install-tools/secure-boot-tool flags=(atta
   signal (send) set=(chld) peer=apt-mok-prehook,
   #include <abstractions/wrapper-base>
   #include <abstractions/openssl>
+  #include <abstractions/python>
 
   capability,
   mount,
@@ -678,7 +679,9 @@ profile secure-boot-tool /usr/libexec/install-tools/secure-boot-tool flags=(atta
   dbus,
 
   /usr/libexec/install-tools/secure-boot-tool rix,
-  /usr/bin/{awk,cat,chmod,cmp,cp,cut,date,dirname,find,findmnt,flock,grep,gzip,id,install,mkdir,mktemp,mokutil,mount,mv,openssl,readlink,rm,sbsign,sbverify,sed,sort,systemctl,tr,umount,xz,zstd} rix,
+  /usr/libexec/install-tools/verify-module-signature.py r,
+  /usr/bin/python3{,.[0-9]*} rix,
+  /usr/bin/{awk,cat,chmod,cmp,cp,cut,date,dirname,find,findmnt,flock,grep,gzip,id,install,mkdir,mktemp,mokutil,mount,mv,openssl,readlink,rm,sbsign,sbverify,sed,sort,sync,systemctl,timeout,tr,umount,xz,zstd} rix,
   /usr/sbin/{cryptsetup,depmod,modinfo,modprobe,update-initramfs} rix,
   /sbin/{cryptsetup,depmod,modinfo,modprobe,update-initramfs} rix,
   /usr/src/linux-headers-*/scripts/sign-file rix,

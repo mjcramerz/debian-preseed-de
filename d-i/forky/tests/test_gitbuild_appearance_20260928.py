@@ -393,6 +393,20 @@ class BuildTests(Temporary):
                                     env={}, capture=True, timeout=5)
                 self.assertLess(time.monotonic() - start, 4)
 
+    def test_checked_capture_honors_per_call_output_limit(self):
+        with mock.patch.object(process, 'MAX_CAPTURE_BYTES', 4096):
+            code = 'import os,time; os.write(1,b"x"*2048); time.sleep(30)'
+            start = time.monotonic()
+            with self.assertRaisesRegex(process.OutputLimitError, 'output exceeds the limit'):
+                process.checked(['/usr/bin/python3', '-I', '-c', code], env={},
+                                capture=True, timeout=5, max_output_bytes=1024)
+            self.assertLess(time.monotonic() - start, 4)
+            with mock.patch.object(process.subprocess, 'Popen') as popen:
+                with self.assertRaisesRegex(ValueError, 'output limit'):
+                    process.checked(['/fixture/command'], capture=True, env={},
+                                    max_output_bytes=0)
+                popen.assert_not_called()
+
     def test_checked_capture_failure_does_not_expose_captured_output(self):
         code = 'import sys; print("fixture-private-data", file=sys.stderr); sys.exit(17)'
         with self.assertRaisesRegex(process.CommandError, 'status 17') as caught:

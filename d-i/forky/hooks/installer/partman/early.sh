@@ -6,10 +6,21 @@ partman_early_require_command() {
 
 PARTMAN_EARLY_WIPEFS_WARNED=${PARTMAN_EARLY_WIPEFS_WARNED:-false}
 
+partman_early_assert_selected_disk() (
+  "${TMP_ENV_DIR:?TMP_ENV_DIR must be set}/detect-disk.sh" --verify-identity \
+    "${DEV_INSTALL_DISK:?DEV_INSTALL_DISK must be set}" \
+    "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/state/selected-disk.identity" \
+    "${1:-$DEV_INSTALL_DISK}" || {
+      installer_fatal 'selected physical disk identity changed before storage mutation'
+      return 1
+    }
+)
+
 partman_early_clear_signatures() {
   dev=$1
 
   if command -v wipefs >/dev/null 2>&1; then
+    partman_early_assert_selected_disk "$dev" || return 1
     wipefs -a -f "$dev" || {
       installer_fatal "failed to clear storage signatures from ${dev}"
       return 1
@@ -51,7 +62,9 @@ partman_early_reinitialize_gpt_disk() {
 
   [ -n "$disk" ] || installer_fatal "partman_early_reinitialize_gpt_disk requires a disk path"
   installer_info "reinitializing GPT label on ${disk} using sfdisk + parted"
+  partman_early_assert_selected_disk "$disk" || return 1
   sfdisk --delete "$disk" >/dev/null 2>&1 || true
+  partman_early_assert_selected_disk "$disk" || return 1
   parted -s "$disk" mklabel gpt || installer_fatal "failed to create GPT label on ${disk} with parted"
   partman_early_settle_block_devices "$disk"
   partman_early_log_partition_state "after-gpt-label" "$disk"
@@ -59,7 +72,6 @@ partman_early_reinitialize_gpt_disk() {
 
 partman_early_sanitize_install_disk() {
   disk=${1:-${DEV_DISK_BLOCK:-}}
-  disk_part_glob="${disk}*"
 
   [ -n "$disk" ] || installer_fatal "partman_early_sanitize_install_disk requires a disk path"
   case "$disk" in
@@ -67,12 +79,10 @@ partman_early_sanitize_install_disk() {
     *) installer_fatal "install disk must be an absolute /dev path: ${disk}" ;;
   esac
   [ -b "$disk" ] || installer_fatal "install disk is not a block device: ${disk}"
-  case "$disk" in
-    *[0-9]) disk_part_glob="${disk}p*" ;;
-  esac
 
   disk_discarded=false
   if command -v blkdiscard >/dev/null 2>&1; then
+    partman_early_assert_selected_disk "$disk" || return 1
     if blkdiscard -f "$disk" >/dev/null 2>&1; then
       disk_discarded=true
     else
@@ -81,7 +91,11 @@ partman_early_sanitize_install_disk() {
   fi
 
   if [ "$disk_discarded" != true ]; then
-    for dev in $disk_part_glob; do
+    # Enumerate only actual children of this disk. A /dev/sda* glob can also
+    # match an unrelated /dev/sdaa disk and its partitions.
+    for partition_sys in "/sys/class/block/${disk##*/}/"*; do
+      [ -f "$partition_sys/partition" ] || continue
+      dev="/dev/${partition_sys##*/}"
       [ -b "$dev" ] || continue
       partman_early_clear_signatures "$dev"
     done

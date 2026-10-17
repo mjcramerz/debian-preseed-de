@@ -2,11 +2,15 @@
 use strict;
 use warnings;
 
+use lib '/usr/local/lib/perl5/site_perl/runtime';
+use Managed::Process qw(capture_command);
 use Fcntl qw(:flock);
 use File::Path qw(make_path);
 use IO::Select;
 use POSIX qw(WNOHANG);
-use Time::HiRes qw(usleep);
+use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC usleep);
+
+our $configure_deadline;
 
 my %defaults = load_defaults('/etc/labwc/desktop.conf');
 apply_env_overrides(
@@ -24,7 +28,7 @@ apply_env_overrides(
 
 my $mode = $ARGV[0] // q{};
 if ($mode eq '--configure') {
-    my ($profile) = with_config_lock(sub { configure_outputs() });
+    my ($profile) = configure_with_lock();
     print "${profile}\n";
     exit 0;
 }
@@ -35,6 +39,19 @@ if ($mode eq '--watch') {
 
 print STDERR "usage: labwc-greeter-output {--configure|--watch}\n";
 exit 64;
+
+sub configure_with_lock {
+    local $configure_deadline = clock_gettime(CLOCK_MONOTONIC) + 20;
+    return with_config_lock(sub { configure_outputs() });
+}
+
+sub output_command {
+    my (@argv) = @_;
+    my $remaining = $configure_deadline - clock_gettime(CLOCK_MONOTONIC);
+    die "greeter output configuration deadline exceeded\n" if $remaining <= 0;
+    return capture_command(argv => \@argv, timeout => ($remaining < 5 ? $remaining : 5),
+                           limit => 1_048_576);
+}
 
 sub configure_outputs {
     my $wlr_randr = find_command('wlr-randr');
@@ -69,28 +86,30 @@ sub configure_outputs {
 
     my @base_args =
       ('--output', $selected, '--on', '--scale', $scale, '--pos', '0,0');
+    my $status = 1;
     if (defined $mode) {
-        system {$wlr_randr} $wlr_randr,
+        $status = output_command($wlr_randr,
           @base_args[0 .. 2],
           '--mode', $mode,
-          @base_args[3 .. $#base_args];
+          @base_args[3 .. $#base_args])->{status};
     }
-    if (!defined($mode) || $? != 0) {
-        system {$wlr_randr} $wlr_randr, @base_args;
+    if (!defined($mode) || $status != 0) {
+        $status = output_command($wlr_randr, @base_args)->{status};
     }
-    die "failed to enable greeter output ${selected}\n" if $? != 0;
+    die "failed to enable greeter output ${selected}\n" if $status != 0;
 
     for my $output_name (@outputs) {
         next if $output_name eq $selected;
-        system {$wlr_randr} $wlr_randr, '--output', $output_name, '--off';
+        my $result = output_command($wlr_randr, '--output', $output_name, '--off');
         die "failed to disable non-selected greeter output ${output_name}\n"
-          if $? != 0;
+          if $result->{status} != 0;
     }
 
     return ($profile, $selected);
 }
 
 sub watch_outputs {
+    local $SIG{CHLD} = 'DEFAULT';
     my $udevadm = find_command('udevadm');
     return if !defined $udevadm;
 
@@ -103,9 +122,18 @@ sub watch_outputs {
     my $debounce = validated_debounce(
         $defaults{LABWC_GREETER_HOTPLUG_DEBOUNCE_SECONDS} // '0'
     );
-    my $monitor_pid =
-      open my $monitor, '-|', $udevadm, 'monitor', '--subsystem-match=drm';
-    return if !defined $monitor_pid;
+    pipe(my $monitor, my $writer) or die "cannot create output monitor pipe: $!\n";
+    my $monitor_pid = fork;
+    die "cannot fork output monitor: $!\n" if !defined $monitor_pid;
+    if (!$monitor_pid) {
+        close $monitor;
+        open STDIN, '<', '/dev/null' or POSIX::_exit(126);
+        open STDOUT, '>&', $writer or POSIX::_exit(126);
+        close $writer;
+        exec {$udevadm} $udevadm, 'monitor', '--subsystem-match=drm';
+        POSIX::_exit(127);
+    }
+    close $writer;
     my $monitor_selector = IO::Select->new($monitor);
 
     my $stop_marker = "__LABWC_GREETER_OUTPUT_STOP__\n";
@@ -113,16 +141,28 @@ sub watch_outputs {
     local $SIG{INT}  = sub { die $stop_marker };
     local $SIG{TERM} = sub { die $stop_marker };
 
+    my $buffer = q{};
     my $watch_ok = eval {
         while (getppid() == $owner_pid) {
             my @ready = $monitor_selector->can_read(1);
             next if !@ready;
 
-            my $line = <$monitor>;
-            last if !defined $line;
-            next if $line !~ /(?:\badd\b|\bchange\b|\bremove\b)/;
+            my $count = sysread($monitor, my $chunk, 4096);
+            die "cannot read output monitor: $!\n" if !defined $count;
+            last if !$count;
+            $buffer .= $chunk;
+            die "output monitor record exceeds its limit\n" if length($buffer) > 65_536;
+            my $changed = 0;
+            while ($buffer =~ s/\A([^\n]*\n)//) {
+                $changed = 1 if $1 =~ /(?:\badd\b|\bchange\b|\bremove\b)/;
+            }
+            next if !$changed;
             sleep $debounce if $debounce > 0;
-            eval { with_config_lock(sub { configure_outputs() }); 1 };
+            my $configured = eval { configure_with_lock(); 1 };
+            my $configuration_error = $@;
+            die $configuration_error if !$configured && $configuration_error eq $stop_marker;
+            warn "greeter hotplug output configuration failed; retaining the current login route\n"
+                if !$configured;
         }
         1;
     };
@@ -137,16 +177,28 @@ sub watch_outputs {
 sub terminate_monitor_process {
     my ($monitor_pid) = @_;
     return if !defined $monitor_pid || $monitor_pid <= 0;
+    # Repeated stop requests must not interrupt the finite cleanup budget.
+    local $SIG{HUP} = sub {};
+    local $SIG{INT} = sub {};
+    local $SIG{TERM} = sub {};
 
     kill 'TERM', $monitor_pid;
     for (1 .. 20) {
-        return if waitpid($monitor_pid, WNOHANG) == $monitor_pid;
+        my $waited = waitpid($monitor_pid, WNOHANG);
+        return if $waited == $monitor_pid;
+        die "output monitor child identity is unavailable\n" if $waited < 0;
         usleep(50_000);
     }
 
     kill 'KILL', $monitor_pid;
-    waitpid($monitor_pid, 0);
-    return;
+    my $deadline = clock_gettime(CLOCK_MONOTONIC) + 2;
+    while (clock_gettime(CLOCK_MONOTONIC) < $deadline) {
+        my $waited = waitpid($monitor_pid, WNOHANG);
+        return if $waited == $monitor_pid;
+        die "output monitor child identity is unavailable\n" if $waited < 0;
+        usleep(20_000);
+    }
+    die "output monitor termination outcome unknown\n";
 }
 
 sub validated_owner_pid {
@@ -162,14 +214,14 @@ sub connected_outputs {
     my ($wlr_randr) = @_;
     my @outputs;
 
-    open my $state, '-|', $wlr_randr or return @outputs;
-    while (my $line = <$state>) {
+    my $state = output_command($wlr_randr);
+    die "failed to query Wayland outputs\n" if $state->{status} != 0;
+    for my $line (split /\n/, $state->{stdout}) {
         next if $line =~ /^[[:space:]]/;
         my ($output_name) = split /[[:space:]]+/, $line, 2;
         next if !output_name_safe($output_name);
         push @outputs, $output_name;
     }
-    close $state;
     return @outputs;
 }
 
@@ -220,8 +272,9 @@ sub output_modes {
     my @modes;
     my $in_output = 0;
 
-    open my $state, '-|', $wlr_randr or return @modes;
-    while (my $line = <$state>) {
+    my $state = output_command($wlr_randr);
+    die "failed to query Wayland output modes\n" if $state->{status} != 0;
+    for my $line (split /\n/, $state->{stdout}) {
         if ($line =~ /^\Q$output_name\E\b/) {
             $in_output = 1;
             next;
@@ -241,7 +294,6 @@ sub output_modes {
             value      => sprintf('%sx%s@%sHz', $width, $height, $hz),
         };
     }
-    close $state;
     return @modes;
 }
 
@@ -299,8 +351,12 @@ sub with_config_lock {
 
     make_path($state_dir, { mode => 0700 }) if !-d $state_dir;
     open my $lock_fh, '>>', "${state_dir}/greeter-output.lock"
-      or return $callback->();
-    flock($lock_fh, LOCK_EX) or return $callback->();
+      or die "cannot open greeter output configuration lock: $!\n";
+    while (!flock($lock_fh, LOCK_EX | LOCK_NB)) {
+        die "greeter output configuration lock deadline exceeded\n"
+          if clock_gettime(CLOCK_MONOTONIC) >= $configure_deadline;
+        usleep(50_000);
+    }
     my @result = $callback->();
     close $lock_fh;
     return @result;

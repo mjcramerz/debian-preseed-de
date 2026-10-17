@@ -14,6 +14,7 @@ use Types::Standard qw(HashRef Int Str);
 use AndroidADB::Validation qw(fail require_value);
 
 my %TOOL_CANDIDATES = (
+    ffprobe => ['/usr/bin/ffprobe'],
     adb => [
         '/usr/local/bin/adb',
         '/usr/bin/adb',

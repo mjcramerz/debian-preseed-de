@@ -41,10 +41,13 @@ use strict;
 use warnings;
 
 use File::Spec;
+use Fcntl qw(O_RDONLY O_NOFOLLOW O_NONBLOCK);
 use Moo;
 use MooX::StrictConstructor;
 use MooX::TypeTiny;
 use Types::Standard qw(Bool Int Str);
+
+has policy_file => (is => 'ro', isa => Str, default => sub { '/etc/labwc/plans.conf' });
 
 has enabled => (
     is       => 'ro',
@@ -261,10 +264,7 @@ sub from_environment {
 
     my $enabled = _env_bool('LABWC_PLANS_ENABLED', 1);
     my $telegram_enabled = _env_bool('LABWC_PLANS_TELEGRAM_ENABLED', 1);
-    my $ntfy_enabled = _env_bool('LABWC_PLANS_NTFY_ENABLED', 1);
-    if ($enabled && !$telegram_enabled && !$ntfy_enabled) {
-        die "labwc-plans requires at least one enabled notification channel\n";
-    }
+    my $ntfy_enabled = _env_bool('LABWC_PLANS_NTFY_ENABLED', 0);
 
     my $telegram_api_base = _validate_https_base_url(
         'Telegram API base URL',
@@ -283,7 +283,7 @@ sub from_environment {
         'ntfy base URL',
         _env_text('LABWC_PLANS_NTFY_BASE_URL', 'https://ntfy.sh', 1_024),
     );
-    my $ntfy_topic = _env_text('LABWC_PLANS_NTFY_TOPIC', 'labwc_plans_notify', 128);
+    my $ntfy_topic = _env_text('LABWC_PLANS_NTFY_TOPIC', q{}, 128);
     if ($enabled && $ntfy_enabled) {
         $ntfy_topic =~ /\A[A-Za-z0-9_-]{1,64}\z/
             or die "LABWC_PLANS_NTFY_TOPIC has an invalid format\n";
@@ -291,6 +291,12 @@ sub from_environment {
     my $ntfy_access_token = _env_text('LABWC_PLANS_NTFY_ACCESS_TOKEN', q{}, 512);
     $ntfy_access_token !~ /[\x00-\x20\x7f]/
         or die "LABWC_PLANS_NTFY_ACCESS_TOKEN contains whitespace or control characters\n";
+    if ($enabled && $ntfy_enabled) {
+        length($ntfy_access_token) > 0
+            or die "ntfy requires publisher authentication\n";
+        _env_bool('LABWC_PLANS_NTFY_READER_ACCESS_CONFIRMED', 0)
+            or die "ntfy requires verified reader access restrictions\n";
+    }
 
     my $retry_min = _env_int('LABWC_PLANS_RETRY_MIN_SECONDS', 30, 5, 3_600);
     my $retry_max = _env_int('LABWC_PLANS_RETRY_MAX_SECONDS', 1_800, $retry_min, 86_400);
@@ -364,6 +370,67 @@ sub from_environment {
         max_consecutive_cycle_failures => _env_int('LABWC_PLANS_MAX_CONSECUTIVE_FAILURES', 5, 1, 100),
         debug_enabled                  => _env_bool('LABWC_PLANS_DEBUG', 0),
     );
+}
+
+sub channel_enabled {
+    my ($self, $channel) = @_;
+    return 0 if !$self->enabled();
+    return 0 if $channel eq 'telegram' && !$self->telegram_enabled();
+    return 0 if $channel eq 'ntfy' && !$self->ntfy_enabled();
+    $channel eq 'telegram' || $channel eq 'ntfy'
+        or die "unsupported notification channel\n";
+    sysopen my $fh, $self->policy_file(), O_RDONLY | O_NOFOLLOW | O_NONBLOCK
+        or die "cannot read current notification policy\n";
+    my @before = stat $fh;
+    -f $fh && $before[4] == 0 && $before[3] == 1 && !($before[2] & 0022)
+        && $before[7] <= 65_536 or die "unsafe notification policy file\n";
+    binmode $fh, ':raw';
+    my $data = q{};
+    while (length($data) <= 65_536) {
+        my $count = sysread($fh, my $chunk, 65_537 - length($data));
+        defined($count) or die "cannot read current notification policy\n";
+        last if !$count;
+        $data .= $chunk;
+    }
+    my @after = stat $fh;
+    close $fh;
+    length($data) == $before[7] && $before[7] == $after[7]
+        && $before[9] == $after[9] && $before[10] == $after[10]
+        or die "notification policy changed during read\n";
+    my %policy;
+    for my $line (split /\n/, $data) {
+        next if $line !~ /\A\s*(LABWC_PLANS_(?:ENABLED|TELEGRAM_[A-Z_]+|NTFY_[A-Z_]+))\s*=/;
+        my $key = $1;
+        !exists($policy{$key}) or die "duplicate notification policy key\n";
+        $line =~ /\A\s*\Q$key\E\s*=\s*'([^'\r\n]*)'\s*\z/
+            or die "notification policy requires its managed single-line value format\n";
+        $policy{$key} = $1;
+    }
+    my $prefix = 'LABWC_PLANS_' . uc($channel) . '_';
+    return 0 if !_policy_bool(\%policy, 'LABWC_PLANS_ENABLED')
+        || !_policy_bool(\%policy, $prefix . 'ENABLED');
+    my %expected = $channel eq 'telegram'
+        ? (API_BASE => $self->telegram_api_base(), API_KEY => $self->telegram_api_key(),
+           CHAT_ID => $self->telegram_chat_id())
+        : (BASE_URL => $self->ntfy_base_url(), TOPIC => $self->ntfy_topic(),
+           ACCESS_TOKEN => $self->ntfy_access_token());
+    # Destination/authentication edits require a restart. Until then, cancel
+    # this channel's pending work rather than send with an old environment.
+    for my $key (keys %expected) {
+        return 0 if !defined($policy{$prefix . $key})
+            || $policy{$prefix . $key} ne $expected{$key};
+    }
+    return 0 if $channel eq 'ntfy'
+        && !_policy_bool(\%policy, $prefix . 'READER_ACCESS_CONFIRMED');
+    return 1;
+}
+
+sub _policy_bool {
+    my ($policy, $key) = @_;
+    my $value = lc($policy->{$key} // q{});
+    return 1 if $value =~ /\A(?:1|true|yes|on)\z/;
+    return 0 if $value =~ /\A(?:0|false|no|off)\z/;
+    die "missing or invalid notification channel policy\n";
 }
 
 sub _env_text {
@@ -1244,6 +1311,23 @@ sub _quarantine_state {
     die "labwc-plans: $reason; existing state retained at " . $self->directory() . "/state.json\n";
 }
 
+sub cancel_disabled_channels {
+    my ($self, $config) = @_;
+    my %enabled = map { $_ => $config->channel_enabled($_) } qw(telegram ntfy);
+    my $changed = 0;
+    for my $notification (values %{$self->state()->{notifications}}) {
+        for my $channel (qw(telegram ntfy)) {
+            my $record = $notification->{channels}->{$channel};
+            next if $enabled{$channel} || ($record->{status} // q{}) ne 'pending';
+            $record->{status} = 'disabled';
+            $record->{next_attempt} = 0;
+            $changed = 1;
+        }
+    }
+    $self->save() if $changed;
+    return;
+}
+
 sub _state_shape_valid {
     my ($state) = @_;
 
@@ -1363,6 +1447,8 @@ sub _build_http {
 sub send {
     my ($self, $channel, $notification) = @_;
 
+    return { ok => 0, disabled => 1, retry_after => 0, error => 'notification channel disabled' }
+        if !$self->config()->channel_enabled($channel);
     if ($self->dry_run()) {
         my $rendered = JSON::PP->new()->canonical(1)->utf8(1)->encode({
             channel => $channel,
@@ -1852,10 +1938,23 @@ sub _deliver {
             last if $self->stop_requested() || $attempts >= $self->config()->max_deliveries_per_cycle();
             my $channel_state = $notification->{channels}->{$channel};
             next CHANNEL if ($channel_state->{status} // q{}) ne 'pending';
+            # Disabling cancels pending delivery under the existing state lock.
+            # A later enable never resurrects a cancelled backlog.
+            my $enabled = $self->config()->channel_enabled($channel);
+            if (!$enabled) {
+                $channel_state->{status} = 'disabled';
+                $channel_state->{next_attempt} = 0;
+                $self->state_store()->save();
+                next CHANNEL;
+            }
             next CHANNEL if ($channel_state->{next_attempt} // 0) > $now;
             $attempts++;
             my $result = $self->transport()->send($channel, $notification);
-            if ($result->{ok}) {
+            if ($result->{disabled}) {
+                $channel_state->{status} = 'disabled';
+                $channel_state->{next_attempt} = 0;
+            }
+            elsif ($result->{ok}) {
                 $channel_state->{status} = 'delivered';
                 $channel_state->{delivered_epoch} = $now;
                 $channel_state->{next_attempt} = 0;
@@ -1972,7 +2071,6 @@ delete @ENV{
 };
 
 my $config = LabwcPlans::Config->from_environment();
-exit 0 if !$config->enabled();
 my $logger = LabwcPlans::Logger->new(
     debug_enabled => $config->debug_enabled(),
 );
@@ -1984,6 +2082,9 @@ my $state_store = LabwcPlans::State->new(
 );
 $state_store->acquire_lock();
 $state_store->load();
+$state_store->cancel_disabled_channels($config);
+return 0 if !$config->enabled()
+    || (!$config->telegram_enabled() && !$config->ntfy_enabled());
 
 my $parser = LabwcPlans::Parser->new(logger => $logger);
 my $scanner = LabwcPlans::Scanner->new(

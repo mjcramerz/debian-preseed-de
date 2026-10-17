@@ -122,6 +122,7 @@ class Broker:
         self.policy_state: dict = {}
         self.policy_error = ""
         self.policy_release: str | None = None
+        self.child_outcome_unknown = False
 
     def save(self) -> None:
         atomic_json(STATE / "controls.json", {"version": 2, "automatic": self.selection.automatic,
@@ -167,9 +168,12 @@ class Broker:
         return self.policy_state
 
     async def child(self, args: list[str], timeout: int) -> dict:
+        if self.child_outcome_unknown:
+            raise TuningError("helper outcome unknown; reconcile the owning service before further hardware operations")
         process = await asyncio.create_subprocess_exec(*args, stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
             env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C.UTF-8"}, limit=MAX_JSON + 1)
+        tasks = []
         try:
             # Read with explicit byte bounds; communicate() alone is unbounded.
             async def bounded(stream, limit):
@@ -180,13 +184,32 @@ class Broker:
                     return await bounded(stream, limit)
                 except asyncio.IncompleteReadError as exc:
                     return exc.partial
-            output, errors, _ = await asyncio.wait_for(asyncio.gather(
-                read_stream(process.stdout, MAX_JSON), read_stream(process.stderr, 65536), process.wait()), timeout)
-        except BaseException:
+            tasks = [asyncio.create_task(read_stream(process.stdout, MAX_JSON)),
+                     asyncio.create_task(read_stream(process.stderr, 65536)),
+                     asyncio.create_task(process.wait())]
+            output, errors, _ = await asyncio.wait_for(asyncio.gather(*tasks), timeout)
+        except BaseException as exc:
+            # A killed worker may have delegated a mutation. Its owning service
+            # cgroup must be reconciled before any competing restore/retry.
+            self.child_outcome_unknown = True
+            cleanup_end = asyncio.get_running_loop().time() + 5
             if process.returncode is None:
-                process.kill()
-            await process.wait()
-            raise
+                try:
+                    process.kill()
+                except OSError:
+                    # Retain the unknown result, but still cancel every owned
+                    # reader/waiter and consume the bounded cleanup budget.
+                    pass
+            for task in tasks:
+                task.cancel()
+            try:
+                await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), 1)
+                await asyncio.wait_for(process.wait(), max(.01, cleanup_end - asyncio.get_running_loop().time()))
+            except asyncio.TimeoutError:
+                pass
+            if isinstance(exc, asyncio.CancelledError):
+                raise
+            raise TuningError("helper outcome unknown; further hardware operations blocked until owning service reconciliation") from exc
         try:
             result = decode(output)
         except (ValueError, TuningError) as exc:

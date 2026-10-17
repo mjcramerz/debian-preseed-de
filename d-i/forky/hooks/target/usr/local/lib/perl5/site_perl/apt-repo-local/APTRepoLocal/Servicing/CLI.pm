@@ -329,6 +329,7 @@ sub _apply_deb {
             return (1, $blocked) if defined $blocked;
             my $finalized = eval {
                 $chatgpt->finalize_install($execution_context);
+                $chatgpt->commit_install();
                 1;
             };
             if (!$finalized) {
@@ -369,9 +370,13 @@ sub _apply_deb {
     $event->emit('applying', $app->{name}, $installed // 'not-installed', $metadata->{version});
     my $stage = $app->{name} eq 'chatgpt' ? 'prepare' : 'apt';
     my $applied = eval {
-        $chatgpt->prepare_install() if $app->{name} eq 'chatgpt';
+        $chatgpt->prepare_install($execution_context) if $app->{name} eq 'chatgpt';
         $stage = 'apt';
-        $deb->install($candidate->{path}, $reinstall);
+        if ($app->{name} eq 'chatgpt') {
+            $chatgpt->package_install(sub { $deb->install($candidate->{path}, $reinstall) });
+        } else {
+            $deb->install($candidate->{path}, $reinstall);
+        }
         $stage = 'sandbox';
         $deb->repair_chromium_sandbox($app->{sandbox}, $app->{sandbox_presence})
             if defined $app->{sandbox} && $app->{sandbox} ne q{};
@@ -402,8 +407,10 @@ sub _apply_deb {
             'verify',
             'installed package version, payload, or managed policy verification failed',
         );
+        $chatgpt->abort_install() if $app->{name} eq 'chatgpt';
         return (1, 'postinstall');
     }
+    $chatgpt->commit_install() if $app->{name} eq 'chatgpt';
     if (defined $vendor_receipt) {
         my $recorded = eval {
             APTRepoLocal::Servicing::Atomic->write_text(
@@ -536,6 +543,7 @@ sub _run_repair {
                         0;
                     } else {
                         $chatgpt->finalize_install('runtime');
+                        $chatgpt->commit_install();
                         1;
                     }
                 } else {
@@ -625,7 +633,10 @@ sub _run_bootstrap_chatgpt {
         my $suffix = defined $detail && $detail ne q{}
             ? " ($detail)"
             : q{};
-        die "ChatGPT bootstrap download failed: $download_reason$suffix\n";
+        my $phase = defined($detail) && $detail =~ /\Arepository:/
+            ? 'repository import'
+            : $download_reason eq 'download' ? 'download' : 'package validation';
+        die "ChatGPT bootstrap $phase failed: $download_reason$suffix\n";
     }
 
     my ($apply_result, $apply_reason) = $self->_apply_deb(

@@ -341,7 +341,10 @@ class PythonLifecycleTests(unittest.TestCase):
         paths = firewall_files.FirewallPaths(
             state_file=root / 'state', fragment_file=root / 'fragment',
             nft_conf=root / 'nft.conf', lock_file=root / 'lock')
-        backups = (root / 'state.backup', root / 'fragment.backup')
+        recovery = root / 'recovery'
+        recovery.mkdir(mode=0o700)
+        (recovery / 'receipt.json').write_text('{}\n', encoding='utf-8')
+        backups = (recovery / 'state.backup', recovery / 'fragment.backup')
         candidates = (root / 'state.candidate', root / 'fragment.candidate')
         for target, backup, candidate in zip(
                 (paths.state_file, paths.fragment_file), backups, candidates):
@@ -349,7 +352,9 @@ class PythonLifecycleTests(unittest.TestCase):
             backup.write_text('original', encoding='utf-8')
             backup.chmod(0o600)
             candidate.write_text('candidate', encoding='utf-8')
-        return firewall_files.PendingMutation(paths, *backups, *candidates)
+        return firewall_files.PendingMutation(
+            paths=paths, state_backup=backups[0], fragment_backup=backups[1],
+            recovery_directory=recovery, state_candidate=candidates[0], fragment_candidate=candidates[1])
 
     def test_firewall_rollback_restores_other_file_and_retains_recovery_backups(self):
         for failed_file in ('state', 'fragment'):
@@ -387,7 +392,12 @@ class PythonLifecycleTests(unittest.TestCase):
             self.assertIn('fragment restore failed', str(caught.exception))
             self.assertTrue(mutation.rollback_failed)
             mutation.rollback()
-            self.assertFalse(mutation.rollback_failed)
+            # Restoring bytes does not prove that the previous live rules won.
+            self.assertTrue(mutation.rollback_failed)
+            mutation.cleanup()
+            self.assertTrue(mutation.state_backup.exists())
+            self.assertTrue(mutation.fragment_backup.exists())
+            mutation.rollback_failed = False  # fixture owner verifies live restoration
             mutation.cleanup()
             self.assertFalse(mutation.state_backup.exists())
             self.assertFalse(mutation.fragment_backup.exists())
@@ -416,15 +426,43 @@ class PythonLifecycleTests(unittest.TestCase):
             self.assertFalse(mutation.state_candidate.exists())
             self.assertFalse(mutation.fragment_candidate.exists())
 
+    def test_interrupted_firewall_install_retains_recovery_after_first_commit(self):
+        with tempfile.TemporaryDirectory() as name:
+            mutation = self.firewall_mutation(Path(name))
+            with mock.patch.object(firewall_files, '_sync_directory', side_effect=KeyboardInterrupt):
+                with self.assertRaises(KeyboardInterrupt):
+                    mutation.install()
+            self.assertEqual(mutation.paths.state_file.read_text(), 'candidate')
+            self.assertEqual(mutation.paths.fragment_file.read_text(), 'current')
+            self.assertTrue(mutation.rollback_failed)
+            mutation.cleanup()
+            self.assertEqual(mutation.state_backup.read_text(), 'original')
+            self.assertEqual(mutation.fragment_backup.read_text(), 'original')
+            self.assertTrue((mutation.recovery_directory / 'receipt.json').is_file())
+            self.assertFalse((Path(name) / 'fragment.candidate').exists())
+
     def test_partial_firewall_backup_setup_removes_first_backup(self):
         with tempfile.TemporaryDirectory() as directory:
-            backup = Path(directory) / 'backup'; backup.write_bytes(b'original')
+            root = Path(directory)
+            state = root / 'state'; state.write_text('original', encoding='utf-8')
+            fragment = root / 'fragment'; fragment.write_text('fragment', encoding='utf-8')
+            paths = firewall_files.FirewallPaths(state_file=state, fragment_file=fragment,
+                                                nft_conf=root / 'nft.conf', lock_file=root / 'lock')
+            real_backup = firewall_files._backup
+            created = []
+            def snapshot_or_fail(source, prefix, destination):
+                if created:
+                    raise FirewallError('second backup failed')
+                backup = real_backup(source, prefix, destination)
+                created.append(backup)
+                return backup
             with mock.patch.object(firewall_files, 'validate_managed_file'), \
                     mock.patch.object(firewall_files, 'validate_nft_conf'), \
-                    mock.patch.object(firewall_files, '_backup', side_effect=[backup, FirewallError('second backup failed')]):
+                    mock.patch.object(firewall_files, '_backup', side_effect=snapshot_or_fail):
                 with self.assertRaisesRegex(FirewallError, 'second backup'):
-                    firewall_files.PendingMutation.create(firewall_files.FirewallPaths())
-            self.assertFalse(backup.exists())
+                    firewall_files.PendingMutation.create(paths)
+            self.assertFalse(created[0].exists())
+            self.assertEqual(set(root.iterdir()), {state, fragment})
 
     def test_failed_firewall_candidate_write_removes_temporary(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -441,7 +479,7 @@ class PythonLifecycleTests(unittest.TestCase):
             with mock.patch.object(firewall_files.tempfile, 'mkstemp',
                     side_effect=lambda **kw: create(prefix=kw['prefix'], dir=root)):
                 with self.assertRaises(FirewallError):
-                    firewall_files._backup(root / 'missing', '.backup-')
+                    firewall_files._backup(root / 'missing', '.backup-', root)
             self.assertEqual(list(root.iterdir()), [])
 
     def test_failed_firewall_restore_removes_temporary(self):
@@ -513,30 +551,58 @@ class PythonLifecycleTests(unittest.TestCase):
         runner = mock.Mock()
         runner.require.side_effect = lambda name: {'nft': '/usr/sbin/nft', 'systemctl': '/usr/bin/systemctl'}[name]
         runner.run.side_effect = outcomes
-        return runner, mock.Mock()
+        mutation = mock.Mock()
+        mutation.state_candidate = Path('/fixture/state.candidate')
+        mutation.fragment_candidate = Path('/fixture/fragment.candidate')
+        mutation.recovery_directory = Path('/fixture/recovery')
+        for name, result in (('load_state', []), ('_snapshot_live', {}),
+                             ('_live_identity', {}), ('_verify_managed_rules', None)):
+            patch = mock.patch.object(nftables, name, return_value=result)
+            patch.start()
+            self.addCleanup(patch.stop)
+        return runner, mutation
 
     def test_validation_timeout_rolls_back_without_reload(self):
-        runner, mutation = self.firewall([FirewallError('timeout')])
+        runner, mutation = self.firewall([types.SimpleNamespace(returncode=0), FirewallError('timeout')])
         with self.assertRaisesRegex(FirewallError, 'previous rules restored'):
             nftables.validate_and_apply(runner, mutation, Path('/etc/nftables.conf'))
         mutation.rollback.assert_called_once()
+        self.assertEqual(runner.run.call_count, 2)
+
+    def test_invalid_candidate_does_not_publish_or_reload(self):
+        runner, mutation = self.firewall([types.SimpleNamespace(returncode=1)])
+        with self.assertRaisesRegex(FirewallError, 'before publication'):
+            nftables.validate_and_apply(runner, mutation, Path('/fixture/nft.conf'))
+        mutation.install.assert_not_called()
+        mutation.rollback.assert_not_called()
         self.assertEqual(runner.run.call_count, 1)
 
-    def test_reload_timeout_restores_disk_and_live_policy(self):
-        runner, mutation = self.firewall([types.SimpleNamespace(returncode=0), FirewallError('timeout'), types.SimpleNamespace(returncode=0)])
+    def test_reload_execution_failure_restores_disk_and_live_policy(self):
+        runner, mutation = self.firewall([types.SimpleNamespace(returncode=0), types.SimpleNamespace(returncode=0), FirewallError('execution failed'), types.SimpleNamespace(returncode=0)])
         with self.assertRaisesRegex(FirewallError, 'previous rules restored'):
             nftables.validate_and_apply(runner, mutation, Path('/etc/nftables.conf'))
         mutation.rollback.assert_called_once()
-        self.assertEqual(runner.run.call_args.args, ('/usr/sbin/nft', '-f', '/etc/nftables.conf'))
+        self.assertEqual(runner.run.call_args.args, ('/usr/sbin/nft', '-f', '/fixture/recovery/live.nft'))
+
+    def test_manager_timeout_retains_recovery_without_competing_rollback(self):
+        runner, mutation = self.firewall([
+            types.SimpleNamespace(returncode=0), types.SimpleNamespace(returncode=0),
+            nftables.OutcomeUnknown('manager timeout')])
+        with self.assertRaisesRegex(nftables.OutcomeUnknown, 'reconcile nftables.service'):
+            nftables.validate_and_apply(runner, mutation, Path('/etc/nftables.conf'))
+        mutation.rollback.assert_not_called()
+        self.assertTrue(mutation.rollback_failed)
+        self.assertEqual(runner.run.call_count, 3)
 
     def test_failed_live_restore_is_not_reported_as_success(self):
-        runner, mutation = self.firewall([types.SimpleNamespace(returncode=0), FirewallError('timeout'), FirewallError('restore timeout')])
+        runner, mutation = self.firewall([types.SimpleNamespace(returncode=0), types.SimpleNamespace(returncode=0), FirewallError('execution failed'), FirewallError('restore timeout')])
         with self.assertRaisesRegex(FirewallError, 'previous live rules could not be restored'):
             nftables.validate_and_apply(runner, mutation, Path('/etc/nftables.conf'))
         mutation.rollback.assert_called_once()
+        self.assertTrue(mutation.rollback_failed)
 
     def test_success_does_not_rollback(self):
-        runner, mutation = self.firewall([types.SimpleNamespace(returncode=0), types.SimpleNamespace(returncode=0)])
+        runner, mutation = self.firewall([types.SimpleNamespace(returncode=0), types.SimpleNamespace(returncode=0), types.SimpleNamespace(returncode=0)])
         nftables.validate_and_apply(runner, mutation, Path('/etc/nftables.conf'))
         mutation.rollback.assert_not_called()
 

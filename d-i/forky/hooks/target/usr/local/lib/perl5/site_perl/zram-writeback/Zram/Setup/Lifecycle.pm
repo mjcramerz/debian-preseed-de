@@ -22,6 +22,7 @@ sub run {
     return 0 if !$self->config()->enabled();
 
     my $guard = $self->lock()->acquire();
+    return 75 if !defined($guard); # lifecycle work was busy, never a completed skip
     return $self->device()->start()        if $action eq 'start';
     return $self->device()->stop()         if $action eq 'stop';
     return $self->device()->reset()        if $action eq 'reset';

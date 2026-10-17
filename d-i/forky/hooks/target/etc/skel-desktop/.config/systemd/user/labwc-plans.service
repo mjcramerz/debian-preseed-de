@@ -28,23 +28,13 @@ IOSchedulingClass=best-effort
 IOSchedulingPriority=7
 StateDirectory=labwc-plans
 StateDirectoryMode=0700
+# Keep root-owned policy visible in the host UID namespace. In a user manager,
+# filesystem/UTS sandboxing implicitly creates a private user namespace whose
+# unmapped root owner fails the policy's UID 0 check. AppArmor and the independent
+# privilege, syscall and address-family restrictions below still apply.
 NoNewPrivileges=yes
-PrivateTmp=yes
-PrivateDevices=yes
-ProtectSystem=strict
-ProtectHome=read-only
-ReadOnlyPaths=-%h/Syncthing/sleek
-ReadWritePaths=%S/labwc-plans
-ProtectClock=yes
-ProtectControlGroups=yes
-ProtectHostname=yes
-ProtectKernelLogs=yes
-ProtectKernelModules=yes
-ProtectKernelTunables=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
-ProtectProc=invisible
-ProcSubset=pid
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 RestrictNamespaces=yes
 RestrictRealtime=yes

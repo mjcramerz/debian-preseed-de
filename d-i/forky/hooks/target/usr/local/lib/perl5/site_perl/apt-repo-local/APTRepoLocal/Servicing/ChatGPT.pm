@@ -3,10 +3,18 @@ package APTRepoLocal::Servicing::ChatGPT;
 use strict;
 use warnings;
 
+use lib '/usr/local/lib/perl5/site_perl/runtime';
+use Managed::Process qw(capture_command);
+
 use Moo;
 use MooX::StrictConstructor;
 
-use Fcntl qw(S_IFMT S_IFREG S_IFLNK);
+use Fcntl qw(S_IFMT S_IFREG S_IFLNK O_RDONLY O_DIRECTORY O_NOFOLLOW O_WRONLY O_CREAT O_EXCL);
+use IO::Handle;
+use JSON::PP ();
+use MIME::Base64 qw(encode_base64);
+use File::Basename qw(dirname);
+use Managed::PolicyLock qw(acquire_policy_lock with_policy_lock_handoff);
 use APTRepoLocal::Servicing::Atomic;
 use APTRepoLocal::Servicing::ArtifactLimits qw(MAX_DOWNLOAD_BYTES);
 
@@ -35,6 +43,107 @@ use constant MANAGED_MODES_HELPER      => '/usr/local/libexec/apparmor-modes-run
 use constant APPARMOR_PARSER           => '/usr/sbin/apparmor_parser';
 use constant APPARMOR_SECURITYFS       => '/sys/kernel/security/apparmor';
 use constant APPARMOR_PROFILES_PATH    => APPARMOR_SECURITYFS . '/profiles';
+use constant POLICY_RECOVERY           => '/var/lib/software/chatgpt-policy-recovery';
+
+sub _sync_directory {
+    my ($self, $path) = @_;
+    sysopen my $fh, $path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        or die "cannot open ChatGPT transaction directory: $!\n";
+    $fh->sync() or die "cannot synchronize ChatGPT transaction directory: $!\n";
+    close $fh or die "cannot close ChatGPT transaction directory: $!\n";
+}
+
+sub _begin_policy_transaction {
+    my ($self, $context) = @_;
+    if ($self->{policy_transaction}) {
+        $self->{policy_transaction}{context} eq $context or die "ChatGPT transaction context changed\n";
+        return;
+    }
+    my $lock = acquire_policy_lock();
+    -e POLICY_RECOVERY || -l POLICY_RECOVERY
+        and die "ChatGPT recovery is pending at " . POLICY_RECOVERY . "; reconcile before retrying\n";
+    my $owner = $self->_diversion_owner();
+    $owner eq q{} || ($owner eq 'LOCAL' && $self->_diversion_target() eq DIVERSION_PATH)
+        or die "ChatGPT AppArmor diversion is unmanaged\n";
+    my @paths = (DEFAULT_PATH, PACKAGE_DEFAULT_PATH, APPARMOR_PATH, APPARMOR_DISABLE_PATH,
+                 DIVERSION_PATH, DESKTOP_PATH, ICON_PATH, VENDOR_SOURCE_PATH,
+                 VENDOR_LEGACY_SOURCE_PATH, VENDOR_KEYRING_PATH);
+    my @previous;
+    for my $path (@paths) {
+        my @st = lstat $path;
+        if (!@st) {
+            $!{ENOENT} or die "cannot inspect previous ChatGPT policy state: $!\n";
+            push @previous, {path => $path, kind => 'absent'};
+            next;
+        }
+        $st[4] == 0 && !($st[2] & 0022)
+            or die "previous ChatGPT policy state is not privately owned\n" if ($st[2] & S_IFMT) != S_IFLNK;
+        my $entry = {path => $path, mode => $st[2] & 07777, uid => $st[4], gid => $st[5]};
+        if (($st[2] & S_IFMT) == S_IFREG && $st[3] == 1) {
+            $entry->{kind} = 'file';
+            $entry->{data} = APTRepoLocal::Servicing::Atomic->read_limited($path, 1024 * 1024);
+        } elsif (($st[2] & S_IFMT) == S_IFLNK && $st[4] == 0) {
+            $entry->{kind} = 'link';
+            $entry->{data} = readlink $path;
+            defined($entry->{data}) && length($entry->{data}) <= 4096
+                or die "invalid previous ChatGPT policy link\n";
+        } else {
+            die "previous ChatGPT policy path has an unsafe type\n";
+        }
+        push @previous, $entry;
+    }
+    my $snapshot = {version => 1, context => $context, diversion => $owner, previous => \@previous};
+    my @persisted = map { my %record = %$_; $record{data} = encode_base64($record{data}, q{}) if exists $record{data}; \%record } @previous;
+    my $bytes = JSON::PP->new->canonical->encode({%$snapshot, previous => \@persisted});
+    APTRepoLocal::Servicing::Atomic->ensure_root_directory('/var/lib/software', 0755);
+    mkdir POLICY_RECOVERY, 0700 or die "cannot reserve ChatGPT recovery directory: $!\n";
+    # Record ownership before writing: an interrupted fsync retains recovery.
+    $self->{policy_transaction} = {%$snapshot, lock => $lock};
+    sysopen my $fh, POLICY_RECOVERY . '/previous.json', O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600
+        or die "cannot create ChatGPT policy recovery snapshot: $!\n";
+    print {$fh} $bytes or die "cannot write ChatGPT policy recovery snapshot: $!\n";
+    $fh->flush() && $fh->sync() or die "cannot synchronize ChatGPT policy recovery snapshot: $!\n";
+    close $fh or die "cannot close ChatGPT policy recovery snapshot: $!\n";
+    $self->_sync_directory(POLICY_RECOVERY);
+    $self->_sync_directory('/var/lib/software');
+}
+
+sub _finish_policy_transaction {
+    my ($self) = @_;
+    my $transaction = $self->{policy_transaction} or return;
+    my %directories = map { dirname($_->{path}) => 1 } @{$transaction->{previous}};
+    $self->_sync_directory($_) for grep { -d $_ } sort keys %directories;
+    # Publication/verification is complete. A later evidence-cleanup failure
+    # must not turn a committed generation into an automatic rollback.
+    delete $self->{policy_transaction};
+    unlink POLICY_RECOVERY . '/previous.json' or die "cannot retire ChatGPT recovery snapshot: $!\n";
+    $self->_sync_directory(POLICY_RECOVERY);
+    rmdir POLICY_RECOVERY or die "cannot retire ChatGPT recovery directory: $!\n";
+    $self->_sync_directory('/var/lib/software');
+}
+
+sub package_install {
+    my ($self, $callback) = @_;
+    $self->{policy_transaction} or die "ChatGPT package installation has no policy owner\n";
+    local $ENV{MANAGED_CHATGPT_POLICY_DEFER} = 1;
+    return with_policy_lock_handoff($callback);
+}
+
+sub verify_deferred_prepare {
+    my ($self) = @_;
+    exists($ENV{MANAGED_APPARMOR_POLICY_LOCK_FD})
+        or die "ChatGPT deferred configuration has no inherited policy owner\n";
+    my $lock = acquire_policy_lock();
+    my @directory = lstat POLICY_RECOVERY;
+    @directory && -d _ && !-l _ && $directory[4] == 0 && ($directory[2] & 0077) == 0
+        or die "ChatGPT deferred configuration has no private recovery snapshot\n";
+    $self->_root_owned_source_text(POLICY_RECOVERY . '/previous.json', 16 * 1024 * 1024);
+    $self->_root_owned_source_text(APPARMOR_DISABLE_PATH, 128) eq PACKAGE_SCRIPT_GUARD_CONTENT
+        or die "ChatGPT deferred configuration has no managed package guard\n";
+    -l PACKAGE_DEFAULT_PATH && readlink(PACKAGE_DEFAULT_PATH) eq DEFAULT_PATH
+        or die "ChatGPT deferred configuration has no managed defaults link\n";
+    return 1;
+}
 
 sub spec {
     return {
@@ -123,12 +232,10 @@ sub enabled {
 
 sub _capture {
     my ($self, @command) = @_;
-    open my $fh, '-|', @command
-        or die "failed to execute ChatGPT policy query\n";
-    my $output = do { local $/; <$fh> // q{} };
-    close $fh
-        or die "ChatGPT policy query failed\n";
-    return $output;
+    @command or return;
+    my $result = capture_command(argv => \@command, timeout => 120, limit => 1_048_576);
+    if ($result->{status} != 0) { die "ChatGPT policy query failed\n"; }
+    return $result->{stdout};
 }
 
 sub _root_owned_source_text {
@@ -147,7 +254,12 @@ sub _root_owned_source_text {
 sub _install_canonical_text {
     my ($self, $source, $destination, $mode, $maximum) = @_;
     my $content = $self->_root_owned_source_text($source, $maximum);
-    APTRepoLocal::Servicing::Atomic->write_text(
+    my $parent = dirname($destination);
+    APTRepoLocal::Servicing::Atomic->ensure_root_directory($parent, 0755) if !-e $parent;
+    my @directory = lstat $parent;
+    @directory && -d _ && !-l _ && $directory[4] == 0 && !($directory[2] & 0022)
+        or die "unsafe ChatGPT policy destination directory\n";
+    APTRepoLocal::Servicing::Atomic->_publish(
         $destination,
         $content,
         $mode,
@@ -212,7 +324,7 @@ sub _install_package_script_guard {
         0755,
     );
     $self->_clear_package_script_guard();
-    APTRepoLocal::Servicing::Atomic->write_text(
+    APTRepoLocal::Servicing::Atomic->_publish(
         APPARMOR_DISABLE_PATH,
         PACKAGE_SCRIPT_GUARD_CONTENT,
         0644,
@@ -359,7 +471,14 @@ sub _install_package_default_link {
 }
 
 sub prepare_install {
-    my ($self) = @_;
+    my ($self, $execution_context) = @_;
+    $execution_context //= 'runtime';
+    $execution_context eq 'installer' || $execution_context eq 'runtime'
+        or die "ChatGPT preparation context is invalid\n";
+    # A bad candidate must not remove the previous profile, establish a
+    # diversion or publish package-script guards before it has been parsed.
+    $self->_validate_policy_syntax(CANONICAL_APPARMOR);
+    $self->_begin_policy_transaction($execution_context);
     $self->_install_managed_policy_files();
     # The vendor postinst removes its conventional disable symlink before
     # attempting a live AppArmor reload. A regular, root-owned guard survives
@@ -372,9 +491,46 @@ sub prepare_install {
 
 sub abort_install {
     my ($self) = @_;
-    $self->_clear_package_default_link();
-    $self->_clear_package_script_guard();
-    $self->_remove_vendor_repository_paths();
+    my $transaction = $self->{policy_transaction} or return 1;
+    !$self->{policy_outcome_unknown}
+        or die "ChatGPT policy writer outcome unknown; no competing rollback started; recovery retained at " . POLICY_RECOVERY . "\n";
+    my $ok = eval {
+        if ($transaction->{diversion} eq q{} && $self->_diversion_owner() ne q{}) {
+            $self->_assert_diversion();
+            system('/usr/bin/dpkg-divert', '--local', '--remove', '--no-rename',
+                   '--divert', DIVERSION_PATH, APPARMOR_PATH) == 0
+                or die "cannot restore previous ChatGPT diversion state\n";
+        }
+        for my $entry (@{$transaction->{previous}}) {
+            my $path = $entry->{path};
+            $self->_remove_file_or_symlink($path);
+            if ($entry->{kind} eq 'file') {
+                APTRepoLocal::Servicing::Atomic->_publish($path, $entry->{data}, $entry->{mode});
+                chown $entry->{uid}, $entry->{gid}, $path or die "cannot restore ChatGPT policy ownership\n";
+                chmod $entry->{mode}, $path or die "cannot restore ChatGPT policy mode\n";
+                sysopen my $file, $path, O_RDONLY | O_NOFOLLOW or die "cannot open restored ChatGPT policy\n";
+                $file->sync() or die "cannot synchronize restored ChatGPT policy\n";
+            } elsif ($entry->{kind} eq 'link') {
+                symlink $entry->{data}, $path or die "cannot restore ChatGPT policy link\n";
+                my $ownership = capture_command(
+                    argv => ['/usr/bin/chown', '-h', "$entry->{uid}:$entry->{gid}", '--', $path],
+                    timeout => 5, limit => 1024,
+                );
+                $ownership->{status} == 0 or die "cannot restore ChatGPT policy link ownership\n";
+            }
+            $self->_sync_directory(dirname($path)) if -d dirname($path);
+        }
+        if ($transaction->{context} eq 'runtime') {
+            # An absent previous profile or unavailable kernel interface cannot
+            # prove removal of a newly loaded policy. Keep the durable record.
+            -f APPARMOR_PATH && $self->_live_apparmor_interface_is_available()
+                or die "previous loaded ChatGPT policy cannot be verified\n";
+            $self->_reload_policy_if_available();
+        }
+        $self->_finish_policy_transaction();
+        1;
+    };
+    die "ChatGPT rollback outcome unknown; recovery retained at " . POLICY_RECOVERY . ": " . ($@ || 'unknown failure') if !$ok;
     return 1;
 }
 
@@ -394,8 +550,9 @@ sub _assert_root_owned_regular_executable {
 }
 
 sub _run_policy_syntax_validation {
-    my ($self) = @_;
-    return system(
+    my ($self, $policy_path) = @_;
+    $policy_path //= APPARMOR_PATH;
+    my @command = (
         '/usr/bin/env', '-i',
         'LC_ALL=C.UTF-8',
         'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
@@ -405,17 +562,23 @@ sub _run_policy_syntax_validation {
         '--skip-cache',
         '--Include', '/etc/apparmor.d',
         '--base', '/etc/apparmor.d',
-        APPARMOR_PATH,
-    ) == 0;
+        $policy_path,
+    );
+    my $result = capture_command(argv => \@command, timeout => 30, limit => 1_048_576);
+    return $result->{status} == 0;
 }
 
 sub _validate_policy_syntax {
-    my ($self) = @_;
+    my ($self, $policy_path) = @_;
+    $policy_path //= APPARMOR_PATH;
+    $policy_path eq APPARMOR_PATH || $policy_path eq CANONICAL_APPARMOR
+        or die "ChatGPT policy validation path is unmanaged\n";
+    $self->_root_owned_source_text($policy_path, 1024 * 1024);
     $self->_assert_root_owned_regular_executable(
         'managed ChatGPT AppArmor parser',
         APPARMOR_PARSER,
     );
-    $self->_run_policy_syntax_validation()
+    $self->_run_policy_syntax_validation($policy_path)
         or die "managed ChatGPT AppArmor policy failed offline validation\n";
     return 1;
 }
@@ -431,7 +594,18 @@ sub _live_apparmor_interface_is_available {
 
 sub _run_managed_modes {
     my ($self) = @_;
-    return system(MANAGED_MODES_HELPER) == 0;
+    return with_policy_lock_handoff(sub {
+        my $result;
+        my $completed = eval {
+            $result = capture_command(argv => [MANAGED_MODES_HELPER], timeout => 240, limit => 1_048_576);
+            1;
+        };
+        if (!$completed || $result->{status} == (124 << 8)) {
+            $self->{policy_outcome_unknown} = 1;
+            die "managed AppArmor writer outcome unknown; recovery must be reconciled before rollback or retry\n";
+        }
+        return $result->{status} == 0;
+    });
 }
 
 sub _reload_policy_if_available {
@@ -460,6 +634,10 @@ sub _finalize_policy {
 sub finalize_install {
     my ($self, $execution_context) = @_;
     $execution_context //= 'runtime';
+    $execution_context eq 'installer' || $execution_context eq 'runtime'
+        or die "ChatGPT finalization context is invalid\n";
+    $self->_validate_policy_syntax(CANONICAL_APPARMOR);
+    $self->_begin_policy_transaction($execution_context);
     $self->_clear_package_default_link();
     $self->_install_managed_policy_files();
     $self->_clear_package_script_guard();
@@ -489,6 +667,8 @@ sub finalize_install {
     $self->_finalize_policy($execution_context);
     return 1;
 }
+
+sub commit_install { return $_[0]->_finish_policy_transaction(); }
 
 sub policy_valid {
     my ($self) = @_;

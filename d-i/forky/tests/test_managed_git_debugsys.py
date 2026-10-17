@@ -360,6 +360,24 @@ class DebugTests(Fixture):
         self.run_hook_action(False,fail=True)
         for path in debug.hook_files():self.assertTrue(payload_source_exists(path))
         self.assertTrue(payload_source_exists(self.state/'armed'))
+
+    def test_unknown_boot_writer_retains_receipt_without_competing_rebuild(self):
+        calls = []
+        def unknown(argv, journal, label, timeout=60):
+            calls.append(label)
+            if label == 'rebuild':
+                raise debug.OutcomeUnknown('fixture writer cleanup is unproved')
+            return ''
+        with mock.patch.object(debug, 'successful', side_effect=unknown), \
+                mock.patch.object(debug, 'run', return_value=('', {'status': 'nonzero'})), \
+                contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(debug.OutcomeUnknown):
+                debug.change_hooks(True)
+            with self.assertRaises(debug.OutcomeUnknown):
+                debug.change_hooks(False)
+        self.assertEqual(calls, ['rebuild'])
+        self.assertTrue((self.state / 'pending-hook-transaction').is_file())
+        self.assertEqual(len(list(self.state.glob('transaction-*/before.json'))), 1)
     def test_unmanaged_hook_never_replaced(self):
         path=self.init/'hooks/debugsys';path.parent.mkdir(parents=True);path.write_text('# administrator hook')
         with self.assertRaises(debug.DebugError):debug.change_hooks(True)

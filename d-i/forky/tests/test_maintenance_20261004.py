@@ -129,6 +129,95 @@ class MokProtocolTests(unittest.TestCase):
                        quiet=True, timeout=0.05)
 
 
+class SecureBootModuleIdentityTests(unittest.TestCase):
+    def setUp(self):
+        self.source = (TARGET / 'usr/libexec/install-tools/secure-boot-tool.tmpl').read_text(encoding='utf-8')
+        self.temp = tempfile.TemporaryDirectory(prefix='mok-module-identity-')
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        path = TARGET / 'usr/libexec/install-tools/verify-module-signature.py'
+        self.verifier = types.ModuleType('fixture_module_signature')
+        exec(compile(path.read_bytes(), str(path), 'exec'), self.verifier.__dict__)
+        self.module = self.root / 'module.ko'
+        self.payload = b'bounded synthetic module payload\n'
+        self.module.write_bytes(self.payload)
+
+    def openssl(self, *arguments):
+        subprocess.run(
+            ['/usr/bin/openssl', *map(str, arguments)], check=True, timeout=30,
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'HOME': str(self.root)},
+        )
+
+    def certificate(self, name):
+        key, certificate = self.root / (name + '.key'), self.root / (name + '.pem')
+        self.openssl('req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '2',
+                     '-keyout', key, '-out', certificate, '-subj', '/CN=Managed MOK')
+        return key, certificate
+
+    def signed_module(self, key, certificate):
+        signature = self.root / 'signature.der'
+        self.openssl('cms', '-sign', '-binary', '-noattr', '-nocerts', '-in', self.module,
+                     '-signer', certificate, '-inkey', key, '-outform', 'DER', '-out', signature)
+        cms = signature.read_bytes()
+        trailer = b'\x00\x00\x02\x00\x00\x00\x00\x00' + len(cms).to_bytes(4, 'big')
+        self.module.write_bytes(self.payload + cms + trailer + self.verifier.MAGIC)
+
+    def test_exact_key_verifies_and_same_name_replacement_key_does_not(self):
+        key, certificate = self.certificate('original')
+        self.signed_module(key, certificate)
+        self.verifier.verify(self.module, certificate)
+        _, replacement = self.certificate('replacement')
+        with self.assertRaises(self.verifier.InvalidSignature):
+            self.verifier.verify(self.module, replacement)
+
+    def test_changed_content_is_rejected_even_with_intact_signer_metadata(self):
+        key, certificate = self.certificate('original')
+        self.signed_module(key, certificate)
+        signed = self.module.read_bytes()
+        self.module.write_bytes(b'X' + signed[1:])
+        with self.assertRaises(self.verifier.InvalidSignature):
+            self.verifier.verify(self.module, certificate)
+
+    def test_unsigned_and_invalid_trailers_never_start_openssl(self):
+        certificate = self.root / 'certificate.pem'
+        certificate.write_bytes(b'fixture public certificate')
+        for tail in (b'', b'\x00\x00\x02\x00\x00\x00\x00\x00' + b'\xff' * 4 + self.verifier.MAGIC):
+            self.module.write_bytes(self.payload + tail)
+            with self.subTest(tail=tail), mock.patch.object(self.verifier.subprocess, 'Popen') as command:
+                with self.assertRaises(self.verifier.InvalidSignature):
+                    self.verifier.verify(self.module, certificate)
+                command.assert_not_called()
+
+    def test_unavailable_verification_is_distinct_and_staged_output_is_verified(self):
+        with self.assertRaises(self.verifier.VerificationUnavailable):
+            with mock.patch.object(self.verifier, 'MAX_MODULE_BYTES', 1):
+                self.verifier.verify(self.module, self.root / 'missing.pem')
+        signing = self.source.index('if ! "$sign_file" "$sig_hash"')
+        identity_check = self.source.index('if ! module_has_managed_signature "$raw_module"', signing)
+        recompress = self.source.index('recompress_module_copy "$kind" "$raw_module"')
+        self.assertLess(signing, identity_check)
+        self.assertLess(identity_check, recompress)
+        self.assertIn('[ "$verification_status" -ne 1 ]', self.source)
+
+    def test_unreaped_verifier_retains_its_private_workspace(self):
+        workspace = self.root / 'retained-verifier'
+        workspace.mkdir(mode=0o700)
+        child = mock.Mock(returncode=None)
+        child.wait.side_effect = [subprocess.TimeoutExpired('openssl', 30),
+                                  subprocess.TimeoutExpired('openssl', 5)]
+        with mock.patch.object(self.verifier.tempfile, 'mkdtemp', return_value=str(workspace)), \
+                mock.patch.object(self.verifier, 'snapshot_inputs'), \
+                mock.patch.object(self.verifier.subprocess, 'Popen', return_value=child), \
+                mock.patch.object(self.verifier.shutil, 'rmtree') as cleanup:
+            with self.assertRaisesRegex(self.verifier.VerificationUnavailable, 'termination is unknown'):
+                self.verifier.verify(self.module, self.root / 'fixture.pem')
+        child.kill.assert_called_once()
+        self.assertEqual(child.wait.call_args_list, [mock.call(timeout=30), mock.call(timeout=5)])
+        cleanup.assert_not_called()
+        self.assertTrue(workspace.is_dir())
+
+
 class MokLifecycleTests(unittest.TestCase):
     def setUp(self):
         self.m = helper('apt-mok-prehook')

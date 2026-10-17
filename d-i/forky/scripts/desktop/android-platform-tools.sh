@@ -89,7 +89,7 @@ desktop_install_android_platform_tools() {
   [ -n "${ANDROID_PLATFORM_TOOLS_TARGET_ARCHITECTURE:-}" ] ||
     desktop_android_platform_tools_preflight_target_architecture
 
-  platform_tools_work_dir="/tmp/android-platform-tools-install.$$"
+  platform_tools_work_dir=$(target_private_stage_dir android-platform-tools) || return 1
   platform_tools_archive="${platform_tools_work_dir}/platform-tools.zip"
   platform_tools_extract_dir="${platform_tools_work_dir}/extract"
   platform_tools_archive_host="/target${platform_tools_archive}"
@@ -99,7 +99,7 @@ desktop_install_android_platform_tools() {
   platform_tools_install_host="${platform_tools_install_root_host}/platform-tools"
   platform_tools_staged_host="${platform_tools_install_root_host}/.platform-tools.new.$$"
 
-  rm -rf -- "/target${platform_tools_work_dir}" "$platform_tools_staged_host"
+  rm -rf -- "$platform_tools_staged_host"
   install -d -m 0700 "$platform_tools_extract_host"
 
   if ! attempt_in_target "download latest Google Android SDK Platform-Tools" \
@@ -155,53 +155,19 @@ desktop_install_android_platform_tools() {
   [ "${#platform_tools_archive_sha256}" -eq 64 ] ||
     desktop_android_platform_tools_fail "downloaded archive SHA-256 has an invalid length"
 
-  platform_tools_member_list=$(
-    capture_in_target \
-      "list downloaded Google Android SDK Platform-Tools archive" \
-      /usr/bin/unzip -Z1 "$platform_tools_archive"
-  )
-  if ! printf '%s\n' "$platform_tools_member_list" |
-    awk '
-      !NF { bad = 1 }
-      /^\// { bad = 1 }
-      /\\/ { bad = 1 }
-      /(^|\/)\.\.($|\/)/ { bad = 1 }
-      $0 !~ /^platform-tools\// { bad = 1 }
-      seen[$0]++ { bad = 1 }
-      END { exit bad ? 1 : 0 }
-    '
+  platform_tools_extract_helper="${platform_tools_work_dir}/extract-platform-tools.py"
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_SCRIPTS_DESKTOP android-platform-tools-extract.py)" \
+    "$platform_tools_extract_helper" 0700
+  if ! attempt_in_target "validate and extract Google Android SDK Platform-Tools within limits" \
+    /usr/bin/env -i HOME=/root LC_ALL=C PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+    /usr/bin/timeout --signal=TERM --kill-after=5s 315s \
+    /usr/bin/python3 -I "$platform_tools_extract_helper" \
+    "$platform_tools_archive" "$platform_tools_extract_dir" \
+    "$ANDROID_PLATFORM_TOOLS_MAXIMUM_EXTRACTED_BYTES" \
+    "$ANDROID_PLATFORM_TOOLS_MAXIMUM_MEMBERS"
   then
-    desktop_android_platform_tools_fail "downloaded archive contains an unsafe member path"
-  fi
-
-  platform_tools_member_count=$(printf '%s\n' "$platform_tools_member_list" | awk 'NF { count++ } END { print count + 0 }')
-  desktop_android_platform_tools_validate_unsigned_integer \
-    "downloaded archive member count" \
-    "$platform_tools_member_count"
-  [ "$platform_tools_member_count" -le "$ANDROID_PLATFORM_TOOLS_MAXIMUM_MEMBERS" ] ||
-    desktop_android_platform_tools_fail \
-      "downloaded archive contains too many members: ${platform_tools_member_count}"
-
-  for platform_tools_required_member in \
-    platform-tools/NOTICE.txt \
-    platform-tools/adb \
-    platform-tools/fastboot \
-    platform-tools/lib64/libc++.so \
-    platform-tools/source.properties
-  do
-    printf '%s\n' "$platform_tools_member_list" |
-      grep -Fqx "$platform_tools_required_member" ||
-      desktop_android_platform_tools_fail \
-        "downloaded archive is missing ${platform_tools_required_member}"
-  done
-
-  if ! attempt_in_target "extract latest Google Android SDK Platform-Tools archive" \
-    /usr/bin/unzip \
-      -q \
-      "$platform_tools_archive" \
-      -d "$platform_tools_extract_dir"
-  then
-    desktop_android_platform_tools_fail "failed to extract the downloaded archive"
+    desktop_android_platform_tools_fail "bounded archive extraction failed; private staging retained"
   fi
 
   [ -d "${platform_tools_extract_host}/platform-tools" ] &&

@@ -16,6 +16,8 @@ use Types::Standard qw(Int Object Str);
 
 use LabwcSecurityAction::Command;
 use LabwcSecurityAction::Logger;
+use lib '/usr/local/lib/perl5/site_perl/runtime';
+use Managed::PolicyLock qw(acquire_policy_lock with_policy_lock_handoff);
 
 has command => (
     is      => 'ro',
@@ -147,15 +149,7 @@ sub _policy_service {
 
 sub _policy_lock {
     my ($self) = @_;
-    my $directory = '/var/lib/labwc-apparmor-policy';
-    $self->_ensure_root_directory($directory, 0700, 'AppArmor policy state directory');
-    sysopen my $lock, "$directory/policy.lock", O_RDWR | O_CREAT | O_NOFOLLOW, 0600
-        or die "cannot open AppArmor policy lock: $!\n";
-    my @metadata = stat $lock;
-    @metadata && -f _ && $metadata[4] == 0 && $metadata[3] == 1 && ($metadata[2] & 0077) == 0
-        or die "unsafe AppArmor policy lock\n";
-    flock $lock, LOCK_EX | LOCK_NB or die "another AppArmor policy operation is in progress\n";
-    return $lock;
+    return acquire_policy_lock();
 }
 
 sub _sync_mode_directory {
@@ -172,9 +166,9 @@ sub _reconcile_modes {
     $enabled =~ s/\s+\z//;
     $enabled =~ /\A[YN]\z/ or die "unrecognized AppArmor kernel enablement state\n";
     my @options = $enabled eq 'N' ? ('--no-reload') : ();
-    my ($status, $output, $errors) = $self->command()->capture(
+    my ($status, $output, $errors) = with_policy_lock_handoff(sub { $self->command()->capture(
         argv => [$self->mode_helper(), @options], timeout => 240,
-    );
+    ) });
     print $output if defined($output) && length($output);
     print STDERR $errors if defined($errors) && length($errors);
     return $status;
@@ -662,11 +656,11 @@ sub generate_rules {
         or die "AppArmor rule generator must be owned by root\n";
     ($metadata[2] & 0022) == 0
         or die "AppArmor rule generator must not be group- or world-writable\n";
-    return $self->command()->run(
+    return with_policy_lock_handoff(sub { $self->command()->run(
         $self->rule_generator(),
         '--apply',
         $confirmation,
-    );
+    ) });
 }
 
 sub _application_profiles {
@@ -849,7 +843,7 @@ sub _activate_installed_profile {
     if ($managed) {
         -x $self->mode_helper()
             or die "managed AppArmor mode helper is unavailable: " . $self->mode_helper() . "\n";
-        return $self->command()->run($self->mode_helper());
+        return with_policy_lock_handoff(sub { $self->command()->run($self->mode_helper()) });
     }
     my $parser = $self->_program('apparmor_parser');
     return $self->command()->run(

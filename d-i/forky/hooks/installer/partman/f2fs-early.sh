@@ -368,7 +368,7 @@ fi
 
 autopartition "$dev" "$id"
 code=$?
-if [ "$code" -eq 0 ]; then
+if [ "$code" -eq 0 ] && [ "${DUALBOOT_ENABLED:-false}" = true ]; then
   mark_existing_esp_for_partman || code=1
 fi
 if [ "$code" -eq 255 ]; then
@@ -510,6 +510,13 @@ fi
 
 [ -n "${DEV_INSTALL_DISK:-}" ] || fatal "DEV_INSTALL_DISK must be set"
 [ -b "$DEV_INSTALL_DISK" ] || fatal "disk device not found: ${DEV_INSTALL_DISK}"
+
+if [ "${DUALBOOT_ENABLED:-false}" = true ] || runtime_root_home_crypto_enabled; then
+  ensure_partman_state_dir
+  install_target_free_option
+  [ -x /lib/partman/automatically_partition/installer_target_free/do_option ] ||
+    fatal "selected target-disk partition handler is unavailable"
+fi
 
 if [ "${DUALBOOT_ENABLED:-false}" = "true" ]; then
   PREP_STAMP="/tmp/install-partman-prepared-f2fs-$(echo "$DEV_INSTALL_DISK" | sed 's#[^A-Za-z0-9_.-]#_#g')-${RUNTIME_EFI_SLOT}-${RUNTIME_DEBIAN_START_SLOT}"

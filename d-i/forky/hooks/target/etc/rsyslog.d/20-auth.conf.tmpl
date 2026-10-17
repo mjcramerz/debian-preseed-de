@@ -10,10 +10,36 @@ template(
   string="auth\n"
 )
 
+template(name="UnverifiedAuthDiagnostic" type="string"
+         string="%timegenerated% %hostname% %syslogtag% origin=unverified-auth uid=%$!uid% exe=%$!exe% %msg%\n")
+
 if (
   $syslogfacility-text == "auth" or
   $syslogfacility-text == "authpriv"
 ) then {
+  # The facility/tag/message are sender-controlled. Only the local socket's
+  # kernel-attested credentials authorize this protected remediation input.
+  # Setuid PAM tools and OpenSSH/polkit privilege-separated producers can have
+  # non-root real UIDs, so retain their exact package-owned executable paths.
+  if (not ($inputname == "imuxsock" and exists($!uid) and exists($!pid) and
+      ($!uid == "0" or
+       $!exe == "/usr/bin/sudo" or $!exe == "/usr/bin/su" or
+       $!exe == "/usr/bin/login" or $!exe == "/usr/bin/passwd" or
+       $!exe == "/usr/bin/chsh" or $!exe == "/usr/bin/chfn" or
+       $!exe == "/usr/bin/pkexec" or $!exe == "/usr/sbin/sshd" or
+       $!exe == "/usr/lib/openssh/sshd-session" or
+       $!exe == "/usr/lib/openssh/sshd-auth" or
+       $!exe == "/usr/lib/polkit-1/polkitd" or
+       $!exe == "/usr/sbin/greetd"))) then {
+    action(type="omfile" file="__INSTALLER_LOG_APPLICATIONS_FILE__"
+           fileOwner="__INSTALLER_LOG_OWNER__" fileGroup="__INSTALLER_LOG_GROUP__"
+           fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+           template="UnverifiedAuthDiagnostic" createDirs="off"
+           rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+           rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+           rotation.sizeLimitCommandPassFileName="on")
+    stop
+  }
   set $.security_routed = "on";
   action(
     name="auth_log"

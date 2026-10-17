@@ -16,9 +16,11 @@ _isolation_sys.path.pop(0)
 _require_test_isolation()
 
 import contextlib
+import fnmatch
 import hashlib
 import io
 import os
+import re
 from pathlib import Path
 import shlex
 import shutil
@@ -184,6 +186,34 @@ class LanSharingTests(unittest.TestCase):
         with self.assertRaisesRegex(self.nft.PolicyError, 'non-empty IP allowlist'):
             self.policy('', '')
 
+    def test_globally_numbered_explicit_subnets_remain_usable(self):
+        _, rules = self.policy('198.51.100.0/24', '2001:db8:1234::/64')
+        self.assertTrue(any('ip saddr 198.51.100.0/24' in line for line in rules))
+        self.assertTrue(any('ip6 saddr 2001:db8:1234::/64' in line for line in rules))
+        self.assertTrue(all('iifname' in line for line in rules))
+
+    def test_sensitive_guard_resolves_aliases_and_combined_address_coverage(self):
+        for version, key, values in (
+            (4, 'ipv4', ['0.0.0.0/0']),
+            (6, 'ipv6', ['::/0']),
+            (4, 'ipv4', ['0.0.0.0/1', '128.0.0.0/1']),
+            (6, 'ipv6', ['::/1', '8000::/1']),
+        ):
+            with self.subTest(version=version, values=values):
+                self.assertTrue(self.nft.sensitive_public_violation(
+                    {}, {'allow': {key: values}}))
+                maps = {f'cidr{version}': {
+                    f'alias{index}': {'values': [value]}
+                    for index, value in enumerate(values)}}
+                self.assertTrue(self.nft.sensitive_public_violation(maps, {
+                    'allow': {f'{key}_groups': list(maps[f'cidr{version}'])}}))
+                self.assertTrue(self.nft.sensitive_public_violation(maps, {
+                    'allow': {key: values[:1], f'{key}_groups': list(maps[f'cidr{version}'])[1:]}}))
+
+    def test_sensitive_guard_rejects_unknown_alias(self):
+        with self.assertRaisesRegex(self.nft.PolicyError, 'unknown CIDR group'):
+            self.nft.sensitive_public_violation({}, {'allow': {'ipv6_groups': ['missing']}})
+
     def test_disabled_family_cannot_reuse_a_stale_subnet(self):
         _, rules = self.policy(MANAGED_NETWORK_IPV6_ENABLED='false')
         self.assertTrue(rules)
@@ -300,6 +330,27 @@ class MullvadLanTests(unittest.TestCase):
 
 
 class AppArmorWiringTests(unittest.TestCase):
+    def test_plans_policy_read_belongs_to_the_plans_profile(self):
+        source = read_text(TARGET / 'usr/local/libexec/labwc-plans.pl')
+        policy = re.search(r"has policy_file.*?default => sub \{ '([^']+)' \}", source)
+        self.assertIsNotNone(policy)
+        profiles = read_text(TARGET / 'etc/apparmor.d/desktop-wrappers.tmpl')
+        plans = profiles.split('profile labwc-plans ', 1)[1].split('\n}\n', 1)[0]
+        self.assertIn('  ' + policy.group(1) + ' r,', plans)
+        self.assertNotRegex(plans, re.escape(policy.group(1)) + r'\s+[^,]*w')
+
+    def test_secondboot_policy_covers_both_private_listing_files(self):
+        source = read_text(SEED / 'scripts/firstboot/assets/var/lib/firstboot/bin/secondboot-cleanup')
+        templates = re.findall(r'\bmktemp (/run/secondboot-initramfs[^)\s]+)', source)
+        self.assertEqual(len(templates), 2)
+        profiles = read_text(SEED / 'scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl')
+        secondboot = profiles.split('profile secondboot-cleanup ', 1)[1].split('\n}\n', 1)[0]
+        rules = re.findall(r'^\s+(/run/secondboot-initramfs\S+) rw,\s*$', secondboot, re.M)
+        for template in templates:
+            concrete = template.replace('XXXXXX', '3FuzN7')
+            self.assertTrue(any(fnmatch.fnmatchcase(concrete, rule) for rule in rules), concrete)
+        self.assertFalse(any(fnmatch.fnmatchcase('/run/unrelated-status.3FuzN7', rule) for rule in rules))
+
     def test_status_policy_is_exact_read_only_and_reloaded_before_exec(self):
         text = read_text(SEED / 'scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl')
         self.assertIn('/var/lib/journal-sealing/verification-key r,', text)

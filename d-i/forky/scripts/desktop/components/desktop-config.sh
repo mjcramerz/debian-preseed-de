@@ -257,7 +257,7 @@ desktop_write_labwc_plans_config() {
   )
   chown "root:${primary_account_gid}" /target/etc/labwc/plans.conf
   chmod 0640 /target/etc/labwc/plans.conf
-  desktop_log "rendered_labwc_plans_config credentials=set topic=labwc_plans_notify mode=0640"
+  desktop_log "rendered_labwc_plans_config credentials=set ntfy=disabled mode=0640"
 }
 
 desktop_install_primary_account_calendar_stack() {

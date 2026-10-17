@@ -17,6 +17,7 @@ import pwd
 import re
 import resource
 import secrets
+import selectors
 import shutil
 import signal
 import stat
@@ -40,28 +41,105 @@ BASE_ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C.UTF-8',
 class InstallError(ValueError):
     pass
 
+class CleanupUnknown(InstallError):
+    pass
+
+def stop_owned(proc: subprocess.Popen, grace: float = 0) -> None:
+    """Keep the direct leader unreaped until the last process-group signal."""
+    if proc.returncode is not None:
+        return
+    def signal_owned(signum):
+        try:
+            os.waitid(os.P_PID, proc.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+            if os.getsid(proc.pid) != proc.pid:
+                raise CleanupUnknown('installer child session identity changed')
+        except OSError as exc:
+            raise CleanupUnknown('installer child identity unavailable; no group signal sent') from exc
+        try:
+            os.killpg(proc.pid, signum)
+        except ProcessLookupError:
+            pass
+        except OSError as exc:
+            raise CleanupUnknown('installer child group termination could not be confirmed') from exc
+    if grace:
+        signal_owned(signal.SIGTERM)
+        end = time.monotonic() + grace
+        while time.monotonic() < end:
+            try:
+                if os.waitid(os.P_PID, proc.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT):
+                    break
+            except OSError as exc:
+                raise CleanupUnknown('installer child identity lost during termination') from exc
+            time.sleep(min(.05, max(0, end - time.monotonic())))
+    signal_owned(signal.SIGKILL)
+    try:
+        proc.wait(timeout=2)
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        raise CleanupUnknown('installer child termination outcome unknown') from exc
+
 def checked(argv: list[str], *, env: dict[str, str] | None = None,
             data: bytes | None = None, timeout: int = 120,
             umask: int = -1) -> bytes:
-    """Kill the entire child process group on timeout/cancellation; hide output."""
+    """Bound input, streaming, completion and final reaping; hide child output."""
+    data = data or b''
+    if len(data) > 16 * 1024 * 1024:
+        raise InstallError('installer command input exceeds its limit')
     proc = subprocess.Popen(argv, env=env or BASE_ENV, stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                             start_new_session=True, umask=umask)
     try:
-        output, _ = proc.communicate(data, timeout=timeout)
-        if proc.returncode:
-            raise InstallError(f'{Path(argv[0]).name} failed (status {proc.returncode})')
-        return output
+        end = time.monotonic() + timeout
+        output = bytearray()
+        offset = 0
+        with selectors.DefaultSelector() as selector:
+            os.set_blocking(proc.stdout.fileno(), False)
+            selector.register(proc.stdout, selectors.EVENT_READ)
+            if data:
+                os.set_blocking(proc.stdin.fileno(), False)
+                selector.register(proc.stdin, selectors.EVENT_WRITE)
+            else:
+                proc.stdin.close()
+            while selector.get_map():
+                remaining = end - time.monotonic()
+                if remaining <= 0:
+                    raise InstallError('installer command deadline exceeded')
+                for key, _ in selector.select(remaining):
+                    if key.fileobj is proc.stdin:
+                        try:
+                            count = os.write(key.fd, data[offset:offset + 65536])
+                        except BlockingIOError:
+                            continue
+                        except BrokenPipeError:
+                            selector.unregister(proc.stdin); proc.stdin.close(); continue
+                        if count <= 0:
+                            raise InstallError('installer command input made no progress')
+                        offset += count
+                        if offset == len(data):
+                            selector.unregister(proc.stdin); proc.stdin.close()
+                    else:
+                        try:
+                            chunk = os.read(key.fd, 65536)
+                        except BlockingIOError:
+                            continue
+                        if not chunk:
+                            selector.unregister(proc.stdout); continue
+                        if len(output) + len(chunk) > 4 * 1024 * 1024:
+                            raise InstallError('installer command output exceeds its limit')
+                        output.extend(chunk)
+        while not os.waitid(os.P_PID, proc.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT):
+            if time.monotonic() >= end:
+                raise InstallError('installer command completion deadline exceeded')
+            time.sleep(min(.05, max(0, end - time.monotonic())))
     finally:
-        # Also covers interrupted ssh-add/askpass descendants.
         try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        proc.wait()
-        for stream in (proc.stdin, proc.stdout, proc.stderr):
-            if stream is not None:
-                stream.close()
+            stop_owned(proc)
+        finally:
+            for stream in (proc.stdin, proc.stdout, proc.stderr):
+                if stream is not None:
+                    stream.close()
+    if proc.returncode:
+        raise InstallError(f'{Path(argv[0]).name} failed (status {proc.returncode})')
+    return bytes(output)
 
 def read_direct(path: Path, limit: int, uid: int = 0, *, public: bool = False) -> bytes:
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
@@ -137,16 +215,12 @@ def temporary_agent(stage: Path, secret: bytes):
             env.pop(name)
         yield env
     finally:
-        if agent is not None:
-            try:
-                os.killpg(agent.pid, signal.SIGTERM)
-                agent.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                os.killpg(agent.pid, signal.SIGKILL); agent.wait()
-            except ProcessLookupError:
-                agent.wait()
-        os.close(fd)
-        (stage/'agent.sock').unlink(missing_ok=True)
+        try:
+            if agent is not None:
+                stop_owned(agent, grace=5)
+            (stage/'agent.sock').unlink(missing_ok=True)
+        finally:
+            os.close(fd)
 
 def directory(path: Path, uid: int, gid: int) -> None:
     """No symlinked or other-user-writable parent in a managed destination."""
@@ -579,6 +653,17 @@ def main() -> int:
                                    url=args.repository_url, branch=args.repository_branch)
                 else:
                     clone_obsidian(account, home, args.stage, env)
+    except CleanupUnknown as exc:
+        marker = args.stage / 'cleanup-outcome-unknown'
+        try:
+            descriptor = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            with os.fdopen(descriptor, 'w') as stream:
+                stream.write('owning installer process tree must be reconciled before cleanup\n')
+                stream.flush(); os.fsync(stream.fileno())
+        except OSError:
+            print('ssh-install: recovery marker could not be persisted; cleanup remains blocked by exit status 76', file=sys.stderr)
+        print(f'ssh-install: cleanup outcome unknown; private staging retained: {args.stage}', file=sys.stderr)
+        return 76
     except (OSError, KeyError, ValueError, subprocess.SubprocessError) as exc:
         # No child output, passphrase, key bytes or environment in diagnostics.
         print(f'ssh-install: {type(exc).__name__}: {exc}', file=sys.stderr)

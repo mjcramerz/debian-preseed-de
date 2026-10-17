@@ -6,11 +6,11 @@ use warnings;
 use Moo;
 use MooX::StrictConstructor;
 
-use Zram::Lock qw(acquire_lock);
+use Zram::Lock qw(try_acquire_lock);
 
 sub acquire {
     my ($self) = @_;
-    return acquire_lock();
+    return try_acquire_lock();
 }
 
 1;

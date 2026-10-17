@@ -10,7 +10,9 @@ _isolation_sys.path.pop(0)
 _require_test_isolation()
 
 import contextlib
+import os
 from pathlib import Path
+import stat
 import tempfile
 import unittest
 from unittest import mock
@@ -18,11 +20,55 @@ from unittest import mock
 LIB = Path(__file__).resolve().parents[1] / 'hooks/target/usr/local/lib/python3.14/dist-packages'
 _isolation_sys.path.insert(0, str(LIB))
 from key_manager import core, gpg, tls
+from managed_workflows.fs import Tree
 
 PRIMARY = 'A' * 40
 VALID = 'B' * 40
 EXPIRED = 'C' * 40
 REVOKED = 'D' * 40
+
+
+class BundlePublicationRecoveryTests(unittest.TestCase):
+    def test_directory_sync_failure_after_commit_recovers_all_attempted_members(self):
+        with tempfile.TemporaryDirectory(prefix='key-publication-') as directory:
+            root = Path(directory)
+            native_sync = os.fsync
+            injected = False
+
+            def sync(descriptor):
+                nonlocal injected
+                if (not injected and (root / 'second').exists()
+                        and stat.S_ISDIR(os.fstat(descriptor).st_mode)):
+                    injected = True
+                    raise OSError('fixture post-commit directory sync failure')
+                return native_sync(descriptor)
+
+            with Tree(root) as tree, mock.patch.object(core.os, 'fsync', side_effect=sync):
+                with self.assertRaisesRegex(OSError, 'post-commit directory sync'):
+                    core.publish(tree, {'first': b'first', 'second': b'second'})
+            self.assertTrue(injected)
+            self.assertEqual(list(root.iterdir()), [])
+
+    def test_unrelated_replacement_survives_failed_bundle_recovery(self):
+        with tempfile.TemporaryDirectory(prefix='key-publication-') as directory:
+            root = Path(directory)
+            with Tree(root) as tree:
+                native_write = tree.write
+
+                def write(relative, data, **kwargs):
+                    native_write(relative, data, **kwargs)
+                    if relative == 'second':
+                        replacement = root / 'replacement'
+                        replacement.write_bytes(b'unrelated replacement')
+                        replacement.replace(root / relative)
+                        raise OSError('fixture publication interruption')
+
+                with mock.patch.object(tree, 'write', side_effect=write):
+                    with self.assertRaisesRegex(OSError, 'publication interruption') as caught:
+                        core.publish(tree, {'first': b'first', 'second': b'second'})
+            self.assertFalse((root / 'first').exists())
+            self.assertEqual((root / 'second').read_bytes(), b'unrelated replacement')
+            self.assertTrue(any('destination changed' in note for note in caught.exception.__notes__))
 
 
 class CommandCleanupTests(unittest.TestCase):

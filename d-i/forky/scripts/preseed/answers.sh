@@ -1108,7 +1108,7 @@ STATIC_GATEWAY=
 STATIC_NAMESERVERS=
 PKGSEL_INCLUDE=
 SECURE_BOOT_BOOT_CHAIN_PACKAGES=$(secure_boot_boot_chain_packages_for_selected_arch)
-SECURE_BOOT_SUPPORT_PACKAGES="initramfs-tools busybox cryptsetup efibootmgr mokutil sbsigntool openssl kmod util-linux util-linux-extra xz-utils zstd"
+SECURE_BOOT_SUPPORT_PACKAGES="initramfs-tools busybox cryptsetup efibootmgr mokutil sbsigntool openssl kmod python3 util-linux util-linux-extra xz-utils zstd"
 
 case "${1:-}" in
   apply)

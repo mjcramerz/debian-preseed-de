@@ -181,6 +181,29 @@ ensure_empty_dir() {
   path=$1
   mode=$2
   [ -n "$path" ] || return 0
+  # In-target mountinfo includes same-filesystem bind mounts. A shallow find
+  # followed by recursive rm must not cross any mounted descendant.
+  /usr/bin/python3 -I -c "
+import os, re, sys
+path = sys.argv[1]
+if path == \"/\" or not os.path.isabs(path) or os.path.realpath(path) != path:
+    raise SystemExit(\"unsafe volatile cleanup root\")
+with open(\"/proc/self/mountinfo\", encoding=\"utf-8\") as stream:
+    count = 0
+    while True:
+        line = stream.readline(65537)
+        if not line:
+            break
+        count += 1
+        if count > 65536 or len(line) > 65536:
+            raise SystemExit(\"mount inventory exceeds cleanup limit\")
+        fields = line.split()
+        if len(fields) < 10 or \"-\" not in fields:
+            raise SystemExit(\"invalid mount inventory\")
+        mount = re.sub(r\"\\\\([0-7]{3})\", lambda match: chr(int(match[1], 8)), fields[4])
+        if mount == path or mount.startswith(path + \"/\"):
+            raise SystemExit(\"volatile cleanup contains an active mount\")
+" "$path"
   if [ -d "$path" ]; then
     find "$path" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
   fi

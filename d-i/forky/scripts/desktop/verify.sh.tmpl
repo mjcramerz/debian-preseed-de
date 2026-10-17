@@ -654,7 +654,7 @@ do
   require_mode "$background_file" 644
 done
 unset background_file
-swaylock_version=$(dpkg-query -W -f='${Version}' swaylock) || fatal "swaylock package is missing"
+swaylock_version=$(dpkg-query -W -f="\${Version}" swaylock) || fatal "swaylock package is missing"
 dpkg --compare-versions "$swaylock_version" ge 1.8.6 ||
   fatal "swaylock 1.8.6 or newer is required for the password-buffer fix after suspend/resume"
 helper_package=$(dpkg-query -S /usr/sbin/unix_chkpwd 2>/dev/null) ||
@@ -1092,6 +1092,10 @@ account_user=$1
 account_home=$2
 icon_theme=$3
 obsidian_git_auto_enable=$4
+require_absent() {
+  [ ! -e "$1" ] && [ ! -L "$1" ] ||
+    fatal "retired desktop path is still present: $1"
+}
 uid=$(id -u "$account_user")
 gid=$(id -g "$account_user")
 required_checked=0
@@ -1846,7 +1850,7 @@ for config in config_roots:
         actions = bindings[0].findall("action")
         require(len(actions) == 1 and actions[0].get("name") == "Execute"
                 and actions[0].get("command") == command, "invalid command for " + key)
-    require(rc.find('keyboard/keybind[@key="C-Super_L"]').get("onRelease") == "yes",
+    require(rc.find("keyboard/keybind[@key=\"C-Super_L\"]").get("onRelease") == "yes",
             "Ctrl+Win modifier must defer until release to permit longer chords")
     bars = json.loads((config / "waybar/config").read_text())
     require(isinstance(bars, list) and len(bars) == 2
@@ -2409,7 +2413,8 @@ version = subprocess.run(["/usr/lib/systemd/systemd", "--version"], env=fixed_en
 require(re.match(r"systemd 262(?:\s|$)", version) is not None, "the target systemd version must be 262")
 
 contracts = {
-    "/usr/local/libexec/apparmor-modes-run": ("apparmor-modes/AppArmor/ManagedModes/Transition.pm",),
+    "/usr/local/bin/labwc-greeter-output": ("runtime/Managed/Process.pm",),
+    "/usr/local/libexec/apparmor-modes-run": ("apparmor-modes/AppArmor/ManagedModes/Transition.pm", "runtime/Managed/PolicyLock.pm"),
     "/usr/local/libexec/labwc-ai-model-install-root": ("ai-copilots/AICopilots/ModelInstallRoot.pm", "ai-copilots/AICopilots/ModelCatalog.pm", "runtime/Managed/Process.pm"),
     "/usr/local/bin/labwc-digital-assets-action": ("digital-assets/DigitalAssets/Context.pm", "digital-assets/DigitalAssets/PDF.pm", "runtime/Managed/Process.pm"),
     "/usr/local/bin/labwc-adb-action": ("labwc-adb/AndroidADB/CLI.pm", "labwc-adb/AndroidADB/Vendor/Samsung.pm"),

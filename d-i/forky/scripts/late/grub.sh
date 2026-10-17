@@ -721,7 +721,7 @@ sync_target_secure_boot_bundle_to_installer_usb() {
   secure_boot_state_dir="/target${DIR_SECURE_BOOT_STATE}"
   [ -d "$secure_boot_state_dir" ] || installer_fatal "Secure Boot state directory is missing before SB_MOK sync: ${secure_boot_state_dir}"
 
-  for required_file in MOK.priv MOK.pem MOK.der openssl.cnf; do
+  for required_file in MOK.pem MOK.der; do
     [ -r "${secure_boot_state_dir}/${required_file}" ] || \
       installer_fatal "Secure Boot state file is missing before SB_MOK sync: ${secure_boot_state_dir}/${required_file}"
   done
@@ -750,9 +750,10 @@ sync_target_secure_boot_bundle_to_installer_usb() {
 
   installer_sb_mok_dir="${installer_usb_mountpoint}/SB_MOK"
   install -d -m 0700 "$installer_sb_mok_dir"
-  cp -a "${secure_boot_state_dir}/." "$installer_sb_mok_dir/"
-  chmod 0600 "${installer_sb_mok_dir}/MOK.priv" "${installer_sb_mok_dir}/openssl.cnf"
-  chmod 0644 "${installer_sb_mok_dir}/MOK.pem" "${installer_sb_mok_dir}/MOK.der"
+  # FAT modes cannot protect private keys. Export only public enrollment
+  # material; private recovery belongs in a separately encrypted backup.
+  install -m 0644 "${secure_boot_state_dir}/MOK.pem" "$installer_sb_mok_dir/MOK.pem"
+  install -m 0644 "${secure_boot_state_dir}/MOK.der" "$installer_sb_mok_dir/MOK.der"
 
   if [ "$installer_usb_mount_ours" = true ]; then
     umount "$installer_usb_mountpoint" >/dev/null 2>&1 || installer_fatal "failed to unmount installer USB EFI partition after SB_MOK sync"
@@ -1579,6 +1580,7 @@ write_target_secure_boot_payloads() {
 
   ensure_target_secure_boot_state_dirs
   render_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/libexec/install-tools/secure-boot-tool.tmpl)" "${FILE_SECURE_BOOT_TOOL}" 0755
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/libexec/install-tools/verify-module-signature.py)" /usr/libexec/install-tools/verify-module-signature.py 0644
   render_target_asset_with_placeholder_map \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/secure-boot.conf.tmpl)" \
     "${FILE_SECURE_BOOT_CONFIG}" \
@@ -1657,8 +1659,10 @@ ensure_target_secure_boot_packages() {
 }
 
 reset_target_secure_boot_mok_state() {
-  if ! reset_target_secure_boot_mok_state_attempt; then
-    installer_warn "failed to reset Secure Boot MOK state automatically; continuing install without a pending MOK reset"
+  # Confine explicit exits in bridge/preflight helpers to this best-effort
+  # operation. A failed reset must never abort the remaining installation.
+  if ! ( reset_target_secure_boot_mok_state_attempt ); then
+    installer_warn "Secure Boot MOK reset request could not be confirmed; continuing install (a firmware request may already be pending)"
     return 1
   fi
   return 0
