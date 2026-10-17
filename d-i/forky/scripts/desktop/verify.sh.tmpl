@@ -2340,7 +2340,194 @@ print("desktop_native_menu_verification menus=5 tomat=isolated power=native cale
     "$LABWC_WAYBAR_INTERNAL_MENU_ICON_WIDTH"
 }
 
+
+desktop_verify_runtime_contracts() {
+  # Inspect rendered source as data. Do not import or invoke a managed helper.
+  # -S also prevents local sitecustomize from running before ownership checks.
+  run_in_target "verify rendered desktop runtime contracts" /usr/bin/python3 -I -S -B -c '
+import ast
+import os
+from pathlib import Path
+import re
+import stat
+import subprocess
+import sys
+
+
+def require(condition, message):
+    if not condition:
+        raise SystemExit("fatal: desktop runtime contract: " + message)
+
+
+def trusted(path, executable=False):
+    require(path.is_absolute(), "nonabsolute code path")
+    for parent in reversed(path.parents):
+        meta = parent.lstat()
+        require(stat.S_ISDIR(meta.st_mode) and meta.st_uid == 0 and not meta.st_mode & 0o022,
+                "untrusted code parent: " + str(parent))
+    meta = path.lstat()
+    require(stat.S_ISREG(meta.st_mode) and meta.st_uid == 0 and not meta.st_mode & 0o022,
+            "untrusted code file: " + str(path))
+    require(not executable or meta.st_mode & 0o111, "nonexecutable helper: " + str(path))
+
+
+def source_text(path, raw):
+    text = raw.decode("utf-8")
+    # Perl compiler constants and these two consumer-owned runtime markers
+    # are literal source, not installer substitutions.
+    literals = {"__PACKAGE__", "__FILE__", "__LINE__", "__DATA__", "__END__"}
+    literals.update({
+        "/usr/local/sbin/app-veth": {"__APP_INTERFACES__"},
+        "/usr/local/bin/labwc-greeter-output": {"__LABWC_GREETER_OUTPUT_STOP__"},
+    }.get(str(path), set()))
+    unresolved = set(re.findall(r"__[A-Z][A-Z0-9_]{2,}__", text)) - literals
+    require(not unresolved, "unresolved token: " + str(path))
+    return text
+
+
+def configured_identifier(label, value):
+    require(re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", value) is not None,
+            "invalid configured " + label + " identifier")
+
+
+require(len(sys.argv) == 3, "expected account and greeter identifiers")
+for label, value in zip(("account", "greeter"), sys.argv[1:]):
+    configured_identifier(label, value)
+require(sys.version_info[:2] == (3, 14), "the target interpreter must be Python 3.14")
+fixed_env = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C", "HOME": "/nonexistent"}
+for command in ("/usr/bin/python3.14", "/usr/bin/perl", "/usr/lib/systemd/systemd"):
+    trusted(Path(command), True)
+version = subprocess.run(["/usr/lib/systemd/systemd", "--version"], env=fixed_env,
+                         stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                         timeout=10, check=True).stdout
+require(re.match(r"systemd 262(?:\s|$)", version) is not None, "the target systemd version must be 262")
+
+contracts = {
+    "/usr/local/libexec/apparmor-modes-run": ("apparmor-modes/AppArmor/ManagedModes/Transition.pm",),
+    "/usr/local/libexec/labwc-ai-model-install-root": ("ai-copilots/AICopilots/ModelInstallRoot.pm", "ai-copilots/AICopilots/ModelCatalog.pm", "runtime/Managed/Process.pm"),
+    "/usr/local/bin/labwc-digital-assets-action": ("digital-assets/DigitalAssets/Context.pm", "digital-assets/DigitalAssets/PDF.pm", "runtime/Managed/Process.pm"),
+    "/usr/local/bin/labwc-adb-action": ("labwc-adb/AndroidADB/CLI.pm", "labwc-adb/AndroidADB/Vendor/Samsung.pm"),
+    "/usr/local/libexec/apparmor-generate-rules": ("labwc-security-action/LabwcSecurityAction/AppArmor/RuleGenerator.pm",),
+}
+for helper, modules in contracts.items():
+    trusted(Path(helper), True)
+    for module in modules:
+        trusted(Path("/usr/local/lib/perl5/site_perl") / module)
+for helper in ("/usr/local/libexec/apt-repo-local", "/usr/local/libexec/tuta-extract", "/usr/local/libexec/podman-devops-host"):
+    if Path(helper).exists() or Path(helper).is_symlink():
+        trusted(Path(helper), True)
+if Path("/usr/local/libexec/apt-repo-local").exists():
+    trusted(Path("/usr/local/libexec/tuta-extract"), True)
+    trusted(Path("/usr/local/lib/perl5/site_perl/runtime/Managed/Process.pm"))
+    refresh_unit = Path("/etc/systemd/system/apt-repo-local-refresh.service")
+    trusted(refresh_unit)
+    refresh = source_text(refresh_unit, refresh_unit.read_bytes())
+    for directive in ("NoNewPrivileges=false", "KillMode=control-group",
+                      "ExecStart=/usr/local/bin/apt-repo-init --refresh"):
+        require(directive in refresh.splitlines(), "invalid repository service contract: " + directive)
+
+# These are the installed implementation/import roots, never account state.
+roots = [Path("/usr/local/bin"), Path("/usr/local/sbin"), Path("/usr/local/libexec"),
+         Path("/usr/local/lib/perl5/site_perl"), Path("/usr/local/lib/python3.14/dist-packages")]
+count = total = 0
+managed_modules = set()
+perl_imports = set()
+for root in roots:
+    require(root.is_dir() and not root.is_symlink(), "missing code root: " + str(root))
+    pending = [root]
+    while pending:
+        directory = pending.pop()
+        meta = directory.lstat()
+        require(stat.S_ISDIR(meta.st_mode) and meta.st_uid == 0 and not meta.st_mode & 0o022,
+                "untrusted import directory: " + str(directory))
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                path = Path(entry.path)
+                count += 1
+                require(count <= 12000, "too many installed code entries")
+                if entry.is_dir(follow_symlinks=False):
+                    pending.append(path)
+                    continue
+                # Managed source files are direct files. Packaged executable
+                # aliases are checked through their resolved, trusted target.
+                if path.is_symlink():
+                    target = path.resolve(strict=True)
+                    trusted(target)
+                    continue
+                trusted(path)
+                with path.open("rb") as stream:
+                    header = stream.read(512)
+                if path.suffix not in (".py", ".pm") and not header.startswith(b"#!"):
+                    continue
+                require(path.stat().st_size <= 16 * 1024 * 1024, "oversized source: " + str(path))
+                raw = path.read_bytes()
+                total += len(raw)
+                require(total <= 128 * 1024 * 1024, "installed code exceeds byte bound")
+                if b"\0" in raw:
+                    continue
+                text = source_text(path, raw)
+                first = text.split("\n", 1)[0]
+                if path.suffix == ".py" or re.search(r"^#!.*\bpython3(?:\.[0-9]+)?\b", first):
+                    ast.parse(text, filename=str(path))
+                if path.suffix == ".pm" or first.startswith("#!/usr/bin/perl"):
+                    packages = re.findall(r"^package\s+([A-Za-z][A-Za-z0-9_:]*)\s*;", text, re.M)
+                    if path.suffix == ".pm" and packages:
+                        require(str(path).endswith("/" + packages[0].replace("::", "/") + ".pm"),
+                                "module path/declaration mismatch: " + str(path))
+                        require(stat.S_IMODE(path.stat().st_mode) == 0o644,
+                                "invalid module mode: " + str(path))
+                    managed_modules.update(packages)
+                    perl_imports.update(re.findall(r"^use\s+([A-Za-z][A-Za-z0-9_:]*)\b", text, re.M))
+                if first.startswith("#!"):
+                    if path == Path("/usr/local/libexec/ssh-checks"):
+                        require(stat.S_IMODE(path.stat().st_mode) == 0o644, "invalid SSH library mode")
+                    else:
+                        trusted(path, True)
+                    interpreter = first[2:].split()[0]
+                    require(interpreter.startswith("/"), "relative interpreter: " + str(path))
+                    trusted(Path(interpreter).resolve(strict=True), True)
+
+# Query the packaged Perl interpreter only; do not compile installed modules
+# (their BEGIN blocks execute). Ignore /usr/local and ambient module overrides.
+probe = subprocess.run(["/usr/bin/perl", "-T", "-e", "print join(qq(\n), @INC)"],
+                       env=fixed_env, stdin=subprocess.DEVNULL, capture_output=True,
+                       text=True, timeout=10, check=True)
+perl_roots = [Path(value) for value in probe.stdout.splitlines()
+              if value.startswith(("/usr/share/", "/usr/lib/"))]
+for module in sorted(perl_imports - managed_modules):
+    if re.fullmatch(r"v[0-9]+", module):
+        continue
+    relative = module.replace("::", "/") + ".pm"
+    found = next((root / relative for root in perl_roots if (root / relative).is_file()), None)
+    require(found is not None, "missing packaged Perl module: " + module)
+    trusted(found.resolve(strict=True))
+
+# Load only packaged dependency APIs, after checking their source authority.
+# Managed entrypoints and their BEGIN blocks remain unexecuted.
+subprocess.run(["/usr/bin/perl", "-T", "-e",
+    "BEGIN { @INC = grep { m{\\A/usr/(?:share|lib)/} } @INC; } "
+    "use Moo; use MooX::StrictConstructor; use MooX::TypeTiny; use MooX::Options; use Types::Standard;"],
+    env=fixed_env, stdin=subprocess.DEVNULL, capture_output=True, timeout=10, check=True)
+for module in ("yaml", "gi"):
+    base = Path("/usr/lib/python3/dist-packages") / module / "__init__.py"
+    trusted(base)
+subprocess.run(["/usr/bin/python3", "-I", "-B", "-c", "import yaml; import gi"],
+    env=fixed_env, stdin=subprocess.DEVNULL, capture_output=True, timeout=10, check=True)
+
+mode_file = Path("/etc/apparmor/modes.conf")
+trusted(mode_file)
+require(mode_file.stat().st_size <= 65536, "oversized AppArmor mode configuration")
+for line in mode_file.read_text().splitlines():
+    if not line or line.startswith("#"):
+        continue
+    require(re.fullmatch(r"(?:enforce|complain|disable) +(?:required|optional|if-executable) +[A-Za-z0-9._+-]+ +(?:-|/[A-Za-z0-9._/@%:+,~-]+)", line) is not None,
+            "invalid rendered AppArmor mode entry")
+print("Verified rendered runtime paths, source, interpreter versions and module availability.")
+' "$ACCOUNT_USERNAME" "$LABWC_GREETER_USER"
+}
+
 desktop_verify_target_staging() {
+  desktop_verify_runtime_contracts
   run_in_target "verify managed wlsunset policy" /usr/local/bin/labwc-wlsunset check
   desktop_verify_kanshi_policy
   desktop_verify_required_commands

@@ -8,6 +8,7 @@ use File::Basename qw(basename dirname);
 use File::Copy qw(copy);
 use File::Path qw(make_path remove_tree);
 use File::Temp qw(tempdir tempfile);
+use IO::Handle;
 use Fcntl qw(
   LOCK_EX LOCK_NB O_CREAT O_NOFOLLOW O_RDONLY O_RDWR
 );
@@ -236,6 +237,8 @@ sub run {
                     or die "cannot back up AppArmor local policy: $local_path: $!\n";
                 chmod 0600, $backup_path
                     or die "cannot protect AppArmor local policy backup: $!\n";
+                $self->_sync_file($backup_path);
+                $self->_sync_directory($backup_root);
             }
             push @states, {
                 backup_path   => $backup_path,
@@ -248,12 +251,22 @@ sub run {
             push @changed_groups, $group;
         }
 
+        my $record = join q{}, map {
+            join("\t", $_->{existed} ? 'restore' : 'remove',
+                 $_->{group}->{local_path}, $_->{backup_path} // '-') . "\n"
+        } @states;
+        length($record) <= 1_048_576 or die "AppArmor recovery record is too large\n";
+        $self->_write_private_file("$batch/restore-paths", $record);
+        $self->_sync_file("$batch/restore-paths");
+        $self->_sync_directory($batch);
+        $self->_sync_directory($self->backup_dir());
         for my $state (@states) {
+            # Publication can rename successfully and then fail on fsync.
+            $state->{published} = 1;
             $self->_publish_atomic(
                 $state->{candidate_path},
                 $state->{group}->{local_path},
             );
-            $state->{published} = 1;
         }
         if ($self->reload_profiles()) {
             my %reloaded;
@@ -266,12 +279,23 @@ sub run {
     };
     my $error = $@;
     if (!$status) {
-        my $rollback_error = $self->_rollback(\@states, \@changed_groups);
-        remove_tree($batch, { safe => 1 });
+        my $rollback_error;
+        my $rollback_ok = eval {
+            $rollback_error = $self->_rollback(\@states, \@changed_groups);
+            1;
+        };
+        $rollback_error = $@ || 'rollback failed without diagnostics' if !$rollback_ok;
+        if (!defined($rollback_error) || $rollback_error eq q{}) {
+            remove_tree($batch, { safe => 1 });
+        }
         $error ||= "AppArmor rule generation failed\n";
         $error =~ s/\s+\z//;
-        $error .= "; rollback warning: $rollback_error"
+        $error .= "; rollback failed: $rollback_error; recovery retained at $batch"
             if defined($rollback_error) && $rollback_error ne q{};
+        if (defined($rollback_error) && $rollback_error ne q{}) {
+            print STDERR "fatal: $error\n";
+            return 3; # Previous policy outcome is unknown; retain recovery.
+        }
         die "$error\n";
     }
 
@@ -625,14 +649,30 @@ sub _publish_atomic {
             or die "cannot stage AppArmor local policy transaction: $!\n";
         chmod 0644, $temporary
             or die "cannot protect AppArmor local policy transaction: $!\n";
+        $self->_sync_file($temporary);
         rename $temporary, $target
             or die "cannot publish AppArmor local policy transaction: $!\n";
+        $self->_sync_directory(dirname($target));
         return 1;
     };
     my $error = $@;
     unlink $temporary if !$ok && (-e $temporary || -l $temporary);
     die $error if !$ok;
     return;
+}
+
+sub _sync_file {
+    my ($self, $path) = @_;
+    open my $fh, '<:raw', $path or die "cannot open AppArmor recovery file: $!\n";
+    $fh->sync() or die "cannot synchronize AppArmor recovery file: $!\n";
+    close $fh or die "cannot close AppArmor recovery file: $!\n";
+}
+
+sub _sync_directory {
+    my ($self, $path) = @_;
+    open my $fh, '<', $path or die "cannot open AppArmor recovery directory: $!\n";
+    $fh->sync() or die "cannot synchronize AppArmor recovery directory: $!\n";
+    close $fh or die "cannot close AppArmor recovery directory: $!\n";
 }
 
 sub _source_disabled {
@@ -686,6 +726,8 @@ sub _rollback {
         elsif (-e $target || -l $target) {
             unlink $target
                 or push @errors, "cannot remove newly generated $target";
+            eval { $self->_sync_directory(dirname($target)); 1 }
+                or push @errors, "cannot synchronize restored directory for $target";
         }
     }
     if ($self->reload_profiles()) {

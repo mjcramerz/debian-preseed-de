@@ -24,6 +24,10 @@ sub _nonblocking {
 # output pipe. Deadlines use a monotonic clock and also cover inherited pipes.
 # A service cgroup remains the boundary for descendants that deliberately call
 # setsid() or close all streams and daemonize. Do not use this API for daemons.
+# Contract: result->{status} is the raw waitpid/system status, never an exit
+# code. Timeout is 124 << 8; signal termination occupies the low seven bits.
+# Adapters decode exactly once at their public exit-code boundary. Capture
+# overflow/interruption/setup errors throw, rather than returning success.
 sub capture_command {
     my (%args) = @_;
     my $argv = $args{argv};

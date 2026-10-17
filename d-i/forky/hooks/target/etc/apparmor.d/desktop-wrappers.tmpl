@@ -900,6 +900,9 @@ profile labwc-ai-model-install-root /usr/local/libexec/labwc-ai-model-install-ro
   /usr/local/libexec/labwc-ai-model-install-root rix,
   /usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/ModelCatalog.pm r,
   /usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/ModelInstallRoot.pm r,
+  /usr/local/lib/perl5/site_perl/runtime/{,Managed/,Managed/Process.pm} r,
+  signal (send, receive) peer=labwc-ai-model-install-root,
+  signal (send) peer=ai-copilots-model-download,
   /usr/local/share/labwc-ai-copilots/ r,
   /usr/local/share/labwc-ai-copilots/*.tsv r,
   /usr/bin/{env,perl} rix,
@@ -929,6 +932,8 @@ profile ai-copilots-model-download flags=(attach_disconnected) {
 
   network inet stream,
   network inet6 stream,
+  signal (receive) peer=labwc-ai-model-install-root,
+  signal (send) set=(chld) peer=labwc-ai-model-install-root,
 
   /usr/bin/curl rix,
   /pool/cache/llama/models/.*.gguf.partial.* rw,
@@ -4288,12 +4293,14 @@ profile apt-repo-local /usr/local/{bin/apt-repo-init,libexec/apt-repo-local} fla
   /etc/apt/apt.conf.d/ r,
   /usr/local/bin/ r,
   /usr/local/libexec/apt-repo-local rix,
-  # The refresh service uses NNP. Fetch-only bridge calls inherit these
+  /usr/local/libexec/tuta-extract rPx -> tuta-extract,
+  # Fetch-only bridge calls inherit these
   # repository-only permissions; package-local configure runs separately under
   # apt-repo-local-vendor and cannot gain its install permissions here.
   /usr/local/libexec/apt-repo-local-vendor rix,
   /usr/local/libexec/discord-distro rix,
   /usr/local/lib/perl5/site_perl/apt-repo-local/{,**} r,
+  /usr/local/lib/perl5/site_perl/runtime/{,Managed/,Managed/Process.pm} r,
   /usr/bin/{openssl,tar,brotli,dpkg-query} rix,
   /dev/log w,
   /run/lock/apt-repo-local-software-update.lock rwk,
@@ -4348,6 +4355,7 @@ profile apt-repo-local-vendor /usr/local/libexec/apt-repo-local-vendor flags=(at
   /usr/local/libexec/discord-distro rPx -> discord-distro,
   /usr/local/libexec/apparmor-modes-run rPx -> apparmor-modes,
   /usr/local/lib/perl5/site_perl/apt-repo-local/{,**} r,
+  /usr/local/lib/perl5/site_perl/runtime/{,Managed/,Managed/Process.pm} r,
   /usr/bin/{curl,openssl,tar,brotli,env,dpkg-query,dpkg-divert,desktop-file-validate,update-desktop-database} rix,
   /usr/bin/{gzip,xz,zstd,bzip2} rix,
   /dev/log w,
@@ -4558,12 +4566,17 @@ profile tuta-extract /usr/local/libexec/tuta-extract flags=(attach_disconnected)
   @{PROC}/[0-9]*/status r,
   /tmp/ r,
   /tmp/{installer-software,apt-repo-local-software-update.*}/{,**} rwkl,
+  /var/lib/software/ r,
+  /var/lib/software/artifacts/{,postman/,ledger/,tuta/} r,
+  /var/lib/software/artifacts/{postman,ledger,tuta}/** r,
+  /var/lib/software/inbox/{,**} rwkl,
   /run/lock/ r,
   /run/lock/tuta-extract/{,**} rwk,
   /usr/bin/bwrap rCx -> unpack,
   signal (send, receive) peer=tuta-extract,
   signal (send, receive) peer=tuta-extract//unpack,
   signal (receive) peer=apt-repo-local-software-update,
+  signal (send, receive) peer=apt-repo-local,
 
   profile unpack flags=(attach_disconnected, mediate_deleted) {
     #include <abstractions/base>
@@ -4571,10 +4584,13 @@ profile tuta-extract /usr/local/libexec/tuta-extract flags=(attach_disconnected)
 
     signal (receive) peer=tuta-extract,
     / r,
-    /usr/bin/{bwrap,setpriv,unsquashfs} rix,
+    /usr/bin/{bwrap,setpriv,unsquashfs,python3,python3.14} rix,
+    /usr/lib/python3*/{,**} r,
+    /usr/lib/python3*/lib-dynload/** mr,
     /{bin,sbin,lib,lib64,usr}/ r,
     /etc/ r,
     /tmp/{installer-software,apt-repo-local-software-update.*}/{,**} rwkl,
+    /var/lib/software/inbox/{,**} rwkl,
     /artifact r,
     /output/{,**} rwkl,
     @{PROC}/sys/kernel/cap_last_cap r,

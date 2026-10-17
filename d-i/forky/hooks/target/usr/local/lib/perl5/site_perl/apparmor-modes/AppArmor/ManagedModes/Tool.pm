@@ -81,8 +81,8 @@ sub _output_contains {
 
     if ($pid == 0) {
         close $reader;
-        open STDOUT, '>&', $writer || _exit(127);
-        open STDERR, '>&', \*STDOUT || _exit(127);
+        open STDOUT, '>&', $writer or _exit(127);
+        open STDERR, '>&', \*STDOUT or _exit(127);
         exec { $command[0] } @command or _exit(127);
     }
 
@@ -103,6 +103,7 @@ sub _output_contains {
     }
     close $reader || fatal('cannot close AppArmor tool help pipe');
     waitpid($pid, 0);
+    $? == 0 || fatal('AppArmor tool help probe failed');
     return $found;
 }
 
@@ -112,9 +113,9 @@ sub _run_to_file_limited {
     $max_bytes >= 0 ||
         fatal('invalid AppArmor tool output limit');
     my $redirect_label = $stream eq 'stderr' ? 'stderr' : 'output';
-    sysopen my $output_fh, $output_path, O_WRONLY | O_TRUNC | O_NOFOLLOW ||
+    sysopen my $output_fh, $output_path, O_WRONLY | O_TRUNC | O_NOFOLLOW or
         fatal("cannot redirect AppArmor tool $redirect_label: $output_path");
-    binmode $output_fh, ':raw' ||
+    binmode $output_fh, ':raw' or
         fatal("cannot redirect AppArmor tool $redirect_label: $output_path");
 
     my ($reader, $writer);
@@ -126,10 +127,10 @@ sub _run_to_file_limited {
     if ($pid == 0) {
         close $reader;
         if ($stream eq 'stdout') {
-            open STDOUT, '>&', $writer || _exit(127);
+            open STDOUT, '>&', $writer or _exit(127);
         }
         else {
-            open STDERR, '>&', $writer || _exit(127);
+            open STDERR, '>&', $writer or _exit(127);
         }
         close $writer || _exit(127);
         exec { $command[0] } @command or _exit(127);
@@ -186,6 +187,9 @@ sub _terminate_and_reap {
 sub _exit_for_status {
     my ($status) = @_;
 
+    # Transaction callers must recover before converting the raw wait status.
+    die "AppArmor tool failed raw_wait_status=$status\n"
+        if $AppArmor::ManagedModes::CLI::THROW_FAILURE;
     exit 1 if !defined($status) || $status == -1;
     my $signal = $status & 127;
     exit(128 + $signal) if $signal;

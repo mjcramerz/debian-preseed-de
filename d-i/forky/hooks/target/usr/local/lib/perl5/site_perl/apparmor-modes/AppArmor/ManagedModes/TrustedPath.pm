@@ -64,14 +64,14 @@ sub read_bounded_file {
     defined($max_bytes) && !ref($max_bytes) && $max_bytes =~ /\A[1-9][0-9]*\z/ ||
         fatal("invalid size limit for $label");
     -l $path && fatal("$label must not be a symlink: $path");
-    sysopen my $fh, $path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK ||
+    sysopen my $fh, $path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK or
         fatal("cannot read $label: $path");
     my @metadata = stat($fh);
     @metadata && ($metadata[2] & 0170000) == 0100000 ||
         fatal("$label must be a regular file: $path");
     $metadata[7] <= $max_bytes ||
         fatal("$label exceeds ${max_bytes} bytes: $path");
-    binmode $fh, ':raw' ||
+    binmode $fh, ':raw' or
         fatal("cannot read $label: $path");
 
     my $content = '';
@@ -102,10 +102,10 @@ sub bounded_capture {
     my ($label, $source, $target, $max_bytes) = @_;
     my $content = read_bounded_file($label, $source, $max_bytes);
 
-    open my $fh, '>:raw', $target ||
+    open my $fh, '>:raw', $target or
         fatal("cannot read $label: $source");
     if (length($content)) {
-        print {$fh} $content ||
+        print {$fh} $content or
             fatal("cannot read $label: $source");
     }
     close $fh || fatal("cannot read $label: $source");

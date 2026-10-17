@@ -14,7 +14,7 @@ use AppArmor::ManagedModes::TrustedPath qw(
     read_bounded_file validate_real_directory validate_root_owned_file
 );
 
-our @EXPORT_OK = qw(child_mode_matches apply_child_mode);
+our @EXPORT_OK = qw(child_mode_matches apply_child_mode child_source_path);
 
 # Only these tracked local includes define a child profile. Other local files
 # contain rules or abstractions and do not have an independent kernel mode.
@@ -23,6 +23,11 @@ my %CHILDREN = (
     'mullvad-browser'       => 'mullvad-bwrap',
     'vivaldi-bin'           => 'vivaldi-bwrap',
 );
+
+sub child_source_path {
+    my ($name, $profile_dir) = @_;
+    return exists($CHILDREN{$name}) ? "$profile_dir/local/$name" : undef;
+}
 
 sub _source {
     my ($name, $profile_dir) = @_;
@@ -75,7 +80,7 @@ sub apply_child_mode {
     $count == 1 || fatal("ambiguous child profile in local include: $name");
     my ($fh, $staged) = $workspace->tempfile(
         'apparmor-local-child', "cannot stage AppArmor child include: $name");
-    print {$fh} $content || fatal("cannot write AppArmor child include: $name");
+    print {$fh} $content or fatal("cannot write AppArmor child include: $name");
     close $fh || fatal("cannot close AppArmor child include: $name");
     $workspace->publish_file($staged, $path,
                              "cannot publish AppArmor child include: $name");

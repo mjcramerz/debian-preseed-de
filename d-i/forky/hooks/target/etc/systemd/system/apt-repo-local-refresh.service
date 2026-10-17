@@ -20,7 +20,10 @@ ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=-/run/user/0/gnupg
 ReadWritePaths=/var/lib/software /etc/apt/keyrings /etc/apt/sources.list.d /run/lock
-NoNewPrivileges=true
+# The root publisher must enter the dedicated tuta-extract and bwrap AppArmor
+# profiles. NNP rejects those explicit transitions. The parser itself drops
+# uid/gid/capabilities and sets NNP inside its isolated namespace.
+NoNewPrivileges=false
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true

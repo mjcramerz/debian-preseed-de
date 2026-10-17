@@ -325,6 +325,93 @@ class HostPolicyTests(unittest.TestCase):
         with self.assertRaises(subprocess.TimeoutExpired):
             HOST.run(['/bin/sh', '-c', 'sleep 30 & wait'], timeout=0.05)
 
+    def test_recycled_candidate_is_never_signalled_and_pidfd_is_closed(self):
+        identities = {100: 10}
+        with mock.patch.object(HOST, 'process_session_live_members', return_value={200}), \
+             mock.patch.object(HOST, 'session_anchor', return_value=True), \
+             mock.patch.object(HOST.os, 'pidfd_open', return_value=20), \
+             mock.patch.object(HOST, 'pidfd_in_session', return_value=False), \
+             mock.patch.object(HOST.os, 'close') as close, \
+             mock.patch.object(HOST.signal, 'pidfd_send_signal') as send, \
+             mock.patch.object(HOST.os, 'kill') as numeric, \
+             mock.patch.object(HOST.time, 'monotonic', side_effect=[0.0, 0.0, 0.0, 1.0]):
+            self.assertFalse(HOST.terminate_process_session(100, signal.SIGTERM, 0.5, identities))
+        close.assert_called_once_with(20)
+        send.assert_not_called()
+        numeric.assert_not_called()
+        self.assertEqual(identities, {100: 10})
+
+    def test_procfs_failure_or_lost_leader_never_uses_numeric_fallback(self):
+        for members in (None, {200}):
+            with self.subTest(members=members), \
+                 mock.patch.object(HOST, 'process_session_live_members', return_value=members), \
+                 mock.patch.object(HOST, 'session_anchor', return_value=False) as anchor, \
+                 mock.patch.object(HOST.os, 'pidfd_open') as pin, \
+                 mock.patch.object(HOST.signal, 'pidfd_send_signal') as send, \
+                 mock.patch.object(HOST.os, 'kill') as numeric, \
+                 mock.patch.object(HOST.time, 'monotonic', side_effect=[1.0, 1.0, 1.0, 2.0, 2.0]):
+                self.assertFalse(HOST.terminate_process_session(100, signal.SIGKILL, 1.5, {100: 10}))
+                if members:
+                    anchor.assert_called()
+            pin.assert_not_called()
+            send.assert_not_called()
+            numeric.assert_not_called()
+
+    def test_anchor_search_cannot_extend_the_cleanup_deadline(self):
+        with mock.patch.object(HOST, 'process_session_live_members', return_value={200}), \
+             mock.patch.object(HOST, 'session_anchor', return_value=False), \
+             mock.patch.object(HOST.os, 'pidfd_open') as pin, \
+             mock.patch.object(HOST.signal, 'pidfd_send_signal') as send, \
+             mock.patch.object(HOST.time, 'monotonic', side_effect=[0.0, 0.0, 0.0, 1.0]):
+            self.assertFalse(HOST.terminate_process_session(100, signal.SIGKILL, 0.5, {100: 10, 101: 11}))
+        pin.assert_not_called()
+        send.assert_not_called()
+
+    def test_runner_closes_leader_pidfd_after_success(self):
+        proc = mock.Mock(pid=100, returncode=0)
+        proc.communicate.return_value = ('fixture', '')
+        with mock.patch.object(HOST.subprocess, 'Popen', return_value=proc), \
+             mock.patch.object(HOST, 'collect_output', return_value=('fixture', '')), \
+             mock.patch.object(HOST.os, 'pidfd_open', return_value=10), \
+             mock.patch.object(HOST.os, 'close') as close:
+            self.assertEqual(HOST.run(['/fixture/command']), 'fixture')
+        close.assert_called_once_with(10)
+
+    def test_cancellation_cannot_interrupt_cleanup_and_handlers_are_restored(self):
+        signals = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
+        before = {sig: signal.getsignal(sig) for sig in signals}
+        proc = mock.Mock(pid=100)
+        def cleanup(*_args):
+            self.assertTrue(all(signal.getsignal(sig) == signal.SIG_IGN for sig in signals))
+            return True
+        with mock.patch.object(HOST.subprocess, 'Popen', return_value=proc), \
+             mock.patch.object(HOST, 'collect_output', side_effect=KeyboardInterrupt), \
+             mock.patch.object(HOST, 'terminate_process_session', side_effect=cleanup), \
+             mock.patch.object(HOST.os, 'pidfd_open', return_value=10), \
+             mock.patch.object(HOST.os, 'close') as close, \
+             self.assertRaises(KeyboardInterrupt):
+            HOST.run(['/fixture/command'])
+        close.assert_called_once_with(10)
+        self.assertEqual({sig: signal.getsignal(sig) for sig in signals}, before)
+
+    def test_unknown_cleanup_closes_pidfds_and_keeps_distinct_outcome(self):
+        proc = mock.Mock(pid=100)
+        failure = subprocess.TimeoutExpired(['/fixture/command'], 1)
+        with mock.patch.object(HOST.subprocess, 'Popen', return_value=proc), \
+             mock.patch.object(HOST, 'collect_output', side_effect=failure), \
+             mock.patch.object(HOST, 'terminate_process_session', return_value=False), \
+             mock.patch.object(HOST.os, 'pidfd_open', return_value=10), \
+             mock.patch.object(HOST.os, 'close') as close, \
+             self.assertRaises(HOST.CleanupUnknown):
+            HOST.run(['/fixture/command'])
+        close.assert_called_once_with(10)
+
+    def test_stream_budget_and_closed_stream_deadline_cover_the_actual_runner(self):
+        with self.assertRaisesRegex(HOST.Failure, '4 MiB'):
+            HOST.run(['/usr/bin/python3', '-I', '-c', 'import os; os.write(1, b"x" * (5 * 1024 * 1024))'])
+        with self.assertRaises(subprocess.TimeoutExpired):
+            HOST.run(['/bin/sh', '-c', 'exec 1>&- 2>&-; sleep 30'], timeout=0.05)
+
     def test_timeout_also_reaps_descendant_after_leader_exit(self):
         with tempfile.TemporaryDirectory() as root:
             survivor = Path(root) / 'descendant-survived'

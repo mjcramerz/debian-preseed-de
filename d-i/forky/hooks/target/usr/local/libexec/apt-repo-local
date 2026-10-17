@@ -24,6 +24,7 @@ import os
 from pathlib import Path
 import re
 import resource
+import selectors
 import shutil
 import stat
 import subprocess
@@ -47,6 +48,30 @@ INDEX_FIELDS = {"filename", "size", "md5sum", "sha1", "sha256", "sha512"}
 
 class Error(Exception):
     """A rejected input or a failed repository transaction."""
+
+
+class CommandFailure(Error):
+    def __init__(self, message: str, returncode: int):
+        super().__init__(message)
+        self.returncode = returncode
+
+
+class OutcomeUnknown(Error):
+    """A worker might still own its workspace; preserve it for reconciliation."""
+
+
+@contextlib.contextmanager
+def vendor_workspace(inbox: Path, app: str):
+    directory = Path(tempfile.mkdtemp(prefix=f'.vendor-{app}-', dir=inbox))
+    retained = False
+    try:
+        yield directory
+    except OutcomeUnknown as error:
+        retained = True
+        raise OutcomeUnknown(f'{error}; vendor workspace retained at {directory}') from error
+    finally:
+        if not retained:
+            shutil.rmtree(directory)
 
 
 def warn(message: str) -> None:
@@ -131,7 +156,7 @@ def run(argv: list[str], *, timeout: int = 180, limit: int = MAX_CONTROL,
         err.seek(0)
         detail = err.read(4096).decode("utf-8", "replace").strip()
         if proc.returncode or len(result) > limit:
-            raise Error(f"{Path(argv[0]).name} failed ({proc.returncode}): {detail}")
+            raise CommandFailure(f"{Path(argv[0]).name} failed ({proc.returncode}): {detail}", proc.returncode)
         return result
 
 
@@ -331,18 +356,53 @@ def vendor_apt_script(blob: bytes) -> bool:
     return bool(re.search(rb"(?:sources\.list|/keyrings/|trusted\.gpg|apt-key|add-apt-repository|apt-add-repository)", blob))
 
 
+class DeadlineReader:
+    """A tar streaming read must share the decompressor operation deadline."""
+    def __init__(self, stream, deadline: float):
+        self.stream = stream
+        self.deadline = deadline
+
+    def __enter__(self):
+        self.selector = selectors.DefaultSelector()
+        try:
+            self.selector.register(self.stream, selectors.EVENT_READ)
+        except BaseException:
+            self.selector.close()
+            raise
+        return self
+
+    def __exit__(self, *error):
+        self.selector.close()
+
+    def read(self, size: int) -> bytes:
+        if size == 0:
+            return b''
+        if size < 0:
+            raise Error('unbounded package stream read')
+        remaining = self.deadline - time.monotonic()
+        if remaining <= 0:
+            raise Error('package payload streaming timed out')
+        if not self.selector.select(remaining):
+            raise Error('package payload streaming timed out')
+        return os.read(self.stream.fileno(), min(size, 65536))
+
+
 def rewrite_data(source: Path, destination: Path, policy: dict,
                  assets: dict[str, bytes], removed: set[str]) -> None:
     """Stream archive members, never extract paths or execute package scripts."""
     command = ["/usr/bin/dpkg-deb", "--fsys-tarfile", str(source)]
     with tempfile.TemporaryFile() as errors, destination.open("xb") as output:
-        proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=errors, env=ENV)
+        deadline = time.monotonic() + 240
+        proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=errors, env=ENV, preexec_fn=functools.partial(_child_limits, MAX_CONTROL))
         try:
-            with gzip.GzipFile(fileobj=output, mode="wb", filename="", mtime=0) as compressed:
+            with DeadlineReader(proc.stdout, deadline) as reader, \
+                    gzip.GzipFile(fileobj=output, mode="wb", filename="", mtime=0) as compressed:
                 with tarfile.open(fileobj=compressed, mode="w|", format=tarfile.GNU_FORMAT) as new:
-                    with tarfile.open(fileobj=proc.stdout, mode="r|") as old:
+                    with tarfile.open(fileobj=reader, mode="r|") as old:
                         seen, non_directories, total, count = set(), set(), 0, 0
                         for item in old:
+                            old.members.clear()
                             name = archive_name(item.name)
                             count += 1
                             total += item.size
@@ -378,15 +438,21 @@ def rewrite_data(source: Path, destination: Path, policy: dict,
                             info.mode, info.size = 0o644, len(blob)
                             new.addfile(info, io.BytesIO(blob))
             proc.stdout.close()
-            if proc.wait(timeout=240):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or proc.wait(timeout=remaining):
                 raise Error("failed to decompress package payload")
             output.flush()
             os.fsync(output.fileno())
         finally:
-            if proc.poll() is None:
-                proc.kill()
-                proc.wait()
-            proc.stdout.close()
+            try:
+                if proc.poll() is None:
+                    proc.kill()
+                    try:
+                        proc.wait(timeout=2)
+                    except subprocess.TimeoutExpired as error:
+                        raise OutcomeUnknown('package decompressor cleanup outcome unknown') from error
+            finally:
+                proc.stdout.close()
 
 
 def rewrite_depends(source: Path, destination: Path, fields: dict[str, str],
@@ -1038,58 +1104,65 @@ BINARY_DEPENDS = ", ".join(("libc6", "libasound2t64", "libatk-bridge2.0-0t64", "
     "libxcomposite1", "libxdamage1", "libxext6", "libxfixes3", "libxkbcommon0", "libxrandr2"))
 
 
+def extract_vendor(archive: Path, destination: Path, kind: str) -> None:
+    # Reuse the locked, unprivileged packaged-parser sandbox. Its worker has
+    # live byte/inode budgets, namespace isolation and no network/host config.
+    # The digest binds its snapshot to these already verified input bytes;
+    # it does not upgrade an unsigned vendor artifact to a signed artifact.
+    if kind not in ('postman', 'appimage'):
+        raise Error('unsupported repository extraction format')
+    digest = digest_file(archive)
+    try:
+        run(['/usr/local/libexec/tuta-extract', '--repository-' + kind,
+             str(archive), str(destination), digest], timeout=660, file_limit=2 * MAX_DEB)
+    except Error as error:
+        if (isinstance(error, CommandFailure) and error.returncode == 3
+                or isinstance(error.__cause__, subprocess.TimeoutExpired)):
+            raise OutcomeUnknown('isolated extractor cleanup outcome unknown') from error
+        raise
+
+
 def extract_postman(archive: Path, destination: Path) -> None:
-    with tarfile.open(archive, "r:gz") as source:
-        members = source.getmembers()
-        if len(members) > 5000 or sum(m.size for m in members) > MAX_DEB:
-            raise Error("Postman payload exceeds its existing bounds")
-        for member in members:
-            path = Path(member.name)
-            if path.is_absolute() or ".." in path.parts or not path.parts or path.parts[0] != "Postman":
-                raise Error("unsafe Postman archive path")
-            if member.issym():
-                if member.name != "Postman/Postman" or member.linkname != "app/Postman":
-                    raise Error("unsupported Postman symlink")
-            elif not (member.isfile() or member.isdir()):
-                raise Error("unsupported Postman archive member")
-        destination.mkdir(mode=0o700)
-        source.extractall(destination, members=members, filter="data")
+    extract_vendor(archive, destination, 'postman')
 
 
 def extract_appimage(archive: Path, destination: Path) -> None:
-    # Inspect/extract with the distribution's SquashFS tool, never execute an
-    # AppImage runtime as root. Probe a bounded number of plausible superblocks.
-    offsets = []
-    with os.fdopen(checked_file(archive), "rb") as stream:
-        prefix = stream.read(16 * 1024 * 1024)
-    if prefix[:4] != b"\x7fELF":
-        raise Error("verified AppImage is not ELF")
-    offset = prefix.find(b"hsqs", 64)
-    while offset >= 0 and len(offsets) < 16:
-        offsets.append(offset)
-        offset = prefix.find(b"hsqs", offset + 1)
-    valid = None
-    for candidate in offsets:
-        try:
-            run(["/usr/bin/unsquashfs", "-s", "-o", str(candidate), str(archive)], timeout=30)
-            valid = candidate
-            break
-        except Error:
-            continue
-    if valid is None:
-        raise Error("no supported SquashFS payload was found in the signed AppImage")
-    run(["/usr/bin/unsquashfs", "-no-progress", "-no-xattrs", "-processors", "1", "-strict-errors",
-         "-o", str(valid), "-d", str(destination), str(archive)], timeout=600, file_limit=2 * MAX_DEB)
+    extract_vendor(archive, destination, 'appimage')
+
+
+def staged_entries(tree: Path):
+    # A completed private worker tree cannot change concurrently. Enumerate
+    # incrementally and enforce bounds before accumulating package path lists.
+    count = total = 0
+    stack = []
+    try:
+        yield tree
+        stack.append(os.scandir(tree))
+        while stack:
+            try:
+                entry = next(stack[-1])
+            except StopIteration:
+                stack.pop().close()
+                continue
+            path = Path(entry.path)
+            meta = entry.stat(follow_symlinks=False)
+            count += 1
+            total += meta.st_size if stat.S_ISREG(meta.st_mode) else 0
+            if count >= 30000 or total > 2 * MAX_DEB:
+                raise Error('staged payload exceeds count/byte bounds')
+            yield path
+            if stat.S_ISDIR(meta.st_mode):
+                stack.append(os.scandir(path))
+    finally:
+        for iterator in stack:
+            iterator.close()
 
 
 def normalize_staged_tree(tree: Path) -> None:
     # Only called for verified archives inside the private inbox workspace,
     # never for live /opt installations. Preserve bytes; discard archive UIDs
     # and privileged/writeable modes before creating an ordinary binary deb.
-    items = [tree, *tree.rglob("*")]
-    if len(items) > 30000:
-        raise Error("staged payload exceeds file-count bounds")
-    for path in items:
+    for path in staged_entries(tree):
         st = path.lstat()
         if not (stat.S_ISREG(st.st_mode) or stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode)):
             raise Error("special file in staged payload")
@@ -1103,9 +1176,7 @@ def assemble_binary_package(output: Path, tree: Path, install_root: str, control
     st = tree.lstat()
     if not stat.S_ISDIR(st.st_mode) or st.st_uid != 0:
         raise Error("unsafe prebuilt payload root")
-    items = [tree, *sorted(tree.rglob("*"))]
-    if len(items) > 30000:
-        raise Error("prebuilt payload exceeds file-count bounds")
+    items = sorted(staged_entries(tree))
     total = 0
     for path in items:
         st = path.lstat()
@@ -1693,7 +1764,7 @@ class Repository:
                     while chunk := stream.read(1024 * 1024):
                         hasher.update(chunk)
                 if hasher.hexdigest() != source_id:
-                    raise Error("signed AppImage receipt no longer matches its retained bytes")
+                    raise Error("AppImage receipt no longer matches its retained bytes")
                 extract_appimage(archive, work / "extracted")
                 descriptor["tree"] = str(work / "extracted")
         tree = Path(descriptor["tree"])
@@ -1730,7 +1801,7 @@ class Repository:
             descriptor = self.vendor_descriptor("installed", app)
             if descriptor.get("absent"):
                 continue
-            with tempfile.TemporaryDirectory(prefix=f".vendor-{app}-", dir=self.inbox) as directory:
+            with vendor_workspace(self.inbox, app) as directory:
                 record = self.vendor_package(descriptor, Path(directory))
                 try:
                     candidate = self.vendor_candidate(app, record, Path(directory))
@@ -1807,7 +1878,7 @@ class Repository:
             if not policy.get("automatic") or not app:
                 continue
             try:
-                with tempfile.TemporaryDirectory(prefix=f".vendor-{app}-", dir=self.inbox) as directory:
+                with vendor_workspace(self.inbox, app) as directory:
                     work = Path(directory)
                     candidate = self.vendor_candidate(app, previous, work)
                     decision = self.vendor_decision(candidate, previous)
@@ -1830,6 +1901,8 @@ class Repository:
                         self.remember_candidate(updated, candidate)
                         result = {"package": key, "status": "updated" if updated["version"] != previous["version"] else "current",
                                   "version": updated["version"]}
+            except OutcomeUnknown:
+                raise
             except (Error, OSError, ValueError, subprocess.SubprocessError) as exc:
                 warn(f"verified vendor update unavailable for {key}: {exc}; keeping {previous['version']}")
                 results.append({"package": key, "status": "error", "detail": str(exc)})
@@ -2109,6 +2182,9 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
+    except OutcomeUnknown as exc:
+        warn(str(exc))
+        sys.exit(4)
     except (Error, OSError, ValueError, EOFError, subprocess.SubprocessError) as exc:
         warn(str(exc))
         sys.exit(1)

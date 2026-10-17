@@ -30,6 +30,8 @@ import struct
 import subprocess
 import sys
 import tempfile
+import tarfile
+import time
 import types
 import unittest
 from unittest import mock
@@ -462,6 +464,92 @@ class OpenVPN(unittest.TestCase):
 
 class TutaExtraction(unittest.TestCase):
     def setUp(self): self.m = module(LIBEXEC/'tuta-extract')
+
+    def test_repository_adapter_preserves_parser_file_limit_headroom(self):
+        repository = module(LIBEXEC / 'apt-repo-local')
+        with mock.patch.object(repository, 'digest_file', return_value='a' * 64), \
+             mock.patch.object(repository, 'run') as run:
+            repository.extract_appimage(Path('/fixture/artifact'), Path('/fixture/output'))
+        argv = run.call_args.args[0]
+        self.assertEqual(argv[:2], ['/usr/local/libexec/tuta-extract', '--repository-appimage'])
+        self.assertGreaterEqual(run.call_args.kwargs['file_limit'], self.m.MAX_IMAGE)
+        self.assertEqual(run.call_args.kwargs['file_limit'], 2 * repository.MAX_DEB)
+
+    def test_repository_stream_deadline_covers_a_stalled_read(self):
+        repository = module(LIBEXEC / 'apt-repo-local')
+        reader_fd, writer_fd = os.pipe()
+        try:
+            with os.fdopen(reader_fd, 'rb') as stream:
+                started = time.monotonic()
+                with repository.DeadlineReader(stream, started + 0.05) as reader, \
+                     self.assertRaisesRegex(repository.Error, 'streaming timed out'):
+                    reader.read(10240)
+                self.assertLess(time.monotonic() - started, 1)
+        finally:
+            os.close(writer_fd)
+
+    def test_uncertain_parser_cleanup_preserves_its_outer_vendor_workspace(self):
+        repository = module(LIBEXEC / 'apt-repo-local')
+        with tempfile.TemporaryDirectory() as directory:
+            inbox = Path(directory)
+            work = None
+            with self.assertRaisesRegex(repository.OutcomeUnknown, 'workspace retained at'):
+                with repository.vendor_workspace(inbox, 'postman') as work:
+                    (work / 'evidence').write_bytes(b'previous parser state')
+                    with mock.patch.object(repository, 'digest_file', return_value='a' * 64), \
+                         mock.patch.object(repository, 'run', side_effect=repository.CommandFailure('fixture unknown', 3)):
+                        repository.extract_postman(Path('/fixture/archive'), work / 'tree')
+            self.assertEqual((work / 'evidence').read_bytes(), b'previous parser state')
+            with self.assertRaises(repository.Error):
+                with repository.vendor_workspace(inbox, 'postman') as failed:
+                    raise repository.Error('ordinary parse rejection')
+            self.assertFalse(failed.exists())
+
+    def test_repository_tar_stream_limits_reject_before_over_budget_write(self):
+        for attack in ('entries', 'bytes', 'sparse', 'fifo', 'hardlink', 'symlink', 'traversal'):
+            with self.subTest(attack=attack), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                artifact = root / 'artifact.tar.gz'
+                output = root / 'output'
+                output.mkdir()
+                with tarfile.open(artifact, 'w:gz', format=tarfile.PAX_FORMAT) as archive:
+                    count = 3 if attack == 'entries' else 1
+                    for index in range(count):
+                        info = tarfile.TarInfo('Postman/item' + str(index))
+                        data = b'x' * (9 if attack == 'bytes' else 1)
+                        info.size = len(data)
+                        if attack == 'sparse':
+                            info.pax_headers = {'GNU.sparse.major': '1', 'GNU.sparse.minor': '0'}
+                        elif attack == 'fifo':
+                            info.type, info.size = tarfile.FIFOTYPE, 0
+                        elif attack == 'hardlink':
+                            info.type, info.size, info.linkname = tarfile.LNKTYPE, 0, 'Postman/item'
+                        elif attack == 'symlink':
+                            info.type, info.size, info.linkname = tarfile.SYMTYPE, 0, '../../escape'
+                        elif attack == 'traversal':
+                            info.name = '../escape'
+                        archive.addfile(info, io.BytesIO(data) if info.isfile() else None)
+                script = self.m.REPOSITORY_TAR.replace("'/output/tree'", repr(str(output / 'tree')))
+                script = script.replace("'/artifact'", repr(str(artifact))).replace('count > 5000', 'count > 2')
+                script = script.replace('total > 2147483648', 'total > 8')
+                with self.assertRaises(ValueError):
+                    self.m.run_parser([sys.executable, '-I', '-B', '-c', script], output)
+                self.assertFalse((root / 'escape').exists())
+                self.assertFalse((output / 'tree/Postman/item2').exists())
+                if attack == 'bytes':
+                    self.assertFalse((output / 'tree/Postman/item0').exists())
+
+    def test_live_tree_budget_bounds_entries_expansion_and_sparse_logical_size(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for index in range(3):
+                (root / str(index)).touch()
+            with mock.patch.object(self.m, 'MAX_ENTRIES', 2), self.assertRaises(ValueError):
+                self.m.tree_budget(root)
+            with (root / '0').open('wb') as stream:
+                stream.truncate(1024 * 1024)
+            with mock.patch.object(self.m, 'MAX_TREE', 1024), self.assertRaises(ValueError):
+                self.m.tree_budget(root)
 
     def image(self):
         header = bytearray(64); header[:6]=b'\x7fELF\x02\x01';header[8:11]=b'AI\x02'

@@ -201,6 +201,7 @@ assert Gio.AppInfo and GioUnix.DesktopAppInfo
   desktop_render_greetd_config
   desktop_render_labwc_default_config
   desktop_install_hardware_tuning
+  desktop_verify_runtime_contracts
   run_in_target "wrap installed desktop package launchers" /usr/local/libexec/labwc-wrap-desktop-files
   desktop_write_labwc_plans_config
   desktop_install_user_resource_policy

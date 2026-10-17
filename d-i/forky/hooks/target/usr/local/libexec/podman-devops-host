@@ -17,6 +17,8 @@ import os
 from pathlib import Path
 import pwd
 import re
+import select
+import selectors
 import signal
 import socket
 import stat
@@ -59,11 +61,15 @@ class Failure(RuntimeError):
     """A failed invariant that needs operator attention, not a silent fallback."""
 
 
+class CleanupUnknown(Failure):
+    """Identity/cleanup could not be proved; do not retry as a clean failure."""
+
+
 def log(message: str) -> None:
     print(f'podman-devops: {message}', file=sys.stderr, flush=True)
 
 
-def process_session_live_members(process_session: int) -> set[int] | None:
+def process_session_live_members(process_session: int, deadline: float | None = None) -> set[int] | None:
     """Return live members of one Linux session, or None when procfs is unavailable."""
     try:
         entries = os.scandir('/proc')
@@ -74,19 +80,24 @@ def process_session_live_members(process_session: int) -> set[int] | None:
     members: set[int] = set()
     with entries:
         for entry in entries:
+            if deadline is not None and time.monotonic() >= deadline:
+                return None
             if not entry.name.isdecimal():
                 continue
             try:
-                stat_text = Path('/proc', entry.name, 'stat').read_text(
-                    encoding='ascii', errors='strict'
-                )
+                with open(f'/proc/{entry.name}/stat', encoding='ascii') as stream:
+                    stat_text = stream.read(4097)
+                if len(stat_text) > 4096:
+                    return None
                 command_end = stat_text.rfind(')')
                 if command_end < 0:
-                    continue
+                    return None
                 fields = stat_text[command_end + 2:].split()
                 state, session = fields[0], int(fields[3])
-            except (IndexError, OSError, ValueError, UnicodeError):
+            except (FileNotFoundError, ProcessLookupError):
                 continue
+            except (IndexError, OSError, ValueError, UnicodeError):
+                return None
             if session == process_session and state not in ('X', 'Z'):
                 members.add(int(entry.name))
     return members
@@ -96,65 +107,184 @@ def terminate_process_session(
     process_session: int,
     requested_signal: signal.Signals,
     deadline: float,
+    identities: dict[int, int],
 ) -> bool:
-    """Signal every live process in a private session until it is stably empty."""
+    """Signal pinned identities only; never fall back to numeric PID/group kills.
+
+    An existing live, validated member anchors the session number while new
+    members are pinned. If that authority is lost, the service cgroup remains
+    the containment owner and cleanup reports incomplete rather than guessing.
+    The caller owns every pidfd in identities, including newly discovered ones.
+    """
     quiet_since: float | None = None
     while True:
-        members = process_session_live_members(process_session)
+        members = process_session_live_members(process_session, deadline)
         now = time.monotonic()
         if members is None:
             quiet_since = None
         elif members:
             quiet_since = None
             for member in members:
+                if time.monotonic() >= deadline:
+                    return False
+                if member not in identities:
+                    anchor = None
+                    for pid, fd in identities.items():
+                        if time.monotonic() >= deadline:
+                            return False
+                        if session_anchor(pid, fd, process_session):
+                            anchor = (pid, fd)
+                            break
+                    if anchor is None:
+                        continue
+                    candidate_fd = None
+                    try:
+                        # Pin before reading procfs. A recycled procfs path
+                        # cannot validate an exited pidfd as a live process.
+                        candidate_fd = os.pidfd_open(member, 0)
+                        if (pidfd_in_session(member, candidate_fd, process_session)
+                                and session_anchor(*anchor, process_session)):
+                            identities[member] = candidate_fd
+                            candidate_fd = None
+                    except OSError:
+                        pass
+                    finally:
+                        if candidate_fd is not None:
+                            os.close(candidate_fd)
+                member_fd = identities.get(member)
+                if member_fd is None or not pidfd_in_session(member, member_fd, process_session):
+                    continue
                 try:
-                    os.kill(member, requested_signal)
-                except ProcessLookupError:
+                    signal.pidfd_send_signal(member_fd, requested_signal)
+                except OSError:
                     pass
         else:
             if quiet_since is None:
                 quiet_since = now
             elif now - quiet_since >= 0.05:
                 return True
-        remaining = deadline - now
+        remaining = deadline - time.monotonic()
         if remaining <= 0:
             return False
         time.sleep(min(0.02, remaining))
 
 
-def run(argv: list[str], timeout: float = 30) -> str:
-    """Bound subprocesses and terminate their process group on timeout/signal."""
-    proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            text=True, env=ENV, start_new_session=True)
+def pidfd_in_session(pid: int, pidfd: int, process_session: int) -> bool:
+    """Validate procfs only while its pinned process remains live on both sides."""
+    poller = select.poll()
+    poller.register(pidfd, select.POLLIN | select.POLLHUP | select.POLLERR)
+    if poller.poll(0):
+        return False
     try:
-        out, err = proc.communicate(timeout=timeout)
-    except BaseException:
+        with open(f'/proc/{pid}/stat', encoding='ascii') as stream:
+            text = stream.read(4097)
+        if len(text) > 4096 or ')' not in text:
+            return False
+        fields = text[text.rfind(')') + 2:].split()
+        matches = fields[0] not in ('X', 'Z') and int(fields[3]) == process_session
+    except (OSError, ValueError, IndexError, UnicodeError):
+        return False
+    return matches and not poller.poll(0)
+
+
+def session_anchor(pid: int, pidfd: int, process_session: int) -> bool:
+    if pid != process_session:
+        return pidfd_in_session(pid, pidfd, process_session)
+    # Output collection can time out on a descendant's inherited pipe after the
+    # leader exits. Keep that direct child unreaped throughout cleanup. waitid
+    # with WNOWAIT proves ownership without releasing its reserved PID/session.
+    try:
+        os.waitid(os.P_PIDFD, pidfd, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+        with open(f'/proc/{pid}/stat', encoding='ascii') as stream:
+            text = stream.read(4097)
+        fields = text[text.rfind(')') + 2:].split()
+        if len(text) > 4096 or ')' not in text or int(fields[3]) != process_session:
+            return False
+        os.waitid(os.P_PIDFD, pidfd, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+        return True
+    except (OSError, ValueError, IndexError, UnicodeError):
+        return False
+
+
+def collect_output(proc: subprocess.Popen, timeout: float) -> tuple[str, str]:
+    """Bound acquisition, both output streams and final wait by one deadline."""
+    deadline = time.monotonic() + timeout
+    output = {'stdout': bytearray(), 'stderr': bytearray()}
+    captured = 0
+    with selectors.DefaultSelector() as selector:
+        for name in output:
+            selector.register(getattr(proc, name), selectors.EVENT_READ, name)
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(proc.args, timeout)
+            for key, _ in selector.select(min(0.5, remaining)):
+                data = os.read(key.fd, 65536)
+                if not data:
+                    selector.unregister(key.fileobj)
+                    continue
+                captured += len(data)
+                if captured > 4 * 1024 * 1024:
+                    raise Failure('command output exceeded the 4 MiB bound')
+                output[key.data].extend(data)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired(proc.args, timeout)
+        proc.wait(timeout=remaining)
+    return tuple(bytes(output[name]).decode('utf-8') for name in ('stdout', 'stderr'))
+
+
+def run(argv: list[str], timeout: float = 30) -> str:
+    """Bound commands and identity-bound cleanup; owning services retain cgroups."""
+    if not hasattr(os, 'pidfd_open') or not hasattr(signal, 'pidfd_send_signal'):
+        raise Failure('identity-bound process cleanup is unavailable')
+    proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            env=ENV, start_new_session=True)
+    identities: dict[int, int] = {}
+    cleanup_handlers = {}
+    try:
+        # Popen has not reaped the leader, so this cannot pin a recycled PID.
+        identities[proc.pid] = os.pidfd_open(proc.pid, 0)
+        out, _err = collect_output(proc, timeout)
+    except BaseException as failure:
+        # A second cancellation must not interrupt identity checks or fd
+        # closure. This CLI's cleanup is bounded to five seconds; the owning
+        # service still has its independent stop deadline and SIGKILL boundary.
+        for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+            cleanup_handlers[sig] = signal.signal(sig, signal.SIG_IGN)
         # A reaped leader or a closed pipe does not prove that every descendant
-        # exited. Check the complete process group before accepting cleanup.
+        # exited. Validate the owned session before accepting cleanup.
         cleaned = False
+        cleanup_deadline = time.monotonic() + 5
         for sig, grace in ((signal.SIGTERM, 3), (signal.SIGKILL, 2)):
-            deadline = time.monotonic() + grace
-            try:
-                os.killpg(proc.pid, sig)
-            except ProcessLookupError:
-                # A descendant may have entered another process group while it
-                # remains in this helper-owned session; inspect the session too.
-                pass
-            cleaned = terminate_process_session(proc.pid, sig, deadline)
+            deadline = min(cleanup_deadline, time.monotonic() + grace)
+            cleaned = terminate_process_session(proc.pid, sig, deadline, identities)
             if cleaned:
                 try:
-                    proc.communicate(timeout=0.2)
+                    proc.wait(timeout=max(0, cleanup_deadline - time.monotonic()))
                 except subprocess.TimeoutExpired:
                     cleaned = False
             if cleaned:
                 break
         if not cleaned:
+            log('cleanup outcome unknown; owning service cgroup must contain remaining work')
             for stream in (proc.stdout, proc.stderr):
                 if stream is not None:
                     stream.close()
+            raise CleanupUnknown('command cleanup outcome unknown; owning service cgroup must contain remaining work') from failure
         raise
+    finally:
+        try:
+            for pidfd in identities.values():
+                os.close(pidfd)
+            for stream in (proc.stdout, proc.stderr):
+                if stream is not None:
+                    stream.close()
+        finally:
+            for sig, handler in cleanup_handlers.items():
+                signal.signal(sig, handler)
     if proc.returncode:
-        raise Failure(f'{argv[0]} exited {proc.returncode}: {err.strip()[-2000:]}')
+        raise Failure(f'{argv[0]} exited {proc.returncode}')
     return out.strip()
 
 
@@ -713,6 +843,9 @@ if __name__ == '__main__':
         signal.signal(sig, lambda number, _frame: sys.exit(128 + number))
     try:
         sys.exit(main())
+    except CleanupUnknown as exc:
+        log(f'ERROR {exc}')
+        sys.exit(3)
     except (Failure, OSError, ValueError, KeyError, subprocess.TimeoutExpired) as exc:
         log(f'ERROR {exc}')
         sys.exit(1)

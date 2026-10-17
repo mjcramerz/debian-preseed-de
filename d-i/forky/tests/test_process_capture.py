@@ -53,6 +53,74 @@ class ProcessCaptureTests(unittest.TestCase):
         self.assertEqual(json.loads(result.stdout),
                          {"stdout": "hello", "stderr": "error", "status": 17 << 8, "error": ""})
 
+    def test_signal_is_raw_and_adapters_decode_exactly_once(self) -> None:
+        result = self.run_capture('/bin/sh', '-c', 'kill -TERM $$')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)['status'] & 127, signal.SIGTERM)
+        environment = {'PATH': '/usr/bin:/bin', 'HOME': '/nonexistent', 'LC_ALL': 'C'}
+        probe = subprocess.run(['/usr/bin/perl', '-MMoo', '-MMooX::StrictConstructor',
+                                '-MMooX::TypeTiny', '-MTypes::Standard', '-e', '1'],
+                               env=environment, capture_output=True, timeout=5)
+        if probe.returncode:
+            self.skipTest('packaged Perl adapter dependencies unavailable')
+        libraries = FORKY / 'hooks/target/usr/local/lib/perl5/site_perl'
+        code = r'''
+use AndroidADB::Command;
+use LabwcSecurityAction::Command;
+use LabwcNetworkControlAction::Command;
+use LabwcNetworkScanAction::Command;
+use TimeshiftManaged::Command;
+for my $raw (0, 17 << 8, 9, 124 << 8, -1) {
+    print AndroidADB::Command::_normalize_status($raw), ',',
+          LabwcSecurityAction::Command::_status($raw), ',',
+          LabwcNetworkControlAction::Command::_status($raw), ',',
+          LabwcNetworkScanAction::Command::_status($raw), ',',
+          TimeshiftManaged::Command::status_from_wait($raw), "\n";
+}
+'''
+        decoded = subprocess.run(['/usr/bin/perl', '-I' + str(LIB),
+                                  '-I' + str(libraries / 'labwc-adb'),
+                                  '-I' + str(libraries / 'labwc-security-action'),
+                                  '-I' + str(libraries / 'labwc-network-control-action'),
+                                  '-I' + str(libraries / 'labwc-network-scan-action'),
+                                  '-I' + str(libraries / 'timeshift'), '-e', code],
+                                 env=environment, capture_output=True, text=True, timeout=5)
+        self.assertEqual(decoded.returncode, 0, decoded.stderr)
+        self.assertEqual(decoded.stdout.splitlines(), [','.join([str(value)] * 5) for value in (0, 17, 137, 124, 255)])
+
+    def test_whisper_preserves_raw_status_and_zram_decodes_once(self) -> None:
+        environment = {'PATH': '/usr/bin:/bin', 'HOME': '/nonexistent', 'LC_ALL': 'C'}
+        probe = subprocess.run(['/usr/bin/perl', '-MMoo', '-MMooX::StrictConstructor',
+                                '-MMooX::TypeTiny', '-MMooX::Types::MooseLike::Base', '-e', '1'],
+                               env=environment, capture_output=True, timeout=5)
+        if probe.returncode:
+            self.skipTest('packaged Perl adapter dependencies unavailable')
+        libraries = FORKY / 'hooks/target/usr/local/lib/perl5/site_perl'
+        code = r'''
+BEGIN {
+    $INC{'Zram/Config.pm'} = 1;
+    package Zram::Config;
+    use Exporter 'import'; our @EXPORT_OK = qw(cfg);
+    sub cfg { die "unexpected fixture configuration access\n"; }
+}
+use WhisperMode::Systemd;
+use Zram::Setup::Mapper;
+for my $raw (0, 17 << 8, 9, 124 << 8) {
+    no warnings 'redefine';
+    local *Managed::Process::capture_command = sub { {status => $raw, stdout => '', stderr => ''} };
+    local *Zram::Setup::Mapper::capture_command = sub { {status => $raw, stdout => '', stderr => ''} };
+    my $systemd = bless {}, 'WhisperMode::Systemd';
+    my $mapper = bless {}, 'Zram::Setup::Mapper';
+    my ($normalized) = $mapper->_capture('/fixture/command');
+    print $systemd->_run('fixture'), ',', $normalized, "\n";
+}
+'''
+        result = subprocess.run(['/usr/bin/perl', '-I' + str(LIB), '-I' + str(libraries / 'whisper'),
+                                 '-I' + str(libraries / 'zram-writeback'), '-e', code],
+                                env=environment, capture_output=True, text=True, timeout=5)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ['0,0', '4352,17', '9,137', '31744,124'])
+
     def test_simultaneous_large_input_and_output_cannot_deadlock(self) -> None:
         code = "import sys; sys.stdout.write('x'*500000); sys.stdout.flush(); print(len(sys.stdin.read()))"
         result = self.run_capture("/usr/bin/python3", "-c", code, input="y" * 1000000)

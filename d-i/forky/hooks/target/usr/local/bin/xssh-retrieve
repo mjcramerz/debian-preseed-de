@@ -47,8 +47,11 @@ validate_host "$remote_host"
 validate_port "$port"
 validate_user "$remote_user"
 validate_remote_path "$remote_path"
-case $local_path in -*) die 'local path must not start with -';; esac
+# A slash before any colon makes scp treat this operand as a local pathname.
+case $local_path in /*|./*|../*) ;; *) local_path=./$local_path;; esac
+scp_host=$remote_host
+case $scp_host in *:*) scp_host=[$scp_host];; esac
 require_cmd scp
 printf '%s: retrieving %s@%s:%s to %s\n' "$PROG" "$remote_user" "$remote_host" "$remote_path" "$local_path" >&2
-scp -r -P "$port" "${remote_user}@${remote_host}:${remote_path}" "$local_path"
+scp -r -P "$port" "${remote_user}@${scp_host}:${remote_path}" "$local_path"
 printf '%s: retrieve completed: %s@%s:%s -> %s\n' "$PROG" "$remote_user" "$remote_host" "$remote_path" "$local_path" >&2

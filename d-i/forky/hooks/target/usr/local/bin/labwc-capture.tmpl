@@ -533,8 +533,10 @@ record_worker() {
   fi
 
   [ -s "$recording_path" ] || rm -f -- "$recording_path"
+  recording_worker_status=$recording_status
+  [ "$recording_worker_status" -ne 0 ] || recording_worker_status=1
   notify_user critical __THEME_MAKO_SCREEN_CAPTURE_ERROR_ICON_NAME__ x-labwc.screen-recording "Screen recording failed" "wf-recorder exited with status ${recording_status}. Details were written to ${RECORDING_LOG}."
-  exit "$recording_status"
+  exit "$recording_worker_status"
 }
 
 open_menu() {

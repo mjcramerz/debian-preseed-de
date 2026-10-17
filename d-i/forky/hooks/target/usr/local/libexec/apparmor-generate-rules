@@ -24,6 +24,11 @@ if ($uid !~ /\A[1-9][0-9]*\z/) {
 }
 
 umask 0077;
+my $cancel_status;
+for my $entry ([HUP => 129], [INT => 130], [TERM => 143]) {
+    my ($signal, $status) = @{$entry};
+    $SIG{$signal} = sub { $cancel_status = $status; die "AppArmor rule generation cancelled\n"; };
+}
 my $status = eval {
     LabwcSecurityAction::AppArmor::RuleGenerator->new()->run($ARGV[1]);
 };
@@ -32,6 +37,6 @@ if (!defined($status) || $@) {
     $error =~ s/\s+\z//;
     $error =~ s/[\r\n]+/ /g;
     print STDERR "fatal: $error\n";
-    exit 1;
+    exit($cancel_status // 1);
 }
 exit $status;

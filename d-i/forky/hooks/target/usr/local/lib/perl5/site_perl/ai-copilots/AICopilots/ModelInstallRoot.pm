@@ -5,8 +5,9 @@ use warnings;
 
 use Cwd qw(abs_path);
 use Digest::SHA;
+use Errno qw(EAGAIN EWOULDBLOCK);
 use Fcntl qw(:DEFAULT :flock O_NOFOLLOW);
-use File::Basename qw(basename);
+use File::Basename qw(basename dirname);
 use File::Temp qw(tempfile);
 use IO::Handle;
 use JSON::PP qw(decode_json);
@@ -16,6 +17,8 @@ use MooX::TypeTiny;
 use Types::Standard qw(Object Str);
 
 use AICopilots::ModelCatalog;
+use lib '/usr/local/lib/perl5/site_perl/runtime';
+use Managed::Process qw(capture_command);
 
 has curl => (
     is      => 'ro',
@@ -124,8 +127,9 @@ sub _fetch_model_metadata {
         '--fail',
         '--silent',
         '--show-error',
-        '--location',
-        '--max-redirs', '3',
+        # Metadata is accepted only from the fixed API origin. Model bytes
+        # separately allow bounded HTTPS CDN redirects and require a digest.
+        '--max-redirs', '0',
         '--proto', '=https',
         '--proto-redir', '=https',
         '--tlsv1.2',
@@ -141,25 +145,9 @@ sub _fetch_model_metadata {
         '--user-agent', 'labwc-ai-copilots/1',
         _metadata_url($entry),
     );
-    open my $fh, '-|', @command
-        or _fatal("cannot start Hugging Face metadata request: $!");
-    binmode $fh, ':raw'
-        or _fatal("cannot configure Hugging Face metadata stream: $!");
-    my $content = q{};
-    while (1) {
-        my $chunk = q{};
-        my $read = read($fh, $chunk, 65_536);
-        defined($read)
-            or _fatal("cannot read Hugging Face metadata: $!");
-        last if $read == 0;
-        $content .= $chunk;
-        if (length($content) > $maximum_bytes) {
-            close $fh;
-            _fatal('Hugging Face metadata exceeds the size bound');
-        }
-    }
-    close $fh
-        or _fatal('Hugging Face metadata request failed');
+    my $result = capture_command(argv => \@command, timeout => 95, limit => $maximum_bytes);
+    $result->{status} == 0 or _fatal('Hugging Face metadata request failed');
+    my $content = $result->{stdout};
     length($content) >= 2
         or _fatal('Hugging Face metadata response is empty');
     return $content;
@@ -311,7 +299,7 @@ sub _read_magic {
 }
 
 sub _validate_model {
-    my ($self, $family, $path, $sha256, $expected_bytes, $expected_mode) = @_;
+    my ($self, $family, $path, $sha256, $expected_bytes, $expected_mode, $staging) = @_;
     my $policy = $self->_family_policy($family);
     my $devops_gid = _devops_gid();
     -f $path && !-l $path
@@ -319,11 +307,20 @@ sub _validate_model {
     my $resolved = abs_path($path);
     defined($resolved) && $resolved eq $path
         or _fatal('model path must already be canonical');
-    index($path, "$policy->{directory}/") == 0
+    dirname($path) eq $policy->{directory}
         or _fatal('model path is outside the fixed family directory');
-    basename($path) =~ $policy->{filename}
-        or _fatal('model filename is invalid');
     my @stat = lstat $path;
+    if (defined($staging)) {
+        $staging->{filename} =~ $policy->{filename}
+            && $path eq $staging->{path}
+            && basename($path) =~ /\A\.\Q$staging->{filename}\E\.partial\.[A-Za-z0-9_]{6}\z/
+            && @stat && $stat[0] == $staging->{device} && $stat[1] == $staging->{inode}
+            or _fatal('model staging identity is invalid');
+    }
+    else {
+        basename($path) =~ $policy->{filename}
+            or _fatal('model filename is invalid');
+    }
     $stat[4] == 0 && $stat[5] == $devops_gid
         && ($stat[2] & 07777) == $expected_mode
         or _fatal('model ownership or mode is unsafe');
@@ -337,7 +334,7 @@ sub _validate_model {
 }
 
 sub _open_lock {
-    my ($path) = @_;
+    my ($path, $nonblocking) = @_;
     sysopen my $fh, $path, O_CREAT | O_RDWR | O_NOFOLLOW, 0600
         or _fatal("cannot open model download lock: $!");
     chown 0, _devops_gid(), $path
@@ -348,8 +345,10 @@ sub _open_lock {
     -f _ && !-l $path && $stat[4] == 0 && $stat[5] == _devops_gid()
         && ($stat[2] & 07777) == 0600
         or _fatal('model download lock ownership or mode is unsafe');
-    flock $fh, LOCK_EX
-        or _fatal("cannot lock model download: $!");
+    if (!flock($fh, LOCK_EX | ($nonblocking ? LOCK_NB : 0))) {
+        return undef if $nonblocking && ($! == EAGAIN || $! == EWOULDBLOCK);
+        _fatal("cannot lock model download: $!");
+    }
     return $fh;
 }
 
@@ -382,6 +381,7 @@ sub _download {
     }
 
     my $partial;
+    my $published = 0;
     my $completed = eval {
         my ($fh, $temporary) = tempfile(
             ".$filename.partial.XXXXXX",
@@ -389,8 +389,14 @@ sub _download {
             UNLINK => 0,
         );
         $partial = $temporary;
-        close $fh
-            or _fatal("cannot close model staging file: $!");
+        my @created = stat $fh;
+        @created or _fatal('cannot inspect model staging identity');
+        my $staging = {
+            path => $partial, filename => $filename,
+            device => $created[0], inode => $created[1],
+        };
+        # Keep the tempfile open until publication is verified. Its inode
+        # cannot be recycled into a replacement while this handle pins it.
         chown 0, _devops_gid(), $partial
             or _fatal("cannot set model staging file ownership: $!");
         chmod 0600, $partial
@@ -403,6 +409,7 @@ sub _download {
             '--silent',
             '--show-error',
             '--location',
+            '--max-redirs', '5',
             '--proto', '=https',
             '--proto-redir', '=https',
             '--tlsv1.2',
@@ -427,20 +434,24 @@ sub _download {
             $sha256,
             $expected_bytes,
             0600,
+            $staging,
         );
-        open my $sync_fh, '<:raw', $partial
-            or _fatal("cannot reopen verified model for synchronization: $!");
-        $sync_fh->sync()
-            or _fatal("cannot synchronize verified model: $!");
-        close $sync_fh
-            or _fatal("cannot close synchronized model: $!");
         chmod 0640, $partial
             or _fatal("cannot set verified model mode: $!");
+        $fh->sync()
+            or _fatal("cannot synchronize verified model: $!");
         !-e $target && !-l $target
             or _fatal('model target appeared during verified download');
         rename $partial, $target
             or _fatal("cannot publish verified model: $!");
+        $published = 1;
         $partial = undef;
+        open my $directory_fh, '<', $directory
+            or _fatal("cannot open model directory for synchronization: $!");
+        $directory_fh->sync()
+            or _fatal("cannot synchronize model directory: $!");
+        close $directory_fh
+            or _fatal("cannot close model directory: $!");
         $self->_validate_model(
             $family,
             $target,
@@ -448,10 +459,15 @@ sub _download {
             $expected_bytes,
             0640,
         );
+        close $fh or _fatal("cannot close verified model staging handle: $!");
         1;
     };
     if (!$completed) {
         my $error = $@ || "model installation failed\n";
+        if ($published) {
+            print STDERR "model publication outcome unknown; verify $target before retrying\n";
+            return 3;
+        }
         unlink $partial if defined($partial) && (-f $partial || -l $partial);
         die $error;
     }
@@ -484,18 +500,21 @@ sub _prune {
         or _fatal("cannot inspect model directory: $!");
     my $removed = 0;
     while (my $entry = readdir $dh) {
-        next if $entry !~
-            /\A\.[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.(?:gguf|bin)\.partial\.[A-Za-z0-9]+\z/;
+        last if $removed >= 100;
+        next if $entry !~ /\A\.(.+)\.partial\.[A-Za-z0-9_]{6}\z/;
+        my $filename = $1;
+        next if $filename !~ $policy->{filename} || $filename =~ /\.\./;
+        my $lock = _open_lock("$directory/.$filename.lock", 1);
+        next if !defined($lock);
         my $path = "$directory/$entry";
         next if !-f $path || -l $path;
         my @stat = lstat $path;
         next if $stat[4] != 0 || $stat[5] != _devops_gid()
-            || ($stat[2] & 07777) != 0600;
+            || ($stat[2] & 07777) != 0600
+            || time() - $stat[9] < 86_400;
         unlink $path
             or _fatal("cannot remove partial model download: $!");
         $removed++;
-        $removed <= 100
-            or _fatal('too many partial model downloads to prune safely');
     }
     closedir $dh
         or _fatal("cannot close model directory: $!");

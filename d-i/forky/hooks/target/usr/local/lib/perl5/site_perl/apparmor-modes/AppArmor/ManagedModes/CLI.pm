@@ -11,11 +11,13 @@ use MooX::TypeTiny;
 use AppArmor::ManagedModes::Logger qw(log_msg);
 
 our @EXPORT_OK = qw(fatal info parse_args usage warn);
+our $THROW_FAILURE = 0;
 
 sub fatal {
-    my ($message) = @_;
+    my ($message, $status) = @_;
     log_msg('error', $message);
-    exit 1;
+    die "$message\n" if $THROW_FAILURE;
+    exit($status // 1);
 }
 
 sub info {

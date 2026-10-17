@@ -98,7 +98,13 @@ if '--help' in args:
     raise SystemExit(0)
 path = pathlib.Path(args[-1])
 source = path.read_text()
-labels = re.findall(r'^profile\s+([A-Za-z0-9_./-]+)', source, re.M)
+declarations = re.findall(r"^profile\s+([A-Za-z0-9_./-]+)([^\n{]*)\{", source, re.M)
+base = pathlib.Path(args[args.index('--base') + 1]) if '--base' in args else path.parent
+local = base / 'local' / path.name
+if declarations and local.is_file() and 'include <local/' + path.name + '>' in source:
+    declarations += [(declarations[0][0] + '//' + label, flags) for label, flags in
+                     re.findall(r"^profile\s+([A-Za-z0-9_./-]+)([^\n{]*)\{", local.read_text(), re.M)]
+labels = [label for label, _ in declarations]
 kernel = pathlib.Path(os.environ['AA_TEST_KERNEL'])
 if name == 'apparmor_parser' and '-N' in args:
     # The real parser honors disable/ even for names-only inspection.
@@ -122,8 +128,7 @@ if (name == 'apparmor_parser' and any(a in args for a in ('-r', '-R'))) or (
     lines = kernel.read_text().splitlines()
     lines = [line for line in lines if not any(line.startswith(label + ' (') for label in labels)]
     if '-R' not in args:
-        mode = 'complain' if 'complain' in source else 'enforce'
-        lines += [f'{label} ({mode})' for label in labels]
+        lines += [f"{label} ({'complain' if 'complain' in flags else 'enforce'})" for label, flags in declarations]
     kernel.write_text(''.join(line + '\n' for line in lines))
 '''
 
@@ -196,7 +201,8 @@ class AppArmorReconciliationTests(PerlFixture):
         return [json.loads(line) for line in render_theme_defaults(payload_read_text(self.calls)).splitlines()] if payload_source_exists(self.calls) else []
 
     def mutations(self):
-        return [call for call in self.tool_calls() if '-N' not in call and '--help' not in call]
+        return [call for call in self.tool_calls() if '-N' not in call and '--help' not in call
+                and not (call[0] == 'apparmor_parser' and '-Q' in call)]
 
     def assert_success(self, result):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -260,7 +266,7 @@ class AppArmorReconciliationTests(PerlFixture):
         before = payload_source_stat(unchanged).st_ino
         result = self.run_policy()
         self.assert_success(result)
-        self.assertEqual([c[0] for c in self.mutations()], ['aa-complain', 'aa-audit'])
+        self.assertEqual([c[0] for c in self.mutations()], ['aa-complain', 'aa-audit', 'apparmor_parser'])
         self.assertEqual(payload_source_stat(unchanged).st_ino, before)
         self.assertIn('flags=(complain)', render_theme_defaults(payload_read_text(self.profiles / 'alpha')))
         self.calls.unlink()
@@ -311,7 +317,7 @@ class AppArmorReconciliationTests(PerlFixture):
         self.assert_success(result)
         self.assertFalse(payload_source_exists(self.profiles / 'disable/alpha'))
         self.assertIn('alpha (complain)', render_theme_defaults(payload_read_text(self.kernel)))
-        self.assertEqual([c[0] for c in self.mutations()], ['aa-complain', 'aa-audit'])
+        self.assertEqual([c[0] for c in self.mutations()], ['aa-complain', 'aa-audit', 'apparmor_parser'])
         self.calls.unlink()
         self.assert_success(self.run_policy())
         self.assertEqual(self.mutations(), [])
@@ -379,6 +385,51 @@ class AppArmorReconciliationTests(PerlFixture):
         self.assertNotIn('complain', parent.read_text())
         self.assert_success(self.run_policy('--check'))
 
+    def test_all_three_local_children_converge_after_one_live_transition(self):
+        for parent_name, child_name in (("microsoft-edge-stable", "edge-glycin-bwrap"),
+                                        ("mullvad-browser", "mullvad-bwrap"),
+                                        ("vivaldi-bin", "vivaldi-bwrap")):
+            parent = self.profile(parent_name, want="enforce", source="complain", loaded="complain")
+            parent.write_text(f"profile {parent_name} flags=(complain) {{\ninclude <local/{parent_name}>\n}}\n")
+            local = self.profiles / "local"
+            local.mkdir(exist_ok=True)
+            child = local / parent_name
+            child.write_text(f"profile {child_name} flags=(attach_disconnected, complain) {{\n}}\n")
+            with self.kernel.open("a") as stream:
+                stream.write(f"{parent_name}//{child_name} (complain)\n")
+        self.assert_success(self.run_policy())
+        for parent_name, child_name in (("microsoft-edge-stable", "edge-glycin-bwrap"),
+                                        ("mullvad-browser", "mullvad-bwrap"),
+                                        ("vivaldi-bin", "vivaldi-bwrap")):
+            self.assertIn(f"{parent_name}//{child_name} (enforce)", self.kernel.read_text())
+            self.assertNotIn("complain", (self.profiles / "local" / parent_name).read_text())
+        self.assertEqual(sum("-r" in call for call in self.tool_calls()), 3)
+        self.assertFalse(list(self.profiles.glob(".apparmor-mode-recovery.*")))
+        self.config.write_text("".join(f"complain required {name} -\n" for name in
+                                      ("microsoft-edge-stable", "mullvad-browser", "vivaldi-bin")))
+        self.assert_success(self.run_policy())
+        self.assertNotIn("(enforce)", self.kernel.read_text())
+
+    def test_failed_mode_rollback_retains_previous_parent_and_child_bytes(self):
+        parent = self.profile("vivaldi-bin", want="enforce", source="complain", loaded="complain")
+        parent.write_text("profile vivaldi-bin flags=(complain) {\ninclude <local/vivaldi-bin>\n}\n")
+        local = self.profiles / "local"
+        local.mkdir()
+        child = local / "vivaldi-bin"
+        child.write_text("profile vivaldi-bwrap flags=(attach_disconnected, complain) {\n}\n")
+        with self.kernel.open("a") as stream:
+            stream.write("vivaldi-bin//vivaldi-bwrap (complain)\n")
+        before = (parent.read_bytes(), child.read_bytes())
+        self.env["AA_TEST_RELOAD_FAIL"] = "1"
+        result = self.run_policy()
+        self.assertEqual(result.returncode, 3)
+        self.assertEqual(before, (parent.read_bytes(), child.read_bytes()))
+        bundles = list(self.profiles.glob(".apparmor-mode-recovery.*"))
+        self.assertEqual(len(bundles), 1)
+        self.assertIn(str(bundles[0]), result.stderr)
+        self.assertEqual((bundles[0] / "parent").read_bytes(), before[0])
+        self.assertEqual((bundles[0] / "child").read_bytes(), before[1])
+
     def test_every_declaration_in_one_file_has_its_selected_source_mode(self):
         profile = self.profile(source='complain', loaded='complain')
         with profile.open('a') as stream:
@@ -439,6 +490,104 @@ class AppArmorReloadContractTests(PerlFixture):
         self.assertNotEqual(self.run_perl(code, str(path)).returncode, 0)
         path.unlink(); path.mkdir()
         self.assertNotEqual(self.run_perl(code, str(path)).returncode, 0)
+
+    def test_workspace_failures_preserve_target_and_track_staging_until_cleanup(self):
+        for operation in ('chmod', 'rename'):
+            with self.subTest(operation=operation):
+                source = self.root / 'source'
+                target = self.root / 'target'
+                source.write_text('candidate')
+                target.write_text('previous')
+                override = {
+                    'chmod': r"BEGIN { *CORE::GLOBAL::chmod = sub { return 0 if $_[0] == 0644 && $_[1] =~ /[.]apparmor-modes[.]/; CORE::chmod($_[0], $_[1]); }; }",
+                    'rename': r"BEGIN { *CORE::GLOBAL::rename = sub { return 0; }; }",
+                }[operation]
+                code = override + r'''
+use AppArmor::ManagedModes::Workspace;
+my ($root, $source, $target) = @ARGV;
+my $workspace = AppArmor::ManagedModes::Workspace->new(tmp_root => $root);
+local $AppArmor::ManagedModes::CLI::THROW_FAILURE = 1;
+my $ok = eval { $workspace->publish_file($source, $target, 'injected publication failure'); 1 };
+die "publication guard was ignored\n" if $ok;
+die "staging forgotten\n" if !keys %{$workspace->files};
+$workspace->cleanup or die "cleanup failed\n";
+'''
+                result = self.run_perl(code, str(self.root), str(source), str(target))
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(target.read_text(), 'previous')
+                self.assertFalse(list(self.root.glob('.apparmor-modes.*')))
+
+    def test_failed_unlink_retains_workspace_ownership(self):
+        code = r'''
+BEGIN { *CORE::GLOBAL::unlink = sub { return 0 if $ENV{FIXTURE_UNLINK_FAIL}; CORE::unlink(@_); }; }
+use AppArmor::ManagedModes::Workspace;
+my $workspace = AppArmor::ManagedModes::Workspace->new(tmp_root => $ARGV[0]);
+my ($fh, $path) = $workspace->tempfile('unlink-fixture'); close $fh;
+local $AppArmor::ManagedModes::CLI::THROW_FAILURE = 1;
+$ENV{FIXTURE_UNLINK_FAIL} = 1;
+my $ok = eval { $workspace->remove_file($path); 1 };
+die "unlink guard was ignored\n" if $ok;
+die "failed unlink forgotten\n" if !$workspace->files->{$path} || !-f $path;
+delete $ENV{FIXTURE_UNLINK_FAIL};
+$workspace->cleanup or die "cleanup failed\n";
+'''
+        result = self.run_perl(code, str(self.root))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(list(self.root.glob('unlink-fixture.*')))
+
+    def test_open_and_redirect_failures_do_not_report_success(self):
+        source = self.root / 'source'
+        source.write_text('fixture')
+        bad = self.root / 'directory'
+        bad.mkdir()
+        cases = [
+            (r"use AppArmor::ManagedModes::TrustedPath qw(bounded_capture); bounded_capture('fixture', $ARGV[0], $ARGV[1], 32);", str(source), str(bad)),
+            (r"use AppArmor::ManagedModes::Workspace; my $w = AppArmor::ManagedModes::Workspace->new; $w->copy_file($ARGV[0], $ARGV[1], 'fixture open failed');", str(self.root / 'missing'), str(self.root / 'out')),
+            (r"use AppArmor::ManagedModes::Tool; AppArmor::ManagedModes::Tool->new->run_stdout_to_file_limited_or_exit($ARGV[0], 32, 'fixture overflow', '/usr/bin/true');", str(bad)),
+        ]
+        for code, *arguments in cases:
+            with self.subTest(code=code):
+                self.assertNotEqual(self.run_perl(code, *arguments).returncode, 0)
+
+    def test_disable_mkdir_and_symlink_fail_at_the_original_guard(self):
+        for operation in ('mkdir', 'symlink'):
+            with self.subTest(operation=operation):
+                profiles = self.root / operation
+                profiles.mkdir()
+                (profiles / 'fixture').write_text('profile fixture {\n}\n')
+                overrides = {
+                    'mkdir': r"BEGIN { *CORE::GLOBAL::mkdir = sub { return 0 if caller eq 'AppArmor::ManagedModes::Transition'; CORE::mkdir($_[0], $_[1]); }; }",
+                    'symlink': r"BEGIN { *CORE::GLOBAL::symlink = sub { return 0; }; }",
+                }
+                code = overrides[operation] + r'''
+use AppArmor::ManagedModes::Transition;
+my $entry = {name => 'fixture', path => "$ARGV[0]/fixture", mode => 'disable'};
+AppArmor::ManagedModes::Transition::_disable_profile(
+    $entry, {profile_dir => $ARGV[0], reload_profiles => 0}, undef, undef, undef);
+'''
+                result = self.run_perl(code, str(profiles))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('cannot create AppArmor disable ' + ('directory' if operation == 'mkdir' else 'entry'), result.stderr)
+                self.assertFalse((profiles / 'disable/fixture').is_symlink())
+
+    def test_child_print_failure_never_reaches_publication(self):
+        local = self.root / 'local'
+        local.mkdir()
+        (local / 'vivaldi-bin').write_text('profile vivaldi-bwrap flags=(attach_disconnected) {\n}\n')
+        code = r'''
+use AppArmor::ManagedModes::LocalChildren qw(apply_child_mode);
+{ package BrokenWriter; sub TIEHANDLE { bless {}, shift } sub PRINT { 0 } sub CLOSE { 1 } }
+{ package FixtureWorkspace;
+  sub tempfile { tie *FixtureWorkspace::BROKEN, 'BrokenWriter'; return (\*FixtureWorkspace::BROKEN, '/fixture/not-created'); }
+  sub publish_file { die "unexpected publication\n"; }
+}
+local $AppArmor::ManagedModes::CLI::THROW_FAILURE = 1;
+my $ok = eval { apply_child_mode('complain', 'vivaldi-bin', $ARGV[0], bless({}, 'FixtureWorkspace')); 1 };
+die "print guard was ignored\n" if $ok || $@ !~ /cannot write AppArmor child include/;
+'''
+        result = self.run_perl(code, str(self.root))
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_ai_diagnostic_reader_bounds_bytes_and_rejects_bad_utf8(self):
         path = self.root / 'diagnostic'; path.write_bytes('value é'.encode('utf-8'))
         module = installed_script(LIB / 'ai-copilots/AICopilots/Runtime.pm')

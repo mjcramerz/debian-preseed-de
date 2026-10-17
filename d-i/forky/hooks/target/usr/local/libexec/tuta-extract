@@ -1,12 +1,14 @@
 #!/usr/bin/python3 -IB
-"""Extract a verified Type-2 AppImage without executing its ELF runtime.
+"""Extract Type-2 AppImage/Postman snapshots without executing vendor code.
 
-Input is a root-private signed artifact and its expected SHA-256. The package
-unsquashfs parser runs as a dedicated locked host uid/gid inside a private filesystem, PID,
+Input is a root-private artifact and its expected SHA-256. The caller separately
+establishes provenance; this snapshot digest is not a vendor signature. Packaged
+parsers run as a dedicated locked host uid/gid inside a private filesystem, PID,
 IPC, UTS and network namespace. Namespace failure is fatal; no unsafe fallback.
 Publication is to a new root-owned path only; callers own generation rollback.
 """
 from __future__ import annotations
+from contextlib import contextmanager
 import fcntl
 import grp
 import hashlib
@@ -15,6 +17,7 @@ from pathlib import Path
 import pwd
 import resource
 import selectors
+import shutil
 import signal
 import stat
 import struct
@@ -28,7 +31,55 @@ MAX_TREE = 2_147_483_648
 MAX_ENTRIES = 100_000
 MAX_RUNTIME_TRAILER = 16 * 1024 * 1024
 MAX_DIAGNOSTIC = 8192
+PARSER_SECONDS = 180
 ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C"}
+
+
+class ParserCleanupUnknown(ValueError):
+    """Do not delete a workspace whose parser might still own it."""
+
+
+@contextmanager
+def extraction_workspace(parent: Path):
+    private = Path(tempfile.mkdtemp(prefix='.tuta-extract-', dir=parent))
+    retained = False
+    try:
+        yield private
+    except ParserCleanupUnknown as error:
+        retained = True
+        raise ParserCleanupUnknown(f'{error}; workspace retained at {private}') from error
+    finally:
+        if not retained:
+            shutil.rmtree(private)
+
+# Runs only as the locked parser identity inside sandbox_command's namespaces.
+# Stream mode avoids caching the member list; limits precede each extraction.
+REPOSITORY_TAR = r'''
+import pathlib, tarfile
+root = pathlib.Path('/output/tree')
+root.mkdir(mode=0o700)
+count = total = 0
+with tarfile.open('/artifact', 'r|gz') as source:
+    for member in source:
+        count += 1
+        total += member.size
+        if count > 5000 or total > 2147483648 or member.size < 0:
+            raise ValueError('repository tar exceeds member/byte limits')
+        path = pathlib.PurePosixPath(member.name)
+        if (path.is_absolute() or '..' in path.parts or not path.parts
+                or path.parts[0] != 'Postman' or len(member.name) > 4096
+                or len(path.parts) > 64 or member.sparse is not None
+                or any(key.startswith('GNU.sparse') for key in member.pax_headers)):
+            raise ValueError('unsafe repository tar member')
+        if member.issym():
+            if str(path) != 'Postman/Postman' or member.linkname != 'app/Postman':
+                raise ValueError('unsupported repository tar link')
+        elif not (member.isfile() or member.isdir()):
+            raise ValueError('special or hardlinked repository tar member')
+        member.mode = 0o755 if member.isdir() or member.mode & 0o111 else 0o644
+        source.extract(member, root, filter='data')
+        source.members.clear()
+'''
 
 
 def trusted_directory(path: Path) -> None:
@@ -100,7 +151,7 @@ def parser_limits() -> None:
     resource.setrlimit(resource.RLIMIT_NOFILE, (256, 256))
 
 
-def sandbox_command(artifact: Path, output: Path, offset: int, uid: int, gid: int) -> list[str]:
+def sandbox_command(artifact: Path, output: Path, offset: int | None, uid: int, gid: int) -> list[str]:
     argv = ["/usr/bin/bwrap", "--die-with-parent", "--new-session", "--unshare-pid",
             "--unshare-ipc", "--unshare-net", "--unshare-uts", "--clearenv",
             "--setenv", "PATH", ENV["PATH"], "--setenv", "LC_ALL", "C",
@@ -115,47 +166,84 @@ def sandbox_command(artifact: Path, output: Path, offset: int, uid: int, gid: in
              "--chdir", "/", "--cap-drop", "ALL",
              "--cap-add", "CAP_SETUID", "--cap-add", "CAP_SETGID", "--cap-add", "CAP_SETPCAP",
              "/usr/bin/setpriv", f"--reuid={uid}", f"--regid={gid}", "--clear-groups",
-             "--inh-caps=-all", "--ambient-caps=-all", "--bounding-set=-all", "--no-new-privs",
-             "/usr/bin/unsquashfs", "-no-progress", "-no-xattrs", "-processors", "1",
-             "-offset", str(offset), "-dest", "/output/tree", "/artifact"]
+             "--inh-caps=-all", "--ambient-caps=-all", "--bounding-set=-all", "--no-new-privs"]
+    if offset is None:
+        argv += ["/usr/bin/python3", "-I", "-B", "-c", REPOSITORY_TAR]
+    else:
+        argv += ["/usr/bin/unsquashfs", "-no-progress", "-no-xattrs", "-processors", "1",
+                 "-strict-errors", "-offset", str(offset), "-dest", "/output/tree", "/artifact"]
     return argv
 
 
-def normalize_tree(root: Path) -> None:
+def walk_entries(root: Path):
+    """Incremental, no-follow traversal; never materialize a hostile directory."""
+    stack = []
+    def enter(path, parent_fd=None, name=None):
+        fd = os.open(path if name is None else name,
+                     os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                     dir_fd=parent_fd)
+        try:
+            iterator = os.scandir(fd)
+        except BaseException:
+            os.close(fd)
+            raise
+        stack.append((path, fd, iterator))
+    enter(root)
+    try:
+        while stack:
+            directory, fd, iterator = stack[-1]
+            try:
+                entry = next(iterator)
+            except StopIteration:
+                iterator.close()
+                os.close(fd)
+                stack.pop()
+                continue
+            info = entry.stat(follow_symlinks=False)
+            path = directory / entry.name
+            yield path, info
+            if stat.S_ISDIR(info.st_mode):
+                enter(path, fd, entry.name)
+    finally:
+        for _, fd, iterator in reversed(stack):
+            iterator.close()
+            os.close(fd)
+
+
+def normalize_tree(root: Path, *, require_apprun: bool = True) -> None:
     info = root.lstat()
     if not stat.S_ISDIR(info.st_mode):
         raise ValueError("extraction did not produce a directory")
     count = 0
     total = 0
-    for directory, names, files in os.walk(root, followlinks=False):
-        for name in names + files:
-            path = Path(directory) / name
-            info = path.lstat()
-            count += 1
-            if count > MAX_ENTRIES:
-                raise ValueError("too many extracted entries")
-            if stat.S_ISLNK(info.st_mode):
-                target = os.readlink(path)
-                if os.path.isabs(target) or not path.resolve().is_relative_to(root):
-                    raise ValueError("extracted symlink escapes application tree")
-                os.chown(path, 0, 0, follow_symlinks=False)
-            elif stat.S_ISDIR(info.st_mode):
-                os.chown(path, 0, 0)
-                os.chmod(path, 0o755)
-            elif stat.S_ISREG(info.st_mode):
-                if info.st_nlink != 1:
-                    raise ValueError("hard-linked extraction entry")
-                total += info.st_size
-                if total > MAX_TREE:
-                    raise ValueError("extracted application is too large")
-                os.chown(path, 0, 0)
-                os.chmod(path, 0o755 if info.st_mode & 0o111 else 0o644)
-                with path.open("rb") as stream:
-                    os.fsync(stream.fileno())
-            else:
-                raise ValueError("special file in extracted application")
+    for path, info in walk_entries(root):
+        count += 1
+        if count > MAX_ENTRIES:
+            raise ValueError("too many extracted entries")
+        if stat.S_ISLNK(info.st_mode):
+            target = os.readlink(path)
+            if os.path.isabs(target) or not path.resolve().is_relative_to(root):
+                raise ValueError("extracted symlink escapes application tree")
+            os.chown(path, 0, 0, follow_symlinks=False)
+        elif stat.S_ISDIR(info.st_mode):
+            os.chown(path, 0, 0)
+            os.chmod(path, 0o755)
+        elif stat.S_ISREG(info.st_mode):
+            if info.st_nlink != 1:
+                raise ValueError("hard-linked extraction entry")
+            total += info.st_size
+            if total > MAX_TREE:
+                raise ValueError("extracted application is too large")
+            os.chown(path, 0, 0)
+            os.chmod(path, 0o755 if info.st_mode & 0o111 else 0o644)
+            with path.open("rb") as stream:
+                os.fsync(stream.fileno())
+        else:
+            raise ValueError("special file in extracted application")
     os.chown(root, 0, 0)
     os.chmod(root, 0o755)
+    if not require_apprun:
+        return
     app = root / "AppRun"
     # A Type-2 AppDir can use a relative AppRun link. Every extracted link
     # above is confined to this tree; require its final target to be executable.
@@ -174,7 +262,7 @@ def run_parser(argv: list[str], output: Path) -> None:
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                start_new_session=True, preexec_fn=parser_limits)
     diagnostic = bytearray()
-    deadline = time.monotonic() + 180
+    deadline = time.monotonic() + PARSER_SECONDS
     try:
         with selectors.DefaultSelector() as selector:
             selector.register(process.stdout, selectors.EVENT_READ)
@@ -195,13 +283,16 @@ def run_parser(argv: list[str], output: Path) -> None:
                 if status is None:
                     # This is a watchdog, not a filesystem quota.
                     tree_budget(output)
-    except BaseException:
+    except BaseException as error:
         if process.poll() is None:
             try:
                 os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
-        process.wait()
+        try:
+            process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            raise ParserCleanupUnknown('isolated parser cleanup outcome unknown') from error
         raise
     finally:
         process.stdout.close()
@@ -212,7 +303,7 @@ def run_parser(argv: list[str], output: Path) -> None:
         raise ValueError(f"isolated packaged extractor exited {status}: {detail or 'no diagnostic output'}")
 
 
-def extract(source: Path, destination: Path, expected: str, uid: int, gid: int) -> None:
+def extract(source: Path, destination: Path, expected: str, uid: int, gid: int, *, postman: bool = False) -> None:
     if os.geteuid() != 0 or len(expected) != 64 or any(c not in "0123456789abcdef" for c in expected):
         raise ValueError("root and an expected SHA-256 are required")
     trusted_directory(source.parent)
@@ -220,8 +311,7 @@ def extract(source: Path, destination: Path, expected: str, uid: int, gid: int) 
     if destination.exists() or destination.is_symlink():
         raise ValueError("extraction destination must not exist")
     fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
-    with os.fdopen(fd, "rb") as stream, tempfile.TemporaryDirectory(prefix=".tuta-extract-", dir=destination.parent) as temporary:
-        private = Path(temporary)
+    with os.fdopen(fd, "rb") as stream, extraction_workspace(destination.parent) as private:
         info = os.fstat(stream.fileno())
         if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_gid != 0
                 or info.st_mode & 0o022 or info.st_nlink != 1 or not 96 < info.st_size <= MAX_IMAGE):
@@ -240,15 +330,20 @@ def extract(source: Path, destination: Path, expected: str, uid: int, gid: int) 
             raise ValueError("artifact snapshot does not match verified hash")
         os.chmod(artifact, 0o444)
         with artifact.open("rb") as snapshot:
-            offset = squashfs_offset(snapshot)
+            offset = None if postman else squashfs_offset(snapshot)
         output = private / "output"
         output.mkdir(mode=0o700)
         os.chown(output, uid, gid)
+        space = os.statvfs(output)
+        if (space.f_bavail * space.f_frsize < MAX_TREE + 64 * 1024 * 1024
+                or space.f_files and space.f_favail < MAX_ENTRIES + 128):
+            raise ValueError('insufficient extraction byte/inode headroom')
         # Its root-owned 0700 ancestor prevents other host processes with uid
         # the parser identity reaching the output. Only the bound sandbox path is accessible.
         run_parser(sandbox_command(artifact, output, offset, uid, gid), output)
         tree = output / "tree"
-        normalize_tree(tree)
+        tree_budget(output)
+        normalize_tree(tree, require_apprun=not postman)
         os.rename(tree, destination)
         directory_fd = os.open(destination.parent, os.O_RDONLY | os.O_DIRECTORY)
         try:
@@ -260,14 +355,12 @@ def extract(source: Path, destination: Path, expected: str, uid: int, gid: int) 
 def tree_budget(root: Path) -> None:
     total = 0
     count = 0
-    for directory, names, files in os.walk(root, followlinks=False):
-        for name in names + files:
-            info = (Path(directory) / name).lstat()
-            count += 1
-            if stat.S_ISREG(info.st_mode):
-                total += info.st_size
-            if total > MAX_TREE or count > MAX_ENTRIES:
-                raise ValueError("isolated extractor exceeded output budget")
+    for _, info in walk_entries(root):
+        count += 1
+        if stat.S_ISREG(info.st_mode):
+            total += info.st_size
+        if total > MAX_TREE or count > MAX_ENTRIES:
+            raise ValueError("isolated extractor exceeded output budget")
 
 
 def extractor_identity() -> tuple[int, int]:
@@ -306,6 +399,15 @@ def extractor_identity() -> tuple[int, int]:
 
 
 def main(argv: list[str]) -> int:
+    global MAX_IMAGE, MAX_TREE, MAX_ENTRIES, PARSER_SECONDS
+    postman = False
+    if argv and argv[0] in ('--repository-appimage', '--repository-postman'):
+        PARSER_SECONDS = 600
+        postman = argv[0] == '--repository-postman'
+        argv = argv[1:]
+        MAX_IMAGE = 2_147_483_648
+        MAX_TREE = 2_147_483_648 if postman else 4_294_967_296
+        MAX_ENTRIES = 5001 if postman else 30_000
     if len(argv) != 3:
         raise ValueError("usage: tuta-extract ARTIFACT NEW_DESTINATION SHA256")
     os.umask(0o077)
@@ -327,13 +429,16 @@ def main(argv: list[str]) -> int:
             raise ValueError("unsafe extractor lock")
         fcntl.flock(stream, fcntl.LOCK_EX)
         uid, gid = extractor_identity()
-        extract(Path(argv[0]), Path(argv[1]), argv[2], uid, gid)
+        extract(Path(argv[0]), Path(argv[1]), argv[2], uid, gid, postman=postman)
     return 0
 
 
 if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
+    except ParserCleanupUnknown as error:
+        print("fatal: extraction outcome unknown: " + str(error), file=sys.stderr)
+        sys.exit(3)
     except ValueError as error:
         print("fatal: verified Tuta extraction failed (ValueError: " + str(error) + ")", file=sys.stderr)
         sys.exit(1)

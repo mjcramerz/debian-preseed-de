@@ -16,7 +16,7 @@ use AppArmor::ManagedModes::LoadedState qw(
     profile_labels
     loaded_profile_mode_matches
 );
-use AppArmor::ManagedModes::LocalChildren qw(child_mode_matches apply_child_mode);
+use AppArmor::ManagedModes::LocalChildren qw(child_mode_matches apply_child_mode child_source_path);
 use AppArmor::ManagedModes::TrustedPath qw(read_bounded_file);
 
 our @EXPORT_OK = qw(
@@ -75,7 +75,7 @@ sub apply_profile_mode {
         my $disable_link = "$profile_dir/disable/$profile_name";
         my $changed = -l $disable_link ? 1 : 0;
         if (-l $disable_link) {
-            unlink $disable_link ||
+            unlink $disable_link or
                 fatal("cannot remove AppArmor disable entry: $disable_link");
         }
         info(
@@ -116,12 +116,6 @@ sub apply_profile_mode {
             );
             return 1;
         }
-
-        my $disable_link = "$profile_dir/disable/$profile_name";
-        if (-l $disable_link) {
-            unlink $disable_link ||
-                fatal("cannot remove AppArmor disable entry: $disable_link");
-        }
     }
 
     if ($mode eq 'disable') {
@@ -147,11 +141,34 @@ sub apply_profile_mode {
         'apparmor-profile-mode',
         'cannot create isolated AppArmor mode workspace',
     );
-    for my $include_name (qw(abi abstractions tunables local)) {
+    for my $include_name (qw(abi abstractions tunables)) {
         my $include_path = "$options->{profile_dir}/$include_name";
         next if !-e $include_path;
-        symlink $include_path, "$mode_work_dir/$include_name" ||
+        symlink $include_path, "$mode_work_dir/$include_name" or
             fatal("cannot stage AppArmor profile include: $include_path");
+    }
+
+    my $child_path = child_source_path($profile_name, $profile_dir);
+    if (defined($child_path)) {
+        mkdir "$mode_work_dir/local", 0700
+            or fatal('cannot stage AppArmor local include directory');
+        opendir my $local_dh, "$profile_dir/local"
+            or fatal('cannot inspect AppArmor local include directory');
+        my $count = 0;
+        while (my $name = readdir $local_dh) {
+            next if $name eq '.' || $name eq '..';
+            ++$count <= 4096 or fatal('too many AppArmor local includes');
+            next if $name eq $profile_name;
+            symlink "$profile_dir/local/$name", "$mode_work_dir/local/$name"
+                or fatal('cannot stage AppArmor local include');
+        }
+        closedir $local_dh or fatal('cannot close AppArmor local include directory');
+        $workspace->copy_file($child_path, "$mode_work_dir/local/$profile_name",
+                              'cannot stage AppArmor child source');
+    }
+    elsif (-d "$profile_dir/local") {
+        symlink "$profile_dir/local", "$mode_work_dir/local"
+            or fatal('cannot stage AppArmor local include directory');
     }
 
     my $mode_profile_path = "$mode_work_dir/$profile_name";
@@ -167,27 +184,103 @@ sub apply_profile_mode {
     push @mode_command, '--no-reload', '-d', $mode_work_dir, $mode_profile_path;
     $tools->run_or_exit(@mode_command);
 
-    my @audit_command = ($audit_tool_path, '--remove');
-    push @audit_command, '--no-reload' if !$options->{reload_profiles};
+    my @audit_command = ($audit_tool_path, '--remove', '--no-reload');
     push @audit_command, '-d', $mode_work_dir, $mode_profile_path;
     $tools->run_or_exit(@audit_command);
 
     # aa-* edits the profile file, not an included local/ child declaration.
     # Update the three tracked child sources before checking the whole file.
-    apply_child_mode($mode, $profile_name, $profile_dir, $workspace);
+    apply_child_mode($mode, $profile_name, $mode_work_dir, $workspace);
 
     profile_mode_matches(
         $mode,
         $profile_name,
         $mode_profile_path,
-        $options->{profile_dir},
+        $mode_work_dir,
     ) || fatal("AppArmor profile did not enter ${mode} mode: $profile_name");
 
-    $workspace->publish_file(
-        $mode_profile_path,
-        $profile_path,
-        "cannot publish AppArmor profile mode: $profile_name",
-    );
+    my $parser_path = "$options->{tool_dir}/apparmor_parser";
+    $tools->require_executable('required AppArmor parser', $parser_path);
+    $tools->run_or_exit($parser_path, '-Q', '-K', '-T', '-I', $mode_work_dir,
+                         '--base', $mode_work_dir, $mode_profile_path);
+
+    my $recovery = $workspace->tempdir('.apparmor-mode-recovery',
+                                      'cannot create AppArmor mode recovery', $profile_dir);
+    my @sources = ([$profile_path, $mode_profile_path, "$recovery/parent"]);
+    push @sources, [$child_path, "$mode_work_dir/local/$profile_name", "$recovery/child"]
+        if defined($child_path);
+    for my $source (@sources) {
+        $workspace->copy_file($source->[0], $source->[2], 'cannot back up AppArmor mode source');
+        open my $backup_fh, '<', $source->[2] or fatal('cannot open AppArmor mode backup');
+        $backup_fh->sync() or fatal('cannot synchronize AppArmor mode backup');
+        close $backup_fh or fatal('cannot close AppArmor mode backup');
+    }
+    open my $manifest_fh, '>', "$recovery/restore-paths"
+        or fatal('cannot create AppArmor recovery path record');
+    print {$manifest_fh} join("\n", map { "$_->[2] -> $_->[0]" } @sources), "\n"
+        or fatal('cannot write AppArmor recovery path record');
+    $manifest_fh->sync() or fatal('cannot synchronize AppArmor recovery path record');
+    close $manifest_fh or fatal('cannot close AppArmor recovery path record');
+    $workspace->sync_directory($recovery);
+    $workspace->sync_directory($profile_dir);
+    # END cleanup must never delete the only recovery copy after failed rollback.
+    $workspace->retain_dir($recovery);
+    my $disable_link = "$profile_dir/disable/$profile_name";
+    my $was_disabled = -l $disable_link;
+    my $reload_attempted = 0;
+    my $ok = eval {
+        local $AppArmor::ManagedModes::CLI::THROW_FAILURE = 1;
+        for my $source (@sources) {
+            $workspace->publish_file($source->[1], $source->[0], 'cannot publish AppArmor mode source');
+        }
+        if ($was_disabled) {
+            unlink $disable_link or fatal('cannot remove AppArmor disable entry');
+            $workspace->sync_directory("$profile_dir/disable");
+        }
+        if ($options->{reload_profiles}) {
+            $reload_attempted = 1;
+            $tools->run_or_exit($parser_path, '-r', '-T', '-I', $profile_dir,
+                                 '--base', $profile_dir, $profile_path);
+            my $current = capture_loaded_state($options, $workspace);
+            loaded_profile_mode_matches($entry, $current, $options, $workspace, $tools)
+                or fatal('AppArmor loaded modes do not match the published sources');
+        }
+        1;
+    };
+    if (!$ok) {
+        my $error = $@ || "AppArmor mode transition failed\n";
+        my $restored = eval {
+            local $AppArmor::ManagedModes::CLI::THROW_FAILURE = 1;
+            for my $source (reverse @sources) {
+                $workspace->publish_file($source->[2], $source->[0], 'cannot restore AppArmor mode source');
+            }
+            if ($was_disabled && !-l $disable_link) {
+                symlink $profile_path, $disable_link or fatal('cannot restore AppArmor disable entry');
+                $workspace->sync_directory("$profile_dir/disable");
+            }
+            if ($reload_attempted) {
+                $tools->run_or_exit($parser_path, $was_disabled ? '-R' : '-r', '-T',
+                                     '-I', $profile_dir, '--base', $profile_dir, $profile_path);
+                my $current = capture_loaded_state($options, $workspace);
+                for my $label (@{profile_labels($entry, $options, $workspace, $tools)}) {
+                    my @old = grep { /^\Q$label\E \(/ } split /\n/, $loaded_state;
+                    my @now = grep { /^\Q$label\E \(/ } split /\n/, $current;
+                    join("\n", @old) eq join("\n", @now)
+                        or fatal('restored AppArmor loaded modes differ from previous state');
+                }
+            }
+            1;
+        };
+        if ($restored) {
+            $workspace->remove_dir($recovery);
+        }
+        else {
+            warn("AppArmor rollback failed; recovery retained at $recovery");
+            fatal($error, 3);
+        }
+        fatal($error);
+    }
+    $workspace->remove_dir($recovery);
     $workspace->remove_dir($mode_work_dir);
     return 1;
 }
@@ -202,13 +295,13 @@ sub _disable_profile {
 
     _validate_disable_entry($profile_name, $profile_path, $profile_dir);
     if (!-d $disable_dir) {
-        mkdir $disable_dir, 0755 ||
+        mkdir $disable_dir, 0755 or
             fatal("cannot create AppArmor disable directory: $disable_dir");
-        chmod 0755, $disable_dir ||
+        chmod 0755, $disable_dir or
             fatal("cannot set AppArmor disable directory permissions: $disable_dir");
     }
     if (!-l $disable_link) {
-        symlink $profile_path, $disable_link ||
+        symlink $profile_path, $disable_link or
             fatal("cannot create AppArmor disable entry: $disable_link");
     }
 

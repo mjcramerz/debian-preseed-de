@@ -7,6 +7,7 @@ use File::Basename qw(dirname);
 use File::Path qw(remove_tree);
 use File::Temp ();
 use Fcntl qw(O_CREAT O_EXCL O_NOFOLLOW O_RDONLY O_TRUNC O_WRONLY);
+use IO::Handle;
 use Moo;
 use MooX::StrictConstructor;
 use MooX::TypeTiny;
@@ -37,19 +38,19 @@ sub tempfile {
         );
     };
     defined($fh) || fatal($failure_message);
-    binmode $fh, ':raw' ||
-        fatal($failure_message);
     $self->files()->{$path} = 1;
+    binmode $fh, ':raw' or
+        fatal($failure_message);
     return ($fh, $path);
 }
 
 sub tempdir {
-    my ($self, $label, $failure_message) = @_;
+    my ($self, $label, $failure_message, $parent) = @_;
     $failure_message ||= "cannot create $label workspace";
     my $path = eval {
         File::Temp::tempdir(
             "$label.XXXXXX",
-            DIR     => $self->tmp_root(),
+            DIR     => $parent // $self->tmp_root(),
             CLEANUP => 0,
         );
     };
@@ -61,22 +62,24 @@ sub tempdir {
 sub copy_file {
     my ($self, $source, $target, $message) = @_;
 
-    sysopen my $source_fh, $source, O_RDONLY | O_NOFOLLOW ||
+    sysopen my $source_fh, $source, O_RDONLY | O_NOFOLLOW or
         fatal($message);
-    binmode $source_fh, ':raw' ||
+    binmode $source_fh, ':raw' or
         fatal($message);
     sysopen my $target_fh,
         $target,
         O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW,
-        0600 ||
+        0600 or
         fatal($message);
-    binmode $target_fh, ':raw' ||
+    $self->files()->{$target} = 1;
+    binmode $target_fh, ':raw' or
         fatal($message);
 
     _copy_stream($source_fh, $target_fh, $message);
     close $source_fh || fatal($message);
     close $target_fh || fatal($message);
-    chmod 0644, $target || fatal($message);
+    chmod 0644, $target or fatal($message);
+    delete $self->files()->{$target};
 }
 
 sub publish_file {
@@ -89,25 +92,39 @@ sub publish_file {
         );
     };
     defined($target_fh) || fatal($message);
-    binmode $target_fh, ':raw' || fatal($message);
     $self->files()->{$temporary_path} = 1;
+    binmode $target_fh, ':raw' or fatal($message);
 
-    sysopen my $source_fh, $source, O_RDONLY | O_NOFOLLOW ||
+    sysopen my $source_fh, $source, O_RDONLY | O_NOFOLLOW or
         fatal($message);
-    binmode $source_fh, ':raw' ||
+    binmode $source_fh, ':raw' or
         fatal($message);
     _copy_stream($source_fh, $target_fh, $message);
     close $source_fh || fatal($message);
-    chmod 0644, $temporary_path || fatal($message);
+    chmod 0644, $temporary_path or fatal($message);
+    $target_fh->sync() or fatal($message);
     close $target_fh || fatal($message);
-    rename $temporary_path, $target || fatal($message);
+    rename $temporary_path, $target or fatal($message);
     delete $self->files()->{$temporary_path};
+    $self->sync_directory(dirname($target));
+}
+
+sub sync_directory {
+    my ($self, $path) = @_;
+    open my $fh, '<', $path or fatal("cannot open AppArmor directory: $path");
+    $fh->sync() or fatal("cannot synchronize AppArmor directory: $path");
+    close $fh or fatal("cannot close AppArmor directory: $path");
+}
+
+sub retain_dir {
+    my ($self, $path) = @_;
+    delete $self->directories()->{$path};
 }
 
 sub truncate_file {
     my ($self, $path) = @_;
 
-    open my $fh, '>:raw', $path ||
+    open my $fh, '>:raw', $path or
         fatal("cannot create AppArmor profile name snapshot: $path");
     close $fh ||
         fatal("cannot create AppArmor profile name snapshot: $path");
@@ -127,7 +144,7 @@ sub remove_file {
     my ($self, $path) = @_;
 
     if (-e $path || -l $path) {
-        unlink $path ||
+        unlink $path or
             fatal("cannot remove managed temporary file: $path");
     }
     delete $self->files()->{$path};
@@ -150,7 +167,7 @@ sub cleanup {
     }
     for my $path (keys %{ $self->files() }) {
         if (-e $path || -l $path) {
-            unlink $path || ($success = 0);
+            unlink $path or ($success = 0);
         }
     }
     %{ $self->directories() } = ();

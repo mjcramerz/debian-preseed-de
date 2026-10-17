@@ -270,8 +270,9 @@ PYTHON
         $old,
         $new,
     );
-    $context->run_timed($context->command_path('fix-qdf'), $qdf);
-    $context->run_timed($qpdf, $qdf, $output);
+    my $repaired = $context->create_private_file('repaired.qdf.pdf', q{});
+    $context->run_timed($context->command_path('fix-qdf'), $qdf, $repaired);
+    $context->run_timed($qpdf, $repaired, $output);
     $context->run_timed($qpdf, '--check', $output);
     print "Warning: QDF editing invalidates signatures and does not preserve input encryption.\n";
     $context->report_file_output($output, 'QDF-edited PDF');
@@ -317,7 +318,8 @@ sub encrypt {
     );
     my $qpdf = $context->command_path('qpdf');
     $context->run_timed($qpdf, "\@$arguments");
-    $context->run_timed($qpdf, '--check', $output);
+    my $password_file = $context->create_private_file('pdf-encrypt-password', "$user\n");
+    $context->run_timed($qpdf, "--password-file=$password_file", '--check', $output);
     $context->report_file_output($output, 'encrypted PDF');
 }
 

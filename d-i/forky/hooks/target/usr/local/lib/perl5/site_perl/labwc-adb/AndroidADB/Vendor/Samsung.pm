@@ -232,93 +232,12 @@ sub flash {
     $mode =~ /\A(?:keep-data|factory-reset)\z/
         or fail('unsupported Samsung firmware flash mode');
 
-    my $lock_root = $self->storage->prepare_output_directory('.locks');
-    $self->lock->acquire('samsung-firmware-flash', $lock_root);
-    $self->device->wait_for_serial($serial);
-    my $firmware = $self->load_managed_firmware($requested_directory);
-
-    my $device_model = _trim(
-        $self->device->capture_serial(
-            30,
-            $serial,
-            'shell',
-            'getprop',
-            'ro.product.model',
-        ),
-    );
-    require_value(
-        $device_model eq $firmware->{model},
-        'connected device model '
-            . ($device_model eq q{} ? 'unknown' : $device_model)
-            . ' does not match firmware model '
-            . $firmware->{model},
-    );
-
-    my ($csc_path, $label) = $mode eq 'keep-data'
-        ? ($firmware->{home_csc}, 'HOME_CSC')
-        : ($firmware->{csc}, 'CSC');
-    my $log_root = $self->storage->prepare_output_directory('samsung-flash-logs');
-    my $log_path = File::Spec->catfile(
-        $log_root,
-        $self->storage->output_timestamp . "-$serial-$mode.txt",
-    );
-    $self->storage->write_text(
-        $log_path,
-        join(
-            q{},
-            'model=' . $firmware->{model} . "\n",
-            'region=' . $firmware->{region} . "\n",
-            "mode=$mode\n",
-            'csc_package=' . basename($csc_path) . "\n",
-        ),
-    );
-
-    print "Rebooting selected Samsung device $serial into Download Mode.\n";
-    my $status = $self->device->run_serial(
-        $self->config->adb_command_seconds,
-        $serial,
-        'reboot',
-        'download',
-    );
-    $status == 0
-        or fail('unable to reboot selected Samsung device into Download Mode');
-    $self->_wait_for_single_download_device;
-
-    print "Flashing official Samsung firmware with $label. Do not disconnect USB or power.\n";
-    $status = $self->command->run_signal(
-        'TERM',
-        60,
-        $self->config->samsung_flash_seconds,
-        $self->config->require_tool(
-            'samloader',
-            'samloader-rs is not installed',
-        ),
-        '--verbose',
-        '--usb-backend',
-        'nusb',
-        'flash',
-        '--wait',
-        '-b',
-        $firmware->{bl},
-        '-a',
-        $firmware->{ap},
-        '-c',
-        $firmware->{cp},
-        '-s',
-        $csc_path,
-    );
-    if ($status == 0) {
-        $self->storage->append_text($log_path, "result=success\n");
-        print "Samsung firmware flash completed successfully and samloader requested a reboot.\n";
-    }
-    else {
-        $self->storage->append_text($log_path, "result=failure\nstatus=$status\n");
-        fail(
-            "Samsung firmware flash failed with status $status; keep the device connected and inspect the terminal output plus $log_path",
-        );
-    }
-    print "Flash log: $log_path\n";
-    return 0;
+    # The packaged nusb flash interface does not bind the selected ADB serial
+    # or physical USB attachment. A single detected device is not that proof.
+    # Refuse before reboot or any other mutation until a bound transport exists.
+    print STDERR 'unavailable: automated Samsung flashing cannot bind the selected '
+        . "device across Download Mode; no device was rebooted or flashed\n";
+    return 69; # EX_UNAVAILABLE, distinct from a failed or cancelled flash.
 }
 
 sub load_managed_firmware {
@@ -395,65 +314,6 @@ sub load_managed_firmware {
         @firmware{qw(bl ap cp csc home_csc)},
     );
     return \%firmware;
-}
-
-sub _wait_for_single_download_device {
-    my ($self) = @_;
-    print 'Waiting up to '
-        . $self->config->samsung_download_wait_seconds
-        . " seconds for Samsung Download Mode.\n";
-    my $status = $self->command->run_signal(
-        'TERM',
-        5,
-        $self->config->samsung_download_wait_seconds,
-        $self->config->require_tool(
-            'samloader',
-            'samloader-rs is not installed',
-        ),
-        '--usb-backend',
-        'nusb',
-        'detect',
-        '--wait',
-    );
-    $status == 0
-        or fail('samloader did not detect a supported Samsung Download Mode device');
-
-    my $count = $self->_count_download_devices;
-    require_value(
-        $count == 1,
-        "exactly one supported Samsung Download Mode device is required; found $count",
-    );
-    return;
-}
-
-sub _count_download_devices {
-    my ($self) = @_;
-    my $root = '/sys/bus/usb/devices';
-    opendir my $directory, $root
-        or fail("unable to inspect USB devices for Samsung Download Mode: $!");
-    my $count = 0;
-    while (my $entry = readdir $directory) {
-        next if $entry eq q{.} || $entry eq q{..};
-        my $base = File::Spec->catdir($root, $entry);
-        my $vendor_path = File::Spec->catfile($base, 'idVendor');
-        my $product_path = File::Spec->catfile($base, 'idProduct');
-        next if !-r $vendor_path || !-r $product_path;
-        my $vendor = _read_trimmed($vendor_path);
-        next if !defined($vendor) || lc($vendor) ne '04e8';
-        my $product = _read_trimmed($product_path);
-        ++$count if defined($product) && lc($product) =~ /\A(?:6601|685d|68c3)\z/;
-    }
-    closedir $directory;
-    return $count;
-}
-
-sub _read_trimmed {
-    my ($path) = @_;
-    open my $file, '<', $path or return undef;
-    my $value = <$file>;
-    close $file;
-    return undef if !defined($value);
-    return _trim($value);
 }
 
 sub _trim {

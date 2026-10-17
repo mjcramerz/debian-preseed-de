@@ -1,4 +1,4 @@
-#!/usr/bin/python3 -B
+#!/usr/bin/python3 -IB
 """
 nft-policy-generate.py
 
@@ -21,11 +21,16 @@ from __future__ import annotations
 
 import argparse
 import copy
+from contextlib import contextmanager
 import datetime as _dt
+import fcntl
 import ipaddress
+import json
 import os
 import re
+import resource
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -75,6 +80,14 @@ ACTIVE_LOG_LEVEL = "none"
 
 class PolicyError(Exception):
     """Policy validation or generation error."""
+
+
+class CommandTimeout(PolicyError):
+    """A command deadline expired; a manager mutation may still complete."""
+
+
+class RecoveryRequired(PolicyError):
+    """Rollback or the final policy outcome could not be proved."""
 
 
 @dataclass
@@ -503,7 +516,8 @@ def output_paths(policy: Mapping[str, Any], target_root: Path) -> Dict[str, Path
 
 
 def map_to_target_root(path: Path, target_root: Path) -> Path:
-    if not path.is_absolute():
+    if (not path.is_absolute() or '..' in path.parts
+            or any(c in str(path) for c in '\x00\r\n')):
         raise PolicyError(f"output path must be absolute: {path}")
     root = target_root.resolve()
     if str(root) == "/":
@@ -1623,7 +1637,7 @@ def validate_policy(policy: Mapping[str, Any], ctx: RenderContext, reject_unreso
 
 
 def atomic_write(path: Path, content: str, mode: int = 0o0644) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+    durable_directory(path.parent)
     fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
     tmp_path = Path(tmp_name)
     try:
@@ -1631,10 +1645,11 @@ def atomic_write(path: Path, content: str, mode: int = 0o0644) -> None:
             f.write(content)
             if not content.endswith("\n"):
                 f.write("\n")
+            os.fchmod(f.fileno(), mode)
             f.flush()
             os.fsync(f.fileno())
-        os.chmod(tmp_path, mode)
         os.replace(tmp_path, path)
+        sync_directory(path.parent)
     finally:
         try:
             if tmp_path.exists():
@@ -1666,20 +1681,194 @@ def backup_existing(files: Sequence[Path], backup_dir: Path) -> Optional[Path]:
     return target
 
 
-def run_checked(argv: Sequence[str], label: str, timeout_seconds: int = DEFAULT_COMMAND_TIMEOUT_SECONDS) -> None:
+def command_limits() -> None:
+    resource.setrlimit(resource.RLIMIT_FSIZE, (16 * 1024 * 1024, 16 * 1024 * 1024))
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+
+
+def run_checked(argv: Sequence[str], label: str, timeout_seconds: int = DEFAULT_COMMAND_TIMEOUT_SECONDS, *, directory: Path) -> str:
     try:
-        result = subprocess.run(list(argv), check=False, text=True, capture_output=True, timeout=timeout_seconds)
+        with tempfile.TemporaryFile(dir=directory) as output, tempfile.TemporaryFile(dir=directory) as errors:
+            result = subprocess.run(list(argv), check=False, stdout=output, stderr=errors,
+                                    stdin=subprocess.DEVNULL, timeout=timeout_seconds,
+                                    env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'},
+                                    preexec_fn=command_limits)
+            output.seek(0)
+            data = output.read(16 * 1024 * 1024 + 1)
     except FileNotFoundError as exc:
         raise PolicyError(f"{label}: executable not found: {argv[0]}") from exc
     except subprocess.TimeoutExpired as exc:
-        raise PolicyError(f"{label}: timed out after {timeout_seconds} seconds") from exc
+        raise CommandTimeout(f"{label}: timed out after {timeout_seconds} seconds") from exc
     if result.returncode != 0:
-        msg = [f"{label} failed with exit code {result.returncode}", f"command: {' '.join(argv)}"]
-        if result.stdout:
-            msg.append("stdout:\n" + result.stdout.strip())
-        if result.stderr:
-            msg.append("stderr:\n" + result.stderr.strip())
-        raise PolicyError("\n".join(msg))
+        raise PolicyError(f"{label} failed with exit code {result.returncode}")
+    if len(data) > 16 * 1024 * 1024:
+        raise PolicyError(f"{label}: output exceeds its bound")
+    return data.decode('utf-8', errors='strict')
+
+
+def sync_directory(path: Path) -> None:
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def durable_directory(path: Path) -> None:
+    missing = []
+    current = path
+    while not current.exists():
+        missing.append(current)
+        current = current.parent
+    for directory in reversed(missing):
+        directory.mkdir(exist_ok=True)
+        sync_directory(directory)
+        sync_directory(directory.parent)
+
+
+def trusted_output(path: Path) -> None:
+    for parent in (path.parent, *path.parent.parents):
+        if not parent.exists() and not parent.is_symlink():
+            continue
+        info = parent.lstat()
+        sticky_ancestor = parent != path.parent and bool(info.st_mode & stat.S_ISVTX)
+        if (not stat.S_ISDIR(info.st_mode) or info.st_uid != 0
+                or info.st_mode & 0o022 and not sticky_ancestor):
+            raise PolicyError(f"untrusted output parent: {parent}")
+
+
+@contextmanager
+def generation_lock(target_root: Path):
+    # Share the desktop transaction's existing ownership lock.
+    path = map_to_target_root(Path('/run/lock/labwc-firewall-security.lock'), target_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    try:
+        meta = os.fstat(fd)
+        if (not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0 or meta.st_nlink != 1
+                or stat.S_IMODE(meta.st_mode) != 0o600):
+            raise PolicyError('unsafe firewall generation lock')
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise PolicyError('firewall policy is busy; no generation published') from error
+        yield
+    finally:
+        os.close(fd)
+
+
+def write_generation(args: argparse.Namespace, paths: Mapping[str, Path], rendered: Mapping[Path, str]) -> None:
+    """Validate candidates, then publish with durable previous disk/live state.
+
+    Only the two installer-owned tables are captured/restored. A failed reload
+    may already have applied; never flush or replace another owner's tables.
+    """
+    if len(set(paths.values())) != len(paths):
+        raise PolicyError('generated output paths must be distinct')
+    for path in rendered:
+        trusted_output(path)
+    conf = paths['nftables_conf']
+    backup_root = map_to_target_root(args.backup_dir, args.target_root) if args.backup_dir.is_absolute() else args.backup_dir
+    trusted_output(backup_root / 'recovery')
+    durable_directory(backup_root)
+    recovery = Path(tempfile.mkdtemp(prefix='.nft-policy-recovery.', dir=backup_root))
+    previous = []
+    attempted = []
+    live_attempted = False
+    retain = False
+    nft = resolve_executable('nft', '/usr/sbin/nft') if args.check else ''
+    try:
+        candidates = {path: recovery / f'candidate-{i}.nft' for i, path in enumerate(rendered)}
+        for index, (path, content) in enumerate(rendered.items()):
+            state = {'path': str(path), 'existed': path.exists() or path.is_symlink()}
+            if state['existed']:
+                meta = path.lstat()
+                if (not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0
+                        or meta.st_mode & 0o022 or meta.st_size > 16 * 1024 * 1024):
+                    raise PolicyError(f'unsafe previous generated file: {path}')
+                backup = recovery / f'previous-{index}'
+                with path.open('rb') as source, backup.open('xb') as output:
+                    os.fchmod(output.fileno(), 0o600)
+                    shutil.copyfileobj(source, output)
+                    output.flush()
+                    os.fsync(output.fileno())
+                state.update(backup=str(backup), mode=stat.S_IMODE(meta.st_mode), uid=meta.st_uid, gid=meta.st_gid)
+            previous.append(state)
+            # Redirect only exact generated include operands in the candidate.
+            for target, candidate in candidates.items():
+                content = content.replace(quote_nft_string(str(target)), quote_nft_string(str(candidate)))
+            atomic_write(candidates[path], content, mode=0o600)
+        atomic_write(recovery / 'previous.json', json.dumps(previous, indent=2), mode=0o600)
+        if args.check:
+            run_checked([nft, '-c', '-f', str(candidates[conf])], 'nft candidate validation', args.command_timeout, directory=recovery)
+        if args.reload:
+            listing = json.loads(run_checked([nft, '-j', 'list', 'tables'], 'nft table snapshot', args.command_timeout, directory=recovery))
+            tables = {(entry['table']['family'], entry['table']['name'])
+                      for entry in listing['nftables'] if 'table' in entry}
+            live = ['destroy table inet labwc_filter', 'destroy table ip labwc_nat']
+            for family, name in (('inet', 'labwc_filter'), ('ip', 'labwc_nat')):
+                if (family, name) in tables:
+                    live.append(run_checked([nft, 'list', 'table', family, name], 'nft owned-table snapshot', args.command_timeout, directory=recovery))
+            atomic_write(recovery / 'live.nft', '\n'.join(live), mode=0o600)
+        sync_directory(recovery)
+        sync_directory(recovery.parent)
+        # Keep recovery even if cancellation interrupts rollback itself.
+        retain = True
+        for path, content in rendered.items():
+            attempted.append(path)
+            atomic_write(path, content, mode=0o755 if path == conf else 0o644)
+        if args.check:
+            run_checked([nft, '-c', '-f', str(conf)], 'nft published validation', args.command_timeout, directory=recovery)
+        if args.reload:
+            live_attempted = True
+            run_checked([resolve_executable('systemctl', '/usr/bin/systemctl'), 'reload', 'nftables'],
+                        'nftables reload', args.command_timeout, directory=recovery)
+        retain = False
+    except BaseException as error:
+        failures = []
+        for state in reversed(previous):
+            path = Path(state['path'])
+            if path not in attempted:
+                continue
+            try:
+                if state['existed']:
+                    fd, temporary = tempfile.mkstemp(prefix='.nft-restore.', dir=path.parent)
+                    try:
+                        with os.fdopen(fd, 'wb') as output:
+                            output.write(Path(state['backup']).read_bytes())
+                            os.fchown(output.fileno(), state['uid'], state['gid'])
+                            os.fchmod(output.fileno(), state['mode'])
+                            output.flush()
+                            os.fsync(output.fileno())
+                        os.replace(temporary, path)
+                    finally:
+                        Path(temporary).unlink(missing_ok=True)
+                else:
+                    path.unlink(missing_ok=True)
+                sync_directory(path.parent)
+            except OSError:
+                failures.append(f'cannot restore {path}')
+        if live_attempted:
+            try:
+                run_checked([nft, '-f', str(recovery / 'live.nft')], 'nft live rollback', args.command_timeout, directory=recovery)
+            except (PolicyError, OSError):
+                failures.append('cannot restore previous owned live tables')
+        # A manager job can outlive a systemctl timeout. Keep evidence even if
+        # the immediate rollback succeeded, for explicit reconciliation.
+        uncertain = live_attempted and isinstance(error, CommandTimeout)
+        if failures or uncertain:
+            retain = True
+            raise RecoveryRequired(f'policy outcome unknown; {"; ".join(failures) or "reload timed out"}; recovery retained at {recovery}') from error
+        retain = False
+        if isinstance(error, (KeyboardInterrupt, SystemExit)):
+            raise
+        raise PolicyError(f'policy generation failed; previous state restored: {error}') from error
+    finally:
+        if retain:
+            eprint(f'recovery retained at {recovery}', level='error')
+        else:
+            shutil.rmtree(recovery)
+            sync_directory(recovery.parent)
 
 
 def resolve_executable(name: str, fallback: str) -> str:
@@ -1772,6 +1961,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
     ctx = RenderContext()
     try:
+        if args.check and not args.write:
+            raise PolicyError('--check requires --write')
+        if args.reload and (not args.check or not args.write):
+            raise PolicyError('--reload requires --write --check')
+        if args.reload and args.target_root.resolve() != Path('/'):
+            raise PolicyError('--reload is only allowed with --target-root /')
         set_log_level(args.log_level)
         policy = load_policy(args.profile, args.overlay, args.force_overlay, ctx)
         apply_runtime_cidrs(policy, args.add_cidr, ctx)
@@ -1785,32 +1980,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print_rendered(rendered)
 
         if args.write:
-            if args.backup or as_bool(safety.get("backup_before_apply"), False):
-                backup_dir = map_to_target_root(args.backup_dir, args.target_root) if args.backup_dir.is_absolute() else args.backup_dir
-                backup_path = backup_existing(list(rendered.keys()), backup_dir)
-                if backup_path:
-                    eprint(f"backup: {backup_path}")
-            for path, content in rendered.items():
-                mode = 0o0755 if path.name == "nftables.conf" else 0o0644
-                atomic_write(path, content, mode=mode)
-                eprint(f"wrote: {path}")
-
-        if args.check:
-            if not args.write:
-                raise PolicyError("--check requires --write so nft can read generated include files")
-            conf_path = paths["nftables_conf"]
-            nft_bin = resolve_executable("nft", "/usr/sbin/nft")
-            run_checked([nft_bin, "-c", "-f", str(conf_path)], "nft validation", timeout_seconds=args.command_timeout)
-            eprint("nft validation: ok")
-
-        if args.reload:
-            if not args.check:
-                raise PolicyError("--reload requires --check")
-            if str(args.target_root.resolve()) != "/":
-                raise PolicyError("--reload is only allowed with --target-root /")
-            systemctl_bin = resolve_executable("systemctl", "/usr/bin/systemctl")
-            run_checked([systemctl_bin, "reload", "nftables"], "nftables reload", timeout_seconds=args.command_timeout)
-            eprint("nftables reload: ok")
+            with generation_lock(args.target_root):
+                if args.backup or as_bool(safety.get("backup_before_apply"), False):
+                    backup_dir = map_to_target_root(args.backup_dir, args.target_root) if args.backup_dir.is_absolute() else args.backup_dir
+                    backup_path = backup_existing(list(rendered.keys()), backup_dir)
+                    if backup_path:
+                        eprint(f"backup: {backup_path}")
+                write_generation(args, paths, rendered)
 
         if args.summary:
             services = as_dict(policy.get("services"), "services")
@@ -1826,7 +2002,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         for skipped in unique_preserve(ctx.skipped):
             eprint(f"skipped: {skipped}", level="debug")
         return 0
-    except PolicyError as exc:
+    except RecoveryRequired as exc:
+        eprint(f"error: {exc}", level="error")
+        return 3
+    except KeyboardInterrupt:
+        eprint('cancelled: inspect any reported recovery bundle before retrying', level='error')
+        return 130
+    except (PolicyError, OSError, ValueError, KeyError) as exc:
         eprint(f"error: {exc}", level="error")
         return 2
 

@@ -185,6 +185,24 @@ class SamloaderArchiveTests(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which('perl'), 'native Perl interpreter unavailable')
 class SamsungFirmwareTests(unittest.TestCase):
+    def test_unbound_flash_transport_is_unavailable_before_any_device_operation(self):
+        fixture = r'''
+use AndroidADB::Vendor::Samsung;
+{ package NeverCall; sub AUTOLOAD { die "unexpected device or firmware operation\n"; } sub DESTROY {} }
+my $unused = bless {}, 'NeverCall';
+my $samsung = AndroidADB::Vendor::Samsung->new(map { $_ => $unused }
+    qw(config command device lock storage archive manifest));
+exit $samsung->flash('fixture-serial', '/fixture/firmware', $ARGV[0]);
+'''
+        for mode in ('keep-data', 'factory-reset'):
+            result = subprocess.run(['perl', '-I', str(SEED / 'hooks/target/usr/local/lib/perl5/site_perl/labwc-adb'),
+                                     '-e', fixture, '--', mode],
+                                    env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'HOME': '/nonexistent'},
+                                    capture_output=True, text=True, timeout=5)
+            self.assertEqual(result.returncode, 69, result.stderr)
+            self.assertIn('unavailable:', result.stderr)
+            self.assertNotIn('unexpected', result.stderr)
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix='samsung-provenance-')
         self.addCleanup(temporary.cleanup)
