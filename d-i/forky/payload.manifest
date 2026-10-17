@@ -805,10 +805,10 @@ a67ef0a24fb6744a8e19baa61a71e9b9edd542abc0fb5108eb15deebf5dee944  hooks/target/e
 fa8b860824644ab141803b7c89fb3879885213e79af79e463032cb76be2e57d0  hooks/target/etc/systemd/system/journal-sealing.service
 454fba2f4dde55f31e794ca819b180997b3c580ddf95311cb799b32e3a71c203  hooks/target/etc/systemd/system/key-manager-acme-renew.service.tmpl
 4299164675f065f217971829b4637a0a7733de8eb450eaded063c88590f07f94  hooks/target/etc/systemd/system/key-manager-acme-renew.timer
-206ff60bb4fd5ed48e3e586d9e1f482ace7a225b7ac1df4c73bd1085b4bce2cd  hooks/target/etc/systemd/system/labwc-admin-action@.service.tmpl
+ff77f9ba21176c045758635f763adbf474d7c7073aa2aa059dde77201b530684  hooks/target/etc/systemd/system/labwc-admin-action@.service.tmpl
 b214d86147e57b6626bf41ee921bdb28a9d69a20a8571acf3a78876bfdebc3b7  hooks/target/etc/systemd/system/labwc-apparmor-boot-recover.service
 36d279000344e2e02e43d09c1eda2a44da4663a76705d93ff55c099eaa4c2062  hooks/target/etc/systemd/system/labwc-apparmor-policy@.service
-e21f64627d95abde85e9bcf61cc856628eba8d9968544c7700985800a13307f6  hooks/target/etc/systemd/system/labwc-external-drives-shutdown.service
+f4d3b305b1ad320325c9f8128282dcd18d3bc2ffa92e5e22c93ea4f3e0c13e83  hooks/target/etc/systemd/system/labwc-external-drives-shutdown.service
 fd7b9c21bdb8cfb708a8f66e9a0681904dbfeace2ef374f56f50c3622ce12393  hooks/target/etc/systemd/system/labwc-package-sleep-guard.service.tmpl
 bf9b30c5cae79623b87dc81f4d9c98f57cd79405e5e0317fdfb4760ad45998d8  hooks/target/etc/systemd/system/labwc-system-desktop-overrides.path
 abcc62747b9c0d3dc6cb734051dc311f315903c920878ec84130123ce007ce96  hooks/target/etc/systemd/system/labwc-system-desktop-overrides.service
@@ -890,8 +890,8 @@ b4e281d002c0eedbcb60e76196f20a6649a9dc910a6462e4466bdcf40cd345d2  hooks/target/e
 c9cbdf3481c37304ca10758d386a943eb27676975d105b9ab8672203d9b50022  hooks/target/etc/systemd/user/filter-chain.service.d/60-resources.conf.tmpl
 287a15dca4a179579b87f84f00ba23d816c1ea2f4ddcec44df61cff0c2740ad5  hooks/target/etc/systemd/user/foot-server.service.d/10-labwc-session.conf
 85a6fcad43c82fb9f930fd4afc0908d0a216710e894ce398d391b0db658bf918  hooks/target/etc/systemd/user/foot-server.socket.d/10-labwc-session.conf
-de37fd3272faa9c15b6af32c4d43eb798d6aa4b6b90b9f9d4452524364cd1335  hooks/target/etc/systemd/user/gvfs-daemon.service.d/10-labwc-session.conf
-73e855ef8baea67d0c46998e8acdff65d33f6f958cd1fb41e0cff413867ca0e3  hooks/target/etc/systemd/user/gvfs-udisks2-volume-monitor.service.d/10-labwc-session.conf
+b62162504e6646b281964c099a2ae4d6fdc5ce9f0e8cd679983363c7f8675cac  hooks/target/etc/systemd/user/gvfs-daemon.service.d/10-labwc-session.conf
+cb9cc4670d934f08a170b1438e1a2fb241c91d15883079f79c54780fb7c2818f  hooks/target/etc/systemd/user/gvfs-udisks2-volume-monitor.service.d/10-labwc-session.conf
 64733ae3c9ed624b525c146a2fbc9762145847e6bd0f19b276f0c1e58aa31512  hooks/target/etc/systemd/user/hardware-tuning-intel-balanced.service
 f77e5ef1fce77950a1abcec9c6932050b3189a48b04708097871aa42e552ef04  hooks/target/etc/systemd/user/hardware-tuning-intel-high.service
 251e4438377105875b5c067e6bc0073bdb01a5f3990ee940878c27b59cec51c4  hooks/target/etc/systemd/user/hardware-tuning-intel-performance.service
@@ -1329,7 +1329,7 @@ f36d026f492546f86a5087eddb36d831470ec642ff4c56c7ea9ae5768dacce2f  hooks/target/u
 7450920fba37b5c2c375d719fa3d434c82d3d84eae75a4c8ebd3a019deb41c09  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/identity.py
 f7b83a2ff28dd2921447d9035c614704eb56f1ca92a3ffd144b798a2ea35e715  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/integrity.py
 ae665a85c88c409d21163551dd292f9ef7367917f22c0f2003e356d36a4f2f8c  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/mounts.py
-fa4a9d13ea156c5374f1337cbe7f6a3fb3e1ce7041b0dc48d6e83c8a4b6f2fec  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_client.py
+4a833a0f9ed205a97598e57778de98146f8a23cbb81d56f54992e3bd22cf47b3  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_client.py
 3b476ce896279724ae8eb0928de43680b9e3f6e1a70c273ba11b80c6ce8f5a3e  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_namespace.py
 9406e52d6775eae4590763d7d4801c8fa7276865e992d807c335c87a1498c6ff  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py.tmpl
 42615fe72bb33e110dd45a37ee1554355e9bc6b8aaadf5de0114383212d4a311  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/project_identity.py
@@ -1381,7 +1381,7 @@ e0f42f45efe1d05440a25fb11d1304d3591681a96605a34dfb4167027c0e39f6  hooks/target/u
 1b854a4be3d93ace0fdfdfe6df6fa6c04e9b55899dad20f402a6f9e3fe2005c5  hooks/target/usr/local/libexec/journal-sealing
 fab7f8e09f92613588dbb48b8c68f2e2a1700b93a69e1db38b9c5a008c75f65a  hooks/target/usr/local/libexec/journal-snapshot.tmpl
 274e90eac51dea486bc0db84e4066a71f4a267a05cd14300a36c2244322a6841  hooks/target/usr/local/libexec/labwc-admin-action-root
-0c3ee122d8671ca55f78f545bde88564a71d9d6c0ee5c802f06b076f62eec5f9  hooks/target/usr/local/libexec/labwc-admin-action-worker
+8ed4dfaae183bac7200e236d2076f64b6780bb41cb919a415ff77790c9bea5b0  hooks/target/usr/local/libexec/labwc-admin-action-worker
 3959bd12f12e37d53f27a2f47d62d5eb6190005989e70ddf42fdb6c963805c4b  hooks/target/usr/local/libexec/labwc-ai-llama-server
 c07e0eac0b2b6313dd0e8b2f53feeeeaf818822944c63757ebbdfcdac9289084  hooks/target/usr/local/libexec/labwc-ai-model-info
 5d2323e9a23ba28084034f732666c89886b9c243694dec7bd6faefb9d5ff51cb  hooks/target/usr/local/libexec/labwc-ai-model-install-root
@@ -1448,7 +1448,7 @@ d406256f6b97a4993c504562920236cb388ee730dd8fcea6e610416a4a344ee3  hooks/target/u
 c178a01e35f2aff0bbd33f85db43be5ce522735ac1cc8410e84c183190b1d0e2  hooks/target/usr/local/libexec/obsidian-git-sync.py
 0faa29823ddd3d64692b8216c55dfbe859dcfab2217fa61d313b25e5de3c65e1  hooks/target/usr/local/libexec/podman-devops-client
 a776cdfdb40ffb214c7d8edeb729c0bdfeb4f5b1cd20d42529e18a1f85a071dc  hooks/target/usr/local/libexec/podman-devops-host
-bcd9f6878469e4b4f845691cdd7516027179f9982f2c32849573be0dca79879d  hooks/target/usr/local/libexec/rsyslog-app-run.tmpl
+c3dce2d9d8719f4dbb67a1b1f7ae2da57644e0ac3c2fc9fc22169b2e083dacb0  hooks/target/usr/local/libexec/rsyslog-app-run.tmpl
 1e9537d8aa4950919a6034b2a799b3ed58978ddfa03e5fb7ce40207a45ab5b99  hooks/target/usr/local/libexec/rsyslog-app-socket.tmpl
 d0a56f35940ae57118873fc0fd9de4ba23685e23e4aeecab0d7d2b6230d33005  hooks/target/usr/local/libexec/rsyslog-openai-socket.tmpl
 0e04f12e7abcb2a73dc87ff75680738ef66371262e12c8e596eaa19161b4711a  hooks/target/usr/local/libexec/rsyslog-security-socket.tmpl
@@ -1641,7 +1641,7 @@ cfb13c1edd411d1b9cce5d39fd681f9a7d5c6b9ba76ba2c57e9cc94512411159  scripts/deskto
 8ef0d54e9fcf9516ad0df4724738464f00750f90279f3d60e3c360b660389425  scripts/desktop/templates/pam-wtmpdb.fragment
 b26b034b097f7057121554596475ff4f2c1b843b58d29900ad97f05024ab88b5  scripts/desktop/templates/recording-reconfigure.xml.fragment
 2ad262651f844bf110f28f47ea4a954d662dbca8c6ff1e230cc26f32e59b0013  scripts/desktop/templates/recording-whisper.xml.fragment
-0c6d1e45f5203b0e92995f824406d27df6f906a584826351a893ce541d476cef  scripts/desktop/verify.sh.tmpl
+42938b5fb3a38b0ea9662a0e9c14065d84ff78173a570a5406cc3c05b4bbb795  scripts/desktop/verify.sh.tmpl
 6210193fe8aaab0a0731a6fbba6dd5076fd593a4a5445e38a16ab850f2b5f9c5  scripts/desktop/waybar-geometry.tsv
 760418df003765aace979cbb494ceea40b980e559a35daad4a0124f58f5fc802  scripts/desktop/waypaper.sh
 33977e223d38797f75c0deb5c4b327dd0b7a5a95cbe5b06795a16419197ec903  scripts/desktop/xwayland.sh
@@ -1649,7 +1649,7 @@ b26b034b097f7057121554596475ff4f2c1b843b58d29900ad97f05024ab88b5  scripts/deskto
 9aa4b78fc07008f37a979e3f1b2b5b334178b582063f9e26e58986be94a5df9b  scripts/firstboot/01-early.sh
 5b1ed44947190e59c3c1b2c180e6bb9c1160c9eccf64c975d5e1529b7bed3859  scripts/firstboot/02-collect.sh.tmpl
 196a03825c0ba67ac91caf18cc6492d71abb70f41a443e32d59c300cb808b27c  scripts/firstboot/03-network.sh
-948c74f91ddcf00138c43710bc0e537b866c72bc83e678e7d3badde28328a77e  scripts/firstboot/04-validation.sh.tmpl
+2806d191257da3be5209752b0d27dce7d38fc5a67ff7fcf7290e26e225c489ae  scripts/firstboot/04-validation.sh.tmpl
 12ad994a1f2b039bb693e889731d1402309562d9e40a2125e269d2ac9ce0582b  scripts/firstboot/05-cleanup.sh
 f2eb533c261b80988628933bfb24201cbc06e6912a56523fd37a209838c829ec  scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl
 12ffdb848f62b8db7850bd35298c1d4a7692466b9210b032609a30f55cb3cd5e  scripts/firstboot/assets/etc/initramfs-tools/scripts/init-bottom/90-installer-health

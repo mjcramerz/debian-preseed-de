@@ -21,6 +21,8 @@ TimeoutStartSec=60s
 # request native application close, allow up to 10 seconds for save dialogs,
 # then use a separate shared 45-second budget to stop managed application
 # services and clean up before their authorized single-force request.
+# External USB drive preparation follows verified application/terminal exit,
+# before user-session teardown, and has its own bounded service timeout.
 RuntimeMaxSec=infinity
 RuntimeDirectory=labwc-power
 RuntimeDirectoryMode=0700

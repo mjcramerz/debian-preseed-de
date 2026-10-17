@@ -31,6 +31,9 @@ SHARING_CONFIG = Path("/etc/network-sharing/config.json")
 ZRAM_WORK_UNITS = ("zram-idle-writeback.timer", "zram-cold-tier.timer",
                    "zram-writebackd.service", "zram-writeback.service")
 EXTERNAL_DRIVES_UNIT = "labwc-external-drives-shutdown.service"
+# Match the drive service's 15-minute start limit, five-second stop limit and
+# a small transport margin. This wait is separate from ordinary user cleanup.
+EXTERNAL_DRIVES_WAIT_SECONDS = 15 * 60 + 10
 SHUTDOWN_CLEANUP_SECONDS = 45
 POWER_SAVE_SECONDS = 10
 
@@ -658,7 +661,15 @@ class Worker:
         # a broken manager, mount, guest, device or save helper cannot veto it.
         self.committed = True
         self.best_effort("network sharing", self.stop_network_sharing)
-        self.best_effort("external drives", self.prepare_external_drives)
+        # Keep the compositor, user manager and GVfs/UDisks context alive while
+        # removing /run/media/USER volumes. Drive work has a separate deadline;
+        # resume the ordinary cleanup budget afterwards without replenishing it.
+        started = time.monotonic()
+        try:
+            self.best_effort("external drives", self.prepare_external_drives)
+        finally:
+            if self.shutdown_deadline is not None:
+                self.shutdown_deadline += time.monotonic() - started
         self.best_effort("greeter", lambda: self.shutdown_run(
             ["/usr/bin/systemctl", "--no-block", "stop", "greetd.service"]))
         self.best_effort("login sessions", lambda: self.shutdown_run(
@@ -672,10 +683,49 @@ class Worker:
         self.best_effort("fallback swap", lambda: self.stop_units(('swap-fallback.service',)))
         self.best_effort("filesystem sync", lambda: self.shutdown_run(["/usr/bin/sync"]))
 
+    def require_shutdown_apps_stopped(self) -> None:
+        # PID 1 recursively sees application and terminal cgroups even after a
+        # failed user-manager stop. Session infrastructure must remain alive;
+        # neither inactive user slices nor process-name heuristics are suitable.
+        raw = run(["/usr/bin/busctl", "--system", "--json=short", "--timeout=5s",
+                   "call", "org.freedesktop.systemd1", "/org/freedesktop/systemd1",
+                   "org.freedesktop.systemd1.Manager", "GetUnitProcesses", "s", "user.slice"],
+                  timeout=7, max_output=131072)
+        try:
+            result = json.loads(raw)
+            if (not isinstance(result, dict) or result.get("type") != "a(sus)"
+                    or not isinstance(result.get("data"), list) or len(result["data"]) != 1
+                    or not isinstance(result["data"][0], list) or len(result["data"][0]) > 4096):
+                raise ValueError("invalid process inventory")
+            for row in result["data"][0]:
+                if (not isinstance(row, list) or len(row) != 3
+                        or not isinstance(row[0], str) or not row[0].startswith("/user.slice/")
+                        or type(row[1]) is not int or not 0 < row[1] < 2**31
+                        or not isinstance(row[2], str)):
+                    raise ValueError("invalid process record")
+                parts = row[0].split("/")
+                if "app.slice" in parts or "foot-server.service" in parts:
+                    raise Error("external-drive removal skipped: application or terminal processes remain")
+        except (ValueError, RecursionError) as exc:
+            raise Error("external-drive removal skipped: cannot verify application exit") from exc
+
     def prepare_external_drives(self) -> None:
-        # The drive manager owns device access. Its failure or a stuck USB/NFS
-        # sync is logged, then PID 1 still receives the authorized power action.
-        self.shutdown_run(["/usr/bin/systemctl", "--no-ask-password", "start", EXTERNAL_DRIVES_UNIT])
+        self.require_shutdown_apps_stopped()
+        # The drive manager retains disk selection, sync, confirmed unmount
+        # and power-off authority. Wait for its oneshot job, not just enqueue it.
+        try:
+            run(["/usr/bin/systemctl", "--no-ask-password", "start", EXTERNAL_DRIVES_UNIT],
+                timeout=EXTERNAL_DRIVES_WAIT_SECONDS, max_output=16384)
+        except (Error, OSError, subprocess.SubprocessError):
+            # A timed-out/lost transport does not cancel the PID-1 job. Do not
+            # retry the mutation. Request a bounded stop before the handoff;
+            # failed cancellation must remain an explicitly unknown outcome.
+            try:
+                run(["/usr/bin/systemctl", "--no-ask-password", "stop", EXTERNAL_DRIVES_UNIT],
+                    timeout=10, max_output=16384)
+            except (Error, OSError, subprocess.SubprocessError) as exc:
+                raise Error("external-drive preparation outcome unknown: cancellation unconfirmed; no retry") from exc
+            raise
 
     def stop_optional_guests(self) -> None:
         self.stop_units(GUEST_STOP_UNITS)
@@ -744,11 +794,12 @@ class Worker:
                 # cleanup budget. No guest, mount or desktop teardown runs early.
                 self.shutdown_deadline = time.monotonic() + SHUTDOWN_CLEANUP_SECONDS
                 if not self.greeter:
-                    # Stop managed application cgroups, including terminals and
-                    # their jobs, before unmounting the filesystems they use.
-                    # No second window-close request may dismiss save dialogs.
+                    # Stop apps and terminal jobs while keeping the compositor,
+                    # user bus and /run/media/USER mount context alive. Stopping
+                    # the Foot socket too prevents its server being reactivated.
+                    # No second close request may dismiss application save dialogs.
                     self.best_effort("desktop application services", lambda: self.userctl(
-                        "stop", DESKTOP_TARGET, timeout=30))
+                        "stop", "foot-server.socket", "foot-server.service", "app.slice", timeout=30))
                 self.best_effort("guest hooks", self.stop_optional_guests)
                 self.best_effort("machine cleanup", self.prepare_machine_shutdown)
             finally:

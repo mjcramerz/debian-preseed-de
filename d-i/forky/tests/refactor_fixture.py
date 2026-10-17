@@ -48,6 +48,20 @@ def current_path(relative):
 
 
 def uploaded_bytes(relative, data):
+    # October 17 drive ordering keeps these mount backends in session.slice.
+    # Reverse only the exact additions before the older layered hash checks;
+    # never replace their historical baselines or ignore unrelated bytes.
+    mount_context_additions = {
+        'd-i/forky/hooks/target/etc/systemd/user/gvfs-daemon.service.d/10-labwc-session.conf':
+            b'# Keep the mount/session backend alive while app.slice stops before drive removal.\nSlice=session.slice\n',
+        'd-i/forky/hooks/target/etc/systemd/user/gvfs-udisks2-volume-monitor.service.d/10-labwc-session.conf':
+            b'\n[Service]\n# Removal runs after apps exit and before this user\'s mount context is torn down.\nSlice=session.slice\n',
+    }
+    addition = mount_context_additions.get(relative)
+    if addition is not None:
+        if data.count(addition) != 1:
+            raise AssertionError(f'{relative}: reviewed mount-context addition changed or is ambiguous')
+        data = data.replace(addition, b'', 1)
     security = _security_review().get(relative)
     if security is not None:
         text = data.decode()

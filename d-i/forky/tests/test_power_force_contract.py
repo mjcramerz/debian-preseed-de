@@ -13,6 +13,7 @@ _require_test_isolation()
 
 import contextlib
 import io
+import json
 import os
 import shlex
 import shutil
@@ -250,14 +251,96 @@ class ForceUnitConfinementTests(unittest.TestCase):
 
 
 class ExternalDrivePreparationTests(unittest.TestCase):
-    def test_external_drive_stage_is_bounded_and_never_checks_clean_result(self):
+    def test_drive_job_requires_app_exit_but_retains_live_session_and_mount_backends(self):
         power = module()
         worker = power.Worker(1000, 'desktop', 'poweroff')
-        worker.shutdown_deadline = 50
-        with mock.patch.object(power.time, 'monotonic', return_value=45),              mock.patch.object(power, 'run', return_value='') as run:
+        worker.shutdown_deadline = 0  # Ordinary cleanup expiring does not cut drive sync short.
+        session = '/user.slice/user-1000.slice/user@1000.service/session.slice/'
+        records = [[session + name, 20 + index, 'live session component'] for index, name in enumerate((
+            'labwc-compositor.service', 'dbus.service', 'gvfs-daemon.service',
+            'gvfs-udisks2-volume-monitor.service', 'labwc-gvfs-volume-monitor.service'))]
+        with mock.patch.object(power, 'run', side_effect=(
+                json.dumps({'type': 'a(sus)', 'data': [records]}), '')) as run:
             worker.prepare_external_drives()
-        run.assert_called_once_with(['/usr/bin/systemctl', '--no-ask-password', 'start', power.EXTERNAL_DRIVES_UNIT],
-                                    timeout=5, max_output=16384)
+        self.assertEqual(run.call_args_list, [
+            mock.call(['/usr/bin/busctl', '--system', '--json=short', '--timeout=5s', 'call',
+                       'org.freedesktop.systemd1', '/org/freedesktop/systemd1',
+                       'org.freedesktop.systemd1.Manager', 'GetUnitProcesses', 's', 'user.slice'],
+                      timeout=7, max_output=131072),
+            mock.call(['/usr/bin/systemctl', '--no-ask-password', 'start', power.EXTERNAL_DRIVES_UNIT],
+                      timeout=910, max_output=16384),
+        ])
+
+    def test_greeter_session_remains_alive_during_drive_removal(self):
+        power = module()
+        records = [['/user.slice/user-110.slice/session-c1.scope', 30, 'gtkgreet']]
+        with mock.patch.object(power, 'run', side_effect=(
+                json.dumps({'type': 'a(sus)', 'data': [records]}), '')) as run:
+            power.Worker(110, 'greeter', 'poweroff', greeter=True).prepare_external_drives()
+        self.assertEqual(run.call_count, 2)
+        self.assertEqual(run.call_args.args[0][-2:], ['start', power.EXTERNAL_DRIVES_UNIT])
+
+    def test_remaining_foot_kitty_or_other_account_apps_prevent_drive_removal(self):
+        power = module()
+        groups = (
+            '/user.slice/user-1000.slice/user@1000.service/app.slice/labwc-wayland-foot-fixture.service',
+            '/user.slice/user-1000.slice/user@1000.service/app.slice/labwc-wayland-kitty-fixture.service',
+            '/user.slice/user-1000.slice/user@1000.service/session.slice/foot-server.service',
+            '/user.slice/user-1001.slice/user@1001.service/app.slice/browser.service',
+        )
+        for group in groups:
+            raw = json.dumps({'type': 'a(sus)', 'data': [[[group, 123, 'private terminal job']]]})
+            with self.subTest(group=group), mock.patch.object(power, 'run', return_value=raw) as run:
+                with self.assertRaisesRegex(power.Error, 'application or terminal processes remain') as error:
+                    power.Worker(1000, 'desktop', 'poweroff').prepare_external_drives()
+            self.assertEqual(run.call_count, 1)
+            self.assertNotIn('private terminal job', str(error.exception))
+
+    def test_invalid_or_oversized_inventory_prevents_drive_removal(self):
+        power = module()
+        inventories = ('', '{', 'null', '[]',
+            json.dumps({'type': 'as', 'data': [[]]}),
+            json.dumps({'type': 'a(sus)', 'data': []}),
+            json.dumps({'type': 'a(sus)', 'data': [[['/system.slice/foreign.service', 123, 'private']]]}),
+            json.dumps({'type': 'a(sus)', 'data': [[['/user.slice/session.scope', True, 'private']]]}),
+            json.dumps({'type': 'a(sus)', 'data': [[['/user.slice/session.scope', 123, 'private']] * 4097]}))
+        for raw in inventories:
+            with self.subTest(inventory_length=len(raw)), mock.patch.object(power, 'run', return_value=raw) as run:
+                with self.assertRaisesRegex(power.Error, 'removal skipped') as error:
+                    power.Worker(1000, 'desktop', 'reboot').prepare_external_drives()
+            self.assertEqual(run.call_count, 1)
+            self.assertNotIn('private', str(error.exception))
+
+    def test_manager_failure_never_starts_or_cancels_a_drive_job(self):
+        power = module()
+        for failure in (power.Error('bus unavailable'), OSError('bus unavailable')):
+            with self.subTest(failure=type(failure).__name__), mock.patch.object(power, 'run', side_effect=failure) as run:
+                with self.assertRaises((power.Error, OSError)):
+                    power.Worker(1000, 'desktop', 'poweroff').prepare_external_drives()
+            self.assertEqual(run.call_count, 1)
+
+    def test_failed_or_timed_out_drive_start_is_stopped_without_retry(self):
+        power = module()
+        for failure in (power.Error('lost start reply'), OSError('transport unavailable'),
+                        subprocess.TimeoutExpired('fixture', 910)):
+            with self.subTest(failure=type(failure).__name__), mock.patch.object(power, 'run', side_effect=(
+                    json.dumps({'type': 'a(sus)', 'data': [[]]}), failure, '')) as run:
+                with self.assertRaises(type(failure)) as error:
+                    power.Worker(1000, 'desktop', 'poweroff').prepare_external_drives()
+            self.assertIs(error.exception, failure)
+            self.assertEqual(run.call_count, 3)
+            self.assertEqual(run.call_args_list[-1], mock.call(
+                ['/usr/bin/systemctl', '--no-ask-password', 'stop', power.EXTERNAL_DRIVES_UNIT],
+                timeout=10, max_output=16384))
+
+    def test_failed_drive_job_cancellation_retains_unknown_outcome(self):
+        power = module()
+        with mock.patch.object(power, 'run', side_effect=(
+                json.dumps({'type': 'a(sus)', 'data': [[]]}),
+                power.Error('lost start reply'), power.Error('lost stop reply'))) as run:
+            with self.assertRaisesRegex(power.Error, 'outcome unknown: cancellation unconfirmed; no retry'):
+                power.Worker(1000, 'desktop', 'poweroff').prepare_external_drives()
+        self.assertEqual(run.call_count, 3)
 
 
 class FirstbootForceValidationTests(unittest.TestCase):
@@ -318,6 +401,15 @@ class FirstbootForceValidationTests(unittest.TestCase):
         service = self.directory / 'etc/systemd/system/labwc-external-drives-shutdown.service'
         service.write_text(service.read_text().replace('DevicePolicy=closed', 'DevicePolicy=auto'))
         self.check(False)
+
+    def test_firstboot_rejects_missing_app_exit_barrier_or_short_drive_budget(self):
+        for before, after in (
+                ('self.require_shutdown_apps_stopped()', 'pass  # fixture bypasses application exit'),
+                ('EXTERNAL_DRIVES_WAIT_SECONDS = 15 * 60 + 10', 'EXTERNAL_DRIVES_WAIT_SECONDS = 10')):
+            with self.subTest(mutation=before):
+                self.assertEqual(self.worker_source.count(before), 1)
+                self.worker.write_text(self.worker_source.replace(before, after))
+                self.check(False)
 
     def test_firstboot_rejects_missing_boot_capability_or_raw_reboot_filter(self):
         mutations = (

@@ -391,6 +391,150 @@ class NativeRsyslogTests(unittest.TestCase):
 class ApplicationCaptureTests(unittest.TestCase):
     """Fixture sockets/processes only, inside the mandatory disposable image."""
 
+    def test_cleanup_preserves_reaped_children_and_bounds_term_then_kill(self):
+        capture = module('managed_app_capture_cleanup', 'usr/local/libexec/rsyslog-app-run')
+        child = mock.Mock()
+        child.poll.return_value = 7
+        with mock.patch.object(capture.time, 'monotonic') as clock:
+            capture.stop_child(child, stopping=False)
+        clock.assert_not_called()
+        child.terminate.assert_not_called()
+        child.kill.assert_not_called()
+        child.wait.assert_not_called()
+
+        child = mock.Mock()
+        child.poll.return_value = None
+        with mock.patch.object(capture.time, 'monotonic', side_effect=(100, 100)):
+            capture.stop_child(child, stopping=False)
+        child.terminate.assert_called_once()
+        child.wait.assert_called_once_with(timeout=2.0)
+        child.kill.assert_not_called()
+
+        child = mock.Mock()
+        child.poll.return_value = None
+        child.wait.side_effect = (subprocess.TimeoutExpired('fixture', 2), -signal.SIGKILL)
+        with mock.patch.object(capture.time, 'monotonic', side_effect=(100, 100, 103)):
+            capture.stop_child(child, stopping=False)
+        child.terminate.assert_called_once()
+        child.kill.assert_called_once()
+        self.assertEqual(child.wait.call_args_list, [mock.call(timeout=2.0), mock.call(timeout=1.0)])
+
+    def test_elapsed_stop_grace_kills_once_and_does_not_add_another_term_grace(self):
+        capture = module('managed_app_capture_stop_grace', 'usr/local/libexec/rsyslog-app-run')
+        child = mock.Mock()
+        child.poll.return_value = None
+        with mock.patch.object(capture.time, 'monotonic', side_effect=(100, 101)):
+            capture.stop_child(child, stopping=True)
+        child.terminate.assert_not_called()
+        child.kill.assert_called_once()
+        child.wait.assert_called_once_with(timeout=3.0)
+
+    def test_supervisor_ends_the_stop_loop_after_fifteen_seconds(self):
+        capture = module('managed_app_capture_stop_deadline', 'usr/local/libexec/rsyslog-app-run')
+        child = mock.Mock()
+        child.poll.return_value = None
+        def register(number, handler):
+            if number == signal.SIGTERM and callable(handler):
+                handler(number, None)
+            return signal.SIG_DFL
+        with mock.patch.object(capture.sys, 'stderr') as stderr, \
+             mock.patch.object(capture.os, 'get_blocking', return_value=True), \
+             mock.patch.object(capture.os, 'set_blocking'), \
+             mock.patch.object(capture.os, 'close') as close, \
+             mock.patch.object(capture.signal, 'signal', side_effect=register), \
+             mock.patch.object(capture.socket, 'socket'), \
+             mock.patch.object(capture.selectors, 'PollSelector') as selector, \
+             mock.patch.object(capture.subprocess, 'Popen', return_value=child), \
+             mock.patch.object(capture.os, 'pidfd_open', return_value=77), \
+             mock.patch.object(capture.time, 'monotonic', side_effect=(100, 115)), \
+             mock.patch.object(capture, 'stop_child') as stop:
+            stderr.fileno.return_value = 42
+            self.assertEqual(capture.supervise('fixture-app', ['/fixture/app']), -signal.SIGKILL)
+        stop.assert_called_once_with(child, stopping=True)
+        selector.return_value.__enter__.return_value.select.assert_not_called()
+        child.send_signal.assert_called_once_with(signal.SIGTERM)
+        child.kill.assert_not_called()  # Only the single cleanup owner escalates.
+        child.wait.assert_not_called()
+        child.stdout.close.assert_called_once()
+        child.stderr.close.assert_called_once()
+        close.assert_called_once_with(77)
+
+    def test_cleanup_timeout_and_signal_failure_report_unknown_without_unbounded_wait(self):
+        capture = module('managed_app_capture_cleanup_unknown', 'usr/local/libexec/rsyslog-app-run')
+        for failure in ('wait', 'kill'):
+            child = mock.Mock()
+            child.poll.return_value = None
+            if failure == 'wait':
+                child.wait.side_effect = subprocess.TimeoutExpired('private fixture arguments', 2)
+            else:
+                child.wait.side_effect = (subprocess.TimeoutExpired('private fixture arguments', 2),)
+                child.kill.side_effect = PermissionError('private fixture arguments')
+            with self.subTest(failure=failure), \
+                 mock.patch.object(capture.time, 'monotonic', side_effect=(100, 100, 105)), \
+                 self.assertRaises(capture.CaptureCleanupUnknown) as error:
+                capture.stop_child(child, stopping=False)
+            self.assertNotIn('private fixture arguments', str(error.exception))
+            child.kill.assert_called_once()
+            expected = [mock.call(timeout=2.0), mock.call(timeout=0.0)] if failure == 'wait' else [mock.call(timeout=2.0)]
+            self.assertEqual(child.wait.call_args_list, expected)
+
+    def test_streaming_output_stops_delivery_when_the_stop_grace_expires(self):
+        capture = module('managed_app_capture_stream_deadline', 'usr/local/libexec/rsyslog-app-run')
+        child = mock.Mock()
+        child.poll.return_value = None
+        clock = [100.0]
+        def register(number, handler):
+            if number == signal.SIGTERM and callable(handler):
+                handler(number, None)
+            return signal.SIG_DFL
+        def readable(_timeout):
+            clock[0] = 114.0
+            return [(mock.Mock(fileobj=child.stdout), 1)]
+        def send(packet, _destination):
+            clock[0] = 116.0
+            return len(packet)
+        with mock.patch.object(capture.sys, 'stderr') as stderr, \
+             mock.patch.object(capture.os, 'get_blocking', return_value=True), \
+             mock.patch.object(capture.os, 'set_blocking'), \
+             mock.patch.object(capture.os, 'close'), \
+             mock.patch.object(capture.os, 'read', return_value=b'x' * capture.LINE_LIMIT), \
+             mock.patch.object(capture.signal, 'signal', side_effect=register), \
+             mock.patch.object(capture.socket, 'socket') as channel, \
+             mock.patch.object(capture.selectors, 'PollSelector') as selector, \
+             mock.patch.object(capture.subprocess, 'Popen', return_value=child), \
+             mock.patch.object(capture.os, 'pidfd_open', return_value=77), \
+             mock.patch.object(capture.time, 'monotonic', side_effect=lambda: clock[0]), \
+             mock.patch.object(capture, 'stop_child') as stop:
+            stderr.fileno.return_value = 42
+            selector.return_value.__enter__.return_value.select.side_effect = readable
+            transport = channel.return_value.__enter__.return_value
+            transport.sendto.side_effect = send
+            self.assertEqual(capture.supervise('fixture-app', ['/fixture/app']), -signal.SIGKILL)
+        transport.sendto.assert_called_once()
+        selector.return_value.__enter__.return_value.select.assert_called_once()
+        stop.assert_called_once_with(child, stopping=True)
+
+    def test_unknown_cleanup_closes_output_pipes_and_restores_signal_and_stderr_state(self):
+        capture = module('managed_app_capture_cleanup_resources', 'usr/local/libexec/rsyslog-app-run')
+        child = mock.Mock()
+        with mock.patch.object(capture.sys, 'stderr') as stderr, \
+             mock.patch.object(capture.os, 'get_blocking', return_value=True), \
+             mock.patch.object(capture.os, 'set_blocking') as blocking, \
+             mock.patch.object(capture.signal, 'signal', return_value=signal.SIG_DFL) as handlers, \
+             mock.patch.object(capture.socket, 'socket'), \
+             mock.patch.object(capture.selectors, 'PollSelector'), \
+             mock.patch.object(capture.subprocess, 'Popen', return_value=child), \
+             mock.patch.object(capture.os, 'pidfd_open', side_effect=OSError('fixture setup failure')), \
+             mock.patch.object(capture, 'stop_child', side_effect=capture.CaptureCleanupUnknown('fixture')), \
+             self.assertRaises(capture.CaptureCleanupUnknown):
+            stderr.fileno.return_value = 42
+            capture.supervise('fixture-app', ['/fixture/app'])
+        child.stdout.close.assert_called_once()
+        child.stderr.close.assert_called_once()
+        self.assertEqual(blocking.call_args_list, [mock.call(42, False), mock.call(42, True)])
+        self.assertEqual(handlers.call_args_list[-len(capture.SIGNALS):],
+                         [mock.call(number, signal.SIG_DFL) for number in capture.SIGNALS])
+
     def test_cli_preserves_large_literal_argument_lists_and_status(self):
         capture = module('managed_app_capture_arguments', 'usr/local/libexec/rsyslog-app-run')
         arguments = ['/usr/bin/fixture-app', *('file with spaces' for _ in range(300)),

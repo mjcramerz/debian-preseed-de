@@ -1,5 +1,7 @@
 [Unit]
 Description=Safely power off external USB data drives before managed shutdown
+# The authorized worker verifies application/terminal exit before starting
+# this oneshot, retaining the user session and /run/media/USER mount context.
 Requires=udisks2.service
 After=udisks2.service systemd-udevd.service
 
@@ -7,8 +9,8 @@ After=udisks2.service systemd-udevd.service
 Type=oneshot
 WorkingDirectory=/
 ExecStart=/usr/local/bin/labwc-external-drives --prepare-shutdown
-# Each sync/unmount/power-off retains its own bounded timeout. Exhausting
-# the overall budget is a failed preparation, never permission to force power.
+# Each sync/unmount/power-off retains its own bounded timeout. Failed
+# preparation never authorizes forced unmount or power-off of a busy drive.
 TimeoutStartSec=15min
 TimeoutStopSec=5s
 KillMode=control-group

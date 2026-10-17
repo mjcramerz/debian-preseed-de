@@ -29,6 +29,14 @@ CODEX_SOCKET_NAMES = (
 CODEX_SOCKET_DAEMON_ROOT = Path("/tmp")
 CODEX_SOCKET_DAEMON_NAME = re.compile(r"codex-daemon-[0-9]+")
 LEASE_RETRY_SECONDS = 5
+LEASE_SETUP_TIMEOUT_SECONDS = 15
+
+
+def _lease_timeout(deadline: float) -> float:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("network lease handshake timed out")
+    return remaining
 
 
 def _configuration() -> dict:
@@ -245,13 +253,16 @@ class Lease:
     """The control socket is owned by the supervisor, never the application."""
 
     def __init__(self, namespace_fd: int, app: str, *, address: str | None = None):
+        # Connection, request, reply and policy validation share one budget,
+        # including reconnects performed while supervising a running payload.
+        deadline = time.monotonic() + LEASE_SETUP_TIMEOUT_SECONDS
         self.namespace_fd = None
         self.app = app
         self.retry_at = None
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET | socket.SOCK_CLOEXEC)
         try:
-            self.socket.settimeout(15)
             expected_uid = control_socket_owner()
+            self.socket.settimeout(_lease_timeout(deadline))
             self.socket.connect(SOCKET_PATH)
             _pid, uid, _gid = struct.unpack("3i", self.socket.getsockopt(
                 socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i")))
@@ -261,8 +272,10 @@ class Lease:
             if address is not None:
                 request["address"] = address
             request = json.dumps(request, separators=(",", ":")).encode("ascii")
+            self.socket.settimeout(_lease_timeout(deadline))
             self.socket.sendmsg([request], [(socket.SOL_SOCKET, socket.SCM_RIGHTS,
                                             array.array("i", [namespace_fd]))])
+            self.socket.settimeout(_lease_timeout(deadline))
             response, _ancillary, flags, _address = self.socket.recvmsg(4096)
             if flags & (socket.MSG_TRUNC | socket.MSG_CTRUNC):
                 raise ValueError("oversized network readiness response")
@@ -301,6 +314,7 @@ class Lease:
             if (self.peer_port not in self.peer_port_policy.values() if isinstance(self.peer_port_policy, dict)
                     else self.peer_port != self.peer_port_policy):
                 raise ValueError("private peer forwarding port differs from managed policy")
+            _lease_timeout(deadline)
             self.socket.setblocking(False)
         except BaseException:
             self.socket.close()

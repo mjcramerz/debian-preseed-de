@@ -66,7 +66,8 @@ class OrderlyLifecycleTests(unittest.TestCase):
         ):
             self.worker.execute()
         self.worker.helper.assert_called_once_with('reboot')
-        self.worker.userctl.assert_called_once_with('stop', 'labwc-session.target', timeout=30)
+        self.worker.userctl.assert_called_once_with(
+            'stop', 'foot-server.socket', 'foot-server.service', 'app.slice', timeout=30)
         self.final.assert_called_once()
 
     def test_handoff_environment_cannot_redirect_bus_or_select_soft_reboot(self):

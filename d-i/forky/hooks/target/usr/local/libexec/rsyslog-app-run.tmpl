@@ -23,6 +23,28 @@ PACKET_TEXT_LIMIT = 1600
 SIGNALS = (signal.SIGHUP, signal.SIGINT, signal.SIGTERM, signal.SIGUSR1, signal.SIGUSR2)
 
 
+class CaptureCleanupUnknown(RuntimeError):
+    """The owning service cgroup must finish terminating an unreaped child."""
+
+
+def stop_child(child: subprocess.Popen, *, stopping: bool) -> None:
+    try:
+        if child.poll() is not None:
+            return
+        deadline = time.monotonic() + 4.0
+        if not stopping:
+            child.terminate()
+            try:
+                child.wait(timeout=min(2.0, max(0.0, deadline - time.monotonic())))
+                return
+            except subprocess.TimeoutExpired:
+                pass
+        child.kill()
+        child.wait(timeout=max(0.0, deadline - time.monotonic()))
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise CaptureCleanupUnknown("application child termination is unconfirmed") from exc
+
+
 def severity(line: bytes, stream: str) -> int:
     prefix = re.match(rb'^<([0-7])>', line)
     if prefix:
@@ -103,9 +125,13 @@ def supervise(identifier: str, command: list[str]) -> int:
         header = f'<{8 + priority}>{timestamp} {identifier}[{os.getpid()}]: '
         # Each escaped chunk is bounded, even for binary/unterminated output.
         for offset in range(0, len(text), PACKET_TEXT_LIMIT):
+            now = time.monotonic()
+            if ((stopping is not None and now - stopping >= 15)
+                    or (exited is not None and now - exited >= 0.2)):
+                return
             message = f'stream={stream} message={text[offset:offset + PACKET_TEXT_LIMIT]}'
             packet = (header + message).encode('ascii')
-            if time.monotonic() >= retry_at:
+            if now >= retry_at:
                 try:
                     sent = transport.sendto(packet, SOCKET)
                     if sent != len(packet):
@@ -144,7 +170,9 @@ def supervise(identifier: str, command: list[str]) -> int:
                 if status is not None:
                     exited = exited or now
                 if status is None and stopping is not None and now - stopping >= 15:
-                    child.kill()
+                    # Cleanup sends KILL and bounds the final reap. Returning
+                    # now also prevents repeated KILL/poll loops for stuck work.
+                    return -signal.SIGKILL
                 if not sources and status is not None:
                     break
                 if exited is not None and now - exited >= 0.2:
@@ -156,7 +184,12 @@ def supervise(identifier: str, command: list[str]) -> int:
                     if sources:
                         journal(4, 'event=output-drain-expired inherited_pipe=true')
                     break
-                for key, _ in poll.select(0.2 if exited is not None else 1.0):
+                poll_timeout = 1.0
+                if exited is not None:
+                    poll_timeout = min(poll_timeout, max(0.0, exited + 0.2 - now))
+                if stopping is not None:
+                    poll_timeout = min(poll_timeout, max(0.0, stopping + 15 - now))
+                for key, _ in poll.select(poll_timeout):
                     if key.fileobj == child_fd:
                         poll.unregister(child_fd)
                         continue
@@ -185,16 +218,12 @@ def supervise(identifier: str, command: list[str]) -> int:
     finally:
         try:
             if child is not None:
-                if child.poll() is None:
-                    child.terminate()
-                    try:
-                        child.wait(timeout=2)
-                    except subprocess.TimeoutExpired:
-                        child.kill()
-                        child.wait()
-                for source in (child.stdout, child.stderr):
-                    if source is not None:
-                        source.close()
+                try:
+                    stop_child(child, stopping=stopping is not None)
+                finally:
+                    for source in (child.stdout, child.stderr):
+                        if source is not None:
+                            source.close()
         finally:
             if child_fd is not None:
                 os.close(child_fd)
@@ -228,6 +257,9 @@ if __name__ == '__main__':
             os.kill(os.getpid(), number)
             result = 128 + number
         raise SystemExit(result)
+    except CaptureCleanupUnknown as exc:
+        report_capture_failure(exc)
+        raise SystemExit(3)
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         report_capture_failure(exc)
         raise SystemExit(1)

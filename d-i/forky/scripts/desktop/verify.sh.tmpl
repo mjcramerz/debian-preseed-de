@@ -596,6 +596,12 @@ done
 require_mode /etc/systemd/system/labwc-admin-action@.service 644
 require_mode /etc/systemd/system/labwc-external-drives-shutdown.service 644
 require_mode /etc/systemd/user/labwc-gvfs-volume-monitor.service 644
+for mount_backend in gvfs-daemon.service gvfs-udisks2-volume-monitor.service; do
+  backend_policy="/etc/systemd/user/${mount_backend}.d/10-labwc-session.conf"
+  require_mode "$backend_policy" 644
+  grep -Fxq Slice=session.slice "$backend_policy" ||
+    fatal "mount backend must survive application shutdown: $mount_backend"
+done
 require_mode /etc/systemd/user/llama-whisper-guard.service 644
 require_mode /usr/local/libexec/llama-whisper-coordinate 755
 require_mode /usr/local/lib/python3.14/dist-packages/labwc_ai_copilots/resources.py 644

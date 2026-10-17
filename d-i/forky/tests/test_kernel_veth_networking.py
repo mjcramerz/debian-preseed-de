@@ -507,6 +507,45 @@ class AuthorizationTests(unittest.TestCase):
         channel.sendmsg.assert_not_called()
         channel.close.assert_called_once()
 
+    def test_client_handshake_uses_one_deadline_and_keeps_successful_channel(self):
+        channel = mock.Mock()
+        channel.getsockopt.return_value = struct.pack("3i", 12, 0, 0)
+        channel.recvmsg.return_value = (json.dumps({"ready": True, "address": "10.203.0.2",
+            "gateway": "10.203.0.1", "interface": "eth0", "peer_port": 50309}).encode(), [], 0, None)
+        with mock.patch.object(client, "control_socket_owner", return_value=0), \
+                mock.patch.object(client.socket, "socket", return_value=channel), \
+                mock.patch.object(client.time, "monotonic", side_effect=(100, 100, 104, 111, 114)):
+            lease = client.Lease(3, "qbittorrent")
+        self.addCleanup(lease.close)
+        self.assertEqual(channel.settimeout.call_args_list, [mock.call(15), mock.call(11), mock.call(4)])
+        channel.setblocking.assert_called_once_with(False)
+        channel.close.assert_not_called()
+        self.assertEqual(lease.peer_port, 50309)
+
+    def test_client_deadline_expiry_closes_channel_before_later_operations(self):
+        cases = (
+            ((100, 115), 0, 0, 0),
+            ((100, 100, 115), 1, 0, 0),
+            ((100, 100, 105, 115), 1, 1, 0),
+            ((100, 100, 105, 110, 115), 1, 1, 1),
+        )
+        for clock_values, connections, requests, replies in cases:
+            channel = mock.Mock()
+            channel.getsockopt.return_value = struct.pack("3i", 12, 0, 0)
+            channel.recvmsg.return_value = (json.dumps({"ready": True, "address": "10.203.0.2",
+                "gateway": "10.203.0.1", "interface": "eth0", "peer_port": 50309}).encode(), [], 0, None)
+            with self.subTest(clock=clock_values), \
+                    mock.patch.object(client, "control_socket_owner", return_value=0), \
+                    mock.patch.object(client.socket, "socket", return_value=channel), \
+                    mock.patch.object(client.time, "monotonic", side_effect=clock_values), \
+                    self.assertRaisesRegex(TimeoutError, "network lease handshake timed out"):
+                client.Lease(3, "qbittorrent")
+            self.assertEqual(channel.connect.call_count, connections)
+            self.assertEqual(channel.sendmsg.call_count, requests)
+            self.assertEqual(channel.recvmsg.call_count, replies)
+            channel.setblocking.assert_not_called()
+            channel.close.assert_called_once()
+
     def test_client_rejects_invalid_readiness_and_closes_socket(self):
         for response, flags in ((b'{"ready":false}', 0), (b'[]', 0), (b'{}', socket.MSG_TRUNC),
                                 (b'{"ready":true,"address":"::1","gateway":"1.2.3.4","interface":"eth0"}', 0)):
@@ -694,6 +733,32 @@ class LeaseRecoveryTests(unittest.TestCase):
         channel.sendmsg.assert_not_called()
         channel.close.assert_called_once()
         self.assertGreaterEqual(lease.namespace_fd, 0)
+
+    def test_timed_out_reconnection_retains_namespace_and_schedules_retry(self):
+        lease, _peer = self.make_lease()
+        lease.socket.close()
+        lease.socket = None
+        lease.retry_at = 100
+        namespace = lease.namespace_fd
+        channel = self.channel(lease)
+        with mock.patch.object(client, "_configuration", return_value=DEFAULT_CONFIGURATION), \
+                mock.patch.object(client, "control_socket_owner", return_value=0), \
+                mock.patch.object(client.socket, "socket", return_value=channel), \
+                mock.patch.object(client.time, "monotonic", side_effect=(100, 100, 100, 105, 110, 115, 115)), \
+                mock.patch.object(client, "emit") as events:
+            lease.maintain()
+        self.assertIsNone(lease.socket)
+        self.assertEqual(lease.namespace_fd, namespace)
+        self.assertEqual(lease.retry_at, 120)
+        os.fstat(namespace)
+        channel.close.assert_called_once()
+        channel.setblocking.assert_not_called()
+        events.assert_called_once_with("network_lease_retry", level="warning", application="qbittorrent",
+                                       cause="TimeoutError", retry_seconds=5)
+        with mock.patch.object(client.time, "monotonic", return_value=119), \
+                mock.patch.object(client.socket, "socket") as reconnect:
+            lease.maintain()
+        reconnect.assert_not_called()
 
     def test_acquisition_failure_closes_the_retained_descriptor(self):
         source = os.open('/dev/null', os.O_RDONLY | os.O_CLOEXEC)

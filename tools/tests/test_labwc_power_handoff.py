@@ -15,6 +15,7 @@ import base64
 import contextlib
 import importlib.machinery
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -77,6 +78,13 @@ class PowerWorkerTests(unittest.TestCase):
                 ['c1', 1000, 'desktop', 'seat0', '/org/freedesktop/login1/session/c1']]]})
         if argv[-1] == 'ListInhibitors':
             return json.dumps({'type': 'a(ssssuu)', 'data': [[]]})
+        if 'GetUnitProcesses' in argv:
+            records = [['/user.slice/user-1000.slice/user@1000.service/session.slice/gvfs-daemon.service',
+                        30, 'mount backend']]
+            if 'app.slice' not in self.managed_stopped:
+                records.append(['/user.slice/user-1000.slice/user@1000.service/app.slice/foot.service',
+                                31, 'terminal job'])
+            return json.dumps({'type': 'a(sus)', 'data': [records]})
         if '--property=Class' in argv:
             return 'user\n'
         if '--property=ActiveState,SubState,Result,ExecMainStatus' in argv:
@@ -123,15 +131,21 @@ class PowerWorkerTests(unittest.TestCase):
                 self.assertEqual(self.calls[-1], handoff_argv(action))
                 self.assertEqual(sum(is_handoff(c) for c in self.calls), 1)
                 save = next(i for i, c in enumerate(self.calls) if c[-2:] == ['start', f'labwc-session-state@{action}.service'])
-                apps = next(i for i, c in enumerate(self.calls) if c[-2:] == ['stop', 'labwc-session.target'])
+                apps = next(i for i, c in enumerate(self.calls)
+                            if c[-4:] == ['stop', 'foot-server.socket', 'foot-server.service', 'app.slice'])
                 guests = next(i for i, c in enumerate(self.calls) if 'stop' in c and 'podman-devops-restart.service' in c)
                 drives = next(i for i, c in enumerate(self.calls) if c[-2:] == ['start', power.EXTERNAL_DRIVES_UNIT])
                 terminate = next(i for i, c in enumerate(self.calls) if 'terminate-user' in c)
+                empty = next(i for i, c in enumerate(self.calls) if 'GetUnitProcesses' in c)
                 self.assertLess(save, apps)
                 self.assertLess(apps, guests)
                 self.assertFalse(any(c[-1] == 'labwc-session-state@close.service' for c in self.calls))
                 self.assertLess(guests, drives)
+                self.assertLess(apps, empty)
+                self.assertLess(empty, drives)
                 self.assertLess(drives, terminate)
+                self.assertFalse(any('stop' in c and 'labwc-session.target' in c for c in self.calls))
+                self.assertFalse(any('stop' in c and 'user.slice' in c for c in self.calls))
                 self.assertEqual(sum(c[-2:] == ['start', power.EXTERNAL_DRIVES_UNIT] for c in self.calls), 1)
                 self.assertNotIn(['/usr/bin/busctl', 'ListInhibitors'], self.calls)
                 self.assertFalse(any(c[-1] == 'labwc-session-state@prepare.service' for c in self.calls))
@@ -152,7 +166,7 @@ class PowerWorkerTests(unittest.TestCase):
         self.assertFalse(any('--force' in c for c in self.calls))
 
     def test_prepare_failure_does_not_veto_power(self):
-        self.failure = lambda command: command[-2:] == ['stop', 'labwc-session.target']
+        self.failure = lambda command: command[-1] == 'app.slice' and 'stop' in command
         with contextlib.redirect_stderr(io.StringIO()):
             self.execute('poweroff')
         self.assertEqual(self.calls[-1], handoff_argv('poweroff'))
@@ -321,7 +335,7 @@ class SessionStateTests(unittest.TestCase):
                       mock.patch.object(worker, 'prepare_machine_shutdown'),
                       mock.patch.object(power, 'run', side_effect=handoff)):
                     worker.execute()
-                self.assertEqual(events, [(10, ('stop', 'labwc-session.target')),
+                self.assertEqual(events, [(10, ('stop', 'foot-server.socket', 'foot-server.service', 'app.slice')),
                                           (10, tuple(handoff_argv(action)))])
                 self.run.assert_called_once_with(['/usr/bin/wlrctl', 'toplevel', 'close'], timeout=5, accepted=(0, 1))
 

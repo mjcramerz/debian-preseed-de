@@ -1238,8 +1238,12 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
      grep -Fq 'if self.action not in {"reboot", "poweroff"}:' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
      grep -Fq 'run(["/usr/bin/systemctl", "--force", self.action],' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
      grep -Fq 'self.best_effort("external drives", self.prepare_external_drives)' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
+     grep -Fq 'self.require_shutdown_apps_stopped()' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
+     grep -Fq '"org.freedesktop.systemd1.Manager", "GetUnitProcesses", "s", "user.slice"' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
+     grep -Fqx 'EXTERNAL_DRIVES_WAIT_SECONDS = 15 * 60 + 10' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
      grep -Fqx 'SHUTDOWN_CLEANUP_SECONDS = 45' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
      grep -Fqx 'ExecStart=/usr/local/bin/labwc-external-drives --prepare-shutdown' /etc/systemd/system/labwc-external-drives-shutdown.service 2>/dev/null &&
+     grep -Fqx 'TimeoutStartSec=15min' /etc/systemd/system/labwc-external-drives-shutdown.service 2>/dev/null &&
      grep -Fqx 'AppArmorProfile=labwc-external-drives' /etc/systemd/system/labwc-external-drives-shutdown.service 2>/dev/null &&
      grep -Fqx 'PrivateMounts=no' /etc/systemd/system/labwc-external-drives-shutdown.service 2>/dev/null &&
      grep -Fqx 'DevicePolicy=closed' /etc/systemd/system/labwc-external-drives-shutdown.service 2>/dev/null &&

@@ -152,6 +152,7 @@ class ShutdownFlowTests(unittest.TestCase):
     def reset(self, action='poweroff', greeter=False):
         self.calls = []
         self.failure = None
+        self.application_records = []
         self.worker = self.power.Worker(1000, 'desktop', action, greeter=greeter)
 
     def mock_run(self, argv, **kwargs):
@@ -162,6 +163,11 @@ class ShutdownFlowTests(unittest.TestCase):
         self.assertNotIn('ListInhibitors', argv)
         if self.failure is not None and self.failure in argv:
             raise self.power.Error('injected failed cleanup')
+        if 'GetUnitProcesses' in argv:
+            return json.dumps({'type': 'a(sus)', 'data': [self.application_records]})
+        if argv[-2:] == ['start', self.power.EXTERNAL_DRIVES_UNIT]:
+            self.assertFalse(any('terminate-user' in command or 'greetd.service' in command
+                                 or 'user@1000.service' in command for command in self.calls))
         return ''
 
     def stop_index(self, name):
@@ -180,23 +186,28 @@ class ShutdownFlowTests(unittest.TestCase):
                     self.reset(action, greeter)
                     self.worker.execute()
                     indices = [self.stop_index(name) for name in (
-                        self.mounts[-1], 'nfs-server.service', 'nfs-idmapd.service', 'greetd.service')]
+                        self.mounts[-1], 'nfs-server.service', 'nfs-idmapd.service')]
+                    indices += [next(i for i, c in enumerate(self.calls) if 'GetUnitProcesses' in c),
+                                next(i for i, c in enumerate(self.calls)
+                                     if c[-2:] == ['start', self.power.EXTERNAL_DRIVES_UNIT])]
+                    indices += [self.stop_index('greetd.service')]
                     indices += [next(i for i, c in enumerate(self.calls) if 'terminate-user' in c)]
                     indices += [self.stop_index(name) for name in (
                         'zram-writebackd.service', 'zram-setup.service', 'swap-fallback.service')]
                     self.assertEqual(indices, sorted(set(indices)))
-                    self.assertEqual(set(self.calls[indices[0]][3:]), set(self.mounts))
+                    self.assertEqual(set(self.calls[self.stop_index(self.mounts[-1])][3:]), set(self.mounts))
                     self.assertIn(['/usr/bin/sync'], self.calls)
                     self.assert_handoff()
-                    close = ['start', 'labwc-session-state@close.service']
-                    requests = [c for c in self.calls if c[-2:] == close]
+                    save = ['start', f'labwc-session-state@{action}.service']
+                    requests = [c for c in self.calls if c[-2:] == save]
                     self.assertEqual(len(requests), 0 if greeter else 1)
 
     def test_each_failed_cleanup_still_submits_for_desktop_and_greeter(self):
         stages = (*self.mounts, 'nfs-server.service', 'nfs-idmapd.service',
-                  'greetd.service', 'terminate-user', self.power.EXTERNAL_DRIVES_UNIT,
+                  'greetd.service', 'terminate-user', 'GetUnitProcesses', self.power.EXTERNAL_DRIVES_UNIT,
                   'zram-writebackd.service', 'zram-setup.service', 'swap-fallback.service',
-                  '/usr/bin/sync', 'labwc-session-state@close.service')
+                  '/usr/bin/sync', 'labwc-session-state@poweroff.service',
+                  'labwc-session-state@reboot.service')
         for action in ('poweroff', 'reboot'):
             for greeter in (False, True):
                 for name in stages:
@@ -219,6 +230,32 @@ class ShutdownFlowTests(unittest.TestCase):
         self.assertEqual(starts, [['/usr/bin/systemctl', '--no-ask-password', 'start',
                                    self.power.EXTERNAL_DRIVES_UNIT]])
         self.assert_handoff()
+
+    def test_remaining_terminal_skips_removal_before_session_teardown_for_both_entrypoints(self):
+        for greeter in (False, True):
+            with self.subTest(greeter=greeter):
+                self.reset(greeter=greeter)
+                self.application_records = [[
+                    '/user.slice/user-1000.slice/user@1000.service/app.slice/foot.service',
+                    123, 'shell in /run/media/desktop/external']]
+                self.worker.execute()
+                self.assertFalse(any(c[-2:] == ['start', self.power.EXTERNAL_DRIVES_UNIT] for c in self.calls))
+                inventory = next(i for i, c in enumerate(self.calls) if 'GetUnitProcesses' in c)
+                self.assertLess(inventory, self.stop_index('greetd.service'))
+                self.assert_handoff()
+
+    def test_drive_wait_preserves_the_remaining_session_cleanup_budget(self):
+        now = [100.0]
+        self.worker.shutdown_deadline = 145
+        def prepare():
+            now[0] = 1000.0
+        with mock.patch.object(self.power.time, 'monotonic', side_effect=lambda: now[0]), \
+                mock.patch.object(self.worker, 'stop_network_sharing'), \
+                mock.patch.object(self.worker, 'prepare_external_drives', side_effect=prepare):
+            self.worker.prepare_machine_shutdown()
+        self.assertEqual(self.worker.shutdown_deadline, 1045)
+        self.assertTrue(any('terminate-user' in c for c in self.calls))
+        self.assertIn(['/usr/bin/sync'], self.calls)
 
 
 if __name__ == '__main__':
