@@ -175,6 +175,7 @@ profile grub-btrfs-refresh /usr/local/libexec/grub-btrfs-refresh flags=(attach_d
   /run/grub-btrfs-refresh.* rwkl,
   /run/lock/ rw,
   /run/lock/grub-btrfs-refresh.lock rwk,
+  /run/lock/timeshift-snapshot.lock rwk,
   /run/mount/ r,
   /run/mount/utab r,
   /run/timeshift/ r,
@@ -746,6 +747,16 @@ profile secure-boot-tool /usr/libexec/install-tools/secure-boot-tool flags=(atta
   /var/lib/tpm2-enrollment/** rwkl,
   /var/lib/shim-signed/{,**} rwkl,
   /var/lib/dkms/{,**} rwkl,
+  # mokutil inventory reads shim's merged runtime list. A confirmed reset
+  # removes MokNew and writes MokAuth; the prompt timeout is a separate variable.
+  # Keep firmware trust databases and unrelated EFI variables outside this grant.
+  /sys/firmware/efi/ r,
+  /sys/firmware/efi/mok-variables/ r,
+  /sys/firmware/efi/mok-variables/MokListRT r,
+  /sys/firmware/efi/efivars/ rw,
+  /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c r,
+  /sys/firmware/efi/efivars/MokListRT{,[0-9]*}-605dab50-e046-4300-abb6-3dd810dd8b23 r,
+  /sys/firmware/efi/efivars/{MokNew,MokAuth,MokTimeout}-605dab50-e046-4300-abb6-3dd810dd8b23 rw,
   /sys/{class,block,bus,devices}/** r,
   /usr/src/ r,
   /usr/src/** rwkl,

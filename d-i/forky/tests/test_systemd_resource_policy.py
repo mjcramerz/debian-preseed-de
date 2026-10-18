@@ -485,7 +485,7 @@ render_target_resource_asset unused /{relative} 0644
                             return dict(line.split('=', 1) for line in text.splitlines()
                                         if '=' in line and not line.lstrip().startswith('#'))
                         expected = settings(payload_read_text(fixture))
-                        expected['ForwardToSyslog'] = 'yes'  # single native imuxsock transport
+                        expected['ForwardToSyslog'] = 'no'  # readiness owner enables native imuxsock
                         expected['Seal'] = 'yes'
                         self.assertEqual(settings(actual), expected)
 

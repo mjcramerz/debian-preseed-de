@@ -83,5 +83,25 @@ late_command_require_class_policy_env
 late_command_load_runtime_env "$PREPKGSEL_CAPTURE_DUALBOOT"
 late_command_load_host_env
 
+# This command is needed before prepare-dkms can publish enrollment material.
+# pkgsel/include alone does not make it available to a pre-pkgsel hook.
+ensure_target_mok_inventory_command() {
+  if test_in_target test -x /usr/bin/mokutil; then
+    return 0
+  fi
+  run_in_target "install the required MOK inventory command before key preparation" \
+    /usr/bin/env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
+    /usr/bin/apt-get \
+      -o Acquire::Retries=5 \
+      -o Acquire::http::Timeout=45 \
+      -o Acquire::https::Timeout=45 \
+      -o Binary::apt::APT::Keep-Downloaded-Packages=false \
+      -o DPkg::Use-Pty=0 \
+      -y install --no-install-recommends --no-install-suggests mokutil || return $?
+  test_in_target test -x /usr/bin/mokutil || \
+    prepkgsel_fatal "mokutil is unavailable before the enrollment preparation boundary"
+}
+
+ensure_target_mok_inventory_command
 stage_target_secure_boot_runtime_assets
 run_installer_secure_boot_install_tool prepare-dkms

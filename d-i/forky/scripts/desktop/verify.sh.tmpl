@@ -419,6 +419,7 @@ for path in \
   /etc/apparmor/logprof.conf \
   /etc/audit/plugins.d/syslog.conf \
   /etc/systemd/journald.conf.d/10-storage.conf \
+  /etc/systemd/journald.conf.d/syslog.conf \
   /etc/rsyslog.conf \
   /etc/rsyslog.d/15-audit.conf \
   /etc/rsyslog.d/18-app-veth.conf \
@@ -438,10 +439,13 @@ for path in \
   /etc/rsyslog.d/44-components.conf \
   /etc/tmpfiles.d/59-log-layout.conf \
   /etc/systemd/system/rsyslog.service.d/20-log-layout.conf \
+  /etc/systemd/system/rsyslog.service.d/40-journal-forwarding.conf \
+  /etc/systemd/system/rsyslog-journal-forwarding.service \
   /etc/systemd/system/rsyslog.service.d/32-apps-socket.conf \
   /usr/local/libexec/rsyslog-app-run \
   /usr/local/libexec/rsyslog-app-socket \
   /usr/local/libexec/journal-check \
+  /usr/local/libexec/journal-forwarding \
   /usr/local/libexec/log-layout \
   /usr/local/libexec/rsyslog-size-rotate \
   /usr/local/libexec/native-logging \

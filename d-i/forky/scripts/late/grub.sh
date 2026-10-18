@@ -547,40 +547,14 @@ ensure_installer_secure_boot_install_tool() {
 }
 
 run_installer_secure_boot_install_tool() {
-  secure_boot_delete_password=
-
   ensure_installer_secure_boot_install_tool
-  if [ "${1:-}" = reset-moks ]; then
-    case "${ACCOUNT_USERNAME:-}" in
-      ''|*[![:print:]]*|*[[:space:]]*)
-        installer_fatal "ACCOUNT_USERNAME must be a single printable token before Secure Boot MOK deletion"
-        ;;
-      *) secure_boot_delete_password=$ACCOUNT_USERNAME ;;
-    esac
-  fi
-
+  # The root-owned target configuration already supplies ACCOUNT_USERNAME.
+  # Resolve a reset password only after inventory proves a reset is needed.
   if command -v chroot >/dev/null 2>&1; then
-    if [ -n "$secure_boot_delete_password" ]; then
-      env \
-        SECURE_BOOT_HOST_MOUNT_PREFIX="$INSTALLER_SECURE_BOOT_TARGET_ROOT" \
-        SECURE_BOOT_MOK_DELETE_PASSWORD="$secure_boot_delete_password" \
-        chroot "$INSTALLER_SECURE_BOOT_TARGET_ROOT" "$INSTALLER_SECURE_BOOT_TARGET_TOOL" "$@"
-      return
-    fi
-
     env SECURE_BOOT_HOST_MOUNT_PREFIX="$INSTALLER_SECURE_BOOT_TARGET_ROOT" \
       chroot "$INSTALLER_SECURE_BOOT_TARGET_ROOT" "$INSTALLER_SECURE_BOOT_TARGET_TOOL" "$@"
     return
   fi
-
-  if [ -n "$secure_boot_delete_password" ]; then
-    in-target /usr/bin/env \
-      SECURE_BOOT_HOST_MOUNT_PREFIX="$INSTALLER_SECURE_BOOT_TARGET_ROOT" \
-      SECURE_BOOT_MOK_DELETE_PASSWORD="$secure_boot_delete_password" \
-      "$INSTALLER_SECURE_BOOT_TARGET_TOOL" "$@"
-    return
-  fi
-
   in-target /usr/bin/env SECURE_BOOT_HOST_MOUNT_PREFIX="$INSTALLER_SECURE_BOOT_TARGET_ROOT" \
     "$INSTALLER_SECURE_BOOT_TARGET_TOOL" "$@"
 }
@@ -1075,6 +1049,9 @@ mark_secure_boot_packages_stage_complete() {
 stage_target_secure_boot_runtime_assets() {
   ensure_target_secure_boot_state_mount
   write_target_secure_boot_payloads
+  # The shared pre-pkgsel and late routes run this before prepare/prepare-dkms
+  # can create or copy a certificate for enrollment. Do not retry uncertain EFI writes.
+  reset_target_secure_boot_mok_state || :
   remove_target_secure_boot_crypttab_entry
   install_target_secure_boot_kernel_hooks
 }
@@ -1659,13 +1636,40 @@ ensure_target_secure_boot_packages() {
 }
 
 reset_target_secure_boot_mok_state() {
-  # Confine explicit exits in bridge/preflight helpers to this best-effort
-  # operation. A failed reset must never abort the remaining installation.
-  if ! ( reset_target_secure_boot_mok_state_attempt ); then
-    installer_warn "Secure Boot MOK reset request could not be confirmed; continuing install (a firmware request may already be pending)"
-    return 1
+  installer_lifecycle_paths || return 1
+  mok_state_dir=$(installer_runtime_state_dir) || return 1
+  mok_state_file=$mok_state_dir/secure-boot-mok-reset.state
+  if [ ! -e "$mok_state_file" ] && [ ! -L "$mok_state_file" ]; then
+    # Claim once before touching firmware. An interrupted/uncertain operation
+    # stays unknown across pre-pkgsel and late-command processes.
+    (umask 077; set -C; printf 'unknown\n' >"$mok_state_file") || return 1
+    mok_reset_outcome=unknown
+    if mok_reset_output=$(reset_target_secure_boot_mok_state_attempt); then
+      case "$mok_reset_output" in empty|queued) mok_reset_outcome=$mok_reset_output ;;
+        *) installer_warn "unexpected MOK reset result; outcome remains unknown" ;;
+      esac
+    fi
+    mok_state_tmp=$(mktemp "$mok_state_dir/.mok-reset.XXXXXX") || return 1
+    if ! printf '%s\n' "$mok_reset_outcome" >"$mok_state_tmp" ||
+       ! chmod 0600 "$mok_state_tmp" || ! mv -fT -- "$mok_state_tmp" "$mok_state_file"; then
+      rm -f -- "$mok_state_tmp"
+      return 1
+    fi
   fi
-  return 0
+  [ -f "$mok_state_file" ] && [ ! -L "$mok_state_file" ] &&
+    [ "$(installer_metadata_value "$mok_state_file" uid_gid_mode_links)" = 0:0:600:1 ] &&
+    [ "$(wc -c <"$mok_state_file")" -le 8 ] || {
+    installer_warn "unsafe installer MOK reset state; refusing another firmware operation"
+    return 1
+  }
+  INSTALLER_SECURE_BOOT_MOK_RESET_STATE=$(cat "$mok_state_file") || return 1
+  # The command substitution above confines explicit bridge/preflight exits.
+  # Empty is successful and still permits first enrollment; unknown must not
+  # queue an automatic enrollment boot or repeat a possibly pending reset.
+  case "$INSTALLER_SECURE_BOOT_MOK_RESET_STATE" in
+    empty|queued) return 0 ;;
+    *) installer_warn "Secure Boot MOK reset outcome is unknown; continuing install without retrying the firmware request"; return 1 ;;
+  esac
 }
 
 sign_target_installed_kernel_modules() {

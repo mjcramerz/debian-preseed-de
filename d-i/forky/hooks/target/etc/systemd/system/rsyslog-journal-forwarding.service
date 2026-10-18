@@ -1,0 +1,25 @@
+[Unit]
+Description=Forward journal messages while rsyslog is ready
+BindsTo=rsyslog.service
+PartOf=rsyslog.service
+# Sealing checks the same policy during setup; finish that reader before
+# publishing the runtime switch. After does not pull in an absent sealing unit.
+After=rsyslog.service systemd-journald.service journal-sealing.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/libexec/journal-forwarding on
+# Stop ordering keeps the receiver alive until forwarding has been disabled.
+# ExecStopPost also handles an interrupted or failed activation.
+ExecStopPost=/usr/local/libexec/journal-forwarding off
+TimeoutStartSec=45s
+TimeoutStopSec=30s
+UMask=0077
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=full
+ProtectHome=yes
+RestrictAddressFamilies=AF_UNIX

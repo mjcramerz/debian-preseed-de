@@ -139,6 +139,85 @@ class DesktopRepairTests(unittest.TestCase):
         self.assertNotIn('@{HOME}/.config/systemd/user/**', profile)
 
 
+class TimeshiftStagingTests(unittest.TestCase):
+    @staticmethod
+    def function(source, name):
+        start = source.index(name + '() {\n')
+        return source[start:source.index('\n}\n', start) + 3]
+
+    @unittest.skipUnless(os.geteuid() == 0, 'module ownership requires disposable fixture root')
+    def test_failed_publication_cannot_reuse_an_older_valid_module(self):
+        source = (FORKY / 'scripts/late/btrfs-family.sh').read_text()
+        functions = '\n'.join(self.function(source, name) for name in (
+            'timeshift_managed_perl_modules', 'btrfs_stage_timeshift_managed_perl_modules'))
+        lifecycle = (FORKY / 'scripts/common/lifecycle.sh').read_text()
+        start = lifecycle.index('installer_metadata_value() (\n')
+        metadata = lifecycle[start:lifecycle.index('\n);\n', start) + 4]
+        with tempfile.TemporaryDirectory(prefix='timeshift-stage-') as temporary:
+            root = Path(temporary)
+            stale = root / 'target/usr/local/lib/perl5/site_perl/timeshift/TimeshiftManaged/Command.pm'
+            stale.parent.mkdir(parents=True)
+            stale.write_text('previous valid publication\n'); stale.chmod(0o644)
+            script = metadata + functions + r'''
+target_asset_host_path() { printf '%s%s\n' "$INSTALLER_TARGET_DIR" "$1"; }
+installer_fatal() { printf '%s\n' "$*" >&2; exit 1; }
+target_asset_assert_no_unresolved_installer_placeholders() { return 0; }
+btrfs_stage_shared_target_asset() {
+  printf '%s\n' "$1" >>"$TRACE"
+  case "$1" in */Command.pm) return 73 ;; esac
+  destination=$INSTALLER_TARGET_DIR$2
+  mkdir -p "${destination%/*}" || return 1
+  printf '%s\n' 'new fixture publication' >"$destination" || return 1
+  chmod "$3" "$destination"
+}
+if btrfs_stage_timeshift_managed_perl_modules; then exit 0; else exit $?; fi
+'''
+            trace = root / 'trace'
+            result = subprocess.run(['/bin/sh', '-eu', '-c', script],
+                env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'HOME': temporary,
+                     'INSTALLER_TARGET_DIR': str(root / 'target'), 'TRACE': str(trace)},
+                capture_output=True, text=True, timeout=5)
+            self.assertEqual(result.returncode, 73, result.stderr)
+            self.assertEqual(stale.read_text(), 'previous valid publication\n')
+            self.assertEqual([Path(line).name for line in trace.read_text().splitlines()],
+                             ['CLI.pm', 'Command.pm'])
+
+    def test_configuration_stops_at_each_failed_boundary_before_later_work(self):
+        source = (FORKY / 'scripts/late/btrfs-family.sh').read_text()
+        configure = self.function(source, 'configure_target_timeshift')
+        stubs = r'''
+checkpoint() { printf '%s\n' "$1" >>"$TRACE"; [ "$1" != "$FAIL_POINT" ] || return 73; }
+target_has_btrfs_filesystems() { return 0; }
+fatal() { exit 99; }
+configure_target_timeshift_btrfs_layout() { checkpoint layout; }
+btrfs_render_shared_target_asset_with_placeholder_map() { checkpoint render; }
+btrfs_stage_timeshift_managed_perl_modules() { checkpoint modules; }
+btrfs_stage_shared_target_asset() { checkpoint "asset:$1"; }
+stage_target_systemd_unit_enabled() { checkpoint "enable:$1"; }
+'''
+        points = ('', 'layout', 'render', 'modules',
+                  'asset:etc/systemd/system/timeshift-weekly.timer',
+                  'enable:timeshift-weekly.timer')
+        for point in points:
+            with self.subTest(failure=point), tempfile.TemporaryDirectory(prefix='timeshift-config-') as temporary:
+                root = Path(temporary); trace = root / 'trace'
+                env = {'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'HOME': temporary,
+                       'TRACE': str(trace), 'FAIL_POINT': point, 'TIMESHIFT_ADDON_SELECTED': 'true'}
+                for name in re.findall(r'\$\{(FILE_[A-Z0-9_]+)\}', configure):
+                    env[name] = str(root / name)
+                script = stubs + configure + '\nif configure_target_timeshift; then exit 0; else exit $?; fi\n'
+                result = subprocess.run(['/bin/sh', '-eu', '-c', script], env=env,
+                                        capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 73 if point else 0, result.stderr)
+                steps = trace.read_text().splitlines()
+                if point:
+                    self.assertEqual(steps[-1], point)
+                    if not point.startswith('enable:'):
+                        self.assertFalse(any(step.startswith('enable:') for step in steps))
+                else:
+                    self.assertEqual(sum(step.startswith('enable:') for step in steps), 5)
+
+
 class RefreshUnitTests(unittest.TestCase):
     def unit(self, name):
         parser = configparser.ConfigParser(interpolation=None, strict=False)
@@ -158,7 +237,10 @@ class RefreshUnitTests(unittest.TestCase):
         self.assertEqual(timer['Unit'], 'grub-btrfs-refresh.service')
         for kind in ('daily', 'weekly', 'monthly'):
             job = self.unit('timeshift-' + kind + '.service')['Service']
-            self.assertEqual(job['ExecStartPost'], '/usr/bin/systemctl --no-block start grub-btrfs-refresh.service')
+            self.assertEqual(job['ExecStopPost'], '/usr/bin/systemctl --no-block start grub-btrfs-refresh.service')
+            self.assertNotIn('ExecStartPost', job)
+            self.assertEqual(job['TimeoutStopSec'], '30s')
+            self.assertEqual(job['KillMode'], 'control-group')
         stage = render_theme_defaults(payload_read_text(FORKY / 'scripts/late/btrfs-family.sh'))
         self.assertIn('etc/systemd/system/grub-btrfs-refresh.timer /etc/systemd/system/grub-btrfs-refresh.timer 0644', stage)
         self.assertIn('grub-btrfs-refresh.path \\\n    grub-btrfs-refresh.timer', stage)
@@ -263,7 +345,8 @@ my $root = $ENV{FIXTURE_ROOT};
 my $logger = FixtureLog->new();
 my $command = bless {}, 'FixtureCommand';
 my $g = TimeshiftManaged::GrubRefresh->new(logger=>$logger, command=>$command,
-    output_file=>"$root/menu.cfg", lock_file=>"$root/locks/menu.lock");
+    output_file=>"$root/menu.cfg", lock_file=>"$root/locks/menu.lock",
+    snapshot_lock_file=>"$root/locks/snapshot.lock");
 sub write_file { my ($path,$data)=@_; open my $f,'>',$path or die $!; print {$f} $data; close $f or die $!; }
 sub assert { die $_[1] unless $_[0]; }
 '''
@@ -338,6 +421,47 @@ my $lock=$snapshot->_acquire_lock(); assert($lock,'snapshot lock');
 assert(((stat("$root/locks"))[2]&07777)==01777,'changed shared directory permissions');
 ''')
 
+    def test_automatic_snapshots_are_not_pinned_against_native_retention(self):
+        self.perl(r'''
+for my $pair (['daily','D'],['weekly','W'],['monthly','M']) {
+ my $snapshot=TimeshiftManaged::Snapshot->new(binary=>'/usr/bin/true',event_owner_uid=>0,
+  event_owner_gid=>0,event_root=>$root,kind=>$pair->[0],lock_file=>"$root/locks/snapshot.lock",
+  lock_timeout_seconds=>1,logger=>$logger,command=>$command);
+ my @argv=$snapshot->_command_arguments();
+ assert(join('|',@argv) eq "/usr/bin/true|--create|--scripted|--yes|--quiet|--btrfs|--tags|$pair->[1]",
+  'automatic snapshot acquired a comment/ondemand pin or lost its schedule tag');
+}
+''')
+
+    def test_refresh_defers_under_the_actual_managed_snapshot_lock(self):
+        self.perl(r'''
+use TimeshiftManaged::Lock qw(acquire_lock);
+use Fcntl qw(F_GETFD FD_CLOEXEC);
+make_path("$root/locks");
+my $writer=acquire_lock("$root/locks/snapshot.lock",0);
+assert($writer,'writer lock');
+assert(fcntl($writer,F_GETFD,0)&FD_CLOEXEC,'lock descriptor can escape through exec');
+no warnings 'redefine';
+my @messages;
+local *FixtureLog::info=sub { push @messages,$_[1]; };
+local *TimeshiftManaged::GrubRefresh::_load_configurations=sub { die 'read moving snapshot state'; };
+assert($g->run()==0,'refresh did not defer');
+assert(!-e "$root/menu.cfg",'published a menu while mutation was active');
+assert(grep(/deferring/,@messages),'missing deferral diagnostic');
+assert(!grep(/refreshed GRUB/,@messages),'deferred work was reported as a refresh');
+close $writer;
+my $reader=acquire_lock("$root/locks/snapshot.lock",0);
+assert($reader,'released writer lock remained busy');
+''')
+
+    def test_shared_lock_rejects_writable_nonsticky_parent(self):
+        self.perl(r'''
+use TimeshiftManaged::Lock qw(acquire_lock);
+make_path("$root/unsafe"); chmod 0777,"$root/unsafe";
+assert(!eval { acquire_lock("$root/unsafe/snapshot.lock",0);1 },'untrusted parent accepted');
+assert(!-e "$root/unsafe/snapshot.lock",'created a lock below untrusted parent');
+''')
+
     def test_metadata_is_bounded_regular_sanitized_and_not_a_grub_program(self):
         self.perl(r'''
 make_path("$root/snapshot");
@@ -347,6 +471,14 @@ assert($tag eq 'daily','untrusted tag survived'); assert($comment eq 'hello worl
 unlink "$root/snapshot/info.json";
 symlink "$root/checker","$root/snapshot/info.json";
 ($tag,$comment)=$g->_snapshot_metadata("$root/snapshot"); assert(!defined($tag),'accepted symlink metadata');
+''')
+
+    def test_metadata_accepts_native_tag_names_and_deduplicates_aliases(self):
+        self.perl(r'''
+make_path("$root/snapshot");
+write_file("$root/snapshot/info.json",encode_json({tags=>'daily D weekly W monthly M',comments=>''}));
+my ($tag,$comment)=$g->_snapshot_metadata("$root/snapshot");
+assert($tag eq 'daily, weekly, monthly','native metadata tags were lost or duplicated');
 ''')
 
     def test_atomic_publish_cleans_failure_and_does_not_rewrite_unchanged_menu(self):

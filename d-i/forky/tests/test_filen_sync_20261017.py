@@ -129,6 +129,85 @@ print encode_json([map { $messages->{encode('UTF-8', $_)} // q{} } @{$input->{ro
             'authentication', 'remote-directory', '', '', ''])
 
 
+@unittest.skipUnless(os.geteuid() == 0, 'credential ownership fixtures require disposable-image root')
+class CredentialLayoutTests(unittest.TestCase):
+    def test_systemd_acl_mask_is_accepted_only_for_fixed_service_credentials(self):
+        # Redirect only the fixed credential prefix into an owned fixture.
+        # No real /run credentials, account database, or service is accessed.
+        source = (SEED / 'hooks/target/usr/local/lib/perl5/site_perl/filen/FilenSync/Config.pm').read_text()
+        code = r'''
+use FilenSync::Config;
+my ($path, $private) = @ARGV;
+my $config = FilenSync::Config->new(account => 'private');
+my $accepted = eval { $config->read_file($path, $private); 1 };
+print $accepted ? "accepted\n" : "rejected\n";
+'''
+        with tempfile.TemporaryDirectory(prefix='filen-credentials-') as temporary:
+            root = Path(temporary)
+            modules = root / 'modules/FilenSync'
+            modules.mkdir(parents=True)
+            (modules / 'Config.pm').write_text(source.replace('/run/credentials/filen-sync@', str(root / 'filen-sync@')))
+            credentials = root / 'filen-sync@private.service'
+            credentials.mkdir(mode=0o700)
+            secret = credentials / 'seed'
+            ordinary = root / 'ordinary'
+            ordinary.write_bytes(b'fixture')
+            for mode, private, fixed, expected in (
+                    (0o400, 1, True, 'accepted'), (0o600, 1, True, 'accepted'),
+                    (0o440, 1, True, 'accepted'), (0o640, 1, True, 'rejected'),
+                    (0o444, 1, True, 'rejected'), (0o460, 1, True, 'rejected'),
+                    (0o440, 1, False, 'rejected'), (0o444, 0, False, 'accepted')):
+                with self.subTest(mode=oct(mode), private=private, fixed=fixed):
+                    path = secret if fixed else ordinary
+                    if path.exists():
+                        path.chmod(0o600)
+                    path.write_bytes(b'fixture')
+                    path.chmod(mode)
+                    result = subprocess.run(['/usr/bin/perl', '-T', '-I' + str(modules.parent), '-e', code,
+                        str(path), str(private)], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                        env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C.UTF-8', 'HOME': str(root)}, timeout=10)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout, expected + '\n')
+            secret.chmod(0o440)
+            os.link(secret, root / 'extra-link')
+            result = subprocess.run(['/usr/bin/perl', '-T', '-I' + str(modules.parent), '-e', code,
+                str(secret), '1'], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C.UTF-8', 'HOME': str(root)}, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, 'rejected\n')
+
+    def test_credential_directory_rejects_other_access_before_reading_secrets(self):
+        source = (SEED / 'hooks/target/usr/local/lib/perl5/site_perl/filen/FilenSync/Config.pm').read_text()
+        code = r'''
+use FilenSync::Config;
+my $config = FilenSync::Config->new(account => 'private');
+my $accepted = eval { $config->credentials; 1 };
+print $accepted ? "accepted\n" : "rejected\n";
+'''
+        with tempfile.TemporaryDirectory(prefix='filen-credentials-') as temporary:
+            root = Path(temporary)
+            modules = root / 'modules/FilenSync'
+            modules.mkdir(parents=True)
+            (modules / 'Config.pm').write_text(source.replace('/run/credentials/filen-sync@', str(root / 'filen-sync@')))
+            credentials = root / 'filen-sync@private.service'
+            credentials.mkdir(mode=0o750)
+            for name, value in (('email', b'fixture@example.invalid'), ('password', b'fixture-secret'),
+                                ('seed', b'JBSWY3DPEHPK3PXP')):
+                path = credentials / name
+                path.write_bytes(value)
+                path.chmod(0o440)
+            for mode, expected in ((0o750, 'accepted'), (0o700, 'accepted'),
+                                   (0o755, 'rejected'), (0o770, 'rejected')):
+                with self.subTest(mode=oct(mode)):
+                    credentials.chmod(mode)
+                    result = subprocess.run(['/usr/bin/perl', '-T', '-I' + str(modules.parent), '-e', code],
+                        text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                        env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C.UTF-8', 'HOME': str(root),
+                             'CREDENTIALS_DIRECTORY': str(credentials)}, timeout=10)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout, expected + '\n')
+
+
 @unittest.skipUnless(os.geteuid() == 0, 'private publication fixtures require disposable-image root')
 class PublicationTests(unittest.TestCase):
     def test_private_umask_keeps_public_parents_traversable_and_private_parents_private(self):

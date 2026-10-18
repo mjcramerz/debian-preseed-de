@@ -397,6 +397,35 @@ write_target_fstab_records() (
 # before the final /var/log mount setup. Class helpers and rsyslog preflight
 # existing paths immediately before their own tmpfiles invocation.
 stage_target_logging_foundation() {
+  # Journald starts with forwarding off in every storage profile. Publish the
+  # complete readiness owner before any selected class can enable rsyslog.
+  # Debian's unnumbered vendor syslog.conf sorts after both numbered policies.
+  # Replace that basename locally without assigning a competing runtime value.
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/journald.conf.d/syslog.conf)" \
+    /etc/systemd/journald.conf.d/syslog.conf 0644 || return $?
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/journal-check)" \
+    /usr/local/libexec/journal-check 0755 || return $?
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/journal-forwarding)" \
+    /usr/local/libexec/journal-forwarding 0755 || return $?
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/rsyslog-journal-forwarding.service)" \
+    /etc/systemd/system/rsyslog-journal-forwarding.service 0644 || return $?
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/rsyslog.service.d/40-journal-forwarding.conf)" \
+    /etc/systemd/system/rsyslog.service.d/40-journal-forwarding.conf 0644 || return $?
+  for forwarding_asset in \
+    etc/systemd/journald.conf.d/syslog.conf \
+    usr/local/libexec/journal-check \
+    usr/local/libexec/journal-forwarding \
+    etc/systemd/system/rsyslog-journal-forwarding.service \
+    etc/systemd/system/rsyslog.service.d/40-journal-forwarding.conf
+  do
+    forwarding_path=$(target_asset_host_path "/$forwarding_asset") || return $?
+    case "$forwarding_asset" in usr/local/libexec/*) forwarding_mode=755 ;; *) forwarding_mode=644 ;; esac
+    [ -f "$forwarding_path" ] && [ ! -L "$forwarding_path" ] &&
+      [ "$(installer_metadata_value "$forwarding_path" uid_gid_mode_links)" = "0:0:$forwarding_mode:1" ] || {
+      installer_fatal "unsafe staged journal forwarding asset: $forwarding_asset"; return 1;
+    }
+    target_asset_assert_no_unresolved_installer_placeholders "$forwarding_path" "$forwarding_asset" || return $?
+  done
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/tmpfiles.d/59-log-layout.conf)" \
     /etc/tmpfiles.d/59-log-layout.conf 0644 || return $?
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/tmpfiles.d/65-audit-syslog.conf)" \

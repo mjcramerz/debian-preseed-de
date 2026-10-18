@@ -264,11 +264,11 @@ class LoggingWiringTests(unittest.TestCase):
 
     def test_both_journal_validators_agree_with_input_transport(self):
         native = read_text(TARGET / 'etc/systemd/journald.conf.d/10-storage.conf')
-        self.assertIn('ForwardToSyslog=yes', native)
+        self.assertIn('ForwardToSyslog=no', native)
         self.assertIn('ReadKMsg=no', native)
         shell = (SEED / 'scripts/late/storage-maintenance.sh').read_text()
-        self.assertIn("'ForwardToSyslog=yes'", shell)
-        self.assertNotIn("'ForwardToSyslog=no'", shell)
+        self.assertIn("'ForwardToSyslog=no'", shell)
+        self.assertNotIn("'ForwardToSyslog=yes'", shell)
         route = read_text(TARGET / 'etc/rsyslog.d/15-audit.conf')
         self.assertIn('$!uid == "0"', route)
         self.assertIn('$!exe == "/usr/sbin/audisp-syslog"', route)
@@ -288,35 +288,88 @@ class LoggingWiringTests(unittest.TestCase):
             self.assertIn('preflight shared logging paths before ' + label + ' tmpfiles', text)
             self.assertIn('/usr/local/libexec/log-layout --preflight || return $?', text)
 
+    @unittest.skipUnless(os.geteuid() == 0, 'staging ownership requires disposable fixture root')
     def test_foundation_stager_uses_exact_assets_and_propagates_failures(self):
         source = shlex.quote(str(SEED / 'scripts/late/target-assets.sh'))
+        lifecycle = shlex.quote(str(SEED / 'scripts/common/lifecycle.sh'))
         with tempfile.TemporaryDirectory() as tmp:
-            trace = Path(tmp) / 'trace'
+            root = Path(tmp)
+            bindir = root / 'bin'; bindir.mkdir()
+            # Only these image utilities are visible. In particular, no stat,
+            # target helper, systemd manager or package command is available.
+            for name in ('awk', 'chmod', 'chown', 'ln', 'ls', 'mkdir', 'mv', 'rm'):
+                command = shutil.which(name, path='/usr/bin:/bin')
+                self.assertIsNotNone(command, f'disposable image lacks {name}')
+                (bindir / name).symlink_to(command)
+            home = root / 'home'; home.mkdir(mode=0o700)
             destinations = (
+                '/etc/systemd/journald.conf.d/syslog.conf',
+                '/usr/local/libexec/journal-check',
+                '/usr/local/libexec/journal-forwarding',
+                '/etc/systemd/system/rsyslog-journal-forwarding.service',
+                '/etc/systemd/system/rsyslog.service.d/40-journal-forwarding.conf',
                 '/etc/tmpfiles.d/59-log-layout.conf',
                 '/etc/tmpfiles.d/65-audit-syslog.conf',
                 '/usr/local/libexec/log-layout',
                 '/usr/local/libexec/rsyslog-size-rotate',
                 '/etc/rsyslog.conf',
             )
-            for failure in ('', *destinations):
-                code = f'''. {source}
+            unsafe_cases = ('mode', 'special-mode', 'uid', 'gid', 'hardlink',
+                            'symlink', 'missing', 'ls-error', 'awk-error', 'token')
+            cases = [('', failure) for failure in ('', *destinations)]
+            cases.extend((unsafe, '') for unsafe in unsafe_cases)
+            for index, (unsafe, failure) in enumerate(cases):
+                work = root / str(index); work.mkdir()
+                trace = work / 'trace'
+                target = work / 'target with spaces'; target.mkdir()
+                code = f'''. {lifecycle}
+. {source}
 installer_repo_join_var() {{ shift; printf '%s\\n' "$*"; }}
+installer_fatal() {{ printf '%s\\n' "$*" >&2; return 1; }}
+target_asset_assert_no_unresolved_installer_placeholders() {{
+  [ "$UNSAFE:$2" != token:usr/local/libexec/journal-check ] || return 74
+}}
+if [ "$UNSAFE" = ls-error ]; then ls() {{ return 91; }}; fi
+if [ "$UNSAFE" = awk-error ]; then awk() {{ return 92; }}; fi
 stage_target_asset() {{
   printf '%s|%s|%s\\n' "$1" "$2" "$3" >> "$TRACE"
   [ "$2" != "$FAIL" ] || return 73
+  staged=$INSTALLER_TARGET_DIR$2
+  mkdir -p "${{staged%/*}}" || return 1
+  printf '%s\\n' fixture >"$staged" || return 1
+  chmod "$3" "$staged" || return 1
+  if [ "$2" = /usr/local/libexec/journal-check ]; then
+    case "$UNSAFE" in
+      mode) chmod 0777 "$staged" ;;
+      special-mode) chmod 4755 "$staged" ;;
+      uid) chown 65534:0 "$staged" ;;
+      gid) chown 0:65534 "$staged" ;;
+      hardlink) ln "$staged" "$staged.alias" ;;
+      symlink) mv "$staged" "$staged.original"; ln -s "$staged.original" "$staged" ;;
+      missing) rm "$staged" ;;
+    esac
+  fi
+  return 0
 }}
 if stage_target_logging_foundation; then exit 0; else exit $?; fi
 '''
                 result = subprocess.run(['/bin/sh', '-eu', '-c', code],
-                    env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'TRACE': str(trace), 'FAIL': failure},
-                    capture_output=True, timeout=10)
-                self.assertEqual(result.returncode, 73 if failure else 0)
+                    env={'PATH': str(bindir), 'HOME': str(home), 'TMPDIR': tmp,
+                         'LC_ALL': 'C', 'TRACE': str(trace), 'FAIL': failure,
+                         'UNSAFE': unsafe, 'INSTALLER_TARGET_DIR': str(target)},
+                    text=True, capture_output=True, timeout=10)
+                expected = 73 if failure else 74 if unsafe == 'token' else 1 if unsafe else 0
+                self.assertEqual(result.returncode, expected, result.stderr)
                 entries = trace.read_text().splitlines()
-                self.assertEqual(len(entries), destinations.index(failure) + 1 if failure else len(destinations))
+                count = destinations.index(failure) + 1 if failure else 5 if unsafe else len(destinations)
+                self.assertEqual(len(entries), count)
                 self.assertEqual(tuple(entry.split('|')[1] for entry in entries), destinations[:len(entries)])
-                self.assertEqual(entries[0], 'etc/tmpfiles.d/59-log-layout.conf|/etc/tmpfiles.d/59-log-layout.conf|0644')
-                trace.unlink()
+                for entry in entries:
+                    asset, destination, mode = entry.split('|')
+                    self.assertEqual(asset, destination.lstrip('/'))
+                    self.assertEqual(mode, '0755' if destination.startswith('/usr/local/libexec/') else '0644')
+                if unsafe and unsafe != 'token':
+                    self.assertIn('unsafe staged journal forwarding asset:', result.stderr)
 
     def test_informational_paths_follow_the_actual_system_collector(self):
         for helper in ('tailscale', 'crowdsec'):

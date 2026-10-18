@@ -525,6 +525,7 @@ TimeshiftManaged/Config.pm
 TimeshiftManaged/EventQueue.pm
 TimeshiftManaged/GrubRefresh.pm
 TimeshiftManaged/Logger.pm
+TimeshiftManaged/Lock.pm
 TimeshiftManaged/Snapshot.pm
 EOF
 }
@@ -536,7 +537,13 @@ btrfs_stage_timeshift_managed_perl_modules() {
       btrfs_stage_shared_target_asset \
         "usr/local/lib/perl5/site_perl/timeshift/${timeshift_module}" \
         "/usr/local/lib/perl5/site_perl/timeshift/${timeshift_module}" \
-        0644
+        0644 || return $?
+      timeshift_module_path=$(target_asset_host_path "/usr/local/lib/perl5/site_perl/timeshift/${timeshift_module}") || return 1
+      [ -f "$timeshift_module_path" ] && [ ! -L "$timeshift_module_path" ] &&
+        [ "$(installer_metadata_value "$timeshift_module_path" uid_gid_mode_links)" = 0:0:644:1 ] || {
+        installer_fatal "unsafe staged Timeshift module: $timeshift_module"; return 1;
+      }
+      target_asset_assert_no_unresolved_installer_placeholders "$timeshift_module_path" "$timeshift_module" || return 1
     done
 }
 
@@ -555,33 +562,35 @@ configure_target_timeshift() {
     return 0
   fi
   target_has_btrfs_filesystems || fatal "addon/timeshift requires a Btrfs-root target"
-  configure_target_timeshift_btrfs_layout
+  configure_target_timeshift_btrfs_layout || return $?
 
   btrfs_render_shared_target_asset_with_placeholder_map \
     etc/timeshift/timeshift.json.tmpl \
     "${FILE_TIMESHIFT_CONFIG}" \
     0600 \
-    timeshift_placeholder_map
+    timeshift_placeholder_map || return $?
 
-  btrfs_stage_shared_target_asset etc/default/grub-btrfs/config.tmpl "${FILE_GRUB_BTRFS_CONFIG}" 0644
-  btrfs_stage_timeshift_managed_perl_modules
-  btrfs_stage_shared_target_asset usr/local/libexec/timeshift-snapshot "${FILE_TIMESHIFT_SNAPSHOT_HELPER}" 0755
-  btrfs_stage_shared_target_asset usr/local/libexec/timeshift/notify-send "${FILE_TIMESHIFT_NOTIFY_SHIM}" 0755
-  btrfs_stage_shared_target_asset etc/timeshift/backup-hooks.d/90-grub-btrfs-refresh "${FILE_TIMESHIFT_GRUB_REFRESH_HOOK}" 0755
-  btrfs_stage_shared_target_asset usr/local/libexec/grub-btrfs-refresh "${FILE_GRUB_BTRFS_REFRESH_HELPER}" 0755
-  btrfs_stage_shared_target_asset etc/rsyslog.d/38-timeshift.conf /etc/rsyslog.d/38-timeshift.conf 0644
-  btrfs_stage_shared_target_asset etc/logrotate.d/timeshift /etc/logrotate.d/timeshift 0644
-  btrfs_stage_shared_target_asset etc/tmpfiles.d/61-timeshift.conf /etc/tmpfiles.d/61-timeshift.conf 0644
-  btrfs_stage_shared_target_asset etc/systemd/system/timeshift-daily.service "${FILE_TIMESHIFT_DAILY_SERVICE}" 0644
-  btrfs_stage_shared_target_asset etc/systemd/system/timeshift-daily.timer "${FILE_TIMESHIFT_DAILY_TIMER}" 0644
-  btrfs_stage_shared_target_asset etc/systemd/system/timeshift-weekly.service "${FILE_TIMESHIFT_WEEKLY_SERVICE}" 0644
-  btrfs_stage_shared_target_asset etc/systemd/system/timeshift-weekly.timer "${FILE_TIMESHIFT_WEEKLY_TIMER}" 0644
-  btrfs_stage_shared_target_asset etc/systemd/system/timeshift-monthly.service "${FILE_TIMESHIFT_MONTHLY_SERVICE}" 0644
-  btrfs_stage_shared_target_asset etc/systemd/system/timeshift-monthly.timer "${FILE_TIMESHIFT_MONTHLY_TIMER}" 0644
-  btrfs_stage_shared_target_asset etc/systemd/system/timeshift-.service.d/60-resource-class.conf /etc/systemd/system/timeshift-.service.d/60-resource-class.conf 0644
-  btrfs_stage_shared_target_asset etc/systemd/system/grub-btrfs-refresh.service "${FILE_GRUB_BTRFS_REFRESH_SERVICE}" 0644
-  btrfs_stage_shared_target_asset etc/systemd/system/grub-btrfs-refresh.path "${FILE_GRUB_BTRFS_REFRESH_PATH}" 0644
-  btrfs_stage_shared_target_asset etc/systemd/system/grub-btrfs-refresh.timer /etc/systemd/system/grub-btrfs-refresh.timer 0644
+  # A conditional caller suppresses errexit inside functions. Preserve every
+  # publication failure explicitly before any consumer can be enabled.
+  btrfs_stage_shared_target_asset etc/default/grub-btrfs/config.tmpl "${FILE_GRUB_BTRFS_CONFIG}" 0644 || return $?
+  btrfs_stage_timeshift_managed_perl_modules || return $?
+  btrfs_stage_shared_target_asset usr/local/libexec/timeshift-snapshot "${FILE_TIMESHIFT_SNAPSHOT_HELPER}" 0755 || return $?
+  btrfs_stage_shared_target_asset usr/local/libexec/timeshift/notify-send "${FILE_TIMESHIFT_NOTIFY_SHIM}" 0755 || return $?
+  btrfs_stage_shared_target_asset etc/timeshift/backup-hooks.d/90-grub-btrfs-refresh "${FILE_TIMESHIFT_GRUB_REFRESH_HOOK}" 0755 || return $?
+  btrfs_stage_shared_target_asset usr/local/libexec/grub-btrfs-refresh "${FILE_GRUB_BTRFS_REFRESH_HELPER}" 0755 || return $?
+  btrfs_stage_shared_target_asset etc/rsyslog.d/38-timeshift.conf /etc/rsyslog.d/38-timeshift.conf 0644 || return $?
+  btrfs_stage_shared_target_asset etc/logrotate.d/timeshift /etc/logrotate.d/timeshift 0644 || return $?
+  btrfs_stage_shared_target_asset etc/tmpfiles.d/61-timeshift.conf /etc/tmpfiles.d/61-timeshift.conf 0644 || return $?
+  btrfs_stage_shared_target_asset etc/systemd/system/timeshift-daily.service "${FILE_TIMESHIFT_DAILY_SERVICE}" 0644 || return $?
+  btrfs_stage_shared_target_asset etc/systemd/system/timeshift-daily.timer "${FILE_TIMESHIFT_DAILY_TIMER}" 0644 || return $?
+  btrfs_stage_shared_target_asset etc/systemd/system/timeshift-weekly.service "${FILE_TIMESHIFT_WEEKLY_SERVICE}" 0644 || return $?
+  btrfs_stage_shared_target_asset etc/systemd/system/timeshift-weekly.timer "${FILE_TIMESHIFT_WEEKLY_TIMER}" 0644 || return $?
+  btrfs_stage_shared_target_asset etc/systemd/system/timeshift-monthly.service "${FILE_TIMESHIFT_MONTHLY_SERVICE}" 0644 || return $?
+  btrfs_stage_shared_target_asset etc/systemd/system/timeshift-monthly.timer "${FILE_TIMESHIFT_MONTHLY_TIMER}" 0644 || return $?
+  btrfs_stage_shared_target_asset etc/systemd/system/timeshift-.service.d/60-resource-class.conf /etc/systemd/system/timeshift-.service.d/60-resource-class.conf 0644 || return $?
+  btrfs_stage_shared_target_asset etc/systemd/system/grub-btrfs-refresh.service "${FILE_GRUB_BTRFS_REFRESH_SERVICE}" 0644 || return $?
+  btrfs_stage_shared_target_asset etc/systemd/system/grub-btrfs-refresh.path "${FILE_GRUB_BTRFS_REFRESH_PATH}" 0644 || return $?
+  btrfs_stage_shared_target_asset etc/systemd/system/grub-btrfs-refresh.timer /etc/systemd/system/grub-btrfs-refresh.timer 0644 || return $?
 
   for unit in \
     timeshift-daily.timer \
@@ -590,7 +599,7 @@ configure_target_timeshift() {
     grub-btrfs-refresh.path \
     grub-btrfs-refresh.timer
   do
-    stage_target_systemd_unit_enabled "$unit" system
+    stage_target_systemd_unit_enabled "$unit" system || return $?
   done
 }
 
@@ -706,7 +715,7 @@ install_target_wpa_supplicant_runtime_policy
 configure_target_smartmontools_defaults
 ensure_target_secure_boot_packages
 configure_target_btrfsmaintenance
-configure_target_timeshift
+configure_target_timeshift || return $?
 provision_target_ssh_server
 install_target_managed_network_handoff
 configure_target_apparmor_auditd

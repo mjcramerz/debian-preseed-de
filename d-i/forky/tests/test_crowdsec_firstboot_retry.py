@@ -49,8 +49,11 @@ bootstrap_processes_exited() { return "$FIXTURE_STATUS"; }
         self.assertIn('RestartForceExitStatus=75\n', SECONDBOOT_UNIT)
         self.assertIn('RestartMode=direct\n', SECONDBOOT_UNIT)
         self.assertIn('RestartSec=5s\n', SECONDBOOT_UNIT)
-        # A oneshot success status would suppress RestartForceExitStatus.
-        self.assertNotIn('SuccessExitStatus=', SECONDBOOT_UNIT)
+        # Busy deferral remains retryable without reporting a cleanup failure.
+        # Type=exec is required: oneshot suppresses successful-status restarts.
+        self.assertIn('Type=exec\n', SECONDBOOT_UNIT)
+        self.assertIn('SuccessExitStatus=75\n', SECONDBOOT_UNIT)
+        self.assertIn('RuntimeMaxSec=5min\n', SECONDBOOT_UNIT)
         for label, shell in SHELLS:
             for status, expected in ((0, 0), (1, 75), (2, 1)):
                 with self.subTest(shell=label, status=status):

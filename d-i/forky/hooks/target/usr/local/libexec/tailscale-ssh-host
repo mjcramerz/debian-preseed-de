@@ -8,6 +8,7 @@ account selection, environment filtering and PAM stay in the native SSH path.
 import fcntl
 import os
 from pathlib import Path
+import re
 import stat
 import sys
 
@@ -24,8 +25,17 @@ def main() -> None:
         info = root.lstat()
         if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or stat.S_IMODE(info.st_mode) != 0o700:
             raise RuntimeError('untrusted SSH namespace directory')
-        for name, kind in (('host.net', os.CLONE_NEWNET), ('host.mnt', os.CLONE_NEWNS)):
-            fd = os.open(root / name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        identity_fd = os.open(root / 'host.mnt', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+        with os.fdopen(identity_fd, 'rb') as stream:
+            metadata = os.fstat(stream.fileno())
+            if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_gid != 0
+                    or metadata.st_nlink != 1 or stat.S_IMODE(metadata.st_mode) != 0o600):
+                raise RuntimeError('untrusted host mount namespace identity')
+            identity = stream.read(129)
+        if not re.fullmatch(rb'[0-9]+:[1-9][0-9]*\n', identity):
+            raise RuntimeError('invalid host mount namespace identity')
+        for path, kind in ((root / 'host.net', os.CLONE_NEWNET), (Path('/proc/1/ns/mnt'), os.CLONE_NEWNS)):
+            fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | (os.O_NOFOLLOW if kind == os.CLONE_NEWNET else 0))
             descriptors.append(fd)
             if fcntl.ioctl(fd, 0xb703) != kind:
                 raise RuntimeError('incorrect SSH namespace handle')
@@ -33,15 +43,11 @@ def main() -> None:
         # PID 1 is the fixed host init (the daemon keeps the host PID namespace).
         # Pin its root before changing namespaces, and reject a changed init
         # mount namespace before following the root handle.
-        current = os.open('/proc/1/ns/mnt', os.O_RDONLY | os.O_CLOEXEC)
-        try:
-            if ((os.fstat(current).st_dev, os.fstat(current).st_ino)
-                    != (os.fstat(descriptors[1]).st_dev, os.fstat(descriptors[1]).st_ino)):
-                raise RuntimeError('host init mount namespace changed')
-            host_root = os.open('/proc/1/root', os.O_PATH | os.O_DIRECTORY | os.O_CLOEXEC)
-            descriptors.append(host_root)
-        finally:
-            os.close(current)
+        current = os.fstat(descriptors[1])
+        if identity != f'{current.st_dev}:{current.st_ino}\n'.encode('ascii'):
+            raise RuntimeError('host init mount namespace changed')
+        host_root = os.open('/proc/1/root', os.O_PATH | os.O_DIRECTORY | os.O_CLOEXEC)
+        descriptors.append(host_root)
         root_info = os.fstat(host_root)
         if not stat.S_ISDIR(root_info.st_mode) or root_info.st_uid != 0 or root_info.st_mode & 0o022:
             raise RuntimeError('untrusted host root descriptor')

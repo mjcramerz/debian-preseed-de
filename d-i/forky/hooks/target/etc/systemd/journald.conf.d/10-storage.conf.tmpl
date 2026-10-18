@@ -1,8 +1,11 @@
 # Managed journal policy. Rendered from the selected installation profile.
 # Storage changes only the journal backend, never partitioning, mounts, or old
 # /var/log/journal data. The same owned file is replaced atomically on reruns.
-# Rsyslog consumes the local socket once. Keep system diagnostics in the
-# journal; application volume must be controlled at its own logging source.
+# Rsyslog consumes the local socket once, after its readiness notification.
+# Early boot and collector downtime remain journal-only, without socket replay.
+# rsyslog-journal-forwarding.service owns the transient forwarding override.
+# Keep system diagnostics in the journal; application volume must be controlled
+# at its own logging source.
 # imklog remains the single kernel source; auditd owns audit-netlink as before.
 # Private scanner/model sockets continue to bypass the journal deliberately.
 
@@ -29,7 +32,7 @@ RuntimeMaxFiles=__SYSTEMD_JOURNAL_RUNTIME_MAX_FILES__
 MaxRetentionSec=1month
 MaxFileSec=1week
 
-ForwardToSyslog=yes
+ForwardToSyslog=no
 ForwardToKMsg=no
 ForwardToConsole=no
 ForwardToWall=yes

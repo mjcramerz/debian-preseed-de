@@ -61,12 +61,24 @@ def module(name, relative):
 
 
 journal = module('managed_journal_check_r3', 'usr/local/libexec/journal-check')
+forwarder = module('managed_journal_forwarding_r3', 'usr/local/libexec/journal-forwarding')
 layout = module('managed_log_layout_r3', 'usr/local/libexec/log-layout')
-BASE = ('[Journal]\nStorage=volatile\nForwardToSyslog=yes\nReadKMsg=no\nSeal=no\n'
+BASE = ('[Journal]\nStorage=volatile\nForwardToSyslog=no\nReadKMsg=no\nSeal=no\n'
         'MaxLevelStore=debug\nMaxLevelSyslog=info\nRateLimitIntervalSec=30s\nRateLimitBurst=10000\n')
 
 
 class JournalPolicyTests(unittest.TestCase):
+    def test_runtime_forwarding_is_an_explicit_policy_state(self):
+        active = BASE + '[Journal]\nForwardToSyslog=yes\n'
+        journal.check(BASE, BASE)
+        journal.check(BASE, active, forwarding=True)
+        with self.assertRaises(journal.PolicyError):
+            journal.check(BASE, active)
+        with self.assertRaises(journal.PolicyError):
+            journal.check(BASE, BASE, forwarding=True)
+        with self.assertRaises(journal.PolicyError):
+            journal.check(BASE, active + 'Storage=none\n', forwarding=True)
+
     def test_each_profile_requires_explicit_false_default(self):
         profiles = sorted((SEED / 'hosts/profiles').glob('*.env'))
         self.assertEqual(len(profiles), 10)
@@ -89,7 +101,7 @@ validate_target_journal_storage_policy
                     self.assertEqual(result.returncode, 0)
                     rendered = payload_read_text(target / 'etc/systemd/journald.conf.d/10-storage.conf')
                     self.assertEqual(journal.journal_settings(rendered)['Storage'], value)
-                    self.assertIn('ForwardToSyslog=yes\n', rendered)
+                    self.assertIn('ForwardToSyslog=no\n', rendered)
                     self.assertIn('ReadKMsg=no\n', rendered)
                     self.assertIn('MaxLevelStore=debug\n', rendered)
                     self.assertIn('MaxLevelSyslog=info\n', rendered)
@@ -135,7 +147,7 @@ render_target_resource_asset hooks/target/etc/systemd/journald.conf.d/10-storage
 
     def test_conflicts_duplicates_missing_and_multiline_fail_closed(self):
         journal.check(BASE, BASE)
-        for key, bad in [('Storage', 'persistent'), ('ForwardToSyslog', 'no'), ('ReadKMsg', 'yes'),
+        for key, bad in [('Storage', 'persistent'), ('ForwardToSyslog', 'yes'), ('ReadKMsg', 'yes'),
                          ('MaxLevelStore', 'warning'), ('MaxLevelSyslog', 'warning'),
                          ('RateLimitIntervalSec', '0'), ('RateLimitBurst', '1')]:
             with self.subTest(key=key):
@@ -166,14 +178,55 @@ render_target_resource_asset hooks/target/etc/systemd/journald.conf.d/10-storage
                 self.assertEqual(result.returncode, 0, result.stderr)
                 return result.stdout
             journal.check(BASE, effective())  # /etc shadows same vendor basename.
+            # Debian systemd 262-1 ships this unnumbered vendor drop-in. It
+            # sorts after both 10-storage.conf and the runtime 90-* file.
+            vendor_syslog = vendor / 'syslog.conf'
+            vendor_syslog.write_text('[Journal]\nForwardToSyslog=yes\n')
+            vendor_bytes = vendor_syslog.read_bytes()
+            with self.assertRaises(journal.PolicyError):
+                journal.check(BASE, effective())
+            local_syslog = etc / 'syslog.conf'
+            local_syslog.write_bytes(payload_read_bytes(TARGET / 'etc/systemd/journald.conf.d/syslog.conf'))
+            self.assertEqual(journal.journal_settings(local_syslog.read_text()), {})
+            journal.check(BASE, effective())
+            runtime = root / 'run/systemd/journald.conf.d'
+            runtime.mkdir(parents=True)
+            ready = runtime / journal.FORWARDING.name
+            ready.write_bytes(journal.FORWARDING_BYTES)
+            journal.check(BASE, effective(), forwarding=True)
+            with self.assertRaises(journal.PolicyError):
+                journal.check(BASE, effective())
+            ready.unlink()
+            journal.check(BASE, effective())
+            self.assertEqual(vendor_syslog.read_bytes(), vendor_bytes)
             (vendor / '99-conflict.conf').write_text('[Journal]\nStorage=persistent\n')
             with self.assertRaises(journal.PolicyError):
                 journal.check(BASE, effective())
             (etc / '99-conflict.conf').symlink_to('/dev/null')
             journal.check(BASE, effective())
-            (etc / '90-local.conf').write_text('[Journal]\nForwardToSyslog=no\n')
+            (etc / '90-local.conf').write_text('[Journal]\nForwardToSyslog=yes\n')
             with self.assertRaises(journal.PolicyError):
                 journal.check(BASE, effective())
+
+    @unittest.skipUnless(os.geteuid() == 0, 'staging ownership requires disposable fixture root')
+    def test_foundation_stages_vendor_replacement_before_policy_check(self):
+        harness = resource.ResourcePolicyTests()
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / 'target'
+            target.mkdir()
+            result = harness.shell(harness.staging(tmp) + '''
+# No target helper or manager may run during foundation publication.
+run_in_target() { return 99; }
+stage_target_logging_foundation
+''')
+            self.assertEqual(result.returncode, 0)
+            replacement = target / 'etc/systemd/journald.conf.d/syslog.conf'
+            self.assertEqual(replacement.read_bytes(),
+                             payload_read_bytes(TARGET / 'etc/systemd/journald.conf.d/syslog.conf'))
+            metadata = replacement.lstat()
+            self.assertTrue(stat.S_ISREG(metadata.st_mode))
+            self.assertEqual((metadata.st_uid, metadata.st_gid, stat.S_IMODE(metadata.st_mode), metadata.st_nlink),
+                             (0, 0, 0o644, 1))
 
     def test_managed_checker_is_staged_and_run_at_install_and_boot(self):
         components = payload_read_text(SEED / 'scripts/desktop/components.sh')
@@ -187,6 +240,153 @@ render_target_resource_asset hooks/target/etc/systemd/journald.conf.d/10-storage
             self.assertIn('ExecStartPre=/usr/', unit)
             self.assertIn(command, unit)
         self.assertIn('RequiresMountsFor=/var/lib/journal/power /var/log/managed /var/spool/rsyslog', unit)
+
+
+@unittest.skipUnless(os.geteuid() == 0, 'root-owned paths require disposable fixture root')
+class JournalForwardingTests(unittest.TestCase):
+    def setUp(self):
+        # /workspace is part of the mandatory private image, with trusted
+        # ancestors. /tmp is intentionally rejected by the production checks.
+        self.temp = tempfile.TemporaryDirectory(prefix='forwarding-', dir='/workspace')
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.directory = self.root / 'run/systemd/journald.conf.d'
+        self.directory.parent.mkdir(parents=True)
+        self.policy = self.directory / forwarder.POLICY.name
+        for owner, name, value in ((forwarder, 'DIRECTORY', self.directory),
+                                   (forwarder, 'POLICY', self.policy),
+                                   (journal, 'FORWARDING', self.policy)):
+            patch = mock.patch.object(owner, name, value)
+            patch.start(); self.addCleanup(patch.stop)
+        self.real_command = forwarder.command
+        patch = mock.patch.object(forwarder, 'command')
+        self.command = patch.start(); self.addCleanup(patch.stop)
+        self.check = ['/usr/local/libexec/journal-check']
+        self.reload = ['/usr/bin/systemctl', '--no-ask-password', '--job-mode=ignore-dependencies',
+                       'reload', 'systemd-journald.service']
+
+    def test_enable_disable_and_repeat_preserve_unrelated_dropins(self):
+        self.assertEqual(forwarder.CONTENT, journal.FORWARDING_BYTES)
+        self.directory.mkdir()
+        other = self.directory / '20-other.conf'
+        other.write_bytes(b'# unrelated\n')
+        forwarder.enable()
+        self.assertEqual(self.policy.read_bytes(), forwarder.CONTENT)
+        self.assertEqual(stat.S_IMODE(self.policy.stat().st_mode), 0o644)
+        self.assertTrue(journal.forwarding_enabled())
+        self.assertEqual(self.command.call_args_list, [mock.call(self.check), mock.call(self.reload)])
+        forwarder.disable(); forwarder.disable()
+        self.assertFalse(self.policy.exists())
+        self.assertFalse(journal.forwarding_enabled())
+        self.assertEqual(other.read_bytes(), b'# unrelated\n')
+        self.assertEqual(self.command.call_args_list,
+                         [mock.call(self.check), mock.call(self.reload)] * 3)
+
+    def test_absent_directory_disable_still_requests_acknowledged_reload(self):
+        forwarder.disable()
+        self.assertEqual(self.command.call_args_list, [mock.call(self.check), mock.call(self.reload)])
+        self.assertFalse(self.directory.exists())
+
+    def test_failed_enable_rolls_back_and_reports_disabled(self):
+        self.command.side_effect = [None, forwarder.ForwardingError('reload failure'), None, None]
+        with self.assertRaisesRegex(forwarder.ForwardingError, 'forwarding disabled'):
+            forwarder.enable()
+        self.assertFalse(self.policy.exists())
+        self.assertEqual(self.command.call_args_list,
+                         [mock.call(self.check), mock.call(self.reload)] * 2)
+
+    def test_enable_timeout_retains_override_and_reports_unknown_without_retry(self):
+        self.command.side_effect = [None, subprocess.TimeoutExpired(self.reload, 10)]
+        with self.assertRaisesRegex(forwarder.ForwardingError, 'outcome unknown; override retained'):
+            forwarder.enable()
+        self.assertEqual(self.policy.read_bytes(), forwarder.CONTENT)
+        self.assertEqual(self.command.call_args_list, [mock.call(self.check), mock.call(self.reload)])
+
+    def test_disable_timeout_is_unknown(self):
+        self.command.side_effect = [None, subprocess.TimeoutExpired(self.reload, 10)]
+        with self.assertRaisesRegex(forwarder.ForwardingError, 'outcome unknown'):
+            forwarder.disable()
+
+    def test_failed_recovery_reports_unknown_and_does_not_succeed(self):
+        self.command.side_effect = [None, forwarder.ForwardingError('reload failure'),
+                                   forwarder.ForwardingError('disable check failed')]
+        with self.assertRaisesRegex(forwarder.ForwardingError, 'outcome unknown'):
+            forwarder.enable()
+        self.assertFalse(self.policy.exists())
+
+    def test_unsafe_files_are_never_replaced_or_removed(self):
+        self.directory.mkdir()
+        outside = self.root / 'outside'
+        outside.write_bytes(forwarder.CONTENT); outside.chmod(0o644)
+        cases = ('symlink', 'hardlink', 'mode', 'content', 'owner')
+        for case in cases:
+            with self.subTest(case=case):
+                if case == 'symlink':
+                    self.policy.symlink_to(outside)
+                elif case == 'hardlink':
+                    os.link(outside, self.policy)
+                else:
+                    self.policy.write_bytes(b'foreign\n' if case == 'content' else forwarder.CONTENT)
+                    self.policy.chmod(0o666 if case == 'mode' else 0o644)
+                    if case == 'owner':
+                        os.chown(self.policy, 1234, 0)
+                before = self.policy.lstat()
+                for operation in (forwarder.enable, forwarder.disable, journal.forwarding_enabled):
+                    with self.assertRaises((OSError, forwarder.ForwardingError, journal.PolicyError)):
+                        operation()
+                after = self.policy.lstat()
+                self.assertEqual((after.st_dev, after.st_ino, after.st_uid, after.st_gid, after.st_mode),
+                                 (before.st_dev, before.st_ino, before.st_uid, before.st_gid, before.st_mode))
+                self.policy.unlink()
+        self.command.assert_not_called()
+        self.assertEqual(outside.read_bytes(), forwarder.CONTENT)
+
+    def test_symlink_or_writable_parent_is_rejected(self):
+        foreign = self.root / 'foreign'; foreign.mkdir()
+        self.directory.symlink_to(foreign, target_is_directory=True)
+        with self.assertRaises(forwarder.ForwardingError):
+            forwarder.enable()
+        self.directory.unlink()
+        self.directory.mkdir(); self.directory.chmod(0o777)
+        with self.assertRaises(forwarder.ForwardingError):
+            forwarder.enable()
+        self.command.assert_not_called()
+        self.assertEqual(list(foreign.iterdir()), [])
+
+    def test_command_uses_fixed_environment_deadline_and_propagates_failure(self):
+        with mock.patch.object(forwarder.subprocess, 'run') as run:
+            run.return_value.returncode = 0
+            self.real_command(self.reload)
+            self.assertEqual(run.call_args.kwargs['env'], forwarder.ENV)
+            self.assertEqual(run.call_args.kwargs['timeout'], 10)
+            self.assertEqual(run.call_args.kwargs['stdin'], subprocess.DEVNULL)
+            run.return_value.returncode = 1
+            with self.assertRaises(forwarder.ForwardingError):
+                self.real_command(self.reload)
+
+    def test_lifecycle_foundation_and_firstboot_wiring(self):
+        unit = payload_read_text(TARGET / 'etc/systemd/system/rsyslog-journal-forwarding.service')
+        for line in ('BindsTo=rsyslog.service', 'PartOf=rsyslog.service',
+                     'After=rsyslog.service systemd-journald.service journal-sealing.service',
+                     'ExecStart=/usr/local/libexec/journal-forwarding on',
+                     'ExecStopPost=/usr/local/libexec/journal-forwarding off'):
+            self.assertIn(line, unit)
+        request = payload_read_text(TARGET / 'etc/systemd/system/rsyslog.service.d/40-journal-forwarding.conf')
+        self.assertIn('Wants=rsyslog-journal-forwarding.service', request)
+        self.assertIn('Type=notify', request)
+        foundation = (SEED / 'scripts/late/target-assets.sh').read_text().split(
+            'stage_target_logging_foundation() {', 1)[1]
+        for path in ('usr/local/libexec/journal-forwarding',
+                     'etc/systemd/journald.conf.d/syslog.conf',
+                     'etc/systemd/system/rsyslog-journal-forwarding.service',
+                     'etc/systemd/system/rsyslog.service.d/40-journal-forwarding.conf'):
+            self.assertIn(path, foundation)
+            self.assertIn('/' + path, payload_read_text(SEED / 'scripts/desktop/verify.sh'))
+        self.assertNotIn('stat ', foundation)
+        self.assertIn('installer_metadata_value', foundation)
+        validation = payload_read_text(SEED / 'scripts/firstboot/04-validation.sh')
+        self.assertIn('journal-check --require-forwarding', validation)
+        self.assertIn('is-active --quiet rsyslog-journal-forwarding.service', validation)
 
 
 @unittest.skipUnless(os.geteuid() == 0, 'ownership/layout tests require root in a disposable fixture')

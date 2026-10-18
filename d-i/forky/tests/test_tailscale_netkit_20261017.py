@@ -277,6 +277,87 @@ class NetkitTests(unittest.TestCase):
         ip.assert_not_called()
         self.assertTrue(state.exists())
 
+    def test_cleanup_accepts_iprule_json_actions_and_numeric_string_tables(self):
+        state = self.state()
+        def records(args, namespace=None):
+            if args[1:] != ['rule', 'show']:
+                return []
+            peer = netkit.PEER4 if args[0] == '-4' else netkit.PEER6
+            return [{'priority': 5190, 'src': peer, 'table': '254', 'protocol': '242'},
+                    {'priority': 5191, 'src': peer, 'action': 'unreachable', 'protocol': '242'},
+                    {'priority': 5270, 'src': 'all', 'table': '52', 'protocol': '242'}]
+        with mock.patch.object(netkit, 'owned_link', return_value={'ifindex': 42}), \
+                mock.patch.object(netkit, 'run', return_value=b'{"nftables":[]}'), \
+                mock.patch.object(netkit, 'objects', side_effect=records), \
+                mock.patch.object(netkit, 'ip') as ip:
+            netkit.cleanup(self.config)
+        self.assertFalse(state.exists())
+        self.assertEqual(ip.call_args_list, [mock.call(['link', 'delete', 'dev', 'tailscale0']),
+            *[mock.call([family, 'rule', 'delete', 'pref', str(priority), 'protocol', '242'])
+              for family in ('-4', '-6') for priority in (5190, 5191, 5270)]])
+
+    def test_cleanup_rejects_changed_rule_action_extra_selectors_and_source_prefix(self):
+        for replacement in ({'action': 'blackhole'}, {'table': '254'}, {'fwmark': '0x1'},
+                            {'src': netkit.PEER4 + '/24'}, {'type': 'unreachable'}):
+            with self.subTest(replacement=replacement):
+                state = self.state()
+                record = {'priority': 5191, 'src': netkit.PEER4,
+                          'action': 'unreachable', 'protocol': '242', **replacement}
+                with mock.patch.object(netkit, 'owned_link', return_value={'ifindex': 42}), \
+                        mock.patch.object(netkit, 'run', return_value=b'{"nftables":[]}'), \
+                        mock.patch.object(netkit, 'owned_routes', return_value={}), \
+                        mock.patch.object(netkit, 'objects', return_value=[record]), \
+                        mock.patch.object(netkit, 'ip') as ip, \
+                        self.assertRaisesRegex(netkit.Error, 'route rule'):
+                    netkit.cleanup(self.config)
+                self.assertTrue(state.exists())
+                ip.assert_not_called()
+
+    def test_mount_preparation_persists_init_identity_without_binding_its_namespace(self):
+        original_mkdir, original_open, original_close = Path.mkdir, os.open, os.close
+        def mkdir(path, *args, **kwargs):
+            if str(path) == '/run/tailscale':
+                return  # Explicit fixture for the API directory, no host access.
+            if not path.is_relative_to(self.root):
+                raise AssertionError('uncontrolled fixture directory')
+            return original_mkdir(path, *args, **kwargs)
+        def opened(path, flags, *args, **kwargs):
+            if str(path) in {'/proc/self/ns/net', '/proc/1/ns/mnt'}:
+                return 71 if str(path).endswith('/net') else 72
+            if not Path(path).is_relative_to(self.root):
+                raise AssertionError('uncontrolled fixture input')
+            return original_open(path, flags, *args, **kwargs)
+        with mock.patch.object(Path, 'mkdir', mkdir), \
+                mock.patch.object(netkit.os, 'open', side_effect=opened), \
+                mock.patch.object(netkit.os, 'close', side_effect=lambda fd: None if fd in (71, 72) else original_close(fd)), \
+                mock.patch.object(netkit.os, 'fstat', return_value=types.SimpleNamespace(st_dev=2, st_ino=12)), \
+                mock.patch.object(netkit, 'ns_type') as kinds, \
+                mock.patch.object(netkit, 'run') as run:
+            netkit.prepare_files()
+        self.assertEqual(kinds.call_args_list, [mock.call(71, os.CLONE_NEWNET), mock.call(72, os.CLONE_NEWNS)])
+        run.assert_called_once_with(['/usr/bin/mount', '--bind', '/proc/self/fd/71', str(self.root / 'host.net')], fds=(71,))
+        self.assertEqual((self.root / 'host.mnt').read_bytes(), b'2:12\n')
+        self.assertEqual((self.root / 'host.mnt').stat().st_mode & 0o777, 0o600)
+
+    def test_cleanup_removes_owned_mount_identity_and_retains_malformed_identity(self):
+        for data in (b'2:12\n', b'not-an-identity\n'):
+            with self.subTest(valid=data == b'2:12\n'):
+                state = self.state()
+                identity = self.root / 'host.mnt'
+                identity.write_bytes(data)
+                identity.chmod(0o600)
+                with mock.patch.object(netkit, 'owned_link', return_value=None), \
+                        mock.patch.object(netkit, 'run', return_value=b'{"nftables":[]}'), \
+                        mock.patch.object(netkit, 'objects', return_value=[]), \
+                        mock.patch.object(netkit, 'ns_type', side_effect=OSError('fixture regular file')):
+                    if data == b'2:12\n':
+                        netkit.cleanup(self.config)
+                        self.assertFalse(state.exists() or identity.exists())
+                    else:
+                        with self.assertRaisesRegex(netkit.Error, 'namespace mount identity'):
+                            netkit.cleanup(self.config)
+                        self.assertTrue(state.exists() and identity.exists())
+
     def test_recovery_never_flushes_shared_policy(self):
         state = self.state()
         with mock.patch.object(netkit, 'owned_link', return_value={'ifindex': 42}), \
@@ -365,12 +446,17 @@ class SSHHostHandoffTests(unittest.TestCase):
     def invoke(self, *, replaced=False):
         root = types.SimpleNamespace(st_mode=0o40700, st_uid=0)
         def info(fd):
+            if fd == 10:
+                return types.SimpleNamespace(st_mode=0o100600, st_uid=0, st_gid=0, st_nlink=1)
             return types.SimpleNamespace(st_mode=0o40755, st_uid=0, st_dev=2,
-                                         st_ino=99 if replaced and fd == 13 else 12)
+                                         st_ino=99 if replaced and fd == 12 else 12)
+        identity = mock.mock_open(read_data=b'2:12\n')
+        identity.return_value.fileno.return_value = 10
         with mock.patch.object(ssh.sys, 'argv', ['/usr/bin/su', '-l', 'alice', '-c', 'id']), \
                 mock.patch.object(ssh.os, 'geteuid', return_value=0), \
                 mock.patch.object(ssh.Path, 'lstat', return_value=root), \
-                mock.patch.object(ssh.os, 'open', side_effect=[11, 12, 13, 14]), \
+                mock.patch.object(ssh.os, 'open', side_effect=[10, 11, 12, 14]), \
+                mock.patch.object(ssh.os, 'fdopen', identity), \
                 mock.patch.object(ssh.os, 'fstat', side_effect=info), \
                 mock.patch.object(ssh.fcntl, 'ioctl', side_effect=[ssh.os.CLONE_NEWNET, ssh.os.CLONE_NEWNS]), \
                 mock.patch.object(ssh.os, 'setns') as enter, \
@@ -388,7 +474,7 @@ class SSHHostHandoffTests(unittest.TestCase):
                 root_fd.assert_called_once_with(14)
                 chroot.assert_called_once_with('.')
                 execute.assert_called_once_with('/usr/bin/su', ['/usr/bin/su', '-l', 'alice', '-c', 'id'])
-                self.assertEqual(close.call_args_list, [mock.call(13), mock.call(11), mock.call(12), mock.call(14)])
+                self.assertEqual(close.call_args_list, [mock.call(11), mock.call(12), mock.call(14)])
 
     def test_both_namespaces_and_host_root_are_restored_before_native_pam(self):
         self.invoke()

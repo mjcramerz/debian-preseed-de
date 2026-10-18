@@ -13,9 +13,16 @@ sub read_file {
     sysopen(my $fh, $path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK) or die "input unavailable\n";
     binmode $fh, ':raw' or die "cannot set input encoding\n";
     my @info = stat $fh;
+    # systemd 262 prefers root-owned 0400 credentials with a named-user read
+    # ACL. Its effective ACL mask appears as 0040 in st_mode (0440), even
+    # though group:: is empty. Only credentials in the fixed service directory
+    # may use this layout; ordinary private files retain their 0077 check.
+    my $credential = '/run/credentials/filen-sync@' . $self->account . '.service/';
+    my $systemd_acl = $private && $path =~ m{\A\Q$credential\E(?:email|password|seed)\z}
+        && @info && $info[4] == 0 && $info[5] == 0 && ($info[2] & 07777) == 0440;
     @info && S_ISREG($info[2]) && $info[3] == 1
         && ($private ? ($info[4] == 0 || $info[4] == $>) : $info[4] == 0)
-        && !($info[2] & ($private ? 0077 : 0022)) && $info[7] <= 8192
+        && ($systemd_acl || !($info[2] & ($private ? 0077 : 0022))) && $info[7] <= 8192
         or die "untrusted input\n";
     my $data = q{};
     while (1) {
@@ -73,6 +80,9 @@ sub credentials {
     my $account = $self->account;
     my $root = '/run/credentials/filen-sync@' . $account . '.service';
     ($ENV{CREDENTIALS_DIRECTORY} // q{}) eq $root or die "service credentials unavailable\n";
+    my @directory = lstat $root;
+    @directory && S_ISDIR($directory[2]) && ($directory[4] == 0 || $directory[4] == $>)
+        && !($directory[2] & 0027) or die "untrusted credential directory\n";
     my %values = map { $_ => $self->read_file($root . '/' . $_, 1) } qw(email password seed);
     for my $field (keys %values) {
         length($values{$field}) && $values{$field} !~ /[\x00\r\n]/ or die "invalid credential input\n";

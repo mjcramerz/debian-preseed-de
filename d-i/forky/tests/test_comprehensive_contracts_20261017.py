@@ -43,7 +43,7 @@ class MokResetTests(unittest.TestCase):
             stubs = r'''
 require_command() { :; }
 resolve_mok_delete_password() {
-  case "$LISTING" in certificate|multiple) ;; *) return 97 ;; esac
+  case "$LISTING" in certificate|multiple|mixed) ;; *) return 97 ;; esac
   printf '%s\n' 'fixture-password'
 }
 fatal() { printf '%s\n' "$*" >&2; exit 1; }
@@ -60,12 +60,16 @@ mokutil() {
     --list-enrolled)
       [ "$#" -eq 1 ] || return 98
       case "$LISTING" in
-        certificate|multiple)
-          printf '%s\n' '[key 1]' 'SHA1 Fingerprint: aa:bb:cc' 'Certificate:'
+        certificate|multiple|mixed)
+          printf '%s\n' '[key 1]' 'SHA1 Fingerprint: aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd' 'Certificate:'
           if [ "$LISTING" = multiple ]; then
-            printf '%s\n' '[key 2]' 'SHA1 Fingerprint: dd:ee:ff' 'Certificate:'
+            printf '%s\n' '[key 2]' 'SHA1 Fingerprint: dd:ee:ff:aa:bb:cc:00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd' 'Certificate:'
+          elif [ "$LISTING" = mixed ]; then
+            printf '%s\n' '[key 2]' 'SHA1 Fingerprint: 53:61:0c:f8:1f:bd:7e:0c:eb:67:91:3c:9e:f3:e7:94:a9:63:3e:cb' 'Certificate:'
           fi
           ;;
+        vendor) printf '%s\n' '[key 1]' 'SHA1 Fingerprint: 53:61:0C:F8:1F:BD:7E:0C:EB:67:91:3C:9E:F3:E7:94:A9:63:3E:CB' 'Certificate:' ;;
+        malformed) printf '%s\n' '[key 1]' 'SHA1 Fingerprint: aa:bb:cc' 'Certificate:' ;;
         empty) : ;;
         message) printf '%s\n' 'MokListRT is empty' ;;
         hash) printf '%s\n' '[key 1]' 'Hash Algorithm: sha256' 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ;;
@@ -94,24 +98,32 @@ mokutil() {
             self.assertNotIn('fixture-password', result.stdout + result.stderr)
             return result, calls.read_text().splitlines()
 
-    def test_full_reset_when_any_certificate_is_enrolled(self):
+    def test_full_reset_when_an_owner_certificate_is_enrolled(self):
         # The newly generated certificate is intentionally absent from the
         # fixture: previous installations' keys must still be covered.
-        for listing in ('certificate', 'multiple'):
+        for listing in ('certificate', 'multiple', 'mixed'):
             with self.subTest(listing=listing):
                 result, calls = self.reset(listing=listing)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(calls, ['--list-enrolled', '--reset', '--timeout 900'])
                 self.assertIn('confirm the reset in MokManager', result.stderr)
+                self.assertEqual(result.stdout, 'queued\n')
 
     def test_no_certificate_skips_reset_and_password_lookup(self):
-        for listing in ('empty', 'message', 'hash'):
+        for listing in ('empty', 'message', 'hash', 'vendor'):
             with self.subTest(listing=listing):
                 result, calls = self.reset(listing=listing)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(calls, ['--list-enrolled'])
-                self.assertIn('no enrolled MOK certificates reported; skipping reset', result.stderr)
+                self.assertIn('no owner-enrolled MOK certificates reported; skipping reset', result.stderr)
+                self.assertEqual(result.stdout, 'empty\n')
                 self.assertNotIn('full MOK reset queued', result.stderr)
+
+    def test_malformed_fingerprint_never_queues_reset(self):
+        result, calls = self.reset(listing='malformed')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(calls, ['--list-enrolled'])
+        self.assertIn('invalid MOK certificate inventory', result.stderr)
 
     def test_failed_or_timed_out_query_never_queues_reset(self):
         # Partial certificate output must not override a failed query status.
@@ -146,14 +158,102 @@ fi
 printf 'installation-continued\n'
 '''
         for failure in ('return 37', 'exit 37'):
-            with self.subTest(failure=failure):
-                stubs = ('reset_target_secure_boot_mok_state_attempt() { ' + failure + '; }\n'
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
+                stubs = ('installer_lifecycle_paths() { :; }\n'
+                         'installer_runtime_state_dir() { printf \'%s\\n\' "$FIXTURE_ROOT"; }\n'
+                         'installer_metadata_value() { printf \'0:0:600:1\\n\'; }\n'
+                         'reset_target_secure_boot_mok_state_attempt() { printf attempt >>"$FIXTURE_ROOT/calls"; ' + failure + '; }\n'
                          'installer_warn() { printf \'%s\\n\' "$*" >&2; }\n')
                 result = subprocess.run(['/bin/dash', '-eu', '-c', stubs + body + caller],
-                                        env=ENV, capture_output=True, text=True, timeout=5)
+                                        env={**ENV, 'FIXTURE_ROOT': temporary}, capture_output=True, text=True, timeout=5)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(result.stdout.strip(), 'installation-continued')
                 self.assertIn('continuing install', result.stderr)
+                self.assertEqual((Path(temporary) / 'secure-boot-mok-reset.state').read_text(), 'unknown\n')
+                # A new process must retain an uncertain result without retry.
+                again = subprocess.run(['/bin/dash', '-eu', '-c', stubs + body + caller],
+                                       env={**ENV, 'FIXTURE_ROOT': temporary}, capture_output=True, text=True, timeout=5)
+                self.assertEqual(again.returncode, 0, again.stderr)
+                self.assertEqual((Path(temporary) / 'calls').read_text(), 'attempt')
+
+    def test_reset_command_does_not_prepare_or_copy_enrollment_keys(self):
+        source = read_text(TARGET / 'usr/libexec/install-tools/secure-boot-tool')
+        body = function(source, 'cmd_reset_moks')
+        stubs = ('require_root() { :; }\n'
+                 'ensure_keypair() { exit 91; }\n'
+                 'ensure_dkms_framework_config() { exit 92; }\n'
+                 'reset_mok_state() { printf \'empty\\n\'; }\n')
+        result = subprocess.run(['/bin/dash', '-eu', '-c', stubs + body + '\ncmd_reset_moks'],
+                                env=ENV, capture_output=True, text=True, timeout=5)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, 'empty\n')
+
+    def test_cached_result_metadata_and_content_are_checked_without_firmware_retry(self):
+        source = read_text(TARGET.parents[1] / 'scripts/late/grub.sh')
+        body = function(source, 'reset_target_secure_boot_mok_state')
+        lifecycle = read_text(TARGET.parents[1] / 'scripts/common/lifecycle.sh')
+        start = lifecycle.index('installer_metadata_value() (\n')
+        metadata = lifecycle[start:lifecycle.index('\n);\n', start) + 4]
+        stubs = r'''
+installer_lifecycle_paths() { :; }
+installer_runtime_state_dir() { printf '%s\n' "$FIXTURE_ROOT"; }
+reset_target_secure_boot_mok_state_attempt() { printf unexpected >>"$FIXTURE_ROOT/calls"; return 91; }
+installer_warn() { printf '%s\n' "$*" >&2; }
+'''
+        for state, mode, expected in [('empty\n', 0o600, 0), ('queued\n', 0o600, 0),
+                                      ('unknown\n', 0o600, 1), ('queued\nextra\n', 0o600, 1),
+                                      ('queued\n', 0o666, 1)]:
+            with self.subTest(state=state, mode=mode), tempfile.TemporaryDirectory() as temporary:
+                path = Path(temporary) / 'secure-boot-mok-reset.state'
+                path.write_text(state)
+                path.chmod(mode)
+                result = subprocess.run(['/bin/dash', '-eu', '-c', stubs + metadata + body +
+                                         '\nreset_target_secure_boot_mok_state'],
+                                        env={**ENV, 'FIXTURE_ROOT': temporary},
+                                        capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, expected, result.stderr)
+                self.assertEqual(path.read_text(), state)
+                self.assertFalse((Path(temporary) / 'calls').exists())
+
+    def test_shared_staging_checks_reset_before_enrollment_preparation(self):
+        source = read_text(TARGET.parents[1] / 'scripts/late/grub.sh')
+        stage = function(source, 'stage_target_secure_boot_runtime_assets')
+        self.assertLess(stage.index('reset_target_secure_boot_mok_state'),
+                        stage.index('install_target_secure_boot_kernel_hooks'))
+        prepkgsel = read_text(TARGET.parent / 'installer/pre-pkgsel.d/90secure-boot-dkms.sh')
+        self.assertLess(prepkgsel.index('\nensure_target_mok_inventory_command\n'),
+                        prepkgsel.index('\nstage_target_secure_boot_runtime_assets\n'))
+        self.assertLess(prepkgsel.index('stage_target_secure_boot_runtime_assets'),
+                        prepkgsel.index('run_installer_secure_boot_install_tool prepare-dkms'))
+
+    def test_missing_inventory_command_is_resolved_before_preparation(self):
+        source = read_text(TARGET.parent / 'installer/pre-pkgsel.d/90secure-boot-dkms.sh')
+        body = function(source, 'ensure_target_mok_inventory_command')
+        stubs = r'''
+test_in_target() { [ "$PRESENT" = yes ]; }
+run_in_target() {
+  printf 'install\n'
+  [ "$MODE" != failed ] || return 71
+  if [ "$MODE" != still-missing ]; then PRESENT=yes; fi
+}
+prepkgsel_fatal() { printf 'unavailable\n' >&2; exit 72; }
+'''
+        for mode, present, expected in [('present', 'yes', 0), ('install', 'no', 0),
+                                        ('failed', 'no', 71), ('still-missing', 'no', 72)]:
+            with self.subTest(mode=mode):
+                result = subprocess.run(['/bin/dash', '-eu', '-c', stubs + body + '\nensure_target_mok_inventory_command'],
+                                        env={**ENV, 'MODE': mode, 'PRESENT': present},
+                                        capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, expected, result.stderr)
+                self.assertEqual(result.stdout, '' if present == 'yes' else 'install\n')
+
+    def test_reset_policy_has_scoped_efi_paths(self):
+        source = read_text(TARGET / 'etc/apparmor.d/system-wrappers')
+        profile = source.split('profile secure-boot-tool ', 1)[1].split('\n}', 1)[0]
+        self.assertIn('/sys/firmware/efi/mok-variables/MokListRT r,', profile)
+        self.assertIn('/sys/firmware/efi/efivars/MokListRT{,[0-9]*}-605dab50-e046-4300-abb6-3dd810dd8b23 r,', profile)
+        self.assertIn('/sys/firmware/efi/efivars/{MokNew,MokAuth,MokTimeout}-605dab50-e046-4300-abb6-3dd810dd8b23 rw,', profile)
+        self.assertNotIn('/sys/firmware/efi/**', profile)
 
 
 class InstallerCleanupTests(unittest.TestCase):

@@ -665,18 +665,33 @@ reset_mok_state() (
 
   require_command mokutil
   require_command timeout
-  # Reset the complete list only when an enrolled certificate is reported;
-  # querying only the newly generated key would miss previous installations.
+  # MokListRT also contains shim's built-in Debian CA, even with no owner keys.
+  # Match its exact published fingerprint, never its subject or a key count.
+  # This is mokutil's display identity, not a certificate trust decision.
+  # https://dsa.debian.org/secure-boot-ca (DER SHA-256:
+  # 079646974bce09b1f04da67bd722d1fb0947ae4c4010bccdbba52d5b23cbf1a2)
   if ! mok_enrolled=$(LC_ALL=C timeout --kill-after=2 15 mokutil --list-enrolled 2>/dev/null); then
     fatal "could not query enrolled MOK certificates; skipping reset"
   fi
-  case "$mok_enrolled" in
-    *'SHA1 Fingerprint: '*) ;;
-    *)
-      log "info: no enrolled MOK certificates reported; skipping reset"
-      return 0
-      ;;
-  esac
+  if printf '%s\n' "$mok_enrolled" | LC_ALL=C awk '
+    /^SHA1 Fingerprint: / {
+      fingerprint=tolower(substr($0, 19));
+      count=split(fingerprint, bytes, ":");
+      if (count != 20) { invalid=1; next }
+      for (i=1; i<=count; i++)
+        if (bytes[i] !~ /^[0-9a-f][0-9a-f]$/) invalid=1;
+      if (fingerprint != "53:61:0c:f8:1f:bd:7e:0c:eb:67:91:3c:9e:f3:e7:94:a9:63:3e:cb") owner=1;
+    }
+    END { if (invalid) exit 2; exit !owner }
+  '; then
+    :
+  else
+    mok_inventory_status=$?
+    [ "$mok_inventory_status" -eq 1 ] || fatal "invalid MOK certificate inventory; skipping reset"
+    log "info: no owner-enrolled MOK certificates reported; skipping reset"
+    printf 'empty\n'
+    return 0
+  fi
   # The installer treats failure as a warning and does not retry an uncertain
   # firmware write. MokManager still requires physical confirmation at reboot.
   mok_reset_password=$(resolve_mok_delete_password) || fatal "MOK reset password is unavailable"
@@ -688,6 +703,7 @@ reset_mok_state() (
     log "warn: MOK reset is queued, but the MokManager timeout could not be set"
   fi
   log "info: full MOK reset queued; confirm the reset in MokManager before enrolling the new certificate"
+  printf 'queued\n'
 )
 
 module_compression_kind() {
@@ -1192,8 +1208,7 @@ cmd_dkms_sign_tool() {
 
 cmd_reset_moks() {
   require_root
-  ensure_keypair
-  ensure_dkms_framework_config
+  # Inventory/reset must not generate or publish enrollment material first.
   reset_mok_state
 }
 

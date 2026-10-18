@@ -493,13 +493,19 @@ def cleanup_owned(config: dict) -> None:
                 peer = PEER4 if family == '-4' else PEER6
                 source = item.get('src', 'all')
                 if source != 'all':
-                    source = str(ipaddress.ip_interface(source).ip)
-                expected = ((item.get('priority') == 5190 and source == peer and item.get('table') in {'main', 254})
-                            or (item.get('priority') == 5191 and source == peer and item.get('type') == 'unreachable')
+                    selector = ipaddress.ip_interface(source)
+                    if selector.network.prefixlen != selector.max_prefixlen:
+                        raise Error('unexpected managed route rule; evidence retained')
+                    source = str(selector.ip)
+                # iprule.c emits a string table ID with -N and uses "action"
+                # for non-lookup rules. Route dumps use a different schema.
+                expected = ((item.get('priority') == 5190 and source == peer and str(item.get('table')) in {'main', '254'})
+                            or (item.get('priority') == 5191 and source == peer
+                                and item.get('action') == 'unreachable' and 'table' not in item)
                             or (item.get('priority') == 5270 and source == 'all' and str(item.get('table')) == '52'))
                 if (not expected or item.get('dst', 'all') != 'all'
-                        or (item.get('priority') != 5191 and item.get('type') not in {None, 'unicast'})
-                        or set(item) - {'priority', 'src', 'dst', 'table', 'protocol', 'flags', 'type'}
+                        or (item.get('priority') != 5191 and 'action' in item)
+                        or set(item) - {'priority', 'src', 'dst', 'table', 'protocol', 'flags', 'action'}
                         or item.get('flags', [])):
                     raise Error('unexpected managed route rule; evidence retained')
                 owned_rules.append((family, item['priority']))
@@ -528,7 +534,11 @@ def cleanup_owned(config: dict) -> None:
                     ns_type(fd, kind)
                 except OSError:
                     if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_size != 0:
-                        raise Error('unexpected namespace mount identity; evidence retained') from None
+                        # host.mnt stores PID 1's namespace identity, never a
+                        # bind mount of an ancestor mount namespace.
+                        if name != 'host.mnt' or not re.fullmatch(rb'[0-9]+:[1-9][0-9]*\n',
+                                regular(path, 0o600, 128)):
+                            raise Error('unexpected namespace mount identity; evidence retained') from None
                 else:
                     run(['/usr/bin/umount', '--', str(path)])
             finally:
@@ -728,9 +738,17 @@ def prepare_files() -> None:
         try:
             ns_type(fd, kind)
             target = RUNTIME / name
-            descriptor = os.open(target, os.O_RDONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
-            os.close(descriptor)
-            run(['/usr/bin/mount', '--bind', f'/proc/self/fd/{fd}', str(target)], fds=(fd,))
+            descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+            if kind == os.CLONE_NEWNS:
+                # Linux rejects binding an older mount namespace into this
+                # descendant (ELOOP). PID 1 keeps it alive: record its identity
+                # so the SSH delegate can pin and verify /proc/1/ns/mnt itself.
+                with os.fdopen(descriptor, 'wb') as stream:
+                    info = os.fstat(fd)
+                    stream.write(f'{info.st_dev}:{info.st_ino}\n'.encode('ascii'))
+            else:
+                os.close(descriptor)
+                run(['/usr/bin/mount', '--bind', f'/proc/self/fd/{fd}', str(target)], fds=(fd,))
         finally:
             os.close(fd)
     private = RUNTIME / 'etc'

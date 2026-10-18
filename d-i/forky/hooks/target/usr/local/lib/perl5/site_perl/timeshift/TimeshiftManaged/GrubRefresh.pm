@@ -3,8 +3,8 @@ package TimeshiftManaged::GrubRefresh;
 use strict;
 use warnings;
 
-use Errno qw(EAGAIN EINTR EWOULDBLOCK);
-use Fcntl qw(:flock O_CREAT O_NOFOLLOW O_NONBLOCK O_WRONLY O_RDONLY O_DIRECTORY);
+use Errno qw(EINTR);
+use Fcntl qw(O_NOFOLLOW O_NONBLOCK O_RDONLY O_DIRECTORY);
 use Cwd qw(realpath);
 use Encode qw(encode FB_CROAK);
 use File::Compare qw(compare);
@@ -21,6 +21,7 @@ use Types::Standard qw(Int Str);
 use TimeshiftManaged::Command;
 use TimeshiftManaged::Config;
 use TimeshiftManaged::Logger;
+use TimeshiftManaged::Lock qw(acquire_lock);
 
 has grub_btrfs_config => (
     is      => 'ro',
@@ -43,6 +44,12 @@ has output_file => (
     is      => 'ro',
     isa     => Str,
     default => sub { '/boot/grub/grub-btrfs.cfg' },
+);
+
+has snapshot_lock_file => (
+    is      => 'ro',
+    isa     => Str,
+    default => sub { '/run/lock/timeshift-snapshot.lock' },
 );
 
 has profile_config => (
@@ -101,24 +108,11 @@ sub _ensure_directory {
 
 sub _acquire_lock {
     my ($self) = @_;
-
-    my $lock_dir = dirname($self->lock_file());
-    $self->_ensure_directory($lock_dir, 0755);
-    -l $self->lock_file()
-        and die "refresh lock must not be a symbolic link: " . $self->lock_file() . "\n";
-    sysopen my $fh, $self->lock_file(), O_WRONLY | O_CREAT | O_NOFOLLOW | O_NONBLOCK, 0600
-        or die "cannot open refresh lock " . $self->lock_file() . ": $!\n";
-    my @lock_stat = stat $fh;
-    @lock_stat && -f _ && $lock_stat[4] == $> && $lock_stat[3] == 1
-        && !($lock_stat[2] & 0022)
-        or die "lock must be a trusted, singly linked regular file\n";
-
-    if (!flock($fh, LOCK_EX | LOCK_NB)) {
-        ($! == EWOULDBLOCK || $! == EAGAIN) or die "cannot lock snapshot menu: $!\n";
+    my $lock = acquire_lock($self->lock_file(), 0);
+    if (!$lock) {
         $self->logger()->info('another grub-btrfs-refresh run is active; skipping this event');
-        return undef;
     }
-    return $fh;
+    return $lock;
 }
 
 sub _runtime_snapshot_active {
@@ -313,9 +307,11 @@ sub _snapshot_metadata {
     my $tags = ref($metadata->{tags}) ? q{} : ($metadata->{tags} // q{});
     my $comment = ref($metadata->{comments}) ? q{} : ($metadata->{comments} // q{});
     my %labels = (B => 'boot', D => 'daily', H => 'hourly', M => 'monthly', O => 'ondemand', W => 'weekly');
+    # info.json stores full native tag names; short names are CLI/display forms.
+    $labels{$_} = $_ for values %labels;
     my %seen;
-    my $tag = join q{, }, map { $labels{$_} }
-        grep { exists($labels{$_}) && !$seen{$_}++ } split /[ ,]+/, $tags;
+    my $tag = join q{, }, grep { !$seen{$_}++ } map { $labels{$_} }
+        grep { exists($labels{$_}) } split /[ ,]+/, $tags;
     $comment =~ s/[\x00-\x1f\x7f\p{Cf}]/ /g;
     $comment = substr($comment, 0, 160);
     return ($tag, $comment);
@@ -458,21 +454,26 @@ sub _render_snapshot_menu {
             $snapshot_name,
             $root_subvolume,
         );
+        my @compatible_kernels;
+        for my $kernel_image (@{$kernel_images}) {
+            my $version = $kernel_image;
+            $version =~ s{\A/boot/vmlinuz-}{};
+            $version =~ /\A[A-Za-z0-9_.:+~=-]+\z/
+                or die "invalid kernel version\n";
+            my $modules = realpath("$subvolume/lib/modules/$version");
+            # Check once per snapshot/kernel, shared by all three profiles.
+            # Debian's relative usrmerge link is valid; escaped links are not.
+            push @compatible_kernels, $version
+                if defined($modules) && index($modules, "$subvolume/") == 0 && -d $modules;
+        }
+        next if !@compatible_kernels;
         my @snapshot_lines;
         my $has_entries = 0;
         for my $profile_spec (@profiles) {
             my ($profile_name, $profile_label, $profile_flags) = @{$profile_spec};
             next if !defined($profile_name) || $profile_name eq q{};
             my @profile_lines;
-            for my $kernel_image (@{$kernel_images}) {
-                my $kernel_version = $kernel_image;
-                $kernel_version =~ s{\A/boot/vmlinuz-}{};
-                $kernel_version =~ /\A[A-Za-z0-9_.:+~=-]+\z/
-                    or die "invalid kernel version\n";
-                my $modules = realpath("$subvolume/lib/modules/$kernel_version");
-                # Accept Debian's relative usrmerge link, never a link escaping
-                # this snapshot (including an absolute /usr/lib link).
-                next if !defined($modules) || index($modules, "$subvolume/") != 0 || !-d $modules;
+            for my $kernel_version (@compatible_kernels) {
                 my $kernel_id = $self->_grub_id_fragment($kernel_version);
                 my $profile_id = $self->_grub_id_fragment($profile_name);
                 push @profile_lines,
@@ -576,6 +577,7 @@ sub run {
 
     local $ENV{PATH} = '/usr/sbin:/usr/bin:/sbin:/bin';
     local $ENV{LC_ALL} = 'C';
+    my $refreshed = 0;
     my $result = eval {
         $> == 0 or die "snapshot menu refresh requires root\n";
         @argv <= 1 && (!@argv || $argv[0] eq '--wait')
@@ -584,6 +586,14 @@ sub run {
         $self->_require_absolute_path('refresh lock file', $self->lock_file());
         my $lock = $self->_acquire_lock();
         return 0 if !$lock;
+        # A backup hook may request us before native retention cleanup finishes.
+        # Do not render from that moving tree. The completion hook and periodic
+        # reconciliation retry after the managed writer releases the same lock.
+        my $snapshot_lock = acquire_lock($self->snapshot_lock_file(), 0);
+        if (!$snapshot_lock) {
+            $self->logger()->info('managed Timeshift mutation is active; deferring snapshot menu refresh');
+            return 0;
+        }
         $self->_wait_for_timeshift_exit() if @argv && $argv[0] eq '--wait';
         my ($profile, $grub_btrfs) = $self->_load_configurations();
         return 0 if !$profile;
@@ -605,6 +615,7 @@ sub run {
         my @kernel_images = $self->_bootable_kernel_images();
         if (!@kernel_images) {
             $self->_install_menu($self->_fallback_menu());
+            $refreshed = 1;
             return 0;
         }
 
@@ -646,6 +657,7 @@ sub run {
             my $snapshot_root = "$mount_root/$snapshot_dir_rel";
             if (!-d $snapshot_root || (realpath($snapshot_root) // q{}) ne $snapshot_root) {
                 $self->_install_menu($self->_fallback_menu());
+                $refreshed = 1;
                 return 0;
             }
             my $menu = $self->_render_snapshot_menu(
@@ -660,6 +672,7 @@ sub run {
                 snapshot_root    => $snapshot_root,
             );
             $self->_install_menu($menu);
+            $refreshed = 1;
             return 0;
         };
         my $error = $@;
@@ -676,7 +689,7 @@ sub run {
         $self->logger()->error($error);
         return 1;
     }
-    $self->logger()->info('refreshed GRUB Btrfs snapshot menu') if $result == 0;
+    $self->logger()->info('refreshed GRUB Btrfs snapshot menu') if $result == 0 && $refreshed;
     return $result;
 }
 

@@ -3,10 +3,10 @@ Description=First boot provisioning and validation wrapper
 Documentation=man:systemd.service(5)
 
 # Collect persistent diagnostics even when the collector cannot start.
-# Validation still fails until rsyslog.service and syslog.socket are active.
+# Validation also requires the ready collector's forwarding owner.
 Wants=network-online.target apparmor-modes.service rsyslog.service
 Requires=apparmor.service local-fs.target systemd-tmpfiles-setup.service journal-sealing.service auditd.service
-After=apparmor.service local-fs.target systemd-tmpfiles-setup.service systemd-journald.socket journal-sealing.service network-online.target apparmor-modes.service auditd.service rsyslog.service
+After=apparmor.service local-fs.target systemd-tmpfiles-setup.service systemd-journald.socket journal-sealing.service network-online.target apparmor-modes.service auditd.service rsyslog.service rsyslog-journal-forwarding.service
 
 # The wrapper skips a successful marker under its lock. Failed legacy markers
 # must not suppress a fresh validation attempt.

@@ -8,11 +8,14 @@ we validate the resulting settings rather than assuming a filename wins.
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import stat
 import subprocess
 import sys
 
 MANAGED = Path('/etc/systemd/journald.conf.d/10-storage.conf')
+FORWARDING = Path('/run/systemd/journald.conf.d/90-rsyslog-forwarding.conf')
+FORWARDING_BYTES = b'[Journal]\nForwardToSyslog=yes\n'
 CRITICAL = ('Storage', 'ForwardToSyslog', 'ReadKMsg', 'Seal',
             'MaxLevelStore', 'MaxLevelSyslog', 'RateLimitIntervalSec', 'RateLimitBurst')
 
@@ -49,11 +52,32 @@ def journal_settings(text: str, *, unique: bool = False) -> dict[str, str]:
     return values
 
 
-def check(managed_text: str, effective_text: str) -> None:
+def forwarding_enabled() -> bool:
+    """Recognize only the exact root-owned override published by the owner unit."""
+    try:
+        fd = os.open(FORWARDING, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    except FileNotFoundError:
+        return False
+    with os.fdopen(fd, 'rb') as stream:
+        metadata = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
+                or metadata.st_gid != 0 or metadata.st_nlink != 1
+                or stat.S_IMODE(metadata.st_mode) != 0o644
+                or stream.read(len(FORWARDING_BYTES) + 1) != FORWARDING_BYTES):
+            raise PolicyError('unsafe managed forwarding override')
+        for parent in FORWARDING.parents:
+            metadata = parent.lstat()
+            if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0
+                    or metadata.st_mode & 0o022):
+                raise PolicyError('unsafe managed forwarding directory')
+    return True
+
+
+def check(managed_text: str, effective_text: str, *, forwarding: bool = False) -> None:
     managed = journal_settings(managed_text, unique=True)
     if managed.get('Storage') not in ('persistent', 'volatile'):
         raise PolicyError('managed Storage must be persistent or volatile')
-    if managed.get('ForwardToSyslog') != 'yes' or managed.get('ReadKMsg') != 'no':
+    if managed.get('ForwardToSyslog') != 'no' or managed.get('ReadKMsg') != 'no':
         raise PolicyError('managed imuxsock/imklog input policy is incomplete')
     if managed.get('Seal') not in ('yes', 'no'):
         raise PolicyError('managed Seal must be explicitly yes or no')
@@ -65,15 +89,16 @@ def check(managed_text: str, effective_text: str) -> None:
     if managed['Storage'] == 'volatile' and managed['Seal'] != 'no':
         raise PolicyError('volatile journals must not claim forward-secure sealing')
     effective = journal_settings(effective_text)
+    expected = dict(managed, ForwardToSyslog='yes' if forwarding else 'no')
     for key in CRITICAL:
-        if effective.get(key) != managed[key]:
+        if effective.get(key) != expected[key]:
             raise PolicyError(f'effective {key}={effective.get(key)!r} conflicts with '
-                              f'managed {key}={managed[key]}; review native journal drop-ins')
+                              f'managed {key}={expected[key]}; review native journal drop-ins')
 
 
 def main() -> int:
-    if len(sys.argv) != 1:
-        raise PolicyError('this checker takes no arguments')
+    if sys.argv[1:] not in ([], ['--require-forwarding']):
+        raise PolicyError('usage: journal-check [--require-forwarding]')
     metadata = MANAGED.lstat()
     if (not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1
             or metadata.st_uid != 0 or metadata.st_mode & 0o022):
@@ -88,7 +113,10 @@ def main() -> int:
     if result.returncode:
         raise PolicyError('systemd-analyze could not resolve journald configuration: '
                           + result.stderr.strip()[:1024])
-    check(MANAGED.read_text(encoding='utf-8'), result.stdout)
+    forwarding = forwarding_enabled()
+    if sys.argv[1:] and not forwarding:
+        raise PolicyError('ready rsyslog has no managed forwarding override')
+    check(MANAGED.read_text(encoding='utf-8'), result.stdout, forwarding=forwarding)
     return 0
 
 

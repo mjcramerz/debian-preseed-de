@@ -7,10 +7,12 @@ After=local-fs.target
 [Service]
 Type=oneshot
 TimeoutStartSec=6h
+TimeoutStopSec=30s
+KillMode=control-group
 Nice=19
 IOSchedulingClass=idle
 IOSchedulingPriority=7
 UMask=0077
 ExecStart=/usr/local/libexec/timeshift-snapshot monthly
-# Queue only after the snapshot command has finished; the timer covers missed events.
-ExecStartPost=/usr/bin/systemctl --no-block start grub-btrfs-refresh.service
+# Reconcile after cleanup on success or failure; the timer covers missed events.
+ExecStopPost=/usr/bin/systemctl --no-block start grub-btrfs-refresh.service

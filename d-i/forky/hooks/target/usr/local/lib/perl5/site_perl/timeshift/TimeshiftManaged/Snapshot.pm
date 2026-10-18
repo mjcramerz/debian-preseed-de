@@ -3,18 +3,15 @@ package TimeshiftManaged::Snapshot;
 use strict;
 use warnings;
 
-use Errno qw(EAGAIN EINTR EWOULDBLOCK);
-use Fcntl qw(:flock O_CREAT O_NOFOLLOW O_NONBLOCK O_WRONLY O_RDONLY O_DIRECTORY);
-use File::Basename qw(dirname);
 use Moo;
 use MooX::StrictConstructor;
 use MooX::TypeTiny;
-use Time::HiRes qw(sleep clock_gettime CLOCK_MONOTONIC);
 use Types::Standard qw(Int Str);
 
 use TimeshiftManaged::Command;
 use TimeshiftManaged::EventQueue;
 use TimeshiftManaged::Logger;
+use TimeshiftManaged::Lock qw(acquire_lock);
 
 has binary => (
     is       => 'ro',
@@ -108,33 +105,6 @@ sub _validate_absolute_path {
     return;
 }
 
-sub _ensure_directory {
-    my ($self, $directory) = @_;
-
-    $self->_validate_absolute_path('Timeshift lock directory', $directory);
-    my $current = q{};
-    for my $part (grep { $_ ne q{} } split m{/+}, $directory) {
-        $current .= "/$part";
-        -l $current
-            and die "Timeshift lock directory must not be a symlink: $current\n";
-        my $created = 0;
-        if (-e $current) {
-            -d $current
-                or die "Timeshift lock directory is not a directory: $current\n";
-        }
-        else {
-            mkdir $current, 0755
-                or die "cannot create Timeshift lock directory $current: $!\n";
-            $created = 1;
-        }
-        if ($created) {
-            chmod 0755, $current
-                or die "cannot set Timeshift lock directory mode for $current: $!\n";
-        }
-    }
-    return;
-}
-
 sub _validate {
     my ($self) = @_;
 
@@ -171,37 +141,14 @@ sub _emit_or_warn {
 
 sub _acquire_lock {
     my ($self) = @_;
-
-    my $directory = dirname($self->lock_file());
-    $self->_ensure_directory($directory);
-    -l $self->lock_file()
-        and die "Timeshift lock file must not be a symlink: " . $self->lock_file() . "\n";
-    sysopen my $fh, $self->lock_file(), O_WRONLY | O_CREAT | O_NOFOLLOW | O_NONBLOCK, 0600
-        or die "cannot open Timeshift snapshot lock: " . $self->lock_file() . ": $!\n";
-    my @lock_stat = stat $fh;
-    @lock_stat && -f _ && $lock_stat[4] == $> && $lock_stat[3] == 1
-        && !($lock_stat[2] & 0022)
-        or die "lock must be a trusted, singly linked regular file\n";
-
-
-    my $deadline = clock_gettime(CLOCK_MONOTONIC) + $self->lock_timeout_seconds();
-    while (!flock($fh, LOCK_EX | LOCK_NB)) {
-        next if $! == EINTR;
-        ($! == EWOULDBLOCK || $! == EAGAIN) or die "cannot lock Timeshift snapshot: $!\n";
-        return undef if clock_gettime(CLOCK_MONOTONIC) >= $deadline;
-        sleep 0.2;
-    }
-    return $fh;
+    return acquire_lock($self->lock_file(), $self->lock_timeout_seconds());
 }
 
 sub _command_arguments {
     my ($self) = @_;
-    my %schedule = (
-        daily   => ['D', 'Scheduled eight-times-daily snapshot'],
-        weekly  => ['W', 'Scheduled twice-weekly snapshot'],
-        monthly => ['M', 'Scheduled monthly snapshot'],
-    );
-    my ($tag, $comment) = @{ $schedule{ $self->kind() } };
+    my %schedule = (daily => 'D', weekly => 'W', monthly => 'M');
+    # Timeshift treats every nonempty comment as a retention exemption. Keep
+    # automatic snapshots unpinned; tags already describe their schedule.
     return (
         $self->binary(),
         '--create',
@@ -210,9 +157,7 @@ sub _command_arguments {
         '--quiet',
         '--btrfs',
         '--tags',
-        $tag,
-        '--comments',
-        $comment,
+        $schedule{ $self->kind() },
     );
 }
 

@@ -343,7 +343,7 @@ validate_target_journal_storage_policy() (
     "RuntimeMaxFileSize=$SYSTEMD_JOURNAL_RUNTIME_MAX_FILE_SIZE" \
     "RuntimeMaxFiles=$SYSTEMD_JOURNAL_RUNTIME_MAX_FILES" \
     'MaxRetentionSec=1month' \
-    'ForwardToSyslog=yes' \
+    'ForwardToSyslog=no' \
     'ForwardToKMsg=no' \
     'ReadKMsg=no'
   do

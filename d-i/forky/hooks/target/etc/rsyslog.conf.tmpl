@@ -4,6 +4,8 @@
 # evidence; application tags are routing hints, never authorization.
 # Socket forwarding has no replay after collector downtime. The host-selected
 # journal storage policy remains independent and retains structured records.
+# Forwarding starts only after rsyslog is ready and stops before an orderly
+# collector stop; early boot records remain in the journal without replay.
 # Private app inputs reflect only warning/error records into the journal;
 # IgnoreOwnMessages prevents those copies from entering the collector again.
 

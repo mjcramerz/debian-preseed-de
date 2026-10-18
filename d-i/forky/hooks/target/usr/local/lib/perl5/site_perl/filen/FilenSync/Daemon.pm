@@ -41,8 +41,12 @@ sub run {
     my ($self) = @_;
     my $config = FilenSync::Config->new(account => $self->account);
     my ($settings, $secrets);
-    eval { $settings = $config->settings; $secrets = $config->credentials; 1 } or do {
-        $self->event('invalid-configuration', 'private-input');
+    eval { $settings = $config->settings; 1 } or do {
+        $self->event('invalid-configuration', 'settings');
+        return 78;
+    };
+    eval { $secrets = $config->credentials; 1 } or do {
+        $self->event('invalid-configuration', 'credentials');
         return 78;
     };
     local %ENV = (PATH => '/usr/sbin:/usr/bin:/sbin:/bin', LC_ALL => 'C.UTF-8',

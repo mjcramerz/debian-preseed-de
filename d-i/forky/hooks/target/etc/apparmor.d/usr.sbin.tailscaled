@@ -143,6 +143,9 @@ profile tailscale-netkit /usr/local/libexec/tailscale-netkit flags=(attach_disco
   capability setuid,
   capability setgid,
   capability sys_chroot,
+  # iproute2's kernel link/module probes run only in the root constructor.
+  # The daemon and authenticated SSH delegate do not receive this capability.
+  capability sys_module,
   ptrace (read) peer=unconfined,
   ptrace (readby) peer=usr.sbin.tailscaled,
   network netlink raw,
