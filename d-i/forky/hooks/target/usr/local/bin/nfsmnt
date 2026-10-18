@@ -3,7 +3,8 @@
 set -eu
 if [ "$#" -eq 1 ] && [ "$1" = --help ]; then
   printf '%s\n' 'Usage: nfsmnt' \
-    'Check the configured NFS server, mount its fstab share, then its configured home bind.' \
+    'Check the configured NFS server and mount /data/sharing/nfs-client once.' \
+    'The persistent Sharing home view receives the mount automatically.' \
     'Run as the desktop user; systemd uses the existing administrator authentication policy.'
   exit 0
 fi

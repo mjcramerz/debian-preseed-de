@@ -24,6 +24,12 @@ preseed_env_variable_name() {
     root_password) printf '%s\n' PRESEED_ROOT_PASSWORD ;;
     crowdsec_token|crowdsec_enroll_token|crowdsec_attachment_key) printf '%s\n' PRESEED_CROWDSEC_TOKEN ;;
     tailscale_authkey|tailscale_auth_key) printf '%s\n' PRESEED_TAILSCALE_TOKEN ;;
+    filen_priv_email) printf '%s\n' PRESEED_FILEN_PRIV_EMAIL ;;
+    filen_priv_password) printf '%s\n' PRESEED_FILEN_PRIV_PASSWORD ;;
+    filen_priv_2fa_seed) printf '%s\n' PRESEED_FILEN_PRIV_2FA_SEED ;;
+    filen_offsec_email) printf '%s\n' PRESEED_FILEN_OFFSEC_EMAIL ;;
+    filen_offsec_password) printf '%s\n' PRESEED_FILEN_OFFSEC_PASSWORD ;;
+    filen_offsec_2fa_seed) printf '%s\n' PRESEED_FILEN_OFFSEC_2FA_SEED ;;
     telegram_chat_id) printf '%s\n' PRESEED_TELEGRAM_CHAT_ID ;;
     telegram_api_key) printf '%s\n' PRESEED_TELEGRAM_API_KEY ;;
     cf_r2_access_key) printf '%s\n' PRESEED_CF_APTLY_ACCESS_KEY ;;
@@ -162,6 +168,8 @@ preseed_env_read_value() (
     PRESEED_GIT_SSH_PASSPHRASE PRESEED_SHIM_SIGNED_PASSPHRASE PRESEED_ROOT_PASSWORD PRESEED_CROWDSEC_TOKEN PRESEED_TAILSCALE_TOKEN \
     PRESEED_TELEGRAM_CHAT_ID PRESEED_TELEGRAM_API_KEY PRESEED_CF_APTLY_ACCESS_KEY \
     PRESEED_CF_APTLY_SECRET_KEY PRESEED_OBS_USERNAME PRESEED_OBS_PASSWORD \
+    PRESEED_FILEN_PRIV_EMAIL PRESEED_FILEN_PRIV_PASSWORD PRESEED_FILEN_PRIV_2FA_SEED \
+    PRESEED_FILEN_OFFSEC_EMAIL PRESEED_FILEN_OFFSEC_PASSWORD PRESEED_FILEN_OFFSEC_2FA_SEED \
     PRESEED_DNS_UPSTREAM_TLS_CA_NAME_CUSTOM
   # shellcheck disable=SC1090
   if ! . "$preseed_read_tmp" >/dev/null 2>&1; then
@@ -192,6 +200,14 @@ preseed_env_read_value() (
       case "$preseed_read_result" in
         *[![:print:]]*)
           preseed_env_error 'primary account values must be printable single-line data'; return 2 ;;
+      esac
+      ;;
+    PRESEED_FILEN_*)
+      # Preserve UTF-8 and literal punctuation in account passwords. Reject
+      # CR/LF here before command substitution can remove trailing newlines.
+      case "$preseed_read_result" in
+        *"$preseed_read_cr"*|*'
+'*) preseed_env_error 'Filen credentials must be single-line data'; return 2 ;;
       esac
       ;;
     PRESEED_DNS_UPSTREAM_TLS_CA_NAME_CUSTOM)

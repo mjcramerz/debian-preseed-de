@@ -20,14 +20,14 @@ owner @{HOME}/@{XDG_PICTURES_DIR}/{,**} rwklm,
 owner @{HOME}/@{XDG_PUBLICSHARE_DIR}/{,**} rwklm,
 owner @{HOME}/@{XDG_TEMPLATES_DIR}/{,**} rwklm,
 owner @{HOME}/@{XDG_VIDEOS_DIR}/{,**} rwklm,
-# Managed NFS roots have DAC/group/export permissions of their own. Peer files
-# can legitimately have another UID; do not require local ownership here.
+# Managed NFS and Filen trees have their own DAC/export/ACL permissions.
+# Peer and service files can have another UID; do not require ownership here.
 /data/sharing/ r,
-/data/sharing/{nfs-client,nfs-server}/{,**} rwkl,
+/data/sharing/{nfs-client,nfs-server,filen-private,filen-offsec}/{,**} rwkl,
 # The installer makes this parent root-owned and immutable. Read access must
 # not depend on account ownership; only the separate children contain data.
 @{HOME}/Sharing/ r,
-@{HOME}/Sharing/{nfs-client,nfs-server}/{,**} rwkl,
+@{HOME}/Sharing/{nfs-client,nfs-server,filen-private,filen-offsec}/{,**} rwkl,
 /data/ r,
 /data/{downloads,tmp}/ rw,
 /data/{downloads,tmp}/** rwklm,

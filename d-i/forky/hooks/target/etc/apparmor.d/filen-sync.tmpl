@@ -1,0 +1,39 @@
+abi "/usr/share/apparmor-features/features",
+#include <tunables/global>
+
+# A named profile per account, selected by the system service. The CLI and
+# oathtool inherit it; neither gets a shell, manager, bus or namespace delegate.
+profile filen-sync-__ACCOUNT__ flags=(attach_disconnected) {
+  #include <abstractions/wrapper-perl>
+  #include <abstractions/nameservice-strict>
+  /usr/local/libexec/filen-sync r,
+  /usr/local/lib/perl5/site_perl/filen/{,**} r,
+  /usr/local/lib/perl5/site_perl/runtime/Managed/{,Process.pm} r,
+  /usr/local/bin/filen mrix,
+  /usr/bin/oathtool mrix,
+  /etc/ r,
+  /etc/filen/ r,
+  /etc/filen/__ACCOUNT__{,.sync}.json r,
+  /run/credentials/filen-sync@__ACCOUNT__.service/{,email,password,seed} r,
+  /run/systemd/timesync/synchronized r,
+  /var/lib/filen-__ACCOUNT__/{,**} rwkl,
+  __SHARING_ROOT__/filen-__ACCOUNT__/{,**} rwkl,
+  /etc/ssl/{,**} r,
+  /etc/{os-release,localtime} r,
+  /usr/lib/os-release r,
+  /tmp/{,**} rwkl,
+  owner @{PROC}/@{pid}/{stat,status,fd/,fd/[0-9]*,task/,task/**} r,
+  owner @{PROC}/@{pid}/{maps,exe} r,
+  # The pinned Bun release may mmap its bundled native modules from private tmp.
+  /tmp/**.node mr,
+  /var/lib/filen-__ACCOUNT__/**.node mr,
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network unix stream,
+  signal (send, receive) peer=filen-sync-__ACCOUNT__,
+  signal (receive) set=(term,kill,int,hup) peer=unconfined,
+  deny /{,usr/}bin/{sh,bash,dash} x,
+  include if exists <local/filen-sync-__ACCOUNT__>
+}

@@ -1,0 +1,55 @@
+[Unit]
+Description=Filen continuous sync (%i account)
+Wants=network-online.target time-sync.target
+Requires=apparmor.service
+After=network-online.target time-sync.target apparmor.service
+RequiresMountsFor=__SHARING_ROOT__/filen-%i
+ConditionPathExists=/etc/filen/%i.json
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=filen-%i
+Group=filen-%i
+ExecStart=/usr/bin/perl -T /usr/local/libexec/filen-sync %i
+WorkingDirectory=/var/lib/filen-%i
+StateDirectory=filen-%i
+StateDirectoryMode=0700
+LoadCredential=email:/etc/credstore/filen-%i/email
+LoadCredential=password:/etc/credstore/filen-%i/password
+LoadCredential=seed:/etc/credstore/filen-%i/seed
+AppArmorProfile=filen-sync-%i
+UMask=0007
+Restart=on-failure
+RestartSec=60s
+RestartSteps=5
+RestartMaxDelaySec=15min
+RestartPreventExitStatus=78 79
+TimeoutStopSec=30s
+KillMode=control-group
+SendSIGKILL=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=__SHARING_ROOT__/filen-%i
+ProtectProc=invisible
+ProcSubset=pid
+ProtectControlGroups=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+LimitCORE=0
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

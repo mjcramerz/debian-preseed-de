@@ -26,8 +26,7 @@ BEGIN = '# BEGIN managed-network-sharing'
 END = '# END managed-network-sharing'
 REQUIRED_FLAGS = {'sync', 'subtree_check', 'root_squash', 'secure', 'sec=sys', 'fsid=0'}
 PRIVATE_NETWORKS = tuple(ipaddress.ip_network(n) for n in ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'))
-BOOLS = ('NFS_SERVER_ENABLE', 'NFS_CLIENT_ENABLE', 'NFS_SERVER_BIND_ENABLE',
-         'NFS_CLIENT_BIND_ENABLE', 'NFS_CLIENT_READ_ONLY')
+BOOLS = ('NFS_SERVER_ENABLE', 'NFS_CLIENT_ENABLE', 'NFS_CLIENT_READ_ONLY')
 TOOL_ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C', 'LC_ALL': 'C',
             'DEBIAN_FRONTEND': 'noninteractive', 'DEBCONF_NONINTERACTIVE_SEEN': 'true',
             'NEEDRESTART_SUSPEND': '1', 'SYSTEMD_OFFLINE': '1'}
@@ -126,12 +125,11 @@ class Settings:
     def from_environment(cls, env: Mapping[str, str]) -> 'Settings':
         names = set(BOOLS) | {
             'ACCOUNT_USERNAME', 'ACCOUNT_HOME', 'SYSTEM_DOMAIN', 'NFT_PROFILE', 'NETWORK_SHARING_ROOT_PATH',
-            'NFS_SERVER_PATH', 'NFS_SERVER_HOME_BIND_PATH', 'NFS_SERVER_APT_DEPS', 'NFS_SERVER_THREADS',
+            'NFS_SERVER_PATH', 'NETWORK_SHARING_HOME_BIND_PATH', 'NFS_SERVER_APT_DEPS', 'NFS_SERVER_THREADS',
             'NFS_SERVER_PORT', 'NFS_SERVER_RW_OPTIONS', 'NFS_SERVER_RO_OPTIONS',
-            'NFS_SERVER_EXPORTS', 'NFS_CLIENT_PATH', 'NFS_CLIENT_HOME_BIND_PATH',
+            'NFS_SERVER_EXPORTS', 'NFS_CLIENT_PATH',
             'NFS_CLIENT_TARGET_IP', 'NFS_CLIENT_EXPORT_PATH', 'NFS_CLIENT_VERSION',
             'NFS_CLIENT_MOUNT_TIMEOUT', 'NFS_CLIENT_APT_DEPS', 'NFS_ACCOUNT_UID', 'NFS_ACCOUNT_GID',
-            'NFS_MNT_SERVER_BIND_HOME_OPTS', 'NFS_MNT_CLIENT_BIND_HOME_OPTS',
             'NFS_MNT_CLIENT_TARGET_SHARE_OPTS',
             'NFS_SHARED_GROUP', 'NFS_SHARED_GID', 'NFS_INTERFACES', 'NFS_TCP_RMEM',
             'NFS_TCP_WMEM', 'NFS_SOCKET_RMEM_MAX', 'NFS_SOCKET_WMEM_MAX'}
@@ -156,18 +154,10 @@ class Settings:
         home = normalized_path(values['ACCOUNT_HOME'])
         if not home.startswith('/home/'):
             raise ValueError('managed account home must be below /home')
-        targets = []
-        for role in ('SERVER', 'CLIENT'):
-            relative = normalized_path(values[f'NFS_{role}_HOME_BIND_PATH'], relative=True)
-            # A dedicated root-owned parent is required; do not take over Documents.
-            if len(PurePosixPath(relative).parts) < 2:
-                raise ValueError('home bind must have a dedicated parent, e.g. Sharing/nfs-client')
-            targets.append(relative)
-            if flags[f'NFS_{role}_BIND_ENABLE'] and not flags[f'NFS_{role}_ENABLE']:
-                raise ValueError(f'NFS_{role}_BIND_ENABLE requires NFS_{role}_ENABLE')
-        if any(a == b or a.startswith(b + '/') for a, b in (targets, targets[::-1])):
-            raise ValueError('home bind destinations must not overlap')
-        for local_path in (root, *sources, *(home + '/' + target for target in targets)):
+        relative = normalized_path(values['NETWORK_SHARING_HOME_BIND_PATH'], relative=True)
+        if len(PurePosixPath(relative).parts) != 1 or relative.startswith('.'):
+            raise ValueError('sharing home bind must be one dedicated visible directory')
+        for local_path in (root, *sources, home + '/' + relative):
             if len(unit_name(local_path)) > 255:
                 raise ValueError('sharing path exceeds the escaped systemd unit-name limit')
         for key in ('ACCOUNT_USERNAME', 'NFS_SHARED_GROUP'):
@@ -207,15 +197,8 @@ class Settings:
             options = values[f'NFS_SERVER_{mode}_OPTIONS'].split(',')
             if len(set(options)) != len(options) or set(options) != REQUIRED_FLAGS | {mode.lower()}:
                 raise ValueError(f'NFS_SERVER_{mode}_OPTIONS must retain the managed export policy')
-        bind_flags = {'bind', 'nosuid', 'nodev', 'noexec', 'nofail'}
         network_flags = {'_netdev', 'noauto',
                          'x-systemd.mount-timeout=' + values['NFS_CLIENT_MOUNT_TIMEOUT'] + 's'}
-        for role in ('SERVER', 'CLIENT'):
-            required = bind_flags | {'x-systemd.requires-mounts-for=' + values[f'NFS_{role}_PATH'],
-                                     'x-gvfs-show', 'x-gvfs-name=nfs-' + role.lower()}
-            if role == 'CLIENT':
-                required |= network_flags
-            mount_options(values[f'NFS_MNT_{role}_BIND_HOME_OPTS'], f'NFS_MNT_{role}_BIND_HOME_OPTS', required, {'ro'})
         required = {'hard', 'proto=tcp', 'port=' + values['NFS_SERVER_PORT'], 'resvport', 'sec=sys',
                     'vers=' + values['NFS_CLIENT_VERSION'], 'nosuid', 'nodev', 'noexec', 'nofail',
                     'x-systemd.requires=nfs-client.target', 'x-systemd.requires=nftables.service',
@@ -227,10 +210,6 @@ class Settings:
         common = {'nfs-common', 'libnfsidmap1', 'keyutils', 'nftables'}
         server_required = common | {'nfs-kernel-server', 'acl'}
         client_required = set(common)
-        if flags['NFS_SERVER_BIND_ENABLE']:
-            server_required.add('e2fsprogs')
-        if flags['NFS_CLIENT_BIND_ENABLE']:
-            client_required.add('e2fsprogs')
         server = package_names(values['NFS_SERVER_APT_DEPS'], server_required)
         client = package_names(values['NFS_CLIENT_APT_DEPS'], client_required)
         packages = (server if flags['NFS_SERVER_ENABLE'] else []) + (client if flags['NFS_CLIENT_ENABLE'] else [])
@@ -383,49 +362,46 @@ def unit_name(path: str, suffix: str = 'mount') -> str:
 
 
 def fstab_entries(s: Settings) -> list[str]:
-    entries: list[str] = []
+    root = s['NETWORK_SHARING_ROOT_PATH']
+    home = s['ACCOUNT_HOME'] + '/' + s['NETWORK_SHARING_HOME_BIND_PATH']
+    # mount(8) performs propagation changes after the bind. The source is a
+    # dedicated mount point; rslave lets the home view receive future mounts
+    # without propagating mounts made in the home view back to /data/sharing.
+    entries = [f'{root} {root} none bind,shared,nosuid,nodev,noexec 0 0',
+               f'{root} {home} none rbind,rslave,nosuid,nodev,noexec,x-systemd.requires-mounts-for={root} 0 0']
     if s.enabled('NFS_CLIENT_ENABLE'):
         opts = s['NFS_MNT_CLIENT_TARGET_SHARE_OPTS'].split(',')
         if s.enabled('NFS_CLIENT_READ_ONLY'):
             opts = ['ro' if option == 'rw' else option for option in opts]
+        opts.append('x-systemd.requires-mounts-for=' + root)
+        opts.append('x-systemd.requires-mounts-for=' + home)
         entries.append(f"{s['NFS_CLIENT_TARGET_IP']}:{s['NFS_CLIENT_EXPORT_PATH']} {s['NFS_CLIENT_PATH']} nfs {','.join(opts)} 0 0")
-    for role in ('SERVER', 'CLIENT'):
-        if not s.enabled(f'NFS_{role}_BIND_ENABLE'):
-            continue
-        source = s[f'NFS_{role}_PATH']
-        target = s['ACCOUNT_HOME'] + '/' + s[f'NFS_{role}_HOME_BIND_PATH']
-        opts = s[f'NFS_MNT_{role}_BIND_HOME_OPTS'].split(',')
-        if (role == 'CLIENT' and (s.enabled('NFS_CLIENT_READ_ONLY')
-                                 or 'ro' in s['NFS_MNT_CLIENT_TARGET_SHARE_OPTS'].split(','))
-                and 'ro' not in opts):
-            opts.append('ro')
-        entries.append(f"{source} {target} none {','.join(opts)} 0 0")
     return entries
 
 
 def public_config(s: Settings) -> dict:
-    """Version 2 describes mount units; boot enablement comes from fstab."""
-    public = {'version': 2, 'profile': s.values, 'peers': s.peers,
-              'server_enabled': s.enabled('NFS_SERVER_ENABLE'), 'client_enabled': s.enabled('NFS_CLIENT_ENABLE'),
-              'client_mount': unit_name(s['NFS_CLIENT_PATH'])}
-    for role in ('SERVER', 'CLIENT'):
-        target = s['ACCOUNT_HOME'] + '/' + s[f'NFS_{role}_HOME_BIND_PATH']
-        public[role.lower() + '_bind_mount'] = unit_name(target) if s.enabled(f'NFS_{role}_BIND_ENABLE') else ''
-    return public
+    return {'version': 3, 'profile': s.values, 'peers': s.peers,
+            'server_enabled': s.enabled('NFS_SERVER_ENABLE'), 'client_enabled': s.enabled('NFS_CLIENT_ENABLE'),
+            'client_mount': unit_name(s['NFS_CLIENT_PATH']),
+            'sharing_mount': unit_name(s['NETWORK_SHARING_ROOT_PATH']),
+            'sharing_bind_mount': unit_name(s['ACCOUNT_HOME'] + '/' + s['NETWORK_SHARING_HOME_BIND_PATH'])}
 
 
 def home_bind_bookmarks(s: Settings) -> str:
-    # GLib ignores bind rows when enumerating unmounted fstab volumes, even
-    # with x-gvfs-show. GTK bookmarks keep the home endpoints in Thunar Places.
-    return ''.join('file://' + s['ACCOUNT_HOME'] + '/' + s[f'NFS_{role}_HOME_BIND_PATH']
-                   + ' nfs-' + role.lower() + '\n'
-                   for role in ('SERVER', 'CLIENT') if s.enabled(f'NFS_{role}_BIND_ENABLE'))
+    base = 'file://' + s['ACCOUNT_HOME'] + '/' + s['NETWORK_SHARING_HOME_BIND_PATH']
+    rows = [base + ' Sharing']
+    for role in ('SERVER', 'CLIENT'):
+        if s.enabled(f'NFS_{role}_ENABLE'):
+            rows.append(base + s[f'NFS_{role}_PATH'][len(s['NETWORK_SHARING_ROOT_PATH']):] + ' nfs-' + role.lower())
+    return '\n'.join(rows) + '\n'
 
 
 def primary_account(s: Settings) -> pwd.struct_passwd:
     account = pwd.getpwnam(s['ACCOUNT_USERNAME'])
-    if (account.pw_uid != int(s['NFS_ACCOUNT_UID']) or account.pw_gid != int(s['NFS_ACCOUNT_GID'])
+    if (account.pw_uid in (0, 65534) or account.pw_gid == 65534
             or account.pw_dir != s['ACCOUNT_HOME'] or pwd.getpwuid(account.pw_uid).pw_name != account.pw_name):
+        raise ValueError('sharing desktop account identity/home mismatch')
+    if s.active and (account.pw_uid != int(s['NFS_ACCOUNT_UID']) or account.pw_gid != int(s['NFS_ACCOUNT_GID'])):
         raise ValueError('NFS primary account UID/GID/home mismatch; refusing to renumber AUTH_SYS identities')
     return account
 
@@ -463,7 +439,7 @@ def sharing_directory(path: Path, mode: int, gid: int = 0, *, uid: int = 0, empt
     os.chmod(path, mode, follow_symlinks=False)
 
 
-def home_bind_directory(s: Settings, role: str, account: pwd.struct_passwd) -> None:
+def home_bind_directory(s: Settings, account: pwd.struct_passwd) -> None:
     home = Path(s['ACCOUNT_HOME'])
     trusted_parents(home)
     metadata = home.lstat()
@@ -472,7 +448,7 @@ def home_bind_directory(s: Settings, role: str, account: pwd.struct_passwd) -> N
     # Never follow symlinks or recursively chown existing user content. Existing
     # nonempty user-owned parents are refused rather than taking them over.
     current = home
-    for component in PurePosixPath(s[f'NFS_{role}_HOME_BIND_PATH']).parts:
+    for component in PurePosixPath(s['NETWORK_SHARING_HOME_BIND_PATH']).parts:
         current /= component
         if current.exists() or current.is_symlink():
             metadata = current.lstat()
@@ -488,7 +464,7 @@ def home_bind_directory(s: Settings, role: str, account: pwd.struct_passwd) -> N
         raise ValueError('refusing to cover files in home bind destination')
     # A disconnected client remains navigable, with no ordinary-user writes
     # into the root-owned local placeholder. Mounted access follows server DAC.
-    os.chmod(current, 0o755 if role == 'CLIENT' else 0o000, follow_symlinks=False)
+    os.chmod(current, 0o755, follow_symlinks=False)
 
 
 def protect_home_bind_parents(s: Settings) -> None:
@@ -499,10 +475,8 @@ def protect_home_bind_parents(s: Settings) -> None:
     This is an offline installer: no target user session may run concurrently.
     Unsupported immutable flags fail before fstab or success publication.
     """
-    parents = {str(Path(s['ACCOUNT_HOME']) / PurePosixPath(s[f'NFS_{role}_HOME_BIND_PATH']).parts[0])
-               for role in ('SERVER', 'CLIENT') if s.enabled(f'NFS_{role}_BIND_ENABLE')}
-    for parent in sorted(parents):
-        run(['/usr/bin/chattr', '+i', '--', parent])
+    parent = str(Path(s['ACCOUNT_HOME']) / s['NETWORK_SHARING_HOME_BIND_PATH'])
+    run(['/usr/bin/chattr', '+i', '--', parent])
 
 
 @contextmanager
@@ -538,7 +512,7 @@ def configure(s: Settings, assets: Path) -> None:
     system_directory(config_path.parent)
     old = read_regular(config_path)
     previous = json.loads(old) if old else None
-    if old and (not isinstance(previous, dict) or previous.get('version') != 2 or previous.get('profile') != s.values):
+    if old and (not isinstance(previous, dict) or previous.get('version') != 3 or previous.get('profile') != s.values):
         raise ValueError('network sharing is already configured differently; rebuild/reinstall or follow the administrator migration procedure')
     root = Path(s['NETWORK_SHARING_ROOT_PATH'])
     system_directory(root)
@@ -568,10 +542,21 @@ def configure(s: Settings, assets: Path) -> None:
             for other in exports_dir.glob('*.exports'):
                 if any(line.strip() and not line.lstrip().startswith('#') for line in read_regular(other).splitlines()):
                     raise ValueError('unmanaged exports.d entries conflict with the dedicated NFSv4 policy')
+    account = primary_account(s)
+    home_bind_directory(s, account)
+    protect_home_bind_parents(s)
+    bookmarks = home_bind_bookmarks(s)
+    path = Path('/etc/skel-desktop/.config/gtk-3.0/bookmarks')
+    system_directory(path.parent)
+    existing = read_regular(path)
+    lines = existing.splitlines()
+    for line in bookmarks.splitlines():
+        if line.split()[0] not in {row.split()[0] for row in lines if row.strip()}:
+            lines.append(line)
+    atomic_write(path, '\n'.join(lines) + '\n')
     if s.active:
-        # AUTH_SYS sends numeric credentials independently of NFSv4 name
-        # mapping. Refuse a mismatched install before any package mutation.
-        primary_account(s)
+        # primary_account already checked AUTH_SYS numeric credentials before
+        # preparing the home view; NFSv4 name mapping cannot replace that check.
         overrides = Path('/etc/idmapd.conf.d')
         if overrides.exists() or overrides.is_symlink():
             system_directory(overrides)
@@ -622,26 +607,6 @@ def configure(s: Settings, assets: Path) -> None:
                 atomic_write(Path('/') / name.removesuffix('.tmpl'), render(assets / name, s))
         atomic_write(Path('/etc/modules-load.d/60-network-sharing.conf'), '\n'.join(modules) + '\n')
         atomic_write(Path('/etc/modprobe.d/60-network-sharing.conf'), '\n'.join(options) + '\n')
-        for role in ('SERVER', 'CLIENT'):
-            if s.enabled(f'NFS_{role}_BIND_ENABLE'):
-                home_bind_directory(s, role, account)
-        protect_home_bind_parents(s)
-        bookmarks = home_bind_bookmarks(s)
-        if bookmarks:
-            path = Path('/etc/skel-desktop/.config/gtk-3.0/bookmarks')
-            system_directory(path.parent)
-            existing = read_regular(path)
-            lines = existing.splitlines()
-            for line in bookmarks.splitlines():
-                if line.split()[0] not in {row.split()[0] for row in lines if row.strip()}:
-                    lines.append(line)
-            atomic_write(path, '\n'.join(lines) + '\n')
-        if s.enabled('NFS_CLIENT_BIND_ENABLE'):
-            target = s['ACCOUNT_HOME'] + '/' + s['NFS_CLIENT_HOME_BIND_PATH']
-            # The home bind stops when the source disappears.
-            # No automount or idle-unmount layer is installed.
-            atomic_write(Path('/etc/systemd/system') / (unit_name(target) + '.d') / '60-network-sharing.conf',
-                         '[Unit]\nBindsTo=' + unit_name(s['NFS_CLIENT_PATH']) + '\nAfter=' + unit_name(s['NFS_CLIENT_PATH']) + '\n')
         if s.enabled('NFS_CLIENT_ENABLE'):
             atomic_write(Path('/etc/systemd/system') / (unit_name(s['NFS_CLIENT_PATH']) + '.d') / '60-network-sharing.conf',
                          '[Unit]\nBindsTo=nftables.service\nAfter=nftables.service\n')
@@ -655,7 +620,7 @@ def configure(s: Settings, assets: Path) -> None:
     if entries:
         fstab = append_block(fstab, BEGIN + '\n' + '\n'.join(entries) + '\n' + END + '\n')
         atomic_write(Path('/etc/fstab'), format_fstab(fstab))
-    # Version 2 describes client mount units. Older automount
+    # Version 3 has one shared root and one persistent home view. Older
     # configuration is rejected rather than silently reactivating path triggers.
     atomic_write(config_path, json.dumps(public_config(s), indent=2, sort_keys=True) + '\n')
     print('Network sharing configured: server=' + str(s.enabled('NFS_SERVER_ENABLE')).lower()

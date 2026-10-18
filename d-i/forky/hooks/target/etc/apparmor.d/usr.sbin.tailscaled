@@ -180,6 +180,9 @@ profile tailscale-netkit /usr/local/libexec/tailscale-netkit flags=(attach_disco
   /var/cache/tailscale/{,**} rwkl,
   /tmp/{,**} rwkl,
   /sys/{,**} r,
+  # The constructor pins the freshly validated device directory and index
+  # before publishing its ownership marker; RTM_NEWLINK ignores this alias.
+  /sys/devices/virtual/net/*/ifalias w,
   /dev/{,**} r,
   @{PROC}/@{pid}/{fd/,fd/[0-9]*,ns/net,mounts,mountinfo,stat,status} r,
   @{PROC}/1/ns/mnt r,

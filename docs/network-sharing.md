@@ -1,5 +1,11 @@
 # Profile-controlled NFS network sharing
 
+**Current mount layout:** [Shared desktop storage and Filen CLI](sharing-filen.md)
+documents configuration format 3. It replaces the per-role home binds and
+format-2 mount/migration instructions recorded below. This file retains the
+protocol-policy background and historical deployment evidence; use the current
+document for mount layout, `nfsmnt`, profile controls and acceptance requirements.
+
 ## Scope and deployment status
 
 This addition targets the requested Debian Forky / systemd 262 installation.

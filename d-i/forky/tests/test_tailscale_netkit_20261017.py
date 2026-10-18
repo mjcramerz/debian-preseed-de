@@ -115,6 +115,7 @@ class NetkitTests(unittest.TestCase):
             return b'{"nftables":[]}' if argv[-2:] == ['list', 'tables'] else b''
         with mock.patch.object(netkit, 'run', side_effect=command), \
                 mock.patch.object(netkit, 'objects', return_value=[]), \
+                mock.patch.object(netkit, 'mark_created_link'), \
                 mock.patch.object(netkit, 'owned_link', return_value={'ifindex': 42}), \
                 mock.patch.object(netkit, 'ip') as ip:
             state = netkit.setup(self.config, 77)
@@ -126,6 +127,39 @@ class NetkitTests(unittest.TestCase):
             self.assertIn([family, 'rule', 'add', 'pref', '5191', 'from', peer, 'unreachable',
                            'protocol', netkit.ROUTE_PROTOCOL], arguments)
         self.assertTrue((self.root / 'state.json').is_file())
+
+    def test_new_link_marker_uses_pinned_device_and_does_not_trust_create_alias(self):
+        device = self.root / 'device'
+        device.mkdir()
+        (device / 'ifindex').write_text('42\n')
+        (device / 'ifalias').write_text('')
+        state = {'interface': 'tailscale0', 'alias': ALIAS}
+        pair = [{'ifname': name, 'ifindex': index, 'link': other, 'flags': [],
+                 'linkinfo': {'info_kind': 'netkit', 'info_data': {'mode': 'l3', 'type': role}}}
+                for name, index, other, role in [('tailscale0', 42, 'ts-uplink', 'primary'), ('ts-uplink', 43, 'tailscale0', 'peer')]]
+        original_open = os.open
+        def opened(path, flags, *args, **kwargs):
+            if str(path) == '/sys/class/net/tailscale0':
+                path = device
+            elif str(path) in ('ifindex', 'ifalias'):
+                self.assertIn('dir_fd', kwargs)
+            elif not str(path).startswith(str(self.root)):
+                raise AssertionError('uncontrolled fixture access')
+            return original_open(path, flags, *args, **kwargs)
+        with mock.patch.object(netkit, 'objects', return_value=pair), \
+                mock.patch.object(netkit.os, 'open', side_effect=opened), \
+                mock.patch.object(netkit, 'owned_link', return_value={'ifindex': 42}):
+            netkit.mark_created_link(self.config, state)
+        self.assertEqual((device / 'ifalias').read_text(), ALIAS + '\n')
+        self.assertEqual(state['ifindex'], 42)
+        (device / 'ifalias').write_text('')
+        (device / 'ifindex').write_text('44\n')
+        with mock.patch.object(netkit, 'objects', return_value=pair), \
+                mock.patch.object(netkit.os, 'open', side_effect=opened), \
+                self.assertRaisesRegex(netkit.Error, 'index changed'):
+            netkit.mark_created_link(self.config, state)
+        self.assertEqual((device / 'ifalias').read_text(), '')
+        self.commands.assert_not_called()
 
     def test_empty_route_table_is_not_queried_as_a_missing_fib(self):
         with mock.patch.object(netkit, 'objects', return_value=[{'table': 'main', 'dst': 'default'}]) as query:

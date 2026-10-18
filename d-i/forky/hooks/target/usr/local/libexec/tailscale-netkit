@@ -389,6 +389,50 @@ def owned_link(config: dict, state: dict) -> dict | None:
     return item
 
 
+def mark_created_link(config: dict, state: dict) -> None:
+    """Set the alias after creation, through a pinned sysfs device directory.
+
+    RTM_NEWLINK does not apply IFLA_IFALIAS on the target kernel. Never relax
+    owned_link to accept an unmarked link: validate the fresh, down L3 pair,
+    record its index, then write only that pinned device's alias attribute.
+    An interrupted publication retains state for administrator recovery.
+    """
+    pair = objects(['-d', 'link', 'show'])
+    primary = [item for item in pair if item.get('ifname') == config['interface']]
+    peers = [item for item in pair if item.get('ifname') == UPLINK]
+    if len(primary) != 1 or len(peers) != 1:
+        raise Error('new netkit pair is absent or ambiguous; recovery evidence retained')
+    link, peer = primary[0], peers[0]
+    for item, other, role in ((link, peer, 'primary'), (peer, link, 'peer')):
+        info = item.get('linkinfo', {})
+        if (type(item.get('ifindex')) is not int or item['ifindex'] < 1
+                # Both endpoints are still in this namespace. iproute2 emits
+                # the peer name as "link" here; "link_index" is cross-netns.
+                or item.get('link') != other.get('ifname')
+                or info.get('info_kind') != 'netkit'
+                or info.get('info_data', {}).get('mode') != 'l3'
+                or info.get('info_data', {}).get('type') != role
+                or 'UP' in item.get('flags', []) or item.get('ifalias')):
+            raise Error('new netkit pair identity differs; recovery evidence retained')
+    state['ifindex'] = link['ifindex']
+    write_state(state)
+    directory = os.open('/sys/class/net/' + config['interface'], os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        descriptor = os.open('ifindex', os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW, dir_fd=directory)
+        with os.fdopen(descriptor, 'rb') as stream:
+            if stream.read(32).strip() != str(state['ifindex']).encode('ascii'):
+                raise Error('new netkit index changed; recovery evidence retained')
+        descriptor = os.open('ifalias', os.O_WRONLY | os.O_CLOEXEC | os.O_NOFOLLOW, dir_fd=directory)
+        with os.fdopen(descriptor, 'wb', buffering=0) as stream:
+            marker = (state['alias'] + '\n').encode('ascii')
+            if stream.write(marker) != len(marker):
+                raise Error('incomplete netkit marker publication; recovery evidence retained')
+    finally:
+        os.close(directory)
+    if owned_link(config, state) is None:
+        raise Error('marked netkit interface disappeared; recovery evidence retained')
+
+
 def packet_policy(config: dict, alias: str) -> bytes:
     interface = json.dumps(config['interface'])
     physical = '{ ' + ', '.join(json.dumps(item) for item in config['physical_interfaces']) + ' }'
@@ -542,8 +586,9 @@ def setup(config: dict, namespace: int) -> dict:
             raise Error('Tailscale route policy priorities are already owned')
     state = {'interface': config['interface'], 'alias': 'tailscale-netkit:' + uuid.uuid4().hex}
     write_state(state)
-    ip(['link', 'add', 'name', config['interface'], 'alias', state['alias'],
+    ip(['link', 'add', 'name', config['interface'],
         'type', 'netkit', 'mode', 'l3', 'forward', 'peer', 'forward', 'name', UPLINK])
+    mark_created_link(config, state)
     link = owned_link(config, state)
     if link is None:
         raise Error('new netkit interface is absent')

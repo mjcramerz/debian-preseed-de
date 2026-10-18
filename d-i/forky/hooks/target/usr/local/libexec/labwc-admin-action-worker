@@ -370,7 +370,7 @@ def sharing_stop_groups() -> list[tuple[str, ...]]:
         if len(raw) > 65536:
             raise ValueError("oversized configuration")
         config = json.loads(raw)
-        if (not isinstance(config, dict) or config.get('version') != 2
+        if (not isinstance(config, dict) or config.get('version') != 3
                 or not isinstance(config.get('profile'), dict)
                 or any(type(config.get(k)) is not bool for k in ('server_enabled', 'client_enabled'))
                 or any(k in config for k in ('client_automount', 'client_bind_automount',
@@ -398,33 +398,30 @@ def sharing_stop_groups() -> list[tuple[str, ...]]:
         home = path_value('ACCOUNT_HOME')
         if not root.startswith(('/data/', '/pool/', '/srv/')) or not home.startswith('/home/'):
             raise ValueError("unexpected sharing root/home")
-        binds, clients = [], []
+        relative = path_value('NETWORK_SHARING_HOME_BIND_PATH', relative=True)
+        if '/' in relative or relative.startswith('.'):
+            raise ValueError("invalid shared home view")
+        view = unit(home + '/' + relative, 'mount')
+        root_unit = unit(root, 'mount')
+        if config['sharing_bind_mount'] != view or config['sharing_mount'] != root_unit:
+            raise ValueError("inconsistent shared-root units")
+        clients = []
         for role in ('SERVER', 'CLIENT'):
             enabled = config[role.lower() + '_enabled']
             if settings['NFS_' + role + '_ENABLE'] != str(enabled).lower():
                 raise ValueError("inconsistent NFS role")
-            bind = settings['NFS_' + role + '_BIND_ENABLE']
-            if bind not in ('true', 'false') or (bind == 'true' and not enabled):
-                raise ValueError("inconsistent NFS bind role")
             source = path_value('NFS_' + role + '_PATH')
             if not source.startswith(root + '/'):
                 raise ValueError("sharing mount outside managed root")
-            if bind == 'true':
-                target = home + '/' + path_value('NFS_' + role + '_HOME_BIND_PATH', relative=True)
-                name = unit(target, 'mount')
-                if config[role.lower() + '_bind_mount'] != name:
-                    raise ValueError("inconsistent home bind unit")
-                binds.append(name)
             if role == 'CLIENT' and enabled:
                 name = unit(source, 'mount')
                 if config['client_mount'] != name:
                     raise ValueError("inconsistent NFS client unit")
                 clients.append(name)
-        if not (config['server_enabled'] or config['client_enabled']):
-            return []
-        # Queue mount stops together. The generated
-        # After=/RequiresMountsFor= edges unmount home views before the client.
-        return [tuple(binds), tuple(clients)]
+        # Queue one bounded transaction. The generated ordering stops NFS
+        # before the home view, then the shared root. Its RequiresMountsFor
+        # dependents include the per-account Filen services.
+        return [(view,), tuple(clients), (root_unit,)]
     except (ValueError, KeyError, TypeError, RecursionError) as exc:
         raise Error("invalid installed network sharing shutdown policy") from exc
 

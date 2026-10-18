@@ -59,41 +59,38 @@ class ShutdownPolicyTests(unittest.TestCase):
             for server, client in ((False, False), (True, False), (False, True), (True, True)):
                 with self.subTest(profile=path.name, server=server, client=client):
                     settings = NFS.Settings.from_environment(profile(path,
-                        NFS_SERVER_ENABLE=str(server).lower(), NFS_CLIENT_ENABLE=str(client).lower(),
-                        NFS_SERVER_BIND_ENABLE=str(server).lower(), NFS_CLIENT_BIND_ENABLE=str(client).lower()))
+                        NFS_SERVER_ENABLE=str(server).lower(), NFS_CLIENT_ENABLE=str(client).lower()))
                     policy = published_policy(settings)
                     groups = self.load(policy)
                     names = [name for group in groups for name in group]
-                    expected = []
-                    if server:
-                        expected.append(policy['server_bind_mount'])
+                    expected = [policy['sharing_bind_mount'], policy['sharing_mount']]
                     if client:
-                        expected += [policy[key] for key in ('client_mount', 'client_bind_mount')]
+                        expected.append(policy['client_mount'])
                     self.assertCountEqual(names, expected)
                     self.assertTrue(all(name.endswith('.mount') for name in names))
 
     def test_unbound_custom_paths_are_derived_not_assumed(self):
-        values = profile(NFS_CLIENT_ENABLE='true', NFS_CLIENT_BIND_ENABLE='false',
-                         NFS_SERVER_ENABLE='false', NFS_SERVER_BIND_ENABLE='false',
+        values = profile(NFS_CLIENT_ENABLE='true',
+                         NFS_SERVER_ENABLE='false',
                          NETWORK_SHARING_ROOT_PATH='/srv/lan-sharing',
                          NFS_SERVER_PATH='/srv/lan-sharing/server',
                          NFS_CLIENT_PATH='/srv/lan-sharing/client-1')
         policy = published_policy(NFS.Settings.from_environment(values))
-        self.assertEqual(self.load(policy), [(), (policy['client_mount'],)])
+        self.assertEqual(self.load(policy), [(policy['sharing_bind_mount'],), (policy['client_mount'],), (policy['sharing_mount'],)])
 
     def test_missing_optional_policy_has_no_mount_operations(self):
         self.assertEqual(self.power.sharing_stop_groups(), [])
 
     def test_untrusted_or_malformed_policy_never_selects_arbitrary_units(self):
         valid = published_policy(NFS.Settings.from_environment(profile(
-            NFS_CLIENT_ENABLE='true', NFS_CLIENT_BIND_ENABLE='true')))
+            NFS_CLIENT_ENABLE='true')))
         for key, value in (('client_mount', 'etc.mount'), ('client_automount', ''),
                            ('client_bind_automount', ''), ('server_bind_automount', ''),
-                           ('client_bind_mount', '../home.mount'), ('version', 1)):
+                           ('sharing_bind_mount', '../home.mount'), ('version', 1)):
             with self.subTest(key=key), self.assertRaises(self.power.Error):
                 self.load({**valid, key: value})
         for key, value in (('NFS_CLIENT_PATH', '/etc'), ('ACCOUNT_HOME', '/home/../etc'),
-                           ('NFS_CLIENT_HOME_BIND_PATH', '../../root'),
+                           ('NETWORK_SHARING_HOME_BIND_PATH', '../../root'),
                            ('NFS_CLIENT_ENABLE', 'false')):
             with self.subTest(key=key), self.assertRaises(self.power.Error):
                 self.load({**valid, 'profile': {**valid['profile'], key: value}})

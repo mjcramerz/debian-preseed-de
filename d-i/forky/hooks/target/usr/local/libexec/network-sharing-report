@@ -136,7 +136,7 @@ def main(argv: list[str]) -> int:
         raise ValueError('run this no-argument helper through network-sharing-report.service')
     require_confinement()
     config = json.loads(read_bounded(CONFIG, 65536, trusted=True))
-    if (not isinstance(config, dict) or config.get('version') != 2
+    if (not isinstance(config, dict) or config.get('version') != 3
             or any(type(config.get(key)) is not bool for key in ('server_enabled', 'client_enabled'))):
         raise ValueError('invalid network sharing configuration')
     publish(collect(config))

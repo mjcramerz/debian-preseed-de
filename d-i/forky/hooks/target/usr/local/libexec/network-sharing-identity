@@ -46,7 +46,7 @@ def read_local(path: Path, limit: int = 65536) -> str:
 
 
 def check(config: dict) -> None:
-    if (not isinstance(config, dict) or config.get('version') != 2
+    if (not isinstance(config, dict) or config.get('version') != 3
             or any(type(config.get(k)) is not bool for k in ('server_enabled', 'client_enabled'))
             or not isinstance(config.get('profile'), dict)):
         raise ValueError('invalid installed NFS identity configuration')

@@ -61,6 +61,12 @@ MAPPING = {
     'crowdsec_attachment_key': 'PRESEED_CROWDSEC_TOKEN',
     'tailscale_authkey': 'PRESEED_TAILSCALE_TOKEN',
     'tailscale_auth_key': 'PRESEED_TAILSCALE_TOKEN',
+    'filen_priv_email': 'PRESEED_FILEN_PRIV_EMAIL',
+    'filen_priv_password': 'PRESEED_FILEN_PRIV_PASSWORD',
+    'filen_priv_2fa_seed': 'PRESEED_FILEN_PRIV_2FA_SEED',
+    'filen_offsec_email': 'PRESEED_FILEN_OFFSEC_EMAIL',
+    'filen_offsec_password': 'PRESEED_FILEN_OFFSEC_PASSWORD',
+    'filen_offsec_2fa_seed': 'PRESEED_FILEN_OFFSEC_2FA_SEED',
     'telegram_chat_id': 'PRESEED_TELEGRAM_CHAT_ID',
     'telegram_api_key': 'PRESEED_TELEGRAM_API_KEY',
     'cf_r2_access_key': 'PRESEED_CF_APTLY_ACCESS_KEY',
@@ -138,6 +144,34 @@ class InitrdCredentialTests(CredentialFixture):
                         self.assertEqual(result.returncode,0,result.stderr)
                         self.assertEqual(result.stdout,self.values[var]+'\n')
                         self.assertEqual(result.stderr,'')
+
+    @skip_unless_trusted_credential_ancestry
+    def test_filen_passwords_preserve_unicode_and_literal_shell_punctuation(self):
+        value = "Fixture-é-日本語 ' \" $ ` ; \\ # space"
+        for key, variable in MAPPING.items():
+            if key.startswith('filen_') and key.endswith('_password'):
+                self.values[variable] = value
+        self.write_env()
+        for name, shell in SHELLS:
+            for prefix in ('installer', 'runtime'):
+                for key in ('filen_priv_password', 'filen_offsec_password'):
+                    with self.subTest(shell=name, resolver=prefix, key=key):
+                        result = self.run_lookup(prefix, key, shell=shell)
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertEqual(result.stdout, value + '\n')
+                        self.assertEqual(result.stderr, '')
+
+    @skip_unless_trusted_credential_ancestry
+    def test_filen_trailing_newline_is_rejected_before_capture_can_strip_it(self):
+        self.values['PRESEED_FILEN_PRIV_PASSWORD'] = 'Fixture-secret\n'
+        self.write_env()
+        for name, shell in SHELLS:
+            with self.subTest(shell=name):
+                result = self.run_lookup('installer', 'filen_priv_password', shell=shell)
+                self.assertEqual(result.returncode, 2)
+                self.assertEqual(result.stdout, '')
+                self.assertIn('single-line', result.stderr)
+                self.assertNotIn('Fixture-secret', result.stderr)
 
     def test_every_mapping_cmdline_overrides_env(self):
         for prefix in ('installer','runtime'):

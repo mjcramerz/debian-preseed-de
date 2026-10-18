@@ -61,23 +61,22 @@ def read_json(path: Path, limit: int = 4 * 1024 * 1024) -> dict:
 
 def load_config() -> dict:
     config = read_json(CONFIG, 65536)
-    if config.get('version') != 2:
-        raise ValueError('unsupported network sharing configuration; client mount units require version 2')
+    if config.get('version') != 3:
+        raise ValueError('unsupported network sharing configuration; shared-root mounts require version 3')
     if any(key in config for key in ('client_automount', 'client_bind_automount', 'server_bind_automount')):
         raise ValueError('legacy automount configuration is unsupported')
     if any(type(config.get(key)) is not bool for key in ('server_enabled', 'client_enabled')):
         raise ValueError('invalid role flags')
     if not isinstance(config.get('profile'), dict):
         raise ValueError('missing installed profile settings')
-    for key in ('client_mount', 'server_bind_mount', 'client_bind_mount'):
+    for key in ('client_mount', 'sharing_mount', 'sharing_bind_mount'):
         value = config.get(key)
         if not isinstance(value, str) or (value and (len(value) > 255 or not re.fullmatch(r'(?!-)(?:[A-Za-z0-9_.-]|\\x[0-9a-f]{2})+\.mount', value))):
             raise ValueError('invalid managed mount unit')
     if not config['client_mount']:
         raise ValueError('missing client mount unit')
-    if ((config['client_bind_mount'] and not config['client_enabled'])
-            or (config['server_bind_mount'] and not config['server_enabled'])):
-        raise ValueError('home bind configured for a disabled NFS role')
+    if not config['sharing_mount'] or not config['sharing_bind_mount']:
+        raise ValueError('missing shared-root mount units')
     return config
 
 
@@ -117,7 +116,7 @@ def units(config: dict) -> list[str]:
         result += ['nfs-server.service', 'nfs-mountd.service', 'nfs-idmapd.service']
     if config['client_enabled']:
         result += ['nfs-client.target', config['client_mount']]
-    result += [config[key] for key in ('server_bind_mount', 'client_bind_mount') if config[key]]
+    result += [config['sharing_mount'], config['sharing_bind_mount']]
     return list(dict.fromkeys(result))
 
 
@@ -140,7 +139,7 @@ def command(argv: list[str], timeout: int = 100) -> subprocess.CompletedProcess:
 def systemctl(config: dict, verb: str, selected: list[str]) -> subprocess.CompletedProcess:
     # Firewall, identity and RPC dependencies are status-only here. Starting
     # the configured server/mount lets PID 1 enforce their dependency graph.
-    client = {config[key] for key in ('client_mount', 'client_bind_mount') if config[key]} if config['client_enabled'] else set()
+    client = {config['client_mount']} if config['client_enabled'] else set()
     server = {'nfs-server.service'} if config['server_enabled'] else set()
     diagnostics = {'network-sharing-report.service'} if config['server_enabled'] or config['client_enabled'] else set()
     allowed = {'show': set(units(config)) | diagnostics,
@@ -167,7 +166,7 @@ def mount_unit(path: str) -> str:
 
 
 def client_mounts(config: dict) -> tuple[str, int, list[tuple[str, str, str, str]]]:
-    """Match the configured source/bind to fstab; never select arbitrary units."""
+    """Match the one configured NFS source to fstab; never select arbitrary units."""
     if not config['client_enabled']:
         raise ValueError('No NFS client is configured in fstab. Enable NFS_CLIENT_ENABLE in the installer profile and rebuild.')
     settings = config['profile']
@@ -181,15 +180,11 @@ def client_mounts(config: dict) -> tuple[str, int, list[tuple[str, str, str, str
     if settings['NFS_CLIENT_READ_ONLY'] == 'true':
         options = ['ro' if option == 'rw' else option for option in options]
     expected = [(config['client_mount'], remote, source, 'nfs', options)]
-    if config['client_bind_mount']:
-        account = pwd.getpwuid(os.getuid())
-        if account.pw_name != settings['ACCOUNT_USERNAME'] or account.pw_dir != settings['ACCOUNT_HOME']:
-            raise ValueError('Run nfsmnt as the configured desktop account: ' + settings['ACCOUNT_USERNAME'])
-        target = settings['ACCOUNT_HOME'] + '/' + settings['NFS_CLIENT_HOME_BIND_PATH']
-        bind_options = settings['NFS_MNT_CLIENT_BIND_HOME_OPTS'].split(',')
-        if 'ro' in options and 'ro' not in bind_options:
-            bind_options.append('ro')
-        expected.append((config['client_bind_mount'], source, target, 'none', bind_options))
+    account = pwd.getpwuid(os.getuid())
+    if account.pw_name != settings['ACCOUNT_USERNAME'] or account.pw_dir != settings['ACCOUNT_HOME']:
+        raise ValueError('Run nfsmnt as the configured desktop account: ' + settings['ACCOUNT_USERNAME'])
+    options.append('x-systemd.requires-mounts-for=' + settings['NETWORK_SHARING_ROOT_PATH'])
+    options.append('x-systemd.requires-mounts-for=' + settings['ACCOUNT_HOME'] + '/' + settings['NETWORK_SHARING_HOME_BIND_PATH'])
     records = []
     for line in read_owned_file(FSTAB, 1024 * 1024).decode('utf-8').splitlines():
         if not line.strip() or line.lstrip().startswith('#'):
@@ -218,7 +213,7 @@ def client_mounts(config: dict) -> tuple[str, int, list[tuple[str, str, str, str
 
 def check_mount(config: dict, mount: tuple[str, str, str, str], *, active: bool = False) -> None:
     unit, what, where, kind = mount
-    if not config['client_enabled'] or unit not in (config['client_mount'], config['client_bind_mount']):
+    if not config['client_enabled'] or unit != config['client_mount']:
         raise ValueError('unmanaged mount status operation rejected')
     result = command(['/usr/bin/systemctl', '--system', '--no-pager', 'show',
                       '--property=LoadState,ActiveState,SubState,What,Where,Type', '--', unit], 15)
@@ -226,14 +221,7 @@ def check_mount(config: dict, mount: tuple[str, str, str, str], *, active: bool 
         raise RuntimeError('Cannot check NFS mount: ' + clean(result.stdout, 1600))
     properties = dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
     mounted = (properties.get('ActiveState'), properties.get('SubState')) == ('active', 'mounted')
-    types = ('nfs', 'nfs4') if kind in ('nfs', 'nfs4') else ('none',)
-    if mounted:
-        # systemd 262 reports the kernel filesystem once mounted: a bind's
-        # What becomes the remote export and its Type becomes nfs/nfs4.
-        if kind == 'none':
-            settings = config['profile']
-            what = settings['NFS_CLIENT_TARGET_IP'] + ':' + settings['NFS_CLIENT_EXPORT_PATH']
-        types = ('nfs', 'nfs4')
+    types = ('nfs', 'nfs4')
     if (properties.get('LoadState') != 'loaded' or properties.get('What') != what
             or properties.get('Where') != where or properties.get('Type') not in types):
         raise RuntimeError('systemd mount differs from fstab: ' + unit
@@ -263,8 +251,7 @@ def connect_terminal(config: dict) -> int:
         # A successful but condition-skipped start must not be reported as mounted.
         check_mount(config, mount, active=True)
     print('nfsmnt: Mounted ' + ' and '.join(mount[2] for mount in mounts) + '.')
-    if not config['client_bind_mount']:
-        print('nfsmnt: The installed profile has no client home bind configured.')
+    print('nfsmnt: The shared home view receives this mount automatically.')
     return 0
 
 
@@ -326,15 +313,12 @@ def action(config: dict, label: str) -> None:
         if label.startswith('Disconnect'):
             if not confirm('Disconnect NFS? Close files and applications using the share first.'):
                 return
-            # Remove the home bind before the remote source; stop on any error.
-            selected = [config[key] for key in ('client_bind_mount', 'client_mount') if config[key]]
+            selected = [config['client_mount']]
             verb = 'stop'
         else:
             selected = [config['client_mount']]
-            selected += [config['client_bind_mount']] if config['client_bind_mount'] else []
             verb = 'start'
-        # Wait for each job. A failed remote mount must never start a home
-        # bind, and a failed home unmount must leave the source mounted.
+        # The persistent home view follows mount/unmount propagation.
         for unit in selected:
             result = systemctl(config, verb, [unit])
             if result.returncode:
@@ -407,13 +391,13 @@ def action(config: dict, label: str) -> None:
             'Client data: ' + config['profile']['NFS_CLIENT_PATH'],
             'Use Connect to NFS Server to mount the client share when needed.',
             'Disconnected client directories remain readable and empty; data is available only while the NFS source is mounted.',
-            'mount -a skips the client entries. Use Connect to NFS Server to mount them in order.',
+            'mount -a skips the NFS client. Connect mounts it once; the Sharing home view receives it automatically.',
             'After joining the shared group, log out and log in again for group-dependent file access; this does not prevent a mount retry.',
             'A hard-mounted share may block application I/O during outages. Never use lazy/forced unmount to conceal that condition.',
             'Disconnect only after closing applications and files. The menu never probes file contents on a remote share.',
             'A failed unmount stops the disconnect sequence; close the remaining users of the share and retry.',
-            'Disconnect changes the current state. The installed client mounts are attempted again at the next boot.',
-            'Role changes and a new remote server require an administrator-reviewed configuration change; see docs/network-sharing.md in the installer repository.'])
+            'After a reboot the NFS client remains disconnected until Connect or nfsmnt is requested.',
+            'Role changes and a new remote server require an administrator-reviewed configuration change; see docs/sharing-filen.md in the installer repository.'])
     else:
         raise ValueError('unknown network sharing action')
 

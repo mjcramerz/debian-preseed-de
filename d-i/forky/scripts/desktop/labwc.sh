@@ -198,6 +198,7 @@ assert Gio.AppInfo and GioUnix.DesktopAppInfo
   desktop_install_kanshi_policy
   desktop_stage_target_assets
   desktop_log "staged Labwc desktop target assets"
+  desktop_install_filen
   desktop_render_greetd_config
   desktop_render_labwc_default_config
   desktop_install_hardware_tuning
