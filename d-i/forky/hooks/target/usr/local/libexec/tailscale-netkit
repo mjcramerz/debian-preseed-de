@@ -498,10 +498,11 @@ def cleanup_owned(config: dict) -> None:
                         raise Error('unexpected managed route rule; evidence retained')
                     source = str(selector.ip)
                 # iprule.c emits a string table ID with -N and uses "action"
-                # for non-lookup rules. Route dumps use a different schema.
+                # for non-lookup rules. -N renders RTN_UNREACHABLE as "7";
+                # symbolic output uses "unreachable". Route dumps differ.
                 expected = ((item.get('priority') == 5190 and source == peer and str(item.get('table')) in {'main', '254'})
                             or (item.get('priority') == 5191 and source == peer
-                                and item.get('action') == 'unreachable' and 'table' not in item)
+                                and str(item.get('action')) in {'7', 'unreachable'} and 'table' not in item)
                             or (item.get('priority') == 5270 and source == 'all' and str(item.get('table')) == '52'))
                 if (not expected or item.get('dst', 'all') != 'all'
                         or (item.get('priority') != 5191 and 'action' in item)
@@ -804,8 +805,8 @@ def mount_handoff() -> None:
 def build_mount_namespace(namespace: int) -> tuple[int, int]:
     path = RUNTIME / 'builder.sock'
     received = []
+    deadline = time.monotonic() + 15
     with socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET | socket.SOCK_CLOEXEC) as listener:
-        listener.settimeout(15)
         listener.bind(str(path))
         listener.listen(1)
         process = subprocess.Popen([SELF, 'builder', str(namespace)], pass_fds=(namespace,),
@@ -816,16 +817,32 @@ def build_mount_namespace(namespace: int) -> tuple[int, int]:
             path.unlink()
             raise OutcomeUnknown('cannot pin Bubblewrap constructor; recovery evidence retained') from None
         try:
-            connection, _address = listener.accept()
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise Error('mount constructor connection deadline exceeded; recovery evidence retained')
+                listener.settimeout(min(.25, remaining))
+                try:
+                    connection, _address = listener.accept()
+                    break
+                except TimeoutError:
+                    status = process.poll()
+                    # A successful child can queue its handoff between the
+                    # accept timeout and this poll. Drain it on the next pass.
+                    if status not in (None, 0):
+                        raise Error(f'mount constructor exited before connection status={status}; recovery evidence retained')
             with connection:
-                connection.settimeout(5)
+                connection.settimeout(max(.001, min(5, deadline - time.monotonic())))
                 # The socket's parent is root-only, the peer is root, and the
                 # daemon profile has no access to this construction endpoint.
                 import struct
                 _pid, uid, gid = struct.unpack('3i', connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
                 if uid != 0 or gid != 0:
                     raise Error('untrusted mount constructor peer')
-                data, controls, flags, _ = connection.recvmsg(1, socket.CMSG_SPACE(2 * array.array('i').itemsize), socket.MSG_CMSG_CLOEXEC)
+                try:
+                    data, controls, flags, _ = connection.recvmsg(1, socket.CMSG_SPACE(2 * array.array('i').itemsize), socket.MSG_CMSG_CLOEXEC)
+                except TimeoutError:
+                    raise Error('mount constructor descriptor deadline exceeded; recovery evidence retained') from None
                 for level, kind, payload in controls:
                     if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:
                         descriptors = array.array('i')
@@ -837,8 +854,14 @@ def build_mount_namespace(namespace: int) -> tuple[int, int]:
                 root = os.fstat(received[1])
                 if not stat.S_ISDIR(root.st_mode) or root.st_uid != 0 or root.st_mode & 0o022:
                     raise Error('untrusted private root descriptor')
-            if process.wait(timeout=5) != 0:
+            try:
+                status = process.wait(timeout=max(.001, min(5, deadline - time.monotonic())))
+            except subprocess.TimeoutExpired:
+                raise Error('mount constructor exit deadline exceeded; recovery evidence retained') from None
+            if status != 0:
                 raise Error('Bubblewrap constructor failed')
+            if time.monotonic() >= deadline:
+                raise Error('mount constructor exit deadline exceeded; recovery evidence retained')
             result = tuple(received)
             received = []
             return result

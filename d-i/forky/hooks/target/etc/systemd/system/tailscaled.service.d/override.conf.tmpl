@@ -58,6 +58,9 @@ PrivateTmp=true
 NoNewPrivileges=false
 ProtectControlGroups=true
 ProtectKernelLogs=true
-RestrictSUIDSGID=true
+# systemd 262 implements this restriction by returning ENOSYS for openat2.
+# The packaged Bubblewrap requires openat2 to resolve its fixed mount sources;
+# filtering it prevents construction before the confined daemon can start.
+RestrictSUIDSGID=no
 LockPersonality=true
 SystemCallArchitectures=native

@@ -278,26 +278,31 @@ class NetkitTests(unittest.TestCase):
         self.assertTrue(state.exists())
 
     def test_cleanup_accepts_iprule_json_actions_and_numeric_string_tables(self):
-        state = self.state()
         def records(args, namespace=None):
             if args[1:] != ['rule', 'show']:
                 return []
             peer = netkit.PEER4 if args[0] == '-4' else netkit.PEER6
             return [{'priority': 5190, 'src': peer, 'table': '254', 'protocol': '242'},
-                    {'priority': 5191, 'src': peer, 'action': 'unreachable', 'protocol': '242'},
+                    {'priority': 5191, 'src': peer, 'action': action, 'protocol': '242'},
                     {'priority': 5270, 'src': 'all', 'table': '52', 'protocol': '242'}]
-        with mock.patch.object(netkit, 'owned_link', return_value={'ifindex': 42}), \
-                mock.patch.object(netkit, 'run', return_value=b'{"nftables":[]}'), \
-                mock.patch.object(netkit, 'objects', side_effect=records), \
-                mock.patch.object(netkit, 'ip') as ip:
-            netkit.cleanup(self.config)
-        self.assertFalse(state.exists())
-        self.assertEqual(ip.call_args_list, [mock.call(['link', 'delete', 'dev', 'tailscale0']),
-            *[mock.call([family, 'rule', 'delete', 'pref', str(priority), 'protocol', '242'])
-              for family in ('-4', '-6') for priority in (5190, 5191, 5270)]])
+        # -N is part of the real ip() invocation. iprule's action name uses
+        # rtnl_rtntype_n2a too, so it becomes "7", not "unreachable".
+        for action in ('7', 'unreachable'):
+            with self.subTest(action=action):
+                state = self.state()
+                with mock.patch.object(netkit, 'owned_link', return_value={'ifindex': 42}), \
+                        mock.patch.object(netkit, 'run', return_value=b'{"nftables":[]}'), \
+                        mock.patch.object(netkit, 'objects', side_effect=records), \
+                        mock.patch.object(netkit, 'ip') as ip:
+                    netkit.cleanup(self.config)
+                self.assertFalse(state.exists())
+                self.assertEqual(ip.call_args_list, [mock.call(['link', 'delete', 'dev', 'tailscale0']),
+                    *[mock.call([family, 'rule', 'delete', 'pref', str(priority), 'protocol', '242'])
+                      for family in ('-4', '-6') for priority in (5190, 5191, 5270)]])
 
     def test_cleanup_rejects_changed_rule_action_extra_selectors_and_source_prefix(self):
-        for replacement in ({'action': 'blackhole'}, {'table': '254'}, {'fwmark': '0x1'},
+        for replacement in ({'action': 'blackhole'}, {'action': '6'}, {'action': '8'},
+                            {'table': '254'}, {'fwmark': '0x1'},
                             {'src': netkit.PEER4 + '/24'}, {'type': 'unreachable'}):
             with self.subTest(replacement=replacement):
                 state = self.state()
@@ -410,6 +415,84 @@ class NetkitTests(unittest.TestCase):
         kill.assert_not_called()
         pinned_signal.assert_not_called()
         self.assertTrue(process.stdout.closed and process.stderr.closed)
+
+    def test_mount_constructor_deadlines_report_the_stage_and_retain_recovery(self):
+        for stage in ('early-exit', 'connection', 'descriptor', 'exit', 'termination'):
+            with self.subTest(stage=stage):
+                state = self.state()
+                now = [0.0]
+                listener, connection = mock.MagicMock(), mock.MagicMock()
+                process = mock.Mock(pid=42)
+                process.poll.return_value = 23 if stage == 'early-exit' else None
+                process.wait.return_value = 0
+                def accept():
+                    if stage in ('early-exit', 'connection', 'termination'):
+                        now[0] += 1
+                        raise TimeoutError
+                    return connection, None
+                listener.accept.side_effect = accept
+                import struct
+                connection.getsockopt.return_value = struct.pack('3i', 42, 0, 0)
+                descriptors = netkit.array.array('i', [81, 82]).tobytes()
+                connection.recvmsg.return_value = (b'M', [(netkit.socket.SOL_SOCKET,
+                    netkit.socket.SCM_RIGHTS, descriptors)], 0, None)
+                if stage == 'descriptor':
+                    connection.recvmsg.side_effect = TimeoutError
+                if stage == 'exit':
+                    process.wait.side_effect = [netkit.subprocess.TimeoutExpired('fixture', 1), 0]
+                if stage == 'termination':
+                    process.wait.side_effect = netkit.subprocess.TimeoutExpired('fixture', 3)
+                expected = ('exited before connection status=23' if stage == 'early-exit'
+                    else 'termination outcome unknown' if stage == 'termination'
+                    else stage + ' deadline exceeded')
+                error_type = netkit.OutcomeUnknown if stage == 'termination' else netkit.Error
+                with mock.patch.object(netkit.socket, 'socket') as socket_factory, \
+                        mock.patch.object(netkit.subprocess, 'Popen', return_value=process), \
+                        mock.patch.object(netkit.os, 'pidfd_open', return_value=77), \
+                        mock.patch.object(netkit.os, 'close') as close, \
+                        mock.patch.object(netkit.os, 'fstat', return_value=types.SimpleNamespace(
+                            st_mode=0o40755, st_uid=0)), \
+                        mock.patch.object(netkit, 'ns_type'), \
+                        mock.patch.object(netkit.time, 'monotonic', side_effect=lambda: now[0]), \
+                        mock.patch.object(netkit.signal, 'pidfd_send_signal') as pinned_signal, \
+                        mock.patch.object(netkit.os, 'kill') as numeric_signal:
+                    socket_factory.return_value.__enter__.return_value = listener
+                    connection.__enter__.return_value = connection
+                    with self.assertRaisesRegex(error_type, expected):
+                        netkit.build_mount_namespace(70)
+                self.assertTrue(state.exists())
+                pinned_signal.assert_called_once_with(77, signal.SIGKILL)
+                numeric_signal.assert_not_called()
+                closed = [call.args[0] for call in close.call_args_list]
+                self.assertIn(77, closed)
+                for descriptor in (81, 82):
+                    self.assertEqual(closed.count(descriptor), 1 if stage == 'exit' else 0)
+
+    def test_mount_constructor_accepts_queued_descriptors_after_child_exit(self):
+        for accept_timeout in (False, True):
+            with self.subTest(handoff_queued_after_accept_timeout=accept_timeout):
+                listener, connection = mock.MagicMock(), mock.MagicMock()
+                process = mock.Mock(pid=42)
+                process.poll.return_value = 0
+                process.wait.return_value = 0
+                listener.accept.side_effect = ([TimeoutError] if accept_timeout else []) + [(connection, None)]
+                import struct
+                connection.getsockopt.return_value = struct.pack('3i', 42, 0, 0)
+                descriptors = netkit.array.array('i', [81, 82]).tobytes()
+                connection.recvmsg.return_value = (b'M', [(netkit.socket.SOL_SOCKET,
+                    netkit.socket.SCM_RIGHTS, descriptors)], 0, None)
+                with mock.patch.object(netkit.socket, 'socket') as socket_factory, \
+                        mock.patch.object(netkit.subprocess, 'Popen', return_value=process), \
+                        mock.patch.object(netkit.os, 'pidfd_open', return_value=77), \
+                        mock.patch.object(netkit.os, 'close') as close, \
+                        mock.patch.object(netkit.os, 'fstat', return_value=types.SimpleNamespace(st_mode=0o40755, st_uid=0)), \
+                        mock.patch.object(netkit, 'ns_type'), \
+                        mock.patch.object(netkit.time, 'monotonic', return_value=0):
+                    socket_factory.return_value.__enter__.return_value = listener
+                    connection.__enter__.return_value = connection
+                    self.assertEqual(netkit.build_mount_namespace(70), (81, 82))
+                self.assertEqual(process.poll.call_count, int(accept_timeout))
+                close.assert_called_once_with(77)
 
     def test_streaming_output_limit_kills_only_the_pinned_command(self):
         process = mock.Mock(pid=42)

@@ -184,8 +184,16 @@ def enable_services(identities: dict[str, pwd.struct_passwd]) -> None:
     # Compile as each service UID, with no supplementary groups, before any
     # enablement. Root compilation would conceal unreadable code directories.
     # Native unit/policy acceptance is a separate isolated gate.
+    if not read(Path('/usr/bin/getconf')).startswith(b'\x7fELF'):
+        raise Error('target libc probe must be a packaged native executable')
     for identity in identities.values():
         command(['/usr/bin/perl', '-T', '-c', '/usr/local/libexec/filen-sync'], identity=identity)
+        # The pinned watcher uses this probe before its shell-script fallback.
+        # Check target availability as the real account before enabling either
+        # unit; this command neither authenticates nor contacts a manager.
+        version = command(['/usr/bin/getconf', 'GNU_LIBC_VERSION'], identity=identity)
+        if not re.fullmatch(rb'glibc [0-9]+(?:\.[0-9]+)+\n', version):
+            raise Error('target libc probe did not identify glibc')
     for account in identities:
         command(['/usr/bin/systemctl', '--root=/', 'enable', 'filen-sync@' + account + '.service'])
 

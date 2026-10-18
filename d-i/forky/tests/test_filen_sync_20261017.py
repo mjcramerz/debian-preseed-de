@@ -80,13 +80,36 @@ class EnablementTests(unittest.TestCase):
         def command(argv, **kwargs):
             if kwargs.get('identity') is identities['offsec']:
                 raise subprocess.CalledProcessError(2, argv)
-            return b''
+            return b'glibc 2.44\n' if argv[0] == '/usr/bin/getconf' else b''
         with mock.patch.object(installer, 'command', side_effect=command) as commands, \
+                mock.patch.object(installer, 'read', return_value=b'\x7fELF'), \
                 self.assertRaises(subprocess.CalledProcessError):
             installer.enable_services(identities)
-        self.assertEqual(len(commands.call_args_list), 2)
-        self.assertTrue(all('-c' in call.args[0] for call in commands.call_args_list))
-        self.assertEqual([call.kwargs['identity'] for call in commands.call_args_list], list(identities.values()))
+        compiles = [call for call in commands.call_args_list if '-c' in call.args[0]]
+        self.assertEqual(len(commands.call_args_list), 3)
+        self.assertEqual([call.kwargs['identity'] for call in compiles], list(identities.values()))
+        self.assertFalse(any(call.args[0][0] == '/usr/bin/systemctl' for call in commands.call_args_list))
+
+    def test_unavailable_native_libc_probe_prevents_all_enablement(self):
+        identity = types.SimpleNamespace(pw_uid=991, pw_gid=991)
+        for content, response, error in ((b'#!/bin/sh', b'glibc 2.44\n', None),
+                (b'\x7fELF', b'', None), (b'\x7fELF', b'musl 1.2.5\n', None),
+                (b'\x7fELF', b'glibc 2.44\nextra\n', None),
+                (b'\x7fELF', b'', subprocess.CalledProcessError(1, ['/usr/bin/getconf'])),
+                (b'\x7fELF', b'', subprocess.TimeoutExpired(['/usr/bin/getconf'], 30))):
+            with self.subTest(content=content, error=type(error).__name__, response=response):
+                def command(argv, **kwargs):
+                    if argv[0] == '/usr/bin/getconf':
+                        self.assertIs(kwargs['identity'], identity)
+                        if error:
+                            raise error
+                        return response
+                    return b''
+                with mock.patch.object(installer, 'read', return_value=content), \
+                        mock.patch.object(installer, 'command', side_effect=command) as commands, \
+                        self.assertRaises((ValueError, subprocess.SubprocessError)):
+                    installer.enable_services({'private': identity})
+                self.assertFalse(any(call.args[0][0] == '/usr/bin/systemctl' for call in commands.call_args_list))
 
     def test_compile_command_drops_uid_gid_and_supplementary_groups(self):
         identity = types.SimpleNamespace(pw_uid=991, pw_gid=992)
@@ -127,6 +150,37 @@ print encode_json([map { $messages->{encode('UTF-8', $_)} // q{} } @{$input->{ro
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout), ['initializing', '', 'authentication', 'authentication',
             'authentication', 'remote-directory', '', '', ''])
+
+
+class RuntimeProbeTests(unittest.TestCase):
+    def test_target_glibc_probe_succeeds_without_a_shell_or_ldd(self):
+        # Native libc-bin from the disposable image, not a fixture returning
+        # an invented version. detect-libc 1.0.3 falls back to ldd only when
+        # this exact command fails. No Filen account or cloud input is used.
+        self.assertEqual(Path('/usr/bin/getconf').read_bytes()[:4], b'\x7fELF')
+        with tempfile.TemporaryDirectory(prefix='filen-libc-') as temporary:
+            result = subprocess.run(['/usr/bin/getconf', 'GNU_LIBC_VERSION'],
+                cwd=temporary, env={'PATH': '/usr/bin', 'LC_ALL': 'C', 'HOME': temporary},
+                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
+        self.assertEqual(result.returncode, 0)
+        self.assertRegex(result.stdout, rb'\Aglibc [0-9]+\.[0-9]+(?:\.[0-9]+)?\n\Z')
+
+    def test_probe_policy_retains_own_account_and_no_shell_boundaries(self):
+        source = (SEED / 'hooks/target/etc/apparmor.d/filen-sync.tmpl').read_text()
+        for account, other in (('private', 'offsec'), ('offsec', 'private')):
+            with self.subTest(account=account):
+                policy = source.replace('__ACCOUNT__', account).replace('__SHARING_ROOT__', '/data/sharing')
+                self.assertIn('/usr/bin/getconf rix,', policy)
+                self.assertIn('/usr/bin/ldd r,', policy)
+                self.assertIn('/var/{,lib/} r,', policy)
+                self.assertNotRegex(policy, r'/usr/bin/ldd [^,]*x')
+                self.assertIn('deny /{,usr/}bin/{sh,bash,dash} x,', policy)
+                self.assertIn('owner @{PROC}/@{pid}/{stat,statm,status,', policy)
+                self.assertIn(r'@{sys}/fs/cgroup/system.slice/system-filen\\x2dsync.slice/'
+                    + f'filen-sync@{account}.service/memory.{{high,max}} r,', policy)
+                self.assertNotIn(f'filen-sync@{other}.service', policy)
+                self.assertNotIn('capability ', policy)
+                self.assertNotIn('Ux', policy)
 
 
 @unittest.skipUnless(os.geteuid() == 0, 'credential ownership fixtures require disposable-image root')

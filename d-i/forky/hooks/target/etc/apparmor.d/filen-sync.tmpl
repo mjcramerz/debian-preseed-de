@@ -2,7 +2,7 @@ abi "/usr/share/apparmor-features/features",
 #include <tunables/global>
 
 # A named profile per account, selected by the system service. The CLI and
-# oathtool inherit it; neither gets a shell, manager, bus or namespace delegate.
+# fixed native helpers inherit it; none gets a shell, manager, bus or namespace delegate.
 profile filen-sync-__ACCOUNT__ flags=(attach_disconnected) {
   #include <abstractions/wrapper-perl>
   #include <abstractions/nameservice-strict>
@@ -11,6 +11,15 @@ profile filen-sync-__ACCOUNT__ flags=(attach_disconnected) {
   /usr/local/lib/perl5/site_perl/runtime/Managed/{,Process.pm} r,
   /usr/local/bin/filen mrix,
   /usr/bin/oathtool mrix,
+  # @parcel/watcher's pinned detect-libc first runs this ELF utility. Its
+  # successful glibc probe avoids the shell-script ldd fallback entirely.
+  /usr/bin/getconf rix,
+  # The runtime also reads ldd as data; it must not execute its shell script.
+  /usr/bin/ldd r,
+  / r,
+  /usr/{lib,sbin}/ r,
+  # Resolve the private state directory through its public ancestors.
+  /var/{,lib/} r,
   /etc/ r,
   /etc/filen/ r,
   /etc/filen/__ACCOUNT__{,.sync}.json r,
@@ -22,8 +31,11 @@ profile filen-sync-__ACCOUNT__ flags=(attach_disconnected) {
   /etc/{os-release,localtime} r,
   /usr/lib/os-release r,
   /tmp/{,**} rwkl,
-  owner @{PROC}/@{pid}/{stat,status,fd/,fd/[0-9]*,task/,task/**} r,
+  owner @{PROC}/@{pid}/{stat,statm,status,fd/,fd/[0-9]*,task/,task/**} r,
   owner @{PROC}/@{pid}/{maps,exe} r,
+  # Bun reads only this account's service memory limits. The slice name
+  # contains a literal systemd escape, hence the doubled AppArmor backslash.
+  @{sys}/fs/cgroup/system.slice/system-filen\\x2dsync.slice/filen-sync@__ACCOUNT__.service/memory.{high,max} r,
   # The pinned Bun release may mmap its bundled native modules from private tmp.
   /tmp/**.node mr,
   /var/lib/filen-__ACCOUNT__/**.node mr,
