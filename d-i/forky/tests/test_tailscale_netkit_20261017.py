@@ -103,10 +103,45 @@ class NetkitTests(unittest.TestCase):
                     netkit.configuration()
         self.commands.assert_not_called()
 
+    def test_daemon_enforces_nftables_in_its_private_environment(self):
+        arguments = ['--tun=tailscale0', '--port=41641']
+        with mock.patch.dict(os.environ, {'TS_DEBUG_FIREWALL_MODE': 'iptables',
+                                         'NOTIFY_SOCKET': '/run/systemd/notify'}, clear=True), \
+                mock.patch.object(netkit, 'ns_type'), \
+                mock.patch.object(netkit.os, 'setns'), \
+                mock.patch.object(netkit.os, 'fchdir'), \
+                mock.patch.object(netkit.os, 'chroot'), \
+                mock.patch.object(netkit.os, 'chdir'), \
+                mock.patch.object(netkit.os, 'close') as close, \
+                mock.patch.object(netkit.os, 'execve') as execute:
+            netkit.daemon(71, 72, 73, arguments)
+        self.assertEqual(close.call_args_list, [mock.call(71), mock.call(72), mock.call(73)])
+        execute.assert_called_once_with('/usr/sbin/tailscaled', ['/usr/sbin/tailscaled', *arguments],
+            {**netkit.ENV, 'NOTIFY_SOCKET': '/run/systemd/notify',
+             'TS_ALLOW_ADMIN_CONSOLE_REMOTE_UPDATE': 'false',
+             'TS_DEBUG_FIREWALL_MODE': 'nftables', 'TMPDIR': '/run/tailscale'})
+        self.commands.assert_not_called()
+
     def test_configuration_rejects_duplicate_keys(self):
         with mock.patch.object(netkit, 'regular', return_value=b'{"version":1,"version":1}'), \
                 self.assertRaisesRegex(netkit.Error, 'duplicate'):
             netkit.configuration()
+
+    def test_transit_addresses_are_private_unicast_and_overlap_fails_before_setup(self):
+        prefix = netkit.ipaddress.ip_network(netkit.PREFIX4)
+        for address in (netkit.HOST4, netkit.PEER4):
+            value = netkit.ipaddress.ip_address(address)
+            self.assertTrue(value.is_private)
+            self.assertFalse(value.is_link_local)
+            self.assertIn(value, prefix)
+        with mock.patch.object(netkit, 'objects', side_effect=[[], [{'dst': '10.0.0.0/8'}]]), \
+                mock.patch.object(netkit, 'run', return_value=b'{"nftables":[]}'), \
+                mock.patch.object(netkit, 'write_state') as publish, \
+                mock.patch.object(netkit, 'ip') as mutate, \
+                self.assertRaisesRegex(netkit.Error, 'transit subnet overlaps'):
+            netkit.setup(self.config, 77)
+        publish.assert_not_called()
+        mutate.assert_not_called()
 
     def test_fresh_setup_uses_netkit_and_owns_only_fixed_policy_rules(self):
         calls = []
@@ -390,7 +425,7 @@ class NetkitTests(unittest.TestCase):
 
     def test_dns_mirror_never_uses_transit_resolver_as_host_uplink(self):
         self.config['accept_dns'] = True
-        with mock.patch.object(netkit, 'regular', return_value=b'nameserver 169.254.253.1\n'), \
+        with mock.patch.object(netkit, 'regular', return_value=b'nameserver 10.255.253.1\n'), \
                 mock.patch.object(netkit, 'run') as run:
             netkit.mirror_dns(self.config, (('100.100.100.100',), ()))
         run.assert_called_once_with(['/usr/bin/resolvectl', 'revert', 'tailscale0'])
@@ -401,7 +436,7 @@ class NetkitTests(unittest.TestCase):
         self.assertNotIn('veth', policy)
         self.assertNotIn('macvlan', policy)
         self.assertIn('oifname { "eth0", "wifi0" } masquerade', policy)
-        self.assertIn('ip saddr 169.254.253.2 ip daddr 127.0.0.1', policy)
+        self.assertIn('ip saddr 10.255.253.2 ip daddr 127.0.0.1', policy)
         self.assertIn('comment "' + ALIAS + '"', policy)
 
     def test_failed_pidfd_pin_leaves_no_numeric_pid_signal_fallback(self):
@@ -415,6 +450,34 @@ class NetkitTests(unittest.TestCase):
         kill.assert_not_called()
         pinned_signal.assert_not_called()
         self.assertTrue(process.stdout.closed and process.stderr.closed)
+
+    def test_supervisor_command_failure_is_cancellation_only_after_stop(self):
+        for requested in (False, True):
+            process = mock.Mock(pid=42)
+            process.poll.return_value = None
+            process.wait.return_value = 0
+            def command_failure(_config):
+                netkit.STOP = requested
+                raise netkit.CommandFailed('fixture command interrupted')
+            with self.subTest(stop_requested=requested), \
+                    mock.patch.object(netkit, 'STOP', False), \
+                    mock.patch.object(netkit, 'new_network_namespace', return_value=71), \
+                    mock.patch.object(netkit, 'setup', return_value={}), \
+                    mock.patch.object(netkit, 'prepare_files'), \
+                    mock.patch.object(netkit, 'build_mount_namespace', return_value=(72, 73)), \
+                    mock.patch.object(netkit.subprocess, 'Popen', return_value=process), \
+                    mock.patch.object(netkit.os, 'pidfd_open', return_value=74), \
+                    mock.patch.object(netkit.os, 'close'), \
+                    mock.patch.object(netkit, 'owned_link', return_value={'ifindex': 42}), \
+                    mock.patch.object(netkit, 'physical_state', side_effect=command_failure), \
+                    mock.patch.object(netkit.signal, 'pidfd_send_signal') as terminate:
+                if requested:
+                    self.assertEqual(netkit.supervise(self.config, []), 0)
+                else:
+                    with self.assertRaises(netkit.CommandFailed):
+                        netkit.supervise(self.config, [])
+                terminate.assert_called_once_with(74, signal.SIGTERM)
+                process.wait.assert_called_once_with(timeout=20)
 
     def test_mount_constructor_deadlines_report_the_stage_and_retain_recovery(self):
         for stage in ('early-exit', 'connection', 'descriptor', 'exit', 'termination'):
@@ -567,6 +630,15 @@ class SSHHostHandoffTests(unittest.TestCase):
 
 
 class FirewallIntegrationTests(unittest.TestCase):
+    def test_generated_transport_rules_match_the_runtime_peer(self):
+        value = {'interface': 'tailscale0', 'physical_interfaces': ['eth0', 'wifi0'],
+                 'dns_host_address': '127.0.0.1', 'dns_host_port': 53053, 'udp_port': 41641}
+        rules = '\n'.join(firewall.tailscale_netkit_rules({'tailscale_netkit': value}, 'input', 'forward'))
+        self.assertIn('ip saddr ' + netkit.PEER4 + ' ip daddr 127.0.0.1', rules)
+        self.assertIn('ip saddr ' + netkit.PEER4 + ' oifname', rules)
+        self.assertIn('ip daddr ' + netkit.PEER4 + ' udp dport 41641', rules)
+        self.assertNotIn('169.254.253.', rules)
+
     def test_transport_rules_are_absent_without_overlay(self):
         self.assertEqual(firewall.tailscale_netkit_rules({}, 'input', 'forward'), [])
 

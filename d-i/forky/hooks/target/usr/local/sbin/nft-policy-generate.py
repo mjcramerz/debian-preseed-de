@@ -484,9 +484,9 @@ def tailscale_netkit_rules(policy: Mapping[str, Any], input_chain: str, forward_
     interface = quote_nft_string(value["interface"])
     uplinks = nft_set(physical, quote_strings=True)
     result = [add_rule(policy, input_chain,
-        f'iifname {interface} ip saddr 169.254.253.2 ip daddr 127.0.0.1 meta l4proto {{ tcp, udp }} '
+        f'iifname {interface} ip saddr 10.255.253.2 ip daddr 127.0.0.1 meta l4proto {{ tcp, udp }} '
         f'th dport {value["dns_host_port"]} ct status dnat accept' + comment_expr("private Tailscale bootstrap DNS"))]
-    for family, peer in (("ip", "169.254.253.2"), ("ip6", "fd6b:bbad:cd4e:104::2")):
+    for family, peer in (("ip", "10.255.253.2"), ("ip6", "fd6b:bbad:cd4e:104::2")):
         result.append(add_rule(policy, forward_chain,
             f'iifname {interface} {family} saddr {peer} oifname {uplinks} accept'
             + comment_expr("private Tailscale transport egress")))

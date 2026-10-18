@@ -78,8 +78,12 @@ class NativeContractTests(unittest.TestCase):
                         source.index('if tailscale_is_joined &&'))
         unit = read_text(TARGET / 'etc/systemd/system/tailscaled.service.d/override.conf.tmpl')
         self.assertIn('Environment=TS_ALLOW_ADMIN_CONSOLE_REMOTE_UPDATE=false', unit)
+        self.assertIn('Environment=TS_DEBUG_FIREWALL_MODE=nftables', unit)
         profile = (TARGET / 'etc/apparmor.d/usr.sbin.tailscaled').read_text()
         self.assertNotRegex(profile, r'(?m)^\s*/usr/bin/(?:systemd-run|dpkg|apt-get)\s+[^#\n]*x')
+        self.assertNotRegex(profile, r'(?m)^\s*/usr/sbin/\{[^\n]*iptables')
+        self.assertNotIn('/run/xtables.lock', profile)
+        self.assertIn('deny /usr/{bin,sbin}/{ip6tables,ip6tables-restore,ip6tables-save,iptables,iptables-restore,iptables-save,xtables-nft-multi,xtables-legacy-multi} x,', profile)
 
     def test_authoritative_audit_and_requested_categories(self):
         env = read_text(SEED / 'hosts/logging/observability.env')

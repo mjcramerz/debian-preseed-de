@@ -28,6 +28,12 @@ PrivateMounts=yes
 # escape the daemon's lifecycle through systemd-run and run dpkg/apt as root.
 # Disable that entry point; bootstrap also clears AutoUpdate.Apply.
 Environment=TS_ALLOW_ADMIN_CONSOLE_REMOTE_UPDATE=false
+# This image owns its packet policy through nftables. Select Tailscale's
+# netlink-backed nftables router explicitly, bypassing iptables detection.
+# The environment-sanitizing daemon delegate enforces the same selection.
+# Upstream startup cleanup still checks for legacy tools independently; the
+# daemon AppArmor profile denies their execution even if later installed.
+Environment=TS_DEBUG_FIREWALL_MODE=nftables
 # Preserve Tailscale's automatic port 80 Noise to HTTPS/443 fallback.
 # Upstream tailscaled performs DNS and router cleanup unconditionally before it
 # starts the daemon. Do not duplicate that cleanup in a repository-owned

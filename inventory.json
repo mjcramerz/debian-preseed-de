@@ -153,7 +153,7 @@
     "d-i/forky/hooks/target/etc/systemd/system/stubby.service": "01957b2aa8a20235ba6a971d60ca3e435916da20f57245a81c760500b2ae50fc",
     "d-i/forky/hooks/target/etc/systemd/system/stubby.service.d/60-app-veth.conf": "087a9c874e5d7e53ae9e3b0273526b3cf460eeac88b977c428b67060e60fbb28",
     "d-i/forky/hooks/target/etc/systemd/system/syncthing.service.tmpl": "94e21f077e7337c0cb7e95711fc41d4f67a069669d57ac578735dea0d01f1bef",
-    "d-i/forky/hooks/target/etc/systemd/system/tailscaled.service.d/override.conf.tmpl": "b7cb14fb5bc91de7b9bea604d9fbc3b9708b4b0e7421279da50852868b123913",
+    "d-i/forky/hooks/target/etc/systemd/system/tailscaled.service.d/override.conf.tmpl": "a578a78196f8e41ee68287cd3d4c896ab497b8b56aa34bde889ed2fcae280954",
     "d-i/forky/hooks/target/etc/systemd/system/tmpfs-pre-clean.service.tmpl": "092f940a8cea33966ac769e08c944c56f913a71c2b63f03c36ca8fc0b1ad3a74",
     "d-i/forky/hooks/target/etc/systemd/system/wifi-firstboot.service": "c05892d6bd7bbc3b1bfc659cf689921b279b18bab175606d3e70758f87271803",
     "d-i/forky/hooks/target/etc/systemd/system/wpa_supplicant.service.d/override.conf": "32db3f4647374ffff0dc94a6edddb0424185928144fe738745ce0a624f11e144",
@@ -209,7 +209,7 @@
     "d-i/forky/hooks/target/usr/local/libexec/obsidian-git-sync.py": "bb34440b6b49c88e5709be2d0cbfc502b6ff3020dcd0bc36ff3763a6ff77d8bd",
     "d-i/forky/hooks/target/usr/local/libexec/swap-fallback-setup.tmpl": "40fdf8ae732d0d19efb6620b369ab8704d4b9301a5bc0ee1f7fa6d56ad6b0a9d",
     "d-i/forky/hooks/target/usr/local/sbin/fwops-mode": "ac69a5a83f2908426168497c69d9f2268ce963be8a52680807b8eca763db2445",
-    "d-i/forky/hooks/target/usr/local/sbin/nft-policy-generate.py": "980d56e827b7acdaf598bf4d2d86afb09216fc4eb8f402fe60e6a5406a086a34",
+    "d-i/forky/hooks/target/usr/local/sbin/nft-policy-generate.py": "8f0816cbdf55ecb8c245fbc2b9fec0c9409b2468c118228aa3894306cd364726",
     "d-i/forky/hooks/target/usr/local/share/applications/computer-management.desktop.tmpl": "a83713409ed80942d4d357b207fd8c7d88d26ec465394aa4661914cec53ca96d",
     "d-i/forky/hooks/target/usr/local/share/applications/foot.desktop.tmpl": "73317f7d6cf7de1da219b2715aa96886ad547fe1c41afb9c6ab736d5682b9bb1",
     "d-i/forky/hooks/target/usr/local/share/applications/labwc-notifications.desktop.tmpl": "1b4aabba1b881e3a4be0b33c749f081c66c95da12fc43b717016fdc709293094",
@@ -529167,12 +529167,12 @@
         {
           "name": "ProtectKernelLogs",
           "value": "true",
-          "line": 60
+          "line": 66
         },
         {
           "name": "SystemCallArchitectures",
           "value": "native",
-          "line": 66
+          "line": 72
         }
       ],
       "packages": [],
@@ -558534,7 +558534,7 @@
     "d-i/forky/hooks/target/etc/apparmor.d/debugsys": "e431f5d17cfc99228c205f06f742cccaa346b390541691704248220d41482dc9",
     "d-i/forky/hooks/target/etc/apparmor.d/desktop-utilities": "80c56b21c29cbe2ad5d3ae38a24f2d8c403489c638df35a643bccb8d0390918c",
     "d-i/forky/hooks/target/etc/apparmor.d/document-applications": "61c1b61fdd1ee7eebd220590c456e1fd6cab718ede87a66d94573dd14201b877",
-    "d-i/forky/hooks/target/etc/apparmor.d/filen-sync.tmpl": "59b8d8640eff6faec4e07d145d8bb38ed8c7824e2aa4ca3be3581a4eb27aad62",
+    "d-i/forky/hooks/target/etc/apparmor.d/filen-sync.tmpl": "068be16fec21e7af67eac2c1d080709aad77d5ab9a89fb2c01305a53d2c9c7ca",
     "d-i/forky/hooks/target/etc/apparmor.d/gitbuild": "665d3dd65c42e998df1f0b1edb50554757aa505d711fb1099f803a399a998ffe",
     "d-i/forky/hooks/target/etc/apparmor.d/gitbuild-worker": "f4ca1013031c0a890345a7f7c806604ba45bfd8f0ab1a2f3a65f4d0de1c5de0e",
     "d-i/forky/hooks/target/etc/apparmor.d/hardware-tuning": "80295ef65b3f85c4654cc8c4fe07b2974c74c410402d5f704b7252134858651a",
@@ -558579,7 +558579,7 @@
     "d-i/forky/hooks/target/etc/apparmor.d/usr.sbin.aa-status": "97c8862dc42168d4cf288959e61d780c311b7d4b1e5bf0b6960043b3231f44f1",
     "d-i/forky/hooks/target/etc/apparmor.d/usr.sbin.apt-cacher-ng": "6c31bfce85175a362e12986e01d9bf417e200ba06ef8164a97d66fbc19067f70",
     "d-i/forky/hooks/target/etc/apparmor.d/usr.sbin.avahi-daemon": "68b28cbc90cf4da6dad1bffb42ba353c9e2a744316ce2bc6e0515681abc84e97",
-    "d-i/forky/hooks/target/etc/apparmor.d/usr.sbin.tailscaled": "11c91fa4f7583f455f5a45da9699277812831380e95a9d7076caeec7a4d765b8",
+    "d-i/forky/hooks/target/etc/apparmor.d/usr.sbin.tailscaled": "e4df0ca392f3e73b3429913eb22f8ccd16263104aaa35fd34a65f861beb7c8d9",
     "d-i/forky/hooks/target/etc/apparmor.d/vivaldi-bin": "6cda9d80bda900ecbf995263474bd45be88f4184ab12a71c2107c5ba66bcdb0e",
     "d-i/forky/hooks/target/etc/apparmor.d/vivaldi-stable": "2dc80e72d8319adbfa98f92a6beee85ccf5fef8a207c3884004df407c78ad812",
     "d-i/forky/hooks/target/etc/apparmor.d/waybar-menus": "4792262c938079db935d12695e47e41e56e33e8a7e0f4bdb54099fed749d778d",
@@ -559690,7 +559690,7 @@
     "d-i/forky/hooks/target/usr/local/libexec/rsyslog-size-rotate.tmpl": "bc276cd12a5f202c60ad2c35c95b2fbbf31dff09a9962f6912b36e7f10693b68",
     "d-i/forky/hooks/target/usr/local/libexec/ssh-checks": "50e3092c7d117a602b51fd3a2f6e708094d0b65f203281c36e645e0439c27098",
     "d-i/forky/hooks/target/usr/local/libexec/syncthing-configure": "3b435a395f79c2b41aa8e37d8f731fb855bfcfb0e9352966d3a2e1d392834da6",
-    "d-i/forky/hooks/target/usr/local/libexec/tailscale-netkit": "ef4744500d0dffc0fb8759cb548ccc1fecb75e22987ebc745a8b0d337ebc51e9",
+    "d-i/forky/hooks/target/usr/local/libexec/tailscale-netkit": "c81f9488e7adbd8bfd5540b0d19720657c322ac03ef24e03df9c6eae19769582",
     "d-i/forky/hooks/target/usr/local/libexec/tailscale-ssh-host": "4ee2dd6dee1dc425b6fe34b13eaf889f7badad41e929e414ec015599ac480bcb",
     "d-i/forky/hooks/target/usr/local/libexec/timeshift-snapshot": "162316c49cfa3c959726d4c4e2077bbf93156faa13305fc07bf140047affef0b",
     "d-i/forky/hooks/target/usr/local/libexec/timeshift/notify-send": "0d34ed331e561132cb21844652b7b802690d878b5640f96839233840c95704f1",

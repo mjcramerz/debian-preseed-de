@@ -1,5 +1,11 @@
 # Current supplied-log review: 18 October 2026
 
+> Historical snapshot: the 95-file evidence set reviewed below was replaced
+> after this report. The current three-file followup and its source/native
+> acceptance record are documented in
+> [todo-20261018-followup.md](todo-20261018-followup.md). The older line numbers,
+> log counts and product hashes below apply only to this recorded snapshot.
+
 ## Scope and evidence
 
 This review concerns the current 95 regular files under `todo/`, including

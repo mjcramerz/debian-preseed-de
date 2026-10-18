@@ -638,6 +638,12 @@ class SuppliedDenialTests(unittest.TestCase):
         self.assertIn('deny capability sys_admin,', parent)
         self.assertNotRegex(parent, r'(?m)^\s*capability sys_admin,')
 
+    def test_tailscale_cli_can_read_its_service_cgroup_cpu_limit(self):
+        cli = body('usr.sbin.tailscaled', 'usr.bin.tailscale')
+        self.assertIn('@{sys}/fs/cgroup/system.slice/tailscaled.service/cpu.max r,', cli)
+        daemon = body('usr.sbin.tailscaled', 'usr.sbin.tailscaled')
+        self.assertNotIn('/usr/sbin/{ip6tables,ip6tables-restore,ip6tables-save,iptables,', daemon)
+
     def test_compositor_env_helper_inherits_confinement_without_missing_transition(self):
         policy = body('labwc-session', 'labwc-compositor')
         self.assertIn('/usr/bin/env rix,', policy)

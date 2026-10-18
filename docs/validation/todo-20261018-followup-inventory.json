@@ -1,0 +1,514 @@
+{
+  "schema": 1,
+  "method": "Read supplied files as data; no repository code imported or executed. This followup supersedes the previous 95-file inventory for current todo contents.",
+  "files": [
+    {
+      "path": "todo/.~",
+      "bytes": 212514,
+      "physical_lines": 1617,
+      "sha256": "bb68928a2100b4c3378cca60b1e39403c06d380532374615d84ef7e542f8d900",
+      "denied_events": 0,
+      "denials": []
+    },
+    {
+      "path": "todo/apparmor.log",
+      "bytes": 96946,
+      "physical_lines": 509,
+      "sha256": "a637361278ceb55b4433dcd58def04d4fb0300b906a90802a771f09c4a4cc569",
+      "denied_events": 69,
+      "denials": [
+        {
+          "line": 441,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 442,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 443,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 444,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 445,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 446,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 447,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 448,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 449,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 450,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 451,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 452,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 453,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 454,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 455,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 456,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 457,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 458,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 459,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 460,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 461,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 462,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 463,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 464,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 465,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 466,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 467,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 468,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 469,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 470,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 471,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 472,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 473,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 474,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 475,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 476,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 477,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 478,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 479,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 480,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 481,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 482,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 483,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 484,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 485,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 486,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 487,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 488,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 489,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 490,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 491,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 492,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 493,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 494,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 495,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 496,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 497,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 498,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 499,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 500,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 501,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 502,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 503,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 504,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 505,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 506,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 507,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 508,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        },
+        {
+          "line": 509,
+          "profile": "usr.bin.tailscale",
+          "operation": "open",
+          "name": "/sys/fs/cgroup/system.slice/tailscaled.service/cpu.max",
+          "requested_mask": "r"
+        }
+      ]
+    },
+    {
+      "path": "todo/journalctl",
+      "bytes": 179119,
+      "physical_lines": 1447,
+      "sha256": "492291b53c46dacf61c23767a7dae504b1bfaff101efc702f42fc1ebc7860767",
+      "denied_events": 0,
+      "denials": []
+    }
+  ]
+}

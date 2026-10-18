@@ -32,9 +32,11 @@ SELF = '/usr/local/libexec/tailscale-netkit'
 SSH = '/usr/local/libexec/tailscale-ssh-host'
 IP = '/usr/sbin/ip'
 UPLINK = 'ts-uplink'
-HOST4, PEER4 = '169.254.253.1', '169.254.253.2'
+# Tailscale excludes IPv4 link-local addresses from netcheck probe planning.
+# Use private unicast transit addresses so the NAT-backed uplink has HaveV4.
+HOST4, PEER4 = '10.255.253.1', '10.255.253.2'
 HOST6, PEER6 = 'fd6b:bbad:cd4e:104::1', 'fd6b:bbad:cd4e:104::2'
-PREFIX4, PREFIX6 = '169.254.253.0/30', 'fd6b:bbad:cd4e:104::/126'
+PREFIX4, PREFIX6 = '10.255.253.0/30', 'fd6b:bbad:cd4e:104::/126'
 TAIL4, TAIL6 = ipaddress.ip_network('100.64.0.0/10'), ipaddress.ip_network('fd7a:115c:a1e0::/48')
 ROUTE_PROTOCOL = '242'
 NS_GET_NSTYPE = 0xb703
@@ -937,7 +939,10 @@ def daemon(namespace: int, mounts: int, root: int, arguments: list[str]) -> None
             os.close(fd)
     os.execve('/usr/sbin/tailscaled', ['/usr/sbin/tailscaled', *arguments],
               {**ENV, 'NOTIFY_SOCKET': os.environ.get('NOTIFY_SOCKET', ''),
-               'TS_ALLOW_ADMIN_CONSOLE_REMOTE_UPDATE': 'false', 'TMPDIR': '/run/tailscale'})
+               'TS_ALLOW_ADMIN_CONSOLE_REMOTE_UPDATE': 'false',
+               # The delegate replaces its environment instead of inheriting
+               # the service's. Keep the nftables-only backend explicit here.
+               'TS_DEBUG_FIREWALL_MODE': 'nftables', 'TMPDIR': '/run/tailscale'})
 
 
 def supervise(config: dict, arguments: list[str]) -> int:
@@ -998,6 +1003,14 @@ def supervise(config: dict, arguments: list[str]) -> int:
                     break
                 time.sleep(.1)
         return 0 if STOP else (process.returncode or 1)
+    except CommandFailed:
+        if not STOP:
+            raise
+        # systemd sends TERM to the whole service cgroup, including an active
+        # ip/CLI child. Its failure after a requested stop is cancellation.
+        # Pinned daemon termination below and ExecStopPost ownership/cleanup
+        # verification still have to succeed; their failures remain failures.
+        return 0
     finally:
         try:
             if process is not None and pinned is not None and process.poll() is None:

@@ -47,8 +47,11 @@ profile usr.sbin.tailscaled flags=(attach_disconnected, mediate_deleted) {
   /dev/ptmx rw,
   /dev/pts/{,ptmx,[0-9]*} rw,
   # The managed service and bootstrap disable self-updates. Do not give the
-  # network daemon systemd-run, dpkg, or apt execution rights for that feature.
-  /usr/sbin/{ip6tables,ip6tables-restore,ip6tables-save,iptables,iptables-restore,iptables-save,xtables-nft-multi} rix,
+  # network daemon package-manager or iptables execution rights; its firewall
+  # backend is forced to nftables by the service environment.
+  # Upstream's best-effort startup cleanup still looks for both iptables tools
+  # regardless of the selected backend. They must never execute in this image.
+  deny /usr/{bin,sbin}/{ip6tables,ip6tables-restore,ip6tables-save,iptables,iptables-restore,iptables-save,xtables-nft-multi,xtables-legacy-multi} x,
   /usr/sbin/resolvconf rix,
   /{,usr/}bin/{flock,sed} rix,
   # Tailscale 1.104.1's hostinfo desktop detection invokes loginctl to list
@@ -91,7 +94,6 @@ profile usr.sbin.tailscaled flags=(attach_disconnected, mediate_deleted) {
   /dev/net/tun rw,
   /dev/tpmrm0 rw,
   /run/resolvconf/run-lock rwk,
-  /run/xtables.lock rwk,
 
   /etc/ r,
   /etc/**/ r,
@@ -259,6 +261,7 @@ profile usr.bin.tailscale /usr/bin/tailscale flags=(attach_disconnected, mediate
   /var/lib/firstboot/tailscale/auth.key r,
   /var/lib/firstboot/tailscale/bootstrap.log a,
   owner @{PROC}/@{pid}/{cgroup,mountinfo} r,
+  @{sys}/fs/cgroup/system.slice/tailscaled.service/cpu.max r,
   @{sys}/fs/cgroup/system.slice/tailscale-bootstrap.service/cpu.max r,
 
   include if exists <local/usr.bin.tailscale>
