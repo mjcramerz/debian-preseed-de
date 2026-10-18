@@ -5,7 +5,10 @@ includes direct unittest discovery, importing a test or fixture, `make test`,
 the audit tools, build validation, and the Podman/Incus smoke probe.
 `make build` is permitted: it only serializes the three installer products,
 executes no validation or tests, and does not rewrite source files. Browser
-policy generation is a separate explicit command.
+policy generation is a separate explicit command. `make inventory` separately
+serializes only root `inventory.json` from manifest-listed sources and the root
+`inventory-apt.json` snapshot, without network access or installer code
+execution. Neither serialization target invokes the other.
 
 `AGENTS.override.md` defines the host-access prohibition. `tools/isolation.py`
 enforces it before test imports. Makefile test/validation targets check it before

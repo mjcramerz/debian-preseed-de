@@ -76,6 +76,13 @@ and enforcing-policy acceptance remain required in the disposable environment.
 
 ## Source layout
 
+`make inventory` generates root `inventory.json`, an incremental inventory of
+downloads declared by payload sources. Full APT archive filenames come from the
+root `inventory-apt.json` snapshot. `make build` does not generate the
+inventory. See the
+[download inventory guide](docs/download-inventory.md) for refresh and consumer
+contracts.
+
 - `d-i/forky/repo.env`: repository role, path contract and default selections.
 - `d-i/forky/classes/`: package selections, class metadata and hardware assets.
 - `d-i/forky/hosts/installer/`: shared settings, including `btrfs.env` and `f2fs.env`.
