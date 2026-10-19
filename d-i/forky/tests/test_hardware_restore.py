@@ -349,7 +349,7 @@ class GrubGeneratorTests(unittest.TestCase):
                      '/mok.der', 'installer-lastboot', '', 'keep', 'false']
         self.assertEqual(len(self.args), 25)
 
-    def invoke(self, install=False):
+    def invoke(self, install=False, mok=False):
         if install:
             fields = list(json.loads((FORKY.parents[1] / 'd-i/forky/tests/fixtures/contracts/grub-split.json').read_text())['config_variables'])
             config = payload_read_text(SHARED / 'etc/default/grub-profiles.tmpl')
@@ -360,7 +360,52 @@ class GrubGeneratorTests(unittest.TestCase):
             destination.chmod(0o600)
         return subprocess.run(payload_installed_argv([shutil.which('chroot'), str(self.root), '/bin/sh', '/generator',
                                *(['--install'] if install else [])]), text=True, capture_output=True,
-                              env={'PATH': '/bin', 'SKIP_MOK_SIGNING': '1', 'LC_ALL': 'C'}, timeout=10)
+                              env={'PATH': '/bin', 'SKIP_MOK_SIGNING': '0' if mok else '1',
+                                   'LC_ALL': 'C'}, timeout=10)
+
+    def prepare_mok_assets(self):
+        self.args[20] = '/boot/efi/MOK Enrollment/MOK.der'
+        esp = self.root / 'boot/efi'
+        (esp / 'EFI/debian').mkdir(parents=True)
+        (esp / 'MOK Enrollment').mkdir()
+        (esp / 'EFI/debian/mmx64.efi').write_bytes(b'fixture-manager')
+        (esp / 'MOK Enrollment/MOK.der').write_bytes(b'fixture-certificate')
+
+    def test_mok_menu_uses_selected_esp_and_firmware_relative_certificate_path(self):
+        self.prepare_mok_assets()
+        result = self.invoke(install=True, mok=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        menu = payload_read_text(self.root / 'boot/grub/custom.cfg')
+        self.assertIn('if search --no-floppy --fs-uuid --set=esp fixture-uuid; then', menu)
+        self.assertNotIn('search --no-floppy --file --set=esp', menu)
+        self.assertIn('"($esp)/MOK Enrollment/MOK.der"', menu)
+        self.assertIn('set root=$esp', menu)
+        self.assertIn('chainloader "($esp)/EFI/debian/mmx64.efi"', menu)
+        self.assertLess(menu.index('terminal_output console'), menu.index('chainloader "($esp)/EFI/debian/mmx64.efi"'))
+        self.assertIn('                    boot\n', menu)
+        self.assertGreater(menu.index('terminal_output gfxterm'), menu.index('                    boot\n'))
+        self.assertNotIn("echo 'If Reset MOK", menu)
+
+    def test_mok_menu_rejects_missing_esp_uuid_and_empty_assets(self):
+        self.prepare_mok_assets()
+        (self.root / 'bin/blkid').write_text('#!/bin/sh\nexit 1\n')
+        missing_uuid = self.invoke(install=True, mok=True)
+        self.assertNotEqual(missing_uuid.returncode, 0)
+        self.assertIn('ESP filesystem UUID is unavailable', missing_uuid.stderr)
+        (self.root / 'bin/blkid').write_text('#!/bin/sh\nprintf "fixture-uuid\\n"\n')
+        (self.root / 'boot/efi/MOK Enrollment/MOK.der').write_bytes(b'')
+        empty_cert = self.invoke(install=True, mok=True)
+        self.assertNotEqual(empty_cert.returncode, 0)
+        self.assertIn('missing or empty', empty_cert.stderr)
+
+    def test_mok_menu_rejects_private_signing_storage_and_esp_traversal(self):
+        self.prepare_mok_assets()
+        for path in ('/var/lib/shim-signed/mok/MOK.der', '/boot/efi/EFI/../../MOK.der'):
+            with self.subTest(path=path):
+                self.args[20] = path
+                result = self.invoke(install=True, mok=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('fatal:', result.stderr)
 
     def test_initial_and_regenerated_menu_include_hardware_values(self):
         result = self.invoke(install=True)

@@ -154,7 +154,7 @@ set_target_grub_default_entry
                 result = self.run_shell(shell, r'''
 set -eu
 . /grub.sh
-run_in_target() { printf '%s\000' "$@"; }
+attempt_in_target() { printf '%s\000' "$@"; }
 DEV_INSTALL_DISK=/dev/nvme0n1
 DEV_PART_EFI=/dev/nvme0n1p1
 INSTALLER_GRUB_SHIM_EFI_PATH=/EFI/debian/shimx64.efi
@@ -163,16 +163,17 @@ repair_target_secure_boot_nvram_entry
                 self.assertEqual(result.returncode, 0, result.stderr.decode())
                 args = result.stdout.decode().split("\0")
                 self.assertEqual(args.pop(), "")
-                self.assertEqual(len(args), 8, args)
-                self.assertEqual(args[:3], ["ensure firmware boot entry uses shim", "/bin/sh", "-c"])
-                self.assertEqual(args[4:], ["sh", "/dev/nvme0n1", "/dev/nvme0n1p1", "/EFI/debian/shimx64.efi"])
-                script = args[3]
+                self.assertEqual(len(args), 11, args)
+                self.assertEqual(args[:6], ["ensure firmware boot entry uses shim", "/usr/bin/timeout",
+                                           "--kill-after=2", "45", "/bin/sh", "-c"])
+                self.assertEqual(args[7:], ["sh", "/dev/nvme0n1", "/dev/nvme0n1p1", "/EFI/debian/shimx64.efi"])
+                script = args[6]
                 parsed = subprocess.run(["/usr/sbin/chroot", str(self.root), shell, "-n"],
                                         input=script, capture_output=True, text=True, timeout=10)
                 self.assertEqual(parsed.returncode, 0, parsed.stderr)
                 selector = next(line for line in script.splitlines() if line.startswith("part_num="))
                 selected = self.run_shell(shell, 'set -eu; efi_part=/dev/nvme0n1p1; '
-                                          'lsblk() { printf "\\n1\\n2\\n"; };\n' + selector +
+                                          'lsblk() { printf "1\\n"; };\n' + selector +
                                           '\n[ "$part_num" = 1 ]')
                 self.assertEqual(selected.returncode, 0, selected.stderr.decode())
 

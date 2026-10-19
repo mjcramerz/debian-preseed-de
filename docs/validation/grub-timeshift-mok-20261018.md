@@ -19,6 +19,9 @@ runtime gates in `managed-services-20261018.md`.
 
 ### MOK inventory and ordering
 
+**Historical behavior:** the MOK reset contract below is superseded by
+[the 19 October implementation](mok-reset-enrollment-20261019.md).
+
 `mokutil --list-enrolled` reads `MokListRT`. Shim adds its built-in vendor
 certificate to that runtime list even if there is no owner-enrolled certificate.
 The earlier fingerprint-presence check therefore treated the built-in Debian

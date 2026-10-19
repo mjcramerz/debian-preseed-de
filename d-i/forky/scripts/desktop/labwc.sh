@@ -208,6 +208,7 @@ assert Gio.AppInfo and GioUnix.DesktopAppInfo
   desktop_install_user_resource_policy
   desktop_log "rendered Labwc desktop defaults and greetd config"
   desktop_install_user_config
+  desktop_verify_runtime_contracts account-only
   desktop_capture_appearance_defaults
   desktop_install_fonts
   desktop_install_waypaper

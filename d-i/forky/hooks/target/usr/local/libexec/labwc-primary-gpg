@@ -1,0 +1,223 @@
+#!/usr/bin/python3 -IB
+"""Prove use of the installer's pinned OpenPGP identity before managed launch.
+
+The public challenge contains no password. Every check decrypts it afresh;
+neither a service-ready flag nor a user-writable success marker grants access.
+"""
+import base64
+import hashlib
+import json
+import os
+from pathlib import Path
+import pwd
+import re
+import secrets
+import selectors
+import signal
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+
+POLICY = Path('/etc/labwc/primary-gpg.json')
+MAX_BYTES = 16384
+
+
+class UnlockCancelled(ValueError):
+    """GnuPG explicitly reported a cancelled pinentry operation."""
+
+
+def trusted_directory(path):
+    metadata = path.lstat()
+    if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_mode & 0o022:
+        raise ValueError('unsafe primary GPG policy directory')
+
+
+def read_policy():
+    for directory in (Path('/etc'), POLICY.parent):
+        trusted_directory(directory)
+    fd = os.open(POLICY, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    try:
+        metadata = os.fstat(fd)
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
+                or metadata.st_mode & 0o022 or metadata.st_nlink != 1
+                or not 0 < metadata.st_size <= MAX_BYTES):
+            raise ValueError('unsafe primary GPG policy')
+        with os.fdopen(fd, 'rb', closefd=False) as source:
+            data = source.read(MAX_BYTES + 1)
+        if len(data) > MAX_BYTES:
+            raise ValueError('oversized primary GPG policy')
+        policy = json.loads(data)
+    finally:
+        os.close(fd)
+    if (not isinstance(policy, dict) or set(policy) != {
+            'schema', 'username', 'home', 'fingerprint', 'challenge', 'sha256'}
+            or type(policy['schema']) is not int or policy['schema'] != 1
+            or not all(isinstance(value, str) for key, value in policy.items() if key != 'schema')
+            or re.fullmatch(r'(?:[0-9A-F]{40}|[0-9A-F]{64})', policy['fingerprint']) is None
+            or re.fullmatch(r'[0-9a-f]{64}', policy['sha256']) is None):
+        raise ValueError('invalid primary GPG policy')
+    return policy
+
+
+def account_context(username, home):
+    account = pwd.getpwnam(username)
+    if account.pw_uid == 0 or account.pw_dir != home or home == '/' or os.path.realpath(home) != home:
+        raise ValueError('invalid primary GPG account')
+    for directory in (Path(home), Path(home) / '.gnupg'):
+        metadata = directory.lstat()
+        if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != account.pw_uid
+                or metadata.st_mode & 0o077):
+            raise ValueError('primary GPG account directories must be private')
+    return account
+
+
+def gpg(account, data, arguments, *, interactive):
+    """One total deadline for bounded input, output, status and final wait."""
+    environment = {'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'HOME': account.pw_dir,
+                   'USER': account.pw_name, 'LOGNAME': account.pw_name,
+                   'GNUPGHOME': account.pw_dir + '/.gnupg'}
+    if interactive:
+        runtime = f'/run/user/{account.pw_uid}'
+        if os.environ.get('XDG_RUNTIME_DIR') != runtime:
+            raise ValueError('primary GPG check requires the account session')
+        metadata = Path(runtime).lstat()
+        if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != account.pw_uid or metadata.st_mode & 0o077:
+            raise ValueError('unsafe primary GPG runtime directory')
+        display = os.environ.get('WAYLAND_DISPLAY', '')
+        if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,127}', display) is None:
+            raise ValueError('primary GPG check requires a Wayland display')
+        socket = (Path(runtime) / display).lstat()
+        if not stat.S_ISSOCK(socket.st_mode) or socket.st_uid != account.pw_uid:
+            raise ValueError('unsafe primary GPG Wayland socket')
+        environment.update(XDG_RUNTIME_DIR=runtime, WAYLAND_DISPLAY=display,
+                           DBUS_SESSION_BUS_ADDRESS=f'unix:path={runtime}/bus', QT_QPA_PLATFORM='wayland')
+    credentials = ({'user': account.pw_uid, 'group': account.pw_gid, 'extra_groups': []}
+                   if os.geteuid() == 0 else {})
+    child = subprocess.Popen(['/usr/bin/gpg', '--no-options', '--homedir', environment['GNUPGHOME'],
+                              '--batch', '--no-tty', *arguments], env=environment,
+                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             start_new_session=True, **credentials)
+    output, status = bytearray(), bytearray()
+    deadline = time.monotonic() + 120
+    try:
+        with selectors.DefaultSelector() as selector:
+            for stream, label in ((child.stdin, 'input'), (child.stdout, 'output'), (child.stderr, 'status')):
+                os.set_blocking(stream.fileno(), False)
+                selector.register(stream, selectors.EVENT_WRITE if label == 'input' else selectors.EVENT_READ, label)
+            pending = memoryview(data)
+            while selector.get_map():
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError('primary GPG operation timed out')
+                for key, _ in selector.select(min(remaining, 0.25)):
+                    if key.data == 'input':
+                        written = os.write(key.fd, pending)
+                        pending = pending[written:]
+                        if not pending:
+                            selector.unregister(key.fileobj)
+                            key.fileobj.close()
+                    else:
+                        chunk = os.read(key.fd, 4096)
+                        if not chunk:
+                            selector.unregister(key.fileobj)
+                            continue
+                        buffer = output if key.data == 'output' else status
+                        buffer.extend(chunk)
+                        if len(buffer) > MAX_BYTES:
+                            raise ValueError('primary GPG output limit exceeded')
+            result = child.wait(timeout=max(0.01, deadline - time.monotonic()))
+        if result:
+            errors = re.findall(rb'^\[GNUPG:\] (?:ERROR|FAILURE) \S+ ([0-9]+)', bytes(status), re.MULTILINE)
+            if any(int(code) & 0xffff == 99 for code in errors):
+                raise UnlockCancelled('primary GPG unlock cancelled')
+            raise ValueError('primary GPG operation failed or was cancelled')
+        return bytes(output), bytes(status)
+    finally:
+        # This is our unreaped child/session, never a discovered numeric PID.
+        if child.poll() is None:
+            try:
+                os.killpg(child.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        for stream in (child.stdin, child.stdout, child.stderr):
+            if stream and not stream.closed:
+                stream.close()
+        child.wait(timeout=3)
+
+
+def provision(username, home, fingerprint):
+    if os.geteuid() != 0 or re.fullmatch(r'(?:[0-9A-F]{40}|[0-9A-F]{64})', fingerprint) is None:
+        raise ValueError('primary GPG provisioning requires root and an exact fingerprint')
+    account = account_context(username, home)
+    for directory in (Path('/etc'), POLICY.parent):
+        trusted_directory(directory)
+    nonce = secrets.token_bytes(32)
+    encrypted, _ = gpg(account, nonce, ['--trust-model', 'always', '--recipient', fingerprint,
+                                       '--output', '-', '--encrypt'], interactive=False)
+    if not 32 < len(encrypted) < 8192:
+        raise ValueError('invalid primary GPG encrypted challenge')
+    policy = dict(schema=1, username=username, home=home, fingerprint=fingerprint,
+                  challenge=base64.b64encode(encrypted).decode('ascii'), sha256=hashlib.sha256(nonce).hexdigest())
+    fd, temporary = tempfile.mkstemp(prefix='.primary-gpg.', dir=POLICY.parent)
+    try:
+        with os.fdopen(fd, 'w', encoding='ascii') as target:
+            json.dump(policy, target, sort_keys=True)
+            target.write('\n')
+            target.flush()
+            os.fchmod(target.fileno(), 0o644)
+            os.fsync(target.fileno())
+        os.replace(temporary, POLICY)
+        directory = os.open(POLICY.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+    read_policy()
+
+
+def check():
+    policy = read_policy()
+    account = account_context(policy['username'], policy['home'])
+    if os.getuid() != account.pw_uid or os.geteuid() != account.pw_uid:
+        raise ValueError('primary GPG check requires the configured desktop account')
+    encrypted = base64.b64decode(policy['challenge'], validate=True)
+    if not 32 < len(encrypted) < 8192:
+        raise ValueError('invalid primary GPG encrypted challenge')
+    plaintext, status = gpg(account, encrypted,
+                            ['--no-autostart', '--pinentry-mode', 'ask', '--status-fd', '2', '--output', '-', '--decrypt'],
+                            interactive=True)
+    identities = [line.split()[3] for line in status.splitlines()
+                  if line.startswith(b'[GNUPG:] DECRYPTION_KEY ') and len(line.split()) == 5]
+    if (identities != [policy['fingerprint'].encode('ascii')] or len(plaintext) != 32
+            or not secrets.compare_digest(hashlib.sha256(plaintext).hexdigest(), policy['sha256'])
+            or b'[GNUPG:] DECRYPTION_OKAY' not in status.splitlines()):
+        raise ValueError('primary GPG unlock proof did not match the configured identity')
+
+
+if __name__ == '__main__':
+    os.umask(0o077)
+    try:
+        if len(sys.argv) == 5 and sys.argv[1] == '--provision':
+            provision(*sys.argv[2:])
+        elif len(sys.argv) == 1:
+            check()
+        else:
+            raise ValueError('invalid primary GPG operation')
+    except UnlockCancelled:
+        print('primary GPG unlock cancelled; application launch denied', file=sys.stderr)
+        raise SystemExit(3)
+    except (TimeoutError, subprocess.TimeoutExpired):
+        print('primary GPG unlock timed out; application launch denied', file=sys.stderr)
+        raise SystemExit(5)
+    except (OSError, KeyError):
+        print('primary GPG unlock unavailable; application launch denied', file=sys.stderr)
+        raise SystemExit(2)
+    except ValueError:
+        # Never print GPG status, decrypted data, environment or private paths.
+        print('primary GPG unlock proof failed; application launch denied', file=sys.stderr)
+        raise SystemExit(4)

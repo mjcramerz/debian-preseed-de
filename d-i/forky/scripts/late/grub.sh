@@ -503,8 +503,7 @@ target_efivars_are_available() {
   test_in_target /bin/sh -c '
 set -eu
 [ -d /sys/firmware/efi/efivars ]
-grep -qs " /sys/firmware/efi/efivars " /proc/mounts ||
-  grep -qs " /target/sys/firmware/efi/efivars " /proc/mounts
+[ "$(stat -f -c %t /sys/firmware/efi/efivars)" = de5e81e4 ]
 ' sh
 }
 
@@ -549,7 +548,7 @@ ensure_installer_secure_boot_install_tool() {
 run_installer_secure_boot_install_tool() {
   ensure_installer_secure_boot_install_tool
   # The root-owned target configuration already supplies ACCOUNT_USERNAME.
-  # Resolve a reset password only after inventory proves a reset is needed.
+  # The reset password goes through the tool's stdin, never command arguments.
   if command -v chroot >/dev/null 2>&1; then
     env SECURE_BOOT_HOST_MOUNT_PREFIX="$INSTALLER_SECURE_BOOT_TARGET_ROOT" \
       chroot "$INSTALLER_SECURE_BOOT_TARGET_ROOT" "$INSTALLER_SECURE_BOOT_TARGET_TOOL" "$@"
@@ -559,7 +558,11 @@ run_installer_secure_boot_install_tool() {
     "$INSTALLER_SECURE_BOOT_TARGET_TOOL" "$@"
 }
 
-reset_target_secure_boot_mok_state_attempt() {
+reset_target_secure_boot_mok_state_attempt() (
+  # Bridge preflight normally records a mandatory installation failure. This
+  # firmware operation is optional: confine that handler to warning + exit,
+  # without publishing the installer's persistent first-failure sentinel.
+  installer_fatal() { installer_warn "$*"; exit 1; }
   target_sys=/target/sys
 
   if [ ! -d /sys/firmware/efi/efivars ]; then
@@ -570,8 +573,16 @@ reset_target_secure_boot_mok_state_attempt() {
     installer_error "installer /sys is unavailable before binding into target; skipping Secure Boot MOK reset"
     return 1
   fi
+  # d-i need not mount efivarfs before pkgsel. Directory existence alone does
+  # not provide EFI variable access, and binding an empty directory cannot fix it.
+  if ! grep -qs ' /sys/firmware/efi/efivars efivarfs ' /proc/mounts; then
+    if ! mount -t efivarfs efivarfs /sys/firmware/efi/efivars; then
+      installer_warn "cannot mount installer efivarfs; continuing without a MOK reset request"
+      return 1
+    fi
+  fi
 
-  install -d -m 0755 "$target_sys"
+  install -d -m 0755 "$target_sys" || return 1
   if ! target_mount_source "$target_sys" >/dev/null 2>&1; then
     installer_info "binding installer /sys into ${target_sys} for Secure Boot MOK reset"
     if ! mount --rbind /sys "$target_sys"; then
@@ -584,8 +595,12 @@ reset_target_secure_boot_mok_state_attempt() {
     return 1
   fi
   if ! target_efivars_are_available; then
-    installer_error "target /sys/firmware/efi/efivars is unavailable after binding installer /sys into /target; skipping Secure Boot MOK reset"
-    return 1
+    # An existing target sysfs mount may not share the installer's submounts.
+    if ! mount --bind /sys/firmware/efi/efivars "$target_sys/firmware/efi/efivars" ||
+       ! target_efivars_are_available; then
+      installer_error "target efivarfs is unavailable; continuing without a MOK reset request"
+      return 1
+    fi
   fi
   if ! run_installer_secure_boot_install_tool reset-moks; then
     installer_error "failed to reset Secure Boot MOK state automatically"
@@ -593,7 +608,7 @@ reset_target_secure_boot_mok_state_attempt() {
   fi
 
   return 0
-}
+)
 
 installer_usb_efi_device_from_seed_context() {
   best_source=
@@ -806,7 +821,7 @@ fi
 
 repair_target_secure_boot_nvram_entry() {
   # shellcheck disable=SC2016
-  run_in_target "ensure firmware boot entry uses shim" /bin/sh -c '
+  attempt_in_target "ensure firmware boot entry uses shim" /usr/bin/timeout --kill-after=2 45 /bin/sh -c '
 set -eu
 disk=$1
 efi_part=$2
@@ -815,11 +830,14 @@ label=debian
 
 find_shim_boot_entry() {
   loader_lower=$1
-  efibootmgr -v | while IFS= read -r line; do
+  while IFS= read -r line; do
     lower_line=$(printf "%s\n" "$line" | tr "[:upper:]" "[:lower:]")
     case "$lower_line" in
-      *"file(${loader_lower})"*)
-        entry=$(printf "%s\n" "$line" | sed -n "s/^Boot\\([0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]\\).*/\\1/p")
+      # libefivar prints file paths either as File(path) or as a bare path.
+      # Match the exact final loader path in both formats, on the selected GPT
+      # partition; a matching label alone never authorizes BootNext.
+      *"hd(${part_num},gpt,${part_uuid},"*")/file(${loader_lower})"|*"hd(${part_num},gpt,${part_uuid},"*")/${loader_lower}")
+        entry=$(printf "%s\n" "$line" | sed -n "s/^Boot\\([0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]\\)\\*.*/\\1/p")
         [ -n "$entry" ] || continue
         printf "%s\n" "$entry"
         return 0
@@ -836,7 +854,8 @@ command -v efibootmgr >/dev/null 2>&1 || {
   printf "target efivars are unavailable; cannot force firmware boot through shim\n" >&2
   exit 1
 }
-grep -qs " /sys/firmware/efi/efivars " /proc/mounts || {
+grep -qs " /sys/firmware/efi/efivars " /proc/mounts ||
+  grep -qs " /target/sys/firmware/efi/efivars " /proc/mounts || {
   printf "target efivars are not mounted; cannot force firmware boot through shim\n" >&2
   exit 1
 }
@@ -848,41 +867,57 @@ grep -qs " /sys/firmware/efi/efivars " /proc/mounts || {
   printf "EFI partition is missing inside target: %s\n" "$efi_part" >&2
   exit 1
 }
-
-part_num=$(lsblk -n -o PARTN -- "$efi_part" 2>/dev/null | sed -n "/./{p;q;}")
-[ -n "$part_num" ] || {
-  printf "unable to resolve EFI partition number for %s\n" "$efi_part" >&2
+disk_identity=$(readlink -f -- "$disk")
+efi_parent=$(lsblk -dnro PKNAME -- "$efi_part")
+[ "$disk_identity" = "/dev/${efi_parent}" ] || {
+  printf "selected ESP does not belong to the selected install disk; refusing a firmware boot mutation\n" >&2
   exit 1
 }
+
+# PARTN can be empty before udev has populated partition properties. Bind the
+# kernel partition number to the selected block device instead of guessing it
+# from names (which differ for NVMe, MMC and other disk families).
+efi_devnum=$(lsblk -dnro MAJ:MIN -- "$efi_part")
+printf "%s\n" "$efi_devnum" | grep -Eq "^[0-9]+:[0-9]+$" || exit 1
+part_num=$(cat "/sys/dev/block/${efi_devnum}/partition")
+case "$part_num" in
+  ""|*[!0-9]*)
+  printf "unable to resolve EFI partition number for %s\n" "$efi_part" >&2
+  exit 1
+  ;;
+esac
+part_uuid=$(blkid -s PARTUUID -o value "$efi_part")
+part_uuid=$(printf "%s\n" "$part_uuid" | tr "[:upper:]" "[:lower:]")
+printf "%s\n" "$part_uuid" | grep -Eq "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" || {
+  printf "selected ESP has no valid GPT partition UUID; refusing a firmware boot mutation\n" >&2
+  exit 1
+}
+case "$shim_path" in
+  /EFI/*.efi) ;;
+  *) exit 1 ;;
+esac
+case "$shim_path" in
+  *[!A-Za-z0-9_./+-]*|*'/../'*|*'/..'|*'/./'*|*'/.'|*'//'*) exit 1 ;;
+esac
+[ -s "/boot/efi${shim_path}" ] || exit 1
 loader=$(printf "%s\n" "$shim_path" | sed "s#/#\\\\#g")
 loader_lower=$(printf "%s\n" "$loader" | tr "[:upper:]" "[:lower:]")
 
-entry_id=$(find_shim_boot_entry "$loader_lower" | head -n 1 || true)
+boot_entries=$(efibootmgr -v)
+entry_id=$(printf "%s\n" "$boot_entries" | find_shim_boot_entry "$loader_lower")
 if [ -z "$entry_id" ]; then
-  efibootmgr --create --disk "$disk" --part "$part_num" --label "$label" --loader "$loader" >/dev/null
-  entry_id=$(find_shim_boot_entry "$loader_lower" | head -n 1 || true)
+  efibootmgr --create-only --disk "$disk" --part "$part_num" --label "$label" --loader "$loader" >/dev/null
+  boot_entries=$(efibootmgr -v)
+  entry_id=$(printf "%s\n" "$boot_entries" | find_shim_boot_entry "$loader_lower")
 fi
 [ -n "$entry_id" ] || {
   printf "failed to create or find shim firmware boot entry for %s\n" "$loader" >&2
   exit 1
 }
 
-boot_order=$(efibootmgr | sed -n "s/^BootOrder:[[:space:]]*//p" | head -n 1)
-entry_lower=$(printf "%s\n" "$entry_id" | tr "[:upper:]" "[:lower:]")
-new_order=$entry_id
-old_ifs=$IFS
-IFS=,
-for existing_entry in $boot_order; do
-  existing_entry=$(printf "%s\n" "$existing_entry" | tr -d "[:space:]")
-  [ -n "$existing_entry" ] || continue
-  existing_lower=$(printf "%s\n" "$existing_entry" | tr "[:upper:]" "[:lower:]")
-  [ "$existing_lower" = "$entry_lower" ] && continue
-  new_order="${new_order},${existing_entry}"
-done
-IFS=$old_ifs
-efibootmgr --bootorder "$new_order" >/dev/null
 efibootmgr --bootnext "$entry_id" >/dev/null
-efibootmgr | grep -E -i -q "^BootNext:[[:space:]]*${entry_id}$"
+boot_state=$(efibootmgr)
+printf "%s\n" "$boot_state" | grep -E -i -q "^BootNext:[[:space:]]*${entry_id}$"
 ' sh \
     "${DEV_INSTALL_DISK}" \
     "${DEV_PART_EFI}" \
@@ -891,7 +926,7 @@ efibootmgr | grep -E -i -q "^BootNext:[[:space:]]*${entry_id}$"
 
 queue_target_grub_mok_enrollment_boot() {
   # shellcheck disable=SC2016
-  run_in_target "queue one-shot GRUB boot into MokManager" /bin/sh -c '
+  attempt_in_target "queue one-shot GRUB boot into MokManager" /usr/bin/timeout --kill-after=2 15 /bin/sh -c '
 set -eu
 mok_entry_id=$1
 mokmanager_path=$2
@@ -930,7 +965,8 @@ esac
   grub-editenv /boot/grub/grubenv create
 }
 grub-editenv /boot/grub/grubenv set "next_entry=${mok_entry_id}"
-grub-editenv /boot/grub/grubenv list | grep -F -q "next_entry=${mok_entry_id}"
+grub_environment=$(grub-editenv /boot/grub/grubenv list)
+printf "%s\n" "$grub_environment" | grep -F -x -q "next_entry=${mok_entry_id}"
 ' sh \
     installer-mok-enrollment \
     "${INSTALLER_GRUB_MOK_MANAGER_EFI_PATH}" \
@@ -938,9 +974,36 @@ grub-editenv /boot/grub/grubenv list | grep -F -q "next_entry=${mok_entry_id}"
 }
 
 queue_target_grub_mok_enrollment_boot_for_reset() {
-  ensure_target_grub_profile_mounts
-  require_target_grub_installed
-  queue_target_grub_mok_enrollment_boot
+  # Queue failure must not break installation or repeat the firmware reset.
+  if (
+    set -eu
+    # The caller already mounted /boot and the ESP and verified GRUB before
+    # updating grub.cfg. Do not repeat mandatory preflights for this optional step.
+    installer_fatal() { installer_warn "$*"; exit 1; }
+    # A cached success must not authorize a management boot if another operation
+    # has replaced or cleared the reset request since the final reset returned.
+    run_installer_secure_boot_install_tool reset-pending || exit 1
+    # Shim consumes MokAuth before GRUB runs. A missing certificate/menu or a
+    # GRUB environment failure must not prevent the primary firmware handoff.
+    firmware_queued=false
+    grub_queued=false
+    if (repair_target_secure_boot_nvram_entry); then
+      firmware_queued=true
+    else
+      installer_warn "could not confirm BootNext through shim; attempting the GRUB fallback"
+    fi
+    if (queue_target_grub_mok_enrollment_boot); then
+      grub_queued=true
+    else
+      installer_warn "could not queue the GRUB MokManager fallback"
+    fi
+    [ "$firmware_queued" = true ] || [ "$grub_queued" = true ]
+  ); then
+    installer_info "MOK management boot queued; confirm Reset MOK, reboot, then enroll the new certificate from the ESP"
+  else
+    installer_warn "could not confirm the one-shot MOK management boot; continuing installation; select MOK Enrollment manually at boot"
+  fi
+  return 0
 }
 
 require_target_grub_installed() {
@@ -1049,12 +1112,27 @@ mark_secure_boot_packages_stage_complete() {
 stage_target_secure_boot_runtime_assets() {
   ensure_target_secure_boot_state_mount
   write_target_secure_boot_payloads
-  # The shared pre-pkgsel and late routes run this before prepare/prepare-dkms
-  # can create or copy a certificate for enrollment. Do not retry uncertain EFI writes.
-  reset_target_secure_boot_mok_state || :
+  # Generate signing material here, but queue firmware changes only after all
+  # addon/desktop package hooks finish. An early failure must not consume the
+  # one reset attempt, and a later package must not replace its MokAuth request.
   remove_target_secure_boot_crypttab_entry
   install_target_secure_boot_kernel_hooks
 }
+
+finalize_target_secure_boot_mok_reset() (
+  # Called once by the final role entrypoint after every package-producing
+  # stage. Keep optional preflight exits and reset failures out of first-failure.
+  installer_fatal() { installer_warn "$*"; exit 1; }
+  late_command_load_runtime_env false || return 1
+  late_command_load_host_env || return 1
+  late_command_require_class_policy_env || return 1
+  ensure_target_grub_profile_mounts || return 1
+  if (reset_target_secure_boot_mok_state); then
+    queue_target_grub_mok_enrollment_boot_for_reset
+  else
+    installer_warn "final MOK reset was not confirmed; continuing installation"
+  fi
+)
 
 ensure_target_dualboot_os_prober_package() {
   [ "${DUALBOOT_ENABLED:-false}" = "true" ] || return 0
@@ -1636,16 +1714,17 @@ ensure_target_secure_boot_packages() {
 }
 
 reset_target_secure_boot_mok_state() {
+  INSTALLER_SECURE_BOOT_MOK_RESET_STATE=unknown
   installer_lifecycle_paths || return 1
   mok_state_dir=$(installer_runtime_state_dir) || return 1
   mok_state_file=$mok_state_dir/secure-boot-mok-reset.state
   if [ ! -e "$mok_state_file" ] && [ ! -L "$mok_state_file" ]; then
     # Claim once before touching firmware. An interrupted/uncertain operation
-    # stays unknown across pre-pkgsel and late-command processes.
+    # stays unknown across repeated final late-command processes.
     (umask 077; set -C; printf 'unknown\n' >"$mok_state_file") || return 1
     mok_reset_outcome=unknown
     if mok_reset_output=$(reset_target_secure_boot_mok_state_attempt); then
-      case "$mok_reset_output" in empty|queued) mok_reset_outcome=$mok_reset_output ;;
+      case "$mok_reset_output" in queued) mok_reset_outcome=$mok_reset_output ;;
         *) installer_warn "unexpected MOK reset result; outcome remains unknown" ;;
       esac
     fi
@@ -1664,10 +1743,10 @@ reset_target_secure_boot_mok_state() {
   }
   INSTALLER_SECURE_BOOT_MOK_RESET_STATE=$(cat "$mok_state_file") || return 1
   # The command substitution above confines explicit bridge/preflight exits.
-  # Empty is successful and still permits first enrollment; unknown must not
-  # queue an automatic enrollment boot or repeat a possibly pending reset.
+  # Only a confirmed pending reset may queue an automatic management boot.
+  # Unknown (including an obsolete empty result) must never repeat EFI writes.
   case "$INSTALLER_SECURE_BOOT_MOK_RESET_STATE" in
-    empty|queued) return 0 ;;
+    queued) return 0 ;;
     *) installer_warn "Secure Boot MOK reset outcome is unknown; continuing install without retrying the firmware request"; return 1 ;;
   esac
 }
@@ -1725,7 +1804,7 @@ render_grub_profile_config_map() (
   grub_profile_config_value GRUB_CONFIG_GRUB_PROFILE_PERFORMANCE_FLAGS "$value" || exit 1
   value=${GRUB_PROFILE_HARDENED_FLAGS:-}
   grub_profile_config_value GRUB_CONFIG_GRUB_PROFILE_HARDENED_FLAGS "$value" || exit 1
-  value=${FILE_SECURE_BOOT_MOK_CERT_DER:-}
+  value=${FILE_SECURE_BOOT_MOK_CERT_DER_ESP:-}
   grub_profile_config_value GRUB_CONFIG_MOK_DER_PATH "$value" || exit 1
   value=${GRUB_DEFAULT_ENTRY:-}
   grub_profile_config_value GRUB_CONFIG_GRUB_DEFAULT_ENTRY "$value" || exit 1

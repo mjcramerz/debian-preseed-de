@@ -922,6 +922,9 @@ def network_runtime():
 
 def main() -> int:
     redirect_to_user_service()
+    network_runtime()  # Validate the trusted package before importing the gate.
+    from labwc_managed_app.runtime import require_primary_gpg
+    require_primary_gpg()
     defaults = load_defaults(DEFAULTS_PATH)
     account, configured_root = configured_account(defaults)
     ports = configured_peer_ports(defaults)

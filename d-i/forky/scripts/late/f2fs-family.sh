@@ -270,9 +270,6 @@ if target_exec_available; then
   install_target_grub_profiles
   require_target_dualboot_os_prober_package
   run_target_grub_config_update
-  if reset_target_secure_boot_mok_state; then
-    queue_target_grub_mok_enrollment_boot_for_reset
-  fi
   sync_target_secure_boot_bundle_to_installer_usb
   close_target_secure_boot_state
 fi

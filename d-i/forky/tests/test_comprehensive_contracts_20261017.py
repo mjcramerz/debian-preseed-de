@@ -34,6 +34,29 @@ def function(source: str, name: str) -> str:
 
 
 class MokResetTests(unittest.TestCase):
+    def test_reset_password_is_bounded_and_usable_in_mokmanager(self):
+        source = read_text(TARGET / 'usr/libexec/install-tools/secure-boot-tool')
+        definitions = ''
+        for name in ('validate_single_line_value', 'validate_single_token_value',
+                     'resolve_mok_delete_password'):
+            start = source.index(name + '() (\n')
+            definitions += source[start:source.index('\n)\n', start) + 3] + '\n'
+        for override, username, valid in [('', 'fixture-user', True), ('ignored-token', 'fixture-user', True),
+                                           ('ignored-token', '', False), ('', 'x' * 256, True),
+                                           ('', 'x' * 257, False), ('', 'with space', False),
+                                           ('', 'with\nnewline', False), ('', 'nonascii-å', False),
+                                           ('', '', False)]:
+            with self.subTest(length=len(override), valid=valid):
+                program = 'fatal() { printf \'%s\\n\' "$*" >&2; exit 1; }\n' + definitions
+                result = subprocess.run(['/bin/dash', '-eu', '-c', program + '\nresolve_mok_delete_password'],
+                                        env={**ENV, 'SECURE_BOOT_MOK_DELETE_PASSWORD': override,
+                                             'ACCOUNT_USERNAME': username},
+                                        capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 0 if valid else 1, result.stderr)
+                self.assertEqual(result.stdout, username + '\n' if valid else '')
+                if override:
+                    self.assertNotIn(override, result.stderr)
+
     def reset(self, failure='none', listing='certificate'):
         source = read_text(TARGET / 'usr/libexec/install-tools/secure-boot-tool')
         start = source.index('reset_mok_state() (\n')
@@ -41,11 +64,12 @@ class MokResetTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='mok-reset-') as temporary:
             calls = Path(temporary) / 'calls'
             stubs = r'''
-require_command() { :; }
+require_command() { [ "$FAILURE" != missing ] || fatal 'missing command'; }
 resolve_mok_delete_password() {
-  case "$LISTING" in certificate|multiple|mixed) ;; *) return 97 ;; esac
+  [ "$FAILURE" != password ] || return 97
   printf '%s\n' 'fixture-password'
 }
+mok_reset_request_is_pending() { [ "$FAILURE" != pending ]; }
 fatal() { printf '%s\n' "$*" >&2; exit 1; }
 log() { printf '%s\n' "$*" >&2; }
 timeout() {
@@ -58,7 +82,7 @@ mokutil() {
   printf '%s\n' "$*" >>"$CALLS"
   case "$1" in
     --list-enrolled)
-      [ "$#" -eq 1 ] || return 98
+      [ "$#" -eq 2 ] && [ "$2" = --short ] || return 98
       case "$LISTING" in
         certificate|multiple|mixed)
           printf '%s\n' '[key 1]' 'SHA1 Fingerprint: aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd' 'Certificate:'
@@ -81,7 +105,8 @@ mokutil() {
       [ "$#" -eq 1 ] || return 92
       IFS= read -r first && IFS= read -r second || return 93
       [ "$first" = fixture-password ] && [ "$second" = "$first" ] || return 94
-      [ "$FAILURE" != reset ]
+      case "$FAILURE" in reset) return 74 ;; reset-timeout) return 124 ;; reset-killed) return 137 ;; esac
+      return 0
       ;;
     --timeout)
       [ "$#" -eq 2 ] && [ "$2" = 900 ] || return 95
@@ -96,57 +121,203 @@ mokutil() {
                                          'LISTING': listing},
                                     capture_output=True, text=True, timeout=5)
             self.assertNotIn('fixture-password', result.stdout + result.stderr)
-            return result, calls.read_text().splitlines()
+            return result, calls.read_text().splitlines() if calls.exists() else []
 
-    def test_full_reset_when_an_owner_certificate_is_enrolled(self):
+    def test_full_reset_for_every_inventory_without_issuer_or_type_exclusions(self):
         # The newly generated certificate is intentionally absent from the
         # fixture: previous installations' keys must still be covered.
-        for listing in ('certificate', 'multiple', 'mixed'):
+        for listing in ('certificate', 'multiple', 'mixed', 'vendor', 'hash',
+                        'empty', 'message', 'malformed'):
             with self.subTest(listing=listing):
                 result, calls = self.reset(listing=listing)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(calls, ['--list-enrolled', '--reset', '--timeout 900'])
+                self.assertEqual(calls, ['--list-enrolled --short', '--reset', '--timeout -1'])
                 self.assertIn('confirm the reset in MokManager', result.stderr)
                 self.assertEqual(result.stdout, 'queued\n')
 
-    def test_no_certificate_skips_reset_and_password_lookup(self):
-        for listing in ('empty', 'message', 'hash', 'vendor'):
-            with self.subTest(listing=listing):
-                result, calls = self.reset(listing=listing)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(calls, ['--list-enrolled'])
-                self.assertIn('no owner-enrolled MOK certificates reported; skipping reset', result.stderr)
-                self.assertEqual(result.stdout, 'empty\n')
-                self.assertNotIn('full MOK reset queued', result.stderr)
-
-    def test_malformed_fingerprint_never_queues_reset(self):
-        result, calls = self.reset(listing='malformed')
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(calls, ['--list-enrolled'])
-        self.assertIn('invalid MOK certificate inventory', result.stderr)
-
-    def test_failed_or_timed_out_query_never_queues_reset(self):
-        # Partial certificate output must not override a failed query status.
+    def test_failed_or_timed_out_inventory_does_not_suppress_the_reset(self):
         for failure in ('query', 'query-timeout'):
             with self.subTest(failure=failure):
                 result, calls = self.reset(failure=failure)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertEqual(calls, ['--list-enrolled'])
-                self.assertIn('could not query enrolled MOK certificates; skipping reset', result.stderr)
-                self.assertNotIn('full MOK reset queued', result.stderr)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(calls, ['--list-enrolled --short', '--reset', '--timeout -1'])
+                self.assertIn('inventory is unavailable', result.stderr)
+                self.assertEqual(result.stdout, 'queued\n')
 
     def test_failed_request_is_not_retried_or_reported_as_queued(self):
-        result, calls = self.reset('reset')
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(calls, ['--list-enrolled', '--reset'])
-        self.assertIn('may already be pending', result.stderr)
-        self.assertNotIn('full MOK reset queued', result.stderr)
+        for failure in ('reset', 'reset-timeout', 'reset-killed', 'pending'):
+            with self.subTest(failure=failure):
+                result, calls = self.reset(failure)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(calls, ['--list-enrolled --short', '--reset'])
+                self.assertIn('may already be pending', result.stderr)
+                self.assertNotIn('full MOK reset queued', result.stderr)
+                self.assertEqual(result.stdout, '')
+
+    def test_missing_command_or_password_never_claims_a_queued_reset(self):
+        for failure, expected in [('missing', []), ('password', ['--list-enrolled --short'])]:
+            with self.subTest(failure=failure):
+                result, calls = self.reset(failure)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(calls, expected)
+                self.assertEqual(result.stdout, '')
 
     def test_timeout_adjustment_failure_keeps_successful_reset_result(self):
         result, calls = self.reset('timeout')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(calls, ['--list-enrolled', '--reset', '--timeout 900'])
+        self.assertEqual(calls, ['--list-enrolled --short', '--reset', '--timeout -1'])
         self.assertIn('timeout could not be set', result.stderr)
+
+    def test_pending_reset_requires_authentication_and_no_new_enrollment(self):
+        source = read_text(TARGET / 'usr/libexec/install-tools/secure-boot-tool')
+        start = source.index('mok_reset_request_is_pending() (\n')
+        body = source[start:source.index('\n)\n', start) + 3]
+        guid = '605dab50-e046-4300-abb6-3dd810dd8b23'
+        for mode in ('pending', 'legacy', 'absent', 'empty-auth', 'truncated-auth',
+                     'oversized-auth', 'replacement', 'auth-link', 'new-link'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                auth, new = root / ('MokAuth-' + guid), root / ('MokNew-' + guid)
+                if mode != 'absent':
+                    size = {'legacy': 36, 'empty-auth': 0, 'truncated-auth': 175,
+                            'oversized-auth': 177}.get(mode, 176)
+                    auth.write_bytes(bytes(size))
+                if mode == 'replacement':
+                    new.write_bytes(b'fixture-new')
+                if mode == 'auth-link':
+                    auth.rename(root / 'saved-auth')
+                    auth.symlink_to(root / 'saved-auth')
+                if mode == 'new-link':
+                    new.symlink_to(root / 'absent')
+                program = body.replace('/sys/firmware/efi/efivars', temporary)
+                result = subprocess.run(['/bin/dash', '-eu', '-c', program +
+                                         '\nmok_reset_request_is_pending'],
+                                        env=ENV, capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 0 if mode in ('pending', 'legacy') else 1, result.stderr)
+
+    def test_reset_and_management_queue_exits_do_not_abort_preparation(self):
+        source = read_text(TARGET.parents[1] / 'scripts/late/grub.sh')
+        stage = function(source, 'stage_target_secure_boot_runtime_assets')
+        queue = function(source, 'queue_target_grub_mok_enrollment_boot_for_reset')
+        for failure in ('return 37', 'exit 37'):
+            with self.subTest(failure=failure):
+                stubs = r'''
+ensure_target_secure_boot_state_mount() { :; }
+write_target_secure_boot_payloads() { :; }
+remove_target_secure_boot_crypttab_entry() { printf 'crypttab\n'; }
+install_target_secure_boot_kernel_hooks() { printf 'kernel-hooks\n'; }
+ensure_target_grub_profile_mounts() { :; }
+require_target_grub_installed() { :; }
+repair_target_secure_boot_nvram_entry() { :; }
+run_installer_secure_boot_install_tool() { :; }
+installer_warn() { printf '%s\n' "$*" >&2; }
+installer_info() { printf '%s\n' "$*" >&2; }
+''' + ('reset_target_secure_boot_mok_state() { ' + failure + '; }\n' +
+       'repair_target_secure_boot_nvram_entry() { ' + failure + '; }\n' +
+       'queue_target_grub_mok_enrollment_boot() { ' + failure + '; }\n')
+                result = subprocess.run(['/bin/dash', '-eu', '-c', stubs + stage + queue +
+                                         '\nstage_target_secure_boot_runtime_assets\n'
+                                         'queue_target_grub_mok_enrollment_boot_for_reset\n'
+                                         "printf 'installation-continued\\n'"],
+                                        env=ENV, capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout, 'crypttab\nkernel-hooks\ninstallation-continued\n')
+                self.assertNotIn('continuing Secure Boot key preparation', result.stderr)
+                self.assertIn('select MOK Enrollment manually', result.stderr)
+
+    def test_successful_reset_is_not_repeated_by_a_later_installer_process(self):
+        source = read_text(TARGET.parents[1] / 'scripts/late/grub.sh')
+        body = function(source, 'reset_target_secure_boot_mok_state')
+        stubs = r'''
+installer_lifecycle_paths() { :; }
+installer_runtime_state_dir() { printf '%s\n' "$FIXTURE_ROOT"; }
+installer_metadata_value() { printf '0:0:600:1\n'; }
+installer_warn() { printf '%s\n' "$*" >&2; }
+reset_target_secure_boot_mok_state_attempt() {
+  printf 'attempt\n' >>"$FIXTURE_ROOT/calls"
+  printf 'queued\n'
+}
+'''
+        with tempfile.TemporaryDirectory() as temporary:
+            for _ in range(2):
+                result = subprocess.run(['/bin/dash', '-eu', '-c', stubs + body +
+                                         '\nreset_target_secure_boot_mok_state'],
+                                        env={**ENV, 'FIXTURE_ROOT': temporary},
+                                        capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((Path(temporary) / 'calls').read_text(), 'attempt\n')
+            self.assertEqual((Path(temporary) / 'secure-boot-mok-reset.state').read_text(), 'queued\n')
+
+    def test_changed_pending_request_blocks_automatic_queue_but_installation_continues(self):
+        source = read_text(TARGET.parents[1] / 'scripts/late/grub.sh')
+        body = function(source, 'queue_target_grub_mok_enrollment_boot_for_reset')
+        stubs = r'''
+run_installer_secure_boot_install_tool() { [ "$1" = reset-pending ] || exit 91; return 1; }
+queue_target_grub_mok_enrollment_boot() { printf 'unexpected grub mutation\n'; exit 92; }
+repair_target_secure_boot_nvram_entry() { printf 'unexpected firmware mutation\n'; exit 93; }
+installer_warn() { printf '%s\n' "$*" >&2; }
+installer_info() { printf '%s\n' "$*" >&2; }
+'''
+        result = subprocess.run(['/bin/dash', '-eu', '-c', stubs + body +
+                                 '\nqueue_target_grub_mok_enrollment_boot_for_reset\n'
+                                 "printf 'installation-continued\\n'"],
+                                env=ENV, capture_output=True, text=True, timeout=5)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, 'installation-continued\n')
+        self.assertIn('select MOK Enrollment manually', result.stderr)
+
+    def test_bridge_preflight_failure_never_records_a_mandatory_install_failure(self):
+        source = read_text(TARGET.parents[1] / 'scripts/late/grub.sh')
+        start = source.index('reset_target_secure_boot_mok_state_attempt() (\n')
+        body = source[start:source.index('\n)\n', start) + 3]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            system = root / 'installer-system'
+            (system / 'firmware/efi/efivars').mkdir(parents=True)
+            target_system = root / 'target-system'
+            target_system.mkdir()
+            body = body.replace('/target/sys', str(target_system)).replace('/sys', str(system))
+            stubs = r'''
+installer_fatal() { : >"$FIXTURE_ROOT/first-failure"; exit 31; }
+installer_warn() { printf '%s\n' "$*" >&2; }
+installer_error() { printf '%s\n' "$*" >&2; }
+installer_info() { :; }
+install() { :; }
+mount() { :; }
+target_mount_source() { return 0; }
+target_efivars_are_available() { return 0; }
+run_installer_secure_boot_install_tool() { installer_fatal 'fixture bridge preflight failure'; }
+'''
+            result = subprocess.run(['/bin/dash', '-eu', '-c', stubs + body +
+                                     '\nif reset_target_secure_boot_mok_state_attempt; then exit 99; fi\n'
+                                     "printf 'installation-continued\\n'"],
+                                    env={**ENV, 'FIXTURE_ROOT': temporary},
+                                    capture_output=True, text=True, timeout=5)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, 'installation-continued\n')
+            self.assertIn('fixture bridge preflight failure', result.stderr)
+            self.assertFalse((root / 'first-failure').exists())
+
+    def test_shim_boot_entry_selection_requires_the_selected_esp_and_active_entry(self):
+        source = read_text(TARGET.parents[1] / 'scripts/late/grub.sh')
+        selector = function(source, 'find_shim_boot_entry')
+        selected_uuid = '12345678-1234-1234-1234-123456789abc'
+        other_uuid = '87654321-1234-1234-1234-123456789abc'
+        entries = [
+            f'Boot0001* debian HD(1,GPT,{other_uuid},0x800,0x100)/File(\\EFI\\debian\\shimx64.efi)',
+            f'Boot0002  debian HD(1,GPT,{selected_uuid},0x800,0x100)/File(\\EFI\\debian\\shimx64.efi)',
+            f'Boot0003* debian HD(2,GPT,{selected_uuid},0x800,0x100)/File(\\EFI\\debian\\shimx64.efi)',
+            f'Boot0004* debian HD(1,GPT,{selected_uuid},0x800,0x100)/File(\\EFI\\debian\\grubx64.efi)',
+            f'Boot0005* debian HD(1,GPT,{selected_uuid},0x800,0x100)/File(\\EFI\\debian\\shimx64.efi)',
+        ]
+        for listing, expected in [('\n'.join(entries), '0005\n'), ('\n'.join(entries[:-1]), '')]:
+            with self.subTest(expected=expected):
+                program = selector + '\npart_num=1\npart_uuid=' + shlex.quote(selected_uuid) + '\n'
+                program += 'find_shim_boot_entry ' + shlex.quote(r'\efi\debian\shimx64.efi')
+                result = subprocess.run(['/bin/dash', '-eu', '-c', program], input=listing + '\n',
+                                        env=ENV, capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout, expected)
 
     def test_installer_continues_when_request_cannot_be_queued(self):
         source = read_text(TARGET.parents[1] / 'scripts/late/grub.sh')
@@ -200,7 +371,7 @@ installer_runtime_state_dir() { printf '%s\n' "$FIXTURE_ROOT"; }
 reset_target_secure_boot_mok_state_attempt() { printf unexpected >>"$FIXTURE_ROOT/calls"; return 91; }
 installer_warn() { printf '%s\n' "$*" >&2; }
 '''
-        for state, mode, expected in [('empty\n', 0o600, 0), ('queued\n', 0o600, 0),
+        for state, mode, expected in [('empty\n', 0o600, 1), ('queued\n', 0o600, 0),
                                       ('unknown\n', 0o600, 1), ('queued\nextra\n', 0o600, 1),
                                       ('queued\n', 0o666, 1)]:
             with self.subTest(state=state, mode=mode), tempfile.TemporaryDirectory() as temporary:
@@ -215,37 +386,68 @@ installer_warn() { printf '%s\n' "$*" >&2; }
                 self.assertEqual(path.read_text(), state)
                 self.assertFalse((Path(temporary) / 'calls').exists())
 
-    def test_shared_staging_checks_reset_before_enrollment_preparation(self):
+    def test_reset_runs_after_addon_and_desktop_packages_not_during_staging(self):
         source = read_text(TARGET.parents[1] / 'scripts/late/grub.sh')
         stage = function(source, 'stage_target_secure_boot_runtime_assets')
-        self.assertLess(stage.index('reset_target_secure_boot_mok_state'),
-                        stage.index('install_target_secure_boot_kernel_hooks'))
+        self.assertNotIn('reset_target_secure_boot_mok_state', stage)
         prepkgsel = read_text(TARGET.parent / 'installer/pre-pkgsel.d/90secure-boot-dkms.sh')
-        self.assertLess(prepkgsel.index('\nensure_target_mok_inventory_command\n'),
-                        prepkgsel.index('\nstage_target_secure_boot_runtime_assets\n'))
+        self.assertNotIn('ensure_target_mok_inventory_command', prepkgsel)
         self.assertLess(prepkgsel.index('stage_target_secure_boot_runtime_assets'),
                         prepkgsel.index('run_installer_secure_boot_install_tool prepare-dkms'))
+        late = TARGET.parents[1] / 'scripts/late'
+        for family in ('btrfs-family.sh', 'f2fs-family.sh'):
+            self.assertNotIn('reset_target_secure_boot_mok_state', read_text(late / family))
+        role = read_text(late / 'desktop.sh')
+        self.assertLess(role.index('\nrun_desktop_late_command '),
+                        role.index('\nif (finalize_target_secure_boot_mok_reset)'))
+        self.assertLess(role.index('\nif (finalize_target_secure_boot_mok_reset)'),
+                        role.index('\n: >"$desktop_late_stage_stamp"'))
+        dispatch = read_text(late / 'dispatch.sh')
+        self.assertLess(dispatch.index('\nrun_selected_class_helpers\n'),
+                        dispatch.index('"$role_hook_dest" "$seed_base" "$host_profile"'))
 
-    def test_missing_inventory_command_is_resolved_before_preparation(self):
-        source = read_text(TARGET.parent / 'installer/pre-pkgsel.d/90secure-boot-dkms.sh')
-        body = function(source, 'ensure_target_mok_inventory_command')
+    def test_firmware_and_grub_handoffs_are_independent_and_nonfatal(self):
+        source = read_text(TARGET.parents[1] / 'scripts/late/grub.sh')
+        body = function(source, 'queue_target_grub_mok_enrollment_boot_for_reset')
         stubs = r'''
-test_in_target() { [ "$PRESENT" = yes ]; }
-run_in_target() {
-  printf 'install\n'
-  [ "$MODE" != failed ] || return 71
-  if [ "$MODE" != still-missing ]; then PRESENT=yes; fi
-}
-prepkgsel_fatal() { printf 'unavailable\n' >&2; exit 72; }
+run_installer_secure_boot_install_tool() { [ "$1" = reset-pending ]; }
+repair_target_secure_boot_nvram_entry() { printf 'firmware\n'; [ "$FIRMWARE" = success ]; }
+queue_target_grub_mok_enrollment_boot() { printf 'grub\n'; [ "$GRUB" = success ]; }
+installer_warn() { printf '%s\n' "$*" >&2; }
+installer_info() { printf '%s\n' "$*" >&2; }
 '''
-        for mode, present, expected in [('present', 'yes', 0), ('install', 'no', 0),
-                                        ('failed', 'no', 71), ('still-missing', 'no', 72)]:
-            with self.subTest(mode=mode):
-                result = subprocess.run(['/bin/dash', '-eu', '-c', stubs + body + '\nensure_target_mok_inventory_command'],
-                                        env={**ENV, 'MODE': mode, 'PRESENT': present},
+        for firmware in ('success', 'failed'):
+            for grub in ('success', 'failed'):
+                result = subprocess.run(['/bin/dash', '-eu', '-c', stubs + body +
+                                         '\nqueue_target_grub_mok_enrollment_boot_for_reset\n'
+                                         "printf 'installation-continued\\n'"],
+                                        env={**ENV, 'FIRMWARE': firmware, 'GRUB': grub},
                                         capture_output=True, text=True, timeout=5)
-                self.assertEqual(result.returncode, expected, result.stderr)
-                self.assertEqual(result.stdout, '' if present == 'yes' else 'install\n')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout, 'firmware\ngrub\ninstallation-continued\n')
+                if firmware == grub == 'failed':
+                    self.assertIn('select MOK Enrollment manually', result.stderr)
+                else:
+                    self.assertIn('MOK management boot queued', result.stderr)
+
+    def test_final_reset_preflight_exit_does_not_record_mandatory_failure(self):
+        source = read_text(TARGET.parents[1] / 'scripts/late/grub.sh')
+        start = source.index('finalize_target_secure_boot_mok_reset() (\n')
+        body = source[start:source.index('\n)\n', start) + 3]
+        stubs = r'''
+installer_fatal() { : >"$FIXTURE_ROOT/first-failure"; exit 73; }
+installer_warn() { printf '%s\n' "$*" >&2; }
+late_command_load_runtime_env() { installer_fatal 'fixture final preflight failure'; }
+'''
+        with tempfile.TemporaryDirectory() as temporary:
+            result = subprocess.run(['/bin/dash', '-eu', '-c', stubs + body +
+                                     '\nif (finalize_target_secure_boot_mok_reset); then exit 99; fi\n'
+                                     "printf 'installation-continued\\n'"],
+                                    env={**ENV, 'FIXTURE_ROOT': temporary},
+                                    capture_output=True, text=True, timeout=5)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, 'installation-continued\n')
+            self.assertFalse((Path(temporary) / 'first-failure').exists())
 
     def test_reset_policy_has_scoped_efi_paths(self):
         source = read_text(TARGET / 'etc/apparmor.d/system-wrappers')

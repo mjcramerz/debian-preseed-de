@@ -26,7 +26,7 @@ from .events import emit, event_context
 from .profiles import APPS, WAYLAND_COMPAT_APPS
 from .compat_protocol import (Outcome, ProtocolError, RequiredComponentError, activation_arguments,
                               INFRASTRUCTURE_RESULT, STARTUP_RESULT)
-from .runtime import MANAGED_DEFAULTS_PATH, current_user_home, current_user_runtime_dir, fail
+from .runtime import MANAGED_DEFAULTS_PATH, current_user_home, current_user_runtime_dir, fail, require_primary_gpg
 from .sandbox import run_persistent_sandbox, run_pure_privacy, run_tor_ram
 from .session import (
     redirect_bitwarden_to_session_unit,
@@ -239,6 +239,7 @@ def main(
                 options.application, options.mode, options.args,
             )
 
+        require_primary_gpg()
         acceleration_availability, default_mode = load_managed_launch_policy(
             MANAGED_DEFAULTS_PATH
         )

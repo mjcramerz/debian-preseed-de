@@ -48,15 +48,22 @@ TimeoutStopSec=60s
 KillMode=control-group
 SendSIGKILL=yes
 RestartPreventExitStatus=78 79
-# Upstream cleanup is explicitly best-effort and logs this exact diagnostic
-# when the configured TUN link does not exist yet. Discard only that no-op
-# startup condition; keep every other router and control-plane diagnostic.
-LogFilterPatterns=~^router: enumerating __INSTALLER_TAILSCALE_INTERFACE_REGEX__ addresses for cleanup failed: failed to look up link "__INSTALLER_TAILSCALE_INTERFACE_REGEX__": Link not found$
+# Tailscale's Go logger prefixes MESSAGE with YYYY/MM/DD HH:MM:SS. Accept
+# that prefix or the unprefixed form, with the complete diagnostic anchored.
+# Upstream cleanup is best-effort and runs before creation of the private TUN.
+# Discard only its missing-link no-op for the configured interface.
+LogFilterPatterns=~^([0-9]{4}/[0-9]{2}/[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} )?router: enumerating __INSTALLER_TAILSCALE_INTERFACE_REGEX__ addresses for cleanup failed: failed to look up link "__INSTALLER_TAILSCALE_INTERFACE_REGEX__": Link not found$
+# Startup cleanup also probes absent legacy executables even in nftables mode.
+# Keep permission failures and every other firewall diagnostic visible.
+LogFilterPatterns=~^([0-9]{4}/[0-9]{2}/[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} )?linuxfw: clear iptables: exec: "iptables": executable file not found in [$]PATH$
+LogFilterPatterns=~^([0-9]{4}/[0-9]{2}/[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} )?linuxfw: clear ip6tables: exec: "ip6tables": executable file not found in [$]PATH$
 # Tailscale currently logs this exact message after it closes its extension
 # work queue and then asks the closed queue to drain. Upstream treats extension
 # shutdown callback failures as non-fatal. Discard only that deterministic
 # shutdown diagnostic; retain every other tailscaled message.
-LogFilterPatterns=~^ipnext: work queue shutdown failed: execqueue shut down$
+LogFilterPatterns=~^([0-9]{4}/[0-9]{2}/[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} )?ipnext: work queue shutdown failed: execqueue shut down$
+# Control-plane errors, including a superseded lite-map update (HTTP 409),
+# remain visible. Upstream owns their retry/backoff and health reporting.
 PrivateTmp=true
 # AppArmor denies namespace authority to the daemon. Its explicit login/su
 # transition returns authenticated SSH sessions to the host namespaces/PAM.

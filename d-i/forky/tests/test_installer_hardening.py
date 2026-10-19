@@ -1206,16 +1206,17 @@ class FinalBootValidationTests(unittest.TestCase):
         source = ROOT / 'scripts/late/grub.sh'
         result = shell(f'''\
 . {Q(str(source))}
-run_in_target() {{
-  [ "$#" -eq 8 ] || exit 91
+attempt_in_target() {{
+  [ "$#" -eq 11 ] || exit 91
   [ "$1" = "queue one-shot GRUB boot into MokManager" ] || exit 92
-  [ "$2" = /bin/sh ] || exit 93
-  [ "$3" = -c ] || exit 94
-  [ "$5" = sh ] || exit 95
-  [ "$6" = installer-mok-enrollment ] || exit 96
-  [ "$7" = /EFI/debian/mmx64.efi ] || exit 97
-  [ "$8" = /boot/efi/EFI/debian/MOK.der ] || exit 98
-  printf "%s\n" "$4"
+  [ "$2" = /usr/bin/timeout ] && [ "$3" = --kill-after=2 ] && [ "$4" = 15 ] || exit 93
+  shift 4
+  [ "$1" = /bin/sh ] && [ "$2" = -c ] || exit 94
+  [ "$4" = sh ] || exit 95
+  [ "$5" = installer-mok-enrollment ] || exit 96
+  [ "$6" = /EFI/debian/mmx64.efi ] || exit 97
+  [ "$7" = /boot/efi/EFI/debian/MOK.der ] || exit 98
+  printf "%s\n" "$3"
 }}
 INSTALLER_GRUB_MOK_MANAGER_EFI_PATH=/EFI/debian/mmx64.efi
 FILE_SECURE_BOOT_MOK_CERT_DER_ESP=/boot/efi/EFI/debian/MOK.der
@@ -1224,6 +1225,7 @@ queue_target_grub_mok_enrollment_boot
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('mok_entry_id=$1', result.stdout)
         self.assertIn('grep -F -q -- "$mok_entry_marker" "$grub_cfg"', result.stdout)
+        self.assertIn('grep -F -x -q "next_entry=${mok_entry_id}"', result.stdout)
 
     def test_signature_listing_requires_a_signature_not_just_zero_exit(self):
         source=payload_read_text(ROOT/'hooks/installer/finish-install.d/94zz-99-validate-target')

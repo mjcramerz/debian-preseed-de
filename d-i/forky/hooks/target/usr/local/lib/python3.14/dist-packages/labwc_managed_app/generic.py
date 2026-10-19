@@ -34,6 +34,7 @@ from .runtime import (
     MANAGED_WAYLAND_OPENGL_ENVIRONMENT, current_user_home, current_user_name,
     current_user_runtime_dir, current_user_runtime_socket, fail,
     require_root_owned_executable,
+    require_primary_gpg,
     validate_session_bus_address, wayland_ozone_args,
 )
 
@@ -532,6 +533,17 @@ def main(kind: str, argv: list[str] | None = None) -> int:
         arguments = network_command
     elif kind == "electron":
         arguments = electron_command(arguments)
+    # Keep account recovery, terminals and desktop controls available to unlock
+    # the key. All other generic GUI launches use the same cryptographic gate.
+    if (network_command is None or network_command[0] == "/usr/local/libexec/app-veth-run") and executable not in {
+        "/usr/bin/foot", "/usr/bin/footclient", "/usr/bin/kitty", "/usr/bin/terminal-emulator",
+        "/usr/local/bin/labwc-terminal", "/usr/bin/kleopatra",
+        "/usr/bin/kwalletmanager6", "/usr/bin/pinentry-qt",
+        "/usr/bin/labwc-tweaks", "/usr/bin/qt6ct", "/usr/bin/pavucontrol",
+        "/usr/bin/wdisplays", "/usr/local/bin/waypaper",
+        "/usr/local/bin/labwc-desktop-appearance", "/usr/bin/timeshift-launcher",
+    }:
+        require_primary_gpg()
     try:
         systemd_run = require_root_owned_executable("systemd-run", "/usr/bin/systemd-run")
         os.execve(systemd_run, transient_argv(kind, mode, arguments, environment,

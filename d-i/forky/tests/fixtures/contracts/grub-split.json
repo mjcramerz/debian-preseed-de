@@ -24,7 +24,7 @@
     "grub_profile_default_flags": "GRUB_PROFILE_DEFAULT_FLAGS",
     "grub_profile_performance_flags": "GRUB_PROFILE_PERFORMANCE_FLAGS",
     "grub_profile_hardened_flags": "GRUB_PROFILE_HARDENED_FLAGS",
-    "mok_der_path": "FILE_SECURE_BOOT_MOK_CERT_DER",
+    "mok_der_path": "FILE_SECURE_BOOT_MOK_CERT_DER_ESP",
     "grub_default_entry": "GRUB_DEFAULT_ENTRY",
     "rescue_usb_uuid": "grub_rescue_uuid",
     "grub_gfxpayload_linux": "GRUB_DISPLAY_GFXPAYLOAD_LINUX",

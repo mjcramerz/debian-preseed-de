@@ -4435,6 +4435,27 @@ profile apt-repo-local-vendor /usr/local/libexec/apt-repo-local-vendor flags=(at
   include if exists <local/usr.local.libexec.apt-repo-local-vendor>
 }
 
+# Fixed primary-key proof only; the shared socket-activated agent owns pinentry.
+profile labwc-primary-gpg /usr/local/libexec/labwc-primary-gpg flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/gnupg>
+  /usr/local/libexec/labwc-primary-gpg r,
+  /usr/bin/gpg rix,
+  /etc/labwc/{,primary-gpg.json} r,
+  /etc/gnupg/** r,
+  /usr/share/gnupg/** r,
+  owner @{HOME}/ r,
+  owner @{HOME}/.gnupg/ rw,
+  owner @{HOME}/.gnupg/** rwk,
+  owner @{HOME}/.gnupg/{.#lk*,pubring.kbx.lock} l,
+  owner /run/user/[0-9]*/ r,
+  owner /run/user/[0-9]*/gnupg/{,**} rwk,
+  owner /run/user/[0-9]*/wayland-* r,
+  unix (connect, send, receive) type=stream,
+  signal (send, receive) peer=labwc-primary-gpg,
+  signal (receive) peer=unconfined,
+}
+
 # Local key loader only: no AF_INET/AF_INET6 networking or forwarding.
 profile labwc-ssh-key-load /usr/local/libexec/labwc-ssh-key-load flags=(attach_disconnected) {
   #include <abstractions/base>

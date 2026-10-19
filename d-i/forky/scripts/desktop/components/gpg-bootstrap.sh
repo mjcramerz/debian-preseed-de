@@ -269,9 +269,11 @@ printf "desktop_gpg_bootstrap user=%s status=ready gnupg=%s fingerprint=%s\n" \
   unset gpg_bootstrap_passphrase
   managed_git_ssh_target_action seal --gpg-fingerprint "$gpg_fingerprint" ||
     installer_fatal "failed to GPG-seal the Git SSH passphrase to the managed desktop identity"
+  attempt_in_target "pin the primary desktop GPG unlock identity" \
+    /usr/local/libexec/labwc-primary-gpg --provision "$ACCOUNT_USERNAME" "$ACCOUNT_HOME" "$gpg_fingerprint" ||
+    installer_fatal "failed to provision the primary desktop GPG unlock proof"
   ) || installer_fatal "desktop GPG bootstrap and Git SSH sealing failed"
   unset ACCOUNT_GPG_PASSPHRASE
   ACCOUNT_GPG_PASSPHRASE_IS_PLAIN=false
   desktop_log "bootstrapped_primary_account_gpg_key user=${ACCOUNT_USERNAME}"
 }
-

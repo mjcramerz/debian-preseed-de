@@ -7,7 +7,9 @@ import pathlib
 import pwd
 import re
 import stat
+import subprocess
 import sys
+import uuid
 from typing import NoReturn
 
 from .events import emit
@@ -101,6 +103,48 @@ def fail(message: str) -> NoReturn:
     emit("failed", level="error", reason=message)
     print(f"fatal: {message}", file=sys.stderr)
     raise SystemExit(1)
+
+
+def require_primary_gpg() -> None:
+    """Run the fixed unlock proof in the host user manager's account context.
+
+    A compositor may map system ownership through PrivateUsers. The short-lived
+    service deliberately uses host UID semantics and owns all proof processes.
+    """
+    manager = require_root_owned_executable("systemd-run", "/usr/bin/systemd-run")
+    require_root_owned_executable("primary GPG proof helper", "/usr/local/libexec/labwc-primary-gpg")
+    unit = "labwc-primary-gpg-" + uuid.uuid4().hex + ".service"
+    environment = {"PATH": "/usr/bin:/bin", "LC_ALL": "C",
+                   "XDG_RUNTIME_DIR": f"/run/user/{os.getuid()}",
+                   "DBUS_SESSION_BUS_ADDRESS": f"unix:path=/run/user/{os.getuid()}/bus"}
+    command = [manager, "--user", "--quiet", "--wait", "--collect", "--pipe",
+               "--service-type=exec", "--expand-environment=no", "--slice=app.slice",
+               "--unit=" + unit, "--property=Requisite=labwc-session.target",
+               "--property=Requires=gpg-agent.socket",
+               "--property=After=labwc-session.target gpg-agent.socket", "--property=PartOf=labwc-session.target",
+               "--property=PrivateUsers=no", "--property=KillMode=control-group",
+               "--property=RuntimeMaxSec=125s", "--property=TimeoutStopSec=3s",
+               "--property=LimitCORE=0", "--property=UMask=0077",
+               "--", "/usr/local/libexec/labwc-primary-gpg"]
+    try:
+        result = subprocess.run(command, env=environment, stdin=subprocess.DEVNULL,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=130)
+    except subprocess.TimeoutExpired:
+        # Stop only the unit we just created; the manager retains its cgroup.
+        try:
+            subprocess.run(["/usr/bin/systemctl", "--user", "--no-block", "stop", unit],
+                           env=environment, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, timeout=3)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        fail("primary GPG unlock timed out; application launch denied")
+    except OSError:
+        fail("primary GPG unlock service is unavailable; application launch denied")
+    if result.returncode:
+        reason = {2: "primary GPG unlock is unavailable", 3: "primary GPG unlock was cancelled",
+                  4: "primary GPG unlock proof failed", 5: "primary GPG unlock timed out"}.get(
+                      result.returncode, "primary GPG unlock service failed")
+        fail(reason + "; application launch denied")
 
 
 def validate_absolute_path(label: str, value: str) -> None:

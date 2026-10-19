@@ -226,13 +226,19 @@ class GenericWrapperTests(unittest.TestCase):
                 stack.enter_context(mock.patch.object(generic, 'acceleration_availability_from_defaults', return_value={'intel': True, 'nvidia': True}))
                 stack.enter_context(mock.patch.object(generic.shutil, 'which', return_value='/usr/bin/demo'))
                 stack.enter_context(mock.patch.object(generic, 'require_root_owned_executable', return_value='/usr/bin/systemd-run'))
+                unlocked = stack.enter_context(mock.patch.object(generic, 'require_primary_gpg'))
                 execute = stack.enter_context(mock.patch.object(generic.os, 'execve'))
                 generic.main('wayland', [mode, '--', 'demo', 'a b'])
+                unlocked.assert_called_once_with()
                 _, argv, env = execute.call_args.args
                 self.assertEqual(argv[argv.index('--') + 1:],
                                  ['/usr/local/libexec/rsyslog-app-run', 'labwc-demo', '--', '/usr/bin/demo', 'a b'])
                 self.assertEqual(env['LIBVA_DRIVER_NAME'], expected)
                 self.assertEqual(env['QT_QPA_PLATFORM'], 'wayland')
+                execute.reset_mock()
+                with mock.patch.object(generic, 'require_primary_gpg', side_effect=SystemExit(1)), self.assertRaises(SystemExit):
+                    generic.main('wayland', [mode, '--', 'demo', 'a b'])
+                execute.assert_not_called()
 
     def test_relative_lookup_result_becomes_absolute_before_capture_handoff(self):
         with tempfile.TemporaryDirectory(prefix='generic-relative-launch-') as temporary:
@@ -253,6 +259,7 @@ class GenericWrapperTests(unittest.TestCase):
                     stack.enter_context(mock.patch.object(generic.shutil, 'which', return_value=lookup))
                     network = stack.enter_context(mock.patch.object(generic, 'managed_network_command', return_value=None))
                     stack.enter_context(mock.patch.object(generic, 'require_root_owned_executable', return_value='/usr/bin/systemd-run'))
+                    stack.enter_context(mock.patch.object(generic, 'require_primary_gpg'))
                     execute = stack.enter_context(mock.patch.object(generic.os, 'execve'))
                     arguments = ['a b', '$(literal)', ';literal', '--literal']
                     generic.main('wayland', ['launch', '--', lookup, *arguments])

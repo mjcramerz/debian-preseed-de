@@ -1,7 +1,28 @@
 menuentry 'MOK Enrollment' --id 'installer-mok-enrollment' --class debian --class secure-boot --class os {
-    insmod fat
-    insmod chain
-    @@MOKMANAGER_SEARCH@@
-    echo 'Use MokManager to enroll the generated certificate stored at @@MOK_DER_PATH@@.'
-    chainloader ($esp)@@MOKMANAGER_PATH@@
+    if [ "$grub_platform" = 'efi' ]; then
+        insmod part_gpt
+        insmod fat
+        insmod chain
+        set esp=
+        if @@MOKMANAGER_SEARCH@@; then
+            if [ -s "($esp)@@MOKMANAGER_PATH@@" -a -s "($esp)@@MOK_DER_PATH@@" ]; then
+                set root=$esp
+                # MokManager uses the EFI text console, not GRUB's framebuffer.
+                # Release gfxterm before loading it and perform the handoff here.
+                terminal_output console
+                if chainloader "($esp)@@MOKMANAGER_PATH@@"; then
+                    boot
+                fi
+                # Continue boot in MokManager returns to GRUB after resetting
+                # EFI text mode. Restore this installer's graphics menu then.
+                terminal_output gfxterm
+            else
+                echo 'MokManager or the enrollment certificate is missing on the selected ESP.'
+            fi
+        else
+            echo 'The selected ESP could not be found. MOK management was not started.'
+        fi
+    else
+        echo 'MOK management requires UEFI boot.'
+    fi
 }

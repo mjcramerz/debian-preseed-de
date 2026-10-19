@@ -53,10 +53,10 @@
     "d-i/forky/hooks/installer/partman/f2fs-early.sh": "0198bdaeae9bbe8b1887b66081e49976a34bc43d9b7a3d57c66c33fa4e5b4faa",
     "d-i/forky/hooks/installer/partman/finish.d/99-storage-layout.sh": "2d4017a1bab1857d26d86bdafcaa28bb427e326d0e101d2859608116b2a35401",
     "d-i/forky/hooks/installer/pre-pkgsel.d/89temporary-unshare.sh": "fde996e76845076f996a29a564a6ea31061a98966c9ef0c718bca6497bf5a704",
-    "d-i/forky/hooks/installer/pre-pkgsel.d/90secure-boot-dkms.sh": "79f1280b7743c027a3589d75258e2b57e0f5352794a86c06cc128590a506cce2",
-    "d-i/forky/hooks/target/etc/apparmor.d/desktop-wrappers.tmpl": "a4869e4eb62cee083d195a997f4bea1908eda79c009b8b916ae02f4b5abbc336",
+    "d-i/forky/hooks/installer/pre-pkgsel.d/90secure-boot-dkms.sh": "ebd104b43a46d1300202fe75cf1e664a93d1d55b40454399c38f16fed2f14310",
+    "d-i/forky/hooks/target/etc/apparmor.d/desktop-wrappers.tmpl": "db779caf769728d46dbde80e83b621f52274b7b9da87b6f37c0622ced4a29581",
     "d-i/forky/hooks/target/etc/apparmor.d/opt.postman.app.Postman": "c65d7cbee794164db2d50bfa5e8311341262138b49e3ddf04321595d7d4c4f9c",
-    "d-i/forky/hooks/target/etc/apparmor.d/system-wrappers.tmpl": "5b175d61d879847acb9b95c91087cb27993bf2933e88982955a8a0f935def3b2",
+    "d-i/forky/hooks/target/etc/apparmor.d/system-wrappers.tmpl": "136e0113e8813608da75b0ad7bb66291a47a87b3bde70d976b4c6ac75bf3f048",
     "d-i/forky/hooks/target/etc/apparmor.d/whisper-local-transcription": "62878774428a51326542f1759bcfa9f1b6bb6552679673ae27087fd3ab382b0e",
     "d-i/forky/hooks/target/etc/apt/preferences.d/default/00-excluded-desktop-apps.pref": "0082fd939e587f6b93c77260e1caf9915e907f27e7f7893e57a78f0a0f34ae48",
     "d-i/forky/hooks/target/etc/apt/preferences.d/default/cramerz.pref": "b98db8d9966e8878b8c12bec2eb9abe4b0243a9446c88b233ef5b31b4a4de904",
@@ -87,7 +87,7 @@
     "d-i/forky/hooks/target/etc/default/grub.d/07-display.cfg.tmpl": "552191a540d2a5fca1255dba23f2bf92d7fe61df6a7bac96377e32f86b5e7470",
     "d-i/forky/hooks/target/etc/default/grub.d/45-tpm2-measured-boot.cfg": "d7ce4164d3f71f8860d6e3fd3f71310227f328677f203f24098fe3f2cfec854f",
     "d-i/forky/hooks/target/etc/fangfrisch.conf": "90aced2b74fce8142a2fbefc97a6ee0bbc1294d361eafa61ffbf78a0ed750306",
-    "d-i/forky/hooks/target/etc/grub.d/40_custom.tmpl": "6a5be0c9bd0b8af5517b34ad9528c34d8f926d779c865f295ff7fb3293b35d46",
+    "d-i/forky/hooks/target/etc/grub.d/40_custom.tmpl": "2f8fd6f37f62aa063c34f7c1d4534580c953be47d42b573084b7326b5fbbf584",
     "d-i/forky/hooks/target/etc/initramfs-tools/conf.d/99-compress.conf": "47b90b0f2edc02e7e59683126962c659fd26a15d6a8fb1a07bb1b30a0060589c",
     "d-i/forky/hooks/target/etc/kernel/header_postinst.d/zz-sign-kernel-headers.tmpl": "2282b1e7de4ef7ff79e214f27c8f4e4fa12445ffce838fe74d38f8447f8cfbe1",
     "d-i/forky/hooks/target/etc/kernel/postinst.d/zz-sign-kernel.tmpl": "6f8bfb381f4b714da962cededd8d3936520b6ee9d91b177c5cb31560f624c98b",
@@ -153,7 +153,7 @@
     "d-i/forky/hooks/target/etc/systemd/system/stubby.service": "01957b2aa8a20235ba6a971d60ca3e435916da20f57245a81c760500b2ae50fc",
     "d-i/forky/hooks/target/etc/systemd/system/stubby.service.d/60-app-veth.conf": "087a9c874e5d7e53ae9e3b0273526b3cf460eeac88b977c428b67060e60fbb28",
     "d-i/forky/hooks/target/etc/systemd/system/syncthing.service.tmpl": "94e21f077e7337c0cb7e95711fc41d4f67a069669d57ac578735dea0d01f1bef",
-    "d-i/forky/hooks/target/etc/systemd/system/tailscaled.service.d/override.conf.tmpl": "a578a78196f8e41ee68287cd3d4c896ab497b8b56aa34bde889ed2fcae280954",
+    "d-i/forky/hooks/target/etc/systemd/system/tailscaled.service.d/override.conf.tmpl": "6812875ae83027de1cc6e5e7a454c2fef207535b447fad6b24242eb1cf68ed7e",
     "d-i/forky/hooks/target/etc/systemd/system/tmpfs-pre-clean.service.tmpl": "092f940a8cea33966ac769e08c944c56f913a71c2b63f03c36ca8fc0b1ad3a74",
     "d-i/forky/hooks/target/etc/systemd/system/wifi-firstboot.service": "c05892d6bd7bbc3b1bfc659cf689921b279b18bab175606d3e70758f87271803",
     "d-i/forky/hooks/target/etc/systemd/system/wpa_supplicant.service.d/override.conf": "32db3f4647374ffff0dc94a6edddb0424185928144fe738745ce0a624f11e144",
@@ -164,17 +164,17 @@
     "d-i/forky/hooks/target/etc/vivaldi/policies/managed/3proxy.json.tmpl": "c6c4c56e173e59a5df497c4c75356977a802be311275b58c1c2426dc76fea8cb",
     "d-i/forky/hooks/target/etc/vivaldi/policies/managed/extensions.json": "0b918b9ac5b15d95d977e5560da5ddbfa5c65b0b1977b3f5367fe55c17e87ad4",
     "d-i/forky/hooks/target/etc/vivaldi/search-engines/search_engines.json.signed": "246b5ae4d57d635d715d9eb2ee51d7007ad212554f18c047a31e1ec1fbbf1777",
-    "d-i/forky/hooks/target/usr/libexec/install-tools/secure-boot-tool.tmpl": "f6b1f2b1e51777e2897380df310f5856d4c31194d2ff3d7630ef91e43228174c",
+    "d-i/forky/hooks/target/usr/libexec/install-tools/secure-boot-tool.tmpl": "e487a5c94ebc2b8e73814b24cd6a5586a5b3ed5e22318cdf387bb045b5c4562e",
     "d-i/forky/hooks/target/usr/libexec/install-tools/system-log.sh": "4b8381bc17968eecfca657e4558b16c2f8f0bb3078e233bf7f69ceb82102e94a",
     "d-i/forky/hooks/target/usr/local/bin/browser-devtools": "4ff9501979d72b7694519c7dea5ee63bab4578a97c78fa89f460116d0eaba151",
     "d-i/forky/hooks/target/usr/local/bin/codex-standalone-install": "ddb1d87b784746d7eace960f6df164d82872846f2525cb7789b1e0763e5e5162",
     "d-i/forky/hooks/target/usr/local/bin/gitops": "413a4d510b0478d515d02f3bdbb3f1711db0016461704eeab06265cad6da5298",
     "d-i/forky/hooks/target/usr/local/bin/labwc-focuswriter-import": "1010de7ae0899a054735310fb9bc072d0a9bb8dbad27cbc0bc93e1b40a242b91",
-    "d-i/forky/hooks/target/usr/local/bin/labwc-health-notify.tmpl": "e4f99d83e155629cc61b5ebbfc8a2f6c4f7fdec65cfb79a578375735d308c77b",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-health-notify.tmpl": "e3318fa58e8e3a7ea879be01af08247cc36aa19a593757b5d626e4f85133079d",
     "d-i/forky/hooks/target/usr/local/bin/labwc-maintenance-menu.tmpl": "59c09b5fe05abd4d0c3fa5252c43c7afc331304980836529f5e5a735a28dbdb8",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/ModelInstallRoot.pm": "a343e5c96b41b81a87f7b93b3ce6f35d3e0d18827b26b215550bf404da8427a0",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/ModelStore.pm": "da76ed569da86dc41362c4a5ae8f6d99eb949b9dadd00acaa4ec8331b95f6009",
-    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/Runtime.pm.tmpl": "9275132bd302d8b8e18ff9d110a31ed822dfba0af4c83bb00872bc6b1fd08531",
+    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/Runtime.pm.tmpl": "a3094aca9795946eb5e7ab1489dffaed46f90b7c3bc979a1f264beb78cf18180",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/CLI.pm": "1ad9558ff420e3e972e2a50e8f0d59bf388ef6968de473509fd638458621935e",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/ChatGPT.pm": "4cf787f3731624ab22f816d7186927fb8ed978426ee450ded6789568a73aff12",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Deb.pm": "79b7ee31bbebdbe54151b71d141d20ea7a8c5981f4da7dfabb7db72ef4c6265c",
@@ -217,7 +217,7 @@
     "d-i/forky/hooks/target/usr/local/share/applications/show-desktop.desktop.tmpl": "48789b9197c1824950007366a9c7738d1a15c6def4623fc3cbc3c6d0fa51eab7",
     "d-i/forky/hooks/target/usr/local/share/grub-profiles/entry.cfg.in.tmpl": "70a241da655def5048a4e966d808c9e31be135614637604a48c760bb7ca01c4a",
     "d-i/forky/hooks/target/usr/local/share/grub-profiles/header.cfg.in.tmpl": "9c1047d479084c4ac521a4e3414773a2b4b56ab9723a2e598b51b46f90397625",
-    "d-i/forky/hooks/target/usr/local/share/grub-profiles/mokmenu.cfg.in.tmpl": "420fa63a9e1de906e162326480a6d21ca2f9d482631f4dd4e2414d2ad81d818c",
+    "d-i/forky/hooks/target/usr/local/share/grub-profiles/mokmenu.cfg.in.tmpl": "59c2650f686231bdbe5e9df63b534579323fb72d8909bafd01c36fb5766c95aa",
     "d-i/forky/hooks/target/usr/local/share/grub-profiles/rescue.cfg.in.tmpl": "677372cc2d28a04697407fc6edd8d36b287432bd7d5e23e1de320703a8203d71",
     "d-i/forky/hooks/target/usr/local/share/nmap/scripts/admin-surface-policy.nse": "7ae6c2a958d56bdcbfbae7ccb147dd82bc299a7852dbf6f9503e86d3ff9e6dc5",
     "d-i/forky/hooks/target/usr/local/share/nmap/scripts/approved-services.nse": "0c27682c42471a1b0b595dd439e7d9f88a0d3357ec6b0b7bc0079b356c0039f0",
@@ -236,7 +236,7 @@
     "d-i/forky/hosts/installer/btrfs.env": "74fb20cee0ec65f4ce346b57ded32e02bf734b946fa116ff416b886223c5ad52",
     "d-i/forky/hosts/installer/hosting.env": "ad383c7090b38262913765d3c45d36f770f18f16336ed03cc7e36b7264a782f8",
     "d-i/forky/hosts/installer/runtime.env": "90b1d1d5612ce945b466df68ee631b74b0b0db5594fdb18a3b1dd1acfd4f6403",
-    "d-i/forky/hosts/logging/observability.env": "ac0bbf22b55e68805fc6dd6d6049dfe0d454be79c81e8dfa888959421114381c",
+    "d-i/forky/hosts/logging/observability.env": "e42ba83bc4bb34039438191ef92d995bd354b4acd83993ff0dec6464913a397c",
     "d-i/forky/hosts/profiles/btrfs-de-duo.env": "631e1e873e4e6447e3db5f8588ea61409ec7d82e8e3c7a8f8b85de246bc57455",
     "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env": "8fd527afd858b233f28f69878a14334ce245f824878b966090bf049b7eff365a",
     "d-i/forky/hosts/profiles/btrfs-de-flex.env": "25fa924db22baf82cfc7ac97d1c6f67d389ce3aabaa1cb05cc820838572ea123",
@@ -269,7 +269,7 @@
     "d-i/forky/scripts/desktop/components/apps.sh": "b589a2779a2decea75c4789937486ededdeb5fea336c99b0ff81e6a539393197",
     "d-i/forky/scripts/desktop/components/core-renderers.sh.tmpl": "7a6a2c6d370503650c7431b1cdac7485aa0619bb45c580578a170021bc07a197",
     "d-i/forky/scripts/desktop/components/desktop-config.sh": "80f90f19c33160a492aef3e941d4ab0b976ebca37cf2be57828bce21ef59b725",
-    "d-i/forky/scripts/desktop/components/gpg-bootstrap.sh": "848ff142a536a1bc53d718cd88d0da0c31f6ac9a3d5f262cde901378d9cabd3b",
+    "d-i/forky/scripts/desktop/components/gpg-bootstrap.sh": "88a1d442b088abb9ce6fb965e1feaf6b4af90fafefa8119e952b7f8f17568398",
     "d-i/forky/scripts/desktop/components/rendering-access.sh": "107fcd771b087e339ed8d5525ee64ef18b597233e4817d108da6806d0d1cdd32",
     "d-i/forky/scripts/desktop/components/user-config.sh": "054c9c7958bc612eebf81807306cb3afe840f8c96f969f8612ecce14688013f5",
     "d-i/forky/scripts/desktop/compz-codecs-install.py": "4afacee27b49eb6f6b7fbf1f848ce00f07308ce7c3e7dd6d2f076681de11bfff",
@@ -277,12 +277,12 @@
     "d-i/forky/scripts/desktop/filen-install.py": "77b04e3344481544abfb916447160e545c11d1e1417e84d68c22225baf875909",
     "d-i/forky/scripts/desktop/fonts-install.py": "70df80ef8f52ca863c4ef2a81418804835f6cfb981ec906e8d979d469a23330e",
     "d-i/forky/scripts/desktop/kanshi-policy.py": "1dcf291761b9a1a7421db4b1e517b90d5c54ab531fcdedbea8d61ba51d799485",
-    "d-i/forky/scripts/desktop/labwc.sh": "aa7bc61b73664bb44173bd1c7ca4bb97113baa04fc1bfb5c03be29f490bc08d0",
+    "d-i/forky/scripts/desktop/labwc.sh": "b0d9d13bc27f13482f502527566f06d10314c9983dd90e6bba03986853fd0262",
     "d-i/forky/scripts/desktop/resctl-bench-install.py": "4104a3eb8bfadf981d0d75a18a86cccaecb7e6615631a829555ea38d31dad13f",
     "d-i/forky/scripts/desktop/resctl-bench.sh": "cfb13c1edd411d1b9cce5d39fd681f9a7d5c6b9ba76ba2c57e9cc94512411159",
     "d-i/forky/scripts/desktop/samloader.sh": "95789b8fce9ab17cc3c2ce18aa4421775bcdc1d91c2ac13b02c4de291db4a9fd",
     "d-i/forky/scripts/desktop/satty.sh": "4d62c06412fcb05f407f98771166ddcfef1d096371653f90192287c2a84c3df1",
-    "d-i/forky/scripts/desktop/verify.sh.tmpl": "b3cfea26afd021b9a3006126b0a6883a35a911388db3931360690ebf2f255da1",
+    "d-i/forky/scripts/desktop/verify.sh.tmpl": "5208c0c2bebb538de3eb55f82c699135ceb0061d3cd6460ad73ccab7b4f4e1c2",
     "d-i/forky/scripts/desktop/waypaper.sh": "760418df003765aace979cbb494ceea40b980e559a35daad4a0124f58f5fc802",
     "d-i/forky/scripts/desktop/xwayland.sh": "33977e223d38797f75c0deb5c4b327dd0b7a5a95cbe5b06795a16419197ec903",
     "d-i/forky/scripts/firstboot/01-early.sh": "9aa4b78fc07008f37a979e3f1b2b5b334178b582063f9e26e58986be94a5df9b",
@@ -297,13 +297,13 @@
     "d-i/forky/scripts/firstboot/assets/var/lib/firstboot/bin/crowdsec-firstboot.tmpl": "5d98fd0a8265eafb2e9724a76a10d00544c3a72d17c50702f7c908e4bf9b073f",
     "d-i/forky/scripts/firstboot/firstboot.sh": "ff9e1ecc95d816ce3c06b23827aebf13f2359d52cb26b1d96cfa630b8e2b0220",
     "d-i/forky/scripts/firstboot/logging.sh": "63542530f8d55e421be3b803ed844d42f8ffa1542d815b51cd11a62da391ce9c",
-    "d-i/forky/scripts/late/btrfs-family.sh": "7ae226026d7c1e0800a5376f5648ab2c2ba39771ec0d8b27b645875085875524",
+    "d-i/forky/scripts/late/btrfs-family.sh": "0b12450b797691b8fd13002a9ca9d972feec8f391405194cf76cc39d7defb28c",
     "d-i/forky/scripts/late/ch341a.sh": "8d64e674c3f7c6b87a0b9f5406c210952d95f852f464d0d26bb7bc33eba3fcf8",
     "d-i/forky/scripts/late/core.sh": "0934f28609b1136e2864ca5a5f3bff38e081e0aa13ccc50dc81a61f87d7f68b9",
     "d-i/forky/scripts/late/crowdsec.sh": "e2ff619be6e25174d92f5512d56dd2d6510db263b0bf0f4e03cb338eb5109063",
     "d-i/forky/scripts/late/cuda-legacy.sh": "f848ec73ba1b90c16be1e337244098adf1070baa0529f498d8f6c5b1643bf139",
     "d-i/forky/scripts/late/dbus-broker.sh": "9349a246f23861c0b8b0cd6c34a76f345c5b2215cd5ed460ee8053048ad1ac9e",
-    "d-i/forky/scripts/late/desktop.sh": "cae7710373687bfac539b086cf0ff51cc44daa0645ef8a79cb9723eba1ba91f8",
+    "d-i/forky/scripts/late/desktop.sh": "220f3653a4ccce0b03eb3f54c7a3550457fb8b8c9aba0b40f45c0c4150a5fb6d",
     "d-i/forky/scripts/late/devops-rust-tools.py": "e51507e80ff0693e3248efcfca462015e5c160c320b65b1587351d9704feb6ae",
     "d-i/forky/scripts/late/devops-tools.py": "3241c58c48918dba49b64499c121b78abbada5fd00c9c86a7bebe0c2f6809ac4",
     "d-i/forky/scripts/late/devops.sh.tmpl": "43ea6011352349fef03ffbf098ebe204c3880c331d1e7549743c67cdc69f3bf7",
@@ -318,8 +318,8 @@
     "d-i/forky/scripts/late/devops/upstream-rust.sh": "a194b0eebee330d6fb61d468f9a9583e8b746fd61c56392eda5a92559af7b9e8",
     "d-i/forky/scripts/late/devops/validation-base.sh": "2761c3decc0f26f509a060c8d70e9f1a6844b852015303b75a5801843fea9ab7",
     "d-i/forky/scripts/late/dispatch.sh": "88c877acbb27303a22eb38f7c5a1cda335793928a233269ae74129692987e2f7",
-    "d-i/forky/scripts/late/f2fs-family.sh": "daed791740a4fe57652f8746e681ea25304ce0f1ce010856d15251f66832577d",
-    "d-i/forky/scripts/late/grub.sh": "e38a91cbd914da3ffe884e1649d785fadd477cfc746257e78cfa1aa7bd7498e6",
+    "d-i/forky/scripts/late/f2fs-family.sh": "7fbd58d309f491e24962c57d4f0f3388c0e789e631aa2a1b85b047d837320ecb",
+    "d-i/forky/scripts/late/grub.sh": "25cf6dc128c23380c9bebc1dbcc0c82036cef3846ce77f7ddf48ddc01d1bafb3",
     "d-i/forky/scripts/late/llama.sh": "35ceaec10c4a4c40b1da231ae01b287e176eb9ab06f89137eca72adc00c81c68",
     "d-i/forky/scripts/late/mullvad.sh": "46062b979b8f2caa524e025e1c490dd769d6843f0f66af8a0fcf51d965742f17",
     "d-i/forky/scripts/late/network-sharing.py": "d601a78662bcaef1fda4ca68b1600f3e233ee2d8f1ab478814635bcb237bf852",
@@ -28211,13 +28211,13 @@
         "category": "package",
         "sources": [
           {
-            "line": 1326,
+            "line": 1404,
             "path": "d-i/forky/scripts/late/grub.sh",
             "phase": "installation",
             "via": "command"
           },
           {
-            "line": 1446,
+            "line": 1524,
             "path": "d-i/forky/scripts/late/grub.sh",
             "phase": "installation",
             "via": "command"
@@ -37190,7 +37190,7 @@
         "category": "package",
         "sources": [
           {
-            "line": 1271,
+            "line": 1349,
             "path": "d-i/forky/scripts/late/grub.sh",
             "phase": "installation",
             "via": "command"
@@ -91120,12 +91120,6 @@
             "path": "d-i/forky/fragments/apt.cfg",
             "phase": "installation",
             "via": "pkgsel/include"
-          },
-          {
-            "line": 92,
-            "path": "d-i/forky/hooks/installer/pre-pkgsel.d/90secure-boot-dkms.sh",
-            "phase": "installation",
-            "via": "command"
           }
         ],
         "candidates": [
@@ -97401,7 +97395,7 @@
             "via": "pkgsel/include"
           },
           {
-            "line": 1081,
+            "line": 1159,
             "path": "d-i/forky/scripts/late/grub.sh",
             "phase": "installation",
             "via": "command"
@@ -146712,7 +146706,7 @@
         "category": "package",
         "sources": [
           {
-            "line": 1270,
+            "line": 1348,
             "path": "d-i/forky/scripts/late/grub.sh",
             "phase": "installation",
             "via": "command"
@@ -506377,16 +506371,8 @@
       }
     },
     {
-      "line": 405,
-      "text": "if command -v modprobe >/dev/null 2>&1; then",
-      "source": {
-        "path": "d-i/forky/hooks/target/usr/libexec/install-tools/secure-boot-tool.tmpl",
-        "line": 405
-      }
-    },
-    {
       "line": 406,
-      "text": "modprobe dm_mod >/dev/null 2>&1 || true",
+      "text": "if command -v modprobe >/dev/null 2>&1; then",
       "source": {
         "path": "d-i/forky/hooks/target/usr/libexec/install-tools/secure-boot-tool.tmpl",
         "line": 406
@@ -506394,10 +506380,18 @@
     },
     {
       "line": 407,
-      "text": "modprobe dm_crypt >/dev/null 2>&1 || true",
+      "text": "modprobe dm_mod >/dev/null 2>&1 || true",
       "source": {
         "path": "d-i/forky/hooks/target/usr/libexec/install-tools/secure-boot-tool.tmpl",
         "line": 407
+      }
+    },
+    {
+      "line": 408,
+      "text": "modprobe dm_crypt >/dev/null 2>&1 || true",
+      "source": {
+        "path": "d-i/forky/hooks/target/usr/libexec/install-tools/secure-boot-tool.tmpl",
+        "line": 408
       }
     },
     {
@@ -506553,19 +506547,27 @@
       }
     },
     {
-      "line": 2,
-      "text": "insmod fat",
-      "source": {
-        "path": "d-i/forky/hooks/target/usr/local/share/grub-profiles/mokmenu.cfg.in.tmpl",
-        "line": 2
-      }
-    },
-    {
       "line": 3,
-      "text": "insmod chain",
+      "text": "insmod part_gpt",
       "source": {
         "path": "d-i/forky/hooks/target/usr/local/share/grub-profiles/mokmenu.cfg.in.tmpl",
         "line": 3
+      }
+    },
+    {
+      "line": 4,
+      "text": "insmod fat",
+      "source": {
+        "path": "d-i/forky/hooks/target/usr/local/share/grub-profiles/mokmenu.cfg.in.tmpl",
+        "line": 4
+      }
+    },
+    {
+      "line": 5,
+      "text": "insmod chain",
+      "source": {
+        "path": "d-i/forky/hooks/target/usr/local/share/grub-profiles/mokmenu.cfg.in.tmpl",
+        "line": 5
       }
     },
     {
@@ -506665,27 +506667,27 @@
       }
     },
     {
-      "line": 1327,
+      "line": 1405,
       "text": "if command -v modprobe >/dev/null 2>&1; then",
       "source": {
         "path": "d-i/forky/scripts/late/grub.sh",
-        "line": 1327
+        "line": 1405
       }
     },
     {
-      "line": 1328,
+      "line": 1406,
       "text": "modprobe dm_mod >/dev/null 2>&1 || true",
       "source": {
         "path": "d-i/forky/scripts/late/grub.sh",
-        "line": 1328
+        "line": 1406
       }
     },
     {
-      "line": 1329,
+      "line": 1407,
       "text": "modprobe dm_crypt >/dev/null 2>&1 || true",
       "source": {
         "path": "d-i/forky/scripts/late/grub.sh",
-        "line": 1329
+        "line": 1407
       }
     },
     {
@@ -508262,15 +508264,6 @@
       "phase": "installation"
     },
     {
-      "line": 92,
-      "text": "run_in_target \"install the required MOK inventory command before key preparation\"      /usr/bin/env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true      /usr/bin/apt-get        -o Acquire::Retries=5        -o Acquire::http::Timeout=45        -o Acquire::https::Timeout=45        -o Binary::apt::APT::Keep-Downloaded-Packages=false        -o DPkg::Use-Pty=0        -y install --no-install-recommends --no-install-suggests mokutil || return $?",
-      "source": {
-        "path": "d-i/forky/hooks/installer/pre-pkgsel.d/90secure-boot-dkms.sh",
-        "line": 92
-      },
-      "phase": "installation"
-    },
-    {
       "line": 916,
       "text": "/usr/bin/curl rPx -> ai-copilots-model-download,",
       "source": {
@@ -509689,38 +509682,38 @@
       "phase": "installation"
     },
     {
-      "line": 1072,
+      "line": 1150,
       "text": "run_in_target \"refresh apt metadata before dualboot os-prober repair\"      env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true      apt-get        -o Acquire::Retries=5        -o Acquire::http::Timeout=45        -o Acquire::https::Timeout=45        -o Binary::apt::APT::Keep-Downloaded-Packages=false        -o DPkg::Use-Pty=0        update",
       "source": {
         "path": "d-i/forky/scripts/late/grub.sh",
-        "line": 1072
+        "line": 1150
       },
       "phase": "installation"
     },
     {
-      "line": 1081,
+      "line": 1159,
       "text": "run_in_target \"install dualboot os-prober package\"      env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true      apt-get        -o Acquire::Retries=5        -o Acquire::http::Timeout=45        -o Acquire::https::Timeout=45        -o Binary::apt::APT::Keep-Downloaded-Packages=false        -o DPkg::Use-Pty=0        -y install --no-install-recommends --no-install-suggests os-prober",
       "source": {
         "path": "d-i/forky/scripts/late/grub.sh",
-        "line": 1081
+        "line": 1159
       },
       "phase": "installation"
     },
     {
-      "line": 1194,
+      "line": 1272,
       "text": "run_in_target \"install selected Secure Boot target packages\"      env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true      apt-get        -o Acquire::Retries=5        -o Acquire::http::Timeout=45        -o Acquire::https::Timeout=45        -o Binary::apt::APT::Keep-Downloaded-Packages=false        -o DPkg::Use-Pty=0        -y install --no-install-recommends --no-install-suggests \"$@\"",
       "source": {
         "path": "d-i/forky/scripts/late/grub.sh",
-        "line": 1194
+        "line": 1272
       },
       "phase": "installation"
     },
     {
-      "line": 1211,
+      "line": 1289,
       "text": "run_in_target \"reinstall selected GRUB EFI boot chain packages on the restored ESP\"      env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true      apt-get        -o Acquire::Retries=5        -o Acquire::http::Timeout=45        -o Acquire::https::Timeout=45        -o Binary::apt::APT::Keep-Downloaded-Packages=false        -o DPkg::Use-Pty=0        -y install --reinstall --no-install-recommends --no-install-suggests \"$@\"",
       "source": {
         "path": "d-i/forky/scripts/late/grub.sh",
-        "line": 1211
+        "line": 1289
       },
       "phase": "installation"
     },
@@ -510148,7 +510141,7 @@
       "url": "http://$config-",
       "sources": [
         {
-          "line": 1061,
+          "line": 1060,
           "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/Runtime.pm.tmpl"
         }
       ]
@@ -513788,7 +513781,7 @@
       "url": "https://huggingface.co/models?library=gguf&sort=",
       "sources": [
         {
-          "line": 777,
+          "line": 776,
           "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/Runtime.pm.tmpl"
         }
       ]
@@ -516573,7 +516566,7 @@
     "git_repositories": 8,
     "indirect_recipes": 15,
     "repository_transfers": 117,
-    "download_operations": 191,
+    "download_operations": 190,
     "url_references": 455,
     "limitations": [
       "APT candidates are indexed metadata and dependency/provider unions, not an APT solver transaction.",
@@ -525629,22 +525622,10 @@
           "line": 80
         }
       ],
-      "packages": [
-        {
-          "selector": "mokutil",
-          "type": "deb",
-          "line": 92,
-          "via": "command"
-        }
-      ],
+      "packages": [],
       "settings": [],
       "urls": [],
-      "operations": [
-        {
-          "line": 92,
-          "text": "run_in_target \"install the required MOK inventory command before key preparation\"      /usr/bin/env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true      /usr/bin/apt-get        -o Acquire::Retries=5        -o Acquire::http::Timeout=45        -o Acquire::https::Timeout=45        -o Binary::apt::APT::Keep-Downloaded-Packages=false        -o DPkg::Use-Pty=0        -y install --no-install-recommends --no-install-suggests mokutil || return $?"
-        }
-      ],
+      "operations": [],
       "transfers": [
         {
           "kind": "fetch_hook_file",
@@ -526863,49 +526844,44 @@
           "line": 330
         },
         {
-          "name": "mokmanager_search",
-          "value": "search --no-floppy --file --set=esp ${mokmanager_path}",
-          "line": 332
-        },
-        {
           "name": "mok_header_comment",
-          "value": "The generated MOK DER certificate is expected at ${mok_der_path}.",
-          "line": 336
+          "value": "After Reset MOK and reboot, enroll ${mok_enrollment_path} from the selected ESP.",
+          "line": 346
         },
         {
           "name": "base_cmdline",
           "value": "${grub_root_flags} ${grub_initramfs_flags} ${grub_nvme_flags} ${grub_systemd_mask_flags} ${grub_cgroup_flags} ${grub_security_core_flags} ${grub_blacklist_flags} ${grub_vfio_flags} ${grub_memory_core_flags} ${grub_hardening_flags} ${grub_aspm_flags} ${grub_hardware_flags}",
-          "line": 339
+          "line": 349
         },
         {
           "name": "last_kernel_var",
           "value": "installer_linux_last_kernel",
-          "line": 341
+          "line": 351
         },
         {
           "name": "kernel_value",
           "value": "$1",
-          "line": 354
+          "line": 364
         },
         {
           "name": "rescue_usb_search",
           "value": "search --no-floppy --fs-uuid --set=root ${rescue_usb_uuid}",
-          "line": 403
+          "line": 413
         },
         {
           "name": "rescue_usb_search",
           "value": "search --no-floppy --file --set=root ${rescue_usb_efi_path}",
-          "line": 405
+          "line": 415
         },
         {
           "name": "kernel_ver",
           "value": "${kernel_image#/boot/vmlinuz-}",
-          "line": 454
+          "line": 464
         },
         {
           "name": "kernel_entry_id",
           "value": "installer-linux-${profile}-${kernel_id_fragment}",
-          "line": 456
+          "line": 466
         }
       ],
       "packages": [],
@@ -529167,12 +529143,12 @@
         {
           "name": "ProtectKernelLogs",
           "value": "true",
-          "line": 66
+          "line": 73
         },
         {
           "name": "SystemCallArchitectures",
           "value": "native",
-          "line": 72
+          "line": 79
         }
       ],
       "packages": [],
@@ -530681,187 +530657,187 @@
         {
           "name": "cert_path",
           "value": "${1:-$SECURE_BOOT_MOK_CERT_PEM}",
-          "line": 481
+          "line": 482
         },
         {
           "name": "kernelver",
           "value": "$1",
-          "line": 745
+          "line": 752
         },
         {
           "name": "kernelver",
           "value": "$1",
-          "line": 761
+          "line": 768
         },
         {
           "name": "short_kernelver",
           "value": "${kernelver%.*}",
-          "line": 762
+          "line": 769
         },
         {
           "name": "build_tree",
           "value": "/lib/modules/$kernelver/build",
-          "line": 763
+          "line": 770
         },
         {
           "name": "tried_candidates",
           "value": "${tried_candidates}${tried_candidates:+, }${candidate}",
-          "line": 778
+          "line": 785
         },
         {
           "name": "found_kernel",
           "value": "0",
-          "line": 790
+          "line": 797
         },
         {
           "name": "found_kernel",
           "value": "1",
-          "line": 795
+          "line": 802
         },
         {
           "name": "raw_module",
           "value": "$tmpdir/module.ko",
-          "line": 854
+          "line": 861
         },
         {
           "name": "signed_module",
           "value": "$tmpdir/module.signed",
-          "line": 855
+          "line": 862
         },
         {
           "name": "kernelver",
           "value": "${kernel_image##*/vmlinuz-}",
-          "line": 921
+          "line": 928
         },
         {
           "name": "kernelver",
           "value": "$1",
-          "line": 931
+          "line": 938
         },
         {
           "name": "kernel_modules_dir",
           "value": "/lib/modules/$kernelver/kernel",
-          "line": 942
+          "line": 949
         },
         {
           "name": "kernelver",
           "value": "$1",
-          "line": 952
+          "line": 959
         },
         {
           "name": "SIGN_MODULES_CHANGED",
           "value": "0",
-          "line": 954
+          "line": 961
         },
         {
           "name": "SIGN_MODULES_CHANGED",
           "value": "$changed",
-          "line": 977
+          "line": 984
         },
         {
           "name": "kernel_image",
           "value": "$1",
-          "line": 985
+          "line": 992
         },
         {
           "name": "kernelver",
           "value": "$1",
-          "line": 1014
+          "line": 1021
         },
         {
           "name": "kernel_image",
           "value": "/boot/vmlinuz-$kernelver",
-          "line": 1015
+          "line": 1022
         },
         {
           "name": "unsigned_image",
           "value": "$tmpdir/vmlinuz.unsigned",
-          "line": 1021
+          "line": 1028
         },
         {
           "name": "signed_image",
           "value": "$tmpdir/vmlinuz.signed",
-          "line": 1022
+          "line": 1029
         },
         {
           "name": "sbsign_err",
           "value": "$tmpdir/sbsign.stderr",
-          "line": 1023
+          "line": 1030
         },
         {
           "name": "kernelver",
           "value": "$1",
-          "line": 1054
+          "line": 1061
         },
         {
           "name": "initrd",
           "value": "/boot/initrd.img-$kernelver",
-          "line": 1055
+          "line": 1062
         },
         {
           "name": "sig_path",
           "value": "${initrd}.sig",
-          "line": 1056
+          "line": 1063
         },
         {
           "name": "kernelver",
           "value": "$1",
-          "line": 1078
+          "line": 1085
         },
         {
           "name": "kernelver",
           "value": "$1",
-          "line": 1096
+          "line": 1103
         },
         {
           "name": "kernel_image",
           "value": "/boot/vmlinuz-$kernelver",
-          "line": 1097
+          "line": 1104
         },
         {
           "name": "modules_changed",
           "value": "${SIGN_MODULES_CHANGED:-0}",
-          "line": 1108
+          "line": 1115
         },
         {
           "name": "kernelver",
           "value": "$1",
-          "line": 1125
+          "line": 1132
         },
         {
           "name": "found_kernel",
           "value": "0",
-          "line": 1130
+          "line": 1137
         },
         {
           "name": "kernel_image",
           "value": "/boot/vmlinuz-$kernelver",
-          "line": 1134
+          "line": 1141
         },
         {
           "name": "found_kernel",
           "value": "1",
-          "line": 1136
+          "line": 1143
         },
         {
           "name": "kernelver",
           "value": "${1:-}",
-          "line": 1170
+          "line": 1177
         },
         {
           "name": "kernelver",
           "value": "${1:-}",
-          "line": 1179
-        },
-        {
-          "name": "kernelver",
-          "value": "${1:-}",
-          "line": 1190
+          "line": 1186
         },
         {
           "name": "kernelver",
           "value": "${1:-}",
           "line": 1197
+        },
+        {
+          "name": "kernelver",
+          "value": "${1:-}",
+          "line": 1204
         }
       ],
       "packages": [],
@@ -530874,15 +530850,15 @@
       "sources": [],
       "modules": [
         {
-          "line": 405,
+          "line": 406,
           "text": "if command -v modprobe >/dev/null 2>&1; then"
         },
         {
-          "line": 406,
+          "line": 407,
           "text": "modprobe dm_mod >/dev/null 2>&1 || true"
         },
         {
-          "line": 407,
+          "line": 408,
           "text": "modprobe dm_crypt >/dev/null 2>&1 || true"
         }
       ],
@@ -531260,122 +531236,122 @@
         {
           "name": "notification_state_file",
           "value": "${STATE_DIR}/${key}.state",
-          "line": 236
+          "line": 235
         },
         {
           "name": "notification_state_file",
           "value": "${STATE_DIR}/${key}.state",
-          "line": 255
+          "line": 254
         },
         {
           "name": "minimum_discharging_capacity",
           "value": "$capacity",
-          "line": 424
+          "line": 423
         },
         {
           "name": "mail_count_state_file",
           "value": "${STATE_DIR}/mail-count.state",
-          "line": 513
+          "line": 512
         },
         {
           "name": "marker_path",
           "value": "${TIMESHIFT_SEEN_DIR}/${event_name}.seen",
-          "line": 551
+          "line": 550
         },
         {
           "name": "summary",
           "value": "Timeshift ${snapshot_kind} snapshot started",
-          "line": 589
+          "line": 587
         },
         {
           "name": "body",
           "value": "The managed ${snapshot_kind} Btrfs snapshot is being created.",
-          "line": 590
+          "line": 588
         },
         {
           "name": "summary",
           "value": "Timeshift ${snapshot_kind} snapshot completed",
-          "line": 597
+          "line": 594
         },
         {
           "name": "body",
           "value": "The managed ${snapshot_kind} Btrfs snapshot completed successfully.",
-          "line": 598
+          "line": 595
         },
         {
           "name": "summary",
           "value": "Timeshift ${snapshot_kind} snapshot failed",
-          "line": 608
+          "line": 604
         },
         {
           "name": "body",
           "value": "The managed ${snapshot_kind} Btrfs snapshot failed with status ${event_detail}.",
-          "line": 609
+          "line": 605
         },
         {
           "name": "marker_path",
           "value": "${UNATTENDED_SEEN_DIR}/${event_name}.seen",
-          "line": 654
+          "line": 649
         },
         {
           "name": "body",
           "value": "The unattended upgrade job failed (result ${service_result}, exit ${exit_code}/${exit_status}). Review the system journal and /var/log/unattended-upgrades/.",
-          "line": 731
+          "line": 723
         },
         {
           "name": "marker_path",
           "value": "${SYSTEM_SEEN_DIR}/${event_name}.seen",
-          "line": 823
+          "line": 814
         },
         {
           "name": "remaining",
           "value": "$next_remaining",
-          "line": 847
+          "line": 838
         },
         {
           "name": "remaining",
           "value": "$next_remaining",
-          "line": 851
+          "line": 842
         },
         {
           "name": "remaining",
           "value": "$next_remaining",
-          "line": 855
-        },
-        {
-          "name": "remaining",
-          "value": "$next_remaining",
-          "line": 859
+          "line": 846
         },
         {
           "name": "event_body",
           "value": "$next_remaining",
-          "line": 863
+          "line": 850
+        },
+        {
+          "name": "remaining",
+          "value": "$event_body",
+          "line": 859
         },
         {
           "name": "signal_path",
           "value": "${SECURITY_SIGNAL_DIR}/${signal_name}.signal",
-          "line": 908
+          "line": 899
         },
         {
           "name": "state_path",
           "value": "${SECURITY_SIGNAL_STATE_DIR}/${signal_name}.count",
-          "line": 909
+          "line": 900
         },
         {
           "name": "current_identity",
           "value": "${security_boot_id}:${current_identity}",
-          "line": 936
+          "line": 927
         },
         {
           "name": "body",
           "value": "1 new event was recorded. Review ${log_path} and its rotations.",
-          "line": 964
+          "line": 955
         },
         {
           "name": "body",
           "value": "${new_count} new events were recorded. Review ${log_path} and its rotations.",
-          "line": 966
+          "line": 957
         }
       ],
       "packages": [],
@@ -531505,11 +531481,11 @@
       "urls": [
         {
           "url": "https://huggingface.co/models?library=gguf&sort=",
-          "line": 777
+          "line": 776
         },
         {
           "url": "http://$config-",
-          "line": 1061
+          "line": 1060
         }
       ],
       "operations": [],
@@ -532784,11 +532760,15 @@
       "sources": [],
       "modules": [
         {
-          "line": 2,
+          "line": 3,
+          "text": "insmod part_gpt"
+        },
+        {
+          "line": 4,
           "text": "insmod fat"
         },
         {
-          "line": 3,
+          "line": 5,
           "text": "insmod chain"
         }
       ],
@@ -534590,324 +534570,329 @@
           "line": 57
         },
         {
+          "name": "LOG_AUTH_UNVERIFIED_FILE",
+          "value": "${LOG_AUTH_DIR}/unverified.log",
+          "line": 59
+        },
+        {
           "name": "LOG_APPARMOR_DIR",
           "value": "${LOG_SECURITY_DIR}/apparmor",
-          "line": 58
+          "line": 60
         },
         {
           "name": "LOG_APPARMOR_FILE",
           "value": "${LOG_APPARMOR_DIR}/apparmor.log",
-          "line": 59
+          "line": 61
         },
         {
           "name": "LOG_CHKROOTKIT_DIR",
           "value": "${LOG_SECURITY_DIR}/chkrootkit",
-          "line": 60
+          "line": 62
         },
         {
           "name": "LOG_CHKROOTKIT_FILE",
           "value": "${LOG_CHKROOTKIT_DIR}/chkrootkit.log",
-          "line": 61
+          "line": 63
         },
         {
           "name": "LOG_DEBSECAN_DIR",
           "value": "${LOG_SECURITY_DIR}/debsecan",
-          "line": 62
+          "line": 64
         },
         {
           "name": "LOG_DEBSECAN_FILE",
           "value": "${LOG_DEBSECAN_DIR}/debsecan.log",
-          "line": 63
+          "line": 65
         },
         {
           "name": "LOG_DEBSUMS_DIR",
           "value": "${LOG_SECURITY_DIR}/debsums",
-          "line": 64
+          "line": 66
         },
         {
           "name": "LOG_DEBSUMS_FILE",
           "value": "${LOG_DEBSUMS_DIR}/debsums.log",
-          "line": 65
+          "line": 67
         },
         {
           "name": "LOG_FAIL2BAN_DIR",
           "value": "${LOG_SECURITY_DIR}/fail2ban",
-          "line": 66
+          "line": 68
         },
         {
           "name": "LOG_FAIL2BAN_FILE",
           "value": "${LOG_FAIL2BAN_DIR}/fail2ban.log",
-          "line": 67
+          "line": 69
         },
         {
           "name": "LOG_LYNIS_DIR",
           "value": "${LOG_SECURITY_DIR}/lynis",
-          "line": 68
+          "line": 70
         },
         {
           "name": "LOG_LYNIS_FILE",
           "value": "${LOG_LYNIS_DIR}/lynis.log",
-          "line": 69
+          "line": 71
         },
         {
           "name": "LOG_RKHUNTER_DIR",
           "value": "${LOG_SECURITY_DIR}/rkhunter",
-          "line": 70
+          "line": 72
         },
         {
           "name": "LOG_RKHUNTER_FILE",
           "value": "${LOG_RKHUNTER_DIR}/rkhunter.log",
-          "line": 71
+          "line": 73
         },
         {
           "name": "LOG_SPECTRE_MELTDOWN_DIR",
           "value": "${LOG_SECURITY_DIR}/spectre-meltdown-checker",
-          "line": 72
+          "line": 74
         },
         {
           "name": "LOG_SPECTRE_MELTDOWN_FILE",
           "value": "${LOG_SPECTRE_MELTDOWN_DIR}/spectre-meltdown-checker.log",
-          "line": 73
+          "line": 75
         },
         {
           "name": "LOG_NFTABLES_DIR",
           "value": "${LOG_SECURITY_DIR}/nftables",
-          "line": 74
+          "line": 76
         },
         {
           "name": "LOG_NFTABLES_FILE",
           "value": "${LOG_NFTABLES_DIR}/nftables.log",
-          "line": 75
+          "line": 77
         },
         {
           "name": "LOG_CLAMAV_DIR",
           "value": "${LOG_SECURITY_DIR}/clamav",
-          "line": 76
+          "line": 78
         },
         {
           "name": "LOG_CLAMAV_FILE",
           "value": "${LOG_CLAMAV_DIR}/clamav.log",
-          "line": 77
+          "line": 79
         },
         {
           "name": "LOG_CLAMSCAN_DIR",
           "value": "${LOG_SECURITY_DIR}/clamscan",
-          "line": 78
+          "line": 80
         },
         {
           "name": "LOG_CLAMSCAN_FILE",
           "value": "${LOG_CLAMSCAN_DIR}/clamscan.log",
-          "line": 79
+          "line": 81
         },
         {
           "name": "LOG_CROWDSEC_DIR",
           "value": "${LOG_SECURITY_DIR}/crowdsec",
-          "line": 80
+          "line": 82
         },
         {
           "name": "LOG_CROWDSEC_FILE",
           "value": "${LOG_CROWDSEC_DIR}/crowdsec.log",
-          "line": 81
+          "line": 83
         },
         {
           "name": "LOG_APPARMOR_MODES_FILE",
           "value": "${LOG_APPARMOR_DIR}/modes.log",
-          "line": 82
+          "line": 84
         },
         {
           "name": "LOG_FRESHCLAM_FILE",
           "value": "${LOG_CLAMAV_DIR}/freshclam.log",
-          "line": 83
+          "line": 85
         },
         {
           "name": "LOG_CLAMAV_SCAN_FILE",
           "value": "${LOG_CLAMSCAN_FILE}",
-          "line": 84
+          "line": 86
         },
         {
           "name": "LOG_CROWDSEC_API_FILE",
           "value": "${LOG_CROWDSEC_DIR}/crowdsec_api.log",
-          "line": 85
+          "line": 87
         },
         {
           "name": "LOG_CROWDSEC_BOUNCER_FILE",
           "value": "${LOG_CROWDSEC_DIR}/crowdsec-firewall-bouncer.log",
-          "line": 86
+          "line": 88
         },
         {
           "name": "LOG_RKHUNTER_SCAN_FILE",
           "value": "${LOG_RKHUNTER_DIR}/scan.log",
-          "line": 87
+          "line": 89
         },
         {
           "name": "LOG_LYNIS_SCAN_FILE",
           "value": "${LOG_LYNIS_DIR}/scan.log",
-          "line": 88
+          "line": 90
         },
         {
           "name": "LOG_LYNIS_REPORT_FILE",
           "value": "${LOG_LYNIS_DIR}/lynis-report.dat",
-          "line": 89
+          "line": 91
         },
         {
           "name": "LOG_CHKROOTKIT_DAILY_FILE",
           "value": "${LOG_CHKROOTKIT_DIR}/daily.log",
-          "line": 90
+          "line": 92
         },
         {
           "name": "LOG_CHKROOTKIT_RAW_FILE",
           "value": "${LOG_CHKROOTKIT_DIR}/daily.log.raw",
-          "line": 91
+          "line": 93
         },
         {
           "name": "LOG_CHKROOTKIT_EXPECTED_FILE",
           "value": "${LOG_CHKROOTKIT_DIR}/log.expected",
-          "line": 92
+          "line": 94
         },
         {
           "name": "LOG_KERNEL_FILE",
           "value": "${LOG_SYSTEM_DIR}/kernel.log",
-          "line": 93
+          "line": 95
         },
         {
           "name": "LOG_AUDIT_DIR",
           "value": "${LOG_SECURITY_DIR}/audit",
-          "line": 94
+          "line": 96
         },
         {
           "name": "LOG_AUDIT_FILE",
           "value": "${LOG_AUDIT_DIR}/auditd.log",
-          "line": 95
+          "line": 97
         },
         {
           "name": "LOG_USB_DIR",
           "value": "${LOG_SYSTEM_DIR}/usb",
-          "line": 96
+          "line": 98
         },
         {
           "name": "LOG_USB_FILE",
           "value": "${LOG_USB_DIR}/usb.log",
-          "line": 97
+          "line": 99
         },
         {
           "name": "LOG_STORAGE_DIR",
           "value": "${LOG_SYSTEM_DIR}/storage",
-          "line": 98
+          "line": 100
         },
         {
           "name": "LOG_STORAGE_FILE",
           "value": "${LOG_STORAGE_DIR}/storage.log",
-          "line": 99
+          "line": 101
         },
         {
           "name": "LOG_ZRAM_DIR",
           "value": "${LOG_SYSTEM_DIR}/zram",
-          "line": 100
+          "line": 102
         },
         {
           "name": "LOG_ZRAM_FILE",
           "value": "${LOG_ZRAM_DIR}/zram.log",
-          "line": 101
+          "line": 103
         },
         {
           "name": "LOG_FWUPD_DIR",
           "value": "${LOG_SYSTEM_DIR}/fwupd",
-          "line": 102
+          "line": 104
         },
         {
           "name": "LOG_TIMESHIFT_DIR",
           "value": "${LOG_SYSTEM_DIR}/timeshift",
-          "line": 103
+          "line": 105
         },
         {
           "name": "LOG_TIMESHIFT_FILE",
           "value": "${LOG_TIMESHIFT_DIR}/timeshift.log",
-          "line": 104
+          "line": 106
         },
         {
           "name": "LOG_DEBUGSYS_DIR",
           "value": "${LOG_SYSTEM_DIR}/debugsys",
-          "line": 105
+          "line": 107
         },
         {
           "name": "LOG_SYSTEM_SERVICES_FILE",
           "value": "${LOG_SYSTEM_DIR}/system.log",
-          "line": 106
+          "line": 108
         },
         {
           "name": "LOG_FWUPD_SCAN_FILE",
           "value": "${LOG_FWUPD_DIR}/security-scan.log",
-          "line": 107
+          "line": 109
         },
         {
           "name": "LOG_APPLICATIONS_FILE",
           "value": "${LOG_APPS_DIR}/apps.log",
-          "line": 108
+          "line": 110
         },
         {
           "name": "LOG_CHATGPT_DIR",
           "value": "${LOG_MODELS_DIR}/openai/chatgpt",
-          "line": 109
+          "line": 111
         },
         {
           "name": "LOG_CHATGPT_FILE",
           "value": "${LOG_CHATGPT_DIR}/chatgpt.log",
-          "line": 110
+          "line": 112
         },
         {
           "name": "LOG_WHISPER_DIR",
           "value": "${LOG_MODELS_DIR}/whisper",
-          "line": 111
+          "line": 113
         },
         {
           "name": "LOG_WHISPER_FILE",
           "value": "${LOG_WHISPER_DIR}/whisper.log",
-          "line": 112
+          "line": 114
         },
         {
           "name": "LOG_OPENAI_DIR",
           "value": "${LOG_MODELS_DIR}/openai",
-          "line": 113
+          "line": 115
         },
         {
           "name": "LOG_CHATGPT_RUNTIME_DIR",
           "value": "${LOG_CHATGPT_DIR}/runtime",
-          "line": 114
+          "line": 116
         },
         {
           "name": "LOG_CHATGPT_RUNTIME_LOGIN_FILE",
           "value": "${LOG_CHATGPT_RUNTIME_DIR}/codex-login.log",
-          "line": 115
+          "line": 117
         },
         {
           "name": "LOG_CHATGPT_RUNTIME_TUI_FILE",
           "value": "${LOG_CHATGPT_RUNTIME_DIR}/codex-tui.log",
-          "line": 116
+          "line": 118
         },
         {
           "name": "LOG_CODEX_RUNTIME_DIR",
           "value": "${LOG_OPENAI_DIR}/codex",
-          "line": 117
+          "line": 119
         },
         {
           "name": "LOG_CODEX_LOGIN_FILE",
           "value": "${LOG_CODEX_RUNTIME_DIR}/codex-login.log",
-          "line": 118
+          "line": 120
         },
         {
           "name": "LOG_CODEX_TUI_FILE",
           "value": "${LOG_CODEX_RUNTIME_DIR}/codex-tui.log",
-          "line": 119
+          "line": 121
         },
         {
           "name": "LOG_NETWORK_DIR",
           "value": "${LOG_ROOT}/network",
-          "line": 133
+          "line": 135
         },
         {
           "name": "LOG_VETH_FILE",
           "value": "${LOG_NETWORK_DIR}/veth.log",
-          "line": 134
+          "line": 136
         }
       ],
       "packages": [],
@@ -553404,323 +553389,303 @@
         {
           "name": "INSTALLER_SECURE_BOOT_TARGET_TOOL",
           "value": "${FILE_SECURE_BOOT_TOOL}",
-          "line": 517
+          "line": 516
         },
         {
           "name": "INSTALLER_SECURE_BOOT_TARGET_CONFIG",
           "value": "${FILE_SECURE_BOOT_CONFIG}",
-          "line": 518
+          "line": 517
         },
         {
           "name": "best_source",
           "value": "$mount_source",
-          "line": 625
+          "line": 640
         },
         {
           "name": "best_mount",
           "value": "$mount_point",
-          "line": 626
+          "line": 641
         },
         {
           "name": "installer_probe",
           "value": "${installer_mountpoint}/.sb-mok-write-test.$$",
-          "line": 667
+          "line": 682
         },
         {
           "name": "secure_boot_state_dir",
           "value": "/target${DIR_SECURE_BOOT_STATE}",
-          "line": 695
+          "line": 710
         },
         {
           "name": "installer_usb_mountpoint",
           "value": "${RUNTIME_DIR}/mnt/usb-efi",
-          "line": 714
+          "line": 729
         },
         {
           "name": "installer_sb_mok_dir",
           "value": "${installer_usb_mountpoint}/SB_MOK",
-          "line": 725
+          "line": 740
         },
         {
           "name": "shim_loader",
           "value": "${esp_dir}${shim_path}",
-          "line": 744
+          "line": 759
         },
         {
           "name": "removable_loader",
           "value": "${esp_dir}${removable_path}",
-          "line": 745
+          "line": 760
         },
         {
           "name": "mok_manager_loader",
           "value": "${esp_dir}${mok_manager_path}",
-          "line": 771
-        },
-        {
-          "name": "new_order",
-          "value": "$entry_id",
-          "line": 872
-        },
-        {
-          "name": "old_ifs",
-          "value": "$IFS",
-          "line": 873
-        },
-        {
-          "name": "new_order",
-          "value": "${new_order},${existing_entry}",
-          "line": 880
-        },
-        {
-          "name": "IFS",
-          "value": "$old_ifs",
-          "line": 882
+          "line": 786
         },
         {
           "name": "packages",
           "value": "$1",
-          "line": 950
+          "line": 1013
         },
         {
           "name": "INSTALLER_PKGSEL_INCLUDE",
           "value": "${INSTALLER_PKGSEL_INCLUDE:+${INSTALLER_PKGSEL_INCLUDE} }os-prober",
-          "line": 1063
+          "line": 1141
         },
         {
           "name": "ACTIVE_TARGET_SECURE_BOOT_MAPPER",
           "value": "$LUKS_MAPPER_VAR_LIB_SHSIGNED",
-          "line": 1361
+          "line": 1439
         },
         {
           "name": "mountpoint",
           "value": "/target${DIR_VAR_LIB_SHSIGNED}",
-          "line": 1369
+          "line": 1447
         },
         {
           "name": "mapper_path",
           "value": "${ACTIVE_TARGET_SECURE_BOOT_MAPPER:-$LUKS_MAPPER_VAR_LIB_SHSIGNED}",
-          "line": 1408
+          "line": 1486
         },
         {
           "name": "mountpoint",
           "value": "/target${DIR_VAR_LIB_SHSIGNED}",
-          "line": 1415
+          "line": 1493
         },
         {
           "name": "secure_boot_mode",
           "value": "${SECURE_BOOT_MODE:-}",
-          "line": 1502
+          "line": 1580
         },
         {
           "name": "secure_boot_state_mode",
           "value": "${SECURE_BOOT_STATE_MODE:-}",
-          "line": 1503
+          "line": 1581
         },
         {
           "name": "mode",
           "value": "${secure_boot_mode:-$secure_boot_state_mode}",
-          "line": 1508
+          "line": 1586
         },
         {
           "name": "secure_boot_luks_device",
           "value": "${DEV_PART_VAR_LIB_SHSIGNED}",
-          "line": 1542
+          "line": 1620
         },
         {
           "name": "secure_boot_luks_name",
           "value": "${LUKS_NAME_VAR_LIB_SHSIGNED}",
-          "line": 1543
+          "line": 1621
         },
         {
           "name": "secure_boot_luks_mapper",
           "value": "${LUKS_MAPPER_VAR_LIB_SHSIGNED}",
-          "line": 1544
+          "line": 1622
         },
         {
           "name": "secure_boot_state_mount_opts",
           "value": "${MNT_VAR_LIB_SHSIGNED_OPTS}",
-          "line": 1545
+          "line": 1623
         },
         {
           "name": "secure_boot_luks_device",
           "value": "${SECURE_BOOT_LUKS_DEVICE:-}",
-          "line": 1548
+          "line": 1626
         },
         {
           "name": "secure_boot_luks_name",
           "value": "${SECURE_BOOT_LUKS_NAME:-}",
-          "line": 1549
+          "line": 1627
         },
         {
           "name": "secure_boot_luks_mapper",
           "value": "${SECURE_BOOT_LUKS_MAPPER:-}",
-          "line": 1550
+          "line": 1628
         },
         {
           "name": "secure_boot_state_mount_opts",
           "value": "${SECURE_BOOT_STATE_MOUNT_OPTS:-}",
-          "line": 1551
+          "line": 1629
         },
         {
           "name": "mok_state_file",
           "value": "$mok_state_dir/secure-boot-mok-reset.state",
-          "line": 1641
-        },
-        {
-          "name": "value",
-          "value": "${DEV_PART_BOOT:-}",
-          "line": 1688
-        },
-        {
-          "name": "value",
-          "value": "${grub_root_device:-}",
-          "line": 1690
-        },
-        {
-          "name": "value",
-          "value": "${DEV_PART_EFI:-}",
-          "line": 1692
-        },
-        {
-          "name": "value",
-          "value": "${BOOTPROFILE_DEFAULT:-}",
-          "line": 1694
-        },
-        {
-          "name": "value",
-          "value": "${BOOTPROFILE_PERFORMANCE:-}",
-          "line": 1696
-        },
-        {
-          "name": "value",
-          "value": "${BOOTPROFILE_HARDENED:-}",
-          "line": 1698
-        },
-        {
-          "name": "value",
-          "value": "${GRUB_ROOT_FLAGS:-}",
-          "line": 1700
-        },
-        {
-          "name": "value",
-          "value": "${GRUB_INITRAMFS_FLAGS:-}",
-          "line": 1702
-        },
-        {
-          "name": "value",
-          "value": "${GRUB_NVME_FLAGS:-}",
-          "line": 1704
-        },
-        {
-          "name": "value",
-          "value": "${GRUB_CGROUP_FLAGS:-}",
-          "line": 1706
-        },
-        {
-          "name": "value",
-          "value": "${GRUB_SECURITY_CORE_FLAGS:-}",
-          "line": 1708
-        },
-        {
-          "name": "value",
-          "value": "${GRUB_BLACKLIST_FLAGS:-}",
-          "line": 1710
-        },
-        {
-          "name": "value",
-          "value": "${GRUB_VFIO_FLAGS:-}",
-          "line": 1712
-        },
-        {
-          "name": "value",
-          "value": "${GRUB_MEMORY_CORE_FLAGS:-}",
-          "line": 1714
-        },
-        {
-          "name": "value",
-          "value": "${GRUB_HARDENING_FLAGS:-}",
-          "line": 1716
-        },
-        {
-          "name": "value",
-          "value": "${GRUB_ASPM_FLAGS:-}",
-          "line": 1718
-        },
-        {
-          "name": "value",
-          "value": "${GRUB_SYSTEMD_MASK_FLAGS:-}",
           "line": 1720
         },
         {
           "name": "value",
+          "value": "${DEV_PART_BOOT:-}",
+          "line": 1767
+        },
+        {
+          "name": "value",
+          "value": "${grub_root_device:-}",
+          "line": 1769
+        },
+        {
+          "name": "value",
+          "value": "${DEV_PART_EFI:-}",
+          "line": 1771
+        },
+        {
+          "name": "value",
+          "value": "${BOOTPROFILE_DEFAULT:-}",
+          "line": 1773
+        },
+        {
+          "name": "value",
+          "value": "${BOOTPROFILE_PERFORMANCE:-}",
+          "line": 1775
+        },
+        {
+          "name": "value",
+          "value": "${BOOTPROFILE_HARDENED:-}",
+          "line": 1777
+        },
+        {
+          "name": "value",
+          "value": "${GRUB_ROOT_FLAGS:-}",
+          "line": 1779
+        },
+        {
+          "name": "value",
+          "value": "${GRUB_INITRAMFS_FLAGS:-}",
+          "line": 1781
+        },
+        {
+          "name": "value",
+          "value": "${GRUB_NVME_FLAGS:-}",
+          "line": 1783
+        },
+        {
+          "name": "value",
+          "value": "${GRUB_CGROUP_FLAGS:-}",
+          "line": 1785
+        },
+        {
+          "name": "value",
+          "value": "${GRUB_SECURITY_CORE_FLAGS:-}",
+          "line": 1787
+        },
+        {
+          "name": "value",
+          "value": "${GRUB_BLACKLIST_FLAGS:-}",
+          "line": 1789
+        },
+        {
+          "name": "value",
+          "value": "${GRUB_VFIO_FLAGS:-}",
+          "line": 1791
+        },
+        {
+          "name": "value",
+          "value": "${GRUB_MEMORY_CORE_FLAGS:-}",
+          "line": 1793
+        },
+        {
+          "name": "value",
+          "value": "${GRUB_HARDENING_FLAGS:-}",
+          "line": 1795
+        },
+        {
+          "name": "value",
+          "value": "${GRUB_ASPM_FLAGS:-}",
+          "line": 1797
+        },
+        {
+          "name": "value",
+          "value": "${GRUB_SYSTEMD_MASK_FLAGS:-}",
+          "line": 1799
+        },
+        {
+          "name": "value",
           "value": "${GRUB_PROFILE_DEFAULT_FLAGS:-}",
-          "line": 1722
+          "line": 1801
         },
         {
           "name": "value",
           "value": "${GRUB_PROFILE_PERFORMANCE_FLAGS:-}",
-          "line": 1724
+          "line": 1803
         },
         {
           "name": "value",
           "value": "${GRUB_PROFILE_HARDENED_FLAGS:-}",
-          "line": 1726
+          "line": 1805
         },
         {
           "name": "value",
-          "value": "${FILE_SECURE_BOOT_MOK_CERT_DER:-}",
-          "line": 1728
+          "value": "${FILE_SECURE_BOOT_MOK_CERT_DER_ESP:-}",
+          "line": 1807
         },
         {
           "name": "value",
           "value": "${GRUB_DEFAULT_ENTRY:-}",
-          "line": 1730
+          "line": 1809
         },
         {
           "name": "value",
           "value": "${grub_rescue_uuid:-}",
-          "line": 1732
+          "line": 1811
         },
         {
           "name": "value",
           "value": "${GRUB_DISPLAY_GFXPAYLOAD_LINUX:-}",
-          "line": 1734
+          "line": 1813
         },
         {
           "name": "value",
           "value": "${DUALBOOT_ENABLED:-false}",
-          "line": 1736
+          "line": 1815
         }
       ],
       "packages": [
         {
           "selector": "os-prober",
           "type": "deb",
-          "line": 1081,
+          "line": 1159,
           "via": "command"
         },
         {
           "selector": "util-linux-udeb",
           "type": "udeb",
-          "line": 1270,
+          "line": 1348,
           "via": "command"
         },
         {
           "selector": "e2fsprogs-udeb",
           "type": "udeb",
-          "line": 1271,
+          "line": 1349,
           "via": "command"
         },
         {
           "selector": "cryptsetup-udeb",
           "type": "udeb",
-          "line": 1326,
+          "line": 1404,
           "via": "command"
         },
         {
           "selector": "cryptsetup-udeb",
           "type": "udeb",
-          "line": 1446,
+          "line": 1524,
           "via": "command"
         }
       ],
@@ -553728,19 +553693,19 @@
       "urls": [],
       "operations": [
         {
-          "line": 1072,
+          "line": 1150,
           "text": "run_in_target \"refresh apt metadata before dualboot os-prober repair\"      env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true      apt-get        -o Acquire::Retries=5        -o Acquire::http::Timeout=45        -o Acquire::https::Timeout=45        -o Binary::apt::APT::Keep-Downloaded-Packages=false        -o DPkg::Use-Pty=0        update"
         },
         {
-          "line": 1081,
+          "line": 1159,
           "text": "run_in_target \"install dualboot os-prober package\"      env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true      apt-get        -o Acquire::Retries=5        -o Acquire::http::Timeout=45        -o Acquire::https::Timeout=45        -o Binary::apt::APT::Keep-Downloaded-Packages=false        -o DPkg::Use-Pty=0        -y install --no-install-recommends --no-install-suggests os-prober"
         },
         {
-          "line": 1194,
+          "line": 1272,
           "text": "run_in_target \"install selected Secure Boot target packages\"      env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true      apt-get        -o Acquire::Retries=5        -o Acquire::http::Timeout=45        -o Acquire::https::Timeout=45        -o Binary::apt::APT::Keep-Downloaded-Packages=false        -o DPkg::Use-Pty=0        -y install --no-install-recommends --no-install-suggests \"$@\""
         },
         {
-          "line": 1211,
+          "line": 1289,
           "text": "run_in_target \"reinstall selected GRUB EFI boot chain packages on the restored ESP\"      env DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true      apt-get        -o Acquire::Retries=5        -o Acquire::http::Timeout=45        -o Acquire::https::Timeout=45        -o Binary::apt::APT::Keep-Downloaded-Packages=false        -o DPkg::Use-Pty=0        -y install --reinstall --no-install-recommends --no-install-suggests \"$@\""
         }
       ],
@@ -553762,15 +553727,15 @@
           "text": "! grep -F -q \"insmod all_video\" \"$header\""
         },
         {
-          "line": 1327,
+          "line": 1405,
           "text": "if command -v modprobe >/dev/null 2>&1; then"
         },
         {
-          "line": 1328,
+          "line": 1406,
           "text": "modprobe dm_mod >/dev/null 2>&1 || true"
         },
         {
-          "line": 1329,
+          "line": 1407,
           "text": "modprobe dm_crypt >/dev/null 2>&1 || true"
         }
       ],
@@ -558830,7 +558795,7 @@
     "d-i/forky/hooks/target/etc/rsyslog.d/15-audit.conf": "ad1d5477de8562032e118498905f1336295305be58d7f68f3a9723f01e8df155",
     "d-i/forky/hooks/target/etc/rsyslog.d/18-app-veth.conf.tmpl": "e6feb6cd1d91080485afd92f94e02041b3149149bda44c9e4afa7d391966adda",
     "d-i/forky/hooks/target/etc/rsyslog.d/19-power.conf.tmpl": "99ffbd0e695e5eb00fa1f4b22c9b217a73a0b837a8585dfba08165532836ef46",
-    "d-i/forky/hooks/target/etc/rsyslog.d/20-auth.conf.tmpl": "5610d6623625542f0da2e69abb44713f2ccb46c215c9d2f1870625a7e6614489",
+    "d-i/forky/hooks/target/etc/rsyslog.d/20-auth.conf.tmpl": "0bb3953e7ac25cd0335648d30317a4c2d935dd2d0eabab8a9857d307e43f4420",
     "d-i/forky/hooks/target/etc/rsyslog.d/21-apps.conf.tmpl": "8721f937717f35c7394e2d38ec95186b4335bb7ca9f77c2e50b369f180ffa49e",
     "d-i/forky/hooks/target/etc/rsyslog.d/22-apps-socket.conf.tmpl": "228e9bfe3e4b6fa46dc2e8b80d1e645ad0a527c7f478f0ca57f473e359b9b241",
     "d-i/forky/hooks/target/etc/rsyslog.d/25-usb.conf.tmpl": "dafc5fc6780b71c774547f79754d1e43a4d74b3d6ceeb16db493076a7ce1c795",
@@ -558889,7 +558854,7 @@
     "d-i/forky/hooks/target/etc/skel-desktop/.config/labwc/rc.xml.tmpl": "4c0179ab87daf9232d748f72b80bd2f091144d683238780bf0b8bf8a84b9eb66",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/labwc/shutdown": "124722631f375e267a8f3abd344007810064e075a2499725a70d7e123ff2879e",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/labwc/themerc-override.tmpl": "dae46c69bcdbd8abd4fa91eaef344e2545306f5719cf91dd66a56bbb27820054",
-    "d-i/forky/hooks/target/etc/skel-desktop/.config/mako/config.tmpl": "4a33131308e6cf7752c955480a586b9330ea42af7643d2ff84dc797b1ef1e2f1",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/mako/config.tmpl": "8862c10ee9c8e9bf769524ce6766c437dbd3fb8040045013e37cb4024994976c",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/micro/settings.json": "0e377ef6a9c9ed2a026828ea51c12bbe5287f9ee27457f74ffe2b839ae4bef9d",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/microsoft-edge/Default/Preferences": "cf09238e3d43aa14506b2dff223927fe4ac4d18eb6887bc1cd6b348fea158e46",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/mimeapps.list": "45cdc36a88d587d38f80db6ef86e638d9a299cbbf2278b023b940f38ee67daf0",
@@ -558967,14 +558932,14 @@
     "d-i/forky/hooks/target/etc/skel-desktop/.config/tesseract/user-words/eng.user-words": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/tesseract/user-words/swe.user-words": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/todoman/config.py": "9f6dbe1292d42a4b536c58df0c065ec020d657c18d05b5bb97d9bead6e34f3c7",
-    "d-i/forky/hooks/target/etc/skel-desktop/.config/tomat/config.toml.tmpl": "8af2edaa4d059f5fe2a13c386e5061c714baada841835526f7b253b3394d2b6e",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/tomat/config.toml.tmpl": "afb26f0ecf968823c79cf86b3af6af35b558b23a3f29d990344ff5dfb9f6c2d1",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/user-dirs.dirs": "641023fb2e547aeb4083abc35d7e08e972041b245a2259a400230bbcf9ffc53a",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/vdirsyncer/config.tmpl": "bdb2de8f2981c5581b40f505691ed69625e6061afee1fdeb7ef4693987fa85d8",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/vim/vimrc": "10347788235f43ec55b9f7af48890c40c4222fd4896338add666efd6c8f6889e",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/vivaldi/Default/Preferences": "cf09238e3d43aa14506b2dff223927fe4ac4d18eb6887bc1cd6b348fea158e46",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/audio-menu.xml.tmpl": "dbb2aa07163c6cd684ef6ccc80e7b4907b8d8d6682065ecf25d2695575f747fa",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/calendar-menu.xml.tmpl": "0a453cdc9526cda98517e86d17050fa35a1d5745fb14c90f0868b2c68621785a",
-    "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/config.tmpl": "f103f07fa85bc22ab2f3f25112adc5159dbea6aa7ed679fa0096a21828457030",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/config.tmpl": "77962f4926634383e023296aba35f53acb55f962ea74886d20feb22f7d43a1b7",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/notifications-menu.xml.tmpl": "00699a3a6ef2a8afebd3db374c7c556979402d7af339b655ea1954f96242f54a",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/power-menu.xml.tmpl": "e94da18bde0ce4b667ee7d0106a453e9d74090ea63976b46d5a01e9f5c966634",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl": "c39f3b2f65e522814692d7378fa221a292f8cbdb787d1bc1fb347f13baa7aefb",
@@ -559237,7 +559202,7 @@
     "d-i/forky/hooks/target/etc/tmpfiles.d/55-whisper-runtime.conf": "566a58b5707c51ef0f03e00a096da597f49555807a3f4b520cc89b41686b2b7f",
     "d-i/forky/hooks/target/etc/tmpfiles.d/57-crowdsec-logs.conf.tmpl": "fb80203912e2d9052d06376453753ef849db4466f106161eccb0539ea6613004",
     "d-i/forky/hooks/target/etc/tmpfiles.d/58-native-logs.conf.tmpl": "999ba5652a640a2a5060b6d0120bc5db49060ffc5af7d7fe58b618d4fc972bbf",
-    "d-i/forky/hooks/target/etc/tmpfiles.d/59-log-layout.conf.tmpl": "e80f80bbf696a758cf123ec6145116292a77dea09222939df0713ad809647814",
+    "d-i/forky/hooks/target/etc/tmpfiles.d/59-log-layout.conf.tmpl": "f09b2c4cffb3064750114515350bd40537530a3c732c5e72e5185e4e39e70c87",
     "d-i/forky/hooks/target/etc/tmpfiles.d/60-security-logs.conf.tmpl": "88553cae4de5d153a84594436d8363d7ed944181e59993e037c5f0594e531eda",
     "d-i/forky/hooks/target/etc/tmpfiles.d/60-zram-writeback.conf.tmpl": "7fc449eb7cd61c4237e80d78a306212327d556b1bc0a13c27a1ec6214eb58e1f",
     "d-i/forky/hooks/target/etc/tmpfiles.d/61-openai-chatgpt.conf.tmpl": "e096f7a0643dc44db54471ea382be41147910acceddb1765e47f6553dae670bd",
@@ -559301,7 +559266,7 @@
     "d-i/forky/hooks/target/usr/local/bin/key-manager": "f1e5dff7adf32bc9a260c7fc56d81e5a9023ed99e5d6e178d0aa7b75bf496016",
     "d-i/forky/hooks/target/usr/local/bin/labwc-adb-action": "b1532a7f2a444afeb22d63cd3d4aeb5b511f379e48195b28e466b0455461e709",
     "d-i/forky/hooks/target/usr/local/bin/labwc-adb-menu": "012fad731bc39dbb5a7928365a7a8d5dda388596bf96451cfb1184a295f77d8a",
-    "d-i/forky/hooks/target/usr/local/bin/labwc-admin-action": "139060f80324afb4c4983cc9393b4b161d1c9a174f21f2522bea7090119a478c",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-admin-action": "3c5f12f90b02b921741f32fa9a06b31d2c2a1c14e6e00d3084c9381703ac48d1",
     "d-i/forky/hooks/target/usr/local/bin/labwc-ai-copilots": "0c3ea8dbc86e18b4f8f26b4e4430379453fdfaa2819f815fab4b4d477efab727",
     "d-i/forky/hooks/target/usr/local/bin/labwc-ai-copilots-action": "a70519451b427a250152c76ba5ca5cfec9e1044a4a78a676e19da6def019f5db",
     "d-i/forky/hooks/target/usr/local/bin/labwc-app": "02cf5f42b00c866be5873e63fdb84fcfc4a0ffe212ec28cd5a6e40ee8fb502e8",
@@ -559327,7 +559292,7 @@
     "d-i/forky/hooks/target/usr/local/bin/labwc-greeter-power": "0954d12b13518db24385824b699de3474255ae57fd6fe5083102bd96ab10947c",
     "d-i/forky/hooks/target/usr/local/bin/labwc-greeter-session.tmpl": "95f9d7236573b5792fe39906e9c5de7fcdd6aef7cf7aa8591133a54b802fc3fa",
     "d-i/forky/hooks/target/usr/local/bin/labwc-hardware-tuning": "a89b4800b857d87b7ce64e32645bb88029ea93027db6e8d58b40b651a8b9d1f6",
-    "d-i/forky/hooks/target/usr/local/bin/labwc-idle-toggle": "fda340d4ee8f13c21e5ca06b9ebb5f3fa0e65951a13b5ae706b52cabee73909a",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-idle-toggle": "66e24b5dc223e44bc61b4dbf01cec3be8b01d1f98371edf0dd96c2abd5f4043c",
     "d-i/forky/hooks/target/usr/local/bin/labwc-keyboard-layout.tmpl": "a910f7c931a5192c4d9b0d8370ffee58a354288bf7b04f0ddb6840bf4bd317e4",
     "d-i/forky/hooks/target/usr/local/bin/labwc-lock.tmpl": "2d675c7240da8496e45a6e786c12034b90d60c7fd99a36a42f98b6377182cd1e",
     "d-i/forky/hooks/target/usr/local/bin/labwc-logout": "6d0ff770bf95a6ec0721498c743041c83e5d1a35acea253376e0d047bc634759",
@@ -559337,19 +559302,19 @@
     "d-i/forky/hooks/target/usr/local/bin/labwc-network-scan-action": "5bb09f5eff72ea5781a58f8e344a586e0d0af069ab32e9e4b1683b9b7cec578b",
     "d-i/forky/hooks/target/usr/local/bin/labwc-network-scan-menu": "dbcbfd4c4534a2eed2a6f082c5eb069d0ac601aabcead44154aaa25933ae8209",
     "d-i/forky/hooks/target/usr/local/bin/labwc-network-sharing": "e59e95821220dc9a6fa7187ff5e2f7384e5450b1689671b3966ac71954cfd180",
-    "d-i/forky/hooks/target/usr/local/bin/labwc-ocr": "c0e1e1a3c7d7a9e2763e34d936fe69529752fde8aa2eda1b1769a685728ebd09",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-ocr": "6c0c522b29d2c5a5c5aa19eaedca604869a15176cb7574a6584e6f09fe332981",
     "d-i/forky/hooks/target/usr/local/bin/labwc-podman-menu": "7d030bfba346ae78a7224262d4b61973941f2a2dd111a9c9600812319321bb9a",
     "d-i/forky/hooks/target/usr/local/bin/labwc-power-menu": "4ad254036c3aa181a332368b04c5c336a26c707dade67dc15ed8d707398ed142",
     "d-i/forky/hooks/target/usr/local/bin/labwc-power-settings": "574f44bc11b7d48298ad957f87c0b6685f8278d20328fe820dff8350dcecf2bf",
-    "d-i/forky/hooks/target/usr/local/bin/labwc-qbittorrent": "9db5ca2bc12809bcf1cd002d2de1183bffa542c61ebfef4c35a35888ad845e56",
-    "d-i/forky/hooks/target/usr/local/bin/labwc-recovery-action.tmpl": "ea26b2e95bfece1c73e5d24cefeff45fbc2bf7daa218cb91bdb43ec7bcb83b1b",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-qbittorrent": "c426d6547d3ce2adb21193d167ca774a0f546dbe14b8ec8eee76a90ad6c238fb",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-recovery-action.tmpl": "2a3b8f9bab9abd3cad4775c48a49cc93186572affc97c980a188d8a839372935",
     "d-i/forky/hooks/target/usr/local/bin/labwc-remote-desktop.tmpl": "c139a5fef550e7b567d679a70b2497e5dabc5f8e986ec5dc01e0308c0edc1425",
     "d-i/forky/hooks/target/usr/local/bin/labwc-run": "a25e352bf652ba490a78eb11dac86e4edb72ae0813186088ac266779ee433a67",
     "d-i/forky/hooks/target/usr/local/bin/labwc-security-action": "6609cb3e2843b9fd3ff6baa856308b69400c5bf85336e3e2a96376e1c6aec55a",
     "d-i/forky/hooks/target/usr/local/bin/labwc-session.tmpl": "f688c9b7082ed4dac2358f0cd756c881bbc29c4979effdecce99bd46fcbdaac7",
     "d-i/forky/hooks/target/usr/local/bin/labwc-show-desktop": "77d3e522686d78a425ed08345eebfca27c4a8125d1c0a4c9ae429058a3aa2a28",
-    "d-i/forky/hooks/target/usr/local/bin/labwc-sync-application-launchers.tmpl": "0fb8aa38505f93aa6247f7e16b90772a7bb8c8a8fcce96bb0c321768300b836d",
-    "d-i/forky/hooks/target/usr/local/bin/labwc-system-action.tmpl": "7641669612d59370a98e9b6159b628948196527b304737194cce0c64dda3370f",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-sync-application-launchers.tmpl": "94fcba95777fc2c0f3072b4d88cd056fcaaa2cac2d3f4c7ddd8f4b07c738a029",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-system-action.tmpl": "a669b4ae2dcb659f271b7744fad257b5049a15f3e69d1038660073fffe8ea88e",
     "d-i/forky/hooks/target/usr/local/bin/labwc-terminal": "f33bd4ac8422cd0e9cf077accd4822a0de227953222004f76b75d26c67efffd4",
     "d-i/forky/hooks/target/usr/local/bin/labwc-users-groups-menu": "34609b6d9f4b6c770d6c90db9060167ab4f6163a8b16aac8c1b90a232127591a",
     "d-i/forky/hooks/target/usr/local/bin/labwc-wallpaper-save": "0400d9b98f0fb917d05ddcd3cf8d40a06609b6b236b38fac622207e91948be79",
@@ -559394,14 +559359,14 @@
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Bitwarden.pm": "817601bad9091d46f3e490cfa6b3ffc6eadc45c0133df909f5160ca64d0e9f7b",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Event.pm": "3349f9e778802618599bd8d04b4fa69dc95ce42fde3d993b21eb91bcbb80b03b",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Logger.pm": "afe5404143348967178fead9a0e3c85c2749a66991a54e5f0f8b5284a73b47d8",
-    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Notifier.pm.tmpl": "01a0d091ac183aafb41b3b57c602e71cb30cace08d25c9e29fb12a6dcb5b912a",
+    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Notifier.pm.tmpl": "407fe232d804a0d01888424dad2a936cb07a559ef333577b1d902b72a19f0f7e",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Process.pm": "c9a89a7dd00ea5e92dd00b5ee216c6c06f84fe5e8ad1cccce230643d0bdcbb12",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Repository.pm": "1fe44cbe969320c7b901661d0144aa0a51fb6ede8627b2c2a79f73e63c68e1a9",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/State.pm": "ddf98909750d622347cc5ea6b15fd988d4dfc37d512b8dcce9e523bc92bbf1a9",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Actions.pm": "aa843a0ff5952b37fe32ed42aab49d05cd0e41195a6c2a63707dc44ede5ea681",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/CLI.pm": "d0ebf567dc318741446cdf6fff2c50e848d71479690887946701f6515f80b7a6",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Catalog.pm": "b3f73938e263d2eebc09ca1d59daea1a65bd82904d150d1def6c5dc0ce2d4eea",
-    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Context.pm.tmpl": "d3aa7b8e0873ae4b4ac4cb18a5605d1c45572ac7a166cc70516966bc0530b7f4",
+    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Context.pm.tmpl": "96b26fc6af902209f4ec0bed5f7fd5d4b4ac908d8d66d381fc447af697fc35d8",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Document.pm": "d264835d0662a141da1cff4fc19f647c604326fea9af1cb7392c38512a9ddea4",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Image.pm": "c7b1b8f73428a682152b4c9fac0b79f3bc27d5e236d1800257ef298a3ddcb991",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Logger.pm": "b919735f4ee829c56e757a3b4c20c15d15caf830516c38243a51c013cff4fad5",
@@ -559427,7 +559392,7 @@
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Firmware/Validation.pm": "f0ad2c9d0290c3cf4bf4cacbbfc0db7184a359b174958087e9de4bd9398cf144",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Lock.pm": "ba9878d78e9ccc8982da381e140013e811d1cac8ba3551e4f0d58f7e63f76266",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Logger.pm": "f4a9a6ef93ef8eb8b7f7966ab0f2604f53b381df7c2a141b56825ea1e4fb8482",
-    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Notification.pm.tmpl": "0a64433618e74b360f728146badd825563c0104059958776b632a81596997f7b",
+    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Notification.pm.tmpl": "80438a5fb623f040c6a3d92b266449b24db9707d6c9162708b5736d069c5fb6a",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Runtime.pm": "7438bb1ab2200dfcc9d1fe116f74c240d7ac977cacdb325503c268dcd53b3adc",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Validation.pm": "c07497ab59d0a80b3e731e51cee631bc7b5527e962281a35cbef5b7578b045ed",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Vendor/GooglePixel.pm": "dc135d5fc8815c50080c2017fadf4884ad36d51893d22f1eead583f60d49b981",
@@ -559437,7 +559402,7 @@
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-network-control-action/LabwcNetworkControlAction/Command.pm": "f91027d61b8e438818713a7a6e0fe1d2f085f43c61f8644fbb9207725383afd2",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-network-control-action/LabwcNetworkControlAction/Root.pm": "de75f5d3cf06711e7656bf73719777485c5ee8d42462a837f9b52ea9bf21a7b3",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-network-control-action/LabwcNetworkControlAction/Validation.pm": "58202acc206a9269c2f0388e54b578bfcaa67465d25fb35d7a5467cb17d0330d",
-    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-network-scan-action/LabwcNetworkScanAction/Client.pm.tmpl": "f0f5e3e2656ca02d5d6172064bdf302dc74bd0082416c24cb0de44b6fc9c24c5",
+    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-network-scan-action/LabwcNetworkScanAction/Client.pm.tmpl": "14d668349db461665a1b24e7bcb91608c7cfd928060f5e9865bbf59de2345225",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-network-scan-action/LabwcNetworkScanAction/Command.pm": "5f5d90b01b6306b496852d3b44c9f772aabaaa0a0e23c5827988a6053af9b8c4",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-network-scan-action/LabwcNetworkScanAction/Root.pm.tmpl": "a58380bd47494f2ddbeea9932b5b67aed212e7bc79dc9b1ca1ba3c3e5e0f872b",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-network-scan-action/LabwcNetworkScanAction/Validation.pm": "0734425432c24fdc3a7380b9398e045bbb98c066fe4bcac52ad914dc5cb9a6fb",
@@ -559446,7 +559411,7 @@
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor/ProfileIndex.pm": "3d7e1b8d7697462b10a49164dff2037baa54da2eba968e8210f4adefcc282641",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor/RuleGenerator.pm.tmpl": "cd1d98037e81a926c6e776a40eb871639e17e0888b2ce27796ddb732f788f6c0",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor/RuleRenderer.pm": "cf2fc864eb98a5ca467fb38a2139626e00fdea5e84595992f3c4340b40d0bf94",
-    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Client.pm.tmpl": "495a1bc5e647626e2a4e708a30df76b8b064c8b21133164ecce8400126a1e2b1",
+    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Client.pm.tmpl": "9353749df7fd6302ec3354ec4deda0b9d36982ff8523dca29ce6a9102d57a8b5",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Command.pm": "daed2a6aa39bfcb4f9bd5fae653532c2e820c958062b1c24c5940915a6a595d4",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Logger.pm": "59b9fe9127ea8b9c754a5e83c40be3cfe2205d147b4440767586fc4ab6360b24",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Root.pm.tmpl": "60d8a2d1c7ee3de9470fd8f8ce4e3cb66b88a56b7a4b5ec9695f0d57abaf7880",
@@ -559564,7 +559529,7 @@
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/bootstrap.py": "20d90d906da3674751e00b0c8401d4636adb33f5832e5a9e9d1ac0fd1b680303",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/browsers.py": "c24de701ec62eb5b4743ad05b0c5f4dc97341484fa9a17b01042ce97bd630407",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/bubblewrap.py": "f89632f47ab25bc303bedbbb4f92ccc5f7eddd435c56c2b6126f39240fee6659",
-    "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/cli.py": "169d4769e898d60a1523ed9831f6576430b9d4261e47ecf9416af54ea2d36223",
+    "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/cli.py": "d51fa91b69b1982fa390ee1f302f50d8d9ace5c0d702f6d73ea7d8cdf9c3a65d",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/commands.py": "539155597ee8f9b2bc79cdf3030adeb1aa07381463c4d11e9c02bbf7da376e0b",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/compat_gpu.py": "c213a982f8738c247188e5a34b596f0f961066b47de4c217a03e782e714fae08",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/compat_instance.py": "7639cc177906bc289fe7a51fe79e8430f0d872c40083536bee111b379420b8b5",
@@ -559573,7 +559538,7 @@
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/dbus_proxy.py": "91d1d92c4af370458a7158c830f721d998f54e29d59d4211a12aeb2f40493a7a",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/electron.py": "a87fab01db35b3cb5fff246894159cbdc2150833fcfc8c3044e672b97590b614",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/events.py": "548d99cee493df511e1b67abe5324bc178f1286392ee87c2fac806afced4ccde",
-    "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py": "e58c6617cbf6dd07196de1cb0292b9b49ec9ba56cfb9346a57fe7d632ec4f6d3",
+    "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py": "55409995eb4b9ee9bde191351deae4518b9856fa64144441f7ae20a0cfde699c",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/integrity.py": "f7b83a2ff28dd2921447d9035c614704eb56f1ca92a3ffd144b798a2ea35e715",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/mounts.py": "ae665a85c88c409d21163551dd292f9ef7367917f22c0f2003e356d36a4f2f8c",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_client.py": "4a833a0f9ed205a97598e57778de98146f8a23cbb81d56f54992e3bd22cf47b3",
@@ -559581,7 +559546,7 @@
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py.tmpl": "9a9f5b45523c7d22825bd80b3d0bf604ca392bd7758cf77d1eb28d9ddcbd5ed0",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/project_identity.py": "42615fe72bb33e110dd45a37ee1554355e9bc6b8aaadf5de0114383212d4a311",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/recovery.py": "aef10dc754a7cc7c698c2b0858f7601545e5ed88a5ade34f675f728fd88c582b",
-    "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/runtime.py": "1d75efe59fa09fec405e87d335f8f5042ecd683d2589ff6f5fc7fbc1324e8209",
+    "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/runtime.py": "c78cbc67355959ac249ee5d597040d88940204a13a71ce76ce7c2ce0d8621930",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py": "15f52df2e6f389a034de1fbf94b1766b4b4af3d258bb3ebde2aedf417f97eb71",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/user_state.py": "079f08df43785665889a22dcd63367415fa8ddccdc8868f0e5f82b2fadb0cdd3",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat_runtime.py": "8cf652c89584781611e31f60e28e11c2def1ab34033e6d2a4251f849a1b0193d",
@@ -559605,7 +559570,7 @@
     "d-i/forky/hooks/target/usr/local/libexec/compz-worker": "c65e348ecb8eb886d83a6cb1518f14d190137efec41eec1f1dd050cfef70eba8",
     "d-i/forky/hooks/target/usr/local/libexec/dbus-broker-check": "eb4d4df76ff1e476ca1f8205dccccf4b348703e5d00e8b9810ddadd04aee4873",
     "d-i/forky/hooks/target/usr/local/libexec/debugsys-initramfs": "74b87519176958a9598076ce069386aa72acbb8172951f4f1ab21c7a82526433",
-    "d-i/forky/hooks/target/usr/local/libexec/debugsys.py.tmpl": "66b50f87129f8a0ebe66bf13c305893b65ed3c1e88fd53837de57f6a37bcc8ed",
+    "d-i/forky/hooks/target/usr/local/libexec/debugsys.py.tmpl": "a289c000c9681dc62f4e4d88fb547dddb19f4c7659746e25843ffb9de9f7f972",
     "d-i/forky/hooks/target/usr/local/libexec/filen-sync": "6bb9a660edebaf745c6dc406a33b5eff4cfc8af1ac5c49e9a3e3b8468e6d3a27",
     "d-i/forky/hooks/target/usr/local/libexec/gitbuild-import-local": "594c5d538fdbb2058a5f17386edf6bbf9c25259b52d2c6ee3aebf38a5bc8a6aa",
     "d-i/forky/hooks/target/usr/local/libexec/gitbuild-publish": "ea31546e4b04e2db5cfd9470dbe98340fa99da114a8f42b124050ec735b16598",
@@ -559629,7 +559594,7 @@
     "d-i/forky/hooks/target/usr/local/libexec/labwc-apparmor-policy-worker": "0d174cfde4a0d96af44996c7deb32dbf884e44941bd841f6c1d378fe4531d306",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-appearance-defaults": "50e4733646d2cdc495a581e7cb0993a5f0822ee44a304029bc0511164edcf045",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-appearance-greeter": "a7a64327ceecff80122260b376bb1e756420d7a1001a35d58372bf0de330df02",
-    "d-i/forky/hooks/target/usr/local/libexec/labwc-calendar": "2cb935b74108e2d2fdf430390295534a9b92e6c42d2b91eab912fb2292ae0186",
+    "d-i/forky/hooks/target/usr/local/libexec/labwc-calendar": "c2fd02edf45b189ae28681a8291793926ae62351c36af03e4170be5d3b53646e",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-chatgpt-log-runner.tmpl": "021e878a0282456ea4ba3a5675a95d588fb225f74cd0beacf7cf812adfcc538b",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-chatgpt-session": "b7759169b79b9cf967045b57b5b7dacc0434d3f5b2442402a7d4067878cda9df",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-compat-open-uri": "e39c1c15ceefe999bb04da384136c5575cb36545099844b1af078bd33b8b1133",
@@ -559643,16 +559608,17 @@
     "d-i/forky/hooks/target/usr/local/libexec/labwc-mute-default-microphone": "368a03132479552c750346fd7f39f44c636e1627ac51767733c59f8647827632",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-network-control-action-root": "15cc6eae593df38d00d0bb30a1d3913bcd4d54207de79de25776147e11abfc77",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-network-scan-action-root.tmpl": "111b84f24aa61dbad02c047f9e38fe9fa514f5ba4535060b789e4257cdfde2f7",
-    "d-i/forky/hooks/target/usr/local/libexec/labwc-notification-send.tmpl": "993fa81fdcfa5e2dbca123e673a5feda4f33f0d890e00d113c486096eb2f1118",
-    "d-i/forky/hooks/target/usr/local/libexec/labwc-notifications.tmpl": "2bc0b360b73cf15912d5c66dab72f73e553eb5607d0ab4eb8168c0091e5cd664",
+    "d-i/forky/hooks/target/usr/local/libexec/labwc-notification-send.tmpl": "b30fa2af75a76fbccefdb6184d76a6e384885c01307891ad781fe026196b4da9",
+    "d-i/forky/hooks/target/usr/local/libexec/labwc-notifications.tmpl": "ffd03a04f2955a6ec89bed698823ae9a1c10a46e9fde547b4aada2c6971eefb8",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-output-watch": "8c52245db95b9953af2be9ed7a7e6a3061b94218ff64fd37aa2c3e3ac56235e9",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-panel-run": "c44a754936cca0b6e8b3857d5c7607ce389af24433fc586b5b38e18ef365285e",
+    "d-i/forky/hooks/target/usr/local/libexec/labwc-primary-gpg": "4c4f41dcb6cb06253e30385ea057e8e84b3d0f28da30904d2c727a0a1184e3ed",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-private-xwayland": "9feb923b2df307c816260734eb504586806f5ac6b00ef58bd1e127c13a43b652",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-proxy-session": "4e7e4771885a5f7f984baee324bba2a7e245ca57663161e53b9418369acb0cc7",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-samsung-firmware-extract": "88feaab0ae4e53643922c13ca43c6976a86d7f57c7bcfdc856968cc44270df75",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-security-action-root": "146b60b03255b7a4ed738e82a35e08b4fd7a9b046d7afac967a671733ea9b58f",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-session-check": "884194c2b7e6279d7c982bacfa5f525d34b7630bafe6a5512467f272ca7cf43b",
-    "d-i/forky/hooks/target/usr/local/libexec/labwc-session-state.tmpl": "ce46fd1409fb8376cf42c92cfcaa6cee45e502e689fd8e8cb6f749baf63c9b38",
+    "d-i/forky/hooks/target/usr/local/libexec/labwc-session-state.tmpl": "9ec7ee75d786a6774169bde2045d18b66c0790f8341394a4fcc0e80c3fcddf3a",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-ssh-gpg-askpass": "a39d8f3affb81afcf40c45e08aec39168ac7dba410305d4186127c507ecf09fb",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-ssh-key-load": "0f4408f63d38636e3c184bf11dca26a15fbee8ca895752ea04b49fc450fc88b0",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-swaybg.tmpl": "fa4c86a1338813680cf80b3d9783bc3eea493e549c70da9bac6c74dc0b96b372",
@@ -559661,14 +559627,14 @@
     "d-i/forky/hooks/target/usr/local/libexec/labwc-terminal-result": "3226dce40d40f9d6563074e67fea1272195122eae1298ffd1df3605e4b8ebf5f",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-thinkpad-hotkeys": "166e7bd2a1b8d844719ad2455262b53a4e6e20ae5e66b469027d8a65ad8eac0a",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-tomat-hook": "eaa011de1f4ebb7024a4be38072bb62ad9235065e159da5390e85c92b02c9e1b",
-    "d-i/forky/hooks/target/usr/local/libexec/labwc-tomat.tmpl": "d359f0676efdb9cc6bb52b80ec4687301c1b3c78a8d6f0404cc3c18bb1b45b9e",
+    "d-i/forky/hooks/target/usr/local/libexec/labwc-tomat.tmpl": "d5257d9b6ff7b43bfe0f0e755f6da5e606d901ca2090c5ff93291b36214dc8b7",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-wallpaper-control": "9f4591f8b36c312a8cec2787beba4aa963ec0abac406065538ef8cbd7834a2f6",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-waybar-battery": "973acb73dc554a05164708f2f49bb02d616eaf57851bcf4442c593c11fa8fb8f",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-waybar-exec": "079cdb72fb4c06108b2b8dd15f8298740a47d49367133359eeb0c8c4969cb6ae",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-wrap-desktop-files": "76e70ef7d24c00d3672e3c9660fe1d257f6ab3b512c297a37069f95c4c2baed1",
     "d-i/forky/hooks/target/usr/local/libexec/labwc-zoom-discord-compat-runtime": "529fa2967ba5798991698476872dad4296d1af311f48882476ca129f152c622c",
     "d-i/forky/hooks/target/usr/local/libexec/llama-whisper-coordinate": "2379e7d1d4223eb6b1f08be047d20af8ea4a56c44db72de55807fa4fc8c900b5",
-    "d-i/forky/hooks/target/usr/local/libexec/log-layout.tmpl": "a7b8f1767dc75ffdf0b3406fea6b749d3cb05df3be11e67f2302591e8252f027",
+    "d-i/forky/hooks/target/usr/local/libexec/log-layout.tmpl": "ec83cf9b78f68485e4944f4f0c2bbb7a76757ae32eb55fdd5f261b53a8ec1783",
     "d-i/forky/hooks/target/usr/local/libexec/mullvad-daemon-start": "08d54c55e0b15722f86cd96e860d6728f07b6a2c0a61649468d4eebb06271f73",
     "d-i/forky/hooks/target/usr/local/libexec/mullvad-lan-allow": "8cb759124db01d9e01b5910fa5a6ccaff27863173bf23d443b12178ff8687115",
     "d-i/forky/hooks/target/usr/local/libexec/mullvad-tailscale-coordinator": "55ac5df039c8dd1f73cdb2a7f35358bf04f750c62ff9a5798200c582db2eb720",
@@ -559688,7 +559654,7 @@
     "d-i/forky/hooks/target/usr/local/libexec/rsyslog-app-socket.tmpl": "1e9537d8aa4950919a6034b2a799b3ed58978ddfa03e5fb7ce40207a45ab5b99",
     "d-i/forky/hooks/target/usr/local/libexec/rsyslog-openai-socket.tmpl": "d0a56f35940ae57118873fc0fd9de4ba23685e23e4aeecab0d7d2b6230d33005",
     "d-i/forky/hooks/target/usr/local/libexec/rsyslog-security-socket.tmpl": "0e04f12e7abcb2a73dc87ff75680738ef66371262e12c8e596eaa19161b4711a",
-    "d-i/forky/hooks/target/usr/local/libexec/rsyslog-size-rotate.tmpl": "bc276cd12a5f202c60ad2c35c95b2fbbf31dff09a9962f6912b36e7f10693b68",
+    "d-i/forky/hooks/target/usr/local/libexec/rsyslog-size-rotate.tmpl": "b3bd887e8f32403b340dd90d9bba02a530bc65d124b4213125221ebfdfa9d4da",
     "d-i/forky/hooks/target/usr/local/libexec/ssh-checks": "50e3092c7d117a602b51fd3a2f6e708094d0b65f203281c36e645e0439c27098",
     "d-i/forky/hooks/target/usr/local/libexec/syncthing-configure": "3b435a395f79c2b41aa8e37d8f731fb855bfcfb0e9352966d3a2e1d392834da6",
     "d-i/forky/hooks/target/usr/local/libexec/tailscale-netkit": "3e29bb976eafb0002775c6372e0fe37402677903f699ff44671de77b70d69a55",
@@ -559708,7 +559674,7 @@
     "d-i/forky/hooks/target/usr/local/libexec/zram-writeback.tmpl": "2ff2c747d7da5754cb2cbb09bc2624b92176f36ee157ef71d5520dcdc92f187b",
     "d-i/forky/hooks/target/usr/local/sbin/app-veth": "6aaea36aac33fe6d4d52565937b627b673146fb12954ceb35c94e17d51d1dac4",
     "d-i/forky/hooks/target/usr/local/sbin/greetd-power-action": "a60bce358b81a698d0a325447a14d0d0548b49077f13c8f4f4042d08ba768330",
-    "d-i/forky/hooks/target/usr/local/sbin/labwc-notify.tmpl": "21982dcb4c7e577f093c3ad55c0ac095787f50d92eb324fcad7d3753fb4ee69b",
+    "d-i/forky/hooks/target/usr/local/sbin/labwc-notify.tmpl": "2596dffd3dd9ff414713f64f450e7d34bf73b6ad0d1c06a4f45d7cb4236338da",
     "d-i/forky/hooks/target/usr/local/sbin/luks-mok-close.tmpl": "e74fefdec32c18e9e940a9d33d09c6417a49230d08bfb09fa44cfce9c554860a",
     "d-i/forky/hooks/target/usr/local/sbin/luks-mok-open.tmpl": "5470640dbbafa9560346a0576f8e934871b5163775b33b61c7deefe4f1f9815f",
     "d-i/forky/hooks/target/usr/local/sbin/luks-mok-passwd.tmpl": "4c12db0590e1fa2d9d9d4e2110d5c2a8deccf77f0971af908e96b078a49b045f",
@@ -559762,7 +559728,7 @@
     "d-i/forky/hosts/installer/f2fs.env": "a7052fb781fd1c55c4a2347e0c7a02860b51ca855d259d827af37a2cf0748d4b",
     "d-i/forky/hosts/installer/identity.env": "fe595f353e4eb494fe589f12c77e878557ceaeeadac9425a779e8472dc1d9d5f",
     "d-i/forky/hosts/installer/layout.env": "0cd5b7a45f281c291331a332f86c2defe837aea1d8289e39389cef3bec39462d",
-    "d-i/forky/hosts/logging/observability-schema.tsv": "9756fae1fdce6e806d4a3a6f914000679f46da571258f444239402fa859c921e",
+    "d-i/forky/hosts/logging/observability-schema.tsv": "1b6593514a8d48c5676b55b6fb87bf8114a75119c66fbed41d2d4c110744219a",
     "d-i/forky/hosts/themes/README.md": "aa5ceb7dafb8c0ef1ad9aa5706e3ed5a207e6ca095122343720465f051e8013d",
     "d-i/forky/hosts/themes/theme-schema.tsv": "0dbef6d4a2edf2e0394814ea3b9f976132012b43667903cec00423700d927088",
     "d-i/forky/scripts/common/apt-sources.sh": "48b7c6193fcb6d4cc82831b10e5a472c53b004bf2e151c3caa6c1da8e880e0b7",
@@ -559786,7 +559752,7 @@
     "d-i/forky/scripts/desktop/components/logging.sh.tmpl": "0f2b0de534b7f3e7cec8025cc7986f8b47f108cbe0126482e142885f35c98eec",
     "d-i/forky/scripts/desktop/components/services.sh": "24e6a991629199a30ef452ed0aac909d62223519c7339019477630385711dbd0",
     "d-i/forky/scripts/desktop/components/stage-assets.sh": "8c6dd2e44dc2739b9bb8d489f23782a49eff453e55a166e97a0b593f7dc3e6c0",
-    "d-i/forky/scripts/desktop/components/target-assets.sh": "9be030feb3e2a939e95266143366a9666f35f05ebb5fbe23cf1f08f32b76da48",
+    "d-i/forky/scripts/desktop/components/target-assets.sh": "6a0a1c5e30f9856876ab71519cc2d8c0c3b2fb36e307662d69c30616dac5bea9",
     "d-i/forky/scripts/desktop/components/user-session.sh": "2549c17724a73fc5b3b5d5dfd9f87945b010dfd2c69245ac879de0d9dfe51bba",
     "d-i/forky/scripts/desktop/detect.sh.tmpl": "f098e2d51200260ad569951a0eb4f2075a2947e75435c5cb3d958eb96f90aa7a",
     "d-i/forky/scripts/desktop/filen.sh": "75d5204c92244a5649bc37a03d980a72d0057f64ff2c808da6db1b3726e7e7e3",

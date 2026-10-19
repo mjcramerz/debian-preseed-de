@@ -2379,8 +2379,11 @@ desktop_verify_runtime_contracts() {
   # -S also prevents local sitecustomize from running before ownership checks.
   run_in_target "verify rendered desktop runtime contracts" /usr/bin/python3 -I -S -B -c '
 import ast
+import base64
+import json
 import os
 from pathlib import Path
+import pwd
 import re
 import stat
 import subprocess
@@ -2423,9 +2426,34 @@ def configured_identifier(label, value):
             "invalid configured " + label + " identifier")
 
 
-require(len(sys.argv) == 3, "expected account and greeter identifiers")
-for label, value in zip(("account", "greeter"), sys.argv[1:]):
+require(len(sys.argv) == 4 and sys.argv[3] in {"code-only", "with-account", "account-only"},
+        "expected account, greeter and verification stage")
+for label, value in zip(("account", "greeter"), sys.argv[1:3]):
     configured_identifier(label, value)
+trusted(Path("/usr/local/libexec/labwc-primary-gpg"), True)
+trusted(Path("/usr/bin/gpg"), True)
+if sys.argv[3] in {"with-account", "account-only"}:
+    gpg_policy_path = Path("/etc/labwc/primary-gpg.json")
+    trusted(gpg_policy_path)
+    require(gpg_policy_path.stat().st_nlink == 1 and 0 < gpg_policy_path.stat().st_size <= 16384,
+            "unsafe primary GPG policy size or links")
+    gpg_policy = json.loads(gpg_policy_path.read_text())
+    require(isinstance(gpg_policy, dict)
+            and set(gpg_policy) == {"schema", "username", "home", "fingerprint", "challenge", "sha256"}
+            and type(gpg_policy["schema"]) is int and gpg_policy["schema"] == 1
+            and all(isinstance(value, str) for key, value in gpg_policy.items() if key != "schema"),
+            "invalid primary GPG policy schema")
+    require(gpg_policy["username"] == sys.argv[1]
+            and gpg_policy["home"] == pwd.getpwnam(sys.argv[1]).pw_dir,
+            "primary GPG policy account mismatch")
+    require(re.fullmatch(r"(?:[0-9A-F]{40}|[0-9A-F]{64})", gpg_policy["fingerprint"]) is not None
+            and re.fullmatch(r"[0-9a-f]{64}", gpg_policy["sha256"]) is not None,
+            "invalid primary GPG identity")
+    require(32 < len(base64.b64decode(gpg_policy["challenge"], validate=True)) < 8192,
+            "invalid primary GPG challenge")
+    if sys.argv[3] == "account-only":
+        print("Verified primary GPG launch policy before desktop service enablement.")
+        raise SystemExit(0)
 require(sys.version_info[:2] == (3, 14), "the target interpreter must be Python 3.14")
 fixed_env = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C", "HOME": "/nonexistent"}
 for command in ("/usr/bin/python3.14", "/usr/bin/perl", "/usr/lib/systemd/systemd"):
@@ -2557,11 +2585,11 @@ for line in mode_file.read_text().splitlines():
     require(re.fullmatch(r"(?:enforce|complain|disable) +(?:required|optional|if-executable) +[A-Za-z0-9._+-]+ +(?:-|/[A-Za-z0-9._/@%:+,~-]+)", line) is not None,
             "invalid rendered AppArmor mode entry")
 print("Verified rendered runtime paths, source, interpreter versions and module availability.")
-' "$ACCOUNT_USERNAME" "$LABWC_GREETER_USER"
+' "$ACCOUNT_USERNAME" "$LABWC_GREETER_USER" "${1:-code-only}"
 }
 
 desktop_verify_target_staging() {
-  desktop_verify_runtime_contracts
+  desktop_verify_runtime_contracts with-account
   run_in_target "verify managed wlsunset policy" /usr/local/bin/labwc-wlsunset check
   desktop_verify_kanshi_policy
   desktop_verify_required_commands

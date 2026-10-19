@@ -85,6 +85,56 @@ class NativeContractTests(unittest.TestCase):
         self.assertNotIn('/run/xtables.lock', profile)
         self.assertIn('deny /usr/{bin,sbin}/{ip6tables,ip6tables-restore,ip6tables-save,iptables,iptables-restore,iptables-save,xtables-nft-multi,xtables-legacy-multi} x,', profile)
 
+    def test_tailscale_exact_noop_filters_accept_go_timestamps(self):
+        # Regex fixtures only; target systemd/PCRE2 journal acceptance is separate.
+        unit = (TARGET / 'etc/systemd/system/tailscaled.service.d/override.conf.tmpl').read_text()
+        rules = [line.partition('=')[2] for line in unit.splitlines()
+                 if line.startswith('LogFilterPatterns=')]
+        self.assertEqual(len(rules), 4)
+        self.assertTrue(all(rule.startswith('~^') and rule.endswith('$') for rule in rules))
+        token = '__INSTALLER_TAILSCALE_INTERFACE_REGEX__'
+        for interface in ('tailscale0', 'ts.mesh0'):
+            # Same literal-dot representation as scripts/late/tailscale.sh.
+            patterns = [re.compile(rule[1:].replace(token, interface.replace('.', '[.]')))
+                        for rule in rules]
+            benign = [
+                f'router: enumerating {interface} addresses for cleanup failed: '
+                f'failed to look up link "{interface}": Link not found',
+                'linuxfw: clear iptables: exec: "iptables": executable file not found in $PATH',
+                'linuxfw: clear ip6tables: exec: "ip6tables": executable file not found in $PATH',
+                'ipnext: work queue shutdown failed: execqueue shut down',
+            ]
+            visible = [
+                'control: lite map update error after 29ms: initial fetch failed 409: '
+                'superseded by another update',
+                'control: lite map update error after 29ms: initial fetch failed 401: unauthorized',
+                'health(warnable=warming-up): error: Tailscale is starting. Please wait.',
+                f'router: enumerating {interface} addresses for cleanup failed: permission denied',
+                'linuxfw: clear iptables: exec: "iptables": permission denied',
+                'linuxfw: clear ip6tables: exec: "ip6tables": permission denied',
+                'linuxfw: clear iptables: exit status 1',
+                'linuxfw: nftables: permission denied',
+                'ipnext: work queue shutdown failed: context deadline exceeded',
+                'apparmor="DENIED" operation="exec" name="/usr/sbin/iptables"',
+                benign[0].replace(interface, 'other0'),
+                benign[0].replace('cleanup failed:', 'failed:'),
+                benign[1].replace('$PATH', 'PATH'),
+            ]
+            if '.' in interface:
+                visible.append(benign[0].replace(interface, interface.replace('.', 'x')))
+            for prefix in ('', '2026/10/19 18:56:07 '):
+                for message in benign:
+                    with self.subTest(interface=interface, prefix=prefix, benign=message):
+                        self.assertEqual(sum(bool(p.search(prefix + message)) for p in patterns), 1)
+                for message in visible:
+                    with self.subTest(interface=interface, prefix=prefix, visible=message):
+                        self.assertFalse(any(p.search(prefix + message) for p in patterns))
+            for message in benign:
+                for altered in ('unexpected ' + message, message + ' additional failure',
+                                '2026/10/19 18:56:07.123 ' + message):
+                    with self.subTest(interface=interface, altered=altered):
+                        self.assertFalse(any(p.search(altered) for p in patterns))
+
     def test_authoritative_audit_and_requested_categories(self):
         env = read_text(SEED / 'hosts/logging/observability.env')
         self.assertIn('LOG_AUDIT_FILE="${LOG_AUDIT_DIR}/auditd.log"', env)

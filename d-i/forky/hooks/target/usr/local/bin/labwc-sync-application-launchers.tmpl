@@ -93,9 +93,15 @@ APP_CONFIG = (
         "field_code": "%U",
     },
     {
-        "desktop_names": ("code.desktop",),
+        "desktop_names": ("code.desktop", "com.microsoft.VSCode.desktop"),
         "action_app": "code",
         "field_code": "%F",
+    },
+    {
+        "desktop_names": ("code-url-handler.desktop",),
+        "action_app": "code",
+        "field_code": "--open-url %U",
+        "no_display": True,
     },
     {
         # The system entry is accelerator-neutral. Add only the GPU actions
@@ -881,8 +887,9 @@ def main() -> int:
             missing_apps.append(config["action_app"])
             continue
         desktop_name, source_text = resolved_desktop
-        if config["action_app"] == "tutanota":
-            desktop_name = TUTA_DESKTOP_ID
+        # One visible ID per application. Retain vendor aliases as managed,
+        # non-menu entries so existing MIME associations and pinned IDs work.
+        desktop_name = config["desktop_names"][0]
         destination_path = os.path.join(desktop_dir, desktop_name)
 
         parser = configparser.ConfigParser(interpolation=None, strict=False)
@@ -899,10 +906,28 @@ def main() -> int:
             config.get("default_mode"),
         )
         normalize_managed_launch_metadata(entry)
+        if config["action_app"] == "code" and not config.get("no_display"):
+            entry["NoDisplay"] = "false"
+        if config.get("no_display"):
+            entry["NoDisplay"] = "true"
+            entry["MimeType"] = "x-scheme-handler/vscode;"
         if config["action_app"] in WAYLAND_COMPAT_APPS:
             for section in parser.sections():
                 if section.startswith("Desktop Action ") and "Exec" in parser[section]:
                     parser[section]["Exec"] = managed_default_exec(config["action_app"], config["field_code"], config.get("default_mode"))
+        else:
+            # Vendor actions (for example Code's New Window) must use the same
+            # managed dispatch and unlock boundary as the main Exec command.
+            for section in parser.sections():
+                if section.startswith("Desktop Action ") and "Exec" in parser[section]:
+                    command = parser[section]["Exec"].strip()
+                    if command and not command.startswith((
+                        "/usr/local/bin/labwc-app ", "/usr/local/bin/chatgpt ",
+                        "/usr/local/bin/labwc-qbittorrent ",
+                        "/usr/local/bin/labwc-wayland-app ",
+                        "/usr/local/bin/labwc-electron-app ",
+                    )):
+                        parser[section]["Exec"] = "/usr/local/bin/labwc-wayland-app auto -- " + command
         if config["action_app"] == "tutanota":
             entry["MimeType"] = ";".join(TUTA_SCHEMES) + ";"
             entry["X-GNOME-UsesNotifications"] = "true"
@@ -917,6 +942,9 @@ def main() -> int:
         )
         try:
             processed += int(write_desktop_file(destination_path, parser, uid, gid, validate))
+            for alias in config["desktop_names"][1:]:
+                entry["NoDisplay"] = "true"
+                processed += int(write_desktop_file(os.path.join(desktop_dir, alias), parser, uid, gid, validate))
             if config["action_app"] == "tutanota":
                 synchronize_tuta_mime_defaults(account_home, uid, gid)
         except (OSError, RuntimeError) as exc:

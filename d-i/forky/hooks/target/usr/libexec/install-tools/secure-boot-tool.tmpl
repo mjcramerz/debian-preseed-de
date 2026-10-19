@@ -155,16 +155,17 @@ cmdline_value() (
 )
 
 resolve_mok_delete_password() (
-
-  installer_password=${SECURE_BOOT_MOK_DELETE_PASSWORD:-}
-  if [ -n "$installer_password" ]; then
-    validate_single_token_value SECURE_BOOT_MOK_DELETE_PASSWORD "$installer_password"
-    printf '%s\n' "$installer_password"
-    return 0
+  LC_ALL=C
+  export LC_ALL
+  # The confirmation password is always the primary account username. Do not
+  # let an inherited legacy override silently change the firmware password.
+  installer_password=${ACCOUNT_USERNAME:-}
+  validate_single_token_value ACCOUNT_USERNAME "$installer_password"
+  [ "${#installer_password}" -le 256 ] || fatal "MOK reset password exceeds mokutil's 256-byte limit"
+  if printf '%s' "$installer_password" | grep -q '[^!-~]'; then
+    fatal "MOK reset password must use printable ASCII without whitespace for MokManager input"
   fi
-
-  validate_single_token_value ACCOUNT_USERNAME "${ACCOUNT_USERNAME:-}"
-  printf '%s\n' "$ACCOUNT_USERNAME"
+  printf '%s\n' "$installer_password"
 )
 
 prefix_target_root_path() (
@@ -661,45 +662,51 @@ ensure_dkms_framework_config() {
   chmod 0644 "$SECURE_BOOT_DKMS_CONF"
 }
 
+mok_reset_request_is_pending() (
+  # A reset has authentication data but no replacement enrollment list.
+  # --list-new alone cannot distinguish this from no pending request.
+  mok_variables=/sys/firmware/efi/efivars
+  mok_guid=605dab50-e046-4300-abb6-3dd810dd8b23
+  [ -f "$mok_variables/MokAuth-$mok_guid" ] &&
+    [ -s "$mok_variables/MokAuth-$mok_guid" ] &&
+  [ ! -L "$mok_variables/MokAuth-$mok_guid" ] &&
+    [ ! -e "$mok_variables/MokNew-$mok_guid" ] &&
+    [ ! -L "$mok_variables/MokNew-$mok_guid" ] || return 1
+  # efivarfs prepends four attribute bytes. MokManager accepts a legacy
+  # SHA-256 authentication payload (32) or packed PASSWORD_CRYPT (172).
+  case "$(wc -c <"$mok_variables/MokAuth-$mok_guid")" in
+    36|176) return 0 ;;
+    *) return 1 ;;
+  esac
+)
+
 reset_mok_state() (
 
   require_command mokutil
   require_command timeout
-  # MokListRT also contains shim's built-in Debian CA, even with no owner keys.
-  # Match its exact published fingerprint, never its subject or a key count.
-  # This is mokutil's display identity, not a certificate trust decision.
-  # https://dsa.debian.org/secure-boot-ca (DER SHA-256:
-  # 079646974bce09b1f04da67bd722d1fb0947ae4c4010bccdbba52d5b23cbf1a2)
-  if ! mok_enrolled=$(LC_ALL=C timeout --kill-after=2 15 mokutil --list-enrolled 2>/dev/null); then
-    fatal "could not query enrolled MOK certificates; skipping reset"
-  fi
-  if printf '%s\n' "$mok_enrolled" | LC_ALL=C awk '
-    /^SHA1 Fingerprint: / {
-      fingerprint=tolower(substr($0, 19));
-      count=split(fingerprint, bytes, ":");
-      if (count != 20) { invalid=1; next }
-      for (i=1; i<=count; i++)
-        if (bytes[i] !~ /^[0-9a-f][0-9a-f]$/) invalid=1;
-      if (fingerprint != "53:61:0c:f8:1f:bd:7e:0c:eb:67:91:3c:9e:f3:e7:94:a9:63:3e:cb") owner=1;
-    }
-    END { if (invalid) exit 2; exit !owner }
-  '; then
-    :
-  else
-    mok_inventory_status=$?
-    [ "$mok_inventory_status" -eq 1 ] || fatal "invalid MOK certificate inventory; skipping reset"
-    log "info: no owner-enrolled MOK certificates reported; skipping reset"
-    printf 'empty\n'
-    return 0
+  # Inventory is informational: MokListRT merges owner keys, hashes and shim's
+  # built-in keys, and mokutil can return success with no output on read errors.
+  # Never use display formatting, issuer identity or an empty listing to skip
+  # the full reset requested for every fresh installation. Do not retain or log
+  # the potentially large certificate inventory.
+  if ! LC_ALL=C timeout --kill-after=2 15 mokutil --list-enrolled --short >/dev/null 2>&1; then
+    log "warn: MOK inventory is unavailable; still attempting the full installation reset"
   fi
   # The installer treats failure as a warning and does not retry an uncertain
   # firmware write. MokManager still requires physical confirmation at reboot.
   mok_reset_password=$(resolve_mok_delete_password) || fatal "MOK reset password is unavailable"
-  if ! printf '%s\n%s\n' "$mok_reset_password" "$mok_reset_password" |
+  if printf '%s\n%s\n' "$mok_reset_password" "$mok_reset_password" |
     LC_ALL=C timeout --kill-after=2 30 mokutil --reset >/dev/null 2>&1; then
-    fatal "full MOK reset request could not be confirmed; a request may already be pending"
+    unset mok_reset_password
+  else
+    mok_reset_status=$?
+    unset mok_reset_password
+    fatal "full MOK reset request could not be confirmed (status $mok_reset_status); a request may already be pending"
   fi
-  if ! LC_ALL=C timeout --kill-after=2 15 mokutil --timeout 900 >/dev/null 2>&1; then
+  mok_reset_request_is_pending || fatal "full MOK reset pending state could not be confirmed; a request may already be pending"
+  # Negative MokTimeout enters the management menu directly. A positive value
+  # adds a second "press any key" screen after the user selected MOK management.
+  if ! LC_ALL=C timeout --kill-after=2 15 mokutil --timeout -1 >/dev/null 2>&1; then
     log "warn: MOK reset is queued, but the MokManager timeout could not be set"
   fi
   log "info: full MOK reset queued; confirm the reset in MokManager before enrolling the new certificate"
@@ -1229,7 +1236,7 @@ cmd_prepare_dkms() {
 
 if [ "$#" -ge 2 ]; then
   case "$1" in
-    prepare|prepare-dkms|sign-installed-modules|repair-installed-kernels|kernel-postinst|kernel-header-postinst|kernel-postrm|reset-moks|state-open|state-close|state-mounted|state-ready|state-passwd|sign-module)
+    prepare|prepare-dkms|sign-installed-modules|repair-installed-kernels|kernel-postinst|kernel-header-postinst|kernel-postrm|reset-moks|reset-pending|state-open|state-close|state-mounted|state-ready|state-passwd|sign-module)
       ;;
     *)
       cmd_dkms_sign_tool "$@"
@@ -1271,6 +1278,10 @@ case "${1:-}" in
     shift
     cmd_reset_moks "$@"
     ;;
+  reset-pending)
+    require_root
+    mok_reset_request_is_pending
+    ;;
   state-open)
     shift
     open_secure_boot_state
@@ -1302,7 +1313,7 @@ case "${1:-}" in
     done
     ;;
   *)
-    echo "usage: ${0##*/} {prepare|prepare-dkms|sign-installed-modules|repair-installed-kernels|kernel-postinst <version>|kernel-header-postinst <version>|kernel-postrm <version>|reset-moks|state-open|state-close|state-mounted|state-ready|state-passwd|sign-module <module...>|<kernel-version> <module-path>}" >&2
+    echo "usage: ${0##*/} {prepare|prepare-dkms|sign-installed-modules|repair-installed-kernels|kernel-postinst <version>|kernel-header-postinst <version>|kernel-postrm <version>|reset-moks|reset-pending|state-open|state-close|state-mounted|state-ready|state-passwd|sign-module <module...>|<kernel-version> <module-path>}" >&2
     exit 1
     ;;
 esac

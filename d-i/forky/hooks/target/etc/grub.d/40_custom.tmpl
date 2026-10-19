@@ -326,14 +326,24 @@ fi
 if [ "$skip_mok_signing" = true ]; then
   mok_header_comment="MOK enrollment menu omitted because SKIP_MOK_SIGNING=1."
 else
-  if [ -n "$efi_uuid" ]; then
-    mokmanager_search="search --no-floppy --fs-uuid --set=esp ${efi_uuid}"
-  else
-    mokmanager_search="search --no-floppy --file --set=esp ${mokmanager_path}"
-  fi
-  [ -f "/boot/efi${mokmanager_path}" ] || fatal "MokManager is missing at /boot/efi${mokmanager_path}"
-  [ -r "$mok_der_path" ] || fatal "generated MOK DER certificate is missing at $mok_der_path"
-  mok_header_comment="The generated MOK DER certificate is expected at ${mok_der_path}."
+  [ -n "$efi_uuid" ] || fatal "selected ESP filesystem UUID is unavailable for MOK management"
+  mokmanager_search="search --no-floppy --fs-uuid --set=esp ${efi_uuid}"
+  case "$mokmanager_path" in
+    /EFI/*) ;;
+    *) fatal "MokManager path must be on the ESP" ;;
+  esac
+  case "$mok_der_path" in
+    /boot/efi/*) mok_enrollment_path=${mok_der_path#/boot/efi} ;;
+    *) fatal "MOK enrollment certificate must be on the mounted ESP" ;;
+  esac
+  for mok_path in "$mokmanager_path" "$mok_enrollment_path"; do
+    case "$mok_path" in
+      *[!A-Za-z0-9_./+\ -]*|*'/../'*|*'/..'|*'/./'*|*'/.'|*'//'*) fatal "unsafe MOK ESP path" ;;
+    esac
+    [ -f "/boot/efi${mok_path}" ] && [ -s "/boot/efi${mok_path}" ] ||
+      fatal "MOK management asset is missing or empty at /boot/efi${mok_path}"
+  done
+  mok_header_comment="After Reset MOK and reboot, enroll ${mok_enrollment_path} from the selected ESP."
 fi
 
 base_cmdline="${grub_root_flags} ${grub_initramfs_flags} ${grub_nvme_flags} ${grub_systemd_mask_flags} ${grub_cgroup_flags} ${grub_security_core_flags} ${grub_blacklist_flags} ${grub_vfio_flags} ${grub_memory_core_flags} ${grub_hardening_flags} ${grub_aspm_flags} ${grub_hardware_flags}"
@@ -482,7 +492,7 @@ emit_mok_enrollment_menu() {
 
   grub_render_fragment mokmenu.cfg.in \
     MOKMANAGER_SEARCH "${mokmanager_search}" \
-    MOK_DER_PATH "${mok_der_path}" \
+    MOK_DER_PATH "${mok_enrollment_path}" \
     MOKMANAGER_PATH "${mokmanager_path}"
 }
 
