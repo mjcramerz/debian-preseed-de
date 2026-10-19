@@ -149,22 +149,17 @@ class BrowserConfigurationTests(unittest.TestCase):
         self.assertNotIn('install-browser-imports', installer)
         self.assertIn('desktop_install_browser_repository', installer)
 
-    def test_shared_extensions_are_user_adjustable_and_vivaldi_proton_is_removed(self):
+    def test_shared_extensions_are_user_adjustable_and_proton_is_unmanaged(self):
         for family in self.checker.FAMILIES:
             with self.subTest(browser=family):
                 ext = json.loads(self.documents[TARGET/family/'policies/managed/extensions.json'])
                 self.assertEqual(set(ext), {'ExtensionSettings'})
                 expected_ids = {self.checker.UBOL, self.checker.NOSCRIPT, self.checker.BADGER}
-                if family == 'etc/vivaldi':
-                    expected_ids.add(self.checker.PROTON_VPN)
                 self.assertEqual(set(ext['ExtensionSettings']), expected_ids)
                 for extension_id, setting in ext['ExtensionSettings'].items():
-                    if extension_id == self.checker.PROTON_VPN:
-                        self.assertEqual(setting, {'installation_mode': 'removed'})
-                    else:
-                        self.assertEqual(setting, {'installation_mode': 'normal_installed',
-                            'update_url': 'https://clients2.google.com/service/update2/crx',
-                            'toolbar_pin': 'default_pinned'})
+                    self.assertEqual(setting, {'installation_mode': 'normal_installed',
+                        'update_url': 'https://clients2.google.com/service/update2/crx',
+                        'toolbar_pin': 'default_pinned'})
 
     def test_devtools_and_extension_settings_are_available(self):
         for family in self.checker.FAMILIES:

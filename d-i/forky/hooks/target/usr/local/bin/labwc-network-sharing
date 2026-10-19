@@ -6,7 +6,9 @@ Polkit policy. This program never calls sudo, pkexec, a shell, or mount itself.
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime, timezone
+import fcntl
 import ipaddress
 import json
 import os
@@ -23,6 +25,7 @@ PICKER = '/usr/local/bin/labwc-fuzzel'
 CONFIG = Path('/etc/network-sharing/config.json')
 REPORT = Path('/run/network-sharing/report.json')
 FSTAB = Path('/etc/fstab')
+FILEN_ACCOUNTS = ('private', 'offsec')
 ACTIONS = (
     'Sharing Status', 'Connect to NFS Server', 'Disconnect from NFS Server',
     'Check Connected NFS Clients', 'Start NFS Server', 'Stop NFS Server',
@@ -136,6 +139,28 @@ def command(argv: list[str], timeout: int = 100) -> subprocess.CompletedProcess:
         raise RuntimeError('Command timed out; check Sharing Status. The systemd job may still be completing; no forced unmount was attempted.') from error
 
 
+@contextmanager
+def terminal_lock():
+    """Serialize terminal toggles before observing state; never unlink the lock."""
+    root = Path('/run/user') / str(os.getuid())
+    metadata = root.lstat()
+    if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.getuid() or metadata.st_mode & 0o077:
+        raise ValueError('A private desktop runtime directory is required')
+    fd = os.open(root / '.sharing-toggle.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK, 0o600)
+    try:
+        metadata = os.fstat(fd)
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
+                or metadata.st_nlink != 1 or stat.S_IMODE(metadata.st_mode) != 0o600):
+            raise ValueError('untrusted sharing toggle lock')
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError('Another sharing toggle is still running; wait for it to finish') from None
+        yield
+    finally:
+        os.close(fd)
+
+
 def systemctl(config: dict, verb: str, selected: list[str]) -> subprocess.CompletedProcess:
     # Firewall, identity and RPC dependencies are status-only here. Starting
     # the configured server/mount lets PID 1 enforce their dependency graph.
@@ -211,7 +236,8 @@ def client_mounts(config: dict) -> tuple[str, int, list[tuple[str, str, str, str
     return server, int(port_text), mounts
 
 
-def check_mount(config: dict, mount: tuple[str, str, str, str], *, active: bool = False) -> None:
+def check_mount(config: dict, mount: tuple[str, str, str, str], *, active: bool = False,
+                inactive: bool = False) -> bool:
     unit, what, where, kind = mount
     if not config['client_enabled'] or unit != config['client_mount']:
         raise ValueError('unmanaged mount status operation rejected')
@@ -228,6 +254,13 @@ def check_mount(config: dict, mount: tuple[str, str, str, str], *, active: bool 
                            + '. Ask an administrator to check the configuration and run systemctl daemon-reload.')
     if active and not mounted:
         raise RuntimeError('NFS mount did not become active: ' + unit)
+    if inactive and properties.get('ActiveState') != 'inactive':
+        raise RuntimeError('NFS mount did not become inactive: ' + unit)
+    if properties.get('ActiveState') not in {'active', 'inactive', 'failed'}:
+        raise RuntimeError('NFS mount is changing state; wait for its current job: ' + unit)
+    if properties.get('ActiveState') == 'active' and not mounted:
+        raise RuntimeError('NFS mount is not in a stable mounted state: ' + unit)
+    return mounted
 
 
 def connect_terminal(config: dict) -> int:
@@ -252,6 +285,84 @@ def connect_terminal(config: dict) -> int:
         check_mount(config, mount, active=True)
     print('nfsmnt: Mounted ' + ' and '.join(mount[2] for mount in mounts) + '.')
     print('nfsmnt: The shared home view receives this mount automatically.')
+    return 0
+
+
+def toggle_terminal(config: dict) -> int:
+    _, _, mounts = client_mounts(config)
+    mount, = mounts
+    if not check_mount(config, mount):
+        return connect_terminal(config)
+    # A disconnect must work even when the server cannot answer a TCP probe.
+    print('nfsmnt: Unmounting ' + mount[2] + ' ...', flush=True)
+    result = systemctl(config, 'stop', [mount[0]])
+    if result.returncode:
+        raise RuntimeError('Cannot unmount ' + mount[2] + ': ' + clean(result.stdout, 1600)
+                           + '. Close files and applications using the share, then retry.')
+    check_mount(config, mount, inactive=True)
+    print('nfsmnt: Unmounted ' + mount[2] + '. The shared home view follows automatically.')
+    return 0
+
+
+def filen_state(account: str, *, stopped: bool = False) -> bool:
+    if account not in FILEN_ACCOUNTS:
+        raise ValueError('unmanaged Filen account rejected')
+    unit = 'filen-sync@' + account + '.service'
+    result = command(['/usr/bin/systemctl', '--system', '--no-pager', 'show',
+                      '--property=LoadState,ActiveState,SubState,User,Group,FragmentPath,Type', '--', unit], 15)
+    if result.returncode:
+        raise RuntimeError('Cannot check Filen service: ' + clean(result.stdout, 1600))
+    properties = dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
+    if (properties.get('LoadState') != 'loaded' or properties.get('User') != 'filen-' + account
+            or properties.get('Group') != 'filen-' + account or properties.get('Type') != 'simple'
+            or properties.get('FragmentPath') != '/etc/systemd/system/filen-sync@.service'):
+        raise ValueError('Filen service differs from the installed account: ' + account)
+    state = properties.get('ActiveState')
+    if stopped and state != 'inactive':
+        raise RuntimeError('Filen service did not stop cleanly: ' + account)
+    if state not in {'active', 'activating', 'inactive', 'failed'}:
+        raise RuntimeError('Filen service is changing state; wait for its current job: ' + account)
+    # Restart backoff is activating/auto-restart: toggling must cancel that
+    # pending synchronization too, rather than issuing another start.
+    return state in {'active', 'activating'}
+
+
+def toggle_filen(config: dict, selected: str | None = None) -> int:
+    settings = config['profile']
+    identity = pwd.getpwuid(os.getuid())
+    if identity.pw_name != settings['ACCOUNT_USERNAME'] or identity.pw_dir != settings['ACCOUNT_HOME']:
+        raise ValueError('Run filenmnt as the configured desktop account: ' + settings['ACCOUNT_USERNAME'])
+    if selected is not None and selected not in FILEN_ACCOUNTS:
+        raise ValueError('unmanaged Filen account rejected')
+    planned = []
+    # Validate every selected public config and unit before changing any account.
+    # Credentials and private service state are never read by the desktop UID.
+    for account in (selected,) if selected else FILEN_ACCOUNTS:
+        try:
+            data = read_json(Path('/etc/filen') / (account + '.json'), 65536)
+        except FileNotFoundError:
+            if selected:
+                raise ValueError('Filen account is not configured: ' + account) from None
+            continue
+        local = settings['NETWORK_SHARING_ROOT_PATH'] + '/filen-' + account
+        if (data.get('version') != 1 or data.get('account') != account or data.get('local') != local
+                or data.get('sync_mode') not in {'twoWay', 'localToCloud', 'cloudToLocal', 'localBackup', 'cloudBackup'}):
+            raise ValueError('Filen configuration differs from the installed sharing profile: ' + account)
+        planned.append((account, filen_state(account)))
+    if not planned:
+        raise ValueError('No Filen sync accounts are configured')
+    for account, running in planned:
+        verb = 'stop' if running else 'start'
+        print('filenmnt: ' + ('Stopping' if running else 'Starting') + ' filen-' + account + ' synchronization ...', flush=True)
+        result = command(['/usr/bin/systemctl', '--system', '--no-pager', '--no-legend',
+                          verb, '--', 'filen-sync@' + account + '.service'], 200)
+        if result.returncode:
+            raise RuntimeError('Cannot ' + verb + ' filen-' + account + ': ' + clean(result.stdout, 1600)
+                               + '. Authorization requires an active local administrator and the desktop authentication agent.')
+        if filen_state(account, stopped=running) == running:
+            raise RuntimeError('Filen service did not reach the requested state: ' + account)
+        print('filenmnt: filen-' + account + (' synchronization stopped; local files remain available.'
+              if running else ' synchronization started; initialization and authentication continue in the service.'))
     return 0
 
 
@@ -406,8 +517,9 @@ def main(argv: list[str]) -> int:
     if argv == ['--catalog']:
         print(json.dumps(ACTIONS, indent=2))
         return 0
-    if argv not in ([], ['--status'], ['--connect']):
-        raise ValueError('usage: labwc-network-sharing [--catalog|--status|--connect]')
+    if argv not in ([], ['--status'], ['--connect'], ['--toggle'], ['--filen-toggle'],
+                    ['--filen-toggle', '--private'], ['--filen-toggle', '--offsec']):
+        raise ValueError('usage: labwc-network-sharing [--catalog|--status|--connect|--toggle|--filen-toggle [--private|--offsec]]')
     if os.geteuid() == 0:
         raise ValueError('Network Sharing must run as the desktop user, never root')
     try:
@@ -423,6 +535,11 @@ def main(argv: list[str]) -> int:
         return result.returncode
     if argv == ['--connect']:
         return connect_terminal(config)
+    if argv == ['--toggle'] or argv[:1] == ['--filen-toggle']:
+        with terminal_lock():
+            if argv == ['--toggle']:
+                return toggle_terminal(config)
+            return toggle_filen(config, argv[1][2:] if len(argv) == 2 else None)
     while True:
         selected = choose([*ACTIONS, 'Back'], 'Computer Management / Network & Remote / Network Sharing')
         if selected is None or selected == 'Back':
@@ -437,8 +554,9 @@ if __name__ == '__main__':
     try:
         raise SystemExit(main(sys.argv[1:]))
     except KeyboardInterrupt:
-        raise SystemExit(130 if sys.argv[1:] == ['--connect'] else 0)
+        raise SystemExit(130 if sys.argv[1:] else 0)
     except (OSError, ValueError, KeyError, TypeError, RuntimeError) as error:
-        label = 'nfsmnt' if sys.argv[1:] == ['--connect'] else 'Network Sharing'
+        label = ('filenmnt' if sys.argv[1:2] == ['--filen-toggle'] else
+                 'nfsmnt' if sys.argv[1:] in (['--connect'], ['--toggle']) else 'Network Sharing')
         print(label + ': ' + clean(str(error), 1600), file=sys.stderr)
         raise SystemExit(2)

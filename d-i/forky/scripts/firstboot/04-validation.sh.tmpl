@@ -438,6 +438,7 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     /usr/local/bin/labwc-computer-management \
   /usr/local/bin/labwc-network-sharing \
     /usr/local/bin/nfsmnt \
+    /usr/local/bin/filenmnt \
     /usr/local/libexec/labwc-proxy-session \
     /usr/local/bin/labwc-desktop-appearance \
     /usr/local/libexec/labwc-appearance-greeter \
@@ -587,6 +588,7 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
       done
       [ -x /usr/bin/3proxy ]
       [ -x /usr/local/bin/nfsmnt ]
+      [ -x /usr/local/bin/filenmnt ]
       [ -x /usr/local/libexec/labwc-proxy-session ]
     ' sh
   check_command desktop-system-dbus-service-directory-metadata \
@@ -1050,6 +1052,7 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     labwc-computer-management \
   labwc-network-sharing \
     nfsmnt \
+    filenmnt \
     3proxy \
     conntrack \
     labwc-desktop-appearance \

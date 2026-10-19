@@ -44,13 +44,17 @@ ordinary locations in the propagated view; they have no separate mount units.
 The old `NFS_*_BIND_ENABLE`, `NFS_*_HOME_BIND_PATH` and
 `NFS_MNT_*_BIND_HOME_OPTS` settings are retired.
 
-Run `nfsmnt` as the configured desktop account. It validates the source fstab
-record and systemd mount properties, probes the numeric server's TCP port with
-a three-second timeout, then submits **one** `systemctl start` for the source
-NFS mount. The existing active-local administrator Polkit rule authenticates
-that operation. There is no second home-bind authorization and no cached or
-passwordless authorization rule. Cancellation or a failed/skipped mount returns
-failure. The source must report active/mounted before success is printed.
+Run `nfsmnt` as the configured desktop account to toggle the client share.
+It validates the source fstab record and systemd mount properties first.
+When disconnected, it probes the numeric server's TCP port with a three-second
+timeout and submits **one** `systemctl start` for the source NFS mount.
+When mounted, it submits **one** `systemctl stop` without probing the server.
+Close files and applications using the share before requesting an unmount.
+The existing active-local administrator Polkit rule authenticates the operation.
+There is no second home-bind authorization and no cached/passwordless rule.
+Cancellation, a failed/skipped mount, or an incomplete unmount returns failure.
+The source must report active/mounted or inactive, respectively, before success
+is printed. A busy share is never forcibly or lazily unmounted.
 
 The NFS source remains `noauto`, TCP-only, hard-mounted, `sec=sys`, and protected
 by the existing firewall, identity-service, `nosuid,nodev,noexec`, and mount-job
@@ -105,8 +109,8 @@ Download data arriving after the 300-second download deadline is rejected;
 individual reads have at most a 15-second socket timeout, and the complete
 target installer has a separate 420-second timeout with five-second kill
 escalation. New public code/configuration directories receive explicit
-mode 0755 even under the installer's private umask. Before any offline service
-enablement, the installed wrapper is compiled as every enabled service UID with
+mode 0755 even under the installer's private umask. Before installation is
+accepted, the installed wrapper is compiled as every configured service UID with
 its primary GID and no supplementary groups. This catches inaccessible module
 parents that a root-only compilation would conceal.
 The hash establishes consistency with the selected publisher release bytes;
@@ -166,6 +170,40 @@ is omitted from the CLI environment, rather than made inaccessible to its UID.
 | --- | --- | --- | --- |
 | Private | `filen-sync@private.service` / `filen-private` | `/data/sharing/filen-private` | `/var/lib/filen-private` |
 | Offsec | `filen-sync@offsec.service` / `filen-offsec` | `/data/sharing/filen-offsec` | `/var/lib/filen-offsec` |
+
+### Manual synchronization with filenmnt
+
+Neither account starts synchronizing at boot. The installer creates static
+service instances with no boot-target enablement. In a desktop terminal use:
+
+```sh
+filenmnt             # Toggle each configured account independently.
+filenmnt --private   # Toggle only filen-private.
+filenmnt --offsec    # Toggle only filen-offsec.
+```
+
+A stopped account starts its continuous sync service; a running account or one
+waiting for an automatic failure retry is stopped. With mixed states, the
+default command stops the running account and starts the stopped one. The
+default skips accounts excluded by installer policy; explicitly selecting an
+unconfigured account is an error. All selected public configs and service
+identities are checked before the first operation. Each account's authenticated
+operation is verified, and failures stop the sequence; earlier completed
+operations are reported and remain in effect.
+
+This is a synchronization toggle, not a filesystem mount: existing local files
+remain accessible while synchronization is stopped. Starting the service does
+not claim that authentication or a complete sync cycle has finished. The
+existing fixed service journal reports initialization/failure categories.
+`filenmnt --help` explains usage without reading configuration or contacting a
+manager. Run it as the configured desktop account, without `sudo`.
+
+Both terminal wrappers share a private per-user runtime lock so simultaneous
+terminal toggles cannot race their state checks. They refuse transitional NFS
+jobs or Filen shutdown jobs instead of guessing the next action. Systemd and
+the existing active-local administrator Polkit rule retain service authority.
+Neither wrapper reads credentials, enables services, edits configuration,
+starts a separate daemon, or changes permissions on synchronized data.
 
 Each non-login service UID owns only its own tree. Named default ACL entries
 grant both that service UID and the configured desktop UID access, including

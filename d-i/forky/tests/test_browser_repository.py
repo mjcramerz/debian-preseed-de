@@ -117,7 +117,7 @@ class BrowserPolicyTests(unittest.TestCase):
     def test_managed_storage_and_locked_extension_options_are_rejected(self):
         for mutation in ('managed-storage', 'file-urls', 'force-install', 'wrong-id',
                          'vivaldi-storage', 'vivaldi-force', 'vivaldi-reinstall', 'vivaldi-allowed',
-                         'vivaldi-blocked', 'vivaldi-update-url', 'vivaldi-pin', 'vivaldi-id', 'duplicate-key'):
+                         'vivaldi-blocked', 'vivaldi-removed', 'vivaldi-update-url', 'vivaldi-pin', 'vivaldi-id', 'duplicate-key'):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
                 target = Path(directory)
                 for family in BROWSER.FAMILIES:
@@ -126,6 +126,10 @@ class BrowserPolicyTests(unittest.TestCase):
                 path = target/family/'policies/managed/extensions.json'
                 data = json.loads(path.read_text())
                 settings = data['ExtensionSettings']
+                if mutation.startswith('vivaldi-') and mutation != 'vivaldi-storage':
+                    # Any new Proton policy is outside the current native
+                    # contract, including the historical removal entry.
+                    settings[BROWSER.PROTON_VPN] = {'installation_mode': 'removed'}
                 if mutation in {'managed-storage', 'vivaldi-storage'}:
                     data['3rdparty'] = {'extensions': {BROWSER.BADGER: {'learnLocally': False}}}
                 elif mutation == 'file-urls':

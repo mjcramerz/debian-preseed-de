@@ -4,7 +4,10 @@
 documents configuration format 3. It replaces the per-role home binds and
 format-2 mount/migration instructions recorded below. This file retains the
 protocol-policy background and historical deployment evidence; use the current
-document for mount layout, `nfsmnt`, profile controls and acceptance requirements.
+document for mount layout, `nfsmnt` toggle behavior, `filenmnt`, profile controls
+and acceptance requirements. The terminal-mount description below records the
+older connect-only implementation; current `nfsmnt` mounts a disconnected
+client share and unmounts an already mounted one.
 
 ## Scope and deployment status
 

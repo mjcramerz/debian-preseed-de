@@ -95,8 +95,8 @@ sub run {
         $ENV{FILEN_2FA_CODE} = $code;
         $ENV{FILEN_CLI_DATA_DIR} = '/var/lib/filen-' . $self->account;
         my $registry = '/etc/filen/' . $self->account . '.sync.json';
-        exec { '/usr/local/bin/filen' } '/usr/local/bin/filen', '--skip-update', 'sync', $registry, '--continuous';
-        POSIX::_exit(127);
+        exec { '/usr/local/bin/filen' } '/usr/local/bin/filen', '--skip-update', 'sync', $registry, '--continuous'
+            or POSIX::_exit(127);
     }
     close $write;
     # No secrets are retained in the parent's environment or event stream.

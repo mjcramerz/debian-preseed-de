@@ -171,6 +171,7 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/bin/labwc-computer-management /usr/local/bin/labwc-computer-management 0755
   desktop_stage_role_asset usr/local/bin/labwc-network-sharing /usr/local/bin/labwc-network-sharing 0755
   desktop_stage_role_asset usr/local/bin/nfsmnt /usr/local/bin/nfsmnt 0755
+  desktop_stage_role_asset usr/local/bin/filenmnt /usr/local/bin/filenmnt 0755
   desktop_stage_role_asset usr/local/libexec/network-wifi-configure /usr/local/libexec/network-wifi-configure 0755
   desktop_stage_role_asset usr/local/bin/nmtui /usr/local/bin/nmtui 0755
   desktop_stage_role_asset etc/systemd/system/NetworkManager.service.d/30-wifi-manual.conf /etc/systemd/system/NetworkManager.service.d/30-wifi-manual.conf 0644

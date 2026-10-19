@@ -2,22 +2,26 @@
 
 # The menu and terminal wrapper are unprivileged. Fixed systemd operations
 # cross the existing Polkit boundary; no privileged shell or mount helper.
-profile labwc-network-sharing /usr/local/bin/{labwc-network-sharing,nfsmnt} flags=(attach_disconnected) {
+profile labwc-network-sharing /usr/local/bin/{labwc-network-sharing,nfsmnt,filenmnt} flags=(attach_disconnected) {
   #include <abstractions/wrapper-python>
   #include <abstractions/wrapper-desktop>
   #include <abstractions/wrapper-terminal>
   /usr/local/bin/nfsmnt r,
+  /usr/local/bin/filenmnt r,
   /usr/local/bin/labwc-network-sharing rix,
   / r,
   /etc/ r,
   /etc/network-sharing/ r,
   /etc/network-sharing/config.json r,
+  /etc/filen/ r,
+  /etc/filen/{private,offsec}.json r,
   /etc/fstab r,
   # Bounded IPv4 TCP availability check; PID 1 performs the actual mounts.
   network inet stream,
   /run/ r,
   /run/network-sharing/ r,
   /run/network-sharing/report.json r,
+  owner /run/user/[0-9]*/.sharing-toggle.lock rwk,
   /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
   /usr/bin/systemctl rCx -> systemctl,
   /usr/bin/journalctl rCx -> journalctl,

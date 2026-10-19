@@ -71,8 +71,8 @@ def check(target: Path = TARGET) -> None:
                         'update_url': 'https://clients2.google.com/service/update2/crx',
                         'toolbar_pin': 'default_pinned',
                     } for extension_id in (UBOL, NOSCRIPT, BADGER)}
-                    if family == 'etc/vivaldi':
-                        expected[PROTON_VPN] = {'installation_mode': 'removed'}
+                    # Native policy no longer manages Proton VPN (the entry
+                    # was removed in 05d62b4). Do not restore it in a checker.
                     if policy != {'ExtensionSettings': expected}:
                         raise ValueError(f'invalid browser extension installation policy: {path}')
                 elif any(key == '3rdparty' or (key.startswith('Extension')

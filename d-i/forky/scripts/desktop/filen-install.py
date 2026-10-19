@@ -180,22 +180,22 @@ def download(url: str, expected: str, maximum: int) -> bytes:
     raise Error('release redirect limit exceeded')
 
 
-def enable_services(identities: dict[str, pwd.struct_passwd]) -> None:
+def validate_services(identities: dict[str, pwd.struct_passwd]) -> None:
     # Compile as each service UID, with no supplementary groups, before any
-    # enablement. Root compilation would conceal unreadable code directories.
+    # publication is accepted. Root compilation would conceal unreadable code directories.
     # Native unit/policy acceptance is a separate isolated gate.
     if not read(Path('/usr/bin/getconf')).startswith(b'\x7fELF'):
         raise Error('target libc probe must be a packaged native executable')
     for identity in identities.values():
         command(['/usr/bin/perl', '-T', '-c', '/usr/local/libexec/filen-sync'], identity=identity)
         # The pinned watcher uses this probe before its shell-script fallback.
-        # Check target availability as the real account before enabling either
+        # Check target availability as the real account before accepting either
         # unit; this command neither authenticates nor contacts a manager.
         version = command(['/usr/bin/getconf', 'GNU_LIBC_VERSION'], identity=identity)
         if not re.fullmatch(rb'glibc [0-9]+(?:\.[0-9]+)+\n', version):
             raise Error('target libc probe did not identify glibc')
-    for account in identities:
-        command(['/usr/bin/systemctl', '--root=/', 'enable', 'filen-sync@' + account + '.service'])
+    # Leave both instances disabled. Only an explicit filenmnt request starts
+    # synchronization; the static template has no boot enablement target.
 
 
 def install(stage: Path, env: dict[str, str]) -> None:
@@ -318,7 +318,7 @@ def install(stage: Path, env: dict[str, str]) -> None:
         if not any(row.split()[0] == bookmark for row in rows if row.strip()):
             rows.append(bookmark + ' ' + user)
         publish(bookmarks, ('\n'.join(rows) + '\n').encode())
-    enable_services(identities)
+    validate_services(identities)
     publish(Path('/usr/local/share/doc/filen-cli/INSTALLATION.json'),
             (json.dumps({'version': version, 'architecture': architecture, 'url': url, 'sha256': sha,
                          'trust': 'Pinned publisher release bytes; SHA-256 is not a vendor signature.'}, sort_keys=True) + '\n').encode())

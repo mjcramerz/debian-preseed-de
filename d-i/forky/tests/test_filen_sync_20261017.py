@@ -73,7 +73,7 @@ class DownloadPolicyTests(unittest.TestCase):
             installer.download('https://github.com/release', hashlib.sha256(b'fixture').hexdigest(), 1024)
 
 
-class EnablementTests(unittest.TestCase):
+class ManualServiceTests(unittest.TestCase):
     def test_second_account_compile_failure_prevents_all_enablement(self):
         identities = {name: types.SimpleNamespace(pw_uid=uid, pw_gid=uid)
                       for name, uid in (('private', 991), ('offsec', 992))}
@@ -84,7 +84,7 @@ class EnablementTests(unittest.TestCase):
         with mock.patch.object(installer, 'command', side_effect=command) as commands, \
                 mock.patch.object(installer, 'read', return_value=b'\x7fELF'), \
                 self.assertRaises(subprocess.CalledProcessError):
-            installer.enable_services(identities)
+            installer.validate_services(identities)
         compiles = [call for call in commands.call_args_list if '-c' in call.args[0]]
         self.assertEqual(len(commands.call_args_list), 3)
         self.assertEqual([call.kwargs['identity'] for call in compiles], list(identities.values()))
@@ -108,7 +108,7 @@ class EnablementTests(unittest.TestCase):
                 with mock.patch.object(installer, 'read', return_value=content), \
                         mock.patch.object(installer, 'command', side_effect=command) as commands, \
                         self.assertRaises((ValueError, subprocess.SubprocessError)):
-                    installer.enable_services({'private': identity})
+                    installer.validate_services({'private': identity})
                 self.assertFalse(any(call.args[0][0] == '/usr/bin/systemctl' for call in commands.call_args_list))
 
     def test_compile_command_drops_uid_gid_and_supplementary_groups(self):
@@ -119,6 +119,20 @@ class EnablementTests(unittest.TestCase):
         self.assertEqual(run.call_args.kwargs['group'], 992)
         self.assertEqual(run.call_args.kwargs['extra_groups'], [])
         self.assertEqual(run.call_args.kwargs['env'], installer.ENV)
+
+    def test_valid_services_are_checked_without_boot_enablement(self):
+        identities = {name: types.SimpleNamespace(pw_uid=uid, pw_gid=uid)
+                      for name, uid in (('private', 991), ('offsec', 992))}
+        def command(argv, **kwargs):
+            return b'glibc 2.44\n' if argv[0] == '/usr/bin/getconf' else b''
+        with mock.patch.object(installer, 'command', side_effect=command) as commands, \
+                mock.patch.object(installer, 'read', return_value=b'\x7fELF'):
+            installer.validate_services(identities)
+        self.assertEqual(len(commands.call_args_list), 4)
+        self.assertFalse(any(call.args[0][0] == '/usr/bin/systemctl' for call in commands.call_args_list))
+        unit = (SEED / 'hooks/target/etc/systemd/system/filen-sync@.service.tmpl').read_text()
+        self.assertNotIn('WantedBy=', unit)
+        self.assertNotIn('[Install]', unit)
 
 
 class RuntimeOutputTests(unittest.TestCase):
@@ -148,6 +162,7 @@ print encode_json([map { $messages->{encode('UTF-8', $_)} // q{} } @{$input->{ro
             text=True, encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C.UTF-8', 'HOME': '/nonexistent'}, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn('Statement unlikely to be reached', result.stderr)
         self.assertEqual(json.loads(result.stdout), ['initializing', '', 'authentication', 'authentication',
             'authentication', 'remote-directory', '', '', ''])
 

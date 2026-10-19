@@ -1385,6 +1385,8 @@ class TerminalMountTests(unittest.TestCase):
         self.started = set()
         self.fail_start = ''
         self.skip_start = ''
+        self.fail_stop = False
+        self.skip_stop = False
 
     def reply(self, argv, timeout):
         unit = argv[-1]
@@ -1393,6 +1395,12 @@ class TerminalMountTests(unittest.TestCase):
                 return subprocess.CompletedProcess(argv, 1, 'mount or authorization failed')
             if unit != self.skip_start:
                 self.started.add(unit)
+            return subprocess.CompletedProcess(argv, 0, '')
+        if 'stop' in argv:
+            if self.fail_stop:
+                return subprocess.CompletedProcess(argv, 1, 'busy or authorization failed')
+            if not self.skip_stop:
+                self.started.discard(unit)
             return subprocess.CompletedProcess(argv, 0, '')
         self.assertIn('show', argv)
         remote = self.settings['NFS_CLIENT_TARGET_IP'] + ':' + self.settings['NFS_CLIENT_EXPORT_PATH']
@@ -1416,6 +1424,26 @@ class TerminalMountTests(unittest.TestCase):
         probe.connect.assert_called_with((self.settings['NFS_CLIENT_TARGET_IP'], int(self.settings['NFS_SERVER_PORT'])))
         self.assertEqual(self.probe.call_args.args, (socket.AF_INET, socket.SOCK_STREAM))
         self.assertIn('nfsmnt: Mounted /data/sharing/nfs-client.', self.output.getvalue())
+
+    def test_toggle_mounts_then_unmounts_without_a_second_server_probe(self):
+        self.assertEqual(MENU.toggle_terminal(self.config), 0)
+        self.probe.reset_mock()
+        self.assertEqual(MENU.toggle_terminal(self.config), 0)
+        self.probe.assert_not_called()
+        self.assertEqual(self.started, set())
+        self.assertEqual(self.starts(), [self.config['client_mount']])
+        self.assertIn('nfsmnt: Unmounted ', self.output.getvalue())
+
+    def test_failed_or_incomplete_unmount_is_not_reported_as_success(self):
+        self.started.add(self.config['client_mount'])
+        for attribute in ('fail_stop', 'skip_stop'):
+            with self.subTest(attribute=attribute):
+                setattr(self, attribute, True)
+                with self.assertRaises(RuntimeError):
+                    MENU.toggle_terminal(self.config)
+                setattr(self, attribute, False)
+        self.probe.assert_not_called()
+        self.assertNotIn('nfsmnt: Unmounted ', self.output.getvalue())
 
     def test_unavailable_server_never_requests_mount(self):
         for error in (ConnectionRefusedError('refused'), TimeoutError('timeout'), OSError('no route')):
@@ -1525,6 +1553,99 @@ class TerminalMountTests(unittest.TestCase):
                                         text=True, encoding='utf-8', timeout=5)
                 self.assertEqual(result.returncode, status, result.stderr)
                 self.assertIn('Usage: nfsmnt', result.stdout + result.stderr)
+
+
+class FilenToggleTests(unittest.TestCase):
+    """Public account config and fixed systemd operations; no cloud or credentials."""
+
+    def setUp(self):
+        settings = NFS.Settings.from_environment(profile())
+        self.config = NFS.public_config(settings)
+        self.enterContext(mock.patch.object(MENU.pwd, 'getpwuid', return_value=types.SimpleNamespace(
+            pw_name=settings['ACCOUNT_USERNAME'], pw_dir=settings['ACCOUNT_HOME'])))
+        self.running = set()
+        self.configured = {'private', 'offsec'}
+        self.bad_unit = ''
+        self.fail_action = ''
+        self.actions = []
+        self.output = io.StringIO()
+        self.enterContext(mock.patch('sys.stdout', self.output))
+        self.enterContext(mock.patch.object(MENU, 'read_json', side_effect=self.public_config))
+        self.enterContext(mock.patch.object(MENU, 'command', side_effect=self.command))
+
+    def public_config(self, path, limit):
+        account = path.stem
+        if account not in self.configured:
+            raise FileNotFoundError(path)
+        return {'version': 1, 'account': account, 'local': '/data/sharing/filen-' + account,
+                'sync_mode': 'twoWay'}
+
+    def command(self, argv, timeout):
+        account = argv[-1].removeprefix('filen-sync@').removesuffix('.service')
+        self.assertIn(account, {'private', 'offsec'})
+        if 'show' in argv:
+            state = 'active' if account in self.running else 'inactive'
+            user = 'wrong' if account == self.bad_unit else 'filen-' + account
+            return subprocess.CompletedProcess(argv, 0,
+                f'LoadState=loaded\nActiveState={state}\nSubState=running\nUser={user}\nGroup=filen-{account}\n'
+                'FragmentPath=/etc/systemd/system/filen-sync@.service\nType=simple\n')
+        verb = argv[-3]
+        self.actions.append((verb, account))
+        if account == self.fail_action:
+            return subprocess.CompletedProcess(argv, 1, 'authorization denied')
+        if verb == 'start':
+            self.running.add(account)
+        else:
+            self.assertEqual(verb, 'stop')
+            self.running.discard(account)
+        return subprocess.CompletedProcess(argv, 0, '')
+
+    def test_default_toggles_both_and_selected_account_only_toggles_itself(self):
+        self.assertEqual(MENU.toggle_filen(self.config), 0)
+        self.assertEqual(self.running, {'private', 'offsec'})
+        self.assertEqual(MENU.toggle_filen(self.config, 'private'), 0)
+        self.assertEqual(self.running, {'offsec'})
+        self.assertEqual(MENU.toggle_filen(self.config), 0)
+        self.assertEqual(self.running, {'private'})
+        self.assertEqual(MENU.toggle_filen(self.config, 'offsec'), 0)
+        self.assertEqual(self.running, {'private', 'offsec'})
+
+    def test_disabled_account_is_skipped_by_default_and_explicit_selection_fails(self):
+        self.configured = {'private'}
+        self.assertEqual(MENU.toggle_filen(self.config), 0)
+        self.assertEqual(self.actions, [('start', 'private')])
+        with self.assertRaisesRegex(ValueError, 'not configured'):
+            MENU.toggle_filen(self.config, 'offsec')
+        self.configured.clear()
+        with self.assertRaisesRegex(ValueError, 'No Filen'):
+            MENU.toggle_filen(self.config)
+
+    def test_all_units_are_validated_before_mutation(self):
+        self.bad_unit = 'offsec'
+        with self.assertRaisesRegex(ValueError, 'service differs'):
+            MENU.toggle_filen(self.config)
+        self.assertEqual(self.actions, [])
+
+    def test_authorization_failure_preserves_failure_and_stops_sequence(self):
+        self.fail_action = 'private'
+        with self.assertRaisesRegex(RuntimeError, 'authorization denied'):
+            MENU.toggle_filen(self.config)
+        self.assertEqual(self.actions, [('start', 'private')])
+        self.assertEqual(self.running, set())
+
+    def test_arbitrary_account_is_rejected_before_mutation(self):
+        with self.assertRaises(ValueError):
+            MENU.toggle_filen(self.config, '../../other')
+        self.assertEqual(self.actions, [])
+
+    def test_help_and_invalid_wrapper_arguments_never_dispatch(self):
+        wrapper = TARGET / 'usr/local/bin/filenmnt'
+        for argv, expected in ((['--help'], 0), (['-h'], 0), (['private'], 2),
+                               (['--private', '--offsec'], 2), (['--private', 'extra'], 2)):
+            result = subprocess.run(['/bin/sh', str(wrapper), *argv], capture_output=True,
+                                    text=True, timeout=5)
+            self.assertEqual(result.returncode, expected, result.stderr)
+            self.assertIn('Usage: filenmnt', result.stdout + result.stderr)
 
 
 class MenuIconTests(unittest.TestCase):

@@ -1,0 +1,17 @@
+#!/bin/sh
+# Toggle only the installed Filen sync accounts through the existing Polkit boundary.
+set -eu
+case "$#:${1-}" in
+  0:) exec /usr/local/bin/labwc-network-sharing --filen-toggle ;;
+  1:--private|1:--offsec)
+    exec /usr/local/bin/labwc-network-sharing --filen-toggle "$1" ;;
+  1:--help|1:-h)
+    printf '%s\n' 'Usage: filenmnt [--private|--offsec]' \
+      'Toggle synchronization for both configured accounts, or only the selected account.' \
+      'A running/retrying account is stopped; a stopped account is started.' \
+      'Local files remain available when synchronization is stopped.'
+    exit 0 ;;
+  *)
+    printf '%s\n' 'Usage: filenmnt [--private|--offsec]' >&2
+    exit 2 ;;
+esac

@@ -3,7 +3,7 @@
 set -eu
 if [ "$#" -eq 1 ] && [ "$1" = --help ]; then
   printf '%s\n' 'Usage: nfsmnt' \
-    'Check the configured NFS server and mount /data/sharing/nfs-client once.' \
+    'Mount the configured NFS share when disconnected; unmount it when connected.' \
     'The persistent Sharing home view receives the mount automatically.' \
     'Run as the desktop user; systemd uses the existing administrator authentication policy.'
   exit 0
@@ -12,4 +12,4 @@ if [ "$#" -ne 0 ]; then
   printf '%s\n' 'Usage: nfsmnt [--help]' >&2
   exit 2
 fi
-exec /usr/local/bin/labwc-network-sharing --connect
+exec /usr/local/bin/labwc-network-sharing --toggle

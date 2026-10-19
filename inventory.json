@@ -130,7 +130,7 @@
     "d-i/forky/hooks/target/etc/systemd/system/dbus-broker.service.d/10-broker-hardening.conf.tmpl": "042c6882fe0972aabdae553658b437d72ddb76119cff89b3e9e086de796b81ad",
     "d-i/forky/hooks/target/etc/systemd/system/dnsmasq-app-veth.service": "43551eaabbeee845bdc737696a52fcfe5d63ea3e8c4f9ab7e18379f0af6ebcee",
     "d-i/forky/hooks/target/etc/systemd/system/fail2ban.service.d/40-runtime.conf": "eba33a940911d01676d854373a09bef1109a40e6efbf728c5adf7e72270377ad",
-    "d-i/forky/hooks/target/etc/systemd/system/filen-sync@.service.tmpl": "0e9e441d9ab17c5dc81487e0d00450f4b54b341c45e715c4d5231f4eed102e42",
+    "d-i/forky/hooks/target/etc/systemd/system/filen-sync@.service.tmpl": "1e59e3a0313baedcf2b70a342988b39253dd33a492005e7dee6335fefc85b2c7",
     "d-i/forky/hooks/target/etc/systemd/system/fstrim.service.d/override.conf": "de0bc18f29a68a6b305f50bc91c84fa51e4936cb27e18d917eee6b1b1a35e43d",
     "d-i/forky/hooks/target/etc/systemd/system/hardware-tuning-autostart.service": "4f31599d80347845527c8831f9a7ac65bd35e3e0fe7d955c71b830d43714ae13",
     "d-i/forky/hooks/target/etc/systemd/system/hardware-tuning-sleep.service": "ae2fc048728e9eeeed76c78853a58607aa0c727a224000f1c1ffdd09398c0994",
@@ -274,7 +274,7 @@
     "d-i/forky/scripts/desktop/components/user-config.sh": "054c9c7958bc612eebf81807306cb3afe840f8c96f969f8612ecce14688013f5",
     "d-i/forky/scripts/desktop/compz-codecs-install.py": "4afacee27b49eb6f6b7fbf1f848ce00f07308ce7c3e7dd6d2f076681de11bfff",
     "d-i/forky/scripts/desktop/digital-assets.sh": "2e82019290ce6a8c797c81edf62a7870afefdd4bf8e05c17d9692bbd2bcdbd60",
-    "d-i/forky/scripts/desktop/filen-install.py": "2d7b6d745d94b5cb177fd716538f6d3a6690d7180fcf1a1f861905d701d29c29",
+    "d-i/forky/scripts/desktop/filen-install.py": "77b04e3344481544abfb916447160e545c11d1e1417e84d68c22225baf875909",
     "d-i/forky/scripts/desktop/fonts-install.py": "70df80ef8f52ca863c4ef2a81418804835f6cfb981ec906e8d979d469a23330e",
     "d-i/forky/scripts/desktop/kanshi-policy.py": "1dcf291761b9a1a7421db4b1e517b90d5c54ab531fcdedbea8d61ba51d799485",
     "d-i/forky/scripts/desktop/labwc.sh": "aa7bc61b73664bb44173bd1c7ca4bb97113baa04fc1bfb5c03be29f490bc08d0",
@@ -282,13 +282,13 @@
     "d-i/forky/scripts/desktop/resctl-bench.sh": "cfb13c1edd411d1b9cce5d39fd681f9a7d5c6b9ba76ba2c57e9cc94512411159",
     "d-i/forky/scripts/desktop/samloader.sh": "95789b8fce9ab17cc3c2ce18aa4421775bcdc1d91c2ac13b02c4de291db4a9fd",
     "d-i/forky/scripts/desktop/satty.sh": "4d62c06412fcb05f407f98771166ddcfef1d096371653f90192287c2a84c3df1",
-    "d-i/forky/scripts/desktop/verify.sh.tmpl": "da5bbba054ceef146d2dc68a2c827f71ef858a791b5a8b2e0ea9373f535799c2",
+    "d-i/forky/scripts/desktop/verify.sh.tmpl": "b3cfea26afd021b9a3006126b0a6883a35a911388db3931360690ebf2f255da1",
     "d-i/forky/scripts/desktop/waypaper.sh": "760418df003765aace979cbb494ceea40b980e559a35daad4a0124f58f5fc802",
     "d-i/forky/scripts/desktop/xwayland.sh": "33977e223d38797f75c0deb5c4b327dd0b7a5a95cbe5b06795a16419197ec903",
     "d-i/forky/scripts/firstboot/01-early.sh": "9aa4b78fc07008f37a979e3f1b2b5b334178b582063f9e26e58986be94a5df9b",
     "d-i/forky/scripts/firstboot/02-collect.sh.tmpl": "5b1ed44947190e59c3c1b2c180e6bb9c1160c9eccf64c975d5e1529b7bed3859",
     "d-i/forky/scripts/firstboot/03-network.sh": "196a03825c0ba67ac91caf18cc6492d71abb70f41a443e32d59c300cb808b27c",
-    "d-i/forky/scripts/firstboot/04-validation.sh.tmpl": "414e920db041d214c12d9e31703694ab3832a26e2a9413e98632dc7d80e170bd",
+    "d-i/forky/scripts/firstboot/04-validation.sh.tmpl": "d490f85d8a507ac60325bf81f80a370a522218e91230cbde9d34b6dbfc5dd9df",
     "d-i/forky/scripts/firstboot/05-cleanup.sh": "12ad994a1f2b039bb693e889731d1402309562d9e40a2125e269d2ac9ce0582b",
     "d-i/forky/scripts/firstboot/assets/etc/initramfs-tools/scripts/installer-health-common": "bbf4576fa820b198bf278592fdda31ad7035018ecc9a577a2e0aaf8078210923",
     "d-i/forky/scripts/firstboot/assets/etc/systemd/system/crowdsec-firstboot.service.tmpl": "1868c689917d2c08003edfc6f3d466b4c2d3372245d3c5d314e6ad8a53a19b6b",
@@ -510034,7 +510034,7 @@
       "url": "git@gitlab.com:core-assets/docs/obsidian-md.git",
       "sources": [
         {
-          "line": 1582,
+          "line": 1584,
           "path": "d-i/forky/scripts/desktop/verify.sh.tmpl"
         },
         {
@@ -549858,82 +549858,82 @@
         {
           "name": "path",
           "value": "/etc/labwc/3proxy/$proxy3_asset",
-          "line": 299
+          "line": 300
         },
         {
           "name": "backend_policy",
           "value": "/etc/systemd/user/${mount_backend}.d/10-labwc-session.conf",
-          "line": 604
+          "line": 605
         },
         {
           "name": "lifecycle_policy",
           "value": "/etc/systemd/user/labwc-${application_family}-.service.d/50-app-lifecycle.conf",
-          "line": 615
+          "line": 616
         },
         {
           "name": "missing",
           "value": "${missing:+$missing }$path",
-          "line": 966
+          "line": 968
         },
         {
           "name": "optional_missing",
           "value": "${optional_missing:+$optional_missing }$path",
-          "line": 1147
+          "line": 1149
         },
         {
           "name": "link",
           "value": "/etc/skel-desktop/.config/systemd/user/labwc-session.target.wants/${unit}",
-          "line": 1155
+          "line": 1157
         },
         {
           "name": "link",
           "value": "$account_home/.config/systemd/user/labwc-session.target.wants/${unit}",
-          "line": 1170
+          "line": 1172
         },
         {
           "name": "browser_checkout",
           "value": "$account_home/Workspace/netscape",
-          "line": 1195
+          "line": 1197
         },
         {
           "name": "obsidian_link",
           "value": "$obsidian_home/.config/systemd/user/labwc-session.target.wants/obsidian-git-sync.timer",
-          "line": 1252
+          "line": 1254
         },
         {
           "name": "ssh_link",
           "value": "$ssh_home/.config/systemd/user/labwc-session.target.wants/labwc-ssh-key-load.service",
-          "line": 1260
+          "line": 1262
         },
         {
           "name": "account_dropin",
           "value": "$account_home/.config/systemd/user/${account_local_package_dropin}.d/10-labwc-session.conf",
-          "line": 1347
+          "line": 1349
         },
         {
           "name": "dropin",
           "value": "/etc/systemd/user/${unit}.d/20-no-greeter.conf",
-          "line": 1720
+          "line": 1722
         },
         {
           "name": "missing",
           "value": "${missing:+$missing }$group_name",
-          "line": 1730
+          "line": 1732
         },
         {
           "name": "present",
           "value": "${present:+$present }$group_name",
-          "line": 1741
+          "line": 1743
         },
         {
           "name": "units",
           "value": "$base/.config/systemd/user",
-          "line": 2036
+          "line": 2038
         },
         {
           "name": "link",
           "value": "$units/labwc-session.target.wants/kanshi.service",
-          "line": 2041
+          "line": 2043
         }
       ],
       "packages": [],
@@ -549941,7 +549941,7 @@
       "urls": [
         {
           "url": "git@gitlab.com:core-assets/docs/obsidian-md.git",
-          "line": 1582
+          "line": 1584
         }
       ],
       "operations": [],
@@ -550508,72 +550508,72 @@
         {
           "name": "path",
           "value": "/etc/labwc/3proxy/$asset",
-          "line": 584
+          "line": 585
         },
         {
           "name": "dropin",
           "value": "/etc/systemd/user/${unit}.d/20-no-greeter.conf",
-          "line": 626
+          "line": 628
         },
         {
           "name": "path",
           "value": "/etc/systemd/system/$unit",
-          "line": 758
+          "line": 760
         },
         {
           "name": "path",
           "value": "$home/.local/share/ssh/private/id_git_ed25519",
-          "line": 861
+          "line": 863
         },
         {
           "name": "path",
           "value": "$home/.local/share/ssh/git-key-passphrase.gpg",
-          "line": 864
+          "line": 866
         },
         {
           "name": "path",
           "value": "$home/.ssh/id_git_ed25519.pub",
-          "line": 867
+          "line": 869
         },
         {
           "name": "path",
           "value": "$home/.config/gitops/gitops.env",
-          "line": 870
+          "line": 872
         },
         {
           "name": "path",
           "value": "$home/.config/git/config",
-          "line": 873
+          "line": 875
         },
         {
           "name": "path",
           "value": "$home/.config/systemd/user/labwc-ssh-key-load.service",
-          "line": 876
+          "line": 878
         },
         {
           "name": "path",
           "value": "$home/.local/share/ssh",
-          "line": 879
+          "line": 881
         },
         {
           "name": "path",
           "value": "$home/.local/share/ssh/private",
-          "line": 882
+          "line": 884
         },
         {
           "name": "path",
           "value": "$home/.ssh",
-          "line": 885
+          "line": 887
         },
         {
           "name": "path",
           "value": "$home/.config/gitops",
-          "line": 888
+          "line": 890
         },
         {
           "name": "polkit_rule_path",
           "value": "/etc/polkit-1/rules.d/${polkit_rule}",
-          "line": 1166
+          "line": 1169
         }
       ],
       "packages": [],
@@ -558555,7 +558555,7 @@
     "d-i/forky/hooks/target/etc/apparmor.d/local/vivaldi-bin": "3055eb0e57229aefb0768cc0e1b7f07176fb49550fc1023b4672cf364015eb8e",
     "d-i/forky/hooks/target/etc/apparmor.d/local/vivaldi-stable": "ed87eb01dea9f9a82cabc087dcc884f2f1bac48fde2cb3d04a4c677863ff2975",
     "d-i/forky/hooks/target/etc/apparmor.d/local/vscode": "585377eab0e67027396fe5e84ee4f4f7f1bd55527d2fcd7f09ed7dfab39f4e76",
-    "d-i/forky/hooks/target/etc/apparmor.d/network-sharing": "3a0c04954cc2f28dbeecd801deee47ffa82b0ab4d0caec967db9c5af1a276b6a",
+    "d-i/forky/hooks/target/etc/apparmor.d/network-sharing": "1a443f45c03e2e12b5ff4871639537f0ed2513de955d87b159bace049175aab7",
     "d-i/forky/hooks/target/etc/apparmor.d/obsidian": "207ef2d2cc043b555ed1b8824777fbf624d4181c4382829e029997d33a49ec9f",
     "d-i/forky/hooks/target/etc/apparmor.d/opt.Bitwarden.bitwarden": "74a303631758546c490f9d5325d3f131fda8f7f6e2209d9f737c651247876b63",
     "d-i/forky/hooks/target/etc/apparmor.d/opt.Filen.Filen": "ed3cbabc262a42f5979bc439836eceb67030dcd6e50f0882e0c7f5af72f2089a",
@@ -559295,6 +559295,7 @@
     "d-i/forky/hooks/target/usr/local/bin/discord": "715722861044a5cdf422a04513bbc367449eb00ff24c9016445abd6b04d9edb8",
     "d-i/forky/hooks/target/usr/local/bin/docker": "01229d0780a3c1ed90bbf1fc2e2802bf04fa8a9617e0e7a2c3fa11ac4f00c383",
     "d-i/forky/hooks/target/usr/local/bin/docker-compose": "ba56638aaa27a14e797df3d27f71c1e8966864a1eb2b5437074b18977d85edde",
+    "d-i/forky/hooks/target/usr/local/bin/filenmnt": "dcb0ac24d9364f6e1a7997aef06ec913390db80fee031358eb24cc790872676c",
     "d-i/forky/hooks/target/usr/local/bin/git-ssh": "59214b89685b4692d0c1a5b785b178517b21cd7451a316b1a137f091ccf1df2a",
     "d-i/forky/hooks/target/usr/local/bin/gitbuild": "53186a133351c095d7f8ba053e682ad4dd59ec3971c618c93856ed803d67c1e3",
     "d-i/forky/hooks/target/usr/local/bin/key-manager": "f1e5dff7adf32bc9a260c7fc56d81e5a9023ed99e5d6e178d0aa7b75bf496016",
@@ -559335,7 +559336,7 @@
     "d-i/forky/hooks/target/usr/local/bin/labwc-network-control-menu": "0ffacd249f37fb3486b8b90f510be87bb379faf8ad08115910e1f7abcfe0e259",
     "d-i/forky/hooks/target/usr/local/bin/labwc-network-scan-action": "5bb09f5eff72ea5781a58f8e344a586e0d0af069ab32e9e4b1683b9b7cec578b",
     "d-i/forky/hooks/target/usr/local/bin/labwc-network-scan-menu": "dbcbfd4c4534a2eed2a6f082c5eb069d0ac601aabcead44154aaa25933ae8209",
-    "d-i/forky/hooks/target/usr/local/bin/labwc-network-sharing": "687cb835d7c50023969537dd3dbf78ee04493754a95c6345ce65e63d036f3aae",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-network-sharing": "e59e95821220dc9a6fa7187ff5e2f7384e5450b1689671b3966ac71954cfd180",
     "d-i/forky/hooks/target/usr/local/bin/labwc-ocr": "c0e1e1a3c7d7a9e2763e34d936fe69529752fde8aa2eda1b1769a685728ebd09",
     "d-i/forky/hooks/target/usr/local/bin/labwc-podman-menu": "7d030bfba346ae78a7224262d4b61973941f2a2dd111a9c9600812319321bb9a",
     "d-i/forky/hooks/target/usr/local/bin/labwc-power-menu": "4ad254036c3aa181a332368b04c5c336a26c707dade67dc15ed8d707398ed142",
@@ -559358,7 +559359,7 @@
     "d-i/forky/hooks/target/usr/local/bin/labwc-window-switcher": "15ef81e50d8cd8877865fe2464fd2df11b12738dadd661c7c25ac4f3f33bac12",
     "d-i/forky/hooks/target/usr/local/bin/labwc-wlsunset": "e76312e671db2678ec46a9a444bc8742f0b2fbf6851d2d78ececae0d0f159ddd",
     "d-i/forky/hooks/target/usr/local/bin/mullvad-vpn": "de094054c7dfbe8d2f839796569277b696ababb27f79919c693212691a626ff6",
-    "d-i/forky/hooks/target/usr/local/bin/nfsmnt": "f6664a546d05faf56ce1b8faf68254d161e0c98446be119bdee32f4b335141b6",
+    "d-i/forky/hooks/target/usr/local/bin/nfsmnt": "040378be6b567658252185f74195f79f168aa38bcfea1f3f722b30764dc6e54f",
     "d-i/forky/hooks/target/usr/local/bin/nmtui": "1093fb018610cc3fe6c61a143a8b28fabd0cd6e99f92e8d72aa405d360604a04",
     "d-i/forky/hooks/target/usr/local/bin/podman": "d1f0e7f7177afa0bfca93f1998a609dc7b2d4d331ffb75b011bf72609c567c0f",
     "d-i/forky/hooks/target/usr/local/bin/satty": "58e12e422a2b3fd29db8617d59945f66f26d9190b78f5877f6dea03a1107584b",
@@ -559410,7 +559411,7 @@
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Runtime.pm": "d6aa2b91a41e530becdf30d4c81579ec48cf275573cb1071ceffd01852fef4a2",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Session.pm": "ba59f64409591b9b81a21b094fde707f2a881213af19a47e154479ce16d5a23c",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/filen/FilenSync/Config.pm": "afd6da02de985d75612d3d40348d2341e3122c3da97772c23e0f95c950b025e5",
-    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/filen/FilenSync/Daemon.pm": "3c0ae4d25ebff4b92a5f261643ca31f210521de87a97b6692e2de691a0cacccc",
+    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/filen/FilenSync/Daemon.pm": "c241d10e05cd79d8f83b2ad946e0e1c5571c737b2300a3d9a8c60d5f8a305c60",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/ADB/Backup.pm": "d88c527e0b4d584a584c2be10c95465762b3037fb991dd611304691e72288837",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/ADB/Device.pm": "d6fbbbe59628c892ba73795024d7e87074586913159be92bec2b06a7e052dfab",
     "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/ADB/Package.pm": "81410acbd2b9ba32ca25aa5809922b64c3ce445f442ace117893f8e2f995b343",
@@ -559690,7 +559691,7 @@
     "d-i/forky/hooks/target/usr/local/libexec/rsyslog-size-rotate.tmpl": "bc276cd12a5f202c60ad2c35c95b2fbbf31dff09a9962f6912b36e7f10693b68",
     "d-i/forky/hooks/target/usr/local/libexec/ssh-checks": "50e3092c7d117a602b51fd3a2f6e708094d0b65f203281c36e645e0439c27098",
     "d-i/forky/hooks/target/usr/local/libexec/syncthing-configure": "3b435a395f79c2b41aa8e37d8f731fb855bfcfb0e9352966d3a2e1d392834da6",
-    "d-i/forky/hooks/target/usr/local/libexec/tailscale-netkit": "c81f9488e7adbd8bfd5540b0d19720657c322ac03ef24e03df9c6eae19769582",
+    "d-i/forky/hooks/target/usr/local/libexec/tailscale-netkit": "3e29bb976eafb0002775c6372e0fe37402677903f699ff44671de77b70d69a55",
     "d-i/forky/hooks/target/usr/local/libexec/tailscale-ssh-host": "4ee2dd6dee1dc425b6fe34b13eaf889f7badad41e929e414ec015599ac480bcb",
     "d-i/forky/hooks/target/usr/local/libexec/timeshift-snapshot": "162316c49cfa3c959726d4c4e2077bbf93156faa13305fc07bf140047affef0b",
     "d-i/forky/hooks/target/usr/local/libexec/timeshift/notify-send": "0d34ed331e561132cb21844652b7b802690d878b5640f96839233840c95704f1",
@@ -559785,7 +559786,7 @@
     "d-i/forky/scripts/desktop/components/logging.sh.tmpl": "0f2b0de534b7f3e7cec8025cc7986f8b47f108cbe0126482e142885f35c98eec",
     "d-i/forky/scripts/desktop/components/services.sh": "24e6a991629199a30ef452ed0aac909d62223519c7339019477630385711dbd0",
     "d-i/forky/scripts/desktop/components/stage-assets.sh": "8c6dd2e44dc2739b9bb8d489f23782a49eff453e55a166e97a0b593f7dc3e6c0",
-    "d-i/forky/scripts/desktop/components/target-assets.sh": "975626ad982be3d724ee0d57243e32a347de2f6f8c27d74e65f1cdcd5818eb30",
+    "d-i/forky/scripts/desktop/components/target-assets.sh": "9be030feb3e2a939e95266143366a9666f35f05ebb5fbe23cf1f08f32b76da48",
     "d-i/forky/scripts/desktop/components/user-session.sh": "2549c17724a73fc5b3b5d5dfd9f87945b010dfd2c69245ac879de0d9dfe51bba",
     "d-i/forky/scripts/desktop/detect.sh.tmpl": "f098e2d51200260ad569951a0eb4f2075a2947e75435c5cb3d958eb96f90aa7a",
     "d-i/forky/scripts/desktop/filen.sh": "75d5204c92244a5649bc37a03d980a72d0057f64ff2c808da6db1b3726e7e7e3",

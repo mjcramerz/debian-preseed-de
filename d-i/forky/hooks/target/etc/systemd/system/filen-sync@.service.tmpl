@@ -51,5 +51,5 @@ SystemCallArchitectures=native
 LimitCORE=0
 TasksMax=256
 
-[Install]
-WantedBy=multi-user.target
+# Deliberately static: filenmnt starts/stops each configured account on request.
+# No boot target enables synchronization.

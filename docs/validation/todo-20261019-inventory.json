@@ -1,0 +1,392 @@
+{
+  "file_count": 52,
+  "bytes": 8826357,
+  "files": [
+    {
+      "path": "todo/.~",
+      "bytes": 212514,
+      "lines": 1617,
+      "sha256": "bb68928a2100b4c3378cca60b1e39403c06d380532374615d84ef7e542f8d900"
+    },
+    {
+      "path": "todo/filen",
+      "bytes": 231,
+      "lines": 2,
+      "sha256": "21ea9d0ce92c9a6e30906c7d50c1bbe940a23f355badf18a4db361fa33faefbe"
+    },
+    {
+      "path": "todo/journalctl",
+      "bytes": 181387,
+      "lines": 1452,
+      "sha256": "fa252ef3f8913ca38f84c9bbc007b2adfb7efccb96324badf9203c3971b5a33b"
+    },
+    {
+      "path": "todo/managed/apps/apps.log",
+      "bytes": 31272,
+      "lines": 214,
+      "sha256": "8b626df0812b865a9b3ac4bf418170387de4f01c2759a157ba453c40eb4f4981"
+    },
+    {
+      "path": "todo/managed/models/openai/chatgpt/chatgpt.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/models/openai/chatgpt/runtime/codex-login.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/models/openai/chatgpt/runtime/codex-tui.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/models/openai/codex/codex-login.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/models/openai/codex/codex-tui.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/models/whisper/whisper.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/network/veth.log",
+      "bytes": 420,
+      "lines": 2,
+      "sha256": "e745061394b05d70f4c12ad7444ffbf1cf05f91cb38fd1b1d57cd86f3d6b375c"
+    },
+    {
+      "path": "todo/managed/security/apparmor/apparmor.log",
+      "bytes": 76681,
+      "lines": 440,
+      "sha256": "d6107877056fb6f688c174eef977f85debb79c2e888adaaddb81d155ebe0b265"
+    },
+    {
+      "path": "todo/managed/security/apparmor/modes.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/security/audit/auditd.log",
+      "bytes": 1814000,
+      "lines": 11363,
+      "sha256": "88c6eef4daca1704e6ec077ba1926a32c733724ab6e6bf4eb60567b37f2e6b8f"
+    },
+    {
+      "path": "todo/managed/security/audit/auditd.log.1",
+      "bytes": 2097697,
+      "lines": 13203,
+      "sha256": "15dc4ac605b4e511a79114a08ebec7659dc0a62eee1037a48145004b29c94142"
+    },
+    {
+      "path": "todo/managed/security/audit/auditd.log.2",
+      "bytes": 2097263,
+      "lines": 13022,
+      "sha256": "ce686f28e7372b6b1eb20fefb504000935c4fb065d1afdedb066dd392c800743"
+    },
+    {
+      "path": "todo/managed/security/audit/auditd.log.3",
+      "bytes": 2097312,
+      "lines": 12428,
+      "sha256": "2d7bde7c98b9130f4b078af734acb63d24e898424da55509880fa0ced798ef0d"
+    },
+    {
+      "path": "todo/managed/security/auth/auth.log",
+      "bytes": 1762,
+      "lines": 16,
+      "sha256": "39f4b7ecdd284b91a74bc04763bd5d9665f6a203be9b711947f429b9d2522ede"
+    },
+    {
+      "path": "todo/managed/security/chkrootkit/chkrootkit.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/security/chkrootkit/daily.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/security/chkrootkit/daily.log.raw",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/security/chkrootkit/log.expected",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/security/clamav/clamav.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/security/clamav/freshclam.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/security/clamscan/clamscan.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/security/crowdsec/crowdsec-firewall-bouncer.log",
+      "bytes": 1742,
+      "lines": 18,
+      "sha256": "d5e55a72a39313b1e36125113cb3053067e981b4e1afaa46527c29f3d625bef5"
+    },
+    {
+      "path": "todo/managed/security/crowdsec/crowdsec.log",
+      "bytes": 47977,
+      "lines": 398,
+      "sha256": "c8c8d35e81125824578708a460507997a0e8971c78f40fd82ad9dedcf874934f"
+    },
+    {
+      "path": "todo/managed/security/crowdsec/crowdsec_api.log",
+      "bytes": 26063,
+      "lines": 91,
+      "sha256": "03aeaa7d2af862667331f511399581c957fae4b01bd02ecf4ca42a408a2cd054"
+    },
+    {
+      "path": "todo/managed/security/debsecan/debsecan.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/security/debsums/debsums.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/security/fail2ban/fail2ban.log",
+      "bytes": 1762,
+      "lines": 18,
+      "sha256": "00ad9da9ba0cff4e3820c25fa36be1ed6fa7a9ffffcdd02900a3fdbfddecad91"
+    },
+    {
+      "path": "todo/managed/security/lynis/lynis-report.dat",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/security/lynis/lynis.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/security/lynis/scan.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/security/nftables/nftables.log",
+      "bytes": 5121,
+      "lines": 26,
+      "sha256": "f9550742234dfbbfe0609dd231053f0b9b9417ea0918541b64542ccf86814a96"
+    },
+    {
+      "path": "todo/managed/security/rkhunter/rkhunter.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/security/rkhunter/scan.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/security/spectre-meltdown-checker/spectre-meltdown-checker.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/system/fwupd/security-scan.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/system/initramfs/01-init-top.log",
+      "bytes": 1901,
+      "lines": 49,
+      "sha256": "19feb2cd2140585aaced6df60a3b3faa534e8a5eaaa245155b9549bfb4f5f454"
+    },
+    {
+      "path": "todo/managed/system/initramfs/02-init-premount.log",
+      "bytes": 4909,
+      "lines": 53,
+      "sha256": "e9442a9b332bd535b8e3c5173b3bcbb3d51af2ed06ddd0d2a6761e4192db630e"
+    },
+    {
+      "path": "todo/managed/system/initramfs/03-local-top.log",
+      "bytes": 3856,
+      "lines": 55,
+      "sha256": "5cc8cdfc7d21ff0be5516d8837297ca9641166da1fe14b5c5f1f32b1640ae018"
+    },
+    {
+      "path": "todo/managed/system/initramfs/04-local-block.log",
+      "bytes": 126,
+      "lines": 5,
+      "sha256": "9cadb7eb727c4b470333b2b061662beaeadea83245a5c3d9269b1e6d62a41dc7"
+    },
+    {
+      "path": "todo/managed/system/initramfs/05-local-premount.log",
+      "bytes": 2009,
+      "lines": 25,
+      "sha256": "bc610398b25695e511e9a699d971ed34f6f1f893b1ef65ec5087a9656c5b3d14"
+    },
+    {
+      "path": "todo/managed/system/initramfs/06-local-bottom.log",
+      "bytes": 2232,
+      "lines": 33,
+      "sha256": "b04b3bc768ea8216b20a772db31ff27d1c65046e7018f3ab9f5905799edc4fb1"
+    },
+    {
+      "path": "todo/managed/system/initramfs/07-init-bottom.log",
+      "bytes": 4836,
+      "lines": 85,
+      "sha256": "d65bce1cafd3924625a05d105045d83e5eebb53433d2a48f5cb3bf6b07251adb"
+    },
+    {
+      "path": "todo/managed/system/kernel.log",
+      "bytes": 103196,
+      "lines": 931,
+      "sha256": "bc7c5f7b37ee769b33d8c29e9f728eb4c43e575ee23bb8f5d9c101c403133d7b"
+    },
+    {
+      "path": "todo/managed/system/storage/storage.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/system/system.log",
+      "bytes": 0,
+      "lines": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "todo/managed/system/timeshift/timeshift.log",
+      "bytes": 178,
+      "lines": 2,
+      "sha256": "94b63e7305463eb1d724356f45b964a26e3b5c5552171d2dc916b2aef2067325"
+    },
+    {
+      "path": "todo/managed/system/usb/usb.log",
+      "bytes": 9276,
+      "lines": 84,
+      "sha256": "2a46daf6ffb05d7bcabe9dde340767ab00c7e7832768ad6de042e557b7119dfa"
+    },
+    {
+      "path": "todo/managed/system/zram/zram.log",
+      "bytes": 634,
+      "lines": 2,
+      "sha256": "58fb0608e4bbaecd264442f8a559bf5a630fa057ba23c8952e05ab35f70ef952"
+    }
+  ],
+  "audit_failures": [
+    {
+      "executable": "/usr/bin/rm",
+      "raw_exit": "-2",
+      "syscall": "263",
+      "count": 100
+    },
+    {
+      "executable": "/usr/bin/thunar",
+      "raw_exit": "-2",
+      "syscall": "59",
+      "count": 18
+    },
+    {
+      "executable": "/usr/bin/foot",
+      "raw_exit": "-2",
+      "syscall": "59",
+      "count": 9
+    },
+    {
+      "executable": "/usr/bin/gtkgreet",
+      "raw_exit": "-2",
+      "syscall": "59",
+      "count": 9
+    },
+    {
+      "executable": "/usr/bin/labwc",
+      "raw_exit": "-2",
+      "syscall": "59",
+      "count": 6
+    },
+    {
+      "executable": "/usr/lib/systemd/systemd",
+      "raw_exit": "-39",
+      "syscall": "84",
+      "count": 5
+    },
+    {
+      "executable": "/usr/bin/mako",
+      "raw_exit": "-2",
+      "syscall": "59",
+      "count": 3
+    },
+    {
+      "executable": "/opt/vivaldi/vivaldi-bin",
+      "raw_exit": "-2",
+      "syscall": "59",
+      "count": 3
+    },
+    {
+      "executable": "/usr/bin/waybar",
+      "raw_exit": "-2",
+      "syscall": "59",
+      "count": 3
+    },
+    {
+      "executable": "/usr/bin/timeout",
+      "raw_exit": "-2",
+      "syscall": "59",
+      "count": 2
+    },
+    {
+      "executable": "/usr/bin/swaybg",
+      "raw_exit": "-2",
+      "syscall": "59",
+      "count": 2
+    },
+    {
+      "executable": "/usr/bin/systemctl",
+      "raw_exit": "-2",
+      "syscall": "59",
+      "count": 1
+    }
+  ]
+}
