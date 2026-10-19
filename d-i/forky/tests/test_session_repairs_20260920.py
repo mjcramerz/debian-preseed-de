@@ -21,9 +21,11 @@ from payload_fixture import installed_script
 from payload_fixture import read_text as payload_read_text
 from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
 import argparse
+import contextlib
 import ctypes.util
 import importlib.machinery
 import importlib.util
+import io
 import json
 import os
 import pwd
@@ -279,17 +281,29 @@ finally: state.close()
 class NotificationTests(unittest.TestCase):
     def args(self):
         return argparse.Namespace(urgency='critical',category='system.health',app_name='Health',icon='dialog-error',
-                                  summary='<title>',body='<body & data>',expire_time=0)
+                                  summary='<title>',body='<body & data>')
 
     def test_wire_signature_markup_and_details(self):
         argv = NOTIFY.command(self.args())
+        self.assertEqual(argv[:5], [NOTIFY.BUSCTL, '--user', '--timeout=5s', '--', 'call'])
         self.assertIn('susssasa{sv}i',argv)
         self.assertIn('&lt;title&gt;',argv)
         body = next(x for x in argv if '&lt;body &amp; data&gt;' in x)
         self.assertRegex(body,r'\d{4}-\d\d-\d\d \d\d:\d\d:\d\d')
         self.assertIn('system.health',body)
-        self.assertEqual(argv[-1],'0')
+        self.assertEqual(argv[-1],'-1')  # Required wire field: server chooses expiry.
         self.assertNotIn('--wait',argv)
+
+    def test_cli_rejects_sender_expiry_before_delivery(self):
+        for option in ('-t', '--expire-time'):
+            with self.subTest(option=option), \
+                    mock.patch.object(NOTIFY.sys, 'argv', ['labwc-notification-send', option, '0', 'Fixture']), \
+                    mock.patch.object(NOTIFY, 'deliver') as deliver, \
+                    contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as result:
+                    NOTIFY.main()
+                self.assertEqual(result.exception.code, 2)
+                deliver.assert_not_called()
 
     def test_rejects_invalid_category_and_nul(self):
         args=self.args();args.category='invalid\ncategory'

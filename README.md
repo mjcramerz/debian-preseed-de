@@ -23,6 +23,15 @@ The [2026-09-24 logging repair](docs/validation/history/LOGGING-REPAIR-20260924.
 shared tmpfiles prerequisite fix, unified `apps.log`, 2 MiB writer-driven rotation,
 and current validation limits. It supersedes older logging descriptions.
 
+Authentication records stay under `/var/log/managed/security/auth/`:
+`auth.log` contains records with attested origin and remains the CrowdSec and
+Fail2Ban input. Records without accepted origin metadata (including a missing
+executable identity on a non-root sender) are retained in `unverified.log` with
+an explicit diagnostic marker. They cannot trigger authentication notification
+signals or automated remediation. Both files are root-owned, mode `0640`, and
+use the existing 2 MiB writer-driven rotation. `apps.log` receives only the
+private application-output socket; authentication fallback never writes there.
+
 The current [security repair and operating gates](docs/security-hardening.md)
 cover A01-A09, rsyslog tmpfs, and the installer module/loading contract. Run `python3 -B tools/build.py`
 after editing sources. Run `make check` before publishing, inside the
@@ -283,8 +292,22 @@ acceptance requirements.
 
 Mako starts after a five-second wait in its session-bound user service. The wait
 also applies to D-Bus activation; notification producers ordered after Mako wait
-for the daemon to acquire its notification bus name. Later notifications use
-the existing delivery and timeout settings. The canonical activation file now
+for the daemon to acquire its notification bus name. Notification expiry is
+enforced by Mako: low urgency (routine) lasts 5 seconds, normal urgency (the
+middle warning level) lasts 10 seconds, and critical urgency lasts 15 seconds.
+Application expiry requests, including requests to stay indefinitely, do not
+override these durations. Repository-owned senders delegate popup expiry to
+Mako: notification helpers expose no expiry option, new queued events contain
+no expiry field, and the required D-Bus expiry argument is -1 (server default).
+Pending records in the old queue format are still delivered, with their obsolete
+expiry field ignored. Tomat has no managed notification timeout setting; Mako
+also ignores the native package's built-in default.
+Right-clicking Waybar's notification button enables
+Do Not Disturb and then dismisses all active notifications, preserving history
+where the existing notification policy permits it. Repeated right-clicks keep
+Do Not Disturb enabled; middle-click still toggles it, and the left-click menu
+provides the notification center and explicit DND controls.
+The canonical activation file
 selects `SystemdService=mako.service`; the package refresh helper preserves that
 selection. Login and D-Bus activation share the same service owner.
 

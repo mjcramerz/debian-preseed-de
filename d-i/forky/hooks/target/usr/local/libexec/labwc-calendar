@@ -60,7 +60,6 @@ notify_calendar() {
     -u "$urgency" \
     -i x-office-calendar \
     -c x-labwc.calendar \
-    -t 10000 \
     "$summary" \
     "$body" >/dev/null 2>&1 || true
 }

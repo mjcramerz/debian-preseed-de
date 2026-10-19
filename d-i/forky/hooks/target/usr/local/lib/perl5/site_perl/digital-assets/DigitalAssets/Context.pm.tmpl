@@ -291,7 +291,7 @@ sub notify_result {
     # A notification server must not hold the completed foreground task open.
     # Non-zero/timeout status is best effort; supervisor failures remain visible.
     capture_command(argv => [$notify, '-a', 'Digital Assets', '-u', 'normal',
-        '-i', '__THEME_MAKO_DIGITAL_ASSETS_SAVE_ICON_NAME__', '-c', 'x-labwc.maintenance', '-t', '10000',
+        '-i', '__THEME_MAKO_DIGITAL_ASSETS_SAVE_ICON_NAME__', '-c', 'x-labwc.maintenance',
         '--', $summary, $body], timeout => 5, limit => 65_536);
 }
 

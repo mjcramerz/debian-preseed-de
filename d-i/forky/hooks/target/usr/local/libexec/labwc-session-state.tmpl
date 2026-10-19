@@ -40,7 +40,7 @@ def ctl(*args: str, **kwargs) -> str:
 def notify(message: str, *, timeout: float = 5) -> None:
     try:
         run(["/usr/bin/notify-send", "--app-name=Desktop Power", "--urgency=critical",
-             "--expire-time=0", "--", "Desktop session", message], timeout=timeout)
+             "--", "Desktop session", message], timeout=timeout)
     except (Error, OSError, subprocess.SubprocessError):
         pass
 

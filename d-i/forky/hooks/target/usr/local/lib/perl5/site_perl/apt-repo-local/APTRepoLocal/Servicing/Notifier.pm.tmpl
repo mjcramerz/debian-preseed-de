@@ -47,10 +47,10 @@ my %FAILURE_BODY = (
 has event_dir => (is => 'ro', default => sub { '/var/lib/software/events' });
 
 sub _notify {
-    my ($self, $urgency, $icon, $timeout, $summary, $body) = @_;
+    my ($self, $urgency, $icon, $summary, $body) = @_;
     system(
         '/usr/bin/timeout', '--kill-after=1s', '3s', '/usr/bin/notify-send', '-a', 'Software Updater', '-u', $urgency,
-        '-i', $icon, '-c', 'system.software-update', '-t', $timeout,
+        '-i', $icon, '-c', 'system.software-update',
         q{--}, $summary, $body,
     ) == 0 or die "notify-send failed\n";
 }
@@ -59,30 +59,30 @@ sub _deliver {
     my ($self, $status, $app, $a, $b) = @_;
     exists $APP_LABEL{$app} or die "unknown managed application event\n";
     if ($status eq 'checking') {
-        return $self->_notify('normal', '__THEME_MAKO_EXTERNAL_SOFTWARE_UPDATE_AVAILABLE_ICON_NAME__', 8000, 'Checking managed software updates',
+        return $self->_notify('normal', '__THEME_MAKO_EXTERNAL_SOFTWARE_UPDATE_AVAILABLE_ICON_NAME__', 'Checking managed software updates',
             'Bitwarden, ChatGPT/Codex Desktop, Obsidian, Zoom, Filen, Discord, Sleek, Postman, Ledger, and Tuta Mail are being checked; QoreDB remains checksum-pinned for local repair.');
     }
     if ($status eq 'downloading' || $status eq 'downloaded') {
-        return $self->_notify('normal', '__THEME_MAKO_EXTERNAL_SOFTWARE_UPDATE_AVAILABLE_ICON_NAME__', 10000,
+        return $self->_notify('normal', '__THEME_MAKO_EXTERNAL_SOFTWARE_UPDATE_AVAILABLE_ICON_NAME__',
             $status eq 'downloaded' ? "$APP_LABEL{$app} download ready" : "Downloading $APP_LABEL{$app}",
             "$a -> $b");
     }
     if ($status eq 'updated' || $status eq 'applying') {
-        return $self->_notify('normal', '__THEME_MAKO_EXTERNAL_SOFTWARE_UPDATE_URGENT_ICON_NAME__', 10000,
+        return $self->_notify('normal', '__THEME_MAKO_EXTERNAL_SOFTWARE_UPDATE_URGENT_ICON_NAME__',
             $status eq 'updated' ? "$APP_LABEL{$app} updated" : "Applying $APP_LABEL{$app}", "$a -> $b");
     }
     if ($status eq 'failed') {
         exists $FAILURE_BODY{$a} or die "unknown managed application failure reason\n";
-        return $self->_notify('critical', '__THEME_MAKO_EXTERNAL_SOFTWARE_ERROR_ICON_NAME__', 0, "$APP_LABEL{$app} update failed", $FAILURE_BODY{$a});
+        return $self->_notify('critical', '__THEME_MAKO_EXTERNAL_SOFTWARE_ERROR_ICON_NAME__', "$APP_LABEL{$app} update failed", $FAILURE_BODY{$a});
     }
     if ($status eq 'download-complete') {
-        return $self->_notify('normal', '__THEME_MAKO_EXTERNAL_SOFTWARE_UPDATE_AVAILABLE_ICON_NAME__', 12000, 'Managed software download complete', "$a ready; $b failed.");
+        return $self->_notify('normal', '__THEME_MAKO_EXTERNAL_SOFTWARE_UPDATE_AVAILABLE_ICON_NAME__', 'Managed software download complete', "$a ready; $b failed.");
     }
     if ($status eq 'apply-complete') {
-        return $self->_notify('normal', '__THEME_MAKO_EXTERNAL_SOFTWARE_UPDATE_URGENT_ICON_NAME__', 12000, 'Managed software update complete', "$a updated; $b failed.");
+        return $self->_notify('normal', '__THEME_MAKO_EXTERNAL_SOFTWARE_UPDATE_URGENT_ICON_NAME__', 'Managed software update complete', "$a updated; $b failed.");
     }
     if ($status eq 'no-updates') {
-        return $self->_notify('normal', '__THEME_MAKO_EXTERNAL_SOFTWARE_UPDATE_AVAILABLE_ICON_NAME__', 8000, 'Managed software is current', 'No updates were available.');
+        return $self->_notify('normal', '__THEME_MAKO_EXTERNAL_SOFTWARE_UPDATE_AVAILABLE_ICON_NAME__', 'Managed software is current', 'No updates were available.');
     }
     die "unknown managed application event status\n";
 }

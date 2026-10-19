@@ -20,13 +20,11 @@ notify_action_result() {
   if [ "$action_status" -eq 0 ]; then
     urgency=normal
     icon=__THEME_MAKO_RECOVERY_INFORMATION_ICON_NAME__
-    timeout_ms=10000
     summary="Recovery action completed"
     body="The ${action_name} action completed successfully."
   else
     urgency=critical
     icon=__THEME_MAKO_RECOVERY_ERROR_ICON_NAME__
-    timeout_ms=0
     summary="Recovery action failed"
     body="The ${action_name} action failed with status ${action_status}."
   fi
@@ -36,7 +34,6 @@ notify_action_result() {
     -u "$urgency" \
     -i "$icon" \
     -c x-labwc.maintenance \
-    -t "$timeout_ms" \
     "$summary" \
     "$body" >/dev/null 2>&1 || true
 }

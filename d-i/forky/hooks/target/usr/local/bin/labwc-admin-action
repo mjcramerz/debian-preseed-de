@@ -13,7 +13,6 @@ notify_failure() {
     -u critical \
     -i system-shutdown \
     -c x-labwc.power \
-    -t 0 \
     "Power request failed" \
     "$notification_message" >/dev/null 2>&1 || true
 }

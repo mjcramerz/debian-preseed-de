@@ -184,7 +184,7 @@ def command(argv: list[str], timeout: int = 25) -> None:
 def notify(summary: str, body: str, critical: bool = False) -> None:
     command(['/usr/local/libexec/labwc-notification-send', '--app-name', 'Labwc Idle',
              '--category', 'desktop.idle', '--urgency', 'critical' if critical else 'normal',
-             '--expire-time', '6000', summary, body], timeout=15)
+             '--', summary, body], timeout=15)
 
 
 def toggle(directory: int, policy: dict) -> None:

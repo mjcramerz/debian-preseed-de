@@ -219,6 +219,29 @@ class SizeRotationTests(unittest.TestCase):
 
 
 class LoggingWiringTests(unittest.TestCase):
+    def test_only_private_app_ruleset_writes_application_log(self):
+        writers = []
+        for path in (TARGET / 'etc/rsyslog.d').glob('*.conf*'):
+            for action in re.findall(r'action\([^)]*\)', logging_text(path.read_text())):
+                if 'type="omfile"' in action and f'file="{APP}"' in action:
+                    writers.append(path.name)
+        self.assertEqual(writers, ['21-apps.conf.tmpl'])
+
+    def test_unverified_auth_has_a_protected_separate_sink_and_no_security_consumer(self):
+        unverified = '/var/log/managed/security/auth/unverified.log'
+        auth = read_text(TARGET / 'etc/rsyslog.d/20-auth.conf')
+        self.assertEqual(re.findall(r'\bfile="([^"]+)"', auth), [
+            unverified, '/var/log/managed/security/auth/auth.log',
+            '/var/lib/labwc-notifications/security/auth.signal'])
+        self.assertIn('f ' + unverified + ' 0640 root adm - -',
+                      read_text(TARGET / 'etc/tmpfiles.d/59-log-layout.conf'))
+        self.assertIn(unverified, rotation.OUTPUTS)
+        for relative in ('etc/crowdsec/acquis.d/20-sshd.yaml', 'etc/fail2ban/jail.d/10-sshd.local'):
+            consumer = read_text(TARGET / relative)
+            self.assertIn('/var/log/managed/security/auth/auth.log', consumer)
+            self.assertNotIn(unverified, consumer)
+            self.assertNotIn('/auth/*', consumer)
+
     def test_each_omfile_action_has_one_allowlisted_size_callback(self):
         found = set()
         for path in (TARGET / 'etc/rsyslog.d').glob('*.conf*'):
@@ -377,6 +400,121 @@ if stage_target_logging_foundation; then exit 0; else exit $?; fi
             self.assertIn('log_file=$LOG_SYSTEM_SERVICES_FILE', text)
             self.assertNotIn('LOG_NETWORK_FILE', text)
             self.assertNotIn('LOG_CROWDSEC_SERVICE_FILE', text)
+
+
+@unittest.skipUnless(os.geteuid() == 0 and shutil.which('rsyslogd', path='/usr/sbin:/usr/bin:/sbin:/bin'),
+                     'packaged rsyslogd and namespace root required')
+class AuthenticationRoutingTests(unittest.TestCase):
+    """Native rules, synthetic origin metadata; disposable image execution only."""
+
+    def test_missing_identity_is_retained_without_app_or_security_input_contamination(self):
+        with tempfile.TemporaryDirectory(prefix='auth-routing-') as temporary:
+            root = Path(temporary)
+            paths = {name: root / 'logs/security/auth' / name for name in ('auth.log', 'unverified.log')}
+            paths['apps.log'] = root / 'logs/apps/apps.log'
+            paths['signal'] = root / 'signals/auth.signal'
+            for path in paths.values():
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.touch(mode=0o640)
+            spool = root / 'spool'
+            spool.mkdir()
+            callback = root / 'unexpected-rotation'
+            callback.write_text('#!/bin/sh\nexit 97\n')
+            callback.chmod(0o700)
+            group = grp.getgrgid(os.getgid()).gr_name
+
+            def private(text):
+                return (text.replace('/var/log/managed', str(root / 'logs'))
+                        .replace('/var/lib/labwc-notifications/security/auth.signal', str(paths['signal']))
+                        .replace('/usr/local/libexec/rsyslog-size-rotate', str(callback))
+                        .replace('fileGroup="adm"', f'fileGroup="{group}"')
+                        .replace('fileGroup="logreader"', f'fileGroup="{group}"')
+                        .replace('dirGroup="logreader"', f'dirGroup="{group}"'))
+
+            auth = private(read_text(TARGET / 'etc/rsyslog.d/20-auth.conf'))
+            declarations, auth_rule = auth.split('\nif (', 1)
+            app_policy = private(read_text(TARGET / 'etc/rsyslog.d/21-apps.conf'))
+            boundary = app_policy.index('\n# No call from the journal-forwarding ruleset:')
+            apps, journal_stop = app_policy[:boundary], app_policy[boundary:]
+            # Only origin metadata is simulated. This never invokes sudo, PAM,
+            # a journal, a real security engine or an installed managed helper.
+            origin = '''set $!uid = "1000";
+set $!pid = "123";
+unset $!exe;
+if ($programname == "fixture-sudo") then { set $!exe = "/usr/bin/sudo"; }
+if ($programname == "fixture-root") then { set $!uid = "0"; }
+if ($programname == "fixture-logger") then { set $!exe = "/usr/bin/logger"; }
+if ($programname == "fixture-missing-uid") then { unset $!uid; }
+'''
+            auth_socket, app_socket = root / 'auth.sock', root / 'app.sock'
+            configuration = (f'global(workDirectory="{spool}")\n'
+                f'$FileOwner root\n$FileGroup {group}\n$FileCreateMode 0640\n'
+                'module(load="imuxsock" SysSock.Use="off")\n' + declarations + '\n' + apps + '\n'
+                'ruleset(name="fixture_auth") {\n' + origin + '\nif (' + auth_rule + '\n'
+                + journal_stop + '\n}\n'
+                'ruleset(name="fixture_app") {\nset $!uid = "1000";\ncall managed_application_output\n}\n'
+                f'input(type="imuxsock" Socket="{auth_socket}" CreatePath="off" Ruleset="fixture_auth" RateLimit.Interval="0")\n'
+                f'input(type="imuxsock" Socket="{app_socket}" CreatePath="off" Ruleset="fixture_app" RateLimit.Interval="0")\n')
+            self.assertNotIn('/var/log/managed', configuration)
+            self.assertNotIn('/var/lib/labwc-notifications', configuration)
+            self.assertNotIn('/usr/local/', configuration)
+            config = root / 'rsyslog.conf'
+            config.write_text(configuration)
+            records = [
+                ('sudo', 86, 'report-command COMMAND=/usr/bin/journalctl', 'unverified.log'),
+                ('sudo', 86, 'report-open pam_unix(sudo:session): session opened', 'unverified.log'),
+                ('sudo', 86, 'report-close pam_unix(sudo:session): session closed', 'unverified.log'),
+                ('sudo', 83, 'rejected-sudo-failure authentication failure', 'unverified.log'),
+                ('fixture-logger', 38, 'forged-failure Failed password', 'unverified.log'),
+                ('fixture-missing-uid', 38, 'missing-uid authentication failure', 'unverified.log'),
+                ('fixture-sudo', 86, 'verified-command COMMAND=/usr/bin/journalctl', 'auth.log'),
+                ('fixture-sudo', 38, 'accepted-sudo-failure authentication failure', 'auth.log'),
+                ('fixture-root', 86, 'root-failure Failed password', 'auth.log'),
+            ]
+            with (root / 'stderr').open('w+') as diagnostics:
+                process = subprocess.Popen([
+                    shutil.which('rsyslogd', path='/usr/sbin:/usr/bin:/sbin:/bin'),
+                    '-n', '-i', str(root / 'pid'), '-f', str(config)], cwd=root,
+                    env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'HOME': str(root), 'LC_ALL': 'C'},
+                    stdin=subprocess.DEVNULL, stdout=diagnostics, stderr=diagnostics)
+
+                def wait_for(predicate):
+                    deadline = time.monotonic() + 10
+                    while time.monotonic() < deadline and process.poll() is None:
+                        if predicate():
+                            return
+                        time.sleep(0.025)
+                    diagnostics.flush()
+                    diagnostics.seek(0)
+                    self.fail('private rsyslog did not reach expected state: ' + diagnostics.read(16384))
+
+                try:
+                    wait_for(lambda: auth_socket.exists() and app_socket.exists())
+                    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sender:
+                        for program, priority, message, _destination in records:
+                            sender.sendto(f'<{priority}>{program}[123]: {message}'.encode(), str(auth_socket))
+                        sender.sendto(b'<86>sudo[123]: private-app authentication failure', str(app_socket))
+                    wait_for(lambda: all(message in paths[destination].read_text()
+                                         for _program, _priority, message, destination in records)
+                             and 'private-app' in paths['apps.log'].read_text())
+                finally:
+                    if process.poll() is None:
+                        process.terminate()
+                        try:
+                            process.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                            process.wait(timeout=5)
+            for program, _priority, message, destination in records:
+                for name in ('auth.log', 'unverified.log', 'apps.log'):
+                    self.assertEqual(message in paths[name].read_text(), name == destination,
+                                     (program, message, name))
+            unverified = paths['unverified.log'].read_text().splitlines()
+            self.assertEqual(len(unverified), 6)
+            self.assertTrue(all('origin=unverified-auth' in line for line in unverified))
+            self.assertNotIn('origin=unverified-auth', paths['auth.log'].read_text())
+            self.assertEqual(paths['signal'].read_text(), 'auth\nauth\n')
+            self.assertEqual(len(paths['apps.log'].read_text().splitlines()), 1)
 
 
 def exercise_native_rsyslog(case: unittest.TestCase) -> None:

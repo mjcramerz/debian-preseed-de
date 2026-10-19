@@ -165,18 +165,18 @@ class NativeMenuHoverTests(unittest.TestCase):
                     argv = shlex.split(bar['pulseaudio']['menu-actions'][key])
                     self.assertEqual(argv[argv.index('--') + 1:], args)
 
-    def test_notifications_center_label_menu_and_secondary_click_match(self):
+    def test_notifications_center_menu_and_secondary_click_dnd_dismiss(self):
         xml = ET.parse(payload_source_path(SKEL / 'waybar/notifications-menu.xml'))
         item = xml.find('.//object[@id="notifications_center"]')
         self.assertEqual(item.findtext('./child/object[@class="GtkBox"]/child/object[@class="GtkLabel"]/property[@name="label"]'), 'Open notifications center')
         for bars in self.profiles.values():
             for bar in bars:
                 entry = bar['custom/notifications']
-                commands = [entry['menu-actions']['notifications_center'], entry['on-click-right']]
-                for command in commands:
+                for command, action in ((entry['menu-actions']['notifications_center'], 'center'),
+                                        (entry['on-click-right'], 'dnd-dismiss')):
                     argv = shlex.split(command)
                     self.assertEqual(argv[argv.index('--') + 1:],
-                                     ['/usr/local/libexec/labwc-notifications', 'center'])
+                                     ['/usr/local/libexec/labwc-notifications', action])
 
     def test_native_gtk_amber_tint_keyboard_submenus_disabled_and_callbacks(self):
         if not shutil.which('xvfb-run') or not ctypes.util.find_library('gtk-3'):

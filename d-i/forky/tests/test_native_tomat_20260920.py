@@ -149,11 +149,12 @@ class TomatControllerTests(unittest.TestCase):
         self.assertEqual(data['timer'], dict(work=45.0, long_break=15.0, sessions=3, auto_advance='to-break', **{'break': 5.0}))
         self.assertEqual(set(data['hooks']), {'on_break_start', 'on_long_break_start'})
         self.assertEqual(data['hooks']['on_break_start']['timeout'], 3)
+        self.assertNotIn('timeout', data['notification'])
 
     def test_reject_invalid_types_limits_keys_and_hook_authority(self):
         for old, new in [('work = 45.0', 'work = nan'), ('work = 45.0', 'work = true'),
                          ('work = 45.0', 'work = 601'), ('sessions = 3', 'sessions = 0'),
-                         ('volume = 0.3', 'volume = 2.0'), ('timeout = 8000', 'timeout = -1'),
+                         ('volume = 0.3', 'volume = 2.0'),
                          ('timeout = 3', 'timeout = 0'), ('capture_output = true', 'capture_output = false'),
                          ('text_format = "{icon} {time}"', 'text_format = 7'),
                          ('cmd = "/usr/local/libexec/labwc-tomat-hook"', 'cmd = "/bin/sh"'),
@@ -165,6 +166,12 @@ class TomatControllerTests(unittest.TestCase):
             self.mod.validate_config(self.text + '\ncwd = "/tmp"\n')
         with self.assertRaises(self.mod.Error):
             self.mod.validate_config(' ' * (self.mod.MAX_CONFIG + 1))
+
+    def test_notification_expiry_belongs_to_mako(self):
+        for timeout in (-1, 0, 5000, 8000):
+            text = self.text.replace('[notification]', '[notification]\ntimeout = ' + str(timeout))
+            with self.subTest(timeout=timeout), self.assertRaises(self.mod.Error):
+                self.mod.validate_config(text)
 
     def test_toggles_preserve_unrelated_config_and_comments(self):
         for setting, section, key, changed in [('notifications', 'notification', 'enabled', False), ('sounds', 'sound', 'mode', 'none')]:

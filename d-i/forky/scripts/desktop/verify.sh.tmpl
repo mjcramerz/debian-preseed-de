@@ -2171,6 +2171,7 @@ desktop_verify_native_menus() {
   # Parse installed files, without launching a daemon or requiring a display.
   # shellcheck disable=SC2016
   run_in_target "verify native Waybar menus and Tomat integration" /usr/bin/python3 -I -B -c '
+import configparser
 import json
 import os
 from pathlib import Path
@@ -2212,6 +2213,21 @@ account = pwd.getpwnam(sys.argv[2])
 require(account.pw_uid != 0 and account.pw_dir == sys.argv[1], "menu account/home mismatch")
 for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw_uid)):
     config = base / ".config"
+    mako_policy = configparser.ConfigParser(interpolation=None)
+    mako_policy.read_string("[global]\n" + (config / "mako/config").read_text())
+    require(mako_policy.get("global", "ignore-timeout", fallback="") == "1"
+            and mako_policy.get("global", "default-timeout", fallback="") == "5000",
+            "Mako must enforce managed expiry instead of application timeouts")
+    for urgency, timeout in (("low", "5000"), ("normal", "10000"), ("critical", "15000")):
+        require(mako_policy.get("urgency=" + urgency, "default-timeout", fallback="") == timeout,
+                "wrong Mako expiry for " + urgency + " urgency")
+    for section in mako_policy.sections():
+        if section != "global":
+            require(not mako_policy.has_option(section, "ignore-timeout"),
+                    "Mako criteria must not override managed expiry: " + section)
+            if not section.startswith("urgency="):
+                require(not mako_policy.has_option(section, "default-timeout"),
+                        "Mako criteria must not override urgency expiry: " + section)
     toml = config / "tomat/config.toml"
     info = toml.lstat()
     require(stat.S_ISREG(info.st_mode) and info.st_uid == uid and stat.S_IMODE(info.st_mode) == 0o600,
@@ -2239,7 +2255,7 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
             require(entry.get("menu") == event and event not in entry
                     and event + "-release" not in entry
                     and event not in entry.get("actions", {}), "native menu event conflict: " + name)
-            if name in ("tomat", "audio", "calendar"):
+            if name in ("tomat", "audio", "calendar", "notifications"):
                 click = shlex.split(entry.get("on-click-right", ""))
                 require(click and click[0] == "/usr/bin/systemd-run" and "--" in click,
                         "missing scoped secondary click: " + name)
@@ -2254,7 +2270,8 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
                         and "__INSTALLER_" not in entry["on-click-right"],
                         "unscoped secondary click: " + name)
                 expected_click = {"tomat": ["/usr/local/libexec/labwc-tomat", "toggle"],
-                                  "calendar": ["labwc-calendar"]}.get(name)
+                                  "calendar": ["labwc-calendar"],
+                                  "notifications": ["/usr/local/libexec/labwc-notifications", "dnd-dismiss"]}.get(name)
                 if name == "audio":
                     open_action = shlex.split(entry["menu-actions"]["audio_open"])
                     expected_click = open_action[open_action.index("--") + 1:]

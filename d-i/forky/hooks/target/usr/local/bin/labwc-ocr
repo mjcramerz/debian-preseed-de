@@ -33,7 +33,6 @@ notify_ocr() {
     -u "$urgency" \
     -i scanner \
     -c x-labwc.maintenance \
-    -t 10000 \
     "$summary" \
     "$body" >/dev/null 2>&1 || true
 }

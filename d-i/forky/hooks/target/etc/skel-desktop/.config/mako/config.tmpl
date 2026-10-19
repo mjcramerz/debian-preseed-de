@@ -20,8 +20,9 @@ max-visible=5
 group-by=summary,app-name,urgency
 sort=-time
 format=<b>%s</b>\n%b\n<small>%a</small>
-default-timeout=8000
-ignore-timeout=0
+# Enforce the urgency policy even when an application asks to stay indefinitely.
+default-timeout=5000
+ignore-timeout=1
 background-color=__THEME_MAKO_BACKGROUND_COLOR__
 text-color=__THEME_MAKO_TEXT_COLOR__
 border-color=__THEME_MAKO_BORDER_COLOR__
@@ -51,17 +52,17 @@ history=0
 [urgency=normal]
 background-color=__THEME_MAKO_URGENCY_NORMAL_BACKGROUND_COLOR__
 border-color=__THEME_MAKO_URGENCY_NORMAL_BORDER_COLOR__
-default-timeout=12000
+# Mako calls the middle (warning) urgency level "normal".
+default-timeout=10000
 
 [urgency=critical]
 background-color=__THEME_MAKO_URGENCY_CRITICAL_BACKGROUND_COLOR__
 text-color=__THEME_MAKO_URGENCY_CRITICAL_TEXT_COLOR__
 border-color=__THEME_MAKO_URGENCY_CRITICAL_BORDER_COLOR__
 progress-color=__THEME_MAKO_URGENCY_CRITICAL_PROGRESS_COLOR__
-default-timeout=0
+default-timeout=15000
 
 [app-name="Desktop Health"]
-default-timeout=12000
 border-color=__THEME_MAKO_DESKTOP_HEALTH_BORDER_COLOR__
 
 [app-name="Desktop Health" category=email.arrived]

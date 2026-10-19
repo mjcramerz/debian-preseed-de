@@ -230,19 +230,18 @@ send_notification() {
   urgency=$2
   icon=$3
   category=$4
-  timeout_ms=$5
-  summary=$6
-  body=$7
+  summary=$5
+  body=$6
   notification_state_file="${STATE_DIR}/${key}.state"
-  notification_payload=$(printf '%s\n%s\n%s\n%s\n%s\n%s\n' "$urgency" "$icon" "$category" "$timeout_ms" "$summary" "$body")
+  notification_payload=$(printf '%s\n%s\n%s\n%s\n%s\n' "$urgency" "$icon" "$category" "$summary" "$body")
   previous_notification_payload=$(read_state "$notification_state_file")
 
   [ "$previous_notification_payload" = "$notification_payload" ] && return 0
 
   if [ -n "$category" ]; then
-    notify -a "$APP_NAME" -u "$urgency" -i "$icon" -c "$category" -t "$timeout_ms" -- "$summary" "$body" || return 1
+    notify -a "$APP_NAME" -u "$urgency" -i "$icon" -c "$category" -- "$summary" "$body" || return 1
   else
-    notify -a "$APP_NAME" -u "$urgency" -i "$icon" -t "$timeout_ms" -- "$summary" "$body" || return 1
+    notify -a "$APP_NAME" -u "$urgency" -i "$icon" -- "$summary" "$body" || return 1
   fi
 
   printf '%s' "$notification_payload" | atomic_state "$notification_state_file" || return 1
@@ -256,7 +255,7 @@ clear_notification_state() {
 
   [ -s "$notification_state_file" ] || return 0
   if [ -n "$summary" ]; then
-    notify -a "$APP_NAME" -u normal -i __THEME_MAKO_DESKTOP_HEALTH_INFORMATION_ICON_NAME__ -t 8000 -- "$summary" "$body" || return 1
+    notify -a "$APP_NAME" -u normal -i __THEME_MAKO_DESKTOP_HEALTH_INFORMATION_ICON_NAME__ -- "$summary" "$body" || return 1
   fi
   rm -f -- "$notification_state_file"
 }
@@ -293,7 +292,7 @@ check_disk_usage() {
 
   if [ "$usage_percent" -ge "$critical_percent" ]; then
     send_notification \
-      "$key" critical __THEME_MAKO_DESKTOP_HEALTH_ERROR_ICON_NAME__ device.error 0 \
+      "$key" critical __THEME_MAKO_DESKTOP_HEALTH_ERROR_ICON_NAME__ device.error \
       "Critical disk pressure on ${mount_point}" \
       "${mount_point} is ${usage_percent}% used with ${available_gib} GiB free." || return 1
     return 0
@@ -301,7 +300,7 @@ check_disk_usage() {
 
   if [ "$usage_percent" -ge "$warn_percent" ]; then
     send_notification \
-      "$key" normal __THEME_MAKO_DESKTOP_HEALTH_WARNING_ICON_NAME__ device.error 12000 \
+      "$key" normal __THEME_MAKO_DESKTOP_HEALTH_WARNING_ICON_NAME__ device.error \
       "Disk pressure warning on ${mount_point}" \
       "${mount_point} is ${usage_percent}% used with ${available_gib} GiB free." || return 1
     return 0
@@ -331,7 +330,7 @@ check_temperature() {
 
   if [ "$max_temp_c" -ge 85 ]; then
     send_notification \
-      thermal critical __THEME_MAKO_DESKTOP_HEALTH_ERROR_ICON_NAME__ device.error 0 \
+      thermal critical __THEME_MAKO_DESKTOP_HEALTH_ERROR_ICON_NAME__ device.error \
       "Critical system temperature" \
       "The hottest thermal zone is reporting ${max_temp_c}C." || return 1
     return 0
@@ -339,7 +338,7 @@ check_temperature() {
 
   if [ "$max_temp_c" -ge 75 ]; then
     send_notification \
-      thermal normal __THEME_MAKO_DESKTOP_HEALTH_WARNING_ICON_NAME__ device.error 12000 \
+      thermal normal __THEME_MAKO_DESKTOP_HEALTH_WARNING_ICON_NAME__ device.error \
       "High system temperature" \
       "The hottest thermal zone is reporting ${max_temp_c}C." || return 1
     return 0
@@ -379,7 +378,7 @@ check_memory_pressure() {
 
   if [ "$available_percent" -le 5 ]; then
     send_notification \
-      memory critical __THEME_MAKO_DESKTOP_HEALTH_ERROR_ICON_NAME__ system.memory 0 \
+      memory critical __THEME_MAKO_DESKTOP_HEALTH_ERROR_ICON_NAME__ system.memory \
       "Critical memory pressure" \
       "Only ${available_mib} MiB (${available_percent}%) of memory is available." || return 1
     return 0
@@ -387,7 +386,7 @@ check_memory_pressure() {
 
   if [ "$available_percent" -le 10 ]; then
     send_notification \
-      memory normal __THEME_MAKO_DESKTOP_HEALTH_WARNING_ICON_NAME__ system.memory 12000 \
+      memory normal __THEME_MAKO_DESKTOP_HEALTH_WARNING_ICON_NAME__ system.memory \
       "High memory pressure" \
       "Only ${available_mib} MiB (${available_percent}%) of memory is available." || return 1
     return 0
@@ -428,7 +427,7 @@ check_battery() {
 
   if [ "$minimum_discharging_capacity" -le 10 ]; then
     send_notification \
-      battery critical battery-caution system.battery 0 \
+      battery critical battery-caution system.battery \
       "Critical battery level" \
       "Battery charge is ${minimum_discharging_capacity}% and still discharging." || return 1
     return 0
@@ -436,7 +435,7 @@ check_battery() {
 
   if [ "$minimum_discharging_capacity" -le 20 ]; then
     send_notification \
-      battery normal battery-low system.battery 12000 \
+      battery normal battery-low system.battery \
       "Low battery level" \
       "Battery charge is ${minimum_discharging_capacity}% and still discharging." || return 1
     return 0
@@ -458,7 +457,7 @@ check_battery() {
 check_reboot_required() {
   if [ -f "$REBOOT_REQUIRED_FILE" ] && [ ! -L "$REBOOT_REQUIRED_FILE" ]; then
     send_notification \
-      reboot-required normal system-reboot system.reboot 0 \
+      reboot-required normal system-reboot system.reboot \
       "System restart required" \
       "Installed package or maintenance changes require a restart to take full effect." || return 1
     return 0
@@ -491,7 +490,7 @@ check_failed_services() {
   ')
   if [ -n "$unit_names" ]; then
     send_notification "services-${failure_scope}" critical __THEME_MAKO_DESKTOP_HEALTH_ERROR_ICON_NAME__ \
-      system.service 0 "${label} services need attention" \
+      system.service "${label} services need attention" \
       "Failed units:
 ${unit_names}
 Inspect with ${diagnostic}." || return 1
@@ -518,7 +517,7 @@ check_mailbox() {
 
   if [ "$mail_count" -gt "$previous_count" ] && [ "$mail_count" -gt 0 ]; then
     send_notification \
-      mailbox normal mail-unread email.arrived 10000 \
+      mailbox normal mail-unread email.arrived \
       "New local mail for ${CURRENT_USER}" \
       "${MAILBOX} now contains ${mail_count} message(s)." || return 1
   fi
@@ -585,7 +584,6 @@ check_timeshift_events() {
         [ "$event_detail" = - ] || continue
         urgency=normal
         icon=__THEME_MAKO_DESKTOP_HEALTH_DRIVE_ICON_NAME__
-        timeout_ms=8000
         summary="Timeshift ${snapshot_kind} snapshot started"
         body="The managed ${snapshot_kind} Btrfs snapshot is being created."
         ;;
@@ -593,7 +591,6 @@ check_timeshift_events() {
         [ "$event_detail" = - ] || continue
         urgency=normal
         icon=__THEME_MAKO_DESKTOP_HEALTH_DRIVE_ICON_NAME__
-        timeout_ms=12000
         summary="Timeshift ${snapshot_kind} snapshot completed"
         body="The managed ${snapshot_kind} Btrfs snapshot completed successfully."
         ;;
@@ -604,7 +601,6 @@ check_timeshift_events() {
         [ "$event_detail" -le 255 ] || continue
         urgency=critical
         icon=__THEME_MAKO_DESKTOP_HEALTH_ERROR_ICON_NAME__
-        timeout_ms=0
         summary="Timeshift ${snapshot_kind} snapshot failed"
         body="The managed ${snapshot_kind} Btrfs snapshot failed with status ${event_detail}."
         ;;
@@ -618,7 +614,6 @@ check_timeshift_events() {
       -u "$urgency" \
       -i "$icon" \
       -c system.backup \
-      -t "$timeout_ms" \
       -- "$summary" \
       "$body"
     then
@@ -690,7 +685,6 @@ check_unattended_upgrade_events() {
           continue
         urgency=normal
         icon=__THEME_MAKO_DESKTOP_HEALTH_UPDATE_AVAILABLE_ICON_NAME__
-        timeout_ms=8000
         summary="Automatic package maintenance started"
         body="APT is checking the approved Debian and vendor repositories for eligible unattended upgrades."
         ;;
@@ -706,7 +700,6 @@ check_unattended_upgrade_events() {
         esac
         urgency=normal
         icon=__THEME_MAKO_DESKTOP_HEALTH_UPDATE_URGENT_ICON_NAME__
-        timeout_ms=12000
         summary="Automatic package maintenance completed"
         body="The unattended upgrade job completed successfully. System, boot, kernel, GPU, firmware, audio, storage, network and desktop session packages remained excluded."
         ;;
@@ -726,7 +719,6 @@ check_unattended_upgrade_events() {
         [ "${#exit_status}" -le 64 ] || continue
         urgency=critical
         icon=__THEME_MAKO_DESKTOP_HEALTH_ERROR_ICON_NAME__
-        timeout_ms=0
         summary="Automatic package maintenance failed"
         body="The unattended upgrade job failed (result ${service_result}, exit ${exit_code}/${exit_status}). Review the system journal and /var/log/unattended-upgrades/."
         ;;
@@ -740,7 +732,6 @@ check_unattended_upgrade_events() {
       -u "$urgency" \
       -i "$icon" \
       -c system.software-update \
-      -t "$timeout_ms" \
       -- "$summary" \
       "$body"
     then
@@ -853,16 +844,23 @@ check_system_events() {
     next_remaining=${remaining#*|}
     [ "$next_remaining" != "$remaining" ] || continue
     remaining=$next_remaining
-    event_timeout_ms=${remaining%%|*}
-    next_remaining=${remaining#*|}
-    [ "$next_remaining" != "$remaining" ] || continue
-    remaining=$next_remaining
     event_summary=${remaining%%|*}
     next_remaining=${remaining#*|}
     [ "$next_remaining" != "$remaining" ] || continue
     event_body=$next_remaining
     case "$event_body" in
-      *'|'*) continue ;;
+      *'|'*)
+        # Old queued records had an expiry before the summary. Validate and
+        # discard that obsolete field so pending events still use Mako policy.
+        case "$event_summary" in
+          ''|*[!0-9]*) continue ;;
+        esac
+        [ "${#event_summary}" -le 6 ] && [ "$event_summary" -le 600000 ] || continue
+        remaining=$event_body
+        event_summary=${remaining%%|*}
+        event_body=${remaining#*|}
+        case "$event_body" in *'|'*) continue ;; esac
+        ;;
     esac
 
     validate_queued_notification_app_name "$event_app_name" || continue
@@ -872,11 +870,6 @@ check_system_events() {
     esac
     validate_queued_notification_token "$event_icon" 64 || continue
     validate_queued_notification_token "$event_category" 96 || continue
-    case "$event_timeout_ms" in
-      ''|*[!0-9]*) continue ;;
-    esac
-    [ "${#event_timeout_ms}" -le 6 ] || continue
-    [ "$event_timeout_ms" -le 600000 ] || continue
     validate_queued_notification_text "$event_summary" 160 yes || continue
     validate_queued_notification_text "$event_body" 512 no || continue
 
@@ -885,7 +878,6 @@ check_system_events() {
       -u "$event_urgency" \
       -i "$event_icon" \
       -c "$event_category" \
-      -t "$event_timeout_ms" \
       -- \
       "$event_summary" \
       "$event_body"
@@ -902,9 +894,8 @@ check_security_signal() {
   urgency=$2
   icon=$3
   category=$4
-  timeout_ms=$5
-  summary=$6
-  log_path=$7
+  summary=$5
+  log_path=$6
   signal_path="${SECURITY_SIGNAL_DIR}/${signal_name}.signal"
   state_path="${SECURITY_SIGNAL_STATE_DIR}/${signal_name}.count"
 
@@ -971,7 +962,6 @@ check_security_signal() {
     -u "$urgency" \
     -i "$icon" \
     -c "$category" \
-    -t "$timeout_ms" \
     -- "$summary" \
     "$body"
   then
@@ -1000,23 +990,23 @@ check_security_signals() {
     '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' || return 1
 
   check_security_signal \
-    auth normal dialog-password system.security.auth 12000 \
+    auth normal dialog-password system.security.auth \
     "Failed authentication detected" \
     __INSTALLER_LOG_AUTH_FILE__
   check_security_signal \
-    usb normal drive-removable-media device.added 12000 \
+    usb normal drive-removable-media device.added \
     "USB or hardware hotplug activity detected" \
     __INSTALLER_LOG_USB_FILE__
   check_security_signal \
-    storage critical __THEME_MAKO_DESKTOP_HEALTH_ERROR_ICON_NAME__ device.error 0 \
+    storage critical __THEME_MAKO_DESKTOP_HEALTH_ERROR_ICON_NAME__ device.error \
     "Storage error detected" \
     __INSTALLER_LOG_STORAGE_FILE__
   check_security_signal \
-    apparmor critical security-high system.security 0 \
+    apparmor critical security-high system.security \
     "AppArmor policy denial detected" \
     __INSTALLER_LOG_APPARMOR_FILE__
   check_security_signal \
-    firewall normal security-medium system.security.network 12000 \
+    firewall normal security-medium system.security.network \
     "Firewall blocked network traffic" \
     __INSTALLER_LOG_NFTABLES_FILE__
 }

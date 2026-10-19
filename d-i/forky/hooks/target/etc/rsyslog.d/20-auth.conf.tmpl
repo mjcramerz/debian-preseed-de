@@ -1,8 +1,10 @@
 # Keep sudo, PAM, SSH, login, and other auth/authpriv messages in the managed
-# protected authentication log. A separate root-owned signal contains no log
-# content and only wakes the Labwc/Mako notification bridge for explicit
+# protected authentication logs. Records without attested origin go to the
+# separate unverified log, outside CrowdSec/Fail2Ban inputs. A root-owned signal
+# contains no log content and only wakes the Labwc/Mako bridge for explicit
 # authentication failures. Routine session-open/session-close and successful
-# sudo records remain available in auth.log without creating desktop noise.
+# sudo records remain available without creating desktop noise. Only verified
+# records reach auth.log and its security consumers; none reach apps.log.
 
 template(
   name="AuthDesktopSignal"
@@ -31,7 +33,7 @@ if (
        $!exe == "/usr/lib/openssh/sshd-auth" or
        $!exe == "/usr/lib/polkit-1/polkitd" or
        $!exe == "/usr/sbin/greetd"))) then {
-    action(type="omfile" file="__INSTALLER_LOG_APPLICATIONS_FILE__"
+    action(type="omfile" file="__INSTALLER_LOG_AUTH_UNVERIFIED_FILE__"
            fileOwner="__INSTALLER_LOG_OWNER__" fileGroup="__INSTALLER_LOG_GROUP__"
            fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
            template="UnverifiedAuthDiagnostic" createDirs="off"

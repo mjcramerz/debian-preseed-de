@@ -31,18 +31,16 @@ sub notify_result {
     $action_name = 'requested-action'
         if !defined($action_name) || $action_name eq q{};
 
-    my ($urgency, $icon, $timeout_milliseconds, $summary, $body);
+    my ($urgency, $icon, $summary, $body);
     if ($status == 0) {
         (
             $urgency,
             $icon,
-            $timeout_milliseconds,
             $summary,
             $body,
         ) = (
             'normal',
             'phone',
-            10_000,
             'Android action completed',
             "The $action_name action completed successfully.",
         );
@@ -51,13 +49,11 @@ sub notify_result {
         (
             $urgency,
             $icon,
-            $timeout_milliseconds,
             $summary,
             $body,
         ) = (
             'critical',
             '__THEME_MAKO_ANDROID_DEVICE_ERROR_ICON_NAME__',
-            0,
             'Android action failed',
             "The $action_name action failed with status $status.",
         );
@@ -71,7 +67,6 @@ sub notify_result {
             '-u', $urgency,
             '-i', $icon,
             '-c', 'x-labwc.maintenance',
-            '-t', $timeout_milliseconds,
             $summary,
             $body,
         );

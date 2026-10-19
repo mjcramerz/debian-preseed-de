@@ -56,7 +56,7 @@ class SecuritySignalTests(unittest.TestCase):
             'security_boot_id=' + shlex.quote(boot),
             'notification_failures=0',
             'notify() { ' + ('return 1;' if failure else 'printf "%s\\n" "$*";') + ' }',
-            'check_security_signal apparmor critical security-high system.security 0 "AppArmor policy denial detected" /var/log/managed/security/apparmor/apparmor.log',
+            'check_security_signal apparmor critical security-high system.security "AppArmor policy denial detected" /var/log/managed/security/apparmor/apparmor.log',
             'exit "$notification_failures"',
         ))
         result = subprocess.run(['/bin/sh', '-eu', '-c', script], capture_output=True,

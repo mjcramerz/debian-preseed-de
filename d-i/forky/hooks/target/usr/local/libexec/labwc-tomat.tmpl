@@ -203,7 +203,7 @@ def validate_config(text: str) -> dict:
         "timer": {"work", "break", "long_break", "sessions", "auto_advance"},
         "sound": {"mode", "volume", "enabled", "system_beep", "use_embedded",
                   "work_to_break", "break_to_work", "work_to_long_break"},
-        "notification": {"enabled", "timeout", "icon", "urgency", "work_message",
+        "notification": {"enabled", "icon", "urgency", "work_message",
                          "break_message", "long_break_message"},
         "display": {"text_format", "text_format_idle", "icons"},
         "hooks": {"on_break_start", "on_long_break_start"},
@@ -244,9 +244,6 @@ def validate_config(text: str) -> dict:
     notification = data.get("notification", {})
     if type(notification.get("enabled", True)) is not bool:
         raise Error("notification.enabled must be boolean")
-    timeout = notification.get("timeout", 8000)
-    if type(timeout) is not int or not 0 <= timeout <= 2_147_483_647:
-        raise Error("notification.timeout must be a non-negative signed 32-bit integer")
     strings(notification, ("icon", "work_message", "break_message", "long_break_message"))
     if notification.get("urgency", "normal") not in ("low", "normal", "critical"):
         raise Error("unsupported notification.urgency")

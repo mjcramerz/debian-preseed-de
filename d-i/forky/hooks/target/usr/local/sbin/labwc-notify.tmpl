@@ -15,7 +15,6 @@ app_name='System Maintenance'
 urgency=normal
 icon=__THEME_MAKO_SYSTEM_NOTIFICATION_INFORMATION_ICON_NAME__
 category=x-labwc.maintenance
-timeout_ms=12000
 summary=
 body=
 
@@ -28,7 +27,7 @@ usage() {
   cat >&2 <<'EOF'
 usage: labwc-notify --summary TEXT [--body TEXT] [--app-name NAME]
                     [--urgency low|normal|critical] [--icon ICON]
-                    [--category CATEGORY] [--timeout-ms 0..600000]
+                    [--category CATEGORY]
 EOF
   exit 64
 }
@@ -83,14 +82,6 @@ validate_token() {
   printable_field "$token_value" "$token_maximum" yes || return 1
   printf '%s\n' "$token_value" |
     /usr/bin/grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]*$'
-}
-
-validate_timeout() {
-  case "$1" in
-    ''|*[!0-9]*) return 1 ;;
-  esac
-  field_length "$1" 6 || return 1
-  [ "$1" -le 600000 ]
 }
 
 validate_queue() {
@@ -161,11 +152,6 @@ while [ "$#" -gt 0 ]; do
       category=$2
       shift 2
       ;;
-    --timeout-ms)
-      [ "$#" -ge 2 ] || usage
-      timeout_ms=$2
-      shift 2
-      ;;
     --summary)
       [ "$#" -ge 2 ] || usage
       summary=$2
@@ -199,8 +185,6 @@ validate_token "$icon" 64 ||
   fatal 'icon must contain only printable ASCII letters, digits, dots, underscores, and hyphens'
 validate_token "$category" 96 ||
   fatal 'category must contain only printable ASCII letters, digits, dots, underscores, and hyphens'
-validate_timeout "$timeout_ms" ||
-  fatal 'timeout must be an integer between 0 and 600000 milliseconds'
 printable_field "$summary" 160 yes ||
   fatal 'summary must be printable ASCII text up to 160 bytes without line breaks or pipe characters'
 printable_field "$body" 512 no ||
@@ -227,12 +211,11 @@ done
 
 EVENT_TMP=$(/usr/bin/mktemp "${EVENT_DIR}/.labwc-notify.XXXXXX") ||
   fatal 'unable to allocate a notification queue record'
-printf '%s|%s|%s|%s|%s|%s|%s\n' \
+printf '%s|%s|%s|%s|%s|%s\n' \
   "$app_name" \
   "$urgency" \
   "$icon" \
   "$category" \
-  "$timeout_ms" \
   "$summary" \
   "$body" >"$EVENT_TMP"
 /usr/bin/chmod 0640 "$EVENT_TMP" ||

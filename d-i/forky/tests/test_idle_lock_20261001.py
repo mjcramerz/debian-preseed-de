@@ -356,6 +356,9 @@ class WiringTests(unittest.TestCase):
         argv = command.call_args.args[0]
         self.assertEqual(argv[argv.index('--app-name')+1], 'Labwc Idle')
         self.assertEqual(argv[argv.index('--category')+1], 'desktop.idle')
+        self.assertNotIn('--expire-time', argv)
+        self.assertEqual(argv[-3:], ['--', 'Automatic lock and DPMS disabled',
+                                    'Saved delays: lock 1844s, DPMS 3800s.'])
 
     def test_lock_client_waits_for_manager_and_propagates_failed_readiness(self):
         with tempfile.TemporaryDirectory() as temporary:
