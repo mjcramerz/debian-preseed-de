@@ -50,8 +50,8 @@ my $packet = sprintf(
     '<%d>%s %2d %02d:%02d:%02d labwc-fuzzel-%s[%d]: %s',
     $priority, $months[$time[4]], $time[3], @time[2, 1, 0], $kind, $$, $message,
 );
-# Both transports are nonblocking: an unavailable collector must not delay a
-# menu or action. Retain the existing journal fallback for collector outages.
-deliver('__INSTALLER_LOG_APPS_SOCKET__', $packet) || deliver('/dev/log', $packet);
+# A collector outage drops this record; it must never fall back to journald.
+# The nonblocking transport cannot delay a menu or action.
+deliver('__INSTALLER_LOG_APPS_SOCKET__', $packet);
 
 exit 0;

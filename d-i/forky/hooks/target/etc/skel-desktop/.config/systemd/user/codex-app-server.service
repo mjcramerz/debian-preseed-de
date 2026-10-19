@@ -34,7 +34,7 @@ LoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env
 WorkingDirectory=%h/Workspace
 ExecStartPre=/usr/bin/rm -f -- /data/codex/sockets/app-server-backend.sock
 ExecStart=/usr/local/libexec/rsyslog-app-run codex-app-server -- /data/codex/lib/codex app-server --listen unix:///data/codex/sockets/app-server-backend.sock
-ExecStartPost=/usr/local/libexec/codex-app-server-wait-ready
+ExecStartPost=/usr/local/libexec/rsyslog-app-run codex-app-server -- /usr/local/libexec/codex-app-server-wait-ready
 ExecStopPost=/usr/bin/rm -f -- /data/codex/sockets/app-server-backend.sock
 # The wrapper performs bounded cleanup, then reports a manager-requested
 # SIGTERM as the conventional shell status 143. Listener shutdown is clean.
@@ -53,6 +53,6 @@ UMask=0077
 # their own PID/user/mount namespaces and a fresh private /proc.
 NoNewPrivileges=no
 LimitCORE=0
-StandardOutput=journal
-StandardError=journal
+StandardOutput=null
+StandardError=null
 SyslogIdentifier=codex-app-server

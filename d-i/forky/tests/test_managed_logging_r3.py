@@ -474,12 +474,26 @@ class LogLayoutTests(unittest.TestCase):
 class RoutingContractTests(unittest.TestCase):
     def test_recording_diagnostics_use_the_existing_application_sink(self):
         capture = payload_read_text(TARGET / 'usr/local/bin/labwc-capture')
-        for setting in ('StandardOutput=journal', 'StandardError=journal',
+        for setting in ('StandardOutput=null', 'StandardError=null',
                         'SyslogIdentifier=labwc-screen-recording'):
             self.assertIn(setting, capture)
         self.assertIn('RECORDING_LOG="/var/log/managed/apps/apps.log"', capture)
         self.assertNotIn('>>"$RECORDING_LOG"', capture)
         self.assertNotIn(': >"$RECORDING_LOG"', capture)
+        self.assertIn('/usr/local/libexec/rsyslog-app-run labwc-screen-recording --', capture)
+
+    def test_managed_application_services_have_no_journal_stream(self):
+        for relative in ('usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py',
+                         'usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py',
+                         'usr/local/bin/labwc-qbittorrent',
+                         'etc/skel-desktop/.config/systemd/user/codex-app-server.service',
+                         'etc/skel-desktop/.config/systemd/user/codex-app-server-proxy.service'):
+            with self.subTest(relative=relative):
+                text = payload_read_text(TARGET / relative)
+                self.assertIn('StandardOutput=null', text)
+                self.assertIn('StandardError=null', text)
+                self.assertNotIn('StandardOutput=journal', text)
+                self.assertNotIn('StandardError=journal', text)
 
     def test_journal_input_and_private_sockets_are_not_duplicated(self):
         text = payload_read_text(TARGET / 'etc/rsyslog.conf')
@@ -488,7 +502,7 @@ class RoutingContractTests(unittest.TestCase):
         self.assertNotIn('module(load="imjournal"', text)
         self.assertEqual(text.count('module(load="imklog")'), 1)
         self.assertNotIn('StateFile=', text)
-        self.assertEqual(text.count('module(load="omjournal")'), 1)
+        self.assertNotIn('omjournal', text)
         for name in ('38-openai-chatgpt.conf', '39-security-scanners.conf'):
             private = payload_read_text(TARGET / 'etc/rsyslog.d' / name)
             self.assertIn('type="imuxsock"', private)
@@ -714,7 +728,7 @@ class ApplicationCaptureTests(unittest.TestCase):
         selector.return_value.__enter__.return_value.select.assert_called_once()
         stop.assert_called_once_with(child, stopping=True)
 
-    def test_unknown_cleanup_closes_output_pipes_and_restores_signal_and_stderr_state(self):
+    def test_unknown_cleanup_closes_output_pipes_and_restores_signals(self):
         capture = module('managed_app_capture_cleanup_resources', 'usr/local/libexec/rsyslog-app-run')
         child = mock.Mock()
         with mock.patch.object(capture.sys, 'stderr') as stderr, \
@@ -731,7 +745,7 @@ class ApplicationCaptureTests(unittest.TestCase):
             capture.supervise('fixture-app', ['/fixture/app'])
         child.stdout.close.assert_called_once()
         child.stderr.close.assert_called_once()
-        self.assertEqual(blocking.call_args_list, [mock.call(42, False), mock.call(42, True)])
+        blocking.assert_not_called()
         self.assertEqual(handlers.call_args_list[-len(capture.SIGNALS):],
                          [mock.call(number, signal.SIG_DFL) for number in capture.SIGNALS])
 
@@ -777,30 +791,20 @@ class ApplicationCaptureTests(unittest.TestCase):
                 self.assertEqual(capture.severity(line, stream), expected)
         self.assertEqual(capture.escaped(b'hello\n\x1b\x00\xff'), r'hello\x0a\x1b\x00\xff')
 
-    def test_fatal_diagnostic_is_nonblocking_redacted_and_restores_descriptor_flags(self):
+    def test_fatal_diagnostic_is_private_bounded_and_redacted(self):
         capture = module('managed_app_capture_fatal', 'usr/local/libexec/rsyslog-app-run')
-        for blocking, failure in ((True, None), (True, BlockingIOError()),
-                                  (False, BrokenPipeError())):
-            with self.subTest(blocking=blocking, failure=type(failure).__name__), \
-                 mock.patch.object(capture.sys, 'stderr') as stderr, \
-                 mock.patch.object(capture.os, 'get_blocking', return_value=blocking), \
-                 mock.patch.object(capture.os, 'set_blocking') as set_blocking, \
-                 mock.patch.object(capture.os, 'write', side_effect=failure) as write:
-                stderr.fileno.return_value = 42
-                operations = mock.Mock()
-                operations.attach_mock(set_blocking, 'flags')
-                operations.attach_mock(write, 'write')
+        for failure in (None, BlockingIOError(), FileNotFoundError()):
+            with mock.patch.object(capture.socket, 'socket') as factory, \
+                 mock.patch.object(capture.sys, 'stderr') as stderr:
+                transport = factory.return_value.__enter__.return_value
+                transport.sendto.side_effect = failure
                 capture.report_capture_failure(OSError('fixture private command details'))
-                self.assertEqual(operations.mock_calls, [
-                    mock.call.flags(42, False),
-                    mock.call.write(42, b'<3>managed-app-warning event=capture-failed error=OSError\n'),
-                    mock.call.flags(42, blocking),
-                ])
-        with mock.patch.object(capture.sys, 'stderr') as stderr, \
-             mock.patch.object(capture.os, 'write') as write:
-            stderr.fileno.side_effect = ValueError('closed fixture stream')
-            capture.report_capture_failure(ValueError('fixture private command details'))
-            write.assert_not_called()
+                transport.settimeout.assert_called_once_with(0.05)
+                packet, destination = transport.sendto.call_args.args
+                self.assertIn(b'event=capture-failed error=OSError', packet)
+                self.assertNotIn(b'private', packet)
+                self.assertEqual(destination, capture.SOCKET)
+                self.assertFalse(stderr.mock_calls)
 
     def _capture(self, root: Path, destination: Path, script: str):
         helper = installed_script(TARGET / 'usr/local/libexec/rsyslog-app-run')
@@ -835,24 +839,24 @@ class ApplicationCaptureTests(unittest.TestCase):
                         break
             self.assertEqual(result.returncode, 7, result.stderr)
             self.assertEqual(len(records), 3)
-            self.assertEqual(result.stderr, b'')  # rsyslog reflects selected warnings.
+            self.assertEqual(result.stderr, b'')  # Every severity stays on the private socket.
             self.assertTrue(any(record.startswith(b'<11>') and b'ERROR: failed' in record for record in records))
             self.assertTrue(any(record.startswith(b'<14>') and b'ordinary output' in record for record in records))
 
-    def test_collector_outage_keeps_app_status_and_fallback_diagnostics(self):
+    def test_collector_outage_keeps_app_status_without_journal_fallback(self):
         with tempfile.TemporaryDirectory(prefix='app-capture-outage-') as temporary:
             root = Path(temporary)
             result = self._capture(root, root / 'absent.sock',
                                    'print("fixture diagnostic"); raise SystemExit(9)')
             self.assertEqual(result.returncode, 9, result.stderr)
-            self.assertIn(b'event=rsyslog-unavailable', result.stderr)
-            self.assertIn(b'fixture diagnostic', result.stderr)
+            self.assertEqual(result.stderr, b'')
+            self.assertEqual(result.stdout, b'')
 
     @unittest.skipUnless(shutil.which('perl'), 'packaged Perl is unavailable in the disposable image')
-    def test_fuzzel_direct_delivery_and_journal_fallback_use_fixture_sockets(self):
+    def test_fuzzel_direct_delivery_never_falls_back_to_journal(self):
         source = payload_read_text(TARGET / 'usr/local/bin/labwc-fuzzel-log')
         self.assertEqual(source.count('/run/rsyslog/apps/apps.sock'), 1)
-        self.assertEqual(source.count("'/dev/log'"), 1)
+        self.assertNotIn("'/dev/log'", source)
         with tempfile.TemporaryDirectory(prefix='fuzzel-log-') as temporary:
             root = Path(temporary)
             direct = root / 'apps.sock'
@@ -875,23 +879,30 @@ class ApplicationCaptureTests(unittest.TestCase):
                             stdin=subprocess.DEVNULL, capture_output=True, timeout=2,
                         )
                         self.assertEqual(result.returncode, 0, result.stderr)
-                        packet = (journal if outage else collector).recv(8192)
+                        with self.assertRaises(TimeoutError):
+                            journal.recv(8192)
+                        if outage:
+                            with self.assertRaises(TimeoutError):
+                                collector.recv(8192)
+                            continue
+                        packet = collector.recv(8192)
                         self.assertTrue(packet.startswith(b'<11>'), packet)
                         self.assertIn(b'labwc-fuzzel-action[', packet)
                         self.assertIn(b'event=launch-failed application=fixture_name', packet)
                         self.assertNotIn(b'\n', packet)
 
-    def test_direct_input_is_isolated_and_warning_reflection_cannot_loop(self):
+    def test_direct_input_is_file_only_without_journal_import_or_export(self):
         config = payload_read_text(TARGET / 'etc/rsyslog.conf')
         direct = payload_read_text(TARGET / 'etc/rsyslog.d/22-apps-socket.conf')
         apps = payload_read_text(TARGET / 'etc/rsyslog.d/21-apps.conf')
         self.assertIn('SysSock.IgnoreOwnMessages="on"', config)
-        self.assertIn('name="syslogseverity"', config)
+        self.assertNotIn('omjournal', config + apps)
+        self.assertNotIn('call managed_application_output', apps)
         self.assertNotIn('format="jsonf"', config)
         self.assertNotIn('option.jsonf=', config)
         self.assertIn('Ruleset="managed_application_output"', direct)
         self.assertIn('ParseTrusted="on"', direct)
-        self.assertIn('$.application_from_journal != "on"', apps)
+        self.assertNotIn('$.application_from_journal', apps)
         ruleset = apps.split('ruleset(name="managed_application_output"', 1)[1].split(') {', 1)[0]
         self.assertIn('queue.type="LinkedList"', ruleset)
         self.assertIn('queue.size=', ruleset)

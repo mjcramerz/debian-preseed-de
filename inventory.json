@@ -54,7 +54,7 @@
     "d-i/forky/hooks/installer/partman/finish.d/99-storage-layout.sh": "2d4017a1bab1857d26d86bdafcaa28bb427e326d0e101d2859608116b2a35401",
     "d-i/forky/hooks/installer/pre-pkgsel.d/89temporary-unshare.sh": "fde996e76845076f996a29a564a6ea31061a98966c9ef0c718bca6497bf5a704",
     "d-i/forky/hooks/installer/pre-pkgsel.d/90secure-boot-dkms.sh": "79f1280b7743c027a3589d75258e2b57e0f5352794a86c06cc128590a506cce2",
-    "d-i/forky/hooks/target/etc/apparmor.d/desktop-wrappers.tmpl": "e6a45cb0cde2f2562ff8c314d7cc0fea98114616fc2f411699018182bbfc6672",
+    "d-i/forky/hooks/target/etc/apparmor.d/desktop-wrappers.tmpl": "a4869e4eb62cee083d195a997f4bea1908eda79c009b8b916ae02f4b5abbc336",
     "d-i/forky/hooks/target/etc/apparmor.d/opt.postman.app.Postman": "c65d7cbee794164db2d50bfa5e8311341262138b49e3ddf04321595d7d4c4f9c",
     "d-i/forky/hooks/target/etc/apparmor.d/system-wrappers.tmpl": "5b175d61d879847acb9b95c91087cb27993bf2933e88982955a8a0f935def3b2",
     "d-i/forky/hooks/target/etc/apparmor.d/whisper-local-transcription": "62878774428a51326542f1759bcfa9f1b6bb6552679673ae27087fd3ab382b0e",
@@ -104,7 +104,7 @@
     "d-i/forky/hooks/target/etc/skel-desktop/.config/keepassxc/keepassxc.ini.tmpl": "f464f7cd0a3b7581bc9a34f4f7b7f4d5e8f10e7468d1a77f09d96d1682830465",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/packer/template.pkr.hcl.tmpl": "347ec95ef8d0f39eda59992bb6b320df6dee624b32046527fc3a53c6ca9ad3c8",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/apt-repo-local-software-notify.service": "6d9598a5ae3cee087af054af05ab415f0fcf6cd0962427145d988b5c6b5f3aee",
-    "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/codex-app-server.service": "18932f199044cffdb57922ab5e5262405676a9ec8554f3c4e6bb2bb7e226a00f",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/codex-app-server.service": "8939000f92a44afa04b4735a77ba9a633ac42e2b8acdb8b1a6aeb82eebe9b583",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-health-notify.service": "755c6fd5cbeec81b20f32732d30bacd1800213b273e62bdb2a74d709ae26c1b3",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-mute-default-microphone.service": "12ff43c8a04e390877a59046ce2be5cf5459f9b3a50b16293fc291666aaaecfd",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-plans.service": "ccfde7e65066275eed5e094ad3cc762c210c50f98e6832626609c20e30664f60",
@@ -508298,74 +508298,74 @@
       "phase": "installed_capability"
     },
     {
-      "line": 2569,
+      "line": 2567,
       "text": "/{,usr/}bin/{curl,date,gzip,tar} rix,",
       "source": {
         "path": "d-i/forky/hooks/target/etc/apparmor.d/desktop-wrappers.tmpl",
-        "line": 2569
+        "line": 2567
       },
       "phase": "installed_capability"
     },
     {
-      "line": 3531,
+      "line": 3529,
       "text": "/usr/bin/curl rix,",
       "source": {
         "path": "d-i/forky/hooks/target/etc/apparmor.d/desktop-wrappers.tmpl",
-        "line": 3531
+        "line": 3529
       },
       "phase": "installed_capability"
     },
     {
-      "line": 3580,
+      "line": 3578,
       "text": "/usr/bin/curl rix,",
       "source": {
         "path": "d-i/forky/hooks/target/etc/apparmor.d/desktop-wrappers.tmpl",
-        "line": 3580
+        "line": 3578
       },
       "phase": "installed_capability"
     },
     {
-      "line": 3841,
+      "line": 3839,
       "text": "/usr/bin/{apt-get,btrfs,dpkg,findmnt,journalctl,sync,systemctl} PUx,",
       "source": {
         "path": "d-i/forky/hooks/target/etc/apparmor.d/desktop-wrappers.tmpl",
-        "line": 3841
+        "line": 3839
       },
       "phase": "installed_capability"
     },
     {
-      "line": 3993,
+      "line": 3991,
       "text": "/usr/bin/{apt,apt-get,btrfs,df,dpkg,findmnt,free,fwupdmgr,hostnamectl,journalctl,lsblk,nmcli,resolvectl,ss,systemctl,systemd-analyze,timedatectl,timeout,uptime} PUx,",
       "source": {
         "path": "d-i/forky/hooks/target/etc/apparmor.d/desktop-wrappers.tmpl",
-        "line": 3993
+        "line": 3991
       },
       "phase": "installed_capability"
     },
     {
-      "line": 4142,
+      "line": 4140,
       "text": "/usr/bin/{apt-get,curl,dpkg,dpkg-deb,dpkg-divert,dpkg-query,gtk-update-icon-cache,update-desktop-database} PUx,",
       "source": {
         "path": "d-i/forky/hooks/target/etc/apparmor.d/desktop-wrappers.tmpl",
-        "line": 4142
+        "line": 4140
       },
       "phase": "installed_capability"
     },
     {
-      "line": 4351,
+      "line": 4349,
       "text": "/usr/bin/{curl,dpkg,dpkg-deb,gpg,gpg-agent,gpgv,gpgconf,unsquashfs} rix,",
       "source": {
         "path": "d-i/forky/hooks/target/etc/apparmor.d/desktop-wrappers.tmpl",
-        "line": 4351
+        "line": 4349
       },
       "phase": "installed_capability"
     },
     {
-      "line": 4412,
+      "line": 4410,
       "text": "/usr/bin/{curl,openssl,tar,brotli,env,dpkg-query,dpkg-divert,desktop-file-validate,update-desktop-database} rix,",
       "source": {
         "path": "d-i/forky/hooks/target/etc/apparmor.d/desktop-wrappers.tmpl",
-        "line": 4412
+        "line": 4410
       },
       "phase": "installed_capability"
     },
@@ -525680,35 +525680,35 @@
           "text": "include if exists <local/usr.bin.curl.ai-copilots-model-download>"
         },
         {
-          "line": 2569,
+          "line": 2567,
           "text": "/{,usr/}bin/{curl,date,gzip,tar} rix,"
         },
         {
-          "line": 3531,
+          "line": 3529,
           "text": "/usr/bin/curl rix,"
         },
         {
-          "line": 3580,
+          "line": 3578,
           "text": "/usr/bin/curl rix,"
         },
         {
-          "line": 3841,
+          "line": 3839,
           "text": "/usr/bin/{apt-get,btrfs,dpkg,findmnt,journalctl,sync,systemctl} PUx,"
         },
         {
-          "line": 3993,
+          "line": 3991,
           "text": "/usr/bin/{apt,apt-get,btrfs,df,dpkg,findmnt,free,fwupdmgr,hostnamectl,journalctl,lsblk,nmcli,resolvectl,ss,systemctl,systemd-analyze,timedatectl,timeout,uptime} PUx,"
         },
         {
-          "line": 4142,
+          "line": 4140,
           "text": "/usr/bin/{apt-get,curl,dpkg,dpkg-deb,dpkg-divert,dpkg-query,gtk-update-icon-cache,update-desktop-database} PUx,"
         },
         {
-          "line": 4351,
+          "line": 4349,
           "text": "/usr/bin/{curl,dpkg,dpkg-deb,gpg,gpg-agent,gpgv,gpgconf,unsquashfs} rix,"
         },
         {
-          "line": 4412,
+          "line": 4410,
           "text": "/usr/bin/{curl,openssl,tar,brotli,env,dpkg-query,dpkg-divert,desktop-file-validate,update-desktop-database} rix,"
         }
       ],
@@ -558826,12 +558826,12 @@
     "d-i/forky/hooks/target/etc/qbittorrent/qBittorrent.conf.d/10-security.conf.tmpl": "d74191e6967643b6d0e33ab99963b89600477eb75f9499d473aa4f550d7bbd54",
     "d-i/forky/hooks/target/etc/qemu/bridge.conf.tmpl": "2077fd797526536517045c7b4b90428dcda61908aa76b9079227edfa5b16b57b",
     "d-i/forky/hooks/target/etc/rkhunter.d/99-logging.conf.tmpl": "9204dc97259bc691304d03c6492e66d148bfe9e9cb8d438cbed02abbfe7d49d2",
-    "d-i/forky/hooks/target/etc/rsyslog.conf.tmpl": "eb8d71944152cf3e89d94efcd02c6ea55ae35c171c4af41d4eff8a5d60ed7344",
+    "d-i/forky/hooks/target/etc/rsyslog.conf.tmpl": "790cb9fedb0af1b57b416d8bb01075dd0a1f7121a0a87fa64d1ac9c5727bb306",
     "d-i/forky/hooks/target/etc/rsyslog.d/15-audit.conf": "ad1d5477de8562032e118498905f1336295305be58d7f68f3a9723f01e8df155",
     "d-i/forky/hooks/target/etc/rsyslog.d/18-app-veth.conf.tmpl": "e6feb6cd1d91080485afd92f94e02041b3149149bda44c9e4afa7d391966adda",
     "d-i/forky/hooks/target/etc/rsyslog.d/19-power.conf.tmpl": "99ffbd0e695e5eb00fa1f4b22c9b217a73a0b837a8585dfba08165532836ef46",
     "d-i/forky/hooks/target/etc/rsyslog.d/20-auth.conf.tmpl": "5610d6623625542f0da2e69abb44713f2ccb46c215c9d2f1870625a7e6614489",
-    "d-i/forky/hooks/target/etc/rsyslog.d/21-apps.conf.tmpl": "311f0dc14d9d9df434b240afb23e6748514748c0c8f3034388387e10aead117b",
+    "d-i/forky/hooks/target/etc/rsyslog.d/21-apps.conf.tmpl": "8721f937717f35c7394e2d38ec95186b4335bb7ca9f77c2e50b369f180ffa49e",
     "d-i/forky/hooks/target/etc/rsyslog.d/22-apps-socket.conf.tmpl": "228e9bfe3e4b6fa46dc2e8b80d1e645ad0a527c7f478f0ca57f473e359b9b241",
     "d-i/forky/hooks/target/etc/rsyslog.d/25-usb.conf.tmpl": "dafc5fc6780b71c774547f79754d1e43a4d74b3d6ceeb16db493076a7ce1c795",
     "d-i/forky/hooks/target/etc/rsyslog.d/30-apparmor.conf.tmpl": "68b1dacaaf60d50e40dec1a3612c8489eb956dd19af04ad6a4433b1869649629",
@@ -558839,7 +558839,7 @@
     "d-i/forky/hooks/target/etc/rsyslog.d/35-storage.conf.tmpl": "7dc21d293795fccf3dc20fe66a1dd2909bbd1850bd1ff7b7ca13e706cc1ccc33",
     "d-i/forky/hooks/target/etc/rsyslog.d/36-zram.conf.tmpl": "596c60c610705c34813bd05935f05d60ddf257dab82bbad6ec20c021c54ad9c2",
     "d-i/forky/hooks/target/etc/rsyslog.d/37-whisper.conf.tmpl": "680f9422d46aa89bfa72e5aadfb48112298fd6a95db8aac2cd2ef8b719f5c14e",
-    "d-i/forky/hooks/target/etc/rsyslog.d/38-openai-chatgpt.conf.tmpl": "2ae680d1f08e5b567bea0d9e554108831d2dc55e425bc6bfc7d8dd20df9eb0a8",
+    "d-i/forky/hooks/target/etc/rsyslog.d/38-openai-chatgpt.conf.tmpl": "e900b9cba6306c90003c91b4660cc2db081847f2d344ba2fec1c07f164ec1c92",
     "d-i/forky/hooks/target/etc/rsyslog.d/38-timeshift.conf.tmpl": "803b8f59affa228f40b38a0f6a469ada58baa454d8517983c47cef680ed94af9",
     "d-i/forky/hooks/target/etc/rsyslog.d/39-security-scanners.conf.tmpl": "ea4ca5bcc6e2829640fcd4dece1ab147e8604c610454671e810cdea59093b4ac",
     "d-i/forky/hooks/target/etc/rsyslog.d/40-nftables.conf.tmpl": "b4edf912a8c56fae9c1b332b1193937f7d499f430fda24c9eabe8433c201c946",
@@ -558919,7 +558919,7 @@
     "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/app.slice.d/60-resources.conf.tmpl": "df35affd5bd6ff09924ee402b7f2738b4f03a33889046ed9487650d6f4a25d40",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/apt-repo-local-software-notify.path": "37a0067190117b1f2a1306f7a774e53258238ccb9aa2b0f7a3aea5de21aa764e",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/background.slice.d/60-resources.conf.tmpl": "ae7b180ee94aa1015d43672b0d6b395f99bf70b2ab54f460f05182399bd67ae5",
-    "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/codex-app-server-proxy.service": "6e997b8adbcc73f65fa55fff619a472508bf1f805bbcd826c5b73b55b7e0f30b",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/codex-app-server-proxy.service": "e24f5391c5b13c636c160019b08fff6ad3350dbc1752ca222f343952a6740264",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/codex-app-server.socket": "71ebe6dcf9e590af125845ece6795ea9d34efc7c2480c2f44027612d82dcc833",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/crystal-dock.service": "99f5e29878b1fecfb2f0ae9ce4a1b16536a6969c72f838342a221da54ecad1a8",
     "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/crystal-dock.service.d/60-resource-class.conf": "1572b0cc5f8dbeb78b2410ccb65a1d427ef4938ab2dfebe0897906319c63f95d",
@@ -559309,7 +559309,7 @@
     "d-i/forky/hooks/target/usr/local/bin/labwc-bluetooth.tmpl": "7986765c5868e14618b8f27f9db0cf4c7219752a113a8bc217d0d4b1c73fdae2",
     "d-i/forky/hooks/target/usr/local/bin/labwc-brightness-control.tmpl": "21c6f38abd9cc0ef1f486887eaa94766607ece1513d9ad98ac655980b230eeff",
     "d-i/forky/hooks/target/usr/local/bin/labwc-calendar": "bdb1de8cd5b6f2fa5f07ac31eb08ae1fb0b4dd5a7da34ae74217ec42df356548",
-    "d-i/forky/hooks/target/usr/local/bin/labwc-capture.tmpl": "2f5f2ebedde92803efe6ed9d927eb4ac2e94cf997e08cccd0d23de57bb34ef1d",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-capture.tmpl": "24316a5358d8a9f85bbe5147d6312a2dd206bac936eb43409827ba82b29cf48d",
     "d-i/forky/hooks/target/usr/local/bin/labwc-computer-management": "d8dda76af9f32762ee0d8d00eae0f0a27b2c99213832cbbe98698f9145d03501",
     "d-i/forky/hooks/target/usr/local/bin/labwc-desktop-appearance": "402f71560272b6967c7f8eb66b7d0bc3a104eb9a241523e73eb8850a5280cb97",
     "d-i/forky/hooks/target/usr/local/bin/labwc-digital-assets": "2e79916ac5c3f3cfd8848f46cd6a681501d2b0c71d0048a45f3ce4c27d4c5a66",
@@ -559320,7 +559320,7 @@
     "d-i/forky/hooks/target/usr/local/bin/labwc-firewall-action": "ed3d1a80a256039ca4149653ce8bfad8f39354d14a43e2578c9b2617172ce298",
     "d-i/forky/hooks/target/usr/local/bin/labwc-firewall-menu": "56289ae71f3a22674185f8a80b1c2454999d5920c2e27535d56a50719e08a3b4",
     "d-i/forky/hooks/target/usr/local/bin/labwc-freerdp-askpass": "b12953eab035d3b11cc4afc2d7e89d14c969e8824c01f25a671a09e5dcdd5a92",
-    "d-i/forky/hooks/target/usr/local/bin/labwc-fuzzel-log.tmpl": "aeeb1ee0d9280e11a35ff378eeda4ee6a0343af7a823e60f0c4a704cf211b3c4",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-fuzzel-log.tmpl": "f252a418747d6f6060cfd946020b9a199ad963b228b9351bfdbec6fcb0a103f5",
     "d-i/forky/hooks/target/usr/local/bin/labwc-fuzzel.tmpl": "022810ce6229f08b10a04534d1e375401a0a54bb9e5a00ecb943436299fd786e",
     "d-i/forky/hooks/target/usr/local/bin/labwc-fzf-menu.tmpl": "e7334a1a8141fed36fe177e8798a90b5ae89b50d8792f6881f82f1d0cb404eb9",
     "d-i/forky/hooks/target/usr/local/bin/labwc-greeter-output": "7a3576afb3c8fcf7fdcd4bb423985eb609db8044545fcfa6210df95721480c23",
@@ -559341,7 +559341,7 @@
     "d-i/forky/hooks/target/usr/local/bin/labwc-podman-menu": "7d030bfba346ae78a7224262d4b61973941f2a2dd111a9c9600812319321bb9a",
     "d-i/forky/hooks/target/usr/local/bin/labwc-power-menu": "4ad254036c3aa181a332368b04c5c336a26c707dade67dc15ed8d707398ed142",
     "d-i/forky/hooks/target/usr/local/bin/labwc-power-settings": "574f44bc11b7d48298ad957f87c0b6685f8278d20328fe820dff8350dcecf2bf",
-    "d-i/forky/hooks/target/usr/local/bin/labwc-qbittorrent": "d7f0a3b1e1e4eccfa893c2169d9fffaeb03b1f85b14361a25d912429ea783611",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-qbittorrent": "9db5ca2bc12809bcf1cd002d2de1183bffa542c61ebfef4c35a35888ad845e56",
     "d-i/forky/hooks/target/usr/local/bin/labwc-recovery-action.tmpl": "ea26b2e95bfece1c73e5d24cefeff45fbc2bf7daa218cb91bdb43ec7bcb83b1b",
     "d-i/forky/hooks/target/usr/local/bin/labwc-remote-desktop.tmpl": "c139a5fef550e7b567d679a70b2497e5dabc5f8e986ec5dc01e0308c0edc1425",
     "d-i/forky/hooks/target/usr/local/bin/labwc-run": "a25e352bf652ba490a78eb11dac86e4edb72ae0813186088ac266779ee433a67",
@@ -559573,7 +559573,7 @@
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/dbus_proxy.py": "91d1d92c4af370458a7158c830f721d998f54e29d59d4211a12aeb2f40493a7a",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/electron.py": "a87fab01db35b3cb5fff246894159cbdc2150833fcfc8c3044e672b97590b614",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/events.py": "548d99cee493df511e1b67abe5324bc178f1286392ee87c2fac806afced4ccde",
-    "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py": "f36d026f492546f86a5087eddb36d831470ec642ff4c56c7ea9ae5768dacce2f",
+    "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py": "e58c6617cbf6dd07196de1cb0292b9b49ec9ba56cfb9346a57fe7d632ec4f6d3",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/integrity.py": "f7b83a2ff28dd2921447d9035c614704eb56f1ca92a3ffd144b798a2ea35e715",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/mounts.py": "ae665a85c88c409d21163551dd292f9ef7367917f22c0f2003e356d36a4f2f8c",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_client.py": "4a833a0f9ed205a97598e57778de98146f8a23cbb81d56f54992e3bd22cf47b3",
@@ -559582,7 +559582,7 @@
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/project_identity.py": "42615fe72bb33e110dd45a37ee1554355e9bc6b8aaadf5de0114383212d4a311",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/recovery.py": "aef10dc754a7cc7c698c2b0858f7601545e5ed88a5ade34f675f728fd88c582b",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/runtime.py": "1d75efe59fa09fec405e87d335f8f5042ecd683d2589ff6f5fc7fbc1324e8209",
-    "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py": "2a0c280df49285d699290baee58d49870d7f78c5cc21b06062c22402222a81f4",
+    "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py": "15f52df2e6f389a034de1fbf94b1766b4b4af3d258bb3ebde2aedf417f97eb71",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/user_state.py": "079f08df43785665889a22dcd63367415fa8ddccdc8868f0e5f82b2fadb0cdd3",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat_runtime.py": "8cf652c89584781611e31f60e28e11c2def1ab34033e6d2a4251f849a1b0193d",
     "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/managed_workflows/__init__.py": "47e1e376905f17a2d8883d206e3759c5bf54e4a6026ca9410c6c0ab4588e0a54",
@@ -559684,7 +559684,7 @@
     "d-i/forky/hooks/target/usr/local/libexec/obsidian-git-sync": "3c8de942377849cc91ae015a5dd4f555811215803970188ab6aaf9befe4881b0",
     "d-i/forky/hooks/target/usr/local/libexec/podman-devops-client": "0faa29823ddd3d64692b8216c55dfbe859dcfab2217fa61d313b25e5de3c65e1",
     "d-i/forky/hooks/target/usr/local/libexec/podman-devops-host": "a776cdfdb40ffb214c7d8edeb729c0bdfeb4f5b1cd20d42529e18a1f85a071dc",
-    "d-i/forky/hooks/target/usr/local/libexec/rsyslog-app-run.tmpl": "c3dce2d9d8719f4dbb67a1b1f7ae2da57644e0ac3c2fc9fc22169b2e083dacb0",
+    "d-i/forky/hooks/target/usr/local/libexec/rsyslog-app-run.tmpl": "9f4b1f5a1768aba6e0b59012ca0c7d8b21a2c59f5ce3c29228e4a1fb8a68ad63",
     "d-i/forky/hooks/target/usr/local/libexec/rsyslog-app-socket.tmpl": "1e9537d8aa4950919a6034b2a799b3ed58978ddfa03e5fb7ce40207a45ab5b99",
     "d-i/forky/hooks/target/usr/local/libexec/rsyslog-openai-socket.tmpl": "d0a56f35940ae57118873fc0fd9de4ba23685e23e4aeecab0d7d2b6230d33005",
     "d-i/forky/hooks/target/usr/local/libexec/rsyslog-security-socket.tmpl": "0e04f12e7abcb2a73dc87ff75680738ef66371262e12c8e596eaa19161b4711a",
@@ -559829,7 +559829,7 @@
     "d-i/forky/scripts/late/codex-state.py": "0d161c2e64b8e37b3bb9ba4d9fb0a7d05e221ebaa62ba2a2df9e59238f2cb352",
     "d-i/forky/scripts/late/crypto.sh": "5a7b50dcda9777ed6310a216009224f64bef4fec21a5fae4c1e398d295df71a1",
     "d-i/forky/scripts/late/devops/account-execution.sh": "4b558e418333d8c26e1994d8db7a9c372a0c6c3cfc5395fb2bdea603284fde78",
-    "d-i/forky/scripts/late/devops/codex-appserver.sh": "6db5a77886d41b72aaf4ce482708225a6879e1b3bd4b8a397480cef51ea9831a",
+    "d-i/forky/scripts/late/devops/codex-appserver.sh": "4d234f9211d181b95333a7981945658fe38f216b0e2ee0759af5ceeba617c230",
     "d-i/forky/scripts/late/devops/gitbuild.sh": "a9abcb738b1b35d659486b25fda7b33ce8a3ba1a78b9f34801547bd5d3267404",
     "d-i/forky/scripts/late/devops/publication-layout.sh": "bf5db826a50d1b40ff3ff727f782a07b6e17376616a31a193742bf5802bdc046",
     "d-i/forky/scripts/late/devops/tool-configs.sh": "00a2038818d35bdefba0f3ce5d807c9f5b04820e30c40bf3bda007e845b0e4ad",

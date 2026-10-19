@@ -83,6 +83,8 @@ def check(seed: Path = SEED) -> dict[str, int]:
                 references.update(TOKEN.findall(text))
             if rel.startswith('hooks/target/etc/rsyslog'):
                 active = '\n'.join(l for l in text.splitlines() if not l.lstrip().startswith('#'))
+                if 'omjournal' in active or 'ManagedApplicationJournal' in active:
+                    raise ValueError(f'application file logs must not enter journald: {rel}')
                 # The sole file input reads native auditd records for the
                 # AppArmor side log; broad journal or category mirrors remain
                 # forbidden.

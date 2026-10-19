@@ -1,6 +1,5 @@
 # ChatGPT/Codex desktop output enters rsyslog through a dedicated Unix socket.
-# The private ruleset writes the dedicated file. Only warning/error copies
-# enter the journal; they cannot reenter rsyslog because own PID is ignored.
+# The private ruleset writes only the dedicated file, including warnings/errors.
 
 ruleset(name="openai_chatgpt_input" queue.type="LinkedList"
         queue.size="__INSTALLER_LOG_RSYSLOG_QUEUE_MESSAGES__" queue.workerThreads="1") {
@@ -21,9 +20,6 @@ ruleset(name="openai_chatgpt_input" queue.type="LinkedList"
       rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
       rotation.sizeLimitCommandPassFileName="on"
     )
-    if ($syslogseverity <= 4) then {
-      action(type="omjournal" template="ManagedApplicationJournal")
-    }
   }
 
   stop

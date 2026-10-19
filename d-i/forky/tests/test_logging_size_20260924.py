@@ -403,16 +403,16 @@ def exercise_native_rsyslog(case: unittest.TestCase) -> None:
         routes = routes.replace('/var/log/managed', str(root / 'logs')).replace(
             '/usr/local/libexec/rsyslog-size-rotate', str(helper))
         sock = root / 'input.sock'
+        system_sock = root / 'system.sock'
         config = root / 'rsyslog.conf'
-        journal_template = read_text(TARGET / 'etc/rsyslog.conf').split(
-            'template(name="ManagedApplicationJournal"', 1)[1].split('\n}', 1)[0]
         config.write_text(f'global(workDirectory="{root / "spool"}" maxMessageSize="64k")\n'
             '$FileOwner root\n$FileGroup adm\n$FileCreateMode 0640\n'
             'module(load="imuxsock" SysSock.Use="off")\n'
-            'module(load="omjournal")\n'
-            'template(name="ManagedApplicationJournal"' + journal_template + '\n}\n' +
+            + routes + '\n' +
             f'input(type="imuxsock" Socket="{sock}" CreatePath="off" RateLimit.Interval="0" '
-            'Annotate="on" ParseTrusted="on" UsePIDFromSystem="on")\n' + routes)
+            'Ruleset="managed_application_output" Annotate="on" ParseTrusted="on" UsePIDFromSystem="on")\n'
+            f'input(type="imuxsock" Socket="{system_sock}" CreatePath="off" RateLimit.Interval="0" '
+            'Annotate="on" ParseTrusted="on" UsePIDFromSystem="on")\n')
         stderr = (root / 'stderr').open('w+')
         process = None
         def wait_for(predicate, description):
@@ -453,7 +453,7 @@ time.sleep(.2)
             # second line, and a spoofed program tag must not select a filename.
             probe = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
             try:
-                probe.sendto(b'<11>audisp-syslog[1]: injection-probe\nforged-line', str(sock))
+                probe.sendto(b'<11>audisp-syslog[1]: injection-probe\nforged-line', str(system_sock))
             finally:
                 probe.close()
             wait_for(lambda: 'injection-probe' in system.read_text(), 'root fallback did not receive input')

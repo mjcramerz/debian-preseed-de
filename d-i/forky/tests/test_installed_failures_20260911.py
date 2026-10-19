@@ -272,7 +272,7 @@ class SessionOwnershipTests(unittest.TestCase):
         executable, argv, env = call.call_args.args
         self.assertEqual(executable, '/usr/bin/systemd-run')
         self.assertNotIn('--pipe', argv)
-        self.assertIn('--property=StandardOutput=journal', argv)
+        self.assertIn('--property=StandardOutput=null', argv)
         self.assertNotIn('--wait', argv)
         self.assertIn('--expand-environment=no', argv)
         self.assertEqual(argv[-4:], ['--example', 'a b', '$HOME', ';false'])

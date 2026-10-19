@@ -1,7 +1,6 @@
-# Security/authentication and explicit power events have priority. Normal user
-# processes then bypass every remaining component/security matcher. Debian's
-# regular account range excludes system/dynamic/nobody UIDs. The private input
-# rejects missing credentials; legacy warnings use the system fallback.
+# Only the private application socket calls this file-only ruleset. Debian's
+# regular account range excludes system/dynamic/nobody UIDs. Reject missing
+# credentials. Journal-forwarded records must never be copied into apps.log.
 ruleset(name="managed_application_output" queue.type="LinkedList"
         queue.size="__INSTALLER_LOG_RSYSLOG_QUEUE_MESSAGES__"
         queue.workerThreads="1" queue.timeoutEnqueue="0") {
@@ -22,25 +21,12 @@ ruleset(name="managed_application_output" queue.type="LinkedList"
          rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
          rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
          rotation.sizeLimitCommandPassFileName="on")
-    if ($syslogseverity <= 4 and $.application_from_journal != "on") then {
-      action(type="omjournal" template="ManagedApplicationJournal")
-    }
   }
   stop
 }
 
+# No call from the journal-forwarding ruleset: its records already exist in
+# journald. Managed application output enters through 22-apps-socket instead.
 if ($.security_routed == "on") then { stop }
 if ($inputname == "imuxsock" and exists($!uid) and
-    cnum($!uid) >= 1000 and cnum($!uid) <= 59999) then {
-  # A capture/collector failure is already recorded in the source journal.
-  # Do not loop its fallback copy through the direct application writer.
-  if ($msg startswith " managed-app-warning " or
-      $msg startswith "managed-app-warning ") then { stop }
-  # User-manager lifecycle records belong to the system journal.
-  if ($!exe == "/usr/lib/systemd/systemd") then { stop }
-  # Legacy messages already have a source journal record. Route them through
-  # the file writer only, without reflecting them back into the journal.
-  set $.application_from_journal = "on";
-  call managed_application_output
-  stop
-}
+    cnum($!uid) >= 1000 and cnum($!uid) <= 59999) then { stop }

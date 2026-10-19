@@ -6,8 +6,8 @@
 # journal storage policy remains independent and retains structured records.
 # Forwarding starts only after rsyslog is ready and stops before an orderly
 # collector stop; early boot records remain in the journal without replay.
-# Private app inputs reflect only warning/error records into the journal;
-# IgnoreOwnMessages prevents those copies from entering the collector again.
+# Private application inputs write only their file sinks, at every severity.
+# They never send records back to journald.
 
 global(maxMessageSize="__INSTALLER_LOG_RSYSLOG_MESSAGE_KIB__k"
        compatibility.defaults.secure="strict")
@@ -20,19 +20,6 @@ module(load="imuxsock" SysSock.Use="on" SysSock.IgnoreOwnMessages="on"
        SysSock.RateLimit.Severity="5")
 # journald ReadKMsg=no: imklog remains the single managed kernel-log input.
 module(load="imklog")
-# Only warnings/errors from the private application inputs return to journal.
-# IgnoreOwnMessages above prevents the journal socket from feeding them back.
-module(load="omjournal")
-# Keep PRIORITY in journald's native 0..7 range (never facility|severity).
-# omjournal consumes named fields directly; no text JSON escaping is needed.
-template(name="ManagedApplicationJournal" type="list") {
-  property(outname="MESSAGE" name="msg")
-  property(outname="PRIORITY" name="syslogseverity")
-  property(outname="SYSLOG_IDENTIFIER" name="programname")
-  property(outname="SYSLOG_PID" name="$!pid")
-  property(outname="MANAGED_UID" name="$!uid")
-}
-
 $FileOwner __INSTALLER_LOG_OWNER__
 $FileGroup __INSTALLER_LOG_GROUP__
 $FileCreateMode __INSTALLER_LOG_FILE_MODE__
@@ -46,6 +33,7 @@ $RepeatedMsgReduction off
 main_queue(queue.size="__INSTALLER_LOG_RSYSLOG_MAIN_QUEUE_MESSAGES__" queue.workerThreads="1")
 
 # Private socket rulesets stay separate. Dedicated security routes run
-# before constant-path fallbacks; normal user applications stop in 21-apps.
+# before constant-path fallbacks; journal-origin user records stop in 21-apps
+# without being duplicated into the private application file sink.
 # 99-discard stops the remaining classified records. Do not restore parallel /var/log/syslog/facility copies here.
 include(file="/etc/rsyslog.d/*.conf" mode="abort-if-missing")

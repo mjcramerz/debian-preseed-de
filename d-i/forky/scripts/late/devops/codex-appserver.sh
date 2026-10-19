@@ -85,7 +85,7 @@ devops_stage_codex_app_server() {
   if grep -Fq 'ExecStartPre=/usr/bin/test -r /etc/codex/app-server.env' "$service_tmp"; then
     devops_fatal "Codex app-server optional environment policy must not block startup"
   fi
-  grep -Fqx 'ExecStartPost=/usr/local/libexec/codex-app-server-wait-ready' "$service_tmp" ||
+  grep -Fqx 'ExecStartPost=/usr/local/libexec/rsyslog-app-run codex-app-server -- /usr/local/libexec/codex-app-server-wait-ready' "$service_tmp" ||
     devops_fatal "Codex app-server backend does not wait for its private socket"
   grep -Fqx 'SuccessExitStatus=143 SIGTERM' "$service_tmp" ||
     devops_fatal "Codex app-server backend does not treat managed listener shutdown as successful"
@@ -102,6 +102,11 @@ devops_stage_codex_app_server() {
     devops_fatal "Codex app-server proxy does not enforce the managed idle timeout"
   grep -Fqx 'Requires=codex-app-server.socket codex-app-server.service' "$proxy_tmp" ||
     devops_fatal "Codex app-server proxy does not own the backend lifecycle"
+  for managed_output_unit in "$service_tmp" "$proxy_tmp"; do
+    grep -Fqx 'StandardOutput=null' "$managed_output_unit" &&
+      grep -Fqx 'StandardError=null' "$managed_output_unit" ||
+      devops_fatal "Codex app-server units must not send diagnostics to journald"
+  done
   grep -Fqx 'ListenStream=/data/codex/sockets/app-server-control.sock' "$socket_tmp" ||
     devops_fatal "Codex app-server activation socket does not own the public endpoint"
   grep -Fqx 'Service=codex-app-server-proxy.service' "$socket_tmp" ||

@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -IB
-"""Capture managed GUI output directly in rsyslog; retain journal warnings.
+"""Capture managed application output only in rsyslog's private file sink.
 
 The user service still owns the complete cgroup. This unprivileged supervisor
 forwards signals, preserves the child's status and bounds inherited-pipe drain.
@@ -64,23 +64,16 @@ def escaped(line: bytes) -> str:
 
 
 def report_capture_failure(error: BaseException) -> None:
-    """Report only the error class, without blocking failure exit on journald."""
-    descriptor = None
-    blocking = None
+    """Best-effort private diagnostic; no payload or journald fallback."""
     try:
-        descriptor = sys.stderr.fileno()
-        blocking = os.get_blocking(descriptor)
-        os.set_blocking(descriptor, False)
-        os.write(descriptor,
-                 f'<3>managed-app-warning event=capture-failed error={type(error).__name__}\n'.encode('ascii'))
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as transport:
+            transport.settimeout(0.05)
+            transport.sendto(
+                f'<11>managed-app-capture[{os.getpid()}]: event=capture-failed error={type(error).__name__}'.encode('ascii'),
+                SOCKET,
+            )
     except (OSError, ValueError):
         pass
-    finally:
-        if descriptor is not None and blocking is not None:
-            try:
-                os.set_blocking(descriptor, blocking)
-            except OSError:
-                pass
 
 
 def supervise(identifier: str, command: list[str]) -> int:
@@ -89,19 +82,7 @@ def supervise(identifier: str, command: list[str]) -> int:
     child = None
     child_fd = None
     pending_signals: set[int] = set()
-    collector_failed = False
     retry_at = 0.0
-    journal_fd = sys.stderr.fileno()
-    journal_blocking = os.get_blocking(journal_fd)
-    os.set_blocking(journal_fd, False)
-
-    def journal(priority: int, message: str) -> None:
-        # Unit stderr remains a journal stream with native priority prefixes.
-        # Never let a blocked diagnostic stream stall termination or the app.
-        try:
-            os.write(journal_fd, f'<{priority}>managed-app-warning application={identifier} {message}\n'.encode('ascii'))
-        except OSError:
-            pass
 
     def forward(number, _frame):
         nonlocal stopping
@@ -116,7 +97,7 @@ def supervise(identifier: str, command: list[str]) -> int:
                 pass
 
     def deliver(transport: socket.socket, stream: str, line: bytes) -> None:
-        nonlocal collector_failed, retry_at
+        nonlocal retry_at
         priority = severity(line, stream)
         text = escaped(line.rstrip(b'\r')) or '(empty line)'
         clock = time.localtime()
@@ -137,16 +118,9 @@ def supervise(identifier: str, command: list[str]) -> int:
                     if sent != len(packet):
                         raise OSError('truncated application log datagram')
                 except OSError:
-                    if not collector_failed:
-                        journal(3, 'event=rsyslog-unavailable fallback=journal')
-                    collector_failed = True
                     retry_at = time.monotonic() + 1.0
-                else:
-                    collector_failed = False
-                    continue
-            # A collector outage must not freeze a GUI. Preserve affected
-            # records in the journal until the direct socket is available.
-            journal(priority, 'event=rsyslog-fallback ' + message)
+            # An unavailable collector drops this record. Never copy payloads
+            # to inherited output, /dev/log, or a native journal socket.
 
     previous = {number: signal.signal(number, forward) for number in SIGNALS}
     try:
@@ -181,8 +155,6 @@ def supervise(identifier: str, command: list[str]) -> int:
                     for stream, buffer in sources.values():
                         if buffer:
                             deliver(transport, stream, bytes(buffer))
-                    if sources:
-                        journal(4, 'event=output-drain-expired inherited_pipe=true')
                     break
                 poll_timeout = 1.0
                 if exited is not None:
@@ -227,7 +199,6 @@ def supervise(identifier: str, command: list[str]) -> int:
         finally:
             if child_fd is not None:
                 os.close(child_fd)
-            os.set_blocking(journal_fd, journal_blocking)
             for number, handler in previous.items():
                 signal.signal(number, handler)
 
@@ -247,6 +218,11 @@ def main() -> int:
 
 
 if __name__ == '__main__':
+    # Even parser/interpreter failures must not reach an inherited journal
+    # stream. Application stdout/stderr are separate pipes owned by supervise.
+    with open(os.devnull, 'wb', buffering=0) as sink:
+        os.dup2(sink.fileno(), 1)
+        os.dup2(sink.fileno(), 2)
     try:
         result = main()
         if result < 0:

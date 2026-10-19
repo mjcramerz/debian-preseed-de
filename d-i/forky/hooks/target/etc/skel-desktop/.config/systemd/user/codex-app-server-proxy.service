@@ -23,6 +23,6 @@ PrivateTmp=yes
 # only that read-only, per-UID directory with this proxy's private /tmp.
 BindReadOnlyPaths=-/tmp/codex-daemon-%U
 RestrictAddressFamilies=AF_UNIX
-StandardOutput=journal
-StandardError=journal
+StandardOutput=null
+StandardError=null
 SyslogIdentifier=codex-app-server-proxy

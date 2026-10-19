@@ -370,8 +370,8 @@ start_recording() {
     --property=TimeoutStopSec=20s \
     --property=UMask=0077 \
     --property=StandardInput=null \
-    --property=StandardOutput=journal \
-    --property=StandardError=journal \
+    --property=StandardOutput=null \
+    --property=StandardError=null \
     --property=SyslogIdentifier=labwc-screen-recording \
     --setenv="HOME=${HOME}" \
     --setenv="PATH=${PATH}" \
@@ -382,6 +382,7 @@ start_recording() {
     --setenv="XDG_STATE_HOME=${XDG_STATE_HOME:-${HOME}/.local/state}" \
     --setenv="DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-}" \
     --setenv="PIPEWIRE_REMOTE=${PIPEWIRE_REMOTE_NAME}" \
+    /usr/local/libexec/rsyslog-app-run labwc-screen-recording -- \
     /usr/local/bin/labwc-capture \
       record-worker \
       "$recording_scope" \
@@ -514,7 +515,7 @@ record_worker() {
   trap forward_recording_signal HUP INT TERM
 
   set +e
-  # Inherit the recording service's diagnostic streams for rsyslog forwarding.
+  # Inherit the private capture pipes; output never enters journald.
   "$@" &
   recording_child=$!
   while :; do

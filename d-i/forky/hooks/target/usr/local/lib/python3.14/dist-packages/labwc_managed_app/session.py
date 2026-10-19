@@ -102,8 +102,8 @@ def bitwarden_session_unit_argv(
         "--service-type=exec",
         "--expand-environment=no",
         "--property=StandardInput=null",
-        "--property=StandardOutput=journal",
-        "--property=StandardError=journal",
+        "--property=StandardOutput=null",
+        "--property=StandardError=null",
         "--description=Managed Bitwarden desktop client",
         "--unit=" + _session_unit("labwc-bitwarden"),
         "--property=After=labwc-session.target labwc-kwallet-portal.service",
@@ -253,8 +253,8 @@ def wayland_compat_session_unit_argv(
         "--service-type=exec",
         "--expand-environment=no",
         "--property=StandardInput=null",
-        "--property=StandardOutput=journal",
-        "--property=StandardError=journal",
+        "--property=StandardOutput=null",
+        "--property=StandardError=null",
         f"--description=Managed {display_name} Cage compatibility session",
         "--unit=" + _session_unit(f"labwc-compat-{app_name}"),
         "--property=After=labwc-session.target",
@@ -276,6 +276,7 @@ def wayland_compat_session_unit_argv(
         f"--working-directory={os.getcwd()}",
         *(f"--setenv={name}" for name in sorted(environment or {})),
         "--",
+        "/usr/local/libexec/rsyslog-app-run", syslog_identifier, "--",
         WAYLAND_COMPAT_MANAGED_APP_PATH,
         mode,
         app_name,
@@ -388,7 +389,7 @@ def redirect_native_from_private_users(
     Do not weaken all the later ownership checks or alter that sandbox: ask
     the same user's manager to execute the existing wrapper outside it.
     Only ChatGPT retains its private output pipes. Other applications use
-    independent journal streams, never the panel/compositor stdout descriptors.
+    private file capture, never the panel/compositor stdout descriptors.
     """
     marker = _consume_session_marker(NATIVE_SESSION_UNIT_MARKER, f"labwc-native-{app_name}")
     private_users = system_owner()[0] != 0
@@ -450,8 +451,8 @@ def redirect_native_from_private_users(
         *(["--pipe", "--wait"] if app_name == "chatgpt" else [
             *menu_action_wait_arguments(),
             "--property=StandardInput=null",
-            "--property=StandardOutput=journal",
-            "--property=StandardError=journal",
+            "--property=StandardOutput=null",
+            "--property=StandardError=null",
             f"--property=SyslogIdentifier=labwc-{app_name}",
         ]),
         "--slice=app.slice",

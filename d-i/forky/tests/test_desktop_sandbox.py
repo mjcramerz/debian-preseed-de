@@ -770,7 +770,7 @@ class SessionAndIntegrationTests(unittest.TestCase):
             'unix:///data/codex/sockets/app-server-backend.sock\n',
             backend,
         )
-        self.assertIn('ExecStartPost=/usr/local/libexec/codex-app-server-wait-ready\n', backend)
+        self.assertIn('ExecStartPost=/usr/local/libexec/rsyslog-app-run codex-app-server -- /usr/local/libexec/codex-app-server-wait-ready\n', backend)
         self.assertIn('SuccessExitStatus=143 SIGTERM\n', backend)
         self.assertNotIn('/data/codex/share/bin/codex app-server', backend)
         self.assertNotIn('WantedBy=', backend)

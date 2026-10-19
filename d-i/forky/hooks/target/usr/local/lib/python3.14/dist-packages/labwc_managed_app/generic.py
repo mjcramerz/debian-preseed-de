@@ -461,8 +461,8 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         "--property=SendSIGKILL=yes", "--property=Restart=no", "--property=UMask=0077",
         # Do not force NNP/seccomp before package AppArmor -> bwrap
         # transitions. Electron and Bubblewrap set NNP inside their sandboxes.
-        "--property=StandardInput=null", "--property=StandardOutput=journal",
-        "--property=StandardError=journal", f"--property=SyslogIdentifier=labwc-{label}",
+        "--property=StandardInput=null", "--property=StandardOutput=null",
+        "--property=StandardError=null", f"--property=SyslogIdentifier=labwc-{label}",
         "--property=LimitCORE=0", "--property=NoNewPrivileges=no",
         # Signal Foot itself first so it can close/reap its PTY client.
         # systemd still owns final cgroup cleanup. Only the argument-free
