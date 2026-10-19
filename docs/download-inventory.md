@@ -1,6 +1,7 @@
 # Installation download inventory
 
-`make inventory` writes root `inventory.json`. It does not run `make build`.
+`make inventory` refreshes root `inventory-apt.json`, then generates root
+`inventory.json` from that snapshot. It does not run `make build`.
 `make build` writes only the three installer products and never runs inventory
 generation. Rebuild the payload separately when its manifest needs updating.
 `tools/inventory.py` is a Python standard-library serializer. It reads the paths
@@ -66,10 +67,10 @@ size and checksums. A candidate's `url` is the configured archive URL joined to
 that exact filename. Udebs use the `debian-installer/binary-ARCH/Packages` index.
 See the [Debian repository format](https://wiki.debian.org/DebianRepository/Format).
 
-Metadata acquisition is explicit and separate from `make build`:
+One command acquires the metadata and generates both root JSON files, separately
+from `make build`:
 
 ```sh
-python3 -I -B tools/inventory.py --refresh-apt
 make inventory
 ```
 
@@ -77,8 +78,11 @@ The refresh reads public HTTPS `Release` and advertised compressed `Packages`
 indexes. It does not execute APT, read host package lists, import installer
 helpers, install packages or execute downloaded code. It writes the compact
 metadata snapshot `inventory-apt.json` at the repository root. Private
-temporary files are removed after acquisition. `make inventory` consumes that
-snapshot offline and never refreshes it implicitly.
+temporary files are removed after acquisition. `make inventory` invokes
+`tools/inventory.py --refresh-apt`, then consumes the refreshed snapshot when
+generating `inventory.json`. A refresh failure returns an error and preserves
+the existing outputs. To regenerate only `inventory.json` offline using the
+existing APT snapshot, run `python3 -I -B tools/inventory.py` directly.
 
 The APT snapshot uses its own structured schema. `request_set.packages` is the
 requested `(name, type)` set, `release_files` records each Release file,
@@ -122,8 +126,9 @@ bytes for all future installations.
 
 ## Verification boundary
 
-The ordinary generator and pure `make inventory` command are permitted checkout
-serialization actions. Regression fixtures belong in the
+The ordinary offline generator and the metadata-acquiring `make inventory`
+command are permitted checkout generation actions. Neither executes installer
+code or host package-management helpers. Regression fixtures belong in the
 [mandatory disposable environment](test-isolation.md), using the `tools-test`
 stage and pattern `test_download_inventory.py`. Never execute that suite, test
 discovery, host APT or installer helpers on the development host.

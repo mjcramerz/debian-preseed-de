@@ -85,10 +85,10 @@ and enforcing-policy acceptance remain required in the disposable environment.
 
 ## Source layout
 
-`make inventory` generates root `inventory.json`, an incremental inventory of
-downloads declared by payload sources. Full APT archive filenames come from the
-root `inventory-apt.json` snapshot. `make build` does not generate the
-inventory. See the
+`make inventory` refreshes root `inventory-apt.json` from public HTTPS APT
+metadata, then generates root `inventory.json`, an incremental inventory of
+downloads declared by payload sources using that refreshed snapshot.
+`make build` does not generate either inventory. See the
 [download inventory guide](docs/download-inventory.md) for refresh and consumer
 contracts.
 

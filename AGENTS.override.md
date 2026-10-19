@@ -46,13 +46,16 @@ management helpers, or rewrite source inputs. This pure serialization command
 is permitted in the checkout. Source validation belongs to the separately
 guarded `make check` / `make validate` commands in the disposable environment.
 
-`make inventory` is a separate permitted serialization command. It may write
-only root `inventory.json`. It reads manifest-listed sources as data, uses its
-stored per-file scan cache and the root `inventory-apt.json` snapshot, and must
-not access the network or execute installer code, tests, validators or host
-management helpers. The explicit `--refresh-apt` workflow may update that root
-snapshot; `make inventory` never does. `make build` must not invoke inventory
-generation, and `make inventory` must not rebuild the payload.
+`make inventory` is a separate permitted generation command. It invokes
+`tools/inventory.py --refresh-apt` to acquire public HTTPS APT metadata into
+root `inventory-apt.json`, then generate root `inventory.json` from that
+snapshot. These are its only persistent outputs; acquisition uses private
+temporary files. It reads manifest-listed sources as data and uses its stored
+per-file scan cache. It must not execute installer code, tests, validators or
+host management helpers, or read host package state. Direct invocation without
+`--refresh-apt` remains offline and writes only root `inventory.json`.
+`make build` must not invoke inventory generation, and `make inventory` must
+not rebuild the payload.
 
 Preserve all unrelated and uncommitted work. Inspect callers and execution
 helpers before editing. Keep fixes narrow and deterministic. Do not build
