@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Serialize the manifest's download declarations to inventory.json, without execution.
+"""Serialize download declarations from payload.tar.gz, without execution.
 
 Normal generation is offline, uses only checkout files, and writes only
 inventory.json. --refresh-apt is a separate, explicit metadata acquisition step;
@@ -10,9 +10,13 @@ from __future__ import annotations
 import argparse
 import ast
 from collections import defaultdict
+from contextlib import contextmanager
+import fcntl
 import fnmatch
 from functools import cmp_to_key
 import hashlib
+import gzip
+import io
 import itertools
 import json
 import os
@@ -21,6 +25,8 @@ import re
 import shlex
 import stat
 import sys
+import tarfile
+import tempfile
 from urllib.parse import urlsplit, urlunsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -28,12 +34,15 @@ from publication import atomic_write
 
 ROOT = Path(__file__).resolve().parents[1]
 PREFIX = 'd-i/forky/'
-SCHEMA = 2
+SCHEMA = 3
+GENERATOR_VERSION = 2
+PAYLOAD = PREFIX + 'payload.tar.gz'
 APT_SNAPSHOT = 'inventory-apt.json'
 MAX_FILE = 16 * 1024**2
 MAX_JSON = 128 * 1024**2
 MAX_TOTAL = 256 * 1024**2
 MAX_MEMBERS = 20000
+MAX_PAYLOAD = 128 * 1024**2
 MAX_EXPANSIONS = 128
 PRIVATE = {'preseed.env', 'git_ed25519', 'git_ed25519.pub', 'id_git_ed25519'}
 BINARY = {'.png', '.jpeg', '.jpg', '.gif', '.ico', '.ttf', '.otf', '.woff',
@@ -50,9 +59,12 @@ NETWORK = re.compile(r'(?i)\b(?:curl|wget|urlopen|download_file|fetch_url|source
                      r'cargo\s+install|rustup\s+(?:component|target|toolchain)|'
                      r'pipx?\s+install|npm\s+install|packer\s+init|podman\s+pull)\b')
 INTEREST = re.compile(r'(?i)(?:url|uri|repository|branch|commit|revision|sha256|sha512|version|'
-                      r'tag|architecture|target_triple|toolchain|kernel|packages|modules|apt_preferences|source_build|release)')
+                      r'tag|architecture|target_triple|toolchain|kernel|packages|apt_deps|modules|apt_preferences|source_build|release)')
 TRANSFER_COMMANDS = {'source_transfer', 'fetch_hook_file', 'bootstrap_source_module',
                      'installer_fetch_seed_path'}
+CUDA_LEGACY_URL = 'https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/'
+CUDA_LEGACY_OPTIONS = ('arch=amd64 trusted=yes allow-insecure=yes allow-weak=yes '
+                       'allow-downgrade-to-insecure=yes check-valid-until=no check-date=no')
 
 
 def digest(data: bytes) -> str:
@@ -60,11 +72,11 @@ def digest(data: bytes) -> str:
 
 
 def encode(value) -> bytes:
-    return (json.dumps(value, indent=2, ensure_ascii=False) + '\n').encode('utf-8')
+    return (json.dumps(value, sort_keys=True, indent=2, ensure_ascii=False, allow_nan=False) + '\n').encode('utf-8')
 
 
 def read_file(path: Path, limit: int = MAX_FILE) -> bytes:
-    """Never follow a manifest member or parent link outside the checkout."""
+    """Read bounded regular data without following any path component symlink."""
     if not path.is_absolute() or '..' in path.parts or path.is_symlink() or path.resolve(strict=True) != path:
         raise ValueError('symlink input is not permitted: ' + path.name)
     directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
@@ -80,6 +92,8 @@ def read_file(path: Path, limit: int = MAX_FILE) -> bytes:
             if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
                 raise ValueError('input must be a bounded regular file: ' + path.name)
             data = stream.read(limit + 1)
+            if file_identity(info) != file_identity(os.fstat(stream.fileno())) or len(data) != info.st_size:
+                raise ValueError('input changed while reading: ' + path.name)
     finally:
         os.close(directory)
     if len(data) > limit:
@@ -87,8 +101,21 @@ def read_file(path: Path, limit: int = MAX_FILE) -> bytes:
     return data
 
 
-def load_json(path: Path):
-    return json.loads(read_file(path, MAX_JSON))
+def file_identity(info) -> tuple:
+    return (info.st_dev, info.st_ino, info.st_mode, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+
+def json_pairs(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError('inventory JSON repeats a field')
+        result[key] = value
+    return result
+
+
+def reject_constant(_):
+    raise ValueError('inventory JSON contains a nonfinite number')
 
 
 def apt_snapshot_path(root: Path) -> Path:
@@ -97,9 +124,7 @@ def apt_snapshot_path(root: Path) -> Path:
 
 
 def metadata_value(metadata: dict, name: str, default):
-    """Read the structured v2 snapshot and accept the prior flat shape."""
-    if name in metadata:
-        return metadata[name]
+    """Read one collection from the structured APT snapshot."""
     sections = {
         'requested_packages': ('request_set', 'packages'),
         'releases': ('release_files',),
@@ -112,29 +137,75 @@ def metadata_value(metadata: dict, name: str, default):
     return cursor if cursor not in ({}, None) else default
 
 
-def manifest_paths(data: bytes) -> list[str]:
-    """Use only the second column. Hashes in the manifest are not trusted inputs."""
-    members = set()
-    for line in data.decode('utf-8').splitlines():
-        if not line.strip():
-            continue
-        fields = line.split(None, 1)
-        if len(fields) != 2:
-            raise ValueError('manifest record has no member path')
-        name = fields[1].removeprefix('*')
-        path = PurePosixPath(name)
-        if (not re.fullmatch(r'[A-Za-z0-9_./@+-]+', name) or path.is_absolute()
-                or '..' in path.parts or path.as_posix() != name
-                or path.name in PRIVATE or name in {'payload.tar.gz', 'payload.manifest', 'preseed.cfg'}):
-            raise ValueError('unsafe manifest member')
-        if name in members:
-            raise ValueError('duplicate manifest member: ' + name)
-        members.add(name)
-        if len(members) > MAX_MEMBERS:
-            raise ValueError('manifest member limit exceeded')
-    if not members:
-        raise ValueError('empty payload manifest')
-    return sorted(members)
+class ArchiveReader:
+    """Bound decompression, including headers/extensions, before tarfile allocates."""
+    def __init__(self, stream):
+        self.stream = stream
+        self.remaining = MAX_TOTAL + MAX_MEMBERS * 2048 + 10240
+
+    def read(self, size):
+        if size < 0 or size > self.remaining:
+            raise ValueError('payload expansion limit exceeded')
+        data = self.stream.read(min(size, self.remaining + 1))
+        self.remaining -= len(data)
+        if self.remaining < 0:
+            raise ValueError('payload expansion limit exceeded')
+        return data
+
+
+def scan_payload(raw: bytes) -> tuple[dict, dict]:
+    """Read regular archive members as data. Never extract or read loose sources."""
+    scans, names, total, text_files = {}, set(), 0, 0
+    with gzip.GzipFile(fileobj=io.BytesIO(raw)) as compressed:
+        reader = ArchiveReader(compressed)
+        with tarfile.open(fileobj=reader, mode='r|', encoding='utf-8', errors='strict') as archive:
+            for item in archive:
+                name = item.name
+                path = PurePosixPath(name)
+                if (not re.fullmatch(r'[A-Za-z0-9_./@+-]+', name) or path.is_absolute()
+                        or '..' in path.parts or path.as_posix() != name or not path.parts
+                        or path.name in PRIVATE or name in {'payload.tar.gz', 'payload.manifest', 'preseed.cfg'}
+                        or not item.isreg() or item.sparse or item.pax_headers or item.mode & 0o7000):
+                    raise ValueError('unsupported or unsafe payload member')
+                if name in names:
+                    raise ValueError('duplicate payload member')
+                names.add(name)
+                total += item.size
+                if len(names) > MAX_MEMBERS or not 0 <= item.size <= MAX_FILE or total > MAX_TOTAL:
+                    raise ValueError('payload member or byte limit exceeded')
+                archive.members.clear()
+                if path.suffix.lower() in BINARY or '/backup/' in '/' + name or name.endswith(('.md', '.md.tmpl')):
+                    continue
+                stream = archive.extractfile(item)
+                if stream is None:
+                    raise ValueError('unreadable payload member')
+                with stream:
+                    data = stream.read(item.size + 1)
+                if len(data) != item.size:
+                    raise ValueError('truncated payload member')
+                if re.match(rb'\s*-----BEGIN (?:OPENSSH |RSA |EC |DSA |ENCRYPTED )?PRIVATE KEY-----', data[:256]):
+                    raise ValueError('private key in payload')
+                if b'\0' in data:
+                    continue
+                try:
+                    text = data.decode('utf-8')
+                except UnicodeDecodeError:
+                    continue
+                text_files += 1
+                facts = scan_file(PREFIX + name, text)
+                relevant = (any(facts[key] for key in ('packages', 'settings', 'pins', 'classes', 'sources',
+                             'operations', 'transfers', 'modules', 'constants', 'plugins', 'collections', 'urls'))
+                            or any(INTEREST.search(row['name']) for row in facts['variables']))
+                if relevant:
+                    scans[PREFIX + name] = facts
+        # Consume the remainder to check gzip integrity and the expansion bound.
+        while reader.read(min(65536, reader.remaining)):
+            if not reader.remaining:
+                raise ValueError('payload expansion limit exceeded')
+    if not names:
+        raise ValueError('empty payload archive')
+    return dict(sorted(scans.items())), {'payload_members': len(names), 'payload_bytes': total,
+                                        'text_files_scanned': text_files, 'source_files': len(scans)}
 
 
 def clean_url(value: str) -> str:
@@ -233,12 +304,19 @@ def context(name: str) -> dict:
 
 
 def package_arguments(statement: str) -> list[tuple[str, str]]:
-    result = []
+    if not re.search(r'\b(?:apt(?:-get)?|anna-install|(?:hook_)?(?:ensure|preload|try)_installer_\w+)\b', statement):
+        return []
     # Commands are only tokenized, never evaluated or executed.
     try:
         tokens = shlex.split(statement, comments=True)
     except ValueError:
-        return result
+        return []
+    return package_tokens(tokens)
+
+
+def package_tokens(tokens: list[str]) -> list[tuple[str, str]]:
+    """Read literal argv data shared by shell and Python consumers."""
+    result = []
     for pos, token in enumerate(tokens):
         command = token.rsplit('/', 1)[-1]
         if command not in {'apt', 'apt-get'}:
@@ -275,6 +353,15 @@ def scan_file(name: str, text: str) -> dict:
     facts = {'variables': [], 'packages': [], 'settings': [], 'urls': [],
              'operations': [], 'transfers': [], 'pins': [], 'classes': [], 'sources': [], 'modules': [], 'constants': {},
              'plugins': [], 'collections': []}
+    if name == PREFIX + 'scripts/common/modules/context-target.sh':
+        match = re.search(r'(?m)^installer_cuda_source_line\(\) \(\n(.*?)^\)', text, re.S)
+        if (match and '[ "$repository" = ' + CUDA_LEGACY_URL + ' ]' in match[1]
+                and '[ "$suite" = / ] && [ -z "$components" ]' in match[1]
+                and "printf 'deb [" + CUDA_LEGACY_OPTIONS + "] %s /\\n'" in match[1]):
+            facts['constants']['CUDA_LEGACY_POLICY'] = {
+                'mode': 'source-authorized-insecure', 'temporary': True,
+                'options': CUDA_LEGACY_OPTIONS.split(),
+                'source': ref(name, text[:match.start()].count('\n') + 1)}
     lines = list(logical_lines(text))
     for number, line in lines:
         stripped = line.strip()
@@ -287,6 +374,14 @@ def scan_file(name: str, text: str) -> dict:
                 # Private account data and arbitrary profile settings are not cached.
                 if INTEREST.search(assignment[1]) or URL.search(value) or VARIABLE.search(value):
                     facts['variables'].append({'name': assignment[1], 'value': safe_text(value), 'line': number})
+                # Public package lists feed helpers that construct argv later
+                # (for example Settings.packages in network-sharing.py).
+                if re.search(r'(?:_APT_DEPS|_PACKAGES|_UDEBS)$', assignment[1]):
+                    words = value.split()
+                    if words and len(words) <= 256 and all(PACKAGE.fullmatch(word) for word in words):
+                        kind = 'udeb' if assignment[1].endswith('_UDEBS') else 'deb'
+                        facts['packages'].extend({'selector': word, 'type': kind, 'line': number,
+                                                  'via': 'variable:' + assignment[1]} for word in words)
         match = DEBCONF.match(line)
         if match:
             owner, question, dtype, value = match.groups()
@@ -308,7 +403,7 @@ def scan_file(name: str, text: str) -> dict:
         # when the source base is a local mirror. Tokenize only; never expand
         # command substitutions or execute the helper.
         try:
-            tokens = shlex.split(line, comments=True)
+            tokens = shlex.split(line, comments=True) if any(command in line for command in TRANSFER_COMMANDS) else []
         except ValueError:
             tokens = []
         for position, token in enumerate(tokens):
@@ -367,6 +462,19 @@ def scan_file(name: str, text: str) -> dict:
             tree = None
         if tree:
             for node in ast.walk(tree):
+                if isinstance(node, (ast.List, ast.Tuple)) and node.elts:
+                    first = node.elts[0]
+                    if (isinstance(first, ast.Constant) and isinstance(first.value, str)
+                            and first.value.rsplit('/', 1)[-1] in {'apt', 'apt-get'}):
+                        # Stop at the first computed argument. Never evaluate
+                        # attributes, calls, starred lists or comprehensions.
+                        words = []
+                        for element in node.elts:
+                            if not isinstance(element, ast.Constant) or not isinstance(element.value, str):
+                                break
+                            words.append(element.value)
+                        facts['packages'].extend({'selector': selector, 'type': kind, 'line': node.lineno,
+                                                  'via': 'python_argv'} for selector, kind in package_tokens(words))
                 if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
                     key = node.targets[0].id
                     if SECRET.search(key):
@@ -588,6 +696,13 @@ def repositories(scans: dict) -> list[dict]:
         row['definitions'] = unique(row['definitions'])
         row['key_urls'] = sorted(set(row.get('key_urls', [])))
         row['labels'] = sorted(set(row.get('labels', [])))
+        if row['url'] == CUDA_LEGACY_URL.rstrip('/') and row['suite'] == '/' and not row['key_urls']:
+            policies = [facts['constants']['CUDA_LEGACY_POLICY'] for facts in scans.values()
+                        if 'CUDA_LEGACY_POLICY' in facts['constants']]
+            if len(policies) != 1:
+                raise ValueError('legacy CUDA archive lacks its explicit source authentication policy')
+            row['authentication'] = policies[0]
+            row['architectures'] = ['amd64']
         row['index_urls'] = []
         for arch in row['architectures']:
             if row['suite'].endswith('/'):
@@ -629,7 +744,7 @@ def artifacts(scans: dict, variables: Variables) -> tuple[list, list, list]:
                     if candidate:
                         metadata[suffix.lower()] = candidate['value']
                 record = {'name': stem, 'url': clean_url(url), **metadata,
-                          'resolution': 'template' if VARIABLE.search(url) or re.search(r'[{}*]|__\w+__', url) else 'declared',
+                          'resolution': 'template' if re.search(r'[$`{}*\\]|__\w+__', url) else 'declared',
                           'sources': [dict(ref(path, item['line']), variable=key)], 'selection': [context(path)]}
                 if 'REPOSITORY' in key.upper() or url.startswith(('git@', 'ssh://', 'git://')) or url.endswith('.git'):
                     record['authentication'] = 'ssh_identity_required' if url.startswith(('git@', 'ssh://')) else 'public'
@@ -669,7 +784,7 @@ def artifacts(scans: dict, variables: Variables) -> tuple[list, list, list]:
                         continue
                     downloads.append({'name': Path(path).stem, 'url': url,
                                       'kind': 'metadata' if re.search(r'/api/|/manifests/|\.ya?ml$|releases/latest$', url) else 'source_literal',
-                                      'resolution': 'template' if VARIABLE.search(url) or re.search(r'[{}*]|__\w+__', url) else 'declared',
+                                      'resolution': 'template' if re.search(r'[$`{}*\\]|__\w+__', url) else 'declared',
                                       'sources': [ref(path, item['line'])], 'selection': [context(path)]})
     def coalesce(rows):
         grouped = {}
@@ -738,6 +853,15 @@ def indirect_downloads(scans: dict, variables: Variables) -> list[dict]:
                     'enabled_values': sorted(variables.global_values.get('DEVOPS_' + tool + '_SOURCE_BUILD', set())),
                     'selection': {'class': 'addon/devops', 'requires_source_build_flag': '1'},
                     'resolution': 'git_revision_or_crates_io_version_plus_locked_cargo_dependencies', 'sources': [source]})
+        if path.endswith('/scripts/desktop/labwc.sh'):
+            installer_urls = sorted(variables.global_values.get('DEVOPS_CODEX_STANDALONE_INSTALLER_URL', set()))
+            if installer_urls:
+                result.append({'kind': 'codex_standalone_distribution', 'name': 'codex-standalone',
+                    'installer_urls': installer_urls,
+                    'resolution': 'official_installer_owned_package_manifest_and_architecture_downloads',
+                    'requires_all_classes': ['addon/devops', 'role/desktop'],
+                    'selection': {'class': 'addon/devops', 'phase': 'installation'},
+                    'sources': [{'path': path}, {'path': PREFIX + 'hooks/target/usr/local/bin/codex-standalone-install'}]})
         if path.endswith('/scripts/late/devops-tools.py'):
             result.append({'kind': 'npm_dependencies', 'name': 'wrangler',
                 'versions': sorted(variables.global_values.get('DEVOPS_WRANGLER_VERSION', set())),
@@ -802,7 +926,7 @@ def assemble(scans: dict, metadata: dict) -> dict:
             if priority != repo['pin_priority']:
                 repo['class_priority_overrides'][selected] = priority
     provider_names = defaultdict(set)
-    for item in metadata_value(metadata, 'packages', []):
+    for candidate_index, item in enumerate(metadata_value(metadata, 'packages', []) if metadata_scope_matches else []):
         if item.get('repository') in allowed_repos:
             repo = allowed_repos[item['repository']]
             if not any(item['index_url'] == index['url'] + suffix for index in repo['index_urls'] for suffix in ['', '.xz', '.gz', '.bz2']):
@@ -817,7 +941,8 @@ def assemble(scans: dict, metadata: dict) -> dict:
                     or not isinstance(item['size'], int) or not 0 < item['size'] <= 64 * 1024**3
                     or item.get('sha256') is not None and not re.fullmatch(r'[a-f0-9]{64}', item['sha256'])):
                 raise ValueError('invalid APT snapshot package identity, URL or digest')
-            item = dict(item, repository_url=repo['url'], repository_suite=repo['suite'],
+            item = dict(item, candidate_index=candidate_index,
+                        repository_url=repo['url'], repository_suite=repo['suite'],
                         pin_priority=pin_priority(item, repo, releases.get(repo['id'], {}), pins, global_preferences))
             candidates[(item['package'], item['type'])].append(item)
             for provided in re.findall(r'(?:^|,)\s*([a-z0-9][a-z0-9+.-]*)', item.get('provides', '')):
@@ -851,7 +976,8 @@ def assemble(scans: dict, metadata: dict) -> dict:
                 def compare(a, b):
                     return (a[0] > b[0]) - (a[0] < b[0]) or version_compare(a[1]['version'], b[1]['version'])
                 best = sorted(eligible, key=cmp_to_key(compare), reverse=True)[0]
-                winners = unique([{'package': item['package'], 'version': item['version'], 'repository': item['repository'],
+                winners = unique([{'candidate_index': item['candidate_index'],
+                                   'package': item['package'], 'version': item['version'], 'repository': item['repository'],
                                    'url': item['url'], 'pin_priority': priority} for priority, item in eligible
                                   if priority == best[0] and version_compare(item['version'], best[1]['version']) == 0])
                 selected.append({'class': scope or None, 'architecture': architecture,
@@ -859,7 +985,8 @@ def assemble(scans: dict, metadata: dict) -> dict:
         rows.append({'name': base_name, 'selector': selector, 'type': kind,
                      'category': ('kernel' if base_name.startswith(('linux-image', 'linux-headers', 'linux-xanmod')) else
                                   'module' if 'modules' in base_name or base_name.endswith('-dkms') else 'package'),
-                     'sources': unique(sources), 'candidates': matches, 'source_selection': selected,
+                     'sources': unique(sources), 'candidate_indices': sorted({item['candidate_index'] for item in matches}),
+                     'source_selection': selected,
                      'dependency_solver_verified': False,
                      'resolution': ('virtual_package_providers' if provider_names.get((base_name, kind)) and not candidates.get((base_name, kind)) else
                                     'indexed_candidates' if matches else 'not_present_in_acquired_indexes'
@@ -896,23 +1023,27 @@ def assemble(scans: dict, metadata: dict) -> dict:
     bootstrap = sorted(bootstrap, key=lambda row: json.dumps(row, sort_keys=True))
     limitations = [
         'APT candidates are indexed metadata and dependency/provider unions, not an APT solver transaction.',
-        'Rolling, latest, unlocked and runtime-discovered endpoints remain typed recipes until installation.',
+        'Rolling, latest, unlocked and runtime-discovered endpoints require typed acquisition during the offline media build.',
         'APT Release OpenPGP signatures are not verified by the metadata collector.',
     ]
-    dependency_candidates = [item for key, values in sorted(candidates.items()) if key not in
-                             {(r['name'], r['type']) for r in rows} for item in values]
+    requested_names = {(row['name'], row['type']) for row in rows}
+    dependency_candidates = sorted({item['candidate_index'] for key, values in candidates.items()
+                                   if key not in requested_names for item in values})
     candidate_record_count = sum(len(values) for values in candidates.values())
-    metadata_summary = {key: value for key, value in metadata.items()
-                        if key not in {'packages', 'candidates'}}
+    metadata_summary = {'path': APT_SNAPSHOT, 'schema_version': metadata.get('schema_version'),
+                        'candidate_record_count': len(metadata_value(metadata, 'packages', [])),
+                        'signature_verification': 'not_performed'}
     return {'schema': {'name': 'debian-preseed-download-inventory', 'version': SCHEMA,
                        'ordering': 'all arrays and object keys are deterministic'},
-            'scope': {'manifest': PREFIX + 'payload.manifest', 'manifest_hashes_used': False,
-                      'architectures': ['amd64', 'arm64'], 'selection': 'union_of_all_manifest_classes_and_profiles',
-                      'network_during_generation': False, 'installer_code_executed': False},
+            'scope': {'manifest': PREFIX + 'payload.manifest', 'scan_input': PAYLOAD,
+                      'architectures': ['amd64', 'arm64'], 'selection': 'union_of_all_payload_classes_and_profiles',
+                      'network_during_scan': False, 'installer_code_executed': False},
             'apt': {'repositories': repos, 'pin_rules': pins, 'packages': rows,
+                    'installation_settings': [dict(item, source=ref(path, item['line']), **context(path))
+                                              for path, facts in scans.items() for item in facts['settings']],
                     'metadata': {**metadata_summary,
                                  'matches_repository_configuration': metadata_scope_matches},
-                    'dependency_candidates': dependency_candidates,
+                    'dependency_candidate_indices': dependency_candidates,
                     'selection_contract': 'Candidates are repository snapshots; selected classes, pin rules, architecture, version constraints and dependency solving determine the installation transaction.'},
             'external_artifacts': downloads, 'git_repositories': clones, 'classes': classes,
             'indirect_downloads': recipes,
@@ -926,93 +1057,189 @@ def assemble(scans: dict, metadata: dict) -> dict:
                          'url_references': len(urls), 'limitations': limitations}}
 
 
-def generate(root: Path = ROOT) -> tuple[bytes, dict]:
+def existing_document(path: Path) -> tuple[bytes | None, dict]:
+    try:
+        raw = read_file(path, MAX_JSON)
+    except FileNotFoundError:
+        return None, {}
+    try:
+        value = json.loads(raw, object_pairs_hook=json_pairs, parse_constant=reject_constant)
+    except (ValueError, UnicodeError, RecursionError):
+        return raw, {}
+    return raw, value if isinstance(value, dict) else {}
+
+
+def current_pair(inventory: dict, metadata: dict, apt_raw: bytes | None, payload: dict) -> bool:
+    for value, name in ((inventory, 'debian-preseed-download-inventory'), (metadata, 'debian-apt-metadata')):
+        schema = value.get('schema')
+        if (value.get('schema_version') != SCHEMA or not isinstance(schema, dict) or schema.get('name') != name
+                or schema.get('version') != SCHEMA or value.get('payload') != payload):
+            return False
+    if (apt_raw is None or inventory.get('apt_metadata_sha256') != digest(apt_raw)
+            or inventory.get('generator') != {'path': 'tools/inventory.py', 'version': GENERATOR_VERSION}
+            or metadata.get('errors') != []):
+        return False
+    apt, candidates = inventory.get('apt'), metadata.get('candidates')
+    if (not isinstance(apt, dict) or not isinstance(apt.get('packages'), list)
+            or not isinstance(candidates, dict) or not isinstance(candidates.get('records'), list)
+            or type(candidates.get('record_count')) is not int
+            or candidates['record_count'] != len(candidates['records'])):
+        return False
+    references = [row.get('candidate_indices') if isinstance(row, dict) else None for row in apt['packages']]
+    references.append(apt.get('dependency_candidate_indices'))
+    return all(isinstance(indices, list)
+               and all(type(index) is int and 0 <= index < candidates['record_count'] for index in indices)
+               and indices == sorted(set(indices)) for indices in references)
+
+
+def generate(root: Path = ROOT, *, refresh_apt: bool = False, force: bool = False) -> tuple[bytes, bytes | None, dict]:
     root = root.resolve(strict=True)
-    manifest = read_file(root / PREFIX / 'payload.manifest')
-    paths = manifest_paths(manifest)
-    output = root / 'inventory.json'
-    old = load_json(output) if output.exists() else {}
-    if not isinstance(old, dict):
-        raise ValueError('inventory cache must be a JSON object')
-    scanner_hash = digest(read_file(Path(__file__).resolve()))
-    compatible = old.get('schema_version') == SCHEMA and old.get('generator', {}).get('sha256') == scanner_hash
-    old_hashes = old.get('source_hashes', {}) if compatible else {}
-    cache = old.get('_scan_cache', {}) if compatible else {}
-    discovery = old.get('_discovery_hashes', {}) if compatible else {}
-    scans, hashes, negatives = {}, {}, {}
-    total, rescanned, reused = 0, 0, 0
-    for relative in paths:
-        name = PREFIX + relative
-        if PurePosixPath(relative).suffix.lower() in BINARY:
-            continue
-        raw = read_file(root / name)
-        total += len(raw)
-        if total > MAX_TOTAL:
-            raise ValueError('aggregate source byte limit exceeded')
-        if b'\0' in raw:
-            continue
+    before = file_identity((root / PAYLOAD).lstat())
+    raw = read_file(root / PAYLOAD, MAX_PAYLOAD)
+    if before != file_identity((root / PAYLOAD).lstat()):
+        raise ValueError('payload changed while reading; existing inventories retained')
+    payload = {'path': PAYLOAD, 'sha256': digest(raw), 'size': len(raw)}
+    old_raw, old = existing_document(root / 'inventory.json')
+    apt_raw, metadata = existing_document(apt_snapshot_path(root))
+    if not force and current_pair(old, metadata, apt_raw, payload):
+        return old_raw, None, {'current': True, 'written': False, 'text_files_scanned': 0}
+    scans, stats = scan_payload(raw)
+    if refresh_apt:
+        from inventory_apt import refresh
+        requests = sorted({(re.split(r'[=/:]', item['selector'])[0], item['type'])
+                           for facts in scans.values() for item in facts['packages']})
+        apt = {'repositories': repositories(scans),
+               'packages': [{'name': name, 'type': kind} for name, kind in requests]}
+        metadata = refresh(root, apt, payload)
+        apt_raw = encode(metadata)
+    result = {'schema_version': SCHEMA, 'payload': payload,
+              'generator': {'path': 'tools/inventory.py', 'version': GENERATOR_VERSION},
+              'apt_metadata_sha256': digest(apt_raw) if apt_raw is not None else None,
+              **assemble(scans, metadata)}
+    result['coverage'].update(stats)
+    missing = [row['selector'] for row in result['apt']['packages'] if not row['candidate_indices']]
+    result['coverage']['missing_package_requests'] = missing
+    # Discovery preserves the installer's exact requests, including names not
+    # present in the acquired indexes. Record the gap; never rewrite a source
+    # declaration or omit the request to make coverage appear complete.
+    result['coverage']['requested_package_coverage_complete'] = not missing
+    data = encode(result)
+    if len(data) > MAX_JSON or apt_raw is not None and len(apt_raw) > MAX_JSON:
+        raise ValueError('generated inventory exceeds byte limit')
+    if before != file_identity((root / PAYLOAD).lstat()):
+        raise ValueError('payload changed during generation; existing inventories retained')
+    return data, apt_raw if refresh_apt else None, dict(stats, current=False)
+
+
+@contextmanager
+def generation_lock(root: Path):
+    """Serialize inventory writers without an extra persistent lock artifact."""
+    descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
         try:
-            text = raw.decode('utf-8')
-        except UnicodeDecodeError:
-            continue
-        checksum = digest(raw)
-        if old_hashes.get(name) == checksum and name in cache:
-            hashes[name] = checksum
-            scans[name] = cache[name]
-            reused += 1
-        elif discovery.get(name) == checksum:
-            negatives[name] = checksum
-            reused += 1
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ValueError('inventory generation is already running') from None
+        if next(root.glob('.inventory-recovery-*'), None) is not None:
+            raise ValueError('inventory recovery material exists; resolve the previous publication before retrying')
+        yield
+    finally:
+        os.close(descriptor)
+
+
+def publish_products(root: Path, products: dict[str, bytes]) -> bool:
+    """Prepare the pair before writing; restore handled publication failures.
+
+    The APT digest in inventory.json detects an interrupted two-file publish.
+    Private previous bytes survive if restoration cannot be proven.
+    """
+    if (not products or not set(products) <= {'inventory.json', APT_SNAPSHOT}
+            or any(type(data) is not bytes or len(data) > MAX_JSON for data in products.values())):
+        raise ValueError('publication requires bounded inventory products')
+    previous, changed = {}, []
+    for name, data in products.items():
+        path = root / name
+        try:
+            info = path.lstat()
+        except FileNotFoundError:
+            previous[name] = None
         else:
-            facts = scan_file(name, text)
-            relevant = (any(facts[key] for key in ('packages', 'settings', 'pins', 'classes', 'sources',
-                                                  'operations', 'transfers', 'modules', 'constants', 'plugins', 'collections'))
-                        or facts['urls'] or any(INTEREST.search(item['name']) for item in facts['variables']))
-            if relevant and '/backup/' not in name and not name.endswith(('.md', '.md.tmpl')):
-                hashes[name] = checksum
-                scans[name] = facts
-            else:
-                negatives[name] = checksum
-            rescanned += 1
-    metadata_path = apt_snapshot_path(root)
-    metadata = load_json(metadata_path) if metadata_path.exists() else {}
-    metadata_hash = digest(read_file(metadata_path, MAX_JSON)) if metadata_path.exists() else None
-    result = {'source_hashes': hashes, 'schema_version': SCHEMA,
-              'generator': {'path': 'tools/inventory.py', 'sha256': scanner_hash},
-              'apt_metadata_sha256': metadata_hash, **assemble(scans, metadata),
-              '_scan_cache': scans}
-    # Negative discovery is only an optimization. Preserve its old bytes when
-    # unrelated sources change, so cache maintenance cannot replace inventory.
-    old_content = {key: value for key, value in old.items() if key != '_discovery_hashes'}
-    result['_discovery_hashes'] = discovery if result == old_content else negatives
-    return encode(result), {'rescanned': rescanned, 'reused': reused, 'manifest_members': len(paths)}
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_uid != os.geteuid():
+                raise ValueError('unsafe inventory output: ' + name)
+            previous[name] = (read_file(path, MAX_JSON), stat.S_IMODE(info.st_mode))
+        if previous[name] != (data, 0o644):
+            changed.append(name)
+    if not changed:
+        return False
+    recovery = Path(tempfile.mkdtemp(prefix='.inventory-recovery-', dir=root))
+    attempted = []
+    restored = True
+    try:
+        for name in changed:
+            old = previous[name]
+            if old is not None:
+                atomic_write(recovery / name, old[0], 0o600)
+        atomic_write(recovery / 'state.json', encode({name: None if previous[name] is None else previous[name][1]
+                                                     for name in changed}), 0o600)
+        descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        for name in changed:
+            attempted.append(name)
+            atomic_write(root / name, products[name], 0o644)
+    except BaseException as error:
+        for name in reversed(attempted):
+            old = previous[name]
+            try:
+                if old is None:
+                    (root / name).unlink(missing_ok=True)
+                    descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+                    try:
+                        os.fsync(descriptor)
+                    finally:
+                        os.close(descriptor)
+                else:
+                    atomic_write(root / name, *old)
+            except BaseException:
+                restored = False
+        if not restored:
+            raise ValueError('inventory publication outcome unknown; recovery retained at ' + str(recovery)) from error
+        raise
+    finally:
+        if restored:
+            for path in recovery.iterdir():
+                path.unlink()
+            recovery.rmdir()
+    return True
 
 
-def publish(root: Path = ROOT) -> dict:
-    data, stats = generate(root)
-    output = root / 'inventory.json'
-    if output.exists() and read_file(output, MAX_JSON) == data:
-        stats['written'] = False
-    else:
-        atomic_write(output, data, 0o644)
-        stats['written'] = True
-    return stats
+def publish(root: Path = ROOT, *, refresh_apt: bool = False, force: bool = False) -> dict:
+    root = root.resolve(strict=True)
+    with generation_lock(root):
+        data, apt_data, stats = generate(root, refresh_apt=refresh_apt, force=force)
+        if not stats['current']:
+            products = {APT_SNAPSHOT: apt_data} if apt_data is not None else {}
+            products['inventory.json'] = data
+            stats['written'] = publish_products(root, products)
+        return stats
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--refresh-apt', action='store_true', help='explicitly fetch public APT metadata into root inventory-apt.json, then generate inventory')
+    parser.add_argument('--force', action='store_true', help='regenerate even when the payload matches; with --refresh-apt, refresh rolling APT metadata')
     args = parser.parse_args()
     try:
-        if args.refresh_apt:
-            from inventory_apt import refresh
-            data, _ = generate()
-            refresh(ROOT, json.loads(data)['apt'])
-        stats = publish()
-        print('inventory: ' + ('updated' if stats['written'] else 'unchanged') +
-              f'; {stats["rescanned"]} files rescanned, {stats["reused"]} cached, {stats["manifest_members"]} manifest members')
+        stats = publish(refresh_apt=args.refresh_apt, force=args.force)
+        if stats['current']:
+            print('The generated inventory files are already up to date')
+        else:
+            print(f'inventory: generated from {stats["payload_members"]} payload members; '
+                  f'{stats["text_files_scanned"]} text files scanned, {stats["source_files"]} relevant files')
         return 0
-    except (OSError, ValueError, KeyError, TypeError, RecursionError) as error:
+    except (OSError, ValueError, KeyError, TypeError, RecursionError, tarfile.TarError, EOFError) as error:
         print('inventory failed: ' + str(error), file=sys.stderr)
         return 1
 

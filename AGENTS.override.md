@@ -47,11 +47,13 @@ is permitted in the checkout. Source validation belongs to the separately
 guarded `make check` / `make validate` commands in the disposable environment.
 
 `make inventory` is a separate permitted generation command. It invokes
-`tools/inventory.py --refresh-apt` to acquire public HTTPS APT metadata into
-root `inventory-apt.json`, then generate root `inventory.json` from that
-snapshot. These are its only persistent outputs; acquisition uses private
-temporary files. It reads manifest-listed sources as data and uses its stored
-per-file scan cache. It must not execute installer code, tests, validators or
+`tools/inventory.py --refresh-apt` and checks the payload archive hash against
+both root JSON inventories before any scan or network acquisition. On a stale
+pair it reads only `d-i/forky/payload.tar.gz` members as data, acquires public
+HTTPS APT metadata and generates root `inventory-apt.json` and `inventory.json`.
+These are its only persistent outputs on success; acquisition and publication
+use private temporary files, with recovery evidence retained on an uncertain
+rollback. It must not execute installer code, tests, validators or
 host management helpers, or read host package state. Direct invocation without
 `--refresh-apt` remains offline and writes only root `inventory.json`.
 `make build` must not invoke inventory generation, and `make inventory` must

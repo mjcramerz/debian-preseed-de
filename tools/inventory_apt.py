@@ -24,8 +24,6 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
-from publication import atomic_write
-
 MAX_COMPRESSED = 64 * 1024**2
 MAX_EXPANDED = 512 * 1024**2
 MAX_LINE = 256 * 1024
@@ -176,6 +174,11 @@ def acquire_index(repo: dict, index: dict, release: dict, sums: dict, target: Pa
             filename = item.get('Filename')
             if not name or not version or not architecture or not filename:
                 raise ValueError('package index record is missing its identity or filename')
+            if (not re.fullmatch(r'[a-z0-9][a-z0-9+.-]*', name)
+                    or not re.fullmatch(r'[A-Za-z0-9.+:~_-]+', version)
+                    or not re.fullmatch(r'[a-f0-9]{64}', item.get('SHA256', ''))
+                    or not 0 < int(item.get('Size', '0')) <= 64 * 1024**3):
+                raise ValueError('package index record has an invalid identity, size or SHA-256')
             count += 1
             budget.consume(records=1)
             if count > MAX_PACKAGES:
@@ -209,8 +212,10 @@ def select_packages(database: sqlite3.Connection, requested: set) -> list:
             continue
         visited.add((name, kind))
         for identifier, encoded in database.execute(
-                'SELECT id, data FROM packages WHERE kind=? AND (name=? OR id IN (SELECT package_id FROM provides WHERE name=?)) ORDER BY id',
-                (kind, name, name)):
+                'SELECT id, data FROM packages WHERE id IN ('
+                'SELECT id FROM packages WHERE name=? AND kind=? UNION '
+                'SELECT p.id FROM provides v JOIN packages p ON p.id=v.package_id WHERE v.name=? AND p.kind=?'
+                ') ORDER BY id', (name, kind, name, kind)):
             if identifier in selected:
                 continue
             retained_bytes += len(encoded)
@@ -224,28 +229,35 @@ def select_packages(database: sqlite3.Connection, requested: set) -> list:
     return sorted(selected.values(), key=lambda r: (r['package'], r['type'], r['architecture'], r['repository'], r['version'], r['url'], r['index_url']))
 
 
-def refresh(root: Path, apt: dict) -> None:
+def refresh(root: Path, apt: dict, payload: dict) -> dict:
+    """Acquire a complete candidate in private scratch; the caller publishes both JSONs."""
     repositories = apt['repositories']
     indexes, releases, errors = [], {}, []
     requested = {(row['name'], row['type']) for row in apt['packages']}
     jobs = []
-    for repo in repositories:
-        try:
-            details, sums = release_metadata(repo)
-            releases[repo['id']] = details
-            for index in repo['index_urls']:
-                if details.get('Architectures') and index['architecture'] not in details['Architectures'].split():
-                    continue
-                jobs.append((repo, index, details, sums))
-        except (OSError, ValueError, URLError) as error:
-            errors.append({'repository': repo['id'], 'stage': 'Release', 'error': type(error).__name__,
-                           'http_status': error.code if isinstance(error, HTTPError) else None})
-        print('inventory APT: Release ' + repo['id'] + (' acquired' if repo['id'] in releases else ' unavailable'), flush=True)
+    if len(repositories) > 256 or sum(len(repo['index_urls']) for repo in repositories) > MAX_INDEXES:
+        raise ValueError('APT repository or index job limit exceeded')
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {executor.submit(release_metadata, repo): repo for repo in repositories}
+        for future in as_completed(futures):
+            repo = futures[future]
+            try:
+                details, sums = future.result()
+                releases[repo['id']] = details
+                for index in repo['index_urls']:
+                    if details.get('Architectures') and index['architecture'] not in details['Architectures'].split():
+                        continue
+                    jobs.append((repo, index, details, sums))
+            except (OSError, ValueError, URLError) as error:
+                errors.append({'repository': repo['id'], 'stage': 'Release', 'error': type(error).__name__,
+                               'http_status': error.code if isinstance(error, HTTPError) else None})
+            print('inventory APT: Release ' + repo['id'] + (' acquired' if repo['id'] in releases else ' unavailable'), flush=True)
     if errors:
         failed = ','.join(sorted({error['repository'] for error in errors}))
         raise ValueError('APT Release acquisition incomplete; existing metadata retained; repositories=' + failed)
     if len(jobs) > MAX_INDEXES:
         raise ValueError('APT index job limit exceeded')
+    jobs.sort(key=lambda job: (job[0]['id'], job[1]['url'], job[1]['architecture'], job[1]['type']))
     budget = Budget()
     with tempfile.TemporaryDirectory(prefix='.inventory-apt-', dir=root) as temporary:
         private = Path(temporary)
@@ -267,6 +279,7 @@ def refresh(root: Path, apt: dict) -> None:
             failed = ','.join(sorted({error['repository'] for error in errors}))
             raise ValueError('APT index acquisition incomplete; existing metadata retained; repositories=' + failed)
         with sqlite3.connect(private / 'indexes.sqlite') as database:
+            database.execute('PRAGMA temp_store=MEMORY')
             database.execute('CREATE TABLE packages (id INTEGER PRIMARY KEY, name TEXT, kind TEXT, priority TEXT, essential INTEGER, data TEXT)')
             database.execute('CREATE TABLE provides (name TEXT, package_id INTEGER)')
             count = 0
@@ -289,9 +302,9 @@ def refresh(root: Path, apt: dict) -> None:
     selected = list({json.dumps(row, sort_keys=True): row for row in selected}.values())
     declarations = [{key: repo[key] for key in ('id', 'url', 'suite', 'components', 'architectures', 'index_urls', 'release_url')}
                     for repo in repositories]
-    value = {'schema': {'name': 'debian-apt-metadata', 'version': 2,
+    value = {'schema': {'name': 'debian-apt-metadata', 'version': 3,
                         'ordering': 'all arrays and object keys are deterministic'},
-             'schema_version': 2,
+             'schema_version': 3, 'payload': payload,
              'trust': 'HTTPS and Release SHA-256 consistency; OpenPGP signature verification not performed',
              'repository_definitions_sha256': hashlib.sha256(json.dumps(declarations, sort_keys=True).encode()).hexdigest(),
              'request_set': {'packages': [{'name': name, 'type': kind} for name, kind in sorted(requested)]},
@@ -300,10 +313,5 @@ def refresh(root: Path, apt: dict) -> None:
              'errors': sorted(errors, key=lambda r: json.dumps(r, sort_keys=True)),
              'dependency_policy': 'union of Depends/Pre-Depends alternatives and virtual providers, plus required/important/essential base packages',
              'candidates': {'record_count': len(selected), 'records': selected}}
-    data = (json.dumps(value, indent=2) + '\n').encode()
-    if len(data) > 128 * 1024**2:
-        raise ValueError('APT snapshot exceeds the inventory input byte limit')
-    target = root / SNAPSHOT_NAME
-    if not target.exists() or target.read_bytes() != data:
-        atomic_write(target, data, 0o644)
     print(f'inventory APT: retained {len(selected)} package candidates; {len(errors)} unavailable metadata requests', flush=True)
+    return value

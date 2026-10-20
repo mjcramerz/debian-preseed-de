@@ -11,7 +11,7 @@ check test test-bootstrap test-debconf test-cuda audit validate: test-isolation
 build:
 	$(PYTHON) -B tools/build.py
 inventory:
-	$(PYTHON) -I -B tools/inventory.py --refresh-apt
+	@$(PYTHON) -I -B tools/inventory.py --refresh-apt
 check:
 	$(PYTHON) -B tools/check_build.py
 	$(PYTHON) -B tools/check_shells.py

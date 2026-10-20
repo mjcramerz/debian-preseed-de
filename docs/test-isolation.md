@@ -6,8 +6,9 @@ the audit tools, build validation, and the Podman/Incus smoke probe.
 `make build` is permitted: it only serializes the three installer products,
 executes no validation or tests, and does not rewrite source files. Browser
 policy generation is a separate explicit command. `make inventory` separately
-acquires public HTTPS APT metadata into root `inventory-apt.json`, then generates
-root `inventory.json` from manifest-listed sources and that refreshed snapshot.
+checks both root JSON inventories against the payload archive hash and skips
+unchanged generation. Otherwise it scans archive members as data, acquires
+public HTTPS APT metadata and generates the paired root JSON inventories.
 It does not execute installer code, tests or host package-management helpers.
 Direct `tools/inventory.py` invocation without `--refresh-apt` remains offline.
 Neither generation target invokes the other.
