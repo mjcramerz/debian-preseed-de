@@ -740,6 +740,14 @@ if target_exec_available; then
   fi
   require_target_dualboot_os_prober_package
   run_target_grub_config_update
+  # This is the unconditional d-i late reset point: GRUB, shim, MokManager,
+  # kernel/initrd and grub.cfg are complete before mokutil is called. Reset
+  # failures remain warnings so installation can finish.
+  if (finalize_target_secure_boot_mok_reset); then
+    :
+  else
+    installer_warn "MOK reset/boot preparation failed after GRUB installation; continuing installation"
+  fi
   sync_target_secure_boot_bundle_to_installer_usb
   close_target_secure_boot_state
 fi

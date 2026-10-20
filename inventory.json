@@ -164,7 +164,7 @@
     "d-i/forky/hooks/target/etc/vivaldi/policies/managed/3proxy.json.tmpl": "c6c4c56e173e59a5df497c4c75356977a802be311275b58c1c2426dc76fea8cb",
     "d-i/forky/hooks/target/etc/vivaldi/policies/managed/extensions.json": "0b918b9ac5b15d95d977e5560da5ddbfa5c65b0b1977b3f5367fe55c17e87ad4",
     "d-i/forky/hooks/target/etc/vivaldi/search-engines/search_engines.json.signed": "246b5ae4d57d635d715d9eb2ee51d7007ad212554f18c047a31e1ec1fbbf1777",
-    "d-i/forky/hooks/target/usr/libexec/install-tools/secure-boot-tool.tmpl": "e487a5c94ebc2b8e73814b24cd6a5586a5b3ed5e22318cdf387bb045b5c4562e",
+    "d-i/forky/hooks/target/usr/libexec/install-tools/secure-boot-tool.tmpl": "9433abd00d3123903be31a4f5104e51c094531982bcb5ce009250d98942843ea",
     "d-i/forky/hooks/target/usr/libexec/install-tools/system-log.sh": "4b8381bc17968eecfca657e4558b16c2f8f0bb3078e233bf7f69ceb82102e94a",
     "d-i/forky/hooks/target/usr/local/bin/browser-devtools": "4ff9501979d72b7694519c7dea5ee63bab4578a97c78fa89f460116d0eaba151",
     "d-i/forky/hooks/target/usr/local/bin/codex-standalone-install": "ddb1d87b784746d7eace960f6df164d82872846f2525cb7789b1e0763e5e5162",
@@ -297,13 +297,13 @@
     "d-i/forky/scripts/firstboot/assets/var/lib/firstboot/bin/crowdsec-firstboot.tmpl": "5d98fd0a8265eafb2e9724a76a10d00544c3a72d17c50702f7c908e4bf9b073f",
     "d-i/forky/scripts/firstboot/firstboot.sh": "ff9e1ecc95d816ce3c06b23827aebf13f2359d52cb26b1d96cfa630b8e2b0220",
     "d-i/forky/scripts/firstboot/logging.sh": "63542530f8d55e421be3b803ed844d42f8ffa1542d815b51cd11a62da391ce9c",
-    "d-i/forky/scripts/late/btrfs-family.sh": "0b12450b797691b8fd13002a9ca9d972feec8f391405194cf76cc39d7defb28c",
+    "d-i/forky/scripts/late/btrfs-family.sh": "0f77c093f1977998afe70f24fff314eda83e7f9c341e85a656f79c288e32e233",
     "d-i/forky/scripts/late/ch341a.sh": "8d64e674c3f7c6b87a0b9f5406c210952d95f852f464d0d26bb7bc33eba3fcf8",
     "d-i/forky/scripts/late/core.sh": "0934f28609b1136e2864ca5a5f3bff38e081e0aa13ccc50dc81a61f87d7f68b9",
     "d-i/forky/scripts/late/crowdsec.sh": "e2ff619be6e25174d92f5512d56dd2d6510db263b0bf0f4e03cb338eb5109063",
     "d-i/forky/scripts/late/cuda-legacy.sh": "f848ec73ba1b90c16be1e337244098adf1070baa0529f498d8f6c5b1643bf139",
     "d-i/forky/scripts/late/dbus-broker.sh": "9349a246f23861c0b8b0cd6c34a76f345c5b2215cd5ed460ee8053048ad1ac9e",
-    "d-i/forky/scripts/late/desktop.sh": "220f3653a4ccce0b03eb3f54c7a3550457fb8b8c9aba0b40f45c0c4150a5fb6d",
+    "d-i/forky/scripts/late/desktop.sh": "cae7710373687bfac539b086cf0ff51cc44daa0645ef8a79cb9723eba1ba91f8",
     "d-i/forky/scripts/late/devops-rust-tools.py": "e51507e80ff0693e3248efcfca462015e5c160c320b65b1587351d9704feb6ae",
     "d-i/forky/scripts/late/devops-tools.py": "3241c58c48918dba49b64499c121b78abbada5fd00c9c86a7bebe0c2f6809ac4",
     "d-i/forky/scripts/late/devops.sh.tmpl": "43ea6011352349fef03ffbf098ebe204c3880c331d1e7549743c67cdc69f3bf7",
@@ -318,7 +318,7 @@
     "d-i/forky/scripts/late/devops/upstream-rust.sh": "a194b0eebee330d6fb61d468f9a9583e8b746fd61c56392eda5a92559af7b9e8",
     "d-i/forky/scripts/late/devops/validation-base.sh": "2761c3decc0f26f509a060c8d70e9f1a6844b852015303b75a5801843fea9ab7",
     "d-i/forky/scripts/late/dispatch.sh": "88c877acbb27303a22eb38f7c5a1cda335793928a233269ae74129692987e2f7",
-    "d-i/forky/scripts/late/f2fs-family.sh": "7fbd58d309f491e24962c57d4f0f3388c0e789e631aa2a1b85b047d837320ecb",
+    "d-i/forky/scripts/late/f2fs-family.sh": "bc56634c376398eed71bff6b3db2f442d28fd1be4ca32f48beef4d51c78b049f",
     "d-i/forky/scripts/late/grub.sh": "25cf6dc128c23380c9bebc1dbcc0c82036cef3846ce77f7ddf48ddc01d1bafb3",
     "d-i/forky/scripts/late/llama.sh": "35ceaec10c4a4c40b1da231ae01b287e176eb9ab06f89137eca72adc00c81c68",
     "d-i/forky/scripts/late/mullvad.sh": "46062b979b8f2caa524e025e1c490dd769d6843f0f66af8a0fcf51d965742f17",
@@ -531208,182 +531208,182 @@
         {
           "name": "kernelver",
           "value": "$1",
-          "line": 752
+          "line": 746
         },
         {
           "name": "kernelver",
           "value": "$1",
-          "line": 768
+          "line": 762
         },
         {
           "name": "short_kernelver",
           "value": "${kernelver%.*}",
-          "line": 769
+          "line": 763
         },
         {
           "name": "build_tree",
           "value": "/lib/modules/$kernelver/build",
-          "line": 770
+          "line": 764
         },
         {
           "name": "tried_candidates",
           "value": "${tried_candidates}${tried_candidates:+, }${candidate}",
-          "line": 785
+          "line": 779
         },
         {
           "name": "found_kernel",
           "value": "0",
-          "line": 797
+          "line": 791
         },
         {
           "name": "found_kernel",
           "value": "1",
-          "line": 802
+          "line": 796
         },
         {
           "name": "raw_module",
           "value": "$tmpdir/module.ko",
-          "line": 861
+          "line": 855
         },
         {
           "name": "signed_module",
           "value": "$tmpdir/module.signed",
-          "line": 862
+          "line": 856
         },
         {
           "name": "kernelver",
           "value": "${kernel_image##*/vmlinuz-}",
-          "line": 928
+          "line": 922
         },
         {
           "name": "kernelver",
           "value": "$1",
-          "line": 938
+          "line": 932
         },
         {
           "name": "kernel_modules_dir",
           "value": "/lib/modules/$kernelver/kernel",
-          "line": 949
+          "line": 943
         },
         {
           "name": "kernelver",
           "value": "$1",
-          "line": 959
+          "line": 953
         },
         {
           "name": "SIGN_MODULES_CHANGED",
           "value": "0",
-          "line": 961
+          "line": 955
         },
         {
           "name": "SIGN_MODULES_CHANGED",
           "value": "$changed",
-          "line": 984
+          "line": 978
         },
         {
           "name": "kernel_image",
           "value": "$1",
-          "line": 992
+          "line": 986
         },
         {
           "name": "kernelver",
           "value": "$1",
-          "line": 1021
+          "line": 1015
         },
         {
           "name": "kernel_image",
           "value": "/boot/vmlinuz-$kernelver",
-          "line": 1022
+          "line": 1016
         },
         {
           "name": "unsigned_image",
           "value": "$tmpdir/vmlinuz.unsigned",
-          "line": 1028
+          "line": 1022
         },
         {
           "name": "signed_image",
           "value": "$tmpdir/vmlinuz.signed",
-          "line": 1029
+          "line": 1023
         },
         {
           "name": "sbsign_err",
           "value": "$tmpdir/sbsign.stderr",
-          "line": 1030
+          "line": 1024
         },
         {
           "name": "kernelver",
           "value": "$1",
-          "line": 1061
+          "line": 1055
         },
         {
           "name": "initrd",
           "value": "/boot/initrd.img-$kernelver",
-          "line": 1062
+          "line": 1056
         },
         {
           "name": "sig_path",
           "value": "${initrd}.sig",
-          "line": 1063
+          "line": 1057
         },
         {
           "name": "kernelver",
           "value": "$1",
-          "line": 1085
+          "line": 1079
         },
         {
           "name": "kernelver",
           "value": "$1",
-          "line": 1103
+          "line": 1097
         },
         {
           "name": "kernel_image",
           "value": "/boot/vmlinuz-$kernelver",
-          "line": 1104
+          "line": 1098
         },
         {
           "name": "modules_changed",
           "value": "${SIGN_MODULES_CHANGED:-0}",
-          "line": 1115
+          "line": 1109
         },
         {
           "name": "kernelver",
           "value": "$1",
-          "line": 1132
+          "line": 1126
         },
         {
           "name": "found_kernel",
           "value": "0",
-          "line": 1137
+          "line": 1131
         },
         {
           "name": "kernel_image",
           "value": "/boot/vmlinuz-$kernelver",
-          "line": 1141
+          "line": 1135
         },
         {
           "name": "found_kernel",
           "value": "1",
-          "line": 1143
+          "line": 1137
         },
         {
           "name": "kernelver",
           "value": "${1:-}",
-          "line": 1177
+          "line": 1171
         },
         {
           "name": "kernelver",
           "value": "${1:-}",
-          "line": 1186
+          "line": 1180
         },
         {
           "name": "kernelver",
           "value": "${1:-}",
-          "line": 1197
+          "line": 1191
         },
         {
           "name": "kernelver",
           "value": "${1:-}",
-          "line": 1204
+          "line": 1198
         }
       ],
       "packages": [],

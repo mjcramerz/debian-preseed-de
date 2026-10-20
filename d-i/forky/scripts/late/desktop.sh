@@ -63,13 +63,6 @@ unset desktop_module
 . "${desktop_module_dir}/labwc.sh"
 
 run_desktop_late_command "$requested_seed_base" "$requested_host_profile"
-# This is the final package-producing stage in dispatch.sh. Queue the reset
-# after addon and desktop hooks, not in pre-pkgsel or either storage-family pass.
-if (finalize_target_secure_boot_mok_reset); then
-  :
-else
-  installer_warn "MOK reset/boot preparation failed; continuing installation"
-fi
 : >"$desktop_late_stage_stamp"
 chmod 0600 "$desktop_late_stage_stamp" 2>/dev/null || true
 installer_info "managed Labwc desktop role completion stamp recorded: ${desktop_late_stage_stamp}"

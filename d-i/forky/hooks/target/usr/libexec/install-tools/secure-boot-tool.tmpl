@@ -684,16 +684,10 @@ reset_mok_state() (
 
   require_command mokutil
   require_command timeout
-  # Inventory is informational: MokListRT merges owner keys, hashes and shim's
-  # built-in keys, and mokutil can return success with no output on read errors.
-  # Never use display formatting, issuer identity or an empty listing to skip
-  # the full reset requested for every fresh installation. Do not retain or log
-  # the potentially large certificate inventory.
-  if ! LC_ALL=C timeout --kill-after=2 15 mokutil --list-enrolled --short >/dev/null 2>&1; then
-    log "warn: MOK inventory is unavailable; still attempting the full installation reset"
-  fi
-  # The installer treats failure as a warning and does not retry an uncertain
-  # firmware write. MokManager still requires physical confirmation at reboot.
+  # Do not inspect MokListRT or use certificate presence as a condition. Every
+  # fresh installation reaches this command once after GRUB is installed and
+  # requests a full reset, including when no certificate is listed or the
+  # inventory query would fail. MokManager still requires physical confirmation.
   mok_reset_password=$(resolve_mok_delete_password) || fatal "MOK reset password is unavailable"
   if printf '%s\n%s\n' "$mok_reset_password" "$mok_reset_password" |
     LC_ALL=C timeout --kill-after=2 30 mokutil --reset >/dev/null 2>&1; then

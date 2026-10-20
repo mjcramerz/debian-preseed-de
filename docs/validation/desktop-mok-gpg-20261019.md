@@ -22,14 +22,15 @@ of the supplied logs; its generated-product hashes describe an earlier snapshot.
 
 ## MOK request and boot changes
 
-- Reset is attempted **once at the end of the desktop late stage**, after shared
-  storage setup, addon helpers and desktop package hooks. Pre-pkgsel prepares
-  DKMS signing material; it no longer queues an early reset that later package
-  hooks could overwrite.
-- `mokutil --list-enrolled --short` is bounded, informational and discarded.
-  Empty, vendor-only, hash-only, malformed or unavailable inventory cannot skip
-  `mokutil --reset` on a fresh installation. The selected Secure Boot support
-  package set already includes mokutil and efibootmgr.
+- Reset is attempted **in each d-i late storage-family path immediately after
+  GRUB configuration generation**, after GRUB, shim, MokManager, kernel/initrd
+  and `grub.cfg` are installed. It no longer depends on the desktop role’s
+  later hook. Pre-pkgsel prepares DKMS signing material; it does not queue the
+  firmware reset.
+- No MOK inventory command is used as a gate. `mokutil --reset` is called for
+  every fresh installation regardless of whether certificates are present,
+  absent, vendor-only, malformed or unreportable. The selected Secure Boot
+  support package set already includes mokutil and efibootmgr.
 - The reset password is **always the primary account username**. A legacy
   password override is ignored. The validated value is supplied twice on stdin,
   never in arguments or diagnostics.
@@ -133,7 +134,7 @@ array with a minimal environment:
 It completed with 1,819 payload members. Before/after SHA-256 snapshots of 2,361
 tracked/untracked nonproduct files agreed: only the three authorized products
 changed during generation. Static archive inspection, without extraction,
-matched all 1,819 members (34,729,641 uncompressed bytes) against current source
+matched all 1,819 members (34,729,703 uncompressed bytes) against current source
 bytes and manifest hashes, checked regular-file metadata and agreed with the
 preseed archive, manifest and bootstrap-source pins.
 
@@ -146,11 +147,11 @@ hash each sorted full repository-relative path, NUL, then its raw file digest.
 
 ```text
 changed_runtime_paths=21
-changed_runtime_sha256=bc246fc0bb3a639d09aa18836073ae0db0d1e6d8723ee5d36b05de4cde64172b
+changed_runtime_sha256=d30822d1ceff2a52dcecd5ed1c2e972c1ebc1d6049ec31ad0bcaaf1516148788
 fixtures_sha256=615e6dad41b0a958d644bfd500cf7e57ed9e25c79ce70e7d6b414578e382a6e1
-payload.tar.gz_sha256=b8ec4a65e191417eef4ab1cab4cfba44380975e0d1d53f47b579e6ba8ea7633e
-payload.manifest_sha256=63707aa3bbe9b31f1531dcd699f036901a9894f0824dc2ecd0984df68f09be61
-preseed.cfg_sha256=610ee58ebd114798ab5749e1ddefedc85d86dd88df2d14fc516aa2949744a4bd
+payload.tar.gz_sha256=29586036bd43389e8e34a6e4181c76e2e5a4e4dbb609f9fe38e4f7513f132527
+payload.manifest_sha256=0116be68e8b513738e5159d159ccf82fd5e7fa3d12f6f318dfa8f27b1673d344
+preseed.cfg_sha256=be82be255ff5a4a93bfeba12ad7dac3f8cd0f0d6993dd72a4ece644880519839
 ```
 
 ## Earlier VM observations and limits
