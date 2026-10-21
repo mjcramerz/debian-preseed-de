@@ -5,6 +5,9 @@ ConditionPathExists=/etc/default/grub-profiles
 ConditionPathExists=/etc/default/grub-btrfs/config
 After=local-fs.target
 RequiresMountsFor=/boot
+# Keep the activation budget independent of the target manager defaults.
+StartLimitIntervalSec=10s
+StartLimitBurst=5
 
 [Service]
 Type=oneshot
@@ -18,4 +21,8 @@ PrivateMounts=yes
 RuntimeDirectory=grub-btrfs-refresh
 RuntimeDirectoryMode=0700
 Environment=SKIP_MOK_SIGNING=1
+# Path events, backup hooks and completion hooks can arrive together on resume.
+# Coalesce them while this oneshot is activating, before acquiring either lock.
+# Even deferred refreshes then stay below the finite start-rate limit above.
+ExecStartPre=/usr/bin/sleep 5
 ExecStart=/usr/local/libexec/grub-btrfs-refresh

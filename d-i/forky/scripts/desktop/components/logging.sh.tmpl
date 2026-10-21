@@ -240,11 +240,11 @@ done
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rkhunter.d/99-logging.conf)" \
     /etc/rkhunter.d/99-logging.conf \
     0644
-  for managed_logging_unit in clamav-freshclam clamav-daemon; do
+  for managed_logging_unit in clamav-freshclam clamav-daemon lynis; do
     stage_target_asset \
       "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/systemd/system/${managed_logging_unit}.service.d/40-logging.conf")" \
       "/etc/systemd/system/${managed_logging_unit}.service.d/40-logging.conf" \
-      0644
+      0644 || return $?
   done
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/local/usr.sbin.clamd)" \

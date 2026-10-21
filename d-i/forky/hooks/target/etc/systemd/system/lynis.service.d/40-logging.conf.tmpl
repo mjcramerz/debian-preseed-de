@@ -1,0 +1,12 @@
+[Unit]
+# Timer catch-up after resume must finish scheduled APT work before the audit.
+# Ordering does not start an update or replace APT's package locks.
+After=apt-daily.service apt-daily-upgrade.service
+
+[Service]
+UMask=0027
+ExecStartPre=/usr/local/libexec/native-logging --preflight
+# Retain the packaged cronjob mode and direct its native evidence to the
+# protected destinations already provisioned by the installer.
+ExecStart=
+ExecStart=/usr/sbin/lynis audit system --cronjob --no-colors --logfile __INSTALLER_LOG_LYNIS_FILE__ --report-file __INSTALLER_LOG_LYNIS_REPORT_FILE__

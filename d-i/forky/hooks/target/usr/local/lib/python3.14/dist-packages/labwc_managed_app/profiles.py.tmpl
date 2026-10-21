@@ -729,6 +729,10 @@ PERSISTENT_SANDBOX_CONFIG = {
         "system_dbus_policy_arguments": (
             "--see=org.freedesktop.login1",
             "--call=org.freedesktop.login1=org.freedesktop.login1.Manager.Inhibit@/org/freedesktop/login1",
+            # Electron must release its delay FD before sleep/shutdown and
+            # reacquire it after cancellation/resume. SEE does not pass signals.
+            "--broadcast=org.freedesktop.login1=org.freedesktop.login1.Manager.PrepareForSleep@/org/freedesktop/login1",
+            "--broadcast=org.freedesktop.login1=org.freedesktop.login1.Manager.PrepareForShutdown@/org/freedesktop/login1",
         ),
         "persistent_paths": (".cache/Code", ".cache/Microsoft/DeveloperTools",
                              ".config/Code", ".local/share/code", ".vscode", ".vscode-shared"),
