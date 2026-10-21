@@ -558,7 +558,7 @@ run_installer_secure_boot_install_tool() {
     "$INSTALLER_SECURE_BOOT_TARGET_TOOL" "$@"
 }
 
-reset_target_secure_boot_mok_state_attempt() (
+prepare_target_secure_boot_mok_reset() (
   # Bridge preflight normally records a mandatory installation failure. This
   # firmware operation is optional: confine that handler to warning + exit,
   # without publishing the installer's persistent first-failure sentinel.
@@ -602,12 +602,17 @@ reset_target_secure_boot_mok_state_attempt() (
       return 1
     fi
   fi
-  if ! run_installer_secure_boot_install_tool reset-moks; then
-    installer_error "failed to reset Secure Boot MOK state automatically"
+  if ! run_installer_secure_boot_install_tool reset-preflight; then
+    installer_error "Secure Boot MOK reset prerequisites are unavailable; no reset was attempted"
     return 1
   fi
 
   return 0
+)
+
+reset_target_secure_boot_mok_state_attempt() (
+  installer_fatal() { installer_warn "$*"; exit 1; }
+  run_installer_secure_boot_install_tool reset-moks
 )
 
 installer_usb_efi_device_from_seed_context() {
@@ -1120,8 +1125,8 @@ stage_target_secure_boot_runtime_assets() {
 }
 
 finalize_target_secure_boot_mok_reset() (
-  # Called once by the final role entrypoint after every package-producing
-  # stage. Keep optional preflight exits and reset failures out of first-failure.
+  # Called by each storage-family late hook immediately after GRUB generation.
+  # Keep optional preflight exits and reset failures out of first-failure.
   installer_fatal() { installer_warn "$*"; exit 1; }
   late_command_load_runtime_env false || return 1
   late_command_load_host_env || return 1
@@ -1714,14 +1719,21 @@ ensure_target_secure_boot_packages() {
 }
 
 reset_target_secure_boot_mok_state() {
-  INSTALLER_SECURE_BOOT_MOK_RESET_STATE=unknown
+  INSTALLER_SECURE_BOOT_MOK_RESET_STATE=unavailable
   installer_lifecycle_paths || return 1
   mok_state_dir=$(installer_runtime_state_dir) || return 1
   mok_state_file=$mok_state_dir/secure-boot-mok-reset.state
   if [ ! -e "$mok_state_file" ] && [ ! -L "$mok_state_file" ]; then
-    # Claim once before touching firmware. An interrupted/uncertain operation
-    # stays unknown across repeated final late-command processes.
+    # Mount/bridge, command and password failures happen before any reset write.
+    # Leave no attempt record so a corrected preflight can be retried safely.
+    if ! (prepare_target_secure_boot_mok_reset); then
+      installer_warn "Secure Boot MOK reset preflight failed; no firmware reset was attempted"
+      return 1
+    fi
+    # Claim exclusively only after preflight and before invoking mokutil. An
+    # interrupted/uncertain write stays unknown across later installer processes.
     (umask 077; set -C; printf 'unknown\n' >"$mok_state_file") || return 1
+    INSTALLER_SECURE_BOOT_MOK_RESET_STATE=unknown
     mok_reset_outcome=unknown
     if mok_reset_output=$(reset_target_secure_boot_mok_state_attempt); then
       case "$mok_reset_output" in queued) mok_reset_outcome=$mok_reset_output ;;

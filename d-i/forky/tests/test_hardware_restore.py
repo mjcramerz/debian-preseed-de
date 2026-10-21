@@ -385,6 +385,30 @@ class GrubGeneratorTests(unittest.TestCase):
         self.assertIn('                    boot\n', menu)
         self.assertGreater(menu.index('terminal_output gfxterm'), menu.index('                    boot\n'))
         self.assertNotIn("echo 'If Reset MOK", menu)
+        self.assertIn('if [ "$boot_once" = "true" ] && [ "$default" = "installer-mok-enrollment" ]; then\n'
+                      '    set timeout_style=menu\n    set timeout=0\nelse\n    set timeout=-1\nfi\n', menu)
+
+    def test_only_a_one_time_mok_selection_has_an_immediate_timeout(self):
+        # This models the variables left by 00_header after consuming next_entry.
+        # dash exercises the condition; native GRUB acceptance remains separate.
+        policy = payload_read_text(SHARED / 'usr/local/share/grub-profiles/display-2.cfg.in.tmpl')
+        policy = policy.replace('@@PREFIX@@', '')
+        policy = re.sub(r'(?m)^(\s*)set ([a-z_]+)=', r'\1\2=', policy)
+        for once, default, expected in (
+            ('true', 'installer-mok-enrollment', 'menu:0'),
+            ('', 'installer-mok-enrollment', 'menu:-1'),
+            ('true', 'installer-balanced', 'menu:-1'),
+            ('', 'installer-balanced', 'menu:-1'),
+        ):
+            with self.subTest(once=once, default=default):
+                program = policy + '\nprintf \'%s:%s\\n\' "$timeout_style" "$timeout"\n'
+                result = subprocess.run(['/bin/dash', '-eu', '-c', program],
+                                        env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C',
+                                             'HOME': '/nonexistent', 'boot_once': once,
+                                             'default': default, 'timeout_style': 'menu'},
+                                        capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), expected)
 
     def test_mok_menu_rejects_missing_esp_uuid_and_empty_assets(self):
         self.prepare_mok_assets()

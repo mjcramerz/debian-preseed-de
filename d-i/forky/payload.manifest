@@ -521,7 +521,7 @@ e4a2c35ce343df4a38048ff07ce0b84cb6b289f78cbb89d636b5c1cfbc914a7c  hooks/target/e
 de7c62f15cb01bc10db5035157e1a96ba36255b08d64c24de604e74dd805b26a  hooks/target/etc/rsyslog.d/43-desktop-apps.conf
 5166a0bdf7103ed67395e4ca1fa352134c72a01732f09499c5448030d1b959b8  hooks/target/etc/rsyslog.d/44-components.conf.tmpl
 59a2538ec61851ded70276d599c1cfdd19136967674b74b49447ab448a78fbbf  hooks/target/etc/rsyslog.d/99-discard.conf
-ddaab1defd377ebf7f3d9a29256036d8275d0fc715b306c20b3c5a6b9d842188  hooks/target/etc/secure-boot.conf.tmpl
+af4ce31abc7984a3a52a5d718e43ad15bc857bf58b0a793252a44dc626d2019e  hooks/target/etc/secure-boot.conf.tmpl
 3a3f6f4bd11bb955e9628161ff046f6f5cdb7500ff8727341858337f65087489  hooks/target/etc/security/cron-session.conf
 b0a2280436a499baa00ff9949af912b5691fba80274fcc08bcd072c25d3b2cc6  hooks/target/etc/security/greetd-greeter.conf
 e1c8986a71b41ddb89f319953d27eb001ab501ea9e48f3353e94c1788c7b0608  hooks/target/etc/security/sudo-i.conf
@@ -1027,7 +1027,7 @@ e977c3d690224dd727d8761d2c0a66ba41bfd02ae0fd7850c4545d06b5a8e63c  hooks/target/o
 aff2d53d28c795386dbb3c91519b5bf1b99d6f2dc9549e0daa7cbf12c1c14fe7  hooks/target/usr/lib/mullvad-browser/distribution/policies.json.tmpl
 cb8e8bbf971844e49afc2b3e55c2d28843aa029731b8845ce3fd615c5a4a01a0  hooks/target/usr/lib/sysusers.d/tuta-extract.conf
 b7e9aaaaa36f0c094a70e28857f24f6474d1c5557af115650f47034e833229f7  hooks/target/usr/libexec/install-tools/bootprofile-apply.tmpl
-9433abd00d3123903be31a4f5104e51c094531982bcb5ce009250d98942843ea  hooks/target/usr/libexec/install-tools/secure-boot-tool.tmpl
+d86251ce5ec2b83dab73156009f46946aeeaa6fd6125f6e2631ad1801edf52e9  hooks/target/usr/libexec/install-tools/secure-boot-tool.tmpl
 4b8381bc17968eecfca657e4558b16c2f8f0bb3078e233bf7f69ceb82102e94a  hooks/target/usr/libexec/install-tools/system-log.sh
 b577c763ad9b86f8fe0aecf2388399f9a0d8dab522281c065f0edd0a5cfe683b  hooks/target/usr/libexec/install-tools/verify-module-signature.py
 576aa8117bfd56eeb93ab81d519607431b57b0edb4cb13e435f0dae3f647bf79  hooks/target/usr/local/bin/apt-repo-init
@@ -1523,7 +1523,7 @@ cddb71a9faddde6e54955370b6fa031abbd7d38a47aaa5d5870f85458c1080fa  hooks/target/u
 3206089ac361dbb385e6a41ae73227c38a4e8fbec0248a7367f12f3a2afcc7bc  hooks/target/usr/local/share/doc/git/README.md.tmpl
 73c1fc6dbe894108eb7b08f202bb8a7bb0a1c20ddb370996a4a72b5603992323  hooks/target/usr/local/share/gitbuild/sbuild.conf
 cf5b1830ee72a5c3c73cb6f8620333630a9c0c9e9fb7ba46ada283cfae4634fc  hooks/target/usr/local/share/grub-profiles/display-1.cfg.in.tmpl
-6499ffb610eb44e7ef0f491a019fd4d57526746ad3b55a00eaaddab1108aa017  hooks/target/usr/local/share/grub-profiles/display-2.cfg.in.tmpl
+e97d8a81887435ece74c073c2a05ca2b6fd9e8168356e5e387f8d001d2a13e61  hooks/target/usr/local/share/grub-profiles/display-2.cfg.in.tmpl
 70a241da655def5048a4e966d808c9e31be135614637604a48c760bb7ca01c4a  hooks/target/usr/local/share/grub-profiles/entry.cfg.in.tmpl
 7f5cfd31ae24ede7e9e6fa8fcbf1d48896c2cf30ed15e8c1f4d8c4531dd613f4  hooks/target/usr/local/share/grub-profiles/firmware.cfg.in.tmpl
 9c1047d479084c4ac521a4e3414773a2b4b56ab9723a2e598b51b46f90397625  hooks/target/usr/local/share/grub-profiles/header.cfg.in.tmpl
@@ -1741,7 +1741,7 @@ e51507e80ff0693e3248efcfca462015e5c160c320b65b1587351d9704feb6ae  scripts/late/d
 e5ca0a50c3731f30ab0e06cd3c5f5d5c6e6c712d701f6f3478e86658874bca95  scripts/late/enhanced.sh
 bc56634c376398eed71bff6b3db2f442d28fd1be4ca32f48beef4d51c78b049f  scripts/late/f2fs-family.sh
 8afd7103017f312ca98db0042e5b331bc32a9e8298d7309c5ba79dac81f9c09f  scripts/late/gitbuild-policy.py
-25cf6dc128c23380c9bebc1dbcc0c82036cef3846ce77f7ddf48ddc01d1bafb3  scripts/late/grub.sh
+694efd67d25406a6f84df3bbd7c1922f3e34e358589ef730b8dd0037c1ff567d  scripts/late/grub.sh
 9294495ad0e2d58d73c7e33bedc8bccf42ae8a57d0efd7294c2d64d1eab90c0d  scripts/late/iocost.sh
 35ceaec10c4a4c40b1da231ae01b287e176eb9ab06f89137eca72adc00c81c68  scripts/late/llama.sh
 46062b979b8f2caa524e025e1c490dd769d6843f0f66af8a0fcf51d965742f17  scripts/late/mullvad.sh

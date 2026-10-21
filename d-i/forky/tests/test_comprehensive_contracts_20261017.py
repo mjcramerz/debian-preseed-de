@@ -15,6 +15,7 @@ import os
 import ast
 import gzip
 from pathlib import Path
+import re
 import shlex
 import runpy
 import subprocess
@@ -48,7 +49,11 @@ class MokResetTests(unittest.TestCase):
                                            ('', '', False)]:
             with self.subTest(length=len(override), valid=valid):
                 program = 'fatal() { printf \'%s\\n\' "$*" >&2; exit 1; }\n' + definitions
-                result = subprocess.run(['/bin/dash', '-eu', '-c', program + '\nresolve_mok_delete_password'],
+                # Match the conditional command substitution used by reset;
+                # failures must propagate even when errexit is suppressed.
+                program += ('\nif password=$(resolve_mok_delete_password); then\n'
+                            '  printf \'%s\\n\' "$password"\nelse\n  exit 1\nfi\n')
+                result = subprocess.run(['/bin/dash', '-eu', '-c', program],
                                         env={**ENV, 'SECURE_BOOT_MOK_DELETE_PASSWORD': override,
                                              'ACCOUNT_USERNAME': username},
                                         capture_output=True, text=True, timeout=5)
@@ -57,7 +62,92 @@ class MokResetTests(unittest.TestCase):
                 if override:
                     self.assertNotIn(override, result.stderr)
 
-    def reset(self, failure='none', listing='certificate'):
+    def test_rendered_configuration_supplies_username_to_a_clean_helper_process(self):
+        # Exercise the real map, scalar renderer, config loader and reset body.
+        # Only mokutil and its EFI files are fixtures; no password resolver stub
+        # or inherited ACCOUNT_USERNAME can hide a missing template field.
+        seed = TARGET.parents[1]
+        grub = (seed / 'scripts/late/grub.sh').read_text()
+        mapping = function(grub, 'secure_boot_config_placeholder_map')
+        definitions = mapping
+        for relative, names in (
+            ('scripts/common/target.sh', ('shell_single_quote', 'write_shell_config_var')),
+            ('scripts/common/modules/files-logging.sh',
+             ('installer_escape_sed_replacement', 'installer_apply_scalar_placeholders')),
+            ('scripts/late/target-assets.sh', ('apply_placeholder_map_to_target',)),
+        ):
+            source = (seed / relative).read_text()
+            definitions += ''.join(function(source, name) for name in names)
+        values = {name: 'fixture-value' for name in
+                  re.findall(r'\$\{?([A-Za-z_][A-Za-z0-9_]*)', mapping)}
+        values.pop('ACCOUNT_USERNAME')
+        values['secure_boot_state_mode'] = 'direct'
+        with tempfile.TemporaryDirectory(prefix='mok-config-') as temporary:
+            root = Path(temporary)
+            config = root / 'secure-boot.conf'
+            config.write_bytes((TARGET / 'etc/secure-boot.conf.tmpl').read_bytes())
+            config.chmod(0o600)
+            program = (definitions + '\ninstaller_fatal() { exit 1; }\n'
+                       'ACCOUNT_USERNAME=fixture-user\nTMP_ENV_DIR=$1\n'
+                       'apply_placeholder_map_to_target "$2" secure_boot_config_placeholder_map\n')
+            rendered = subprocess.run(['/bin/dash', '-eu', '-c', program, 'render-mok',
+                                       str(root), str(config)], env={**ENV, **values},
+                                      capture_output=True, text=True, timeout=5)
+            self.assertEqual(rendered.returncode, 0, rendered.stderr)
+            self.assertNotIn('__INSTALLER_', config.read_text())
+            self.assertIn("ACCOUNT_USERNAME='fixture-user'\n", config.read_text())
+            self.assertEqual(config.stat().st_mode & 0o777, 0o600)
+            variables = root / 'efivars'
+            variables.mkdir()
+            calls = root / 'calls'
+            mock_bin = root / 'bin'
+            mock_bin.mkdir()
+            mokutil = mock_bin / 'mokutil'
+            mokutil.write_text(
+                '#!/usr/bin/python3\nimport sys\nfrom pathlib import Path\n'
+                f'calls = Path({str(calls)!r})\n'
+                'with calls.open("a") as stream:\n'
+                '    stream.write(" ".join(sys.argv[1:]) + "\\n")\n'
+                'if sys.argv[1:] == ["--reset"]:\n'
+                '    assert sys.stdin.buffer.read(1024) == b"fixture-user\\nfixture-user\\n"\n'
+                f'    Path({str(variables / "MokAuth-605dab50-e046-4300-abb6-3dd810dd8b23")!r}).write_bytes(bytes(176))\n'
+                'else:\n    assert sys.argv[1:] == ["--timeout", "-1"]\n')
+            mokutil.chmod(0o700)
+            source = (TARGET / 'usr/libexec/install-tools/secure-boot-tool.tmpl').read_text()
+            source = source.replace('PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+                                    'PATH=' + shlex.quote(str(mock_bin) + ':/usr/bin:/bin'))
+            source = source.replace('/sys/firmware/efi/efivars', str(variables))
+            helper = root / 'secure-boot-tool'
+            helper.write_text(source)
+            environment = {**ENV, 'SECURE_BOOT_CONFIG_PATH': str(config)}
+            self.assertNotIn('ACCOUNT_USERNAME', environment)
+            valid_config = config.read_text()
+            config.write_text(valid_config.replace("ACCOUNT_USERNAME='fixture-user'\n", ''))
+            missing = subprocess.run(['/bin/dash', str(helper), 'reset-preflight'], env=environment,
+                                     capture_output=True, text=True, timeout=5)
+            self.assertNotEqual(missing.returncode, 0)
+            self.assertIn('ACCOUNT_USERNAME must not be empty', missing.stderr)
+            self.assertFalse(calls.exists())
+            self.assertEqual(list(variables.iterdir()), [])
+            missing_reset = subprocess.run(['/bin/dash', str(helper), 'reset-moks'], env=environment,
+                                           capture_output=True, text=True, timeout=5)
+            self.assertNotEqual(missing_reset.returncode, 0)
+            self.assertIn('MOK reset password is unavailable', missing_reset.stderr)
+            self.assertFalse(calls.exists())
+            self.assertEqual(list(variables.iterdir()), [])
+            config.write_text(valid_config)
+            for command, output in (('reset-preflight', ''), ('reset-moks', 'queued\n')):
+                result = subprocess.run(['/bin/dash', str(helper), command], env=environment,
+                                        capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout, output)
+                self.assertNotIn('fixture-user', result.stdout + result.stderr)
+                if command == 'reset-preflight':
+                    self.assertFalse(calls.exists())
+                    self.assertEqual(list(variables.iterdir()), [])
+            self.assertEqual(calls.read_text().splitlines(), ['--reset', '--timeout -1'])
+
+    def reset(self, failure='none'):
         source = read_text(TARGET / 'usr/libexec/install-tools/secure-boot-tool')
         start = source.index('reset_mok_state() (\n')
         body = source[start:source.index('\n)\n', start) + 3]
@@ -81,26 +171,6 @@ timeout() {
 mokutil() {
   printf '%s\n' "$*" >>"$CALLS"
   case "$1" in
-    --list-enrolled)
-      [ "$#" -eq 2 ] && [ "$2" = --short ] || return 98
-      case "$LISTING" in
-        certificate|multiple|mixed)
-          printf '%s\n' '[key 1]' 'SHA1 Fingerprint: aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd' 'Certificate:'
-          if [ "$LISTING" = multiple ]; then
-            printf '%s\n' '[key 2]' 'SHA1 Fingerprint: dd:ee:ff:aa:bb:cc:00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd' 'Certificate:'
-          elif [ "$LISTING" = mixed ]; then
-            printf '%s\n' '[key 2]' 'SHA1 Fingerprint: 53:61:0c:f8:1f:bd:7e:0c:eb:67:91:3c:9e:f3:e7:94:a9:63:3e:cb' 'Certificate:'
-          fi
-          ;;
-        vendor) printf '%s\n' '[key 1]' 'SHA1 Fingerprint: 53:61:0C:F8:1F:BD:7E:0C:EB:67:91:3C:9E:F3:E7:94:A9:63:3E:CB' 'Certificate:' ;;
-        malformed) printf '%s\n' '[key 1]' 'SHA1 Fingerprint: aa:bb:cc' 'Certificate:' ;;
-        empty) : ;;
-        message) printf '%s\n' 'MokListRT is empty' ;;
-        hash) printf '%s\n' '[key 1]' 'Hash Algorithm: sha256' 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ;;
-        *) return 99 ;;
-      esac
-      case "$FAILURE" in query) return 73 ;; query-timeout) return 124 ;; esac
-      ;;
     --reset)
       [ "$#" -eq 1 ] || return 92
       IFS= read -r first && IFS= read -r second || return 93
@@ -109,7 +179,7 @@ mokutil() {
       return 0
       ;;
     --timeout)
-      [ "$#" -eq 2 ] && [ "$2" = 900 ] || return 95
+      [ "$#" -eq 2 ] && [ "$2" = -1 ] || return 95
       [ "$FAILURE" != timeout ]
       ;;
     *) return 96 ;;
@@ -117,45 +187,30 @@ mokutil() {
 }
 '''
             result = subprocess.run(['/bin/dash', '-eu', '-c', stubs + body + '\nreset_mok_state'],
-                                    env={**ENV, 'CALLS': str(calls), 'FAILURE': failure,
-                                         'LISTING': listing},
+                                    env={**ENV, 'CALLS': str(calls), 'FAILURE': failure},
                                     capture_output=True, text=True, timeout=5)
             self.assertNotIn('fixture-password', result.stdout + result.stderr)
             return result, calls.read_text().splitlines() if calls.exists() else []
 
-    def test_full_reset_for_every_inventory_without_issuer_or_type_exclusions(self):
-        # The newly generated certificate is intentionally absent from the
-        # fixture: previous installations' keys must still be covered.
-        for listing in ('certificate', 'multiple', 'mixed', 'vendor', 'hash',
-                        'empty', 'message', 'malformed'):
-            with self.subTest(listing=listing):
-                result, calls = self.reset(listing=listing)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(calls, ['--list-enrolled --short', '--reset', '--timeout -1'])
-                self.assertIn('confirm the reset in MokManager', result.stderr)
-                self.assertEqual(result.stdout, 'queued\n')
-
-    def test_failed_or_timed_out_inventory_does_not_suppress_the_reset(self):
-        for failure in ('query', 'query-timeout'):
-            with self.subTest(failure=failure):
-                result, calls = self.reset(failure=failure)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(calls, ['--list-enrolled --short', '--reset', '--timeout -1'])
-                self.assertIn('inventory is unavailable', result.stderr)
-                self.assertEqual(result.stdout, 'queued\n')
+    def test_full_reset_never_queries_or_depends_on_the_inventory(self):
+        result, calls = self.reset()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(calls, ['--reset', '--timeout -1'])
+        self.assertIn('confirm the reset in MokManager', result.stderr)
+        self.assertEqual(result.stdout, 'queued\n')
 
     def test_failed_request_is_not_retried_or_reported_as_queued(self):
         for failure in ('reset', 'reset-timeout', 'reset-killed', 'pending'):
             with self.subTest(failure=failure):
                 result, calls = self.reset(failure)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertEqual(calls, ['--list-enrolled --short', '--reset'])
+                self.assertEqual(calls, ['--reset'])
                 self.assertIn('may already be pending', result.stderr)
                 self.assertNotIn('full MOK reset queued', result.stderr)
                 self.assertEqual(result.stdout, '')
 
     def test_missing_command_or_password_never_claims_a_queued_reset(self):
-        for failure, expected in [('missing', []), ('password', ['--list-enrolled --short'])]:
+        for failure, expected in [('missing', []), ('password', [])]:
             with self.subTest(failure=failure):
                 result, calls = self.reset(failure)
                 self.assertNotEqual(result.returncode, 0)
@@ -165,7 +220,7 @@ mokutil() {
     def test_timeout_adjustment_failure_keeps_successful_reset_result(self):
         result, calls = self.reset('timeout')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(calls, ['--list-enrolled --short', '--reset', '--timeout -1'])
+        self.assertEqual(calls, ['--reset', '--timeout -1'])
         self.assertIn('timeout could not be set', result.stderr)
 
     def test_pending_reset_requires_authentication_and_no_new_enrollment(self):
@@ -233,6 +288,7 @@ installer_lifecycle_paths() { :; }
 installer_runtime_state_dir() { printf '%s\n' "$FIXTURE_ROOT"; }
 installer_metadata_value() { printf '0:0:600:1\n'; }
 installer_warn() { printf '%s\n' "$*" >&2; }
+prepare_target_secure_boot_mok_reset() { :; }
 reset_target_secure_boot_mok_state_attempt() {
   printf 'attempt\n' >>"$FIXTURE_ROOT/calls"
   printf 'queued\n'
@@ -247,6 +303,61 @@ reset_target_secure_boot_mok_state_attempt() {
                 self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual((Path(temporary) / 'calls').read_text(), 'attempt\n')
             self.assertEqual((Path(temporary) / 'secure-boot-mok-reset.state').read_text(), 'queued\n')
+
+    def test_failed_preflight_leaves_no_attempt_and_can_be_corrected(self):
+        source = read_text(TARGET.parents[1] / 'scripts/late/grub.sh')
+        body = function(source, 'reset_target_secure_boot_mok_state')
+        for failure in ('return 37', 'exit 37'):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                stubs = r'''
+installer_lifecycle_paths() { :; }
+installer_runtime_state_dir() { printf '%s\n' "$FIXTURE_ROOT"; }
+installer_metadata_value() { printf '0:0:600:1\n'; }
+installer_warn() { printf '%s\n' "$*" >&2; }
+reset_target_secure_boot_mok_state_attempt() {
+  printf 'attempt\n' >>"$FIXTURE_ROOT/calls"
+  printf 'queued\n'
+}
+'''
+                prepare = 'prepare_target_secure_boot_mok_reset() { ' + failure + '; }\n'
+                failed = subprocess.run(['/bin/dash', '-eu', '-c', stubs + prepare + body +
+                                         '\nreset_target_secure_boot_mok_state'],
+                                        env={**ENV, 'FIXTURE_ROOT': temporary},
+                                        capture_output=True, text=True, timeout=5)
+                self.assertNotEqual(failed.returncode, 0)
+                self.assertIn('no firmware reset was attempted', failed.stderr)
+                self.assertFalse((root / 'secure-boot-mok-reset.state').exists())
+                self.assertFalse((root / 'calls').exists())
+                prepare = 'prepare_target_secure_boot_mok_reset() { :; }\n'
+                corrected = subprocess.run(['/bin/dash', '-eu', '-c', stubs + prepare + body +
+                                            '\nreset_target_secure_boot_mok_state'],
+                                           env={**ENV, 'FIXTURE_ROOT': temporary},
+                                           capture_output=True, text=True, timeout=5)
+                self.assertEqual(corrected.returncode, 0, corrected.stderr)
+                self.assertEqual((root / 'calls').read_text(), 'attempt\n')
+                self.assertEqual((root / 'secure-boot-mok-reset.state').read_text(), 'queued\n')
+
+    def test_another_process_claiming_during_preflight_cannot_be_overwritten(self):
+        source = read_text(TARGET.parents[1] / 'scripts/late/grub.sh')
+        body = function(source, 'reset_target_secure_boot_mok_state')
+        stubs = r'''
+installer_lifecycle_paths() { :; }
+installer_runtime_state_dir() { printf '%s\n' "$FIXTURE_ROOT"; }
+installer_warn() { printf '%s\n' "$*" >&2; }
+prepare_target_secure_boot_mok_reset() {
+  (umask 077; printf 'unknown\n' >"$FIXTURE_ROOT/secure-boot-mok-reset.state")
+}
+reset_target_secure_boot_mok_state_attempt() { printf unexpected >"$FIXTURE_ROOT/calls"; }
+'''
+        with tempfile.TemporaryDirectory() as temporary:
+            result = subprocess.run(['/bin/dash', '-eu', '-c', stubs + body +
+                                     '\nreset_target_secure_boot_mok_state'],
+                                    env={**ENV, 'FIXTURE_ROOT': temporary},
+                                    capture_output=True, text=True, timeout=5)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse((Path(temporary) / 'calls').exists())
+            self.assertEqual((Path(temporary) / 'secure-boot-mok-reset.state').read_text(), 'unknown\n')
 
     def test_changed_pending_request_blocks_automatic_queue_but_installation_continues(self):
         source = read_text(TARGET.parents[1] / 'scripts/late/grub.sh')
@@ -268,7 +379,7 @@ installer_info() { printf '%s\n' "$*" >&2; }
 
     def test_bridge_preflight_failure_never_records_a_mandatory_install_failure(self):
         source = read_text(TARGET.parents[1] / 'scripts/late/grub.sh')
-        start = source.index('reset_target_secure_boot_mok_state_attempt() (\n')
+        start = source.index('prepare_target_secure_boot_mok_reset() (\n')
         body = source[start:source.index('\n)\n', start) + 3]
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -289,7 +400,7 @@ target_efivars_are_available() { return 0; }
 run_installer_secure_boot_install_tool() { installer_fatal 'fixture bridge preflight failure'; }
 '''
             result = subprocess.run(['/bin/dash', '-eu', '-c', stubs + body +
-                                     '\nif reset_target_secure_boot_mok_state_attempt; then exit 99; fi\n'
+                                     '\nif prepare_target_secure_boot_mok_reset; then exit 99; fi\n'
                                      "printf 'installation-continued\\n'"],
                                     env={**ENV, 'FIXTURE_ROOT': temporary},
                                     capture_output=True, text=True, timeout=5)
@@ -333,6 +444,7 @@ printf 'installation-continued\n'
                 stubs = ('installer_lifecycle_paths() { :; }\n'
                          'installer_runtime_state_dir() { printf \'%s\\n\' "$FIXTURE_ROOT"; }\n'
                          'installer_metadata_value() { printf \'0:0:600:1\\n\'; }\n'
+                         'prepare_target_secure_boot_mok_reset() { :; }\n'
                          'reset_target_secure_boot_mok_state_attempt() { printf attempt >>"$FIXTURE_ROOT/calls"; ' + failure + '; }\n'
                          'installer_warn() { printf \'%s\\n\' "$*" >&2; }\n')
                 result = subprocess.run(['/bin/dash', '-eu', '-c', stubs + body + caller],
@@ -386,7 +498,7 @@ installer_warn() { printf '%s\n' "$*" >&2; }
                 self.assertEqual(path.read_text(), state)
                 self.assertFalse((Path(temporary) / 'calls').exists())
 
-    def test_reset_runs_after_addon_and_desktop_packages_not_during_staging(self):
+    def test_reset_runs_immediately_after_grub_in_both_storage_families(self):
         source = read_text(TARGET.parents[1] / 'scripts/late/grub.sh')
         stage = function(source, 'stage_target_secure_boot_runtime_assets')
         self.assertNotIn('reset_target_secure_boot_mok_state', stage)
@@ -396,12 +508,14 @@ installer_warn() { printf '%s\n' "$*" >&2; }
                         prepkgsel.index('run_installer_secure_boot_install_tool prepare-dkms'))
         late = TARGET.parents[1] / 'scripts/late'
         for family in ('btrfs-family.sh', 'f2fs-family.sh'):
-            self.assertNotIn('reset_target_secure_boot_mok_state', read_text(late / family))
+            caller = read_text(late / family)
+            self.assertEqual(caller.count('if (finalize_target_secure_boot_mok_reset)'), 1)
+            self.assertLess(caller.index('\n  run_target_grub_config_update\n'),
+                            caller.index('if (finalize_target_secure_boot_mok_reset)'))
+            self.assertLess(caller.index('if (finalize_target_secure_boot_mok_reset)'),
+                            caller.index('\n  sync_target_secure_boot_bundle_to_installer_usb\n'))
         role = read_text(late / 'desktop.sh')
-        self.assertLess(role.index('\nrun_desktop_late_command '),
-                        role.index('\nif (finalize_target_secure_boot_mok_reset)'))
-        self.assertLess(role.index('\nif (finalize_target_secure_boot_mok_reset)'),
-                        role.index('\n: >"$desktop_late_stage_stamp"'))
+        self.assertNotIn('finalize_target_secure_boot_mok_reset', role)
         dispatch = read_text(late / 'dispatch.sh')
         self.assertLess(dispatch.index('\nrun_selected_class_helpers\n'),
                         dispatch.index('"$role_hook_dest" "$seed_base" "$host_profile"'))

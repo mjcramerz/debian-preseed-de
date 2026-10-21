@@ -1,1 +1,6 @@
-@@PREFIX@@set timeout=-1
+@@PREFIX@@if [ "$boot_once" = "true" ] && [ "$default" = "installer-mok-enrollment" ]; then
+@@PREFIX@@    set timeout_style=menu
+@@PREFIX@@    set timeout=0
+@@PREFIX@@else
+@@PREFIX@@    set timeout=-1
+@@PREFIX@@fi
