@@ -1,0 +1,30 @@
+#!/bin/sh
+# ExecCondition: check current DNS, TLS and HTTP access before scheduled work.
+set -eu
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+[ "$#" -eq 0 ] || exit 255
+for required in /usr/bin/curl /usr/bin/env /usr/bin/timeout; do
+  [ -x "$required" ] || {
+    printf '%s\n' 'event=network_readiness status=error reason=missing-delegate' >&2
+    exit 255
+  }
+done
+
+# A boot-time network-online.target remains reached after a link goes down.
+# Probe a fixed public Debian endpoint now. No redirects, proxy credentials,
+# caller curl configuration, response body, or unbounded DNS/transport wait.
+if response=$(/usr/bin/timeout --signal=TERM --kill-after=2s 10s \
+  /usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C HOME=/nonexistent \
+  /usr/bin/curl -q --head --fail --silent --noproxy '*' --proto '=https' \
+    --connect-timeout 3 --max-time 8 --max-redirs 0 --output /dev/null \
+    --write-out '%{http_code}' https://deb.debian.org/debian/ 2>/dev/null); then
+  [ "$response" != 200 ] || exit 0
+fi
+
+# 1..254 skips an ExecCondition without failing the service. Timers retain
+# their normal next run; an offline laptop does not enter a restart loop.
+printf '%s\n' 'event=network_readiness status=skipped reason=internet-unconfirmed'
+exit 1

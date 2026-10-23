@@ -260,91 +260,32 @@ desktop_write_labwc_plans_config() {
   desktop_log "rendered_labwc_plans_config credentials=set ntfy=disabled mode=0640"
 }
 
-desktop_install_primary_account_calendar_stack() {
-  : "${ACCOUNT_USERNAME:?ACCOUNT_USERNAME must be set}"
-  : "${ACCOUNT_HOME:?ACCOUNT_HOME must be set}"
-
+desktop_install_primary_account_calendar_stack() (
+  set -eu
+  set +x
+  set +v
   desktop_require_absolute_account_home
-
   desktop_load_calendar_cmdline_tokens
-  escaped_fruux_username=$(desktop_toml_escape "$DESKTOP_FRUUX_USERNAME")
-  escaped_fruux_password=$(desktop_toml_escape "$DESKTOP_FRUUX_PASSWORD")
-  account_home_path="${ACCOUNT_HOME}"
-  target_account_home="/target${account_home_path}"
-  config_root="${account_home_path}/.config"
-  data_root="${account_home_path}/.local/share/calendars"
-  state_root="${account_home_path}/.local/state"
-  vdirsyncer_state_root="${state_root}/vdirsyncer"
-  vdirsyncer_status_root="${vdirsyncer_state_root}/status"
-  personal_dir="${data_root}/personal"
-  tasks_dir="${data_root}/tasks"
-  personal_displayname="${personal_dir}/displayname"
-  personal_color="${personal_dir}/color"
-  tasks_displayname="${tasks_dir}/displayname"
-  tasks_color="${tasks_dir}/color"
-  vdirsyncer_dir="${config_root}/vdirsyncer"
-  khal_dir="${config_root}/khal"
-  todoman_dir="${config_root}/todoman"
-  vdirsyncer_config="${vdirsyncer_dir}/config"
-  khal_config="${khal_dir}/config"
-  todoman_config="${todoman_dir}/config.py"
-  fruux_root_url="https://dav.fruux.com/calendars/a3298084101/"
-  fruux_calendar_collection="05b2b2d2-6d85-43f5-bfcc-21d5903eea36"
-  fruux_tasks_collection="d3e6ec9b-c656-48d8-adab-21ed7cb0f92a"
-  account_ids=$(awk -F: -v wanted_user="$ACCOUNT_USERNAME" '$1 == wanted_user { print $3 ":" $4; exit }' /target/etc/passwd)
-  [ -n "$account_ids" ] || installer_fatal "failed to resolve target uid/gid for ${ACCOUNT_USERNAME}"
-  case "$account_ids" in
-    [0-9]*:[0-9]*)
-      case "$account_ids" in
-        *:*:*|*[!0-9:]*)
-          installer_fatal "target uid/gid for ${ACCOUNT_USERNAME} is not numeric: ${account_ids}"
-          ;;
-      esac
-      ;;
-    *)
-      installer_fatal "target uid/gid for ${ACCOUNT_USERNAME} is not numeric: ${account_ids}"
-      ;;
-  esac
-  account_uid=${account_ids%%:*}
-  account_gid=${account_ids#*:}
-
-  install -d -m 0755 \
-    "${target_account_home}/.local" \
-    "${target_account_home}/.local/share" \
-    "${target_account_home}/.local/state"
-  install -d -m 0700 \
-    "/target${vdirsyncer_dir}" \
-    "/target${khal_dir}" \
-    "/target${todoman_dir}" \
-    "/target${personal_dir}" \
-    "/target${tasks_dir}" \
-    "/target${vdirsyncer_status_root}"
-
-  desktop_render_role_target_template \
-    "etc/skel-desktop/.config/vdirsyncer/config.tmpl" \
-    "$vdirsyncer_config" \
-    0600 \
-    FRUUX_ROOT_URL "$fruux_root_url" \
-    FRUUX_CALENDAR_COLLECTION "$fruux_calendar_collection" \
-    FRUUX_TASKS_COLLECTION "$fruux_tasks_collection" \
-    FRUUX_USERNAME "$escaped_fruux_username" \
-    FRUUX_PASSWORD "$escaped_fruux_password"
-  desktop_stage_role_asset "etc/skel-desktop/.config/khal/config" "$khal_config" 0600
-  desktop_stage_role_asset "etc/skel-desktop/.config/todoman/config.py" "$todoman_config" 0600
-  desktop_stage_role_asset "etc/skel-desktop/.local/share/calendars/personal/displayname" "$personal_displayname" 0600
-  desktop_stage_role_asset "etc/skel-desktop/.local/share/calendars/personal/color" "$personal_color" 0600
-  desktop_stage_role_asset "etc/skel-desktop/.local/share/calendars/tasks/displayname" "$tasks_displayname" 0600
-  desktop_stage_role_asset "etc/skel-desktop/.local/share/calendars/tasks/color" "$tasks_color" 0600
-
-  chown "$account_uid:$account_gid" \
-    "${target_account_home}/.local" \
-    "${target_account_home}/.local/share" \
-    "${target_account_home}/.local/state"
-  chown -R "$account_uid:$account_gid" \
-    "/target${vdirsyncer_dir}" \
-    "/target${khal_dir}" \
-    "/target${todoman_dir}" \
-    "/target${data_root}" \
-    "/target${vdirsyncer_state_root}"
-  desktop_log "rendered_calendar_stack user=${ACCOUNT_USERNAME} vdirsyncer=${vdirsyncer_config} khal=${khal_config} todoman=${todoman_config}"
-}
+  calendar_stage=$(target_private_stage_dir calendar)
+  calendar_stage_host=$(target_asset_host_path "$calendar_stage")
+  trap 'rm -rf -- "$calendar_stage_host"' 0
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_DESKTOP calendar-install.py)" \
+    "${calendar_stage}/install.py" 0600
+  (umask 077; printf '%s' "$DESKTOP_FRUUX_USERNAME" >"$calendar_stage_host/username")
+  (umask 077; printf '%s' "$DESKTOP_FRUUX_PASSWORD" >"$calendar_stage_host/password")
+  unset DESKTOP_FRUUX_USERNAME DESKTOP_FRUUX_PASSWORD
+  run_in_target "install pinned Waycal, Calix and Agenda with private Fruux bootstrap" \
+    /usr/bin/env -i HOME=/root LC_ALL=C.UTF-8 PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+    ACCOUNT_USERNAME="$ACCOUNT_USERNAME" ACCOUNT_HOME="$ACCOUNT_HOME" \
+    WAYCAL_VERSION="$WAYCAL_VERSION" WAYCAL_URL="$WAYCAL_URL" WAYCAL_COMMIT="$WAYCAL_COMMIT" \
+    WAYCAL_SHA256="$WAYCAL_SHA256" WAYCAL_MAXIMUM_BYTES="$WAYCAL_MAXIMUM_BYTES" \
+    CALIX_VERSION="$CALIX_VERSION" CALIX_URL="$CALIX_URL" CALIX_COMMIT="$CALIX_COMMIT" \
+    CALIX_SHA256="$CALIX_SHA256" CALIX_MAXIMUM_BYTES="$CALIX_MAXIMUM_BYTES" \
+    AGENDA_VERSION="$AGENDA_VERSION" AGENDA_URL="$AGENDA_URL" AGENDA_COMMIT="$AGENDA_COMMIT" \
+    AGENDA_SHA256="$AGENDA_SHA256" AGENDA_MAXIMUM_BYTES="$AGENDA_MAXIMUM_BYTES" \
+    /usr/bin/timeout --signal=TERM --kill-after=5s 600s \
+    /usr/bin/python3 -I -B "${calendar_stage}/install.py" "$calendar_stage"
+)

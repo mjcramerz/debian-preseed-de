@@ -6,6 +6,7 @@ ConditionPathIsDirectory=__INSTALLER_DIR_DATA_PKI__/tls/acme/config/renewal
 
 [Service]
 Type=oneshot
+ExecCondition=/usr/local/libexec/network-online-check
 ExecStart=/usr/bin/certbot --config /etc/key-manager/certbot.ini renew --non-interactive --config-dir __INSTALLER_DIR_DATA_PKI__/tls/acme/config --work-dir __INSTALLER_DIR_DATA_PKI__/tls/acme/work --logs-dir __INSTALLER_DIR_DATA_PKI__/tls/acme/logs
 UMask=0077
 NoNewPrivileges=yes

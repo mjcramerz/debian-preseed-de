@@ -32,7 +32,7 @@ from test_notifications_followup_20260920 import rendered_profile_styles
 ICONS={'custom/app-terminal':('foot','Foot',(23,217,71)),
        'custom/app-files':('org.xfce.thunar','Thunar',(35,145,247)),
        'custom/app-tuta':('tuta-mail','Tuta Mail',(179,27,198)),
-       'custom/app-notes':('featherpad','FeatherPad',(47,226,211)),
+       'custom/app-notes':('l3afpad','L3afpad',(47,226,211)),
        'custom/app-sleek':('sleek','Sleek',(230,72,174))}
 
 
@@ -40,7 +40,7 @@ ICON_PATHS = {
     'foot': '/usr/share/icons/Papirus/24x24/apps/foot.svg',
     'org.xfce.thunar': '/usr/share/icons/Papirus/24x24/apps/org.xfce.thunar.svg',
     'tuta-mail': '/usr/share/icons/hicolor/512x512/apps/tuta-mail.png',
-    'featherpad': '/usr/share/icons/Papirus/24x24/apps/featherpad.svg',
+    'l3afpad': '/usr/share/icons/Papirus/24x24/apps/l3afpad.svg',
     'sleek': '/usr/share/icons/hicolor/512x512/apps/sleek.png',
 }
 
@@ -202,7 +202,7 @@ class InstalledDrawerVerifierTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit,'not installed'):self.execute(missing='sleek')
 
     def test_unselected_or_other_architecture_does_not_add_package_requirements(self):
-        expected={ICON_PATHS[name] for name in ('foot','org.xfce.thunar','featherpad')}
+        expected={ICON_PATHS[name] for name in ('foot','org.xfce.thunar','l3afpad')}
         self.assertEqual(set(self.execute(software='0',missing='sleek')),expected)
         self.assertEqual(set(self.execute(arch='arm64',missing='tuta-mail')),expected)
 

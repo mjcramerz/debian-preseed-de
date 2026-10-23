@@ -114,12 +114,48 @@ class PolicyTests(unittest.TestCase):
                     self.assertEqual(env[installer.PREFIXES[vendor] + "ENABLE"], str(path.stem in (enabled if vendor == "intel" else {"btrfs-de-p15s", "btrfs-de-p15s-duo"})).lower())
                     value = installer.policy(env, vendor, module.SETTINGS)
                     self.assertFalse(value["allow_overclock"])
-                    self.assertFalse(value["allow_power_increase"])
+                    self.assertEqual(value["allow_power_increase"],
+                                     path.stem in enabled and (vendor == "intel" or "p15s" in path.stem))
                     self.assertFalse(value["exclusive_clock_control"])
                     self.assertEqual(set(value["profiles"]), set(common.PROFILES))
-                    for i, profile in enumerate(common.PROFILES):
-                        self.assertEqual(value["profiles"][profile]["knobs"], {k: vals[i] for k, vals in module.SETTINGS.items()})
-                self.assertEqual(env["HARDWARE_TUNING_AUTOSTART_ENABLE"], "false")
+                    if path.stem not in enabled:
+                        for i, profile in enumerate(common.PROFILES):
+                            self.assertEqual(value["profiles"][profile]["knobs"], {k: vals[i] for k, vals in module.SETTINGS.items()})
+                self.assertEqual(env["HARDWARE_TUNING_AUTOSTART_ENABLE"], str(path.stem in enabled).lower())
+                self.assertEqual(env["HARDWARE_TUNING_IDLE_AC"], "performance" if path.stem in enabled else "balanced")
+                self.assertEqual(env["HARDWARE_TUNING_IDLE_BATTERY"], "silent")
+
+    def test_ac_laptop_pairs_have_identical_hardware_policy(self):
+        for name, floor, temperature in (("p15s", "35", "88"), ("flex", "30", "85")):
+            env = environment("btrfs-de-" + name)
+            self.assertEqual(env, environment("btrfs-de-" + name + "-duo"))
+            prefix = installer.PREFIXES["intel"]
+            self.assertEqual(env[prefix + "MAX_TEMPERATURE_C"], temperature)
+            self.assertEqual(env[prefix + "PERFORMANCE_CPU_MIN_PERF_PCT"], floor)
+            self.assertEqual(env[prefix + "HIGH_CPU_MIN_PERF_PCT"], "20")
+            for profile in ("PERFORMANCE", "HIGH"):
+                for setting, value in (("CPU_EPP", "performance"), ("CPU_EPB", "0"),
+                                       ("CPU_MAX_PERF_PCT", "100"), ("CPU_NO_TURBO", "0"),
+                                       ("CPU_HWP_DYNAMIC_BOOST", "1")):
+                    self.assertEqual(env[prefix + profile + "_" + setting], value)
+            for key, value in env.items():
+                if "_RAPL_" in key and "_VERIFIED_" not in key:
+                    self.assertEqual(value, "keep")
+            nv = installer.PREFIXES["nvidia"]
+            if name == "p15s":
+                self.assertEqual(env[nv + "PERFORMANCE_POWER_LIMIT_MW"], "supported-max")
+                for profile in ("PERFORMANCE", "HIGH"):
+                    self.assertEqual(env[nv + profile + "_APPLICATION_CLOCKS_MHZ"], "supported-max")
+                    self.assertEqual(env[nv + profile + "_PERSISTENCE_MODE"], "supported-1")
+                for key, value in env.items():
+                    if key.startswith(nv) and any(part in key for part in ("_OFFSET_MHZ", "_LOCK_MHZ")):
+                        self.assertEqual(value, "keep")
+            else:
+                self.assertEqual(env[nv + "ENABLE"], "false")
+                self.assertEqual(env[prefix + "PERFORMANCE_GPU_MIN_FREQ_MHZ"], "efficient")
+                for profile in ("PERFORMANCE", "HIGH", "BALANCED"):
+                    self.assertEqual(env[prefix + profile + "_GPU_MAX_FREQ_MHZ"], "max")
+                    self.assertEqual(env[prefix + profile + "_GPU_BOOST_FREQ_MHZ"], "max")
 
     def test_no_shell_evaluation_in_literal_parser(self):
         bad = ['HARDWARE_TUNING_IDLE_AC="$(touch /tmp/unsafe)"',
@@ -267,7 +303,7 @@ desktop_install_hardware_tuning
                     self.assertEqual(after, before)
                 self.assertTrue((root / "etc/systemd/system/sockets.target.wants/hardware-tuning.socket").is_symlink())
                 self.assertTrue((root / "etc/systemd/system/sleep.target.requires/hardware-tuning-sleep.service").is_symlink())
-                self.assertFalse(payload_source_exists(root / "etc/systemd/system/multi-user.target.wants/hardware-tuning-autostart.service"))
+                self.assertTrue((root / "etc/systemd/system/multi-user.target.wants/hardware-tuning-autostart.service").is_symlink())
                 for vendor in common.VENDORS:
                     self.assertEqual(payload_source_is_file(root / f"etc/hardware-tuning/{vendor}.json"), vendor in vendors)
                     for profile in common.PROFILES:
@@ -345,6 +381,51 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(work.reset()["restored"], 2)
         self.assertEqual(self.backend.writes[2:], [("lo", 2), ("hi", 4)])
         self.assertEqual(json.loads(payload_read_text(self.path))["entries"], [])
+
+    def persistence_clock_fixture(self):
+        device = "GPU-fixture/"
+        persistence, clocks, boost = (device + setting for setting in
+                                     ("PERSISTENCE_MODE", "APPLICATION_CLOCKS_MHZ", "AUTO_BOOST"))
+        self.backend.add(persistence, "PERSISTENCE_MODE", 0, 0, 1)
+        self.backend.add(boost, "AUTO_BOOST", 1, 0, 1)
+        self.backend.add(clocks, "APPLICATION_CLOCKS_MHZ", 20, companions=(boost,))
+        def side_effect(key, value):
+            # NVML application clocks can change Auto Boost as a side effect.
+            if key == clocks:
+                self.backend.values[boost] = 0
+            if key == boost and self.backend.values[persistence] != 1:
+                raise common.TuningError("fixture: Auto Boost requires persistence")
+        self.backend.before_write = side_effect
+        settings = {"PERSISTENCE_MODE": ("1",) * 4,
+                    "APPLICATION_CLOCKS_MHZ": ("30",) * 4, "AUTO_BOOST": ("keep",) * 4}
+        return self.make(settings), settings, persistence, clocks, boost
+
+    def test_persistence_enabled_first_and_disabled_after_clock_and_boost_restoration(self):
+        work, settings, persistence, clocks, boost = self.persistence_clock_fixture()
+        work.apply("high", settings)
+        self.assertEqual(self.backend.writes, [(persistence, 1), (clocks, 30)])
+        self.assertEqual(self.backend.values[boost], 0)
+        self.assertEqual(work.reset()["restored"], 3)
+        self.assertEqual(self.backend.writes[2:], [(clocks, 20), (boost, 1), (persistence, 0)])
+        self.assertEqual(self.backend.values, {persistence: 0, clocks: 20, boost: 1})
+        self.assertEqual(work.journal["entries"], [])
+
+    def test_failed_boost_restore_retains_persistence_and_recovery_evidence(self):
+        work, settings, persistence, clocks, boost = self.persistence_clock_fixture()
+        work.apply("high", settings)
+        self.backend.failure = lambda key, value: key == boost and value == 1
+        with self.assertRaisesRegex(common.TuningError, "restoration incomplete"):
+            work.reset()
+        self.assertEqual(self.backend.values[persistence], 1)
+        self.assertNotIn((persistence, 0), self.backend.writes)
+        retained = json.loads(payload_read_text(self.path))
+        self.assertEqual({entry["id"] for entry in retained["entries"]}, {persistence, clocks, boost})
+        self.assertTrue(all(entry["pending"] for entry in retained["entries"]))
+        self.backend.failure = None
+        recovered = engine.Engine(self.backend, self.path)
+        recovered.reset()
+        self.assertEqual(self.backend.values, {persistence: 0, clocks: 20, boost: 1})
+        self.assertEqual(recovered.journal["entries"], [])
 
     def test_snapshot_is_durable_before_the_first_write(self):
         self.backend.add("x", "X", 1)
@@ -492,6 +573,49 @@ class EngineTests(unittest.TestCase):
         work.policy["profiles"]["high"]["knobs"]["X"] = "11"
         with self.assertRaisesRegex(common.TuningError, "explicit request"):
             work.apply("high", settings)
+
+    def test_conditional_capability_skips_absence_without_hiding_explicit_errors(self):
+        settings = {"X": ("keep",) * 4}
+        work = self.make(settings)
+        knobs = work.policy["profiles"]["high"]["knobs"]
+        for value in ("supported-max", "supported-1"):
+            knobs["X"] = value
+            values, skipped = work.plan("high", settings)
+            self.assertEqual(values, {})
+            self.assertEqual(len(skipped), 1)
+            self.assertIn("conditional capability request skipped", skipped[0])
+        for value in ("max", "1", "supported-2"):
+            knobs["X"] = value
+            with self.assertRaisesRegex(common.TuningError, "explicit request"):
+                work.plan("high", settings)
+        self.assertEqual(self.backend.writes, [])
+
+    def test_conditional_power_request_retains_permission_thermal_and_recovery_gates(self):
+        self.backend.add("power", "POWER_LIMIT_MW", 25, 10, 35, power_default=25)
+        settings = {"POWER_LIMIT_MW": ("keep",) * 4}
+        work = self.make(settings)
+        work.policy["profiles"]["high"]["knobs"]["POWER_LIMIT_MW"] = "supported-max"
+        with self.assertRaisesRegex(common.TuningError, "allow_power_increase"):
+            work.apply("high", settings)
+        self.assertEqual(self.backend.writes, [])
+        work.policy["allow_power_increase"] = True
+        self.backend.temperature_value = None
+        with self.assertRaisesRegex(common.TuningError, "readable temperature"):
+            work.apply("high", settings)
+        self.assertEqual(self.backend.writes, [])
+        self.backend.temperature_value = 35
+        work.apply("high", settings)
+        self.assertEqual(self.backend.values["power"], 35)
+        work.reset()
+        self.assertEqual(self.backend.values["power"], 25)
+
+    def test_conditional_choice_rejects_a_present_but_incompatible_control(self):
+        knob = self.backend.add("mode", "MODE", "off", choices=("off", "on"))
+        with self.assertRaisesRegex(common.TuningError, "unsupported choice"):
+            knob.resolve("supported-1", simple_policy({"MODE": ("keep",) * 4}))
+        knob = self.backend.add("unknown", "UNKNOWN", 1, None, None)
+        with self.assertRaisesRegex(common.TuningError, "usable bounds"):
+            knob.resolve("supported-max", simple_policy({"UNKNOWN": ("keep",) * 4}))
 
     def test_inverted_pair_rejected_before_writes(self):
         self.backend.add("lo", "MIN", 2, 0, 10, pair="pair", side="min")
@@ -716,6 +840,20 @@ class NvidiaTests(unittest.TestCase):
         with self.assertRaises(common.TuningError):
             knob.resolve("9999,9999", policy)
 
+    def test_maximum_application_clocks_use_one_advertised_pair(self):
+        api = FakeNVML()
+        hardware = nvidia.Backend(api)
+        # Highest graphics frequency belongs to the lower memory frequency:
+        # the independent maxima must never be combined into an invalid pair.
+        hardware.application_clocks("GPU-fixture", nvidia.H(1), {2000: [900, 600], 1000: [1500]})
+        knob = hardware.knobs["GPU-fixture/APPLICATION_CLOCKS_MHZ"]
+        policy = installer.policy(environment(), "nvidia", nvidia.SETTINGS)
+        self.assertEqual(knob.resolve("supported-max", policy), "2000,900")
+        self.assertIn(knob.resolve("max", policy), knob.choices)
+        with self.assertRaises(common.TuningError):
+            knob.resolve("2000,1500", policy)
+        self.assertFalse(any(name.startswith("nvmlDeviceSet") for name, _, _ in api.calls))
+
     def test_signed_per_pstate_offset_preserved(self):
         api = FakeNVML()
         hardware = nvidia.Backend(api)
@@ -729,6 +867,24 @@ class NvidiaTests(unittest.TestCase):
 
 
 class SelectionTests(unittest.TestCase):
+    def test_performance_ac_baseline_survives_lower_application_leases(self):
+        selection = broker.Selection(["intel", "nvidia"])
+        selection.automatic = True
+        for vendor in selection.vendors:
+            selection.change_lease(vendor, "balanced", 1)
+            selection.change_lease(vendor, "high", 1)
+            self.assertEqual(selection.desired(vendor, True, "performance"), "performance")
+            self.assertEqual(selection.desired(vendor, True, "silent"), "high")
+            selection.manual[vendor] = "silent"
+            self.assertEqual(selection.desired(vendor, True, "performance"), "silent")
+            selection.manual[vendor] = None
+            self.assertIsNone(selection.desired(vendor, False, "performance"))
+        selection.paused = True
+        self.assertIsNone(selection.desired("intel", True, "performance"))
+        selection.paused = False
+        selection.faults["nvidia"] = "thermal"
+        self.assertIsNone(selection.desired("nvidia", True, "performance"))
+
     def test_manual_precedence_reset_and_automatic_preserved(self):
         selection = broker.Selection(["intel", "nvidia"])
         selection.automatic = True

@@ -151,6 +151,26 @@ class TomatControllerTests(unittest.TestCase):
         self.assertEqual(data['hooks']['on_break_start']['timeout'], 3)
         self.assertNotIn('timeout', data['notification'])
 
+    def test_open_config_executes_l3afpad_with_native_wayland_environment(self):
+        with tempfile.TemporaryDirectory() as work:
+            ctx = self.context(work)
+            # Repair must remain available for an invalid config without starting
+            # the daemon or entering the TOML/settings path.
+            ctx.config.write_text('invalid = [\n')
+            with mock.patch.object(self.mod, 'Context', return_value=ctx), \
+                 mock.patch.dict(os.environ, {'WAYLAND_DISPLAY': 'wayland-1', 'DISPLAY': ':9'}, clear=True), \
+                 mock.patch.object(self.mod.os, 'execve', side_effect=SystemExit(0)) as launch:
+                with self.assertRaises(SystemExit):
+                    self.mod.main(['config'])
+            executable, arguments, environment = launch.call_args.args
+            self.assertEqual(executable, '/usr/bin/l3afpad')
+            self.assertEqual(arguments, ['/usr/bin/l3afpad', str(ctx.config)])
+            self.assertEqual(environment['GDK_BACKEND'], 'wayland')
+            self.assertEqual(environment['WAYLAND_DISPLAY'], 'wayland-1')
+            self.assertNotIn('DISPLAY', environment)
+            ctx.session_ready.assert_called_once_with()
+            ctx.run.assert_not_called()
+
     def test_reject_invalid_types_limits_keys_and_hook_authority(self):
         for old, new in [('work = 45.0', 'work = nan'), ('work = 45.0', 'work = true'),
                          ('work = 45.0', 'work = 601'), ('sessions = 3', 'sessions = 0'),
@@ -301,7 +321,7 @@ class MenuAndHookTests(unittest.TestCase):
         for bar in bars():
             for module, name, event in [('custom/tomat','tomat','on-click'), ('pulseaudio','audio','on-click'),
                                        ('custom/notifications','notifications','on-click'), ('custom/power','power','on-click'),
-                                       ('clock','calendar','on-click')]:
+                                       ('clock','calendar','on-click-right')]:
                 entry = bar[module]
                 self.assertEqual(entry['menu'], event); self.assertNotIn(event, entry)
                 tree = ET.parse(payload_source_path(SKEL / 'waybar' / (name + '-menu.xml')))

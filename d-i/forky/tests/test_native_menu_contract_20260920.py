@@ -38,23 +38,23 @@ import xml.etree.ElementTree as ET
 
 from test_native_tomat_20260920 import FORKY, TARGET, SKEL, LIBEXEC, bars, load
 
-CALENDAR = {
-    'calendar_open': 'browse', 'calendar_agenda': 'agenda',
-    'calendar_new_event': 'new-event', 'calendar_edit_event': 'edit-event',
-    'calendar_tasks': 'tasks', 'calendar_all_tasks': 'all-tasks',
-    'calendar_new_task': 'new-task', 'calendar_show_task': 'show-task',
-    'calendar_edit_task': 'edit-task', 'calendar_done_task': 'done-task',
-    'calendar_delete_task': 'delete-task', 'calendar_sync': 'sync-ui',
-}
+CALENDAR = {'calendar_open': ['/usr/local/bin/labwc-calendar'],
+            'calendar_agenda': ['/usr/local/bin/labwc-agenda']}
+CALENDAR.update({key: ['/usr/local/libexec/labwc-calendar-actions', action]
+                for key, action in {'calendar_new_event': 'event-create', 'calendar_edit_event': 'event-manage',
+                    'calendar_tasks': 'tasks-pending', 'calendar_all_tasks': 'tasks-all', 'calendar_new_task': 'task-create',
+                    'calendar_edit_task': 'task-edit', 'calendar_show_task': 'task-details',
+                    'calendar_done_task': 'task-complete', 'calendar_delete_task': 'task-delete'}.items()})
+
 MODULES = (('custom/tomat', 'tomat', 'on-click'),
            ('pulseaudio', 'audio', 'on-click'),
            ('custom/notifications', 'notifications', 'on-click'),
            ('custom/power', 'power', 'on-click'),
-           ('clock', 'calendar', 'on-click'))
+           ('clock', 'calendar', 'on-click-right'))
 
 
 class MenuContractTests(unittest.TestCase):
-    def test_all_84_actions_are_nonblocking_and_session_owned(self):
+    def test_all_82_actions_are_nonblocking_and_session_owned(self):
         options = {'--user', '--collect', '--no-block', '--service-type=exec',
                    '--expand-environment=no', '--slice=app.slice',
                    '--property=Requisite=labwc-session.target',
@@ -90,7 +90,7 @@ class MenuContractTests(unittest.TestCase):
                     self.assertNotIn('--scope', argv)
                     self.assertGreater(len(argv[boundary + 1:]), 0)
                     count += 1
-        self.assertEqual(count, 84)
+        self.assertEqual(count, 82)
 
     def test_calendar_mapping_and_secondary_clicks(self):
         for bar in bars():
@@ -99,9 +99,12 @@ class MenuContractTests(unittest.TestCase):
             self.assertEqual(set(entry['menu-actions']), set(CALENDAR))
             for key, action in CALENDAR.items():
                 argv = shlex.split(entry['menu-actions'][key])
-                self.assertEqual(argv[argv.index('--') + 1:], ['/usr/local/bin/labwc-calendar', action])
-            self.assertTrue(entry['on-click-right'].endswith(' -- labwc-calendar'))
-            self.assertTrue(entry['on-click-middle'].endswith(' -- labwc-calendar tasks'))
+                self.assertEqual(argv[argv.index('--') + 1:], action)
+            self.assertNotIn('on-click-right', entry)
+            self.assertNotIn('on-click-middle', entry)
+            self.assertEqual(entry['format-alt-click'], 1)
+            self.assertIn('%V', entry['format-alt'])
+            self.assertEqual(entry['tooltip-format'], 'Calendar')
             self.assertNotIn('labwc-calendar menu', json.dumps(entry))
 
     def test_secondary_clicks_preserve_previous_primary_actions(self):
@@ -174,7 +177,7 @@ class MenuContractTests(unittest.TestCase):
         for text in ('menus=5', 'unwired native menu leaf', '--no-block', 'optional Whisper menu/service availability differs'):
             self.assertIn(text, function)
         packages = payload_read_text(FORKY / 'classes/class-select/role/desktop.cfg').split()
-        for package in ('python3-gi', 'gir1.2-gtk-3.0', 'mako-notifier', 'khal', 'todoman/trixie'):
+        for package in ('python3-gi', 'gir1.2-gtk-3.0', 'mako-notifier', 'libgtk4-layer-shell0', 'gir1.2-atspi-2.0'):
             self.assertIn(package, packages)
 
 
@@ -329,123 +332,6 @@ class NotificationCaptureTests(unittest.TestCase):
             with self.assertRaises(self.helper.Error):
                 self.helper.mako(['menu', 'sh'], {})
         child.assert_not_called()
-
-
-class CalendarActionTests(unittest.TestCase):
-    def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
-        self.bin = self.root / 'bin'; self.bin.mkdir()
-        self.log = self.root / 'calls.jsonl'
-        for name in ('khal/config', 'todoman/config.py', 'vdirsyncer/config'):
-            path = self.root / '.config' / name
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text('# fixture\n')
-        fixture = '''#!/usr/bin/python3
-import json,os,sys
-from pathlib import Path
-name=Path(sys.argv[0]).name
-with open(os.environ['TEST_LOG'],'a') as stream:
- stream.write(json.dumps({'name':name,'args':sys.argv[1:]})+'\\n')
-if name == 'todoman' and sys.argv[1:2] == ['list']:
- print('fixture task list')
- sys.exit(int(os.environ.get('LIST_STATUS','0')))
-if name in {'khal','todoman'}:
- sys.exit(int(os.environ.get('BACKEND_STATUS','0')))
-'''
-        for name in ('khal', 'todoman', 'labwc-terminal', 'notify-send'):
-            path = self.bin / name; path.write_text(fixture); path.chmod(0o755)
-        self.env = {'HOME': str(self.root), 'PATH': str(self.bin) + ':/usr/bin:/bin',
-                    'TEST_LOG': str(self.log), 'LC_ALL': 'C.UTF-8'}
-
-    def run_action(self, action, input='', extras=(), **environment):
-        self.log.unlink(missing_ok=True)
-        result = subprocess.run(payload_installed_argv(['/bin/sh', str(LIBEXEC / 'labwc-calendar'), action, *extras]),
-                                input=input, env={**self.env, **environment}, capture_output=True,
-                                text=True, timeout=5)
-        self.calls = [json.loads(line) for line in payload_read_text(self.log).splitlines()] if payload_source_exists(self.log) else []
-        return result
-
-    def test_every_public_calendar_action_opens_a_terminal(self):
-        for action in CALENDAR.values():
-            with self.subTest(action=action):
-                result = self.run_action(action)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(len(self.calls), 1)
-                self.assertEqual(self.calls[0]['name'], 'labwc-terminal')
-                self.assertEqual(self.calls[0]['args'][0], '-e')
-        self.assertEqual(self.calls[0]['args'][-1], 'sync-terminal')
-
-    def test_shell_metacharacters_and_leading_dash_are_event_data(self):
-        for query in ('--delete', '$(touch /not-executed); "quotes"'):
-            result = self.run_action('edit-event-terminal', query + '\n\n')
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(self.calls, [{'name': 'khal', 'args': ['edit', '--show-past', '--', query]}])
-
-    def test_task_id_is_one_positive_decimal_operand(self):
-        for ident in ('--raw', '--yes', '0', '01', '-1', '1 2', '1;exit', '1' * 19):
-            with self.subTest(ident=ident):
-                result = self.run_action('edit-task-terminal', ident + '\n\n')
-                self.assertEqual(result.returncode, 64)
-                self.assertEqual(self.calls, [{'name': 'todoman', 'args': ['list', '--status', 'ANY']}])
-        result = self.run_action('edit-task-terminal', '12\n\n')
-        self.assertEqual(result.returncode, 0)
-        self.assertEqual(self.calls[-1], {'name': 'todoman', 'args': ['edit', '-i', '--', '12']})
-
-    def test_empty_task_and_event_input_cancel_cleanly(self):
-        for action in ('edit-task-terminal', 'edit-event-terminal'):
-            result = self.run_action(action, '\n')
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertFalse(any(call['args'][0] == 'edit' for call in self.calls))
-
-    def test_completion_has_preview_and_default_no_confirmation(self):
-        for answer in ('n', '', 'yes'):
-            result = self.run_action('done-task-terminal', '12\n' + answer + '\n\n')
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn({'name': 'todoman', 'args': ['show', '--', '12']}, self.calls)
-            self.assertEqual(any(call['args'][0] == 'done' for call in self.calls), answer == 'yes')
-
-    def test_delete_preserves_backend_confirmation(self):
-        result = self.run_action('delete-task-terminal', '12\n\n')
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.calls[-1], {'name': 'todoman', 'args': ['delete', '--', '12']})
-        self.assertNotIn('--yes', self.calls[-1]['args'])
-
-    def test_list_error_stops_before_mutating_or_prompting_for_id(self):
-        result = self.run_action('edit-task-terminal', '\n', LIST_STATUS='23')
-        self.assertEqual(result.returncode, 23)
-        self.assertNotIn('Task id', result.stdout)
-        self.assertEqual(len(self.calls), 1)
-        self.assertIn('Press Enter to close', result.stdout)
-
-    def test_backend_error_is_preserved_after_hold(self):
-        result = self.run_action('edit-event-terminal', 'query\n\n', BACKEND_STATUS='31')
-        self.assertEqual(result.returncode, 31)
-        self.assertIn('Press Enter to close', result.stdout)
-        self.assertIn('status 31', result.stderr)
-
-    def test_all_tasks_includes_completed_and_new_forms_are_interactive(self):
-        for action, command, args in (
-                ('all-tasks-terminal', 'todoman', ['list', '--status', 'ANY']),
-                ('new-task-terminal', 'todoman', ['new', '-i']),
-                ('new-event-terminal', 'khal', ['new', '-i'])):
-            result = self.run_action(action, '\n')
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(self.calls, [{'name': command, 'args': args}])
-
-    def test_extra_arguments_fail_before_launch(self):
-        for action in CALENDAR.values():
-            result = self.run_action(action, extras=('extra',))
-            self.assertEqual(result.returncode, 64)
-            self.assertEqual(self.calls, [])
-
-    def test_calendar_cancellation_executables_are_confined_and_allowed(self):
-        source = payload_read_text(TARGET / 'etc/apparmor.d/desktop-wrappers')
-        profile = source.split('profile labwc-calendar ', 1)[1].split('\nprofile ', 1)[0]
-        self.assertIn('/{,usr/}bin/{kill,sleep} rix,', profile)
-        self.assertIn('signal (send) set=(term, kill) peer=unconfined,', profile)
-        self.assertIn('/usr/local/bin/labwc-terminal rPx -> labwc-terminal,', profile)
 
 
 if __name__ == '__main__':

@@ -1,5 +1,5 @@
 [Unit]
-Description=Prepare manual static Wi-Fi only when the configured SSID is visible
+Description=Publish the configured persistent static Wi-Fi connection
 Requires=NetworkManager.service
 After=NetworkManager.service
 Before=greetd.service
@@ -11,11 +11,9 @@ StartLimitBurst=2
 [Service]
 Type=oneshot
 ExecStart=/usr/local/libexec/network-wifi-configure --firstboot
-TimeoutStartSec=3min
-# Allow capture termination plus the 26s release/radio/management budget.
-TimeoutStopSec=35s
-# Let the wrapper unwind and own its bounded child cleanup before group KILL.
-KillMode=mixed
+TimeoutStartSec=60s
+TimeoutStopSec=10s
+KillMode=control-group
 Restart=on-failure
 RestartSec=30s
 UMask=0077

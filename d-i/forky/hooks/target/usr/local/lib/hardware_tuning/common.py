@@ -155,6 +155,10 @@ class Knob:
 
     def resolve(self, value: str, policy: dict[str, Any]) -> Any:
         safe_value(value)
+        # Explicit capability requests: skip only an absent control in plan().
+        # A present control still has to satisfy every bound and permission.
+        if value in {"supported-max", "supported-1"}:
+            value = value.removeprefix("supported-")
         if value == "keep":
             return None
         low, high, _ = self.effective_bounds(policy)

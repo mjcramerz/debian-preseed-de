@@ -11,7 +11,9 @@ require_test_isolation()
 
 from contextlib import redirect_stderr, redirect_stdout
 import io
+import json
 import os
+import shlex
 import stat
 import subprocess
 import tempfile
@@ -28,6 +30,77 @@ from labwc_managed_app import sandbox
 hotplug = types.ModuleType('hotplug_fixture')
 exec(compile(read_text(TARGET / 'usr/local/libexec/network-ifup-hotplug'),
              'network-ifup-hotplug', 'exec'), hotplug.__dict__)
+
+
+class NetworkReadinessTests(unittest.TestCase):
+    """Run the shell adapter only in the guarded image, with HTTP replaced."""
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.control = self.root / 'reply.json'
+        self.calls = self.root / 'calls.json'
+        self.curl = self.root / 'curl-fixture'
+        self.curl.write_text('#!' + sys.executable + ' -I\n' +
+            'from pathlib import Path\nimport json, os, sys, time\n' +
+            f'config = json.loads(Path({str(self.control)!r}).read_text())\n' +
+            f'Path({str(self.calls)!r}).write_text(json.dumps([sys.argv[1:], sorted(os.environ)]))\n' +
+            'if config.get("sleep"):\n    time.sleep(30)\n' +
+            'print(config["response"], end="")\n' +
+            'print("fixture transport diagnostic", file=sys.stderr)\n' +
+            'sys.exit(config["status"])\n')
+        self.curl.chmod(0o700)
+        self.helper = self.root / 'network-online-check'
+        source = read_text(TARGET / 'usr/local/libexec/network-online-check')
+        self.assertEqual(source.count('/usr/bin/curl'), 2)
+        # Only the HTTP delegate is replaced. The image owns sh/env/timeout.
+        # Shorten the private copy's deadline for the termination fixture.
+        self.helper.write_text(source.replace('/usr/bin/curl', shlex.quote(str(self.curl)))
+                               .replace('10s', '0.1s').replace('2s', '0.2s'))
+
+    def invoke(self, response='200', status=0, *, sleep=False, args=()):
+        self.control.write_text(json.dumps({'response': response, 'status': status, 'sleep': sleep}))
+        return subprocess.run(['/bin/sh', str(self.helper), *args],
+            env={'PATH': '/usr/bin:/bin', 'HOME': str(self.root), 'LC_ALL': 'C',
+                 'HTTPS_PROXY': 'http://fixture-secret@invalid',
+                 'CURL_CA_BUNDLE': '/untrusted-fixture-ca', 'CURL_HOME': '/untrusted-fixture-home'},
+            stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=5)
+
+    def test_success_checks_https_without_inheriting_proxy_or_curl_configuration(self):
+        result = self.invoke()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        argv, environment = json.loads(self.calls.read_text())
+        self.assertEqual(argv[0], '-q')
+        self.assertIn('--head', argv)
+        self.assertIn('--fail', argv)
+        self.assertEqual(argv[argv.index('--proto') + 1], '=https')
+        self.assertEqual(argv[argv.index('--max-redirs') + 1], '0')
+        self.assertEqual(argv[-1], 'https://deb.debian.org/debian/')
+        self.assertFalse(set(environment) & {'HTTPS_PROXY', 'CURL_CA_BUNDLE', 'CURL_HOME'})
+        self.assertEqual(result.stdout + result.stderr, '')
+
+    def test_dns_tls_http_transport_failure_and_redirect_skip_work_without_raw_diagnostics(self):
+        for response, status in (('000', 6), ('000', 7), ('000', 28), ('000', 60),
+                                 ('503', 22), ('302', 0), ('invalid', 0), ('200', 1)):
+            with self.subTest(response=response, status=status):
+                result = self.invoke(response, status)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn('status=skipped', result.stdout)
+                self.assertNotIn('fixture-secret', result.stdout + result.stderr)
+                self.assertNotIn('transport diagnostic', result.stdout + result.stderr)
+
+    def test_timeout_is_bounded_and_missing_delegate_is_a_configuration_failure(self):
+        result = self.invoke(sleep=True)
+        self.assertEqual(result.returncode, 1)
+        self.curl.chmod(0o600)
+        result = self.invoke()
+        self.assertEqual(result.returncode, 255)
+        self.assertIn('missing-delegate', result.stderr)
+
+    def test_unsupported_arguments_never_reach_the_probe(self):
+        result = self.invoke(args=('https://untrusted.invalid/',))
+        self.assertEqual(result.returncode, 255)
+        self.assertFalse(self.calls.exists())
 
 
 class BitwardenProxyTests(unittest.TestCase):

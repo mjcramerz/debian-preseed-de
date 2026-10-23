@@ -89,6 +89,11 @@ class Selection:
             return self.manual[vendor]
         if not self.automatic:
             return None
+        # A configured maximum baseline must survive lower application leases.
+        # Manual selection still takes precedence; other idle policies retain
+        # their existing application-driven arbitration.
+        if idle == "performance":
+            return "performance"
         candidates = [profile for (v, profile), count in self.leases.items() if v == vendor and count > 0]
         return max(candidates, key=RANK.__getitem__) if candidates else (None if idle == "none" else idle)
 

@@ -62,7 +62,13 @@ installer_theme_render_file() (
   trap 'exit 130' INT
   trap 'exit 143' TERM
   cp -p "$theme_path" "$theme_work/rendered" || exit $?
-  LC_ALL=C awk -f "$INSTALLER_THEME_DIR/render.awk" "$INSTALLER_THEME_MAP" "$theme_path" > "$theme_work/rendered" || exit $?
+  if LC_ALL=C awk -f "$INSTALLER_THEME_DIR/render.awk" "$INSTALLER_THEME_MAP" "$theme_path" > "$theme_work/rendered"; then
+    :
+  else
+    theme_render_status=$?
+    installer_fatal "theme rendering failed for asset: ${2:-$theme_path}"
+    exit "$theme_render_status"
+  fi
   mv -f "$theme_work/rendered" "$theme_path" || exit $?
 )
 

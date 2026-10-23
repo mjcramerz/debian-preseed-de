@@ -431,7 +431,108 @@ class CodexTests(unittest.TestCase):
         with self.assertRaises(self.codex.CodexError):
             self.codex.codex_select_sandbox_cwd('/data/codex/runtime/control')
 
-    def bwrap_arguments(self, service=False, installation_id_fd=123, login=False):
+    def test_media_workspace_is_optional_pinned_and_rejects_indirection(self):
+        c = self.codex
+        with tempfile.TemporaryDirectory(prefix='codex-media-') as work, \
+             mock.patch.object(c, 'CODEX_MEDIA_ROOT', work), \
+             mock.patch.object(c, 'codex_media_volume_is_mounted', return_value=True), \
+             mock.patch.dict(os.environ, {'USER': 'fixture', 'HOME': work}, clear=True):
+            media = Path(work) / 'fixture/warehouse/extra'
+            self.assertIsNone(c.codex_open_media_workspace())
+            self.assertEqual(list(Path(work).iterdir()), [])
+            media.mkdir(parents=True)
+            path, fd = c.codex_open_media_workspace()
+            try:
+                self.assertEqual(path, str(media))
+                original = media.stat()
+                renamed = media.with_name('original')
+                media.rename(renamed)
+                media.mkdir()
+                self.assertEqual(os.fstat(fd).st_ino, original.st_ino)
+                self.assertNotEqual(os.fstat(fd).st_ino, media.stat().st_ino)
+                nested = str(media / 'project with spaces/caf\u00e9')
+                self.assertEqual(c.codex_select_sandbox_cwd(nested, media_workspace=(path, fd)), nested)
+                self.assertEqual(c.codex_select_sandbox_cwd(str(media.parent / 'private')), work + '/Workspace')
+            finally:
+                os.close(fd)
+            media.rmdir()
+            media.symlink_to(renamed, target_is_directory=True)
+            self.assertIsNone(c.codex_open_media_workspace())
+            media.unlink()
+            media.parent.rename(Path(work) / 'elsewhere')
+            media.parent.symlink_to(Path(work) / 'elsewhere', target_is_directory=True)
+            self.assertIsNone(c.codex_open_media_workspace())
+
+    def test_media_workspace_skips_invalid_account_and_unwritable_tree(self):
+        c = self.codex
+        for user in ('', '.', '..', 'bad/name', 'bad\nname'):
+            with mock.patch.dict(os.environ, {'USER': user}, clear=True):
+                self.assertIsNone(c.codex_open_media_workspace())
+        with tempfile.TemporaryDirectory(prefix='codex-media-') as work, \
+             mock.patch.object(c, 'CODEX_MEDIA_ROOT', work), \
+             mock.patch.object(c, 'codex_media_volume_is_mounted', return_value=True), \
+             mock.patch.dict(os.environ, {'USER': 'fixture'}, clear=True):
+            (Path(work) / 'fixture/warehouse/extra').mkdir(parents=True)
+            with mock.patch.object(c.os, 'access', return_value=False):
+                self.assertIsNone(c.codex_open_media_workspace())
+
+    def test_media_probe_failure_cannot_prevent_codex_startup(self):
+        c = self.codex
+        for error in (PermissionError('fixture mount table unavailable'), c.CodexError('fixture identity unavailable')):
+            with mock.patch.object(c, '_codex_open_media_workspace', side_effect=error):
+                self.assertIsNone(c.codex_open_media_workspace())
+        self.assertNotIn('--bind-fd', self.bwrap_arguments())
+
+    def test_unmounted_media_directory_is_skipped_without_creating_or_binding_it(self):
+        c = self.codex
+        with tempfile.TemporaryDirectory(prefix='codex-media-') as work, \
+             mock.patch.object(c, 'CODEX_MEDIA_ROOT', work), \
+             mock.patch.object(c, 'codex_media_volume_is_mounted', return_value=False), \
+             mock.patch.dict(os.environ, {'USER': 'fixture'}, clear=True):
+            volume = Path(work) / 'fixture/warehouse'
+            volume.mkdir(parents=True)
+            self.assertIsNone(c.codex_open_media_workspace())
+            self.assertFalse((volume / 'extra').exists())
+
+    def test_media_probe_never_traverses_below_an_untriggered_automount(self):
+        c = self.codex
+        with tempfile.TemporaryDirectory(prefix='codex-media-') as work, \
+             mock.patch.object(c, 'CODEX_MEDIA_ROOT', work), \
+             mock.patch.dict(os.environ, {'USER': 'fixture'}, clear=True):
+            volume = Path(work) / 'fixture/warehouse'
+            volume.mkdir(parents=True)
+            # Model an autofs directory pinned at warehouse. Other ancestors
+            # have usable mount evidence. No child lookup may trigger autofs.
+            with mock.patch.object(c, 'codex_media_volume_is_mounted',
+                                   side_effect=lambda path, fd: path is None), \
+                 mock.patch.object(c.os, 'open', wraps=os.open) as opened:
+                self.assertIsNone(c.codex_open_media_workspace())
+            paths = [call.args[0] for call in opened.call_args_list]
+            self.assertIn('warehouse', paths)
+            self.assertNotIn('extra', paths)
+            for call in opened.call_args_list:
+                self.assertTrue(call.args[1] & os.O_PATH)
+                self.assertTrue(call.args[1] & os.O_NOFOLLOW)
+
+    def test_media_mount_evidence_matches_exact_path_and_pinned_mount_id(self):
+        c = self.codex
+        path = '/run/media/fixture/warehouse'
+        row = f'42 11 8:1 / {path} rw,nosuid,nodev - ext4 /dev/fixture rw\n'
+        def read(name, *_):
+            return 'mnt_id:\t42\n' if '/fdinfo/' in name else row
+        with mock.patch.object(c, '_read_bounded_text', side_effect=read):
+            self.assertTrue(c.codex_media_volume_is_mounted(path, 7))
+            self.assertFalse(c.codex_media_volume_is_mounted(path + '-other', 7))
+            self.assertTrue(c.codex_media_volume_is_mounted(None, 7))
+        automount = f'42 11 0:99 / {path} rw - autofs systemd-1 rw\n'
+        for expected in (path, None):
+            with mock.patch.object(c, '_read_bounded_text', side_effect=['mnt_id:\t42\n', automount]):
+                self.assertFalse(c.codex_media_volume_is_mounted(expected, 7))
+        for fdinfo in ('mnt_id:\t41\n', '', 'mnt_id:\tbad\n'):
+            with mock.patch.object(c, '_read_bounded_text', side_effect=[fdinfo, row]):
+                self.assertFalse(c.codex_media_volume_is_mounted(path, 7))
+
+    def bwrap_arguments(self, service=False, installation_id_fd=123, login=False, media_workspace=None):
         c = self.codex
         c.CODEX_CONTROL_DIR = '/control'
         c.CODEX_SANDBOX_PATH = '/usr/bin:/bin'
@@ -452,7 +553,20 @@ class CodexTests(unittest.TestCase):
             stack.enter_context(mock.patch.object(c, 'codex_require_private_runtime_file'))
             stack.enter_context(mock.patch.object(c, 'codex_prepare_installation_id_target',
                                                   return_value='/data/codex/usr/home/installation_id'))
-            return c.codex_build_bwrap_args(1000, 1000, installation_id_fd)
+            return c.codex_build_bwrap_args(1000, 1000, installation_id_fd, media_workspace=media_workspace)
+
+    def test_media_mount_uses_pinned_fd_after_private_run_without_exposing_siblings(self):
+        media = '/run/media/test/warehouse/extra'
+        args = self.bwrap_arguments(media_workspace=(media, 71))
+        binding = args.index('--bind-fd')
+        self.assertEqual(args[binding:binding + 3], ['--bind-fd', '71', media])
+        self.assertGreater(binding, args.index('/run'))
+        self.assertEqual(args.count('--bind-fd'), 1)
+        for option in ('--bind', '--ro-bind'):
+            sources = [args[index + 1] for index, value in enumerate(args) if value == option]
+            self.assertNotIn('/run/media', sources)
+            self.assertNotIn('/run/media/test', sources)
+            self.assertNotIn('/run/media/test/warehouse', sources)
 
     def test_mount_plan_writable_roots_and_readonly_release(self):
         args = self.bwrap_arguments()
@@ -1298,9 +1412,8 @@ desktop_normalize_background_directories
         self.assertIn('owner /run/user/[0-9]*/systemd/ r,', autostart)
 
         calendar = profile_block(wrappers, 'labwc-calendar')
-        self.assertIn('/usr/bin/{cat,chmod,flock,grep,id,install,mkdir,mktemp,rm,rmdir,find,timeout} rix,',
-                      calendar)
-        self.assertIn('owner /run/user/[0-9]*/labwc-calendar-sync.lock rwk,', calendar)
+        self.assertIn('/usr/bin/systemctl pux,', calendar)
+        self.assertIn('/opt/calix/calix rPx -> calix,', calendar)
 
         output_watch = profile_block(wrappers, 'labwc-output-watch')
         for rule in (

@@ -56,7 +56,6 @@ SERVICE_CLASSES = {
     'labwc-compositor': 'session',
     'waybar': 'app', 'crystal-dock': 'app',
     'kanshi': 'session', 'labwc-output-watch': 'session', 'swayidle': 'session',
-    'labwc-calendar-sync': 'background',
     'labwc-kwallet-portal': 'session', 'labwc-ssh-key-load': 'session',
 }
 
@@ -195,9 +194,31 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
     def test_original_workload_policy_is_byte_identical(self):
         # Hashes from the user's original archive, not from the rejected revision.
         manifest = json.loads(payload_read_text(SEED / 'tests/fixtures/resource-policy-original.json'))
+        removed_calendars = {
+            'd-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.service',
+            'd-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.timer',
+        }
         for relative, expected in manifest['sha256'].items():
             with self.subTest(path=relative):
-                original = uploaded_bytes(relative, payload_read_bytes(ROOT / current_path(relative)))
+                if relative in removed_calendars:
+                    self.assertFalse(payload_source_exists(ROOT / current_path(relative)))
+                    continue
+                current_bytes = payload_read_bytes(ROOT / current_path(relative))
+                if relative.endswith('/systemd/user/waybar.service'):
+                    # Requested hover integration changes lifecycle/GTK only;
+                    # retain every historical resource-policy byte and hash.
+                    additions = (
+                        b'Wants=labwc-waycal-hover.service\n',
+                        b"# Enable GTK3's built-in bridge only here; other apps retain session policy.\n"
+                        b'Environment=ATSPI_DISABLE_P2P=1\n'
+                        b'UnsetEnvironment=NO_AT_BRIDGE GTK_A11Y\n',
+                    )
+                    for addition in additions:
+                        self.assertEqual(current_bytes.count(addition), 1)
+                        current_bytes = current_bytes.replace(addition, b'', 1)
+                    current_bytes = current_bytes.replace(b'After=labwc-waycal-hover.service labwc-compositor.service',
+                                                          b'After=labwc-compositor.service', 1)
+                original = uploaded_bytes(relative, current_bytes)
                 # R6 isolates zram maintenance without changing its CPU/IO/RAM
                 # weights. Reverse exact reviewed additions, never rebaseline.
                 zram_reversions = json.loads(payload_read_text(SEED / 'tests/fixtures/zram-isolation-workload-reversions.json'))
@@ -294,7 +315,11 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
             # Remove just its added block, not any original profile policy.
             menu_policy = 'LABWC_MENU_COMMAND="labwc-main-menu"'
             self.assertEqual(payload_read_text(profile).count(menu_policy), 1)
-            profile_text = uploaded_bytes(str(profile.relative_to(ROOT)), payload_read_bytes(profile)).decode()
+            # Calendar release pins are independent of the retained workload defaults.
+            calendar_pins = '# Pinned native calendar releases (byte hashes; no vendor signature claim).\nWAYCAL_VERSION="0.2.1"\nWAYCAL_URL="https://github.com/ForrestKnight/waycal/releases/download/v${WAYCAL_VERSION}/waycal-${WAYCAL_VERSION}-x86_64-linux.tar.gz"\nWAYCAL_COMMIT="b9b5abd73fbaebf0756157ad141e509410ff181c"\nWAYCAL_SHA256="b2d7a98129f3b5444d9597e8e263b0f590dfc268e38c30b5ae6c78a832b1004b"\nWAYCAL_MAXIMUM_BYTES="16777216"\nCALIX_VERSION="0.8.0"\nCALIX_URL="https://github.com/ianswope/calix/releases/download/v${CALIX_VERSION}/calix-${CALIX_VERSION}-linux-x86_64.tar.gz"\nCALIX_COMMIT="56fb3aae672384af2a304f69815c3a8d601e7f35"\nCALIX_SHA256="935257aed019834e3d79f127bb14b575ee2cbb32b33baa8f4b9c12e50efedb64"\nCALIX_MAXIMUM_BYTES="16777216"\n\n'
+            current_profile = payload_read_text(profile)
+            self.assertEqual(current_profile.count(calendar_pins), 1)
+            profile_text = uploaded_bytes(str(profile.relative_to(ROOT)), current_profile.replace(calendar_pins, '', 1).encode()).decode()
             # Reverse only the reviewed journal-backend addition for historical
             # workload/theme hashes; numeric limits and original fixtures stay fixed.
             journal_addition = (

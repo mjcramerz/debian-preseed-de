@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -IB
-"""Open native nmtui for the installer-owned static Wi-Fi profile."""
+"""Persist the managed static Wi-Fi connection and open its native nmtui UI."""
 import configparser
 import fcntl
 import io
@@ -7,21 +7,16 @@ import ipaddress
 import os
 from pathlib import Path
 import re
-import selectors
 import shlex
-import signal
 import stat
 import subprocess
 import sys
 import tempfile
-import time
 
 POLICY = Path('/etc/network/host.conf')
 PREPARED = Path('/etc/network/wifi.nmconnection')
 PROFILE = Path('/etc/NetworkManager/system-connections/wifi.nmconnection')
-STATE = Path('/var/lib/NetworkManager/NetworkManager.state')
 FIRSTBOOT_DONE = Path('/var/lib/network-wifi/firstboot.complete')
-SUPPLICANT_CONTROL = Path('/run/wpa_supplicant/control')
 PROFILE_UUID = '3f1b70be-cc3f-4e77-9e31-66f7a5e16994'
 ENVIRONMENT = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C.UTF-8'}
 
@@ -103,42 +98,6 @@ def run(argv, check=True, timeout=35):
     return result.returncode
 
 
-def capture(argv):
-    # Radio data is untrusted. Bound bytes and elapsed time without inheriting
-    # a caller environment or letting subprocess output reach the journal.
-    deadline = time.monotonic() + 35
-    data = bytearray()
-    with subprocess.Popen(argv, env=ENVIRONMENT, stdin=subprocess.DEVNULL,
-                          stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) as process:
-        try:
-            with selectors.DefaultSelector() as selector:
-                selector.register(process.stdout, selectors.EVENT_READ)
-                while selector.get_map():
-                    remaining = deadline - time.monotonic()
-                    if remaining <= 0:
-                        raise ConfigurationError('Wi-Fi scan timed out')
-                    for key, _ in selector.select(remaining):
-                        chunk = os.read(key.fd, 4096)
-                        if not chunk:
-                            selector.unregister(key.fileobj)
-                            continue
-                        data.extend(chunk)
-                        if len(data) > 262144:
-                            raise ConfigurationError('Wi-Fi scan exceeded its output limit')
-            status = process.wait(timeout=max(0.01, deadline - time.monotonic()))
-            if status:
-                raise ConfigurationError('Wi-Fi scan command failed (status ' + str(status) + ')')
-        finally:
-            if process.poll() is None:
-                process.terminate()
-                try:
-                    process.wait(timeout=2)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait(timeout=2)
-    return data.decode('ascii')
-
-
 def wifi_policy(interface):
     if not re.fullmatch(r'[A-Za-z0-9_.-]{1,15}', interface) or interface in {'.', '..'}:
         raise ConfigurationError('invalid managed Wi-Fi interface name')
@@ -170,14 +129,17 @@ def profile_path():
     return PROFILE if PROFILE.exists() or PROFILE.is_symlink() else PREPARED
 
 
-def validate_profile(policy, path=None):
+def validate_profile(policy, path=None, *, persistent=True):
     profile = keyfile(read_owned(path or profile_path()))
     expected = {('connection', 'uuid'): PROFILE_UUID,
                 ('connection', 'type'): 'wifi',
                 ('connection', 'interface-name'): policy['MANAGED_NETWORK_WIFI_IFACE'],
-                ('connection', 'autoconnect'): 'false', ('wifi', 'mode'): 'infrastructure',
+                ('wifi', 'mode'): 'infrastructure',
                 ('ipv4', 'forwarding'): '1',
                 ('wifi', 'mac-address'): policy['MANAGED_NETWORK_WIFI_MAC']}
+    if persistent:
+        expected[('connection', 'autoconnect')] = 'true'
+        expected[('connection', 'permissions')] = ''
     for family in (4, 6):
         group = 'ipv' + str(family)
         enabled = family == 4 or policy.get('MANAGED_NETWORK_IPV6_ENABLED') == 'true'
@@ -191,7 +153,9 @@ def validate_profile(policy, path=None):
             dns = policy['MANAGED_NETWORK_IPV' + str(family) + '_DNS'].split()
             expected[(group, 'dns')] = ';'.join(dns) + ';' if policy['MANAGED_NETWORK_DNS_MODE'] == 'link' else ''
     for (group, name), value in expected.items():
-        if profile.get(group, name, fallback='' if value == '' else None) != value:
+        # NM may omit properties whose value equals its documented default.
+        default = 'true' if (group, name) == ('connection', 'autoconnect') else ('' if value == '' else None)
+        if profile.get(group, name, fallback=default) != value:
             raise ConfigurationError('managed Wi-Fi profile has incorrect ' + group + '.' + name)
     return profile
 
@@ -203,115 +167,37 @@ def publish_profile(policy):
     run(['/usr/bin/nmcli', '--wait', '30', 'connection', 'load', str(PROFILE)])
 
 
-def ssid_visible(output, ssid):
-    # Use raw SSID bytes, never display names: a hostile SSID containing control
-    # characters cannot forge records or trick the firstboot presence check.
-    expected = ssid.encode('utf-8').hex().lower()
-    records = output.splitlines()
-    if any(line not in {'', '--'} and not re.fullmatch(r'(?:[0-9a-fA-F]{2}){1,32}', line) for line in records):
-        raise ConfigurationError('invalid SSID-HEX scan output')
-    return expected in {line.lower() for line in records}
-
-
-def wait_supplicant_release(interface):
-    # NM removes its station and P2P interfaces asynchronously over D-Bus.
-    # Their control sockets disappear during supplicant cleanup. Never unlink
-    # them ourselves or block the radio while the driver is still in use.
-    paths = (SUPPLICANT_CONTROL / interface, SUPPLICANT_CONTROL / ('p2p-dev-' + interface))
-    deadline = time.monotonic() + 5
-    while True:
-        pending = False
-        for path in paths:
-            try:
-                path.lstat()
-            except FileNotFoundError:
-                continue
-            pending = True
-        if not pending:
-            return
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise ConfigurationError('Wi-Fi supplicant interface release timed out')
-        time.sleep(min(0.05, remaining))
-
-
-def disable_firstboot_radio(interface):
-    try:
-        # Cleanup also runs on success. A first TERM arriving here must not
-        # interrupt radio-off; systemd still enforces the bounded stop deadline.
-        signal.signal(signal.SIGTERM, signal.SIG_IGN)
-        run(['/usr/bin/nmcli', '--wait', '5', 'device', 'set', interface, 'managed', 'no'], timeout=7)
-        wait_supplicant_release(interface)
-    finally:
-        # Even a failed release must leave the boot radio preference disabled.
-        # Restore NM management after rfkill so later explicit nmtui use works.
-        try:
-            run(['/usr/bin/nmcli', '--wait', '5', 'radio', 'wifi', 'off'], timeout=7)
-        finally:
-            # The first request may have reached NM even if its reply timed out.
-            run(['/usr/bin/nmcli', '--wait', '5', 'device', 'set', interface, 'managed', 'yes'], timeout=7)
-
-
 def firstboot():
     policy = parse_policy(read_owned(POLICY))
     if 'wifi' not in policy.get('MANAGED_NETWORK_LINK_TYPES', '').split():
         return
     policy = wifi_policy(policy['MANAGED_NETWORK_WIFI_IFACE'])
     validate_profile(policy, PREPARED)
-    if not (Path('/sys/class/net') / policy['MANAGED_NETWORK_WIFI_IFACE']).is_dir():
-        outcome = 'skipped-adapter-absent'
+    if PROFILE.exists() or PROFILE.is_symlink():
+        validate_profile(policy)
+        outcome = 'preserved-existing-profile'
     elif not policy.get('MANAGED_NETWORK_WIFI_ESSID'):
         outcome = 'skipped-missing-ssid'
     else:
-        try:
-            run(['/usr/sbin/rfkill', 'unblock', 'wlan'])
-            run(['/usr/bin/nmcli', '--wait', '30', 'radio', 'wifi', 'on'])
-            output = capture(['/usr/bin/nmcli', '--wait', '30', '--terse', '--fields', 'SSID-HEX',
-                              'device', 'wifi', 'list', 'ifname', policy['MANAGED_NETWORK_WIFI_IFACE'],
-                              '--rescan', 'auto'])
-            if ssid_visible(output, policy['MANAGED_NETWORK_WIFI_ESSID']):
-                publish_profile(policy)
-                outcome = 'prepared-visible-ssid'
-            else:
-                outcome = 'skipped-ssid-not-visible'
-        finally:
-            disable_firstboot_radio(policy['MANAGED_NETWORK_WIFI_IFACE'])
+        # Saving a known connection does not require its SSID or adapter to be
+        # present now. NM activates it when available, respecting its persisted
+        # radio preference. Do not reset that state or override rfkill at boot.
+        publish_profile(policy)
+        outcome = 'prepared-persistent-ssid'
     FIRSTBOOT_DONE.parent.mkdir(mode=0o700, exist_ok=True)
     publish(FIRSTBOOT_DONE, outcome + '\n')
-    print('Wi-Fi firstboot:', outcome, '; automatic connection remains disabled.')
-
-
-def prepare():
-    # Called before NetworkManager starts. No D-Bus, radio or service commands.
-    try:
-        policy = parse_policy(read_owned(POLICY))
-    except FileNotFoundError:
-        return
-    if 'wifi' not in policy.get('MANAGED_NETWORK_LINK_TYPES', '').split():
-        return
-    validate_profile(wifi_policy(policy['MANAGED_NETWORK_WIFI_IFACE']))
-    STATE.parent.mkdir(mode=0o700, exist_ok=True)
-    try:
-        state = keyfile(read_owned(STATE, modes=(0o600, 0o644)))
-    except FileNotFoundError:
-        state = keyfile('[main]\n')
-    if not state.has_section('main'):
-        state.add_section('main')
-    state.set('main', 'WirelessEnabled', 'false')
-    result = io.StringIO()
-    state.write(result, space_around_delimiters=False)
-    publish(STATE, result.getvalue())
+    print('Wi-Fi firstboot:', outcome, '; saved connections reconnect automatically.')
 
 
 def configure(interface, ui_args=()):
     policy = wifi_policy(interface)
-    validate_profile(policy)
+    validate_profile(policy, persistent=False)
     if profile_path() == PREPARED:
         # An explicit later request may prepare the saved profile after firstboot
-        # skipped an absent SSID. This does not silently activate the connection.
+        # had no SSID. The saved profile uses NM's ordinary autoconnect policy.
         publish_profile(policy)
     print('Wi-Fi uses', policy['MANAGED_NETWORK_WIFI_IPV4_CIDR'], 'and the Ethernet gateway and resolver policy.')
-    print('In nmtui, edit Wi-Fi for a new SSID; keep Manual IP settings and automatic connection off.')
+    print('In nmtui, edit Wi-Fi for a new SSID; keep Manual IP settings and save its password for automatic reconnect.')
     run(['/usr/sbin/rfkill', 'unblock', 'wlan'])
     run(['/usr/bin/nmcli', '--wait', '30', 'radio', 'wifi', 'on'])
     environment = dict(ENVIRONMENT, TERM=os.environ.get('TERM', 'xterm-256color'))
@@ -320,21 +206,24 @@ def configure(interface, ui_args=()):
     result = subprocess.run(['/usr/bin/nmtui', *ui_args], env=environment, timeout=900)
     if result.returncode:
         raise ConfigurationError('nmtui exited with status ' + str(result.returncode))
+    profile = validate_profile(policy, persistent=False)
+    # Agent-only/not-saved passwords cannot authenticate before login. Native
+    # nmtui's initial profile uses system-owned secrets; report an explicit
+    # contrary selection instead of claiming persistent reconnect is ready.
+    for section, names in (('wifi-security', ('psk-flags', 'wep-key-flags')),
+                           ('802-1x', ('password-flags', 'private-key-password-flags',
+                                       'phase2-private-key-password-flags', 'pin-flags'))):
+        for name in names:
+            if profile.get(section, name, fallback='0') != '0':
+                raise ConfigurationError('save the Wi-Fi password in nmtui for automatic reconnect before login')
+    # Native nmtui stores secrets in this private system keyfile. Empty
+    # permissions permit activation before login; no secret enters argv.
+    run(['/usr/bin/nmcli', '--wait', '30', 'connection', 'modify', 'uuid', PROFILE_UUID,
+         'connection.autoconnect', 'yes', 'connection.permissions', ''])
     validate_profile(policy)
 
 
-def interrupt_firstboot(signum, frame):
-    # Unwind subprocess/capture contexts and the radio cleanup on systemd stop.
-    # A repeated TERM must not interrupt restoration before TimeoutStopSec.
-    signal.signal(signal.SIGTERM, signal.SIG_IGN)
-    raise InterruptedError('Wi-Fi firstboot interrupted')
-
-
 def main():
-    if os.geteuid() == 0 and sys.argv[1:] == ['--prepare']:
-        os.umask(0o077)
-        prepare()
-        return
     boot = sys.argv[1:] == ['--firstboot']
     native = sys.argv[1:2] == ['--nmtui']
     if native:
@@ -357,7 +246,6 @@ def main():
             raise ConfigurationError('unsafe Wi-Fi configuration lock')
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if boot:
-            signal.signal(signal.SIGTERM, interrupt_firstboot)
             firstboot()
         elif native:
             policy = parse_policy(read_owned(POLICY))

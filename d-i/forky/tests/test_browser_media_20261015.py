@@ -11,6 +11,8 @@ _require_test_isolation()
 
 from pathlib import Path
 import os
+import ctypes
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -118,6 +120,51 @@ class VivaldiMediaTests(unittest.TestCase):
 
 
 class BrowserGraphicsAndTorTests(unittest.TestCase):
+    def tor_probe(self):
+        source = (SEED / 'scripts/late/tor-browser.sh').read_text()
+        return source.split('-- /usr/bin/python3 -I -B -c \'\n', 1)[1].split("\n'\n", 1)[0]
+
+    def test_tor_installs_the_supported_abi_before_downloading_the_browser(self):
+        source = (SEED / 'scripts/late/tor-browser.sh').read_text()
+        function = source.split('software_install_tor_media_runtime() {', 1)[1].split('\n}\n', 1)[0]
+        script = ('set -eu\nrun_in_target() { shift; printf "%s\\n" "$@"; }\n'
+                  'software_fatal() { exit 31; }\nsoftware_install_tor_media_runtime() {'
+                  + function + '\n}\nsoftware_install_tor_media_runtime\n')
+        result = subprocess.run(['/bin/sh', '-eu', '-c', script],
+                                env={'PATH': '/usr/bin:/bin', 'HOME': '/nonexistent', 'LC_ALL': 'C.UTF-8'},
+                                text=True, capture_output=True, timeout=5, check=True)
+        argv = result.stdout.splitlines()
+        boundary = argv.index('/usr/bin/apt-get')
+        self.assertIn('--no-remove', argv[boundary:])
+        self.assertIn('NEEDRESTART_SUSPEND=1', argv[:boundary])
+        self.assertIn('/usr/bin/timeout', argv[:boundary])
+        self.assertEqual(argv[-4:], ['install', 'libavcodec62', 'libavutil60', 'libswresample6'])
+        caller = source.split('software_install_tor_browser() (', 1)[1]
+        self.assertLess(caller.index('  software_install_tor_media_runtime\n'), caller.index('  software_download '))
+        packages = (SEED / 'classes/class-addon/software.cfg').read_text().split()
+        for package in ('libavcodec62', 'libavutil60', 'libswresample6'):
+            self.assertIn(package, packages)
+
+    def test_tor_probe_reports_a_missing_library_without_a_raw_loader_traceback(self):
+        configured = subprocess.CompletedProcess([], 0, 'install ok installed', '')
+        with mock.patch('subprocess.run', return_value=configured), \
+                mock.patch('ctypes.CDLL', side_effect=OSError('fixture loader failure')):
+            with self.assertRaisesRegex(SystemExit, 'ABI 62 or one of its shared-library dependencies'):
+                exec(compile(self.tor_probe(), 'tor-media-fixture', 'exec'), {})
+
+    def test_tor_probe_rejects_the_wrong_abi_and_missing_decoder(self):
+        configured = subprocess.CompletedProcess([], 0, 'install ok installed', '')
+        for major, missing, expected in [(63, False, 'incompatible FFmpeg ABI'),
+                                          (62, True, 'decoders missing')]:
+            library = mock.Mock()
+            library.avcodec_version.return_value = major << 16
+            library.avcodec_find_decoder_by_name.return_value = None if missing else 1
+            with self.subTest(major=major, missing=missing), \
+                    mock.patch('subprocess.run', return_value=configured), \
+                    mock.patch('ctypes.CDLL', return_value=library):
+                with self.assertRaisesRegex(SystemExit, expected):
+                    exec(compile(self.tor_probe(), 'tor-media-fixture', 'exec'), {})
+
     def test_browser_modes_do_not_force_early_gpu_sandbox(self):
         for browser in ('chromium', 'microsoft-edge', 'vivaldi'):
             for mode in ('launch', 'intel', 'nvidia'):

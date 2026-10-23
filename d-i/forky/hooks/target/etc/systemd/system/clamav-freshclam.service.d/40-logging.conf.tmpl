@@ -3,6 +3,7 @@ After=systemd-tmpfiles-setup.service
 RequiresMountsFor=__INSTALLER_LOG_CLAMAV_DIR__
 
 [Service]
+ExecCondition=/usr/local/libexec/network-online-check
 LogsDirectory=
 ReadWritePaths=__INSTALLER_LOG_CLAMAV_DIR__
 UMask=0027

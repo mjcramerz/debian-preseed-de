@@ -1,0 +1,5 @@
+# Managed by unattended-installer.
+# Local jail policy is maintained in jail.d/*.local (including SSH and any
+# selected web role). Keep Debian's jail.conf as the package-owned defaults;
+# those local overrides survive updates without a stale copy of jail.conf.
+[DEFAULT]

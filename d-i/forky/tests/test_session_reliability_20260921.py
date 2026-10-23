@@ -91,7 +91,7 @@ class FootResults(unittest.TestCase):
 
     def test_other_executables_do_not_inherit_terminal_exception(self):
         for kind, executable in (('wayland', '/tmp/foot'), ('wayland', '/usr/bin/kitty'),
-                                 ('wayland', '/usr/bin/featherpad'), ('electron', '/usr/bin/foot')):
+                                 ('wayland', '/usr/bin/l3afpad'), ('electron', '/usr/bin/foot')):
             with self.subTest(kind=kind, executable=executable):
                 command = self.command([executable], kind)
                 self.assertIn('--property=KillMode=control-group', command)

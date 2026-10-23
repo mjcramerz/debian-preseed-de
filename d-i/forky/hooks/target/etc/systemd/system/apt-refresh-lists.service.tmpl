@@ -18,6 +18,7 @@ Environment=APT_LISTCHANGES_FRONTEND=none
 Nice=10
 IOSchedulingClass=best-effort
 IOSchedulingPriority=7
+ExecCondition=/usr/local/libexec/network-online-check
 ExecStart=/usr/bin/flock -w 5 /run/apt-refresh-lists.lock /usr/local/libexec/apt-refresh-lists
 TimeoutStartSec=__INSTALLER_APT_REFRESH_LISTS_TIMEOUT__
 RemainAfterExit=yes

@@ -10,7 +10,7 @@ profile labwc-tomat /usr/local/libexec/labwc-tomat flags=(attach_disconnected, m
   /usr/local/libexec/labwc-tomat rix,
   /usr/bin/{systemctl,systemd-run} rix,
   /usr/bin/tomat rpx -> tomat,
-  /usr/bin/featherpad rpx -> desktop-editors,
+  /usr/bin/l3afpad rpx -> desktop-editors,
   / r,
   /etc/ r,
   /run/ r,

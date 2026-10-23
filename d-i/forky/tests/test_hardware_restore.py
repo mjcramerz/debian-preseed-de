@@ -385,8 +385,40 @@ class GrubGeneratorTests(unittest.TestCase):
         self.assertIn('                    boot\n', menu)
         self.assertGreater(menu.index('terminal_output gfxterm'), menu.index('                    boot\n'))
         self.assertNotIn("echo 'If Reset MOK", menu)
-        self.assertIn('if [ "$boot_once" = "true" ] && [ "$default" = "installer-mok-enrollment" ]; then\n'
-                      '    set timeout_style=menu\n    set timeout=0\nelse\n    set timeout=-1\nfi\n', menu)
+        self.assertIn('set timeout=-1\nif [ "$boot_once" = "true" ]; then\n'
+                      '    if [ "$default" = "installer-mok-enrollment" ]; then\n'
+                      '        set timeout_style=menu\n        set timeout=0\n    fi\nfi\n', menu)
+
+    def test_native_grub_parser_checks_install_and_regeneration(self):
+        # This runs only in the approved disposable image. The image's packaged
+        # GRUB parser replaces the nonempty-file mock used by other fixtures.
+        checker = shutil.which('grub-script-check')
+        self.assertIsNotNone(checker, 'native GRUB acceptance requires the image grub-common package')
+        copy_binary(self.root, checker, '/bin/grub-script-check')
+        invalid = self.root / 'invalid.cfg'
+        invalid.write_text('if [ "$boot_once" = "true" ] && [ "$default" = "installer-mok-enrollment" ]; then\n'
+                           '    set timeout=0\nfi\n')
+        command = [shutil.which('chroot'), str(self.root), '/bin/grub-script-check']
+        environment = {'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'HOME': '/nonexistent'}
+        rejected = subprocess.run(payload_installed_argv([*command, '/invalid.cfg']),
+                                  env=environment, capture_output=True, text=True, timeout=5)
+        self.assertNotEqual(rejected.returncode, 0, 'parser must reject the reported shell-only && syntax')
+        self.prepare_mok_assets()
+        for rootfs, dualboot, mok in (('btrfs', 'false', False), ('btrfs', 'true', True),
+                                     ('f2fs', 'false', True), ('f2fs', 'true', False)):
+            with self.subTest(rootfs=rootfs, dualboot=dualboot, mok=mok):
+                self.args[6] = f'rootfstype={rootfs}'
+                self.args[24] = dualboot
+                installed = self.invoke(install=True, mok=mok)
+                self.assertEqual(installed.returncode, 0, installed.stderr)
+                initial = payload_read_text(self.root / 'boot/grub/custom.cfg')
+                regenerated = self.invoke(mok=mok)
+                self.assertEqual(regenerated.returncode, 0, regenerated.stderr)
+                self.assertEqual(regenerated.stdout, initial)
+                (self.root / 'regenerated.cfg').write_text(regenerated.stdout)
+                checked = subprocess.run(payload_installed_argv([*command, '/regenerated.cfg']),
+                                         env=environment, capture_output=True, text=True, timeout=5)
+                self.assertEqual(checked.returncode, 0, checked.stderr)
 
     def test_only_a_one_time_mok_selection_has_an_immediate_timeout(self):
         # This models the variables left by 00_header after consuming next_entry.

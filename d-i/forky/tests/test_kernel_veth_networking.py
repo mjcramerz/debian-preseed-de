@@ -3372,6 +3372,8 @@ class InstallationTests(unittest.TestCase):
         self.assertIn("DNS=127.0.0.1:53054", resolved)
         self.assertIn("FallbackDNS=\n", resolved)
         self.assertIn("DNSOverTLS=no\n", resolved)
+        self.assertIn("DNSSEC=no\n", resolved)
+        self.assertNotIn("DNSSEC=allow-downgrade", resolved)
         self.assertIn("Cache=yes\nCacheFromLocalhost=yes", resolved)
         policy = read_text(TARGET / "etc/NetworkManager/conf.d/70-app-veth.conf")
         patterns = policy.split("match-device=", 1)[1].splitlines()[0].split(";")

@@ -1,0 +1,179 @@
+#!/usr/bin/python3 -I
+"""Consume the private installer input as the desktop UID before Calix starts.
+
+Account and keyring contracts are pinned to Calix 0.8.0, commit
+56fb3aae672384af2a304f69815c3a8d601e7f35. No network discovery happens here.
+The native application's normal startup completes its additive SQLite schema.
+"""
+import fcntl
+import json
+import os
+from pathlib import Path
+import pwd
+import sqlite3
+import stat
+import sys
+
+
+class Error(ValueError):
+    pass
+
+
+def owned(path, *, directory=False, private=False):
+    info = path.lstat()
+    if (not (stat.S_ISDIR(info.st_mode) if directory else stat.S_ISREG(info.st_mode))
+            or info.st_uid != os.getuid() or info.st_mode & (0o077 if private else 0o022)
+            or (not directory and info.st_nlink != 1)):
+        raise Error('unsafe Calix account state')
+    return info
+
+
+def make_directory(path, *, private=False):
+    if path == Path.home():
+        owned(path, directory=True)
+        return
+    make_directory(path.parent)
+    try:
+        path.mkdir(mode=0o700)
+    except FileExistsError:
+        pass
+    owned(path, directory=True, private=private)
+
+
+def sync_directory(path):
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def main():
+    if os.getuid() == 0 or len(sys.argv) != 1:
+        raise Error('Fruux setup requires the desktop account')
+    home = Path(pwd.getpwuid(os.getuid()).pw_dir)
+    if home != Path.home():
+        raise Error('Calix home identity mismatch')
+    # The managed units deliberately use these default XDG paths.
+    config = home / '.config/calix'
+    path = config / 'fruux-bootstrap.json'
+    if not path.exists() and not path.is_symlink():
+        return
+    owned(home, directory=True)
+    owned(home / '.config', directory=True)
+    owned(config, directory=True, private=True)
+    lock = os.open(config / '.fruux-bootstrap.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    try:
+        info = os.fstat(lock)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1 or info.st_mode & 0o077:
+            raise Error('unsafe Fruux setup lock')
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if not path.exists() and not path.is_symlink():
+            return
+        before = owned(path, private=True)
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, 'rb') as stream:
+            pinned = os.fstat(stream.fileno())
+            if (pinned.st_dev, pinned.st_ino) != (before.st_dev, before.st_ino):
+                raise Error('Fruux input identity changed')
+            raw = stream.read(16385)
+        if len(raw) > 16384:
+            raise Error('Fruux input exceeds limit')
+        data = json.loads(raw)
+        if not isinstance(data, dict) or set(data) != {'username', 'password'}:
+            raise Error('invalid Fruux input shape')
+        username, password = data['username'], data['password']
+        if (not isinstance(username, str) or not isinstance(password, str)
+                or not 1 <= len(username.encode()) <= 4096 or not 1 <= len(password.encode()) <= 4096
+                or username != username.strip() or any(ord(c) < 32 for c in username) or '\0' in password):
+            raise Error('invalid Fruux input values')
+        server = 'https://dav.fruux.com'
+        token = 'caldav-password:' + server + '|' + username.lower()
+        make_directory(home / '.local/share/calix', private=True)
+        database = home / '.local/share/calix/calix.sqlite3'
+        if not database.exists():
+            fd = os.open(database, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            os.close(fd)
+        owned(database, private=True)
+        for suffix in ('-wal', '-shm', '-journal'):
+            sidecar = Path(str(database) + suffix)
+            if sidecar.exists() or sidecar.is_symlink():
+                owned(sidecar, private=True)
+        # The unit's start deadline bounds keyring unlock prompts and all GI I/O.
+        import gi
+        gi.require_version('Secret', '1')
+        from gi.repository import Secret
+        schema = Secret.Schema.new('org.freedesktop.Secret.Generic', Secret.SchemaFlags.DONT_MATCH_NAME,
+                                   {'service': Secret.SchemaAttributeType.STRING,
+                                    'username': Secret.SchemaAttributeType.STRING})
+        attributes = {'service': 'com.ianswope.Calix', 'username': token}
+        service = Secret.Service.get_sync(Secret.ServiceFlags.OPEN_SESSION | Secret.ServiceFlags.LOAD_COLLECTIONS, None)
+
+        def items():
+            return service.search_sync(schema, attributes, Secret.SearchFlags.ALL |
+                                       Secret.SearchFlags.UNLOCK | Secret.SearchFlags.LOAD_SECRETS, None)
+
+        saved = items()
+        if len(saved) > 1:
+            raise Error('ambiguous Calix keyring account')
+        if saved:
+            value = saved[0].get_secret()
+            if value is None or value.get_text() != password:
+                raise Error('existing Calix password differs; installer input retained')
+        else:
+            if not Secret.password_store_sync(schema, attributes, Secret.COLLECTION_DEFAULT,
+                                              'Calix Fruux calendar', password, None):
+                raise Error('Calix keyring write failed')
+        saved = items()
+        if len(saved) != 1 or saved[0].get_secret() is None or saved[0].get_secret().get_text() != password:
+            raise Error('Calix keyring readback failed')
+        connection = sqlite3.connect(database, timeout=5)
+        try:
+            connection.execute('PRAGMA trusted_schema=OFF')
+            connection.execute('PRAGMA synchronous=FULL')
+            connection.execute('BEGIN IMMEDIATE')
+            connection.execute('''CREATE TABLE IF NOT EXISTS accounts (
+                id INTEGER PRIMARY KEY, provider TEXT NOT NULL, provider_account_id TEXT NOT NULL,
+                display_name TEXT NOT NULL, token_key TEXT NOT NULL, server_url TEXT,
+                last_sync_at TEXT, last_sync_error TEXT)''')
+            columns = {row[1] for row in connection.execute('PRAGMA table_info(accounts)')}
+            if not {'id', 'provider', 'provider_account_id', 'display_name', 'token_key', 'server_url',
+                    'last_sync_at', 'last_sync_error'} <= columns:
+                raise Error('unsupported Calix account schema')
+            existing = connection.execute('SELECT token_key FROM accounts WHERE provider=? AND provider_account_id=? AND server_url=?',
+                                          ('caldav', username, server)).fetchall()
+            identities = connection.execute('SELECT provider,provider_account_id,server_url FROM accounts WHERE token_key=?',
+                                            (token,)).fetchall()
+            if identities and identities != [('caldav', username, server)]:
+                raise Error('Calix keyring token belongs to a different account row')
+            if existing and existing != [(token,)]:
+                raise Error('existing Calix account identity differs')
+            if not existing:
+                connection.execute('INSERT INTO accounts (provider,provider_account_id,display_name,token_key,server_url) VALUES (?,?,?,?,?)',
+                                   ('caldav', username, 'Fruux', token, server))
+            connection.commit()
+        finally:
+            connection.close()
+        # Keyring and account row are durable before the one-time plaintext is removed.
+        fd = os.open(database, os.O_RDONLY | os.O_NOFOLLOW)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        sync_directory(database.parent)
+        after = owned(path, private=True)
+        if (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns) != (
+                before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns):
+            raise Error('Fruux input changed during setup')
+        path.unlink()
+        sync_directory(config)
+    finally:
+        os.close(lock)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception:
+        print('calix-fruux-bootstrap: setup incomplete; private input retained if present; check the user keyring', file=sys.stderr)
+        raise SystemExit(1) from None

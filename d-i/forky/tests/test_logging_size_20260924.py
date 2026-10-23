@@ -263,7 +263,7 @@ class LoggingWiringTests(unittest.TestCase):
         self.assertIn('f ' + APP + ' ', layout)
         self.assertEqual(re.findall(r'^d (/var/log/managed/apps\S*) ', layout, re.M), ['/var/log/managed/apps'])
         env = (SEED / 'hosts/logging/observability.env').read_text()
-        for name in ('BRAVE', 'LIBREWOLF', 'FLOORP', 'ZEN', 'VIVALDI', 'CHROMIUM', 'FEATHERPAD'):
+        for name in ('BRAVE', 'LIBREWOLF', 'FLOORP', 'ZEN', 'VIVALDI', 'CHROMIUM', 'L3AFPAD'):
             self.assertNotIn('LOG_' + name + '_', env)
         for number in ('21-apps.conf', '44-components.conf'):
             active = read_text(TARGET / 'etc/rsyslog.d' / number)

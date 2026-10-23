@@ -77,6 +77,8 @@ desktop_normalize_public_desktop_directories() {
   for public_directory in \
     /usr/local/share \
     /usr/local/share/applications \
+    /usr/local/share/agenda \
+    /usr/local/share/agenda/schemas \
     /usr/local/share/icons \
     /usr/local/share/icons/hicolor \
     /usr/local/share/icons/hicolor/64x64 \

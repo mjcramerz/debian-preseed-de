@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Calix
+Comment=Calendar and Fruux events
+Exec=/usr/local/bin/labwc-calendar
+Icon=com.ianswope.Calix
+Terminal=false
+Categories=Office;Calendar;
+StartupWMClass=com.ianswope.Calix
+DBusActivatable=false

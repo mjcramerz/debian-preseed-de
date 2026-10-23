@@ -418,10 +418,12 @@ def sharing_stop_groups() -> list[tuple[str, ...]]:
                 if config['client_mount'] != name:
                     raise ValueError("inconsistent NFS client unit")
                 clients.append(name)
-        # Queue one bounded transaction. The generated ordering stops NFS
-        # before the home view, then the shared root. Its RequiresMountsFor
-        # dependents include the per-account Filen services.
-        return [(view,), tuple(clients), (root_unit,)]
+        # Stop the real NFS client in its own completed transaction first.
+        # Its unmount propagates to the rslave home view. Stopping the parent
+        # view in the same transaction also queues an unmount of that inferred
+        # child, racing propagation and invoking umount.nfs on a bind source.
+        # RequiresMountsFor dependents include the per-account Filen services.
+        return [tuple(clients), (view,), (root_unit,)]
     except (ValueError, KeyError, TypeError, RecursionError) as exc:
         raise Error("invalid installed network sharing shutdown policy") from exc
 
@@ -629,30 +631,60 @@ class Worker:
         raise Error("user slice did not stop; inspect the power action log")
 
     def stop_units(self, names: tuple[str, ...]) -> None:
-        # PID 1 handles inactive, failed and absent optional units. Never turn
-        # their state or a failed stop job into a veto of authorized shutdown.
+        # These units are required by the installed role. Optional services
+        # must first pass stop_optional_units so an absent unit cannot prevent
+        # PID 1 from enqueueing the rest of a stop transaction.
         self.shutdown_run(["/usr/bin/systemctl", "--no-ask-password", "stop", *names])
 
-    def shutdown_run(self, argv: list[str]) -> None:
+    def stop_optional_units(self, names: tuple[str, ...]) -> None:
+        present = []
+        for name in names:
+            def inspect_unit():
+                # show is the machine-readable interface. An absent unit has
+                # LoadState=not-found and may return 1; a transport failure or
+                # malformed reply must remain a reported cleanup failure.
+                state = self.shutdown_run(
+                    ["/usr/bin/systemctl", "--no-ask-password", "show", name,
+                     "--property=LoadState", "--value"], accepted=(0, 1))
+                if state is None:  # The common cleanup deadline expired.
+                    return
+                state = state.strip()
+                if state == "not-found":
+                    return
+                if state not in {"loaded", "masked", "error", "bad-setting", "merged", "stub"}:
+                    raise Error(f"cannot determine optional unit load state: {name}")
+                present.append(name)
+            # Continue inspecting the other units after an individual failure.
+            self.best_effort("optional unit " + name, inspect_unit)
+        if present:
+            self.stop_units(tuple(present))
+
+    def shutdown_run(self, argv: list[str], *, accepted: tuple[int, ...] = (0,)) -> str | None:
         if self.shutdown_deadline is None:
             self.shutdown_deadline = time.monotonic() + SHUTDOWN_CLEANUP_SECONDS
         remaining = self.shutdown_deadline - time.monotonic()
         if remaining <= 0:
             status("Shutdown cleanup deadline reached; proceeding with the power request")
             return
-        run(argv, timeout=min(10, remaining), max_output=16384)
+        return run(argv, timeout=min(10, remaining), max_output=16384, accepted=accepted)
 
     def stop_network_sharing(self) -> None:
         groups = sharing_stop_groups()
         if not groups:
             return
-        self.best_effort("sharing mounts", lambda: self.stop_units(
-            tuple(name for group in groups for name in group)))
+        def stop_mounts():
+            for group in groups:
+                if group:
+                    self.stop_units(group)
+        # A failed/uncertain earlier unmount skips the parent transactions;
+        # optional service cleanup and the final forced handoff still proceed.
+        self.best_effort("sharing mounts", stop_mounts)
         # Kernel server/export teardown precedes its userspace cache daemons.
-        self.best_effort("NFS server", lambda: self.stop_units(('nfs-server.service',)))
-        self.best_effort("NFS clients", lambda: self.stop_units(
-            ('nfs-mountd.service', 'nfs-idmapd.service', 'nfsdcld.service',
-             'nfs-blkmap.service', 'rpc-gssd.service', 'rpc-svcgssd.service', 'nfs-client.target')))
+        self.best_effort("NFS server", lambda: self.stop_optional_units(('nfs-server.service',)))
+        self.best_effort("NFS server helpers", lambda: self.stop_optional_units(
+            ('nfs-mountd.service', 'nfsdcld.service', 'rpc-svcgssd.service')))
+        self.best_effort("NFS client helpers", lambda: self.stop_optional_units(
+            ('nfs-idmapd.service', 'nfs-blkmap.service', 'rpc-gssd.service', 'nfs-client.target')))
 
     def prepare_machine_shutdown(self) -> None:
         # All stages are bounded cleanup. Authorization has already completed;

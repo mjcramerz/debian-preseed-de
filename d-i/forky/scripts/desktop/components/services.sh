@@ -154,7 +154,7 @@ desktop_enable_target_services() {
     foot-server.socket \
     mako.service \
     filter-chain.service \
-    labwc-calendar-sync.timer \
+    labwc-waycal-hover.service \
     labwc-sync-application-launchers.service \
     labwc-sync-application-launchers.path \
     wayscriber.service \

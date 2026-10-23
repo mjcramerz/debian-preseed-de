@@ -55,7 +55,7 @@ profile desktop-btop /usr/bin/btop flags=(attach_disconnected, mediate_deleted) 
   owner @{HOME}/.local/state/btop.log{,.1} rwk,
 }
 
-profile desktop-editors /usr/bin/{featherpad,qimgv,kdiff3,gnumeric,xournalpp,gnote,qalculate-qt} flags=(attach_disconnected, mediate_deleted) {
+profile desktop-editors /usr/bin/{l3afpad,qimgv,kdiff3,gnumeric,xournalpp,gnote,qalculate-qt} flags=(attach_disconnected, mediate_deleted) {
   # September 20 audit: Qt atomic saves require both the published file and
   # the temporary inode, with mediate_deleted on this profile (not a home wildcard).
   owner @{HOME}/.{profile,bash_profile,bashrc,bash_aliases,zshenv,zprofile,zshrc,zlogout,zsh_aliases,dircolors,vimrc,sudo_as_admin_successful} r,
@@ -70,21 +70,21 @@ profile desktop-editors /usr/bin/{featherpad,qimgv,kdiff3,gnumeric,xournalpp,gno
   @{PROC}/sys/vm/nr_hugepages r,
   owner @{PROC}/[0-9]*/task/[0-9]*/comm rw,
   #include <abstractions/document-runtime>
-  /usr/bin/{featherpad,qimgv,kdiff3,gnumeric,xournalpp,gnote,qalculate-qt} mr,
+  /usr/bin/{l3afpad,qimgv,kdiff3,gnumeric,xournalpp,gnote,qalculate-qt} mr,
   /usr/lib/** mr,
   /usr/share/** r,
-  owner @{HOME}/.config/{featherpad,FeatherPad,kdiff3*,gnumeric,xournalpp,gnote,qalculate,qimgv}/ rw,
-  owner @{HOME}/.config/{featherpad,FeatherPad,kdiff3*,gnumeric,xournalpp,gnote,qalculate,qimgv}/** rwklm,
+  owner @{HOME}/.config/{l3afpad,kdiff3*,gnumeric,xournalpp,gnote,qalculate,qimgv}/ rw,
+  owner @{HOME}/.config/{l3afpad,kdiff3*,gnumeric,xournalpp,gnote,qalculate,qimgv}/** rwklm,
   owner @{HOME}/.config/wayscriber/config.toml r,
   owner @{HOME}/.config/{kdiff3rc,qalculaterc}* rwkl,
   # Tomat menu opens only this application-specific configuration directory.
   owner @{HOME}/.config/tomat/ rw,
   owner @{HOME}/.config/tomat/** rwkl,
-  owner @{HOME}/.local/share/{featherpad,gnumeric,xournalpp,gnote,qalculate}/ rw,
-  owner @{HOME}/.local/share/{featherpad,gnumeric,xournalpp,gnote,qalculate}/** rwklm,
-  owner @{HOME}/.local/state/{featherpad,kdiff3,xournalpp,gnote,qimgv}/{,**} rwkl,
-  owner @{HOME}/.cache/{featherpad,gnumeric,xournalpp,gnote,qalculate,qimgv,thumbnails}/ rw,
-  owner @{HOME}/.cache/{featherpad,gnumeric,xournalpp,gnote,qalculate,qimgv,thumbnails}/** rwklm,
+  owner @{HOME}/.local/share/{l3afpad,gnumeric,xournalpp,gnote,qalculate}/ rw,
+  owner @{HOME}/.local/share/{l3afpad,gnumeric,xournalpp,gnote,qalculate}/** rwklm,
+  owner @{HOME}/.local/state/{l3afpad,kdiff3,xournalpp,gnote,qimgv}/{,**} rwkl,
+  owner @{HOME}/.cache/{l3afpad,gnumeric,xournalpp,gnote,qalculate,qimgv,thumbnails}/ rw,
+  owner @{HOME}/.cache/{l3afpad,gnumeric,xournalpp,gnote,qalculate,qimgv,thumbnails}/** rwklm,
   /usr/bin/{diff,git,lp,lpr,pdftoppm,pdftotext} rix,
   # GLib/glycin CPU quota probes and its separately confined image decoder.
   owner @{PROC}/[0-9]*/cgroup r,

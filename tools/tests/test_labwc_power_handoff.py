@@ -248,7 +248,7 @@ class SessionStateTests(unittest.TestCase):
         for action in ('poweroff', 'reboot'):
             with self.subTest(action=action):
                 self.now = 0.0
-                self.windows.return_value = ('foot: micro\nfeatherpad: document\nfocuswriter: document\n'
+                self.windows.return_value = ('foot: micro\nl3afpad: document\nfocuswriter: document\n'
                                              'gnumeric: workbook\nvivaldi: page\nmsedge: page\nchromium: page')
                 self.notify.reset_mock()
                 self.sleep.reset_mock()
@@ -275,7 +275,7 @@ class SessionStateTests(unittest.TestCase):
         self.run.assert_called_once_with(['/usr/bin/wlrctl', 'toplevel', 'close'], timeout=5, accepted=(0, 1))
 
     def test_all_windows_closed_during_grace_proceeds_early(self):
-        self.windows.side_effect = ['featherpad: document', 'featherpad: document', '']
+        self.windows.side_effect = ['l3afpad: document', 'l3afpad: document', '']
         self.session.wait_power(self.runtime, 'reboot')
         self.assertEqual(self.now, 0.2)
         self.notify.assert_called_once()
@@ -295,7 +295,7 @@ class SessionStateTests(unittest.TestCase):
             return ''
         def window_probe(**kwargs):
             self.advance(min(0.4, kwargs['timeout']))
-            return 'featherpad: Save changes?'
+            return 'l3afpad: Save changes?'
         self.run.side_effect = close_command
         self.windows.side_effect = window_probe
         self.notify.side_effect = lambda *args, **kwargs: self.advance(0.3)
@@ -307,7 +307,7 @@ class SessionStateTests(unittest.TestCase):
 
     def test_failed_close_request_is_not_retried_or_a_power_veto(self):
         self.run.side_effect = self.session.Error('close transport failed')
-        self.windows.return_value = 'featherpad: document'
+        self.windows.return_value = 'l3afpad: document'
         with contextlib.redirect_stderr(io.StringIO()):
             self.session.wait_power(self.runtime, 'poweroff')
         self.assertEqual(self.now, 10)
@@ -318,7 +318,7 @@ class SessionStateTests(unittest.TestCase):
             with self.subTest(action=action):
                 self.now = 0
                 self.run.reset_mock()
-                self.windows.return_value = 'featherpad: Save changes?\nfoot: micro'
+                self.windows.return_value = 'l3afpad: Save changes?\nfoot: micro'
                 events = []
                 worker = power.Worker(1000, 'desktop', action)
                 def userctl(*argv, **kwargs):

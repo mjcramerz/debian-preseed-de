@@ -59,6 +59,7 @@ MAPPING = {
     'crowdsec_token': 'PRESEED_CROWDSEC_TOKEN',
     'crowdsec_enroll_token': 'PRESEED_CROWDSEC_TOKEN',
     'crowdsec_attachment_key': 'PRESEED_CROWDSEC_TOKEN',
+    'urlhaus_authkey': 'PRESEED_URLHAUS_AUTHKEY',
     'tailscale_authkey': 'PRESEED_TAILSCALE_TOKEN',
     'tailscale_auth_key': 'PRESEED_TAILSCALE_TOKEN',
     'filen_priv_email': 'PRESEED_FILEN_PRIV_EMAIL',
@@ -115,6 +116,39 @@ class CredentialFixture(unittest.TestCase):
         self.assertNotIn(self.values['PRESEED_ROOT_PASSWORD'], result.stderr)
 
 class InitrdCredentialTests(CredentialFixture):
+    @skip_unless_trusted_credential_ancestry
+    def test_optional_urlhaus_key_is_private_only_and_does_not_inherit_ambient_value(self):
+        script = '. ' + shlex.quote(str(CANONICAL)) + '\npreseed_env_read_value urlhaus_authkey\n'
+        for value in (None, '', 'Fixture-AbCd0123._~-'):
+            if value is None:
+                self.values.pop('PRESEED_URLHAUS_AUTHKEY', None)
+            else:
+                self.values['PRESEED_URLHAUS_AUTHKEY'] = value
+            self.write_env()
+            for name, shell in SHELLS:
+                with self.subTest(value=value, shell=name):
+                    result = subprocess.run(payload_installed_argv(shell + ['-c', script]),
+                        env={**self.env, 'PRESEED_URLHAUS_AUTHKEY': 'Ambient-Must-Not-Be-Used',
+                             'INSTALLER_CMDLINE': 'urlhaus_authkey=Kernel-Must-Not-Be-Used'},
+                        cwd=self.dir, capture_output=True, text=True, timeout=10)
+                    self.assertEqual(result.returncode, 0 if value else 1, result.stderr)
+                    self.assertEqual(result.stdout, value + '\n' if value else '')
+                    self.assertEqual(result.stderr, '')
+
+    @skip_unless_trusted_credential_ancestry
+    def test_invalid_urlhaus_key_is_rejected_without_echoing_it(self):
+        script = '. ' + shlex.quote(str(CANONICAL)) + '\npreseed_env_read_value urlhaus_authkey\n'
+        for value in ('Fixture/secret', 'Fixture?secret', 'Fixture%secret', 'Fixture$secret',
+                      'Fixture\nsecret', 'Fixture\rsecret', 'Fixture secret', 'X' * 257):
+            self.values['PRESEED_URLHAUS_AUTHKEY'] = value
+            self.write_env()
+            result = subprocess.run(payload_installed_argv(['/bin/sh', '-c', script]),
+                env=self.env, cwd=self.dir, capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 2)
+            self.assertEqual(result.stdout, '')
+            self.assertNotIn(value, result.stderr)
+            self.assertIn('URLhaus Auth-Key', result.stderr)
+
     @skip_unless_trusted_credential_ancestry
     def test_empty_wifi_security_means_open_while_missing_is_absent(self):
         self.values['PRESEED_WIFI_SECURITY'] = ''

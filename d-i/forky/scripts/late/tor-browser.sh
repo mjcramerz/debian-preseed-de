@@ -1,6 +1,24 @@
 #!/bin/sh
 # Sourced only by the Software installer after its class/architecture gates.
 
+software_install_tor_media_runtime() {
+  # Forky's unversioned libavcodec-extra now selects FFmpeg 9 / ABI 63.
+  # The pinned Firefox ESR 140 browser supports ABI 62, not ABI 63. Keep
+  # the versioned compatibility libraries alongside the current system FFmpeg.
+  # Existing signed repository policy supplies these packages (currently Sid);
+  # never add a repository, weaken signature checks or replace the system ABI.
+  if ! run_in_target "install Tor Browser compatible FFmpeg runtime" \
+    /usr/bin/env -i DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
+    NEEDRESTART_SUSPEND=1 HOME=/root LC_ALL=C.UTF-8 PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+    /usr/bin/timeout --signal=TERM --kill-after=5s 300s \
+    /usr/bin/apt-get -y -o DPkg::Lock::Timeout=60 -o DPkg::Use-Pty=0 \
+      --no-remove --no-install-recommends --no-install-suggests \
+      install libavcodec62 libavutil60 libswresample6
+  then
+    software_fatal "Tor Browser requires libavcodec62, libavutil60 and libswresample6 from the configured signed repositories; the unversioned FFmpeg 9 packages do not supply ABI 62"
+  fi
+}
+
 software_install_tor_browser() (
   tor_version=${SOFTWARE_TOR_BROWSER_VERSION:?SOFTWARE_TOR_BROWSER_VERSION must be set}
   tor_url=${SOFTWARE_TOR_BROWSER_URL:?SOFTWARE_TOR_BROWSER_URL must be set}
@@ -11,6 +29,7 @@ software_install_tor_browser() (
   software_validate_sha256 SOFTWARE_TOR_BROWSER_KEY_SHA256 "$tor_key_sha"
   [ "$tor_url" = "https://dist.torproject.org/torbrowser/${tor_version}/tor-browser-linux-x86_64-${tor_version}.tar.xz" ] ||
     software_fatal "Tor Browser URL differs from the pinned release"
+  software_install_tor_media_runtime
   tor_archive="${work_dir}/tor-browser.tar.xz"
   tor_signature="${work_dir}/tor-browser.tar.xz.asc"
   tor_key=/usr/local/share/software/tor-browser/developers.asc
@@ -55,12 +74,28 @@ software_install_tor_browser() (
   # Firefox uses the distribution FFmpeg library for H.264/AAC. Check the
   # actual target ABI and decoders, not merely the ffmpeg command's presence.
   # This is installer target execution with dropped privileges, never a host
-  # test or a decode of untrusted media. No alternate-release libraries load.
+  # test or a decode of untrusted media. Only APT-owned system libraries load.
   run_in_target "verify Tor Browser system media decoders" \
     /usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 \
+    /usr/bin/timeout --signal=TERM --kill-after=3s 20s \
     /usr/sbin/runuser -u "$ACCOUNT_USERNAME" -- /usr/bin/python3 -I -B -c '
 import ctypes
-library = ctypes.CDLL("/usr/lib/x86_64-linux-gnu/libavcodec.so.62")
+import os
+import subprocess
+for package in ("libavcodec62", "libavutil60", "libswresample6"):
+    status = subprocess.run(["/usr/bin/dpkg-query", "-W", "-f=${Status}", package],
+                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                            text=True, timeout=3, check=False)
+    if status.returncode or status.stdout != "install ok installed":
+        raise SystemExit("Tor Browser compatible runtime package is not configured: " + package)
+try:
+    library = ctypes.CDLL("/usr/lib/x86_64-linux-gnu/libavcodec.so.62", mode=os.RTLD_NOW | os.RTLD_LOCAL)
+except OSError:
+    raise SystemExit("Tor Browser FFmpeg ABI 62 or one of its shared-library dependencies is unavailable; check libavcodec62, libavutil60 and libswresample6") from None
+library.avcodec_version.argtypes = []
+library.avcodec_version.restype = ctypes.c_uint
+if library.avcodec_version() >> 16 != 62:
+    raise SystemExit("Tor Browser loaded an incompatible FFmpeg ABI; expected 62")
 library.avcodec_find_decoder_by_name.argtypes = [ctypes.c_char_p]
 library.avcodec_find_decoder_by_name.restype = ctypes.c_void_p
 required = {

@@ -1,0 +1,21 @@
+[Unit]
+Description=Agenda local task list
+Requisite=labwc-session.target
+After=labwc-session.target
+PartOf=labwc-session.target
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=dbus
+BusName=com.github.dahenson.agenda
+Slice=app.slice
+Environment=GDK_BACKEND=wayland
+Environment=HOME=%h
+Environment=XDG_DATA_HOME=%h/.local/share XDG_CONFIG_HOME=%h/.config
+Environment=GSETTINGS_SCHEMA_DIR=/usr/local/share/agenda/schemas
+ExecStart=/usr/local/bin/com.github.dahenson.agenda
+TimeoutStartSec=15s
+TimeoutStopSec=10s
+KillMode=control-group
+UMask=0077

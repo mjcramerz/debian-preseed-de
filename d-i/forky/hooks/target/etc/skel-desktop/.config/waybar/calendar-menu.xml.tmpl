@@ -54,13 +54,18 @@
             <child>
               <object class="GtkLabel" id="calendar_agenda_label">
                 <property name="visible">True</property>
-                <property name="label">Upcoming agenda (14 days)</property>
+                <property name="label">Open agenda</property>
                 <property name="xalign">0</property>
                 <property name="hexpand">True</property>
               </object>
             </child>
           </object>
         </child>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem">
+        <property name="visible">True</property>
       </object>
     </child>
     <child>
@@ -72,7 +77,7 @@
             <property name="spacing">__INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ROW_SPACING__</property>
             <property name="orientation">horizontal</property>
             <child>
-              <object class="GtkImage" id="calendar_submenu_events_icon">
+              <object class="GtkImage" id="calendar_events_icon">
                 <property name="visible">True</property>
                 <property name="icon-name">__THEME_WAYBAR_DROPDOWN_CALENDAR_SUBMENU_EVENTS_ICON_NAME__</property>
                 <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ICON_SIZE__</property>
@@ -81,7 +86,7 @@
               </object>
             </child>
             <child>
-              <object class="GtkLabel" id="calendar_submenu_events_label">
+              <object class="GtkLabel" id="calendar_events_label">
                 <property name="visible">True</property>
                 <property name="label">Events</property>
                 <property name="xalign">0</property>
@@ -93,7 +98,9 @@
         <child type="submenu">
           <object class="GtkMenu">
             <property name="accel-group">menu_accel_group</property>
-            <style><class name="submenu"/></style>
+            <style>
+              <class name="submenu" />
+            </style>
             <property name="reserve-toggle-size">False</property>
             <child>
               <object class="GtkMenuItem" id="calendar_new_event">
@@ -115,7 +122,7 @@
                     <child>
                       <object class="GtkLabel" id="calendar_new_event_label">
                         <property name="visible">True</property>
-                        <property name="label">Create event...</property>
+                        <property name="label">Create Event...</property>
                         <property name="xalign">0</property>
                         <property name="hexpand">True</property>
                       </object>
@@ -144,7 +151,7 @@
                     <child>
                       <object class="GtkLabel" id="calendar_edit_event_label">
                         <property name="visible">True</property>
-                        <property name="label">Edit or delete event...</property>
+                        <property name="label">Edit or Delete Event...</property>
                         <property name="xalign">0</property>
                         <property name="hexpand">True</property>
                       </object>
@@ -166,7 +173,7 @@
             <property name="spacing">__INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ROW_SPACING__</property>
             <property name="orientation">horizontal</property>
             <child>
-              <object class="GtkImage" id="calendar_submenu_tasks_icon">
+              <object class="GtkImage" id="calendar_tasks_menu_icon">
                 <property name="visible">True</property>
                 <property name="icon-name">__THEME_WAYBAR_DROPDOWN_CALENDAR_SUBMENU_TASKS_ICON_NAME__</property>
                 <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ICON_SIZE__</property>
@@ -175,7 +182,7 @@
               </object>
             </child>
             <child>
-              <object class="GtkLabel" id="calendar_submenu_tasks_label">
+              <object class="GtkLabel" id="calendar_tasks_menu_label">
                 <property name="visible">True</property>
                 <property name="label">Tasks</property>
                 <property name="xalign">0</property>
@@ -187,7 +194,9 @@
         <child type="submenu">
           <object class="GtkMenu">
             <property name="accel-group">menu_accel_group</property>
-            <style><class name="submenu"/></style>
+            <style>
+              <class name="submenu" />
+            </style>
             <property name="reserve-toggle-size">False</property>
             <child>
               <object class="GtkMenuItem" id="calendar_tasks">
@@ -238,18 +247,13 @@
                     <child>
                       <object class="GtkLabel" id="calendar_all_tasks_label">
                         <property name="visible">True</property>
-                        <property name="label">All tasks (including completed)</property>
+                        <property name="label">All tasks</property>
                         <property name="xalign">0</property>
                         <property name="hexpand">True</property>
                       </object>
                     </child>
                   </object>
                 </child>
-              </object>
-            </child>
-            <child>
-              <object class="GtkSeparatorMenuItem">
-                <property name="visible">True</property>
               </object>
             </child>
             <child>
@@ -272,36 +276,7 @@
                     <child>
                       <object class="GtkLabel" id="calendar_new_task_label">
                         <property name="visible">True</property>
-                        <property name="label">Create task...</property>
-                        <property name="xalign">0</property>
-                        <property name="hexpand">True</property>
-                      </object>
-                    </child>
-                  </object>
-                </child>
-              </object>
-            </child>
-            <child>
-              <object class="GtkMenuItem" id="calendar_show_task">
-                <property name="visible">True</property>
-                <child>
-                  <object class="GtkBox">
-                    <property name="visible">True</property>
-                    <property name="spacing">__INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ROW_SPACING__</property>
-                    <property name="orientation">horizontal</property>
-                    <child>
-                      <object class="GtkImage" id="calendar_show_task_icon">
-                        <property name="visible">True</property>
-                        <property name="icon-name">__THEME_WAYBAR_DROPDOWN_CALENDAR_SHOW_TASK_ICON_NAME__</property>
-                        <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ICON_SIZE__</property>
-                        <property name="width-request">__INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ICON_WIDTH__</property>
-                        <property name="use-fallback">True</property>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkLabel" id="calendar_show_task_label">
-                        <property name="visible">True</property>
-                        <property name="label">Task details...</property>
+                        <property name="label">Create task</property>
                         <property name="xalign">0</property>
                         <property name="hexpand">True</property>
                       </object>
@@ -330,7 +305,36 @@
                     <child>
                       <object class="GtkLabel" id="calendar_edit_task_label">
                         <property name="visible">True</property>
-                        <property name="label">Edit task...</property>
+                        <property name="label">Edit task</property>
+                        <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="calendar_show_task">
+                <property name="visible">True</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="spacing">__INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ROW_SPACING__</property>
+                    <property name="orientation">horizontal</property>
+                    <child>
+                      <object class="GtkImage" id="calendar_show_task_icon">
+                        <property name="visible">True</property>
+                        <property name="icon-name">__THEME_WAYBAR_DROPDOWN_CALENDAR_SHOW_TASK_ICON_NAME__</property>
+                        <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ICON_SIZE__</property>
+                        <property name="width-request">__INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ICON_WIDTH__</property>
+                        <property name="use-fallback">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="calendar_show_task_label">
+                        <property name="visible">True</property>
+                        <property name="label">Task details</property>
                         <property name="xalign">0</property>
                         <property name="hexpand">True</property>
                       </object>
@@ -359,18 +363,13 @@
                     <child>
                       <object class="GtkLabel" id="calendar_done_task_label">
                         <property name="visible">True</property>
-                        <property name="label">Mark task completed...</property>
+                        <property name="label">Mark task completed</property>
                         <property name="xalign">0</property>
                         <property name="hexpand">True</property>
                       </object>
                     </child>
                   </object>
                 </child>
-              </object>
-            </child>
-            <child>
-              <object class="GtkSeparatorMenuItem">
-                <property name="visible">True</property>
               </object>
             </child>
             <child>
@@ -393,47 +392,13 @@
                     <child>
                       <object class="GtkLabel" id="calendar_delete_task_label">
                         <property name="visible">True</property>
-                        <property name="label">Delete task (confirmation required)...</property>
+                        <property name="label">Delete task</property>
                         <property name="xalign">0</property>
                         <property name="hexpand">True</property>
                       </object>
                     </child>
                   </object>
                 </child>
-              </object>
-            </child>
-          </object>
-        </child>
-      </object>
-    </child>
-    <child>
-      <object class="GtkSeparatorMenuItem">
-        <property name="visible">True</property>
-      </object>
-    </child>
-    <child>
-      <object class="GtkMenuItem" id="calendar_sync">
-        <property name="visible">True</property>
-        <child>
-          <object class="GtkBox">
-            <property name="visible">True</property>
-            <property name="spacing">__INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ROW_SPACING__</property>
-            <property name="orientation">horizontal</property>
-            <child>
-              <object class="GtkImage" id="calendar_sync_icon">
-                <property name="visible">True</property>
-                <property name="icon-name">__THEME_WAYBAR_DROPDOWN_CALENDAR_SYNC_ICON_NAME__</property>
-                <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ICON_SIZE__</property>
-                <property name="width-request">__INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ICON_WIDTH__</property>
-                <property name="use-fallback">True</property>
-              </object>
-            </child>
-            <child>
-              <object class="GtkLabel" id="calendar_sync_label">
-                <property name="visible">True</property>
-                <property name="label">Sync calendar and tasks...</property>
-                <property name="xalign">0</property>
-                <property name="hexpand">True</property>
               </object>
             </child>
           </object>

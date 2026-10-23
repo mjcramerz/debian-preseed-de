@@ -201,7 +201,16 @@ sub apply_profile_mode {
 
     my $parser_path = "$options->{tool_dir}/apparmor_parser";
     $tools->require_executable('required AppArmor parser', $parser_path);
-    $tools->run_or_exit($parser_path, '-Q', '-K', '-T', '-I', $mode_work_dir,
+    # AppArmor 4.1.x skips cache initialization for -K but leaves write_cache
+    # set when parser.conf enables write-cache. A successful -Q compilation
+    # then reports "Failed to create cache" without a cache destination.
+    # Validate the private candidate with explicit managed include/ABI inputs
+    # and no parser configuration. The published-source reload below still
+    # uses the normal configuration and updates the production cache.
+    $tools->run_or_exit($parser_path, '--config-file=/dev/null',
+                         '--policy-features=/usr/share/apparmor-features/features',
+                         '-Q', '-K', '-T', '-I', $mode_work_dir,
+                         '-I', '/usr/share/apparmor',
                          '--base', $mode_work_dir, $mode_profile_path);
 
     my $recovery = $workspace->tempdir('.apparmor-mode-recovery',

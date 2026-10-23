@@ -1,0 +1,6 @@
+# The fixed primary-account workspace only. DAC/ACL and read-only mount flags
+# remain authoritative, including for shared files owned by another account.
+/run/media/ r,
+/run/media/__INSTALLER_ACCOUNT_USERNAME__/ r,
+/run/media/__INSTALLER_ACCOUNT_USERNAME__/warehouse/ r,
+/run/media/__INSTALLER_ACCOUNT_USERNAME__/warehouse/extra/{,**} rwklm,

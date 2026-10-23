@@ -6,6 +6,7 @@ ConditionPathExists=/var/lib/software/repo/current
 
 [Service]
 Type=oneshot
+ExecCondition=/usr/local/libexec/network-online-check
 ExecStart=/usr/local/bin/apt-repo-init --refresh
 User=root
 Group=root

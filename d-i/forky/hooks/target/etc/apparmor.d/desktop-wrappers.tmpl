@@ -699,28 +699,12 @@ profile labwc-brightness-control /usr/local/bin/labwc-brightness-control flags=(
 }
 
 profile labwc-calendar /usr/local/libexec/labwc-calendar flags=(attach_disconnected) {
-  # Directory metadata probes only; no recursive home access.
-  owner @{HOME}/ r,
   #include <abstractions/wrapper-desktop>
-
   /usr/local/libexec/labwc-calendar rix,
-  /usr/bin/{cat,chmod,flock,grep,id,install,mkdir,mktemp,rm,rmdir,find,timeout} rix,
-  /{,usr/}bin/{kill,sleep} rix,
-  # timeout/cancel_sync terminate only the sync process group they created;
-  # vdirsyncer may use the existing pux fallback and leave this profile.
-  signal (send) set=(term, kill) peer=unconfined,
-  /usr/bin/{ikhal,khal,notify-send,todoman,vdirsyncer} pux,
-  /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
-  /usr/local/bin/labwc-terminal rPx -> labwc-terminal,
-  owner /run/user/[0-9]*/labwc-calendar-sync.lock rwk,
-  owner @{HOME}/.cache/labwc-calendar-sync.lock rwk,
-  owner @{HOME}/.config/{khal,todoman,vdirsyncer}/ r,
-  owner @{HOME}/.config/{khal,todoman,vdirsyncer}/** rwkl,
-  owner @{HOME}/.local/share/calendars/ rw,
-  owner @{HOME}/.local/share/calendars/** rwkl,
-  owner @{HOME}/.local/state/vdirsyncer/ rw,
-  owner @{HOME}/.local/state/vdirsyncer/** rwkl,
-
+  /usr/local/libexec/labwc-session-check rPx -> labwc-session-check,
+  /usr/bin/systemctl pux,
+  /opt/calix/calix rPx -> calix,
+  signal (receive) peer=unconfined,
   include if exists <local/usr.local.libexec.labwc-calendar>
 }
 
@@ -1142,6 +1126,7 @@ profile digital-assets-python-runtime /usr/local/lib/digital-assets/{bin/**,pipx
 }
 
 profile codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, mediate_deleted) {
+  include if exists <local/abstractions/codex-user-media>
   owner /run/user/[0-9]*/credentials/codex-app-server.service/ r,
   owner /run/user/[0-9]*/credentials/codex-app-server.service/codex-mcp.env r,
   #include <abstractions/app-veth-client>
@@ -1149,6 +1134,8 @@ profile codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, mediate_
   #include <abstractions/wrapper-python>
 
   # Anonymous installation UUID passed to the Bubblewrap child only.
+  owner @{PROC}/@{pid}/fdinfo/[0-9]* r,
+  owner @{PROC}/@{pid}/mountinfo r,
   /memfd:codex-installation-id rw,
   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/project_identity.py r,
   unix,
@@ -1258,7 +1245,7 @@ profile codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, mediate_
   owner @{HOME}/.config/Code/ r,
   owner @{HOME}/.config/Code/User/ r,
   owner @{HOME}/.config/Code/User/snippets/ r,
-  owner @{HOME}/.config/{bat,bazel,clangd,direnv,featherpad,fzf,git,micro,mise,nano,nvim,pip,powershell,retroarch,satty,sleek,task,vim,yamllint}/ r,
+  owner @{HOME}/.config/{bat,bazel,clangd,direnv,l3afpad,fzf,git,micro,mise,nano,nvim,pip,powershell,retroarch,satty,sleek,task,vim,yamllint}/ r,
   owner @{HOME}/.config/cargo/ r,
   owner @{HOME}/.config/cargo/config.toml r,
   owner @{HOME}/.config/containers/ r,
@@ -2054,7 +2041,7 @@ profile labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected, mediate
   owner @{HOME}/.config/Code/ r,
   owner @{HOME}/.config/Code/User/ r,
   owner @{HOME}/.config/Code/User/snippets/ r,
-  owner @{HOME}/.config/{bat,bazel,clangd,direnv,featherpad,fzf,git,micro,mise,nano,nvim,pip,powershell,retroarch,satty,sleek,task,vim,yamllint}/ r,
+  owner @{HOME}/.config/{bat,bazel,clangd,direnv,l3afpad,fzf,git,micro,mise,nano,nvim,pip,powershell,retroarch,satty,sleek,task,vim,yamllint}/ r,
   owner @{HOME}/.config/cargo/ r,
   owner @{HOME}/.config/cargo/config.toml r,
   owner @{HOME}/.config/containers/ r,
@@ -2195,8 +2182,8 @@ profile labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected, mediate
     owner @{HOME}/.config/Code/ r,
     owner @{HOME}/.config/Code/User/ r,
     owner @{HOME}/.config/Code/User/snippets/ r,
-    owner @{HOME}/.config/{bat,bazel,clangd,direnv,featherpad,fzf,git,micro,mise,nano,nvim,pip,powershell,retroarch,satty,sleek,task,vim,yamllint}/ r,
-    owner @{HOME}/.config/{bat,bazel,clangd,direnv,featherpad,fzf,git,micro,mise,nano,nvim,pip,powershell,retroarch,satty,sleek,task,vim,yamllint}/** r,
+    owner @{HOME}/.config/{bat,bazel,clangd,direnv,l3afpad,fzf,git,micro,mise,nano,nvim,pip,powershell,retroarch,satty,sleek,task,vim,yamllint}/ r,
+    owner @{HOME}/.config/{bat,bazel,clangd,direnv,l3afpad,fzf,git,micro,mise,nano,nvim,pip,powershell,retroarch,satty,sleek,task,vim,yamllint}/** r,
     owner @{HOME}/.config/{cargo,containers,gh,go,obsidian,uv}/ r,
     owner @{HOME}/.config/cargo/config.toml r,
     owner @{HOME}/.config/containers/{containers.conf,mounts.conf,policy.json,registries.conf,seccomp.json,storage.conf} r,
@@ -3781,9 +3768,6 @@ profile network-wifi-configure /usr/local/libexec/network-wifi-configure flags=(
   / r,
   /run/ r,
   /run/lock/ r,
-  /run/wpa_supplicant/ r,
-  /run/wpa_supplicant/control/ r,
-  /run/wpa_supplicant/control/* r,
   /etc/ r,
   /etc/network/ r,
   /etc/network/interfaces.d/ r,
@@ -3795,9 +3779,6 @@ profile network-wifi-configure /usr/local/libexec/network-wifi-configure flags=(
   /etc/NetworkManager/system-connections/.wifi-* rw,
   /var/ r,
   /var/lib/ r,
-  /var/lib/NetworkManager/ rw,
-  /var/lib/NetworkManager/NetworkManager.state rw,
-  /var/lib/NetworkManager/.wifi-* rw,
   /var/lib/network-wifi/ rw,
   /var/lib/network-wifi/firstboot.complete rw,
   /var/lib/network-wifi/.wifi-* rw,
@@ -4074,11 +4055,14 @@ profile labwc-notify /usr/local/sbin/labwc-notify flags=(attach_disconnected) {
 }
 
 profile clamav-signature-update /usr/local/libexec/clamav-signature-update flags=(attach_disconnected) {
-  #include <abstractions/wrapper-base>
+  #include <abstractions/wrapper-python>
 
   /usr/local/libexec/clamav-signature-update rix,
+  /usr/local/libexec/clamav-fangfrisch rix,
   /usr/bin/{flock,id,install} rix,
   /usr/bin/{fangfrisch,freshclam} PUx,
+  signal (send) set=(term kill) peer=unconfined,
+  signal (send, receive) set=(term kill int chld) peer=clamav-signature-update,
   /etc/fangfrisch.conf r,
   /var/lib/fangfrisch/ rw,
   /var/lib/fangfrisch/db.sqlite r,

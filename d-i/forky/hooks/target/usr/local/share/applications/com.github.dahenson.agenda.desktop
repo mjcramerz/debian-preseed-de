@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=Agenda
+GenericName=Task List
+Comment=Keep a simple local task list
+Exec=/usr/local/bin/labwc-agenda
+TryExec=/usr/local/bin/com.github.dahenson.agenda
+Icon=com.github.dahenson.agenda
+Terminal=false
+Categories=Office;ProjectManagement;GTK;
+Keywords=agenda;tasks;todo;checklist;
+StartupNotify=true
+StartupWMClass=com.github.dahenson.agenda
+DBusActivatable=false

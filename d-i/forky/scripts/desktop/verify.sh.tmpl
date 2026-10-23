@@ -120,7 +120,6 @@ for cmd in \
   wf-recorder \
   wl-copy \
   xclip \
-  khal \
   keepassxc \
   recoll \
   recollindex \
@@ -171,10 +170,8 @@ for cmd in \
   perl \
   python3 \
   flock \
-  todoman \
   task \
   taskwarrior-tui \
-  vdirsyncer \
   tesseract \
   notify-send \
   sendmail
@@ -216,7 +213,7 @@ for cmd in \
   wpctl \
   thunar \
   nnn \
-  featherpad \
+  l3afpad \
   focuswriter \
   gnote \
   liferea \
@@ -238,7 +235,6 @@ for cmd in \
   pwsh \
   powerprofilesctl \
   xdg-terminal-exec \
-  ikhal \
   pipewire \
   wireplumber \
   wsdd
@@ -782,6 +778,8 @@ for path in \
   /usr/local/libexec/labwc-session-state \
   /usr/local/bin/labwc-calendar \
   /usr/local/libexec/labwc-calendar \
+    /usr/local/libexec/calix-fruux-bootstrap \
+    /usr/local/libexec/labwc-waycal-hover \
   /usr/local/bin/labwc-ocr \
   /usr/local/bin/labwc-logout \
   /usr/local/bin/labwc-fuzzel \
@@ -867,6 +865,7 @@ for path in \
   /usr/local/libexec/labwc-network-scan-action-root \
   /usr/local/libexec/labwc-samsung-firmware-extract \
   /usr/local/libexec/clamav-signature-update \
+  /usr/local/libexec/clamav-fangfrisch \
   /usr/local/libexec/satty/satty
 do
   require_executable "$path"
@@ -930,12 +929,12 @@ require_symlink_target /usr/local/bin/samloader ../lib/samloader/samloader
 require_readable /etc/udev/rules.d/51-android-debug-bridge.rules
 require_readable /etc/udev/rules.d/52-samsung-download-mode.rules
 require_readable /etc/udev/rules.d/53-ledger-wallet.rules
+require_readable /etc/apparmor.d/local/abstractions/codex-user-media
 
 if [ -r /usr/share/dbus-1/system-services/org.freedesktop.nm_dispatcher.service ]; then
   nm_dispatcher_alias=/etc/systemd/system/dbus-org.freedesktop.nm-dispatcher.service
   nm_dispatcher_unit=
   require_readable /etc/systemd/system/NetworkManager.service.d/20-dispatcher.conf
-  require_readable /etc/systemd/system/NetworkManager.service.d/30-wifi-manual.conf
   require_readable /etc/systemd/system/wifi-firstboot.service
   require_readable /etc/systemd/system/NetworkManager-dispatcher.service.d/20-persistent.conf
   if [ -r /usr/lib/systemd/system/NetworkManager-dispatcher.service ]; then
@@ -977,7 +976,7 @@ for path in \
   /usr/share/backgrounds/other/wp2653774-black-and-blue-wallpaper-hd.png \
   /etc/skel-desktop/.config/waybar/config \
   /etc/skel-desktop/.config/waybar/style.css \
-  /etc/skel-desktop/.config/featherpad/fp.conf \
+  /etc/skel-desktop/.config/l3afpad/l3afpadrc \
   /etc/skel-desktop/.config/foot/foot.ini \
   /etc/skel-desktop/.config/gnote/addins/global.ini \
   /etc/skel-desktop/.config/GottCode/FocusWriter.conf \
@@ -1021,7 +1020,7 @@ for path in \
   /etc/xdg/crystal-dock/labwc/appearance.conf \
   /etc/xdg/crystal-dock/labwc/panel_1.conf \
   /usr/local/bin/labwc-show-desktop \
-  /usr/share/applications/featherpad.desktop \
+  /usr/share/applications/l3afpad.desktop \
   /usr/share/applications/labwc-tweaks.desktop \
   /usr/share/applications/qt6ct.desktop \
   /usr/share/applications/retroarch.desktop \
@@ -1046,8 +1045,9 @@ for path in \
   /etc/xdg/xdg-desktop-portal/labwc-portals.conf \
   /etc/bluetooth/main.conf \
   /etc/chromium.d/90-performance-flags \
-  /etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.service \
-  /etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.timer \
+  /etc/skel-desktop/.config/systemd/user/labwc-calix.service \
+  /etc/skel-desktop/.config/systemd/user/labwc-waycal.service \
+  /etc/skel-desktop/.config/systemd/user/labwc-waycal-hover.service \
   /etc/skel-desktop/.config/systemd/user/obsidian-git-sync.service \
   /etc/skel-desktop/.config/systemd/user/obsidian-git-sync.timer \
   /usr/local/libexec/obsidian-git-sync \
@@ -1294,8 +1294,9 @@ for path in \
   "$account_home/.config/systemd/user/labwc-plans.service" \
   "$account_home/.config/systemd/user/labwc-adb-server.service" \
   "$account_home/.config/systemd/user/llama-server.service" \
-  "$account_home/.config/systemd/user/labwc-calendar-sync.service" \
-  "$account_home/.config/systemd/user/labwc-calendar-sync.timer" \
+  "$account_home/.config/systemd/user/labwc-calix.service" \
+  "$account_home/.config/systemd/user/labwc-waycal.service" \
+  "$account_home/.config/systemd/user/labwc-waycal-hover.service" \
   "$account_home/.config/systemd/user/obsidian-git-sync.service" \
   "$account_home/.config/systemd/user/obsidian-git-sync.timer" \
   "$account_home/.config/systemd/user/labwc-sync-application-launchers.service" \
@@ -1371,12 +1372,12 @@ for session_unit in \
   labwc-mute-default-microphone.service \
   labwc-kwallet-portal.service \
   labwc-plans.service \
+  labwc-waycal-hover.service \
   labwc-sync-application-launchers.service \
   labwc-sync-application-launchers.path \
   foot-server.socket \
   mako.service \
   filter-chain.service \
-  labwc-calendar-sync.timer \
   wayscriber.service \
   hyprpolkitagent.service \
   xdg-desktop-portal.service \
@@ -1415,7 +1416,8 @@ for on_demand_or_triggered_unit in \
   codex-app-server-proxy.service \
   codex-app-server.socket \
   labwc-adb-server.service \
-  labwc-calendar-sync.service \
+  labwc-calix.service \
+  labwc-waycal.service \
   labwc-compositor.service \
   labwc-health-notify.path \
   labwc-health-notify.service \
@@ -1599,7 +1601,7 @@ do
 done
 for path in \
   "$account_home/.config/waybar/config" \
-  "$account_home/.config/featherpad/fp.conf" \
+  "$account_home/.config/l3afpad/l3afpadrc" \
   "$account_home/.config/foot/foot.ini" \
   "$account_home/.config/gnote/addins/global.ini" \
   "$account_home/.config/GottCode/FocusWriter.conf" \
@@ -1645,7 +1647,6 @@ for path in \
   "$account_home/.config/starship.toml" \
   "$account_home/.config/gtk-3.0/settings.ini" \
   "$account_home/.config/gtk-4.0/settings.ini" \
-  "$account_home/.config/vdirsyncer/config" \
   "$account_home/.local/share/applications/chromium.desktop" \
   "$account_home/.local/share/applications/com.microsoft.Edge.desktop" \
   "$account_home/.local/share/applications/vivaldi-stable.desktop" \
@@ -1662,10 +1663,6 @@ for path in \
   "$account_home/.local/share/applications/ledger-live.desktop" \
   "$account_home/.local/share/applications/org.telegram.desktop.desktop" \
   "$account_home/.local/share/applications/mullvad-browser.desktop" \
-  "$account_home/.config/khal/config" \
-  "$account_home/.config/todoman/config.py" \
-  "$account_home/.local/share/calendars/personal/displayname" \
-  "$account_home/.local/share/calendars/tasks/displayname" \
   "$account_home/.config/qt6ct/qt6ct.conf" \
   "$account_home/.config/user-dirs.dirs" \
   "$account_home/.config/xournalpp/settings.xml" \
@@ -2251,12 +2248,12 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
                                     ("pulseaudio", "audio", "on-click"),
                                     ("custom/notifications", "notifications", "on-click"),
                                     ("custom/power", "power", "on-click"),
-                                    ("clock", "calendar", "on-click")):
+                                    ("clock", "calendar", "on-click-right")):
             entry = bar[module]
             require(entry.get("menu") == event and event not in entry
                     and event + "-release" not in entry
                     and event not in entry.get("actions", {}), "native menu event conflict: " + name)
-            if name in ("tomat", "audio", "calendar", "notifications"):
+            if name in ("tomat", "audio", "notifications"):
                 click = shlex.split(entry.get("on-click-right", ""))
                 require(click and click[0] == "/usr/bin/systemd-run" and "--" in click,
                         "missing scoped secondary click: " + name)
@@ -2271,7 +2268,6 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
                         and "__INSTALLER_" not in entry["on-click-right"],
                         "unscoped secondary click: " + name)
                 expected_click = {"tomat": ["/usr/local/libexec/labwc-tomat", "toggle"],
-                                  "calendar": ["labwc-calendar"],
                                   "notifications": ["/usr/local/libexec/labwc-notifications", "dnd-dismiss"]}.get(name)
                 if name == "audio":
                     open_action = shlex.split(entry["menu-actions"]["audio_open"])
@@ -2329,19 +2325,7 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
                         "native menu action must use the user manager")
                 require(required_options <= set(argv[1:argv.index("--")])
                         and "__INSTALLER_" not in action, "blocking/unscoped/unresolved menu action")
-            if name == "calendar":
-                expected = {"calendar_open": "browse", "calendar_agenda": "agenda",
-                            "calendar_new_event": "new-event", "calendar_edit_event": "edit-event",
-                            "calendar_tasks": "tasks", "calendar_all_tasks": "all-tasks",
-                            "calendar_new_task": "new-task", "calendar_show_task": "show-task",
-                            "calendar_edit_task": "edit-task", "calendar_done_task": "done-task",
-                            "calendar_delete_task": "delete-task", "calendar_sync": "sync-ui"}
-                require(set(actions) == set(expected), "calendar menu action set differs")
-                for key, value in expected.items():
-                    argv = shlex.split(actions[key])
-                    require(argv[argv.index("--") + 1:] == ["/usr/local/bin/labwc-calendar", value],
-                            "wrong calendar menu backend: " + key)
-            elif name == "notifications":
+            if name == "notifications":
                 expected = {"notifications_center": "center", "notifications_restore": "restore",
                             "notifications_dnd_on": "dnd-on", "notifications_dnd_off": "dnd-off",
                             "notifications_dnd": "dnd", "notifications_dismiss": "dismiss",
@@ -2381,6 +2365,8 @@ desktop_verify_runtime_contracts() {
   run_in_target "verify rendered desktop runtime contracts" /usr/bin/python3 -I -S -B -c '
 import ast
 import base64
+import configparser
+import grp
 import json
 import os
 from pathlib import Path
@@ -2443,8 +2429,36 @@ with lynis_unit.open("rb") as stream:
     lynis_raw = stream.read(16385)
 require(len(lynis_raw) <= 16384, "oversized Lynis service policy")
 source_text(lynis_unit, lynis_raw)
-for command in ("/usr/sbin/lynis", "/usr/local/libexec/native-logging"):
+for command in ("/usr/sbin/lynis", "/usr/local/libexec/native-logging",
+                "/usr/local/libexec/network-online-check", "/usr/bin/curl", "/usr/bin/timeout",
+                "/usr/local/libexec/clamav-signature-update", "/usr/local/libexec/clamav-fangfrisch",
+                "/usr/bin/fangfrisch", "/usr/bin/freshclam"):
     trusted(Path(command), True)
+fangfrisch_path = Path("/etc/fangfrisch.conf")
+trusted(fangfrisch_path)
+fangfrisch_meta = fangfrisch_path.lstat()
+require(fangfrisch_meta.st_gid == grp.getgrnam("clamav").gr_gid
+        and stat.S_IMODE(fangfrisch_meta.st_mode) == 0o640
+        and fangfrisch_meta.st_nlink == 1 and 0 < fangfrisch_meta.st_size <= 16384,
+        "unsafe private Fangfrisch configuration metadata")
+try:
+    with fangfrisch_path.open("rb") as stream:
+        fangfrisch_raw = stream.read(16385)
+    require(len(fangfrisch_raw) <= 16384, "oversized private Fangfrisch configuration")
+    fangfrisch_config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
+    fangfrisch_config.read_string(fangfrisch_raw.decode("utf-8"))
+    urlhaus_key = fangfrisch_config.get("urlhaus", "auth_key", raw=True)
+    require(not urlhaus_key or re.fullmatch(r"[A-Za-z0-9._~-]{1,256}", urlhaus_key) is not None,
+            "invalid URLhaus credential encoding")
+    require(fangfrisch_config.getboolean("urlhaus", "enabled") == bool(urlhaus_key)
+            and fangfrisch_config.defaults().get("log_format") == "%(levelname)s: %(message)s"
+            and fangfrisch_config.get("urlhaus", "url_urlhaus", raw=True)
+                == "https://urlhaus-api.abuse.ch/v2/files/exports/${auth_key}/urlhaus_clamav.ndb"
+            and all(fangfrisch_config.get(section, "log_method") == "console"
+                    for section in fangfrisch_config), "invalid URLhaus private feed policy")
+except (OSError, ValueError, configparser.Error):
+    raise SystemExit("fatal: desktop runtime contract: invalid private Fangfrisch configuration") from None
+del fangfrisch_raw, fangfrisch_config, urlhaus_key
 trusted(Path("/usr/local/libexec/labwc-primary-gpg"), True)
 trusted(Path("/usr/bin/gpg"), True)
 if sys.argv[3] in {"with-account", "account-only"}:

@@ -85,7 +85,8 @@ class DesktopHookTests(unittest.TestCase):
         for command in ('/usr/local/bin/labwc-app intel filen %U',
                         '"/usr/local/bin/labwc-app" nvidia filen %U',
                         '"/usr/local/bin/labwc-app nvidia" filen %U',
-                        '/usr/local/bin/chatgpt auto %U'):
+                        '/usr/local/bin/chatgpt auto %U',
+                        '/usr/local/bin/labwc-calendar'):
             text = '[Desktop Entry]\nType=Application\nExec=' + command + '\n'
             self.assertEqual(self.hook.rewrite_desktop(text, self.prefix), text)
 

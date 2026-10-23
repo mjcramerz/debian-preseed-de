@@ -862,7 +862,7 @@ sub render_wifi_profile {
         # the installer has no SSID. The user supplies SSID/security in nmtui.
         $ssid = 'Configure Wi-Fi SSID';
         $security = 'wpa';
-        $auth = "[wifi-security]\nkey-mgmt=wpa-psk\npsk-flags=2\n";
+        $auth = "[wifi-security]\nkey-mgmt=wpa-psk\npsk-flags=0\n";
     } elsif ($security eq 'wpa' || $security eq 'sae') {
         $auth = "[wifi-security]\nkey-mgmt=" . ($security eq 'sae' ? 'sae' : 'wpa-psk')
             . "\nproto=rsn;\npsk=" . keyfile_string($CFG{MANAGED_NETWORK_WIFI_WPA}) . "\n";

@@ -1,0 +1,182 @@
+#!/usr/bin/python3 -I
+"""Run packaged Fangfrisch without exposing authenticated feed URLs in logs."""
+from __future__ import annotations
+
+import configparser
+import grp
+import os
+from pathlib import Path
+import pwd
+import re
+import selectors
+import signal
+import stat
+import subprocess
+import sys
+import time
+
+CONFIG = Path("/etc/fangfrisch.conf")
+DELEGATE = "/usr/bin/fangfrisch"
+OPERATION_SECONDS = 1200
+CLEANUP_SECONDS = 5
+MAX_OUTPUT = 2 * 1024 * 1024
+MAX_LINE = 16384
+FEED = "https://urlhaus-api.abuse.ch/v2/files/exports/${auth_key}/urlhaus_clamav.ndb"
+LOG_FORMAT = "%(levelname)s: %(message)s"
+EXPORT_KEY = re.compile(rb"(/v2/files/exports/)[^/\s\"'<>]+", re.IGNORECASE)
+
+
+class UpdateFailure(Exception):
+    def __init__(self, reason: str, status: int = 1):
+        self.reason = reason
+        self.status = status
+
+
+def auth_key() -> bytes:
+    fd = os.open(CONFIG, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        meta = os.fstat(fd)
+        if (not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0
+                or meta.st_gid != grp.getgrnam("clamav").gr_gid
+                or stat.S_IMODE(meta.st_mode) != 0o640 or meta.st_nlink != 1
+                or not 0 < meta.st_size <= 16384):
+            raise UpdateFailure("unsafe-private-configuration")
+        with os.fdopen(fd, "rb", closefd=False) as stream:
+            raw = stream.read(16385)
+        if len(raw) > 16384:
+            raise UpdateFailure("oversized-private-configuration")
+    finally:
+        os.close(fd)
+    config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
+    config.read_string(raw.decode("utf-8"))
+    key = config.get("urlhaus", "auth_key", raw=True)
+    if (key and re.fullmatch(r"[A-Za-z0-9._~-]{1,256}", key) is None
+            or config.getboolean("urlhaus", "enabled") != bool(key)
+            or config.get("urlhaus", "url_urlhaus", raw=True) != FEED
+            or config.defaults().get("log_format") != LOG_FORMAT
+            or any(config.get(section, "log_method") != "console" for section in config)):
+        raise UpdateFailure("invalid-private-configuration")
+    return key.encode("ascii")
+
+
+def emit(raw: bytes, key: bytes) -> bool:
+    # Fangfrisch 1.9.2's refresh entrypoint returns zero after provider errors.
+    # The fixed logging format lets this public adapter retain that failure.
+    error = raw.startswith((b"ERROR:", b"CRITICAL:"))
+    # Also redact credentials from old URL mappings retained in the SQLite DB
+    # after key rotation. Never print a partial line before it is redacted.
+    raw = EXPORT_KEY.sub(rb"\1[redacted]", raw)
+    if key:
+        raw = raw.replace(key, b"[redacted]")
+    text = raw.decode("utf-8", errors="replace").rstrip("\r\n")
+    text = re.sub(r"[\x00-\x08\x0b-\x1f\x7f]", "?", text)
+    print("managed_fangfrisch message=" + text, flush=True)
+    return error
+
+
+def cleanup(process: subprocess.Popen) -> bool:
+    # The unreaped direct child pins our newly created process-group identity.
+    # systemd retains the owning service cgroup for any escaped descendants.
+    deadline = time.monotonic() + CLEANUP_SECONDS
+    for sig, grace in ((signal.SIGTERM, 2), (signal.SIGKILL, CLEANUP_SECONDS)):
+        try:
+            os.killpg(process.pid, sig)
+        except ProcessLookupError:
+            pass
+        except OSError:
+            return False
+        try:
+            process.wait(timeout=max(0.001, min(grace, deadline - time.monotonic())))
+            return True
+        except subprocess.TimeoutExpired:
+            if time.monotonic() >= deadline:
+                return False
+    return False
+
+
+def run(action: str, key: bytes) -> int:
+    deadline = time.monotonic() + OPERATION_SECONDS
+    process = subprocess.Popen([DELEGATE, "--conf", str(CONFIG), action],
+        env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C", "HOME": "/var/lib/fangfrisch"},
+        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        start_new_session=True, close_fds=True)
+    completed = False
+    try:
+        pending = bytearray()
+        total = 0
+        provider_error = False
+        with selectors.DefaultSelector() as selector:
+            selector.register(process.stdout, selectors.EVENT_READ)
+            while selector.get_map():
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise UpdateFailure("deadline", 124)
+                for event, _ in selector.select(min(remaining, 0.25)):
+                    chunk = os.read(event.fd, 8192)
+                    if not chunk:
+                        selector.unregister(event.fileobj)
+                        if pending:
+                            provider_error = emit(bytes(pending), key) or provider_error
+                        break
+                    total += len(chunk)
+                    if total > MAX_OUTPUT:
+                        raise UpdateFailure("output-limit")
+                    pending.extend(chunk)
+                    while b"\n" in pending:
+                        line, _, rest = pending.partition(b"\n")
+                        if len(line) > MAX_LINE:
+                            raise UpdateFailure("line-limit")
+                        provider_error = emit(bytes(line), key) or provider_error
+                        pending = bytearray(rest)
+                    if len(pending) > MAX_LINE:
+                        raise UpdateFailure("line-limit")
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise UpdateFailure("deadline", 124)
+        try:
+            status = process.wait(timeout=remaining)
+        except subprocess.TimeoutExpired:
+            raise UpdateFailure("deadline", 124) from None
+        completed = True
+        if status == 0 and provider_error:
+            print("managed_fangfrisch status=failed reason=provider-error", file=sys.stderr)
+            return 1
+        return status if status >= 0 else 128 - status
+    finally:
+        try:
+            if not completed:
+                # A second termination request must not interrupt cleanup.
+                signal.signal(signal.SIGTERM, signal.SIG_IGN)
+                signal.signal(signal.SIGINT, signal.SIG_IGN)
+                if not cleanup(process):
+                    raise UpdateFailure("cleanup-outcome-unknown", 125)
+        finally:
+            process.stdout.close()
+
+
+def cancelled(signum, _frame):
+    raise UpdateFailure("cancelled", 128 + signum)
+
+
+def main() -> int:
+    try:
+        if len(sys.argv) != 2 or sys.argv[1] not in {"initdb", "refresh"}:
+            raise UpdateFailure("unsupported-action")
+        if os.geteuid() == 0 or os.geteuid() != pwd.getpwnam("clamav").pw_uid:
+            raise UpdateFailure("wrong-account")
+        key = auth_key()
+        signal.signal(signal.SIGTERM, cancelled)
+        signal.signal(signal.SIGINT, cancelled)
+        return run(sys.argv[1], key)
+    except UpdateFailure as error:
+        outcome = "outcome-unknown" if error.status == 125 else "cancelled" if error.reason == "cancelled" else "failed"
+        print("managed_fangfrisch status=" + outcome + " reason=" + error.reason, file=sys.stderr)
+        return error.status
+    except (OSError, KeyError, ValueError, configparser.Error):
+        # Never expose exception text: it may contain the authenticated URL.
+        print("managed_fangfrisch status=failed reason=configuration-or-delegate", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

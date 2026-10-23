@@ -1,0 +1,518 @@
+#!/usr/bin/python3 -IB
+"""Native GTK3 event/task dialogs for fixed Waybar menu actions.
+
+User text is always plain widget text or private JSON; never shell syntax,
+markup, a process argument, a notification body or a journal message.
+"""
+from __future__ import annotations
+
+from datetime import datetime, timedelta
+import fcntl
+import json
+import os
+from pathlib import Path
+import pwd
+import re
+import selectors
+import stat
+import subprocess
+import sys
+from threading import Event, Thread
+import time
+import uuid
+
+ACTIONS = {'event-create', 'event-manage', 'tasks-pending', 'tasks-all',
+           'task-create', 'task-edit', 'task-details', 'task-complete', 'task-delete'}
+WORKER = '/usr/local/libexec/labwc-calendar-worker'
+MAX_OUTPUT = 4 * 1024 * 1024
+UNAVAILABLE = {'keyring-unavailable', 'network-unavailable', 'no-calendars', 'deadline', 'write-busy',
+               'unsupported-recurrence', 'scheduled-object', 'read-only', 'missing-etag', 'bootstrap-unavailable'}
+ERRORS = {
+    'authentication': 'Fruux rejected the login. Check the calendar account and its app password.',
+    'keyring-unavailable': 'Unlock the user keyring and open Calendar once to complete Fruux setup.',
+    'unsafe-account': 'The managed Fruux account file is missing or unsafe. Open Calendar once, then check the calendar installation.',
+    'network-unavailable': 'Fruux is unreachable. Check the connection and try again.',
+    'deadline': 'Fruux did not respond within the operation deadline.',
+    'no-calendars': 'Fruux has no accessible calendar for this component type.',
+    'discovery-failed': 'Fruux calendar discovery failed. Open Calendar and check the account.',
+    'read-only': 'This calendar does not grant the required write permission.',
+    'conflict': 'This item changed on Fruux. Reopen the menu to load the current version before editing.',
+    'calendar-changed': 'The selected calendar is no longer available. Reopen the menu.',
+    'not-found': 'This item was removed on Fruux. Reopen the menu to refresh the list.',
+    'missing-etag': 'Fruux did not supply a strong item ETag. Safe editing is unavailable.',
+    'server-rejected': 'Fruux rejected the operation. Check the calendar permissions and contents.',
+    'unsafe-server-url': 'Fruux returned an unsupported resource URL. No credentials were sent to another origin.',
+    'response-limit': 'The calendar exceeds the safe response limit. Use Calendar to narrow or reorganize it.',
+    'invalid-calendar': 'This calendar item cannot be safely interpreted. Open it in Calendar.',
+    'unsupported-recurrence': 'This recurring item needs a recurrence-aware editor. Open Calendar to change its dates or occurrences.',
+    'scheduled-object': 'This item has an organizer or attendees. Use Calendar to preserve invitation and scheduling behavior.',
+    'series-confirmation': 'A change to the entire recurring series needs explicit confirmation.',
+    'invalid-date': 'Use valid ISO dates or date/time values. End must follow start; all-day end dates are exclusive.',
+    'ambiguous-date': 'This local time is ambiguous or does not exist because of a clock change. Enter a UTC time ending in Z, or an explicit offset.',
+    'invalid-input': 'Some fields are invalid or too long. Check the title, dates and timezone.',
+    'invalid-response': 'Fruux or the local worker returned an unsupported response. No remote error content was logged.',
+    'outcome-unknown': 'The connection ended before the write could be confirmed. Check Fruux in Calendar before repeating this operation; it may already have succeeded.',
+    'pending-change': 'An earlier write has an unresolved outcome. Reopen a calendar action to review Fruux before allowing another write.',
+    'write-busy': 'Another calendar write is still active. Wait for it to finish, then reopen the action.',
+    'bootstrap-unavailable': 'Calendar could not complete Fruux setup. Unlock the user keyring and check labwc-calix.service in the user journal.',
+    'cancelled': 'The operation was cancelled.',
+    'worker-failed': 'The calendar worker could not complete. Check the installed calendar dependencies.',
+}
+
+
+class Error(Exception):
+    def __init__(self, code: str, request_id: str = ''):
+        self.code, self.request_id = code, request_id
+
+
+def environment() -> dict:
+    uid = os.getuid()
+    if uid == 0 or os.geteuid() != uid or os.environ.get('LABWC_SESSION_OWNER') != 'desktop':
+        raise Error('unsafe-account')
+    home = Path(pwd.getpwuid(uid).pw_dir)
+    runtime = Path('/run/user') / str(uid)
+    info = runtime.lstat()
+    display = os.environ.get('WAYLAND_DISPLAY', '')
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != uid or info.st_mode & 0o077
+            or not re.fullmatch(r'wayland-[0-9]+', display)):
+        raise Error('unsafe-account')
+    return {'PATH': '/usr/bin:/bin', 'HOME': str(home), 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8',
+            'XDG_RUNTIME_DIR': str(runtime), 'DBUS_SESSION_BUS_ADDRESS': f'unix:path={runtime}/bus',
+            'XDG_CONFIG_HOME': str(home / '.config'), 'XDG_DATA_HOME': str(home / '.local/share'),
+            'GDK_BACKEND': 'wayland', 'WAYLAND_DISPLAY': display, 'XDG_SESSION_TYPE': 'wayland',
+            'LABWC_SESSION_OWNER': 'desktop', 'NO_AT_BRIDGE': '1', 'GTK_A11Y': 'none'}
+
+
+def worker(request: dict, env: dict, cancel: Event) -> dict:
+    prepare = request['op'] == 'prepare'
+    mutation = request['op'] in {'create', 'update', 'complete', 'delete'}
+    payload = b'' if prepare else json.dumps(request, ensure_ascii=True).encode()
+    if len(payload) > 256 * 1024:
+        raise Error('invalid-input')
+    deadline = time.monotonic() + (70 if prepare else 50)
+    output = bytearray()
+    # First use runs the existing Calix service bootstrap under its own fixed
+    # 60-second service deadline and session cgroup. The controller only waits
+    # for that job; cancellation never launches an unowned credential helper.
+    argv = ['/usr/bin/systemctl', '--user', 'start', 'labwc-calix.service'] if prepare else [WORKER]
+    process = subprocess.Popen(argv, env=env, cwd=env['HOME'], stdin=subprocess.PIPE,
+                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, close_fds=True)
+    try:
+        with selectors.DefaultSelector() as selector:
+            os.set_blocking(process.stdin.fileno(), False)
+            os.set_blocking(process.stdout.fileno(), False)
+            if payload:
+                selector.register(process.stdin, selectors.EVENT_WRITE)
+            else:
+                process.stdin.close()
+            selector.register(process.stdout, selectors.EVENT_READ)
+            sent = 0
+            while selector.get_map() or process.poll() is None:
+                if cancel.is_set() or time.monotonic() >= deadline:
+                    raise Error('outcome-unknown' if mutation else 'cancelled' if cancel.is_set() else 'deadline')
+                for key, _ in selector.select(0.1):
+                    if key.fileobj is process.stdin:
+                        sent += os.write(process.stdin.fileno(), payload[sent:sent + 4096])
+                        if sent == len(payload):
+                            selector.unregister(process.stdin)
+                            process.stdin.close()
+                    else:
+                        chunk = os.read(process.stdout.fileno(), 16384)
+                        if not chunk:
+                            selector.unregister(process.stdout)
+                        else:
+                            output.extend(chunk)
+                            if len(output) > MAX_OUTPUT:
+                                raise Error('outcome-unknown' if mutation else 'response-limit')
+            if prepare:
+                if process.returncode:
+                    raise Error('bootstrap-unavailable')
+                return {'status': 'ok', 'request_id': uuid.uuid4().hex[:12]}
+            response = json.loads(output)
+        if (not isinstance(response, dict) or not isinstance(response.get('request_id'), str)
+                or not re.fullmatch(r'[a-f0-9]{12}', response['request_id'])):
+            raise Error('outcome-unknown' if mutation else 'invalid-response')
+        if response.get('status') != 'ok' or process.returncode != 0:
+            raise Error(response.get('error', 'worker-failed'), response['request_id'])
+        return response
+    except Error:
+        raise
+    except Exception:
+        raise Error('outcome-unknown' if mutation else 'worker-failed') from None
+    finally:
+        # This child has no subprocess delegates. Popen owns the unreaped child
+        # identity; no process-name search, numeric-PID fallback or unbounded wait.
+        if process.poll() is None:
+            process.kill()
+        process.wait(timeout=3)
+        if not process.stdin.closed:
+            process.stdin.close()
+        process.stdout.close()
+
+
+def clean(value: str, limit: int = 240) -> str:
+    return ''.join(c if c.isprintable() else ' ' for c in str(value))[:limit]
+
+
+def run(action: str, env: dict) -> int:
+    import gi
+    gi.require_version('Gtk', '3.0')
+    from gi.repository import GLib, Gtk
+
+    def message(title, body, *, error=False):
+        dialog = Gtk.MessageDialog(message_type=Gtk.MessageType.ERROR if error else Gtk.MessageType.INFO,
+                                   buttons=Gtk.ButtonsType.CLOSE, text=title)
+        dialog.format_secondary_text(body)
+        dialog.run()
+        dialog.destroy()
+
+    def call(request):
+        dialog = Gtk.Dialog(title='Fruux calendar', modal=True)
+        dialog.set_default_size(420, -1)
+        box = dialog.get_content_area()
+        box.set_border_width(20)
+        box.set_spacing(12)
+        spinner = Gtk.Spinner()
+        spinner.start()
+        box.add(spinner)
+        write = request['op'] in {'create', 'update', 'complete', 'delete', 'acknowledge'}
+        label = Gtk.Label(label='Finishing calendar change…' if request['op'] == 'acknowledge'
+                          else 'Starting Calendar and unlocking Fruux…' if request['op'] == 'prepare'
+                          else 'Saving to Fruux…' if write else 'Loading from Fruux…')
+        box.add(label)
+        cancel = Event()
+        result = []
+        if not write:
+            dialog.add_button('Cancel', Gtk.ResponseType.CANCEL)
+        # Closing a write progress dialog cannot turn an uncertain write into
+        # ordinary cancellation. Await the bounded acknowledgement instead.
+        dialog.connect('delete-event', lambda *_: True)
+
+        def finish():
+            dialog.response(Gtk.ResponseType.OK)
+            return GLib.SOURCE_REMOVE
+
+        def work():
+            try:
+                result.append(worker(request, env, cancel))
+            except Exception as error:
+                result.append(error)
+            GLib.idle_add(finish)
+
+        thread = Thread(target=work, daemon=True)
+        dialog.show_all()
+        thread.start()
+        answer = dialog.run()
+        if answer != Gtk.ResponseType.OK:
+            cancel.set()
+            # Keep the GTK loop alive while the exact worker is stopped/reaped.
+            dialog.set_sensitive(False)
+            dialog.run()
+        dialog.destroy()
+        thread.join(timeout=4)
+        if thread.is_alive():
+            raise Error('outcome-unknown' if write else 'worker-failed')
+        if answer != Gtk.ResponseType.OK:
+            raise Error('cancelled')
+        if not result:
+            raise Error('worker-failed')
+        if isinstance(result[0], Exception):
+            raise result[0]
+        return result[0]
+
+    def choose(title, rows, columns, *, buttons=None):
+        dialog = Gtk.Dialog(title=title, modal=True)
+        dialog.set_default_size(780, 460)
+        dialog.add_button('Cancel', Gtk.ResponseType.CANCEL)
+        for label, value in (buttons or [('Select', Gtk.ResponseType.OK)]):
+            dialog.add_button(label, value)
+        content = dialog.get_content_area()
+        content.set_border_width(16)
+        content.set_spacing(12)
+        search = Gtk.SearchEntry(placeholder_text='Filter by title or date')
+        content.add(search)
+        store = Gtk.ListStore(int, *([str] * len(columns)))
+        for index, row in enumerate(rows):
+            store.append([index, *[clean(value, 256) for value in row]])
+        filtered = store.filter_new()
+        filtered.set_visible_func(lambda model, iterator, _: search.get_text().casefold() in
+                                  ' '.join(model[iterator][1:]).casefold())
+        search.connect('search-changed', lambda *_: filtered.refilter())
+        view = Gtk.TreeView(model=filtered)
+        for index, column in enumerate(columns, 1):
+            renderer = Gtk.CellRendererText(ellipsize=3)
+            header = Gtk.TreeViewColumn(column, renderer, text=index)
+            header.set_resizable(True)
+            header.set_expand(index == 1)
+            view.append_column(header)
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        scroller.add(view)
+        content.pack_start(scroller, True, True, 0)
+        for _, value in (buttons or [('Select', Gtk.ResponseType.OK)]):
+            dialog.set_response_sensitive(value, False)
+
+        def selection_changed(selection):
+            _, iterator = selection.get_selected()
+            for _, value in (buttons or [('Select', Gtk.ResponseType.OK)]):
+                dialog.set_response_sensitive(value, iterator is not None)
+
+        view.get_selection().connect('changed', selection_changed)
+        dialog.show_all()
+        response = dialog.run()
+        model, iterator = view.get_selection().get_selected()
+        selected = model[iterator][0] if iterator is not None else None
+        dialog.destroy()
+        if response == Gtk.ResponseType.CANCEL or selected is None or response == Gtk.ResponseType.DELETE_EVENT:
+            raise Error('cancelled')
+        return selected, response
+
+    def confirm(title, body):
+        dialog = Gtk.MessageDialog(message_type=Gtk.MessageType.WARNING, buttons=Gtk.ButtonsType.NONE, text=title)
+        dialog.format_secondary_text(body)
+        dialog.add_button('Cancel', Gtk.ResponseType.CANCEL)
+        dialog.add_button('Confirm', Gtk.ResponseType.OK)
+        dialog.set_default_response(Gtk.ResponseType.CANCEL)
+        response = dialog.run()
+        dialog.destroy()
+        if response != Gtk.ResponseType.OK:
+            raise Error('cancelled')
+
+    def edit(kind, entry=None, values=None):
+        now = datetime.now().astimezone().replace(second=0, microsecond=0)
+        defaults = {'summary': '', 'location': '', 'description': '', 'start': '', 'end': '', 'due': ''}
+        if kind == 'VEVENT':
+            defaults.update(start=now.isoformat(timespec='minutes'),
+                            end=(now + timedelta(hours=1)).isoformat(timespec='minutes'))
+        defaults.update(entry or {})
+        zone = 'UTC'
+        try:
+            zone = str(Path('/etc/localtime').resolve(strict=True).relative_to('/usr/share/zoneinfo'))
+        except (ValueError, OSError):
+            pass
+        try:
+            # Read only the installed target timezone; no service interaction.
+            with open('/etc/timezone', encoding='utf-8') as stream:
+                candidate = stream.read(129).strip()
+            if re.fullmatch(r'[A-Za-z0-9_+/-]{1,128}', candidate):
+                zone = candidate
+        except OSError:
+            pass
+        defaults['timezone'] = zone
+        defaults.update(values or {})
+        dialog = Gtk.Dialog(title=('Edit' if entry else 'Create') + (' event' if kind == 'VEVENT' else ' task'), modal=True)
+        dialog.set_default_size(650, -1)
+        dialog.add_button('Cancel', Gtk.ResponseType.CANCEL)
+        dialog.add_button('Save to Fruux', Gtk.ResponseType.OK)
+        content = dialog.get_content_area()
+        content.set_border_width(20)
+        content.set_spacing(16)
+        hint = Gtk.Label(label='Dates: YYYY-MM-DD (all day) or YYYY-MM-DD HH:MM.\n'
+                         'Times without an offset use the timezone below. All-day end dates are exclusive.')
+        hint.set_line_wrap(True)
+        hint.set_xalign(0)
+        content.add(hint)
+        grid = Gtk.Grid(column_spacing=16, row_spacing=12)
+        content.add(grid)
+        widgets = {}
+        names = [('summary', 'Title'), ('location', 'Location'), ('start', 'Start'),
+                 ('end', 'End')] if kind == 'VEVENT' else [('summary', 'Title'), ('start', 'Start (optional)'), ('due', 'Due (optional)')]
+        names.append(('timezone', 'Timezone'))
+        for row, (key, title) in enumerate(names):
+            label = Gtk.Label(label=title)
+            label.set_xalign(0)
+            grid.attach(label, 0, row, 1, 1)
+            widget = Gtk.Entry(text=defaults[key])
+            widget.set_hexpand(True)
+            widget.set_max_length(1024 if key == 'summary' else 4096 if key == 'location' else 128)
+            grid.attach(widget, 1, row, 1, 1)
+            widgets[key] = widget
+            if entry and entry.get('recurring') and key in {'start', 'end', 'due', 'timezone'}:
+                widget.set_sensitive(False)
+        content.add(Gtk.Label(label='Description', xalign=0))
+        description = Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR)
+        description.get_buffer().set_text(defaults['description'])
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_min_content_height(150)
+        scroll.add(description)
+        content.add(scroll)
+        if entry and entry.get('recurring'):
+            content.add(Gtk.Label(label='Recurring series: edit the series details. Dates and individual exceptions stay unchanged.'))
+        dialog.show_all()
+        response = dialog.run()
+        fields = {key: widgets[key].get_text() if key in widgets else defaults[key]
+                  for key in ('summary', 'location', 'start', 'end', 'due', 'timezone')}
+        buffer = description.get_buffer()
+        fields['description'] = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter(), False)
+        dialog.destroy()
+        if response != Gtk.ResponseType.OK:
+            raise Error('cancelled')
+        return fields
+
+    def save_form(common, *, entry=None, token=None):
+        fields = None
+        while True:
+            fields = edit(common['kind'], entry, fields)
+            request = {**common, **(token or {}), 'op': 'update' if entry else 'create', 'fields': fields}
+            if entry and entry['recurring']:
+                confirm('Change the series details?',
+                        'This changes the series details. Individual exceptions retain their overrides.\n\n'
+                        + clean(entry['summary']))
+                request['series'] = True
+            try:
+                return call(request)
+            except Error as error:
+                # These worker codes occur before any write. Keep the form
+                # values and require another explicit Save after correction.
+                if error.code not in {'invalid-input', 'invalid-date', 'ambiguous-date'}:
+                    raise
+                message('Check the calendar fields', ERRORS[error.code], error=True)
+
+    def details(entry):
+        dialog = Gtk.Dialog(title='Fruux task details', modal=True)
+        dialog.set_default_size(660, 460)
+        dialog.add_button('Close', Gtk.ResponseType.CLOSE)
+        view = Gtk.TextView(editable=False, cursor_visible=False, wrap_mode=Gtk.WrapMode.WORD_CHAR)
+        body = '\n'.join(label + ': ' + entry.get(key, '') for key, label in
+                         [('summary', 'Title'), ('status', 'Status'), ('percent', 'Completed (%)'),
+                          ('start', 'Start'), ('due', 'Due'), ('location', 'Location')])
+        body += '\n\n' + entry['description']
+        if entry['recurring']:
+            body += '\n\nThis task belongs to a recurring series.'
+        view.get_buffer().set_text(body)
+        scroll = Gtk.ScrolledWindow()
+        scroll.add(view)
+        dialog.get_content_area().pack_start(scroll, True, True, 12)
+        dialog.show_all()
+        dialog.run()
+        dialog.destroy()
+
+    try:
+        call({'op': 'prepare'})
+        kind = 'VEVENT' if action.startswith('event-') else 'VTODO'
+        discovered = call({'op': 'discover', 'kind': kind})
+        calendars = discovered['calendars']
+        pending = discovered.get('pending')
+        if pending:
+            recovery = {'op': 'review', 'kind': kind, 'request_id': pending['request_id']}
+            review = call(recovery)
+            state = {'absent': 'The affected item is currently absent from Fruux.',
+                     'matches': 'The current Fruux item matches the saved write.',
+                     'present': 'The affected item is currently present on Fruux; its contents may have changed.'}[review['remote']]
+            current = review.get('item')
+            if current:
+                state += '\n\nCurrent title: ' + clean(current['summary'])
+                state += '\nStatus: ' + clean(current['status'])
+                state += '\nStart: ' + clean(current['start']) + '\nDue: ' + clean(current['due'])
+                state += '\n\n' + clean(current['description'], 2000)
+            confirm('Review the previous uncertain change', state + '\n\n'
+                    'This review does not repeat the write. Confirm only after checking the current state; '
+                    'confirmation allows new changes and discards the saved recovery record.')
+            call({**recovery, 'op': 'acknowledge'})
+        creating = action.endswith('-create')
+        if creating:
+            calendars = [row for row in calendars if row['create']]
+        if not calendars:
+            raise Error('read-only')
+        if len(calendars) == 1:
+            collection = calendars[0]
+        else:
+            index, _ = choose('Choose Fruux calendar', [(row['name'], 'Writable' if row['update'] else 'Read only')
+                                                       for row in calendars], ['Calendar', 'Access'])
+            collection = calendars[index]
+        common = {'kind': kind, 'calendar': collection['url']}
+        if creating:
+            result = save_form(common)
+        else:
+            pending = action in {'tasks-pending', 'task-complete'}
+            entries = call({**common, 'op': 'list', 'pending': pending})['items']
+            if not entries:
+                message('Fruux calendar', 'No pending tasks.' if pending else 'No items in this calendar.')
+                return 0
+            buttons = [('Edit…', 10), ('Delete…', 11)] if action == 'event-manage' else None
+            index, response = choose('Fruux — ' + clean(collection['name']),
+                [(row['summary'], row['start'] if kind == 'VEVENT' else row['due'],
+                  'Recurring' if row['recurring'] else row['status']) for row in entries],
+                ['Title', 'Start' if kind == 'VEVENT' else 'Due', 'Status'], buttons=buttons)
+            entry = entries[index]
+            token = {key: entry[key] for key in ('url', 'etag', 'uid')}
+            entry = call({**common, **token, 'op': 'get'})['item']
+            if action in {'tasks-pending', 'tasks-all', 'task-details'}:
+                details(entry)
+                return 0
+            operation = {'task-edit': 'update', 'task-delete': 'delete', 'task-complete': 'complete'}.get(action)
+            if action == 'event-manage':
+                operation = 'delete' if response == 11 else 'update'
+            if entry['scheduled']:
+                raise Error('scheduled-object')
+            if operation == 'complete' and entry['recurring']:
+                raise Error('unsupported-recurrence')
+            request = {**common, **token, 'op': operation}
+            if operation == 'update':
+                result = save_form(common, entry=entry, token=token)
+            else:
+                if entry['recurring']:
+                    confirm('Delete the entire series?', 'This deletes every occurrence and exception on Fruux.\n\n'
+                            + clean(entry['summary']))
+                    request['series'] = True
+                else:
+                    confirm('Delete from Fruux?' if operation == 'delete' else 'Mark task completed on Fruux?', clean(entry['summary']))
+                result = call(request)
+        # The durable intent is removed only after the GTK controller received
+        # the worker's server acknowledgement. A lost IPC reply retains evidence.
+        try:
+            call({'op': 'acknowledge', 'kind': kind, 'request_id': result['write_request_id']})
+        except Error:
+            message('Saved to Fruux; local recovery pending',
+                    'Fruux acknowledged this change. Local recovery cleanup could not be confirmed. '
+                    'The next calendar action will review any retained record; do not repeat this change.', error=True)
+            print('calendar-action status=remote-acknowledged recovery=pending action=' + action
+                  + ' request_id=' + result['request_id'], file=sys.stderr)
+            return 1
+        message('Saved to Fruux', 'Fruux acknowledged the change. '
+                + ('Reopen the task menu to load the current tasks.' if kind == 'VTODO'
+                   else 'Calendar will display it after its next synchronization.'))
+        print('calendar-action status=ok action=' + action + ' request_id=' + result['request_id'])
+        return 0
+    except Error as error:
+        if error.code == 'cancelled':
+            return 2
+        code = error.code if error.code in ERRORS else 'worker-failed'
+        message('Change status unknown' if code == 'outcome-unknown' else 'Fruux calendar', ERRORS[code], error=True)
+        print('calendar-action status=' + ('outcome-unknown' if code == 'outcome-unknown'
+                                          else 'unavailable' if code in UNAVAILABLE else 'failed')
+              + ' action=' + action + ' error=' + code
+              + (' request_id=' + error.request_id if error.request_id else ''), file=sys.stderr)
+        return 4 if code == 'outcome-unknown' else 3 if code in UNAVAILABLE else 1
+
+
+def main() -> int:
+    if len(sys.argv) != 2 or sys.argv[1] not in ACTIONS:
+        print('calendar-action status=failed error=unsupported-action', file=sys.stderr)
+        return 1
+    env = environment()
+    os.umask(0o077)
+    os.environ.clear()
+    os.environ.update(env)
+    lock = os.open(Path(env['XDG_RUNTIME_DIR']) / 'labwc-calendar-actions.lock',
+                   os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    try:
+        info = os.fstat(lock)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1 or info.st_mode & 0o077:
+            raise Error('unsafe-account')
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print('calendar-action status=unavailable error=already-open', file=sys.stderr)
+            return 3
+        return run(sys.argv[1], env)
+    finally:
+        os.close(lock)
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except Exception:
+        print('calendar-action status=failed error=controller-unavailable', file=sys.stderr)
+        raise SystemExit(1) from None

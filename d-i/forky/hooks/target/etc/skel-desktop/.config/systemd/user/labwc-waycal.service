@@ -1,0 +1,17 @@
+[Unit]
+Description=Waycal month popup
+Requisite=labwc-session.target
+After=labwc-session.target
+PartOf=labwc-session.target
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=exec
+Slice=app.slice
+ExecStart=/opt/waycal/waycal --week-start monday
+Environment=GDK_BACKEND=wayland
+KillMode=control-group
+TimeoutStopSec=5s
+UMask=0077
+

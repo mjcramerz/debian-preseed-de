@@ -4,6 +4,7 @@
 After=apt-daily.service apt-daily-upgrade.service
 
 [Service]
+ExecCondition=/usr/local/libexec/network-online-check
 UMask=0027
 ExecStartPre=/usr/local/libexec/native-logging --preflight
 # Retain the packaged cronjob mode and direct its native evidence to the

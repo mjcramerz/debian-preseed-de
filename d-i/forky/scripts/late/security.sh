@@ -777,6 +777,7 @@ document-applications
 labwc-session
 tomat
 waybar-menus
+calendars
 desktop-utilities
 whisper-local-transcription
 usr.bin.totem
@@ -1182,6 +1183,11 @@ stage_target_desktop_apparmor_profiles() {
   render_target_asset_with_placeholder_map \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/local/abstractions/desktop-user-media.tmpl)" \
     "/etc/apparmor.d/local/abstractions/desktop-user-media" \
+    0644 \
+    apparmor_document_media_placeholder_map
+  render_target_asset_with_placeholder_map \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/local/abstractions/codex-user-media.tmpl)" \
+    "/etc/apparmor.d/local/abstractions/codex-user-media" \
     0644 \
     apparmor_document_media_placeholder_map
   stage_target_asset \
@@ -1615,6 +1621,7 @@ configure_target_fail2ban() {
     /etc/fail2ban/fail2ban.local \
     0644
   for fail2ban_managed_asset in \
+    jail.local \
     action.d/nftables.local \
     fail2ban.d/10-security.local \
     filter.d/sshd.local \

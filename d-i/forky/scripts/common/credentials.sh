@@ -23,6 +23,7 @@ preseed_env_variable_name() {
     dns_upstream_tls_ca_name_custom) printf '%s\n' PRESEED_DNS_UPSTREAM_TLS_CA_NAME_CUSTOM ;;
     root_password) printf '%s\n' PRESEED_ROOT_PASSWORD ;;
     crowdsec_token|crowdsec_enroll_token|crowdsec_attachment_key) printf '%s\n' PRESEED_CROWDSEC_TOKEN ;;
+    urlhaus_authkey) printf '%s\n' PRESEED_URLHAUS_AUTHKEY ;;
     tailscale_authkey|tailscale_auth_key) printf '%s\n' PRESEED_TAILSCALE_TOKEN ;;
     filen_priv_email) printf '%s\n' PRESEED_FILEN_PRIV_EMAIL ;;
     filen_priv_password) printf '%s\n' PRESEED_FILEN_PRIV_PASSWORD ;;
@@ -170,7 +171,7 @@ preseed_env_read_value() (
     PRESEED_CF_APTLY_SECRET_KEY PRESEED_OBS_USERNAME PRESEED_OBS_PASSWORD \
     PRESEED_FILEN_PRIV_EMAIL PRESEED_FILEN_PRIV_PASSWORD PRESEED_FILEN_PRIV_2FA_SEED \
     PRESEED_FILEN_OFFSEC_EMAIL PRESEED_FILEN_OFFSEC_PASSWORD PRESEED_FILEN_OFFSEC_2FA_SEED \
-    PRESEED_DNS_UPSTREAM_TLS_CA_NAME_CUSTOM
+    PRESEED_DNS_UPSTREAM_TLS_CA_NAME_CUSTOM PRESEED_URLHAUS_AUTHKEY
   # shellcheck disable=SC1090
   if ! . "$preseed_read_tmp" >/dev/null 2>&1; then
     preseed_env_error 'credential file failed while loading trusted shell assignments'; return 2
@@ -189,6 +190,16 @@ preseed_env_read_value() (
     [ -n "$preseed_read_result" ] || return 1
   fi
   case "$preseed_read_name" in
+    PRESEED_URLHAUS_AUTHKEY)
+      # URLhaus embeds this value in an HTTPS path. Accept only URL-unreserved
+      # ASCII data, without shell/config interpolation or URL delimiters.
+      case "$preseed_read_result" in
+        *[!a-zA-Z0-9._~-]*) preseed_env_error 'URLhaus Auth-Key must contain only URL-unreserved ASCII characters'; return 2 ;;
+      esac
+      [ "${#preseed_read_result}" -le 256 ] || {
+        preseed_env_error 'URLhaus Auth-Key exceeds the supported length'; return 2;
+      }
+      ;;
     PRESEED_WIFI_*)
       case "$preseed_read_result" in
         *[![:print:]]*) preseed_env_error 'Wi-Fi values must be printable single-line data'; return 2 ;;

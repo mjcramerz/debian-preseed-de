@@ -529,7 +529,7 @@ def main(argv: list[str]) -> int:
             raise Error("no managed Wayland display is available")
         environment["WAYLAND_DISPLAY"] = display
         environment["XDG_SESSION_TYPE"] = "wayland"
-        os.execve("/usr/bin/featherpad", ["/usr/bin/featherpad", str(context.config)], environment)
+        os.execve("/usr/bin/l3afpad", ["/usr/bin/l3afpad", str(context.config)], environment)
     with context.locked():
         context.ensure()
         if action == "settings":

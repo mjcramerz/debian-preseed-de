@@ -1,0 +1,164 @@
+# Managed native calendar applications; no Xwayland eligibility.
+abi "/usr/share/apparmor-features/features",
+#include <tunables/global>
+
+profile agenda /usr/local/bin/com.github.dahenson.agenda flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/desktop-runtime>
+  include if exists <abstractions/user-tmp>
+  /usr/local/bin/com.github.dahenson.agenda mr,
+  /usr/local/share/agenda/{,**} r,
+  /usr/local/share/icons/{,**} r,
+  /usr/lib/** mr,
+  /usr/share/** r,
+  owner @{HOME}/.local/ r,
+  owner @{HOME}/.local/share/agenda/{,**} rwkl,
+  owner @{HOME}/.cache/{,fontconfig/,fontconfig/**,mesa_shader_cache/,mesa_shader_cache/**,mesa_shader_cache_db/,mesa_shader_cache_db/**} rwkl,
+  owner /run/user/[0-9]*/{bus,wayland-[0-9]*} rw,
+  owner /dev/shm/** rwkl,
+  unix,
+  dbus (bind) bus=session name=com.github.dahenson.agenda,
+  dbus (send, receive) bus=session peer=(name=com.github.dahenson.agenda),
+  signal (receive) peer={unconfined,labwc-agenda},
+  deny network inet,
+  deny network inet6,
+  include if exists <local/agenda>
+}
+
+profile labwc-agenda /usr/local/bin/labwc-agenda flags=(attach_disconnected) {
+  #include <abstractions/wrapper-desktop>
+  /usr/local/bin/labwc-agenda rix,
+  /usr/local/libexec/labwc-session-check rPx -> labwc-session-check,
+  /usr/bin/systemctl pux,
+  /usr/local/bin/com.github.dahenson.agenda rPx -> agenda,
+  signal (receive) peer=unconfined,
+}
+
+profile labwc-calendar-actions /usr/local/libexec/labwc-calendar-actions flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/desktop-runtime>
+  /usr/local/libexec/labwc-calendar-actions r,
+  /usr/bin/systemctl pux,
+  /usr/local/libexec/labwc-calendar-worker rPx -> labwc-calendar-worker,
+  /etc/{passwd,timezone,localtime} r,
+  /usr/lib/** mr,
+  /usr/share/** r,
+  owner @{HOME}/.cache/{,fontconfig/,fontconfig/**,mesa_shader_cache/,mesa_shader_cache/**,mesa_shader_cache_db/,mesa_shader_cache_db/**} rwkl,
+  owner /run/user/[0-9]*/{,bus,wayland-[0-9]*} rw,
+  owner /run/user/[0-9]*/labwc-calendar-actions.lock rwk,
+  owner /dev/shm/** rwkl,
+  unix,
+  signal (send, receive) peer=labwc-calendar-worker,
+  signal (send) peer=unconfined,
+  signal (receive) peer=unconfined,
+  deny network inet,
+  deny network inet6,
+}
+
+profile labwc-calendar-worker /usr/local/libexec/labwc-calendar-worker flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  include if exists <abstractions/dbus-session>
+  #include <abstractions/nameservice-strict>
+  include if exists <abstractions/openssl>
+  include if exists <abstractions/ssl_certs>
+  /usr/local/libexec/labwc-calendar-worker r,
+  /usr/lib/** mr,
+  /usr/share/{glib-2.0,gir-1.0,locale,zoneinfo}/{,**} r,
+  /etc/{passwd,localtime} r,
+  /home/ r,
+  owner @{HOME}/ r,
+  owner @{HOME}/.config/ r,
+  owner @{HOME}/.config/calix/ rw,
+  owner @{HOME}/.config/calix/fruux-account.json r,
+  owner @{HOME}/.config/calix/.fruux-actions.lock rwk,
+  owner @{HOME}/.config/calix/fruux-pending.json rw,
+  owner /run/user/[0-9]*/{,bus} rw,
+  unix,
+  network inet stream,
+  network inet6 stream,
+  dbus (send, receive) bus=session interface=org.freedesktop.Secret.*,
+  signal (send, receive) peer=labwc-calendar-actions,
+  signal (receive) peer=unconfined,
+}
+
+profile calix /opt/calix/calix flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/desktop-runtime>
+  include if exists <abstractions/user-tmp>
+  /opt/calix/{calix,release.json} mr,
+  /usr/lib/** mr,
+  /usr/share/** r,
+  /usr/local/share/icons/{,**} r,
+  owner @{HOME}/.config/calix/{,**} rwkl,
+  owner @{HOME}/.local/share/calix/{,**} rwkl,
+  owner @{HOME}/.cache/{,calix/,calix/**,fontconfig/,fontconfig/**,mesa_shader_cache/,mesa_shader_cache/**,mesa_shader_cache_db/,mesa_shader_cache_db/**} rwkl,
+  owner /run/user/[0-9]*/{bus,wayland-[0-9]*} rw,
+  owner /dev/shm/** rwkl,
+  unix,
+  network inet stream,
+  network inet6 stream,
+  dbus (bind) bus=session name=com.ianswope.Calix,
+  dbus (send, receive) bus=session peer=(name=com.ianswope.Calix),
+  dbus (send, receive) bus=session interface=org.freedesktop.Secret.*,
+  signal (receive) peer={unconfined,labwc-calendar},
+  include if exists <local/calix>
+}
+
+profile waycal /opt/waycal/waycal flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/desktop-runtime>
+  include if exists <abstractions/user-tmp>
+  /opt/waycal/{waycal,release.json} mr,
+  /usr/lib/** mr,
+  /usr/share/** r,
+  owner @{HOME}/.local/ r,
+  owner @{HOME}/.local/state/ rw,
+  owner @{HOME}/.local/state/waycal/{,**} rwkl,
+  owner @{HOME}/.cache/{,fontconfig/,fontconfig/**,mesa_shader_cache/,mesa_shader_cache/**,mesa_shader_cache_db/,mesa_shader_cache_db/**} rwkl,
+  owner /run/user/[0-9]*/{bus,wayland-[0-9]*} rw,
+  owner /dev/shm/** rwkl,
+  unix,
+  dbus (bind) bus=session name=com.forrestknight.waycal,
+  signal (receive) peer=unconfined,
+  deny network inet,
+  deny network inet6,
+  include if exists <local/waycal>
+}
+
+profile calix-fruux-bootstrap /usr/local/libexec/calix-fruux-bootstrap flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  include if exists <abstractions/dbus-session>
+  /usr/local/libexec/calix-fruux-bootstrap r,
+  /usr/lib/** mr,
+  /usr/share/{glib-2.0,gir-1.0,locale}/{,**} r,
+  /etc/passwd r,
+  /home/ r,
+  owner @{HOME}/ r,
+  owner @{HOME}/.config/ r,
+  owner @{HOME}/.config/calix/{,**} rwkl,
+  owner @{HOME}/.local/ rw,
+  owner @{HOME}/.local/share/ rw,
+  owner @{HOME}/.local/share/calix/{,**} rwkl,
+  owner /run/user/[0-9]*/{,bus} rw,
+  unix,
+  dbus (send, receive) bus=session interface=org.freedesktop.Secret.*,
+  signal (receive) peer=unconfined,
+  deny network inet,
+  deny network inet6,
+}
+
+profile labwc-waycal-hover /usr/local/libexec/labwc-waycal-hover flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  include if exists <abstractions/dbus-session>
+  include if exists <abstractions/dbus-accessibility>
+  /usr/local/libexec/labwc-waycal-hover r,
+  /usr/bin/systemctl rix,
+  /usr/lib/** mr,
+  /usr/share/{glib-2.0,gir-1.0,locale}/{,**} r,
+  /proc/ r,
+  owner /proc/[0-9]*/{,exe} r,
+  ptrace (read) peer=waybar,
+  owner /run/user/[0-9]*/{,bus,at-spi/,at-spi/**,systemd/private} rw,
+  unix,
+  signal (send, receive) peer=labwc-waycal-hover,
+  signal (receive) peer=unconfined,
+  deny network inet,
+  deny network inet6,
+}

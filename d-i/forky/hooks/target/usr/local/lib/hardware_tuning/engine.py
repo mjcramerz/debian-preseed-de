@@ -83,8 +83,15 @@ class Engine:
             pair = knobs[key].pair
             if pair:
                 pairs.setdefault(pair, []).append(key)
+        def priority(key):
+            setting = knobs[key].setting
+            # Auto Boost restoration requires persistence to remain enabled.
+            # Apply and recovery share this order: enable first, disable last.
+            if setting == "PERSISTENCE_MODE":
+                return -1 if values[key] == 1 else 8
+            return early.get(setting, late.get(setting, 3))
         done = set()
-        for key in sorted(values, key=lambda k: (early.get(knobs[k].setting, late.get(knobs[k].setting, 3)), k)):
+        for key in sorted(values, key=lambda k: (priority(k), k)):
             if key in done:
                 continue
             knob = knobs[key]
@@ -134,8 +141,17 @@ class Engine:
             entries[key]["pending"] = True
         if restore:
             self.save()
+        unresolved = set(entries) - set(restore) - set(yielded)
         for key, value in self.ordered(restore):
             knob = self.backend.knobs[key]
+            if knob.setting == "PERSISTENCE_MODE" and value == 0:
+                device = key.split("/", 1)[0] + "/"
+                if any(failed.startswith(device) for failed in unresolved):
+                    # Keep the prerequisite and its journal entry for a later
+                    # restore attempt; disabling now could strand Auto Boost.
+                    failures.append(f"{key}: persistence retained for incomplete device restoration")
+                    unresolved.add(key)
+                    continue
             try:
                 if not knob.restorable or knob.read() != value or getattr(knob, "restore_value", None):
                     restore_fn = getattr(knob, "restore_value", None) or knob.write
@@ -144,6 +160,7 @@ class Engine:
                     raise TuningError("restoration readback differs from original value")
                 complete.add(key)
             except (OSError, TuningError, ValueError) as exc:
+                unresolved.add(key)
                 failures.append(f"{key}: {exc}")
         # Later governor/global/paired writes may alter an earlier readback.
         # Verify the complete final state, not only each intermediate write.
@@ -188,6 +205,9 @@ class Engine:
         skipped = []
         for setting, value in profile["knobs"].items():
             if value != "keep" and setting not in supported:
+                if value in {"supported-max", "supported-1"}:
+                    skipped.append(setting + ": unavailable; conditional capability request skipped")
+                    continue
                 # Portable defaults are optional; an administrator's explicit
                 # nondefault request must fail rather than pretend to apply.
                 if value != settings[setting][PROFILES.index(name)]:

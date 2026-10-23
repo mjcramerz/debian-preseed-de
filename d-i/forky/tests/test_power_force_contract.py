@@ -40,6 +40,7 @@ class ForceContractTests(unittest.TestCase):
         self.commands = self.stack.enter_context(mock.patch.object(self.power, 'run', return_value=''))
         self.stack.enter_context(mock.patch.object(self.power, 'ready'))
         self.stack.enter_context(mock.patch.object(self.power, 'hold_reservation'))
+        self.sharing_stop_groups = self.power.sharing_stop_groups
         self.stack.enter_context(mock.patch.object(self.power, 'sharing_stop_groups', return_value=[]))
         self.stack.enter_context(mock.patch.object(self.power.time, 'sleep'))
         self.stack.enter_context(mock.patch.object(self.power.Worker, 'userctl', return_value=''))
@@ -94,6 +95,95 @@ class ForceContractTests(unittest.TestCase):
         self.commands.assert_not_called()
         worker.final_power_action()
         self.commands.assert_called_once_with(['/usr/bin/systemctl', '--force', 'poweroff'], timeout=25, max_output=4096)
+
+    def test_optional_nfs_services_support_client_server_both_and_neither(self):
+        server = {'nfs-server.service', 'nfs-mountd.service', 'nfsdcld.service'}
+        client = {'nfs-idmapd.service', 'rpc-gssd.service', 'nfs-client.target'}
+        for available in (client, server, server | client, set()):
+            with self.subTest(available=sorted(available)):
+                worker = self.power.Worker(1000, 'desktop', 'poweroff')
+                events = []
+
+                def command(argv, **kwargs):
+                    if 'show' in argv:
+                        self.assertEqual(kwargs['accepted'], (0, 1))
+                        return 'loaded\n' if argv[3] in available else 'not-found\n'
+                    events.append(tuple(argv))
+                    return ''
+
+                with (mock.patch.object(self.power, 'run', side_effect=command),
+                      mock.patch.object(self.power, 'sharing_stop_groups',
+                                        return_value=[('data-sharing-nfs.mount',),
+                                                      ('home-desktop-Sharing.mount',),
+                                                      ('data-sharing.mount',)])):
+                    worker.stop_network_sharing()
+                stopped = {name for argv in events for name in argv[3:]}
+                self.assertEqual(stopped, available | {'home-desktop-Sharing.mount',
+                                                      'data-sharing-nfs.mount', 'data-sharing.mount'})
+                self.assertEqual([event[3:] for event in events[:3]],
+                                 [('data-sharing-nfs.mount',), ('home-desktop-Sharing.mount',),
+                                  ('data-sharing.mount',)])
+                if server <= available:
+                    self.assertLess(next(i for i, argv in enumerate(events) if 'nfs-server.service' in argv),
+                                    next(i for i, argv in enumerate(events) if 'nfs-mountd.service' in argv))
+
+    def test_optional_query_failure_does_not_hide_error_or_skip_other_units(self):
+        worker = self.power.Worker(1000, 'desktop', 'reboot')
+        for failure in (self.power.Error('manager unavailable'), 'unexpected\n'):
+            with self.subTest(failure=str(failure)):
+                def query(argv, **kwargs):
+                    if 'show' in argv and argv[3] == 'nfs-mountd.service':
+                        if isinstance(failure, Exception):
+                            raise failure
+                        return failure
+                    return 'loaded\n' if 'show' in argv else ''
+
+                with (mock.patch.object(self.power, 'run', side_effect=query) as commands,
+                      contextlib.redirect_stderr(io.StringIO()) as errors):
+                    worker.stop_optional_units(('nfs-mountd.service', 'nfs-idmapd.service'))
+                self.assertIn('optional unit nfs-mountd.service', errors.getvalue())
+                self.assertEqual(commands.call_args.args[0],
+                                 ['/usr/bin/systemctl', '--no-ask-password', 'stop', 'nfs-idmapd.service'])
+
+    def test_failed_real_client_unmount_skips_parent_mount_transactions(self):
+        worker = self.power.Worker(1000, 'desktop', 'reboot')
+        with (mock.patch.object(self.power, 'sharing_stop_groups',
+                                return_value=[('client.mount',), ('view.mount',), ('root.mount',)]),
+              mock.patch.object(worker, 'stop_units', side_effect=self.power.Error('unmount timeout')) as stop,
+              mock.patch.object(worker, 'stop_optional_units') as optional):
+            worker.stop_network_sharing()
+        stop.assert_called_once_with(('client.mount',))
+        self.assertEqual(optional.call_count, 3)
+
+    def test_installed_role_policy_derives_source_before_propagated_view(self):
+        import json
+        with tempfile.TemporaryDirectory(prefix='power-sharing-', dir='/workspace') as directory:
+            path = Path(directory) / 'config.json'
+            for server, client in ((False, True), (True, False), (True, True), (False, False)):
+                config = {'version': 3, 'server_enabled': server, 'client_enabled': client,
+                          'client_mount': 'data-sharing-nfs\\x2dclient.mount',
+                          'sharing_mount': 'data-sharing.mount',
+                          'sharing_bind_mount': 'home-desktop-Sharing.mount',
+                          'profile': {'NETWORK_SHARING_ROOT_PATH': '/data/sharing',
+                                      'ACCOUNT_HOME': '/home/desktop',
+                                      'NETWORK_SHARING_HOME_BIND_PATH': 'Sharing',
+                                      'NFS_SERVER_PATH': '/data/sharing/nfs-server',
+                                      'NFS_CLIENT_PATH': '/data/sharing/nfs-client',
+                                      'NFS_SERVER_ENABLE': str(server).lower(),
+                                      'NFS_CLIENT_ENABLE': str(client).lower()}}
+                path.write_text(json.dumps(config))
+                path.chmod(0o600)
+                with self.subTest(server=server, client=client), mock.patch.object(self.power, 'SHARING_CONFIG', path):
+                    groups = self.sharing_stop_groups()
+                self.assertEqual(groups, [('data-sharing-nfs\\x2dclient.mount',) if client else (),
+                                          ('home-desktop-Sharing.mount',), ('data-sharing.mount',)])
+
+    def test_optional_probes_share_cleanup_deadline_and_never_stop_after_expiry(self):
+        worker = self.power.Worker(1000, 'desktop', 'poweroff')
+        worker.shutdown_deadline = 10
+        with mock.patch.object(self.power.time, 'monotonic', return_value=11):
+            worker.stop_optional_units(('nfs-server.service', 'nfs-client.target'))
+        self.commands.assert_not_called()
 
     def test_close_save_stage_precedes_application_services_and_cleanup(self):
         for action in ('poweroff', 'reboot'):

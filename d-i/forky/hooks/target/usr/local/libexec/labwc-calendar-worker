@@ -1,0 +1,637 @@
+#!/usr/bin/python3 -IB
+"""One bounded Fruux operation, using private stdin/stdout and Secret Service.
+
+Only the GTK controller starts this worker. No shell, vendor executable, Calix
+database mutation, local calendar mirror, redirect of a write or automatic retry.
+The controller owns the total deadline, cancellation and process lifetime.
+"""
+from __future__ import annotations
+
+import base64
+import fcntl
+import hashlib
+from datetime import date, datetime, timedelta, timezone
+import io
+import json
+import os
+from pathlib import Path
+import pwd
+import re
+import stat
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+import uuid
+from zoneinfo import ZoneInfo
+
+from defusedxml import ElementTree as XML
+from icalendar import Calendar, Event, Todo
+
+DAV = '{DAV:}'
+CAL = '{urn:ietf:params:xml:ns:caldav}'
+ORIGIN = 'https://dav.fruux.com'
+MAX_BODY = 4 * 1024 * 1024
+MAX_RESOURCE = 256 * 1024
+MAX_ITEMS = 500
+KINDS = {'VEVENT', 'VTODO'}
+OPERATIONS = {'discover', 'list', 'get', 'create', 'update', 'complete', 'delete', 'review', 'acknowledge'}
+UNAVAILABLE = {'keyring-unavailable', 'network-unavailable', 'no-calendars', 'deadline', 'write-busy',
+               'unsupported-recurrence', 'scheduled-object', 'read-only', 'missing-etag'}
+
+
+class Error(Exception):
+    def __init__(self, code: str):
+        self.code = code
+
+
+def require(ok: bool, code: str = 'invalid-input') -> None:
+    if not ok:
+        raise Error(code)
+
+
+def text(value, maximum: int = 4096, *, empty: bool = True) -> str:
+    require(isinstance(value, str) and len(value.encode('utf-8')) <= maximum
+            and (empty or bool(value.strip())) and '\0' not in value)
+    return value
+
+
+def href(value: str, base: str = ORIGIN + '/') -> str:
+    text(value, empty=False)
+    require(not any(ord(c) < 33 or ord(c) == 127 for c in value), 'unsafe-server-url')
+    url = urllib.parse.urljoin(base, value)
+    parsed = urllib.parse.urlsplit(url)
+    decoded = urllib.parse.unquote(parsed.path, errors='strict')
+    require(parsed.scheme == 'https' and parsed.netloc == 'dav.fruux.com'
+            and not parsed.query and not parsed.fragment and decoded.startswith('/')
+            and '\\' not in decoded and '//' not in decoded
+            and '%' not in decoded
+            and all(part not in {'.', '..'} for part in decoded.split('/'))
+            and not any(ord(c) < 32 or ord(c) == 127 for c in decoded), 'unsafe-server-url')
+    return url
+
+
+def strong_etag(value) -> str:
+    require(isinstance(value, str) and re.fullmatch(r'"[\x21\x23-\x7e]{1,256}"', value) is not None,
+            'missing-etag')
+    return value
+
+
+def private_json(path: Path, home: Path) -> dict:
+    for parent in (home, home / '.config', path.parent):
+        info = parent.lstat()
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid()
+                and not info.st_mode & 0o077, 'unsafe-account')
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid()
+                and info.st_nlink == 1 and not info.st_mode & 0o077, 'unsafe-account')
+        raw = stream.read(16385)
+    require(len(raw) <= 16384, 'unsafe-account')
+    value = json.loads(raw)
+    require(isinstance(value, dict), 'unsafe-account')
+    return value
+
+
+def credentials() -> tuple[str, str]:
+    require(os.getuid() != 0 and os.getuid() == os.geteuid(), 'unsafe-account')
+    home = Path(pwd.getpwuid(os.getuid()).pw_dir)
+    require(Path.home() == home, 'unsafe-account')
+    data = private_json(home / '.config/calix/fruux-account.json', home)
+    require(set(data) == {'version', 'server', 'username'} and data['version'] == 1
+            and data['server'] == ORIGIN, 'unsafe-account')
+    username = text(data['username'], 4096, empty=False)
+    require(username == username.strip() and ':' not in username
+            and not any(ord(c) < 32 for c in username), 'unsafe-account')
+    import gi
+    gi.require_version('Secret', '1')
+    from gi.repository import Secret
+    schema = Secret.Schema.new('org.freedesktop.Secret.Generic', Secret.SchemaFlags.DONT_MATCH_NAME,
+                               {'service': Secret.SchemaAttributeType.STRING,
+                                'username': Secret.SchemaAttributeType.STRING})
+    service = Secret.Service.get_sync(Secret.ServiceFlags.OPEN_SESSION | Secret.ServiceFlags.LOAD_COLLECTIONS, None)
+    items = service.search_sync(schema, {'service': 'com.ianswope.Calix',
+        'username': 'caldav-password:' + ORIGIN + '|' + username.lower()},
+        Secret.SearchFlags.ALL | Secret.SearchFlags.UNLOCK | Secret.SearchFlags.LOAD_SECRETS, None)
+    require(len(items) == 1 and items[0].get_secret() is not None, 'keyring-unavailable')
+    password = text(items[0].get_secret().get_text(), 4096, empty=False)
+    return username, password
+
+
+def state_path(name: str) -> Path:
+    return Path(pwd.getpwuid(os.getuid()).pw_dir) / '.config/calix' / name
+
+
+def sync_state_directory() -> None:
+    fd = os.open(state_path('fruux-pending.json').parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def pending_change() -> dict | None:
+    path = state_path('fruux-pending.json')
+    if not path.exists() and not path.is_symlink():
+        return None
+    data = private_json(path, Path(pwd.getpwuid(os.getuid()).pw_dir))
+    require(set(data) == {'version', 'request_id', 'method', 'kind', 'url', 'sha256', 'previous_etag'}
+            and data['version'] == 1 and re.fullmatch(r'[a-f0-9]{12}', data['request_id'])
+            and data['method'] in {'PUT', 'DELETE'} and data['kind'] in KINDS
+            and re.fullmatch(r'[a-f0-9]{64}', data['sha256']), 'unsafe-account')
+    href(data['url'])
+    if data['previous_etag'] != '*':
+        strong_etag(data['previous_etag'])
+    return data
+
+
+def writer_lock() -> int:
+    fd = os.open(state_path('.fruux-actions.lock'), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    try:
+        info = os.fstat(fd)
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid()
+                and info.st_nlink == 1 and not info.st_mode & 0o077, 'unsafe-account')
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise Error('write-busy') from None
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def remove_intent(expected: dict) -> None:
+    require(pending_change() == expected, 'pending-change')
+    state_path('fruux-pending.json').unlink()
+    sync_state_directory()
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args):
+        return None
+
+
+class Client:
+    def __init__(self, username: str, password: str):
+        self.authorization = 'Basic ' + base64.b64encode((username + ':' + password).encode()).decode('ascii')
+        self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+        self.deadline = time.monotonic() + 40
+        self.remaining = 12 * 1024 * 1024
+        self.request_id = uuid.uuid4().hex[:12]
+
+    def write(self, method: str, url: str, kind: str, body: bytes | None = None, headers: dict | None = None):
+        lock = writer_lock()
+        try:
+            require(pending_change() is None, 'pending-change')
+            headers = headers or {}
+            intent = {'version': 1, 'request_id': self.request_id, 'method': method, 'kind': kind,
+                      'url': href(url), 'sha256': hashlib.sha256(body or b'').hexdigest(),
+                      'previous_etag': headers.get('If-Match', '*')}
+            fd = os.open(state_path('fruux-pending.json'), os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            with os.fdopen(fd, 'wb') as stream:
+                stream.write((json.dumps(intent, sort_keys=True) + '\n').encode())
+                stream.flush()
+                os.fsync(stream.fileno())
+            sync_state_directory()
+            try:
+                result = self.request(method, url, body, headers)
+            except Error as error:
+                if error.code != 'outcome-unknown':
+                    remove_intent(intent)
+                raise
+            # Keep the durable intent until the controller has RECEIVED our
+            # successful reply. A crash between server acknowledgement and
+            # stdout delivery must still require review on the next action.
+            return result
+        except Error:
+            raise
+        except Exception:
+            raise Error('outcome-unknown') from None
+        finally:
+            os.close(lock)
+
+    def request(self, method: str, url: str, body: bytes | None = None,
+                headers: dict | None = None) -> tuple[int, dict, bytes]:
+        url = href(url)
+        mutation = method in {'PUT', 'DELETE'}
+        request_headers = {'Authorization': self.authorization,
+                           'User-Agent': 'labwc-calendar-actions/1', 'Accept-Encoding': 'identity'}
+        request_headers.update(headers or {})
+        remaining = self.deadline - time.monotonic()
+        require(remaining > 0, 'deadline')
+        request = urllib.request.Request(url, data=body, method=method, headers=request_headers)
+        try:
+            try:
+                response = self.opener.open(request, timeout=min(8, remaining))
+            except urllib.error.HTTPError as error:
+                response = error
+            with response:
+                status = response.code
+                response_headers = {key.lower(): value for key, value in response.headers.items()}
+                # A successful write response is sufficient server acknowledgement.
+                # No readback is used to silently retry an uncertain write.
+                if mutation:
+                    if status in {200, 201, 204}:
+                        return status, response_headers, b''
+                    if status == 412:
+                        raise Error('conflict')
+                    if status in {401, 403, 404, 405, 409, 413, 415, 423}:
+                        raise Error({401: 'authentication', 403: 'read-only', 404: 'not-found',
+                                     409: 'conflict', 423: 'conflict'}.get(status, 'server-rejected'))
+                    raise Error('outcome-unknown')
+                require(status not in {401, 403}, 'authentication')
+                require(status != 404, 'not-found')
+                # Discovery may redirect to a canonical path, on this exact
+                # HTTPS origin only. The next request is validated before auth.
+                if status in {301, 302, 307, 308}:
+                    return status, response_headers, b''
+                require(status in {200, 207}, 'server-rejected')
+                data = bytearray()
+                while True:
+                    require(time.monotonic() < self.deadline, 'deadline')
+                    block = response.read1(min(65536, MAX_BODY + 1 - len(data)))
+                    require(time.monotonic() < self.deadline, 'deadline')
+                    if not block:
+                        break
+                    data.extend(block)
+                    self.remaining -= len(block)
+                    require(len(data) <= MAX_BODY and self.remaining >= 0, 'response-limit')
+                return status, response_headers, bytes(data)
+        except Error:
+            raise
+        except Exception:
+            # A broken transport cannot establish whether a write was accepted.
+            raise Error('outcome-unknown' if mutation else 'network-unavailable') from None
+
+    def properties(self, url: str, names: list[str], depth: str = '0') -> list[tuple[str, dict]]:
+        from xml.etree.ElementTree import Element, SubElement, tostring
+        root = Element(DAV + 'propfind')
+        props = SubElement(root, DAV + 'prop')
+        for name in names:
+            SubElement(props, name)
+        for hop in range(4):
+            status, headers, body = self.request('PROPFIND', url, tostring(root),
+                {'Depth': depth, 'Content-Type': 'application/xml; charset=utf-8'})
+            if status in {301, 302, 307, 308}:
+                require(hop < 3 and 'location' in headers, 'unsafe-server-url')
+                url = href(headers['location'], url)
+                continue
+            return multistatus(body, url)
+        raise Error('unsafe-server-url')
+
+
+def multistatus(body: bytes, base: str) -> list[tuple[str, dict]]:
+    require(len(body) <= MAX_BODY, 'response-limit')
+    count = depth = 0
+    parser = XML.iterparse(io.BytesIO(body), events=('start', 'end'),
+                           forbid_dtd=True, forbid_entities=True, forbid_external=True)
+    for event, element in parser:
+        if event == 'start':
+            count += 1
+            depth += 1
+            require(count <= 20000 and depth <= 24, 'response-limit')
+        else:
+            depth -= 1
+    root = parser.root
+    require(root.tag == DAV + 'multistatus', 'invalid-response')
+    result = []
+    seen = set()
+    for response in root.findall(DAV + 'response'):
+        require(len(result) < MAX_ITEMS + 1, 'response-limit')
+        url = href(response.findtext(DAV + 'href') or '', base)
+        require(url not in seen, 'invalid-response')
+        seen.add(url)
+        direct_status = response.findtext(DAV + 'status')
+        require(direct_status is None or re.fullmatch(r'HTTP/\S+ 200(?: .*)?', direct_status), 'invalid-response')
+        props = {}
+        for group in response.findall(DAV + 'propstat'):
+            if re.fullmatch(r'HTTP/\S+ 200(?: .*)?', group.findtext(DAV + 'status') or ''):
+                prop = group.find(DAV + 'prop')
+                if prop is not None:
+                    for child in prop:
+                        require(child.tag not in props, 'invalid-response')
+                        props[child.tag] = child
+        result.append((url, props))
+    return result
+
+
+def discovery(client: Client, kind: str) -> list[dict]:
+    rows = client.properties(ORIGIN + '/', [DAV + 'current-user-principal'])
+    require(len(rows) == 1, 'discovery-failed')
+    principal = rows[0][1].get(DAV + 'current-user-principal')
+    require(principal is not None and len(principal.findall(DAV + 'href')) == 1, 'discovery-failed')
+    principal_url = href(principal.findtext(DAV + 'href') or '', rows[0][0])
+    rows = client.properties(principal_url, [CAL + 'calendar-home-set'])
+    require(len(rows) == 1, 'discovery-failed')
+    home_set = rows[0][1].get(CAL + 'calendar-home-set')
+    require(home_set is not None and 1 <= len(home_set.findall(DAV + 'href')) <= 4, 'discovery-failed')
+    result = []
+    seen = set()
+    for home in home_set.findall(DAV + 'href'):
+        home_url = href(home.text or '', rows[0][0])
+        rows = client.properties(home_url, [DAV + 'resourcetype', DAV + 'displayname',
+            DAV + 'current-user-privilege-set', CAL + 'supported-calendar-component-set'], '1')
+        for url, props in rows:
+            resource_type = props.get(DAV + 'resourcetype')
+            components = props.get(CAL + 'supported-calendar-component-set')
+            if resource_type is None or resource_type.find(CAL + 'calendar') is None:
+                continue
+            supported = {node.get('name') for node in components} if components is not None else KINDS
+            if kind not in supported or url in seen:
+                continue
+            require(url.endswith('/') and len(result) < 64, 'discovery-failed')
+            seen.add(url)
+            privileges = props.get(DAV + 'current-user-privilege-set')
+            granted = {child.tag for p in privileges for child in p} if privileges is not None else set()
+            all_write = DAV + 'all' in granted or DAV + 'write' in granted
+            result.append({'url': url, 'name': (props[DAV + 'displayname'].text or 'Calendar')[:256]
+                           if DAV + 'displayname' in props else 'Calendar',
+                           'create': all_write or DAV + 'bind' in granted,
+                           'update': all_write or DAV + 'write-content' in granted,
+                           'delete': all_write or DAV + 'unbind' in granted})
+    require(bool(result), 'no-calendars')
+    return sorted(result, key=lambda item: (item['name'].casefold(), item['url']))
+
+
+def resource_url(value: str, collection: str) -> str:
+    url = href(value)
+    require(url.startswith(collection) and bool(url[len(collection):])
+            and '/' not in urllib.parse.unquote(url[len(collection):]), 'unsafe-server-url')
+    return url
+
+
+def parse_calendar(raw: bytes, kind: str) -> tuple[Calendar, object]:
+    require(0 < len(raw) <= MAX_RESOURCE and raw.upper().count(b'BEGIN:') <= 128, 'response-limit')
+    calendar = Calendar.from_ical(raw)
+    require(calendar.name == 'VCALENDAR' and not calendar.errors, 'invalid-calendar')
+    components = [component for component in calendar.subcomponents if component.name != 'VTIMEZONE']
+    require(1 <= len(components) <= 64 and all(c.name == kind and not c.errors for c in components),
+            'invalid-calendar')
+    masters = [component for component in components if 'RECURRENCE-ID' not in component]
+    require(len(masters) == 1, 'unsupported-recurrence')
+    component = masters[0]
+    uid = str(component.get('UID', ''))
+    require(bool(uid) and all(str(c.get('UID', '')) == uid for c in components), 'invalid-calendar')
+    # Duplicate editable/identity fields cannot be interpreted safely.
+    for key in ('UID', 'SUMMARY', 'DESCRIPTION', 'LOCATION', 'DTSTART', 'DTEND', 'DUE',
+                'STATUS', 'PERCENT-COMPLETE', 'SEQUENCE'):
+        require(not isinstance(component.get(key), list), 'invalid-calendar')
+    return calendar, component
+
+
+def formatted(component, key: str) -> str:
+    value = component.get(key)
+    if value is None:
+        return ''
+    value = getattr(value, 'dt', value)
+    if isinstance(value, datetime):
+        # Floating times remain floating in the form; timezone is explicit there.
+        return value.isoformat(timespec='minutes')
+    if isinstance(value, date):
+        return value.isoformat()
+    return str(value)[:16384]
+
+
+def event_end(component) -> str:
+    end = formatted(component, 'DTEND')
+    if not end and 'DTSTART' in component:
+        start = component['DTSTART'].dt
+        duration = component.get('DURATION')
+        if duration is not None:
+            finish = start + duration.dt
+        else:
+            finish = start + (timedelta(hours=1) if isinstance(start, datetime) else timedelta(days=1))
+        end = finish.isoformat(timespec='minutes') if isinstance(finish, datetime) else finish.isoformat()
+    return end
+
+
+def item(raw: bytes, kind: str, url: str, etag: str) -> dict:
+    calendar, component = parse_calendar(raw, kind)
+    return {'url': url, 'etag': strong_etag(etag), 'uid': str(component['UID']),
+            'summary': formatted(component, 'SUMMARY') or '(Untitled)',
+            'description': formatted(component, 'DESCRIPTION'), 'location': formatted(component, 'LOCATION'),
+            'start': formatted(component, 'DTSTART'), 'end': event_end(component) if kind == 'VEVENT' else '',
+            'due': formatted(component, 'DUE'), 'status': formatted(component, 'STATUS'),
+            'percent': formatted(component, 'PERCENT-COMPLETE'),
+            'recurring': any(key in component for key in ('RRULE', 'RDATE', 'EXDATE'))
+                         or sum(c.name == kind for c in calendar.subcomponents) > 1,
+            'scheduled': 'ORGANIZER' in component or 'ATTENDEE' in component}
+
+
+def listing(client: Client, collection: str, kind: str, pending: bool) -> list[dict]:
+    from xml.etree.ElementTree import Element, SubElement, tostring
+    root = Element(CAL + 'calendar-query')
+    prop = SubElement(root, DAV + 'prop')
+    SubElement(prop, DAV + 'getetag')
+    SubElement(prop, CAL + 'calendar-data')
+    filters = SubElement(root, CAL + 'filter')
+    parent = SubElement(filters, CAL + 'comp-filter', {'name': 'VCALENDAR'})
+    SubElement(parent, CAL + 'comp-filter', {'name': kind})
+    status, _, raw = client.request('REPORT', collection, tostring(root),
+        {'Depth': '1', 'Content-Type': 'application/xml; charset=utf-8'})
+    require(status == 207, 'invalid-response')
+    result = []
+    for url, props in multistatus(raw, collection):
+        require(CAL + 'calendar-data' in props and DAV + 'getetag' in props, 'invalid-response')
+        data = (props[CAL + 'calendar-data'].text or '').encode('utf-8')
+        entry = item(data, kind, resource_url(url, collection), props[DAV + 'getetag'].text)
+        if pending and (entry['status'] in {'COMPLETED', 'CANCELLED'} or entry['percent'] == '100'):
+            continue
+        result.append(entry)
+        require(len(result) <= MAX_ITEMS, 'response-limit')
+    return sorted(result, key=lambda row: (row['due'] or row['start'] or '9999', row['summary'].casefold(), row['url']))
+
+
+def temporal(value: str, zone: str):
+    value = text(value, 128)
+    if not value:
+        return None
+    if re.fullmatch(r'\d{4}-\d{2}-\d{2}', value):
+        try:
+            return date.fromisoformat(value)
+        except ValueError:
+            raise Error('invalid-date') from None
+    require(re.fullmatch(r'\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})?', value) is not None,
+            'invalid-date')
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        raise Error('invalid-date') from None
+    if parsed.tzinfo is None:
+        try:
+            local = ZoneInfo(text(zone, 128, empty=False))
+        except (KeyError, ValueError):
+            raise Error('invalid-date') from None
+        possible = {candidate.astimezone(timezone.utc) for fold in (0, 1)
+                    if (candidate := parsed.replace(tzinfo=local, fold=fold)).astimezone(timezone.utc)
+                    .astimezone(local).replace(tzinfo=None) == parsed}
+        require(len(possible) == 1, 'ambiguous-date')
+        return possible.pop()
+    return parsed.astimezone(timezone.utc)
+
+
+def replace(component, key: str, value) -> None:
+    component.pop(key, None)
+    if value is not None and value != '':
+        component.add(key, value)
+
+
+def changes(calendar: Calendar, component, kind: str, fields: dict, *, recurring: bool) -> bytes:
+    require(isinstance(fields, dict) and set(fields) == {'summary', 'description', 'location',
+            'start', 'end', 'due', 'timezone'}, 'invalid-input')
+    summary = text(fields['summary'], 1024, empty=False)
+    require('\n' not in summary and '\r' not in summary, 'invalid-input')
+    replace(component, 'SUMMARY', summary)
+    replace(component, 'DESCRIPTION', text(fields['description'], 16384))
+    replace(component, 'LOCATION', text(fields['location'], 4096))
+    if recurring:
+        # Series metadata can change while recurrence IDs, exceptions, timezones
+        # and alarm data stay intact. Moving an entire series needs a richer UI.
+        require(all(fields[key] == (event_end(component) if key == 'end' and kind == 'VEVENT'
+                                   else formatted(component, prop)) for key, prop in
+                    (('start', 'DTSTART'), ('end', 'DTEND'), ('due', 'DUE'))), 'unsupported-recurrence')
+    else:
+        start, end, due = (temporal(fields[key], fields['timezone']) for key in ('start', 'end', 'due'))
+        if kind == 'VEVENT':
+            require(start is not None and end is not None and type(start) is type(end) and end > start
+                    and due is None, 'invalid-date')
+            replace(component, 'DTSTART', start)
+            replace(component, 'DTEND', end)
+            component.pop('DURATION', None)
+        else:
+            require(end is None and (due is None or start is None or (type(start) is type(due) and due > start)),
+                    'invalid-date')
+            replace(component, 'DTSTART', start)
+            replace(component, 'DUE', due)
+            if due is not None or start is None:
+                component.pop('DURATION', None)
+    replace(component, 'LAST-MODIFIED', datetime.now(timezone.utc))
+    replace(component, 'DTSTAMP', datetime.now(timezone.utc))
+    sequence = int(component.get('SEQUENCE', 0))
+    require(0 <= sequence < 2147483647, 'invalid-calendar')
+    replace(component, 'SEQUENCE', sequence + 1)
+    raw = calendar.to_ical()
+    require(len(raw) <= MAX_RESOURCE, 'response-limit')
+    return raw
+
+
+def execute(request: dict, client: Client) -> dict:
+    require(isinstance(request, dict) and request.get('op') in OPERATIONS and request.get('kind') in KINDS)
+    require(set(request) <= {'op', 'kind', 'calendar', 'url', 'etag', 'uid', 'pending', 'fields', 'series', 'request_id'})
+    op, kind = request['op'], request['kind']
+    if op in {'review', 'acknowledge'}:
+        lock = writer_lock()
+        try:
+            pending = pending_change()
+            require(pending is not None and pending['request_id'] == request.get('request_id'), 'pending-change')
+            if op == 'acknowledge':
+                remove_intent(pending)
+                return {'result': 'acknowledged'}
+            try:
+                status, headers, raw = client.request('GET', pending['url'])
+            except Error as error:
+                if error.code == 'not-found':
+                    return {'pending': pending, 'remote': 'absent', 'item': None}
+                raise
+            require(status == 200, 'invalid-response')
+            tag = next((value for key, value in headers.items() if key.lower() == 'etag'), None)
+            entry = item(raw, pending['kind'], pending['url'], tag)
+            return {'pending': pending, 'remote': 'matches' if hashlib.sha256(raw).hexdigest() == pending['sha256']
+                    else 'present', 'item': entry}
+        finally:
+            os.close(lock)
+    calendars = discovery(client, kind)
+    if op == 'discover':
+        return {'calendars': calendars, 'pending': pending_change()}
+    collection = href(text(request.get('calendar'), empty=False))
+    selected = [row for row in calendars if row['url'] == collection]
+    require(len(selected) == 1, 'calendar-changed')
+    calendar_info = selected[0]
+    if op == 'list':
+        require(type(request.get('pending', False)) is bool)
+        return {'items': listing(client, collection, kind, request.get('pending', False))}
+    if op == 'create':
+        require(calendar_info['create'], 'read-only')
+        calendar = Calendar()
+        calendar.add('PRODID', '-//Labwc Desktop//Fruux Calendar Actions 1//EN')
+        calendar.add('VERSION', '2.0')
+        component = Event() if kind == 'VEVENT' else Todo()
+        component.add('UID', str(uuid.uuid4()) + '@labwc-calendar')
+        component.add('CREATED', datetime.now(timezone.utc))
+        if kind == 'VTODO':
+            component.add('STATUS', 'NEEDS-ACTION')
+            component.add('PERCENT-COMPLETE', 0)
+        calendar.add_component(component)
+        raw = changes(calendar, component, kind, request.get('fields'), recurring=False)
+        url = resource_url(collection + str(uuid.uuid4()) + '.ics', collection)
+        client.write('PUT', url, kind, raw, {'If-None-Match': '*', 'Content-Type': 'text/calendar; charset=utf-8'})
+        return {'result': 'created', 'write_request_id': client.request_id}
+    url = resource_url(text(request.get('url'), empty=False), collection)
+    expected = strong_etag(request.get('etag'))
+    status, headers, raw = client.request('GET', url)
+    require(status == 200 and len(raw) <= MAX_RESOURCE, 'invalid-response')
+    # HTTP header names are case insensitive, including fixture implementations.
+    received = next((value for key, value in headers.items() if key.lower() == 'etag'), None)
+    require(strong_etag(received) == expected, 'conflict')
+    calendar, component = parse_calendar(raw, kind)
+    require(str(component['UID']) == text(request.get('uid'), empty=False), 'conflict')
+    entry = item(raw, kind, url, expected)
+    if op == 'get':
+        return {'item': entry}
+    require(not entry['scheduled'], 'scheduled-object')
+    require(not entry['recurring'] or request.get('series') is True, 'series-confirmation')
+    if op == 'delete':
+        require(calendar_info['delete'], 'read-only')
+        client.write('DELETE', url, kind, headers={'If-Match': expected})
+        return {'result': 'deleted', 'write_request_id': client.request_id}
+    require(calendar_info['update'], 'read-only')
+    if op == 'complete':
+        require(kind == 'VTODO' and not entry['recurring'], 'unsupported-recurrence')
+        replace(component, 'STATUS', 'COMPLETED')
+        replace(component, 'PERCENT-COMPLETE', 100)
+        replace(component, 'COMPLETED', datetime.now(timezone.utc))
+        replace(component, 'LAST-MODIFIED', datetime.now(timezone.utc))
+        replace(component, 'DTSTAMP', datetime.now(timezone.utc))
+        replace(component, 'SEQUENCE', int(component.get('SEQUENCE', 0)) + 1)
+        raw = calendar.to_ical()
+    else:
+        raw = changes(calendar, component, kind, request.get('fields'), recurring=entry['recurring'])
+    require(len(raw) <= MAX_RESOURCE, 'response-limit')
+    client.write('PUT', url, kind, raw, {'If-Match': expected, 'Content-Type': 'text/calendar; charset=utf-8'})
+    return {'result': 'completed' if op == 'complete' else 'updated', 'write_request_id': client.request_id}
+
+
+def main() -> int:
+    request_id = uuid.uuid4().hex[:12]
+    try:
+        require(len(sys.argv) == 1)
+        raw = sys.stdin.buffer.read(MAX_RESOURCE + 1)
+        require(0 < len(raw) <= MAX_RESOURCE)
+        request = json.loads(raw)
+        username, password = credentials()
+        client = Client(username, password)
+        client.request_id = request_id
+        result = execute(request, client)
+        response = {'status': 'ok', 'request_id': request_id, **result}
+        code = 0
+    except Error as error:
+        code = 4 if error.code == 'outcome-unknown' else 3 if error.code in UNAVAILABLE else 1
+        response = {'status': 'outcome-unknown' if code == 4 else 'unavailable' if code == 3 else 'failed',
+                    'error': error.code, 'request_id': request_id}
+    except Exception:
+        # Neither parser errors, HTTP bodies nor keyring exceptions may leak.
+        code = 1
+        response = {'status': 'failed', 'error': 'invalid-response', 'request_id': request_id}
+    encoded = json.dumps(response, ensure_ascii=True).encode() + b'\n'
+    if len(encoded) > 4 * 1024 * 1024:
+        encoded = json.dumps({'status': 'failed', 'error': 'response-limit', 'request_id': request_id}).encode() + b'\n'
+        code = 1
+    sys.stdout.buffer.write(encoded)
+    return code
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

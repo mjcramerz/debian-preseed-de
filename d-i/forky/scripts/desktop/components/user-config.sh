@@ -82,7 +82,7 @@ gid=$(id -g "$account_user")
     .config/tomat \
     .config/cargo \
     .config/mise \
-    .config/featherpad \
+    .config/l3afpad \
     .config/foot \
     .config/git \
     .config/gitops \

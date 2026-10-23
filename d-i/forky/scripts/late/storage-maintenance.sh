@@ -354,6 +354,9 @@ validate_target_journal_storage_policy() (
 )
 
 stage_target_common_storage_maintenance_assets() {
+  # Shared by scheduled APT and desktop network consumers. Stage code only;
+  # never probe connectivity or contact a service while preparing /target.
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/network-online-check)" /usr/local/libexec/network-online-check 0755 || return 1
   # Shared by both storage families. Install rules only; never retrigger live
   # installer devices or modify their PCI configuration while staging /target.
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/udev/rules.d/74-nvme-link-idle.rules)" "/etc/udev/rules.d/74-nvme-link-idle.rules" 0644 || return 1

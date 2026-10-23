@@ -1,0 +1,4 @@
+# Managed desktop policy. Keep Debian's unprivileged hourly invocation and its
+# internal once-daily reporting gate; require current Internet access first.
+MAILTO=root
+17 * * * * daemon test -x /usr/bin/debsecan && /usr/local/libexec/network-online-check >/dev/null && /usr/bin/debsecan --cron

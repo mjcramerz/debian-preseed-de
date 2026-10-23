@@ -37,7 +37,7 @@ class Error(C.Structure):
 
 unref=bind(O,'g_object_unref',None,P)
 icons={'app-terminal':('foot',(23,217,71)), 'app-files':('org.xfce.thunar',(35,145,247)),
-       'app-tuta':('tuta-mail',(179,27,198)), 'app-notes':('featherpad',(47,226,211)),
+       'app-tuta':('tuta-mail',(179,27,198)), 'app-notes':('l3afpad',(47,226,211)),
        'app-sleek':('sleek',(230,72,174))}
 assert bind(G,'gtk_init_check',C.c_int,P,P)(None,None)
 screen=bind(D,'gdk_screen_get_default',P)()

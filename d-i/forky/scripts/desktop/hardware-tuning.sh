@@ -69,5 +69,5 @@ desktop_install_hardware_tuning() (
     /usr/bin/python3 -I "${hardware_stage}/config.py" "${hardware_stage}/policy.env" "$ACCOUNT_USERNAME" "${hardware_stage}/templates" $hardware_vendors || exit 1
   run_in_target "validate hardware tuning AppArmor policy without loading into the installer kernel" \
     /usr/sbin/apparmor_parser --skip-kernel-load --skip-cache /etc/apparmor.d/hardware-tuning || exit 1
-  desktop_log "installed hardware tuning vendors=${hardware_vendors}; automatic/autostart default remains opt-in"
+  desktop_log "installed hardware tuning vendors=${hardware_vendors} autostart=${HARDWARE_TUNING_AUTOSTART_ENABLE:-false}"
 )

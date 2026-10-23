@@ -37,6 +37,10 @@ cover A01-A09, rsyslog tmpfs, and the installer module/loading contract. Run `py
 after editing sources. Run `make check` before publishing, inside the
 [mandatory disposable test environment](docs/test-isolation.md).
 
+Optional [URLhaus authentication](docs/clamav-urlhaus.md) uses
+`PRESEED_URLHAUS_AUTHKEY` from the private installer credential input. A missing
+or empty value leaves URLhaus disabled while the other ClamAV feeds continue.
+
 The initial `url=` or `preseed/url=` may use TinyURL or another HTTP redirect
 service. Initial preseed discovery validates every destination before following
 cross-host redirects, then saves the final repository base. Subsequent source
@@ -329,6 +333,18 @@ checksums and the managed HCL constraints. The installation does not invoke
 
 ### Codex installation identity and authentication
 
+When `/run/media/$USER/warehouse` is already mounted and its `extra` directory
+exists and is writable, the Codex wrapper exposes that directory and its nested
+files read/write in the sandbox. It checks the existing mount ID, pins the
+directory, and uses Bubblewrap's `--bind-fd` support (0.11 or newer) to preserve
+its identity. Directory probes use `O_PATH` and reject untriggered automounts
+at every ancestor before traversing further. Missing, unmounted, inaccessible or unsafe media is skipped;
+this optional workspace is never a precondition for launching Codex. The wrapper never
+mounts a host volume or creates host mountpoint directories. The surrounding
+`/run/media` tree remains private; working directories within the exposed tree
+are preserved. AppArmor grants the primary desktop account's exact tree, with
+normal filesystem permissions and read-only volume flags still applying.
+
 Codex installation UUID overrides are opt-in and persistent for the physical
 directory from which the wrapper is launched. `--new-uuid` generates a random
 UUID and atomically saves it for that directory. Later launches reuse that UUID
@@ -445,3 +461,7 @@ Win+Backspace cancels the focused fuzzel picker and returns to its previous menu
 one step; it also returns from Search Applications to the main menu. Root menus
 close when there is no parent. Win+Alt opens Computer Management, and Win+M opens
 Spotify. Fuzzel owns the Back shortcut while its overlay has keyboard focus.
+
+The current clock controls, pinned Waycal/Calix/Agenda releases, private Fruux handoff,
+saved Wi-Fi reconnect and Ethernet preference are documented in
+[Calendar and saved Wi-Fi behavior](docs/calendar-and-wifi.md).

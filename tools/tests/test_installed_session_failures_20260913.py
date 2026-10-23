@@ -283,10 +283,10 @@ class PanelAndWiringTests(unittest.TestCase):
                 self.assertIn(option, args)
             self.assertNotIn('--scope', args); self.assertNotIn('--pipe', args)
             count += 1
-        # Native calendar menus now consume the two clock right-clicks.
+        # Clock right-clicks now toggle date/week formatting inside Waybar.
         # Retain exact coverage of ordinary callbacks, and require both native
         # menu assets instead of silently accepting removed calendar actions.
-        self.assertEqual(count, 58)
+        self.assertEqual(count, 54)
         self.assertEqual(len(re.findall(
             r'"menu-file"\s*:\s*"[^"\n]+/calendar-menu\.xml"', content)), 2)
         self.assertNotRegex(content,

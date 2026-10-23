@@ -433,6 +433,8 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     /etc/systemd/system/sleep.target.d/50-package-lock-guard.conf \
     /usr/local/bin/labwc-calendar \
     /usr/local/libexec/labwc-calendar \
+    /usr/local/libexec/calix-fruux-bootstrap \
+    /usr/local/libexec/labwc-waycal-hover \
     /usr/local/bin/labwc-logout \
     /usr/local/bin/labwc-fuzzel \
     /usr/local/bin/labwc-computer-management \
@@ -555,8 +557,9 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     /usr/local/share/labwc-greeter/autostart \
     /etc/skel-desktop/.config/mpv/mpv.conf \
     /etc/skel-desktop/.config/mpv/input.conf \
-    /etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.service \
-    /etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.timer \
+    /etc/skel-desktop/.config/systemd/user/labwc-calix.service \
+    /etc/skel-desktop/.config/systemd/user/labwc-waycal.service \
+    /etc/skel-desktop/.config/systemd/user/labwc-waycal-hover.service \
     /etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.service \
     /etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.path \
     /etc/systemd/system/labwc-system-desktop-overrides.service \
@@ -908,8 +911,9 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
       .config/systemd/user/labwc-plans.service \
       .config/systemd/user/labwc-adb-server.service \
       .config/systemd/user/llama-server.service \
-      .config/systemd/user/labwc-calendar-sync.service \
-      .config/systemd/user/labwc-calendar-sync.timer \
+      .config/systemd/user/labwc-calix.service \
+      .config/systemd/user/labwc-waycal.service \
+      .config/systemd/user/labwc-waycal-hover.service \
       .config/systemd/user/labwc-sync-application-launchers.service \
       .config/systemd/user/labwc-sync-application-launchers.path \
       .config/systemd/user/labwc-kwallet-portal.service \
@@ -933,7 +937,7 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
       .config/systemd/user/labwc-session.target.wants/foot-server.socket \
       .config/systemd/user/labwc-session.target.wants/mako.service \
       .config/systemd/user/labwc-session.target.wants/filter-chain.service \
-      .config/systemd/user/labwc-session.target.wants/labwc-calendar-sync.timer \
+      .config/systemd/user/labwc-session.target.wants/labwc-waycal-hover.service \
       .config/systemd/user/labwc-session.target.wants/wayscriber.service \
       .config/systemd/user/labwc-session.target.wants/hyprpolkitagent.service \
       .config/systemd/user/labwc-session.target.wants/xdg-desktop-portal.service \
@@ -1096,11 +1100,8 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     sendmail \
     dbus-update-activation-environment \
     desktop-file-validate \
-    khal \
     qt6ct \
-    tesseract \
-    todoman \
-    vdirsyncer
+    tesseract
   do
     check_desktop_command_required "$desktop_command"
   done
@@ -1288,7 +1289,7 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     es2_info \
     thunar \
     nnn \
-    featherpad \
+    l3afpad \
     focuswriter \
     gnote \
     liferea \

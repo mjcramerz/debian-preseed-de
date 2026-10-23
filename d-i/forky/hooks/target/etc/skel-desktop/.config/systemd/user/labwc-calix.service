@@ -1,0 +1,21 @@
+[Unit]
+Description=Calix calendar and Fruux synchronization
+Requisite=labwc-session.target
+After=labwc-session.target labwc-kwallet-portal.service
+PartOf=labwc-session.target
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=dbus
+BusName=com.ianswope.Calix
+Slice=app.slice
+Environment=GDK_BACKEND=wayland
+Environment=HOME=%h
+Environment=XDG_CONFIG_HOME=%h/.config XDG_DATA_HOME=%h/.local/share
+ExecStartPre=/usr/local/libexec/calix-fruux-bootstrap
+ExecStart=/opt/calix/calix --background
+TimeoutStartSec=60s
+TimeoutStopSec=10s
+KillMode=control-group
+UMask=0077

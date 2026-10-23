@@ -45,6 +45,9 @@ MANAGED = {
     '/usr/local/bin/discord', '/usr/local/bin/zoom', '/usr/local/bin/mullvad-vpn',
     '/usr/local/bin/labwc-computer-management', '/usr/local/bin/labwc-remote-desktop',
     '/usr/local/bin/labwc-focuswriter-import', '/usr/local/bin/labwc-show-desktop',
+    # This entrypoint delegates to its fixed Calix session service and keyring setup.
+    '/usr/local/bin/labwc-calendar',
+    '/usr/local/bin/labwc-agenda',
     *WRAPPERS.values(),
 }
 

@@ -300,7 +300,7 @@ desktop_install_user_resource_policy() {
       "/$resource_asset" 0644 || return 1
   done
   for resource_unit in \
-    labwc-compositor kanshi labwc-output-watch swayidle labwc-calendar-sync \
+    labwc-compositor kanshi labwc-output-watch swayidle \
     labwc-kwallet-portal labwc-ssh-key-load waybar crystal-dock
   do
     # Optional services (notably kanshi) may be deliberately omitted by a

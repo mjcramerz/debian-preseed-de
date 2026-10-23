@@ -9,7 +9,13 @@ DNS=__INSTALLER_APP_VETH_TLS_HOST_ADDRESS__:__INSTALLER_APP_VETH_TLS_HOST_PORT__
 # per-link VPN transport settings remain under their network manager's policy.
 FallbackDNS=
 DNSOverTLS=no
-DNSSEC=allow-downgrade
+# Stubby performs DNSSEC validation using the packaged root trust anchor.
+# Treat this loopback hop as a client of that validator; a second validator
+# can reject Stubby's replies when its separate DNSSEC proof queries are not
+# forwarded with the required signatures ("no-signature"). Stubby continues
+# to reject bogus answers and uses authenticated TLS without fallback.
+# VPNs may explicitly set their own per-link DNSSEC policy.
+DNSSEC=no
 Cache=yes
 CacheFromLocalhost=yes
 MulticastDNS=resolve

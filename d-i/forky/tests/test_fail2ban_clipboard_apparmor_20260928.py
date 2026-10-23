@@ -39,6 +39,11 @@ class Fail2banPolicyTests(unittest.TestCase):
         self.assertNotIn("SSH_SERVER_ENABLED", stage)
         self.assertNotIn("SSHD_JAIL_ENABLED", installer + config)
         self.assertIn("stage_target_systemd_unit_enabled fail2ban.service system", stage)
+        self.assertIn("    jail.local \\", stage)
+        local = configparser.RawConfigParser()
+        local.read(FAIL2BAN / "jail.local")
+        # The local entrypoint does not freeze a copy of package-owned jails.
+        self.assertEqual(local.sections(), [])
         self.assertNotIn("unstage_target_systemd_unit_enabled fail2ban.service", stage)
         parsed = configparser.RawConfigParser()
         parsed.read_string("[sshd]\nenabled = false\n")

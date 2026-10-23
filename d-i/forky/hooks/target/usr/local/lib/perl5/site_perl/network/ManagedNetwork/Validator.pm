@@ -481,7 +481,7 @@ sub _validate_wifi_profile {
     }
     my @expected = (
         ['connection.type', 'wifi'], ['connection.interface-name', $iface],
-        ['connection.autoconnect', 'false'], ['wifi.mode', 'infrastructure'],
+        ['connection.autoconnect', 'true'], ['connection.permissions', q{}], ['wifi.mode', 'infrastructure'],
         ['wifi.mac-address', $config->{MANAGED_NETWORK_WIFI_MAC}],
         ['ipv4.method', 'manual'],
         ['ipv4.forwarding', '1'],
@@ -503,7 +503,8 @@ sub _validate_wifi_profile {
     }
     for my $field (@expected) {
         my ($key, $expected) = @{$field};
-        ($values{$key} // q{}) eq $expected
+        my $default = $key eq 'connection.autoconnect' ? 'true' : q{};
+        ($values{$key} // $default) eq $expected
             or die "$path has incorrect $key\n";
     }
     # SSID and secrets belong to NM/nmtui. They may be edited independently of

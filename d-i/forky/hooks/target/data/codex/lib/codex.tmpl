@@ -50,6 +50,7 @@ CODEX_SQLITE_ROOT = "/data/codex/sqlite"
 CODEX_RUNTIME_ROOT = "/data/codex/runtime"
 CODEX_SHARED_DOWNLOADS_ROOT = "/data/downloads"
 CODEX_SHARED_TMP_ROOT = "/data/tmp"
+CODEX_MEDIA_ROOT = "/run/media"
 CODEX_DEVOPS_GROUP = "devops"
 BWRAP_BINARY = "/usr/bin/bwrap"
 PROFILE_SHELL = "/bin/sh"
@@ -134,7 +135,7 @@ DEVOPS_MUTABLE_HOME_DIRECTORIES = (
     ".config/bazel",
     ".config/clangd",
     ".config/direnv",
-    ".config/featherpad",
+    ".config/l3afpad",
     ".config/fzf",
     ".config/git",
     ".config/micro",
@@ -1838,7 +1839,71 @@ def _path_is_within(path: str, root: str) -> bool:
     return path == root or path.startswith(f"{root}/")
 
 
-def codex_select_sandbox_cwd(host_cwd: str | None = None) -> str:
+def codex_media_volume_is_mounted(path: str | None, descriptor: int) -> bool:
+    # Reject untriggered automounts at EVERY ancestor before looking below it.
+    # At the volume also match the exact mountpoint and pinned mount ID: an
+    # empty/stale mountpoint must never expose the underlying host filesystem.
+    fdinfo = _read_bounded_text(f"/proc/self/fdinfo/{descriptor}", 4096, "media directory identity")
+    mount_ids = [line.split()[1] for line in fdinfo.splitlines()
+                 if line.startswith("mnt_id:") and len(line.split()) == 2]
+    if len(mount_ids) != 1 or not mount_ids[0].isdecimal():
+        return False
+    mountinfo = _read_bounded_text("/proc/self/mountinfo", 1048576, "media mount table")
+    for line in mountinfo.splitlines():
+        before, separator, after = line.partition(" - ")
+        fields, filesystem = before.split(), after.split()
+        if separator and len(fields) >= 6 and len(filesystem) >= 3 and fields[0] == mount_ids[0]:
+            return filesystem[0] != "autofs" and (path is None or fields[4] == path)
+    return False
+
+
+def codex_open_media_workspace() -> tuple[str, int] | None:
+    try:
+        return _codex_open_media_workspace()
+    except (OSError, CodexError):
+        codex_warn("optional media workspace unavailable; continuing without it")
+        return None
+
+
+def _codex_open_media_workspace() -> tuple[str, int] | None:
+    """Pin the optional account media tree; never create it on an unmounted disk."""
+    user = os.environ.get("USER", "")
+    if SAFE_USER_RE.fullmatch(user) is None or user in {".", ".."}:
+        codex_die("the media workspace account name is unsafe")
+    codex_require_abs_path("media root", CODEX_MEDIA_ROOT)
+    volume = f"{CODEX_MEDIA_ROOT}/{user}/warehouse"
+    path = f"{volume}/extra"
+    # O_PATH obtains an untriggered autofs directory itself without mounting it.
+    # Verify its mount type before the next openat; O_RDONLY could automount at
+    # open time, before the check. The same handles pin the eventual bwrap bind.
+    flags = os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    descriptor = os.open("/", flags)
+    try:
+        if not codex_media_volume_is_mounted(None, descriptor):
+            return None
+        for component in PurePosixPath(path).parts[1:]:
+            try:
+                child = os.open(component, flags, dir_fd=descriptor)
+            except FileNotFoundError:
+                return None
+            os.close(descriptor)
+            descriptor = child
+            expected_mountpoint = volume if component == "warehouse" else None
+            if not codex_media_volume_is_mounted(expected_mountpoint, descriptor):
+                return None
+        # DAC/ACL remains authoritative, including group-writable shared media.
+        if not os.access(".", os.R_OK | os.W_OK | os.X_OK, dir_fd=descriptor, effective_ids=True):
+            codex_die("the media workspace is not readable, writable and searchable")
+        result = (path, descriptor)
+        descriptor = None
+        return result
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
+def codex_select_sandbox_cwd(host_cwd: str | None = None, *,
+                             media_workspace: tuple[str, int] | None = None) -> str:
     cwd = os.path.realpath(host_cwd if host_cwd is not None else os.getcwd())
     if not os.path.isabs(cwd) or "\x00" in cwd:
         codex_die("physical working directory is not an absolute path")
@@ -1855,6 +1920,7 @@ def codex_select_sandbox_cwd(host_cwd: str | None = None) -> str:
         CODEX_STORAGE_ROOT,
         CODEX_SHARED_DOWNLOADS_ROOT,
         CODEX_SHARED_TMP_ROOT,
+        *((media_workspace[0],) if media_workspace is not None else ()),
     )
     if any(_path_is_within(cwd, root) for root in allowed_roots):
         return cwd
@@ -1877,9 +1943,10 @@ def validate_private_procfs(arguments: Sequence[str]) -> None:
             codex_die("Codex Bubblewrap must not bind or mask the private procfs")
 
 
-def codex_build_bwrap_args(uid: int, gid: int, installation_id_fd: int | None) -> list[str]:
+def codex_build_bwrap_args(uid: int, gid: int, installation_id_fd: int | None, *,
+                           media_workspace: tuple[str, int] | None = None) -> list[str]:
     global BWRAP_ARGS
-    sandbox_cwd = codex_select_sandbox_cwd()
+    sandbox_cwd = codex_select_sandbox_cwd(media_workspace=media_workspace)
     hostname = _read_bounded_text(f"{CODEX_CONTROL_DIR}/hostname", 128, "synthetic hostname")
     synthetic_path = CODEX_SANDBOX_PATH
     BWRAP_ARGS = [
@@ -2041,6 +2108,12 @@ def codex_build_bwrap_args(uid: int, gid: int, installation_id_fd: int | None) -
     # PID namespace limits process visibility; AppArmor and capability dropping
     # restrict writes. CPU/memory/kernel information must remain accurate for
     # build parallelism, compiler selection, and nested container tooling.
+    if media_workspace is not None:
+        media_path, media_fd = media_workspace
+        codex_append_tmpfs_parent_dirs(f"{media_path}/.mountpoint")
+        # Forky's Bubblewrap supports --bind-fd and verifies the mounted inode
+        # against this descriptor before allowing the payload to execute.
+        BWRAP_ARGS.extend(("--bind-fd", str(media_fd), media_path))
     codex_append_selective_home_access()
     codex_append_accelerator_device_binds()
     BWRAP_ARGS.extend(codex_installation_id_bind_arguments(installation_id_fd))
@@ -2243,9 +2316,12 @@ def codex_run_sandboxed(installation_id_fd: int | None) -> int:
     uid, gid = os.getuid(), os.getgid()
     codex_prepare_control_state()
     codex_prepare_identity_files(uid, gid)
-    command = codex_build_bwrap_args(uid, gid, installation_id_fd)
     descriptors = set()
+    media_workspace = codex_open_media_workspace()
+    if media_workspace is not None:
+        descriptors.add(media_workspace[1])
     try:
+        command = codex_build_bwrap_args(uid, gid, installation_id_fd, media_workspace=media_workspace)
         info_read, info_write = os.pipe()
         descriptors.update((info_read, info_write))
         block_read, block_write = os.pipe()
@@ -2260,7 +2336,11 @@ def codex_run_sandboxed(installation_id_fd: int | None) -> int:
             *codex_payload_argv()]
         CODEX_BWRAP_PROCESS = subprocess.Popen(bwrap_command, close_fds=True,
             pass_fds=(info_write, block_read, gate_read,
+                      *((media_workspace[1],) if media_workspace is not None else ()),
                       *((installation_id_fd,) if installation_id_fd is not None else ())))
+        if media_workspace is not None:
+            os.close(media_workspace[1])
+            descriptors.remove(media_workspace[1])
         codex_clear_app_server_environment()
         for fd in (info_write, block_read, gate_read):
             _close_fd(fd)

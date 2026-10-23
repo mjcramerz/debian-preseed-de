@@ -287,7 +287,10 @@ class Backend:
                 self.api.call("nvmlDeviceResetApplicationsClocks", [H], [handle])
             else:
                 write(value)
+        fastest_memory = max(tables)
+        fastest_pair = f"{fastest_memory},{max(tables[fastest_memory])}"
         knob = Knob(key, "APPLICATION_CLOCKS_MHZ", read, write, choices=pairs,
+            symbols={"max": fastest_pair},
             unit="memory,graphics MHz", note="Legacy API; not assumed available on future drivers",
             companions=(f"{uuid}/AUTO_BOOST",))
         knob.restore_value = restore

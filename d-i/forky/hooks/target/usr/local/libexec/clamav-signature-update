@@ -25,12 +25,16 @@ run_step() {
   overall_status=$step_status
   printf 'managed_clamav_update step=%s status=failed exit_status=%s\n' \
     "$step_name" "$step_status" >&2
+  case "$step_status" in
+    125|130|143) exit "$step_status" ;;
+  esac
   return "$step_status"
 }
 
 [ "$(id -u)" -ne 0 ] || fatal "signature updates must run as the unprivileged clamav account"
 [ "$(id -un)" = clamav ] || fatal "signature updates must run as user clamav"
 [ -r "$FANGFRISCH_CONFIG" ] || fatal "Fangfrisch configuration is missing: $FANGFRISCH_CONFIG"
+[ -x /usr/local/libexec/clamav-fangfrisch ] || fatal "private Fangfrisch delegate is missing"
 
 for command_name in fangfrisch flock freshclam; do
   command -v "$command_name" >/dev/null 2>&1 ||
@@ -49,7 +53,7 @@ fangfrisch_ready=true
 
 if [ ! -s "$FANGFRISCH_DATABASE" ]; then
   if ! run_step fangfrisch-initdb \
-    fangfrisch --conf "$FANGFRISCH_CONFIG" initdb; then
+    /usr/local/libexec/clamav-fangfrisch initdb; then
     fangfrisch_ready=false
   fi
 fi
@@ -57,7 +61,7 @@ fi
 run_step freshclam freshclam --stdout || true
 if [ "$fangfrisch_ready" = true ]; then
   run_step fangfrisch-refresh \
-    fangfrisch --conf "$FANGFRISCH_CONFIG" refresh ||
+    /usr/local/libexec/clamav-fangfrisch refresh ||
     true
 fi
 

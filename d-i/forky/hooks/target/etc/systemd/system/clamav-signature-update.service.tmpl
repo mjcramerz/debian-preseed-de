@@ -15,10 +15,13 @@ Type=oneshot
 User=clamav
 Group=clamav
 Environment=HOME=/var/lib/fangfrisch
+ExecCondition=/usr/local/libexec/network-online-check
 ExecStartPre=+/usr/local/libexec/native-logging --check freshclam
 ExecStart=/usr/local/libexec/clamav-signature-update
 TimeoutStartSec=45min
 TimeoutStopSec=30s
+# Retain ownership of descendants after the bounded redacting adapter exits.
+KillMode=control-group
 StateDirectory=fangfrisch
 StateDirectoryMode=0770
 Nice=10

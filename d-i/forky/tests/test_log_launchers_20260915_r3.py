@@ -545,12 +545,16 @@ class NativeActivationTests(unittest.TestCase):
                 self.assertNotIn('TMPDIR', environment)
                 self.assertFalse(any(arg.startswith('--property=RuntimeDirectory=') for arg in command))
 
-    def test_native_editor_preferences_reuse_windows_and_keep_workspace_trust(self):
+    def test_native_editor_preferences_and_workspace_trust(self):
         from theme_fixture import render_theme_defaults
         skel = TARGET / 'etc/skel-desktop/.config'
-        featherpad = configparser.ConfigParser(interpolation=None)
-        featherpad.read_string('[General]\n' + payload_read_text(skel / 'featherpad/fp.conf'))
-        self.assertFalse(featherpad.getboolean('window', 'openInWindows'))
+        # Upstream load_config_file reads eight positional lines, not INI keys.
+        l3afpad = payload_read_text(skel / 'l3afpad/l3afpadrc').splitlines()
+        self.assertEqual(len(l3afpad), 8)
+        self.assertEqual(l3afpad[0], '0.8.18.1.11')
+        self.assertEqual([int(value) for value in l3afpad[1:3]], [960, 720])
+        self.assertEqual(l3afpad[3], 'Monospace 12')
+        self.assertEqual(l3afpad[4:], ['1', '1', '1', '4'])
         code = json.loads(render_theme_defaults(payload_read_text(skel / 'Code/User/settings.json')))
         for key in ('window.openFilesInNewWindow', 'window.openFoldersInNewWindow',
                     'window.openWithoutArgumentsInNewWindow'):

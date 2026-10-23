@@ -109,6 +109,36 @@ desktop_stage_key_manager() (
     /etc/systemd/system/key-manager-acme-renew.service 0644 DIR_DATA_PKI "$DIR_DATA_PKI"
 )
 
+desktop_stage_fangfrisch() (
+  set -eu
+  set +x
+  set +v
+  fangfrisch_stage=$(target_private_stage_dir fangfrisch)
+  fangfrisch_stage_host=$(target_asset_host_path "$fangfrisch_stage")
+  trap 'rm -rf -- "$fangfrisch_stage_host"' 0
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_DESKTOP fangfrisch-configure.py)" \
+    "${fangfrisch_stage}/configure.py" 0600
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/fangfrisch.conf)" \
+    "${fangfrisch_stage}/fangfrisch.conf" 0600
+  if fangfrisch_key=$(preseed_env_read_value urlhaus_authkey); then
+    :
+  else
+    fangfrisch_credential_status=$?
+    case "$fangfrisch_credential_status" in
+      1) fangfrisch_key= ;;
+      *) installer_fatal "unsafe URLhaus private credential input"; exit 1 ;;
+    esac
+  fi
+  (umask 077; printf '%s' "$fangfrisch_key" >"${fangfrisch_stage_host}/auth-key")
+  unset fangfrisch_key
+  run_in_target "configure optional URLhaus authentication privately" \
+    /usr/bin/env -i HOME=/root LC_ALL=C PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+    /usr/bin/python3 -I -S -B "${fangfrisch_stage}/configure.py" "$fangfrisch_stage"
+)
+
 desktop_stage_target_assets() {
   desktop_stage_key_manager
   desktop_stage_appearance
@@ -165,6 +195,17 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/libexec/greetd-power-action-root /usr/local/libexec/greetd-power-action-root 0755
   desktop_stage_role_asset usr/local/bin/labwc-calendar /usr/local/bin/labwc-calendar 0755
   desktop_stage_role_asset usr/local/libexec/labwc-calendar /usr/local/libexec/labwc-calendar 0755
+  desktop_stage_role_asset usr/local/libexec/calix-fruux-bootstrap /usr/local/libexec/calix-fruux-bootstrap 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-waycal-hover /usr/local/libexec/labwc-waycal-hover 0755
+  desktop_stage_role_asset usr/local/share/applications/com.ianswope.Calix.desktop /usr/local/share/applications/com.ianswope.Calix.desktop 0644
+  desktop_stage_role_asset usr/local/bin/labwc-agenda /usr/local/bin/labwc-agenda 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-calendar-actions /usr/local/libexec/labwc-calendar-actions 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-calendar-worker /usr/local/libexec/labwc-calendar-worker 0755
+  desktop_stage_role_asset usr/local/share/applications/com.github.dahenson.agenda.desktop /usr/local/share/applications/com.github.dahenson.agenda.desktop 0644
+  desktop_stage_role_asset usr/local/share/agenda/schemas/90-desktop-agenda.gschema.override /usr/local/share/agenda/schemas/90-desktop-agenda.gschema.override 0644
+  for calendar_unit in labwc-calix labwc-waycal labwc-waycal-hover labwc-agenda; do
+    desktop_stage_role_asset "etc/skel-desktop/.config/systemd/user/${calendar_unit}.service" "/etc/skel-desktop/.config/systemd/user/${calendar_unit}.service" 0644
+  done
   desktop_stage_role_asset usr/local/libexec/labwc-plans.pl /usr/local/libexec/labwc-plans.pl 0755
   desktop_stage_role_asset usr/local/bin/labwc-logout /usr/local/bin/labwc-logout 0755
   desktop_stage_role_asset usr/local/bin/labwc-fuzzel /usr/local/bin/labwc-fuzzel 0755
@@ -174,7 +215,6 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/bin/filenmnt /usr/local/bin/filenmnt 0755
   desktop_stage_role_asset usr/local/libexec/network-wifi-configure /usr/local/libexec/network-wifi-configure 0755
   desktop_stage_role_asset usr/local/bin/nmtui /usr/local/bin/nmtui 0755
-  desktop_stage_role_asset etc/systemd/system/NetworkManager.service.d/30-wifi-manual.conf /etc/systemd/system/NetworkManager.service.d/30-wifi-manual.conf 0644
   desktop_stage_role_asset etc/systemd/system/wifi-firstboot.service /etc/systemd/system/wifi-firstboot.service 0644
   desktop_stage_role_asset usr/local/bin/labwc-ai-copilots /usr/local/bin/labwc-ai-copilots 0755
   desktop_stage_ai_copilots_perl_modules
@@ -413,6 +453,7 @@ print("Vivaldi compatible system media: " + vivaldi_media_directory())
   desktop_stage_role_asset usr/local/sbin/greetd-power-action /usr/local/sbin/greetd-power-action 0755
   desktop_stage_role_asset usr/local/sbin/labwc-notify /usr/local/sbin/labwc-notify 0755
   desktop_stage_role_asset usr/local/libexec/clamav-signature-update /usr/local/libexec/clamav-signature-update 0755
+  desktop_stage_role_asset usr/local/libexec/clamav-fangfrisch /usr/local/libexec/clamav-fangfrisch 0755
 
   desktop_stage_role_asset usr/share/wayland-sessions/labwc.desktop /usr/share/wayland-sessions/labwc.desktop 0644
   desktop_stage_role_asset usr/local/share/applications/computer-management.desktop /usr/local/share/applications/computer-management.desktop 0644
@@ -423,7 +464,8 @@ print("Vivaldi compatible system media: " + vivaldi_media_directory())
   desktop_render_gtkgreet_css
   desktop_stage_role_asset etc/greetd/gtkgreet-power.css /etc/greetd/gtkgreet-power.css 0644
   desktop_render_greeter_power_rule
-  desktop_stage_role_asset etc/fangfrisch.conf /etc/fangfrisch.conf 0644
+  desktop_stage_fangfrisch
+  desktop_stage_role_asset etc/cron.d/debsecan /etc/cron.d/debsecan 0644
   desktop_stage_role_asset etc/systemd/system/clamav-signature-update.service /etc/systemd/system/clamav-signature-update.service 0644
   desktop_stage_role_asset etc/systemd/system/clamav-signature-update.service.d/60-resource-class.conf /etc/systemd/system/clamav-signature-update.service.d/60-resource-class.conf 0644
   desktop_stage_role_asset etc/systemd/system/clamav-signature-update.timer /etc/systemd/system/clamav-signature-update.timer 0644
@@ -522,8 +564,6 @@ print("Vivaldi compatible system media: " + vivaldi_media_directory())
   desktop_stage_role_asset etc/xdg/xdg-desktop-portal/labwc-portals.conf /etc/xdg/xdg-desktop-portal/labwc-portals.conf 0644
   desktop_stage_role_asset etc/skel-desktop/.gnupg/gpg-agent.conf /etc/skel-desktop/.gnupg/gpg-agent.conf 0600
   chmod 0700 /target/etc/skel-desktop/.gnupg
-  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.service /etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.service 0644
-  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.timer /etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.timer 0644
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/obsidian-git-sync.service /etc/skel-desktop/.config/systemd/user/obsidian-git-sync.service 0644
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/obsidian-git-sync.timer /etc/skel-desktop/.config/systemd/user/obsidian-git-sync.timer 0644
   desktop_render_role_target_template \
@@ -562,7 +602,7 @@ print("Vivaldi compatible system media: " + vivaldi_media_directory())
   desktop_render_terminal_configs
   desktop_stage_role_asset etc/skel-desktop/.config/mpv/mpv.conf /etc/skel-desktop/.config/mpv/mpv.conf 0644
   desktop_stage_role_asset etc/skel-desktop/.config/mpv/input.conf /etc/skel-desktop/.config/mpv/input.conf 0644
-  desktop_stage_role_asset etc/skel-desktop/.config/featherpad/fp.conf /etc/skel-desktop/.config/featherpad/fp.conf 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/l3afpad/l3afpadrc /etc/skel-desktop/.config/l3afpad/l3afpadrc 0644
   desktop_stage_role_asset etc/skel-desktop/.config/GottCode/FocusWriter.conf /etc/skel-desktop/.config/GottCode/FocusWriter.conf 0644
   desktop_stage_role_asset etc/skel-desktop/.config/zathura/zathurarc /etc/skel-desktop/.config/zathura/zathurarc 0644
   desktop_stage_role_asset usr/local/bin/labwc-focuswriter-import /usr/local/bin/labwc-focuswriter-import 0755

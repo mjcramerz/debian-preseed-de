@@ -1,0 +1,12 @@
+# Agenda 1.2.1: native GTK appearance follows the desktop's theme and font.
+# These are defaults; the application can persist the user's later choices.
+[com.github.dahenson.agenda]
+# Comfortable portrait layout with room for longer task descriptions.
+window-size=[600, 680]
+window-position=[]
+# Keep the introductory view until the user creates their first local task.
+first-time=true
+# Pending tasks stay above completed tasks.
+sort-completed-upward=false
+# Printing uses the same readable Noto family as the managed desktop.
+print-font-description='Noto Sans 12'
