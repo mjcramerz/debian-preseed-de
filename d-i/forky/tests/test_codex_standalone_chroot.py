@@ -19,6 +19,7 @@ _require_test_isolation()
 
 from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
 from payload_fixture import read_text as payload_read_text
+import hashlib
 import os
 from pathlib import Path
 import shutil
@@ -31,7 +32,7 @@ from test_hardware_restore import make_chroot, FORKY
 
 @unittest.skipUnless(os.geteuid() == 0 and shutil.which('busybox'), 'root chroot fixture')
 class CodexFreshInstallTests(unittest.TestCase):
-    def fixture(self, root, *, curl_error=False, payload_error=False):
+    def fixture(self, root, *, curl_error=False, payload_error=False, digest_error=False):
         make_chroot(root)
         root.chmod(0o755)
         for name in (
@@ -44,7 +45,7 @@ class CodexFreshInstallTests(unittest.TestCase):
             (root / name).mkdir(parents=True, exist_ok=True)
         for name in (
             'readlink', 'id', 'grep', 'find', 'mktemp', 'wc', 'tr',
-            'chmod', 'rm', 'mv', 'ln', 'mkdir', 'rmdir', 'cat', 'touch',
+            'chmod', 'rm', 'mv', 'ln', 'mkdir', 'rmdir', 'cat', 'touch', 'sha256sum',
         ):
             for directory in ('bin', 'usr/bin'):
                 command = root / directory / name
@@ -143,6 +144,15 @@ ln -s bin/codex "$CODEX_HOME/packages/standalone/releases/0.153.3-x86_64-unknown
 ln -s "$CODEX_HOME/packages/standalone/releases/0.153.3-x86_64-unknown-linux-musl" "$CODEX_HOME/packages/standalone/current"
 '''
 
+        # Model the reviewed script's digest with this fixture payload. The
+        # actual hash operation remains real, entirely inside the fixture.
+        source = helper.read_text()
+        pin = 'installer_sha256=95d14ccaba915e52a3f0cc590638ca5ac510086ff6a23dc9ac9f77e957403a93'
+        self.assertEqual(source.count(pin), 1)
+        helper.write_text(source.replace(pin, 'installer_sha256=' + hashlib.sha256(payload.encode()).hexdigest(), 1))
+        if digest_error:
+            payload += '# fixture corruption after pinning\n'
+
         curl = root / 'usr/bin/curl'
         curl_body = r'''#!/bin/sh
 set -eu
@@ -170,7 +180,7 @@ cat > "$output" <<'PAYLOAD'
         return subprocess.run(
             payload_installed_argv([
                 shutil.which('chroot'), '--userspec=65534:65534', str(root),
-                '/bin/sh', '/installer', 'https://chatgpt.com/codex/install.sh',
+                '/bin/sh', '/installer', 'https://raw.githubusercontent.com/openai/codex/89461ea6833832b0551ce24ee32205824d5c108d/scripts/install/install.sh',
                 '1048576', '/data/codex/usr/home', '/data/codex/packages',
             ]),
             env={
@@ -234,6 +244,19 @@ cat > "$output" <<'PAYLOAD'
                 (root / 'data/codex/usr/home/packages').readlink(),
                 Path('/data/codex/packages'),
             )
+            self.assertEqual(list((root / 'data/codex').glob('.standalone-install.*')), [])
+            self.assertEqual(list((root / 'run/codex-installer/65534.fixture').iterdir()), [])
+
+    def test_changed_installer_digest_is_rejected_before_execution_or_publication(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            self.fixture(root, digest_error=True)
+            result = self.execute(root)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('differs from its pinned SHA-256', result.stderr)
+            self.assertEqual(list((root / 'data/codex/packages').iterdir()), [])
+            self.assertFalse(payload_source_exists(root / 'home/account/.zshrc'))
+            self.assertFalse(payload_source_exists(root / 'home/account/profile-was-sourced'))
             self.assertEqual(list((root / 'data/codex').glob('.standalone-install.*')), [])
             self.assertEqual(list((root / 'run/codex-installer/65534.fixture').iterdir()), [])
 

@@ -220,6 +220,8 @@ profile secondboot-cleanup /var/lib/firstboot/bin/secondboot-cleanup flags=(atta
   dbus,
 
   /var/lib/firstboot/bin/secondboot-cleanup rix,
+  /var/lib/firstboot/bin/fruux-cleanup rPx -> fruux-cleanup,
+  /usr/local/libexec/apparmor-modes-run rPx -> apparmor-modes,
   /usr/bin/{chmod,dirname,grep,head,id,mktemp,mv,rm,rmdir,sync,wc} rix,
   /usr/bin/lsinitramfs rPx -> update-initramfs,
   /usr/bin/systemctl PUx,
@@ -248,7 +250,7 @@ profile secondboot-cleanup /var/lib/firstboot/bin/secondboot-cleanup flags=(atta
   /var/lib/firstboot/lib/** rwkl,
   /var/lib/firstboot/tailscale/ rw,
   /var/lib/firstboot/tailscale/** rwkl,
-  /var/lib/firstboot/bin/{crowdsec-firstboot,firstboot.sh,secondboot-cleanup,tailscale-up} rw,
+  /var/lib/firstboot/bin/{crowdsec-firstboot,firstboot.sh,secondboot-cleanup,tailscale-up,fruux-cleanup} rw,
   /usr/local/sbin/tpm2-enroll.sh rw,
   /var/lib/firstboot/ rw,
   /var/lib/firstboot/bin/ rw,

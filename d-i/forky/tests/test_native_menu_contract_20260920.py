@@ -50,7 +50,7 @@ MODULES = (('custom/tomat', 'tomat', 'on-click'),
            ('pulseaudio', 'audio', 'on-click'),
            ('custom/notifications', 'notifications', 'on-click'),
            ('custom/power', 'power', 'on-click'),
-           ('clock', 'calendar', 'on-click-right'))
+           ('clock', 'calendar', 'on-click'))
 
 
 class MenuContractTests(unittest.TestCase):
@@ -100,10 +100,14 @@ class MenuContractTests(unittest.TestCase):
             for key, action in CALENDAR.items():
                 argv = shlex.split(entry['menu-actions'][key])
                 self.assertEqual(argv[argv.index('--') + 1:], action)
+                if action[0] == '/usr/local/libexec/labwc-calendar-actions':
+                    self.assertIn('--property=SuccessExitStatus=2', argv[:argv.index('--')])
+                else:
+                    self.assertNotIn('--property=SuccessExitStatus=2', argv[:argv.index('--')])
             self.assertNotIn('on-click-right', entry)
             self.assertNotIn('on-click-middle', entry)
-            self.assertEqual(entry['format-alt-click'], 1)
-            self.assertIn('%V', entry['format-alt'])
+            self.assertEqual(entry['format-alt-click'], 3)
+            self.assertEqual(entry['format-alt'], '{:%a, %d %b %Y W%V - %H.%M}')
             self.assertEqual(entry['tooltip-format'], 'Calendar')
             self.assertNotIn('labwc-calendar menu', json.dumps(entry))
 

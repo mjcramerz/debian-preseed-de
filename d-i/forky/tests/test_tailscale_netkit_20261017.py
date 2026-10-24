@@ -161,6 +161,14 @@ class NetkitTests(unittest.TestCase):
         for peer, family in ((netkit.PEER4, '-4'), (netkit.PEER6, '-6')):
             self.assertIn([family, 'rule', 'add', 'pref', '5191', 'from', peer, 'unreachable',
                            'protocol', netkit.ROUTE_PROTOCOL], arguments)
+        # IPv6 peerAPI may bind before the router's address becomes usable.
+        # This must be private-NS setup, never a host sysctl or daemon privilege.
+        nonlocal_binds = [(argv, options) for argv, options in calls
+                          if 'net.ipv6.ip_nonlocal_bind=1' in argv]
+        self.assertEqual(len(nonlocal_binds), 1)
+        argv, options = nonlocal_binds[0]
+        self.assertEqual(argv[:4], ['/usr/bin/nsenter', '--net=/proc/self/fd/77', '--', '/usr/sbin/sysctl'])
+        self.assertEqual(options, {'fds': (77,)})
         self.assertTrue((self.root / 'state.json').is_file())
 
     def test_new_link_marker_uses_pinned_device_and_does_not_trust_create_alias(self):

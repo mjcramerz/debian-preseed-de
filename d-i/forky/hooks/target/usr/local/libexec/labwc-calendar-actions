@@ -26,11 +26,11 @@ ACTIONS = {'event-create', 'event-manage', 'tasks-pending', 'tasks-all',
 WORKER = '/usr/local/libexec/labwc-calendar-worker'
 MAX_OUTPUT = 4 * 1024 * 1024
 UNAVAILABLE = {'keyring-unavailable', 'network-unavailable', 'no-calendars', 'deadline', 'write-busy',
-               'unsupported-recurrence', 'scheduled-object', 'read-only', 'missing-etag', 'bootstrap-unavailable'}
+               'unsupported-recurrence', 'scheduled-object', 'read-only', 'missing-etag', 'credentials-unavailable'}
 ERRORS = {
     'authentication': 'Fruux rejected the login. Check the calendar account and its app password.',
-    'keyring-unavailable': 'Unlock the user keyring and open Calendar once to complete Fruux setup.',
-    'unsafe-account': 'The managed Fruux account file is missing or unsafe. Open Calendar once, then check the calendar installation.',
+    'keyring-unavailable': 'Fruux credentials are temporarily unavailable.',
+    'unsafe-account': 'The managed Fruux account file is missing or unsafe. Automatic calendar configuration failed.',
     'network-unavailable': 'Fruux is unreachable. Check the connection and try again.',
     'deadline': 'Fruux did not respond within the operation deadline.',
     'no-calendars': 'Fruux has no accessible calendar for this component type.',
@@ -54,7 +54,7 @@ ERRORS = {
     'outcome-unknown': 'The connection ended before the write could be confirmed. Check Fruux in Calendar before repeating this operation; it may already have succeeded.',
     'pending-change': 'An earlier write has an unresolved outcome. Reopen a calendar action to review Fruux before allowing another write.',
     'write-busy': 'Another calendar write is still active. Wait for it to finish, then reopen the action.',
-    'bootstrap-unavailable': 'Calendar could not complete Fruux setup. Unlock the user keyring and check labwc-calix.service in the user journal.',
+    'credentials-unavailable': 'Fruux credentials are temporarily unavailable.',
     'cancelled': 'The operation was cancelled.',
     'worker-failed': 'The calendar worker could not complete. Check the installed calendar dependencies.',
 }
@@ -84,17 +84,16 @@ def environment() -> dict:
 
 
 def worker(request: dict, env: dict, cancel: Event) -> dict:
-    prepare = request['op'] == 'prepare'
+    prepare = request['op'] == 'credentials-ready'
     mutation = request['op'] in {'create', 'update', 'complete', 'delete'}
     payload = b'' if prepare else json.dumps(request, ensure_ascii=True).encode()
     if len(payload) > 256 * 1024:
         raise Error('invalid-input')
-    deadline = time.monotonic() + (70 if prepare else 50)
+    deadline = time.monotonic() + (5 if prepare else 50)
     output = bytearray()
-    # First use runs the existing Calix service bootstrap under its own fixed
-    # 60-second service deadline and session cgroup. The controller only waits
-    # for that job; cancellation never launches an unowned credential helper.
-    argv = ['/usr/bin/systemctl', '--user', 'start', 'labwc-calix.service'] if prepare else [WORKER]
+    # Login owns credential delivery. A menu action only checks its result;
+    # opening the app or a dialog never triggers account setup or delivery.
+    argv = ['/usr/bin/systemctl', '--user', 'is-active', '--quiet', 'labwc-calendar-credentials.service'] if prepare else [WORKER]
     process = subprocess.Popen(argv, env=env, cwd=env['HOME'], stdin=subprocess.PIPE,
                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, close_fds=True)
     try:
@@ -126,7 +125,7 @@ def worker(request: dict, env: dict, cancel: Event) -> dict:
                                 raise Error('outcome-unknown' if mutation else 'response-limit')
             if prepare:
                 if process.returncode:
-                    raise Error('bootstrap-unavailable')
+                    raise Error('credentials-unavailable')
                 return {'status': 'ok', 'request_id': uuid.uuid4().hex[:12]}
             response = json.loads(output)
         if (not isinstance(response, dict) or not isinstance(response.get('request_id'), str)
@@ -177,7 +176,7 @@ def run(action: str, env: dict) -> int:
         box.add(spinner)
         write = request['op'] in {'create', 'update', 'complete', 'delete', 'acknowledge'}
         label = Gtk.Label(label='Finishing calendar change…' if request['op'] == 'acknowledge'
-                          else 'Starting Calendar and unlocking Fruux…' if request['op'] == 'prepare'
+                          else 'Loading Fruux…' if request['op'] == 'credentials-ready'
                           else 'Saving to Fruux…' if write else 'Loading from Fruux…')
         box.add(label)
         cancel = Event()
@@ -388,7 +387,7 @@ def run(action: str, env: dict) -> int:
         dialog.destroy()
 
     try:
-        call({'op': 'prepare'})
+        call({'op': 'credentials-ready'})
         kind = 'VEVENT' if action.startswith('event-') else 'VTODO'
         discovered = call({'op': 'discover', 'kind': kind})
         calendars = discovered['calendars']
@@ -476,6 +475,7 @@ def run(action: str, env: dict) -> int:
         return 0
     except Error as error:
         if error.code == 'cancelled':
+            print('calendar-action status=cancelled action=' + action)
             return 2
         code = error.code if error.code in ERRORS else 'worker-failed'
         message('Change status unknown' if code == 'outcome-unknown' else 'Fruux calendar', ERRORS[code], error=True)

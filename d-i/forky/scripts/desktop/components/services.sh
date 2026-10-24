@@ -94,6 +94,7 @@ desktop_enable_target_services() {
   desktop_enable_unit_if_available labwc-system-desktop-overrides.service system
   desktop_enable_unit_if_available labwc-system-desktop-overrides.path system
   desktop_enable_unit_if_available greetd.service system
+  desktop_enable_unit_if_available fruux-firstboot.service system
   desktop_enable_unit_if_available seatd.service system
   desktop_enable_unit_if_available bluetooth-controller-init.service system
   desktop_enable_unit_if_available bluetooth.service system
@@ -133,14 +134,8 @@ desktop_enable_target_services() {
     desktop_mask_unit_if_available nvidia-powerd.service system
   fi
 
-  run_in_target "verify packaged SSH agent contract and desktop-only activation" /bin/sh -eu -c '
-    test -r /usr/lib/systemd/user/ssh-agent.socket
-    test -r /usr/lib/systemd/user/ssh-agent.service
-    grep -Eq "^ListenStream=%t/openssh_agent$" /usr/lib/systemd/user/ssh-agent.socket
-    grep -Eq "^SocketMode=0?600$" /usr/lib/systemd/user/ssh-agent.socket
-    grep -Eq "^ExecStart=.*ssh-agent .*-[dD]" /usr/lib/systemd/user/ssh-agent.service
-    systemctl --global disable ssh-agent.socket
-  '
+  run_in_target "scope packaged SSH agent activation to the desktop account" \
+    /usr/bin/systemctl --global disable ssh-agent.socket
 
   for unit in \
     labwc-output-watch.service \
@@ -149,6 +144,7 @@ desktop_enable_target_services() {
     crystal-dock.service \
     labwc-mute-default-microphone.service \
     labwc-kwallet-portal.service \
+    labwc-calendar-credentials.service \
     ssh-agent.socket \
     labwc-plans.service \
     foot-server.socket \

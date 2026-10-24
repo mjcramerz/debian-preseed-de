@@ -96,6 +96,51 @@ class ForceContractTests(unittest.TestCase):
         worker.final_power_action()
         self.commands.assert_called_once_with(['/usr/bin/systemctl', '--force', 'poweroff'], timeout=25, max_output=4096)
 
+    def test_manager_pam_close_precedes_session_removal_on_logout_and_power(self):
+        for action in ('logout', 'reboot', 'poweroff'):
+            with self.subTest(action=action):
+                worker = self.power.Worker(1000, 'desktop', action)
+                self.commands.reset_mock()
+                with (mock.patch.object(worker, 'require_package_reservation'),
+                      mock.patch.object(worker, 'wait_for_exit', return_value=True),
+                      mock.patch.object(worker, 'prepare_external_drives'),
+                      mock.patch.object(worker, 'stop_units'),
+                      mock.patch.object(worker, 'stop_optional_units')):
+                    if action == 'logout':
+                        worker.terminate_user()
+                    else:
+                        worker.prepare_machine_shutdown()
+                commands = [call.args[0] for call in self.commands.call_args_list]
+                close = ['/usr/bin/systemctl', 'stop', 'user@1000.service']
+                remove = ['/usr/bin/loginctl', 'terminate-user', '1000']
+                self.assertLess(commands.index(close), commands.index(remove))
+
+    def test_dispatcher_drains_before_force_and_failure_cannot_veto_handoff(self):
+        for failure in (None, self.power.Error('dispatcher stop failed')):
+            with self.subTest(failure=str(failure)):
+                worker = self.power.Worker(1000, 'desktop', 'reboot')
+                self.commands.reset_mock()
+                events = []
+
+                def stop(names):
+                    events.append(tuple(names))
+
+                def optional(names):
+                    events.append(tuple(names))
+                    if failure:
+                        raise failure
+
+                with (mock.patch.object(worker, 'prepare_external_drives'),
+                      mock.patch.object(worker, 'stop_units', side_effect=stop),
+                      mock.patch.object(worker, 'stop_optional_units', side_effect=optional),
+                      mock.patch.object(worker, 'shutdown_run', side_effect=lambda argv: events.append(tuple(argv)))):
+                    worker.prepare_machine_shutdown()
+                network = ('tailscaled.service', 'NetworkManager.service', 'NetworkManager-dispatcher.service')
+                self.assertLess(events.index(('swap-fallback.service',)), events.index(network))
+                self.assertLess(events.index(network), events.index(('/usr/bin/sync',)))
+                worker.final_power_action()
+                self.commands.assert_called_once_with(['/usr/bin/systemctl', '--force', 'reboot'], timeout=25, max_output=4096)
+
     def test_optional_nfs_services_support_client_server_both_and_neither(self):
         server = {'nfs-server.service', 'nfs-mountd.service', 'nfsdcld.service'}
         client = {'nfs-idmapd.service', 'rpc-gssd.service', 'nfs-client.target'}

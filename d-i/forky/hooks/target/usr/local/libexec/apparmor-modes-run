@@ -6,6 +6,8 @@ use warnings;
 use Cwd qw(abs_path);
 use File::Basename qw(dirname);
 use File::Spec ();
+use Fcntl qw(O_RDONLY O_NOFOLLOW O_DIRECTORY);
+use IO::Handle ();
 
 BEGIN {
     my @module_roots = (
@@ -42,6 +44,44 @@ use AppArmor::ManagedModes::Verify qw(
 use AppArmor::ManagedModes::Workspace;
 use lib '/usr/local/lib/perl5/site_perl/runtime';
 use Managed::PolicyLock qw(acquire_policy_lock);
+
+# Bootstrap retirement must share the mode writer's lock. The firstboot
+# service is ordered after this unit, so adding reverse service ordering would
+# create a boot cycle. No caller-selected path or live-policy unload is used.
+if (@ARGV == 1 && $ARGV[0] eq '--retire-firstboot') {
+    umask 0077;
+    my $guard = eval { acquire_policy_lock() };
+    if (!$guard) {
+        my $error = $@;
+        if ($error eq "another AppArmor policy operation is in progress\n") {
+            info('deferring firstboot policy retirement; policy writer is active');
+            exit 75;
+        }
+        die $error;
+    }
+    for my $directory ('/', '/etc', '/etc/apparmor.d') {
+        my @metadata = lstat $directory;
+        @metadata && ($metadata[2] & 0170000) == 0040000 &&
+            $metadata[4] == 0 && $metadata[5] == 0 && !($metadata[2] & 0022)
+            or fatal('unsafe firstboot policy directory');
+    }
+    my $path = '/etc/apparmor.d/firstboot';
+    my @metadata = lstat $path;
+    if (@metadata) {
+        ($metadata[2] & 0170000) == 0100000 && $metadata[3] == 1 &&
+            $metadata[4] == 0 && $metadata[5] == 0 && !($metadata[2] & 0022)
+            or fatal('unsafe firstboot policy source');
+        unlink $path or fatal('cannot retire firstboot policy source');
+    } elsif (!$!{ENOENT}) {
+        fatal('cannot inspect firstboot policy source');
+    }
+    sysopen my $parent, '/etc/apparmor.d', O_RDONLY | O_NOFOLLOW | O_DIRECTORY
+        or fatal('cannot open firstboot policy directory');
+    $parent->sync() or fatal('cannot synchronize firstboot policy retirement');
+    close $parent or fatal('cannot close firstboot policy directory');
+    info('retired completed firstboot policy source under the policy writer lock');
+    exit 0;
+}
 
 my $options = parse_args(@ARGV);
 

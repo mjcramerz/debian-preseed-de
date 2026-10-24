@@ -2,6 +2,9 @@
 # syslog plugin is disabled so the full audit stream never enters journald.
 # Follow writes and auditd's rename/create rotation through kernel notifications.
 # One fixed input needs no periodic content scan or journal database reader.
+# auditd alone rotates this file. rsyslog 8.2608 can log a transient ENOENT
+# between auditd's rename and recreate; inotify follows the replacement.
+# Do not add a second rotator or forward the full audit stream to journald.
 module(load="imfile" mode="inotify")
 template(
   name="AppArmorAuditLine"

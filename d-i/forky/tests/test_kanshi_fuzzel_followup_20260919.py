@@ -55,15 +55,14 @@ def shell_function(text, name):
 
 
 class InstallerLoaderTests(unittest.TestCase):
-    def test_role_loads_conditional_verifier_before_use(self):
+    def test_role_loader_excludes_the_installer_verifier(self):
         loader = render_theme_defaults(payload_read_text(FORKY / 'scripts/late/desktop.sh'))
         modules = re.search(r'for desktop_module in ([^;]+); do', loader).group(1).split()
-        self.assertIn('verify', modules)
+        self.assertNotIn('verify', modules)
         source = '. "${desktop_module_dir}/verify.sh"'
-        self.assertEqual(loader.count(source), 1)
-        self.assertLess(loader.index(source), loader.index('run_desktop_late_command "'))
+        self.assertNotIn(source, loader)
         # Execute the actual fetch/source tail with endpoint-only stubs. Loading
-        # modules must define the verifier, not start a broad desktop audit.
+        # modules must define the installer without loading the offline audit.
         tail = loader[loader.index('desktop_module_dir='):loader.index(': >"$desktop_late_stage_stamp"')]
         with tempfile.TemporaryDirectory(prefix='kanshi-loader-') as temp:
             prelude = """set -eu
@@ -74,6 +73,7 @@ requested_seed_base=fixture
 requested_host_profile=fixture
 fetch_hook() {
   case "$1" in
+    scripts/desktop/verify.sh) return 91 ;;
     scripts/desktop/*) cp -- "$desktop_fixture/${1##*/}" "$2" ;;
     *) fixture_source="$seed/$1"; [ -f "$fixture_source" ] || fixture_source=$fixture_source.tmpl; cp -- "$fixture_source" "$2" ;;
   esac
@@ -82,7 +82,7 @@ fetch_hook() {
             # The role function is replaced only at its call, leaving the real
             # loader's source list in place, and never running installer writes.
             tail = tail.replace('run_desktop_late_command "$requested_seed_base" "$requested_host_profile"',
-                                'command -v desktop_verify_kanshi_policy >/dev/null')
+                                'command -v run_desktop_late_command >/dev/null')
             result = subprocess.run(payload_installed_argv(['/bin/sh', '-c', prelude + tail, 'test', temp, str(FORKY), str(shell_directory(FORKY/'scripts/desktop'))]),
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -277,10 +277,10 @@ class KanshiWiringTests(unittest.TestCase):
         activation = COMPONENTS.split('  for unit in \\\n    labwc-output-watch.service',1)[1].split('\n  done',1)[0]
         self.assertNotIn('kanshi',activation)
 
-    def test_install_reconcile_precedes_staging_and_target_check_follows_enablement(self):
+    def test_install_reconcile_precedes_staging_without_a_verifier_gate(self):
         script = render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/labwc.sh')).split('run_desktop_late_command() {',1)[1]
         self.assertLess(script.index('  desktop_install_kanshi_policy'), script.index('  desktop_stage_target_assets'))
-        self.assertLess(script.index('  desktop_enable_target_services'), script.index('  desktop_verify_kanshi_policy'))
+        self.assertNotIn('desktop_verify_kanshi_policy', script)
         self.assertIn('stage_target_asset \\\n', render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/labwc.sh')))
 
     def verifier(self):

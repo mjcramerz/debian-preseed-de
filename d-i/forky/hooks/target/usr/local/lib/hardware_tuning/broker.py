@@ -20,7 +20,7 @@ import stat
 import struct
 import time
 from common import (AUTOSTART, AUTOSTART_UNIT, CONFIG, MAX_JSON, PROFILES, RANK,
-                    STATE, VENDORS, TuningError, atomic_json, decode, read_text, trusted_json)
+                    STATE, VENDORS, TuningError, atomic_json, decode, read_text, trusted_json, power_profiles_api)
 
 LOG = logging.getLogger("hardware-tuning")
 WORKER = "/usr/local/libexec/hardware-tuning-worker"
@@ -28,7 +28,8 @@ POLICY = "/usr/local/libexec/hardware-tuning-policy"
 
 
 def validate_config(data: dict) -> dict:
-    if not isinstance(data, dict) or set(data) != {"version", "uid", "vendors", "poll_seconds", "idle_ac", "idle_battery"}:
+    fields = {"version", "uid", "vendors", "poll_seconds", "idle_ac", "idle_battery"}
+    if not isinstance(data, dict) or not fields <= set(data) or set(data) - fields - {"power_profiles_api"}:
         raise TuningError("invalid broker configuration")
     if type(data["version"]) is not int or data["version"] != 1:
         raise TuningError("invalid broker version")
@@ -40,6 +41,7 @@ def validate_config(data: dict) -> dict:
         raise TuningError("invalid poll interval")
     if data["idle_ac"] not in (*PROFILES, "none") or data["idle_battery"] not in (*PROFILES, "none"):
         raise TuningError("invalid idle profile")
+    power_profiles_api(data)
     return data
 
 
@@ -79,12 +81,19 @@ class Selection:
         self.automatic = False
         self.manual = {v: None for v in vendors}
         self.leases = Counter()
+        self.power_holds = Counter()
+        self.power_generation = 0
         self.faults: dict[str, str] = {}
         self.paused = False
 
     def desired(self, vendor: str, active: bool, idle: str) -> str | None:
         if not active or self.paused or vendor in self.faults:
             return None
+        # Public API holds precede the selected baseline; power saver wins.
+        # Ordinary per-app leases retain their existing arbitration below.
+        for profile in ("silent", "performance"):
+            if self.power_holds[profile] > 0:
+                return profile
         if self.manual[vendor] is not None:
             return self.manual[vendor]
         if not self.automatic:
@@ -106,6 +115,10 @@ class Selection:
             self.leases[key] = count
         else:
             self.leases.pop(key, None)
+
+    def clear_power_holds(self) -> None:
+        self.power_generation += 1
+        self.power_holds.clear()
 
 
 class Broker:
@@ -273,9 +286,10 @@ class Broker:
                 await self.fault(vendor, exc)
 
         if ("intel" in self.selection.faults and self.policy_state.get("claimed")
-                and (self.selection.automatic or any(self.selection.manual.values()))):
+                and (self.selection.automatic or any(self.selection.manual.values()) or self.selection.power_holds)):
             await self.stop_tuning(clear_faults=False)
         elif (not self.selection.automatic and not any(self.selection.manual.values())
+                and not self.selection.power_holds
                 and self.policy_state.get("claimed") and self.policy_release is None
                 and not self.recovery_pending and not any(self.owned.values())):
             try:
@@ -297,6 +311,8 @@ class Broker:
                 "manual": self.selection.manual, "applied": self.applied, "owns_controls": self.owned,
                 "paused": self.selection.paused, "active_local_seat": self.seat.active(),
                 "autostart": self.autostart_enabled(), "policy_owner": self.policy_state,
+                "power_profiles_api": power_profiles_api(self.config),
+                "power_generation": self.selection.power_generation,
                 "policy_release_pending": self.policy_release,
                 "leases": {f"{v}/{p}": n for (v, p), n in sorted(self.selection.leases.items())},
                 "faults": faults, "recovery_pending": sorted(self.recovery_pending), "last_result": self.details}
@@ -305,6 +321,7 @@ class Broker:
         # PPD may not resume while a manual profile or any unrecovered write
         # remains. Stop therefore releases manual selections as well as auto.
         self.selection.automatic = False
+        self.selection.clear_power_holds()
         self.selection.manual = {v: None for v in self.selection.vendors}
         self.policy_release = "disable" if disable else "stop"
         self.policy_error = ""
@@ -331,10 +348,11 @@ class Broker:
         ppd = self.policy_state.get("ppd", {})
         if (boot and old_boot and self.selection.automatic and not self.status()["faults"]
                 and not self.recovery_pending and self.policy_state.get("claimed")
-                and ("intel" not in self.selection.vendors or ppd.get("file") == "masked" and ppd.get("active") in {"inactive", "failed"})):
+                and (power_profiles_api(self.config) or "intel" not in self.selection.vendors or ppd.get("file") == "masked" and ppd.get("active") in {"inactive", "failed"})):
             await self.policy("activate")  # Idempotent; no hardware reapply.
             return
         self.selection.automatic = False
+        self.selection.clear_power_holds()
         self.selection.faults.clear()
         self.policy_error = ""
         self.policy_release = "stop"
@@ -410,6 +428,41 @@ class Broker:
                 raise TuningError("reports are limited to one per 30 seconds")
             self.report_after = now + 30
 
+    async def prepare_power_profile(self) -> None:
+        if not power_profiles_api(self.config):
+            raise TuningError("custom Power Profiles provider is not installed")
+        if self.selection.paused or self.recovery_pending or self.policy_release or self.child_outcome_unknown:
+            raise TuningError("hardware recovery or sleep coordination is pending")
+        await self.policy("status")
+        if not self.policy_state.get("claimed"):
+            # Existing hardware journals must be empty before acquiring policy.
+            self.policy_release = "stop"
+            self.save()
+            try:
+                for vendor in self.selection.vendors:
+                    await self.restore(vendor)
+                await self.policy("prepare-runtime")
+                self.policy_release, self.policy_error = None, ""
+                self.save()
+            except Exception as exc:
+                message = str(exc)
+                await self.stop_tuning(clear_faults=False)
+                self.policy_error = (message + ("; recovery: " + self.policy_error if self.policy_error else ""))[:8192]
+                self.save()
+                raise TuningError("custom policy acquisition failed; inspect hardware tuning status") from exc
+
+    async def public_profile(self, profile: str) -> dict:
+        await self.prepare_power_profile()
+        self.selection.clear_power_holds()
+        self.selection.manual = {vendor: profile for vendor in self.selection.vendors}
+        self.selection.faults.clear()  # Explicit selection retries the thermal check.
+        self.save()
+        await self.reconcile()
+        if (self.status()["faults"] or self.recovery_pending
+                or any(value != profile for value in self.applied.values())):
+            raise TuningError("custom profile could not be applied; inspect hardware tuning status")
+        return self.status()
+
     async def action(self, request: dict, uid: int) -> dict:
         action = request["action"]
         if action in {"pause", "resume"} and uid != 0:
@@ -438,6 +491,8 @@ class Broker:
                 except Exception as exc:
                     result["hardware"][vendor] = {"error": str(exc)}
             return result
+        if action == "power-profile":
+            return await self.public_profile(request["profile"])
         if action in {"auto-start", "boot-enable"}:
             await self.start_tuning(action == "boot-enable")
             return self.status()
@@ -445,6 +500,7 @@ class Broker:
             await self.stop_tuning(action in {"boot-disable", "reset"})
             return self.status()
         if action == "manual":
+            self.selection.clear_power_holds()
             if self.policy_release:
                 raise TuningError("a policy handback is pending; complete Stop or Reset first")
             if requires_owner and not self.policy_state.get("claimed"):
@@ -468,6 +524,7 @@ class Broker:
             except Exception as exc:
                 await self.fault(request["vendor"], exc)
         elif action == "profiles-reset":
+            self.selection.clear_power_holds()
             self.selection.manual = {v: None for v in self.selection.vendors}
         elif action in {"pause", "resume"}:
             self.selection.paused = action == "pause"
@@ -486,17 +543,23 @@ class Broker:
         return self.status()
 
     def validate_request(self, request: object) -> dict:
-        actions = {"status", "report", "auto-start", "auto-stop", "manual", "profiles-reset", "reset", "boot-enable", "boot-disable", "pause", "resume", "lease"}
+        actions = {"status", "report", "auto-start", "auto-stop", "manual", "profiles-reset", "reset", "boot-enable", "boot-disable", "pause", "resume", "lease", "power-profile", "power-hold"}
         if not isinstance(request, dict) or request.get("action") not in actions:
             raise TuningError("invalid control request")
         required = {"action", "vendor", "profile"} if request["action"] in {"manual", "lease"} else {"action"}
+        if request["action"] in {"power-profile", "power-hold"}:
+            required = {"action", "profile"}
         optional = {"confirm_policy_owner"} if request["action"] in {"auto-start", "boot-enable", "manual"} else set()
         if not required <= set(request) or set(request) - required - optional:
             raise TuningError("unexpected or missing request fields")
         if "confirm_policy_owner" in request and type(request["confirm_policy_owner"]) is not bool:
             raise TuningError("policy confirmation must be a boolean")
-        if len(required) > 1 and (request["vendor"] not in self.selection.vendors or request["profile"] not in PROFILES):
+        if request["action"] in {"manual", "lease"} and (request["vendor"] not in self.selection.vendors or request["profile"] not in PROFILES):
             raise TuningError("vendor/profile is not installed or not supported")
+        if request["action"] in {"power-profile", "power-hold"}:
+            choices = {"silent", "performance"} if request["action"] == "power-hold" else {"silent", "balanced", "performance"}
+            if request["profile"] not in choices:
+                raise TuningError("unsupported public power profile")
         return request
 
     @asynccontextmanager
@@ -527,7 +590,18 @@ class Broker:
             request = self.validate_request(decode(line))
             self.rate_limit(uid, request["action"])
             async with self.control_lock():
-                if request["action"] == "lease":
+                if request["action"] == "power-hold":
+                    if uid != self.config["uid"] or not self.seat.active():
+                        raise TuningError("power holds require the active configured desktop account")
+                    await self.prepare_power_profile()
+                    profile = request["profile"]
+                    self.selection.power_holds[profile] += 1
+                    lease = ("power", profile, self.selection.power_generation)
+                    await self.reconcile()
+                    if self.status()["faults"]:
+                        raise TuningError("power hold could not be applied; inspect hardware tuning status")
+                    result = self.status()
+                elif request["action"] == "lease":
                     if uid != self.config["uid"]:
                         raise TuningError("leases belong to the configured desktop user")
                     lease = (request["vendor"], request["profile"])
@@ -550,7 +624,13 @@ class Broker:
         finally:
             if lease:
                 async with self.lock:
-                    self.selection.change_lease(*lease, -1)
+                    if lease[0] == "power":
+                        if lease[2] == self.selection.power_generation:
+                            self.selection.power_holds[lease[1]] -= 1
+                            if not self.selection.power_holds[lease[1]]:
+                                del self.selection.power_holds[lease[1]]
+                    else:
+                        self.selection.change_lease(*lease, -1)
                     if not self.stop.is_set():
                         await self.reconcile()
             self.connections -= 1

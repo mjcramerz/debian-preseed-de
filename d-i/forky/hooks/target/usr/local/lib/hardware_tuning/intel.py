@@ -48,6 +48,7 @@ class Backend:
         self.package_count = max(1, len(set(re.findall(r"^physical id\s*:\s*(\d+)", cpuinfo, re.M))))
         self.manager_states = None
         self.manager_error = None
+        self.power_profiles_api = False
         self.discover()
 
     def optional_int(self, path: Path) -> int | None:
@@ -249,7 +250,8 @@ class Backend:
         if self.manager_error:
             raise TuningError(self.manager_error)
         active = [name for name, state in self.manager_states.items()
-                  if state not in {"inactive", "failed", "not-loaded"}]
+                  if state not in {"inactive", "failed", "not-loaded"}
+                  and not (self.power_profiles_api and name == "power-profiles-daemon.service")]
         if active:
             raise TuningError("CPU tuning requires one policy owner; stop/mask the competing policy service explicitly before enabling custom tuning: " + ", ".join(active))
 

@@ -615,6 +615,11 @@ class Worker:
         if not self.greeter:
             self.best_effort("desktop units", lambda: self.userctl(
                 "--no-block", "stop", "labwc-session.target", "labwc-compositor.service", timeout=10))
+        # Let the manager's PAM close release its own manager-class session
+        # while logind still knows it. terminate-user first removes that
+        # session before sd-pam can issue ReleaseSession (NoSuchSession).
+        self.best_effort("user manager", lambda: run(
+            ["/usr/bin/systemctl", "stop", f"user@{self.uid}.service"], timeout=10))
         self.best_effort("login sessions", lambda: run(
             ["/usr/bin/loginctl", "terminate-user", str(self.uid)], timeout=10))
         self.best_effort("user manager and slice", lambda: run(
@@ -702,6 +707,10 @@ class Worker:
                 self.shutdown_deadline += time.monotonic() - started
         self.best_effort("greeter", lambda: self.shutdown_run(
             ["/usr/bin/systemctl", "--no-block", "stop", "greetd.service"]))
+        # Stop the manager synchronously before logind discards its session.
+        # Failure remains bounded/best effort and cannot veto the power action.
+        self.best_effort("user manager PAM close", lambda: self.shutdown_run(
+            ["/usr/bin/systemctl", "stop", f"user@{self.uid}.service"]))
         self.best_effort("login sessions", lambda: self.shutdown_run(
             ["/usr/bin/loginctl", "terminate-user", str(self.uid)]))
         self.best_effort("user manager", lambda: self.shutdown_run(
@@ -711,6 +720,13 @@ class Worker:
         # Preserve the established swapoff/reset order while cleanup time remains.
         self.best_effort("zram", lambda: self.stop_units(('zram-setup.service',)))
         self.best_effort("fallback swap", lambda: self.stop_units(('swap-fallback.service',)))
+        # Single-force shutdown skips ordinary service stop jobs. Drain NM's
+        # final dispatches while PID 1's notification socket and the system bus
+        # still exist. Include Tailscale so its existing After=NetworkManager
+        # edge drains the tunnel before NM, then NM before its dispatcher.
+        # Sharing mounts and application cleanup have already finished above.
+        self.best_effort("network dispatcher", lambda: self.stop_optional_units(
+            ('tailscaled.service', 'NetworkManager.service', 'NetworkManager-dispatcher.service')))
         self.best_effort("filesystem sync", lambda: self.shutdown_run(["/usr/bin/sync"]))
 
     def require_shutdown_apps_stopped(self) -> None:

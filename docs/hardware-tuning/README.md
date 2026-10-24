@@ -62,11 +62,70 @@ profile enables positive clock offsets or bypasses driver/firmware protections.
 ## Ownership, restoration and verification
 
 Automatic startup uses the existing policy handover before applying hardware
-requests: Power Profiles Daemon is excluded first, and previous hardware values
-are journaled for restoration. Stop, thermal conflict and recovery continue
-through the same owner and journal. Thermald and firmware thermal controls are
-retained. Other host profiles retain their existing conservative tuning values
-and do not enable automatic tuning by default.
+requests, and previous hardware values are journaled for restoration. Intel
+installs use the custom Power Profiles API described below; the stock daemon
+does not run alongside the custom worker. Stop, thermal conflict and recovery
+continue through the same owner and journal. Thermald and firmware thermal
+controls are retained. Other host profiles retain their existing conservative
+tuning values and do not enable automatic tuning by default.
+
+## Power Profiles D-Bus integration
+
+When the existing Intel hardware and policy gates install custom tuning, the
+installer also publishes an administrator drop-in at
+`/etc/systemd/system/power-profiles-daemon.service.d/50-hardware-tuning.conf`.
+The packaged unit remains under `/usr/lib/systemd/system/`. The drop-in clears
+the vendor executable, capabilities and state directory, runs the custom API
+as the configured desktop account, disables the vendor private user namespace
+and IPC removal, and restricts the adapter to Unix sockets. Package updates
+normally preserve the local drop-in and continue supplying the base unit.
+Changes to the vendor unit still require compatibility review.
+
+Both `org.freedesktop.UPower.PowerProfiles` and legacy
+`net.hadess.PowerProfiles` activate that service. The adapter sends mutations
+to the existing authenticated hardware tuning broker; it cannot write hardware
+or manage services. The broker checks the active configured local seat and
+uses the existing fixed worker, policy ownership locks and recovery journal.
+The custom provider does not mask, stop or start the public API service while
+switching hardware profiles.
+
+| Public profile | Custom policy applied to installed vendors |
+| --- | --- |
+| `power-saver` | `silent` |
+| `balanced` | `balanced` |
+| `performance` | `performance` |
+
+The custom `high` profile remains available in the tuning menu. When it is
+applied to Intel, the public API reports `performance`. Public profile selection
+sets the baseline for every installed custom vendor and cancels public holds.
+Automatic application leases continue to use the existing arbitration.
+
+Public `HoldProfile` requests use broker socket leases. Power-saver holds win
+over performance holds. Closing the caller's D-Bus connection releases its
+holds; adapter or broker termination also releases the sockets. Manual changes
+cancel holds and send `ProfileReleased`. Holds are not persisted across boots.
+The adapter periodically refreshes read-only status and never retries an
+uncertain mutation. Queue waiting, socket connection and response streaming
+share an absolute deadline. A D-Bus client's own shorter timeout can still
+expire before a hardware operation finishes; inspect broker status before
+issuing another mutation.
+
+Stop, Reset, an inactive seat or a thermal refusal restore journaled controls.
+The API remains available after a tuning Stop/Reset and reports `balanced` for
+the restored baseline, plus a degraded reason when recovery or a fault is
+pending. Thermal limits are not bypassed. `BatteryAware` is always true because
+the broker retains its AC/battery selection; disabling it is unsupported.
+Optional stock PPD actions are not advertised.
+
+The existing offline desktop enablement starts the packaged service with the
+drop-in at boot. The persistent custom autostart preference and root broker
+recovery remain separate from D-Bus API availability. NVIDIA-only installs and
+installs without custom Intel tuning retain their existing stock PPD behavior.
+The installer changes describe fresh target staging; they do not migrate a
+previously installed machine's masks or administrator unit overrides.
+
+Source and serialization evidence is recorded in
+[the October 24 integration report](../validation/hardware-power-profiles-20261024.md).
 
 Persistence is enabled before other requested GPU writes and disabled only
 after clock/Auto Boost restoration. If an earlier same-GPU restore fails,

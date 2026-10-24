@@ -1,6 +1,7 @@
 # Included ONLY when Intel tuning passes the explicit install and CPU gates.
 /usr/local/lib/hardware_tuning/intel.py r,
 /etc/hardware-tuning/intel.json r,
+/etc/hardware-tuning/broker.json r,
 /run/hardware-tuning/intel.{json,lock} rwk,
 /run/hardware-tuning/.intel.json.tuning-* rw,
 /proc/cpuinfo r,

@@ -138,6 +138,7 @@ def install(root: Path, uid: int, gid: int, environment: dict, vendors: list[str
     if {key for key in environment if key.startswith("HARDWARE_TUNING_")} - common_keys:
         raise ValueError("unknown common hardware tuning field")
     config = validate_config({"version": 1, "uid": uid, "vendors": vendors,
+        "power_profiles_api": "intel" in vendors,
         "poll_seconds": int(environment["HARDWARE_TUNING_POLL_SECONDS"]),
         "idle_ac": environment["HARDWARE_TUNING_IDLE_AC"], "idle_battery": environment["HARDWARE_TUNING_IDLE_BATTERY"]})
     policies = {}
@@ -177,7 +178,7 @@ def install(root: Path, uid: int, gid: int, environment: dict, vendors: list[str
             raise ValueError("unresolved hardware template: " + relative)
         put(relative, text, mode)
 
-    for name, value in (("broker", config), *policies.items()):
+    for name, value in policies.items():
         put_template(f"etc/hardware-tuning/{name}.json", {
             "HARDWARE_JSON_" + key.upper(): json.dumps(item, ensure_ascii=True)
             for key, item in value.items()}, 0o600)
@@ -190,6 +191,14 @@ def install(root: Path, uid: int, gid: int, environment: dict, vendors: list[str
         "HARDWARE_DEVICE_ALLOW": "char-nvidia* rw" if nv else ""})
     for unit in ("hardware-tuning-autostart.service", "hardware-tuning-sleep.service"):
         put_template("etc/systemd/system/" + unit)
+    if config["power_profiles_api"]:
+        values = {"HARDWARE_UID": str(uid), "HARDWARE_GID": str(gid)}
+        put_template("etc/systemd/system/power-profiles-daemon.service.d/50-hardware-tuning.conf", values)
+        put_template("etc/dbus-1/system.d/90-hardware-tuning-power-profiles.conf", values)
+        for name in ("org.freedesktop.UPower.PowerProfiles", "net.hadess.PowerProfiles"):
+            put_template(f"usr/local/share/dbus-1/system-services/{name}.service", values)
+        # The existing desktop service stage enables the vendor unit offline.
+        # Keep its package-owned unit/enablement; install only this local drop-in.
     for vendor in vendors:
         for profile in PROFILES:
             put_template(f"etc/systemd/user/{vendor}-{profile}.target")
@@ -213,6 +222,11 @@ def install(root: Path, uid: int, gid: int, environment: dict, vendors: list[str
             raise ValueError("Waybar bar has no battery module")
         bar[key]["on-click-right"] = CLICK
     put(relative, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    # Publish provider selection only after all of its units and activation
+    # policy have been rendered. Offline staging never starts a consumer.
+    put_template("etc/hardware-tuning/broker.json", {
+        "HARDWARE_JSON_" + key.upper(): json.dumps(item, ensure_ascii=True)
+        for key, item in config.items()}, 0o600)
     ensure_directory(root / "etc/systemd/system/multi-user.target.wants", root)
     enable(root, "sockets.target.wants", "hardware-tuning.socket")
     enable(root, "sleep.target.requires", "hardware-tuning-sleep.service")

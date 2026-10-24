@@ -371,6 +371,11 @@ def execute(vendor: str, action: str, profile: str | None = None) -> dict:
             wanted = {e["id"] for e in old["entries"]}
         backend = module.Backend(wanted=wanted) if vendor == "nvidia" else module.Backend()
         try:
+            if vendor == "intel" and action != "reset":
+                # Journal restoration must not depend on provider configuration.
+                from common import power_profiles_api
+                config_path = CONFIG / "broker.json"
+                backend.power_profiles_api = power_profiles_api(trusted_json(config_path)) if config_path.exists() else False
             engine = Engine(backend, journal, policy)
             if action == "reset":
                 return engine.reset()

@@ -5,6 +5,10 @@ etc/systemd/system/hardware-tuning-autostart.service
 etc/systemd/system/hardware-tuning-sleep.service
 etc/systemd/system/hardware-tuning.service.tmpl
 etc/systemd/system/hardware-tuning.socket.tmpl
+etc/systemd/system/power-profiles-daemon.service.d/50-hardware-tuning.conf.tmpl
+etc/dbus-1/system.d/90-hardware-tuning-power-profiles.conf.tmpl
+usr/local/share/dbus-1/system-services/org.freedesktop.UPower.PowerProfiles.service.tmpl
+usr/local/share/dbus-1/system-services/net.hadess.PowerProfiles.service.tmpl
 etc/systemd/user/hardware-tuning-intel-balanced.service
 etc/systemd/user/hardware-tuning-intel-high.service
 etc/systemd/user/hardware-tuning-intel-performance.service

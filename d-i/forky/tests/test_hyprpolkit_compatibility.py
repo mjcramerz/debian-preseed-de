@@ -282,10 +282,10 @@ class AgentWiringTests(unittest.TestCase):
                 self.assertIn(expected, body)
             self.assertNotIn('Command Line: /usr/libexec/hyprpolkitagent', body)
 
-    def test_package_guard_is_required_at_install_and_firstboot(self):
+    def test_package_guard_remains_at_firstboot_without_an_installer_probe(self):
         assets = (SEED / 'scripts/desktop/components/target-assets.sh').read_text()
         self.assertIn('desktop_stage_role_asset usr/local/libexec/labwc-hyprpolkit-agent /usr/local/libexec/labwc-hyprpolkit-agent 0755', assets)
-        self.assertIn('run_in_target "verify packaged Hyprpolkit Labwc compatibility" /usr/local/libexec/labwc-hyprpolkit-agent --check', assets)
+        self.assertNotIn('run_in_target "verify packaged Hyprpolkit Labwc compatibility"', assets)
         self.assertIn('check_command desktop-hyprpolkit-compatibility /usr/local/libexec/labwc-hyprpolkit-agent --check',
                       (SEED / 'scripts/firstboot/04-validation.sh.tmpl').read_text())
         policy = (SEED / 'scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl').read_text()

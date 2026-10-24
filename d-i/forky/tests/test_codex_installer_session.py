@@ -76,7 +76,7 @@ class CodexSessionTests(unittest.TestCase):
         self.patch.start()
         self.addCleanup(self.patch.stop)
         self.args = [self.account.pw_name, str(self.home), str(self.helper),
-                     'https://chatgpt.com/codex/install.sh', '1048576',
+                     'https://raw.githubusercontent.com/openai/codex/89461ea6833832b0551ce24ee32205824d5c108d/scripts/install/install.sh', '1048576',
                      str(self.home / 'codex/usr/home'), str(self.home / 'codex/packages')]
 
     def write_helper(self, body):

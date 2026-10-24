@@ -114,6 +114,28 @@ class OwnerTests(unittest.TestCase):
     def journal(self, vendor, entries):
         base.common.atomic_json(self.root / (vendor + ".json"), {"version": 1, "entries": entries, "profile": None})
 
+    def test_custom_provider_keeps_public_service_available_during_tuning_and_reset(self):
+        self.owner.custom_api = True
+        result = self.owner.prepare(True)
+        self.assertEqual(result["provider"], "hardware-tuning")
+        self.assertEqual(result["ppd"]["load"], "not-managed")
+        self.assertTrue(result["claimed"])
+        result = self.owner.release(True)
+        self.assertFalse(result["claimed"])
+        self.assertFalse(any(event[1] == policy.PPD for event in self.manager.events))
+
+    def test_custom_provider_still_refuses_foreign_owner_and_unrecovered_hardware(self):
+        self.owner.custom_api = True
+        self.states["tlp.service"] = "active"
+        with self.assertRaises(base.common.TuningError):
+            self.owner.prepare(False)
+        self.assertFalse(self.manager.events)
+        self.states["tlp.service"] = "inactive"
+        self.journal("intel", [{"id": "unrecovered"}])
+        with self.assertRaises(base.common.TuningError):
+            self.owner.release(False)
+        self.assertFalse(self.manager.events)
+
     def test_temporary_start_masks_before_stop_and_retains_boot_enablement(self):
         result = self.owner.prepare(False)
         self.assertEqual(self.manager.events, [("MaskUnitFiles", policy.PPD, True), ("StopUnit", policy.PPD)])
@@ -537,6 +559,14 @@ class BrokerHandoverTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ClientAndInstallTests(unittest.TestCase):
+    def test_custom_provider_confirmation_uses_available_status_without_another_request(self):
+        status = {"vendors": ["intel"], "power_profiles_api": True}
+        with patch.object(base.client, "choose", side_effect=lambda entries, _prompt: entries[1]) as choose, \
+                patch.object(base.client, "request", side_effect=AssertionError("unexpected status request")):
+            self.assertTrue(base.client.confirm_owner(status, True))
+        self.assertIn("enable custom tuning at boot", choose.call_args.args[0][1])
+        self.assertNotIn("mask PPD", choose.call_args.args[0][1])
+
     def test_start_and_boot_enable_cancel_have_no_mutating_request(self):
         for selection in ("Start Automatic Tuning", "Enable Autostart Tuning at Boot"):
             with self.subTest(selection=selection):

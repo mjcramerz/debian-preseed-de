@@ -208,7 +208,7 @@ def managed_network_command(mode: str, arguments: list[str], *, kind: str = "way
     """
     executable = os.path.realpath(arguments[0])
     for name, policy in APPS.items():
-        if not policy.get("persistent_sandbox", False) and name != "qbittorrent":
+        if not policy.get("persistent_sandbox", False) and name not in {"qbittorrent", "agenda", "calix"}:
             continue
         paths = (policy["exec"], *policy.get("exec_candidates", ()),
                  *MANAGED_EXECUTABLE_ALIASES.get(name, ()))

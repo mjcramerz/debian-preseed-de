@@ -13,7 +13,7 @@ import time
 
 import gi
 gi.require_version('Atspi', '2.0')
-from gi.repository import Atspi, GLib
+from gi.repository import Atspi, GLib, GLibUnix
 
 last_open = 0.0
 
@@ -53,12 +53,18 @@ def main():
         return 1
     loop = GLib.MainLoop()
     for sig in (signal.SIGINT, signal.SIGTERM):
-        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, sig, lambda: (loop.quit(), False)[1])
+        GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, sig, lambda: (loop.quit(), False)[1])
     try:
         loop.run()
     finally:
-        listener.deregister('object:state-changed:showing')
-        Atspi.exit()
+        try:
+            listener.deregister('object:state-changed:showing')
+        except GLib.Error:
+            # The accessibility bus can exit before this session service.
+            # There is no subscription left to remove on a closed bus.
+            pass
+        finally:
+            Atspi.exit()
     return 0
 
 

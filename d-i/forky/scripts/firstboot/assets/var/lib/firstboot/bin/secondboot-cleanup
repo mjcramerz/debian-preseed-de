@@ -77,15 +77,20 @@ finish_cleanup() {
       [ "$cleanup_status" -ne 0 ] || cleanup_status=1
     fi
     systemctl reset-failed firstboot.service crowdsec-firstboot.service \
-      tailscale-bootstrap.service >/dev/null 2>&1 || true
+      tailscale-bootstrap.service fruux-firstboot.service >/dev/null 2>&1 || true
   fi
   exit "$cleanup_status"
 }
 trap finish_cleanup EXIT
 
 bootstrap_processes_exited() {
+  set -- firstboot.service crowdsec-firstboot.service tailscale-bootstrap.service
+  if [ -e "$(root_path /etc/systemd/system/fruux-firstboot.service)" ]; then
+    set -- "$@" fruux-firstboot.service
+  fi
+  bootstrap_unit_count=$#
   bootstrap_fields=$(systemctl show --property=MainPID --property=ControlPID --property=SubState \
-    firstboot.service crowdsec-firstboot.service tailscale-bootstrap.service) || {
+    "$@") || {
     log "could not inspect bootstrap processes; retained boot retry"
     return 2
   }
@@ -113,7 +118,8 @@ bootstrap_processes_exited() {
       *) log "invalid bootstrap process state; retained boot retry"; return 2 ;;
     esac
   done
-  [ "$bootstrap_pid_count" -eq 6 ] && [ "$bootstrap_state_count" -eq 3 ] || {
+  [ "$bootstrap_pid_count" -eq "$((bootstrap_unit_count * 2))" ] && \
+    [ "$bootstrap_state_count" -eq "$bootstrap_unit_count" ] || {
     log "incomplete bootstrap process state; retained boot retry"
     return 2
   }
@@ -161,7 +167,7 @@ defer_cleanup() {
 disable_remove_unit() {
   unit_name=$1
   case "$unit_name" in
-    firstboot.service|crowdsec-firstboot.service|tailscale-bootstrap.service|secondboot.service|secondboot.path) ;;
+    firstboot.service|crowdsec-firstboot.service|tailscale-bootstrap.service|fruux-firstboot.service|secondboot.service|secondboot.path) ;;
     *)
       printf 'fatal: refusing unexpected cleanup unit: %s\n' "$unit_name" >&2
       exit 1
@@ -184,6 +190,38 @@ disable_remove_unit() {
     rm -f -- "${link_dir}/${unit_name}"
   done
   rm -f -- "${systemd_dir}/${unit_name}"
+}
+
+cleanup_fruux_bootstrap() {
+  fruux_helper=$(root_path /var/lib/firstboot/bin/fruux-cleanup)
+  fruux_unit=$(root_path /etc/systemd/system/fruux-firstboot.service)
+  fruux_greetd=$(root_path /etc/systemd/system/greetd.service.d/40-fruux-firstboot.conf)
+  if [ ! -e "$fruux_helper" ] && [ ! -e "$fruux_unit" ] && [ ! -e "$fruux_greetd" ]; then
+    return 0
+  fi
+  # No checkout/fixture may reach a real account or execute a rendered target
+  # helper. The installed helper drops UID before taking the writer's lock.
+  if [ "$SECONDBOOT_ROOT" != / ] || ! regular_file_exists "$fruux_helper"; then
+    defer_cleanup "Fruux completion check is unavailable"
+    return 0
+  fi
+  if "$fruux_helper"; then
+    # The password has been read back from Secret Service and its temporary
+    # input durably removed. Preserve the permanent account/database/receipt.
+    rm -f -- "$fruux_greetd"
+    sync -f "$(dirname "$fruux_greetd")"
+    disable_remove_unit fruux-firstboot.service
+    for fruux_link_dir in "$(root_path /etc/systemd/system)"/*.wants \
+      "$(root_path /etc/systemd/system)"/*.requires; do
+      [ ! -d "$fruux_link_dir" ] || sync -f "$fruux_link_dir"
+    done
+    sync -f "$(root_path /etc/systemd/system)"
+    rm -f -- "$fruux_helper"
+    sync -f "$(dirname "$fruux_helper")"
+    log "removed completed Fruux firstboot unit, login ordering and cleanup helper"
+  else
+    defer_cleanup "Fruux automatic credential delivery has not completed; private input retained if present"
+  fi
 }
 
 cleanup_crowdsec_bootstrap() {
@@ -403,6 +441,7 @@ fi
 # components that still lack their own completion marker.
 cleanup_crowdsec_bootstrap
 cleanup_tailscale_bootstrap
+cleanup_fruux_bootstrap
 
 if [ "$firstboot_marker_present" != true ]; then
   log "removed completed bootstrap artifacts; retained first-boot artifacts until firstboot publishes completion"
@@ -431,10 +470,25 @@ if [ "$cleanup_deferred" = true ]; then
   exit 0
 fi
 
+# Do not remove a source while apparmor-modes is applying it. Retain this
+# cleanup entrypoint and its retry units until the shared policy lock is free.
+if [ "$SECONDBOOT_ROOT" = / ] &&
+   { [ -e /etc/apparmor/modes.conf ] || [ -L /etc/apparmor/modes.conf ]; }; then
+  retirement_status=0
+  /usr/local/libexec/apparmor-modes-run --retire-firstboot || retirement_status=$?
+  case "$retirement_status" in
+    0) ;;
+    75) log "deferred firstboot policy retirement until the policy writer exits"; exit 75 ;;
+    *) log "could not retire firstboot policy; retained cleanup retry artifacts"; exit 1 ;;
+  esac
+else
+  # Console installs have no managed mode writer or helper. An explicit
+  # fixture root never calls a management helper on the host either.
+  rm -f -- "$(root_path /etc/apparmor.d/firstboot)"
+fi
 disable_remove_unit secondboot.path
 rm -f -- "$(root_path /var/lib/firstboot/bin/secondboot-cleanup)"
 disable_remove_unit secondboot.service
-rm -f -- "$(root_path /etc/apparmor.d/firstboot)"
 
 # No bootstrap credentials survive. Permanent TPM reenrollment and release evidence remain.
 rm -f -- "$(root_path /var/lib/firstboot/state/complete)" "$(root_path /var/lib/firstboot/state/lock)"

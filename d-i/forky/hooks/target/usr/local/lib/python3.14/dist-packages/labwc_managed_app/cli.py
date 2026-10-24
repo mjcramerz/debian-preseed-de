@@ -202,6 +202,11 @@ def main(
     wayland_compat: bool = False,
     argv: Sequence[str] | None = None,
 ) -> int:
+    # Public command aliases enter the same launcher and service path. There
+    # is no second wrapper, fixed service or foreground activation process.
+    aliases = {"labwc-agenda": "agenda", "labwc-calendar": "calix"}
+    if argv is None and os.path.basename(sys.argv[0]) in aliases:
+        argv = ["auto", aliases[os.path.basename(sys.argv[0])], *sys.argv[1:]]
     options = _argument_parser(wayland_compat=wayland_compat).parse_args(argv)
     entrypoint = "wayland-compat" if wayland_compat else "native"
     transport = "stderr" if wayland_compat or options.application == "chatgpt" else "syslog"

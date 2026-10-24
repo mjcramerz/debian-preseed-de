@@ -218,9 +218,6 @@ if [ -x /usr/bin/vivaldi-stable ]; then
     chown "$uid:$gid" "$vivaldi_dir"
   done
 fi
-if command -v /usr/local/bin/labwc-sync-application-launchers >/dev/null 2>&1; then
-  /usr/local/bin/labwc-sync-application-launchers "$account_user" "$account_home"
-fi
 # Only normalize account-owned entries. Prune foreign-owned directories before
 # descending or changing modes: NFS bind parents are root-owned and immutable,
 # and their unmounted endpoints must retain mode 0000. -xdev alone is insufficient.
@@ -238,6 +235,8 @@ account_shell=$(getent passwd "$account_user" | cut -d: -f7)
 printf "desktop_account_config user=%s home=%s copied_dirs=%s copied_files=%s shell=%s\n" "$account_user" "$account_home" "$copied_dirs" "$copied_files" "$account_shell"
 ' sh "$ACCOUNT_USERNAME" "$ACCOUNT_HOME" "$(if desktop_kanshi_enabled; then printf true; else printf false; fi)"
   desktop_install_primary_account_calendar_stack
+  run_in_target "synchronize primary account application launchers" \
+    /usr/local/bin/labwc-sync-application-launchers "$ACCOUNT_USERNAME" "$ACCOUNT_HOME"
   desktop_bootstrap_primary_account_gpg_key
   desktop_install_obsidian_repository
   desktop_install_browser_repository

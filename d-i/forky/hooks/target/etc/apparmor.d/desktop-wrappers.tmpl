@@ -698,25 +698,6 @@ profile labwc-brightness-control /usr/local/bin/labwc-brightness-control flags=(
   include if exists <local/usr.local.bin.labwc-brightness-control>
 }
 
-profile labwc-calendar /usr/local/libexec/labwc-calendar flags=(attach_disconnected) {
-  #include <abstractions/wrapper-desktop>
-  /usr/local/libexec/labwc-calendar rix,
-  /usr/local/libexec/labwc-session-check rPx -> labwc-session-check,
-  /usr/bin/systemctl pux,
-  /opt/calix/calix rPx -> calix,
-  signal (receive) peer=unconfined,
-  include if exists <local/usr.local.libexec.labwc-calendar>
-}
-
-profile labwc-calendar-entrypoint /usr/local/bin/labwc-calendar flags=(attach_disconnected) {
-  #include <abstractions/wrapper-base>
-
-  /usr/local/bin/labwc-calendar rix,
-  /usr/local/libexec/labwc-calendar rPx -> labwc-calendar,
-
-  include if exists <local/usr.local.bin.labwc-calendar>
-}
-
 profile labwc-capture /usr/local/bin/labwc-capture flags=(attach_disconnected) {
   #include <abstractions/wrapper-wayland>
 
@@ -2270,7 +2251,7 @@ profile labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected, mediate
   include if exists <local/usr.local.bin.chatgpt>
 }
 
-profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
+profile labwc-app /usr/local/bin/{labwc-app,labwc-agenda,labwc-calendar} flags=(attach_disconnected) {
   #include <abstractions/app-veth-client>
   /etc/qbittorrent/{,qBittorrent.conf.d/,qBittorrent.conf.d/20-managed-privacy.conf} r,
   /etc/labwc/ r,
@@ -2297,6 +2278,14 @@ profile labwc-app /usr/local/bin/labwc-app flags=(attach_disconnected) {
   #include <abstractions/user-documents>
 
   /usr/local/bin/labwc-app rix,
+  /usr/local/bin/{labwc-agenda,labwc-calendar} r,
+  # Exact executable attachments in calendars select these confined profiles.
+  # Avoid named entries here: labwc-app's named transition table is bounded.
+  /usr/local/bin/com.github.dahenson.agenda rpx,
+  /usr/local/share/agenda/{,**} r,
+  /opt/calix/ r,
+  /opt/calix/release.json r,
+  /opt/calix/calix rpx,
   /usr/local/lib/python3.14/dist-packages/ r,
   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,compat_gpu,compat_instance,compat_protocol,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_client,network_namespace,profiles,recovery,runtime,sandbox,session,user_state}.py r,

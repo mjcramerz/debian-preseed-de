@@ -409,14 +409,6 @@ run_network_action() { printf 'UNEXPECTED ACTION\n'; }
             self.assertEqual(result.returncode, 2, result.stderr)
             self.assertEqual(list(Path(temporary).iterdir()), [])
 
-    def test_calendar_picker_errors_are_not_silently_cancelled(self):
-        name = '../libexec/labwc-calendar'
-        helper = function('menu_failure', name) + function('open_menu', name).replace('labwc-fuzzel', 'picker_fixture')
-        helper += '\nrequire_command() { :; }\npicker_fixture() { cat >/dev/null; return "$PICKER_STATUS"; }\nopen_menu'
-        for status in (1, 2):
-            result = shell(helper, env={'PICKER_STATUS': str(status)})
-            self.assertEqual(result.returncode, 0 if status == 1 else status)
-
     def test_hardware_menu_rejects_backend_failure_and_nonexact_output(self):
         # Execute the actual chooser without importing a second hardware module
         # tree into the shared unittest interpreter.

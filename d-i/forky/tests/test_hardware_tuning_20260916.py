@@ -297,6 +297,22 @@ desktop_install_hardware_tuning
                             {"name": "external", "custom/battery": {"on-click": "another original", "states": {"critical": 15}}}]
                 path.write_text(json.dumps(original))
                 installer.install(root, 1000, 1000, environment(), vendors, FORKY / "hooks/target")
+                config = json.loads((root / "etc/hardware-tuning/broker.json").read_text())
+                self.assertEqual(config["power_profiles_api"], "intel" in vendors)
+                api_unit = root / "etc/systemd/system/power-profiles-daemon.service.d/50-hardware-tuning.conf"
+                self.assertEqual(api_unit.exists(), "intel" in vendors)
+                self.assertFalse((root / "etc/systemd/system/power-profiles-daemon.service").exists())
+                if "intel" in vendors:
+                    self.assertIn("User=1000", api_unit.read_text())
+                    self.assertIn("ExecStart=/usr/local/libexec/hardware-tuning-power-profiles", api_unit.read_text())
+                    self.assertIn("ExecStart=\nExecStart=", api_unit.read_text())
+                    self.assertIn("PrivateUsers=no", api_unit.read_text())
+                    self.assertIn("RemoveIPC=no", api_unit.read_text())
+                    self.assertIn("StateDirectory=\n", api_unit.read_text())
+                    self.assertIn("RestrictAddressFamilies=\nRestrictAddressFamilies=AF_UNIX", api_unit.read_text())
+                    for name in ("org.freedesktop.UPower.PowerProfiles", "net.hadess.PowerProfiles"):
+                        activation = root / f"usr/local/share/dbus-1/system-services/{name}.service"
+                        self.assertIn("SystemdService=power-profiles-daemon.service", activation.read_text())
                 installed = json.loads(payload_read_text(path))
                 for before, after in zip(original, installed):
                     self.assertEqual(after["custom/battery"].pop("on-click-right"), installer.CLICK)
@@ -665,6 +681,19 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(knob.resolve("100,900", policy), [100, 900])
 
     @unittest.skipUnless(os.geteuid() == 0, 'recovery requires a root-owned transaction lock fixture')
+    def test_recovery_with_journal_does_not_depend_on_provider_configuration(self):
+        self.backend.add("x", "X", 5)
+        settings = {"X": ("17",) * 4}
+        self.make(settings).apply("high", settings)
+        root = Path(self.temporary.name)
+        (root / "broker.json").write_text('{"power_profiles_api":"invalid"}')
+        with patch.object(engine, "STATE", root), patch.object(engine, "CONFIG", root), \
+                patch.object(engine.importlib, "import_module", return_value=intel), \
+                patch.object(intel, "Backend", return_value=self.backend):
+            self.assertEqual(engine.execute("intel", "reset")["restored"], 1)
+        self.assertEqual(self.backend.values["x"], 5)
+
+    @unittest.skipUnless(os.geteuid() == 0, 'recovery requires a root-owned transaction lock fixture')
     def test_recovery_without_journal_does_not_load_a_driver(self):
         with patch.object(engine, "STATE", Path(self.temporary.name)), patch.object(engine.importlib, "import_module") as load:
             self.assertEqual(engine.execute("nvidia", "reset"), {"restored": 0})
@@ -867,6 +896,23 @@ class NvidiaTests(unittest.TestCase):
 
 
 class SelectionTests(unittest.TestCase):
+    def test_public_holds_use_power_saver_precedence_and_clear_on_manual_change(self):
+        selection = broker.Selection(["intel", "nvidia"])
+        selection.manual = {"intel": "balanced", "nvidia": "balanced"}
+        selection.power_holds["performance"] = 1
+        for vendor in selection.vendors:
+            self.assertEqual(selection.desired(vendor, True, "balanced"), "performance")
+        selection.power_holds["silent"] = 1
+        self.assertEqual(selection.desired("intel", True, "performance"), "silent")
+        self.assertIsNone(selection.desired("intel", False, "performance"))
+        selection.faults["intel"] = "thermal"
+        self.assertIsNone(selection.desired("intel", True, "performance"))
+        generation = selection.power_generation
+        selection.clear_power_holds()
+        self.assertEqual(selection.power_generation, generation + 1)
+        self.assertFalse(selection.power_holds)
+        self.assertEqual(selection.desired("nvidia", True, "performance"), "balanced")
+
     def test_performance_ac_baseline_survives_lower_application_leases(self):
         selection = broker.Selection(["intel", "nvidia"])
         selection.automatic = True
@@ -989,6 +1035,47 @@ class BrokerTests(unittest.IsolatedAsyncioTestCase):
         self.ac = patch.object(broker, "on_ac", return_value=True)
         self.ac.start()
         self.addCleanup(self.ac.stop)
+
+    async def test_public_profiles_apply_to_both_vendors_and_cancel_holds(self):
+        self.work.config["power_profiles_api"] = True
+        for profile in ("silent", "balanced", "performance"):
+            with self.subTest(profile=profile):
+                self.work.selection.power_holds["silent"] = 1
+                generation = self.work.selection.power_generation
+                result = await self.work.action({"action": "power-profile", "profile": profile}, 1000)
+                self.assertEqual(result["applied"], {"intel": profile, "nvidia": profile})
+                self.assertFalse(self.work.selection.power_holds)
+                self.assertGreater(result["power_generation"], generation)
+
+    async def test_public_profile_rejects_unavailable_provider_and_inactive_seat(self):
+        request = {"action": "power-profile", "profile": "balanced"}
+        with self.assertRaisesRegex(common.TuningError, "not installed"):
+            await self.work.action(request, 1000)
+        self.work.config["power_profiles_api"] = True
+        self.work.seat.present = False
+        with self.assertRaisesRegex(common.TuningError, "active local"):
+            await self.work.action(request, 1000)
+        self.assertFalse(self.work.calls)
+
+    async def test_public_profile_retains_failed_recovery_and_does_not_apply(self):
+        self.work.config["power_profiles_api"] = True
+        self.work.fail = ("intel", "reset")
+        with self.assertRaisesRegex(common.TuningError, "acquisition failed"):
+            await self.work.action({"action": "power-profile", "profile": "performance"}, 1000)
+        self.assertIn("intel", self.work.recovery_pending)
+        self.assertEqual(self.work.policy_release, "stop")
+        self.assertNotIn("prepare-runtime", self.work.policy_calls)
+        self.assertFalse(any(action == "apply" for _, action, _ in self.work.calls))
+
+    async def test_public_profile_thermal_fault_restores_both_vendors_and_fails(self):
+        self.work.config["power_profiles_api"] = True
+        await self.work.action({"action": "power-profile", "profile": "balanced"}, 1000)
+        self.work.hot = True
+        with self.assertRaisesRegex(common.TuningError, "could not be applied"):
+            await self.work.action({"action": "power-profile", "profile": "performance"}, 1000)
+        self.assertIn("thermal", self.work.selection.faults["intel"])
+        self.assertFalse(any(self.work.owned.values()))
+        self.assertFalse(any(self.work.selection.manual.values()))
 
     async def test_start_stop_manual_reset_and_full_reset(self):
         await self.work.action({"action": "auto-start", "confirm_policy_owner": True}, 1000)

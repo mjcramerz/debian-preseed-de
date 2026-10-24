@@ -1,7 +1,7 @@
 [Unit]
 Description=Remove completed installer bootstrap artifacts
 Documentation=man:systemd.service(5)
-After=local-fs.target firstboot.service crowdsec-firstboot.service tailscale-bootstrap.service
+After=local-fs.target firstboot.service crowdsec-firstboot.service tailscale-bootstrap.service fruux-firstboot.service
 ConditionPathExists=/var/lib/firstboot/bin/secondboot-cleanup
 
 [Service]

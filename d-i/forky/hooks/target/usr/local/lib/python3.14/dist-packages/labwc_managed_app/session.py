@@ -409,8 +409,10 @@ def redirect_native_from_private_users(
     )
     wayland_display = native_session_wayland_display(environment)
     dependencies = "labwc-session.target"
-    if app_name == "tutanota":
+    if app_name in {"tutanota", "calix"}:
         dependencies += " labwc-kwallet-portal.service"
+    if app_name == "calix":
+        dependencies += " labwc-calendar-credentials.service"
     # The generic entrypoint attaches the generic AppArmor profile when started
     # by systemd. ChatGPT must retain its dedicated profile and private pipes;
     # a tiny fixed-purpose reentry stub performs that explicit transition.

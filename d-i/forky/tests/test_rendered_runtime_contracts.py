@@ -82,9 +82,10 @@ class RenderedRuntimeContractTests(unittest.TestCase):
         with mock.patch.object(Path, 'lstat', wrong_owner), self.assertRaises(SystemExit):
             validate(self.helper)
 
-    def test_runtime_check_precedes_managed_activation(self):
+    def test_installer_does_not_run_the_offline_audit_before_calix_installation(self):
         source = (SCRIPTS / 'labwc.sh').read_text()
-        self.assertLess(source.index('  desktop_stage_target_assets'), source.index('  desktop_verify_runtime_contracts'))
-        for activation in ('  run_in_target "wrap installed desktop package launchers"',
-                           '  desktop_enable_target_services'):
-            self.assertLess(source.index('  desktop_verify_runtime_contracts'), source.index(activation))
+        self.assertNotIn('desktop_verify_', source)
+        self.assertLess(source.index('  desktop_install_user_config'), source.index('  desktop_enable_target_services'))
+        account = (SCRIPTS / 'components/user-config.sh').read_text()
+        self.assertLess(account.index('  desktop_install_primary_account_calendar_stack'),
+                        account.index('    /usr/local/bin/labwc-sync-application-launchers'))

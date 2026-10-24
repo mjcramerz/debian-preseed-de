@@ -1,4 +1,6 @@
 #!/bin/sh
+# Offline audit definitions. The desktop installer does not fetch or source
+# this module; audits may invoke its checks explicitly in an isolated target.
 # Labwc desktop target verification helpers.
 
 desktop_verify_required_commands() {
@@ -58,6 +60,7 @@ for cmd in \
   wlsunset \
   labwc-admin-action \
   labwc-calendar \
+  labwc-agenda \
   labwc-ocr \
   labwc-logout \
   labwc-fuzzel \
@@ -554,6 +557,7 @@ for path in \
   /etc/systemd/system/greetd.service.d/20-labwc-vt.conf \
   /etc/systemd/system/bluetooth-controller-init.service \
   /etc/skel-desktop/.config/systemd/user/labwc-kwallet-portal.service \
+  /etc/skel-desktop/.config/systemd/user/labwc-calendar-credentials.service \
   /etc/skel-desktop/.local/share/dbus-1/services/org.freedesktop.secrets.service \
   /etc/fonts/fonts.conf \
   /usr/local/share/labwc-greeter/rc.xml \
@@ -777,7 +781,7 @@ for path in \
   /usr/local/libexec/labwc-logout-root \
   /usr/local/libexec/labwc-session-state \
   /usr/local/bin/labwc-calendar \
-  /usr/local/libexec/labwc-calendar \
+  /usr/local/bin/labwc-agenda \
     /usr/local/libexec/calix-fruux-bootstrap \
     /usr/local/libexec/labwc-waycal-hover \
   /usr/local/bin/labwc-ocr \
@@ -1045,7 +1049,6 @@ for path in \
   /etc/xdg/xdg-desktop-portal/labwc-portals.conf \
   /etc/bluetooth/main.conf \
   /etc/chromium.d/90-performance-flags \
-  /etc/skel-desktop/.config/systemd/user/labwc-calix.service \
   /etc/skel-desktop/.config/systemd/user/labwc-waycal.service \
   /etc/skel-desktop/.config/systemd/user/labwc-waycal-hover.service \
   /etc/skel-desktop/.config/systemd/user/obsidian-git-sync.service \
@@ -1294,7 +1297,6 @@ for path in \
   "$account_home/.config/systemd/user/labwc-plans.service" \
   "$account_home/.config/systemd/user/labwc-adb-server.service" \
   "$account_home/.config/systemd/user/llama-server.service" \
-  "$account_home/.config/systemd/user/labwc-calix.service" \
   "$account_home/.config/systemd/user/labwc-waycal.service" \
   "$account_home/.config/systemd/user/labwc-waycal-hover.service" \
   "$account_home/.config/systemd/user/obsidian-git-sync.service" \
@@ -1302,6 +1304,7 @@ for path in \
   "$account_home/.config/systemd/user/labwc-sync-application-launchers.service" \
   "$account_home/.config/systemd/user/labwc-sync-application-launchers.path" \
   "$account_home/.config/systemd/user/labwc-kwallet-portal.service" \
+  "$account_home/.config/systemd/user/labwc-calendar-credentials.service" \
   "$account_home/.config/systemd/user/labwc-mute-default-microphone.service" \
   "$account_home/.config/systemd/user/labwc-output-watch.service" \
   "$account_home/.config/systemd/user/swaybg.service" \
@@ -1371,6 +1374,7 @@ for session_unit in \
   crystal-dock.service \
   labwc-mute-default-microphone.service \
   labwc-kwallet-portal.service \
+  labwc-calendar-credentials.service \
   labwc-plans.service \
   labwc-waycal-hover.service \
   labwc-sync-application-launchers.service \
@@ -1416,7 +1420,6 @@ for on_demand_or_triggered_unit in \
   codex-app-server-proxy.service \
   codex-app-server.socket \
   labwc-adb-server.service \
-  labwc-calix.service \
   labwc-waycal.service \
   labwc-compositor.service \
   labwc-health-notify.path \
@@ -2189,10 +2192,16 @@ def require(ok, message):
 # Import the GTK typelib without requiring a display in the installer chroot.
 import gi
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk
+gi.require_version("Secret", "1")
+gi.require_version("GLibUnix", "2.0")
+from gi.repository import GLibUnix, Gtk, Secret
+from icalendar import Calendar, Event, Todo
+from defusedxml import ElementTree
 require(Gtk.get_major_version() == 3, "notification center requires GTK3")
+require(callable(GLibUnix.signal_add) and Secret.Service and Calendar and Event and Todo
+        and callable(ElementTree.fromstring), "calendar runtime APIs are missing")
 
-for name in ("labwc-tomat", "labwc-tomat-hook", "labwc-notifications", "labwc-calendar"):
+for name in ("labwc-tomat", "labwc-tomat-hook", "labwc-notifications"):
     path = Path("/usr/local/libexec") / name
     info = path.lstat()
     require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and stat.S_IMODE(info.st_mode) == 0o755,
@@ -2248,8 +2257,12 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
                                     ("pulseaudio", "audio", "on-click"),
                                     ("custom/notifications", "notifications", "on-click"),
                                     ("custom/power", "power", "on-click"),
-                                    ("clock", "calendar", "on-click-right")):
+                                    ("clock", "calendar", "on-click")):
             entry = bar[module]
+            if name == "calendar":
+                require(entry.get("format-alt-click") == 1
+                        and entry.get("format-alt") == "{:%a, %d %b %Y W%V - %H.%M}",
+                        "clock left click/compact alternate format differs")
             require(entry.get("menu") == event and event not in entry
                     and event + "-release" not in entry
                     and event not in entry.get("actions", {}), "native menu event conflict: " + name)
@@ -2417,6 +2430,35 @@ require(len(sys.argv) == 4 and sys.argv[3] in {"code-only", "with-account", "acc
         "expected account, greeter and verification stage")
 for label, value in zip(("account", "greeter"), sys.argv[1:3]):
     configured_identifier(label, value)
+trusted(Path("/usr/local/bin/labwc-app"), True)
+for name in ("labwc-agenda", "labwc-calendar"):
+    path = Path("/usr/local/bin") / name
+    meta = path.lstat()
+    require(stat.S_ISLNK(meta.st_mode) and meta.st_uid == 0 and meta.st_gid == 0
+            and os.readlink(path) == "labwc-app", "unmanaged calendar command: " + name)
+for path in ("/usr/local/libexec/calix-fruux-bootstrap", "/opt/calix/calix",
+             "/usr/local/libexec/labwc-calendar-actions", "/usr/local/libexec/labwc-calendar-worker",
+             "/usr/local/bin/com.github.dahenson.agenda"):
+    trusted(Path(path), True)
+for path in ("/usr/local/share/agenda/schemas/gschemas.compiled", "/opt/calix/release.json"):
+    trusted(Path(path))
+for path, executable in (("/var/lib/firstboot/bin/fruux-cleanup", True),
+                         ("/etc/systemd/system/fruux-firstboot.service", False),
+                         ("/etc/systemd/system/greetd.service.d/40-fruux-firstboot.conf", False)):
+    asset = Path(path)
+    trusted(asset, executable)
+    meta = asset.lstat()
+    require(meta.st_gid == 0 and meta.st_nlink == 1 and 0 < meta.st_size <= 16384
+            and stat.S_IMODE(meta.st_mode) == (0o755 if executable else 0o644),
+            "unsafe Fruux boot policy: " + path)
+    with asset.open("rb") as stream:
+        raw = stream.read(16385)
+    require(len(raw) <= 16384, "oversized Fruux boot policy")
+    text = source_text(asset, raw)
+    if executable:
+        ast.parse(text, filename=path)
+        require("pwd.getpwnam(" + repr(sys.argv[1]) + ")" in text,
+                "Fruux cleanup account differs")
 # This verifier runs before service enablement; the broader staged-file audit
 # is deliberately skipped during installer late-command.
 lynis_unit = Path("/etc/systemd/system/lynis.service.d/40-logging.conf")

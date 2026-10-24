@@ -25,6 +25,13 @@ class TuningError(RuntimeError):
     """An operation could not be completed safely; do not silently downgrade it."""
 
 
+def power_profiles_api(config: dict) -> bool:
+    value = config.get("power_profiles_api", False)
+    if type(value) is not bool or value and "intel" not in config.get("vendors", []):
+        raise TuningError("invalid custom Power Profiles provider configuration")
+    return value
+
+
 def strict_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:

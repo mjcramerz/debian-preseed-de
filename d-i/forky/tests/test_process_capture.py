@@ -181,6 +181,40 @@ for my $raw (0, 17 << 8, 9, 124 << 8) {
                 if payload_source_exists(path):
                     self.assertEqual(payload_read_text(path).split(") ", 1)[1][0], "Z")
 
+    def test_artifact_progress_renews_only_the_opted_in_inactivity_deadline(self) -> None:
+        runner = r'''
+use Managed::Process qw(capture_command);
+use JSON::PP qw(encode_json);
+my ($path, $mode) = (shift @ARGV, shift @ARGV);
+my %options;
+$options{progress} = sub { return -e $path ? -s $path : 0; } if $mode ne 'total';
+my $result = capture_command(argv => \@ARGV, timeout => 0.6, limit => 4096, %options);
+print encode_json($result);
+'''
+        writer = ("import sys,time; "
+                  "f=open(sys.argv[1],'wb',buffering=0); "
+                  "[(f.write(b'x'),time.sleep(0.15)) for _ in range(12)]")
+        noisy_stall = ("import sys,time; "
+                       "f=open(sys.argv[1],'wb',buffering=0); f.write(b'x'); "
+                       "[(print('waiting',flush=True),time.sleep(0.1)) for _ in range(30)]")
+        with tempfile.TemporaryDirectory(prefix='capture-progress-') as directory:
+            for mode, child, expected in (
+                ('progress', writer, 0),
+                ('total', writer, 124 << 8),
+                ('stalled', noisy_stall, 124 << 8),
+            ):
+                with self.subTest(mode=mode):
+                    path = Path(directory) / mode
+                    result = subprocess.run(
+                        ['/usr/bin/perl', '-I', str(LIB), '-e', runner, str(path), mode,
+                         '/usr/bin/python3', '-I', '-S', '-c', child, str(path)],
+                        env={'PATH': '/usr/bin:/bin', 'HOME': directory, 'LC_ALL': 'C'},
+                        stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=6)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(json.loads(result.stdout)['status'], expected)
+                    if mode == 'progress':
+                        self.assertEqual(path.read_bytes(), b'x' * 12)
+
     def test_descendant_retaining_pipe_is_bounded_after_parent_exit(self) -> None:
         code = "import os,time; child=os.fork(); os._exit(0) if child else time.sleep(30)"
         result = self.run_capture("/usr/bin/python3", "-c", code, seconds=0.2)

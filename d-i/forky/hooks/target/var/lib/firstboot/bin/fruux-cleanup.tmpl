@@ -1,0 +1,23 @@
+#!/usr/bin/python3 -I
+"""Check Fruux completion as the configured user, never as root."""
+import os
+import pwd
+import sys
+
+try:
+    if os.getuid() != 0 or len(sys.argv) != 1:
+        raise ValueError('invalid cleanup caller')
+    account = pwd.getpwnam('__INSTALLER_ACCOUNT_USERNAME__')
+    if account.pw_uid == 0 or not account.pw_dir.startswith('/'):
+        raise ValueError('invalid desktop account')
+    # Drop all root authority before opening any desktop state. exec uses
+    # only the installed root-owned helper with isolated Python imports.
+    os.setgroups([])
+    os.setgid(account.pw_gid)
+    os.setuid(account.pw_uid)
+    os.execve('/usr/local/libexec/calix-fruux-bootstrap',
+              ['/usr/local/libexec/calix-fruux-bootstrap', '--check-complete'],
+              {'PATH': '/usr/bin:/bin', 'HOME': account.pw_dir, 'LC_ALL': 'C.UTF-8'})
+except Exception:
+    print('fruux-cleanup: completion check unavailable; setup artifacts retained', file=sys.stderr)
+    raise SystemExit(1) from None

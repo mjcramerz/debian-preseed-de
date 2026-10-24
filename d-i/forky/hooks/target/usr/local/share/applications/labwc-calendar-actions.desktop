@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Fruux Calendar Actions
+Comment=Manage Fruux events and tasks
+Exec=/usr/local/libexec/labwc-calendar-actions event-manage
+TryExec=/usr/local/libexec/labwc-calendar-actions
+Icon=com.ianswope.Calix
+StartupWMClass=labwc-calendar-actions
+NoDisplay=true
+Terminal=false
+Categories=Office;Calendar;

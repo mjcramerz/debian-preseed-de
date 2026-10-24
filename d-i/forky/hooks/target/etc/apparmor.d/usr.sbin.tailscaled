@@ -193,6 +193,8 @@ profile tailscale-netkit /usr/local/libexec/tailscale-netkit flags=(attach_disco
   @{PROC}/1/ns/mnt r,
   @{PROC}/filesystems r,
   @{PROC}/sys/net/ipv4/ip_forward rw,
+  # Constructor sets this only after entering the pinned private network NS.
+  @{PROC}/sys/net/ipv6/ip_nonlocal_bind rw,
   @{PROC}/sys/net/{ipv4,ipv6}/conf/*/{rp_filter,route_localnet,forwarding} rw,
   /net:\[[0-9]*\] r,
   /mnt:\[[0-9]*\] r,

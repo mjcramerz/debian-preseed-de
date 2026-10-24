@@ -38,6 +38,39 @@ profile hardware-tuning-broker /usr/local/libexec/hardware-tuningd flags=(attach
   # No sysfs writes, device nodes, capabilities, arbitrary exec, or network.
 }
 
+profile hardware-tuning-power-profiles /usr/local/libexec/hardware-tuning-power-profiles flags=(attach_disconnected, mediate_deleted) {
+  # Unprivileged API only: no worker execution, hardware writes or unit control.
+  #include <abstractions/base>
+  #include <abstractions/python>
+  #include <abstractions/dbus-strict>
+  /usr/bin/python3 rix,
+  /usr/bin/python3.[0-9]* rix,
+  /usr/local/libexec/hardware-tuning-power-profiles r,
+  /usr/local/lib/hardware_tuning/ r,
+  /usr/local/lib/hardware_tuning/{common,client,power_profiles}.py r,
+  /usr/lib/python3/dist-packages/gi/{,**} mr,
+  /usr/lib/@{multiarch}/girepository-1.0/ r,
+  /usr/lib/@{multiarch}/girepository-1.0/{GLib,GLibUnix,GObject,GModule,Gio,GioUnix}-2.0.typelib mr,
+  /usr/lib/@{multiarch}/girepository-1.0/GIRepository-{2.0,3.0}.typelib mr,
+  /etc/{group,nsswitch.conf,passwd,machine-id} r,
+  /run/hardware-tuning/ r,
+  /run/hardware-tuning/control.sock rw,
+  /run/dbus/system_bus_socket rw,
+  unix,
+  dbus (bind) bus=system name={org.freedesktop.UPower.PowerProfiles,net.hadess.PowerProfiles},
+  dbus (send) bus=system path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus
+    member={Hello,RequestName,ReleaseName,AddMatch,RemoveMatch,GetConnectionUnixUser}
+    peer=(name=org.freedesktop.DBus),
+  dbus (receive) bus=system peer=(name=org.freedesktop.DBus),
+  dbus (send, receive) bus=system
+    path={/org/freedesktop/UPower/PowerProfiles,/net/hadess/PowerProfiles}
+    interface={org.freedesktop.UPower.PowerProfiles,net.hadess.PowerProfiles,org.freedesktop.DBus.Properties,org.freedesktop.DBus.Introspectable,org.freedesktop.DBus.Peer},
+  signal (receive) peer=unconfined,
+  deny owner @{HOME}/.local/lib/python*/** mrwkl,
+  deny owner @{HOME}/.cache/Python/** rwkl,
+}
+
 profile hardware-tuning-worker /usr/local/libexec/hardware-tuning-worker flags=(attach_disconnected, mediate_deleted) {
   # Deliberately NOT wrapper-python: that abstraction permits shells.
   #include <abstractions/base>

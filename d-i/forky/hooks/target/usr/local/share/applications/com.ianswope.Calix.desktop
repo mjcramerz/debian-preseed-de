@@ -2,7 +2,8 @@
 Type=Application
 Name=Calix
 Comment=Calendar and Fruux events
-Exec=/usr/local/bin/labwc-calendar
+Exec=/usr/local/bin/labwc-app auto calix
+TryExec=/opt/calix/calix
 Icon=com.ianswope.Calix
 Terminal=false
 Categories=Office;Calendar;

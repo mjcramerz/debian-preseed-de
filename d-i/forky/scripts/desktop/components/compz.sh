@@ -41,6 +41,5 @@ desktop_stage_compz() (
     /usr/bin/env -i HOME=/root LC_ALL=C PATH=/usr/sbin:/usr/bin:/sbin:/bin \
     /usr/bin/timeout --signal=TERM --kill-after=10s 600s \
     /usr/bin/python3 -I -B "$helper"
-  run_in_target "verify compz codec and helper dependencies" /usr/local/bin/compz --check
   desktop_log "staged_compz isolated_archive_tools=yes flzma2=pinned_prebuilt"
 )

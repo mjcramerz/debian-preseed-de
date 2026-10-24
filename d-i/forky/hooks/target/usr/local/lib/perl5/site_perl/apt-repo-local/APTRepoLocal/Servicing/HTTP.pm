@@ -5,7 +5,6 @@ use warnings;
 
 use Moo;
 use MooX::StrictConstructor;
-use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use lib '/usr/local/lib/perl5/site_perl/runtime';
 
 use APTRepoLocal::Servicing::Atomic;
@@ -48,30 +47,44 @@ sub download {
     my $partial = "$args{destination}.part";
     unlink $partial if -e $partial || -l $partial;
     my $url = $args{url};
-    my $deadline = clock_gettime(CLOCK_MONOTONIC) + 1200;
     my ($status, $effective, $content_type);
     my $ok = eval {
         for my $hop (0 .. 8) {
             # curl never follows a redirect itself. Validate every resolved next
             # URL before contacting it, including intermediate and same-host hops.
             $self->_allow($url, $args{allowed_hosts});
-            my $remaining = $deadline - clock_gettime(CLOCK_MONOTONIC);
-            $remaining > 0 or die "$args{label} download timed out\n";
-            my $seconds = $remaining < 300 ? $remaining : 300;
-            my $retry_seconds = int($remaining) || 1;
             my @command = (
                 '/usr/bin/curl', '--disable', '--fail', '--silent', '--show-error',
                 '--proto', '=https', '--proto-redir', '=https', '--connect-timeout', '15',
-                '--max-time', "$seconds", '--max-redirs', '0', '--retry', '3', '--retry-delay', '2',
-                '--retry-max-time', "$retry_seconds",
+                '--speed-limit', '1', '--speed-time', '300',
+                '--max-redirs', '0', '--retry', '3', '--retry-delay', '2',
                 '--retry-all-errors', '--max-filesize', $args{maximum},
                 '--user-agent', $user_agent,
                 '--header', 'Accept: application/octet-stream, application/vnd.debian.binary-package;q=0.9, */*;q=0.1',
                 '--output', $partial, '--write-out', "%{http_code}\n%{url_effective}\n%{content_type}\n%{redirect_url}",
                 '--url', $url,
             );
-            my $result = Managed::Process::capture_command(argv => \@command, timeout => $remaining, limit => 16384);
-            $result->{status} == 0 or die "$args{label} download failed\n";
+            # curl owns connection/stall detection and three retries. The
+            # supervisor allows those attempts plus cleanup, renewing its
+            # deadline whenever the private partial file changes size. A slow
+            # transfer can finish regardless of its total elapsed duration.
+            my $result = Managed::Process::capture_command(
+                argv => \@command, timeout => 1500, limit => 16384,
+                progress => sub {
+                    my @st = lstat $partial;
+                    return q{} if !@st && $!{ENOENT};
+                    @st && -f _ && !-l _ or die "unsafe HTTP partial file\n";
+                    return "$st[0]:$st[1]:$st[7]";
+                },
+            );
+            if ($result->{status} != 0) {
+                my $reason = ($result->{error} // q{}) eq 'timeout'
+                    ? 'transfer made no progress through its retry window'
+                    : ($result->{status} & 127)
+                        ? 'curl terminated by signal ' . ($result->{status} & 127)
+                        : 'curl transport error (exit ' . ($result->{status} >> 8) . ')';
+                die "$args{label} download failed: $reason\n";
+            }
             my $next;
             ($status, $effective, $content_type, $next) = split /\n/, $result->{stdout}, 4;
             defined($effective) or die "$args{label} effective URL is invalid\n";

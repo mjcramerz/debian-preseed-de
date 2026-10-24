@@ -73,6 +73,30 @@ WAYLAND_COMPAT_RUNTIME_ROOT = "/opt/xwayland"
 
 
 APPS = {
+    "calix": {
+        "exec": "/opt/calix/calix",
+        "env": {"GDK_BACKEND": "wayland"},
+        "args": [],
+        "bind_workspace": False,
+        "pure_privacy": False,
+        "required_runtime_files": ("/opt/calix/release.json",),
+    },
+    "agenda": {
+        "exec": "/usr/local/bin/com.github.dahenson.agenda",
+        "env": {"GDK_BACKEND": "wayland",
+                # Agenda explicitly sets a GtkHeaderBar; GTK_CSD alone does
+                # not disable it. Keep the packaged interposer app-local.
+                "GTK_CSD": "0",
+                "LD_PRELOAD": "/usr/lib/x86_64-linux-gnu/libgtk-nocsd.so.0",
+                "GSETTINGS_SCHEMA_DIR": "/usr/local/share/agenda/schemas"},
+        "args": [],
+        "bind_workspace": False,
+        "pure_privacy": False,
+        "required_runtime_files": (
+            "/usr/local/share/agenda/schemas/gschemas.compiled",
+            "/usr/lib/x86_64-linux-gnu/libgtk-nocsd.so.0",
+        ),
+    },
     "tor-browser": {
         "exec": "/usr/local/libexec/tor-browser-run",
         "env": {"MOZ_ENABLE_WAYLAND": "1", "GDK_BACKEND": "wayland", "MOZ_CRASHREPORTER_DISABLE": "1"},
@@ -971,6 +995,9 @@ OBSIDIAN_VAULT_RELATIVE_PATH = "Syncthing/obsidian-md"
 OBSIDIAN_REGISTRY_MAX_BYTES = 1024 * 1024
 
 MANAGED_RUNTIME_STATE = {
+    "agenda": {
+        "directories": ((".local/share/agenda", 0o700),),
+    },
     "bitwarden": {
         "directories": (
             (".config/autostart", 0o700),

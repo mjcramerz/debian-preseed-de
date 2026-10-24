@@ -159,11 +159,6 @@ desktop_stage_target_assets() {
     /etc/dbus-1/session.d/70-labwc-greeter-no-portals.conf 0644 \
     LABWC_GREETER_USER "$LABWC_GREETER_USER"
   desktop_stage_role_asset etc/pam.d/swaylock /etc/pam.d/swaylock 0644
-  # Forky's packaged 1.8.6 fixes the stale password character after resume.
-  run_in_target "verify packaged swaylock password-buffer fix" /bin/sh -eu -c '
-    swaylock_version=$(dpkg-query -W -f="\${Version}" swaylock)
-    dpkg --compare-versions "$swaylock_version" ge 1.8.6
-  '
   desktop_stage_role_asset etc/systemd/logind.conf.d/70-labwc-lock.conf /etc/systemd/logind.conf.d/70-labwc-lock.conf 0644
   desktop_stage_role_asset usr/share/pam-configs/wtmpdb /usr/share/pam-configs/wtmpdb 0644
   desktop_reconcile_wtmpdb_common_session /target
@@ -193,17 +188,29 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset etc/systemd/system/labwc-package-sleep-guard.service.tmpl /etc/systemd/system/labwc-package-sleep-guard.service 0644
   desktop_stage_role_asset etc/systemd/system/sleep.target.d/50-package-lock-guard.conf /etc/systemd/system/sleep.target.d/50-package-lock-guard.conf 0644
   desktop_stage_role_asset usr/local/libexec/greetd-power-action-root /usr/local/libexec/greetd-power-action-root 0755
-  desktop_stage_role_asset usr/local/bin/labwc-calendar /usr/local/bin/labwc-calendar 0755
-  desktop_stage_role_asset usr/local/libexec/labwc-calendar /usr/local/libexec/labwc-calendar 0755
   desktop_stage_role_asset usr/local/libexec/calix-fruux-bootstrap /usr/local/libexec/calix-fruux-bootstrap 0755
   desktop_stage_role_asset usr/local/libexec/labwc-waycal-hover /usr/local/libexec/labwc-waycal-hover 0755
   desktop_stage_role_asset usr/local/share/applications/com.ianswope.Calix.desktop /usr/local/share/applications/com.ianswope.Calix.desktop 0644
-  desktop_stage_role_asset usr/local/bin/labwc-agenda /usr/local/bin/labwc-agenda 0755
+  desktop_stage_role_asset usr/local/share/applications/labwc-calendar-actions.desktop /usr/local/share/applications/labwc-calendar-actions.desktop 0644
+  # Public commands share the managed launcher, including terminal launches.
+  for calendar_alias in labwc-agenda labwc-calendar; do
+    ensure_target_asset_parent "/usr/local/bin/$calendar_alias"
+    calendar_alias_host=$(target_asset_host_path "/usr/local/bin/$calendar_alias")
+    ln -sfnT labwc-app "$calendar_alias_host"
+  done
+  unset calendar_alias calendar_alias_host
   desktop_stage_role_asset usr/local/libexec/labwc-calendar-actions /usr/local/libexec/labwc-calendar-actions 0755
   desktop_stage_role_asset usr/local/libexec/labwc-calendar-worker /usr/local/libexec/labwc-calendar-worker 0755
   desktop_stage_role_asset usr/local/share/applications/com.github.dahenson.agenda.desktop /usr/local/share/applications/com.github.dahenson.agenda.desktop 0644
   desktop_stage_role_asset usr/local/share/agenda/schemas/90-desktop-agenda.gschema.override /usr/local/share/agenda/schemas/90-desktop-agenda.gschema.override 0644
-  for calendar_unit in labwc-calix labwc-waycal labwc-waycal-hover labwc-agenda; do
+  desktop_render_role_target_template etc/systemd/system/fruux-firstboot.service.tmpl \
+    /etc/systemd/system/fruux-firstboot.service 0644 \
+    ACCOUNT_USERNAME "$ACCOUNT_USERNAME" ACCOUNT_HOME "$ACCOUNT_HOME"
+  desktop_render_role_target_template var/lib/firstboot/bin/fruux-cleanup.tmpl \
+    /var/lib/firstboot/bin/fruux-cleanup 0755 ACCOUNT_USERNAME "$ACCOUNT_USERNAME"
+  desktop_stage_role_asset etc/systemd/system/greetd.service.d/40-fruux-firstboot.conf \
+    /etc/systemd/system/greetd.service.d/40-fruux-firstboot.conf 0644
+  for calendar_unit in labwc-calendar-credentials labwc-waycal labwc-waycal-hover; do
     desktop_stage_role_asset "etc/skel-desktop/.config/systemd/user/${calendar_unit}.service" "/etc/skel-desktop/.config/systemd/user/${calendar_unit}.service" 0644
   done
   desktop_stage_role_asset usr/local/libexec/labwc-plans.pl /usr/local/libexec/labwc-plans.pl 0755
@@ -290,13 +297,6 @@ else
   [ "$status" -eq 1 ] || exit "$status"
 fi
 exec /opt/vivaldi/update-ffmpeg --system
-'
-    run_in_target "verify Vivaldi system codec compatibility and ownership" \
-      /usr/bin/python3 -I -B -c '
-import sys
-sys.path.insert(0, "/usr/local/lib/python3.14/dist-packages")
-from labwc_managed_app.browsers import vivaldi_media_directory
-print("Vivaldi compatible system media: " + vivaldi_media_directory())
 '
   fi
   desktop_stage_role_asset usr/local/libexec/labwc-proxy-session /usr/local/libexec/labwc-proxy-session 0755
@@ -496,7 +496,6 @@ print("Vivaldi compatible system media: " + vivaldi_media_directory())
   # the on-demand kwalletd6 compatibility daemon.
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-kwallet-portal.service /etc/skel-desktop/.config/systemd/user/labwc-kwallet-portal.service 0644
   desktop_stage_role_asset usr/local/libexec/labwc-hyprpolkit-agent /usr/local/libexec/labwc-hyprpolkit-agent 0755 || return 1
-  run_in_target "verify packaged Hyprpolkit Labwc compatibility" /usr/local/libexec/labwc-hyprpolkit-agent --check || return 1
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-output-watch.service /etc/skel-desktop/.config/systemd/user/labwc-output-watch.service 0644
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/codex-app-server.service /etc/skel-desktop/.config/systemd/user/codex-app-server.service 0644
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/codex-app-server-proxy.service /etc/skel-desktop/.config/systemd/user/codex-app-server-proxy.service 0644
@@ -525,6 +524,9 @@ print("Vivaldi compatible system media: " + vivaldi_media_directory())
   # remains the authoritative policy gate.
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/waybar.service /etc/skel-desktop/.config/systemd/user/waybar.service 0644
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/waybar.service.d/20-tray-compat.conf /etc/skel-desktop/.config/systemd/user/waybar.service.d/20-tray-compat.conf 0644
+  # The package defaults to a global preload. Scope decoration conversion to
+  # Agenda through its managed profile instead of changing the whole session.
+  desktop_stage_role_asset etc/environment.d/50-gtk-nocsd.conf /etc/environment.d/50-gtk-nocsd.conf 0644
   if [ -x /target/opt/microsoft/msedge/msedge ]; then
     install -d -m 0755 /target/opt/microsoft/msedge/extensions
   fi

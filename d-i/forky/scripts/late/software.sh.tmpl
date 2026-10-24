@@ -907,6 +907,8 @@ software_download() {
   destination_host_path="${target_root}${destination}"
   partial_host_path="${target_root}${partial_destination}"
 
+  software_info "downloading ${label}; active transfers have no elapsed-time cutoff"
+
   case "$content_policy" in
     artifact|metadata|signature) ;;
     *) software_fatal "$label content policy is unsupported: $content_policy" ;;
@@ -933,6 +935,7 @@ software_download() {
       LC_ALL=C \
       PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
       /usr/bin/curl \
+        --disable \
         --fail \
         --silent \
         --show-error \
@@ -940,7 +943,8 @@ software_download() {
         --proto '=https' \
         --proto-redir '=https' \
         --connect-timeout 15 \
-        --max-time 300 \
+        --speed-limit 1 \
+        --speed-time 300 \
         --max-redirs 8 \
         --retry 3 \
         --retry-all-errors \

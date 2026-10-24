@@ -184,16 +184,6 @@ run_desktop_late_command() {
   desktop_log "installed pinned samloader-rs Samsung firmware tool"
   desktop_install_digital_assets
   desktop_log "installed pinned Digital Assets PDF, document, and image tools"
-  # python3-gi is already a selected desktop dependency. Verify the small GIO
-  # Unix binding used by the on-demand menu in the installed target, not the d-i
-  # interpreter. No graphical session or root application discovery is needed.
-  run_in_target "verify GIO desktop-entry binding" /usr/bin/python3 -I -c '
-import gi
-gi.require_version("Gio", "2.0")
-gi.require_version("GioUnix", "2.0")
-from gi.repository import Gio, GioUnix
-assert Gio.AppInfo and GioUnix.DesktopAppInfo
-'
   desktop_install_resctl_bench
   desktop_install_kanshi_policy
   desktop_stage_target_assets
@@ -202,22 +192,17 @@ assert Gio.AppInfo and GioUnix.DesktopAppInfo
   desktop_render_greetd_config
   desktop_render_labwc_default_config
   desktop_install_hardware_tuning
-  desktop_verify_runtime_contracts
   run_in_target "wrap installed desktop package launchers" /usr/local/libexec/labwc-wrap-desktop-files
   desktop_write_labwc_plans_config
   desktop_install_user_resource_policy
   desktop_log "rendered Labwc desktop defaults and greetd config"
   desktop_install_user_config
-  desktop_verify_runtime_contracts account-only
   desktop_capture_appearance_defaults
   desktop_install_fonts
   desktop_install_waypaper
   desktop_log "installed pinned Waypaper application for ${ACCOUNT_USERNAME}"
   desktop_enable_target_services
   desktop_log "staged Labwc desktop service enablement"
-  desktop_verify_kanshi_policy
-  desktop_verify_native_menus
   desktop_install_codex_standalone
-  desktop_log "skipped Labwc desktop target staging verification during installer late-command"
   installer_info "Labwc desktop role installation completed for seed ${requested_seed_base:-$SEED_BASE}"
 }

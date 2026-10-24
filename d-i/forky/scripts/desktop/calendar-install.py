@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import gzip
 import io
 import json
@@ -23,6 +24,10 @@ import urllib.request
 
 
 class Error(ValueError):
+    pass
+
+
+class DownloadUnavailable(Error):
     pass
 
 
@@ -68,40 +73,54 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def download(url: str, digest: str, maximum: int) -> bytes:
+    # Retry only release acquisition, before publishing files or credentials.
+    # Each socket operation has a stall timeout; active streams have no total
+    # elapsed-time cap. Restart from the pinned URL to renew signed redirects.
+    for attempt in range(4):
+        try:
+            return download_attempt(url, digest, maximum)
+        except (OSError, http.client.HTTPException, DownloadUnavailable):
+            if attempt == 3:
+                raise Error('calendar release transport failed after retries') from None
+            time.sleep(2 ** attempt)
+    raise Error('calendar release transport failed after retries')
+
+
+def download_attempt(url: str, digest: str, maximum: int) -> bytes:
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
-    deadline = time.monotonic() + 180
     for hop in range(5):
         parsed = urllib.parse.urlsplit(url)
         if (parsed.scheme != 'https' or parsed.hostname not in {
                 'github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'}
                 or parsed.username or parsed.password or parsed.fragment or parsed.port not in (None, 443)):
             raise Error('calendar release redirect rejected')
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise Error('calendar release download deadline exceeded')
         try:
             response = opener.open(urllib.request.Request(url, headers={'User-Agent': 'preseed-calendar-installer'}),
-                                   timeout=min(10, remaining))
+                                   timeout=300)
         except urllib.error.HTTPError as error:
             with error:
+                if error.code in {408, 429} or 500 <= error.code <= 599:
+                    raise DownloadUnavailable('calendar release endpoint is temporarily unavailable') from None
                 location = error.headers.get('Location')
                 if error.code not in {301, 302, 303, 307, 308} or not location or hop == 4:
                     raise Error('calendar release HTTP failure') from None
                 url = urllib.parse.urljoin(url, location)
                 continue
         with response:
+            length = response.headers.get('Content-Length')
+            if length is not None and (not re.fullmatch(r'[0-9]{1,12}', length)
+                                       or int(length) > maximum):
+                raise Error('calendar release content length exceeds its limit or is invalid')
             data = bytearray()
             while True:
-                if time.monotonic() >= deadline:
-                    raise Error('calendar release download deadline exceeded')
                 block = response.read1(min(65536, maximum + 1 - len(data)))
-                if time.monotonic() >= deadline:
-                    raise Error('calendar release download deadline exceeded')
                 if not block:
                     break
                 data.extend(block)
                 if len(data) > maximum:
                     raise Error('calendar release download limit exceeded')
+            if length is not None and len(data) != int(length):
+                raise DownloadUnavailable('calendar release transfer was interrupted')
         if hashlib.sha256(data).hexdigest() != digest:
             raise Error('calendar release SHA-256 mismatch')
         return bytes(data)
@@ -167,6 +186,7 @@ def install_agenda() -> None:
     schema = 'rootfs/usr/share/glib-2.0/schemas/' + app + '.gschema.xml'
     license_path = 'rootfs/usr/share/doc/agenda/copyright'
     icon = 'rootfs/usr/share/icons/hicolor/128x128/apps/' + app + '.svg'
+    print('calendar-install: downloading pinned Agenda 1.2.1', file=sys.stderr)
     assets = members(download(url, digest, 1048576), 'agenda-1.2.1-debian-amd64',
                      {binary, schema, license_path, icon, 'BUILD-INFO.json', 'prefix.txt'}, agenda=True)
     elf(assets[binary])
@@ -244,7 +264,8 @@ def bootstrap(stage: Path, account: pwd.struct_passwd) -> None:
             raise Error('invalid private Fruux input')
         credentials[field] = data.decode('utf-8')
     credentials['username'] = credentials['username'].strip()
-    if not credentials['username'] or any(ord(c) < 32 for c in credentials['username']):
+    if (not credentials['username'] or ':' in credentials['username']
+            or any(ord(c) < 32 or ord(c) == 127 for c in credentials['username'])):
         raise Error('invalid Fruux account identifier')
     path = destination / 'fruux-bootstrap.json'
     # Never replace user-owned credentials on a repeated installation step.
@@ -295,6 +316,7 @@ def main() -> None:
     }
     candidates = []
     for app, (version, commit, digest, repository, root, binary) in pins.items():
+        print(f'calendar-install: downloading pinned {app} {version}', file=sys.stderr)
         prefix = app.upper()
         url = f'https://github.com/{repository}/releases/download/v{version}/{root}.tar.gz'
         if any(os.environ.get(prefix + '_' + field) != value for field, value in {
@@ -327,7 +349,11 @@ def main() -> None:
 if __name__ == '__main__':
     try:
         main()
-    except Exception:
+    except Error as error:
+        # Our errors contain fixed diagnostics, never upstream URLs or secrets.
+        print(f'calendar-install: installation failed: {error}', file=sys.stderr)
+        raise SystemExit(1) from None
+    except Exception as error:
         # Upstream exceptions can include URLs or credential-derived values.
-        print('calendar-install: installation failed; private inputs retained until installer cleanup', file=sys.stderr)
+        print(f'calendar-install: installation failed ({type(error).__name__})', file=sys.stderr)
         raise SystemExit(1) from None

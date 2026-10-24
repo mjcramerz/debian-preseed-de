@@ -1,0 +1,52 @@
+[Unit]
+Description=Power Profiles API for the managed hardware tuning broker
+Requires=hardware-tuning.socket hardware-tuning.service
+After=dbus.service hardware-tuning.socket hardware-tuning.service
+PartOf=hardware-tuning.service
+
+[Service]
+Type=dbus
+BusName=org.freedesktop.UPower.PowerProfiles
+User=__INSTALLER_HARDWARE_UID__
+Group=__INSTALLER_HARDWARE_GID__
+DynamicUser=no
+# Keep the real desktop UID for D-Bus credentials and the broker socket.
+PrivateUsers=no
+# Never let restart of this service delete the desktop account's IPC objects.
+RemoveIPC=no
+StateDirectory=
+ReadWritePaths=
+AmbientCapabilities=
+ExecStartPre=
+ExecStart=
+ExecStart=/usr/local/libexec/hardware-tuning-power-profiles
+ExecStartPost=
+ExecStop=
+ExecStopPost=
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=45s
+TimeoutStopSec=10s
+KillMode=control-group
+AppArmorProfile=hardware-tuning-power-profiles
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+# PyGObject/libffi callbacks may require executable trampolines. This API
+# process has no capabilities, hardware access, worker exec or unit authority.
+MemoryDenyWriteExecute=no
+TasksMax=16
+LimitNOFILE=128
+UMask=0077

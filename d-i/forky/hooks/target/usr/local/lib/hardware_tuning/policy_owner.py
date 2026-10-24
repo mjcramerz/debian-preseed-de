@@ -15,7 +15,7 @@ from pathlib import Path
 import stat
 import time
 
-from common import CONFIG, STATE, PROFILES, VENDORS, TuningError, atomic_json, trusted_json
+from common import CONFIG, STATE, PROFILES, VENDORS, TuningError, atomic_json, trusted_json, power_profiles_api
 from system_state import BusError, POWER_MANAGERS, power_managers
 
 PPD = "power-profiles-daemon.service"
@@ -216,10 +216,12 @@ def locked(path: Path):
 
 
 class PolicyOwner:
-    def __init__(self, manager, vendors: list[str], root: Path = STATE, owners=power_managers) -> None:
+    def __init__(self, manager, vendors: list[str], root: Path = STATE, owners=power_managers,
+                 custom_api: bool = False) -> None:
         if not vendors or any(v not in VENDORS for v in vendors) or len(set(vendors)) != len(vendors):
             raise TuningError("invalid installed vendor set for policy handover")
         self.manager, self.vendors, self.root, self.owners = manager, tuple(vendors), root, owners
+        self.custom_api = custom_api
         self.journal = root / "policy-owner.json"
         self.claimed = False
         if self.journal.exists() or self.journal.is_symlink():
@@ -252,11 +254,14 @@ class PolicyOwner:
 
     def ppd(self) -> dict:
         # NVIDIA-only installations must never acquire CPU-policy ownership.
-        return self.manager.state(PPD) if "intel" in self.vendors else {
+        return self.manager.state(PPD) if "intel" in self.vendors and not self.custom_api else {
             "load": "not-managed", "active": "not-managed", "file": "not-managed"}
 
     def status(self) -> dict:
-        return {"ppd": self.ppd(), "autostart_unit": self.manager.state(AUTOSTART), "claimed": self.claimed}
+        result = {"ppd": self.ppd(), "autostart_unit": self.manager.state(AUTOSTART), "claimed": self.claimed}
+        if self.custom_api:
+            result["provider"] = "hardware-tuning"
+        return result
 
     def check_other_owners(self) -> None:
         if "intel" not in self.vendors:
@@ -362,7 +367,8 @@ def main(argv: list[str]) -> int:
     manager = Systemd()
     try:
         with locked(STATE / "policy-owner.lock"):
-            result = PolicyOwner(manager, config.get("vendors", [])).execute(argv[0])
+            result = PolicyOwner(manager, config.get("vendors", []),
+                                 custom_api=power_profiles_api(config)).execute(argv[0])
         print(json.dumps({"ok": True, "result": result}, allow_nan=False))
         return 0
     finally:

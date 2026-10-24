@@ -153,13 +153,16 @@ verify_managed_install() {
   fatal 'usage: codex-standalone-install INSTALLER_URL MAXIMUM_BYTES CODEX_HOME PACKAGES_ROOT'
 
 installer_url=$1
+# Official OpenAI installer source, pinned independently of its latest-channel
+# binary selection. Do not depend on the ChatGPT landing site's script route.
+installer_sha256=95d14ccaba915e52a3f0cc590638ca5ac510086ff6a23dc9ac9f77e957403a93
 maximum_bytes=$2
 expected_codex_home=$3
 packages_root=$4
 installer_uid=$(/usr/bin/id -u) || fatal 'cannot resolve the installer account identifier'
 
 [ "$installer_uid" -ne 0 ] || fatal 'the standalone installer must run as the desktop account'
-[ "$installer_url" = 'https://chatgpt.com/codex/install.sh' ] ||
+[ "$installer_url" = 'https://raw.githubusercontent.com/openai/codex/89461ea6833832b0551ce24ee32205824d5c108d/scripts/install/install.sh' ] ||
   fatal "installer URL is not approved: $installer_url"
 case "$maximum_bytes" in
   ''|*[!0123456789]*) fatal "installer byte limit is malformed: $maximum_bytes" ;;
@@ -299,6 +302,7 @@ installer_bin=${installer_staging}/bin
 /bin/chmod 0700 -- "$installer_codex_home" "$installer_bin"
 
 /usr/bin/curl \
+  --disable \
   --fail \
   --silent \
   --show-error \
@@ -308,8 +312,11 @@ installer_bin=${installer_staging}/bin
   --tlsv1.2 \
   --retry 3 \
   --retry-delay 2 \
+  --retry-all-errors \
   --connect-timeout 15 \
-  --max-time 300 \
+  --speed-limit 1 \
+  --speed-time 300 \
+  --max-redirs 4 \
   --max-filesize "$maximum_bytes" \
   --output "$installer_script" \
   "$installer_url" || fatal 'failed to download the official Codex installer'
@@ -319,6 +326,10 @@ case "$installer_bytes" in
 esac
 [ "$installer_bytes" -le "$maximum_bytes" ] ||
   fatal 'official installer exceeds the configured byte limit'
+installer_actual_sha256=$(/usr/bin/sha256sum -- "$installer_script") ||
+  fatal 'cannot read the official installer digest'
+[ "${installer_actual_sha256%% *}" = "$installer_sha256" ] ||
+  fatal 'official installer source differs from its pinned SHA-256'
 
 if ! HOME="$installer_home" \
   CODEX_HOME="$installer_codex_home" \

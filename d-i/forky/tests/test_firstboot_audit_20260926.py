@@ -12,6 +12,7 @@ _isolation_sys.path.pop(0)
 _require_test_isolation()
 
 import importlib.util
+import fcntl
 import os
 from pathlib import Path
 import re
@@ -29,6 +30,89 @@ SEED = Path(__file__).resolve().parents[1]
 TARGET = SEED / 'hooks/target'
 FIRSTBOOT = SEED / 'scripts/firstboot'
 EVENT = b'node=fixture type=AVC msg=audit(1.000:7): apparmor="STATUS" operation="profile_load"\n'
+
+
+@unittest.skipUnless(os.geteuid() == 0 and shutil.which('perl'), 'isolated root Perl fixture')
+class FirstbootPolicyRetirementTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix='firstboot-policy-')
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.policy = self.root / 'etc/apparmor.d/firstboot'
+        self.policy.parent.mkdir(parents=True)
+        self.policy.write_text('profile firstboot /fixture/bootstrap {}\n')
+        self.policy.chmod(0o644)
+        self.lock_dir = self.root / 'var/lib/labwc-apparmor-policy'
+        self.lock_dir.mkdir(parents=True, mode=0o700)
+        self.lock = self.lock_dir / 'policy.lock'
+        self.lock.write_text('')
+        self.lock.chmod(0o600)
+        libraries = self.root / 'usr/local/lib/perl5/site_perl'
+        shutil.copytree(TARGET / 'usr/local/lib/perl5/site_perl/apparmor-modes',
+                        libraries / 'apparmor-modes')
+        runtime = libraries / 'runtime/Managed'
+        runtime.mkdir(parents=True)
+
+        def quote(path):
+            return "'" + str(path).replace('\\', '\\\\').replace("'", "\\'") + "'"
+
+        # Copy the real lock implementation, redirecting every fixed state
+        # path and ancestry check into this private fixture tree.
+        lock_source = (TARGET / 'usr/local/lib/perl5/site_perl/runtime/Managed/PolicyLock.pm').read_text()
+        old_parents = "for my $parent ('/', '/var', '/var/lib')"
+        self.assertEqual(lock_source.count(old_parents), 1)
+        lock_source = lock_source.replace(old_parents, 'for my $parent (' + ', '.join(
+            quote(self.root / name) for name in ('', 'var', 'var/lib')) + ')')
+        lock_source = lock_source.replace("'/var/lib/labwc-apparmor-policy'", quote(self.lock_dir))
+        (runtime / 'PolicyLock.pm').write_text(lock_source)
+
+        self.helper = self.root / 'usr/local/libexec/apparmor-modes-run'
+        self.helper.parent.mkdir(parents=True)
+        source = (TARGET / 'usr/local/libexec/apparmor-modes-run').read_text()
+        for original, target in (
+            ("'/usr/local/lib/perl5/site_perl/runtime'", libraries / 'runtime'),
+            ("'/usr/local/lib/perl5/site_perl/apparmor-modes'", libraries / 'apparmor-modes'),
+            ("'/etc/apparmor.d/firstboot'", self.policy),
+            ("'/etc/apparmor.d'", self.policy.parent),
+            ("'/etc'", self.root / 'etc'),
+            ("'/'", self.root),
+        ):
+            self.assertIn(original, source)
+            source = source.replace(original, quote(target))
+        self.helper.write_text(source)
+
+    def retire(self):
+        return subprocess.run(['/usr/bin/perl', str(self.helper), '--retire-firstboot'],
+            env={'PATH': '/usr/bin:/bin', 'HOME': str(self.root), 'LC_ALL': 'C'},
+            capture_output=True, text=True, timeout=10)
+
+    def test_busy_policy_writer_defers_then_same_lock_allows_retirement(self):
+        original = self.policy.read_bytes()
+        identity = self.lock.stat().st_ino
+        with self.lock.open('r+b') as owner:
+            fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            result = self.retire()
+            self.assertEqual(result.returncode, 75, result.stderr)
+            self.assertEqual(self.policy.read_bytes(), original)
+        result = self.retire()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.policy.exists())
+        self.assertEqual(self.lock.stat().st_ino, identity)
+        self.assertEqual(self.retire().returncode, 0)
+
+    def test_symlink_and_hardlink_replacements_are_rejected(self):
+        retained = self.root / 'retained'
+        self.policy.rename(retained)
+        self.policy.symlink_to(retained)
+        result = self.retire()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue(self.policy.is_symlink())
+        self.policy.unlink()
+        os.link(retained, self.policy)
+        result = self.retire()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue(self.policy.exists())
+        self.assertEqual(self.policy.read_bytes(), retained.read_bytes())
 
 
 class FirstbootDeliveryTests(unittest.TestCase):

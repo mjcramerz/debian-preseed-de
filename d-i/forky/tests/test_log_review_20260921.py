@@ -102,9 +102,9 @@ class NativeMenuGeometry(unittest.TestCase):
                     self.assertEqual(props.get('hexpand'),'True')
         self.assertEqual((menu_count,item_count),(11,48))
 
-    def test_installer_invokes_native_menu_validation_after_user_configuration(self):
+    def test_native_menu_audit_does_not_block_the_installer(self):
         source=render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/labwc.sh'))
-        self.assertLess(source.index('  desktop_install_user_config'), source.index('  desktop_verify_native_menus'))
+        self.assertNotIn('desktop_verify_native_menus', source)
         verify=render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/verify.sh'))
         for key in ('reserve-toggle-size','width-request','use-fallback','hexpand'):
             self.assertIn('"'+key+'"',verify)

@@ -286,6 +286,5 @@ desktop_install_primary_account_calendar_stack() (
     CALIX_SHA256="$CALIX_SHA256" CALIX_MAXIMUM_BYTES="$CALIX_MAXIMUM_BYTES" \
     AGENDA_VERSION="$AGENDA_VERSION" AGENDA_URL="$AGENDA_URL" AGENDA_COMMIT="$AGENDA_COMMIT" \
     AGENDA_SHA256="$AGENDA_SHA256" AGENDA_MAXIMUM_BYTES="$AGENDA_MAXIMUM_BYTES" \
-    /usr/bin/timeout --signal=TERM --kill-after=5s 600s \
     /usr/bin/python3 -I -B "${calendar_stage}/install.py" "$calendar_stage"
 )

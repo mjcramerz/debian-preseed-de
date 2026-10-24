@@ -251,6 +251,7 @@ profile session-glycin-bwrap flags=(attach_disconnected, mediate_deleted) {
   include if exists <abstractions/fonts>
 
   signal (receive) set=(kill, term) peer=waybar,
+  signal (receive) set=(kill, term) peer=labwc-calendar-actions,
   signal (receive) set=(kill, term) peer=session-controls,
   signal (receive) set=(kill, term) peer=waypaper-swaybg,
   /dev/rfkill r,

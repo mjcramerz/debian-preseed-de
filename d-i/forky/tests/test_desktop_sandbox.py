@@ -1411,9 +1411,9 @@ desktop_normalize_background_directories
         self.assertIn('/usr/bin/{sleep,find,timeout} rix,', autostart)
         self.assertIn('owner /run/user/[0-9]*/systemd/ r,', autostart)
 
-        calendar = profile_block(wrappers, 'labwc-calendar')
-        self.assertIn('/usr/bin/systemctl pux,', calendar)
-        self.assertIn('/opt/calix/calix rPx -> calix,', calendar)
+        calendar = profile_block(wrappers, 'labwc-app')
+        self.assertIn('/opt/calix/calix rpx,', calendar)
+        self.assertIn('/usr/local/bin/com.github.dahenson.agenda rpx,', calendar)
 
         output_watch = profile_block(wrappers, 'labwc-output-watch')
         for rule in (

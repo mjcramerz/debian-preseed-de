@@ -1,7 +1,7 @@
 [Unit]
 Description=Watch for installer bootstrap cleanup requests
 After=local-fs.target
-Before=firstboot.service crowdsec-firstboot.service tailscale-bootstrap.service
+Before=firstboot.service crowdsec-firstboot.service tailscale-bootstrap.service fruux-firstboot.service
 ConditionPathExists=/var/lib/firstboot/bin/secondboot-cleanup
 
 [Path]

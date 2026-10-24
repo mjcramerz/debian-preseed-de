@@ -17,16 +17,23 @@ from common import MAX_JSON, PROFILES, SOCKET, VENDORS, TuningError, decode
 EXECUTABLE = "/usr/local/bin/labwc-hardware-tuning"
 
 
-def connect_request(request: dict) -> tuple[socket.socket, dict]:
+def connect_request(request: dict, *, deadline: float | None = None) -> tuple[socket.socket, dict]:
+    if deadline is None:
+        deadline = time.monotonic() + (15 if request.get("action") == "status" else 360)
     channel = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
-        channel.settimeout(5)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TuningError("hardware tuning request expired before sending")
+        channel.settimeout(min(5, remaining))
         channel.connect(SOCKET)
         # Status must not leave the menu hanging behind a stalled broker.
         # Other operations retain the existing tuning transaction allowance,
         # but a trickling response cannot renew it indefinitely.
-        deadline = time.monotonic() + (15 if request.get("action") == "status" else 360)
-        channel.settimeout(max(0.001, deadline - time.monotonic()))
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TuningError("hardware tuning request expired before sending")
+        channel.settimeout(remaining)
         channel.sendall(json.dumps(request).encode() + b"\n")
         data = bytearray()
         while len(data) <= MAX_JSON:
@@ -215,12 +222,16 @@ def save_report(data: dict) -> tuple[Path, Path]:
     return paths[0], paths[1]
 
 
-def confirm_owner(boot: bool = False) -> bool:
+def confirm_owner(status: dict, boot: bool = False) -> bool:
     # Cancellation is the default; typed/free-form responses are not commands.
     cancel = "Cancel - leave power policy unchanged"
-    accept = ("Confirm: stop, disable and mask PPD; start tuning now and at boot" if boot else
-              "Confirm: stop PPD and block its restart until tuning is stopped")
-    return choose([cancel, accept], "power-profiles-daemon.service handover> ") == accept
+    custom = status.get("power_profiles_api", False)
+    if custom:
+        accept = "Confirm: enable custom tuning at boot" if boot else "Confirm: start custom tuning"
+    else:
+        accept = ("Confirm: stop, disable and mask PPD; start tuning now and at boot" if boot else
+                  "Confirm: stop PPD and block its restart until tuning is stopped")
+    return choose([cancel, accept], "Power policy> ") == accept
 
 
 def menu() -> int:
@@ -245,7 +256,7 @@ def menu() -> int:
         action, vendor, profile = choices[chosen]
         confirmed = False
         if vendor == "intel" and not status.get("policy_owner", {}).get("claimed"):
-            if not confirm_owner():
+            if not confirm_owner(status):
                 return 0
             confirmed = True
         result = request(action, vendor, profile, confirm_policy_owner=confirmed)
@@ -260,7 +271,7 @@ def menu() -> int:
         action = dict(zip(entries[2:], ("auto-start", "auto-stop", "boot-enable", "boot-disable", "reset")))[selected]
         confirmed = False
         if action in {"auto-start", "boot-enable"} and "intel" in status["vendors"]:
-            if not confirm_owner(action == "boot-enable"):
+            if not confirm_owner(status, action == "boot-enable"):
                 return 0
             confirmed = True
         result = request(action, confirm_policy_owner=confirmed)

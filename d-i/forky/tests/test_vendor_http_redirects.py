@@ -31,7 +31,8 @@ my @calls;
         push @calls, \@argv;
         die "unexpected automatic redirect\n" if grep { $_ eq '--location' } @argv;
         die "missing curl configuration isolation\n" if $argv[1] ne '--disable';
-        die "deadline exceeded\n" if $request{timeout} > 1200;
+        die "unbounded inactivity window\n" if $request{timeout} > 1500;
+        die "missing artifact progress owner\n" if ref($request{progress}) ne 'CODE';
         my ($url, $partial);
         for my $index (0 .. $#argv - 1) {
             $url = $argv[$index + 1] if $argv[$index] eq '--url';

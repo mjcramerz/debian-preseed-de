@@ -18,19 +18,30 @@ profile agenda /usr/local/bin/com.github.dahenson.agenda flags=(attach_disconnec
   unix,
   dbus (bind) bus=session name=com.github.dahenson.agenda,
   dbus (send, receive) bus=session peer=(name=com.github.dahenson.agenda),
-  signal (receive) peer={unconfined,labwc-agenda},
+  signal (receive) peer={unconfined,labwc-app},
+  owner @{PROC}/[0-9]*/cgroup r,
+  @{sys}/fs/cgroup/**/cpu.max r,
+  owner @{HOME}/.cache/glycin/{,**} rwkl,
+  /usr/bin/bwrap rCx -> agenda-glycin-bwrap,
+  signal (send) set=(kill term) peer=agenda//agenda-glycin-bwrap,
+  profile agenda-glycin-bwrap flags=(attach_disconnected, mediate_deleted) {
+    #include <abstractions/base>
+    #include <abstractions/bwrap-common>
+    include if exists <abstractions/fonts>
+    signal (receive) set=(kill term) peer=agenda,
+    /usr/bin/true rix,
+    /usr/libexec/glycin-loaders/2+/{glycin-image-rs,glycin-svg} rix,
+    /usr/lib/** mr,
+    /usr/share/glycin-loaders/2+/conf.d/{,**} r,
+    /usr/share/mime/mime.cache r,
+    /usr/{,local/}share/icons/{,**} r,
+    owner /tmp/gdk-pixbuf-glycin-tmp.* rwk,
+    owner @{HOME}/.cache/fontconfig/{,**} r,
+    owner @{HOME}/.cache/glycin/{,**} rwkl,
+  }
   deny network inet,
   deny network inet6,
   include if exists <local/agenda>
-}
-
-profile labwc-agenda /usr/local/bin/labwc-agenda flags=(attach_disconnected) {
-  #include <abstractions/wrapper-desktop>
-  /usr/local/bin/labwc-agenda rix,
-  /usr/local/libexec/labwc-session-check rPx -> labwc-session-check,
-  /usr/bin/systemctl pux,
-  /usr/local/bin/com.github.dahenson.agenda rPx -> agenda,
-  signal (receive) peer=unconfined,
 }
 
 profile labwc-calendar-actions /usr/local/libexec/labwc-calendar-actions flags=(attach_disconnected) {
@@ -38,6 +49,9 @@ profile labwc-calendar-actions /usr/local/libexec/labwc-calendar-actions flags=(
   #include <abstractions/desktop-runtime>
   /usr/local/libexec/labwc-calendar-actions r,
   /usr/bin/systemctl pux,
+  /usr/bin/bwrap rPx -> session-glycin-bwrap,
+  /tmp/ r,
+  owner /tmp/gdk-pixbuf-glycin-tmp.* rwk,
   /usr/local/libexec/labwc-calendar-worker rPx -> labwc-calendar-worker,
   /etc/{passwd,timezone,localtime} r,
   /usr/lib/** mr,
@@ -48,6 +62,7 @@ profile labwc-calendar-actions /usr/local/libexec/labwc-calendar-actions flags=(
   owner /dev/shm/** rwkl,
   unix,
   signal (send, receive) peer=labwc-calendar-worker,
+  signal (send) set=(kill term) peer=session-glycin-bwrap,
   signal (send) peer=unconfined,
   signal (receive) peer=unconfined,
   deny network inet,
@@ -75,6 +90,10 @@ profile labwc-calendar-worker /usr/local/libexec/labwc-calendar-worker flags=(at
   unix,
   network inet stream,
   network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  # Permit the AF_NETLINK/SOCK_RAW socket reported by the HTTPS worker.
+  network netlink raw,
   dbus (send, receive) bus=session interface=org.freedesktop.Secret.*,
   signal (send, receive) peer=labwc-calendar-actions,
   signal (receive) peer=unconfined,
@@ -95,10 +114,13 @@ profile calix /opt/calix/calix flags=(attach_disconnected, mediate_deleted) {
   unix,
   network inet stream,
   network inet6 stream,
+  # The Rust HTTP resolver needs UDP DNS before opening its HTTPS stream.
+  network inet dgram,
+  network inet6 dgram,
   dbus (bind) bus=session name=com.ianswope.Calix,
   dbus (send, receive) bus=session peer=(name=com.ianswope.Calix),
   dbus (send, receive) bus=session interface=org.freedesktop.Secret.*,
-  signal (receive) peer={unconfined,labwc-calendar},
+  signal (receive) peer={unconfined,labwc-app},
   include if exists <local/calix>
 }
 
@@ -142,6 +164,16 @@ profile calix-fruux-bootstrap /usr/local/libexec/calix-fruux-bootstrap flags=(at
   signal (receive) peer=unconfined,
   deny network inet,
   deny network inet6,
+}
+
+profile fruux-cleanup /var/lib/firstboot/bin/fruux-cleanup flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/nameservice-strict>
+  /var/lib/firstboot/bin/fruux-cleanup r,
+  /usr/local/libexec/calix-fruux-bootstrap rPx -> calix-fruux-bootstrap,
+  capability setuid,
+  capability setgid,
+  signal (receive) peer={unconfined,secondboot-cleanup},
 }
 
 profile labwc-waycal-hover /usr/local/libexec/labwc-waycal-hover flags=(attach_disconnected) {

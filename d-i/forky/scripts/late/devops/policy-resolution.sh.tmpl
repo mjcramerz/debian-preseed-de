@@ -261,8 +261,8 @@ devops_validate_codex_policy() {
   then
     devops_fatal "DEVOPS_CODEX_VERSION contains unsupported syntax: $DEVOPS_CODEX_VERSION"
   fi
-  [ "$DEVOPS_CODEX_STANDALONE_INSTALLER_URL" = https://chatgpt.com/codex/install.sh ] ||
-    devops_fatal "DEVOPS_CODEX_STANDALONE_INSTALLER_URL must remain the approved ChatGPT HTTPS installer"
+  [ "$DEVOPS_CODEX_STANDALONE_INSTALLER_URL" = https://raw.githubusercontent.com/openai/codex/89461ea6833832b0551ce24ee32205824d5c108d/scripts/install/install.sh ] ||
+    devops_fatal "DEVOPS_CODEX_STANDALONE_INSTALLER_URL must remain the pinned official OpenAI installer source"
   devops_validate_positive_integer \
     "DEVOPS_CODEX_STANDALONE_INSTALLER_MAXIMUM_BYTES" \
     "$DEVOPS_CODEX_STANDALONE_INSTALLER_MAXIMUM_BYTES"
@@ -362,4 +362,3 @@ devops_validate_codex_policy() {
     devops_fatal "DEVOPS_CODEX_REPOSITORY_BRANCH must remain mcr/main"
 
 }
-

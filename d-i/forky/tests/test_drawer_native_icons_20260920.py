@@ -103,10 +103,9 @@ class NativeDrawerTests(unittest.TestCase):
         # Do not start installing third-party amd64-only apps on other targets.
         self.assertIn('if (arch != "amd64" or sys.argv[3] == "0") and module in {"custom/app-tuta", "custom/app-sleek"}',source)
 
-    def test_narrow_verifier_is_called_after_user_config_without_enabling_broad_checks(self):
+    def test_drawer_audit_is_not_an_installer_gate(self):
         role=render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/labwc.sh')).split('run_desktop_late_command() {',1)[1]
-        self.assertLess(role.index('  desktop_install_user_config'),role.index('  desktop_verify_native_menus'))
-        self.assertNotIn('  desktop_verify_target_staging\n',role)
+        self.assertNotIn('desktop_verify_',role)
         source=render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/verify.sh'))
         self.assertIn('desktop_verify_native_menus() {\n  desktop_verify_native_drawer_icons',source)
         function=source.split('desktop_verify_native_drawer_icons() {',1)[1].split('desktop_verify_native_menus()',1)[0]

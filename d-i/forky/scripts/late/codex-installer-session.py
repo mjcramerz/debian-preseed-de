@@ -20,7 +20,9 @@ import tempfile
 import time
 
 RUNTIME_PARENT = Path('/run/codex-installer')
-INSTALL_TIMEOUT = 1800.0
+# Release acquisition owns its connection/stall handling. An active download
+# must not be killed by an unrelated total-duration timer in this supervisor.
+INSTALL_TIMEOUT: float | None = None
 STOP_TIMEOUT = 5.0
 SIGNALS = (signal.SIGHUP, signal.SIGINT, signal.SIGTERM)
 
@@ -110,7 +112,7 @@ def signal_group(pgid: int, signum: int) -> None:
 
 
 def supervise(command: list[str], *, account: pwd.struct_passwd,
-              home: Path, environment: dict[str, str], timeout: float) -> int:
+              home: Path, environment: dict[str, str], timeout: float | None) -> int:
     received = 0
 
     def interrupt(signum: int, _frame: object) -> None:
@@ -128,7 +130,7 @@ def supervise(command: list[str], *, account: pwd.struct_passwd,
             extra_groups=os.getgrouplist(account.pw_name, account.pw_gid),
             umask=0o077, start_new_session=True, close_fds=True,
         )
-        deadline = time.monotonic() + timeout
+        deadline = None if timeout is None else time.monotonic() + timeout
         # Observe, but do not reap, the leader until every group signal has been
         # sent. This prevents a recycled PID from receiving a teardown signal.
         while True:
@@ -140,7 +142,7 @@ def supervise(command: list[str], *, account: pwd.struct_passwd,
             if result is not None:
                 status = result.si_status if result.si_code == os.CLD_EXITED else 128 + result.si_status
                 break
-            if time.monotonic() >= deadline:
+            if deadline is not None and time.monotonic() >= deadline:
                 status = 124
                 log('installer deadline exceeded; stopping installer process group')
                 break
@@ -169,7 +171,7 @@ def supervise(command: list[str], *, account: pwd.struct_passwd,
 
 
 def main(argv: list[str], *, runtime_parent: Path = RUNTIME_PARENT,
-         timeout: float = INSTALL_TIMEOUT) -> int:
+         timeout: float | None = INSTALL_TIMEOUT) -> int:
     if os.geteuid() != 0:
         raise PermissionError('the installer-session supervisor must run as root inside in-target')
     if len(argv) != 7:

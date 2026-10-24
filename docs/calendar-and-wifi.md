@@ -2,8 +2,11 @@
 
 This describes the October 23 source changes for new Forky installations. The
 behavior below is the implemented contract; it has not been demonstrated in a
-running desktop. See [Agenda, Fruux and Tor acceptance status](validation/agenda-fruux-tor-20261023.md)
-for this task's static evidence and remaining disposable-environment gates.
+running desktop. See [Calix install ordering correction](validation/calix-install-order-20261023.md)
+for the latest install changes, and [Calendar and recorded-log fixes](validation/calendar-firstboot-20261023.md)
+for the firstboot implementation and runtime limitations. The earlier
+[Agenda, Fruux and Tor report](validation/agenda-fruux-tor-20261023.md) records
+the previous implementation.
 
 ## Clock and native calendar applications
 
@@ -26,8 +29,10 @@ scripts are not executed and no application is compiled. The receipt under each
 These hashes establish byte consistency; they are not vendor signatures.
 
 Agenda's binary is installed as `/usr/local/bin/com.github.dahenson.agenda`.
-Its dedicated desktop entry and `labwc-agenda` launcher use the fixed
-`labwc-agenda.service`, with native Wayland and GApplication activation. Its
+Its dedicated desktop entry and `labwc-agenda` command use the shared managed
+launcher and transient `labwc-native-agenda-*.service` units, with native
+Wayland and GApplication activation. The command is an installed alias of
+`labwc-app`, with no separate shell wrapper. Its
 scoped GSettings defaults provide a 600×680 window, pending tasks first, and
 Noto Sans 12 for printing; GTK follows the existing desktop theme. Translations
 retain the archive's compiled `/usr/share/locale` prefix. Icons, license,
@@ -44,11 +49,12 @@ Both Waybar layouts use the following controls:
 | Control | Action |
 | --- | --- |
 | Hover over the clock | GTK shows the clock tooltip; its event requests `labwc-waycal.service`. |
-| Left click the clock | Toggle between the short clock and weekday, full date and ISO week. |
-| Right click → Open calendar | Open/activate Calix through `labwc-calendar`. |
-| Right click → Open agenda (directly below Open calendar) | Open/activate the actual Agenda application through `labwc-agenda`. |
-| Right click → Events | Create Event…, or select an event to edit/delete on Fruux. |
-| Right click → Tasks | Pending tasks, all tasks, create, edit, details, complete, delete on Fruux. |
+| Left click the clock | Open the native GTK dropdown without changing the clock format. |
+| Right click the clock | Toggle the alternate date format, for example `Fri, 23 Oct 2026 W43 - 14.04`. |
+| Dropdown → Open calendar | Open/activate Calix through `labwc-calendar`. |
+| Dropdown → Open agenda (directly below Open calendar) | Open/activate the actual Agenda application through `labwc-agenda`. |
+| Dropdown → Events | Create Event…, or select an event to edit/delete on Fruux. |
+| Dropdown → Tasks | Pending tasks, all tasks, create, edit, details, complete, delete on Fruux. |
 
 Waybar has no external mouse-enter command setting. The root-owned hover adapter
 listens to AT-SPI tooltip showing events, checks the `Calendar` tooltip role/name
@@ -60,25 +66,34 @@ pointer polling, input injection, process-name killing or native Waybar build
 is used. Waycal opens its month view, with Monday as the first weekday; Escape
 closes the popup. Its user service prevents duplicate managed instances.
 
-Calix runs in an on-demand session service. D-Bus readiness precedes the separate
-native activation request, so two initial processes cannot race to become the
-primary application. Its dedicated launcher is also recognized by application
-search and desktop-entry normalization, preserving the service/keyring boundary.
-Its background mode keeps event alerts and the native
-15-minute synchronization loop available after its window closes. Closing the
-desktop session stops the service cgroup. Calix owns calendar event operations;
+Calix uses the same managed native launch path and transient
+`labwc-native-calix-*.service` units. `labwc-calendar` is an alias of `labwc-app`;
+desktop entries and application search resolve to the same managed application.
+Both applications use native GApplication single-instance activation. Closing
+the desktop session stops each service cgroup. The normal Calix launch opens
+its window; synchronization follows the pinned application's native lifecycle.
+Agenda uses Labwc's server decorations. Its managed profile loads Debian's
+`libgtk-nocsd0` library for Agenda only: the GTK header bar's application menu
+stays in the window content, while Labwc supplies the title bar, borders and
+window buttons. The package's global preload snippet is overridden by the
+comment-only `/etc/environment.d/50-gtk-nocsd.conf`; the managed Agenda launch
+sets the library explicitly. The existing native Wayland backend is retained.
+Calix owns calendar event operations;
 the old terminal actions, calendar sync timer and khal/todoman/
 vdirsyncer payload configuration and packages have been removed. Taskwarrior and
 Sleek retain their separate existing roles. The new GTK event/task actions use
 direct CalDAV operations. Agenda remains a local task list: it has no CalDAV
 backend, and its local tasks are separate from the Fruux Tasks submenu.
 
-The apps and bootstrap/hover delegates have explicit AppArmor profiles. New
-installer checks cover root code authority, receipt and binary agreement,
-private bootstrap ownership, packaged GTK/Libadwaita/AT-SPI/Secret Service APIs,
-rendered menu mappings and service lifecycle. These checks were added to the
-installation boundary and **were not executed during this change**. The existing
-private Xwayland eligibility remains Zoom and Discord only.
+The apps and bootstrap/hover delegates have explicit AppArmor profiles.
+Installation prepares the account home, installs the calendar binaries and
+private Fruux input, then synchronizes the account launchers before enabling
+desktop services. The separate `verify.sh` module is not fetched, sourced or
+called during installation. Release downloads retry transport failures up to
+three times, with a 300-second socket stall timeout and no total transfer or
+calendar installation duration cap. Hash, release and publication checks are
+part of installing the actual files. The existing private Xwayland eligibility
+remains Zoom and Discord only.
 
 Primary release contracts:
 [Waycal 0.2.1](https://github.com/ForrestKnight/waycal/releases/tag/v0.2.1),
@@ -96,21 +111,44 @@ creates the primary account's `.config/calix/fruux-bootstrap.json` as that user,
 mode 0600, inside its mode-0700 Calix directory. It is credential-bearing data;
 Recoll excludes Calix configuration and its local event database.
 
-Before the first Calix service start, `calix-fruux-bootstrap` runs as the desktop
-UID. It writes the password to the existing Secret Service provider using the
-exact pinned Calix identity: service `com.ianswope.Calix`, username attribute
-`caldav-password:https://dav.fruux.com|<trimmed-lowercase-username>`. It seeds the
-pinned application's generic CalDAV account row in its private SQLite database,
-using the canonical Fruux server URL `https://dav.fruux.com`. Calix completes its
-own additive schema and performs native discovery/sync on normal startup.
+`fruux-firstboot.service` runs as the configured desktop UID before greetd. Its
+`--provision` mode creates the Fruux CalDAV account in Calix's private SQLite
+database, commits and synchronizes it, and publishes a durable non-secret
+`fruux-state.json` receipt. This phase has no network, display, D-Bus or keyring
+dependency. It uses `https://dav.fruux.com`; native CalDAV discovery resolves the
+actual principal and collections rather than baking private resource IDs into
+the image. Calix completes its own additive schema on normal startup.
 
-Setup uses a stable owner lock, SQLite transactions and keyring readback.
-Ambiguous/different existing keyring entries, incompatible account identities,
-unsafe paths and invalid private inputs fail with fixed diagnostics. Existing
-user accounts and calendars are not reset. The bootstrap is removed and its
-parent synchronized only after the keyring and account row are confirmed. A
-failed setup retains the bootstrap when present and does not start Calix.
-Unlock the normal user keyring when prompted. No live Fruux login was attempted.
+At desktop login, `labwc-calendar-credentials.service` starts automatically
+after the existing KWallet Secret Service provider is ready. The helper's
+`--install-secret` mode checks the already-provisioned account without modifying
+it, writes the password to Secret Service, and reads it back. It uses the exact
+pinned Calix identity: service `com.ianswope.Calix`, username attribute
+`caldav-password:https://dav.fruux.com|<trimmed-lowercase-username>`. Only after
+readback does it publish readiness and unlink/synchronize the private password
+input. Normal desktop authentication supplies the existing keyring unlock;
+opening Calix or a clock dialog does not run account setup or secret delivery.
+
+Account provisioning, credential delivery and cleanup readiness share one
+stable owner lock. Ambiguous/different existing keyring entries, incompatible
+account identities, unsafe paths and invalid inputs retain the private input
+when present and fail with fixed diagnostics. Existing accounts and calendars
+are preserved. Failed provisioning leaves no completion receipt and retries
+on the next boot. Credential delivery retries automatically within the user
+service's bounded start policy and on later logins. No network is needed for
+either local step; offline remote synchronization uses Calix's normal retries.
+
+On subsequent boots the completion receipt skips firstboot provisioning.
+The login service checks the receipt and returns without opening Secret Service
+when no password input remains. Calix uses its saved database and keyring entry.
+Secondboot cleanup waits for successful credential delivery and durable password
+input removal. Its root-owned delegate drops all root/group authority before
+checking user state under the same lock. Cleanup then removes
+`fruux-firstboot.service`, its enablement link, the greetd ordering drop-in and
+the temporary cleanup delegate. Pending delivery retains these artifacts and
+the existing secondboot retry infrastructure. The database, non-secret account
+identity/receipt and stable lock remain permanent integration state. Calix does
+not depend on the removed firstboot unit. No live Fruux login was attempted.
 
 The seed is tied to the pinned
 [Calix account schema](https://github.com/ianswope/calix/blob/56fb3aae672384af2a304f69815c3a8d601e7f35/src/store.rs)
@@ -121,8 +159,8 @@ Future Calix upgrades must review both contracts before changing the release pin
 
 Both clock layouts dispatch fixed actions to `labwc-calendar-actions` in
 session-owned cgroups. A same-UID runtime lock prevents competing dialogs.
-First use starts the existing Calix service and its private bootstrap through
-the user manager, then loads the same account identity and Secret Service
+Each action checks the automatic login service's readiness through the user
+manager, then loads the saved account identity and Secret Service
 credential. The non-secret identity file is `.config/calix/fruux-account.json`,
 mode 0600; no password is placed in command arguments or inherited environment.
 
@@ -147,8 +185,8 @@ and editing/deleting organizer/attendee items require a richer native editor
 and return unavailable through these dialogs; no partial mutation is attempted.
 
 Network work has a total 50-second controller deadline and a separate bounded
-termination/reaping budget. First-use service readiness has 70 seconds to cover
-the existing service's 60-second startup deadline. Interactive forms have no
+termination/reaping budget. The read-only credential readiness check has a
+five-second deadline. Interactive forms have no
 arbitrary expiry. Read cancellation, unavailable, failure and outcome-unknown
 results remain distinct. Calendar contents and credentials are excluded from
 diagnostics; logs contain fixed action/error codes and request IDs.

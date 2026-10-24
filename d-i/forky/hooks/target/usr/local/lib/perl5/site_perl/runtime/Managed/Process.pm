@@ -28,6 +28,10 @@ sub _nonblocking {
 # code. Timeout is 124 << 8; signal termination occupies the low seven bits.
 # Adapters decode exactly once at their public exit-code boundary. Capture
 # overflow/interruption/setup errors throw, rather than returning success.
+# An optional progress callback returns a bounded scalar marker. A changed
+# marker renews the timeout, making it an inactivity deadline for downloads.
+# Other callers retain their original total deadline. Output alone never
+# renews a deadline; the caller must observe progress in its owned artifact.
 sub capture_command {
     my (%args) = @_;
     my $argv = $args{argv};
@@ -39,6 +43,9 @@ sub capture_command {
     $argv->[0] =~ m{\A/} or die "capture requires an absolute executable path\n";
     my $seconds = $args{timeout} // 120;
     my $limit = $args{limit} // 1_048_576;
+    my $progress = $args{progress};
+    !defined($progress) || ref($progress) eq 'CODE'
+        or die "invalid subprocess progress callback\n";
     !ref($seconds) && $seconds =~ /\A[0-9]+(?:\.[0-9]+)?\z/
         && $seconds > 0 && $seconds <= 172800
         or die "invalid subprocess deadline\n";
@@ -88,9 +95,19 @@ sub capture_command {
     my %result = (stdout => q{}, stderr => q{}, error => q{});
     my ($ready, $reaped, $status, $offset, $captured) = (0, 0, 0, 0, 0);
     my $deadline = clock_gettime(CLOCK_MONOTONIC) + $seconds;
+    my $progress_marker;
     my $ok = eval {
         while (1) {
             last if $interrupted;
+            if ($progress) {
+                my $marker = $progress->();
+                defined($marker) && !ref($marker) && length($marker) <= 256
+                    or die "invalid subprocess progress marker\n";
+                if (!defined($progress_marker) || $marker ne $progress_marker) {
+                    $progress_marker = $marker;
+                    $deadline = clock_gettime(CLOCK_MONOTONIC) + $seconds;
+                }
+            }
             my $left = $deadline - clock_gettime(CLOCK_MONOTONIC);
             if ($left <= 0) { $result{error} = 'timeout'; last; }
             if (!$reads->count && !$writes->count) {
@@ -104,9 +121,12 @@ sub capture_command {
                 next;
             }
             $! = 0;
-            # Pipe readiness and EINTR wake this wait. Keep the full remaining
-            # deadline instead of waking twenty times a second while idle.
-            my ($readable, $writable) = IO::Select->select($reads, $writes, undef, $left);
+            # Downloads write to a file, not these pipes. Poll their progress
+            # once per second (or faster for subsecond deadlines); ordinary
+            # captures keep the full wait.
+            my $wait = $progress && $left > $seconds / 4 ? $seconds / 4 : $left;
+            $wait = 1 if $progress && $wait > 1;
+            my ($readable, $writable) = IO::Select->select($reads, $writes, undef, $wait);
             if (!defined $readable) {
                 next if !$! || $! == EINTR;
                 die "subprocess select failed: $!\n";

@@ -25,13 +25,14 @@ desktop_install_hardware_tuning() (
     return 0
   fi
 
-  for hardware_module in common engine broker client policy_owner system_state $hardware_vendors; do
+  for hardware_module in common engine broker client policy_owner system_state power_profiles $hardware_vendors; do
     desktop_stage_role_asset "usr/local/lib/hardware_tuning/${hardware_module}.py" "/usr/local/lib/hardware_tuning/${hardware_module}.py" 0644 || exit 1
   done
   desktop_stage_role_asset usr/local/bin/labwc-hardware-tuning /usr/local/bin/labwc-hardware-tuning 0755 || exit 1
   desktop_stage_role_asset usr/local/libexec/hardware-tuningd /usr/local/libexec/hardware-tuningd 0755 || exit 1
   desktop_stage_role_asset usr/local/libexec/hardware-tuning-worker /usr/local/libexec/hardware-tuning-worker 0755 || exit 1
   desktop_stage_role_asset usr/local/libexec/hardware-tuning-policy /usr/local/libexec/hardware-tuning-policy 0755 || exit 1
+  desktop_stage_role_asset usr/local/libexec/hardware-tuning-power-profiles /usr/local/libexec/hardware-tuning-power-profiles 0755 || exit 1
   desktop_stage_role_asset etc/apparmor.d/hardware-tuning /etc/apparmor.d/hardware-tuning 0644 || exit 1
   for hardware_bridge in desktop-parent fuzzel-parent management-parent; do
     desktop_stage_role_asset "etc/apparmor.d/abstractions/hardware-tuning-${hardware_bridge}" "/etc/apparmor.d/abstractions/hardware-tuning-${hardware_bridge}" 0644 || exit 1
@@ -58,7 +59,7 @@ desktop_install_hardware_tuning() (
   chmod 0700 "${hardware_stage_host}/config.py" || exit 1
   fetch_hook scripts/desktop/hardware-tuning-assets.list "${hardware_stage_host}/assets.list" || exit 1
   while IFS= read -r hardware_asset; do
-    case "$hardware_asset" in etc/systemd/*|etc/hardware-tuning/*) ;; *) exit 1 ;; esac
+    case "$hardware_asset" in etc/systemd/*|etc/hardware-tuning/*|etc/dbus-1/system.d/*|usr/local/share/dbus-1/system-services/*) ;; *) exit 1 ;; esac
     case "$hardware_asset" in *..*|*//*|*[!A-Za-z0-9_./-]*) exit 1 ;; esac
     install -d -m 0700 "${hardware_stage_host}/templates/${hardware_asset%/*}" || exit 1
     fetch_hook "$(installer_repo_join_var DIR_HOOKS_TARGET "$hardware_asset")" "${hardware_stage_host}/templates/${hardware_asset}" || exit 1

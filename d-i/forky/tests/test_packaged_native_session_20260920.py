@@ -60,6 +60,7 @@ STEPS = (
     'desktop_install_resctl_bench',
     'desktop_install_kanshi_policy',
     'desktop_stage_target_assets',
+    'desktop_install_filen',
     'desktop_render_greetd_config',
     'desktop_render_labwc_default_config',
     'desktop_install_hardware_tuning',
@@ -70,8 +71,6 @@ STEPS = (
     'desktop_install_fonts',
     'desktop_install_waypaper',
     'desktop_enable_target_services',
-    'desktop_verify_kanshi_policy',
-    'desktop_verify_native_menus',
     'desktop_install_codex_standalone',
 )
 
@@ -135,8 +134,6 @@ installer_info() { :; }
 desktop_policy_enabled() { return 0; }
 run_in_target() {
   case "$1" in
-    'verify GIO desktop-entry binding')
-      [ "$2" = /usr/bin/python3 ] && [ "$3" = -I ] && [ "$4" = -c ] || return 90 ;;
     'wrap installed desktop package launchers')
       [ "$2" = /usr/local/libexec/labwc-wrap-desktop-files ] && [ "$#" -eq 2 ] || return 90 ;;
     *) printf 'unexpected target operation: %s\\n' "$1" >&2; return 91 ;;
@@ -170,11 +167,11 @@ run_in_target() {
         self.assertEqual(result.stdout.splitlines()[-1], 'desktop_install_xwayland')
         self.assertNotIn('desktop_install_satty', result.stdout)
 
-    def test_native_menu_validation_failure_aborts_before_codex(self):
+    def test_retired_native_menu_verifier_is_not_an_installer_gate(self):
         result = self.flow(('/bin/sh',), 'desktop_verify_native_menus')
-        self.assertEqual(result.returncode, 71, result.stderr)
-        self.assertEqual(result.stdout.splitlines()[-1], 'desktop_verify_native_menus')
-        self.assertNotIn('desktop_install_codex_standalone', result.stdout)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn('desktop_verify_native_menus', result.stdout)
+        self.assertIn('desktop_install_codex_standalone', result.stdout)
 
     def test_list_mode_and_injection_fail_before_replacing_rendered_config(self):
         fixture = FORKY / 'tests/fixtures/workspaces/render.sh'
