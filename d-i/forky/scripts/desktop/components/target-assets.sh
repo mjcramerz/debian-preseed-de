@@ -189,7 +189,7 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset etc/systemd/system/sleep.target.d/50-package-lock-guard.conf /etc/systemd/system/sleep.target.d/50-package-lock-guard.conf 0644
   desktop_stage_role_asset usr/local/libexec/greetd-power-action-root /usr/local/libexec/greetd-power-action-root 0755
   desktop_stage_role_asset usr/local/libexec/calix-fruux-bootstrap /usr/local/libexec/calix-fruux-bootstrap 0755
-  desktop_stage_role_asset usr/local/libexec/labwc-waycal-toggle /usr/local/libexec/labwc-waycal-toggle 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-waycal-control /usr/local/libexec/labwc-waycal-control 0755
   desktop_stage_role_asset etc/skel-desktop/.config/gtk-4.0/gtk.css /etc/skel-desktop/.config/gtk-4.0/gtk.css 0644
   desktop_stage_role_asset etc/skel-desktop/.config/waycal/style.css /etc/skel-desktop/.config/waycal/style.css 0644
   desktop_stage_role_asset usr/local/share/applications/com.ianswope.Calix.desktop /usr/local/share/applications/com.ianswope.Calix.desktop 0644
@@ -212,7 +212,7 @@ desktop_stage_target_assets() {
     /var/lib/firstboot/bin/fruux-cleanup 0755 ACCOUNT_USERNAME "$ACCOUNT_USERNAME"
   desktop_stage_role_asset etc/systemd/system/greetd.service.d/40-fruux-firstboot.conf \
     /etc/systemd/system/greetd.service.d/40-fruux-firstboot.conf 0644
-  for calendar_unit in labwc-calendar-credentials labwc-waycal labwc-waycal-toggle; do
+  for calendar_unit in labwc-calendar-credentials; do
     desktop_stage_role_asset "etc/skel-desktop/.config/systemd/user/${calendar_unit}.service" "/etc/skel-desktop/.config/systemd/user/${calendar_unit}.service" 0644
   done
   desktop_stage_role_asset usr/local/libexec/labwc-plans.pl /usr/local/libexec/labwc-plans.pl 0755

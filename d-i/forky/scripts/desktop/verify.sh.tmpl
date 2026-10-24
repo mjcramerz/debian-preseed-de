@@ -783,7 +783,8 @@ for path in \
   /usr/local/bin/labwc-calendar \
   /usr/local/bin/labwc-agenda \
     /usr/local/libexec/calix-fruux-bootstrap \
-    /usr/local/libexec/labwc-waycal-toggle \
+    /usr/local/libexec/labwc-waycal-control \
+  /usr/bin/timeout \
   /usr/local/bin/labwc-ocr \
   /usr/local/bin/labwc-logout \
   /usr/local/bin/labwc-fuzzel \
@@ -1049,8 +1050,6 @@ for path in \
   /etc/xdg/xdg-desktop-portal/labwc-portals.conf \
   /etc/bluetooth/main.conf \
   /etc/chromium.d/90-performance-flags \
-  /etc/skel-desktop/.config/systemd/user/labwc-waycal.service \
-  /etc/skel-desktop/.config/systemd/user/labwc-waycal-toggle.service \
   /etc/skel-desktop/.config/systemd/user/obsidian-git-sync.service \
   /etc/skel-desktop/.config/systemd/user/obsidian-git-sync.timer \
   /usr/local/libexec/obsidian-git-sync \
@@ -1297,8 +1296,6 @@ for path in \
   "$account_home/.config/systemd/user/labwc-plans.service" \
   "$account_home/.config/systemd/user/labwc-adb-server.service" \
   "$account_home/.config/systemd/user/llama-server.service" \
-  "$account_home/.config/systemd/user/labwc-waycal.service" \
-  "$account_home/.config/systemd/user/labwc-waycal-toggle.service" \
   "$account_home/.config/systemd/user/obsidian-git-sync.service" \
   "$account_home/.config/systemd/user/obsidian-git-sync.timer" \
   "$account_home/.config/systemd/user/labwc-sync-application-launchers.service" \
@@ -1419,8 +1416,6 @@ for on_demand_or_triggered_unit in \
   codex-app-server-proxy.service \
   codex-app-server.socket \
   labwc-adb-server.service \
-  labwc-waycal.service \
-  labwc-waycal-toggle.service \
   labwc-compositor.service \
   labwc-health-notify.path \
   labwc-health-notify.service \
@@ -2269,7 +2264,7 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
                 require("format-alt" not in entry and "format-alt-click" not in entry,
                         "alternate clock formatting must be absent")
                 require(entry.get("tooltip") is False and "tooltip-format" not in entry
-                        and entry.get("on-click-right") == "/usr/bin/systemctl --user --no-ask-password --no-block start labwc-waycal-toggle.service"
+                        and entry.get("on-click-right") == "/usr/local/libexec/labwc-waycal-control toggle"
                         and "on-click-right-release" not in entry
                         and "on-click-middle" not in entry and "on-click-middle-release" not in entry
                         and not entry.get("actions"), "clock popup or click action conflict")
@@ -2448,7 +2443,8 @@ for name in ("labwc-agenda", "labwc-calendar"):
             and os.readlink(path) == "labwc-app", "unmanaged calendar command: " + name)
 for path in ("/usr/local/libexec/calix-fruux-bootstrap", "/opt/calix/calix",
              "/usr/local/libexec/labwc-calendar-actions", "/usr/local/libexec/labwc-calendar-worker",
-             "/usr/local/libexec/labwc-waycal-toggle", "/opt/waycal/waycal",
+             "/usr/local/libexec/labwc-waycal-control", "/opt/waycal/waycal",
+             "/usr/bin/timeout", "/usr/bin/systemd-run", "/usr/bin/systemctl", "/usr/bin/busctl",
              "/usr/local/bin/com.github.dahenson.agenda"):
     trusted(Path(path), True)
 for path in ("/usr/local/share/agenda/schemas/gschemas.compiled", "/opt/calix/release.json"):

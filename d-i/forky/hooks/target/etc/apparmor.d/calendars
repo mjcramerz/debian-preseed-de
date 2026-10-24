@@ -182,16 +182,20 @@ profile fruux-cleanup /var/lib/firstboot/bin/fruux-cleanup flags=(attach_disconn
   signal (receive) peer={unconfined,secondboot-cleanup},
 }
 
-profile labwc-waycal-toggle /usr/local/libexec/labwc-waycal-toggle flags=(attach_disconnected) {
+profile labwc-waycal-control /usr/local/libexec/labwc-waycal-control flags=(attach_disconnected) {
   #include <abstractions/wrapper-python>
   include if exists <abstractions/dbus-session>
-  /usr/local/libexec/labwc-waycal-toggle r,
+  /usr/local/libexec/labwc-waycal-control r,
   /usr/bin/systemctl rix,
+  /usr/bin/systemd-run rix,
+  /usr/bin/busctl rix,
   /usr/lib/** mr,
   /usr/share/{glib-2.0,gir-1.0,locale}/{,**} r,
   owner /run/user/[0-9]*/{,bus,systemd/private} rw,
+  owner /run/user/[0-9]*/wayland-[A-Za-z0-9_-]* r,
+  owner /run/user/[0-9]*/labwc-waycal-control.lock rwk,
   unix,
-  signal (send, receive) peer=labwc-waycal-toggle,
+  signal (send, receive) peer=labwc-waycal-control,
   signal (receive) peer=unconfined,
   deny network inet,
   deny network inet6,

@@ -2,8 +2,12 @@
 
 This describes the October 23–24 source changes for new Forky installations. The
 behavior below is the implemented contract; it has not been demonstrated in a
-running desktop. See [alternate clock format removal](validation/clock-format-removal-20261024.md)
-for the latest Waybar 0.15.0 controls and artifact receipt, and
+running desktop. See [the five-second right-click toggle](validation/waycal-timed-toggle-20261024.md)
+for the current interaction and acceptance limits. The earlier
+[1.5-second hover investigation](validation/waycal-hover-20261024.md) records
+the preceding native-event limitations. See
+[alternate clock format removal](validation/clock-format-removal-20261024.md)
+for the preceding Waybar 0.15.0 controls and artifact receipt, and
 [October 24 click mapping and Waycal theme](validation/waycal-click-20261024.md)
 for the preceding integration and acceptance limits. The earlier
 [log, hover and MOK report](validation/todo-waycal-mok-20261024.md) records the superseded hover approach.
@@ -53,10 +57,10 @@ Both Waybar layouts use the following controls:
 
 | Control | Action |
 | --- | --- |
-| Hover over the clock | No tooltip or popup; the former `Calendar` text is disabled. |
+| Hover over the clock | No popup action; the tooltip remains disabled. |
 | Left click the clock | Open the native GTK dropdown without changing the clock format. |
 | Middle click the clock | No clock action. |
-| Right click the clock | Open Waycal when closed; close it when open. |
+| Right click the clock | Open Waycal for five seconds, or close the existing popup early. |
 | Dropdown → Open calendar | Open/activate Calix through `labwc-calendar`. |
 | Dropdown → Open agenda (directly below Open calendar) | Open/activate the actual Agenda application through `labwc-agenda`. |
 | Dropdown → Events | Create Event…, or select an event to edit/delete on Fruux. |
@@ -66,13 +70,36 @@ The user's latest instruction removes alternate clock formatting entirely.
 Both clocks retain the single `format: {:%a %H:%M}` and `tooltip: false`.
 Neither defines `format-alt` or `format-alt-click`; no left-click command or
 action competes with the native GTK menu, and middle-click has no action.
-The fixed right-click command starts
-`labwc-waycal-toggle.service`. This on-demand oneshot serializes state reads
-and start/stop requests for `labwc-waycal.service`, which owns the popup's
-process cgroup and is stopped with the desktop session. There is no process-name
-kill, PID-file scan, accessibility bridge or automatic retry of an uncertain
-mutation. The former hover helper, autostart unit and ptrace permission have
-been removed. The native month popup starts on Monday; Escape also closes it.
+The latest interaction uses the clock's native right-click callback in both
+layouts: `/usr/local/libexec/labwc-waycal-control toggle`. The helper requests
+one transient `labwc-waycal-popup.service` through the user manager. One click
+opens it; another click while active requests an early stop. Each new opening
+gets a five-second countdown. A click while the old service is stopping or
+collecting does not replace or restart it; a later click after collection can
+open a fresh popup. Left click continues to open the native calendar menu.
+
+The service runs the existing `/opt/waycal/waycal --week-start monday` binary
+under GNU `timeout`, inside its own cgroup. It retains native Wayland and
+Waycal's own layer-shell placement. The helper is staged at mode 0755 with its
+own AppArmor profile; the old toggle helper and two static popup/toggle units
+are removed from installer sources. There is no login activation. The former
+accessibility hover helper, autostart unit and ptrace permission remain removed.
+The month starts on Monday; Escape closes Waycal early.
+
+The transient request uses the Labwc session target, a fixed service name,
+private user/temporary/IPC/network namespaces and control-group termination.
+The payload's five-second countdown sends TERM, with a one-second forced
+cleanup allowance for an unresponsive process. Expected timeout status 124 is
+successful completion. A six-second systemd runtime backstop and one-second
+stop timeout bound supervisor failure and manual/session shutdown. Timing is
+measured from payload launch, not a Waycal window-ready notification; actual
+visible duration has not been measured. Concurrent requests serialize through
+one private runtime lock. An existing Waycal application owner outside the popup unit is
+rejected to avoid activating an unmanaged window. Uncertain launch/stop requests
+are not retried; a successful request is not proof that a calendar is visible.
+The controller, namespaces, policy and authored fixtures have not been executed.
+Generated payload products and root inventories are stale relative to these
+latest sources because the user prohibited further build commands.
 
 Waycal 0.2.1 has no native user config or CSS-file option. Its embedded style is
 loaded at GTK's application priority. GTK4 supports the higher-priority user

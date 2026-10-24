@@ -297,6 +297,21 @@ desktop_verify_native_menus
                 with self.assertRaisesRegex(SystemExit, message):
                     target.verify()
 
+    def test_clock_requires_one_fixed_toggle_binding_in_both_copies_and_layouts(self):
+        changes = (
+            lambda entry: entry.pop('on-click-right'),
+            lambda entry: entry.update({'on-click-right': '/usr/local/libexec/labwc-waycal-control close'}),
+            lambda entry: entry.update({'on-click-right-release': entry['on-click-right']}),
+        )
+        for base in ('/etc/skel-desktop', HOME):
+            for layout in (0, 1):
+                for index, change in enumerate(changes):
+                    with self.subTest(base=base, layout=layout, change=index), tempfile.TemporaryDirectory() as work:
+                        target = self.fixture(Path(work))
+                        target.rewrite_bar(base, layout, lambda bar: change(bar['clock']))
+                        with self.assertRaisesRegex(SystemExit, 'clock popup or click action conflict'):
+                            target.verify()
+
     def test_file_permissions_types_and_owners_still_fail_closed(self):
         cases = (
             ('/usr/local/libexec/labwc-tomat', 0o777, None, 'unsafe or missing native menu helper'),

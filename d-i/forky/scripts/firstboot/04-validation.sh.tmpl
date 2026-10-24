@@ -434,7 +434,7 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     /usr/local/bin/labwc-calendar \
     /usr/local/bin/labwc-agenda \
     /usr/local/libexec/calix-fruux-bootstrap \
-    /usr/local/libexec/labwc-waycal-toggle \
+    /usr/local/libexec/labwc-waycal-control \
     /usr/local/bin/labwc-logout \
     /usr/local/bin/labwc-fuzzel \
     /usr/local/bin/labwc-computer-management \
@@ -559,8 +559,6 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     /etc/skel-desktop/.config/mpv/input.conf \
     /etc/skel-desktop/.config/gtk-4.0/gtk.css \
     /etc/skel-desktop/.config/waycal/style.css \
-    /etc/skel-desktop/.config/systemd/user/labwc-waycal.service \
-    /etc/skel-desktop/.config/systemd/user/labwc-waycal-toggle.service \
     /etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.service \
     /etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.path \
     /etc/systemd/system/labwc-system-desktop-overrides.service \
@@ -912,8 +910,6 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
       .config/systemd/user/labwc-plans.service \
       .config/systemd/user/labwc-adb-server.service \
       .config/systemd/user/llama-server.service \
-      .config/systemd/user/labwc-waycal.service \
-      .config/systemd/user/labwc-waycal-toggle.service \
       .config/systemd/user/labwc-sync-application-launchers.service \
       .config/systemd/user/labwc-sync-application-launchers.path \
       .config/systemd/user/labwc-kwallet-portal.service \

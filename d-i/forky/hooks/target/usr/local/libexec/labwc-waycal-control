@@ -1,0 +1,279 @@
+#!/usr/bin/python3 -I
+"""Open, close or toggle one session-owned, five-second Waycal popup.
+
+Exit 0 acknowledges a request or an already satisfied state, not window
+visibility. Exit 2 rejects invocation, 3 means unavailable, and 4 means a
+mutation's outcome is unknown. Never repeat an uncertain mutation here.
+"""
+from __future__ import annotations
+
+import fcntl
+import os
+from pathlib import Path
+import re
+import selectors
+import stat
+import subprocess
+import sys
+import time
+import uuid
+
+UNIT = 'labwc-waycal-popup.service'
+DESCRIPTION = 'Labwc Waycal month popup'
+APP_BUS_NAME = 'com.forrestknight.waycal'
+SYSTEMCTL = ['/usr/bin/systemctl', '--user', '--no-ask-password', '--no-pager']
+OPERATION_SECONDS = 12.0
+OUTPUT_LIMIT = 1024
+
+
+class Unavailable(Exception):
+    pass
+
+
+class Uncertain(Exception):
+    pass
+
+
+def remaining(deadline: float) -> float:
+    value = deadline - time.monotonic()
+    if value <= 0:
+        raise TimeoutError
+    return value
+
+
+def command(argv: list[str], environment: dict[str, str], deadline: float) -> tuple[int, str]:
+    """Bound output while reading, the final wait, and separate child cleanup."""
+    # The only child is a fixed systemd client. The application itself belongs
+    # to the user manager's service cgroup, never to this short-lived client.
+    child = subprocess.Popen(argv, env=environment, stdin=subprocess.DEVNULL,
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                             close_fds=True)
+    assert child.stdout is not None
+    output = bytearray()
+    try:
+        with selectors.DefaultSelector() as selector:
+            selector.register(child.stdout, selectors.EVENT_READ)
+            while True:
+                if not selector.select(remaining(deadline)):
+                    raise TimeoutError
+                chunk = os.read(child.stdout.fileno(), min(512, OUTPUT_LIMIT + 1 - len(output)))
+                if not chunk:
+                    break
+                output.extend(chunk)
+                if len(output) > OUTPUT_LIMIT:
+                    raise ValueError('manager client output limit')
+        status = child.wait(timeout=remaining(deadline))
+        return status, output.decode('ascii', errors='strict')
+    except OSError:
+        # Popen failure happens before this block; I/O failure here occurs
+        # after the client started and may follow an accepted manager request.
+        raise ValueError('manager client I/O') from None
+    finally:
+        child.stdout.close()
+        if child.poll() is None:
+            cleanup_deadline = time.monotonic() + 1.0
+            child.terminate()
+            try:
+                child.wait(timeout=min(0.25, remaining(cleanup_deadline)))
+            except (subprocess.TimeoutExpired, TimeoutError):
+                child.kill()
+                try:
+                    child.wait(timeout=remaining(cleanup_deadline))
+                except (subprocess.TimeoutExpired, TimeoutError):
+                    raise Uncertain('client-cleanup') from None
+
+
+def context() -> dict[str, str]:
+    uid = os.getuid()
+    if uid == 0 or os.geteuid() != uid:
+        raise Unavailable('account')
+    runtime = Path('/run/user') / str(uid)
+    info = runtime.lstat()
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != uid
+            or stat.S_IMODE(info.st_mode) != 0o700):
+        raise Unavailable('runtime')
+    bus = (runtime / 'bus').lstat()
+    if not stat.S_ISSOCK(bus.st_mode) or bus.st_uid != uid:
+        raise Unavailable('bus')
+    # The service retains its user manager's account/locale environment. The
+    # short-lived clients need only this fixed user bus, not an ambient HOME,
+    # NSS lookup, desktop socket address or credential environment.
+    return {'PATH': '/usr/bin:/bin', 'LC_ALL': 'C',
+            'XDG_RUNTIME_DIR': str(runtime),
+            'DBUS_SESSION_BUS_ADDRESS': 'unix:path=' + str(runtime / 'bus')}
+
+
+def open_lock(environment: dict[str, str], deadline: float) -> int:
+    path = Path(environment['XDG_RUNTIME_DIR']) / 'labwc-waycal-control.lock'
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, 0o600)
+    try:
+        info = os.fstat(fd)
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != 0o600):
+            raise Unavailable('lock')
+        lock_deadline = min(deadline, time.monotonic() + 1.0)
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                time.sleep(min(0.025, remaining(lock_deadline)))
+        current = path.lstat()
+        if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
+            raise Unavailable('lock-replaced')
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def read_state(environment: dict[str, str], deadline: float) -> str | None:
+    status, output = command(SYSTEMCTL + ['show', '--all',
+        '--property=LoadState,ActiveState,Transient,Description', UNIT], environment, deadline)
+    fields = {}
+    for line in output.splitlines():
+        key, separator, value = line.partition('=')
+        if not separator or key in fields:
+            raise Unavailable('state')
+        fields[key] = value
+    if set(fields) != {'LoadState', 'ActiveState', 'Transient', 'Description'}:
+        raise Unavailable('state')
+    if (status in (0, 1) and fields['LoadState'] == 'not-found'
+            and fields['ActiveState'] == 'inactive' and fields['Transient'] == 'no'):
+        return None
+    if (status != 0 or fields['LoadState'] != 'loaded' or fields['Transient'] != 'yes'
+            or fields['Description'] != DESCRIPTION
+            or fields['ActiveState'] not in {'active', 'activating', 'reloading',
+                                             'deactivating', 'inactive', 'failed'}):
+        # A persistent or unrelated unit at this name is not ours to replace.
+        raise Unavailable('state')
+    return fields['ActiveState']
+
+
+def transient_argv(environment: dict[str, str]) -> list[str]:
+    display = os.environ.get('WAYLAND_DISPLAY', '')
+    if not re.fullmatch(r'wayland-[A-Za-z0-9_-]{1,96}', display):
+        raise Unavailable('display')
+    endpoint = (Path(environment['XDG_RUNTIME_DIR']) / display).lstat()
+    if not stat.S_ISSOCK(endpoint.st_mode) or endpoint.st_uid != os.getuid():
+        raise Unavailable('display')
+    environment['WAYLAND_DISPLAY'] = display
+    return ['/usr/bin/systemd-run', '--user', '--quiet', '--collect', '--no-block',
+            '--no-ask-password', '--service-type=exec', '--expand-environment=no',
+            '--unit=' + UNIT, '--description=' + DESCRIPTION, '--slice=app.slice',
+            '--property=Requisite=labwc-session.target',
+            '--property=After=labwc-session.target', '--property=PartOf=labwc-session.target',
+            '--property=ConditionEnvironment=LABWC_SESSION_OWNER=desktop',
+            '--property=ConditionPathExists=!' + environment['XDG_RUNTIME_DIR'] + '/labwc-session-closing',
+            '--property=ExitType=main', '--property=KillMode=control-group',
+            '--property=TimeoutStartSec=10s', '--property=TimeoutStopSec=1s',
+            # timeout owns the normal five-second lifetime. The manager keeps
+            # an independent backstop if its supervisor fails to finish.
+            '--property=RuntimeMaxSec=6s', '--property=RuntimeRandomizedExtraSec=0',
+            '--property=SuccessExitStatus=124',
+            '--property=SendSIGKILL=yes', '--property=Restart=no', '--property=UMask=0077',
+            '--property=PrivateUsers=yes', '--property=PrivateTmp=yes', '--property=PrivateIPC=yes',
+            '--property=PrivateNetwork=yes', '--property=ProtectSystem=full',
+            # Match the managed native launcher's AppArmor transition contract.
+            # The executable's existing waycal profile remains the file/IPC
+            # authority; do not block that transition with premature NNP.
+            '--property=NoNewPrivileges=no', '--property=LimitCORE=0',
+            '--property=StandardInput=null', '--property=StandardOutput=null',
+            '--property=StandardError=journal', '--property=SyslogIdentifier=waycal-popup',
+            '--property=UnsetEnvironment=DISPLAY XAUTHORITY LD_PRELOAD LD_AUDIT LD_LIBRARY_PATH GTK_MODULES GTK_PATH GIO_EXTRA_MODULES PYTHONPATH PYTHONHOME',
+            '--setenv=XDG_RUNTIME_DIR', '--setenv=DBUS_SESSION_BUS_ADDRESS',
+            '--setenv=WAYLAND_DISPLAY', '--setenv=GDK_BACKEND=wayland',
+            '--', '/usr/bin/timeout', '--signal=TERM', '--kill-after=1s', '5s',
+            '/opt/waycal/waycal', '--week-start', 'monday']
+
+
+def require_no_external_instance(environment: dict[str, str], deadline: float) -> None:
+    # GApplication would otherwise activate an existing Waycal outside our
+    # cgroup, leaving this controller unable to dismiss that window. This is
+    # coordination with ordinary same-UID launchers, not a security boundary
+    # against that UID racing an independent launch after this query.
+    status, output = command(['/usr/bin/busctl', '--user', '--timeout=3s',
+        '--auto-start=no', 'call', 'org.freedesktop.DBus', '/org/freedesktop/DBus',
+        'org.freedesktop.DBus', 'NameHasOwner', 's', APP_BUS_NAME], environment, deadline)
+    if status != 0 or output != 'b false\n':
+        raise Unavailable('application-owner')
+
+
+def operate(action: str, environment: dict[str, str], deadline: float) -> str:
+    state = read_state(environment, deadline)
+    if action == 'toggle':
+        # Resolve while holding the shared lock. A unit still stopping or
+        # collecting is a close request, never a replacement or timer reset.
+        action = 'open' if state is None else 'close'
+    if action == 'open':
+        if state in {'active', 'activating', 'reloading'}:
+            return 'already-requested'
+        if state is not None:
+            # Collection/stop is in progress. Do not replace or reset a unit,
+            # nor race a pending stop with another launch.
+            raise Unavailable('collection')
+        require_no_external_instance(environment, deadline)
+        argv = transient_argv(environment)
+    else:
+        if state is None or state in {'inactive', 'failed'}:
+            return 'closed'
+        if state == 'deactivating':
+            return 'stop-requested'
+        argv = SYSTEMCTL + ['--no-block', 'stop', UNIT]
+    try:
+        status, output = command(argv, environment, deadline)
+    except OSError:
+        raise Unavailable('client') from None
+    except (TimeoutError, subprocess.TimeoutExpired, UnicodeError, ValueError):
+        # The manager may have accepted the job. Never retry this mutation.
+        raise Uncertain('request') from None
+    if status != 0 or output:
+        if action == 'close':
+            # The five-second expiry may have collected the unit after our
+            # initial read. Reconcile by reading only; never retry a stop or
+            # create a replacement from this request.
+            try:
+                current = read_state(environment, deadline)
+            except (OSError, UnicodeError, ValueError, TimeoutError,
+                    subprocess.TimeoutExpired, Unavailable, Uncertain):
+                raise Uncertain('stop-readback') from None
+            if current is None or current in {'inactive', 'failed'}:
+                return 'closed'
+            if current == 'deactivating':
+                return 'stop-requested'
+        raise Uncertain('request')
+    return 'open-requested' if action == 'open' else 'stop-requested'
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) != 1 or argv[0] not in {'open', 'close', 'toggle'} or os.getuid() == 0:
+        return 2
+    action = argv[0]
+    correlation = uuid.uuid4().hex
+    lock = None
+    stage = 'context'
+    try:
+        deadline = time.monotonic() + OPERATION_SECONDS
+        environment = context()
+        stage = 'lock'
+        lock = open_lock(environment, deadline)
+        stage = 'manager'
+        result = operate(action, environment, deadline)
+        print(f'waycal-control action={action} status={result} correlation={correlation}')
+        return 0
+    except Uncertain as error:
+        print(f'waycal-control action={action} status=outcome-unknown stage={error} correlation={correlation}', file=sys.stderr)
+        return 4
+    except Unavailable as error:
+        print(f'waycal-control action={action} status=unavailable stage={error} correlation={correlation}', file=sys.stderr)
+        return 3
+    except (OSError, UnicodeError, ValueError, TimeoutError, subprocess.TimeoutExpired):
+        print(f'waycal-control action={action} status=unavailable stage={stage} correlation={correlation}', file=sys.stderr)
+        return 3
+    finally:
+        if lock is not None:
+            os.close(lock)
+
+
+if __name__ == '__main__':
+    raise SystemExit(main(sys.argv[1:]))

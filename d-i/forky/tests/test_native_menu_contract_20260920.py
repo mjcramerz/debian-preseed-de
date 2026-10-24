@@ -27,6 +27,7 @@ from pathlib import Path
 import re
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -105,7 +106,8 @@ class MenuContractTests(unittest.TestCase):
                     self.assertIn('--property=SuccessExitStatus=2', argv[:argv.index('--')])
                 else:
                     self.assertNotIn('--property=SuccessExitStatus=2', argv[:argv.index('--')])
-            self.assertEqual(entry['on-click-right'], '/usr/bin/systemctl --user --no-ask-password --no-block start labwc-waycal-toggle.service')
+            self.assertEqual(shlex.split(entry['on-click-right']),
+                             ['/usr/local/libexec/labwc-waycal-control', 'toggle'])
             self.assertNotIn('on-click-right-release', entry)
             self.assertNotIn('on-click-middle', entry)
             self.assertNotIn('on-click-middle-release', entry)
@@ -191,59 +193,246 @@ class MenuContractTests(unittest.TestCase):
             self.assertIn(package, packages)
 
 
-class WaycalToggleTests(unittest.TestCase):
+class WaycalControlTests(unittest.TestCase):
     def setUp(self):
-        self.helper = load('labwc-waycal-toggle')
+        self.helper = load('labwc-waycal-control')
         self.uid = mock.patch.object(self.helper.os, 'getuid', return_value=1000)
         self.uid.start()
         self.addCleanup(self.uid.stop)
+        self.environment = {'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'HOME': '/home/fixture',
+                            'XDG_RUNTIME_DIR': '/run/user/1000',
+                            'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1000/bus'}
+        self.owner_query = self.helper.require_no_external_instance
+        owner = mock.patch.object(self.helper, 'require_no_external_instance')
+        self.owner = owner.start()
+        self.addCleanup(owner.stop)
 
-    def test_popup_starts_when_closed_and_stops_when_open(self):
-        for state, action in (('inactive', 'start'), ('failed', 'start'),
-                              ('active', 'stop'), ('activating', 'stop'),
-                              ('reloading', 'stop'), ('deactivating', 'stop')):
-            with self.subTest(state=state), mock.patch.object(self.helper.subprocess, 'run', side_effect=[
-                    SimpleNamespace(returncode=0, stdout=state + '\n'),
-                    SimpleNamespace(returncode=0)]) as command:
-                self.assertEqual(self.helper.main([]), 0)
-                self.assertEqual(command.call_count, 2)
-                self.assertEqual(command.call_args_list[0].args[0], self.helper.SYSTEMCTL +
-                                 ['show', '--property=ActiveState', '--value', 'labwc-waycal.service'])
-                self.assertEqual(command.call_args_list[1].args[0], self.helper.SYSTEMCTL +
-                                 [action, 'labwc-waycal.service'])
-                self.assertEqual(command.call_args_list[1].kwargs['timeout'], 8)
+    def test_absent_popup_creates_one_transient_request(self):
+        with mock.patch.object(self.helper, 'read_state', return_value=None), \
+                mock.patch.object(self.helper, 'transient_argv', return_value=['fixture-systemd-run']), \
+                mock.patch.object(self.helper, 'command', return_value=(0, '')) as command:
+            self.assertEqual(self.helper.operate('open', self.environment, 100), 'open-requested')
+            self.owner.assert_called_once_with(self.environment, 100)
+            command.assert_called_once_with(['fixture-systemd-run'], self.environment, 100)
 
-    def test_missing_state_and_failed_state_read_never_mutate(self):
-        for output, status in (('', 0), ('unknown\n', 0), ('inactive\n', 1)):
-            with mock.patch.object(self.helper.subprocess, 'run',
-                                   return_value=SimpleNamespace(returncode=status, stdout=output)) as command:
-                self.assertEqual(self.helper.main([]), 1)
-                self.assertEqual(command.call_count, 1)
+    def test_toggle_opens_absent_popup_and_closes_existing_one(self):
+        with mock.patch.object(self.helper, 'read_state', return_value=None), \
+                mock.patch.object(self.helper, 'transient_argv', return_value=['fixture-systemd-run']), \
+                mock.patch.object(self.helper, 'command', return_value=(0, '')) as command:
+            self.assertEqual(self.helper.operate('toggle', self.environment, 100), 'open-requested')
+            command.assert_called_once_with(['fixture-systemd-run'], self.environment, 100)
+        for state in ('active', 'activating', 'reloading'):
+            with mock.patch.object(self.helper, 'read_state', return_value=state), \
+                    mock.patch.object(self.helper, 'transient_argv') as launch, \
+                    mock.patch.object(self.helper, 'command', return_value=(0, '')) as command:
+                self.assertEqual(self.helper.operate('toggle', self.environment, 100), 'stop-requested')
+                launch.assert_not_called()
+                command.assert_called_once_with(self.helper.SYSTEMCTL +
+                    ['--no-block', 'stop', self.helper.UNIT], self.environment, 100)
+
+    def test_toggle_during_expiry_never_reopens_or_resets_a_unit(self):
+        for state in ('deactivating', 'inactive', 'failed'):
+            with mock.patch.object(self.helper, 'read_state', return_value=state), \
+                    mock.patch.object(self.helper, 'transient_argv') as launch, \
+                    mock.patch.object(self.helper, 'command') as command:
+                expected = 'stop-requested' if state == 'deactivating' else 'closed'
+                self.assertEqual(self.helper.operate('toggle', self.environment, 100), expected)
+                launch.assert_not_called()
+                command.assert_not_called()
+
+    def test_new_toggle_after_collection_starts_a_fresh_service(self):
+        with mock.patch.object(self.helper, 'read_state', side_effect=[None, 'active', 'deactivating', None]), \
+                mock.patch.object(self.helper, 'transient_argv', return_value=['fixture-systemd-run']) as launch, \
+                mock.patch.object(self.helper, 'command', return_value=(0, '')) as command:
+            self.assertEqual([self.helper.operate('toggle', self.environment, 100) for _ in range(4)],
+                             ['open-requested', 'stop-requested', 'stop-requested', 'open-requested'])
+            self.assertEqual(launch.call_count, 2)
+            self.assertEqual(command.call_count, 3)
+
+    def test_expiry_between_read_and_stop_is_reconciled_without_retry(self):
+        for current in (None, 'inactive', 'failed', 'deactivating'):
+            with mock.patch.object(self.helper, 'read_state', side_effect=['active', current]) as state, \
+                    mock.patch.object(self.helper, 'command', return_value=(1, '')) as command, \
+                    mock.patch.object(self.helper, 'transient_argv') as launch:
+                expected = 'stop-requested' if current == 'deactivating' else 'closed'
+                self.assertEqual(self.helper.operate('toggle', self.environment, 100), expected)
+                self.assertEqual(state.call_count, 2)
+                command.assert_called_once()
+                launch.assert_not_called()
+
+    def test_failed_stop_with_active_or_unreadable_state_is_uncertain(self):
+        for current in ('active', self.helper.Unavailable('fixture read failure')):
+            with mock.patch.object(self.helper, 'read_state', side_effect=['active', current]), \
+                    mock.patch.object(self.helper, 'command', return_value=(1, '')) as command:
+                with self.assertRaises(self.helper.Uncertain):
+                    self.helper.operate('toggle', self.environment, 100)
+                command.assert_called_once()
+
+    def test_repeated_open_coalesces_and_never_replaces_a_stopping_unit(self):
+        for state in ('active', 'activating', 'reloading'):
+            with mock.patch.object(self.helper, 'read_state', return_value=state), \
+                    mock.patch.object(self.helper, 'command') as command:
+                self.assertEqual(self.helper.operate('open', self.environment, 100), 'already-requested')
+                command.assert_not_called()
+        for state in ('deactivating', 'inactive', 'failed'):
+            with mock.patch.object(self.helper, 'read_state', return_value=state), \
+                    mock.patch.object(self.helper, 'command') as command:
+                with self.assertRaises(self.helper.Unavailable):
+                    self.helper.operate('open', self.environment, 100)
+                command.assert_not_called()
+
+    def test_close_targets_only_the_popup_and_is_idempotent(self):
+        for state in ('active', 'activating', 'reloading'):
+            with mock.patch.object(self.helper, 'read_state', return_value=state), \
+                    mock.patch.object(self.helper, 'command', return_value=(0, '')) as command:
+                self.assertEqual(self.helper.operate('close', self.environment, 100), 'stop-requested')
+                command.assert_called_once_with(self.helper.SYSTEMCTL +
+                    ['--no-block', 'stop', self.helper.UNIT], self.environment, 100)
+        for state in (None, 'inactive', 'failed', 'deactivating'):
+            with mock.patch.object(self.helper, 'read_state', return_value=state), \
+                    mock.patch.object(self.helper, 'command') as command:
+                expected = 'stop-requested' if state == 'deactivating' else 'closed'
+                self.assertEqual(self.helper.operate('close', self.environment, 100), expected)
+                command.assert_not_called()
+
+    def test_failed_reads_and_unit_collisions_prevent_mutation(self):
+        valid = ('LoadState=loaded\nActiveState=active\nTransient=yes\nDescription='
+                 + self.helper.DESCRIPTION + '\n')
+        for output, status in (('', 0), (valid, 1),
+                               (valid.replace('Transient=yes', 'Transient=no'), 0),
+                               (valid.replace(self.helper.DESCRIPTION, 'unrelated application'), 0),
+                               (valid + 'ActiveState=inactive\n', 0),
+                               (valid.replace('ActiveState=active', 'ActiveState=unexpected'), 0)):
+            with mock.patch.object(self.helper, 'command', return_value=(status, output)) as command:
+                with self.assertRaises(self.helper.Unavailable):
+                    self.helper.operate('close', self.environment, 100)
+                command.assert_called_once()
+        with mock.patch.object(self.helper, 'command', return_value=(0, valid)):
+            self.assertEqual(self.helper.read_state(self.environment, 100), 'active')
+        absent = 'LoadState=not-found\nActiveState=inactive\nTransient=no\nDescription=\n'
+        for status in (0, 1):
+            with mock.patch.object(self.helper, 'command', return_value=(status, absent)):
+                self.assertIsNone(self.helper.read_state(self.environment, 100))
 
     def test_uncertain_mutation_is_not_retried(self):
-        with mock.patch.object(self.helper.subprocess, 'run', side_effect=[
-                SimpleNamespace(returncode=0, stdout='inactive\n'),
-                subprocess.TimeoutExpired(['fixture-systemctl'], 8)]) as command:
-            self.assertEqual(self.helper.main([]), 1)
-            self.assertEqual(command.call_count, 2)
+        for failure in (TimeoutError(), ValueError('fixture output limit')):
+            with mock.patch.object(self.helper, 'read_state', return_value=None), \
+                    mock.patch.object(self.helper, 'transient_argv', return_value=['fixture-systemd-run']), \
+                    mock.patch.object(self.helper, 'command', side_effect=failure) as command:
+                with self.assertRaises(self.helper.Uncertain):
+                    self.helper.operate('open', self.environment, 100)
+                command.assert_called_once()
 
-    def test_root_and_extra_arguments_do_not_contact_manager(self):
-        with mock.patch.object(self.helper.subprocess, 'run') as command:
-            self.assertEqual(self.helper.main(['unexpected']), 2)
-            with mock.patch.object(self.helper.os, 'getuid', return_value=0):
-                self.assertEqual(self.helper.main([]), 2)
+    def test_external_gapplication_owner_prevents_launch(self):
+        with mock.patch.object(self.helper, 'read_state', return_value=None), \
+                mock.patch.object(self.helper, 'transient_argv') as launch, \
+                mock.patch.object(self.helper, 'command') as command:
+            self.owner.side_effect = self.helper.Unavailable('application-owner')
+            with self.assertRaises(self.helper.Unavailable):
+                self.helper.operate('open', self.environment, 100)
+            launch.assert_not_called()
             command.assert_not_called()
 
-    def test_styles_and_serialized_unit_are_staged_without_login_activation(self):
+    def test_owner_query_is_bounded_and_only_absence_allows_launch(self):
+        for status, output in ((0, 'b true\n'), (1, 'b false\n'),
+                               (0, 'b false\nextra'), (0, 'invalid')):
+            with mock.patch.object(self.helper, 'command', return_value=(status, output)):
+                with self.assertRaises(self.helper.Unavailable):
+                    self.owner_query(self.environment, 100)
+        with mock.patch.object(self.helper, 'command', return_value=(0, 'b false\n')) as query:
+            self.owner_query(self.environment, 100)
+            argv, environment, deadline = query.call_args.args
+            self.assertEqual(argv[0], '/usr/bin/busctl')
+            self.assertIn('--timeout=3s', argv)
+            self.assertIn('--auto-start=no', argv)
+            self.assertEqual(argv[-3:], ['NameHasOwner', 's', self.helper.APP_BUS_NAME])
+            self.assertEqual((environment, deadline), (self.environment, 100))
+
+    def test_root_and_extra_arguments_do_not_contact_manager(self):
+        with mock.patch.object(self.helper, 'context') as context:
+            self.assertEqual(self.helper.main([]), 2)
+            self.assertEqual(self.helper.main(['open', 'extra']), 2)
+            with mock.patch.object(self.helper.os, 'getuid', return_value=0):
+                self.assertEqual(self.helper.main(['open']), 2)
+            context.assert_not_called()
+
+    def test_toggle_cli_uses_the_shared_lock_and_releases_it(self):
+        with mock.patch.object(self.helper, 'context', return_value=self.environment), \
+                mock.patch.object(self.helper, 'open_lock', return_value=17) as lock, \
+                mock.patch.object(self.helper, 'operate', return_value='open-requested') as operation, \
+                mock.patch.object(self.helper.os, 'close') as close, \
+                contextlib.redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(self.helper.main(['toggle']), 0)
+            lock.assert_called_once()
+            operation.assert_called_once_with('toggle', self.environment, lock.call_args.args[1])
+            close.assert_called_once_with(17)
+            self.assertIn('action=toggle status=open-requested', output.getvalue())
+
+    def test_transient_service_keeps_native_layer_shell_and_scoped_isolation(self):
+        endpoint = SimpleNamespace(st_mode=stat.S_IFSOCK | 0o600, st_uid=1000)
+        with mock.patch.dict(self.helper.os.environ, {'WAYLAND_DISPLAY': 'wayland-fixture'}, clear=True), \
+                mock.patch.object(self.helper.Path, 'lstat', return_value=endpoint):
+            argv = self.helper.transient_argv(self.environment)
+        self.assertEqual(argv[0], '/usr/bin/systemd-run')
+        for value in ('--user', '--collect', '--no-block', '--service-type=exec',
+                      '--expand-environment=no', '--unit=labwc-waycal-popup.service',
+                      '--property=Requisite=labwc-session.target',
+                      '--property=PartOf=labwc-session.target', '--property=ExitType=main',
+                      '--property=KillMode=control-group', '--property=TimeoutStartSec=10s',
+                      '--property=TimeoutStopSec=1s', '--property=RuntimeMaxSec=6s',
+                      '--property=RuntimeRandomizedExtraSec=0', '--property=SuccessExitStatus=124',
+                      '--property=PrivateUsers=yes',
+                      '--property=PrivateTmp=yes',
+                      '--property=PrivateIPC=yes', '--property=PrivateNetwork=yes',
+                      '--property=ProtectSystem=full', '--setenv=GDK_BACKEND=wayland'):
+            self.assertIn(value, argv)
+        self.assertEqual(argv[argv.index('--') + 1:],
+                         ['/usr/bin/timeout', '--signal=TERM', '--kill-after=1s', '5s',
+                          '/opt/waycal/waycal', '--week-start', 'monday'])
+        self.assertNotIn('--popup', argv)
+        self.assertNotIn('--scope', argv)
+        self.assertNotIn('--property=PrivateDevices=yes', argv)
+        self.assertEqual(self.environment['WAYLAND_DISPLAY'], 'wayland-fixture')
+
+    def test_invalid_display_is_rejected_before_socket_access(self):
+        for value in ('', '/tmp/wayland-0', '../wayland-0', 'wayland-0\nother'):
+            with mock.patch.dict(self.helper.os.environ, {'WAYLAND_DISPLAY': value}, clear=True), \
+                    mock.patch.object(self.helper.Path, 'lstat') as access:
+                with self.assertRaises(self.helper.Unavailable):
+                    self.helper.transient_argv(self.environment)
+                access.assert_not_called()
+
+    def test_output_limit_and_final_wait_have_bounded_child_cleanup(self):
+        # These are disposable-environment children, never management helpers.
+        # The module's isolation guard runs before this fixture is imported.
+        with tempfile.TemporaryDirectory() as directory:
+            environment = {'PATH': '/usr/bin:/bin', 'HOME': directory, 'LC_ALL': 'C'}
+            factory = subprocess.Popen
+            children = []
+
+            def spawn(*args, **kwargs):
+                child = factory(*args, **kwargs)
+                children.append(child)
+                return child
+
+            with mock.patch.object(self.helper.subprocess, 'Popen', side_effect=spawn):
+                with self.assertRaises(ValueError):
+                    self.helper.command([sys.executable, '-I', '-B', '-c', 'print("x" * 4096)'],
+                                        environment, time.monotonic() + 3)
+                with self.assertRaises((TimeoutError, subprocess.TimeoutExpired)):
+                    self.helper.command([sys.executable, '-I', '-B', '-c',
+                                         'import os, time; os.close(1); time.sleep(30)'],
+                                        environment, time.monotonic() + 0.2)
+            self.assertTrue(all(child.returncode is not None for child in children))
+
+    def test_styles_and_controller_are_staged_and_static_units_are_retired(self):
         source = payload_read_text(FORKY / 'scripts/desktop/components.sh')
-        self.assertIn('labwc-calendar-credentials labwc-waycal labwc-waycal-toggle', source)
+        self.assertIn('usr/local/libexec/labwc-waycal-control', source)
+        self.assertNotIn('labwc-waycal-toggle', source)
         self.assertIn('etc/skel-desktop/.config/waycal/style.css', source)
         self.assertIn('.config/waycal', source)
-        unit = payload_read_text(SKEL / 'systemd/user/labwc-waycal-toggle.service')
-        self.assertIn('Type=oneshot', unit)
-        self.assertIn('StartLimitIntervalSec=0', unit)
-        self.assertIn('PartOf=labwc-session.target', unit)
-        self.assertNotIn('[Install]', unit)
+        for name in ('labwc-waycal.service', 'labwc-waycal-toggle.service'):
+            self.assertFalse(payload_source_exists(SKEL / 'systemd/user' / name))
         style = payload_read_text(SKEL / 'waycal/style.css')
         self.assertIn('rgba(30, 23, 46, 0.94)', style)
         self.assertIn('window.waycal .waycal-root.rounded', style)

@@ -321,7 +321,7 @@ class MenuAndHookTests(unittest.TestCase):
         for bar in bars():
             for module, name, event in [('custom/tomat','tomat','on-click'), ('pulseaudio','audio','on-click'),
                                        ('custom/notifications','notifications','on-click'), ('custom/power','power','on-click'),
-                                       ('clock','calendar','on-click-right')]:
+                                       ('clock','calendar','on-click')]:
                 entry = bar[module]
                 self.assertEqual(entry['menu'], event); self.assertNotIn(event, entry)
                 tree = ET.parse(payload_source_path(SKEL / 'waybar' / (name + '-menu.xml')))
