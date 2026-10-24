@@ -1,4 +1,4 @@
-# Agenda 1.2.1: native GTK appearance follows the desktop's theme and font.
+# Agenda 1.2.1: the managed launcher selects GTK's Adwaita dark appearance.
 # These are defaults; the application can persist the user's later choices.
 [com.github.dahenson.agenda]
 # Comfortable portrait layout with room for longer task descriptions.

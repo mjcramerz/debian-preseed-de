@@ -1340,7 +1340,9 @@ render_target_asset_with_placeholder_map "$2" /etc/apparmor.d/local/abstractions
                                     and rule.access == {'readby'} for rule in reciprocal))
 
     def test_rfkill_and_proc_grants_do_not_add_writes_or_execution(self):
-        for file, label in (('labwc-session', 'wpctl'), ('desktop-wrappers', 'labwc-generic-app')):
+        for file, label in (('labwc-session', 'wpctl'),
+                            ('desktop-wrappers', 'labwc-generic-app'),
+                            ('calendars', 'labwc-waycal-control')):
             with self.subTest(profile=label):
                 rules = [l.strip() for l in body(file, label).splitlines()
                          if l.strip().startswith('/dev/rfkill ')]

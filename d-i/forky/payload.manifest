@@ -161,7 +161,7 @@ d7f00a47100e4137e5c31fee7a926f0d97c967f4401941ebe6a417783c44028a  hooks/target/e
 ca90aaa595a1a5c4da9321facd921c9d817b902f2ca5143f651529e8a0a6ed7b  hooks/target/etc/apparmor.d/abstractions/wrapper-terminal
 3ef6dac5fd5ea380078767cec303c72c8cc7eba5fdf9203cc55e57ccdddef1b7  hooks/target/etc/apparmor.d/abstractions/wrapper-wayland
 f3be314bcaaacf6ce3e0a5ee5565ecffcb19a0a5dfb8afd31d19fd2e4009315f  hooks/target/etc/apparmor.d/app-veth.tmpl
-05c67623276bedfa35006d5987556c2b886f466972e7d1aeda3bbf99f1a8b958  hooks/target/etc/apparmor.d/calendars
+d88620081f8c2bc32892d6721eb0058e180cdcceb31d8b9e77cb6012ecdb20f3  hooks/target/etc/apparmor.d/calendars
 edbdf14c3009aa22e3c38d7502342bbaf1c560354cc0caba51f0b77f62276502  hooks/target/etc/apparmor.d/chatgpt
 97037de893dd958aa30f41c58226133a7ba6d3a1ca69b9f951d569c5b578328d  hooks/target/etc/apparmor.d/compz
 a8e8fba190c12bd77dfaef16ea28dd52824bf899a7a695535b925e6ad9e51174  hooks/target/etc/apparmor.d/crun
@@ -1349,7 +1349,7 @@ f7b83a2ff28dd2921447d9035c614704eb56f1ca92a3ffd144b798a2ea35e715  hooks/target/u
 ae665a85c88c409d21163551dd292f9ef7367917f22c0f2003e356d36a4f2f8c  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/mounts.py
 4a833a0f9ed205a97598e57778de98146f8a23cbb81d56f54992e3bd22cf47b3  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_client.py
 3b476ce896279724ae8eb0928de43680b9e3f6e1a70c273ba11b80c6ce8f5a3e  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_namespace.py
-6abec18b49cb3d4b746d261d881d0d70021af0066512cece7aeb52d1b013de9f  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py.tmpl
+8b75badeae211630bc7bcaf38f4d536525215e41125ece1133d7a8c068bda226  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py.tmpl
 42615fe72bb33e110dd45a37ee1554355e9bc6b8aaadf5de0114383212d4a311  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/project_identity.py
 aef10dc754a7cc7c698c2b0858f7601545e5ed88a5ade34f675f728fd88c582b  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/recovery.py
 c78cbc67355959ac249ee5d597040d88940204a13a71ce76ce7c2ce0d8621930  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/runtime.py
@@ -1509,7 +1509,7 @@ e74fefdec32c18e9e940a9d33d09c6417a49230d08bfb09fa44cfce9c554860a  hooks/target/u
 4c12db0590e1fa2d9d9d4e2110d5c2a8deccf77f0971af908e96b078a49b045f  hooks/target/usr/local/sbin/luks-mok-passwd.tmpl
 8f0816cbdf55ecb8c245fbc2b9fec0c9409b2468c118228aa3894306cd364726  hooks/target/usr/local/sbin/nft-policy-generate.py
 302c039224316e90292cd4d16943c55b2127a0c0b368ea26e2f082de8a264669  hooks/target/usr/local/sbin/nvme-pcie-status
-4e98a75197d022277be2d72a4ce3d63a17304e2c17e2c36255d64f14cc802310  hooks/target/usr/local/share/agenda/schemas/90-desktop-agenda.gschema.override
+3ab994a6d8b950001a67ac82904b917ddcf07d97f42fa48356423257d15aaf0d  hooks/target/usr/local/share/agenda/schemas/90-desktop-agenda.gschema.override
 e4136f39533f06cc2ca273f8cda55e2a4924ba7e5184d7193e3473d1a007caf2  hooks/target/usr/local/share/applications/chatgpt.desktop.tmpl
 79ed11b4be86e437e2386d87dea540676eed06f90778b668cdc312dcd434be0a  hooks/target/usr/local/share/applications/code.desktop
 1ea81bdb7fbe46b5bf6ddea79810b5f96130bf9ab400dec5d5d7a49dfa66c6f6  hooks/target/usr/local/share/applications/com.github.dahenson.agenda.desktop

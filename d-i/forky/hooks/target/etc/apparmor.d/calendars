@@ -190,6 +190,8 @@ profile labwc-waycal-control /usr/local/libexec/labwc-waycal-control flags=(atta
   /usr/bin/systemctl rix,
   /usr/bin/systemd-run rix,
   /usr/bin/busctl rix,
+  # Waybar can pass a read-only rfkill descriptor across this profile transition.
+  /dev/rfkill r,
   /usr/lib/** mr,
   /usr/share/{glib-2.0,gir-1.0,locale}/{,**} r,
   owner /run/user/[0-9]*/{,bus,systemd/private} rw,

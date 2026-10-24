@@ -88,6 +88,9 @@ APPS = {
     "agenda": {
         "exec": "/usr/local/bin/com.github.dahenson.agenda",
         "env": {"GDK_BACKEND": "wayland",
+                # Select GTK's dark variant even when Granite reports a light
+                # or unset desktop color scheme during Agenda activation.
+                "GTK_THEME": "Adwaita:dark",
                 # Agenda explicitly sets a GtkHeaderBar; GTK_CSD alone does
                 # not disable it. Keep the packaged interposer app-local.
                 "GTK_CSD": "0",
