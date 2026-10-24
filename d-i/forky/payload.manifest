@@ -161,7 +161,7 @@ d7f00a47100e4137e5c31fee7a926f0d97c967f4401941ebe6a417783c44028a  hooks/target/e
 ca90aaa595a1a5c4da9321facd921c9d817b902f2ca5143f651529e8a0a6ed7b  hooks/target/etc/apparmor.d/abstractions/wrapper-terminal
 3ef6dac5fd5ea380078767cec303c72c8cc7eba5fdf9203cc55e57ccdddef1b7  hooks/target/etc/apparmor.d/abstractions/wrapper-wayland
 f3be314bcaaacf6ce3e0a5ee5565ecffcb19a0a5dfb8afd31d19fd2e4009315f  hooks/target/etc/apparmor.d/app-veth.tmpl
-7af463732e8a4c7368303a6acd185042594a36c4c5a584eaf4e15a9bbc829454  hooks/target/etc/apparmor.d/calendars
+05c67623276bedfa35006d5987556c2b886f466972e7d1aeda3bbf99f1a8b958  hooks/target/etc/apparmor.d/calendars
 edbdf14c3009aa22e3c38d7502342bbaf1c560354cc0caba51f0b77f62276502  hooks/target/etc/apparmor.d/chatgpt
 97037de893dd958aa30f41c58226133a7ba6d3a1ca69b9f951d569c5b578328d  hooks/target/etc/apparmor.d/compz
 a8e8fba190c12bd77dfaef16ea28dd52824bf899a7a695535b925e6ad9e51174  hooks/target/etc/apparmor.d/crun
@@ -840,7 +840,7 @@ c91e049f8e87044913ac0576bff411af8bcd525a2a0a0f435f5eb9786220981a  hooks/target/e
 c228173dbf97e78b166e7a18adb5d8c6a5cb05bf50f44983708db6a867f5795f  hooks/target/etc/systemd/system/nvidia-resume.service.d/20-vram.conf
 942c5cdadc622c0a67c09d46dfd4a0e537cc4f64fd323b1e48945f296336ef51  hooks/target/etc/systemd/system/nvidia-suspend-then-hibernate.service.d/20-vram.conf
 942c5cdadc622c0a67c09d46dfd4a0e537cc4f64fd323b1e48945f296336ef51  hooks/target/etc/systemd/system/nvidia-suspend.service.d/20-vram.conf
-b4589fe936f26568026c279b37c4393486b6753d5460656b046d7f389b632f78  hooks/target/etc/systemd/system/podman-devops-bootstrap.service
+365f35d04c8a842fcb224f6b86126b37df9bf41bab4a4395d3750140d66a7332  hooks/target/etc/systemd/system/podman-devops-bootstrap.service
 97f48009586c637e79259206ea98a40139d5a310e5db22fe6605bdbe34dd6b5f  hooks/target/etc/systemd/system/power-profiles-daemon.service.d/50-hardware-tuning.conf.tmpl
 771671f7f34144e82bb5840a684b77a050607319cb89c5a7eb227abec69fd9cf  hooks/target/etc/systemd/system/rsyslog-journal-forwarding.service
 06e87a341f9d4d2b72edd1e4f8a495a8a1898be4f6c903acb85641bd7791dbf0  hooks/target/etc/systemd/system/rsyslog.service.d/20-log-layout.conf.tmpl
@@ -1097,7 +1097,7 @@ a25e352bf652ba490a78eb11dac86e4edb72ae0813186088ac266779ee433a67  hooks/target/u
 6609cb3e2843b9fd3ff6baa856308b69400c5bf85336e3e2a96376e1c6aec55a  hooks/target/usr/local/bin/labwc-security-action
 f688c9b7082ed4dac2358f0cd756c881bbc29c4979effdecce99bd46fcbdaac7  hooks/target/usr/local/bin/labwc-session.tmpl
 77d3e522686d78a425ed08345eebfca27c4a8125d1c0a4c9ae429058a3aa2a28  hooks/target/usr/local/bin/labwc-show-desktop
-143ce00db03154811399da640dba475af846af5dd019476c8e76e361f7dc79d4  hooks/target/usr/local/bin/labwc-sync-application-launchers.tmpl
+0dfaf981d981b469db8f94ca603a181d816cd5be522897b673d78b417f667a03  hooks/target/usr/local/bin/labwc-sync-application-launchers.tmpl
 a669b4ae2dcb659f271b7744fad257b5049a15f3e69d1038660073fffe8ea88e  hooks/target/usr/local/bin/labwc-system-action.tmpl
 f33bd4ac8422cd0e9cf077accd4822a0de227953222004f76b75d26c67efffd4  hooks/target/usr/local/bin/labwc-terminal
 34609b6d9f4b6c770d6c90db9060167ab4f6163a8b16aac8c1b90a232127591a  hooks/target/usr/local/bin/labwc-users-groups-menu
@@ -1138,7 +1138,7 @@ dab6b84ee1c03533360fc2182c1c74d5a279b0bcf409c1b0e7fadabb1c686a5f  hooks/target/u
 85b03578ce689a40221ca5f88c1e21d6ce3ce8c24728ffb7a0859339d36cf339  hooks/target/usr/local/lib/perl5/site_perl/apparmor-modes/AppArmor/ManagedModes/LocalChildren.pm
 1ff46a20302a943c9e2ab6d25cb53c0b44798137cb20c5de742969e8be3c7aa4  hooks/target/usr/local/lib/perl5/site_perl/apparmor-modes/AppArmor/ManagedModes/Logger.pm
 ecfcc2a88410ec5bf386e48e2e35804d43f8453cf3eb9dd389f626ef8a3debf2  hooks/target/usr/local/lib/perl5/site_perl/apparmor-modes/AppArmor/ManagedModes/Tool.pm
-4fd08fff360435d05398bb58e3589c00452824a22901d30e6112531fe728708e  hooks/target/usr/local/lib/perl5/site_perl/apparmor-modes/AppArmor/ManagedModes/Transition.pm
+6ef843977b89deae06878d600f1e9c565d60068a36365c947267a8808aabb504  hooks/target/usr/local/lib/perl5/site_perl/apparmor-modes/AppArmor/ManagedModes/Transition.pm
 547ba68fcbfe1048f5bdd03f6f4e577ffa16435ea6e659705a959e9915dd0ba5  hooks/target/usr/local/lib/perl5/site_perl/apparmor-modes/AppArmor/ManagedModes/TrustedPath.pm
 7f6d4dc0e6165b71675924b0fe9511b339d5ee1a8ce63b2d24ba0acc5d87f365  hooks/target/usr/local/lib/perl5/site_perl/apparmor-modes/AppArmor/ManagedModes/Verify.pm
 a85ef69ecd9c4a3ee228194f1942e1ed091ce4cc6aa5b83c919c63d3ec953cb9  hooks/target/usr/local/lib/perl5/site_perl/apparmor-modes/AppArmor/ManagedModes/Workspace.pm

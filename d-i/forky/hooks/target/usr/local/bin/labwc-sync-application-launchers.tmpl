@@ -110,7 +110,9 @@ APP_CONFIG = (
         "field_code": "%F",
     },
     {
-        "desktop_names": ("code-url-handler.desktop",),
+        # VS Code 1.139 renamed the packaged URL-handler desktop ID. Keep the
+        # old managed ID and publish the current vendor name as its alias.
+        "desktop_names": ("code-url-handler.desktop", "com.microsoft.VSCode.UrlHandler.desktop"),
         "action_app": "code",
         "field_code": "--open-url %U",
         "no_display": True,

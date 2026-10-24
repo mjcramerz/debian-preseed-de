@@ -82,7 +82,8 @@ class PrimaryGPGProofTests(unittest.TestCase):
                           isinstance(target, ast.Name) and target.id == 'APP_CONFIG' for target in node.targets))
         code = [item for item in config if item['action_app'] == 'code']
         self.assertEqual(code[0]['desktop_names'], ('code.desktop', 'com.microsoft.VSCode.desktop'))
-        self.assertEqual(code[1]['desktop_names'], ('code-url-handler.desktop',))
+        self.assertEqual(code[1]['desktop_names'],
+                         ('code-url-handler.desktop', 'com.microsoft.VSCode.UrlHandler.desktop'))
         self.assertTrue(code[1]['no_display'])
         self.assertIn('entry["NoDisplay"] = "true"', source)
         self.assertIn('"/usr/local/bin/labwc-wayland-app auto -- " + command', source)

@@ -2,8 +2,12 @@
 Description=Validate and activate the locked devops rootless container engine
 Documentation=file:/data/docs/podman-devops.md
 RequiresMountsFor=/pool/podman /run/podman-devops
+# Match the engine's prerequisite before its readiness query can activate the
+# socket. A failed policy/DNS/network start must block bootstrap, not provoke
+# repeated remote-client failures and exhaust socket activation limits.
+Requires=app-veth.service
 Wants=podman-devops.socket
-After=systemd-tmpfiles-setup.service podman-devops.socket
+After=systemd-tmpfiles-setup.service podman-devops.socket app-veth.service
 ConditionPathExists=/etc/podman-devops/layout.json
 StartLimitIntervalSec=0
 

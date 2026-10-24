@@ -113,6 +113,8 @@ if name == 'apparmor_parser' and '-N' in args:
         raise SystemExit(0)
     print(''.join(label + '\n' for label in labels), end='')
     raise SystemExit(0)
+if name == 'apparmor_parser' and '-Q' in args and os.environ.get('AA_TEST_COMPILE_FAIL') == '1':
+    raise SystemExit(23)
 if name in ('aa-enforce', 'aa-complain'):
     flags = ' flags=(complain)' if name == 'aa-complain' else ''
     source = re.sub(r'^(profile\s+\S+)(?:\s+flags=\([^)]*\))?\s*\{',
@@ -318,10 +320,32 @@ class AppArmorReconciliationTests(PerlFixture):
         self.assertNotEqual(self.run_policy('--check-loaded').returncode, 0)
 
     def test_no_reload_does_not_require_kernel_state(self):
-        self.profile()
+        parent = self.profile()
         self.kernel.unlink()
         self.assert_success(self.run_policy('--no-reload'))
         self.assertEqual(self.mutations(), [])
+        compilations = [call for call in self.tool_calls()
+                        if call[0] == 'apparmor_parser' and '-Q' in call and '-N' not in call]
+        self.assertEqual(len(compilations), 1)
+        self.assertEqual(compilations[0][-1], str(parent))
+        self.assertIn('--config-file=/dev/null', compilations[0])
+        self.assertIn('--policy-features=/usr/share/apparmor-features/features', compilations[0])
+        self.assertIn('-K', compilations[0])
+        self.assertIn('-T', compilations[0])
+
+    def test_no_reload_rejects_matching_mode_when_regex_compilation_fails(self):
+        parent = self.profile(want='enforce', source='enforce', loaded=None)
+        before = (parent.read_bytes(), parent.stat().st_ino, parent.stat().st_mtime_ns)
+        self.kernel.unlink()
+        # Name listing succeeds; only full, non-loading compilation rejects.
+        self.env['AA_TEST_COMPILE_FAIL'] = '1'
+        result = self.run_policy('--no-reload')
+        self.assertEqual(result.returncode, 23, result.stdout + result.stderr)
+        self.assertTrue(any('-N' in call for call in self.tool_calls()))
+        self.assertTrue(any('-Q' in call and '-N' not in call for call in self.tool_calls()))
+        self.assertEqual(self.mutations(), [])
+        self.assertEqual(before, (parent.read_bytes(), parent.stat().st_ino, parent.stat().st_mtime_ns))
+        self.assertNotIn('profile source already uses', result.stdout)
 
     def test_optional_labelless_source_is_allowed(self):
         p = self.profile(presence='optional', loaded=None)
@@ -1438,6 +1462,40 @@ class WiFiAuthenticationTests(unittest.TestCase):
 
 
 class LauncherObservabilityTests(unittest.TestCase):
+    def test_code_current_url_handler_resolves_without_cli_fallback(self):
+        path = TARGET / 'usr/local/bin/labwc-sync-application-launchers'
+        module = types.ModuleType('launcher_code_url_handler_test')
+        module.__file__ = str(path)
+        exec(compile(render_theme_bytes(payload_read_bytes(path)), str(path), 'exec'), module.__dict__)
+        config = next(c for c in module.APP_CONFIG
+                      if c['action_app'] == 'code' and c.get('no_display'))
+        desktop_id = 'com.microsoft.VSCode.UrlHandler.desktop'
+        expected = module.SYSTEM_APPLICATION_DIR + '/' + desktop_id
+        def lookup(candidate):
+            if candidate == expected:
+                return object()
+            raise FileNotFoundError(candidate)
+        with mock.patch.object(module.os, 'lstat', side_effect=lookup), \
+                mock.patch.object(module, 'read_system_desktop_text', return_value='vendor URL entry') as read, \
+                mock.patch.object(module, 'code_runtime_available', side_effect=AssertionError('unexpected CLI fallback')):
+            self.assertEqual(module.desktop_source(config), (desktop_id, 'vendor URL entry'))
+        read.assert_called_once_with(expected)
+
+    def test_code_untrusted_url_handler_does_not_fall_back_to_another_alias(self):
+        path = TARGET / 'usr/local/bin/labwc-sync-application-launchers'
+        module = types.ModuleType('launcher_code_url_handler_rejection_test')
+        module.__file__ = str(path)
+        exec(compile(render_theme_bytes(payload_read_bytes(path)), str(path), 'exec'), module.__dict__)
+        config = next(c for c in module.APP_CONFIG
+                      if c['action_app'] == 'code' and c.get('no_display'))
+        with mock.patch.object(module.os, 'lstat', return_value=object()), \
+                mock.patch.object(module, 'read_system_desktop_text', side_effect=RuntimeError('untrusted owner')) as read, \
+                mock.patch.object(module, 'code_runtime_available') as fallback:
+            with self.assertRaisesRegex(RuntimeError, 'untrusted owner'):
+                module.desktop_source(config)
+        read.assert_called_once_with(module.LOCAL_APPLICATION_DIR + '/code-url-handler.desktop')
+        fallback.assert_not_called()
+
     def test_absent_optional_apps_are_named_without_failing(self):
         path = TARGET / 'usr/local/bin/labwc-sync-application-launchers'
         module = types.ModuleType('launcher_boot_runtime_test')

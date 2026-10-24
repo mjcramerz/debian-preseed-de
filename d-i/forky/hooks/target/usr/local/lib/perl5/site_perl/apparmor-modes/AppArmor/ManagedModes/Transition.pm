@@ -95,6 +95,18 @@ sub apply_profile_mode {
         ($mode eq 'enforce' || $mode eq 'complain');
     if ($source_matches && !$force_reload && (!$options->{reload_profiles} ||
         loaded_profile_mode_matches($entry, $loaded_state, $options, $workspace, $tools))) {
+        if (!$options->{reload_profiles} &&
+            ($mode eq 'enforce' || $mode eq 'complain')) {
+            # A matching mode and parser -N label listing do not compile the
+            # regex DFA. Reject invalid active policy at the offline install
+            # boundary even when no mode edit or kernel reload is needed.
+            my $parser_path = "$options->{tool_dir}/apparmor_parser";
+            $tools->require_executable('required AppArmor parser', $parser_path);
+            $tools->run_or_exit($parser_path, '--config-file=/dev/null',
+                '--policy-features=/usr/share/apparmor-features/features',
+                '-Q', '-K', '-T', '-I', $profile_dir,
+                '-I', '/usr/share/apparmor', '--base', $profile_dir, $profile_path);
+        }
         info($options->{reload_profiles}
             ? "profile source and loaded state already agree: $profile_name mode=$mode"
             : "profile source already uses ${mode} mode: $profile_name");

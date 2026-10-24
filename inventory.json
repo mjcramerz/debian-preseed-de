@@ -70187,7 +70187,7 @@
     ],
     "selection_contract": "Candidates are repository snapshots; selected classes, pin rules, architecture, version constraints and dependency solving determine the installation transaction."
   },
-  "apt_metadata_sha256": "95acaa4453f67b67a81f82e74208ecce54fe8c146170e80bbfcde50f4c59291e",
+  "apt_metadata_sha256": "657c73f07fba6bb606fbf8c488766f0c51facef0ac8a0b45c814195ca9a9b686",
   "classes": [
     {
       "Description": "hardened OpenSSH server bootstrap",
@@ -70889,7 +70889,7 @@
       "APT Release OpenPGP signatures are not verified by the metadata collector."
     ],
     "missing_package_requests": [],
-    "payload_bytes": 34942520,
+    "payload_bytes": 34943828,
     "payload_members": 1838,
     "repository_transfers": 117,
     "requested_package_coverage_complete": true,
@@ -80439,8 +80439,8 @@
   ],
   "payload": {
     "path": "d-i/forky/payload.tar.gz",
-    "sha256": "349812432a25ded242800b3dff275de7c03f5f5ca1558e6958d356d4c0e362ad",
-    "size": 26629595
+    "sha256": "440695273892e3d6e32521cfa7d54c8abcc1ffb937199a89c9f15d0fc7971d95",
+    "size": 26629914
   },
   "repository_transfers": [
     {

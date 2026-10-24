@@ -954,6 +954,11 @@ class IntegrationContractTests(unittest.TestCase):
         text = payload_read_text(TARGET / 'etc/systemd/system/podman-devops-bootstrap.service')
         active = {line.split('=', 1)[0]: line.split('=', 1)[1]
                   for line in text.splitlines() if '=' in line and not line.lstrip().startswith('#')}
+        # Requires + After prevents ExecStart's remote readiness query when the
+        # engine's own policy/DNS/network prerequisite failed to activate.
+        self.assertIn('app-veth.service', active['Requires'].split())
+        self.assertIn('app-veth.service', active['After'].split())
+        self.assertEqual(active['Wants'], 'podman-devops.socket')
         self.assertEqual(active['ProtectHome'], 'yes')
         self.assertEqual(active['ProtectSystem'], 'strict')
         self.assertEqual(active['ReadWritePaths'], '/run/lock /run/podman-devops')
