@@ -126,13 +126,21 @@ class PolicyTests(unittest.TestCase):
                 self.assertEqual(env["HARDWARE_TUNING_IDLE_BATTERY"], "silent")
 
     def test_ac_laptop_pairs_have_identical_hardware_policy(self):
-        for name, floor, temperature in (("p15s", "35", "88"), ("flex", "30", "85")):
+        for name, floor, temperature in (("p15s", "100", "88"), ("flex", "100", "85")):
             env = environment("btrfs-de-" + name)
             self.assertEqual(env, environment("btrfs-de-" + name + "-duo"))
             prefix = installer.PREFIXES["intel"]
             self.assertEqual(env[prefix + "MAX_TEMPERATURE_C"], temperature)
             self.assertEqual(env[prefix + "PERFORMANCE_CPU_MIN_PERF_PCT"], floor)
-            self.assertEqual(env[prefix + "HIGH_CPU_MIN_PERF_PCT"], "20")
+            self.assertEqual(env[prefix + "HIGH_CPU_MIN_PERF_PCT"], "40" if name == "p15s" else "35")
+            self.assertEqual(env[prefix + "PERFORMANCE_CPU_GOVERNOR"], "performance")
+            for profile, platform, up, down in (("PERFORMANCE", "performance", "80", "60"),
+                                               ("HIGH", "performance", "90", "75"),
+                                               ("BALANCED", "balanced", "95", "85"),
+                                               ("SILENT", "low-power", "95", "85")):
+                self.assertEqual(env[prefix + profile + "_PLATFORM_PROFILE"], platform)
+                self.assertEqual(env[prefix + profile + "_GPU_RPS_UP_THRESHOLD_PCT"], up)
+                self.assertEqual(env[prefix + profile + "_GPU_RPS_DOWN_THRESHOLD_PCT"], down)
             for profile in ("PERFORMANCE", "HIGH"):
                 for setting, value in (("CPU_EPP", "performance"), ("CPU_EPB", "0"),
                                        ("CPU_MAX_PERF_PCT", "100"), ("CPU_NO_TURBO", "0"),
@@ -152,7 +160,7 @@ class PolicyTests(unittest.TestCase):
                         self.assertEqual(value, "keep")
             else:
                 self.assertEqual(env[nv + "ENABLE"], "false")
-                self.assertEqual(env[prefix + "PERFORMANCE_GPU_MIN_FREQ_MHZ"], "efficient")
+                self.assertEqual(env[prefix + "PERFORMANCE_GPU_MIN_FREQ_MHZ"], "max")
                 for profile in ("PERFORMANCE", "HIGH", "BALANCED"):
                     self.assertEqual(env[prefix + profile + "_GPU_MAX_FREQ_MHZ"], "max")
                     self.assertEqual(env[prefix + profile + "_GPU_BOOST_FREQ_MHZ"], "max")
@@ -330,6 +338,8 @@ desktop_install_hardware_tuning
                         if vendor in vendors:
                             self.assertIn("StopWhenUnneeded=yes", payload_read_text(target))
                             self.assertIn(f"PartOf={vendor}-{profile}.target labwc-session.target", payload_read_text(service))
+                            self.assertIn("Type=notify\nNotifyAccess=main", payload_read_text(service))
+                            self.assertIn("TimeoutStartSec=370s", payload_read_text(service))
                 for app, profile in installer.APPLICATIONS.items():
                     self.assertNotIn("*", app)
                     text = payload_read_text(root / f"etc/systemd/user/{app}.d/85-hardware-tuning.conf")
@@ -337,6 +347,7 @@ desktop_install_hardware_tuning
                     self.assertFalse(any(line.startswith(("PartOf=", "BindsTo=", "Requires=")) for line in actual))
                     self.assertIn("Wants=" + " ".join(f"{v}-{profile}.target" for v in vendors), actual)
                     self.assertIn("Upholds=" + " ".join(f"{v}-{profile}.target" for v in vendors), actual)
+                    self.assertIn("After=" + " ".join(f"{v}-{profile}.target" for v in vendors), actual)
                 system_unit = payload_read_text(root / "etc/systemd/system/hardware-tuning.service")
                 self.assertIn("ExecStopPost=/usr/local/libexec/hardware-tuning-worker recover-all", system_unit)
                 self.assertEqual("CapabilityBoundingSet=CAP_SYS_ADMIN" in system_unit, "nvidia" in vendors)
@@ -881,6 +892,68 @@ class NvidiaTests(unittest.TestCase):
         self.assertIn(knob.resolve("max", policy), knob.choices)
         with self.assertRaises(common.TuningError):
             knob.resolve("2000,1500", policy)
+        self.assertFalse(any(name.startswith("nvmlDeviceSet") for name, _, _ in api.calls))
+
+    def test_p15s_performance_and_high_request_p520_highest_memory_and_graphics(self):
+        class P520(FakeNVML):
+            def __init__(self):
+                super().__init__(4)
+                self.application = (3004, 1303)
+
+            def scalar(self, name, handle, *extra, signed=False):
+                if name == "nvmlDeviceGetDefaultApplicationsClock":
+                    return 3004 if extra == (2,) else 1303
+                return super().scalar(name, handle, *extra, signed=signed)
+
+            def clocks(self, name, handle, *extra):
+                if name == "nvmlDeviceGetSupportedMemoryClocks":
+                    return [405, 810, 3004]
+                # Controlled subset of the supplied 580.142 table, retaining
+                # each memory level's extrema and the default where supported.
+                return [139, 607] if extra == (405,) else [139, 1303, 1531]
+
+        api = P520()
+        hardware = nvidia.Backend(api)
+        knob = next(k for k in hardware.knobs.values() if k.setting == "APPLICATION_CLOCKS_MHZ")
+        for name in ("btrfs-de-p15s", "btrfs-de-p15s-duo"):
+            env = environment(name)
+            self.assertEqual(env["HARDWARE_NVIDIA_GPU_TUNING_ENABLE"], "true")
+            policy = installer.policy(env, "nvidia", nvidia.SETTINGS)
+            for profile in ("performance", "high"):
+                configured = policy["profiles"][profile]["knobs"]["APPLICATION_CLOCKS_MHZ"]
+                self.assertEqual(configured, "supported-max")
+                resolved = knob.resolve(configured, policy)
+                self.assertEqual(resolved, "3004,1531")
+                knob.write(resolved)
+                self.assertEqual(api.application, (3004, 1531))
+                self.assertEqual(api.calls[-1][0], "nvmlDeviceSetApplicationsClocks")
+
+    def test_p15s_unsupported_maximum_application_clocks_remain_optional(self):
+        with private_temp() as temporary:
+            hardware = FakeBackend()
+            for name in ("btrfs-de-p15s", "btrfs-de-p15s-duo"):
+                policy = installer.policy(environment(name), "nvidia", nvidia.SETTINGS)
+                work = engine.Engine(hardware, Path(temporary) / "journal.json", policy)
+                for profile in ("performance", "high"):
+                    values, skipped = work.plan(profile, nvidia.SETTINGS)
+                    self.assertEqual(values, {})
+                    self.assertIn("APPLICATION_CLOCKS_MHZ: unavailable; conditional capability request skipped", skipped)
+            self.assertFalse(hardware.writes)
+
+    def test_missing_highest_memory_graphics_table_selects_highest_available_lower_level(self):
+        class MissingMaximum(FakeNVML):
+            def clocks(self, name, handle, *extra):
+                if name == "nvmlDeviceGetSupportedMemoryClocks":
+                    return [405, 810, 3004]
+                if extra == (3004,):
+                    raise common.TuningError("unsupported highest-memory graphics table")
+                return [139, 607] if extra == (405,) else [139, 1531]
+
+        api = MissingMaximum(4)
+        hardware = nvidia.Backend(api)
+        knob = next(k for k in hardware.knobs.values() if k.setting == "APPLICATION_CLOCKS_MHZ")
+        policy = installer.policy(environment(), "nvidia", nvidia.SETTINGS)
+        self.assertEqual(knob.resolve("supported-max", policy), "810,1531")
         self.assertFalse(any(name.startswith("nvmlDeviceSet") for name, _, _ in api.calls))
 
     def test_signed_per_pstate_offset_preserved(self):

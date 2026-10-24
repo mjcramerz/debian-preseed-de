@@ -16,12 +16,18 @@ Each single/duo pair has the same hardware policy.
 | --- | --- | --- |
 | Automatic tuning at boot | Enabled | Enabled |
 | Active local desktop on AC | Performance | Performance |
-| Performance CPU minimum percentage | 35 | 30 |
-| High CPU minimum percentage | 20 | 20 |
+| Performance CPU governor and minimum percentage | performance / 100 | performance / 100 |
+| High CPU governor and minimum percentage | adaptive / 40 | adaptive / 35 |
+| Firmware profile, performance/high | performance | performance |
+| Firmware profile, balanced/silent | balanced / low-power | balanced / low-power |
 | Performance/high EPP and EPB | performance / 0 | performance / 0 |
 | Performance/high CPU maximum percentage | 100 | 100 |
 | Performance/high turbo and HWP dynamic boost | Enabled when supported | Enabled when supported |
 | CPU thermal interlock | 88 C | 85 C |
+| Performance/high uncore minimum | 2 GHz / 1.2 GHz | 2 GHz / 1.2 GHz |
+| Performance/high Intel GPU minimum | advertised maximum / efficient | advertised maximum / efficient |
+| Intel GPU RPS up/down, performance | 80% / 60% | 80% / 60% |
+| Intel GPU RPS up/down, high | 90% / 75% | 90% / 75% |
 | GPU requests | Driver-advertised NVML controls | Driver-advertised Intel GPU maximum/boost |
 | GPU thermal interlock | 85 C | Uses Intel backend sensor coverage |
 
@@ -31,13 +37,39 @@ vendor fault still prevents automatic writes. If a laptop reports battery power
 or its AC state is unknown, its idle selection remains silent; existing
 application lease arbitration remains in effect on battery.
 
-The adaptive Intel governor resolves through the backend's available driver
-choices. EPP requests guide HWP; the configured percentages are requests within
-kernel bounds, not fixed clock rates or measured performance guarantees. Intel
+The supplied October 24 measurements describe an **untuned baseline**. They
+establish available interfaces, frequency limits and reference throughput; they
+do not measure the effect of these policies. Performance selects the actual
+`performance` governor and the full allowed CPU range. High retains the
+driver's adaptive governor with a higher floor and performance EPP. Both restore
+the advertised CPU/uncore upper limits. The 2 GHz/1.2 GHz uncore floors are
+explicit policy choices within both machines' reported ranges, not measured
+optimal frequencies. C-states and firmware thermal protection remain enabled.
+
+Intel GPU performance requests the advertised maximum as both minimum and
+maximum active frequency; high uses the driver's efficient minimum. RC6 remains
+enabled. Lower RPS thresholds request earlier increases and later decreases
+under software RPS. Balanced/silent use the measured baseline 95%/85% thresholds.
+The backend offers the paired thresholds only when both per-GT attributes
+exist; unsupported or rejected explicit requests fail before success is reported.
+Hardware/firmware may still limit actual clocks. Intel
 GPU `efficient` resolves to the driver's efficient frequency when available.
 The Flex managed, Electron and Wayland launch defaults select Intel acceleration.
 
+The new `PLATFORM_PROFILE`, `GPU_RPS_UP_THRESHOLD_PCT` and
+`GPU_RPS_DOWN_THRESHOLD_PCT` fields are present at all four levels in **all ten**
+host profiles. Other hardware profiles use `keep` for them. Firmware selection
+uses the single advertised per-driver class device, with a device/file identity
+bound to its recovery entry. A replaced selector is rejected before a write.
+No fallback writes the aggregate `/sys/firmware/acpi/platform_profile` file.
+Multiple handlers or an unrestorable custom state are unavailable. Firmware
+performance requires explicit power-increase permission and thermal coverage.
+
 ## P520 capability requests
+
+These requests are installed only when NVIDIA tuning is enabled and the
+existing installer detects the selected NVIDIA class and hardware. Other
+installs receive no NVIDIA policy, lease units or application dependencies.
 
 The performance profile requests the advertised maximum NVML power limit.
 Performance and high request the maximum supported memory frequency together
@@ -46,15 +78,41 @@ and persistence mode 1. No independent maxima are combined into an invented
 clock pair.
 
 `supported-max` and `supported-1` mean: skip the request and report it when the
-backend did not discover that control. For a discovered control they resolve
-through the normal maximum/choice handling. Missing bounds, invalid choices,
-permission failures, driver rejection and recovery failures remain errors.
+backend did not discover that control. An exported setter returning NVML
+`NOT_SUPPORTED` can also be skipped if every journaled control is queryable and
+unchanged across that attempt. This allows unsupported persistence or power
+setters to leave working clock selection available. For a discovered control
+these requests resolve through the maximum/choice handling described below.
+Missing bounds, invalid explicit choices, permission failures, uncertain driver
+outcomes and recovery failures remain errors.
 Above-default power still requires explicit policy permission and complete
 readable temperature coverage. A runtime failure does not silently claim the
 requested setting was applied.
 
+The supplied P520 advertises `3004,1531` MHz as a valid memory/graphics pair,
+above its default `3004,1303` pair. Its 61 offset snapshots report only zero
+ranges. Its current-power-limit getter is unsupported despite numeric limit
+metadata, so those numbers are not an available power-control range. This policy
+requests the advertised pair and persistence, without inventing positive offsets
+or using that unusable power metadata. Getter success is not setter acceptance.
+The user's separate `nvidia-smi -q -d SUPPORTED_CLOCKS` capture from driver
+580.142 / CUDA 13.0 confirms the same maximum: 3004 MHz memory and 1531 MHz
+graphics. Both Performance and High use `supported-max`; an absent control
+may be skipped, while an available control resolves to that highest valid pair.
+Maximum means the highest working advertised pair. Unavailable memory-level
+tables are omitted. Runtime selection walks memory levels from highest to
+lowest and graphics clocks from highest to lowest within each level. Explicit
+NVML invalid/unsupported-pair replies permit the next candidate only when
+clock and observable companion readbacks remain unchanged. Selection stops at
+the first working pair and reports that actual pair. If none works, the
+conditional request is skipped. Permission, device loss, changed state or
+uncertain errors remain failures. The search has an eight-second retry budget
+within the existing worker deadline and at most 4096 advertised candidates.
+Restoration always requests the original pair exactly; it never substitutes a
+lower recovery value.
+
 Pascal does not use the Volta/Ampere clock-lock paths. Numeric offsets remain
-`keep`, and CPU RAPL power/windows, uncore, voltage and firmware limits remain
+`keep`, and CPU RAPL power/windows, voltage and raw firmware limits remain
 unchanged. The notes in `todo/tuning/` are planning material; example power
 figures are not proof of this board's cooling or firmware limits. Neither
 profile enables positive clock offsets or bypasses driver/firmware protections.
@@ -68,6 +126,30 @@ does not run alongside the custom worker. Stop, thermal conflict and recovery
 continue through the same owner and journal. Thermald and firmware thermal
 controls are retained. Other host profiles retain their existing conservative
 tuning values and do not enable automatic tuning by default.
+
+Firmware selection runs before CPU/GT/uncore writes. Its affected controls are
+snapshotted before mutation. Recovery retains the complete firmware domain after
+any partial failure and yields it when another owner changes a member. Dynamic
+RAPL caps remain under firmware/thermald unless explicitly requested; the
+baseline's changing P15s MMIO cap is not copied into an invented fixed limit.
+
+Application drop-ins now order startup after their tuning targets. Lease
+services send systemd readiness only after the broker's reconciliation reply;
+their status names the actual applied profile, including an explicit manual
+override. Tuning faults fail the lease. Applications retain `Wants`/`Upholds`
+dependencies, so an unavailable tuning service does not prevent native launches
+or give tuning stop/reset authority over applications. The existing 360-second
+control deadline is covered by a 370-second service startup budget. Ordinary
+successful transitions complete when the broker replies; the budget is a
+failure bound, not an added startup sleep.
+
+The new fixtures in `test_hardware_tuning_profiles_20261024.py` cover selector
+replacement, paired RPS ordering, firmware side effects, partial recovery,
+external ownership, thermal coverage and reconciliation-before-readiness.
+They have not been executed for this working tree. Follow
+[`docs/test-isolation.md`](../test-isolation.md) before running them. See the
+[current source review](../validation/failures-hardware-20261024.md) for evidence
+and remaining acceptance gates, and [IOCost](IOCOST.md) for storage quality.
 
 ## Power Profiles D-Bus integration
 

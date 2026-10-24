@@ -11,11 +11,15 @@ import importlib
 import json
 import os
 from pathlib import Path
+import re
 import sys
 import stat
 from typing import Any
-from common import (CONFIG, STATE, PROFILES, VENDORS, Knob, TuningError,
+from common import (CONFIG, STATE, PROFILES, VENDORS, Knob, TuningError, UnsupportedControl,
                     atomic_json, read_text, trusted_json, validate_policy)
+
+CPU_POLICY = {"PLATFORM_PROFILE", "CPU_GOVERNOR", "CPU_EPP", "CPU_MIN_FREQ_KHZ", "CPU_MAX_FREQ_KHZ",
+              "CPU_MIN_PERF_PCT", "CPU_MAX_PERF_PCT", "CPU_NO_TURBO", "CPU_EPB", "CPU_HWP_DYNAMIC_BOOST"}
 
 
 class Engine:
@@ -64,8 +68,9 @@ class Engine:
             for entry in self.journal["entries"]:
                 knob = self.backend.knobs.get(entry["id"])
                 value = entry["requested"]
-                if knob and type(value) is int and ((knob.overclock and value > 0)
-                        or (knob.power_default is not None and value > knob.power_default)):
+                if knob and ((knob.setting == "PLATFORM_PROFILE" and value == "performance")
+                        or type(value) is int and ((knob.overclock and value > 0)
+                        or (knob.power_default is not None and value > knob.power_default))):
                     conflicts.append("thermal sensor disappeared while an overclock/power increase is owned")
                     break
         if self.policy and temperature is not None and temperature >= self.policy["max_temperature_c"]:
@@ -76,7 +81,7 @@ class Engine:
     def ordered(self, values: dict[str, Any]):
         """Re-evaluate paired limits after preceding governor/turbo writes."""
         knobs = self.backend.knobs
-        early = {"CPU_GOVERNOR": 0, "CPU_NO_TURBO": 1, "CPU_MIN_PERF_PCT": 2, "CPU_MAX_PERF_PCT": 2}
+        early = {"PLATFORM_PROFILE": -2, "CPU_GOVERNOR": 0, "CPU_NO_TURBO": 1, "CPU_MIN_PERF_PCT": 2, "CPU_MAX_PERF_PCT": 2}
         late = {"CPU_EPP": 5, "CPU_EPB": 6, "AUTO_BOOST": 7}
         pairs = {}
         for key in values:
@@ -127,11 +132,15 @@ class Engine:
         # controls are coupled. Yield the complete coupled CPU policy, not only
         # one directory: restoring a global knob could overwrite another power
         # manager's per-policy update as an implicit kernel side effect.
-        coupled_cpu = {"CPU_GOVERNOR", "CPU_EPP", "CPU_MIN_FREQ_KHZ", "CPU_MAX_FREQ_KHZ",
-                       "CPU_MIN_PERF_PCT", "CPU_MAX_PERF_PCT", "CPU_NO_TURBO", "CPU_EPB", "CPU_HWP_DYNAMIC_BOOST"}
+        coupled_cpu = CPU_POLICY
+        platform_owned = any(k.setting == "PLATFORM_PROFILE" for k in self.backend.knobs.values()
+                             if k.id in entries)
+        # Restoring firmware can overwrite another owner's CPU/GT/uncore
+        # update. Yield the whole domain when any member has been replaced.
+        platform_conflict = platform_owned and bool(yielded)
         cpu_conflict = any(self.backend.knobs[k].setting in coupled_cpu for k in yielded)
         for key in list(restore):
-            if cpu_conflict and self.backend.knobs[key].setting in coupled_cpu:
+            if platform_conflict or cpu_conflict and self.backend.knobs[key].setting in coupled_cpu:
                 yielded.append(key)
                 del restore[key]
         complete = set(yielded)
@@ -142,8 +151,15 @@ class Engine:
         if restore:
             self.save()
         unresolved = set(entries) - set(restore) - set(yielded)
+        platform_failed = any(re.search(r"/platform-profile-[0-9]+/profile(?:@[0-9a-f]{16})?$", k) or
+                              k in self.backend.knobs and self.backend.knobs[k].setting == "PLATFORM_PROFILE"
+                              for k in unresolved)
         for key, value in self.ordered(restore):
             knob = self.backend.knobs[key]
+            if platform_failed:
+                failures.append(f"{key}: retained until firmware profile restoration succeeds")
+                unresolved.add(key)
+                continue
             if knob.setting == "PERSISTENCE_MODE" and value == 0:
                 device = key.split("/", 1)[0] + "/"
                 if any(failed.startswith(device) for failed in unresolved):
@@ -162,6 +178,8 @@ class Engine:
             except (OSError, TuningError, ValueError) as exc:
                 unresolved.add(key)
                 failures.append(f"{key}: {exc}")
+                if knob.setting == "PLATFORM_PROFILE":
+                    platform_failed = True
         # Later governor/global/paired writes may alter an earlier readback.
         # Verify the complete final state, not only each intermediate write.
         for key in sorted(complete - set(yielded)):
@@ -177,8 +195,14 @@ class Engine:
         # successfully restored companion whose baseline was already discarded.
         failed = set(restore) - complete
         retained = set(failed)
+        if failed and platform_owned:
+            # A later retry of the firmware selector can reset even a member
+            # that was already restored. Keep every baseline until all succeed.
+            retained.update(restore)
         for key in failed:
             knob = self.backend.knobs[key]
+            if knob.setting == "PLATFORM_PROFILE":
+                retained.update(restore)
             retained.update(k for k in restore if k in knob.companions or key in self.backend.knobs[k].companions)
             if knob.pair:
                 retained.update(k for k in restore if self.backend.knobs[k].pair == knob.pair)
@@ -234,6 +258,9 @@ class Engine:
                         for side, k in members.items()}
                 if len(pair) == 2 and pair["min"] > pair["max"]:
                     raise TuningError(f"inverted min/max pair: {pair_name}")
+                if (len(pair) == 2 and members["min"].setting == "GPU_RPS_DOWN_THRESHOLD_PCT"
+                        and pair["min"] == pair["max"]):
+                    raise TuningError("GPU RPS down threshold must be below its up threshold")
         for knob in self.backend.knobs.values():
             if knob.setting == "CPU_EPP":
                 directory = knob.id.rsplit("/", 1)[0]
@@ -265,6 +292,7 @@ class Engine:
             raise TuningError("thermal interlock prevents applying this profile")
         risky = any(self.backend.knobs[k].overclock and v > 0 for k, v in values.items())
         risky = risky or any(self.backend.knobs[k].power_default is not None and v > self.backend.knobs[k].power_default for k, v in values.items())
+        risky = risky or any(self.backend.knobs[k].setting == "PLATFORM_PROFILE" and v == "performance" for k, v in values.items())
         if risky and temperature is None:
             raise TuningError("overclock/power increases require a readable temperature sensor")
         # Snapshot only changed controls and their side-effect domains. Avoid
@@ -281,6 +309,12 @@ class Engine:
                 affected.update(k.id for k in self.backend.knobs.values() if k.setting in
                                 {"CPU_GOVERNOR", "CPU_EPP", "CPU_EPB", "CPU_MIN_PERF_PCT", "CPU_MAX_PERF_PCT",
                                  "CPU_MIN_FREQ_KHZ", "CPU_MAX_FREQ_KHZ", "CPU_NO_TURBO"})
+            if knob.setting == "PLATFORM_PROFILE":
+                # Firmware profile changes can reset CPU/GT/uncore requests.
+                # Journal those domains before the first write. Autonomous RAPL
+                # limits remain firmware/thermald-owned unless explicitly tuned.
+                affected.update(k.id for k in self.backend.knobs.values()
+                                if k.setting in CPU_POLICY or k.setting.startswith(("GPU_", "UNCORE_")))
         # Include unchanged explicit requests in any affected domain. Recheck
         # them after earlier writes instead of omitting them based on old state.
         values = {k: v for k, v in values.items() if k in affected}
@@ -290,11 +324,53 @@ class Engine:
         self.save()  # Write-ahead snapshot precedes the FIRST hardware mutation.
         try:
             written = 0
+            selections = {}
+            unmodified_requests = set()
+            entries = {entry["id"]: entry for entry in self.journal["entries"]}
+            profile = self.policy["profiles"][name]
             for key, value in self.ordered(values):
                 knob = self.backend.knobs[key]
-                if not knob.restorable or knob.read() != value:
-                    knob.write(value)
-                    written += 1
+                before = knob.read() if knob.restorable else None
+                if not knob.restorable or before != value:
+                    configured = profile["overrides"].get(key, profile["knobs"].get(knob.setting, "keep"))
+                    if knob.write_maximum and configured in {"max", "supported-max"}:
+                        selected = knob.write_maximum()
+                        selections[key] = {"preferred": value, "selected": selected}
+                        if selected is None:
+                            if configured != "supported-max":
+                                raise TuningError(f"{key}: no working advertised maximum clock pair")
+                            skipped.append(key + ": no working advertised clock pair; conditional request skipped")
+                            del values[key]
+                            entries[key]["requested"] = None
+                            unmodified_requests.add(key)
+                            continue
+                        values[key] = knob.resolve(selected, self.policy)
+                        entries[key]["requested"] = values[key]
+                        written += selected != before
+                        if selected == before:
+                            unmodified_requests.add(key)
+                    else:
+                        # A symbol can exist while its setter returns an
+                        # explicit NOT_SUPPORTED reply. Conditional requests
+                        # may skip that reply only when every journaled control
+                        # is queryable and unchanged across this attempt.
+                        observed = None
+                        if configured in {"supported-max", "supported-1"} and all(
+                                self.backend.knobs[k].restorable for k in affected):
+                            observed = {k: self.backend.knobs[k].read() for k in sorted(affected)}
+                        try:
+                            knob.write(value)
+                        except UnsupportedControl:
+                            if observed is None:
+                                raise
+                            if any(self.backend.knobs[k].read() != v for k, v in observed.items()):
+                                raise TuningError(f"{key}: unsupported setter changed state; request not skipped")
+                            skipped.append(key + ": setter unsupported; conditional request skipped")
+                            del values[key]
+                            entries[key]["requested"] = None
+                            unmodified_requests.add(key)
+                            continue
+                        written += 1
             actual = {}
             for entry in self.journal["entries"]:
                 knob = self.backend.knobs[entry["id"]]
@@ -309,9 +385,14 @@ class Engine:
                 entry["pending"] = False
                 actual[entry["id"]] = {"requested": entry["requested"], "readback": entry["last"],
                                       "hardware_readback": knob.restorable}
+            # Skipped/already-working requests made no successful write. Do not
+            # later call an unsupported reset API for an unchanged control.
+            # Keep any original baseline changed by another owned write.
+            self.journal["entries"] = [entry for entry in self.journal["entries"]
+                if entry["id"] not in unmodified_requests or entry["last"] != entry["before"]]
             self.save()
             return {"profile": name, "changed": written, "controls": actual,
-                    "skipped": skipped, "temperature_c": temperature}
+                    "skipped": skipped, "selections": selections, "temperature_c": temperature}
         except BaseException as exc:
             # Includes orderly signal interruption in the worker. SIGKILL is
             # handled by the next recovery invocation using the durable intent.

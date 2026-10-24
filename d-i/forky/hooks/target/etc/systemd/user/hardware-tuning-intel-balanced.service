@@ -7,7 +7,9 @@ StartLimitIntervalSec=120s
 StartLimitBurst=3
 
 [Service]
-Type=exec
+Type=notify
+NotifyAccess=main
+TimeoutStartSec=370s
 ExecStart=/usr/local/bin/labwc-hardware-tuning lease intel balanced
 Restart=on-failure
 RestartSec=5s

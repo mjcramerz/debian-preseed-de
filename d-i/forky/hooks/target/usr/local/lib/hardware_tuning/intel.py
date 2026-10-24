@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import hashlib
 import os
 import re
 import stat
@@ -11,6 +12,7 @@ from common import Knob, TuningError, read_text
 # Values are ordered performance, high, balanced, silent. keep is deliberately
 # used for controls whose board-specific thermal envelope cannot be inferred.
 SETTINGS = {
+    "PLATFORM_PROFILE": ("keep",) * 4,
     "CPU_GOVERNOR": ("adaptive",) * 4,
     "CPU_EPP": ("performance", "balance_performance", "balanced", "power"),
     "CPU_EPB": ("0", "4", "6", "15"),
@@ -25,6 +27,8 @@ SETTINGS = {
     "GPU_MIN_FREQ_MHZ": ("keep",) * 4,
     "GPU_MAX_FREQ_MHZ": ("max", "max", "keep", "efficient"),
     "GPU_BOOST_FREQ_MHZ": ("max", "max", "keep", "efficient"),
+    "GPU_RPS_UP_THRESHOLD_PCT": ("keep",) * 4,
+    "GPU_RPS_DOWN_THRESHOLD_PCT": ("keep",) * 4,
     "RAPL_PL1_POWER_UW": ("keep",) * 4,
     "RAPL_PL1_WINDOW_US": ("keep",) * 4,
     "RAPL_PL2_POWER_UW": ("keep",) * 4,
@@ -100,6 +104,7 @@ class Backend:
                            side=side, unit=unit, symbols=symbols or {})
 
     def discover(self) -> None:
+        self.platform_profile()
         cpu = self.root / "sys/devices/system/cpu"
         for directory in sorted((cpu / "cpufreq").glob("policy[0-9]*")):
             try:
@@ -220,6 +225,73 @@ class Backend:
                                    note="Optional RAPL bounds may be absent. Missing bounds require explicitly acknowledged administrator-verified platform limits; no board limits are guessed.")
         self.unavailable.append("CPU/GPU voltage offsets and unlocked multiplier overclocking: no portable safe sysfs ABI; raw MSR writes are deliberately unavailable")
 
+    def platform_profile(self) -> None:
+        handlers = []
+        for path in (self.root / "sys/class/platform-profile").glob("platform-profile-[0-9]*"):
+            if not re.fullmatch(r"platform-profile-[0-9]+", path.name):
+                raise TuningError("invalid firmware profile device identifier")
+            handlers.append(path)
+            if len(handlers) > 1:
+                self.unavailable.append("PLATFORM_PROFILE: multiple firmware handlers; aggregate restoration is ambiguous")
+                return
+        if not handlers:
+            return  # No unbound fallback to the all-driver aggregate ABI.
+        directory = handlers[0].resolve(strict=True)
+        if not directory.is_relative_to((self.root / "sys/devices").resolve()):
+            raise TuningError("firmware profile handler escaped the kernel device tree")
+        path = directory / "profile"
+        choices = tuple(read_text(directory / "choices").split())
+        known = {"low-power", "cool", "quiet", "balanced", "balanced-performance", "performance"}
+        current = read_text(path)
+        if (not choices or len(choices) != len(set(choices)) or not set(choices) <= known
+                or current not in choices):
+            self.unavailable.append("PLATFORM_PROFILE: unsupported choices or unrestorable custom state")
+            return
+        info, parent = path.stat(), directory.stat()
+        if path.is_symlink() or not stat.S_ISREG(info.st_mode) or not info.st_mode & stat.S_IWUSR:
+            self.unavailable.append("PLATFORM_PROFILE: firmware selector is not a writable kernel attribute")
+            return
+        driver = read_text(directory / "name")
+        identity = (parent.st_dev, parent.st_ino, info.st_dev, info.st_ino, driver)
+        # The in-kernel device and file identities survive worker restarts but
+        # change on replacement. Recovery never applies an old baseline to a
+        # different driver that happens to reuse platform-profile-0.
+        tag = hashlib.sha256(repr(identity).encode("ascii")).hexdigest()[:16]
+        key = str(path.relative_to(self.root)) + "@" + tag
+
+        def control(flags: int) -> int:
+            fd = os.open(path, flags | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+            try:
+                now, parent_now = os.fstat(fd), directory.lstat()
+                actual = (parent_now.st_dev, parent_now.st_ino, now.st_dev, now.st_ino,
+                          read_text(directory / "name"))
+                if not stat.S_ISDIR(parent_now.st_mode) or actual != identity:
+                    raise TuningError("firmware profile device identity changed; no replacement write")
+                return fd
+            except BaseException:
+                os.close(fd)
+                raise
+
+        def read():
+            with os.fdopen(control(os.O_RDONLY), "rb") as stream:
+                value = stream.read(16385)
+            if len(value) > 16384:
+                raise TuningError("firmware profile exceeds the attribute limit")
+            return value.decode("ascii").strip()
+
+        def write(value):
+            fd = control(os.O_WRONLY)
+            try:
+                content = (str(value) + "\n").encode("ascii")
+                if os.write(fd, content) != len(content):
+                    raise TuningError("short firmware profile write")
+            finally:
+                os.close(fd)
+
+        self.knobs[key] = Knob(key, "PLATFORM_PROFILE", read, write, choices=choices, unit="enum",
+                              note="Identity-bound per-driver firmware envelope; actual clocks/wattage are not guaranteed")
+        self.telemetry["platform_profile"] = {"current": current, "choices": choices}
+
     def i915(self, directory: Path, prefix: str) -> None:
         lo = self.optional_int(directory / (prefix + "RPn_freq_mhz"))
         hi = self.optional_int(directory / (prefix + "RP0_freq_mhz"))
@@ -229,6 +301,14 @@ class Backend:
                   "GPU_MIN_FREQ_MHZ", "GPU_MAX_FREQ_MHZ", "MHz", symbols)
         self.attribute(directory / (prefix + "boost_freq_mhz"), "GPU_BOOST_FREQ_MHZ", lo, hi,
                        unit="MHz", symbols=symbols)
+        down, up = directory / "rps_down_threshold_pct", directory / "rps_up_threshold_pct"
+        if prefix == "rps_" and down.is_file() and up.is_file():
+            # A separate pair from the frequency limits in this same GT.
+            pair = str(directory.resolve()) + "/rps-thresholds"
+            for path, setting, side in ((down, "GPU_RPS_DOWN_THRESHOLD_PCT", "min"),
+                                        (up, "GPU_RPS_UP_THRESHOLD_PCT", "max")):
+                self.attribute(path, setting, 1, 99, pair=pair, side=side, unit="%",
+                               note="i915 software RPS utilization threshold; driver rejection remains an error")
         self.telemetry[str(directory.relative_to(self.root))] = {
             key: self.optional_int(directory / (prefix + key))
             for key in ("cur_freq_mhz", "act_freq_mhz", "RPn_freq_mhz", "RP0_freq_mhz", "RP1_freq_mhz")}
@@ -240,7 +320,7 @@ class Backend:
 
     def check_ownership(self, values: dict) -> None:
         owned = {self.knobs[k].setting for k in values if k in self.knobs}
-        if not any(k.startswith(("CPU_", "RAPL_", "DOMAIN_", "UNCORE_")) for k in owned):
+        if not any(k == "PLATFORM_PROFILE" or k.startswith(("CPU_", "RAPL_", "DOMAIN_", "UNCORE_")) for k in owned):
             return
         if self.manager_states is None and self.manager_error is None:
             try:

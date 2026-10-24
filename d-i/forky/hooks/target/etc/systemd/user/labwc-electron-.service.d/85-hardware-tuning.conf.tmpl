@@ -1,4 +1,5 @@
 # Managed hardware-tuning lease. Never put PartOf=tuning.target on the app.
 [Unit]
 Wants=__INSTALLER_HARDWARE_TARGETS__
+After=__INSTALLER_HARDWARE_TARGETS__
 Upholds=__INSTALLER_HARDWARE_TARGETS__

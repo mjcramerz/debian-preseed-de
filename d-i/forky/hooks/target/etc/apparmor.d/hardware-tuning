@@ -128,6 +128,7 @@ profile hardware-tuning-client /usr/local/bin/labwc-hardware-tuning flags=(attac
   /usr/share/locale/** r,
   /run/systemd/{sessions,users}/** r,
   owner /run/user/[0-9]*/{bus,systemd/private} rw,
+  owner /run/user/[0-9]*/systemd/notify w,
   owner /proc/[0-9]*/ r,
   # notify-send/libsystemd resolves its own cgroup identity. No proc write or
   # cross-user read is granted; retain confinement for inherited execution.

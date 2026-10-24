@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import ctypes as C
 import re
-from common import Knob, TuningError
+import time
+from common import Knob, TuningError, UnsupportedControl
 
 SETTINGS = {
     "POWER_LIMIT_MW": ("default", "default", "keep", "min"),
@@ -22,6 +23,16 @@ SETTINGS = {
 }
 U, I, H = C.c_uint, C.c_int, C.c_void_p
 PU, PI = C.POINTER(U), C.POINTER(I)
+
+
+class NVMLFailure(TuningError):
+    def __init__(self, function: str, status: int) -> None:
+        self.function, self.status = function, status
+        super().__init__(f"{function}: NVML status {status}")
+
+
+class NVMLUnsupported(NVMLFailure, UnsupportedControl):
+    """Preserve NVML error details while identifying NOT_SUPPORTED replies."""
 
 
 class ClockOffset(C.Structure):
@@ -48,7 +59,7 @@ class NVML:
         function.argtypes, function.restype = types, I
         status = function(*args)
         if status:
-            raise TuningError(f"{name}: NVML status {status} (unsupported, permission, or driver error; no write fallback)")
+            raise (NVMLUnsupported if status == 3 else NVMLFailure)(name, status)
 
     def scalar(self, name: str, handle: H, *extra: int, signed: bool = False) -> int:
         out = I() if signed else U()
@@ -272,7 +283,10 @@ class Backend:
                 raise TuningError("application clocks must be an advertised memory,graphics pair")
         # A clock pair is ordered memory,graphics, NOT a min/max pair. Override
         # generic pair resolution with exact advertised choices.
-        pairs = tuple(f"{m},{g}" for m, graphics in tables.items() for g in graphics)
+        if sum(len(graphics) for graphics in tables.values()) > 4096:
+            raise TuningError("application clock candidate limit exceeded")
+        pairs = tuple(f"{m},{g}" for m in sorted(tables, reverse=True)
+                      for g in sorted(set(tables[m]), reverse=True))
         def write(value):
             parts = [int(v) for v in value.split(",")] if isinstance(value, str) else value
             validate(parts)
@@ -289,10 +303,43 @@ class Backend:
                 write(value)
         fastest_memory = max(tables)
         fastest_pair = f"{fastest_memory},{max(tables[fastest_memory])}"
+        def maximum():
+            # Called only inside the engine's write-ahead transaction. Prefer
+            # memory bandwidth first, then the highest graphics clock at that
+            # memory level. Failed/missing table queries already omit a level.
+            deadline = time.monotonic() + 8
+            before = read()
+            companions = {k: self.knobs[k].read() for k in (f"{uuid}/AUTO_BOOST",) if k in self.knobs}
+            for candidate in pairs:
+                if time.monotonic() >= deadline:
+                    raise TuningError("maximum application-clock selection deadline exceeded")
+                if read() != before or any(self.knobs[k].read() != v for k, v in companions.items()):
+                    raise TuningError("application-clock state changed during selection")
+                if time.monotonic() >= deadline:
+                    raise TuningError("maximum application-clock selection deadline exceeded")
+                if candidate == before:
+                    return candidate  # Already working; no unnecessary write.
+                try:
+                    write(candidate)
+                except NVMLFailure as exc:
+                    # Retry only an explicit invalid/unsupported pair whose
+                    # readback and observable side-effect state stayed intact.
+                    # Permission, lost-device and unknown outcomes propagate.
+                    if exc.function != "nvmlDeviceSetApplicationsClocks" or exc.status not in {2, 3}:
+                        raise
+                    if read() != before or any(self.knobs[k].read() != v for k, v in companions.items()):
+                        raise TuningError("rejected application-clock request changed state; no retry") from exc
+                    continue
+                if read() != candidate:
+                    raise TuningError("application-clock selection readback differs; no retry")
+                if time.monotonic() >= deadline:
+                    raise TuningError("maximum application-clock selection deadline exceeded")
+                return candidate
+            return None
         knob = Knob(key, "APPLICATION_CLOCKS_MHZ", read, write, choices=pairs,
             symbols={"max": fastest_pair},
             unit="memory,graphics MHz", note="Legacy API; not assumed available on future drivers",
-            companions=(f"{uuid}/AUTO_BOOST",))
+            companions=(f"{uuid}/AUTO_BOOST",), write_maximum=maximum)
         knob.restore_value = restore
         self.knobs[key] = knob
 

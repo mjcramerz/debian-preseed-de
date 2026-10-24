@@ -70,8 +70,27 @@ def request(action: str, vendor: str | None = None, profile: str | None = None, 
 
 
 def lease(vendor: str, profile: str) -> int:
-    channel, _ = connect_request({"action": "lease", "vendor": vendor, "profile": profile})
+    channel, result = connect_request({"action": "lease", "vendor": vendor, "profile": profile})
     try:
+        # The broker replies after reconciliation. A Type=notify lease keeps
+        # the application's After= target ordering behind that completed work.
+        if (not isinstance(result, dict) or not isinstance(result.get("faults"), dict)
+                or not isinstance(result.get("applied"), dict)):
+            raise TuningError("invalid lease reconciliation result")
+        if result["faults"]:
+            raise TuningError("hardware tuning lease was not applied; inspect hardware tuning status")
+        applied = result.get("applied", {}).get(vendor)
+        if applied not in (*PROFILES, None):
+            raise TuningError("invalid applied lease profile")
+        address = os.environ.get("NOTIFY_SOCKET")
+        if address:
+            if not address.startswith(("/", "@")) or len(address.encode()) > 107:
+                raise TuningError("invalid service notification socket")
+            destination = "\0" + address[1:] if address.startswith("@") else address
+            message = f"READY=1\nSTATUS=Requested {vendor} {profile}; applied {applied or 'none'}".encode("ascii")
+            with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as notify:
+                notify.settimeout(2)
+                notify.sendto(message, destination)
         channel.settimeout(None)
         channel.recv(1)
         # A lost broker connection is not a normal lease completion. Let the

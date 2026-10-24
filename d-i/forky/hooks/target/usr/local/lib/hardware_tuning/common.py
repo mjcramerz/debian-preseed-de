@@ -25,6 +25,10 @@ class TuningError(RuntimeError):
     """An operation could not be completed safely; do not silently downgrade it."""
 
 
+class UnsupportedControl(TuningError):
+    """A driver explicitly reports that an operation is not supported."""
+
+
 def power_profiles_api(config: dict) -> bool:
     value = config.get("power_profiles_api", False)
     if type(value) is not bool or value and "intel" not in config.get("vendors", []):
@@ -142,6 +146,7 @@ class Knob:
     validate_extra: Callable[[Any], None] | None = None
     companions: tuple[str, ...] = ()
     verified_bounds_allowed: bool = False
+    write_maximum: Callable[[], str | None] | None = None
 
     def effective_bounds(self, policy: dict[str, Any]) -> tuple[int | None, int | None, str]:
         configured = policy.get("verified_bounds", {}).get(self.setting)
@@ -162,8 +167,8 @@ class Knob:
 
     def resolve(self, value: str, policy: dict[str, Any]) -> Any:
         safe_value(value)
-        # Explicit capability requests: skip only an absent control in plan().
-        # A present control still has to satisfy every bound and permission.
+        # Conditional requests still satisfy every bound and permission. An
+        # explicit unsupported setter can be skipped only with unchanged state.
         if value in {"supported-max", "supported-1"}:
             value = value.removeprefix("supported-")
         if value == "keep":
@@ -181,6 +186,8 @@ class Knob:
             if str(candidate) not in self.choices:
                 raise TuningError(f"{self.id}: unsupported choice {candidate!r}")
             candidate = str(candidate)
+            if self.setting == "PLATFORM_PROFILE" and candidate == "performance" and not policy["allow_power_increase"]:
+                raise TuningError(f"{self.id}: firmware performance requires allow_power_increase=true")
         elif self.unit == "MHz-pair":
             parts = str(candidate).split(",")
             if len(parts) != 2 or low is None or high is None:

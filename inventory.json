@@ -48169,8 +48169,8 @@
                 "package": "mise",
                 "pin_priority": 500,
                 "repository": "apt-2c34721af17146ec",
-                "url": "https://mise.jdx.dev/deb/pool/main/mise_2026.10.18_amd64.deb",
-                "version": "2026.10.18"
+                "url": "https://mise.jdx.dev/deb/pool/main/mise_2026.10.19_amd64.deb",
+                "version": "2026.10.19"
               }
             ],
             "class": "addon/devops",
@@ -48184,8 +48184,8 @@
                 "package": "mise",
                 "pin_priority": 500,
                 "repository": "apt-2c34721af17146ec",
-                "url": "https://mise.jdx.dev/deb/pool/main/mise_2026.10.18_arm64.deb",
-                "version": "2026.10.18"
+                "url": "https://mise.jdx.dev/deb/pool/main/mise_2026.10.19_arm64.deb",
+                "version": "2026.10.19"
               }
             ],
             "class": "addon/devops",
@@ -70187,7 +70187,7 @@
     ],
     "selection_contract": "Candidates are repository snapshots; selected classes, pin rules, architecture, version constraints and dependency solving determine the installation transaction."
   },
-  "apt_metadata_sha256": "ee17eeba0583b474e5ae4cc3c65d800c698297552ad8c4c4476718bc13d22ca0",
+  "apt_metadata_sha256": "95acaa4453f67b67a81f82e74208ecce54fe8c146170e80bbfcde50f4c59291e",
   "classes": [
     {
       "Description": "hardened OpenSSH server bootstrap",
@@ -70889,7 +70889,7 @@
       "APT Release OpenPGP signatures are not verified by the metadata collector."
     ],
     "missing_package_requests": [],
-    "payload_bytes": 34919256,
+    "payload_bytes": 34942520,
     "payload_members": 1838,
     "repository_transfers": 117,
     "requested_package_coverage_complete": true,
@@ -75739,52 +75739,52 @@
       "sha256": "54f4cae474cfa96dfb30f9f39fa947959bb2fbda40aea46420299f22ff7c12aa",
       "sources": [
         {
-          "line": 1390,
+          "line": 1402,
           "path": "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env",
           "variable": "LABWC_FONT_APTOS_URL"
         },
         {
-          "line": 1390,
+          "line": 1402,
           "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env",
           "variable": "LABWC_FONT_APTOS_URL"
         },
         {
-          "line": 1391,
+          "line": 1403,
           "path": "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env",
           "variable": "LABWC_FONT_APTOS_URL"
         },
         {
-          "line": 1391,
+          "line": 1403,
           "path": "d-i/forky/hosts/profiles/f2fs-de-hp14.env",
           "variable": "LABWC_FONT_APTOS_URL"
         },
         {
-          "line": 1400,
+          "line": 1412,
           "path": "d-i/forky/hosts/profiles/btrfs-de-duo.env",
           "variable": "LABWC_FONT_APTOS_URL"
         },
         {
-          "line": 1400,
+          "line": 1412,
           "path": "d-i/forky/hosts/profiles/btrfs-de.env",
           "variable": "LABWC_FONT_APTOS_URL"
         },
         {
-          "line": 1406,
+          "line": 1418,
           "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env",
           "variable": "LABWC_FONT_APTOS_URL"
         },
         {
-          "line": 1408,
+          "line": 1420,
           "path": "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env",
           "variable": "LABWC_FONT_APTOS_URL"
         },
         {
-          "line": 1409,
+          "line": 1421,
           "path": "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env",
           "variable": "LABWC_FONT_APTOS_URL"
         },
         {
-          "line": 1412,
+          "line": 1424,
           "path": "d-i/forky/hosts/profiles/btrfs-de-p15s.env",
           "variable": "LABWC_FONT_APTOS_URL"
         }
@@ -75830,52 +75830,52 @@
       "sha256": "68e3bd6164864b8b514605bc34e3a87ac401c8c48682fcce6478c70263340207",
       "sources": [
         {
-          "line": 1384,
+          "line": 1396,
           "path": "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env",
           "variable": "LABWC_FONT_FIRACODE_URL"
         },
         {
-          "line": 1384,
+          "line": 1396,
           "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env",
           "variable": "LABWC_FONT_FIRACODE_URL"
         },
         {
-          "line": 1385,
+          "line": 1397,
           "path": "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env",
           "variable": "LABWC_FONT_FIRACODE_URL"
         },
         {
-          "line": 1385,
+          "line": 1397,
           "path": "d-i/forky/hosts/profiles/f2fs-de-hp14.env",
           "variable": "LABWC_FONT_FIRACODE_URL"
         },
         {
-          "line": 1394,
+          "line": 1406,
           "path": "d-i/forky/hosts/profiles/btrfs-de-duo.env",
           "variable": "LABWC_FONT_FIRACODE_URL"
         },
         {
-          "line": 1394,
+          "line": 1406,
           "path": "d-i/forky/hosts/profiles/btrfs-de.env",
           "variable": "LABWC_FONT_FIRACODE_URL"
         },
         {
-          "line": 1400,
+          "line": 1412,
           "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env",
           "variable": "LABWC_FONT_FIRACODE_URL"
         },
         {
-          "line": 1402,
+          "line": 1414,
           "path": "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env",
           "variable": "LABWC_FONT_FIRACODE_URL"
         },
         {
-          "line": 1403,
+          "line": 1415,
           "path": "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env",
           "variable": "LABWC_FONT_FIRACODE_URL"
         },
         {
-          "line": 1406,
+          "line": 1418,
           "path": "d-i/forky/hosts/profiles/btrfs-de-p15s.env",
           "variable": "LABWC_FONT_FIRACODE_URL"
         }
@@ -75921,52 +75921,52 @@
       "sha256": "c37f2ebeca338f0c35c19957fa0671ecdeb7ea2a8a58397e963f22c87ce32c6a",
       "sources": [
         {
-          "line": 1392,
+          "line": 1404,
           "path": "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env",
           "variable": "LABWC_FONT_MICROSOFT_URL"
         },
         {
-          "line": 1392,
+          "line": 1404,
           "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env",
           "variable": "LABWC_FONT_MICROSOFT_URL"
         },
         {
-          "line": 1393,
+          "line": 1405,
           "path": "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env",
           "variable": "LABWC_FONT_MICROSOFT_URL"
         },
         {
-          "line": 1393,
+          "line": 1405,
           "path": "d-i/forky/hosts/profiles/f2fs-de-hp14.env",
           "variable": "LABWC_FONT_MICROSOFT_URL"
         },
         {
-          "line": 1402,
+          "line": 1414,
           "path": "d-i/forky/hosts/profiles/btrfs-de-duo.env",
           "variable": "LABWC_FONT_MICROSOFT_URL"
         },
         {
-          "line": 1402,
+          "line": 1414,
           "path": "d-i/forky/hosts/profiles/btrfs-de.env",
           "variable": "LABWC_FONT_MICROSOFT_URL"
         },
         {
-          "line": 1408,
+          "line": 1420,
           "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env",
           "variable": "LABWC_FONT_MICROSOFT_URL"
         },
         {
-          "line": 1410,
+          "line": 1422,
           "path": "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env",
           "variable": "LABWC_FONT_MICROSOFT_URL"
         },
         {
-          "line": 1411,
+          "line": 1423,
           "path": "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env",
           "variable": "LABWC_FONT_MICROSOFT_URL"
         },
         {
-          "line": 1414,
+          "line": 1426,
           "path": "d-i/forky/hosts/profiles/btrfs-de-p15s.env",
           "variable": "LABWC_FONT_MICROSOFT_URL"
         }
@@ -76012,52 +76012,52 @@
       "sha256": "186917bff8fe3d7aaf6a0151e7caf76ef2962f2dd825454dc42c3c7285c8f821",
       "sources": [
         {
-          "line": 1388,
+          "line": 1400,
           "path": "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env",
           "variable": "LABWC_FONT_PROFONT_URL"
         },
         {
-          "line": 1388,
+          "line": 1400,
           "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env",
           "variable": "LABWC_FONT_PROFONT_URL"
         },
         {
-          "line": 1389,
+          "line": 1401,
           "path": "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env",
           "variable": "LABWC_FONT_PROFONT_URL"
         },
         {
-          "line": 1389,
+          "line": 1401,
           "path": "d-i/forky/hosts/profiles/f2fs-de-hp14.env",
           "variable": "LABWC_FONT_PROFONT_URL"
         },
         {
-          "line": 1398,
+          "line": 1410,
           "path": "d-i/forky/hosts/profiles/btrfs-de-duo.env",
           "variable": "LABWC_FONT_PROFONT_URL"
         },
         {
-          "line": 1398,
+          "line": 1410,
           "path": "d-i/forky/hosts/profiles/btrfs-de.env",
           "variable": "LABWC_FONT_PROFONT_URL"
         },
         {
-          "line": 1404,
+          "line": 1416,
           "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env",
           "variable": "LABWC_FONT_PROFONT_URL"
         },
         {
-          "line": 1406,
+          "line": 1418,
           "path": "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env",
           "variable": "LABWC_FONT_PROFONT_URL"
         },
         {
-          "line": 1407,
+          "line": 1419,
           "path": "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env",
           "variable": "LABWC_FONT_PROFONT_URL"
         },
         {
-          "line": 1410,
+          "line": 1422,
           "path": "d-i/forky/hosts/profiles/btrfs-de-p15s.env",
           "variable": "LABWC_FONT_PROFONT_URL"
         }
@@ -76103,52 +76103,52 @@
       "sha256": "01172f37db8543edb102e5cb5c64101c9f4686630804d49b419aa07b23a69996",
       "sources": [
         {
-          "line": 1386,
+          "line": 1398,
           "path": "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env",
           "variable": "LABWC_FONT_SYMBOLS_URL"
         },
         {
-          "line": 1386,
+          "line": 1398,
           "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env",
           "variable": "LABWC_FONT_SYMBOLS_URL"
         },
         {
-          "line": 1387,
+          "line": 1399,
           "path": "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env",
           "variable": "LABWC_FONT_SYMBOLS_URL"
         },
         {
-          "line": 1387,
+          "line": 1399,
           "path": "d-i/forky/hosts/profiles/f2fs-de-hp14.env",
           "variable": "LABWC_FONT_SYMBOLS_URL"
         },
         {
-          "line": 1396,
+          "line": 1408,
           "path": "d-i/forky/hosts/profiles/btrfs-de-duo.env",
           "variable": "LABWC_FONT_SYMBOLS_URL"
         },
         {
-          "line": 1396,
+          "line": 1408,
           "path": "d-i/forky/hosts/profiles/btrfs-de.env",
           "variable": "LABWC_FONT_SYMBOLS_URL"
         },
         {
-          "line": 1402,
+          "line": 1414,
           "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env",
           "variable": "LABWC_FONT_SYMBOLS_URL"
         },
         {
-          "line": 1404,
+          "line": 1416,
           "path": "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env",
           "variable": "LABWC_FONT_SYMBOLS_URL"
         },
         {
-          "line": 1405,
+          "line": 1417,
           "path": "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env",
           "variable": "LABWC_FONT_SYMBOLS_URL"
         },
         {
-          "line": 1408,
+          "line": 1420,
           "path": "d-i/forky/hosts/profiles/btrfs-de-p15s.env",
           "variable": "LABWC_FONT_SYMBOLS_URL"
         }
@@ -80439,8 +80439,8 @@
   ],
   "payload": {
     "path": "d-i/forky/payload.tar.gz",
-    "sha256": "be656869d2cb3ac213379dd8c377a5db7a0450133620fb7bd034bde71682c31b",
-    "size": 26626138
+    "sha256": "349812432a25ded242800b3dff275de7c03f5f5ca1558e6958d356d4c0e362ad",
+    "size": 26629595
   },
   "repository_transfers": [
     {
@@ -84819,43 +84819,43 @@
     {
       "sources": [
         {
-          "line": 1390,
+          "line": 1402,
           "path": "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env"
         },
         {
-          "line": 1390,
+          "line": 1402,
           "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env"
         },
         {
-          "line": 1391,
+          "line": 1403,
           "path": "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env"
         },
         {
-          "line": 1391,
+          "line": 1403,
           "path": "d-i/forky/hosts/profiles/f2fs-de-hp14.env"
         },
         {
-          "line": 1400,
+          "line": 1412,
           "path": "d-i/forky/hosts/profiles/btrfs-de-duo.env"
         },
         {
-          "line": 1400,
+          "line": 1412,
           "path": "d-i/forky/hosts/profiles/btrfs-de.env"
         },
         {
-          "line": 1406,
+          "line": 1418,
           "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env"
         },
         {
-          "line": 1408,
+          "line": 1420,
           "path": "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env"
         },
         {
-          "line": 1409,
+          "line": 1421,
           "path": "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env"
         },
         {
-          "line": 1412,
+          "line": 1424,
           "path": "d-i/forky/hosts/profiles/btrfs-de-p15s.env"
         }
       ],
@@ -84864,43 +84864,43 @@
     {
       "sources": [
         {
-          "line": 1392,
+          "line": 1404,
           "path": "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env"
         },
         {
-          "line": 1392,
+          "line": 1404,
           "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env"
         },
         {
-          "line": 1393,
+          "line": 1405,
           "path": "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env"
         },
         {
-          "line": 1393,
+          "line": 1405,
           "path": "d-i/forky/hosts/profiles/f2fs-de-hp14.env"
         },
         {
-          "line": 1402,
+          "line": 1414,
           "path": "d-i/forky/hosts/profiles/btrfs-de-duo.env"
         },
         {
-          "line": 1402,
+          "line": 1414,
           "path": "d-i/forky/hosts/profiles/btrfs-de.env"
         },
         {
-          "line": 1408,
+          "line": 1420,
           "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env"
         },
         {
-          "line": 1410,
+          "line": 1422,
           "path": "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env"
         },
         {
-          "line": 1411,
+          "line": 1423,
           "path": "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env"
         },
         {
-          "line": 1414,
+          "line": 1426,
           "path": "d-i/forky/hosts/profiles/btrfs-de-p15s.env"
         }
       ],
@@ -84909,43 +84909,43 @@
     {
       "sources": [
         {
-          "line": 1384,
+          "line": 1396,
           "path": "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env"
         },
         {
-          "line": 1384,
+          "line": 1396,
           "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env"
         },
         {
-          "line": 1385,
+          "line": 1397,
           "path": "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env"
         },
         {
-          "line": 1385,
+          "line": 1397,
           "path": "d-i/forky/hosts/profiles/f2fs-de-hp14.env"
         },
         {
-          "line": 1394,
+          "line": 1406,
           "path": "d-i/forky/hosts/profiles/btrfs-de-duo.env"
         },
         {
-          "line": 1394,
+          "line": 1406,
           "path": "d-i/forky/hosts/profiles/btrfs-de.env"
         },
         {
-          "line": 1400,
+          "line": 1412,
           "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env"
         },
         {
-          "line": 1402,
+          "line": 1414,
           "path": "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env"
         },
         {
-          "line": 1403,
+          "line": 1415,
           "path": "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env"
         },
         {
-          "line": 1406,
+          "line": 1418,
           "path": "d-i/forky/hosts/profiles/btrfs-de-p15s.env"
         }
       ],
@@ -84954,43 +84954,43 @@
     {
       "sources": [
         {
-          "line": 1386,
+          "line": 1398,
           "path": "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env"
         },
         {
-          "line": 1386,
+          "line": 1398,
           "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env"
         },
         {
-          "line": 1387,
+          "line": 1399,
           "path": "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env"
         },
         {
-          "line": 1387,
+          "line": 1399,
           "path": "d-i/forky/hosts/profiles/f2fs-de-hp14.env"
         },
         {
-          "line": 1396,
+          "line": 1408,
           "path": "d-i/forky/hosts/profiles/btrfs-de-duo.env"
         },
         {
-          "line": 1396,
+          "line": 1408,
           "path": "d-i/forky/hosts/profiles/btrfs-de.env"
         },
         {
-          "line": 1402,
+          "line": 1414,
           "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env"
         },
         {
-          "line": 1404,
+          "line": 1416,
           "path": "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env"
         },
         {
-          "line": 1405,
+          "line": 1417,
           "path": "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env"
         },
         {
-          "line": 1408,
+          "line": 1420,
           "path": "d-i/forky/hosts/profiles/btrfs-de-p15s.env"
         }
       ],
@@ -84999,43 +84999,43 @@
     {
       "sources": [
         {
-          "line": 1388,
+          "line": 1400,
           "path": "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env"
         },
         {
-          "line": 1388,
+          "line": 1400,
           "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env"
         },
         {
-          "line": 1389,
+          "line": 1401,
           "path": "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env"
         },
         {
-          "line": 1389,
+          "line": 1401,
           "path": "d-i/forky/hosts/profiles/f2fs-de-hp14.env"
         },
         {
-          "line": 1398,
+          "line": 1410,
           "path": "d-i/forky/hosts/profiles/btrfs-de-duo.env"
         },
         {
-          "line": 1398,
+          "line": 1410,
           "path": "d-i/forky/hosts/profiles/btrfs-de.env"
         },
         {
-          "line": 1404,
+          "line": 1416,
           "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env"
         },
         {
-          "line": 1406,
+          "line": 1418,
           "path": "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env"
         },
         {
-          "line": 1407,
+          "line": 1419,
           "path": "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env"
         },
         {
-          "line": 1410,
+          "line": 1422,
           "path": "d-i/forky/hosts/profiles/btrfs-de-p15s.env"
         }
       ],

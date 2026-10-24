@@ -1,4 +1,16 @@
-# Test isolation is mandatory
+# Static inspection only; disposable execution environments are prohibited
+
+**NEVER create, provision, launch, request or use a disposable VM, container,
+chroot, sandbox image or other disposable execution environment for work in
+this repository. This prohibition is permanent repository guidance and applies
+to tests, validation, audits, benchmarks, smoke checks and native integration.**
+
+Do not propose or request a disposable environment as a next step. Existing
+isolation guards, fixture code, image entrypoints and historical validation
+documents do not authorize their execution. Keep the guards intact; never
+disable them or substitute host execution. Tests and validation runners remain
+unexecuted. Use static inspection and the explicitly permitted generation
+commands below, and report the resulting verification limits accurately.
 
 ## Absolute prohibition on host access and host changes
 
@@ -11,10 +23,9 @@ validation command, audit, benchmark, and smoke check in this repository. A
 test's name, comments, mocks, temporary directory, or use of a namespace is not
 proof that it is isolated.
 
-- Never run tests directly on the development host. Execute them only inside
-  an explicitly prepared disposable environment with no access to host state.
-  If that environment is unavailable, stop at static inspection. Do not use
-  automatic fallback, an opt-in environment variable, or elevated privileges.
+- Never run tests or validation runners on the development host or in a
+  disposable environment. Stop at static inspection. Do not use automatic
+  fallback, an opt-in environment variable, or elevated privileges.
 - Never bind the host root, host `/etc`, `/var`, `/run`, `/proc`, `/sys`, `/dev`,
   user HOME, runtime sockets, or installed `/usr/local` helpers into a test.
   Namespace isolation alone does not make a host-root bind safe.
@@ -25,17 +36,16 @@ proof that it is isolated.
   sysctls, mounts, storage, permissions, ownership, package repositories,
   package lists, credentials, or any file outside owned test fixtures.
 - Never execute installed host helpers such as `/usr/local/libexec/apt-repo-local*`
-  or `/usr/local/sbin/*`. Fixture programs must come from the checkout or an
-  isolated test image, with all state paths and commands explicitly controlled.
-- Replace privileged commands and external services with explicit fixture
-  implementations. Run native integration checks only inside the disposable
-  environment, using its own procfs, sysfs, devices, package tree, managers,
-  sockets, and network. No host sockets or writable host mounts are permitted.
-- Use a minimal fixture environment. Do not inherit host HOME, XDG runtime
-  directories, D-Bus addresses, service variables, credentials, or full `PATH`.
-- Keep test writes inside a private fixture tree or the disposable environment.
-  Reject paths that resolve outside that tree. Cleanup may remove only resources
-  created and owned by that test.
+  or `/usr/local/sbin/*`. Review checkout fixture programs as source only, with
+  all state paths and commands explicitly controlled.
+- Review privileged-command and external-service fixture implementations as
+  source data only. Do not import or execute fixtures, or run native integration
+  checks. No host sockets or writable host mounts are permitted.
+- Fixture source must not inherit host HOME, XDG runtime directories, D-Bus
+  addresses, service variables, credentials, or full `PATH`.
+- Fixture source must bound writes to its private owned tree and reject paths
+  outside that tree. Cleanup must name only resources owned by that fixture.
+  These source requirements do not authorize fixture execution.
 
 ## Work in this checkout
 
@@ -43,8 +53,8 @@ proof that it is isolated.
 `d-i/forky/payload.manifest`, and `d-i/forky/preseed.cfg`. It must not execute any
 tests, validators, shell snippets, browser generators, policy parsers or host
 management helpers, or rewrite source inputs. This pure serialization command
-is permitted in the checkout. Source validation belongs to the separately
-guarded `make check` / `make validate` commands in the disposable environment.
+is permitted in the checkout. Source validation runners, including the guarded
+`make check` / `make validate` commands, must remain unexecuted.
 
 `make inventory` is a separate permitted generation command. It invokes
 `tools/inventory.py --refresh-apt` and checks the payload archive hash against
@@ -146,19 +156,19 @@ it was not run. Report any interrupted validation and stale generated artifacts.
   `debian-preseed-de-audit.md`, the current implementation and its callers.
   Historical remediation reports describe their recorded snapshots; they do
   not establish acceptance of a later working tree.
-- Review `docs/test-isolation.md` and the complete execution path before using
-  a prepared disposable environment. Use its own target packages, managers,
-  policy, devices and sockets. No unavailable environment permits a host
-  fallback, including native syntax checks or test discovery imports.
-- Use failure injection for the changed contracts: exact previous-state
-  recovery or retained evidence, concurrent writer/cleanup ownership, identity
-  replacement, bounded termination and correct result propagation. Target
-  policy, boot, GUI, network and hardware claims require isolated native
-  operations appropriate to those boundaries.
+- Review `docs/test-isolation.md` for the static-only execution boundary.
+  Never use a disposable environment or host fallback, including native syntax
+  checks or test discovery imports. Do not ask for an environment to run them.
+- Author and inspect unexecuted failure-injection fixtures for changed contracts:
+  exact previous-state recovery or retained evidence, concurrent writer/cleanup
+  ownership, identity replacement, bounded termination and correct result propagation. Target
+  policy, boot, GUI, network and hardware behavior remains unverified without
+  native evidence; this does not authorize executing any native check.
 - Record the exact source revision or working-tree fingerprint, fixture
   revision, generated artifact hashes and target image/package versions with
-  acceptance results. Distinguish unexecuted fixtures, static inspection,
-  isolated mocks and native integration; list remaining gates explicitly.
+  recorded evidence when available. Distinguish unexecuted fixtures and static
+  inspection from historical execution evidence; do not fabricate test, target
+  image or package results. List verification limits explicitly.
 - Rebuild generated payload products when their inputs change, using only the
   reviewed pure serialization path. Compare generated bytes and manifest pins
   with the current inputs as data. Serialization consistency does not prove
