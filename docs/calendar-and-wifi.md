@@ -2,9 +2,10 @@
 
 This describes the October 23–24 source changes for new Forky installations. The
 behavior below is the implemented contract; it has not been demonstrated in a
-running desktop. See [the five-second right-click toggle](validation/waycal-timed-toggle-20261024.md)
+running desktop. See [mouse-only Waycal dismissal](validation/waycal-any-click-20261024.md)
 for the current interaction and acceptance limits. The earlier
-[1.5-second hover investigation](validation/waycal-hover-20261024.md) records
+[five-second right-click toggle](validation/waycal-timed-toggle-20261024.md) and
+[1.5-second hover investigation](validation/waycal-hover-20261024.md) record
 the preceding native-event limitations. See
 [alternate clock format removal](validation/clock-format-removal-20261024.md)
 for the preceding Waybar 0.15.0 controls and artifact receipt, and
@@ -60,7 +61,9 @@ Both Waybar layouts use the following controls:
 | Hover over the clock | No popup action; the tooltip remains disabled. |
 | Left click the clock | Open the native GTK dropdown without changing the clock format. |
 | Middle click the clock | No clock action. |
-| Right click the clock | Open Waycal for five seconds, or close the existing popup early. |
+| Right click the clock | Open Waycal on button release, with a five-second lifetime. |
+| Any mouse button click while Waycal is open | Dismiss the popup, including clicks on the clock or calendar. The complete dismissing click is consumed. |
+| Keyboard input while Waycal is open | No dismissal action; keyboard focus stays with the existing application. |
 | Dropdown → Open calendar | Open/activate Calix through `labwc-calendar`. |
 | Dropdown → Open agenda (directly below Open calendar) | Open/activate the actual Agenda application through `labwc-agenda`. |
 | Dropdown → Events | Create Event…, or select an event to edit/delete on Fruux. |
@@ -70,21 +73,40 @@ The user's latest instruction removes alternate clock formatting entirely.
 Both clocks retain the single `format: {:%a %H:%M}` and `tooltip: false`.
 Neither defines `format-alt` or `format-alt-click`; no left-click command or
 action competes with the native GTK menu, and middle-click has no action.
-The latest interaction uses the clock's native right-click callback in both
-layouts: `/usr/local/libexec/labwc-waycal-control toggle`. The helper requests
-one transient `labwc-waycal-popup.service` through the user manager. One click
-opens it; another click while active requests an early stop. Each new opening
-gets a five-second countdown. A click while the old service is stopping or
+Both layouts use the native `on-click-right-release` callback:
+`/usr/local/libexec/labwc-waycal-control open`. Waiting for release separates
+the opening click from subsequent dismissal. Duplicate requests while active
+do not reset the countdown. A request while the old service is stopping or
 collecting does not replace or restart it; a later click after collection can
-open a fresh popup. Left click continues to open the native calendar menu.
+open a fresh popup. Left click opens the native calendar menu when the popup
+is closed. Touchpads use `buttonAreas` for physical bottom-right clicks, while
+`tapButtonMap=lrm` retains two-finger right taps; this mapping needs hardware
+acceptance on the target devices.
 
-The service runs the existing `/opt/waycal/waycal --week-start monday` binary
-under GNU `timeout`, inside its own cgroup. It retains native Wayland and
-Waycal's own layer-shell placement. The helper is staged at mode 0755 with its
-own AppArmor profile; the old toggle helper and two static popup/toggle units
+The controller requests one transient `labwc-waycal-popup.service` through the
+user manager. GNU `timeout` runs `labwc-waycal-popup` inside that service. The
+supervisor creates transparent GTK3 layer-shell surfaces on every GDK output,
+then launches the existing `/opt/waycal/waycal --week-start monday` binary once
+all surfaces have mapped and completed their first frame, followed by a
+Wayland synchronization round trip. Overlay-layer input covers the calendar, panel and
+desktop without guessing Waycal geometry or treating it as an xdg-toplevel.
+Waycal retains its native Top-layer placement underneath those surfaces.
+
+The supervisor consumes mouse button presses and dismisses on the final
+matching release. Unmatched releases cannot dismiss a newly opening popup.
+The surfaces request keyboard mode `NONE`, disable GTK focus, and contain no
+keyboard handlers or synthetic input. Keyboard input does not close the popup
+or reset the five-second deadline. The supervisor exits on a click, child exit,
+output change, surface closure or startup failure, and the service manager
+terminates the remaining cgroup. Stopping Waybar propagates a stop to the popup.
+No global Labwc mouse/key bindings, raw input device access or a11y bridge is
+used. The helper refuses execution outside the expected service cgroup.
+
+Both helpers are staged at mode 0755 with explicit AppArmor profiles; the old
+toggle helper and two static popup/toggle units
 are removed from installer sources. There is no login activation. The former
 accessibility hover helper, autostart unit and ptrace permission remain removed.
-The month starts on Monday; Escape closes Waycal early.
+The month starts on Monday. The popup does not acquire keyboard focus.
 
 The transient request uses the Labwc session target, a fixed service name,
 private user/temporary/IPC/network namespaces and control-group termination.
@@ -98,8 +120,11 @@ one private runtime lock. An existing Waycal application owner outside the popup
 rejected to avoid activating an unmanaged window. Uncertain launch/stop requests
 are not retried; a successful request is not proof that a calendar is visible.
 The controller, namespaces, policy and authored fixtures have not been executed.
-Generated payload products and root inventories are stale relative to these
-latest sources because the user prohibited further build commands.
+The reviewed pure serialization path regenerated the three installer products;
+all 1,838 members match the current source and manifest as data. Both root JSON
+inventories were regenerated against that exact archive, with no missing package
+requests. No software was compiled. Native Forky GUI, systemd and AppArmor
+acceptance remains open; artifact consistency does not establish runtime behavior.
 
 Waycal 0.2.1 has no native user config or CSS-file option. Its embedded style is
 loaded at GTK's application priority. GTK4 supports the higher-priority user

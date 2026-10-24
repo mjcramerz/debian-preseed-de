@@ -70187,7 +70187,7 @@
     ],
     "selection_contract": "Candidates are repository snapshots; selected classes, pin rules, architecture, version constraints and dependency solving determine the installation transaction."
   },
-  "apt_metadata_sha256": "02509f93560af2976a16a7c469ab99e7135067483f45e7498a902039cf5a381e",
+  "apt_metadata_sha256": "ee17eeba0583b474e5ae4cc3c65d800c698297552ad8c4c4476718bc13d22ca0",
   "classes": [
     {
       "Description": "hardened OpenSSH server bootstrap",
@@ -70889,12 +70889,12 @@
       "APT Release OpenPGP signatures are not verified by the metadata collector."
     ],
     "missing_package_requests": [],
-    "payload_bytes": 34897183,
-    "payload_members": 1839,
+    "payload_bytes": 34919256,
+    "payload_members": 1838,
     "repository_transfers": 117,
     "requested_package_coverage_complete": true,
     "source_files": 353,
-    "text_files_scanned": 1809,
+    "text_files_scanned": 1808,
     "url_references": 460
   },
   "download_operations": [
@@ -72047,10 +72047,10 @@
     },
     {
       "class": "role/desktop",
-      "line": 2486,
+      "line": 2487,
       "phase": "installation",
       "source": {
-        "line": 2486,
+        "line": 2487,
         "path": "d-i/forky/scripts/desktop/verify.sh.tmpl"
       },
       "text": "\"/usr/local/libexec/network-online-check\", \"/usr/bin/curl\", \"/usr/bin/timeout\","
@@ -75579,7 +75579,7 @@
           "path": "d-i/forky/scripts/desktop/fangfrisch-configure.py"
         },
         {
-          "line": 2509,
+          "line": 2510,
           "path": "d-i/forky/scripts/desktop/verify.sh.tmpl"
         }
       ],
@@ -80439,8 +80439,8 @@
   ],
   "payload": {
     "path": "d-i/forky/payload.tar.gz",
-    "sha256": "6a370d066a9c7d7af4e97418b6a492a8487a160a078ec32eece0c4afabbbb128",
-    "size": 26621075
+    "sha256": "be656869d2cb3ac213379dd8c377a5db7a0450133620fb7bd034bde71682c31b",
+    "size": 26626138
   },
   "repository_transfers": [
     {
@@ -82005,7 +82005,7 @@
     {
       "sources": [
         {
-          "line": 1590,
+          "line": 1586,
           "path": "d-i/forky/scripts/desktop/verify.sh.tmpl"
         },
         {
@@ -87997,7 +87997,7 @@
           "path": "d-i/forky/hooks/target/usr/local/libexec/clamav-fangfrisch"
         },
         {
-          "line": 2509,
+          "line": 2510,
           "path": "d-i/forky/scripts/desktop/verify.sh.tmpl"
         }
       ],

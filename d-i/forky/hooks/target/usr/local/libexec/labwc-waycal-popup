@@ -1,0 +1,255 @@
+#!/usr/bin/python3 -I
+"""Own Waycal and temporary, transparent click-dismissal surfaces in one unit.
+
+This helper must run inside labwc-waycal-popup.service. Exiting its main
+process makes the user manager terminate the remaining application cgroup.
+The dismissing click is consumed, never replayed to another application.
+Keyboard input is not observed; the dismissal surfaces never request focus.
+"""
+from __future__ import annotations
+
+import os
+from pathlib import Path
+import re
+import signal
+import sys
+import uuid
+
+UNIT = 'labwc-waycal-popup.service'
+APPLICATION = ['/opt/waycal/waycal', '--week-start', 'monday']
+MAX_MONITORS = 32
+
+
+def managed_context() -> bool:
+    if os.getuid() == 0 or os.geteuid() != os.getuid():
+        return False
+    if (os.environ.get('GDK_BACKEND') != 'wayland'
+            or not re.fullmatch(r'[0-9a-f]{32}', os.environ.get('INVOCATION_ID', ''))):
+        return False
+    # The cgroup owner is required: a directly invoked GUI helper must never
+    # leave a separate Waycal process behind when it exits on a click.
+    with Path('/proc/self/cgroup').open('rb') as source:
+        data = source.read(4097)
+    if len(data) > 4096:
+        return False
+    lines = data.decode('ascii', errors='strict').splitlines()
+    return (len(lines) == 1 and lines[0].startswith('0::/')
+            and lines[0].removeprefix('0::').split('/')[-1] == UNIT)
+
+
+class Popup:
+    def __init__(self, toolkit: tuple, correlation: str):
+        self.Gdk, self.Gio, self.GLib, self.Gtk, self.LayerShell = toolkit
+        self.correlation = correlation
+        self.windows = []
+        self.mapped = set()
+        self.painted = set()
+        self.frames = {}
+        self.display = None
+        self.buttons = set()
+        self.child = None
+        self.launch_scheduled = False
+        self.done = False
+        self.status = 0
+
+    def finish(self, status: int, reason: str) -> bool:
+        if self.done:
+            return False
+        self.done = True
+        self.status = status
+        print(f'waycal-popup status={reason} correlation={self.correlation}',
+              file=sys.stderr, flush=True)
+        for clock, handler in self.frames.values():
+            clock.disconnect(handler)
+        self.frames.clear()
+        for window in self.windows:
+            window.destroy()
+        if self.Gtk.main_level():
+            self.Gtk.main_quit()
+        # Do not signal a numeric PID or another unit from a delayed callback.
+        # The service's KillMode=control-group owns all remaining descendants.
+        return False
+
+    def changed(self, *_args) -> None:
+        self.finish(0, 'output-changed')
+
+    def destroyed(self, *_args) -> None:
+        if not self.done:
+            self.finish(3, 'surface-closed')
+
+    def press(self, _window, event) -> bool:
+        self.buttons.add(event.button)
+        return True
+
+    def release(self, _window, event) -> bool:
+        # Ignore a release whose press preceded these surfaces, including the
+        # clock's opening release. Keep the implicit grab through the complete
+        # dismissing click so no synthetic/unpaired click is sent elsewhere.
+        if event.button in self.buttons:
+            self.buttons.remove(event.button)
+            if not self.buttons:
+                self.finish(0, 'click-dismissed')
+        return True
+
+    def mapped_window(self, window, _event) -> bool:
+        if self.done or window in self.mapped:
+            return False
+        self.mapped.add(window)
+        clock = window.get_frame_clock()
+        if clock is None:
+            return self.finish(3, 'frame-clock-unavailable')
+        self.frames[window] = (clock, clock.connect_after('after-paint', self.painted_window, window))
+        window.queue_draw()
+        return False
+
+    def painted_window(self, _clock, window) -> None:
+        pending = self.frames.pop(window, None)
+        if pending is not None:
+            pending[0].disconnect(pending[1])
+        if self.done:
+            return
+        self.painted.add(window)
+        if len(self.painted) == len(self.windows) and not self.launch_scheduled:
+            self.launch_scheduled = True
+            self.GLib.idle_add(self.launch)
+
+    def launch(self) -> bool:
+        if self.done:
+            return False
+        try:
+            # Finish each surface's first frame, then acknowledge its commits
+            # on this Wayland connection before the child's separate connection
+            # can map Waycal. Local GTK map events alone are not a ready signal.
+            self.display.sync()
+            launcher = self.Gio.SubprocessLauncher.new(self.Gio.SubprocessFlags.NONE)
+            launcher.set_cwd('/')
+            self.child = launcher.spawnv(APPLICATION)
+            self.child.wait_async(None, self.application_exited)
+            print(f'waycal-popup status=application-started correlation={self.correlation}',
+                  file=sys.stderr, flush=True)
+        except (self.GLib.Error, OSError, ValueError):
+            self.finish(3, 'application-unavailable')
+        return False
+
+    def application_exited(self, child, result) -> None:
+        if self.done:
+            return
+        try:
+            child.wait_finish(result)
+            success = child.get_successful()
+        except self.GLib.Error:
+            success = False
+        self.finish(0 if success else 3, 'application-exited' if success else 'application-failed')
+
+    def startup_expired(self) -> bool:
+        if self.child is None:
+            self.finish(3, 'surface-startup-timeout')
+        return False
+
+    def prepare(self, display) -> None:
+        self.display = display
+        count = display.get_n_monitors()
+        if not 1 <= count <= MAX_MONITORS:
+            raise ValueError('monitor-count')
+        screen = display.get_default_screen()
+        visual = screen.get_rgba_visual()
+        if visual is None:
+            raise ValueError('rgba-visual')
+        provider = self.Gtk.CssProvider()
+        provider.load_from_data(b'window.waycal-dismiss { background: transparent; '
+                                b'box-shadow: none; border: none; }')
+        self.Gtk.StyleContext.add_provider_for_screen(
+            screen, provider, self.Gtk.STYLE_PROVIDER_PRIORITY_USER + 1)
+        display.connect('monitor-added', self.changed)
+        display.connect('monitor-removed', self.changed)
+        display.connect('closed', lambda *_args: self.finish(3, 'display-closed'))
+        for index in range(count):
+            monitor = display.get_monitor(index)
+            if monitor is None:
+                raise ValueError('monitor-missing')
+            for name in ('geometry', 'scale-factor'):
+                monitor.connect('notify::' + name, self.changed)
+            monitor.connect('invalidate', self.changed)
+            window = self.Gtk.Window(type=self.Gtk.WindowType.TOPLEVEL)
+            self.windows.append(window)
+            window.set_visual(visual)
+            window.set_decorated(False)
+            window.set_accept_focus(False)
+            window.set_focus_on_map(False)
+            window.get_style_context().add_class('waycal-dismiss')
+            self.LayerShell.init_for_window(window)
+            self.LayerShell.set_namespace(window, 'waycal-dismiss')
+            self.LayerShell.set_monitor(window, monitor)
+            self.LayerShell.set_layer(window, self.LayerShell.Layer.OVERLAY)
+            self.LayerShell.set_keyboard_mode(window, self.LayerShell.KeyboardMode.NONE)
+            # -1 covers the whole output, including Waybar's reserved area.
+            self.LayerShell.set_exclusive_zone(window, -1)
+            for edge in (self.LayerShell.Edge.TOP, self.LayerShell.Edge.BOTTOM,
+                         self.LayerShell.Edge.LEFT, self.LayerShell.Edge.RIGHT):
+                self.LayerShell.set_anchor(window, edge, True)
+            if hasattr(self.LayerShell, 'set_respect_close'):
+                self.LayerShell.set_respect_close(window, True)
+            window.add_events(self.Gdk.EventMask.BUTTON_PRESS_MASK
+                              | self.Gdk.EventMask.BUTTON_RELEASE_MASK)
+            window.connect('button-press-event', self.press)
+            window.connect('button-release-event', self.release)
+            window.connect('map-event', self.mapped_window)
+            window.connect('destroy', self.destroyed)
+        # Build the complete set before mapping any surface. Waycal starts
+        # only once every output's dismissal surface has painted its first frame.
+        for window in self.windows:
+            if self.done:
+                return
+            window.show_all()
+        self.GLib.timeout_add(2000, self.startup_expired)
+
+
+def main(argv: list[str]) -> int:
+    if argv or os.getuid() == 0:
+        return 2
+    correlation = uuid.uuid4().hex
+    popup = None
+    stage = 'context'
+    try:
+        if not managed_context():
+            raise ValueError('service-context')
+        stage = 'toolkit'
+        import gi
+        gi.require_version('Gtk', '3.0')
+        gi.require_version('Gdk', '3.0')
+        gi.require_version('Gio', '2.0')
+        gi.require_version('GLibUnix', '2.0')
+        gi.require_version('GtkLayerShell', '0.1')
+        from gi.repository import Gdk, Gio, GLib, GLibUnix, Gtk, GtkLayerShell
+        stage = 'display'
+        initialized, _remaining = Gtk.init_check([])
+        if not initialized or not GtkLayerShell.is_supported():
+            raise ValueError('wayland-layer-shell')
+        display = Gdk.Display.get_default()
+        if display is None:
+            raise ValueError('display')
+        popup = Popup((Gdk, Gio, GLib, Gtk, GtkLayerShell), correlation)
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signum,
+                               lambda: popup.finish(0, 'service-stopped'))
+        stage = 'surfaces'
+        popup.prepare(display)
+        if not popup.done:
+            Gtk.main()
+        return popup.status
+    except Exception:
+        # GI callbacks/imports can report target ABI or compositor failures in
+        # several exception types. Keep raw toolkit/environment data out of
+        # diagnostics, but record the fixed failing stage for the journal.
+        print(f'waycal-popup status=unavailable stage={stage} correlation={correlation}',
+              file=sys.stderr, flush=True)
+        if popup is not None:
+            popup.finish(3, 'unavailable')
+        return 3
+    finally:
+        if popup is not None and not popup.done:
+            popup.finish(3, 'aborted')
+
+
+if __name__ == '__main__':
+    raise SystemExit(main(sys.argv[1:]))

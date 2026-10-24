@@ -784,6 +784,7 @@ for path in \
   /usr/local/bin/labwc-agenda \
     /usr/local/libexec/calix-fruux-bootstrap \
     /usr/local/libexec/labwc-waycal-control \
+    /usr/local/libexec/labwc-waycal-popup \
   /usr/bin/timeout \
   /usr/local/bin/labwc-ocr \
   /usr/local/bin/labwc-logout \
@@ -2189,12 +2190,15 @@ import gi
 gi.require_version("Gtk", "3.0")
 gi.require_version("Secret", "1")
 gi.require_version("GLibUnix", "2.0")
-from gi.repository import GLibUnix, Gtk, Secret
+gi.require_version("GtkLayerShell", "0.1")
+from gi.repository import GLibUnix, Gtk, GtkLayerShell, Secret
 from icalendar import Calendar, Event, Todo
 from defusedxml import ElementTree
 require(Gtk.get_major_version() == 3, "notification center requires GTK3")
 require(callable(GLibUnix.signal_add) and Secret.Service and Calendar and Event and Todo
         and callable(ElementTree.fromstring), "calendar runtime APIs are missing")
+require(callable(GtkLayerShell.set_keyboard_mode) and callable(GtkLayerShell.set_monitor),
+        "Waycal dismissal requires GTK3 layer-shell APIs")
 
 for name in ("labwc-tomat", "labwc-tomat-hook", "labwc-notifications"):
     path = Path("/usr/local/libexec") / name
@@ -2264,8 +2268,8 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
                 require("format-alt" not in entry and "format-alt-click" not in entry,
                         "alternate clock formatting must be absent")
                 require(entry.get("tooltip") is False and "tooltip-format" not in entry
-                        and entry.get("on-click-right") == "/usr/local/libexec/labwc-waycal-control toggle"
-                        and "on-click-right-release" not in entry
+                        and entry.get("on-click-right-release") == "/usr/local/libexec/labwc-waycal-control open"
+                        and "on-click-right" not in entry
                         and "on-click-middle" not in entry and "on-click-middle-release" not in entry
                         and not entry.get("actions"), "clock popup or click action conflict")
             require(entry.get("menu") == event and event not in entry
@@ -2443,7 +2447,8 @@ for name in ("labwc-agenda", "labwc-calendar"):
             and os.readlink(path) == "labwc-app", "unmanaged calendar command: " + name)
 for path in ("/usr/local/libexec/calix-fruux-bootstrap", "/opt/calix/calix",
              "/usr/local/libexec/labwc-calendar-actions", "/usr/local/libexec/labwc-calendar-worker",
-             "/usr/local/libexec/labwc-waycal-control", "/opt/waycal/waycal",
+             "/usr/local/libexec/labwc-waycal-control", "/usr/local/libexec/labwc-waycal-popup",
+             "/opt/waycal/waycal",
              "/usr/bin/timeout", "/usr/bin/systemd-run", "/usr/bin/systemctl", "/usr/bin/busctl",
              "/usr/local/bin/com.github.dahenson.agenda"):
     trusted(Path(path), True)

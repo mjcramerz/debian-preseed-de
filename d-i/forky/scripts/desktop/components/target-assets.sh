@@ -190,6 +190,7 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/libexec/greetd-power-action-root /usr/local/libexec/greetd-power-action-root 0755
   desktop_stage_role_asset usr/local/libexec/calix-fruux-bootstrap /usr/local/libexec/calix-fruux-bootstrap 0755
   desktop_stage_role_asset usr/local/libexec/labwc-waycal-control /usr/local/libexec/labwc-waycal-control 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-waycal-popup /usr/local/libexec/labwc-waycal-popup 0755
   desktop_stage_role_asset etc/skel-desktop/.config/gtk-4.0/gtk.css /etc/skel-desktop/.config/gtk-4.0/gtk.css 0644
   desktop_stage_role_asset etc/skel-desktop/.config/waycal/style.css /etc/skel-desktop/.config/waycal/style.css 0644
   desktop_stage_role_asset usr/local/share/applications/com.ianswope.Calix.desktop /usr/local/share/applications/com.ianswope.Calix.desktop 0644

@@ -99,7 +99,9 @@ __INSTALLER_LABWC_WORKSPACE_NAME_LINES__
       <tapAndDrag>no</tapAndDrag>
       <dragLock>no</dragLock>
       <disableWhileTyping>yes</disableWhileTyping>
-      <clickMethod>clickfinger</clickMethod>
+      <!-- Keep physical bottom-right clicks distinct from left clicks.
+           Two-finger taps remain right-clicks through tapButtonMap=lrm. -->
+      <clickMethod>buttonAreas</clickMethod>
       <scrollMethod>twofinger</scrollMethod>
     </device>
   </libinput>

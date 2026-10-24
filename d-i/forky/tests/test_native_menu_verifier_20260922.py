@@ -111,6 +111,12 @@ class TargetFixture:
             toml.chmod(0o600)
             self.owners[toml] = uid
             (config / 'waybar/config').write_text(json.dumps(bars))
+            for relative in ('mako/config', 'gtk-4.0/gtk.css', 'waycal/style.css'):
+                destination = config / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_bytes(render_theme_bytes(payload_read_bytes(SKEL / relative)))
+                destination.chmod(0o644)
+                self.owners[destination] = uid
             if whisper:
                 unit = config / 'systemd/user/whisper-transcribe.service'
                 unit.parent.mkdir(parents=True)
@@ -153,6 +159,9 @@ class TargetFixture:
         gi.require_version = mock.Mock()
         repository = types.ModuleType('gi.repository')
         repository.Gtk = types.SimpleNamespace(get_major_version=lambda: 3)
+        repository.GLibUnix = types.SimpleNamespace(signal_add=mock.Mock())
+        repository.Secret = types.SimpleNamespace(Service=object)
+        repository.GtkLayerShell = types.SimpleNamespace(set_keyboard_mode=mock.Mock(), set_monitor=mock.Mock())
 
         def metadata(path, *args, **kwargs):
             result = real_lstat(path, *args, **kwargs)
@@ -196,7 +205,8 @@ class TargetFixture:
             stack.enter_context(mock.patch.object(sys, 'argv', ['-c', *self.command[5:]]))
             stack.enter_context(contextlib.redirect_stdout(out))
             exec(compile(self.command[4], 'actual-native-menu-verifier', 'exec'), {})
-        gi.require_version.assert_called_once_with('Gtk', '3.0')
+        gi.require_version.assert_has_calls([mock.call('Gtk', '3.0'), mock.call('Secret', '1'),
+                                           mock.call('GLibUnix', '2.0'), mock.call('GtkLayerShell', '0.1')])
         return out.getvalue()
 
 
@@ -297,11 +307,11 @@ desktop_verify_native_menus
                 with self.assertRaisesRegex(SystemExit, message):
                     target.verify()
 
-    def test_clock_requires_one_fixed_toggle_binding_in_both_copies_and_layouts(self):
+    def test_clock_requires_one_fixed_release_binding_in_both_copies_and_layouts(self):
         changes = (
-            lambda entry: entry.pop('on-click-right'),
-            lambda entry: entry.update({'on-click-right': '/usr/local/libexec/labwc-waycal-control close'}),
-            lambda entry: entry.update({'on-click-right-release': entry['on-click-right']}),
+            lambda entry: entry.pop('on-click-right-release'),
+            lambda entry: entry.update({'on-click-right-release': '/usr/local/libexec/labwc-waycal-control close'}),
+            lambda entry: entry.update({'on-click-right': entry['on-click-right-release']}),
         )
         for base in ('/etc/skel-desktop', HOME):
             for layout in (0, 1):

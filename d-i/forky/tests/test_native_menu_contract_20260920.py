@@ -106,9 +106,9 @@ class MenuContractTests(unittest.TestCase):
                     self.assertIn('--property=SuccessExitStatus=2', argv[:argv.index('--')])
                 else:
                     self.assertNotIn('--property=SuccessExitStatus=2', argv[:argv.index('--')])
-            self.assertEqual(shlex.split(entry['on-click-right']),
-                             ['/usr/local/libexec/labwc-waycal-control', 'toggle'])
-            self.assertNotIn('on-click-right-release', entry)
+            self.assertEqual(shlex.split(entry['on-click-right-release']),
+                             ['/usr/local/libexec/labwc-waycal-control', 'open'])
+            self.assertNotIn('on-click-right', entry)
             self.assertNotIn('on-click-middle', entry)
             self.assertNotIn('on-click-middle-release', entry)
             self.assertFalse(entry.get('actions'))
@@ -122,6 +122,13 @@ class MenuContractTests(unittest.TestCase):
         for bar in bars():
             self.assertTrue(bar['custom/tomat']['on-click-right'].endswith(' -- /usr/local/libexec/labwc-tomat toggle'))
             self.assertTrue(bar['pulseaudio']['on-click-right'].endswith(' -- pavucontrol'))
+
+    def test_touchpad_keeps_a_physical_right_button_and_two_finger_right_tap(self):
+        tree = ET.fromstring(payload_read_text(SKEL / 'labwc/rc.xml'))
+        devices = tree.findall('./libinput/device[@category="touchpad"]')
+        self.assertEqual(len(devices), 1)
+        self.assertEqual(devices[0].findtext('clickMethod'), 'buttonAreas')
+        self.assertEqual(devices[0].findtext('tapButtonMap'), 'lrm')
 
     def test_notification_mapping_is_the_controller_allowlist(self):
         helper = load('labwc-notifications')
@@ -189,8 +196,192 @@ class MenuContractTests(unittest.TestCase):
             self.assertIn(text, function)
         self.assertIn('"format-alt" not in entry and "format-alt-click" not in entry', function)
         packages = payload_read_text(FORKY / 'classes/class-select/role/desktop.cfg').split()
-        for package in ('python3-gi', 'gir1.2-gtk-3.0', 'mako-notifier', 'libgtk4-layer-shell0'):
+        for package in ('python3-gi', 'gir1.2-gtk-3.0', 'gir1.2-gtklayershell-0.1',
+                        'mako-notifier', 'libgtk4-layer-shell0'):
             self.assertIn(package, packages)
+
+
+class WaycalPopupTests(unittest.TestCase):
+    """Mock toolkit only; compositor delivery and focus need native acceptance."""
+    def setUp(self):
+        self.helper = load('labwc-waycal-popup')
+        self.glib = SimpleNamespace(Error=RuntimeError, idle_add=mock.Mock(), timeout_add=mock.Mock())
+        self.gtk = mock.MagicMock()
+        self.gtk.main_level.return_value = 1
+        self.gtk.STYLE_PROVIDER_PRIORITY_USER = 800
+        self.gtk.WindowType.TOPLEVEL = 'toplevel'
+        self.shell = mock.MagicMock()
+        self.shell.Layer.OVERLAY = 'overlay'
+        self.shell.KeyboardMode.NONE = 'no-keyboard'
+        self.shell.Edge.TOP, self.shell.Edge.BOTTOM = 'top', 'bottom'
+        self.shell.Edge.LEFT, self.shell.Edge.RIGHT = 'left', 'right'
+        self.gio = mock.MagicMock()
+        self.gio.SubprocessFlags.NONE = 0
+        self.popup = self.helper.Popup((SimpleNamespace(EventMask=SimpleNamespace(
+            BUTTON_PRESS_MASK=1, BUTTON_RELEASE_MASK=2)), self.gio, self.glib,
+            self.gtk, self.shell), 'fixture')
+        log = contextlib.redirect_stderr(io.StringIO())
+        log.__enter__()
+        self.addCleanup(log.__exit__, None, None, None)
+
+    def prepare(self, count=2):
+        display = mock.MagicMock()
+        display.get_n_monitors.return_value = count
+        self.windows = [mock.MagicMock() for _ in range(max(0, min(count, 32)))]
+        self.gtk.Window.side_effect = self.windows
+        self.popup.prepare(display)
+        return display
+
+    def test_all_outputs_paint_before_the_fixed_waycal_launch(self):
+        display = self.prepare()
+        self.gio.SubprocessLauncher.new.assert_not_called()
+        self.popup.mapped_window(self.windows[0], None)
+        self.glib.idle_add.assert_not_called()
+        self.popup.mapped_window(self.windows[1], None)
+        self.popup.mapped_window(self.windows[1], None)
+        self.glib.idle_add.assert_not_called()
+        for window in self.windows:
+            self.popup.painted_window(window.get_frame_clock(), window)
+            window.get_frame_clock().disconnect.assert_called_once()
+        self.glib.idle_add.assert_called_once_with(self.popup.launch)
+        self.popup.launch()
+        display.sync.assert_called_once()
+        launcher = self.gio.SubprocessLauncher.new.return_value
+        launcher.spawnv.assert_called_once_with(['/opt/waycal/waycal', '--week-start', 'monday'])
+        launcher.set_cwd.assert_called_once_with('/')
+        launcher.spawnv.return_value.wait_async.assert_called_once_with(None, self.popup.application_exited)
+
+    def test_surfaces_cover_all_outputs_without_keyboard_focus_or_key_handlers(self):
+        self.prepare()
+        for window in self.windows:
+            window.set_accept_focus.assert_called_once_with(False)
+            window.set_focus_on_map.assert_called_once_with(False)
+            self.shell.set_keyboard_mode.assert_any_call(window, 'no-keyboard')
+            self.shell.set_layer.assert_any_call(window, 'overlay')
+            self.shell.set_exclusive_zone.assert_any_call(window, -1)
+            for edge in ('top', 'bottom', 'left', 'right'):
+                self.shell.set_anchor.assert_any_call(window, edge, True)
+            self.assertEqual({call.args[0] for call in window.connect.call_args_list},
+                             {'button-press-event', 'button-release-event', 'map-event', 'destroy'})
+
+    def test_opening_release_does_not_dismiss(self):
+        self.assertTrue(self.popup.release(None, SimpleNamespace(button=3)))
+        self.assertFalse(self.popup.done)
+
+    def test_each_mouse_button_dismisses_on_release_and_consumes_the_click(self):
+        for button in (1, 2, 3, 8, 9):
+            self.popup.done = False
+            self.assertTrue(self.popup.press(None, SimpleNamespace(button=button)))
+            self.assertFalse(self.popup.done)
+            self.assertTrue(self.popup.release(None, SimpleNamespace(button=button)))
+            self.assertTrue(self.popup.done)
+            self.assertEqual(self.popup.status, 0)
+
+    def test_multiple_buttons_keep_capture_until_last_release(self):
+        self.popup.press(None, SimpleNamespace(button=1))
+        self.popup.press(None, SimpleNamespace(button=3))
+        self.popup.release(None, SimpleNamespace(button=1))
+        self.assertFalse(self.popup.done)
+        self.popup.release(None, SimpleNamespace(button=3))
+        self.assertTrue(self.popup.done)
+
+    def test_click_before_idle_launch_never_starts_waycal(self):
+        self.prepare()
+        for window in self.windows:
+            self.popup.mapped_window(window, None)
+            self.popup.painted_window(window.get_frame_clock(), window)
+        self.popup.press(None, SimpleNamespace(button=1))
+        self.popup.release(None, SimpleNamespace(button=1))
+        self.popup.launch()
+        self.gio.SubprocessLauncher.new.assert_not_called()
+
+    def test_launch_failure_removes_every_capture_surface(self):
+        self.prepare()
+        self.gio.SubprocessLauncher.new.return_value.spawnv.side_effect = RuntimeError('fixture')
+        self.popup.launch()
+        self.assertEqual(self.popup.status, 3)
+        for window in self.windows:
+            window.destroy.assert_called_once()
+
+    def test_missing_frame_clock_and_unfinished_frame_cleanup_fail_closed(self):
+        self.prepare()
+        self.windows[0].get_frame_clock.return_value = None
+        self.popup.mapped_window(self.windows[0], None)
+        self.assertEqual(self.popup.status, 3)
+        self.glib.idle_add.assert_not_called()
+        for window in self.windows:
+            window.destroy.assert_called_once()
+
+    def test_show_failure_never_maps_another_surface(self):
+        # A synchronous failure while showing the first surface must never
+        # show another already-destroyed capture window afterwards.
+        windows = [mock.MagicMock(), mock.MagicMock()]
+        self.gtk.Window.side_effect = windows
+        windows[0].show_all.side_effect = lambda: self.popup.finish(3, 'fixture')
+        display = mock.MagicMock()
+        display.get_n_monitors.return_value = 2
+        self.popup.prepare(display)
+        windows[0].show_all.assert_called_once()
+        windows[1].show_all.assert_not_called()
+        for window in windows:
+            window.destroy.assert_called_once()
+
+    def test_output_change_disconnects_pending_frame_callbacks(self):
+        self.prepare()
+        for window in self.windows:
+            self.popup.mapped_window(window, None)
+        self.popup.changed()
+        for window in self.windows:
+            window.get_frame_clock().disconnect.assert_called_once()
+            self.popup.painted_window(window.get_frame_clock(), window)
+        self.glib.idle_add.assert_not_called()
+
+    def test_output_change_and_destroy_close_every_surface_once(self):
+        self.prepare()
+        for window in self.windows:
+            window.destroy.side_effect = self.popup.destroyed
+        self.popup.changed()
+        self.popup.destroyed()
+        self.assertEqual(self.popup.status, 0)
+        for window in self.windows:
+            window.destroy.assert_called_once()
+        self.gtk.main_quit.assert_called_once()
+
+    def test_startup_deadline_and_application_exit_clear_capture(self):
+        for successful in (True, False):
+            self.popup.done = False
+            child = mock.Mock()
+            child.get_successful.return_value = successful
+            self.popup.application_exited(child, 'result')
+            child.wait_finish.assert_called_once_with('result')
+            self.assertEqual(self.popup.status, 0 if successful else 3)
+        self.popup.done = False
+        self.popup.startup_expired()
+        self.assertEqual(self.popup.status, 3)
+
+    def test_invalid_output_counts_fail_before_creating_surfaces(self):
+        for count in (0, 33):
+            with self.assertRaises(ValueError):
+                self.prepare(count)
+        self.gtk.Window.assert_not_called()
+
+    def test_context_requires_the_owned_unit_before_gui_import(self):
+        environment = {'GDK_BACKEND': 'wayland', 'INVOCATION_ID': 'a' * 32}
+        with mock.patch.object(self.helper.os, 'getuid', return_value=1000), \
+                mock.patch.object(self.helper.os, 'geteuid', return_value=1000), \
+                mock.patch.dict(self.helper.os.environ, environment, clear=True):
+            for data, expected in ((b'0::/user.slice/labwc-waycal-popup.service\n', True),
+                                   (b'0::/other.service\n', False),
+                                   (b'0::/labwc-waycal-popup.service/child\n', False),
+                                   (b'0::/labwc-waycal-popup.service\n1::/other\n', False),
+                                   (b'a' * 4097, False)):
+                with mock.patch.object(self.helper.Path, 'open', mock.mock_open(read_data=data)) as source:
+                    self.assertEqual(self.helper.managed_context(), expected)
+                    source.return_value.read.assert_called_once_with(4097)
+            with mock.patch.dict(self.helper.os.environ, {'GDK_BACKEND': 'x11'}), \
+                    mock.patch.object(self.helper.Path, 'open') as source:
+                self.assertFalse(self.helper.managed_context())
+                source.assert_not_called()
 
 
 class WaycalControlTests(unittest.TestCase):
@@ -377,6 +568,7 @@ class WaycalControlTests(unittest.TestCase):
         for value in ('--user', '--collect', '--no-block', '--service-type=exec',
                       '--expand-environment=no', '--unit=labwc-waycal-popup.service',
                       '--property=Requisite=labwc-session.target',
+                      '--property=StopPropagatedFrom=waybar.service',
                       '--property=PartOf=labwc-session.target', '--property=ExitType=main',
                       '--property=KillMode=control-group', '--property=TimeoutStartSec=10s',
                       '--property=TimeoutStopSec=1s', '--property=RuntimeMaxSec=6s',
@@ -388,7 +580,7 @@ class WaycalControlTests(unittest.TestCase):
             self.assertIn(value, argv)
         self.assertEqual(argv[argv.index('--') + 1:],
                          ['/usr/bin/timeout', '--signal=TERM', '--kill-after=1s', '5s',
-                          '/opt/waycal/waycal', '--week-start', 'monday'])
+                          '/usr/local/libexec/labwc-waycal-popup'])
         self.assertNotIn('--popup', argv)
         self.assertNotIn('--scope', argv)
         self.assertNotIn('--property=PrivateDevices=yes', argv)
@@ -428,6 +620,7 @@ class WaycalControlTests(unittest.TestCase):
     def test_styles_and_controller_are_staged_and_static_units_are_retired(self):
         source = payload_read_text(FORKY / 'scripts/desktop/components.sh')
         self.assertIn('usr/local/libexec/labwc-waycal-control', source)
+        self.assertIn('usr/local/libexec/labwc-waycal-popup', source)
         self.assertNotIn('labwc-waycal-toggle', source)
         self.assertIn('etc/skel-desktop/.config/waycal/style.css', source)
         self.assertIn('.config/waycal', source)

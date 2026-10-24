@@ -144,6 +144,7 @@ profile waycal /opt/waycal/waycal flags=(attach_disconnected, mediate_deleted) {
   owner /dev/shm/** rwkl,
   unix,
   dbus (bind) bus=session name=com.forrestknight.waycal,
+  signal (send) set=(chld) peer=labwc-waycal-popup,
   signal (receive) peer=unconfined,
   deny network inet,
   deny network inet6,
@@ -199,4 +200,27 @@ profile labwc-waycal-control /usr/local/libexec/labwc-waycal-control flags=(atta
   signal (receive) peer=unconfined,
   deny network inet,
   deny network inet6,
+}
+
+# Temporary native layer-shell input surfaces. This service-owned supervisor
+# starts only the pinned Waycal executable; no raw input or key injection.
+profile labwc-waycal-popup /usr/local/libexec/labwc-waycal-popup flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/desktop-runtime>
+  /usr/local/libexec/labwc-waycal-popup r,
+  /opt/waycal/waycal rPx -> waycal,
+  /usr/lib/** mr,
+  /usr/share/** r,
+  owner @{HOME}/.config/gtk-3.0/{,**} r,
+  owner @{HOME}/.cache/{,fontconfig/,fontconfig/**,mesa_shader_cache/,mesa_shader_cache/**,mesa_shader_cache_db/,mesa_shader_cache_db/**} rwkl,
+  owner /run/user/[0-9]*/{,bus,wayland-[A-Za-z0-9_-]*} rw,
+  owner /dev/shm/** rwkl,
+  unix,
+  signal (receive) set=(chld) peer=waycal,
+  signal (receive) set=(term int kill) peer=unconfined,
+  signal (send) set=(chld) peer=unconfined,
+  deny network inet,
+  deny network inet6,
+  deny /dev/input/** rw,
+  include if exists <local/labwc-waycal-popup>
 }

@@ -163,6 +163,7 @@ def transient_argv(environment: dict[str, str]) -> list[str]:
             '--unit=' + UNIT, '--description=' + DESCRIPTION, '--slice=app.slice',
             '--property=Requisite=labwc-session.target',
             '--property=After=labwc-session.target', '--property=PartOf=labwc-session.target',
+            '--property=StopPropagatedFrom=waybar.service',
             '--property=ConditionEnvironment=LABWC_SESSION_OWNER=desktop',
             '--property=ConditionPathExists=!' + environment['XDG_RUNTIME_DIR'] + '/labwc-session-closing',
             '--property=ExitType=main', '--property=KillMode=control-group',
@@ -184,7 +185,7 @@ def transient_argv(environment: dict[str, str]) -> list[str]:
             '--setenv=XDG_RUNTIME_DIR', '--setenv=DBUS_SESSION_BUS_ADDRESS',
             '--setenv=WAYLAND_DISPLAY', '--setenv=GDK_BACKEND=wayland',
             '--', '/usr/bin/timeout', '--signal=TERM', '--kill-after=1s', '5s',
-            '/opt/waycal/waycal', '--week-start', 'monday']
+            '/usr/local/libexec/labwc-waycal-popup']
 
 
 def require_no_external_instance(environment: dict[str, str], deadline: float) -> None:
