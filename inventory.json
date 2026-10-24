@@ -70187,7 +70187,7 @@
     ],
     "selection_contract": "Candidates are repository snapshots; selected classes, pin rules, architecture, version constraints and dependency solving determine the installation transaction."
   },
-  "apt_metadata_sha256": "cdf364e7c9884fd0201a78f46a939d247f8d59536b9bca14fbe57ff338e5b686",
+  "apt_metadata_sha256": "02509f93560af2976a16a7c469ab99e7135067483f45e7498a902039cf5a381e",
   "classes": [
     {
       "Description": "hardened OpenSSH server bootstrap",
@@ -70889,7 +70889,7 @@
       "APT Release OpenPGP signatures are not verified by the metadata collector."
     ],
     "missing_package_requests": [],
-    "payload_bytes": 34897451,
+    "payload_bytes": 34897183,
     "payload_members": 1839,
     "repository_transfers": 117,
     "requested_package_coverage_complete": true,
@@ -72047,10 +72047,10 @@
     },
     {
       "class": "role/desktop",
-      "line": 2487,
+      "line": 2486,
       "phase": "installation",
       "source": {
-        "line": 2487,
+        "line": 2486,
         "path": "d-i/forky/scripts/desktop/verify.sh.tmpl"
       },
       "text": "\"/usr/local/libexec/network-online-check\", \"/usr/bin/curl\", \"/usr/bin/timeout\","
@@ -75579,7 +75579,7 @@
           "path": "d-i/forky/scripts/desktop/fangfrisch-configure.py"
         },
         {
-          "line": 2510,
+          "line": 2509,
           "path": "d-i/forky/scripts/desktop/verify.sh.tmpl"
         }
       ],
@@ -80439,8 +80439,8 @@
   ],
   "payload": {
     "path": "d-i/forky/payload.tar.gz",
-    "sha256": "70e83859ed8b07f98d70fc546d67b0e52d541688f4a0f60361381f4d8b5781bb",
-    "size": 26621104
+    "sha256": "6a370d066a9c7d7af4e97418b6a492a8487a160a078ec32eece0c4afabbbb128",
+    "size": 26621075
   },
   "repository_transfers": [
     {
@@ -87997,7 +87997,7 @@
           "path": "d-i/forky/hooks/target/usr/local/libexec/clamav-fangfrisch"
         },
         {
-          "line": 2510,
+          "line": 2509,
           "path": "d-i/forky/scripts/desktop/verify.sh.tmpl"
         }
       ],

@@ -108,9 +108,10 @@ class MenuContractTests(unittest.TestCase):
             self.assertEqual(entry['on-click-right'], '/usr/bin/systemctl --user --no-ask-password --no-block start labwc-waycal-toggle.service')
             self.assertNotIn('on-click-right-release', entry)
             self.assertNotIn('on-click-middle', entry)
+            self.assertNotIn('on-click-middle-release', entry)
             self.assertFalse(entry.get('actions'))
-            self.assertEqual(entry['format-alt-click'], 2)
-            self.assertEqual(entry['format-alt'], '{:%a, %d %b %Y W%V - %H.%M}')
+            self.assertNotIn('format-alt', entry)
+            self.assertNotIn('format-alt-click', entry)
             self.assertNotIn('tooltip-format', entry)
             self.assertIs(entry['tooltip'], False)
             self.assertNotIn('labwc-calendar menu', json.dumps(entry))
@@ -184,8 +185,7 @@ class MenuContractTests(unittest.TestCase):
             self.assertIn('"' + name + '"', function)
         for text in ('menus=5', 'unwired native menu leaf', '--no-block', 'optional Whisper menu/service availability differs'):
             self.assertIn(text, function)
-        self.assertIn('entry["format-alt-click"] == 2', function)
-        self.assertNotIn('entry.get("format-alt-click") == 1', function)
+        self.assertIn('"format-alt" not in entry and "format-alt-click" not in entry', function)
         packages = payload_read_text(FORKY / 'classes/class-select/role/desktop.cfg').split()
         for package in ('python3-gi', 'gir1.2-gtk-3.0', 'mako-notifier', 'libgtk4-layer-shell0'):
             self.assertIn(package, packages)

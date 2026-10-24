@@ -1,5 +1,9 @@
 # Waycal click mapping, styling and current log review — 2026-10-24
 
+> Historical snapshot: the later [alternate clock format removal](clock-format-removal-20261024.md)
+> supersedes this report's middle-click mapping and generated artifact hashes.
+> Its earlier implementation and acceptance evidence remain recorded below.
+
 ## Accepted behavior
 
 The user's final instruction replaces the hover experiment with this mapping

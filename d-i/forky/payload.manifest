@@ -666,7 +666,7 @@ afb26f0ecf968823c79cf86b3af6af35b558b23a3f29d990344ff5dfb9f6c2d1  hooks/target/e
 cf09238e3d43aa14506b2dff223927fe4ac4d18eb6887bc1cd6b348fea158e46  hooks/target/etc/skel-desktop/.config/vivaldi/Default/Preferences
 dbb2aa07163c6cd684ef6ccc80e7b4907b8d8d6682065ecf25d2695575f747fa  hooks/target/etc/skel-desktop/.config/waybar/audio-menu.xml.tmpl
 f7e9fc9e2808d85072f2341b38120f02a4c62437019c10f85803ef3ac9fc6eaf  hooks/target/etc/skel-desktop/.config/waybar/calendar-menu.xml.tmpl
-f8052cbefacfbcdfa84751428bce70eb60976fa4acd54220a43f27013ea5e4df  hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
+759892c149479dc828686d21c0aab114c0776a1a7178681f955c15b4512d85a3  hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
 759d92ba19dc5cc136c14a05a061fdbc6270da5c335fe587c8d8eb2d6f244e54  hooks/target/etc/skel-desktop/.config/waybar/icons/apps-symbolic.svg.tmpl
 a1ed2a675aa15446e1e97a7b42ac432efba25ecebdce95c816db1f30cb330d83  hooks/target/etc/skel-desktop/.config/waybar/icons/wayscriber-symbolic.svg.tmpl
 00699a3a6ef2a8afebd3db374c7c556979402d7af339b655ea1954f96242f54a  hooks/target/etc/skel-desktop/.config/waybar/notifications-menu.xml.tmpl
@@ -1685,7 +1685,7 @@ cfb13c1edd411d1b9cce5d39fd681f9a7d5c6b9ba76ba2c57e9cc94512411159  scripts/deskto
 8ef0d54e9fcf9516ad0df4724738464f00750f90279f3d60e3c360b660389425  scripts/desktop/templates/pam-wtmpdb.fragment
 b26b034b097f7057121554596475ff4f2c1b843b58d29900ad97f05024ab88b5  scripts/desktop/templates/recording-reconfigure.xml.fragment
 2ad262651f844bf110f28f47ea4a954d662dbca8c6ff1e230cc26f32e59b0013  scripts/desktop/templates/recording-whisper.xml.fragment
-3e107757d27f996c12126d004747d991544f5b2ce3f835becc7eb1365edae539  scripts/desktop/verify.sh.tmpl
+a63909c407b4f26f717d7e03d4fc92c4a7766d64ae891a275a6b08d2b49fea1e  scripts/desktop/verify.sh.tmpl
 6210193fe8aaab0a0731a6fbba6dd5076fd593a4a5445e38a16ab850f2b5f9c5  scripts/desktop/waybar-geometry.tsv
 760418df003765aace979cbb494ceea40b980e559a35daad4a0124f58f5fc802  scripts/desktop/waypaper.sh
 33977e223d38797f75c0deb5c4b327dd0b7a5a95cbe5b06795a16419197ec903  scripts/desktop/xwayland.sh

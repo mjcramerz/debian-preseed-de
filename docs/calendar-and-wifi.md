@@ -2,8 +2,10 @@
 
 This describes the October 23–24 source changes for new Forky installations. The
 behavior below is the implemented contract; it has not been demonstrated in a
-running desktop. See [October 24 click mapping and Waycal theme](validation/waycal-click-20261024.md)
-for the current Waybar 0.15.0 contract and acceptance limits. The earlier
+running desktop. See [alternate clock format removal](validation/clock-format-removal-20261024.md)
+for the latest Waybar 0.15.0 controls and artifact receipt, and
+[October 24 click mapping and Waycal theme](validation/waycal-click-20261024.md)
+for the preceding integration and acceptance limits. The earlier
 [log, hover and MOK report](validation/todo-waycal-mok-20261024.md) records the superseded hover approach.
 See [Calix install ordering correction](validation/calix-install-order-20261023.md)
 for the latest install changes, and [Calendar and recorded-log fixes](validation/calendar-firstboot-20261023.md)
@@ -53,16 +55,18 @@ Both Waybar layouts use the following controls:
 | --- | --- |
 | Hover over the clock | No tooltip or popup; the former `Calendar` text is disabled. |
 | Left click the clock | Open the native GTK dropdown without changing the clock format. |
-| Middle click the clock | Toggle the alternate date format, for example `Fri, 23 Oct 2026 W43 - 14.04`. |
+| Middle click the clock | No clock action. |
 | Right click the clock | Open Waycal when closed; close it when open. |
 | Dropdown → Open calendar | Open/activate Calix through `labwc-calendar`. |
 | Dropdown → Open agenda (directly below Open calendar) | Open/activate the actual Agenda application through `labwc-agenda`. |
 | Dropdown → Events | Create Event…, or select an event to edit/delete on Fruux. |
 | Dropdown → Tasks | Pending tasks, all tasks, create, edit, details, complete, delete on Fruux. |
 
-The user's final click mapping replaces the hover experiment. Both clocks set
-`tooltip: false` and `format-alt-click: 2`; no left-click command or action
-competes with the native GTK menu. The fixed right-click command starts
+The user's latest instruction removes alternate clock formatting entirely.
+Both clocks retain the single `format: {:%a %H:%M}` and `tooltip: false`.
+Neither defines `format-alt` or `format-alt-click`; no left-click command or
+action competes with the native GTK menu, and middle-click has no action.
+The fixed right-click command starts
 `labwc-waycal-toggle.service`. This on-demand oneshot serializes state reads
 and start/stop requests for `labwc-waycal.service`, which owns the popup's
 process cgroup and is stopped with the desktop session. There is no process-name

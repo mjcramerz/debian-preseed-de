@@ -2266,9 +2266,8 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
                                     ("clock", "calendar", "on-click")):
             entry = bar[module]
             if name == "calendar":
-                require(type(entry.get("format-alt-click")) is int and entry["format-alt-click"] == 2
-                        and entry.get("format-alt") == "{:%a, %d %b %Y W%V - %H.%M}",
-                        "clock must change format only on middle click (button 2)")
+                require("format-alt" not in entry and "format-alt-click" not in entry,
+                        "alternate clock formatting must be absent")
                 require(entry.get("tooltip") is False and "tooltip-format" not in entry
                         and entry.get("on-click-right") == "/usr/bin/systemctl --user --no-ask-password --no-block start labwc-waycal-toggle.service"
                         and "on-click-right-release" not in entry
