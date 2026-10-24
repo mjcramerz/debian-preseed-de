@@ -314,28 +314,33 @@ def append_block(text: str, block: str) -> str:
 
 
 def format_fstab(text: str) -> str:
-    """Align records without changing fields, order, escapes or comments."""
-    rows = [line.split() for line in text.splitlines()
-            if line.strip() and not line.lstrip().startswith('#')]
-    if any(len(row) < 6 or (len(row) > 6 and not row[6].startswith('#')) for row in rows):
-        raise ValueError('invalid six-field fstab record')
-    widths = [max((len(row[field]) for row in rows), default=0) for field in range(5)]
-    result: list[str] = []
-    previous = ''
-    for line in text.splitlines():
-        if not line.strip() or line.lstrip().startswith('#'):
-            if line.strip() or (result and result[-1]):
-                result.append(line if line.strip() else '')
+    """Align each commented section; preserve fields/order/comments, omit blank rows."""
+    lines = [line for line in text.splitlines() if line.strip()]
+    widths: dict[tuple[int, int], int] = {}
+    section = 0
+    for line in lines:
+        if line.lstrip().startswith('#'):
+            section += 1
             continue
         fields = line.split(maxsplit=6)
-        if previous and fields[0] != previous and result and result[-1] and not result[-1].lstrip().startswith('#'):
-            result.append('')
-        record = '  '.join(fields[i].ljust(widths[i]) for i in range(5)) + '  ' + fields[5]
+        if len(fields) < 6 or (len(fields) == 7 and not fields[6].startswith('#')):
+            raise ValueError('invalid six-field fstab record')
+        for field in range(5):
+            key = (section, field)
+            widths[key] = max(widths.get(key, 0), len(fields[field]))
+    result: list[str] = []
+    section = 0
+    for line in lines:
+        if line.lstrip().startswith('#'):
+            section += 1
+            result.append(line)
+            continue
+        fields = line.split(maxsplit=6)
+        record = '  '.join(fields[i].ljust(widths[section, i]) for i in range(5)) + '  ' + fields[5]
         if len(fields) == 7:
             record += '  ' + fields[6]
         result.append(record)
-        previous = fields[0]
-    return '\n'.join(result).rstrip('\n') + '\n'
+    return '\n'.join(result) + ('\n' if result else '')
 
 
 def render(asset: Path, settings: Settings) -> str:
@@ -618,7 +623,10 @@ def configure(s: Settings, assets: Path) -> None:
         if s.enabled('NFS_SERVER_ENABLE'):
             run(['/usr/bin/systemctl', '--root=/', 'enable', 'nfs-server.service'])
     if entries:
-        fstab = append_block(fstab, BEGIN + '\n' + '\n'.join(entries) + '\n' + END + '\n')
+        sharing_rows = ['# Sharing bind mounts', *entries[:2]]
+        if len(entries) > 2:
+            sharing_rows.extend(['# Remote NFS mount (started explicitly by nfsmnt)', *entries[2:]])
+        fstab = append_block(fstab, BEGIN + '\n' + '\n'.join(sharing_rows) + '\n' + END + '\n')
         atomic_write(Path('/etc/fstab'), format_fstab(fstab))
     # Version 3 has one shared root and one persistent home view. Older
     # configuration is rejected rather than silently reactivating path triggers.

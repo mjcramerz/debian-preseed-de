@@ -100,6 +100,10 @@ run_user_action() {
   action=$1
 
   case "$action" in
+    storage-overview)
+      [ -x /usr/local/libexec/labwc-storage-report ] || fatal "storage report is unavailable"
+      /usr/local/libexec/labwc-storage-report
+      ;;
     failed-user-units)
       command -v systemctl >/dev/null 2>&1 || fatal "systemctl is not installed"
       systemctl --user --failed --no-pager
@@ -167,7 +171,7 @@ run_in_terminal() {
   printf '\n=== System Maintenance: %s ===\n\n' "$action"
   set +e
   case "$action" in
-    failed-user-units|show-timers|pipewire-status|wireplumber-status|restart-pipewire|restart-wireplumber|test-mako-notification|refresh-waybar-custom-module)
+    storage-overview|failed-user-units|show-timers|pipewire-status|wireplumber-status|restart-pipewire|restart-wireplumber|test-mako-notification|refresh-waybar-custom-module)
       run_user_action "$action"
       ;;
     *)

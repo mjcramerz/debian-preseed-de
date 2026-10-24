@@ -11,3 +11,6 @@ alias l='ls -CF --color=auto'
 alias grep='grep --color=auto'
 alias ip='ip --color=auto'
 alias btop='btop --utf-force'
+# Local capacity stays available while a hard-mounted NFS server is offline.
+# Use /usr/bin/df explicitly when remote filesystem usage is wanted.
+alias df='df --local'

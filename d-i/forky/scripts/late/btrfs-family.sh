@@ -299,14 +299,17 @@ write_target_fstab() {
   vjournal_src=$(device_source "${DEV_PART_VAR_LOG_JOURNAL}")
 
   {
+    printf '%s\n' '# Kernel and boot filesystems'
     fstab_entry "proc" "/proc" "proc" "defaults" 0 0
     fstab_entry "${boot_src}" "${DIR_BOOT}" "ext4" "${MNT_BOOT_OPTS}" 0 2
     fstab_entry "${efi_src}" "${DIR_BOOT_EFI}" "vfat" "${MNT_EFI_OPTS}" 0 2
+    printf '%s\n' '# System subvolumes'
     fstab_entry "${root_src}" "/" "btrfs" "${MNT_BTRFS_ROOT_OPTS}" 0 0
     fstab_entry "${root_src}" "${DIR_ROOT_HOME}" "btrfs" "${MNT_ROOT_HOME_OPTS}" 0 0
     fstab_entry "${root_src}" "${DIR_SRV}" "btrfs" "${MNT_SRV_OPTS}" 0 0
     fstab_entry "${root_src}" "${DIR_USR_LOCAL}" "btrfs" "${MNT_USR_LOCAL_OPTS}" 0 0
     fstab_entry "${root_src}" "${DIR_VAR_SPOOL}" "btrfs" "${MNT_VAR_SPOOL_OPTS}" 0 0
+    printf '%s\n' '# Home subvolumes'
     fstab_entry "${home_src}" "${DIR_HOME}" "btrfs" "${MNT_BTRFS_HOME_OPTS}" 0 0
     fstab_entry "${home_src}" "${DIR_HOME_DOCUMENTS}" "btrfs" "${MNT_HOME_DOCUMENTS_OPTS}" 0 0
     fstab_entry "${home_src}" "${DIR_HOME_DOWNLOADS}" "btrfs" "${MNT_HOME_DOWNLOADS_OPTS}" 0 0
@@ -314,12 +317,14 @@ write_target_fstab() {
     fstab_entry "${home_src}" "${DIR_HOME_PICTURES}" "btrfs" "${MNT_HOME_PICTURES_OPTS}" 0 0
     fstab_entry "${home_src}" "${DIR_HOME_WORKSPACE}" "btrfs" "${MNT_HOME_WORKSPACE_OPTS}" 0 0
     fstab_entry "${home_src}" "${DIR_HOME_SYNCTHING}" "btrfs" "${MNT_HOME_SYNCTHING_OPTS}" 0 0
+    printf '%s\n' '# Application and data mounts'
     fstab_entry "${opt_src}" "${DIR_OPT}" "btrfs" "${MNT_OPT_OPTS}" 0 0
     fstab_entry "${data_src}" "${DIR_DATA}" "xfs" "${MNT_XFS_DATA_OPTS}" 0 0
     fstab_entry "${pool_src}" "${DIR_POOL}" "xfs" "${MNT_XFS_POOL_OPTS}" 0 0
     if tmpfs_policy_enabled TMPFS_DATA_RUN; then
         fstab_entry "tmpfs" "${DIR_DATA_RUN}" "tmpfs" "${MNT_DATA_RUN_TMPFS_OPTS}" 0 0
       fi
+    printf '%s\n' '# Temporary storage and logs'
     fstab_entry "${vtmp_src}" "${DIR_VAR_TMP}" "ext4" "${MNT_VAR_TMP_OPTS}" 0 2
     write_rsyslog_spool_fstab
     if tmpfs_policy_enabled TMPFS_VAR_LOG; then
@@ -338,6 +343,7 @@ write_target_fstab() {
     if tmpfs_policy_enabled TMPFS_DEV_SHM; then
         fstab_entry "tmpfs" "${DIR_DEV_SHM}" "tmpfs" "${MNT_DEV_SHM_OPTS}" 0 0
       fi
+    printf '%s\n' '# Persistent journal'
     fstab_entry "${vjournal_src}" "${DIR_VAR_LOG_JOURNAL}" "ext4" "${MNT_VAR_LOG_JOURNAL_OPTS}" 0 2
   } | write_target_fstab_records
   cp "/target/etc/fstab" "/target/etc/fstab.layout-cache" 2>/dev/null || true

@@ -417,7 +417,7 @@ class AppArmorCoverageTests(unittest.TestCase):
         self.assertEqual(waybar.count('/usr/local/bin/labwc-wayland-app auto -- __INSTALLER_LABWC_FILE_MANAGER_COMMAND__'), 2)
         for command, count in (('/usr/local/bin/labwc-terminal', 2),
                                ('/usr/local/bin/labwc-terminal --micro', 2),
-                               ('/usr/local/bin/labwc-terminal -e ncdu /', 2),
+                               ('/usr/local/bin/labwc-system-action storage-overview', 2),
                                ('/usr/local/bin/labwc-terminal -e btop', 4)):
             self.assertEqual(waybar.count('"on-click": "' + command + '"'), count)
         preferences = ET.fromstring(payload_read_text(skel / 'xfce4/xfconf/xfce-perchannel-xml/thunar.xml'))

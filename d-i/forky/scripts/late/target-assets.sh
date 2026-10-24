@@ -364,26 +364,36 @@ write_target_fstab_records() (
   fetch_hook "$(installer_repo_join_var DIR_HOOKS_TARGET etc/fstab.tmpl)" "$fstab_work/template" || exit 1
   awk '
     FILENAME == ARGV[1] {
-      if (NF != 6) { invalid = 1; exit 1 }
+      if (NF == 0) next
       count++
+      if ($0 ~ /^[[:space:]]*#/) {
+        comments[count] = $0
+        section++
+        next
+      }
+      if (NF != 6) { invalid = 1; exit 1 }
+      records++
+      sections[count] = section
       for (field = 1; field <= 6; field++) {
         cells[count, field] = $field
-        if (length($field) > widths[field]) widths[field] = length($field)
+        if (length($field) > widths[section, field]) widths[section, field] = length($field)
       }
       next
     }
     $0 == ("__INSTALLER_" "FSTAB_RECORDS__") {
       for (row = 1; row <= count; row++) {
-        if (row > 1 && cells[row, 1] != cells[row - 1, 1]) print ""
+        if (row in comments) { print comments[row]; continue }
+        section = sections[row]
         # BusyBox awk does not support * widths; use the computed integer.
+        # Align within comment-delimited sections, with no empty spacer rows.
         for (field = 1; field < 6; field++)
-          printf "%-" widths[field] "s  ", cells[row, field]
+          printf "%-" widths[section, field] "s  ", cells[row, field]
         print cells[row, 6]
       }
       next
     }
-    { print }
-    END { if (invalid) exit 1 }
+    NF { print }
+    END { if (invalid || records == 0) exit 1 }
   ' "$fstab_work/records" "$fstab_work/template" >"$fstab_work/rendered" || exit 1
   installer_assert_no_unresolved_installer_placeholders "$fstab_work/rendered" fstab || exit 1
   [ ! -L /target/etc/fstab ] || { installer_fatal "refusing a symlinked fstab"; exit 1; }

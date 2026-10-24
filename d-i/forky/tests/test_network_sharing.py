@@ -130,12 +130,29 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(formatted, NFS.format_fstab(formatted))
         self.assertEqual([line.split() for line in formatted.splitlines() if line and not line.startswith('#')],
                          [line.split() for line in records.splitlines() if line and not line.startswith('#')])
-        self.assertIn('\n\nUUID=222', formatted)
+        self.assertFalse(any(not line.strip() for line in formatted.splitlines()))
         columns = [tuple(match.start() for match in list(re.finditer(r'\S+', line))[:6])
-                   for line in formatted.splitlines() if line and not line.startswith('#')]
+                   for line in formatted.split('# network', 1)[0].splitlines()
+                   if line and not line.startswith('#')]
         self.assertTrue(all(column == columns[0] for column in columns))
         with self.assertRaises(ValueError):
             NFS.format_fstab('bad record\n')
+
+    def test_fstab_sections_do_not_pad_local_rows_to_remote_option_width(self):
+        self.assertEqual(NFS.format_fstab('\n  \n'), '')
+        local = 'UUID=fixture / ext4 defaults 0 1'
+        remote_options = 'hard,' + ','.join('x-fixture-' + str(i) for i in range(40))
+        records = ('\n# Local filesystems\n\n' + local + '\n\n'
+                   '# Remote mounts\nserver:/ /srv/remote nfs ' + remote_options + ' 0 0 # retain comment\n\n')
+        formatted = NFS.format_fstab(records)
+        self.assertFalse(any(not line.strip() for line in formatted.splitlines()))
+        self.assertEqual(formatted.splitlines()[1].split(), local.split())
+        self.assertLess(len(formatted.splitlines()[1]), 80)
+        self.assertTrue(formatted.endswith('0  0  # retain comment\n'))
+        self.assertEqual(formatted, NFS.format_fstab(formatted))
+        for malformed in ('# Local\ninvalid\n', '# Local\n/dev/test / ext4 defaults 0 1 extra\n'):
+            with self.subTest(malformed=malformed), self.assertRaises(ValueError):
+                NFS.format_fstab(malformed)
 
     def test_home_bind_visibility_and_bookmarks_follow_configured_paths(self):
         settings = NFS.Settings.from_environment(profile(NFS_SERVER_ENABLE='true', NFS_CLIENT_ENABLE='true',

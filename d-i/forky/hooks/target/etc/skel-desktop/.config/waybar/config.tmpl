@@ -291,7 +291,7 @@
     "format-warning": "<span foreground='__THEME_WAYBAR_BUTTON_DISK_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_DISK_WARNING_ICON_GLYPH__</span> {percentage_used}%",
     "format-critical": "<span foreground='__THEME_WAYBAR_BUTTON_DISK_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_DISK_CRITICAL_ICON_GLYPH__</span> {percentage_used}%",
     "tooltip-format": "{used} used out of {total} on {path} ({percentage_used}%)",
-    "on-click": "/usr/local/bin/labwc-terminal -e ncdu /",
+    "on-click": "/usr/local/bin/labwc-system-action storage-overview",
     "states": {
       "warning": 80,
       "critical": 90
@@ -656,7 +656,7 @@
     "format-warning": "<span foreground='__THEME_WAYBAR_BUTTON_DISK_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_DISK_WARNING_ICON_GLYPH__</span> {percentage_used}%",
     "format-critical": "<span foreground='__THEME_WAYBAR_BUTTON_DISK_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_DISK_CRITICAL_ICON_GLYPH__</span> {percentage_used}%",
     "tooltip-format": "{used} used out of {total} on {path} ({percentage_used}%)",
-    "on-click": "/usr/local/bin/labwc-terminal -e ncdu /",
+    "on-click": "/usr/local/bin/labwc-system-action storage-overview",
     "states": {
       "warning": 80,
       "critical": 90

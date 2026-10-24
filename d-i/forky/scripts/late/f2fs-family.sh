@@ -123,10 +123,12 @@ write_target_fstab() {
   journal_src=$(device_source "${DEV_PART_VAR_LOG_JOURNAL}")
 
   {
+    printf '%s\n' '# Kernel and boot filesystems'
     fstab_entry proc /proc proc defaults 0 0
     # shellcheck disable=SC2153
     fstab_entry "$boot_src" "$DIR_BOOT" ext4 "$MNT_BOOT_OPTS" 0 2
     fstab_entry "$efi_src" "$DIR_BOOT_EFI" vfat "$MNT_EFI_OPTS" 0 2
+    printf '%s\n' '# Local filesystems'
     # shellcheck disable=SC2153
     fstab_entry "$root_src" / f2fs "$MNT_F2FS_ROOT_OPTS" 0 0
     if [ -n "${DEV_PART_HOME:-}" ] && [ "${DEV_PART_HOME_MB:-0}" -gt 0 ]; then
@@ -137,6 +139,7 @@ write_target_fstab() {
       pool_src=$(device_source "$DEV_PART_POOL")
       fstab_entry "$pool_src" "$DIR_POOL" ext4 "$MNT_EXT4_POOL_OPTS" 0 2
     fi
+    printf '%s\n' '# Temporary storage and logs'
     if tmpfs_policy_enabled TMPFS_DATA_RUN; then
       fstab_entry tmpfs "$DIR_DATA_RUN" tmpfs "$MNT_DATA_RUN_TMPFS_OPTS" 0 0
     fi
@@ -157,6 +160,7 @@ write_target_fstab() {
     if tmpfs_policy_enabled TMPFS_DEV_SHM; then
       fstab_entry tmpfs "$DIR_DEV_SHM" tmpfs "$MNT_DEV_SHM_OPTS" 0 0
     fi
+    printf '%s\n' '# Persistent journal'
     fstab_entry "$journal_src" "$DIR_VAR_LOG_JOURNAL" ext4 "$MNT_VAR_LOG_JOURNAL_OPTS" 0 2
   } | write_target_fstab_records
   cp /target/etc/fstab /target/etc/fstab.layout-cache 2>/dev/null || true

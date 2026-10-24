@@ -3354,8 +3354,29 @@ profile labwc-system-action /usr/local/bin/labwc-system-action flags=(attach_dis
   dbus (receive) bus=system peer=(label=unconfined),
   /usr/local/bin/labwc-terminal rPx -> labwc-terminal,
   /usr/local/libexec/labwc-system-action-root rix,
+  /usr/local/libexec/labwc-storage-report rPx -> labwc-storage-report,
+  signal (receive) set=(chld) peer=labwc-storage-report,
 
   include if exists <local/usr.local.bin.labwc-system-action>
+}
+
+profile labwc-storage-report /usr/local/libexec/labwc-storage-report flags=(attach_disconnected) {
+  # No D-Bus, network, writable state, device contents or privilege delegation.
+  #include <abstractions/wrapper-base>
+  #include <abstractions/wrapper-terminal>
+  /usr/local/libexec/labwc-storage-report rix,
+  /usr/bin/{df,findmnt,lsblk,timeout} rix,
+  /etc/{filesystems,mtab} r,
+  @{PROC}/{filesystems,mounts,partitions,swaps} r,
+  owner @{PROC}/[0-9]*/{mountinfo,mounts} r,
+  /sys/ r,
+  /sys/{block,class,dev,devices}/{,**} r,
+  /run/udev/data/b[0-9]*:[0-9]* r,
+  /run/mount/utab r,
+  # timeout and its child share this profile; terminal close can cancel both.
+  signal (send, receive) peer=labwc-storage-report,
+  signal (receive) set=(hup, int, term, kill) peer=unconfined,
+  signal (send) set=(chld) peer=labwc-system-action{,-root},
 }
 
 profile labwc-terminal /usr/local/bin/labwc-terminal flags=(attach_disconnected) {
@@ -3957,6 +3978,8 @@ profile labwc-system-action-root /usr/local/libexec/labwc-system-action-root fla
   #include <abstractions/wrapper-base>
 
   /usr/local/libexec/labwc-system-action-root rix,
+  /usr/local/libexec/labwc-storage-report rPx -> labwc-storage-report,
+  signal (receive) set=(chld) peer=labwc-storage-report,
   /usr/bin/{cat,getent,grep,head,id,mktemp,numfmt,readlink,rm,sed,sort,uname} rix,
   /usr/bin/{apt,apt-get,btrfs,df,dpkg,findmnt,free,fwupdmgr,hostnamectl,journalctl,lsblk,nmcli,resolvectl,ss,systemctl,systemd-analyze,timedatectl,timeout,uptime} PUx,
   /usr/{bin,sbin}/ip PUx,

@@ -175,7 +175,7 @@ write_fstab_file '{partman_cache}' 0 0
         # Redirect only the target directory into the private fixture. Execute
         # the actual publisher with native awk; fetch is a local template copy.
         definition = definition.replace('/target/etc', '"$FSTAB_TARGET_ETC"')
-        busybox = shutil.which('busybox')
+        busybox = shutil.which('busybox', path='/usr/bin:/bin')
         if use_busybox and not busybox:
             self.skipTest('BusyBox shell and awk are required for installer portability')
         shell = [busybox, 'sh'] if use_busybox else ['/bin/sh']
@@ -194,12 +194,15 @@ installer_assert_no_unresolved_installer_placeholders() { :; }
                                'fstab-render-fixture', str(directory),
                                str(SEED/'hooks/target/etc/fstab.tmpl'), busybox or ''],
                               input=records, capture_output=True, text=True, encoding='utf-8',
-                              env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'}, timeout=10)
+                              env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C',
+                                   'HOME': str(directory), 'TMPDIR': str(directory)}, timeout=10)
 
     def test_late_fstab_formatter_aligns_fields_under_host_and_busybox_awk(self):
-        records = ('UUID=11111111-1111-1111-1111-111111111111 / btrfs rw,subvol=@ 0 0\n'
+        records = ('\n# Local filesystems\n'
+                   'UUID=11111111-1111-1111-1111-111111111111 / btrfs rw,subvol=@ 0 0\n'
                    'UUID=11111111-1111-1111-1111-111111111111 /usr/local btrfs rw,subvol=@usr-local,compress=zstd 0 0\n'
-                   'UUID=22222222-2222-2222-2222-222222222222 /home ext4 defaults 0 2\n'
+                   '\nUUID=22222222-2222-2222-2222-222222222222 /home ext4 defaults 0 2\n'
+                   '# Temporary storage\n'
                    'tmpfs /tmp tmpfs rw,nosuid,nodev,mode=1777 0 0\n')
         expected = None
         for use_busybox in (False, True):
@@ -212,11 +215,14 @@ installer_assert_no_unresolved_installer_placeholders() { :; }
                 self.assertEqual(list(root.glob('.fstab.*')), [])
                 self.assertNotIn('__INSTALLER_', text)
                 lines = text.splitlines()[2:]
-                self.assertEqual(lines[2], '')
-                self.assertEqual(lines[4], '')
-                rows = [line for line in lines if line]
-                self.assertEqual([line.split() for line in rows], [line.split() for line in records.splitlines()])
-                columns = [tuple(match.start() for match in re.finditer(r'\S+', line)) for line in rows]
+                self.assertTrue(all(line.strip() for line in lines))
+                self.assertEqual([line for line in lines if line.startswith('#')],
+                                 ['# Local filesystems', '# Temporary storage'])
+                rows = [line for line in lines if not line.startswith('#')]
+                self.assertEqual([line.split() for line in rows],
+                                 [line.split() for line in records.splitlines()
+                                  if line.strip() and not line.startswith('#')])
+                columns = [tuple(match.start() for match in re.finditer(r'\S+', line)) for line in rows[:3]]
                 self.assertTrue(all(column == columns[0] for column in columns))
                 if expected is None:
                     expected = text
@@ -227,13 +233,16 @@ installer_assert_no_unresolved_installer_placeholders() { :; }
 
     def test_late_fstab_rejection_preserves_existing_target_file(self):
         for use_busybox in (False, True):
-            for records in ('', '/dev/fixture / ext4 defaults 0\n'):
+            for records in ('', '\n# No records\n\n', '/dev/fixture / ext4 defaults 0\n',
+                            '# Valid header\n/dev/fixture / ext4 defaults 0 1\ninvalid\n'):
                 with self.subTest(busybox=use_busybox, records=records), tempfile.TemporaryDirectory() as directory:
                     root = Path(directory)
                     (root/'fstab').write_text('existing target file\n', encoding='utf-8')
+                    (root/'fstab').chmod(0o600)
                     result = self.run_late_fstab_renderer(root, records, use_busybox)
                     self.assertNotEqual(result.returncode, 0)
                     self.assertEqual((root/'fstab').read_text(encoding='utf-8'), 'existing target file\n')
+                    self.assertEqual(stat.S_IMODE((root/'fstab').stat().st_mode), 0o600)
                     self.assertEqual(list(root.glob('.fstab.*')), [])
 
     def test_partman_validates_spool_policy_before_writing_fstab(self):

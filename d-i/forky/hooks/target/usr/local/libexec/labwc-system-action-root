@@ -216,16 +216,8 @@ show_boot_performance() {
 }
 
 show_storage_overview() {
-  require_command df
-  require_command findmnt
-  require_command lsblk
-
-  print_heading "Block devices"
-  lsblk --fs
-  print_heading "Mounted filesystems"
-  findmnt --real --output TARGET,SOURCE,FSTYPE,OPTIONS
-  print_heading "Disk usage"
-  df -hT -x tmpfs -x devtmpfs
+  [ -x /usr/local/libexec/labwc-storage-report ] || fatal "storage report is unavailable"
+  /usr/local/libexec/labwc-storage-report
 }
 
 show_memory_overview() {

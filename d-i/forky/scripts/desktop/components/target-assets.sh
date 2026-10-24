@@ -444,6 +444,33 @@ exec /opt/vivaldi/update-ffmpeg --system
   desktop_stage_role_asset usr/local/libexec/labwc-apparmor-policy-worker /usr/local/libexec/labwc-apparmor-policy-worker 0755
   desktop_stage_role_asset usr/local/libexec/labwc-apparmor-boot-state /usr/local/libexec/labwc-apparmor-boot-state 0755
   desktop_stage_role_asset usr/local/libexec/labwc-system-action-root /usr/local/libexec/labwc-system-action-root 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-storage-report /usr/local/libexec/labwc-storage-report 0755
+  # Inspect code and command metadata as data before desktop service enablement.
+  # Never invoke the report or query a filesystem while staging the installer.
+  run_in_target "verify staged storage report contract" /usr/bin/python3 -I -S -B -c '
+import re
+import stat
+from pathlib import Path
+
+report = Path("/usr/local/libexec/labwc-storage-report")
+for path in (report, Path("/usr/bin/df"), Path("/usr/bin/findmnt"),
+             Path("/usr/bin/lsblk"), Path("/usr/bin/timeout")):
+    for parent in reversed(path.parents):
+        meta = parent.lstat()
+        if not stat.S_ISDIR(meta.st_mode) or meta.st_uid != 0 or meta.st_mode & 0o022:
+            raise SystemExit("fatal: untrusted storage command parent: " + str(parent))
+    meta = path.lstat()
+    if (not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0 or meta.st_gid != 0
+            or meta.st_mode & 0o022 or not meta.st_mode & 0o111):
+        raise SystemExit("fatal: unsafe or unavailable storage command: " + str(path))
+    if path == report and (meta.st_nlink != 1 or stat.S_IMODE(meta.st_mode) != 0o755
+                           or not 0 < meta.st_size <= 16384):
+        raise SystemExit("fatal: invalid storage report metadata")
+with report.open("rb") as stream:
+    source = stream.read(16385)
+if len(source) > 16384 or re.search(rb"__[A-Z][A-Z0-9_]{2,}__", source):
+    raise SystemExit("fatal: oversized or unresolved storage report")
+'
   desktop_stage_role_asset usr/local/libexec/labwc-recovery-action-root /usr/local/libexec/labwc-recovery-action-root 0755
   desktop_stage_role_asset usr/local/libexec/labwc-network-control-action-root /usr/local/libexec/labwc-network-control-action-root 0755
   desktop_stage_role_asset usr/local/libexec/labwc-firewall-action-root /usr/local/libexec/labwc-firewall-action-root 0755

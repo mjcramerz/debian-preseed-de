@@ -1,0 +1,44 @@
+#!/bin/sh
+# Read-only local capacity and mount inventory. Never traverse mounted shares.
+set -eu
+
+PATH=/usr/bin:/bin
+LC_ALL=C.UTF-8
+export PATH LC_ALL
+
+[ "$#" -eq 0 ] || {
+  printf 'fatal: storage report does not accept arguments\n' >&2
+  exit 2
+}
+
+for delegate in /usr/bin/timeout /usr/bin/df /usr/bin/lsblk /usr/bin/findmnt; do
+  [ -x "$delegate" ] || {
+    printf 'fatal: storage report delegate is unavailable: %s\n' "$delegate" >&2
+    exit 127
+  }
+done
+
+report_command() {
+  # Each of the three metadata commands has a finite wait and cleanup budget.
+  # Do not add a recursive scanner or a remote capacity probe here.
+  if /usr/bin/timeout --kill-after=2s 10s "$@"; then
+    return 0
+  else
+    report_status=$?
+  fi
+  printf 'storage report command=%s status=%s\n' "${1##*/}" "$report_status" >&2
+  return "$report_status"
+}
+
+printf '%s\n' '--- Local filesystem capacity ---'
+printf '%s\n\n' 'Remote filesystem capacity is excluded so offline servers cannot block this report.'
+report_command /usr/bin/df --local -hT -x tmpfs -x devtmpfs || exit "$?"
+
+printf '\n%s\n' '--- Block devices ---'
+# Avoid FSAVAIL/FSUSE% columns: lsblk must not query filesystem capacity.
+report_command /usr/bin/lsblk --output NAME,SIZE,TYPE,MOUNTPOINTS || exit "$?"
+
+printf '\n%s\n' '--- Mounted filesystems (inventory only; remote servers are not queried) ---'
+# Read the kernel mount table without canonicalizing or stat-ing remote paths.
+report_command /usr/bin/findmnt --kernel --list --real --nocanonicalize \
+  --output TARGET,SOURCE,FSTYPE || exit "$?"
