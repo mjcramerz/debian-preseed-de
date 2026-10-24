@@ -698,10 +698,10 @@ reset_mok_state() (
     fatal "full MOK reset request could not be confirmed (status $mok_reset_status); a request may already be pending"
   fi
   mok_reset_request_is_pending || fatal "full MOK reset pending state could not be confirmed; a request may already be pending"
-  # Negative MokTimeout enters the management menu directly. A positive value
-  # adds a second "press any key" screen after the user selected MOK management.
-  if ! LC_ALL=C timeout --kill-after=2 15 mokutil --timeout -1 >/dev/null 2>&1; then
-    log "warn: MOK reset is queued, but the MokManager timeout could not be set"
+  # This is MokManager's first-boot keypress countdown, in seconds. The
+  # separate 15-second command deadline bounds only the EFI-variable write.
+  if ! LC_ALL=C timeout --kill-after=2 15 mokutil --timeout 900 >/dev/null 2>&1; then
+    log "warn: MOK reset is queued, but the 900-second MokManager timeout could not be set"
   fi
   log "info: full MOK reset queued; confirm the reset in MokManager before enrolling the new certificate"
   printf 'queued\n'

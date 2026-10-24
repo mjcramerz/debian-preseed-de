@@ -565,6 +565,16 @@ class ServiceAndNotificationTests(unittest.TestCase):
             self.assertEqual(argv[-2:], [executable, '/run/media/fixture'])
         target = payload_read_text(TARGET / 'etc/skel-desktop/.config/systemd/user/labwc-session.target')
         self.assertIn('Wants=gvfs-daemon.service gvfs-udisks2-volume-monitor.service', target)
+        backend = payload_read_text(TARGET / 'etc/systemd/user/gvfs-daemon.service.d/10-labwc-session.conf')
+        self.assertIn('KillMode=control-group', backend)
+        self.assertNotIn('KillMode=mixed', backend)
+        self.assertIn('TimeoutStopSec=15s', backend)
+
+    def test_calix_frame_timing_workaround_is_app_local_and_native_wayland(self):
+        self.assertEqual(profiles.APPS['calix']['env']['GDK_BACKEND'], 'wayland')
+        self.assertEqual(profiles.APPS['calix']['env']['GDK_WAYLAND_DISABLE'], 'wp_presentation')
+        self.assertTrue(all('GDK_WAYLAND_DISABLE' not in app['env']
+                            for name, app in profiles.APPS.items() if name != 'calix'))
 
     def test_other_wayland_applications_keep_their_existing_namespace_policy(self):
         with mock.patch.object(generic, 'assert_launch_allowed'):

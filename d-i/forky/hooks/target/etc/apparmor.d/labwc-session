@@ -107,10 +107,6 @@ profile waybar /usr/{bin/waybar,local/libexec/labwc-waybar-exec} flags=(attach_d
   owner @{HOME}/.cache/waybar/** rwkl,
   owner @{HOME}/.cache/glycin/ rw,
   owner @{HOME}/.cache/glycin/** rwkl,
-  # The clock hover listener reads only this process executable identity.
-  ptrace (readby) peer=labwc-waycal-hover,
-  owner /run/user/[0-9]*/at-spi/{,**} rw,
-  include if exists <abstractions/dbus-accessibility>
   # Waybar's network module reads counters through its own procfs view.
   /proc/[0-9]*/net/dev r,
   owner /proc/[0-9]*/task/[0-9]*/comm rw,

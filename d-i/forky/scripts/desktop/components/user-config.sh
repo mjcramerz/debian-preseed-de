@@ -79,6 +79,7 @@ gid=$(id -g "$account_user")
     .config/labwc \
     .config/waypaper \
     .config/waybar \
+    .config/waycal \
     .config/tomat \
     .config/cargo \
     .config/mise \

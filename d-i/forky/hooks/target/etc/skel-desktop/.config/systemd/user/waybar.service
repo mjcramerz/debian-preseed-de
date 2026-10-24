@@ -1,8 +1,7 @@
 [Unit]
 StartLimitBurst=5
 StartLimitIntervalSec=60s
-Wants=labwc-waycal-hover.service
-After=labwc-waycal-hover.service labwc-compositor.service labwc-session.target labwc-output-watch.service
+After=labwc-compositor.service labwc-session.target labwc-output-watch.service
 Description=Highly customizable Wayland bar for Sway and Wlroots based compositors
 Documentation=https://github.com/Alexays/Waybar/wiki/
 ConditionEnvironment=LABWC_SESSION_OWNER=desktop
@@ -21,9 +20,6 @@ TimeoutStartSec=30s
 KillMode=control-group
 Type=exec
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
-# Enable GTK3's built-in bridge only here; other apps retain session policy.
-Environment=ATSPI_DISABLE_P2P=1
-UnsetEnvironment=NO_AT_BRIDGE GTK_A11Y
 ExecCondition=/usr/local/libexec/labwc-session-check session-ready
 ExecStart=/usr/bin/waybar -c %h/.config/waybar/config -s %h/.config/waybar/style.css
 ExecReload=/usr/local/libexec/labwc-session-check reload-waybar $MAINPID

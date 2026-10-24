@@ -434,7 +434,7 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     /usr/local/bin/labwc-calendar \
     /usr/local/bin/labwc-agenda \
     /usr/local/libexec/calix-fruux-bootstrap \
-    /usr/local/libexec/labwc-waycal-hover \
+    /usr/local/libexec/labwc-waycal-toggle \
     /usr/local/bin/labwc-logout \
     /usr/local/bin/labwc-fuzzel \
     /usr/local/bin/labwc-computer-management \
@@ -557,8 +557,10 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     /usr/local/share/labwc-greeter/autostart \
     /etc/skel-desktop/.config/mpv/mpv.conf \
     /etc/skel-desktop/.config/mpv/input.conf \
+    /etc/skel-desktop/.config/gtk-4.0/gtk.css \
+    /etc/skel-desktop/.config/waycal/style.css \
     /etc/skel-desktop/.config/systemd/user/labwc-waycal.service \
-    /etc/skel-desktop/.config/systemd/user/labwc-waycal-hover.service \
+    /etc/skel-desktop/.config/systemd/user/labwc-waycal-toggle.service \
     /etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.service \
     /etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.path \
     /etc/systemd/system/labwc-system-desktop-overrides.service \
@@ -911,7 +913,7 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
       .config/systemd/user/labwc-adb-server.service \
       .config/systemd/user/llama-server.service \
       .config/systemd/user/labwc-waycal.service \
-      .config/systemd/user/labwc-waycal-hover.service \
+      .config/systemd/user/labwc-waycal-toggle.service \
       .config/systemd/user/labwc-sync-application-launchers.service \
       .config/systemd/user/labwc-sync-application-launchers.path \
       .config/systemd/user/labwc-kwallet-portal.service \
@@ -935,7 +937,6 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
       .config/systemd/user/labwc-session.target.wants/foot-server.socket \
       .config/systemd/user/labwc-session.target.wants/mako.service \
       .config/systemd/user/labwc-session.target.wants/filter-chain.service \
-      .config/systemd/user/labwc-session.target.wants/labwc-waycal-hover.service \
       .config/systemd/user/labwc-session.target.wants/wayscriber.service \
       .config/systemd/user/labwc-session.target.wants/hyprpolkitagent.service \
       .config/systemd/user/labwc-session.target.wants/xdg-desktop-portal.service \
@@ -948,6 +949,8 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
         "${desktop_account_home}/${desktop_user_unit_path}"
     done
     for desktop_account_config_path in \
+      .config/gtk-4.0/gtk.css \
+      .config/waycal/style.css \
       .config/btop/btop.conf \
       .config/wayscriber/config.toml \
       .config/fzf/default-opts

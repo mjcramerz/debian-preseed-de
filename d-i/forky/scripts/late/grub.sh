@@ -929,55 +929,6 @@ printf "%s\n" "$boot_state" | grep -E -i -q "^BootNext:[[:space:]]*${entry_id}$"
     "${INSTALLER_GRUB_SHIM_EFI_PATH}"
 }
 
-queue_target_grub_mok_enrollment_boot() {
-  # shellcheck disable=SC2016
-  attempt_in_target "queue one-shot GRUB boot into MokManager" /usr/bin/timeout --kill-after=2 15 /bin/sh -c '
-set -eu
-mok_entry_id=$1
-mokmanager_path=$2
-mok_enrollment_cert=$3
-grub_cfg=/boot/grub/grub.cfg
-
-command -v grub-editenv >/dev/null 2>&1 || {
-  printf "grub-editenv is unavailable; cannot force first boot into MokManager\n" >&2
-  exit 1
-}
-[ -r "$grub_cfg" ] || {
-  printf "GRUB configuration is missing before MOK enrollment queue: %s\n" "$grub_cfg" >&2
-  exit 1
-}
-mok_entry_marker=$(printf "%s\047%s\047" "--id " "$mok_entry_id")
-grep -F -q -- "$mok_entry_marker" "$grub_cfg" || {
-  printf "MOK enrollment GRUB entry is missing: %s\n" "$mok_entry_id" >&2
-  exit 1
-}
-case "$mokmanager_path" in
-  /EFI/*) ;;
-  *)
-    printf "MokManager EFI path is invalid: %s\n" "$mokmanager_path" >&2
-    exit 1
-    ;;
-esac
-[ -f "/boot/efi${mokmanager_path}" ] || {
-  printf "MokManager EFI loader is missing: /boot/efi%s\n" "$mokmanager_path" >&2
-  exit 1
-}
-[ -r "$mok_enrollment_cert" ] || {
-  printf "MOK enrollment certificate is missing: %s\n" "$mok_enrollment_cert" >&2
-  exit 1
-}
-[ -s /boot/grub/grubenv ] || {
-  grub-editenv /boot/grub/grubenv create
-}
-grub-editenv /boot/grub/grubenv set "next_entry=${mok_entry_id}"
-grub_environment=$(grub-editenv /boot/grub/grubenv list)
-printf "%s\n" "$grub_environment" | grep -F -x -q "next_entry=${mok_entry_id}"
-' sh \
-    installer-mok-enrollment \
-    "${INSTALLER_GRUB_MOK_MANAGER_EFI_PATH}" \
-    "${FILE_SECURE_BOOT_MOK_CERT_DER_ESP}"
-}
-
 queue_target_grub_mok_enrollment_boot_for_reset() {
   # Queue failure must not break installation or repeat the firmware reset.
   if (
@@ -988,23 +939,14 @@ queue_target_grub_mok_enrollment_boot_for_reset() {
     # A cached success must not authorize a management boot if another operation
     # has replaced or cleared the reset request since the final reset returned.
     run_installer_secure_boot_install_tool reset-pending || exit 1
-    # Shim consumes MokAuth before GRUB runs. A missing certificate/menu or a
-    # GRUB environment failure must not prevent the primary firmware handoff.
-    firmware_queued=false
-    grub_queued=false
-    if (repair_target_secure_boot_nvram_entry); then
-      firmware_queued=true
-    else
-      installer_warn "could not confirm BootNext through shim; attempting the GRUB fallback"
-    fi
-    if (queue_target_grub_mok_enrollment_boot); then
-      grub_queued=true
-    else
-      installer_warn "could not queue the GRUB MokManager fallback"
-    fi
-    [ "$firmware_queued" = true ] || [ "$grub_queued" = true ]
+    # Shim consumes MokAuth before GRUB runs. Queue exactly this one route:
+    # a GRUB next_entry survives the firmware visit and opens MokManager again.
+    # A failed firmware readback may follow a successful BootNext write, so
+    # do not automatically arm another route on that uncertain outcome either.
+    # The existing GRUB MOK Enrollment entry remains available manually.
+    repair_target_secure_boot_nvram_entry
   ); then
-    installer_info "MOK management boot queued; confirm Reset MOK, reboot, then enroll the new certificate from the ESP"
+    installer_info "MOK management boot queued through shim; use the native reset and enrollment options in MokManager"
   else
     installer_warn "could not confirm the one-shot MOK management boot; continuing installation; select MOK Enrollment manually at boot"
   fi

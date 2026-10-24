@@ -1,0 +1,47 @@
+/* Waycal 0.2.1: GTK4's user CSS overrides its embedded application CSS. */
+window.waycal {
+  background: transparent;
+}
+
+window.waycal .waycal-root,
+window.waycal .waycal-root.rounded {
+  background-color: rgba(30, 23, 46, 0.94);
+  color: #eee7fa;
+  border: 1px solid rgba(187, 154, 247, 0.80);
+  font-family: "JetBrains Mono", monospace;
+}
+
+window.waycal .waycal-root {
+  border-radius: 0;
+}
+
+window.waycal .waycal-root.rounded {
+  border-radius: 12px;
+}
+
+window.waycal .waycal-header {
+  color: #eee7fa;
+}
+
+window.waycal .waycal-weekday {
+  color: #c4a7e7;
+}
+
+window.waycal .waycal-day.today {
+  background-color: #bb9af7;
+  color: #21182f;
+  border-radius: 0;
+}
+
+window.waycal .waycal-root.rounded .waycal-day.today {
+  border-radius: 6px;
+}
+
+window.waycal .waycal-day.dim {
+  opacity: 0.45;
+}
+
+window.waycal .waycal-footer {
+  color: #b3a3c9;
+  border-top-color: rgba(187, 154, 247, 0.25);
+}

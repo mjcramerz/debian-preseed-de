@@ -75,7 +75,11 @@ WAYLAND_COMPAT_RUNTIME_ROOT = "/opt/xwayland"
 APPS = {
     "calix": {
         "exec": "/opt/calix/calix",
-        "env": {"GDK_BACKEND": "wayland"},
+        "env": {"GDK_BACKEND": "wayland",
+                # GTK 4.24 can report conflicting presentation feedback for
+                # one frame. Use its native Wayland frame-callback timing path
+                # for Calix only; retain rendering and diagnostic output.
+                "GDK_WAYLAND_DISABLE": "wp_presentation"},
         "args": [],
         "bind_workspace": False,
         "pure_privacy": False,

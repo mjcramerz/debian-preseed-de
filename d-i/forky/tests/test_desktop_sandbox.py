@@ -1164,6 +1164,12 @@ class InstalledFailureRegressionTests(unittest.TestCase):
         sanitizer = render_theme_defaults(payload_read_text(ROOT / 'scripts/late/storage-maintenance.sh'))
         self.assertIn("sed '/^[[:space:]]*CPUAccounting[[:space:]]*=/d'", sanitizer)
         self.assertIn('CPUAccounting directive:', sanitizer)
+        self.assertIn('target_systemd_unit_path xfs_healer_start.service system', sanitizer)
+        self.assertIn('20-refresh-unit-cache.conf 0644 || return 1', sanitizer)
+        ordering = payload_read_text(staged_systemd / 'system/xfs_healer_start.service.d/20-refresh-unit-cache.conf')
+        self.assertIn('ExecStartPre=/usr/bin/timeout --signal=TERM --kill-after=2s 15s /usr/bin/systemctl --no-ask-password daemon-reload', ordering)
+        self.assertNotIn('ExecStart=', ordering)
+
         self.assertIn('xfs_healer@.service', sanitizer)
         self.assertIn('xfs_healer_start.service', sanitizer)
         self.assertIn('system-xfs_healer.slice', sanitizer)
@@ -1414,6 +1420,9 @@ desktop_normalize_background_directories
         calendar = profile_block(wrappers, 'labwc-app')
         self.assertIn('/opt/calix/calix rpx,', calendar)
         self.assertIn('/usr/local/bin/com.github.dahenson.agenda rpx,', calendar)
+        agenda = profile_block(payload_read_text(DESKTOP / 'etc/apparmor.d/calendars'), 'agenda')
+        self.assertIn('owner @{PROC}/@{pid}/cmdline r,', agenda)
+        self.assertIn('/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 rix,', agenda)
 
         output_watch = profile_block(wrappers, 'labwc-output-watch')
         for rule in (

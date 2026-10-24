@@ -428,6 +428,14 @@ sanitize_target_xfs_scrub_systemd_units() {
 
   [ "$sanitized_count" -eq 0 ] ||
     installer_info "sanitized xfs scrub systemd units with removed CPUAccounting directives: ${sanitized_count}"
+
+  # Only stage the drop-in offline. The target's own system manager refreshes
+  # its unit cache before the native healer starter scans existing mounts.
+  if target_systemd_unit_path xfs_healer_start.service system >/dev/null 2>&1; then
+    stage_target_asset \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/xfs_healer_start.service.d/20-refresh-unit-cache.conf)" \
+      /etc/systemd/system/xfs_healer_start.service.d/20-refresh-unit-cache.conf 0644 || return 1
+  fi
 }
 
 

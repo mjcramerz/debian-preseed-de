@@ -145,9 +145,10 @@
   "clock": {
     "interval": 30,
     "format": "{:%a %H:%M}",
-    "tooltip-format": "Calendar",
+    "tooltip": false,
     "format-alt": "{:%a, %d %b %Y W%V - %H.%M}",
-    "format-alt-click": 3,
+    "format-alt-click": 2,
+    "on-click-right": "/usr/bin/systemctl --user --no-ask-password --no-block start labwc-waycal-toggle.service",
     "menu": "on-click",
     "menu-file": "~/.config/waybar/calendar-menu.xml",
     "menu-actions": {
@@ -511,9 +512,10 @@
   "clock": {
     "interval": 30,
     "format": "{:%a %H:%M}",
-    "tooltip-format": "Calendar",
+    "tooltip": false,
     "format-alt": "{:%a, %d %b %Y W%V - %H.%M}",
-    "format-alt-click": 3,
+    "format-alt-click": 2,
+    "on-click-right": "/usr/bin/systemctl --user --no-ask-password --no-block start labwc-waycal-toggle.service",
     "menu": "on-click",
     "menu-file": "~/.config/waybar/calendar-menu.xml",
     "menu-actions": {

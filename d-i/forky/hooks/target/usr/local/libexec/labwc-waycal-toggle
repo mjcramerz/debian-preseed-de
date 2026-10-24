@@ -1,0 +1,42 @@
+#!/usr/bin/python3 -I
+"""Toggle one session-owned Waycal unit; called by its serialized oneshot unit."""
+import os
+import subprocess
+import sys
+
+SYSTEMCTL = ['/usr/bin/systemctl', '--user', '--no-ask-password', '--no-pager']
+UNIT = 'labwc-waycal.service'
+
+
+def main(argv):
+    if argv or os.getuid() == 0:
+        return 2
+    try:
+        state = subprocess.run(SYSTEMCTL + ['show', '--property=ActiveState', '--value', UNIT],
+                               stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                               stderr=subprocess.DEVNULL, text=True, encoding='ascii',
+                               timeout=3, check=False, close_fds=True)
+    except (OSError, UnicodeError, subprocess.TimeoutExpired):
+        print('waycal-toggle status=unavailable operation=read-state', file=sys.stderr)
+        return 1
+    if state.returncode or state.stdout.strip() not in {
+            'active', 'activating', 'reloading', 'deactivating', 'inactive', 'failed'}:
+        print('waycal-toggle status=unavailable operation=read-state', file=sys.stderr)
+        return 1
+    action = 'start' if state.stdout.strip() in {'inactive', 'failed'} else 'stop'
+    try:
+        result = subprocess.run(SYSTEMCTL + [action, UNIT], stdin=subprocess.DEVNULL,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                timeout=8, check=False, close_fds=True)
+    except (OSError, subprocess.TimeoutExpired):
+        # The manager may have accepted the job. Do not repeat this mutation.
+        print('waycal-toggle status=outcome-unknown action=' + action, file=sys.stderr)
+        return 1
+    if result.returncode:
+        print('waycal-toggle status=failed action=' + action, file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main(sys.argv[1:]))

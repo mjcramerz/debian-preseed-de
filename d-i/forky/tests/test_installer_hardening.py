@@ -1202,30 +1202,14 @@ class FinalBootValidationTests(unittest.TestCase):
         self.assertIn('d-i base-installer/kernel/linux/initrd boolean false\n',source)
         self.assertNotIn('d-i base-installer/kernel/linux/initrd boolean true\n',source)
 
-    def test_mok_enrollment_queue_keeps_entry_id_inside_target_shell(self):
-        source = ROOT / 'scripts/late/grub.sh'
-        result = shell(f'''\
-. {Q(str(source))}
-attempt_in_target() {{
-  [ "$#" -eq 11 ] || exit 91
-  [ "$1" = "queue one-shot GRUB boot into MokManager" ] || exit 92
-  [ "$2" = /usr/bin/timeout ] && [ "$3" = --kill-after=2 ] && [ "$4" = 15 ] || exit 93
-  shift 4
-  [ "$1" = /bin/sh ] && [ "$2" = -c ] || exit 94
-  [ "$4" = sh ] || exit 95
-  [ "$5" = installer-mok-enrollment ] || exit 96
-  [ "$6" = /EFI/debian/mmx64.efi ] || exit 97
-  [ "$7" = /boot/efi/EFI/debian/MOK.der ] || exit 98
-  printf "%s\n" "$3"
-}}
-INSTALLER_GRUB_MOK_MANAGER_EFI_PATH=/EFI/debian/mmx64.efi
-FILE_SECURE_BOOT_MOK_CERT_DER_ESP=/boot/efi/EFI/debian/MOK.der
-queue_target_grub_mok_enrollment_boot
-''')
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('mok_entry_id=$1', result.stdout)
-        self.assertIn('grep -F -q -- "$mok_entry_marker" "$grub_cfg"', result.stdout)
-        self.assertIn('grep -F -x -q "next_entry=${mok_entry_id}"', result.stdout)
+    def test_mok_enrollment_is_manual_after_the_single_firmware_handoff(self):
+        source = payload_read_text(ROOT / 'scripts/late/grub.sh')
+        self.assertNotIn('queue_target_grub_mok_enrollment_boot() {', source)
+        self.assertNotIn('next_entry=${mok_entry_id}', source)
+        menu = payload_read_text(ROOT / 'hooks/target/usr/local/share/grub-profiles/mokmenu.cfg.in.tmpl')
+        self.assertIn("--id 'installer-mok-enrollment'", menu)
+        self.assertIn('chainloader "($esp)@@MOKMANAGER_PATH@@"', menu)
+        self.assertIn('@@MOK_DER_PATH@@', menu)
 
     def test_signature_listing_requires_a_signature_not_just_zero_exit(self):
         source=payload_read_text(ROOT/'hooks/installer/finish-install.d/94zz-99-validate-target')

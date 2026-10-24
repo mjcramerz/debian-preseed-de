@@ -48,6 +48,15 @@ def current_path(relative):
 
 
 def uploaded_bytes(relative, data):
+    # October 24 changes only the GVFS stop lifecycle. Retain the historical
+    # workload hash by reversing this exact hunk before earlier layout layers.
+    if relative == 'd-i/forky/hooks/target/etc/systemd/user/gvfs-daemon.service.d/10-labwc-session.conf':
+        current = (b'# Signal the FUSE child too, and let its unmount helpers finish during the\n'
+                   b'# grace period. mixed escalates as soon as gvfsd exits, interrupting cleanup.\n'
+                   b'KillMode=control-group\n')
+        if data.count(current) != 1:
+            raise AssertionError('reviewed GVFS stop lifecycle hunk changed or is ambiguous')
+        data = data.replace(current, b'KillMode=mixed\n', 1)
     # October 17 drive ordering keeps these mount backends in session.slice.
     # Reverse only the exact additions before the older layered hash checks;
     # never replace their historical baselines or ignore unrelated bytes.

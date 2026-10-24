@@ -111,7 +111,7 @@ class MokResetTests(unittest.TestCase):
                 'if sys.argv[1:] == ["--reset"]:\n'
                 '    assert sys.stdin.buffer.read(1024) == b"fixture-user\\nfixture-user\\n"\n'
                 f'    Path({str(variables / "MokAuth-605dab50-e046-4300-abb6-3dd810dd8b23")!r}).write_bytes(bytes(176))\n'
-                'else:\n    assert sys.argv[1:] == ["--timeout", "-1"]\n')
+                'else:\n    assert sys.argv[1:] == ["--timeout", "900"]\n')
             mokutil.chmod(0o700)
             source = (TARGET / 'usr/libexec/install-tools/secure-boot-tool.tmpl').read_text()
             source = source.replace('PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
@@ -145,7 +145,7 @@ class MokResetTests(unittest.TestCase):
                 if command == 'reset-preflight':
                     self.assertFalse(calls.exists())
                     self.assertEqual(list(variables.iterdir()), [])
-            self.assertEqual(calls.read_text().splitlines(), ['--reset', '--timeout -1'])
+            self.assertEqual(calls.read_text().splitlines(), ['--reset', '--timeout 900'])
 
     def reset(self, failure='none'):
         source = read_text(TARGET / 'usr/libexec/install-tools/secure-boot-tool')
@@ -179,7 +179,7 @@ mokutil() {
       return 0
       ;;
     --timeout)
-      [ "$#" -eq 2 ] && [ "$2" = -1 ] || return 95
+      [ "$#" -eq 2 ] && [ "$2" = 900 ] || return 95
       [ "$FAILURE" != timeout ]
       ;;
     *) return 96 ;;
@@ -195,7 +195,7 @@ mokutil() {
     def test_full_reset_never_queries_or_depends_on_the_inventory(self):
         result, calls = self.reset()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(calls, ['--reset', '--timeout -1'])
+        self.assertEqual(calls, ['--reset', '--timeout 900'])
         self.assertIn('confirm the reset in MokManager', result.stderr)
         self.assertEqual(result.stdout, 'queued\n')
 
@@ -220,7 +220,7 @@ mokutil() {
     def test_timeout_adjustment_failure_keeps_successful_reset_result(self):
         result, calls = self.reset('timeout')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(calls, ['--reset', '--timeout -1'])
+        self.assertEqual(calls, ['--reset', '--timeout 900'])
         self.assertIn('timeout could not be set', result.stderr)
 
     def test_pending_reset_requires_authentication_and_no_new_enrollment(self):
@@ -520,26 +520,26 @@ installer_warn() { printf '%s\n' "$*" >&2; }
         self.assertLess(dispatch.index('\nrun_selected_class_helpers\n'),
                         dispatch.index('"$role_hook_dest" "$seed_base" "$host_profile"'))
 
-    def test_firmware_and_grub_handoffs_are_independent_and_nonfatal(self):
+    def test_only_firmware_handoff_is_automatic_including_uncertain_failure(self):
         source = read_text(TARGET.parents[1] / 'scripts/late/grub.sh')
         body = function(source, 'queue_target_grub_mok_enrollment_boot_for_reset')
         stubs = r'''
 run_installer_secure_boot_install_tool() { [ "$1" = reset-pending ]; }
 repair_target_secure_boot_nvram_entry() { printf 'firmware\n'; [ "$FIRMWARE" = success ]; }
-queue_target_grub_mok_enrollment_boot() { printf 'grub\n'; [ "$GRUB" = success ]; }
+queue_target_grub_mok_enrollment_boot() { printf 'unexpected second handoff\n'; exit 92; }
 installer_warn() { printf '%s\n' "$*" >&2; }
 installer_info() { printf '%s\n' "$*" >&2; }
 '''
         for firmware in ('success', 'failed'):
-            for grub in ('success', 'failed'):
+            with self.subTest(firmware=firmware):
                 result = subprocess.run(['/bin/dash', '-eu', '-c', stubs + body +
                                          '\nqueue_target_grub_mok_enrollment_boot_for_reset\n'
                                          "printf 'installation-continued\\n'"],
-                                        env={**ENV, 'FIRMWARE': firmware, 'GRUB': grub},
+                                        env={**ENV, 'FIRMWARE': firmware},
                                         capture_output=True, text=True, timeout=5)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(result.stdout, 'firmware\ngrub\ninstallation-continued\n')
-                if firmware == grub == 'failed':
+                self.assertEqual(result.stdout, 'firmware\ninstallation-continued\n')
+                if firmware == 'failed':
                     self.assertIn('select MOK Enrollment manually', result.stderr)
                 else:
                     self.assertIn('MOK management boot queued', result.stderr)

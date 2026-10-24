@@ -32,6 +32,7 @@ import sys
 import tempfile
 import threading
 import time
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 import xml.etree.ElementTree as ET
@@ -104,11 +105,14 @@ class MenuContractTests(unittest.TestCase):
                     self.assertIn('--property=SuccessExitStatus=2', argv[:argv.index('--')])
                 else:
                     self.assertNotIn('--property=SuccessExitStatus=2', argv[:argv.index('--')])
-            self.assertNotIn('on-click-right', entry)
+            self.assertEqual(entry['on-click-right'], '/usr/bin/systemctl --user --no-ask-password --no-block start labwc-waycal-toggle.service')
+            self.assertNotIn('on-click-right-release', entry)
             self.assertNotIn('on-click-middle', entry)
-            self.assertEqual(entry['format-alt-click'], 3)
+            self.assertFalse(entry.get('actions'))
+            self.assertEqual(entry['format-alt-click'], 2)
             self.assertEqual(entry['format-alt'], '{:%a, %d %b %Y W%V - %H.%M}')
-            self.assertEqual(entry['tooltip-format'], 'Calendar')
+            self.assertNotIn('tooltip-format', entry)
+            self.assertIs(entry['tooltip'], False)
             self.assertNotIn('labwc-calendar menu', json.dumps(entry))
 
     def test_secondary_clicks_preserve_previous_primary_actions(self):
@@ -180,9 +184,75 @@ class MenuContractTests(unittest.TestCase):
             self.assertIn('"' + name + '"', function)
         for text in ('menus=5', 'unwired native menu leaf', '--no-block', 'optional Whisper menu/service availability differs'):
             self.assertIn(text, function)
+        self.assertIn('entry["format-alt-click"] == 2', function)
+        self.assertNotIn('entry.get("format-alt-click") == 1', function)
         packages = payload_read_text(FORKY / 'classes/class-select/role/desktop.cfg').split()
-        for package in ('python3-gi', 'gir1.2-gtk-3.0', 'mako-notifier', 'libgtk4-layer-shell0', 'gir1.2-atspi-2.0'):
+        for package in ('python3-gi', 'gir1.2-gtk-3.0', 'mako-notifier', 'libgtk4-layer-shell0'):
             self.assertIn(package, packages)
+
+
+class WaycalToggleTests(unittest.TestCase):
+    def setUp(self):
+        self.helper = load('labwc-waycal-toggle')
+        self.uid = mock.patch.object(self.helper.os, 'getuid', return_value=1000)
+        self.uid.start()
+        self.addCleanup(self.uid.stop)
+
+    def test_popup_starts_when_closed_and_stops_when_open(self):
+        for state, action in (('inactive', 'start'), ('failed', 'start'),
+                              ('active', 'stop'), ('activating', 'stop'),
+                              ('reloading', 'stop'), ('deactivating', 'stop')):
+            with self.subTest(state=state), mock.patch.object(self.helper.subprocess, 'run', side_effect=[
+                    SimpleNamespace(returncode=0, stdout=state + '\n'),
+                    SimpleNamespace(returncode=0)]) as command:
+                self.assertEqual(self.helper.main([]), 0)
+                self.assertEqual(command.call_count, 2)
+                self.assertEqual(command.call_args_list[0].args[0], self.helper.SYSTEMCTL +
+                                 ['show', '--property=ActiveState', '--value', 'labwc-waycal.service'])
+                self.assertEqual(command.call_args_list[1].args[0], self.helper.SYSTEMCTL +
+                                 [action, 'labwc-waycal.service'])
+                self.assertEqual(command.call_args_list[1].kwargs['timeout'], 8)
+
+    def test_missing_state_and_failed_state_read_never_mutate(self):
+        for output, status in (('', 0), ('unknown\n', 0), ('inactive\n', 1)):
+            with mock.patch.object(self.helper.subprocess, 'run',
+                                   return_value=SimpleNamespace(returncode=status, stdout=output)) as command:
+                self.assertEqual(self.helper.main([]), 1)
+                self.assertEqual(command.call_count, 1)
+
+    def test_uncertain_mutation_is_not_retried(self):
+        with mock.patch.object(self.helper.subprocess, 'run', side_effect=[
+                SimpleNamespace(returncode=0, stdout='inactive\n'),
+                subprocess.TimeoutExpired(['fixture-systemctl'], 8)]) as command:
+            self.assertEqual(self.helper.main([]), 1)
+            self.assertEqual(command.call_count, 2)
+
+    def test_root_and_extra_arguments_do_not_contact_manager(self):
+        with mock.patch.object(self.helper.subprocess, 'run') as command:
+            self.assertEqual(self.helper.main(['unexpected']), 2)
+            with mock.patch.object(self.helper.os, 'getuid', return_value=0):
+                self.assertEqual(self.helper.main([]), 2)
+            command.assert_not_called()
+
+    def test_styles_and_serialized_unit_are_staged_without_login_activation(self):
+        source = payload_read_text(FORKY / 'scripts/desktop/components.sh')
+        self.assertIn('labwc-calendar-credentials labwc-waycal labwc-waycal-toggle', source)
+        self.assertIn('etc/skel-desktop/.config/waycal/style.css', source)
+        self.assertIn('.config/waycal', source)
+        unit = payload_read_text(SKEL / 'systemd/user/labwc-waycal-toggle.service')
+        self.assertIn('Type=oneshot', unit)
+        self.assertIn('StartLimitIntervalSec=0', unit)
+        self.assertIn('PartOf=labwc-session.target', unit)
+        self.assertNotIn('[Install]', unit)
+        style = payload_read_text(SKEL / 'waycal/style.css')
+        self.assertIn('rgba(30, 23, 46, 0.94)', style)
+        self.assertIn('window.waycal .waycal-root.rounded', style)
+        menu = ET.fromstring(payload_read_text(SKEL / 'waybar/calendar-menu.xml'))
+        for key, label in (('calendar_new_task_label', 'Create task...'),
+                           ('calendar_edit_task_label', 'Edit task...'),
+                           ('calendar_delete_task_label', 'Delete task...'),
+                           ('calendar_done_task_label', 'Mark task completed...')):
+            self.assertEqual(menu.findtext('.//object[@id="' + key + '"]/property[@name="label"]'), label)
 
 
 class NotificationDataTests(unittest.TestCase):

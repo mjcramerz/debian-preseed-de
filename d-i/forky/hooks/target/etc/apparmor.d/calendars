@@ -6,6 +6,8 @@ profile agenda /usr/local/bin/com.github.dahenson.agenda flags=(attach_disconnec
   #include <abstractions/desktop-runtime>
   include if exists <abstractions/user-tmp>
   /usr/local/bin/com.github.dahenson.agenda mr,
+  # The packaged Agenda startup invokes this loader; retain Agenda confinement.
+  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 rix,
   /usr/local/share/agenda/{,**} r,
   /usr/local/share/icons/{,**} r,
   /usr/lib/** mr,
@@ -19,6 +21,8 @@ profile agenda /usr/local/bin/com.github.dahenson.agenda flags=(attach_disconnec
   dbus (bind) bus=session name=com.github.dahenson.agenda,
   dbus (send, receive) bus=session peer=(name=com.github.dahenson.agenda),
   signal (receive) peer={unconfined,labwc-app},
+  # GTK-NoCSD reads the application command line during toolkit startup.
+  owner @{PROC}/@{pid}/cmdline r,
   owner @{PROC}/[0-9]*/cgroup r,
   @{sys}/fs/cgroup/**/cpu.max r,
   owner @{HOME}/.cache/glycin/{,**} rwkl,
@@ -130,6 +134,8 @@ profile waycal /opt/waycal/waycal flags=(attach_disconnected, mediate_deleted) {
   /opt/waycal/{waycal,release.json} mr,
   /usr/lib/** mr,
   /usr/share/** r,
+  owner @{HOME}/.config/gtk-4.0/{,gtk.css} r,
+  owner @{HOME}/.config/waycal/{,style.css} r,
   owner @{HOME}/.local/ r,
   owner @{HOME}/.local/state/ rw,
   owner @{HOME}/.local/state/waycal/{,**} rwkl,
@@ -176,20 +182,16 @@ profile fruux-cleanup /var/lib/firstboot/bin/fruux-cleanup flags=(attach_disconn
   signal (receive) peer={unconfined,secondboot-cleanup},
 }
 
-profile labwc-waycal-hover /usr/local/libexec/labwc-waycal-hover flags=(attach_disconnected) {
+profile labwc-waycal-toggle /usr/local/libexec/labwc-waycal-toggle flags=(attach_disconnected) {
   #include <abstractions/wrapper-python>
   include if exists <abstractions/dbus-session>
-  include if exists <abstractions/dbus-accessibility>
-  /usr/local/libexec/labwc-waycal-hover r,
+  /usr/local/libexec/labwc-waycal-toggle r,
   /usr/bin/systemctl rix,
   /usr/lib/** mr,
   /usr/share/{glib-2.0,gir-1.0,locale}/{,**} r,
-  /proc/ r,
-  owner /proc/[0-9]*/{,exe} r,
-  ptrace (read) peer=waybar,
-  owner /run/user/[0-9]*/{,bus,at-spi/,at-spi/**,systemd/private} rw,
+  owner /run/user/[0-9]*/{,bus,systemd/private} rw,
   unix,
-  signal (send, receive) peer=labwc-waycal-hover,
+  signal (send, receive) peer=labwc-waycal-toggle,
   signal (receive) peer=unconfined,
   deny network inet,
   deny network inet6,

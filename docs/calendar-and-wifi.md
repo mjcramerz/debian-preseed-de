@@ -1,8 +1,11 @@
 # Calendar and saved Wi-Fi behavior
 
-This describes the October 23 source changes for new Forky installations. The
+This describes the October 23–24 source changes for new Forky installations. The
 behavior below is the implemented contract; it has not been demonstrated in a
-running desktop. See [Calix install ordering correction](validation/calix-install-order-20261023.md)
+running desktop. See [October 24 click mapping and Waycal theme](validation/waycal-click-20261024.md)
+for the current Waybar 0.15.0 contract and acceptance limits. The earlier
+[log, hover and MOK report](validation/todo-waycal-mok-20261024.md) records the superseded hover approach.
+See [Calix install ordering correction](validation/calix-install-order-20261023.md)
 for the latest install changes, and [Calendar and recorded-log fixes](validation/calendar-firstboot-20261023.md)
 for the firstboot implementation and runtime limitations. The earlier
 [Agenda, Fruux and Tor report](validation/agenda-fruux-tor-20261023.md) records
@@ -48,23 +51,38 @@ Both Waybar layouts use the following controls:
 
 | Control | Action |
 | --- | --- |
-| Hover over the clock | GTK shows the clock tooltip; its event requests `labwc-waycal.service`. |
+| Hover over the clock | No tooltip or popup; the former `Calendar` text is disabled. |
 | Left click the clock | Open the native GTK dropdown without changing the clock format. |
-| Right click the clock | Toggle the alternate date format, for example `Fri, 23 Oct 2026 W43 - 14.04`. |
+| Middle click the clock | Toggle the alternate date format, for example `Fri, 23 Oct 2026 W43 - 14.04`. |
+| Right click the clock | Open Waycal when closed; close it when open. |
 | Dropdown → Open calendar | Open/activate Calix through `labwc-calendar`. |
 | Dropdown → Open agenda (directly below Open calendar) | Open/activate the actual Agenda application through `labwc-agenda`. |
 | Dropdown → Events | Create Event…, or select an event to edit/delete on Fruux. |
 | Dropdown → Tasks | Pending tasks, all tasks, create, edit, details, complete, delete on Fruux. |
 
-Waybar has no external mouse-enter command setting. The root-owned hover adapter
-listens to AT-SPI tooltip showing events, checks the `Calendar` tooltip role/name
-and the same-UID `/usr/bin/waybar` executable identity, and submits only a fixed
-Waycal start request. Its call deadlines and start rate are bounded. The GTK3
-bridge and disabled peer-to-peer bridge transport are scoped to Waybar; other
-applications retain the existing session accessibility settings. No global
-pointer polling, input injection, process-name killing or native Waybar build
-is used. Waycal opens its month view, with Monday as the first weekday; Escape
-closes the popup. Its user service prevents duplicate managed instances.
+The user's final click mapping replaces the hover experiment. Both clocks set
+`tooltip: false` and `format-alt-click: 2`; no left-click command or action
+competes with the native GTK menu. The fixed right-click command starts
+`labwc-waycal-toggle.service`. This on-demand oneshot serializes state reads
+and start/stop requests for `labwc-waycal.service`, which owns the popup's
+process cgroup and is stopped with the desktop session. There is no process-name
+kill, PID-file scan, accessibility bridge or automatic retry of an uncertain
+mutation. The former hover helper, autostart unit and ptrace permission have
+been removed. The native month popup starts on Monday; Escape also closes it.
+
+Waycal 0.2.1 has no native user config or CSS-file option. Its embedded style is
+loaded at GTK's application priority. GTK4 supports the higher-priority user
+stylesheet `~/.config/gtk-4.0/gtk.css`, so the installer supplies an import of
+`~/.config/waycal/style.css`. This is the editable user styling drop-in. Every
+selector is scoped to `window.waycal`; other GTK4 applications retain their
+styles. Both sharp and rounded variants get a dark purple background at 94%
+opacity, a purple border and today highlight, and opaque light text. Only the
+background has slight transparency. The files are staged into the skeleton and
+copied to the primary account before activation. Reopening Waycal loads edits.
+
+Task operations that prompt for a selection, form or confirmation use
+`Create task...`, `Edit task...`, `Delete task...` and
+`Mark task completed...` in the GTK submenu.
 
 Calix uses the same managed native launch path and transient
 `labwc-native-calix-*.service` units. `labwc-calendar` is an alias of `labwc-app`;
@@ -85,7 +103,7 @@ Sleek retain their separate existing roles. The new GTK event/task actions use
 direct CalDAV operations. Agenda remains a local task list: it has no CalDAV
 backend, and its local tasks are separate from the Fruux Tasks submenu.
 
-The apps and bootstrap/hover delegates have explicit AppArmor profiles.
+The apps and bootstrap/toggle delegates have explicit AppArmor profiles.
 Installation prepares the account home, installs the calendar binaries and
 private Fruux input, then synchronizes the account launchers before enabling
 desktop services. The separate `verify.sh` module is not fetched, sourced or
@@ -98,8 +116,29 @@ remains Zoom and Discord only.
 Primary release contracts:
 [Waycal 0.2.1](https://github.com/ForrestKnight/waycal/releases/tag/v0.2.1),
 [Calix 0.8.0](https://github.com/ianswope/calix/releases/tag/v0.8.0),
-[Waybar label click handling](https://github.com/Alexays/Waybar/blob/master/src/ALabel.cpp),
-[GTK3 tooltip accessibility](https://github.com/GNOME/gtk/blob/gtk-3-24/gtk/a11y/gtkwindowaccessible.c).
+[Waybar 0.15.0 label click handling](https://github.com/Alexays/Waybar/blob/0.15.0/src/ALabel.cpp),
+[Waybar 0.15.0 clock module](https://github.com/Alexays/Waybar/blob/0.15.0/src/modules/clock.cpp).
+
+### October 24 log corrections
+
+The click integration uses no a11y bridge. The hover-only direct package
+requests for `gir1.2-atspi-2.0` and `at-spi2-core` were removed; GTK packages
+may still depend on accessibility libraries for their own purposes.
+
+Calix's managed launch now sets `GDK_WAYLAND_DISABLE=wp_presentation` for Calix
+only, alongside its existing native Wayland backend. This selects GTK's frame
+callback timing fallback for the duplicate presentation-feedback warning.
+It is a compatibility workaround, with less precise presentation timestamps;
+native reproduction and visual acceptance remain open.
+
+The GVFS user-service drop-in now uses `KillMode=control-group` with its
+existing 15-second stop budget, so FUSE cleanup receives the grace period
+instead of `mixed` escalating when the main daemon exits. The XFS healer
+starter gets a staged, bounded `ExecStartPre` manager reload before its native
+mount scan starts per-mount healers. The installer performs no live manager
+operation for this drop-in. These source corrections still require native
+logout and boot acceptance; details and primary sources are in the
+[current log review](validation/waycal-click-20261024.md).
 
 ## Fruux credential handoff
 

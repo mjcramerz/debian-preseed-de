@@ -1,5 +1,6 @@
 [Unit]
 Description=Waycal month popup
+StartLimitIntervalSec=0
 Requisite=labwc-session.target
 After=labwc-session.target
 PartOf=labwc-session.target
@@ -14,4 +15,3 @@ Environment=GDK_BACKEND=wayland
 KillMode=control-group
 TimeoutStopSec=5s
 UMask=0077
-

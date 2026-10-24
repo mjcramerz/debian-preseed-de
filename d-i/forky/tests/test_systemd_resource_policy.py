@@ -204,20 +204,6 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
                     self.assertFalse(payload_source_exists(ROOT / current_path(relative)))
                     continue
                 current_bytes = payload_read_bytes(ROOT / current_path(relative))
-                if relative.endswith('/systemd/user/waybar.service'):
-                    # Requested hover integration changes lifecycle/GTK only;
-                    # retain every historical resource-policy byte and hash.
-                    additions = (
-                        b'Wants=labwc-waycal-hover.service\n',
-                        b"# Enable GTK3's built-in bridge only here; other apps retain session policy.\n"
-                        b'Environment=ATSPI_DISABLE_P2P=1\n'
-                        b'UnsetEnvironment=NO_AT_BRIDGE GTK_A11Y\n',
-                    )
-                    for addition in additions:
-                        self.assertEqual(current_bytes.count(addition), 1)
-                        current_bytes = current_bytes.replace(addition, b'', 1)
-                    current_bytes = current_bytes.replace(b'After=labwc-waycal-hover.service labwc-compositor.service',
-                                                          b'After=labwc-compositor.service', 1)
                 original = uploaded_bytes(relative, current_bytes)
                 # R6 isolates zram maintenance without changing its CPU/IO/RAM
                 # weights. Reverse exact reviewed additions, never rebaseline.
