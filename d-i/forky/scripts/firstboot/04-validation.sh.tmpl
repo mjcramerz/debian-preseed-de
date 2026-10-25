@@ -1029,7 +1029,7 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     fi
   fi
 
-  if [ ! -e __THEME_TARGET_PATH_LABWC_WALLPAPER_ARCHIVE__ ]; then
+  if [ ! -e /tmp/installer-desktop-wallpapers.tar.gz ]; then
     record "PASS desktop-wallpaper-archive-not-installed"
   else
     record "FAIL desktop-wallpaper-archive-not-installed"

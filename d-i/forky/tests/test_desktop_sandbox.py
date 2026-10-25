@@ -1176,8 +1176,11 @@ class InstalledFailureRegressionTests(unittest.TestCase):
 
     def test_wallpaper_and_xwayland_boot_contracts_are_explicit(self):
         expected = '/' + theme_values()['LABWC_WALLPAPER_DESKTOP_SWAYBG'].removeprefix('hooks/target/')
-        with tarfile.open(DESKTOP / 'usr/share/backgrounds/desktop/wallpapers.tar.gz', 'r:gz') as archive:
-            self.assertIn('labwall0-1920x1080.png', archive.getnames())
+        self.assertFalse((DESKTOP / 'usr/share/backgrounds/desktop/wallpapers.tar.gz').exists())
+        profiles = sorted((ROOT / 'hosts/profiles').glob('*.env'))
+        self.assertEqual(len(profiles), 10)
+        for profile in profiles:
+            self.assertIn('LABWC_WALLPAPERS_URL=', profile.read_text(), profile.name)
         for profile in (ROOT / 'hosts/profiles').glob('*.env'):
             profile_text = render_theme_defaults(payload_read_text(profile))
             if 'LABWC_WALLPAPER_PATH=' in profile_text:

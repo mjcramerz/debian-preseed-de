@@ -37,6 +37,38 @@ desktop_stage_appearance() (
     /usr/share/polkit-1/actions/org.labwc.desktop-appearance.policy 0644
 )
 
+desktop_extract_theme_release() (
+  set -eu
+  source_host=$1
+  archive_host="${TMP_ENV_DIR}/desktop-themes.tar.gz"
+  archive_max_bytes=${LABWC_DESKTOP_THEMES_MAXIMUM_BYTES:?LABWC_DESKTOP_THEMES_MAXIMUM_BYTES must be set}
+  trap 'rm -f -- "$archive_host"' EXIT HUP INT TERM
+
+  desktop_download_release_archive \
+    'desktop themes' \
+    "$LABWC_DESKTOP_THEMES_TAG" \
+    "$LABWC_DESKTOP_THEMES_URL" \
+    "$LABWC_DESKTOP_THEMES_SHA256" \
+    desktop-themes.tar.gz \
+    "$archive_host" \
+    "$archive_max_bytes"
+
+  /usr/bin/tar \
+    --extract \
+    --gzip \
+    --file "$archive_host" \
+    --directory "$source_host" \
+    --strip-components=1 \
+    --no-same-owner \
+    --no-same-permissions \
+    --no-overwrite-dir ||
+    installer_fatal 'desktop theme release extraction failed'
+  find -P "$source_host" -type d -exec chmod 0700 {} +
+  find -P "$source_host" -type f -exec chmod 0600 {} +
+  chown -R root:root "$source_host"
+  desktop_log "extracted_verified_release label=desktop-themes tag=${LABWC_DESKTOP_THEMES_TAG}"
+)
+
 desktop_install_appearance_themes() (
   set -eu
   source_root=/usr/local/share/labwc-appearance/.installer-themes
@@ -48,23 +80,7 @@ desktop_install_appearance_themes() (
     installer_fatal 'unsafe desktop theme staging directory'
   chown root:root "$source_host"
   chmod 0700 "$source_host"
-  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_DESKTOP desktop-theme-assets.list)" \
-    "${source_root}/.files.list" 0600
-  stage_target_asset assets/desktop-themes/sources.json "${source_root}/sources.json" 0600
-  count=0
-  while IFS= read -r asset || [ -n "$asset" ]; do
-    count=$((count + 1))
-    [ "$count" -le 256 ] && [ "${#asset}" -le 200 ] ||
-      installer_fatal 'desktop theme staging list exceeds its bounds'
-    case "$asset" in
-      ''|/*|*..*|*//*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/+@-]*)
-        installer_fatal 'unsafe pinned desktop theme source path' ;;
-      gtk/*|qt/*|licenses/*) ;;
-      *) installer_fatal 'unknown desktop theme source category' ;;
-    esac
-    stage_target_asset "assets/desktop-themes/${asset}" "${source_root}/${asset}" 0600
-  done < "${source_host}/.files.list"
-  [ "$count" -gt 0 ] || installer_fatal 'empty desktop theme staging list'
+  desktop_extract_theme_release "$source_host"
   run_in_target "install pinned GTK3/GTK4 and Qt desktop theme data" \
     /usr/local/libexec/labwc-appearance-themes --install
 )

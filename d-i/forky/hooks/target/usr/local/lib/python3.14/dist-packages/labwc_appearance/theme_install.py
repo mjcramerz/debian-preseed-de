@@ -179,11 +179,8 @@ def remove_inputs(registry: Tree, paths: tuple[str, ...], identity: list[int], *
         if set(source.files) != set(paths):
             raise RuntimeError('theme source inventory changed before cleanup')
         source.verify_all()
-        expected = ('\n'.join(sorted(paths)) + '\n').encode('utf-8')
-        if inputs.read('.files.list', limit=128 * 1024) != expected:
-            raise RuntimeError('theme staging list changed before cleanup')
         directories = {str(parent) for path in paths for parent in PurePosixPath(path).parents if str(parent) != '.'}
-        for path in (*paths, '.files.list', 'sources.json'):
+        for path in (*paths, 'sources.json'):
             check(deadline)
             inputs.write(path, None)
         for path in sorted(directories, key=lambda value: (-value.count('/'), value)):

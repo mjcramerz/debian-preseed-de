@@ -677,13 +677,10 @@ class PaletteTests(unittest.TestCase):
         self.assertEqual(len(data['catppuccin']['variants']), 16)
         self.assertEqual(len(data['adwaita']['variants']), 2)
         self.assertEqual(len(data['arc']['variants']), 2)
-        assets = SEED / 'assets/desktop-themes/qt'
         for theme in themes.VARIANTS.values():
             with self.subTest(theme=theme.identity):
                 self.assertNotIn('gtk-2', theme.gtk)
                 if theme.qt_source is not None:
-                    for extension in ('.kvconfig', '.svg'):
-                        self.assertTrue((assets / theme.qt_source / (theme.qt_source + extension)).is_file())
                     self.assertTrue(theme.kvantum.startswith('Labwc-'))
                 else:
                     self.assertIn(theme.style, ('Adwaita', 'Adwaita-Dark', 'Breeze'))
@@ -1126,64 +1123,25 @@ class ThemeArchiveTests(unittest.TestCase):
 
 
 class ThemeResourceTests(unittest.TestCase):
-    def test_repacked_theme_archives_complete_both_gtk_versions_without_runtime_repairs(self):
-        pins = json.loads((SEED / 'assets/desktop-themes/sources.json').read_text())['files']
-        examples = (
-            ('ant-dark', 'Ant-79ddc06b40ad.tar.gz', 'Ant-79ddc06b40ad1e96c87d9270c71d7db3bfa0c3cd'),
-            ('dracula-dark', 'Dracula.tar.xz', 'Dracula'),
-            ('nordic-dark', 'Nordic.tar.xz', 'Nordic'),
-            ('sweet-dark', 'Sweet-Dark.tar.xz', 'Sweet-Dark'),
-        )
-        for identity, filename, root in examples:
-            with self.subTest(identity=identity):
-                blob = (SEED / 'assets/desktop-themes/gtk' / filename).read_bytes()
-                self.assertEqual(len(blob), pins['gtk/' + filename]['bytes'])
-                self.assertEqual(hashlib.sha256(blob).hexdigest(), pins['gtk/' + filename]['sha256'])
-                source = mock.Mock(spec=theme_assets.Source)
-                source.deadline = time.monotonic() + 60
-                source.archive.return_value = theme_archive.Archive(blob, filename, deadline=source.deadline)
-                theme = themes.variant(identity)
-                self.assertIn('repack', pins['gtk/' + filename])
-                # The checked-in archives must pass the complete CSS reference
-                # check without a runtime image repair module.
-                result = theme_assets.gtk_assets(source, theme)
-                for version in ('3.0', '4.0'):
-                    directory = 'gtk-' + version + '/'
-                    for stylesheet in ('gtk.css', 'gtk-dark.css'):
-                        css = result[directory + stylesheet]
-                        self.assertNotIn(b'selection-mode-checkbox-unchecked', css)
-                        self.assertNotIn(b'selection-mode-radio-unchecked', css)
-                        self.assertNotIn(b'unchecked-backdrop-insensitive@2.png', css)
-                        self.assertNotIn(b'switch-slider-on-insensitive@@.png', css)
-                        self.assertIn(b'assets/labwc-color-button-auto.svg', css)
-                    swatch = result[directory + 'assets/labwc-color-button-auto.svg']
-                    self.assertEqual(ET.fromstring(swatch).tag, '{http://www.w3.org/2000/svg}svg')
-                    self.assertIn(theme.background.encode(), swatch)
-                    self.assertIn(theme.foreground.encode(), swatch)
-                for asset in ('checkbox-unchecked.png', 'radio-unchecked-insensitive-backdrop@2.png'):
-                    self.assertEqual(result['assets/' + asset], source.archive.return_value.read(root + '/assets/' + asset))
-
-    def test_repacked_rose_pine_variants_use_existing_disabled_control_images(self):
-        pins = json.loads((SEED / 'assets/desktop-themes/sources.json').read_text())['files']
-        for identity in ('rose-pine-main', 'rose-pine-moon', 'rose-pine-dawn'):
-            with self.subTest(identity=identity):
-                source = mock.Mock(spec=theme_assets.Source)
-                source.deadline = time.monotonic() + 60
-                def archive(filename):
-                    blob = (SEED / 'assets/desktop-themes/gtk' / filename).read_bytes()
-                    self.assertEqual(len(blob), pins['gtk/' + filename]['bytes'])
-                    self.assertEqual(hashlib.sha256(blob).hexdigest(), pins['gtk/' + filename]['sha256'])
-                    return theme_archive.Archive(blob, filename, deadline=source.deadline)
-                source.archive.side_effect = archive
-                theme = themes.variant(identity)
-                result = theme_assets.gtk_assets(source, theme)
-                for filename in ('gtk.css', 'gtk-dark.css'):
-                    css = result['gtk-3.0/' + filename]
-                    self.assertIn(b'../assets/menuitem-checkbox-unchecked.svg', css)
-                    self.assertIn(b'../assets/menuitem-radio-unchecked.svg', css)
-                    self.assertNotIn(b'../assets/checkbox-unchecked-insensitive.svg', css)
-                    self.assertNotIn(b'../assets/radio-unchecked-insensitive.svg', css)
-                self.assertTrue(result['gtk-4.0/gtk.css'])
+    def test_desktop_release_archive_pins_are_present_in_every_host_profile(self):
+        expected = {
+            'LABWC_DESKTOP_THEMES_TAG': 'themes-v0.0.1',
+            'LABWC_DESKTOP_THEMES_URL': 'https://github.com/mjcramerz/themes/releases/download/themes-v0.0.1/desktop-themes.tar.gz',
+            'LABWC_DESKTOP_THEMES_SHA256': '3954a7573afeb6f47a2bb2ee22c690a84bd9d7ea538aa2ad8909702516105b03',
+            'LABWC_WALLPAPERS_TAG': 'themes-v0.0.1',
+            'LABWC_WALLPAPERS_URL': 'https://github.com/mjcramerz/themes/releases/download/themes-v0.0.1/wallpapers.tar.gz',
+            'LABWC_WALLPAPERS_SHA256': '62dd913c8c68d7bfaf472c103260c0eb4dbf1226d218083033a53fb55b8db890',
+        }
+        profiles = sorted((SEED / 'hosts/profiles').glob('*.env'))
+        self.assertEqual(len(profiles), 10)
+        for profile in profiles:
+            profile_text = profile.read_text()
+            with self.subTest(profile=profile.name):
+                for name, value in expected.items():
+                    self.assertIn(f'{name}="{value}"', profile_text)
+        self.assertFalse((SEED / 'assets/desktop-themes').exists())
+        self.assertFalse((SEED / 'hooks/target/usr/share/backgrounds/desktop/wallpapers.tar.gz').exists())
+        self.assertFalse((TARGET / 'usr/local/lib/python3.14/dist-packages/labwc_appearance/theme_repairs.py').exists())
 
     def test_missing_asset_diagnostic_identifies_target_and_stylesheet(self):
         files = {'gtk-3.0/gtk.css': b'button { background-image:url("assets/unlisted.png"); }'}

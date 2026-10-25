@@ -434,6 +434,16 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
     is_compositor_settings = kind == "wayland" and arguments[0] in {
         "/usr/bin/labwc-tweaks", "/usr/bin/qt6ct",
     }
+    # Host-identity desktop controls and interactive terminals must be the
+    # foreground process of their transient unit.  The capture supervisor
+    # owns pipes and starts children with the unit's null stdin; that is fine
+    # for ordinary GUI clients, but it prevents Foot/Kitty and Thunar from
+    # retaining their native terminal/file-manager handoff semantics.  These
+    # callers already have dedicated AppArmor/session policy, so keep their
+    # argv direct while retaining the same cgroup and lifecycle properties.
+    payload = list(arguments) if host_administration else [
+        "/usr/local/libexec/rsyslog-app-run", f"labwc-{label}", "--", *arguments
+    ]
     return [
         "/usr/bin/systemd-run", "--user", "--quiet", "--collect",
         *menu_action_wait_arguments(),
@@ -492,7 +502,7 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         f"--working-directory={os.getcwd()}",
         # Passing only names keeps tokens and other values out of argv.
         *(f"--setenv={name}" for name in sorted(environment)),
-        "--", "/usr/local/libexec/rsyslog-app-run", f"labwc-{label}", "--", *arguments,
+        "--", *payload,
     ]
 
 

@@ -129,7 +129,6 @@ class PublicationFixtures(unittest.TestCase):
             source.write('licenses/fixture.txt', raw)
             source.put_json('sources.json', {'schema': 1, 'files': {'licenses/fixture.txt': {
                 'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}}})
-            source.write('.files.list', b'licenses/fixture.txt\n')
         self.stack = contextlib.ExitStack()
         self.addCleanup(self.stack.close)
         for key, value in (('REGISTRY', self.registry), ('SOURCE', self.inputs), ('PUBLIC', self.public)):

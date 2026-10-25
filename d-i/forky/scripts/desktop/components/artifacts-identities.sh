@@ -2,33 +2,38 @@
 # Sourced installer module; edit this file directly.
 
 desktop_extract_role_wallpaper_archive() {
-  archive_relpath=${LABWC_WALLPAPER_ARCHIVE#hooks/target/}
-  archive_source=$(installer_repo_join_var DIR_HOOKS_TARGET "$archive_relpath")
   archive_host="${TMP_ENV_DIR}/desktop-wallpapers.$$.tar.gz"
   archive_target=/tmp/installer-desktop-wallpapers.tar.gz
   archive_target_host=$(target_asset_host_path "$archive_target")
-  archive_max_bytes=33554432
+  archive_max_bytes=${LABWC_WALLPAPERS_MAXIMUM_BYTES:?LABWC_WALLPAPERS_MAXIMUM_BYTES must be set}
 
   rm -f -- "$archive_host" "$archive_target_host"
-  if ! fetch_hook "$archive_source" "$archive_host"; then
+  if ! desktop_download_release_archive \
+      'desktop wallpapers' \
+      "$LABWC_WALLPAPERS_TAG" \
+      "$LABWC_WALLPAPERS_URL" \
+      "$LABWC_WALLPAPERS_SHA256" \
+      wallpapers.tar.gz \
+      "$archive_host" \
+      "$archive_max_bytes"; then
     rm -f -- "$archive_host" "$archive_target_host"
-    installer_fatal "failed to fetch desktop wallpaper archive: ${archive_source}"
+    installer_fatal "failed to fetch desktop wallpaper release archive: ${LABWC_WALLPAPERS_URL}"
   fi
   [ -f "$archive_host" ] && [ ! -L "$archive_host" ] ||
-    installer_fatal "desktop wallpaper archive is not a regular file: ${archive_source}"
+    installer_fatal "desktop wallpaper release archive is not a regular file: ${LABWC_WALLPAPERS_URL}"
 
   archive_bytes=$(wc -c <"$archive_host" 2>/dev/null || true)
   archive_bytes=${archive_bytes##* }
   case "$archive_bytes" in
     ''|*[!0123456789]*|0)
       rm -f -- "$archive_host"
-      installer_fatal "desktop wallpaper archive size is invalid: ${archive_source}"
+      installer_fatal "desktop wallpaper release archive size is invalid: ${LABWC_WALLPAPERS_URL}"
       ;;
   esac
   if [ "$archive_bytes" -gt "$archive_max_bytes" ]; then
     rm -f -- "$archive_host"
     installer_fatal \
-      "desktop wallpaper archive exceeds ${archive_max_bytes} bytes: ${archive_source}"
+      "desktop wallpaper release archive exceeds ${archive_max_bytes} bytes: ${LABWC_WALLPAPERS_URL}"
   fi
 
   install -m 0600 "$archive_host" "$archive_target_host"
@@ -38,124 +43,25 @@ desktop_extract_role_wallpaper_archive() {
   if ! run_in_target "extract managed desktop wallpaper archive" /bin/sh -eu -c '
 archive=$1
 destination=$2
-member_limit=$3
-extracted_byte_limit=$4
-protected_default=$5
-member_list=/tmp/installer-desktop-wallpapers.members.$$
-verbose_list=/tmp/installer-desktop-wallpapers.verbose.$$
-extract_dir=/tmp/installer-desktop-wallpapers.extract.$$
-
-cleanup() {
-  rm -rf -- "$archive" "$member_list" "$verbose_list" "$extract_dir"
-}
-trap cleanup EXIT HUP INT TERM
-
-fatal() {
-  printf "fatal: desktop wallpaper archive: %s\n" "$*" >&2
-  exit 1
-}
-
-/usr/bin/tar -tzf "$archive" >"$member_list" ||
-  fatal "archive is not readable gzip-compressed tar data"
-member_count=$(/usr/bin/wc -l <"$member_list" | /usr/bin/tr -d " ")
-case "$member_count" in
-  ""|*[!0123456789]*|0) fatal "member count is invalid" ;;
-esac
-[ "$member_count" -le "$member_limit" ] ||
-  fatal "archive contains too many members: $member_count"
-
-duplicate_member=$(
-  LC_ALL=C /usr/bin/sort "$member_list" |
-    /usr/bin/uniq -d |
-    /usr/bin/sed -n "1p"
-)
-[ -z "$duplicate_member" ] ||
-  fatal "archive contains a duplicate member: $duplicate_member"
-
-while IFS= read -r member_name || [ -n "$member_name" ]; do
-  case "$member_name" in
-    ""|/*|*/*|"."|".."|.*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*)
-      fatal "archive contains an unsafe member name: ${member_name:-empty}"
-      ;;
-  esac
-  case "$member_name" in
-    *.png|*.jpg|*.jpeg) ;;
-    *) fatal "archive member is not a supported PNG or JPEG: $member_name" ;;
-  esac
-  [ "$member_name" != "$protected_default" ] ||
-    fatal "archive must not replace the managed fallback wallpaper"
-done <"$member_list"
-
-/usr/bin/tar --numeric-owner -tvzf "$archive" >"$verbose_list" ||
-  fatal "archive member metadata could not be inspected"
-metadata_count=0
-extracted_bytes=0
-while IFS= read -r member_metadata || [ -n "$member_metadata" ]; do
-  set -- $member_metadata
-  [ "$#" -ge 6 ] ||
-    fatal "archive member metadata is incomplete"
-  member_mode=$1
-  member_size=$3
-  case "$member_mode" in
-    -*) ;;
-    *) fatal "archive contains a non-regular member" ;;
-  esac
-  case "$member_mode" in
-    *x*) fatal "archive contains an executable member" ;;
-  esac
-  case "$member_size" in
-    ""|*[!0123456789]*) fatal "archive member size is invalid" ;;
-  esac
-  extracted_bytes=$((extracted_bytes + member_size))
-  [ "$extracted_bytes" -le "$extracted_byte_limit" ] ||
-    fatal "archive expands beyond ${extracted_byte_limit} bytes"
-  metadata_count=$((metadata_count + 1))
-done <"$verbose_list"
-[ "$metadata_count" -eq "$member_count" ] ||
-  fatal "archive member metadata count does not match the member list"
-
-/usr/bin/install -d -m 0700 "$extract_dir"
+/usr/bin/install -d -m 0755 -- "$destination"
 /usr/bin/tar \
   --extract \
   --gzip \
   --file "$archive" \
-  --directory "$extract_dir" \
+  --directory "$destination" \
   --no-same-owner \
-  --no-same-permissions ||
-  fatal "archive extraction failed"
-
-/usr/bin/install -d -m 0755 "$destination"
-while IFS= read -r member_name || [ -n "$member_name" ]; do
-  extracted_path="${extract_dir}/${member_name}"
-  [ -f "$extracted_path" ] && [ ! -L "$extracted_path" ] ||
-    fatal "extracted member is not a regular file: $member_name"
-  member_mime=$(/usr/bin/file --brief --mime-type -- "$extracted_path" 2>/dev/null || true)
-  case "${member_name}:${member_mime}" in
-    *.png:image/png|*.jpg:image/jpeg|*.jpeg:image/jpeg) ;;
-    *) fatal "extracted member content does not match its image extension: $member_name" ;;
-  esac
-  /usr/bin/install -m 0644 "$extracted_path" "${destination}/${member_name}"
-done <"$member_list"
-
-printf "desktop_wallpaper_archive members=%s extracted_bytes=%s destination=%s\n" \
-  "$member_count" \
-  "$extracted_bytes" \
-  "$destination"
-' sh \
-    "$archive_target" \
-    /usr/share/backgrounds/desktop \
-    128 \
-    134217728 \
-    "${LABWC_WALLPAPER_PATH##*/}"
+  --no-same-permissions
+/usr/bin/find "$destination" -maxdepth 1 -type f -exec /usr/bin/chmod 0644 {} +
+' sh "$archive_target" /usr/share/backgrounds/desktop
   then
     rm -f -- "$archive_target_host"
-    installer_fatal "failed to validate and extract the desktop wallpaper archive"
+    installer_fatal "failed to extract the verified desktop wallpaper release archive"
   fi
 
   [ ! -e "$archive_target_host" ] ||
     installer_fatal "desktop wallpaper archive remained in the target after extraction"
   desktop_log \
-    "extracted_wallpaper_archive source=${archive_source} target=/usr/share/backgrounds/desktop archive_bytes=${archive_bytes}"
+    "extracted_wallpaper_archive source=${LABWC_WALLPAPERS_URL} tag=${LABWC_WALLPAPERS_TAG} target=/usr/share/backgrounds/desktop archive_bytes=${archive_bytes}"
 }
 
 desktop_target_tree_size_kib() {
@@ -373,4 +279,3 @@ fi
 /usr/bin/rmdir -- "$build_home"
 ' sh "$build_account" "$build_home"
 }
-

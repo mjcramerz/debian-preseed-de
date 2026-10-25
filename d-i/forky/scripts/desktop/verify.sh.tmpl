@@ -885,7 +885,7 @@ do
   require_mode "$path" 644
 done
 
-require_absent __THEME_TARGET_PATH_LABWC_WALLPAPER_ARCHIVE__
+require_absent /tmp/installer-desktop-wallpapers.tar.gz
 require_absent /usr/bin/Xwayland
 if [ "$(dpkg-query -W -f='\''${Status}'\'' xwayland 2>/dev/null || true)" = "install ok installed" ]; then
   printf '\''%s\n'\'' '\''fatal: public xwayland package must not be installed'\'' >&2

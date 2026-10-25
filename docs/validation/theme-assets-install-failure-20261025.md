@@ -1,122 +1,106 @@
-# Pinned theme installation failure — 2026-10-25
+# Desktop theme and wallpaper release archives — 2026-10-25
 
 ## Scope
 
-This records the archive-level correction against HEAD
-`1bf8491d3c368b6099d15e6852dd547c9bf2e02c` for the fatal installer step
-`install pinned GTK3/GTK4 and Qt desktop theme data`.
-
-The requested fix is in the checked-in theme bytes. The installer no longer
-calls a runtime image repair module. The strict local CSS/resource reference
-checks remain in place.
+The installer no longer carries the desktop theme source tree or the wallpaper
+archive in the Debian preseed payload. Both archives are downloaded during the
+desktop late installation phase from the pinned GitHub release.
 
 The unrelated edits in `AGENTS.override.md`, `tools/inventory.py`,
 `tools/inventory_apt.py`, and `tools/tests/test_download_inventory.py` were
-preserved. The inventory utilities were not executed or integrated into this
-work.
+preserved. The inventory utilities were not executed or integrated into the
+installer.
 
-## Cause and corrections
+## Pinned release inputs
 
-The first reported Arc failure was in compiled GResource CSS, so checking only
-loose GTK stylesheets was incomplete. A complete bounded archive scan found
-the following defects:
+Every active file under `d-i/forky/hosts/profiles/` carries the same release
+tag, URL, SHA-256, and transfer-size limit.
 
-- Arc GTK3 CSS in the embedded resource bundles referred to
-  `assets/thumbnail-frame.png`; Arc GTK4 resource CSS also referred to the
-  missing text-selection and marked-slider PNG families.
-- WhiteSur GTK3 resource CSS referred to the missing
-  `thumbnail-frame.png`.
-- ChromeOS, Matcha, Qogir, and Vimix source GTK CSS contained missing or
-  incorrectly named image references.
-- Rosé Pine GTK3 bundles contained stale embedded CSS references and raster
-  data stored under `.svg` resource names. The resource payloads now use the
-  corresponding native SVG bytes from the same pinned archive.
-- Three loose Kvantum files contained malformed color literals:
-  Matcha Sea Dark selection text and the two WhiteSur alpha colors.
+| Input | Tag | URL | SHA-256 |
+| --- | --- | --- | --- |
+| Desktop themes | `themes-v0.0.1` | `https://github.com/mjcramerz/themes/releases/download/themes-v0.0.1/desktop-themes.tar.gz` | `3954a7573afeb6f47a2bb2ee22c690a84bd9d7ea538aa2ad8909702516105b03` |
+| Wallpapers | `themes-v0.0.1` | `https://github.com/mjcramerz/themes/releases/download/themes-v0.0.1/wallpapers.tar.gz` | `62dd913c8c68d7bfaf472c103260c0eb4dbf1226d218083033a53fb55b8db890` |
 
-All modified GTK archives were repacked as data with Python's standard library.
-No upstream build system, compiler, renderer, Gio loader, maintainer script,
-package manager, service, host helper, or disposable environment was used.
+The installer binds each URL to its profile tag and expected filename, downloads
+over the existing HTTPS external-source transport, checks the downloaded file's
+SHA-256 against the profile value, and enforces the profile transfer-size limit.
 
-| Archive | Archive-level correction |
-| --- | --- |
-| `arc-theme_20221218-3_all.deb` | Repack Arc and Arc-Dark compiled GResources with complete embedded CSS asset sets and generated native SVG replacements. Debian control `md5sums` was refreshed for the changed data members. |
-| `WhiteSur-Light.tar.xz`, `WhiteSur-Dark.tar.xz` | Repack the GTK3 resource bundles with the thumbnail frame SVG and corrected embedded CSS URLs. |
-| `rose-pine-gtk3.tar.gz` | Repack all six GTK3 GResources, replace mislabeled raster payloads with the archive's native SVG members, and correct the embedded GTK3.20 disabled-control references. |
-| `ChromeOS-b80a8b77f189.tar.gz` | Correct light/dark disabled and colored slider references in the source GTK stylesheets. |
-| `Matcha-4f18ea92d53d.tar.gz` | Add the Sea variant's native SVG replacements for selection, slider, check-symbolic, and thumbnail assets and update the Sea CSS references. |
-| `Qogir-619f33047877.tar.gz` | Add native SVG replacements for check, thumbnail, and title-button assets, add the logo aliases consumed by the GTK CSS, and update both selected stylesheets. |
-| `Vimix-c11aca86854d.tar.gz` | Add native marked-slider SVG replacements and update the Doder GTK stylesheets. |
-| `Ant-79ddc06b40ad.tar.gz`, `Dracula.tar.xz`, `Nordic.tar.xz`, `Sweet-Dark.tar.xz` | Preserve the earlier archive repacks for their missing control-state images and automatic-color swatches. |
-| `sources.json` | Record every new local length/hash and the upstream length/hash plus modified and added members under `repack`. |
+## Installation wiring
 
-The corrected loose Qt inputs include:
+### Desktop themes
 
-- `qt/Matcha-sea-dark/Matcha-sea-dark.kvconfig`
-- `qt/WhiteSur/WhiteSur.kvconfig`
-- `qt/WhiteSur-opaque/WhiteSur-opaque.kvconfig`
-- `qt/WhiteSur/WhiteSur.svg`
-- `qt/WhiteSur-opaque/WhiteSur-opaque.svg`
-- `qt/WhiteSurLiquid/WhiteSurLiquid.svg`
+`scripts/desktop/components/release-assets.sh` contains the shared pinned-release
+download helper. `appearance.sh` downloads `desktop-themes.tar.gz` into the
+private installer workspace, verifies the tarball hash, and extracts it into the
+target's private `.installer-themes` staging directory before invoking
+`labwc-appearance-themes --install`.
 
-`theme_repairs.py` was removed from the target package and from the
-appearance staging and verification lists. `theme_assets.py` now materializes
-the pinned archive output directly. Its `Candidate.repairs` field remains an
-empty compatibility inventory field; no runtime repair records are produced.
+The outer release tarball is not compared with the former checkout tree. The
+installer does not inspect its member list, archive metadata, MIME types, or
+extracted-file inventory. The extracted release supplies its own
+`sources.json`, which remains the input consumed by the existing theme installer.
 
-## Static verification
+The old repository-generated `desktop-theme-assets.list` staging path was
+removed. Theme cleanup now derives the source paths from the extracted
+`sources.json` inventory and no longer requires `.files.list`.
 
-The following checks were run as static data inspection or pure serialization:
+### Wallpapers
 
-- `python3 -I` AST parsing of the changed production and fixture Python
-  sources: passed for four files.
-- `git diff --check`: passed.
-- `sources.json`: all 193 pinned files match their recorded byte lengths and
-  SHA-256 hashes.
-- The standalone GResource decoder and serializer round-trip accepted the
-  corrected Arc, WhiteSur, and Rosé Pine bundles. Final resource CSS scans
-  reported zero missing local references and zero invalid SVG payloads in all
-  corrected compiled bundles.
-- Final selected source scans reported zero missing references for ChromeOS,
-  Matcha, Qogir, and Vimix after applying each archive's actual asset mapping.
-- The standalone catalog scan covered all 50 variants, 11,198 materialized files, 222 CSS stylesheets, and 14,319 CSS URLs. It found zero missing local references and zero XML parse errors in materialized SVG assets.
-- A separate XML parse of all 70 pinned Qt SVG files completed with zero XML errors.
-- The rebuilt Arc Debian control `md5sums` contains 672 entries; all entries match the rebuilt data archive.
-- The pure generation command
-  `make --no-print-directory PYTHON='python3 -I' build` completed with
-  `built 2040 payload files`.
-- A standard-library payload comparison found 2,040 manifest entries and 2,040
-  payload members, with zero manifest mismatches and zero source-byte
-  mismatches.
+`artifacts-identities.sh` downloads `wallpapers.tar.gz` from the pinned release,
+checks the profile SHA-256, copies the verified tarball into the target's
+temporary installer path, and extracts it into
+`/usr/share/backgrounds/desktop`. The temporary archive is removed after
+extraction. The existing fallback desktop, lock-screen, and greeter images are
+still staged separately, preserving the selected wallpaper paths and defaults.
 
-The generated products are:
+The wallpaper extraction path does not inspect the archive's member contents;
+the profile SHA-256 is the archive integrity check.
+
+The obsolete source variable `LABWC_WALLPAPER_ARCHIVE` and its
+`source-archive` schema entry were removed. Verification now checks the fixed
+temporary target path `/tmp/installer-desktop-wallpapers.tar.gz` is absent after
+extraction.
+
+## Removed checked-in inputs
+
+These paths are no longer present in the checkout or generated payload:
+
+- `d-i/forky/assets/desktop-themes/`
+- `d-i/forky/hooks/target/usr/share/backgrounds/desktop/wallpapers.tar.gz`
+- `d-i/forky/scripts/desktop/desktop-theme-assets.list`
+
+The release archive hashes observed before removal were:
+
+```text
+desktop-themes.tar.gz  3954a7573afeb6f47a2bb2ee22c690a84bd9d7ea538aa2ad8909702516105b03
+wallpapers.tar.gz      62dd913c8c68d7bfaf472c103260c0eb4dbf1226d218083033a53fb55b8db890
+```
+
+## Static and generation evidence
+
+- The two public release files were downloaded to private `/tmp` inspection
+  paths and their SHA-256 values matched the profile pins.
+- `make --no-print-directory PYTHON='python3 -I' build` completed with
+  `built 1845 payload files`.
+- The generated manifest and payload no longer contain
+  `assets/desktop-themes/` or the checked-in wallpaper archive.
+- The source tree and wallpaper archive paths above are absent.
+- The ten active host profiles each contain both release tags, URLs, SHA-256
+  values, and maximum-byte values.
+
+Generated products:
 
 | Product | Bytes | SHA-256 |
 | --- | ---: | --- |
-| `d-i/forky/payload.tar.gz` | 60,972,966 | `064c115e9c4b83de85ba2ef057926e345dac053736df695ceac7c17cdfbca1f4` |
-| `d-i/forky/payload.manifest` | 252,094 | `75567a97ea48fe3da32c931402ba53e73ba4bc9a389d9b6d757128a1b26400db` |
-| `d-i/forky/preseed.cfg` | 96,407 | `8d4e3258c31bd862ad4e246b4afce00a39fea5aa7eab23d043522451c8cea59c` |
-
-### Corrected archive hashes
-
-| Archive | SHA-256 |
-| --- | --- |
-| `ChromeOS-b80a8b77f189.tar.gz` | `2ef1f94611d594597a1100cb5ee755b2be88a66e64b756fa53f5b1c94d6c5c38` |
-| `Matcha-4f18ea92d53d.tar.gz` | `0b217012cbc07e38d0bd1112544ebc2a40a99f6dca08e41a45f9d0484fb7d617` |
-| `Qogir-619f33047877.tar.gz` | `8fca09d0964b7385b6bfbb73551c98d750117c5a99a83204345ff80decd8e4c8` |
-| `Vimix-c11aca86854d.tar.gz` | `6f368bfe94ea57e246b826fdb10b7a87290f6474e39005b57694407f14287f02` |
-| `WhiteSur-Light.tar.xz` | `69d9025f63ff1a7115cc329788cf39784738effd35c3fefc8d5c750df56caea6` |
-| `WhiteSur-Dark.tar.xz` | `97a0c008f4a83c448df73e4f7386383d2f13548856734dafcc6626a328a4d453` |
-| `arc-theme_20221218-3_all.deb` | `75b47948387d58b4735d481229cc00fff3786fa0405ad492c3538b2678b222fe` |
-| `rose-pine-gtk3.tar.gz` | `758f1872c700e45339d8aafc8c66d951cd0bd63e1c206f2c2159f735a781d14b` |
+| `d-i/forky/payload.tar.gz` | 11,291,713 | `e545e9c00de7e16df910befbe6e0436972403ccdf502cc5728e5a295250fd690` |
+| `d-i/forky/payload.manifest` | 227,459 | `2c59751b6e21211643cd3ba4962569c2753e9bd5a717d9f9a19857b2d8ac75b8` |
+| `d-i/forky/preseed.cfg` | 96,407 | `931b1a2f902c4c8b6e0050f3358fd57771f40458146d1b7c813b3235d01f59d6` |
 
 ## Verification limits
 
-The repository explicitly prohibits running the test suite, test discovery,
-native syntax checkers, Gio loaders, installer helpers, host services, package
-managers, or any disposable environment. The fixture sources remain
-unexecuted. Static archive consistency and pure payload serialization do not
-prove live Debian Installer completion, GTK/Qt rendering, boot behavior,
-policy loading, or application launches. No target image or installed package
-versions were available as live evidence.
-
+Repository policy prohibits running the test suite, test discovery, native
+syntax checkers, installer helpers, Gio loaders, package managers, host
+services, or disposable environments. The fixture sources remain unexecuted.
+Pure payload serialization and static source inspection do not prove a live
+Debian Installer run, remote download completion in the installer image,
+archive extraction behavior on the target, GTK/Qt rendering, or desktop startup.
