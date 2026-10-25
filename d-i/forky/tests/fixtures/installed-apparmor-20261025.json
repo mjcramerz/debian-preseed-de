@@ -1,0 +1,30 @@
+{
+  "description": "Historical calendar denial capture from todo/apparmor.log, subsequently replaced by the hardware capture. The earlier managed calendar capture is a subset. Fixture remains unexecuted.",
+  "source_path": "todo/apparmor.log",
+  "source_sha256": "b84ecfa30812867e74d9cc4bd928c7d1584b68095a1f0142d39f6fe577359954",
+  "record_counts": {
+    "STATUS": 451,
+    "DENIED": 504
+  },
+  "managed_capture": {
+    "source_path": "todo/managed/security/apparmor/apparmor.log",
+    "source_sha256": "d707437664afdb5007c028b95c56df920b61caf29e701daccd5166b3a5181c45",
+    "record_counts": {"STATUS": 451, "DENIED": 80}
+  },
+  "operation": "open",
+  "requested_mask": "r",
+  "owner": true,
+  "file_requests": [
+    {"profile": "waycal", "name": "/proc/13729/cmdline", "count": 80},
+    {"profile": "calix", "name": "/proc/70638/cmdline", "count": 213},
+    {"profile": "calix", "name": "/proc/70638/stat", "count": 131},
+    {"profile": "waycal", "name": "/proc/70792/cmdline", "count": 80}
+  ],
+  "excluded_requests": [
+    "/proc/13729/cmdline w,",
+    "/proc/70638/stat w,",
+    "/proc/13729/environ r,",
+    "/proc/13729/mem r,",
+    "/proc/13729/fd/0 r,"
+  ]
+}

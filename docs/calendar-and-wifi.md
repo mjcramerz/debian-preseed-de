@@ -4,7 +4,7 @@ This describes the October 23–24 source changes for new Forky installations. T
 behavior below is the implemented contract; it has not been demonstrated in a
 running desktop. See [mouse-only Waycal dismissal](validation/waycal-any-click-20261024.md)
 for the current interaction and acceptance limits. The earlier
-[five-second right-click toggle](validation/waycal-timed-toggle-20261024.md) and
+[earlier right-click toggle](validation/waycal-timed-toggle-20261024.md) and
 [1.5-second hover investigation](validation/waycal-hover-20261024.md) record
 the preceding native-event limitations. See
 [alternate clock format removal](validation/clock-format-removal-20261024.md)
@@ -61,7 +61,7 @@ Both Waybar layouts use the following controls:
 | Hover over the clock | No popup action; the tooltip remains disabled. |
 | Left click the clock | Open the native GTK dropdown without changing the clock format. |
 | Middle click the clock | No clock action. |
-| Right click the clock | Open Waycal on button release, with a five-second lifetime. |
+| Right click the clock | Open Waycal on button release, with a fifteen-second lifetime. |
 | Any mouse button click while Waycal is open | Dismiss the popup, including clicks on the clock or calendar. The complete dismissing click is consumed. |
 | Keyboard input while Waycal is open | No dismissal action; keyboard focus stays with the existing application. |
 | Dropdown → Open calendar | Open/activate Calix through `labwc-calendar`. |
@@ -96,7 +96,7 @@ The supervisor consumes mouse button presses and dismisses on the final
 matching release. Unmatched releases cannot dismiss a newly opening popup.
 The surfaces request keyboard mode `NONE`, disable GTK focus, and contain no
 keyboard handlers or synthetic input. Keyboard input does not close the popup
-or reset the five-second deadline. The supervisor exits on a click, child exit,
+or reset the fifteen-second deadline. The supervisor exits on a click, child exit,
 output change, surface closure or startup failure, and the service manager
 terminates the remaining cgroup. Stopping Waybar propagates a stop to the popup.
 No global Labwc mouse/key bindings, raw input device access or a11y bridge is
@@ -110,9 +110,9 @@ The month starts on Monday. The popup does not acquire keyboard focus.
 
 The transient request uses the Labwc session target, a fixed service name,
 private user/temporary/IPC/network namespaces and control-group termination.
-The payload's five-second countdown sends TERM, with a one-second forced
+The payload's fifteen-second countdown sends TERM, with a one-second forced
 cleanup allowance for an unresponsive process. Expected timeout status 124 is
-successful completion. A six-second systemd runtime backstop and one-second
+successful completion. A sixteen-second systemd runtime backstop and one-second
 stop timeout bound supervisor failure and manual/session shutdown. Timing is
 measured from payload launch, not a Waycal window-ready notification; actual
 visible duration has not been measured. Concurrent requests serialize through
@@ -121,7 +121,7 @@ rejected to avoid activating an unmanaged window. Uncertain launch/stop requests
 are not retried; a successful request is not proof that a calendar is visible.
 The controller, namespaces, policy and authored fixtures have not been executed.
 The reviewed pure serialization path regenerated the three installer products;
-all 1,838 members match the current source and manifest as data. Both root JSON
+all 1,837 members match the current source and manifest as data. Both root JSON
 inventories were regenerated against that exact archive, with no missing package
 requests. No software was compiled. Native Forky GUI, systemd and AppArmor
 acceptance remains open; artifact consistency does not establish runtime behavior.

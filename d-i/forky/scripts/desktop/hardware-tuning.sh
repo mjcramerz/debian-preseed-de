@@ -59,7 +59,7 @@ desktop_install_hardware_tuning() (
   chmod 0700 "${hardware_stage_host}/config.py" || exit 1
   fetch_hook scripts/desktop/hardware-tuning-assets.list "${hardware_stage_host}/assets.list" || exit 1
   while IFS= read -r hardware_asset; do
-    case "$hardware_asset" in etc/systemd/*|etc/hardware-tuning/*|etc/dbus-1/system.d/*|usr/local/share/dbus-1/system-services/*) ;; *) exit 1 ;; esac
+    case "$hardware_asset" in etc/systemd/*|etc/hardware-tuning/*|etc/dbus-1/system.d/*) ;; *) exit 1 ;; esac
     case "$hardware_asset" in *..*|*//*|*[!A-Za-z0-9_./-]*) exit 1 ;; esac
     install -d -m 0700 "${hardware_stage_host}/templates/${hardware_asset%/*}" || exit 1
     fetch_hook "$(installer_repo_join_var DIR_HOOKS_TARGET "$hardware_asset")" "${hardware_stage_host}/templates/${hardware_asset}" || exit 1

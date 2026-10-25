@@ -571,7 +571,7 @@ class WaycalControlTests(unittest.TestCase):
                       '--property=StopPropagatedFrom=waybar.service',
                       '--property=PartOf=labwc-session.target', '--property=ExitType=main',
                       '--property=KillMode=control-group', '--property=TimeoutStartSec=10s',
-                      '--property=TimeoutStopSec=1s', '--property=RuntimeMaxSec=6s',
+                      '--property=TimeoutStopSec=1s', '--property=RuntimeMaxSec=16s',
                       '--property=RuntimeRandomizedExtraSec=0', '--property=SuccessExitStatus=124',
                       '--property=PrivateUsers=yes',
                       '--property=PrivateTmp=yes',
@@ -579,7 +579,7 @@ class WaycalControlTests(unittest.TestCase):
                       '--property=ProtectSystem=full', '--setenv=GDK_BACKEND=wayland'):
             self.assertIn(value, argv)
         self.assertEqual(argv[argv.index('--') + 1:],
-                         ['/usr/bin/timeout', '--signal=TERM', '--kill-after=1s', '5s',
+                         ['/usr/bin/timeout', '--signal=TERM', '--kill-after=1s', '15s',
                           '/usr/local/libexec/labwc-waycal-popup'])
         self.assertNotIn('--popup', argv)
         self.assertNotIn('--scope', argv)

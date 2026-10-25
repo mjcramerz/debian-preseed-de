@@ -786,6 +786,7 @@ for path in \
     /usr/local/libexec/labwc-waycal-control \
     /usr/local/libexec/labwc-waycal-popup \
   /usr/bin/timeout \
+  /usr/bin/printenv \
   /usr/local/bin/labwc-ocr \
   /usr/local/bin/labwc-logout \
   /usr/local/bin/labwc-fuzzel \
@@ -2540,7 +2541,8 @@ if sys.argv[3] in {"with-account", "account-only"}:
         raise SystemExit(0)
 require(sys.version_info[:2] == (3, 14), "the target interpreter must be Python 3.14")
 fixed_env = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C", "HOME": "/nonexistent"}
-for command in ("/usr/bin/python3.14", "/usr/bin/perl", "/usr/lib/systemd/systemd"):
+for command in ("/usr/bin/python3.14", "/usr/bin/perl", "/usr/lib/systemd/systemd",
+                "/usr/bin/printenv"):
     trusted(Path(command), True)
 version = subprocess.run(["/usr/lib/systemd/systemd", "--version"], env=fixed_env,
                          stdin=subprocess.DEVNULL, capture_output=True, text=True,

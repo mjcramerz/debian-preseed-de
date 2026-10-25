@@ -1,0 +1,115 @@
+{
+  "description": "Replacement October 25 hardware tuning capture. All distinct denied file requests, source inspected as data; fixture remains unexecuted.",
+  "source_paths": [
+    "todo/apparmor.log",
+    "todo/managed/security/apparmor/apparmor.log"
+  ],
+  "source_sha256": "a8fe88dba8ab87070506f562d2acaac79800faca77217e050376d818296ae5c7",
+  "record_counts": {
+    "STATUS": 451,
+    "DENIED": 42
+  },
+  "file_requests": [
+    {
+      "profile": "hardware-tuning-worker",
+      "name": "/dev/char/195:0",
+      "operation": "unlink",
+      "requested_mask": "d",
+      "count": 9
+    },
+    {
+      "profile": "hardware-tuning-worker",
+      "name": "/dev/char/195:255",
+      "operation": "unlink",
+      "requested_mask": "d",
+      "count": 3
+    },
+    {
+      "profile": "hardware-tuning-worker",
+      "name": "/dev/char/234:0",
+      "operation": "unlink",
+      "requested_mask": "d",
+      "count": 3
+    },
+    {
+      "profile": "hardware-tuning-worker",
+      "name": "/dev/char/234:1",
+      "operation": "unlink",
+      "requested_mask": "d",
+      "count": 3
+    },
+    {
+      "profile": "hardware-tuning-worker",
+      "name": "/dev/nvidia-caps/",
+      "operation": "mkdir",
+      "requested_mask": "c",
+      "count": 6
+    },
+    {
+      "profile": "hardware-tuning-worker",
+      "name": "/dev/nvidia-uvm",
+      "operation": "open",
+      "requested_mask": "wr",
+      "count": 6
+    },
+    {
+      "profile": "hardware-tuning-worker",
+      "name": "/proc/9317/task/9344/comm",
+      "operation": "mknod",
+      "requested_mask": "c",
+      "count": 1
+    },
+    {
+      "profile": "hardware-tuning-worker",
+      "name": "/proc/9317/task/9344/comm",
+      "operation": "open",
+      "requested_mask": "wc",
+      "count": 1
+    },
+    {
+      "profile": "hardware-tuning-worker",
+      "name": "/proc/9914/task/9919/comm",
+      "operation": "mknod",
+      "requested_mask": "c",
+      "count": 1
+    },
+    {
+      "profile": "hardware-tuning-worker",
+      "name": "/proc/9914/task/9919/comm",
+      "operation": "open",
+      "requested_mask": "wc",
+      "count": 1
+    },
+    {
+      "profile": "hardware-tuning-worker",
+      "name": "/proc/9921/task/9922/comm",
+      "operation": "mknod",
+      "requested_mask": "c",
+      "count": 1
+    },
+    {
+      "profile": "hardware-tuning-worker",
+      "name": "/proc/9921/task/9922/comm",
+      "operation": "open",
+      "requested_mask": "wc",
+      "count": 1
+    },
+    {
+      "profile": "hardware-tuning-worker",
+      "name": "/proc/sys/vm/mmap_min_addr",
+      "operation": "open",
+      "requested_mask": "r",
+      "count": 6
+    }
+  ],
+  "excluded_requests": [
+    "/proc/sys/vm/mmap_min_addr w,",
+    "/proc/9317/task/9344/mem w,",
+    "/proc/9317/comm w,",
+    "/dev/char/8:0 w,",
+    "/dev/char/234:2 w,",
+    "/dev/char/195:1 w,",
+    "/dev/nvme0n1 rw,",
+    "/dev/mem rw,"
+  ]
+}

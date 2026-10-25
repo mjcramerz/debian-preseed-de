@@ -5,12 +5,48 @@ existing CPU/GPU and selected-class gates pass. Staging does not write hardware
 or contact a running system manager. Runtime ownership belongs to the existing
 hardware tuning broker and its recovery journal.
 
+The broker supervises its periodic thermal/ownership monitor. Unexpected
+failure, cancellation or early return from that monitor closes control leases,
+attempts restoration for each installed vendor and propagates service failure.
+Normal stop also cancels the monitor and restores controls. Failed restoration
+retains recovery state for the existing `ExecStopPost` recovery path; the
+service's restart delay and start limit remain in force.
+Shutdown closes the listener and aborts its accepted client transports before
+the five-second server-close wait. This includes connections whose handler has
+not started yet. A server-close failure still attempts hardware restoration.
+Requests queued behind the control lock are rejected once shutdown begins;
+closing lease handlers cannot apply another profile during restoration.
+
+Automatic policy preparation or activation failures are retained in broker
+status and logged with their initialization/start phase. Journal causes are
+normalized to one line and limited to 2,048 characters. Recovery still stops
+automatic tuning, restores vendor controls and retains any pending policy
+handback; logging does not retry a failed mutation.
+
 ## AC workstation profiles
 
 `btrfs-de-p15s{,-duo}` targets the Core i7-10610U and Pascal Quadro P520.
 `btrfs-de-flex{,-duo}` targets the Core i3-1115G4 and Tiger Lake Intel graphics
 with the iHD media driver. Both machines are normally connected to AC power.
-Each single/duo pair has the same hardware policy.
+Each single/duo pair shares the same hardware policy. Both P15s profiles use
+the user-selected 99 C CPU thermal guard. Intel specifies a 100 C junction
+limit for the i7-10610U; the software guard does not change firmware limits.
+The October 25 replacement capture records a 93 C sample tripping the previous
+92 C guard. Both P15s NVIDIA policies also use the user-selected 99 C software
+guard. This is not a requested GPU operating temperature: driver slowdown and
+shutdown thresholds remain unchanged, and the acoustic target stays `keep`.
+
+The user-selected performance policy retains SMT and disables the cross-thread
+mitigation policy. All ten shipped host profiles use
+`mitigations=auto,no_cross_thread` in their balanced, performance and Hardened
+boot entries; none requests SMT shutdown through `nosmt`. User/kernel,
+user/user, guest/host and guest/guest protection policies remain enabled.
+Shared mitigations, including CPU buffer clearing, can remain enabled when
+required by those retained boundaries. This accepts cross-thread leakage risk;
+it does not claim complete MMIO mitigation or a measured performance gain.
+The shared security flags use `pti=auto`: the kernel retains page-table
+isolation on vulnerable CPUs and avoids forcing it on unaffected CPUs. Other
+automatic CPU vulnerability protections remain selected by the kernel.
 
 | Setting | P15s | Flex |
 | --- | --- | --- |
@@ -23,7 +59,7 @@ Each single/duo pair has the same hardware policy.
 | Performance/high EPP and EPB | performance / 0 | performance / 0 |
 | Performance/high CPU maximum percentage | 100 | 100 |
 | Performance/high turbo and HWP dynamic boost | Enabled when supported | Enabled when supported |
-| CPU thermal interlock | 88 C | 85 C |
+| CPU thermal interlock | 99 C | 85 C |
 | Performance/high uncore minimum | 2 GHz / 1.2 GHz | 2 GHz / 1.2 GHz |
 | Performance/high Intel GPU minimum | advertised maximum / efficient | advertised maximum / efficient |
 | Intel GPU RPS up/down, performance | 80% / 60% | 80% / 60% |
@@ -70,6 +106,14 @@ performance requires explicit power-increase permission and thermal coverage.
 These requests are installed only when NVIDIA tuning is enabled and the
 existing installer detects the selected NVIDIA class and hardware. Other
 installs receive no NVIDIA policy, lease units or application dependencies.
+
+The NVIDIA-only AppArmor abstraction includes the captured NVML reads,
+same-owner thread-name writes, UVM access and capability-directory creation.
+Device-alias maintenance is limited to `/dev/char/195:0`, `195:255`, `234:0`
+and `234:1` from the supplied driver capture. Auxiliary major 234 can differ
+on another boot/image; other aliases remain denied rather than granting
+write access to every character-device alias. No `mknod` capability or general
+`/dev` write permission is added. This source policy has not been loaded here.
 
 The performance profile requests the advertised maximum NVML power limit.
 Performance and high request the maximum supported memory frequency together
@@ -136,12 +180,18 @@ baseline's changing P15s MMIO cap is not copied into an invented fixed limit.
 Application drop-ins now order startup after their tuning targets. Lease
 services send systemd readiness only after the broker's reconciliation reply;
 their status names the actual applied profile, including an explicit manual
-override. Tuning faults fail the lease. Applications retain `Wants`/`Upholds`
+override. A fault affecting the requested vendor, or the shared policy owner,
+fails the lease; an unrelated vendor fault does not. Applications retain `Wants`/`Upholds`
 dependencies, so an unavailable tuning service does not prevent native launches
 or give tuning stop/reset authority over applications. The existing 360-second
 control deadline is covered by a 370-second service startup budget. Ordinary
 successful transitions complete when the broker replies; the budget is a
 failure bound, not an added startup sleep.
+
+Tuning targets use `Wants` for their lease services. An unavailable lease leaves
+the demand target active, and the service's restart delay and start limit bound
+its retries. This prevents application `Upholds` from repeatedly restarting a
+failed target and bypassing the lease service's start limit.
 
 The new fixtures in `test_hardware_tuning_profiles_20261024.py` cover selector
 replacement, paired RPS ordering, firmware side effects, partial recovery,
@@ -163,8 +213,18 @@ and IPC removal, and restricts the adapter to Unix sockets. Package updates
 normally preserve the local drop-in and continue supplying the base unit.
 Changes to the vendor unit still require compatibility review.
 
-Both `org.freedesktop.UPower.PowerProfiles` and legacy
-`net.hadess.PowerProfiles` activate that service. The adapter sends mutations
+The package-owned activation files for both `org.freedesktop.UPower.PowerProfiles`
+and legacy `net.hadess.PowerProfiles` select that service. The installer verifies
+their ownership, paths and activation fields before publishing its drop-in;
+it does not add duplicate activation files under `/usr/local/share/dbus-1`.
+An existing local duplicate is rejected for review rather than overwritten.
+Applications continue to use either public name. The activation chain is
+`/usr/share/dbus-1/system-services/{name}.service` ->
+`power-profiles-daemon.service` -> its local service drop-in ->
+`hardware-tuning-power-profiles`. The adapter registers both object paths and
+names; D-Bus ownership/send policy and AppArmor permissions cover both. Removing
+the duplicate local templates does not remove either application API.
+The adapter sends mutations
 to the existing authenticated hardware tuning broker; it cannot write hardware
 or manage services. The broker checks the active configured local seat and
 uses the existing fixed worker, policy ownership locks and recovery journal.

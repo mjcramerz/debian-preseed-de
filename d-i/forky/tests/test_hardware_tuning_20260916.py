@@ -19,6 +19,7 @@ _require_test_isolation()
 from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
 from payload_fixture import read_text as payload_read_text
 import asyncio
+import ast
 import copy
 import ctypes
 import importlib.util
@@ -33,7 +34,8 @@ import sys
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+import xml.etree.ElementTree as ET
+from unittest.mock import AsyncMock, Mock, patch
 
 FORKY = Path(__file__).resolve().parents[1]
 LIB = FORKY / "hooks/target/usr/local/lib/hardware_tuning"
@@ -56,6 +58,20 @@ def environment(name="btrfs-de-p15s"):
 
 def private_temp():
     return tempfile.TemporaryDirectory(prefix="hardware-tuning-test-", dir="/root" if os.geteuid() == 0 else None)
+
+
+def package_activation(root):
+    """Private data fixture for Debian power-profiles-daemon 0.30-2."""
+    result = {}
+    for name in installer.POWER_PROFILE_NAMES:
+        path = root / f"usr/share/dbus-1/system-services/{name}.service"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        data = (f"[D-BUS Service]\nName={name}\nExec=/bin/false\nUser=root\n"
+                "SystemdService=power-profiles-daemon.service\n")
+        path.write_text(data)
+        path.chmod(0o644)
+        result[path] = data
+    return result
 
 
 def simple_policy(settings):
@@ -101,6 +117,28 @@ class FakeBackend:
 
 
 class PolicyTests(unittest.TestCase):
+    def test_boot_profiles_disable_cross_thread_policy_and_preserve_other_boundaries(self):
+        profiles = sorted((FORKY / "hosts/profiles").glob("*.env"))
+        self.assertEqual(len(profiles), 10)
+        for path in profiles:
+            values = {}
+            for line in payload_read_text(path).splitlines():
+                if line.startswith("GRUB_") and "=" in line:
+                    key, raw = line.split("=", 1)
+                    self.assertNotIn(key, values)
+                    literal = shlex.split(raw)
+                    self.assertEqual(len(literal), 1)
+                    values[key] = literal[0].split()
+            for profile in ("DEFAULT", "PERFORMANCE", "HARDENED"):
+                with self.subTest(path=path.name, profile=profile):
+                    flags = values["GRUB_SECURITY_CORE_FLAGS"] + values[f"GRUB_PROFILE_{profile}_FLAGS"]
+                    self.assertEqual([flag for flag in flags if flag.startswith("mitigations=")],
+                                     ["mitigations=auto,no_cross_thread"])
+                    self.assertEqual([flag for flag in flags if flag.startswith("pti=")], ["pti=auto"])
+                    self.assertFalse(any("nosmt" in flag or flag.startswith("smt=") for flag in flags))
+                    self.assertFalse(any(vector in flag for flag in flags for vector in
+                                         ("no_user_kernel", "no_user_user", "no_guest_host", "no_guest_guest")))
+
     def test_all_ten_profiles_have_complete_matching_schemas(self):
         profiles = list((FORKY / "hosts/profiles").glob("*.env"))
         self.assertEqual(len(profiles), 10)
@@ -125,12 +163,19 @@ class PolicyTests(unittest.TestCase):
                 self.assertEqual(env["HARDWARE_TUNING_IDLE_AC"], "performance" if path.stem in enabled else "balanced")
                 self.assertEqual(env["HARDWARE_TUNING_IDLE_BATTERY"], "silent")
 
-    def test_ac_laptop_pairs_have_identical_hardware_policy(self):
-        for name, floor, temperature in (("p15s", "100", "88"), ("flex", "100", "85")):
+    def test_ac_laptop_pairs_preserve_policy_and_explicit_thermal_limits(self):
+        for name, floor, temperature, duo_temperature in (("p15s", "100", "99", "99"),
+                                                         ("flex", "100", "85", "85")):
             env = environment("btrfs-de-" + name)
-            self.assertEqual(env, environment("btrfs-de-" + name + "-duo"))
+            duo = environment("btrfs-de-" + name + "-duo")
             prefix = installer.PREFIXES["intel"]
             self.assertEqual(env[prefix + "MAX_TEMPERATURE_C"], temperature)
+            self.assertEqual(duo[prefix + "MAX_TEMPERATURE_C"], duo_temperature)
+            if name == "p15s":
+                self.assertEqual(env[installer.PREFIXES["nvidia"] + "MAX_TEMPERATURE_C"], "99")
+                self.assertEqual(duo[installer.PREFIXES["nvidia"] + "MAX_TEMPERATURE_C"], "99")
+            duo[prefix + "MAX_TEMPERATURE_C"] = temperature
+            self.assertEqual(env, duo)
             self.assertEqual(env[prefix + "PERFORMANCE_CPU_MIN_PERF_PCT"], floor)
             self.assertEqual(env[prefix + "HIGH_CPU_MIN_PERF_PCT"], "40" if name == "p15s" else "35")
             self.assertEqual(env[prefix + "PERFORMANCE_CPU_GOVERNOR"], "performance")
@@ -207,11 +252,21 @@ class PolicyTests(unittest.TestCase):
 
     def test_strict_schema_types(self):
         settings = {"X": ("keep",) * 4}
-        for key, bad in (("version", True), ("allow_overclock", "true"), ("max_temperature_c", "85"), ("max_temperature_c", 99)):
+        for key, bad in (("version", True), ("allow_overclock", "true"), ("max_temperature_c", "85"), ("max_temperature_c", 100)):
             value = simple_policy(settings)
             value[key] = bad
             with self.subTest(key=key, bad=bad), self.assertRaises(common.TuningError):
                 common.validate_policy(value, settings)
+
+    def test_both_vendor_guards_accept_99_and_reject_100_or_110(self):
+        for settings, ceiling in ((intel.SETTINGS, 99), (nvidia.SETTINGS, 99)):
+            value = simple_policy(settings)
+            value["max_temperature_c"] = ceiling
+            self.assertEqual(common.validate_policy(value, settings)["max_temperature_c"], ceiling)
+            for invalid in (ceiling + 1, 110):
+                value["max_temperature_c"] = invalid
+                with self.subTest(ceiling=ceiling, invalid=invalid), self.assertRaises(common.TuningError):
+                    common.validate_policy(value, settings)
 
     def test_semantic_value_injection_and_unknown_override_are_rejected(self):
         for bad in ("10\n20", "/sys/devices/foo", "$(id)", "1 2", True, 10):
@@ -253,6 +308,29 @@ class PolicyTests(unittest.TestCase):
 
 
 class InstallerTests(unittest.TestCase):
+    def test_both_public_power_profiles_names_keep_the_same_activation_path(self):
+        expected = {"/org/freedesktop/UPower/PowerProfiles": "org.freedesktop.UPower.PowerProfiles",
+                    "/net/hadess/PowerProfiles": "net.hadess.PowerProfiles"}
+        tree = ast.parse(payload_read_text(LIB / "power_profiles.py"))
+        interfaces = next(ast.literal_eval(node.value) for node in tree.body
+                          if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name)
+                          and target.id == "INTERFACES" for target in node.targets))
+        self.assertEqual(interfaces, expected)
+        self.assertEqual(set(installer.POWER_PROFILE_NAMES), set(expected.values()))
+        target = FORKY / "hooks/target"
+        policy = ET.fromstring(payload_read_text(target / "etc/dbus-1/system.d/90-hardware-tuning-power-profiles.conf.tmpl"))
+        for attribute in ("own", "send_destination"):
+            self.assertEqual({allow.attrib[attribute] for allow in policy.iter("allow")
+                              if attribute in allow.attrib}, set(expected.values()))
+        unit = payload_read_text(target / "etc/systemd/system/power-profiles-daemon.service.d/50-hardware-tuning.conf.tmpl")
+        self.assertIn("BusName=org.freedesktop.UPower.PowerProfiles", unit)
+        self.assertIn("ExecStart=\nExecStart=/usr/local/libexec/hardware-tuning-power-profiles", unit)
+        confinement = payload_read_text(target / "etc/apparmor.d/hardware-tuning")
+        adapter = confinement.split("profile hardware-tuning-power-profiles ", 1)[1].split("profile hardware-tuning-worker ", 1)[0]
+        for path, name in expected.items():
+            self.assertIn(path, adapter)
+            self.assertIn(name, adapter)
+
     def test_all_32_flag_class_and_detection_combinations(self):
         source = FORKY / "scripts/desktop/hardware-tuning.sh"
         for intelflag, intelcpu, nvflag, nvclass, nvgpu in itertools.product((False, True), repeat=5):
@@ -304,7 +382,10 @@ desktop_install_hardware_tuning
                 original = [{"name": "internal", "custom/battery": {"on-click": "original-energy-profile-command", "interval": 5}},
                             {"name": "external", "custom/battery": {"on-click": "another original", "states": {"critical": 15}}}]
                 path.write_text(json.dumps(original))
+                packaged = package_activation(root)
                 installer.install(root, 1000, 1000, environment(), vendors, FORKY / "hooks/target")
+                for activation, before in packaged.items():
+                    self.assertEqual(activation.read_text(), before)
                 config = json.loads((root / "etc/hardware-tuning/broker.json").read_text())
                 self.assertEqual(config["power_profiles_api"], "intel" in vendors)
                 api_unit = root / "etc/systemd/system/power-profiles-daemon.service.d/50-hardware-tuning.conf"
@@ -320,7 +401,7 @@ desktop_install_hardware_tuning
                     self.assertIn("RestrictAddressFamilies=\nRestrictAddressFamilies=AF_UNIX", api_unit.read_text())
                     for name in ("org.freedesktop.UPower.PowerProfiles", "net.hadess.PowerProfiles"):
                         activation = root / f"usr/local/share/dbus-1/system-services/{name}.service"
-                        self.assertIn("SystemdService=power-profiles-daemon.service", activation.read_text())
+                        self.assertFalse(activation.exists())
                 installed = json.loads(payload_read_text(path))
                 for before, after in zip(original, installed):
                     self.assertEqual(after["custom/battery"].pop("on-click-right"), installer.CLICK)
@@ -337,6 +418,8 @@ desktop_install_hardware_tuning
                         self.assertEqual(payload_source_is_file(service), vendor in vendors)
                         if vendor in vendors:
                             self.assertIn("StopWhenUnneeded=yes", payload_read_text(target))
+                            self.assertIn(f"Wants=hardware-tuning-{vendor}-{profile}.service", payload_read_text(target))
+                            self.assertNotIn(f"Requires=hardware-tuning-{vendor}-{profile}.service", payload_read_text(target))
                             self.assertIn(f"PartOf={vendor}-{profile}.target labwc-session.target", payload_read_text(service))
                             self.assertIn("Type=notify\nNotifyAccess=main", payload_read_text(service))
                             self.assertIn("TimeoutStartSec=370s", payload_read_text(service))
@@ -351,6 +434,48 @@ desktop_install_hardware_tuning
                 system_unit = payload_read_text(root / "etc/systemd/system/hardware-tuning.service")
                 self.assertIn("ExecStopPost=/usr/local/libexec/hardware-tuning-worker recover-all", system_unit)
                 self.assertEqual("CapabilityBoundingSet=CAP_SYS_ADMIN" in system_unit, "nvidia" in vendors)
+
+    @unittest.skipUnless(os.geteuid() == 0, "installer fixture requires root ownership")
+    def test_activation_failure_does_not_publish_tuning_units(self):
+        for failure in ("missing", "wrong-unit", "wrong-name", "direct-exec", "duplicate-field",
+                        "writable", "oversized", "symlink", "parent-symlink", "local-duplicate"):
+            with self.subTest(failure=failure), private_temp() as temporary:
+                root = Path(temporary)
+                packaged = package_activation(root)
+                activation = next(iter(packaged))
+                if failure == "missing":
+                    activation.unlink()
+                elif failure == "wrong-unit":
+                    activation.write_text(packaged[activation].replace("SystemdService=power-profiles-daemon.service",
+                                                                      "SystemdService=other.service"))
+                elif failure == "wrong-name":
+                    activation.write_text(packaged[activation].replace("Name=" + installer.POWER_PROFILE_NAMES[0],
+                                                                      "Name=org.example.Other"))
+                elif failure == "direct-exec":
+                    activation.write_text(packaged[activation].replace("Exec=/bin/false", "Exec=/fixture/untrusted"))
+                elif failure == "duplicate-field":
+                    activation.write_text(packaged[activation] + "User=root\n")
+                elif failure == "writable":
+                    activation.chmod(0o666)
+                elif failure == "oversized":
+                    activation.write_text("#" * (16 * 1024 + 1))
+                elif failure == "symlink":
+                    other = root / "owned-copy"
+                    activation.rename(other)
+                    activation.symlink_to(other)
+                elif failure == "parent-symlink":
+                    other = root / "owned-directory"
+                    activation.parent.rename(other)
+                    activation.parent.symlink_to(other, target_is_directory=True)
+                else:
+                    duplicate = root / f"usr/local/share/dbus-1/system-services/{activation.name}"
+                    duplicate.parent.mkdir(parents=True)
+                    duplicate.write_text("administrator-owned activation\n")
+                with self.assertRaises((ValueError, OSError)):
+                    installer.install(root, 1000, 1000, environment(), ["intel"], FORKY / "hooks/target")
+                self.assertFalse((root / "etc").exists())
+                if failure == "local-duplicate":
+                    self.assertEqual(duplicate.read_text(), "administrator-owned activation\n")
 
     def test_tuning_uses_only_supported_dash_prefix_families(self):
         self.assertEqual(installer.APPLICATIONS, {
@@ -552,6 +677,26 @@ class EngineTests(unittest.TestCase):
         with self.assertRaisesRegex(common.TuningError, "thermal"):
             self.make(settings).apply("high", settings)
         self.assertEqual(self.backend.writes, [])
+
+    def test_99_degree_guard_accepts_captured_93_and_preserves_apply_and_health_trip(self):
+        self.backend.add("x", "X", 1)
+        settings = {"X": ("9",) * 4}
+        policy = simple_policy(settings)
+        policy["max_temperature_c"] = 99
+        common.validate_policy(policy, settings)
+        work = engine.Engine(self.backend, self.path, policy)
+        self.backend.temperature_value = 93.0
+        work.apply("high", settings)
+        self.assertEqual(self.backend.values["x"], 9)
+        self.assertEqual(work.health()["conflicts"], [])
+        self.backend.temperature_value = 99.0
+        self.assertIn("thermal interlock: 99.0 C >= 99 C", work.health()["conflicts"])
+        work.reset()
+        self.assertEqual(self.backend.values["x"], 1)
+        writes = list(self.backend.writes)
+        with self.assertRaisesRegex(common.TuningError, "thermal"):
+            work.apply("high", settings)
+        self.assertEqual(self.backend.writes, writes)
 
     def test_positive_offset_requires_opt_in_and_temperature(self):
         self.backend.add("x", "X", 0, -200, 200, overclock=True)
@@ -1108,6 +1253,162 @@ class BrokerTests(unittest.IsolatedAsyncioTestCase):
         self.ac = patch.object(broker, "on_ac", return_value=True)
         self.ac.start()
         self.addCleanup(self.ac.stop)
+
+    async def test_automatic_policy_failure_is_logged_and_recovery_remains_fail_closed(self):
+        for initialize, recovery_failure in itertools.product((False, True), repeat=2):
+            with self.subTest(initialize=initialize, recovery_failure=recovery_failure):
+                work = FakeBroker()
+                work.boot_enabled = True
+                work.load = Mock(return_value=False)
+                work.autostart_enabled = Mock(return_value=True)
+                original_policy = work.policy
+                cause = "injected\npolicy handover failure\t" + "x" * 3000
+
+                async def policy(action):
+                    if action == "prepare-boot":
+                        raise common.TuningError(cause)
+                    if action == "stop" and recovery_failure:
+                        raise common.TuningError("injected recovery failure")
+                    return await original_policy(action)
+
+                work.policy = AsyncMock(side_effect=policy)
+                with self.assertLogs(broker.LOG, level="ERROR") as captured:
+                    if initialize:
+                        await work.initialize()
+                    else:
+                        await work.start_tuning(boot=True)
+                phase = "initialization" if initialize else "start"
+                expected = " ".join(work.policy_error.split())[:2048]
+                self.assertEqual([record.getMessage() for record in captured.records],
+                                 [f"automatic tuning {phase} failed: {expected}"])
+                self.assertNotIn("\n", expected)
+                self.assertNotIn("\t", expected)
+                self.assertEqual(len(expected), 2048)
+                self.assertIn(cause, work.policy_error)
+                self.assertEqual("recovery: injected recovery failure" in work.policy_error,
+                                 recovery_failure)
+                self.assertFalse(work.selection.automatic)
+                self.assertFalse(any(work.owned.values()))
+                self.assertEqual(work.policy_release, "stop" if recovery_failure else None)
+                self.assertEqual(work.calls, [(vendor, "reset", None)
+                                             for _ in range(2) for vendor in ("intel", "nvidia")])
+                self.assertEqual([call.args[0] for call in work.policy.await_args_list],
+                                 (["status"] if initialize else []) + ["prepare-boot", "stop"])
+
+    async def run_broker_with_monitor(self, monitor, close_error=None):
+        # No activation socket, signal handler or running manager is used.
+        server = Mock()
+        closing = []
+        server.close.side_effect = lambda: closing.append("listener")
+        server.abort_clients.side_effect = lambda: closing.append("clients")
+        writer = Mock()
+        async def closed():
+            self.assertEqual(closing, ["listener", "clients"])
+            self.assertTrue(self.work.stop.is_set())
+            writer.close.assert_called_once_with()
+            if close_error:
+                raise close_error
+        server.wait_closed = AsyncMock(side_effect=closed)
+        self.work.writers.add(writer)
+        self.work.applied = {vendor: "performance" for vendor in self.work.selection.vendors}
+        self.work.owned = {vendor: True for vendor in self.work.selection.vendors}
+        loop = asyncio.get_running_loop()
+        with patch.object(self.work, "initialize", AsyncMock()), \
+                patch.object(self.work, "poll", monitor), \
+                patch.object(broker.asyncio, "start_unix_server", AsyncMock(return_value=server)), \
+                patch.object(loop, "add_signal_handler"):
+            try:
+                await asyncio.wait_for(self.work.run(object()), 1)
+            finally:
+                self.assertTrue(self.work.stop.is_set())
+                writer.close.assert_called_once_with()
+                server.wait_closed.assert_awaited_once()
+
+    async def test_failed_health_monitor_restores_controls_and_propagates_failure(self):
+        error = OSError("injected health state publication failure")
+        with self.assertRaises(OSError) as caught:
+            await self.run_broker_with_monitor(AsyncMock(side_effect=error))
+        self.assertIs(caught.exception, error)
+        self.assertEqual(self.work.calls, [("intel", "reset", None), ("nvidia", "reset", None)])
+        self.assertEqual(self.work.applied, {"intel": None, "nvidia": None})
+        self.assertFalse(any(self.work.owned.values()))
+
+    async def test_unexpected_health_monitor_return_is_a_failure_after_recovery(self):
+        with self.assertRaisesRegex(common.TuningError, "health monitor stopped unexpectedly"):
+            await self.run_broker_with_monitor(AsyncMock())
+        self.assertEqual(self.work.calls, [("intel", "reset", None), ("nvidia", "reset", None)])
+
+    async def test_cancelled_health_monitor_restores_controls_and_preserves_cancellation(self):
+        with self.assertRaises(asyncio.CancelledError):
+            await self.run_broker_with_monitor(AsyncMock(side_effect=asyncio.CancelledError))
+        self.assertEqual(self.work.calls, [("intel", "reset", None), ("nvidia", "reset", None)])
+        self.assertFalse(any(self.work.owned.values()))
+
+    async def test_normal_stop_cancels_monitor_and_restores_controls(self):
+        cancelled = asyncio.Event()
+        async def monitor():
+            self.work.stop.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+        await self.run_broker_with_monitor(monitor)
+        self.assertTrue(cancelled.is_set())
+        self.assertEqual(self.work.calls, [("intel", "reset", None), ("nvidia", "reset", None)])
+
+    async def test_connection_close_timeout_still_restores_every_vendor(self):
+        async def monitor():
+            self.work.stop.set()
+        error = TimeoutError("injected connection close deadline")
+        with self.assertRaises(TimeoutError) as caught:
+            await self.run_broker_with_monitor(monitor, error)
+        self.assertIs(caught.exception, error)
+        self.assertEqual(self.work.calls, [("intel", "reset", None), ("nvidia", "reset", None)])
+        self.assertFalse(any(self.work.owned.values()))
+
+    async def test_shutdown_rejects_a_queued_request_before_policy_or_hardware_work(self):
+        reader, writer, peer = Mock(), Mock(), Mock()
+        received = asyncio.Event()
+        async def readline():
+            received.set()
+            return b'{"action":"auto-start","confirm_policy_owner":true}\n'
+        reader.readline = AsyncMock(side_effect=readline)
+        peer.getsockopt.return_value = broker.struct.pack("3i", 123, 1000, 1000)
+        writer.get_extra_info.return_value = peer
+        writer.drain, writer.wait_closed = AsyncMock(), AsyncMock()
+        await self.work.lock.acquire()
+        holding = True
+        serving = asyncio.create_task(self.work.serve(reader, writer))
+        try:
+            await asyncio.wait_for(received.wait(), 1)
+            self.work.stop.set()
+            self.work.lock.release()
+            holding = False
+            await asyncio.wait_for(serving, 1)
+        finally:
+            self.work.stop.set()
+            if holding:
+                self.work.lock.release()
+            serving.cancel()
+            await asyncio.gather(serving, return_exceptions=True)
+        self.assertFalse(self.work.calls)
+        self.assertFalse(self.work.policy_calls)
+        response = json.loads(writer.write.call_args.args[0])
+        self.assertFalse(response["ok"])
+        self.assertIn("stopping; request was not executed", response["error"])
+        self.assertEqual(self.work.connections, 0)
+        self.assertFalse(self.work.writers)
+
+    async def test_failed_monitor_keeps_service_failure_when_one_restore_fails(self):
+        self.work.fail = ("intel", "reset")
+        error = OSError("injected monitor failure")
+        with self.assertLogs(broker.LOG, level="ERROR") as logs, self.assertRaises(OSError) as caught:
+            await self.run_broker_with_monitor(AsyncMock(side_effect=error))
+        self.assertIs(caught.exception, error)
+        self.assertIn("shutdown recovery pending for intel", " ".join(logs.output))
+        self.assertEqual(self.work.calls, [("intel", "reset", None), ("nvidia", "reset", None)])
+        self.assertTrue(self.work.owned["intel"])
+        self.assertFalse(self.work.owned["nvidia"])
 
     async def test_public_profiles_apply_to_both_vendors_and_cancel_holds(self):
         self.work.config["power_profiles_api"] = True

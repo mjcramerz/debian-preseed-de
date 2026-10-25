@@ -75,10 +75,20 @@ def lease(vendor: str, profile: str) -> int:
         # The broker replies after reconciliation. A Type=notify lease keeps
         # the application's After= target ordering behind that completed work.
         if (not isinstance(result, dict) or not isinstance(result.get("faults"), dict)
-                or not isinstance(result.get("applied"), dict)):
+                or not isinstance(result.get("applied"), dict)
+                or vendor not in result["applied"]
+                or any(name not in (*VENDORS, "policy-owner") or not isinstance(reason, str)
+                       for name, reason in result["faults"].items())):
             raise TuningError("invalid lease reconciliation result")
-        if result["faults"]:
-            raise TuningError("hardware tuning lease was not applied; inspect hardware tuning status")
+        # A failed NVIDIA control must not reject an independently reconciled
+        # Intel lease (or vice versa). Policy ownership faults affect both.
+        faults = {name: " ".join(reason.split())[:2048]
+                  for name, reason in result["faults"].items()
+                  if name in (vendor, "policy-owner")}
+        if faults:
+            raise TuningError(json.dumps({"event": "tuning_lease_failed",
+                "correlation_id": uuid.uuid4().hex, "vendor": vendor,
+                "profile": profile, "faults": faults}, separators=(",", ":")))
         applied = result.get("applied", {}).get(vendor)
         if applied not in (*PROFILES, None):
             raise TuningError("invalid applied lease profile")

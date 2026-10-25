@@ -18,6 +18,7 @@ import tempfile
 
 PREFIXES = {"intel": "HARDWARE_INTEL_CPU_TUNING_", "nvidia": "HARDWARE_NVIDIA_GPU_TUNING_"}
 PROFILES = ("performance", "high", "balanced", "silent")
+POWER_PROFILE_NAMES = ("org.freedesktop.UPower.PowerProfiles", "net.hadess.PowerProfiles")
 # Actual systemd dash-prefix directories, NEVER literal '*' directory names.
 APPLICATIONS = {
     "labwc-native-.service": "high",
@@ -127,6 +128,54 @@ def enable(root: Path, target: str, unit: str) -> None:
     link.symlink_to(destination)
 
 
+def require_power_profiles_activation(root: Path) -> None:
+    """Read package activation as data before publishing the local unit drop-in."""
+    for name in POWER_PROFILE_NAMES:
+        duplicate = root / f"usr/local/share/dbus-1/system-services/{name}.service"
+        if duplicate.exists() or duplicate.is_symlink():
+            raise ValueError("duplicate local Power Profiles activation: " + name)
+        directory = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        try:
+            for part in (None, "usr", "share", "dbus-1", "system-services"):
+                if part is not None:
+                    child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                                    dir_fd=directory)
+                    os.close(directory)
+                    directory = child
+                info = os.fstat(directory)
+                if info.st_uid != 0 or info.st_mode & 0o022:
+                    raise ValueError("untrusted Power Profiles activation directory")
+            fd = os.open(name + ".service", os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
+                         dir_fd=directory)
+            with os.fdopen(fd, "rb") as stream:
+                info = os.fstat(stream.fileno())
+                if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or
+                        info.st_uid != 0 or info.st_mode & 0o022 or info.st_size > 16 * 1024):
+                    raise ValueError("untrusted Power Profiles activation file: " + name)
+                data = stream.read(16 * 1024 + 1)
+                if len(data) > 16 * 1024:
+                    raise ValueError("oversized Power Profiles activation file: " + name)
+        finally:
+            os.close(directory)
+        fields, section = {}, False
+        for line in data.decode("utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith(("#", ";")):
+                continue
+            if line == "[D-BUS Service]" and not section:
+                section = True
+                continue
+            if not section or "=" not in line or line.startswith("["):
+                raise ValueError("invalid Power Profiles activation structure: " + name)
+            key, value = (item.strip() for item in line.split("=", 1))
+            if key in fields:
+                raise ValueError("duplicate Power Profiles activation field: " + name)
+            fields[key] = value
+        if fields != {"Name": name, "Exec": "/bin/false", "User": "root",
+                      "SystemdService": "power-profiles-daemon.service"}:
+            raise ValueError("incompatible packaged Power Profiles activation: " + name)
+
+
 def install(root: Path, uid: int, gid: int, environment: dict, vendors: list[str],
             templates: Path) -> list[str]:
     from broker import validate_config
@@ -149,6 +198,8 @@ def install(root: Path, uid: int, gid: int, environment: dict, vendors: list[str
         module = importlib.import_module(vendor)
         policies[vendor] = policy(environment, vendor, module.SETTINGS)
     autostart = boolean(environment["HARDWARE_TUNING_AUTOSTART_ENABLE"])
+    if config["power_profiles_api"]:
+        require_power_profiles_activation(root)
     files = []
     def put(relative, text, mode=0o644):
         publish(root, relative, text, mode)
@@ -195,10 +246,9 @@ def install(root: Path, uid: int, gid: int, environment: dict, vendors: list[str
         values = {"HARDWARE_UID": str(uid), "HARDWARE_GID": str(gid)}
         put_template("etc/systemd/system/power-profiles-daemon.service.d/50-hardware-tuning.conf", values)
         put_template("etc/dbus-1/system.d/90-hardware-tuning-power-profiles.conf", values)
-        for name in ("org.freedesktop.UPower.PowerProfiles", "net.hadess.PowerProfiles"):
-            put_template(f"usr/local/share/dbus-1/system-services/{name}.service", values)
         # The existing desktop service stage enables the vendor unit offline.
-        # Keep its package-owned unit/enablement; install only this local drop-in.
+        # Its two package activation files already select this same unit.
+        # Keep package files/enablement and install only the local drop-in/policy.
     for vendor in vendors:
         for profile in PROFILES:
             put_template(f"etc/systemd/user/{vendor}-{profile}.target")

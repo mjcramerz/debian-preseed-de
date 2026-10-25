@@ -271,7 +271,7 @@ os.write(1,b'closed; stdout retained')
 
 
 class AtomicKMS(unittest.TestCase):
-    def test_legacy_kms_is_selected_by_profile_without_hostname_allowlist(self):
+    def test_all_shipped_profiles_default_to_atomic_without_hostname_allowlist(self):
         paths = (TARGET/'etc/labwc/desktop.conf.tmpl',
                  TARGET/'usr/local/bin/labwc-session.tmpl',
                  TARGET.parents[1]/'scripts/desktop/components.sh', TARGET.parents[1]/'scripts/desktop/detect.sh')
@@ -281,11 +281,48 @@ class AtomicKMS(unittest.TestCase):
         profiles = TARGET.parents[1]/'hosts/profiles'
         selected = [p.name for p in profiles.glob('*.env')
                     if 'LABWC_WLR_DRM_NO_ATOMIC="1"' in p.read_text()]
-        self.assertEqual(sorted(selected), ['btrfs-de-flex-duo.env', 'btrfs-de-flex.env'])
+        self.assertEqual(selected, [])
         session = payload_read_text(TARGET/'usr/local/bin/labwc-session.tmpl')
         self.assertIn('0) ;;', session)
         self.assertIn('1) export WLR_DRM_NO_ATOMIC=1 ;;', session)
         self.assertNotIn('LPL-264', render_theme_defaults(payload_read_text(TARGET/'usr/local/bin/labwc-session.tmpl')))
+
+    def test_environment_import_omits_unset_overrides_but_keeps_exported_empty_values(self):
+        text = payload_read_text(TARGET/'usr/local/bin/labwc-session.tmpl')
+        snippet = text.split('# Import static values only;', 1)[1].split('\n', 1)[1]
+        snippet = snippet.split('\nlabwc_status=', 1)[0]
+        # No manager, socket, home, host PATH or native compositor is used.
+        # The only real external helper reads the fixture's explicit environment.
+        prefix = '''fixture_timeout() { shift; shift; "$@"; }
+fixture_systemctl() { printf '%s\\n' "$@"; }
+systemctl_cmd=fixture_systemctl
+compositor_environment_names='PATH WLR_DRM_NO_ATOMIC WLR_RENDERER'
+'''
+        snippet = snippet.replace('/usr/bin/timeout', 'fixture_timeout').replace(' 9>&-', '')
+        cases = (({}, ['PATH']),
+                 ({'WLR_DRM_NO_ATOMIC': '1', 'WLR_RENDERER': ''},
+                  ['PATH', 'WLR_DRM_NO_ATOMIC', 'WLR_RENDERER']))
+        for exported, expected in cases:
+            with self.subTest(exported=exported):
+                result = subprocess.run(['/bin/sh', '-eu', '-c', prefix + snippet],
+                    env={'PATH': '/fixture/bin', **exported}, stdin=subprocess.DEVNULL,
+                    capture_output=True, text=True, timeout=3)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.splitlines(), ['--user', 'import-environment', *expected])
+                self.assertEqual(result.stderr, '')
+        for replacement in ('fixture_printenv() { return 2; }\n',
+                            "compositor_environment_names='WLR_DRM_NO_ATOMIC'\n"):
+            # Both lookup failure and an empty allowlist must refuse import;
+            # systemctl with no names would import the complete environment.
+            failed_snippet = snippet
+            if 'return 2' in replacement:
+                failed_snippet = failed_snippet.replace('/usr/bin/printenv', 'fixture_printenv')
+            result = subprocess.run(['/bin/sh', '-eu', '-c', prefix + replacement + failed_snippet],
+                env={'PATH': '/fixture/bin'}, stdin=subprocess.DEVNULL,
+                capture_output=True, text=True, timeout=3)
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(result.stdout, '')
+            self.assertIn('fatal:', result.stderr)
 
     def test_inherited_override_is_cleared_before_profile_value_is_imported(self):
         text = render_theme_defaults(payload_read_text(TARGET/'usr/local/bin/labwc-session.tmpl'))

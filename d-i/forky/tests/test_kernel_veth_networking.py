@@ -776,6 +776,76 @@ class LeaseRecoveryTests(unittest.TestCase):
 
 
 class CommandResultTests(unittest.TestCase):
+    def test_snapshot_json_excludes_successful_command_stderr(self):
+        def result(argv, **options):
+            self.assertIsNot(options['stdout'], options['stderr'])
+            self.assertEqual(options['env'], broker.ENV)
+            self.assertEqual(options['stdin'], subprocess.DEVNULL)
+            options['stderr'].write(b'Warning: fixture network changed.\n')
+            options['stdout'].write(b'[{"ifname":"fixture0"}]\n')
+            return types.SimpleNamespace(returncode=0)
+        with mock.patch.object(broker.subprocess, 'run', side_effect=result):
+            self.assertEqual(broker.ip_snapshot(['/usr/sbin/ip', '-j', 'link', 'show']),
+                             [{'ifname': 'fixture0'}])
+
+    def test_interrupted_snapshot_is_discarded_before_bounded_read_only_retry(self):
+        command = ['/usr/sbin/ip', '-j', '-4', 'route', 'show', 'scope', 'link']
+        attempts = []
+        def result(argv, **options):
+            attempts.append(argv)
+            options['stdout'].write(b'[{"dst":"192.0.2.0/24"}]' if len(attempts) == 1 else b'[]')
+            if len(attempts) == 1:
+                options['stderr'].write(b'Dump was interrupted and may be inconsistent.\n')
+            return types.SimpleNamespace(returncode=0)
+        with mock.patch.object(broker.subprocess, 'run', side_effect=result) as commands, \
+                mock.patch.object(broker.time, 'monotonic', side_effect=[100, 100, 103]):
+            self.assertEqual(broker.ip_snapshot(command), [])
+        self.assertEqual(attempts, [command, command])
+        self.assertEqual([call.kwargs['timeout'] for call in commands.call_args_list], [5, 2])
+
+    def test_interruptions_stop_at_attempt_or_total_deadline_limit(self):
+        command = ['/usr/sbin/ip', '-j', 'link', 'show']
+        for ticks, expected in (([100, 100, 101, 102], 3), ([100, 100, 105], 1)):
+            with self.subTest(ticks=ticks), \
+                    mock.patch.object(broker, 'run', side_effect=broker.SnapshotInterrupted('fixture')) as run, \
+                    mock.patch.object(broker.time, 'monotonic', side_effect=ticks):
+                with self.assertRaises(RuntimeError):
+                    broker.ip_snapshot(command)
+                self.assertEqual(run.call_count, expected)
+
+    def test_malformed_or_wrong_shape_snapshot_is_not_retried_or_logged(self):
+        for data in ('', 'fixture-private-payload', '{}', '[null]', '[1]'):
+            with self.subTest(data=data), mock.patch.object(broker, 'run', return_value=data) as run:
+                with self.assertRaises(ValueError) as failure:
+                    broker.ip_snapshot(['/usr/sbin/ip', '-j', 'link', 'show'])
+                self.assertNotIn('fixture-private-payload', str(failure.exception))
+                run.assert_called_once()
+
+    def test_command_errors_and_oversized_snapshots_fail_without_retry(self):
+        for status, stdout, stderr in ((2, b'[]', b'fixture-sensitive-error'),
+                                        (0, b'x' * (broker.MAX_COMMAND_OUTPUT_BYTES + 1), b''),
+                                        (0, b'[]', b'x' * broker.MAX_COMMAND_OUTPUT_BYTES)):
+            def result(argv, **options):
+                options['stdout'].write(stdout)
+                options['stderr'].write(stderr)
+                return types.SimpleNamespace(returncode=status)
+            with self.subTest(status=status, stdout_bytes=len(stdout), stderr_bytes=len(stderr)), \
+                    mock.patch.object(broker.subprocess, 'run', side_effect=result) as run:
+                with self.assertRaises(RuntimeError) as failure:
+                    broker.ip_snapshot(['/usr/sbin/ip', '-j', 'link', 'show'])
+                self.assertNotIn('fixture-sensitive-error', str(failure.exception))
+                run.assert_called_once()
+
+    def test_mutation_is_never_retried_as_a_snapshot(self):
+        command = ['/usr/sbin/ip', 'link', 'set', 'dev', 'fixture0', 'down']
+        def result(argv, **options):
+            options['stderr'].write(b'Dump was interrupted and may be inconsistent.\n')
+            return types.SimpleNamespace(returncode=2)
+        with mock.patch.object(broker.subprocess, 'run', side_effect=result) as run:
+            with self.assertRaises(RuntimeError):
+                broker.run(command)
+        run.assert_called_once()
+
     def test_empty_conntrack_delete_is_distinguished_from_administrative_errors(self):
         command = ['/usr/sbin/conntrack', '-D', '-f', 'ipv4', '--orig-src', '10.203.0.114']
         cases = ((1, b'conntrack v1.4.9 (conntrack-tools): 0 flow entries have been deleted.\n', True),

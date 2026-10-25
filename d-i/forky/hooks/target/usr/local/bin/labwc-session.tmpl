@@ -158,9 +158,8 @@ unset WLR_NO_HARDWARE_CURSORS
 unset WLR_SCENE_DISABLE_DIRECT_SCANOUT
 [ -z "$session_wlr_scene_disable_direct_scanout" ] || export WLR_SCENE_DISABLE_DIRECT_SCANOUT="$session_wlr_scene_disable_direct_scanout"
 
-# Only the installer-selected profile may select legacy KMS. The Flex 5 Intel
-# panel reports repeated atomic EBUSY commits with direct scanout and hardware
-# cursors disabled. Other profiles retain atomic KMS.
+# Atomic KMS is the shipped default. Only an explicit administrator setting
+# may select the legacy DRM interface; inherited overrides are discarded.
 unset WLR_DRM_NO_ATOMIC
 case "${LABWC_WLR_DRM_NO_ATOMIC:-__INSTALLER_LABWC_WLR_DRM_NO_ATOMIC__}" in
   0) ;;
@@ -318,7 +317,7 @@ systemctl_cmd=$(command -v systemctl 2>/dev/null || true)
   printf 'fatal: systemctl is required to manage the Labwc compositor session\n' >&2
   exit 1
 }
-cleanup_environment_names="WLR_DRM_NO_ATOMIC LABWC_SESSION_OWNER LABWC_SESSION_UID LABWC_PID WAYLAND_DISPLAY SWAYSOCK XDG_SESSION_TYPE XDG_SESSION_DESKTOP DESKTOP_SESSION XDG_CURRENT_DESKTOP ${labwc_x11_environment_names} SSH_AUTH_SOCK SSH_AGENT_PID"
+cleanup_environment_names="WLR_DRM_NO_ATOMIC WLR_RENDERER GSK_RENDERER WLR_NO_HARDWARE_CURSORS WLR_SCENE_DISABLE_DIRECT_SCANOUT LABWC_SESSION_OWNER LABWC_SESSION_UID LABWC_PID WAYLAND_DISPLAY SWAYSOCK XDG_SESSION_TYPE XDG_SESSION_DESKTOP DESKTOP_SESSION XDG_CURRENT_DESKTOP ${labwc_x11_environment_names} SSH_AUTH_SOCK SSH_AGENT_PID"
 compositor_environment_names='PATH LABWC_SESSION_UID LABWC_SESSION_OWNER DESKTOP_SESSION XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS XDG_CONFIG_DIRS XDG_DATA_HOME XDG_DATA_DIRS MOZ_ENABLE_WAYLAND ELECTRON_OZONE_PLATFORM_HINT QT_QPA_PLATFORM QT_QPA_PLATFORMTHEME QT_WAYLAND_DISABLE_WINDOWDECORATION QT_OPENGL QSG_RHI_BACKEND GDK_BACKEND GDK_DISABLE SDL_VIDEODRIVER SDL_RENDER_DRIVER CLUTTER_BACKEND ANGLE_DEFAULT_PLATFORM WGPU_BACKEND XCURSOR_THEME XCURSOR_SIZE GTK_A11Y NO_AT_BRIDGE WLR_RENDERER GSK_RENDERER WLR_NO_HARDWARE_CURSORS WLR_SCENE_DISABLE_DIRECT_SCANOUT WLR_DRM_NO_ATOMIC SSH_AUTH_SOCK'
 
 # The login wrapper owns the lock, never its systemctl children. A killed
@@ -364,9 +363,28 @@ trap 'exit 143' TERM
 # Drop a pause left by an interrupted previous desktop login before clients start.
 /usr/bin/rm -f -- "$XDG_RUNTIME_DIR/labwc-idle.json" 9>&- || exit 1
 # Import static values only; autostart adds the actual Wayland socket and PID.
+# Optional rendering overrides are intentionally unset for driver defaults.
+# Import only exported names so systemctl does not warn that atomic KMS's
+# absent WLR_DRM_NO_ATOMIC override is missing. Never inspect/log their values.
+set --
 # shellcheck disable=SC2086
+for environment_name in $compositor_environment_names; do
+  if /usr/bin/printenv "$environment_name" >/dev/null; then
+    set -- "$@" "$environment_name"
+  else
+    environment_status=$?
+    [ "$environment_status" -eq 1 ] || {
+      printf 'fatal: unable to inspect compositor environment variable %s\n' "$environment_name" >&2
+      exit 1
+    }
+  fi
+done
+[ "$#" -gt 0 ] || {
+  printf 'fatal: no exported compositor environment variables were selected\n' >&2
+  exit 1
+}
 /usr/bin/timeout --kill-after=1s 10s "$systemctl_cmd" --user \
-  import-environment $compositor_environment_names 9>&- || exit 1
+  import-environment "$@" 9>&- || exit 1
 
 labwc_status=0
 "$systemctl_cmd" --user --wait start labwc-compositor.service 9>&- &

@@ -10,6 +10,7 @@ _isolation_sys.path.pop(0)
 _require_test_isolation()
 
 import os
+import json
 from pathlib import Path
 import socket
 import unittest
@@ -493,6 +494,41 @@ class NvidiaConditionalSetters(unittest.TestCase):
 
 
 class LeaseReadiness(unittest.TestCase):
+    def test_unrelated_vendor_fault_does_not_reject_a_reconciled_lease(self):
+        for vendor, other in (("intel", "nvidia"), ("nvidia", "intel")):
+            channel = Mock()
+            channel.recv.return_value = b""
+            result = {"faults": {other: "fixture driver rejected"}, "applied": {vendor: "high"}}
+            with self.subTest(vendor=vendor), \
+                    patch.object(base.client, "connect_request", return_value=(channel, result)), \
+                    patch.object(base.client.socket, "socket") as notification, \
+                    patch.dict(os.environ, {"NOTIFY_SOCKET": "/fixture/notify"}, clear=True):
+                self.assertEqual(base.client.lease(vendor, "balanced"), 1)
+            sent = notification.return_value.__enter__.return_value.sendto.call_args.args
+            self.assertEqual(sent, (f"READY=1\nSTATUS=Requested {vendor} balanced; applied high".encode(),
+                                    "/fixture/notify"))
+            channel.close.assert_called_once()
+
+    def test_relevant_fault_reports_bounded_cause_without_notifying_ready(self):
+        for fault in ("intel", "policy-owner"):
+            channel = Mock()
+            result = {"faults": {fault: "fixture driver\nrejected\t" + "x" * 3000},
+                      "applied": {"intel": None}}
+            with self.subTest(fault=fault), \
+                    patch.object(base.client, "connect_request", return_value=(channel, result)), \
+                    patch.object(base.client.socket, "socket") as notification, \
+                    patch.dict(os.environ, {"NOTIFY_SOCKET": "/fixture/notify"}, clear=True):
+                with self.assertRaises(base.common.TuningError) as failure:
+                    base.client.lease("intel", "balanced")
+            event = json.loads(str(failure.exception))
+            self.assertEqual(event['event'], 'tuning_lease_failed')
+            self.assertEqual((event['vendor'], event['profile']), ('intel', 'balanced'))
+            self.assertEqual(len(event['correlation_id']), 32)
+            self.assertTrue(event['faults'][fault].startswith('fixture driver rejected '))
+            self.assertEqual(len(event['faults'][fault]), 2048)
+            notification.assert_not_called()
+            channel.close.assert_called_once()
+
     def test_ready_follows_reconciled_reply_and_reports_actual_manual_selection(self):
         with base.private_temp() as temporary:
             address = str(Path(temporary) / "notify")
@@ -511,6 +547,9 @@ class LeaseReadiness(unittest.TestCase):
 
     def test_fault_or_invalid_reply_never_sends_ready_and_closes_lease(self):
         for result in ({"faults": {"intel": "driver rejected"}, "applied": {"intel": None}},
+                       {"faults": {"policy-owner": "handoff rejected"}, "applied": {"intel": None}},
+                       {"faults": {"nvidia": []}, "applied": {"intel": "high"}},
+                       {"faults": {}, "applied": {}},
                        {"faults": {}, "applied": []},
                        {"faults": {}, "applied": {"intel": "unverified"}}):
             with self.subTest(result=result):

@@ -431,6 +431,16 @@ class TomatVersionedUpdaterTests(unittest.TestCase):
                 self.assertEqual(result['version'], '2.13.0-1')
                 self.assertEqual(result['sha256'], SHA256)
 
+    def test_vendor_seed_url_selects_the_versioned_release_asset(self):
+        # Consume the bridge's actual literal default, rather than supplying a
+        # second hand-written update URL that could drift from installation.
+        source = (FORKY / 'hooks/target/usr/local/libexec/apt-repo-local-vendor').read_text()
+        match = re.search(r"\$defaults\{tomat\} = \{[^\n]*url => '([^']+)'", source)
+        self.assertIsNotNone(match)
+        result = self.discover(url=match[1])
+        self.assertEqual((result['url'], result['version'], result['sha256']),
+                         (URL, '2.13.0-1', SHA256))
+
     def test_old_unversioned_catalogue_hint_is_rejected(self):
         with self.assertRaises(self.mod.Error):
             self.discover(url='https://github.com/jolars/tomat/releases/latest/download/tomat_amd64.deb')

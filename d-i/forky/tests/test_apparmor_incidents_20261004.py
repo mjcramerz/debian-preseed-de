@@ -31,6 +31,8 @@ INCIDENTS = json.loads((SEED / 'tests/fixtures/installed-apparmor-20261004.json'
 OCTOBER_9 = json.loads((SEED / 'tests/fixtures/installed-apparmor-20261009.json').read_text(encoding='utf-8'))
 OCTOBER_12 = json.loads((SEED / 'tests/fixtures/installed-apparmor-20261012.json').read_text(encoding='utf-8'))
 OCTOBER_16 = json.loads((SEED / 'tests/fixtures/installed-apparmor-20261016.json').read_text(encoding='utf-8'))
+OCTOBER_25 = json.loads((SEED / 'tests/fixtures/installed-apparmor-20261025.json').read_text(encoding='utf-8'))
+OCTOBER_25_HARDWARE = json.loads((SEED / 'tests/fixtures/installed-apparmor-20261025-hardware.json').read_text(encoding='utf-8'))
 
 
 def body(file, label):
@@ -55,6 +57,82 @@ def chatgpt_handoff_paths():
             for directory in ('', 'preview-X/', 'some nested/child/')
             for filename in ('archive.tar.gz', 'document.pdf', 'image.png', 'no-extension',
                              '.partial', 'a file.txt', 'literal[brackets].txt')]
+
+
+class CalendarProcessMetadataDenialsTests(unittest.TestCase):
+    def test_complete_october_25_capture_and_exact_profile_grants(self):
+        self.assertEqual(OCTOBER_25['record_counts'], {'STATUS': 451, 'DENIED': 504})
+        self.assertEqual(OCTOBER_25['managed_capture']['record_counts'], {'STATUS': 451, 'DENIED': 80})
+        self.assertEqual(sum(row['count'] for row in OCTOBER_25['file_requests']), 504)
+        self.assertEqual({name: sum(row['count'] for row in OCTOBER_25['file_requests']
+                                   if row['profile'] == name) for name in ('waycal', 'calix')},
+                         {'waycal': 160, 'calix': 344})
+        for name, expected in (('waycal', 'owner @{PROC}/@{pid}/cmdline r,'),
+                               ('calix', 'owner @{PROC}/@{pid}/{cmdline,stat} r,')):
+            grants = [line.strip() for line in body('calendars', name).splitlines()
+                      if line.strip().startswith('owner @{PROC}/@{pid}/')]
+            self.assertEqual(grants, [expected])
+
+    @unittest.skipUnless(importlib.util.find_spec('apparmor'), 'native AppArmor rule reader unavailable')
+    def test_reported_owned_read_does_not_grant_writes_or_other_proc_files(self):
+        from apparmor.rule.file import FileRule
+        # Expand only the two upstream tunables used by this exact grant.
+        # This is source coverage, not evidence of kernel-loaded policy.
+        for name in ('waycal', 'calix'):
+            policy = body('calendars', name)
+            rules = [FileRule.create_instance(line.strip().replace('@{PROC}', '/proc')
+                                             .replace('@{pid}', '[0-9]*'))
+                     for line in policy.splitlines()
+                     if line.strip().startswith('owner @{PROC}/@{pid}/')]
+            self.assertTrue(rules)
+            for row in OCTOBER_25['file_requests']:
+                if row['profile'] != name:
+                    continue
+                with self.subTest(profile=name, request=row['name']):
+                    request = FileRule.create_instance('owner ' + row['name'] + ' r,')
+                    self.assertTrue(any(rule.is_covered(request) for rule in rules))
+                    # Removing owner would allow cross-account reads.
+                    self.assertFalse(any(rule.is_covered(FileRule.create_instance(row['name'] + ' r,'))
+                                         for rule in rules))
+            for request in OCTOBER_25['excluded_requests']:
+                self.assertFalse(any(rule.is_covered(FileRule.create_instance('owner ' + request))
+                                     for rule in rules))
+
+
+class HardwareTuningNvmlDenialsTests(unittest.TestCase):
+    def test_complete_replacement_capture_and_vendor_only_authority(self):
+        self.assertEqual(OCTOBER_25_HARDWARE['record_counts'], {'STATUS': 451, 'DENIED': 42})
+        self.assertEqual(sum(row['count'] for row in OCTOBER_25_HARDWARE['file_requests']), 42)
+        self.assertEqual({row['profile'] for row in OCTOBER_25_HARDWARE['file_requests']},
+                         {'hardware-tuning-worker'})
+        worker = body('hardware-tuning', 'hardware-tuning-worker')
+        self.assertIn('include if exists <abstractions/hardware-tuning-nvidia>', worker)
+        for label in ('hardware-tuning-broker', 'hardware-tuning-client',
+                      'hardware-tuning-policy', 'hardware-tuning-power-profiles'):
+            self.assertNotIn('<abstractions/hardware-tuning-nvidia>', body('hardware-tuning', label))
+        policy = read_text(AA / 'abstractions/hardware-tuning-nvidia')
+        self.assertIn('/dev/char/{195:0,195:255,234:0,234:1} w,', policy)
+        self.assertNotIn('/dev/char/**', policy)
+        self.assertNotIn('capability mknod,', policy)
+
+    @unittest.skipUnless(importlib.util.find_spec('apparmor'), 'native AppArmor rule reader unavailable')
+    def test_reported_requests_are_covered_without_unrelated_device_or_proc_writes(self):
+        from apparmor.rule.file import FileRule
+        policy = read_text(AA / 'abstractions/hardware-tuning-nvidia')
+        rules = [FileRule.create_instance(line.strip().replace('@{pid}', '[0-9]*')
+                                         .replace('@{tid}', '[0-9]*'))
+                 for line in policy.splitlines()
+                 if line.strip().startswith(('/', 'owner /'))]
+        for row in OCTOBER_25_HARDWARE['file_requests']:
+            # AppArmor's file 'w' permission covers create and unlink audit bits.
+            access = ''.join(sorted(set(row['requested_mask'].replace('c', 'w').replace('d', 'w'))))
+            request = ('owner ' if '/task/' in row['name'] else '') + row['name'] + ' ' + access + ','
+            with self.subTest(request=request):
+                self.assertTrue(any(rule.is_covered(FileRule.create_instance(request)) for rule in rules))
+        for request in OCTOBER_25_HARDWARE['excluded_requests']:
+            with self.subTest(excluded=request):
+                self.assertFalse(any(rule.is_covered(FileRule.create_instance('owner ' + request))
+                                     for rule in rules))
 
 
 class MullvadLauncherDenialsTests(unittest.TestCase):

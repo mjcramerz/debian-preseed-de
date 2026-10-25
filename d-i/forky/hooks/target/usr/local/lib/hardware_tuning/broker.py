@@ -377,6 +377,7 @@ class Broker:
             await self.stop_tuning(disable=boot and not old_boot, clear_faults=False)
             self.policy_error = (message + ("; recovery: " + self.policy_error if self.policy_error else ""))[:8192]
             self.save()
+            LOG.error("automatic tuning start failed: %s", " ".join(self.policy_error.split())[:2048])
 
     async def initialize(self) -> None:
         recovered = self.load()
@@ -406,6 +407,7 @@ class Broker:
                     message = str(exc)
                     await self.stop_tuning(clear_faults=False)
                     self.policy_error = (message + ("; recovery: " + self.policy_error if self.policy_error else ""))[:8192]
+                    LOG.error("automatic tuning initialization failed: %s", " ".join(self.policy_error.split())[:2048])
             elif any(self.selection.manual.values()):
                 if self.selection.manual.get("intel") is not None:
                     await self.policy("prepare-runtime")
@@ -590,6 +592,8 @@ class Broker:
             request = self.validate_request(decode(line))
             self.rate_limit(uid, request["action"])
             async with self.control_lock():
+                if self.stop.is_set():
+                    raise TuningError("hardware controller stopping; request was not executed")
                 if request["action"] == "power-hold":
                     if uid != self.config["uid"] or not self.seat.active():
                         raise TuningError("power holds require the active configured desktop account")
@@ -663,18 +667,40 @@ class Broker:
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, self.stop.set)
         ticker = asyncio.create_task(self.poll())
-        async with server:
-            await self.stop.wait()
-        ticker.cancel()
-        await asyncio.gather(ticker, return_exceptions=True)
-        for writer in list(self.writers):
-            writer.close()
-        async with self.lock:
-            for vendor in self.selection.vendors:
-                try:
-                    await self.restore(vendor)
-                except Exception as exc:
-                    LOG.error("shutdown recovery pending for %s: %s", vendor, exc)
+        stopping = asyncio.create_task(self.stop.wait())
+        try:
+            completed, _ = await asyncio.wait((ticker, stopping), return_when=asyncio.FIRST_COMPLETED)
+            if ticker in completed:
+                # A dead monitor must not leave owned controls active in
+                # an apparently healthy broker. Propagate its failure so
+                # systemd runs recovery and the existing bounded restart.
+                await ticker
+                if not self.stop.is_set():
+                    raise TuningError("hardware health monitor stopped unexpectedly")
+        finally:
+            # Prevent closing lease handlers from applying another profile
+            # while the broker restores hardware on failure or cancellation.
+            self.stop.set()
+            ticker.cancel()
+            stopping.cancel()
+            try:
+                # Python 3.14 waits for clients in Server.wait_closed(). Close
+                # the listener first, then every accepted transport (including
+                # ones whose handler has not entered serve() yet), BEFORE wait.
+                server.close()
+                server.abort_clients()
+                for writer in list(self.writers):
+                    writer.close()
+                await asyncio.gather(ticker, stopping, return_exceptions=True)
+                await asyncio.wait_for(server.wait_closed(), 5)
+            finally:
+                # A failed/expired connection close must not skip restoration.
+                async with self.lock:
+                    for vendor in self.selection.vendors:
+                        try:
+                            await self.restore(vendor)
+                        except Exception as exc:
+                            LOG.error("shutdown recovery pending for %s: %s", vendor, exc)
         # ExecStopPost verifies hardware recovery again, then the separately
         # confined policy helper restores PPD (never during system shutdown).
 

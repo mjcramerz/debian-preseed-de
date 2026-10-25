@@ -99,29 +99,67 @@ class NetworkCleanupError(RuntimeError):
     """Keep the firewall guards installed when kernel cleanup did not finish."""
 
 
+class SnapshotInterrupted(RuntimeError):
+    """iproute2 returned an incomplete dump while links/routes were changing."""
+
+
 def run(argv: list[str], *, data: str | None = None, fds: tuple[int, ...] = (),
-        empty_conntrack_delete: bool = False) -> str:
+        empty_conntrack_delete: bool = False, snapshot: bool = False,
+        timeout: float = 5) -> str:
     # Fixed administrative executables and validated scalar arguments only.
-    with tempfile.TemporaryFile() as output:
+    # Never mix stderr warnings into iproute2's JSON on stdout. In particular,
+    # an interrupted netlink dump can still exit zero during boot/link churn.
+    with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as errors:
         result = subprocess.run(argv, input=data.encode("ascii") if data is not None else None,
                                 stdin=subprocess.DEVNULL if data is None else None,
                                 # Deletion prints every retired flow on stdout;
                                 # keep only its small stderr result/diagnostic.
                                 stdout=subprocess.DEVNULL if empty_conntrack_delete else output,
-                                stderr=output, timeout=5, env=ENV,
+                                stderr=errors, timeout=timeout, env=ENV,
                                 pass_fds=fds, check=False)
         output.seek(0)
         text = output.read(MAX_COMMAND_OUTPUT_BYTES + 1)
+        errors.seek(0)
+        error_text = errors.read(MAX_COMMAND_OUTPUT_BYTES + 1)
     # conntrack -D reports status 1 for an empty selection as well as errors.
     # Accept only its exact empty-result summary, never arbitrary status 1.
     empty_delete = (empty_conntrack_delete and argv[:2] == ["/usr/sbin/conntrack", "-D"]
                     and result.returncode == 1 and re.fullmatch(
                         rb"conntrack v[0-9][0-9A-Za-z.+:~_-]* \(conntrack-tools\): "
-                        rb"0 flow entries have been deleted\.\n?", text) is not None)
-    if (result.returncode and not empty_delete) or len(text) > MAX_COMMAND_OUTPUT_BYTES:
-        diagnostic = " ".join(text.decode("ascii", errors="replace").split())[:512]
-        raise RuntimeError(f"{Path(argv[0]).name} failed (status {result.returncode}): {diagnostic}")
-    return text.decode("ascii")
+                        rb"0 flow entries have been deleted\.\n?", error_text) is not None)
+    if ((result.returncode and not empty_delete)
+            or len(text) + len(error_text) > MAX_COMMAND_OUTPUT_BYTES):
+        # No raw command output: it can contain network identities or hostile
+        # interface aliases. The fixed executable/status retain useful context.
+        raise RuntimeError(f"{Path(argv[0]).name} failed (status {result.returncode}, "
+                           f"output_limit={len(text) + len(error_text) > MAX_COMMAND_OUTPUT_BYTES})")
+    if snapshot and b"Dump was interrupted and may be inconsistent." in error_text.splitlines():
+        raise SnapshotInterrupted("iproute2 snapshot interrupted by a network change")
+    return (error_text if empty_conntrack_delete else text).decode("ascii")
+
+
+def ip_snapshot(argv: list[str], *, fds: tuple[int, ...] = ()) -> list[dict]:
+    # Retry only this explicit read operation, never link/firewall mutations.
+    # A single deadline covers all attempts and the final subprocess wait.
+    deadline = time.monotonic() + 5
+    for attempt in range(3):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError("iproute2 snapshot deadline expired")
+        try:
+            text = run(argv, fds=fds, snapshot=True, timeout=remaining)
+        except SnapshotInterrupted:
+            if attempt == 2:
+                raise
+            continue
+        try:
+            rows = json.loads(text)
+        except (ValueError, UnicodeError) as exc:
+            raise ValueError("iproute2 snapshot did not return valid JSON") from exc
+        if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+            raise ValueError("iproute2 snapshot must contain a list of objects")
+        return rows
+    raise RuntimeError("iproute2 snapshot attempts exhausted")
 
 
 def nft(data: str) -> None:
@@ -148,10 +186,10 @@ def lan_networks() -> tuple[str, ...]:
         "0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8",
         "169.254.0.0/16", "172.16.0.0/12", "192.168.0.0/16",
         "198.18.0.0/15", "224.0.0.0/4", "240.0.0.0/4")]
-    rows = json.loads(run(["/usr/sbin/ip", "-j", "-4", "route", "show", "scope", "link"]))
+    rows = ip_snapshot(["/usr/sbin/ip", "-j", "-4", "route", "show", "scope", "link"])
     if not isinstance(rows, list):
         raise ValueError("invalid connected LAN routes")
-    links = json.loads(run(["/usr/sbin/ip", "-j", "-d", "link", "show"]))
+    links = ip_snapshot(["/usr/sbin/ip", "-j", "-d", "link", "show"])
     tunnels = {row["ifname"] for row in links
                if row.get("linkinfo", {}).get("info_kind") in {"wireguard", "tun", "ipip", "sit", "gre", "ip6gre"}}
     for row in rows:
@@ -195,7 +233,7 @@ def route_interface(item) -> tuple[str, str, int, bool]:
     address = ipaddress.IPv4Address(item.get("prefsrc", item.get("src", "")))
     if address.is_loopback or address.is_unspecified or address.is_multicast or address.is_link_local:
         raise ValueError("invalid Internet source")
-    links = json.loads(run(["/usr/sbin/ip", "-j", "link", "show", "dev", iface]))
+    links = ip_snapshot(["/usr/sbin/ip", "-j", "link", "show", "dev", iface])
     if (not isinstance(links, list) or len(links) != 1 or not isinstance(links[0], dict)
             or not isinstance(links[0].get("flags"), list)
             or any(not isinstance(flag, str) for flag in links[0]["flags"])):
@@ -219,14 +257,14 @@ def route(*, allow_lan: bool = False) -> tuple[str, str, int]:
     # The host FIB owns Ethernet/Wi-Fi metrics and VPN policy. Both physical
     # links use this same lease/NAT path; never override the kernel's choice.
     try:
-        routes = json.loads(run(["/usr/sbin/ip", "-j", "-4", "route", "get", "1.1.1.1"]))
+        routes = ip_snapshot(["/usr/sbin/ip", "-j", "-4", "route", "get", "1.1.1.1"])
     except RuntimeError:
         if not allow_lan:
             raise
         # An online client can still reach a routed LAN without an Internet
         # default route. This selects the MTU only: host routing/masquerade
         # continue to choose the actual LAN, VPN or WAN egress per packet.
-        routes = json.loads(run(["/usr/sbin/ip", "-j", "-4", "route", "show", "scope", "link"]))
+        routes = ip_snapshot(["/usr/sbin/ip", "-j", "-4", "route", "show", "scope", "link"])
         if (not isinstance(routes, list) or any(not isinstance(item, dict)
                 or not isinstance(item.get("dev", ""), str) for item in routes)):
             raise ValueError("invalid connected IPv4 route response")
@@ -252,7 +290,7 @@ def route(*, allow_lan: bool = False) -> tuple[str, str, int]:
 
 def select_pool() -> ipaddress.IPv4Network:
     pool = ipaddress.IPv4Network(NETWORK_SETTINGS["ipv4_cidr"])
-    routes = json.loads(run(["/usr/sbin/ip", "-j", "-4", "route", "show", "table", "all"]))
+    routes = ip_snapshot(["/usr/sbin/ip", "-j", "-4", "route", "show", "table", "all"])
     if not isinstance(routes, list) or any(not isinstance(row, dict) for row in routes):
         raise ValueError("invalid host IPv4 route snapshot")
     # Full-tunnel VPNs may express the default route as two /1 routes. These
@@ -358,7 +396,7 @@ class Network:
             mtu = current[2] if current is not None else 1500
             path = f"/proc/self/fd/{nsfd}"
             enter = ["/usr/bin/nsenter", f"--net={path}", "--"]
-            links = json.loads(run([*enter, "/usr/sbin/ip", "-j", "link", "show"], fds=(nsfd,)))
+            links = ip_snapshot([*enter, "/usr/sbin/ip", "-j", "link", "show"], fds=(nsfd,))
             if any(link["ifname"] == self.interface or (app != "podman" and link["ifname"] != "lo") for link in links):
                 raise ValueError("namespace already has network interfaces")
             run(["/usr/sbin/ip", "link", "set", "dev", self.peer_name, "netns", path], fds=(nsfd,))
@@ -639,7 +677,7 @@ def receive(channel, desktop_uid, policies):
 
 def recover_endpoints():
     """Recover tagged links or an interrupted create of an exact idle pair."""
-    links = {link["ifname"]: link for link in json.loads(run(["/usr/sbin/ip", "-j", "-d", "link", "show"]))}
+    links = {link["ifname"]: link for link in ip_snapshot(["/usr/sbin/ip", "-j", "-d", "link", "show"])}
     for name, link in links.items():
         if (not re.fullmatch(INTERFACE_PATTERN, name)
                 or link.get("linkinfo", {}).get("info_kind") != "veth"):
@@ -658,8 +696,8 @@ def recover_endpoints():
                     or peer.get("ifalias") or "UP" in peer.get("flags", [])
                     or peer.get("linkinfo", {}).get("info_kind") != "veth"):
                 continue
-            addresses = json.loads(run(["/usr/sbin/ip", "-j", "addr", "show", "dev", name]))
-            peer_addresses = json.loads(run(["/usr/sbin/ip", "-j", "addr", "show", "dev", peer_name]))
+            addresses = ip_snapshot(["/usr/sbin/ip", "-j", "addr", "show", "dev", name])
+            peer_addresses = ip_snapshot(["/usr/sbin/ip", "-j", "addr", "show", "dev", peer_name])
             if any(row.get("addr_info") for row in (*addresses, *peer_addresses)):
                 continue
         run(["/usr/sbin/ip", "link", "del", "dev", name])

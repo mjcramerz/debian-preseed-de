@@ -4,4 +4,5 @@ Requisite=labwc-session.target
 Description=Lifetime leases for intel high tuning
 PartOf=labwc-session.target
 StopWhenUnneeded=yes
-Requires=hardware-tuning-intel-high.service
+# The lease service owns bounded retries while this request remains active.
+Wants=hardware-tuning-intel-high.service

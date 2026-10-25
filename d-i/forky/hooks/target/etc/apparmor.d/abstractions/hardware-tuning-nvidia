@@ -8,11 +8,19 @@
 capability sys_admin,
 /dev/nvidiactl rw,
 /dev/nvidia[0-9]* rw,
-/dev/nvidia-caps/ r,
+/dev/nvidia-uvm rw,
+/dev/nvidia-caps/ rw,
 /dev/nvidia-caps/nvidia-cap[0-9]* rw,
+# NVML maintains these exact device aliases in the supplied driver capture.
+# 234 is the captured auxiliary-device major, not a portable NVIDIA constant.
+# Do not permit writes to arbitrary character-device aliases or device trees.
+/dev/char/{195:0,195:255,234:0,234:1} w,
 /proc/driver/nvidia/ r,
 /proc/driver/nvidia/** r,
 /proc/{devices,modules,meminfo} r,
+/proc/sys/vm/mmap_min_addr r,
+# The kernel restricts thread-name writes to the calling thread group.
+owner /proc/@{pid}/task/@{tid}/comm rw,
 /sys/ r,
 /sys/** r,
 # No X11, Coolbits, raw MSRs, GPU reset, or firmware/sysfs writes.

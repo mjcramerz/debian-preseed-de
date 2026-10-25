@@ -124,6 +124,8 @@ profile calix /opt/calix/calix flags=(attach_disconnected, mediate_deleted) {
   dbus (bind) bus=session name=com.ianswope.Calix,
   dbus (send, receive) bus=session peer=(name=com.ianswope.Calix),
   dbus (send, receive) bus=session interface=org.freedesktop.Secret.*,
+  # Calendar/GTK initialization reads same-owner process metadata.
+  owner @{PROC}/@{pid}/{cmdline,stat} r,
   signal (receive) peer={unconfined,labwc-app},
   include if exists <local/calix>
 }
@@ -144,6 +146,8 @@ profile waycal /opt/waycal/waycal flags=(attach_disconnected, mediate_deleted) {
   owner /dev/shm/** rwkl,
   unix,
   dbus (bind) bus=session name=com.forrestknight.waycal,
+  # GTK-NoCSD inspects its own command line, as with the Agenda profile.
+  owner @{PROC}/@{pid}/cmdline r,
   signal (send) set=(chld) peer=labwc-waycal-popup,
   signal (receive) peer=unconfined,
   deny network inet,

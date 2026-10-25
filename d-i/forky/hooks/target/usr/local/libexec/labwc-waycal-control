@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-"""Open, close or toggle one session-owned, five-second Waycal popup.
+"""Open, close or toggle one session-owned, fifteen-second Waycal popup.
 
 Exit 0 acknowledges a request or an already satisfied state, not window
 visibility. Exit 2 rejects invocation, 3 means unavailable, and 4 means a
@@ -168,9 +168,9 @@ def transient_argv(environment: dict[str, str]) -> list[str]:
             '--property=ConditionPathExists=!' + environment['XDG_RUNTIME_DIR'] + '/labwc-session-closing',
             '--property=ExitType=main', '--property=KillMode=control-group',
             '--property=TimeoutStartSec=10s', '--property=TimeoutStopSec=1s',
-            # timeout owns the normal five-second lifetime. The manager keeps
+            # timeout owns the normal fifteen-second lifetime. The manager keeps
             # an independent backstop if its supervisor fails to finish.
-            '--property=RuntimeMaxSec=6s', '--property=RuntimeRandomizedExtraSec=0',
+            '--property=RuntimeMaxSec=16s', '--property=RuntimeRandomizedExtraSec=0',
             '--property=SuccessExitStatus=124',
             '--property=SendSIGKILL=yes', '--property=Restart=no', '--property=UMask=0077',
             '--property=PrivateUsers=yes', '--property=PrivateTmp=yes', '--property=PrivateIPC=yes',
@@ -184,7 +184,7 @@ def transient_argv(environment: dict[str, str]) -> list[str]:
             '--property=UnsetEnvironment=DISPLAY XAUTHORITY LD_PRELOAD LD_AUDIT LD_LIBRARY_PATH GTK_MODULES GTK_PATH GIO_EXTRA_MODULES PYTHONPATH PYTHONHOME',
             '--setenv=XDG_RUNTIME_DIR', '--setenv=DBUS_SESSION_BUS_ADDRESS',
             '--setenv=WAYLAND_DISPLAY', '--setenv=GDK_BACKEND=wayland',
-            '--', '/usr/bin/timeout', '--signal=TERM', '--kill-after=1s', '5s',
+            '--', '/usr/bin/timeout', '--signal=TERM', '--kill-after=1s', '15s',
             '/usr/local/libexec/labwc-waycal-popup']
 
 
@@ -230,7 +230,7 @@ def operate(action: str, environment: dict[str, str], deadline: float) -> str:
         raise Uncertain('request') from None
     if status != 0 or output:
         if action == 'close':
-            # The five-second expiry may have collected the unit after our
+            # The automatic expiry may have collected the unit after our
             # initial read. Reconcile by reading only; never retry a stop or
             # create a replacement from this request.
             try:

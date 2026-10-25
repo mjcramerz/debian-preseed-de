@@ -264,7 +264,8 @@ def validate_policy(data: Any, settings: dict[str, tuple[str, ...]]) -> dict[str
             raise TuningError(f"{key} must be a JSON boolean")
     if type(data["max_temperature_c"]) is not int:
         raise TuningError("max_temperature_c must be a JSON integer")
-    integer(data["max_temperature_c"], 50, 95)
+    # This software interlock does not alter driver/firmware thermal limits.
+    integer(data["max_temperature_c"], 50, 99)
     if not isinstance(data["profiles"], dict) or set(data["profiles"]) != set(PROFILES):
         raise TuningError("all four profiles must be specified")
     for profile_name, profile in data["profiles"].items():

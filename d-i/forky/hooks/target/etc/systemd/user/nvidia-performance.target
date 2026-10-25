@@ -4,4 +4,5 @@ Requisite=labwc-session.target
 Description=Lifetime leases for nvidia performance tuning
 PartOf=labwc-session.target
 StopWhenUnneeded=yes
-Requires=hardware-tuning-nvidia-performance.service
+# The lease service owns bounded retries while this request remains active.
+Wants=hardware-tuning-nvidia-performance.service
