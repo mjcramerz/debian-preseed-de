@@ -14,6 +14,8 @@ CROWDSEC_CORE_READY_FILE=${CROWDSEC_STATE_DIR}/core-ready
 CROWDSEC_CAPI_ACTIVATED_FILE=${CROWDSEC_STATE_DIR}/capi-activated
 CROWDSEC_ENROLL_TOKEN_FILE=${CROWDSEC_ENROLL_TOKEN_FILE:-${CROWDSEC_STATE_DIR}/enroll.token}
 CROWDSEC_HOST_VARIANT=desktop
+CROWDSEC_SSH_SERVER_ENABLE=__INSTALLER_SSH_SERVER_ENABLE__
+case "$CROWDSEC_SSH_SERVER_ENABLE" in true|false) ;; *) exit 1 ;; esac
 CROWDSEC_ENROLL_ATTEMPTS=${CROWDSEC_ENROLL_ATTEMPTS:-1}
 CROWDSEC_ENROLL_RETRY_DELAY_SECONDS=${CROWDSEC_ENROLL_RETRY_DELAY_SECONDS:-10}
 
@@ -102,12 +104,32 @@ write_complete_marker() {
 
 write_core_ready_marker() {
   tmp_core=$(mktemp "${CROWDSEC_CORE_READY_FILE}.XXXXXX") || return $?
-  if printf 'ready\n' >"$tmp_core" && chmod 0600 "$tmp_core" &&
+  if printf 'ready ssh=%s\n' "$CROWDSEC_SSH_SERVER_ENABLE" >"$tmp_core" && chmod 0600 "$tmp_core" &&
      mv -f "$tmp_core" "$CROWDSEC_CORE_READY_FILE"; then
     return 0
   fi
   rm -f -- "$tmp_core"
   return 1
+}
+
+install_detection_policy() {
+  # The Linux and Linux LPE umbrella collections both depend on SSH. Remove
+  # their package defaults before installing the same non-SSH components
+  # explicitly. Do not force removal of tainted administrator-owned policy.
+  run_required_crowdsec_command collections-align \
+    cscli collections remove crowdsecurity/linux-lpe crowdsecurity/linux crowdsecurity/sshd || return 1
+  run_required_crowdsec_command parsers-install \
+    cscli parsers install crowdsecurity/syslog-logs crowdsecurity/geoip-enrich \
+      crowdsecurity/dateparse-enrich crowdsecurity/pkexec-logs crowdsecurity/segfault-logs || return 1
+  run_required_crowdsec_command scenarios-install \
+    cscli scenarios install crowdsecurity/CVE-2021-4034 crowdsecurity/CVE-2023-4911 || return 1
+  run_required_crowdsec_command collections-install \
+    cscli collections install crowdsecurity/auditd crowdsecurity/iptables \
+      crowdsecurity/whitelist-good-actors gilbsgilbs/qbittorrent || return 1
+  if [ "$CROWDSEC_SSH_SERVER_ENABLE" = true ]; then
+    run_required_crowdsec_command ssh-collection-install \
+      cscli collections install crowdsecurity/sshd || return 1
+  fi
 }
 
 wait_for_unit() {
@@ -429,6 +451,8 @@ wait_for_host_resolution api.crowdsec.net 45 || {
 }
 
 if [ -f "$CROWDSEC_CORE_READY_FILE" ] &&
+   [ "$(find -P "$CROWDSEC_CORE_READY_FILE" -maxdepth 0 -printf %s)" -le 32 ] &&
+   [ "$(cat "$CROWDSEC_CORE_READY_FILE")" = "ready ssh=${CROWDSEC_SSH_SERVER_ENABLE}" ] &&
    systemctl is-enabled --quiet crowdsec.service &&
    systemctl is-enabled --quiet crowdsec-firewall-bouncer.service &&
    systemctl is-active --quiet crowdsec.service &&
@@ -456,10 +480,8 @@ log_line bootstrap info crowdsec "hub_update=true"
 if ! run_optional_crowdsec_command hub-update cscli hub update; then
   log_line bootstrap warning crowdsec "hub_update=fallback-to-packaged-index"
 fi
-log_line bootstrap info crowdsec "installing_collections=true collections=crowdsecurity/linux,crowdsecurity/sshd,crowdsecurity/auditd,crowdsecurity/iptables,crowdsecurity/whitelist-good-actors,crowdsecurity/linux-lpe,gilbsgilbs/qbittorrent"
-run_required_crowdsec_command collections-install \
-  cscli collections install crowdsecurity/linux crowdsecurity/sshd crowdsecurity/auditd crowdsecurity/iptables crowdsecurity/whitelist-good-actors \
-    crowdsecurity/linux-lpe gilbsgilbs/qbittorrent || {
+log_line bootstrap info crowdsec "installing_detection=true ssh=${CROWDSEC_SSH_SERVER_ENABLE} audit=true firewall=true local_privilege_escalation=true qbittorrent=true"
+install_detection_policy || {
   stop_bootstrap_services
   write_status 1 error
   exit 1

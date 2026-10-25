@@ -153,17 +153,6 @@ choose_device() {
   printf '%s\n' "$address"
 }
 
-refresh_waybar() {
-  command -v systemctl >/dev/null 2>&1 || return 0
-  systemctl \
-    --user \
-    kill \
-    --kill-whom=main \
-    --signal=RTMIN+8 \
-    waybar.service >/dev/null 2>&1 ||
-    true
-}
-
 set_power() {
   power_state=$1
   case "$power_state" in
@@ -183,7 +172,6 @@ set_power() {
 
   if run_controller_command power "$power_state"; then
     notify_bluetooth normal bluetooth device.changed "$success_summary" "$success_body"
-    refresh_waybar
     return 0
   fi
   notify_bluetooth critical __THEME_MAKO_BLUETOOTH_ERROR_ICON_NAME__ device.error "Bluetooth power change failed" "The controller could not be powered ${power_state}."
@@ -215,7 +203,6 @@ scan_devices() {
     notify_bluetooth normal bluetooth device.added \
       "Bluetooth scan completed" \
       "Nearby devices are now available in the Bluetooth action menu."
-    refresh_waybar
     return 0
   fi
 
@@ -276,7 +263,6 @@ perform_device_action() {
     notify_bluetooth normal bluetooth device.changed \
       "$success_summary" \
       "${success_body} (${address})."
-    refresh_waybar
     return 0
   fi
 
@@ -325,7 +311,6 @@ pair_device_in_terminal() {
     notify_bluetooth normal bluetooth device.added \
       "Bluetooth device paired" \
       "Paired ${address}. Trust: ${trust_result}. Connection: ${connect_result}."
-    refresh_waybar
   else
     notify_bluetooth critical __THEME_MAKO_BLUETOOTH_ERROR_ICON_NAME__ device.error \
       "Bluetooth pairing failed" \
@@ -371,7 +356,6 @@ manage_device() {
         notify_bluetooth normal bluetooth device.changed \
           "Bluetooth device connected" \
           "Connected to ${address}."
-        refresh_waybar
       else
         notify_bluetooth critical __THEME_MAKO_BLUETOOTH_ERROR_ICON_NAME__ device.error \
           "Bluetooth connection failed" \
@@ -383,7 +367,6 @@ manage_device() {
         notify_bluetooth normal bluetooth device.changed \
           "Bluetooth device disconnected" \
           "Disconnected ${address}."
-        refresh_waybar
       else
         notify_bluetooth critical __THEME_MAKO_BLUETOOTH_ERROR_ICON_NAME__ device.error \
           "Bluetooth disconnect failed" \
@@ -407,7 +390,6 @@ manage_device() {
         notify_bluetooth normal bluetooth device.changed \
           "Bluetooth device unpaired" \
           "Removed ${address}."
-      refresh_waybar
       ;;
     'Device Information')
       exec labwc-terminal -e labwc-bluetooth info "$address"

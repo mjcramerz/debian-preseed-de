@@ -122,7 +122,7 @@ class GPUIdentityTests(unittest.TestCase):
         text = (TARGET/'usr/local/lib/python3.14/dist-packages/labwc_managed_app/sandbox.py').read_text()
         self.assertIn('if private_xwayland_binary is not None:',text)
         self.assertIn('compat_gpu.add_device_binds(command, mode)', text)
-        self.assertIn('else:\n            add_gpu_device_binds(command, mode)',text)
+        self.assertIn('else:\n            selected_gpu = add_gpu_device_binds(command, mode)',text)
 
 
 class PortalHarness:

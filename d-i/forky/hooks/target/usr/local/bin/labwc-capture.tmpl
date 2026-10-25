@@ -135,16 +135,6 @@ recording_active() {
   systemctl --user --quiet is-active "$RECORDING_UNIT" >/dev/null 2>&1
 }
 
-refresh_waybar() {
-  systemctl \
-    --user \
-    kill \
-    --kill-whom=main \
-    --signal=RTMIN+9 \
-    waybar.service >/dev/null 2>&1 ||
-    true
-}
-
 print_status() {
   if recording_active; then
     printf '%s\n' '{"text":"__THEME_WAYBAR_BUTTON_SCREENSHOT_RECORDING_ICON_GLYPH__","tooltip":"Screen recording is active\nLeft-click: select an area and annotate\nMiddle-click: stop and save recording\nRight-click: capture and recording actions","class":"recording"}'
@@ -411,7 +401,6 @@ start_recording() {
   fi
 
   notify_user normal media-record x-labwc.screen-recording "Screen recording started" "Audio is enabled. Middle-click the screenshot button, or choose Stop Recording from its right-click menu, to stop and save."
-  refresh_waybar
 }
 
 stop_recording() {
@@ -425,7 +414,6 @@ stop_recording() {
     notify_user critical __THEME_MAKO_SCREEN_CAPTURE_ERROR_ICON_NAME__ x-labwc.screen-recording "Recording stop failed" "The recording service could not be stopped cleanly."
     return 1
   fi
-  refresh_waybar
 }
 
 record_worker() {

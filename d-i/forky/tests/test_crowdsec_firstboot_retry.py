@@ -21,7 +21,7 @@ import unittest
 
 
 FORKY = Path(__file__).resolve().parents[1]
-SOURCE = (FORKY / "scripts/firstboot/assets/var/lib/firstboot/bin/crowdsec-firstboot.tmpl").read_text(encoding="utf-8")
+SOURCE = (FORKY / "scripts/firstboot/assets/var/lib/firstboot/bin/crowdsec-firstboot.tmpl").read_text(encoding="utf-8").replace("__INSTALLER_SSH_SERVER_ENABLE__", "true")
 UNIT = (FORKY / "scripts/firstboot/assets/etc/systemd/system/crowdsec-firstboot.service.tmpl").read_text(encoding="utf-8")
 SECONDBOOT_UNIT = (FORKY / "scripts/firstboot/assets/etc/systemd/system/secondboot.service").read_text(encoding="utf-8")
 LATE = (FORKY / "scripts/late/crowdsec.sh").read_text(encoding="utf-8")
@@ -38,6 +38,35 @@ def source_function(name: str, source: str = SOURCE) -> str:
 
 
 class CrowdSecFirstbootRetryTests(unittest.TestCase):
+    def test_detection_policy_excludes_ssh_on_disabled_profiles_and_propagates_each_failure(self):
+        code = source_function('install_detection_policy') + r'''
+run_required_crowdsec_command() {
+  printf '%s\n' "$*" >>"$CASE_CALLS"
+  [ "$1" != "$CASE_FAIL" ]
+}
+install_detection_policy
+'''
+        steps = ['collections-align', 'parsers-install', 'scenarios-install',
+                 'collections-install', 'ssh-collection-install']
+        for enabled in ('true', 'false'):
+            expected = steps if enabled == 'true' else steps[:-1]
+            for failure in ('none', *expected):
+                with self.subTest(enabled=enabled, failure=failure), tempfile.TemporaryDirectory() as directory:
+                    calls = Path(directory) / 'calls'
+                    result = subprocess.run(['/bin/sh', '-eu', '-c', code],
+                        env={'PATH': '/usr/bin:/bin', 'HOME': directory, 'LC_ALL': 'C',
+                             'CROWDSEC_SSH_SERVER_ENABLE': enabled, 'CASE_FAIL': failure,
+                             'CASE_CALLS': str(calls)}, capture_output=True, text=True, timeout=5)
+                    commands = calls.read_text().splitlines()
+                    count = len(expected) if failure == 'none' else expected.index(failure) + 1
+                    self.assertEqual([line.split()[0] for line in commands], expected[:count])
+                    self.assertEqual(result.returncode, 0 if failure == 'none' else 1, result.stderr)
+                    installed = '\n'.join(line for line in commands if ' install ' in line)
+                    self.assertNotIn('crowdsecurity/linux ', installed)
+                    self.assertNotIn('crowdsecurity/linux-lpe', installed)
+                    if enabled == 'false':
+                        self.assertNotIn('crowdsecurity/sshd', installed)
+
     def test_busy_cleanup_schedules_retry_and_never_reaches_removal(self):
         cleanup = (FORKY / 'scripts/firstboot/assets/var/lib/firstboot/bin/secondboot-cleanup').read_text()
         start = cleanup.index('if [ "$SECONDBOOT_ROOT" = / ]; then\n  if bootstrap_processes_exited; then')
@@ -195,6 +224,7 @@ FILE_CROWDSEC_COMPLETE=/var/lib/firstboot/crowdsec/complete
 FILE_CROWDSEC_STATUS=/var/lib/firstboot/crowdsec/status.env
 LOG_SYSTEM_SERVICES_FILE=/var/log/system/services.log
 LOG_KERNEL_FILE=/var/log/system/kernel.log
+SSH_SERVER_ENABLE=true
 ''')
                     account = root / 'resolved-account.env'
                     username = 'fixture-alt_7'
@@ -296,7 +326,7 @@ run_required_crowdsec_command() {
 }
 stop_bootstrap_services() { printf 'stopped\\n' >>"$CASE_CALLS"; }
 write_status() { :; }
-''' + SOURCE[start:end]
+''' + source_function('install_detection_policy') + '\nCROWDSEC_SSH_SERVER_ENABLE=true\n' + SOURCE[start:end]
                         code = code.replace('/etc/crowdsec', str(base))
                         result = subprocess.run([*shell, '-eu', '-c', code],
                             env={'PATH': '/usr/bin:/bin', 'HOME': directory, 'LC_ALL': 'C',
@@ -308,13 +338,18 @@ write_status() { :; }
                         if existing:
                             self.assertEqual(target.read_bytes(), content)
                         commands = calls.read_text().splitlines()
-                        expected = ['crowdsecurity/linux', 'crowdsecurity/sshd',
-                                    'crowdsecurity/auditd', 'crowdsecurity/iptables',
-                                    'crowdsecurity/whitelist-good-actors', 'crowdsecurity/linux-lpe',
-                                    'gilbsgilbs/qbittorrent']
-                        self.assertEqual(commands[0].split(),
-                                         ['collections-install', 'cscli', 'collections', 'install', *expected])
-                        self.assertEqual(len(commands), 2 + validation_status)
+                        self.assertEqual(commands[0].split()[:4],
+                                         ['collections-align', 'cscli', 'collections', 'remove'])
+                        self.assertEqual(commands[1].split()[:4],
+                                         ['parsers-install', 'cscli', 'parsers', 'install'])
+                        self.assertEqual(commands[2].split()[:4],
+                                         ['scenarios-install', 'cscli', 'scenarios', 'install'])
+                        self.assertEqual(commands[3].split(), ['collections-install', 'cscli', 'collections', 'install',
+                            'crowdsecurity/auditd', 'crowdsecurity/iptables',
+                            'crowdsecurity/whitelist-good-actors', 'gilbsgilbs/qbittorrent'])
+                        self.assertEqual(commands[4].split(), ['ssh-collection-install', 'cscli', 'collections', 'install',
+                                                               'crowdsecurity/sshd'])
+                        self.assertEqual(len(commands), 6 + validation_status)
                         self.assertEqual(commands[-1] == 'stopped', validation_status == 1)
 
     @unittest.skipUnless(shutil.which('systemd-analyze'), 'native systemd unit checker unavailable')
@@ -528,6 +563,7 @@ verify_capi_enabled
     def test_new_capi_credentials_reload_engine_and_failed_reload_invalidates_core_marker(self):
         code = source_function('ensure_capi_registration') + '\n' + source_function('write_core_ready_marker') + """
 CROWDSEC_CORE_READY_FILE=$1/core-ready
+CROWDSEC_SSH_SERVER_ENABLE=true
 CROWDSEC_CAPI_ACTIVATED_FILE=$1/capi-activated
 CASE_CREDENTIALS=$1/credentials.yaml
 crowdsec_config_path() { printf '%s\\n' "$CASE_CREDENTIALS"; }
@@ -544,7 +580,7 @@ ensure_capi_registration
                                      ('success', True), ('failure', True)):
                 with self.subTest(shell=label, reload=reload, existing=existing), tempfile.TemporaryDirectory() as root:
                     marker = Path(root) / 'core-ready'
-                    marker.write_text('ready\n', encoding='ascii')
+                    marker.write_text('ready ssh=true\n', encoding='ascii')
                     marker.chmod(0o600)
                     if existing:
                         (Path(root) / 'credentials.yaml').write_text('existing-credentials\n', encoding='ascii')
@@ -566,6 +602,7 @@ ensure_capi_registration
         code = """
 umask 077
 CROWDSEC_CORE_READY_FILE=$1/core-ready
+CROWDSEC_SSH_SERVER_ENABLE=true
 CROWDSEC_COMPLETE_FILE=$1/complete
 CROWDSEC_STATUS_FILE=$1/status.env
 CROWDSEC_ENROLL_TOKEN_FILE=$1/enroll.token
@@ -589,7 +626,7 @@ read_token() { cat "$CROWDSEC_ENROLL_TOKEN_FILE"; }
 enroll_console() { printf 'console-enroll\\n' >>"$FIXTURE_CALLS"; return 0; }
 stop_bootstrap_services() { systemctl stop crowdsec-firewall-bouncer.service crowdsec.service; }
 """ + "\n".join(source_function(name) for name in (
-            "write_status", "write_complete_marker", "write_core_ready_marker", "remove_enrollment_token",
+            "write_status", "write_complete_marker", "write_core_ready_marker", "remove_enrollment_token", "install_detection_policy",
         )) + "\n" + body
         for label, shell in SHELLS:
             with self.subTest(shell=label), tempfile.TemporaryDirectory() as root:
@@ -732,6 +769,7 @@ fi
         )
         code = """
 CROWDSEC_CORE_READY_FILE=$1
+CROWDSEC_SSH_SERVER_ENABLE=true
 CROWDSEC_HOST_VARIANT=desktop
 systemctl() {
   case "$1" in
@@ -746,11 +784,11 @@ systemctl() {
 timeout() { return 0; }
 bouncer_verify() { return 0; }
 log_line() { printf 'event=%s\\n' "$*"; }
-""" + body
+""" + source_function("install_detection_policy") + "\n" + body
         for label, shell in SHELLS:
             with self.subTest(shell=label), tempfile.TemporaryDirectory() as root:
                 marker = Path(root) / "core-ready"
-                marker.write_text("ready\n", encoding="ascii")
+                marker.write_text("ready ssh=true\n", encoding="ascii")
                 result = subprocess.run(
                     [*shell, "-eu", "-c", code, "crowdsec-fixture", str(marker)],
                     env={"PATH": "/usr/bin:/bin"}, text=True, encoding="utf-8",
@@ -773,6 +811,7 @@ log_line() { printf 'event=%s\\n' "$*"; }
         )
         code = """
 CROWDSEC_CORE_READY_FILE=$1
+CROWDSEC_SSH_SERVER_ENABLE=true
 systemctl() {
   case "$1" in
     is-enabled|is-active)
@@ -792,10 +831,10 @@ ensure_capi_registration() { return 0; }
 ensure_bouncer_api_key() { return 0; }
 write_core_ready_marker() { return 0; }
 log_line() { printf 'event=%s\\n' "$*"; }
-""" + body
+""" + source_function("install_detection_policy") + "\n" + body
         with tempfile.TemporaryDirectory() as root:
             marker = Path(root) / "core-ready"
-            marker.write_text("ready\n", encoding="ascii")
+            marker.write_text("ready ssh=true\n", encoding="ascii")
             for failure in ("is-enabled:crowdsec-firewall-bouncer.service",
                             "is-active:crowdsec-firewall-bouncer.service"):
                 with self.subTest(failure=failure):
@@ -810,7 +849,7 @@ log_line() { printf 'event=%s\\n' "$*"; }
                     self.assertNotIn("core_bootstrap=already-verified", result.stdout)
 
     def test_core_ready_marker_is_atomic_and_private(self):
-        code = source_function("write_core_ready_marker") + "\nCROWDSEC_CORE_READY_FILE=$1\nwrite_core_ready_marker\n"
+        code = source_function("write_core_ready_marker") + "\nCROWDSEC_SSH_SERVER_ENABLE=true\nCROWDSEC_CORE_READY_FILE=$1\nwrite_core_ready_marker\n"
         for label, shell in SHELLS:
             with self.subTest(shell=label), tempfile.TemporaryDirectory() as root:
                 marker = Path(root) / "core-ready"
@@ -820,7 +859,7 @@ log_line() { printf 'event=%s\\n' "$*"; }
                     capture_output=True, timeout=5,
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(marker.read_text(encoding="ascii"), "ready\n")
+                self.assertEqual(marker.read_text(encoding="ascii"), "ready ssh=true\n")
                 self.assertEqual(os.stat(marker).st_mode & 0o777, 0o600)
                 self.assertEqual(list(Path(root).iterdir()), [marker])
 
@@ -843,21 +882,17 @@ log_line() { printf 'event=%s\\n' "$*"; }
         self.assertIn('/etc/systemd/system/crowdsec.service.d/20-capi-retry.conf 0644', LATE)
 
     def test_firstboot_installs_ssh_audit_and_whitelist_protection(self):
-        self.assertIn(
-            'cscli collections install crowdsecurity/linux crowdsecurity/sshd '
-            'crowdsecurity/auditd crowdsecurity/iptables crowdsecurity/whitelist-good-actors',
-            SOURCE,
-        )
-        self.assertIn(
-            'collections=crowdsecurity/linux,crowdsecurity/sshd,crowdsecurity/auditd,'
-            'crowdsecurity/iptables,crowdsecurity/whitelist-good-actors',
-            SOURCE,
-        )
+        self.assertIn('cscli collections install crowdsecurity/auditd crowdsecurity/iptables', SOURCE)
+        self.assertIn('if [ "$CROWDSEC_SSH_SERVER_ENABLE" = true ]; then', SOURCE)
+        self.assertIn('cscli collections install crowdsecurity/sshd || return 1', SOURCE)
+        self.assertNotIn('cscli collections install crowdsecurity/linux ', SOURCE)
+        self.assertIn('crowdsecurity/pkexec-logs crowdsecurity/segfault-logs', SOURCE)
+        self.assertIn('crowdsecurity/CVE-2021-4034 crowdsecurity/CVE-2023-4911', SOURCE)
         self.assertIn('      pull:\n        community: true\n        blocklists: true', OVERLAY)
         self.assertIn('cscli console enable --all', SOURCE)
         self.assertIn('community_blocklist_slots=3', SOURCE)
         self.assertIn('crowdsecurity/linux-lpe', SOURCE)
-        self.assertIn('crowdsecurity/linux-lpe gilbsgilbs/qbittorrent ||', SOURCE)
+        self.assertIn('crowdsecurity/whitelist-good-actors gilbsgilbs/qbittorrent ||', SOURCE)
         self.assertIn('CROWDSEC_HOST_VARIANT=desktop', SOURCE)
         self.assertNotIn('if [ "$CROWDSEC_HOST_VARIANT" = desktop ]; then', SOURCE)
         self.assertNotIn('if [ "$host_variant" = desktop ]; then', LATE)
@@ -978,6 +1013,7 @@ log_line() { printf 'event=%s\\n' "$*"; }
         code = source_function('ensure_capi_registration') + '\n' + source_function('write_core_ready_marker') + """
 umask 077
 CROWDSEC_CORE_READY_FILE=$1/core-ready
+CROWDSEC_SSH_SERVER_ENABLE=true
 CROWDSEC_CAPI_ACTIVATED_FILE=$1/capi-activated
 CASE_CREDENTIALS=$1/credentials.yaml
 crowdsec_config_path() { printf '%s\\n' "$CASE_CREDENTIALS"; }

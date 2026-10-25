@@ -1,0 +1,270 @@
+#!/usr/bin/python3 -IB
+"""Continuous read-only Waybar state via bounded asynchronous D-Bus requests.
+
+No status subprocesses, control methods, notification contents or writable
+cache files. Each reader has one request in flight and emits only changed JSON.
+Waybar's service cgroup owns the reader for the complete panel lifetime.
+"""
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import signal
+import stat
+import sys
+
+PROPERTIES = "org.freedesktop.DBus.Properties"
+MANAGER = "org.freedesktop.systemd1.Manager"
+UNIT = "labwc-screen-recording.service"
+UNIT_PATH = "/org/freedesktop/systemd1/unit/labwc_2dscreen_2drecording_2eservice"
+MAKO_PATH = "/fr/emersion/Mako"
+MAKO = "fr.emersion.Mako"
+
+
+def status(mode: str, value=None) -> dict[str, str]:
+    if mode == "notifications":
+        if value is None:
+            return {"text": "__THEME_WAYBAR_BUTTON_NOTIFICATIONS_ERROR_ICON_GLYPH__", "class": "error",
+                    "tooltip": "Notifications unavailable; open the notification menu to inspect Mako"}
+        dnd = "do-not-disturb" in value
+        return {"text": "__THEME_WAYBAR_BUTTON_NOTIFICATIONS_DND_ICON_GLYPH__" if dnd else "__THEME_WAYBAR_BUTTON_NOTIFICATIONS_NORMAL_ICON_GLYPH__",
+                "class": "dnd" if dnd else "normal", "tooltip": "Do not disturb: " + ("on" if dnd else "off")
+                + "\nLeft: menu | Middle: DND | Right: DND on + dismiss all"}
+    if value is None:
+        return {"text": "__THEME_WAYBAR_BUTTON_SCREENSHOT_IDLE_ICON_GLYPH__", "class": "unavailable",
+                "tooltip": "Recording status unavailable; open capture actions to inspect the recording service"}
+    active = value in {"active", "activating", "reloading", "deactivating", "refreshing"}
+    return {"text": "__THEME_WAYBAR_BUTTON_SCREENSHOT_RECORDING_ICON_GLYPH__" if active else "__THEME_WAYBAR_BUTTON_SCREENSHOT_IDLE_ICON_GLYPH__",
+            "class": "recording" if active else "idle",
+            "tooltip": ("Screen recording is active\n" if active else "")
+            + "Left-click: select an area and annotate\nMiddle-click: stop recording\nRight-click: capture actions"}
+
+
+class Reader:
+    def __init__(self, mode, Gio, GLib):
+        self.mode, self.Gio, self.GLib = mode, Gio, GLib
+        self.loop = GLib.MainLoop()
+        self.connection = None
+        self.connection_cancel = Gio.Cancellable()
+        self.pending = None
+        self.generation = 0
+        self.dirty = False
+        self.scheduled = None
+        self.sources = []
+        self.subscriptions = []
+        self.subscribed = mode == "notifications"
+        self.last = None
+        self.alive = True
+        self.result = 0
+        self.destination = "org.freedesktop.Notifications" if mode == "notifications" else "org.freedesktop.systemd1"
+
+    def emit(self, value=None):
+        rendered = json.dumps(status(self.mode, value), ensure_ascii=False)
+        if rendered != self.last and self.alive:
+            try:
+                print(rendered, flush=True)
+            except BrokenPipeError:
+                self.stop()
+                return
+            self.last = rendered
+
+    def stop(self, *_):
+        self.alive = False
+        self.connection_cancel.cancel()
+        if self.pending is not None:
+            self.pending.cancel()
+        self.loop.quit()
+        return False
+
+    def failed_connection(self):
+        if self.connection is None and self.alive:
+            self.result = 1
+            self.stop()
+        return False
+
+    def connected(self, _source, result, *_data):
+        try:
+            connection = self.Gio.bus_get_finish(result)
+        except self.GLib.Error:
+            self.result = 1
+            self.stop()
+            return
+        if not self.alive:
+            return
+        self.connection = connection
+        connection.set_exit_on_close(False)
+        connection.connect("closed", lambda *_: self.connection_closed())
+        self.listen("org.freedesktop.DBus", "org.freedesktop.DBus", "NameOwnerChanged",
+                    "/org/freedesktop/DBus", self.destination, self.owner_changed)
+        self.listen(self.destination, PROPERTIES, "PropertiesChanged",
+                    MAKO_PATH if self.mode == "notifications" else UNIT_PATH,
+                    MAKO if self.mode == "notifications" else "org.freedesktop.systemd1.Unit", self.changed)
+        if self.mode == "capture":
+            for member in ("UnitNew", "UnitRemoved"):
+                self.listen(self.destination, MANAGER, member, "/org/freedesktop/systemd1", UNIT, self.unit_changed)
+        self.queue()
+
+    def connection_closed(self):
+        if self.alive:
+            self.emit()
+            self.result = 1
+            self.stop()
+
+    def listen(self, sender, interface, member, path, arg0, callback):
+        self.subscriptions.append(self.connection.signal_subscribe(
+            sender, interface, member, path, arg0, self.Gio.DBusSignalFlags.NONE, callback, None))
+
+    def owner_changed(self, _connection, _sender, _path, _interface, _member, parameters, _data):
+        if parameters.get_type_string() != "(sss)" or parameters.get_size() > 4096:
+            return
+        self.generation += 1
+        if self.pending is not None:
+            self.pending.cancel()
+        self.subscribed = self.mode == "notifications"
+        self.emit()
+        self.queue()
+
+    def unit_changed(self, *_):
+        self.generation += 1
+        self.queue()
+
+    def changed(self, _connection, _sender, _path, _interface, _member, parameters, _data):
+        # Inspect only property names, never unpack notification bodies or unit
+        # command lines. Mako emits Modes invalidations, not cached values.
+        if parameters.get_type_string() != "(sa{sv}as)" or parameters.get_size() > 65536:
+            return
+        changed = parameters.get_child_value(1)
+        invalidated = parameters.get_child_value(2)
+        if changed.n_children() > 256 or invalidated.n_children() > 256:
+            return
+        wanted = "Modes" if self.mode == "notifications" else "ActiveState"
+        names = [changed.get_child_value(i).get_child_value(0).get_string() for i in range(changed.n_children())]
+        names.extend(invalidated.get_child_value(i).get_string() for i in range(invalidated.n_children()))
+        if wanted in names:
+            self.generation += 1
+            self.queue()
+
+    def queue(self):
+        if not self.alive:
+            return False
+        self.dirty = True
+        if self.connection is not None and self.pending is None and self.scheduled is None:
+            # Do not reset this deadline on repeated events: bounded latency and
+            # at most ten requests/second even during a producer event storm.
+            self.scheduled = self.GLib.timeout_add(100, self.refresh)
+        return True
+
+    def refresh(self):
+        self.scheduled = None
+        if not self.alive or self.pending is not None:
+            return False
+        self.dirty = False
+        generation = self.generation
+        subscribing = self.mode == "capture" and not self.subscribed
+        if subscribing:
+            path, interface, member, arguments, reply_type = "/org/freedesktop/systemd1", MANAGER, "Subscribe", None, "()"
+        elif self.mode == "notifications":
+            path, interface, member, arguments, reply_type = MAKO_PATH, MAKO, "ListModes", None, "(as)"
+        else:
+            path, interface, member = UNIT_PATH, PROPERTIES, "Get"
+            arguments = self.GLib.Variant("(ss)", ("org.freedesktop.systemd1.Unit", "ActiveState"))
+            reply_type = "(v)"
+        cancellable = self.Gio.Cancellable()
+        self.pending = cancellable
+
+        def completed(connection, result, *_data):
+            self.pending = None
+            try:
+                reply = connection.call_finish(result)
+                if not self.alive or generation != self.generation:
+                    return
+                if reply.get_size() > 16384:
+                    raise ValueError("oversized status reply")
+                if subscribing:
+                    self.subscribed = True
+                    self.dirty = True
+                elif self.mode == "notifications":
+                    modes = reply.get_child_value(0)
+                    if modes.n_children() > 64:
+                        raise ValueError("too many notification modes")
+                    values = [modes.get_child_value(i).get_string() for i in range(modes.n_children())]
+                    if any(len(value) > 128 for value in values):
+                        raise ValueError("oversized notification mode")
+                    self.emit(values)
+                else:
+                    state = reply.get_child_value(0).get_variant()
+                    if state.get_type_string() != "s" or state.get_string() not in {
+                            "active", "activating", "reloading", "deactivating", "inactive", "failed", "maintenance", "refreshing"}:
+                        raise ValueError("invalid recording service state")
+                    self.emit(state.get_string())
+            except self.GLib.Error as error:
+                if self.alive and generation == self.generation:
+                    remote = self.Gio.DBusError.get_remote_error(error)
+                    absent = {"org.freedesktop.DBus.Error.UnknownObject", "org.freedesktop.systemd1.NoSuchUnit"}
+                    if subscribing and remote == "org.freedesktop.systemd1.AlreadySubscribed":
+                        self.subscribed = True
+                        self.dirty = True
+                    else:
+                        self.emit("inactive" if self.mode == "capture" and not subscribing and remote in absent else None)
+            except (ValueError, TypeError):
+                self.emit()
+            finally:
+                if self.dirty and self.alive:
+                    self.queue()
+        self.connection.call(self.destination, path, interface, member, arguments,
+                             self.GLib.VariantType.new(reply_type), self.Gio.DBusCallFlags.NO_AUTO_START,
+                             4000, cancellable, completed)
+        return False
+
+    def run(self):
+        self.emit()
+        self.sources.append(self.GLib.timeout_add_seconds(5, self.failed_connection))
+        # Reconcile missed signals without launching processes or polling every
+        # five seconds; callbacks still update immediately after changes.
+        self.sources.append(self.GLib.timeout_add_seconds(60, self.queue))
+        for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+            self.sources.append(self.GLib.unix_signal_add(self.GLib.PRIORITY_DEFAULT, signum, self.stop))
+        self.Gio.bus_get(self.Gio.BusType.SESSION, self.connection_cancel, self.connected)
+        try:
+            self.loop.run()
+        finally:
+            self.stop()
+            if self.scheduled is not None:
+                self.GLib.source_remove(self.scheduled)
+            for source in self.sources:
+                if self.GLib.MainContext.default().find_source_by_id(source) is not None:
+                    self.GLib.source_remove(source)
+            if self.connection is not None:
+                for subscription in self.subscriptions:
+                    self.connection.signal_unsubscribe(subscription)
+        return self.result
+
+
+def main(arguments: list[str]) -> int:
+    if arguments not in (["notifications"], ["capture"]):
+        raise ValueError("usage: labwc-waybar-events notifications|capture")
+    uid = os.getuid()
+    if uid == 0 or os.geteuid() != uid:
+        raise ValueError("status reader requires the desktop account")
+    runtime = Path(f"/run/user/{uid}")
+    metadata = runtime.lstat()
+    bus = runtime / "bus"
+    bus_metadata = bus.lstat()
+    if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != uid or metadata.st_mode & 0o077
+            or not stat.S_ISSOCK(bus_metadata.st_mode) or bus_metadata.st_uid != uid):
+        raise ValueError("unsafe desktop bus identity")
+    os.environ["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=" + str(bus)
+    import gi
+    gi.require_version("Gio", "2.0")
+    from gi.repository import Gio, GLib
+    return Reader(arguments[0], Gio, GLib).run()
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except (OSError, ValueError, ImportError):
+        # No remote error strings, notification bodies or environment values.
+        print("waybar_status outcome=unavailable cause=reader_initialization", file=sys.stderr)
+        raise SystemExit(1)

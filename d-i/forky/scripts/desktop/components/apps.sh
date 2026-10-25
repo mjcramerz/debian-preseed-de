@@ -18,6 +18,7 @@ electron.py
 environment.py
 events.py
 generic.py
+gpu.py
 identity.py
 integrity.py
 mounts.py

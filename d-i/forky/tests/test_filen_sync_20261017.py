@@ -331,7 +331,7 @@ class ConfigurationTests(unittest.TestCase):
 
     def test_bad_private_inputs_and_modes_fail_without_download_or_external_writes(self):
         env = self.environment()
-        sharing = json.dumps({'version': 3, 'profile': env}).encode()
+        sharing = json.dumps({'version': 3, 'profile': env, 'storage_root': '/data/.sharing-store/root'}).encode()
         for changed, secret in (({'FILEN_CLI_PRIV_SYNC_MODE': 'twoWay;sh'}, b'valid'),
                                 ({}, b'bad\npassword'), ({}, b'bad\0password'),
                                 ({}, b'AAAAAAAAAAAAAAAAA')):
@@ -354,7 +354,7 @@ class ConfigurationTests(unittest.TestCase):
         def read(path, *args, **kwargs):
             if str(path) != '/etc/network-sharing/config.json':
                 raise AssertionError('unexpected secret or host input')
-            return json.dumps({'version': 3, 'profile': env}).encode()
+            return json.dumps({'version': 3, 'profile': env, 'storage_root': '/data/.sharing-store/root'}).encode()
         with mock.patch.object(installer, 'command', return_value=b'amd64\n'), \
                 mock.patch.object(installer.pwd, 'getpwnam', return_value=types.SimpleNamespace(pw_uid=1000, pw_dir='/home/fixture')), \
                 mock.patch.object(installer, 'read', side_effect=read), \

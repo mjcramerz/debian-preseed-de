@@ -156,19 +156,18 @@ sub _event_loop {
     my $selector = IO::Select->new($monitor);
     my ($buffer, %event) = (q{});
     my ($refresh_at, $first_event);
-    my $periodic_at = clock_gettime(CLOCK_MONOTONIC) + 30;
     while (!$self->stop_requested()) {
         my $now = clock_gettime(CLOCK_MONOTONIC);
-        if ((defined($refresh_at) && $now >= $refresh_at) || $now >= $periodic_at) {
+        if (defined($refresh_at) && $now >= $refresh_at) {
             $self->settle()->() if defined $refresh_at;
             last if $self->stop_requested();
             $self->apply_policy()->();
             ($refresh_at, $first_event) = (undef, undef);
-            $periodic_at = clock_gettime(CLOCK_MONOTONIC) + 30;
             next;
         }
-        my $next = defined($refresh_at) && $refresh_at < $periodic_at ? $refresh_at : $periodic_at;
-        my $timeout = $next - $now;
+        # Initial reconciliation, explicit refreshes and settled DRM events own
+        # policy changes. Do not spawn wlr-randr on an idle 30-second timer.
+        my $timeout = defined($refresh_at) ? $refresh_at - $now : 0.5;
         $timeout = 0.5 if $timeout > 0.5; # Also bounds signal response without pipe activity.
         $timeout = 0 if $timeout < 0;
         my @ready = $selector->can_read($timeout);

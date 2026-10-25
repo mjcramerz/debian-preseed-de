@@ -229,7 +229,7 @@ class TorrentIntegrationTests(unittest.TestCase):
              mock.patch.dict(globals_, {'require_socket': mock.Mock(),
                                        'read_managed_config': proxy_policy_reader,
                                        'optional_ro_bind': mock.Mock(),
-                                       'add_gpu_device_binds': mock.Mock()}), \
+                                       'add_gpu_device_binds': mock.Mock(return_value=None)}), \
              mock.patch.object(shutil, 'which', side_effect=lambda name: '/usr/bin/' + name):
             command = QBIT['build_command'](account, Path('/run/media/fixture/bittorrent'),
                                              Path('/run/media/fixture/bittorrent/.qbittorrent-profile'), 'launch', [],

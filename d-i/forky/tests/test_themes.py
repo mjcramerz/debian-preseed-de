@@ -47,7 +47,7 @@ class ThemeValidationTests(unittest.TestCase):
         color = VALUES['WAYBAR_QUICK_CONTROLS_CONTAINER_NORMAL_OUTLINE_COLOR']
         self.assertEqual(color, VALUES['WAYBAR_BUTTON_SYSTEM_HOVER_OUTLINE_COLOR'])
         self.assertNotEqual(color, VALUES['WAYBAR_PANEL_OUTLINE_COLOR'])
-        expected = ['custom/system', 'network', 'custom/bluetooth',
+        expected = ['custom/system', 'network', 'bluetooth',
                     'custom/keyboard', 'custom/screenshot']
         for profile in profiles():
             with self.subTest(profile=profile.name):

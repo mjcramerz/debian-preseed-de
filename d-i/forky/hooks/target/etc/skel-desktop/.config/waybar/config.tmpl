@@ -173,7 +173,7 @@
     "modules": [
       "custom/system",
       "network",
-      "custom/bluetooth",
+      "bluetooth",
       "custom/keyboard",
       "custom/screenshot"
     ]
@@ -196,11 +196,14 @@
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e nmtui",
     "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-network-control-menu"
   },
-  "custom/bluetooth": {
-    "exec": "/usr/local/libexec/labwc-waybar-exec labwc-bluetooth status",
-    "return-type": "json",
-    "interval": 10,
-    "signal": 8,
+  "bluetooth": {
+    "format": "__THEME_WAYBAR_BUTTON_BLUETOOTH_ENABLED_ICON_GLYPH__",
+    "format-on": "__THEME_WAYBAR_BUTTON_BLUETOOTH_ENABLED_ICON_GLYPH__",
+    "format-off": "__THEME_WAYBAR_BUTTON_BLUETOOTH_DISABLED_ICON_GLYPH__",
+    "format-disabled": "__THEME_WAYBAR_BUTTON_BLUETOOTH_DISABLED_ICON_GLYPH__",
+    "format-connected": "__THEME_WAYBAR_BUTTON_BLUETOOTH_CONNECTED_ICON_GLYPH__",
+    "format-no-controller": "__THEME_WAYBAR_BUTTON_BLUETOOTH_UNAVAILABLE_ICON_GLYPH__",
+    "tooltip-format": "Bluetooth {status}\nLeft-click: interactive console\nRight-click: device actions",
     "tooltip": true,
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-bluetooth open",
     "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-bluetooth menu"
@@ -208,17 +211,16 @@
   "custom/keyboard": {
     "exec": "/usr/local/libexec/labwc-waybar-exec labwc-keyboard-layout status",
     "return-type": "json",
-    "interval": 30,
     "signal": 7,
     "tooltip": true,
     "exec-on-event": false,
     "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- labwc-keyboard-layout waybar-toggle"
   },
   "custom/screenshot": {
-    "exec": "/usr/local/libexec/labwc-waybar-exec __INSTALLER_LABWC_CAPTURE_COMMAND__ status",
+    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-waybar-events capture",
     "return-type": "json",
-    "interval": 5,
-    "signal": 9,
+    "restart-interval": 30,
+    "exec-on-event": false,
     "tooltip": true,
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ primary",
     "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ stop",
@@ -249,20 +251,20 @@
       "whisper_cancel": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/systemctl --user stop whisper-transcribe.service"
     }
   },
-  "custom/backlight": {
-    "exec": "/usr/local/libexec/labwc-waybar-exec __INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ status",
-    "return-type": "json",
-    "interval": 5,
-    "signal": 8,
+  "backlight": {
+    "interval": 30,
+    "format": "<span foreground='__THEME_WAYBAR_BUTTON_BACKLIGHT_AVAILABLE_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BACKLIGHT_AVAILABLE_ICON_GLYPH__</span> {percent}%",
+    "tooltip-format": "Display brightness {percent}%\nScroll or use the brightness keys to adjust",
     "tooltip": true,
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ menu",
     "on-scroll-up": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ up",
     "on-scroll-down": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ down"
   },
   "custom/battery": {
-    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-waybar-battery",
+    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-waybar-battery --watch",
     "return-type": "json",
-    "interval": 5,
+    "restart-interval": 30,
+    "exec-on-event": false,
     "format": "{icon} {text}",
     "format-icons": {
       "default": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_NORMAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_NORMAL_ICON_GLYPH__</span>",
@@ -330,11 +332,12 @@
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-lock"
   },
   "custom/notifications": {
-    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-notifications status",
+    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-waybar-events notifications",
     "return-type": "json",
     "format": "{}",
     "escape": true,
-    "interval": 5,
+    "restart-interval": 30,
+    "exec-on-event": false,
     "tooltip": true,
     "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd-dismiss",
     "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd",
@@ -538,7 +541,7 @@
     "modules": [
       "custom/system",
       "network",
-      "custom/bluetooth",
+      "bluetooth",
       "custom/keyboard",
       "custom/screenshot"
     ]
@@ -561,11 +564,14 @@
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e nmtui",
     "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-network-control-menu"
   },
-  "custom/bluetooth": {
-    "exec": "/usr/local/libexec/labwc-waybar-exec labwc-bluetooth status",
-    "return-type": "json",
-    "interval": 10,
-    "signal": 8,
+  "bluetooth": {
+    "format": "__THEME_WAYBAR_BUTTON_BLUETOOTH_ENABLED_ICON_GLYPH__",
+    "format-on": "__THEME_WAYBAR_BUTTON_BLUETOOTH_ENABLED_ICON_GLYPH__",
+    "format-off": "__THEME_WAYBAR_BUTTON_BLUETOOTH_DISABLED_ICON_GLYPH__",
+    "format-disabled": "__THEME_WAYBAR_BUTTON_BLUETOOTH_DISABLED_ICON_GLYPH__",
+    "format-connected": "__THEME_WAYBAR_BUTTON_BLUETOOTH_CONNECTED_ICON_GLYPH__",
+    "format-no-controller": "__THEME_WAYBAR_BUTTON_BLUETOOTH_UNAVAILABLE_ICON_GLYPH__",
+    "tooltip-format": "Bluetooth {status}\nLeft-click: interactive console\nRight-click: device actions",
     "tooltip": true,
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-bluetooth open",
     "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-bluetooth menu"
@@ -573,17 +579,16 @@
   "custom/keyboard": {
     "exec": "/usr/local/libexec/labwc-waybar-exec labwc-keyboard-layout status",
     "return-type": "json",
-    "interval": 30,
     "signal": 7,
     "tooltip": true,
     "exec-on-event": false,
     "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- labwc-keyboard-layout waybar-toggle"
   },
   "custom/screenshot": {
-    "exec": "/usr/local/libexec/labwc-waybar-exec __INSTALLER_LABWC_CAPTURE_COMMAND__ status",
+    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-waybar-events capture",
     "return-type": "json",
-    "interval": 5,
-    "signal": 9,
+    "restart-interval": 30,
+    "exec-on-event": false,
     "tooltip": true,
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ primary",
     "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ stop",
@@ -614,20 +619,20 @@
       "whisper_cancel": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/systemctl --user stop whisper-transcribe.service"
     }
   },
-  "custom/backlight": {
-    "exec": "/usr/local/libexec/labwc-waybar-exec __INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ status",
-    "return-type": "json",
-    "interval": 5,
-    "signal": 8,
+  "backlight": {
+    "interval": 30,
+    "format": "<span foreground='__THEME_WAYBAR_BUTTON_BACKLIGHT_AVAILABLE_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BACKLIGHT_AVAILABLE_ICON_GLYPH__</span> {percent}%",
+    "tooltip-format": "Display brightness {percent}%\nScroll or use the brightness keys to adjust",
     "tooltip": true,
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ menu",
     "on-scroll-up": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ up",
     "on-scroll-down": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ down"
   },
   "custom/battery": {
-    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-waybar-battery",
+    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-waybar-battery --watch",
     "return-type": "json",
-    "interval": 5,
+    "restart-interval": 30,
+    "exec-on-event": false,
     "format": "{icon} {text}",
     "format-icons": {
       "default": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_NORMAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_NORMAL_ICON_GLYPH__</span>",
@@ -695,11 +700,12 @@
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-lock"
   },
   "custom/notifications": {
-    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-notifications status",
+    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-waybar-events notifications",
     "return-type": "json",
     "format": "{}",
     "escape": true,
-    "interval": 5,
+    "restart-interval": 30,
+    "exec-on-event": false,
     "tooltip": true,
     "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd-dismiss",
     "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd",

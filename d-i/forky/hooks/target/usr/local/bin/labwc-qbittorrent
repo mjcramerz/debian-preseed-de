@@ -34,6 +34,7 @@ DEFAULT_PORT = 50309
 USERNAME_PATTERN = re.compile(r"^[a-z_][a-z0-9_-]*$")
 DBUS_ADDRESS_PATTERN = re.compile(r"unix:path=([^,]+)(?:,[^=]+=[^,]+)*")
 DEFAULT_KEYS = {
+    "LABWC_MANAGED_APP_DEFAULT_EXEC",
     "LABWC_INTEL_ACCELERATION_AVAILABLE",
     "LABWC_NVIDIA_ACCELERATION_AVAILABLE",
     "LABWC_QBITTORRENT_PORT",
@@ -119,6 +120,14 @@ def select_acceleration_mode(
         mode = raw_argument[len(ACCELERATION_OPTION_PREFIX) :]
         if mode not in {"intel", "nvidia"}:
             fail(f"unsupported qBittorrent managed acceleration mode: {mode or 'unset'}")
+
+    if mode == "launch":
+        default_exec = defaults.get("LABWC_MANAGED_APP_DEFAULT_EXEC", "/usr/local/bin/labwc-app launch")
+        default_modes = {f"/usr/local/bin/labwc-app {value}": value
+                         for value in ("launch", "intel", "nvidia")}
+        if default_exec not in default_modes:
+            fail("invalid managed application default acceleration command")
+        mode = default_modes[default_exec]
 
     if mode in {"intel", "nvidia"}:
         key = f"LABWC_{mode.upper()}_ACCELERATION_AVAILABLE"
@@ -511,49 +520,13 @@ def optional_ro_bind(command: list[str], source: str) -> None:
         command.extend(["--ro-bind", source, source])
 
 
-def add_gpu_device_binds(command: list[str], acceleration_mode: str) -> None:
-    if acceleration_mode not in {"launch", "intel", "nvidia"}:
-        fail(f"unsupported qBittorrent accelerator mode: {acceleration_mode}")
-
-    render_devices = sorted(
-        path
-        for path in pathlib.Path("/dev/dri").glob("renderD[0-9]*")
-        if re.fullmatch(r"renderD(?:0|[1-9][0-9]{0,5})", path.name)
-    )
-    if render_devices:
-        command.extend(["--dir", "/dev/dri"])
-    device_paths = [
-        *render_devices,
-        pathlib.Path("/dev/kfd"),
-        pathlib.Path("/dev/accel"),
-    ]
-    if acceleration_mode == "nvidia":
-        device_paths.extend(
-            (
-                pathlib.Path("/dev/nvidia-caps"),
-                pathlib.Path("/dev/nvidiactl"),
-                pathlib.Path("/dev/nvidia-uvm"),
-                pathlib.Path("/dev/nvidia-uvm-tools"),
-            )
-        )
-        device_paths.extend(sorted(pathlib.Path("/dev").glob("nvidia[0-9]*")))
-    for device_path in device_paths[:64]:
-        try:
-            metadata = device_path.lstat()
-        except FileNotFoundError:
-            continue
-        except OSError as exc:
-            fail(f"cannot inspect qBittorrent accelerator device {device_path}: {exc}")
-        if stat.S_ISLNK(metadata.st_mode) or not (
-            stat.S_ISDIR(metadata.st_mode) or stat.S_ISCHR(metadata.st_mode)
-        ):
-            fail(
-                "qBittorrent accelerator path must be a directory or character "
-                f"device: {device_path}"
-            )
-        if metadata.st_uid != 0:
-            fail(f"qBittorrent accelerator path must remain root-owned: {device_path}")
-        command.extend(["--dev-bind", str(device_path), str(device_path)])
+def add_gpu_device_binds(command: list[str], acceleration_mode: str):
+    # main() verifies the package import chain before this helper is reached.
+    from labwc_managed_app import gpu
+    selected = gpu.select(acceleration_mode)
+    if selected is not None:
+        selected.add_binds(command)
+    return selected
 
 
 def validate_no_host_audio_device_binds(command: list[str]) -> None:
@@ -735,7 +708,7 @@ def build_command(
         command.extend(["--ro-bind", source, source])
     for source in ("/sbin", "/lib64", "/lib32", "/opt"):
         optional_ro_bind(command, source)
-    add_gpu_device_binds(command, acceleration_mode)
+    selected_gpu = add_gpu_device_binds(command, acceleration_mode)
     for source in (
         "/etc/alternatives",
         "/etc/ca-certificates",
@@ -791,22 +764,8 @@ def build_command(
         "QSG_RHI_BACKEND": "opengl",
         "TMPDIR": "/tmp",
     }
-    if acceleration_mode == "intel":
-        environment.update(
-            {
-                "LIBVA_DRIVER_NAME": "iHD",
-            }
-        )
-    elif acceleration_mode == "nvidia":
-        environment.update(
-            {
-                "GBM_BACKEND": "nvidia-drm",
-                "LIBVA_DRIVER_NAME": "nvidia",
-                "NVD_BACKEND": "direct",
-                "__GLX_VENDOR_LIBRARY_NAME": "nvidia",
-                "__NV_PRIME_RENDER_OFFLOAD": "1",
-            }
-        )
+    if selected_gpu is not None:
+        selected_gpu.apply_environment(environment)
     bus_path = session_bus_path(os.environ.get("DBUS_SESSION_BUS_ADDRESS", ""))
     if bus_path is not None:
         sandbox_bus = sandbox_runtime / "bus"

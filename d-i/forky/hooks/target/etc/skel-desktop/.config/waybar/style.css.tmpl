@@ -120,7 +120,7 @@ tooltip label {
   color: __THEME_WAYBAR_BUTTON_AUDIO_NORMAL_TEXT_COLOR__;
 }
 
-#custom-backlight {
+#backlight {
   background: __THEME_WAYBAR_BUTTON_BACKLIGHT_NORMAL_BACKGROUND_COLOR__;
   border-style: __THEME_WAYBAR_BORDER_STYLE__;
   border-color: __THEME_WAYBAR_BUTTON_BACKLIGHT_NORMAL_OUTLINE_COLOR__;
@@ -363,7 +363,7 @@ tooltip label {
   background: __THEME_WAYBAR_BUTTON_NETWORK_NORMAL_BACKGROUND_COLOR__;
 }
 
-#quick-controls #custom-bluetooth {
+#quick-controls #bluetooth {
   border-style: __THEME_WAYBAR_BORDER_STYLE__;
   border-color: __THEME_WAYBAR_BUTTON_BLUETOOTH_NORMAL_OUTLINE_COLOR__;
   background: __THEME_WAYBAR_BUTTON_BLUETOOTH_NORMAL_BACKGROUND_COLOR__;
@@ -393,7 +393,7 @@ tooltip label {
   background: __THEME_WAYBAR_BUTTON_NETWORK_NORMAL_BACKGROUND_COLOR__;
 }
 
-#quick-controls #custom-bluetooth {
+#quick-controls #bluetooth {
   border-style: __THEME_WAYBAR_BORDER_STYLE__;
   border-color: __THEME_WAYBAR_BUTTON_BLUETOOTH_NORMAL_OUTLINE_COLOR__;
   background: __THEME_WAYBAR_BUTTON_BLUETOOTH_NORMAL_BACKGROUND_COLOR__;
@@ -421,7 +421,7 @@ tooltip label {
   border-color: __THEME_WAYBAR_BUTTON_NETWORK_HOVER_OUTLINE_COLOR__;
 }
 
-#quick-controls #custom-bluetooth:hover {
+#quick-controls #bluetooth:hover {
   background: __THEME_WAYBAR_BUTTON_BLUETOOTH_HOVER_BACKGROUND_COLOR__;
   border-color: __THEME_WAYBAR_BUTTON_BLUETOOTH_HOVER_OUTLINE_COLOR__;
 }
@@ -446,7 +446,7 @@ tooltip label {
   border-color: __THEME_WAYBAR_BUTTON_NETWORK_HOVER_OUTLINE_COLOR__;
 }
 
-#quick-controls #custom-bluetooth:hover {
+#quick-controls #bluetooth:hover {
   background: __THEME_WAYBAR_BUTTON_BLUETOOTH_HOVER_BACKGROUND_COLOR__;
   border-color: __THEME_WAYBAR_BUTTON_BLUETOOTH_HOVER_OUTLINE_COLOR__;
 }
@@ -491,28 +491,30 @@ tooltip label {
   color: __THEME_WAYBAR_BUTTON_SCREENSHOT_RECORDING_ICON_COLOR__;
 }
 
-#custom-bluetooth {
+#bluetooth {
   color: __THEME_WAYBAR_BUTTON_BLUETOOTH_ENABLED_ICON_COLOR__;
   font-weight: __THEME_WAYBAR_FONT_WEIGHT_EMPHASIS__;
 }
 
-#custom-bluetooth.disabled {
+#bluetooth.disabled,
+#bluetooth.off {
   color: __THEME_WAYBAR_BUTTON_BLUETOOTH_DISABLED_ICON_COLOR__;
 }
 
-#custom-bluetooth.unavailable {
+#bluetooth.unavailable,
+#bluetooth.no-controller {
   color: __THEME_WAYBAR_BUTTON_BLUETOOTH_UNAVAILABLE_ICON_COLOR__;
 }
 
-#custom-backlight.unavailable {
+#backlight.unavailable {
   color: __THEME_WAYBAR_BUTTON_BACKLIGHT_UNAVAILABLE_TEXT_COLOR__;
 }
 
-#custom-bluetooth.connected {
+#bluetooth.connected {
   color: __THEME_WAYBAR_BUTTON_BLUETOOTH_CONNECTED_ICON_COLOR__;
 }
 
-#custom-backlight.available {
+#backlight {
   color: __THEME_WAYBAR_BUTTON_BACKLIGHT_AVAILABLE_TEXT_COLOR__;
 }
 
@@ -619,7 +621,7 @@ tooltip label {
   border-color: __THEME_WAYBAR_BUTTON_AUDIO_HOVER_OUTLINE_COLOR__;
 }
 
-#custom-backlight:hover {
+#backlight:hover {
   background: __THEME_WAYBAR_BUTTON_BACKLIGHT_HOVER_BACKGROUND_COLOR__;
   border-color: __THEME_WAYBAR_BUTTON_BACKLIGHT_HOVER_OUTLINE_COLOR__;
 }
@@ -927,7 +929,7 @@ window#waybar.internal #taskbar button,
 window#waybar.internal #workspaces button,
 window#waybar.internal #clock,
 window#waybar.internal #pulseaudio,
-window#waybar.internal #custom-backlight,
+window#waybar.internal #backlight,
 window#waybar.internal #custom-battery,
 window#waybar.internal #disk,
 window#waybar.internal #cpu,
@@ -947,7 +949,7 @@ window#waybar.internal #custom-launcher {
 window#waybar.internal #quick-controls,
 window#waybar.internal #quick-controls #custom-system,
 window#waybar.internal #quick-controls #network,
-window#waybar.internal #quick-controls #custom-bluetooth,
+window#waybar.internal #quick-controls #bluetooth,
 window#waybar.internal #quick-controls #custom-keyboard,
 window#waybar.internal #quick-controls #custom-screenshot {
   border-style: __THEME_WAYBAR_INTERNAL_BORDER_STYLE__;
@@ -966,7 +968,7 @@ window#waybar.internal #custom-system {
 }
 
 window#waybar.internal #custom-screenshot,
-window#waybar.internal #custom-bluetooth,
+window#waybar.internal #bluetooth,
 window#waybar.internal #clock {
   font-weight: __THEME_WAYBAR_INTERNAL_FONT_WEIGHT_EMPHASIS__;
 }
@@ -1008,7 +1010,7 @@ window#waybar.internal #taskbar button,
 window#waybar.internal #workspaces button,
 window#waybar.internal #clock,
 window#waybar.internal #pulseaudio,
-window#waybar.internal #custom-backlight,
+window#waybar.internal #backlight,
 window#waybar.internal #custom-battery,
 window#waybar.internal #disk,
 window#waybar.internal #cpu,
@@ -1148,7 +1150,7 @@ window#waybar.internal #quick-controls > * {
 
 window#waybar.internal #quick-controls #custom-system,
 window#waybar.internal #quick-controls #network,
-window#waybar.internal #quick-controls #custom-bluetooth,
+window#waybar.internal #quick-controls #bluetooth,
 window#waybar.internal #quick-controls #custom-keyboard,
 window#waybar.internal #quick-controls #custom-screenshot {
   margin: __INSTALLER_LABWC_WAYBAR_INTERNAL_RESET_SIZE__px;
@@ -1160,7 +1162,7 @@ window#waybar.internal #quick-controls #custom-screenshot {
 }
 
 window#waybar.internal #pulseaudio,
-window#waybar.internal #custom-backlight,
+window#waybar.internal #backlight,
 window#waybar.internal #custom-battery,
 window#waybar.internal #disk,
 window#waybar.internal #cpu,
@@ -1182,7 +1184,7 @@ window#waybar.internal #custom-power {
 }
 
 window#waybar.internal #pulseaudio,
-window#waybar.internal #custom-backlight,
+window#waybar.internal #backlight,
 window#waybar.internal #custom-battery,
 window#waybar.internal #disk,
 window#waybar.internal #cpu,
@@ -1219,7 +1221,7 @@ window#waybar.internal #pulseaudio:hover {
   box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_AUDIO_HOVER_SHADOW_COLOR__;
 }
 
-window#waybar.internal #custom-backlight:hover {
+window#waybar.internal #backlight:hover {
   box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_BACKLIGHT_HOVER_SHADOW_COLOR__;
 }
 
@@ -1276,7 +1278,7 @@ window#waybar.external #taskbar button,
 window#waybar.external #workspaces button,
 window#waybar.external #clock,
 window#waybar.external #pulseaudio,
-window#waybar.external #custom-backlight,
+window#waybar.external #backlight,
 window#waybar.external #custom-battery,
 window#waybar.external #disk,
 window#waybar.external #cpu,
@@ -1296,7 +1298,7 @@ window#waybar.external #custom-launcher {
 window#waybar.external #quick-controls,
 window#waybar.external #quick-controls #custom-system,
 window#waybar.external #quick-controls #network,
-window#waybar.external #quick-controls #custom-bluetooth,
+window#waybar.external #quick-controls #bluetooth,
 window#waybar.external #quick-controls #custom-keyboard,
 window#waybar.external #quick-controls #custom-screenshot {
   border-style: __THEME_WAYBAR_EXTERNAL_BORDER_STYLE__;
@@ -1315,7 +1317,7 @@ window#waybar.external #custom-system {
 }
 
 window#waybar.external #custom-screenshot,
-window#waybar.external #custom-bluetooth,
+window#waybar.external #bluetooth,
 window#waybar.external #clock {
   font-weight: __THEME_WAYBAR_EXTERNAL_FONT_WEIGHT_EMPHASIS__;
 }
@@ -1357,7 +1359,7 @@ window#waybar.external #taskbar button,
 window#waybar.external #workspaces button,
 window#waybar.external #clock,
 window#waybar.external #pulseaudio,
-window#waybar.external #custom-backlight,
+window#waybar.external #backlight,
 window#waybar.external #custom-battery,
 window#waybar.external #disk,
 window#waybar.external #cpu,
@@ -1497,7 +1499,7 @@ window#waybar.external #quick-controls > * {
 
 window#waybar.external #quick-controls #custom-system,
 window#waybar.external #quick-controls #network,
-window#waybar.external #quick-controls #custom-bluetooth,
+window#waybar.external #quick-controls #bluetooth,
 window#waybar.external #quick-controls #custom-keyboard,
 window#waybar.external #quick-controls #custom-screenshot {
   margin: __INSTALLER_LABWC_WAYBAR_EXTERNAL_RESET_SIZE__px;
@@ -1509,7 +1511,7 @@ window#waybar.external #quick-controls #custom-screenshot {
 }
 
 window#waybar.external #pulseaudio,
-window#waybar.external #custom-backlight,
+window#waybar.external #backlight,
 window#waybar.external #custom-battery,
 window#waybar.external #disk,
 window#waybar.external #cpu,
@@ -1531,7 +1533,7 @@ window#waybar.external #custom-power {
 }
 
 window#waybar.external #pulseaudio,
-window#waybar.external #custom-backlight,
+window#waybar.external #backlight,
 window#waybar.external #custom-battery,
 window#waybar.external #disk,
 window#waybar.external #cpu,
@@ -1568,7 +1570,7 @@ window#waybar.external #pulseaudio:hover {
   box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_AUDIO_HOVER_SHADOW_COLOR__;
 }
 
-window#waybar.external #custom-backlight:hover {
+window#waybar.external #backlight:hover {
   box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_BACKLIGHT_HOVER_SHADOW_COLOR__;
 }
 

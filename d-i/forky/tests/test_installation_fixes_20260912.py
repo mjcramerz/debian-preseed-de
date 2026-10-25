@@ -166,6 +166,9 @@ class GenericWrapperTests(unittest.TestCase):
         # These tests cover argv/environment construction, not a live runtime.
         # The launch barrier itself has dedicated session-power regressions.
         self.enterContext(mock.patch.object(generic, 'assert_launch_allowed'))
+        # GPU identity has private source fixtures; argv tests must never
+        # discover the development host hardware through the new delegate.
+        self.enterContext(mock.patch.object(generic.gpu, 'select', return_value=None))
 
     def test_electron_flags_keep_zygote_and_namespace_sandbox(self):
         command = generic.electron_command(['/opt/demo', '--ozone-platform=x11', '--use-gl=desktop', 'a b', '%', '$HOME'])

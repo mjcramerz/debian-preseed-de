@@ -661,13 +661,7 @@ nftables_ssh_service_placeholder_map() {
   ssh_allow_ipv6=$(nftables_ssh_allow_ipv6_cidrs)
   ssh_allow_interfaces=$(nftables_ssh_allow_interfaces)
 
-  # The complete overlay catalog is published even when addon/ssh is absent.
-  # Keep that dormant catalog entry concrete without weakening addon/ssh: the
-  # selected addon still requires ssh_port unless a profile explicitly sets a
-  # default, while an inactive catalog entry uses the standard SSH port.
-  if [ "${SSH_SERVER_ENABLED:-false}" != true ] && [ -z "${SSH_PORT_DEFAULT:-}" ]; then
-    SSH_PORT_DEFAULT=22
-  fi
+  # Both active and dormant catalog entries use the profile's declared port.
   runtime_apply_ssh_from_cmdline
   nftables_validate_port_value SSH_PORT "$SSH_PORT"
   while IFS= read -r cidr || [ -n "$cidr" ]; do
@@ -691,14 +685,15 @@ EOF
 }
 
 fail2ban_jail_placeholder_map() {
-  # Keep the jail independent of package/class selection. A configured
-  # ssh_port still wins, with port 22 as the fallback for later installs.
-  if [ -z "${SSH_PORT_DEFAULT:-}" ]; then
-    SSH_PORT_DEFAULT=22
-  fi
+  # Keep the daemon, jail and firewall on the same profile-controlled port.
   runtime_apply_ssh_from_cmdline
   nftables_validate_port_value SSH_PORT "$SSH_PORT"
+  case "${SSH_SERVER_ENABLED:-}" in
+    true|false) ;;
+    *) installer_fatal "SSH_SERVER_ENABLED must be resolved before Fail2ban rendering" ;;
+  esac
   printf 'SSH_PORT=%s\n' "$SSH_PORT"
+  printf 'SSHD_JAIL_ENABLED=%s\n' "$SSH_SERVER_ENABLED"
 }
 
 nftables_syncthing_service_placeholder_map() {
@@ -1259,6 +1254,10 @@ stage_target_desktop_apparmor_profiles() {
     "/etc/apparmor.d/abstractions/desktop-graphics" \
     0644
   stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/native-gpu-selection)" \
+    "/etc/apparmor.d/abstractions/native-gpu-selection" \
+    0644
+  stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/desktop-runtime)" \
     "/etc/apparmor.d/abstractions/desktop-runtime" \
     0644
@@ -1606,6 +1605,11 @@ security_mask_target_systemd_unit_if_available() {
 }
 
 configure_target_fail2ban() {
+  runtime_apply_ssh_from_classes
+  fail2ban_has_jails=$SSH_SERVER_ENABLED
+  if installer_selected_class_reference_is_selected service/web 2>/dev/null; then
+    fail2ban_has_jails=true
+  fi
   install -d -m 0755 \
     /target/etc/fail2ban \
     /target/etc/fail2ban/action.d \
@@ -1670,17 +1674,25 @@ configure_target_fail2ban() {
     --create \
     /etc/tmpfiles.d/59-log-layout.conf \
     /etc/tmpfiles.d/62-fail2ban.conf
-  run_in_target \
-    "validate Fail2ban configuration" \
-    /usr/bin/fail2ban-client \
-    -t
+  if [ "$fail2ban_has_jails" = true ]; then
+    run_in_target \
+      "validate Fail2ban configuration" \
+      /usr/bin/fail2ban-client \
+      -t
+  fi
   run_in_target \
     "validate Fail2ban log rotation" \
     /usr/sbin/logrotate \
     --debug \
     /etc/logrotate.d/fail2ban
 
-  stage_target_systemd_unit_enabled fail2ban.service system
+  if [ "$fail2ban_has_jails" = true ]; then
+    stage_target_systemd_unit_enabled fail2ban.service system
+  else
+    # Package installation can create enablement links. Remove them and mask
+    # only this target unit offline when no managed service has an active jail.
+    security_mask_target_systemd_unit_if_available fail2ban.service system
+  fi
 }
 
 app_veth_dns_placeholder_map() (

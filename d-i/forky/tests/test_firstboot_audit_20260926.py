@@ -348,7 +348,7 @@ class AuditWiringTests(unittest.TestCase):
 
     def test_battery_uses_existing_descriptor_boundary(self):
         config = (TARGET / 'etc/skel-desktop/.config/waybar/config.tmpl').read_text()
-        self.assertIn('"exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-waybar-battery"', config)
+        self.assertIn('"exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-waybar-battery --watch"', config)
         self.assertNotIn('"exec": "/usr/local/libexec/labwc-waybar-battery"', config)
         policy = (TARGET / 'etc/apparmor.d/labwc-session').read_text().split('profile labwc-waybar-battery ', 1)[1].split('\n}', 1)[0]
         self.assertNotIn('/dev/rfkill', policy)

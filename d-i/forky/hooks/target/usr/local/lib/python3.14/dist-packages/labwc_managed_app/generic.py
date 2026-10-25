@@ -27,6 +27,7 @@ from .environment import (
 )
 from .recovery import assert_launch_allowed
 from .integrity import system_owner
+from . import gpu
 from .session import menu_action_wait_arguments, native_session_wayland_display
 from .profiles import APPS, INTEL_ACCELERATION_ENV, NVIDIA_ACCELERATION_ENV, WAYLAND_COMPAT_APPS
 from .runtime import (
@@ -59,6 +60,7 @@ UNSET_ENVIRONMENT = (
     "__NV_PRIME_RENDER_OFFLOAD", "__VK_LAYER_NV_optimus", "VK_ICD_FILENAMES",
     "VK_DRIVER_FILES", "MESA_LOADER_DRIVER_OVERRIDE", "LIBGL_ALWAYS_SOFTWARE",
     CONFIGURED_ENVIRONMENT_NAMES,
+    *gpu.SELECTOR_NAMES,
 )
 ELECTRON_UNSAFE_SWITCHES = {
     "--no-sandbox", "--no-zygote", "--single-process", "--disable-gpu-sandbox",
@@ -310,8 +312,13 @@ def run_configured_network(arguments: list[str]) -> int:
     environment.update(INTEL_ACCELERATION_ENV if options.mode == "intel"
                        else NVIDIA_ACCELERATION_ENV if options.mode == "nvidia" else {})
     environment = configured_worker_environment(environment)
+    selected_gpu = gpu.select(options.mode)
+    if selected_gpu is not None:
+        selected_gpu.apply_environment(environment)
     if options.kind == "electron":
         payload = electron_command(payload)
+        if selected_gpu is not None:
+            payload = selected_gpu.chromium_arguments(payload)
     policy = configured_network_policy(options.app)
     if policy is None:
         fail("application network policy was removed before launch")
@@ -533,6 +540,12 @@ def main(kind: str, argv: list[str] | None = None) -> int:
         arguments = network_command
     elif kind == "electron":
         arguments = electron_command(arguments)
+    if network_command is None:
+        selected_gpu = gpu.select(mode)
+        if selected_gpu is not None:
+            selected_gpu.apply_environment(environment)
+            if kind == "electron":
+                arguments = selected_gpu.chromium_arguments(arguments)
     # Keep account recovery, terminals and desktop controls available to unlock
     # the key. All other generic GUI launches use the same cryptographic gate.
     if (network_command is None or network_command[0] == "/usr/local/libexec/app-veth-run") and executable not in {

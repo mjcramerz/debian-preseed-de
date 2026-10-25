@@ -158,7 +158,7 @@ class SettingsTests(unittest.TestCase):
         settings = NFS.Settings.from_environment(profile(NFS_SERVER_ENABLE='true', NFS_CLIENT_ENABLE='true',
             ACCOUNT_HOME='/home/lanuser', NETWORK_SHARING_HOME_BIND_PATH='LAN'))
         rows = [row.split() for row in NFS.fstab_entries(settings)]
-        self.assertEqual(rows[0][:3], ['/data/sharing', '/data/sharing', 'none'])
+        self.assertEqual(rows[0][:3], ['/data/.sharing-store/root', '/data/sharing', 'none'])
         self.assertIn('shared', rows[0][3].split(','))
         self.assertEqual(rows[1][:3], ['/data/sharing', '/home/lanuser/LAN', 'none'])
         self.assertTrue({'rbind', 'rslave'} <= set(rows[1][3].split(',')))
@@ -319,7 +319,7 @@ class SettingsTests(unittest.TestCase):
             settings = NFS.Settings.from_environment(profile(NFS_SERVER_ENABLE=server, NFS_CLIENT_ENABLE=client, NFS_CLIENT_READ_ONLY=ro))
             rows = [row.split() for row in NFS.fstab_entries(settings)]
             self.assertEqual(len(rows), 2 + int(client == 'true'))
-            self.assertEqual(rows[0][:2], ['/data/sharing', '/data/sharing'])
+            self.assertEqual(rows[0][:2], ['/data/.sharing-store/root', '/data/sharing'])
             self.assertIn('shared', rows[0][3].split(','))
             self.assertEqual(rows[1][:2], ['/data/sharing', '/home/mcramer/Sharing'])
             self.assertIn('rslave', rows[1][3].split(','))
@@ -927,12 +927,44 @@ class TargetFilesystemTests(unittest.TestCase):
     def test_disabled_still_creates_root_without_packages_or_services(self):
         self.configure()
         self.assertTrue((self.root/'data/sharing').is_dir())
+        self.assertEqual(list((self.root/'data/sharing').iterdir()), [])
+        self.assertTrue((self.root/'data/.sharing-store/root').is_dir())
         self.assertTrue((self.root/'home/mcramer/Sharing').is_dir())
         self.assertFalse((self.root/'etc/exports').exists())
         self.assertTrue(all(call.args[0][0] == '/usr/bin/chattr' for call in self.run.call_args_list))
         fstab = (self.root/'etc/fstab').read_text()
         self.assertIn('bind,shared,nosuid,nodev,noexec', fstab)
         self.assertIn('rbind,rslave,nosuid,nodev,noexec', fstab)
+
+    def test_nonempty_public_target_is_preserved_and_refused_before_external_calls(self):
+        public = self.root/'data/sharing'
+        public.mkdir(parents=True)
+        evidence = public/'keep.txt'
+        evidence.write_text('existing data')
+        old_fstab = (self.root/'etc/fstab').read_bytes()
+        with self.assertRaisesRegex(ValueError, 'nonempty public sharing'):
+            self.configure(NFS_SERVER_ENABLE='true')
+        self.assertEqual(evidence.read_text(), 'existing data')
+        self.assertEqual((self.root/'etc/fstab').read_bytes(), old_fstab)
+        self.run.assert_not_called()
+
+    def test_unowned_or_replaced_backing_directory_is_refused(self):
+        backing = self.root/'data/.sharing-store'
+        backing.mkdir(parents=True, mode=0o700)
+        (backing/'keep.txt').write_text('preserve')
+        with self.assertRaisesRegex(ValueError, 'backing directory already exists'):
+            self.configure()
+        self.assertEqual((backing/'keep.txt').read_text(), 'preserve')
+        self.run.assert_not_called()
+        (backing/'keep.txt').unlink()
+        backing.rmdir()
+        outside = self.root/'outside'
+        outside.mkdir()
+        backing.symlink_to(outside, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, 'unsafe system directory'):
+            self.configure()
+        self.assertEqual(list(outside.iterdir()), [])
+        self.run.assert_not_called()
 
     def test_both_roles_binds_idempotence_permissions_and_no_live_calls(self):
         settings = dict(NFS_SERVER_ENABLE='true', NFS_CLIENT_ENABLE='true')
@@ -942,13 +974,15 @@ class TargetFilesystemTests(unittest.TestCase):
         self.configure(**settings)
         self.assertEqual(fstab, (self.root/'etc/fstab').read_text())
         self.assertEqual(exports, (self.root/'etc/exports').read_text())
-        self.assertEqual(stat.S_IMODE((self.root/'data/sharing/nfs-server').stat().st_mode), 0o2770)
-        self.assertEqual((self.root/'data/sharing/nfs-server').stat().st_gid, 2050)
-        self.assertEqual((self.root/'data/sharing/nfs-server').stat().st_uid, 1000)
+        self.assertEqual(list((self.root/'data/sharing').iterdir()), [])
+        self.assertEqual(stat.S_IMODE((self.root/'data/.sharing-store').stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE((self.root/'data/.sharing-store/root/nfs-server').stat().st_mode), 0o2770)
+        self.assertEqual((self.root/'data/.sharing-store/root/nfs-server').stat().st_gid, 2050)
+        self.assertEqual((self.root/'data/.sharing-store/root/nfs-server').stat().st_uid, 1000)
         bookmarks = (self.root/'etc/skel-desktop/.config/gtk-3.0/bookmarks').read_text()
         self.assertEqual(bookmarks, 'file:///home/mcramer/Sharing Sharing\nfile:///home/mcramer/Sharing/nfs-server nfs-server\n'
                                    'file:///home/mcramer/Sharing/nfs-client nfs-client\n')
-        for path in (self.root/'data/sharing/nfs-client', self.root/'home/mcramer/Sharing'):
+        for path in (self.root/'data/.sharing-store/root/nfs-client', self.root/'home/mcramer/Sharing'):
             self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o755)
             self.assertEqual((path.stat().st_uid, path.stat().st_gid), (0, 0))
         self.assertEqual((self.root/'etc/modules-load.d/60-network-sharing.conf').read_text(), 'sunrpc\nnfs\nnfsv4\nnfsd\n')

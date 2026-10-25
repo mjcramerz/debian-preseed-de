@@ -262,7 +262,7 @@ rm -rf "$stage"
 ' sh "$ACCOUNT_USERNAME" "$ACCOUNT_HOME" "$SSH_AUTHORIZED_KEYS_TARGET" "$ssh_stage"
 
   # shellcheck disable=SC2016
-  run_in_target "check SSH artifacts if tools are available" /bin/sh -c '
+  run_in_target "verify SSH artifacts before service enablement" /bin/sh -c '
 set -eu
 account_user=$1
 authorized_keys_target=$2
@@ -276,20 +276,13 @@ account_gid=$(id -g "$account_user")
 [ "$(find -P "$authorized_keys_target" -maxdepth 0 -printf %U)" = "$account_uid" ]
 [ "$(find -P "$authorized_keys_target" -maxdepth 0 -printf %G)" = "$account_gid" ]
 
-if [ -x /usr/bin/ssh-keygen ]; then
-  /usr/bin/ssh-keygen -l -f "$authorized_keys_target" >/dev/null ||
-    echo "warn: installed authorized_keys did not validate during d-i"
-else
-  echo "warn: ssh-keygen is unavailable in target; skipping authorized_keys validation"
-fi
-
-if [ -x /usr/sbin/sshd ]; then
-  install -d -m 0755 /run/sshd
-  /usr/sbin/sshd -t -f /etc/ssh/sshd_config ||
-    echo "warn: sshd_config validation failed during d-i; leaving rendered config for runtime"
-else
-  echo "warn: sshd is unavailable in target; skipping sshd_config validation"
-fi
+[ -x /usr/bin/ssh-keygen ] && [ -x /usr/sbin/sshd ] || {
+  echo "fatal: packaged OpenSSH verification tools are missing" >&2
+  exit 1
+}
+/usr/bin/ssh-keygen -l -f "$authorized_keys_target" >/dev/null
+install -d -m 0755 /run/sshd
+/usr/sbin/sshd -t -f /etc/ssh/sshd_config
 ' sh "$ACCOUNT_USERNAME" "$SSH_AUTHORIZED_KEYS_TARGET"
 
   if command -v stage_target_systemd_unit_enabled >/dev/null 2>&1 &&
@@ -297,10 +290,10 @@ fi
     if target_unit_exists ssh.service; then
       stage_target_systemd_unit_enabled ssh.service system
     else
-      installer_warn "ssh.service unit is unavailable in target during d-i; skipping staged enablement"
+      installer_fatal "ssh.service unit is unavailable in target during SSH server provisioning"
     fi
   else
-    installer_warn "systemd staging helpers are unavailable; skipping ssh.service staged enablement"
+    installer_fatal "systemd staging helpers are unavailable during SSH server provisioning"
   fi
 }
 

@@ -16,6 +16,7 @@ import configparser
 import os
 from pathlib import Path
 import subprocess
+import tempfile
 import unittest
 from payload_fixture import read_text as payload_read_text
 
@@ -26,32 +27,35 @@ FAIL2BAN = TARGET / "etc/fail2ban"
 
 
 class Fail2banPolicyTests(unittest.TestCase):
-    def test_ssh_monitor_is_enabled_independently_of_ssh_addon(self):
+    def test_ssh_monitor_and_daemon_follow_installed_services(self):
         config = (FAIL2BAN / "jail.d/10-sshd.local.tmpl").read_text()
         installer = (SEED / "scripts/late/security.sh").read_text()
         renderer = installer.split("fail2ban_jail_placeholder_map() {", 1)[1].split("\n}", 1)[0]
         stage = installer.split("configure_target_fail2ban() {", 1)[1].split(
             "\nconfigure_target_apparmor_auditd()", 1
         )[0]
-        self.assertIn("enabled = true", config)
+        self.assertIn("enabled = __INSTALLER_SSHD_JAIL_ENABLED__", config)
         self.assertIn("render_target_asset_with_placeholder_map", stage)
-        self.assertNotIn("SSH_SERVER_ENABLED", renderer)
-        self.assertNotIn("SSH_SERVER_ENABLED", stage)
-        self.assertNotIn("SSHD_JAIL_ENABLED", installer + config)
+        self.assertIn("SSH_SERVER_ENABLED", renderer)
+        self.assertIn("fail2ban_has_jails=$SSH_SERVER_ENABLED", stage)
+        self.assertIn("service/web", stage)
+        self.assertIn("SSHD_JAIL_ENABLED", installer + config)
         self.assertIn("stage_target_systemd_unit_enabled fail2ban.service system", stage)
         self.assertIn("    jail.local \\", stage)
         local = configparser.RawConfigParser()
         local.read(FAIL2BAN / "jail.local")
         # The local entrypoint does not freeze a copy of package-owned jails.
         self.assertEqual(local.sections(), [])
-        self.assertNotIn("unstage_target_systemd_unit_enabled fail2ban.service", stage)
-        parsed = configparser.RawConfigParser()
-        parsed.read_string("[sshd]\nenabled = false\n")
-        parsed.read_string(config.replace("__INSTALLER_SSH_PORT__", "2222"))
-        self.assertTrue(parsed.getboolean("sshd", "enabled"))
-        self.assertEqual(parsed.get("sshd", "port"), "2222")
+        self.assertIn("security_mask_target_systemd_unit_if_available fail2ban.service system", stage)
+        for enabled in ("true", "false"):
+            parsed = configparser.RawConfigParser()
+            parsed.read_string("[sshd]\nenabled = true\n")
+            parsed.read_string(config.replace("__INSTALLER_SSH_PORT__", "32006").replace(
+                "__INSTALLER_SSHD_JAIL_ENABLED__", enabled))
+            self.assertEqual(parsed.getboolean("sshd", "enabled"), enabled == "true")
+            self.assertEqual(parsed.get("sshd", "port"), "32006")
 
-    def test_port_renderer_uses_default_and_cmdline_port_without_class_gate(self):
+    def test_port_renderer_uses_profile_and_rejects_conflicting_cmdline(self):
         script = r"""
 set -eu
 . "$1"
@@ -67,28 +71,30 @@ runtime_require_positive_integer() {
 runtime_fatal() { exit 1; }
 fail2ban_jail_placeholder_map
 """
-        env = os.environ.copy()
-        env.pop("SSH_PORT_DEFAULT", None)
-        env.pop("RUNTIME_SSH_CMDLINE_READY", None)
-        for selected in ("true", "false"):
-            for port, expected in (("", "22"), ("2222", "2222")):
-                with self.subTest(selected=selected, port=port):
+        with tempfile.TemporaryDirectory() as directory:
+            sources = []
+            for index, relative in enumerate(("scripts/late/security.sh", "scripts/runtime/modules/classes.sh")):
+                source = Path(directory) / f"source-{index}.sh"
+                source.write_text((SEED / relative).read_text())
+                sources.append(str(source))
+            env = {"PATH": "/usr/bin:/bin", "HOME": directory, "LC_ALL": "C", "SSH_SERVER_PORT": "32006"}
+            for selected in ("true", "false"):
+                for port in ("", "32006"):
+                    with self.subTest(selected=selected, port=port):
+                        run = subprocess.run(
+                            ["/bin/sh", "-c", script, "test", *sources],
+                            env={**env, "SSH_SERVER_ENABLED": selected, "TEST_SSH_PORT": port},
+                            text=True, capture_output=True, check=True, timeout=5,
+                        )
+                        self.assertEqual(run.stdout, f"SSH_PORT=32006\nSSHD_JAIL_ENABLED={selected}\n")
+            for invalid in ("0", "65536", "32007", "22;touch /tmp/unwanted"):
+                with self.subTest(invalid=invalid):
                     run = subprocess.run(
-                        ["sh", "-c", script, "test", str(SEED / "scripts/late/security.sh"),
-                         str(SEED / "scripts/runtime/modules/classes.sh")],
-                        env={**env, "SSH_SERVER_ENABLED": selected, "TEST_SSH_PORT": port},
-                        text=True, capture_output=True, check=True,
+                        ["/bin/sh", "-c", script, "test", *sources],
+                        env={**env, "SSH_SERVER_ENABLED": "false", "TEST_SSH_PORT": invalid},
+                        text=True, capture_output=True, timeout=5,
                     )
-                    self.assertEqual(run.stdout, f"SSH_PORT={expected}\n")
-        for invalid in ("0", "65536", "22;touch /tmp/unwanted"):
-            with self.subTest(invalid=invalid):
-                run = subprocess.run(
-                    ["sh", "-c", script, "test", str(SEED / "scripts/late/security.sh"),
-                     str(SEED / "scripts/runtime/modules/classes.sh")],
-                    env={**env, "SSH_SERVER_ENABLED": "false", "TEST_SSH_PORT": invalid},
-                    text=True, capture_output=True,
-                )
-                self.assertNotEqual(run.returncode, 0)
+                    self.assertNotEqual(run.returncode, 0)
 
     def test_security_profiles_install_daemon_and_nft_action_dependency(self):
         for profile in ("standard", "enhanced"):

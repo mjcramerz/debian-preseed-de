@@ -1,6 +1,40 @@
 #!/bin/sh
 # Sourced installer module; edit this file directly.
 
+installer_profile_ssh_policy() (
+  # Read only these two literal profile fields before the class/package plan is
+  # frozen. Never source a complete desktop profile merely to select an addon.
+  set -eu
+  umask 077
+  policy_seed=$1
+  policy_file=$(mktemp "$(installer_runtime_state_dir)/profile-ssh.XXXXXX")
+  trap 'rm -f -- "$policy_file"' 0
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  installer_fetch_seed_path "$policy_seed" \
+    "$(installer_profile_env_path "$INSTALLER_HOST_PROFILE_ENV_DIR" "$INSTALLER_HOST_PROFILE_ENV_NAME")" \
+    "$policy_file" 0600 || installer_fatal 'cannot fetch profile SSH policy'
+  awk '
+    /^SSH_SERVER_ENABLE=/ {
+      if (++enable_count != 1 || $0 !~ /^SSH_SERVER_ENABLE="(true|false)"$/) exit 1
+      enable = substr($0, 20, length($0) - 20)
+      next
+    }
+    /^SSH_SERVER_PORT=/ {
+      if (++port_count != 1 || $0 !~ /^SSH_SERVER_PORT="[0-9][0-9][0-9][0-9][0-9]"$/) exit 1
+      port = substr($0, 18, length($0) - 18)
+      if (port + 0 < 30000 || port + 0 > 40000) exit 1
+      next
+    }
+    /^[[:space:]]*(export[[:space:]]+)?SSH_SERVER_(ENABLE|PORT)/ { exit 1 }
+    END {
+      if (enable_count != 1 || port_count != 1 || enable == "" || port == "") exit 1
+      print enable "|" port
+    }
+  ' "$policy_file" || installer_fatal 'profile requires literal SSH_SERVER_ENABLE and SSH_SERVER_PORT (30000..40000)'
+)
+
 installer_profile_shared_family() {
   profile_name=$1
 

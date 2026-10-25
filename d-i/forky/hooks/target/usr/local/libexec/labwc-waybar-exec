@@ -3,7 +3,7 @@
 
 This executable shares waybar's AppArmor attachment. It does not
 widen the destination helper profiles to accept inherited rfkill, procfs or
-menu-file descriptors. Only the seven configured read-only status calls exist.
+menu-file descriptors. Only the fixed read-only status calls exist.
 """
 from __future__ import annotations
 import os
@@ -11,6 +11,9 @@ import sys
 
 COMMANDS = {
     ("/usr/local/libexec/labwc-waybar-battery",),
+    ("/usr/local/libexec/labwc-waybar-battery", "--watch"),
+    ("/usr/local/libexec/labwc-waybar-events", "notifications"),
+    ("/usr/local/libexec/labwc-waybar-events", "capture"),
     ("/usr/local/libexec/labwc-tomat", "watch"),
     ("/usr/local/libexec/labwc-notifications", "status"),
     ("/usr/local/bin/labwc-capture", "status"),

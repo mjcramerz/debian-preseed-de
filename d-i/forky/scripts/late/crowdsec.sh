@@ -162,6 +162,10 @@ host_env=${INSTALLER_LATE_HOST_ENV:-/tmp/install-env-late/host.env}
 [ -r "$host_env" ] || installer_fetch_host_env "$seed_base" "$host_profile" "$host_env" 0600
 # shellcheck disable=SC1090,SC1091
 . "$host_env"
+case "${SSH_SERVER_ENABLE:-}" in
+  true|false) ;;
+  *) crowdsec_fatal "SSH_SERVER_ENABLE must be true or false in the host profile" ;;
+esac
 
 # This repository installs desktops. Resolve the identity before staging the
 # account-specific qBittorrent acquisition.
@@ -314,7 +318,7 @@ crowdsec_stage_target_asset \
 crowdsec_stage_target_asset \
   "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/var/lib/firstboot/bin/crowdsec-firstboot)" \
   /var/lib/firstboot/bin/crowdsec-firstboot \
-  0755
+  0755 SSH_SERVER_ENABLE "$SSH_SERVER_ENABLE"
 crowdsec_stage_target_asset \
   "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/etc/systemd/system/crowdsec-firstboot.service.tmpl)" \
   /etc/systemd/system/crowdsec-firstboot.service \

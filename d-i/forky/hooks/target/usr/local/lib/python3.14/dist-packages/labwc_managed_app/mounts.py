@@ -8,6 +8,7 @@ import re
 import stat
 
 from .dbus_proxy import SYSTEM_BUS_SOCKET_PATH
+from . import gpu
 from .user_state import resolve_home_relative_path
 from .runtime import fail, validate_absolute_path
 
@@ -40,50 +41,11 @@ def add_optional_bind(command: list[str], option: str, source: str, destination:
 def add_gpu_device_binds(
     command: list[str],
     mode: str,
-) -> None:
-    if mode not in {"launch", "intel", "nvidia"}:
-        fail(f"unsupported managed accelerator mode: {mode}")
-
-    render_devices = sorted(
-        path
-        for path in pathlib.Path("/dev/dri").glob("renderD[0-9]*")
-        if re.fullmatch(r"renderD(?:0|[1-9][0-9]{0,5})", path.name)
-    )
-    if render_devices:
-        command.extend(["--dir", "/dev/dri"])
-    device_paths = [*render_devices]
-    device_paths.extend(
-        (
-            pathlib.Path("/dev/kfd"),
-            pathlib.Path("/dev/accel"),
-        )
-    )
-    if mode == "nvidia":
-        nvidia_device_paths = [
-            pathlib.Path("/dev/nvidia-caps"),
-            pathlib.Path("/dev/nvidiactl"),
-            pathlib.Path("/dev/nvidia-uvm"),
-            pathlib.Path("/dev/nvidia-uvm-tools"),
-        ]
-        device_paths.extend(nvidia_device_paths)
-        device_paths.extend(sorted(pathlib.Path("/dev").glob("nvidia[0-9]*")))
-    for device_path in device_paths[:64]:
-        try:
-            metadata = device_path.lstat()
-        except FileNotFoundError:
-            continue
-        except OSError as exc:
-            fail(f"cannot inspect managed accelerator device {device_path}: {exc}")
-        if stat.S_ISLNK(metadata.st_mode) or not (
-            stat.S_ISDIR(metadata.st_mode) or stat.S_ISCHR(metadata.st_mode)
-        ):
-            fail(
-                "managed accelerator path must be a directory or character "
-                f"device: {device_path}"
-            )
-        if metadata.st_uid != 0:
-            fail(f"managed accelerator path must remain root-owned: {device_path}")
-        command.extend(["--dev-bind", str(device_path), str(device_path)])
+) -> gpu.Selection | None:
+    selected = gpu.select(mode)
+    if selected is not None:
+        selected.add_binds(command)
+    return selected
 
 
 def add_video_device_binds(command: list[str], enabled: bool) -> None:
@@ -433,4 +395,3 @@ def add_absolute_directory_bind_pairs(
             if not os.access(path, required_access):
                 fail(f"{label} is not accessible as requested: {path}")
         command.extend([option, source_path, destination_path])
-

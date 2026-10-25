@@ -3,8 +3,15 @@
 from __future__ import annotations
 
 import html
+import errno
 import json
+import os
 from pathlib import Path
+import select
+import signal
+import socket
+import sys
+import time
 
 POWER = Path("/sys/class/power_supply")
 
@@ -26,7 +33,13 @@ def number(device: Path, name: str) -> int | None:
 
 def output(root: Path = POWER) -> dict:
     try:
-        devices = sorted(root.iterdir())[:64]
+        # Apply the entry limit while enumerating, before sorting/allocating.
+        devices = []
+        for device in root.iterdir():
+            if len(devices) >= 64:
+                break
+            devices.append(device)
+        devices.sort()
     except OSError:
         devices = []
     batteries = []
@@ -84,5 +97,72 @@ def output(root: Path = POWER) -> dict:
             "tooltip": "\n".join(detail)}
 
 
+def watch(root: Path = POWER) -> int:
+    """Cache output; kernel power-supply uevents trigger bounded rescans.
+
+    A one-minute read-only reconciliation also covers lost events and drivers
+    without capacity notifications. Neither path launches another process.
+    """
+    stopped = False
+    def stop(_signum, _frame):
+        nonlocal stopped
+        stopped = True
+    for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(signum, stop)
+    monitor = None
+    try:
+        try:
+            monitor = socket.socket(socket.AF_NETLINK, socket.SOCK_DGRAM | socket.SOCK_CLOEXEC, 15)
+            monitor.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 131072)
+            monitor.bind((0, 1))  # NETLINK_KOBJECT_UEVENT, kernel multicast group.
+            monitor.setblocking(False)
+        except OSError:
+            if monitor is not None:
+                monitor.close()
+            monitor = None
+        last = None
+        due = 0.0
+        last_scan = -1.0
+        while not stopped:
+            now = time.monotonic()
+            if now >= due and now - last_scan >= 1:
+                rendered = json.dumps(output(root), ensure_ascii=False)
+                if rendered != last:
+                    print(rendered, flush=True)
+                    last = rendered
+                last_scan, due = now, now + 60
+            timeout = min(1.0, max(0.0, max(due, last_scan + 1) - time.monotonic()))
+            readable, _, _ = select.select([monitor] if monitor is not None else [], [], [], timeout)
+            if readable:
+                # Bound work per pass so an event storm cannot starve signals.
+                for _ in range(32):
+                    try:
+                        packet, _ancillary, flags, sender = monitor.recvmsg(65536)
+                    except BlockingIOError:
+                        break
+                    except OSError as error:
+                        due = 0  # Reconcile after ENOBUFS or another receive loss.
+                        if error.errno != errno.ENOBUFS:
+                            monitor.close()
+                            monitor = None
+                        break
+                    if sender[0] != 0:
+                        continue  # Userspace cannot forge a kernel update.
+                    if flags & socket.MSG_TRUNC or b'SUBSYSTEM=power_supply' in packet.split(b'\0'):
+                        due = 0
+        return 0
+    except BrokenPipeError:
+        return 0
+    finally:
+        if monitor is not None:
+            monitor.close()
+
+
 if __name__ == "__main__":
+    if sys.argv[1:] == ["--watch"]:
+        if os.getuid() == 0 or os.getuid() != os.geteuid():
+            raise SystemExit("battery status requires the desktop account")
+        raise SystemExit(watch())
+    if sys.argv[1:]:
+        raise SystemExit("usage: labwc-waybar-battery [--watch]")
     print(json.dumps(output(), ensure_ascii=False))

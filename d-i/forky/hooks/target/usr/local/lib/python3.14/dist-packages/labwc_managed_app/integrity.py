@@ -33,6 +33,7 @@ CORE_MODULES = (
     "electron.py",
     "environment.py",
     "events.py",
+    "gpu.py",
     "identity.py",
     "integrity.py",
     "mounts.py",

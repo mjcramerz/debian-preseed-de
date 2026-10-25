@@ -149,14 +149,9 @@ run_user_action() {
       command -v systemctl >/dev/null 2>&1 || fatal "systemctl is not installed"
       systemctl --user --quiet is-active waybar.service ||
         fatal "Waybar is not running for the current desktop user"
-      for waybar_signal in RTMIN+7 RTMIN+8 RTMIN+9; do
-        systemctl \
-          --user \
-          kill \
-          --kill-whom=main \
-          "--signal=${waybar_signal}" \
-          waybar.service
-      done
+      # Only the keyboard module uses a refresh signal. The other status
+      # modules observe their native events or keep a continuous reader.
+      systemctl --user kill --kill-whom=main --signal=RTMIN+7 waybar.service
       ;;
     *)
       fatal "unsupported user system action: $action"

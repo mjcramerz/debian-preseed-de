@@ -1,0 +1,14 @@
+# Read-only identity discovery for native application launchers. This does not
+# grant DRM primary-node, modeset, sysfs-write or device-management authority.
+/dev/ r,
+/dev/dri/ r,
+/dev/dri/renderD[0-9]* r,
+/dev/nvidiactl r,
+/dev/nvidia[0-9]* r,
+@{sys}/class/drm/ r,
+@{sys}/class/drm/renderD[0-9]*/{,device,dev} r,
+@{sys}/devices/**/drm/renderD[0-9]*/{,dev,device} r,
+@{sys}/devices/**/{vendor,driver} r,
+@{sys}/bus/pci/drivers/{i915,xe,nvidia,amdgpu,radeon}/ r,
+@{PROC}/driver/nvidia/gpus/*/information r,
+/usr/share/glvnd/egl_vendor.d/{10_nvidia,50_mesa}.json r,

@@ -1914,6 +1914,7 @@ profile labwc-chatgpt-log-runner /usr/local/libexec/labwc-chatgpt-log-runner fla
 }
 
 profile labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/native-gpu-selection>
   #include <abstractions/app-veth-client>
   #include <abstractions/wrapper-wayland>
   #include <abstractions/wrapper-python>
@@ -1923,7 +1924,7 @@ profile labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected, mediate
   /usr/local/bin/labwc-app rix,
   /usr/local/lib/python3.14/dist-packages/ r,
   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
-  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,compat_gpu,compat_instance,compat_protocol,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_client,network_namespace,profiles,project_identity,recovery,runtime,sandbox,session,user_state}.py r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,compat_gpu,compat_instance,compat_protocol,dbus_proxy,electron,environment,events,generic,gpu,identity,integrity,mounts,network_client,network_namespace,profiles,project_identity,recovery,runtime,sandbox,session,user_state}.py r,
   deny /usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat{,_runtime}.py r,
   # ChatGPT lifecycle events use stderr so the existing capture runner sends
   # them only to its private rsyslog socket; generic syslog remains denied.
@@ -2252,6 +2253,7 @@ profile labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected, mediate
 }
 
 profile labwc-app /usr/local/bin/{labwc-app,labwc-agenda,labwc-calendar} flags=(attach_disconnected) {
+  #include <abstractions/native-gpu-selection>
   #include <abstractions/app-veth-client>
   /etc/qbittorrent/{,qBittorrent.conf.d/,qBittorrent.conf.d/20-managed-privacy.conf} r,
   /etc/labwc/ r,
@@ -2288,7 +2290,7 @@ profile labwc-app /usr/local/bin/{labwc-app,labwc-agenda,labwc-calendar} flags=(
   /opt/calix/calix rpx,
   /usr/local/lib/python3.14/dist-packages/ r,
   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
-  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,compat_gpu,compat_instance,compat_protocol,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_client,network_namespace,profiles,recovery,runtime,sandbox,session,user_state}.py r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,compat_gpu,compat_instance,compat_protocol,dbus_proxy,electron,environment,events,generic,gpu,identity,integrity,mounts,network_client,network_namespace,profiles,recovery,runtime,sandbox,session,user_state}.py r,
   deny /usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat{,_runtime}.py r,
   /dev/log w,
   /run/systemd/journal/dev-log w,
@@ -2552,7 +2554,7 @@ profile labwc-app /usr/local/bin/{labwc-app,labwc-agenda,labwc-calendar} flags=(
     /usr/local/bin/labwc-wayland-app rix,
     /usr/local/lib/python3.14/dist-packages/ r,
     /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
-    /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,integrity,generic,environment,commands,compat_protocol,profiles,browsers,runtime,events,electron,user_state,recovery,session,network_client}.py r,
+    /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,integrity,generic,gpu,environment,commands,compat_protocol,profiles,browsers,runtime,events,electron,user_state,recovery,session,network_client}.py r,
     owner /run/user/[0-9]*/labwc-session-closing r,
     owner /run/user/[0-9]*/.obsidian-cli.sock rw,
     # Mullvad Browser creates its same-owner Wayland proxy socket here.
@@ -3007,6 +3009,7 @@ profile labwc-power-settings /usr/local/bin/labwc-power-settings flags=(attach_d
 }
 
 profile labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconnected) {
+  #include <abstractions/native-gpu-selection>
   #include <abstractions/app-veth-client>
   owner /run/user/[0-9]*/labwc-qbittorrent-sandbox-*/resolv.conf rw,
   #include <abstractions/wrapper-wayland>
@@ -4239,6 +4242,7 @@ profile incus-host /usr/local/libexec/incus-host flags=(attach_disconnected) {
 # Generic package desktop launchers. Only validation occurs here; the user
 # manager owns the payload service and the package's own AppArmor attachment.
 profile labwc-generic-app /usr/local/bin/labwc-{electron,wayland}-app flags=(attach_disconnected) {
+  #include <abstractions/native-gpu-selection>
   /usr/local/lib/python3.14/dist-packages/app_veth_policy.py r,
   /etc/app-veth.json r,
   # Standard I/O for terminal launches; app services use private capture pipes.

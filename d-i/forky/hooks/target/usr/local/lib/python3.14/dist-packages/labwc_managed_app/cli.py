@@ -295,6 +295,12 @@ def main(
 
             env = build_environment(options.application, mode)
             command = build_argv(options.application, mode, options.args)
+            from .gpu import select
+            selected_gpu = select(mode)
+            if selected_gpu is not None:
+                selected_gpu.apply_environment(env)
+                if any(arg.startswith("--ozone-platform=") for arg in command):
+                    command = selected_gpu.chromium_arguments(command)
             emit("executing")
             try:
                 if options.application == "spotify":

@@ -848,7 +848,9 @@ def _run_pure_privacy(app_name: str, extra_args: list[str], resources: ExitStack
     if accelerator_mode is not None:
         add_optional_bind(command, "--ro-bind", "/sys", "/sys")
         add_synthetic_sysfs_masks(command)
-        add_gpu_device_binds(command, accelerator_mode)
+        selected_gpu = add_gpu_device_binds(command, accelerator_mode)
+        if selected_gpu is not None:
+            selected_gpu.apply_environment(env)
         for runtime_socket in ("pipewire-0", "pulse/native"):
             add_runtime_bind(command, host_runtime_dir, sandbox_runtime_dir,
                              runtime_socket, "socket", required=False)
@@ -1876,7 +1878,11 @@ def _run_persistent_sandbox_with_resources(
                 from .profiles import NVIDIA_ACCELERATION_ENV
                 env.update(NVIDIA_ACCELERATION_ENV)
         else:
-            add_gpu_device_binds(command, mode)
+            selected_gpu = add_gpu_device_binds(command, mode)
+            if selected_gpu is not None:
+                selected_gpu.apply_environment(env)
+                if any(arg.startswith("--ozone-platform=") for arg in argv):
+                    argv = selected_gpu.chromium_arguments(argv)
 
         if session_proxy_socket:
             sandbox_bus_socket = os.path.join(sandbox_runtime_dir, "bus")

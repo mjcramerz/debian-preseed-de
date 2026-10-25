@@ -226,6 +226,11 @@ def install(stage: Path, env: dict[str, str]) -> None:
             or sharing['profile'].get('ACCOUNT_HOME') != home
             or sharing['profile'].get('ACCOUNT_USERNAME') != env['ACCOUNT_USERNAME']):
         raise Error('Filen and installed sharing paths differ')
+    # Sharing is mounted only at boot. Keep the public destination empty while
+    # provisioning service-owned trees in its validated private backing store.
+    storage = Path(root).with_name('.' + Path(root).name + '-store') / 'root'
+    if sharing.get('storage_root') != str(storage):
+        raise Error('Filen and installed sharing storage differ')
     accounts = []
     for key, account in (('PRIV', 'private'), ('OFFSEC', 'offsec')):
         enabled = env[f'FILEN_CLI_{key}_ENABLE']
@@ -253,6 +258,10 @@ def install(stage: Path, env: dict[str, str]) -> None:
         accounts.append((account, mode, remote, secrets))
     if not accounts:
         return
+    directory(storage)
+    directory(Path(root))
+    if stat.S_IMODE(storage.parent.lstat().st_mode) != 0o700 or any(Path(root).iterdir()):
+        raise Error('sharing backing parent is not private or public mount destination is nonempty')
     # Packaged modules are checked in the target, before publishing or enabling
     # any consumer. No compilation or managed module import occurs here.
     command(['/usr/bin/perl', '-T', '-MMoo', '-MMooX::StrictConstructor', '-MJSON::PP', '-e', 'exit 0'])
@@ -297,7 +306,7 @@ def install(stage: Path, env: dict[str, str]) -> None:
         # The service owns its own tree; the desktop account receives an ACL.
         # No shared supplementary group grants either daemon the other tree.
         local = Path(root) / user
-        sync_tree(local, identity, desktop.pw_uid)
+        sync_tree(storage / user, identity, desktop.pw_uid)
         credential_root = Path('/etc/credstore') / user
         directory(credential_root, 0o700)
         if stat.S_IMODE(credential_root.stat().st_mode) != 0o700:

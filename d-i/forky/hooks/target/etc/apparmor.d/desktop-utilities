@@ -292,6 +292,7 @@ profile desktop-launcher /usr/bin/{fuzzel,xdg-terminal-exec,thunar,Thunar,xarchi
   ptrace (read) peer=labwc-health-notify,
   ptrace (read) peer=labwc-brightness-control,
   ptrace (read) peer=labwc-waybar-battery,
+  ptrace (read) peer=labwc-waybar-events,
   ptrace (read) peer=waypaper,
   ptrace (read) peer=waypaper-swaybg,
   ptrace (read) peer=waypaper//waypaper-bwrap,

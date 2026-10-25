@@ -2144,6 +2144,7 @@ class DesktopLaunchTests(unittest.TestCase):
                 stack.enter_context(mock.patch.object(generic.os, "geteuid", return_value=1000))
                 stack.enter_context(mock.patch.object(generic, "assert_launch_allowed"))
                 stack.enter_context(mock.patch.object(generic, "session_environment", return_value={"XDG_RUNTIME_DIR": directory}))
+                stack.enter_context(mock.patch.object(generic.gpu, "select", return_value=None))
                 stack.enter_context(mock.patch.object(generic, "load_managed_defaults", return_value={}))
                 stack.enter_context(mock.patch.object(generic, "acceleration_availability_from_defaults", return_value={"intel": True, "nvidia": True}))
                 stack.enter_context(mock.patch.object(generic, "require_root_owned_executable", side_effect=lambda label, path: path))

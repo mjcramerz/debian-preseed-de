@@ -369,10 +369,11 @@ def unit_name(path: str, suffix: str = 'mount') -> str:
 def fstab_entries(s: Settings) -> list[str]:
     root = s['NETWORK_SHARING_ROOT_PATH']
     home = s['ACCOUNT_HOME'] + '/' + s['NETWORK_SHARING_HOME_BIND_PATH']
-    # mount(8) performs propagation changes after the bind. The source is a
-    # dedicated mount point; rslave lets the home view receive future mounts
-    # without propagating mounts made in the home view back to /data/sharing.
-    entries = [f'{root} {root} none bind,shared,nosuid,nodev,noexec 0 0',
+    # The public destination stays empty offline. Populate a separate backing
+    # tree, then bind it here at boot; a populated self-bind produces systemd's
+    # nonempty-destination warning on every activation. Keep shared -> rslave
+    # propagation so later NFS mounts also appear in the existing home view.
+    entries = [f'{storage_root(s)} {root} none bind,shared,nosuid,nodev,noexec 0 0',
                f'{root} {home} none rbind,rslave,nosuid,nodev,noexec,x-systemd.requires-mounts-for={root} 0 0']
     if s.enabled('NFS_CLIENT_ENABLE'):
         opts = s['NFS_MNT_CLIENT_TARGET_SHARE_OPTS'].split(',')
@@ -386,10 +387,26 @@ def fstab_entries(s: Settings) -> list[str]:
 
 def public_config(s: Settings) -> dict:
     return {'version': 3, 'profile': s.values, 'peers': s.peers,
+            'storage_root': str(storage_root(s)),
             'server_enabled': s.enabled('NFS_SERVER_ENABLE'), 'client_enabled': s.enabled('NFS_CLIENT_ENABLE'),
             'client_mount': unit_name(s['NFS_CLIENT_PATH']),
             'sharing_mount': unit_name(s['NETWORK_SHARING_ROOT_PATH']),
             'sharing_bind_mount': unit_name(s['ACCOUNT_HOME'] + '/' + s['NETWORK_SHARING_HOME_BIND_PATH'])}
+
+
+def storage_root(s: Settings) -> str:
+    root = PurePosixPath(s['NETWORK_SHARING_ROOT_PATH'])
+    parent = root.with_name('.' + root.name + '-store')
+    if len(os.fsencode(parent.name)) > 255:
+        raise ValueError('sharing backing directory name exceeds the filesystem limit')
+    return str(parent / 'root')
+
+
+def storage_path(s: Settings, path: str) -> Path:
+    relative = PurePosixPath(path).relative_to(s['NETWORK_SHARING_ROOT_PATH'])
+    if not relative.parts or '..' in relative.parts:
+        raise ValueError('sharing storage path must be strictly below its public root')
+    return Path(storage_root(s)) / relative
 
 
 def home_bind_bookmarks(s: Settings) -> str:
@@ -517,10 +534,25 @@ def configure(s: Settings, assets: Path) -> None:
     system_directory(config_path.parent)
     old = read_regular(config_path)
     previous = json.loads(old) if old else None
-    if old and (not isinstance(previous, dict) or previous.get('version') != 3 or previous.get('profile') != s.values):
+    if old and (not isinstance(previous, dict) or previous.get('version') != 3
+                or previous.get('profile') != s.values or previous.get('storage_root') != str(storage_root(s))):
         raise ValueError('network sharing is already configured differently; rebuild/reinstall or follow the administrator migration procedure')
     root = Path(s['NETWORK_SHARING_ROOT_PATH'])
     system_directory(root)
+    if any(root.iterdir()):
+        raise ValueError('refusing to hide nonempty public sharing mount destination')
+    backing = Path(storage_root(s))
+    if backing.parent.exists() or backing.parent.is_symlink():
+        system_directory(backing.parent)
+        if previous is None or stat.S_IMODE(backing.parent.lstat().st_mode) != 0o700:
+            raise ValueError('sharing backing directory already exists without matching private installer ownership')
+    else:
+        # The private parent prevents bypassing nosuid/nodev/noexec through
+        # the unmounted source path; the public bind exposes only its 0755 root.
+        system_directory(backing.parent.parent)
+        backing.parent.mkdir(mode=0o700)
+        os.chmod(backing.parent, 0o700, follow_symlinks=False)
+    system_directory(backing)
     entries = fstab_entries(s)
     fstab = without_managed_block(read_regular(Path('/etc/fstab')))
     destinations = {entry.split()[1] for entry in entries}
@@ -595,16 +627,16 @@ def configure(s: Settings, assets: Path) -> None:
             # request-key handlers (including DNS and GSS entries).
             atomic_write(Path('/etc/request-key.d/id_resolver.conf'),
                          '# Managed NFSv4 identity upcall\ncreate id_resolver * * /usr/sbin/nfsidmap -t 600 %k %d\n')
-            sharing_directory(Path(s['NFS_CLIENT_PATH']), 0o755, empty=True)
+            sharing_directory(storage_path(s, s['NFS_CLIENT_PATH']), 0o755, empty=True)
         if s.enabled('NFS_SERVER_ENABLE'):
             modules.append('nfsd')
             options.append('options nfsd nfs4_disable_idmapping=0')
-            sharing_directory(Path(s['NFS_SERVER_PATH']), 0o2770, int(s['NFS_SHARED_GID']), uid=account.pw_uid)
+            sharing_directory(storage_path(s, s['NFS_SERVER_PATH']), 0o2770, int(s['NFS_SHARED_GID']), uid=account.pw_uid)
             # Replace, do not merge: inherited named ACLs must not grant extra
             # access. Only the export root is managed, never existing children.
             run(['/usr/bin/setfacl', '--set',
                  'u::rwx,g::rwx,o::---,d:u::rwx,d:g::rwx,d:m::rwx,d:o::---',
-                 '--', s['NFS_SERVER_PATH']])
+                 '--', str(storage_path(s, s['NFS_SERVER_PATH']))])
             atomic_write(Path('/etc/exports'), append_block(exports, render(assets / 'etc/exports.tmpl', s)))
             for name in ('etc/nfs.conf.d/60-network-sharing.conf.tmpl',
                          'etc/systemd/system/nfs-mountd.service.d/60-network-sharing.conf',

@@ -107,11 +107,10 @@ esac
             self.assertEqual(json.loads(result.stdout)['class'], expected)
             self.assertEqual(payload_read_text(self.state).strip(), expected)
         lines = payload_read_text(self.log).splitlines()
-        self.assertEqual(len(lines), 20)
-        for offset in range(0, len(lines), 5):
+        self.assertEqual(len(lines), 12)
+        for offset in range(0, len(lines), 3):
             self.assertEqual(lines[offset:offset+2], ['reconfigure-start', 'reconfigure-complete'])
-            for index, sig in enumerate(('RTMIN+7', 'RTMIN+8', 'RTMIN+9')):
-                self.assertIn('--signal=' + sig, lines[offset+2+index])
+            self.assertIn('--signal=RTMIN+7', lines[offset+2])
         self.assertNotIn('UNEXPECTED-TERMINAL', payload_read_text(self.log))
 
     def test_overlapping_clicks_are_queued_not_discarded(self):

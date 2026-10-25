@@ -1,4 +1,4 @@
-# Managed by installer automation when the ssh class is selected.
+# Managed when the host profile enables SSH_SERVER_ENABLE (selecting addon/ssh).
 # Template placeholders are rendered by the selected family late hook before install.
 
 Port __INSTALLER_SSH_PORT__

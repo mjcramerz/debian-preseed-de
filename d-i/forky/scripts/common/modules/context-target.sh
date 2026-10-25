@@ -219,6 +219,26 @@ installer_write_context() {
   INSTALLER_CLASSES_RAW_CACHE=$classes_raw
   installer_validate_class_manifest
   installer_populate_selected_class_state "$seed_base"
+  profile_ssh_policy=$(installer_profile_ssh_policy "$seed_base") ||
+    installer_fatal 'cannot resolve profile SSH class policy'
+  INSTALLER_PROFILE_SSH_SERVER_ENABLE=${profile_ssh_policy%%|*}
+  INSTALLER_PROFILE_SSH_SERVER_PORT=${profile_ssh_policy#*|}
+  if [ "$INSTALLER_PROFILE_SSH_SERVER_ENABLE" = true ]; then
+    if ! installer_selected_class_reference_is_selected addon/ssh; then
+      INSTALLER_CLASSES_RAW_CACHE="${classes_raw},addon/ssh"
+      installer_populate_selected_class_state "$seed_base"
+      classes_raw=$INSTALLER_CLASSES_RAW_CACHE
+    fi
+  elif installer_selected_class_reference_is_selected addon/ssh; then
+    installer_fatal 'addon/ssh conflicts with SSH_SERVER_ENABLE=false in the selected host profile'
+  fi
+  # Persist the effective class list, including the profile-selected addon, so
+  # fragment collection, target hooks and subsequent stages share one plan.
+  profile_class_cache=$(installer_classes_raw_cache_path)
+  profile_class_tmp="${profile_class_cache}.tmp.$$"
+  printf '%s\n' "$classes_raw" >"$profile_class_tmp"
+  chmod 0600 "$profile_class_tmp"
+  mv -f -- "$profile_class_tmp" "$profile_class_cache"
   installer_export_logging_policy
   installer_seed_class_answers "$classes_raw"
   INSTALLER_CLASSES_RAW=$classes_raw
@@ -241,6 +261,8 @@ installer_write_context() {
     printf 'INSTALLER_DEBUG_LOGS=%s\n' "$(installer_shell_quote "${INSTALLER_DEBUG_LOGS:-0}")"
     printf 'INSTALLER_HOST_VARIANT=%s\n' "$(installer_shell_quote "${INSTALLER_HOST_VARIANT:-}")"
     printf 'INSTALLER_HOST_PROFILE=%s\n' "$(installer_shell_quote "${INSTALLER_HOST_PROFILE:-}")"
+    printf 'INSTALLER_PROFILE_SSH_SERVER_ENABLE=%s\n' "$(installer_shell_quote "$INSTALLER_PROFILE_SSH_SERVER_ENABLE")"
+    printf 'INSTALLER_PROFILE_SSH_SERVER_PORT=%s\n' "$(installer_shell_quote "$INSTALLER_PROFILE_SSH_SERVER_PORT")"
     printf 'INSTALLER_HOST_FAMILY=%s\n' "$(installer_shell_quote "${INSTALLER_HOST_FAMILY:-}")"
     printf 'INSTALLER_HOOK_FAMILY=%s\n' "$(installer_shell_quote "${INSTALLER_HOOK_FAMILY:-}")"
     printf 'INSTALLER_HOST_PROFILE_ENV_DIR=%s\n' "$(installer_shell_quote "${INSTALLER_HOST_PROFILE_ENV_DIR:-}")"

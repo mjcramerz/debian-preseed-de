@@ -144,6 +144,7 @@ stage_target_nftables_all_service_assets
             'TMP_ENV_DIR': str(work),
             'FIXTURE_SOURCE': str(SHARED),
             'SSH_SERVER_ENABLED': 'true' if ssh_enabled else 'false',
+            'SSH_SERVER_PORT': '32006',
             'NFS_SERVER_PORT': '2049',
             'INSTALLER_CMDLINE': cmdline,
         }
@@ -181,14 +182,14 @@ stage_target_nftables_all_service_assets
             catalog = self.render_catalog(Path(tmp), ssh_enabled=False)
             self.assert_catalog_resolved(catalog)
             ssh = yaml.safe_load(payload_read_text(catalog / 'ssh-server.yml', encoding='utf-8'))
-            self.assertEqual(ssh['services']['ssh_server']['ports'], [22])
+            self.assertEqual(ssh['services']['ssh_server']['ports'], [32006])
 
     def test_selected_ssh_port_is_preserved_in_rendered_catalog(self):
         with tempfile.TemporaryDirectory(prefix='nftables-catalog-ssh-') as tmp:
-            catalog = self.render_catalog(Path(tmp), ssh_enabled=True, cmdline='ssh_port=2222')
+            catalog = self.render_catalog(Path(tmp), ssh_enabled=True, cmdline='ssh_port=32006')
             self.assert_catalog_resolved(catalog)
             ssh = yaml.safe_load(payload_read_text(catalog / 'ssh-server.yml', encoding='utf-8'))
-            self.assertEqual(ssh['services']['ssh_server']['ports'], [2222])
+            self.assertEqual(ssh['services']['ssh_server']['ports'], [32006])
 
 
 class SyncthingConfigTests(unittest.TestCase):

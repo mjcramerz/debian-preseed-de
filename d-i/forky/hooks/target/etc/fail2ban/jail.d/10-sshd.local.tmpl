@@ -14,7 +14,7 @@ banaction_allports = nftables[type=allports]
 chain = fail2ban_input
 
 [sshd]
-enabled = true
+enabled = __INSTALLER_SSHD_JAIL_ENABLED__
 # INFO authentication events are retained in the journal and forwarded to rsyslog.
 # Watch the existing rsyslog auth sink using inotify, including file rotation.
 backend = pyinotify

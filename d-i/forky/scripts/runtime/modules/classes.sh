@@ -72,25 +72,44 @@ runtime_apply_ssh_from_classes() {
   installer_selected_class_refs >/dev/null 2>&1 ||
     runtime_fatal "selected installer classes are unavailable for SSH server provisioning"
 
-  if installer_selected_class_reference_is_selected addon/ssh; then
-    SSH_SERVER_ENABLED=true
-    runtime_apply_ssh_from_cmdline
-  else
-    SSH_SERVER_ENABLED=false
+  case "${SSH_SERVER_ENABLE:-}" in
+    true|false) ;;
+    *) runtime_fatal 'SSH_SERVER_ENABLE must be true or false in the host profile' ;;
+  esac
+  if [ -n "${INSTALLER_PROFILE_SSH_SERVER_ENABLE:-}" ] &&
+     [ "$SSH_SERVER_ENABLE" != "$INSTALLER_PROFILE_SSH_SERVER_ENABLE" ]; then
+    runtime_fatal 'SSH server enablement differs from the selected installer profile policy'
   fi
+  if installer_selected_class_reference_is_selected addon/ssh; then
+    [ "$SSH_SERVER_ENABLE" = true ] || runtime_fatal 'SSH class conflicts with disabled profile SSH server'
+  else
+    [ "$SSH_SERVER_ENABLE" = false ] || runtime_fatal 'profile-enabled SSH server is missing its selected addon/ssh class'
+  fi
+  SSH_SERVER_ENABLED=$SSH_SERVER_ENABLE
+  runtime_apply_ssh_from_cmdline
 }
 
 runtime_apply_ssh_from_cmdline() {
-  [ "${RUNTIME_SSH_CMDLINE_READY:-0}" = 1 ] && return 0
-
-  ssh_port_default=${SSH_PORT_DEFAULT:-}
-  ssh_port_raw=$(runtime_cmdline_value ssh_port 2>/dev/null || true)
-  if [ -z "$ssh_port_raw" ]; then
-    ssh_port_raw=$ssh_port_default
+  ssh_profile_port=${SSH_SERVER_PORT:-}
+  case "$ssh_profile_port" in
+    [0-9][0-9][0-9][0-9][0-9]) ;;
+    *) runtime_fatal 'SSH_SERVER_PORT must be a five-digit profile port' ;;
+  esac
+  [ "$ssh_profile_port" -ge 30000 ] && [ "$ssh_profile_port" -le 40000 ] ||
+    runtime_fatal 'SSH_SERVER_PORT must be in 30000..40000'
+  if [ -n "${INSTALLER_PROFILE_SSH_SERVER_PORT:-}" ] &&
+     [ "$ssh_profile_port" != "$INSTALLER_PROFILE_SSH_SERVER_PORT" ]; then
+    runtime_fatal 'SSH server port differs from the selected installer profile policy'
   fi
-  runtime_require_positive_integer ssh_port "$ssh_port_raw"
-  [ "$ssh_port_raw" -le 65535 ] || runtime_fatal "ssh_port must be 65535 or lower"
-  SSH_PORT=$ssh_port_raw
+  if [ "${RUNTIME_SSH_CMDLINE_READY:-0}" = 1 ]; then
+    [ "${SSH_PORT:-}" = "$ssh_profile_port" ] || runtime_fatal 'resolved SSH port no longer matches its profile'
+    return 0
+  fi
+  # Legacy boot arguments may repeat the profile value; they cannot silently
+  # override the profile's declared server and firewall port.
+  ssh_port_raw=$(runtime_cmdline_value ssh_port 2>/dev/null || true)
+  [ -z "$ssh_port_raw" ] || [ "$ssh_port_raw" = "$ssh_profile_port" ] ||
+    runtime_fatal 'ssh_port conflicts with SSH_SERVER_PORT in the host profile'
+  SSH_PORT=$ssh_profile_port
   RUNTIME_SSH_CMDLINE_READY=1
 }
-

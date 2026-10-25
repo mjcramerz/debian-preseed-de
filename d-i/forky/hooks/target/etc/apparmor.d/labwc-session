@@ -87,9 +87,20 @@ profile labwc-compositor /usr/bin/labwc flags=(attach_disconnected, mediate_dele
 # inherited FDs; only its final exec enters the destination helper profile.
 profile waybar /usr/{bin/waybar,local/libexec/labwc-waybar-exec} flags=(attach_disconnected) {
   #include <abstractions/session-client>
-  # The custom battery probe runs every five seconds. A generic rPx fallback
-  # creates a null child and audits every Python import in complain mode.
+  # Persistent custom status readers have explicit domains. A generic rPx
+  # fallback would create a null child and audit Python imports in complain mode.
   /usr/local/libexec/labwc-waybar-battery rPx -> labwc-waybar-battery,
+  /usr/local/libexec/labwc-waybar-events rPx -> labwc-waybar-events,
+  # Native Bluetooth status uses only BlueZ object/property notifications.
+  /run/dbus/system_bus_socket rw,
+  include if exists <abstractions/dbus-strict>
+  dbus (send, receive) bus=system peer=(name=org.bluez),
+  # Native backlight constructs a logind proxy even when scrolling is routed
+  # to brightnessctl. Permit proxy property reads, never SetBrightness.
+  dbus (send) bus=system path=/org/freedesktop/login1/session/{auto,self}
+    interface=org.freedesktop.DBus.Properties member=GetAll peer=(name=org.freedesktop.login1),
+  dbus (receive) bus=system path=/org/freedesktop/login1/session/**
+    interface=org.freedesktop.DBus.Properties member=PropertiesChanged peer=(name=org.freedesktop.login1),
   # The Python status trampoline probes this root-owned import directory.
   # Directory metadata only: no new recursive read or write permission.
   /usr/local/lib/python3.14/dist-packages/ r,
@@ -120,17 +131,50 @@ profile waybar /usr/{bin/waybar,local/libexec/labwc-waybar-exec} flags=(attach_d
   network inet6 stream,
   signal (send) set=(kill) peer=session-glycin-bwrap,
   signal (send) set=(term) peer={labwc-tomat,tomat},
+  signal (send) set=(term kill) peer={labwc-waybar-battery,labwc-waybar-events},
+  signal (receive) set=(chld) peer={labwc-waybar-battery,labwc-waybar-events},
   signal (receive) set=(usr2) peer=labwc-session-check,
   ptrace (readby) peer=labwc-session-check,
   signal (receive) set=(int, term, hup, usr1, usr2, kill) peer=unconfined,
-  # glibc RTMIN+7/+8/+9 (41/42/43); AppArmor's RTMIN base is 32.
-  signal (receive) set=(rtmin+9, rtmin+10, rtmin+11) peer=unconfined,
+  # Keyboard refresh: glibc RTMIN+7 (41); AppArmor's RTMIN base is 32.
+  signal (receive) set=(rtmin+9) peer=unconfined,
   signal (send) set=(chld) peer=unconfined,
   include if exists <local/usr.bin.waybar>
 }
 
+profile labwc-waybar-events /usr/local/libexec/labwc-waybar-events flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  include if exists <abstractions/dbus-session-strict>
+  /usr/local/libexec/labwc-waybar-events r,
+  /usr/lib/** mr,
+  /usr/share/glib-2.0/schemas/gschemas.compiled r,
+  /etc/machine-id r,
+  owner /run/user/[0-9]*/bus rw,
+  network unix stream,
+  dbus (send) bus=session path=/fr/emersion/Mako
+    interface=fr.emersion.Mako member=ListModes peer=(name=org.freedesktop.Notifications),
+  dbus (receive) bus=session path=/fr/emersion/Mako
+    interface=org.freedesktop.DBus.Properties member=PropertiesChanged peer=(name=org.freedesktop.Notifications),
+  dbus (send) bus=session path=/org/freedesktop/systemd1
+    interface=org.freedesktop.systemd1.Manager member=Subscribe peer=(name=org.freedesktop.systemd1),
+  dbus (send) bus=session path=/org/freedesktop/systemd1/unit/labwc_2dscreen_2drecording_2eservice
+    interface=org.freedesktop.DBus.Properties member=Get peer=(name=org.freedesktop.systemd1),
+  dbus (receive) bus=session path=/org/freedesktop/systemd1
+    interface=org.freedesktop.systemd1.Manager member={UnitNew,UnitRemoved} peer=(name=org.freedesktop.systemd1),
+  dbus (receive) bus=session path=/org/freedesktop/systemd1/unit/labwc_2dscreen_2drecording_2eservice
+    interface=org.freedesktop.DBus.Properties member=PropertiesChanged peer=(name=org.freedesktop.systemd1),
+  dbus (receive) bus=session path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus member=NameOwnerChanged peer=(name=org.freedesktop.DBus),
+  signal (receive) set=(int term hup kill) peer=waybar,
+  signal (send) set=(chld) peer=waybar,
+  include if exists <local/usr.local.libexec.labwc-waybar-events>
+}
+
 profile labwc-waybar-battery /usr/local/libexec/labwc-waybar-battery flags=(attach_disconnected) {
   #include <abstractions/wrapper-python>
+  network netlink dgram,
+  signal (receive) set=(int term hup kill) peer=waybar,
+  signal (send) set=(chld) peer=waybar,
   /usr/local/libexec/labwc-waybar-battery r,
   /sys/class/power_supply/ r,
   /sys/devices/**/power_supply/ r,

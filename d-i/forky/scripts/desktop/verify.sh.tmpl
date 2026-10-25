@@ -2549,6 +2549,26 @@ version = subprocess.run(["/usr/lib/systemd/systemd", "--version"], env=fixed_en
                          timeout=10, check=True).stdout
 require(re.match(r"systemd 262(?:\s|$)", version) is not None, "the target systemd version must be 262")
 
+# Fail before consumer enablement when a newly referenced GPU/status delegate
+# is missing, writable by another identity, unresolved or staged with bad modes.
+for filename, mode in (
+        ("/usr/local/libexec/labwc-waybar-exec", 0o755),
+        ("/usr/local/libexec/labwc-waybar-battery", 0o755),
+        ("/usr/local/libexec/labwc-waybar-events", 0o755),
+        ("/usr/local/lib/python3.14/dist-packages/labwc_managed_app/gpu.py", 0o644),
+        ("/etc/apparmor.d/abstractions/native-gpu-selection", 0o644)):
+    path = Path(filename)
+    trusted(path, mode == 0o755)
+    meta = path.lstat()
+    require(meta.st_gid == 0 and meta.st_nlink == 1 and stat.S_IMODE(meta.st_mode) == mode
+            and 0 < meta.st_size <= 65536, "unsafe GPU/status delegate metadata: " + filename)
+    with path.open("rb") as stream:
+        raw = stream.read(65537)
+    require(len(raw) <= 65536, "oversized GPU/status delegate")
+    text = source_text(path, raw)
+    if mode == 0o755 or filename.endswith(".py"):
+        ast.parse(text, filename=filename)
+
 contracts = {
     "/usr/local/bin/labwc-greeter-output": ("runtime/Managed/Process.pm",),
     "/usr/local/libexec/apparmor-modes-run": ("apparmor-modes/AppArmor/ManagedModes/Transition.pm", "runtime/Managed/PolicyLock.pm"),
@@ -2659,7 +2679,9 @@ subprocess.run(["/usr/bin/perl", "-T", "-e",
 for module in ("yaml", "gi"):
     base = Path("/usr/lib/python3/dist-packages") / module / "__init__.py"
     trusted(base)
-subprocess.run(["/usr/bin/python3", "-I", "-B", "-c", "import yaml; import gi"],
+subprocess.run(["/usr/bin/python3", "-I", "-B", "-c",
+    "import yaml; import gi; gi.require_version(\"Gio\", \"2.0\"); from gi.repository import Gio, GLib; "
+    "assert callable(Gio.bus_get) and callable(GLib.unix_signal_add) and callable(GLib.timeout_add_seconds)"],
     env=fixed_env, stdin=subprocess.DEVNULL, capture_output=True, timeout=10, check=True)
 
 mode_file = Path("/etc/apparmor/modes.conf")
