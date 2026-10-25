@@ -14,7 +14,6 @@ import time
 from managed_workflows.fs import Tree, parts
 from .theme_archive import Archive, MAX_INPUT, MAX_MEMBER, name
 from .theme_resources import materialize
-from .theme_repairs import REPAIRED_FAMILIES, repair
 from .themes import Theme, VARIANTS, validate_catalog
 
 MAX_FILES = 24000
@@ -194,7 +193,10 @@ def gtk_assets(source: Source, theme: Theme) -> dict[str, bytes]:
     for version in ('3.0', '4.0'):
         if not output.get('gtk-' + version + '/gtk.css'):
             raise ValueError('desktop theme lacks a complete GTK3/GTK4 provider')
-    output = materialize(repair(output, theme), deadline=source.deadline)
+    try:
+        output = materialize(output, deadline=source.deadline)
+    except ValueError as error:
+        raise ValueError('desktop theme ' + theme.identity + ': ' + str(error)) from error
     output['index.theme'] = ('[Desktop Entry]\nType=X-GNOME-Metatheme\nName=' + theme.gtk +
                              '\n[X-GNOME-Metatheme]\nGtkTheme=' + theme.gtk + '\n').encode('utf-8')
     return output
@@ -234,21 +236,11 @@ def prepare(source: Source) -> Candidate:
             directory = 'themes/' + theme.gtk
             candidate.add(directory, gtk)
             directories.append(directory)
-            if theme.family in REPAIRED_FAMILIES:
-                candidate.repairs.append({'variant': theme.identity,
-                    'reason': 'Repair missing upstream GTK image references with native assets or small theme-colored vectors.'})
         if theme.qt_source is not None:
             files = {}
             for extension in ('.kvconfig', '.svg'):
                 path = 'qt/' + theme.qt_source + '/' + theme.qt_source + extension
                 blob = source.read(path)
-                if theme.qt_source == 'Matcha-sea-dark' and extension == '.kvconfig':
-                    old = b'highlight.text.color=#ed3dae3\n'
-                    if blob.count(old) != 1:
-                        raise ValueError('pinned Matcha color repair no longer matches its source')
-                    blob = blob.replace(old, b'highlight.text.color=#111111\n')
-                    candidate.repairs.append({'variant': theme.identity,
-                                              'reason': 'Replace upstream invalid seven-digit selection text color with readable dark text.'})
                 files[theme.kvantum + extension] = blob
             directory = 'Kvantum/' + theme.kvantum
             candidate.add(directory, files)

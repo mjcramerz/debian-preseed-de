@@ -171,6 +171,18 @@ class PublicationFixtures(unittest.TestCase):
         self.assertEqual(self.pending()['phase'], 'preparing')
         self.assertTrue(self.inputs.is_dir())
 
+    def test_missing_asset_preparation_failure_preserves_inputs_and_previous_inventory(self):
+        previous = b'{"fixture":"previous"}\n'
+        (self.registry / theme_install.INVENTORY).write_bytes(previous)
+        with mock.patch.object(theme_install, 'prepare', side_effect=ValueError('vendor theme refers to a missing local asset')), \
+                self.assertRaisesRegex(ValueError, 'missing local asset'):
+            theme_install.main(['--install'])
+        self.assertEqual((self.registry / theme_install.INVENTORY).read_bytes(), previous)
+        self.assertTrue(self.inputs.is_dir())
+        self.assertFalse((self.public / self.destination).exists())
+        self.assertFalse((self.registry / theme_install.PENDING).exists())
+        self.assertEqual(list(self.public.iterdir()), [])
+
     def test_rename_lost_reply_is_unknown_and_never_retried(self):
         rename = os.rename
         def lost_reply(source, destination, **options):

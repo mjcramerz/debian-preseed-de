@@ -1,4 +1,8 @@
-"""Payload inventory, paired freshness and publication failure fixtures."""
+"""Unexecuted contract vectors for the standalone schema 4 inventory.
+
+Read as data only. Automatic discovery must never import or execute inventory
+utilities. The original isolation guard remains mandatory and intact.
+"""
 from pathlib import Path as _IsolationPath
 import sys as _isolation_sys
 _isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[2] / 'tools'))
@@ -7,338 +11,945 @@ from isolation import require_test_isolation as _require_test_isolation
 _isolation_sys.path.pop(0)
 _require_test_isolation()
 
-import json
-import hashlib
-import io
-from pathlib import Path
-import sqlite3
-import tarfile
-import tempfile
-import unittest
-from unittest import mock
-
-import inventory
-import inventory_apt
-
-
-class InventoryContracts(unittest.TestCase):
-    def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name).resolve()
-        self.seed = self.root / 'd-i/forky'
-        self.seed.mkdir(parents=True)
-
-    def source(self, name, text):
-        path = self.seed / name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text)
-        return path
-
-    def payload(self, *names):
-        with tarfile.open(self.seed / 'payload.tar.gz', mode='w:gz', format=tarfile.USTAR_FORMAT) as archive:
-            for name in names:
-                data = (self.seed / name).read_bytes()
-                info = tarfile.TarInfo(name)
-                info.size = len(data)
-                archive.addfile(info, io.BytesIO(data))
-
-    def metadata(self, root, apt, payload):
-        declarations = [{key: row[key] for key in ('id', 'url', 'suite', 'components', 'architectures', 'index_urls', 'release_url')}
-                        for row in apt['repositories']]
-        return {'schema_version': 3, 'schema': {'name': 'debian-apt-metadata', 'version': 3},
-                'payload': payload, 'errors': [], 'release_files': {}, 'package_indexes': [],
-                'repository_definitions_sha256': hashlib.sha256(json.dumps(declarations, sort_keys=True).encode()).hexdigest(),
-                'request_set': {'packages': apt['packages']}, 'candidates': {'record_count': 0, 'records': []}}
-
-    def publish_pair(self, **kwargs):
-        with mock.patch.object(inventory_apt, 'refresh', side_effect=self.metadata):
-            return inventory.publish(self.root, refresh_apt=True, **kwargs)
-
-    def test_payload_hash_fast_path_skips_scan_and_network_and_preserves_both_outputs(self):
-        profile = self.source('hosts/profiles/one.env', 'VERSION="1.2.3"\nAPP_URL="https://example.org/${VERSION}/app-${VERSION}.zip"\n')
-        self.source('scripts/install.sh', 'curl --url "$APP_URL"\n')
-        self.payload('hosts/profiles/one.env', 'scripts/install.sh')
-        first = self.publish_pair()
-        self.assertEqual(first['text_files_scanned'], 2)
-        outputs = [self.root / name for name in ('inventory.json', 'inventory-apt.json')]
-        previous = [(p.stat().st_ino, p.stat().st_mtime_ns, p.read_bytes()) for p in outputs]
-        with mock.patch.object(inventory, 'scan_payload', side_effect=AssertionError('unchanged payload rescanned')), \
-                mock.patch.object(inventory_apt, 'refresh', side_effect=AssertionError('unchanged payload refreshed')):
-            second = inventory.publish(self.root, refresh_apt=True)
-        self.assertFalse(second['written'])
-        self.assertTrue(second['current'])
-        self.assertEqual(previous, [(p.stat().st_ino, p.stat().st_mtime_ns, p.read_bytes()) for p in outputs])
-        profile.write_text(profile.read_text().replace('1.2.3', '2.0.0'))
-        self.assertTrue(self.publish_pair()['current'])
-        self.payload('hosts/profiles/one.env', 'scripts/install.sh')
-        changed = self.publish_pair()
-        self.assertFalse(changed['current'])
-        value = json.loads(outputs[0].read_bytes())
-        self.assertIn('https://example.org/2.0.0/app-2.0.0.zip', [row['url'] for row in value['external_artifacts']])
-        for key in ('source_hashes', '_scan_cache', '_discovery_hashes'):
-            self.assertNotIn(key, value)
-
-    def test_changed_payload_reaggregates_cross_file_url_definitions(self):
-        version = self.source('hosts/installer/runtime.env', 'APP_VERSION=1\n')
-        self.source('scripts/fetch.sh', 'APP_URL="https://example.org/${APP_VERSION}/app.zip"\n')
-        self.payload('hosts/installer/runtime.env', 'scripts/fetch.sh')
-        inventory.publish(self.root)
-        version.write_text('APP_VERSION=2\n')
-        self.payload('hosts/installer/runtime.env', 'scripts/fetch.sh')
-        inventory.publish(self.root)
-        value = json.loads((self.root / 'inventory.json').read_bytes())
-        self.assertIn('https://example.org/2/app.zip', [row['url'] for row in value['external_artifacts']])
-
-    def test_only_payload_members_are_scanned_even_if_loose_sources_and_manifest_differ(self):
-        self.source('scripts/fetch.sh', 'APP_URL=https://example.org/archive.zip\n')
-        self.source('common.cfg', 'd-i pkgsel/include string curl\n')
-        self.payload('scripts/fetch.sh', 'common.cfg')
-        inventory.publish(self.root)
-        self.payload('common.cfg')
-        (self.seed / 'payload.manifest').write_text('untrusted  scripts/fetch.sh\n')
-        inventory.publish(self.root)
-        value = json.loads((self.root / 'inventory.json').read_bytes())
-        self.assertEqual(value['external_artifacts'], [])
-
-    def test_loose_sources_are_never_opened(self):
-        self.source('common.cfg', 'd-i pkgsel/include string curl\n')
-        unrelated = self.source('hooks/target/etc/example.conf', 'Color=blue\n')
-        self.payload('common.cfg', 'hooks/target/etc/example.conf')
-        inventory.publish(self.root)
-        output = self.root / 'inventory.json'
-        previous = output.stat()
-        unrelated.write_text('Color=green\n')
-        (self.seed / 'common.cfg').unlink()
-        result = inventory.publish(self.root)
-        self.assertFalse(result['written'])
-        self.assertEqual((previous.st_ino, previous.st_mtime_ns), (output.stat().st_ino, output.stat().st_mtime_ns))
-
-    def test_private_traversal_and_duplicate_members_are_rejected(self):
-        for member in ['../../private', '/etc/passwd', 'hosts/preseed.env', 'a//b', 'a/./b']:
-            with self.subTest(member=member), self.assertRaises(ValueError):
-                buffer = io.BytesIO()
-                with tarfile.open(fileobj=buffer, mode='w:gz', format=tarfile.USTAR_FORMAT) as archive:
-                    archive.addfile(tarfile.TarInfo(member))
-                inventory.scan_payload(buffer.getvalue())
-        buffer = io.BytesIO()
-        with tarfile.open(fileobj=buffer, mode='w:gz', format=tarfile.USTAR_FORMAT) as archive:
-            archive.addfile(tarfile.TarInfo('same'))
-            archive.addfile(tarfile.TarInfo('same'))
-        with self.assertRaisesRegex(ValueError, 'duplicate'):
-            inventory.scan_payload(buffer.getvalue())
-
-    def test_symbolic_link_member_cannot_leave_seed(self):
-        with tarfile.open(self.seed / 'payload.tar.gz', mode='w:gz') as archive:
-            item = tarfile.TarInfo('scripts/fetch.sh')
-            item.type, item.linkname = tarfile.SYMTYPE, '/etc/passwd'
-            archive.addfile(item)
-        with self.assertRaises(ValueError):
-            inventory.publish(self.root)
-
-    def test_never_execute_profile_shell_or_contact_network(self):
-        marker = self.root / 'executed'
-        self.source('hosts/profiles/one.env', 'APP_URL=$(touch ' + str(marker) + ')\nPASSWORD=private-fixture-secret\n')
-        self.payload('hosts/profiles/one.env')
-        with mock.patch('subprocess.Popen', side_effect=AssertionError('executed shell')), \
-                mock.patch('urllib.request.OpenerDirector.open', side_effect=AssertionError('network during serialization')):
-            inventory.publish(self.root)
-        self.assertFalse(marker.exists())
-        self.assertNotIn(b'private-fixture-secret', (self.root / 'inventory.json').read_bytes())
-
-    def test_udeb_and_apt_commands_exclude_diagnostic_strings(self):
-        text = ('hook_ensure_installer_command mkfs.f2fs f2fs-tools-udeb\n'
-                'installer_info "anna-install fallbacks are available"\n'
-                'anna-install wget-udeb\n'
-                'apt-get -o APT::Install-Recommends=false -y install curl thunar/forky\n')
-        facts = inventory.scan_file('d-i/forky/scripts/install.sh', text)
-        self.assertEqual({(row['selector'], row['type']) for row in facts['packages']},
-                         {('f2fs-tools-udeb', 'udeb'), ('wget-udeb', 'udeb'), ('curl', 'deb'), ('thunar/forky', 'deb')})
-
-    def test_repository_relative_transfers_are_structured_without_execution(self):
-        facts = inventory.scan_file(
-            'd-i/forky/scripts/common/source.sh',
-            "source_transfer \"$base\" payload.manifest \"$work/payload.manifest\"\n"
-            "fetch_hook_file scripts/preseed/network-apt.sh \"$runtime/apt.sh\"\n"
-            "bootstrap_source_module 'scripts/common/credentials.sh'\n")
-        self.assertEqual(
-            {(row['kind'], row['path'], row['expression']) for row in facts['transfers']},
-            {('source_transfer', 'payload.manifest', None),
-             ('fetch_hook_file', 'scripts/preseed/network-apt.sh', None),
-             ('bootstrap_source_module', 'scripts/common/credentials.sh', None)})
-
-    def test_root_apt_snapshot_is_the_only_snapshot(self):
-        root_snapshot = self.root / 'inventory-apt.json'
-        root_snapshot.write_bytes(b'{"same":true}\n')
-        self.assertEqual(inventory.apt_snapshot_path(self.root), root_snapshot)
-
-    def test_missing_mismatched_and_corrupt_pair_bypass_fast_path(self):
-        self.source('common.cfg', 'd-i pkgsel/include string curl\n')
-        self.payload('common.cfg')
-        self.publish_pair()
-        metadata_path = self.root / 'inventory-apt.json'
-        original = metadata_path.read_bytes()
-        for content in (b'{', original + b' ', inventory.encode({**json.loads(original), 'payload': {}})):
-            metadata_path.write_bytes(content)
-            self.assertFalse(self.publish_pair()['current'])
-        metadata_path.unlink()
-        self.assertFalse(self.publish_pair()['current'])
-        self.assertFalse(self.publish_pair(force=True)['current'])
-
-    def test_refresh_failure_preserves_both_outputs(self):
-        self.source('common.cfg', 'd-i pkgsel/include string curl\n')
-        self.payload('common.cfg')
-        self.publish_pair()
-        previous = {name: (self.root / name).read_bytes() for name in ('inventory.json', 'inventory-apt.json')}
-        with mock.patch.object(inventory_apt, 'refresh', side_effect=ValueError('fixture unavailable')):
-            with self.assertRaisesRegex(ValueError, 'fixture unavailable'):
-                inventory.publish(self.root, refresh_apt=True, force=True)
-        self.assertEqual(previous, {name: (self.root / name).read_bytes() for name in previous})
-
-    def test_pair_publication_restores_previous_bytes_modes_and_absence(self):
-        for previous_inventory in (None, b'previous inventory'):
-            output = self.root / 'inventory.json'
-            if previous_inventory is not None:
-                output.write_bytes(previous_inventory)
-                output.chmod(0o640)
-            (self.root / 'inventory-apt.json').write_bytes(b'previous apt')
-            writer = inventory.atomic_write
-            failed = False
-
-            def fail_second(path, data, mode):
-                nonlocal failed
-                if path == output and not failed:
-                    failed = True
-                    writer(path, data, mode)
-                    raise OSError('fixture post-replace failure')
-                writer(path, data, mode)
-
-            with mock.patch.object(inventory, 'atomic_write', side_effect=fail_second):
-                with self.assertRaisesRegex(OSError, 'post-replace'):
-                    inventory.publish_products(self.root, {'inventory-apt.json': b'new apt', 'inventory.json': b'new inventory'})
-            self.assertEqual((self.root / 'inventory-apt.json').read_bytes(), b'previous apt')
-            if previous_inventory is None:
-                self.assertFalse(output.exists())
-            else:
-                self.assertEqual(output.read_bytes(), previous_inventory)
-                self.assertEqual(output.stat().st_mode & 0o777, 0o640)
-            self.assertEqual(list(self.root.glob('.inventory-recovery-*')), [])
-
-    def test_failed_rollback_retains_recovery_and_reports_unknown(self):
-        (self.root / 'inventory.json').write_bytes(b'previous inventory')
-        (self.root / 'inventory-apt.json').write_bytes(b'previous apt')
-        writer = inventory.atomic_write
-
-        def failed(path, data, mode):
-            if path == self.root / 'inventory.json':
-                raise OSError('fixture persistent failure')
-            writer(path, data, mode)
-
-        with mock.patch.object(inventory, 'atomic_write', side_effect=failed):
-            with self.assertRaisesRegex(ValueError, 'outcome unknown; recovery retained'):
-                inventory.publish_products(self.root, {'inventory-apt.json': b'new apt', 'inventory.json': b'new inventory'})
-        recovery, = self.root.glob('.inventory-recovery-*')
-        self.assertEqual((recovery / 'inventory.json').read_bytes(), b'previous inventory')
-        with self.assertRaisesRegex(ValueError, 'recovery'):
-            with inventory.generation_lock(self.root):
-                self.fail('uncertain publication was automatically retried')
-
-    def test_concurrent_inventory_writers_are_rejected(self):
-        with inventory.generation_lock(self.root):
-            with self.assertRaisesRegex(ValueError, 'already running'):
-                with inventory.generation_lock(self.root):
-                    self.fail('second writer acquired the lock')
-
-    def test_archive_member_and_expansion_limits_are_enforced(self):
-        self.source('common.cfg', 'd-i pkgsel/include string curl\n')
-        self.payload('common.cfg')
-        raw = (self.seed / 'payload.tar.gz').read_bytes()
-        for limit, value in (('MAX_FILE', 1), ('MAX_TOTAL', 1), ('MAX_MEMBERS', 0)):
-            with mock.patch.object(inventory, limit, value), self.subTest(limit=limit), self.assertRaises(ValueError):
-                inventory.scan_payload(raw)
-        with self.assertRaises((OSError, EOFError)):
-            inventory.scan_payload(raw[:-6])
-
-    def test_package_urls_use_index_filename_not_package_name(self):
-        actual = inventory_apt.filename_url('https://example.org/debian', 'pool/main/s/source/binary_1.2_all.deb')
-        self.assertEqual(actual, 'https://example.org/debian/pool/main/s/source/binary_1.2_all.deb')
-        for name in ['../secret', '/pool/pkg.deb', 'https://elsewhere/pkg.deb', 'pool/%2e%2e/pkg.deb']:
-            with self.subTest(name=name), self.assertRaises(ValueError):
-                inventory_apt.filename_url('https://example.org/debian', name)
-
-    def test_indexed_dependency_lookup_retains_virtual_alternatives_and_base_packages(self):
-        with sqlite3.connect(':memory:') as database:
-            database.execute('CREATE TABLE packages (id INTEGER PRIMARY KEY, name TEXT, kind TEXT, priority TEXT, essential INTEGER, data TEXT)')
-            database.execute('CREATE TABLE provides (name TEXT, package_id INTEGER)')
-            for name, kind, depends, provides, essential in (
-                    ('application', 'deb', 'virtual-api | other-api', '', False),
-                    ('provider', 'deb', '', 'virtual-api', False),
-                    ('other-api', 'deb', '', '', False),
-                    ('base', 'deb', '', '', True),
-                    ('provider', 'udeb', '', 'virtual-api', False),
-                    ('unrelated', 'deb', '', '', False)):
-                row = {'package': name, 'type': kind, 'depends': depends, 'pre_depends': '', 'provides': provides,
-                       'architecture': 'amd64', 'repository': 'fixture', 'version': '1', 'url': name, 'index_url': 'fixture'}
-                cursor = database.execute('INSERT INTO packages (name,kind,priority,essential,data) VALUES (?,?,?,?,?)',
-                                          (name, kind, 'optional', essential, json.dumps(row)))
-                if provides:
-                    database.execute('INSERT INTO provides VALUES (?,?)', (provides, cursor.lastrowid))
-            database.execute('CREATE INDEX names ON packages (name,kind)')
-            database.execute('CREATE INDEX virtuals ON provides (name)')
-            rows = inventory_apt.select_packages(database, {('application', 'deb')})
-        self.assertEqual({(row['package'], row['type']) for row in rows},
-                         {('application', 'deb'), ('provider', 'deb'), ('other-api', 'deb'), ('base', 'deb')})
-
-    def test_credential_bearing_urls_are_not_exported(self):
-        self.assertEqual(inventory.clean_url('https://user:private@example.org/archive'),
-                         '[credential-bearing or malformed URL omitted]')
-        self.assertNotIn('private-value', inventory.clean_url('https://example.org/archive?token=private-value'))
-
-    def test_pin_priority_class_and_exact_version_contracts(self):
-        repo = {'url': 'https://example.org/debian', 'suite': 'forky'}
-        release = {'Origin': 'Debian', 'Codename': 'forky', 'Suite': 'testing'}
-        package = {'package': 'agent', 'version': '0.1.3-2', 'source': 'agent'}
-        rules = [
-            {'packages': ['*'], 'pin': 'release n=forky', 'priority': 900, 'preference': 'forky', 'line': 1,
-             'source': {'path': 'forky.pref'}},
-            {'packages': ['agent:any'], 'pin': 'version 0.1.3-*', 'priority': 1001, 'preference': 'agent', 'line': 1,
-             'source': {'path': 'agent.pref'}},
-            {'packages': ['agent:any'], 'pin': 'version *', 'priority': -1, 'preference': 'agent', 'line': 5,
-             'source': {'path': 'agent.pref'}},
-        ]
-        self.assertEqual(inventory.pin_priority(package, repo, release, rules, {'forky'}), 900)
-        self.assertEqual(inventory.pin_priority(package, repo, release, rules, {'forky', 'agent'}), 1001)
-        package['version'] = '0.2.0-1'
-        self.assertEqual(inventory.pin_priority(package, repo, release, rules, {'forky', 'agent'}), -1)
-        self.assertEqual(inventory.pin_priority(package, repo, release, rules, {'forky'}, 'forky'), 990)
-
-    def test_debian_epoch_tilde_and_revision_ordering(self):
-        for old, new in [('1.0~rc1-1', '1.0-1'), ('1.9-1', '1.10-1'), ('2.0-1', '1:1.0-1'),
-                         ('1.0-1', '1.0-1+b1'), ('1.0-1+b9', '1.0-1+b10')]:
-            with self.subTest(old=old, new=new):
-                self.assertLess(inventory.version_compare(old, new), 0)
-                self.assertGreater(inventory.version_compare(new, old), 0)
-        self.assertEqual(inventory.version_compare('1.0', '1.0-0'), 0)
-
-    def test_packer_pins_are_read_from_hcl_without_running_plugins(self):
-        text = 'packer { required_plugins { qemu = { source = "github.com/hashicorp/qemu" version = "= 1.1.6" } } }\n'
-        name = 'd-i/forky/hooks/target/etc/skel-desktop/.config/packer/template.pkr.hcl.tmpl'
-        facts = inventory.scan_file(name, text)
-        recipes = inventory.indirect_downloads({name: facts}, inventory.Variables({name: facts}))
-        self.assertEqual(len(recipes), 1)
-        self.assertEqual(recipes[0]['version'], '1.1.6')
-        self.assertEqual(recipes[0]['checksums_url'],
-                         'https://releases.hashicorp.com/packer-plugin-qemu/1.1.6/packer-plugin-qemu_1.1.6_SHA256SUMS')
-
-    def test_failed_metadata_refresh_preserves_previous_snapshot(self):
-        snapshot = self.root / 'inventory-apt.json'
-        previous = b'{"fixture":"previous-metadata"}\n'
-        snapshot.write_bytes(previous)
-        with mock.patch.object(inventory_apt, 'release_metadata', side_effect=inventory_apt.URLError('fixture')):
-            with self.assertRaisesRegex(ValueError, 'existing metadata retained'):
-                inventory_apt.refresh(self.root, {'repositories': [{'id': 'fixture-repository', 'index_urls': []}], 'packages': []}, {})
-        self.assertEqual(snapshot.read_bytes(), b'{"fixture":"previous-metadata"}\n')
-
-
-if __name__ == '__main__':
-    unittest.main()
+# These are specification/failure-injection fixtures, not executed results.
+# They deliberately import neither inventory utility. There is no discovery
+# hook, test runner, host command, network client or fallback execution path.
+# Model catalogs below are input data only; their rows are not live APT facts.
+INVENTORY_CONTRACT_CASES = (
+    {
+        'id': 'one_product_only',
+        'entrypoint': 'publish_products',
+        'input': {'products': {'inventory.json': b'candidate'}},
+        'expected': {'persistent_products': ['inventory.json'], 'legacy_snapshot_read': False},
+        'forbidden': ['inventory-apt.json', 'payload rebuild', 'host package state'],
+    },
+    {
+        'id': 'download_plan_completeness_is_derived_from_resolved_inputs',
+        'entrypoint': 'assemble',
+        'input': {'apt_acquired': True, 'missing_package_requests': [], 'apt_unresolved': [],
+                  'indirect_statuses': ['resolved', 'resolved_literal'], 'artifact_download_ids': True},
+        'expected': {'download_plan_complete': True,
+                     'offline_or_unresolved_protocols_remain_incomplete': True,
+                     'hardcoded_false_complete_flag': False},
+    },
+    {
+        'id': 'reject_paired_publication',
+        'entrypoint': 'publish_products',
+        'input': {'products': {'inventory.json': b'candidate', 'inventory-apt.json': b'legacy'}},
+        'expected': {'exception': 'ValueError', 'outputs_untouched': True},
+    },
+    {
+        'id': 'checkout_edits_are_inventory_inputs',
+        'entrypoint': 'scan_checkout',
+        'input': {'files': {'d-i/forky/fragments/apt.cfg': 'd-i pkgsel/include string curl\n'},
+                  'change': {'d-i/forky/fragments/apt.cfg': 'd-i pkgsel/include string curl git\n'},
+                  'payload_unchanged': True},
+        'expected': {'fingerprint_changes': True, 'new_request': 'git', 'executes_source': False},
+    },
+    {
+        'id': 'ignore_private_generated_and_inactive_inputs',
+        'entrypoint': 'checkout_paths',
+        'input': {'excluded': ['hosts/preseed.env', 'hosts/git_ed25519', 'hosts/backup/old.env',
+                               'tests/test_example.py', 'payload.tar.gz', 'payload.manifest', 'preseed.cfg']},
+        'expected': {'excluded_bytes_opened': False},
+    },
+    {
+        'id': 'pinned_theme_manifest_and_staging_list_are_download_inputs',
+        'entrypoint': 'scan_checkout',
+        'input': {'manifest': {'schema': 1, 'files': {'gtk/theme.tar.gz': {
+                      'bytes': 7, 'sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                      'url': 'https://example.org/pinned/theme.tar.gz'}}},
+                  'staging_list': ['gtk/theme.tar.gz']},
+        'expected': {'binary_staged_bytes_hashed': True, 'url_size_and_sha256_in_catalog': True,
+                     'repository_transfer_path_preserved': True,
+                     'manifest_or_staged_byte_mismatch_rejected': True},
+    },
+    {
+        'id': 'literal_release_archives_join_the_single_download_catalog',
+        'entrypoint': 'assemble',
+        'input': {'protocol_kind': 'architecture_release_table', 'name': '7-Zip-zstd',
+                  'archives_have_source_pinned_sha256': True},
+        'expected': {'download_ids_linked': True, 'status': 'resolved_literal',
+                     'network_for_literal_resolution': False},
+    },
+    {
+        'id': 'packer_class_architecture_filters_plugin_releases',
+        'entrypoint': 'indirect_downloads',
+        'input': {'class': 'addon/devops', 'requires_classes': ['arch/amd64', 'role/desktop'],
+                  'published_architectures': ['amd64', 'arm64']},
+        'expected': {'selected_architectures': ['amd64'], 'unused_arm64_archive_included': False},
+    },
+    {
+        'id': 'crowdsec_ssh_collection_keeps_the_enclosing_profile_condition',
+        'entrypoint': 'indirect_downloads',
+        'input': {'ssh_true_profiles': ['desktop-a'], 'ssh_false_profiles': ['desktop-b'],
+                  'conditional_item': ('collections', 'crowdsecurity/sshd'),
+                  'unconditional_item': ('parsers', 'crowdsecurity/syslog-logs')},
+        'expected': {'sshd_profiles': ['desktop-a'], 'syslog_all_profiles': True,
+                     'changed_or_missing_source_guard_rejected': True},
+    },
+    {
+        'id': 'crowdsec_final_engine_uses_the_last_install_phase_per_context',
+        'entrypoint': 'crowdsec_downloads',
+        'input': {'engine_versions': [('pkgsel', '1.7.3'), ('late', '1.7.4')],
+                  'installed_capability_version': '1.7.5', 'download_only_version': '1.7.6'},
+        'expected': {'hub_engine_version': 'v1.7.4', 'same_phase_conflicting_versions_rejected': True,
+                     'download_only_or_future_capability_selects_hub': False},
+    },
+    {
+        'id': 'crowdsec_branch_follows_selected_engine_and_latest_version_metadata',
+        'entrypoint': 'crowdsec_downloads',
+        'input': {'reviewed_source_contract_matches': True, 'latest_version': 'v1.7.4',
+                  'selected_engine_versions': ['1.7.3-1', '1.7.4-1', '1.7.5-rc1']},
+        'expected': {'branches': {'v1.7.3': 'v1.7.3', 'v1.7.4': 'master', 'v1.7.5': 'master'},
+                     'branch_index_uses_source_defined_cdn': True,
+                     'source_contract_changes_fail_before_publication': True},
+    },
+    {
+        'id': 'crowdsec_recursive_items_keep_hashes_and_shared_profile_provenance',
+        'entrypoint': 'crowdsec_downloads',
+        'input': {'roots': ['collections:vendor/a', 'collections:vendor/b'],
+                  'shared_dependency': 'parsers:vendor/shared', 'item_digest_matches': True},
+        'expected': {'shared_item_download_count': 1, 'all_root_conditions_preserved': True,
+                     'transitive_items_included': True, 'missing_dependency_or_bad_digest_rejected': True},
+    },
+    {
+        'id': 'crowdsec_data_block_sequences_are_download_inputs',
+        'entrypoint': 'crowdsec_data_files',
+        'input': {'blob': b'data:\n  - source_url: https://hub-data.crowdsec.net/geo/example.mmdb\n    dest_file: example.mmdb\nname: vendor/example\n'},
+        'expected': {'files': [{'url': 'https://hub-data.crowdsec.net/geo/example.mmdb',
+                                'destination': '/var/lib/crowdsec/data/example.mmdb',
+                                'component': 'hub_data',
+                                'byte_identity': 'mutable_upstream_without_advertised_hash'}],
+                     'invented_hash_or_vendor_signature': False},
+    },
+    {
+        'id': 'crowdsec_yaml_documents_and_indentationless_data_are_preserved',
+        'entrypoint': 'crowdsec_data_files',
+        'input': {'blob': b'data:\n- source_url: https://example.org/one.txt\n  dest_file: one.txt\n---\n"data":\n  - source_url: "https://example.org/two.txt"\n    dest_file: \'two.txt\'\n'},
+        'expected': {'urls': ['https://example.org/one.txt', 'https://example.org/two.txt'],
+                     'duplicate_data_key_within_one_document_rejected': True},
+    },
+    {
+        'id': 'crowdsec_yaml_does_not_hide_downloads_behind_unsupported_forms',
+        'entrypoint': 'crowdsec_data_files',
+        'input': {'faults': ['data flow mapping', 'data alias', 'root merge', 'repeated source_url',
+                             'relative source URL', 'parent destination', 'nested data sequence',
+                             'nonpublic URL', 'content over one MiB']},
+        'expected': {'exception': 'ValueError', 'silently_incomplete_file_list': False,
+                     'repository_or_yaml_code_executed': False},
+    },
+    {
+        'id': 'public_metadata_urls_reject_controls_before_transfer_or_publication',
+        'entrypoint': 'public_url',
+        'input': {'urls': ['https://example.org/file\nname', 'https://example.org/file\tname',
+                            'https://example.org/file name', 'https://example.org/file\\name']},
+        'expected': {'exception': 'ValueError', 'transfer_attempted': False,
+                     'normalized_but_different_url_persisted': False},
+    },
+    {
+        'id': 'crowdsec_embedded_content_is_staged_without_an_extra_item_download',
+        'entrypoint': 'crowdsec_downloads',
+        'input': {'index_embeds_selected_item': True, 'embedded_digest_matches': True,
+                  'embedded_item_references_data_url': True},
+        'expected': {'item_in_embedded_files': True, 'item_url_in_downloads': False,
+                     'referenced_data_url_in_downloads': True,
+                     'embedded_bytes_and_profile_selection_preserved': True},
+    },
+    {
+        'id': 'crowdsec_stream_graph_and_retained_data_limits_preserve_old_inventory',
+        'entrypoint': 'crowdsec_downloads',
+        'input': {'faults': ['index over 32 MiB', 'over 4096 selected files',
+                             'over 256 dependencies for one item', 'retained data over 32 MiB',
+                             'operation deadline', 'source contract hash mismatch', 'item hash mismatch']},
+        'expected': {'publication_attempted': False, 'previous_inventory_retained': True,
+                     'limits_checked_before_retaining_additional_rows': True},
+    },
+    {
+        'id': 'python_profile_wheel_identity_and_bounds_stay_together',
+        'entrypoint': 'python_environments',
+        'input': {'profiles': {'a': {'version': '2.8', 'sha256': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'},
+                               'b': {'version': '2.9', 'sha256': 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'}},
+                  'each_profile_declares_matching_wheel_url_and_size_bounds': True},
+        'expected': {'cross_profile_version_url_or_digest_combinations': False,
+                     'identical_environments_coalesced_with_profiles': True,
+                     'unresolved_or_ambiguous_pin_rejected': True},
+    },
+    {
+        'id': 'waypaper_download_policy_is_bound_to_the_actual_installer_command',
+        'entrypoint': 'scan_file',
+        'input': {'path': 'd-i/forky/scripts/desktop/waypaper.sh',
+                  'faults': ['env without -i', 'changed PATH', 'PIP_INDEX_URL override', 'UV_INDEX_URL override',
+                             'missing PIP_ONLY_BINARY', 'additional pipx arguments', 'second pipx install']},
+        'expected': {'exception': 'ValueError', 'default_policy_silently_assumed': False,
+                     'installer_command_executed': False, 'private_environment_values_retained': False},
+    },
+    {
+        'id': 'python_root_dependencies_come_from_the_pinned_local_wheel',
+        'entrypoint': 'python_wheel_metadata',
+        'input': {'archive_sha256_matches_profile': True,
+                  'registry_requires_dist': ['unrelated'],
+                  'wheel_requires_dist': ['PyGObject', 'platformdirs', 'Pillow', 'imageio', 'imageio-ffmpeg', 'screeninfo']},
+        'expected': {'selected_requires_dist': ['PyGObject', 'platformdirs', 'Pillow', 'imageio', 'imageio-ffmpeg', 'screeninfo'],
+                     'registry_dependency_fields_trusted_for_local_root': False,
+                     'archive_extracted_or_imported': False},
+    },
+    {
+        'id': 'python_wheel_zip_directory_is_bounded_before_member_list_allocation',
+        'entrypoint': 'python_wheel_metadata',
+        'input': {'faults': ['central count over 8192', 'forged small count with extra records',
+                             'central directory over eight MiB', 'ZIP64', 'multiple disks', 'truncated record',
+                             'duplicate member', 'parent member', 'symlink METADATA', 'inflated metadata over one MiB']},
+        'expected': {'exception': 'ValueError', 'publication_attempted': False,
+                     'unbounded_zip_member_list_or_metadata_expansion': False},
+    },
+    {
+        'id': 'python_metadata_keeps_repeated_requirements_and_rejects_duplicate_identity',
+        'entrypoint': 'python_metadata',
+        'input': {'valid': b'Metadata-Version: 2.4\nName: Example.Project\nVersion: 1.0\nRequires-Dist: one\nRequires-Dist: two; python_version > "3.10"\n\n',
+                  'faults': ['two Name headers', 'two Version headers', 'two Requires-Python headers',
+                             'invalid UTF-8', 'header controls', 'over 256 dependencies']},
+        'expected': {'normalized_name': 'example-project', 'both_dependency_declarations_retained': True,
+                     'invalid_input_rejected': True, 'metadata_code_executed': False},
+    },
+    {
+        'id': 'python_target_snapshot_uses_installed_versions_before_desktop_execution',
+        'entrypoint': 'python_target_packages',
+        'input': {'versions': [('pkgsel', '1.0'), ('late', '1.1'), ('first_boot', '1.2'),
+                               ('installed_capability', '1.3')],
+                  'download_only_version': '1.4'},
+        'expected': {'system_distribution_archive_version': '1.1',
+                     'download_only_or_future_capability_used_as_installed': False,
+                     'same_phase_conflicting_versions_rejected': True},
+    },
+    {
+        'id': 'debian_python_metadata_uses_selected_binary_bytes_only',
+        'entrypoint': 'debian_python_metadata',
+        'input': {'selected_package': 'python3-gi', 'selected_archive_sha256_matches': True,
+                  'metadata_name': 'PyGObject', 'metadata_version': '3.54.0'},
+        'expected': {'normalized_distribution_name': 'pygobject',
+                     'debian_package_version_assumed_to_equal_python_metadata_version': False,
+                     'archive_name_sha256_size_and_metadata_path_preserved': True,
+                     'host_python_distribution_metadata_read': False},
+    },
+    {
+        'id': 'debian_metadata_archive_rejects_unsafe_members_before_reading_payloads',
+        'entrypoint': 'debian_python_metadata',
+        'input': {'faults': ['APT byte hash mismatch', 'APT size mismatch', 'duplicate ar member',
+                             'truncated ar member', 'unsupported compression', 'PAX or sparse tar headers',
+                             'over 16 recursive GNU extended headers',
+                             'parent path', 'linked metadata', 'duplicate metadata', 'aggregate metadata over four MiB']},
+        'expected': {'exception': 'ValueError', 'publication_attempted': False,
+                     'maintainer_scripts_imports_or_package_programs_executed': False},
+    },
+    {
+        'id': 'python_legacy_egg_requirements_keep_extras_and_marker_sections',
+        'entrypoint': 'python_egg_requirements',
+        'input': {'blob': b'base>=1\n[feature]\noptional>=2\n[:python_version < "3.12"]\nold-runtime\n[other:sys_platform == "win32"]\nplatform-extra\n'},
+        'expected': {'base_requirement_has_no_extra_or_marker': True,
+                     'feature_extra_preserved': True, 'marker_only_section_preserved': True,
+                     'combined_extra_and_marker_preserved': True,
+                     'dangling_requires_txt_without_owning_metadata_rejected': True},
+    },
+    {
+        'id': 'pipx_backend_contract_binds_installed_source_bytes',
+        'entrypoint': 'python_downloads',
+        'input': {'selected_pipx_archive_matches_APT_SHA256': True,
+                  'selected_source_files_match_reviewed_backend_protocol': True,
+                  'fresh_environment': True},
+        'expected': {'backend_policy': 'visible_uv_else_pip_for_new_environment',
+                     'local_wheel_name_probe_has_no_dependency_closure': True,
+                     'shared_pip_requirement_conditional_on_pip_backend': True,
+                     'package_version_string_alone_establishes_protocol': False,
+                     'unknown_source_bytes_marked_requires_source_review': True},
+    },
+    {
+        'id': 'python_fresh_pipx_environment_requires_venv_and_ensurepip_packages',
+        'entrypoint': 'python_downloads',
+        'input': {'selected_pipx': True, 'selected_python_interpreter': 'python3.14',
+                  'selected_python3_pip_whl': True,
+                  'selected_venv_provider': ['python3-venv', 'python3.14-venv']},
+        'expected': {'missing_ensurepip_wheel_is_unresolved': True,
+                     'missing_generic_or_interpreter_venv_is_unresolved': True,
+                     'pipx_version_alone_does_not_establish_fresh_environment': True},
+    },
+    {
+        'id': 'archive_extension_recursion_is_bounded_before_parser_recursion',
+        'entrypoint': 'npm_archive_data_and_debian_python_metadata',
+        'input': {'extended_header': 'GNU long name', 'extended_header_count': 17,
+                  'terminal_header': 'regular selected metadata'},
+        'expected': {'exception': 'ValueError', 'unbounded_tar_parser_recursion': False,
+                     'previous_inventory_retained': True, 'package_metadata_executed': False},
+    },
+    {
+        'id': 'udeb_index_uses_its_declared_release_suite',
+        'entrypoint': 'repositories_and_refresh',
+        'input': {'binary_suite': 'forky', 'udeb_suite': 'forky',
+                  'fault_variant': {'binary_suite': 'forky', 'udeb_suite': 'bookworm'}},
+        'expected': {'udeb_release_url_follows_udeb_suite': True,
+                     'udeb_index_not_checked_against_binary_release_hashes': True,
+                     'binary_resolver_release_policy_preserved': True},
+    },
+    {
+        'id': 'local_apt_staging_repository_is_preserved_without_public_refresh',
+        'entrypoint': 'repositories',
+        'input': {'sources': {'Types': 'deb', 'URIs': 'file:/var/lib/software/repo', 'Suites': './',
+                              'Signed-By': '/etc/apt/keyrings/apt-repo-local.gpg'}},
+        'expected': {'repository_role': 'local_staging', 'release_or_index_fetch_attempted': False,
+                     'runtime_local_path_preserved': True, 'public_repository_selection_unchanged': True},
+    },
+    {
+        'id': 'git_repository_urls_are_not_file_downloads',
+        'entrypoint': 'artifacts_and_git_declarations',
+        'input': {'repository_url': 'https://github.com/example/project.git',
+                  'branch': 'main', 'source_build': 'true'},
+        'expected': {'git_repositories_count': 1, 'ordinary_downloads_count': 0,
+                     'clone_url_not_treated_as_archive': True},
+    },
+    {
+        'id': 'direct_archive_suffixes_remain_downloadable_inputs',
+        'entrypoint': 'archive_url',
+        'input': {'urls': ['https://example.org/pkg.tar.zst', 'https://example.org/pkg.tar.bz2',
+                           'https://example.org/pkg.dsc', 'https://example.org/pkg.rpm',
+                           'https://example.org/pkg.iso', 'https://example.org/pkg.img',
+                           'https://example.org/pkg.run', 'https://example.org/pkg.msi']},
+        'expected': {'all_classified_as_archives': True, 'metadata_or_service_endpoint_misclassified': False,
+                     'download_code_executed': False},
+    },
+    {
+        'id': 'derived_detached_signature_urls_remain_download_inputs',
+        'entrypoint': 'artifacts',
+        'input': {'installer_variables': {'SOFTWARE_TOR_BROWSER_URL': 'https://dist.torproject.org/tor.tar.xz',
+                                          'MULLVAD_AMD64_DEB_URL': 'https://mullvad.net/en/download/app/deb/latest'}},
+        'expected': {'signature_urls': ['https://dist.torproject.org/tor.tar.xz.asc',
+                                        'https://mullvad.net/en/download/app/deb/latest/signature'],
+                     'archive_sha256_not_reused_for_detached_signatures': True,
+                     'Mullvad_key_fingerprint_bound_to_key_url': True,
+                     'signature_verification_claimed': False},
+    },
+    {
+        'id': 'apt_selected_conflicts_and_breaks_are_unresolved',
+        'entrypoint': 'resolve_catalog',
+        'input': {'selected': [('alpha', '1.0', {'conflicts': 'beta'}),
+                               ('beta', '1.0', {'breaks': 'gamma'})],
+                  'dependency_walk_reached_all_rows': True},
+        'expected': {'conflict_or_breaks_issue': True, 'invalid_coinstall_plan_published': False,
+                     'reverse_constraints_checked_after_fixed_candidate_set': True},
+    },
+    {
+        'id': 'apt_conflicts_are_scoped_to_coinstall_contexts',
+        'entrypoint': 'resolve_catalog',
+        'input': {'selected': [('alpha', '1.0', {'conflicts': 'beta', 'context': 'desktop-a:amd64'}),
+                              ('beta', '1.0', {'context': 'desktop-b:amd64'})]},
+        'expected': {'cross_context_conflict_reported': False,
+                     'same_context_conflict_reported': True,
+                     'context_and_architecture_overlap_required': True},
+    },
+    {
+        'id': 'apt_release_and_index_final_waits_share_the_global_deadline',
+        'entrypoint': 'refresh',
+        'input': {'release_workers': 4, 'index_workers': 4,
+                  'faults': ['DNS/open wait', 'slow release worker', 'slow index worker',
+                             'future final wait after deadline']},
+        'expected': {'exception': 'ValueError', 'previous_inventory_retained': True,
+                     'executor_final_wait_unbounded': False, 'cancelled_unfinished_futures': True,
+                     'unfinished_index_workers_keep_private_scratch': True},
+    },
+    {
+        'id': 'python_parser_dependency_is_manual_and_target_values_are_explicit',
+        'entrypoint': 'python_packaging_and_python_target_environment',
+        'input': {'parser_library_missing_or_older_than_23_2': True,
+                  'selected_defaults_depend_on': 'python3.14', 'selected_libc6_version': '2.42-1',
+                  'development_python_minor': '3.11'},
+        'expected': {'missing_parser_is_actionable_error': True, 'dependency_auto_install': False,
+                     'host_package_manager_or_distribution_database_read': False,
+                     'target_python_comes_from_selected_default_interpreter_package': True,
+                     'wheel_tags_come_from_explicit_target_abi_architecture_and_glibc': True},
+    },
+    {
+        'id': 'python_markers_cannot_fill_missing_target_facts_from_the_development_host',
+        'entrypoint': 'python_marker_matches',
+        'input': {'known_target': {'python_version': '3.14', 'sys_platform': 'linux'},
+                  'markers': ['python_version >= "3.12"', 'sys_platform == "win32"',
+                              'platform_release >= "6.12"']},
+        'expected': {'known_marker_results': [True, False],
+                     'unavailable_target_kernel_marker_rejected': True,
+                     'development_kernel_or_python_values_contribute_to_result': False},
+    },
+    {
+        'id': 'python_system_satisfaction_and_transitive_wheels_keep_target_contexts',
+        'entrypoint': 'python_wheel_graph',
+        'input': {'root_requires': ['PyGObject', 'Pillow>=8.3.2', 'imageio'],
+                  'selected_system_distributions': {'pygobject': '3.54.0', 'pillow': '11.3.0'},
+                  'imageio_wheel_requires': ['numpy>=1.20', 'pillow>=8.3.2']},
+        'expected': {'pygobject_and_pillow_redownloaded': False, 'imageio_and_numpy_wheels_selected': True,
+                     'system_distribution_dependencies_followed': True,
+                     'source_distributions_or_incompatible_architectures_selected': False},
+    },
+    {
+        'id': 'python_later_constraint_conflicts_withhold_provisional_archives',
+        'entrypoint': 'python_wheel_graph',
+        'input': {'early_requirement': 'shared>=1', 'early_candidate': '2.0',
+                  'later_requirement': 'shared<2'},
+        'expected': {'reason': 'requires_python_dependency_backtracking',
+                     'provisional_transitive_archives_promoted': False,
+                     'two_incompatible_versions_unioned_into_a_false_plan': False},
+    },
+    {
+        'id': 'python_reused_candidate_preserves_each_target_selection',
+        'entrypoint': 'python_wheel_graph',
+        'input': {'one_universal_wheel_selected_in_contexts': ['desktop-a', 'desktop-b'],
+                  'same_cached_wheel_metadata_reused': True},
+        'expected': {'each_context_keeps_its_profile_architecture_and_stage': True,
+                     'first_context_selection_copied_into_later_context': False,
+                     'one_canonical_download_url_with_merged_provenance': True},
+    },
+    {
+        'id': 'python_wheel_equal_rank_and_metadata_mismatch_do_not_guess',
+        'entrypoint': 'python_wheel_graph',
+        'input': {'faults': ['two distinct equally ranked wheel links', 'filename identity differs from release',
+                             'archive WHEEL tags differ from filename', 'archive digest differs from PyPI',
+                             'direct-URL requirement', 'over 128 compressed tag products']},
+        'expected': {'exception': 'ValueError', 'inferred_or_unverified_archive_promoted': False,
+                     'package_code_executed': False},
+    },
+    {
+        'id': 'public_json_structure_is_bounded_before_decoder_allocation',
+        'entrypoint': 'json_object',
+        'input': {'faults': ['nesting depth 65', 'over two million structural tokens'],
+                  'quoted_braces_and_escaped_quotes_are_data': True},
+        'expected': {'exception': 'ValueError', 'unbounded_nested_list_or_dictionary_allocation': False,
+                     'previous_inventory_retained': True},
+    },
+    {
+        'id': 'python_system_metadata_is_not_a_resolved_download_plan',
+        'entrypoint': 'python_downloads',
+        'input': {'root_wheel_identity_verified': True, 'selected_system_metadata_acquired': True,
+                  'dependency_candidate_selection_pending': True, 'pipx_backend_selection_pending': True},
+        'expected': {'status': 'requires_python_protocol_resolution', 'invented_dependency_urls': False,
+                     'pip_bootstrap_assumed_despite_auto_uv_backend': False,
+                     'target_architecture_context_and_profile_provenance_preserved': True},
+    },
+    {
+        'id': 'npm_profile_environment_pins_stay_together',
+        'entrypoint': 'npm_environments',
+        'input': {'profiles': {'a': {'wrangler': '1.0.0', 'node_root': '/usr/local/lib/node-22',
+                                     'node_version': 'v22.1.0', 'registry': 'https://registry.npmjs.org/'},
+                               'b': {'wrangler': '2.0.0', 'node_root': '/usr/local/lib/node-26',
+                                     'node_version': 'v26.7.0', 'registry': 'https://registry.npmjs.org/'}}},
+        'expected': {'cross_profile_version_node_or_registry_combinations': False,
+                     'matching_node_install_root_required': True, 'identical_environments_coalesced_with_profiles': True},
+    },
+    {
+        'id': 'npm_versions_use_numeric_and_prerelease_precedence',
+        'entrypoint': 'npm_version',
+        'input': {'ascending': ['1.2.0', '1.10.0-beta.2', '1.10.0-beta.11', '1.10.0-rc.1', '1.10.0']},
+        'expected': {'numeric_and_prerelease_order_preserved': True, 'lexicographic_sort_used': False},
+    },
+    {
+        'id': 'npm_range_caret_zero_major_and_wildcard_boundaries',
+        'entrypoint': 'npm_matches',
+        'input': {'pairs': [('0.0.4', '^0.0.3', False), ('0.2.9', '^0.2.3', True),
+                            ('0.3.0', '^0.2.3', False), ('0.0.9', '^0.0.x', True),
+                            ('0.1.0', '^0.0.x', False), ('1.2.9', '1.2.x', True),
+                            ('1.3.0', '1.2.x', False), ('2.9.0', '^2', True)]},
+        'expected': {'all_declared_memberships': True},
+    },
+    {
+        'id': 'npm_ranges_hyphen_tilde_comparators_and_disjunction',
+        'entrypoint': 'npm_matches',
+        'input': {'pairs': [('2.3.9', '1.2 - 2.3', True), ('2.4.0', '1.2 - 2.3', False),
+                            ('1.3.0', '~1.2.3', False), ('2.0.0', '>1', True),
+                            ('1.9.0', '<=1', True), ('3.1.0', '^1 || >=3 <4', True)]},
+        'expected': {'all_declared_memberships': True},
+    },
+    {
+        'id': 'npm_prerelease_requires_opt_in_for_its_exact_core',
+        'entrypoint': 'npm_matches',
+        'input': {'pairs': [('1.2.3-beta.2', '>=1.2.3-beta.1 <2', True),
+                            ('1.3.0-beta.1', '>=1.2.3-beta.1 <2', False),
+                            ('1.2.3-beta.2', '*', False), ('1.2.3-beta.2', '1.2.3-beta.2', True)]},
+        'expected': {'all_declared_memberships': True},
+    },
+    {
+        'id': 'npm_unsupported_selectors_do_not_become_unconstrained_ranges',
+        'entrypoint': 'npm_range',
+        'input': {'selectors': ['workspace:*', 'npm:other@^1', 'git+https://example.org/a.git',
+                                'https://example.org/a.tgz', '01.2.3', '1.2.3+build']},
+        'expected': {'exception': 'ValueError', 'fallback_to_all_versions': False},
+    },
+    {
+        'id': 'npm_range_selection_preserves_latest_and_engine_deprecation_policy',
+        'entrypoint': 'npm_downloads',
+        'input': {'wanted': '^1', 'latest': '1.2.0', 'versions': ['1.2.0', '1.9.0'],
+                  'latest_engine_compatible': True, 'latest_deprecated': False},
+        'expected': {'selected': '1.2.0', 'bundled_npm_version_from_pinned_node_release': True,
+                     'changed_npm_selection_source_rejected': True},
+    },
+    {
+        'id': 'npm_target_optional_packages_filter_os_cpu_and_libc',
+        'entrypoint': 'npm_downloads',
+        'input': {'target': ('linux', 'x64', 'glibc'), 'optional_packages': [
+                  ('fsevents', 'darwin', 'x64', 'glibc'),
+                  ('@esbuild/linux-x64', 'linux', 'x64', 'glibc'),
+                  ('@esbuild/linux-arm64', 'linux', 'arm64', 'glibc'),
+                  ('@img/sharp-linuxmusl-x64', 'linux', 'x64', 'musl')]},
+        'expected': {'selected_optional_packages': ['@esbuild/linux-x64'],
+                     'unsupported_required_platform_is_error': True, 'dev_dependencies_omitted': True},
+    },
+    {
+        'id': 'npm_absent_optional_peers_are_not_automatic_downloads',
+        'entrypoint': 'npm_downloads',
+        'input': {'peer': '@cloudflare/workers-types', 'peer_optional': True, 'peer_in_production_graph': False},
+        'expected': {'peer_archive_selected': False, 'unmatched_required_peer_explicitly_unresolved': True},
+    },
+    {
+        'id': 'npm_multiple_versions_require_placement_before_catalog_promotion',
+        'entrypoint': 'npm_downloads',
+        'input': {'graph_candidates': ['shared@1.0.0', 'shared@1.9.0'],
+                  'requests': ['1.0.0', '^1']},
+        'expected': {'status': 'requires_npm_protocol_resolution', 'candidate_graph_preserved': True,
+                     'ambiguous_graph_archives_promoted': False, 'all_versions_union_claimed_complete': False},
+    },
+    {
+        'id': 'npm_shrinkwrap_or_bundles_require_archive_resolution',
+        'entrypoint': 'npm_downloads',
+        'input': {'faults': ['hasShrinkwrap', 'bundledDependencies', 'bundleDependencies']},
+        'expected': {'status': 'requires_npm_protocol_resolution', 'unproven_graph_promoted': False},
+    },
+    {
+        'id': 'npm_install_hooks_remain_explicitly_unresolved_until_source_review',
+        'entrypoint': 'npm_downloads',
+        'input': {'hooks': ['unreviewed esbuild version postinstall', 'unreviewed workerd version postinstall',
+                             'unknown package install', 'implicit gypfile install']},
+        'expected': {'status': 'requires_npm_protocol_resolution', 'hook_sources_recorded': True,
+                     'package_code_executed': False, 'download_plan_claimed_complete': False},
+    },
+    {
+        'id': 'npm_reviewed_esbuild_and_workerd_hooks_reuse_selected_native_archives',
+        'entrypoint': 'npm_install_hook',
+        'input': {'hooks': [('esbuild', '0.28.1'), ('workerd', '1.20260826.1')],
+                  'target': 'amd64', 'archive_and_script_hashes_match_reviewed_sources': True,
+                  'selected_native_packages': ['@esbuild/linux-x64@0.28.1',
+                                               '@cloudflare/workerd-linux-64@1.20260826.1']},
+        'expected': {'status': 'resolved', 'additional_archive_urls_beyond_selected_native_packages': False,
+                     'fallback_condition_preserved': True, 'script_and_binary_execution': False,
+                     'esbuild_fallback_member_hash_preserved': True},
+    },
+    {
+        'id': 'npm_reviewed_hook_does_not_generalize_to_changed_code_or_fallbacks',
+        'entrypoint': 'npm_install_hook',
+        'input': {'faults': ['archive SHA512 differs', 'install.js SHA256 differs',
+                             'lifecycle command differs', 'missing embedded esbuild binary digest']},
+        'expected': {'exception': 'ValueError', 'previous_inventory_retained': True,
+                     'changed_hook_claimed_resolved': False},
+    },
+    {
+        'id': 'npm_native_fallback_requires_the_exact_selected_version_and_simple_leaf_package',
+        'entrypoint': 'npm_install_hook',
+        'input': {'faults': ['native package absent', 'native version differs', 'native adds dependencies',
+                             'native adds an install hook', 'direct fallback URL differs from the selected tarball']},
+        'expected': {'status': 'requires_source_review', 'no_invented_fallback_content_identity': True},
+    },
+    {
+        'id': 'npm_hook_source_files_are_read_as_bounded_archive_data',
+        'entrypoint': 'npm_archive_data',
+        'input': {'selected_source': 'package/install.js', 'faults': ['duplicate source file',
+                  'source symlink', 'source over 128 KiB', 'selected metadata aggregate over four MiB']},
+        'expected': {'exception': 'ValueError', 'filesystem_extraction': False, 'source_executed': False},
+    },
+    {
+        'id': 'npm_sri_and_configured_root_identity_fail_before_publication',
+        'entrypoint': 'npm_downloads',
+        'input': {'faults': ['root URL mismatch', 'root SRI mismatch', 'root SHA512 mismatch',
+                             'invalid SRI width', 'one URL conflicting identities', 'metadata changes during acquisition']},
+        'expected': {'exception': 'ValueError', 'previous_inventory_retained': True,
+                     'registry_signatures_claimed_verified': False},
+    },
+    {
+        'id': 'npm_local_root_uses_the_pinned_tarball_package_json',
+        'entrypoint': 'npm_archive_manifest',
+        'input': {'source_sha512_matches': True, 'archive_package_json': {
+                  'name': 'wrangler', 'version': '4.127.0', 'dependencies': {'actual': '1.0.0'},
+                  'engines': {'node': '>=22.0.0'}},
+                  'registry_metadata_dependencies': {'different': '2.0.0'}},
+        'expected': {'root_dependencies': {'actual': '1.0.0'}, 'archive_metadata_read_without_extraction': True,
+                     'root_name_version_and_node_requirement_match_installer_policy': True,
+                     'root_compressed_size_sha256_and_sha512_preserved': True},
+    },
+    {
+        'id': 'npm_archive_metadata_bounds_apply_before_tarfile_extended_header_parsing',
+        'entrypoint': 'npm_archive_manifest',
+        'input': {'faults': ['root SHA512 mismatch', 'duplicate package.json', 'symlink package.json',
+                             'parent member path', 'sparse metadata', 'over 8192 headers',
+                             'PAX or GNU long-name header over 64 KiB', 'expanded bytes over limit']},
+        'expected': {'exception': 'ValueError', 'filesystem_extraction': False,
+                     'package_code_executed': False, 'previous_inventory_retained': True},
+    },
+    {
+        'id': 'npm_protocol_bounds_are_enforced_while_collecting_metadata',
+        'entrypoint': 'npm_downloads',
+        'input': {'faults': ['over 4096 selected manifests', 'packument over 32 MiB',
+                             'over 256 dependencies on one package', 'retained graph over 32 MiB',
+                             'operation deadline', 'Node release without bundled npm metadata']},
+        'expected': {'failure_before_publication': True, 'host_npm_or_node_executed': False},
+    },
+    {
+        'id': 'rustup_profile_rename_and_preferred_compression',
+        'entrypoint': 'rustup_downloads',
+        'input': {'profile': 'minimal', 'profile_components': ['rustc', 'cargo', 'rust-std'],
+                  'additional_components': ['rustfmt'], 'rename': ('rustfmt', 'rustfmt-preview'),
+                  'formats': ['zstd', 'xz', 'gzip'], 'target': 'x86_64-unknown-linux-gnu'},
+        'expected': {'components': ['cargo', 'rust-std', 'rustc', 'rustfmt-preview'],
+                     'selected_compression': 'zstd', 'archives_per_component': 1,
+                     'unselected_targets_or_profiles_included': False},
+    },
+    {
+        'id': 'rustup_manifest_checksum_or_component_failure_retains_inventory',
+        'entrypoint': 'rustup_downloads',
+        'input': {'faults': ['manifest SHA256 mismatch', 'missing required target component',
+                             'component URL outside static.rust-lang.org', 'aggregate file limit']},
+        'expected': {'failure_before_publication': True, 'previous_inventory_retained': True,
+                     'installer_or_rustup_executed': False},
+    },
+    {
+        'id': 'packer_signed_checksum_name_selection_and_trust',
+        'entrypoint': 'packer_downloads',
+        'input': {'plugin': 'qemu', 'version': '1.1.0', 'architecture': 'amd64',
+                  'filenames': ['packer-plugin-qemu_v1.1.0_x5.0_linux_amd64.zip',
+                                'packer-plugin-qemu_v1.1.0_x5.0_linux_arm64.zip']},
+        'expected': {'selected_filename': 'packer-plugin-qemu_v1.1.0_x5.0_linux_amd64.zip',
+                     'checksum_signature_and_key_urls_preserved': True,
+                     'signature_verification_claimed': False, 'duplicate_matching_filename_rejected': True},
+    },
+    {
+        'id': 'discord_full_host_and_all_modules_are_downloaded',
+        'entrypoint': 'discord_downloads',
+        'input': {'host_version': [1, 2, 3], 'required_modules': ['discord_desktop_core'],
+                  'manifest_modules': ['discord_desktop_core', 'discord_optional_example'],
+                  'delta_metadata_present': True},
+        'expected': {'full_host_and_all_module_urls_selected': True, 'delta_urls_selected': False,
+                     'schema_and_approved_hosts_from_checkout_helper': True,
+                     'other_host_version_or_unapproved_url_rejected': True},
+    },
+    {
+        'id': 'refresh_flag_reacquires_rolling_metadata',
+        'entrypoint': 'generate',
+        'input': {'checkout_unchanged': True, 'current_inventory_valid': True, 'refresh_apt': True},
+        'expected': {'metadata_acquisition_skipped': False, 'previous_inventory_retained_on_failure': True},
+    },
+    {
+        'id': 'generator_changes_invalidate_cached_inventory',
+        'entrypoint': 'current_inventory',
+        'input': {'checkout_unchanged': True, 'generator_version_unchanged': True,
+                  'collector_source_sha256_changed': True},
+        'expected': {'cached_document_accepted': False, 'generator_rechecked_before_publication': True},
+    },
+    {
+        'id': 'codex_source_pin_selects_reviewed_latest_release_protocol',
+        'entrypoint': 'codex_standalone_downloads',
+        'input': {'installer_source_sha256_matches': True, 'architecture': 'amd64',
+                  'release_assets': ['codex-package-x86_64-unknown-linux-musl.tar.gz',
+                                     'codex-package-aarch64-unknown-linux-musl.tar.gz',
+                                     'codex-package_SHA256SUMS']},
+        'expected': {'selected_archive': 'codex-package-x86_64-unknown-linux-musl.tar.gz',
+                     'github_fallback_url_retained': True, 'installer_source_executed': False,
+                     'checksum_file_and_release_digest_agree': True},
+    },
+    {
+        'id': 'codex_pin_or_checksum_mismatch_cannot_publish_partial_inventory',
+        'entrypoint': 'codex_standalone_downloads',
+        'input': {'faults': ['unreviewed installer source revision', 'pinned source byte mismatch',
+                             'checksum file SHA256 mismatch', 'archive digest differs between manifests']},
+        'expected': {'previous_inventory_retained': True, 'alternate_installer_executed': False},
+    },
+    {
+        'id': 'crowdsec_direct_parsers_and_scenarios_are_hub_inputs',
+        'entrypoint': 'scan_file',
+        'input': {'statements': ['cscli parsers install crowdsecurity/syslog-logs',
+                                  'cscli scenarios install crowdsecurity/CVE-2023-4911',
+                                  'cscli collections install crowdsecurity/auditd']},
+        'expected': {'hub_items': [('parsers', 'crowdsecurity/syslog-logs'),
+                                  ('scenarios', 'crowdsecurity/CVE-2023-4911'),
+                                  ('collections', 'crowdsecurity/auditd')]},
+    },
+    {
+        'id': 'includes_and_excludes',
+        'entrypoint': 'package_requests',
+        'input': {'fragment': 'd-i pkgsel/include string curl dbus\nd-i base-installer/includes string gzip zstd\nd-i base-installer/excludes string dbus xwayland\n'},
+        'expected': {'requests': ['curl', 'gzip', 'zstd'], 'excluded': ['dbus', 'xwayland']},
+    },
+    {
+        'id': 'forky_preferred_over_newer_sid_and_trixie',
+        'entrypoint': 'resolve_catalog',
+        'input': {'request': 'curl', 'architecture': 'amd64',
+                  'catalog': [('forky', '8.0-1', 900), ('sid', '9.0-1', 300), ('trixie', '7.0-1', 400)]},
+        'expected': {'selected': [('forky', '8.0-1')], 'unselected_versions_published': False},
+    },
+    {
+        'id': 'explicit_trixie_selector',
+        'entrypoint': 'resolve_catalog',
+        'input': {'request': 'gh/trixie', 'catalog': [('forky', '3.0-1', 900), ('trixie', '2.0-1', 400)]},
+        'expected': {'selected_suite': 'trixie', 'selected_version': '2.0-1'},
+    },
+    {
+        'id': 'same_version_download_uses_repository_order',
+        'entrypoint': 'resolve_catalog',
+        'input': {'request': 'application', 'catalog': [('first-repository', '1.0-1', 400),
+                                                       ('second-repository', '1.0-1', 900)]},
+        'expected': {'selected_repository': 'first-repository', 'version_priority': 900,
+                     'published_binary_instances': 1},
+    },
+    {
+        'id': 'specific_deny_survives_target_release',
+        'entrypoint': 'pin_priority',
+        'input': {'package': 'xwayland', 'specific_pin': -1, 'target_release': 'forky'},
+        'expected': {'pin_priority': -1, 'selected': False},
+    },
+    {
+        'id': 'apt_argv_selection_options_are_not_discarded',
+        'entrypoint': 'package_tokens',
+        'input': {'argv': ['apt-get', '-t', 'trixie', '--no-install-recommends',
+                            'install', '--download-only', 'application']},
+        'expected': {'selector': 'application', 'operation': 'install', 'target_release': 'trixie',
+                     'install_recommends': False, 'download_only': True},
+    },
+    {
+        'id': 'apt_simulation_and_shell_tail_are_not_downloads',
+        'entrypoint': 'package_arguments',
+        'input': {'statements': ['apt-get --simulate install pretend-package',
+                                  'apt-get install real-package; printf unrelated-word']},
+        'expected': {'selectors': ['real-package'], 'simulation_selectors': []},
+    },
+    {
+        'id': 'private_apt_configuration_does_not_inherit_default_sources',
+        'entrypoint': 'package_tokens',
+        'input': {'argv': ['apt-get', '-o', 'Dir::Etc::sourcelist=private.sources',
+                            'install', 'application']},
+        'expected': {'unresolved_options': True, 'default_repository_selection': False},
+    },
+    {
+        'id': 'request_identity_includes_phase_action_and_target_release',
+        'entrypoint': 'package_requests',
+        'input': {'requests': [('application', 'base_system', 'install', None),
+                                ('application', 'late', 'install', 'trixie'),
+                                ('application', 'late', 'download', 'trixie')]},
+        'expected': {'distinct_request_ids': 3, 'selected_urls_link_by_request_id': True},
+    },
+    {
+        'id': 'base_selection_precedes_target_preferences',
+        'entrypoint': 'resolve_catalog',
+        'input': {'base_mirror': ('forky', 'application', '1.0-1'),
+                  'class_archive': ('third-party', 'application', '2.0-1', 1001),
+                  'requests': [('application', 'base_system'), ('application', 'pkgsel')]},
+        'expected': {'base_selected': ('forky', '1.0-1'), 'pkgsel_selected': ('third-party', '2.0-1'),
+                     'versions_from_different_phases_are_not_simultaneous_conflict': True},
+    },
+    {
+        'id': 'download_does_not_resolve_dependencies_or_change_installed_state',
+        'entrypoint': 'resolve_catalog',
+        'input': {'operation': 'download', 'request': 'application', 'depends': 'support-library'},
+        'expected': {'selected': ['application'], 'installed_state_changes': False},
+    },
+    {
+        'id': 'private_dependency_table_resolves_positional_apt_adapter',
+        'entrypoint': 'scan_file',
+        'input': {'path': 'd-i/forky/scripts/desktop/xwayland.sh',
+                  'declaration': "XWAYLAND_PRIVATE_DEPENDENCY_SPECS='\nlibxcb1:libxcb.so.1\n'\n",
+                  'architecture': 'amd64', 'release': 'forky'},
+        'expected': {'selector': 'libxcb1:amd64', 'operation': 'download', 'target_release': 'forky',
+                     'purpose': 'private_extraction_for_Zoom_and_Discord', 'system_install': False},
+    },
+    {
+        'id': 'install_download_only_resolves_without_installing',
+        'entrypoint': 'resolve_catalog',
+        'input': {'operation': 'install', 'download_only': True,
+                  'request': 'application', 'depends': 'support-library'},
+        'expected': {'selected': ['application', 'support-library'], 'installed_state_changes': False},
+    },
+    {
+        'id': 'post_finish_default_release_does_not_apply_to_late_command',
+        'entrypoint': 'resolve_catalog',
+        'input': {'post_install_default_release': 'forky', 'request_phases': ['late', 'first_boot']},
+        'expected': {'late_default_release': None, 'first_boot_default_release': 'forky'},
+    },
+    {
+        'id': 'pkgsel_upgrade_reselects_only_installed_base_names',
+        'entrypoint': 'resolve_catalog',
+        'input': {'pkgsel_upgrade': 'safe-upgrade', 'installed_base': ['base-a'],
+                  'catalog': [('base-a', '1.0-1', 'base'), ('base-a', '1.1-1', 'security'),
+                              ('unrelated-b', '9.0-1', 'third-party')]},
+        'expected': {'base_upgrade_selected': [('base-a', '1.1-1')],
+                     'unrelated_archive_packages_published': False},
+    },
+    {
+        'id': 'skipped_kernel_declarations_are_not_base_requests',
+        'entrypoint': 'package_requests',
+        'input': {'fragment': 'd-i base-installer/kernel/skip-install boolean true\nd-i base-installer/kernel/linux/extra-packages string dkms kmod\n'},
+        'expected': {'base_kernel_requests': [], 'independent_pkgsel_requests_affected': False},
+    },
+    {
+        'id': 'profile_gated_nfs_lists_do_not_seed_disabled_hosts',
+        'entrypoint': 'resolve_catalog',
+        'input': {'profiles': {'server': {'NFS_SERVER_ENABLE': True, 'NFS_CLIENT_ENABLE': False},
+                               'client': {'NFS_SERVER_ENABLE': False, 'NFS_CLIENT_ENABLE': True},
+                               'desktop': {'NFS_SERVER_ENABLE': False, 'NFS_CLIENT_ENABLE': False}},
+                  'requests': [('nfs-kernel-server', ['server']), ('nfs-common', ['client'])]},
+        'expected': {'profile_contexts': 3, 'desktop_explicit_nfs_requests': [],
+                     'server_explicit_requests': ['nfs-kernel-server'],
+                     'client_explicit_requests': ['nfs-common']},
+    },
+    {
+        'id': 'temporary_cuda_archive_is_unavailable_after_finish',
+        'entrypoint': 'resolve_catalog',
+        'input': {'repository': {'temporary': True}, 'request_phases': ['late', 'first_boot']},
+        'expected': {'late_archive_eligible': True, 'first_boot_archive_eligible': False},
+    },
+    {
+        'id': 'installed_version_prevents_implicit_downgrade',
+        'entrypoint': 'resolve_catalog',
+        'input': {'installed_version': '2.0-1', 'candidate_version': '1.0-1', 'pin_priority': 900},
+        'expected': {'unqualified_request_version': '2.0-1', 'explicit_version_request_can_select': '1.0-1'},
+    },
+    {
+        'id': 'base_set_not_union_of_all_repositories',
+        'entrypoint': 'resolve_catalog',
+        'input': {'base_mirror': 'forky', 'catalog': [('forky', 'base-a', 'required'),
+                                                   ('sid', 'unrelated-b', 'important')]},
+        'expected': {'base_requests': ['base-a'], 'not_selected': ['unrelated-b']},
+    },
+    {
+        'id': 'kernel_meta_and_versioned_image_dependencies',
+        'entrypoint': 'resolve_catalog',
+        'input': {'request': 'linux-xanmod-x64v3', 'architecture': 'amd64',
+                  'dependencies': {'linux-xanmod-x64v3': 'linux-image-6.18-x64v3-xanmod1 (= 6.18-1)'}},
+        'expected': {'selected': ['linux-xanmod-x64v3', 'linux-image-6.18-x64v3-xanmod1'],
+                     'required_version': '6.18-1', 'sources_required_for_both': True},
+    },
+    {
+        'id': 'arm64_pkgsel_filter',
+        'entrypoint': 'resolve_catalog',
+        'input': {'architecture': 'arm64', 'requests': ['rar', 'microsoft-edge-stable', 'unrar']},
+        'expected': {'selected': ['unrar'], 'not_selected': ['rar', 'microsoft-edge-stable']},
+    },
+    {
+        'id': 'dependency_alternative_not_union',
+        'entrypoint': 'resolve_catalog',
+        'input': {'request': 'application', 'depends': 'first-api | other-api',
+                  'eligible': ['first-api', 'other-api']},
+        'expected': {'selected': ['application', 'first-api'], 'not_selected': ['other-api']},
+    },
+    {
+        'id': 'ambiguous_virtual_provider',
+        'entrypoint': 'resolve_catalog',
+        'input': {'request': 'virtual-api', 'providers': ['provider-a', 'provider-b'],
+                  'already_selected': []},
+        'expected': {'reason': 'ambiguous_virtual_provider', 'arbitrary_provider_selected': False},
+    },
+    {
+        'id': 'binary_nmu_source_version',
+        'entrypoint': 'attach_sources',
+        'input': {'binary': {'package': 'binary-name', 'version': '1.2-3+b1',
+                             'source': 'source-name (1.2-3)', 'repository': 'forky'},
+                  'source_versions': ['1.2-3', '1.2-4']},
+        'expected': {'source_name': 'source-name', 'source_version': '1.2-3',
+                     'not_selected_source_versions': ['1.2-4']},
+    },
+    {
+        'id': 'identical_source_bytes_merge_index_provenance',
+        'entrypoint': 'attach_sources',
+        'input': {'same_source_identity_in_indexes': ['main/source/Sources.xz', 'other/source/Sources.xz'],
+                  'file_lists_identical': True},
+        'expected': {'source_records': 1, 'index_urls_preserved': 2, 'conflicting_file_lists_rejected': True,
+                     'duplicate_record_limit': 64},
+    },
+    {
+        'id': 'source_index_even_when_deb_src_disabled',
+        'entrypoint': 'repositories',
+        'input': {'source_packages_enabled': False, 'advertised': ['main/source/Sources.xz']},
+        'expected': {'source_index_looked_up': True, 'installer_configuration_modified': False},
+    },
+    {
+        'id': 'source_directory_and_all_checksums',
+        'entrypoint': 'source_record',
+        'input': {'repository_url': 'https://example.org/debian', 'Directory': 'pool/main/s/source-name',
+                  'Checksums-Sha256': [('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 10, 'source-name_1.2-3.dsc'),
+                                       ('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 20, 'source-name_1.2.orig.tar.xz'),
+                                       ('cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', 30, 'source-name_1.2-3.debian.tar.xz')]},
+        'expected': {'file_count': 3, 'url_prefix': 'https://example.org/debian/pool/main/s/source-name/',
+                     'all_sizes_and_sha256_preserved': True},
+    },
+    {
+        'id': 'unadvertised_sources_are_explicit',
+        'entrypoint': 'attach_sources',
+        'input': {'source_indexes': [{'status': 'not_advertised'}]},
+        'expected': {'status': 'source_index_not_advertised', 'fabricated_source_url': False},
+    },
+    {
+        'id': 'unsafe_archive_filenames',
+        'entrypoint': 'filename_url',
+        'input': {'filenames': ['../private', '/etc/passwd', 'pool/%2e%2e/private',
+                                'https://other.example/p.deb', 'pool//file.deb', 'pool/./file.deb']},
+        'expected': {'all_rejected': True, 'network_requests': 0},
+    },
+    {
+        'id': 'redirect_policy_before_destination_request',
+        'entrypoint': 'Redirects.redirect_request',
+        'input': {'destinations': ['http://example.org/index', 'https://user:secret@example.org/index',
+                                   'https://127.0.0.1/index', 'https://localhost/index']},
+        'expected': {'all_rejected_before_request': True},
+    },
+    {
+        'id': 'aggregate_and_xz_memory_limits',
+        'entrypoint': 'acquire_index',
+        'input': {'faults': ['oversized compressed index', 'oversized XZ dictionary',
+                             'aggregate record limit', 'aggregate expanded byte limit', 'operation deadline']},
+        'expected': {'bounded_failure': True, 'previous_inventory_untouched': True},
+    },
+    {
+        'id': 'selected_package_provenance_is_bounded_during_resolution',
+        'entrypoint': 'resolve_catalog',
+        'input': {'fault': 'conditional context expansion exceeds aggregate selected row/use/issue budget'},
+        'expected': {'failure_before_unbounded_output_accumulation': True,
+                     'previous_inventory_untouched': True},
+    },
+    {
+        'id': 'network_failure_before_publication',
+        'entrypoint': 'generate',
+        'input': {'fault': 'Release or index acquisition raises URLError', 'previous': b'old inventory'},
+        'expected': {'previous_bytes': b'old inventory', 'second_inventory_created': False},
+    },
+    {
+        'id': 'source_replacement_during_acquisition',
+        'entrypoint': 'generate',
+        'input': {'fault': 'replace scanned source inode before unchanged_checkout'},
+        'expected': {'exception': 'ValueError', 'previous_inventory_untouched': True},
+    },
+    {
+        'id': 'concurrent_inventory_writers',
+        'entrypoint': 'generation_lock',
+        'input': {'fault': 'second writer requests the same root directory lock'},
+        'expected': {'second_writer_rejected': True, 'cleanup_uses_same_lock': True},
+    },
+    {
+        'id': 'failure_after_replacement_restores_bytes_mode_or_absence',
+        'entrypoint': 'publish_products',
+        'input': {'fault': 'atomic_write raises after os.replace',
+                  'previous_states': [None, {'bytes': b'old inventory', 'mode': 416}]},
+        'expected': {'previous_bytes_mode_or_absence_restored': True, 'restoration_verified': True},
+    },
+    {
+        'id': 'identity_replacement_is_not_overwritten',
+        'entrypoint': 'publish_products',
+        'input': {'fault': 'foreign inode replaces inventory.json before rollback'},
+        'expected': {'foreign_inode_untouched': True, 'result': 'outcome_unknown',
+                     'private_recovery_retained': True, 'automatic_retry_rejected': True},
+    },
+    {
+        'id': 'failed_restoration_retains_recovery',
+        'entrypoint': 'publish_products',
+        'input': {'fault': 'restoration write or directory fsync fails'},
+        'expected': {'result': 'outcome_unknown', 'previous_bytes_retained_privately': True,
+                     'recovery_path_reported': True, 'automatic_retry_rejected': True},
+    },
+)

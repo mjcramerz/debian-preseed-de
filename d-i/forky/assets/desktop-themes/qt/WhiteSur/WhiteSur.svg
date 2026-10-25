@@ -4788,6 +4788,10 @@
      style="fill:#0860f2;fill-opacity:1;fill-rule:evenodd;stroke-width:0.547723;paint-order:normal"
      id="menubaritem-pressed-top"
      d="m 490,359 h 20 v 6 h -20 z" />
+  <path
+     d="m 490,359 h 20 v 6 h -20 z"
+     id="path2410"
+     style="fill:#315bef;fill-opacity:1;fill-rule:evenodd;stroke-width:0.547723;paint-order:normal" />
   <use
      height="100%"
      width="100%"

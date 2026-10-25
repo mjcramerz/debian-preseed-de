@@ -100,7 +100,7 @@ def rewrite_css(blob: bytes, path: str, resources: dict[str, str],
                 return value  # A local SVG fragment needs no other file.
             target = name(posixpath.normpath(posixpath.join(posixpath.dirname(path), unquote(parsed.path))))
             if target not in files:
-                raise ValueError('vendor theme refers to a missing local asset')
+                raise ValueError('vendor theme refers to a missing local asset: ' + target + ' (stylesheet: ' + path + ')')
         relative = posixpath.relpath(target, posixpath.dirname(path))
         return relative + ('#' + parsed.fragment if parsed.fragment else '')
 

@@ -56,18 +56,32 @@ management helpers, or rewrite source inputs. This pure serialization command
 is permitted in the checkout. Source validation runners, including the guarded
 `make check` / `make validate` commands, must remain unexecuted.
 
-`make inventory` is a separate permitted generation command. It invokes
-`tools/inventory.py --refresh-apt` and checks the payload archive hash against
-both root JSON inventories before any scan or network acquisition. On a stale
-pair it reads only `d-i/forky/payload.tar.gz` members as data, acquires public
-HTTPS APT metadata and generates root `inventory-apt.json` and `inventory.json`.
-These are its only persistent outputs on success; acquisition and publication
-use private temporary files, with recovery evidence retained on an uncertain
-rollback. It must not execute installer code, tests, validators or
-host management helpers, or read host package state. Direct invocation without
-`--refresh-apt` remains offline and writes only root `inventory.json`.
-`make build` must not invoke inventory generation, and `make inventory` must
-not rebuild the payload.
+### Standalone inventory tooling: manual use only
+
+`tools/inventory.py` and `tools/inventory_apt.py` are standalone developer
+utilities for the user to run manually. **NEVER execute them automatically or
+integrate them into installer code, the installed system, payloads, builds,
+validation, test discovery, CI, hooks or other runtime flows.** Coding agents
+must inspect their source as data and leave their execution to the user.
+Importing the collector from the manually invoked inventory entrypoint is part
+of that standalone utility; it does not authorize any other integration.
+Manual Python dependency resolution requires PyPA `packaging >= 23.2` in the
+developer's Python environment. The utilities must never install dependencies.
+
+The existing `make inventory` target is a manual convenience invoking
+`tools/inventory.py --refresh-apt`. It scans installer checkout sources as data,
+acquires public HTTPS APT metadata and declared public download manifests or
+bounded archive metadata as data,
+and writes **only root `inventory.json`**,
+including selected binary URLs and matching available source archives.
+`inventory-apt.json` is a legacy artifact and must not be generated, read as a
+cache or required by the redesigned tooling. Direct invocation without
+`--refresh-apt` is offline discovery and must identify missing metadata.
+Private acquisition scratch and recovery evidence are not inventory products;
+retain recovery evidence when restoration is uncertain. Never execute installer
+code, tests, validators, host management helpers or package code, or read host
+package state. `make build` must not invoke inventory generation, and
+`make inventory` must not rebuild the payload. Do not add a download target.
 
 Preserve all unrelated and uncommitted work. Inspect callers and execution
 helpers before editing. Keep fixes narrow and deterministic. Do not build

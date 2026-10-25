@@ -43,7 +43,7 @@ from managed_workflows.fs import Tree, open_directory, parts
 from managed_workflows import process
 from gitbuild import core, cli as build_cli, worker, publish, import_local
 from labwc_appearance import catalog, native, editors, transaction, engine, defaults, greeter, service
-from labwc_appearance import theme_archive, theme_assets, theme_repairs, theme_resources, themes
+from labwc_appearance import theme_archive, theme_assets, theme_resources, themes
 from labwc_appearance import cli as appearance_cli
 from payload_fixture import read_text, logging_text
 from theme_fixture import render_theme_defaults
@@ -1126,26 +1126,71 @@ class ThemeArchiveTests(unittest.TestCase):
 
 
 class ThemeResourceTests(unittest.TestCase):
-    def test_pinned_missing_image_repairs_keep_theme_colors_and_validate_references(self):
-        examples = {
-            'chromeos-dark': ('assets/scale-slider-dark-pink.png', {'assets/scale-slider-pink.png': b'image'}),
-            'matcha-dark': ('assets/text-select-start-active-dark@2.png', {}),
-            'qogir-dark': ('assets/titlebutton-close-hover-dark@2.png', {}),
-            'vimix-light': ('assets/slider-horz-scale-has-marks-above.png', {}),
-        }
-        for identity, (url, images) in examples.items():
-            files = {f'gtk-{version}/{path}': blob for version in ('3.0', '4.0')
-                     for path, blob in {'gtk.css': ('button { background-image:url("' + url + '"); }').encode(),
-                                        'gtk-dark.css': ('button { background-image:url("' + url + '"); }').encode(),
-                                        **images}.items()}
+    def test_repacked_theme_archives_complete_both_gtk_versions_without_runtime_repairs(self):
+        pins = json.loads((SEED / 'assets/desktop-themes/sources.json').read_text())['files']
+        examples = (
+            ('ant-dark', 'Ant-79ddc06b40ad.tar.gz', 'Ant-79ddc06b40ad1e96c87d9270c71d7db3bfa0c3cd'),
+            ('dracula-dark', 'Dracula.tar.xz', 'Dracula'),
+            ('nordic-dark', 'Nordic.tar.xz', 'Nordic'),
+            ('sweet-dark', 'Sweet-Dark.tar.xz', 'Sweet-Dark'),
+        )
+        for identity, filename, root in examples:
             with self.subTest(identity=identity):
-                repaired = theme_repairs.repair(files, themes.variant(identity))
-                self.assertEqual(files['gtk-3.0/gtk.css'].count(url.encode()), 1)
-                materialized = theme_resources.materialize(repaired, deadline=time.monotonic() + 10)
-                self.assertTrue(materialized['gtk-4.0/gtk.css'])
-                for path, blob in materialized.items():
-                    if path.endswith('.svg'):
-                        self.assertEqual(ET.fromstring(blob).tag, '{http://www.w3.org/2000/svg}svg')
+                blob = (SEED / 'assets/desktop-themes/gtk' / filename).read_bytes()
+                self.assertEqual(len(blob), pins['gtk/' + filename]['bytes'])
+                self.assertEqual(hashlib.sha256(blob).hexdigest(), pins['gtk/' + filename]['sha256'])
+                source = mock.Mock(spec=theme_assets.Source)
+                source.deadline = time.monotonic() + 60
+                source.archive.return_value = theme_archive.Archive(blob, filename, deadline=source.deadline)
+                theme = themes.variant(identity)
+                self.assertIn('repack', pins['gtk/' + filename])
+                # The checked-in archives must pass the complete CSS reference
+                # check without a runtime image repair module.
+                result = theme_assets.gtk_assets(source, theme)
+                for version in ('3.0', '4.0'):
+                    directory = 'gtk-' + version + '/'
+                    for stylesheet in ('gtk.css', 'gtk-dark.css'):
+                        css = result[directory + stylesheet]
+                        self.assertNotIn(b'selection-mode-checkbox-unchecked', css)
+                        self.assertNotIn(b'selection-mode-radio-unchecked', css)
+                        self.assertNotIn(b'unchecked-backdrop-insensitive@2.png', css)
+                        self.assertNotIn(b'switch-slider-on-insensitive@@.png', css)
+                        self.assertIn(b'assets/labwc-color-button-auto.svg', css)
+                    swatch = result[directory + 'assets/labwc-color-button-auto.svg']
+                    self.assertEqual(ET.fromstring(swatch).tag, '{http://www.w3.org/2000/svg}svg')
+                    self.assertIn(theme.background.encode(), swatch)
+                    self.assertIn(theme.foreground.encode(), swatch)
+                for asset in ('checkbox-unchecked.png', 'radio-unchecked-insensitive-backdrop@2.png'):
+                    self.assertEqual(result['assets/' + asset], source.archive.return_value.read(root + '/assets/' + asset))
+
+    def test_repacked_rose_pine_variants_use_existing_disabled_control_images(self):
+        pins = json.loads((SEED / 'assets/desktop-themes/sources.json').read_text())['files']
+        for identity in ('rose-pine-main', 'rose-pine-moon', 'rose-pine-dawn'):
+            with self.subTest(identity=identity):
+                source = mock.Mock(spec=theme_assets.Source)
+                source.deadline = time.monotonic() + 60
+                def archive(filename):
+                    blob = (SEED / 'assets/desktop-themes/gtk' / filename).read_bytes()
+                    self.assertEqual(len(blob), pins['gtk/' + filename]['bytes'])
+                    self.assertEqual(hashlib.sha256(blob).hexdigest(), pins['gtk/' + filename]['sha256'])
+                    return theme_archive.Archive(blob, filename, deadline=source.deadline)
+                source.archive.side_effect = archive
+                theme = themes.variant(identity)
+                result = theme_assets.gtk_assets(source, theme)
+                for filename in ('gtk.css', 'gtk-dark.css'):
+                    css = result['gtk-3.0/' + filename]
+                    self.assertIn(b'../assets/menuitem-checkbox-unchecked.svg', css)
+                    self.assertIn(b'../assets/menuitem-radio-unchecked.svg', css)
+                    self.assertNotIn(b'../assets/checkbox-unchecked-insensitive.svg', css)
+                    self.assertNotIn(b'../assets/radio-unchecked-insensitive.svg', css)
+                self.assertTrue(result['gtk-4.0/gtk.css'])
+
+    def test_missing_asset_diagnostic_identifies_target_and_stylesheet(self):
+        files = {'gtk-3.0/gtk.css': b'button { background-image:url("assets/unlisted.png"); }'}
+        with self.assertRaisesRegex(ValueError, 'missing local asset') as caught:
+            theme_resources.materialize(files, deadline=time.monotonic() + 10)
+        self.assertIn('gtk-3.0/assets/unlisted.png', str(caught.exception))
+        self.assertIn('stylesheet: gtk-3.0/gtk.css', str(caught.exception))
 
     def test_mocked_resource_namespaces_remain_separate_between_gtk_versions(self):
         files = {
