@@ -99,6 +99,13 @@ class NativeGPUSelection(unittest.TestCase):
                         selected.add_binds(command, dev_root=self.dev)
                     self.assertIn("/dev/dri/" + node.name, command)
                     self.assertNotIn("/dev/dri/" + (intel_node if mode == "nvidia" else nvidia_node).name, command)
+                    if mode == "nvidia":
+                        self.assertEqual(command, [
+                            "--dir", "/dev/dri",
+                            "--dev-bind", str(nvidia_node), "/dev/dri/" + nvidia_node.name,
+                            "--dev-bind", str(self.dev / "nvidiactl"), "/dev/nvidiactl",
+                            "--dev-bind", str(self.dev / "nvidia2"), "/dev/nvidia2",
+                        ])
                     self.assertFalse(any("card0" in arg or "uvm" in arg or "kfd" in arg for arg in command))
 
     def test_environment_cannot_fall_back_to_other_egl_vendor(self):
@@ -115,6 +122,36 @@ class NativeGPUSelection(unittest.TestCase):
         self.assertEqual(environment["DRI_PRIME"], "pci-0000_00_02_0")
         self.assertNotIn("__NV_PRIME_RENDER_OFFLOAD", environment)
         self.assertNotIn("GBM_BACKEND", environment)
+
+    def test_identity_selection_neither_probes_nor_grants_renderer_access(self):
+        intel, _ = self.render(128, "0000:00:02.0", "0x8086", "i915")
+        nvidia, _ = self.render(129, "0000:2d:00.0", "0x10de", "nvidia")
+        # The selector is not the eventual renderer. Even a failed advisory
+        # permission probe must not change identity selection or file modes.
+        for path in self.nodes:
+            path.chmod(0o400)
+        for mode, node in (("intel", intel), ("nvidia", nvidia)):
+            with self.subTest(mode=mode), mock.patch.object(
+                    os, "access", side_effect=AssertionError("device access probe")):
+                selected = self.select(mode)
+            self.assertEqual(selected.node, node)
+        for path in self.nodes:
+            self.assertEqual(stat.S_IMODE(self.original_lstat(path).st_mode), 0o400)
+
+    def test_missing_selected_nvidia_control_node_cannot_use_another_gpu(self):
+        self.render(129, "0000:2d:00.0", "0x10de", "nvidia")
+        self.node("nvidia0", 195, 0)
+        (self.dev / "nvidia2").unlink()
+        with self.assertRaises(SystemExit): self.select("nvidia")
+
+    def test_identity_selection_still_rejects_symlinks_and_nondevices(self):
+        node, _ = self.render(128, "0000:00:02.0", "0x8086", "i915")
+        del self.nodes[node]
+        with self.assertRaises(SystemExit): self.select("intel")
+        other = node.with_name("replacement")
+        node.rename(other)
+        node.symlink_to(other)
+        with self.assertRaises(SystemExit): self.select("intel")
 
     def test_missing_ambiguous_driver_mismatch_and_missing_vendor_reject(self):
         node, device = self.render(128, "0000:00:02.0", "0x8086", "i915")

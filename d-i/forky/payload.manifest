@@ -1348,8 +1348,8 @@ c213a982f8738c247188e5a34b596f0f961066b47de4c217a03e782e714fae08  hooks/target/u
 a87fab01db35b3cb5fff246894159cbdc2150833fcfc8c3044e672b97590b614  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/electron.py
 2cfec18ba25d96f1e7b0585d6dabf7c5515b3b589c3c8fb872db154ba3b7700a  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/environment.py
 548d99cee493df511e1b67abe5324bc178f1286392ee87c2fac806afced4ccde  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/events.py
-fc6587c401f5aaf5c916102f6aa299551abd50ae7d43ffbb8b411ee4358ef1a6  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py
-5721940e6f6bb8d0de8437efa46f3faaa16b6cb19b165881bba21253f14d262a  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/gpu.py
+d01fdc3d1e9d63ec57403a1219e9178116aa12f4f4811560a99163eaade134ba  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py
+8f2cc81d1f54a05ddd1971cafe292c1ea01c7ce3d37ca99211e893b3887b794c  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/gpu.py
 7450920fba37b5c2c375d719fa3d434c82d3d84eae75a4c8ebd3a019deb41c09  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/identity.py
 a0aef523ceb35d1bb859da5bcb793b3af0721a3e4c6de9b274e46d6433ff0dcd  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/integrity.py
 949a06693489464453d83ca79242cfc12b20c685e879dab1ac44d31f378115ca  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/mounts.py

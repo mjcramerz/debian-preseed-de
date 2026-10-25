@@ -61,12 +61,16 @@ def _kernel_link(path: Path, root: Path, owner: int) -> Path:
 
 
 def _device(path: Path, owner: int, major: int, minor: int) -> os.stat_result:
+    """Validate a device identity without opening it or claiming access to it."""
     metadata = path.lstat()
     if (not stat.S_ISCHR(metadata.st_mode) or metadata.st_uid != owner
             or metadata.st_mode & 0o7111 or path.resolve(strict=True) != path
-            or (os.major(metadata.st_rdev), os.minor(metadata.st_rdev)) != (major, minor)
-            or not os.access(path, os.R_OK | os.W_OK)):
-        fail("unsafe or inaccessible GPU device")
+            or (os.major(metadata.st_rdev), os.minor(metadata.st_rdev)) != (major, minor)):
+        fail("unsafe GPU device identity")
+    # Selection can run before a user-manager or sandbox handoff. An access()
+    # result in this process cannot authorize the renderer's later O_RDWR open
+    # with its final credentials, namespaces and AppArmor profile. Leave that
+    # decision to the actual open; never change permissions during discovery.
     return metadata
 
 

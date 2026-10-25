@@ -214,6 +214,27 @@ class GenericWrapperTests(unittest.TestCase):
         self.assertIn('--property=NoNewPrivileges=no', one)
         self.assertFalse(any('RestrictSUIDSGID=' in x for x in one))
 
+    def test_native_desktop_controls_keep_capture_and_host_identity_for_both_gpus(self):
+        for mode in ('intel', 'nvidia'):
+            for executable in ('foot', 'footclient', 'kitty', 'thunar', 'Thunar',
+                               'labwc-desktop-appearance'):
+                with self.subTest(mode=mode, executable=executable):
+                    path = ('/usr/local/bin/' if executable.startswith('labwc-')
+                            else '/usr/bin/') + executable
+                    argv = generic.transient_argv('wayland', mode, [path], {})
+                    # The package's argument-free footclient entry uses the
+                    # standalone Foot path, with the same capture supervisor.
+                    payload = '/usr/bin/foot' if executable == 'footclient' else path
+                    label = Path(payload).name
+                    self.assertEqual(argv[argv.index('--') + 1:], [
+                        '/usr/local/libexec/rsyslog-app-run', 'labwc-' + label, '--', payload,
+                    ])
+                    self.assertIn('--property=StandardInput=null', argv)
+                    self.assertIn('--property=PrivateUsers=no', argv)
+                    self.assertIn('--property=PrivatePIDs=no', argv)
+                    self.assertIn('--property=KillMode=' + (
+                        'mixed' if payload == '/usr/bin/foot' else 'control-group'), argv)
+
     def test_env_assignments_are_not_shell_evaluated(self):
         env = {}
         args = generic.unwrap_env(['/usr/bin/env', 'EXAMPLE=$(touch /oops)', '/usr/bin/demo', '%U'], env)

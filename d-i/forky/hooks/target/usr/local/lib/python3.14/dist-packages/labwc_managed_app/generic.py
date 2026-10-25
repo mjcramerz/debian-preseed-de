@@ -434,16 +434,6 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
     is_compositor_settings = kind == "wayland" and arguments[0] in {
         "/usr/bin/labwc-tweaks", "/usr/bin/qt6ct",
     }
-    # Host-identity desktop controls and interactive terminals must be the
-    # foreground process of their transient unit.  The capture supervisor
-    # owns pipes and starts children with the unit's null stdin; that is fine
-    # for ordinary GUI clients, but it prevents Foot/Kitty and Thunar from
-    # retaining their native terminal/file-manager handoff semantics.  These
-    # callers already have dedicated AppArmor/session policy, so keep their
-    # argv direct while retaining the same cgroup and lifecycle properties.
-    payload = list(arguments) if host_administration else [
-        "/usr/local/libexec/rsyslog-app-run", f"labwc-{label}", "--", *arguments
-    ]
     return [
         "/usr/bin/systemd-run", "--user", "--quiet", "--collect",
         *menu_action_wait_arguments(),
@@ -468,9 +458,9 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         # handoff is independent of AppArmor's enforce/complain setting.
         *(["--property=ExecStartPre=/usr/bin/systemctl --user stop swaybg.service",
            "--property=ExecStopPost=/usr/bin/systemctl --user start swaybg.service"] if is_waypaper else []),
-        # The executable is the foreground application. Its exit starts the
-        # service's bounded cleanup, including detached descendants. An app
-        # that the user configured to stay in its tray keeps its main alive.
+        # The capture supervisor waits for the application's main process and
+        # preserves its exit status. When the supervisor exits, systemd starts
+        # bounded cleanup of remaining descendants in the service cgroup.
         "--property=ExitType=main",
         f"--property=ConditionPathExists=!/run/user/{os.getuid()}/labwc-session-closing",
         "--property=KillMode=" + ("mixed" if is_foot else "control-group"),
@@ -482,8 +472,9 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         "--property=StandardInput=null", "--property=StandardOutput=null",
         "--property=StandardError=null", f"--property=SyslogIdentifier=labwc-{label}",
         "--property=LimitCORE=0", "--property=NoNewPrivileges=no",
-        # Signal Foot itself first so it can close/reap its PTY client.
-        # systemd still owns final cgroup cleanup. Only the argument-free
+        # Signal the supervisor first; it forwards the signal to Foot so Foot
+        # can close/reap its PTY client. systemd owns final cgroup cleanup.
+        # Only the argument-free
         # default shell or btop gets the observed close-window HUP status (1).
         # Other commands/options and Foot internal errors (230) stay errors.
         *(["--property=SuccessExitStatus=1"] if is_foot and (
@@ -502,7 +493,7 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         f"--working-directory={os.getcwd()}",
         # Passing only names keeps tokens and other values out of argv.
         *(f"--setenv={name}" for name in sorted(environment)),
-        "--", *payload,
+        "--", "/usr/local/libexec/rsyslog-app-run", f"labwc-{label}", "--", *arguments,
     ]
 
 
