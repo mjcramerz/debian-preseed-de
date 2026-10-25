@@ -175,7 +175,7 @@ class BrowserConfigurationTests(unittest.TestCase):
             security = json.loads(self.documents[TARGET/family/'policies/managed/security.json'])
             self.assertFalse(security['SSLErrorOverrideAllowed'])
             self.assertEqual(security['DefaultInsecureContentSetting'], 2)
-            self.assertEqual(security['DownloadRestrictions'], 1)
+            self.assertEqual(security['DownloadRestrictions'], 0)
             telemetry = json.loads(self.documents[TARGET/family/'policies/managed/telemetry.json'])
             self.assertFalse(telemetry['SpellCheckServiceEnabled'])
             if family != 'etc/opt/edge':

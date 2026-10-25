@@ -79,6 +79,8 @@ def menu(prompt: str, choices: list[str]) -> str | None:
     result = subprocess.run([FUZZEL, 'menu', '--dmenu', '--prompt', prompt + '> '],
                             input='\n'.join(choices) + '\n', text=True,
                             stdout=subprocess.PIPE, check=False)
+    if result.returncode == 3:
+        raise SystemExit(3)
     if result.returncode == 1:
         return None
     if result.returncode:
@@ -91,6 +93,8 @@ def entry(prompt: str) -> str | None:
     result = subprocess.run([FUZZEL, 'menu', '--dmenu', '--prompt', prompt + '> '],
                             input='', text=True, stdout=subprocess.PIPE, check=False,
                             env={**os.environ, 'LABWC_MENU_INPUT_MODE': 'text'})
+    if result.returncode == 3:
+        raise SystemExit(3)
     if result.returncode == 1:
         return None
     if result.returncode:

@@ -40,100 +40,6 @@ def load(name):
     return module
 
 
-class FzfDataTests(unittest.TestCase):
-    def setUp(self):
-        self.menu = load('labwc-fzf-menu')
-
-    def pick(self, rows, answer=None, code=0, text=False):
-        def picker(argv, **kwargs):
-            self.command, self.options = argv, kwargs
-            chosen = answer if answer is not None else kwargs['input'].splitlines()[0] + '\n'
-            return types.SimpleNamespace(returncode=code, stdout=chosen)
-        with mock.patch.object(self.menu.subprocess, 'run', side_effect=picker):
-            return self.menu.select(rows, 'Management', text_input=text)
-
-    def test_decorated_choices_map_back_to_original_data(self):
-        for raw in ['Network & Remote', '\u2b9e Security Auditing', '\u2190 Back',
-                    "quotes ' \" $ ` ; & | ( )", 'Unicode \u00e5\u4e2d\U0001f600']:
-            with self.subTest(raw=raw):
-                self.assertEqual(self.pick([raw]), (0, raw))
-
-    def test_all_six_top_level_groups_and_all_leaves_have_specific_icons(self):
-        management = load('labwc-computer-management')
-        for group, entries in management.MENUS.items():
-            self.assertIn(group, self.menu.ICONS)
-            for name in entries:
-                self.assertIn(name, self.menu.ICONS)
-
-    def test_terminal_control_characters_are_escaped_losslessly(self):
-        raw = 'name\x1b[31m\t\n\u202etest'
-        display = self.menu.display_choices([raw], 'Files')
-        label = next(iter(display))
-        for character in ('\x1b', '\t', '\n', '\u202e'):
-            self.assertNotIn(character, label)
-        self.assertEqual(display[label], raw)
-
-    def test_duplicate_raw_rows_deduplicate_and_display_collisions_disambiguate(self):
-        display = self.menu.display_choices(['Back', '\u2190 Back', 'Back'], 'Management')
-        self.assertEqual(len(display), 2)
-        self.assertEqual(set(display.values()), {'Back', '\u2190 Back'})
-
-    def test_free_form_action_text_is_not_executed_or_returned(self):
-        self.assertEqual(self.pick(['Allowed'], answer='$(touch /never-run)\n'), (1, None))
-        self.assertEqual(self.pick(['Allowed'], answer='Allowed\n'), (1, None))
-
-    def test_multiple_output_lines_cannot_select_an_action(self):
-        label = next(iter(self.menu.display_choices(['Allowed'], 'Management')))
-        self.assertEqual(self.pick(['Allowed'], answer=label+'\nextra\n'), (1, None))
-
-    def test_cancel_is_normal_and_picker_failure_is_distinct(self):
-        for status in (1, 130):
-            self.assertEqual(self.pick(['Allowed'], code=status), (1, None))
-        self.assertEqual(self.pick(['Allowed'], code=2), (2, None))
-
-    def test_empty_choices_do_not_become_a_text_prompt(self):
-        with mock.patch.object(self.menu.subprocess, 'run') as run:
-            self.assertEqual(self.menu.select([], 'Empty'), (1, None))
-            run.assert_not_called()
-
-    def test_fixed_argv_has_no_shell_preview_execute_or_reload_actions(self):
-        self.pick(['Allowed'])
-        self.assertEqual(self.command[0], '/usr/bin/fzf')
-        self.assertNotIn('shell', self.options)
-        for dangerous in ('execute', 'become', 'preview', 'reload', 'transform'):
-            self.assertNotIn(dangerous, ' '.join(self.command))
-        self.assertIn('--no-multi', self.command)
-        self.assertIn('--no-ansi', self.command)
-
-    def test_all_inherited_fzf_configuration_is_removed(self):
-        with mock.patch.dict(os.environ, {'FZF_DEFAULT_OPTS':'--bind=enter:execute(touch /bad)',
-                                         'FZF_DEFAULT_OPTS_FILE':'/bad', 'FZF_DEFAULT_COMMAND':'evil',
-                                         'FZF_SHELL':'sh', 'TERM':'xterm-256color'}):
-            self.pick(['Allowed'])
-        self.assertFalse(any(name.startswith('FZF_') for name in self.options['env']))
-        self.assertEqual(self.options['env']['TERM'], 'xterm-256color')
-
-    def test_explicit_text_mode_returns_data_and_uses_only_internal_bindings(self):
-        value = "path with ' quotes; $(not-executed)"
-        self.assertEqual(self.pick([], answer=value+'\n', text=True), (0, value))
-        self.assertIn('accept-or-print-query', ' '.join(self.command))
-        self.assertIn('ctrl-y:print-query', ' '.join(self.command))
-
-    def test_text_mode_rejects_control_characters_and_overlong_values(self):
-        for value in ('x\ny', 'x\x1by', 'x\u202ey', 'x' * 4097):
-            self.assertEqual(self.pick([], answer=value+'\n', text=True), (1, None))
-
-    def test_root_cannot_open_the_terminal_selector(self):
-        with mock.patch.object(self.menu.os, 'geteuid', return_value=0), self.assertRaises(ValueError):
-            self.menu.main(['menu', '--dmenu'])
-
-    @unittest.skipUnless(shutil.which('fzf'), 'fzf binary unavailable; fixed-argv/data behavior is unit tested')
-    def test_installed_fzf_can_parse_internal_text_action_bindings(self):
-        result = subprocess.run(payload_installed_argv(['/usr/bin/fzf', '--filter=Allowed',
-                                 '--bind=enter:accept-or-print-query,ctrl-y:print-query']),
-                                input='Allowed\n', text=True, capture_output=True,
-                                env=self.menu.safe_environment(), check=False)
-        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 class NavigationTests(unittest.TestCase):
@@ -199,7 +105,7 @@ class NavigationTests(unittest.TestCase):
             self.assertEqual(self.menu.main([]), 0)
             run_menu.assert_called_once_with()
             opened.assert_not_called()
-            self.assertEqual(os.environ['LABWC_MENU_BACKEND'], 'fuzzel')
+            self.assertNotIn('LABWC_MENU_BACKEND', os.environ)
             self.assertEqual(os.environ['LABWC_MENU_ACTION_WAIT'], '1')
 
     def test_root_refused_and_unknown_arguments_rejected(self):
@@ -208,15 +114,15 @@ class NavigationTests(unittest.TestCase):
         with mock.patch.object(self.menu.os, 'geteuid', return_value=1000), self.assertRaises(ValueError):
             self.menu.main(['--unknown'])
 
-    def test_backend_is_local_to_terminal_and_action_wait_is_preserved(self):
+    def test_removed_terminal_mode_is_rejected_before_opening_a_tty(self):
         with mock.patch.dict(os.environ, {'FZF_DEFAULT_COMMAND':'untrusted'}, clear=True), \
                 mock.patch.object(self.menu.os, 'geteuid', return_value=1000), \
-                mock.patch('builtins.open', mock.mock_open()), \
-                mock.patch.object(self.menu, 'run_menu', return_value=0):
-            self.assertEqual(self.menu.main(['--terminal']), 0)
-            self.assertEqual(os.environ['LABWC_MENU_BACKEND'], 'fzf')
-            self.assertEqual(os.environ['LABWC_MENU_ACTION_WAIT'], '1')
-            self.assertNotIn('FZF_DEFAULT_COMMAND', os.environ)
+                mock.patch('builtins.open', mock.mock_open()) as opened, \
+                mock.patch.object(self.menu, 'run_menu') as run:
+            with self.assertRaises(ValueError):
+                self.menu.main(['--terminal'])
+            opened.assert_not_called()
+            run.assert_not_called()
 
     def test_maintenance_and_recovery_offer_every_action_once(self):
         source = render_theme_defaults(payload_read_text(BIN/'labwc-maintenance-menu'))
@@ -250,12 +156,11 @@ class DesktopIntegrationTests(unittest.TestCase):
         self.assertEqual(len(set(icons)), 11)
         self.assertTrue(all(re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', icon) for icon in icons))
 
-    def test_fuzzel_icon_selection_preserves_exact_mapping_and_forces_graphical_backend(self):
+    def test_fuzzel_icon_selection_preserves_exact_mapping(self):
         menu = load('labwc-main-menu')
         display = 'Development'
         with mock.patch.object(menu.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0,stdout=display+'\n')) as run:
             self.assertEqual(menu.choose({'Development':None}, 'Main Menu'), 'Development')
-            self.assertEqual(run.call_args.kwargs['env']['LABWC_MENU_BACKEND'], 'fuzzel')
             self.assertEqual(run.call_args.kwargs['input'], 'Development\0icon\x1fapplications-development\n')
         with mock.patch.object(menu.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0,stdout='\uf121  Development\n')):
             self.assertIsNone(menu.choose({'Development':None}, 'Main Menu'))
@@ -268,9 +173,9 @@ class DesktopIntegrationTests(unittest.TestCase):
 
     def test_normal_fuzzel_execution_and_search_are_not_replaced(self):
         wrapper=render_theme_defaults(payload_read_text(BIN/'labwc-fuzzel'))
-        self.assertIn('${LABWC_MENU_BACKEND:-fuzzel}', wrapper)
-        self.assertIn('menu|--dmenu|--dmenu0)', wrapper)
-        self.assertNotIn('launcher|menu|--dmenu', wrapper)
+        self.assertNotIn('LABWC_MENU_BACKEND', wrapper)
+        self.assertNotIn('labwc-fzf-menu', wrapper)
+        self.assertIn('/usr/bin/fuzzel', wrapper)
         self.assertIn('labwc-main-menu --search', render_theme_defaults(payload_read_text(BIN/'labwc-run')))
 
     def test_f13_native_press_binding_and_both_alt_tab_bindings(self):
@@ -322,7 +227,7 @@ class DesktopIntegrationTests(unittest.TestCase):
         stage=render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/components.sh'))
         verify=render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/verify.sh'))
         firstboot=render_theme_defaults(payload_read_text(FORKY/'scripts/firstboot/04-validation.sh'))
-        for name in ('labwc-fzf-menu','labwc-window-switcher'):
+        for name in ('labwc-window-switcher',):
             self.assertIn(f'usr/local/bin/{name} /usr/local/bin/{name} 0755',stage)
             self.assertIn(name,verify); self.assertIn(name,firstboot)
             self.assertTrue(payload_source_stat(BIN/name).st_mode & 0o111)
@@ -331,9 +236,9 @@ class DesktopIntegrationTests(unittest.TestCase):
 
     def test_apparmor_keeps_strict_profiles_and_font_access_readonly(self):
         profiles=render_theme_defaults(payload_read_text(TARGET/'etc/apparmor.d/desktop-wrappers'))
-        for name in ('labwc-fzf-menu','labwc-window-switcher'):
+        for name in ('labwc-window-switcher',):
             self.assertIn(f'profile {name} /usr/local/bin/{name}',profiles)
-        self.assertIn('/usr/local/bin/labwc-fzf-menu rPx -> labwc-fzf-menu,',profiles)
+        self.assertNotIn('labwc-fzf-menu', profiles)
         font_rule=render_theme_defaults(payload_read_text(TARGET/'etc/apparmor.d/abstractions/fonts.d/labwc-terminal-fonts'))
         self.assertIn('owner @{HOME}/.local/share/icons/terminal-fonts/** r,',font_rule)
         self.assertNotIn('rw',font_rule)

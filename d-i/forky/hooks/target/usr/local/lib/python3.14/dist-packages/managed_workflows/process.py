@@ -36,7 +36,7 @@ def environment(*, desktop: bool = False) -> dict[str, str]:
         env.update(GDK_BACKEND='wayland', QT_QPA_PLATFORM='wayland')
         # Session authority is kept only in the UI/publisher, never the builder.
         for name in ('XDG_RUNTIME_DIR', 'DBUS_SESSION_BUS_ADDRESS', 'WAYLAND_DISPLAY',
-                     'XDG_CURRENT_DESKTOP', 'XDG_SESSION_TYPE', 'LABWC_MENU_BACKEND',
+                     'XDG_CURRENT_DESKTOP', 'XDG_SESSION_TYPE',
                      'LABWC_MENU_ACTION_WAIT'):
             if name in os.environ:
                 env[name] = os.environ[name]

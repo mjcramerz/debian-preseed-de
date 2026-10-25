@@ -6,15 +6,21 @@ from pathlib import Path
 import re
 import subprocess
 from managed_workflows.fs import Tree
-from .native import FILES, GREETER_FILES, VARIANTS, OPTIONAL, user_paths
+from .native import FILES, GREETER_FILES, VARIANTS, OPTIONAL_FILES, user_paths
 from .editors import ini_values
 
 DIRECTORY = Path('/usr/local/share/labwc-appearance')
 
 
 def validate(value):
-    if not isinstance(value, dict) or value.get('schema') != 1:
+    if not isinstance(value, dict) or value.get('schema') not in (1, 2):
         raise ValueError('unsupported installed appearance defaults')
+    if value['schema'] == 1 and isinstance(value.get('files'), dict):
+        value = {**value, 'schema': 2, 'files': dict(value['files'])}
+        # These native files were not managed by older installations. Their
+        # installation default was absence, which Reset Theme must preserve.
+        for path in OPTIONAL_FILES:
+            value['files'].setdefault('.config/' + path, None)
     files, greeter = value.get('files'), value.get('greeter')
     if not isinstance(files, dict) or not isinstance(greeter, dict):
         raise ValueError('invalid installed appearance defaults')
@@ -24,7 +30,7 @@ def validate(value):
     if not required <= set(files):
         raise ValueError('installation did not capture all appearance defaults')
     for path, text in {**files, **greeter}.items():
-        if text is None and path == '.config/' + OPTIONAL:
+        if text is None and path in {'.config/' + p for p in OPTIONAL_FILES}:
             continue
         if not isinstance(text, str) or len(text) > 2 * 1024**2 or re.search(r'__[A-Z0-9_]+__', text):
             raise ValueError('unrendered or invalid installed appearance default')
@@ -58,10 +64,10 @@ def main(argv):
             for paths in FILES.values():
                 for path in paths:
                     for suffix in VARIANTS:
-                        if path == OPTIONAL and suffix:
+                        if path in OPTIONAL_FILES and suffix:
                             continue
                         relative = '.config/' + path + suffix
-                        raw = skeleton.read(relative, missing=bool(suffix) or path == OPTIONAL)
+                        raw = skeleton.read(relative, missing=bool(suffix) or path in OPTIONAL_FILES)
                         if raw is not None or not suffix:
                             files[relative] = None if raw is None else raw.decode('utf-8')
         with Tree(Path('/etc/greetd'), uid=0) as greetd:
@@ -78,7 +84,7 @@ def main(argv):
                 env={'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8',
                      'GSETTINGS_BACKEND': 'memory'},
                 text=True, capture_output=True, check=True, timeout=15).stdout.strip()
-        result = {'schema': 1, 'files': files, 'greeter': greeter, 'mode': mode,
+        result = {'schema': 2, 'files': files, 'greeter': greeter, 'mode': mode,
                   'settings': settings}
         validate(result)
         output.write('defaults.json', (json.dumps(result, sort_keys=True, indent=2) + '\n').encode(), mode=0o644)

@@ -221,6 +221,7 @@ class TorrentIntegrationTests(unittest.TestCase):
         account = pwd.struct_passwd(('fixture', 'x', os.getuid(), os.getgid(), '', '/home/fixture', '/bin/sh'))
         globals_ = QBIT['build_command'].__globals__
         proxy_policy_reader = mock.Mock(return_value=b'fixture proxy policy\n')
+        theme_binds = mock.Mock()
         # Command construction only. Socket availability, optional host binds,
         # and GPU discovery are explicit fixtures; no namespace is created.
         with mock.patch.dict(os.environ, {'XDG_RUNTIME_DIR': f'/run/user/{os.getuid()}',
@@ -229,6 +230,7 @@ class TorrentIntegrationTests(unittest.TestCase):
              mock.patch.dict(globals_, {'require_socket': mock.Mock(),
                                        'read_managed_config': proxy_policy_reader,
                                        'optional_ro_bind': mock.Mock(),
+                                       'add_qt_theme_binds': theme_binds,
                                        'add_gpu_device_binds': mock.Mock(return_value=None)}), \
              mock.patch.object(shutil, 'which', side_effect=lambda name: '/usr/bin/' + name):
             command = QBIT['build_command'](account, Path('/run/media/fixture/bittorrent'),
@@ -254,6 +256,7 @@ class TorrentIntegrationTests(unittest.TestCase):
         index = command.index('QT_STYLE_OVERRIDE')
         self.assertEqual(command[index - 1:index + 2], ['--setenv', 'QT_STYLE_OVERRIDE', 'Fusion'])
         self.assertNotIn('Adwaita', command)
+        theme_binds.assert_called_once_with(command, account, Path('/home/user'))
 
     def test_application_modes_keep_the_qbittorrent_style_override_scoped(self):
         with mock.patch.object(sys, 'path', [

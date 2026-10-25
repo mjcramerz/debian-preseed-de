@@ -91,6 +91,8 @@ def choose(labels: list[str], prompt: str) -> str | None:
         env={**os.environ, 'LABWC_MENU_INPUT_MODE': 'choice',
              'LABWC_FUZZEL_MANAGED_ICONS': '1', 'LABWC_FUZZEL_ROOT_MENU': '0',
              'LABWC_MENU_ACTION_WAIT': '1'})
+    if result.returncode == 3:
+        raise SystemExit(3)
     if result.returncode == 1:
         return None
     if result.returncode:

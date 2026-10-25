@@ -350,7 +350,7 @@ def choose(choices: dict, prompt: str, icons: dict[str, str] | None = None) -> s
     if any(not isinstance(label, str) or any(unicodedata.category(c) in {'Cc', 'Cs'}
            or c in '\u2028\u2029' for c in label) for label in choices):
         raise ValueError('menu labels must not contain protocol controls')
-    env = dict(os.environ, LABWC_FUZZEL_MANAGED_ICONS='0', LABWC_MENU_BACKEND='fuzzel')
+    env = dict(os.environ, LABWC_FUZZEL_MANAGED_ICONS='0')
     # The shell wrapper passes this already-encoded protocol through untouched.
     # Fuzzel returns the label without metadata. The dispatch mapping is still
     # closed: user-provided names/icons never become commands or shell code.
@@ -362,8 +362,10 @@ def choose(choices: dict, prompt: str, icons: dict[str, str] | None = None) -> s
         raise ValueError('application picker input exceeds the managed bounds')
     result = subprocess.run([FUZZEL, 'menu', '--dmenu', '--prompt', prompt + ': '],
                             input=rows, text=True, encoding='utf-8', stdout=subprocess.PIPE, env=env, check=False)
+    if result.returncode == 3:
+        raise SystemExit(3)  # Dismiss the complete menu workflow.
     if result.returncode == 1:
-        return None  # normal Escape/cancellation, not an error
+        return None  # Win+Backspace: return to the parent menu.
     if result.returncode != 0:
         raise RuntimeError(f'Fuzzel failed (status {result.returncode})')
     selected = result.stdout.removesuffix('\n')
@@ -371,7 +373,11 @@ def choose(choices: dict, prompt: str, icons: dict[str, str] | None = None) -> s
 
 
 def run_action(argv: tuple[str, ...]) -> None:
-    subprocess.run(argv, check=True)
+    result = subprocess.run(argv, check=False)
+    if result.returncode == 3:
+        raise SystemExit(3)
+    if result.returncode:
+        raise subprocess.CalledProcessError(result.returncode, argv)
 
 
 def run_menu(initial: str | None = None) -> None:

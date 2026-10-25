@@ -1,9 +1,10 @@
 #!/bin/sh
 set -eu
 
-# Picker cancellation is not a backend/configuration failure.
+# Back returns to the parent; dismissal unwinds every menu process.
 menu_failure() {
   [ "$1" -eq 1 ] && return 0
+  [ "$1" -eq 3 ] && exit 3
   printf 'fatal: menu picker failed (status %s)\n' "$1" >&2
   exit "$1"
 }
@@ -218,43 +219,43 @@ connection_profiles_menu() {
         'Disable WiFi Adapter' \
         'Generate Random MAC Addresses' \
         '← Back'
-    )
+    ) || exit "$?"
 
     case "$action" in
       'Activate Saved Connection')
-        selection=$(choose_connection all saved)
+        selection=$(choose_connection all saved) || exit "$?"
         connection_uuid=$(connection_uuid_from_selection "$selection" || true)
         [ -n "$connection_uuid" ] &&
           run_network_action activate-connection "$connection_uuid"
         ;;
       'Deactivate Active Connection')
-        selection=$(choose_connection all active)
+        selection=$(choose_connection all active) || exit "$?"
         connection_uuid=$(connection_uuid_from_selection "$selection" || true)
         [ -n "$connection_uuid" ] &&
           run_network_action deactivate-connection "$connection_uuid"
         ;;
       'Enable Ethernet Adapter')
-        ethernet_adapter=$(choose_adapter ethernet)
+        ethernet_adapter=$(choose_adapter ethernet) || exit "$?"
         [ -n "$ethernet_adapter" ] &&
           run_network_action enable-ethernet "$ethernet_adapter"
         ;;
       'Disable Ethernet Adapter')
-        ethernet_adapter=$(choose_adapter ethernet)
+        ethernet_adapter=$(choose_adapter ethernet) || exit "$?"
         [ -n "$ethernet_adapter" ] &&
           run_network_action disable-ethernet "$ethernet_adapter"
         ;;
       'Connect WiFi Network')
-        wifi_adapter=$(choose_adapter wifi)
+        wifi_adapter=$(choose_adapter wifi) || exit "$?"
         [ -n "$wifi_adapter" ] &&
           run_network_action configure-wifi "$wifi_adapter"
         ;;
       'Enable WiFi Adapter')
-        wifi_adapter=$(choose_adapter wifi)
+        wifi_adapter=$(choose_adapter wifi) || exit "$?"
         [ -n "$wifi_adapter" ] &&
           run_network_action enable-wifi "$wifi_adapter"
         ;;
       'Disable WiFi Adapter')
-        wifi_adapter=$(choose_adapter wifi)
+        wifi_adapter=$(choose_adapter wifi) || exit "$?"
         [ -n "$wifi_adapter" ] &&
           run_network_action disable-wifi "$wifi_adapter"
         ;;
@@ -279,23 +280,23 @@ vpn_menu() {
         'Deactivate VPN Connection' \
         'Import OpenVPN Profile' \
         '← Back'
-    )
+    ) || exit "$?"
 
     case "$action" in
       'Activate VPN Connection')
-        selection=$(choose_connection vpn saved)
+        selection=$(choose_connection vpn saved) || exit "$?"
         connection_uuid=$(connection_uuid_from_selection "$selection" || true)
         [ -n "$connection_uuid" ] &&
           run_network_action activate-vpn "$connection_uuid"
         ;;
       'Deactivate VPN Connection')
-        selection=$(choose_connection vpn active)
+        selection=$(choose_connection vpn active) || exit "$?"
         connection_uuid=$(connection_uuid_from_selection "$selection" || true)
         [ -n "$connection_uuid" ] &&
           run_network_action deactivate-vpn "$connection_uuid"
         ;;
       'Import OpenVPN Profile')
-        profile_path=$(choose_import_file openvpn)
+        profile_path=$(choose_import_file openvpn) || exit "$?"
         if [ -n "$profile_path" ] &&
            confirm_action "Import selected OpenVPN profile"; then
           run_network_action \
@@ -320,23 +321,23 @@ wireguard_menu() {
         'Deactivate WireGuard Connection' \
         'Import WireGuard Profile' \
         '← Back'
-    )
+    ) || exit "$?"
 
     case "$action" in
       'Activate WireGuard Connection')
-        selection=$(choose_connection wireguard saved)
+        selection=$(choose_connection wireguard saved) || exit "$?"
         connection_uuid=$(connection_uuid_from_selection "$selection" || true)
         [ -n "$connection_uuid" ] &&
           run_network_action activate-wireguard "$connection_uuid"
         ;;
       'Deactivate WireGuard Connection')
-        selection=$(choose_connection wireguard active)
+        selection=$(choose_connection wireguard active) || exit "$?"
         connection_uuid=$(connection_uuid_from_selection "$selection" || true)
         [ -n "$connection_uuid" ] &&
           run_network_action deactivate-wireguard "$connection_uuid"
         ;;
       'Import WireGuard Profile')
-        profile_path=$(choose_import_file wireguard)
+        profile_path=$(choose_import_file wireguard) || exit "$?"
         if [ -n "$profile_path" ] &&
            confirm_action "Import selected WireGuard profile"; then
           run_network_action \
@@ -362,14 +363,14 @@ dns_menu() {
         'Set Custom DNS Servers' \
         'Flush DNS Cache' \
         '← Back'
-    )
+    ) || exit "$?"
 
     case "$action" in
       'Show DNS Status')
         run_network_action show-dns-status
         ;;
       'Restore Automatic DNS')
-        selection=$(choose_connection all saved)
+        selection=$(choose_connection all saved) || exit "$?"
         connection_uuid=$(connection_uuid_from_selection "$selection" || true)
         if [ -n "$connection_uuid" ] &&
            confirm_action "Restore automatic DNS for selected connection"; then
@@ -380,10 +381,10 @@ dns_menu() {
         fi
         ;;
       'Set Custom DNS Servers')
-        selection=$(choose_connection all saved)
+        selection=$(choose_connection all saved) || exit "$?"
         connection_uuid=$(connection_uuid_from_selection "$selection" || true)
         if [ -n "$connection_uuid" ]; then
-          dns_servers=$(choose_text "DNS IPs separated by spaces or commas")
+          dns_servers=$(choose_text "DNS IPs separated by spaces or commas") || exit "$?"
           if [ -n "$dns_servers" ] &&
              confirm_action "Apply custom DNS to selected connection"; then
             run_network_action \
@@ -416,7 +417,7 @@ main_menu() {
         '⮞ WireGuard Connections' \
         '⮞ DNS Configuration' \
         '← Back'
-    )
+    ) || exit "$?"
     case "$action" in
       '⮞ Connection Profiles') connection_profiles_menu ;;
       '⮞ VPN Connections') vpn_menu ;;

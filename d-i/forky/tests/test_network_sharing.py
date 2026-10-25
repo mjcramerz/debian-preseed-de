@@ -1762,26 +1762,6 @@ sys.stdout.buffer.write(data.split(b'\\n')[int(os.environ['SELECTED'])].split(b'
             self.assertEqual(cancel_icon, b'go-previous')
             self.assertFalse(list(runtime.glob('labwc-fuzzel-menu.*')))
 
-    def test_terminal_icons_and_colors_cover_the_same_raw_actions(self):
-        path = TARGET/'usr/local/bin/labwc-fzf-menu.tmpl'
-        namespace = types.ModuleType('sharing_fzf_icons')
-        source = render_theme_defaults(path.read_text(), {'FZF_MANAGEMENT_SHARING_STATUS_ICON_COLOR': '#123456'})
-        exec(compile(source, str(path), 'exec'), namespace.__dict__)
-        labels = list(self.ICONS)
-        prompt = 'Computer Management / Network & Remote / Network Sharing'
-        displayed = namespace.display_choices(labels, prompt)
-        offered, accepted, ansi = namespace.color_choices(displayed, prompt)
-        self.assertTrue(ansi)
-        self.assertEqual(set(displayed.values()), set(labels))
-        values = theme_values()
-        for label, (key, _) in self.ICONS.items():
-            with self.subTest(label=label):
-                self.assertIn(label, namespace.ICONS)
-                self.assertEqual(namespace.icon_for(label), values['FZF_MANAGEMENT_'+key+'_ICON_GLYPH'])
-        for offered_label in offered:
-            reply = subprocess.CompletedProcess([], 0, offered_label+'\n')
-            with mock.patch.object(namespace.subprocess, 'run', return_value=reply):
-                self.assertEqual(namespace.select(labels, prompt), (0, accepted[offered_label]))
 
 
 class ReporterTests(unittest.TestCase):
@@ -2250,7 +2230,7 @@ class IntegrationWiringTests(unittest.TestCase):
         self.assertIn('signal (send) set=(hup, int, term, kill) peer=labwc-network-sharing{,//systemctl},', utilities)
         self.assertIn('signal (receive) set=(chld) peer=labwc-network-sharing,', utilities)
         wrappers = (TARGET/'etc/apparmor.d/desktop-wrappers.tmpl').read_text()
-        for name in ('labwc-fuzzel', 'labwc-fzf-menu'):
+        for name in ('labwc-fuzzel',):
             section = wrappers.split('profile ' + name + ' /', 1)[1].split('\n}', 1)[0]
             self.assertIn('signal (send) set=(chld) peer=labwc-network-sharing,', section)
             self.assertIn('signal (receive) set=(term, kill) peer=labwc-network-sharing,', section)

@@ -164,7 +164,11 @@ class MenuUnitTests(unittest.TestCase):
         for key in ('W-Alt_L', 'W-Alt_R'):
             self.assertEqual(by_key[key], 'labwc-computer-management')
         self.assertNotIn('W-BackSpace', by_key)
-        self.assertIn('Escape Mod4+BackSpace', payload_read_text(TARGET/'etc/skel-desktop/.config/fuzzel/base.ini.tmpl'))
+        base = payload_read_text(TARGET/'etc/skel-desktop/.config/fuzzel/base.ini.tmpl')
+        menu = payload_read_text(TARGET/'etc/skel-desktop/.config/fuzzel/menu.ini.tmpl')
+        self.assertIn('cancel=Control+g Control+c Control+bracketleft Escape\n', base)
+        self.assertNotIn('Mod4+BackSpace', base)
+        self.assertIn('custom-1=Mod4+BackSpace\n', menu)
 
     def test_back_returns_to_main_and_reenumerates_on_next_submenu(self):
         choices = iter(['Development', self.menu.BACK, 'Development', self.menu.BACK, None])

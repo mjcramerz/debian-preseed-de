@@ -4,6 +4,11 @@ import base64
 import re
 from managed_workflows.fs import Tree
 
+MAX_IMAGE_BYTES = 2 * 1024**2
+# Base64 and JSON framing stay below Tree's 8 MiB recovery read limit, even
+# after the coordinator adds its small settings and service metadata.
+MAX_TOTAL_IMAGE_BYTES = 4 * 1024**2
+
 
 def encoded(value: bytes | None) -> str | None:
     return None if value is None else base64.b64encode(value).decode('ascii')
@@ -12,16 +17,25 @@ def encoded(value: bytes | None) -> str | None:
 def decoded(value: str | None) -> bytes | None:
     if value is None:
         return None
-    if not isinstance(value, str) or len(value) > 12 * 1024**2:
+    if not isinstance(value, str) or len(value) > 4 * ((MAX_IMAGE_BYTES + 2) // 3):
         raise ValueError('invalid transaction file image')
-    return base64.b64decode(value, validate=True)
+    raw = base64.b64decode(value, validate=True)
+    if len(raw) > MAX_IMAGE_BYTES:
+        raise ValueError('transaction file image exceeds the size limit')
+    return raw
 
 
 def plan(tree: Tree, updates: dict[str, bytes | None], token: str) -> dict:
     old, new = {}, {}
+    size = 0
     for name, data in updates.items():
-        before = tree.read(name, missing=True)
+        if data is not None and (not isinstance(data, bytes) or len(data) > MAX_IMAGE_BYTES):
+            raise ValueError('appearance candidate exceeds the file size limit')
+        before = tree.read(name, limit=MAX_IMAGE_BYTES, missing=True)
         if before != data:
+            size += len(before or b'') + len(data or b'')
+            if size > MAX_TOTAL_IMAGE_BYTES:
+                raise ValueError('appearance recovery images exceed the aggregate size limit')
             old[name], new[name] = encoded(before), encoded(data)
     return {'schema': 1, 'token': token, 'phase': 'prepared', 'old': old, 'new': new}
 
@@ -34,8 +48,13 @@ def validate(value, allowed: set[str]) -> dict:
     old, new = value.get('old'), value.get('new')
     if not isinstance(old, dict) or not isinstance(new, dict) or set(old) != set(new) or set(old) - allowed:
         raise ValueError('appearance transaction contains an unauthorized path')
-    for data in [*old.values(), *new.values()]:
-        decoded(data)
+    size = 0
+    for images in (old, new):
+        for data in images.values():
+            raw = decoded(data)
+            size += len(raw or b'')
+            if size > MAX_TOTAL_IMAGE_BYTES:
+                raise ValueError('appearance recovery images exceed the aggregate size limit')
     return value
 
 

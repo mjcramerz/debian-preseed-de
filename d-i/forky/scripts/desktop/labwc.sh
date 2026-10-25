@@ -188,6 +188,7 @@ run_desktop_late_command() {
   desktop_install_kanshi_policy
   desktop_stage_target_assets
   desktop_log "staged Labwc desktop target assets"
+  desktop_install_appearance_themes
   desktop_install_filen
   desktop_render_greetd_config
   desktop_render_labwc_default_config
@@ -201,6 +202,7 @@ run_desktop_late_command() {
   desktop_install_fonts
   desktop_install_waypaper
   desktop_log "installed pinned Waypaper application for ${ACCOUNT_USERNAME}"
+  desktop_verify_appearance_assets
   desktop_enable_target_services
   desktop_log "staged Labwc desktop service enablement"
   desktop_install_codex_standalone

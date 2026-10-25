@@ -24,16 +24,19 @@ def dock_start() -> None:
 
 def refresh(components: set[str]) -> list[str]:
     warnings = []
-    actions = []
-    if 'waybar' in components and active('waybar.service'):
-        actions.append(['/usr/bin/systemctl', '--user', 'reload', 'waybar.service'])
-    if 'mode' in components and active('labwc-compositor.service'):
-        # systemd knows the exact compositor main PID and owns its lifecycle.
-        actions.append(['/usr/bin/systemctl', '--user', 'kill', '--kill-whom=main',
-                        '--signal=SIGHUP', 'labwc-compositor.service'])
-    for command in actions:
+    # systemd knows each exact unit/main PID. A failed liveness probe after
+    # commit is a refresh warning, not an assertion that file publication failed.
+    actions = (
+        ('waybar', 'waybar.service', ['reload', 'waybar.service']),
+        ('theme', 'labwc-compositor.service', ['kill', '--kill-whom=main', '--signal=SIGHUP',
+                                               'labwc-compositor.service']),
+    )
+    for component, unit, arguments in actions:
+        if component not in components:
+            continue
         try:
-            checked(command, timeout=45)
+            if active(unit):
+                checked(['/usr/bin/systemctl', '--user', *arguments], timeout=45)
         except (RuntimeError, OSError, subprocess.SubprocessError) as error:
             warnings.append(str(error))
     return warnings

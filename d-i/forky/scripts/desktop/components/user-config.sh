@@ -127,6 +127,7 @@ gid=$(id -g "$account_user")
     .config/microsoft-edge \
     .config/obsidian \
     .config/zoom \
+    .config/qt5ct \
     .config/qt6ct \
     .config/systemd \
     .config/vim \

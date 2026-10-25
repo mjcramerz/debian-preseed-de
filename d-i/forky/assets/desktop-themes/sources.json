@@ -1,0 +1,1100 @@
+{
+  "arc_qt_release": "tsujan/Kvantum V1.1.8",
+  "files": {
+    "gtk/Ant-79ddc06b40ad.tar.gz": {
+      "bytes": 4322253,
+      "commit": "79ddc06b40ad1e96c87d9270c71d7db3bfa0c3cd",
+      "sha256": "1eea917d8afc1151ee6c6287d216490bce9d7a5e555450d5b6e626970fa478d4",
+      "url": "https://codeload.github.com/EliverLara/Ant/tar.gz/79ddc06b40ad1e96c87d9270c71d7db3bfa0c3cd"
+    },
+    "gtk/Canta-332fdecb1f7f.tar.gz": {
+      "bytes": 3640541,
+      "commit": "332fdecb1f7f18324400b4c22f9d9e787e94e39f",
+      "sha256": "e577dfc9f4eca1ce06d0f7010509f55df997cf9e45b87f8d4192cb7d67a06842",
+      "url": "https://codeload.github.com/vinceliuice/Canta-theme/tar.gz/332fdecb1f7f18324400b4c22f9d9e787e94e39f"
+    },
+    "gtk/ChromeOS-b80a8b77f189.tar.gz": {
+      "bytes": 985872,
+      "commit": "b80a8b77f189c790ff45cc9ece2a281106274bfe",
+      "sha256": "adcf007e9d3ba1bd0ab8314780bf4932c888831182a3a0c570c0264ccb796f38",
+      "url": "https://codeload.github.com/vinceliuice/ChromeOS-theme/tar.gz/b80a8b77f189c790ff45cc9ece2a281106274bfe"
+    },
+    "gtk/Dracula.tar.xz": {
+      "bytes": 430940,
+      "sha256": "199bd4051b243fddadc625038686c7e8a91d4e8098868aadb4ca4c0c80911b6f",
+      "url": "https://github.com/dracula/gtk/releases/download/v4.0.0/Dracula.tar.xz"
+    },
+    "gtk/Fluent-76f8112ff22d.tar.gz": {
+      "bytes": 3011848,
+      "commit": "76f8112ff22d81b372f7081c4fad13e9a08227de",
+      "sha256": "e40abccc72490b8ec834797a98c34c4842a1a8673c51196278b09b458a65cb09",
+      "url": "https://codeload.github.com/vinceliuice/Fluent-gtk-theme/tar.gz/76f8112ff22d81b372f7081c4fad13e9a08227de"
+    },
+    "gtk/Layan-c712588a8395.tar.gz": {
+      "bytes": 935945,
+      "commit": "c712588a8395b8edc9f2ac5a3f6cf2359dec4d48",
+      "sha256": "82fd2cc4798e85f9c9ba0d163f4e7173188f4fdcc4879af6fb89cdbf91ca9bb5",
+      "url": "https://codeload.github.com/vinceliuice/Layan-gtk-theme/tar.gz/c712588a8395b8edc9f2ac5a3f6cf2359dec4d48"
+    },
+    "gtk/Matcha-4f18ea92d53d.tar.gz": {
+      "bytes": 4291403,
+      "commit": "4f18ea92d53d16e139faf541c3f3071ad0c5da41",
+      "sha256": "3db315c9796c7d5af0c0813e443ec21af3092e5bacc90925e006882ccca0078d",
+      "url": "https://codeload.github.com/vinceliuice/Matcha-gtk-theme/tar.gz/4f18ea92d53d16e139faf541c3f3071ad0c5da41"
+    },
+    "gtk/Nordic.tar.xz": {
+      "bytes": 579568,
+      "sha256": "d162d694e13bec518636b193fbe84ccea44da9a81a89015c6713f6b258ee36d5",
+      "url": "https://github.com/EliverLara/Nordic/releases/download/v2.2.0/Nordic.tar.xz"
+    },
+    "gtk/Orchis.tar.xz": {
+      "bytes": 220876,
+      "sha256": "8e1f72f1f8a8a5cac460e9b23c2e5a5bfb97dad6376746fea4c07a3806cd7a4d",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Orchis-theme/29975e38624ec93d8e460f8ea17129bcb68c05ef/release/Orchis.tar.xz"
+    },
+    "gtk/Qogir-619f33047877.tar.gz": {
+      "bytes": 2975075,
+      "commit": "619f33047877bf9afeef33370ea8a4a4338a5458",
+      "sha256": "9eae2c5e01a36a4470049bf7a77050c37b9b3a3967a5369a201c0c9b50d3f9b6",
+      "url": "https://codeload.github.com/vinceliuice/Qogir-theme/tar.gz/619f33047877bf9afeef33370ea8a4a4338a5458"
+    },
+    "gtk/Sweet-Dark.tar.xz": {
+      "bytes": 524360,
+      "sha256": "123f69effb71acc846502c834c01101c84bfa62f76a5f2eb095d4be07c567599",
+      "url": "https://github.com/EliverLara/Sweet/releases/download/v6.0/Sweet-Dark.tar.xz"
+    },
+    "gtk/Vimix-c11aca86854d.tar.gz": {
+      "bytes": 4215917,
+      "commit": "c11aca86854dcf9e33892c59aef4f296d985bb60",
+      "sha256": "6b9bfe2a32cef1655376e81272ecb827a96b01bc43df92299399e40d5a15b12c",
+      "url": "https://codeload.github.com/vinceliuice/vimix-gtk-themes/tar.gz/c11aca86854dcf9e33892c59aef4f296d985bb60"
+    },
+    "gtk/WhiteSur-Dark.tar.xz": {
+      "bytes": 205840,
+      "sha256": "98ac7545ec5290b718875fdfbdd7f0f6b88126103d1eec259ec9fbf80be7b75f",
+      "url": "https://raw.githubusercontent.com/vinceliuice/WhiteSur-gtk-theme/99247ecd219bdc1c7409baff062b4aafcf1102a7/release/WhiteSur-Dark.tar.xz"
+    },
+    "gtk/WhiteSur-Light.tar.xz": {
+      "bytes": 214144,
+      "sha256": "2635570e218afab2d34b0663287054f7b995b9f7f810e97410dcad389987d5ba",
+      "url": "https://raw.githubusercontent.com/vinceliuice/WhiteSur-gtk-theme/99247ecd219bdc1c7409baff062b4aafcf1102a7/release/WhiteSur-Light.tar.xz"
+    },
+    "gtk/arc-theme_20221218-3_all.deb": {
+      "bytes": 312676,
+      "sha256": "2b620ccd99329d120ad08f1a4300c729c1fde16d98e916d94921b79087a42015",
+      "url": "https://deb.debian.org/debian/pool/main/a/arc-theme/arc-theme_20221218-3_all.deb"
+    },
+    "gtk/breeze-gtk-theme_6.7.4-1_amd64.deb": {
+      "bytes": 175892,
+      "sha256": "16ce8c8cca4bde1a8ce6556ff2239082f64f45c70d968f956f03596b200ad2de",
+      "url": "https://deb.debian.org/debian/pool/main/b/breeze-gtk/breeze-gtk-theme_6.7.4-1_amd64.deb"
+    },
+    "gtk/catppuccin-frappe-blue-standard+default.zip": {
+      "bytes": 278758,
+      "sha256": "8c79c1e561f9b4b2cbbde7b85244ec95bfaccc69e850216f9955d8ee73a34905",
+      "url": "https://github.com/catppuccin/gtk/releases/download/v1.0.3/catppuccin-frappe-blue-standard+default.zip"
+    },
+    "gtk/catppuccin-frappe-lavender-standard+default.zip": {
+      "bytes": 280384,
+      "sha256": "4628432678e351388db9d9db8591044070fc9d370de33ab981d5d53c85a1bbfc",
+      "url": "https://github.com/catppuccin/gtk/releases/download/v1.0.3/catppuccin-frappe-lavender-standard+default.zip"
+    },
+    "gtk/catppuccin-frappe-mauve-standard+default.zip": {
+      "bytes": 279123,
+      "sha256": "3bd26181a95b230514319c3357c34ad13877837f787b7c2b4fa2c697d9f3501e",
+      "url": "https://github.com/catppuccin/gtk/releases/download/v1.0.3/catppuccin-frappe-mauve-standard+default.zip"
+    },
+    "gtk/catppuccin-frappe-teal-standard+default.zip": {
+      "bytes": 278849,
+      "sha256": "f0fd2a456172827cae0f8f3789a0f8d15d312495f18d3ae44680f8286f393639",
+      "url": "https://github.com/catppuccin/gtk/releases/download/v1.0.3/catppuccin-frappe-teal-standard+default.zip"
+    },
+    "gtk/catppuccin-latte-blue-standard+default.zip": {
+      "bytes": 276921,
+      "sha256": "f4c2f6575e91ac690ca89fff80a84a382b2639f52bc549c7ff0fcfc01fdc81f7",
+      "url": "https://github.com/catppuccin/gtk/releases/download/v1.0.3/catppuccin-latte-blue-standard+default.zip"
+    },
+    "gtk/catppuccin-latte-lavender-standard+default.zip": {
+      "bytes": 278642,
+      "sha256": "732ad587f05c4a9669f688a7d7bc6249a38f504dd83b33c8387e7d7639d775aa",
+      "url": "https://github.com/catppuccin/gtk/releases/download/v1.0.3/catppuccin-latte-lavender-standard+default.zip"
+    },
+    "gtk/catppuccin-latte-mauve-standard+default.zip": {
+      "bytes": 277487,
+      "sha256": "b19da9e3048dc9357a3e55f2592a4e006aaf5654ff228f846d7b21adf7c3273e",
+      "url": "https://github.com/catppuccin/gtk/releases/download/v1.0.3/catppuccin-latte-mauve-standard+default.zip"
+    },
+    "gtk/catppuccin-latte-teal-standard+default.zip": {
+      "bytes": 277105,
+      "sha256": "55b9c32bc149c28dc3a9b92dfc19ee480dceb382479cc4b9cb68a432cecfe0af",
+      "url": "https://github.com/catppuccin/gtk/releases/download/v1.0.3/catppuccin-latte-teal-standard+default.zip"
+    },
+    "gtk/catppuccin-macchiato-blue-standard+default.zip": {
+      "bytes": 279799,
+      "sha256": "9d0d724a1bc696305722dd2bf19731570b20dd96fe4cb1d80b7ea18fc243dbf1",
+      "url": "https://github.com/catppuccin/gtk/releases/download/v1.0.3/catppuccin-macchiato-blue-standard+default.zip"
+    },
+    "gtk/catppuccin-macchiato-lavender-standard+default.zip": {
+      "bytes": 281397,
+      "sha256": "b36a0a26440f23570780cc379e2922c33e84cf88dfecd31bd7603323f4fb43b0",
+      "url": "https://github.com/catppuccin/gtk/releases/download/v1.0.3/catppuccin-macchiato-lavender-standard+default.zip"
+    },
+    "gtk/catppuccin-macchiato-mauve-standard+default.zip": {
+      "bytes": 280218,
+      "sha256": "b8186e47a9d09266f54b38c6e58dd2837fe53d9786532ce206c1fc3c7b658573",
+      "url": "https://github.com/catppuccin/gtk/releases/download/v1.0.3/catppuccin-macchiato-mauve-standard+default.zip"
+    },
+    "gtk/catppuccin-macchiato-teal-standard+default.zip": {
+      "bytes": 279898,
+      "sha256": "1254d335c5d07d178f98d0b00c9d65f01e8f30dc6c71f975d122f20b253a6d76",
+      "url": "https://github.com/catppuccin/gtk/releases/download/v1.0.3/catppuccin-macchiato-teal-standard+default.zip"
+    },
+    "gtk/catppuccin-mocha-blue-standard+default.zip": {
+      "bytes": 278308,
+      "sha256": "83811051cceb32623fafde411350188046370d73ee7464bb26285cd63c753bdc",
+      "url": "https://github.com/catppuccin/gtk/releases/download/v1.0.3/catppuccin-mocha-blue-standard+default.zip"
+    },
+    "gtk/catppuccin-mocha-lavender-standard+default.zip": {
+      "bytes": 279751,
+      "sha256": "bce962098f32c676a0170f909b737eed0905d53b6e774f04f152256b5b6dce77",
+      "url": "https://github.com/catppuccin/gtk/releases/download/v1.0.3/catppuccin-mocha-lavender-standard+default.zip"
+    },
+    "gtk/catppuccin-mocha-mauve-standard+default.zip": {
+      "bytes": 278623,
+      "sha256": "cbacdac6161f98c315fb86740e21426ef6dda64f0ad69157cf28f3a1dda446fe",
+      "url": "https://github.com/catppuccin/gtk/releases/download/v1.0.3/catppuccin-mocha-mauve-standard+default.zip"
+    },
+    "gtk/catppuccin-mocha-teal-standard+default.zip": {
+      "bytes": 278281,
+      "sha256": "15aae4c31c3de08c8d2ae4c22c315cfa6f911bab5e5ec79f6779af1b8c93b457",
+      "url": "https://github.com/catppuccin/gtk/releases/download/v1.0.3/catppuccin-mocha-teal-standard+default.zip"
+    },
+    "gtk/materia-gtk-theme_20210322-1_all.deb": {
+      "bytes": 234200,
+      "sha256": "b1e2dc1eecba05879ed8b2a4d2d5f2fadfb1552da46e52b88d4ea86168731779",
+      "url": "https://deb.debian.org/debian/pool/main/m/materia-gtk-theme/materia-gtk-theme_20210322-1_all.deb"
+    },
+    "gtk/rose-pine-gtk3.tar.gz": {
+      "bytes": 2829047,
+      "sha256": "3e790f6898b39f43b23fb4794217c5cc31b64060de951db6d37c4243452d0d93",
+      "url": "https://github.com/rose-pine/gtk/releases/download/v2.2.0/gtk3.tar.gz"
+    },
+    "gtk/rose-pine-gtk4.tar.gz": {
+      "bytes": 1055,
+      "sha256": "a7bf5e314d6f70f76eba2190b922774e7c2cc301b098c43e086c31c361198a90",
+      "url": "https://github.com/rose-pine/gtk/releases/download/v2.2.0/gtk4.tar.gz"
+    },
+    "gtk/yaru-theme-gtk_25.10.3-3_all.deb": {
+      "bytes": 498100,
+      "sha256": "10c352ab7cc8c2babd9ae06a503ec3369b23effb355cd87864fd78ac98dcd4ea",
+      "url": "https://deb.debian.org/debian/pool/main/y/yaru-theme/yaru-theme-gtk_25.10.3-3_all.deb"
+    },
+    "licenses/Canta-qt-LICENSE": {
+      "bytes": 35067,
+      "commit": "ec7e792368e2253dbe24d220ddf1ded64d0b9718",
+      "sha256": "fbbdd5ec489ab07265bcd7ea9072ff0a4f9c539294567ed346fe3cbc612a1aaf",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Canta-kde/ec7e792368e2253dbe24d220ddf1ded64d0b9718/LICENSE"
+    },
+    "licenses/ChromeOS-qt-LICENSE": {
+      "bytes": 35149,
+      "commit": "f3c111ad412ecd81aecb3592cee2f9c1bf67cc86",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "url": "https://raw.githubusercontent.com/vinceliuice/ChromeOS-kde/f3c111ad412ecd81aecb3592cee2f9c1bf67cc86/LICENSE"
+    },
+    "licenses/Dracula-qt-LICENSE": {
+      "bytes": 35141,
+      "commit": "f9fbda87504e284fe458bd10e9f1f6532b378c4e",
+      "sha256": "589ed823e9a84c56feb95ac58e7cf384626b9cbf4fda2a907bc36e103de1bad2",
+      "url": "https://raw.githubusercontent.com/dracula/gtk/f9fbda87504e284fe458bd10e9f1f6532b378c4e/LICENSE"
+    },
+    "licenses/Fluent-qt-LICENSE": {
+      "bytes": 35149,
+      "commit": "44794f29c89de994b0179aebabd2f5776c90d236",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Fluent-kde/44794f29c89de994b0179aebabd2f5776c90d236/LICENSE"
+    },
+    "licenses/Layan-qt-LICENSE": {
+      "bytes": 35149,
+      "commit": "a0b6a4956022276aee33309b2e07d1d0ef3db30c",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Layan-kde/a0b6a4956022276aee33309b2e07d1d0ef3db30c/LICENSE"
+    },
+    "licenses/Matcha-qt-LICENSE": {
+      "bytes": 35067,
+      "commit": "a3b247bcd6a4892d6b56716ecd495bb6c542fd4f",
+      "sha256": "fbbdd5ec489ab07265bcd7ea9072ff0a4f9c539294567ed346fe3cbc612a1aaf",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Matcha-kde/a3b247bcd6a4892d6b56716ecd495bb6c542fd4f/LICENSE"
+    },
+    "licenses/Materia-qt-LICENSE": {
+      "bytes": 35147,
+      "commit": "5d343191f55ab5d502f07bd3bf9049854c78163d",
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+      "url": "https://raw.githubusercontent.com/PapirusDevelopmentTeam/materia-kde/5d343191f55ab5d502f07bd3bf9049854c78163d/LICENSE"
+    },
+    "licenses/Nordic-qt-LICENSE": {
+      "bytes": 35141,
+      "commit": "bb5e31ec1488b1fd5641aa10f65f36d8714b5dba",
+      "sha256": "589ed823e9a84c56feb95ac58e7cf384626b9cbf4fda2a907bc36e103de1bad2",
+      "url": "https://raw.githubusercontent.com/EliverLara/Nordic/bb5e31ec1488b1fd5641aa10f65f36d8714b5dba/LICENSE"
+    },
+    "licenses/Orchis-qt-LICENSE": {
+      "bytes": 35149,
+      "commit": "b2a96919eee40264e79db402b915f926436100ad",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Orchis-kde/b2a96919eee40264e79db402b915f926436100ad/LICENSE"
+    },
+    "licenses/Qogir-qt-LICENSE": {
+      "bytes": 35067,
+      "commit": "31e7bbf94e905ef40d262d2bc6063156df252470",
+      "sha256": "fbbdd5ec489ab07265bcd7ea9072ff0a4f9c539294567ed346fe3cbc612a1aaf",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Qogir-kde/31e7bbf94e905ef40d262d2bc6063156df252470/LICENSE"
+    },
+    "licenses/Sweet-qt-LICENSE": {
+      "bytes": 35141,
+      "commit": "46e3802d3f4d9e992f94264f1d834f5f9621c03b",
+      "sha256": "589ed823e9a84c56feb95ac58e7cf384626b9cbf4fda2a907bc36e103de1bad2",
+      "url": "https://raw.githubusercontent.com/EliverLara/Sweet/46e3802d3f4d9e992f94264f1d834f5f9621c03b/LICENSE"
+    },
+    "licenses/Vimix-qt-LICENSE": {
+      "bytes": 35067,
+      "commit": "cf5b8f6136cff0b679b31006bae6fea182c23fe2",
+      "sha256": "fbbdd5ec489ab07265bcd7ea9072ff0a4f9c539294567ed346fe3cbc612a1aaf",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Vimix-kde/cf5b8f6136cff0b679b31006bae6fea182c23fe2/LICENSE"
+    },
+    "licenses/WhiteSur-qt-LICENSE": {
+      "bytes": 35067,
+      "commit": "cf4df59ce91004f7ea39358b1b8ff917d5c329f7",
+      "sha256": "fbbdd5ec489ab07265bcd7ea9072ff0a4f9c539294567ed346fe3cbc612a1aaf",
+      "url": "https://raw.githubusercontent.com/vinceliuice/WhiteSur-kde/cf4df59ce91004f7ea39358b1b8ff917d5c329f7/LICENSE"
+    },
+    "licenses/catppuccin-gtk-GPL-3.0": {
+      "bytes": 35149,
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "url": "https://raw.githubusercontent.com/catppuccin/gtk/v1.0.3/LICENSE"
+    },
+    "licenses/catppuccin-kvantum-MIT": {
+      "bytes": 1067,
+      "sha256": "814096d2c34cc216c624738a49356f32b7237733b4f7edb0685f4e50ef5074ba",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/LICENSE"
+    },
+    "licenses/kvantum-GPL-3.0": {
+      "bytes": 35148,
+      "sha256": "0ae0485a5bd37a63e63603596417e4eb0e653334fa6c7f932ca3a0e85d4af227",
+      "url": "https://raw.githubusercontent.com/tsujan/Kvantum/V1.1.8/Kvantum/COPYING"
+    },
+    "licenses/rose-pine-qt-LICENSE": {
+      "bytes": 2351,
+      "commit": "816e3383d73f44c32423d6b43ce1dc66a528cefd",
+      "sha256": "29c281c554b17b9a4c69a91c186e0abee90f99ba204d9a8ebe8424623966dd00",
+      "url": "https://raw.githubusercontent.com/rose-pine/kvantum/816e3383d73f44c32423d6b43ce1dc66a528cefd/LICENSE"
+    },
+    "qt/Ant-Dark/Ant-Dark.kvconfig": {
+      "bytes": 9316,
+      "commit": "79ddc06b40ad1e96c87d9270c71d7db3bfa0c3cd",
+      "sha256": "6ff388287d6f7ece9fc6e8a24a9fc1b0f89a3eaf677c1f9d0f42c1324dd2f672",
+      "url": "https://raw.githubusercontent.com/EliverLara/Ant/79ddc06b40ad1e96c87d9270c71d7db3bfa0c3cd/kde/Dark/kvantum/Ant-Dark/Ant-Dark.kvconfig"
+    },
+    "qt/Ant-Dark/Ant-Dark.svg": {
+      "bytes": 226450,
+      "commit": "79ddc06b40ad1e96c87d9270c71d7db3bfa0c3cd",
+      "sha256": "734070f57d389723a4b483b6074fa600831c156ba6b28ef5cd7adff8f9a1d50a",
+      "url": "https://raw.githubusercontent.com/EliverLara/Ant/79ddc06b40ad1e96c87d9270c71d7db3bfa0c3cd/kde/Dark/kvantum/Ant-Dark/Ant-Dark.svg"
+    },
+    "qt/Canta-dark/Canta-dark.kvconfig": {
+      "bytes": 10680,
+      "commit": "ec7e792368e2253dbe24d220ddf1ded64d0b9718",
+      "sha256": "09cebb8577768dd7b57ec6855ed8fe3fa5c101328fc9ccf89a39dc14089a53cf",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Canta-kde/ec7e792368e2253dbe24d220ddf1ded64d0b9718/Kvantum/Canta-dark/Canta-dark.kvconfig"
+    },
+    "qt/Canta-dark/Canta-dark.svg": {
+      "bytes": 178539,
+      "commit": "ec7e792368e2253dbe24d220ddf1ded64d0b9718",
+      "sha256": "cf35a65e44f676263505226e848057406eedd64b7115325866c1e2724b9cde4d",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Canta-kde/ec7e792368e2253dbe24d220ddf1ded64d0b9718/Kvantum/Canta-dark/Canta-dark.svg"
+    },
+    "qt/Canta-light/Canta-light.kvconfig": {
+      "bytes": 10948,
+      "commit": "ec7e792368e2253dbe24d220ddf1ded64d0b9718",
+      "sha256": "7d164869cd6497cd338bc8c296b8b63cdcba9c0ce75fc96af6e7b7d1c99aab18",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Canta-kde/ec7e792368e2253dbe24d220ddf1ded64d0b9718/Kvantum/Canta-light/Canta-light.kvconfig"
+    },
+    "qt/Canta-light/Canta-light.svg": {
+      "bytes": 181345,
+      "commit": "ec7e792368e2253dbe24d220ddf1ded64d0b9718",
+      "sha256": "49bb44876e4aa2e8ada1ca87df6237a62503485a163a7681c990efa60025be2a",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Canta-kde/ec7e792368e2253dbe24d220ddf1ded64d0b9718/Kvantum/Canta-light/Canta-light.svg"
+    },
+    "qt/ChromeOS-dark/ChromeOS-dark.kvconfig": {
+      "bytes": 10765,
+      "commit": "f3c111ad412ecd81aecb3592cee2f9c1bf67cc86",
+      "sha256": "a557f0d5699c05bd07a901a9a1828c229827a58ea7053ef2b35eb734f505a111",
+      "url": "https://raw.githubusercontent.com/vinceliuice/ChromeOS-kde/f3c111ad412ecd81aecb3592cee2f9c1bf67cc86/Kvantum/ChromeOS-dark/ChromeOS-dark.kvconfig"
+    },
+    "qt/ChromeOS-dark/ChromeOS-dark.svg": {
+      "bytes": 237577,
+      "commit": "f3c111ad412ecd81aecb3592cee2f9c1bf67cc86",
+      "sha256": "8ddf1ab6f173d72e04425435710f8fcbb174134ca7bfd0aa05f4b915931da503",
+      "url": "https://raw.githubusercontent.com/vinceliuice/ChromeOS-kde/f3c111ad412ecd81aecb3592cee2f9c1bf67cc86/Kvantum/ChromeOS-dark/ChromeOS-dark.svg"
+    },
+    "qt/ChromeOS-light/ChromeOS-light.kvconfig": {
+      "bytes": 10871,
+      "commit": "f3c111ad412ecd81aecb3592cee2f9c1bf67cc86",
+      "sha256": "91517f48ca7b14bc237aa8925fecc8d2d6eccbe23992ffef8ecc721a12c44c20",
+      "url": "https://raw.githubusercontent.com/vinceliuice/ChromeOS-kde/f3c111ad412ecd81aecb3592cee2f9c1bf67cc86/Kvantum/ChromeOS-light/ChromeOS-light.kvconfig"
+    },
+    "qt/ChromeOS-light/ChromeOS-light.svg": {
+      "bytes": 125090,
+      "commit": "f3c111ad412ecd81aecb3592cee2f9c1bf67cc86",
+      "sha256": "d27fe226b8972ca05a96417c240efb138a84604b74bbef5ef5bc7a33f6f4d8a8",
+      "url": "https://raw.githubusercontent.com/vinceliuice/ChromeOS-kde/f3c111ad412ecd81aecb3592cee2f9c1bf67cc86/Kvantum/ChromeOS-light/ChromeOS-light.svg"
+    },
+    "qt/ChromeOS/ChromeOS.kvconfig": {
+      "bytes": 10765,
+      "commit": "f3c111ad412ecd81aecb3592cee2f9c1bf67cc86",
+      "sha256": "70388375f47335b45b5d9fe5aa0a439811b1c730efb6a1f3dbb07098c8b5640c",
+      "url": "https://raw.githubusercontent.com/vinceliuice/ChromeOS-kde/f3c111ad412ecd81aecb3592cee2f9c1bf67cc86/Kvantum/ChromeOS/ChromeOS.kvconfig"
+    },
+    "qt/ChromeOS/ChromeOS.svg": {
+      "bytes": 123773,
+      "commit": "f3c111ad412ecd81aecb3592cee2f9c1bf67cc86",
+      "sha256": "756235adc6e55ae7b6df2c1b23ec6bccdb658d3fcb79115badf0cb63cb859640",
+      "url": "https://raw.githubusercontent.com/vinceliuice/ChromeOS-kde/f3c111ad412ecd81aecb3592cee2f9c1bf67cc86/Kvantum/ChromeOS/ChromeOS.svg"
+    },
+    "qt/Dracula-Solid/Dracula-Solid.kvconfig": {
+      "bytes": 9291,
+      "commit": "f9fbda87504e284fe458bd10e9f1f6532b378c4e",
+      "sha256": "8d228cd609bc54165d1ac1535063325a91548313424e6db5693c9c8c318f2bec",
+      "url": "https://raw.githubusercontent.com/dracula/gtk/f9fbda87504e284fe458bd10e9f1f6532b378c4e/kde/kvantum/Dracula-Solid/Dracula-Solid.kvconfig"
+    },
+    "qt/Dracula-Solid/Dracula-Solid.svg": {
+      "bytes": 224731,
+      "commit": "f9fbda87504e284fe458bd10e9f1f6532b378c4e",
+      "sha256": "99bfb35712416c14e5c97d67399579bf6506d01cbed5a67f74d62c073b8efb47",
+      "url": "https://raw.githubusercontent.com/dracula/gtk/f9fbda87504e284fe458bd10e9f1f6532b378c4e/kde/kvantum/Dracula-Solid/Dracula-Solid.svg"
+    },
+    "qt/Dracula-purple-solid/Dracula-purple-solid.kvconfig": {
+      "bytes": 9291,
+      "commit": "f9fbda87504e284fe458bd10e9f1f6532b378c4e",
+      "sha256": "8d228cd609bc54165d1ac1535063325a91548313424e6db5693c9c8c318f2bec",
+      "url": "https://raw.githubusercontent.com/dracula/gtk/f9fbda87504e284fe458bd10e9f1f6532b378c4e/kde/kvantum/Dracula-purple-solid/Dracula-purple-solid.kvconfig"
+    },
+    "qt/Dracula-purple-solid/Dracula-purple-solid.svg": {
+      "bytes": 224703,
+      "commit": "f9fbda87504e284fe458bd10e9f1f6532b378c4e",
+      "sha256": "2747850a8be3218d85127398ae141a549136fd7100989392369ccd3ee3b69c66",
+      "url": "https://raw.githubusercontent.com/dracula/gtk/f9fbda87504e284fe458bd10e9f1f6532b378c4e/kde/kvantum/Dracula-purple-solid/Dracula-purple-solid.svg"
+    },
+    "qt/Dracula-purple/Dracula-purple.kvconfig": {
+      "bytes": 9286,
+      "commit": "f9fbda87504e284fe458bd10e9f1f6532b378c4e",
+      "sha256": "148561c3392bf20b158e2439061941ce73d83ebc977c29217d8d55a72a598d76",
+      "url": "https://raw.githubusercontent.com/dracula/gtk/f9fbda87504e284fe458bd10e9f1f6532b378c4e/kde/kvantum/Dracula-purple/Dracula-purple.kvconfig"
+    },
+    "qt/Dracula-purple/Dracula-purple.svg": {
+      "bytes": 225373,
+      "commit": "f9fbda87504e284fe458bd10e9f1f6532b378c4e",
+      "sha256": "ca0dd9213f64bb408b071139047573bf1e7d60f7464597eec31d7aaee25ce27c",
+      "url": "https://raw.githubusercontent.com/dracula/gtk/f9fbda87504e284fe458bd10e9f1f6532b378c4e/kde/kvantum/Dracula-purple/Dracula-purple.svg"
+    },
+    "qt/Dracula/Dracula.kvconfig": {
+      "bytes": 9286,
+      "commit": "f9fbda87504e284fe458bd10e9f1f6532b378c4e",
+      "sha256": "148561c3392bf20b158e2439061941ce73d83ebc977c29217d8d55a72a598d76",
+      "url": "https://raw.githubusercontent.com/dracula/gtk/f9fbda87504e284fe458bd10e9f1f6532b378c4e/kde/kvantum/Dracula/Dracula.kvconfig"
+    },
+    "qt/Dracula/Dracula.svg": {
+      "bytes": 225289,
+      "commit": "f9fbda87504e284fe458bd10e9f1f6532b378c4e",
+      "sha256": "c9b0fe87814674d30fe03bd58e0e163e04ad2c16ecb7ceb2b0655bbc66c39b44",
+      "url": "https://raw.githubusercontent.com/dracula/gtk/f9fbda87504e284fe458bd10e9f1f6532b378c4e/kde/kvantum/Dracula/Dracula.svg"
+    },
+    "qt/Fluent/Fluent.kvconfig": {
+      "bytes": 11246,
+      "commit": "44794f29c89de994b0179aebabd2f5776c90d236",
+      "sha256": "a287713255ac999cd1fd7e4dc354bcf6c9a87222ecac59127b1073772266f48f",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Fluent-kde/44794f29c89de994b0179aebabd2f5776c90d236/Kvantum/Fluent/Fluent.kvconfig"
+    },
+    "qt/Fluent/Fluent.svg": {
+      "bytes": 145054,
+      "commit": "44794f29c89de994b0179aebabd2f5776c90d236",
+      "sha256": "1d71b7a4ab0feb0a17c7c1760ea5a761f21a10ed168096ff279a65a305c8f95e",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Fluent-kde/44794f29c89de994b0179aebabd2f5776c90d236/Kvantum/Fluent/Fluent.svg"
+    },
+    "qt/FluentDark/FluentDark.kvconfig": {
+      "bytes": 11246,
+      "commit": "44794f29c89de994b0179aebabd2f5776c90d236",
+      "sha256": "19675a815fdaeabf0d885027d4145ec6429b0b3e509a5fcfdf92a77346db563f",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Fluent-kde/44794f29c89de994b0179aebabd2f5776c90d236/Kvantum/Fluent/FluentDark.kvconfig"
+    },
+    "qt/FluentDark/FluentDark.svg": {
+      "bytes": 148593,
+      "commit": "44794f29c89de994b0179aebabd2f5776c90d236",
+      "sha256": "304b45a0e1e2e51b2069396ff1d93cf8348be63d0e360b772618592a814be124",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Fluent-kde/44794f29c89de994b0179aebabd2f5776c90d236/Kvantum/Fluent/FluentDark.svg"
+    },
+    "qt/KvArc/KvArc.kvconfig": {
+      "bytes": 8427,
+      "sha256": "d643038faf45edd2673c268ad87b343418484477f123f08101114d7b5f3bad71",
+      "url": "https://raw.githubusercontent.com/tsujan/Kvantum/V1.1.8/Kvantum/themes/kvthemes/KvArc/KvArc.kvconfig"
+    },
+    "qt/KvArc/KvArc.svg": {
+      "bytes": 95956,
+      "sha256": "9292eac899affaa918f92d9eb055c07dab25d6b1d8ab2f31188cef51ea4f0c8b",
+      "url": "https://raw.githubusercontent.com/tsujan/Kvantum/V1.1.8/Kvantum/themes/kvthemes/KvArc/KvArc.svg"
+    },
+    "qt/KvArcDark/KvArcDark.kvconfig": {
+      "bytes": 8408,
+      "sha256": "158a5ab545f5cef10142043bb747556b1b3c63db9626d8d1ad47a4dd592b5b6e",
+      "url": "https://raw.githubusercontent.com/tsujan/Kvantum/V1.1.8/Kvantum/themes/kvthemes/KvArcDark/KvArcDark.kvconfig"
+    },
+    "qt/KvArcDark/KvArcDark.svg": {
+      "bytes": 106502,
+      "sha256": "eb1f8435fe13f2c161a8ad0e73e7ebe9e915f629921a9b59798560696639a2f4",
+      "url": "https://raw.githubusercontent.com/tsujan/Kvantum/V1.1.8/Kvantum/themes/kvthemes/KvArcDark/KvArcDark.svg"
+    },
+    "qt/KvYaru/KvYaru.kvconfig": {
+      "bytes": 10344,
+      "commit": "058534fc15d1798c3887590166f05c598e8e946c",
+      "sha256": "2b460a9cd6f469bad679dd16f9c1d608cd609681839fc8b2eaaaa51fdda50007",
+      "url": "https://raw.githubusercontent.com/tsujan/Kvantum/058534fc15d1798c3887590166f05c598e8e946c/Kvantum/themes/kvthemes/KvYaru/KvYaru.kvconfig"
+    },
+    "qt/KvYaru/KvYaru.svg": {
+      "bytes": 127552,
+      "commit": "058534fc15d1798c3887590166f05c598e8e946c",
+      "sha256": "69261eef526f8e35b031ebb45d209fd82a69bdffb76859ea0eb01a2432633261",
+      "url": "https://raw.githubusercontent.com/tsujan/Kvantum/058534fc15d1798c3887590166f05c598e8e946c/Kvantum/themes/kvthemes/KvYaru/KvYaru.svg"
+    },
+    "qt/Layan/Layan.kvconfig": {
+      "bytes": 10937,
+      "commit": "a0b6a4956022276aee33309b2e07d1d0ef3db30c",
+      "sha256": "b74bc062830be7dd428b140004121915564d35f13771b4a28382130da175cdc5",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Layan-kde/a0b6a4956022276aee33309b2e07d1d0ef3db30c/Kvantum/Layan/Layan.kvconfig"
+    },
+    "qt/Layan/Layan.svg": {
+      "bytes": 161471,
+      "commit": "a0b6a4956022276aee33309b2e07d1d0ef3db30c",
+      "sha256": "2b85aa1a4ac51d2b76a224b716df11e0e5c324ec04767c2770e8f96bbfed19e3",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Layan-kde/a0b6a4956022276aee33309b2e07d1d0ef3db30c/Kvantum/Layan/Layan.svg"
+    },
+    "qt/LayanDark/LayanDark.kvconfig": {
+      "bytes": 10915,
+      "commit": "a0b6a4956022276aee33309b2e07d1d0ef3db30c",
+      "sha256": "4c663295c9412453ced43a0b4ba72d83a9b25296c61e7c1583958cab3ed19844",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Layan-kde/a0b6a4956022276aee33309b2e07d1d0ef3db30c/Kvantum/Layan/LayanDark.kvconfig"
+    },
+    "qt/LayanDark/LayanDark.svg": {
+      "bytes": 162986,
+      "commit": "a0b6a4956022276aee33309b2e07d1d0ef3db30c",
+      "sha256": "85fca143e5556991d82bc519b09f2887cf2424ab8ed53c94256cacdd3b149f7b",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Layan-kde/a0b6a4956022276aee33309b2e07d1d0ef3db30c/Kvantum/Layan/LayanDark.svg"
+    },
+    "qt/LayanSolid/LayanSolid.kvconfig": {
+      "bytes": 10956,
+      "commit": "a0b6a4956022276aee33309b2e07d1d0ef3db30c",
+      "sha256": "89b876a4d516038bef74f27fe6fa0a2918498cb50bd9ca42a6f12a33c5a01809",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Layan-kde/a0b6a4956022276aee33309b2e07d1d0ef3db30c/Kvantum/LayanSolid/LayanSolid.kvconfig"
+    },
+    "qt/LayanSolid/LayanSolid.svg": {
+      "bytes": 162572,
+      "commit": "a0b6a4956022276aee33309b2e07d1d0ef3db30c",
+      "sha256": "9b742f873c46db6423cbe55f075aca38b648da9efc3cd44e7c4e5b9a30dba603",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Layan-kde/a0b6a4956022276aee33309b2e07d1d0ef3db30c/Kvantum/LayanSolid/LayanSolid.svg"
+    },
+    "qt/LayanSolidDark/LayanSolidDark.kvconfig": {
+      "bytes": 10913,
+      "commit": "a0b6a4956022276aee33309b2e07d1d0ef3db30c",
+      "sha256": "ba35986172c91f10cdf7c8d6ac183c5dd532c463ee418c3c6fe7d317f43291db",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Layan-kde/a0b6a4956022276aee33309b2e07d1d0ef3db30c/Kvantum/LayanSolid/LayanSolidDark.kvconfig"
+    },
+    "qt/LayanSolidDark/LayanSolidDark.svg": {
+      "bytes": 161517,
+      "commit": "a0b6a4956022276aee33309b2e07d1d0ef3db30c",
+      "sha256": "bcc8b22b9f9968fc0cea892dc2dce307e6a8489fccf27fc1597bcc18eba1337e",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Layan-kde/a0b6a4956022276aee33309b2e07d1d0ef3db30c/Kvantum/LayanSolid/LayanSolidDark.svg"
+    },
+    "qt/Matcha-sea-dark/Matcha-sea-dark.kvconfig": {
+      "bytes": 9956,
+      "commit": "a3b247bcd6a4892d6b56716ecd495bb6c542fd4f",
+      "sha256": "ec64018905765bb0fe00d300abde087a0faf30970ca210247e2ebd5f2a6569c8",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Matcha-kde/a3b247bcd6a4892d6b56716ecd495bb6c542fd4f/Kvantum/Matcha-sea-dark/Matcha-sea-dark.kvconfig"
+    },
+    "qt/Matcha-sea-dark/Matcha-sea-dark.svg": {
+      "bytes": 229401,
+      "commit": "a3b247bcd6a4892d6b56716ecd495bb6c542fd4f",
+      "sha256": "491c4bfc1787b81ac5961afe5c71666b597f867824c6fa0292a6559811f3cb21",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Matcha-kde/a3b247bcd6a4892d6b56716ecd495bb6c542fd4f/Kvantum/Matcha-sea-dark/Matcha-sea-dark.svg"
+    },
+    "qt/Matcha-sea/Matcha-sea.kvconfig": {
+      "bytes": 9963,
+      "commit": "a3b247bcd6a4892d6b56716ecd495bb6c542fd4f",
+      "sha256": "4bf08e2a727d73d808122477cd9c10081076d60f734eacbe25e6dd12eb3e2178",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Matcha-kde/a3b247bcd6a4892d6b56716ecd495bb6c542fd4f/Kvantum/Matcha-sea/Matcha-sea.kvconfig"
+    },
+    "qt/Matcha-sea/Matcha-sea.svg": {
+      "bytes": 229802,
+      "commit": "a3b247bcd6a4892d6b56716ecd495bb6c542fd4f",
+      "sha256": "ec063b46d00b5240f5df91d1d3996412af2605d04e1f806369b9f0024fe87565",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Matcha-kde/a3b247bcd6a4892d6b56716ecd495bb6c542fd4f/Kvantum/Matcha-sea/Matcha-sea.svg"
+    },
+    "qt/Materia/Materia.kvconfig": {
+      "bytes": 11087,
+      "commit": "5d343191f55ab5d502f07bd3bf9049854c78163d",
+      "sha256": "bfd3363faac0182a87769692273334644c2debdef7c7bb4bf48ec3de5fa88642",
+      "url": "https://raw.githubusercontent.com/PapirusDevelopmentTeam/materia-kde/5d343191f55ab5d502f07bd3bf9049854c78163d/Kvantum/Materia/Materia.kvconfig"
+    },
+    "qt/Materia/Materia.svg": {
+      "bytes": 127213,
+      "commit": "5d343191f55ab5d502f07bd3bf9049854c78163d",
+      "sha256": "1532e7cff6aa251364ecb8e41835bf0100c010403ea70b0e190af41fa0f0eba5",
+      "url": "https://raw.githubusercontent.com/PapirusDevelopmentTeam/materia-kde/5d343191f55ab5d502f07bd3bf9049854c78163d/Kvantum/Materia/Materia.svg"
+    },
+    "qt/MateriaDark/MateriaDark.kvconfig": {
+      "bytes": 10513,
+      "commit": "5d343191f55ab5d502f07bd3bf9049854c78163d",
+      "sha256": "0d1c73c7dda32e3f0a9c08bd4cc5ac834a280df079915fdf9e8840e57d692c48",
+      "url": "https://raw.githubusercontent.com/PapirusDevelopmentTeam/materia-kde/5d343191f55ab5d502f07bd3bf9049854c78163d/Kvantum/MateriaDark/MateriaDark.kvconfig"
+    },
+    "qt/MateriaDark/MateriaDark.svg": {
+      "bytes": 121400,
+      "commit": "5d343191f55ab5d502f07bd3bf9049854c78163d",
+      "sha256": "f31a75a48686bf9aa1a2c38beff15e56aff600e9313b01c730e7d4954c4f4aed",
+      "url": "https://raw.githubusercontent.com/PapirusDevelopmentTeam/materia-kde/5d343191f55ab5d502f07bd3bf9049854c78163d/Kvantum/MateriaDark/MateriaDark.svg"
+    },
+    "qt/MateriaLight/MateriaLight.kvconfig": {
+      "bytes": 10689,
+      "commit": "5d343191f55ab5d502f07bd3bf9049854c78163d",
+      "sha256": "57c386c3cb0640a239ad30020e88c8ed9b05094b15046c99bec91daebf5c911f",
+      "url": "https://raw.githubusercontent.com/PapirusDevelopmentTeam/materia-kde/5d343191f55ab5d502f07bd3bf9049854c78163d/Kvantum/MateriaLight/MateriaLight.kvconfig"
+    },
+    "qt/MateriaLight/MateriaLight.svg": {
+      "bytes": 118549,
+      "commit": "5d343191f55ab5d502f07bd3bf9049854c78163d",
+      "sha256": "cb862cff2823586e0cbb45840a3b0c9f00b1a3d5296b3dd9f5d420a3192ae327",
+      "url": "https://raw.githubusercontent.com/PapirusDevelopmentTeam/materia-kde/5d343191f55ab5d502f07bd3bf9049854c78163d/Kvantum/MateriaLight/MateriaLight.svg"
+    },
+    "qt/Nordic-Darker-Solid/Nordic-Darker-Solid.kvconfig": {
+      "bytes": 9286,
+      "commit": "bb5e31ec1488b1fd5641aa10f65f36d8714b5dba",
+      "sha256": "42b356744acedb7321da39c77cb4e772bc3780f6cb8e152b610a73ff4972cda9",
+      "url": "https://raw.githubusercontent.com/EliverLara/Nordic/bb5e31ec1488b1fd5641aa10f65f36d8714b5dba/kde/kvantum/Nordic-Darker-Solid/Nordic-Darker-Solid.kvconfig"
+    },
+    "qt/Nordic-Darker-Solid/Nordic-Darker-Solid.svg": {
+      "bytes": 224252,
+      "commit": "bb5e31ec1488b1fd5641aa10f65f36d8714b5dba",
+      "sha256": "94c334064bed7761c2d8f3d212aef7be8665533057e3211ddc9471a8bc12d5fc",
+      "url": "https://raw.githubusercontent.com/EliverLara/Nordic/bb5e31ec1488b1fd5641aa10f65f36d8714b5dba/kde/kvantum/Nordic-Darker-Solid/Nordic-Darker-Solid.svg"
+    },
+    "qt/Nordic-Darker/Nordic-Darker.kvconfig": {
+      "bytes": 9217,
+      "commit": "bb5e31ec1488b1fd5641aa10f65f36d8714b5dba",
+      "sha256": "a5c518a5158660706b8fcae6e143e85019639ff64e0eb9b2371116dcc9419e42",
+      "url": "https://raw.githubusercontent.com/EliverLara/Nordic/bb5e31ec1488b1fd5641aa10f65f36d8714b5dba/kde/kvantum/Nordic-Darker/Nordic-Darker.kvconfig"
+    },
+    "qt/Nordic-Darker/Nordic-Darker.svg": {
+      "bytes": 224970,
+      "commit": "bb5e31ec1488b1fd5641aa10f65f36d8714b5dba",
+      "sha256": "edd04d376a369d6f8dd653a3eab9421a164c898666e0a2e67117d8770a0ffde1",
+      "url": "https://raw.githubusercontent.com/EliverLara/Nordic/bb5e31ec1488b1fd5641aa10f65f36d8714b5dba/kde/kvantum/Nordic-Darker/Nordic-Darker.svg"
+    },
+    "qt/Nordic-Solid/Nordic-Solid.kvconfig": {
+      "bytes": 9286,
+      "commit": "bb5e31ec1488b1fd5641aa10f65f36d8714b5dba",
+      "sha256": "3e6a7a794d758020b4c7af409b0b8e39daa8dac48478788676e7367b7d9d9f96",
+      "url": "https://raw.githubusercontent.com/EliverLara/Nordic/bb5e31ec1488b1fd5641aa10f65f36d8714b5dba/kde/kvantum/Nordic-Solid/Nordic-Solid.kvconfig"
+    },
+    "qt/Nordic-Solid/Nordic-Solid.svg": {
+      "bytes": 224529,
+      "commit": "bb5e31ec1488b1fd5641aa10f65f36d8714b5dba",
+      "sha256": "759e31f9703c23d715e00bb3cf75ea850942e00a1fb2a538045e0d7a7f41ca40",
+      "url": "https://raw.githubusercontent.com/EliverLara/Nordic/bb5e31ec1488b1fd5641aa10f65f36d8714b5dba/kde/kvantum/Nordic-Solid/Nordic-Solid.svg"
+    },
+    "qt/Nordic-bluish-solid/Nordic-bluish-solid.kvconfig": {
+      "bytes": 9416,
+      "commit": "bb5e31ec1488b1fd5641aa10f65f36d8714b5dba",
+      "sha256": "3b16ad205c1fe1d4b25011d794afc759416f81495a71e699917afc9181c6bdc6",
+      "url": "https://raw.githubusercontent.com/EliverLara/Nordic/bb5e31ec1488b1fd5641aa10f65f36d8714b5dba/kde/kvantum/Nordic-bluish-solid/Nordic-bluish-solid.kvconfig"
+    },
+    "qt/Nordic-bluish-solid/Nordic-bluish-solid.svg": {
+      "bytes": 225937,
+      "commit": "bb5e31ec1488b1fd5641aa10f65f36d8714b5dba",
+      "sha256": "a066960a97076a95baa0c204f6bdd1cca1f48071fdc16d6ae45b054059facd22",
+      "url": "https://raw.githubusercontent.com/EliverLara/Nordic/bb5e31ec1488b1fd5641aa10f65f36d8714b5dba/kde/kvantum/Nordic-bluish-solid/Nordic-bluish-solid.svg"
+    },
+    "qt/Nordic-bluish/Nordic-bluish.kvconfig": {
+      "bytes": 9423,
+      "commit": "bb5e31ec1488b1fd5641aa10f65f36d8714b5dba",
+      "sha256": "b22c32efec7dcfaf32fe6611ebd809f40aed27e38fed6e961f5b628715443ee0",
+      "url": "https://raw.githubusercontent.com/EliverLara/Nordic/bb5e31ec1488b1fd5641aa10f65f36d8714b5dba/kde/kvantum/Nordic-bluish/Nordic-bluish.kvconfig"
+    },
+    "qt/Nordic-bluish/Nordic-bluish.svg": {
+      "bytes": 225867,
+      "commit": "bb5e31ec1488b1fd5641aa10f65f36d8714b5dba",
+      "sha256": "470f7a1cc89f6e1032931b517ab7d0b768a0221d64df826e8cbc43df1c21a50e",
+      "url": "https://raw.githubusercontent.com/EliverLara/Nordic/bb5e31ec1488b1fd5641aa10f65f36d8714b5dba/kde/kvantum/Nordic-bluish/Nordic-bluish.svg"
+    },
+    "qt/Nordic/Nordic.kvconfig": {
+      "bytes": 9217,
+      "commit": "bb5e31ec1488b1fd5641aa10f65f36d8714b5dba",
+      "sha256": "ead38b074911153828b675c2288ced299ae4c583c1638948b47659ae47aad24b",
+      "url": "https://raw.githubusercontent.com/EliverLara/Nordic/bb5e31ec1488b1fd5641aa10f65f36d8714b5dba/kde/kvantum/Nordic/Nordic.kvconfig"
+    },
+    "qt/Nordic/Nordic.svg": {
+      "bytes": 224775,
+      "commit": "bb5e31ec1488b1fd5641aa10f65f36d8714b5dba",
+      "sha256": "b723fc5f370407f87cc726007e52ca2c4193e56e1da5fb24cebd2e2a1b76ba88",
+      "url": "https://raw.githubusercontent.com/EliverLara/Nordic/bb5e31ec1488b1fd5641aa10f65f36d8714b5dba/kde/kvantum/Nordic/Nordic.svg"
+    },
+    "qt/Orchis-solid/Orchis-solid.kvconfig": {
+      "bytes": 10914,
+      "commit": "b2a96919eee40264e79db402b915f926436100ad",
+      "sha256": "99b20737802a3970264b043527161e7ed94af67f3175f17f1cd66bdad557cc87",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Orchis-kde/b2a96919eee40264e79db402b915f926436100ad/Kvantum/Orchis-solid/Orchis-solid.kvconfig"
+    },
+    "qt/Orchis-solid/Orchis-solid.svg": {
+      "bytes": 166502,
+      "commit": "b2a96919eee40264e79db402b915f926436100ad",
+      "sha256": "c3cd32bb7da9b5926cdcfbb8a4e92cd1ec109bac4bb0b0dbd472647dc12a505b",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Orchis-kde/b2a96919eee40264e79db402b915f926436100ad/Kvantum/Orchis-solid/Orchis-solid.svg"
+    },
+    "qt/Orchis-solidDark/Orchis-solidDark.kvconfig": {
+      "bytes": 10700,
+      "commit": "b2a96919eee40264e79db402b915f926436100ad",
+      "sha256": "1cbcd9fa6d3cd31accb0eb675f1624c30f94dfb775112210a96e826e34bd2b0f",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Orchis-kde/b2a96919eee40264e79db402b915f926436100ad/Kvantum/Orchis-solid/Orchis-solidDark.kvconfig"
+    },
+    "qt/Orchis-solidDark/Orchis-solidDark.svg": {
+      "bytes": 161479,
+      "commit": "b2a96919eee40264e79db402b915f926436100ad",
+      "sha256": "b52f54c28339611567e3e533d6320f09af98a422d28c1b4d70ba3b07708ca894",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Orchis-kde/b2a96919eee40264e79db402b915f926436100ad/Kvantum/Orchis-solid/Orchis-solidDark.svg"
+    },
+    "qt/Orchis/Orchis.kvconfig": {
+      "bytes": 10914,
+      "commit": "b2a96919eee40264e79db402b915f926436100ad",
+      "sha256": "0af62a1ad2c2219ac48fdb80f51dad6539f4f651466dda09eafbd52d0dbf4c3b",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Orchis-kde/b2a96919eee40264e79db402b915f926436100ad/Kvantum/Orchis/Orchis.kvconfig"
+    },
+    "qt/Orchis/Orchis.svg": {
+      "bytes": 169011,
+      "commit": "b2a96919eee40264e79db402b915f926436100ad",
+      "sha256": "8e8bede82b7e5eb4b7ed3e76221a0b9c5eaca880930dce41a51bbecfec1c3235",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Orchis-kde/b2a96919eee40264e79db402b915f926436100ad/Kvantum/Orchis/Orchis.svg"
+    },
+    "qt/OrchisDark/OrchisDark.kvconfig": {
+      "bytes": 10700,
+      "commit": "b2a96919eee40264e79db402b915f926436100ad",
+      "sha256": "1cbcd9fa6d3cd31accb0eb675f1624c30f94dfb775112210a96e826e34bd2b0f",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Orchis-kde/b2a96919eee40264e79db402b915f926436100ad/Kvantum/Orchis/OrchisDark.kvconfig"
+    },
+    "qt/OrchisDark/OrchisDark.svg": {
+      "bytes": 118499,
+      "commit": "b2a96919eee40264e79db402b915f926436100ad",
+      "sha256": "753346fee1cc7b9310deefb0fd871a569a54c1260c06bc5f27d65093becccdf8",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Orchis-kde/b2a96919eee40264e79db402b915f926436100ad/Kvantum/Orchis/OrchisDark.svg"
+    },
+    "qt/Qogir-dark/Qogir-dark.kvconfig": {
+      "bytes": 10053,
+      "commit": "31e7bbf94e905ef40d262d2bc6063156df252470",
+      "sha256": "01cc5ea03006ef50e2624c9d89e5fee80a48a2204221df84a8f58a10a432aad1",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Qogir-kde/31e7bbf94e905ef40d262d2bc6063156df252470/Kvantum/Qogir-dark/Qogir-dark.kvconfig"
+    },
+    "qt/Qogir-dark/Qogir-dark.svg": {
+      "bytes": 225384,
+      "commit": "31e7bbf94e905ef40d262d2bc6063156df252470",
+      "sha256": "6c21a20bf1f5b17aedf0c66ee92c9abba45de7e39a0cb58dcb6d30c716a14949",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Qogir-kde/31e7bbf94e905ef40d262d2bc6063156df252470/Kvantum/Qogir-dark/Qogir-dark.svg"
+    },
+    "qt/Qogir-light/Qogir-light.kvconfig": {
+      "bytes": 9539,
+      "commit": "31e7bbf94e905ef40d262d2bc6063156df252470",
+      "sha256": "e1c9ae5421589411c142841bdd596f1391a08608b28afdf4aff5b75264744d10",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Qogir-kde/31e7bbf94e905ef40d262d2bc6063156df252470/Kvantum/Qogir-light/Qogir-light.kvconfig"
+    },
+    "qt/Qogir-light/Qogir-light.svg": {
+      "bytes": 204725,
+      "commit": "31e7bbf94e905ef40d262d2bc6063156df252470",
+      "sha256": "3aff83aeaf506bae770a0076975651404629a67b20c14fb52a2a8582ab2bf1dc",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Qogir-kde/31e7bbf94e905ef40d262d2bc6063156df252470/Kvantum/Qogir-light/Qogir-light.svg"
+    },
+    "qt/Sweet/Sweet.kvconfig": {
+      "bytes": 9112,
+      "commit": "46e3802d3f4d9e992f94264f1d834f5f9621c03b",
+      "sha256": "a950cc67e95684bc919a5497e0a2ad1c4c33f764bb52ac5a5cf3e5340748b308",
+      "url": "https://raw.githubusercontent.com/EliverLara/Sweet/46e3802d3f4d9e992f94264f1d834f5f9621c03b/kde/Kvantum/Sweet/Sweet.kvconfig"
+    },
+    "qt/Sweet/Sweet.svg": {
+      "bytes": 228889,
+      "commit": "46e3802d3f4d9e992f94264f1d834f5f9621c03b",
+      "sha256": "b0785fb7de2bce85a2b9d2751856a57d2448e0e78e56ee6457226cf7379e3325",
+      "url": "https://raw.githubusercontent.com/EliverLara/Sweet/46e3802d3f4d9e992f94264f1d834f5f9621c03b/kde/Kvantum/Sweet/Sweet.svg"
+    },
+    "qt/Vimix/Vimix.kvconfig": {
+      "bytes": 10827,
+      "commit": "cf5b8f6136cff0b679b31006bae6fea182c23fe2",
+      "sha256": "a9feff24bae8f1e66b2da4a1a83926dd74421d25a92309c62a0a7b38840cb595",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Vimix-kde/cf5b8f6136cff0b679b31006bae6fea182c23fe2/Kvantum/Vimix/Vimix.kvconfig"
+    },
+    "qt/Vimix/Vimix.svg": {
+      "bytes": 190597,
+      "commit": "cf5b8f6136cff0b679b31006bae6fea182c23fe2",
+      "sha256": "015276af0e468c8eee192974365a4bfe2de5e09031daba47f765d7bb199a72b0",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Vimix-kde/cf5b8f6136cff0b679b31006bae6fea182c23fe2/Kvantum/Vimix/Vimix.svg"
+    },
+    "qt/VimixDark/VimixDark.kvconfig": {
+      "bytes": 10603,
+      "commit": "cf5b8f6136cff0b679b31006bae6fea182c23fe2",
+      "sha256": "b4ea61d4f81a80599606fdbd896f5dadcf8d544689d93c1dce9544d791f77b4a",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Vimix-kde/cf5b8f6136cff0b679b31006bae6fea182c23fe2/Kvantum/Vimix/VimixDark.kvconfig"
+    },
+    "qt/VimixDark/VimixDark.svg": {
+      "bytes": 192899,
+      "commit": "cf5b8f6136cff0b679b31006bae6fea182c23fe2",
+      "sha256": "590767c23d7ec21305a58f471b2bf96565362e1afdc6af45a258a6d9812a9ff3",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Vimix-kde/cf5b8f6136cff0b679b31006bae6fea182c23fe2/Kvantum/Vimix/VimixDark.svg"
+    },
+    "qt/VimixDoder/VimixDoder.kvconfig": {
+      "bytes": 10827,
+      "commit": "cf5b8f6136cff0b679b31006bae6fea182c23fe2",
+      "sha256": "9975484c4e60ba5c7304e87109b140fea26a47cf9130d7f0bf1dd4ac6f9f6f29",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Vimix-kde/cf5b8f6136cff0b679b31006bae6fea182c23fe2/Kvantum/VimixDoder/VimixDoder.kvconfig"
+    },
+    "qt/VimixDoder/VimixDoder.svg": {
+      "bytes": 168918,
+      "commit": "cf5b8f6136cff0b679b31006bae6fea182c23fe2",
+      "sha256": "1f1be466323a2cceb74221f09547207b1021e6bb3c3d32af955bf07e45f0b042",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Vimix-kde/cf5b8f6136cff0b679b31006bae6fea182c23fe2/Kvantum/VimixDoder/VimixDoder.svg"
+    },
+    "qt/VimixDoderDark/VimixDoderDark.kvconfig": {
+      "bytes": 10601,
+      "commit": "cf5b8f6136cff0b679b31006bae6fea182c23fe2",
+      "sha256": "1a4fa4d5ce27f1c8318532e02ffd6f2993d6b730b3611a47143f971607f7005e",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Vimix-kde/cf5b8f6136cff0b679b31006bae6fea182c23fe2/Kvantum/VimixDoder/VimixDoderDark.kvconfig"
+    },
+    "qt/VimixDoderDark/VimixDoderDark.svg": {
+      "bytes": 216208,
+      "commit": "cf5b8f6136cff0b679b31006bae6fea182c23fe2",
+      "sha256": "7a7ae4860749da962a77d0c2329b4a03927c5a35c8f54b9ae185b358b1852a90",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Vimix-kde/cf5b8f6136cff0b679b31006bae6fea182c23fe2/Kvantum/VimixDoder/VimixDoderDark.svg"
+    },
+    "qt/VimixJade/VimixJade.kvconfig": {
+      "bytes": 10827,
+      "commit": "cf5b8f6136cff0b679b31006bae6fea182c23fe2",
+      "sha256": "c80829e1401ff9b69c3240edb47e4899ea1daed4dd18c2e439670ffcb73cd480",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Vimix-kde/cf5b8f6136cff0b679b31006bae6fea182c23fe2/Kvantum/VimixJade/VimixJade.kvconfig"
+    },
+    "qt/VimixJade/VimixJade.svg": {
+      "bytes": 190601,
+      "commit": "cf5b8f6136cff0b679b31006bae6fea182c23fe2",
+      "sha256": "fbd9005635ffb214f122cac5b5c685cfaec00d92e23d91f03a162eceab37d765",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Vimix-kde/cf5b8f6136cff0b679b31006bae6fea182c23fe2/Kvantum/VimixJade/VimixJade.svg"
+    },
+    "qt/VimixJadeDark/VimixJadeDark.kvconfig": {
+      "bytes": 10603,
+      "commit": "cf5b8f6136cff0b679b31006bae6fea182c23fe2",
+      "sha256": "e27ba8e53debc1978eefbb2dcaf455064cae146e2220ac7f1737b236e218ff1a",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Vimix-kde/cf5b8f6136cff0b679b31006bae6fea182c23fe2/Kvantum/VimixJade/VimixJadeDark.kvconfig"
+    },
+    "qt/VimixJadeDark/VimixJadeDark.svg": {
+      "bytes": 176652,
+      "commit": "cf5b8f6136cff0b679b31006bae6fea182c23fe2",
+      "sha256": "bca5fd6ce3387738715339c1ab5328baa36876c908b94186b9799e7f5a8476a2",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Vimix-kde/cf5b8f6136cff0b679b31006bae6fea182c23fe2/Kvantum/VimixJade/VimixJadeDark.svg"
+    },
+    "qt/VimixRuby/VimixRuby.kvconfig": {
+      "bytes": 10827,
+      "commit": "cf5b8f6136cff0b679b31006bae6fea182c23fe2",
+      "sha256": "921da9dafacdaa5658f104e39e175465e24c3bc08532483aacb6c8582acd55ae",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Vimix-kde/cf5b8f6136cff0b679b31006bae6fea182c23fe2/Kvantum/VimixRuby/VimixRuby.kvconfig"
+    },
+    "qt/VimixRuby/VimixRuby.svg": {
+      "bytes": 190601,
+      "commit": "cf5b8f6136cff0b679b31006bae6fea182c23fe2",
+      "sha256": "b129d9c30457996e244e2c62ca5ec66ee333a748002f89b6eeca25775ede23eb",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Vimix-kde/cf5b8f6136cff0b679b31006bae6fea182c23fe2/Kvantum/VimixRuby/VimixRuby.svg"
+    },
+    "qt/VimixRubyDark/VimixRubyDark.kvconfig": {
+      "bytes": 10603,
+      "commit": "cf5b8f6136cff0b679b31006bae6fea182c23fe2",
+      "sha256": "8bbf75e5b64aa85a4617d8291b2e810ff149c77f5c20ab531f9b73a9ad3f2506",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Vimix-kde/cf5b8f6136cff0b679b31006bae6fea182c23fe2/Kvantum/VimixRuby/VimixRubyDark.kvconfig"
+    },
+    "qt/VimixRubyDark/VimixRubyDark.svg": {
+      "bytes": 176652,
+      "commit": "cf5b8f6136cff0b679b31006bae6fea182c23fe2",
+      "sha256": "f8ab4715b748f252301557ce4c773e06335653915ddd3c15c0743fe3d429bda0",
+      "url": "https://raw.githubusercontent.com/vinceliuice/Vimix-kde/cf5b8f6136cff0b679b31006bae6fea182c23fe2/Kvantum/VimixRuby/VimixRubyDark.svg"
+    },
+    "qt/WhiteSur-opaque/WhiteSur-opaque.kvconfig": {
+      "bytes": 11706,
+      "commit": "cf4df59ce91004f7ea39358b1b8ff917d5c329f7",
+      "sha256": "f0bf31c89f7a62ad93af6ccaabd7b223ec61cc8234599cac998df7e811db8be0",
+      "url": "https://raw.githubusercontent.com/vinceliuice/WhiteSur-kde/cf4df59ce91004f7ea39358b1b8ff917d5c329f7/Kvantum/WhiteSur-opaque/WhiteSur-opaque.kvconfig"
+    },
+    "qt/WhiteSur-opaque/WhiteSur-opaque.svg": {
+      "bytes": 283171,
+      "commit": "cf4df59ce91004f7ea39358b1b8ff917d5c329f7",
+      "sha256": "ecdb3da4db013960ced58a96b396278951adfbc329a3a428b48cb666de35dedd",
+      "url": "https://raw.githubusercontent.com/vinceliuice/WhiteSur-kde/cf4df59ce91004f7ea39358b1b8ff917d5c329f7/Kvantum/WhiteSur-opaque/WhiteSur-opaque.svg"
+    },
+    "qt/WhiteSur-opaqueDark/WhiteSur-opaqueDark.kvconfig": {
+      "bytes": 11030,
+      "commit": "cf4df59ce91004f7ea39358b1b8ff917d5c329f7",
+      "sha256": "856944413ec05c5607c20264d79f21955511a6c3bf387fd5dd83f4f61a16ee71",
+      "url": "https://raw.githubusercontent.com/vinceliuice/WhiteSur-kde/cf4df59ce91004f7ea39358b1b8ff917d5c329f7/Kvantum/WhiteSur-opaque/WhiteSur-opaqueDark.kvconfig"
+    },
+    "qt/WhiteSur-opaqueDark/WhiteSur-opaqueDark.svg": {
+      "bytes": 417251,
+      "commit": "cf4df59ce91004f7ea39358b1b8ff917d5c329f7",
+      "sha256": "3081d4091d9e9ce1e1f814d55d1315305eaf1658869d427ddf3aef9a875c2ad9",
+      "url": "https://raw.githubusercontent.com/vinceliuice/WhiteSur-kde/cf4df59ce91004f7ea39358b1b8ff917d5c329f7/Kvantum/WhiteSur-opaque/WhiteSur-opaqueDark.svg"
+    },
+    "qt/WhiteSur/WhiteSur.kvconfig": {
+      "bytes": 11500,
+      "commit": "cf4df59ce91004f7ea39358b1b8ff917d5c329f7",
+      "sha256": "894333dfe9c49bfcb7adf880267bef15a184def58cc51336b1aeec20b8d304e9",
+      "url": "https://raw.githubusercontent.com/vinceliuice/WhiteSur-kde/cf4df59ce91004f7ea39358b1b8ff917d5c329f7/Kvantum/WhiteSur/WhiteSur.kvconfig"
+    },
+    "qt/WhiteSur/WhiteSur.svg": {
+      "bytes": 281631,
+      "commit": "cf4df59ce91004f7ea39358b1b8ff917d5c329f7",
+      "sha256": "66101c1b14ce4a7f3cecc3e37e051be7b171f192fe3bf3b9fc1a608bea32e0c6",
+      "url": "https://raw.githubusercontent.com/vinceliuice/WhiteSur-kde/cf4df59ce91004f7ea39358b1b8ff917d5c329f7/Kvantum/WhiteSur/WhiteSur.svg"
+    },
+    "qt/WhiteSurDark/WhiteSurDark.kvconfig": {
+      "bytes": 10817,
+      "commit": "cf4df59ce91004f7ea39358b1b8ff917d5c329f7",
+      "sha256": "5987a0f360af4d7f028fe0228afef87346b26fe87c23839f6b01dc7b62cc7176",
+      "url": "https://raw.githubusercontent.com/vinceliuice/WhiteSur-kde/cf4df59ce91004f7ea39358b1b8ff917d5c329f7/Kvantum/WhiteSur/WhiteSurDark.kvconfig"
+    },
+    "qt/WhiteSurDark/WhiteSurDark.svg": {
+      "bytes": 423335,
+      "commit": "cf4df59ce91004f7ea39358b1b8ff917d5c329f7",
+      "sha256": "4b31c100f80efc7484485b92181d47d605df708317300f9325bc45e21fae5ff5",
+      "url": "https://raw.githubusercontent.com/vinceliuice/WhiteSur-kde/cf4df59ce91004f7ea39358b1b8ff917d5c329f7/Kvantum/WhiteSur/WhiteSurDark.svg"
+    },
+    "qt/WhiteSurLiquid/WhiteSurLiquid.kvconfig": {
+      "bytes": 2451,
+      "commit": "cf4df59ce91004f7ea39358b1b8ff917d5c329f7",
+      "sha256": "78aead992c1bd7882801d7f7e9380eb7b6eb45876bd87d602ea27a1c90ec06ad",
+      "url": "https://raw.githubusercontent.com/vinceliuice/WhiteSur-kde/cf4df59ce91004f7ea39358b1b8ff917d5c329f7/Kvantum/WhiteSur/WhiteSurLiquid.kvconfig"
+    },
+    "qt/WhiteSurLiquid/WhiteSurLiquid.svg": {
+      "bytes": 281631,
+      "commit": "cf4df59ce91004f7ea39358b1b8ff917d5c329f7",
+      "sha256": "66101c1b14ce4a7f3cecc3e37e051be7b171f192fe3bf3b9fc1a608bea32e0c6",
+      "url": "https://raw.githubusercontent.com/vinceliuice/WhiteSur-kde/cf4df59ce91004f7ea39358b1b8ff917d5c329f7/Kvantum/WhiteSur/WhiteSurLiquid.svg"
+    },
+    "qt/WhiteSurLiquidDark/WhiteSurLiquidDark.kvconfig": {
+      "bytes": 10835,
+      "commit": "cf4df59ce91004f7ea39358b1b8ff917d5c329f7",
+      "sha256": "b7eeb1a67d69bb761dc9ec755eb3209feb413f83f31abe8a3567eaba5edd3adc",
+      "url": "https://raw.githubusercontent.com/vinceliuice/WhiteSur-kde/cf4df59ce91004f7ea39358b1b8ff917d5c329f7/Kvantum/WhiteSur/WhiteSurLiquidDark.kvconfig"
+    },
+    "qt/WhiteSurLiquidDark/WhiteSurLiquidDark.svg": {
+      "bytes": 423335,
+      "commit": "cf4df59ce91004f7ea39358b1b8ff917d5c329f7",
+      "sha256": "4b31c100f80efc7484485b92181d47d605df708317300f9325bc45e21fae5ff5",
+      "url": "https://raw.githubusercontent.com/vinceliuice/WhiteSur-kde/cf4df59ce91004f7ea39358b1b8ff917d5c329f7/Kvantum/WhiteSur/WhiteSurLiquidDark.svg"
+    },
+    "qt/catppuccin-frappe-blue/catppuccin-frappe-blue.kvconfig": {
+      "bytes": 8737,
+      "sha256": "d82e78065b4ce6f84a6b3f3917df1b0f910a1890ea4a70c3d37ca04333b76068",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-frappe-blue/catppuccin-frappe-blue.kvconfig"
+    },
+    "qt/catppuccin-frappe-blue/catppuccin-frappe-blue.svg": {
+      "bytes": 150204,
+      "sha256": "f3b35379687a83c97701e710f310454ea75c89b48238fcc59c4d3549c50620e3",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-frappe-blue/catppuccin-frappe-blue.svg"
+    },
+    "qt/catppuccin-frappe-lavender/catppuccin-frappe-lavender.kvconfig": {
+      "bytes": 8741,
+      "sha256": "5a70383cd1c364611b69304c267584b4f186b9efb21d576357fabc04a34e7a80",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-frappe-lavender/catppuccin-frappe-lavender.kvconfig"
+    },
+    "qt/catppuccin-frappe-lavender/catppuccin-frappe-lavender.svg": {
+      "bytes": 150204,
+      "sha256": "fb174e224571bad9ec2267401f87fc4c83455a1388056a17770beb1e8b0c8c6b",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-frappe-lavender/catppuccin-frappe-lavender.svg"
+    },
+    "qt/catppuccin-frappe-mauve/catppuccin-frappe-mauve.kvconfig": {
+      "bytes": 8738,
+      "sha256": "c4ebe3a7e19ecf6a22fedd3c920dc273218b15d1212f786722b3db7559f7852e",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-frappe-mauve/catppuccin-frappe-mauve.kvconfig"
+    },
+    "qt/catppuccin-frappe-mauve/catppuccin-frappe-mauve.svg": {
+      "bytes": 150204,
+      "sha256": "ac82569869fa66e9c93b3963c04c04cba08e3806b17763374f6ffc9450d81783",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-frappe-mauve/catppuccin-frappe-mauve.svg"
+    },
+    "qt/catppuccin-frappe-teal/catppuccin-frappe-teal.kvconfig": {
+      "bytes": 8737,
+      "sha256": "898f4c6d9d5b5bbbe7654bf84e640fa9e70d10cd692e9bc34cb9e8d060588d59",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-frappe-teal/catppuccin-frappe-teal.kvconfig"
+    },
+    "qt/catppuccin-frappe-teal/catppuccin-frappe-teal.svg": {
+      "bytes": 150204,
+      "sha256": "74f2c68fea1ece837023ae9d733e6ff4630794c2c5bd1645ed0dc7e6aadfc5bd",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-frappe-teal/catppuccin-frappe-teal.svg"
+    },
+    "qt/catppuccin-latte-blue/catppuccin-latte-blue.kvconfig": {
+      "bytes": 8736,
+      "sha256": "71171bbd7b3ee7cbf54f8a4bd9d0ec548a8fdf76d930062d07e3fda986d6dc16",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-latte-blue/catppuccin-latte-blue.kvconfig"
+    },
+    "qt/catppuccin-latte-blue/catppuccin-latte-blue.svg": {
+      "bytes": 150204,
+      "sha256": "8f3200e6b088c2966a7c0fbe4a6a878e4f21134f59f1aa05acbd8a6ec71c547b",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-latte-blue/catppuccin-latte-blue.svg"
+    },
+    "qt/catppuccin-latte-lavender/catppuccin-latte-lavender.kvconfig": {
+      "bytes": 8740,
+      "sha256": "66c1e1185ab3885c23111e7a7ceb7e3eeb4e97893a4284cf035e43e789d87e30",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-latte-lavender/catppuccin-latte-lavender.kvconfig"
+    },
+    "qt/catppuccin-latte-lavender/catppuccin-latte-lavender.svg": {
+      "bytes": 150204,
+      "sha256": "57cb8b2f948234216ad7b0aeaa43c25f3a583a6a570d18d48b2ed823e8113e8b",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-latte-lavender/catppuccin-latte-lavender.svg"
+    },
+    "qt/catppuccin-latte-mauve/catppuccin-latte-mauve.kvconfig": {
+      "bytes": 8737,
+      "sha256": "a88a6838942703995faa9d4638151e0eae71bd2a309f1035b06afd2b6687e5a6",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-latte-mauve/catppuccin-latte-mauve.kvconfig"
+    },
+    "qt/catppuccin-latte-mauve/catppuccin-latte-mauve.svg": {
+      "bytes": 150204,
+      "sha256": "b2e154d0c8e0490beb6b3d34101ca2cd0f74d4119eb2560e3afcfcc7c1b471f0",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-latte-mauve/catppuccin-latte-mauve.svg"
+    },
+    "qt/catppuccin-latte-teal/catppuccin-latte-teal.kvconfig": {
+      "bytes": 8736,
+      "sha256": "21f65d253291ab71b3278648c598714b6c548ceebab703e87ad1f945da6524b1",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-latte-teal/catppuccin-latte-teal.kvconfig"
+    },
+    "qt/catppuccin-latte-teal/catppuccin-latte-teal.svg": {
+      "bytes": 150204,
+      "sha256": "9d081b07582aace8797ead2e29f39139e0d52b8b90caffaa1dd77e117638b3a6",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-latte-teal/catppuccin-latte-teal.svg"
+    },
+    "qt/catppuccin-macchiato-blue/catppuccin-macchiato-blue.kvconfig": {
+      "bytes": 8740,
+      "sha256": "c4f981144a7da6b77730cad2fa295d7086af920783d956d9e69bb2af7442dd74",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-macchiato-blue/catppuccin-macchiato-blue.kvconfig"
+    },
+    "qt/catppuccin-macchiato-blue/catppuccin-macchiato-blue.svg": {
+      "bytes": 150204,
+      "sha256": "c1f34ab328c84fb59ea8b2e1bf667595d0601527addb52e5612fbad6f4adbfb6",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-macchiato-blue/catppuccin-macchiato-blue.svg"
+    },
+    "qt/catppuccin-macchiato-lavender/catppuccin-macchiato-lavender.kvconfig": {
+      "bytes": 8744,
+      "sha256": "c536c02b49bee563b6a371e35a25cfdff7128f9ad1ecc1d78677d814983def8d",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-macchiato-lavender/catppuccin-macchiato-lavender.kvconfig"
+    },
+    "qt/catppuccin-macchiato-lavender/catppuccin-macchiato-lavender.svg": {
+      "bytes": 150204,
+      "sha256": "d5a6394f154196640042b7323229f0a28276192f6edaae25362850677da31244",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-macchiato-lavender/catppuccin-macchiato-lavender.svg"
+    },
+    "qt/catppuccin-macchiato-mauve/catppuccin-macchiato-mauve.kvconfig": {
+      "bytes": 8741,
+      "sha256": "4c33de83b756a4e320741af055aeb4feb14867268bc4f9770e2fb6c67e3f7c1f",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-macchiato-mauve/catppuccin-macchiato-mauve.kvconfig"
+    },
+    "qt/catppuccin-macchiato-mauve/catppuccin-macchiato-mauve.svg": {
+      "bytes": 150204,
+      "sha256": "73caf859ef57c762bd33e9a27a9ca2c4e2f5770ba75bf869df61f10347124b6b",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-macchiato-mauve/catppuccin-macchiato-mauve.svg"
+    },
+    "qt/catppuccin-macchiato-teal/catppuccin-macchiato-teal.kvconfig": {
+      "bytes": 8740,
+      "sha256": "aa06628c5bebffb64b4f0c22de8b8e7e13a1ea4333df7be0ea2e9c4f13723317",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-macchiato-teal/catppuccin-macchiato-teal.kvconfig"
+    },
+    "qt/catppuccin-macchiato-teal/catppuccin-macchiato-teal.svg": {
+      "bytes": 150204,
+      "sha256": "fa92dac06f07fe2c7e324b37f4ea50572b4fd4f9f46ee97ff3f99e83f36b2a13",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-macchiato-teal/catppuccin-macchiato-teal.svg"
+    },
+    "qt/catppuccin-mocha-blue/catppuccin-mocha-blue.kvconfig": {
+      "bytes": 8736,
+      "sha256": "39efad8c93b8851f359f514637c1c903a88a4d0e148ca44ddf212d2e2e730315",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-mocha-blue/catppuccin-mocha-blue.kvconfig"
+    },
+    "qt/catppuccin-mocha-blue/catppuccin-mocha-blue.svg": {
+      "bytes": 150204,
+      "sha256": "7668d717e0ab1b295b8ba8a8a5730077b17ae13eada9d0aa369b7698e2f5ee47",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-mocha-blue/catppuccin-mocha-blue.svg"
+    },
+    "qt/catppuccin-mocha-lavender/catppuccin-mocha-lavender.kvconfig": {
+      "bytes": 8740,
+      "sha256": "7e878cfc96e6ed6500fd2a3f71a9e672a0bd7b4aa7a89fa4ca161e006f43a97c",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-mocha-lavender/catppuccin-mocha-lavender.kvconfig"
+    },
+    "qt/catppuccin-mocha-lavender/catppuccin-mocha-lavender.svg": {
+      "bytes": 150204,
+      "sha256": "b3f714e79ceb24455c7ca649b78d6d8ba31165a76c280a87d4dcd8a8b7aa4e95",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-mocha-lavender/catppuccin-mocha-lavender.svg"
+    },
+    "qt/catppuccin-mocha-mauve/catppuccin-mocha-mauve.kvconfig": {
+      "bytes": 8737,
+      "sha256": "6a7887331cd38c852c60dc0f62341456ccc45a1670d4c0c22b405790fbdebc5f",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-mocha-mauve/catppuccin-mocha-mauve.kvconfig"
+    },
+    "qt/catppuccin-mocha-mauve/catppuccin-mocha-mauve.svg": {
+      "bytes": 150204,
+      "sha256": "d9eabcdf2764d114faa5bb74fdaa0a3617184191741a7526d3ebfbd30606c3f8",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-mocha-mauve/catppuccin-mocha-mauve.svg"
+    },
+    "qt/catppuccin-mocha-teal/catppuccin-mocha-teal.kvconfig": {
+      "bytes": 8736,
+      "sha256": "f780940bca653359cb6e34ad8734f1bc14cb1b071808e68d8d001568a5a73759",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-mocha-teal/catppuccin-mocha-teal.kvconfig"
+    },
+    "qt/catppuccin-mocha-teal/catppuccin-mocha-teal.svg": {
+      "bytes": 150204,
+      "sha256": "f508406e4a8ae30f66e175ccc4921a3f3a4e4f0884f6f5616ecadd3a340fe7ab",
+      "url": "https://raw.githubusercontent.com/catppuccin/kvantum/71105d224fef95dd023691303477ce3eea487457/themes/catppuccin-mocha-teal/catppuccin-mocha-teal.svg"
+    },
+    "qt/rose-pine-dawn-iris/rose-pine-dawn-iris.kvconfig": {
+      "bytes": 8711,
+      "commit": "816e3383d73f44c32423d6b43ce1dc66a528cefd",
+      "sha256": "d65528b10d4353b152a41237cef97e8186602304fba60a0787e222f95d52657e",
+      "url": "https://raw.githubusercontent.com/rose-pine/kvantum/816e3383d73f44c32423d6b43ce1dc66a528cefd/dist/rose-pine-dawn-iris.tar.gz#rose-pine-dawn-iris/rose-pine-dawn-iris.kvconfig"
+    },
+    "qt/rose-pine-dawn-iris/rose-pine-dawn-iris.svg": {
+      "bytes": 149593,
+      "commit": "816e3383d73f44c32423d6b43ce1dc66a528cefd",
+      "sha256": "14f3fd043cc6f8541397df6cb78be7fa689a6843e20abadc6ef8c100b090e6fb",
+      "url": "https://raw.githubusercontent.com/rose-pine/kvantum/816e3383d73f44c32423d6b43ce1dc66a528cefd/dist/rose-pine-dawn-iris.tar.gz#rose-pine-dawn-iris/rose-pine-dawn-iris.svg"
+    },
+    "qt/rose-pine-iris/rose-pine-iris.kvconfig": {
+      "bytes": 8700,
+      "commit": "816e3383d73f44c32423d6b43ce1dc66a528cefd",
+      "sha256": "847b4162f6a6b9439189cc4c5c95b9cd31c662ca6ec7153858c05956c6c92076",
+      "url": "https://raw.githubusercontent.com/rose-pine/kvantum/816e3383d73f44c32423d6b43ce1dc66a528cefd/dist/rose-pine-iris.tar.gz#rose-pine-iris/rose-pine-iris.kvconfig"
+    },
+    "qt/rose-pine-iris/rose-pine-iris.svg": {
+      "bytes": 149582,
+      "commit": "816e3383d73f44c32423d6b43ce1dc66a528cefd",
+      "sha256": "c294392bf9a392c99af58138a600aa6f98478018d9496daa8f80bdbdebd50802",
+      "url": "https://raw.githubusercontent.com/rose-pine/kvantum/816e3383d73f44c32423d6b43ce1dc66a528cefd/dist/rose-pine-iris.tar.gz#rose-pine-iris/rose-pine-iris.svg"
+    },
+    "qt/rose-pine-moon-iris/rose-pine-moon-iris.kvconfig": {
+      "bytes": 8710,
+      "commit": "816e3383d73f44c32423d6b43ce1dc66a528cefd",
+      "sha256": "105bb90aa0cd015c6a4c504382e4d790a5f487a2049956a17210217b0c58d35a",
+      "url": "https://raw.githubusercontent.com/rose-pine/kvantum/816e3383d73f44c32423d6b43ce1dc66a528cefd/dist/rose-pine-moon-iris.tar.gz#rose-pine-moon-iris/rose-pine-moon-iris.kvconfig"
+    },
+    "qt/rose-pine-moon-iris/rose-pine-moon-iris.svg": {
+      "bytes": 149592,
+      "commit": "816e3383d73f44c32423d6b43ce1dc66a528cefd",
+      "sha256": "81529cd101a92c7888d184f372cc84f09fe447405cc18297b325bac95b980003",
+      "url": "https://raw.githubusercontent.com/rose-pine/kvantum/816e3383d73f44c32423d6b43ce1dc66a528cefd/dist/rose-pine-moon-iris.tar.gz#rose-pine-moon-iris/rose-pine-moon-iris.svg"
+    }
+  },
+  "gtk_release": "catppuccin/gtk v1.0.3 (archived upstream)",
+  "qt_revision": "71105d224fef95dd023691303477ce3eea487457",
+  "schema": 1,
+  "trust": "Public HTTPS acquisition with recorded content hashes; no vendor signature claim."
+}

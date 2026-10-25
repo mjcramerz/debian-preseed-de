@@ -1,9 +1,10 @@
 #!/bin/sh
 set -eu
 
-# Picker cancellation is not a backend/configuration failure.
+# Back returns to the parent; dismissal unwinds every menu process.
 menu_failure() {
   [ "$1" -eq 1 ] && return 0
+  [ "$1" -eq 3 ] && exit 3
   printf 'fatal: menu picker failed (status %s)\n' "$1" >&2
   exit "$1"
 }
@@ -89,13 +90,13 @@ run_selected_nmap_action() {
       "Nmap target scope" \
       'Private or loopback target' \
       'Authorized WAN IPv4 host'
-  )
+  ) || exit "$?"
 
   case "$target_scope" in
     'Private or loopback target')
       case "$target_kind" in
-        host) target=$(choose_private_host) ;;
-        network) target=$(choose_private_target) ;;
+        host) target=$(choose_private_host) || exit "$?" ;;
+        network) target=$(choose_private_target) || exit "$?" ;;
         *) fatal "unsupported Nmap target kind: $target_kind" ;;
       esac
       [ -n "$target" ] &&
@@ -107,14 +108,14 @@ run_selected_nmap_action() {
           "WAN scan authorization" \
           'Cancel' \
           'I am authorized to scan this WAN host'
-      )
+      ) || exit "$?"
       [ "$confirmation" = 'I am authorized to scan this WAN host' ] ||
         return 0
       target=$(
         LABWC_MENU_INPUT_MODE=text choose_lines \
           "Authorized public IPv4 address" \
           'Enter an authorized public IPv4 address'
-      )
+      ) || exit "$?"
       [ -n "$target" ] &&
         run_network_action "$nmap_action" "$target" authorized-wan-scan
       ;;
@@ -128,14 +129,14 @@ run_specific_wan_scan() {
       "WAN scan authorization" \
       'Cancel' \
       'I am authorized to scan this WAN host'
-  )
+  ) || exit "$?"
   [ "$confirmation" = 'I am authorized to scan this WAN host' ] ||
     return 0
   target=$(
     LABWC_MENU_INPUT_MODE=text choose_lines \
       "Authorized public IPv4 address" \
       'Enter an authorized public IPv4 address'
-  )
+  ) || exit "$?"
   [ -n "$target" ] &&
     run_network_action nmap-common-ports "$target" authorized-wan-scan
   return 0
@@ -171,7 +172,7 @@ while :; do
       '⮞ Dumpcap' \
       '⮞ Tcpdump' \
       '⮞ TShark'
-  )
+  ) || exit "$?"
 
   case "$category" in
     '⮞ Nmap')
@@ -196,7 +197,7 @@ while :; do
             'Check Common Ports' \
             'Scan All TCP Ports (single host)' \
             '← Back'
-        )
+        ) || exit "$?"
         case "$action" in
           'Show Listening TCP/UDP Ports')
             run_network_action show-listening-ports
@@ -205,12 +206,12 @@ while :; do
             run_network_action nmap-full-tcp 127.0.0.1 private-scan
             ;;
           'Scan LAN TCP Ports')
-            target=$(choose_private_target)
+            target=$(choose_private_target) || exit "$?"
             [ -n "$target" ] &&
               run_network_action nmap-common-ports "$target" private-scan
             ;;
           'Scan Specific LAN IP')
-            target=$(choose_private_host)
+            target=$(choose_private_host) || exit "$?"
             [ -n "$target" ] &&
               run_network_action nmap-full-tcp "$target" private-scan
             ;;
@@ -250,11 +251,8 @@ while :; do
           'Scan All TCP Ports (single host)')
             run_selected_nmap_action nmap-full-tcp host
             ;;
-          '← Back')
+          '← Back'|'')
             break
-            ;;
-          '')
-            exit 0
             ;;
         esac
       done
@@ -267,21 +265,18 @@ while :; do
             'Launch Wireshark' \
             'Open Managed Capture' \
             '← Back'
-        )
+        ) || exit "$?"
         case "$action" in
           'Launch Wireshark')
             run_network_action wireshark-launch
             ;;
           'Open Managed Capture')
-            capture_file=$(choose_capture_file)
+            capture_file=$(choose_capture_file) || exit "$?"
             [ -n "$capture_file" ] &&
               run_network_action wireshark-open-capture "$capture_file"
             ;;
-          '← Back')
+          '← Back'|'')
             break
-            ;;
-          '')
-            exit 0
             ;;
         esac
       done
@@ -298,36 +293,33 @@ while :; do
             'Capture TLS Traffic (60s)' \
             'Capture Discovery Traffic (60s)' \
             '← Back'
-        )
+        ) || exit "$?"
         case "$action" in
           'List Capture Interfaces')
             run_network_action dumpcap-list-interfaces
             ;;
           'Capture General Traffic (60s)')
-            interface=$(choose_interface)
+            interface=$(choose_interface) || exit "$?"
             [ -n "$interface" ] && run_network_action dumpcap-capture-general "$interface"
             ;;
           'Capture DNS Traffic (60s)')
-            interface=$(choose_interface)
+            interface=$(choose_interface) || exit "$?"
             [ -n "$interface" ] && run_network_action dumpcap-capture-dns "$interface"
             ;;
           'Capture DHCP Traffic (60s)')
-            interface=$(choose_interface)
+            interface=$(choose_interface) || exit "$?"
             [ -n "$interface" ] && run_network_action dumpcap-capture-dhcp "$interface"
             ;;
           'Capture TLS Traffic (60s)')
-            interface=$(choose_interface)
+            interface=$(choose_interface) || exit "$?"
             [ -n "$interface" ] && run_network_action dumpcap-capture-tls "$interface"
             ;;
           'Capture Discovery Traffic (60s)')
-            interface=$(choose_interface)
+            interface=$(choose_interface) || exit "$?"
             [ -n "$interface" ] && run_network_action dumpcap-capture-discovery "$interface"
             ;;
-          '← Back')
+          '← Back'|'')
             break
-            ;;
-          '')
-            exit 0
             ;;
         esac
       done
@@ -346,44 +338,41 @@ while :; do
             'Capture TCP SYN Traffic (60s)' \
             'Print Traffic Summary (30s)' \
             '← Back'
-        )
+        ) || exit "$?"
         case "$action" in
           'List Capture Interfaces')
             run_network_action tcpdump-list-interfaces
             ;;
           'Capture General Traffic (60s)')
-            interface=$(choose_interface)
+            interface=$(choose_interface) || exit "$?"
             [ -n "$interface" ] && run_network_action tcpdump-capture-general "$interface"
             ;;
           'Capture DNS Traffic (60s)')
-            interface=$(choose_interface)
+            interface=$(choose_interface) || exit "$?"
             [ -n "$interface" ] && run_network_action tcpdump-capture-dns "$interface"
             ;;
           'Capture DHCP Traffic (60s)')
-            interface=$(choose_interface)
+            interface=$(choose_interface) || exit "$?"
             [ -n "$interface" ] && run_network_action tcpdump-capture-dhcp "$interface"
             ;;
           'Capture ICMP Traffic (60s)')
-            interface=$(choose_interface)
+            interface=$(choose_interface) || exit "$?"
             [ -n "$interface" ] && run_network_action tcpdump-capture-icmp "$interface"
             ;;
           'Capture ARP Traffic (60s)')
-            interface=$(choose_interface)
+            interface=$(choose_interface) || exit "$?"
             [ -n "$interface" ] && run_network_action tcpdump-capture-arp "$interface"
             ;;
           'Capture TCP SYN Traffic (60s)')
-            interface=$(choose_interface)
+            interface=$(choose_interface) || exit "$?"
             [ -n "$interface" ] && run_network_action tcpdump-capture-syn "$interface"
             ;;
           'Print Traffic Summary (30s)')
-            interface=$(choose_interface)
+            interface=$(choose_interface) || exit "$?"
             [ -n "$interface" ] && run_network_action tcpdump-print-summary "$interface"
             ;;
-          '← Back')
+          '← Back'|'')
             break
-            ;;
-          '')
-            exit 0
             ;;
         esac
       done
@@ -403,49 +392,46 @@ while :; do
             'Extract TLS Server Names' \
             'Show HTTP Error Responses' \
             '← Back'
-        )
+        ) || exit "$?"
         case "$action" in
           'Show Live IP Endpoints (30s)')
-            interface=$(choose_interface)
+            interface=$(choose_interface) || exit "$?"
             [ -n "$interface" ] && run_network_action tshark-live-endpoints "$interface"
             ;;
           'Show Live DNS Queries (30s)')
-            interface=$(choose_interface)
+            interface=$(choose_interface) || exit "$?"
             [ -n "$interface" ] && run_network_action tshark-live-dns "$interface"
             ;;
           'Show Live TLS Server Names (30s)')
-            interface=$(choose_interface)
+            interface=$(choose_interface) || exit "$?"
             [ -n "$interface" ] && run_network_action tshark-live-tls "$interface"
             ;;
           'Show TCP Retransmissions (30s)')
-            interface=$(choose_interface)
+            interface=$(choose_interface) || exit "$?"
             [ -n "$interface" ] && run_network_action tshark-live-retransmissions "$interface"
             ;;
           'Analyze Protocol Hierarchy')
-            capture_file=$(choose_capture_file)
+            capture_file=$(choose_capture_file) || exit "$?"
             [ -n "$capture_file" ] && run_network_action tshark-file-protocols "$capture_file"
             ;;
           'Analyze IP Conversations')
-            capture_file=$(choose_capture_file)
+            capture_file=$(choose_capture_file) || exit "$?"
             [ -n "$capture_file" ] && run_network_action tshark-file-conversations "$capture_file"
             ;;
           'Extract DNS Queries')
-            capture_file=$(choose_capture_file)
+            capture_file=$(choose_capture_file) || exit "$?"
             [ -n "$capture_file" ] && run_network_action tshark-file-dns "$capture_file"
             ;;
           'Extract TLS Server Names')
-            capture_file=$(choose_capture_file)
+            capture_file=$(choose_capture_file) || exit "$?"
             [ -n "$capture_file" ] && run_network_action tshark-file-tls "$capture_file"
             ;;
           'Show HTTP Error Responses')
-            capture_file=$(choose_capture_file)
+            capture_file=$(choose_capture_file) || exit "$?"
             [ -n "$capture_file" ] && run_network_action tshark-file-http-errors "$capture_file"
             ;;
-          '← Back')
+          '← Back'|'')
             break
-            ;;
-          '')
-            exit 0
             ;;
         esac
       done

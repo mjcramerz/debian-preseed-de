@@ -93,7 +93,6 @@ for cmd in \
   labwc-freerdp-askpass \
   labwc-run \
   labwc-main-menu \
-  labwc-fzf-menu \
   labwc-window-switcher \
   wtype \
   labwc-terminal \
@@ -799,7 +798,6 @@ for path in \
   /usr/local/bin/labwc-desktop-appearance \
   /usr/local/libexec/labwc-appearance-greeter \
   /usr/local/libexec/labwc-appearance-defaults \
-  /usr/local/bin/labwc-fzf-menu \
   /usr/local/bin/labwc-window-switcher \
   /usr/local/bin/labwc-ai-copilots \
   /usr/local/bin/labwc-ai-copilots-action \
@@ -1776,6 +1774,7 @@ desktop_verify_native_workspace_config() {
   # shellcheck disable=SC2016
   run_in_target "verify broker-free workspace and native switcher configuration" \
     /usr/bin/python3 -I -B -c '
+import configparser
 import json
 from pathlib import Path
 import subprocess
@@ -1786,7 +1785,7 @@ def require(condition, message):
     if not condition:
         raise SystemExit(message)
 
-for package, minimum in (("labwc", "0.20.2"), ("waybar", "0.15.0"), ("fuzzel", "1.11.0")):
+for package, minimum in (("labwc", "0.20.2"), ("waybar", "0.15.0"), ("fuzzel", "1.15.0")):
     version = subprocess.check_output(["/usr/bin/dpkg-query", "-W", "-f=${Version}", package], text=True).strip()
     subprocess.run(["/usr/bin/dpkg", "--compare-versions", version, "ge", minimum], check=True)
 root = Path("/")
@@ -1798,6 +1797,22 @@ for retired in ("usr/local/libexec/labwc-workspace-broker",
 config_roots = (root / "etc/skel-desktop/.config", root / sys.argv[1].lstrip("/") / ".config")
 counts = []
 for config in config_roots:
+    # Inspect installed data only; never start a picker or a session manager.
+    base = configparser.ConfigParser(interpolation=None, strict=True)
+    menu = configparser.ConfigParser(interpolation=None, strict=True)
+    for relative, document in (("fuzzel/base.ini", base), ("fuzzel/menu.ini", menu)):
+        text = (config / relative).read_text()
+        require("__INSTALLER_" not in text and "__THEME_" not in text,
+                "unresolved Fuzzel configuration: " + relative)
+        document.read_string(text)
+    require(set(base.get("key-bindings", "cancel").split()) ==
+            {"Control+g", "Control+c", "Control+bracketleft", "Escape"},
+            "Fuzzel dismissal keys must close the workflow")
+    require(menu.get("key-bindings", "custom-1") == "Mod4+BackSpace",
+            "Fuzzel Back must use its distinct custom action")
+    require(base.get("main", "keyboard-focus") == "on-demand"
+            and base.getboolean("main", "exit-on-keyboard-focus-loss"),
+            "Fuzzel must dismiss when another application receives focus")
     for name in ("labwc/rc.xml", "waybar/config", "waybar/style.css"):
         text = (config / name).read_text()
         require("__INSTALLER_" not in text, "unresolved workspace configuration: " + name)

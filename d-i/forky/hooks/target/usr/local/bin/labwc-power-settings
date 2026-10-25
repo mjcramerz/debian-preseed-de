@@ -1,9 +1,10 @@
 #!/bin/sh
 set -eu
 
-# Picker cancellation is not a backend/configuration failure.
+# Back returns to the parent; dismissal unwinds every menu process.
 menu_failure() {
   [ "$1" -eq 1 ] && return 0
+  [ "$1" -eq 3 ] && exit 3
   printf 'fatal: menu picker failed (status %s)\n' "$1" >&2
   exit "$1"
 }

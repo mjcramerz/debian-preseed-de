@@ -529,6 +529,12 @@ def add_gpu_device_binds(command: list[str], acceleration_mode: str):
     return selected
 
 
+def add_qt_theme_binds(command: list[str], account: pwd.struct_passwd, sandbox_home: pathlib.Path) -> None:
+    # main() validates the root-owned package before constructing this payload.
+    from labwc_managed_app.mounts import add_qt_theme_directory_binds
+    add_qt_theme_directory_binds(command, account.pw_dir, str(sandbox_home))
+
+
 def validate_no_host_audio_device_binds(command: list[str]) -> None:
     bind_options = {
         "--bind",
@@ -731,6 +737,7 @@ def build_command(
     ):
         optional_ro_bind(command, source)
     command.extend(["--ro-bind", str(resolver_path), "/etc/resolv.conf"])
+    add_qt_theme_binds(command, account, sandbox_home)
     command.extend(["--dir", "/etc/labwc", "--dir", "/etc/labwc/3proxy"])
     for proxy_policy in ("/etc/labwc/3proxy/qbittorrent.conf", "/etc/labwc/3proxy/session.json"):
         # Host-root ownership is meaningful here, before the user namespace

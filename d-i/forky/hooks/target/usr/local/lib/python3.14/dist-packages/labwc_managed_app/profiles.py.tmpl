@@ -88,9 +88,6 @@ APPS = {
     "agenda": {
         "exec": "/usr/local/bin/com.github.dahenson.agenda",
         "env": {"GDK_BACKEND": "wayland",
-                # Select GTK's dark variant even when Granite reports a light
-                # or unset desktop color scheme during Agenda activation.
-                "GTK_THEME": "Adwaita:dark",
                 # Agenda explicitly sets a GtkHeaderBar; GTK_CSD alone does
                 # not disable it. Keep the packaged interposer app-local.
                 "GTK_CSD": "0",
@@ -596,6 +593,8 @@ CHATGPT_DEVOPS_READ_ONLY_HOME_DIRECTORIES = (
     ".config/bazel",
     ".config/clangd",
     ".config/direnv",
+    ".config/gtk-3.0",
+    ".config/gtk-4.0",
     ".config/l3afpad",
     ".config/fzf",
     ".config/git",
@@ -714,8 +713,9 @@ NATIVE_VETH_SANDBOX_DEFAULTS = {
     "require_session_bus": True,
     "ro_bind_paths": (),
     "ro_bind_home_directories": (".config/gtk-3.0", ".config/gtk-4.0", ".config/dconf",
+                                 ".config/qt5ct", ".config/qt6ct", ".config/Kvantum",
                                  ".config/fontconfig", ".local/share/icons"),
-    "ro_bind_home_optional_files": (".config/user-dirs.dirs", ".config/qt6ct/qt6ct.conf"),
+    "ro_bind_home_optional_files": (".config/user-dirs.dirs",),
     "rw_bind_home_directories": ("Downloads", "Documents", "Pictures"),
     "runtime_directories": ("doc",),
     "runtime_sockets": ("pipewire-0", "pulse/native"),
@@ -768,7 +768,7 @@ PERSISTENT_SANDBOX_CONFIG = {
         "persistent_paths": (".cache/Code", ".cache/Microsoft/DeveloperTools",
                              ".config/Code", ".local/share/code", ".vscode", ".vscode-shared"),
         "rw_bind_home_directories": ("Workspace", "Documents", "Downloads"),
-        "ro_bind_home_directories": (),
+        "ro_bind_home_directories": (".config/gtk-3.0", ".config/gtk-4.0"),
         "ro_bind_home_optional_files": (
             ".config/user-dirs.dirs", ".gitconfig", ".ssh/config", ".ssh/known_hosts",
         ),

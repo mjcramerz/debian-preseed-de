@@ -43,7 +43,7 @@ BOOT_CONFIRM = 'Confirm: stop, disable and mask PPD; start tuning now and at boo
 def client_functions():
     # Avoid colliding with other tests' independently imported common modules.
     selected = [node for node in ast.parse(render_theme_defaults(payload_read_text(CLIENT))).body
-                if isinstance(node, ast.FunctionDef) and node.name in {'choose', 'confirm_owner', 'menu'}]
+                if isinstance(node, ast.FunctionDef) and node.name in {'choose', 'confirm_owner', 'menu', 'menu_step'}]
     namespace = {'os': os, 'subprocess': subprocess, 'TuningError': ValueError,
                  'PROFILES': PROFILES, 'json': json}
     exec(compile(ast.Module(body=selected, type_ignores=[]), str(CLIENT), 'exec'), namespace)
@@ -174,7 +174,7 @@ class TuningDispatchTests(unittest.TestCase):
                     result, client, request = self.exercise(selections)
                     self.assertEqual(result, 0)
                     request.assert_called_with('manual', vendor, profile, confirm_policy_owner=(vendor == 'intel'))
-                    self.assertEqual(client['choose'].call_args_list[0].args[0], TOP)
+                    self.assertEqual(client['choose'].call_args_list[0].args[0], TOP + ['Show Hardware Tuning Status', 'Back'])
 
     def test_each_lifecycle_action_uses_fixed_broker_action_and_required_confirmation(self):
         for label, action in zip(TOP[2:], ('auto-start', 'auto-stop', 'boot-enable', 'boot-disable', 'reset')):
@@ -186,11 +186,21 @@ class TuningDispatchTests(unittest.TestCase):
                 request.assert_called_with(action, confirm_policy_owner=confirming)
 
     def test_cancel_handover_and_back_never_send_mutating_requests(self):
-        for selections in ([None], [TOP[0], None], [TOP[2], CANCEL], [TOP[4], None], [TOP[0], 'Set High Profile [Intel]', CANCEL]):
+        for selections, status_reads in (([None], 1), ([TOP[0], None, None], 2),
+                ([TOP[2], CANCEL, None], 2), ([TOP[4], None, None], 2),
+                ([TOP[0], 'Set High Profile [Intel]', CANCEL, None, None], 2)):
             with self.subTest(selections=selections):
                 result, _, request = self.exercise(selections)
                 self.assertEqual(result, 0)
-                request.assert_called_once_with('status')
+                self.assertEqual(request.call_args_list, [mock.call('status')] * status_reads)
+
+    def test_workflow_dismissal_propagates_without_reopening_parent(self):
+        client = client_functions()
+        with mock.patch.object(subprocess, 'run',
+                return_value=types.SimpleNamespace(returncode=3, stdout='')):
+            with self.assertRaises(SystemExit) as dismissed:
+                client['choose'](TOP, 'Hardware tuning> ')
+        self.assertEqual(dismissed.exception.code, 3)
 
     def test_reset_profiles_is_vendor_neutral_and_requires_no_handover(self):
         result, _, request = self.exercise([TOP[0], 'Reset Profiles [All]'])

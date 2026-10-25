@@ -50,7 +50,7 @@ class GeometryTests(unittest.TestCase):
                 mock.patch.object(menu, 'run_menu', return_value=0):
             self.assertEqual(menu.main([]), 0)
             self.assertEqual(os.environ['LABWC_FUZZEL_PALETTE'], 'computer-management')
-            self.assertEqual(os.environ['LABWC_MENU_BACKEND'], 'fuzzel')
+            self.assertNotIn('LABWC_MENU_BACKEND', os.environ)
 
     def test_real_wrapper_enforces_main_geometry_for_every_management_context(self):
         with tempfile.TemporaryDirectory() as temporary:

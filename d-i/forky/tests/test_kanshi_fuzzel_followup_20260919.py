@@ -456,9 +456,10 @@ sys.exit(int(os.environ['STATUS']))
         self.assertEqual(result.returncode,2)
 
     def test_cancel_and_config_failure_stay_distinct_and_cleanup_occurs(self):
-        for native,expected in ((2,1),(1,2),(127,127)):
+        for native,expected in ((2,3),(10,1),(1,3),(127,127)):
             result,_=self.pick(['Allowed'],native=native)
             self.assertEqual(result.returncode,expected)
+            self.assertEqual(result.stdout, b'')
             self.assertFalse(payload_source_exists(self.runtime/'labwc-fuzzel.pid'))
             self.assertFalse(list(self.runtime.glob('labwc-fuzzel-menu.*')))
 
@@ -466,16 +467,16 @@ sys.exit(int(os.environ['STATUS']))
 class ManagementRoutingTests(unittest.TestCase):
     def setUp(self):self.menu=load(BIN/'labwc-computer-management')
 
-    def test_graphical_default_and_explicit_terminal_preserve_scoped_wait_and_icons(self):
-        for argv,backend in (([],'fuzzel'),(['--graphical'],'fuzzel'),(['--terminal'],'fzf')):
+    def test_graphical_entries_preserve_scoped_wait_and_icons_without_a_terminal(self):
+        for argv in ([], ['--graphical']):
             with self.subTest(argv=argv), mock.patch.dict(os.environ,{},clear=True), \
                  mock.patch.object(self.menu.os,'geteuid',return_value=1000), mock.patch('builtins.open',mock.mock_open()) as opened, \
                  mock.patch.object(self.menu,'run_menu',return_value=0):
                 self.assertEqual(self.menu.main(argv),0)
-                self.assertEqual(os.environ['LABWC_MENU_BACKEND'],backend)
+                self.assertNotIn('LABWC_MENU_BACKEND', os.environ)
                 self.assertEqual(os.environ['LABWC_FUZZEL_MANAGED_ICONS'],'1')
                 self.assertEqual(os.environ['LABWC_MENU_ACTION_WAIT'],'1')
-                self.assertEqual(opened.call_count, int(backend=='fzf'))
+                opened.assert_not_called()
 
     def test_every_route_executes_the_fixed_existing_entrypoint_as_argv(self):
         for entries in self.menu.MENUS.values():
@@ -493,12 +494,12 @@ class ManagementRoutingTests(unittest.TestCase):
                     if exe.startswith('/usr/local/'):
                         self.assertTrue(payload_source_exists(TARGET/exe.lstrip('/')),exe)
 
-    def test_ai_reuses_tty_only_in_explicit_terminal_mode(self):
+    def test_ai_always_uses_its_dedicated_terminal_entrypoint(self):
         with mock.patch.dict(os.environ,{'LABWC_MENU_BACKEND':'fzf'}), \
              mock.patch.object(self.menu.subprocess,'run',return_value=types.SimpleNamespace(returncode=0)) as run, \
              mock.patch.object(self.menu.Path,'is_file',return_value=False):
             self.menu.run_action(('labwc-ai-copilots',))
-            self.assertEqual(run.call_args.args[0],('/usr/local/bin/labwc-ai-copilots','--terminal'))
+            self.assertEqual(run.call_args.args[0],('/usr/local/bin/labwc-ai-copilots',))
 
     def test_root_and_child_pick_requests_have_correct_back_policy(self):
         for prompt,expected in (('Computer Management','1'),('Computer Management / System & Recovery','0')):

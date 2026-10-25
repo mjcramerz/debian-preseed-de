@@ -2,20 +2,8 @@
 set -eu
 
 MENU_FAILURE_STATUS=2
-
-# Management child pickers reuse their existing data protocol in a controlling
-# terminal. Application search and ordinary graphical menus never opt in.
-if [ "${LABWC_MENU_BACKEND:-fuzzel}" = fzf ]; then
-  case "${1:-}" in
-    computer-management)
-      shift
-      exec /usr/local/bin/labwc-fzf-menu menu "$@"
-      ;;
-    menu|--dmenu|--dmenu0)
-      exec /usr/local/bin/labwc-fzf-menu "$@"
-      ;;
-  esac
-fi
+# Public picker results: 0 selection, 1 Back, 2 failure, 3 close workflow.
+MENU_DISMISSED_STATUS=3
 
 fatal() {
   fatal_message=$*
@@ -43,6 +31,9 @@ fi
 [ -x /usr/bin/flock ] || {
   fatal '/usr/bin/flock is required to serialize Fuzzel launchers'
 }
+for diagnostic_tool in /usr/bin/head /usr/bin/mkfifo; do
+  [ -x "$diagnostic_tool" ] || fatal "required Fuzzel diagnostic tool is unavailable: $diagnostic_tool"
+done
 
 config_root=${XDG_CONFIG_HOME:-${HOME}/.config}
 fuzzel_config_dir="${config_root}/fuzzel"
@@ -324,11 +315,11 @@ else
   [ "$lock_status" -eq 75 ] || fatal "unable to acquire the Fuzzel launcher lock (status $lock_status)"
   # A second hotkey/click while a picker is open is an ordinary duplicate.
   # Keep the owning picker and its PID untouched. Dmenu callers must receive
-  # cancellation, never a successful empty selection or a backend failure.
+  # dismissal, never a successful empty selection or a backend failure.
   if [ -x /usr/local/bin/labwc-fuzzel-log ]; then
     /usr/local/bin/labwc-fuzzel-log action already-open "source=$managed_log_scope" "mode=$mode" >/dev/null || true
   fi
-  if [ "$mode" = menu ]; then exit 1; fi
+  if [ "$mode" = menu ]; then exit "$MENU_DISMISSED_STATUS"; fi
   exit 0
 fi
 
@@ -338,6 +329,9 @@ raw_choices=
 display_choices=
 selection_file=
 first_selection=
+diagnostic_pipe=
+diagnostic_file=
+diagnostic_pid=
 
 cleanup() {
   if [ -n "$fuzzel_pid" ]; then
@@ -345,20 +339,38 @@ cleanup() {
     wait "$fuzzel_pid" 2>/dev/null || true
     fuzzel_pid=
   fi
+  if [ -n "$diagnostic_pid" ]; then
+    kill -TERM "$diagnostic_pid" >/dev/null 2>&1 || true
+    wait "$diagnostic_pid" 2>/dev/null || true
+    diagnostic_pid=
+  fi
   rm -f -- "$pid_path"
   if [ -n "$managed_dir" ]; then
-    rm -f -- "$raw_choices" "$display_choices" "$selection_file" "$first_selection"
+    rm -f -- "$raw_choices" "$display_choices" "$selection_file" "$first_selection" \
+      "$diagnostic_pipe" "$diagnostic_file"
     rmdir -- "$managed_dir" 2>/dev/null || true
   fi
 }
 trap cleanup EXIT
 trap 'exit 129' HUP
-trap 'exit 130' INT
+trap 'if [ "$mode" = menu ]; then exit "$MENU_DISMISSED_STATUS"; else exit 130; fi' INT
 trap 'exit 143' TERM
 
 run_fuzzel() {
   exec 7<&0
-  /usr/bin/fuzzel "$@" <&7 >&1 2>&2 7<&- 8>&- &
+  if [ "$mode" = menu ]; then
+    # A native custom binding prints the highlighted row even on Back.
+    # Publish bytes only after a successful selection, for every input mode.
+    # Native focus loss leaves dmenu status 1, also used for startup errors.
+    # Read bounded, uncolored diagnostics to preserve that distinction. The
+    # reader owns only this private FIFO and ends at EOF when dmenu exits.
+    /usr/bin/head -c 65537 "$diagnostic_pipe" >"$diagnostic_file" 7<&- 8>&- &
+    diagnostic_pid=$!
+    /usr/bin/fuzzel "$@" --log-level=warning --log-colorize=never \
+      <&7 >"$selection_file" 2>"$diagnostic_pipe" 7<&- 8>&- &
+  else
+    /usr/bin/fuzzel "$@" <&7 >&1 2>&2 7<&- 8>&- &
+  fi
   fuzzel_pid=$!
   exec 7<&-
   printf '%s\n' "$fuzzel_pid" >"$pid_path"
@@ -369,13 +381,31 @@ run_fuzzel() {
   fi
   fuzzel_pid=
   rm -f -- "$pid_path"
-  # Fuzzel uses 2 for dmenu cancellation and 1 for an error.
-  # Keep the picker API (0 selection, 1 cancel, 2 failure) stable;
-  # never conflate a configuration/Wayland error with a cancelled selection.
   if [ "$mode" = menu ]; then
+    diagnostic_failure=false
+    if wait "$diagnostic_pid"; then :; else diagnostic_failure=true; fi
+    diagnostic_pid=
+    cat -- "$diagnostic_file" >&2
+    if LC_ALL=C awk '
+      { bytes += length($0) + 1 }
+      bytes > 65536 { failed = 1 }
+      /^[[:space:]]*err:/ { failed = 1 }
+      NF && $0 !~ /^[[:space:]]*(warn|info|dbg):/ { failed = 1 }
+      END { exit failed ? 0 : 1 }
+    ' "$diagnostic_file"; then
+      diagnostic_failure=true
+    else
+      diagnostic_status=$?
+      [ "$diagnostic_status" -eq 1 ] || diagnostic_failure=true
+    fi
+    # Escape returns 2; focus loss returns a silent 1. Custom-1 returns 10.
+    # Errors and oversized/failed diagnostic reads remain a real failure.
+    if [ "$diagnostic_failure" = true ]; then
+      return "$MENU_FAILURE_STATUS"
+    fi
     case "$fuzzel_status" in
-      2) fuzzel_status=1 ;;
-      1) fuzzel_status=$MENU_FAILURE_STATUS ;;
+      1|2|130) fuzzel_status=$MENU_DISMISSED_STATUS ;;
+      10) fuzzel_status=1 ;;
     esac
   fi
   return "$fuzzel_status"
@@ -417,6 +447,19 @@ log_fuzzel_lifecycle() {
     >/dev/null || true
 }
 
+if [ "$mode" = menu ]; then
+  managed_dir=$(mktemp -d "${runtime_root%/}/labwc-fuzzel-menu.XXXXXX") || {
+    fatal 'unable to create managed Fuzzel runtime directory'
+  }
+  raw_choices="${managed_dir}/raw"
+  display_choices="${managed_dir}/display"
+  selection_file="${managed_dir}/selection"
+  first_selection="${managed_dir}/selection.first"
+  diagnostic_pipe="${managed_dir}/diagnostics.pipe"
+  diagnostic_file="${managed_dir}/diagnostics"
+  /usr/bin/mkfifo -m 0600 "$diagnostic_pipe" || fatal 'unable to create Fuzzel diagnostic channel'
+fi
+
 if [ "$mode" != menu ] ||
    [ "$managed_icons" != 1 ] ||
    [ "$nul_delimited" = true ]; then
@@ -431,17 +474,11 @@ if [ "$mode" != menu ] ||
     fuzzel_status=$?
   fi
   log_fuzzel_lifecycle "$lifecycle_kind" completed "$fuzzel_status"
+  if [ "$mode" = menu ] && [ "$fuzzel_status" -eq 0 ]; then
+    cat -- "$selection_file"
+  fi
   exit "$fuzzel_status"
 fi
-
-umask 077
-managed_dir=$(mktemp -d "${runtime_root%/}/labwc-fuzzel-menu.XXXXXX") || {
-  fatal 'unable to create managed Fuzzel runtime directory'
-}
-raw_choices="${managed_dir}/raw"
-display_choices="${managed_dir}/display"
-selection_file="${managed_dir}/selection"
-first_selection="${managed_dir}/selection.first"
 
 if ! LC_ALL=C awk '
   {
@@ -730,7 +767,7 @@ if [ "$managed_root_menu" != 1 ] &&
 fi
 
 log_fuzzel_lifecycle menu opened 0
-if run_fuzzel "$@" <"$display_choices" >"$selection_file"; then
+if run_fuzzel "$@" <"$display_choices"; then
   fuzzel_status=0
 else
   fuzzel_status=$?

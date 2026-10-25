@@ -1,0 +1,24 @@
+#!/usr/bin/python3 -IB
+"""Installation-only entrypoint for pinned GTK3/GTK4 and Qt theme data."""
+import os
+import sys
+sys.dont_write_bytecode = True
+sys.path.insert(0, '/usr/local/lib/python3.14/dist-packages')
+from labwc_appearance.theme_install import CleanupPending, OutcomeUnknown, main
+if __name__ == '__main__':
+    os.umask(0o077)
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except OutcomeUnknown as error:
+        print('labwc-appearance-themes: status=outcome-unknown ' + str(error), file=sys.stderr)
+        raise SystemExit(4)
+    except CleanupPending as error:
+        print('labwc-appearance-themes: status=committed-cleanup-pending ' + str(error), file=sys.stderr)
+        raise SystemExit(5)
+    except KeyboardInterrupt:
+        print('Theme installation cancelled; inspect retained staging before retrying.', file=sys.stderr)
+        raise SystemExit(130)
+    except (OSError, ValueError, RuntimeError, KeyError) as error:
+        message = ''.join(c if c.isprintable() else '?' for c in str(error))
+        print('labwc-appearance-themes: ' + message, file=sys.stderr)
+        raise SystemExit(1)

@@ -256,6 +256,27 @@ def add_home_directory_binds(
         command.extend([option, source_path, destination_path])
 
 
+def add_qt_theme_directory_binds(command: list[str], host_home: str, sandbox_home: str) -> None:
+    """Share only Qt appearance data with a payload using a different HOME.
+
+    qt6ct stores absolute palette paths. Keep that narrow directory available
+    at its original path as well as under the payload HOME. Mount directories
+    so atomic config/palette replacements remain visible after launch.
+    """
+    validate_absolute_path('theme source HOME', host_home)
+    validate_absolute_path('theme payload HOME', sandbox_home)
+    for relative in ('.config/qt6ct', '.config/Kvantum'):
+        source = resolve_optional_home_relative_directory(host_home, relative)
+        if source is None:
+            continue
+        destinations = [os.path.join(sandbox_home, relative)]
+        if relative == '.config/qt6ct' and host_home != sandbox_home:
+            destinations.append(source)
+        for destination in destinations:
+            add_dir_chain(command, os.path.dirname(destination))
+            command.extend(['--ro-bind', source, destination])
+
+
 def add_optional_home_file_binds(
     command: list[str],
     home_dir: str,

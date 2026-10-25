@@ -1,9 +1,10 @@
 #!/bin/sh
 set -eu
 
-# Picker cancellation is not a backend/configuration failure.
+# Back returns to the parent; dismissal unwinds every menu process.
 menu_failure() {
   [ "$1" -eq 1 ] && return 0
+  [ "$1" -eq 3 ] && exit 3
   printf 'fatal: menu picker failed (status %s)\n' "$1" >&2
   exit "$1"
 }
@@ -186,6 +187,7 @@ run_firewall_menu() (
     action_status=$?
   fi
 
+  [ "$action_status" -eq 3 ] && exit 3
   printf 'warning: firewall menu returned status %s\n' \
     "$action_status" >&2
   return 0
@@ -216,6 +218,7 @@ run_external_drive_manager() {
     action_status=$?
   fi
 
+  [ "$action_status" -eq 3 ] && exit 3
   printf 'warning: external drive manager returned status %s\n' \
     "$action_status" >&2
   return 0
@@ -246,7 +249,7 @@ run_confirmed_system_action() {
       "$confirmation_prompt" \
       'Cancel' \
       'Continue with authorized system action'
-  )
+  ) || exit "$?"
   [ "$confirmation" = 'Continue with authorized system action' ] ||
     return 0
   run_system_action "$system_action" "$@" confirmed-system-action
@@ -261,7 +264,7 @@ run_confirmed_recovery_action() {
       "$confirmation_prompt" \
       'Cancel' \
       'Continue with authorized recovery action'
-  )
+  ) || exit "$?"
   [ "$confirmation" = 'Continue with authorized recovery action' ] ||
     return 0
   run_recovery_action "$recovery_action" confirmed-recovery-action
@@ -288,7 +291,7 @@ choose_journal_vacuum_time() {
       '7 days' \
       '14 days' \
       '30 days'
-  )
+  ) || exit "$?"
   case "$retention" in
     '3 days') printf '%s\n' 3d ;;
     '7 days') printf '%s\n' 7d ;;
@@ -305,7 +308,7 @@ choose_journal_vacuum_size() {
       '512 MiB' \
       '1 GiB' \
       '2 GiB'
-  )
+  ) || exit "$?"
   case "$retention" in
     '256 MiB') printf '%s\n' 256M ;;
     '512 MiB') printf '%s\n' 512M ;;
@@ -392,7 +395,7 @@ security_auditing_menu() {
         'Check Firmware Security' \
         'Check CPU Mitigations' \
         '← Back'
-    )
+    ) || exit "$?"
 
     case "$action" in
       'Audit Security Posture (lynis)')
@@ -402,7 +405,7 @@ security_auditing_menu() {
         run_security_action analyze-services
         ;;
       'Inspect Specific Service')
-        service=$(choose_service)
+        service=$(choose_service) || exit "$?"
         [ -n "$service" ] && run_security_action inspect-service "$service"
         ;;
       'Check Firmware Security')
@@ -430,7 +433,7 @@ malware_scanning_menu() {
         'Scan Folder Recursively with ClamAV' \
         'Update ClamAV Signatures' \
         '← Back'
-    )
+    ) || exit "$?"
 
     case "$action" in
       'Run Rootkit Scan (rkhunter)')
@@ -443,12 +446,12 @@ malware_scanning_menu() {
         run_security_action show-clamav-signature-status
         ;;
       'Scan File with ClamAV')
-        scan_file=$(choose_security_file "ClamAV file path")
+        scan_file=$(choose_security_file "ClamAV file path") || exit "$?"
         [ -n "$scan_file" ] &&
           run_security_action scan-file-clamav "$scan_file"
         ;;
       'Scan Folder Recursively with ClamAV')
-        scan_folder=$(choose_security_folder "ClamAV folder path")
+        scan_folder=$(choose_security_folder "ClamAV folder path") || exit "$?"
         [ -n "$scan_folder" ] &&
           run_security_action scan-folder-clamav "$scan_folder"
         ;;
@@ -473,7 +476,7 @@ vulnerability_integrity_menu() {
         'Create Folder Tree SHA-256 Manifest' \
         'Verify File Against SHA-256' \
         '← Back'
-    )
+    ) || exit "$?"
 
     case "$action" in
       'Check Known Vulnerabilities')
@@ -483,23 +486,23 @@ vulnerability_integrity_menu() {
         run_security_action check-package-integrity
         ;;
       'Retrieve File Hashsums (SHA-256/SHA-512)')
-        hash_file=$(choose_security_file "File path for SHA-256 and SHA-512")
+        hash_file=$(choose_security_file "File path for SHA-256 and SHA-512") || exit "$?"
         [ -n "$hash_file" ] &&
           run_security_action retrieve-file-hashes "$hash_file"
         ;;
       'Create Folder Tree SHA-256 Manifest')
-        hash_folder=$(choose_security_folder "Folder path for SHA-256 manifest")
+        hash_folder=$(choose_security_folder "Folder path for SHA-256 manifest") || exit "$?"
         [ -n "$hash_folder" ] &&
           run_security_action create-folder-hash-manifest "$hash_folder"
         ;;
       'Verify File Against SHA-256')
-        verify_file=$(choose_security_file "File path to verify")
+        verify_file=$(choose_security_file "File path to verify") || exit "$?"
         if [ -n "$verify_file" ]; then
           expected_sha256=$(
             LABWC_MENU_INPUT_MODE=text choose_lines \
               "Expected SHA-256 (64 hexadecimal characters)" \
               'Paste or type the expected SHA-256 digest'
-          )
+          ) || exit "$?"
           [ -n "$expected_sha256" ] &&
             run_security_action verify-file-sha256 "$verify_file" "$expected_sha256"
         fi
@@ -538,7 +541,7 @@ choose_apparmor_application() {
       'Vivaldi' \
       'Zoom' \
       '← Back'
-  )
+  ) || exit "$?"
 
   case "$application" in
     'Bitwarden') printf '%s\n' bitwarden ;;
@@ -572,7 +575,7 @@ choose_apparmor_executable() {
       "Absolute executable path" \
       'Type or paste an absolute executable path' \
       '← Back'
-  )
+  ) || exit "$?"
 
   case "$executable" in
     ''|'Type or paste an absolute executable path'|'← Back')
@@ -598,7 +601,7 @@ run_confirmed_apparmor_profile_tool() {
       "$confirmation_prompt" \
       'Cancel' \
       'Continue with AppArmor profile tool'
-  )
+  ) || exit "$?"
   [ "$confirmation" = 'Continue with AppArmor profile tool' ] ||
     return 0
 
@@ -609,7 +612,7 @@ run_confirmed_apparmor_profile_tool() {
 }
 
 set_apparmor_application_mode() {
-  application_key=$(choose_apparmor_application)
+  application_key=$(choose_apparmor_application) || exit "$?"
   [ -n "$application_key" ] || return 0
 
   mode_label=$(
@@ -618,7 +621,7 @@ set_apparmor_application_mode() {
       'Enforce' \
       'Complain' \
       '← Back'
-  )
+  ) || exit "$?"
   case "$mode_label" in
     Enforce) mode=enforce ;;
     Complain) mode=complain ;;
@@ -630,7 +633,7 @@ set_apparmor_application_mode() {
       "Set ${application_key} application profiles to ${mode}; required launch profiles remain loaded" \
       'Cancel' \
       'Continue with AppArmor mode change'
-  )
+  ) || exit "$?"
   [ "$confirmation" = 'Continue with AppArmor mode change' ] || return 0
 
   run_security_action \
@@ -652,7 +655,7 @@ set_all_apparmor_desktop_profiles_mode() {
       "Set every managed application and wrapper AppArmor profile to ${requested_mode}" \
       'Cancel' \
       'Continue with all-profile AppArmor mode change'
-  )
+  ) || exit "$?"
   [ "$confirmation" = 'Continue with all-profile AppArmor mode change' ] ||
     return 0
 
@@ -676,7 +679,7 @@ set_apparmor_profile_state() {
   selected_profile=$(
     printf '%s\n' "$profile_candidates" |
       labwc-fuzzel menu --dmenu --prompt "Select AppArmor profile to ${profile_action}" || menu_failure "$?"
-  )
+  ) || exit "$?"
   [ -n "$selected_profile" ] || return 0
   case "$profile_action" in
     load) profile_warning="Load ${selected_profile} and its children; restart this app to restore confinement" ;;
@@ -686,13 +689,13 @@ set_apparmor_profile_state() {
     choose_lines "$profile_warning" \
       'Cancel' \
       'Continue with AppArmor profile change'
-  )
+  ) || exit "$?"
   [ "$confirmation" = 'Continue with AppArmor profile change' ] || return 0
   run_security_action set-apparmor-profile-state "$profile_action" "$selected_profile" confirmed-apparmor-profile-state-change
 }
 
 set_apparmor_application_audit() {
-  application_key=$(choose_apparmor_application)
+  application_key=$(choose_apparmor_application) || exit "$?"
   [ -n "$application_key" ] || return 0
 
   audit_label=$(
@@ -701,7 +704,7 @@ set_apparmor_application_audit() {
       'Enable Audit Mode' \
       'Disable Audit Mode' \
       '← Back'
-  )
+  ) || exit "$?"
   case "$audit_label" in
     'Enable Audit Mode') audit_mode=enable ;;
     'Disable Audit Mode') audit_mode=disable ;;
@@ -713,7 +716,7 @@ set_apparmor_application_audit() {
       "Set ${application_key} AppArmor audit mode to ${audit_mode}" \
       'Cancel' \
       'Continue with AppArmor audit change'
-  )
+  ) || exit "$?"
   [ "$confirmation" = 'Continue with AppArmor audit change' ] || return 0
 
   run_security_action \
@@ -729,7 +732,7 @@ generate_apparmor_rules() {
       "Generate validated local AppArmor rules from managed DENIED events" \
       'Cancel' \
       'Continue with AppArmor rule generation'
-  )
+  ) || exit "$?"
   [ "$confirmation" = 'Continue with AppArmor rule generation' ] ||
     return 0
 
@@ -750,7 +753,7 @@ apparmor_status_audit_menu() {
         'Complain Events (24h)' \
         'Denied Events (24h)' \
         '← Back'
-    )
+    ) || exit "$?"
 
     case "$action" in
       'AppArmor Status')
@@ -791,11 +794,11 @@ apparmor_profile_generation_menu() {
         'Validate Drafts' \
         'Activate Selected Draft' \
         '← Back'
-    )
+    ) || exit "$?"
 
     case "$action" in
       'Easyprof Draft')
-        apparmor_executable=$(choose_apparmor_executable)
+        apparmor_executable=$(choose_apparmor_executable) || exit "$?"
         [ -n "$apparmor_executable" ] &&
           run_confirmed_apparmor_profile_tool \
             aa-easyprof \
@@ -803,7 +806,7 @@ apparmor_profile_generation_menu() {
             "$apparmor_executable"
         ;;
       'Autodep Base Draft')
-        apparmor_executable=$(choose_apparmor_executable)
+        apparmor_executable=$(choose_apparmor_executable) || exit "$?"
         [ -n "$apparmor_executable" ] &&
           run_confirmed_apparmor_profile_tool \
             aa-autodep \
@@ -816,7 +819,7 @@ apparmor_profile_generation_menu() {
           "Generate draft updates from __INSTALLER_LOG_APPARMOR_FILE__"
         ;;
       'Genprof Interactive Draft')
-        apparmor_executable=$(choose_apparmor_executable)
+        apparmor_executable=$(choose_apparmor_executable) || exit "$?"
         [ -n "$apparmor_executable" ] &&
           run_confirmed_apparmor_profile_tool \
             aa-genprof \
@@ -830,7 +833,7 @@ apparmor_profile_generation_menu() {
         run_security_action apparmor-validate-drafts
         ;;
       'Activate Selected Draft')
-        selected_draft=$(choose_apparmor_draft)
+        selected_draft=$(choose_apparmor_draft) || exit "$?"
         [ -n "$selected_draft" ] || continue
         case "$selected_draft" in
           easyprof/*)
@@ -852,7 +855,7 @@ apparmor_profile_generation_menu() {
             "Validate and activate ${selected_draft}; existing profiles are backed up first" \
             'Cancel' \
             'Continue with AppArmor draft activation'
-        )
+        ) || exit "$?"
         [ "$confirmation" = 'Continue with AppArmor draft activation' ] &&
           run_security_action \
             apparmor-activate-draft \
@@ -882,7 +885,7 @@ apparmor_managed_modes_menu() {
         'Set App Audit Logging' \
         'Reload Modes & Clear Audit' \
         '← Back'
-    )
+    ) || exit "$?"
 
     case "$action" in
       'Show App Modes')
@@ -915,7 +918,7 @@ apparmor_managed_modes_menu() {
             "Reload modes and clear temporary audit flags" \
             'Cancel' \
             'Continue with AppArmor reload'
-        )
+        ) || exit "$?"
         [ "$confirmation" = 'Continue with AppArmor reload' ] &&
           run_security_action \
             reload-apparmor-modes \
@@ -937,7 +940,7 @@ apparmor_policy_maintenance_menu() {
         'Preview Unknown Cleanup' \
         'Reload AppArmor Service' \
         '← Back'
-    )
+    ) || exit "$?"
 
     case "$action" in
       'Disabled Profiles')
@@ -952,7 +955,7 @@ apparmor_policy_maintenance_menu() {
             "Reload every installed AppArmor profile" \
             'Cancel' \
             'Continue with AppArmor service reload'
-        )
+        ) || exit "$?"
         [ "$confirmation" = 'Continue with AppArmor service reload' ] &&
           run_security_action \
             reload-apparmor-service \
@@ -975,7 +978,7 @@ apparmor_management_menu() {
         '⮞ App Modes' \
         '⮞ Policy Tools' \
         '← Back'
-    )
+    ) || exit "$?"
 
     case "$action" in
       '⮞ Status & Events')
@@ -1008,7 +1011,7 @@ endpoint_security_menu() {
         '⮞ AppArmor' \
         '⮞ Firewall Security' \
         '← Back'
-    )
+    ) || exit "$?"
 
     case "$security_category" in
       '⮞ Security Auditing')
@@ -1061,7 +1064,7 @@ while :; do
           '⮞ Endpoint Security' \
           '⮞ System' \
           '⮞ Troubleshooting'
-      )
+      ) || exit "$?"
       ;;
   esac
 
@@ -1082,12 +1085,12 @@ while :; do
               'Audio & Desktop' \
               'Network & DNS' \
               '← Back'
-          )
+          ) || exit "$?"
           case "$system_group" in
             '← Back'|'') break ;;
           esac
         fi
-        action=$(choose_system_action "$system_group")
+        action=$(choose_system_action "$system_group") || exit "$?"
         case "$action" in
           '← Back'|'') system_group=''; continue ;;
         esac
@@ -1127,7 +1130,7 @@ while :; do
             run_system_action pending-upgrades
             ;;
           'Inspect Service and Logs')
-            service=$(choose_service)
+            service=$(choose_service) || exit "$?"
             [ -n "$service" ] && run_system_action inspect-service "$service"
             ;;
           'List Firmware-Capable Devices')
@@ -1153,22 +1156,22 @@ while :; do
               "Run unattended upgrades now"
             ;;
           'Show NVMe SMART Health')
-            nvme_device=$(choose_nvme_controller)
+            nvme_device=$(choose_nvme_controller) || exit "$?"
             [ -n "$nvme_device" ] &&
               run_system_action nvme-smart-health "$nvme_device"
             ;;
           'Show NVMe Firmware Slots')
-            nvme_device=$(choose_nvme_controller)
+            nvme_device=$(choose_nvme_controller) || exit "$?"
             [ -n "$nvme_device" ] &&
               run_system_action nvme-firmware-slots "$nvme_device"
             ;;
           'Show NVMe Identify Data')
-            nvme_device=$(choose_nvme_controller)
+            nvme_device=$(choose_nvme_controller) || exit "$?"
             [ -n "$nvme_device" ] &&
               run_system_action nvme-identify-data "$nvme_device"
             ;;
           'Show NVMe SMART via smartctl')
-            nvme_device=$(choose_nvme_controller)
+            nvme_device=$(choose_nvme_controller) || exit "$?"
             [ -n "$nvme_device" ] &&
               run_system_action nvme-smartctl "$nvme_device"
             ;;
@@ -1185,7 +1188,7 @@ while :; do
             run_system_action journal-disk-usage
             ;;
           'Rotate and Vacuum Journals by Time')
-            retention=$(choose_journal_vacuum_time)
+            retention=$(choose_journal_vacuum_time) || exit "$?"
             [ -n "$retention" ] &&
               run_confirmed_system_action \
                 journal-vacuum-time \
@@ -1193,7 +1196,7 @@ while :; do
                 "$retention"
             ;;
           'Rotate and Vacuum Journals by Size')
-            retention=$(choose_journal_vacuum_size)
+            retention=$(choose_journal_vacuum_size) || exit "$?"
             [ -n "$retention" ] &&
               run_confirmed_system_action \
                 journal-vacuum-size \
@@ -1262,12 +1265,12 @@ while :; do
               'Snapshots & Storage' \
               'Memory & Cleanup' \
               '← Back'
-          )
+          ) || exit "$?"
           case "$recovery_group" in
             '← Back'|'') break ;;
           esac
         fi
-        action=$(choose_recovery_action "$recovery_group")
+        action=$(choose_recovery_action "$recovery_group") || exit "$?"
         case "$action" in
           '← Back'|'') recovery_group=''; continue ;;
         esac

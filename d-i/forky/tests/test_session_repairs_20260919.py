@@ -47,13 +47,45 @@ class PickerIncidentTests(unittest.TestCase):
         fake.write_text('#!/bin/sh\ncat >/dev/null\nexit "$NATIVE_STATUS"\n')
         for args in (('menu', '--dmenu'), ('menu', '--dmenu0'), ('computer-management', '--dmenu')):
             for icons in ('0', '1'):
-                for native, expected in ((0, 0), (2, 1), (1, 2), (127, 127), (143, 143), (10, 10)):
+                for native, expected in ((0, 0), (2, 3), (1, 3), (127, 127), (143, 143), (10, 1), (130, 3)):
                     with self.subTest(args=args, icons=icons, native=native):
                         result, _ = self.invoke(*args, extra_environment={
                             'LABWC_FUZZEL_MANAGED_ICONS': icons, 'NATIVE_STATUS': str(native)})
                         self.assertEqual(result.returncode, expected, result.stderr.decode())
                         self.assertFalse(payload_source_exists(self.runtime / 'labwc-fuzzel.pid'))
                         self.assertFalse(list(self.runtime.glob('labwc-fuzzel-menu.*')))
+
+    def test_native_config_error_is_distinct_from_focus_loss_for_every_input_path(self):
+        fake = self.bin / 'fuzzel'
+        fake.write_text('#!/bin/sh\ncat >/dev/null\nprintf " err: fixture: invalid configuration\\n" >&2\nexit 1\n')
+        for args in (('menu', '--dmenu'), ('menu', '--dmenu0'), ('computer-management', '--dmenu')):
+            for icons in ('0', '1'):
+                with self.subTest(args=args, icons=icons):
+                    result, _ = self.invoke(*args, extra_environment={'LABWC_FUZZEL_MANAGED_ICONS': icons})
+                    self.assertEqual(result.returncode, 2)
+                    self.assertEqual(result.stdout, b'')
+                    self.assertIn(b'invalid configuration', result.stderr)
+                    self.assertFalse(list(self.runtime.glob('labwc-fuzzel-menu.*')))
+
+    def test_warning_before_focus_loss_is_dismissal_and_oversized_errors_fail(self):
+        fake = self.bin / 'fuzzel'
+        fake.write_text('#!/bin/sh\ncat >/dev/null\nprintf "warn: fixture: harmless warning\\n" >&2\nexit 1\n')
+        result, _ = self.invoke('menu', '--dmenu')
+        self.assertEqual(result.returncode, 3)
+        fake.write_text('#!/usr/bin/python3 -I\nimport sys\nsys.stdin.buffer.read()\nsys.stderr.write("x"*100000)\nsys.exit(1)\n')
+        result, _ = self.invoke('menu', '--dmenu')
+        self.assertEqual(result.returncode, 2)
+        self.assertLessEqual(len(result.stderr), 65537)
+        self.assertFalse(list(self.runtime.glob('labwc-fuzzel-menu.*')))
+
+    def test_multibyte_warning_limit_counts_bytes_in_a_utf8_session(self):
+        fake = self.bin / 'fuzzel'
+        fake.write_text('#!/usr/bin/python3 -I\nimport sys\nsys.stdin.buffer.read()\nsys.stderr.buffer.write(b"warn: " + b"\\xc3\\xa5"*40000)\nsys.exit(1)\n')
+        result, _ = self.invoke('menu', '--dmenu', extra_environment={'LC_ALL': 'C.UTF-8'})
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stdout, b'')
+        self.assertLessEqual(len(result.stderr), 65537)
+        self.assertFalse(list(self.runtime.glob('labwc-fuzzel-menu.*')))
 
     def test_launcher_status_is_not_reinterpreted_as_dmenu(self):
         (self.bin / 'fuzzel').write_text('#!/bin/sh\nexit 1\n')

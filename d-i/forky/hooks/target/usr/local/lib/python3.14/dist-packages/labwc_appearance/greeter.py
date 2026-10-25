@@ -62,7 +62,7 @@ def main(argv: list[str]) -> int:
             return 0
         defaults = load()
         colors = None if profile == 'reset' else palette(profile, mode)
-        updates = {name: css(config.read(name).decode(), defaults['greeter'][name], colors).encode()
+        updates = {name: css(config.read(name).decode(), defaults['greeter'][name], colors, glow=True).encode()
                    for name in GREETER_FILES}
         journal = transaction.plan(config, updates, token)
         journal['caller'] = uid

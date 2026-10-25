@@ -9,9 +9,10 @@ import subprocess
 import uuid
 from managed_workflows.fs import Tree
 from managed_workflows.process import checked
-from .catalog import COMPONENTS, DEFAULT_PROFILE, LABELS
+from .catalog import COMPONENTS, LABELS
 from .defaults import load
 from .native import identify, render, user_paths
+from .themes import VARIANTS as THEMES, variant as desktop_theme, require_installed
 from . import transaction, service
 
 STATE = '.local/state/labwc-appearance'
@@ -43,16 +44,27 @@ def privileged(action: str, token: str, profile: str = '', mode: str = '') -> No
 
 
 def initial(defaults: dict) -> dict:
-    return {'schema': 1, 'mode': defaults['mode'], 'modeDefault': True,
+    return {'schema': 2, 'mode': defaults['mode'], 'theme': None,
             'profiles': dict.fromkeys(COMPONENTS)}
 
 
 def validate_state(value):
-    if (not isinstance(value, dict) or value.get('schema') != 1 or value.get('mode') not in ('dark', 'light') or
-            type(value.get('modeDefault')) is not bool or not isinstance(value.get('profiles'), dict) or
+    if (not isinstance(value, dict) or value.get('schema') not in (1, 2) or value.get('mode') not in ('dark', 'light') or
+            not isinstance(value.get('profiles'), dict) or
             set(value['profiles']) != set(COMPONENTS) or
-            any(p is not None and p not in LABELS for p in value['profiles'].values())):
+            any(p is not None and (not isinstance(p, str) or p not in LABELS) for p in value['profiles'].values())):
         raise ValueError('invalid saved appearance selection')
+    if value['schema'] == 1:
+        if type(value.get('modeDefault')) is not bool:
+            raise ValueError('invalid saved legacy appearance selection')
+        value = {'schema': 2, 'mode': value['mode'], 'profiles': dict(value['profiles']),
+                 'theme': None if value['modeDefault'] else 'adwaita-' + value['mode']}
+    if 'theme' not in value:
+        raise ValueError('saved appearance selection has no desktop theme field')
+    theme = value.get('theme')
+    if theme is not None and (not isinstance(theme, str) or theme not in THEMES or
+                              value['mode'] != ('dark' if desktop_theme(theme).dark else 'light')):
+        raise ValueError('invalid saved desktop theme selection')
     return value
 
 
@@ -60,16 +72,11 @@ def selection(previous: dict, argv: list[str], defaults: dict) -> tuple[dict, se
     state = json.loads(json.dumps(validate_state(previous)))
     affected = set()
     greeter = False
-    if len(argv) == 2 and argv[0] == 'mode' and argv[1] in ('dark', 'light', 'reset'):
-        mode = argv[1]
-        state['mode'] = defaults['mode'] if mode == 'reset' else mode
-        state['modeDefault'] = mode == 'reset'
-        affected = {'mode', 'fuzzel', 'waybar', 'dock', 'terminal'}
-        # An explicit global mode also adjusts configured component profiles.
-        for name in COMPONENTS:
-            if state['profiles'][name] is None and mode != 'reset':
-                state['profiles'][name] = DEFAULT_PROFILE
-        greeter = True
+    if len(argv) == 2 and argv[0] == 'theme' and argv[1] in (*THEMES, 'reset'):
+        state['theme'] = None if argv[1] == 'reset' else argv[1]
+        state['mode'] = defaults['mode'] if state['theme'] is None else (
+            'dark' if desktop_theme(state['theme']).dark else 'light')
+        affected = {'theme'}
     elif len(argv) == 3 and argv[0] == 'apply' and argv[1] in COMPONENTS and argv[2] in LABELS:
         name = argv[1]
         state['profiles'][name] = argv[2]
@@ -77,12 +84,12 @@ def selection(previous: dict, argv: list[str], defaults: dict) -> tuple[dict, se
             greeter = True
         else:
             affected.add(name)
-    elif len(argv) == 2 and argv[0] == 'reset' and argv[1] in (*COMPONENTS, 'mode', 'all'):
-        if argv[1] == 'mode':
-            return selection(previous, ['mode', 'reset'], defaults)
+    elif len(argv) == 2 and argv[0] == 'reset' and argv[1] in (*COMPONENTS, 'theme', 'all'):
+        if argv[1] == 'theme':
+            return selection(previous, ['theme', 'reset'], defaults)
         if argv[1] == 'all':
             state = initial(defaults)
-            affected = {'mode', 'fuzzel', 'waybar', 'dock', 'terminal'}
+            affected = {'theme', 'fuzzel', 'waybar', 'dock', 'terminal'}
             greeter = True
         elif argv[1] == 'greeter':
             state['profiles']['greeter'] = None
@@ -91,7 +98,7 @@ def selection(previous: dict, argv: list[str], defaults: dict) -> tuple[dict, se
             state['profiles'][argv[1]] = None
             affected.add(argv[1])
     else:
-        raise ValueError('usage: labwc-desktop-appearance [mode dark|light|reset | apply COMPONENT PROFILE | reset COMPONENT|all]')
+        raise ValueError('usage: labwc-desktop-appearance [theme THEME_VARIANT|reset | apply COMPONENT PROFILE | reset COMPONENT|theme|all]')
     return state, affected, greeter
 
 
@@ -139,16 +146,18 @@ def apply_choice(argv: list[str]) -> list[str]:
             recover(home)
             previous = validate_state(home.json(CONFIG, initial(defaults)))
             current, affected, greeter = selection(previous, argv, defaults)
+            if 'theme' in affected and current['theme'] is not None:
+                require_installed(current['theme'])
             # Capture dock liveness in the journal *before* stopping it. Recovery
             # can restart it even after a power failure at the next invocation.
             dock_running = 'dock' in affected and service.active('crystal-dock.service')
             token = uuid.uuid4().hex
-            old_settings = settings() if 'mode' in affected else None
+            old_settings = settings() if 'theme' in affected else None
             new_settings = None
             if old_settings is not None:
-                new_settings = defaults['settings'] if current['modeDefault'] else {
+                new_settings = defaults['settings'] if current['theme'] is None else {
                     'color-scheme': "'prefer-" + current['mode'] + "'",
-                    'gtk-theme': "'Adwaita-dark'" if current['mode'] == 'dark' else "'Adwaita'"}
+                    'gtk-theme': "'" + desktop_theme(current['theme']).gtk + "'"}
             updates = {}
             for path, baseline in defaults['files'].items():
                 component, _ = identify(path)
@@ -156,7 +165,7 @@ def apply_choice(argv: list[str]) -> list[str]:
                     continue
                 raw = home.read(path, missing=True)
                 source = raw.decode('utf-8') if raw is not None else baseline or ''
-                profile = (None if current['modeDefault'] else DEFAULT_PROFILE) if component == 'mode' else current['profiles'][component]
+                profile = current['theme'] if component == 'theme' else current['profiles'][component]
                 value = render(path, source, baseline, profile, current['mode'], home.root)
                 updates[path] = None if value is None else value.encode('utf-8')
             updates[CONFIG] = (json.dumps(current, sort_keys=True, indent=2) + '\n').encode()
@@ -206,7 +215,7 @@ def apply_choice(argv: list[str]) -> list[str]:
                 # for idempotent finalization, never incorrectly rolled back.
                 raise
             warnings = service.refresh(affected)
-            if 'terminal' in affected or 'mode' in affected:
+            if 'terminal' in affected or 'theme' in affected:
                 warnings.append('Existing terminals and applications may need reopening; running shells were not terminated.')
             if greeter:
                 warnings.append('Greeter colors apply at the next login screen; the running session was not restarted.')

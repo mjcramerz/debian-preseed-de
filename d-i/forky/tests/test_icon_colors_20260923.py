@@ -342,60 +342,6 @@ class TomatMarkupTests(unittest.TestCase):
                 if error.value: glib.g_error_free(error)
 
 
-class FzfIconTests(unittest.TestCase):
-    def setUp(self):
-        self.mod = load('usr/local/bin/labwc-fzf-menu')
-
-    def test_default_inheritance_preserves_uncolored_choice_protocol(self):
-        displayed = self.mod.display_choices(['Back','Exit','custom input'], 'Choose')
-        offered, accepted, ansi = self.mod.color_choices(displayed, 'Choose')
-        self.assertFalse(ansi)
-        self.assertEqual(offered, list(displayed))
-        self.assertEqual(accepted, displayed)
-        self.assertNotIn('\x1b', ''.join(offered))
-
-    def test_every_management_icon_accepts_an_independent_color(self):
-        for name in VALUES:
-            if name.startswith('FZF_MANAGEMENT_') and name.endswith('_ICON_COLOR'):
-                with self.subTest(name=name):
-                    mod = load('usr/local/bin/labwc-fzf-menu', dict(VALUES, **{name:'#123abc'}))
-                    styles = list(mod.ICONS.values()) + [style for _,style in mod.TOPIC_ICONS] + [mod.icon_style_for('unclassified')]
-                    self.assertEqual(sum(color == '#123abc' for _,color in styles), 1)
-
-    def test_only_trusted_glyph_receives_generated_ansi_and_exact_selection_mapping(self):
-        glyph = self.mod.ICONS['Back'][0]
-        self.mod.ICONS['Back'] = (glyph, '#123abc')
-        displayed = self.mod.display_choices(['Back','unsafe\x1b[31m\u202e'], 'Choose')
-        offered, accepted, ansi = self.mod.color_choices(displayed, 'Choose')
-        self.assertTrue(ansi)
-        self.assertEqual(offered[0], '\x1b[38;2;18;58;188m'+glyph+'\x1b[39m  Back')
-        self.assertNotIn('\x1b', offered[1])
-        self.assertEqual(accepted[offered[0]], 'Back')
-        self.assertEqual(accepted[next(iter(displayed))], 'Back')
-        for output in (offered[0], next(iter(displayed))):
-            with mock.patch.object(self.mod.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0,stdout=output+'\n')) as run:
-                self.assertEqual(self.mod.select(['Back'], 'Choose'), (0,'Back'))
-                self.assertIn('--ansi', run.call_args.args[0])
-                self.assertNotIn('shell', run.call_args.kwargs)
-        with mock.patch.object(self.mod.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0,stdout='\x1b[31m'+next(iter(displayed))+'\n')):
-            self.assertEqual(self.mod.select(['Back'], 'Choose'), (1,None))
-
-    def test_invalid_icon_color_and_untrusted_fzf_options_cannot_create_actions(self):
-        self.mod.ICONS['Back'] = (self.mod.ICONS['Back'][0], '#123abc;execute(id)')
-        with self.assertRaises(ValueError): self.mod.select(['Back'], 'Choose')
-        with mock.patch.dict(os.environ, {'FZF_DEFAULT_OPTS':'--bind=enter:execute(id)', 'FZF_DEFAULT_COMMAND':'id'}):
-            self.assertFalse(any(key.startswith('FZF_') for key in self.mod.safe_environment()))
-
-    def test_real_fzf_filter_keeps_the_exact_raw_data_map(self):
-        executable = shutil.which('fzf')
-        if not executable: self.skipTest('native fzf unavailable')
-        self.mod.ICONS['Back'] = (self.mod.ICONS['Back'][0], '#123abc')
-        displayed = self.mod.display_choices(['Back','Exit'], 'Choose')
-        offered, accepted, _ = self.mod.color_choices(displayed, 'Choose')
-        result = subprocess.run(payload_installed_argv([executable,'--ansi','--no-sort','--filter=Back']), input='\n'.join(offered)+'\n',
-            text=True, capture_output=True, env=self.mod.safe_environment(), timeout=5)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(accepted[result.stdout.removesuffix('\n')], 'Back')
 
 
 if __name__ == '__main__':

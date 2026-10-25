@@ -138,28 +138,7 @@ class PickerFailureTests(unittest.TestCase):
             self.assertIsNone(menu.menu('Prompt', ['Allowed']))
             with self.assertRaises(ValueError): menu.entry('Prompt')
 
-    def test_invalid_fzf_mode_and_bidi_suggestions_fail_before_opening_tty(self):
-        menu = load('labwc-fzf-menu')
-        for mode, data in (('typo', b'Allowed\n'), ('text', 'name\u202eevil\n'.encode())):
-            with self.subTest(mode=mode), mock.patch.object(menu.os, 'geteuid', return_value=1000), \
-                    mock.patch.object(menu.sys, 'stdin', types.SimpleNamespace(buffer=io.BytesIO(data))), \
-                    mock.patch.dict(os.environ, {'LABWC_MENU_INPUT_MODE': mode}), \
-                    mock.patch('builtins.open') as opened, self.assertRaises(ValueError):
-                menu.main(['--dmenu'])
-            opened.assert_not_called()
 
-    def test_fzf_nul_protocol_preserves_newline_filename_as_data(self):
-        menu = load('labwc-fzf-menu')
-        value = 'file\nname'
-        with mock.patch.object(menu.os, 'geteuid', return_value=1000), \
-                mock.patch.object(menu.sys, 'stdin', types.SimpleNamespace(buffer=io.BytesIO((value+'\0').encode()))), \
-                mock.patch.object(menu.sys, 'stdout', new_callable=io.StringIO) as output, \
-                mock.patch.dict(os.environ, {'LABWC_MENU_INPUT_MODE': 'choice'}), \
-                mock.patch('builtins.open', mock.mock_open()), \
-                mock.patch.object(menu, 'select', return_value=(0, value)) as select:
-            self.assertEqual(menu.main(['--dmenu0']), 0)
-            self.assertEqual(select.call_args.args[0], [value])
-            self.assertEqual(output.getvalue(), value + '\0')
 
 
 class ActionContractTests(unittest.TestCase):

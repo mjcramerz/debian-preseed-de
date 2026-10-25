@@ -191,6 +191,8 @@ def run_fuzzel(prompt: str, choices: list[str], *, text_input: bool = False) -> 
         stdout=subprocess.PIPE,
         check=False,
     )
+    if completed.returncode == 3:
+        raise SystemExit(3)
     if completed.returncode == 1:
         return None
     if completed.returncode != 0:

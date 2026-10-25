@@ -147,7 +147,11 @@ desktop_render_gtk_settings() {
 }
 
 desktop_render_qt6ct_config() {
+  # Both tools use the same native INI and QPalette color-scheme formats.
+  # Keep one canonical template for identical fonts and desktop defaults.
   for target_path in \
+    /etc/skel-desktop/.config/qt5ct/qt5ct.conf \
+    /etc/xdg/qt5ct/qt5ct.conf \
     /etc/skel-desktop/.config/qt6ct/qt6ct.conf \
     /etc/xdg/qt6ct/qt6ct.conf
   do
@@ -158,7 +162,7 @@ desktop_render_qt6ct_config() {
       LABWC_QT_FONT_SIZE "${LABWC_QT_FONT_SIZE:-11}" \
       LABWC_QT_FIXED_FONT_SIZE "${LABWC_QT_FIXED_FONT_SIZE:-12}"
   done
-  desktop_log "rendered_qt6ct_config icon_theme=${LABWC_DESKTOP_QT_ICON_THEME} font_size=${LABWC_QT_FONT_SIZE:-11}"
+  desktop_log "rendered_qt5ct_qt6ct_config icon_theme=${LABWC_DESKTOP_QT_ICON_THEME} font_size=${LABWC_QT_FONT_SIZE:-11}"
 }
 
 desktop_render_fuzzel_configs() {

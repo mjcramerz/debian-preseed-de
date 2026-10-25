@@ -10,11 +10,13 @@ fields=filename,name,generic,keywords,comment,categories
 match-mode=fzf
 filter-desktop=yes
 layer=overlay
+keyboard-focus=on-demand
+exit-on-keyboard-focus-loss=yes
 
-# Cancellation unwinds the active picker through its caller's menu loop.
-# Keep the native cancellation keys and use Super only inside the focused UI.
+# Cancellation closes the complete menu workflow. Dmenu's Back binding is
+# defined in menu.ini so it cannot execute an application in launcher mode.
 [key-bindings]
-cancel=Control+g Control+c Control+bracketleft Escape Mod4+BackSpace
+cancel=Control+g Control+c Control+bracketleft Escape
 
 [colors]
 background=__THEME_FUZZEL_MENU_BACKGROUND_COLOR__

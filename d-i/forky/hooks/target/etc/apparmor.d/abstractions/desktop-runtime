@@ -69,6 +69,11 @@ deny /var/cache/fontconfig/** rwkl,
 /usr/share/fontconfig/conf.avail/** r,
 /usr/share/xkeyboard-config-*/ r,
 /usr/share/xkeyboard-config-*/** r,
+# Installed GTK providers and Kvantum SVG/config data are read-only toolkit
+# input. Bind whole configuration directories so atomic theme writes remain
+# visible to existing managed applications.
+/usr/share/{themes,Kvantum}/{,**} r,
+owner @{HOME}/.config/{gtk-3.0,gtk-4.0,qt5ct,qt6ct,Kvantum}/{,**} r,
 # Toolkit directory creation probes need metadata writes on the home itself.
 # Child files and directories still require their own application rules.
 owner @{HOME}/ rw,

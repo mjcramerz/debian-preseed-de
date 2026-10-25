@@ -1,9 +1,10 @@
 #!/bin/sh
 set -eu
 
-# Picker cancellation is not a backend/configuration failure.
+# Back returns to the parent; dismissal unwinds every menu process.
 menu_failure() {
   [ "$1" -eq 1 ] && return 0
+  [ "$1" -eq 3 ] && exit 3
   printf 'fatal: menu picker failed (status %s)\n' "$1" >&2
   exit "$1"
 }
@@ -751,7 +752,7 @@ power_off_drive() {
       "Safely power off ${poweroff_device}" \
       'Cancel' \
       'Sync, unmount volumes, and power off'
-  )
+  ) || exit "$?"
   [ "$confirmation" = 'Sync, unmount volumes, and power off' ] || return 0
 
   power_off_drive_confirmed "$poweroff_device" "$poweroff_devnum"
@@ -850,7 +851,7 @@ manage_volume() {
         'Unmount Volume' \
         'Safely Power Off Drive' \
         '← Back'
-    )
+    ) || exit "$?"
   elif mount_supported "$filesystem"; then
     action=$(
       choose_lines \
@@ -858,14 +859,14 @@ manage_volume() {
         'Mount Volume' \
         'Safely Power Off Drive' \
         '← Back'
-    )
+    ) || exit "$?"
   else
     action=$(
       choose_lines \
         "$device is not mountable" \
         'Safely Power Off Drive' \
         '← Back'
-    )
+    ) || exit "$?"
   fi
 
   case "$action" in
@@ -899,7 +900,7 @@ manage_drive() {
       "$disk_device actions" \
       'Safely Power Off Drive' \
       '← Back'
-  )
+  ) || exit "$?"
   [ "$action" = 'Safely Power Off Drive' ] &&
     power_off_drive "$disk_device" "$expected_disk_devnum" || true
 }
@@ -1265,7 +1266,7 @@ while :; do
       labwc-fuzzel menu \
         --dmenu \
         --prompt "External drives" || menu_failure "$?"
-  )
+  ) || exit "$?"
   [ -n "$selection" ] || exit 0
 
   identifier=${selection%% *}

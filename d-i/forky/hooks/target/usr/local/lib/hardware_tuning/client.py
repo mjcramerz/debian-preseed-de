@@ -175,6 +175,8 @@ def choose(entries: list[str], prompt: str) -> str | None:
         input="\n".join(entries) + "\n", text=True, encoding="utf-8", stdout=subprocess.PIPE, check=False,
         env={**os.environ, "LABWC_MENU_INPUT_MODE": "choice",
              "LABWC_FUZZEL_MANAGED_ICONS": "1", "LABWC_FUZZEL_ROOT_MENU": "0"})
+    if result.returncode == 3:
+        raise SystemExit(3)
     if result.returncode == 1:
         return None
     if result.returncode:
@@ -264,6 +266,13 @@ def confirm_owner(status: dict, boot: bool = False) -> bool:
 
 
 def menu() -> int:
+    while True:
+        result = menu_step()
+        if result is not None:
+            return result
+
+
+def menu_step() -> int | None:
     status = request("status")
     entries = ["Set Single Tuning Profile", "Generate Hardware Tuning Report", "Start Automatic Tuning", "Stop Automatic Tuning",
                "Enable Autostart Tuning at Boot", "Disable Autostart Tuning at Boot", "Reset Hardware Tuning"]
@@ -279,15 +288,17 @@ def menu() -> int:
             label = "Intel" if vendor == "intel" else "Nvidia"
             for profile in PROFILES:
                 choices[f"Set {profile.title()} Profile [{label}]"] = ("manual", vendor, profile)
-        chosen = choose(list(choices), "Single tuning profile> ")
-        if chosen is None:
-            return 0
-        action, vendor, profile = choices[chosen]
-        confirmed = False
-        if vendor == "intel" and not status.get("policy_owner", {}).get("claimed"):
-            if not confirm_owner(status):
-                return 0
-            confirmed = True
+        while True:
+            chosen = choose([*choices, "Back"], "Single tuning profile> ")
+            if chosen is None or chosen == "Back":
+                return None
+            action, vendor, profile = choices[chosen]
+            confirmed = False
+            if vendor == "intel" and not status.get("policy_owner", {}).get("claimed"):
+                if not confirm_owner(status):
+                    continue
+                confirmed = True
+            break
         result = request(action, vendor, profile, confirm_policy_owner=confirmed)
         selected = chosen
     elif selected == entries[1]:
@@ -301,7 +312,7 @@ def menu() -> int:
         confirmed = False
         if action in {"auto-start", "boot-enable"} and "intel" in status["vendors"]:
             if not confirm_owner(status, action == "boot-enable"):
-                return 0
+                return None
             confirmed = True
         result = request(action, confirm_policy_owner=confirmed)
     if result.get("faults"):
