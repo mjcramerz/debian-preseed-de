@@ -367,7 +367,8 @@ source_http_get() (
   set -eu;
   umask 077;
   url=$1; destination=$2; effective=${3:-}; redirect_scope=${4:-repository};
-  case "$redirect_scope" in repository|seed) ;; *) source_error 'invalid repository redirect scope'; exit 125 ;; esac;
+  initial_url=$url;
+  case "$redirect_scope" in repository|seed|external) ;; *) source_error 'invalid transport redirect scope'; exit 125 ;; esac;
   read_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_TIMEOUT:-45}") || {
     source_error 'INSTALLER_FETCH_TIMEOUT must be 1 through 900 integer seconds' || :; exit 125;
   };
@@ -375,6 +376,9 @@ source_http_get() (
     source_error 'INSTALLER_FETCH_WALL_TIMEOUT must be 1 through 900 integer seconds' || :; exit 125;
   };
   source_validate_url "$url" || exit 1;
+  if [ "$redirect_scope" = external ]; then
+    case "$url" in https://*) ;; *) source_error 'external downloads require HTTPS'; exit 1 ;; esac;
+  fi;
   command -v wget >/dev/null 2>&1 || { source_error 'wget is required in the installer'; exit 1; };
   # BusyBox wget follows redirects internally without a per-hop stop option.
   # Load the packaged installer tool before contacting repository content.
@@ -398,8 +402,10 @@ source_http_get() (
     status=$?; [ "$status" -eq 1 ] || exit "$status";
   fi;
   # Seed discovery follows the operator-selected shortener across authorities.
-  # Repository assets stay pinned to the resolved source authority. Each next
-  # URL is validated before contact in either scope; HTTPS cannot downgrade.
+  # Repository assets stay pinned to the resolved source authority. External
+  # GitHub release data may use its exact asset CDN hosts; other external
+  # downloads stay on their original authority. Validate each hop before
+  # contact in every scope; HTTPS cannot downgrade.
   # One deadline covers every retry and validated redirect hop. The
   # native file-size limit also bounds chunked responses and header logs.
   ulimit -f 524288 || { source_error 'cannot enforce repository transfer size limit'; exit 125; };
@@ -425,6 +431,19 @@ source_http_get() (
       authority=${resolved#*://}; authority=${authority%%/*};
       if [ "$redirect_scope" = repository ] && [ "$authority" != "$origin" ]; then
         source_error 'repository redirect leaves its approved authority'; exit 1;
+      fi;
+      if [ "$redirect_scope" = external ] && [ "$authority" != "$origin" ]; then
+        approved_external=false;
+        case "$initial_url" in
+          https://github.com/*/releases/download/*)
+            case "$authority" in
+              release-assets.githubusercontent.com|objects.githubusercontent.com|github-releases.githubusercontent.com) approved_external=true ;;
+            esac;
+            ;;
+        esac;
+        [ "$approved_external" = true ] || {
+          source_error 'external redirect leaves its approved authority'; exit 1;
+        };
       fi;
       [ "$resolved" != "$url" ] && [ "$hops" -lt 10 ] || { source_error 'repository redirect loop or limit'; exit 1; };
       url=$resolved; hops=$(expr "$hops" + 1); redirected=true; break ;;
@@ -692,7 +711,7 @@ source_fetch_external() (
   scratch=$(mktemp -d "${destination}.external.XXXXXX") || exit 1
   trap 'rm -rf "$scratch"' 0
   trap 'exit 130' INT; trap 'exit 143' TERM; trap 'exit 129' HUP
-  source_http_get "${base%/}/$rel" "$scratch/data" || exit 1
+  source_http_get "${base%/}/$rel" "$scratch/data" "" external || exit 1
   [ -s "$scratch/data" ] || { source_error 'empty external download'; exit 1; }
   chmod "$mode" "$scratch/data"
   mv -f "$scratch/data" "$destination"
