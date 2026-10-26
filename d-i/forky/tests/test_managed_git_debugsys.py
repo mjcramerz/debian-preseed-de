@@ -168,10 +168,11 @@ class RealGitTests(PatternTests):
     def test_non_mcr_branch_refused(self):
         self.g('switch','-q','upstream')
         with self.assertRaises(gitops.GitOpsError):self.sync()
-    def test_submodule_gitlink_refused(self):
+    def test_submodule_gitlink_sync_does_not_require_manual_review(self):
         self.g('update-index','--add','--cacheinfo',f'160000,{self.old},submodule')
         self.g('commit','-qm','gitlink')
-        with self.assertRaises(gitops.GitOpsError):self.sync()
+        self.sync()
+        self.assertEqual(self.g('ls-tree','HEAD','submodule').strip(), '')
     def test_mirror_detection_prefers_gitlab_mcr_namespace(self):
         self.g('update-ref','refs/remotes/origin/github/mcr/main',self.old)
         self.g('update-ref','refs/remotes/origin/gitlab/mcr/main',self.upstream)

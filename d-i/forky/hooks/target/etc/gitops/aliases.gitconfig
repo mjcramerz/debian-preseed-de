@@ -1,5 +1,7 @@
 # Managed aliases use the root-owned executable, not shell functions.
 [alias]
+	# Sync/init/push aliases are zero-argument self-healing workflows. The
+	# entrypoint fetches origin, applies policy and verifies publication.
 	mcr-branch-init = !/usr/local/bin/gitops mcr-branch-init
 	mcr-branch-create = !/usr/local/bin/gitops mcr-branch-create
 	mcr-branch-push = !/usr/local/bin/gitops mcr-branch-push

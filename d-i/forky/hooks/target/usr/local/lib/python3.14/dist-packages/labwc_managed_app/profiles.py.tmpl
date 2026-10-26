@@ -76,6 +76,7 @@ APPS = {
     "calix": {
         "exec": "/opt/calix/calix",
         "env": {"GDK_BACKEND": "wayland",
+                "TZ": "Europe/Stockholm",
                 # GTK 4.24 can report conflicting presentation feedback for
                 # one frame. Use its native Wayland frame-callback timing path
                 # for Calix only; retain rendering and diagnostic output.
@@ -88,6 +89,7 @@ APPS = {
     "agenda": {
         "exec": "/usr/local/bin/com.github.dahenson.agenda",
         "env": {"GDK_BACKEND": "wayland",
+                "TZ": "Europe/Stockholm",
                 # Agenda explicitly sets a GtkHeaderBar; GTK_CSD alone does
                 # not disable it. Keep the packaged interposer app-local.
                 "GTK_CSD": "0",
@@ -438,6 +440,10 @@ APPS = {
             "APPDIR": "/opt/tuta-mail",
             "ELECTRON_OZONE_PLATFORM_HINT": "wayland",
             "GTK_USE_PORTAL": "1",
+            # Tuta's Electron renderer otherwise uses a UTC/host fallback in
+            # the private sandbox. Pin the installed Swedish desktop profile
+            # explicitly so message/calendar timestamps match the session.
+            "TZ": "Europe/Stockholm",
         },
         "args": electron_args("tutanota", "launch"),
         "intel_env": {},
@@ -446,6 +452,7 @@ APPS = {
             "APPDIR": "/opt/tuta-mail",
             "ELECTRON_OZONE_PLATFORM_HINT": "wayland",
             "GTK_USE_PORTAL": "1",
+            "TZ": "Europe/Stockholm",
         },
         "nvidia_args": electron_args("tutanota", "nvidia"),
         "bind_workspace": False,

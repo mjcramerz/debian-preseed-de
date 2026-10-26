@@ -1,0 +1,134 @@
+#!/bin/sh
+set -eu
+
+PROG=${0##*/}
+YT_DLP=/usr/local/lib/yt-dlp/bin/yt-dlp
+DOWNLOAD_ROOT=${XDG_DOWNLOAD_DIR:-${HOME:-}/Downloads}
+
+fatal() { printf '%s: %s\n' "$PROG" "$*" >&2; exit 1; }
+require_command() { [ -x "$1" ] || fatal "managed command is unavailable: $1"; }
+pause() { printf '\nPress Enter to return to the YouTube Downloader menu...'; IFS= read -r _ || true; }
+[ -n "${HOME:-}" ] || fatal 'HOME is required'
+case "$HOME" in /*) ;; *) fatal 'HOME must be an absolute path' ;; esac
+case "$DOWNLOAD_ROOT" in
+  /*) ;;
+  *) fatal 'XDG_DOWNLOAD_DIR must be an absolute path' ;;
+esac
+case "$DOWNLOAD_ROOT" in
+  "$HOME"/*) ;;
+  *) fatal 'downloads must remain below the account home' ;;
+esac
+[ ! -L "$DOWNLOAD_ROOT" ] || fatal 'XDG_DOWNLOAD_DIR must not be a symlink'
+
+validate_url() {
+  url=$1
+  [ -n "$url" ] || fatal 'URL must not be empty'
+  case "$url" in
+    *[![:print:]]*) fatal 'URL contains control characters' ;;
+    https://www.youtube.com/*|https://youtube.com/*|https://m.youtube.com/*|\
+    https://music.youtube.com/*|https://youtu.be/*|https://www.youtu.be/*) ;;
+    *) fatal 'only HTTPS YouTube URLs are accepted' ;;
+  esac
+}
+
+choose() {
+  printf '%s\n' "$2" | /usr/bin/fzf --no-multi --no-sort --exact --layout=reverse \
+    --border --height=70% --prompt="$1 > " --header='Enter: select  Esc: back'
+}
+
+select_directory() {
+  /usr/bin/install -d -m 0700 -- "$DOWNLOAD_ROOT"
+  candidates=$(
+    printf '%s\n' "$DOWNLOAD_ROOT"
+    for directory in "${HOME:-}/Videos" "${HOME:-}/Music"; do
+      [ -d "$directory" ] && printf '%s\n' "$directory"
+    done
+  )
+  directory=$(printf '%s\n' "$candidates" | /usr/bin/fzf --no-multi --no-sort --exact \
+    --layout=reverse --border --height=50% --prompt='Download directory > ' \
+    --header='Enter: select  Esc: back') || return 1
+  [ -n "$directory" ] || return 1
+  [ -d "$directory" ] || fatal 'selected download directory disappeared'
+  [ ! -L "$directory" ] || fatal 'selected download directory must not be a symlink'
+  case "$directory" in
+    "${HOME:-}"/*) ;;
+    *) fatal 'download directory must remain below the account home' ;;
+  esac
+  printf '%s\n' "$directory"
+}
+
+download() {
+  mode=$1
+  url=$2
+  directory=$3
+  output_template="$directory/%(title).200B [%(id)s].%(ext)s"
+  case "$mode" in
+    video)
+      set -- "$YT_DLP" --no-playlist --format 'bestvideo*+bestaudio/best' \
+        --merge-output-format mkv --output "$output_template" "$url" ;;
+    audio)
+      set -- "$YT_DLP" --no-playlist --format 'bestaudio/best' --extract-audio \
+        --audio-format best --output "$output_template" "$url" ;;
+    playlist)
+      set -- "$YT_DLP" --yes-playlist --format 'bestvideo*+bestaudio/best' \
+        --merge-output-format mkv --output "$output_template" "$url" ;;
+    formats) set -- "$YT_DLP" --list-formats "$url" ;;
+    *) fatal 'unknown downloader mode' ;;
+  esac
+  printf 'Downloading with the managed highest-quality profile...\n'
+  "$@"
+}
+
+main_menu() {
+  require_command "$YT_DLP"
+  require_command /usr/bin/fzf
+  while :; do
+    action=$(choose 'YouTube Downloader' \
+      'Download video (highest quality)
+Download audio (source quality)
+Download playlist (highest quality)
+Inspect available formats
+Back') || return 0
+    [ -n "$action" ] || return 0
+    case "$action" in
+      Back) return 0 ;;
+      'Inspect available formats')
+        printf 'YouTube HTTPS URL: '
+        IFS= read -r url || return 0
+        validate_url "$url"
+        if download formats "$url" "$DOWNLOAD_ROOT"; then
+          :
+        else
+          status=$?
+          printf '%s: format inspection failed with status %s\n' "$PROG" "$status" >&2
+        fi
+        pause ;;
+      *)
+        printf 'YouTube HTTPS URL: '
+        IFS= read -r url || return 0
+        validate_url "$url"
+        directory=$(select_directory) || continue
+        case "$action" in
+          'Download video (highest quality)') mode=video ;;
+          'Download audio (source quality)') mode=audio ;;
+          'Download playlist (highest quality)') mode=playlist ;;
+          *) fatal 'unknown menu selection' ;;
+        esac
+        if download "$mode" "$url" "$directory"; then
+          :
+        else
+          status=$?
+          printf '%s: download failed with status %s\n' "$PROG" "$status" >&2
+        fi
+        pause ;;
+    esac
+  done
+}
+
+case "${1:-}" in
+  ''|--menu) [ "$#" -le 1 ] || fatal 'usage: youtube-dl [--menu]'; main_menu ;;
+  --help|-h)
+    printf '%s\n' 'Usage: youtube-dl [--menu]' \
+      'Open the managed FZF YouTube Downloader with pinned yt-dlp, Deno and ffmpeg.' ;;
+  *) fatal 'use the FZF menu; arbitrary yt-dlp arguments are not accepted' ;;
+esac

@@ -6,6 +6,7 @@ from pathlib import Path
 import pwd
 import re
 import time
+import urllib.parse
 import uuid
 
 from managed_workflows.fs import Tree
@@ -14,6 +15,7 @@ from .core import ARTIFACT, PACKAGE, descriptor_files, record_artifacts, verifie
 from .worker import validate_job
 
 OSC = '/usr/local/libexec/obs-publishing-bin/osc'
+OBS_PUBLISH = '/usr/local/libexec/obs-publishing-bin/obs-publish-source'
 APTLY = '/usr/local/libexec/aptly-publishing-bin/aptly-publish-local'
 
 
@@ -93,9 +95,24 @@ def publish_obs(files: list[Path], state: Tree, account: str) -> None:
     package = names[0]
     with Tree(Path('/pool/db') / account / 'osc', private=True) as tree:
         metadata = tree.json('managed.json')
+    if (not isinstance(metadata, dict) or set(metadata) != {
+            'apiURL', 'credentialsBackend', 'project', 'repository',
+            'schemaVersion', 'workspace'} or metadata.get('schemaVersion') != 1):
+        raise ValueError('OBS managed metadata does not match schema version 1')
+    api_url = metadata.get('apiURL')
+    parsed_api = urllib.parse.urlsplit(api_url) if isinstance(api_url, str) else None
+    if (parsed_api is None or parsed_api.scheme != 'https' or not parsed_api.hostname or
+            parsed_api.username is not None or parsed_api.password is not None or
+            parsed_api.query or parsed_api.fragment or parsed_api.path not in ('', '/')):
+        raise ValueError('OBS managed API URL must be one HTTPS origin')
+    backend = metadata.get('credentialsBackend')
+    if not isinstance(backend, str) or not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_.]*', backend):
+        raise ValueError('OBS managed credentials backend is invalid')
     project = metadata.get('project', '')
     workspace = Path('/pool/build') / account / 'osc'
     if (not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:+-]*', project) or
+            not isinstance(metadata.get('repository'), str) or
+            not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:+-]*', metadata['repository']) or
             metadata.get('workspace') != str(workspace)):
         raise ValueError('OBS project/workspace differs from installed account policy')
     # Use the already installed credential broker and its managed API endpoint.
@@ -126,8 +143,8 @@ def publish_obs(files: list[Path], state: Tree, account: str) -> None:
         print('OBS source is already current.')
         return
     # Never execute _service while holding credentials, even if checkout changed.
-    checked([OSC, 'commit', '--skip-local-service-run', '-m', 'gitbuild: publish ' + dsc.name,
-             str(checkout)], cwd=checkout, timeout=1800)
+    checked([OBS_PUBLISH, str(checkout), 'gitbuild: publish ' + dsc.name],
+            cwd=checkout, timeout=1800)
     state.put_json('last-obs.json', {'project': project, 'package': package,
                                    'descriptor': dsc.name, 'checkout': str(checkout)})
     print('Published source to ' + project + '/' + package + '; server-side builds are asynchronous.')
@@ -162,7 +179,11 @@ def main(argv: list[str]) -> int:
                 raise ValueError('invalid Aptly distribution')
             with Tree(Path('/pool/db') / account / 'aptly', private=True) as tree:
                 config = tree.json('aptly.conf')
-            if distribution not in config['managedLocalPublishing']['distributions'].split():
+            managed = config.get('managedLocalPublishing') if isinstance(config, dict) else None
+            distributions = managed.get('distributions') if isinstance(managed, dict) else None
+            if (not isinstance(managed, dict) or managed.get('schemaVersion') != 1 or
+                    not isinstance(distributions, str) or
+                    distribution not in distributions.split()):
                 raise ValueError('distribution is not in the installed Aptly policy')
             selected = [p for p in files if p.suffix in ('.deb', '.dsc')]
             if not selected:

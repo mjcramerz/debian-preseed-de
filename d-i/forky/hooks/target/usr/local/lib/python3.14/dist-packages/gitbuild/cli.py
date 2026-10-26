@@ -33,9 +33,9 @@ MENUS = {
     },
     'Sign and publish': {
         'Sign completed source / binary bundle': 'sign',
-        'Publish verified bundle to Aptly': 'aptly',
-        'Stage and publish source bundle to OBS': 'obs',
-        'Publish .deb to apt-local-repo': 'local-repo',
+        'Publish verified bundle to configured remote Aptly/R2': 'aptly',
+        'Publish source bundle to configured remote OBS': 'obs',
+        'Import .deb into signed local APT via apt-repo-init': 'local-repo',
     },
     'Status and artifacts': {'Show artifact paths': 'artifacts', 'Read job log': 'log',
                              'Check build prerequisites': 'doctor'},
@@ -257,20 +257,24 @@ def act(ctx: Context, action: str) -> None:
             elif action == 'aptly':
                 with Tree(Path('/pool/db') / ctx.account.pw_name / 'aptly', private=True) as tree:
                     config = tree.json('aptly.conf')
-                distributions = config['managedLocalPublishing']['distributions'].split()
-                if not distributions or any(not re.fullmatch(r'[a-z0-9][a-z0-9+.-]*', d) for d in distributions):
+                managed = config.get('managedLocalPublishing') if isinstance(config, dict) else None
+                raw_distributions = managed.get('distributions') if isinstance(managed, dict) else None
+                distributions = raw_distributions.split() if isinstance(raw_distributions, str) else []
+                if (not isinstance(managed, dict) or managed.get('schemaVersion') != 1 or
+                        not distributions or len(distributions) != len(set(distributions)) or
+                        any(not re.fullmatch(r'[a-z0-9][a-z0-9+.-]*', d) for d in distributions)):
                     raise ValueError('invalid managed Aptly distribution list')
                 distribution = choose(distributions, 'Aptly distribution')
                 if distribution is None:
                     return
                 extra = [distribution]
-            if confirm(f'{action.upper()}: act on verified bundle {job.name}? Publishing is not an installation. OBS uploads only the selected source bundle to an existing, plain (non-linked) package in the managed project.'):
+            if confirm(f'{action.upper()}: act on verified bundle {job.name}? Publishing is not an installation. OBS uploads only the selected source bundle to an existing, plain (non-linked) package in the managed project; Aptly publishes to the configured signed remote R2 endpoint.'):
                 supervised([PUBLISHER, action, str(job), *extra], cwd=ctx.repo, prefix='gitbuild-publish', timeout=3600)
         elif action == 'local-repo':
             files = [p for p in verified_artifacts(job) if p.suffix == '.deb']
             if not files:
                 raise ValueError('bundle contains no .deb packages')
-            if confirm('Import these .deb files into the signed local APT repository? Administrator authentication is required. This does not install the packages.\n' + '\n'.join(p.name for p in files)):
+            if confirm('Import these .deb files through apt-repo-init into the signed local APT repository? Administrator authentication is required. This does not install the packages.\n' + '\n'.join(p.name for p in files)):
                 for file in files:
                     checked(['/usr/bin/pkexec', '/usr/local/libexec/gitbuild-import-local', str(file)], timeout=3600)
         else:

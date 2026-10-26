@@ -736,7 +736,7 @@ profile labwc-computer-management /usr/local/bin/labwc-computer-management flags
   #include <abstractions/wrapper-python>
   /usr/local/bin/labwc-terminal rPx -> labwc-terminal,
   /usr/local/bin/labwc-computer-management rix,
-  /usr/bin/{cat,id} rix,
+  /usr/bin/{cat,id,stat} rix,
   /usr/bin/pavucontrol pux,
   /usr/bin/systemctl pux,
   /usr/local/bin/labwc-fuzzel-log rPx -> labwc-fuzzel-log,
@@ -4001,8 +4001,19 @@ profile xssh-retrieve /usr/local/bin/xssh-retrieve flags=(attach_disconnected) {
   #include <abstractions/wrapper-base>
 
   /usr/local/bin/xssh-retrieve rix,
-  /usr/bin/{cat,id} rix,
+  /usr/bin/{cat,id,stat} rix,
   /usr/bin/scp pux,
+  # xssh-send/retrieve validate ownership, mode and hard-link identity before
+  # opening any explicitly selected key; permit direct user-owned key names.
+  /data/ r,
+  /data/pki/ r,
+  /data/pki/ssh/ r,
+  /data/pki/ssh/.keys/ r,
+  owner /data/pki/ssh/.keys/* r,
+  owner @{HOME}/.ssh/* r,
+  owner @{HOME}/.local/share/ssh/private/* r,
+  owner @{HOME}/.ssh/{id_*,*.key,*.pem} r,
+  owner @{HOME}/.local/share/ssh/private/{id_*,*.key,*.pem} r,
 
   include if exists <local/usr.local.bin.xssh-retrieve>
 }
@@ -4012,7 +4023,16 @@ profile xssh-send /usr/local/bin/xssh-send flags=(attach_disconnected) {
 
   /usr/local/bin/xssh-send rix,
   /usr/bin/{cat,id} rix,
-  /usr/bin/{scp,test} pux,
+  /usr/bin/{scp,stat,test} pux,
+  /data/ r,
+  /data/pki/ r,
+  /data/pki/ssh/ r,
+  /data/pki/ssh/.keys/ r,
+  owner /data/pki/ssh/.keys/* r,
+  owner @{HOME}/.ssh/* r,
+  owner @{HOME}/.local/share/ssh/private/* r,
+  owner @{HOME}/.ssh/{id_*,*.key,*.pem} r,
+  owner @{HOME}/.local/share/ssh/private/{id_*,*.key,*.pem} r,
 
   include if exists <local/usr.local.bin.xssh-send>
 }
@@ -4346,6 +4366,7 @@ profile apt-repo-local /usr/local/{bin/apt-repo-init,libexec/apt-repo-local} fla
   /var/lib/software/.update-owner/ rw,
   /var/lib/software/.update-owner/update.lock rwk,
   /usr/bin/{curl,dpkg,dpkg-deb,gpg,gpg-agent,gpgv,gpgconf,unsquashfs} rix,
+  /usr/bin/{fzf,id,sudo} rix,
   # dpkg-deb invokes rm for extraction cleanup; it retains this confinement.
   /usr/bin/rm rix,
   /usr/bin/{gzip,xz,zstd,bzip2,lzma} rix,

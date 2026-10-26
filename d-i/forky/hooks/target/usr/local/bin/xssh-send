@@ -5,7 +5,7 @@ PROG=${0##*/}
 CR=$(printf '\r')
 
 die() { printf '%s: %s\n' "$PROG" "$*" >&2; exit 1; }
-usage() { printf 'usage: %s --dest-ip <ip-or-host> --port <ssh-port> [--user <remote-user>] <local-path> [remote-path]\n' "$PROG" >&2; }
+usage() { printf 'usage: %s -i <private-key> --dest-ip <ip-or-host> --port <ssh-port> [--user <remote-user>] <local-path> [remote-path]\n' "$PROG" >&2; }
 require_cmd() { command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"; }
 require_value() { [ "$#" -ge 2 ] && [ -n "$2" ] || die "$1 requires a value"; }
 validate_host() { case $1 in ''|*[!A-Za-z0-9:.%-]*) die 'host must contain only letters, digits, dots, dashes, percent signs, and colons';; esac; }
@@ -20,13 +20,32 @@ validate_remote_path() {
   case $remote_value in -*) die 'remote path must not start with -';; *"$CR"*|*"
 "*) die 'remote path contains control characters';; esac
 }
+validate_identity() {
+  identity=$1
+  [ -n "$identity" ] || die 'private-key identity must not be empty'
+  case $identity in
+    -*) die 'private-key identity must not start with -';;
+    *"$CR"*|*"
+"*) die 'private-key identity contains control characters';;
+  esac
+  [ -f "$identity" ] || die "private-key identity is not a regular file: $identity"
+  [ ! -L "$identity" ] || die 'private-key identity must not be a symlink'
+  identity_stat=$(/usr/bin/stat -Lc '%u %a %h' -- "$identity") || die 'unable to inspect private-key identity'
+  set -- $identity_stat
+  [ "$#" -eq 3 ] || die 'unable to inspect private-key identity'
+  [ "$1" = "$(/usr/bin/id -u)" ] || die 'private-key identity must be owned by the current user'
+  case $2 in *[!0-7]*|*[2367][0-7]|*[0-7][2367]) die 'private-key identity must not be group/world writable';; esac
+  [ "$3" = 1 ] || die 'private-key identity must not have hard links'
+}
 
 remote_user=${USER:-$(id -un)}
 remote_path=.
 dest_host=
 port=
+identity_file=
 while [ "$#" -gt 0 ]; do
   case $1 in
+    -i|--identity) require_value "$@"; identity_file=$2; shift 2;;
     --dest-ip) require_value "$@"; dest_host=$2; shift 2;;
     --port) require_value "$@"; port=$2; shift 2;;
     --user) require_value "$@"; remote_user=$2; shift 2;;
@@ -43,16 +62,18 @@ shift
 [ "$#" -eq 0 ] || remote_path=$1
 [ -n "$dest_host" ] || die '--dest-ip is required'
 [ -n "$port" ] || die '--port is required'
+/usr/bin/test -n "$identity_file" || die '-i <private-key> is required'
 /usr/bin/test -e "$local_path" || die "local path does not exist: $local_path"
 validate_host "$dest_host"
 validate_port "$port"
 validate_user "$remote_user"
 validate_remote_path "$remote_path"
+validate_identity "$identity_file"
 # A slash before any colon makes scp treat this operand as a local pathname.
 case $local_path in /*|./*|../*) ;; *) local_path=./$local_path;; esac
 scp_host=$dest_host
 case $scp_host in *:*) scp_host=[$scp_host];; esac
 require_cmd scp
 printf '%s: sending %s to %s@%s:%s\n' "$PROG" "$local_path" "$remote_user" "$dest_host" "$remote_path" >&2
-scp -r -P "$port" "$local_path" "${remote_user}@${scp_host}:${remote_path}"
+/usr/bin/scp -r -i "$identity_file" -P "$port" "$local_path" "${remote_user}@${scp_host}:${remote_path}"
 printf '%s: send completed: %s -> %s@%s:%s\n' "$PROG" "$local_path" "$remote_user" "$dest_host" "$remote_path" >&2

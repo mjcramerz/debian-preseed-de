@@ -334,6 +334,8 @@ require_absent /usr/local/libexec/installer-desktop-fonts
 # Managed Git and diagnostics assets: no credential decryption during verification.
 require_executable /usr/local/bin/gitops
 require_mode /usr/local/bin/gitops 755
+require_executable /usr/local/bin/labmgmt
+require_mode /usr/local/bin/labmgmt 755
 require_readable /usr/local/share/doc/git/README.md
 require_mode /usr/local/share/doc/git/README.md 644
 require_executable /usr/local/bin/git-ssh

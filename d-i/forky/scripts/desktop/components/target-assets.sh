@@ -702,6 +702,7 @@ test -x /usr/bin/update-mime-database
   desktop_stage_role_asset etc/skel-desktop/.zshenv /etc/skel-desktop/.zshenv 0644
   desktop_stage_role_asset etc/skel-desktop/.zprofile /etc/skel-desktop/.zprofile 0644
   desktop_stage_role_asset usr/local/bin/debugsys /usr/local/bin/debugsys 0755
+  desktop_stage_role_asset usr/local/bin/labmgmt /usr/local/bin/labmgmt 0755
   desktop_stage_role_asset usr/local/libexec/debugsys.py /usr/local/libexec/debugsys.py 0755
   desktop_stage_role_asset usr/local/libexec/debugsys-initramfs /usr/local/libexec/debugsys-initramfs 0755
   desktop_stage_role_asset usr/local/share/debugsys/initramfs/hook /usr/local/share/debugsys/initramfs/hook 0755

@@ -1,0 +1,98 @@
+#!/bin/sh
+set -eu
+
+PROG=${0##*/}
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || {
+    printf '%s: missing command: %s\n' "$PROG" "$1" >&2
+    exit 1
+  }
+}
+pause() {
+  printf '\nPress Enter to return to Lab Management...'
+  IFS= read -r _ || true
+}
+run_apt_menu() {
+  if [ "$(/usr/bin/id -u)" -eq 0 ]; then
+    /usr/local/bin/apt-repo-init
+  else
+    /usr/bin/sudo -- /usr/local/bin/apt-repo-init
+  fi
+}
+run_gitops_menu() {
+  while :; do
+    action=$(
+      printf '%s\n' \
+        'Branch initialize/self-heal' 'Create branch' 'Promote branches' \
+        'Fork initialize' 'Fork sync' 'Fork CI/CD promotion' 'Fork update' 'Fork push' \
+        'Salsa initialize' 'Salsa sync' 'Salsa CI/CD promotion' 'Salsa update' 'Salsa push' \
+        'Git status' 'Back' |
+        /usr/bin/fzf --no-multi --no-sort --exact --layout=reverse --border --height=80% \
+          --prompt='GitOps > ' --header='Enter: run  Esc: back'
+    ) || return 0
+    case "$action" in
+      'Branch initialize/self-heal') /usr/local/bin/gitops mcr-branch-init ;;
+      'Create branch')
+        printf 'Branch name (mcr/...): '
+        IFS= read -r name || return 0
+        /usr/local/bin/gitops mcr-branch-create "$name"
+        ;;
+      'Promote branches') /usr/local/bin/gitops mcr-branch-push ;;
+      'Fork initialize') /usr/local/bin/gitops mcr-fork-init ;;
+      'Fork sync') /usr/local/bin/gitops mcr-fork-sync ;;
+      'Fork CI/CD promotion') /usr/local/bin/gitops mcr-fork-cicd ;;
+      'Fork update') /usr/local/bin/gitops mcr-fork-update ;;
+      'Fork push') /usr/local/bin/gitops mcr-fork-push ;;
+      'Salsa initialize') /usr/local/bin/gitops mcr-salsa-init ;;
+      'Salsa sync') /usr/local/bin/gitops mcr-salsa-sync ;;
+      'Salsa CI/CD promotion') /usr/local/bin/gitops mcr-salsa-cicd ;;
+      'Salsa update') /usr/local/bin/gitops mcr-salsa-update ;;
+      'Salsa push') /usr/local/bin/gitops mcr-salsa-push ;;
+      'Git status') /usr/local/bin/gitops mcr-repo-status ;;
+      Back|'') return 0 ;;
+      *) printf '%s: unknown GitOps action\n' "$PROG" >&2; return 1 ;;
+    esac
+    pause
+  done
+}
+run_selected() {
+  case "$1" in
+    'Key Manager') /usr/local/bin/key-manager ;;
+    GitBuild) /usr/local/bin/gitbuild ;;
+    'Debug System') /usr/local/bin/debugsys ;;
+    'APT Repository') run_apt_menu ;;
+    GitOps) run_gitops_menu ;;
+    'AI & Copilots') /usr/local/bin/labwc-ai-copilots ;;
+    'YouTube Downloader') /usr/local/bin/youtube-dl ;;
+    'XSSH Retrieve') /usr/local/bin/xssh-retrieve --help ;;
+    'XSSH Send') /usr/local/bin/xssh-send --help ;;
+    *) return 0 ;;
+  esac
+}
+
+require_command /usr/bin/fzf
+[ -t 0 ] && [ -t 1 ] || {
+  printf '%s: an interactive terminal is required\n' "$PROG" >&2
+  exit 64
+}
+while :; do
+  selection=$(
+    printf '%s\n' \
+      'Key Manager' 'GitBuild' 'Debug System' 'APT Repository' 'GitOps' \
+      'AI & Copilots' 'YouTube Downloader' 'XSSH Retrieve' 'XSSH Send' 'Exit' |
+      /usr/bin/fzf --no-multi --no-sort --exact --layout=reverse --border --height=75% \
+        --prompt='Lab Management > ' --header='Enter: open  Esc: exit'
+  ) || exit 0
+  case "$selection" in
+    ''|Exit) exit 0 ;;
+    *)
+      if run_selected "$selection"; then
+        :
+      else
+        status=$?
+        printf '%s: %s exited with status %s\n' "$PROG" "$selection" "$status" >&2
+      fi
+      pause
+      ;;
+  esac
+done

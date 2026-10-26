@@ -325,53 +325,55 @@ Protected synchronization never runs `reset --hard`, force-pushes origin, or
 executes repository hooks. The separately opted-in mirror role described below
 can rewrite mirror refs, but only with explicit object-ID leases and recovery refs.
 Only `mcr/*` branches are writable sync targets. Dirty/staged/untracked changes,
-ignored-path collisions, sparse/skip-worktree/assume-unchanged state, active Git
-operations and submodules are refused for explicit manual review.
+ignored-path collisions, sparse/skip-worktree/assume-unchanged state and active
+Git operations are refused. When a protected sync records gitlinks, the managed
+workflow refreshes their worktrees after the commit.
 
-Preview is the default for sync/cicd/update/verify-protected-sync. It normally
-fetches/prunes `origin` remote-tracking refs, but changes neither HEAD, worktree
-nor ordinary index. Use `--no-fetch` to use already-fetched refs offline. The
-local GitOps lock prevents overlapping GitOps operations, not a concurrently
-running independent editor or arbitrary Git process; final state is rechecked.
+Fork and Salsa sync/cicd/update/push aliases apply their protected policy and
+verify the resulting refs automatically. `verify-protected-sync` remains a
+read-only diagnostic. Every managed synchronization, initialization, and push
+alias fetches and prunes `origin` itself; these aliases do not accept source,
+fetch, or apply arguments. The local
+GitOps lock prevents overlapping GitOps operations, not a concurrently running
+independent editor or arbitrary Git process; final state is rechecked.
 
 Automatic upstream detection prefers the GitLab mirror namespace, then GitHub:
 `origin/gitlab/mcr/main`, corresponding local mirror refs, `main`/`master`
 variants, then the GitHub variants; finally `upstream/main` or `upstream/master`.
-Pass an explicit source revision to avoid ambiguity in multi-mirror repositories.
+Managed aliases use this selection internally and never require a source argument.
 
 ```sh
-git mcr-branch-init          # add missing branches only; no switch or push
+git mcr-branch-init          # repair local/remote mcr/* branches and tracking
 git switch mcr/main
 gitops config
-git mcr-fork-sync origin/gitlab/mcr/main             # preview
-git mcr-fork-sync origin/gitlab/mcr/main --apply     # local protected sync
-# Salsa uses its own list:
-git mcr-salsa-sync origin/gitlab/mcr/main --no-fetch
-# Preview or apply mirror -> main -> staging -> release:
-git mcr-fork-cicd origin/gitlab/mcr/main
-git mcr-fork-cicd origin/gitlab/mcr/main --apply
+git mcr-fork-sync                                    # refresh origin/gitlab/mcr/main, sync protected mcr/main, push
+# Salsa uses its own protected list and fetches origin automatically:
+git mcr-salsa-sync
+# Apply the protected mirror -> main -> staging -> release chain:
+git mcr-fork-cicd
 ```
 
 ### Complete managed command families
 
 | Aliases | Behavior |
 | --- | --- |
-| `mcr-branch-init`, `mcr-fork-init`, `mcr-salsa-init` | Create missing main/staging/release/feature-initial branches from optional revision or HEAD; preserve existing refs |
-| `mcr-branch-create NAME` | Create/switch a validated `mcr/*` branch |
+| `mcr-branch-init`, `mcr-fork-init`, `mcr-salsa-init` | Fetch origin, repair local and remote main/staging/release/feature-initial branches, configure upstreams, and leave `mcr/main` checked out |
+| `mcr-branch-create NAME` | Fetch origin, create or reconcile a validated non-core `mcr/*` branch, configure tracking, publish it, and verify the remote |
 | `mcr-branch-delete NAME` | Delete a merged non-core local branch only |
 | `mcr-branch-show`, `mcr-repo-status` | Status, branches and remotes |
 | `mcr-repo-clone SSH-URL [DEST]` or `mcr-repo-clone <gh|glab> NAMESPACE REPO` | Clone an existing GitHub/GitLab repository through SSH |
 | `mcr-repo-mirror <gh|glab> NAMESPACE [--apply]` | Preview or configure a private, push-only promotion mirror on the other provider |
 | `mcr-repo-mirror <gh|glab> del [--apply]` | Preview or remove the local mirror remote; never delete a provider repository |
-| `mcr-repo-sync` | Non-force push of the current `mcr/*` branch to origin |
-| `mcr-branch-push` | Fast-forward promotion through main/staging/release, then atomic remote push |
+| `mcr-repo-sync` | Fetch origin, reconcile the current `mcr/*` branch, publish it without force, and verify the remote |
+| `mcr-branch-push` | Fetch origin, reconcile promotion branches, fast-forward through main/staging/release, then verify the atomic remote push |
 | `mcr-tag-create TAG`, `mcr-tag-push TAG` | Create annotated local tag, or explicitly push that tag |
 | `mcr-tag-delete TAG`, `mcr-tag-show` | Local tag deletion, or listing; no remote deletion |
-| `mcr-{fork,salsa}-sync [SOURCE]` | Preview/apply protected sync of the current `mcr/*` branch |
-| `mcr-{fork,salsa}-verify-protected-sync [SOURCE]` | Always preview; `--apply` does not turn verification into mutation |
-| `mcr-{fork,salsa}-cicd [SOURCE]` | Preview/apply protected mirror -> main -> staging -> release chain |
-| `mcr-{fork,salsa}-update [SOURCE]` | Same chain; on apply, also check an existing patch series on main |
-| `mcr-{fork,salsa}-push [SOURCE] --apply` | Apply chain/check existing patches, then atomic push of all three refs |
+| `mcr-fork-sync` | Fetch origin, refresh local `gitlab/mcr/main` from `origin/gitlab/mcr/main`, protected-sync it into `mcr/main`, and push the verified result to origin |
+| `mcr-salsa-sync` | Fetch origin and apply protected sync of the current `mcr/*` branch |
+| `mcr-{fork,salsa}-verify-protected-sync` | Always preview; it is the only sync alias that does not mutate |
+| `mcr-{fork,salsa}-cicd` | Fetch origin and apply the protected mirror -> main -> staging -> release chain |
+| `mcr-{fork,salsa}-update` | Fetch origin, apply the chain and check an existing patch series on main |
+| `mcr-{fork,salsa}-push` | Fetch origin, apply the chain/check existing patches, then atomically push all three refs |
 | `mcr-{fork,salsa}-check`, `mcr-{fork,salsa}-test` | Check patch series applicability in a disposable index; no compilation/tests of application binaries |
 
 The chain preserves each branch's protected files and restores the initial
@@ -397,7 +399,7 @@ below. These commands do not generate age keys or start build pipelines.
 
 ### Push-only GitHub / GitLab mirrors
 
-Prepare the three local promotion branches with `git mcr-branch-init`, then run
+Prepare the four managed local branches with `git mcr-branch-init`, then run
 as the desktop user with the provider CLI already authenticated:
 
 ```sh

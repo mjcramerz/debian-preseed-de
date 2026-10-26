@@ -7,6 +7,7 @@ markup, a process argument, a notification body or a journal message.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import fcntl
 import json
 import os
@@ -77,6 +78,7 @@ def environment() -> dict:
             or not re.fullmatch(r'wayland-[0-9]+', display)):
         raise Error('unsafe-account')
     return {'PATH': '/usr/bin:/bin', 'HOME': str(home), 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8',
+            'TZ': 'Europe/Stockholm',
             'XDG_RUNTIME_DIR': str(runtime), 'DBUS_SESSION_BUS_ADDRESS': f'unix:path={runtime}/bus',
             'XDG_CONFIG_HOME': str(home / '.config'), 'XDG_DATA_HOME': str(home / '.local/share'),
             'GDK_BACKEND': 'wayland', 'WAYLAND_DISPLAY': display, 'XDG_SESSION_TYPE': 'wayland',
@@ -278,26 +280,16 @@ def run(action: str, env: dict) -> int:
             raise Error('cancelled')
 
     def edit(kind, entry=None, values=None):
-        now = datetime.now().astimezone().replace(second=0, microsecond=0)
+        now = datetime.now(ZoneInfo('Europe/Stockholm')).replace(second=0, microsecond=0)
         defaults = {'summary': '', 'location': '', 'description': '', 'start': '', 'end': '', 'due': ''}
         if kind == 'VEVENT':
             defaults.update(start=now.isoformat(timespec='minutes'),
                             end=(now + timedelta(hours=1)).isoformat(timespec='minutes'))
         defaults.update(entry or {})
-        zone = 'UTC'
-        try:
-            zone = str(Path('/etc/localtime').resolve(strict=True).relative_to('/usr/share/zoneinfo'))
-        except (ValueError, OSError):
-            pass
-        try:
-            # Read only the installed target timezone; no service interaction.
-            with open('/etc/timezone', encoding='utf-8') as stream:
-                candidate = stream.read(129).strip()
-            if re.fullmatch(r'[A-Za-z0-9_+/-]{1,128}', candidate):
-                zone = candidate
-        except OSError:
-            pass
-        defaults['timezone'] = zone
+        # New items default to Swedish local time. Existing entries retain
+        # their stored timezone, and the field remains editable in the popup.
+        if not defaults.get('timezone'):
+            defaults['timezone'] = 'Europe/Stockholm'
         defaults.update(values or {})
         dialog = Gtk.Dialog(title=('Edit' if entry else 'Create') + (' event' if kind == 'VEVENT' else ' task'), modal=True)
         dialog.set_default_size(650, -1)

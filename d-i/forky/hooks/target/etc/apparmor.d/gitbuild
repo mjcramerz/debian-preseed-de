@@ -143,6 +143,7 @@ profile gitbuild-publish /usr/local/libexec/gitbuild-publish flags=(attach_disco
   owner /pool/build/*/osc/gitbuild/{,**} rwkl,
   /usr/local/libexec/aptly-publishing-bin/aptly-publish-local rPx -> devops-publishing,
   /usr/local/libexec/obs-publishing-bin/osc rPx -> devops-publishing,
+  /usr/local/libexec/obs-publishing-bin/obs-publish-source rPx -> devops-publishing,
   signal (send, receive) peer=devops-publishing,
   signal (receive) peer=gitbuild,
 }

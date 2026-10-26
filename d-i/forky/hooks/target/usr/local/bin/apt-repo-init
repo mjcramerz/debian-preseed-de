@@ -1,8 +1,12 @@
 #!/bin/sh
 set -eu
 usage() {
+    if [ "$#" -eq 0 ] && [ -t 0 ] && [ -t 1 ]; then
+        printf '%s\n' 'Use the interactive FZF menu below, or pass an explicit action.' >&2
+    fi
     cat <<'EOF'
-Usage: sudo apt-repo-init --init|--refresh|--list|--status|--rebuild
+Usage: sudo apt-repo-init [--menu]
+       sudo apt-repo-init --init|--refresh|--list|--status|--rebuild
        sudo apt-repo-init --add FILE.deb [--yes] [--remove-depends NAME,NAME]
               [--remove-vendor-apt] [--drop-maintainer-script SCRIPT] [--url HTTPS_URL]
        sudo apt-repo-init --delete [PACKAGE[:ARCH]]
@@ -16,7 +20,126 @@ Vendor APT removal refuses potentially recreating scripts unless explicitly revi
 --rebuild regenerates signed indexes; --reapply repackages. Neither installs packages.
 EOF
 }
-[ "$#" -gt 0 ] || { usage >&2; exit 64; }
+[ "$#" -gt 0 ] || set -- --menu
+if [ "$1" = '--menu' ]; then
+    [ "$#" -eq 1 ] || { usage >&2; exit 64; }
+    [ -t 0 ] && [ -t 1 ] || { usage >&2; exit 64; }
+    command -v /usr/bin/fzf >/dev/null 2>&1 || { printf '%s\n' 'fatal: fzf is unavailable' >&2; exit 1; }
+    if [ "$(/usr/bin/id -u)" -ne 0 ]; then
+        exec /usr/bin/sudo -- /usr/local/bin/apt-repo-init --menu
+    fi
+    valid_package() {
+        case "$1" in
+            ''|*[!A-Za-z0-9+.:~-]*) return 1 ;;
+            *) return 0 ;;
+        esac
+    }
+    read_package() {
+        printf 'Package[:arch]: '
+        IFS= read -r package || return 1
+        valid_package "$package" || {
+            printf '%s\n' 'fatal: invalid package identifier' >&2
+            return 1
+        }
+    }
+    read_absolute_file() {
+        printf 'Absolute file path: '
+        IFS= read -r file || return 1
+        case "$file" in
+            /*) [ -f "$file" ] || { printf '%s\n' 'fatal: file is unavailable' >&2; return 1; } ;;
+            *) printf '%s\n' 'fatal: use an absolute file path' >&2; return 1 ;;
+        esac
+    }
+    run_menu_action() {
+        case "$1" in
+            'Initialize repository') /usr/local/libexec/apt-repo-local init ;;
+            'Refresh vendor metadata') /usr/local/libexec/apt-repo-local refresh ;;
+            'Seed default policies') /usr/local/libexec/apt-repo-local seed-defaults ;;
+            'Adopt vendor packages') /usr/local/libexec/apt-repo-local adopt-vendors ;;
+            'Process inbox') /usr/local/libexec/apt-repo-local process-inbox ;;
+            'List packages') /usr/local/libexec/apt-repo-local list ;;
+            'Show repository status') /usr/local/libexec/apt-repo-local status ;;
+            'Rebuild signed indexes') /usr/local/libexec/apt-repo-local rebuild ;;
+            'Import a .deb')
+                read_absolute_file || return 1
+                case "$file" in
+                    *.deb) /usr/local/libexec/apt-repo-local add "$file" --yes ;;
+                    *) printf '%s\n' 'fatal: selected file is not a .deb' >&2; return 1 ;;
+                esac
+                ;;
+            'Delete package')
+                read_package || return 1
+                /usr/local/libexec/apt-repo-local delete "$package"
+                ;;
+            'Inspect a .deb')
+                read_absolute_file || return 1
+                case "$file" in
+                    *.deb) /usr/local/libexec/apt-repo-local inspect "$file" ;;
+                    *) printf '%s\n' 'fatal: selected file is not a .deb' >&2; return 1 ;;
+                esac
+                ;;
+            'Show package record')
+                read_package || return 1
+                /usr/local/libexec/apt-repo-local show "$package"
+                ;;
+            'Show package policy')
+                read_package || return 1
+                /usr/local/libexec/apt-repo-local policy "$package"
+                ;;
+            'Reapply package policy')
+                read_package || return 1
+                /usr/local/libexec/apt-repo-local reapply "$package"
+                ;;
+            'Set policy from JSON')
+                read_package || return 1
+                read_absolute_file || return 1
+                case "$file" in
+                    *.json) /usr/local/libexec/apt-repo-local set-policy "$package" "$file" ;;
+                    *) printf '%s\n' 'fatal: policy file must be JSON' >&2; return 1 ;;
+                esac
+                ;;
+            'Remove vendor APT')
+                read_package || return 1
+                /usr/local/libexec/apt-repo-local remove-vendor-apt "$package"
+                ;;
+            'Remove dependencies')
+                read_package || return 1
+                printf 'Comma-separated dependency names: '
+                IFS= read -r dependencies || return 1
+                case "$dependencies" in
+                    ''|*[!A-Za-z0-9+.:~,-]*) printf '%s\n' 'fatal: invalid dependency list' >&2; return 1 ;;
+                esac
+                /usr/local/libexec/apt-repo-local remove-depends "$package" "$dependencies"
+                ;;
+            *) return 0 ;;
+        esac
+    }
+    while :; do
+        action=$(
+            printf '%s\n' \
+                'Initialize repository' 'Refresh vendor metadata' 'Seed default policies' \
+                'Adopt vendor packages' 'Process inbox' 'List packages' 'Show repository status' \
+                'Rebuild signed indexes' 'Import a .deb' 'Delete package' 'Inspect a .deb' \
+                'Show package record' 'Show package policy' 'Reapply package policy' \
+                'Set policy from JSON' 'Remove vendor APT' 'Remove dependencies' 'Back' |
+                /usr/bin/fzf --no-multi --no-sort --exact --layout=reverse --border --height=75% \
+                    --prompt='APT Repository > ' --header='Enter: select  Esc: exit'
+        ) || exit 0
+        case "$action" in
+            Back|'') exit 0 ;;
+            *)
+                if run_menu_action "$action"; then
+                    :
+                else
+                    status=$?
+                    printf 'apt-repo-init: action failed with status %s\n' "$status" >&2
+                fi
+                ;;
+        esac
+        printf '\nPress Enter to return to the APT Repository menu...'
+        IFS= read -r _ || exit 0
+    done
+fi
 case "$1" in
     --help|-h) usage; exit 0 ;;
     --init|--refresh|--list|--status|--rebuild|--add|--delete|--show|--policy|--reapply|--inspect|--set-policy|--remove-vendor-apt|--remove-depends)

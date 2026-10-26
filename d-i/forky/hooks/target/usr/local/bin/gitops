@@ -28,6 +28,9 @@ from urllib.parse import quote
 sys.dont_write_bytecode = True
 KEYS = ('GITOPS_FORKS_MERGE_PROTECTED', 'GITOPS_SALSA_MERGE_PROTECTED')
 BRANCHES = ('mcr/main', 'mcr/staging', 'mcr/release')
+FEATURE_BRANCHES = ('mcr/feature/initial',)
+# Branch initialization, tracking repair and publication cover every entry.
+MANAGED_BRANCHES = BRANCHES + FEATURE_BRANCHES
 MAX_ENTRIES = 200000
 
 class GitOpsError(ValueError):
@@ -227,7 +230,7 @@ def source_ref(root: Path, specified: str | None) -> str:
     for name in (*mirrors, 'upstream/main', 'upstream/master'):
         if git('rev-parse', '--verify', '--end-of-options', name+'^{commit}', cwd=root, check=False):
             return name
-    raise GitOpsError('no mirror main found; supply the upstream revision explicitly')
+    raise GitOpsError('origin has no supported upstream mirror branch (gitlab/mcr/main, gitlab/main or gitlab/master)')
 
 def sync(root: Path, workflow: str, source: str | None, apply: bool,
          fetch: bool, config: Path, *, locked_common: Path | None = None) -> None:
@@ -238,17 +241,18 @@ def sync(root: Path, workflow: str, source: str | None, apply: bool,
             raise GitOpsError('sync only writes mcr/* branches; mirror branches are read-only')
         require_clean(root)
         if fetch:
-            git('fetch', '--prune', 'origin', cwd=root)
+            fetch_origin(root)
         source = source_ref(root, source)
         old, other = resolve('HEAD', root), resolve(source, root)
         report_commit(root, old, 'Protected destination before sync')
         report_commit(root, other, 'Source commit')
         local, upstream = tree(old, root), tree(other, root)
+        # The destination branch owns the protected paths. The source mirror
+        # can update only unprotected paths, including when source is the
+        # refreshed local gitlab/mcr/main branch.
         desired = desired_tree(local, upstream, patterns)
-        # Submodule worktrees have separate lifecycles. Refuse instead of leaving
-        # their checked-out contents inconsistent with the recorded gitlink.
-        if any(value[0] == '160000' for value in (*local.values(), *desired.values())):
-            raise GitOpsError('protected sync of submodules requires manual review')
+        has_submodules = any(value[0] == '160000' for value in (*local.values(), *desired.values()))
+        has_submodule_config = '.gitmodules' in local or '.gitmodules' in desired
         changes = sorted(name for name in local.keys() | desired.keys() if local.get(name) != desired.get(name))
         ignored = [os.fsdecode(x) for x in git('ls-files', '--others', '--ignored', '--exclude-standard', '-z', cwd=root).split(b'\0') if x]
         for name in ignored:
@@ -263,7 +267,7 @@ def sync(root: Path, workflow: str, source: str | None, apply: bool,
         if len(changes) > 100:
             print(f'  ... {len(changes)-100} further paths')
         if not apply:
-            print('Preview only. Repeat with --apply to create the protected-sync commit. No push is performed.')
+            print('Preview only; local branches, ordinary index and worktree are unchanged.')
             return
         if old == other:
             print('Already at source revision.'); return
@@ -290,15 +294,222 @@ def sync(root: Path, workflow: str, source: str | None, apply: bool,
         git('update-ref', backup, old, '0'*len(old), cwd=root)
         print(f'Recovery ref: {backup}')
         git('-c', 'merge.autoStash=false', 'merge', '--ff-only', '--no-edit', '--no-stat', commit, cwd=root)
+        if has_submodules and has_submodule_config:
+            # The protected-sync commit records gitlinks atomically; refresh
+            # their worktrees after publication so the checkout matches HEAD.
+            git('submodule', 'update', '--init', '--checkout', '--recursive', '--jobs=4', cwd=root)
         if tree('HEAD', root) != desired:
             raise GitOpsError('post-sync tree verification failed; recovery ref was retained')
         report_commit(root, 'HEAD', 'Protected sync result')
-        print('Protected sync committed. Review with git show; pushing is a separate action.')
+        print('Protected sync committed; destination tree verified.')
 
 def validate_branch(name: str, root: Path) -> None:
     if not name.startswith('mcr/') or name.startswith('-'):
         raise GitOpsError('writable branch names must start with mcr/')
     git('check-ref-format', '--branch', name, cwd=root)
+
+
+def configure_tracking(root: Path, branch: str) -> None:
+    """Record same-named origin tracking; path protection is unrelated."""
+    git('check-ref-format', 'refs/heads/' + branch, cwd=root)
+    git('config', '--local', '--replace-all', f'branch.{branch}.remote', 'origin', cwd=root)
+    git('config', '--local', '--replace-all', f'branch.{branch}.merge',
+        f'refs/heads/{branch}', cwd=root)
+
+
+def branch_oid(root: Path, branch: str, *, remote: bool = False) -> str | None:
+    ref = ('refs/remotes/origin/' if remote else 'refs/heads/') + branch
+    raw = git('rev-parse', '--verify', '--end-of-options', ref+'^{commit}',
+              cwd=root, check=False)
+    return raw.decode().strip() if raw else None
+
+
+def fetch_origin(root: Path) -> None:
+    """Repair a single-branch clone's mapping and fetch every origin branch."""
+    remote_url(root, 'origin')
+    git('config', '--local', '--replace-all', 'remote.origin.fetch',
+        '+refs/heads/*:refs/remotes/origin/*', cwd=root)
+    git('fetch', '--prune', '--no-recurse-submodules', 'origin', cwd=root)
+
+
+def require_available_branches(root: Path, branches: tuple[str, ...]) -> None:
+    """Never rewrite a branch checked out by another worktree."""
+    for record in git('worktree', 'list', '--porcelain', cwd=root).decode().split('\n\n'):
+        fields = record.splitlines()
+        checked = next((line.removeprefix('branch refs/heads/') for line in fields
+                        if line.startswith('branch refs/heads/')), None)
+        location = next((line.removeprefix('worktree ') for line in fields
+                         if line.startswith('worktree ')), None)
+        if checked in branches and location is not None and Path(location).resolve() != root.resolve():
+            raise GitOpsError(f'{checked} is in use by another worktree; no branch repair attempted')
+
+
+def retain_ref(root: Path, oid: str, label: str = 'backups') -> None:
+    ref = f'refs/gitops/{label}/' + uuid.uuid4().hex
+    git('update-ref', ref, oid, '0' * len(oid), cwd=root)
+    print(f'Recovery ref: {ref}')
+
+
+def refresh_local_mirror(root: Path, branch: str = 'gitlab/mcr/main') -> str:
+    """Copy origin's complete commit into a local mirror, with NO path policy."""
+    require_available_branches(root, (branch,))
+    remote_oid = branch_oid(root, branch, remote=True)
+    if remote_oid is None:
+        raise GitOpsError(f'origin has no refs/heads/{branch}; the required mirror cannot be fetched')
+    checked = git('symbolic-ref', '--quiet', '--short', 'HEAD', cwd=root, check=False).decode().strip()
+    if checked == branch:
+        git('switch', '--no-overwrite-ignore', 'mcr/main', cwd=root)
+    old = branch_oid(root, branch)
+    if old != remote_oid:
+        if old is not None:
+            retain_ref(root, old, 'mirror-backups')
+        git('update-ref', f'refs/heads/{branch}', remote_oid, old or '0' * len(remote_oid), cwd=root)
+    configure_tracking(root, branch)
+    if branch_oid(root, branch) != remote_oid:
+        raise GitOpsError(f'local {branch} changed during mirror refresh')
+    return remote_oid
+
+
+def ensure_managed_branches(root: Path, workflow: str, config: Path, common: Path) -> None:
+    """Create all four branches and reconcile each existing origin tip."""
+    load_patterns(config, workflow)  # Reject invalid policy before any branch mutation.
+    require_available_branches(root, MANAGED_BRANCHES)
+    base = branch_oid(root, 'mcr/main') or branch_oid(root, 'mcr/main', remote=True) or resolve('HEAD', root)
+    for branch in MANAGED_BRANCHES:
+        if branch_oid(root, branch) is None:
+            git('branch', '--', branch, branch_oid(root, branch, remote=True) or base, cwd=root)
+        configure_tracking(root, branch)
+    for branch in MANAGED_BRANCHES:
+        reconcile_origin_branch(root, branch, workflow, config, common)
+
+
+def reconcile_origin_branch(root: Path, branch: str, workflow: str,
+                            config: Path, common: Path) -> None:
+    """Keep local descendants; reconcile a new/divergent origin tip by policy."""
+    remote = branch_oid(root, branch, remote=True)
+    local = branch_oid(root, branch)
+    if local is None:
+        raise GitOpsError(f'missing local branch during origin reconciliation: {branch}')
+    if remote is not None and local != remote and not ancestor(root, remote, local):
+        git('switch', '--no-overwrite-ignore', branch, cwd=root)
+        sync(root, workflow, remote, True, False, config, locked_common=common)
+    configure_tracking(root, branch)
+
+
+def workflow_source(root: Path, workflow: str, *, refresh: bool) -> str:
+    if workflow == 'forks':
+        if refresh:
+            return refresh_local_mirror(root)
+        source = branch_oid(root, 'gitlab/mcr/main', remote=True)
+        if source is None:
+            raise GitOpsError('origin has no refs/heads/gitlab/mcr/main')
+        return source
+    source = source_ref(root, None)
+    if refresh and source in ('origin/gitlab/mcr/main', 'gitlab/mcr/main'):
+        return refresh_local_mirror(root)
+    return resolve(source, root)
+
+
+def publish_branches(root: Path, branches: tuple[str, ...]) -> None:
+    """Publish pinned OIDs without force and verify the actual push destination."""
+    desired = {f'refs/heads/{branch}': resolve(f'refs/heads/{branch}', root) for branch in branches}
+    destination = remote_url(root, 'origin')
+    git('-c', 'push.followTags=false', 'push', '--atomic', '--recurse-submodules=no',
+        '--', destination, *[f'{oid}:{ref}' for ref, oid in desired.items()], cwd=root)
+    actual = remote_refs(root, destination)
+    if any(actual.get(ref) != oid for ref, oid in desired.items()):
+        raise GitOpsError('origin publication differs from the pinned refs; inspect recovery refs before retrying')
+    for branch in branches:
+        ref = f'refs/heads/{branch}'
+        if resolve(ref, root) != desired[ref]:
+            raise GitOpsError('origin push succeeded but a local branch changed concurrently')
+        # Keep upstream state usable without a second network acquisition.
+        git('update-ref', f'refs/remotes/origin/{branch}', desired[ref], cwd=root)
+        configure_tracking(root, branch)
+    print('Origin publication verified for: ' + ', '.join(branches))
+
+
+def initialize_managed_branches(root: Path, workflow: str, config: Path,
+                                *, synchronize_mirror: bool = False) -> None:
+    """Repair local/remote branches and tracking; finish on mcr/main."""
+    with repository_lock(root) as common:
+        require_clean(root)
+        load_patterns(config, workflow)
+        fetch_origin(root)
+        ensure_managed_branches(root, workflow, config, common)
+        if synchronize_mirror:
+            source = workflow_source(root, workflow, refresh=True)
+            git('switch', '--no-overwrite-ignore', 'mcr/main', cwd=root)
+            sync(root, workflow, source, True, False, config, locked_common=common)
+        git('switch', '--no-overwrite-ignore', 'mcr/main', cwd=root)
+        require_clean(root)
+        publish_branches(root, MANAGED_BRANCHES)
+
+
+def synchronize_main(root: Path, workflow: str, config: Path) -> None:
+    """Zero-argument origin -> local mirror -> protected mcr/main sync."""
+    with repository_lock(root) as common:
+        require_clean(root)
+        load_patterns(config, workflow)
+        fetch_origin(root)
+        ensure_managed_branches(root, workflow, config, common)
+        source = workflow_source(root, workflow, refresh=True)
+        git('switch', '--no-overwrite-ignore', 'mcr/main', cwd=root)
+        sync(root, workflow, source, True, False, config, locked_common=common)
+        publish_branches(root, MANAGED_BRANCHES)
+        print('Synchronized local mcr/main; protected paths came only from mcr/main.')
+
+
+def create_managed_branch(root: Path, name: str, config: Path) -> None:
+    """Create or repair the named branch without requiring an earlier init."""
+    validate_branch(name, root)
+    with repository_lock(root) as common:
+        require_clean(root)
+        fetch_origin(root)
+        ensure_managed_branches(root, 'forks', config, common)
+        require_available_branches(root, (name,))
+        if branch_oid(root, name) is None:
+            base = branch_oid(root, name, remote=True) or resolve('refs/heads/mcr/main', root)
+            git('branch', '--', name, base, cwd=root)
+        reconcile_origin_branch(root, name, 'forks', config, common)
+        git('switch', '--no-overwrite-ignore', name, cwd=root)
+        publish_branches(root, tuple(dict.fromkeys((*MANAGED_BRANCHES, name))))
+
+
+def promote_managed_branches(root: Path, config: Path) -> None:
+    """Repair origin inputs and promote the current source by protected sync."""
+    with repository_lock(root) as common:
+        require_clean(root)
+        original = current_branch(root)
+        validate_branch(original, root)
+        fetch_origin(root)
+        ensure_managed_branches(root, 'forks', config, common)
+        reconcile_origin_branch(root, original, 'forks', config, common)
+        source = resolve('refs/heads/' + original, root)
+        try:
+            for branch in BRANCHES:
+                git('switch', '--no-overwrite-ignore', branch, cwd=root)
+                sync(root, 'forks', source, True, False, config, locked_common=common)
+                source = resolve('HEAD', root)
+            publish_branches(root, tuple(dict.fromkeys((*MANAGED_BRANCHES, original))))
+            push_configured_mirrors(root)
+        finally:
+            if current_branch(root) != original:
+                git('switch', '--no-overwrite-ignore', original, cwd=root)
+
+
+def push_current_branch(root: Path, config: Path) -> None:
+    with repository_lock(root) as common:
+        require_clean(root)
+        original = current_branch(root)
+        validate_branch(original, root)
+        fetch_origin(root)
+        ensure_managed_branches(root, 'forks', config, common)
+        reconcile_origin_branch(root, original, 'forks', config, common)
+        git('switch', '--no-overwrite-ignore', original, cwd=root)
+        publish_branches(root, tuple(dict.fromkeys((*MANAGED_BRANCHES, original))))
+        push_configured_mirrors(root)
+
 
 def patch_check(root: Path, *, locked_common: Path | None = None) -> None:
     directory = root/'debian/patches'
@@ -328,61 +539,53 @@ def patch_check(root: Path, *, locked_common: Path | None = None) -> None:
         print(f'{count} patches apply sequentially to HEAD in an isolated index; worktree unchanged.')
 
 def sync_chain(root: Path, workflow: str, source: str | None, apply: bool,
-               fetch: bool, config: Path, *, push: bool = False, patches: bool = False):
-    """Preview/perform mirror -> main -> staging -> release, preserving each target.
-
-    Local commits are deliberately not reset on a later failure: recovery refs
-    retain every old tip. Only the final explicit multi-ref push is atomic.
-    """
-    patterns=load_patterns(config,workflow)
+               fetch: bool, config: Path, *, push: bool = False, patches: bool = False) -> None:
+    """Origin repair, then mirror -> main -> staging -> release by policy."""
+    patterns = load_patterns(config, workflow)
     with repository_lock(root) as common:
-        original=current_branch(root)
-        if not original.startswith('mcr/'):
-            raise GitOpsError('enter an mcr/* working branch before promotion')
         require_clean(root)
-        tips={branch:resolve('refs/heads/'+branch,root) for branch in BRANCHES}
-        for record in git('worktree','list','--porcelain',cwd=root).decode().split('\n\n'):
-            fields=record.splitlines()
-            branches=[line.removeprefix('branch refs/heads/') for line in fields if line.startswith('branch refs/heads/')]
-            locations=[line.removeprefix('worktree ') for line in fields if line.startswith('worktree ')]
-            if branches and branches[0] in BRANCHES and locations and Path(locations[0]).resolve()!=root.resolve():
-                raise GitOpsError('a promotion branch is checked out in another worktree')
+        original = git('symbolic-ref', '--quiet', '--short', 'HEAD', cwd=root, check=False).decode().strip()
+        require_available_branches(root, MANAGED_BRANCHES)
         if fetch:
-            git('fetch','--prune','origin',cwd=root)
-        source=source_ref(root,source)
-        planned=tree(resolve(source,root),root)
-        previous=source
+            fetch_origin(root)
+        if apply:
+            ensure_managed_branches(root, workflow, config, common)
+        selected = resolve(source, root) if source else workflow_source(root, workflow, refresh=apply)
+        previous = selected
+        planned = tree(selected, root)
+        tips = {}
         for branch in BRANCHES:
-            before=tree(tips[branch],root)
-            after=desired_tree(before,planned,patterns)
-            if any(v[0]=='160000' for v in (*before.values(),*after.values())):
-                raise GitOpsError('submodule promotion requires manual review')
-            changes=sum(before.get(name)!=after.get(name) for name in before.keys()|after.keys())
+            tip = branch_oid(root, branch) or resolve('HEAD', root)
+            tips[branch] = tip
+            before = tree(tip, root)
+            after = desired_tree(before, planned, patterns)
+            changes = sum(before.get(name) != after.get(name) for name in before.keys() | after.keys())
             print(terminal_text(f'{workflow}: {previous} -> {branch}; {changes} planned changed paths'))
-            planned=after;previous=branch
+            planned, previous = after, branch
         if not apply:
-            print('Preview only. --apply creates local recovery-backed commits; push is explicit.')
+            print('Preview only; local branches, ordinary index and worktree are unchanged.')
             return
         try:
-            previous=source
+            previous = selected
             for branch in BRANCHES:
-                if resolve('refs/heads/'+branch,root)!=tips[branch]:
+                if branch_oid(root, branch) != tips[branch]:
                     raise GitOpsError('a promotion branch changed after preflight')
-                git('switch','--no-overwrite-ignore',branch,cwd=root)
-                sync(root,workflow,previous,True,False,config,locked_common=common)
-                if patches and branch=='mcr/main':
-                    queues=[root/'debian/patches/series',root/'patches/release/series']
+                git('switch', '--no-overwrite-ignore', branch, cwd=root)
+                sync(root, workflow, previous, True, False, config, locked_common=common)
+                if patches and branch == 'mcr/main':
+                    queues = [root/'debian/patches/series', root/'patches/release/series']
                     if any(path.exists() for path in queues):
-                        patch_check(root,locked_common=common)
+                        patch_check(root, locked_common=common)
                     else:
                         print('No patch series; no patch applicability check performed.')
-                previous=branch
+                previous = resolve('HEAD', root)
             if push:
-                git('push','--atomic','origin',*[f'refs/heads/{b}:refs/heads/{b}' for b in BRANCHES],cwd=root)
+                publish_branches(root, MANAGED_BRANCHES)
                 push_configured_mirrors(root)
         finally:
-            if current_branch(root)!=original:
-                git('switch','--no-overwrite-ignore',original,cwd=root)
+            destination = original if original.startswith('mcr/') else 'mcr/main'
+            if current_branch(root) != destination:
+                git('switch', '--no-overwrite-ignore', destination, cwd=root)
 
 
 # GitOps diagnostics and promotion-only mirrors. No shell-sourced configuration.
@@ -1171,8 +1374,7 @@ def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', nargs='?', default='status')
     parser.add_argument('arguments', nargs='*')
-    parser.add_argument('--apply', action='store_true', help='apply the previewed sync, mirror configuration or clear operation')
-    parser.add_argument('--no-fetch', action='store_true', help='use already-fetched refs (offline)')
+    parser.add_argument('--apply', action='store_true', help='confirm destructive mirror configuration or history clearing')
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument('--keep-tag', action='append', default=[], metavar='NAME', help='retain this tag during clear; repeat for multiple tags')
     selection.add_argument('--keep-none', action='store_true', help='explicitly retain no tags during clear')
@@ -1213,31 +1415,41 @@ def _main(argv: list[str] | None = None) -> int:
             return 0
         aliases = {
             'mcr-branch-show':'status', 'mcr-repo-status':'status', 'mcr-tag-show':'tags',
-            'mcr-branch-init':'branch-init', 'mcr-fork-init':'branch-init', 'mcr-salsa-init':'branch-init',
+            'mcr-branch-init':'branch-init', 'mcr-fork-init':'fork-init', 'mcr-salsa-init':'salsa-init',
             'mcr-branch-create':'branch-create', 'mcr-branch-delete':'branch-delete',
             'mcr-branch-push':'promote', 'mcr-tag-create':'tag', 'mcr-tag-push':'tag-push',
             'mcr-tag-delete':'tag-delete', 'mcr-repo-sync':'push',
             'mcr-branch-clear':'branch-clear', 'mcr-tag-clear':'tag-clear',
         }
+        automatic_commands = {
+            'mcr-fork-sync', 'mcr-fork-cicd', 'mcr-fork-check',
+            'mcr-fork-update', 'mcr-fork-verify-protected-sync', 'mcr-fork-test',
+            'mcr-fork-push', 'mcr-salsa-sync', 'mcr-salsa-cicd', 'mcr-salsa-check',
+            'mcr-salsa-update', 'mcr-salsa-verify-protected-sync', 'mcr-salsa-test',
+            'mcr-salsa-push', 'mcr-branch-init', 'mcr-fork-init', 'mcr-salsa-init',
+            'mcr-branch-push', 'mcr-repo-sync',
+        }
+        if command in automatic_commands and (args.arguments or args.apply or args.keep_tag or args.keep_none):
+            raise GitOpsError(f'{command} takes no arguments; origin fetch and application are automatic')
         match = re.fullmatch(r'mcr-(fork|salsa)-(sync|cicd|update|verify-protected-sync|push|check|test)', command)
         if command == 'sync' or match:
             workflow = 'salsa' if match and match[1] == 'salsa' else 'forks'
             if match and match[2] in ('check', 'test'):
                 patch_check(root); return 0
-            if len(args.arguments) > 1:
-                raise GitOpsError('sync accepts one optional source revision')
-            if match and match[2] in ('cicd','update','push'):
-                if match[2]=='push' and not args.apply:
-                    raise GitOpsError('sync-and-push requires --apply; preview with the cicd alias first')
-                sync_chain(root,workflow,args.arguments[0] if args.arguments else None,args.apply,
-                           not args.no_fetch,config,push=match[2]=='push',patches=match[2] in ('update','push'))
+            if command == 'sync' or (match and match[2] == 'sync'):
+                if args.arguments or args.apply:
+                    raise GitOpsError('sync takes no arguments; fetch and application are automatic')
+                synchronize_main(root, workflow, config)
                 return 0
-            apply = args.apply and not (match and match[2] == 'verify-protected-sync')
-            sync(root, workflow, args.arguments[0] if args.arguments else None, apply, not args.no_fetch, config)
+            if match and match[2] in ('cicd','update','push'):
+                sync_chain(root, workflow, None, True, True, config,
+                           push=match[2] == 'push', patches=match[2] in ('update', 'push'))
+                return 0
+            sync_chain(root, workflow, None, False, True, config)
             return 0
         command = aliases.get(command, command)
         if command in ('branch-clear', 'tag-clear'):
-            if args.arguments or args.no_fetch:
+            if args.arguments:
                 raise GitOpsError('clear accepts --apply and tag selection flags; it always verifies its remote destinations')
             clear_repository(root, command, args.apply, args.keep_tag, args.keep_none)
             return 0
@@ -1249,41 +1461,38 @@ def _main(argv: list[str] | None = None) -> int:
             print(terminal_text(git('remote', '-v', cwd=root).decode()), end=''); return 0
         if command == 'tags':
             print(terminal_text(git('for-each-ref', '--format=%(refname) %(objectname) %(*objectname)', 'refs/tags/', cwd=root).decode()), end=''); return 0
+        if command in ('branch-init', 'fork-init', 'salsa-init'):
+            if args.arguments or args.apply:
+                raise GitOpsError('init takes no arguments; branch repair and publication are automatic')
+            initialize_managed_branches(
+                root,
+                'salsa' if command == 'salsa-init' else 'forks',
+                config,
+                synchronize_mirror=command != 'branch-init',
+            )
+            return 0
+        if command == 'branch-create':
+            if args.apply or len(args.arguments) != 1:
+                raise GitOpsError('mcr-branch-create requires exactly one branch name and fetches/publishes automatically')
+            create_managed_branch(root, args.arguments[0], config)
+            return 0
+        if command == 'promote':
+            if args.apply or args.arguments:
+                raise GitOpsError('mcr-branch-push takes no arguments; fetch, reconcile and publication are automatic')
+            promote_managed_branches(root, config)
+            return 0
+        if command == 'push':
+            if args.apply or args.arguments:
+                raise GitOpsError('mcr-repo-sync takes no arguments; fetch, reconcile and publication are automatic')
+            push_current_branch(root, config)
+            return 0
         with repository_lock(root):
             require_clean(root)
-            if command == 'branch-init' and len(args.arguments) <= 1:
-                source = resolve(args.arguments[0] if args.arguments else 'HEAD', root)
-                for branch in (*BRANCHES, 'mcr/feature/initial'):
-                    if not git('show-ref', '--verify', f'refs/heads/{branch}', cwd=root, check=False):
-                        git('branch', '--', branch, source, cwd=root)
-                print('Existing branches were preserved; missing mcr/* branches created. No push performed.')
-            elif command == 'branch-create' and len(args.arguments) == 1:
-                validate_branch(args.arguments[0], root)
-                git('switch', '-c', args.arguments[0], cwd=root)
-            elif command == 'branch-delete' and len(args.arguments) == 1:
+            if command == 'branch-delete' and len(args.arguments) == 1:
                 name = args.arguments[0]; validate_branch(name, root)
-                if name in BRANCHES:
-                    raise GitOpsError('main/staging/release branches cannot be deleted')
+                if name in MANAGED_BRANCHES:
+                    raise GitOpsError('managed mcr branches cannot be deleted')
                 git('branch', '-d', '--', name, cwd=root)
-            elif command == 'promote' and not args.arguments:
-                original = current_branch(root)
-                if not original.startswith('mcr/'):
-                    raise GitOpsError('promotion source must be an mcr/* branch')
-                source = original
-                try:
-                    for branch in BRANCHES:
-                        git('switch', '--no-overwrite-ignore', branch, cwd=root)
-                        git('merge', '--ff-only', '--no-edit', source, cwd=root)
-                        source = branch
-                    git('push', '--atomic', 'origin', *[f'refs/heads/{x}:refs/heads/{x}' for x in BRANCHES], cwd=root)
-                    push_configured_mirrors(root)
-                finally:
-                    git('switch', '--no-overwrite-ignore', original, cwd=root)
-            elif command == 'push' and not args.arguments:
-                branch = current_branch(root)
-                validate_branch(branch, root)
-                git('push', '--atomic', 'origin', f'refs/heads/{branch}:refs/heads/{branch}', cwd=root)
-                push_configured_mirrors(root)
             elif command in ('tag', 'tag-push', 'tag-delete') and len(args.arguments) == 1:
                 tag = args.arguments[0]
                 if tag.startswith('-'):

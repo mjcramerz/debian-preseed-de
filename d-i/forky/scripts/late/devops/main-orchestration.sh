@@ -307,6 +307,12 @@ devops_import_aptly_signing_key
 devops_render_osc_config
 devops_stage_publishing_entrypoints
 devops_stage_gitbuild
+devops_stage_target_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/bin/youtube-dl)" \
+  /usr/local/bin/youtube-dl \
+  0755 \
+  youtube-downloader
+chown root:root "${target_root}/usr/local/bin/youtube-dl"
 devops_stage_pending_credentials
 unset \
   DEVOPS_CF_R2_ACCESS_KEY \
@@ -433,6 +439,8 @@ unset codex_binary_dir_host codex_first_binary codex_unsafe_binary
   devops_fatal "Deno upstream executable is missing after installation"
 [ -x "${target_root}${DEVOPS_YT_DLP_BINARY_PATH}" ] ||
   devops_fatal "managed yt-dlp wrapper is missing after installation"
+[ -x "${target_root}/usr/local/bin/youtube-dl" ] ||
+  devops_fatal "managed YouTube Downloader wrapper is missing after installation"
 [ -x "${target_root}${DEVOPS_YT_DLP_PAYLOAD_PATH}" ] ||
   devops_fatal "yt-dlp standalone payload with bundled yt-dlp-ejs is missing after installation"
 [ -r "${target_root}/etc/skel-desktop/.config/bazel/bazelrc" ] ||
