@@ -45,7 +45,7 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  classes/class-
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  classes/class-profile/f2fs-de-x360.cfg
 1de67770f1107c66f324fe3eac55a2cdabb13fd0a1f6af2bd62c67d881ba5308  classes/class-select/network/dhcp.cfg
 3321598f9145decb78ad42d5c63638ca3d75198f82333c48d427b74fc65532f5  classes/class-select/network/static.cfg
-823268796530d614fccdf971a4e2ef3219023d2ee711537bc4908a13130eabbc  classes/class-select/role/desktop.cfg
+80396995690480bac31cd1a423064250b7c94b5a6f2fa8e97cc1936d629961be  classes/class-select/role/desktop.cfg
 d2529374df0e9816fdcffafc93298f597c75ca009bfcb9599626bf105b01b5f1  classes/class-select/security/enhanced.cfg
 e3b53c34cb2d2650c5d7de84287197906e0072c4ab5255f9141aa3cba6c6ea1b  classes/class-select/security/standard.cfg
 18ca65047c41d4002a2a01eb1158fe450763676877fd47415817cbfa92b7c3fd  classes/class-select/site/dmz.cfg
@@ -1318,7 +1318,7 @@ d4e2aa8097326399e838ef4c1c1bface4fa59f2e90e8d91dcbd6faf402de0bfb  hooks/target/u
 6718917c89cfa986dc8f02e3374eb4edfda845cbd90d83cfcd7f0e2e33b0776b  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/editors.py
 b9b4051e6c08e05e47706436f733bc45ad65a2d3ff9a1f42cc038540691869d3  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/engine.py
 31cbd6a27658b1eae1aeb94e16bf24de28ae27debd07b36f653001c20e9ac2b2  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/greeter.py
-0da02deacb2a28257b9fa09586fd4464fb3620632e2aef0f39827fdaf9dfef88  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/icon_catalog.py
+c190570abbb7bfab70445c6f983e17a0bf01ba3773aaf7151b4366d227d155c9  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/icon_catalog.py
 1b6eb7ba5bb38d50eb904f391f2f618a554506ebfd20e2c83cb9fe8205885b44  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/native.py
 ebb05044b083ab9898184e059510a40afa9ac37579a6b3383b1cddc37609cccd  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/service.py
 75afc58ae4d65001656fb02648a533d4f3998faed117e3380e2822d0da9943b0  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/theme_archive.py
