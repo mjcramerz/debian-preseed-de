@@ -165,7 +165,7 @@ class PolicyTests(unittest.TestCase):
 
     def test_ac_laptop_pairs_preserve_policy_and_explicit_thermal_limits(self):
         for name, floor, temperature, duo_temperature in (("p15s", "100", "99", "99"),
-                                                         ("flex", "100", "85", "85")):
+                                                         ("flex", "100", "99", "99")):
             env = environment("btrfs-de-" + name)
             duo = environment("btrfs-de-" + name + "-duo")
             prefix = installer.PREFIXES["intel"]
@@ -177,7 +177,7 @@ class PolicyTests(unittest.TestCase):
             duo[prefix + "MAX_TEMPERATURE_C"] = temperature
             self.assertEqual(env, duo)
             self.assertEqual(env[prefix + "PERFORMANCE_CPU_MIN_PERF_PCT"], floor)
-            self.assertEqual(env[prefix + "HIGH_CPU_MIN_PERF_PCT"], "40" if name == "p15s" else "35")
+            self.assertEqual(env[prefix + "HIGH_CPU_MIN_PERF_PCT"], "100")
             self.assertEqual(env[prefix + "PERFORMANCE_CPU_GOVERNOR"], "performance")
             for profile, platform, up, down in (("PERFORMANCE", "performance", "80", "60"),
                                                ("HIGH", "performance", "90", "75"),
@@ -187,7 +187,12 @@ class PolicyTests(unittest.TestCase):
                 self.assertEqual(env[prefix + profile + "_GPU_RPS_UP_THRESHOLD_PCT"], up)
                 self.assertEqual(env[prefix + profile + "_GPU_RPS_DOWN_THRESHOLD_PCT"], down)
             for profile in ("PERFORMANCE", "HIGH"):
-                for setting, value in (("CPU_EPP", "performance"), ("CPU_EPB", "0"),
+                for setting, value in (("CPU_GOVERNOR", "performance"),
+                                       ("CPU_MIN_PERF_PCT", "100"),
+                                       ("UNCORE_MIN_FREQ_KHZ", "max"),
+                                       ("UNCORE_MAX_FREQ_KHZ", "max"),
+                                       ("GPU_MIN_FREQ_MHZ", "max"),
+                                       ("CPU_EPP", "performance"), ("CPU_EPB", "0"),
                                        ("CPU_MAX_PERF_PCT", "100"), ("CPU_NO_TURBO", "0"),
                                        ("CPU_HWP_DYNAMIC_BOOST", "1")):
                     self.assertEqual(env[prefix + profile + "_" + setting], value)
@@ -196,8 +201,8 @@ class PolicyTests(unittest.TestCase):
                     self.assertEqual(value, "keep")
             nv = installer.PREFIXES["nvidia"]
             if name == "p15s":
-                self.assertEqual(env[nv + "PERFORMANCE_POWER_LIMIT_MW"], "supported-max")
                 for profile in ("PERFORMANCE", "HIGH"):
+                    self.assertEqual(env[nv + profile + "_POWER_LIMIT_MW"], "supported-max")
                     self.assertEqual(env[nv + profile + "_APPLICATION_CLOCKS_MHZ"], "supported-max")
                     self.assertEqual(env[nv + profile + "_PERSISTENCE_MODE"], "supported-1")
                 for key, value in env.items():
@@ -205,7 +210,6 @@ class PolicyTests(unittest.TestCase):
                         self.assertEqual(value, "keep")
             else:
                 self.assertEqual(env[nv + "ENABLE"], "false")
-                self.assertEqual(env[prefix + "PERFORMANCE_GPU_MIN_FREQ_MHZ"], "max")
                 for profile in ("PERFORMANCE", "HIGH", "BALANCED"):
                     self.assertEqual(env[prefix + profile + "_GPU_MAX_FREQ_MHZ"], "max")
                     self.assertEqual(env[prefix + profile + "_GPU_BOOST_FREQ_MHZ"], "max")

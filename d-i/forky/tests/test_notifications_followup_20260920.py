@@ -61,8 +61,23 @@ class NotificationsFollowupTests(unittest.TestCase):
                 right = bar['modules-right']
                 self.assertEqual(right[-4:], [controls, 'custom/notifications', 'custom/lock', 'custom/power'])
                 self.assertEqual(right.count('custom/notifications'), 1)
+                self.assertEqual(right[right.index(controls) - 2], 'memory')
                 self.assertEqual(right[right.index(controls) - 1], 'tray')
                 self.assertNotIn('custom/notifications', bar[controls]['modules'])
+
+    def test_forky_waybar_enables_sni_tray_by_default(self):
+        for bar in bars():
+            self.assertIn('tray', bar['modules-left'] + bar['modules-right'])
+
+    def test_every_host_profile_declares_the_same_enabled_tray_policy(self):
+        profiles = sorted((FORKY / 'hosts/profiles').glob('*.env'))
+        self.assertTrue(profiles)
+        for profile in profiles:
+            matches = re.findall(
+                r'(?m)^LABWC_WAYBAR_TRAY_ENABLE="([^"]*)"$',
+                profile.read_text(encoding='utf-8'),
+            )
+            self.assertEqual(matches, ['true'], profile.name)
 
     def test_native_left_click_menu_has_no_competing_left_click_command(self):
         for bar in bars():

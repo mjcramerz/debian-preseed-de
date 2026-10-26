@@ -289,7 +289,8 @@ class Engine:
         values, skipped = self.plan(name, settings)
         temperature = self.backend.temperature()
         if temperature is not None and temperature >= self.policy["max_temperature_c"]:
-            raise TuningError("thermal interlock prevents applying this profile")
+            raise TuningError(f"thermal interlock prevents applying this profile: "
+                              f"{temperature:g} C >= {self.policy['max_temperature_c']} C")
         risky = any(self.backend.knobs[k].overclock and v > 0 for k, v in values.items())
         risky = risky or any(self.backend.knobs[k].power_default is not None and v > self.backend.knobs[k].power_default for k, v in values.items())
         risky = risky or any(self.backend.knobs[k].setting == "PLATFORM_PROFILE" and v == "performance" for k, v in values.items())

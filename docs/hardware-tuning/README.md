@@ -28,7 +28,7 @@ handback; logging does not retry a failed mutation.
 `btrfs-de-p15s{,-duo}` targets the Core i7-10610U and Pascal Quadro P520.
 `btrfs-de-flex{,-duo}` targets the Core i3-1115G4 and Tiger Lake Intel graphics
 with the iHD media driver. Both machines are normally connected to AC power.
-Each single/duo pair shares the same hardware policy. Both P15s profiles use
+Each single/duo pair shares the same hardware policy. All four profiles use
 the user-selected 99 C CPU thermal guard. Intel specifies a 100 C junction
 limit for the i7-10610U; the software guard does not change firmware limits.
 The October 25 replacement capture records a 93 C sample tripping the previous
@@ -53,19 +53,19 @@ automatic CPU vulnerability protections remain selected by the kernel.
 | Automatic tuning at boot | Enabled | Enabled |
 | Active local desktop on AC | Performance | Performance |
 | Performance CPU governor and minimum percentage | performance / 100 | performance / 100 |
-| High CPU governor and minimum percentage | adaptive / 40 | adaptive / 35 |
+| High CPU governor and minimum percentage | performance / 100 | performance / 100 |
 | Firmware profile, performance/high | performance | performance |
 | Firmware profile, balanced/silent | balanced / low-power | balanced / low-power |
 | Performance/high EPP and EPB | performance / 0 | performance / 0 |
 | Performance/high CPU maximum percentage | 100 | 100 |
 | Performance/high turbo and HWP dynamic boost | Enabled when supported | Enabled when supported |
-| CPU thermal interlock | 99 C | 85 C |
-| Performance/high uncore minimum | 2 GHz / 1.2 GHz | 2 GHz / 1.2 GHz |
-| Performance/high Intel GPU minimum | advertised maximum / efficient | advertised maximum / efficient |
+| CPU thermal interlock | 99 C | 99 C |
+| Performance/high uncore minimum | advertised maximum | advertised maximum |
+| Performance/high Intel GPU minimum | advertised maximum | advertised maximum |
 | Intel GPU RPS up/down, performance | 80% / 60% | 80% / 60% |
 | Intel GPU RPS up/down, high | 90% / 75% | 90% / 75% |
 | GPU requests | Driver-advertised NVML controls | Driver-advertised Intel GPU maximum/boost |
-| GPU thermal interlock | 85 C | Uses Intel backend sensor coverage |
+| GPU thermal interlock | 99 C | Uses Intel backend sensor coverage |
 
 The performance AC baseline survives application leases requesting high or
 balanced. Manual selection retains precedence. An inactive desktop, pause or
@@ -75,15 +75,14 @@ application lease arbitration remains in effect on battery.
 
 The supplied October 24 measurements describe an **untuned baseline**. They
 establish available interfaces, frequency limits and reference throughput; they
-do not measure the effect of these policies. Performance selects the actual
-`performance` governor and the full allowed CPU range. High retains the
-driver's adaptive governor with a higher floor and performance EPP. Both restore
-the advertised CPU/uncore upper limits. The 2 GHz/1.2 GHz uncore floors are
-explicit policy choices within both machines' reported ranges, not measured
-optimal frequencies. C-states and firmware thermal protection remain enabled.
+do not measure the effect of these policies. Performance and high select the
+`performance` governor, 100% minimum/maximum CPU performance percentages and
+performance EPP. Both request the advertised uncore maximum as their minimum
+and maximum. These are aggressive policy requests, not measured optimal
+frequencies. C-states and firmware thermal protection remain enabled.
 
-Intel GPU performance requests the advertised maximum as both minimum and
-maximum active frequency; high uses the driver's efficient minimum. RC6 remains
+Intel GPU performance and high request the advertised maximum as both minimum
+and maximum active frequency. RC6 remains
 enabled. Lower RPS thresholds request earlier increases and later decreases
 under software RPS. Balanced/silent use the measured baseline 95%/85% thresholds.
 The backend offers the paired thresholds only when both per-GT attributes
@@ -115,7 +114,7 @@ on another boot/image; other aliases remain denied rather than granting
 write access to every character-device alias. No `mknod` capability or general
 `/dev` write permission is added. This source policy has not been loaded here.
 
-The performance profile requests the advertised maximum NVML power limit.
+The performance and high profiles request the advertised maximum NVML power limit.
 Performance and high request the maximum supported memory frequency together
 with the highest graphics frequency advertised **for that memory frequency**,
 and persistence mode 1. No independent maxima are combined into an invented
@@ -190,7 +189,10 @@ failure bound, not an added startup sleep.
 
 Tuning targets use `Wants` for their lease services. An unavailable lease leaves
 the demand target active, and the service's restart delay and start limit bound
-its retries. This prevents application `Upholds` from repeatedly restarting a
+its transport-failure retries. Reconciled vendor/policy-owner refusals return
+exit status 78 and `RestartPreventExitStatus=78` prevents retries of the latched
+fault; the lease stays failed and sends no readiness notification. An explicit
+operator retry is required after resolving it. This prevents application `Upholds` from repeatedly restarting a
 failed target and bypassing the lease service's start limit.
 
 The new fixtures in `test_hardware_tuning_profiles_20261024.py` cover selector

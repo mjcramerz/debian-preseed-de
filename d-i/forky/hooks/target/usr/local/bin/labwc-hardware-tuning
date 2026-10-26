@@ -3,10 +3,15 @@
 import sys
 sys.dont_write_bytecode = True
 sys.path.insert(0, "/usr/local/lib/hardware_tuning")
-from client import main
+from client import LeaseRejected, main
 if __name__ == "__main__":
     try:
         raise SystemExit(main(sys.argv[1:]))
+    except LeaseRejected as exc:
+        # The broker latches these faults until an explicit Start/Reset. Do
+        # not reconnect automatically and hammer the same rejected request.
+        print("hardware tuning: " + str(exc), file=sys.stderr)
+        raise SystemExit(78)
     except Exception as exc:
         print("hardware tuning: " + str(exc), file=sys.stderr)
         raise SystemExit(1)

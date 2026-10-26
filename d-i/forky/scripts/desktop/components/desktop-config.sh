@@ -87,7 +87,19 @@ desktop_waybar_modules_left_json() {
 }
 
 desktop_waybar_modules_right_json() {
-  printf '"pulseaudio", "backlight", "custom/battery", "disk", "cpu", "memory", "tray", "group/quick-controls", "custom/notifications", "custom/lock", "custom/power"'
+  # Keep the SNI tray enabled in every host profile. The policy switch remains
+  # permissive for explicitly rendered compatibility overrides.
+  case "${LABWC_WAYBAR_TRAY_ENABLE:-true}" in
+    true|yes|1|on)
+      printf '"pulseaudio", "backlight", "custom/battery", "disk", "cpu", "memory", "tray", "group/quick-controls", "custom/notifications", "custom/lock", "custom/power"'
+      ;;
+    false|no|0|off)
+      printf '"pulseaudio", "backlight", "custom/battery", "disk", "cpu", "memory", "group/quick-controls", "custom/notifications", "custom/lock", "custom/power"'
+      ;;
+    *)
+      desktop_fatal "invalid LABWC_WAYBAR_TRAY_ENABLE: ${LABWC_WAYBAR_TRAY_ENABLE}"
+      ;;
+  esac
 }
 
 desktop_waybar_output_selectors_json() {

@@ -34,6 +34,18 @@ The VM family uses the Btrfs layout environment. Account configuration is read
 separately. With no named profile, the NVMe and eMMC defaults resolve to the
 canonical profiles listed above; no duplicate fallback files are required.
 
+## Profile policy boundaries
+
+Shared desktop, launcher, hardware-tuning and compositor policy keys stay
+consistent across the ten profiles. Filesystem layout keys remain in the layout
+family that consumes them: F2FS profiles own `F2FS_LAYOUT_VARIANT`, while Btrfs
+profiles own the additional Btrfs partition slots and sizes. APP_VETH identity
+defaults come from `installer/identity.env`; only the four F2FS profiles add
+profile-specific application overrides. Generic Btrfs profiles remain
+hardware-neutral, while Flex, P15s and Chromebook profiles name their concrete
+modprobe policy. Every profile keeps `LABWC_WLR_DRM_NO_ATOMIC="0"`, selecting
+the modern atomic KMS path.
+
 Partition sizing uses measured disk capacity and, for multi-OS installs, measured
 preserved partitions. Profiles provide preferred sizes and caps, not a claimed
 physical drive size. Filesystems shrink to their configured minimums on smaller
@@ -120,6 +132,11 @@ event handling and reconciliation without subprocesses. Keyboard status runs
 at startup and on its existing change signal. Menus and control actions remain
 available. The display watcher reconciles at startup and on settled DRM events
 instead of invoking output policy on an unconditional 30-second timer.
+The SNI tray module is enabled in every host profile. Each profile defines the
+same `LABWC_WAYBAR_TRAY_ENABLE` variable with `true` as its value. The
+renderer retains a boolean compatibility switch for explicit callers, while
+the profile contract keeps the tray present. Managed application D-Bus proxy
+permissions and application launchers are unchanged.
 
 Audit execution telemetry remains enabled. These source changes remove the
 recurring status command chains; they do not establish a measured reduction

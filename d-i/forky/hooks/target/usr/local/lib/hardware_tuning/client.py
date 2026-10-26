@@ -17,6 +17,10 @@ from common import MAX_JSON, PROFILES, SOCKET, VENDORS, TuningError, decode
 EXECUTABLE = "/usr/local/bin/labwc-hardware-tuning"
 
 
+class LeaseRejected(TuningError):
+    """A reconciled, latched broker fault requires an explicit operator retry."""
+
+
 def connect_request(request: dict, *, deadline: float | None = None) -> tuple[socket.socket, dict]:
     if deadline is None:
         deadline = time.monotonic() + (15 if request.get("action") == "status" else 360)
@@ -86,7 +90,7 @@ def lease(vendor: str, profile: str) -> int:
                   for name, reason in result["faults"].items()
                   if name in (vendor, "policy-owner")}
         if faults:
-            raise TuningError(json.dumps({"event": "tuning_lease_failed",
+            raise LeaseRejected(json.dumps({"event": "tuning_lease_failed",
                 "correlation_id": uuid.uuid4().hex, "vendor": vendor,
                 "profile": profile, "faults": faults}, separators=(",", ":")))
         applied = result.get("applied", {}).get(vendor)

@@ -185,6 +185,17 @@ class PlatformTransactions(unittest.TestCase):
         self.hardware.temperature_value = None
         self.assertTrue(any("thermal sensor disappeared" in s for s in self.tx.health()["conflicts"]))
 
+    def test_thermal_refusal_reports_reading_and_limit_before_any_mutation(self):
+        for temperature in (85, 91.25):
+            with self.subTest(temperature=temperature):
+                self.policy['max_temperature_c'] = 85
+                self.hardware.temperature_value = temperature
+                with self.assertRaisesRegex(base.common.TuningError,
+                                            rf'{temperature:g} C >= 85 C'):
+                    self.tx.apply('high', self.settings)
+                self.assertFalse(self.hardware.writes)
+                self.assertFalse(self.tx.journal['entries'])
+
     def test_rps_hysteresis_and_restore_order(self):
         hardware = base.FakeBackend()
         hardware.add("up", "GPU_RPS_UP_THRESHOLD_PCT", 95, low=1, high=99, pair="rps", side="max")
@@ -518,7 +529,7 @@ class LeaseReadiness(unittest.TestCase):
                     patch.object(base.client, "connect_request", return_value=(channel, result)), \
                     patch.object(base.client.socket, "socket") as notification, \
                     patch.dict(os.environ, {"NOTIFY_SOCKET": "/fixture/notify"}, clear=True):
-                with self.assertRaises(base.common.TuningError) as failure:
+                with self.assertRaises(base.client.LeaseRejected) as failure:
                     base.client.lease("intel", "balanced")
             event = json.loads(str(failure.exception))
             self.assertEqual(event['event'], 'tuning_lease_failed')
@@ -527,7 +538,24 @@ class LeaseReadiness(unittest.TestCase):
             self.assertTrue(event['faults'][fault].startswith('fixture driver rejected '))
             self.assertEqual(len(event['faults'][fault]), 2048)
             notification.assert_not_called()
+            channel.recv.assert_not_called()
             channel.close.assert_called_once()
+
+    def test_latched_refusal_exit_status_prevents_only_automatic_restarts(self):
+        # Read unit/entrypoint source only; no manager or subprocess is used.
+        from payload_fixture import read_text
+        target = Path(__file__).resolve().parents[1] / 'hooks/target'
+        entrypoint = read_text(target / 'usr/local/bin/labwc-hardware-tuning')
+        refusal = entrypoint.split('except LeaseRejected as exc:', 1)[1].split('except Exception', 1)[0]
+        self.assertIn('raise SystemExit(78)', refusal)
+        self.assertIn('raise SystemExit(1)', entrypoint.split('except Exception', 1)[1])
+        for vendor in ('intel', 'nvidia'):
+            for profile in base.common.PROFILES:
+                with self.subTest(vendor=vendor, profile=profile):
+                    unit = read_text(target / f'etc/systemd/user/hardware-tuning-{vendor}-{profile}.service')
+                    self.assertIn('\nRestartPreventExitStatus=78\n', unit)
+                    self.assertIn('\nRestart=on-failure\n', unit)
+                    self.assertNotIn('SuccessExitStatus=', unit)
 
     def test_ready_follows_reconciled_reply_and_reports_actual_manual_selection(self):
         with base.private_temp() as temporary:

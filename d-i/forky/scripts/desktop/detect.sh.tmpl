@@ -500,6 +500,7 @@ desktop_validate_policy_env() {
   desktop_resolve_acceleration_availability
   desktop_resolve_managed_app_default_exec
   desktop_validate_bool LABWC_ENABLE_WAYBAR "${LABWC_ENABLE_WAYBAR:-true}"
+  desktop_validate_bool LABWC_WAYBAR_TRAY_ENABLE "${LABWC_WAYBAR_TRAY_ENABLE:-true}"
   desktop_validate_bool LABWC_ENABLE_KANSHI "${LABWC_ENABLE_KANSHI:-false}"
   desktop_validate_bool LABWC_ENABLE_MAKO "${LABWC_ENABLE_MAKO:-true}"
   desktop_validate_bool LABWC_ENABLE_SWAYIDLE "${LABWC_ENABLE_SWAYIDLE:-true}"

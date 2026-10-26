@@ -42,8 +42,8 @@ def status(mode: str, value=None) -> dict[str, str]:
 
 
 class Reader:
-    def __init__(self, mode, Gio, GLib):
-        self.mode, self.Gio, self.GLib = mode, Gio, GLib
+    def __init__(self, mode, Gio, GLib, GLibUnix):
+        self.mode, self.Gio, self.GLib, self.GLibUnix = mode, Gio, GLib, GLibUnix
         self.loop = GLib.MainLoop()
         self.connection = None
         self.connection_cancel = Gio.Cancellable()
@@ -224,7 +224,7 @@ class Reader:
         # five seconds; callbacks still update immediately after changes.
         self.sources.append(self.GLib.timeout_add_seconds(60, self.queue))
         for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
-            self.sources.append(self.GLib.unix_signal_add(self.GLib.PRIORITY_DEFAULT, signum, self.stop))
+            self.sources.append(self.GLibUnix.signal_add(self.GLib.PRIORITY_DEFAULT, signum, self.stop))
         self.Gio.bus_get(self.Gio.BusType.SESSION, self.connection_cancel, self.connected)
         try:
             self.loop.run()
@@ -257,8 +257,9 @@ def main(arguments: list[str]) -> int:
     os.environ["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=" + str(bus)
     import gi
     gi.require_version("Gio", "2.0")
-    from gi.repository import Gio, GLib
-    return Reader(arguments[0], Gio, GLib).run()
+    gi.require_version("GLibUnix", "2.0")
+    from gi.repository import Gio, GLib, GLibUnix
+    return Reader(arguments[0], Gio, GLib, GLibUnix).run()
 
 
 if __name__ == "__main__":

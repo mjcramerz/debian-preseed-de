@@ -18,6 +18,21 @@ SEED = Path(__file__).resolve().parents[1]
 
 
 class ProfileSSHPolicyTests(unittest.TestCase):
+    def test_client_and_server_prefer_hybrid_kex_and_keep_authentication_policy(self):
+        expected = ['mlkem768x25519-sha256', 'sntrup761x25519-sha512',
+                    'sntrup761x25519-sha512@openssh.com', 'curve25519-sha256',
+                    'curve25519-sha256@libssh.org']
+        for name in ('config', 'sshd_config'):
+            text = (SEED / 'ssh' / name).read_text()
+            algorithms, = re.findall(r'^\s*KexAlgorithms\s+(\S+)$', text, re.M)
+            self.assertEqual(algorithms.split(','), expected)
+        server = (SEED / 'ssh/sshd_config').read_text()
+        self.assertNotRegex(server, r'(?m)^\s*GSSAPIAuthentication\s')
+        for line in ('AuthenticationMethods publickey', 'PasswordAuthentication no',
+                     'KbdInteractiveAuthentication no', 'PermitRootLogin no',
+                     'DisableForwarding yes', 'AllowUsers __INSTALLER_ACCOUNT_USERNAME__'):
+            self.assertIn('\n' + line + '\n', server)
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="profile-ssh-fixture-")
         self.addCleanup(temporary.cleanup)

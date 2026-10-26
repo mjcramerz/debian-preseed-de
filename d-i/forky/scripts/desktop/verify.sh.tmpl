@@ -2695,8 +2695,9 @@ for module in ("yaml", "gi"):
     base = Path("/usr/lib/python3/dist-packages") / module / "__init__.py"
     trusted(base)
 subprocess.run(["/usr/bin/python3", "-I", "-B", "-c",
-    "import yaml; import gi; gi.require_version(\"Gio\", \"2.0\"); from gi.repository import Gio, GLib; "
-    "assert callable(Gio.bus_get) and callable(GLib.unix_signal_add) and callable(GLib.timeout_add_seconds)"],
+    "import yaml; import gi; gi.require_version(\"Gio\", \"2.0\"); gi.require_version(\"GLibUnix\", \"2.0\"); "
+    "from gi.repository import Gio, GLib, GLibUnix; "
+    "assert callable(Gio.bus_get) and callable(GLibUnix.signal_add) and callable(GLib.timeout_add_seconds)"],
     env=fixed_env, stdin=subprocess.DEVNULL, capture_output=True, timeout=10, check=True)
 
 mode_file = Path("/etc/apparmor/modes.conf")

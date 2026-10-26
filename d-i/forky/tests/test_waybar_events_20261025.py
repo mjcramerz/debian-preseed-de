@@ -101,11 +101,12 @@ class EventReaderTests(unittest.TestCase):
         self.gio = SimpleNamespace(Cancellable=Cancellable,
             DBusCallFlags=SimpleNamespace(NO_AUTO_START=1),
             DBusError=SimpleNamespace(get_remote_error=lambda error: str(error)))
+        self.glib_unix = SimpleNamespace(signal_add=mock.Mock())
         self.connection = Connection()
         self.stream = io.StringIO()
 
     def reader(self, mode='notifications'):
-        reader = self.module.Reader(mode, self.gio, self.glib)
+        reader = self.module.Reader(mode, self.gio, self.glib, self.glib_unix)
         reader.connection = self.connection
         return reader
 
@@ -181,6 +182,27 @@ class EventReaderTests(unittest.TestCase):
             reader.emit([])
         self.assertFalse(reader.alive)
         self.assertFalse(reader.queue())
+
+    def test_glib_unix_signals_and_cleanup_use_only_owned_sources(self):
+        reader = self.reader()
+        self.glib.PRIORITY_DEFAULT = 0
+        self.glib.timeout_add_seconds = mock.Mock(side_effect=[10, 11])
+        self.glib.source_remove = mock.Mock()
+        context = SimpleNamespace(find_source_by_id=mock.Mock(return_value=object()))
+        self.glib.MainContext = SimpleNamespace(default=lambda: context)
+        self.glib_unix.signal_add.side_effect = [12, 13, 14]
+        self.gio.bus_get = mock.Mock()
+        self.gio.BusType = SimpleNamespace(SESSION=1)
+        self.loop.run = mock.Mock(side_effect=reader.stop)
+        with redirect_stdout(self.stream):
+            self.assertEqual(reader.run(), 0)
+        self.assertEqual(self.glib_unix.signal_add.call_args_list, [
+            mock.call(0, signum, reader.stop)
+            for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+        ])
+        self.assertEqual(self.glib.source_remove.call_args_list,
+                         [mock.call(source) for source in (10, 11, 12, 13, 14)])
+        self.assertTrue(reader.connection_cancel.cancelled)
 
 
 class BatteryWatchTests(unittest.TestCase):

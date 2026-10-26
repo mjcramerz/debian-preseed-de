@@ -51,7 +51,9 @@ CONFIGURED_PAYLOAD_LAUNCHER = (
     "os.execve(sys.argv[2],sys.argv[2:],environment)"
 )
 # Never let the user manager reintroduce X11, a different GPU or loader hooks.
-UNSET_ENVIRONMENT = (
+# systemd's transient D-Bus API rejects duplicate UnsetEnvironment entries.
+# GPU selectors overlap the general exclusions; retain each name exactly once.
+UNSET_ENVIRONMENT = tuple(dict.fromkeys((
     "DISPLAY", "XAUTHORITY", "GTK_THEME", "LD_PRELOAD", "LD_AUDIT", "LD_LIBRARY_PATH",
     "LABWC_MENU_ACTION_WAIT",
     "PYTHONPATH", "PYTHONHOME", "BASH_ENV", "ENV", "ELECTRON_RUN_AS_NODE",
@@ -61,7 +63,7 @@ UNSET_ENVIRONMENT = (
     "VK_DRIVER_FILES", "MESA_LOADER_DRIVER_OVERRIDE", "LIBGL_ALWAYS_SOFTWARE",
     CONFIGURED_ENVIRONMENT_NAMES,
     *gpu.SELECTOR_NAMES,
-)
+)))
 ELECTRON_UNSAFE_SWITCHES = {
     "--no-sandbox", "--no-zygote", "--single-process", "--disable-gpu-sandbox",
     "--disable-namespace-sandbox", "--disable-seccomp-filter-sandbox", "--disable-sandbox",

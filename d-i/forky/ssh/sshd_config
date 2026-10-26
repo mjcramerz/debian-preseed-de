@@ -27,7 +27,7 @@ PermitEmptyPasswords no
 KbdInteractiveAuthentication no
 HostbasedAuthentication no
 IgnoreRhosts yes
-GSSAPIAuthentication no
+# AuthenticationMethods restricts logins to publickey, including builds without GSSAPI.
 UsePAM yes
 
 DenyUsers devops
@@ -49,7 +49,7 @@ ClientAliveCountMax 2
 Compression no
 UseDNS no
 
-KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org
+KexAlgorithms mlkem768x25519-sha256,sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org
 Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com
 MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
 

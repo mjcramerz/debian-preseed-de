@@ -235,6 +235,47 @@ class GenericWrapperTests(unittest.TestCase):
                     self.assertIn('--property=KillMode=' + (
                         'mixed' if payload == '/usr/bin/foot' else 'control-group'), argv)
 
+    def test_transient_unset_environment_accepts_overlapping_gpu_exclusions(self):
+        # systemd 262 rejects duplicates before creating the service. Exercise
+        # the reported terminals/file manager and both generic toolkit routes,
+        # without contacting a manager or discovering devices.
+        self.enterContext(mock.patch.object(generic, 'menu_action_wait_arguments', return_value=[]))
+        self.enterContext(mock.patch.object(generic.os, 'getuid', return_value=1000))
+        self.enterContext(mock.patch.object(generic.os, 'getcwd', return_value='/fixture'))
+        for mode, selectors in (
+            ('launch', {}),
+            ('intel', profiles.INTEL_ACCELERATION_ENV),
+            ('nvidia', profiles.NVIDIA_ACCELERATION_ENV),
+        ):
+            for kind, executable in (
+                ('wayland', '/usr/bin/foot'), ('wayland', '/usr/bin/footclient'),
+                ('wayland', '/usr/bin/kitty'), ('wayland', '/usr/bin/thunar'),
+                ('wayland', '/usr/bin/Thunar'), ('wayland', '/usr/bin/l3afpad'),
+                ('electron', '/opt/fixture-electron'),
+            ):
+                with self.subTest(mode=mode, kind=kind, executable=executable):
+                    environment = {'HOME': '/fixture', **selectors}
+                    argv = generic.transient_argv(kind, mode, [executable], environment)
+                    properties = [value for value in argv
+                                  if value.startswith('--property=UnsetEnvironment=')]
+                    self.assertEqual(len(properties), 1)
+                    names = properties[0].split('=', 2)[2].split()
+                    self.assertEqual(len(names), len(set(names)))
+                    for name in names:
+                        self.assertRegex(name, r'^[A-Za-z_][A-Za-z0-9_]*$')
+                    # Check coverage independently of the combined constant:
+                    # deduplication must not drop a GPU or loader exclusion.
+                    required = set(generic.gpu.SELECTOR_NAMES) | {
+                        'DISPLAY', 'XAUTHORITY', 'LD_PRELOAD', 'LD_AUDIT',
+                        'LD_LIBRARY_PATH', 'PYTHONPATH', 'PYTHONHOME', 'BASH_ENV',
+                        'ENV', 'NODE_OPTIONS', 'ELECTRON_RUN_AS_NODE',
+                        'ELECTRON_NO_SANDBOX', 'LABWC_MENU_ACTION_WAIT',
+                    }
+                    self.assertTrue((required - environment.keys()).issubset(names))
+                    self.assertFalse(set(names) & environment.keys())
+                    for name in selectors:
+                        self.assertIn('--setenv=' + name, argv)
+
     def test_env_assignments_are_not_shell_evaluated(self):
         env = {}
         args = generic.unwrap_env(['/usr/bin/env', 'EXAMPLE=$(touch /oops)', '/usr/bin/demo', '%U'], env)
