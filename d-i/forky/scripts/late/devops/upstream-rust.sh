@@ -7,11 +7,15 @@ devops_install_upstream_tools() {
   helper_host_path="${target_root}${helper_target_path}"
   policy_target_path=/tmp/installer-devops-tools-policy.json
   policy_host_path="${target_root}${policy_target_path}"
+  plugins_manifest_target_path=/tmp/installer-yt-dlp-plugins.json
+  plugins_manifest_host_path="${target_root}${plugins_manifest_target_path}"
 
   [ ! -e "$helper_host_path" ] && [ ! -L "$helper_host_path" ] ||
     devops_fatal "temporary upstream DevOps tool installer path already exists"
   [ ! -e "$policy_host_path" ] && [ ! -L "$policy_host_path" ] ||
     devops_fatal "temporary upstream DevOps tool policy path already exists"
+  [ ! -e "$plugins_manifest_host_path" ] && [ ! -L "$plugins_manifest_host_path" ] ||
+    devops_fatal "temporary yt-dlp plugin manifest path already exists"
 
   bootstrap_fetch_seed_file \
     "$seed_base" \
@@ -20,6 +24,14 @@ devops_install_upstream_tools() {
     0700 \
     "DevOps upstream-tool installer ${helper_repo_path}"
   chown root:root "$helper_host_path"
+
+  bootstrap_fetch_seed_file \
+    "$seed_base" \
+    "$(installer_repo_join_var DIR_SCRIPTS_LATE devops/yt-dlp-plugins.json)" \
+    "$plugins_manifest_host_path" \
+    0600 \
+    "yt-dlp plugin manifest"
+  chown root:root "$plugins_manifest_host_path"
 
   if ! run_in_target \
     "render private upstream DevOps tool policy" \
@@ -73,6 +85,7 @@ except BaseException:
       DEVOPS_YT_DLP_INSTALL_ROOT "$DEVOPS_YT_DLP_INSTALL_ROOT" \
       DEVOPS_YT_DLP_BINARY_PATH "$DEVOPS_YT_DLP_BINARY_PATH" \
       DEVOPS_YT_DLP_PAYLOAD_PATH "$DEVOPS_YT_DLP_PAYLOAD_PATH" \
+      DEVOPS_YT_DLP_PLUGINS_MANIFEST_PATH "$plugins_manifest_target_path" \
       DEVOPS_ANSIBLE_CORE_VERSION "$DEVOPS_ANSIBLE_CORE_VERSION" \
       DEVOPS_ANSIBLE_CORE_URL "$DEVOPS_ANSIBLE_CORE_URL" \
       DEVOPS_ANSIBLE_CORE_SHA256 "$DEVOPS_ANSIBLE_CORE_SHA256" \
@@ -158,7 +171,7 @@ except BaseException:
       DEVOPS_OBS_BUILD_BINARY_PATH "$DEVOPS_OBS_BUILD_BINARY_PATH" \
       DEVOPS_OBS_BUILD_ENTRYPOINTS "$DEVOPS_OBS_BUILD_ENTRYPOINTS"
   then
-    rm -f -- "$helper_host_path" "$policy_host_path"
+    rm -f -- "$helper_host_path" "$policy_host_path" "$plugins_manifest_host_path"
     devops_fatal "failed to render upstream DevOps tool policy"
   fi
   chown root:root "$policy_host_path"
@@ -168,10 +181,11 @@ except BaseException:
     "download, validate, and install pinned upstream DevOps tools" \
     /usr/bin/python3 "$helper_target_path" --policy "$policy_target_path"
   then
-    rm -f -- "$helper_host_path" "$policy_host_path"
+    rm -f -- "$helper_host_path" "$policy_host_path" "$plugins_manifest_host_path"
     devops_fatal "upstream DevOps tool provisioning failed"
   fi
-  rm -f -- "$helper_host_path" "$policy_host_path"
+  rm -f -- "$helper_host_path" "$policy_host_path" "$plugins_manifest_host_path"
+  unset plugins_manifest_target_path plugins_manifest_host_path
 }
 
 devops_install_pinned_rustup() {

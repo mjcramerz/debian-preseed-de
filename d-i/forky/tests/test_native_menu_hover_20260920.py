@@ -120,7 +120,10 @@ class NativeMenuHoverTests(unittest.TestCase):
                             self.assertIn('--property=KillMode=control-group', argv)
                             self.assertNotIn('fixture', argv)
                             count += 1
-        self.assertEqual(count, len(self.profiles) * 2 * 42)
+        # The current five menus contain 41 leaf actions per bar. Keep this
+        # count aligned with test_native_menu_contract_20260920.py's 82 total
+        # action contract.
+        self.assertEqual(count, len(self.profiles) * 2 * 41)
 
     def test_every_action_has_the_intended_backend_not_just_an_existing_id(self):
         expected = {
@@ -185,7 +188,7 @@ class NativeMenuHoverTests(unittest.TestCase):
         self.assertEqual(report['profiles'], 10)
         self.assertEqual(report['themes'], ['Adwaita', 'Adwaita-dark'])
         self.assertEqual(report['menu_roots'], 10 * 2 * 2 * 2 * 5)
-        self.assertEqual(report['activations'], 10 * 2 * 2 * (42 + 38))
+        self.assertEqual(report['activations'], 10 * 2 * 2 * (41 + 37))
         self.assertEqual(report['center_activations'], 10 * 2 * 2 * 2)
         self.assertGreater(report['highlight_states'], 10000)
         self.assertGreater(report['disabled_states'], 100)

@@ -285,7 +285,7 @@ class NativeLayoutTests(unittest.TestCase):
                 for bar, cls in ((internal,'INTERNAL'),(external,'EXTERNAL')):
                     self.assertIn('group/quick-controls',bar)
                     self.assertNotIn('group/quick-controls-internal',bar)
-                    click=bar['custom/launcher']['on-click']
+                    click=bar['custom/launcher']['on-click-release']
                     self.assertIn('--setenv=LABWC_FUZZEL_OUTPUT_CLASS='+cls,click)
                     self.assertNotIn('--setenv=WAYBAR_OUTPUT_NAME',click)
                 self.assertNotIn('@import',assets['style.css'])

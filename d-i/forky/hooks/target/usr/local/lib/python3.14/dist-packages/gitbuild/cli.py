@@ -54,7 +54,9 @@ def choose(labels: list[str], prompt: str) -> str | None:
     if result.returncode:
         raise RuntimeError(f'menu failed ({result.returncode})')
     selected = result.stdout.rstrip('\n')
-    return selected if selected in labels else None
+    if selected not in labels:
+        raise ValueError('menu returned an unknown selection')
+    return selected
 
 
 def confirm(message: str) -> bool:

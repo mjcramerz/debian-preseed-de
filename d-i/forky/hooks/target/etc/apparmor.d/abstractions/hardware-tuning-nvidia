@@ -6,6 +6,10 @@
 # NVML power/clock setters require host administrator capability; the socket
 # broker deliberately does NOT have this AppArmor capability permission.
 capability sys_admin,
+# Fixed, argument-validated nvidia-smi is the clock fallback for drivers that
+# do not expose the corresponding NVML symbols. No shell or arbitrary child
+# executable is permitted by this include.
+/usr/bin/nvidia-smi rix,
 /dev/nvidiactl rw,
 /dev/nvidia[0-9]* rw,
 /dev/nvidia-uvm rw,

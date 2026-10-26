@@ -7,12 +7,41 @@ from managed_workflows.process import environment
 from .catalog import COMPONENTS, LABELS
 from .engine import apply_choice
 from .themes import FAMILIES, public_catalog
+from .icon_catalog import (ICON_COLLECTIONS, POINTER_COLLECTIONS,
+                           available_collections,
+                           public_catalog as asset_catalog)
+
+
+MENU_ICONS = {
+    'Desktop Appearance': 'preferences-desktop-theme',
+    'Desktop Themes': 'preferences-desktop-theme',
+    'Fuzzel Themes': 'preferences-desktop-theme',
+    'Waybar Themes': 'preferences-system-windows',
+    'Taskview Themes': 'view-grid',
+    'Waycal Themes': 'x-office-calendar',
+    'Crystal-Dock Themes': 'preferences-system-dock',
+    'GtkGreet Themes': 'system-users',
+    'Terminal Themes': 'utilities-terminal',
+    'Icon Themes': 'preferences-desktop-icons',
+    'Pointer Themes': 'input-mouse',
+    'Reset Icon Theme': 'view-refresh',
+    'Reset Mouse Theme': 'view-refresh',
+    'Reset Appearance (All)': 'view-refresh',
+    'Reset Appearance': 'view-refresh',
+    'Reset Theme': 'view-refresh',
+    'Back': 'go-previous',
+    'Cancel': 'window-close',
+    'Apply': 'dialog-ok',
+}
+DEFAULT_ICON = 'preferences-desktop-theme'
 
 
 def choose(labels: list[str], prompt: str) -> str | None:
+    rows = ''.join(label + '\0icon\x1f' + MENU_ICONS.get(label, DEFAULT_ICON) + '\n'
+                   for label in labels)
     process = subprocess.run(['/usr/local/bin/labwc-fuzzel', 'computer-management',
-                              '--dmenu', '--prompt', prompt + ' > '],
-                             input='\n'.join(labels) + '\n', text=True,
+                              '--dmenu0', '--prompt', prompt + ' > '],
+                             input=rows, text=True,
                              stdout=subprocess.PIPE, env=environment(desktop=True), check=False)
     if process.returncode in (3, 130):
         raise SystemExit(3)
@@ -20,14 +49,14 @@ def choose(labels: list[str], prompt: str) -> str | None:
         return None
     if process.returncode != 0:
         raise RuntimeError('appearance menu picker failed')
-    selected = process.stdout.rstrip('\n')
+    selected = process.stdout.rstrip('\0\n')
     if selected not in labels:
         raise ValueError('menu returned an unknown action')
     return selected
 
 
 def perform(args: list[str]) -> None:
-    needs_admin = args[1] in ('greeter', 'all')
+    needs_admin = args[1] in ('greeter', 'all', 'icon')
     prompt = 'Apply appearance (greeter changes require administrator authentication)' if needs_admin else 'Apply native appearance'
     if choose(['Cancel', 'Apply'], prompt) != 'Apply':
         return
@@ -60,17 +89,37 @@ def desktop_themes() -> None:
             perform(['theme', variants[selected]])
 
 
+def asset_themes(collections, component: str, prompt: str, reset_label: str) -> None:
+    families = {collection.label: collection for collection in available_collections(
+        collections, pointer=component == 'pointer')}
+    while True:
+        selected = choose([*families, reset_label, 'Back'], prompt)
+        if selected in (None, 'Back'):
+            return
+        if selected == reset_label:
+            perform(['reset', component])
+            continue
+        collection = families[selected]
+        variants = {name: name for name in collection.variants}
+        while True:
+            chosen = choose([*variants, 'Back'], collection.label)
+            if chosen in (None, 'Back'):
+                break
+            perform(['apply', component, variants[chosen]])
+
+
 def main(argv: list[str]) -> int:
     if argv == ['--catalog']:
-        print(json.dumps({'themes': public_catalog(),
+        print(json.dumps({'themes': public_catalog(), 'assets': asset_catalog(),
                           'profiles': {key: LABELS for key in COMPONENTS},
-                          'reset': [*COMPONENTS, 'theme', 'all']}, indent=2))
+                          'reset': [*COMPONENTS, 'theme', 'icon', 'pointer', 'all']}, indent=2))
         return 0
     if argv:
         for note in apply_choice(argv):
             print(note)
         return 0
-    groups = {'Desktop Themes': 'theme', **{title: key for key, title in COMPONENTS.items()}}
+    groups = {'Desktop Themes': 'theme', 'Icon Themes': 'icon',
+              'Pointer Themes': 'pointer', **{title: key for key, title in COMPONENTS.items()}}
     while True:
         group = choose([*groups, 'Reset Appearance (All)', 'Back'], 'Desktop Appearance')
         if group in (None, 'Back'):
@@ -81,6 +130,10 @@ def main(argv: list[str]) -> int:
         component = groups[group]
         if component == 'theme':
             desktop_themes()
+        elif component == 'icon':
+            asset_themes(ICON_COLLECTIONS, 'icon', 'Icon Themes', 'Reset Icon Theme')
+        elif component == 'pointer':
+            asset_themes(POINTER_COLLECTIONS, 'pointer', 'Pointer Themes', 'Reset Mouse Theme')
         else:
             entries = {label: key for key, label in LABELS.items()}
             while True:

@@ -1,4 +1,5 @@
 /* Shared visual rules. Output geometry and typography follow below. */
+@import url("taskview.css");
 * {
   border-style: __THEME_WAYBAR_RESET_BORDER_STYLE__;
   font-family: "__THEME_WAYBAR_TEXT_FONT_FAMILY__", "__THEME_WAYBAR_EMOJI_FONT_FAMILY__", "__THEME_WAYBAR_SYMBOL_FONT_FAMILY__", "__THEME_WAYBAR_ICON_FONT_FAMILY__";
@@ -31,12 +32,6 @@ tooltip label {
 #custom-launcher {
   border-style: __THEME_WAYBAR_BORDER_STYLE__;
   border-color: __THEME_WAYBAR_BUTTON_MENU_NORMAL_OUTLINE_COLOR__;
-}
-
-#custom-window-switcher {
-  background: __THEME_WAYBAR_BUTTON_TASKVIEW_NORMAL_BACKGROUND_COLOR__;
-  border-style: __THEME_WAYBAR_BORDER_STYLE__;
-  border-color: __THEME_WAYBAR_BUTTON_TASKVIEW_NORMAL_OUTLINE_COLOR__;
 }
 
 #custom-wayscriber {
@@ -271,12 +266,6 @@ tooltip label {
 #custom-tomat:hover {
   background: __THEME_WAYBAR_BUTTON_TOMAT_HOVER_BACKGROUND_COLOR__;
   border-color: __THEME_WAYBAR_BUTTON_TOMAT_HOVER_OUTLINE_COLOR__;
-  color: __THEME_WAYBAR_BUTTON_APPS_HOVER_ICON_COLOR__;
-}
-
-#custom-window-switcher:hover {
-  background: __THEME_WAYBAR_BUTTON_TASKVIEW_HOVER_BACKGROUND_COLOR__;
-  border-color: __THEME_WAYBAR_BUTTON_TASKVIEW_HOVER_OUTLINE_COLOR__;
   color: __THEME_WAYBAR_BUTTON_APPS_HOVER_ICON_COLOR__;
 }
 
@@ -603,12 +592,6 @@ tooltip label {
 
 #memory.warning {
   color: __THEME_WAYBAR_BUTTON_MEMORY_WARNING_TEXT_COLOR__;
-}
-
-#custom-window-switcher {
-  color: __THEME_WAYBAR_BUTTON_TASKVIEW_NORMAL_ICON_COLOR__;
-  font-family: "__THEME_WAYBAR_ICON_FONT_FAMILY__", "__THEME_WAYBAR_NERD_FONT_FAMILY__", "__THEME_WAYBAR_TEXT_FONT_FAMILY__";
-  font-weight: __THEME_WAYBAR_FONT_WEIGHT_EMPHASIS__;
 }
 
 #clock:hover {
@@ -1047,7 +1030,7 @@ window#waybar.internal #taskbar button.active {
 }
 
 window#waybar.internal #taskbar button:hover {
-  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_SHADOW_COLOR__;
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_SHADOW_COLOR__;
 }
 
 window#waybar.internal #custom-launcher {
@@ -1082,10 +1065,6 @@ window#waybar.internal #custom-launcher:hover {
 
 window#waybar.internal #custom-tomat:hover {
   box-shadow: inset 0 0 6px 1px __THEME_WAYBAR_BUTTON_TOMAT_HOVER_SHADOW_COLOR__;
-}
-
-window#waybar.internal #custom-window-switcher:hover {
-  box-shadow: inset 0 0 6px 1px __THEME_WAYBAR_BUTTON_TASKVIEW_HOVER_SHADOW_COLOR__;
 }
 
 window#waybar.internal #custom-app-terminal,
@@ -1201,11 +1180,11 @@ window#waybar.internal #custom-power {
 }
 
 window#waybar.internal #custom-lock:hover {
-  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_LOCK_HOVER_SHADOW_COLOR__;
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_LOCK_HOVER_SHADOW_COLOR__;
 }
 
 window#waybar.internal #custom-power:hover {
-  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_POWER_HOVER_SHADOW_COLOR__;
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_POWER_HOVER_SHADOW_COLOR__;
 }
 
 window#waybar.internal #custom-window-switcher {
@@ -1248,7 +1227,7 @@ window#waybar.internal #custom-tomat {
 }
 
 window#waybar.internal #custom-notifications:hover {
-  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_NOTIFICATIONS_HOVER_SHADOW_COLOR__;
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_NOTIFICATIONS_HOVER_SHADOW_COLOR__;
 }
 
 window#waybar.internal #quick-controls {
@@ -1396,7 +1375,7 @@ window#waybar.external #taskbar button.active {
 }
 
 window#waybar.external #taskbar button:hover {
-  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_SHADOW_COLOR__;
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_SHADOW_COLOR__;
 }
 
 window#waybar.external #custom-launcher {
@@ -1431,10 +1410,6 @@ window#waybar.external #custom-launcher:hover {
 
 window#waybar.external #custom-tomat:hover {
   box-shadow: inset 0 0 6px 1px __THEME_WAYBAR_BUTTON_TOMAT_HOVER_SHADOW_COLOR__;
-}
-
-window#waybar.external #custom-window-switcher:hover {
-  box-shadow: inset 0 0 6px 1px __THEME_WAYBAR_BUTTON_TASKVIEW_HOVER_SHADOW_COLOR__;
 }
 
 window#waybar.external #custom-app-terminal,
@@ -1550,11 +1525,11 @@ window#waybar.external #custom-power {
 }
 
 window#waybar.external #custom-lock:hover {
-  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_LOCK_HOVER_SHADOW_COLOR__;
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_LOCK_HOVER_SHADOW_COLOR__;
 }
 
 window#waybar.external #custom-power:hover {
-  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_POWER_HOVER_SHADOW_COLOR__;
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_POWER_HOVER_SHADOW_COLOR__;
 }
 
 window#waybar.external #custom-window-switcher {
@@ -1597,7 +1572,7 @@ window#waybar.external #custom-tomat {
 }
 
 window#waybar.external #custom-notifications:hover {
-  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_NOTIFICATIONS_HOVER_SHADOW_COLOR__;
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_NOTIFICATIONS_HOVER_SHADOW_COLOR__;
 }
 
 window#waybar.external #quick-controls {

@@ -90,6 +90,23 @@ CHATGPT_SINGLETON_NAMES = (
     "SingletonLock",
     "SingletonSocket",
 )
+
+
+def cleanup_private_temp_root(path: str) -> None:
+    """Remove owned scratch unless an unreaped proxy socket retains evidence."""
+    try:
+        with os.scandir(path) as entries:
+            if any(entry.is_socket() for entry in entries):
+                # stop_dbus_proxy deliberately leaves the socket when the
+                # proxy cannot be reaped. Retain the whole private root so a
+                # later operator can reconcile the outcome safely.
+                return
+    except OSError:
+        # An uncertain cleanup path must not broaden deletion ownership.
+        return
+    shutil.rmtree(path, ignore_errors=True)
+
+
 MAX_SINGLETON_LINK_BYTES = 4096
 SYNTHETIC_IDENTITY_DOMAIN = identity.SYNTHETIC_IDENTITY_DOMAIN
 
@@ -636,7 +653,7 @@ def _run_pure_privacy(app_name: str, extra_args: list[str], resources: ExitStack
     if app_name == "tor-browser" and not os.path.isdir(host_runtime_dir):
         fail("Tor Browser requires its private user runtime directory")
     temp_root = tempfile.mkdtemp(prefix=f"labwc-{app_name}-privacy-", dir=host_runtime_dir if os.path.isdir(host_runtime_dir) else None)
-    resources.callback(shutil.rmtree, temp_root, ignore_errors=True)
+    resources.callback(cleanup_private_temp_root, temp_root)
     machine_id_path = os.path.join(temp_root, "machine-id")
     hostname_path = os.path.join(temp_root, "hostname")
     passwd_path = os.path.join(temp_root, "passwd")
@@ -1557,7 +1574,7 @@ def _run_persistent_sandbox_with_resources(
         prefix=f"labwc-{app_name}-sandbox-",
         dir=host_runtime_dir if os.path.isdir(host_runtime_dir) else None,
     )
-    resources.callback(shutil.rmtree, temp_root, ignore_errors=True)
+    resources.callback(cleanup_private_temp_root, temp_root)
     synthetic_identity = (
         create_synthetic_identity_files(
             temp_root,

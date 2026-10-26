@@ -1,12 +1,14 @@
 #!/bin/sh
 set -eu
+# Menu options are fixed even when invoked through sudo from a custom shell.
+unset FZF_DEFAULT_OPTS FZF_DEFAULT_OPTS_FILE FZF_DEFAULT_COMMAND
 usage() {
     if [ "$#" -eq 0 ] && [ -t 0 ] && [ -t 1 ]; then
         printf '%s\n' 'Use the interactive FZF menu below, or pass an explicit action.' >&2
     fi
     cat <<'EOF'
 Usage: sudo apt-repo-init [--menu]
-       sudo apt-repo-init --init|--refresh|--list|--status|--rebuild
+       sudo apt-repo-init --init|--refresh|--reinitialize|--list|--status|--rebuild
        sudo apt-repo-init --add FILE.deb [--yes] [--remove-depends NAME,NAME]
               [--remove-vendor-apt] [--drop-maintainer-script SCRIPT] [--url HTTPS_URL]
        sudo apt-repo-init --delete [PACKAGE[:ARCH]]
@@ -18,6 +20,7 @@ Usage: sudo apt-repo-init [--menu]
 Policy edits repackage retained upstream bytes before publishing a new local revision.
 Vendor APT removal refuses potentially recreating scripts unless explicitly reviewed/dropped.
 --rebuild regenerates signed indexes; --reapply repackages. Neither installs packages.
+--reinitialize downloads and republishes all managed external applications; it does not install them.
 EOF
 }
 [ "$#" -gt 0 ] || set -- --menu
@@ -53,7 +56,8 @@ if [ "$1" = '--menu' ]; then
     run_menu_action() {
         case "$1" in
             'Initialize repository') /usr/local/libexec/apt-repo-local init ;;
-            'Refresh vendor metadata') /usr/local/libexec/apt-repo-local refresh ;;
+            'Refresh external applications (new versions only)') /usr/local/libexec/apt-repo-local refresh ;;
+            'Reinitialize external applications (download and republish)') /usr/local/libexec/apt-repo-local reinitialize ;;
             'Seed default policies') /usr/local/libexec/apt-repo-local seed-defaults ;;
             'Adopt vendor packages') /usr/local/libexec/apt-repo-local adopt-vendors ;;
             'Process inbox') /usr/local/libexec/apt-repo-local process-inbox ;;
@@ -111,20 +115,24 @@ if [ "$1" = '--menu' ]; then
                 esac
                 /usr/local/libexec/apt-repo-local remove-depends "$package" "$dependencies"
                 ;;
-            *) return 0 ;;
+            *) printf '%s\n' 'fatal: unknown repository menu action' >&2; return 64 ;;
         esac
     }
     while :; do
         action=$(
             printf '%s\n' \
-                'Initialize repository' 'Refresh vendor metadata' 'Seed default policies' \
+                'Initialize repository' 'Refresh external applications (new versions only)' \
+                'Reinitialize external applications (download and republish)' 'Seed default policies' \
                 'Adopt vendor packages' 'Process inbox' 'List packages' 'Show repository status' \
                 'Rebuild signed indexes' 'Import a .deb' 'Delete package' 'Inspect a .deb' \
                 'Show package record' 'Show package policy' 'Reapply package policy' \
                 'Set policy from JSON' 'Remove vendor APT' 'Remove dependencies' 'Back' |
                 /usr/bin/fzf --no-multi --no-sort --exact --layout=reverse --border --height=75% \
                     --prompt='APT Repository > ' --header='Enter: select  Esc: exit'
-        ) || exit 0
+        ) || {
+            status=$?
+            case "$status" in 1|130) exit 0 ;; *) exit "$status" ;; esac
+        }
         case "$action" in
             Back|'') exit 0 ;;
             *)
@@ -142,11 +150,11 @@ if [ "$1" = '--menu' ]; then
 fi
 case "$1" in
     --help|-h) usage; exit 0 ;;
-    --init|--refresh|--list|--status|--rebuild|--add|--delete|--show|--policy|--reapply|--inspect|--set-policy|--remove-vendor-apt|--remove-depends)
+    --init|--refresh|--reinitialize|--list|--status|--rebuild|--add|--delete|--show|--policy|--reapply|--inspect|--set-policy|--remove-vendor-apt|--remove-depends)
         action=${1#--}
         shift
         case "$action" in
-            init|refresh|list|status|rebuild) [ "$#" -eq 0 ] || { usage >&2; exit 64; } ;;
+            init|refresh|reinitialize|list|status|rebuild) [ "$#" -eq 0 ] || { usage >&2; exit 64; } ;;
             add) [ "$#" -ge 1 ] || { usage >&2; exit 64; } ;;
             delete) [ "$#" -le 1 ] || { usage >&2; exit 64; } ;;
             set-policy|remove-depends) [ "$#" -eq 2 ] || { usage >&2; exit 64; } ;;

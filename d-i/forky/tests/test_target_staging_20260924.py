@@ -420,7 +420,7 @@ class TargetStageChrootTests(unittest.TestCase):
                 bars = json.loads((self.root / "etc/skel-desktop/.config/waybar/config").read_text())
                 for bar in bars:
                     self.assertEqual(bar["custom/battery"]["on-click"], "keep-left-" + bar["name"])
-                    self.assertIn("labwc-hardware-tuning menu", bar["custom/battery"]["on-click-right"])
+                    self.assertIn("labwc-hardware-tuning menu", bar["custom/battery"]["on-click-right-release"])
                 self.assert_clean()
                 self.assert_modes()
                 self.assertNotIn("must-not-copy", (self.fixture / "target-calls").read_text())

@@ -270,7 +270,12 @@ def install(root: Path, uid: int, gid: int, environment: dict, vendors: list[str
         key = "custom/battery"
         if not isinstance(bar.get(key), dict):
             raise ValueError("Waybar bar has no battery module")
-        bar[key]["on-click-right"] = CLICK
+        entry = bar[key]
+        for event in ("on-click-right", "on-click-right-release"):
+            if event in entry and entry[event] != CLICK:
+                raise ValueError("Waybar battery right-click conflicts with managed hardware menu")
+        entry.pop("on-click-right", None)
+        entry["on-click-right-release"] = CLICK
     put(relative, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     # Publish provider selection only after all of its units and activation
     # policy have been rendered. Offline staging never starts a consumer.

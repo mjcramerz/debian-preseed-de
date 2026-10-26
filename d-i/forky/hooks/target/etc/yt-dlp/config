@@ -1,0 +1,12 @@
+# System defaults for the pinned yt-dlp executable and bundled yt-dlp-ejs.
+# User and command-line configuration retain yt-dlp's normal precedence.
+--js-runtimes deno:/usr/local/lib/deno/bin/deno
+--ffmpeg-location /usr/bin
+# Keep installer-bundled extractor and postprocessor packages on the normal
+# yt-dlp discovery path. User plugin directories and additional --plugin-dirs
+# entries from user configuration remain additive.
+--plugin-dirs /usr/local/lib/yt-dlp/libexec/yt-dlp-plugins
+# The bundled Rust provider is optional at runtime and is used when YouTube
+# requests a proof-of-origin token. Users may override this extractor argument
+# in their normal user configuration or on the command line.
+--extractor-args youtubepot-bgutilcli:cli_path=/usr/local/lib/yt-dlp/libexec/bgutil-pot

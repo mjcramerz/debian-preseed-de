@@ -705,7 +705,7 @@ profile labwc-capture /usr/local/bin/labwc-capture flags=(attach_disconnected) {
   # Permit the user's home directory itself, without recursive file access.
   owner @{HOME}/ r,
   /usr/local/bin/labwc-capture rix,
-  /usr/bin/{awk,date,gawk,grep,install,mawk,mktemp,nawk,rm,sleep,find,tr,wc,timeout,ffprobe} rix,
+  /usr/bin/{awk,date,gawk,grep,install,mawk,mktemp,nawk,rm,sleep,find,stat,tr,wc,timeout,ffprobe} rix,
   /usr/bin/{grim,notify-send,slurp,systemctl,systemd-run,wf-recorder,wlr-randr} pux,
   /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
   /usr/local/bin/satty rPx -> satty,
@@ -1759,8 +1759,9 @@ profile labwc-keyboard-layout /usr/local/bin/labwc-keyboard-layout flags=(attach
 
   /usr/local/bin/labwc-keyboard-layout rix,
   /usr/local/bin/labwc-system-action rPx -> labwc-system-action,
-  /usr/bin/{flock,install,mv,rm,sleep} rix,
+  /usr/bin/{flock,install,mv,rm,sleep,stat} rix,
   /usr/bin/labwc pux,
+  /etc/labwc/desktop.conf r,
   /dev/rfkill r,
   /sys/devices/**/power_supply/*/status r,
   owner @{HOME}/.config/labwc/environment.d/ rw,
@@ -3447,8 +3448,8 @@ profile labwc-wayscriber-toggle /usr/local/bin/labwc-wayscriber-toggle flags=(at
   #include <abstractions/wrapper-wayland>
 
   /usr/local/bin/labwc-wayscriber-toggle rix,
-  /usr/bin/sleep rix,
-  /usr/bin/{systemctl,wayscriber} pux,
+  /usr/bin/{sleep,stat} rix,
+  /usr/bin/{systemctl,wayscriber,timeout} pux,
 
   include if exists <local/usr.local.bin.labwc-wayscriber-toggle>
 }
@@ -4572,7 +4573,7 @@ profile labwc-main-menu /usr/local/bin/labwc-main-menu flags=(attach_disconnecte
   /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
   /usr/local/bin/labwc-run rPx -> labwc-run,
   /usr/local/bin/labwc-wayland-app rPx -> labwc-generic-app,
-  /usr/local/bin/labwc-{terminal,lock,logout,power-menu} rPx,
+  /usr/local/bin/labwc-{terminal,lock,logout,power-menu,power-settings} rPx,
   /usr/local/libexec/labwc-output-watch rPx,
   /usr/bin/systemctl rix,
   /usr/lib/python3/dist-packages/gi/{,**} mr,
@@ -4603,7 +4604,7 @@ profile labwc-main-menu /usr/local/bin/labwc-main-menu flags=(attach_disconnecte
 profile labwc-window-switcher /usr/local/bin/labwc-window-switcher flags=(attach_disconnected) {
   #include <abstractions/wrapper-wayland>
   /usr/local/bin/labwc-window-switcher rix,
-  /usr/bin/{id,timeout,wtype} rix,
+  /usr/bin/{id,stat,timeout,wtype} rix,
   signal (send, receive) set=(term, kill, cont, chld) peer=labwc-window-switcher,
   /usr/share/X11/xkb/{,**} r,
   # wtype unlinks a private mkstemp keymap before passing its fd to Wayland.

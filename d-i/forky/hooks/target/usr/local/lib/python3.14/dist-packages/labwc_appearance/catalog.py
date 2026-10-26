@@ -261,9 +261,11 @@ CATALOG = (
 )
 LABELS = {row[0]: row[1] for row in CATALOG}
 DEFAULT_PROFILE = CATALOG[0][0]
-COMPONENTS = {'fuzzel': 'Fuzzel Profiles', 'waybar': 'Waybar Profiles',
-              'dock': 'Crystal-Dock Profiles', 'greeter': 'GTKGREET Profiles',
-              'terminal': 'Terminal Profiles'}
+COMPONENTS = {'fuzzel': 'Fuzzel Themes', 'waybar': 'Waybar Themes',
+              'taskview': 'Taskview Themes',
+              'waycal': 'Waycal Themes',
+              'dock': 'Crystal-Dock Themes', 'greeter': 'GtkGreet Themes',
+              'terminal': 'Terminal Themes'}
 
 
 def rgb(color: str) -> tuple[int, int, int]:

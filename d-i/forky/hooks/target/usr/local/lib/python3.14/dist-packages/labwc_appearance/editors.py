@@ -123,9 +123,13 @@ def _css_rules(text):
         raise ValueError('invalid native CSS')
     for rule in rules:
         if rule.type == 'at-rule':
-            # Installed templates do not contain imports or nested rules. Refuse
-            # unsupported imported styles rather than edit arbitrary files.
-            raise ValueError('appearance requires a self-contained stylesheet without at-rules')
+            # The main Waybar stylesheet imports one adjacent, installer-owned
+            # Taskview stylesheet. Keep that import relative and closed; refuse
+            # every other at-rule so a profile cannot follow arbitrary files.
+            imported = tinycss2.serialize(rule.prelude).strip()
+            if (rule.lower_at_keyword != 'import' or imported not in
+                    ('url("taskview.css")', 'url(taskview.css)')):
+                raise ValueError('appearance requires self-contained stylesheets')
     return rules
 
 
@@ -335,7 +339,7 @@ def _glow_rules(rules, p: Palette) -> str:
             image = '; background-image: ' + tinycss2.serialize(_replace_tokens(tokens, replacements))
         line = (selector + ':not(:disabled) { background-color: ' + background + '; color: ' + foreground +
                 image + '; border-color: ' + outline + '; box-shadow: 0 0 0 1px ' + outline +
-                f', 0 0 12px rgba({r}, {g}, {b}, 0.38);' + ' }')
+                f', inset 0 0 8px 1px rgba({r}, {g}, {b}, 0.38);' + ' }')
         size += len(line.encode('utf-8')) + 1
         if size > MAX_STYLESHEET_BYTES:
             raise ValueError('appearance state stylesheet exceeds the size limit')

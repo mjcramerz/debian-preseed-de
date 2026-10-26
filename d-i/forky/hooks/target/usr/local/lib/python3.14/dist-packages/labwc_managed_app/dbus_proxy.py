@@ -40,6 +40,14 @@ READ_ONLY_UPOWER_POLICY = (
 PROXY_READY_TIMEOUT_SECONDS = 5
 PROXY_STOP_TIMEOUT_SECONDS = 2
 PROXY_DIAGNOSTIC_MAX_CHARACTERS = 8_192
+DBUS_NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*(?:\.[A-Za-z_][A-Za-z0-9_-]*)*\Z")
+DBUS_POLICY_ARGUMENT_PREFIXES = (
+    "--see=",
+    "--talk=",
+    "--own=",
+    "--call=",
+    "--broadcast=",
+)
 
 
 @dataclass(frozen=True)
@@ -107,7 +115,44 @@ def _proxy_socket_problem(proxy_socket: str) -> str | None:
             "socket has the wrong owner: "
             f"expected={os.getuid()} actual={socket_stat.st_uid}"
         )
+    socket_mode = stat.S_IMODE(socket_stat.st_mode)
+    if socket_mode & (0o077 | stat.S_ISUID | stat.S_ISGID | stat.S_ISVTX):
+        return "socket path is accessible by another user"
     return None
+
+
+def _validated_dbus_names(label: str, names: tuple[str, ...]) -> tuple[str, ...]:
+    if not isinstance(names, tuple):
+        raise ValueError(f"{label} must be a tuple")
+    result: list[str] = []
+    seen: set[str] = set()
+    for name in names:
+        if (
+            not isinstance(name, str)
+            or len(name) > 255
+            or DBUS_NAME_RE.fullmatch(name) is None
+        ):
+            raise ValueError(f"{label} contains an invalid D-Bus name")
+        if name not in seen:
+            seen.add(name)
+            result.append(name)
+    return tuple(result)
+
+
+def _validated_policy_arguments(
+    policy_arguments: tuple[str, ...],
+) -> tuple[str, ...]:
+    if not isinstance(policy_arguments, tuple):
+        raise ValueError("D-Bus proxy policy arguments must be a tuple")
+    for argument in policy_arguments:
+        if (
+            not isinstance(argument, str)
+            or len(argument) > 1024
+            or any(ord(character) < 0x20 for character in argument)
+            or not argument.startswith(DBUS_POLICY_ARGUMENT_PREFIXES)
+        ):
+            raise ValueError("D-Bus proxy policy contains an invalid argument")
+    return policy_arguments
 
 
 def _unlink_proxy_socket(proxy_socket: str | None) -> None:
@@ -142,7 +187,8 @@ def stop_dbus_proxy(
         from .compat_protocol import stop_processes
         stopped = stop_processes([proxy_process], deadline)
         diagnostics = _bounded_proxy_stderr(proxy_process) if stopped else "xdg-dbus-proxy cleanup deadline expired"
-        _unlink_proxy_socket(proxy_socket)
+        if stopped:
+            _unlink_proxy_socket(proxy_socket)
         return diagnostics
     if proxy_process is not None and proxy_process.poll() is None:
         try:
@@ -173,7 +219,8 @@ def stop_dbus_proxy(
         diagnostics = "xdg-dbus-proxy could not be reaped"
     else:
         diagnostics = _bounded_proxy_stderr(proxy_process)
-    _unlink_proxy_socket(proxy_socket)
+    if proxy_process is None or proxy_process.poll() is not None:
+        _unlink_proxy_socket(proxy_socket)
     return diagnostics
 
 
@@ -261,7 +308,7 @@ def start_filtered_dbus_proxy(
         stat.S_ISLNK(temp_root_stat.st_mode)
         or not stat.S_ISDIR(temp_root_stat.st_mode)
         or temp_root_stat.st_uid != os.getuid()
-        or temp_root_stat.st_mode & 0o077
+        or stat.S_IMODE(temp_root_stat.st_mode) != 0o700
     ):
         runtime.fail(
             "D-Bus proxy temporary root must be a private directory owned by "
@@ -289,13 +336,17 @@ def start_filtered_dbus_proxy(
         _close_socket(readiness_child)
         runtime.fail(f"cannot create the D-Bus proxy readiness channel: {exc}")
 
+    try:
+        validated_policy_arguments = _validated_policy_arguments(policy_arguments)
+    except ValueError as exc:
+        runtime.fail(str(exc))
     proxy_argv = [
         proxy_binary,
         f"--fd={readiness_child.fileno()}",
         bus_address,
         proxy_socket,
         "--filter",
-        *policy_arguments,
+        *validated_policy_arguments,
     ]
     try:
         proxy = subprocess.Popen(
@@ -306,6 +357,7 @@ def start_filtered_dbus_proxy(
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             pass_fds=[readiness_child.fileno()],
+            umask=0o077,
             text=True,
             errors="replace",
         )
@@ -401,6 +453,17 @@ def start_session_bus_proxy(
         return None, None, None
 
     bus_address = runtime.validate_session_bus_address(raw_bus_address)
+    try:
+        additional_talk_names = _validated_dbus_names(
+            "additional D-Bus talk names",
+            additional_talk_names,
+        )
+        additional_own_names = _validated_dbus_names(
+            "additional D-Bus own names",
+            additional_own_names,
+        )
+    except ValueError as exc:
+        runtime.fail(str(exc))
     if compatibility:
         methods = (
             "OpenURI.OpenURI", "FileChooser.OpenFile", "FileChooser.SaveFile", "FileChooser.SaveFiles",
@@ -463,12 +526,21 @@ def start_system_bus_proxy(
     if (
         stat.S_ISLNK(system_bus_stat.st_mode)
         or not stat.S_ISSOCK(system_bus_stat.st_mode)
+        or system_bus_stat.st_uid != 0
+        or system_bus_stat.st_nlink != 1
     ):
         runtime.fail(
             "system D-Bus socket must be a socket, not a symlink: "
             f"{SYSTEM_BUS_SOCKET_PATH}"
         )
 
+    try:
+        additional_talk_names = _validated_dbus_names(
+            "additional system D-Bus talk names",
+            additional_talk_names,
+        )
+    except ValueError as exc:
+        runtime.fail(str(exc))
     policy_arguments = (*policy_arguments, *(
         f"--talk={bus_name}" for bus_name in additional_talk_names
     ))

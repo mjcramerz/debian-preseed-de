@@ -11,7 +11,8 @@ from managed_workflows.fs import Tree
 from managed_workflows.process import checked
 from .catalog import COMPONENTS, LABELS
 from .defaults import load
-from .native import identify, render, user_paths
+from .native import identify, render, render_asset, user_paths, ICON_MANAGED_FILES, POINTER_MANAGED_FILES
+from .icon_catalog import ICON_NAMES, POINTER_NAMES, icon_name, pointer_name, require_icon_installed, require_pointer_installed
 from .themes import VARIANTS as THEMES, variant as desktop_theme, require_installed
 from . import transaction, service
 
@@ -39,26 +40,32 @@ def settings(values: dict | None = None) -> dict:
 
 
 def privileged(action: str, token: str, profile: str = '', mode: str = '') -> None:
-    args = [action, profile, mode, token] if action == 'apply' else [action, token]
+    args = ([action, profile, mode, token] if action == 'apply'
+            else [action, profile, token] if action == 'cache-icons'
+            else [action, token])
     checked(['/usr/bin/pkexec', ROOT_HELPER, *args], timeout=180)
 
 
 def initial(defaults: dict) -> dict:
-    return {'schema': 2, 'mode': defaults['mode'], 'theme': None,
-            'profiles': dict.fromkeys(COMPONENTS)}
+    return {'schema': 3, 'mode': defaults['mode'], 'theme': None,
+            'profiles': dict.fromkeys(COMPONENTS),
+            'icon_theme': defaults.get('icon_theme'),
+            'pointer_theme': defaults.get('pointer_theme')}
 
 
 def validate_state(value):
-    if (not isinstance(value, dict) or value.get('schema') not in (1, 2) or value.get('mode') not in ('dark', 'light') or
+    if (not isinstance(value, dict) or value.get('schema') != 3 or
+            value.get('mode') not in ('dark', 'light') or
             not isinstance(value.get('profiles'), dict) or
             set(value['profiles']) != set(COMPONENTS) or
-            any(p is not None and (not isinstance(p, str) or p not in LABELS) for p in value['profiles'].values())):
+            any(p is not None and (not isinstance(p, str) or p not in LABELS)
+                for p in value['profiles'].values())):
         raise ValueError('invalid saved appearance selection')
-    if value['schema'] == 1:
-        if type(value.get('modeDefault')) is not bool:
-            raise ValueError('invalid saved legacy appearance selection')
-        value = {'schema': 2, 'mode': value['mode'], 'profiles': dict(value['profiles']),
-                 'theme': None if value['modeDefault'] else 'adwaita-' + value['mode']}
+    profiles = dict(value['profiles'])
+    value = {**value, 'profiles': profiles}
+    if (not isinstance(value.get('icon_theme'), str) or value['icon_theme'] not in ICON_NAMES or
+            not isinstance(value.get('pointer_theme'), str) or value['pointer_theme'] not in POINTER_NAMES):
+        raise ValueError('invalid saved icon or pointer theme selection')
     if 'theme' not in value:
         raise ValueError('saved appearance selection has no desktop theme field')
     theme = value.get('theme')
@@ -77,6 +84,12 @@ def selection(previous: dict, argv: list[str], defaults: dict) -> tuple[dict, se
         state['mode'] = defaults['mode'] if state['theme'] is None else (
             'dark' if desktop_theme(state['theme']).dark else 'light')
         affected = {'theme'}
+    elif len(argv) == 3 and argv[0] == 'apply' and argv[1] in ('icon', 'pointer'):
+        if argv[1] == 'icon':
+            state['icon_theme'] = icon_name(argv[2])
+        else:
+            state['pointer_theme'] = pointer_name(argv[2])
+        affected = {argv[1]}
     elif len(argv) == 3 and argv[0] == 'apply' and argv[1] in COMPONENTS and argv[2] in LABELS:
         name = argv[1]
         state['profiles'][name] = argv[2]
@@ -84,13 +97,19 @@ def selection(previous: dict, argv: list[str], defaults: dict) -> tuple[dict, se
             greeter = True
         else:
             affected.add(name)
-    elif len(argv) == 2 and argv[0] == 'reset' and argv[1] in (*COMPONENTS, 'theme', 'all'):
+    elif len(argv) == 2 and argv[0] == 'reset' and argv[1] in (*COMPONENTS, 'theme', 'icon', 'pointer', 'all'):
         if argv[1] == 'theme':
             return selection(previous, ['theme', 'reset'], defaults)
         if argv[1] == 'all':
             state = initial(defaults)
-            affected = {'theme', 'fuzzel', 'waybar', 'dock', 'terminal'}
+            affected = {'theme', 'icon', 'pointer', 'fuzzel', 'waybar', 'taskview', 'waycal', 'dock', 'terminal'}
             greeter = True
+        elif argv[1] == 'icon':
+            state['icon_theme'] = defaults.get('icon_theme')
+            affected.add('icon')
+        elif argv[1] == 'pointer':
+            state['pointer_theme'] = defaults.get('pointer_theme')
+            affected.add('pointer')
         elif argv[1] == 'greeter':
             state['profiles']['greeter'] = None
             greeter = True
@@ -98,7 +117,7 @@ def selection(previous: dict, argv: list[str], defaults: dict) -> tuple[dict, se
             state['profiles'][argv[1]] = None
             affected.add(argv[1])
     else:
-        raise ValueError('usage: labwc-desktop-appearance [theme THEME_VARIANT|reset | apply COMPONENT PROFILE | reset COMPONENT|theme|all]')
+        raise ValueError('usage: labwc-desktop-appearance [theme THEME_VARIANT|reset | apply COMPONENT PROFILE | apply icon NAME | apply pointer NAME | reset COMPONENT|theme|icon|pointer|all]')
     return state, affected, greeter
 
 
@@ -148,6 +167,10 @@ def apply_choice(argv: list[str]) -> list[str]:
             current, affected, greeter = selection(previous, argv, defaults)
             if 'theme' in affected and current['theme'] is not None:
                 require_installed(current['theme'])
+            if 'icon' in affected:
+                require_icon_installed(current['icon_theme'])
+            if 'pointer' in affected:
+                require_pointer_installed(current['pointer_theme'])
             # Capture dock liveness in the journal *before* stopping it. Recovery
             # can restart it even after a power failure at the next invocation.
             dock_running = 'dock' in affected and service.active('crystal-dock.service')
@@ -160,13 +183,32 @@ def apply_choice(argv: list[str]) -> list[str]:
                     'gtk-theme': "'" + desktop_theme(current['theme']).gtk + "'"}
             updates = {}
             for path, baseline in defaults['files'].items():
-                component, _ = identify(path)
-                if component not in affected:
+                component, base = identify(path)
+                if (component not in affected and
+                        not ('icon' in affected and base in ICON_MANAGED_FILES) and
+                        not ('pointer' in affected and base in POINTER_MANAGED_FILES)):
                     continue
                 raw = home.read(path, missing=True)
+                # Optional Qt compatibility files may be absent on a target.
+                # Preserve that absence instead of trying to render a setting
+                # into an empty file during an icon-only transaction.
+                if (raw is None and baseline is None and
+                        base in ('qt5ct/qt5ct.conf', 'qt6ct/qt6ct.conf')):
+                    continue
+                if (raw is None and baseline is None and base == 'labwc/environment'
+                        and argv[:2] in (['reset', 'pointer'], ['reset', 'all'])):
+                    continue
                 source = raw.decode('utf-8') if raw is not None else baseline or ''
-                profile = current['theme'] if component == 'theme' else current['profiles'][component]
-                value = render(path, source, baseline, profile, current['mode'], home.root)
+                value = source
+                if 'icon' in affected and base in ICON_MANAGED_FILES:
+                    value = render_asset(base, value, baseline, 'icon', current['icon_theme'])
+                if 'pointer' in affected and base in POINTER_MANAGED_FILES:
+                    value = render_asset(base, value, baseline, 'pointer', current['pointer_theme'])
+                if component in affected:
+                    profile = current['theme'] if component == 'theme' else current['profiles'][component]
+                    value = render(path, value, baseline, profile, current['mode'], home.root)
+                else:
+                    pass
                 updates[path] = None if value is None else value.encode('utf-8')
             updates[CONFIG] = (json.dumps(current, sort_keys=True, indent=2) + '\n').encode()
             journal = transaction.plan(home, updates, token)
@@ -196,6 +238,8 @@ def apply_choice(argv: list[str]) -> list[str]:
                 transaction.apply(home, journal)
                 if new_settings is not None:
                     settings(new_settings)
+                if 'icon' in affected:
+                    privileged('cache-icons', token, current['icon_theme'])
                 if greeter:
                     privileged('apply', token, current['profiles']['greeter'] or 'reset', current['mode'])
                 # Durable commit decision precedes root commit. Recovery either

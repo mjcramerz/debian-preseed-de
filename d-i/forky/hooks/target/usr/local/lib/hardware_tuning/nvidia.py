@@ -6,8 +6,12 @@ raw register writes, shell subprocesses, or driver/firmware modifications.
 from __future__ import annotations
 
 import ctypes as C
+import os
 import re
+import stat
+import subprocess
 import time
+from pathlib import Path
 from common import Knob, TuningError, UnsupportedControl
 
 SETTINGS = {
@@ -33,6 +37,105 @@ class NVMLFailure(TuningError):
 
 class NVMLUnsupported(NVMLFailure, UnsupportedControl):
     """Preserve NVML error details while identifying NOT_SUPPORTED replies."""
+
+
+class NvidiaSmiFailure(TuningError):
+    """A bounded nvidia-smi query or mutation failed."""
+
+
+class NvidiaSmi:
+    """Fixed-command fallback for drivers with incomplete NVML clock ABIs."""
+
+    COMMAND = Path('/usr/bin/nvidia-smi')
+    MAX_OUTPUT = 64 * 1024
+
+    def __init__(self, command: Path | None = None) -> None:
+        self.command = command or self.COMMAND
+        try:
+            metadata = self.command.lstat()
+        except OSError as exc:
+            raise NvidiaSmiFailure(f'nvidia-smi is unavailable: {exc}') from exc
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
+                or metadata.st_gid != 0
+                or metadata.st_mode & (stat.S_IWGRP | stat.S_IWOTH | stat.S_ISUID | stat.S_ISGID)
+                or not os.access(self.command, os.X_OK)):
+            raise NvidiaSmiFailure('nvidia-smi is not an executable regular file')
+
+    def run(self, uuid: str, *arguments: str) -> str:
+        if re.fullmatch(r'GPU-[A-Za-z0-9-]{8,100}', uuid) is None:
+            raise NvidiaSmiFailure('invalid NVIDIA GPU UUID')
+        if any(not isinstance(argument, str) or
+               re.fullmatch(r'[A-Za-z0-9_=+,.:-]{1,80}', argument) is None
+               for argument in arguments):
+            raise NvidiaSmiFailure('invalid nvidia-smi argument')
+        try:
+            result = subprocess.run(
+                [str(self.command), '--id=' + uuid, *arguments],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='ascii',
+                errors='replace',
+                env={'PATH': '/usr/bin:/bin', 'LANG': 'C', 'LC_ALL': 'C',
+                     'HOME': '/'},
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise NvidiaSmiFailure(f'nvidia-smi invocation failed: {exc}') from exc
+        if len(result.stdout) > self.MAX_OUTPUT or len(result.stderr) > self.MAX_OUTPUT:
+            raise NvidiaSmiFailure('nvidia-smi output exceeds the bounded limit')
+        if result.returncode != 0:
+            detail = ' '.join(result.stderr.split())[:240]
+            raise NvidiaSmiFailure(
+                f'nvidia-smi returned status {result.returncode}' +
+                (f': {detail}' if detail else ''))
+        return result.stdout
+
+    @staticmethod
+    def _pair(value: str, label: str) -> str:
+        rows = [part.strip() for part in value.splitlines() if part.strip()]
+        if len(rows) != 1:
+            raise NvidiaSmiFailure(f'nvidia-smi returned an invalid {label} row count')
+        fields = [part.strip() for part in rows[0].split(',')]
+        if len(fields) != 2 or any(re.fullmatch(r'[0-9]{1,6}', part) is None for part in fields):
+            raise NvidiaSmiFailure(f'nvidia-smi returned an invalid {label} pair')
+        return ','.join(fields)
+
+    def supported_clocks(self, uuid: str) -> dict[int, list[int]]:
+        output = self.run(uuid, '--query-supported-clocks=memory,graphics',
+                          '--format=csv,noheader,nounits')
+        tables: dict[int, set[int]] = {}
+        rows = [row.strip() for row in output.splitlines() if row.strip()]
+        if not rows or len(rows) > 4096:
+            raise NvidiaSmiFailure('nvidia-smi returned no or too many supported clocks')
+        for row in rows:
+            fields = [part.strip() for part in row.split(',')]
+            if len(fields) != 2 or any(re.fullmatch(r'[0-9]{1,6}', part) is None for part in fields):
+                raise NvidiaSmiFailure('nvidia-smi returned an invalid supported-clock row')
+            memory, graphics = (int(part) for part in fields)
+            tables.setdefault(memory, set()).add(graphics)
+        return {memory: sorted(graphics) for memory, graphics in tables.items()}
+
+    def application_pair(self, uuid: str, *, default: bool = False) -> str:
+        prefix = 'clocks.applications' if not default else 'clocks.default_applications'
+        output = self.run(uuid, '--query-gpu=' + prefix + '.memory,' + prefix + '.graphics',
+                          '--format=csv,noheader,nounits')
+        return self._pair(output, 'application-clock')
+
+    def set_application_pair(self, uuid: str, pair: str) -> None:
+        self.run(uuid, '--applications-clocks=' + pair)
+
+    def reset_application_pair(self, uuid: str) -> None:
+        self.run(uuid, '--reset-applications-clocks')
+
+    def set_lock(self, uuid: str, domain: str, pair: str) -> None:
+        option = '--lock-gpu-clocks=' if domain == 'GPU' else '--lock-memory-clocks='
+        self.run(uuid, option + pair)
+
+    def reset_lock(self, uuid: str, domain: str) -> None:
+        self.run(uuid, '--reset-gpu-clocks' if domain == 'GPU' else '--reset-memory-clocks')
 
 
 class ClockOffset(C.Structure):
@@ -212,16 +315,34 @@ class Backend:
                             tables[memory] = clocks
             info["supported_clocks_memory_to_graphics_mhz"] = tables
         if wanted("APPLICATION_CLOCKS_MHZ"):
-            self.optional(uuid + "/application_clocks", lambda: self.application_clocks(uuid, handle, tables))
+            if tables and all(self.api.has(fn) for fn in (
+                    "nvmlDeviceGetApplicationsClock",
+                    "nvmlDeviceGetDefaultApplicationsClock",
+                    "nvmlDeviceSetApplicationsClocks",
+                    "nvmlDeviceResetApplicationsClocks")):
+                self.optional(uuid + "/application_clocks", lambda: self.application_clocks(uuid, handle, tables))
+            else:
+                self.optional(uuid + "/application_clocks_nvidia_smi",
+                              lambda: self.smi_application_clocks(uuid))
         arch = info.get("architecture")
         if wanted("GPU_LOCK_MHZ"):
             if isinstance(arch, int) and 5 <= arch < 0xffffffff:
-                self.optional(uuid + "/gpu_lock", lambda: self.clock_lock(uuid, handle, "GPU", tables))
+                setter, resetter = "nvmlDeviceSetGpuLockedClocks", "nvmlDeviceResetGpuLockedClocks"
+                if self.api.has(setter) and self.api.has(resetter):
+                    self.optional(uuid + "/gpu_lock", lambda: self.clock_lock(uuid, handle, "GPU", tables))
+                else:
+                    self.optional(uuid + "/gpu_lock_nvidia_smi",
+                                  lambda: self.smi_clock_lock(uuid, "GPU"))
             else:
                 self.unavailable.append(f"{uuid}/GPU_LOCK_MHZ: Volta+ required; architecture={arch}")
         if wanted("MEMORY_LOCK_MHZ"):
             if isinstance(arch, int) and 7 <= arch < 0xffffffff and arch != 9:
-                self.optional(uuid + "/memory_lock", lambda: self.clock_lock(uuid, handle, "MEMORY", tables))
+                setter, resetter = "nvmlDeviceSetMemoryLockedClocks", "nvmlDeviceResetMemoryLockedClocks"
+                if self.api.has(setter) and self.api.has(resetter):
+                    self.optional(uuid + "/memory_lock", lambda: self.clock_lock(uuid, handle, "MEMORY", tables))
+                else:
+                    self.optional(uuid + "/memory_lock_nvidia_smi",
+                                  lambda: self.smi_clock_lock(uuid, "MEMORY"))
             else:
                 self.unavailable.append(f"{uuid}/MEMORY_LOCK_MHZ: runtime-modifiable memory locks unavailable on this architecture")
         if wanted("TARGET_TEMPERATURE_C"):
@@ -255,7 +376,11 @@ class Backend:
             raise TuningError("legacy offset setter unavailable")
         low, high = self.api.bounds(f"nvmlDeviceGet{prefix}ClkMinMaxVfOffset", handle, signed=True)
         read = lambda: self.api.scalar(getter, handle, signed=True)
-        read()
+        try:
+            read()
+        except NVMLUnsupported:
+            self.smi_application_clocks(uuid)
+            return
         key = f"{uuid}/{setting}/global"
         self.knobs[key] = Knob(key, setting, read,
             lambda value: self.api.call(setter, [H, I], [handle, value]), low, high,
@@ -275,7 +400,17 @@ class Backend:
     def application_clocks(self, uuid: str, handle: H, tables: dict) -> None:
         if not tables or not all(self.api.has(fn) for fn in ("nvmlDeviceSetApplicationsClocks", "nvmlDeviceResetApplicationsClocks")):
             raise TuningError("no supported application-clock table/setter/resetter")
+        smi_fallback: NvidiaSmi | None = None
+
+        def smi() -> NvidiaSmi:
+            nonlocal smi_fallback
+            if smi_fallback is None:
+                smi_fallback = NvidiaSmi()
+            return smi_fallback
+
         def read():
+            if smi_fallback is not None:
+                return smi_fallback.application_pair(uuid)
             return ",".join(str(self.api.scalar("nvmlDeviceGetApplicationsClock", handle, domain)) for domain in (2, 0))
         read()
         def validate(value):
@@ -290,20 +425,66 @@ class Backend:
         def write(value):
             parts = [int(v) for v in value.split(",")] if isinstance(value, str) else value
             validate(parts)
-            self.api.call("nvmlDeviceSetApplicationsClocks", [H, U, U], [handle, *parts])
+            if smi_fallback is not None:
+                smi_fallback.set_application_pair(uuid, value)
+                if read() != value:
+                    raise NvidiaSmiFailure("nvidia-smi application-clock readback differs")
+                return
+            try:
+                self.api.call("nvmlDeviceSetApplicationsClocks", [H, U, U], [handle, *parts])
+            except NVMLUnsupported:
+                # A symbol can be exported while the driver rejects the ABI.
+                # Switch to the advertised nvidia-smi path for all subsequent
+                # writes and verify the first fallback write before returning.
+                smi().set_application_pair(uuid, value)
+                if read() != value:
+                    raise NvidiaSmiFailure("nvidia-smi application-clock readback differs")
         key = f"{uuid}/APPLICATION_CLOCKS_MHZ"
         # Do not publish a knob before BOTH the default getter and resetter are
         # known to exist. Unsupported APIs must not leave a half-built control.
-        default = ",".join(str(self.api.scalar("nvmlDeviceGetDefaultApplicationsClock", handle, domain))
-                           for domain in (2, 0))
+        try:
+            default = ",".join(str(self.api.scalar("nvmlDeviceGetDefaultApplicationsClock", handle, domain))
+                               for domain in (2, 0))
+        except NVMLUnsupported:
+            self.smi_application_clocks(uuid)
+            return
         def restore(value):
+            if smi_fallback is not None:
+                if value == default:
+                    smi_fallback.reset_application_pair(uuid)
+                else:
+                    write(value)
+                if read() != value:
+                    raise NvidiaSmiFailure('nvidia-smi application-clock restore readback differs')
+                return
             if value == default:
-                self.api.call("nvmlDeviceResetApplicationsClocks", [H], [handle])
+                try:
+                    self.api.call("nvmlDeviceResetApplicationsClocks", [H], [handle])
+                except NVMLUnsupported:
+                    smi().reset_application_pair(uuid)
             else:
                 write(value)
         fastest_memory = max(tables)
         fastest_pair = f"{fastest_memory},{max(tables[fastest_memory])}"
         def maximum():
+            if smi_fallback is not None:
+                deadline = time.monotonic() + 8
+                before = read()
+                for candidate in pairs:
+                    if time.monotonic() >= deadline:
+                        raise TuningError("maximum application-clock selection deadline exceeded")
+                    if read() != before:
+                        raise TuningError("application-clock state changed during selection")
+                    if candidate == before:
+                        return candidate
+                    try:
+                        write(candidate)
+                    except NvidiaSmiFailure:
+                        if read() != before:
+                            raise TuningError("nvidia-smi rejection changed application-clock state; no retry")
+                        continue
+                    return candidate
+                return None
             # Called only inside the engine's write-ahead transaction. Prefer
             # memory bandwidth first, then the highest graphics clock at that
             # memory level. Failed/missing table queries already omit a level.
@@ -343,6 +524,100 @@ class Backend:
         knob.restore_value = restore
         self.knobs[key] = knob
 
+    def smi_application_clocks(self, uuid: str) -> None:
+        """Expose legacy ``-ac`` clocks when NVML omits that ABI."""
+        smi = NvidiaSmi()
+        tables = smi.supported_clocks(uuid)
+        if not tables or sum(len(graphics) for graphics in tables.values()) > 4096:
+            raise TuningError('nvidia-smi returned no usable application-clock table')
+        pairs = tuple(f'{memory},{graphics}'
+                      for memory in sorted(tables, reverse=True)
+                      for graphics in sorted(set(tables[memory]), reverse=True))
+        current = smi.application_pair(uuid)
+        default = smi.application_pair(uuid, default=True)
+        if current not in pairs or default not in pairs:
+            raise TuningError('nvidia-smi application clocks are not in the advertised table')
+
+        def read() -> str:
+            return smi.application_pair(uuid)
+
+        def validate(value: str) -> None:
+            if value not in pairs:
+                raise TuningError('application clocks must be an advertised memory,graphics pair')
+
+        def write(value: str) -> None:
+            validate(value)
+            smi.set_application_pair(uuid, value)
+            if read() != value:
+                raise TuningError('nvidia-smi application-clock readback differs')
+
+        def restore(value: str) -> None:
+            if value == default:
+                smi.reset_application_pair(uuid)
+            else:
+                write(value)
+            if read() != value:
+                raise TuningError('nvidia-smi application-clock restore readback differs')
+
+        def maximum() -> str | None:
+            deadline = time.monotonic() + 8
+            before = read()
+            for candidate in pairs:
+                if time.monotonic() >= deadline:
+                    raise TuningError('maximum nvidia-smi application-clock selection deadline exceeded')
+                if read() != before:
+                    raise TuningError('application-clock state changed during nvidia-smi selection')
+                if candidate == before:
+                    return candidate
+                try:
+                    write(candidate)
+                except NvidiaSmiFailure as exc:
+                    # A failed CLI request has an unknown outcome. Retry only
+                    # after an exact readback proves that it did not mutate.
+                    if read() != before:
+                        raise TuningError('nvidia-smi rejection changed application-clock state; no retry') from exc
+                    continue
+                return candidate
+            return None
+
+        key = f'{uuid}/APPLICATION_CLOCKS_MHZ'
+        knob = Knob(key, 'APPLICATION_CLOCKS_MHZ', read, write, choices=pairs,
+                    symbols={'max': pairs[0]}, unit='memory,graphics MHz',
+                    note='nvidia-smi legacy -ac fallback; driver-advertised pairs only',
+                    write_maximum=maximum)
+        knob.restore_value = restore
+        self.knobs[key] = knob
+
+    def smi_clock_lock(self, uuid: str, domain: str) -> None:
+        """Use modern ``-lgc``/``-lmc`` locks when NVML lock symbols are absent."""
+        smi = NvidiaSmi()
+        tables = smi.supported_clocks(uuid)
+        clocks = (sorted({clock for values in tables.values() for clock in values})
+                  if domain == 'GPU' else sorted(tables))
+        if not clocks:
+            raise TuningError('nvidia-smi returned no advertised lock clocks')
+        setter = lambda pair: smi.set_lock(uuid, domain, pair)
+        resetter = lambda: smi.reset_lock(uuid, domain)
+        def validate(value: list[int]) -> None:
+            if any(clock not in clocks for clock in value):
+                raise TuningError('both locked clock endpoints must be in the supported nvidia-smi table')
+        def write(value: str | list[int]) -> None:
+            if value == 'unlocked':
+                resetter()
+                return
+            parts = [int(item) for item in value.split(',')] if isinstance(value, str) else value
+            validate(parts)
+            if parts[0] > parts[1]:
+                raise TuningError('minimum lock clock exceeds maximum lock clock')
+            setter(f'{parts[0]},{parts[1]}')
+        key = f'{uuid}/{domain}_LOCK_MHZ'
+        knob = Knob(key, f'{domain}_LOCK_MHZ', lambda: 'unlocked', write,
+                    min(clocks), max(clocks), unit='MHz-pair', restorable=False,
+                    validate_extra=validate,
+                    note=('nvidia-smi modern ' + ('-lgc' if domain == 'GPU' else '-lmc') +
+                          ' fallback; current lock range is intentionally not inferred'))
+        self.knobs[key] = knob
+
     def clock_lock(self, uuid: str, handle: H, domain: str, tables: dict) -> None:
         prefix = "Gpu" if domain == "GPU" else "Memory"
         setter, resetter = f"nvmlDeviceSet{prefix}LockedClocks", f"nvmlDeviceReset{prefix}LockedClocks"
@@ -351,14 +626,30 @@ class Backend:
         clocks = sorted({clock for group in tables.values() for clock in group}) if domain == "GPU" else sorted(tables)
         if not clocks:
             raise TuningError("no advertised clock limits; refusing to guess")
+        smi_fallback: NvidiaSmi | None = None
         def validate(value):
             if any(v not in clocks for v in value):
                 raise TuningError("both locked clock endpoints must be in the supported clock table")
         def write(value):
+            nonlocal smi_fallback
             if value == "unlocked":
-                self.api.call(resetter, [H], [handle])
+                if smi_fallback is not None:
+                    smi_fallback.reset_lock(uuid, domain)
+                else:
+                    try:
+                        self.api.call(resetter, [H], [handle])
+                    except NVMLUnsupported:
+                        smi_fallback = NvidiaSmi()
+                        smi_fallback.reset_lock(uuid, domain)
             else:
-                self.api.call(setter, [H, U, U], [handle, *value])
+                if smi_fallback is not None:
+                    smi_fallback.set_lock(uuid, domain, f'{value[0]},{value[1]}')
+                else:
+                    try:
+                        self.api.call(setter, [H, U, U], [handle, *value])
+                    except NVMLUnsupported:
+                        smi_fallback = NvidiaSmi()
+                        smi_fallback.set_lock(uuid, domain, f'{value[0]},{value[1]}')
         key, setting = f"{uuid}/{domain}_LOCK_MHZ", f"{domain}_LOCK_MHZ"
         self.knobs[key] = Knob(key, setting, lambda: "unlocked", write, min(clocks), max(clocks),
             unit="MHz-pair", restorable=False, validate_extra=validate,

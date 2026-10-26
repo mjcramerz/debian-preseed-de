@@ -28,11 +28,17 @@ def refresh(components: set[str]) -> list[str]:
     # commit is a refresh warning, not an assertion that file publication failed.
     actions = (
         ('waybar', 'waybar.service', ['reload', 'waybar.service']),
+        ('taskview', 'waybar.service', ['reload', 'waybar.service']),
+        ('waycal', 'labwc-waycal-popup.service', ['stop', 'labwc-waycal-popup.service']),
         ('theme', 'labwc-compositor.service', ['kill', '--kill-whom=main', '--signal=SIGHUP',
                                                'labwc-compositor.service']),
+        ('pointer', 'labwc-compositor.service', ['kill', '--kill-whom=main', '--signal=SIGHUP',
+                                                  'labwc-compositor.service']),
     )
     for component, unit, arguments in actions:
         if component not in components:
+            continue
+        if component == 'taskview' and 'waybar' in components:
             continue
         try:
             if active(unit):

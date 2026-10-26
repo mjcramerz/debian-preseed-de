@@ -20,6 +20,10 @@ TimeoutStartSec=30s
 KillMode=control-group
 Type=exec
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
+# Waybar callbacks receive only the session variables they need. Do not allow
+# loader, Python, GTK/GIO module, or X11 injection variables from the login
+# environment to alter the managed Wayland panel or its helper transitions.
+UnsetEnvironment=LD_PRELOAD LD_AUDIT LD_LIBRARY_PATH PYTHONPATH PYTHONHOME GI_TYPELIB_PATH GIO_MODULE_DIR GTK_MODULES DISPLAY XAUTHORITY
 ExecCondition=/usr/local/libexec/labwc-session-check session-ready
 ExecStart=/usr/bin/waybar -c %h/.config/waybar/config -s %h/.config/waybar/style.css
 ExecReload=/usr/local/libexec/labwc-session-check reload-waybar $MAINPID

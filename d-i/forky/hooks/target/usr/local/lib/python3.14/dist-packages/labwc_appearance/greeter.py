@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import pwd
 import re
+import subprocess
 from managed_workflows.fs import Tree
 from .catalog import LABELS, palette
 from .defaults import load
@@ -25,9 +26,21 @@ def caller() -> int:
 
 def main(argv: list[str]) -> int:
     uid = caller()
-    if not argv or argv[0] not in ('apply', 'commit', 'rollback'):
+    if not argv or argv[0] not in ('apply', 'commit', 'rollback', 'cache-icons'):
         raise ValueError('invalid greeter transaction operation')
     action = argv[0]
+    if action == 'cache-icons':
+        if len(argv) != 3 or not re.fullmatch(r'[0-9a-f]{32}', argv[2]):
+            raise ValueError('invalid icon cache transaction arguments')
+        from .icon_catalog import require_icon_installed
+        icon_directory = require_icon_installed(argv[1])
+        subprocess.run(
+            ['/usr/bin/gtk-update-icon-cache', '--force', '--index-only', str(icon_directory)],
+            env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'},
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, check=True, timeout=30,
+        )
+        return 0
     if len(argv) != (4 if action == 'apply' else 2):
         raise ValueError('invalid greeter transaction arguments')
     token = argv[-1]

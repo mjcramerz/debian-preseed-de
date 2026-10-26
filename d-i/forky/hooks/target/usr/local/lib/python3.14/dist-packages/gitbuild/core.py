@@ -94,7 +94,7 @@ class Context:
             pass
         cwd = repository or Path.cwd()
         if not cwd.is_relative_to(self.workspace):
-            raise ValueError('run gitbuild inside ~/Workspace or one of its repositories')
+            raise RepositoryRequired('select a Git repository below ~/Workspace')
         env = environment()
         env.update(GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL='/dev/null',
                    GIT_TERMINAL_PROMPT='0')

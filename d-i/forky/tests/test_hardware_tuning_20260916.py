@@ -408,7 +408,7 @@ desktop_install_hardware_tuning
                         self.assertFalse(activation.exists())
                 installed = json.loads(payload_read_text(path))
                 for before, after in zip(original, installed):
-                    self.assertEqual(after["custom/battery"].pop("on-click-right"), installer.CLICK)
+                    self.assertEqual(after["custom/battery"].pop("on-click-right-release"), installer.CLICK)
                     self.assertEqual(after, before)
                 self.assertTrue((root / "etc/systemd/system/sockets.target.wants/hardware-tuning.socket").is_symlink())
                 self.assertTrue((root / "etc/systemd/system/sleep.target.requires/hardware-tuning-sleep.service").is_symlink())

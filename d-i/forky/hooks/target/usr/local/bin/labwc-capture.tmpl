@@ -16,7 +16,8 @@ umask 077
 
 APP_NAME="Screen Capture"
 RECORDING_UNIT="labwc-screen-recording.service"
-NOTIFY_SEND=${NOTIFY_SEND:-$(command -v notify-send 2>/dev/null || true)}
+NOTIFY_SEND=/usr/bin/notify-send
+[ -x "$NOTIFY_SEND" ] || NOTIFY_SEND=
 desktop_uid=
 
 ensure_desktop_user() {
@@ -93,6 +94,10 @@ initialize_paths() {
     printf 'fatal: XDG_RUNTIME_DIR is unavailable or unsafe: %s\n' "$XDG_RUNTIME_DIR" >&2
     exit 1
   }
+  [ "$(stat -Lc '%a' -- "$XDG_RUNTIME_DIR" 2>/dev/null || true)" = 700 ] || {
+    printf 'fatal: XDG_RUNTIME_DIR must have exact mode 0700\n' >&2
+    exit 1
+  }
   [ "$(find -P "$XDG_RUNTIME_DIR" -maxdepth 0 -printf '%U' 2>/dev/null || true)" = "$desktop_uid" ] || {
     printf 'fatal: XDG_RUNTIME_DIR is not owned by the current user\n' >&2
     exit 1
@@ -125,11 +130,20 @@ require_wayland_session() {
       exit 1
       ;;
   esac
-  [ -S "${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}" ] || {
+  wayland_socket="${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}"
+  [ -S "$wayland_socket" ] || {
     notify_user critical __THEME_MAKO_SCREEN_CAPTURE_ERROR_ICON_NAME__ x-labwc.screen-capture "Screen capture unavailable" "The active Wayland socket could not be found."
     printf 'fatal: active Wayland socket is unavailable\n' >&2
     exit 1
   }
+  socket_metadata=$(stat -Lc '%F %u %a %h' -- "$wayland_socket" 2>/dev/null || true)
+  case "$socket_metadata" in
+    "socket $desktop_uid 600 1"|"socket $desktop_uid 660 1"|"socket $desktop_uid 700 1") ;;
+    *)
+      printf 'fatal: active Wayland socket has unsafe ownership or mode\n' >&2
+      exit 1
+      ;;
+  esac
 }
 
 recording_active() {
@@ -201,10 +215,18 @@ annotate_capture() {
   require_wayland_session
   require_command grim
   require_command satty
-  [ -r "$SATTY_CONFIG" ] || {
+  [ -f "$SATTY_CONFIG" ] && [ ! -L "$SATTY_CONFIG" ] || {
     notify_user critical __THEME_MAKO_SCREEN_CAPTURE_ERROR_ICON_NAME__ x-labwc.screen-capture "Satty configuration missing" "$SATTY_CONFIG could not be read."
     return 1
   }
+  satty_metadata=$(stat -Lc '%u %a %h' -- "$SATTY_CONFIG" 2>/dev/null || true)
+  case "$satty_metadata" in
+    "$desktop_uid 400 1"|"$desktop_uid 600 1") : ;;
+    *)
+      notify_user critical __THEME_MAKO_SCREEN_CAPTURE_ERROR_ICON_NAME__ x-labwc.screen-capture "Satty configuration rejected" "$SATTY_CONFIG has unsafe ownership or mode."
+      return 1
+      ;;
+  esac
 
   install -d -m 0700 "$SCREENSHOT_DIR"
   screenshot_path=$(next_output_path "$SCREENSHOT_DIR" Screenshot png)

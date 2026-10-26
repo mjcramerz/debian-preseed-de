@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+
+exec /usr/local/lib/yt-dlp/bin/yt-dlp "$@"

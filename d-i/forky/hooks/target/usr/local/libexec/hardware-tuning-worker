@@ -17,7 +17,8 @@ def interrupted(signum, _frame):
 if __name__ == "__main__":
     try:
         # Enter the hardware AppArmor domain before prohibiting later privilege
-        # gains; this worker never executes any other program.
+        # gains; this worker has no shell or arbitrary command execution. The
+        # NVIDIA-specific include permits only its fixed nvidia-smi fallback.
         label = Path("/proc/self/attr/current").read_text(encoding="ascii").strip()
         if label != "hardware-tuning-worker (enforce)":
             raise TuningError("an enforced hardware worker AppArmor profile is required")

@@ -62,9 +62,12 @@ ACTIONS = {
     'Terminal': ('/usr/local/bin/labwc-terminal',),
     'Computer Management': ('/usr/local/bin/labwc-computer-management',),
     'Files': WAYLAND + ('/usr/bin/thunar',),
-    'Lock': ('/usr/local/bin/labwc-lock',),
-    'Logout': ('/usr/local/bin/labwc-logout',),
-    'Power': ('/usr/local/bin/labwc-power-menu',),
+    # Keep the Fuzzel actions on the same public dispatcher used by Waybar.
+    # The dispatcher retains the session checks and authenticated handoff for
+    # every entry point; these vectors do not bypass it with direct helpers.
+    'Lock': ('/usr/local/bin/labwc-power-settings', 'lock'),
+    'Logout': ('/usr/local/bin/labwc-power-settings', 'logout'),
+    'Power': ('/usr/local/bin/labwc-power-settings', 'power'),
 }
 SETTINGS_ACTIONS = {
     'Display': WAYLAND + ('/usr/bin/wdisplays',),

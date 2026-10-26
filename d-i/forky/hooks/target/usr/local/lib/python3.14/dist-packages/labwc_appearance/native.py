@@ -8,19 +8,29 @@ from .themes import variant as desktop_theme
 
 FILES = {
  'fuzzel': ('fuzzel/base.ini', 'fuzzel/fuzzel.ini', 'fuzzel/menu.ini', 'fuzzel/computer-management.ini'),
- 'waybar': ('waybar/style.css',),
+ 'waybar': ('waybar/style.css', 'waybar/config'),
+ 'taskview': ('waybar/taskview.css',),
+ 'waycal': ('waycal/style.css',),
  'dock': ('crystal-dock/labwc/appearance.conf',),
  'terminal': ('foot/foot.ini', 'kitty/kitty.conf'),
  'theme': ('gtk-3.0/settings.ini', 'gtk-4.0/settings.ini', 'gtk-4.0/gtk.css',
            'qt5ct/qt5ct.conf', 'qt6ct/qt6ct.conf',
            'qt5ct/colors/labwc-appearance.conf', 'qt6ct/colors/labwc-appearance.conf',
-           'Kvantum/kvantum.kvconfig', 'labwc/themerc-override'),
+           'Kvantum/kvantum.kvconfig', 'labwc/themerc-override', 'labwc/environment'),
 }
 GREETER_FILES = ('gtkgreet.css', 'gtkgreet-power.css')
 VARIANTS = ('', '.internal', '.external')
 OPTIONAL = 'qt6ct/colors/labwc-appearance.conf'
 OPTIONAL_FILES = frozenset((OPTIONAL, 'qt5ct/colors/labwc-appearance.conf',
-                            'gtk-4.0/gtk.css', 'Kvantum/kvantum.kvconfig', 'qt5ct/qt5ct.conf'))
+                            'gtk-4.0/gtk.css', 'Kvantum/kvantum.kvconfig',
+                            'qt5ct/qt5ct.conf', 'labwc/environment'))
+ICON_MANAGED_FILES = frozenset({
+    'fuzzel/base.ini', 'gtk-3.0/settings.ini', 'gtk-4.0/settings.ini',
+    'qt5ct/qt5ct.conf', 'qt6ct/qt6ct.conf', 'waybar/config', 'waybar/style.css',
+})
+POINTER_MANAGED_FILES = frozenset({
+    'gtk-3.0/settings.ini', 'gtk-4.0/settings.ini', 'labwc/environment',
+})
 GTK4_START = '/* labwc-appearance: desktop theme begin */'
 GTK4_END = '/* labwc-appearance: desktop theme end */'
 FUZZEL_KEYS = ('background', 'text', 'prompt', 'placeholder', 'input', 'match', 'selection',
@@ -50,6 +60,44 @@ def identify(path: str) -> tuple[str, str]:
             if path in tuple('.config/' + base + variant for variant in VARIANTS):
                 return component, base
     raise ValueError('path is not an appearance-managed native file')
+
+
+def _replace_setting(text: str, key: str, value: str) -> str:
+    expression = re.compile(r'(?m)^(\s*' + re.escape(key) + r'\s*=\s*)[^\n]*$')
+    result, count = expression.subn(lambda match: match.group(1) + value, text)
+    if count != 1:
+        raise ValueError('appearance setting is missing or duplicated: ' + key)
+    return result
+
+
+def render_asset(path: str, text: str, baseline: str | None, kind: str, name: str) -> str:
+    if kind == 'icon':
+        if path in ('gtk-3.0/settings.ini', 'gtk-4.0/settings.ini'):
+            return _replace_setting(text, 'gtk-icon-theme-name', name)
+        if path in ('qt5ct/qt5ct.conf', 'qt6ct/qt6ct.conf'):
+            return _replace_setting(text, 'icon_theme', name)
+        if path == 'fuzzel/base.ini':
+            return _replace_setting(text, 'icon-theme', name)
+        if path == 'waybar/config':
+            result, count = re.subn(r'("icon-theme"\s*:\s*")[^"]*(")', r'\1' + name + r'\2', text)
+            if count < 1:
+                raise ValueError('Waybar icon-theme setting is missing')
+            return result
+        if path == 'waybar/style.css':
+            result, count = re.subn(r'(-gtk-icon-theme\s*:\s*")[^"]*(")', r'\1' + name + r'\2', text)
+            if count < 1:
+                raise ValueError('Waybar GTK icon theme setting is missing')
+            return result
+    if kind == 'pointer':
+        if path in ('gtk-3.0/settings.ini', 'gtk-4.0/settings.ini'):
+            return _replace_setting(text, 'gtk-cursor-theme-name', name)
+        if path == 'labwc/environment':
+            if not text.strip():
+                return 'XCURSOR_THEME=' + name + '\n'
+            if not re.search(r'(?m)^\s*XCURSOR_THEME\s*=', text):
+                return text.rstrip('\n') + '\nXCURSOR_THEME=' + name + '\n'
+            return _replace_setting(text, 'XCURSOR_THEME', name)
+    raise ValueError('unsupported appearance asset path')
 
 
 def _ini(text, baseline, values, reset):
@@ -108,6 +156,8 @@ def render(path: str, text: str, baseline: str | None, profile: str | None,
     original = baseline or ''
     if base == 'gtk-4.0/gtk.css':
         return gtk4_import(text, baseline, theme)
+    if base in ('waybar/config', 'labwc/environment'):
+        return baseline if reset else text
     if base.endswith('.css'):
         return css(text, original, None if reset else p, glow=True)
     if component == 'fuzzel':

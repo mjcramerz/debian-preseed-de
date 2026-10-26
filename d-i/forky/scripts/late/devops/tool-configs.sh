@@ -1,6 +1,70 @@
 #!/bin/sh
 # Sourced installer module; edit this file directly.
 
+devops_install_youtube_policy() (
+  set -eu
+  for directory in /etc/yt-dlp /etc/yt-dlp/plugins \
+    /etc/skel-desktop/.config/yt-dlp /etc/skel-desktop/.config/yt-dlp/plugins \
+    /usr/local/share/doc/yt-dlp; do
+    host_directory="${target_root}${directory}"
+    [ ! -L "$host_directory" ] || devops_fatal "symlinked downloader configuration directory: $directory"
+    install -d -m 0755 -- "$host_directory"
+    chown root:root "$host_directory"
+  done
+  for path in etc/yt-dlp/config etc/skel-desktop/.config/yt-dlp/config \
+    usr/local/share/doc/yt-dlp/CONFIGURATION.md; do
+    [ ! -e "${target_root}/$path" ] && [ ! -L "${target_root}/$path" ] ||
+      devops_fatal "fresh-install downloader policy path already exists: /$path"
+    devops_stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET "$path")" \
+      "/$path" 0644 youtube-configuration
+    chown root:root "${target_root}/$path"
+  done
+  # The account creates its own config and plugin directories. No privileged
+  # writer follows same-UID desktop state, and no plugin is imported here.
+  # shellcheck disable=SC2016
+  devops_run_as_account "stage downloader user configuration and plugin directory" /bin/sh -eu -c '
+config_root="${HOME}/.config"
+downloader_config="${config_root}/yt-dlp"
+ensure_directory() {
+  directory=$1
+  mode=$2
+  [ ! -L "$directory" ] || { printf "fatal: symlinked downloader user directory\n" >&2; exit 1; }
+  if [ -e "$directory" ]; then
+    [ -d "$directory" ] || { printf "fatal: downloader path is not a directory\n" >&2; exit 1; }
+  else
+    /usr/bin/mkdir -m "$mode" -- "$directory"
+  fi
+  metadata=$(/usr/bin/stat -Lc "%u" -- "$directory") || {
+    printf "fatal: unable to inspect downloader user directory\n" >&2; exit 1;
+  }
+  set -- $metadata
+  [ "$#" -eq 1 ] && [ "$1" = "$(/usr/bin/id -u)" ] || {
+    printf "fatal: downloader user directory is not privately owned\n" >&2; exit 1;
+  }
+  /usr/bin/chmod "$mode" -- "$directory"
+}
+ensure_directory "$config_root" 0700
+ensure_directory "$downloader_config" 0700
+ensure_directory "$downloader_config/plugins" 0700
+config_file="$downloader_config/config"
+if [ -e "$config_file" ] || [ -L "$config_file" ]; then
+  [ -f "$config_file" ] && [ ! -L "$config_file" ] || {
+    printf "fatal: downloader user config is not a regular file\n" >&2; exit 1;
+  }
+  metadata=$(/usr/bin/stat -Lc "%u %h" -- "$config_file") || {
+    printf "fatal: unable to inspect downloader user config\n" >&2; exit 1;
+  }
+  set -- $metadata
+  [ "$#" -eq 2 ] && [ "$1" = "$(/usr/bin/id -u)" ] && [ "$2" = 1 ] || {
+    printf "fatal: downloader user config is not privately owned\n" >&2; exit 1;
+  }
+  printf "fatal: fresh-install downloader user config already exists\n" >&2
+  exit 1
+fi
+/usr/bin/install -m 0600 -- /etc/skel-desktop/.config/yt-dlp/config "$downloader_config/config"
+'
+)
+
 devops_install_llama_runtime() {
   llama_repo_path=$(installer_repo_join_var DIR_SCRIPTS_LATE llama.sh)
   llama_installer="${tmp_env_dir}/installer-llama-entry.$$"

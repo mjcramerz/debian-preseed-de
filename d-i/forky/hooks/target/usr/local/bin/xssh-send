@@ -3,11 +3,13 @@ set -eu
 
 PROG=${0##*/}
 CR=$(printf '\r')
+LF=$(printf '\n')
 
 die() { printf '%s: %s\n' "$PROG" "$*" >&2; exit 1; }
-usage() { printf 'usage: %s -i <private-key> --dest-ip <ip-or-host> --port <ssh-port> [--user <remote-user>] <local-path> [remote-path]\n' "$PROG" >&2; }
+usage() { printf 'usage: %s --menu\n       %s -i <private-key> --dest-ip <ip-or-host> --port <ssh-port> [--user <remote-user>] <local-path> [remote-path]\n' "$PROG" "$PROG" >&2; }
 require_cmd() { command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"; }
 require_value() { [ "$#" -ge 2 ] && [ -n "$2" ] || die "$1 requires a value"; }
+read_value() { printf '%s: ' "$1"; IFS= read -r REPLY || exit 0; [ -n "$REPLY" ] || die "$1 must not be empty"; }
 validate_host() { case $1 in ''|*[!A-Za-z0-9:.%-]*) die 'host must contain only letters, digits, dots, dashes, percent signs, and colons';; esac; }
 validate_port() {
   case $1 in ''|*[!0-9]*) die 'port must be numeric';; esac
@@ -17,16 +19,15 @@ validate_user() { case $1 in ''|[!a-z_]*|*[!a-z0-9_-]*) die "remote user is inva
 validate_remote_path() {
   remote_value=$1
   [ -n "$remote_value" ] || die 'remote path must not be empty'
-  case $remote_value in -*) die 'remote path must not start with -';; *"$CR"*|*"
-"*) die 'remote path contains control characters';; esac
+  [ "${#remote_value}" -le 4096 ] || die 'remote path exceeds the length limit'
+  case $remote_value in -*) die 'remote path must not start with -';; *[![:print:]]*) die 'remote path contains control characters';; esac
 }
 validate_identity() {
   identity=$1
   [ -n "$identity" ] || die 'private-key identity must not be empty'
-  case $identity in
+  case "$identity" in
     -*) die 'private-key identity must not start with -';;
-    *"$CR"*|*"
-"*) die 'private-key identity contains control characters';;
+    *"$CR"*|*"$LF"*) die 'private-key identity contains control characters';;
   esac
   [ -f "$identity" ] || die "private-key identity is not a regular file: $identity"
   [ ! -L "$identity" ] || die 'private-key identity must not be a symlink'
@@ -34,15 +35,33 @@ validate_identity() {
   set -- $identity_stat
   [ "$#" -eq 3 ] || die 'unable to inspect private-key identity'
   [ "$1" = "$(/usr/bin/id -u)" ] || die 'private-key identity must be owned by the current user'
-  case $2 in *[!0-7]*|*[2367][0-7]|*[0-7][2367]) die 'private-key identity must not be group/world writable';; esac
+  case $2 in 400|600) ;; *) die 'private-key identity must have mode 0400 or 0600';; esac
   [ "$3" = 1 ] || die 'private-key identity must not have hard links'
 }
 
-remote_user=${USER:-$(id -un)}
+remote_user=$(/usr/bin/id -un)
 remote_path=.
 dest_host=
 port=
 identity_file=
+
+if [ "${1:-}" = --menu ]; then
+  [ "$#" -eq 1 ] || die '--menu takes no additional arguments'
+  [ -t 0 ] && [ -t 1 ] || die '--menu requires an interactive terminal'
+  read_value 'Private key path'; identity_file=$REPLY
+  read_value 'Remote host or IP'; dest_host=$REPLY
+  read_value 'SSH port'; port=$REPLY
+  printf 'Remote user [%s]: ' "$remote_user"
+  IFS= read -r entered_user || exit 0
+  [ -n "$entered_user" ] && remote_user=$entered_user
+  read_value 'Local path'; local_path=$REPLY
+  printf 'Remote path [.]: '
+  IFS= read -r remote_path || exit 0
+  [ -n "$remote_path" ] || remote_path=.
+  set -- --identity "$identity_file" --dest-ip "$dest_host" --port "$port" \
+    --user "$remote_user" -- "$local_path" "$remote_path"
+fi
+
 while [ "$#" -gt 0 ]; do
   case $1 in
     -i|--identity) require_value "$@"; identity_file=$2; shift 2;;
@@ -63,6 +82,8 @@ shift
 [ -n "$dest_host" ] || die '--dest-ip is required'
 [ -n "$port" ] || die '--port is required'
 /usr/bin/test -n "$identity_file" || die '-i <private-key> is required'
+[ -n "$local_path" ] && [ "${#local_path}" -le 4096 ] || die 'local path is empty or too long'
+case $local_path in *[![:print:]]*) die 'local path contains control characters';; esac
 /usr/bin/test -e "$local_path" || die "local path does not exist: $local_path"
 validate_host "$dest_host"
 validate_port "$port"
@@ -75,5 +96,5 @@ scp_host=$dest_host
 case $scp_host in *:*) scp_host=[$scp_host];; esac
 require_cmd scp
 printf '%s: sending %s to %s@%s:%s\n' "$PROG" "$local_path" "$remote_user" "$dest_host" "$remote_path" >&2
-/usr/bin/scp -r -i "$identity_file" -P "$port" "$local_path" "${remote_user}@${scp_host}:${remote_path}"
+/usr/bin/scp -r -i "$identity_file" -P "$port" -- "$local_path" "${remote_user}@${scp_host}:${remote_path}"
 printf '%s: send completed: %s -> %s@%s:%s\n' "$PROG" "$local_path" "$remote_user" "$dest_host" "$remote_path" >&2

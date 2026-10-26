@@ -1,21 +1,28 @@
 #!/bin/sh
 set -eu
+unset FZF_DEFAULT_OPTS FZF_DEFAULT_OPTS_FILE FZF_DEFAULT_COMMAND
+umask 077
 
 PROG=${0##*/}
 YT_DLP=/usr/local/lib/yt-dlp/bin/yt-dlp
-DOWNLOAD_ROOT=${XDG_DOWNLOAD_DIR:-${HOME:-}/Downloads}
 
 fatal() { printf '%s: %s\n' "$PROG" "$*" >&2; exit 1; }
 require_command() { [ -x "$1" ] || fatal "managed command is unavailable: $1"; }
-pause() { printf '\nPress Enter to return to the YouTube Downloader menu...'; IFS= read -r _ || true; }
+pause() { printf '\nPress Enter to return to the Media Downloader menu...'; IFS= read -r _ || true; }
 [ -n "${HOME:-}" ] || fatal 'HOME is required'
+[ "$(/usr/bin/id -u)" -ne 0 ] || fatal 'run as the desktop account, not root/sudo'
 case "$HOME" in /*) ;; *) fatal 'HOME must be an absolute path' ;; esac
+account_home=$(/usr/bin/realpath -e -- "$HOME") || fatal 'account home is unavailable'
+DOWNLOAD_ROOT=${XDG_DOWNLOAD_DIR:-${account_home}/Downloads}
 case "$DOWNLOAD_ROOT" in
   /*) ;;
   *) fatal 'XDG_DOWNLOAD_DIR must be an absolute path' ;;
 esac
+case "$DOWNLOAD_ROOT/" in
+  *'//'*|*'/../'*|*'/./'*|*[![:print:]]*) fatal 'XDG_DOWNLOAD_DIR must be a direct directory path' ;;
+esac
 case "$DOWNLOAD_ROOT" in
-  "$HOME"/*) ;;
+  "$account_home"/*) ;;
   *) fatal 'downloads must remain below the account home' ;;
 esac
 [ ! -L "$DOWNLOAD_ROOT" ] || fatal 'XDG_DOWNLOAD_DIR must not be a symlink'
@@ -25,35 +32,92 @@ validate_url() {
   [ -n "$url" ] || fatal 'URL must not be empty'
   case "$url" in
     *[![:print:]]*) fatal 'URL contains control characters' ;;
-    https://www.youtube.com/*|https://youtube.com/*|https://m.youtube.com/*|\
-    https://music.youtube.com/*|https://youtu.be/*|https://www.youtu.be/*) ;;
-    *) fatal 'only HTTPS YouTube URLs are accepted' ;;
+    https://?*|http://?*) ;;
+    *) fatal 'enter an HTTP or HTTPS media URL' ;;
   esac
 }
 
+user_configuration() {
+  user_config_root=${XDG_CONFIG_HOME:-${account_home}/.config}
+  case "$user_config_root" in
+    /*) ;;
+    *) fatal 'XDG_CONFIG_HOME must be an absolute path' ;;
+  esac
+  case "$user_config_root/" in
+    *'//'|*'//'*|*'/../'*|*'/./'*|*[![:print:]]*)
+      fatal 'XDG_CONFIG_HOME must be a normalized direct directory path'
+      ;;
+  esac
+  [ "$user_config_root" != / ] || fatal 'XDG_CONFIG_HOME must not be the filesystem root'
+  [ ! -L "$user_config_root" ] || fatal 'XDG_CONFIG_HOME must not be a symlink'
+  if [ -e "$user_config_root" ]; then
+    [ -d "$user_config_root" ] || fatal 'XDG_CONFIG_HOME must be a directory'
+    [ "$([ -x /usr/bin/stat ] && /usr/bin/stat -Lc '%u' -- "$user_config_root")" = "$(/usr/bin/id -u)" ] ||
+      fatal 'XDG_CONFIG_HOME must be owned by the desktop account'
+  else
+    /usr/bin/mkdir -m 0700 -- "$user_config_root"
+  fi
+  config_directory="$user_config_root/yt-dlp"
+  for directory in "$config_directory" "$config_directory/plugins"; do
+    [ ! -L "$directory" ] || fatal 'yt-dlp configuration directories must not be symlinks'
+    if [ -e "$directory" ]; then
+      [ -d "$directory" ] || fatal 'yt-dlp configuration paths must be directories'
+      directory_metadata=$(/usr/bin/stat -Lc '%u %a' -- "$directory") ||
+        fatal 'unable to inspect yt-dlp configuration directory'
+      set -- $directory_metadata
+      [ "$#" -eq 2 ] && [ "$1" = "$(/usr/bin/id -u)" ] ||
+        fatal 'yt-dlp configuration directory is not privately owned'
+      /usr/bin/chmod 0700 -- "$directory"
+    else
+      /usr/bin/mkdir -m 0700 -- "$directory"
+    fi
+  done
+  config_file="$config_directory/config"
+  if [ -e "$config_file" ] || [ -L "$config_file" ]; then
+    [ -f "$config_file" ] && [ ! -L "$config_file" ] ||
+      fatal 'yt-dlp user configuration must be a regular file'
+    file_metadata=$(/usr/bin/stat -Lc '%u %h' -- "$config_file") ||
+      fatal 'unable to inspect yt-dlp user configuration'
+    set -- $file_metadata
+    [ "$#" -eq 2 ] && [ "$1" = "$(/usr/bin/id -u)" ] && [ "$2" = 1 ] ||
+      fatal 'yt-dlp user configuration is not privately owned'
+    /usr/bin/chmod 0600 -- "$config_file"
+  fi
+}
+
 choose() {
-  printf '%s\n' "$2" | /usr/bin/fzf --no-multi --no-sort --exact --layout=reverse \
-    --border --height=70% --prompt="$1 > " --header='Enter: select  Esc: back'
+  printf '%s\n' "$2" | /usr/bin/env -i PATH=/usr/bin:/bin HOME="$HOME" \
+    TERM="${TERM:-xterm-256color}" LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+    /usr/bin/fzf --no-multi --no-sort --exact --layout=reverse \
+    --bind=esc:abort,ctrl-c:abort --border --height=70% \
+    --prompt="$1 > " --header='Enter: select  Esc: back'
 }
 
 select_directory() {
-  /usr/bin/install -d -m 0700 -- "$DOWNLOAD_ROOT"
+  canonical=$(/usr/bin/realpath -m -- "$DOWNLOAD_ROOT") || return 2
+  [ "$canonical" = "$DOWNLOAD_ROOT" ] || fatal 'download directory contains a symlink or traversal'
+  # mkdir leaves an existing user directory's permissions intact.
+  /usr/bin/mkdir -p -m 0700 -- "$DOWNLOAD_ROOT" || return 2
   candidates=$(
     printf '%s\n' "$DOWNLOAD_ROOT"
-    for directory in "${HOME:-}/Videos" "${HOME:-}/Music"; do
-      [ -d "$directory" ] && printf '%s\n' "$directory"
+    for directory in "$account_home/Videos" "$account_home/Music"; do
+      [ -d "$directory" ] || continue
+      printf '%s\n' "$directory"
     done
   )
-  directory=$(printf '%s\n' "$candidates" | /usr/bin/fzf --no-multi --no-sort --exact \
-    --layout=reverse --border --height=50% --prompt='Download directory > ' \
-    --header='Enter: select  Esc: back') || return 1
+  directory=$(choose 'Download directory' "$candidates") || {
+    status=$?
+    case "$status" in 1|130) return 1 ;; *) return 2 ;; esac
+  }
   [ -n "$directory" ] || return 1
   [ -d "$directory" ] || fatal 'selected download directory disappeared'
   [ ! -L "$directory" ] || fatal 'selected download directory must not be a symlink'
   case "$directory" in
-    "${HOME:-}"/*) ;;
-    *) fatal 'download directory must remain below the account home' ;;
+    "$DOWNLOAD_ROOT"|"$account_home/Videos"|"$account_home/Music") ;;
+    *) fatal 'unknown download directory selection' ;;
   esac
+  canonical=$(/usr/bin/realpath -e -- "$directory") || return 2
+  [ "$canonical" = "$directory" ] || fatal 'download directory contains a symlink or traversal'
   printf '%s\n' "$directory"
 }
 
@@ -61,39 +125,70 @@ download() {
   mode=$1
   url=$2
   directory=$3
-  output_template="$directory/%(title).200B [%(id)s].%(ext)s"
+  output_template='%(title).200B [%(id)s].%(ext)s'
   case "$mode" in
     video)
-      set -- "$YT_DLP" --no-playlist --format 'bestvideo*+bestaudio/best' \
-        --merge-output-format mkv --output "$output_template" "$url" ;;
+      set -- --no-playlist --format 'bestvideo*+bestaudio/best' \
+        --merge-output-format mkv --paths "$directory" --output "$output_template" -- "$url" ;;
     audio)
-      set -- "$YT_DLP" --no-playlist --format 'bestaudio/best' --extract-audio \
-        --audio-format best --output "$output_template" "$url" ;;
+      set -- --no-playlist --format 'bestaudio/best' --extract-audio \
+        --audio-format best --paths "$directory" --output "$output_template" -- "$url" ;;
     playlist)
-      set -- "$YT_DLP" --yes-playlist --format 'bestvideo*+bestaudio/best' \
-        --merge-output-format mkv --output "$output_template" "$url" ;;
-    formats) set -- "$YT_DLP" --list-formats "$url" ;;
+      set -- --yes-playlist --format 'bestvideo*+bestaudio/best' \
+        --merge-output-format mkv --paths "$directory" --output "$output_template" -- "$url" ;;
+    formats) set -- --list-formats -- "$url" ;;
     *) fatal 'unknown downloader mode' ;;
   esac
   printf 'Downloading with the managed highest-quality profile...\n'
-  "$@"
+  "$YT_DLP" "$@"
 }
 
 main_menu() {
   require_command "$YT_DLP"
   require_command /usr/bin/fzf
+  [ -t 0 ] && [ -t 1 ] || fatal 'an interactive terminal is required'
   while :; do
-    action=$(choose 'YouTube Downloader' \
-      'Download video (highest quality)
+    action=$(choose 'Media Downloader' \
+      'Download using saved configuration
+Download video (highest quality)
 Download audio (source quality)
 Download playlist (highest quality)
 Inspect available formats
-Back') || return 0
+Edit user configuration
+Open user plugin folder
+Configuration and plugin documentation
+Back') || {
+      status=$?
+      case "$status" in 1|130) return 0 ;; *) return "$status" ;; esac
+    }
     [ -n "$action" ] || return 0
     case "$action" in
       Back) return 0 ;;
+      'Download using saved configuration')
+        printf 'Media HTTP(S) URL: '
+        IFS= read -r url || return 0
+        validate_url "$url"
+        if "$YT_DLP" -- "$url"; then :; else
+          status=$?
+          printf '%s: download failed with status %s\n' "$PROG" "$status" >&2
+        fi
+        pause ;;
+      'Edit user configuration')
+        user_configuration
+        require_command /usr/bin/micro
+        /usr/bin/micro "$config_directory/config"
+        ;;
+      'Open user plugin folder')
+        user_configuration
+        require_command /usr/bin/nnn
+        /usr/bin/nnn "$config_directory/plugins"
+        ;;
+      'Configuration and plugin documentation')
+        /usr/bin/cat -- /usr/local/share/doc/yt-dlp/CONFIGURATION.md
+        pause
+        ;;
       'Inspect available formats')
-        printf 'YouTube HTTPS URL: '
+        printf 'Media HTTP(S) URL: '
         IFS= read -r url || return 0
         validate_url "$url"
         if download formats "$url" "$DOWNLOAD_ROOT"; then
@@ -103,11 +198,15 @@ Back') || return 0
           printf '%s: format inspection failed with status %s\n' "$PROG" "$status" >&2
         fi
         pause ;;
-      *)
-        printf 'YouTube HTTPS URL: '
+      'Download video (highest quality)'|'Download audio (source quality)'|'Download playlist (highest quality)')
+        printf 'Media HTTP(S) URL: '
         IFS= read -r url || return 0
         validate_url "$url"
-        directory=$(select_directory) || continue
+        directory=$(select_directory) || {
+          status=$?
+          [ "$status" -eq 1 ] && continue
+          return "$status"
+        }
         case "$action" in
           'Download video (highest quality)') mode=video ;;
           'Download audio (source quality)') mode=audio ;;
@@ -121,6 +220,7 @@ Back') || return 0
           printf '%s: download failed with status %s\n' "$PROG" "$status" >&2
         fi
         pause ;;
+      *) fatal 'unknown menu selection' ;;
     esac
   done
 }
@@ -129,6 +229,6 @@ case "${1:-}" in
   ''|--menu) [ "$#" -le 1 ] || fatal 'usage: youtube-dl [--menu]'; main_menu ;;
   --help|-h)
     printf '%s\n' 'Usage: youtube-dl [--menu]' \
-      'Open the managed FZF YouTube Downloader with pinned yt-dlp, Deno and ffmpeg.' ;;
+      'Open the media downloader for all yt-dlp supported sites, with configuration and plugins.' ;;
   *) fatal 'use the FZF menu; arbitrary yt-dlp arguments are not accepted' ;;
 esac

@@ -1062,7 +1062,7 @@ def update_decision(candidate: dict, record: dict) -> str:
     return "baseline"
 
 
-def retrieve_candidate(candidate: dict, saved: dict, destination: Path) -> dict:
+def retrieve_candidate(candidate: dict, saved: dict, destination: Path, *, force: bool = False) -> dict:
     if saved.get("source") != candidate["source"]:
         saved = {}
     headers = {}
@@ -1072,7 +1072,7 @@ def retrieve_candidate(candidate: dict, saved: dict, destination: Path) -> dict:
             headers["If-Match"] = state["etag"]
         elif state.get("last_modified"):
             headers["If-Unmodified-Since"] = state["last_modified"]
-        if saved.get("validators", {}).get("etag"):
+        if not force and saved.get("validators", {}).get("etag"):
             headers["If-None-Match"] = saved["validators"]["etag"]
     response = request(candidate["url"], destination, headers=headers)
     if response["status"] != 200:
@@ -1727,7 +1727,7 @@ class Repository:
         return json.loads(run(argv, timeout=1200, file_limit=4 * MAX_DEB))
 
     def vendor_package(self, descriptor: dict, work: Path, previous: dict | None = None,
-                       tracking: dict | None = None) -> dict:
+                       tracking: dict | None = None, *, force: bool = False) -> dict:
         app = descriptor["app"]
         layouts = {"discord": ("discord", "/opt/discord"), "postman": ("postman", "/opt/postman"),
                    "tuta": ("tutanota-desktop", "/opt/tuta-mail"), "ledger": ("ledger-live-desktop", "/opt/ledger-live")}
@@ -1736,7 +1736,7 @@ class Repository:
         source_id = descriptor["source_id"]
         if not re.fullmatch(r"[0-9a-f]{64}|[0-9a-f]{128}", source_id):
             raise Error("invalid vendor source receipt")
-        if previous and previous["control"].get("X-Local-Source-Digest") == source_id:
+        if previous and previous["control"].get("X-Local-Source-Digest") == source_id and not force:
             return previous
         upstream = descriptor["upstream_version"]
         if not VERSION.fullmatch(upstream):
@@ -1860,10 +1860,13 @@ class Repository:
             raise Error("unknown vendor adapter")
         return self.discovery.direct(source_for(endpoints[app]), work, record.get("policy", {}).get("tracking"))
 
-    def vendor_decision(self, candidate: dict, record: dict) -> str:
+    def vendor_decision(self, candidate: dict, record: dict, *, force: bool = False) -> str:
         if candidate["kind"] != "vendor":
-            return update_decision(candidate, record)
-        if candidate["source_digest"] == record["control"].get("X-Local-Source-Digest"):
+            # Force bypasses the current/baseline skip, never rollback or
+            # changed-release checks. Bind GET to this discovery snapshot.
+            decision = update_decision(candidate, record)
+            return "download" if force else decision
+        if candidate["source_digest"] == record["control"].get("X-Local-Source-Digest") and not force:
             return "current"
         previous = record["control"].get("X-Local-Upstream-Version", "0")
         if newer(previous, candidate["version"]):
@@ -1872,7 +1875,7 @@ class Repository:
         # local binary revision gives this genuine new distribution an APT version.
         return "download"
 
-    def refresh_vendors(self, results: list[dict]) -> None:
+    def refresh_vendors(self, results: list[dict], *, force: bool = False) -> None:
         for key, previous in list(sorted(self.catalog["packages"].items())):
             policy = previous.get("policy", {})
             app = policy.get("adapter")
@@ -1882,7 +1885,7 @@ class Repository:
                 with vendor_workspace(self.inbox, app) as directory:
                     work = Path(directory)
                     candidate = self.vendor_candidate(app, previous, work)
-                    decision = self.vendor_decision(candidate, previous)
+                    decision = self.vendor_decision(candidate, previous, force=force)
                     if decision != "download":
                         self.remember_candidate(previous, candidate, baseline=decision == "baseline")
                         result = {"package": key, "status": decision, "version": previous["version"]}
@@ -1898,7 +1901,7 @@ class Repository:
                             checked = self.discovery.direct(source_for(candidate["url"]), work)
                             if checked["token"] != candidate["token"]:
                                 raise Error("vendor endpoint changed during the verified download; retry refresh")
-                        updated = self.vendor_package(descriptor, work, previous, tracking=candidate)
+                        updated = self.vendor_package(descriptor, work, previous, tracking=candidate, force=force)
                         self.remember_candidate(updated, candidate)
                         result = {"package": key, "status": "updated" if updated["version"] != previous["version"] else "current",
                                   "version": updated["version"]}
@@ -1912,7 +1915,7 @@ class Repository:
             self.publish()
             results.append(result)
 
-    def refresh(self) -> int:
+    def refresh(self, *, force: bool = False) -> int:
         started = time.time()
         self.discovery.memory.clear()
         rejected = self.process_inbox()
@@ -1928,7 +1931,7 @@ class Repository:
                     directory = Path(temp)
                     source = source_for(policy["url"])
                     candidate = self.discovery.candidate(source, record, directory)
-                    decision = update_decision(candidate, record)
+                    decision = self.vendor_decision(candidate, record, force=force)
                     if decision != "download":
                         self.remember_candidate(record, candidate, baseline=decision == "baseline")
                         result = {"package": key, "status": decision, "version": record["version"]}
@@ -1936,7 +1939,8 @@ class Repository:
                             warn(f"{key}: metadata baseline established without a package download; initial remote/local equality is unverified")
                     else:
                         partial = directory / "download.part"
-                        committed_candidate = retrieve_candidate(candidate, policy.get("tracking", {}), partial)
+                        committed_candidate = retrieve_candidate(
+                            candidate, policy.get("tracking", {}), partial, force=force)
                         # A new release must actually advance the package version.
                         # Never commit a release-2 receipt for stale release-1 bytes.
                         # Direct URLs can legitimately only change HTTP validators;
@@ -1944,12 +1948,19 @@ class Repository:
                         fields = inspect_deb(partial, self.architectures)
                         if source.get("url") == "https://api.github.com/repos/jolars/tomat/releases?per_page=100":
                             verify_tomat_release_version(fields, candidate["version"])
-                        if candidate["kind"] != "direct" and not newer(fields["Version"], record.get("upstream_version", record["version"])):
-                            raise Error("new release metadata returned a package without a newer Version")
+                        old_version = record.get("upstream_version", record["version"])
+                        if newer(old_version, fields["Version"]):
+                            raise Error("download returned an older upstream Version")
+                        if candidate["kind"] != "direct":
+                            if not force and not newer(fields["Version"], old_version):
+                                raise Error("new release metadata returned a package without a newer Version")
                         committed_candidate.pop("observed_only", None)
                         updated_policy = copy.deepcopy(policy)
                         updated_policy["source"] = source
                         updated_policy["tracking"] = committed_candidate
+                        if force:
+                            updated_policy["local_revision"] = (
+                                int(policy.get("local_revision", 0)) + 1)
                         expected = (record["package"], record["architecture"])
                         ready = self.stage(partial, policy=updated_policy, expected=expected)
                         updated = self.ingest(ready)
@@ -1963,7 +1974,7 @@ class Repository:
                 continue
             self.publish()
             results.append(result)
-        self.refresh_vendors(results)
+        self.refresh_vendors(results, force=force)
         counts = {status: sum(item["status"] == status for item in results)
                   for status in ("updated", "current", "baseline", "error")}
         report = {"started_at": started, "finished_at": time.time(), "results": results,
@@ -2100,7 +2111,7 @@ def interactive_delete(repository: Repository, package: str | None = None) -> No
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
-    for command in ("init", "refresh", "process-inbox", "list", "rebuild", "seed-defaults", "adopt-vendors", "status"):
+    for command in ("init", "refresh", "reinitialize", "process-inbox", "list", "rebuild", "seed-defaults", "adopt-vendors", "status"):
         sub.add_parser(command)
     deletion = sub.add_parser("delete")
     deletion.add_argument("package", nargs="?")
@@ -2171,6 +2182,8 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(repository.catalog, sort_keys=True))
         elif args.command == "refresh":
             return repository.refresh()
+        elif args.command == "reinitialize":
+            return repository.refresh(force=True)
         elif args.command == "process-inbox":
             rejected = repository.process_inbox()
             repository.publish()

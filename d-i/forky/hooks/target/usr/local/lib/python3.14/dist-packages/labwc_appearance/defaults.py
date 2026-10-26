@@ -8,19 +8,14 @@ import subprocess
 from managed_workflows.fs import Tree
 from .native import FILES, GREETER_FILES, VARIANTS, OPTIONAL_FILES, user_paths
 from .editors import ini_values
+from .icon_catalog import ICON_NAMES, POINTER_NAMES
 
 DIRECTORY = Path('/usr/local/share/labwc-appearance')
 
 
 def validate(value):
-    if not isinstance(value, dict) or value.get('schema') not in (1, 2):
+    if not isinstance(value, dict) or value.get('schema') != 3:
         raise ValueError('unsupported installed appearance defaults')
-    if value['schema'] == 1 and isinstance(value.get('files'), dict):
-        value = {**value, 'schema': 2, 'files': dict(value['files'])}
-        # These native files were not managed by older installations. Their
-        # installation default was absence, which Reset Theme must preserve.
-        for path in OPTIONAL_FILES:
-            value['files'].setdefault('.config/' + path, None)
     files, greeter = value.get('files'), value.get('greeter')
     if not isinstance(files, dict) or not isinstance(greeter, dict):
         raise ValueError('invalid installed appearance defaults')
@@ -36,6 +31,9 @@ def validate(value):
             raise ValueError('unrendered or invalid installed appearance default')
     if value.get('mode') not in ('dark', 'light'):
         raise ValueError('invalid installed color mode')
+    for key, allowed in (('icon_theme', ICON_NAMES), ('pointer_theme', POINTER_NAMES)):
+        if not isinstance(value.get(key), str) or value[key] not in allowed:
+            raise ValueError('invalid installed ' + key)
     settings = value.get('settings')
     if (not isinstance(settings, dict) or set(settings) != {'color-scheme', 'gtk-theme'} or
             any(not isinstance(v, str) or not re.fullmatch(r"'[A-Za-z0-9_. +:-]{1,100}'", v)
@@ -84,7 +82,13 @@ def main(argv):
                 env={'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8',
                      'GSETTINGS_BACKEND': 'memory'},
                 text=True, capture_output=True, check=True, timeout=15).stdout.strip()
-        result = {'schema': 2, 'files': files, 'greeter': greeter, 'mode': mode,
+        gtk_values = ini_values(files['.config/gtk-3.0/settings.ini'])
+        icon_theme = gtk_values.get(('Settings', 'gtk-icon-theme-name'))
+        pointer_theme = gtk_values.get(('Settings', 'gtk-cursor-theme-name'))
+        if icon_theme not in ICON_NAMES or pointer_theme not in POINTER_NAMES:
+            raise ValueError('installed icon or pointer default is not in the managed catalog')
+        result = {'schema': 3, 'files': files, 'greeter': greeter, 'mode': mode,
+                  'icon_theme': icon_theme, 'pointer_theme': pointer_theme,
                   'settings': settings}
         validate(result)
         output.write('defaults.json', (json.dumps(result, sort_keys=True, indent=2) + '\n').encode(), mode=0o644)

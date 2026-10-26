@@ -1,0 +1,17 @@
+# User yt-dlp configuration. Every supported yt-dlp option is available here.
+# The system config selects the managed Deno runtime for bundled yt-dlp-ejs.
+# The downloader's "Download using saved configuration" action uses this file
+# without imposing a format, output directory, or output filename.
+#
+# Optional examples (uncomment and adjust the settings you want):
+# --write-subs
+# --write-auto-subs
+# --sub-langs "en.*,sv.*"
+# --embed-metadata
+# --embed-thumbnail
+# --embed-subs
+# --sponsorblock-mark all
+# --download-archive "~/Downloads/yt-dlp-archive.txt"
+# --cookies-from-browser firefox
+# --plugin-dirs "~/my-yt-dlp-plugins"
+# --use-postprocessor PLUGIN_NAME

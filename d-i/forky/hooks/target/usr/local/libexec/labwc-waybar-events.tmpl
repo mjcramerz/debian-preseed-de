@@ -251,8 +251,11 @@ def main(arguments: list[str]) -> int:
     metadata = runtime.lstat()
     bus = runtime / "bus"
     bus_metadata = bus.lstat()
-    if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != uid or metadata.st_mode & 0o077
-            or not stat.S_ISSOCK(bus_metadata.st_mode) or bus_metadata.st_uid != uid):
+    if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != uid
+            or stat.S_IMODE(metadata.st_mode) != 0o700
+            or not stat.S_ISSOCK(bus_metadata.st_mode) or bus_metadata.st_uid != uid
+            or stat.S_IMODE(bus_metadata.st_mode) not in {0o600, 0o660, 0o700}
+            or bus_metadata.st_nlink != 1):
         raise ValueError("unsafe desktop bus identity")
     os.environ["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=" + str(bus)
     import gi

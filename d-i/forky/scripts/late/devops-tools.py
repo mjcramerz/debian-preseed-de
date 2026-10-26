@@ -25,7 +25,10 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
+import urllib.error
 import urllib.parse
+import urllib.request
 import zipfile
 from dataclasses import dataclass
 from typing import NoReturn, Sequence
@@ -90,6 +93,7 @@ POLICY_KEYS = frozenset(
         "DEVOPS_YT_DLP_INSTALL_ROOT",
         "DEVOPS_YT_DLP_BINARY_PATH",
         "DEVOPS_YT_DLP_PAYLOAD_PATH",
+        "DEVOPS_YT_DLP_PLUGINS_MANIFEST_PATH",
         "DEVOPS_ANSIBLE_CORE_VERSION",
         "DEVOPS_ANSIBLE_CORE_URL",
         "DEVOPS_ANSIBLE_CORE_SHA256",
@@ -202,6 +206,17 @@ class Artifact(DownloadArtifact):
 
 
 @dataclass(frozen=True)
+class PluginFile:
+    plugin_id: str
+    plugin_version: str
+    relative_path: pathlib.PurePosixPath
+    url: str
+    expected_digest: str
+    minimum_bytes: int
+    kind: str
+
+
+@dataclass(frozen=True)
 class InstallPolicy:
     architecture: str
     download_timeout_seconds: int
@@ -215,6 +230,9 @@ class InstallPolicy:
     deno_archive_files: tuple[str, ...]
     yt_dlp: Artifact
     yt_dlp_payload_path: pathlib.Path
+    yt_dlp_plugins_manifest_path: pathlib.Path
+    yt_dlp_plugins_manifest_digest: str
+    yt_dlp_plugin_files: tuple[PluginFile, ...]
     ansible_core: Artifact
     ansible_core_package_roots: tuple[str, ...]
     ansible_core_dist_info_root: str
@@ -375,6 +393,181 @@ def validate_https_url(
         fail(f"{label} path does not have the required prefix")
     if required_suffix is not None and not parsed.path.endswith(required_suffix):
         fail(f"{label} path does not have the required suffix")
+
+
+PLUGIN_ID_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,47}\Z")
+PLUGIN_VERSION_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,79}\Z")
+PLUGIN_KINDS = frozenset({"plugin-zip", "data", "linux-amd64-executable"})
+PLUGIN_ROOT = pathlib.PurePosixPath("libexec/yt-dlp-plugins")
+PLUGIN_REDIRECT_HOSTS = frozenset(
+    {
+        "427738.xyz",
+        "codeload.github.com",
+        "github.com",
+        "github-releases.githubusercontent.com",
+        "objects.githubusercontent.com",
+        "raw.githubusercontent.com",
+        "release-assets.githubusercontent.com",
+    }
+)
+
+
+def plugin_path(value: object, label: str, kind: str) -> pathlib.PurePosixPath:
+    if not isinstance(value, str) or not value or any(
+        character.isspace() or ord(character) < 0x20 for character in value
+    ):
+        fail(f"{label} must be a printable relative path")
+    path = pathlib.PurePosixPath(value)
+    if (
+        path.is_absolute()
+        or str(path) != value
+        or "\\" in value
+        or ".." in path.parts
+        or any(part in {"", "."} for part in path.parts)
+    ):
+        fail(f"{label} contains an unsafe relative path")
+    if kind == "linux-amd64-executable":
+        if path.parent != pathlib.PurePosixPath("libexec"):
+            fail(f"{label} must place provider executables directly in libexec")
+    else:
+        try:
+            path.relative_to(PLUGIN_ROOT)
+        except ValueError:
+            fail(f"{label} must remain below the managed yt-dlp plugin root")
+    return path
+
+
+def _plugin_url(value: object, label: str, *, allow_signed_query: bool) -> str:
+    if not isinstance(value, str) or any(
+        character.isspace() or ord(character) < 0x20 for character in value
+    ):
+        fail(f"{label} must be a printable HTTPS URL")
+    parsed = urllib.parse.urlsplit(value)
+    try:
+        port = parsed.port
+    except ValueError:
+        fail(f"{label} contains an invalid port")
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname not in PLUGIN_REDIRECT_HOSTS
+        or parsed.username is not None
+        or parsed.password is not None
+        or port is not None
+        or not parsed.path
+        or (parsed.query and not allow_signed_query)
+        or parsed.fragment
+        or "//" in parsed.path
+        or "/../" in f"/{parsed.path.strip('/')}/"
+    ):
+        fail(f"{label} must be a normalized HTTPS URL from an approved host")
+    return value
+
+
+def plugin_url(value: object, label: str) -> str:
+    return _plugin_url(value, label, allow_signed_query=False)
+
+
+def plugin_redirect_url(value: object, label: str) -> str:
+    parsed = urllib.parse.urlsplit(value) if isinstance(value, str) else None
+    allow_signed_query = parsed is not None and parsed.hostname in {
+        "github-releases.githubusercontent.com",
+        "objects.githubusercontent.com",
+        "release-assets.githubusercontent.com",
+    }
+    return _plugin_url(value, label, allow_signed_query=allow_signed_query)
+
+
+def load_yt_dlp_plugin_manifest(
+    path: pathlib.Path,
+    yt_dlp_version: str,
+) -> tuple[tuple[PluginFile, ...], str]:
+    if path != pathlib.Path("/tmp/installer-yt-dlp-plugins.json"):
+        fail("yt-dlp plugin manifest path is outside the managed temporary path")
+    try:
+        path_stat = path.lstat()
+        if (
+            not stat.S_ISREG(path_stat.st_mode)
+            or path_stat.st_uid != 0
+            or path_stat.st_gid != 0
+            or stat.S_IMODE(path_stat.st_mode) != 0o600
+            or path_stat.st_size < 2
+            or path_stat.st_size > MAX_POLICY_BYTES
+        ):
+            fail("yt-dlp plugin manifest has unsafe ownership, mode, or size")
+        manifest_bytes = path.read_bytes()
+        manifest = json.loads(manifest_bytes)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        fail("yt-dlp plugin manifest is not valid UTF-8 JSON")
+    if not isinstance(manifest, dict) or manifest.get("schema") != 1:
+        fail("unsupported yt-dlp plugin manifest schema")
+    if manifest.get("yt_dlp_version") != yt_dlp_version:
+        fail("yt-dlp plugin manifest does not match the pinned executable")
+    if manifest.get("ejs_version") != "0.8.0":
+        fail("yt-dlp plugin manifest does not match the pinned yt-dlp-ejs release")
+    plugins = manifest.get("plugins")
+    if not isinstance(plugins, list) or not plugins or len(plugins) > 32:
+        fail("yt-dlp plugin manifest has an invalid plugin count")
+    result: list[PluginFile] = []
+    seen_ids: set[str] = set()
+    seen_paths: set[pathlib.PurePosixPath] = set()
+    seen_urls: set[str] = set()
+    for plugin_index, plugin in enumerate(plugins):
+        if not isinstance(plugin, dict):
+            fail(f"yt-dlp plugin entry {plugin_index} is not an object")
+        plugin_id = plugin.get("id")
+        plugin_version = plugin.get("version")
+        if (
+            not isinstance(plugin_id, str)
+            or PLUGIN_ID_RE.fullmatch(plugin_id) is None
+            or plugin_id in seen_ids
+            or not isinstance(plugin_version, str)
+            or PLUGIN_VERSION_RE.fullmatch(plugin_version) is None
+        ):
+            fail(f"yt-dlp plugin entry {plugin_index} has an invalid identity")
+        seen_ids.add(plugin_id)
+        plugin_url(plugin.get("source"), f"plugin {plugin_id} source")
+        files = plugin.get("files")
+        if not isinstance(files, list) or not files or len(files) > 32:
+            fail(f"yt-dlp plugin {plugin_id} has an invalid file count")
+        for file_index, file_item in enumerate(files):
+            if not isinstance(file_item, dict):
+                fail(f"yt-dlp plugin {plugin_id} file {file_index} is not an object")
+            kind = file_item.get("kind")
+            if kind not in PLUGIN_KINDS:
+                fail(f"yt-dlp plugin {plugin_id} file {file_index} has an unknown kind")
+            relative_path = plugin_path(
+                file_item.get("path"),
+                f"plugin {plugin_id} file {file_index} path",
+                kind,
+            )
+            url = plugin_url(
+                file_item.get("url"),
+                f"plugin {plugin_id} file {file_index} URL",
+            )
+            expected_digest = file_item.get("sha256")
+            if not isinstance(expected_digest, str) or LOWER_HEX_RE.fullmatch(expected_digest) is None or len(expected_digest) != 64:
+                fail(f"yt-dlp plugin {plugin_id} file {file_index} has an invalid SHA-256")
+            minimum_bytes = file_item.get("size")
+            if not isinstance(minimum_bytes, int) or minimum_bytes < 1 or minimum_bytes > 128 * 1024**2:
+                fail(f"yt-dlp plugin {plugin_id} file {file_index} has an invalid size")
+            if relative_path in seen_paths or url in seen_urls:
+                fail(f"yt-dlp plugin {plugin_id} contains a duplicate file")
+            seen_paths.add(relative_path)
+            seen_urls.add(url)
+            result.append(
+                PluginFile(
+                    plugin_id=plugin_id,
+                    plugin_version=plugin_version,
+                    relative_path=relative_path,
+                    url=url,
+                    expected_digest=expected_digest,
+                    minimum_bytes=minimum_bytes,
+                    kind=kind,
+                )
+            )
+    if not result:
+        fail("yt-dlp plugin manifest does not contain any files")
+    return tuple(result), hashlib.sha256(manifest_bytes).hexdigest()
 
 
 def artifact(
@@ -680,6 +873,18 @@ def load_policy(path: pathlib.Path) -> InstallPolicy:
         fail("DEVOPS_YT_DLP_PAYLOAD_PATH must remain below DEVOPS_YT_DLP_INSTALL_ROOT")
     if yt_dlp_payload_path != pathlib.Path("/usr/local/lib/yt-dlp/libexec/yt-dlp"):
         fail("yt-dlp payload path does not match the managed root")
+    yt_dlp_plugins_manifest_path = managed_path(
+        values,
+        "DEVOPS_YT_DLP_PLUGINS_MANIFEST_PATH",
+    )
+    if yt_dlp_plugins_manifest_path != pathlib.Path(
+        "/tmp/installer-yt-dlp-plugins.json"
+    ):
+        fail("yt-dlp plugin manifest path does not match the managed temporary path")
+    yt_dlp_plugin_files, yt_dlp_plugins_manifest_digest = load_yt_dlp_plugin_manifest(
+        yt_dlp_plugins_manifest_path,
+        yt_dlp.version,
+    )
 
     if ansible_core.architecture != "python3-any":
         fail("Ansible Core architecture policy is unsupported")
@@ -892,6 +1097,9 @@ def load_policy(path: pathlib.Path) -> InstallPolicy:
         deno_archive_files=deno_archive_files,
         yt_dlp=yt_dlp,
         yt_dlp_payload_path=yt_dlp_payload_path,
+        yt_dlp_plugins_manifest_path=yt_dlp_plugins_manifest_path,
+        yt_dlp_plugins_manifest_digest=yt_dlp_plugins_manifest_digest,
+        yt_dlp_plugin_files=yt_dlp_plugin_files,
         ansible_core=ansible_core,
         ansible_core_package_roots=ansible_core_package_roots,
         ansible_core_dist_info_root=ansible_core_dist_info_root,
@@ -1090,6 +1298,105 @@ def download_artifact(
     observed_digest = file_digest(destination, artifact.digest_algorithm)
     if observed_digest != artifact.expected_digest:
         fail(f"{artifact.name} {artifact.digest_algorithm.upper()} mismatch")
+    return destination
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args: object, **kwargs: object) -> None:
+        return None
+
+
+def download_plugin_file(
+    policy: InstallPolicy,
+    plugin_file: PluginFile,
+    download_dir: pathlib.Path,
+    index: int,
+) -> pathlib.Path:
+    destination = download_dir / (
+        f"plugin-{index:02d}-{plugin_file.expected_digest[:16]}"
+    )
+    opener = urllib.request.build_opener(_NoRedirectHandler())
+    current_url = plugin_file.url
+    deadline = time.monotonic() + policy.download_timeout_seconds
+    observed = 0
+    try:
+        for _ in range(6):
+            if time.monotonic() >= deadline:
+                fail(f"downloading yt-dlp plugin {plugin_file.plugin_id} timed out")
+            request = urllib.request.Request(
+                current_url,
+                headers={"User-Agent": "debian-preseed-yt-dlp-plugin-fetch"},
+            )
+            try:
+                response = opener.open(
+                    request,
+                    timeout=min(60, policy.download_timeout_seconds),
+                )
+            except urllib.error.HTTPError as error:
+                try:
+                    if error.code not in {301, 302, 303, 307, 308}:
+                        fail(
+                            f"downloading yt-dlp plugin {plugin_file.plugin_id} "
+                            f"returned HTTP {error.code}"
+                        )
+                    location = error.headers.get("Location")
+                    if not location:
+                        fail(
+                            f"yt-dlp plugin {plugin_file.plugin_id} redirect "
+                            "has no destination"
+                        )
+                    current_url = plugin_redirect_url(
+                        urllib.parse.urljoin(current_url, location),
+                        f"yt-dlp plugin {plugin_file.plugin_id} redirect",
+                    )
+                finally:
+                    error.close()
+                continue
+            except (OSError, urllib.error.URLError) as error:
+                fail(
+                    f"downloading yt-dlp plugin {plugin_file.plugin_id} failed: "
+                    f"{error}"
+                )
+            try:
+                if getattr(response, "status", 200) != 200:
+                    fail(
+                        f"downloading yt-dlp plugin {plugin_file.plugin_id} "
+                        "returned an unexpected status"
+                    )
+                with destination.open("xb") as target:
+                    while True:
+                        if time.monotonic() >= deadline:
+                            fail(
+                                f"downloading yt-dlp plugin {plugin_file.plugin_id} "
+                                "timed out"
+                            )
+                        chunk = response.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        observed += len(chunk)
+                        if observed > 128 * 1024**2:
+                            fail(
+                                f"yt-dlp plugin {plugin_file.plugin_id} "
+                                "exceeds the download limit"
+                            )
+                        target.write(chunk)
+            finally:
+                response.close()
+            break
+        else:
+            fail(
+                f"yt-dlp plugin {plugin_file.plugin_id} exceeded the redirect limit"
+            )
+    except BaseException:
+        destination.unlink(missing_ok=True)
+        raise
+    if observed < plugin_file.minimum_bytes:
+        fail(
+            f"yt-dlp plugin {plugin_file.plugin_id} is unexpectedly small: "
+            f"minimum {plugin_file.minimum_bytes}, got {observed}"
+        )
+    if file_digest(destination, "sha256") != plugin_file.expected_digest:
+        fail(f"yt-dlp plugin {plugin_file.plugin_id} SHA-256 mismatch")
     return destination
 
 
@@ -1431,6 +1738,7 @@ def prepare_yt_dlp(
     policy: InstallPolicy,
     payload_source: pathlib.Path,
     root: pathlib.Path,
+    plugin_sources: Sequence[tuple[PluginFile, pathlib.Path]],
 ) -> None:
     artifact_item = policy.yt_dlp
     payload_relative = policy.yt_dlp_payload_path.relative_to(
@@ -1449,31 +1757,51 @@ def prepare_yt_dlp(
         if payload.stat().st_size != payload_source.stat().st_size:
             fail("yt-dlp payload size changed while preparing the managed root")
         payload.chmod(0o755)
+        for plugin_file, source in plugin_sources:
+            if plugin_file.kind == "plugin-zip":
+                archive, members = validated_zip_infos(
+                    source,
+                    f"yt-dlp plugin {plugin_file.plugin_id}",
+                    policy.max_archive_members,
+                    policy.max_extracted_bytes,
+                )
+                try:
+                    if not any(
+                        member == "yt_dlp_plugins/"
+                        or member.startswith("yt_dlp_plugins/")
+                        for member in members
+                    ):
+                        fail(
+                            f"yt-dlp plugin {plugin_file.plugin_id} archive "
+                            "does not contain a yt_dlp_plugins namespace"
+                        )
+                finally:
+                    archive.close()
+            destination = root / pathlib.Path(*plugin_file.relative_path.parts)
+            destination.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+            with source.open("rb") as source_handle, destination.open("xb") as target:
+                shutil.copyfileobj(source_handle, target, length=1024 * 1024)
+            if destination.stat().st_size != source.stat().st_size:
+                fail(
+                    f"yt-dlp plugin {plugin_file.plugin_id} changed while preparing"
+                )
+            destination.chmod(
+                0o755 if plugin_file.kind == "linux-amd64-executable" else 0o644
+            )
         wrapper.write_text(
             "#!/bin/sh\n"
             "set -eu\n"
             "\n"
             f"yt_dlp_payload={policy.yt_dlp_payload_path}\n"
-            f"deno_binary={policy.deno.binary_path}\n"
             "\n"
             "[ -x \"$yt_dlp_payload\" ] || {\n"
             "  printf 'fatal: managed yt-dlp payload is unavailable: %s\\n' \"$yt_dlp_payload\" >&2\n"
             "  exit 1\n"
             "}\n"
-            "[ -x \"$deno_binary\" ] || {\n"
-            "  printf 'fatal: managed Deno runtime is unavailable: %s\\n' \"$deno_binary\" >&2\n"
-            "  exit 1\n"
-            "}\n"
             "\n"
-            "# Official standalone releases bundle yt-dlp-ejs. Keep remote\n"
-            "# components disabled, bind the supported JS engine explicitly, and\n"
-            "# preserve yt-dlp's upstream high-quality format selection defaults.\n"
-            "exec \"$yt_dlp_payload\" \\\n"
-            "  --no-remote-components \\\n"
-            "  --no-js-runtimes \\\n"
-            "  --js-runtimes \"deno:${deno_binary}\" \\\n"
-            "  --ffmpeg-location /usr/bin \\\n"
-            "  \"$@\"\n",
+            "# Runtime defaults live in /etc/yt-dlp/config. Preserve normal\n"
+            "# configuration precedence and extractor/postprocessor plugins.\n"
+            "exec \"$yt_dlp_payload\" \"$@\"\n",
             encoding="utf-8",
         )
         wrapper.chmod(0o755)
@@ -1484,9 +1812,14 @@ def prepare_yt_dlp(
         artifact_item,
         "distribution=github-standalone-executable",
         f"payload_path={policy.yt_dlp_payload_path}",
+        "extractor_catalog=official-standalone",
         "javascript_component=yt-dlp-ejs-bundled",
         f"javascript_runtime={policy.deno.binary_path}",
-        "remote_components=disabled",
+        "configuration=/etc/yt-dlp/config",
+        "plugins=" + ",".join(
+            sorted({plugin_file.plugin_id for plugin_file, _ in plugin_sources})
+        ),
+        f"plugin_manifest_sha256={policy.yt_dlp_plugins_manifest_digest}",
     )
 
 
@@ -2005,6 +2338,34 @@ def _verify_installation(policy: InstallPolicy, environment: dict[str, str]) -> 
     )
     if yt_dlp.stdout.strip() != policy.yt_dlp.version:
         fail("yt-dlp version verification returned unexpected output")
+    extractor_catalog = run_checked(
+        [str(policy.yt_dlp.binary_path), "--list-extractors"],
+        "verifying yt-dlp built-in extractor catalog and plugins",
+        timeout=policy.verify_timeout_seconds,
+        environment={
+            **environment,
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C",
+            "PATH": "/usr/bin:/bin",
+            "TZ": "UTC",
+        },
+        capture_output=True,
+    )
+    expected_extractors = {
+        # Built-in coverage spans the official supported-sites catalog and its
+        # generic/embed fallback. AppleDeveloper proves that the pinned plugin
+        # directory is active during installer verification as well.
+        "Youtube", "BiliBili", "Bandcamp", "BBC", "Dailymotion", "Vimeo",
+        "TikTok", "Twitter", "Pornhub", "Generic", "AppleDeveloper",
+    }
+    missing_extractors = sorted(
+        name for name in expected_extractors if name not in extractor_catalog.stdout
+    )
+    if missing_extractors:
+        fail(
+            "yt-dlp extractor catalog is missing expected built-in/plugin "
+            f"extractors: {', '.join(missing_extractors)}"
+        )
 
     for command in sorted(ANSIBLE_CONSOLE_SCRIPTS):
         require_program(
@@ -2173,6 +2534,18 @@ def install_tools(policy: InstallPolicy) -> None:
             )
             for artifact_item in policy.download_artifacts
         }
+        downloaded_plugins = tuple(
+            (
+                plugin_file,
+                download_plugin_file(
+                    policy,
+                    plugin_file,
+                    downloads,
+                    index,
+                ),
+            )
+            for index, plugin_file in enumerate(policy.yt_dlp_plugin_files)
+        )
         prepared_roots = {
             artifact_item.install_root: prepared / artifact_item.key
             for artifact_item in policy.artifacts
@@ -2187,6 +2560,7 @@ def install_tools(policy: InstallPolicy) -> None:
             policy,
             downloaded[policy.yt_dlp.key],
             prepared_roots[policy.yt_dlp.install_root],
+            downloaded_plugins,
         )
         prepare_ansible_core(
             policy,

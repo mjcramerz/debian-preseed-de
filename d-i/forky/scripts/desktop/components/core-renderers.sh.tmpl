@@ -330,7 +330,7 @@ desktop_render_waybar_asset() (
   wb_asset=$1
   shift
   case "$wb_asset" in
-    config|style.css|audio-menu.xml|calendar-menu.xml|notifications-menu.xml|power-menu.xml|tomat-menu.xml) ;;
+    config|style.css|taskview.css|audio-menu.xml|calendar-menu.xml|notifications-menu.xml|power-menu.xml|tomat-menu.xml) ;;
     *) desktop_fatal "unsupported Waybar asset: $wb_asset" ;;
   esac
   desktop_waybar_geometry_validate

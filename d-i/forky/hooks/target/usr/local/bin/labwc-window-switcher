@@ -5,6 +5,45 @@ set -eu
   printf '%s\n' 'labwc-window-switcher must run as the desktop user' >&2
   exit 1
 }
+[ "${LABWC_SESSION_OWNER:-}" = desktop ] || {
+  printf '%s\n' 'labwc-window-switcher requires the managed desktop session' >&2
+  exit 1
+}
+[ "${XDG_SESSION_TYPE:-}" = wayland ] || {
+  printf '%s\n' 'labwc-window-switcher requires a Wayland session' >&2
+  exit 1
+}
+runtime_root=${XDG_RUNTIME_DIR:-}
+case "$runtime_root" in
+  /run/user/*) runtime_uid=${runtime_root#/run/user/} ;;
+  *) runtime_uid= ;;
+esac
+case "$runtime_uid" in
+  ''|0*|*[!0-9]*)
+    printf '%s\n' 'labwc-window-switcher requires a private desktop runtime directory' >&2
+    exit 1
+    ;;
+esac
+[ "$(/usr/bin/stat -Lc '%u %a %h' -- "$runtime_root" 2>/dev/null || true)" = "$runtime_uid 700 1" ] || {
+  printf '%s\n' 'labwc-window-switcher runtime directory is unsafe' >&2
+  exit 1
+}
+wayland_display=${WAYLAND_DISPLAY:-}
+case "$wayland_display" in
+  ''|*/*|*..*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*)
+    printf '%s\n' 'labwc-window-switcher display name is unsafe' >&2
+    exit 1
+    ;;
+esac
+wayland_socket="$runtime_root/$wayland_display"
+socket_metadata=$(/usr/bin/stat -Lc '%F %u %a %h' -- "$wayland_socket" 2>/dev/null || true)
+case "$socket_metadata" in
+  "socket $runtime_uid 600 1"|"socket $runtime_uid 660 1"|"socket $runtime_uid 700 1") ;;
+  *)
+    printf '%s\n' 'labwc-window-switcher Wayland socket is unsafe' >&2
+    exit 1
+    ;;
+esac
 # Waybar must invoke this on mouse release, after GTK's pointer grab ends.
 # Send down/up on the SAME virtual keyboard, before the user selects or cancels.
 # No F13 (or Alt) is held for the lifetime of labwc's native thumbnail switcher.

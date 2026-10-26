@@ -630,6 +630,7 @@ if len(source) > 16384 or re.search(rb"__[A-Z][A-Z0-9_]{2,}__", source):
     ACCOUNT_HOME "$ACCOUNT_HOME"
   desktop_render_waybar_config
   desktop_render_waybar_style
+  desktop_render_waybar_asset taskview.css
   desktop_render_kanshi_config
   desktop_render_terminal_configs
   desktop_stage_role_asset etc/skel-desktop/.config/mpv/mpv.conf /etc/skel-desktop/.config/mpv/mpv.conf 0644

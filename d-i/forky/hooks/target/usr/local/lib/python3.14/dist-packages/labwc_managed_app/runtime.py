@@ -195,7 +195,7 @@ def current_user_runtime_dir() -> str:
         stat.S_ISLNK(metadata.st_mode)
         or not stat.S_ISDIR(metadata.st_mode)
         or metadata.st_uid != os.getuid()
-        or metadata.st_mode & 0o077
+        or stat.S_IMODE(metadata.st_mode) != 0o700
     ):
         fail(
             "current desktop runtime directory must be a private directory "
@@ -243,12 +243,31 @@ def validate_session_bus_address(raw_value: str) -> str:
     if ";" in bus_address:
         fail("DBUS_SESSION_BUS_ADDRESS must contain a single unix:path transport")
 
-    match = re.fullmatch(r"unix:path=([^,]+)(?:,[^=]+=[^,]+)*", bus_address)
-    if match is None:
+    address_parts = bus_address.split(",")
+    if not address_parts or not address_parts[0].startswith("unix:"):
         fail(f"DBUS_SESSION_BUS_ADDRESS must use a local unix:path transport: {bus_address}")
-
+    transport_options: dict[str, str] = {}
+    for option in address_parts[0][len("unix:"):].split(",") + address_parts[1:]:
+        if "=" not in option:
+            fail(f"DBUS_SESSION_BUS_ADDRESS contains a malformed option: {bus_address}")
+        key, value = option.split("=", 1)
+        if (
+            not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", key)
+            or not value
+            or key in transport_options
+            or any(ord(character) < 0x20 for character in value)
+            or key not in {"path", "guid"}
+        ):
+            fail(f"DBUS_SESSION_BUS_ADDRESS contains an unsupported option: {bus_address}")
+        transport_options[key] = value
+    bus_path = transport_options.get("path")
+    if bus_path is None or (
+        "guid" in transport_options
+        and re.fullmatch(r"[0-9A-Fa-f]{32}", transport_options["guid"]) is None
+    ):
+        fail(f"DBUS_SESSION_BUS_ADDRESS must use a local unix:path transport: {bus_address}")
     expected_path = current_user_runtime_socket("DBUS session bus", "bus")
-    if match.group(1) != expected_path:
+    if bus_path != expected_path:
         fail(
             "DBUS_SESSION_BUS_ADDRESS must reference the current desktop "
             f"session bus: {expected_path}"

@@ -59,8 +59,9 @@ class NativeDrawerTests(unittest.TestCase):
                 entry=bar[module]
                 self.assertEqual(entry['format'],' ')
                 self.assertEqual(entry['tooltip-format'],tooltip)
-                self.assertIn('--property=PartOf=labwc-session.target',entry['on-click'])
-                self.assertIn('--property=KillMode=control-group',entry['on-click'])
+                click = entry['on-click-release'] if module == 'custom/wayscriber' else entry['on-click']
+                self.assertIn('--property=PartOf=labwc-session.target',click)
+                self.assertIn('--property=KillMode=control-group',click)
                 self.assertEqual(entry['align'],0.5)
                 self.assertIn(module,bar['group/apps']['modules'])
 

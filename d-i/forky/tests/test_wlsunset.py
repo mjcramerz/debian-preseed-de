@@ -452,7 +452,7 @@ class InstallerTests(unittest.TestCase):
                 if received is not None: os.close(received)
 
     def test_switcher_shares_menu_hover_gradient_without_overrides(self):
-        css = render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/waybar/style.css.tmpl'))
+        css = render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/waybar/taskview.css.tmpl'))
         matches = re.findall(r'([^{}]+)\{([^{}]*)\}', css)
         blocks = [(selectors, body) for selectors, body in matches if '#custom-window-switcher:hover' in selectors]
         shared = [(selectors, body) for selectors, body in blocks

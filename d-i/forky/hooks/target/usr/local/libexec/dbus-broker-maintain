@@ -219,13 +219,29 @@ def service_name(data: bytes) -> str:
     return names[0]
 
 
+def validate_activation_alias(alias: Path, expected: str, source: Path) -> None:
+    if not alias.exists() and not alias.is_symlink():
+        return
+    metadata = alias.lstat()
+    if metadata.st_uid != 0 or metadata.st_nlink != 1:
+        raise RuntimeError(f'foreign activation alias: {alias}')
+    if expected == 'org.freedesktop.Notifications':
+        if (not stat.S_ISREG(metadata.st_mode)
+                or read_owned_file(alias) != MAKO_ALIAS):
+            raise RuntimeError(f'foreign notifications activation alias: {alias}')
+        return
+    if not stat.S_ISLNK(metadata.st_mode) or os.readlink(alias) != str(source):
+        raise RuntimeError(f'foreign activation alias: {alias}')
+
+
 def refresh_files() -> None:
     source = diverted_source(SESSION)
     if source is None:
         raise RuntimeError('dbus-session-bus-common is missing')
     # Always read the vendor .distrib, never the previous locally rendered copy.
-    atomic_write(SESSION, broker_session_config(read_owned_file(source)))
+    rendered_session = broker_session_config(read_owned_file(source))
     trusted_directory(LOCAL_SERVICES)
+    planned_aliases: list[tuple[str, Path, Path]] = []
     for filename, expected in ALIASES.items():
         path = SERVICES / filename
         # Check names before altering a not-yet-diverted vendor file.
@@ -237,6 +253,14 @@ def refresh_files() -> None:
         if service_name(read_owned_file(source)) != expected:
             raise RuntimeError(f'unexpected activation Name in {source}')
         alias = LOCAL_SERVICES / f'{expected}.service'
+        validate_activation_alias(alias, expected, source)
+        planned_aliases.append((expected, source, alias))
+
+    # All vendor inputs and existing aliases are validated before any
+    # generated configuration is published. This keeps a malformed package
+    # refresh from leaving a newly rendered session policy beside stale aliases.
+    atomic_write(SESSION, rendered_session)
+    for expected, source, alias in planned_aliases:
         if expected == 'org.freedesktop.Notifications':
             # The vendor Exec starts an unmanaged second Mako while the
             # session service waits. Keep one systemd owner across both login

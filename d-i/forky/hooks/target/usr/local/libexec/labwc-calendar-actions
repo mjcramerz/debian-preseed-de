@@ -73,8 +73,15 @@ def environment() -> dict:
     home = Path(pwd.getpwuid(uid).pw_dir)
     runtime = Path('/run/user') / str(uid)
     info = runtime.lstat()
+    bus = runtime / 'bus'
+    bus_info = bus.lstat()
     display = os.environ.get('WAYLAND_DISPLAY', '')
-    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != uid or info.st_mode & 0o077
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != uid
+            or stat.S_IMODE(info.st_mode) != 0o700
+            or not stat.S_ISSOCK(bus_info.st_mode) or bus_info.st_uid != uid
+            or stat.S_IMODE(bus_info.st_mode) not in {0o600, 0o660, 0o700}
+            or bus_info.st_nlink != 1
+            or os.environ.get('XDG_RUNTIME_DIR', str(runtime)) != str(runtime)
             or not re.fullmatch(r'wayland-[0-9]+', display)):
         raise Error('unsafe-account')
     return {'PATH': '/usr/bin:/bin', 'HOME': str(home), 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8',

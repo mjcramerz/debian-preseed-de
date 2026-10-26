@@ -261,7 +261,7 @@ class IntegrationContractTests(unittest.TestCase):
 
     def test_waybar_menu_keeps_transient_service_contract_and_search_keys_stay_search(self):
         text = render_theme_defaults(waybar_config_text(TARGET / 'etc/skel-desktop/.config/waybar'))
-        clicks = re.findall(r'"on-click": "([^"]* -- labwc-main-menu)"', text)
+        clicks = re.findall(r'"on-click-release": "([^"]* -- labwc-main-menu)"', text)
         self.assertEqual(len(clicks), 2)
         for click in clicks:
             for argument in ('--user', '--collect', '--service-type=exec', '--expand-environment=no',

@@ -1,7 +1,8 @@
 #!/bin/sh
 set -eu
 
-if [ -r /etc/labwc/desktop.conf ]; then
+if [ -f /etc/labwc/desktop.conf ] && [ ! -L /etc/labwc/desktop.conf ] &&
+   [ "$(stat -Lc '%u %a %h' -- /etc/labwc/desktop.conf 2>/dev/null || true)" = '0 644 1' ]; then
   # shellcheck disable=SC1091
   . /etc/labwc/desktop.conf
 fi
@@ -87,8 +88,8 @@ write_layout_state() {
 
 reconfigure_labwc() {
   [ -n "${WAYLAND_DISPLAY:-}" ] || return 0
-  command -v labwc >/dev/null 2>&1 || return 1
-  labwc --reconfigure 9>&- >/dev/null 2>&1
+  [ -x /usr/bin/labwc ] || return 1
+  /usr/bin/labwc --reconfigure 9>&- >/dev/null 2>&1
 }
 
 lock_layout() {

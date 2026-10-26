@@ -52,10 +52,35 @@ MODULES = (('custom/tomat', 'tomat', 'on-click'),
            ('pulseaudio', 'audio', 'on-click'),
            ('custom/notifications', 'notifications', 'on-click'),
            ('custom/power', 'power', 'on-click'),
-           ('clock', 'calendar', 'on-click'))
+           ('clock', 'calendar', 'on-click-release'))
+
+RELEASE_BINDINGS = (
+    ('custom/launcher', 'on-click-release', 'on-click'),
+    ('custom/wayscriber', 'on-click-release', 'on-click'),
+    ('network', 'on-click-right-release', 'on-click-right'),
+    ('bluetooth', 'on-click-right-release', 'on-click-right'),
+    ('custom/screenshot', 'on-click-release', 'on-click'),
+    ('custom/screenshot', 'on-click-right-release', 'on-click-right'),
+    ('backlight', 'on-click-release', 'on-click'),
+    ('custom/battery', 'on-click-release', 'on-click'),
+)
 
 
 class MenuContractTests(unittest.TestCase):
+    def test_release_binding_matrix_preserves_native_controls(self):
+        for bar in bars():
+            for module, release, press in RELEASE_BINDINGS:
+                self.assertIn(release, bar[module])
+                self.assertNotIn(press, bar[module])
+            self.assertNotIn('on-click', bar['custom/keyboard'])
+            self.assertIn('on-click-release', bar['custom/keyboard'])
+            self.assertEqual(bar['ext/workspaces']['on-click'], 'activate')
+            taskbar = bar.get('wlr/taskbar')
+            if taskbar:
+                self.assertEqual(taskbar['on-click'], 'minimize-raise')
+                self.assertEqual(taskbar['on-click-right'], 'minimize-raise')
+                self.assertEqual(taskbar['on-click-middle'], 'close')
+
     def test_all_82_actions_are_nonblocking_and_session_owned(self):
         options = {'--user', '--collect', '--no-block', '--service-type=exec',
                    '--expand-environment=no', '--slice=app.slice',
@@ -103,7 +128,8 @@ class MenuContractTests(unittest.TestCase):
                 argv = shlex.split(entry['menu-actions'][key])
                 self.assertEqual(argv[argv.index('--') + 1:], action)
                 if action[0] == '/usr/local/libexec/labwc-calendar-actions':
-                    self.assertIn('--property=SuccessExitStatus=2', argv[:argv.index('--')])
+                    self.assertTrue(any(option.startswith('--property=SuccessExitStatus=2')
+                                        for option in argv[:argv.index('--')]))
                 else:
                     self.assertNotIn('--property=SuccessExitStatus=2', argv[:argv.index('--')])
             self.assertEqual(shlex.split(entry['on-click-right-release']),

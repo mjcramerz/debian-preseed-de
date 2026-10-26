@@ -105,7 +105,8 @@ class ThemeValidationTests(unittest.TestCase):
                 self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_HOVER_{property_name}_COLOR'],
                                  VALUES[f'WAYBAR_BUTTON_APPS_HOVER_{property_name}_COLOR'])
         for output in ('internal', 'external'):
-            css = (TARGET / 'etc/skel-desktop/.config/waybar/style.css.tmpl').read_text()
+            css = ''.join((TARGET / 'etc/skel-desktop/.config/waybar' / name).read_text()
+                          for name in ('style.css.tmpl', 'taskview.css.tmpl'))
             for button in ('custom-apps', 'custom-wayscriber', 'custom-tomat', 'custom-window-switcher'):
                 rules = re.findall(rf'window#waybar\.{output} #{button}:hover \{{([^}}]*)\}}', css)
                 self.assertTrue(any('box-shadow: inset ' in rule for rule in rules))

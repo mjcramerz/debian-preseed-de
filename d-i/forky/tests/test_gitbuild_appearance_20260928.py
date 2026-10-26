@@ -66,8 +66,9 @@ def native_defaults():
     for relative in native.GREETER_FILES:
         text = render_theme_defaults(read_text(TARGET / 'etc/greetd' / relative))
         greeter_files[relative] = re.sub(r'__INSTALLER_[A-Z0-9_]+__', '1', text)
-    return defaults.validate({'schema': 2, 'mode': 'light', 'files': files,
+    return defaults.validate({'schema': 3, 'mode': 'light', 'files': files,
                              'greeter': greeter_files,
+                             'icon_theme': 'Adwaita', 'pointer_theme': 'DMZ-White',
                              'settings': {'color-scheme': "'prefer-light'", 'gtk-theme': "'Adwaita'"}})
 
 
@@ -479,6 +480,35 @@ class BuildTests(Temporary):
         actions = {value for group in build_cli.MENUS.values() for value in group.values()}
         self.assertEqual(actions, worker.KINDS | {'orig', 'review', 'sign', 'aptly', 'obs', 'local-repo', 'artifacts', 'log', 'doctor'})
 
+    def test_menu_distinguishes_cancel_failure_and_unknown_output(self):
+        fixture_environment = {'PATH': '/usr/bin:/bin', 'HOME': str(self.root), 'LC_ALL': 'C.UTF-8'}
+        picker_environment = mock.patch.object(build_cli, 'environment', return_value=fixture_environment)
+        picker_environment.start()
+        self.addCleanup(picker_environment.stop)
+        for status in (1, 130):
+            with self.subTest(status=status), mock.patch.object(build_cli.subprocess, 'run',
+                    return_value=subprocess.CompletedProcess([], status, '')):
+                self.assertIsNone(build_cli.choose(['Build'], 'Fixture'))
+        with mock.patch.object(build_cli.subprocess, 'run',
+                return_value=subprocess.CompletedProcess([], 2, '')), self.assertRaises(RuntimeError):
+            build_cli.choose(['Build'], 'Fixture')
+        with mock.patch.object(build_cli.subprocess, 'run',
+                return_value=subprocess.CompletedProcess([], 0, 'unexpected\n')), self.assertRaises(ValueError):
+            build_cli.choose(['Build'], 'Fixture')
+
+    def test_desktop_launch_selects_explicit_workspace_repository(self):
+        repository = self.root / 'Workspace' / 'project'
+        context = mock.MagicMock()
+        with mock.patch.object(build_cli, 'Context', side_effect=[core.RepositoryRequired('select'), context]) as constructor, \
+             mock.patch('pwd.getpwuid', return_value=types.SimpleNamespace(pw_dir=str(self.root))), \
+             mock.patch.object(build_cli, 'workspace_repositories', return_value=[repository]), \
+             mock.patch.object(build_cli, 'choose', side_effect=['project', None]), \
+             mock.patch.object(build_cli.sys.stdin, 'isatty', return_value=True), \
+             mock.patch.object(build_cli.sys.stdout, 'isatty', return_value=True):
+            self.assertEqual(build_cli.main([]), 0)
+        self.assertEqual(constructor.call_args_list, [mock.call(), mock.call(repository)])
+        context.tree.close.assert_called_once_with()
+
 
 class AppearanceCoordinatorTests(Temporary):
     def setUp(self):
@@ -721,14 +751,11 @@ class PaletteTests(unittest.TestCase):
             with self.subTest(css=malformed), self.assertRaises(ValueError):
                 native.gtk4_import(malformed, None, None)
 
-    def test_legacy_selection_migrates_without_reintroducing_mode_menu(self):
+    def test_stale_selection_schema_is_rejected_without_migration(self):
         previous = {'schema': 1, 'mode': 'dark', 'modeDefault': False,
                     'profiles': dict.fromkeys(catalog.COMPONENTS, 'mocha-rose')}
-        migrated = engine.validate_state(previous)
-        self.assertEqual(migrated['theme'], 'adwaita-dark')
-        self.assertEqual(migrated['profiles'], previous['profiles'])
         with self.assertRaises(ValueError):
-            engine.selection(migrated, ['mode', 'light'], self.defaults)
+            engine.validate_state(previous)
 
     def test_refresh_failure_after_commit_returns_warning(self):
         with mock.patch.object(service, 'active', side_effect=subprocess.TimeoutExpired('fixture-systemctl', 15)), \

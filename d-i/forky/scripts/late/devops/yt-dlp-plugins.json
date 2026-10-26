@@ -1,0 +1,132 @@
+{
+  "schema": 1,
+  "yt_dlp_version": "2026.08.19",
+  "ejs_version": "0.8.0",
+  "plugins": [
+    {
+      "id": "bgutil-pot",
+      "version": "0.8.1",
+      "source": "https://github.com/jim60105/bgutil-ytdlp-pot-provider-rs",
+      "purpose": "YouTube proof-of-origin tokens using the prebuilt provider on demand",
+      "files": [
+        {
+          "path": "libexec/yt-dlp-plugins/bgutil-pot.zip",
+          "url": "https://github.com/jim60105/bgutil-ytdlp-pot-provider-rs/releases/download/v0.8.1/bgutil-ytdlp-pot-provider-rs.zip",
+          "sha256": "99fd83b98fa93b193d6a3b69dc74410d76e7a2b889868c54d16121cac9060344",
+          "size": 6253,
+          "kind": "plugin-zip"
+        },
+        {
+          "path": "libexec/bgutil-pot",
+          "url": "https://github.com/jim60105/bgutil-ytdlp-pot-provider-rs/releases/download/v0.8.1/bgutil-pot-linux-x86_64",
+          "sha256": "e7c264a574fa2705b6e5dc62283a8a4e80130f27b9d7e9df44e6b09aa6151a87",
+          "size": 50990856,
+          "kind": "linux-amd64-executable"
+        }
+      ]
+    },
+    {
+      "id": "rajiko",
+      "version": "1.16",
+      "source": "https://github.com/garret1317/yt-dlp-rajiko",
+      "purpose": "Radiko radio extraction with the upstream bundled protobug dependency",
+      "files": [
+        {
+          "path": "libexec/yt-dlp-plugins/rajiko.zip",
+          "url": "https://427738.xyz/yt-dlp-rajiko/dl/yt_dlp_rajiko-1.16.bundle.zip",
+          "sha256": "b87382b5f225e2d2489f2874230942faca4cc54ee41af853ef7b8c7c2f4f2b8e",
+          "size": 52656,
+          "kind": "plugin-zip"
+        }
+      ]
+    },
+    {
+      "id": "apple-developer",
+      "version": "64b4359f160dd2a174da19462e64137ea6bd494f",
+      "source": "https://github.com/smvz/yt-dlp-AppleDeveloper",
+      "purpose": "Apple Developer and WWDC videos and session playlists",
+      "files": [
+        {
+          "path": "libexec/yt-dlp-plugins/apple-developer/LICENSE",
+          "url": "https://raw.githubusercontent.com/smvz/yt-dlp-AppleDeveloper/64b4359f160dd2a174da19462e64137ea6bd494f/LICENSE",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "size": 11358,
+          "kind": "data"
+        },
+        {
+          "path": "libexec/yt-dlp-plugins/apple-developer/yt_dlp_plugins/extractor/appledeveloper.py",
+          "url": "https://raw.githubusercontent.com/smvz/yt-dlp-AppleDeveloper/64b4359f160dd2a174da19462e64137ea6bd494f/yt_dlp_plugins/extractor/appledeveloper.py",
+          "sha256": "8ae50ca69a56a188c03c2b89b6e37ac47a97307222e4cb7e01120e7cf7e4577b",
+          "size": 12325,
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "id": "srt-fix",
+      "version": "3078217fdd09da75035e73b9a9f2f8179e011c4f",
+      "source": "https://github.com/bindestriche/srt_fix",
+      "purpose": "Optional cleanup of automatic SRT subtitles",
+      "files": [
+        {
+          "path": "libexec/yt-dlp-plugins/srt-fix/LICENSE",
+          "url": "https://raw.githubusercontent.com/bindestriche/srt_fix/3078217fdd09da75035e73b9a9f2f8179e011c4f/LICENSE",
+          "sha256": "7e12e5df4bae12cb21581ba157ced20e1986a0508dd10d0e8a4ab9a4cf94e85c",
+          "size": 1211,
+          "kind": "data"
+        },
+        {
+          "path": "libexec/yt-dlp-plugins/srt-fix/yt_dlp_plugins/postprocessor/srt_fix.py",
+          "url": "https://raw.githubusercontent.com/bindestriche/srt_fix/3078217fdd09da75035e73b9a9f2f8179e011c4f/yt_dlp_plugins/postprocessor/srt_fix.py",
+          "sha256": "13a32237e8c93d17922bc42c0d19db8b0f4a29757101bd9130fb72656b46fa9f",
+          "size": 11513,
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "id": "return-youtube-dislike",
+      "version": "02f3f5b9d5df1dedce92b0a53b6b8f6f53a9733c",
+      "source": "https://github.com/pukkandan/yt-dlp-returnyoutubedislike",
+      "purpose": "Optional Return YouTube Dislike metadata",
+      "files": [
+        {
+          "path": "libexec/yt-dlp-plugins/return-youtube-dislike/LICENSE",
+          "url": "https://raw.githubusercontent.com/pukkandan/yt-dlp-returnyoutubedislike/02f3f5b9d5df1dedce92b0a53b6b8f6f53a9733c/LICENSE",
+          "sha256": "833b977c74b37903b5b6a2e6889f126beee191508810c06183b41be1515b6511",
+          "size": 1066,
+          "kind": "data"
+        },
+        {
+          "path": "libexec/yt-dlp-plugins/return-youtube-dislike/yt_dlp_plugins/postprocessor/ryd.py",
+          "url": "https://raw.githubusercontent.com/pukkandan/yt-dlp-returnyoutubedislike/02f3f5b9d5df1dedce92b0a53b6b8f6f53a9733c/yt_dlp_plugins/postprocessor/ryd.py",
+          "sha256": "3d97bb4ffc32aaf868a55849076419787468992edc08d54ea1e8b93f963d10e5",
+          "size": 1266,
+          "kind": "data"
+        }
+      ]
+    },
+    {
+      "id": "fixup-mtime",
+      "version": "2a10f8130fcc971d31e1cb5a24a5fbc1cc48e567",
+      "source": "https://github.com/bradenhilton/yt-dlp-FixupMtime",
+      "purpose": "Optional consistent timestamps for media and sidecar files",
+      "files": [
+        {
+          "path": "libexec/yt-dlp-plugins/fixup-mtime/LICENSE",
+          "url": "https://raw.githubusercontent.com/bradenhilton/yt-dlp-FixupMtime/2a10f8130fcc971d31e1cb5a24a5fbc1cc48e567/LICENSE",
+          "sha256": "7e12e5df4bae12cb21581ba157ced20e1986a0508dd10d0e8a4ab9a4cf94e85c",
+          "size": 1211,
+          "kind": "data"
+        },
+        {
+          "path": "libexec/yt-dlp-plugins/fixup-mtime/yt_dlp_plugins/postprocessor/fixup_mtime.py",
+          "url": "https://raw.githubusercontent.com/bradenhilton/yt-dlp-FixupMtime/2a10f8130fcc971d31e1cb5a24a5fbc1cc48e567/yt_dlp_plugins/postprocessor/fixup_mtime.py",
+          "sha256": "0a75a01f1178bcf1132826366c9b510c570c86794fa2c8517dafee3c6d6023ce",
+          "size": 2646,
+          "kind": "data"
+        }
+      ]
+    }
+  ]
+}
