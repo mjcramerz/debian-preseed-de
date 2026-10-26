@@ -39,10 +39,15 @@ desktop_stage_appearance() (
 
 desktop_extract_theme_release() (
   set -eu
-  source_host=$1
+  source_root=$1
   archive_host="${TMP_ENV_DIR}/desktop-themes.tar.gz"
+  archive_target=/tmp/installer-desktop-themes.tar.gz
+  archive_target_host=$(target_asset_host_path "$archive_target")
   archive_max_bytes=${LABWC_DESKTOP_THEMES_MAXIMUM_BYTES:?LABWC_DESKTOP_THEMES_MAXIMUM_BYTES must be set}
-  trap 'rm -f -- "$archive_host"' EXIT HUP INT TERM
+  trap 'rm -f -- "$archive_host" "$archive_target_host"' EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
 
   desktop_download_release_archive \
     'desktop themes' \
@@ -53,19 +58,31 @@ desktop_extract_theme_release() (
     "$archive_host" \
     "$archive_max_bytes"
 
-  /usr/bin/tar \
-    --extract \
-    --gzip \
-    --file "$archive_host" \
-    --directory "$source_host" \
-    --strip-components=1 \
-    --no-same-owner \
-    --no-same-permissions \
-    --no-overwrite-dir ||
-    installer_fatal 'desktop theme release extraction failed'
-  find -P "$source_host" -type d -exec chmod 0700 {} +
-  find -P "$source_host" -type f -exec chmod 0600 {} +
-  chown -R root:root "$source_host"
+  install -m 0600 "$archive_host" "$archive_target_host"
+  rm -f -- "$archive_host"
+
+  # d-i supplies BusyBox tools, not the target's GNU tar/find. Keep the GNU
+  # options and target-relative paths inside the installed system.
+  # shellcheck disable=SC2016
+  if ! attempt_in_target "extract pinned desktop theme release archive" /bin/sh -eu -c '
+archive=$1
+destination=$2
+umask 077
+/usr/bin/tar -xzf "$archive" -C "$destination" \
+  --strip-components=1 \
+  --no-same-owner \
+  --no-same-permissions \
+  --no-overwrite-dir
+/usr/bin/find -P "$destination" -type d -exec /usr/bin/chmod 0700 {} +
+/usr/bin/find -P "$destination" -type f -exec /usr/bin/chmod 0600 {} +
+/usr/bin/chown -R root:root "$destination"
+/usr/bin/rm -f -- "$archive"
+' sh "$archive_target" "$source_root"
+  then
+    installer_fatal "desktop theme release extraction failed; staged files retained at ${source_root}"
+  fi
+  [ ! -e "$archive_target_host" ] && [ ! -L "$archive_target_host" ] ||
+    installer_fatal 'desktop theme archive remained in the target after extraction'
   desktop_log "extracted_verified_release label=desktop-themes tag=${LABWC_DESKTOP_THEMES_TAG}"
 )
 
@@ -80,7 +97,7 @@ desktop_install_appearance_themes() (
     installer_fatal 'unsafe desktop theme staging directory'
   chown root:root "$source_host"
   chmod 0700 "$source_host"
-  desktop_extract_theme_release "$source_host"
+  desktop_extract_theme_release "$source_root"
   run_in_target "install pinned GTK3/GTK4 and Qt desktop theme data" \
     /usr/local/libexec/labwc-appearance-themes --install
 )

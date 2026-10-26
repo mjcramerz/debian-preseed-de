@@ -40,15 +40,11 @@ desktop_extract_role_wallpaper_archive() {
   rm -f -- "$archive_host"
 
   # shellcheck disable=SC2016
-  if ! run_in_target "extract managed desktop wallpaper archive" /bin/sh -eu -c '
+  if ! attempt_in_target "extract managed desktop wallpaper archive" /bin/sh -eu -c '
 archive=$1
 destination=$2
 /usr/bin/install -d -m 0755 -- "$destination"
-/usr/bin/tar \
-  --extract \
-  --gzip \
-  --file "$archive" \
-  --directory "$destination" \
+/usr/bin/tar -xzf "$archive" -C "$destination" \
   --no-same-owner \
   --no-same-permissions
 /usr/bin/find "$destination" -maxdepth 1 -type f -exec /usr/bin/chmod 0644 {} +

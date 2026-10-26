@@ -1,8 +1,9 @@
-"""Unexecuted release-download fixtures: fresh shell, hash gate and cleanup.
+"""Unexecuted release fixtures: fresh shell, hash gate, target call and cleanup.
 
 Vendor transfer is replaced with a private-file copy. Target extraction maps
-only the reviewed wallpaper operation into the fixture tree. No network,
-chroot, service, device or installed management helper is used.
+only the reviewed wallpaper operation into the fixture tree. Theme target
+execution is a recording stub, not an extraction or native tar check. No
+network, chroot, service, device or installed management helper is used.
 """
 from __future__ import annotations
 
@@ -62,6 +63,7 @@ source_fetch_external() (
             ('scripts/desktop/components/release-assets.sh', 'desktop_download_release_archive'),
             ('scripts/desktop/components/artifacts-identities.sh',
              'desktop_extract_role_wallpaper_archive'),
+            ('scripts/desktop/components/appearance.sh', 'desktop_extract_theme_release'),
         ]
         self.definitions = self.root / 'definitions.sh'
         self.definitions.write_text('''installer_fatal() {
@@ -70,10 +72,14 @@ source_fetch_external() (
 }
 desktop_log() { printf '%s\\n' "$*" >>"$FIXTURE_ROOT/events.log"; }
 target_asset_host_path() {
-  [ "$1" = /tmp/installer-desktop-wallpapers.tar.gz ] || return 93
-  printf '%s/target/tmp/installer-desktop-wallpapers.tar.gz\\n' "$FIXTURE_ROOT"
+  case "$1" in
+    /tmp/installer-desktop-wallpapers.tar.gz|/tmp/installer-desktop-themes.tar.gz)
+      printf '%s/target%s\\n' "$FIXTURE_ROOT" "$1" ;;
+    *) return 93 ;;
+  esac
 }
 run_in_target() { printf 'unexpected target call\\n' >&2; return 94; }
+attempt_in_target() { printf 'unexpected target attempt\\n' >&2; return 94; }
 ''' + '\n'.join(function_source(*definition) for definition in definitions))
 
     def invoke(self, body: str, *, expected_sha256: str | None = None,
@@ -277,7 +283,7 @@ source_fetch_external https://github.com/mjcramerz/themes/raw/main \
         # Validate the exact target command and replace both target paths.
         # The reviewed body invokes only install/tar/find/chmod/rm on these
         # private paths; input archives below contain only a fixture member.
-        return self.invoke('''run_in_target() {
+        return self.invoke('''attempt_in_target() {
   [ "$#" -eq 8 ] || return 94
   [ "$1" = 'extract managed desktop wallpaper archive' ] || return 94
   [ "$2" = /bin/sh ] && [ "$3" = -eu ] && [ "$4" = -c ] || return 94
@@ -322,6 +328,63 @@ desktop_extract_role_wallpaper_archive
         self.assertFalse((self.root / 'target/tmp/installer-desktop-wallpapers.tar.gz').exists())
         self.assertEqual(list((self.root / 'scratch').iterdir()), [])
         self.assertNotIn('extracted_wallpaper_archive', (self.root / 'events.log').read_text())
+
+    def extract_themes(self, **options):
+        # Record the target command without executing it. The destination is
+        # private even if a regression sends it to installer-side tools.
+        stage = self.root / 'target/usr/local/share/labwc-appearance/.installer-themes'
+        stage.mkdir(parents=True, exist_ok=True)
+        (stage / 'retained-evidence').write_bytes(b'previous staging evidence')
+        return self.invoke('''attempt_in_target() {
+  [ "$#" -eq 8 ] || return 94
+  [ "$1" = 'extract pinned desktop theme release archive' ] || return 94
+  [ "$2" = /bin/sh ] && [ "$3" = -eu ] && [ "$4" = -c ] || return 94
+  [ "$6" = sh ] || return 94
+  [ "$7" = /tmp/installer-desktop-themes.tar.gz ] || return 94
+  [ "$8" = "$FIXTURE_ROOT/target/usr/local/share/labwc-appearance/.installer-themes" ] || return 94
+  [ -f "$FIXTURE_ROOT/target/tmp/installer-desktop-themes.tar.gz" ] || return 94
+  printf '%s\\n' "$5" >"$FIXTURE_ROOT/theme-target-command.sh"
+  [ ! -f "$FIXTURE_ROOT/fail-target" ] || return 73
+  rm -f -- "$FIXTURE_ROOT/target/tmp/installer-desktop-themes.tar.gz"
+}
+FIXTURE_DESTINATION="$TMP_ENV_DIR/desktop-themes.tar.gz"
+export FIXTURE_DESTINATION
+LABWC_DESKTOP_THEMES_TAG=themes-v0.0.1
+LABWC_DESKTOP_THEMES_URL=https://github.com/mjcramerz/themes/releases/download/themes-v0.0.1/desktop-themes.tar.gz
+LABWC_DESKTOP_THEMES_SHA256=$FIXTURE_SHA256
+LABWC_DESKTOP_THEMES_MAXIMUM_BYTES=$FIXTURE_MAXIMUM
+desktop_extract_theme_release "$FIXTURE_ROOT/target/usr/local/share/labwc-appearance/.installer-themes"
+''', **options)
+
+    def test_theme_extraction_delegates_to_target_and_cleans_both_archives(self):
+        result = self.extract_themes()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        command = (self.root / 'theme-target-command.sh').read_text()
+        self.assertIn('/usr/bin/tar -xzf "$archive" -C "$destination"', command)
+        self.assertIn('--strip-components=1', command)
+        self.assertFalse((self.root / 'target/tmp/installer-desktop-themes.tar.gz').exists())
+        self.assertEqual(list((self.root / 'scratch').iterdir()), [])
+        self.assertIn('extracted_verified_release label=desktop-themes',
+                      (self.root / 'events.log').read_text())
+
+    def test_theme_target_failure_cleans_archives_and_retains_staging_evidence(self):
+        (self.root / 'fail-target').write_bytes(b'injected target failure')
+        result = self.extract_themes()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('desktop theme release extraction failed', result.stderr)
+        stage = self.root / 'target/usr/local/share/labwc-appearance/.installer-themes'
+        self.assertEqual((stage / 'retained-evidence').read_bytes(), b'previous staging evidence')
+        self.assertFalse((self.root / 'target/tmp/installer-desktop-themes.tar.gz').exists())
+        self.assertEqual(list((self.root / 'scratch').iterdir()), [])
+        self.assertNotIn('extracted_verified_release', (self.root / 'events.log').read_text())
+
+    def test_theme_sha_failure_stops_before_target_extraction(self):
+        result = self.extract_themes(expected_sha256='0' * 64)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('SHA-256 mismatch', result.stderr)
+        self.assertFalse((self.root / 'theme-target-command.sh').exists())
+        self.assertFalse((self.root / 'target/tmp/installer-desktop-themes.tar.gz').exists())
+        self.assertEqual(list((self.root / 'scratch').iterdir()), [])
 
 
 if __name__ == '__main__':
