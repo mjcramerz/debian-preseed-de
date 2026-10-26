@@ -37,7 +37,9 @@ desktop_download_release_archive() (
   case "$maximum_bytes" in
     ''|*[!0123456789]*|0) installer_fatal "${release_label} release byte limit is invalid" ;;
   esac
-  source_fetch_external "${release_url%/*}" "${release_url##*/}" "$destination" 0600 ||
+  # The role runs in a fresh shell. Repository/module fetches load their
+  # transport in subshells, so use the public API that loads it for this call.
+  installer_fetch_url "${release_url%/*}" "${release_url##*/}" "$destination" 0600 ||
     installer_fatal "failed to download ${release_label} release archive"
   [ -f "$destination" ] && [ ! -L "$destination" ] ||
     installer_fatal "downloaded ${release_label} release archive is not a regular file"

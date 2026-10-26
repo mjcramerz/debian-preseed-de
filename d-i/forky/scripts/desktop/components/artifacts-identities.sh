@@ -52,13 +52,14 @@ destination=$2
   --no-same-owner \
   --no-same-permissions
 /usr/bin/find "$destination" -maxdepth 1 -type f -exec /usr/bin/chmod 0644 {} +
+/usr/bin/rm -f -- "$archive"
 ' sh "$archive_target" /usr/share/backgrounds/desktop
   then
     rm -f -- "$archive_target_host"
     installer_fatal "failed to extract the verified desktop wallpaper release archive"
   fi
 
-  [ ! -e "$archive_target_host" ] ||
+  [ ! -e "$archive_target_host" ] && [ ! -L "$archive_target_host" ] ||
     installer_fatal "desktop wallpaper archive remained in the target after extraction"
   desktop_log \
     "extracted_wallpaper_archive source=${LABWC_WALLPAPERS_URL} tag=${LABWC_WALLPAPERS_TAG} target=/usr/share/backgrounds/desktop archive_bytes=${archive_bytes}"
