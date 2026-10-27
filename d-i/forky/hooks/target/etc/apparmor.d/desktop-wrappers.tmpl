@@ -1527,16 +1527,18 @@ profile labwc-fuzzel /usr/local/bin/labwc-fuzzel flags=(attach_disconnected) {
   #include <abstractions/wrapper-terminal>
   include if exists <abstractions/hardware-tuning-fuzzel-parent>
   #include <abstractions/wrapper-desktop>
+  #include <abstractions/wrapper-python>
 
   /usr/local/bin/labwc-fuzzel rix,
   /usr/local/libexec/labwc-output-watch rPx -> labwc-output-watch,
-  /usr/bin/{awk,cat,flock,gawk,head,mawk,mkfifo,mktemp,nawk,rm,rmdir,sed} rix,
   /usr/bin/fuzzel rPx,
   /usr/local/bin/labwc-fuzzel-log rPx -> labwc-fuzzel-log,
   signal (receive) set=(term, kill) peer=labwc-session-state,
   signal (send) set=(chld) peer=labwc-session-state,
   signal (send) peer=unconfined,
-  signal (send) set=(term) peer=desktop-launcher,
+  signal (send) set=(term, kill) peer=desktop-launcher,
+  signal (send) set=(term, kill) peer=labwc-output-watch,
+  signal (send) set=(term, kill) peer=labwc-fuzzel-log,
   signal (send) set=(term) peer=desktop-terminal,
   owner @{HOME}/.config/fuzzel/ r,
   owner @{HOME}/.config/fuzzel/** r,
@@ -1549,6 +1551,7 @@ profile labwc-fuzzel /usr/local/bin/labwc-fuzzel flags=(attach_disconnected) {
 }
 
 profile labwc-fuzzel-log /usr/local/bin/labwc-fuzzel-log flags=(attach_disconnected) {
+  signal (receive) set=(term, kill) peer=labwc-fuzzel,
   #include <abstractions/wrapper-perl>
 
   /usr/local/bin/labwc-fuzzel-log rix,
@@ -2927,6 +2930,7 @@ profile labwc-ocr /usr/local/bin/labwc-ocr flags=(attach_disconnected) {
 }
 
 profile labwc-output-watch /usr/local/libexec/labwc-output-watch flags=(attach_disconnected) {
+  signal (receive) set=(term, kill) peer=labwc-fuzzel,
   #include <abstractions/wrapper-desktop>
   #include <abstractions/wrapper-perl>
 
@@ -3448,8 +3452,12 @@ profile labwc-wayscriber-toggle /usr/local/bin/labwc-wayscriber-toggle flags=(at
   #include <abstractions/wrapper-wayland>
 
   /usr/local/bin/labwc-wayscriber-toggle rix,
-  /usr/bin/{sleep,stat} rix,
+  /usr/bin/{id,sleep,stat} rix,
   /usr/bin/{systemctl,wayscriber,timeout} pux,
+  # The wrapper observes only the native daemon's published readiness record;
+  # the native client remains responsible for token and PID authorization.
+  owner /run/user/[0-9]*/wayscriber/ r,
+  owner /run/user/[0-9]*/wayscriber/wayscriber.pid r,
 
   include if exists <local/usr.local.bin.labwc-wayscriber-toggle>
 }

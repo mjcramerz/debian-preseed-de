@@ -1,832 +1,1033 @@
-#!/bin/sh
-set -eu
+#!/usr/bin/python3 -IB
+"""Profile-owned Fuzzel launcher and bounded action/menu protocol adapter.
 
-MENU_FAILURE_STATUS=2
-# Public picker results: 0 selection, 1 Back, 2 failure, 3 close workflow.
-MENU_DISMISSED_STATUS=3
+Public picker results: 0 selection, 1 Back, 2 failure, 3 close workflow.
+Only the native Fuzzel process owns the interactive wait; readers and cleanup
+have separate byte budgets and bounded waits. No shell/configuration is run.
+"""
+from __future__ import annotations
 
-fatal() {
-  fatal_message=$*
-  fatal_log_scope=${managed_log_scope:-${LABWC_FUZZEL_LOG_SCOPE:-desktop}}
-  if [ -x /usr/local/bin/labwc-fuzzel-log ]; then
-    /usr/local/bin/labwc-fuzzel-log \
-      action \
-      launcher-failed \
-      "source=${fatal_log_scope}" \
-      "detail=${fatal_message}" \
-      "status=${MENU_FAILURE_STATUS}" || true
-  fi
-  printf 'fatal: %s\n' "$*" >&2
-  exit "$MENU_FAILURE_STATUS"
-}
+import fcntl
+import os
+from pathlib import Path
+import re
+import selectors
+import shlex
+import signal
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+from contextlib import contextmanager
+from dataclasses import dataclass
+from typing import BinaryIO
 
-if [ -r /etc/labwc/desktop.conf ]; then
-  # shellcheck disable=SC1091
-  . /etc/labwc/desktop.conf
-fi
-
-[ -x /usr/bin/fuzzel ] || {
-  fatal 'fuzzel is not installed'
-}
-[ -x /usr/bin/flock ] || {
-  fatal '/usr/bin/flock is required to serialize Fuzzel launchers'
-}
-for diagnostic_tool in /usr/bin/head /usr/bin/mkfifo; do
-  [ -x "$diagnostic_tool" ] || fatal "required Fuzzel diagnostic tool is unavailable: $diagnostic_tool"
-done
-
-config_root=${XDG_CONFIG_HOME:-${HOME}/.config}
-fuzzel_config_dir="${config_root}/fuzzel"
-mode=launcher
-config_mode=launcher
-power_confirmation=false
-managed_icons=${LABWC_FUZZEL_MANAGED_ICONS:-0}
-managed_root_menu=${LABWC_FUZZEL_ROOT_MENU:-0}
-managed_log_scope=${LABWC_FUZZEL_LOG_SCOPE:-desktop}
-managed_palette=${LABWC_FUZZEL_PALETTE:-desktop}
-internal_output_prefixes=${LABWC_OUTPUT_INTERNAL_PREFIXES:?missing installed output classification policy}
-
-require_uint_range() {
-  setting_name=$1 setting_value=$2 minimum=$3 maximum=$4
-  case "$setting_value" in
-    ''|*[!0-9]*|0[0-9]*) fatal "$setting_name must be a canonical decimal integer" ;;
-  esac
-  [ "${#setting_value}" -le 3 ] || fatal "$setting_name exceeds its numeric budget"
-  if [ "$setting_value" -lt "$minimum" ] || [ "$setting_value" -gt "$maximum" ]; then
-    fatal "$setting_name must be an integer from $minimum to $maximum"
-  fi
-}
-
-validate_output_name() {
-  [ "${#1}" -le 128 ] || fatal 'Fuzzel output name exceeds 128 characters'
-  case "$1" in
-    ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*|[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789]*)
-      fatal 'Fuzzel output name contains unsupported characters' ;;
-  esac
-}
-
-fuzzel_output_is_internal() {
-  for internal_prefix in $internal_output_prefixes; do
-    case "$1" in
-      "${internal_prefix}"-*|"${internal_prefix}"[0-9]*) return 0 ;;
-    esac
-  done
-  return 1
-}
-
-# The same installed policy is used by output detection and native Waybar.
-# Validate before word splitting; malformed policy must not expand local globs.
-case "$internal_output_prefixes" in
-  ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._\ -]*)
-    fatal 'invalid installed internal output classification policy' ;;
-esac
-prefix_count=0
-for internal_prefix in $internal_output_prefixes; do
-  prefix_count=$((prefix_count + 1))
-  validate_output_name "$internal_prefix"
-  [ "${#internal_prefix}" -le 32 ] || fatal 'internal output prefix exceeds 32 characters'
-done
-[ "$prefix_count" -gt 0 ] || fatal "internal output prefix policy must not be blank"
-case "$managed_icons:$managed_root_menu" in
-  0:0|0:1|1:0|1:1) ;;
-  *) fatal 'Fuzzel managed-icons and root-menu flags must be 0 or 1' ;;
-esac
-case "$managed_log_scope" in
-  desktop|computer-management|android-debug-bridge) ;;
-  *) fatal 'LABWC_FUZZEL_LOG_SCOPE is invalid' ;;
-esac
-case "$managed_palette" in
-  desktop|computer-management) ;;
-  *) fatal "invalid Fuzzel palette context" ;;
-esac
-case "${1:-}" in
-  launcher|menu|computer-management) config_mode=$1; shift ;;
-  power-confirm) config_mode=menu; power_confirmation=true; shift ;;
-esac
-[ "$config_mode" = launcher ] || mode=menu
-
-# Rotate positional parameters, preserving argument boundaries without eval,
-# a shell command string, temporary argv files, or interpreting option values
-# as options. Output belongs to this wrapper; all other native options below
-# retain their order. Geometry/configuration are exclusively profile-owned.
-have_output=false
-fuzzel_output=
-managed_prompt=
-nul_delimited=false
-remaining=$#
-while [ "$remaining" -gt 0 ]; do
-  arg=$1; shift; remaining=$((remaining - 1))
-  case "$arg" in
-    --output|-o|--output=*|-o?*)
-      [ "$have_output" = false ] || fatal 'Fuzzel output may be specified only once'
-      have_output=true
-      case "$arg" in
-        --output|-o)
-          [ "$remaining" -gt 0 ] || fatal 'Fuzzel output option requires a value'
-          fuzzel_output=$1; shift; remaining=$((remaining - 1)) ;;
-        --output=*) fuzzel_output=${arg#--output=} ;;
-        -o?*) fuzzel_output=${arg#-o} ;;
-      esac
-      validate_output_name "$fuzzel_output"
-      continue ;;
-    --config|--config=*|-c|-c?*|--font|--font=*|-f|-f?*|--dpi-aware|--dpi-aware=*|-D|-D?*|\
-    --width|--width=*|-w|-w?*|--lines|--lines=*|-l|-l?*|\
-    --horizontal-pad|--horizontal-pad=*|-x|-x?*|--vertical-pad|--vertical-pad=*|-y|-y?*|\
-    --inner-pad|--inner-pad=*|-P|-P?*|--line-height|--line-height=*|\
-    --border-width|--border-width=*|-B|-B?*|--border-radius|--border-radius=*|-r|-r?*)
-      fatal 'Fuzzel configuration and geometry are selected by the installed profile' ;;
-    --dmenu|-d) mode=menu ;;
-    --dmenu0) mode=menu; nul_delimited=true ;;
-    --prompt|--prompt-only|-p|--cache|--placeholder|--search|--icon-theme|--fields|-F|\
-    --terminal|-T|--anchor|-a|--x-margin|--y-margin|--select|--select-index|--tabs|\
-    --background|-b|--text-color|-t|--prompt-color|--placeholder-color|--input-color|\
-    --match-color|-m|--selection-color|-s|--selection-text-color|-S|--selection-match-color|-M|\
-    --counter-color|--border-color|-C|--match-mode|--fuzzy-min-length|\
-    --fuzzy-max-length-discrepancy|--fuzzy-max-distance|--letter-spacing|--layer|\
-    --keyboard-focus|--launch-prefix|--render-workers|--match-workers|--delayed-filter-ms|\
-    --delayed-filter-limit|--with-nth|--accept-nth|--log-level)
-      [ "$remaining" -gt 0 ] || fatal "Fuzzel option requires a value: $arg"
-      arg_value=$1; shift; remaining=$((remaining - 1))
-      case "$arg" in --prompt|--prompt-only|-p) managed_prompt=$arg_value ;; esac
-      set -- "$@" "$arg" "$arg_value"
-      continue ;;
-    --prompt=*|--prompt-only=*) managed_prompt=${arg#*=} ;;
-    -p?*) managed_prompt=${arg#-p} ;;
-    --cache=*|--placeholder=*|--search=*|--icon-theme=*|--fields=*|--terminal=*|--anchor=*|\
-    --x-margin=*|--y-margin=*|--select=*|--select-index=*|--tabs=*|--background=*|\
-    --text-color=*|--prompt-color=*|--placeholder-color=*|--input-color=*|--match-color=*|\
-    --selection-color=*|--selection-text-color=*|--selection-match-color=*|--counter-color=*|\
-    --border-color=*|--match-mode=*|--fuzzy-min-length=*|--fuzzy-max-length-discrepancy=*|\
-    --fuzzy-max-distance=*|--letter-spacing=*|--layer=*|--keyboard-focus=*|--launch-prefix=*|\
-    --render-workers=*|--match-workers=*|--delayed-filter-ms=*|--delayed-filter-limit=*|\
-    --with-nth=*|--accept-nth=*|--log-level=*|--password|--password=*|\
-    --filter-desktop|--filter-desktop=*|--log-colorize|--log-colorize=*|\
-    --check-config|--use-bold|-i|-I|--no-icons|--hide-before-typing|--show-actions|\
-    --no-sort|--counter|--no-exit-on-keyboard-focus-loss|--list-executables-in-path|\
-    --index|-R|--no-run-if-empty|--log-no-syslog|-v|--version|-h|--help) ;;
-    *) fatal "unsupported Fuzzel argument" ;;
-  esac
-  set -- "$@" "$arg"
-done
-
-if [ "$have_output" = false ] && [ -n "${WAYBAR_OUTPUT_NAME:-}" ]; then
-  fuzzel_output=$WAYBAR_OUTPUT_NAME
-  validate_output_name "$fuzzel_output"
-fi
-# Resolve keyboard and named-bar entrypoints through the same live topology.
-# Pin the chosen output: geometry and placement must refer to the same monitor.
-# Explicit connector arguments remain authoritative. An unavailable snapshot
-# is an error, never a silent switch to compact laptop geometry on an external.
-if [ -z "$fuzzel_output" ] && [ -n "${WAYLAND_DISPLAY:-}" ]; then
-  case "${LABWC_FUZZEL_OUTPUT_CLASS:-}" in
-    ''|INTERNAL|EXTERNAL) ;;
-    *) fatal 'invalid Fuzzel output class' ;;
-  esac
-  [ -x /usr/local/libexec/labwc-output-watch ] || fatal 'installed menu output resolver is missing'
-  if ! fuzzel_output=$(/usr/local/libexec/labwc-output-watch --menu-output); then
-    fatal 'unable to resolve an enabled menu output'
-  fi
-  validate_output_name "$fuzzel_output"
-fi
-output_class=DEFAULT
-if [ -n "$fuzzel_output" ]; then
-  output_class=EXTERNAL
-  if fuzzel_output_is_internal "$fuzzel_output"; then output_class=INTERNAL; fi
-  set -- "$@" "--output=${fuzzel_output}"
-elif [ -n "${LABWC_FUZZEL_OUTPUT_CLASS:-}" ]; then
-  # Waybar's click handlers do not export their output name. Each named bar
-  # supplies its fixed class; the compositor still chooses the actual output.
-  case "$LABWC_FUZZEL_OUTPUT_CLASS" in
-    INTERNAL|EXTERNAL) output_class=$LABWC_FUZZEL_OUTPUT_CLASS ;;
-    *) fatal 'invalid Fuzzel output class' ;;
-  esac
-fi
-
-if [ "$mode" = menu ]; then
-  [ "$config_mode" != launcher ] || config_mode=menu
-  # Child pickers inherit palette separately from their logging scope.
-  # Management reuses MENU geometry, never another family of dimensions.
-  if [ "$managed_palette" = computer-management ]; then config_mode=computer-management; fi
-  geometry_mode=MENU
-else
-  geometry_mode=LAUNCHER
-fi
-case "$config_mode" in
-  launcher) config_name=fuzzel.ini ;;
-  menu) config_name=menu.ini ;;
-  computer-management) config_name=computer-management.ini ;;
-esac
-[ -r "${fuzzel_config_dir}/${config_name}" ] || fatal "missing Fuzzel configuration: $config_name"
-
-# Direct expansion of closed geometry keys never evaluates configuration data. Point-valued line
-# height, like :size fonts, remains DPI aware (unlike a fixed px height).
-for geometry_spec in FONT_SIZE:8:32 HORIZONTAL_PADDING:0:64 VERTICAL_PADDING:0:64 \
-    INNER_PADDING:0:64 LINE_HEIGHT:8:64 BORDER_WIDTH:0:32 BORDER_RADIUS:0:128 \
-    WIDTH:20:200 LINES:4:40; do
-  geometry_key=${geometry_spec%%:*}
-  geometry_bounds=${geometry_spec#*:}
-  case "$geometry_key" in
-    WIDTH|LINES) geometry_name="FUZZEL_${geometry_mode}_${output_class}_${geometry_key}" ;;
-    *) geometry_name="FUZZEL_${output_class}_${geometry_key}" ;;
-  esac
-  case "$geometry_name" in
-    FUZZEL_DEFAULT_FONT_SIZE) geometry_value=${FUZZEL_DEFAULT_FONT_SIZE-} ;;
-    FUZZEL_DEFAULT_HORIZONTAL_PADDING) geometry_value=${FUZZEL_DEFAULT_HORIZONTAL_PADDING-} ;;
-    FUZZEL_DEFAULT_VERTICAL_PADDING) geometry_value=${FUZZEL_DEFAULT_VERTICAL_PADDING-} ;;
-    FUZZEL_DEFAULT_INNER_PADDING) geometry_value=${FUZZEL_DEFAULT_INNER_PADDING-} ;;
-    FUZZEL_DEFAULT_LINE_HEIGHT) geometry_value=${FUZZEL_DEFAULT_LINE_HEIGHT-} ;;
-    FUZZEL_DEFAULT_BORDER_WIDTH) geometry_value=${FUZZEL_DEFAULT_BORDER_WIDTH-} ;;
-    FUZZEL_DEFAULT_BORDER_RADIUS) geometry_value=${FUZZEL_DEFAULT_BORDER_RADIUS-} ;;
-    FUZZEL_LAUNCHER_DEFAULT_WIDTH) geometry_value=${FUZZEL_LAUNCHER_DEFAULT_WIDTH-} ;;
-    FUZZEL_LAUNCHER_DEFAULT_LINES) geometry_value=${FUZZEL_LAUNCHER_DEFAULT_LINES-} ;;
-    FUZZEL_MENU_DEFAULT_WIDTH) geometry_value=${FUZZEL_MENU_DEFAULT_WIDTH-} ;;
-    FUZZEL_MENU_DEFAULT_LINES) geometry_value=${FUZZEL_MENU_DEFAULT_LINES-} ;;
-    FUZZEL_INTERNAL_FONT_SIZE) geometry_value=${FUZZEL_INTERNAL_FONT_SIZE-} ;;
-    FUZZEL_INTERNAL_HORIZONTAL_PADDING) geometry_value=${FUZZEL_INTERNAL_HORIZONTAL_PADDING-} ;;
-    FUZZEL_INTERNAL_VERTICAL_PADDING) geometry_value=${FUZZEL_INTERNAL_VERTICAL_PADDING-} ;;
-    FUZZEL_INTERNAL_INNER_PADDING) geometry_value=${FUZZEL_INTERNAL_INNER_PADDING-} ;;
-    FUZZEL_INTERNAL_LINE_HEIGHT) geometry_value=${FUZZEL_INTERNAL_LINE_HEIGHT-} ;;
-    FUZZEL_INTERNAL_BORDER_WIDTH) geometry_value=${FUZZEL_INTERNAL_BORDER_WIDTH-} ;;
-    FUZZEL_INTERNAL_BORDER_RADIUS) geometry_value=${FUZZEL_INTERNAL_BORDER_RADIUS-} ;;
-    FUZZEL_EXTERNAL_FONT_SIZE) geometry_value=${FUZZEL_EXTERNAL_FONT_SIZE-} ;;
-    FUZZEL_EXTERNAL_HORIZONTAL_PADDING) geometry_value=${FUZZEL_EXTERNAL_HORIZONTAL_PADDING-} ;;
-    FUZZEL_EXTERNAL_VERTICAL_PADDING) geometry_value=${FUZZEL_EXTERNAL_VERTICAL_PADDING-} ;;
-    FUZZEL_EXTERNAL_INNER_PADDING) geometry_value=${FUZZEL_EXTERNAL_INNER_PADDING-} ;;
-    FUZZEL_EXTERNAL_LINE_HEIGHT) geometry_value=${FUZZEL_EXTERNAL_LINE_HEIGHT-} ;;
-    FUZZEL_EXTERNAL_BORDER_WIDTH) geometry_value=${FUZZEL_EXTERNAL_BORDER_WIDTH-} ;;
-    FUZZEL_EXTERNAL_BORDER_RADIUS) geometry_value=${FUZZEL_EXTERNAL_BORDER_RADIUS-} ;;
-    FUZZEL_LAUNCHER_INTERNAL_WIDTH) geometry_value=${FUZZEL_LAUNCHER_INTERNAL_WIDTH-} ;;
-    FUZZEL_LAUNCHER_INTERNAL_LINES) geometry_value=${FUZZEL_LAUNCHER_INTERNAL_LINES-} ;;
-    FUZZEL_LAUNCHER_EXTERNAL_WIDTH) geometry_value=${FUZZEL_LAUNCHER_EXTERNAL_WIDTH-} ;;
-    FUZZEL_LAUNCHER_EXTERNAL_LINES) geometry_value=${FUZZEL_LAUNCHER_EXTERNAL_LINES-} ;;
-    FUZZEL_MENU_INTERNAL_WIDTH) geometry_value=${FUZZEL_MENU_INTERNAL_WIDTH-} ;;
-    FUZZEL_MENU_INTERNAL_LINES) geometry_value=${FUZZEL_MENU_INTERNAL_LINES-} ;;
-    FUZZEL_MENU_EXTERNAL_WIDTH) geometry_value=${FUZZEL_MENU_EXTERNAL_WIDTH-} ;;
-    FUZZEL_MENU_EXTERNAL_LINES) geometry_value=${FUZZEL_MENU_EXTERNAL_LINES-} ;;
-    *) fatal "unsupported Fuzzel geometry key" ;;
-  esac
-  require_uint_range "$geometry_name" "$geometry_value" "${geometry_bounds%%:*}" "${geometry_bounds#*:}"
-  case "$geometry_key" in
-    FONT_SIZE) selected_FONT_SIZE=$geometry_value ;;
-    HORIZONTAL_PADDING) selected_HORIZONTAL_PADDING=$geometry_value ;;
-    VERTICAL_PADDING) selected_VERTICAL_PADDING=$geometry_value ;;
-    INNER_PADDING) selected_INNER_PADDING=$geometry_value ;;
-    LINE_HEIGHT) selected_LINE_HEIGHT=$geometry_value ;;
-    BORDER_WIDTH) selected_BORDER_WIDTH=$geometry_value ;;
-    BORDER_RADIUS) selected_BORDER_RADIUS=$geometry_value ;;
-    WIDTH) selected_WIDTH=$geometry_value ;;
-    LINES) selected_LINES=$geometry_value ;;
-  esac
-done
-# One fixed, narrowly scoped menu for the desktop's save-before-power
-# confirmation. All other menus retain their validated output/profile geometry;
-# arbitrary caller-supplied Fuzzel width/line switches stay forbidden.
-if [ "$power_confirmation" = true ]; then
-  [ "$mode" = menu ] || fatal 'power confirmation requires a dmenu'
-  selected_WIDTH=60
-  selected_LINES=4
-fi
-fuzzel_font="__THEME_FUZZEL_MENU_TEXT_FONT_FAMILY__:size=${selected_FONT_SIZE},__THEME_FUZZEL_MENU_EMOJI_FONT_FAMILY__:size=${selected_FONT_SIZE},__THEME_FUZZEL_MENU_ICON_FONT_FAMILY__:size=${selected_FONT_SIZE},__THEME_FUZZEL_MENU_NERD_FONT_FAMILY__:size=${selected_FONT_SIZE}"
-set -- "--config=${fuzzel_config_dir}/${config_name}" "--font=${fuzzel_font}" \
-  "--width=${selected_WIDTH}" "--lines=${selected_LINES}" \
-  "--horizontal-pad=${selected_HORIZONTAL_PADDING}" "--vertical-pad=${selected_VERTICAL_PADDING}" \
-  "--inner-pad=${selected_INNER_PADDING}" "--line-height=${selected_LINE_HEIGHT}" \
-  "--border-width=${selected_BORDER_WIDTH}" "--border-radius=${selected_BORDER_RADIUS}" "$@"
-
-runtime_root=${XDG_RUNTIME_DIR:-}
-case "$runtime_root" in
-  /*) ;;
-  *)
-    fatal 'XDG_RUNTIME_DIR must name an absolute Fuzzel runtime directory'
-    ;;
-esac
-[ -d "$runtime_root" ] && [ -w "$runtime_root" ] || {
-  fatal "Fuzzel runtime directory is unavailable: $runtime_root"
-}
-
-lock_path="${runtime_root%/}/labwc-fuzzel.lock"
-pid_path="${runtime_root%/}/labwc-fuzzel.pid"
-umask 077
-exec 8>>"$lock_path"
-if /usr/bin/flock --nonblock --conflict-exit-code 75 8; then
-  :
-else
-  lock_status=$?
-  [ "$lock_status" -eq 75 ] || fatal "unable to acquire the Fuzzel launcher lock (status $lock_status)"
-  # A second hotkey/click while a picker is open is an ordinary duplicate.
-  # Keep the owning picker and its PID untouched. Dmenu callers must receive
-  # dismissal, never a successful empty selection or a backend failure.
-  if [ -x /usr/local/bin/labwc-fuzzel-log ]; then
-    /usr/local/bin/labwc-fuzzel-log action already-open "source=$managed_log_scope" "mode=$mode" >/dev/null || true
-  fi
-  if [ "$mode" = menu ]; then exit "$MENU_DISMISSED_STATUS"; fi
-  exit 0
-fi
-
-fuzzel_pid=
-managed_dir=
-raw_choices=
-display_choices=
-selection_file=
-first_selection=
-diagnostic_pipe=
-diagnostic_file=
-diagnostic_pid=
-
-cleanup() {
-  if [ -n "$fuzzel_pid" ]; then
-    kill -TERM "$fuzzel_pid" >/dev/null 2>&1 || true
-    wait "$fuzzel_pid" 2>/dev/null || true
-    fuzzel_pid=
-  fi
-  if [ -n "$diagnostic_pid" ]; then
-    kill -TERM "$diagnostic_pid" >/dev/null 2>&1 || true
-    wait "$diagnostic_pid" 2>/dev/null || true
-    diagnostic_pid=
-  fi
-  rm -f -- "$pid_path"
-  if [ -n "$managed_dir" ]; then
-    rm -f -- "$raw_choices" "$display_choices" "$selection_file" "$first_selection" \
-      "$diagnostic_pipe" "$diagnostic_file"
-    rmdir -- "$managed_dir" 2>/dev/null || true
-  fi
-}
-trap cleanup EXIT
-trap 'exit 129' HUP
-trap 'if [ "$mode" = menu ]; then exit "$MENU_DISMISSED_STATUS"; else exit 130; fi' INT
-trap 'exit 143' TERM
-
-run_fuzzel() {
-  exec 7<&0
-  if [ "$mode" = menu ]; then
-    # A native custom binding prints the highlighted row even on Back.
-    # Publish bytes only after a successful selection, for every input mode.
-    # Native focus loss leaves dmenu status 1, also used for startup errors.
-    # Read bounded, uncolored diagnostics to preserve that distinction. The
-    # reader owns only this private FIFO and ends at EOF when dmenu exits.
-    /usr/bin/head -c 65537 "$diagnostic_pipe" >"$diagnostic_file" 7<&- 8>&- &
-    diagnostic_pid=$!
-    /usr/bin/fuzzel "$@" --log-level=warning --log-colorize=never \
-      <&7 >"$selection_file" 2>"$diagnostic_pipe" 7<&- 8>&- &
-  else
-    /usr/bin/fuzzel "$@" <&7 >&1 2>&2 7<&- 8>&- &
-  fi
-  fuzzel_pid=$!
-  exec 7<&-
-  printf '%s\n' "$fuzzel_pid" >"$pid_path"
-  if wait "$fuzzel_pid"; then
-    fuzzel_status=0
-  else
-    fuzzel_status=$?
-  fi
-  fuzzel_pid=
-  rm -f -- "$pid_path"
-  if [ "$mode" = menu ]; then
-    diagnostic_failure=false
-    if wait "$diagnostic_pid"; then :; else diagnostic_failure=true; fi
-    diagnostic_pid=
-    cat -- "$diagnostic_file" >&2
-    if LC_ALL=C awk '
-      { bytes += length($0) + 1 }
-      bytes > 65536 { failed = 1 }
-      /^[[:space:]]*err:/ { failed = 1 }
-      NF && $0 !~ /^[[:space:]]*(warn|info|dbg):/ { failed = 1 }
-      END { exit failed ? 0 : 1 }
-    ' "$diagnostic_file"; then
-      diagnostic_failure=true
-    else
-      diagnostic_status=$?
-      [ "$diagnostic_status" -eq 1 ] || diagnostic_failure=true
-    fi
-    # Escape returns 2; focus loss returns a silent 1. Custom-1 returns 10.
-    # Errors and oversized/failed diagnostic reads remain a real failure.
-    if [ "$diagnostic_failure" = true ]; then
-      return "$MENU_FAILURE_STATUS"
-    fi
-    case "$fuzzel_status" in
-      1|2|130) fuzzel_status=$MENU_DISMISSED_STATUS ;;
-      10) fuzzel_status=1 ;;
-    esac
-  fi
-  return "$fuzzel_status"
-}
-
-log_managed_menu_selection() {
-  selection_kind=$1
-  selection_value=$2
-
-  [ -x /usr/local/bin/labwc-fuzzel-log ] || return 0
-  case "$selection_value" in
-    '⮞ '*) selection_value=${selection_value#'⮞ '} ;;
-    ' '*) selection_value=${selection_value#' '} ;;
-  esac
-  if ! /usr/local/bin/labwc-fuzzel-log \
-      menu \
-      selected \
-      "source=$managed_log_scope" \
-      "kind=$selection_kind" \
-      "selection=$selection_value" \
-      >/dev/null
-  then
-    :
-  fi
-}
-
-log_fuzzel_lifecycle() {
-  lifecycle_kind=$1
-  lifecycle_event=$2
-  lifecycle_status=$3
-
-  [ -x /usr/local/bin/labwc-fuzzel-log ] || return 0
-  /usr/local/bin/labwc-fuzzel-log \
-    "$lifecycle_kind" \
-    "$lifecycle_event" \
-    "source=$managed_log_scope" \
-    "mode=$mode" \
-    "status=$lifecycle_status" \
-    >/dev/null || true
-}
-
-if [ "$mode" = menu ]; then
-  managed_dir=$(mktemp -d "${runtime_root%/}/labwc-fuzzel-menu.XXXXXX") || {
-    fatal 'unable to create managed Fuzzel runtime directory'
-  }
-  raw_choices="${managed_dir}/raw"
-  display_choices="${managed_dir}/display"
-  selection_file="${managed_dir}/selection"
-  first_selection="${managed_dir}/selection.first"
-  diagnostic_pipe="${managed_dir}/diagnostics.pipe"
-  diagnostic_file="${managed_dir}/diagnostics"
-  /usr/bin/mkfifo -m 0600 "$diagnostic_pipe" || fatal 'unable to create Fuzzel diagnostic channel'
-fi
-
-if [ "$mode" != menu ] ||
-   [ "$managed_icons" != 1 ] ||
-   [ "$nul_delimited" = true ]; then
-  case "$mode" in
-    menu) lifecycle_kind=menu ;;
-    *) lifecycle_kind=action ;;
-  esac
-  log_fuzzel_lifecycle "$lifecycle_kind" opened 0
-  if run_fuzzel "$@"; then
-    fuzzel_status=0
-  else
-    fuzzel_status=$?
-  fi
-  log_fuzzel_lifecycle "$lifecycle_kind" completed "$fuzzel_status"
-  if [ "$mode" = menu ] && [ "$fuzzel_status" -eq 0 ]; then
-    cat -- "$selection_file"
-  fi
-  exit "$fuzzel_status"
-fi
-
-if ! LC_ALL=C awk '
-  {
-    input_bytes += length($0) + 1
-    if (index($0, sprintf("%c", 0)) || index($0, sprintf("%c", 31)) || index($0, "\r")) exit 1
-    if (NR > 1024 || length($0) > 4096 || input_bytes > 1048576) {
-      exit 1
-    }
-    print
-  }
-' >"$raw_choices"; then
-  fatal 'managed Fuzzel input exceeds bounds or contains protocol controls'
-fi
-
-awk -v root_menu="$managed_root_menu" -v menu_prompt="$managed_prompt" '
-function icon_for(label) {
-  if (label == "System & Recovery") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_SYSTEM_RECOVERY_ICON_NAME__"
-  if (label == "Network & Remote") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_NETWORK_REMOTE_ICON_NAME__"
-  if (label == "Security & Accounts") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_SECURITY_ACCOUNTS_ICON_NAME__"
-  if (label == "Devices & Desktop") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_DEVICES_DESKTOP_ICON_NAME__"
-  if (label == "Containers & AI") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_CONTAINERS_AI_ICON_NAME__"
-  if (label == "Files & Documents") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_FILES_DOCUMENTS_ICON_NAME__"
-  if (label == "Maintenance & Health") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_MAINTENANCE_HEALTH_ICON_NAME__"
-  if (label == "Recovery & Repair") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RECOVERY_REPAIR_ICON_NAME__"
-  if (label == "Protection & Firewall") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_PROTECTION_FIREWALL_ICON_NAME__"
-  if (label == "Users & Groups") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_USERS_GROUPS_ICON_NAME__"
-  if (label == "Connection Profiles") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONNECTION_PROFILES_ICON_NAME__"
-  if (label == "VPN Connections") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_VPN_CONNECTIONS_ICON_NAME__"
-  if (label == "WireGuard Connections") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_WIREGUARD_CONNECTIONS_ICON_NAME__"
-  if (label == "DNS Configuration") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DNS_CONFIGURATION_ICON_NAME__"
-  if (label == "Network Discovery") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_NETWORK_DISCOVERY_ICON_NAME__"
-  if (label == "Network Sharing") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_NETWORK_SHARING_ICON_NAME__"
-  if (label == "Sharing Status") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHARING_STATUS_ICON_NAME__"
-  if (label == "Connect to NFS Server") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONNECT_TO_NFS_SERVER_ICON_NAME__"
-  if (label == "Disconnect from NFS Server") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DISCONNECT_FROM_NFS_SERVER_ICON_NAME__"
-  if (label == "Check Connected NFS Clients") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CHECK_CONNECTED_NFS_CLIENTS_ICON_NAME__"
-  if (label == "Start NFS Server") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_START_NFS_SERVER_ICON_NAME__"
-  if (label == "Stop NFS Server") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_STOP_NFS_SERVER_ICON_NAME__"
-  if (label == "Reload NFS Exports") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RELOAD_NFS_EXPORTS_ICON_NAME__"
-  if (label == "Restart NFS Server") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESTART_NFS_SERVER_ICON_NAME__"
-  if (label == "Identity Mapping and RPC Diagnostics") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_IDENTITY_MAPPING_AND_RPC_DIAGNOSTICS_ICON_NAME__"
-  if (label == "Show Configured Exports") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_CONFIGURED_EXPORTS_ICON_NAME__"
-  if (label == "Recent NFS Logs") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RECENT_NFS_LOGS_ICON_NAME__"
-  if (label == "Sharing Help") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHARING_HELP_ICON_NAME__"
-  if (label == "Continue") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONTINUE_ICON_NAME__"
-  if (label == "Remote Desktop") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_REMOTE_DESKTOP_ICON_NAME__"
-  if (label == "Desktop Appearance") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_DEVICES_DESKTOP_ICON_NAME__"
-  if (label == "Displays & Layout") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DISPLAYS_LAYOUT_ICON_NAME__"
-  if (label == "Refresh Display Layout") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_REFRESH_DISPLAY_LAYOUT_ICON_NAME__"
-  if (label == "Power Profile") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_POWER_PROFILE_ICON_NAME__"
-  if (label == "Hardware Tuning") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_HARDWARE_TUNING_ICON_NAME__"
-  if (label == "Set Single Tuning Profile") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SET_SINGLE_TUNING_PROFILE_ICON_NAME__"
-  if (label == "Generate Hardware Tuning Report") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_GENERATE_HARDWARE_TUNING_REPORT_ICON_NAME__"
-  if (label == "Start Automatic Tuning") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_START_AUTOMATIC_TUNING_ICON_NAME__"
-  if (label == "Stop Automatic Tuning") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_STOP_AUTOMATIC_TUNING_ICON_NAME__"
-  if (label == "Enable Autostart Tuning at Boot") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_ENABLE_AUTOSTART_TUNING_AT_BOOT_ICON_NAME__"
-  if (label == "Disable Autostart Tuning at Boot") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DISABLE_AUTOSTART_TUNING_AT_BOOT_ICON_NAME__"
-  if (label == "Reset Hardware Tuning") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESET_HARDWARE_TUNING_ICON_NAME__"
-  if (label == "Reset Profiles [All]") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESET_HARDWARE_TUNING_ICON_NAME__"
-  if (label == "Show Hardware Tuning Status") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_HARDWARE_TUNING_STATUS_ICON_NAME__"
-  if (label ~ /^Set Performance Profile \[(Intel|Nvidia)\]$/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_UTILITIES_SYSTEM_MONITOR_ICON_NAME__"
-  if (label ~ /^Set High Profile \[(Intel|Nvidia)\]$/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_GO_UP_ICON_NAME__"
-  if (label ~ /^Set Balanced Profile \[(Intel|Nvidia)\]$/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_POWER_MANAGEMENT_ICON_NAME__"
-  if (label ~ /^Set Silent Profile \[(Intel|Nvidia)\]$/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_BATTERY_ICON_NAME__"
-  if (label == "Cancel - leave power policy unchanged") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CANCEL_POWER_POLICY_ICON_NAME__"
-  if (label == "Confirm: stop, disable and mask PPD; start tuning now and at boot" ||
-      label == "Confirm: stop PPD and block its restart until tuning is stopped") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONFIRM_POWER_POLICY_ICON_NAME__"
-  if (label == "Keyboard Layout") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_KEYBOARD_LAYOUT_ICON_NAME__"
-  if (label == "Audio Control") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_AUDIO_CONTROL_ICON_NAME__"
-  if (label == "Restart Waybar") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESTART_WAYBAR_ICON_NAME__"
-  if (label == "Restart Audio Services") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESTART_AUDIO_SERVICES_ICON_NAME__"
-  if (label == "Restart Desktop Portals") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESTART_DESKTOP_PORTALS_ICON_NAME__"
-  if (label == "Refresh Display Configuration") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_REFRESH_DISPLAY_CONFIGURATION_ICON_NAME__"
-  if (label == "Reset Failed System Units") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESET_FAILED_SYSTEM_UNITS_ICON_NAME__"
-  if (label == "Restart NetworkManager") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESTART_NETWORKMANAGER_ICON_NAME__"
-  if (label == "Restart Bluetooth Service") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESTART_BLUETOOTH_SERVICE_ICON_NAME__"
-  if (label == "Restart UDisks Service") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESTART_UDISKS_SERVICE_ICON_NAME__"
-  if (label == "Restart Polkit Service") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESTART_POLKIT_SERVICE_ICON_NAME__"
-  if (label == "Refresh Package Index") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_REFRESH_PACKAGE_INDEX_ICON_NAME__"
-  if (label == "Repair Package Dependencies") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_REPAIR_PACKAGE_DEPENDENCIES_ICON_NAME__"
-  if (label == "Rebuild Initramfs") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_REBUILD_INITRAMFS_ICON_NAME__"
-  if (label == "Refresh GRUB Configuration") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_REFRESH_GRUB_CONFIGURATION_ICON_NAME__"
-  if (label == "Refresh Grub Configuration") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_REFRESH_GRUB_CONFIGURATION_ICON_NAME__"
-  if (label == "Create Timeshift Recovery Snapshot") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CREATE_TIMESHIFT_RECOVERY_SNAPSHOT_ICON_NAME__"
-  if (label == "Emergency Btrfs Unused-Chunk Reclaim") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_EMERGENCY_BTRFS_UNUSED_CHUNK_RECLAIM_ICON_NAME__"
-  if (label == "Drop Page Cache Only") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DROP_PAGE_CACHE_ONLY_ICON_NAME__"
-  if (label == "Drop Dentries and Inodes") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DROP_DENTRIES_AND_INODES_ICON_NAME__"
-  if (label == "Drop All Clean Caches") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DROP_ALL_CLEAN_CACHES_ICON_NAME__"
-  if (label == "Reset zram Swap") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESET_ZRAM_SWAP_ICON_NAME__"
-  if (label == "Restart Dock") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESTART_DOCK_ICON_NAME__"
-  if (label == "Android Devices") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_ANDROID_DEVICES_ICON_NAME__"
-  if (label == "Bluetooth Devices") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_BLUETOOTH_DEVICES_ICON_NAME__"
-  if (label == "Brightness") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_BRIGHTNESS_ICON_NAME__"
-  if (label == "Containers") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONTAINERS_ICON_NAME__"
-  if (label == "AI & Copilots") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_AI_COPILOTS_ICON_NAME__"
-  if (label == "Documents & Media") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DOCUMENTS_MEDIA_ICON_NAME__"
-  if (label == "Drives & Backups") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DRIVES_BACKUPS_ICON_NAME__"
-  if (label == "Overview & Health") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_OVERVIEW_HEALTH_ICON_NAME__"
-  if (label == "Services & Logs") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SERVICES_LOGS_ICON_NAME__"
-  if (label == "Packages & Firmware") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_PACKAGES_FIRMWARE_ICON_NAME__"
-  if (label == "Storage & Filesystems") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_STORAGE_FILESYSTEMS_ICON_NAME__"
-  if (label == "Audio & Desktop") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_AUDIO_DESKTOP_ICON_NAME__"
-  if (label == "Network & DNS") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_NETWORK_DNS_ICON_NAME__"
-  if (label == "Desktop & Services") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DESKTOP_SERVICES_ICON_NAME__"
-  if (label == "Packages & Boot") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_PACKAGES_BOOT_ICON_NAME__"
-  if (label == "Snapshots & Storage") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SNAPSHOTS_STORAGE_ICON_NAME__"
-  if (label == "Memory & Cleanup") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_MEMORY_CLEANUP_ICON_NAME__"
-  if (label == "Back") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_BACK_ICON_NAME__"
-  if (label == "← Back") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_BACK_ICON_NAME__"
-  if (label == "Cancel") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CANCEL_ICON_NAME__"
-  if (label == "Exit") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_EXIT_ICON_NAME__"
-
-  if (label == "New Coding Session" ||
-      label == "Resume Last Session" ||
-      label == "Implement Task…" ||
-      label == "Ask Llama…" ||
-      label == "New Chat" ||
-      label == "Resume Last Chat" ||
-      label == "Change Model…" ||
-      label == "Download New Model…" ||
-      label == "Push-to-Talk" ||
-      label == "Toggle Dictation" ||
-      label == "Transcribe File…" ||
-      label == "Transcribe Last Recording" ||
-      label == "Live Captions" ||
-      label == "Voice Note") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_NEW_CODING_SESSION_ICON_NAME__"
-  if (label == "Open Podbin Guide" || label == "Show FreeRDP Help") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_OPEN_PODBIN_GUIDE_ICON_NAME__"
-  if (label == "AppArmor Status") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_APPARMOR_STATUS_ICON_NAME__"
-  if (label == "Kernel Enablement" ||
-      label == "Validate Drafts" ||
-      label == "Activate Selected Draft") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_KERNEL_ENABLEMENT_ICON_NAME__"
-  if (label == "Features ABI") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_FEATURES_ABI_ICON_NAME__"
-  if (label == "Complain Events (24h)") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_COMPLAIN_EVENTS_24_H_ICON_NAME__"
-  if (label == "Denied Events (24h)") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DENIED_EVENTS_24_H_ICON_NAME__"
-  if (label == "Easyprof Draft" ||
-      label == "Autodep Base Draft" ||
-      label == "Logprof Draft Update" ||
-      label == "Genprof Interactive Draft") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_EASYPROF_DRAFT_ICON_NAME__"
-  if (label == "List Drafts") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_LIST_DRAFTS_ICON_NAME__"
-  if (label == "Show App Modes" || label == "Set App Mode") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_APP_MODES_ICON_NAME__"
-  if (label == "Generate New Rules") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_GENERATE_NEW_RULES_ICON_NAME__"
-  if (label == "Enforce All") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_ENFORCE_ALL_ICON_NAME__"
-  if (label == "Complain All") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_COMPLAIN_ALL_ICON_NAME__"
-  if (label == "Disable All" || label == "Disabled Profiles") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DISABLE_ALL_ICON_NAME__"
-  if (label == "Set App Audit Logging") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SET_APP_AUDIT_LOGGING_ICON_NAME__"
-  if (label == "Preview Unknown Cleanup") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_PREVIEW_UNKNOWN_CLEANUP_ICON_NAME__"
-  if (label == "List Managed Users") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_LIST_MANAGED_USERS_ICON_NAME__"
-  if (label == "Show User Environment" || label == "Show Service Environment") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_USER_ENVIRONMENT_ICON_NAME__"
-  if (label == "List Service Networks") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_LIST_SERVICE_NETWORKS_ICON_NAME__"
-  if (label == "Show Service Statistics") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_SERVICE_STATISTICS_ICON_NAME__"
-  if (label == "Show Recent Service Logs") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_RECENT_SERVICE_LOGS_ICON_NAME__"
-  if (label == "Aggressive Journal Vacuum") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_AGGRESSIVE_JOURNAL_VACUUM_ICON_NAME__"
-  if (label ~ /^No (DOCX|PDF|Image|Markdown) files detected in Downloads, Documents, or Desktop$/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DIALOG_WARNING_ICON_NAME__"
-  if (label == "Finish selection") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_FINISH_SELECTION_ICON_NAME__"
-  if (menu_prompt == "Digital Assets") {
-    if (label == "DOCX Actions" ||
-        label == "PDF Actions" ||
-        label == "Image Actions") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DOCX_ACTIONS_ICON_NAME__"
-  }
-  if (menu_prompt == "DOCX Actions") {
-    if (label == "Convert DOCX to PDF") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONVERT_DOCX_TO_PDF_ICON_NAME__"
-    if (label == "Convert DOCX to Markdown") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_TEXT_MARKDOWN_ICON_NAME__"
-    if (label == "Convert DOCX to Plain Text") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_TEXT_X_GENERIC_ICON_NAME__"
-    if (label == "Convert DOCX to HTML") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_APPLICATIONS_DEVELOPMENT_ICON_NAME__"
-  }
-  if (menu_prompt == "PDF Actions") {
-    if (label == "Convert PDF to PNG" ||
-        label == "Convert PDF to JPEG" ||
-        label == "Extract Images from PDF") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONVERT_PDF_TO_PNG_ICON_NAME__"
-    if (label == "Convert PDF to DOCX") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_X_OFFICE_DOCUMENT_ICON_NAME__"
-    if (label == "Convert PDF to Plain Text") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_TEXT_X_GENERIC_ICON_NAME__"
-    if (label == "Convert Markdown to PDF") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_TEXT_MARKDOWN_ICON_NAME__"
-    if (label == "Merge Multiple PDF'\''s") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_VIEW_GRID_ICON_NAME__"
-    if (label == "Split PDF (Burst to Pages)") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_EDIT_CUT_ICON_NAME__"
-    if (label == "Extract Specific Pages") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_HELP_CONTENTS_ICON_NAME__"
-    if (label == "Remove Specific Pages") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_EDIT_DELETE_ICON_NAME__"
-    if (label == "Rotate Pages") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_OBJECT_ROTATE_RIGHT_ICON_NAME__"
-    if (label == "Edit PDF Content") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DOCUMENT_EDIT_ICON_NAME__"
-    if (label == "Edit PDF Bookmarks" ||
-        label == "Extract TOC / Bookmarks") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_BOOKMARK_NEW_ICON_NAME__"
-    if (label == "Edit Hyperlinks and Typos") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_INSERT_LINK_ICON_NAME__"
-    if (label == "Clean / Repair Corrupted PDF") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_EDIT_UNDO_ICON_NAME__"
-    if (label == "Inspect PDF Structure") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_SEARCH_ICON_NAME__"
-    if (label == "Encrypt / Password Protect") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_LOCK_SCREEN_ICON_NAME__"
-    if (label == "Decrypt / Remove Password") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_CHANGES_ALLOW_ICON_NAME__"
-    if (label == "Linearize (Optimize size for Web)") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_ICON_NAME__"
-    if (label == "Add Page Numbers") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_FORMAT_LIST_ORDERED_ICON_NAME__"
-    if (label == "Add Text Watermark") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_COLOR_MANAGEMENT_ICON_NAME__"
-  }
-  if (menu_prompt == "Image Actions") {
-    if (label == "Convert Any Image to PNG" ||
-        label == "Convert Any Image to JPEG" ||
-        label == "Convert Image to WebP") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONVERT_ANY_IMAGE_TO_PNG_ICON_NAME__"
-    if (label == "Resize Image") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_ZOOM_IN_ICON_NAME__"
-    if (label == "Crop Image") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_TRANSFORM_CROP_ICON_NAME__"
-    if (label == "Rotate Image") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_OBJECT_ROTATE_RIGHT_ICON_NAME__"
-    if (label == "Flip (Horizontal)") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_OBJECT_FLIP_HORIZONTAL_ICON_NAME__"
-    if (label == "Flip (Vertical)") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_OBJECT_FLIP_VERTICAL_ICON_NAME__"
-    if (label == "Convert to Grayscale") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DISPLAY_BRIGHTNESS_ICON_NAME__"
-    if (label == "Compress / Optimize PNG" ||
-        label == "Compress / Optimize JPEG") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_ICON_NAME__"
-    if (label == "Create GIF from Images") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_VIDEO_X_GENERIC_ICON_NAME__"
-    if (label == "Read Image Metadata") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_SEARCH_ICON_NAME__"
-    if (label == "Edit Image Metadata") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DOCUMENT_EDIT_ICON_NAME__"
-  }
-  if (menu_prompt == "DOCX Actions" ||
-      menu_prompt == "PDF Actions" ||
-      menu_prompt == "Image Actions") {
-    if (label == "Read Metadata") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_READ_METADATA_ICON_NAME__"
-    if (label == "Edit Metadata") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DOCUMENT_EDIT_ICON_NAME__"
-    if (label == "Remove All Metadata") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_EDIT_DELETE_ICON_NAME__"
-    if (menu_prompt == "DOCX Actions") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_X_OFFICE_DOCUMENT_ICON_NAME__"
-    if (menu_prompt == "PDF Actions") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_APPLICATION_PDF_ICON_NAME__"
-    if (menu_prompt == "Image Actions") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_IMAGE_X_GENERIC_ICON_NAME__"
-  }
-  if (label ~ /(Wi-Fi|WiFi|Wireless|WLAN|Radio)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_NETWORK_WIRELESS_ICON_NAME__"
-  if (label ~ /(WireGuard)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SECURITY_HIGH_ICON_NAME__"
-  if (label ~ /(VPN)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_NETWORK_VPN_ICON_NAME__"
-  if (label ~ /(DNS)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_NETWORK_WIRED_ICON_NAME__"
-  if (label ~ /(Resolver)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_SEARCH_ICON_NAME__"
-  if (label ~ /(WAN)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_APPLICATIONS_INTERNET_ICON_NAME__"
-  if (label ~ /(LAN|Network)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_NETWORK_WORKGROUP_ICON_NAME__"
-  if (label ~ /(Packet)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PACKAGE_X_GENERIC_ICON_NAME__"
-  if (label ~ /(Port|Connection)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_NETWORK_CONNECT_ICON_NAME__"
-  if (menu_prompt == "System") {
-    if (label == "Show System Overview") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_SYSTEM_OVERVIEW_ICON_NAME__"
-    if (label == "Show Failed Services") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DIALOG_WARNING_ICON_NAME__"
-    if (label == "Show Recent System Errors") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DIALOG_ERROR_ICON_NAME__"
-    if (label == "Show Kernel Warnings") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DIALOG_WARNING_ICON_NAME__"
-    if (label == "Show Memory and Swap") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_UTILITIES_SYSTEM_MONITOR_ICON_NAME__"
-    if (label == "Check Package Health") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PACKAGE_X_GENERIC_ICON_NAME__"
-    if (label == "List Pending Upgrades") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_GO_DOWN_ICON_NAME__"
-    if (label == "Inspect Service and Logs") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_TEXT_X_GENERIC_ICON_NAME__"
-    if (label == "Show Upgradeable Packages" || label == "Show Upgradable Packages") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_GO_DOWN_ICON_NAME__"
-    if (label == "Run Unattended Upgrades Now") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_VIEW_REFRESH_ICON_NAME__"
-    if (label == "Show Failed System Units") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DIALOG_WARNING_ICON_NAME__"
-    if (label == "Show Failed User Units") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_USERS_ICON_NAME__"
-    if (label == "Show Timers") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_TIME_ICON_NAME__"
-    if (label == "Test Mako Notification" || label == "Test Mako Notifications") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_DESKTOP_NOTIFICATION_ICON_NAME__"
-  }
-  if (menu_prompt == "ADB Server") {
-    if (label == "Show Server Status") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_SERVER_STATUS_ICON_NAME__"
-    if (label == "Reconnect USB Devices") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DRIVE_REMOVABLE_MEDIA_USB_ICON_NAME__"
-    if (label == "Reconnect Offline Devices") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_VIEW_REFRESH_ICON_NAME__"
-    if (label == "Wait for Any Device (60s)") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_TIME_ICON_NAME__"
-    if (label == "List Devices with Details") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PHONE_ICON_NAME__"
-    if (label == "Show Host Features") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_COMPUTER_ICON_NAME__"
-  }
-  if (label ~ /(Delete|Wipe|Prune|Drop|Factory Reset|Remove|Unpair)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_EDIT_DELETE_ICON_NAME__"
-  if (label ~ /(Restart|Refresh|Reset|Rebuild|Rotate|Flush|Reload)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_OBJECT_ROTATE_RIGHT_ICON_NAME__"
-  if (label ~ /(Stop|Disable|Disconnect|Unmount|Hide)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_MEDIA_PLAYBACK_STOP_ICON_NAME__"
-  if (label ~ /(Start|Enable|Connect|Mount|Pair|Trust|Increase|Continue)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_MEDIA_PLAYBACK_START_ICON_NAME__"
-  if (label ~ /(Create|Save|Backup|Snapshot|Manifest)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DOCUMENT_SAVE_ICON_NAME__"
-  if (label ~ /(Download|Pull|Retrieve)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_GO_DOWN_ICON_NAME__"
-  if (label ~ /(Upload|Push|Send)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_GO_UP_ICON_NAME__"
-  if (label ~ /(File|Folder|Directory|Path)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_FOLDER_ICON_NAME__"
-  if (label ~ /(Open|Console|Shell|Terminal|Interactive)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_UTILITIES_TERMINAL_ICON_NAME__"
-  if (label ~ /(User|Group|Sudo|Account)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_USERS_ICON_NAME__"
-  if (label ~ /(Container|Podman|Image|Volume|Pod|Resource)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PACKAGE_X_GENERIC_ICON_NAME__"
-  if (label ~ /(Remote Desktop|Display|Screen|Monitor)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_COMPUTER_ICON_NAME__"
-  if (label ~ /(Security|Rootkit|ClamAV|Hash|Vulnerab|Firewall)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_LOCK_SCREEN_ICON_NAME__"
-  if (label ~ /(Phone|Android|ADB|Fastboot|Firmware)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PHONE_ICON_NAME__"
-  if (label ~ /(Recovery|Repair|Timeshift|GRUB|Initramfs)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_EDIT_UNDO_ICON_NAME__"
-  if (label ~ /(Drive|Disk|Storage|Btrfs|NVMe|Filesystem)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DRIVE_HARDDISK_ICON_NAME__"
-  if (label ~ /(Bluetooth)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_BLUETOOTH_ICON_NAME__"
-  if (label ~ /(Brightness|Power|Battery|Performance|Balanced)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_POWER_MANAGEMENT_ICON_NAME__"
-  if (label ~ /(Audio|PipeWire|WirePlumber)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_MULTIMEDIA_VOLUME_CONTROL_ICON_NAME__"
-  if (label ~ /(Keyboard)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_INPUT_KEYBOARD_ICON_NAME__"
-  if (label ~ /(Audit|Inspect|Check|Show|List|Status|Info|Diagnose|Scan)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_SEARCH_ICON_NAME__"
-  if (label ~ /(Settings|Configuration|System|Service|Unit|Timer)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_ICON_NAME__"
-  if (label ~ /(Exit|Close)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_SHUTDOWN_ICON_NAME__"
-  return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_GO_NEXT_ICON_NAME__"
-}
-{
-  label = $0
-  icon_label = label
-  # Legacy section markers are presentation only, never an app icon.
-  sub(/^(⮞||★)[[:space:]]+/, "", icon_label)
-  shown = icon_label
-  if (shown == "← Back") shown = "Back"
-  if (root_menu != "1" &&
-      (label == "Exit" || label == "Close" || label == "Cancel" ||
-       label ~ /^[0-9]+[[:space:]]+Close$/)) shown = "Back"
-  # Distinct raw rows may have identical text after removing legacy markers.
-  # Keep every presented choice unambiguous without changing its raw action.
-  unique = shown
-  serial = 1
-  while (unique in presented) unique = shown " [" NR ":" serial++ "]"
-  presented[unique] = 1
-  printf "%s%cicon%c%s\n", unique, 0, 31, icon_for(shown)
-}
-' "$raw_choices" >"$display_choices"
-
-if [ "$managed_root_menu" != 1 ] &&
-   ! awk '
-     $0 == "Back" ||
-     $0 == "← Back" ||
-     $0 == "Exit" ||
-     $0 == "Close" ||
-     $0 == "Cancel" ||
-     $0 ~ /^[0-9]+[[:space:]]+Close$/ {
-       found = 1
-     }
-     END { exit found ? 0 : 1 }
-   ' "$raw_choices"; then
-  printf '\n' >>"$raw_choices"
-  printf 'Back\000icon\037go-previous\n' >>"$display_choices"
-fi
-
-log_fuzzel_lifecycle menu opened 0
-if run_fuzzel "$@" <"$display_choices"; then
-  fuzzel_status=0
-else
-  fuzzel_status=$?
-fi
-log_fuzzel_lifecycle menu completed "$fuzzel_status"
-[ "$fuzzel_status" -eq 0 ] || exit "$fuzzel_status"
-
-# A picker result must contain at most one row. Never truncate extra rows
-# into an apparently valid privileged-action selection.
-if ! awk 'END { exit NR > 1 ? 1 : 0 }' "$selection_file"; then
-  fatal 'Fuzzel returned more than one selection'
-fi
-sed -n '1p' "$selection_file" >"$first_selection"
-selection=$(cat "$first_selection")
-[ -n "$selection" ] || exit 0
-
-matched_line=$(
-  awk '
-    NR == FNR {
-      selected = $0
-      next
-    }
-    {
-      # Fuzzel returns only the text, not the icon metadata after the NUL.
-      shown = $0
-      sub(/\000.*/, "", shown)
-      if (shown == selected) { print FNR; exit }
-    }
-  ' "$first_selection" "$display_choices"
+MENU_FAILURE_STATUS = 2
+MENU_DISMISSED_STATUS = 3
+MAX_INPUT = 1048576
+MAX_ROWS = 1024
+MAX_ROW = 4096
+MAX_SELECTION = MAX_ROW + 64  # Include a duplicate-label suffix and terminator.
+MAX_DIAGNOSTICS = 65536
+FUZZEL = '/usr/bin/fuzzel'
+LOGGER = '/usr/local/bin/labwc-fuzzel-log'
+OUTPUT_RESOLVER = '/usr/local/libexec/labwc-output-watch'
+DESKTOP_CONFIG = Path('/etc/labwc/desktop.conf')
+FONT_FAMILIES = (
+    "__THEME_FUZZEL_MENU_TEXT_FONT_FAMILY__",
+    "__THEME_FUZZEL_MENU_EMOJI_FONT_FAMILY__",
+    "__THEME_FUZZEL_MENU_ICON_FONT_FAMILY__",
+    "__THEME_FUZZEL_MENU_NERD_FONT_FAMILY__",
 )
 
-if [ -n "$matched_line" ]; then
-  raw_selection=$(sed -n "${matched_line}p" "$raw_choices")
-  log_managed_menu_selection listed "$raw_selection"
-  printf '%s\n' "$raw_selection"
-else
-  # Do not write arbitrary free-form Fuzzel input to the system log.
-  log_managed_menu_selection custom-input redacted
-  printf '%s\n' "$selection"
-fi
+
+class Error(ValueError):
+    """A fixed diagnostic safe for the launcher log."""
+
+
+class Interrupted(Exception):
+    def __init__(self, signum: int):
+        self.signum = signum
+
+
+@dataclass
+class Options:
+    mode: str
+    config_mode: str
+    power_confirmation: bool
+    managed_icons: bool
+    root_menu: bool
+    scope: str
+    palette: str
+    prompt: str
+    nul_delimited: bool
+    output: str
+    argv: list[str]
+
+    @property
+    def picker(self) -> bool:
+        return self.mode != 'launcher'
+
+    @property
+    def log_kind(self) -> str:
+        return 'menu' if self.mode == 'menu' else 'action'
+
+
+def log_event(kind: str, event: str, scope: str, *fields: str) -> None:
+    if not os.access(LOGGER, os.X_OK):
+        return
+    try:
+        subprocess.run([LOGGER, kind, event, 'source=' + scope, *fields],
+                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, timeout=2, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+def installed_settings() -> dict[str, str]:
+    """Read only relevant literal shell assignments, without sourcing them."""
+    settings = dict(os.environ)
+    try:
+        fd = os.open(DESKTOP_CONFIG, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    except FileNotFoundError:
+        return settings
+    with os.fdopen(fd, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0
+                or info.st_mode & 0o022 or info.st_size > 262144):
+            raise Error('installed desktop configuration has unsafe metadata')
+        data = stream.read(262145)
+    if len(data) > 262144:
+        raise Error('installed desktop configuration exceeds its byte budget')
+    seen = set()
+    for line in data.decode('utf-8').splitlines():
+        key, separator, raw = line.partition('=')
+        if not (key.startswith('FUZZEL_') or key == 'LABWC_OUTPUT_INTERNAL_PREFIXES'):
+            continue
+        if not separator or not re.fullmatch(r'[A-Z][A-Z0-9_]*', key) or key in seen:
+            raise Error('invalid installed Fuzzel setting')
+        values = shlex.split(raw, comments=True, posix=True)
+        if len(values) != 1 or any(c in values[0] for c in ('\x00', '\r', '\n')):
+            raise Error('installed Fuzzel settings must be literal single values')
+        settings[key] = values[0]
+        seen.add(key)
+    return settings
+
+
+VALUE_OPTIONS = frozenset("""
+--prompt --prompt-only -p --cache --placeholder --search --icon-theme --fields -F
+--terminal -T --anchor -a --x-margin --y-margin --select --select-index --tabs
+--background -b --text-color -t --prompt-color --placeholder-color --input-color
+--match-color -m --selection-color -s --selection-text-color -S --selection-match-color -M
+--counter-color --border-color -C --match-mode --fuzzy-min-length
+--fuzzy-max-length-discrepancy --fuzzy-max-distance --letter-spacing --layer
+--keyboard-focus --launch-prefix --render-workers --match-workers --delayed-filter-ms
+--delayed-filter-limit --with-nth --accept-nth --log-level
+""".split())
+FLAG_OPTIONS = frozenset("""
+--password --filter-desktop --log-colorize --check-config --use-bold -i -I --no-icons
+--hide-before-typing --show-actions --no-sort --counter --no-exit-on-keyboard-focus-loss
+--list-executables-in-path --index -R --no-run-if-empty --log-no-syslog -v --version -h --help
+""".split())
+PROFILE_OPTIONS = frozenset("""
+--config -c --font -f --dpi-aware -D --width -w --lines -l --horizontal-pad -x
+--vertical-pad -y --inner-pad -P --line-height --border-width -B --border-radius -r
+""".split())
+
+
+def output_name(value: str) -> str:
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}', value):
+        raise Error('Fuzzel output name is invalid or exceeds 128 characters')
+    return value
+
+
+def parse_options(args: list[str], settings: dict[str, str]) -> Options:
+    if len(args) > 256 or sum(len(arg.encode('utf-8')) + 1 for arg in args) > 65536:
+        raise Error('Fuzzel arguments exceed their budget')
+    mode = args[0] if args and args[0] in {
+        'launcher', 'action', 'menu', 'computer-management', 'power-confirm'} else 'launcher'
+    if args and args[0] == mode:
+        args = args[1:]
+    config_mode = 'menu' if mode in {'action', 'power-confirm'} else mode
+    power_confirmation = mode == 'power-confirm'
+    if mode in {'power-confirm', 'computer-management'}:
+        mode = 'menu'
+    flags = [settings.get(name, '0') for name in ('LABWC_FUZZEL_MANAGED_ICONS', 'LABWC_FUZZEL_ROOT_MENU')]
+    if any(flag not in {'0', '1'} for flag in flags):
+        raise Error('Fuzzel managed-icons and root-menu flags must be 0 or 1')
+    scope = settings.get('LABWC_FUZZEL_LOG_SCOPE', 'desktop')
+    palette = settings.get('LABWC_FUZZEL_PALETTE', 'desktop')
+    if scope not in {'desktop', 'computer-management', 'android-debug-bridge'}:
+        raise Error('LABWC_FUZZEL_LOG_SCOPE is invalid')
+    if palette not in {'desktop', 'computer-management'}:
+        raise Error('invalid Fuzzel palette context')
+    argv: list[str] = []
+    chosen_output = ''
+    have_output = False
+    prompt = ''
+    nul_delimited = False
+    have_dmenu = False
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        index += 1
+        key, separator, value = arg.partition('=')
+        if arg in {'--output', '-o'} or key == '--output' or arg.startswith('-o') and not arg.startswith('--'):
+            if have_output:
+                raise Error('Fuzzel output may be specified only once')
+            have_output = True
+            if arg in {'--output', '-o'}:
+                if index == len(args):
+                    raise Error('Fuzzel output option requires a value')
+                value = args[index]
+                index += 1
+            elif arg.startswith('-o'):
+                value = arg[2:]
+            chosen_output = output_name(value)
+            continue
+        if key in PROFILE_OPTIONS or any(
+                len(option) == 2 and arg.startswith(option) for option in PROFILE_OPTIONS):
+            raise Error('Fuzzel configuration and geometry are selected by the installed profile')
+        if arg in {'--dmenu', '-d', '--dmenu0'}:
+            mode = 'menu' if mode == 'launcher' else mode
+            nul_delimited = nul_delimited or arg == '--dmenu0'
+            have_dmenu = True
+        elif arg in VALUE_OPTIONS:
+            if index == len(args):
+                raise Error('Fuzzel option requires a value')
+            value = args[index]
+            index += 1
+            if arg in {'--prompt', '--prompt-only', '-p'}:
+                prompt = value
+            argv.extend((arg, value))
+            continue
+        elif separator and (key in VALUE_OPTIONS and key.startswith('--') or key in {
+                '--password', '--filter-desktop', '--log-colorize'}):
+            if key in {'--prompt', '--prompt-only'}:
+                prompt = value
+        elif arg.startswith('-p') and not arg.startswith('--') and len(arg) > 2:
+            prompt = arg[2:]
+        elif arg not in FLAG_OPTIONS:
+            raise Error('unsupported Fuzzel argument')
+        argv.append(arg)
+    if mode != 'launcher' and not have_dmenu:
+        argv.append('--dmenu')
+    return Options(mode, config_mode, power_confirmation, flags[0] == '1', flags[1] == '1',
+                   scope, palette, prompt, nul_delimited, chosen_output, argv)
+
+
+def stop_process(process: subprocess.Popen) -> None:
+    """Bound cleanup separately from the interactive user wait."""
+    if process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            try:
+                process.wait(timeout=2)
+            except subprocess.TimeoutExpired as error:
+                raise Error('Fuzzel outcome-unknown: termination unconfirmed; runtime evidence retained') from error
+
+
+def capture(argv: list[str], input_stream: BinaryIO | int, *, output_limit: int,
+            deadline: float | None = None, on_start=None, on_stopped=None) -> tuple[int, bytes, bytes]:
+    """Drain both pipes concurrently; never let a child fill memory or disk."""
+    output = bytearray()
+    diagnostics = bytearray()
+    process = subprocess.Popen(argv, stdin=input_stream, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, close_fds=True)
+    try:
+        if on_start is not None:
+            on_start(process.pid)
+        with selectors.DefaultSelector() as reader:
+            for stream, target, limit in ((process.stdout, output, output_limit),
+                                           (process.stderr, diagnostics, MAX_DIAGNOSTICS)):
+                os.set_blocking(stream.fileno(), False)
+                reader.register(stream, selectors.EVENT_READ, (target, limit))
+            exited_at = None
+            while reader.get_map():
+                now = time.monotonic()
+                if deadline is not None and now >= deadline:
+                    raise Error('Fuzzel output resolver exceeded its deadline')
+                if process.poll() is not None:
+                    if exited_at is None:
+                        exited_at = now
+                    elif now - exited_at >= 2:
+                        raise Error('Fuzzel output channel did not close after exit')
+                for entry, _ in reader.select(timeout=0.1):
+                    block = os.read(entry.fd, 16384)
+                    if not block:
+                        reader.unregister(entry.fileobj)
+                        continue
+                    target, limit = entry.data
+                    if len(target) + len(block) > limit:
+                        raise Error('Fuzzel output or diagnostics exceed their byte budget')
+                    target.extend(block)
+            # A child may close both pipes before exiting. Continue respecting
+            # the resolver deadline; a native menu remains intentionally interactive.
+            while process.poll() is None:
+                if deadline is not None and time.monotonic() >= deadline:
+                    raise Error('Fuzzel output resolver exceeded its deadline')
+                try:
+                    process.wait(timeout=0.1)
+                except subprocess.TimeoutExpired:
+                    pass
+        return process.returncode, bytes(output), bytes(diagnostics)
+    finally:
+        try:
+            stop_process(process)
+            if on_stopped is not None:
+                on_stopped()
+        finally:
+            process.stdout.close()
+            process.stderr.close()
+
+
+def profile_arguments(options: Options, settings: dict[str, str]) -> list[str]:
+    prefixes = settings.get('LABWC_OUTPUT_INTERNAL_PREFIXES', '')
+    if not re.fullmatch(r'[A-Za-z0-9._ -]+', prefixes):
+        raise Error('invalid installed internal output classification policy')
+    prefixes = prefixes.split()
+    if not prefixes or any(len(prefix) > 32 for prefix in prefixes):
+        raise Error('internal output prefix policy is blank or exceeds its budget')
+    for prefix in prefixes:
+        output_name(prefix)
+    chosen_output = options.output or settings.get('WAYBAR_OUTPUT_NAME', '')
+    if chosen_output:
+        output_name(chosen_output)
+    elif settings.get('WAYLAND_DISPLAY'):
+        if settings.get('LABWC_FUZZEL_OUTPUT_CLASS', '') not in {'', 'INTERNAL', 'EXTERNAL'}:
+            raise Error('invalid Fuzzel output class')
+        if not os.access(OUTPUT_RESOLVER, os.X_OK):
+            raise Error('installed menu output resolver is missing')
+        status, result, _ = capture([OUTPUT_RESOLVER, '--menu-output'], subprocess.DEVNULL,
+                                   output_limit=129, deadline=time.monotonic() + 5)
+        if status:
+            raise Error('unable to resolve an enabled menu output')
+        chosen_output = output_name(result.decode('utf-8').rstrip('\n'))
+    output_class = 'DEFAULT'
+    if chosen_output:
+        output_class = 'EXTERNAL'
+        if any(chosen_output.startswith(prefix + '-') or
+               re.match(re.escape(prefix) + r'[0-9]', chosen_output) for prefix in prefixes):
+            output_class = 'INTERNAL'
+    elif settings.get('LABWC_FUZZEL_OUTPUT_CLASS'):
+        output_class = settings['LABWC_FUZZEL_OUTPUT_CLASS']
+        if output_class not in {'INTERNAL', 'EXTERNAL'}:
+            raise Error('invalid Fuzzel output class')
+    geometry_mode = 'MENU' if options.picker else 'LAUNCHER'
+    config_mode = options.config_mode
+    if options.picker:
+        if config_mode == 'launcher':
+            config_mode = 'menu'
+        if options.palette == 'computer-management':
+            config_mode = 'computer-management'
+    config_name = {'launcher': 'fuzzel.ini', 'menu': 'menu.ini',
+                   'computer-management': 'computer-management.ini'}[config_mode]
+    config_root = settings.get('XDG_CONFIG_HOME') or str(Path(settings['HOME']) / '.config')
+    config_path = Path(config_root) / 'fuzzel' / config_name
+    if not config_path.is_file() or not os.access(config_path, os.R_OK):
+        raise Error('missing Fuzzel configuration: ' + config_name)
+    selected = {}
+    for key, minimum, maximum in (
+            ('FONT_SIZE', 8, 32), ('HORIZONTAL_PADDING', 0, 64), ('VERTICAL_PADDING', 0, 64),
+            ('INNER_PADDING', 0, 64), ('LINE_HEIGHT', 8, 64), ('BORDER_WIDTH', 0, 32),
+            ('BORDER_RADIUS', 0, 128), ('WIDTH', 20, 200), ('LINES', 4, 40)):
+        name = ('FUZZEL_' + geometry_mode + '_' + output_class + '_' + key
+                if key in {'WIDTH', 'LINES'} else 'FUZZEL_' + output_class + '_' + key)
+        value = settings.get(name, '')
+        if not re.fullmatch(r'(?:0|[1-9][0-9]{0,2})', value) or not minimum <= int(value) <= maximum:
+            raise Error(name + ' is outside its canonical integer range')
+        selected[key] = value
+    if options.power_confirmation:
+        selected.update(WIDTH='60', LINES='4')
+    font = ','.join(family + ':size=' + selected['FONT_SIZE'] for family in FONT_FAMILIES)
+    argv = ['--config=' + str(config_path), '--font=' + font]
+    for flag, key in (('width', 'WIDTH'), ('lines', 'LINES'), ('horizontal-pad', 'HORIZONTAL_PADDING'),
+                      ('vertical-pad', 'VERTICAL_PADDING'), ('inner-pad', 'INNER_PADDING'),
+                      ('line-height', 'LINE_HEIGHT'), ('border-width', 'BORDER_WIDTH'),
+                      ('border-radius', 'BORDER_RADIUS')):
+        argv.append('--' + flag + '=' + selected[key])
+    argv.extend(options.argv)
+    if chosen_output:
+        argv.append('--output=' + chosen_output)
+    return argv
+
+
+# Computer Management icon catalog follows. Theme tokens are rendered by the
+# existing installer, just as for the Fuzzel configuration and menu templates.
+def icon_for(label: str, menu_prompt: str) -> str:
+    """Installed Computer Management catalog; order preserves contextual fallbacks."""
+    if label == "System & Recovery":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_SYSTEM_RECOVERY_ICON_NAME__"
+    if label == "Network & Remote":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_NETWORK_REMOTE_ICON_NAME__"
+    if label == "Security & Accounts":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_SECURITY_ACCOUNTS_ICON_NAME__"
+    if label == "Devices & Desktop":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_DEVICES_DESKTOP_ICON_NAME__"
+    if label == "Containers & AI":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_CONTAINERS_AI_ICON_NAME__"
+    if label == "Files & Documents":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_FILES_DOCUMENTS_ICON_NAME__"
+    if label == "Maintenance & Health":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_MAINTENANCE_HEALTH_ICON_NAME__"
+    if label == "Recovery & Repair":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RECOVERY_REPAIR_ICON_NAME__"
+    if label == "Protection & Firewall":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_PROTECTION_FIREWALL_ICON_NAME__"
+    if label == "Users & Groups":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_USERS_GROUPS_ICON_NAME__"
+    if label == "Connection Profiles":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONNECTION_PROFILES_ICON_NAME__"
+    if label == "VPN Connections":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_VPN_CONNECTIONS_ICON_NAME__"
+    if label == "WireGuard Connections":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_WIREGUARD_CONNECTIONS_ICON_NAME__"
+    if label == "DNS Configuration":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DNS_CONFIGURATION_ICON_NAME__"
+    if label == "Network Discovery":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_NETWORK_DISCOVERY_ICON_NAME__"
+    if label == "Network Sharing":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_NETWORK_SHARING_ICON_NAME__"
+    if label == "Sharing Status":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHARING_STATUS_ICON_NAME__"
+    if label == "Connect to NFS Server":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONNECT_TO_NFS_SERVER_ICON_NAME__"
+    if label == "Disconnect from NFS Server":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DISCONNECT_FROM_NFS_SERVER_ICON_NAME__"
+    if label == "Check Connected NFS Clients":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CHECK_CONNECTED_NFS_CLIENTS_ICON_NAME__"
+    if label == "Start NFS Server":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_START_NFS_SERVER_ICON_NAME__"
+    if label == "Stop NFS Server":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_STOP_NFS_SERVER_ICON_NAME__"
+    if label == "Reload NFS Exports":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RELOAD_NFS_EXPORTS_ICON_NAME__"
+    if label == "Restart NFS Server":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESTART_NFS_SERVER_ICON_NAME__"
+    if label == "Identity Mapping and RPC Diagnostics":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_IDENTITY_MAPPING_AND_RPC_DIAGNOSTICS_ICON_NAME__"
+    if label == "Show Configured Exports":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_CONFIGURED_EXPORTS_ICON_NAME__"
+    if label == "Recent NFS Logs":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RECENT_NFS_LOGS_ICON_NAME__"
+    if label == "Sharing Help":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHARING_HELP_ICON_NAME__"
+    if label == "Continue":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONTINUE_ICON_NAME__"
+    if label == "Remote Desktop":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_REMOTE_DESKTOP_ICON_NAME__"
+    if label == "Desktop Appearance":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_DEVICES_DESKTOP_ICON_NAME__"
+    if label == "Displays & Layout":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DISPLAYS_LAYOUT_ICON_NAME__"
+    if label == "Refresh Display Layout":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_REFRESH_DISPLAY_LAYOUT_ICON_NAME__"
+    if label == "Power Profile":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_POWER_PROFILE_ICON_NAME__"
+    if label == "Hardware Tuning":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_HARDWARE_TUNING_ICON_NAME__"
+    if label == "Set Single Tuning Profile":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SET_SINGLE_TUNING_PROFILE_ICON_NAME__"
+    if label == "Generate Hardware Tuning Report":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_GENERATE_HARDWARE_TUNING_REPORT_ICON_NAME__"
+    if label == "Start Automatic Tuning":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_START_AUTOMATIC_TUNING_ICON_NAME__"
+    if label == "Stop Automatic Tuning":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_STOP_AUTOMATIC_TUNING_ICON_NAME__"
+    if label == "Enable Autostart Tuning at Boot":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_ENABLE_AUTOSTART_TUNING_AT_BOOT_ICON_NAME__"
+    if label == "Disable Autostart Tuning at Boot":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DISABLE_AUTOSTART_TUNING_AT_BOOT_ICON_NAME__"
+    if label == "Reset Hardware Tuning":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESET_HARDWARE_TUNING_ICON_NAME__"
+    if label == "Reset Profiles [All]":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESET_HARDWARE_TUNING_ICON_NAME__"
+    if label == "Show Hardware Tuning Status":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_HARDWARE_TUNING_STATUS_ICON_NAME__"
+    if re.search("^Set Performance Profile \\[(Intel|Nvidia)\\]$", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_UTILITIES_SYSTEM_MONITOR_ICON_NAME__"
+    if re.search("^Set High Profile \\[(Intel|Nvidia)\\]$", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_GO_UP_ICON_NAME__"
+    if re.search("^Set Balanced Profile \\[(Intel|Nvidia)\\]$", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_POWER_MANAGEMENT_ICON_NAME__"
+    if re.search("^Set Silent Profile \\[(Intel|Nvidia)\\]$", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_BATTERY_ICON_NAME__"
+    if label == "Cancel - leave power policy unchanged":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CANCEL_POWER_POLICY_ICON_NAME__"
+    if label == "Confirm: stop, disable and mask PPD; start tuning now and at boot"  or  label == "Confirm: stop PPD and block its restart until tuning is stopped":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONFIRM_POWER_POLICY_ICON_NAME__"
+    if label == "Keyboard Layout":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_KEYBOARD_LAYOUT_ICON_NAME__"
+    if label == "Audio Control":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_AUDIO_CONTROL_ICON_NAME__"
+    if label == "Restart Waybar":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESTART_WAYBAR_ICON_NAME__"
+    if label == "Restart Audio Services":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESTART_AUDIO_SERVICES_ICON_NAME__"
+    if label == "Restart Desktop Portals":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESTART_DESKTOP_PORTALS_ICON_NAME__"
+    if label == "Refresh Display Configuration":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_REFRESH_DISPLAY_CONFIGURATION_ICON_NAME__"
+    if label == "Reset Failed System Units":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESET_FAILED_SYSTEM_UNITS_ICON_NAME__"
+    if label == "Restart NetworkManager":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESTART_NETWORKMANAGER_ICON_NAME__"
+    if label == "Restart Bluetooth Service":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESTART_BLUETOOTH_SERVICE_ICON_NAME__"
+    if label == "Restart UDisks Service":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESTART_UDISKS_SERVICE_ICON_NAME__"
+    if label == "Restart Polkit Service":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESTART_POLKIT_SERVICE_ICON_NAME__"
+    if label == "Refresh Package Index":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_REFRESH_PACKAGE_INDEX_ICON_NAME__"
+    if label == "Repair Package Dependencies":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_REPAIR_PACKAGE_DEPENDENCIES_ICON_NAME__"
+    if label == "Rebuild Initramfs":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_REBUILD_INITRAMFS_ICON_NAME__"
+    if label == "Refresh GRUB Configuration":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_REFRESH_GRUB_CONFIGURATION_ICON_NAME__"
+    if label == "Refresh Grub Configuration":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_REFRESH_GRUB_CONFIGURATION_ICON_NAME__"
+    if label == "Create Timeshift Recovery Snapshot":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CREATE_TIMESHIFT_RECOVERY_SNAPSHOT_ICON_NAME__"
+    if label == "Emergency Btrfs Unused-Chunk Reclaim":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_EMERGENCY_BTRFS_UNUSED_CHUNK_RECLAIM_ICON_NAME__"
+    if label == "Drop Page Cache Only":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DROP_PAGE_CACHE_ONLY_ICON_NAME__"
+    if label == "Drop Dentries and Inodes":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DROP_DENTRIES_AND_INODES_ICON_NAME__"
+    if label == "Drop All Clean Caches":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DROP_ALL_CLEAN_CACHES_ICON_NAME__"
+    if label == "Reset zram Swap":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESET_ZRAM_SWAP_ICON_NAME__"
+    if label == "Restart Dock":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESTART_DOCK_ICON_NAME__"
+    if label == "Android Devices":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_ANDROID_DEVICES_ICON_NAME__"
+    if label == "Bluetooth Devices":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_BLUETOOTH_DEVICES_ICON_NAME__"
+    if label == "Brightness":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_BRIGHTNESS_ICON_NAME__"
+    if label == "Containers":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONTAINERS_ICON_NAME__"
+    if label == "AI & Copilots":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_AI_COPILOTS_ICON_NAME__"
+    if label == "Documents & Media":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DOCUMENTS_MEDIA_ICON_NAME__"
+    if label == "Drives & Backups":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DRIVES_BACKUPS_ICON_NAME__"
+    if label == "Overview & Health":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_OVERVIEW_HEALTH_ICON_NAME__"
+    if label == "Services & Logs":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SERVICES_LOGS_ICON_NAME__"
+    if label == "Packages & Firmware":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_PACKAGES_FIRMWARE_ICON_NAME__"
+    if label == "Storage & Filesystems":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_STORAGE_FILESYSTEMS_ICON_NAME__"
+    if label == "Audio & Desktop":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_AUDIO_DESKTOP_ICON_NAME__"
+    if label == "Network & DNS":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_NETWORK_DNS_ICON_NAME__"
+    if label == "Desktop & Services":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DESKTOP_SERVICES_ICON_NAME__"
+    if label == "Packages & Boot":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_PACKAGES_BOOT_ICON_NAME__"
+    if label == "Snapshots & Storage":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SNAPSHOTS_STORAGE_ICON_NAME__"
+    if label == "Memory & Cleanup":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_MEMORY_CLEANUP_ICON_NAME__"
+    if label == "Back":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_BACK_ICON_NAME__"
+    if label == "← Back":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_BACK_ICON_NAME__"
+    if label == "Cancel":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CANCEL_ICON_NAME__"
+    if label == "Exit":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_EXIT_ICON_NAME__"
+    if label == "New Coding Session"  or  label == "Resume Last Session"  or  label == "Implement Task…"  or  label == "Ask Llama…"  or  label == "New Chat"  or  label == "Resume Last Chat"  or  label == "Change Model…"  or  label == "Download New Model…"  or  label == "Push-to-Talk"  or  label == "Toggle Dictation"  or  label == "Transcribe File…"  or  label == "Transcribe Last Recording"  or  label == "Live Captions"  or  label == "Voice Note":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_NEW_CODING_SESSION_ICON_NAME__"
+    if label == "Open Podbin Guide"  or  label == "Show FreeRDP Help":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_OPEN_PODBIN_GUIDE_ICON_NAME__"
+    if label == "AppArmor Status":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_APPARMOR_STATUS_ICON_NAME__"
+    if label == "Kernel Enablement"  or  label == "Validate Drafts"  or  label == "Activate Selected Draft":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_KERNEL_ENABLEMENT_ICON_NAME__"
+    if label == "Features ABI":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_FEATURES_ABI_ICON_NAME__"
+    if label == "Complain Events (24h)":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_COMPLAIN_EVENTS_24_H_ICON_NAME__"
+    if label == "Denied Events (24h)":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DENIED_EVENTS_24_H_ICON_NAME__"
+    if label == "Easyprof Draft"  or  label == "Autodep Base Draft"  or  label == "Logprof Draft Update"  or  label == "Genprof Interactive Draft":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_EASYPROF_DRAFT_ICON_NAME__"
+    if label == "List Drafts":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_LIST_DRAFTS_ICON_NAME__"
+    if label == "Show App Modes"  or  label == "Set App Mode":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_APP_MODES_ICON_NAME__"
+    if label == "Generate New Rules":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_GENERATE_NEW_RULES_ICON_NAME__"
+    if label == "Enforce All":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_ENFORCE_ALL_ICON_NAME__"
+    if label == "Complain All":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_COMPLAIN_ALL_ICON_NAME__"
+    if label == "Disable All"  or  label == "Disabled Profiles":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DISABLE_ALL_ICON_NAME__"
+    if label == "Set App Audit Logging":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SET_APP_AUDIT_LOGGING_ICON_NAME__"
+    if label == "Preview Unknown Cleanup":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_PREVIEW_UNKNOWN_CLEANUP_ICON_NAME__"
+    if label == "List Managed Users":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_LIST_MANAGED_USERS_ICON_NAME__"
+    if label == "Show User Environment"  or  label == "Show Service Environment":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_USER_ENVIRONMENT_ICON_NAME__"
+    if label == "List Service Networks":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_LIST_SERVICE_NETWORKS_ICON_NAME__"
+    if label == "Show Service Statistics":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_SERVICE_STATISTICS_ICON_NAME__"
+    if label == "Show Recent Service Logs":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_RECENT_SERVICE_LOGS_ICON_NAME__"
+    if label == "Aggressive Journal Vacuum":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_AGGRESSIVE_JOURNAL_VACUUM_ICON_NAME__"
+    if re.search("^No (DOCX|PDF|Image|Markdown) files detected in Downloads, Documents, or Desktop$", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DIALOG_WARNING_ICON_NAME__"
+    if label == "Finish selection":
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_FINISH_SELECTION_ICON_NAME__"
+    if menu_prompt == "Digital Assets":
+        if label == "DOCX Actions"  or  label == "PDF Actions"  or  label == "Image Actions":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DOCX_ACTIONS_ICON_NAME__"
+    if menu_prompt == "DOCX Actions":
+        if label == "Convert DOCX to PDF":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONVERT_DOCX_TO_PDF_ICON_NAME__"
+        if label == "Convert DOCX to Markdown":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_TEXT_MARKDOWN_ICON_NAME__"
+        if label == "Convert DOCX to Plain Text":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_TEXT_X_GENERIC_ICON_NAME__"
+        if label == "Convert DOCX to HTML":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_APPLICATIONS_DEVELOPMENT_ICON_NAME__"
+    if menu_prompt == "PDF Actions":
+        if label == "Convert PDF to PNG"  or  label == "Convert PDF to JPEG"  or  label == "Extract Images from PDF":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONVERT_PDF_TO_PNG_ICON_NAME__"
+        if label == "Convert PDF to DOCX":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_X_OFFICE_DOCUMENT_ICON_NAME__"
+        if label == "Convert PDF to Plain Text":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_TEXT_X_GENERIC_ICON_NAME__"
+        if label == "Convert Markdown to PDF":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_TEXT_MARKDOWN_ICON_NAME__"
+        if label == "Merge Multiple PDF's":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_VIEW_GRID_ICON_NAME__"
+        if label == "Split PDF (Burst to Pages)":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_EDIT_CUT_ICON_NAME__"
+        if label == "Extract Specific Pages":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_HELP_CONTENTS_ICON_NAME__"
+        if label == "Remove Specific Pages":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_EDIT_DELETE_ICON_NAME__"
+        if label == "Rotate Pages":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_OBJECT_ROTATE_RIGHT_ICON_NAME__"
+        if label == "Edit PDF Content":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DOCUMENT_EDIT_ICON_NAME__"
+        if label == "Edit PDF Bookmarks"  or  label == "Extract TOC / Bookmarks":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_BOOKMARK_NEW_ICON_NAME__"
+        if label == "Edit Hyperlinks and Typos":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_INSERT_LINK_ICON_NAME__"
+        if label == "Clean / Repair Corrupted PDF":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_EDIT_UNDO_ICON_NAME__"
+        if label == "Inspect PDF Structure":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_SEARCH_ICON_NAME__"
+        if label == "Encrypt / Password Protect":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_LOCK_SCREEN_ICON_NAME__"
+        if label == "Decrypt / Remove Password":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_CHANGES_ALLOW_ICON_NAME__"
+        if label == "Linearize (Optimize size for Web)":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_ICON_NAME__"
+        if label == "Add Page Numbers":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_FORMAT_LIST_ORDERED_ICON_NAME__"
+        if label == "Add Text Watermark":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_COLOR_MANAGEMENT_ICON_NAME__"
+    if menu_prompt == "Image Actions":
+        if label == "Convert Any Image to PNG"  or  label == "Convert Any Image to JPEG"  or  label == "Convert Image to WebP":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONVERT_ANY_IMAGE_TO_PNG_ICON_NAME__"
+        if label == "Resize Image":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_ZOOM_IN_ICON_NAME__"
+        if label == "Crop Image":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_TRANSFORM_CROP_ICON_NAME__"
+        if label == "Rotate Image":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_OBJECT_ROTATE_RIGHT_ICON_NAME__"
+        if label == "Flip (Horizontal)":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_OBJECT_FLIP_HORIZONTAL_ICON_NAME__"
+        if label == "Flip (Vertical)":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_OBJECT_FLIP_VERTICAL_ICON_NAME__"
+        if label == "Convert to Grayscale":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DISPLAY_BRIGHTNESS_ICON_NAME__"
+        if label == "Compress / Optimize PNG"  or  label == "Compress / Optimize JPEG":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_ICON_NAME__"
+        if label == "Create GIF from Images":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_VIDEO_X_GENERIC_ICON_NAME__"
+        if label == "Read Image Metadata":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_SEARCH_ICON_NAME__"
+        if label == "Edit Image Metadata":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DOCUMENT_EDIT_ICON_NAME__"
+    if menu_prompt == "DOCX Actions"  or  menu_prompt == "PDF Actions"  or  menu_prompt == "Image Actions":
+        if label == "Read Metadata":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_READ_METADATA_ICON_NAME__"
+        if label == "Edit Metadata":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DOCUMENT_EDIT_ICON_NAME__"
+        if label == "Remove All Metadata":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_EDIT_DELETE_ICON_NAME__"
+        if menu_prompt == "DOCX Actions":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_X_OFFICE_DOCUMENT_ICON_NAME__"
+        if menu_prompt == "PDF Actions":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_APPLICATION_PDF_ICON_NAME__"
+        if menu_prompt == "Image Actions":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_IMAGE_X_GENERIC_ICON_NAME__"
+    if re.search("(Wi-Fi|WiFi|Wireless|WLAN|Radio)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_NETWORK_WIRELESS_ICON_NAME__"
+    if re.search("(WireGuard)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SECURITY_HIGH_ICON_NAME__"
+    if re.search("(VPN)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_NETWORK_VPN_ICON_NAME__"
+    if re.search("(DNS)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_NETWORK_WIRED_ICON_NAME__"
+    if re.search("(Resolver)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_SEARCH_ICON_NAME__"
+    if re.search("(WAN)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_APPLICATIONS_INTERNET_ICON_NAME__"
+    if re.search("(LAN|Network)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_NETWORK_WORKGROUP_ICON_NAME__"
+    if re.search("(Packet)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PACKAGE_X_GENERIC_ICON_NAME__"
+    if re.search("(Port|Connection)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_NETWORK_CONNECT_ICON_NAME__"
+    if menu_prompt == "System":
+        if label == "Show System Overview":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_SYSTEM_OVERVIEW_ICON_NAME__"
+        if label == "Show Failed Services":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DIALOG_WARNING_ICON_NAME__"
+        if label == "Show Recent System Errors":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DIALOG_ERROR_ICON_NAME__"
+        if label == "Show Kernel Warnings":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DIALOG_WARNING_ICON_NAME__"
+        if label == "Show Memory and Swap":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_UTILITIES_SYSTEM_MONITOR_ICON_NAME__"
+        if label == "Check Package Health":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PACKAGE_X_GENERIC_ICON_NAME__"
+        if label == "List Pending Upgrades":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_GO_DOWN_ICON_NAME__"
+        if label == "Inspect Service and Logs":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_TEXT_X_GENERIC_ICON_NAME__"
+        if label == "Show Upgradeable Packages"  or  label == "Show Upgradable Packages":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_GO_DOWN_ICON_NAME__"
+        if label == "Run Unattended Upgrades Now":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_VIEW_REFRESH_ICON_NAME__"
+        if label == "Show Failed System Units":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DIALOG_WARNING_ICON_NAME__"
+        if label == "Show Failed User Units":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_USERS_ICON_NAME__"
+        if label == "Show Timers":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_TIME_ICON_NAME__"
+        if label == "Test Mako Notification"  or  label == "Test Mako Notifications":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_DESKTOP_NOTIFICATION_ICON_NAME__"
+    if menu_prompt == "ADB Server":
+        if label == "Show Server Status":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_SERVER_STATUS_ICON_NAME__"
+        if label == "Reconnect USB Devices":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DRIVE_REMOVABLE_MEDIA_USB_ICON_NAME__"
+        if label == "Reconnect Offline Devices":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_VIEW_REFRESH_ICON_NAME__"
+        if label == "Wait for Any Device (60s)":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_TIME_ICON_NAME__"
+        if label == "List Devices with Details":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PHONE_ICON_NAME__"
+        if label == "Show Host Features":
+            return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_COMPUTER_ICON_NAME__"
+    if re.search("(Delete|Wipe|Prune|Drop|Factory Reset|Remove|Unpair)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_EDIT_DELETE_ICON_NAME__"
+    if re.search("(Restart|Refresh|Reset|Rebuild|Rotate|Flush|Reload)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_OBJECT_ROTATE_RIGHT_ICON_NAME__"
+    if re.search("(Stop|Disable|Disconnect|Unmount|Hide)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_MEDIA_PLAYBACK_STOP_ICON_NAME__"
+    if re.search("(Start|Enable|Connect|Mount|Pair|Trust|Increase|Continue)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_MEDIA_PLAYBACK_START_ICON_NAME__"
+    if re.search("(Create|Save|Backup|Snapshot|Manifest)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DOCUMENT_SAVE_ICON_NAME__"
+    if re.search("(Download|Pull|Retrieve)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_GO_DOWN_ICON_NAME__"
+    if re.search("(Upload|Push|Send)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_GO_UP_ICON_NAME__"
+    if re.search("(File|Folder|Directory|Path)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_FOLDER_ICON_NAME__"
+    if re.search("(Open|Console|Shell|Terminal|Interactive)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_UTILITIES_TERMINAL_ICON_NAME__"
+    if re.search("(User|Group|Sudo|Account)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_USERS_ICON_NAME__"
+    if re.search("(Container|Podman|Image|Volume|Pod|Resource)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PACKAGE_X_GENERIC_ICON_NAME__"
+    if re.search("(Remote Desktop|Display|Screen|Monitor)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_COMPUTER_ICON_NAME__"
+    if re.search("(Security|Rootkit|ClamAV|Hash|Vulnerab|Firewall)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_LOCK_SCREEN_ICON_NAME__"
+    if re.search("(Phone|Android|ADB|Fastboot|Firmware)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PHONE_ICON_NAME__"
+    if re.search("(Recovery|Repair|Timeshift|GRUB|Initramfs)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_EDIT_UNDO_ICON_NAME__"
+    if re.search("(Drive|Disk|Storage|Btrfs|NVMe|Filesystem)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DRIVE_HARDDISK_ICON_NAME__"
+    if re.search("(Bluetooth)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_BLUETOOTH_ICON_NAME__"
+    if re.search("(Brightness|Power|Battery|Performance|Balanced)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_POWER_MANAGEMENT_ICON_NAME__"
+    if re.search("(Audio|PipeWire|WirePlumber)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_MULTIMEDIA_VOLUME_CONTROL_ICON_NAME__"
+    if re.search("(Keyboard)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_INPUT_KEYBOARD_ICON_NAME__"
+    if re.search("(Audit|Inspect|Check|Show|List|Status|Info|Diagnose|Scan)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_SEARCH_ICON_NAME__"
+    if re.search("(Settings|Configuration|System|Service|Unit|Timer)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_ICON_NAME__"
+    if re.search("(Exit|Close)", label):
+        return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_SHUTDOWN_ICON_NAME__"
+    return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_GO_NEXT_ICON_NAME__"
+
+
+# Protocol validation, row disambiguation, and visible-to-raw recovery.
+def input_rows(data: bytes, *, managed: bool, nul_delimited: bool) -> list[bytes]:
+    if len(data) > MAX_INPUT:
+        raise Error('Fuzzel input exceeds its byte budget')
+    separator = b'\0' if nul_delimited else b'\n'
+    rows = data.split(separator) if data else []
+    if rows and rows[-1] == b'' and data.endswith(separator):
+        rows.pop()
+    if len(rows) > MAX_ROWS or any(len(row) > MAX_ROW for row in rows):
+        raise Error('Fuzzel input exceeds its row budget')
+    if managed and any(any(control in row for control in (b'\0', b'\x1f', b'\r')) for row in rows):
+        raise Error('managed Fuzzel input contains protocol controls')
+    return rows
+
+
+def back_choice(label: str) -> bool:
+    return label in {'Back', '← Back', 'Exit', 'Close', 'Cancel'} or bool(
+        re.fullmatch(r'[0-9]+[ \t\v\f]+Close', label))
+
+
+def managed_rows(rows: list[bytes], options: Options) -> tuple[bytes, dict[bytes, bytes]]:
+    mapping: dict[bytes, bytes] = {}
+    display = []
+    have_back = False
+    for number, raw in enumerate(rows, 1):
+        label = raw.decode('utf-8')
+        have_back = have_back or back_choice(label)
+        shown = re.sub(r'^(?:⮞||★)[ \t\v\f]+', '', label)
+        if shown == '← Back' or not options.root_menu and (
+                label in {'Exit', 'Close', 'Cancel'} or re.fullmatch(r'[0-9]+[ \t\v\f]+Close', label)):
+            shown = 'Back'
+        unique = shown
+        serial = 1
+        while unique.encode('utf-8') in mapping:
+            unique = f'{shown} [{number}:{serial}]'
+            serial += 1
+        visible = unique.encode('utf-8')
+        mapping[visible] = raw
+        display.append(visible + b'\0icon\x1f' + icon_for(shown, options.prompt).encode('utf-8') + b'\n')
+    if not options.root_menu and not have_back:
+        unique = b'Back'
+        serial = 1
+        while unique in mapping:
+            unique = f'Back [{len(rows) + 1}:{serial}]'.encode('utf-8')
+            serial += 1
+        mapping[unique] = b''
+        display.append(unique + b'\0icon\x1fgo-previous\n')
+    return b''.join(display), mapping
+
+
+def picker_status(status: int, diagnostics: bytes) -> int:
+    # Keep startup/backend failures distinct from silent native focus loss.
+    # Never echo diagnostics: they may contain a secret prompt or hostile data.
+    for line in diagnostics.splitlines():
+        if line.strip() and not re.match(rb'^\s*(?:warn|info|dbg):', line):
+            return MENU_FAILURE_STATUS
+    shell_status = 128 - status if status < 0 else status
+    if shell_status in {1, 2, 130}:
+        return MENU_DISMISSED_STATUS
+    return 1 if shell_status == 10 else shell_status
+
+
+def selected_row(data: bytes, *, nul_delimited: bool, managed: bool = False) -> bytes:
+    separator = b'\0' if nul_delimited else b'\n'
+    if data.endswith(separator):
+        data = data[:-1]
+    if managed and not nul_delimited and b'\0' in data:
+        visible, metadata = data.split(b'\0', 1)
+        if b'\x1f' not in metadata or b'\0' in metadata:
+            raise Error('Fuzzel returned malformed icon metadata')
+        data = visible
+    if separator in data or b'\r' in data or (not nul_delimited and b'\0' in data):
+        raise Error('Fuzzel returned more than one selection or protocol controls')
+    return data
+
+
+@contextmanager
+def runtime_lock(settings: dict[str, str]):
+    root = Path(settings.get('XDG_RUNTIME_DIR', ''))
+    if not root.is_absolute():
+        raise Error('XDG_RUNTIME_DIR must name an absolute Fuzzel runtime directory')
+    info = root.lstat()
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid()
+            or stat.S_IMODE(info.st_mode) != 0o700):
+        raise Error('Fuzzel runtime directory is not private to the current user')
+    descriptor = os.open(root / 'labwc-fuzzel.lock',
+                         os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    with os.fdopen(descriptor, 'ab') as lock:
+        info = os.fstat(lock.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != 0o600):
+            raise Error('unsafe Fuzzel launcher lock')
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            yield None
+        else:
+            yield root
+
+
+class PidFile:
+    """Publish the native PID while holding the shared launcher lock."""
+    def __init__(self, root: Path):
+        self.path = root / 'labwc-fuzzel.pid'
+        self.identity = None
+        self.started = False
+        self.stopped = False
+
+    def publish(self, pid: int) -> None:
+        self.started = True
+        descriptor = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+        with os.fdopen(descriptor, 'wb') as stream:
+            info = os.fstat(stream.fileno())
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                    or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != 0o600):
+                raise Error('unsafe Fuzzel PID file')
+            self.identity = info.st_dev, info.st_ino
+            stream.truncate(0)
+            stream.write((str(pid) + '\n').encode('ascii'))
+            stream.flush()
+
+    def mark_stopped(self) -> None:
+        self.stopped = True
+
+    def remove(self) -> None:
+        if self.identity is None or not self.stopped:
+            return
+        try:
+            info = self.path.lstat()
+            if self.identity == (info.st_dev, info.st_ino):
+                self.path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def invoke(options: Options, argv: list[str], root: Path) -> int:
+    pidfile = PidFile(root)
+    log_event(options.log_kind, 'opened', options.scope, 'mode=' + options.mode, 'status=0')
+    try:
+        if not options.picker:
+            process = subprocess.Popen([FUZZEL, *argv], close_fds=True)
+            try:
+                pidfile.publish(process.pid)
+                status = process.wait()
+                status = 128 - status if status < 0 else status
+                pidfile.mark_stopped()
+                pidfile.remove()
+            finally:
+                stop_process(process)
+                pidfile.mark_stopped()
+        else:
+            data = sys.stdin.buffer.read(MAX_INPUT + 1)
+            managed = options.managed_icons and not options.nul_delimited
+            rows = input_rows(data, managed=managed, nul_delimited=options.nul_delimited)
+            mapping = {}
+            if managed:
+                data, mapping = managed_rows(rows, options)
+            temporary = Path(tempfile.mkdtemp(prefix='labwc-fuzzel-menu.', dir=root))
+            input_path = temporary / 'input'
+            try:
+                # A regular private input file avoids a stdin/stdout pipe deadlock.
+                # Output and diagnostics stay in bounded memory, never on disk.
+                input_path.write_bytes(data)
+                with input_path.open('rb') as stream:
+                    raw_status, selection, diagnostics = capture(
+                        [FUZZEL, *argv, '--log-level=warning', '--log-colorize=never'],
+                        stream, output_limit=MAX_SELECTION, on_start=pidfile.publish,
+                        on_stopped=pidfile.mark_stopped)
+            finally:
+                if not pidfile.started or pidfile.stopped:
+                    input_path.unlink(missing_ok=True)
+                    temporary.rmdir()
+                else:
+                    print('fatal: Fuzzel outcome-unknown; retained runtime evidence: ' + str(temporary),
+                          file=sys.stderr)
+            pidfile.remove()
+            status = picker_status(raw_status, diagnostics)
+            if status == 0:
+                chosen = selected_row(selection, nul_delimited=options.nul_delimited,
+                                      managed=managed)
+                if managed and chosen in mapping and mapping[chosen] == b'':
+                    # The synthetic Back row has no raw action. Preserve the
+                    # public Back contract instead of turning it into an empty
+                    # successful selection.
+                    status = 1
+                elif managed and chosen:
+                    if chosen in mapping:
+                        chosen = mapping[chosen]
+                        # Legacy section markers are presentation only in logs.
+                        logged = re.sub(r'^(?:⮞|) ', '', chosen.decode('utf-8'))
+                        log_event('menu', 'selected', options.scope, 'kind=listed', 'selection=' + logged)
+                    else:
+                        log_event('menu', 'selected', options.scope, 'kind=custom-input', 'selection=redacted')
+                    sys.stdout.buffer.write(chosen + b'\n')
+                elif not managed:
+                    # Preserve the native terminator (including --dmenu0).
+                    sys.stdout.buffer.write(selection)
+        log_event(options.log_kind, 'completed', options.scope, 'mode=' + options.mode, 'status=' + str(status))
+        return status
+    finally:
+        pidfile.remove()
+
+
+def signal_received(signum, _frame) -> None:
+    raise Interrupted(signum)
+
+
+def cli() -> int:
+    options = None
+    scope = os.environ.get('LABWC_FUZZEL_LOG_SCOPE', 'desktop')
+    if scope not in {'desktop', 'computer-management', 'android-debug-bridge'}:
+        scope = 'desktop'
+    try:
+        os.umask(0o077)
+        for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+            signal.signal(signum, signal_received)
+        settings = installed_settings()
+        options = parse_options(sys.argv[1:], settings)
+        scope = options.scope
+        if not os.access(FUZZEL, os.X_OK):
+            raise Error('fuzzel is not installed')
+        argv = profile_arguments(options, settings)
+        with runtime_lock(settings) as root:
+            if root is None:
+                log_event('action', 'already-open', scope, 'mode=' + options.mode)
+                return MENU_DISMISSED_STATUS if options.picker else 0
+            return invoke(options, argv, root)
+    except Interrupted as interrupted:
+        return (MENU_DISMISSED_STATUS if options is not None and options.picker
+                and interrupted.signum == signal.SIGINT else 128 + interrupted.signum)
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
+        detail = str(error) if isinstance(error, Error) else 'Fuzzel operation failed (' + type(error).__name__ + ')'
+        log_event('action', 'launcher-failed', scope, 'detail=' + detail, 'status=2')
+        print('fatal: ' + detail, file=sys.stderr)
+        return MENU_FAILURE_STATUS
+
+
+if __name__ == '__main__':
+    raise SystemExit(cli())

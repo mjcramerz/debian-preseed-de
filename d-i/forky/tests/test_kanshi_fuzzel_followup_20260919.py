@@ -378,7 +378,7 @@ class RealGioIconTests(unittest.TestCase):
         self.assertEqual({app['icon'] for app in apps},{'application-x-executable'})
 
 
-class NativeShellProtocolTests(unittest.TestCase):
+class NativePythonProtocolTests(unittest.TestCase):
     setUp=sandbox.FuzzelOutputSizingTests.setUp
 
     def pick(self, labels, *, index=0, prompt='Management', root=False, output=None, mode=None, native=0):
@@ -400,7 +400,7 @@ sys.exit(int(os.environ['STATUS']))
         if mode is not None: env['LABWC_MENU_INPUT_MODE']=mode
         if output is not None: env['OUTPUT_HEX']=output.hex()
         data=labels if isinstance(labels,bytes) else ''.join(x+'\n' for x in labels).encode()
-        result=subprocess.run(payload_installed_argv(['/bin/sh',str(self.wrapper),'menu','--dmenu','--prompt',prompt]),input=data,env=env,capture_output=True,timeout=10)
+        result=subprocess.run(payload_installed_argv(['/usr/bin/python3','-I','-B',str(self.wrapper),'menu','--dmenu','--prompt',prompt]),input=data,env=env,capture_output=True,timeout=10)
         return result,render_theme_bytes(payload_read_bytes(payload)) if payload_source_exists(payload) else b''
 
     def test_all_six_management_groups_and_twenty_five_actions_have_native_metadata(self):

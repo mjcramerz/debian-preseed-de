@@ -513,7 +513,15 @@ sub _validate_wifi_profile {
     for my $field (@expected) {
         my ($key, $expected) = @{$field};
         my $default = q{};
-        ($values{$key} // $default) eq $expected
+        my $actual = $values{$key} // $default;
+        # NetworkManager may rewrite the keyfile MAC in upper case while
+        # retaining the same permanent adapter identity. Compare canonical
+        # values, while keeping every other key strict.
+        if ($key eq 'wifi.mac-address') {
+            $actual = $self->_normalize_mac($actual);
+            $expected = $self->_normalize_mac($expected);
+        }
+        $actual eq $expected
             or die "$path has incorrect $key\n";
     }
     # SSID and secrets belong to NM/nmtui. They may be edited independently of

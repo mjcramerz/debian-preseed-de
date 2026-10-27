@@ -1746,7 +1746,7 @@ sys.stdout.buffer.write(data.split(b'\\n')[int(os.environ['SELECTED'])].split(b'
                    'LABWC_FUZZEL_PALETTE': 'computer-management', **geometry_environment()}
             for index, label in enumerate(labels):
                 with self.subTest(label=label):
-                    result = subprocess.run(['/bin/sh', str(wrapper), 'computer-management', '--dmenu', '--prompt',
+                    result = subprocess.run(['/usr/bin/python3', '-I', '-B', str(wrapper), 'computer-management', '--dmenu', '--prompt',
                                              'Computer Management / Network & Remote / Network Sharing'],
                                             input=''.join(item+'\n' for item in labels).encode(),
                                             env={**env, 'SELECTED': str(index)}, capture_output=True, timeout=10)

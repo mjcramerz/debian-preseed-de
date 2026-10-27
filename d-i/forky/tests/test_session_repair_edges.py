@@ -64,7 +64,7 @@ class GeometryTests(unittest.TestCase):
             config.mkdir(parents=True)
             for name in ('base.ini', 'computer-management.ini', 'menu.ini', 'fuzzel.ini'):
                 (config / name).write_text('[main]\n')
-            env = {**os.environ, 'PATH': str(root) + ':/usr/bin:/bin', 'XDG_RUNTIME_DIR': str(root),
+            env = {'HOME': str(root), 'PATH': str(root) + ':/usr/bin:/bin', 'XDG_RUNTIME_DIR': str(root),
                    'XDG_CONFIG_HOME': str(root / 'config'), 'FIXTURE_ARGS': str(root / 'argv'),
                    'LABWC_MENU_BACKEND': 'fuzzel', 'LABWC_FUZZEL_MANAGED_ICONS': '0',
                    'LABWC_FUZZEL_PALETTE': 'computer-management', **geometry_environment(),
@@ -75,7 +75,7 @@ class GeometryTests(unittest.TestCase):
                 for output, width, lines, config_name in [('HDMI-A-1',64,19,'computer-management.ini'), ('eDP-1',31,12,'computer-management.ini')]:
                     with self.subTest(scope=scope, output=output):
                         env.update(LABWC_FUZZEL_LOG_SCOPE=scope, WAYBAR_OUTPUT_NAME=output)
-                        result = subprocess.run(payload_installed_argv(['/bin/sh', str(wrapper_script(root, fake)), 'menu', '--dmenu']),
+                        result = subprocess.run(payload_installed_argv(['/usr/bin/python3', '-I', '-B', str(wrapper_script(root, fake)), 'menu', '--dmenu']),
                                                 input='Back\n', text=True, capture_output=True, env=env, timeout=10)
                         self.assertEqual(result.returncode, 0, result.stderr)
                         args = json.loads(render_theme_defaults(payload_read_text(root/'argv')))

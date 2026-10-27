@@ -1353,8 +1353,18 @@ record "kernel=$(uname -r 2>/dev/null || printf unknown)"
 check_path installer-log /var/lib/installer-state/installer.log
 
 check_path initramfs-health-log-dir __INSTALLER_LOG_INITRAMFS_DIR__
-check_path initramfs-health-init-top-log __INSTALLER_LOG_INITRAMFS_DIR__/01-init-top.log
-check_path initramfs-health-init-bottom-log __INSTALLER_LOG_INITRAMFS_DIR__/07-init-bottom.log
+for initramfs_health_log in \
+  01-init-top.log \
+  02-init-premount.log \
+  03-local-top.log \
+  04-local-block.log \
+  05-local-premount.log \
+  06-local-bottom.log \
+  07-init-bottom.log
+do
+  check_path "initramfs-health-${initramfs_health_log%.log}" \
+    "__INSTALLER_LOG_INITRAMFS_DIR__/${initramfs_health_log}"
+done
 
 if command -v findmnt >/dev/null 2>&1; then
   check_command findmnt-verify findmnt --verify
@@ -1408,7 +1418,7 @@ else
 fi
 
 if command -v systemctl >/dev/null 2>&1; then
-  capture security-baseline-units.txt systemctl status apparmor.service apparmor-modes.service auditd.service nftables.service ssh.service sshd.service --no-pager --lines=40
+  capture security-baseline-units.txt systemctl status apparmor.service apparmor-modes.service auditd.service nftables.service ssh.service ssh.socket sshd.service --no-pager --lines=40
   log_line security-baseline info systemd "security_unit_status_collected=true"
 fi
 

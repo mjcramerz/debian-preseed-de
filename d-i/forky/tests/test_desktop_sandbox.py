@@ -209,7 +209,7 @@ class FuzzelOutputSizingTests(unittest.TestCase):
             environment.update(extra_environment)
         self.arguments_file.unlink(missing_ok=True)
         result = subprocess.run(
-            payload_installed_argv(['/bin/sh', str(self.wrapper), *arguments]),
+            payload_installed_argv(['/usr/bin/python3', '-I', '-B', str(self.wrapper), *arguments]),
             input=b'',
             capture_output=True,
             env=environment,

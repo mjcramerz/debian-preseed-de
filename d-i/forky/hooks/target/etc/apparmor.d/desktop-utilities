@@ -238,7 +238,9 @@ profile desktop-launcher /usr/bin/{fuzzel,xdg-terminal-exec,thunar,Thunar,xarchi
   deny /usr/lib/kitty/{,**/}__pycache__/*.pyc* w,
   include if exists <abstractions/hardware-tuning-desktop-parent>
   # The tracked Fuzzel child must accept its wrapper's cancellation cleanup.
-  signal (receive) set=(term) peer=labwc-fuzzel,
+  signal (receive) set=(term, kill) peer=labwc-fuzzel,
+  # The Python adapter passes a bounded private input file as native dmenu stdin.
+  owner /run/user/[0-9]*/labwc-fuzzel-menu.*/input r,
   # General-purpose file managers and ncdu must enumerate the filesystem.
   # Trailing slash restricts this to directories; file data, writes and exec
   # retain their existing policy, and ordinary DAC permissions still apply.

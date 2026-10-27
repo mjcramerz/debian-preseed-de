@@ -151,6 +151,7 @@ resolve_ssh_server_listen_addresses() {
   ' || installer_fatal "managed static IPv4 address is invalid for SSH ListenAddress"
 
   SSH_SERVER_LISTEN_ADDRESS_ETHERNET=$ssh_server_base_address
+  ssh_server_wifi_address=
   SSH_SERVER_LISTEN_ADDRESS_WIFI_LINE='# Wi-Fi ListenAddress omitted: no managed Wi-Fi link'
   ssh_server_link_types=
   if command -v target_managed_network_link_types >/dev/null 2>&1; then
@@ -361,10 +362,31 @@ install -d -m 0755 /run/sshd
 
   if command -v stage_target_systemd_unit_enabled >/dev/null 2>&1 &&
     command -v target_unit_exists >/dev/null 2>&1; then
-    if target_unit_exists ssh.service; then
-      stage_target_systemd_unit_enabled ssh.service system
+    if target_unit_exists ssh.service && target_unit_exists ssh.socket; then
+      # Wi-Fi's configured address is always Ethernet +1. The interface need
+      # not have that address assigned while disconnected or suppressed by
+      # Ethernet preference. FreeBind keeps both explicit listeners at boot.
+      # The packaged Debian sshd consumes systemd's listening descriptors.
+      ssh_socket_wifi_line='# No managed Wi-Fi listener'
+      if [ -n "$ssh_server_wifi_address" ]; then
+        ssh_socket_wifi_line="ListenStream=${ssh_server_wifi_address}:${SSH_PORT}"
+      fi
+      write_target_file /etc/systemd/system/ssh.socket.d/40-managed-listeners.conf 0644 <<EOF
+[Socket]
+ListenStream=
+ListenStream=${SSH_SERVER_LISTEN_ADDRESS_ETHERNET}:${SSH_PORT}
+${ssh_socket_wifi_line}
+FreeBind=yes
+EOF
+      stage_target_systemd_unit_enabled ssh.socket system
+      # Debian's socket activation guidance requires ssh.service to be
+      # disabled when ssh.socket is enabled. Otherwise sshd starts at boot
+      # and attempts the same explicit binds itself, defeating FreeBind.
+      command -v unstage_target_systemd_unit_enabled >/dev/null 2>&1 ||
+        installer_fatal "systemd unstage helper is unavailable for SSH socket activation"
+      unstage_target_systemd_unit_enabled ssh.service system
     else
-      installer_fatal "ssh.service unit is unavailable in target during SSH server provisioning"
+      installer_fatal "packaged ssh.service and ssh.socket units are required during SSH server provisioning"
     fi
   else
     installer_fatal "systemd staging helpers are unavailable during SSH server provisioning"

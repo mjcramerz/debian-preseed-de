@@ -85,7 +85,9 @@ An enabled profile adds `addon/ssh`, so `classes/class-addon/ssh.cfg` installs
 `openssh-server` without an SSH class on the boot command line. The late hook
 installs `ssh/lan_ed25519.pub` into the primary account's
 `.ssh/authorized_keys`, renders the server and firewall port, verifies the target
-OpenSSH artifacts, and stages `ssh.service` enablement without starting it.
+OpenSSH artifacts, and stages explicit `ssh.socket` listeners without starting
+`sshd` directly. The managed `ssh.service` boot enablement is removed so the
+socket owns the listener and activates `sshd` on connection.
 
 Neither `ssh_port` nor an explicit SSH class is required. A legacy `ssh_port`
 may repeat the profile port; a conflicting value is rejected. An explicit

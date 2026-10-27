@@ -459,8 +459,8 @@ class AppArmorIntegrationTests(unittest.TestCase):
     def test_fuzzel_cleanup_signal_has_both_confined_endpoints(self):
         sender = profile(AA / 'desktop-wrappers', 'labwc-fuzzel')
         recipient = profile(AA / 'desktop-utilities', 'desktop-launcher')
-        self.assertIn('signal (send) set=(term) peer=desktop-launcher,', sender)
-        self.assertIn('signal (receive) set=(term) peer=labwc-fuzzel,', recipient)
+        self.assertIn('signal (send) set=(term, kill) peer=desktop-launcher,', sender)
+        self.assertIn('signal (receive) set=(term, kill) peer=labwc-fuzzel,', recipient)
         self.assertIn('/usr/bin/fuzzel rPx,', sender)
 
     def test_ai_fzf_has_read_only_terminal_database_access(self):
@@ -508,13 +508,13 @@ class FuzzelLifecycleTests(unittest.TestCase):
             (root / 'config/fuzzel').mkdir(parents=True)
             for name in ('fuzzel.ini', 'menu.ini', 'launcher.ini'):
                 (root / 'config/fuzzel' / name).write_text('[main]\n')
-            environment = {**os.environ, 'PATH': str(root/'bin') + ':/usr/bin:/bin',
+            environment = {'PATH': str(root/'bin') + ':/usr/bin:/bin',
                 'HOME': str(root), 'XDG_CONFIG_HOME': str(root/'config'), 'XDG_RUNTIME_DIR': str(root),
                 'LABWC_FUZZEL_MANAGED_ICONS': '0', 'LABWC_MENU_BACKEND': 'fuzzel',
                 **geometry_environment(),
                 'FIXTURE_PID': str(root/'child.pid')}
             wrapper = wrapper_script(root, child)
-            process = subprocess.Popen(payload_installed_argv(['/bin/sh', str(wrapper), 'menu', '--dmenu']),
+            process = subprocess.Popen(payload_installed_argv(['/usr/bin/python3', '-I', '-B', str(wrapper), 'menu', '--dmenu']),
                 env=environment, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             try:
                 deadline = time.monotonic() + 5
@@ -526,11 +526,11 @@ class FuzzelLifecycleTests(unittest.TestCase):
                 child_pid = int(render_theme_defaults(payload_read_text(root/'child.pid')))
                 for name in ('labwc-fuzzel.lock', 'labwc-fuzzel.pid'):
                     self.assertEqual((root/name).stat().st_mode & 0o777, 0o600)
-                for arguments, expected in ((['launcher'], 0), (['menu', '--dmenu'], 1)):
+                for arguments, expected in ((['launcher'], 0), (['menu', '--dmenu'], 3)):
                     # A duplicate hotkey/click is bounded and leaves the real
                     # flock holder and its child/PID intact. No Wayland mock
                     # can substitute for this kernel file-lock contention.
-                    duplicate = subprocess.run(['/bin/sh', str(wrapper), *arguments],
+                    duplicate = subprocess.run(['/usr/bin/python3', '-I', '-B', str(wrapper), *arguments],
                         env=environment, stdin=subprocess.DEVNULL,
                         capture_output=True, timeout=2)
                     self.assertEqual(duplicate.returncode, expected, duplicate.stderr.decode())

@@ -11,59 +11,63 @@ fatal() {
 [ "${XDG_SESSION_TYPE:-}" = wayland ] ||
   fatal "Wayscriber toggle requires a Wayland session"
 
-runtime_root=${XDG_RUNTIME_DIR:-}
-case "$runtime_root" in
-  /|*..*|*//*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/-]*)
-    fatal "XDG_RUNTIME_DIR is unavailable or invalid"
-    ;;
-  /*) ;;
-  *) fatal "XDG_RUNTIME_DIR is unavailable or invalid" ;;
-esac
-runtime_uid=${runtime_root#/run/user/}
-case "$runtime_uid" in
-  ''|0*|*[!0-9]*) fatal "XDG_RUNTIME_DIR is not a private desktop runtime directory" ;;
-esac
-[ "$(/usr/bin/stat -Lc '%u %a' -- "$runtime_root" 2>/dev/null || true)" = "$runtime_uid 700" ] ||
+[ "$#" -eq 0 ] || fatal "usage: labwc-wayscriber-toggle"
+runtime_uid=$(/usr/bin/id -u)
+[ "$runtime_uid" -ne 0 ] || fatal "Wayscriber must run as the desktop user"
+runtime_root="/run/user/$runtime_uid"
+[ "${XDG_RUNTIME_DIR:-}" = "$runtime_root" ] ||
+  fatal "XDG_RUNTIME_DIR is not the current desktop runtime directory"
+[ ! -L "$runtime_root" ] && [ -d "$runtime_root" ] &&
+  [ "$(/usr/bin/stat -c '%u %a' -- "$runtime_root" 2>/dev/null || true)" = "$runtime_uid 700" ] ||
   fatal "XDG_RUNTIME_DIR has unsafe ownership or mode"
 wayland_display=${WAYLAND_DISPLAY:-}
 case "$wayland_display" in
   ''|*/*|*..*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*) fatal "WAYLAND_DISPLAY is unavailable or invalid" ;;
 esac
 wayland_socket="$runtime_root/$wayland_display"
-socket_metadata=$(/usr/bin/stat -Lc '%F %u %a %h' -- "$wayland_socket" 2>/dev/null || true)
-case "$socket_metadata" in
-  "socket $runtime_uid 600 1"|"socket $runtime_uid 660 1"|"socket $runtime_uid 700 1") ;;
-  *) fatal "the active Wayland socket has unsafe ownership or mode" ;;
-esac
-[ -S "$wayland_socket" ] ||
-  fatal "the active Wayland socket is unavailable"
+# The compositor selects socket permissions through its umask. The caller's
+# canonical 0700 parent is the access boundary, as for the native task switcher.
+# Require this UID's real socket and reject aliases and additional hard links.
+[ ! -L "$wayland_socket" ] && [ -S "$wayland_socket" ] &&
+  [ "$(/usr/bin/stat -c '%u %h' -- "$wayland_socket" 2>/dev/null || true)" = "$runtime_uid 1" ] ||
+  fatal "the active Wayland socket has unsafe identity"
 [ -x /usr/bin/wayscriber ] ||
   fatal "the Wayscriber package executable is unavailable"
 
-bounded() {
-  /usr/bin/timeout --signal=TERM --kill-after=2s 5s "$@"
-}
-
 service=wayscriber.service
-if ! bounded /usr/bin/systemctl --user --quiet is-active "$service"; then
-  bounded /usr/bin/systemctl --user reset-failed "$service" >/dev/null 2>&1 || true
-  bounded /usr/bin/systemctl --user start "$service" ||
-    fatal "unable to start the Wayscriber daemon"
-fi
+# Starting an active service is harmless. Keep the service's start-limit state
+# and let its cgroup own the daemon; never spawn a replacement from this helper.
+/usr/bin/timeout --signal=TERM --kill-after=2s 5s \
+  /usr/bin/systemctl --user start "$service" >/dev/null 2>&1 ||
+  fatal "unable to start the Wayscriber daemon"
 
-attempt=1
-while [ "$attempt" -le 20 ]; do
-  if bounded /usr/bin/systemctl --user --quiet is-active "$service" &&
-     bounded /usr/bin/wayscriber --daemon-toggle; then
-    exit 0
+# A successful service start does not prove native control readiness. Wayscriber
+# publishes this record only after installing its control handlers. This probe
+# is an observation only: the native client validates the actual daemon identity.
+# Keep the budget in this wrapper as well as in the transient service so direct
+# keyboard invocations cannot wait indefinitely. Avoid a nested shell command;
+# the fixed observation count also keeps the AppArmor child surface minimal.
+readiness_record="$runtime_root/wayscriber/wayscriber.pid"
+readiness_attempt=0
+while [ "$readiness_attempt" -lt 50 ]; do
+  if [ -f "$readiness_record" ] && [ ! -L "$readiness_record" ] &&
+     [ -s "$readiness_record" ]; then
+    break
   fi
-
-  if ! bounded /usr/bin/systemctl --user --quiet is-active "$service"; then
-    bounded /usr/bin/systemctl --user reset-failed "$service" >/dev/null 2>&1 || true
-    bounded /usr/bin/systemctl --user start "$service" >/dev/null 2>&1 || true
-  fi
+  readiness_attempt=$((readiness_attempt + 1))
   /usr/bin/sleep 0.1
-  attempt=$((attempt + 1))
 done
+[ "$readiness_attempt" -lt 50 ] ||
+  fatal "Wayscriber control readiness was not published before the deadline"
 
-fatal "Wayscriber daemon did not accept the toggle request"
+# One request only: a failed reply can follow an accepted toggle, so retrying
+# could undo it. Allow the native eight-second response window. The three
+# phases total at most 22 seconds; the start and toggle commands each have a
+# separate two-second cleanup budget (26 seconds), also bounding keyboard calls
+# outside Waybar's transient unit.
+if /usr/bin/timeout --signal=TERM --kill-after=2s 12s \
+    /usr/bin/wayscriber --daemon-toggle >/dev/null 2>&1; then
+  exit 0
+fi
+printf '%s\n' 'outcome-unknown: Wayscriber toggle completion was not confirmed; no retry was sent' >&2
+exit 75

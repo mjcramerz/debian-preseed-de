@@ -27,6 +27,14 @@ class ConfigurationError(ValueError):
     """A safe diagnostic that never includes configuration contents or secrets."""
 
 
+def normalize_mac(value):
+    """Return NetworkManager's case-insensitive MAC spelling canonically."""
+    normalized = (value or '').strip().lower()
+    if not re.fullmatch(r'[0-9a-f]{2}(?::[0-9a-f]{2}){5}', normalized):
+        raise ConfigurationError('managed Wi-Fi profile has an invalid MAC address')
+    return normalized
+
+
 def owned_parents(path):
     for parent in path.parents:
         info = parent.lstat()
@@ -92,7 +100,7 @@ def publish(path, text):
             os.unlink(temporary)
 
 
-def run(argv, check=True, timeout=35):
+def run(argv, check=True, timeout=32):
     try:
         result = subprocess.run(argv, env=ENVIRONMENT, stdin=subprocess.DEVNULL,
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
@@ -143,7 +151,7 @@ def validate_profile(policy, path=None, *, persistent=True, autoconnect=None):
                 ('connection', 'interface-name'): policy['MANAGED_NETWORK_WIFI_IFACE'],
                 ('wifi', 'mode'): 'infrastructure',
                 ('ipv4', 'forwarding'): '1',
-                ('wifi', 'mac-address'): policy['MANAGED_NETWORK_WIFI_MAC']}
+                ('wifi', 'mac-address'): normalize_mac(policy['MANAGED_NETWORK_WIFI_MAC'])}
     if persistent:
         expected[('connection', 'autoconnect')] = 'false'
         expected[('connection', 'permissions')] = ''
@@ -166,7 +174,13 @@ def validate_profile(policy, path=None, *, persistent=True, autoconnect=None):
     for (group, name), value in expected.items():
         # NM may omit properties whose value equals its documented default.
         default = value if (group, name) == ('connection', 'autoconnect') else ('' if value == '' else None)
-        if profile.get(group, name, fallback=default) != value:
+        actual = profile.get(group, name, fallback=default)
+        if (group, name) == ('wifi', 'mac-address'):
+            try:
+                actual = normalize_mac(actual)
+            except ConfigurationError:
+                actual = ''
+        if actual != value:
             raise ConfigurationError('managed Wi-Fi profile has incorrect ' + group + '.' + name)
     return profile
 
@@ -204,7 +218,7 @@ def firstboot():
         ethernet_suppression_requested = False
         if (autoconnect == 'true' and 'ethernet' in policy.get('MANAGED_NETWORK_LINK_TYPES', '').split()
                 and re.fullmatch(r'[A-Za-z0-9_.-]{1,15}', ethernet)
-                and device_active(ethernet)):
+                and carrier_state(ethernet) == 'up'):
             # The dispatcher may have observed Ethernet before this service.
             # Reuse the same marker so a later unplug restores the operator's
             # previous Wi-Fi preference.
@@ -369,21 +383,24 @@ def suppress_wifi_for_ethernet():
     # A profile with autoconnect disabled may be active because the operator
     # explicitly connected it. Leave that manual session alone even when
     # Ethernet appears; route metrics still prefer Ethernet for new traffic.
-    if autoconnect != 'yes':
-        return
-    active = connection_active()
-    result = run(['/usr/bin/nmcli', '--wait', '30', 'connection', 'modify', 'uuid', PROFILE_UUID,
-                  'connection.autoconnect', 'no'], check=False)
-    if result != 0:
-        return
     try:
+        suppressed = read_owned(ETHERNET_SUPPRESSION_STATE).strip() == 'yes'
+    except FileNotFoundError:
+        suppressed = False
+    if autoconnect != 'yes' and not suppressed:
+        return
+    # Retain the restoration intent before changing NM. A failed write must
+    # leave its previous reconnect policy intact. Repeated reconciliations
+    # retry a failed disconnect while preserving manual Wi-Fi sessions.
+    if not suppressed:
         ETHERNET_SUPPRESSION_STATE.parent.mkdir(mode=0o700, exist_ok=True)
         publish(ETHERNET_SUPPRESSION_STATE, 'yes\n')
-    except (OSError, ConfigurationError):
-        # The preference change succeeded; failure to retain the retry
-        # marker must not turn an Ethernet transition into a fatal error.
-        pass
-    if active:
+    if autoconnect != 'no':
+        result = run(['/usr/bin/nmcli', '--wait', '30', 'connection', 'modify', 'uuid', PROFILE_UUID,
+                      'connection.autoconnect', 'no'], check=False)
+        if result != 0:
+            return
+    if connection_active():
         run(['/usr/bin/nmcli', '--wait', '30', 'connection', 'down', 'uuid', PROFILE_UUID], check=False)
 
 
@@ -405,10 +422,11 @@ def restore_wifi_after_ethernet():
         suppressed = False
     if not suppressed:
         return
-    result = run(['/usr/bin/nmcli', '--wait', '30', 'connection', 'modify', 'uuid', PROFILE_UUID,
-                  'connection.autoconnect', 'yes'], check=False)
-    if result != 0:
-        return
+    if connection_autoconnect() != 'yes':
+        result = run(['/usr/bin/nmcli', '--wait', '30', 'connection', 'modify', 'uuid', PROFILE_UUID,
+                      'connection.autoconnect', 'yes'], check=False)
+        if result != 0:
+            return
     result = run(['/usr/bin/nmcli', '--wait', '30', 'connection', 'up', 'uuid', PROFILE_UUID], check=False)
     if result == 0:
         try:

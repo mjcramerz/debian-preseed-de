@@ -2,11 +2,18 @@
 Description=Reconcile managed Wi-Fi after Ethernet carrier change on %I
 After=NetworkManager.service
 ConditionPathExists=/etc/network/host.conf
+StartLimitIntervalSec=30s
+StartLimitBurst=3
 
 [Service]
 Type=oneshot
-ExecStart=-/usr/local/libexec/network-wifi-configure --carrier %I
-TimeoutStartSec=45s
+ExecStart=/usr/local/libexec/network-wifi-configure --carrier %I
+TimeoutStartSec=90s
+RuntimeDirectory=network-wifi
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+StateDirectory=network-wifi
+StateDirectoryMode=0700
 KillMode=control-group
 UMask=0077
 PrivateTmp=true

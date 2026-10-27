@@ -70,9 +70,10 @@
     "format": " ",
     "align": 0.5,
     "justify": "center",
+    "cursor": true,
     "tooltip": true,
     "tooltip-format": "Wayscriber",
-    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --unit=labwc-wayscriber-toggle --description=Labwc-wayscriber-toggle -- labwc-wayscriber-toggle"
+    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=5s --property=RuntimeMaxSec=30s --property=TimeoutStopSec=2s --property=StandardInput=null --property=StandardOutput=null --property=StandardError=journal --unit=labwc-wayscriber-toggle --description=Labwc-wayscriber-toggle -- /usr/local/bin/labwc-wayscriber-toggle"
   },
   "custom/tomat": {
     "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-tomat watch",
@@ -456,9 +457,10 @@
     "format": " ",
     "align": 0.5,
     "justify": "center",
+    "cursor": true,
     "tooltip": true,
     "tooltip-format": "Wayscriber",
-    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --unit=labwc-wayscriber-toggle --description=Labwc-wayscriber-toggle -- labwc-wayscriber-toggle"
+    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=5s --property=RuntimeMaxSec=30s --property=TimeoutStopSec=2s --property=StandardInput=null --property=StandardOutput=null --property=StandardError=journal --unit=labwc-wayscriber-toggle --description=Labwc-wayscriber-toggle -- /usr/local/bin/labwc-wayscriber-toggle"
   },
   "custom/tomat": {
     "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-tomat watch",

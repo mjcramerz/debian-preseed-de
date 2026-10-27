@@ -912,6 +912,8 @@ remove_target_managed_network_handoff() {
   remove_target_asset /etc/network/if-post-down.d/90-managed-wifi-preference
   remove_target_asset /etc/udev/rules.d/90-managed-wifi-preference.rules
   remove_target_asset /etc/systemd/system/network-wifi-carrier@.service
+  remove_target_asset /etc/systemd/system/network-wifi-carrier.timer
+  remove_target_asset /etc/systemd/system/timers.target.wants/network-wifi-carrier.timer
   remove_target_asset "/etc/systemd/system/sysinit.target.wants/network.service"
   remove_target_asset "/etc/systemd/network/10-ethernet.link"
   remove_target_asset "/etc/systemd/network/11-wifi.link"
@@ -997,6 +999,23 @@ install_target_managed_network_handoff() {
     stage_target_asset \
       "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/network-wifi-carrier@.service)" \
       /etc/systemd/system/network-wifi-carrier@.service 0644
+    # SYSTEMD_WANTS is only acted on when a device first becomes active.
+    # Reconcile the current carrier periodically as well: NM/ifup events can
+    # arrive while nmtui owns the policy lock, or before firstboot completes.
+    write_target_file /etc/systemd/system/network-wifi-carrier.timer 0644 <<EOF
+[Unit]
+Description=Reconcile managed Wi-Fi with the configured Ethernet carrier
+
+[Timer]
+OnBootSec=20s
+OnUnitInactiveSec=15s
+AccuracySec=1s
+Unit=network-wifi-carrier@${carrier_iface}.service
+
+[Install]
+WantedBy=timers.target
+EOF
+    stage_target_systemd_unit_enabled network-wifi-carrier.timer system
     write_target_file /etc/udev/rules.d/90-managed-wifi-preference.rules 0644 <<EOF
 ACTION=="change", SUBSYSTEM=="net", KERNEL=="${carrier_iface}", TAG+="systemd", ENV{SYSTEMD_WANTS}+="network-wifi-carrier@%k.service"
 EOF

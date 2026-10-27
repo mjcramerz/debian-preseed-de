@@ -10,7 +10,7 @@ StartLimitBurst=2
 [Service]
 Type=oneshot
 ExecStart=/usr/local/libexec/network-wifi-configure --firstboot
-TimeoutStartSec=60s
+TimeoutStartSec=120s
 TimeoutStopSec=10s
 KillMode=control-group
 Restart=on-failure

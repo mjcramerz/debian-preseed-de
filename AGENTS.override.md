@@ -5,6 +5,8 @@ chroot, sandbox image or other disposable execution environment for work in
 this repository. This prohibition is permanent repository guidance and applies
 to tests, validation, audits, benchmarks, smoke checks and native integration.**
 
+Its allowed to run tests that do NOT affect the current host. But mostly, you should consider a task complete instead of running hundreds of tests...
+
 Do not propose or request a disposable environment as a next step. Existing
 isolation guards, fixture code, image entrypoints and historical validation
 documents do not authorize their execution. Keep the guards intact; never
