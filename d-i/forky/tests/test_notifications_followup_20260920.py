@@ -29,6 +29,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest import mock
+import xml.etree.ElementTree as ET
 
 from test_native_tomat_20260920 import FORKY, SKEL, bars, load
 
@@ -78,6 +79,50 @@ class NotificationsFollowupTests(unittest.TestCase):
                 profile.read_text(encoding='utf-8'),
             )
             self.assertEqual(matches, ['true'], profile.name)
+
+    def test_json_bell_is_outside_the_drawer_on_every_output_profile(self):
+        from waybar_fixture import profiles, rendered_assets
+        host_profiles = profiles()
+        self.assertEqual(len(host_profiles), 10)
+        for profile in host_profiles:
+            configurations = json.loads(rendered_assets(profile)['config'])
+            self.assertEqual([bar['name'] for bar in configurations], ['internal', 'external'])
+            for bar in configurations:
+                with self.subTest(profile=profile.name, output=bar['name']):
+                    self.assertEqual(bar['modules-right'].count('custom/notifications'), 1)
+                    self.assertNotIn('custom/notifications', bar['group/quick-controls']['modules'])
+                    self.assertEqual(bar['modules-right'][-3:],
+                                     ['custom/notifications', 'custom/lock', 'custom/power'])
+                    entry = bar['custom/notifications']
+                    self.assertEqual(entry['format'], '{}')
+                    self.assertEqual(entry['return-type'], 'json')
+                    self.assertTrue(entry['escape'])
+                    self.assertEqual(entry['exec'], '/usr/local/libexec/labwc-waybar-exec '
+                                     '/usr/local/libexec/labwc-waybar-events notifications')
+                    self.assertEqual(entry['restart-interval'], 30)
+                    self.assertFalse(entry['exec-on-event'])
+                    for key in ('exec-if', 'interval', 'signal', 'hide-empty-text'):
+                        self.assertNotIn(key, entry)
+                    self.assertTrue(entry['tooltip'])
+                    self.assertNotIn('tooltip-format', entry)
+
+    def test_left_click_opens_the_same_native_gtk_dropdown_on_all_profiles(self):
+        from waybar_fixture import profiles, rendered_assets
+        for profile in profiles():
+            assets = rendered_assets(profile)
+            menu = ET.fromstring(assets['notifications-menu.xml'])
+            self.assertIsNotNone(menu.find('./object[@class="GtkMenu"][@id="menu"]'))
+            actions = {item.get('id') for item in menu.iter('object')
+                       if item.get('class') == 'GtkMenuItem' and item.get('id')}
+            for bar in json.loads(assets['config']):
+                with self.subTest(profile=profile.name, output=bar['name']):
+                    entry = bar['custom/notifications']
+                    self.assertEqual(entry['menu'], 'on-click')
+                    self.assertNotIn('on-click', entry)
+                    self.assertNotIn('on-click-release', entry)
+                    self.assertNotIn('on-click', entry.get('actions', {}))
+                    self.assertEqual(entry['menu-file'], '~/.config/waybar/notifications-menu.xml')
+                    self.assertEqual(set(entry['menu-actions']), actions)
 
     def test_native_left_click_menu_has_no_competing_left_click_command(self):
         for bar in bars():

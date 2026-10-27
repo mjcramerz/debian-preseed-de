@@ -26,7 +26,8 @@ def status(mode: str, value=None) -> dict[str, str]:
     if mode == "notifications":
         if value is None:
             return {"text": "__THEME_WAYBAR_BUTTON_NOTIFICATIONS_ERROR_ICON_GLYPH__", "class": "error",
-                    "tooltip": "Notifications unavailable; open the notification menu to inspect Mako"}
+                    "tooltip": "Notifications unavailable; open the notification menu to inspect Mako"
+                    + "\nLeft: menu | Middle: DND | Right: DND on + dismiss all"}
         dnd = "do-not-disturb" in value
         return {"text": "__THEME_WAYBAR_BUTTON_NOTIFICATIONS_DND_ICON_GLYPH__" if dnd else "__THEME_WAYBAR_BUTTON_NOTIFICATIONS_NORMAL_ICON_GLYPH__",
                 "class": "dnd" if dnd else "normal", "tooltip": "Do not disturb: " + ("on" if dnd else "off")
@@ -254,9 +255,10 @@ def main(arguments: list[str]) -> int:
     if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != uid
             or stat.S_IMODE(metadata.st_mode) != 0o700
             or not stat.S_ISSOCK(bus_metadata.st_mode) or bus_metadata.st_uid != uid
-            or stat.S_IMODE(bus_metadata.st_mode) not in {0o600, 0o660, 0o700}
             or bus_metadata.st_nlink != 1):
         raise ValueError("unsafe desktop bus identity")
+    # The UID-owned 0700 runtime directory protects the socket. The socket's
+    # own mode is selected by the session bus unit and need not be 0600/0660.
     os.environ["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=" + str(bus)
     import gi
     gi.require_version("Gio", "2.0")
@@ -265,10 +267,32 @@ def main(arguments: list[str]) -> int:
     return Reader(arguments[0], Gio, GLib, GLibUnix).run()
 
 
-if __name__ == "__main__":
+def cli(arguments: list[str]) -> int:
     try:
-        raise SystemExit(main(sys.argv[1:]))
-    except (OSError, ValueError, ImportError):
+        result = main(arguments)
+    except BrokenPipeError:
+        return 0  # Waybar closed its own status pipe; no retry or extra output.
+    except Exception:
+        # This boundary is read-only. Preserve the menu even when GI setup or
+        # an unexpected reader failure occurs; never expose exception content.
+        cause = "reader_exception"
+        result = 1
+    else:
+        cause = "reader_disconnected"
+    if result:
         # No remote error strings, notification bodies or environment values.
-        print("waybar_status outcome=unavailable cause=reader_initialization", file=sys.stderr)
-        raise SystemExit(1)
+        print("waybar_status outcome=unavailable cause=" + cause, file=sys.stderr)
+        if arguments == ["notifications"]:
+            # Waybar 0.15 hides a continuous custom module on nonzero exit,
+            # even after receiving valid JSON. Retain this error bell/menu
+            # until restart-interval starts a fresh reader; never busy-respawn.
+            try:
+                print(json.dumps(status("notifications"), ensure_ascii=False), flush=True)
+            except BrokenPipeError:
+                pass
+            return 0
+    return result
+
+
+if __name__ == "__main__":
+    raise SystemExit(cli(sys.argv[1:]))

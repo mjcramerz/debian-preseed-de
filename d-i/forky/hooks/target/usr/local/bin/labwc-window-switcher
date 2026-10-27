@@ -1,7 +1,8 @@
 #!/bin/sh
 set -eu
 [ "$#" -eq 0 ] || { printf '%s\n' 'usage: labwc-window-switcher' >&2; exit 2; }
-[ "$(/usr/bin/id -u)" -ne 0 ] || {
+runtime_uid=$(/usr/bin/id -u)
+[ "$runtime_uid" -ne 0 ] || {
   printf '%s\n' 'labwc-window-switcher must run as the desktop user' >&2
   exit 1
 }
@@ -13,18 +14,15 @@ set -eu
   printf '%s\n' 'labwc-window-switcher requires a Wayland session' >&2
   exit 1
 }
-runtime_root=${XDG_RUNTIME_DIR:-}
-case "$runtime_root" in
-  /run/user/*) runtime_uid=${runtime_root#/run/user/} ;;
-  *) runtime_uid= ;;
-esac
-case "$runtime_uid" in
-  ''|0*|*[!0-9]*)
-    printf '%s\n' 'labwc-window-switcher requires a private desktop runtime directory' >&2
-    exit 1
-    ;;
-esac
-[ "$(/usr/bin/stat -Lc '%u %a %h' -- "$runtime_root" 2>/dev/null || true)" = "$runtime_uid 700 1" ] || {
+runtime_root="/run/user/$runtime_uid"
+[ "${XDG_RUNTIME_DIR:-}" = "$runtime_root" ] || {
+  printf '%s\n' 'labwc-window-switcher requires the current desktop runtime directory' >&2
+  exit 1
+}
+# Directory link counts vary with the filesystem and its child directories.
+# The caller's canonical, non-symlink 0700 directory is the access boundary.
+[ ! -L "$runtime_root" ] && [ -d "$runtime_root" ] &&
+  [ "$(/usr/bin/stat -c '%u %a' -- "$runtime_root" 2>/dev/null || true)" = "$runtime_uid 700" ] || {
   printf '%s\n' 'labwc-window-switcher runtime directory is unsafe' >&2
   exit 1
 }
@@ -36,14 +34,13 @@ case "$wayland_display" in
     ;;
 esac
 wayland_socket="$runtime_root/$wayland_display"
-socket_metadata=$(/usr/bin/stat -Lc '%F %u %a %h' -- "$wayland_socket" 2>/dev/null || true)
-case "$socket_metadata" in
-  "socket $runtime_uid 600 1"|"socket $runtime_uid 660 1"|"socket $runtime_uid 700 1") ;;
-  *)
-    printf '%s\n' 'labwc-window-switcher Wayland socket is unsafe' >&2
-    exit 1
-    ;;
-esac
+# Socket permissions follow the compositor's umask; the private parent already
+# excludes other users. Require a real socket owned by this UID, not an alias.
+[ ! -L "$wayland_socket" ] && [ -S "$wayland_socket" ] &&
+  [ "$(/usr/bin/stat -c '%u %h' -- "$wayland_socket" 2>/dev/null || true)" = "$runtime_uid 1" ] || {
+  printf '%s\n' 'labwc-window-switcher Wayland socket is unsafe' >&2
+  exit 1
+}
 # Waybar must invoke this on mouse release, after GTK's pointer grab ends.
 # Send down/up on the SAME virtual keyboard, before the user selects or cancels.
 # No F13 (or Alt) is held for the lifetime of labwc's native thumbnail switcher.

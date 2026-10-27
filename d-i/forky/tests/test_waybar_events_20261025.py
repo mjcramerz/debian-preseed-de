@@ -13,7 +13,7 @@ _isolation_sys.path.pop(0)
 _require_test_isolation()
 
 from collections import deque
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 import importlib.machinery
 import importlib.util
 import io
@@ -182,6 +182,42 @@ class EventReaderTests(unittest.TestCase):
             reader.emit([])
         self.assertFalse(reader.alive)
         self.assertFalse(reader.queue())
+
+    def test_notification_initialization_failures_keep_visible_json_and_retry_interval(self):
+        for failure in (OSError('private fixture path'), ValueError('private fixture bus'),
+                        ImportError('private fixture module'), RuntimeError('private fixture detail')):
+            with self.subTest(failure=type(failure).__name__):
+                output, errors = io.StringIO(), io.StringIO()
+                with mock.patch.object(self.module, 'main', side_effect=failure), \
+                        redirect_stdout(output), redirect_stderr(errors):
+                    self.assertEqual(self.module.cli(['notifications']), 0)
+                payload = json.loads(output.getvalue())
+                self.assertTrue(payload['text'])
+                self.assertEqual(payload['class'], 'error')
+                self.assertIn('Left: menu', payload['tooltip'])
+                self.assertNotIn('private fixture', output.getvalue() + errors.getvalue())
+
+    def test_disconnected_notification_reader_keeps_button_but_other_failures_stay_failures(self):
+        for arguments, expected in ((['notifications'], 0), (['capture'], 1),
+                                    (['notifications', 'extra'], 1)):
+            output, errors = io.StringIO(), io.StringIO()
+            with self.subTest(arguments=arguments), \
+                    mock.patch.object(self.module, 'main', return_value=1), \
+                    redirect_stdout(output), redirect_stderr(errors):
+                self.assertEqual(self.module.cli(arguments), expected)
+            if arguments == ['notifications']:
+                self.assertEqual(json.loads(output.getvalue())['class'], 'error')
+            else:
+                self.assertEqual(output.getvalue(), '')
+
+    def test_success_and_consumer_pipe_close_do_not_emit_a_spurious_error(self):
+        for outcome in (0, BrokenPipeError()):
+            output, errors = io.StringIO(), io.StringIO()
+            patch = {'side_effect': outcome} if isinstance(outcome, Exception) else {'return_value': outcome}
+            with mock.patch.object(self.module, 'main', **patch), \
+                    redirect_stdout(output), redirect_stderr(errors):
+                self.assertEqual(self.module.cli(['notifications']), 0)
+            self.assertEqual(output.getvalue() + errors.getvalue(), '')
 
     def test_glib_unix_signals_and_cleanup_use_only_owned_sources(self):
         reader = self.reader()

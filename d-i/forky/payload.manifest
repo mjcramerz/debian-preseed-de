@@ -1109,7 +1109,7 @@ f33bd4ac8422cd0e9cf077accd4822a0de227953222004f76b75d26c67efffd4  hooks/target/u
 05007a4c50c29be417608deb1ff79298c985c8953639bf4ddf9262971dd23151  hooks/target/usr/local/bin/labwc-wayland-app
 b7240804fddd1694e8ab49dfa23aa2dafd61863681a5b1493bc397491260182c  hooks/target/usr/local/bin/labwc-wayland-compat-app
 5efce86bcc9b89ccadb1bcf9fa6525c5159b58accfb0c04a931af9ace7435803  hooks/target/usr/local/bin/labwc-wayscriber-toggle
-321dfbd86e1863a44da5b03424f095d4c6255cb73e62cf47841f00628cfcee6c  hooks/target/usr/local/bin/labwc-window-switcher
+a706ac754842dc4cc62356eb62e235e48fe56d4ef8b13d25fe13eff8a4de186d  hooks/target/usr/local/bin/labwc-window-switcher
 e76312e671db2678ec46a9a444bc8742f0b2fbf6851d2d78ececae0d0f159ddd  hooks/target/usr/local/bin/labwc-wlsunset
 de094054c7dfbe8d2f839796569277b696ababb27f79919c693212691a626ff6  hooks/target/usr/local/bin/mullvad-vpn
 040378be6b567658252185f74195f79f168aa38bcfea1f3f722b30764dc6e54f  hooks/target/usr/local/bin/nfsmnt
@@ -1426,7 +1426,7 @@ c07e0eac0b2b6313dd0e8b2f53feeeeaf818822944c63757ebbdfcdac9289084  hooks/target/u
 50e4733646d2cdc495a581e7cb0993a5f0822ee44a304029bc0511164edcf045  hooks/target/usr/local/libexec/labwc-appearance-defaults
 a7a64327ceecff80122260b376bb1e756420d7a1001a35d58372bf0de330df02  hooks/target/usr/local/libexec/labwc-appearance-greeter
 9b50bdb8d941babb2147d35b0f510849cd26daf14aa2f8b5cf2629f5087fb275  hooks/target/usr/local/libexec/labwc-appearance-themes
-72a15b782a9af813c789be57fdb4b5aa4d053c7d6ebb327202eeaf0125702b47  hooks/target/usr/local/libexec/labwc-calendar-actions
+bc5ef5811dd79d193f4793bb6ac6bc929d6db9f6e695a43737d08ae881640f76  hooks/target/usr/local/libexec/labwc-calendar-actions
 240583052146d395a5eebf266432aef820b0830ddc20716a99da8880beb3b91e  hooks/target/usr/local/libexec/labwc-calendar-worker
 021e878a0282456ea4ba3a5675a95d588fb225f74cd0beacf7cf812adfcc538b  hooks/target/usr/local/libexec/labwc-chatgpt-log-runner.tmpl
 b7759169b79b9cf967045b57b5b7dacc0434d3f5b2442402a7d4067878cda9df  hooks/target/usr/local/libexec/labwc-chatgpt-session
@@ -1442,7 +1442,7 @@ afadd6140873430d6c6cdd36bb2981f59b0ff07a62bdfd8b0649afe2e106ccbf  hooks/target/u
 15cc6eae593df38d00d0bb30a1d3913bcd4d54207de79de25776147e11abfc77  hooks/target/usr/local/libexec/labwc-network-control-action-root
 111b84f24aa61dbad02c047f9e38fe9fa514f5ba4535060b789e4257cdfde2f7  hooks/target/usr/local/libexec/labwc-network-scan-action-root.tmpl
 b30fa2af75a76fbccefdb6184d76a6e384885c01307891ad781fe026196b4da9  hooks/target/usr/local/libexec/labwc-notification-send.tmpl
-6af85383a7aadad05df7e6cc3a75cab8ccc091ef6d82072105906f7fda809550  hooks/target/usr/local/libexec/labwc-notifications.tmpl
+47f063308170dc642a0ff8ab41c4b6eeb5e67e0e7d29a1e46573ca2a5fae0f13  hooks/target/usr/local/libexec/labwc-notifications.tmpl
 4d0098df5600d7900597980b1d53cf5a42b6659929b78c23dfbd6e0190af9b19  hooks/target/usr/local/libexec/labwc-output-watch
 c44a754936cca0b6e8b3857d5c7607ce389af24433fc586b5b38e18ef365285e  hooks/target/usr/local/libexec/labwc-panel-run
 fe8640541310038f54e379d664b2779b3d4170504f2925c3bd8681cb48f14b40  hooks/target/usr/local/libexec/labwc-plans.pl
@@ -1467,7 +1467,7 @@ eaa011de1f4ebb7024a4be38072bb62ad9235065e159da5390e85c92b02c9e1b  hooks/target/u
 96cf89fc2948fc4e8b411b80e245e418f85444c52dbf4350f72f7d0a4da79829  hooks/target/usr/local/libexec/labwc-tomat.tmpl
 9f4591f8b36c312a8cec2787beba4aa963ec0abac406065538ef8cbd7834a2f6  hooks/target/usr/local/libexec/labwc-wallpaper-control
 5bd7b2a0a4a92eb2c1109f93748aa3e9debb3936743ada760bdd19c00dcede01  hooks/target/usr/local/libexec/labwc-waybar-battery
-7512dba4d1b283c633579664f001eab1196d84e5b802dbf051b5d48a38601ed7  hooks/target/usr/local/libexec/labwc-waybar-events.tmpl
+66ddd8ceadcbc83a94c688019fcb1fe714b1d0085a9562b267ece0ae05ea0706  hooks/target/usr/local/libexec/labwc-waybar-events.tmpl
 f8fbf87e0901a0e7fb4d04731bf8ccbbd4c0231d618a6125d24a27b3c848e00f  hooks/target/usr/local/libexec/labwc-waybar-exec
 6cc2c759ae91f92e71325e9a73cb649896a600254de2910b3470179b09e0bbf7  hooks/target/usr/local/libexec/labwc-waycal-control
 5e1cca02c1dde74be5cadbe4593fa62c854c62ce44a49af2fb54d3b348510b39  hooks/target/usr/local/libexec/labwc-waycal-popup
