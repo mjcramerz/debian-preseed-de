@@ -444,24 +444,6 @@ unset codex_binary_dir_host codex_first_binary codex_unsafe_binary
   devops_fatal "pinned Bazelisk binary is missing after installation: ${DEVOPS_BAZELISK_BINARY_PATH}"
 [ -x "${target_root}${DEVOPS_DENO_BINARY_PATH}" ] ||
   devops_fatal "Deno upstream executable is missing after installation"
-[ -x "${target_root}${DEVOPS_YT_DLP_BINARY_PATH}" ] ||
-  devops_fatal "managed yt-dlp wrapper is missing after installation"
-[ -x "${target_root}/usr/local/bin/youtube-dl" ] ||
-  devops_fatal "managed YouTube Downloader wrapper is missing after installation"
-[ -x "${target_root}/usr/local/bin/yt-dlp" ] ||
-  devops_fatal "managed yt-dlp command wrapper is missing after installation"
-for downloader_config in /etc/yt-dlp/config /etc/skel-desktop/.config/yt-dlp/config \
-  "${ACCOUNT_HOME}/.config/yt-dlp/config" /usr/local/share/doc/yt-dlp/CONFIGURATION.md; do
-  [ -f "${target_root}${downloader_config}" ] && [ ! -L "${target_root}${downloader_config}" ] ||
-    devops_fatal "downloader configuration is missing or symlinked: $downloader_config"
-done
-[ -x "${target_root}${DEVOPS_YT_DLP_PAYLOAD_PATH}" ] ||
-  devops_fatal "yt-dlp standalone payload with bundled yt-dlp-ejs is missing after installation"
-[ -d "${target_root}${DEVOPS_YT_DLP_INSTALL_ROOT}/libexec/yt-dlp-plugins" ] ||
-  devops_fatal "managed yt-dlp plugin directory is missing after installation"
-[ -n "$(find "${target_root}${DEVOPS_YT_DLP_INSTALL_ROOT}/libexec/yt-dlp-plugins" \
-  -mindepth 1 -type f -links 1 -print -quit)" ] ||
-  devops_fatal "managed yt-dlp plugin directory is empty after installation"
 [ -r "${target_root}/etc/skel-desktop/.config/bazel/bazelrc" ] ||
   devops_fatal "managed Bazel rc is missing from the desktop skeleton"
 [ -x "${target_root}${DEVOPS_ANSIBLE_CORE_BINARY_PATH}" ] ||
@@ -496,9 +478,6 @@ devops_run_as_account \
 [ ! -e "${target_root}/tmp/installer-devops-tools-policy.json" ] &&
   [ ! -L "${target_root}/tmp/installer-devops-tools-policy.json" ] ||
   devops_fatal "temporary upstream DevOps tool policy remains after installation"
-[ ! -e "${target_root}/tmp/installer-yt-dlp-plugins.json" ] &&
-  [ ! -L "${target_root}/tmp/installer-yt-dlp-plugins.json" ] ||
-  devops_fatal "temporary yt-dlp plugin manifest remains after installation"
 [ -r "${target_root}${APTLY_CONFIG}" ] ||
   devops_fatal "managed Aptly config is missing after installation"
 [ -r "${target_root}${OSC_CONFIG}" ] ||
