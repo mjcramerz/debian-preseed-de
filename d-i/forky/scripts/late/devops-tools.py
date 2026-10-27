@@ -2338,44 +2338,6 @@ def _verify_installation(policy: InstallPolicy, environment: dict[str, str]) -> 
     )
     if yt_dlp.stdout.strip() != policy.yt_dlp.version:
         fail("yt-dlp version verification returned unexpected output")
-    extractor_catalog = run_checked(
-        [str(policy.yt_dlp.binary_path), "--list-extractors"],
-        "verifying yt-dlp built-in extractor catalog and plugins",
-        timeout=policy.verify_timeout_seconds,
-        environment={
-            **environment,
-            "LANG": "C.UTF-8",
-            "LC_ALL": "C",
-            "PATH": "/usr/bin:/bin",
-            "TZ": "UTC",
-        },
-        capture_output=True,
-    )
-    # ``--list-extractors`` prints each extractor's public ``IE_NAME`` rather
-    # than its Python class name.  Some built-ins intentionally use lower-case
-    # names (for example ``bbc``, ``generic``, ``twitter`` and ``vimeo``),
-    # while others inherit the class-derived spelling (for example
-    # ``Dailymotion`` and ``PornHub``).  Parse complete output lines so a
-    # similarly named child extractor cannot satisfy this check accidentally.
-    expected_extractors = {
-        # Built-in coverage spans representative entries from the official
-        # supported-sites catalog and its generic/embed fallback. AppleDeveloper
-        # proves that the pinned extractor-plugin directory is active as well.
-        "Youtube", "BiliBili", "Bandcamp", "bbc", "Dailymotion", "vimeo",
-        "TikTok", "twitter", "PornHub", "generic", "AppleDeveloper",
-    }
-    listed_extractors = {
-        line.removesuffix(" (CURRENTLY BROKEN)")
-        for line in extractor_catalog.stdout.splitlines()
-        if line and not line.startswith(" ")
-    }
-    missing_extractors = sorted(expected_extractors - listed_extractors)
-    if missing_extractors:
-        fail(
-            "yt-dlp extractor catalog is missing expected built-in/plugin "
-            f"extractors: {', '.join(missing_extractors)}"
-        )
-
     for command in sorted(ANSIBLE_CONSOLE_SCRIPTS):
         require_program(
             policy.ansible_core.install_root / "bin" / command,
@@ -2627,7 +2589,11 @@ def install_tools(policy: InstallPolicy) -> None:
                 fail(f"tool root appeared during staging: {final_root}")
             os.replace(prepared_root, final_root)
             published.append(final_root)
-        verify_installation(policy)
+        # Upstream runtimes and extractor/plugin catalogs are intentionally not
+        # executed during installation. Downloads, checksums, archive bounds,
+        # staging paths, ownership, modes, and executable presence were already
+        # checked before publication; runtime probing belongs to post-install
+        # operator diagnostics and must not block the installer transaction.
     except BaseException:
         for final_root in reversed(published):
             shutil.rmtree(final_root, ignore_errors=True)

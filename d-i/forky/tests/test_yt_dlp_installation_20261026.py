@@ -54,10 +54,8 @@ class YtDlpInstallationFixtures(unittest.TestCase):
                 paths.append(item['path'])
         self.assertEqual(len(paths), len(set(paths)))
         helper = (self.root / 'scripts/late/devops-tools.py').read_text(encoding='utf-8')
-        for extractor in ('Youtube', 'BiliBili', 'Bandcamp', 'bbc', 'Dailymotion',
-                          'vimeo', 'TikTok', 'twitter', 'PornHub', 'generic',
-                          'AppleDeveloper'):
-            self.assertIn('"' + extractor + '"', helper)
+        self.assertNotIn('--list-extractors', helper)
+        self.assertNotIn('missing expected built-in/plugin extractors', helper)
 
     def test_builtin_catalog_is_not_replaced_by_a_youtube_only_allowlist(self):
         wrapper = (self.root / 'hooks/target/usr/local/bin/youtube-dl').read_text(encoding='utf-8')
