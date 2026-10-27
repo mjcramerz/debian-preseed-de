@@ -13,15 +13,16 @@ from .icon_catalog import (ICON_COLLECTIONS, POINTER_COLLECTIONS,
 
 
 MENU_ICONS = {
-    'Desktop Appearance': 'preferences-desktop-theme',
+    'Desktop Appearance': 'preferences-desktop-display',
     'Desktop Themes': 'preferences-desktop-theme',
-    'Fuzzel Themes': 'preferences-desktop-theme',
+    'Fuzzel Themes': 'system-search',
     'Waybar Themes': 'preferences-system-windows',
     'Taskview Themes': 'view-grid',
-    'Waycal Themes': 'x-office-calendar',
-    'Crystal-Dock Themes': 'preferences-system-dock',
+    'Waycal Themes': 'x-office-calendar-symbolic',
+    'Crystal-Dock Themes': 'view-refresh',
     'GtkGreet Themes': 'system-users',
     'Terminal Themes': 'utilities-terminal',
+    'Mako Themes': 'preferences-desktop-notification',
     'Icon Themes': 'preferences-desktop-icons',
     'Pointer Themes': 'input-mouse',
     'Reset Icon Theme': 'view-refresh',
@@ -39,10 +40,16 @@ DEFAULT_ICON = 'preferences-desktop-theme'
 def choose(labels: list[str], prompt: str) -> str | None:
     rows = ''.join(label + '\0icon\x1f' + MENU_ICONS.get(label, DEFAULT_ICON) + '\n'
                    for label in labels)
+    picker_environment = environment(desktop=True)
+    # Appearance rows already use Fuzzel's native NUL/US icon metadata. Keep
+    # the wrapper in transparent mode and use newline-delimited records; the
+    # wrapper's --dmenu0 protocol is for NUL-separated label records and would
+    # expose the metadata as literal text.
+    picker_environment.update(LABWC_FUZZEL_MANAGED_ICONS='0', LABWC_FUZZEL_ROOT_MENU='0')
     process = subprocess.run(['/usr/local/bin/labwc-fuzzel', 'computer-management',
-                              '--dmenu0', '--prompt', prompt + ' > '],
-                             input=rows, text=True,
-                             stdout=subprocess.PIPE, env=environment(desktop=True), check=False)
+                              '--dmenu', '--prompt', prompt + ' > '],
+                             input=rows, text=True, encoding='utf-8',
+                             stdout=subprocess.PIPE, env=picker_environment, check=False)
     if process.returncode in (3, 130):
         raise SystemExit(3)
     if process.returncode == 1:

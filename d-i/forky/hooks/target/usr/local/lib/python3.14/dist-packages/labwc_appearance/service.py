@@ -30,6 +30,7 @@ def refresh(components: set[str]) -> list[str]:
         ('waybar', 'waybar.service', ['reload', 'waybar.service']),
         ('taskview', 'waybar.service', ['reload', 'waybar.service']),
         ('waycal', 'labwc-waycal-popup.service', ['stop', 'labwc-waycal-popup.service']),
+        ('mako', 'mako.service', []),
         ('theme', 'labwc-compositor.service', ['kill', '--kill-whom=main', '--signal=SIGHUP',
                                                'labwc-compositor.service']),
         ('pointer', 'labwc-compositor.service', ['kill', '--kill-whom=main', '--signal=SIGHUP',
@@ -42,7 +43,13 @@ def refresh(components: set[str]) -> list[str]:
             continue
         try:
             if active(unit):
-                checked(['/usr/bin/systemctl', '--user', *arguments], timeout=45)
+                if component == 'mako':
+                    # Mako reloads its configuration in place and retains
+                    # notification history; restarting the service creates a
+                    # needless visibility gap for an appearance-only change.
+                    checked(['/usr/bin/systemctl', '--user', 'reload', 'mako.service'], timeout=45)
+                else:
+                    checked(['/usr/bin/systemctl', '--user', *arguments], timeout=45)
         except (RuntimeError, OSError, subprocess.SubprocessError) as error:
             warnings.append(str(error))
     return warnings

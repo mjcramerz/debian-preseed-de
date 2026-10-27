@@ -7,16 +7,17 @@ from .editors import css, edit_ini, edit_flat, ini_values, flat_values
 from .themes import variant as desktop_theme
 
 FILES = {
- 'fuzzel': ('fuzzel/base.ini', 'fuzzel/fuzzel.ini', 'fuzzel/menu.ini', 'fuzzel/computer-management.ini'),
- 'waybar': ('waybar/style.css', 'waybar/config'),
- 'taskview': ('waybar/taskview.css',),
- 'waycal': ('waycal/style.css',),
- 'dock': ('crystal-dock/labwc/appearance.conf',),
- 'terminal': ('foot/foot.ini', 'kitty/kitty.conf'),
- 'theme': ('gtk-3.0/settings.ini', 'gtk-4.0/settings.ini', 'gtk-4.0/gtk.css',
-           'qt5ct/qt5ct.conf', 'qt6ct/qt6ct.conf',
-           'qt5ct/colors/labwc-appearance.conf', 'qt6ct/colors/labwc-appearance.conf',
-           'Kvantum/kvantum.kvconfig', 'labwc/themerc-override', 'labwc/environment'),
+    'fuzzel': ('fuzzel/base.ini', 'fuzzel/fuzzel.ini', 'fuzzel/menu.ini', 'fuzzel/computer-management.ini'),
+    'waybar': ('waybar/style.css', 'waybar/config'),
+    'taskview': ('waybar/taskview.css',),
+    'waycal': ('waycal/style.css',),
+    'dock': ('crystal-dock/labwc/appearance.conf',),
+    'terminal': ('foot/foot.ini', 'kitty/kitty.conf'),
+    'mako': ('mako/config',),
+    'theme': ('gtk-3.0/settings.ini', 'gtk-4.0/settings.ini', 'gtk-4.0/gtk.css',
+              'qt5ct/qt5ct.conf', 'qt6ct/qt6ct.conf',
+              'qt5ct/colors/labwc-appearance.conf', 'qt6ct/colors/labwc-appearance.conf',
+              'Kvantum/kvantum.kvconfig', 'labwc/themerc-override', 'labwc/environment'),
 }
 GREETER_FILES = ('gtkgreet.css', 'gtkgreet-power.css')
 VARIANTS = ('', '.internal', '.external')
@@ -147,6 +148,60 @@ def gtk4_import(text: str, baseline: str | None, theme) -> str | None:
     return None if baseline is None and not text.strip() else text
 
 
+def _mako_color(section: str, key: str, p) -> str:
+    """Return one coordinated Mako color while retaining notification policy."""
+    lowered = section.casefold()
+    critical = 'critical' in lowered or 'error' in lowered
+    if key == 'background-color':
+        color = (p.error if critical else p.background if lowered == 'global'
+                 else p.surface_alt if lowered == 'urgency=normal' else p.surface)
+        return color + 'f2'
+    if key == 'text-color':
+        return (readable_text(p.error) if critical else p.foreground) + 'ff'
+    if key == 'progress-color':
+        return 'over ' + (p.error if critical else p.accent) + 'ff'
+    if key == 'border-color':
+        if critical:
+            color = p.error
+        elif 'hidden' in lowered or lowered == 'urgency=low':
+            color = p.muted
+        elif 'normal' in lowered:
+            color = p.accent_hover
+        elif 'actionable' in lowered:
+            color = p.accent
+        else:
+            color = p.border
+        return color + 'ff'
+    raise ValueError('unsupported Mako color key')
+
+
+def mako(text: str, baseline: str | None, profile: str | None, p) -> str:
+    """Recolor managed Mako fields without changing criteria or expiry policy."""
+    if profile is None:
+        return baseline if baseline is not None else text
+    output = []
+    section = 'global'
+    seen: set[tuple[str, str]] = set()
+    for line in text.splitlines(keepends=True):
+        head = re.fullmatch(r'\s*\[([^\[\]]+)\]\s*(?:[#;].*)?(?:\r?\n)?', line)
+        if head:
+            section = head[1]
+        match = re.match(r'^(\s*)(background-color|text-color|border-color|progress-color)\s*=.*?(\r?\n)?$', line)
+        if match:
+            key = match[2]
+            pair = (section, key)
+            if pair in seen:
+                raise ValueError('duplicate managed Mako color key: ' + '/'.join(pair))
+            seen.add(pair)
+            newline = match[3] or '\n'
+            output.append(match[1] + key + '=' + _mako_color(section, key, p) + newline)
+        else:
+            output.append(line if line.endswith(('\n', '\r')) else line + '\n')
+    if not seen:
+        raise ValueError('Mako configuration has no managed color fields')
+    return ''.join(output)
+
+
 def render(path: str, text: str, baseline: str | None, profile: str | None,
            mode: str, home: Path) -> str | None:
     component, base = identify(path)
@@ -154,6 +209,8 @@ def render(path: str, text: str, baseline: str | None, profile: str | None,
     theme = desktop_theme(profile) if component == 'theme' and profile is not None else None
     p = theme.colors if theme is not None else palette(profile or DEFAULT_PROFILE, mode)
     original = baseline or ''
+    if base == 'mako/config':
+        return mako(text, baseline, profile, p)
     if base == 'gtk-4.0/gtk.css':
         return gtk4_import(text, baseline, theme)
     if base in ('waybar/config', 'labwc/environment'):

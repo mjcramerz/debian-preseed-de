@@ -265,7 +265,8 @@ COMPONENTS = {'fuzzel': 'Fuzzel Themes', 'waybar': 'Waybar Themes',
               'taskview': 'Taskview Themes',
               'waycal': 'Waycal Themes',
               'dock': 'Crystal-Dock Themes', 'greeter': 'GtkGreet Themes',
-              'terminal': 'Terminal Themes'}
+              'terminal': 'Terminal Themes',
+              'mako': 'Mako Themes'}
 
 
 def rgb(color: str) -> tuple[int, int, int]:

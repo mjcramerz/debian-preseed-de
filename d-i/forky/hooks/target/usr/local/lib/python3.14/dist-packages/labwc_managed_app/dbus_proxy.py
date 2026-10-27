@@ -40,7 +40,13 @@ READ_ONLY_UPOWER_POLICY = (
 PROXY_READY_TIMEOUT_SECONDS = 5
 PROXY_STOP_TIMEOUT_SECONDS = 2
 PROXY_DIAGNOSTIC_MAX_CHARACTERS = 8_192
-DBUS_NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*(?:\.[A-Za-z_][A-Za-z0-9_-]*)*\Z")
+# xdg-dbus-proxy accepts a dot-prefix wildcard for a namespace, but does not
+# accept arbitrary globbing. Keep the wildcard optional and terminal so a
+# profile can request e.g. org.freedesktop.portal.* without admitting a
+# caller-controlled pattern or an embedded wildcard.
+DBUS_NAME_RE = re.compile(
+    r"[A-Za-z_][A-Za-z0-9_-]*(?:\.[A-Za-z_][A-Za-z0-9_-]*)*(?:\.\*)?\Z"
+)
 DBUS_POLICY_ARGUMENT_PREFIXES = (
     "--see=",
     "--talk=",
@@ -110,6 +116,8 @@ def _proxy_socket_problem(proxy_socket: str) -> str | None:
         return "socket path is a symlink"
     if not stat.S_ISSOCK(socket_stat.st_mode):
         return "socket path is not a socket"
+    if socket_stat.st_nlink != 1:
+        return "socket path has an unexpected link count"
     if socket_stat.st_uid != os.getuid():
         return (
             "socket has the wrong owner: "
