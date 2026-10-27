@@ -2351,16 +2351,25 @@ def _verify_installation(policy: InstallPolicy, environment: dict[str, str]) -> 
         },
         capture_output=True,
     )
+    # ``--list-extractors`` prints each extractor's public ``IE_NAME`` rather
+    # than its Python class name.  Some built-ins intentionally use lower-case
+    # names (for example ``bbc``, ``generic``, ``twitter`` and ``vimeo``),
+    # while others inherit the class-derived spelling (for example
+    # ``Dailymotion`` and ``PornHub``).  Parse complete output lines so a
+    # similarly named child extractor cannot satisfy this check accidentally.
     expected_extractors = {
-        # Built-in coverage spans the official supported-sites catalog and its
-        # generic/embed fallback. AppleDeveloper proves that the pinned plugin
-        # directory is active during installer verification as well.
-        "Youtube", "BiliBili", "Bandcamp", "BBC", "Dailymotion", "Vimeo",
-        "TikTok", "Twitter", "Pornhub", "Generic", "AppleDeveloper",
+        # Built-in coverage spans representative entries from the official
+        # supported-sites catalog and its generic/embed fallback. AppleDeveloper
+        # proves that the pinned extractor-plugin directory is active as well.
+        "Youtube", "BiliBili", "Bandcamp", "bbc", "Dailymotion", "vimeo",
+        "TikTok", "twitter", "PornHub", "generic", "AppleDeveloper",
     }
-    missing_extractors = sorted(
-        name for name in expected_extractors if name not in extractor_catalog.stdout
-    )
+    listed_extractors = {
+        line.removesuffix(" (CURRENTLY BROKEN)")
+        for line in extractor_catalog.stdout.splitlines()
+        if line and not line.startswith(" ")
+    }
+    missing_extractors = sorted(expected_extractors - listed_extractors)
     if missing_extractors:
         fail(
             "yt-dlp extractor catalog is missing expected built-in/plugin "

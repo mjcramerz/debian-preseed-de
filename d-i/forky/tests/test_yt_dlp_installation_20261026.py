@@ -54,8 +54,8 @@ class YtDlpInstallationFixtures(unittest.TestCase):
                 paths.append(item['path'])
         self.assertEqual(len(paths), len(set(paths)))
         helper = (self.root / 'scripts/late/devops-tools.py').read_text(encoding='utf-8')
-        for extractor in ('Youtube', 'BiliBili', 'Bandcamp', 'BBC', 'Dailymotion',
-                          'Vimeo', 'TikTok', 'Twitter', 'Pornhub', 'Generic',
+        for extractor in ('Youtube', 'BiliBili', 'Bandcamp', 'bbc', 'Dailymotion',
+                          'vimeo', 'TikTok', 'twitter', 'PornHub', 'generic',
                           'AppleDeveloper'):
             self.assertIn('"' + extractor + '"', helper)
 
