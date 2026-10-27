@@ -1,10 +1,9 @@
 [Unit]
-Description=Publish the configured persistent static Wi-Fi connection
+Description=Reconcile the configured static Wi-Fi reconnect policy
 Requires=NetworkManager.service
 After=NetworkManager.service
 Before=greetd.service
 ConditionPathExists=/etc/network/wifi.nmconnection
-ConditionPathExists=!/var/lib/network-wifi/firstboot.complete
 StartLimitIntervalSec=10min
 StartLimitBurst=2
 

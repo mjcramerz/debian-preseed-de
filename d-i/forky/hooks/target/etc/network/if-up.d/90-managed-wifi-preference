@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/local/libexec:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+interface=${IFACE:-}
+[ -n "$interface" ] || exit 0
+
+# Ethernet is owned by ifupdown in this target, so its if-up hook is the
+# authoritative transition source. Wi-Fi preference reconciliation is advisory:
+# a transient NetworkManager or lock failure must not fail ifup.
+/usr/local/libexec/network-wifi-configure --dispatcher "$interface" up || exit 0

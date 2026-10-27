@@ -944,7 +944,25 @@ if [ -r /usr/share/dbus-1/system-services/org.freedesktop.nm_dispatcher.service 
   nm_dispatcher_unit=
   require_readable /etc/systemd/system/NetworkManager.service.d/20-dispatcher.conf
   require_readable /etc/systemd/system/wifi-firstboot.service
+  require_readable /etc/systemd/system/network-wifi-shutdown.service
+  require_executable /etc/NetworkManager/dispatcher.d/90-managed-wifi-preference
   require_readable /etc/systemd/system/NetworkManager-dispatcher.service.d/20-persistent.conf
+  if [ -r /etc/network/host.conf ]; then
+    managed_link_types=$(sed -n 's/^MANAGED_NETWORK_LINK_TYPES=//p' /etc/network/host.conf)
+    managed_link_types=$(printf '%s' "$managed_link_types" | sed "s/^['\"]//; s/['\"]$//")
+    case " $managed_link_types " in
+      *" ethernet "*)
+        case " $managed_link_types " in
+          *" wifi "*)
+            require_executable /etc/network/if-up.d/90-managed-wifi-preference
+            require_executable /etc/network/if-post-down.d/90-managed-wifi-preference
+            require_readable /etc/systemd/system/network-wifi-carrier@.service
+            require_readable /etc/udev/rules.d/90-managed-wifi-preference.rules
+            ;;
+        esac
+        ;;
+    esac
+  fi
   if [ -r /usr/lib/systemd/system/NetworkManager-dispatcher.service ]; then
     nm_dispatcher_unit=/usr/lib/systemd/system/NetworkManager-dispatcher.service
   elif [ -r /lib/systemd/system/NetworkManager-dispatcher.service ]; then
@@ -2288,8 +2306,6 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
             ("custom/wayscriber", "on-click-release", "on-click"),
             ("network", "on-click-right-release", "on-click-right"),
             ("bluetooth", "on-click-right-release", "on-click-right"),
-            ("custom/screenshot", "on-click-release", "on-click"),
-            ("custom/screenshot", "on-click-right-release", "on-click-right"),
             ("backlight", "on-click-release", "on-click"),
             ("custom/battery", "on-click-release", "on-click"),
         )
@@ -2302,6 +2318,8 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
         for module, name, event in (("custom/tomat", "tomat", "on-click"),
                                     ("pulseaudio", "audio", "on-click"),
                                     ("custom/notifications", "notifications", "on-click"),
+                                    ("bluetooth", "bluetooth", "on-click"),
+                                    ("custom/screenshot", "screenshot", "on-click"),
                                     ("custom/power", "power", "on-click"),
                                     ("clock", "calendar", "on-click-release")):
             entry = bar[module]
@@ -2325,8 +2343,9 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
                         and "on-click-release" not in entry
                         and event not in entry.get("actions", {}),
                         "native menu event conflict: " + name)
-            if name in ("tomat", "audio", "notifications"):
-                click = shlex.split(entry.get("on-click-right", ""))
+            if name in ("tomat", "audio", "notifications", "bluetooth"):
+                secondary_key = "on-click-right-release" if name == "bluetooth" else "on-click-right"
+                click = shlex.split(entry.get(secondary_key, ""))
                 require(click and click[0] == "/usr/bin/systemd-run" and "--" in click,
                         "missing scoped secondary click: " + name)
                 required_click_options = {"--user", "--collect", "--service-type=exec",
@@ -2337,10 +2356,12 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
                     "--property=ExitType=cgroup", "--property=KillMode=control-group",
                     "--property=TimeoutStopSec=20s"}
                 require(required_click_options <= set(click[1:click.index("--")])
-                        and "__INSTALLER_" not in entry["on-click-right"],
+                        and "__INSTALLER_" not in entry[secondary_key],
                         "unscoped secondary click: " + name)
                 expected_click = {"tomat": ["/usr/local/libexec/labwc-tomat", "toggle"],
                                   "notifications": ["/usr/local/libexec/labwc-notifications", "dnd-dismiss"]}.get(name)
+                if name == "bluetooth":
+                    expected_click = ["labwc-bluetooth", "power-toggle"]
                 if name == "audio":
                     open_action = shlex.split(entry["menu-actions"]["audio_open"])
                     expected_click = open_action[open_action.index("--") + 1:]
@@ -2414,6 +2435,14 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
                 enabled = whisper[0].findtext("./property[@name=\"sensitive\"]", "True") == "True"
                 installed = (config / "systemd/user/whisper-transcribe.service").is_file()
                 require(enabled == installed, "optional Whisper menu/service availability differs")
+            elif name == "bluetooth":
+                require(set(actions) == {"bluetooth_console", "bluetooth_scan", "bluetooth_pair",
+                                         "bluetooth_connect", "bluetooth_disconnect", "bluetooth_manage",
+                                         "bluetooth_adapter"}, "Bluetooth menu action set differs")
+            elif name == "screenshot":
+                require(set(actions) == {"screenshot_annotation", "screenshot_full", "screenshot_selection",
+                                         "screen_record_full", "screen_record_selection"},
+                        "screenshot menu action set differs")
             require("labwc-power-menu" not in json.dumps(entry), "Waybar still invokes the fuzzel power picker")
 
 arch = subprocess.check_output(["/usr/bin/dpkg", "--print-architecture"], text=True).strip()
@@ -2424,7 +2453,7 @@ if arch == "amd64":
     for relative in ("etc/systemd/system/tomat.service", "etc/systemd/user/tomat.service"):
         path = Path("/") / relative
         require(path.is_symlink() and os.readlink(path) == "/dev/null", "stock Tomat service is not masked: " + relative)
-print("desktop_native_menu_verification menus=5 tomat=isolated power=native calendar=native")
+print("desktop_native_menu_verification menus=7 tomat=isolated screenshot=native bluetooth=native power=native calendar=native")
 ' "$ACCOUNT_HOME" "$ACCOUNT_USERNAME" "[${desktop_native_menu_modules_left}]" \
     "$LABWC_WAYBAR_INTERNAL_MENU_ROW_SPACING" "$LABWC_WAYBAR_INTERNAL_MENU_ICON_SIZE" \
     "$LABWC_WAYBAR_INTERNAL_MENU_ICON_WIDTH"

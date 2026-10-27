@@ -1,0 +1,20 @@
+[Unit]
+Description=Reconcile managed Wi-Fi after Ethernet carrier change on %I
+After=NetworkManager.service
+ConditionPathExists=/etc/network/host.conf
+
+[Service]
+Type=oneshot
+ExecStart=-/usr/local/libexec/network-wifi-configure --carrier %I
+TimeoutStartSec=45s
+KillMode=control-group
+UMask=0077
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/run/lock /run/network-wifi /var/lib/network-wifi
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native

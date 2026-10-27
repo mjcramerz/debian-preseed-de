@@ -585,15 +585,9 @@ EOF
 }
 
 nftables_ssh_allow_ipv4_cidrs() {
-  if [ -n "${MANAGED_NETWORK_IPV4_NETWORK_CIDRS:-}" ]; then
-    printf '%s\n' "$(nftables_merge_unique_tokens ${MANAGED_NETWORK_IPV4_NETWORK_CIDRS})"
-    return 0
-  fi
-  cat <<'EOF'
-10.0.0.0/8
-172.16.0.0/12
-192.168.0.0/16
-EOF
+  ssh_allow_cidr=${SSH_SERVER_CIDR_ALLOW:-}
+  nftables_validate_cidr_token SSH_SERVER_CIDR_ALLOW "$ssh_allow_cidr"
+  printf '%s\n' "$ssh_allow_cidr"
 }
 
 nftables_ssh_allow_ipv6_cidrs() {

@@ -186,20 +186,35 @@ refresh_outputs(q{});
     def test_mutations_have_paired_bounded_monotonic_records_and_no_replay(self):
         result = self.perl(r'''
 *session_is_active = sub { 1 }; my $calls = 0;
-*run_command_capture_stderr = sub { ++$calls; return $calls == 1 ? (1,q{}) : (0,"busy\n"); };
+*run_command_capture_stderr = sub { ++$calls; return $calls == 1 ? (1,q{}) : (0,"hard failure\n"); };
 die 'success lost' unless apply_output_transaction('/mock/wlr-randr', '--output', 'eDP-1', '--on');
 die 'failure lost' if apply_output_transaction('/mock/wlr-randr', '--output', 'eDP-1', "\e" . ('x' x 3000));
 die 'replayed command' unless $calls == 2;
 ''')
-        begin = re.findall(r'transaction=(\d+-\d+) phase=begin monotonic=([\d.]+) command=([^\n]*)', result.stderr)
-        end = re.findall(r'transaction=(\d+-\d+) phase=end monotonic=([\d.]+) result=(accepted|rejected)', result.stderr)
+        begin = re.findall(r'transaction=(\d+-\d+) attempt=(\d+) phase=begin monotonic=([\d.]+) command=([^\n]*)', result.stderr)
+        end = re.findall(r'transaction=(\d+-\d+) attempt=(\d+) phase=end monotonic=([\d.]+) result=(accepted|rejected)', result.stderr)
         self.assertEqual(len(begin), 2); self.assertEqual(len(end), 2)
         self.assertEqual([a[0] for a in begin], [a[0] for a in end])
-        self.assertEqual([a[2] for a in end], ['accepted', 'rejected'])
+        self.assertEqual([a[1] for a in begin], ['1', '1'])
+        self.assertEqual([a[3] for a in end], ['accepted', 'rejected'])
         for start, finish in zip(begin, end):
-            self.assertLessEqual(float(start[1]), float(finish[1]))
-            self.assertLessEqual(len(start[2]), 1024)
+            self.assertLessEqual(float(start[2]), float(finish[2]))
+            self.assertLessEqual(len(start[3]), 1024)
         self.assertNotIn('\x1b', result.stderr)
+
+    def test_transient_atomic_busy_is_retried_with_a_bounded_budget(self):
+        self.perl(r'''
+*session_is_active = sub { 1 }; *usleep = sub {};
+*capture_command = sub { "eDP-1 panel\n" };
+my $calls = 0;
+*run_command_capture_stderr = sub {
+    ++$calls;
+    return $calls < 3 ? (0, "Device or resource busy\n") : (1, q{});
+};
+die 'transient transaction did not recover'
+    unless apply_output_transaction('/mock/wlr-randr', '--output', 'eDP-1', '--on');
+die 'transient retry budget was not bounded' unless $calls == 3;
+''')
 
     def test_dpms_uses_the_same_logged_bounded_mutation_path(self):
         self.perl(r'''

@@ -62,9 +62,10 @@ VM disk candidates and hooks. There is no separate VM host profile.
 
 ## OpenSSH server policy
 
-Every profile declares literal `SSH_SERVER_ENABLE="true"` or `"false"` and one
-`SSH_SERVER_PORT` in `30000..40000`. The two P15s profiles disable the OpenSSH
-server; the other eight profiles enable it. These values govern fresh installs.
+Every profile declares literal `SSH_SERVER_ENABLE="true"` or `"false"`, one
+`SSH_SERVER_PORT` in `30000..40000`, one `SSH_SERVER_CIDR_ALLOW`, and one
+`SSH_SERVER_USER_ALLOW`. The two P15s profiles disable the OpenSSH server; the
+other eight profiles enable it. These values govern fresh installs.
 
 | Profile | OpenSSH | Port |
 | --- | --- | ---: |

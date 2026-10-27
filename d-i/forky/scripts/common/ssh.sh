@@ -86,11 +86,83 @@ render_ssh_template() {
     ACCOUNT_USERNAME "$ACCOUNT_USERNAME" \
     ACCOUNT_HOME "$ACCOUNT_HOME" \
     SSH_PORT "$SSH_PORT" \
+    SSH_SERVER_CIDR_ALLOW "$SSH_SERVER_CIDR_ALLOW" \
+    SSH_SERVER_USER_ALLOW "$SSH_SERVER_USER_ALLOW" \
+    SSH_SERVER_LISTEN_ADDRESS_ETHERNET "$SSH_SERVER_LISTEN_ADDRESS_ETHERNET" \
+    SSH_SERVER_LISTEN_ADDRESS_WIFI_LINE "$SSH_SERVER_LISTEN_ADDRESS_WIFI_LINE" \
     SYSTEM_HOSTNAME "$SYSTEM_HOSTNAME" \
     SYSTEM_DOMAIN "$SYSTEM_DOMAIN" \
     SYSTEM_FQDN "$fqdn"
   installer_assert_no_unresolved_installer_placeholders "$dest" "SSH template ${src}"
   chmod "$mode" "$dest"
+}
+
+validate_ssh_server_profile_context() {
+  ssh_cidr=${SSH_SERVER_CIDR_ALLOW:-}
+  ssh_cidr_address=${ssh_cidr%/*}
+  ssh_cidr_prefix=${ssh_cidr#*/}
+  case "$ssh_cidr" in
+    */*) ;;
+    *) installer_fatal "SSH_SERVER_CIDR_ALLOW must be an IPv4 CIDR" ;;
+  esac
+  case "$ssh_cidr" in
+    ''|*[!0123456789./]*) installer_fatal "SSH_SERVER_CIDR_ALLOW contains unsupported characters" ;;
+  esac
+  case "$ssh_cidr_prefix" in
+    ''|*[!0-9]*) installer_fatal "SSH_SERVER_CIDR_ALLOW has an invalid prefix" ;;
+  esac
+  [ "$ssh_cidr_prefix" -le 32 ] ||
+    installer_fatal "SSH_SERVER_CIDR_ALLOW prefix must be in range 0..32"
+  printf '%s\n' "$ssh_cidr_address" | awk -F. '
+    NF != 4 { exit 1 }
+    { for (i = 1; i <= 4; i++) if ($i !~ /^[0-9]+$/ || $i > 255) exit 1 }
+  ' || installer_fatal "SSH_SERVER_CIDR_ALLOW must contain a valid IPv4 address"
+
+  case "${SSH_SERVER_USER_ALLOW:-}" in
+    ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-]*)
+      installer_fatal "SSH_SERVER_USER_ALLOW contains unsupported username characters" ;;
+  esac
+  [ "$SSH_SERVER_USER_ALLOW" = "$ACCOUNT_USERNAME" ] ||
+    installer_fatal "SSH_SERVER_USER_ALLOW must match the provisioned account username"
+}
+
+ssh_ipv4_increment() {
+  ssh_base_address=$1
+  printf '%s\n' "$ssh_base_address" | awk -F. '
+    NF != 4 { exit 1 }
+    { for (i = 1; i <= 4; i++) if ($i !~ /^[0-9]+$/ || $i > 255) exit 1 }
+    { value = (($1 * 256 + $2) * 256 + $3) * 256 + $4 + 1 }
+    value > 4294967295 { exit 1 }
+    { printf "%d.%d.%d.%d\n", int(value / 16777216) % 256,
+        int(value / 65536) % 256, int(value / 256) % 256, value % 256 }
+  '
+}
+
+resolve_ssh_server_listen_addresses() {
+  ssh_server_base_address=${MANAGED_NETWORK_IPV4_ADDRESS:-}
+  if [ -z "$ssh_server_base_address" ] && command -v network_answer_value >/dev/null 2>&1; then
+    ssh_server_base_address=$(network_answer_value netcfg/get_ipaddress ip 2>/dev/null || true)
+  fi
+  [ -n "$ssh_server_base_address" ] ||
+    installer_fatal "static IPv4 address is required before enabling the SSH server"
+  printf '%s\n' "$ssh_server_base_address" | awk -F. '
+    NF == 4 { for (i = 1; i <= 4; i++) if ($i !~ /^[0-9]+$/ || $i > 255) exit 1; next }
+    { exit 1 }
+  ' || installer_fatal "managed static IPv4 address is invalid for SSH ListenAddress"
+
+  SSH_SERVER_LISTEN_ADDRESS_ETHERNET=$ssh_server_base_address
+  SSH_SERVER_LISTEN_ADDRESS_WIFI_LINE='# Wi-Fi ListenAddress omitted: no managed Wi-Fi link'
+  ssh_server_link_types=
+  if command -v target_managed_network_link_types >/dev/null 2>&1; then
+    ssh_server_link_types=$(target_managed_network_link_types 2>/dev/null || true)
+  fi
+  case " $ssh_server_link_types " in
+    *" wifi "*)
+      ssh_server_wifi_address=$(ssh_ipv4_increment "$ssh_server_base_address") ||
+        installer_fatal "managed static IPv4 address cannot derive the Wi-Fi ListenAddress"
+      SSH_SERVER_LISTEN_ADDRESS_WIFI_LINE="ListenAddress ${ssh_server_wifi_address}"
+      ;;
+  esac
 }
 
 validate_ssh_template_context() {
@@ -112,6 +184,8 @@ validate_ssh_template_context() {
       installer_fatal "SYSTEM_DOMAIN is not safe for SSH template rendering"
       ;;
   esac
+  validate_ssh_server_profile_context
+  resolve_ssh_server_listen_addresses
 }
 
 xssh_helpers_role_selected() {

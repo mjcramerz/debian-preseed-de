@@ -562,47 +562,6 @@ record_worker() {
   exit "$recording_worker_status"
 }
 
-open_menu() {
-  require_command labwc-fuzzel
-
-  if recording_active; then
-    capture_menu=$(
-      printf '%s\n' \
-        'Stop Recording' \
-        'Open annotation tool' \
-        'Take Screenshot (Full)' \
-        'Take Screenshot (Box)' \
-        'Record Screen (Full)' \
-        'Record Screen (Box)' |
-        labwc-fuzzel menu --dmenu --prompt 'Screen capture' || menu_failure "$?"
-    ) || exit "$?"
-  else
-    capture_menu=$(
-      printf '%s\n' \
-        'Open annotation tool' \
-        'Take Screenshot (Full)' \
-        'Take Screenshot (Box)' \
-        'Record Screen (Full)' \
-        'Record Screen (Box)' |
-        labwc-fuzzel menu --dmenu --prompt 'Screen capture' || menu_failure "$?"
-    ) || exit "$?"
-  fi
-
-  case "$capture_menu" in
-    'Stop Recording') stop_recording ;;
-    'Open annotation tool') annotate_capture full ;;
-    'Take Screenshot (Full)') capture_full ;;
-    'Take Screenshot (Box)') annotate_capture box ;;
-    'Record Screen (Full)') start_recording full ;;
-    'Record Screen (Box)') start_recording box ;;
-    '') return 0 ;;
-    *)
-      notify_user critical __THEME_MAKO_SCREEN_CAPTURE_ERROR_ICON_NAME__ x-labwc.screen-capture "Capture action rejected" "The selected action was not recognized."
-      return 1
-      ;;
-  esac
-}
-
 ensure_desktop_user
 
 if [ "${1:-status}" = status ]; then
@@ -615,9 +574,6 @@ initialize_paths
 case "${1:-status}" in
   primary)
     annotate_capture box
-    ;;
-  menu)
-    open_menu
     ;;
   annotate-full)
     annotate_capture full
@@ -645,7 +601,7 @@ case "${1:-status}" in
     record_worker "$2" "$3" "$4" "$5" "$6"
     ;;
   *)
-    printf 'usage: labwc-capture [status|primary|menu|annotate-full|screenshot-full|screenshot-box|record-full|record-box|stop]\n' >&2
+    printf 'usage: labwc-capture [status|primary|annotate-full|screenshot-full|screenshot-box|record-full|record-box|stop]\n' >&2
     exit 2
     ;;
 esac

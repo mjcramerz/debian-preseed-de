@@ -40,7 +40,7 @@ desktop_stage_wlsunset() {
 }
 
 desktop_stage_waybar_native_menus() {
-  for menu_name in tomat audio notifications power calendar; do
+  for menu_name in tomat audio notifications power calendar screenshot bluetooth; do
     desktop_render_waybar_asset "${menu_name}-menu.xml"
   done
   # Keep optional voice actions visible but disabled when their services are
@@ -224,8 +224,11 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/bin/nfsmnt /usr/local/bin/nfsmnt 0755
   desktop_stage_role_asset usr/local/bin/filenmnt /usr/local/bin/filenmnt 0755
   desktop_stage_role_asset usr/local/libexec/network-wifi-configure /usr/local/libexec/network-wifi-configure 0755
+  desktop_stage_role_asset etc/NetworkManager/dispatcher.d/90-managed-wifi-preference \
+    /etc/NetworkManager/dispatcher.d/90-managed-wifi-preference 0755
   desktop_stage_role_asset usr/local/bin/nmtui /usr/local/bin/nmtui 0755
   desktop_stage_role_asset etc/systemd/system/wifi-firstboot.service /etc/systemd/system/wifi-firstboot.service 0644
+  desktop_stage_role_asset etc/systemd/system/network-wifi-shutdown.service /etc/systemd/system/network-wifi-shutdown.service 0644
   desktop_stage_role_asset usr/local/bin/labwc-ai-copilots /usr/local/bin/labwc-ai-copilots 0755
   desktop_stage_ai_copilots_perl_modules
   desktop_stage_ai_copilots_catalogs

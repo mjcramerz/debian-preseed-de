@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/local/libexec:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+[ "$#" -eq 2 ] || exit 0
+device=$1
+event=$2
+case "$device:$event" in
+  *:up|*:down) ;;
+  *) exit 0 ;;
+esac
+
+# Dispatcher reconciliation is advisory. Do not make NetworkManager's
+# dispatcher unit fail when the adapter, lock, or NM state is transiently busy.
+/usr/local/libexec/network-wifi-configure --dispatcher "$device" "$event" || exit 0

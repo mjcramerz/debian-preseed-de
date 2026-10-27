@@ -420,22 +420,47 @@ sub apply_output_transaction {
     my ($wlr_randr, @args) = @_;
     return 0 if !session_is_active();
     return 1 if !@args;
-    my $transaction = $$ . '-' . ++$output_transaction_sequence;
     my $command = substr(join(' ', $wlr_randr, @args), 0, 1024);
     $command =~ s/[^\x20-\x7e]/?/g;
-    my $started = clock_gettime(CLOCK_MONOTONIC);
-    # Journal only real mutations. These paired records identify our command
-    # window without pretending a Wayland acknowledgement is a DRM flip event.
-    printf STDERR "labwc-output-watch: transaction=%s phase=begin monotonic=%.6f command=%s\n",
-        $transaction, $started, $command;
-    my ($ok, $diagnostic) = run_command_capture_stderr($wlr_randr, @args);
-    printf STDERR "labwc-output-watch: transaction=%s phase=end monotonic=%.6f result=%s\n",
-        $transaction, clock_gettime(CLOCK_MONOTONIC), $ok ? 'accepted' : 'rejected';
-    if (!$ok) {
-        $diagnostic =~ s/[\x00-\x1f\x7f]+/ /g;
-        warn "warning: output transaction rejected; next reconciliation will take a fresh snapshot: $diagnostic\n";
+    my $diagnostic = q{};
+    # A compositor can reject a complete topology transaction while a DRM
+    # connector is settling. Retry only the known transient errors, with a
+    # short total budget, and keep a real failure visible to the caller.
+    for my $attempt (1 .. 3) {
+        return 0 if !session_is_active();
+        my $transaction = $$ . '-' . ++$output_transaction_sequence;
+        my $started = clock_gettime(CLOCK_MONOTONIC);
+        # Journal only real mutations. These paired records identify our
+        # command window without pretending a Wayland acknowledgement is a
+        # DRM flip event.
+        printf STDERR "labwc-output-watch: transaction=%s attempt=%d phase=begin monotonic=%.6f command=%s\n",
+            $transaction, $attempt, $started, $command;
+        my ($ok, $attempt_diagnostic) = run_command_capture_stderr($wlr_randr, @args);
+        $diagnostic = $attempt_diagnostic;
+        printf STDERR "labwc-output-watch: transaction=%s attempt=%d phase=end monotonic=%.6f result=%s\n",
+            $transaction, $attempt, clock_gettime(CLOCK_MONOTONIC), $ok ? 'accepted' : 'rejected';
+        return 1 if $ok;
+        last if $attempt == 3 || !output_change_is_transient($attempt_diagnostic);
+        last if !transaction_targets_present($wlr_randr, @args);
+        usleep($attempt == 1 ? 100_000 : 250_000);
     }
-    return $ok ? 1 : 0;
+    $diagnostic =~ s/[\x00-\x1f\x7f]+/ /g;
+    warn "warning: output transaction rejected after bounded transient retries; next reconciliation will take a fresh snapshot: $diagnostic\n";
+    return 0;
+}
+
+sub transaction_targets_present {
+    my ($wlr_randr, @args) = @_;
+    return 1 if !grep { $_ eq '--output' } @args;
+    my $snapshot = capture_command($wlr_randr);
+    return 0 if $snapshot eq q{};
+    my %present = map { $_ => 1 } connected_outputs(split /\n/, $snapshot);
+    for (my $index = 0; $index < @args; $index++) {
+        next if $args[$index] ne '--output';
+        my $output_name = $args[++$index] // q{};
+        return 0 if !output_name_safe($output_name) || !$present{$output_name};
+    }
+    return 1;
 }
 
 sub selection_plan {

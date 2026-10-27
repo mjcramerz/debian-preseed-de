@@ -908,6 +908,10 @@ remove_target_managed_network_handoff() {
     done
   remove_target_asset "${FILE_MANAGED_NETWORK_SERVICE:-/etc/systemd/system/network.service}"
   remove_target_asset "${FILE_NETWORKMANAGER_MANAGED_UNMANAGED_CONF:-/etc/NetworkManager/conf.d/90-network-external.conf}"
+  remove_target_asset /etc/network/if-up.d/90-managed-wifi-preference
+  remove_target_asset /etc/network/if-post-down.d/90-managed-wifi-preference
+  remove_target_asset /etc/udev/rules.d/90-managed-wifi-preference.rules
+  remove_target_asset /etc/systemd/system/network-wifi-carrier@.service
   remove_target_asset "/etc/systemd/system/sysinit.target.wants/network.service"
   remove_target_asset "/etc/systemd/network/10-ethernet.link"
   remove_target_asset "/etc/systemd/network/11-wifi.link"
@@ -981,6 +985,22 @@ install_target_managed_network_handoff() {
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/ifup@.service.d/40-device-lifecycle.conf)" \
     /etc/systemd/system/ifup@.service.d/40-device-lifecycle.conf 0644
+  if network_link_types_has "$link_types" ethernet && network_link_types_has "$link_types" wifi; then
+    stage_target_asset \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET etc/network/if-up.d/90-managed-wifi-preference)" \
+      /etc/network/if-up.d/90-managed-wifi-preference 0755
+    stage_target_asset \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET etc/network/if-post-down.d/90-managed-wifi-preference)" \
+      /etc/network/if-post-down.d/90-managed-wifi-preference 0755
+    carrier_iface=${MANAGED_NETWORK_ETHERNET_IFACE:-eth0}
+    validate_network_iface_name MANAGED_NETWORK_ETHERNET_IFACE "$carrier_iface"
+    stage_target_asset \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/network-wifi-carrier@.service)" \
+      /etc/systemd/system/network-wifi-carrier@.service 0644
+    write_target_file /etc/udev/rules.d/90-managed-wifi-preference.rules 0644 <<EOF
+ACTION=="change", SUBSYSTEM=="net", KERNEL=="${carrier_iface}", TAG+="systemd", ENV{SYSTEMD_WANTS}+="network-wifi-carrier@%k.service"
+EOF
+  fi
   # Exercise the installed reader against the generated policy before enabling
   # its boot unit. Hardware is checked at boot after the udev renames apply.
   run_in_target "managed network policy validation" \

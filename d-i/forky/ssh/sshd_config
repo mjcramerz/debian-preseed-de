@@ -2,9 +2,9 @@
 # Template placeholders are rendered by the selected family late hook before install.
 
 Port __INSTALLER_SSH_PORT__
-AddressFamily any
-ListenAddress 0.0.0.0
-ListenAddress ::
+AddressFamily inet
+ListenAddress __INSTALLER_SSH_SERVER_LISTEN_ADDRESS_ETHERNET__
+__INSTALLER_SSH_SERVER_LISTEN_ADDRESS_WIFI_LINE__
 
 HostKey /etc/ssh/ssh_host_ed25519_key
 HostKeyAlgorithms ssh-ed25519
@@ -31,7 +31,7 @@ IgnoreRhosts yes
 UsePAM yes
 
 DenyUsers devops
-AllowUsers __INSTALLER_ACCOUNT_USERNAME__
+AllowUsers __INSTALLER_SSH_SERVER_USER_ALLOW__@__INSTALLER_SSH_SERVER_CIDR_ALLOW__
 
 PermitUserEnvironment no
 PermitTTY yes

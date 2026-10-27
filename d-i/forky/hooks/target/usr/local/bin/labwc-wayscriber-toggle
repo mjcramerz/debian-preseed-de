@@ -23,7 +23,7 @@ runtime_uid=${runtime_root#/run/user/}
 case "$runtime_uid" in
   ''|0*|*[!0-9]*) fatal "XDG_RUNTIME_DIR is not a private desktop runtime directory" ;;
 esac
-[ "$(/usr/bin/stat -Lc '%u %a %h' -- "$runtime_root" 2>/dev/null || true)" = "$runtime_uid 700 1" ] ||
+[ "$(/usr/bin/stat -Lc '%u %a' -- "$runtime_root" 2>/dev/null || true)" = "$runtime_uid 700" ] ||
   fatal "XDG_RUNTIME_DIR has unsafe ownership or mode"
 wayland_display=${WAYLAND_DISPLAY:-}
 case "$wayland_display" in

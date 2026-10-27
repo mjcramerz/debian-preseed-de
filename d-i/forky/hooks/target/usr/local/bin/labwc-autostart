@@ -149,11 +149,16 @@ wait_for_wayland_output() {
     return 0
   }
 
-  # Labwc owns initial output activation through core.autoEnableOutputs.  This
-  # passive wait improves ordering for clients but must never tear down a live
-  # compositor merely because DRM enumeration exceeded the bounded window.
-  "$output_waiter" --wait-for-current-output ||
+  # Labwc owns initial output activation through core.autoEnableOutputs. Wait
+  # for a client-visible current output before the first managed refresh so the
+  # watcher cannot race the compositor's startup modeset. A slow or absent
+  # output remains a best-effort warning; it must not tear down the session.
+  if ! "$output_waiter" --wait-for-current-output; then
     printf 'warning: Labwc has not exposed a current output yet; the persistent output watcher will continue convergence\n' >&2
+    return 0
+  fi
+  "$output_waiter" --refresh ||
+    printf 'warning: the initial managed output refresh was deferred; the persistent output watcher will retry after DRM events\n' >&2
 }
 
 start_session_target() {

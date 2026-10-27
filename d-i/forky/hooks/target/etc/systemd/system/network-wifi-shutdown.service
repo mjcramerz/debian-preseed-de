@@ -1,0 +1,28 @@
+[Unit]
+Description=Record managed Wi-Fi connection state before shutdown
+After=NetworkManager.service
+Before=shutdown.target
+Conflicts=shutdown.target
+ConditionPathExists=/etc/network/host.conf
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/true
+ExecStop=-/usr/local/libexec/network-wifi-configure --record-shutdown
+TimeoutStopSec=20s
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/run/lock /run/network-wifi /var/lib/network-wifi
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

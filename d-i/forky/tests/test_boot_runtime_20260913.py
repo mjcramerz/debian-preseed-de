@@ -1128,7 +1128,7 @@ MANAGED_NETWORK_IPV6_ENABLED=false
                     self.assertIn('gateway=192.168.50.1\n', native)
                     self.assertIn('gateway=2001:db8::1\n', native)
                     self.assertEqual(native.count('route-metric=200\n'), 2)
-                    self.assertIn('autoconnect=true\n', native)
+                    self.assertIn('autoconnect=false\n', native)
                     self.assertIn('permissions=\n', native)
                     self.assertIn('dns=' + ('192.168.50.1;' if mode == 'link' else '') + '\n', native)
                     self.assertIn('dns=' + ('2001:db8::53;' if mode == 'link' else '') + '\n', native)
@@ -1138,7 +1138,7 @@ MANAGED_NETWORK_IPV6_ENABLED=false
                     self.assertFalse((self.root / 'etc/NetworkManager/system-connections/wifi.nmconnection').exists())
                     for original, replacement in (('192.168.50.89/24', '192.168.50.162/24'),
                                                    ('2001:db8::89/64', '2001:db8::162/64'),
-                                                   ('autoconnect=true', 'autoconnect=false'),
+                                                   ('autoconnect=false', 'autoconnect=true'),
                                                    ('route-metric=200', 'route-metric=50')):
                         prepared.write_text(native.replace(original, replacement))
                         self.assertNotEqual(self.validate('--staged-only').returncode, 0)

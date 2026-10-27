@@ -481,7 +481,7 @@ sub _validate_wifi_profile {
     }
     my @expected = (
         ['connection.type', 'wifi'], ['connection.interface-name', $iface],
-        ['connection.autoconnect', 'true'], ['connection.permissions', q{}], ['wifi.mode', 'infrastructure'],
+        ['connection.permissions', q{}], ['wifi.mode', 'infrastructure'],
         ['wifi.mac-address', $config->{MANAGED_NETWORK_WIFI_MAC}],
         ['ipv4.method', 'manual'],
         ['ipv4.forwarding', '1'],
@@ -489,6 +489,15 @@ sub _validate_wifi_profile {
         ['ipv4.gateway', $config->{MANAGED_NETWORK_IPV4_GATEWAY}],
     );
     my $ipv6_enabled = lc($config->{MANAGED_NETWORK_IPV6_ENABLED}) eq 'true';
+    my $autoconnect = $values{'connection.autoconnect'} // 'true';
+    if ($self->staged_only()) {
+        $autoconnect eq 'false'
+            or die "$path must keep Wi-Fi autoconnect disabled until firstboot records shutdown state\n";
+    }
+    else {
+        $autoconnect =~ /\A(?:true|false)\z/
+            or die "$path has invalid connection.autoconnect\n";
+    }
     push @expected, ['ipv6.method', $ipv6_enabled ? 'manual' : 'disabled'];
     push @expected, ['ipv6.address1', $config->{MANAGED_NETWORK_WIFI_IPV6_CIDR}],
         ['ipv6.gateway', $config->{MANAGED_NETWORK_IPV6_GATEWAY}]
@@ -503,7 +512,7 @@ sub _validate_wifi_profile {
     }
     for my $field (@expected) {
         my ($key, $expected) = @{$field};
-        my $default = $key eq 'connection.autoconnect' ? 'true' : q{};
+        my $default = q{};
         ($values{$key} // $default) eq $expected
             or die "$path has incorrect $key\n";
     }

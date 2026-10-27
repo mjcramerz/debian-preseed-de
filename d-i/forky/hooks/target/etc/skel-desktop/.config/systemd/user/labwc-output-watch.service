@@ -16,10 +16,10 @@ Type=exec
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 EnvironmentFile=-/etc/labwc/desktop.conf
 ExecCondition=/usr/local/libexec/labwc-session-check session-ready
-# Labwc establishes an initial usable scanout.  This persistent owner then
-# converges the configured topology once and repeats the same operation after
-# settled DRM hotplug events.
-ExecStart=/usr/local/libexec/labwc-output-watch
+# Labwc establishes the initial scanout.  Session autostart performs the first
+# serialized refresh after a client-visible current output exists; this
+# persistent owner handles settled DRM hotplug events after that point.
+ExecStart=/usr/local/libexec/labwc-output-watch --skip-initial-refresh
 Restart=always
 RestartSec=2s
 TimeoutStopSec=10s

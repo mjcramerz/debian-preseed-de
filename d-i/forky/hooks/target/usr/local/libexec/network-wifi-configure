@@ -18,6 +18,8 @@ PREPARED = Path('/etc/network/wifi.nmconnection')
 PROFILE = Path('/etc/NetworkManager/system-connections/wifi.nmconnection')
 FIRSTBOOT_DONE = Path('/var/lib/network-wifi/firstboot.complete')
 PROFILE_UUID = '3f1b70be-cc3f-4e77-9e31-66f7a5e16994'
+SHUTDOWN_STATE = Path('/var/lib/network-wifi/shutdown-state')
+ETHERNET_SUPPRESSION_STATE = Path('/run/network-wifi/ethernet-suppressed')
 ENVIRONMENT = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C.UTF-8'}
 
 
@@ -91,8 +93,13 @@ def publish(path, text):
 
 
 def run(argv, check=True, timeout=35):
-    result = subprocess.run(argv, env=ENVIRONMENT, stdin=subprocess.DEVNULL,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
+    try:
+        result = subprocess.run(argv, env=ENVIRONMENT, stdin=subprocess.DEVNULL,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired):
+        if not check:
+            return 124
+        raise
     if check and result.returncode:
         raise ConfigurationError('Wi-Fi adapter command failed: ' + Path(argv[0]).name + ' (status ' + str(result.returncode) + ')')
     return result.returncode
@@ -129,7 +136,7 @@ def profile_path():
     return PROFILE if PROFILE.exists() or PROFILE.is_symlink() else PREPARED
 
 
-def validate_profile(policy, path=None, *, persistent=True):
+def validate_profile(policy, path=None, *, persistent=True, autoconnect=None):
     profile = keyfile(read_owned(path or profile_path()))
     expected = {('connection', 'uuid'): PROFILE_UUID,
                 ('connection', 'type'): 'wifi',
@@ -138,8 +145,12 @@ def validate_profile(policy, path=None, *, persistent=True):
                 ('ipv4', 'forwarding'): '1',
                 ('wifi', 'mac-address'): policy['MANAGED_NETWORK_WIFI_MAC']}
     if persistent:
-        expected[('connection', 'autoconnect')] = 'true'
+        expected[('connection', 'autoconnect')] = 'false'
         expected[('connection', 'permissions')] = ''
+    if autoconnect is not None:
+        if autoconnect not in {'true', 'false'}:
+            raise ConfigurationError('invalid managed Wi-Fi autoconnect state')
+        expected[('connection', 'autoconnect')] = autoconnect
     for family in (4, 6):
         group = 'ipv' + str(family)
         enabled = family == 4 or policy.get('MANAGED_NETWORK_IPV6_ENABLED') == 'true'
@@ -154,7 +165,7 @@ def validate_profile(policy, path=None, *, persistent=True):
             expected[(group, 'dns')] = ';'.join(dns) + ';' if policy['MANAGED_NETWORK_DNS_MODE'] == 'link' else ''
     for (group, name), value in expected.items():
         # NM may omit properties whose value equals its documented default.
-        default = 'true' if (group, name) == ('connection', 'autoconnect') else ('' if value == '' else None)
+        default = value if (group, name) == ('connection', 'autoconnect') else ('' if value == '' else None)
         if profile.get(group, name, fallback=default) != value:
             raise ConfigurationError('managed Wi-Fi profile has incorrect ' + group + '.' + name)
     return profile
@@ -174,7 +185,7 @@ def firstboot():
     policy = wifi_policy(policy['MANAGED_NETWORK_WIFI_IFACE'])
     validate_profile(policy, PREPARED)
     if PROFILE.exists() or PROFILE.is_symlink():
-        validate_profile(policy)
+        validate_profile(policy, persistent=False)
         outcome = 'preserved-existing-profile'
     elif not policy.get('MANAGED_NETWORK_WIFI_ESSID'):
         outcome = 'skipped-missing-ssid'
@@ -184,9 +195,36 @@ def firstboot():
         # radio preference. Do not reset that state or override rfkill at boot.
         publish_profile(policy)
         outcome = 'prepared-persistent-ssid'
+    if PROFILE.exists() or PROFILE.is_symlink():
+        autoconnect = 'true' if shutdown_wifi_was_connected() else 'false'
+        policy_update = run(['/usr/bin/nmcli', '--wait', '30', 'connection', 'modify', 'uuid', PROFILE_UUID,
+                             'connection.autoconnect', autoconnect, 'connection.permissions', ''], check=False)
+        policy_update_succeeded = policy_update == 0
+        ethernet = policy.get('MANAGED_NETWORK_ETHERNET_IFACE', '')
+        ethernet_suppression_requested = False
+        if (autoconnect == 'true' and 'ethernet' in policy.get('MANAGED_NETWORK_LINK_TYPES', '').split()
+                and re.fullmatch(r'[A-Za-z0-9_.-]{1,15}', ethernet)
+                and device_active(ethernet)):
+            # The dispatcher may have observed Ethernet before this service.
+            # Reuse the same marker so a later unplug restores the operator's
+            # previous Wi-Fi preference.
+            suppress_wifi_for_ethernet()
+            autoconnect = 'false'
+            ethernet_suppression_requested = True
+            outcome += '-ethernet-preference-requested'
+        if not policy_update_succeeded:
+            outcome += '-reconnect-deferred'
+        if ethernet_suppression_requested or not policy_update_succeeded:
+            # Ethernet preference is intentionally best-effort. The NM
+            # operation may fail while the device is changing state; preserve
+            # the validated profile and let a later dispatcher event retry.
+            validate_profile(policy, persistent=False)
+        else:
+            validate_profile(policy, autoconnect=autoconnect)
+            outcome += '-reconnect-enabled' if autoconnect == 'true' else '-reconnect-disabled'
     FIRSTBOOT_DONE.parent.mkdir(mode=0o700, exist_ok=True)
     publish(FIRSTBOOT_DONE, outcome + '\n')
-    print('Wi-Fi firstboot:', outcome, '; saved connections reconnect automatically.')
+    print('Wi-Fi firstboot:', outcome, '; reconnect follows the recorded shutdown state.')
 
 
 def configure(interface, ui_args=()):
@@ -194,7 +232,7 @@ def configure(interface, ui_args=()):
     validate_profile(policy, persistent=False)
     if profile_path() == PREPARED:
         # An explicit later request may prepare the saved profile after firstboot
-        # had no SSID. The saved profile uses NM's ordinary autoconnect policy.
+        # had no SSID. The manual path below keeps its autoconnect state off.
         publish_profile(policy)
     print('Wi-Fi uses', policy['MANAGED_NETWORK_WIFI_IPV4_CIDR'], 'and the Ethernet gateway and resolver policy.')
     print('In nmtui, edit Wi-Fi for a new SSID; keep Manual IP settings and save its password for automatic reconnect.')
@@ -217,22 +255,217 @@ def configure(interface, ui_args=()):
             if profile.get(section, name, fallback='0') != '0':
                 raise ConfigurationError('save the Wi-Fi password in nmtui for automatic reconnect before login')
     # Native nmtui stores secrets in this private system keyfile. Empty
-    # permissions permit activation before login; no secret enters argv.
+    # permissions permit activation before login; no secret enters argv. Keep
+    # the explicit connection a manual session choice while it is active. The
+    # shutdown recorder still enables the profile on the next boot when this
+    # connection was active at shutdown.
     run(['/usr/bin/nmcli', '--wait', '30', 'connection', 'modify', 'uuid', PROFILE_UUID,
-         'connection.autoconnect', 'yes', 'connection.permissions', ''])
-    validate_profile(policy)
+         'connection.autoconnect', 'no', 'connection.permissions', ''])
+    clear_ethernet_suppression()
+    validate_profile(policy, persistent=False, autoconnect='false')
+
+
+def command_output(argv, timeout=15):
+    try:
+        result = subprocess.run(argv, env=ENVIRONMENT, stdin=subprocess.DEVNULL,
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                text=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired):
+        return 124, ''
+    return result.returncode, result.stdout
+
+
+def shutdown_wifi_was_connected():
+    try:
+        state = read_owned(SHUTDOWN_STATE).strip()
+    except (FileNotFoundError, OSError, ConfigurationError, ValueError):
+        return False
+    return state == 'connected'
+
+
+def record_shutdown_state():
+    connected = False
+    try:
+        policy = parse_policy(read_owned(POLICY))
+        interface = policy.get('MANAGED_NETWORK_WIFI_IFACE', '')
+        if re.fullmatch(r'[A-Za-z0-9_.-]{1,15}', interface):
+            status, output = command_output(['/usr/bin/nmcli', '--get-values', 'GENERAL.STATE',
+                                             'device', 'show', interface])
+            connected = status == 0 and any(line.startswith('100 ') or line == '100'
+                                            for line in output.splitlines())
+    except (OSError, ValueError, KeyError, ConfigurationError):
+        # An unavailable adapter or policy must not make shutdown fail. The
+        # conservative state prevents a later boot from enabling reconnect.
+        connected = False
+    try:
+        SHUTDOWN_STATE.parent.mkdir(mode=0o700, exist_ok=True)
+        publish(SHUTDOWN_STATE, ('connected' if connected else 'disconnected') + '\n')
+    except (OSError, ValueError, ConfigurationError):
+        # The shutdown hook is advisory; keep the power transition best-effort.
+        return
+
+
+def connection_autoconnect():
+    status, output = command_output(['/usr/bin/nmcli', '--get-values', 'connection.autoconnect',
+                                     'connection', 'show', 'uuid', PROFILE_UUID])
+    if status != 0:
+        return None
+    value = output.strip()
+    return value if value in {'yes', 'no'} else None
+
+
+def device_active(interface):
+    if not re.fullmatch(r'[A-Za-z0-9_.-]{1,15}', interface) or interface in {'.', '..'}:
+        return False
+    status, output = command_output(['/usr/bin/nmcli', '--get-values', 'GENERAL.STATE',
+                                     'device', 'show', interface])
+    return status == 0 and any(line.startswith('100 ') or line == '100' for line in output.splitlines())
+
+
+def sysfs_value(interface, name):
+    if (not re.fullmatch(r'[A-Za-z0-9_.-]{1,15}', interface) or interface in {'.', '..'}
+            or name not in {'carrier'}):
+        return ''
+    path = Path('/sys/class/net') / interface / name
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+        with os.fdopen(descriptor, 'rb') as stream:
+            info = os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1:
+                return ''
+            data = stream.read(4097)
+        if len(data) > 4096:
+            return ''
+        return data.decode('ascii').strip()
+    except (OSError, UnicodeError):
+        return ''
+
+
+def carrier_state(interface):
+    value = sysfs_value(interface, 'carrier')
+    if value == '1':
+        return 'up'
+    if value == '0':
+        return 'down'
+    return None
+
+
+def connection_active():
+    interface = policy_wifi_interface()
+    return device_active(interface) if interface else False
+
+
+def policy_wifi_interface():
+    try:
+        policy = parse_policy(read_owned(POLICY))
+    except (FileNotFoundError, ConfigurationError):
+        return ''
+    interface = policy.get('MANAGED_NETWORK_WIFI_IFACE', '')
+    return interface if re.fullmatch(r'[A-Za-z0-9_.-]{1,15}', interface) else ''
+
+
+def suppress_wifi_for_ethernet():
+    autoconnect = connection_autoconnect()
+    # A profile with autoconnect disabled may be active because the operator
+    # explicitly connected it. Leave that manual session alone even when
+    # Ethernet appears; route metrics still prefer Ethernet for new traffic.
+    if autoconnect != 'yes':
+        return
+    active = connection_active()
+    result = run(['/usr/bin/nmcli', '--wait', '30', 'connection', 'modify', 'uuid', PROFILE_UUID,
+                  'connection.autoconnect', 'no'], check=False)
+    if result != 0:
+        return
+    try:
+        ETHERNET_SUPPRESSION_STATE.parent.mkdir(mode=0o700, exist_ok=True)
+        publish(ETHERNET_SUPPRESSION_STATE, 'yes\n')
+    except (OSError, ConfigurationError):
+        # The preference change succeeded; failure to retain the retry
+        # marker must not turn an Ethernet transition into a fatal error.
+        pass
+    if active:
+        run(['/usr/bin/nmcli', '--wait', '30', 'connection', 'down', 'uuid', PROFILE_UUID], check=False)
+
+
+def clear_ethernet_suppression():
+    try:
+        info = ETHERNET_SUPPRESSION_STATE.lstat()
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1
+                or stat.S_IMODE(info.st_mode) != 0o600):
+            return
+        ETHERNET_SUPPRESSION_STATE.unlink()
+    except (FileNotFoundError, OSError, ConfigurationError, ValueError):
+        pass
+
+
+def restore_wifi_after_ethernet():
+    try:
+        suppressed = read_owned(ETHERNET_SUPPRESSION_STATE).strip() == 'yes'
+    except (FileNotFoundError, OSError, ConfigurationError, ValueError):
+        suppressed = False
+    if not suppressed:
+        return
+    result = run(['/usr/bin/nmcli', '--wait', '30', 'connection', 'modify', 'uuid', PROFILE_UUID,
+                  'connection.autoconnect', 'yes'], check=False)
+    if result != 0:
+        return
+    result = run(['/usr/bin/nmcli', '--wait', '30', 'connection', 'up', 'uuid', PROFILE_UUID], check=False)
+    if result == 0:
+        try:
+            info = ETHERNET_SUPPRESSION_STATE.lstat()
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1
+                    or stat.S_IMODE(info.st_mode) != 0o600):
+                raise ConfigurationError('unsafe Ethernet suppression state')
+            ETHERNET_SUPPRESSION_STATE.unlink()
+        except (FileNotFoundError, OSError, ConfigurationError, ValueError):
+            pass
+
+
+def dispatcher_event(interface, event):
+    if (not re.fullmatch(r'[A-Za-z0-9_.-]{1,15}', interface)
+            or event not in {'up', 'down'}):
+        return
+    try:
+        policy = parse_policy(read_owned(POLICY))
+    except (OSError, ValueError, KeyError, ConfigurationError):
+        return
+    ethernet = policy.get('MANAGED_NETWORK_ETHERNET_IFACE', '')
+    wifi = policy.get('MANAGED_NETWORK_WIFI_IFACE', '')
+    if 'wifi' not in policy.get('MANAGED_NETWORK_LINK_TYPES', '').split():
+        return
+    if (not re.fullmatch(r'[A-Za-z0-9_.-]{1,15}', wifi) or wifi in {'.', '..'}
+            or (ethernet and (not re.fullmatch(r'[A-Za-z0-9_.-]{1,15}', ethernet)
+                              or ethernet in {'.', '..'}))):
+        return
+    if interface == ethernet and event == 'up':
+        suppress_wifi_for_ethernet()
+    elif interface == ethernet and event == 'down':
+        restore_wifi_after_ethernet()
+
+
+def carrier_event(interface):
+    event = carrier_state(interface)
+    if event in {'up', 'down'}:
+        dispatcher_event(interface, event)
 
 
 def main():
     boot = sys.argv[1:] == ['--firstboot']
+    record = sys.argv[1:] == ['--record-shutdown']
+    dispatcher = sys.argv[1:2] == ['--dispatcher']
+    carrier = sys.argv[1:2] == ['--carrier']
     native = sys.argv[1:2] == ['--nmtui']
+    if dispatcher and len(sys.argv) != 4:
+        raise ConfigurationError('NetworkManager dispatcher requires an interface and event')
+    if carrier and len(sys.argv) != 3:
+        raise ConfigurationError('carrier reconciliation requires an interface')
     if native:
         if (os.geteuid() != 0 or not sys.stdin.isatty() or len(sys.argv) > 4
                 or any(len(arg) > 128 or any(ord(c) < 32 or ord(c) == 127 for c in arg) for arg in sys.argv[2:])):
             raise ConfigurationError('nmtui requires an interactive authorized terminal')
         if sys.argv[2:] and sys.argv[2] not in {'edit', 'connect', 'hostname', '--help', '--version'}:
             raise ConfigurationError('unsupported nmtui command')
-    if not boot and not native and (os.geteuid() != 0 or not re.fullmatch(r'[1-9][0-9]*', os.environ.get('PKEXEC_UID', ''))
+    if not boot and not record and not dispatcher and not carrier and not native and (os.geteuid() != 0 or not re.fullmatch(r'[1-9][0-9]*', os.environ.get('PKEXEC_UID', ''))
             or len(sys.argv) != 2 or not re.fullmatch(r'[A-Za-z0-9_.-]{1,15}', sys.argv[1])
             or not sys.stdin.isatty()):
         raise ConfigurationError('use the Wi-Fi connection action from the desktop network menu')
@@ -244,8 +477,22 @@ def main():
         info = os.fstat(lock.fileno())
         if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1 or info.st_mode & 0o077:
             raise ConfigurationError('unsafe Wi-Fi configuration lock')
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        if boot:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            # Dispatcher and carrier hooks are best-effort. An interactive
+            # nmtui operation owns this lock for its duration; do not turn the
+            # resulting race into a fatal link transition failure.
+            if dispatcher:
+                return
+            raise
+        if dispatcher:
+            dispatcher_event(sys.argv[2], sys.argv[3])
+        elif carrier:
+            carrier_event(sys.argv[2])
+        elif record:
+            record_shutdown_state()
+        elif boot:
             firstboot()
         elif native:
             policy = parse_policy(read_owned(POLICY))
@@ -259,6 +506,10 @@ if __name__ == '__main__':
         main()
     except (OSError, ValueError, KeyError, RuntimeError, configparser.Error,
             subprocess.TimeoutExpired, EOFError, KeyboardInterrupt) as error:
+        if sys.argv[1:2] in (['--dispatcher'], ['--carrier']):
+            # Dispatcher and carrier hooks are advisory. A transient NM, lock,
+            # or filesystem failure must not block the link transition.
+            raise SystemExit(0)
         # Never print configuration, credentials, or subprocess output.
         if isinstance(error, ConfigurationError):
             print('Wi-Fi configuration did not complete: ' + str(error), file=sys.stderr)

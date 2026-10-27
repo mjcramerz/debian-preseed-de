@@ -146,8 +146,12 @@ class MenuContractTests(unittest.TestCase):
 
     def test_secondary_clicks_preserve_previous_primary_actions(self):
         for bar in bars():
-            self.assertTrue(bar['custom/tomat']['on-click-right'].endswith(' -- /usr/local/libexec/labwc-tomat toggle'))
-            self.assertTrue(bar['pulseaudio']['on-click-right'].endswith(' -- pavucontrol'))
+            tomat = shlex.split(bar['custom/tomat']['on-click-right'])
+            self.assertEqual(tomat[tomat.index('--') + 1:], ['/usr/local/libexec/labwc-tomat', 'toggle'])
+            self.assertTrue(any(option.startswith('--unit=labwc-tomat-toggle') for option in tomat))
+            audio = shlex.split(bar['pulseaudio']['on-click-right'])
+            self.assertEqual(audio[audio.index('--') + 1:], ['pavucontrol'])
+            self.assertTrue(any(option.startswith('--unit=labwc-audio-menu') for option in audio))
 
     def test_touchpad_keeps_a_physical_right_button_and_two_finger_right_tap(self):
         tree = ET.fromstring(payload_read_text(SKEL / 'labwc/rc.xml'))

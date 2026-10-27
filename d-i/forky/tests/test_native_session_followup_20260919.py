@@ -56,6 +56,13 @@ for my $v (qw(true yes 1 on)) { test_defaults(LABWC_ENABLE_KANSHI => $v); refres
 test_defaults(LABWC_ENABLE_KANSHI => 'garbage'); eval { kanshi_is_configured() }; die 'accepted bad policy' if !$@;
 ''')
 
+    def test_startup_refresh_waits_for_a_current_wayland_output(self):
+        watcher = render_theme_defaults(payload_read_text(
+            TARGET / 'etc/skel-desktop/.config/systemd/user/labwc-output-watch.service'))
+        autostart = render_theme_defaults(payload_read_text(TARGET / 'usr/local/bin/labwc-autostart'))
+        self.assertIn('ExecStart=/usr/local/libexec/labwc-output-watch --skip-initial-refresh', watcher)
+        self.assertLess(autostart.index('--wait-for-current-output'), autostart.index('--refresh'))
+
     def test_default_disabled_policy_batches_fallback_and_skips_noop(self):
         self.perl(r'''
 *session_is_active = sub { 1 }; *find_command = sub { '/mock/wlr-randr' };

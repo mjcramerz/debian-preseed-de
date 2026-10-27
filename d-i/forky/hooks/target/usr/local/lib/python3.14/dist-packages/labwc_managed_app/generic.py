@@ -393,7 +393,15 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         environment[CONFIGURED_ENVIRONMENT_NAMES] = " ".join(sorted(
             name for name in environment if name != CONFIGURED_ENVIRONMENT_NAMES))
     label = re.sub(r"[^A-Za-z0-9_-]", "-", Path(application[0]).name)[:48] or "app"
-    unit = f"labwc-{kind}-{label}-{uuid.uuid4().hex}.service"
+    # Desktop Appearance is an administrative workflow rather than a normal
+    # application. Give it a short, stable namespace while preserving the
+    # family prefixes used by hardware-tuning and lifecycle drop-ins for all
+    # ordinary managed applications.
+    is_appearance = kind == "wayland" and arguments[0] == "/usr/local/bin/labwc-desktop-appearance"
+    if is_appearance:
+        unit = f"labwc-desktop-appearance-{uuid.uuid4().hex}.service"
+    else:
+        unit = f"labwc-{kind}-{label}-{uuid.uuid4().hex}.service"
     # These canonical administration launchers need host UID semantics.
     # User-manager filesystem/IPC namespaces implicitly enable PrivateUsers:
     # pkexec cannot become host root and Mullvad sees its root-owned daemon
@@ -482,6 +490,10 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         *(["--property=SuccessExitStatus=1"] if is_foot and (
             len(arguments) == 1 or arguments == ["/usr/bin/foot", "-e", "btop"]
         ) else []),
+        # Fuzzel uses status 3 for an intentional close of the appearance
+        # workflow. Keep that user dismissal out of the failed-unit state while
+        # preserving real nonzero failures.
+        *(["--property=SuccessExitStatus=3"] if is_appearance else []),
         # Preserve the main process status. Record the actual failure after the
         # transient unit exits, including exec/namespace and Foot/parser errors.
         *(["--property=ExecStopPost=/usr/local/libexec/labwc-terminal-result"] if is_foot else []),
