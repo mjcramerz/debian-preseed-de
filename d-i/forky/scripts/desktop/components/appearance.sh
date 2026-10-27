@@ -211,9 +211,20 @@ for relative, digest in packages["plugins"].items():
                         relative) is not None, "invalid Qt plugin path")
     require(hashlib.sha256(read(Path("/usr") / relative, (0o644, 0o755), 16 * 1024**2)).hexdigest() == digest,
             "installed Qt plugin hash differs")
-defaults = json.loads(read(registry / "defaults.json", 0o644, 8 * 1024**2))
-require(defaults.get("schema") in (1, 2) and isinstance(defaults.get("files"), dict),
-        "missing captured installation defaults")
+try:
+    defaults_bytes = read(registry / "defaults.json", 0o644, 8 * 1024**2)
+except FileNotFoundError:
+    require(False, "missing captured installation defaults")
+try:
+    defaults = json.loads(defaults_bytes)
+except (UnicodeDecodeError, json.JSONDecodeError):
+    require(False, "captured installation defaults are not valid UTF-8 JSON")
+require(isinstance(defaults, dict), "captured installation defaults must be an object")
+# defaults.main() captures schema 3, including icon and pointer reset selections.
+require(type(defaults.get("schema")) is int and defaults.get("schema") == 3,
+        "unsupported captured installation defaults schema (expected 3)")
+require(isinstance(defaults.get("files"), dict),
+        "captured installation defaults have no files mapping")
 session_environment = read(Path("/etc/skel-desktop/.config/labwc/environment.d/10-wayland.env"),
                            0o644, 65536).decode("utf-8").splitlines()
 require(session_environment.count("QT_QPA_PLATFORMTHEME=qt6ct") == 1,

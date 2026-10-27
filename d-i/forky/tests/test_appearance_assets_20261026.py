@@ -45,6 +45,35 @@ class AppearanceAssetFixtures(unittest.TestCase):
         self.assertIn("'icon_theme'", engine)
         self.assertIn("'pointer_theme'", engine)
 
+    def test_captured_defaults_schema_matches_runtime_and_installer_consumers(self):
+        source = (self.root / 'hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/defaults.py').read_text(encoding='utf-8')
+        runtime = ast.parse(source)
+        captured_schemas = [ast.literal_eval(value)
+                            for node in ast.walk(runtime) if isinstance(node, ast.Dict)
+                            for key, value in zip(node.keys, node.values)
+                            if isinstance(key, ast.Constant) and key.value == 'schema']
+        self.assertEqual(len(captured_schemas), 1)
+
+        appearance = (self.root / 'scripts/desktop/components/appearance.sh').read_text(encoding='utf-8')
+        inspection = appearance.split("/usr/bin/python3 -I -S -B -c '\n", 1)[1].rsplit("\n'\n", 1)[0]
+        installer = ast.parse(inspection)
+
+        def schemas(tree, variable, operator):
+            return [ast.literal_eval(node.comparators[0])
+                    for node in ast.walk(tree)
+                    if isinstance(node, ast.Compare) and len(node.ops) == 1
+                    and isinstance(node.ops[0], operator)
+                    and isinstance(node.left, ast.Call)
+                    and isinstance(node.left.func, ast.Attribute)
+                    and isinstance(node.left.func.value, ast.Name)
+                    and node.left.func.value.id == variable
+                    and node.left.func.attr == 'get' and len(node.left.args) == 1
+                    and isinstance(node.left.args[0], ast.Constant)
+                    and node.left.args[0].value == 'schema']
+
+        self.assertEqual(schemas(runtime, 'value', ast.NotEq), captured_schemas)
+        self.assertEqual(schemas(installer, 'defaults', ast.Eq), captured_schemas)
+
 
 if __name__ == '__main__':
     raise SystemExit(unittest.main())
