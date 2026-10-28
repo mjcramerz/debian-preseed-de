@@ -176,7 +176,7 @@ f5f5585198fa6928b34b2dae57655b43911c5619fb82993d2f0a88827f2678fb  hooks/target/e
 f4ca1013031c0a890345a7f7c806604ba45bfd8f0ab1a2f3a65f4d0de1c5de0e  hooks/target/etc/apparmor.d/gitbuild-worker
 eb7d68d1d4ca4aca9fecffffdb2bf22c00ad0c82a0516c2c6227e11bcc45afe9  hooks/target/etc/apparmor.d/hardware-tuning
 20055445d0f821ad1370c711261966146fa59b5f58484137768200a210664fbe  hooks/target/etc/apparmor.d/labwc-appearance
-5db87034288faeb297f0343121b5b479f76c7b535f03ff071bc2237ba65ea28e  hooks/target/etc/apparmor.d/labwc-session
+83fb621721b919e721eab91bdc5e7b971e7850de1fedf814aeb85bf01f622e52  hooks/target/etc/apparmor.d/labwc-session
 1fa91215ff2760571152300217b5ddc73751b49041cd0e83a23e2ec9083082d7  hooks/target/etc/apparmor.d/local/abstractions/codex-user-media.tmpl
 390c6c816315f1e59f27f86b4f34c7e645204c399af9789a98498c473aecc9a0  hooks/target/etc/apparmor.d/local/abstractions/desktop-user-media.tmpl
 43564f673f1428ce44b8fb34931a77e64003789c746b49b391cc5248ae7c6c74  hooks/target/etc/apparmor.d/local/chromium
@@ -896,7 +896,7 @@ cffe2a3ef211d50e77924f9765e021ac9c22e75179984e4e4f2f4a1395b90a07  hooks/target/e
 cffe2a3ef211d50e77924f9765e021ac9c22e75179984e4e4f2f4a1395b90a07  hooks/target/etc/systemd/system/var-lib-systemd-coredump.mount.d/override.conf
 fbdd9e0ac2914fc812328684fd51aeb27c5784febd409651c55ae2f8ae0e2ff1  hooks/target/etc/systemd/system/var-log.mount.d/override.conf
 cffe2a3ef211d50e77924f9765e021ac9c22e75179984e4e4f2f4a1395b90a07  hooks/target/etc/systemd/system/var-spool-rsyslog.mount.d/override.conf
-f47b075d2ee786d76d92ea4f35eee41c4bde98afa20e994af275e17d01f1b7f4  hooks/target/etc/systemd/system/wifi-firstboot.service
+4bc43987b325ef5023c42346355f4fe5bc46854fe95d278e1905f9cf551b8e6a  hooks/target/etc/systemd/system/wifi-firstboot.service
 519988890ecbb8e09c82a0a1a08fd8cc1cfba0502214f8f29a591b807670aa59  hooks/target/etc/systemd/system/wpa_supplicant.service.d/override.conf
 388271d48a878e8974a1f2894b597945f2e76d05d23387eea0dbf218b8a4fdbe  hooks/target/etc/systemd/system/xfs_healer_start.service.d/20-refresh-unit-cache.conf
 cdfa0c0b361d17312e55386dd62264c1c5de41ddec4a6c91ef03595d69456124  hooks/target/etc/systemd/system/zram-cold-tier.timer.tmpl
@@ -1115,7 +1115,7 @@ f33bd4ac8422cd0e9cf077accd4822a0de227953222004f76b75d26c67efffd4  hooks/target/u
 0400d9b98f0fb917d05ddcd3cf8d40a06609b6b236b38fac622207e91948be79  hooks/target/usr/local/bin/labwc-wallpaper-save
 05007a4c50c29be417608deb1ff79298c985c8953639bf4ddf9262971dd23151  hooks/target/usr/local/bin/labwc-wayland-app
 b7240804fddd1694e8ab49dfa23aa2dafd61863681a5b1493bc397491260182c  hooks/target/usr/local/bin/labwc-wayland-compat-app
-f5b12dd7636d49913f884ad86eb0153ecb4d92ec4634704a0fe2cbcfde1c18b7  hooks/target/usr/local/bin/labwc-wayscriber-toggle
+4361aba47dde29a9bbdd6fdcfebd8349d1c194ee57356a0355472eda8856e3e8  hooks/target/usr/local/bin/labwc-wayscriber-toggle
 a706ac754842dc4cc62356eb62e235e48fe56d4ef8b13d25fe13eff8a4de186d  hooks/target/usr/local/bin/labwc-window-switcher
 e76312e671db2678ec46a9a444bc8742f0b2fbf6851d2d78ececae0d0f159ddd  hooks/target/usr/local/bin/labwc-wlsunset
 de094054c7dfbe8d2f839796569277b696ababb27f79919c693212691a626ff6  hooks/target/usr/local/bin/mullvad-vpn
@@ -1492,7 +1492,7 @@ bec8d8486dbb1afdd385ad205c7df3eb16fa88a2474bb4ef98d8985b2f778e62  hooks/target/u
 df2886d2fe34871786ac481c30dd6c7e182c999994a0b09fa3e34f7efecfd4e1  hooks/target/usr/local/libexec/network-run
 02a7559b0d02acfcb865df4c54a34277ee45f0704837d41429c5c26b201a8992  hooks/target/usr/local/libexec/network-sharing-identity
 777305a672d74a7b31be4719784a9083b47ba363add621fe68ec90df81dc51be  hooks/target/usr/local/libexec/network-sharing-report
-f4ab33cb70b5cf2b78195d959822f7a4d3d06e8a5b5584bc8cc0ed5facf14f83  hooks/target/usr/local/libexec/network-wifi-configure
+1df4ea616cb68f795bb074555b66431f2ad0e55b0346bbb5f92ddc15222d1647  hooks/target/usr/local/libexec/network-wifi-configure
 d406256f6b97a4993c504562920236cb388ee730dd8fcea6e610416a4a344ee3  hooks/target/usr/local/libexec/nvidia-char-links
 0bd1d0b85152eb952eb7ed92bfc9cef5e2678b0dd6df7e0df62fd62c51974538  hooks/target/usr/local/libexec/nvidia-vram-check
 c192bdeab0d0ebca3e7ac910365e7cd157e03ad35e7a4a73b8901652feb44235  hooks/target/usr/local/libexec/obs-publishing

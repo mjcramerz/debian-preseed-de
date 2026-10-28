@@ -54,6 +54,11 @@ profile labwc-compositor /usr/bin/labwc flags=(attach_disconnected, mediate_dele
   owner /tmp/.X[0-9]*-lock rwk,
   owner /run/user/[0-9]*/ rw,
   owner /run/user/[0-9]*/{wayland-*,bus,labwc*} rwkl,
+  # Hotkeys submit transient services directly to the user's manager.
+  /run/ r,
+  /run/user/ r,
+  /run/systemd/system/ r,
+  owner /run/user/[0-9]*/systemd/private rw,
   owner /run/user/[0-9]*/labwc-greeter.*/** rwkl,
   owner @{HOME}/ r,
   owner @{HOME}/.config/labwc/ r,
@@ -76,6 +81,9 @@ profile labwc-compositor /usr/bin/labwc flags=(attach_disconnected, mediate_dele
   # Keep compositor confinement until its final executable's normal transition.
   /usr/bin/env rix,
   /usr/bin/{false,systemctl,dbus-update-activation-environment} rix,
+  # This controller must inherit confinement and the session environment.
+  # The exact rule takes precedence over the generic application transition.
+  /usr/bin/systemd-run rix,
   /usr/local/{bin,sbin,libexec}/** rPx,
   /usr/bin/* rPx,
   # Lifecycle signals are delivered by the user manager/session controller.

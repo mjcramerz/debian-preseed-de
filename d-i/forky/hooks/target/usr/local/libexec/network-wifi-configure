@@ -12,6 +12,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 
 POLICY = Path('/etc/network/host.conf')
 PREPARED = Path('/etc/network/wifi.nmconnection')
@@ -21,6 +22,7 @@ PROFILE_UUID = '3f1b70be-cc3f-4e77-9e31-66f7a5e16994'
 SHUTDOWN_STATE = Path('/var/lib/network-wifi/shutdown-state')
 ETHERNET_SUPPRESSION_STATE = Path('/run/network-wifi/ethernet-suppressed')
 ENVIRONMENT = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C.UTF-8'}
+LOCK_WAIT_TIMEOUT = 45.0
 
 
 class ConfigurationError(ValueError):
@@ -467,6 +469,20 @@ def carrier_event(interface):
         dispatcher_event(interface, event)
 
 
+def acquire_lock(lock, *, wait: bool):
+    """Take the shared Wi-Fi lock, waiting only for boot reconciliation."""
+    deadline = time.monotonic() + LOCK_WAIT_TIMEOUT if wait else time.monotonic()
+    while True:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return
+        except BlockingIOError:
+            remaining = deadline - time.monotonic()
+            if not wait or remaining <= 0:
+                raise
+            time.sleep(min(0.1, remaining))
+
+
 def main():
     boot = sys.argv[1:] == ['--firstboot']
     record = sys.argv[1:] == ['--record-shutdown']
@@ -496,14 +512,16 @@ def main():
         if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1 or info.st_mode & 0o077:
             raise ConfigurationError('unsafe Wi-Fi configuration lock')
         try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            # Dispatcher and carrier hooks are best-effort. An interactive
-            # nmtui operation owns this lock for its duration; do not turn the
-            # resulting race into a fatal link transition failure.
-            if dispatcher:
+            # Boot reconciliation waits for a concurrent dispatcher or carrier
+            # transition. Link hooks remain advisory and return immediately;
+            # the interactive nmtui path still reports a busy lock.
+            acquire_lock(lock, wait=boot)
+        except BlockingIOError as error:
+            if dispatcher or carrier:
                 return
-            raise
+            if boot:
+                raise ConfigurationError('Wi-Fi reconciliation lock remained busy for 45 seconds; another network operation is still in progress') from error
+            raise ConfigurationError('Wi-Fi configuration is already in progress; retry after the current operation finishes') from error
         if dispatcher:
             dispatcher_event(sys.argv[2], sys.argv[3])
         elif carrier:

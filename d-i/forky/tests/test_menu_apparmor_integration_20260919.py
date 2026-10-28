@@ -108,7 +108,7 @@ class PickerFailureTests(unittest.TestCase):
         for name in PYTHON_MENUS:
             source = payload_read_text(BIN / name)
             self.assertTrue(source.startswith('#!/usr/bin/python3 -IB'), name)
-            self.assertIn('subprocess.run(', source, name)
+            self.assertIn('subprocess.Popen(' if name == 'labwc-wayscriber-toggle' else 'subprocess.run(', source, name)
             self.assertIn('timeout=', source, name)
             self.assertNotIn('shell=True', source, name)
             if name != 'labwc-wayscriber-toggle':

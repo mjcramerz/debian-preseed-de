@@ -10,7 +10,9 @@ StartLimitBurst=2
 [Service]
 Type=oneshot
 ExecStart=/usr/local/libexec/network-wifi-configure --firstboot
-TimeoutStartSec=120s
+# Allow the 45s lock wait plus at most 158s of bounded NM calls, including
+# Ethernet preference reconciliation. The cgroup deadline covers the whole run.
+TimeoutStartSec=240s
 TimeoutStopSec=10s
 KillMode=control-group
 Restart=on-failure

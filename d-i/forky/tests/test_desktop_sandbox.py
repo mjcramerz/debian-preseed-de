@@ -1355,6 +1355,8 @@ desktop_normalize_background_directories
         compositor = profile_block(policy, 'labwc-compositor')
         for rule in (
             '/usr/local/share/** r,',
+            '/usr/bin/systemd-run rix,',
+            'owner /run/user/[0-9]*/systemd/private rw,',
             'owner /proc/[0-9]*/uid_map r,',
             'owner /tmp/.X[0-9]*-lock rwk,',
             'owner /run/user/[0-9]*/labwc-greeter.*/** rwkl,',

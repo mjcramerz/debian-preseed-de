@@ -1,7 +1,7 @@
 """Unexecuted Python Fuzzel, Wi-Fi and Wayscriber regression fixtures.
 
-Selected Python functions use local mocks. Shell orchestration uses only private
-stub helpers and an unconnected fixture socket, with an explicit environment.
+Selected Python functions use local mocks. Filesystem metadata, clocks, locking,
+processes and session state for the changed contracts are mocked completely.
 No host manager, desktop or installed management helper is used. Permanent
 repository policy keeps this file unexecuted.
 """
@@ -13,12 +13,10 @@ _isolation_sys.path.pop(0)
 _require_test_isolation()
 
 import ast
-import json
 from pathlib import Path
 import re
-import socket
+import stat
 import subprocess
-import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -226,101 +224,176 @@ class WifiSuppressionFixtures(unittest.TestCase):
 class WayscriberDispatchFixtures(unittest.TestCase):
     """Mock every helper; never contact a real user manager or native daemon."""
 
-    def invoke(self, *, start=0, ready=0, toggle=0):
-        with tempfile.TemporaryDirectory(prefix='wayscriber-dispatch-') as temporary:
-            root = Path(temporary)
-            runtime = root / 'runtime'
-            runtime.mkdir(mode=0o700)
-            # This is an unconnected socket wholly inside the owned fixture.
-            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as display:
-                display.bind(str(runtime / 'wayland-fixture'))
-                program = '''#!/usr/bin/python3 -IB
-import json
-import os
-from pathlib import Path
-import subprocess
-import sys
-root = Path(os.environ['FIXTURE_ROOT']).resolve(strict=True)
-name = Path(sys.argv[0]).name
-args = sys.argv[1:]
-with (root / 'calls').open('a', encoding='utf-8') as stream:
-    stream.write(json.dumps([name, *args]) + '\\n')
-if name == 'id':
-    assert args == ['-u']
-    print('1001')
-elif name == 'stat':
-    assert args[:1] == ['-c'] and args[2] == '--'
-    if args[1] == '%u %a':
-        assert args[3] == str(root / 'runtime')
-        print('1001 700')
-    else:
-        assert args[1] == '%u %h'
-        assert args[3] == str(root / 'runtime/wayland-fixture')
-        print('1001 1')
-elif name == 'timeout':
-    assert args[:2] == ['--signal=TERM', '--kill-after=2s']
-    assert args[2] in {'5s', '12s'}
-    command = args[3:]
-    assert command[0] in {str(root / 'systemctl'), str(root / 'wayscriber')}
-    sys.exit(subprocess.run(command, check=False, timeout=1).returncode)
-elif name == 'systemctl':
-    assert args == ['--user', 'start', 'wayscriber.service']
-    if int(os.environ['FIXTURE_START']) == 0 and int(os.environ['FIXTURE_READY']) == 0:
-        (root / 'runtime/wayscriber').mkdir()
-        (root / 'runtime/wayscriber/wayscriber.pid').write_text('1001\n')
-    sys.exit(int(os.environ['FIXTURE_START']))
-elif name == 'wayscriber':
-    assert args == ['--daemon-toggle']
-    sys.exit(int(os.environ['FIXTURE_TOGGLE']))
-elif name == 'sleep':
-    assert args == ['0.1']
-    sys.exit(0)
-else:
-    raise RuntimeError('unexpected fixture command')
-'''
-                source = WAYSCRIBER.read_text()
-                self.assertEqual(source.count('runtime_root="/run/user/$runtime_uid"'), 1)
-                source = source.replace('runtime_root="/run/user/$runtime_uid"',
-                                        'runtime_root="' + str(runtime) + '"')
-                for name in ('id', 'stat', 'timeout', 'systemctl', 'wayscriber', 'sleep'):
-                    path = root / name
-                    path.write_text(program)
-                    path.chmod(0o700)
-                    source = source.replace('/usr/bin/' + name, str(path))
-                script = root / 'toggle.sh'
-                script.write_text(source)
-                env = {'PATH': '/usr/bin:/bin', 'HOME': str(root), 'LC_ALL': 'C',
-                       'LABWC_SESSION_OWNER': 'desktop', 'XDG_SESSION_TYPE': 'wayland',
-                       'XDG_RUNTIME_DIR': str(runtime), 'WAYLAND_DISPLAY': 'wayland-fixture',
-                       'FIXTURE_ROOT': str(root), 'FIXTURE_START': str(start),
-                       'FIXTURE_READY': str(ready), 'FIXTURE_TOGGLE': str(toggle)}
-                result = subprocess.run(['/bin/sh', str(script)], env=env, stdin=subprocess.DEVNULL,
-                                        capture_output=True, text=True, timeout=3)
-                calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
-                return result, calls
+    def helper(self, *, start=0, ready=True, toggle=0):
+        namespace = {
+            'Path': Path, 'RUNTIME_BASE': Path('/run/user'),
+            'os': SimpleNamespace(environ={
+                'LABWC_SESSION_OWNER': 'desktop', 'XDG_SESSION_TYPE': 'wayland',
+                'XDG_RUNTIME_DIR': '/run/user/1001', 'WAYLAND_DISPLAY': 'wayland-fixture',
+            }, getuid=lambda: 1001, access=mock.Mock(return_value=True), X_OK=1),
+            'WAYLAND_NAME': re.compile(r'^[A-Za-z0-9_.-]+$'),
+            'runtime_identity': mock.Mock(return_value=True),
+            'socket_identity': mock.Mock(return_value=True),
+            'SYSTEMCTL': '/usr/bin/systemctl', 'SERVICE': 'wayscriber.service',
+            'WAYSCRIBER': '/usr/bin/wayscriber', 'START_TIMEOUT': 5.0, 'REQUEST_TIMEOUT': 10.0,
+            'run_bounded': mock.Mock(side_effect=[start, toggle]),
+            'wait_for_readiness': mock.Mock(return_value=ready),
+            'fail': mock.Mock(return_value=1), 'sys': SimpleNamespace(stderr=None),
+        }
+        return selected_functions(WAYSCRIBER, {'main'}, namespace)
+
+    def test_real_directory_link_counts_are_accepted_without_weakening_identity(self):
+        helper = selected_functions(WAYSCRIBER, {'runtime_identity'}, {
+            'Path': Path, 'RUNTIME_BASE': Path('/run/user'), 'stat': stat,
+        })
+        runtime = Path('/run/user/1001')
+        for links in (2, 8, 32):
+            metadata = SimpleNamespace(st_mode=stat.S_IFDIR | 0o700, st_uid=1001, st_nlink=links)
+            with self.subTest(links=links), mock.patch.object(Path, 'is_symlink', return_value=False), \
+                    mock.patch.object(Path, 'stat', return_value=metadata):
+                self.assertTrue(helper.runtime_identity(1001, runtime))
+        for mode, owner in ((stat.S_IFDIR | 0o755, 1001), (stat.S_IFDIR | 0o700, 0),
+                            (stat.S_IFREG | 0o700, 1001), (stat.S_IFLNK | 0o700, 1001)):
+            metadata = SimpleNamespace(st_mode=mode, st_uid=owner, st_nlink=1)
+            with self.subTest(mode=mode, owner=owner), mock.patch.object(Path, 'is_symlink', return_value=False), \
+                    mock.patch.object(Path, 'stat', return_value=metadata):
+                self.assertFalse(helper.runtime_identity(1001, runtime))
+        with mock.patch.object(Path, 'is_symlink', return_value=True), mock.patch.object(Path, 'stat') as metadata:
+            self.assertFalse(helper.runtime_identity(1001, runtime))
+            metadata.assert_not_called()
+        with mock.patch.object(Path, 'is_symlink') as symlink:
+            self.assertFalse(helper.runtime_identity(1001, Path('/run/user/1002')))
+            symlink.assert_not_called()
+
+    def test_socket_aliases_and_wrong_ownership_remain_rejected(self):
+        helper = selected_functions(WAYSCRIBER, {'socket_identity'}, {'Path': Path, 'stat': stat})
+        path = mock.Mock()
+        for mode, owner, links, accepted in (
+                (stat.S_IFSOCK | 0o755, 1001, 1, True),
+                (stat.S_IFSOCK | 0o600, 0, 1, False),
+                (stat.S_IFSOCK | 0o600, 1001, 2, False),
+                (stat.S_IFLNK | 0o777, 1001, 1, False)):
+            path.lstat.return_value = SimpleNamespace(st_mode=mode, st_uid=owner, st_nlink=links)
+            self.assertEqual(helper.socket_identity(path, 1001), accepted)
 
     def test_start_and_readiness_failures_never_dispatch(self):
-        for values in ({'start': 1}, {'ready': 124}):
+        for values in ({'start': 1}, {'ready': False}):
             with self.subTest(values=values):
-                result, calls = self.invoke(**values)
-                self.assertEqual(result.returncode, 1)
-                self.assertFalse(any(call[0] == 'wayscriber' for call in calls))
+                helper = self.helper(**values)
+                self.assertEqual(helper.main([]), 1)
+                helper.run_bounded.assert_called_once_with(
+                    ['/usr/bin/systemctl', '--user', 'start', 'wayscriber.service'], 5.0)
 
     def test_reply_failure_or_timeout_never_retries_a_toggle(self):
         for status in (1, 124, 137):
             with self.subTest(status=status):
-                result, calls = self.invoke(toggle=status)
-                self.assertEqual(result.returncode, 75)
-                self.assertIn('outcome-unknown', result.stderr)
-                self.assertEqual(sum(call[0] == 'wayscriber' for call in calls), 1)
-                self.assertEqual(sum(call[0] == 'systemctl' for call in calls), 1)
+                helper = self.helper(toggle=status)
+                with mock.patch('builtins.print') as diagnostic:
+                    self.assertEqual(helper.main([]), 75)
+                self.assertIn('outcome-unknown', diagnostic.call_args.args[0])
+                self.assertEqual(helper.run_bounded.call_args_list, [
+                    mock.call(['/usr/bin/systemctl', '--user', 'start', 'wayscriber.service'], 5.0),
+                    mock.call(['/usr/bin/wayscriber', '--daemon-toggle'], 10.0),
+                ])
 
     def test_success_uses_finite_phase_and_cleanup_budgets(self):
-        result, calls = self.invoke()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        budgets = [call[3] for call in calls if call[0] == 'timeout']
-        self.assertEqual(budgets, ['5s', '12s'])
-        self.assertEqual(sum(call[0] == 'wayscriber' for call in calls), 1)
+        helper = self.helper()
+        self.assertEqual(helper.main([]), 0)
+        helper.wait_for_readiness.assert_called_once_with(Path('/run/user/1001/wayscriber/wayscriber.pid'), 1001)
+        self.assertEqual(helper.run_bounded.call_count, 2)
+        process = mock.Mock(returncode=0)
+        process.wait.side_effect = subprocess.TimeoutExpired('fixture', 10)
+        runner = selected_functions(WAYSCRIBER, {'run_bounded'}, {
+            'subprocess': subprocess, 'terminate_process': mock.Mock(),
+        })
+        with mock.patch.object(subprocess, 'Popen', return_value=process) as spawn:
+            self.assertEqual(runner.run_bounded(['/usr/bin/wayscriber', '--daemon-toggle'], 10.0), 124)
+        spawn.assert_called_once_with(['/usr/bin/wayscriber', '--daemon-toggle'],
+                                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                      stderr=subprocess.DEVNULL, start_new_session=True, close_fds=True)
+        runner.terminate_process.assert_called_once_with(process)
+        process.wait.assert_called_once_with(timeout=10.0)
+
+
+class WifiLockFixtures(unittest.TestCase):
+    """Mock locking and monotonic time; never open the production lock."""
+
+    def helper(self, results, instants):
+        locks = SimpleNamespace(LOCK_EX=2, LOCK_NB=4, flock=mock.Mock(side_effect=results))
+        clock = SimpleNamespace(monotonic=mock.Mock(side_effect=instants), sleep=mock.Mock())
+        return selected_functions(WIFI, {'acquire_lock'}, {
+            'fcntl': locks, 'time': clock, 'LOCK_WAIT_TIMEOUT': 45.0,
+        })
+
+    def test_boot_waits_for_the_current_writer_then_acquires_the_same_lock(self):
+        helper = self.helper([BlockingIOError(), BlockingIOError(), None], [0.0, 0.0, 0.1])
+        lock = object()
+        helper.acquire_lock(lock, wait=True)
+        self.assertEqual(helper.fcntl.flock.call_args_list, [mock.call(lock, 6)] * 3)
+        self.assertEqual(helper.time.sleep.call_args_list, [mock.call(0.1)] * 2)
+
+    def test_busy_boot_is_bounded_and_link_hooks_never_wait(self):
+        helper = self.helper([BlockingIOError(), BlockingIOError()], [0.0, 44.95, 45.0])
+        with self.assertRaises(BlockingIOError):
+            helper.acquire_lock(object(), wait=True)
+        self.assertAlmostEqual(helper.time.sleep.call_args.args[0], 0.05)
+        helper = self.helper([BlockingIOError()], [0.0, 0.0])
+        with self.assertRaises(BlockingIOError):
+            helper.acquire_lock(object(), wait=False)
+        helper.time.sleep.assert_not_called()
+
+    def test_permission_failure_is_not_retried_as_contention(self):
+        helper = self.helper([PermissionError()], [0.0])
+        with self.assertRaises(PermissionError):
+            helper.acquire_lock(object(), wait=True)
+        helper.time.sleep.assert_not_called()
+        helper.fcntl.flock.assert_called_once()
+
+    def entrypoint(self, arguments, *, busy=False):
+        lock = mock.Mock()
+        lock.fileno.return_value = 42
+        stream = mock.MagicMock()
+        stream.__enter__.return_value = lock
+        operating = SimpleNamespace(
+            geteuid=lambda: 0, umask=mock.Mock(), open=mock.Mock(return_value=42),
+            fdopen=mock.Mock(return_value=stream),
+            fstat=mock.Mock(return_value=SimpleNamespace(
+                st_mode=stat.S_IFREG | 0o600, st_uid=0, st_nlink=1)),
+            O_RDWR=1, O_CREAT=2, O_NOFOLLOW=4, O_CLOEXEC=8,
+        )
+        return selected_functions(WIFI, {'main'}, {
+            'os': operating, 'stat': stat, 're': re,
+            'sys': SimpleNamespace(argv=['fixture', *arguments], stdin=SimpleNamespace(isatty=lambda: True)),
+            'ConfigurationError': ValueError,
+            'acquire_lock': mock.Mock(side_effect=BlockingIOError() if busy else None),
+            'firstboot': mock.Mock(), 'dispatcher_event': mock.Mock(), 'carrier_event': mock.Mock(),
+        }), stream
+
+    def test_only_firstboot_waits_and_success_reaches_reconciliation_under_the_lock(self):
+        helper, stream = self.entrypoint(['--firstboot'])
+        helper.main()
+        helper.acquire_lock.assert_called_once_with(stream.__enter__.return_value, wait=True)
+        helper.firstboot.assert_called_once_with()
+        stream.__exit__.assert_called_once()
+        for arguments in (['--dispatcher', 'eth0', 'up'], ['--carrier', 'eth0'], ['--nmtui']):
+            helper, stream = self.entrypoint(arguments, busy=True)
+            if arguments[0] == '--nmtui':
+                with self.assertRaisesRegex(ValueError, 'already in progress'):
+                    helper.main()
+            else:
+                helper.main()
+            helper.acquire_lock.assert_called_once_with(stream.__enter__.return_value, wait=False)
+            helper.firstboot.assert_not_called()
+            helper.dispatcher_event.assert_not_called()
+            helper.carrier_event.assert_not_called()
+            stream.__exit__.assert_called_once()
+
+    def test_boot_lock_deadline_is_reported_as_contention_and_never_mutates(self):
+        helper, stream = self.entrypoint(['--firstboot'], busy=True)
+        with self.assertRaisesRegex(ValueError, 'lock remained busy for 45 seconds'):
+            helper.main()
+        helper.firstboot.assert_not_called()
+        stream.__exit__.assert_called_once()
 
 
 if __name__ == '__main__':
