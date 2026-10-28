@@ -236,11 +236,10 @@ class WayscriberDispatchFixtures(unittest.TestCase):
             'socket_identity': mock.Mock(return_value=True),
             'SYSTEMCTL': '/usr/bin/systemctl', 'SERVICE': 'wayscriber.service',
             'WAYSCRIBER': '/usr/bin/wayscriber', 'START_TIMEOUT': 5.0, 'REQUEST_TIMEOUT': 10.0,
-            'run_bounded': mock.Mock(side_effect=[start, toggle]),
-            'wait_for_readiness': mock.Mock(return_value=ready),
+            'run_bounded': mock.Mock(side_effect=[start, 0 if ready else 1, toggle]),
             'fail': mock.Mock(return_value=1), 'sys': SimpleNamespace(stderr=None),
         }
-        return selected_functions(WAYSCRIBER, {'main'}, namespace)
+        return selected_functions(WAYSCRIBER, {'main', 'service_active'}, namespace)
 
     def test_real_directory_link_counts_are_accepted_without_weakening_identity(self):
         helper = selected_functions(WAYSCRIBER, {'runtime_identity'}, {
@@ -276,13 +275,18 @@ class WayscriberDispatchFixtures(unittest.TestCase):
             path.lstat.return_value = SimpleNamespace(st_mode=mode, st_uid=owner, st_nlink=links)
             self.assertEqual(helper.socket_identity(path, 1001), accepted)
 
-    def test_start_and_readiness_failures_never_dispatch(self):
+    def test_start_and_service_state_failures_never_dispatch(self):
         for values in ({'start': 1}, {'ready': False}):
             with self.subTest(values=values):
                 helper = self.helper(**values)
                 self.assertEqual(helper.main([]), 1)
-                helper.run_bounded.assert_called_once_with(
-                    ['/usr/bin/systemctl', '--user', 'start', 'wayscriber.service'], 5.0)
+                expected = [mock.call(
+                    ['/usr/bin/systemctl', '--user', 'start', 'wayscriber.service'], 5.0)]
+                if values.get('start', 0) == 0:
+                    expected.append(mock.call(
+                        ['/usr/bin/systemctl', '--user', '--quiet', 'is-active',
+                         'wayscriber.service'], 5.0))
+                self.assertEqual(helper.run_bounded.call_args_list, expected)
 
     def test_reply_failure_or_timeout_never_retries_a_toggle(self):
         for status in (1, 124, 137):
@@ -293,14 +297,20 @@ class WayscriberDispatchFixtures(unittest.TestCase):
                 self.assertIn('outcome-unknown', diagnostic.call_args.args[0])
                 self.assertEqual(helper.run_bounded.call_args_list, [
                     mock.call(['/usr/bin/systemctl', '--user', 'start', 'wayscriber.service'], 5.0),
+                    mock.call(['/usr/bin/systemctl', '--user', '--quiet', 'is-active',
+                               'wayscriber.service'], 5.0),
                     mock.call(['/usr/bin/wayscriber', '--daemon-toggle'], 10.0),
                 ])
 
     def test_success_uses_finite_phase_and_cleanup_budgets(self):
         helper = self.helper()
         self.assertEqual(helper.main([]), 0)
-        helper.wait_for_readiness.assert_called_once_with(Path('/run/user/1001/wayscriber/wayscriber.pid'), 1001)
-        self.assertEqual(helper.run_bounded.call_count, 2)
+        self.assertEqual(helper.run_bounded.call_args_list, [
+            mock.call(['/usr/bin/systemctl', '--user', 'start', 'wayscriber.service'], 5.0),
+            mock.call(['/usr/bin/systemctl', '--user', '--quiet', 'is-active',
+                       'wayscriber.service'], 5.0),
+            mock.call(['/usr/bin/wayscriber', '--daemon-toggle'], 10.0),
+        ])
         process = mock.Mock(returncode=0)
         process.wait.side_effect = subprocess.TimeoutExpired('fixture', 10)
         runner = selected_functions(WAYSCRIBER, {'run_bounded'}, {

@@ -553,6 +553,8 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     /etc/skel-desktop/.local/share/dbus-1/services/org.freedesktop.secrets.service \
     /usr/local/bin/labwc-health-notify \
     /usr/local/libexec/labwc-plans.pl \
+    /usr/local/lib/python3.14/dist-packages/labwc_calendar_reminders.py \
+    /usr/local/lib/python3.14/dist-packages/labwc_desktop_runtime.py \
     /usr/local/libexec/labwc-greeter-client \
     /usr/local/share/labwc-greeter/rc.xml \
     /usr/local/share/labwc-greeter/autostart \
@@ -711,10 +713,10 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
       [ ! -L /pool ]
       [ "$(find -P /pool -maxdepth 0 -printf "%U:%g:%m")" = "0:devops:3775" ]
     ' sh
-  check_command desktop-labwc-plans-environment-source \
+  check_command desktop-labwc-plans-policy-source \
     /bin/sh -eu -c '
-      grep -Fxq "EnvironmentFile=/etc/labwc/plans.conf" /etc/skel-desktop/.config/systemd/user/labwc-plans.service
-      ! grep -Eq "^(LoadCredential=|EnvironmentFile=%d/)" /etc/skel-desktop/.config/systemd/user/labwc-plans.service
+      grep -Fxq "ExecStart=/usr/local/libexec/labwc-plans.pl" /etc/skel-desktop/.config/systemd/user/labwc-plans.service
+      ! grep -Eq "^(LoadCredential=|EnvironmentFile=)" /etc/skel-desktop/.config/systemd/user/labwc-plans.service
     ' sh
   if [ -r /etc/podman-devops/layout.json ]; then
     check_command podman-devops-system-service-account \

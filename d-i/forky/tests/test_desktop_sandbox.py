@@ -1113,7 +1113,8 @@ class InstalledFailureRegressionTests(unittest.TestCase):
 
     def test_failed_desktop_service_contracts_are_repaired(self):
         plans = render_theme_defaults(payload_read_text(DESKTOP / 'etc/skel-desktop/.config/systemd/user/labwc-plans.service'))
-        self.assertIn('EnvironmentFile=/etc/labwc/plans.conf\n', plans)
+        self.assertNotIn('\nEnvironmentFile=', plans)
+        self.assertIn('ExecStart=/usr/local/libexec/labwc-plans.pl\n', plans)
         self.assertNotIn('LoadCredential=', plans)
         self.assertNotIn('EnvironmentFile=%d/', plans)
         # Root-owned live policy must retain UID 0 inside this user service.

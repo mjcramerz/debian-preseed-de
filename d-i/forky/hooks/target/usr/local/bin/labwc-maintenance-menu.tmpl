@@ -12,7 +12,9 @@ import re
 import stat
 import subprocess
 import sys
-from itertools import islice
+import time
+
+import labwc_desktop_runtime as desktop_runtime
 
 PICKER = "/usr/local/bin/labwc-fuzzel"
 SYSTEM = "/usr/local/bin/labwc-system-action"
@@ -35,12 +37,8 @@ def fatal(message: str, status: int = 1) -> int:
 
 def run(argv: list[str], *, input_text: str | None = None, capture: bool = False,
         timeout: float = 900, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(argv, input=input_text, text=True,
-                          env=dict(os.environ, **(env or {})),
-                          stdin=subprocess.PIPE if input_text is not None else subprocess.DEVNULL,
-                          stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
-                          stderr=subprocess.PIPE if capture else subprocess.DEVNULL,
-                          timeout=timeout, check=False, close_fds=True)
+    return desktop_runtime.run(argv, input_text=input_text, capture=capture, timeout=timeout,
+                               env=dict(os.environ, **(env or {})))
 
 
 def picker(rows: list[str], prompt: str, *, text_input: bool = False) -> str | None:
@@ -140,34 +138,42 @@ def find_paths(prompt: str, *, files: bool, max_depth: int = 3) -> str | None:
         raise MaintenanceError("the desktop home directory has unsafe metadata")
     roots = [home / name for name in ("Downloads", "Documents", "Desktop")] + ([home] if files else [home, Path("/mnt"), Path("/media")])
     found: set[str] = set()
+    scanned = 0
+    directories = 0
+    deadline = time.monotonic() + 3
     for root in roots:
         try:
             root_stat = root.stat(follow_symlinks=False)
             shared_root = root in {Path("/mnt"), Path("/media")}
-            if not root.is_dir() or (root_stat.st_uid != os.getuid() and (not shared_root or root_stat.st_mode & 0o022)):
+            if not stat.S_ISDIR(root_stat.st_mode) or (
+                    root_stat.st_uid != os.getuid() and (not shared_root or root_stat.st_mode & 0o022)):
                 continue
         except OSError:
             continue
         stack: list[tuple[Path, int]] = [(root, 0)]
-        while stack and len(found) < 400:
+        while stack and len(found) < 400 and scanned < 8000 and directories < 256 and time.monotonic() < deadline:
             directory, depth = stack.pop()
             try:
                 with os.scandir(directory) as iterator:
-                    entries = list(islice(iterator, 400))
+                    directories += 1
+                    entries = iterator
+                    for entry in entries:
+                        scanned += 1
+                        if scanned >= 8000 or time.monotonic() >= deadline:
+                            break
+                        try:
+                            if entry.is_dir(follow_symlinks=False) and depth < max_depth:
+                                child = entry.stat(follow_symlinks=False)
+                                if child.st_dev == root_stat.st_dev and directories + len(stack) < 256:
+                                    stack.append((Path(entry.path), depth + 1))
+                            elif files and entry.is_file(follow_symlinks=False):
+                                found.add(entry.path)
+                            elif not files and entry.is_dir(follow_symlinks=False):
+                                found.add(entry.path)
+                        except OSError:
+                            continue
             except OSError:
                 continue
-            for entry in entries:
-                try:
-                    if entry.is_dir(follow_symlinks=False) and depth < max_depth:
-                        child = entry.stat(follow_symlinks=False)
-                        if child.st_dev == root_stat.st_dev:
-                            stack.append((Path(entry.path), depth + 1))
-                    elif files and entry.is_file(follow_symlinks=False):
-                        found.add(entry.path)
-                    elif not files and entry.is_dir(follow_symlinks=False):
-                        found.add(entry.path)
-                except OSError:
-                    continue
     return picker(sorted(found)[:400], prompt, text_input=True)
 
 

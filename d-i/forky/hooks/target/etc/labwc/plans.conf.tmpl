@@ -3,9 +3,10 @@
 # this file is installed as root:<primary-user-group> mode 0640.
 # Keep managed single-line quoted values. The daemon checks channel policy
 # immediately before dispatch; edits to a destination or credential stop that
-# channel until restart. Disabled pending deliveries are cancelled permanently.
+# channel until restart. Missed reminder slots are never replayed as a backlog.
 LABWC_PLANS_ENABLED='true'
-LABWC_PLANS_INPUT_DIR='__INSTALLER_LABWC_PLANS_INPUT_DIR__'
+# Delivery is authorized only by a local calendar UID opt-in from the clock
+# event/task form. Sleek files and the former plan queue are never read.
 LABWC_PLANS_TELEGRAM_ENABLED='true'
 LABWC_PLANS_TELEGRAM_API_BASE='https://api.telegram.org'
 LABWC_PLANS_TELEGRAM_API_KEY='__INSTALLER_TELEGRAM_API_KEY__'
@@ -16,22 +17,3 @@ LABWC_PLANS_NTFY_TOPIC=''
 LABWC_PLANS_NTFY_ACCESS_TOKEN=''
 # Enable only after verifying that unauthorized readers cannot subscribe.
 LABWC_PLANS_NTFY_READER_ACCESS_CONFIRMED='false'
-LABWC_PLANS_POLL_SECONDS='30'
-LABWC_PLANS_HTTP_TIMEOUT_SECONDS='15'
-LABWC_PLANS_RETRY_MIN_SECONDS='30'
-LABWC_PLANS_RETRY_MAX_SECONDS='1800'
-LABWC_PLANS_INITIAL_CATCHUP_SECONDS='0'
-LABWC_PLANS_MAX_CATCHUP_SECONDS='604800'
-LABWC_PLANS_NOTIFY_EXISTING='true'
-LABWC_PLANS_READD_GRACE_SECONDS='300'
-LABWC_PLANS_STATE_RETENTION_DAYS='400'
-LABWC_PLANS_MAX_INPUT_FILES='128'
-LABWC_PLANS_MAX_INPUT_FILE_BYTES='1048576'
-LABWC_PLANS_MAX_ENTRIES='10000'
-LABWC_PLANS_MAX_LINE_CHARACTERS='8192'
-LABWC_PLANS_MAX_QUEUE_ITEMS='500'
-LABWC_PLANS_MAX_DELIVERIES_PER_CYCLE='100'
-LABWC_PLANS_MAX_NOTIFICATION_CHARACTERS='3500'
-LABWC_PLANS_MAX_STATE_BYTES='16777216'
-LABWC_PLANS_MAX_CONSECUTIVE_FAILURES='5'
-LABWC_PLANS_DEBUG='false'

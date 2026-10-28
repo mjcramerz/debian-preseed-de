@@ -332,12 +332,15 @@ class MullvadLanTests(unittest.TestCase):
 class AppArmorWiringTests(unittest.TestCase):
     def test_plans_policy_read_belongs_to_the_plans_profile(self):
         source = read_text(TARGET / 'usr/local/libexec/labwc-plans.pl')
-        policy = re.search(r"has policy_file.*?default => sub \{ '([^']+)' \}", source)
-        self.assertIsNotNone(policy)
+        self.assertIn("'/usr/local/libexec/labwc-calendar-worker', '--reminders'", source)
         profiles = read_text(TARGET / 'etc/apparmor.d/desktop-wrappers.tmpl')
         plans = profiles.split('profile labwc-plans ', 1)[1].split('\n}\n', 1)[0]
-        self.assertIn('  ' + policy.group(1) + ' r,', plans)
-        self.assertNotRegex(plans, re.escape(policy.group(1)) + r'\s+[^,]*w')
+        self.assertIn('rPx -> labwc-calendar-worker,', plans)
+        worker = read_text(TARGET / 'etc/apparmor.d/calendars').split(
+            'profile labwc-calendar-worker ', 1)[1].split('\n}\n', 1)[0]
+        self.assertIn('  /etc/labwc/plans.conf r,', worker)
+        self.assertNotRegex(worker, r'/etc/labwc/plans.conf\s+[^,]*w')
+        self.assertNotIn('Syncthing', plans)
 
     def test_secondboot_policy_covers_both_private_listing_files(self):
         source = read_text(SEED / 'scripts/firstboot/assets/var/lib/firstboot/bin/secondboot-cleanup')

@@ -1,8 +1,8 @@
 [Unit]
 ConditionEnvironment=XDG_SESSION_TYPE=wayland
 ConditionEnvironment=WAYLAND_DISPLAY
-After=labwc-compositor.service labwc-session.target
-Description=Deliver Sleek plan and event notifications
+After=labwc-compositor.service labwc-session.target labwc-calendar-credentials.service
+Description=Deliver opted-in Fruux calendar phone reminders
 Requisite=labwc-session.target
 PartOf=labwc-session.target
 ConditionEnvironment=LABWC_SESSION_OWNER=desktop
@@ -12,12 +12,10 @@ StartLimitBurst=5
 [Service]
 KillMode=control-group
 Type=exec
-# The rendered file is root-owned, group-readable only by the primary desktop
-# account group, and parsed by the user manager before the service starts.
-# LoadCredential cannot be used as an EnvironmentFile source in a user unit:
-# its %d directory is prepared after environment files are loaded.
-EnvironmentFile=/etc/labwc/plans.conf
+# The worker directly reads /etc/labwc/plans.conf, root:account-group 0640.
+# Do not export Telegram/ntfy credentials through the service environment.
 UnsetEnvironment=ALL_PROXY HTTPS_PROXY HTTP_PROXY NO_PROXY all_proxy https_proxy http_proxy no_proxy
+Environment=PYTHONNOUSERSITE=1
 ExecStart=/usr/local/libexec/labwc-plans.pl
 Restart=on-failure
 RestartSec=5s
@@ -26,8 +24,6 @@ TimeoutStopSec=20s
 Nice=10
 IOSchedulingClass=best-effort
 IOSchedulingPriority=7
-StateDirectory=labwc-plans
-StateDirectoryMode=0700
 # Keep root-owned policy visible in the host UID namespace. In a user manager,
 # filesystem/UTS sandboxing implicitly creates a private user namespace whose
 # unmapped root owner fails the policy's UID 0 check. AppArmor and the independent
@@ -35,7 +31,7 @@ StateDirectoryMode=0700
 NoNewPrivileges=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 RestrictNamespaces=yes
 RestrictRealtime=yes
 RestrictSUIDSGID=yes

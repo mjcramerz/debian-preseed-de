@@ -1,7 +1,8 @@
 """Fruux fixtures: no credentials, real accounts, network or desktop services.
 
-Run only in the repository's approved disposable image. Every HTTP and Secret
-Service boundary is mocked; fixture files stay in the private image's tmpfs.
+Unexecuted fixture source. AGENTS.override.md prohibits executing these fixtures
+on the host or creating a disposable environment. HTTP and Secret Service
+boundaries are mocked; these definitions do not authorize their execution.
 """
 from __future__ import annotations
 
@@ -33,7 +34,12 @@ def load(name):
     path = LIBEXEC / name
     module = types.ModuleType('fixture_' + name.replace('-', '_'))
     module.__file__ = str(path)
-    exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
+    helper_path = SEED / 'hooks/target/usr/local/lib/python3.14/dist-packages/labwc_calendar_reminders.py'
+    helper = types.ModuleType('labwc_calendar_reminders')
+    helper.__file__ = str(helper_path)
+    exec(compile(helper_path.read_bytes(), str(helper_path), 'exec'), helper.__dict__)
+    with mock.patch.dict(_isolation_sys.modules, {'labwc_calendar_reminders': helper}):
+        exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
     return module
 
 
@@ -53,6 +59,10 @@ def resource(kind='VTODO', **properties):
 class CalendarMutationTests(unittest.TestCase):
     def setUp(self):
         self.w = load('labwc-calendar-worker')
+        store_patch = mock.patch.object(self.w, 'reminder_store')
+        store = store_patch.start().return_value.__enter__.return_value
+        store.get.return_value = dict(self.w.reminders.DEFAULT)
+        self.addCleanup(store_patch.stop)
         self.collection = 'https://dav.fruux.com/calendars/fixture/list/'
         self.url = self.collection + 'item.ics'
         self.raw = resource()
@@ -111,7 +121,8 @@ class CalendarMutationTests(unittest.TestCase):
         self.assertEqual(args[4]['If-Match'], '"v1"')
         self.client.write.reset_mock()
         self.w.execute({**self.common, **self.token, 'op': 'delete'}, self.client)
-        self.client.write.assert_called_once_with('DELETE', self.url, 'VTODO', headers={'If-Match': '"v1"'})
+        self.client.write.assert_called_once_with('DELETE', self.url, 'VTODO', headers={'If-Match': '"v1"'},
+                                                   reminder=mock.ANY)
 
     def test_scheduling_and_unconfirmed_recurrence_do_not_mutate(self):
         for props, expected in [({'ORGANIZER': 'mailto:fixture@example.invalid'}, 'scheduled-object'),
@@ -156,6 +167,38 @@ class CalendarMutationTests(unittest.TestCase):
             with self.subTest(size=len(raw)), self.assertRaises(Exception):
                 self.w.multistatus(raw, self.collection)
 
+    def test_all_popup_recurrences_round_trip_and_phone_settings_never_enter_ics(self):
+        settings = {'enabled': True, 'first_minutes': 60, 'interval_minutes': 15}
+        for key, _, rule in self.w.reminders.RECURRENCE_OPTIONS:
+            for kind in ('VEVENT', 'VTODO'):
+                with self.subTest(recurrence=key, kind=kind):
+                    day = '2026-10-31' if key == 'weekends' else '2026-11-02'
+                    fields = {**self.fields, 'start': day + ' 09:00', 'recurrence': key}
+                    fields['end' if kind == 'VEVENT' else 'due'] = day + ' 10:00'
+                    self.w.execute({**self.common, 'kind': kind, 'op': 'create',
+                                    'fields': fields, 'reminder': settings}, self.client)
+                    body = self.client.write.call_args.args[3]
+                    parsed = Calendar.from_ical(body).walk(kind)[0]
+                    self.assertEqual(self.w.reminders.recurrence_name(parsed), key)
+                    self.assertEqual('RRULE' in parsed, rule is not None)
+                    self.assertNotIn(b'VALARM', body)
+                    self.assertNotIn(b'first_minutes', body)
+                    self.assertNotIn(b'interval_minutes', body)
+                    self.assertNotIn(b'Send Reminder to Phone', body)
+                    self.assertEqual(self.client.write.call_args.kwargs['reminder']['preference'], settings)
+
+    def test_weekday_weekend_start_mismatch_and_recurring_undated_task_fail_before_put(self):
+        for fields, expected in [
+            ({**self.fields, 'start': '2026-11-01 09:00', 'due': '2026-11-01 10:00',
+              'recurrence': 'weekdays'}, 'recurrence-start-day'),
+            ({**self.fields, 'start': '2026-11-02 09:00', 'due': '2026-11-02 10:00',
+              'recurrence': 'weekends'}, 'recurrence-start-day'),
+            ({**self.fields, 'recurrence': 'daily'}, 'reminder-needs-date')]:
+            with self.subTest(fields=fields), self.assertRaises(self.w.Error) as raised:
+                self.w.execute({**self.common, 'op': 'create', 'fields': fields}, self.client)
+            self.assertEqual(raised.exception.code, expected)
+            self.client.write.assert_not_called()
+
 
 class CalendarRecoveryTests(unittest.TestCase):
     def setUp(self):
@@ -173,8 +216,55 @@ class CalendarRecoveryTests(unittest.TestCase):
         self.url = 'https://dav.fruux.com/calendars/fixture/list/item.ics'
         self.client.request = mock.Mock(return_value=(201, {}, b''))
 
-    def write(self):
-        return self.client.write('PUT', self.url, 'VTODO', resource(), {'If-None-Match': '*'})
+    def write(self, **kwargs):
+        return self.client.write('PUT', self.url, 'VTODO', resource(), {'If-None-Match': '*'}, **kwargs)
+
+    def phone(self):
+        return {'uid': 'fixture-uid', 'url': self.url, 'kind': 'VTODO', 'timezone': 'Europe/Stockholm',
+                'preference': {'enabled': True, 'first_minutes': 15, 'interval_minutes': 0}}
+
+    def test_acknowledged_write_commits_local_opt_in_without_changing_the_remote_body(self):
+        candidate = self.phone()
+        self.write(reminder=candidate)
+        self.assertEqual(self.client.request.call_args.args[2], resource())
+        self.assertEqual(self.w.pending_change()['reminder'], candidate)
+        with self.w.reminder_store() as store:
+            self.assertEqual(store.get(candidate['uid'], self.url, 'VTODO'), candidate['preference'])
+
+    def test_unknown_remote_outcome_defers_opt_in_until_matching_read_only_review(self):
+        candidate = self.phone()
+        self.client.request.side_effect = self.w.Error('outcome-unknown')
+        with self.assertRaises(self.w.Error):
+            self.write(reminder=candidate)
+        with self.w.reminder_store() as store:
+            self.assertEqual(store.get(candidate['uid'], self.url, 'VTODO'), self.w.reminders.DEFAULT)
+        self.client.request.side_effect = None
+        self.client.request.return_value = (200, {'etag': '"remote"'}, resource())
+        result = self.w.execute({'op': 'review', 'kind': 'VTODO',
+                                 'request_id': self.w.pending_change()['request_id']}, self.client)
+        self.assertEqual(result['remote'], 'matches')
+        with self.w.reminder_store() as store:
+            self.assertEqual(store.get(candidate['uid'], self.url, 'VTODO'), candidate['preference'])
+
+    def test_unresolved_delete_suppresses_notifications_before_any_secret_or_network_lookup(self):
+        candidate = self.phone()
+        self.write(reminder=candidate)
+        self.w.remove_intent(self.w.pending_change())
+        self.client.request.side_effect = self.w.Error('outcome-unknown')
+        off = {**candidate, 'preference': dict(self.w.reminders.DEFAULT)}
+        with self.assertRaises(self.w.Error):
+            self.client.write('DELETE', self.url, 'VTODO', headers={'If-Match': '"old"'}, reminder=off)
+        with mock.patch.object(self.w, 'credentials') as secret:
+            self.assertEqual(self.w.reminder_cycle({}, 0), 0)
+        secret.assert_not_called()
+
+    def test_local_commit_failure_after_ack_retains_remote_intent_and_never_retries_put(self):
+        with mock.patch.object(self.w, 'apply_reminder', side_effect=self.w.reminders.ReminderError('reminder-state-unknown')):
+            with self.assertRaises(self.w.Error) as raised:
+                self.write(reminder=self.phone())
+        self.assertEqual(raised.exception.code, 'outcome-unknown')
+        self.assertIsNotNone(self.w.pending_change())
+        self.client.request.assert_called_once()
 
     def test_intent_survives_until_the_controller_receives_and_acknowledges_the_reply(self):
         def reply(*args):

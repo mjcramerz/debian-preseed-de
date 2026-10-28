@@ -666,6 +666,7 @@ profile labwc-bluetooth /usr/local/bin/labwc-bluetooth flags=(attach_disconnecte
   #include <abstractions/wrapper-python>
 
   /usr/local/bin/labwc-bluetooth rix,
+  /usr/local/lib/python3.14/dist-packages/labwc_desktop_runtime.py r,
   /usr/bin/{bluetoothctl,notify-send,systemctl} pux,
   /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
   /usr/local/bin/labwc-terminal rPx -> labwc-terminal,
@@ -706,6 +707,7 @@ profile labwc-capture /usr/local/bin/labwc-capture flags=(attach_disconnected) {
   # Permit the user's home directory itself, without recursive file access.
   owner @{HOME}/ r,
   /usr/local/bin/labwc-capture rix,
+  /usr/local/lib/python3.14/dist-packages/labwc_desktop_runtime.py r,
   /usr/local/libexec/rsyslog-app-run rix,
   __INSTALLER_LOG_APPS_SOCKET__ w,
   /usr/bin/ffprobe rix,
@@ -991,6 +993,7 @@ profile labwc-digital-assets /usr/local/bin/labwc-digital-assets {
   #include <abstractions/wrapper-python>
 
   /usr/local/bin/labwc-digital-assets rix,
+  /usr/local/lib/python3.14/dist-packages/labwc_desktop_runtime.py r,
   /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
   /usr/local/bin/labwc-digital-assets-action rPx -> labwc-digital-assets-action,
   owner @{HOME}/ r,
@@ -1372,6 +1375,7 @@ profile labwc-external-drives /usr/local/bin/labwc-external-drives flags=(attach
   include if exists <abstractions/dbus-strict>
 
   /usr/local/bin/labwc-external-drives rix,
+  /usr/local/lib/python3.14/dist-packages/labwc_desktop_runtime.py r,
   /usr/local/libexec/labwc-gvfs-volume-monitor r,
   /usr/lib/python3/dist-packages/gi/{,**} mr,
   /usr/lib/@{multiarch}/girepository-1.0/ r,
@@ -1699,32 +1703,8 @@ profile labwc-health-notify /usr/local/bin/labwc-health-notify flags=(attach_dis
 
 profile labwc-plans /usr/local/libexec/labwc-plans.pl flags=(attach_disconnected) {
   #include <abstractions/wrapper-perl>
-  include if exists <abstractions/nameservice-strict>
-  include if exists <abstractions/ssl_certs>
-
-  unix,
-  network inet stream,
-  network inet6 stream,
-  network inet dgram,
-  network inet6 dgram,
-
   /usr/local/libexec/labwc-plans.pl rix,
-  # The root-owned policy is reread before delivery to honor disabling/backlog
-  # changes. Its account-group DAC restriction remains authoritative.
-  /etc/labwc/plans.conf r,
-  /etc/localtime r,
-  /etc/timezone r,
-  /usr/share/zoneinfo/ r,
-  /usr/share/zoneinfo/** r,
-  owner @{HOME}/ r,
-  owner @{HOME}/Syncthing/ r,
-  owner @{HOME}/Syncthing/sleek/ r,
-  owner @{HOME}/Syncthing/sleek/*.txt r,
-  owner @{HOME}/.local/ rw,
-  owner @{HOME}/.local/state/ rw,
-  owner @{HOME}/.local/state/labwc-plans/ rw,
-  owner @{HOME}/.local/state/labwc-plans/** rwkl,
-
+  /usr/local/libexec/labwc-calendar-worker rPx -> labwc-calendar-worker,
   include if exists <local/usr.local.libexec.labwc-plans.pl>
 }
 
@@ -1855,6 +1835,7 @@ profile labwc-maintenance-menu /usr/local/bin/labwc-maintenance-menu flags=(atta
   #include <abstractions/wrapper-python>
 
   /usr/local/bin/labwc-maintenance-menu rix,
+  /usr/local/lib/python3.14/dist-packages/labwc_desktop_runtime.py r,
   /usr/bin/systemctl pux,
   /usr/{bin,sbin}/ip pux,
   /usr/local/bin/labwc-external-drives rPx -> labwc-external-drives,
@@ -2847,6 +2828,7 @@ profile labwc-network-control-menu /usr/local/bin/labwc-network-control-menu fla
   #include <abstractions/wrapper-python>
 
   /usr/local/bin/labwc-network-control-menu rix,
+  /usr/local/lib/python3.14/dist-packages/labwc_desktop_runtime.py r,
   /usr/bin/nmcli pux,
   /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
   /usr/local/bin/labwc-network-control-action rPx -> labwc-network-control-action,
@@ -3457,10 +3439,8 @@ profile labwc-wayscriber-toggle /usr/local/bin/labwc-wayscriber-toggle flags=(at
 
   /usr/local/bin/labwc-wayscriber-toggle rix,
   /usr/bin/{systemctl,wayscriber} pux,
-  # The wrapper observes only the native daemon's published readiness record;
-  # the native client remains responsible for token and PID authorization.
-  owner /run/user/[0-9]*/wayscriber/ r,
-  owner /run/user/[0-9]*/wayscriber/wayscriber.pid r,
+  # The user manager is the daemon readiness authority. Wayscriber itself
+  # owns its private IPC/session state under the session-controls profile.
 
   include if exists <local/usr.local.bin.labwc-wayscriber-toggle>
 }

@@ -2270,10 +2270,11 @@ gi.require_version("Secret", "1")
 gi.require_version("GLibUnix", "2.0")
 gi.require_version("GtkLayerShell", "0.1")
 from gi.repository import GLibUnix, Gtk, GtkLayerShell, Secret
-from icalendar import Calendar, Event, Todo
+from icalendar import Calendar, Event, Todo, Timezone
 from defusedxml import ElementTree
 require(Gtk.get_major_version() == 3, "notification center requires GTK3")
 require(callable(GLibUnix.signal_add) and Secret.Service and Calendar and Event and Todo
+        and callable(Timezone.from_tzinfo)
         and callable(ElementTree.fromstring), "calendar runtime APIs are missing")
 require(callable(GtkLayerShell.set_keyboard_mode) and callable(GtkLayerShell.set_monitor),
         "Waycal dismissal requires GTK3 layer-shell APIs")
@@ -2583,6 +2584,16 @@ for path in ("/usr/local/libexec/calix-fruux-bootstrap", "/opt/calix/calix",
     trusted(Path(path), True)
 for path in ("/usr/local/share/agenda/schemas/gschemas.compiled", "/opt/calix/release.json"):
     trusted(Path(path))
+reminder_module = Path("/usr/local/lib/python3.14/dist-packages/labwc_calendar_reminders.py")
+trusted(reminder_module)
+require(stat.S_IMODE(reminder_module.stat().st_mode) == 0o644,
+        "calendar reminder module must be root-owned mode 0644")
+source_text(reminder_module, reminder_module.read_bytes())
+runtime_module = Path("/usr/local/lib/python3.14/dist-packages/labwc_desktop_runtime.py")
+trusted(runtime_module)
+require(stat.S_IMODE(runtime_module.stat().st_mode) == 0o644,
+        "desktop runtime module must be root-owned mode 0644")
+source_text(runtime_module, runtime_module.read_bytes())
 for path, executable in (("/var/lib/firstboot/bin/fruux-cleanup", True),
                          ("/etc/systemd/system/fruux-firstboot.service", False),
                          ("/etc/systemd/system/greetd.service.d/40-fruux-firstboot.conf", False)):

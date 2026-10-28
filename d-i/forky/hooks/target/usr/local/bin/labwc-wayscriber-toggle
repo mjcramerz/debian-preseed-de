@@ -2,9 +2,9 @@
 """Send one bounded toggle request to the session-owned Wayscriber daemon.
 
 The daemon remains owned by the user systemd service. This entry point only
-validates the caller and Wayland runtime, waits for the daemon's readiness
-record, and sends one request. An uncertain native result is never retried:
-the daemon may have accepted the toggle even when its reply was lost.
+validates the caller and Wayland runtime, confirms the service is active, and
+sends one request. An uncertain native result is never retried: the daemon may
+have accepted the toggle even when its reply was lost.
 """
 from __future__ import annotations
 
@@ -23,7 +23,6 @@ WAYSCRIBER = "/usr/bin/wayscriber"
 RUNTIME_BASE = Path("/run/user")
 SERVICE = "wayscriber.service"
 START_TIMEOUT = 5.0
-READY_TIMEOUT = 5.0
 REQUEST_RESPONSE_WINDOW = 8.0
 CLEANUP_TIMEOUT = 2.0
 REQUEST_TIMEOUT = REQUEST_RESPONSE_WINDOW + CLEANUP_TIMEOUT
@@ -107,30 +106,12 @@ def socket_identity(path: Path, uid: int) -> bool:
     )
 
 
-def readiness_published(path: Path, uid: int) -> bool:
+def service_active() -> bool:
+    """Use systemd's service state; Wayscriber does not publish a PID file."""
     try:
-        metadata = path.lstat()
-        if (
-            not stat.S_ISREG(metadata.st_mode)
-            or metadata.st_uid != uid
-            or metadata.st_nlink != 1
-            or metadata.st_size <= 0
-            or metadata.st_size > 128
-        ):
-            return False
-        with path.open("rb") as stream:
-            return bool(stream.read(129))
-    except (OSError, UnicodeError):
+        return run_bounded([SYSTEMCTL, "--user", "--quiet", "is-active", SERVICE], 5.0) == 0
+    except OSError:
         return False
-
-
-def wait_for_readiness(path: Path, uid: int) -> bool:
-    deadline = time.monotonic() + READY_TIMEOUT
-    while time.monotonic() < deadline:
-        if readiness_published(path, uid):
-            return True
-        time.sleep(0.1)
-    return readiness_published(path, uid)
 
 
 def main(argv: list[str]) -> int:
@@ -162,9 +143,8 @@ def main(argv: list[str]) -> int:
     except OSError:
         return fail("unable to start the Wayscriber daemon")
 
-    readiness = runtime / "wayscriber" / "wayscriber.pid"
-    if not wait_for_readiness(readiness, uid):
-        return fail("Wayscriber control readiness was not published before the deadline")
+    if not service_active():
+        return fail("Wayscriber service did not reach active state before the deadline")
 
     try:
         result = run_bounded([WAYSCRIBER, "--daemon-toggle"], REQUEST_TIMEOUT)

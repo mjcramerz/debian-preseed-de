@@ -6,10 +6,13 @@ import json
 import os
 from pathlib import Path
 import re
+import signal
 import stat
 import subprocess
 import sys
 import time
+
+import labwc_desktop_runtime as desktop_runtime
 
 BLUETOOTHCTL = "/usr/bin/bluetoothctl"
 NOTIFY_SEND = "/usr/bin/notify-send"
@@ -50,7 +53,6 @@ def require_desktop() -> None:
         not stat.S_ISDIR(metadata.st_mode)
         or metadata.st_uid != uid
         or stat.S_IMODE(metadata.st_mode) != 0o700
-        or metadata.st_nlink != 1
     ):
         raise BluetoothError("labwc-bluetooth runtime directory has unsafe metadata")
 
@@ -61,18 +63,8 @@ def run(
 ) -> subprocess.CompletedProcess[str]:
     environment = dict(os.environ)
     environment.update(TERM="xterm-256color" if terminal else "dumb", NO_COLOR="1")
-    return subprocess.run(
-        argv,
-        input=input_text,
-        text=True,
-        env=environment,
-        stdin=subprocess.PIPE if input_text is not None else subprocess.DEVNULL,
-        stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
-        stderr=subprocess.PIPE if capture else subprocess.DEVNULL,
-        timeout=timeout,
-        check=False,
-        close_fds=True,
-    )
+    return desktop_runtime.run(argv, input_text=input_text, capture=capture, timeout=timeout,
+                               env=environment, interactive=terminal)
 
 
 def notify(urgency: str, icon: str, category: str, summary: str, body: str) -> None:
@@ -87,18 +79,9 @@ def notify(urgency: str, icon: str, category: str, summary: str, body: str) -> N
 
 def picker(rows: list[str], prompt: str) -> str | None:
     environment = dict(os.environ, LABWC_MENU_ACTION_WAIT="1")
-    result = subprocess.run(
-        [PICKER, "menu", "--dmenu", "--prompt", prompt],
-        input="".join(f"{row}\n" for row in rows),
-        text=True,
-        env=environment,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        timeout=120,
-        check=False,
-        close_fds=True,
-    )
+    result = desktop_runtime.run([PICKER, "menu", "--dmenu", "--prompt", prompt],
+                                 input_text="".join(f"{row}\n" for row in rows),
+                                 capture=True, timeout=120, env=environment)
     if result.returncode == 1:
         return None
     if result.returncode == 3:
@@ -199,7 +182,7 @@ def scan_devices() -> int:
         process = subprocess.Popen(
             [BLUETOOTHCTL, "--timeout", str(SCAN_SECONDS + 5)],
             stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            text=True, env=environment, close_fds=True,
+            text=True, env=environment, close_fds=True, start_new_session=True,
         )
         if process.stdin is None:
             raise OSError("Bluetooth scan input is unavailable")
@@ -212,12 +195,22 @@ def scan_devices() -> int:
         result = process
     except (OSError, subprocess.TimeoutExpired):
         if process is not None and process.poll() is None:
-            process.kill()
             try:
-                process.wait(timeout=2)
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            try:
+                process.wait(timeout=1)
             except subprocess.TimeoutExpired:
-                # Do not let a broken bluetoothctl child hold the menu open.
-                process = None
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                try:
+                    process.wait(timeout=1)
+                except subprocess.TimeoutExpired:
+                    # Do not let a broken bluetoothctl process group hold the menu open.
+                    process = None
         result = None
     if result is not None and result.returncode == 0:
         notify("normal", "bluetooth", "device.added", "Bluetooth scan completed",
@@ -322,6 +315,10 @@ def menu() -> int:
 
 def dispatch(argv: list[str]) -> int:
     action = argv[0] if argv else "status"
+    no_argument_actions = {"status", "open", "console", "menu", "scan", "power-toggle",
+                           "pair-menu", "connect", "disconnect", "manage", "adapter"}
+    if action in no_argument_actions and len(argv) != 1:
+        raise BluetoothError(f"{action} does not accept additional arguments")
     if action == "status":
         return status()
     if action in {"open", "console"}:

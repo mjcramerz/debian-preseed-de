@@ -22,12 +22,15 @@ from threading import Event, Thread
 import time
 import uuid
 
+from labwc_calendar_reminders import RECURRENCE_OPTIONS
+
 ACTIONS = {'event-create', 'event-manage', 'tasks-pending', 'tasks-all',
            'task-create', 'task-edit', 'task-details', 'task-complete', 'task-delete'}
 WORKER = '/usr/local/libexec/labwc-calendar-worker'
 MAX_OUTPUT = 4 * 1024 * 1024
 UNAVAILABLE = {'keyring-unavailable', 'network-unavailable', 'no-calendars', 'deadline', 'write-busy',
                'unsupported-recurrence', 'scheduled-object', 'read-only', 'missing-etag', 'credentials-unavailable'}
+UNKNOWN = {'outcome-unknown', 'reminder-state-unknown'}
 ERRORS = {
     'authentication': 'Fruux rejected the login. Check the calendar account and its app password.',
     'keyring-unavailable': 'Fruux credentials are temporarily unavailable.',
@@ -50,7 +53,15 @@ ERRORS = {
     'series-confirmation': 'A change to the entire recurring series needs explicit confirmation.',
     'invalid-date': 'Use valid ISO dates or date/time values. End must follow start; all-day end dates are exclusive.',
     'ambiguous-date': 'This local time is ambiguous or does not exist because of a clock change. Enter a UTC time ending in Z, or an explicit offset.',
+    'recurrence-start-day': 'For Weekdays, choose a Monday–Friday start date. For Weekends, choose a Saturday or Sunday start date.',
     'invalid-input': 'Some fields are invalid or too long. Check the title, dates and timezone.',
+    'invalid-reminder': 'Choose a valid first reminder and interval, and a valid timezone.',
+    'reminder-needs-date': 'Phone reminders need an event start, or a task due/start date. Recurring tasks also need a start date.',
+    'unsupported-reminder-recurrence': 'This series has a recurrence rule the phone reminder service cannot safely expand. Keep phone reminders off, or use one of the Recurrence presets.',
+    'reminder-uid-conflict': 'This UID already has phone reminders in another calendar. Turn those reminders off before opting in this copy.',
+    'reminder-limit': 'The local phone reminder limit has been reached. Turn off unused reminders before adding more.',
+    'reminder-state': 'The private phone reminder state is missing, unsafe or damaged. Existing evidence has been retained.',
+    'reminder-state-unknown': 'The local reminder state could not be durably saved. Review the retained calendar change before trying again.',
     'invalid-response': 'Fruux or the local worker returned an unsupported response. No remote error content was logged.',
     'outcome-unknown': 'The connection ended before the write could be confirmed. Check Fruux in Calendar before repeating this operation; it may already have succeeded.',
     'pending-change': 'An earlier write has an unresolved outcome. Reopen a calendar action to review Fruux before allowing another write.',
@@ -289,7 +300,8 @@ def run(action: str, env: dict) -> int:
 
     def edit(kind, entry=None, values=None):
         now = datetime.now(ZoneInfo('Europe/Stockholm')).replace(second=0, microsecond=0)
-        defaults = {'summary': '', 'location': '', 'description': '', 'start': '', 'end': '', 'due': ''}
+        defaults = {'summary': '', 'location': '', 'description': '', 'start': '', 'end': '', 'due': '',
+                    'recurrence': 'none'}
         if kind == 'VEVENT':
             defaults.update(start=now.isoformat(timespec='minutes'),
                             end=(now + timedelta(hours=1)).isoformat(timespec='minutes'))
@@ -298,12 +310,20 @@ def run(action: str, env: dict) -> int:
         # their stored timezone, and the field remains editable in the popup.
         if not defaults.get('timezone'):
             defaults['timezone'] = 'Europe/Stockholm'
-        defaults.update(values or {})
+        defaults.update((values or {}).get('fields', {}))
+        reminder = (values or {}).get('reminder', (entry or {}).get('reminder', {
+            'enabled': False, 'first_minutes': 15, 'interval_minutes': 0}))
         dialog = Gtk.Dialog(title=('Edit' if entry else 'Create') + (' event' if kind == 'VEVENT' else ' task'), modal=True)
-        dialog.set_default_size(650, -1)
+        dialog.set_default_size(650, 640)
         dialog.add_button('Cancel', Gtk.ResponseType.CANCEL)
         dialog.add_button('Save to Fruux', Gtk.ResponseType.OK)
-        content = dialog.get_content_area()
+        outer = dialog.get_content_area()
+        form_scroll = Gtk.ScrolledWindow()
+        form_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        form_scroll.set_min_content_height(400)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        form_scroll.add(content)
+        outer.pack_start(form_scroll, True, True, 0)
         content.set_border_width(20)
         content.set_spacing(16)
         hint = Gtk.Label(label='Dates: YYYY-MM-DD (all day) or YYYY-MM-DD HH:MM.\n'
@@ -328,6 +348,46 @@ def run(action: str, env: dict) -> int:
             widgets[key] = widget
             if entry and entry.get('recurring') and key in {'start', 'end', 'due', 'timezone'}:
                 widget.set_sensitive(False)
+        row = len(names)
+        grid.attach(Gtk.Label(label='Recurrence', xalign=0), 0, row, 1, 1)
+        recurrence = Gtk.ComboBoxText()
+        for value, label, _ in RECURRENCE_OPTIONS:
+            recurrence.append(value, label)
+        if defaults['recurrence'] == 'custom':
+            recurrence.append('custom', 'Existing rule (preserved)')
+        recurrence.set_active_id(defaults['recurrence'])
+        recurrence.set_sensitive(not (entry and entry.get('recurring')))
+        grid.attach(recurrence, 1, row, 1, 1)
+        phone = Gtk.CheckButton(label='Send Reminder to Phone')
+        phone.set_active(reminder['enabled'])
+        grid.attach(phone, 0, row + 1, 2, 1)
+        first = Gtk.ComboBoxText()
+        for minutes, label in [(15, '15 min'), (30, '30 min'), (60, '1h'), (120, '2h'),
+                               (180, '3h'), (240, '4h'), (300, '5h'), (360, '6h'),
+                               (720, '12h'), (1440, '24h')]:
+            first.append(str(minutes), label)
+        first.set_active_id(str(reminder['first_minutes']))
+        grid.attach(Gtk.Label(label='First reminder', xalign=0), 0, row + 2, 1, 1)
+        grid.attach(first, 1, row + 2, 1, 1)
+        interval = Gtk.ComboBoxText()
+        for minutes in (0, 5, 10, 15, 30, 45, 60):
+            interval.append(str(minutes), 'None' if minutes == 0 else f'{minutes} min')
+        interval.set_active_id(str(reminder['interval_minutes']))
+        grid.attach(Gtk.Label(label='Intervals', xalign=0), 0, row + 3, 1, 1)
+        grid.attach(interval, 1, row + 3, 1, 1)
+
+        def phone_toggled(*_):
+            first.set_sensitive(phone.get_active())
+            interval.set_sensitive(phone.get_active())
+
+        phone.connect('toggled', phone_toggled)
+        phone_toggled()
+        note = Gtk.Label(label='Phone reminders stay on this computer. First reminder is before the event start\n'
+                         'or task due date (start if no due date). Intervals repeat up to that time.\n'
+                         'All-day reminders use midnight. Recurring tasks require a start date.\n'
+                         'Monthly/yearly recurrence skips dates absent from a month or year.', xalign=0)
+        note.set_line_wrap(True)
+        content.add(note)
         content.add(Gtk.Label(label='Description', xalign=0))
         description = Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR)
         description.get_buffer().set_text(defaults['description'])
@@ -343,16 +403,19 @@ def run(action: str, env: dict) -> int:
                   for key in ('summary', 'location', 'start', 'end', 'due', 'timezone')}
         buffer = description.get_buffer()
         fields['description'] = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter(), False)
+        fields['recurrence'] = recurrence.get_active_id()
+        settings = {'enabled': phone.get_active(), 'first_minutes': int(first.get_active_id()),
+                    'interval_minutes': int(interval.get_active_id())}
         dialog.destroy()
         if response != Gtk.ResponseType.OK:
             raise Error('cancelled')
-        return fields
+        return {'fields': fields, 'reminder': settings}
 
     def save_form(common, *, entry=None, token=None):
         fields = None
         while True:
             fields = edit(common['kind'], entry, fields)
-            request = {**common, **(token or {}), 'op': 'update' if entry else 'create', 'fields': fields}
+            request = {**common, **(token or {}), 'op': 'update' if entry else 'create', **fields}
             if entry and entry['recurring']:
                 confirm('Change the series details?',
                         'This changes the series details. Individual exceptions retain their overrides.\n\n'
@@ -363,7 +426,9 @@ def run(action: str, env: dict) -> int:
             except Error as error:
                 # These worker codes occur before any write. Keep the form
                 # values and require another explicit Save after correction.
-                if error.code not in {'invalid-input', 'invalid-date', 'ambiguous-date'}:
+                if error.code not in {'invalid-input', 'invalid-date', 'ambiguous-date', 'invalid-reminder',
+                                      'reminder-needs-date', 'unsupported-reminder-recurrence',
+                                      'reminder-uid-conflict', 'reminder-limit', 'recurrence-start-day'}:
                     raise
                 message('Check the calendar fields', ERRORS[error.code], error=True)
 
@@ -478,12 +543,12 @@ def run(action: str, env: dict) -> int:
             print('calendar-action status=cancelled action=' + action)
             return 2
         code = error.code if error.code in ERRORS else 'worker-failed'
-        message('Change status unknown' if code == 'outcome-unknown' else 'Fruux calendar', ERRORS[code], error=True)
-        print('calendar-action status=' + ('outcome-unknown' if code == 'outcome-unknown'
+        message('Change status unknown' if code in UNKNOWN else 'Fruux calendar', ERRORS[code], error=True)
+        print('calendar-action status=' + ('outcome-unknown' if code in UNKNOWN
                                           else 'unavailable' if code in UNAVAILABLE else 'failed')
               + ' action=' + action + ' error=' + code
               + (' request_id=' + error.request_id if error.request_id else ''), file=sys.stderr)
-        return 4 if code == 'outcome-unknown' else 3 if code in UNAVAILABLE else 1
+        return 4 if code in UNKNOWN else 3 if code in UNAVAILABLE else 1
 
 
 def main() -> int:
@@ -517,9 +582,9 @@ def cli() -> int:
         # Preserve known startup/lock failures instead of masking every cause
         # as controller-unavailable. Never log exception messages or fields.
         code = error.code if error.code in ERRORS else 'worker-failed'
-        status = 'outcome-unknown' if code == 'outcome-unknown' else 'unavailable' if code in UNAVAILABLE else 'failed'
+        status = 'outcome-unknown' if code in UNKNOWN else 'unavailable' if code in UNAVAILABLE else 'failed'
         print('calendar-action status=' + status + ' error=' + code, file=sys.stderr)
-        return 4 if code == 'outcome-unknown' else 3 if code in UNAVAILABLE else 1
+        return 4 if code in UNKNOWN else 3 if code in UNAVAILABLE else 1
     except Exception as error:
         print('calendar-action status=failed error=controller-unavailable cause='
               + type(error).__name__, file=sys.stderr)

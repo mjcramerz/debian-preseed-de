@@ -9,7 +9,8 @@ import stat
 import subprocess
 import sys
 import tempfile
-from itertools import islice
+
+import labwc_desktop_runtime as desktop_runtime
 
 PICKER = "/usr/local/bin/labwc-fuzzel"
 ACTION = "/usr/local/bin/labwc-digital-assets-action"
@@ -45,24 +46,16 @@ def runtime_root() -> Path:
         metadata = runtime.stat(follow_symlinks=False)
     except OSError as error:
         raise DigitalAssetsError("unable to inspect XDG_RUNTIME_DIR") from error
-    if not runtime.is_dir() or metadata.st_uid != uid or metadata.st_nlink != 1 or metadata.st_mode & 0o077:
+    if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != uid or metadata.st_mode & 0o077:
         raise DigitalAssetsError("XDG_RUNTIME_DIR ownership or mode is unsafe")
     return runtime
 
 
 def picker(rows: list[str], prompt: str) -> str | None:
-    result = subprocess.run(
+    result = desktop_runtime.run(
         [PICKER, "menu", "--dmenu", "--prompt", prompt],
-        input="".join(f"{row}\n" for row in rows),
-        text=True,
-        env=dict(os.environ, LABWC_MENU_ACTION_WAIT="1", LABWC_FUZZEL_MANAGED_ICONS="1"),
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        timeout=120,
-        check=False,
-        close_fds=True,
-    )
+        input_text="".join(f"{row}\n" for row in rows), capture=True, timeout=120,
+        env=dict(os.environ, LABWC_MENU_ACTION_WAIT="1", LABWC_FUZZEL_MANAGED_ICONS="1"))
     if result.returncode == 1:
         return None
     if result.returncode == 3:
@@ -92,7 +85,7 @@ def candidate_files(kind: str) -> list[str]:
             or home_metadata.st_mode & 0o022):
         raise DigitalAssetsError("the desktop home directory has unsafe metadata")
     roots = [home / name for name in ("Downloads", "Documents", "Desktop")]
-    found: set[str] = set()
+    valid_roots: list[Path] = []
     for root in roots:
         try:
             root_stat = root.stat(follow_symlinks=False)
@@ -100,30 +93,9 @@ def candidate_files(kind: str) -> list[str]:
                 continue
         except OSError:
             continue
-        device = root_stat.st_dev
-        stack: list[tuple[Path, int]] = [(root, 0)]
-        while stack and len(found) < MAX_CANDIDATES * 2:
-            directory, depth = stack.pop()
-            try:
-                with os.scandir(directory) as iterator:
-                    entries = list(islice(iterator, MAX_CANDIDATES * 2))
-            except OSError:
-                continue
-            for entry in entries:
-                try:
-                    if entry.is_dir(follow_symlinks=False) and depth < 3:
-                        child_stat = entry.stat(follow_symlinks=False)
-                        if child_stat.st_dev == device:
-                            stack.append((Path(entry.path), depth + 1))
-                    elif entry.is_file(follow_symlinks=False) and Path(entry.name).suffix.lower() in EXTENSIONS[kind]:
-                        metadata = entry.stat(follow_symlinks=False)
-                        if 0 < metadata.st_size <= MAX_INPUT_BYTES:
-                            found.add(entry.path)
-                except OSError:
-                    continue
-                if len(found) >= MAX_CANDIDATES * 2:
-                    break
-    return sorted(found)[:MAX_CANDIDATES]
+        valid_roots.append(root)
+    return desktop_runtime.candidates(valid_roots, suffixes=EXTENSIONS[kind], max_depth=3,
+                                      limit=MAX_CANDIDATES, max_bytes=MAX_INPUT_BYTES)
 
 
 def write_private(runtime: Path, prefix: str, content: str = "") -> Path:
@@ -180,9 +152,7 @@ def choose_multiple_files(kind: str, prompt: str, runtime: Path) -> Path | None:
 
 def load_catalog() -> dict[str, dict[str, tuple[str, str, str]]]:
     try:
-        result = subprocess.run([ACTION, "--menu-catalog"], stdout=subprocess.PIPE,
-                                stderr=subprocess.DEVNULL, timeout=15, check=False,
-                                close_fds=True)
+        result = desktop_runtime.run([ACTION, "--menu-catalog"], capture=True, timeout=15)
     except (OSError, subprocess.TimeoutExpired) as error:
         raise DigitalAssetsError("unable to load the Digital Assets action catalog") from error
     if result.returncode or len(result.stdout) > MAX_CATALOG_BYTES:
@@ -216,9 +186,7 @@ def load_catalog() -> dict[str, dict[str, tuple[str, str, str]]]:
 
 def run_action(*args: str) -> None:
     try:
-        result = subprocess.run([ACTION, *args], stdin=subprocess.DEVNULL,
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                timeout=900, check=False, close_fds=True)
+        result = desktop_runtime.run([ACTION, *args], timeout=900)
     except (OSError, subprocess.TimeoutExpired):
         print(f"warning: Digital Assets action unavailable: {args[0] if args else 'unknown'}", file=sys.stderr)
         return

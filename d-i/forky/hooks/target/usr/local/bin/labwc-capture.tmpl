@@ -18,6 +18,8 @@ import sys
 import tempfile
 import time
 
+import labwc_desktop_runtime as desktop_runtime
+
 APP_NAME = "Screen Capture"
 RECORDING_UNIT = "labwc-screen-recording.service"
 NOTIFY_SEND = "/usr/bin/notify-send"
@@ -57,18 +59,8 @@ def fatal(message: str, status: int = 1) -> int:
 
 def run(argv: list[str], *, input_text: str | None = None, capture: bool = False,
         timeout: float | None = None, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        argv,
-        input=input_text,
-        text=True,
-        env=dict(os.environ, **(env or {})),
-        stdin=subprocess.PIPE if input_text is not None else subprocess.DEVNULL,
-        stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
-        stderr=subprocess.PIPE if capture else subprocess.DEVNULL,
-        timeout=timeout,
-        check=False,
-        close_fds=True,
-    )
+    return desktop_runtime.run(argv, input_text=input_text, capture=capture, timeout=timeout,
+                               env=dict(os.environ, **(env or {})))
 
 
 def picker(rows: list[str], prompt: str) -> str | None:
@@ -133,7 +125,7 @@ def initialize_paths() -> None:
         metadata = RUNTIME.stat(follow_symlinks=False)
     except OSError as error:
         raise CaptureError("XDG_RUNTIME_DIR is unavailable or unsafe") from error
-    if not RUNTIME.is_dir() or metadata.st_uid != DESKTOP_UID or stat.S_IMODE(metadata.st_mode) != 0o700 or metadata.st_nlink != 1:
+    if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != DESKTOP_UID or stat.S_IMODE(metadata.st_mode) != 0o700:
         raise CaptureError("XDG_RUNTIME_DIR is unavailable or unsafe")
     state_home = safe_path("XDG_STATE_HOME", os.environ.get("XDG_STATE_HOME", str(HOME / ".local/state")))
     config_home = safe_path("XDG_CONFIG_HOME", os.environ.get("XDG_CONFIG_HOME", str(HOME / ".config")))
@@ -147,7 +139,8 @@ def initialize_paths() -> None:
     for directory in (STATE_DIR, SCREENSHOT_DIR, RECORDING_DIR):
         directory.mkdir(mode=0o700, parents=True, exist_ok=True)
         metadata = directory.stat(follow_symlinks=False)
-        if metadata.st_uid != DESKTOP_UID or stat.S_IMODE(metadata.st_mode) != 0o700 or metadata.st_nlink != 1:
+        if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != DESKTOP_UID
+                or stat.S_IMODE(metadata.st_mode) != 0o700):
             raise CaptureError(f"capture directory has unsafe metadata: {directory}")
     # Keep state-home validation part of the contract even though state is in
     # the runtime directory; the configured path is passed to the worker.

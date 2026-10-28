@@ -8,7 +8,9 @@ import re
 import stat
 import subprocess
 import sys
-from itertools import islice
+import time
+
+import labwc_desktop_runtime as desktop_runtime
 
 PICKER = "/usr/local/bin/labwc-fuzzel"
 ACTION = "/usr/local/bin/labwc-network-control-action"
@@ -31,18 +33,8 @@ def fatal(message: str) -> int:
 
 def run(argv: list[str], *, input_text: str | None = None, capture: bool = False,
         timeout: float = 15.0, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        argv,
-        input=input_text,
-        text=True,
-        env=dict(os.environ, **(env or {})),
-        stdin=subprocess.PIPE if input_text is not None else subprocess.DEVNULL,
-        stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
-        stderr=subprocess.PIPE if capture else subprocess.DEVNULL,
-        timeout=timeout,
-        check=False,
-        close_fds=True,
-    )
+    return desktop_runtime.run(argv, input_text=input_text, capture=capture, timeout=timeout,
+                               env=dict(os.environ, **(env or {})))
 
 
 def picker(rows: list[str], prompt: str, *, text_input: bool = False) -> str | None:
@@ -104,11 +96,28 @@ def choose_adapter(adapter_type: str) -> str | None:
     return picker(sorted(names), f"{adapter_type} adapter")
 
 
-def connection_kind(uuid: str, requested: str) -> bool:
-    if requested == "all":
-        return True
-    connection_type = clean_field(nmcli_output(["--get-values", "connection.type", "connection", "show", "uuid", uuid]), 32)
-    return connection_type == requested
+def nmcli_terse_fields(line: str, expected: int) -> list[str]:
+    """Decode nmcli --terse --escape yes without treating escaped colons as separators."""
+    fields: list[str] = []
+    value: list[str] = []
+    escaped = False
+    for char in line:
+        if escaped:
+            value.append(char)
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif char == ":":
+            fields.append("".join(value))
+            value = []
+        else:
+            value.append(char)
+    if escaped:
+        raise NetworkMenuError("NetworkManager returned a truncated escaped field")
+    fields.append("".join(value))
+    if len(fields) != expected:
+        raise NetworkMenuError("NetworkManager returned malformed connection data")
+    return fields
 
 
 def active_connections() -> set[str]:
@@ -120,15 +129,20 @@ def choose_connection(requested_kind: str, requested_state: str) -> str | None:
         raise NetworkMenuError("invalid connection selection filter")
     active = active_connections() if requested_state == "active" else set()
     rows: list[str] = []
-    for raw in nmcli_output(["--terse", "--fields", "UUID", "connection", "show"]).splitlines()[:MAX_CONNECTIONS]:
-        connection_uuid = raw.strip()
-        if not valid_uuid(connection_uuid) or not connection_kind(connection_uuid, requested_kind):
+    output = nmcli_output(["--terse", "--escape", "yes", "--fields", "UUID,TYPE,NAME",
+                           "connection", "show"], timeout=20)
+    seen: set[str] = set()
+    for raw in output.splitlines()[:MAX_CONNECTIONS]:
+        connection_uuid, connection_type, name = nmcli_terse_fields(raw, 3)
+        if not valid_uuid(connection_uuid) or connection_uuid in seen:
+            raise NetworkMenuError("NetworkManager returned an invalid or duplicate connection UUID")
+        seen.add(connection_uuid)
+        if requested_kind != "all" and connection_type != requested_kind:
             continue
         if requested_state == "active" and connection_uuid not in active:
             continue
-        name = clean_field(nmcli_output(["--get-values", "connection.id", "connection", "show", "uuid", connection_uuid]), 80) or "unnamed"
-        kind = clean_field(nmcli_output(["--get-values", "connection.type", "connection", "show", "uuid", connection_uuid]), 32) or "unknown"
-        rows.append(f"{connection_uuid}  {name} [{kind}]")
+        name = clean_field(name, 80) or "unnamed"
+        rows.append(f"{connection_uuid}  {name} [{clean_field(connection_type, 32) or 'unknown'}]")
     return picker(rows, "Select connection")
 
 
@@ -159,34 +173,44 @@ def candidate_files(kind: str) -> list[str]:
     else:
         raise NetworkMenuError(f"unsupported import kind: {kind}")
     found: set[str] = set()
+    scanned = 0
+    directories = 0
+    deadline = time.monotonic() + 3
     for root in roots:
         try:
             root_stat = root.stat(follow_symlinks=False)
-            if not root.is_dir() or not root_stat:
+            if not stat.S_ISDIR(root_stat.st_mode):
                 continue
         except OSError:
             continue
         stack: list[tuple[Path, int]] = [(root, 0)]
-        while stack and len(found) < MAX_FILES * 2:
+        while (stack and len(found) < MAX_FILES and scanned < 8000
+               and directories < 256 and time.monotonic() < deadline):
             directory, depth = stack.pop()
             try:
                 with os.scandir(directory) as iterator:
-                    entries = list(islice(iterator, MAX_FILES * 2))
+                    directories += 1
+                    entries = iterator
+                    for entry in entries:
+                        scanned += 1
+                        if scanned >= 8000 or time.monotonic() >= deadline:
+                            break
+                        try:
+                            metadata = entry.stat(follow_symlinks=False)
+                            if (stat.S_ISDIR(metadata.st_mode) and depth < max_depth
+                                    and metadata.st_dev == root_stat.st_dev
+                                    and directories + len(stack) < 256):
+                                stack.append((Path(entry.path), depth + 1))
+                            elif (stat.S_ISREG(metadata.st_mode)
+                                  and Path(entry.name).suffix.lower() in suffixes
+                                  and 0 < metadata.st_size < MAX_FILE_BYTES + 1):
+                                found.add(entry.path)
+                        except OSError:
+                            continue
             except OSError:
                 continue
-            for entry in entries:
-                try:
-                    if entry.is_dir(follow_symlinks=False) and depth < max_depth:
-                        stack.append((Path(entry.path), depth + 1))
-                    elif (entry.is_file(follow_symlinks=False)
-                          and Path(entry.name).suffix.lower() in suffixes):
-                        metadata = entry.stat(follow_symlinks=False)
-                        if 0 < metadata.st_size < MAX_FILE_BYTES + 1:
-                            found.add(entry.path)
-                except OSError:
-                    continue
-                if len(found) >= MAX_FILES * 2:
-                    break
+            if len(found) >= MAX_FILES:
+                break
     return sorted(found)[:MAX_FILES]
 
 

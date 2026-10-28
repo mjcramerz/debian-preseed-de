@@ -263,7 +263,6 @@ desktop_write_labwc_plans_config() {
       etc/labwc/plans.conf.tmpl \
       /etc/labwc/plans.conf \
       0640 \
-      LABWC_PLANS_INPUT_DIR "${ACCOUNT_HOME}/Syncthing/sleek" \
       TELEGRAM_API_KEY "$DESKTOP_TELEGRAM_API_KEY" \
       TELEGRAM_CHAT_ID "$DESKTOP_TELEGRAM_CHAT_ID"
   )

@@ -204,6 +204,8 @@ desktop_stage_target_assets() {
   unset calendar_alias calendar_alias_host
   desktop_stage_role_asset usr/local/libexec/labwc-calendar-actions /usr/local/libexec/labwc-calendar-actions 0755
   desktop_stage_role_asset usr/local/libexec/labwc-calendar-worker /usr/local/libexec/labwc-calendar-worker 0755
+  desktop_stage_role_asset usr/local/lib/python3.14/dist-packages/labwc_calendar_reminders.py /usr/local/lib/python3.14/dist-packages/labwc_calendar_reminders.py 0644
+  desktop_stage_role_asset usr/local/lib/python3.14/dist-packages/labwc_desktop_runtime.py /usr/local/lib/python3.14/dist-packages/labwc_desktop_runtime.py 0644
   desktop_stage_role_asset usr/local/share/applications/com.github.dahenson.agenda.desktop /usr/local/share/applications/com.github.dahenson.agenda.desktop 0644
   desktop_stage_role_asset usr/local/share/agenda/schemas/90-desktop-agenda.gschema.override /usr/local/share/agenda/schemas/90-desktop-agenda.gschema.override 0644
   desktop_render_role_target_template etc/systemd/system/fruux-firstboot.service.tmpl \

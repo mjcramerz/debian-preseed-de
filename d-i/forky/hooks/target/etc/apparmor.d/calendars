@@ -52,6 +52,7 @@ profile labwc-calendar-actions /usr/local/libexec/labwc-calendar-actions flags=(
   #include <abstractions/wrapper-python>
   #include <abstractions/desktop-runtime>
   /usr/local/libexec/labwc-calendar-actions r,
+  /usr/local/lib/python3.14/dist-packages/labwc_calendar_reminders.py r,
   /usr/bin/systemctl pux,
   /usr/bin/bwrap rPx -> session-glycin-bwrap,
   /tmp/ r,
@@ -80,6 +81,7 @@ profile labwc-calendar-worker /usr/local/libexec/labwc-calendar-worker flags=(at
   include if exists <abstractions/openssl>
   include if exists <abstractions/ssl_certs>
   /usr/local/libexec/labwc-calendar-worker r,
+  /usr/local/lib/python3.14/dist-packages/labwc_calendar_reminders.py r,
   /usr/lib/** mr,
   /usr/share/{glib-2.0,gir-1.0,locale,zoneinfo}/{,**} r,
   /etc/{passwd,localtime} r,
@@ -90,6 +92,9 @@ profile labwc-calendar-worker /usr/local/libexec/labwc-calendar-worker flags=(at
   owner @{HOME}/.config/calix/fruux-account.json r,
   owner @{HOME}/.config/calix/.fruux-actions.lock rwk,
   owner @{HOME}/.config/calix/fruux-pending.json rw,
+  owner @{HOME}/.config/calix/phone-{reminders,deliveries}.json rw,
+  owner @{HOME}/.config/calix/.phone-{reminders,deliveries}.json.*.tmp rw,
+  /etc/labwc/plans.conf r,
   owner /run/user/[0-9]*/{,bus} rw,
   unix,
   network inet stream,
@@ -100,6 +105,7 @@ profile labwc-calendar-worker /usr/local/libexec/labwc-calendar-worker flags=(at
   network netlink raw,
   dbus (send, receive) bus=session interface=org.freedesktop.Secret.*,
   signal (send, receive) peer=labwc-calendar-actions,
+  signal (receive) peer=labwc-plans,
   signal (receive) peer=unconfined,
 }
 

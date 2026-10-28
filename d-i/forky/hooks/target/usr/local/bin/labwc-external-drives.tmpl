@@ -19,6 +19,8 @@ import sys
 import tempfile
 import time
 
+import labwc_desktop_runtime as desktop_runtime
+
 DEV_ROOT = Path("/dev")
 MOUNTINFO = Path("/proc/self/mountinfo")
 LSBLK = "/usr/bin/lsblk"
@@ -114,42 +116,18 @@ def parse_pairs(line: str) -> dict[str, str]:
 
 def command(argv: list[str], *, timeout: float = 30, capture: bool = False,
             input_text: str | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(argv, input=input_text, text=True,
-                          stdin=subprocess.PIPE if input_text is not None else subprocess.DEVNULL,
-                          stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
-                          stderr=subprocess.PIPE if capture else subprocess.DEVNULL,
-                          timeout=timeout, check=False, close_fds=True)
+    return desktop_runtime.run(argv, input_text=input_text, capture=capture, timeout=timeout)
 
 
 def run_bounded(argv: list[str], timeout: float, *, capture: bool = True) -> tuple[int, str]:
-    process = subprocess.Popen(argv, stdin=subprocess.DEVNULL,
-                               stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
-                               stderr=subprocess.STDOUT if capture else subprocess.DEVNULL,
-                               start_new_session=True, text=True, close_fds=True)
     try:
-        stdout, _ = process.communicate(timeout=timeout)
-        output = stdout or ""
-        if len(output.encode("utf-8", "replace")) > MAX_COMMAND_OUTPUT:
-            return 1, output[:MAX_COMMAND_OUTPUT]
-        return int(process.returncode or 0), output
-    except subprocess.TimeoutExpired as error:
-        try:
-            os.killpg(process.pid, 15)
-        except ProcessLookupError:
-            pass
-        try:
-            stdout, _ = process.communicate(timeout=CLEANUP_TIMEOUT)
-            return 124, stdout or (error.stdout or "")
-        except subprocess.TimeoutExpired:
-            try:
-                os.killpg(process.pid, 9)
-            except ProcessLookupError:
-                pass
-            try:
-                stdout, _ = process.communicate(timeout=CLEANUP_TIMEOUT)
-            except subprocess.TimeoutExpired:
-                stdout = error.stdout or ""
-            return 124, stdout or ""
+        result = desktop_runtime.run(argv, capture=capture, timeout=timeout,
+                                     output_limit=MAX_COMMAND_OUTPUT)
+        return int(result.returncode or 0), result.stdout or ""
+    except subprocess.TimeoutExpired:
+        return 124, ""
+    except (OSError, desktop_runtime.HelperError):
+        return 1, ""
 
 
 def notify(urgency: str, icon: str, summary: str, body: str) -> None:
@@ -162,11 +140,9 @@ def notify(urgency: str, icon: str, summary: str, body: str) -> None:
 
 
 def picker(rows: list[str], prompt: str) -> str | None:
-    result = subprocess.run([PICKER, "menu", "--dmenu", "--prompt", prompt],
-                            input="".join(f"{row}\n" for row in rows), text=True,
-                            env=dict(os.environ, LABWC_MENU_ACTION_WAIT="1"), stdin=subprocess.PIPE,
-                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=120,
-                            check=False, close_fds=True)
+    result = desktop_runtime.run([PICKER, "menu", "--dmenu", "--prompt", prompt],
+                                 input_text="".join(f"{row}\n" for row in rows), capture=True,
+                                 timeout=120, env=dict(os.environ, LABWC_MENU_ACTION_WAIT="1"))
     if result.returncode == 1:
         return None
     if result.returncode == 3:
@@ -621,7 +597,7 @@ def operation_lock(runtime: Path, shutdown: bool):
     if shutdown:
         runtime = Path("/run/labwc-power")
         metadata = runtime.lstat()
-        if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0 or stat.S_IMODE(metadata.st_mode) != 0o700 or metadata.st_nlink != 1:
+        if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0 or stat.S_IMODE(metadata.st_mode) != 0o700:
             raise DriveError("the root external-drive shutdown runtime directory is unsafe")
     else:
         try:
@@ -629,13 +605,27 @@ def operation_lock(runtime: Path, shutdown: bool):
         except OSError as error:
             raise DriveError("the desktop external-drive runtime directory is unavailable") from error
         if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.getuid()
-                or stat.S_IMODE(metadata.st_mode) != 0o700 or metadata.st_nlink != 1):
+                or stat.S_IMODE(metadata.st_mode) != 0o700):
             raise DriveError("the desktop external-drive runtime directory is unsafe")
     lock = runtime / "labwc-external-drives.lock"
     descriptor = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
     try:
+        info = os.fstat(descriptor)
+        owner = 0 if shutdown else os.getuid()
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != owner or info.st_nlink != 1
+                or stat.S_IMODE(info.st_mode) != 0o600):
+            raise DriveError("the external-drive operation lock has unsafe metadata")
+        current = lock.lstat()
+        if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
+            raise DriveError("the external-drive operation lock changed identity")
         fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(descriptor)
+        raise DriveError("an external-drive operation is already in progress") from None
     except OSError:
+        os.close(descriptor)
+        raise
+    except BaseException:
         os.close(descriptor)
         raise
     return descriptor

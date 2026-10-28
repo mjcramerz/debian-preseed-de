@@ -270,7 +270,7 @@ Creates use `If-None-Match: *`; updates/deletes use `If-Match`. A changed item
 fails with a conflict. A successful HTTP write acknowledges a remote change;
 it is not a local-only task-file update.
 
-Dates accept ISO all-day dates or date/time values. Timed writes use UTC;
+Dates accept ISO all-day dates or date/time values. One-time timed writes use UTC;
 ambiguous/nonexistent daylight-saving times require an explicit offset. All-day
 event end dates are exclusive. Unknown iCalendar properties, alarms and
 timezone components survive edits. Recurring series details can be edited
@@ -294,6 +294,72 @@ therefore leaves evidence. The next dialog reads the current remote object and
 requires review before discarding that evidence; it does not replay the write.
 Writers and acknowledgement/cleanup use the same lock. Malformed or unsafe
 recovery files fail closed and require private inspection, never broad cleanup.
+
+### Recurrence and phone reminders
+
+The create/edit popup includes **Recurrence** with None, Daily, Weekdays,
+Weekends, Every 2 days, Every 3 days, Every 4 days, Every 5 days, Weekly,
+Every 2 weeks, Monthly, Every 2 months, Quarterly and Yearly. A shared preset
+table supplies both GTK choices and RRULE serialization. Weekdays uses
+Monday–Friday; Weekends uses Saturday–Sunday. Their initial start date must
+match the selected days. A recurring task requires DTSTART; its reminder uses
+DUE, or DTSTART when there is no DUE. Monthly/yearly rules skip nonexistent
+dates instead of moving a January 31 or February 29 occurrence to another day.
+Recurrence remains anchored in the chosen named timezone across offset changes.
+Timed recurring writes include a bounded VTIMEZONE covering the start year
+minus one through the next 100 years; the named TZID remains in the calendar.
+Existing recurring series keep their recurrence rule, dates and exceptions
+when editing details. The popup labels complex existing rules as preserved.
+These are [iCalendar recurrence rules](https://www.rfc-editor.org/rfc/rfc5545),
+separate from the local phone delivery choices below.
+
+The checkbox is **Send Reminder to Phone**, off by default. **First reminder**
+offers 15 min, 30 min, 1h, 2h, 3h, 4h, 5h, 6h, 12h and 24h. **Intervals** offers
+None, 5 min, 10 min, 15 min, 30 min, 45 min and 60 min. None sends one reminder;
+other intervals repeat from the first reminder through the occurrence time.
+All-day items use midnight in their selected timezone. A bounded two-minute
+catch-up window accommodates polling and short interruptions; missed intervals
+are coalesced to the latest useful slot rather than replayed in a burst.
+
+Only these explicit calendar UID opt-ins authorize phone delivery. Sleek text
+files, filesystem watches and the old plans queue are not consumed. The
+`labwc-plans.pl` entrypoint now execs the persistent calendar worker in
+`--reminders` mode. It batches fresh CalDAV multiget requests for opted-in URLs,
+checks their UIDs, and suppresses removed, cancelled or completed items. It
+expands the supported presets locally within a fixed occurrence window,
+honoring RDATE, EXDATE and detached exceptions. Complex external rules that
+cannot be safely interpreted fail closed for phone delivery and stay intact
+on Fruux. Background reads never request keyring unlocking.
+
+Phone choices live only in `~/.config/calix/phone-reminders.json`, bound to
+UID, URL and component kind; checkbox/lead/interval fields are never added to
+ICS or VALARM. The separate `phone-deliveries.json` ledger contains identifiers
+and delivery watermarks, not titles or calendar descriptions. Both use private
+0600 files, pinned directory descriptors, no-follow reads, bounded sizes,
+atomic publication and file/directory synchronization. The calendar writer
+lock also owns preferences, ledger reservations, cancellation and pruning.
+Preference candidates are checked before PUT and retained in the durable write
+intent. An unresolved write suppresses reminders for that URL until reviewed.
+
+Before a phone POST, the worker rechecks the opt-in and live root-owned channel
+policy, and durably reserves the slot. This prevents replay after an uncertain
+POST or process death. A timeout or ambiguous response can therefore lose a
+reminder; it is reported as outcome-unknown and never blindly retried. Explicit
+HTTP 429 rejections alone may retry during the same useful slot. Changing a
+channel destination or authentication requires restarting its user service;
+disabling a channel is honored before dispatch. HTTPS redirects and proxies
+are disabled. ntfy additionally requires authenticated publishing and the
+existing explicit confirmation of reader access restrictions.
+
+Each cycle has a 45-second signal deadline covering credential lookup, DNS,
+streaming and dispatch; CalDAV also has its existing 40-second budget and
+12 MiB aggregate response budget. A cycle sends at most 32 messages. At most
+500 UID opt-ins, 64 URLs per REPORT, 128 recurrence dates per property type,
+64 calendar components and 4096 delivery records are accepted. Malformed state
+is retained and fails closed. Publication failures retain the candidate or
+published file and report uncertainty. Service restarts never consume an old
+Sleek backlog. Static source/serialization evidence does not establish native
+GTK, Fruux, Secret Service, AppArmor or phone delivery acceptance.
 
 ## Wi-Fi reconnect and Ethernet preference
 
