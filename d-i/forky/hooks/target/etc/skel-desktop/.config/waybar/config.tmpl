@@ -40,8 +40,9 @@
   },
   "custom/launcher": {
     "format": "Menu",
+    "cursor": true,
     "tooltip": false,
-    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-main-menu --description=Labwc-main-menu --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --property=SuccessExitStatus=3 --setenv=LABWC_FUZZEL_OUTPUT_CLASS=INTERNAL -- labwc-main-menu"
+    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-main-menu --description=Labwc-main-menu --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --property=SuccessExitStatus=3 --setenv=LABWC_FUZZEL_OUTPUT_CLASS=INTERNAL -- /usr/local/bin/labwc-main-menu"
   },
   "group/apps": {
     "orientation": "inherit",
@@ -427,8 +428,9 @@
   },
   "custom/launcher": {
     "format": "Menu",
+    "cursor": true,
     "tooltip": false,
-    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-main-menu --description=Labwc-main-menu --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --property=SuccessExitStatus=3 --setenv=LABWC_FUZZEL_OUTPUT_CLASS=EXTERNAL -- labwc-main-menu"
+    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-main-menu --description=Labwc-main-menu --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --property=SuccessExitStatus=3 --setenv=LABWC_FUZZEL_OUTPUT_CLASS=EXTERNAL -- /usr/local/bin/labwc-main-menu"
   },
   "group/apps": {
     "orientation": "inherit",

@@ -1803,6 +1803,7 @@ desktop_verify_native_workspace_config() {
 import configparser
 import json
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -1900,6 +1901,32 @@ for config in config_roots:
                 and actions[0].get("command") == command, "invalid command for " + key)
     require(rc.find("keyboard/keybind[@key=\"C-Super_L\"]").get("onRelease") == "yes",
             "Ctrl+Win modifier must defer until release to permit longer chords")
+    for key, unit, executable in (("Super_L", "labwc-main-menu", "/usr/local/bin/labwc-main-menu"),
+                                  ("W-Alt_L", "labwc-computer-management", "/usr/local/bin/labwc-computer-management"),
+                                  ("W-Alt_R", "labwc-computer-management", "/usr/local/bin/labwc-computer-management"),
+                                  ("A-Super_L", "labwc-computer-management", "/usr/local/bin/labwc-computer-management"),
+                                  ("A-Super_R", "labwc-computer-management", "/usr/local/bin/labwc-computer-management"),
+                                  ("XF86Launch1", "labwc-computer-management", "/usr/local/bin/labwc-computer-management"),
+                                  ("XF86Launch3", "labwc-main-menu", "/usr/local/bin/labwc-main-menu")):
+        binding = rc.find("keyboard/keybind[@key=\"" + key + "\"]")
+        require(binding is not None and binding.get("onRelease") == "yes",
+                "missing release binding " + key)
+        actions = binding.findall("action")
+        require(len(actions) == 1 and actions[0].get("name") == "Execute",
+                "invalid action for " + key)
+        command = shlex.split(actions[0].get("command", ""))
+        boundary = command.index("--") if "--" in command else -1
+        required = {"--user", "--collect", "--no-block", "--service-type=exec",
+                    "--expand-environment=no", "--slice=app.slice",
+                    "--property=Requisite=labwc-session.target",
+                    "--property=After=labwc-session.target",
+                    "--property=PartOf=labwc-session.target",
+                    "--property=ExitType=cgroup", "--property=KillMode=control-group",
+                    "--property=TimeoutStopSec=20s", "--property=SuccessExitStatus=3",
+                    "--unit=" + unit}
+        require(command and command[0] == "/usr/bin/systemd-run" and boundary > 0
+                and required <= set(command[1:boundary]) and command[boundary + 1:] == [executable],
+                "hotkey must use the bounded transient service for " + key)
     bars = json.loads((config / "waybar/config").read_text())
     require(isinstance(bars, list) and len(bars) == 2
             and [bar.get("name") for bar in bars] == ["internal", "external"],
@@ -1910,6 +1937,12 @@ for config in config_roots:
         if count == 1:
             expected_left.append("wlr/taskbar")
         require(left == expected_left, "native switcher button order changed")
+        launcher = bar["custom/launcher"]
+        require(launcher.get("cursor") is True, "main menu launcher must expose an interaction cursor")
+        launcher_command = shlex.split(launcher.get("on-click-release", ""))
+        require(launcher_command and launcher_command[0] == "/usr/bin/systemd-run" and "--" in launcher_command
+                and launcher_command[launcher_command.index("--") + 1:] == ["/usr/local/bin/labwc-main-menu"],
+                "main menu launcher must use the fixed installed entrypoint")
         click = bar["custom/window-switcher"].get("on-click-release", "")
         require(click.endswith(" -- /usr/local/bin/labwc-window-switcher") and "--property=KillMode=control-group" in click
                 and "--property=PartOf=labwc-session.target" in click, "native switcher launch contract changed")

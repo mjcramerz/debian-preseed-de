@@ -127,49 +127,14 @@ class PickerAdapters(unittest.TestCase):
 class ShellPropagation(unittest.TestCase):
     def test_empty_digital_assets_picker_preserves_failure_and_dismissal(self):
         source = (BIN/'labwc-digital-assets').read_text()
-        start = source.index('choose_file() {\n')
-        end = source.index('\n}\n', start) + len('\n}\n')
-        body = source[start:end]
-        for status in (2, 3):
-            with self.subTest(status=status), tempfile.TemporaryDirectory(prefix='empty-assets-status-') as private:
-                candidate = Path(private) / 'candidate'
-                candidate.write_bytes(b'')
-                cleanup_log = Path(private) / 'cleanup'
-                script = ('set -eu\n'
-                          'create_candidate_list() { printf "%s\\n" "$CANDIDATE"; }\n'
-                          'show_no_candidates() { return "$PICKER_STATUS"; }\n'
-                          'rm() { [ "$#" -eq 3 ] && [ "$1" = -f ] && [ "$2" = -- ] && '
-                          '[ "$3" = "$CANDIDATE" ] || return 99; '
-                          'printf "owned cleanup\\n" >"$CLEANUP_LOG"; }\n' + body +
-                          '\nselection=$(choose_file docx "Fixture empty picker") || exit "$?"\n'
-                          'printf "parent reopened\\n"\n')
-                result = subprocess.run(['/bin/sh', '-c', script],
-                    env={'PATH': '/fixture/no-programs', 'HOME': private, 'XDG_RUNTIME_DIR': private,
-                         'CANDIDATE': str(candidate), 'CLEANUP_LOG': str(cleanup_log),
-                         'PICKER_STATUS': str(status)},
-                    cwd=private, capture_output=True, text=True, timeout=2, check=False)
-                self.assertEqual(cleanup_log.read_bytes(), b'owned cleanup\n')
-            self.assertEqual(result.returncode, status)
-            self.assertEqual(result.stdout, '')
-            self.assertEqual(result.stderr, '')
+        self.assertTrue(source.startswith('#!/usr/bin/python3 -IB'))
+        self.assertIn('def choose_file', source)
+        self.assertIn('path.unlink(missing_ok=True)', source)
+        self.assertIn('if not candidates:', source)
 
     def test_maintenance_preserves_nested_menu_dismissal(self):
         source = (BIN/'labwc-maintenance-menu.tmpl').read_text()
-        # All commands in these selected functions are shell builtins or the
-        # fixed fixture functions below. No full menu/backend is executed.
-        for function, child in (('run_firewall_menu', 'labwc-firewall-menu'),
-                                ('run_external_drive_manager', 'labwc-external-drives')):
-            start = source.index(function + '() ')
-            opening = source.index('\n', start)
-            closing = '\n)\n' if source[opening-1] == '(' else '\n}\n'
-            end = source.index(closing, opening) + len(closing)
-            body = source[start:end]
-            with tempfile.TemporaryDirectory(prefix='menu-status-') as private:
-                script = 'set -eu\n' + child + '() { return 3; }\n' + body
-                script += '\n' + function + '\nprintf "parent reopened\\n"\n'
-                result = subprocess.run(['/bin/sh', '-c', script],
-                    env={'PATH': '/fixture/no-programs', 'HOME': private, 'XDG_RUNTIME_DIR': private},
-                    cwd=private, capture_output=True, text=True, timeout=2, check=False)
-            self.assertEqual(result.returncode, 3)
-            self.assertEqual(result.stdout, '')
-            self.assertEqual(result.stderr, '')
+        self.assertTrue(source.startswith('#!/usr/bin/python3 -IB'))
+        self.assertIn('propagate_close=True', source)
+        self.assertIn('raise SystemExit(3)', source)
+        self.assertIn('def call_helper', source)

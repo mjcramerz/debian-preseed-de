@@ -1,456 +1,279 @@
-#!/bin/sh
-set -eu
+#!/usr/bin/python3 -IB
+"""Bounded Digital Assets picker and catalog dispatcher."""
+from __future__ import annotations
 
-# Keep this menu behind its independently managed action terminal.
-export LABWC_MENU_ACTION_WAIT=1
+import os
+from pathlib import Path
+import re
+import stat
+import subprocess
+import sys
+import tempfile
+from itertools import islice
 
-: "${HOME:?HOME must be set}"
+PICKER = "/usr/local/bin/labwc-fuzzel"
+ACTION = "/usr/local/bin/labwc-digital-assets-action"
+MAX_CANDIDATES = 400
+MAX_INPUT_BYTES = 209_715_200
+MAX_CATALOG_BYTES = 131_072
+MAX_CATALOG_ROWS = 128
 
-MAX_CANDIDATES=400
-MAX_INPUT_BYTES=209715200
-LABWC_FUZZEL_MANAGED_ICONS=1
-export LABWC_FUZZEL_MANAGED_ICONS
-catalog_path=
-
-cleanup() {
-  [ -z "$catalog_path" ] || rm -f -- "$catalog_path"
+EXTENSIONS = {
+    "docx": {".docx"},
+    "pdf": {".pdf"},
+    "image": {".avif", ".bmp", ".gif", ".heic", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp"},
+    "markdown": {".markdown", ".md", ".mdown", ".mkdn"},
 }
+ACTION_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
-trap cleanup EXIT
-trap 'cleanup; exit 1' HUP INT TERM
 
-# Back returns to the parent; dismissal unwinds every menu process.
-menu_failure() {
-  [ "$1" -eq 1 ] && return 0
-  [ "$1" -eq 3 ] && exit 3
-  printf 'fatal: menu picker failed (status %s)\n' "$1" >&2
-  exit "$1"
-}
+class DigitalAssetsError(RuntimeError):
+    pass
 
-fatal() {
-  printf 'fatal: %s\n' "$*" >&2
-  exit 1
-}
 
-choose_menu_input() {
-  prompt=$1
-
-  if menu_selection=$(labwc-fuzzel menu --dmenu --prompt "$prompt"); then
-    printf '%s\n' "$menu_selection"
-    return 0
-  else
-    menu_status=$?
-  fi
-
-  case "$menu_status" in
-    1)
-      # Win+Backspace returns to the parent without selecting a row.
-      return 0
-      ;;
-    3) exit 3 ;;
-    *)
-      printf 'fatal: unable to open the %s menu (status %s)\n' "$prompt" "$menu_status" >&2
-      exit "$menu_status"
-      ;;
-  esac
-}
-
-require_command() {
-  command -v "$1" >/dev/null 2>&1 ||
-    fatal "required command is not installed: $1"
-}
-
-runtime_root() {
-  active_uid=$(/usr/bin/id -u) ||
-    fatal "unable to determine the active desktop user"
-  case "$active_uid" in
-    [1-9][0-9]*) ;;
-    *) fatal "Digital Assets requires a non-root desktop user" ;;
-  esac
-
-  case "${XDG_RUNTIME_DIR:-}" in
-    /run/user/[1-9][0-9]*)
-      runtime_uid=${XDG_RUNTIME_DIR##*/}
-      [ "$runtime_uid" = "$active_uid" ] ||
-        fatal "XDG_RUNTIME_DIR does not belong to the active desktop user"
-      [ -d "$XDG_RUNTIME_DIR" ] && [ ! -L "$XDG_RUNTIME_DIR" ] ||
-        fatal "XDG_RUNTIME_DIR is not a real directory"
-      runtime_stat=$(/usr/bin/find -P "$XDG_RUNTIME_DIR" -maxdepth 0 -printf '%U:%m') ||
-        fatal "unable to inspect XDG_RUNTIME_DIR"
-      case "$runtime_stat" in
-        "$active_uid":[0-7][0-7][0-7]|"$active_uid":[0-7][0-7][0-7][0-7]) ;;
-        *) fatal "XDG_RUNTIME_DIR ownership or mode is unsafe" ;;
-      esac
-      runtime_mode=${runtime_stat#*:}
-      [ $((runtime_mode % 100)) -eq 0 ] ||
-        fatal "XDG_RUNTIME_DIR ownership or mode is unsafe"
-      printf '%s\n' "${XDG_RUNTIME_DIR%/}"
-      ;;
-    *)
-      fatal "Digital Assets requires a non-root Wayland user runtime directory"
-      ;;
-  esac
-}
-
-ensure_wayland_session() {
-  [ -n "${WAYLAND_DISPLAY:-}" ] ||
-    fatal "Digital Assets requires an active Wayland display"
-  case "${XDG_SESSION_TYPE:-wayland}" in
-    wayland) ;;
-    *) fatal "Digital Assets must run in a Wayland session" ;;
-  esac
-}
-
-choose_lines() {
-  prompt=$1
-  shift
-
-  printf '%s\n' "$@" |
-    choose_menu_input "$prompt"
-}
-
-candidate_roots() {
-  for candidate_root in \
-    "$HOME/Downloads" \
-    "$HOME/Documents" \
-    "$HOME/Desktop"
-  do
-    [ -d "$candidate_root" ] && printf '%s\n' "$candidate_root"
-  done
-}
-
-candidate_files() {
-  asset_kind=$1
-
-  case "$asset_kind" in
-    docx|pdf|image|markdown)
-      ;;
-    *)
-      fatal "unsupported candidate asset kind: $asset_kind"
-      ;;
-  esac
-
-  candidate_roots |
-    while IFS= read -r candidate_root; do
-      # The name predicates are intentionally expanded as fixed branches below
-      # instead of evaluating a user-controlled expression.
-      case "$asset_kind" in
-        docx)
-          find "$candidate_root" \
-            -xdev -mindepth 1 -maxdepth 3 -type f \
-            -iname '*.docx' \
-            -size "-$((MAX_INPUT_BYTES + 1))c" \
-            -print 2>/dev/null
-          ;;
-        pdf)
-          find "$candidate_root" \
-            -xdev -mindepth 1 -maxdepth 3 -type f \
-            -iname '*.pdf' \
-            -size "-$((MAX_INPUT_BYTES + 1))c" \
-            -print 2>/dev/null
-          ;;
-        image)
-          find "$candidate_root" \
-            -xdev -mindepth 1 -maxdepth 3 -type f \
-            \( \
-              -iname '*.avif' -o -iname '*.bmp' -o -iname '*.gif' -o \
-              -iname '*.heic' -o -iname '*.jpeg' -o -iname '*.jpg' -o \
-              -iname '*.png' -o -iname '*.tif' -o -iname '*.tiff' -o \
-              -iname '*.webp' \
-            \) \
-            -size "-$((MAX_INPUT_BYTES + 1))c" \
-            -print 2>/dev/null
-          ;;
-        markdown)
-          find "$candidate_root" \
-            -xdev -mindepth 1 -maxdepth 3 -type f \
-            \( \
-              -iname '*.markdown' -o -iname '*.md' -o -iname '*.mdown' -o \
-              -iname '*.mkdn' \
-            \) \
-            -size "-$((MAX_INPUT_BYTES + 1))c" \
-            -print 2>/dev/null
-          ;;
-      esac
-    done |
-    sed -n "1,$((MAX_CANDIDATES * 2))p" |
-    LC_ALL=C sort -u |
-    sed -n "1,${MAX_CANDIDATES}p"
-}
-
-asset_kind_label() {
-  case "$1" in
-    docx) printf '%s\n' 'DOCX' ;;
-    pdf) printf '%s\n' 'PDF' ;;
-    image) printf '%s\n' 'Image' ;;
-    markdown) printf '%s\n' 'Markdown' ;;
-    *) fatal "unsupported candidate asset kind: $1" ;;
-  esac
-}
-
-create_candidate_list() {
-  asset_kind=$1
-  candidate_path="$(runtime_root)/labwc-digital-assets-list.XXXXXX"
-  candidate_path=$(mktemp "$candidate_path") ||
-    fatal "unable to create the private Digital Assets candidate list"
-  chmod 0600 "$candidate_path"
-  candidate_files "$asset_kind" >"$candidate_path"
-  printf '%s\n' "$candidate_path"
-}
-
-show_no_candidates() {
-  asset_kind=$1
-  selection_prompt=$2
-  asset_label=$(asset_kind_label "$asset_kind")
-
-  printf 'No %s files detected in Downloads, Documents, or Desktop\n' "$asset_label" |
-    choose_menu_input "$selection_prompt" >/dev/null
-}
-
-choose_file() {
-  asset_kind=$1
-  selection_prompt=$2
-  candidate_path=$(create_candidate_list "$asset_kind")
-
-  if [ -s "$candidate_path" ]; then
-    selection=$(
-      sed -n "1,${MAX_CANDIDATES}p" "$candidate_path" |
-        choose_menu_input "$selection_prompt"
-    ) || {
-      picker_status=$?
-      rm -f -- "$candidate_path"
-      exit "$picker_status"
-    }
-  else
-    show_no_candidates "$asset_kind" "$selection_prompt" || {
-      picker_status=$?
-      rm -f -- "$candidate_path"
-      exit "$picker_status"
-    }
-    selection=
-  fi
-
-  rm -f -- "$candidate_path"
-  printf '%s\n' "$selection"
-}
-
-choose_multiple_files() {
-  asset_kind=$1
-  selection_prompt=$2
-  selected_count=0
-  candidate_path=$(create_candidate_list "$asset_kind") || return "$?"
-
-  if [ ! -s "$candidate_path" ]; then
-    rm -f -- "$candidate_path"
-    show_no_candidates "$asset_kind" "$selection_prompt" || return "$?"
+def fatal(message: str) -> int:
+    print(f"fatal: {message}", file=sys.stderr)
     return 1
-  fi
 
-  list_path="$(runtime_root)/labwc-digital-assets-list.XXXXXX"
-  list_path=$(mktemp "$list_path") ||
-    {
-      rm -f -- "$candidate_path"
-      fatal "unable to create the private Digital Assets selection list"
-    }
-  chmod 0600 "$list_path"
 
-  while :; do
-    selection=$(
-      {
-        printf '%s\n' 'Finish selection' 'Cancel'
-        sed -n "1,${MAX_CANDIDATES}p" "$candidate_path"
-      } |
-        choose_menu_input "$selection_prompt"
-    ) || {
-      picker_status=$?
-      rm -f -- "$list_path" "$candidate_path"
-      return "$picker_status"
-    }
+def runtime_root() -> Path:
+    uid = os.getuid()
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR", ""))
+    if uid == 0 or runtime != Path("/run/user") / str(uid):
+        raise DigitalAssetsError("Digital Assets requires a non-root desktop user runtime directory")
+    try:
+        metadata = runtime.stat(follow_symlinks=False)
+    except OSError as error:
+        raise DigitalAssetsError("unable to inspect XDG_RUNTIME_DIR") from error
+    if not runtime.is_dir() or metadata.st_uid != uid or metadata.st_nlink != 1 or metadata.st_mode & 0o077:
+        raise DigitalAssetsError("XDG_RUNTIME_DIR ownership or mode is unsafe")
+    return runtime
 
-    case "$selection" in
-      'Finish selection')
-        break
-        ;;
-      'Cancel'|'')
-        rm -f -- "$list_path"
-        rm -f -- "$candidate_path"
-        return 1
-        ;;
-      *)
-        case "$selection" in
-          *'
-'*)
-            printf '%s\n' 'warning: file names containing newlines are unsupported' >&2
-            ;;
-          *)
-            if ! grep -Fqx -- "$selection" "$list_path"; then
-              printf '%s\n' "$selection" >>"$list_path"
-              selected_count=$((selected_count + 1))
-            fi
-            ;;
-        esac
-        ;;
-    esac
-  done
 
-  [ "$selected_count" -ge 2 ] || {
-    rm -f -- "$list_path"
-    rm -f -- "$candidate_path"
-    printf '%s\n' 'warning: select at least two files before finishing' >&2
-    return 1
-  }
+def picker(rows: list[str], prompt: str) -> str | None:
+    result = subprocess.run(
+        [PICKER, "menu", "--dmenu", "--prompt", prompt],
+        input="".join(f"{row}\n" for row in rows),
+        text=True,
+        env=dict(os.environ, LABWC_MENU_ACTION_WAIT="1", LABWC_FUZZEL_MANAGED_ICONS="1"),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        timeout=120,
+        check=False,
+        close_fds=True,
+    )
+    if result.returncode == 1:
+        return None
+    if result.returncode == 3:
+        raise SystemExit(3)
+    if result.returncode != 0:
+        raise DigitalAssetsError(f"unable to open the {prompt} menu (status {result.returncode})")
+    selected = result.stdout.rstrip("\n")
+    return selected if selected in rows else None
 
-  rm -f -- "$candidate_path"
-  printf '%s\n' "$list_path"
-}
 
-run_action() {
-  require_command labwc-digital-assets-action
+def require_wayland() -> None:
+    if not os.environ.get("WAYLAND_DISPLAY"):
+        raise DigitalAssetsError("Digital Assets requires an active Wayland display")
+    if os.environ.get("XDG_SESSION_TYPE", "wayland") != "wayland":
+        raise DigitalAssetsError("Digital Assets must run in a Wayland session")
 
-  if labwc-digital-assets-action "$@"; then
-    return 0
-  else
-    action_status=$?
-  fi
 
-  printf 'warning: Digital Assets action returned status %s: %s\n' \
-    "$action_status" "$1" >&2
-  return 0
-}
+def candidate_files(kind: str) -> list[str]:
+    if kind not in EXTENSIONS:
+        raise DigitalAssetsError(f"unsupported candidate asset kind: {kind}")
+    home = Path.home()
+    try:
+        home_metadata = home.lstat()
+    except OSError as error:
+        raise DigitalAssetsError("the desktop home directory is unavailable") from error
+    if (not stat.S_ISDIR(home_metadata.st_mode) or home_metadata.st_uid != os.getuid()
+            or home_metadata.st_mode & 0o022):
+        raise DigitalAssetsError("the desktop home directory has unsafe metadata")
+    roots = [home / name for name in ("Downloads", "Documents", "Desktop")]
+    found: set[str] = set()
+    for root in roots:
+        try:
+            root_stat = root.stat(follow_symlinks=False)
+            if not root.is_dir() or root_stat.st_uid != os.getuid():
+                continue
+        except OSError:
+            continue
+        device = root_stat.st_dev
+        stack: list[tuple[Path, int]] = [(root, 0)]
+        while stack and len(found) < MAX_CANDIDATES * 2:
+            directory, depth = stack.pop()
+            try:
+                with os.scandir(directory) as iterator:
+                    entries = list(islice(iterator, MAX_CANDIDATES * 2))
+            except OSError:
+                continue
+            for entry in entries:
+                try:
+                    if entry.is_dir(follow_symlinks=False) and depth < 3:
+                        child_stat = entry.stat(follow_symlinks=False)
+                        if child_stat.st_dev == device:
+                            stack.append((Path(entry.path), depth + 1))
+                    elif entry.is_file(follow_symlinks=False) and Path(entry.name).suffix.lower() in EXTENSIONS[kind]:
+                        metadata = entry.stat(follow_symlinks=False)
+                        if 0 < metadata.st_size <= MAX_INPUT_BYTES:
+                            found.add(entry.path)
+                except OSError:
+                    continue
+                if len(found) >= MAX_CANDIDATES * 2:
+                    break
+    return sorted(found)[:MAX_CANDIDATES]
 
-load_menu_catalog() {
-  catalog_path="$(runtime_root)/labwc-digital-assets-catalog.XXXXXX"
-  catalog_path=$(mktemp "$catalog_path") ||
-    fatal "unable to create the private Digital Assets action catalog"
-  chmod 0600 "$catalog_path"
 
-  if ! labwc-digital-assets-action --menu-catalog >"$catalog_path"; then
-    fatal "unable to load the Digital Assets action catalog"
-  fi
+def write_private(runtime: Path, prefix: str, content: str = "") -> Path:
+    descriptor, name = tempfile.mkstemp(prefix=prefix, dir=runtime, text=True)
+    path = Path(name)
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
+            stream.write(content)
+    except BaseException:
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
+        path.unlink(missing_ok=True)
+        raise
+    return path
 
-  if ! LC_ALL=C awk -F '	' '
-    NF != 5 ||
-    $1 !~ /^(docx|pdf|image)$/ ||
-    $2 !~ /^[a-z0-9]+(-[a-z0-9]+)*$/ ||
-    $3 !~ /^(docx|pdf|image|markdown|pdf-list|image-list)$/ ||
-    $4 == "" ||
-    $5 == "" ||
-    seen_action[$2]++ ||
-    seen_label[$1 SUBSEP $4]++ {
-      invalid = 1
-      exit 1
-    }
-    {
-      count++
-    }
-    END {
-      exit invalid || count == 0 ? 1 : 0
-    }
-  ' "$catalog_path"; then
-    fatal "Digital Assets action catalog is malformed"
-  fi
-}
 
-menu_catalog_labels() {
-  menu_category=$1
+def choose_file(kind: str, prompt: str, runtime: Path) -> str | None:
+    candidates = candidate_files(kind)
+    if not candidates:
+        picker([f"No {kind.upper()} files detected in Downloads, Documents, or Desktop"], prompt)
+        return None
+    path = write_private(runtime, "labwc-digital-assets-list.", "\n".join(candidates) + "\n")
+    try:
+        return picker(candidates, prompt)
+    finally:
+        path.unlink(missing_ok=True)
 
-  LC_ALL=C awk -F '	' -v category="$menu_category" '
-    $1 == category {
-      print $4
-    }
-  ' "$catalog_path"
-}
 
-menu_catalog_entry() {
-  menu_category=$1
-  menu_label=$2
+def choose_multiple_files(kind: str, prompt: str, runtime: Path) -> Path | None:
+    candidates = candidate_files(kind)
+    if not candidates:
+        picker([f"No {kind.upper()} files detected in Downloads, Documents, or Desktop"], prompt)
+        return None
+    selected: list[str] = []
+    while True:
+        choice = picker(["Finish selection", "Cancel", *candidates], prompt)
+        if choice in (None, "Cancel"):
+            return None
+        if choice == "Finish selection":
+            break
+        if "\n" in choice:
+            print("warning: file names containing newlines are unsupported", file=sys.stderr)
+            continue
+        if choice not in selected:
+            selected.append(choice)
+    if len(selected) < 2:
+        print("warning: select at least two files before finishing", file=sys.stderr)
+        return None
+    return write_private(runtime, "labwc-digital-assets-list.", "\n".join(selected) + "\n")
 
-  LC_ALL=C awk -F '	' -v category="$menu_category" -v label="$menu_label" '
-    $1 == category && $4 == label {
-      print
-      exit
-    }
-  ' "$catalog_path"
-}
 
-choose_catalog_action() {
-  menu_category=$1
-  menu_prompt=$2
+def load_catalog() -> dict[str, dict[str, tuple[str, str, str]]]:
+    try:
+        result = subprocess.run([ACTION, "--menu-catalog"], stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, timeout=15, check=False,
+                                close_fds=True)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise DigitalAssetsError("unable to load the Digital Assets action catalog") from error
+    if result.returncode or len(result.stdout) > MAX_CATALOG_BYTES:
+        raise DigitalAssetsError("unable to load the Digital Assets action catalog")
+    try:
+        text = result.stdout.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise DigitalAssetsError("Digital Assets action catalog is not UTF-8") from error
+    catalog: dict[str, dict[str, tuple[str, str, str]]] = {"docx": {}, "pdf": {}, "image": {}}
+    seen_actions: set[str] = set()
+    seen_labels: set[tuple[str, str]] = set()
+    lines = text.splitlines()
+    if not lines or len(lines) > MAX_CATALOG_ROWS:
+        raise DigitalAssetsError("Digital Assets action catalog is malformed")
+    for line in lines:
+        fields = line.split("\t")
+        if len(fields) != 5:
+            raise DigitalAssetsError("Digital Assets action catalog is malformed")
+        category, action, selector, label, prompt = fields
+        if category not in catalog or not ACTION_NAME.fullmatch(action):
+            raise DigitalAssetsError("Digital Assets action catalog is malformed")
+        if selector not in {"docx", "pdf", "image", "markdown", "pdf-list", "image-list"} or not label or not prompt:
+            raise DigitalAssetsError("Digital Assets action catalog is malformed")
+        if action in seen_actions or (category, label) in seen_labels:
+            raise DigitalAssetsError("Digital Assets action catalog is malformed")
+        seen_actions.add(action)
+        seen_labels.add((category, label))
+        catalog[category][label] = (action, selector, prompt)
+    return catalog
 
-  {
-    menu_catalog_labels "$menu_category"
-    printf '%s\n' '← Back'
-  } |
-    choose_menu_input "$menu_prompt"
-}
 
-run_catalog_action() {
-  catalog_entry=$1
-  catalog_action=$(printf '%s\n' "$catalog_entry" | awk -F '	' '{ print $2 }')
-  catalog_selector=$(printf '%s\n' "$catalog_entry" | awk -F '	' '{ print $3 }')
-  catalog_prompt=$(printf '%s\n' "$catalog_entry" | awk -F '	' '{ print $5 }')
+def run_action(*args: str) -> None:
+    try:
+        result = subprocess.run([ACTION, *args], stdin=subprocess.DEVNULL,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                timeout=900, check=False, close_fds=True)
+    except (OSError, subprocess.TimeoutExpired):
+        print(f"warning: Digital Assets action unavailable: {args[0] if args else 'unknown'}", file=sys.stderr)
+        return
+    if result.returncode:
+        print(f"warning: Digital Assets action returned status {result.returncode}: {args[0] if args else 'unknown'}", file=sys.stderr)
 
-  case "$catalog_selector" in
-    docx|pdf|image|markdown)
-      path=$(choose_file "$catalog_selector" "$catalog_prompt") || exit "$?"
-      [ -n "$path" ] && run_action "$catalog_action" "$path"
-      ;;
-    pdf-list|image-list)
-      asset_kind=${catalog_selector%-list}
-      list_path=$(choose_multiple_files "$asset_kind" "$catalog_prompt") || { menu_failure "$?"; return 0; }
-      run_action "$catalog_action" "$list_path"
-      rm -f -- "$list_path"
-      ;;
-    *)
-      fatal "Digital Assets action catalog has an unsupported selector"
-      ;;
-  esac
-}
 
-category_menu() {
-  menu_category=$1
-  menu_prompt=$2
+def category_menu(category: str, prompt: str, catalog: dict[str, dict[str, tuple[str, str, str]]], runtime: Path) -> None:
+    while True:
+        label = picker([*catalog[category], "← Back"], prompt)
+        if label in (None, "← Back"):
+            return
+        entry = catalog[category].get(label)
+        if entry is None:
+            print("warning: selected Digital Assets action is unavailable", file=sys.stderr)
+            continue
+        action, selector, action_prompt = entry
+        if selector in {"docx", "pdf", "image", "markdown"}:
+            path = choose_file(selector, action_prompt, runtime)
+            if path:
+                run_action(action, path)
+        elif selector in {"pdf-list", "image-list"}:
+            list_path = choose_multiple_files(selector.removesuffix("-list"), action_prompt, runtime)
+            if list_path:
+                try:
+                    run_action(action, str(list_path))
+                finally:
+                    list_path.unlink(missing_ok=True)
+        else:
+            raise DigitalAssetsError("Digital Assets action catalog has an unsupported selector")
 
-  while :; do
-    action_label=$(choose_catalog_action "$menu_category" "$menu_prompt") || exit "$?"
 
-    case "$action_label" in
-      '← Back'|'')
-        return 0
-        ;;
-      *)
-        catalog_entry=$(menu_catalog_entry "$menu_category" "$action_label")
-        if [ -n "$catalog_entry" ]; then
-          run_catalog_action "$catalog_entry"
-        else
-          printf 'warning: selected Digital Assets action is unavailable\n' >&2
-        fi
-        ;;
-    esac
-  done
-}
+def main(argv: list[str]) -> int:
+    if argv:
+        raise DigitalAssetsError(f"unsupported Digital Assets arguments: {' '.join(argv)}")
+    if not os.access(PICKER, os.X_OK):
+        raise DigitalAssetsError("labwc-fuzzel is not installed")
+    if not os.access(ACTION, os.X_OK):
+        raise DigitalAssetsError("labwc-digital-assets-action is not installed")
+    if os.getuid() == 0:
+        raise DigitalAssetsError("labwc-digital-assets must run as the logged-in desktop user")
+    runtime = runtime_root()
+    require_wayland()
+    catalog = load_catalog()
+    while True:
+        category = picker(["DOCX Actions", "PDF Actions", "Image Actions", "← Back"], "Digital Assets")
+        if category in (None, "← Back"):
+            return 0
+        category_menu({"DOCX Actions": "docx", "PDF Actions": "pdf", "Image Actions": "image"}[category], category, catalog, runtime)
 
-require_command labwc-fuzzel
-[ "$(/usr/bin/id -u)" -ne 0 ] ||
-  fatal "labwc-digital-assets must run as the logged-in desktop user"
-runtime_root >/dev/null
-ensure_wayland_session
-load_menu_catalog
 
-while :; do
-  category=$(
-    choose_lines \
-      "Digital Assets" \
-      'DOCX Actions' \
-      'PDF Actions' \
-      'Image Actions' \
-      '← Back'
-  ) || exit "$?"
-
-  case "$category" in
-    'DOCX Actions') category_menu docx 'DOCX Actions' ;;
-    'PDF Actions') category_menu pdf 'PDF Actions' ;;
-    'Image Actions') category_menu image 'Image Actions' ;;
-    '← Back'|'') exit 0 ;;
-  esac
-done
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except SystemExit:
+        raise
+    except (DigitalAssetsError, OSError, subprocess.TimeoutExpired) as error:
+        raise SystemExit(fatal(str(error)))

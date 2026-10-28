@@ -94,9 +94,12 @@ def installed_settings() -> dict[str, str]:
         return settings
     with os.fdopen(fd, 'rb') as stream:
         info = os.fstat(stream.fileno())
-        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0
-                or info.st_mode & 0o022 or info.st_size > 262144):
-            raise Error('installed desktop configuration has unsafe metadata')
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_gid != 0
+                or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != 0o644
+                or info.st_size > 262144):
+            raise Error('installed desktop configuration has unsafe metadata'
+                        f' (uid={info.st_uid} gid={info.st_gid} mode={stat.S_IMODE(info.st_mode):04o}'
+                        f' nlink={info.st_nlink} bytes={info.st_size})')
         data = stream.read(262145)
     if len(data) > 262144:
         raise Error('installed desktop configuration exceeds its byte budget')

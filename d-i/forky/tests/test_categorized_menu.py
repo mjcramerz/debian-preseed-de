@@ -161,8 +161,24 @@ class MenuUnitTests(unittest.TestCase):
         self.assertEqual(len(by_key), len(bindings))
         self.assertEqual(by_key['W-s'], 'labwc-run')
         self.assertEqual(by_key['W-m'], '/usr/local/bin/labwc-app auto spotify')
-        for key in ('W-Alt_L', 'W-Alt_R'):
-            self.assertEqual(by_key[key], 'labwc-computer-management')
+        for key, unit, executable in (
+                ('Super_L', 'labwc-main-menu', '/usr/local/bin/labwc-main-menu'),
+                ('W-Alt_L', 'labwc-computer-management', '/usr/local/bin/labwc-computer-management'),
+                ('W-Alt_R', 'labwc-computer-management', '/usr/local/bin/labwc-computer-management'),
+                ('A-Super_L', 'labwc-computer-management', '/usr/local/bin/labwc-computer-management'),
+                ('A-Super_R', 'labwc-computer-management', '/usr/local/bin/labwc-computer-management'),
+                ('XF86Launch1', 'labwc-computer-management', '/usr/local/bin/labwc-computer-management'),
+                ('XF86Launch3', 'labwc-main-menu', '/usr/local/bin/labwc-main-menu')):
+            command = shlex.split(by_key[key])
+            boundary = command.index('--')
+            self.assertEqual(command[0], '/usr/bin/systemd-run')
+            self.assertEqual(command[boundary + 1:], [executable])
+            self.assertIn('--unit=' + unit, command[:boundary])
+            for option in ('--user', '--collect', '--no-block', '--service-type=exec',
+                           '--expand-environment=no', '--property=ExitType=cgroup',
+                           '--property=KillMode=control-group', '--property=TimeoutStopSec=20s',
+                           '--property=SuccessExitStatus=3'):
+                self.assertIn(option, command[:boundary])
         self.assertNotIn('W-BackSpace', by_key)
         base = payload_read_text(TARGET/'etc/skel-desktop/.config/fuzzel/base.ini.tmpl')
         menu = payload_read_text(TARGET/'etc/skel-desktop/.config/fuzzel/menu.ini.tmpl')
@@ -261,7 +277,7 @@ class IntegrationContractTests(unittest.TestCase):
 
     def test_waybar_menu_keeps_transient_service_contract_and_search_keys_stay_search(self):
         text = render_theme_defaults(waybar_config_text(TARGET / 'etc/skel-desktop/.config/waybar'))
-        clicks = re.findall(r'"on-click-release": "([^"]* -- labwc-main-menu)"', text)
+        clicks = re.findall(r'"on-click-release": "([^"]* -- /usr/local/bin/labwc-main-menu)"', text)
         self.assertEqual(len(clicks), 2)
         for click in clicks:
             for argument in ('--user', '--collect', '--service-type=exec', '--expand-environment=no',
@@ -276,7 +292,9 @@ class IntegrationContractTests(unittest.TestCase):
         import xml.etree.ElementTree as ET
         bindings = {item.get('key'): item for item in ET.fromstring(rc).findall('keyboard/keybind')}
         self.assertEqual(bindings['Super_L'].get('onRelease'), 'yes')
-        self.assertEqual(bindings['Super_L'].find('action').get('command'), 'labwc-main-menu')
+        command = shlex.split(bindings['Super_L'].find('action').get('command'))
+        self.assertEqual(command[0], '/usr/bin/systemd-run')
+        self.assertEqual(command[command.index('--') + 1:], ['/usr/local/bin/labwc-main-menu'])
         for key in ('W-d', 'W-space', 'C-A-space'):
             self.assertEqual(bindings[key].find('action').get('command'), 'labwc-run')
 

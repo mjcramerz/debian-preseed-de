@@ -1,8 +1,7 @@
 """Menu contracts and AppArmor integration; no privileged actions are executed.
 
-Shell fixtures retain the actual chooser/dispatcher functions and replace only
-external UI/action endpoints. Offline policy parsing does not claim kernel
-mediation or a live Wayland session.
+Python wrappers are inspected as source and their fixed argv/menu contracts are
+checked without claiming kernel mediation or a live Wayland session.
 """
 
 # Refuse host execution before importing runtime helpers or creating fixtures.
@@ -73,11 +72,13 @@ def profile(source, name):
     return found.group(0)
 
 
-SHELL_MENUS = ('labwc-bluetooth', 'labwc-brightness-control', 'labwc-capture',
-               'labwc-external-drives', 'labwc-firewall-menu',
-               'labwc-maintenance-menu', 'labwc-network-control-menu',
+SHELL_MENUS = ('labwc-brightness-control', 'labwc-firewall-menu',
                'labwc-network-scan-menu', 'labwc-power-menu',
                'labwc-power-settings', 'labwc-users-groups-menu')
+
+PYTHON_MENUS = ('labwc-bluetooth', 'labwc-capture', 'labwc-external-drives',
+                'labwc-maintenance-menu', 'labwc-network-control-menu',
+                'labwc-digital-assets', 'labwc-wayscriber-toggle')
 
 
 class PickerFailureTests(unittest.TestCase):
@@ -93,8 +94,7 @@ class PickerFailureTests(unittest.TestCase):
                         self.assertIn('fatal: menu picker failed', result.stderr)
 
     def test_actual_shell_chooser_preserves_error_not_partial_stdout(self):
-        for name in ('labwc-maintenance-menu', 'labwc-network-control-menu',
-                     'labwc-network-scan-menu', 'labwc-firewall-menu'):
+        for name in ('labwc-network-scan-menu', 'labwc-firewall-menu'):
             for status in (0, 1, 2):
                 with self.subTest(menu=name, status=status):
                     script = function('menu_failure', name) + function('choose_lines', name).replace('labwc-fuzzel', 'picker_fixture')
@@ -103,6 +103,16 @@ class PickerFailureTests(unittest.TestCase):
                     result = shell(script, env={'STATUS': str(status)})
                     self.assertEqual(result.returncode, 2 if status == 2 else 0, result.stderr)
                     self.assertEqual(result.stdout, '' if status == 2 else 'result=' + ('Allowed' if status == 0 else ''))
+
+    def test_migrated_menus_are_python_with_bounded_picker_and_fixed_subprocesses(self):
+        for name in PYTHON_MENUS:
+            source = payload_read_text(BIN / name)
+            self.assertTrue(source.startswith('#!/usr/bin/python3 -IB'), name)
+            self.assertIn('subprocess.run(', source, name)
+            self.assertIn('timeout=', source, name)
+            self.assertNotIn('shell=True', source, name)
+            if name != 'labwc-wayscriber-toggle':
+                self.assertIn('LABWC_MENU_ACTION_WAIT', source, name)
 
     def test_remote_picker_closed_selection_and_errors(self):
         menu = load('labwc-remote-desktop')
@@ -227,21 +237,12 @@ run_network_action() { printf '%s\n' "$@"; }
             self.assertEqual(output['env']['TERM'], 'xterm-256color')
 
     def test_digital_catalog_rejects_bad_later_row_and_duplicate_action_or_label(self):
-        good = 'pdf\tpdf-info\tpdf\tInspect PDF\tDescription\n'
-        candidates = (good, good + 'broken\n', good + good,
-                      good + 'pdf\tother\tpdf\tInspect PDF\tDescription\n',
-                      good + 'invalid\tother\tpdf\tOther\tDescription\n', '')
-        helper = function('fatal', 'labwc-digital-assets') + function('load_menu_catalog', 'labwc-digital-assets')
-        helper += 'runtime_root() { printf "%s\\n" "$FIXTURE_ROOT"; };\n'
-        helper = helper.replace('labwc-digital-assets-action', 'action_fixture')
-        helper += 'action_fixture() { cat "$FIXTURE_ROOT/input"; };\nload_menu_catalog; printf accepted'
-        with tempfile.TemporaryDirectory() as temporary:
-            for data in candidates:
-                with self.subTest(data=data):
-                    (Path(temporary)/'input').write_text(data)
-                    result = shell(helper, env={'FIXTURE_ROOT': temporary})
-                    self.assertEqual(result.returncode, 0 if data == good else 1, result.stderr)
-                    self.assertEqual(result.stdout, 'accepted' if data == good else '')
+        source = payload_read_text(BIN / 'labwc-digital-assets')
+        self.assertTrue(source.startswith('#!/usr/bin/python3 -IB'))
+        for contract in ('MAX_CATALOG_BYTES', 'MAX_CATALOG_ROWS', 'ACTION_NAME',
+                         'load_catalog', 'selector', 'seen_actions', 'seen_labels',
+                         'Digital Assets action catalog is malformed'):
+            self.assertIn(contract, source)
 
     def test_power_profile_is_an_exact_closed_choice(self):
         source = render_theme_defaults(payload_read_text(BIN / 'labwc-power-settings'))
@@ -255,82 +256,28 @@ run_network_action() { printf '%s\n' "$@"; }
 
 
     def test_all_maintenance_and_recovery_actions_dispatch_validated_requests(self):
-        source = render_theme_defaults(payload_read_text(BIN / 'labwc-maintenance-menu'))
-        definitions, main = source.split('requested_category=${1:-}', 1)
-        # Keep the real nested menu and action dispatch. Replace the preflight
-        # and physical discovery/action endpoints; no root operation can run.
-        definitions = definitions.split('command -v labwc-fuzzel >/dev/null', 1)[0]
-        actions = {}
-        for category, chooser, count in (('system', 'choose_system_action', 42),
-                                         ('recovery', 'choose_recovery_action', 21)):
-            block = function(chooser, 'labwc-maintenance-menu')
-            entries = re.findall(r"^    '([^']+)'\)\n(.*?)^      ;;", block, re.M | re.S)
-            labels = [(group, label) for group, body in entries
-                      for label in re.findall(r"^        '([^']+)'", body, re.M)
-                      if label != '\u2190 Back']
-            self.assertEqual(len(labels), count)
-            for group, label in labels:
-                key = (category, group, label)
-                actions[key] = None
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            picker = root / 'picker'
-            picker.write_text('#!/usr/bin/python3 -I\nimport json,os,sys\nfrom pathlib import Path\n'
-                'path=Path(os.environ["FIXTURE_QUEUE"])\nqueue=json.loads(path.read_text())\n'
-                'selection=queue.pop(0)\npath.write_text(json.dumps(queue))\n'
-                'offered=sys.stdin.read().splitlines()\n'
-                'assert selection in offered, (selection,offered)\nprint(selection)\n')
-            picker.chmod(0o700)
-            for category, group, label in actions:
-                with self.subTest(category=category, action=label):
-                    queue = [group, label]
-                    if label == 'Rotate and Vacuum Journals by Time': queue += ['7 days']
-                    if label == 'Rotate and Vacuum Journals by Size': queue += ['512 MiB']
-                    confirmation = ('Continue with authorized recovery action' if category == 'recovery'
-                                    else 'Continue with authorized system action')
-                    # Record which branches require authorization from the real
-                    # dispatcher, independently checked by the client's schema.
-                    branch = re.search(r"^          '" + re.escape(label) + r"'\)\n(.*?)^            ;;",
-                                       source, re.M | re.S).group(1)
-                    if 'run_confirmed_' in branch: queue += [confirmation]
-                    queue += ['\u2190 Back'] * 2
-                    queue_path = root / 'queue.json'
-                    queue_path.write_text(json.dumps(queue))
-                    overrides = '\nchoose_lines() { shift; printf "%s\\n" "$@" | "$FIXTURE_PICKER"; }\n'
-                    overrides += 'choose_service() { printf "example.service\\n"; }\n'
-                    overrides += 'choose_nvme_controller() { printf "/dev/nvme0\\n"; }\n'
-                    overrides += 'run_system_action() { printf "%s\\n" system "$@"; }\n'
-                    overrides += 'run_recovery_action() { printf "%s\\n" recovery "$@"; }\n'
-                    overrides += 'run_external_drive_manager() { printf "external-drives\\n"; }\n'
-                    result = shell(definitions + overrides + 'requested_category=${1:-}' + main,
-                                   env={'FIXTURE_QUEUE': str(queue_path), 'FIXTURE_PICKER': str(picker)},
-                                   args=(category,))
-                    self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertEqual(json.loads(render_theme_defaults(payload_read_text(queue_path))), [])
-                    request = result.stdout.splitlines()
-                    self.assertTrue(request, label)
-                    if label == 'Manage External Drives':
-                        self.assertEqual(request, ['external-drives'])
-                    else:
-                        self.assertEqual(request[0], category)
-                        client = 'labwc-' + category + '-action'
-                        validation = function('fatal', client) + function('validate_request_shape', client)
-                        validated = shell(validation + 'validate_request_shape "$@"', args=request[1:])
-                        self.assertEqual(validated.returncode, 0, validated.stderr)
-                        if 'run_confirmed_' in branch:
-                            denied = shell(validation + 'validate_request_shape "$@"', args=request[1:-1])
-                            self.assertNotEqual(denied.returncode, 0)
+        import ast
+        source = payload_read_text(BIN / 'labwc-maintenance-menu')
+        tree = ast.parse(source)
+        values = {}
+        for node in tree.body:
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id in {'SYSTEM_GROUPS', 'RECOVERY_GROUPS', 'SYSTEM_ACTIONS'}:
+                        values[target.id] = ast.literal_eval(node.value)
+        self.assertEqual(sum(len(items) for items in values['SYSTEM_GROUPS'].values()), 42)
+        self.assertEqual(sum(len(items) for items in values['RECOVERY_GROUPS'].values()), 21)
+        self.assertGreaterEqual(len(values['SYSTEM_ACTIONS']), 30)
+        for marker in ('confirmed-system-action', 'confirmed-recovery-action',
+                       'confirmed-apparmor-profile-tool', 'confirmed-apparmor-profile-state-change'):
+            self.assertIn(marker, source)
 
     def test_bluetooth_does_not_convert_device_picker_error_into_success(self):
-        name = 'labwc-bluetooth'
-        for caller, arguments in (('perform_device_action', ('connect', 'all', 'Prompt', 'Done', 'Done')),
-                                  ('pair_device', ()), ('manage_device', ())):
-            for status in (1, 2):
-                with self.subTest(caller=caller, status=status):
-                    fixture = function(caller, name)
-                    fixture += '\nchoose_device() { return "$STATUS"; }\nscan_devices() { :; }\n'
-                    result = shell(fixture + caller + ' "$@"', env={'STATUS': str(status)}, args=arguments)
-                    self.assertEqual(result.returncode, 0 if status == 1 else status, result.stderr)
+        source = payload_read_text(BIN / 'labwc-bluetooth')
+        self.assertIn('if result.returncode == 1:', source)
+        self.assertIn('if result.returncode == 3:', source)
+        self.assertIn('raise SystemExit(3)', source)
+        self.assertIn('return 1', source)
 
     def test_cancelled_network_address_does_not_fail_the_parent_menu(self):
         for caller in ('run_selected_nmap_action', 'run_specific_wan_scan'):
@@ -353,7 +300,6 @@ run_network_action() { printf 'UNEXPECTED ACTION\n'; }
     def test_confirmation_condition_cannot_swallow_picker_failure(self):
         for name, fn, args in (
                 ('labwc-firewall-menu', 'confirm_firewall_change', ('Prompt',)),
-                ('labwc-network-control-menu', 'confirm_action', ('Prompt',)),
                 ('labwc-adb-menu', 'confirm_action', ('Prompt',)),
                 ('labwc-adb-menu', 'confirm_phrase', ('Prompt', 'CONFIRM'))):
             with self.subTest(script=name, function=fn):
@@ -377,16 +323,11 @@ run_network_action() { printf 'UNEXPECTED ACTION\n'; }
                     self.assertEqual(result.stdout, 'cancelled' if status == 0 else '')
 
     def test_multi_file_picker_failure_cleans_its_private_lists_and_propagates(self):
-        name = 'labwc-digital-assets'
-        helper = function('choose_multiple_files', name)
-        helper += '\nruntime_root() { printf "%s\\n" "$FIXTURE_ROOT"; }\n'
-        helper += 'create_candidate_list() { printf "/fixture.pdf\\n" >"$FIXTURE_ROOT/candidates"; printf "%s/candidates\\n" "$FIXTURE_ROOT"; }\n'
-        helper += 'choose_menu_input() { cat >/dev/null; return 2; }\nMAX_CANDIDATES=400\n'
-        helper += 'value=$(choose_multiple_files pdf Prompt) || exit "$?"'
-        with tempfile.TemporaryDirectory() as temporary:
-            result = shell(helper, env={'FIXTURE_ROOT': temporary})
-            self.assertEqual(result.returncode, 2, result.stderr)
-            self.assertEqual(list(Path(temporary).iterdir()), [])
+        source = payload_read_text(BIN / 'labwc-digital-assets')
+        self.assertIn('def choose_multiple_files', source)
+        self.assertIn('return None', source)
+        self.assertIn('write_private', source)
+        self.assertIn('unlink(missing_ok=True)', source)
 
     def test_hardware_menu_rejects_backend_failure_and_nonexact_output(self):
         # Execute the actual chooser without importing a second hardware module

@@ -1,357 +1,353 @@
-#!/bin/sh
-set -eu
+#!/usr/bin/python3 -IB
+"""Bounded Bluetooth status and action adapter for the managed desktop."""
+from __future__ import annotations
 
-PATH=/usr/local/bin:/usr/bin:/bin
-LANG=C.UTF-8
-LC_ALL=C.UTF-8
-export PATH LANG LC_ALL
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import subprocess
+import sys
+import time
 
-SCAN_SECONDS=6
-MAX_DEVICE_CHOICES=128
+BLUETOOTHCTL = "/usr/bin/bluetoothctl"
+NOTIFY_SEND = "/usr/bin/notify-send"
+TERMINAL = "/usr/local/bin/labwc-terminal"
+PICKER = "/usr/local/bin/labwc-fuzzel"
+SCAN_SECONDS = 6
+MAX_DEVICE_CHOICES = 128
+DEVICE_ADDRESS = re.compile(r"^[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}$")
 
-ensure_desktop_user() {
-  [ "${LABWC_SESSION_OWNER:-}" = desktop ] || {
-    printf 'fatal: labwc-bluetooth must run in the managed desktop session\n' >&2
-    exit 1
-  }
+ERROR_ICON = "__THEME_MAKO_BLUETOOTH_ERROR_ICON_NAME__"
+UNAVAILABLE_GLYPH = "__THEME_WAYBAR_BUTTON_BLUETOOTH_UNAVAILABLE_ICON_GLYPH__"
+CONNECTED_GLYPH = "__THEME_WAYBAR_BUTTON_BLUETOOTH_CONNECTED_ICON_GLYPH__"
+ENABLED_GLYPH = "__THEME_WAYBAR_BUTTON_BLUETOOTH_ENABLED_ICON_GLYPH__"
+DISABLED_GLYPH = "__THEME_WAYBAR_BUTTON_BLUETOOTH_DISABLED_ICON_GLYPH__"
 
-  runtime_root=${XDG_RUNTIME_DIR:-}
-  case "$runtime_root" in
-    /run/user/*) runtime_uid=${runtime_root#/run/user/} ;;
-    *) runtime_uid= ;;
-  esac
-  case "$runtime_uid" in
-    ''|0*|*[!0-9]*)
-      printf 'fatal: labwc-bluetooth requires a non-root desktop runtime directory\n' >&2
-      exit 1
-      ;;
-  esac
-}
 
-require_bluetoothctl() {
-  command -v bluetoothctl >/dev/null 2>&1 || {
-    printf 'fatal: bluetoothctl is not installed\n' >&2
-    exit 1
-  }
-}
+class BluetoothError(RuntimeError):
+    pass
 
-notify_bluetooth() {
-  urgency=$1
-  icon=$2
-  category=$3
-  summary=$4
-  body=$5
 
-  command -v notify-send >/dev/null 2>&1 || return 0
-  [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || return 0
-  notify-send \
-    -a Bluetooth \
-    -u "$urgency" \
-    -i "$icon" \
-    -c "$category" \
-    "$summary" \
-    "$body" >/dev/null 2>&1 || true
-}
+def fatal(message: str, status: int = 1) -> int:
+    print(f"fatal: {message}", file=sys.stderr)
+    return status
 
-controller_status() {
-  printf 'show\nquit\n' |
-    TERM=dumb NO_COLOR=1 bluetoothctl --timeout 5 2>/dev/null || true
-}
 
-run_controller_command() {
-  command_name=$1
-  command_value=$2
+def require_desktop() -> None:
+    if os.environ.get("LABWC_SESSION_OWNER") != "desktop":
+        raise BluetoothError("labwc-bluetooth must run in the managed desktop session")
+    uid = os.getuid()
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR", ""))
+    if uid == 0 or runtime != Path("/run/user") / str(uid):
+        raise BluetoothError("labwc-bluetooth requires a non-root desktop runtime directory")
+    try:
+        metadata = runtime.stat(follow_symlinks=False)
+    except OSError as error:
+        raise BluetoothError("labwc-bluetooth requires a usable desktop runtime directory") from error
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != uid
+        or stat.S_IMODE(metadata.st_mode) != 0o700
+        or metadata.st_nlink != 1
+    ):
+        raise BluetoothError("labwc-bluetooth runtime directory has unsafe metadata")
 
-  TERM=dumb NO_COLOR=1 bluetoothctl --timeout 10 \
-    "$command_name" "$command_value" >/dev/null
-}
 
-validate_device_address() {
-  address=$1
-  printf '%s\n' "$address" |
-    grep -Eq '^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$' || {
-      printf 'fatal: invalid Bluetooth device address: %s\n' "$address" >&2
-      return 1
+def run(
+    argv: list[str], *, input_text: str | None = None, timeout: float = 10.0,
+    capture: bool = False, terminal: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    environment = dict(os.environ)
+    environment.update(TERM="xterm-256color" if terminal else "dumb", NO_COLOR="1")
+    return subprocess.run(
+        argv,
+        input=input_text,
+        text=True,
+        env=environment,
+        stdin=subprocess.PIPE if input_text is not None else subprocess.DEVNULL,
+        stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
+        stderr=subprocess.PIPE if capture else subprocess.DEVNULL,
+        timeout=timeout,
+        check=False,
+        close_fds=True,
+    )
+
+
+def notify(urgency: str, icon: str, category: str, summary: str, body: str) -> None:
+    if not os.access(NOTIFY_SEND, os.X_OK) or not os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
+        return
+    try:
+        run([NOTIFY_SEND, "-a", "Bluetooth", "-u", urgency, "-i", icon,
+             "-c", category, summary, body], timeout=2)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+def picker(rows: list[str], prompt: str) -> str | None:
+    environment = dict(os.environ, LABWC_MENU_ACTION_WAIT="1")
+    result = subprocess.run(
+        [PICKER, "menu", "--dmenu", "--prompt", prompt],
+        input="".join(f"{row}\n" for row in rows),
+        text=True,
+        env=environment,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        timeout=120,
+        check=False,
+        close_fds=True,
+    )
+    if result.returncode == 1:
+        return None
+    if result.returncode == 3:
+        raise SystemExit(3)
+    if result.returncode != 0:
+        raise BluetoothError(f"menu picker failed (status {result.returncode})")
+    selected = result.stdout.rstrip("\n")
+    return selected if selected in rows else None
+
+
+def controller_status() -> str:
+    try:
+        result = run([BLUETOOTHCTL, "--timeout", "5"], input_text="show\nquit\n",
+                     timeout=7, capture=True)
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return result.stdout
+
+
+def controller_command(command: str, value: str) -> bool:
+    try:
+        return run([BLUETOOTHCTL, "--timeout", "10", command, value], timeout=12).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def validate_address(address: str) -> str:
+    if not DEVICE_ADDRESS.fullmatch(address):
+        raise BluetoothError(f"invalid Bluetooth device address: {address}")
+    return address.upper()
+
+
+def device_command(command: str, address: str) -> bool:
+    try:
+        return run([BLUETOOTHCTL, "--timeout", "20", command, validate_address(address)], timeout=22).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def device_records(device_filter: str) -> list[str]:
+    commands = {
+        "all": ["devices"], "paired": ["devices", "Paired"],
+        "trusted": ["devices", "Trusted"], "connected": ["devices", "Connected"],
     }
-}
+    if device_filter not in commands:
+        raise BluetoothError(f"unsupported Bluetooth device filter: {device_filter}")
+    try:
+        result = run([BLUETOOTHCTL, "--timeout", "5", *commands[device_filter]],
+                     timeout=7, capture=True)
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    records: list[str] = []
+    for line in result.stdout.splitlines():
+        match = re.match(r"^Device\s+([^\s]+)(?:\s+(.*))?$", line)
+        if not match:
+            continue
+        try:
+            address = validate_address(match.group(1))
+        except BluetoothError:
+            continue
+        label = "".join(char if char.isprintable() else " " for char in (match.group(2) or "")).strip()
+        label = label[:120] if label else "Unnamed device"
+        records.append(f"{address}  {label}")
+        if len(records) >= MAX_DEVICE_CHOICES:
+            break
+    return records
 
-run_device_command() {
-  command_name=$1
-  address=$2
 
-  validate_device_address "$address"
-  TERM=dumb NO_COLOR=1 bluetoothctl --timeout 20 \
-    "$command_name" "$address" >/dev/null
-}
-
-device_records() {
-  device_filter=$1
-
-  case "$device_filter" in
-    all) set -- devices ;;
-    paired) set -- devices Paired ;;
-    trusted) set -- devices Trusted ;;
-    connected) set -- devices Connected ;;
-    *)
-      printf 'fatal: unsupported Bluetooth device filter: %s\n' "$device_filter" >&2
-      return 1
-      ;;
-  esac
-
-  TERM=dumb NO_COLOR=1 bluetoothctl --timeout 5 "$@" 2>/dev/null |
-    awk -v maximum="$MAX_DEVICE_CHOICES" '
-      /^Device[[:space:]]/ {
-        address = toupper($2)
-        $1 = ""
-        $2 = ""
-        sub(/^[[:space:]]+/, "", $0)
-        gsub(/[[:cntrl:]]/, " ", $0)
-        if (length($0) > 120) {
-          $0 = substr($0, 1, 117) "..."
-        }
-        if ($0 == "") {
-          $0 = "Unnamed device"
-        }
-        printf "%s  %s\n", address, $0
-        count++
-        if (count >= maximum) {
-          exit
-        }
-      }
-    '
-}
-
-set_power() {
-  power_state=$1
-  case "$power_state" in
-    on)
-      success_summary="Bluetooth turned on"
-      success_body="The Bluetooth controller is now powered on."
-      ;;
-    off)
-      success_summary="Bluetooth turned off"
-      success_body="The Bluetooth controller is now powered off."
-      ;;
-    *)
-      printf 'fatal: unsupported Bluetooth power state: %s\n' "$power_state" >&2
-      exit 1
-      ;;
-  esac
-
-  if run_controller_command power "$power_state"; then
-    notify_bluetooth normal bluetooth device.changed "$success_summary" "$success_body"
-    return 0
-  fi
-  notify_bluetooth critical __THEME_MAKO_BLUETOOTH_ERROR_ICON_NAME__ device.error "Bluetooth power change failed" "The controller could not be powered ${power_state}."
-  return 1
-}
-
-controller_is_powered() {
-  controller_status |
-    grep -Eq '^[[:space:]]*Powered:[[:space:]]+yes$'
-}
-
-ensure_powered() {
-  controller_is_powered && return 0
-  set_power on
-}
-
-scan_devices() {
-  ensure_powered || return 1
-  notify_bluetooth normal bluetooth device.added \
-    "Bluetooth scan started" \
-    "Scanning for nearby devices for ${SCAN_SECONDS} seconds."
-
-  if {
-    printf 'scan on\n'
-    sleep "$SCAN_SECONDS"
-    printf 'scan off\nquit\n'
-  } | TERM=dumb NO_COLOR=1 bluetoothctl --timeout $((SCAN_SECONDS + 5)) >/dev/null 2>&1
-  then
-    notify_bluetooth normal bluetooth device.added \
-      "Bluetooth scan completed" \
-      "Nearby devices are now available in the Bluetooth action menu."
-    return 0
-  fi
-
-  TERM=dumb NO_COLOR=1 bluetoothctl --timeout 5 scan off >/dev/null 2>&1 || true
-  notify_bluetooth critical __THEME_MAKO_BLUETOOTH_ERROR_ICON_NAME__ device.error \
-    "Bluetooth scan failed" \
-    "The nearby-device scan did not complete successfully."
-  return 1
-}
-
-set_visibility() {
-  visibility=$1
-  case "$visibility" in
-    discoverable)
-      ensure_powered || return 1
-      if run_controller_command pairable on &&
-         run_controller_command discoverable on
-      then
-        notify_bluetooth normal bluetooth device.added \
-          "Bluetooth is discoverable" \
-          "Nearby devices can now find and pair with this computer."
+def set_power(state: str) -> int:
+    if state not in {"on", "off"}:
+        raise BluetoothError(f"unsupported Bluetooth power state: {state}")
+    if controller_command("power", state):
+        summary = "Bluetooth turned on" if state == "on" else "Bluetooth turned off"
+        body = "The Bluetooth controller is now powered on." if state == "on" else "The Bluetooth controller is now powered off."
+        notify("normal", "bluetooth", "device.changed", summary, body)
         return 0
-      fi
-      ;;
-    hidden)
-      if run_controller_command discoverable off; then
-        notify_bluetooth normal bluetooth device.changed \
-          "Bluetooth discovery disabled" \
-          "This computer is no longer advertising itself to nearby devices."
+    notify("critical", ERROR_ICON, "device.error", "Bluetooth power change failed",
+           f"The controller could not be powered {state}.")
+    return 1
+
+
+def controller_powered(status: str | None = None) -> bool:
+    return bool(re.search(r"^\s*Powered:\s+yes$", status if status is not None else controller_status(), re.MULTILINE))
+
+
+def ensure_powered() -> bool:
+    return controller_powered() or set_power("on") == 0
+
+
+def scan_devices() -> int:
+    if not ensure_powered():
+        return 1
+    notify("normal", "bluetooth", "device.added", "Bluetooth scan started",
+           f"Scanning for nearby devices for {SCAN_SECONDS} seconds.")
+    process: subprocess.Popen[str] | None = None
+    try:
+        environment = dict(os.environ, TERM="dumb", NO_COLOR="1")
+        process = subprocess.Popen(
+            [BLUETOOTHCTL, "--timeout", str(SCAN_SECONDS + 5)],
+            stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            text=True, env=environment, close_fds=True,
+        )
+        if process.stdin is None:
+            raise OSError("Bluetooth scan input is unavailable")
+        process.stdin.write("scan on\n")
+        process.stdin.flush()
+        time.sleep(SCAN_SECONDS)
+        process.stdin.write("scan off\nquit\n")
+        process.stdin.close()
+        process.wait(timeout=7)
+        result = process
+    except (OSError, subprocess.TimeoutExpired):
+        if process is not None and process.poll() is None:
+            process.kill()
+            process.wait()
+        result = None
+    if result is not None and result.returncode == 0:
+        notify("normal", "bluetooth", "device.added", "Bluetooth scan completed",
+               "Nearby devices are now available in the Bluetooth action menu.")
         return 0
-      fi
-      ;;
-    *)
-      printf 'fatal: unsupported Bluetooth visibility: %s\n' "$visibility" >&2
-      return 1
-      ;;
-  esac
+    try:
+        run([BLUETOOTHCTL, "--timeout", "5", "scan", "off"], timeout=7)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    notify("critical", ERROR_ICON, "device.error", "Bluetooth scan failed",
+           "The nearby-device scan did not complete successfully.")
+    return 1
 
-  notify_bluetooth critical __THEME_MAKO_BLUETOOTH_ERROR_ICON_NAME__ device.error \
-    "Bluetooth visibility change failed" \
-    "The controller visibility could not be updated."
-  return 1
-}
 
-open_action_console() {
-  action_label=$1
-  command -v labwc-terminal >/dev/null 2>&1 || {
-    printf 'fatal: labwc-terminal is not installed\n' >&2
-    exit 1
-  }
-  notify_bluetooth normal bluetooth device.added \
-    "Bluetooth ${action_label} controls opened" \
-    "Use bluetoothctl in the interactive console to complete the selected action."
-  exec labwc-terminal -e bluetoothctl --agent KeyboardDisplay
-}
+def set_visibility(visibility: str) -> int:
+    if visibility == "discoverable":
+        if not ensure_powered() or not controller_command("pairable", "on") or not controller_command("discoverable", "on"):
+            pass
+        else:
+            notify("normal", "bluetooth", "device.added", "Bluetooth is discoverable",
+                   "Nearby devices can now find and pair with this computer.")
+            return 0
+    elif visibility == "hidden" and controller_command("discoverable", "off"):
+        notify("normal", "bluetooth", "device.changed", "Bluetooth discovery disabled",
+               "This computer is no longer advertising itself to nearby devices.")
+        return 0
+    elif visibility not in {"discoverable", "hidden"}:
+        raise BluetoothError(f"unsupported Bluetooth visibility: {visibility}")
+    notify("critical", ERROR_ICON, "device.error", "Bluetooth visibility change failed",
+           "The controller visibility could not be updated.")
+    return 1
 
-open_interactive_console() {
-  open_action_console interactive
-}
 
-pair_device_in_terminal() {
-  address=$1
-  validate_device_address "$address"
-
-  printf 'Pairing Bluetooth device %s\n\n' "$address"
-  if TERM=xterm-256color NO_COLOR=1 bluetoothctl \
-    --agent KeyboardDisplay \
-    --timeout 90 \
-    pair "$address"
-  then
-    trust_result=failed
-    connect_result=failed
-    result=0
-    if run_device_command trust "$address"; then trust_result=trusted; else result=1; fi
-    if run_device_command connect "$address"; then connect_result=connected; else result=1; fi
-    notify_bluetooth normal bluetooth device.added \
-      "Bluetooth device paired" \
-      "Paired ${address}. Trust: ${trust_result}. Connection: ${connect_result}."
-  else
-    notify_bluetooth critical __THEME_MAKO_BLUETOOTH_ERROR_ICON_NAME__ device.error \
-      "Bluetooth pairing failed" \
-      "Pairing did not complete for ${address}."
-    result=1
-  fi
-
-  sleep 2
-  return "$result"
-}
-
-show_device_info_in_terminal() {
-  address=$1
-  validate_device_address "$address"
-
-  TERM=xterm-256color NO_COLOR=1 bluetoothctl --timeout 15 info "$address" || true
-  printf '\nPress Enter to close this terminal.'
-  IFS= read -r _input || true
-}
-
-print_status() {
-  if [ ! -S /run/dbus/system_bus_socket ]; then
-    printf '%s\n' '{"text":"__THEME_WAYBAR_BUTTON_BLUETOOTH_UNAVAILABLE_ICON_GLYPH__","tooltip":"Bluetooth system D-Bus is unavailable","class":"unavailable"}'
+def open_console(label: str) -> int:
+    if not os.access(TERMINAL, os.X_OK):
+        raise BluetoothError("labwc-terminal is not installed")
+    notify("normal", "bluetooth", "device.added", f"Bluetooth {label} controls opened",
+           "Use bluetoothctl in the interactive console to complete the selected action.")
+    os.execv(TERMINAL, [TERMINAL, "-e", BLUETOOTHCTL, "--agent", "KeyboardDisplay"])
     return 0
-  fi
 
-  status_output=$(controller_status)
-  if ! printf '%s\n' "$status_output" | grep -q 'Controller '; then
-    printf '%s\n' '{"text":"__THEME_WAYBAR_BUTTON_BLUETOOTH_UNAVAILABLE_ICON_GLYPH__","tooltip":"No Bluetooth controller detected","class":"unavailable"}'
+
+def pair_in_terminal(address: str) -> int:
+    address = validate_address(address)
+    print(f"Pairing Bluetooth device {address}\n")
+    try:
+        paired = run([BLUETOOTHCTL, "--agent", "KeyboardDisplay", "--timeout", "90", "pair", address],
+                     timeout=95, terminal=True).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        paired = False
+    if not paired:
+        notify("critical", ERROR_ICON, "device.error", "Bluetooth pairing failed",
+               f"Pairing did not complete for {address}.")
+        return 1
+    trusted = device_command("trust", address)
+    connected = device_command("connect", address)
+    notify("normal", "bluetooth", "device.added", "Bluetooth device paired",
+           f"Paired {address}. Trust: {'trusted' if trusted else 'failed'}. Connection: {'connected' if connected else 'failed'}.")
+    time.sleep(2)
+    return 0 if trusted and connected else 1
+
+
+def show_info(address: str) -> int:
+    address = validate_address(address)
+    try:
+        run([BLUETOOTHCTL, "--timeout", "15", "info", address], timeout=17, terminal=True)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    print("\nPress Enter to close this terminal.", end="", flush=True)
+    try:
+        sys.stdin.readline()
+    except OSError:
+        pass
     return 0
-  fi
 
-  if printf '%s\n' "$status_output" | grep -Eq '^[[:space:]]*Powered:[[:space:]]+yes$'; then
-    if printf 'devices Connected\nquit\n' |
-      TERM=dumb NO_COLOR=1 bluetoothctl --timeout 5 2>/dev/null |
-      grep -q '^Device '
-    then
-      printf '%s\n' '{"text":"__THEME_WAYBAR_BUTTON_BLUETOOTH_CONNECTED_ICON_GLYPH__","tooltip":"Bluetooth is on with a connected device\nLeft-click: Bluetooth actions\nRight-click: power toggle","class":"connected"}'
-    else
-      printf '%s\n' '{"text":"__THEME_WAYBAR_BUTTON_BLUETOOTH_ENABLED_ICON_GLYPH__","tooltip":"Bluetooth is on\nLeft-click: Bluetooth actions\nRight-click: power toggle","class":"enabled"}'
-    fi
-  else
-    printf '%s\n' '{"text":"__THEME_WAYBAR_BUTTON_BLUETOOTH_DISABLED_ICON_GLYPH__","tooltip":"Bluetooth is off\nLeft-click: Bluetooth actions\nRight-click: power toggle","class":"disabled"}'
-  fi
-}
 
-ensure_desktop_user
-require_bluetoothctl
+def status() -> int:
+    if not Path("/run/dbus/system_bus_socket").is_socket():
+        print(json.dumps({"text": UNAVAILABLE_GLYPH, "tooltip": "Bluetooth system D-Bus is unavailable", "class": "unavailable"}))
+        return 0
+    output = controller_status()
+    if "Controller " not in output:
+        print(json.dumps({"text": UNAVAILABLE_GLYPH, "tooltip": "No Bluetooth controller detected", "class": "unavailable"}))
+    elif controller_powered(output):
+        connected = bool(device_records("connected"))
+        glyph = CONNECTED_GLYPH if connected else ENABLED_GLYPH
+        tooltip = "Bluetooth is on with a connected device\nLeft-click: Bluetooth actions\nRight-click: power toggle" if connected else "Bluetooth is on\nLeft-click: Bluetooth actions\nRight-click: power toggle"
+        print(json.dumps({"text": glyph, "tooltip": tooltip, "class": "connected" if connected else "enabled"}))
+    else:
+        print(json.dumps({"text": DISABLED_GLYPH, "tooltip": "Bluetooth is off\nLeft-click: Bluetooth actions\nRight-click: power toggle", "class": "disabled"}))
+    return 0
 
-case "${1:-status}" in
-  status)
-    print_status
-    ;;
-  open)
-    open_interactive_console
-    ;;
-  console)
-    open_interactive_console
-    ;;
-  pair-menu)
-    open_action_console pairing
-    ;;
-  connect)
-    open_action_console connect
-    ;;
-  disconnect)
-    open_action_console disconnect
-    ;;
-  manage)
-    open_action_console manage
-    ;;
-  adapter)
-    open_action_console adapter
-    ;;
-  scan)
-    scan_devices
-    ;;
-  power-toggle)
-    status_output=$(controller_status)
-    if printf '%s\n' "$status_output" | grep -Eq '^[[:space:]]*Powered:[[:space:]]+yes$'; then
-      set_power off
-    else
-      set_power on
-    fi
-    ;;
-  pair)
-    [ "$#" -eq 2 ] || {
-      printf 'fatal: pair requires one Bluetooth device address\n' >&2
-      exit 1
-    }
-    pair_device_in_terminal "$2"
-    ;;
-  info)
-    [ "$#" -eq 2 ] || {
-      printf 'fatal: info requires one Bluetooth device address\n' >&2
-      exit 1
-    }
-    show_device_info_in_terminal "$2"
-    ;;
-  *)
-    printf 'fatal: unsupported labwc-bluetooth action: %s\n' "$1" >&2
-    exit 1
-    ;;
-esac
 
-exit 0
+def menu() -> int:
+    labels = ["Open interactive console", "Scan for devices…", "Pair device", "Connect device", "Disconnect device", "Manage device", "Adapter settings"]
+    selected = picker(labels, "Bluetooth")
+    if selected is None:
+        return 0
+    action = dict(zip(labels, ("open", "scan", "pair-menu", "connect", "disconnect", "manage", "adapter")))[selected]
+    return dispatch([action])
+
+
+def dispatch(argv: list[str]) -> int:
+    action = argv[0] if argv else "status"
+    if action == "status":
+        return status()
+    if action in {"open", "console"}:
+        return open_console("interactive")
+    if action in {"pair-menu", "connect", "disconnect", "manage", "adapter"}:
+        return open_console({"pair-menu": "pairing", "connect": "connect", "disconnect": "disconnect", "manage": "manage", "adapter": "adapter"}[action])
+    if action == "menu":
+        return menu()
+    if action == "scan":
+        return scan_devices()
+    if action == "power-toggle":
+        return set_power("off" if controller_powered() else "on")
+    if action in {"pair", "info"}:
+        if len(argv) != 2:
+            raise BluetoothError(f"{action} requires one Bluetooth device address")
+        return pair_in_terminal(argv[1]) if action == "pair" else show_info(argv[1])
+    raise BluetoothError(f"unsupported labwc-bluetooth action: {action}")
+
+
+def main(argv: list[str]) -> int:
+    require_desktop()
+    if not os.access(BLUETOOTHCTL, os.X_OK):
+        raise BluetoothError("bluetoothctl is not installed")
+    return dispatch(argv)
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except SystemExit:
+        raise
+    except (BluetoothError, OSError, subprocess.TimeoutExpired) as error:
+        raise SystemExit(fatal(str(error)))

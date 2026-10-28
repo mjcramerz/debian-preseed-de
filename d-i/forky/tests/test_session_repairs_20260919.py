@@ -23,6 +23,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import tempfile
 import types
@@ -158,7 +159,10 @@ class ProfileRenderingTests(unittest.TestCase):
     def test_win_menu_and_panel_list_do_not_cycle_the_next_window(self):
         tree = ET.fromstring(render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/labwc/rc.xml.tmpl')))
         bindings = {b.get('key'): b for b in tree.findall('keyboard/keybind')}
-        self.assertEqual(bindings['Super_L'].find('action').get('command'), 'labwc-main-menu')
+        command = shlex.split(bindings['Super_L'].find('action').get('command'))
+        self.assertEqual(command[0], '/usr/bin/systemd-run')
+        self.assertEqual(command[command.index('--') + 1:], ['/usr/local/bin/labwc-main-menu'])
+        self.assertIn('--unit=labwc-main-menu', command[:command.index('--')])
         self.assertEqual(bindings['Super_L'].get('onRelease'), 'yes')
         self.assertEqual(bindings['F13'].find('action').attrib,
                          {'name': 'NextWindow', 'workspace': 'current',

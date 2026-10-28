@@ -125,16 +125,21 @@ class NavigationTests(unittest.TestCase):
             run.assert_not_called()
 
     def test_maintenance_and_recovery_offer_every_action_once(self):
+        import ast
         source = render_theme_defaults(payload_read_text(BIN/'labwc-maintenance-menu'))
-        for function, end, count in (('choose_system_action', 'choose_recovery_action',42),
-                                     ('choose_recovery_action', 'run_security_action',21)):
-            block = source.split(function+'() {',1)[1].split(end+'()',1)[0]
-            labels = re.findall(r"^        '([^']+)'", block, re.M)
-            labels = [label for label in labels if label != '\u2190 Back']
-            self.assertEqual(len(labels), count)
-            self.assertEqual(len(labels), len(set(labels)))
-            for label in labels:
-                self.assertIn("'"+label+"')", source)
+        tree = ast.parse(source)
+        values = {}
+        for node in tree.body:
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id in {'SYSTEM_GROUPS', 'RECOVERY_GROUPS'}:
+                        values[target.id] = ast.literal_eval(node.value)
+        system = [label for labels in values['SYSTEM_GROUPS'].values() for label in labels]
+        recovery = [label for labels in values['RECOVERY_GROUPS'].values() for label, _ in labels]
+        self.assertEqual(len(system), 42)
+        self.assertEqual(len(recovery), 21)
+        self.assertEqual(len(system), len(set(system)))
+        self.assertEqual(len(recovery), len(set(recovery)))
         for confirmation in ('confirmed-system-action', 'confirmed-recovery-action',
                              'confirmed-apparmor-profile-tool', 'confirmed-apparmor-profile-state-change'):
             self.assertIn(confirmation, source)
@@ -142,10 +147,14 @@ class NavigationTests(unittest.TestCase):
     def test_custom_data_prompts_explicitly_opt_in_not_all_action_menus(self):
         for script in ('labwc-adb-menu', 'labwc-firewall-menu', 'labwc-network-control-menu',
                        'labwc-network-scan-menu', 'labwc-maintenance-menu'):
-            self.assertIn('LABWC_MENU_INPUT_MODE=text', render_theme_defaults(payload_read_text(BIN/script)))
+            text = render_theme_defaults(payload_read_text(BIN/script))
+            self.assertTrue('LABWC_MENU_INPUT_MODE=text' in text or
+                            '"LABWC_MENU_INPUT_MODE": "text"' in text or
+                            'environment["LABWC_MENU_INPUT_MODE"] = "text"' in text)
         maintenance = render_theme_defaults(payload_read_text(BIN/'labwc-maintenance-menu'))
-        self.assertIn('LABWC_MENU_INPUT_MODE=text choose_lines \\\n              "Expected SHA-256', maintenance)
-        self.assertIn('LABWC_MENU_INPUT_MODE=text choose_lines \\\n      "Absolute executable path"', maintenance)
+        self.assertIn('text_input=True', maintenance)
+        self.assertIn('Expected SHA-256', maintenance)
+        self.assertIn('Absolute executable path', maintenance)
 
 
 class DesktopIntegrationTests(unittest.TestCase):

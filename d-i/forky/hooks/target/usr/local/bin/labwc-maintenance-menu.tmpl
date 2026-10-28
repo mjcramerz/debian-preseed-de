@@ -1,1357 +1,429 @@
-#!/bin/sh
-set -eu
+#!/usr/bin/python3 -IB
+"""Managed maintenance, recovery, and endpoint-security menu.
 
-# Back returns to the parent; dismissal unwinds every menu process.
-menu_failure() {
-  [ "$1" -eq 1 ] && return 0
-  [ "$1" -eq 3 ] && exit 3
-  printf 'fatal: menu picker failed (status %s)\n' "$1" >&2
-  exit "$1"
-}
+This program owns navigation only. System, recovery, security, firewall, and
+external-drive mutations remain delegated to their existing fixed helpers.
+"""
+from __future__ import annotations
 
-# Keep the menu hidden until its action window and cgroup have finished.
-export LABWC_MENU_ACTION_WAIT=1
+import os
+from pathlib import Path
+import re
+import stat
+import subprocess
+import sys
+from itertools import islice
 
-fatal() {
-  printf 'fatal: %s\n' "$*" >&2
-  exit 1
-}
+PICKER = "/usr/local/bin/labwc-fuzzel"
+SYSTEM = "/usr/local/bin/labwc-system-action"
+RECOVERY = "/usr/local/bin/labwc-recovery-action"
+SECURITY = "/usr/local/bin/labwc-security-action"
+FIREWALL = "/usr/local/bin/labwc-firewall-menu"
+EXTERNAL = "/usr/local/bin/labwc-external-drives"
+SYSTEMCTL = "/usr/bin/systemctl"
+IP = "/usr/bin/ip"
 
-choose_lines() {
-  prompt=$1
-  shift
 
-  printf '%s\n' "$@" |
-    labwc-fuzzel menu \
-      --dmenu \
-      --prompt "$prompt" || menu_failure "$?"
-}
+class MaintenanceError(RuntimeError):
+    pass
 
-# UI grouping only. The existing confirmed/privilege-separated dispatch below
-# remains the authority for every action. No destructive action is promoted.
-choose_system_action() {
-  case "$1" in
-    'Overview & Health')
-      choose_lines 'Maintenance / Overview & Health' \
-        'Show System Overview' \
-        'Show Memory and Swap' \
-        'Show Boot Performance' \
-        'Show Kernel Warnings' \
-        '← Back'
-      ;;
-    'Services & Logs')
-      choose_lines 'Maintenance / Services & Logs' \
-        'Show Failed Services' \
-        'Show Failed System Units' \
-        'Show Failed User Units' \
-        'Inspect Service and Logs' \
-        'Show Timers' \
-        'Show Recent System Errors' \
-        'Show Journal Disk Usage' \
-        'Rotate and Vacuum Journals by Time' \
-        'Rotate and Vacuum Journals by Size' \
-        '← Back'
-      ;;
-    'Packages & Firmware')
-      choose_lines 'Maintenance / Packages & Firmware' \
-        'Check Package Health' \
-        'List Pending Upgrades' \
-        'Show Upgradeable Packages' \
-        'Run Unattended Upgrades Now' \
-        'List Firmware-Capable Devices' \
-        'Refresh Firmware Metadata' \
-        'Check Firmware Updates' \
-        'Apply Firmware Updates' \
-        '← Back'
-      ;;
-    'Storage & Filesystems')
-      choose_lines 'Maintenance / Storage & Filesystems' \
-        'Show Storage Overview' \
-        'Manage External Drives' \
-        'Show NVMe SMART Health' \
-        'Show NVMe Firmware Slots' \
-        'Show NVMe Identify Data' \
-        'Show NVMe SMART via smartctl' \
-        'Show Btrfs Usage' \
-        'Show Btrfs DF Summary' \
-        'Show Last Btrfs Scrub Status' \
-        'Top Disk Usage in Root' \
-        'Top Disk Usage in Home' \
-        '← Back'
-      ;;
-    'Audio & Desktop')
-      choose_lines 'Maintenance / Audio & Desktop' \
-        'Show PipeWire Status' \
-        'Show WirePlumber Status' \
-        'Restart PipeWire' \
-        'Restart WirePlumber' \
-        'Test Mako Notification' \
-        'Refresh Waybar Custom Module' \
-        '← Back'
-      ;;
-    'Network & DNS')
-      choose_lines 'Maintenance / Network & DNS' \
-        'Show Network Overview' \
-        'Flush DNS Cache' \
-        'Reset Resolver Server Features' \
-        'Show Resolver Statistics' \
-        '← Back'
-      ;;
-    *) return 1 ;;
-  esac
-}
 
-choose_recovery_action() {
-  case "$1" in
-    'Desktop & Services')
-      choose_lines 'Recovery / Desktop & Services' \
-        'Restart Waybar' \
-        'Restart Audio Services' \
-        'Restart Desktop Portals' \
-        'Refresh Display Configuration' \
-        'Reset Failed System Units' \
-        'Restart NetworkManager' \
-        'Restart Bluetooth Service' \
-        'Restart UDisks Service' \
-        'Restart Polkit Service' \
-        '← Back'
-      ;;
-    'Packages & Boot')
-      choose_lines 'Recovery / Packages & Boot' \
-        'Refresh Package Index' \
-        'Complete Interrupted Package Configuration' \
-        'Repair Package Dependencies' \
-        'Rebuild Initramfs' \
-        'Refresh GRUB Configuration' \
-        '← Back'
-      ;;
-    'Snapshots & Storage')
-      choose_lines 'Recovery / Snapshots & Storage' \
-        'Create Timeshift Recovery Snapshot' \
-        'Emergency Btrfs Unused-Chunk Reclaim' \
-        '← Back'
-      ;;
-    'Memory & Cleanup')
-      choose_lines 'Recovery / Memory & Cleanup' \
-        'Drop Page Cache Only' \
-        'Drop Dentries and Inodes' \
-        'Drop All Clean Caches' \
-        'Reset zram Swap' \
-        'Aggressive Journal Vacuum' \
-        '← Back'
-      ;;
-    *) return 1 ;;
-  esac
-}
+def fatal(message: str, status: int = 1) -> int:
+    print(f"fatal: {message}", file=sys.stderr)
+    return status
 
-run_security_action() {
-  command -v labwc-security-action >/dev/null 2>&1 ||
-    fatal "labwc-security-action is not installed"
 
-  if labwc-security-action "$@"; then
-    return 0
-  else
-    action_status=$?
-  fi
+def run(argv: list[str], *, input_text: str | None = None, capture: bool = False,
+        timeout: float = 900, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(argv, input=input_text, text=True,
+                          env=dict(os.environ, **(env or {})),
+                          stdin=subprocess.PIPE if input_text is not None else subprocess.DEVNULL,
+                          stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
+                          stderr=subprocess.PIPE if capture else subprocess.DEVNULL,
+                          timeout=timeout, check=False, close_fds=True)
 
-  printf 'warning: security action returned status %s: %s\n' \
-    "$action_status" "$1" >&2
-  return 0
-}
 
-choose_apparmor_draft() {
-  command -v labwc-security-action >/dev/null 2>&1 ||
-    fatal "labwc-security-action is not installed"
+def picker(rows: list[str], prompt: str, *, text_input: bool = False) -> str | None:
+    result = run([PICKER, "menu", "--dmenu", "--prompt", prompt],
+                 input_text="\n" if text_input else "".join(f"{row}\n" for row in rows),
+                 capture=True, timeout=120,
+                 env={"LABWC_MENU_ACTION_WAIT": "1", **({"LABWC_MENU_INPUT_MODE": "text"} if text_input else {})})
+    if result.returncode == 1:
+        return None
+    if result.returncode == 3:
+        raise SystemExit(3)
+    if result.returncode:
+        raise MaintenanceError(f"menu picker failed (status {result.returncode})")
+    selected = result.stdout.rstrip("\n")
+    return selected if text_input else (selected if selected in rows else None)
 
-  draft_candidates=$(
-    labwc-security-action --list-apparmor-draft-candidates
-  ) || return 0
-  [ -n "$draft_candidates" ] || {
-    printf '%s\n' 'warning: no generated AppArmor drafts are available' >&2
-    return 0
-  }
 
-  printf '%s\n' "$draft_candidates" |
-    labwc-fuzzel menu \
-      --dmenu \
-      --prompt "Select AppArmor draft" || menu_failure "$?"
-}
+def choose(rows: list[str], prompt: str) -> str | None:
+    return picker(rows + ["← Back"], prompt)
 
-run_firewall_menu() (
-  command -v labwc-firewall-menu >/dev/null 2>&1 ||
-    fatal "labwc-firewall-menu is not installed"
 
-  if labwc-firewall-menu; then
-    return 0
-  else
-    action_status=$?
-  fi
+def confirm(prompt: str, continuation: str) -> bool:
+    return picker(["Cancel", continuation], prompt) == continuation
 
-  [ "$action_status" -eq 3 ] && exit 3
-  printf 'warning: firewall menu returned status %s\n' \
-    "$action_status" >&2
-  return 0
-)
 
-run_system_action() {
-  command -v labwc-system-action >/dev/null 2>&1 ||
-    fatal "labwc-system-action is not installed"
-
-  if labwc-system-action "$@"; then
-    return 0
-  else
-    action_status=$?
-  fi
-
-  printf 'warning: system action returned status %s: %s\n' \
-    "$action_status" "$1" >&2
-  return 0
-}
-
-run_external_drive_manager() {
-  command -v labwc-external-drives >/dev/null 2>&1 ||
-    fatal "labwc-external-drives is not installed"
-
-  if labwc-external-drives; then
-    return 0
-  else
-    action_status=$?
-  fi
-
-  [ "$action_status" -eq 3 ] && exit 3
-  printf 'warning: external drive manager returned status %s\n' \
-    "$action_status" >&2
-  return 0
-}
-
-run_recovery_action() {
-  command -v labwc-recovery-action >/dev/null 2>&1 ||
-    fatal "labwc-recovery-action is not installed"
-
-  if labwc-recovery-action "$@"; then
-    return 0
-  else
-    action_status=$?
-  fi
-
-  printf 'warning: recovery action returned status %s: %s\n' \
-    "$action_status" "$1" >&2
-  return 0
-}
-
-run_confirmed_system_action() {
-  system_action=$1
-  confirmation_prompt=$2
-  shift 2
-
-  confirmation=$(
-    choose_lines \
-      "$confirmation_prompt" \
-      'Cancel' \
-      'Continue with authorized system action'
-  ) || exit "$?"
-  [ "$confirmation" = 'Continue with authorized system action' ] ||
-    return 0
-  run_system_action "$system_action" "$@" confirmed-system-action
-}
-
-run_confirmed_recovery_action() {
-  recovery_action=$1
-  confirmation_prompt=$2
-
-  confirmation=$(
-    choose_lines \
-      "$confirmation_prompt" \
-      'Cancel' \
-      'Continue with authorized recovery action'
-  ) || exit "$?"
-  [ "$confirmation" = 'Continue with authorized recovery action' ] ||
-    return 0
-  run_recovery_action "$recovery_action" confirmed-recovery-action
-}
-
-choose_nvme_controller() {
-  {
-    for nvme_sysfs in /sys/class/nvme/nvme*; do
-      [ -e "$nvme_sysfs" ] || continue
-      nvme_device="/dev/${nvme_sysfs##*/}"
-      [ -e "$nvme_device" ] && printf '%s\n' "$nvme_device"
-    done
-  } |
-    awk '!seen[$0]++' |
-    sort |
-    labwc-fuzzel menu --dmenu --prompt "NVMe controller" || menu_failure "$?"
-}
-
-choose_journal_vacuum_time() {
-  retention=$(
-    choose_lines \
-      "Journal retention" \
-      '3 days' \
-      '7 days' \
-      '14 days' \
-      '30 days'
-  ) || exit "$?"
-  case "$retention" in
-    '3 days') printf '%s\n' 3d ;;
-    '7 days') printf '%s\n' 7d ;;
-    '14 days') printf '%s\n' 14d ;;
-    '30 days') printf '%s\n' 30d ;;
-  esac
-}
-
-choose_journal_vacuum_size() {
-  retention=$(
-    choose_lines \
-      "Maximum journal size" \
-      '256 MiB' \
-      '512 MiB' \
-      '1 GiB' \
-      '2 GiB'
-  ) || exit "$?"
-  case "$retention" in
-    '256 MiB') printf '%s\n' 256M ;;
-    '512 MiB') printf '%s\n' 512M ;;
-    '1 GiB') printf '%s\n' 1G ;;
-    '2 GiB') printf '%s\n' 2G ;;
-  esac
-}
-
-choose_service() {
-  {
-    printf '%s\n' greetd.service ssh.service systemd-logind.service
-    systemctl list-unit-files --type=service --no-legend --no-pager 2>/dev/null |
-      awk 'NF > 0 { print $1 }'
-  } |
-    awk '!seen[$0]++' |
-    sort |
-    LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt "Inspect service" || menu_failure "$?"
-}
-
-choose_security_folder() {
-  selection_prompt=$1
-  {
-    for candidate in \
-      "$HOME" \
-      "$HOME/Downloads" \
-      "$HOME/Documents" \
-      "$HOME/Desktop" \
-      "/run/media/$(id -un)" \
-      /mnt \
-      /media
-    do
-      [ -d "$candidate" ] && printf '%s\n' "$candidate"
-    done
-    for candidate_root in \
-      "$HOME/Downloads" \
-      "$HOME/Documents" \
-      "$HOME/Desktop"
-    do
-      [ -d "$candidate_root" ] || continue
-      find "$candidate_root" \
-        -xdev \
-        -mindepth 1 \
-        -maxdepth 2 \
-        -type d \
-        -print 2>/dev/null
-    done
-  } |
-    awk '!seen[$0]++' |
-    sed -n '1,400p' |
-    LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt "$selection_prompt" || menu_failure "$?"
-}
-
-choose_security_file() {
-  selection_prompt=$1
-  {
-    for candidate_dir in \
-      "$HOME/Downloads" \
-      "$HOME/Documents" \
-      "$HOME/Desktop" \
-      "$HOME"
-    do
-      [ -d "$candidate_dir" ] || continue
-      find "$candidate_dir" \
-        -xdev \
-        -mindepth 1 \
-        -maxdepth 3 \
-        -type f \
-        -print 2>/dev/null
-    done
-  } |
-    awk '!seen[$0]++' |
-    sed -n '1,400p' |
-    LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt "$selection_prompt" || menu_failure "$?"
-}
-
-security_auditing_menu() {
-  while :; do
-    action=$(
-      choose_lines \
-        "Endpoint Security — Security Auditing" \
-        'Audit Security Posture (lynis)' \
-        'Service Security Analysis' \
-        'Inspect Specific Service' \
-        'Check Firmware Security' \
-        'Check CPU Mitigations' \
-        '← Back'
-    ) || exit "$?"
-
-    case "$action" in
-      'Audit Security Posture (lynis)')
-        run_security_action audit-security-posture
-        ;;
-      'Service Security Analysis')
-        run_security_action analyze-services
-        ;;
-      'Inspect Specific Service')
-        service=$(choose_service) || exit "$?"
-        [ -n "$service" ] && run_security_action inspect-service "$service"
-        ;;
-      'Check Firmware Security')
-        run_security_action check-firmware-security
-        ;;
-      'Check CPU Mitigations')
-        run_security_action check-cpu-mitigations
-        ;;
-      '← Back'|'')
+def call_helper(path: str, args: list[str], label: str, *, propagate_close: bool = False) -> int:
+    if not os.access(path, os.X_OK):
+        raise MaintenanceError(f"{label} is not installed")
+    try:
+        result = run([path, *args])
+    except (OSError, subprocess.TimeoutExpired):
+        print(f"warning: {label} was unavailable: {args[0] if args else 'unknown'}", file=sys.stderr)
         return 0
-        ;;
-    esac
-  done
-}
-
-malware_scanning_menu() {
-  while :; do
-    action=$(
-      choose_lines \
-        "Endpoint Security — Malware & Rootkits" \
-        'Run Rootkit Scan (rkhunter)' \
-        'Run Rootkit Scan (chkrootkit)' \
-        'Show ClamAV Signature Status' \
-        'Scan File with ClamAV' \
-        'Scan Folder Recursively with ClamAV' \
-        'Update ClamAV Signatures' \
-        '← Back'
-    ) || exit "$?"
-
-    case "$action" in
-      'Run Rootkit Scan (rkhunter)')
-        run_security_action scan-rootkits-rkhunter
-        ;;
-      'Run Rootkit Scan (chkrootkit)')
-        run_security_action scan-rootkits-chkrootkit
-        ;;
-      'Show ClamAV Signature Status')
-        run_security_action show-clamav-signature-status
-        ;;
-      'Scan File with ClamAV')
-        scan_file=$(choose_security_file "ClamAV file path") || exit "$?"
-        [ -n "$scan_file" ] &&
-          run_security_action scan-file-clamav "$scan_file"
-        ;;
-      'Scan Folder Recursively with ClamAV')
-        scan_folder=$(choose_security_folder "ClamAV folder path") || exit "$?"
-        [ -n "$scan_folder" ] &&
-          run_security_action scan-folder-clamav "$scan_folder"
-        ;;
-      'Update ClamAV Signatures')
-        run_security_action update-clamav-signatures
-        ;;
-      '← Back'|'')
-        return 0
-        ;;
-    esac
-  done
-}
-
-vulnerability_integrity_menu() {
-  while :; do
-    action=$(
-      choose_lines \
-        "Endpoint Security — Vulnerability & Integrity" \
-        'Check Known Vulnerabilities' \
-        'Check Package Integrity' \
-        'Retrieve File Hashsums (SHA-256/SHA-512)' \
-        'Create Folder Tree SHA-256 Manifest' \
-        'Verify File Against SHA-256' \
-        '← Back'
-    ) || exit "$?"
-
-    case "$action" in
-      'Check Known Vulnerabilities')
-        run_security_action check-known-vulnerabilities
-        ;;
-      'Check Package Integrity')
-        run_security_action check-package-integrity
-        ;;
-      'Retrieve File Hashsums (SHA-256/SHA-512)')
-        hash_file=$(choose_security_file "File path for SHA-256 and SHA-512") || exit "$?"
-        [ -n "$hash_file" ] &&
-          run_security_action retrieve-file-hashes "$hash_file"
-        ;;
-      'Create Folder Tree SHA-256 Manifest')
-        hash_folder=$(choose_security_folder "Folder path for SHA-256 manifest") || exit "$?"
-        [ -n "$hash_folder" ] &&
-          run_security_action create-folder-hash-manifest "$hash_folder"
-        ;;
-      'Verify File Against SHA-256')
-        verify_file=$(choose_security_file "File path to verify") || exit "$?"
-        if [ -n "$verify_file" ]; then
-          expected_sha256=$(
-            LABWC_MENU_INPUT_MODE=text choose_lines \
-              "Expected SHA-256 (64 hexadecimal characters)" \
-              'Paste or type the expected SHA-256 digest'
-          ) || exit "$?"
-          [ -n "$expected_sha256" ] &&
-            run_security_action verify-file-sha256 "$verify_file" "$expected_sha256"
-        fi
-        ;;
-      '← Back'|'')
-        return 0
-        ;;
-    esac
-  done
-}
-
-choose_apparmor_application() {
-  application=$(
-    choose_lines \
-      "AppArmor application" \
-      'Bitwarden' \
-      'Chromium' \
-      'Code' \
-      'QoreDB' \
-      'Discord' \
-      'Filen' \
-      'KeePassXC' \
-      'Ledger Live' \
-      'Microsoft Edge' \
-      'Mullvad Browser' \
-      'Obsidian' \
-      'Postman' \
-      'qBittorrent' \
-      'RetroArch' \
-      'Sleek' \
-      'Spotify' \
-      'SQLite Browser' \
-      'Telegram Desktop' \
-      'Totem' \
-      'Tuta Mail' \
-      'Vivaldi' \
-      'Zoom' \
-      '← Back'
-  ) || exit "$?"
-
-  case "$application" in
-    'Bitwarden') printf '%s\n' bitwarden ;;
-    'Chromium') printf '%s\n' chromium ;;
-    'Code') printf '%s\n' code ;;
-    'QoreDB') printf '%s\n' qoredb ;;
-    'Discord') printf '%s\n' discord ;;
-    'Filen') printf '%s\n' filen ;;
-    'KeePassXC') printf '%s\n' keepassxc ;;
-    'Ledger Live') printf '%s\n' ledger-live ;;
-    'Microsoft Edge') printf '%s\n' microsoft-edge ;;
-    'Mullvad Browser') printf '%s\n' mullvad-browser ;;
-    'Obsidian') printf '%s\n' obsidian ;;
-    'Postman') printf '%s\n' postman ;;
-    'qBittorrent') printf '%s\n' qbittorrent ;;
-    'RetroArch') printf '%s\n' retroarch ;;
-    'Sleek') printf '%s\n' sleek ;;
-    'Spotify') printf '%s\n' spotify ;;
-    'SQLite Browser') printf '%s\n' sqlitebrowser ;;
-    'Telegram Desktop') printf '%s\n' telegram-desktop ;;
-    'Totem') printf '%s\n' totem ;;
-    'Tuta Mail') printf '%s\n' tuta-mail ;;
-    'Vivaldi') printf '%s\n' vivaldi ;;
-    'Zoom') printf '%s\n' zoom ;;
-  esac
-}
-
-choose_apparmor_executable() {
-  executable=$(
-    LABWC_MENU_INPUT_MODE=text choose_lines \
-      "Absolute executable path" \
-      'Type or paste an absolute executable path' \
-      '← Back'
-  ) || exit "$?"
-
-  case "$executable" in
-    ''|'Type or paste an absolute executable path'|'← Back')
-      return 0
-      ;;
-    /*)
-      printf '%s\n' "$executable"
-      ;;
-    *)
-      printf 'warning: AppArmor executable path must be absolute: %s\n' \
-        "$executable" >&2
-      ;;
-  esac
-}
-
-run_confirmed_apparmor_profile_tool() {
-  profile_action=$1
-  confirmation_prompt=$2
-  shift 2
-
-  confirmation=$(
-    choose_lines \
-      "$confirmation_prompt" \
-      'Cancel' \
-      'Continue with AppArmor profile tool'
-  ) || exit "$?"
-  [ "$confirmation" = 'Continue with AppArmor profile tool' ] ||
+    if result.returncode:
+        if propagate_close and result.returncode == 3:
+            raise SystemExit(3)
+        print(f"warning: {label} returned status {result.returncode}: {args[0] if args else 'unknown'}", file=sys.stderr)
     return 0
 
-  run_security_action \
-    "$profile_action" \
-    "$@" \
-    confirmed-apparmor-profile-tool
-}
 
-set_apparmor_application_mode() {
-  application_key=$(choose_apparmor_application) || exit "$?"
-  [ -n "$application_key" ] || return 0
+def system_action(*args: str) -> int:
+    return call_helper(SYSTEM, list(args), "system action")
 
-  mode_label=$(
-    choose_lines \
-      "AppArmor profile mode" \
-      'Enforce' \
-      'Complain' \
-      '← Back'
-  ) || exit "$?"
-  case "$mode_label" in
-    Enforce) mode=enforce ;;
-    Complain) mode=complain ;;
-    *) return 0 ;;
-  esac
 
-  confirmation=$(
-    choose_lines \
-      "Set ${application_key} application profiles to ${mode}; required launch profiles remain loaded" \
-      'Cancel' \
-      'Continue with AppArmor mode change'
-  ) || exit "$?"
-  [ "$confirmation" = 'Continue with AppArmor mode change' ] || return 0
+def recovery_action(*args: str) -> int:
+    return call_helper(RECOVERY, list(args), "recovery action")
 
-  run_security_action \
-    set-apparmor-application-mode \
-    "$application_key" \
-    "$mode" \
-    confirmed-apparmor-mode-change
-}
 
-set_all_apparmor_desktop_profiles_mode() {
-  requested_mode=$1
-  case "$requested_mode" in
-    enforce|complain) ;;
-    *) fatal "unsupported AppArmor desktop profile mode: $requested_mode" ;;
-  esac
+def security_action(*args: str) -> int:
+    return call_helper(SECURITY, list(args), "security action")
 
-  confirmation=$(
-    choose_lines \
-      "Set every managed application and wrapper AppArmor profile to ${requested_mode}" \
-      'Cancel' \
-      'Continue with all-profile AppArmor mode change'
-  ) || exit "$?"
-  [ "$confirmation" = 'Continue with all-profile AppArmor mode change' ] ||
+
+def confirmed_system(action: str, prompt: str, *extra: str) -> int:
+    if confirm(prompt, "Continue with authorized system action"):
+        return system_action(action, *extra, "confirmed-system-action")
     return 0
 
-  run_security_action \
-    set-apparmor-desktop-state \
-    "$requested_mode" \
-    confirmed-apparmor-desktop-state-change
-}
 
-set_apparmor_profile_state() {
-  profile_action=$1
-  case "$profile_action" in
-    load|unload) ;;
-    *) fatal "unsupported AppArmor profile action: $profile_action" ;;
-  esac
-  profile_candidates=$(labwc-security-action --list-apparmor-profile-candidates) || return "$?"
-  [ -n "$profile_candidates" ] || {
-    printf '%s\n' 'warning: no independent application profiles are installed' >&2
-    return 0
-  }
-  selected_profile=$(
-    printf '%s\n' "$profile_candidates" |
-      labwc-fuzzel menu --dmenu --prompt "Select AppArmor profile to ${profile_action}" || menu_failure "$?"
-  ) || exit "$?"
-  [ -n "$selected_profile" ] || return 0
-  case "$profile_action" in
-    load) profile_warning="Load ${selected_profile} and its children; restart this app to restore confinement" ;;
-    unload) profile_warning="Unload ${selected_profile} and its children; this app loses confinement until loaded and restarted" ;;
-  esac
-  confirmation=$(
-    choose_lines "$profile_warning" \
-      'Cancel' \
-      'Continue with AppArmor profile change'
-  ) || exit "$?"
-  [ "$confirmation" = 'Continue with AppArmor profile change' ] || return 0
-  run_security_action set-apparmor-profile-state "$profile_action" "$selected_profile" confirmed-apparmor-profile-state-change
-}
-
-set_apparmor_application_audit() {
-  application_key=$(choose_apparmor_application) || exit "$?"
-  [ -n "$application_key" ] || return 0
-
-  audit_label=$(
-    choose_lines \
-      "AppArmor audit mode" \
-      'Enable Audit Mode' \
-      'Disable Audit Mode' \
-      '← Back'
-  ) || exit "$?"
-  case "$audit_label" in
-    'Enable Audit Mode') audit_mode=enable ;;
-    'Disable Audit Mode') audit_mode=disable ;;
-    *) return 0 ;;
-  esac
-
-  confirmation=$(
-    choose_lines \
-      "Set ${application_key} AppArmor audit mode to ${audit_mode}" \
-      'Cancel' \
-      'Continue with AppArmor audit change'
-  ) || exit "$?"
-  [ "$confirmation" = 'Continue with AppArmor audit change' ] || return 0
-
-  run_security_action \
-    set-apparmor-application-audit \
-    "$application_key" \
-    "$audit_mode" \
-    confirmed-apparmor-audit-change
-}
-
-generate_apparmor_rules() {
-  confirmation=$(
-    choose_lines \
-      "Generate validated local AppArmor rules from managed DENIED events" \
-      'Cancel' \
-      'Continue with AppArmor rule generation'
-  ) || exit "$?"
-  [ "$confirmation" = 'Continue with AppArmor rule generation' ] ||
+def confirmed_recovery(action: str, prompt: str) -> int:
+    if confirm(prompt, "Continue with authorized recovery action"):
+        return recovery_action(action, "confirmed-recovery-action")
     return 0
 
-  run_security_action \
-    generate-apparmor-rules \
-    confirmed-apparmor-rule-generation
-}
 
-apparmor_status_audit_menu() {
-  while :; do
-    action=$(
-      choose_lines \
-        "AppArmor — Status & Events" \
-        'AppArmor Status' \
-        'Kernel Enablement' \
-        'Unconfined Network Processes' \
-        'Features ABI' \
-        'Complain Events (24h)' \
-        'Denied Events (24h)' \
-        '← Back'
-    ) || exit "$?"
+def choose_nvme() -> str | None:
+    devices: list[str] = []
+    try:
+        entries = sorted(Path("/sys/class/nvme").glob("nvme*"))
+    except OSError:
+        entries = []
+    for entry in entries:
+        device = Path("/dev") / entry.name
+        if re.fullmatch(r"/dev/nvme[0-9]+", str(device)) and device.exists():
+            devices.append(str(device))
+    return picker(sorted(set(devices)), "NVMe controller") if devices else None
 
-    case "$action" in
-      'AppArmor Status')
-        run_security_action apparmor-status
-        ;;
-      'Kernel Enablement')
-        run_security_action apparmor-enabled
-        ;;
-      'Unconfined Network Processes')
-        run_security_action apparmor-unconfined
-        ;;
-      'Features ABI')
-        run_security_action apparmor-features-abi
-        ;;
-      'Complain Events (24h)')
-        run_security_action audit-apparmor-complain
-        ;;
-      'Denied Events (24h)')
-        run_security_action audit-apparmor-denied
-        ;;
-      '← Back'|'')
-        return 0
-        ;;
-    esac
-  done
-}
 
-apparmor_profile_generation_menu() {
-  while :; do
-    action=$(
-      choose_lines \
-        "AppArmor — Profile Drafts" \
-        'Easyprof Draft' \
-        'Autodep Base Draft' \
-        'Logprof Draft Update' \
-        'Genprof Interactive Draft' \
-        'List Drafts' \
-        'Validate Drafts' \
-        'Activate Selected Draft' \
-        '← Back'
-    ) || exit "$?"
+def choose_service() -> str | None:
+    services = {"greetd.service", "ssh.service", "systemd-logind.service"}
+    try:
+        result = run([SYSTEMCTL, "list-unit-files", "--type=service", "--no-legend", "--no-pager"], capture=True, timeout=15)
+        services.update(line.split()[0] for line in result.stdout.splitlines() if line.split() and re.fullmatch(r"[A-Za-z0-9_.@-]+\.service", line.split()[0]))
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    selected = picker(sorted(services), "Inspect service", text_input=True)
+    return selected if selected and re.fullmatch(r"[A-Za-z0-9_.@-]+\.service", selected) else None
 
-    case "$action" in
-      'Easyprof Draft')
-        apparmor_executable=$(choose_apparmor_executable) || exit "$?"
-        [ -n "$apparmor_executable" ] &&
-          run_confirmed_apparmor_profile_tool \
-            aa-easyprof \
-            "Generate an easyprof draft for ${apparmor_executable}" \
-            "$apparmor_executable"
-        ;;
-      'Autodep Base Draft')
-        apparmor_executable=$(choose_apparmor_executable) || exit "$?"
-        [ -n "$apparmor_executable" ] &&
-          run_confirmed_apparmor_profile_tool \
-            aa-autodep \
-            "Generate an autodep draft for ${apparmor_executable}" \
-            "$apparmor_executable"
-        ;;
-      'Logprof Draft Update')
-        run_confirmed_apparmor_profile_tool \
-          aa-logprof \
-          "Generate draft updates from __INSTALLER_LOG_APPARMOR_FILE__"
-        ;;
-      'Genprof Interactive Draft')
-        apparmor_executable=$(choose_apparmor_executable) || exit "$?"
-        [ -n "$apparmor_executable" ] &&
-          run_confirmed_apparmor_profile_tool \
-            aa-genprof \
-            "Interactively generate a draft for ${apparmor_executable}" \
-            "$apparmor_executable"
-        ;;
-      'List Drafts')
-        run_security_action apparmor-list-drafts
-        ;;
-      'Validate Drafts')
-        run_security_action apparmor-validate-drafts
-        ;;
-      'Activate Selected Draft')
-        selected_draft=$(choose_apparmor_draft) || exit "$?"
-        [ -n "$selected_draft" ] || continue
-        case "$selected_draft" in
-          easyprof/*)
-            draft_origin=easyprof
-            draft_name=${selected_draft#easyprof/}
-            ;;
-          drafts/*)
-            draft_origin=drafts
-            draft_name=${selected_draft#drafts/}
-            ;;
-          *)
-            printf 'warning: invalid AppArmor draft selection: %s\n' \
-              "$selected_draft" >&2
+
+def find_paths(prompt: str, *, files: bool, max_depth: int = 3) -> str | None:
+    home = Path.home()
+    try:
+        home_metadata = home.lstat()
+    except OSError as error:
+        raise MaintenanceError("the desktop home directory is unavailable") from error
+    if (not stat.S_ISDIR(home_metadata.st_mode) or home_metadata.st_uid != os.getuid()
+            or home_metadata.st_mode & 0o022):
+        raise MaintenanceError("the desktop home directory has unsafe metadata")
+    roots = [home / name for name in ("Downloads", "Documents", "Desktop")] + ([home] if files else [home, Path("/mnt"), Path("/media")])
+    found: set[str] = set()
+    for root in roots:
+        try:
+            root_stat = root.stat(follow_symlinks=False)
+            shared_root = root in {Path("/mnt"), Path("/media")}
+            if not root.is_dir() or (root_stat.st_uid != os.getuid() and (not shared_root or root_stat.st_mode & 0o022)):
+                continue
+        except OSError:
             continue
-            ;;
-        esac
-        confirmation=$(
-          choose_lines \
-            "Validate and activate ${selected_draft}; existing profiles are backed up first" \
-            'Cancel' \
-            'Continue with AppArmor draft activation'
-        ) || exit "$?"
-        [ "$confirmation" = 'Continue with AppArmor draft activation' ] &&
-          run_security_action \
-            apparmor-activate-draft \
-            "$draft_origin" \
-            "$draft_name" \
-            confirmed-apparmor-draft-activation
-        ;;
-      '← Back'|'')
-        return 0
-        ;;
-    esac
-  done
+        stack: list[tuple[Path, int]] = [(root, 0)]
+        while stack and len(found) < 400:
+            directory, depth = stack.pop()
+            try:
+                with os.scandir(directory) as iterator:
+                    entries = list(islice(iterator, 400))
+            except OSError:
+                continue
+            for entry in entries:
+                try:
+                    if entry.is_dir(follow_symlinks=False) and depth < max_depth:
+                        child = entry.stat(follow_symlinks=False)
+                        if child.st_dev == root_stat.st_dev:
+                            stack.append((Path(entry.path), depth + 1))
+                    elif files and entry.is_file(follow_symlinks=False):
+                        found.add(entry.path)
+                    elif not files and entry.is_dir(follow_symlinks=False):
+                        found.add(entry.path)
+                except OSError:
+                    continue
+    return picker(sorted(found)[:400], prompt, text_input=True)
+
+
+def choose_journal_time() -> str | None:
+    return {"3 days": "3d", "7 days": "7d", "14 days": "14d", "30 days": "30d"}.get(picker(["3 days", "7 days", "14 days", "30 days"], "Journal retention"))
+
+
+def choose_journal_size() -> str | None:
+    return {"256 MiB": "256M", "512 MiB": "512M", "1 GiB": "1G", "2 GiB": "2G"}.get(picker(["256 MiB", "512 MiB", "1 GiB", "2 GiB"], "Maximum journal size"))
+
+
+def security_app() -> str | None:
+    labels = ["Bitwarden", "Chromium", "Code", "QoreDB", "Discord", "Filen", "KeePassXC", "Ledger Live", "Microsoft Edge", "Mullvad Browser", "Obsidian", "Postman", "qBittorrent", "RetroArch", "Sleek", "Spotify", "SQLite Browser", "Telegram Desktop", "Totem", "Tuta Mail", "Vivaldi", "Zoom"]
+    selected = picker(labels, "AppArmor application")
+    return {"Bitwarden": "bitwarden", "Chromium": "chromium", "Code": "code", "QoreDB": "qoredb", "Discord": "discord", "Filen": "filen", "KeePassXC": "keepassxc", "Ledger Live": "ledger-live", "Microsoft Edge": "microsoft-edge", "Mullvad Browser": "mullvad-browser", "Obsidian": "obsidian", "Postman": "postman", "qBittorrent": "qbittorrent", "RetroArch": "retroarch", "Sleek": "sleek", "Spotify": "spotify", "SQLite Browser": "sqlitebrowser", "Telegram Desktop": "telegram-desktop", "Totem": "totem", "Tuta Mail": "tuta-mail", "Vivaldi": "vivaldi", "Zoom": "zoom"}.get(selected)
+
+
+def apparmor_executable() -> str | None:
+    value = picker([], "Absolute executable path", text_input=True)
+    if not value or value in {"Type or paste an absolute executable path", "← Back"}:
+        return None
+    if not value.startswith("/"):
+        print(f"warning: AppArmor executable path must be absolute: {value}", file=sys.stderr)
+        return None
+    return value
+
+
+def confirmed_apparmor(tool: str, prompt: str, *args: str) -> int:
+    if confirm(prompt, "Continue with AppArmor profile tool"):
+        return security_action(tool, *args, "confirmed-apparmor-profile-tool")
+    return 0
+
+
+def security_auditing() -> None:
+    labels = ["Audit Security Posture (lynis)", "Service Security Analysis", "Inspect Specific Service", "Check Firmware Security", "Check CPU Mitigations"]
+    mapping = {"Audit Security Posture (lynis)": ("audit-security-posture",), "Service Security Analysis": ("analyze-services",), "Check Firmware Security": ("check-firmware-security",), "Check CPU Mitigations": ("check-cpu-mitigations",)}
+    while True:
+        action = choose(labels, "Endpoint Security — Security Auditing")
+        if action in (None, "← Back"): return
+        if action == "Inspect Specific Service":
+            service = choose_service()
+            if service: security_action("inspect-service", service)
+        elif action in mapping: security_action(*mapping[action])
+
+
+def malware_menu() -> None:
+    labels = ["Run Rootkit Scan (rkhunter)", "Run Rootkit Scan (chkrootkit)", "Show ClamAV Signature Status", "Scan File with ClamAV", "Scan Folder Recursively with ClamAV", "Update ClamAV Signatures"]
+    mapping = {"Run Rootkit Scan (rkhunter)": ("scan-rootkits-rkhunter",), "Run Rootkit Scan (chkrootkit)": ("scan-rootkits-chkrootkit",), "Show ClamAV Signature Status": ("show-clamav-signature-status",), "Update ClamAV Signatures": ("update-clamav-signatures",)}
+    while True:
+        action = choose(labels, "Endpoint Security — Malware & Rootkits")
+        if action in (None, "← Back"): return
+        if action in mapping: security_action(*mapping[action])
+        elif action == "Scan File with ClamAV":
+            path = find_paths("ClamAV file path", files=True)
+            if path: security_action("scan-file-clamav", path)
+        elif action == "Scan Folder Recursively with ClamAV":
+            path = find_paths("ClamAV folder path", files=False)
+            if path: security_action("scan-folder-clamav", path)
+
+
+def integrity_menu() -> None:
+    labels = ["Check Known Vulnerabilities", "Check Package Integrity", "Retrieve File Hashsums (SHA-256/SHA-512)", "Create Folder Tree SHA-256 Manifest", "Verify File Against SHA-256"]
+    while True:
+        action = choose(labels, "Endpoint Security — Vulnerability & Integrity")
+        if action in (None, "← Back"): return
+        if action == "Check Known Vulnerabilities": security_action("check-known-vulnerabilities")
+        elif action == "Check Package Integrity": security_action("check-package-integrity")
+        elif action == "Retrieve File Hashsums (SHA-256/SHA-512)":
+            path = find_paths("File path for SHA-256 and SHA-512", files=True)
+            if path: security_action("retrieve-file-hashes", path)
+        elif action == "Create Folder Tree SHA-256 Manifest":
+            path = find_paths("Folder path for SHA-256 manifest", files=False)
+            if path: security_action("create-folder-hash-manifest", path)
+        elif action == "Verify File Against SHA-256":
+            path = find_paths("File path to verify", files=True)
+            digest = picker([], "Expected SHA-256 (64 hexadecimal characters)", text_input=True) if path else None
+            if path and digest: security_action("verify-file-sha256", path, digest)
+
+
+def apparmor_drafts() -> None:
+    while True:
+        action = choose(["Easyprof Draft", "Autodep Base Draft", "Logprof Draft Update", "Genprof Interactive Draft", "List Drafts", "Validate Drafts", "Activate Selected Draft"], "AppArmor — Profile Drafts")
+        if action in (None, "← Back"): return
+        if action in {"Easyprof Draft", "Autodep Base Draft", "Genprof Interactive Draft"}:
+            executable = apparmor_executable()
+            if executable:
+                tool = {"Easyprof Draft": "aa-easyprof", "Autodep Base Draft": "aa-autodep", "Genprof Interactive Draft": "aa-genprof"}[action]
+                confirmed_apparmor(tool, f"Generate an {action.lower()} for {executable}", executable)
+        elif action == "Logprof Draft Update":
+            confirmed_apparmor("aa-logprof", "Generate draft updates from __INSTALLER_LOG_APPARMOR_FILE__")
+        elif action == "List Drafts": security_action("apparmor-list-drafts")
+        elif action == "Validate Drafts": security_action("apparmor-validate-drafts")
+        elif action == "Activate Selected Draft":
+            if not os.access(SECURITY, os.X_OK): raise MaintenanceError("labwc-security-action is not installed")
+            try: result = run([SECURITY, "--list-apparmor-draft-candidates"], capture=True, timeout=15)
+            except (OSError, subprocess.TimeoutExpired): continue
+            selected = picker(result.stdout.splitlines()[:400], "Select AppArmor draft")
+            if not selected: continue
+            if selected.startswith("easyprof/"): origin, name = "easyprof", selected.removeprefix("easyprof/")
+            elif selected.startswith("drafts/"): origin, name = "drafts", selected.removeprefix("drafts/")
+            else:
+                print(f"warning: invalid AppArmor draft selection: {selected}", file=sys.stderr); continue
+            if confirm(f"Validate and activate {selected}; existing profiles are backed up first", "Continue with AppArmor draft activation"):
+                security_action("apparmor-activate-draft", origin, name, "confirmed-apparmor-draft-activation")
+
+
+def apparmor_modes() -> None:
+    while True:
+        action = choose(["Show App Modes", "Generate New Rules", "Enforce All", "Complain All", "Unload AppArmor Profile", "Load AppArmor Profile", "Set App Mode", "Set App Audit Logging", "Reload Modes & Clear Audit"], "AppArmor — App Modes")
+        if action in (None, "← Back"): return
+        if action == "Show App Modes": security_action("apparmor-application-modes")
+        elif action == "Generate New Rules" and confirm("Generate validated local AppArmor rules from managed DENIED events", "Continue with AppArmor rule generation"): security_action("generate-apparmor-rules", "confirmed-apparmor-rule-generation")
+        elif action in {"Enforce All", "Complain All"}:
+            mode = "enforce" if action == "Enforce All" else "complain"
+            if confirm(f"Set every managed application and wrapper AppArmor profile to {mode}", "Continue with all-profile AppArmor mode change"): security_action("set-apparmor-desktop-state", mode, "confirmed-apparmor-desktop-state-change")
+        elif action in {"Unload AppArmor Profile", "Load AppArmor Profile"}:
+            state = "unload" if action.startswith("Unload") else "load"
+            try: result = run([SECURITY, "--list-apparmor-profile-candidates"], capture=True, timeout=15)
+            except (OSError, subprocess.TimeoutExpired): continue
+            selected = picker(result.stdout.splitlines()[:400], f"Select AppArmor profile to {state}")
+            if selected and confirm(f"{state.title()} {selected} and its children", "Continue with AppArmor profile change"):
+                security_action("set-apparmor-profile-state", state, selected, "confirmed-apparmor-profile-state-change")
+        elif action == "Set App Mode":
+            app = security_app(); mode_label = picker(["Enforce", "Complain"], "AppArmor profile mode") if app else None
+            if app and mode_label and confirm(f"Set {app} application profiles to {mode_label.lower()}; required launch profiles remain loaded", "Continue with AppArmor mode change"):
+                security_action("set-apparmor-application-mode", app, mode_label.lower(), "confirmed-apparmor-mode-change")
+        elif action == "Set App Audit Logging":
+            app = security_app(); audit = picker(["Enable Audit Mode", "Disable Audit Mode"], "AppArmor audit mode") if app else None
+            if app and audit and confirm(f"Set {app} AppArmor audit mode", "Continue with AppArmor audit change"):
+                security_action("set-apparmor-application-audit", app, "enable" if audit.startswith("Enable") else "disable", "confirmed-apparmor-audit-change")
+        elif action == "Reload Modes & Clear Audit" and confirm("Reload modes and clear temporary audit flags", "Continue with AppArmor reload"):
+            security_action("reload-apparmor-modes", "confirmed-apparmor-reload")
+
+
+def apparmor_status() -> None:
+    mapping = {"AppArmor Status": "apparmor-status", "Kernel Enablement": "apparmor-enabled", "Unconfined Network Processes": "apparmor-unconfined", "Features ABI": "apparmor-features-abi", "Complain Events (24h)": "audit-apparmor-complain", "Denied Events (24h)": "audit-apparmor-denied"}
+    while True:
+        action = choose(list(mapping), "AppArmor — Status & Events")
+        if action in (None, "← Back"): return
+        security_action(mapping[action])
+
+
+def apparmor_policy() -> None:
+    while True:
+        action = choose(["Disabled Profiles", "Preview Unknown Cleanup", "Reload AppArmor Service"], "AppArmor — Policy Tools")
+        if action in (None, "← Back"): return
+        if action == "Disabled Profiles": security_action("apparmor-list-disabled-profiles")
+        elif action == "Preview Unknown Cleanup": security_action("aa-remove-unknown-dry-run")
+        elif confirm("Reload every installed AppArmor profile", "Continue with AppArmor service reload"):
+            security_action("reload-apparmor-service", "confirmed-apparmor-service-reload")
+
+
+def apparmor_menu() -> None:
+    handlers = {"⮞ Status & Events": apparmor_status, "⮞ Profile Drafts": apparmor_drafts, "⮞ App Modes": apparmor_modes, "⮞ Policy Tools": apparmor_policy}
+    while True:
+        action = choose(list(handlers), "Endpoint Security — AppArmor")
+        if action in (None, "← Back"): return
+        handlers[action]()
+
+
+def endpoint_security() -> None:
+    handlers = {"⮞ Security Auditing": security_auditing, "⮞ Malware & Rootkit Scanning": malware_menu, "⮞ Vulnerability & Integrity": integrity_menu, "⮞ AppArmor": apparmor_menu}
+    while True:
+        action = choose([*handlers, "⮞ Firewall Security"], "Endpoint Security")
+        if action in (None, "← Back"): return
+        if action == "⮞ Firewall Security": call_helper(FIREWALL, [], "firewall menu", propagate_close=True)
+        elif action in handlers: handlers[action]()
+
+
+SYSTEM_GROUPS = {
+    "Overview & Health": ["Show System Overview", "Show Memory and Swap", "Show Boot Performance", "Show Kernel Warnings"],
+    "Services & Logs": ["Show Failed Services", "Show Failed System Units", "Show Failed User Units", "Inspect Service and Logs", "Show Timers", "Show Recent System Errors", "Show Journal Disk Usage", "Rotate and Vacuum Journals by Time", "Rotate and Vacuum Journals by Size"],
+    "Packages & Firmware": ["Check Package Health", "List Pending Upgrades", "Show Upgradeable Packages", "Run Unattended Upgrades Now", "List Firmware-Capable Devices", "Refresh Firmware Metadata", "Check Firmware Updates", "Apply Firmware Updates"],
+    "Storage & Filesystems": ["Show Storage Overview", "Manage External Drives", "Show NVMe SMART Health", "Show NVMe Firmware Slots", "Show NVMe Identify Data", "Show NVMe SMART via smartctl", "Show Btrfs Usage", "Show Btrfs DF Summary", "Show Last Btrfs Scrub Status", "Top Disk Usage in Root", "Top Disk Usage in Home"],
+    "Audio & Desktop": ["Show PipeWire Status", "Show WirePlumber Status", "Restart PipeWire", "Restart WirePlumber", "Test Mako Notification", "Refresh Waybar Custom Module"],
+    "Network & DNS": ["Show Network Overview", "Flush DNS Cache", "Reset Resolver Server Features", "Show Resolver Statistics"],
+}
+SYSTEM_ACTIONS = {
+    "Show System Overview": "system-overview", "Show Memory and Swap": "memory-overview", "Show Boot Performance": "boot-performance", "Show Kernel Warnings": "kernel-warnings", "Show Failed Services": "failed-services", "Show Failed System Units": "failed-system-units", "Show Failed User Units": "failed-user-units", "Show Timers": "show-timers", "Show Recent System Errors": "recent-errors", "Show Journal Disk Usage": "journal-disk-usage", "Check Package Health": "package-health", "List Pending Upgrades": "pending-upgrades", "Show Upgradeable Packages": "upgradeable-packages", "List Firmware-Capable Devices": "firmware-devices", "Refresh Firmware Metadata": "refresh-firmware-metadata", "Check Firmware Updates": "firmware-updates", "Show Storage Overview": "storage-overview", "Show Network Overview": "network-overview", "Show Btrfs Usage": "btrfs-usage", "Show Btrfs DF Summary": "btrfs-df", "Show Last Btrfs Scrub Status": "btrfs-scrub-status", "Show PipeWire Status": "pipewire-status", "Show WirePlumber Status": "wireplumber-status", "Test Mako Notification": "test-mako-notification", "Refresh Waybar Custom Module": "refresh-waybar-custom-module", "Flush DNS Cache": "flush-dns-cache", "Reset Resolver Server Features": "reset-resolver-features", "Show Resolver Statistics": "resolver-statistics", "Top Disk Usage in Root": "top-disk-root", "Top Disk Usage in Home": "top-disk-home",
 }
 
-apparmor_managed_modes_menu() {
-  while :; do
-    action=$(
-      choose_lines \
-        "AppArmor — App Modes" \
-        'Show App Modes' \
-        'Generate New Rules' \
-        'Enforce All' \
-        'Complain All' \
-        'Unload AppArmor Profile' \
-        'Load AppArmor Profile' \
-        'Set App Mode' \
-        'Set App Audit Logging' \
-        'Reload Modes & Clear Audit' \
-        '← Back'
-    ) || exit "$?"
 
-    case "$action" in
-      'Show App Modes')
-        run_security_action apparmor-application-modes
-        ;;
-      'Generate New Rules')
-        generate_apparmor_rules
-        ;;
-      'Enforce All')
-        set_all_apparmor_desktop_profiles_mode enforce
-        ;;
-      'Complain All')
-        set_all_apparmor_desktop_profiles_mode complain
-        ;;
-      'Unload AppArmor Profile')
-        set_apparmor_profile_state unload
-        ;;
-      'Load AppArmor Profile')
-        set_apparmor_profile_state load
-        ;;
-      'Set App Mode')
-        set_apparmor_application_mode
-        ;;
-      'Set App Audit Logging')
-        set_apparmor_application_audit
-        ;;
-      'Reload Modes & Clear Audit')
-        confirmation=$(
-          choose_lines \
-            "Reload modes and clear temporary audit flags" \
-            'Cancel' \
-            'Continue with AppArmor reload'
-        ) || exit "$?"
-        [ "$confirmation" = 'Continue with AppArmor reload' ] &&
-          run_security_action \
-            reload-apparmor-modes \
-            confirmed-apparmor-reload
-        ;;
-      '← Back'|'')
-        return 0
-        ;;
-    esac
-  done
+def system_menu() -> None:
+    while True:
+        group = choose(list(SYSTEM_GROUPS), "Maintenance")
+        if group in (None, "← Back"): return
+        while True:
+            action = choose(SYSTEM_GROUPS[group], f"Maintenance / {group}")
+            if action in (None, "← Back"): break
+            if action == "Manage External Drives": call_helper(EXTERNAL, [], "external drive manager", propagate_close=True)
+            elif action == "Inspect Service and Logs":
+                service = choose_service()
+                if service: system_action("inspect-service", service)
+            elif action == "Apply Firmware Updates": confirmed_system("apply-firmware-updates", "Apply available firmware updates")
+            elif action == "Run Unattended Upgrades Now": confirmed_system("run-unattended-upgrades", "Run unattended upgrades now")
+            elif action == "Restart PipeWire": confirmed_system("restart-pipewire", "Restart PipeWire services")
+            elif action == "Restart WirePlumber": confirmed_system("restart-wireplumber", "Restart WirePlumber")
+            elif action == "Rotate and Vacuum Journals by Time":
+                value = choose_journal_time()
+                if value: confirmed_system("journal-vacuum-time", f"Rotate journals and retain {value}", value)
+            elif action == "Rotate and Vacuum Journals by Size":
+                value = choose_journal_size()
+                if value: confirmed_system("journal-vacuum-size", f"Rotate journals and cap usage at {value}", value)
+            elif action in {"Show NVMe SMART Health", "Show NVMe Firmware Slots", "Show NVMe Identify Data", "Show NVMe SMART via smartctl"}:
+                device = choose_nvme()
+                if device:
+                    system_action({"Show NVMe SMART Health": "nvme-smart-health", "Show NVMe Firmware Slots": "nvme-firmware-slots", "Show NVMe Identify Data": "nvme-identify-data", "Show NVMe SMART via smartctl": "nvme-smartctl"}[action], device)
+            elif action in SYSTEM_ACTIONS: system_action(SYSTEM_ACTIONS[action])
+
+
+RECOVERY_GROUPS = {
+    "Desktop & Services": [("Restart Waybar", "restart-waybar"), ("Restart Audio Services", "restart-audio"), ("Restart Desktop Portals", "restart-portals"), ("Refresh Display Configuration", "refresh-displays"), ("Reset Failed System Units", "reset-failed-units"), ("Restart NetworkManager", "restart-networkmanager"), ("Restart Bluetooth Service", "restart-bluetooth"), ("Restart UDisks Service", "restart-udisks"), ("Restart Polkit Service", "restart-polkit")],
+    "Packages & Boot": [("Refresh Package Index", "refresh-package-index"), ("Complete Interrupted Package Configuration", "repair-dpkg"), ("Repair Package Dependencies", "repair-apt"), ("Rebuild Initramfs", "rebuild-initramfs"), ("Refresh GRUB Configuration", "refresh-grub")],
+    "Snapshots & Storage": [("Create Timeshift Recovery Snapshot", "create-timeshift-snapshot"), ("Emergency Btrfs Unused-Chunk Reclaim", "emergency-btrfs-reclaim")],
+    "Memory & Cleanup": [("Drop Page Cache Only", "drop-page-cache"), ("Drop Dentries and Inodes", "drop-dentries-inodes"), ("Drop All Clean Caches", "drop-all-clean-caches"), ("Reset zram Swap", "reset-zram-swap"), ("Aggressive Journal Vacuum", "aggressive-journal-vacuum")],
 }
 
-apparmor_policy_maintenance_menu() {
-  while :; do
-    action=$(
-      choose_lines \
-        "AppArmor — Policy Tools" \
-        'Disabled Profiles' \
-        'Preview Unknown Cleanup' \
-        'Reload AppArmor Service' \
-        '← Back'
-    ) || exit "$?"
 
-    case "$action" in
-      'Disabled Profiles')
-        run_security_action apparmor-list-disabled-profiles
-        ;;
-      'Preview Unknown Cleanup')
-        run_security_action aa-remove-unknown-dry-run
-        ;;
-      'Reload AppArmor Service')
-        confirmation=$(
-          choose_lines \
-            "Reload every installed AppArmor profile" \
-            'Cancel' \
-            'Continue with AppArmor service reload'
-        ) || exit "$?"
-        [ "$confirmation" = 'Continue with AppArmor service reload' ] &&
-          run_security_action \
-            reload-apparmor-service \
-            confirmed-apparmor-service-reload
-        ;;
-      '← Back'|'')
+def recovery_menu() -> None:
+    while True:
+        group = choose(list(RECOVERY_GROUPS), "Recovery")
+        if group in (None, "← Back"): return
+        labels = [label for label, _ in RECOVERY_GROUPS[group]]
+        while True:
+            action = choose(labels, f"Recovery / {group}")
+            if action in (None, "← Back"):
+                break
+            command = dict(RECOVERY_GROUPS[group])[action]
+            prompt = {"Reset Failed System Units": "Reset failed units", "Restart NetworkManager": "Restart NetworkManager", "Restart Bluetooth Service": "Restart Bluetooth", "Restart UDisks Service": "Restart UDisks", "Restart Polkit Service": "Restart Polkit", "Refresh Package Index": "Refresh package index", "Complete Interrupted Package Configuration": "Complete dpkg configuration", "Repair Package Dependencies": "Repair package dependencies", "Rebuild Initramfs": "Rebuild all initramfs images", "Refresh GRUB Configuration": "Refresh GRUB configuration", "Create Timeshift Recovery Snapshot": "Create Timeshift recovery snapshot", "Emergency Btrfs Unused-Chunk Reclaim": "Reclaim completely unused Btrfs chunks", "Drop Page Cache Only": "Drop clean page cache after sync", "Drop Dentries and Inodes": "Drop clean dentries and inode caches after sync", "Drop All Clean Caches": "Drop all clean filesystem caches after sync", "Reset zram Swap": "Restart the managed zram swap lifecycle", "Aggressive Journal Vacuum": "Rotate journals and retain only 3 days"}.get(action)
+            if prompt: confirmed_recovery(command, prompt)
+            else: recovery_action(command)
+
+
+def main(argv: list[str]) -> int:
+    if not os.access(PICKER, os.X_OK): raise MaintenanceError("labwc-fuzzel is not installed")
+    if not os.access(SYSTEMCTL, os.X_OK): raise MaintenanceError("systemctl is not installed")
+    if not os.access(IP, os.X_OK): raise MaintenanceError("ip is not installed")
+    if os.getuid() == 0: raise MaintenanceError("labwc-maintenance-menu must run as the logged-in desktop user")
+    os.environ["LABWC_MENU_ACTION_WAIT"] = "1"
+    if len(argv) > 1 or (argv and argv[0] not in {"security", "system", "recovery"}):
+        raise MaintenanceError(f"unsupported maintenance category: {argv[0] if argv else ''}")
+    requested = argv[0] if argv else None
+    handlers = {"security": endpoint_security, "system": system_menu, "recovery": recovery_menu}
+    if requested:
+        handlers[requested]()
         return 0
-        ;;
-    esac
-  done
-}
+    while True:
+        category = picker(["⮞ Endpoint Security", "⮞ System", "⮞ Troubleshooting", "← Back"], "Maintenance")
+        if category in (None, "← Back"): return 0
+        {"⮞ Endpoint Security": endpoint_security, "⮞ System": system_menu, "⮞ Troubleshooting": recovery_menu}[category]()
 
-apparmor_management_menu() {
-  while :; do
-    action=$(
-      choose_lines \
-        "Endpoint Security — AppArmor" \
-        '⮞ Status & Events' \
-        '⮞ Profile Drafts' \
-        '⮞ App Modes' \
-        '⮞ Policy Tools' \
-        '← Back'
-    ) || exit "$?"
 
-    case "$action" in
-      '⮞ Status & Events')
-        apparmor_status_audit_menu
-        ;;
-      '⮞ Profile Drafts')
-        apparmor_profile_generation_menu
-        ;;
-      '⮞ App Modes')
-        apparmor_managed_modes_menu
-        ;;
-      '⮞ Policy Tools')
-        apparmor_policy_maintenance_menu
-        ;;
-      '← Back'|'')
-        return 0
-        ;;
-    esac
-  done
-}
-
-endpoint_security_menu() {
-  while :; do
-    security_category=$(
-      choose_lines \
-        "Endpoint Security" \
-        '⮞ Security Auditing' \
-        '⮞ Malware & Rootkit Scanning' \
-        '⮞ Vulnerability & Integrity' \
-        '⮞ AppArmor' \
-        '⮞ Firewall Security' \
-        '← Back'
-    ) || exit "$?"
-
-    case "$security_category" in
-      '⮞ Security Auditing')
-        security_auditing_menu
-        ;;
-      '⮞ Malware & Rootkit Scanning')
-        malware_scanning_menu
-        ;;
-      '⮞ Vulnerability & Integrity')
-        vulnerability_integrity_menu
-        ;;
-      '⮞ AppArmor')
-        apparmor_management_menu
-        ;;
-      '⮞ Firewall Security')
-        run_firewall_menu
-        ;;
-      '← Back'|'')
-        return 0
-        ;;
-    esac
-  done
-}
-
-command -v labwc-fuzzel >/dev/null 2>&1 || fatal "labwc-fuzzel is not installed"
-command -v systemctl >/dev/null 2>&1 || fatal "systemctl is not installed"
-command -v ip >/dev/null 2>&1 || fatal "ip is not installed"
-
-if [ "$(id -u)" -eq 0 ]; then
-  fatal "labwc-maintenance-menu must run as the logged-in desktop user"
-fi
-
-requested_category=${1:-}
-case "$requested_category" in
-  ''|security|system|recovery) ;;
-  *) fatal "unsupported maintenance category: $requested_category" ;;
-esac
-
-while :; do
-  case "$requested_category" in
-    security)
-      category='⮞ Endpoint Security'
-      ;;
-    system) category='⮞ System' ;;
-    recovery) category='⮞ Troubleshooting' ;;
-    '')
-      category=$(
-        choose_lines \
-          Maintenance \
-          '⮞ Endpoint Security' \
-          '⮞ System' \
-          '⮞ Troubleshooting'
-      ) || exit "$?"
-      ;;
-  esac
-
-  case "$category" in
-    '⮞ Endpoint Security')
-      endpoint_security_menu
-      ;;
-    '⮞ System')
-      system_group=''
-      while :; do
-        if [ -z "${system_group:-}" ]; then
-          system_group=$(
-            choose_lines 'Maintenance' \
-              'Overview & Health' \
-              'Services & Logs' \
-              'Packages & Firmware' \
-              'Storage & Filesystems' \
-              'Audio & Desktop' \
-              'Network & DNS' \
-              '← Back'
-          ) || exit "$?"
-          case "$system_group" in
-            '← Back'|'') break ;;
-          esac
-        fi
-        action=$(choose_system_action "$system_group") || exit "$?"
-        case "$action" in
-          '← Back'|'') system_group=''; continue ;;
-        esac
-
-        case "$action" in
-          'Show System Overview')
-            run_system_action system-overview
-            ;;
-          'Show Failed Services')
-            run_system_action failed-services
-            ;;
-          'Show Boot Performance')
-            run_system_action boot-performance
-            ;;
-          'Show Recent System Errors')
-            run_system_action recent-errors
-            ;;
-          'Show Kernel Warnings')
-            run_system_action kernel-warnings
-            ;;
-          'Show Storage Overview')
-            run_system_action storage-overview
-            ;;
-          'Manage External Drives')
-            run_external_drive_manager
-            ;;
-          'Show Memory and Swap')
-            run_system_action memory-overview
-            ;;
-          'Show Network Overview')
-            run_system_action network-overview
-            ;;
-          'Check Package Health')
-            run_system_action package-health
-            ;;
-          'List Pending Upgrades')
-            run_system_action pending-upgrades
-            ;;
-          'Inspect Service and Logs')
-            service=$(choose_service) || exit "$?"
-            [ -n "$service" ] && run_system_action inspect-service "$service"
-            ;;
-          'List Firmware-Capable Devices')
-            run_system_action firmware-devices
-            ;;
-          'Refresh Firmware Metadata')
-            run_system_action refresh-firmware-metadata
-            ;;
-          'Check Firmware Updates')
-            run_system_action firmware-updates
-            ;;
-          'Apply Firmware Updates')
-            run_confirmed_system_action \
-              apply-firmware-updates \
-              "Apply available firmware updates"
-            ;;
-          'Show Upgradeable Packages')
-            run_system_action upgradeable-packages
-            ;;
-          'Run Unattended Upgrades Now')
-            run_confirmed_system_action \
-              run-unattended-upgrades \
-              "Run unattended upgrades now"
-            ;;
-          'Show NVMe SMART Health')
-            nvme_device=$(choose_nvme_controller) || exit "$?"
-            [ -n "$nvme_device" ] &&
-              run_system_action nvme-smart-health "$nvme_device"
-            ;;
-          'Show NVMe Firmware Slots')
-            nvme_device=$(choose_nvme_controller) || exit "$?"
-            [ -n "$nvme_device" ] &&
-              run_system_action nvme-firmware-slots "$nvme_device"
-            ;;
-          'Show NVMe Identify Data')
-            nvme_device=$(choose_nvme_controller) || exit "$?"
-            [ -n "$nvme_device" ] &&
-              run_system_action nvme-identify-data "$nvme_device"
-            ;;
-          'Show NVMe SMART via smartctl')
-            nvme_device=$(choose_nvme_controller) || exit "$?"
-            [ -n "$nvme_device" ] &&
-              run_system_action nvme-smartctl "$nvme_device"
-            ;;
-          'Show Btrfs Usage')
-            run_system_action btrfs-usage
-            ;;
-          'Show Btrfs DF Summary')
-            run_system_action btrfs-df
-            ;;
-          'Show Last Btrfs Scrub Status')
-            run_system_action btrfs-scrub-status
-            ;;
-          'Show Journal Disk Usage')
-            run_system_action journal-disk-usage
-            ;;
-          'Rotate and Vacuum Journals by Time')
-            retention=$(choose_journal_vacuum_time) || exit "$?"
-            [ -n "$retention" ] &&
-              run_confirmed_system_action \
-                journal-vacuum-time \
-                "Rotate journals and retain ${retention}" \
-                "$retention"
-            ;;
-          'Rotate and Vacuum Journals by Size')
-            retention=$(choose_journal_vacuum_size) || exit "$?"
-            [ -n "$retention" ] &&
-              run_confirmed_system_action \
-                journal-vacuum-size \
-                "Rotate journals and cap usage at ${retention}" \
-                "$retention"
-            ;;
-          'Top Disk Usage in Root')
-            run_system_action top-disk-root
-            ;;
-          'Top Disk Usage in Home')
-            run_system_action top-disk-home
-            ;;
-          'Show Failed System Units')
-            run_system_action failed-system-units
-            ;;
-          'Show Failed User Units')
-            run_system_action failed-user-units
-            ;;
-          'Show Timers')
-            run_system_action show-timers
-            ;;
-          'Show PipeWire Status')
-            run_system_action pipewire-status
-            ;;
-          'Show WirePlumber Status')
-            run_system_action wireplumber-status
-            ;;
-          'Restart PipeWire')
-            run_confirmed_system_action restart-pipewire "Restart PipeWire services"
-            ;;
-          'Restart WirePlumber')
-            run_confirmed_system_action restart-wireplumber "Restart WirePlumber"
-            ;;
-          'Flush DNS Cache')
-            run_system_action flush-dns-cache
-            ;;
-          'Reset Resolver Server Features')
-            run_system_action reset-resolver-features
-            ;;
-          'Show Resolver Statistics')
-            run_system_action resolver-statistics
-            ;;
-          'Test Mako Notification')
-            run_system_action test-mako-notification
-            ;;
-          'Refresh Waybar Custom Module')
-            run_system_action refresh-waybar-custom-module
-            ;;
-          '← Back')
-            break
-            ;;
-          '')
-            exit 0
-            ;;
-        esac
-      done
-      ;;
-    '⮞ Troubleshooting')
-      recovery_group=''
-      while :; do
-        if [ -z "${recovery_group:-}" ]; then
-          recovery_group=$(
-            choose_lines 'Recovery' \
-              'Desktop & Services' \
-              'Packages & Boot' \
-              'Snapshots & Storage' \
-              'Memory & Cleanup' \
-              '← Back'
-          ) || exit "$?"
-          case "$recovery_group" in
-            '← Back'|'') break ;;
-          esac
-        fi
-        action=$(choose_recovery_action "$recovery_group") || exit "$?"
-        case "$action" in
-          '← Back'|'') recovery_group=''; continue ;;
-        esac
-
-        case "$action" in
-          'Restart Waybar')
-            run_recovery_action restart-waybar
-            ;;
-          'Restart Audio Services')
-            run_recovery_action restart-audio
-            ;;
-          'Restart Desktop Portals')
-            run_recovery_action restart-portals
-            ;;
-          'Refresh Display Configuration')
-            run_recovery_action refresh-displays
-            ;;
-          'Reset Failed System Units')
-            run_confirmed_recovery_action reset-failed-units "Reset failed units"
-            ;;
-          'Restart NetworkManager')
-            run_confirmed_recovery_action restart-networkmanager "Restart NetworkManager"
-            ;;
-          'Restart Bluetooth Service')
-            run_confirmed_recovery_action restart-bluetooth "Restart Bluetooth"
-            ;;
-          'Restart UDisks Service')
-            run_confirmed_recovery_action restart-udisks "Restart UDisks"
-            ;;
-          'Restart Polkit Service')
-            run_confirmed_recovery_action restart-polkit "Restart Polkit"
-            ;;
-          'Refresh Package Index')
-            run_confirmed_recovery_action refresh-package-index "Refresh package index"
-            ;;
-          'Complete Interrupted Package Configuration')
-            run_confirmed_recovery_action repair-dpkg "Complete dpkg configuration"
-            ;;
-          'Repair Package Dependencies')
-            run_confirmed_recovery_action repair-apt "Repair package dependencies"
-            ;;
-          'Rebuild Initramfs')
-            run_confirmed_recovery_action rebuild-initramfs "Rebuild all initramfs images"
-            ;;
-          'Refresh GRUB Configuration')
-            run_confirmed_recovery_action refresh-grub "Refresh GRUB configuration"
-            ;;
-          'Create Timeshift Recovery Snapshot')
-            run_confirmed_recovery_action create-timeshift-snapshot "Create Timeshift recovery snapshot"
-            ;;
-          'Drop Page Cache Only')
-            run_confirmed_recovery_action drop-page-cache "Drop clean page cache after sync"
-            ;;
-          'Drop Dentries and Inodes')
-            run_confirmed_recovery_action drop-dentries-inodes "Drop clean dentries and inode caches after sync"
-            ;;
-          'Drop All Clean Caches')
-            run_confirmed_recovery_action drop-all-clean-caches "Drop all clean filesystem caches after sync"
-            ;;
-          'Reset zram Swap')
-            run_confirmed_recovery_action reset-zram-swap "Restart the managed zram swap lifecycle"
-            ;;
-          'Aggressive Journal Vacuum')
-            run_confirmed_recovery_action aggressive-journal-vacuum "Rotate journals and retain only 3 days"
-            ;;
-          'Emergency Btrfs Unused-Chunk Reclaim')
-            run_confirmed_recovery_action emergency-btrfs-reclaim "Reclaim completely unused Btrfs chunks"
-            ;;
-          '← Back')
-            break
-            ;;
-          '')
-            exit 0
-            ;;
-        esac
-      done
-      ;;
-    '')
-      exit 0
-      ;;
-  esac
-
-  [ -z "$requested_category" ] || exit 0
-done
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except SystemExit:
+        raise
+    except (MaintenanceError, OSError, subprocess.TimeoutExpired) as error:
+        raise SystemExit(fatal(str(error)))

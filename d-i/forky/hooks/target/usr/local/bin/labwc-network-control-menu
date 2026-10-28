@@ -1,455 +1,323 @@
-#!/bin/sh
-set -eu
+#!/usr/bin/python3 -IB
+"""Interactive NetworkManager profile menu with fixed, validated actions."""
+from __future__ import annotations
 
-# Back returns to the parent; dismissal unwinds every menu process.
-menu_failure() {
-  [ "$1" -eq 1 ] && return 0
-  [ "$1" -eq 3 ] && exit 3
-  printf 'fatal: menu picker failed (status %s)\n' "$1" >&2
-  exit "$1"
-}
+import os
+from pathlib import Path
+import re
+import stat
+import subprocess
+import sys
+from itertools import islice
 
-# Keep this menu behind its independently managed action terminal.
-export LABWC_MENU_ACTION_WAIT=1
+PICKER = "/usr/local/bin/labwc-fuzzel"
+ACTION = "/usr/local/bin/labwc-network-control-action"
+NMCLI = "/usr/bin/nmcli"
+UUID = re.compile(r"^[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}$")
+INTERFACE = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
+MAX_CONNECTIONS = 200
+MAX_FILES = 300
+MAX_FILE_BYTES = 1_048_576
 
-fatal() {
-  printf 'fatal: %s\n' "$*" >&2
-  exit 1
-}
 
-choose_lines() {
-  prompt=$1
-  shift
+class NetworkMenuError(RuntimeError):
+    pass
 
-  printf '%s\n' "$@" |
-    labwc-fuzzel menu \
-      --dmenu \
-      --prompt "$prompt" || menu_failure "$?"
-}
 
-choose_text() {
-  prompt=$1
-  printf '\n' |
-    LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu \
-      --dmenu \
-      --prompt "$prompt" || menu_failure "$?"
-}
+def fatal(message: str) -> int:
+    print(f"fatal: {message}", file=sys.stderr)
+    return 1
 
-choose_adapter() {
-  adapter_type=$1
 
-  {
-    if command -v nmcli >/dev/null 2>&1; then
-      nmcli --terse --fields DEVICE,TYPE device status 2>/dev/null |
-        awk -F: -v expected="$adapter_type" '
-          $2 == expected && $1 != "" {
-            print $1
-          }
-        '
-    fi
-    for interface_path in /sys/class/net/*; do
-      [ -e "$interface_path/device" ] || continue
-      interface_name=${interface_path##*/}
-      case "$adapter_type" in
-        ethernet)
-          [ -d "$interface_path/wireless" ] || printf '%s\n' "$interface_name"
-          ;;
-        wifi)
-          [ -d "$interface_path/wireless" ] && printf '%s\n' "$interface_name"
-          ;;
-      esac
-    done
-  } |
-    sort -u |
-    labwc-fuzzel menu \
-      --dmenu \
-      --prompt "${adapter_type} adapter" || menu_failure "$?"
-}
+def run(argv: list[str], *, input_text: str | None = None, capture: bool = False,
+        timeout: float = 15.0, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        argv,
+        input=input_text,
+        text=True,
+        env=dict(os.environ, **(env or {})),
+        stdin=subprocess.PIPE if input_text is not None else subprocess.DEVNULL,
+        stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
+        stderr=subprocess.PIPE if capture else subprocess.DEVNULL,
+        timeout=timeout,
+        check=False,
+        close_fds=True,
+    )
 
-validate_uuid() {
-  printf '%s\n' "$1" |
-    grep -Eq '^[0123456789abcdefABCDEF]{8}-[0123456789abcdefABCDEF]{4}-[0123456789abcdefABCDEF]{4}-[0123456789abcdefABCDEF]{4}-[0123456789abcdefABCDEF]{12}$'
-}
 
-connection_is_active() {
-  target_uuid=$1
-  nmcli --terse --fields UUID connection show --active 2>/dev/null |
-    grep -Fxiq "$target_uuid"
-}
+def picker(rows: list[str], prompt: str, *, text_input: bool = False) -> str | None:
+    environment = {"LABWC_MENU_ACTION_WAIT": "1"}
+    if text_input:
+        environment["LABWC_MENU_INPUT_MODE"] = "text"
+        input_data = "\n"
+    else:
+        input_data = "".join(f"{row}\n" for row in rows)
+    result = run([PICKER, "menu", "--dmenu", "--prompt", prompt], input_text=input_data,
+                 capture=True, timeout=120, env=environment)
+    if result.returncode == 1:
+        return None
+    if result.returncode == 3:
+        raise SystemExit(3)
+    if result.returncode != 0:
+        raise NetworkMenuError(f"menu picker failed (status {result.returncode})")
+    selected = result.stdout.rstrip("\n")
+    if text_input:
+        return selected
+    return selected if selected in rows else None
 
-connection_matches_kind() {
-  connection_uuid=$1
-  requested_kind=$2
-  connection_type=$(
-    nmcli --get-values connection.type connection show uuid "$connection_uuid" 2>/dev/null ||
-      true
-  )
-  case "$requested_kind:$connection_type" in
-    all:*) return 0 ;;
-    vpn:vpn) return 0 ;;
-    wireguard:wireguard) return 0 ;;
-  esac
-  return 1
-}
 
-choose_connection() {
-  requested_kind=$1
-  requested_state=$2
+def clean_field(value: str, limit: int) -> str:
+    return "".join(char if char.isprintable() else " " for char in value).strip()[:limit]
 
-  {
-    nmcli --terse --fields UUID connection show 2>/dev/null |
-      sed -n '1,200p' |
-      while IFS= read -r connection_uuid; do
-        validate_uuid "$connection_uuid" || continue
-        connection_matches_kind "$connection_uuid" "$requested_kind" || continue
-        case "$requested_state" in
-          active)
-            connection_is_active "$connection_uuid" || continue
-            ;;
-          saved) ;;
-          *) continue ;;
-        esac
-        connection_name=$(
-          nmcli --get-values connection.id connection show uuid "$connection_uuid" 2>/dev/null |
-            tr '\n\r\t' '   ' |
-            cut -c 1-80
-        )
-        connection_type=$(
-          nmcli --get-values connection.type connection show uuid "$connection_uuid" 2>/dev/null |
-            tr '\n\r\t' '   ' |
-            cut -c 1-32
-        )
-        printf '%s  %s [%s]\n' \
-          "$connection_uuid" \
-          "${connection_name:-unnamed}" \
-          "${connection_type:-unknown}"
-      done
-  } |
-    labwc-fuzzel menu \
-      --dmenu \
-      --prompt "Select connection" || menu_failure "$?"
-}
 
-connection_uuid_from_selection() {
-  selection=$1
-  connection_uuid=${selection%% *}
-  validate_uuid "$connection_uuid" || return 1
-  printf '%s\n' "$connection_uuid"
-}
+def valid_uuid(value: str) -> bool:
+    return bool(UUID.fullmatch(value))
 
-choose_import_file() {
-  import_kind=$1
 
-  {
-    case "$import_kind" in
-      openvpn)
-        for candidate_dir in \
-          "$HOME/Downloads" \
-          "$HOME/Documents" \
-          "$HOME/Desktop" \
-          "$HOME"
-        do
-          [ -d "$candidate_dir" ] || continue
-          find "$candidate_dir" \
-            -xdev \
-            -mindepth 1 \
-            -maxdepth 3 \
-            -type f \
-            -name '*.ovpn' \
-            -size +0c \
-            -size -1048577c \
-            -print 2>/dev/null
-        done
-        ;;
-      wireguard)
-        find /data/config/network/wireguard \
-        -xdev \
-        -mindepth 1 \
-        -maxdepth 1 \
-        -type f \
-        -name '*.conf' \
-        -size +0c \
-        -size -1048577c \
-        -print 2>/dev/null
-        ;;
-      *) return 1 ;;
-    esac
-  } |
-    awk '!seen[$0]++' |
-    sed -n '1,300p' |
-    labwc-fuzzel menu \
-      --dmenu \
-      --prompt "Import ${import_kind} profile" || menu_failure "$?"
-}
+def nmcli_output(args: list[str], timeout: float = 15.0) -> str:
+    try:
+        result = run([NMCLI, *args], capture=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return result.stdout
 
-confirm_action() {
-  prompt=$1
-  confirmation=$(
-    choose_lines \
-      "$prompt" \
-      'Cancel' \
-      'Continue with network change'
-  ) || exit "$?"
-  [ "$confirmation" = 'Continue with network change' ]
-}
 
-run_network_action() {
-  if labwc-network-control-action "$@"; then
+def choose_adapter(adapter_type: str) -> str | None:
+    if adapter_type not in {"ethernet", "wifi"}:
+        raise NetworkMenuError(f"unsupported adapter type: {adapter_type}")
+    names: set[str] = set()
+    for line in nmcli_output(["--terse", "--fields", "DEVICE,TYPE", "device", "status"]).splitlines():
+        device, separator, kind = line.partition(":")
+        if separator and kind == adapter_type and INTERFACE.fullmatch(device):
+            names.add(device)
+    sys_net = Path("/sys/class/net")
+    try:
+        entries = sorted(sys_net.iterdir())
+    except OSError:
+        entries = []
+    for entry in entries:
+        if not INTERFACE.fullmatch(entry.name) or not (entry / "device").is_dir():
+            continue
+        wireless = (entry / "wireless").is_dir()
+        if (adapter_type == "wifi") == wireless:
+            names.add(entry.name)
+    return picker(sorted(names), f"{adapter_type} adapter")
+
+
+def connection_kind(uuid: str, requested: str) -> bool:
+    if requested == "all":
+        return True
+    connection_type = clean_field(nmcli_output(["--get-values", "connection.type", "connection", "show", "uuid", uuid]), 32)
+    return connection_type == requested
+
+
+def active_connections() -> set[str]:
+    return {line.strip() for line in nmcli_output(["--terse", "--fields", "UUID", "connection", "show", "--active"]).splitlines() if valid_uuid(line.strip())}
+
+
+def choose_connection(requested_kind: str, requested_state: str) -> str | None:
+    if requested_kind not in {"all", "vpn", "wireguard"} or requested_state not in {"active", "saved"}:
+        raise NetworkMenuError("invalid connection selection filter")
+    active = active_connections() if requested_state == "active" else set()
+    rows: list[str] = []
+    for raw in nmcli_output(["--terse", "--fields", "UUID", "connection", "show"]).splitlines()[:MAX_CONNECTIONS]:
+        connection_uuid = raw.strip()
+        if not valid_uuid(connection_uuid) or not connection_kind(connection_uuid, requested_kind):
+            continue
+        if requested_state == "active" and connection_uuid not in active:
+            continue
+        name = clean_field(nmcli_output(["--get-values", "connection.id", "connection", "show", "uuid", connection_uuid]), 80) or "unnamed"
+        kind = clean_field(nmcli_output(["--get-values", "connection.type", "connection", "show", "uuid", connection_uuid]), 32) or "unknown"
+        rows.append(f"{connection_uuid}  {name} [{kind}]")
+    return picker(rows, "Select connection")
+
+
+def selected_uuid(selection: str | None) -> str | None:
+    if not selection:
+        return None
+    value = selection.split(" ", 1)[0]
+    return value if valid_uuid(value) else None
+
+
+def candidate_files(kind: str) -> list[str]:
+    home = Path.home()
+    try:
+        home_metadata = home.lstat()
+    except OSError as error:
+        raise NetworkMenuError("the desktop home directory is unavailable") from error
+    if (not stat.S_ISDIR(home_metadata.st_mode) or home_metadata.st_uid != os.getuid()
+            or home_metadata.st_mode & 0o022):
+        raise NetworkMenuError("the desktop home directory has unsafe metadata")
+    if kind == "openvpn":
+        roots = [home / name for name in ("Downloads", "Documents", "Desktop", "")]
+        suffixes = {".ovpn"}
+        max_depth = 3
+    elif kind == "wireguard":
+        roots = [Path("/data/config/network/wireguard")]
+        suffixes = {".conf"}
+        max_depth = 1
+    else:
+        raise NetworkMenuError(f"unsupported import kind: {kind}")
+    found: set[str] = set()
+    for root in roots:
+        try:
+            root_stat = root.stat(follow_symlinks=False)
+            if not root.is_dir() or not root_stat:
+                continue
+        except OSError:
+            continue
+        stack: list[tuple[Path, int]] = [(root, 0)]
+        while stack and len(found) < MAX_FILES * 2:
+            directory, depth = stack.pop()
+            try:
+                with os.scandir(directory) as iterator:
+                    entries = list(islice(iterator, MAX_FILES * 2))
+            except OSError:
+                continue
+            for entry in entries:
+                try:
+                    if entry.is_dir(follow_symlinks=False) and depth < max_depth:
+                        stack.append((Path(entry.path), depth + 1))
+                    elif (entry.is_file(follow_symlinks=False)
+                          and Path(entry.name).suffix.lower() in suffixes):
+                        metadata = entry.stat(follow_symlinks=False)
+                        if 0 < metadata.st_size < MAX_FILE_BYTES + 1:
+                            found.add(entry.path)
+                except OSError:
+                    continue
+                if len(found) >= MAX_FILES * 2:
+                    break
+    return sorted(found)[:MAX_FILES]
+
+
+def choose_import_file(kind: str) -> str | None:
+    return picker(candidate_files(kind), f"Import {kind} profile")
+
+
+def confirm(prompt: str) -> bool:
+    return picker(["Cancel", "Continue with network change"], prompt) == "Continue with network change"
+
+
+def network_action(*args: str) -> None:
+    try:
+        result = run([ACTION, *args], timeout=120)
+    except (OSError, subprocess.TimeoutExpired):
+        print(f"warning: network control action unavailable: {args[0] if args else 'unknown'}", file=sys.stderr)
+        return
+    if result.returncode:
+        print(f"warning: network control action returned status {result.returncode}: {args[0] if args else 'unknown'}", file=sys.stderr)
+
+
+def action_menu(prompt: str, labels: list[str]) -> str | None:
+    return picker(labels + ["← Back"], prompt)
+
+
+def connections_menu() -> None:
+    labels = ["Activate Saved Connection", "Deactivate Active Connection", "Enable Ethernet Adapter", "Disable Ethernet Adapter", "Connect WiFi Network", "Enable WiFi Adapter", "Disable WiFi Adapter", "Generate Random MAC Addresses"]
+    while True:
+        action = action_menu("Connection Profiles", labels)
+        if action in (None, "← Back"):
+            return
+        if action in {"Activate Saved Connection", "Deactivate Active Connection"}:
+            uuid = selected_uuid(choose_connection("all", "saved" if action.startswith("Activate") else "active"))
+            if uuid:
+                network_action("activate-connection" if action.startswith("Activate") else "deactivate-connection", uuid)
+        elif action in {"Enable Ethernet Adapter", "Disable Ethernet Adapter"}:
+            adapter = choose_adapter("ethernet")
+            if adapter:
+                network_action("enable-ethernet" if action.startswith("Enable") else "disable-ethernet", adapter)
+        elif action in {"Connect WiFi Network", "Enable WiFi Adapter", "Disable WiFi Adapter"}:
+            adapter = choose_adapter("wifi")
+            if adapter:
+                network_action({"Connect WiFi Network": "configure-wifi", "Enable WiFi Adapter": "enable-wifi", "Disable WiFi Adapter": "disable-wifi"}[action], adapter)
+        elif action == "Generate Random MAC Addresses" and confirm("Randomize saved physical network profiles"):
+            network_action("randomize-macs", "confirmed-network-action")
+
+
+def vpn_menu() -> None:
+    labels = ["Activate VPN Connection", "Deactivate VPN Connection", "Import OpenVPN Profile"]
+    while True:
+        action = action_menu("VPN Connections", labels)
+        if action in (None, "← Back"):
+            return
+        if action in {"Activate VPN Connection", "Deactivate VPN Connection"}:
+            uuid = selected_uuid(choose_connection("vpn", "saved" if action.startswith("Activate") else "active"))
+            if uuid:
+                network_action("activate-vpn" if action.startswith("Activate") else "deactivate-vpn", uuid)
+        elif action == "Import OpenVPN Profile":
+            path = choose_import_file("openvpn")
+            if path and confirm("Import selected OpenVPN profile"):
+                network_action("import-openvpn", path, "confirmed-network-action")
+
+
+def wireguard_menu() -> None:
+    labels = ["Activate WireGuard Connection", "Deactivate WireGuard Connection", "Import WireGuard Profile"]
+    while True:
+        action = action_menu("WireGuard Connections", labels)
+        if action in (None, "← Back"):
+            return
+        if action in {"Activate WireGuard Connection", "Deactivate WireGuard Connection"}:
+            uuid = selected_uuid(choose_connection("wireguard", "saved" if action.startswith("Activate") else "active"))
+            if uuid:
+                network_action("activate-wireguard" if action.startswith("Activate") else "deactivate-wireguard", uuid)
+        elif action == "Import WireGuard Profile":
+            path = choose_import_file("wireguard")
+            if path and confirm("Import selected WireGuard profile"):
+                network_action("import-wireguard", path, "confirmed-network-action")
+
+
+def dns_menu() -> None:
+    labels = ["Show DNS Status", "Restore Automatic DNS", "Set Custom DNS Servers", "Flush DNS Cache"]
+    while True:
+        action = action_menu("DNS Configuration", labels)
+        if action in (None, "← Back"):
+            return
+        if action == "Show DNS Status":
+            network_action("show-dns-status")
+        elif action == "Restore Automatic DNS":
+            uuid = selected_uuid(choose_connection("all", "saved"))
+            if uuid and confirm("Restore automatic DNS for selected connection"):
+                network_action("restore-automatic-dns", uuid, "confirmed-network-action")
+        elif action == "Set Custom DNS Servers":
+            uuid = selected_uuid(choose_connection("all", "saved"))
+            if uuid:
+                servers = picker([], "DNS IPs separated by spaces or commas", text_input=True)
+                if servers and confirm("Apply custom DNS to selected connection"):
+                    network_action("set-custom-dns", uuid, servers, "confirmed-network-action")
+        elif action == "Flush DNS Cache" and confirm("Flush managed DNS caches"):
+            network_action("flush-dns-cache", "confirmed-network-action")
+
+
+def main_menu() -> None:
+    labels = ["⮞ Connection Profiles", "⮞ VPN Connections", "⮞ WireGuard Connections", "⮞ DNS Configuration"]
+    while True:
+        action = action_menu("Network Management", labels)
+        if action in (None, "← Back"):
+            return
+        {"⮞ Connection Profiles": connections_menu, "⮞ VPN Connections": vpn_menu,
+         "⮞ WireGuard Connections": wireguard_menu, "⮞ DNS Configuration": dns_menu}[action]()
+
+
+def main(argv: list[str]) -> int:
+    if not os.access(PICKER, os.X_OK):
+        raise NetworkMenuError("labwc-fuzzel is not installed")
+    if not os.access(ACTION, os.X_OK):
+        raise NetworkMenuError("labwc-network-control-action is not installed")
+    if not os.access(NMCLI, os.X_OK):
+        raise NetworkMenuError("NetworkManager nmcli is not installed")
+    if os.getuid() == 0:
+        raise NetworkMenuError("labwc-network-control-menu must run as the logged-in desktop user")
+    if len(argv) > 1 or (argv and argv[0] not in {"main", "connections", "vpn", "wireguard", "dns"}):
+        raise NetworkMenuError(f"unsupported network menu: {argv[0] if argv else ''}")
+    {"main": main_menu, "connections": connections_menu, "vpn": vpn_menu,
+     "wireguard": wireguard_menu, "dns": dns_menu}[argv[0] if argv else "main"]()
     return 0
-  else
-    action_status=$?
-  fi
 
-  printf 'warning: network control action returned status %s: %s\n' \
-    "$action_status" "$1" >&2
-  return 0
-}
 
-connection_profiles_menu() {
-  while :; do
-    action=$(
-      choose_lines \
-        "Connection Profiles" \
-        'Activate Saved Connection' \
-        'Deactivate Active Connection' \
-        'Enable Ethernet Adapter' \
-        'Disable Ethernet Adapter' \
-        'Connect WiFi Network' \
-        'Enable WiFi Adapter' \
-        'Disable WiFi Adapter' \
-        'Generate Random MAC Addresses' \
-        '← Back'
-    ) || exit "$?"
-
-    case "$action" in
-      'Activate Saved Connection')
-        selection=$(choose_connection all saved) || exit "$?"
-        connection_uuid=$(connection_uuid_from_selection "$selection" || true)
-        [ -n "$connection_uuid" ] &&
-          run_network_action activate-connection "$connection_uuid"
-        ;;
-      'Deactivate Active Connection')
-        selection=$(choose_connection all active) || exit "$?"
-        connection_uuid=$(connection_uuid_from_selection "$selection" || true)
-        [ -n "$connection_uuid" ] &&
-          run_network_action deactivate-connection "$connection_uuid"
-        ;;
-      'Enable Ethernet Adapter')
-        ethernet_adapter=$(choose_adapter ethernet) || exit "$?"
-        [ -n "$ethernet_adapter" ] &&
-          run_network_action enable-ethernet "$ethernet_adapter"
-        ;;
-      'Disable Ethernet Adapter')
-        ethernet_adapter=$(choose_adapter ethernet) || exit "$?"
-        [ -n "$ethernet_adapter" ] &&
-          run_network_action disable-ethernet "$ethernet_adapter"
-        ;;
-      'Connect WiFi Network')
-        wifi_adapter=$(choose_adapter wifi) || exit "$?"
-        [ -n "$wifi_adapter" ] &&
-          run_network_action configure-wifi "$wifi_adapter"
-        ;;
-      'Enable WiFi Adapter')
-        wifi_adapter=$(choose_adapter wifi) || exit "$?"
-        [ -n "$wifi_adapter" ] &&
-          run_network_action enable-wifi "$wifi_adapter"
-        ;;
-      'Disable WiFi Adapter')
-        wifi_adapter=$(choose_adapter wifi) || exit "$?"
-        [ -n "$wifi_adapter" ] &&
-          run_network_action disable-wifi "$wifi_adapter"
-        ;;
-      'Generate Random MAC Addresses')
-        if confirm_action "Randomize saved physical network profiles"; then
-          run_network_action randomize-macs confirmed-network-action
-        fi
-        ;;
-      '← Back'|'')
-        return 0
-        ;;
-    esac
-  done
-}
-
-vpn_menu() {
-  while :; do
-    action=$(
-      choose_lines \
-        "VPN Connections" \
-        'Activate VPN Connection' \
-        'Deactivate VPN Connection' \
-        'Import OpenVPN Profile' \
-        '← Back'
-    ) || exit "$?"
-
-    case "$action" in
-      'Activate VPN Connection')
-        selection=$(choose_connection vpn saved) || exit "$?"
-        connection_uuid=$(connection_uuid_from_selection "$selection" || true)
-        [ -n "$connection_uuid" ] &&
-          run_network_action activate-vpn "$connection_uuid"
-        ;;
-      'Deactivate VPN Connection')
-        selection=$(choose_connection vpn active) || exit "$?"
-        connection_uuid=$(connection_uuid_from_selection "$selection" || true)
-        [ -n "$connection_uuid" ] &&
-          run_network_action deactivate-vpn "$connection_uuid"
-        ;;
-      'Import OpenVPN Profile')
-        profile_path=$(choose_import_file openvpn) || exit "$?"
-        if [ -n "$profile_path" ] &&
-           confirm_action "Import selected OpenVPN profile"; then
-          run_network_action \
-            import-openvpn \
-            "$profile_path" \
-            confirmed-network-action
-        fi
-        ;;
-      '← Back'|'')
-        return 0
-        ;;
-    esac
-  done
-}
-
-wireguard_menu() {
-  while :; do
-    action=$(
-      choose_lines \
-        "WireGuard Connections" \
-        'Activate WireGuard Connection' \
-        'Deactivate WireGuard Connection' \
-        'Import WireGuard Profile' \
-        '← Back'
-    ) || exit "$?"
-
-    case "$action" in
-      'Activate WireGuard Connection')
-        selection=$(choose_connection wireguard saved) || exit "$?"
-        connection_uuid=$(connection_uuid_from_selection "$selection" || true)
-        [ -n "$connection_uuid" ] &&
-          run_network_action activate-wireguard "$connection_uuid"
-        ;;
-      'Deactivate WireGuard Connection')
-        selection=$(choose_connection wireguard active) || exit "$?"
-        connection_uuid=$(connection_uuid_from_selection "$selection" || true)
-        [ -n "$connection_uuid" ] &&
-          run_network_action deactivate-wireguard "$connection_uuid"
-        ;;
-      'Import WireGuard Profile')
-        profile_path=$(choose_import_file wireguard) || exit "$?"
-        if [ -n "$profile_path" ] &&
-           confirm_action "Import selected WireGuard profile"; then
-          run_network_action \
-            import-wireguard \
-            "$profile_path" \
-            confirmed-network-action
-        fi
-        ;;
-      '← Back'|'')
-        return 0
-        ;;
-    esac
-  done
-}
-
-dns_menu() {
-  while :; do
-    action=$(
-      choose_lines \
-        "DNS Configuration" \
-        'Show DNS Status' \
-        'Restore Automatic DNS' \
-        'Set Custom DNS Servers' \
-        'Flush DNS Cache' \
-        '← Back'
-    ) || exit "$?"
-
-    case "$action" in
-      'Show DNS Status')
-        run_network_action show-dns-status
-        ;;
-      'Restore Automatic DNS')
-        selection=$(choose_connection all saved) || exit "$?"
-        connection_uuid=$(connection_uuid_from_selection "$selection" || true)
-        if [ -n "$connection_uuid" ] &&
-           confirm_action "Restore automatic DNS for selected connection"; then
-          run_network_action \
-            restore-automatic-dns \
-            "$connection_uuid" \
-            confirmed-network-action
-        fi
-        ;;
-      'Set Custom DNS Servers')
-        selection=$(choose_connection all saved) || exit "$?"
-        connection_uuid=$(connection_uuid_from_selection "$selection" || true)
-        if [ -n "$connection_uuid" ]; then
-          dns_servers=$(choose_text "DNS IPs separated by spaces or commas") || exit "$?"
-          if [ -n "$dns_servers" ] &&
-             confirm_action "Apply custom DNS to selected connection"; then
-            run_network_action \
-              set-custom-dns \
-              "$connection_uuid" \
-              "$dns_servers" \
-              confirmed-network-action
-          fi
-        fi
-        ;;
-      'Flush DNS Cache')
-        if confirm_action "Flush managed DNS caches"; then
-          run_network_action flush-dns-cache confirmed-network-action
-        fi
-        ;;
-      '← Back'|'')
-        return 0
-        ;;
-    esac
-  done
-}
-
-main_menu() {
-  while :; do
-    action=$(
-      choose_lines \
-        "Network Management" \
-        '⮞ Connection Profiles' \
-        '⮞ VPN Connections' \
-        '⮞ WireGuard Connections' \
-        '⮞ DNS Configuration' \
-        '← Back'
-    ) || exit "$?"
-    case "$action" in
-      '⮞ Connection Profiles') connection_profiles_menu ;;
-      '⮞ VPN Connections') vpn_menu ;;
-      '⮞ WireGuard Connections') wireguard_menu ;;
-      '⮞ DNS Configuration') dns_menu ;;
-      '← Back'|'') return 0 ;;
-    esac
-  done
-}
-
-command -v labwc-fuzzel >/dev/null 2>&1 || fatal "labwc-fuzzel is not installed"
-command -v labwc-network-control-action >/dev/null 2>&1 ||
-  fatal "labwc-network-control-action is not installed"
-command -v awk >/dev/null 2>&1 || fatal "awk is not installed"
-command -v cut >/dev/null 2>&1 || fatal "cut is not installed"
-command -v find >/dev/null 2>&1 || fatal "find is not installed"
-command -v grep >/dev/null 2>&1 || fatal "grep is not installed"
-command -v nmcli >/dev/null 2>&1 || fatal "NetworkManager nmcli is not installed"
-command -v sed >/dev/null 2>&1 || fatal "sed is not installed"
-command -v sort >/dev/null 2>&1 || fatal "sort is not installed"
-command -v tr >/dev/null 2>&1 || fatal "tr is not installed"
-
-[ "$(id -u)" -ne 0 ] ||
-  fatal "labwc-network-control-menu must run as the logged-in desktop user"
-
-case "${1:-main}" in
-  main) main_menu ;;
-  connections) connection_profiles_menu ;;
-  vpn) vpn_menu ;;
-  wireguard) wireguard_menu ;;
-  dns) dns_menu ;;
-  *) fatal "unsupported network menu: $1" ;;
-esac
-
-exit 0
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except SystemExit:
+        raise
+    except (NetworkMenuError, OSError, subprocess.TimeoutExpired) as error:
+        raise SystemExit(fatal(str(error)))

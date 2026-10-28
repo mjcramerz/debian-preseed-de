@@ -477,7 +477,7 @@ class RoutingContractTests(unittest.TestCase):
         for setting in ('StandardOutput=null', 'StandardError=null',
                         'SyslogIdentifier=labwc-screen-recording'):
             self.assertIn(setting, capture)
-        self.assertIn('RECORDING_LOG="/var/log/managed/apps/apps.log"', capture)
+        self.assertIn('RECORDING_LOG = "__INSTALLER_LOG_APPLICATIONS_FILE__"', capture)
         self.assertNotIn('>>"$RECORDING_LOG"', capture)
         self.assertNotIn(': >"$RECORDING_LOG"', capture)
         self.assertIn('/usr/local/libexec/rsyslog-app-run labwc-screen-recording --', capture)

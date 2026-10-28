@@ -140,10 +140,10 @@ __INSTALLER_LABWC_WORKSPACE_NAME_LINES__
       <action name="Execute" command="/usr/local/bin/labwc-power-menu" />
     </keybind>
     <keybind key="XF86Launch1" onRelease="yes">
-      <action name="Execute" command="/usr/local/bin/labwc-computer-management" />
+      <action name="Execute" command="/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-computer-management --description=Labwc-computer-management --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --property=SuccessExitStatus=3 -- /usr/local/bin/labwc-computer-management" />
     </keybind>
     <keybind key="XF86Launch3" onRelease="yes">
-      <action name="Execute" command="/usr/local/bin/labwc-main-menu" />
+      <action name="Execute" command="/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-main-menu --description=Labwc-main-menu --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --property=SuccessExitStatus=3 -- /usr/local/bin/labwc-main-menu" />
     </keybind>
     <keybind key="XF86NotificationCenter" onRelease="yes">
       <action name="Execute" command="/usr/bin/makoctl restore" />
@@ -170,7 +170,7 @@ __INSTALLER_LABWC_WORKSPACE_NAME_LINES__
       <action name="Execute" command="wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle" />
     </keybind>
     <keybind key="Super_L" onRelease="yes">
-      <action name="Execute" command="labwc-main-menu" />
+      <action name="Execute" command="/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-main-menu --description=Labwc-main-menu --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --property=SuccessExitStatus=3 -- /usr/local/bin/labwc-main-menu" />
     </keybind>
     <keybind key="Menu">
       <action name="ShowMenu" menu="root-menu" />
@@ -188,13 +188,21 @@ __INSTALLER_LABWC_WORKSPACE_NAME_LINES__
       <action name="Execute" command="/usr/bin/systemctl --user --no-block restart crystal-dock.service" />
     </keybind>
     <keybind key="W-Alt_L" onRelease="yes">
-      <action name="Execute" command="labwc-computer-management" />
+      <action name="Execute" command="/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-computer-management --description=Labwc-computer-management --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --property=SuccessExitStatus=3 -- /usr/local/bin/labwc-computer-management" />
     </keybind>
     <keybind key="W-Alt_R" onRelease="yes">
-      <action name="Execute" command="labwc-computer-management" />
+      <action name="Execute" command="/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-computer-management --description=Labwc-computer-management --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --property=SuccessExitStatus=3 -- /usr/local/bin/labwc-computer-management" />
+    </keybind>
+    <!-- Match the alternate release order too: when Win is released while
+         Alt remains held, Super_L/Super_R is the released key. -->
+    <keybind key="A-Super_L" onRelease="yes">
+      <action name="Execute" command="/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-computer-management --description=Labwc-computer-management --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --property=SuccessExitStatus=3 -- /usr/local/bin/labwc-computer-management" />
+    </keybind>
+    <keybind key="A-Super_R" onRelease="yes">
+      <action name="Execute" command="/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-computer-management --description=Labwc-computer-management --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --property=SuccessExitStatus=3 -- /usr/local/bin/labwc-computer-management" />
     </keybind>
     <keybind key="C-A-m">
-      <action name="Execute" command="labwc-computer-management" />
+      <action name="Execute" command="/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-computer-management --description=Labwc-computer-management --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --property=SuccessExitStatus=3 -- /usr/local/bin/labwc-computer-management" />
     </keybind>
     <keybind key="W-S-p">
       <action name="Execute" command="labwc-power-menu" />
