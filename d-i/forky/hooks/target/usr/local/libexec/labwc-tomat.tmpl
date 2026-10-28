@@ -205,8 +205,9 @@ def validate_config(text: str) -> dict:
                   "work_to_break", "break_to_work", "work_to_long_break"},
         "notification": {"enabled", "icon", "urgency", "work_message",
                          "break_message", "long_break_message"},
-        "display": {"text_format", "text_format_idle", "icons"},
-        "hooks": {"on_break_start", "on_long_break_start"},
+        "display": {"text_format", "text_format_idle", "icons", "overlays"},
+        "hooks": {"on_break_start", "on_break_end", "on_long_break_start", "on_long_break_end",
+                   "on_stop", "on_skip"},
     }
     if set(data) - set(allowed):
         raise Error("unsupported top-level Tomat configuration key")
@@ -249,6 +250,8 @@ def validate_config(text: str) -> dict:
         raise Error("unsupported notification.urgency")
     display = data.get("display", {})
     strings(display, ("text_format", "text_format_idle"))
+    if type(display.get("overlays", True)) is not bool:
+        raise Error("display.overlays must be boolean")
     icons = display.get("icons", {})
     icon_keys = ("work", "break", "long_break", "play", "pause", "stop")
     if not isinstance(icons, dict) or set(icons) - set(icon_keys):
@@ -257,7 +260,9 @@ def validate_config(text: str) -> dict:
     # Keep managed hooks bounded and non-shell. New arbitrary commands belong
     # in an explicitly reviewed policy, not in this daemon's authority.
     for event, hook in data.get("hooks", {}).items():
-        expected = {"on_break_start": ["break"], "on_long_break_start": ["long-break"]}
+        expected = {"on_break_start": ["break"], "on_break_end": ["end"],
+                    "on_long_break_start": ["long-break"],
+                    "on_long_break_end": ["end"], "on_stop": ["end"], "on_skip": ["end"]}
         if (event not in expected or not isinstance(hook, dict)
                 or set(hook) != {"cmd", "args", "timeout", "capture_output"}
                 or hook.get("cmd") != "/usr/local/libexec/labwc-tomat-hook"
@@ -278,6 +283,10 @@ def change_setting(text: str, setting: str) -> tuple[str, str]:
         section, key = "sound", "mode"
         value = '"embedded"' if data.get(section, {}).get(key, "embedded") == "none" else '"none"'
         description = "Sounds " + ("disabled" if value == '"none"' else "enabled")
+    elif setting == "overlays":
+        section, key = "display", "overlays"
+        value = "false" if data.get(section, {}).get(key, True) else "true"
+        description = "Break overlays " + ("disabled" if value == "false" else "enabled")
     else:
         raise Error("unsupported setting")
     # Retain unrelated keys and comments; refuse ambiguous quoted/inline table
@@ -508,13 +517,13 @@ class Context:
 
 def main(argv: list[str]) -> int:
     if not argv or argv[0] not in {"watch", "ensure", "start", "toggle", "skip", "stop", "settings", "config"}:
-        raise Error("usage: labwc-tomat watch|ensure|start [default|25|50|90]|toggle|skip|stop|settings notifications|sounds|config")
+        raise Error("usage: labwc-tomat watch|ensure|start [default|25|50|90]|toggle|skip|stop|settings notifications|sounds|overlays|config")
     action = argv[0]
     if action == "start":
         if len(argv) > 2 or (len(argv) == 2 and argv[1] not in PRESETS):
             raise Error("invalid Tomat start preset")
     elif action == "settings":
-        if len(argv) != 2 or argv[1] not in {"notifications", "sounds"}:
+        if len(argv) != 2 or argv[1] not in {"notifications", "sounds", "overlays"}:
             raise Error("invalid Tomat settings action")
     elif len(argv) != 1:
         raise Error("unexpected Tomat arguments")

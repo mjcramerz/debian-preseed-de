@@ -344,6 +344,35 @@
               </object>
             </child>
             <child>
+              <object class="GtkMenuItem" id="tomat_overlays">
+                <property name="visible">True</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="spacing">__INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ROW_SPACING__</property>
+                    <property name="orientation">horizontal</property>
+                    <child>
+                      <object class="GtkImage" id="tomat_overlays_icon">
+                        <property name="visible">True</property>
+                        <property name="icon-name">__THEME_WAYBAR_DROPDOWN_TOMAT_CONFIG_ICON_NAME__</property>
+                        <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ICON_SIZE__</property>
+                        <property name="width-request">__INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ICON_WIDTH__</property>
+                        <property name="use-fallback">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="tomat_overlays_label">
+                        <property name="visible">True</property>
+                        <property name="label">Overlays (toggle)</property>
+                        <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
               <object class="GtkMenuItem" id="tomat_config">
                 <property name="visible">True</property>
                 <child>

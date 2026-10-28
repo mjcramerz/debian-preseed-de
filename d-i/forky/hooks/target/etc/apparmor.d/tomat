@@ -26,6 +26,8 @@ profile labwc-tomat /usr/local/libexec/labwc-tomat flags=(attach_disconnected, m
   owner /run/user/[0-9]*/labwc-tomat-control.lock rwk,
   owner /run/user/[0-9]*/labwc-tomat/ r,
   owner /run/user/[0-9]*/labwc-tomat/tomat.sock rw,
+  owner /run/user/[0-9]*/labwc-tomat/break-media.json rwk,
+  owner /run/user/[0-9]*/labwc-tomat/.break-media.* rwk,
   unix (create, connect, send, receive, shutdown, getattr, getopt, setopt) type=stream,
   dbus (send) bus=session peer=(name=org.freedesktop.systemd1),
   dbus (receive) bus=session peer=(label=unconfined),
@@ -52,7 +54,7 @@ profile tomat /{usr/bin/tomat,usr/local/libexec/labwc-tomat-hook} flags=(attach_
   /usr/bin/tomat mr,
   /usr/local/libexec/labwc-tomat-hook rix,
   /usr/bin/python3{,.[0-9]*} rix,
-  /usr/bin/playerctl rix,
+  /usr/bin/{playerctl,systemctl,systemd-run,wlrctl} rix,
   /usr/lib/** mr,
   /etc/{group,passwd,nsswitch.conf,localtime} r,
   /usr/share/zoneinfo/{,**} r,
@@ -68,17 +70,21 @@ profile tomat /{usr/bin/tomat,usr/local/libexec/labwc-tomat-hook} flags=(attach_
   owner @{HOME}/.cache/ rw,
   owner @{HOME}/.cache/tomat/{,**} rw,
   owner /run/user/[0-9]*/ r,
+  owner /run/user/[0-9]*/systemd/private rw,
+  owner /run/user/[0-9]*/wayland-[0-9]* rw,
   owner /run/user/[0-9]*/labwc-tomat/{,**} rwk,
   owner @{PROC}/[0-9]*/{cgroup,stat,status} r,
   owner @{PROC}/[0-9]*/task/[0-9]*/comm rw,
   @{sys}/fs/cgroup/**/cpu.max r,
   unix (create, bind, listen, accept, connect, send, receive, shutdown, getattr, getopt, setopt) type=stream,
   dbus (send) bus=session interface=org.freedesktop.Notifications peer=(name=org.freedesktop.Notifications),
-  # playerctl enumerates MPRIS names, reads their properties and only pauses.
+  # playerctl enumerates MPRIS names, reads their properties, and pauses or
+  # resumes only the snapshot selected by the break hook.
   dbus (send) bus=session interface=org.freedesktop.DBus member={ListNames,ListActivatableNames} peer=(name=org.freedesktop.DBus),
   dbus (send) bus=session path=/org/mpris/MediaPlayer2 interface=org.freedesktop.DBus.Properties member={Get,GetAll} peer=(name=org.mpris.MediaPlayer2.*),
-  dbus (send) bus=session path=/org/mpris/MediaPlayer2 interface=org.mpris.MediaPlayer2.Player member=Pause peer=(name=org.mpris.MediaPlayer2.*),
+  dbus (send) bus=session path=/org/mpris/MediaPlayer2 interface=org.mpris.MediaPlayer2.Player member={Pause,Play} peer=(name=org.mpris.MediaPlayer2.*),
   dbus (send) bus=session path=/org/mpris/MediaPlayer2 interface=org.freedesktop.DBus.Introspectable member=Introspect peer=(name=org.mpris.MediaPlayer2.*),
+  dbus (send) bus=session peer=(name=org.freedesktop.systemd1),
   dbus (receive) bus=session,
   signal (send, receive) peer=tomat,
   signal (receive) peer={unconfined,waybar,labwc-tomat},
@@ -90,4 +96,33 @@ profile tomat /{usr/bin/tomat,usr/local/libexec/labwc-tomat-hook} flags=(attach_
   deny /dev/input/** rw,
   deny owner @{HOME}/.local/lib/python*/** mrwkl,
   include if exists <local/tomat>
+}
+
+# Full-output GTK layer-shell break surface. The service is transient and
+# receives a scrubbed Wayland environment from the hook; calendar and agenda
+# remain separate managed services so the hook can stop exactly those units.
+profile labwc-tomat-overlay /usr/local/libexec/labwc-tomat-overlay flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/desktop-runtime>
+  /usr/local/libexec/labwc-tomat-overlay rix,
+  /usr/bin/python3{,.[0-9]*} rix,
+  /usr/bin/systemd-run rix,
+  /usr/lib/** mr,
+  /etc/{group,passwd,nsswitch.conf,localtime} r,
+  /usr/share/{glib-2.0,gir-1.0,locale,zoneinfo,icons,themes}/{,**} r,
+  owner @{HOME}/ r,
+  owner @{HOME}/.config/ r,
+  owner @{HOME}/.cache/{,fontconfig/,fontconfig/**,mesa_shader_cache/,mesa_shader_cache/**,mesa_shader_cache_db/,mesa_shader_cache_db/**} rwkl,
+  owner /run/user/[0-9]*/{,bus,wayland-[0-9]*,systemd/private} rw,
+  owner /run/user/[0-9]*/labwc-tomat/{,break-apps.json,.break-apps.*} rwk,
+  owner /run/user/[0-9]*/labwc-tomat-control.lock rwk,
+  owner @{PROC}/self/cgroup r,
+  owner /dev/shm/** rwkl,
+  unix (create, connect, send, receive, shutdown, getattr, getopt, setopt) type=stream,
+  dbus (send, receive) bus=session,
+  signal (send, receive) peer=unconfined,
+  signal (send) set=(term, kill) peer=labwc-tomat-overlay,
+  deny network inet,
+  deny network inet6,
+  include if exists <local/labwc-tomat-overlay>
 }

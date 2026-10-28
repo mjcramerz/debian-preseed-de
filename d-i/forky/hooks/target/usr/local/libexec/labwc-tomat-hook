@@ -1,36 +1,387 @@
 #!/usr/bin/python3 -IB
-"""Pause all MPRIS players at break start; never resume unrelated user media."""
+"""Own the managed Tomat break boundary inside the desktop user session.
+
+The upstream hook runs in the Tomat service cgroup. This helper snapshots only
+players that were demonstrably playing, starts or stops the separately owned
+layer-shell service, and resumes only the matching snapshot entries. It never
+uses a shell, PID lookup, root action, or process-wide pause.
+"""
+from __future__ import annotations
+
+import contextlib
+import fcntl
+import json
+import math
 import os
+from pathlib import Path
+import pwd
+import re
+import secrets
+import stat
 import subprocess
 import sys
+import time
+import tomllib
+
+PLAYERCTL = "/usr/bin/playerctl"
+SYSTEMD_RUN = "/usr/bin/systemd-run"
+SYSTEMCTL = "/usr/bin/systemctl"
+WLRCTL = "/usr/bin/wlrctl"
+OVERLAY = "/usr/local/libexec/labwc-tomat-overlay"
+OVERLAY_UNIT = "labwc-tomat-break-overlay.service"
+APPS_STATE = "break-apps.json"
+MAX_CONFIG = 65_536
+MAX_OUTPUT = 16_384
+MAX_PLAYERS = 64
+PLAYER_NAME = re.compile(r"[A-Za-z0-9._-]{1,128}\Z")
+DISPLAY_NAME = re.compile(r"wayland-[0-9]+\Z")
+EVENTS = {"break": "break_start", "long-break": "long_break_start",
+          "end": {"break_end", "long_break_end", "stop", "skip"}}
 
 
-def main(argv):
-    expected = {"break": "break_start", "long-break": "long_break_start"}
-    if len(argv) != 1 or argv[0] not in expected:
-        raise ValueError("expected break or long-break")
-    if os.geteuid() == 0 or os.geteuid() != os.getuid():
-        raise ValueError("hook requires the unprivileged desktop user")
-    if os.environ.get("TOMAT_EVENT") != expected[argv[0]]:
+class Error(RuntimeError):
+    pass
+
+
+def owned_directory(path: Path, uid: int, *, private: bool = False) -> None:
+    info = path.lstat()
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != uid or info.st_mode & 0o022
+            or (private and stat.S_IMODE(info.st_mode) != 0o700)):
+        raise Error("unsafe managed directory")
+
+
+def owned_file(path: Path, uid: int, *, mode: int = 0o600, maximum: int = MAX_CONFIG) -> None:
+    info = path.lstat()
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != uid or info.st_nlink != 1
+            or info.st_mode & 0o022 or stat.S_IMODE(info.st_mode) != mode
+            or info.st_size > maximum):
+        raise Error("unsafe managed file")
+
+
+def context() -> tuple[Path, Path, dict[str, str]]:
+    uid = os.getuid()
+    if uid == 0 or os.geteuid() != uid:
+        raise Error("hook requires the unprivileged desktop user")
+    runtime = Path(f"/run/user/{uid}")
+    if os.environ.get("XDG_RUNTIME_DIR") != str(runtime):
+        raise Error("invalid runtime directory")
+    owned_directory(runtime, uid, private=True)
+    bus = runtime / "bus"
+    bus_info = bus.lstat()
+    if not stat.S_ISSOCK(bus_info.st_mode) or bus_info.st_uid != uid or bus_info.st_nlink != 1:
+        raise Error("invalid desktop session bus")
+    home = Path(pwd.getpwuid(uid).pw_dir)
+    if not home.is_absolute():
+        raise Error("account home is not absolute")
+    config_dir = home / ".config" / "tomat"
+    owned_directory(config_dir, uid)
+    config = config_dir / "config.toml"
+    owned_file(config, uid)
+    display = os.environ.get("WAYLAND_DISPLAY", "")
+    if not DISPLAY_NAME.fullmatch(display):
+        raise Error("no managed Wayland display is available")
+    user = pwd.getpwuid(uid).pw_name
+    env = {
+        "HOME": str(home), "USER": user, "LOGNAME": user,
+        "PATH": "/usr/local/bin:/usr/bin:/bin", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
+        "XDG_RUNTIME_DIR": str(runtime), "DBUS_SESSION_BUS_ADDRESS": f"unix:path={bus}",
+        "XDG_CONFIG_HOME": str(home / ".config"), "XDG_CACHE_HOME": str(home / ".cache"),
+        "XDG_DATA_HOME": str(home / ".local/share"), "XDG_STATE_HOME": str(home / ".local/state"),
+        "XDG_SESSION_TYPE": "wayland", "GDK_BACKEND": "wayland",
+        "XDG_CURRENT_DESKTOP": "labwc:wlroots", "XDG_SESSION_DESKTOP": "labwc",
+        "SDL_VIDEODRIVER": "wayland", "SDL_VIDEO_DRIVER": "wayland",
+        "CLUTTER_BACKEND": "wayland", "ELECTRON_OZONE_PLATFORM_HINT": "wayland",
+        "WAYLAND_DISPLAY": display, "LABWC_SESSION_OWNER": "desktop", "LABWC_SESSION_APP": "1",
+    }
+    return runtime, config, env
+
+
+def read_config(path: Path) -> dict:
+    raw = path.read_bytes()
+    if len(raw) > MAX_CONFIG:
+        raise Error("Tomat configuration is too large")
+    try:
+        data = tomllib.loads(raw.decode("utf-8"))
+    except (UnicodeError, tomllib.TOMLDecodeError) as exc:
+        raise Error("Tomat configuration is not valid TOML") from exc
+    if not isinstance(data, dict):
+        raise Error("Tomat configuration is not a table")
+    return data
+
+
+def overlays_enabled(data: dict) -> bool:
+    display = data.get("display", {})
+    if not isinstance(display, dict) or type(display.get("overlays", True)) is not bool:
+        raise Error("Tomat display.overlays must be boolean")
+    return display.get("overlays", True)
+
+
+def break_seconds(data: dict, kind: str) -> int:
+    timer = data.get("timer", {})
+    if not isinstance(timer, dict):
+        raise Error("Tomat timer configuration is invalid")
+    key = "long_break" if kind == "long-break" else "break"
+    value = timer.get(key, 15.0 if key == "long_break" else 5.0)
+    if type(value) not in (int, float) or not math.isfinite(value) or not 0 < value <= 600:
+        raise Error("Tomat break duration is invalid")
+    return max(1, min(36_000, math.ceil(float(value) * 60)))
+
+
+def run(argv: list[str], env: dict[str, str], *, timeout: float, capture: bool = False) -> subprocess.CompletedProcess:
+    result = subprocess.run(argv, env=env, stdin=subprocess.DEVNULL,
+                            stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL, text=capture, timeout=timeout,
+                            check=False)
+    if capture and len(result.stdout or "") > MAX_OUTPUT:
+        raise Error("managed command returned excessive output")
+    return result
+
+
+def state_path(runtime: Path) -> Path:
+    directory = runtime / "labwc-tomat"
+    owned_directory(directory, os.getuid(), private=True)
+    return directory / "break-media.json"
+
+
+def apps_state_path(runtime: Path) -> Path:
+    directory = runtime / "labwc-tomat"
+    owned_directory(directory, os.getuid(), private=True)
+    return directory / APPS_STATE
+
+
+def clear_state(path: Path) -> None:
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+            or info.st_mode & 0o077 or info.st_nlink != 1):
+        raise Error("unsafe Tomat break state")
+    path.unlink()
+
+
+def clear_apps_state(path: Path) -> None:
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+            or info.st_mode & 0o077 or info.st_nlink != 1 or info.st_size > MAX_OUTPUT):
+        raise Error("unsafe Tomat break app state")
+    path.unlink()
+
+
+def publish_state(path: Path, players: list[str]) -> None:
+    temporary = path.parent / f".break-media.{secrets.token_hex(12)}"
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="ascii") as stream:
+            json.dump({"version": 1, "players": players}, stream, separators=(",", ":"))
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        with contextlib.suppress(FileNotFoundError):
+            temporary.unlink()
+
+
+def playing_players(env: dict[str, str]) -> list[str]:
+    result = run([PLAYERCTL, "--all-players", "--format", "{{playerName}}\t{{status}}", "status"],
+                 env, timeout=2.5, capture=True)
+    if result.returncode not in (0, 1):
+        raise Error(f"playerctl status failed ({result.returncode})")
+    players: list[str] = []
+    for line in (result.stdout or "").splitlines():
+        if len(line) > 256:
+            raise Error("playerctl status line is too large")
+        name, separator, state = line.partition("\t")
+        if separator and state == "Playing" and PLAYER_NAME.fullmatch(name) and name not in players:
+            players.append(name)
+    if len(players) > MAX_PLAYERS:
+        raise Error("too many MPRIS players")
+    return players
+
+
+def pause_playing(env: dict[str, str], path: Path) -> None:
+    players = playing_players(env)
+    try:
+        if players:
+            result = run([PLAYERCTL, "--player", ",".join(players), "pause"], env, timeout=1.5)
+            if result.returncode:
+                raise Error(f"playerctl pause failed ({result.returncode})")
+        publish_state(path, players)
+    except BaseException:
+        if players:
+            with contextlib.suppress(OSError, subprocess.SubprocessError):
+                run([PLAYERCTL, "--player", ",".join(players), "play"], env, timeout=1.5)
+        raise
+
+
+def resume_snapshot(env: dict[str, str], path: Path) -> None:
+    try:
+        owned_file(path, os.getuid(), maximum=MAX_OUTPUT)
+        payload = json.loads(path.read_text(encoding="ascii"))
+        players = payload.get("players") if isinstance(payload, dict) and payload.get("version") == 1 else None
+        if (not isinstance(players, list) or len(players) > MAX_PLAYERS
+                or any(not isinstance(player, str) or not PLAYER_NAME.fullmatch(player) for player in players)):
+            raise Error("invalid Tomat break media state")
+        if players:
+            with contextlib.suppress(OSError, subprocess.SubprocessError):
+                run([PLAYERCTL, "--player", ",".join(players), "play"], env, timeout=1.5)
+    finally:
+        clear_state(path)
+
+
+def overlay_command(env: dict[str, str], kind: str, seconds: int) -> list[str]:
+    command = [SYSTEMD_RUN, "--user", "--quiet", "--collect", "--no-block",
+               "--service-type=exec", "--expand-environment=no", "--slice=app.slice",
+               f"--unit={OVERLAY_UNIT}", "--description=Labwc-tomat-break-overlay",
+               "--property=Requisite=labwc-session.target", "--property=After=labwc-session.target",
+               "--property=PartOf=labwc-session.target", "--property=ExitType=cgroup",
+               "--property=KillMode=control-group", "--property=TimeoutStartSec=10s",
+               "--property=TimeoutStopSec=3s", "--property=TasksMax=64", "--property=MemoryMax=256M"]
+    allowed = {"HOME", "USER", "LOGNAME", "PATH", "LANG", "LC_ALL", "XDG_RUNTIME_DIR",
+               "DBUS_SESSION_BUS_ADDRESS", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME",
+               "XDG_STATE_HOME", "XDG_SESSION_TYPE", "XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP",
+               "GDK_BACKEND", "WAYLAND_DISPLAY", "SDL_VIDEODRIVER", "SDL_VIDEO_DRIVER",
+               "CLUTTER_BACKEND", "ELECTRON_OZONE_PLATFORM_HINT", "LABWC_SESSION_OWNER",
+               "LABWC_SESSION_APP"}
+    command.extend(f"--setenv={name}={value}" for name, value in env.items() if name in allowed)
+    command.extend(["--", OVERLAY, kind, str(seconds)])
+    return command
+
+
+def start_overlay(env: dict[str, str], kind: str, seconds: int) -> None:
+    result = run(overlay_command(env, kind, seconds), env, timeout=5)
+    if result.returncode:
+        raise Error(f"break overlay service failed to start ({result.returncode})")
+
+
+def stop_overlay(env: dict[str, str]) -> None:
+    result = run([SYSTEMCTL, "--user", "--quiet", "stop", OVERLAY_UNIT], env, timeout=5)
+    # systemctl returns 5 when a break was run with overlays disabled and the
+    # transient unit was never loaded; that is an expected cleanup state.
+    if result.returncode not in (0, 5):
+        raise Error(f"break overlay service failed to stop ({result.returncode})")
+
+
+def stop_break_apps(env: dict[str, str], path: Path) -> None:
+    try:
+        owned_file(path, os.getuid(), maximum=MAX_OUTPUT)
+    except FileNotFoundError:
+        return
+    try:
+        payload = json.loads(path.read_text(encoding="ascii"))
+        units = payload.get("units") if isinstance(payload, dict) and payload.get("version") == 1 else None
+        if (not isinstance(units, list) or len(units) > 2
+                or any(not isinstance(unit, str)
+                       or not re.fullmatch(r"labwc-native-(?:calix|agenda)-[0-9a-f]{32}\.service", unit)
+                       for unit in units)):
+            raise Error("invalid Tomat break app state")
+        for unit in dict.fromkeys(units):
+            result = run([SYSTEMCTL, "--user", "--quiet", "stop", "--no-block", unit], env, timeout=1.5)
+            if result.returncode not in (0, 5):
+                raise Error(f"break app service failed to stop ({result.returncode})")
+    finally:
+        clear_apps_state(path)
+
+
+def restore_focus(env: dict[str, str]) -> None:
+    # The compositor keeps the current workspace because the managed calendar
+    # profiles do not bind a workspace. Ask wlroots to re-activate the one
+    # remaining active toplevel after the break units have been stopped; if the
+    # compositor has no matching toplevel, cleanup still succeeds.
+    with contextlib.suppress(OSError, subprocess.SubprocessError):
+        run([WLRCTL, "toplevel", "focus", "state:active"], env, timeout=1)
+
+
+def acquire_lock(runtime: Path) -> int:
+    fd = os.open(runtime / "labwc-tomat-control.lock",
+                 os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, 0o600)
+    info = os.fstat(fd)
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+            or info.st_mode & 0o077 or info.st_nlink != 1):
+        os.close(fd)
+        raise Error("unsafe Tomat controller lock")
+    try:
+        deadline = time.monotonic() + 8
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return fd
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise Error("another Tomat break operation is still in progress")
+                time.sleep(0.05)
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) != 1 or argv[0] not in EVENTS:
+        raise ValueError("expected break, long-break, or end")
+    kind = argv[0]
+    event = os.environ.get("TOMAT_EVENT")
+    expected_event = EVENTS[kind]
+    if event not in (expected_event if isinstance(expected_event, set) else {expected_event}):
         raise ValueError("hook event does not match its fixed action")
-    runtime = f"/run/user/{os.getuid()}"
-    if os.environ.get("XDG_RUNTIME_DIR") != runtime:
-        raise ValueError("invalid runtime directory")
-    env = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
-           "XDG_RUNTIME_DIR": runtime, "DBUS_SESSION_BUS_ADDRESS": f"unix:path={runtime}/bus"}
-    # playerctl does not daemonize; the timeout reaps the child and the enclosing
-    # systemd unit owns all descendants if the hook itself is interrupted.
-    result = subprocess.run(["/usr/bin/playerctl", "--all-players", "pause"], env=env,
-                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL, timeout=2.5, check=False)
-    if result.returncode not in (0, 1):  # No running player is a normal outcome.
-        raise RuntimeError(f"playerctl failed ({result.returncode})")
-    return 0
+    runtime, config, env = context()
+    state = state_path(runtime)
+    apps = apps_state_path(runtime)
+    lock = acquire_lock(runtime)
+    try:
+        if kind == "end":
+            if event == "skip" and os.environ.get("TOMAT_PHASE") not in {"break", "long_break"}:
+                return 0
+            stop_errors = []
+            for operation in (stop_overlay, lambda values: stop_break_apps(values, apps)):
+                try:
+                    operation(env)
+                except (Error, OSError, subprocess.SubprocessError) as exc:
+                    stop_errors.append(exc)
+            # Overlay-disabled sessions do not publish a media snapshot. The
+            # end hook still owns cleanup of any stale service state, but a
+            # missing snapshot is a normal no-op rather than a failed break.
+            try:
+                state.lstat()
+            except FileNotFoundError:
+                pass
+            else:
+                resume_snapshot(env, state)
+            restore_focus(env)
+            if stop_errors:
+                raise stop_errors[0]
+            return 0
+        data = read_config(config)
+        if not overlays_enabled(data):
+            clear_state(state)
+            clear_apps_state(apps)
+            return 0
+        clear_state(state)
+        clear_apps_state(apps)
+        pause_playing(env, state)
+        try:
+            start_overlay(env, kind, break_seconds(data, kind))
+        except BaseException:
+            with contextlib.suppress(OSError, subprocess.SubprocessError):
+                resume_snapshot(env, state)
+            raise
+        return 0
+    finally:
+        fcntl.flock(lock, fcntl.LOCK_UN)
+        os.close(lock)
 
 
 if __name__ == "__main__":
     try:
         raise SystemExit(main(sys.argv[1:]))
-    except (ValueError, RuntimeError, OSError, subprocess.SubprocessError) as exc:
+    except (Error, OSError, ValueError, subprocess.SubprocessError) as exc:
         print(f"labwc-tomat-hook: {exc}", file=sys.stderr)
         raise SystemExit(1)

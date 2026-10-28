@@ -71,7 +71,7 @@ tree.write(path, encoding="utf-8", xml_declaration=True)
 ' "$native_menu_whisper"
   desktop_stage_role_asset etc/skel-desktop/.config/tomat/config.toml \
     /etc/skel-desktop/.config/tomat/config.toml 0600
-  for menu_helper in labwc-tomat labwc-tomat-hook labwc-notifications; do
+  for menu_helper in labwc-tomat labwc-tomat-hook labwc-tomat-overlay labwc-notifications; do
     desktop_stage_role_asset "usr/local/libexec/$menu_helper" "/usr/local/libexec/$menu_helper" 0755
   done
 }

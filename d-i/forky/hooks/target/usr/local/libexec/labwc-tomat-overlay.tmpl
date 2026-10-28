@@ -1,0 +1,332 @@
+#!/usr/bin/python3 -IB
+"""Full-output Tomat break surface owned by a transient user service.
+
+The layer-shell overlay is deliberately separate from Tomat's daemon cgroup.
+It owns the input grab and countdown, starts the approved calendar/agenda
+launchers through the user manager, and exits automatically at the deadline.
+It never sends compositor commands, injects input, or manipulates other PIDs.
+"""
+from __future__ import annotations
+
+import os
+import json
+import contextlib
+import fcntl
+from pathlib import Path
+import re
+import secrets
+import signal
+import stat
+import sys
+import time
+
+UNIT = "labwc-tomat-break-overlay.service"
+SYSTEMD_RUN = "/usr/bin/systemd-run"
+CALENDAR = "/usr/local/bin/labwc-calendar"
+AGENDA = "/usr/local/bin/labwc-agenda"
+APPS_STATE = "break-apps.json"
+MAX_MONITORS = 32
+SECONDS = re.compile(r"[1-9][0-9]{0,4}\Z")
+KINDS = {"break": "Break", "long-break": "Long break"}
+
+
+class Error(RuntimeError):
+    pass
+
+
+def managed_context() -> bool:
+    uid = os.getuid()
+    if uid == 0 or os.geteuid() != uid:
+        return False
+    if os.environ.get("GDK_BACKEND") != "wayland" or os.environ.get("XDG_SESSION_TYPE") != "wayland":
+        return False
+    if not re.fullmatch(r"[0-9a-f]{32}", os.environ.get("INVOCATION_ID", "")):
+        return False
+    runtime = Path(f"/run/user/{uid}")
+    info = runtime.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != uid or stat.S_IMODE(info.st_mode) != 0o700:
+        return False
+    state_directory = runtime / "labwc-tomat"
+    state_info = state_directory.lstat()
+    if (not stat.S_ISDIR(state_info.st_mode) or state_info.st_uid != uid
+            or stat.S_IMODE(state_info.st_mode) != 0o700):
+        return False
+    display = os.environ.get("WAYLAND_DISPLAY", "")
+    if not re.fullmatch(r"wayland-[0-9]+", display):
+        return False
+    socket_info = (runtime / display).lstat()
+    if not stat.S_ISSOCK(socket_info.st_mode) or socket_info.st_uid != uid or socket_info.st_nlink != 1:
+        return False
+    try:
+        rows = Path("/proc/self/cgroup").read_text(encoding="ascii").splitlines()
+    except (OSError, UnicodeError):
+        return False
+    return (len(rows) == 1 and rows[0].startswith("0::/")
+            and rows[0].rstrip("/").split("/")[-1] == UNIT)
+
+
+def publish_apps_state(runtime: Path, units: list[str]) -> None:
+    directory = runtime / "labwc-tomat"
+    temporary = directory / f".{APPS_STATE}.{secrets.token_hex(12)}"
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="ascii") as stream:
+            json.dump({"version": 1, "units": units}, stream, separators=(",", ":"))
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, directory / APPS_STATE)
+        directory_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+
+
+@contextlib.contextmanager
+def control_lock(runtime: Path):
+    path = runtime / "labwc-tomat-control.lock"
+    fd = os.open(path, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, 0o600)
+    try:
+        info = os.fstat(fd)
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                or info.st_nlink != 1 or info.st_mode & 0o077):
+            raise Error("unsafe Tomat controller lock")
+        deadline = time.monotonic() + 2
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise Error("Tomat controller is busy")
+                time.sleep(0.05)
+        yield
+    finally:
+        with contextlib.suppress(OSError):
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
+def launch_command(executable: str, unit: str, description: str, environment: dict[str, str]) -> list[str]:
+    command = [
+        SYSTEMD_RUN, "--user", "--quiet", "--collect", "--no-block",
+        "--service-type=exec", "--expand-environment=no", "--slice=app.slice",
+        f"--unit={unit}", f"--description={description}",
+        "--property=Requisite=labwc-session.target",
+        "--property=After=labwc-session.target",
+        "--property=PartOf=labwc-session.target",
+        "--property=ExitType=cgroup", "--property=KillMode=control-group",
+        "--property=TimeoutStartSec=10s", "--property=TimeoutStopSec=20s",
+        f"--setenv=LABWC_NATIVE_APP_SESSION_UNIT=1",
+    ]
+    command.extend(f"--setenv={name}={value}" for name, value in environment.items())
+    command.extend(["--", executable])
+    return command
+
+
+def service_environment() -> dict[str, str]:
+    names = (
+        "HOME", "USER", "LOGNAME", "PATH", "LANG", "LC_ALL", "XDG_RUNTIME_DIR",
+        "DBUS_SESSION_BUS_ADDRESS", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME",
+        "XDG_STATE_HOME", "XDG_SESSION_TYPE", "XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP",
+        "GDK_BACKEND", "WAYLAND_DISPLAY", "SDL_VIDEODRIVER", "SDL_VIDEO_DRIVER",
+        "CLUTTER_BACKEND", "ELECTRON_OZONE_PLATFORM_HINT", "LABWC_SESSION_OWNER", "LABWC_SESSION_APP",
+    )
+    environment = {name: os.environ[name] for name in names if name in os.environ}
+    for name, value in environment.items():
+        if len(value) > 4096 or "\x00" in value or "\n" in value or "\r" in value:
+            raise Error("break app environment is invalid")
+    required = {"HOME", "USER", "LOGNAME", "PATH", "XDG_RUNTIME_DIR",
+                "DBUS_SESSION_BUS_ADDRESS", "XDG_SESSION_TYPE", "WAYLAND_DISPLAY"}
+    if not required.issubset(environment):
+        raise Error("break app environment is incomplete")
+    environment.update({"LABWC_SESSION_OWNER": "desktop", "LABWC_SESSION_APP": "1"})
+    return environment
+
+
+class Overlay:
+    def __init__(self, toolkit, kind: str, seconds: int):
+        self.Gdk, self.Gio, self.GLib, self.GLibUnix, self.Gtk, self.LayerShell = toolkit
+        self.kind = kind
+        self.seconds = seconds
+        self.deadline = time.monotonic() + seconds
+        self.windows = []
+        self.labels = []
+        self.sources = []
+        self.done = False
+        self.status = 0
+        self.launches = []
+        self.nonce = secrets.token_hex(6)
+        self.runtime = Path(f"/run/user/{os.getuid()}")
+
+    def finish(self, status: int = 0) -> bool:
+        if self.done:
+            return False
+        self.done = True
+        self.status = status
+        for source in list(self.sources):
+            self.GLib.source_remove(source)
+        self.sources.clear()
+        for window in self.windows:
+            window.destroy()
+        if self.Gtk.main_level():
+            self.Gtk.main_quit()
+        return False
+
+    def consume(self, *_args) -> bool:
+        return True
+
+    def tick(self) -> bool:
+        if self.done:
+            return False
+        remaining = max(0, int(self.deadline - time.monotonic() + 0.999))
+        minutes, seconds = divmod(remaining, 60)
+        hours, minutes = divmod(minutes, 60)
+        text = f"{hours:02d}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes:02d}:{seconds:02d}"
+        for label in self.labels:
+            label.set_text(text)
+        if remaining <= 0:
+            return self.finish(0)
+        return True
+
+    def launch_done(self, child, result) -> None:
+        try:
+            child.wait_finish(result)
+        except self.GLib.Error:
+            pass
+
+    def launch_apps(self) -> bool:
+        if self.done:
+            return False
+        nonce = secrets.token_hex(16)
+        entries = (("calix", CALENDAR, "Labwc-tomat-calendar"),
+                   ("agenda", AGENDA, "Labwc-tomat-agenda"))
+        units = [f"labwc-native-{name}-{nonce}.service" for name, _executable, _description in entries]
+        try:
+            environment = service_environment()
+            with control_lock(self.runtime):
+                publish_apps_state(self.runtime, units)
+                launchers = []
+                for executable, description, unit in ((CALENDAR, "Labwc-tomat-calendar", units[0]),
+                                                       (AGENDA, "Labwc-tomat-agenda", units[1])):
+                    launcher = self.Gio.SubprocessLauncher.new(
+                        self.Gio.SubprocessFlags.STDOUT_SILENCE | self.Gio.SubprocessFlags.STDERR_SILENCE)
+                    child = launcher.spawnv(launch_command(executable, unit, description, environment))
+                    launchers.append(child)
+        except (self.GLib.Error, OSError, ValueError, Error):
+            return False
+        for child in launchers:
+            self.launches.append(child)
+            child.wait_async(None, self.launch_done)
+        return False
+
+    def prepare(self, display) -> None:
+        count = display.get_n_monitors()
+        if not 1 <= count <= MAX_MONITORS:
+            raise Error("invalid monitor count")
+        screen = display.get_default_screen()
+        visual = screen.get_rgba_visual()
+        if visual is None:
+            raise Error("transparent Wayland visual is unavailable")
+        provider = self.Gtk.CssProvider()
+        provider.load_from_data(b"""
+            /* Keep the managed calendar and agenda visible behind the
+               countdown while the overlay still covers the full output. */
+            window.labwc-tomat-break { background-color: rgba(8, 17, 31, 0.42); }
+            label.labwc-tomat-title { color: #f5efe3; font-size: 28px; font-weight: 700; }
+            label.labwc-tomat-countdown { color: #ecb860; font-size: 96px; font-weight: 800; }
+            label.labwc-tomat-help { color: #dfe6ef; font-size: 18px; }
+        """)
+        self.Gtk.StyleContext.add_provider_for_screen(
+            screen, provider, self.Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        for index in range(count):
+            monitor = display.get_monitor(index)
+            if monitor is None:
+                raise Error("monitor disappeared")
+            window = self.Gtk.Window(type=self.Gtk.WindowType.TOPLEVEL)
+            window.set_decorated(False)
+            window.set_resizable(False)
+            window.set_visual(visual)
+            window.get_style_context().add_class("labwc-tomat-break")
+            window.add_events(self.Gdk.EventMask.KEY_PRESS_MASK
+                              | self.Gdk.EventMask.KEY_RELEASE_MASK
+                              | self.Gdk.EventMask.BUTTON_PRESS_MASK
+                              | self.Gdk.EventMask.BUTTON_RELEASE_MASK)
+            window.connect("key-press-event", self.consume)
+            window.connect("key-release-event", self.consume)
+            window.connect("button-press-event", self.consume)
+            window.connect("button-release-event", self.consume)
+            window.connect("delete-event", self.consume)
+            self.LayerShell.init_for_window(window)
+            self.LayerShell.set_namespace(window, "labwc-tomat-break")
+            self.LayerShell.set_monitor(window, monitor)
+            self.LayerShell.set_layer(window, self.LayerShell.Layer.OVERLAY)
+            self.LayerShell.set_keyboard_mode(
+                window, self.LayerShell.KeyboardMode.EXCLUSIVE if index == 0 else self.LayerShell.KeyboardMode.NONE)
+            self.LayerShell.set_exclusive_zone(window, -1)
+            for edge in (self.LayerShell.Edge.TOP, self.LayerShell.Edge.BOTTOM,
+                         self.LayerShell.Edge.LEFT, self.LayerShell.Edge.RIGHT):
+                self.LayerShell.set_anchor(window, edge, True)
+            outer = self.Gtk.Box(orientation=self.Gtk.Orientation.VERTICAL, spacing=18)
+            outer.set_halign(self.Gtk.Align.CENTER)
+            outer.set_valign(self.Gtk.Align.CENTER)
+            title = self.Gtk.Label(label=KINDS[self.kind])
+            title.get_style_context().add_class("labwc-tomat-title")
+            countdown = self.Gtk.Label(label="--:--")
+            countdown.get_style_context().add_class("labwc-tomat-countdown")
+            help_text = self.Gtk.Label(label="Calendar and Agenda are opened in managed session services.")
+            help_text.get_style_context().add_class("labwc-tomat-help")
+            outer.pack_start(title, False, False, 0)
+            outer.pack_start(countdown, False, False, 0)
+            outer.pack_start(help_text, False, False, 0)
+            window.add(outer)
+            self.windows.append(window)
+            self.labels.append(countdown)
+        for window in self.windows:
+            window.show_all()
+        self.tick()
+        self.sources.append(self.GLib.timeout_add(250, self.tick))
+        self.GLib.idle_add(self.launch_apps)
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) != 2 or argv[0] not in KINDS or not SECONDS.fullmatch(argv[1]):
+        raise Error("expected break kind and bounded duration")
+    seconds = int(argv[1])
+    if not 1 <= seconds <= 36_000:
+        raise Error("duration is outside the managed bound")
+    if not managed_context():
+        raise Error("overlay service context is unavailable")
+    import gi
+    gi.require_version("Gdk", "3.0")
+    gi.require_version("Gio", "2.0")
+    gi.require_version("GLibUnix", "2.0")
+    gi.require_version("Gtk", "3.0")
+    gi.require_version("GtkLayerShell", "0.1")
+    from gi.repository import Gdk, Gio, GLib, GLibUnix, Gtk, GtkLayerShell
+    initialized, _remaining = Gtk.init_check([])
+    if not initialized or not GtkLayerShell.is_supported():
+        raise Error("Wayland layer-shell is unavailable")
+    display = Gdk.Display.get_default()
+    if display is None:
+        raise Error("Wayland display is unavailable")
+    overlay = Overlay((Gdk, Gio, GLib, GLibUnix, Gtk, GtkLayerShell), argv[0], seconds)
+    for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signum, lambda: overlay.finish(0))
+    overlay.prepare(display)
+    Gtk.main()
+    return overlay.status
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except (Error, OSError, ValueError) as exc:
+        print(f"labwc-tomat-overlay: {exc}", file=sys.stderr)
+        raise SystemExit(1)

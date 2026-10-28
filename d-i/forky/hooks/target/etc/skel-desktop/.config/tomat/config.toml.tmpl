@@ -18,6 +18,9 @@ enabled = true
 [display]
 text_format = "{icon} {time}"
 text_format_idle = "__THEME_WAYBAR_BUTTON_TOMAT_IDLE_ICON_GLYPH__"
+# Cover the desktop during breaks, pause currently playing MPRIS media, and
+# open the managed calendar and agenda services for the break duration.
+overlays = true
 
 [display.icons]
 work = "__THEME_WAYBAR_BUTTON_TOMAT_WORK_ICON_GLYPH__"
@@ -32,11 +35,37 @@ stop = "__THEME_WAYBAR_BUTTON_TOMAT_STOP_ICON_GLYPH__"
 [hooks.on_break_start]
 cmd = "/usr/local/libexec/labwc-tomat-hook"
 args = ["break"]
-timeout = 3
+timeout = 5
 capture_output = true
 
 [hooks.on_long_break_start]
 cmd = "/usr/local/libexec/labwc-tomat-hook"
 args = ["long-break"]
-timeout = 3
+timeout = 5
+capture_output = true
+
+[hooks.on_break_end]
+cmd = "/usr/local/libexec/labwc-tomat-hook"
+args = ["end"]
+timeout = 5
+capture_output = true
+
+[hooks.on_long_break_end]
+cmd = "/usr/local/libexec/labwc-tomat-hook"
+args = ["end"]
+timeout = 5
+capture_output = true
+
+# A manual stop or skip during a break must release the overlay and its
+# break-only application units as well.
+[hooks.on_stop]
+cmd = "/usr/local/libexec/labwc-tomat-hook"
+args = ["end"]
+timeout = 5
+capture_output = true
+
+[hooks.on_skip]
+cmd = "/usr/local/libexec/labwc-tomat-hook"
+args = ["end"]
+timeout = 5
 capture_output = true

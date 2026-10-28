@@ -781,6 +781,7 @@ for path in \
   /usr/local/libexec/greetd-power-action-root \
   /usr/local/libexec/labwc-logout-root \
   /usr/local/libexec/labwc-session-state \
+  /usr/local/libexec/labwc-tomat-overlay \
   /usr/local/bin/labwc-calendar \
   /usr/local/bin/labwc-agenda \
     /usr/local/libexec/calix-fruux-bootstrap \
@@ -2279,7 +2280,7 @@ require(callable(GLibUnix.signal_add) and Secret.Service and Calendar and Event 
 require(callable(GtkLayerShell.set_keyboard_mode) and callable(GtkLayerShell.set_monitor),
         "Waycal dismissal requires GTK3 layer-shell APIs")
 
-for name in ("labwc-tomat", "labwc-tomat-hook", "labwc-notifications"):
+for name in ("labwc-tomat", "labwc-tomat-hook", "labwc-tomat-overlay", "labwc-notifications"):
     path = Path("/usr/local/libexec") / name
     info = path.lstat()
     require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and stat.S_IMODE(info.st_mode) == 0o755,
@@ -2578,6 +2579,7 @@ for name in ("labwc-agenda", "labwc-calendar"):
 for path in ("/usr/local/libexec/calix-fruux-bootstrap", "/opt/calix/calix",
              "/usr/local/libexec/labwc-calendar-actions", "/usr/local/libexec/labwc-calendar-worker",
              "/usr/local/libexec/labwc-waycal-control", "/usr/local/libexec/labwc-waycal-popup",
+             "/usr/local/libexec/labwc-tomat-overlay",
              "/opt/waycal/waycal",
              "/usr/bin/timeout", "/usr/bin/systemd-run", "/usr/bin/systemctl", "/usr/bin/busctl",
              "/usr/local/bin/com.github.dahenson.agenda"):
