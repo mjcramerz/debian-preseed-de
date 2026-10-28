@@ -257,6 +257,9 @@ profile session-controls /usr/bin/{kanshi,swaybg,swayidle,swaylock,wlr-randr,wlr
   # Wayscriber starts its overlay from the daemon executable and reads the
   # inherited environment through /proc. Same-UID ownership is mandatory.
   owner @{PROC}/[0-9]*/environ r,
+  # The greeter output watcher owns short-lived wlr-randr children in this
+  # profile and may terminate them during bounded command cleanup.
+  signal (receive) set=(term kill) peer=labwc-greeter-output,
   signal (receive) set=(hup) peer=desktop-launcher,
   # Labwc Tweaks applies input changes by asking the running compositor to
   # reload its user-owned rc.xml.  The executable remains confined to this

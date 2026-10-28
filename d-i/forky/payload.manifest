@@ -169,14 +169,14 @@ edbdf14c3009aa22e3c38d7502342bbaf1c560354cc0caba51f0b77f62276502  hooks/target/e
 a8e8fba190c12bd77dfaef16ea28dd52824bf899a7a695535b925e6ad9e51174  hooks/target/etc/apparmor.d/crun
 e431f5d17cfc99228c205f06f742cccaa346b390541691704248220d41482dc9  hooks/target/etc/apparmor.d/debugsys
 a351a27a777072f73d78c77e86af012b6885a6648edd97a84853fcb203c97bd3  hooks/target/etc/apparmor.d/desktop-utilities
-f3a18edb406215fd13eceb7377280a51a0b270e6b4c3f1511be7a50a8924b36a  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
+dc8bda85907eed14a21fa5a4e7fc772a46fd78237217cc35a11e26ade2dfcede  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
 61c1b61fdd1ee7eebd220590c456e1fd6cab718ede87a66d94573dd14201b877  hooks/target/etc/apparmor.d/document-applications
 068be16fec21e7af67eac2c1d080709aad77d5ab9a89fb2c01305a53d2c9c7ca  hooks/target/etc/apparmor.d/filen-sync.tmpl
 f5f5585198fa6928b34b2dae57655b43911c5619fb82993d2f0a88827f2678fb  hooks/target/etc/apparmor.d/gitbuild
 f4ca1013031c0a890345a7f7c806604ba45bfd8f0ab1a2f3a65f4d0de1c5de0e  hooks/target/etc/apparmor.d/gitbuild-worker
 eb7d68d1d4ca4aca9fecffffdb2bf22c00ad0c82a0516c2c6227e11bcc45afe9  hooks/target/etc/apparmor.d/hardware-tuning
 20055445d0f821ad1370c711261966146fa59b5f58484137768200a210664fbe  hooks/target/etc/apparmor.d/labwc-appearance
-a1e53ee53018def9cf468cb8fe651899c387bae9a732c88fc75a1922328d8a0a  hooks/target/etc/apparmor.d/labwc-session
+743a8f2fb842a1c9b85233c8c29c1b4a84c67ac65c3268941e7927d337bcdae6  hooks/target/etc/apparmor.d/labwc-session
 1fa91215ff2760571152300217b5ddc73751b49041cd0e83a23e2ec9083082d7  hooks/target/etc/apparmor.d/local/abstractions/codex-user-media.tmpl
 390c6c816315f1e59f27f86b4f34c7e645204c399af9789a98498c473aecc9a0  hooks/target/etc/apparmor.d/local/abstractions/desktop-user-media.tmpl
 43564f673f1428ce44b8fb34931a77e64003789c746b49b391cc5248ae7c6c74  hooks/target/etc/apparmor.d/local/chromium
@@ -805,7 +805,7 @@ eba33a940911d01676d854373a09bef1109a40e6efbf728c5adf7e72270377ad  hooks/target/e
 de0bc18f29a68a6b305f50bc91c84fa51e4936cb27e18d917eee6b1b1a35e43d  hooks/target/etc/systemd/system/fstrim.service.d/override.conf
 4d7b3a6f46ebefeb03474a09c8e265589a82c192c7c7c8e04dcc05273583c122  hooks/target/etc/systemd/system/fstrim.timer.d/override.conf
 5f0b9431cef1b3c0d1024050f82ad9e083212f51cee6454b0df763edec915e25  hooks/target/etc/systemd/system/fwupd.service.d/20-upower-ordering.conf
-d63fde9b9dee79375350d5b8dfb1bf5ed5cd5702ad6af104e92586d266f88fb2  hooks/target/etc/systemd/system/greetd.service.d/20-labwc-vt.conf
+baada91d0d0a486b7edd63c27791f32f060df33750c7c517de632fb86bdb5fd3  hooks/target/etc/systemd/system/greetd.service.d/20-labwc-vt.conf
 23e7705ea302abde96962e0c54c1e6d1faf40538fc8685b709cd175d9db0fb6e  hooks/target/etc/systemd/system/greetd.service.d/40-fruux-firstboot.conf
 223b4ab6f633c7fc8489440be305c6dad16a3c44d9c7284f5d044dd1cf0bf92c  hooks/target/etc/systemd/system/grub-btrfs-refresh.path
 e244171a29787b66c844e1df8de216de14aa308d62904b4dcb71ce14fb2f231e  hooks/target/etc/systemd/system/grub-btrfs-refresh.service
@@ -1065,7 +1065,7 @@ b1532a7f2a444afeb22d63cd3d4aeb5b511f379e48195b28e466b0455461e709  hooks/target/u
 0c3ea8dbc86e18b4f8f26b4e4430379453fdfaa2819f815fab4b4d477efab727  hooks/target/usr/local/bin/labwc-ai-copilots
 a70519451b427a250152c76ba5ca5cfec9e1044a4a78a676e19da6def019f5db  hooks/target/usr/local/bin/labwc-ai-copilots-action
 02cf5f42b00c866be5873e63fdb84fcfc4a0ffe212ec28cd5a6e40ee8fb502e8  hooks/target/usr/local/bin/labwc-app
-a410fa562228ad0294fac966594bd13fb6e523c0e8c63690f3af632ba504a90f  hooks/target/usr/local/bin/labwc-autostart
+3ed02ef4a4458b5a6de6ef516b007d8f1542bdd0c727046bc25f07c47b247f12  hooks/target/usr/local/bin/labwc-autostart
 1b758efe07fa4ec0aff00f2a6e175da48a03f580e3a1b90b8eb28ad560a11867  hooks/target/usr/local/bin/labwc-bluetooth.tmpl
 16b15db89fa7cd15ce26d8a2994f352e6cac7ce3614f35e076a2e2c354d32a8b  hooks/target/usr/local/bin/labwc-brightness-control.tmpl
 7410e6bc063375ba131eb0b57bb08fc990ea5ba18d9e87a669e8cad61b557e26  hooks/target/usr/local/bin/labwc-capture.tmpl

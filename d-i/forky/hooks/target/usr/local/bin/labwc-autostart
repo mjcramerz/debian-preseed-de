@@ -38,7 +38,6 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 activation_environment_names='LABWC_SESSION_OWNER LABWC_PID DESKTOP_SESSION XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE XDG_RUNTIME_DIR WAYLAND_DISPLAY SWAYSOCK DBUS_SESSION_BUS_ADDRESS XDG_CONFIG_DIRS XDG_DATA_HOME XDG_DATA_DIRS MOZ_ENABLE_WAYLAND ELECTRON_OZONE_PLATFORM_HINT QT_QPA_PLATFORM QT_QPA_PLATFORMTHEME QT_WAYLAND_DISABLE_WINDOWDECORATION QT_OPENGL QSG_RHI_BACKEND GDK_BACKEND SDL_VIDEODRIVER SDL_RENDER_DRIVER CLUTTER_BACKEND ANGLE_DEFAULT_PLATFORM WGPU_BACKEND XCURSOR_THEME XCURSOR_SIZE GTK_A11Y NO_AT_BRIDGE WLR_RENDERER GSK_RENDERER GDK_DISABLE WLR_NO_HARDWARE_CURSORS SSH_AUTH_SOCK'
-required_session_units='labwc-kwallet-portal.service hyprpolkitagent.service xdg-desktop-portal.service xdg-desktop-portal-gtk.service xdg-desktop-portal-wlr.service xdg-desktop-portal-lxqt.service'
 
 if [ "${LABWC_SESSION_OWNER:-}" != desktop ]; then
   exit 0
@@ -168,25 +167,16 @@ start_session_target() {
   }
 }
 
-wait_for_required_session_units() {
+wait_for_session_target() {
   readiness_attempt=1
-  pending_session_units=
 
   while [ "$readiness_attempt" -le 10 ]; do
-    pending_session_units=
-    for session_unit in $required_session_units; do
-      if ! session_systemctl --quiet is-active "$session_unit"; then
-        pending_session_units="${pending_session_units} ${session_unit}"
-      fi
-    done
-
-    [ -z "$pending_session_units" ] && return 0
+    session_systemctl --quiet is-active labwc-session.target && return 0
     sleep 1
     readiness_attempt=$((readiness_attempt + 1))
   done
 
-  printf 'fatal: required Labwc authentication, secret, or portal services did not become active:%s\n' \
-    "$pending_session_units" >&2
+  printf 'fatal: the Labwc user session target did not become active\n' >&2
   exit 1
 }
 
@@ -211,13 +201,18 @@ start_health_notifier_if_enabled() {
 
 sync_user_activation_environment
 start_session_target
-wait_for_wayland_output
-wait_for_required_session_units
+wait_for_session_target
+# The compositor, Wayland socket and user manager now own a live session.
+# KWallet may wait for user input, and portal backends can start slowly or be
+# unavailable. Their readiness must not block the panel or log the user out.
+# Each client keeps its own service failure, restart and authorization policy.
+activation_complete=true
+printf 'Labwc core session activated; starting desktop clients\n' >&2
 start_waybar_if_enabled
 start_health_notifier_if_enabled
+wait_for_wayland_output
 # This controller submits a single long-running transient user service. It does
 # not daemonize or parent wlsunset in the compositor cgroup. Failure is visible
 # in the journal but optional colour adjustment must not destroy the session.
 session_systemctl start labwc-wlsunset-start.service ||
   printf 'warning: wlsunset startup failed; inspect journalctl --user -b -u labwc-wlsunset-start.service -u labwc-wlsunset.service\n' >&2
-activation_complete=true

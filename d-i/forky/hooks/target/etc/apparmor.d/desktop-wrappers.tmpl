@@ -1577,6 +1577,9 @@ profile labwc-greeter-output /usr/local/bin/labwc-greeter-output flags=(attach_d
   /usr/local/bin/labwc-greeter-output rix,
   /usr/local/lib/perl5/site_perl/runtime/{,Managed/,Managed/Process.pm} r,
   /usr/bin/{udevadm,wlr-randr} pux,
+  # Managed::Process owns these direct children and terminates them when an
+  # output command exceeds its bounded cleanup deadline.
+  signal (send) set=(term kill) peer=session-controls,
   signal (send, receive) peer=labwc-greeter-output,
   signal (send) peer=unconfined,
   signal (receive) peer=labwc-greeter-client,
