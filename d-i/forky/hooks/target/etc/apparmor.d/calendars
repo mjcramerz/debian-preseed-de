@@ -54,6 +54,7 @@ profile labwc-calendar-actions /usr/local/libexec/labwc-calendar-actions flags=(
   /usr/local/libexec/labwc-calendar-actions r,
   /usr/local/lib/python3.14/dist-packages/labwc_calendar_reminders.py r,
   /usr/bin/systemctl pux,
+  /usr/bin/notify-send rix,
   /usr/bin/bwrap rPx -> session-glycin-bwrap,
   /tmp/ r,
   owner /tmp/gdk-pixbuf-glycin-tmp.* rwk,
@@ -66,6 +67,9 @@ profile labwc-calendar-actions /usr/local/libexec/labwc-calendar-actions flags=(
   owner /run/user/[0-9]*/labwc-calendar-actions.lock rwk,
   owner /dev/shm/** rwkl,
   unix,
+  dbus (send) bus=session path=/org/freedesktop/Notifications
+    interface=org.freedesktop.Notifications member=Notify
+    peer=(name=org.freedesktop.Notifications),
   signal (send, receive) peer=labwc-calendar-worker,
   signal (send) set=(kill term) peer=session-glycin-bwrap,
   signal (send) peer=unconfined,

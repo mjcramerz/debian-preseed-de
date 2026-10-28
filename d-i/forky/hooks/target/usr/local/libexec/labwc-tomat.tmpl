@@ -512,6 +512,11 @@ class Context:
         self.owned(self.show())
         self.run([SYSTEMCTL, "--user", "restart", UNIT])
         self.wait_ready()
+        # The GTK menu is static, so report the authoritative post-restart
+        # setting through Mako without making notification delivery part of
+        # the config transaction's success condition.
+        self.run(["/usr/bin/notify-send", "--app-name=Tomat", "--urgency=low",
+                  "--category=tomat.settings", "Tomat", message], timeout=5, check=False)
         print(message)
 
 

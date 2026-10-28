@@ -408,11 +408,17 @@ def redirect_native_from_private_users(
         native_bus_fallback=app_name not in WAYLAND_COMPAT_SESSION_UNIT_METADATA,
     )
     wayland_display = native_session_wayland_display(environment)
-    dependencies = "labwc-session.target"
+    session_dependency = "labwc-session.target"
+    provider_dependencies: list[str] = []
     if app_name in {"tutanota", "calix"}:
-        dependencies += " labwc-kwallet-portal.service"
+        provider_dependencies.append("labwc-kwallet-portal.service")
     if app_name == "calix":
-        dependencies += " labwc-calendar-credentials.service"
+        provider_dependencies.append("labwc-calendar-credentials.service")
+    startup_dependencies = " ".join([session_dependency, *provider_dependencies])
+    provider_dependency_args = (
+        [f"--property=Requires={' '.join(provider_dependencies)}"]
+        if provider_dependencies else []
+    )
     # The generic entrypoint attaches the generic AppArmor profile when started
     # by systemd. ChatGPT must retain its dedicated profile and private pipes;
     # a tiny fixed-purpose reentry stub performs that explicit transition.
@@ -447,7 +453,6 @@ def redirect_native_from_private_users(
             environment["DEVOPS_DE_ENVIRONMENT_READY"] = "0"
     # ChatGPT owns its bundled Codex stdio child. The separately socket-activated
     # CLI backend must not become a startup or failure dependency of the GUI.
-    startup_dependencies = dependencies
     argv = [
         systemd_run, "--user", "--quiet", "--collect",
         *(["--pipe", "--wait"] if app_name == "chatgpt" else [
@@ -463,10 +468,12 @@ def redirect_native_from_private_users(
         "--unit=" + _session_unit(f"labwc-native-{app_name}"),
         f"--property=After={startup_dependencies}",
         # Never pull the desktop/compositor back up during teardown. The
-        # Secret Service provider is already session-owned; Requisite verifies
-        # readiness without starting it.
-        f"--property=Requisite={startup_dependencies}",
-        f"--property=PartOf={dependencies}",
+        # session target is a readiness gate; provider services are ordinary
+        # Requires dependencies so a menu click can start an inactive provider
+        # before the managed application is launched.
+        f"--property=Requisite={session_dependency}",
+        *provider_dependency_args,
+        f"--property=PartOf={startup_dependencies}",
         f"--property=ConditionPathExists=!/run/user/{os.getuid()}/labwc-session-closing",
         "--property=ExitType=main",
         "--property=UnsetEnvironment=LABWC_MENU_ACTION_WAIT",

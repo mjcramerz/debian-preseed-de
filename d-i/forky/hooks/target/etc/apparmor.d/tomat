@@ -9,6 +9,7 @@ profile labwc-tomat /usr/local/libexec/labwc-tomat flags=(attach_disconnected, m
   #include <abstractions/dbus-session-strict>
   /usr/local/libexec/labwc-tomat rix,
   /usr/bin/{systemctl,systemd-run} rix,
+  /usr/bin/notify-send rix,
   /usr/bin/tomat rpx -> tomat,
   /usr/bin/l3afpad rpx -> desktop-editors,
   / r,
@@ -29,6 +30,9 @@ profile labwc-tomat /usr/local/libexec/labwc-tomat flags=(attach_disconnected, m
   owner /run/user/[0-9]*/labwc-tomat/break-media.json rwk,
   owner /run/user/[0-9]*/labwc-tomat/.break-media.* rwk,
   unix (create, connect, send, receive, shutdown, getattr, getopt, setopt) type=stream,
+  dbus (send) bus=session path=/org/freedesktop/Notifications
+    interface=org.freedesktop.Notifications member=Notify
+    peer=(name=org.freedesktop.Notifications),
   dbus (send) bus=session peer=(name=org.freedesktop.systemd1),
   dbus (receive) bus=session peer=(label=unconfined),
   signal (send, receive) peer=labwc-tomat,

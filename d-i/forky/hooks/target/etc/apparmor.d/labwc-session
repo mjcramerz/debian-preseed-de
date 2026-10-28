@@ -53,7 +53,11 @@ profile labwc-compositor /usr/bin/labwc flags=(attach_disconnected, mediate_dele
   /run/udev/data/** r,
   owner /tmp/.X[0-9]*-lock rwk,
   owner /run/user/[0-9]*/ rw,
-  owner /run/user/[0-9]*/{wayland-*,bus,labwc*} rwkl,
+  # The compositor receives user-owned transient FDs from same-UID Wayland
+  # clients through SCM_RIGHTS.  Keep the owner qualifier: a confined
+  # compositor may create, replace, lock, and receive any object below its
+  # own runtime directory, while files owned by another UID remain denied.
+  owner /run/user/[0-9]*/** rwkl,
   # Hotkeys submit transient services directly to the user's manager.
   /run/ r,
   /run/user/ r,
