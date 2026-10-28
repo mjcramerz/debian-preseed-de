@@ -213,7 +213,11 @@ def scan_devices() -> int:
     except (OSError, subprocess.TimeoutExpired):
         if process is not None and process.poll() is None:
             process.kill()
-            process.wait()
+            try:
+                process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                # Do not let a broken bluetoothctl child hold the menu open.
+                process = None
         result = None
     if result is not None and result.returncode == 0:
         notify("normal", "bluetooth", "device.added", "Bluetooth scan completed",

@@ -706,7 +706,9 @@ profile labwc-capture /usr/local/bin/labwc-capture flags=(attach_disconnected) {
   # Permit the user's home directory itself, without recursive file access.
   owner @{HOME}/ r,
   /usr/local/bin/labwc-capture rix,
-  /usr/bin/{ffprobe} rix,
+  /usr/local/libexec/rsyslog-app-run rix,
+  __INSTALLER_LOG_APPS_SOCKET__ w,
+  /usr/bin/ffprobe rix,
   /usr/bin/{grim,notify-send,slurp,systemctl,systemd-run,wf-recorder,wlr-randr} pux,
   /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
   /usr/local/bin/satty rPx -> satty,
@@ -1375,7 +1377,7 @@ profile labwc-external-drives /usr/local/bin/labwc-external-drives flags=(attach
   /usr/lib/@{multiarch}/girepository-1.0/ r,
   /usr/lib/@{multiarch}/girepository-1.0/{GLib,GObject,GModule,Gio}-2.0.typelib mr,
   /usr/lib/@{multiarch}/girepository-1.0/GIRepository-{2.0,3.0}.typelib mr,
-  /usr/bin/{sync} rix,
+  /usr/bin/sync rix,
   /usr/bin/{findmnt,lsblk,notify-send,udevadm,udisksctl} rix,
   # Only the authorized shutdown service retains this DAC read capability.
   # No raw block I/O, filesystem mount syscall or machine power capability.

@@ -481,6 +481,10 @@ class RoutingContractTests(unittest.TestCase):
         self.assertNotIn('>>"$RECORDING_LOG"', capture)
         self.assertNotIn(': >"$RECORDING_LOG"', capture)
         self.assertIn('/usr/local/libexec/rsyslog-app-run labwc-screen-recording --', capture)
+        wrappers = payload_read_text(TARGET / 'etc/apparmor.d/desktop-wrappers.tmpl')
+        capture_policy = wrappers.split('profile labwc-capture ', 1)[1].split('\n}', 1)[0]
+        self.assertIn('/usr/local/libexec/rsyslog-app-run rix,', capture_policy)
+        self.assertIn('__INSTALLER_LOG_APPS_SOCKET__ w,', capture_policy)
 
     def test_managed_application_services_have_no_journal_stream(self):
         for relative in ('usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py',

@@ -38,6 +38,15 @@ def profile(file: str, name: str) -> str:
 
 
 class AppArmorGrantTests(unittest.TestCase):
+    def test_migrated_wrapper_profiles_do_not_use_single_item_path_groups(self):
+        for name, executable in (
+            ('labwc-capture', '/usr/bin/ffprobe'),
+            ('labwc-external-drives', '/usr/bin/sync'),
+        ):
+            policy = profile('desktop-wrappers', name)
+            self.assertIn(executable + ' ', policy)
+            self.assertNotRegex(policy, r'(?<!@)\{[^,{]*\}')
+
     def test_vivaldi_terminal_inheritance_is_owned_and_covers_both_attachments(self):
         for attachment in ('vivaldi-stable', 'vivaldi-bin'):
             policy = read_text(AA / ('local/' + attachment), encoding='utf-8')

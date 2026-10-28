@@ -169,7 +169,7 @@ edbdf14c3009aa22e3c38d7502342bbaf1c560354cc0caba51f0b77f62276502  hooks/target/e
 a8e8fba190c12bd77dfaef16ea28dd52824bf899a7a695535b925e6ad9e51174  hooks/target/etc/apparmor.d/crun
 e431f5d17cfc99228c205f06f742cccaa346b390541691704248220d41482dc9  hooks/target/etc/apparmor.d/debugsys
 a351a27a777072f73d78c77e86af012b6885a6648edd97a84853fcb203c97bd3  hooks/target/etc/apparmor.d/desktop-utilities
-3a6a3ae7a300a5f9a399b92642b8b2eef61eca3c878d99cb8f9bc0433f50ee99  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
+e5125eaad5d655bfad8bbb392a4ae98af1d42222a04f6fce3d90e86fd41e32cb  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
 61c1b61fdd1ee7eebd220590c456e1fd6cab718ede87a66d94573dd14201b877  hooks/target/etc/apparmor.d/document-applications
 068be16fec21e7af67eac2c1d080709aad77d5ab9a89fb2c01305a53d2c9c7ca  hooks/target/etc/apparmor.d/filen-sync.tmpl
 f5f5585198fa6928b34b2dae57655b43911c5619fb82993d2f0a88827f2678fb  hooks/target/etc/apparmor.d/gitbuild
@@ -1065,7 +1065,7 @@ b1532a7f2a444afeb22d63cd3d4aeb5b511f379e48195b28e466b0455461e709  hooks/target/u
 a70519451b427a250152c76ba5ca5cfec9e1044a4a78a676e19da6def019f5db  hooks/target/usr/local/bin/labwc-ai-copilots-action
 02cf5f42b00c866be5873e63fdb84fcfc4a0ffe212ec28cd5a6e40ee8fb502e8  hooks/target/usr/local/bin/labwc-app
 a410fa562228ad0294fac966594bd13fb6e523c0e8c63690f3af632ba504a90f  hooks/target/usr/local/bin/labwc-autostart
-a387eb45d7d456337a5d8d01a7bcc24265ee4962c43525b255abc23ebd268760  hooks/target/usr/local/bin/labwc-bluetooth.tmpl
+2fe83f4c8f9aac44aae12903fc16cd99b336dee0b1b54f32d4aebf111ab519c1  hooks/target/usr/local/bin/labwc-bluetooth.tmpl
 16b15db89fa7cd15ce26d8a2994f352e6cac7ce3614f35e076a2e2c354d32a8b  hooks/target/usr/local/bin/labwc-brightness-control.tmpl
 e9a2b5ec821aebf8f6f5611afe5348471eb57c8ee6c8ebd908416962a6de0e4b  hooks/target/usr/local/bin/labwc-capture.tmpl
 3e18c33d3f68625b521a8d8714f22b828e1c37303904ae7a5ba960a45380792b  hooks/target/usr/local/bin/labwc-computer-management
