@@ -464,6 +464,17 @@ def dispatcher_event(interface, event):
 
 
 def carrier_event(interface):
+    try:
+        policy = parse_policy(read_owned(POLICY))
+    except (OSError, ValueError, KeyError, ConfigurationError):
+        return
+    ethernet = policy.get('MANAGED_NETWORK_ETHERNET_IFACE', '')
+    if (not re.fullmatch(r'[A-Za-z0-9_.-]{1,15}', ethernet)
+            or ethernet in {'.', '..'} or interface != ethernet):
+        # The carrier unit is owned by the configured host Ethernet device.
+        # Ignore manually-instantiated veth/app namespace instances before
+        # touching sysfs, NetworkManager, or the shared policy lock.
+        return
     event = carrier_state(interface)
     if event in {'up', 'down'}:
         dispatcher_event(interface, event)

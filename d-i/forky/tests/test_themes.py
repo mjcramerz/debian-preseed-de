@@ -81,8 +81,8 @@ class ThemeValidationTests(unittest.TestCase):
             self.assertIn(VALUES[key], dock)
         for native_key in ('backgroundColor', 'backgroundColor2D', 'backgroundColorMetal2D'):
             self.assertIn(native_key + '=#FF100417', dock)
-        self.assertEqual(VALUES['WAYBAR_PANEL_BACKGROUND_COLOR'], 'rgba(3, 8, 19, 0.98)')
-        self.assertIn('background: rgba(3, 8, 19, 0.98);', css)
+        self.assertEqual(VALUES['WAYBAR_PANEL_BACKGROUND_COLOR'], 'rgba(9, 6, 18, 0.98)')
+        self.assertIn('background: rgba(9, 6, 18, 0.98);', css)
 
     def test_default_theme_is_light_and_requested_accents_match(self):
         self.assertEqual(VALUES['LABWC_DESKTOP_GTK_PREFER_DARK'], '0')
@@ -95,10 +95,10 @@ class ThemeValidationTests(unittest.TestCase):
         self.assertEqual(VALUES['LABWC_DESKTOP_QT_STYLE_OVERRIDE'], 'adwaita')
         self.assertEqual(VALUES['LABWC_DESKTOP_QT_THEME'], 'Adwaita')
         self.assertEqual(VALUES['GNOTE_COLOR_SCHEME'], 'dark')
-        active = VALUES['WAYBAR_BUTTON_SYSTEM_NORMAL_OUTLINE_COLOR']
+        active = VALUES['WAYBAR_BUTTON_APPS_NORMAL_OUTLINE_COLOR']
         for button in ('TOMAT', 'WAYSCRIBER', 'TASKVIEW', 'APPS'):
             self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_NORMAL_OUTLINE_COLOR'], active)
-            self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_HOVER_OUTLINE_COLOR'], '#b190f6')
+            self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_HOVER_OUTLINE_COLOR'], '#c19af8')
             self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_NORMAL_BACKGROUND_COLOR'],
                              VALUES['WAYBAR_BUTTON_APPS_NORMAL_BACKGROUND_COLOR'])
             for property_name in ('BACKGROUND', 'OUTLINE', 'SHADOW'):
@@ -127,7 +127,7 @@ class ThemeValidationTests(unittest.TestCase):
                          VALUES['WAYBAR_BUTTON_MENU_NORMAL_TEXT_COLOR'])
         for button in ('FILES', 'NOTES', 'SLEEK', 'TERMINAL', 'TUTANOTA'):
             self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_NORMAL_OUTLINE_COLOR'],
-                             'rgba(99, 135, 255, 0.48)')
+                             'rgba(112, 80, 163, 0.52)')
         self.assertEqual(VALUES['WAYBAR_BUTTON_TASKBAR_NORMAL_OUTLINE_COLOR'],
                          'rgba(134, 177, 253, 0.88)')
         for button in ('BLUETOOTH', 'KEYBOARD', 'NETWORK', 'SCREENSHOT'):
@@ -146,8 +146,8 @@ class ThemeValidationTests(unittest.TestCase):
                                 'rgba(0, 0, 0, 0)')
         for button in ('AUDIO', 'BACKLIGHT', 'BATTERY', 'CPU', 'DISK', 'MEMORY', 'SYSTEM'):
             for state, background, outline in (
-                    ('NORMAL', 'rgba(14, 22, 42, 0.96)', 'rgba(123, 93, 183, 0.42)'),
-                    ('HOVER', 'rgba(30, 39, 71, 0.98)', 'rgba(177, 144, 246, 0.92)')):
+                    ('NORMAL', 'rgba(9, 14, 27, 0.97)', 'rgba(107, 76, 159, 0.50)'),
+                    ('HOVER', 'rgba(29, 22, 51, 0.98)', 'rgba(193, 153, 250, 0.98)')):
                 self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_{state}_BACKGROUND_COLOR'], background)
                 self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_{state}_OUTLINE_COLOR'], outline)
         for menu in ('MENU', 'COMPUTER_MANAGEMENT_MENU'):

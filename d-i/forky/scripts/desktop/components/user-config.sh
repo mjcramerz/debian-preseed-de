@@ -102,6 +102,7 @@ gid=$(id -g "$account_user")
     .config/mpv \
     .config/nvim \
     .config/qalculate \
+    .config/lxqt \
     .config/xarchiver \
     .config/task \
     .config/retroarch \

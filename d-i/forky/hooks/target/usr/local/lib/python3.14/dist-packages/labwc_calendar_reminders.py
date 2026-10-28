@@ -261,9 +261,11 @@ def localized(value, zone):
 
 
 def component_anchor(component, kind):
-    value = component.get('DUE') if kind == 'VTODO' else component.get('DTSTART')
+    # A task with DTSTART and DUE is anchored to DTSTART. DUE is used only
+    # when no start exists, so one task cannot create a second due-date series.
+    value = component.get('DTSTART')
     if value is None and kind == 'VTODO':
-        value = component.get('DTSTART')
+        value = component.get('DUE')
     require(value is not None, 'reminder-needs-date')
     return value.dt
 

@@ -195,7 +195,6 @@ class RecurringReminderTests(unittest.TestCase):
         component.add('DTSTART', start)
         if kind == 'VTODO':
             component.add('DUE', start + timedelta(hours=1))
-            target += timedelta(hours=1)
         component.add('RRULE', self.r.RECURRENCE_RULES[preset])
         calendar.add_component(component)
         epoch = int(target.timestamp())
@@ -239,6 +238,20 @@ class RecurringReminderTests(unittest.TestCase):
         epoch = int(after.timestamp())
         self.assertEqual(self.r.schedule_slot(epoch, self.entry, epoch + 30), (epoch, epoch))
         self.assertIsNone(self.r.schedule_slot(epoch, self.entry, epoch + 121))
+
+    def test_nonrecurring_task_with_only_due_uses_due_as_its_reminder_anchor(self):
+        calendar = Calendar()
+        component = Todo()
+        component.add('UID', 'due-only')
+        due = datetime(2026, 11, 2, 10, tzinfo=self.zone)
+        component.add('DUE', due)
+        calendar.add_component(component)
+        epoch = int(due.timestamp())
+        now = epoch - 900
+        self.assertEqual(
+            self.r.due_slots(calendar, component, 'VTODO', self.entry, now),
+            [(epoch, now)],
+        )
 
 
 if __name__ == '__main__':

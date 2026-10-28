@@ -42,6 +42,7 @@ profile labwc-microsoft-edge-launcher /{usr/bin/microsoft-edge-stable,opt/micros
   /usr/bin/{cat,dirname,mkdir,readlink,touch} rix,
   /dev/tty rw,
   owner @{HOME}/.local/ rw,
+  owner @{HOME}/.local/ rw,
   owner @{HOME}/.local/share/ rw,
   owner @{HOME}/.local/share/mimeapps.list rwk,
   owner @{HOME}/.local/share/applications/ rw,
@@ -1703,8 +1704,38 @@ profile labwc-health-notify /usr/local/bin/labwc-health-notify flags=(attach_dis
 
 profile labwc-plans /usr/local/libexec/labwc-plans.pl flags=(attach_disconnected) {
   #include <abstractions/wrapper-perl>
+  # The user service sets NoNewPrivileges. Keep the Python worker in this
+  # already-confined domain instead of attempting a privilege-widening Px
+  # transition that AppArmor must reject.
+  #include <abstractions/wrapper-python>
+  include if exists <abstractions/dbus-session>
+  include if exists <abstractions/nameservice-strict>
+  include if exists <abstractions/openssl>
+  include if exists <abstractions/ssl_certs>
   /usr/local/libexec/labwc-plans.pl rix,
-  /usr/local/libexec/labwc-calendar-worker rPx -> labwc-calendar-worker,
+  /usr/local/libexec/labwc-calendar-worker rix,
+  /usr/local/lib/python3.14/dist-packages/labwc_calendar_reminders.py r,
+  /usr/lib/** mr,
+  /usr/share/{glib-2.0,gir-1.0,locale,zoneinfo}/{,**} r,
+  /etc/{passwd,localtime} r,
+  /home/ r,
+  owner @{HOME}/ r,
+  owner @{HOME}/.config/ r,
+  owner @{HOME}/.config/calix/ rw,
+  owner @{HOME}/.config/calix/fruux-account.json r,
+  owner @{HOME}/.config/calix/.fruux-actions.lock rwk,
+  owner @{HOME}/.config/calix/fruux-pending.json rw,
+  owner @{HOME}/.config/calix/phone-{reminders,deliveries}.json rw,
+  owner @{HOME}/.config/calix/.phone-{reminders,deliveries}.json.*.tmp rw,
+  /etc/labwc/plans.conf r,
+  owner /run/user/[0-9]*/{,bus} rw,
+  unix,
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network netlink raw,
+  dbus (send, receive) bus=session interface=org.freedesktop.Secret.*,
   include if exists <local/usr.local.libexec.labwc-plans.pl>
 }
 
@@ -3550,6 +3581,11 @@ profile whisper-record-toggle /usr/local/libexec/whisper-record-{toggle,timed} f
   owner @{HOME}/Syncthing/sleek/ rw,
   owner @{HOME}/Syncthing/sleek/.whisper.txt.lock rwk,
   owner @{HOME}/Syncthing/sleek/whisper.txt rwk,
+  owner @{HOME}/.local/share/ rw,
+  owner @{HOME}/.local/share/agenda/ rw,
+  owner @{HOME}/.local/share/agenda/tasks rwk,
+  owner @{HOME}/.local/share/agenda/.whisper-agenda.lock rwk,
+  owner @{HOME}/.local/share/agenda/.whisper-agenda-sources rwk,
   dbus send
   bus=session
   path=/org/freedesktop/systemd1

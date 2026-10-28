@@ -89,6 +89,7 @@ sub transcribe_pending {
             $self->artifacts()->store_transcript($recording->{stem}, $text);
         }
         $self->artifacts()->append_task($recording->{stem}, $text);
+        $self->artifacts()->append_agenda_task($recording->{stem}, $text);
         $control = $self->state()->lock(0, 1) or _fatal('state is busy; commit will be retried');
         my $current = $self->state()->read();
         $current && $current->{stem} eq $recording->{stem} && $current->{wav} eq $wav

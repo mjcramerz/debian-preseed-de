@@ -577,6 +577,7 @@ for path in \
   /etc/skel-desktop/.config/waypaper/config.ini \
   /etc/skel-desktop/.config/waypaper/keybindings.ini \
   /etc/skel-desktop/.config/waypaper/style.css \
+  /etc/skel-desktop/.config/lxqt/filedialog.conf \
   /etc/skel-desktop/.config/btop/btop.conf \
   /etc/skel-desktop/.config/fzf/default-opts \
   /etc/skel-desktop/.config/satty/config.toml \
@@ -958,8 +959,6 @@ if [ -r /usr/share/dbus-1/system-services/org.freedesktop.nm_dispatcher.service 
             require_executable /etc/network/if-up.d/90-managed-wifi-preference
             require_executable /etc/network/if-post-down.d/90-managed-wifi-preference
             require_readable /etc/systemd/system/network-wifi-carrier@.service
-            require_readable /etc/systemd/system/network-wifi-carrier.timer
-            require_symlink_target /etc/systemd/system/timers.target.wants/network-wifi-carrier.timer /etc/systemd/system/network-wifi-carrier.timer
             require_readable /etc/udev/rules.d/90-managed-wifi-preference.rules
             ;;
         esac

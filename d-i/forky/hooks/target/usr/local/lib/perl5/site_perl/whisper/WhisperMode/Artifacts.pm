@@ -86,6 +86,25 @@ sub sleek {
     return { directory => $directory, task_file => $file };
 }
 
+sub agenda_tasks {
+    my ($self) = @_;
+    my $directory = $self->_directory(
+        'Agenda task directory',
+        File::Spec->catdir($self->home(), '.local', 'share', 'agenda'),
+    );
+    my $file = "$directory/tasks";
+    if (-e $file || -l $file) {
+        -f $file && !-l $file && (lstat $file)[4] == $< && (lstat $file)[3] == 1
+            or _fatal('Agenda task file is unsafe');
+    } else {
+        if (sysopen my $new, $file, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600) {
+            close $new or _fatal("cannot close new Agenda task file: $!");
+        } else { $!{EEXIST} or _fatal("cannot create Agenda task file: $!"); }
+    }
+    chmod 0600, $file or _fatal("cannot secure Agenda task file: $!");
+    return { directory => $directory, task_file => $file };
+}
+
 sub validate_wav {
     my ($self, $state) = @_;
     my $paths = $self->paths();
@@ -185,6 +204,102 @@ sub append_task {
     print {$fh} encode('UTF-8', $record) or _fatal("cannot append Sleek task: $!");
     $fh->flush && $fh->sync or _fatal("cannot flush Sleek task: $!");
     close $fh or _fatal("cannot close Sleek task: $!");
+    return;
+}
+
+sub append_agenda_task {
+    my ($self, $stem, $text) = @_;
+    $stem = _validated_stem($stem);
+    $text = _normalized_task_text($text);
+    return if !length $text;
+    my $agenda = $self->agenda_tasks();
+    sysopen my $lock, "$agenda->{directory}/.whisper-agenda.lock", O_CREAT | O_NOFOLLOW | O_RDWR, 0600
+        or _fatal("cannot open Agenda task lock: $!");
+    my @ls = stat $lock;
+    -f $lock && $ls[4] == $< && $ls[3] == 1 && ($ls[2] & 0077) == 0
+        or _fatal('Agenda task lock is unsafe');
+    fcntl($lock, F_SETFD, FD_CLOEXEC) or _fatal("cannot configure Agenda task lock: $!");
+    flock($lock, LOCK_EX | LOCK_NB) or _fatal('Agenda task file is busy');
+
+    # Keep the exact user-facing Agenda format while using a private stem
+    # ledger to make a retry after an interrupted state clear idempotent.
+    sysopen my $ledger, "$agenda->{directory}/.whisper-agenda-sources",
+        O_CREAT | O_NOFOLLOW | O_RDWR, 0600
+        or _fatal("cannot open Agenda source ledger: $!");
+    my @ledger_stat = stat $ledger;
+    -f $ledger && $ledger_stat[4] == $< && $ledger_stat[3] == 1
+        && ($ledger_stat[2] & 0077) == 0 && $ledger_stat[7] <= 16 * 1024 * 1024
+        or _fatal('Agenda source ledger is unsafe or too large');
+    binmode $ledger, ':raw';
+    seek($ledger, 0, 0) or _fatal("cannot rewind Agenda source ledger: $!");
+    my $ledger_state = q{};
+    my $ledger_bytes = 0;
+    while (my $line = <$ledger>) {
+        $ledger_bytes += length $line;
+        $ledger_bytes <= 16 * 1024 * 1024 or _fatal('Agenda source ledger is too large');
+        if ($line =~ /\A([0-9]{4}(?:-[0-9]{2}){5})(?:\t(pending|done))?\n?\z/) {
+            $ledger_state = defined($2) ? $2 : 'done' if $1 eq $stem;
+        } else {
+            _fatal('Agenda source ledger is malformed');
+        }
+    }
+    if ($ledger_state eq 'done') {
+        close $ledger or _fatal("cannot close Agenda source ledger: $!");
+        close $lock or _fatal("cannot close Agenda task lock: $!");
+        return;
+    }
+
+    # Publish the pending marker before touching the user-facing file. If the
+    # process exits after the task append but before the done marker, the next
+    # retry can recognize the exact line and finish the journal without a
+    # duplicate entry.
+    if ($ledger_state ne 'pending') {
+        seek($ledger, 0, 2) or _fatal("cannot seek Agenda source ledger: $!");
+        print {$ledger} "$stem\tpending\n" or _fatal("cannot record pending Agenda source: $!");
+        $ledger->flush && $ledger->sync or _fatal("cannot flush Agenda source ledger: $!");
+    }
+
+    sysopen my $fh, $agenda->{task_file}, O_APPEND | O_NOFOLLOW | O_RDWR
+        or _fatal("cannot open Agenda task file: $!");
+    my @st = stat $fh;
+    -f $fh && $st[4] == $< && $st[3] == 1 && ($st[2] & 0077) == 0
+        && $st[7] <= 16 * 1024 * 1024
+        or _fatal('Agenda task file metadata is unsafe or file exceeds 16 MiB');
+    binmode $fh, ':raw';
+    my $record = encode('UTF-8', "f,$text\n");
+    my $already_appended = 0;
+    if ($ledger_state eq 'pending') {
+        seek($fh, 0, 0) or _fatal("cannot rewind Agenda task file: $!");
+        my $bytes = 0;
+        while (my $line = <$fh>) {
+            $bytes += length $line;
+            $bytes <= 16 * 1024 * 1024 or _fatal('Agenda task file is too large');
+            if (index($line, $record) >= 0) {
+                $already_appended = 1;
+                last;
+            }
+        }
+    }
+    if (!$already_appended) {
+        my $prefix = q{};
+        if ($st[7]) {
+            seek($fh, -1, 2) or _fatal("cannot inspect Agenda task file ending: $!");
+            my $last = q{};
+            sysread($fh, $last, 1) == 1 or _fatal("cannot inspect Agenda task file ending: $!");
+            $prefix = "\n" if $last ne "\n";
+            seek($fh, 0, 2) or _fatal("cannot seek Agenda task file: $!");
+        }
+        print {$fh} encode('UTF-8', $prefix) . $record
+            or _fatal("cannot append Agenda task: $!");
+        $fh->flush && $fh->sync or _fatal("cannot flush Agenda task: $!");
+    }
+    close $fh or _fatal("cannot close Agenda task file: $!");
+
+    seek($ledger, 0, 2) or _fatal("cannot seek Agenda source ledger: $!");
+    print {$ledger} "$stem\tdone\n" or _fatal("cannot record Agenda source: $!");
+    $ledger->flush && $ledger->sync or _fatal("cannot flush Agenda source ledger: $!");
+    close $ledger or _fatal("cannot close Agenda source ledger: $!");
+    close $lock or _fatal("cannot close Agenda task lock: $!");
     return;
 }
 

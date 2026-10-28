@@ -71,6 +71,7 @@ profile tomat /{usr/bin/tomat,usr/local/libexec/labwc-tomat-hook} flags=(attach_
   owner @{HOME}/.cache/tomat/{,**} rw,
   owner /run/user/[0-9]*/ r,
   owner /run/user/[0-9]*/systemd/private rw,
+  owner /run/user/[0-9]*/labwc-tomat-control.lock rwk,
   owner /run/user/[0-9]*/wayland-[0-9]* rw,
   owner /run/user/[0-9]*/labwc-tomat/{,**} rwk,
   owner @{PROC}/[0-9]*/{cgroup,stat,status} r,

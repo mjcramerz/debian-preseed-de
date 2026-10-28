@@ -303,7 +303,7 @@ Every 2 weeks, Monthly, Every 2 months, Quarterly and Yearly. A shared preset
 table supplies both GTK choices and RRULE serialization. Weekdays uses
 Monday–Friday; Weekends uses Saturday–Sunday. Their initial start date must
 match the selected days. A recurring task requires DTSTART; its reminder uses
-DUE, or DTSTART when there is no DUE. Monthly/yearly rules skip nonexistent
+DTSTART. A non-recurring task with no start uses DUE. Monthly/yearly rules skip nonexistent
 dates instead of moving a January 31 or February 29 occurrence to another day.
 Recurrence remains anchored in the chosen named timezone across offset changes.
 Timed recurring writes include a bounded VTIMEZONE covering the start year
@@ -382,6 +382,9 @@ Ethernet's route metric stays **100**, and Wi-Fi's stays **200**, for both addre
 families. Thus connected Ethernet has route preference. Link availability alone
 does not prove that the Ethernet path can reach the Internet; this change does
 not implement connectivity-based failover between simultaneously connected links.
+Carrier reconciliation is event-driven: the udev rule matches only the configured
+host Ethernet interface and a `carrier` value of `0` or `1`; no periodic carrier
+timer is installed, and application veth interfaces cannot trigger the service.
 
 No reboot, radio, NetworkManager, route or graphical operation was run on the
 development host. Historical manual-radio reports describe older snapshots.

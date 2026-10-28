@@ -348,6 +348,13 @@ def run(action: str, env: dict) -> int:
             widgets[key] = widget
             if entry and entry.get('recurring') and key in {'start', 'end', 'due', 'timezone'}:
                 widget.set_sensitive(False)
+        content.add(Gtk.Label(label='Description', xalign=0))
+        description = Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR)
+        description.get_buffer().set_text(defaults['description'])
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_min_content_height(150)
+        scroll.add(description)
+        content.add(scroll)
         row = len(names)
         grid.attach(Gtk.Label(label='Recurrence', xalign=0), 0, row, 1, 1)
         recurrence = Gtk.ComboBoxText()
@@ -382,19 +389,6 @@ def run(action: str, env: dict) -> int:
 
         phone.connect('toggled', phone_toggled)
         phone_toggled()
-        note = Gtk.Label(label='Phone reminders stay on this computer. First reminder is before the event start\n'
-                         'or task due date (start if no due date). Intervals repeat up to that time.\n'
-                         'All-day reminders use midnight. Recurring tasks require a start date.\n'
-                         'Monthly/yearly recurrence skips dates absent from a month or year.', xalign=0)
-        note.set_line_wrap(True)
-        content.add(note)
-        content.add(Gtk.Label(label='Description', xalign=0))
-        description = Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR)
-        description.get_buffer().set_text(defaults['description'])
-        scroll = Gtk.ScrolledWindow()
-        scroll.set_min_content_height(150)
-        scroll.add(description)
-        content.add(scroll)
         if entry and entry.get('recurring'):
             content.add(Gtk.Label(label='Recurring series: edit the series details. Dates and individual exceptions stay unchanged.'))
         dialog.show_all()

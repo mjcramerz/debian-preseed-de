@@ -15,6 +15,8 @@ KillMode=control-group
 Type=dbus
 BusName=org.freedesktop.secrets
 ExecCondition=/usr/local/libexec/labwc-session-check session-ready
+# Let Labwc, Waybar and the portal stack settle before KWallet can prompt.
+ExecStartPre=/usr/bin/sleep 5s
 Environment=QT_QPA_PLATFORM=wayland
 Environment=QT_NO_XDG_DESKTOP_PORTAL=1
 ExecStart=/usr/bin/ksecretd

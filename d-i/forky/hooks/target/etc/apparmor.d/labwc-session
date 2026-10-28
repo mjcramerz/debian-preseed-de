@@ -247,9 +247,16 @@ profile ksecretd /usr/bin/ksecretd flags=(attach_disconnected, mediate_deleted) 
 
 profile session-controls /usr/bin/{kanshi,swaybg,swayidle,swaylock,wlr-randr,wlrctl,wlopm,wdisplays,pavucontrol,labwc-tweaks,nwg-look,qt6ct,wayscriber,mako,makoctl,grim,slurp,wl-copy,wl-paste} flags=(attach_disconnected, mediate_deleted) {
   /dev/tty rw,
+  # Labwc Tweaks uses the compositor inspection API. Keep this capability in
+  # the shared desktop-control profile so the packaged helper is not denied
+  # before its existing peer-scoped ptrace rule is evaluated.
+  capability sys_ptrace,
   /proc/version r,
   /etc/magic r,
   owner @{PROC}/[0-9]*/mountinfo r,
+  # Wayscriber starts its overlay from the daemon executable and reads the
+  # inherited environment through /proc. Same-UID ownership is mandatory.
+  owner @{PROC}/[0-9]*/environ r,
   signal (receive) set=(hup) peer=desktop-launcher,
   # Labwc Tweaks applies input changes by asking the running compositor to
   # reload its user-owned rc.xml.  The executable remains confined to this

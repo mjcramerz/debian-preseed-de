@@ -5,5 +5,5 @@
       <action name="Execute" command="/usr/local/libexec/whisper-record-toggle toggle" />
     </keybind>
     <keybind key="W-S-r">
-      <action name="Reconfigure" />
+      <action name="Execute" command="/usr/local/libexec/whisper-record-toggle toggle" />
     </keybind>

@@ -335,7 +335,10 @@ class AppArmorWiringTests(unittest.TestCase):
         self.assertIn("'/usr/local/libexec/labwc-calendar-worker', '--reminders'", source)
         profiles = read_text(TARGET / 'etc/apparmor.d/desktop-wrappers.tmpl')
         plans = profiles.split('profile labwc-plans ', 1)[1].split('\n}\n', 1)[0]
-        self.assertIn('rPx -> labwc-calendar-worker,', plans)
+        # The user service keeps NoNewPrivileges enabled. Inheriting the
+        # already-confined plans profile avoids the denied privilege-changing
+        # transition while retaining the worker's required permissions there.
+        self.assertIn('/usr/local/libexec/labwc-calendar-worker rix,', plans)
         worker = read_text(TARGET / 'etc/apparmor.d/calendars').split(
             'profile labwc-calendar-worker ', 1)[1].split('\n}\n', 1)[0]
         self.assertIn('  /etc/labwc/plans.conf r,', worker)

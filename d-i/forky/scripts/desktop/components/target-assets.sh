@@ -657,6 +657,8 @@ if len(source) > 16384 or re.search(rb"__[A-Z][A-Z0-9_]{2,}__", source):
   desktop_stage_role_asset etc/skel-desktop/.config/nvim/init.lua /etc/skel-desktop/.config/nvim/init.lua 0644
   desktop_stage_role_asset etc/skel-desktop/.config/qalculate/qalc.cfg /etc/skel-desktop/.config/qalculate/qalc.cfg 0644
   desktop_stage_role_asset etc/skel-desktop/.config/qalculate/qalculate-qt.cfg /etc/skel-desktop/.config/qalculate/qalculate-qt.cfg 0644
+  install -d -m 0700 /target/etc/skel-desktop/.config/lxqt
+  desktop_stage_role_asset etc/skel-desktop/.config/lxqt/filedialog.conf /etc/skel-desktop/.config/lxqt/filedialog.conf 0644
   install -d -m 0700 /target/etc/skel-desktop/.config/xarchiver
   desktop_render_role_target_template \
     etc/skel-desktop/.config/xarchiver/xarchiverrc \
