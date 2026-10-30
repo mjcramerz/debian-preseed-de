@@ -1387,7 +1387,7 @@ fc9d5cccf50ac64e536a638dc21fdb8859e9af8ff781e226e3c7fa025ece4de9  hooks/target/u
 5870908e4deb6940d848b6ab7c70f821084fce8c077206cb7cd933293198c1d5  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/greeter.py
 c190570abbb7bfab70445c6f983e17a0bf01ba3773aaf7151b4366d227d155c9  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/icon_catalog.py
 36c26b7e38a58d7673c9ab2413969284f07fdd292220101a68a9f5bf4c7a7e21  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/native.py
-2def7b7e3b118725708f852530e86cf826af4daae93950f038b449d6d4dafcfd  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/service.py
+91e164fd8e8a9766c73117d3604d9915bf45b3294cb2b814bd5b62ce9c46d537  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/service.py
 75afc58ae4d65001656fb02648a533d4f3998faed117e3380e2822d0da9943b0  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/theme_archive.py
 a7e9405096e11ecc70753bad8cb61734bcb6452ed794a26cb5950ea17f0874da  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/theme_assets.py
 0274dc09ab2a1f06e3616ad11cac7d7fb0169c812483e229279ba055056a56d9  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/theme_install.py
@@ -1542,10 +1542,10 @@ b10db84332bfd052a0ab4007369b08da05607629f500ca5e9193f7faa49d019d  hooks/target/u
 e69053457f17f2d014894a0191fd53ba1b3f1fcd3628f5e9ff6950812991bc21  hooks/target/usr/local/libexec/labwc-tomat-overlay.tmpl
 f773e2ffcbddb7addfbe4fa0d53de1e8a60855ca1401811b79d34244d936c269  hooks/target/usr/local/libexec/labwc-tomat.tmpl
 9f4591f8b36c312a8cec2787beba4aa963ec0abac406065538ef8cbd7834a2f6  hooks/target/usr/local/libexec/labwc-wallpaper-control
-5bd7b2a0a4a92eb2c1109f93748aa3e9debb3936743ada760bdd19c00dcede01  hooks/target/usr/local/libexec/labwc-waybar-battery
+a3b18d42068a120bf5ede107a9a585b3bd065713be0c703ddce929fb7952514b  hooks/target/usr/local/libexec/labwc-waybar-battery
 93716c56c0bf645db4db9d828a8a8b235944d6f1112f5ebd34fa9e0eb98a6bc4  hooks/target/usr/local/libexec/labwc-waybar-events.tmpl
-b77612afca7ac9573e5014ac2f835e6761f82f92430320c0e4438cd06f542d15  hooks/target/usr/local/libexec/labwc-waybar-exec
-dc2396caca817c00a2f9a24c280f95999bee7eabb00d0d420cdedef80d8be2f9  hooks/target/usr/local/libexec/labwc-waybar-run
+085428b042e28d81a22603a91556402fe24588deb9b1b2b756fa8f688c50efa0  hooks/target/usr/local/libexec/labwc-waybar-exec
+f5e28d253616764a00fae9b47cb653167a2107511c32a7dfbc2485eb1ae20195  hooks/target/usr/local/libexec/labwc-waybar-run
 6cc2c759ae91f92e71325e9a73cb649896a600254de2910b3470179b09e0bbf7  hooks/target/usr/local/libexec/labwc-waycal-control
 5e1cca02c1dde74be5cadbe4593fa62c854c62ce44a49af2fb54d3b348510b39  hooks/target/usr/local/libexec/labwc-waycal-popup
 00dce566c75aed78c5bb89914df51677f5e49f5b374bce8a40703f66ccf5317b  hooks/target/usr/local/libexec/labwc-wrap-desktop-files

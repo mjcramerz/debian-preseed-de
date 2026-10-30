@@ -21,6 +21,10 @@ COMMANDS = {
     ("/usr/local/bin/labwc-bluetooth", "status"),
     ("/usr/local/bin/labwc-keyboard-layout", "status"),
 }
+BLOCKED_ENVIRONMENT = (
+    "LD_PRELOAD", "LD_AUDIT", "LD_LIBRARY_PATH", "PYTHONPATH", "PYTHONHOME",
+    "GI_TYPELIB_PATH", "GIO_MODULE_DIR", "GTK_MODULES", "DISPLAY", "XAUTHORITY",
+)
 
 
 def command(arguments: list[str]) -> tuple[str, ...]:
@@ -37,8 +41,9 @@ def command(arguments: list[str]) -> tuple[str, ...]:
 
 def close_inherited_fds() -> None:
     # CPython implements closerange with the kernel close_range/closefrom fast
-    # path where available; the high endpoint closes every inherited fd.
-    os.closerange(3, sys.maxsize)
+    # path where available. This API takes a C int; sys.maxsize overflows on
+    # 64-bit Python. Linux descriptors are strictly below this INT_MAX bound.
+    os.closerange(3, 2147483647)
 
 
 def main(arguments: list[str]) -> None:
@@ -47,7 +52,9 @@ def main(arguments: list[str]) -> None:
         raise ValueError("status helpers require an unprivileged desktop user")
     close_inherited_fds()
     # Fixed argv, no shell expansion, no eval, no command or profile override.
-    os.execv(argv[0], argv)
+    environment = {key: value for key, value in os.environ.items()
+                   if key not in BLOCKED_ENVIRONMENT}
+    os.execve(argv[0], argv, environment)
 
 
 if __name__ == "__main__":

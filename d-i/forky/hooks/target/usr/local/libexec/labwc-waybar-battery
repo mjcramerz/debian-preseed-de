@@ -107,10 +107,17 @@ def watch(root: Path = POWER) -> int:
     def stop(_signum, _frame):
         nonlocal stopped
         stopped = True
-    for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
-        signal.signal(signum, stop)
+    # A signal handler alone cannot interrupt select reliably: Python retries
+    # interrupted waits. Wake through a private pipe instead of ticking once a
+    # second solely to notice shutdown. No subprocess or writable state file.
+    wake_read, wake_write = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
+    previous_wakeup = None
+    previous_handlers = {}
     monitor = None
     try:
+        previous_wakeup = signal.set_wakeup_fd(wake_write, warn_on_full_buffer=False)
+        for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+            previous_handlers[signum] = signal.signal(signum, stop)
         try:
             monitor = socket.socket(socket.AF_NETLINK, socket.SOCK_DGRAM | socket.SOCK_CLOEXEC, 15)
             monitor.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 131072)
@@ -131,9 +138,17 @@ def watch(root: Path = POWER) -> int:
                     print(rendered, flush=True)
                     last = rendered
                 last_scan, due = now, now + 60
-            timeout = min(1.0, max(0.0, max(due, last_scan + 1) - time.monotonic()))
-            readable, _, _ = select.select([monitor] if monitor is not None else [], [], [], timeout)
-            if readable:
+            timeout = max(0.0, max(due, last_scan + 1) - time.monotonic())
+            readers = [wake_read, monitor] if monitor is not None else [wake_read]
+            readable, _, _ = select.select(readers, [], [], timeout)
+            if stopped:
+                break
+            if wake_read in readable:
+                try:
+                    os.read(wake_read, 4096)
+                except BlockingIOError:
+                    pass
+            if monitor is not None and monitor in readable:
                 # Bound work per pass so an event storm cannot starve signals.
                 for _ in range(32):
                     try:
@@ -156,6 +171,12 @@ def watch(root: Path = POWER) -> int:
     finally:
         if monitor is not None:
             monitor.close()
+        if previous_wakeup is not None:
+            signal.set_wakeup_fd(previous_wakeup)
+        for signum, handler in previous_handlers.items():
+            signal.signal(signum, handler)
+        os.close(wake_read)
+        os.close(wake_write)
 
 
 if __name__ == "__main__":

@@ -247,7 +247,7 @@ class BatteryWatchTests(unittest.TestCase):
         cls.module = load_fixture('usr/local/libexec/labwc-waybar-battery', 'waybar_battery_watch_fixture')
 
     def test_kernel_events_reconcile_without_reemitting_unchanged_output(self):
-        handlers, now, passes = {}, [100.0], [0]
+        handlers, now, passes, waits = {}, [100.0], [0], []
         packets = deque([(b'SUBSYSTEM=power_supply\0', [], 0, (123, 1)),
                          (b'SUBSYSTEM=power_supply\0', [], 0, (0, 1))])
         monitor = mock.Mock()
@@ -257,7 +257,9 @@ class BatteryWatchTests(unittest.TestCase):
             raise BlockingIOError
         monitor.recvmsg.side_effect = receive
         def wait(_read, _write, _except, timeout):
-            self.assertLessEqual(timeout, 1)
+            self.assertEqual(_read, [71, monitor])
+            self.assertLessEqual(timeout, 60)
+            waits.append(timeout)
             passes[0] += 1
             now[0] += 1
             if passes[0] >= 3:
@@ -265,6 +267,9 @@ class BatteryWatchTests(unittest.TestCase):
             return ([monitor] if passes[0] == 1 else [], [], [])
         stream = io.StringIO()
         with mock.patch.object(self.module.signal, 'signal', side_effect=lambda sig, fn: handlers.update({sig: fn})), \
+             mock.patch.object(self.module.signal, 'set_wakeup_fd', return_value=-1) as wakeup, \
+             mock.patch.object(self.module.os, 'pipe2', return_value=(71, 72)), \
+             mock.patch.object(self.module.os, 'close') as close, \
              mock.patch.object(self.module.socket, 'socket', return_value=monitor), \
              mock.patch.object(self.module.select, 'select', side_effect=wait), \
              mock.patch.object(self.module.time, 'monotonic', side_effect=lambda: now[0]), \
@@ -273,6 +278,9 @@ class BatteryWatchTests(unittest.TestCase):
             self.assertEqual(self.module.watch(Path('/inert-fixture-only')), 0)
         self.assertEqual(output.call_count, 2)
         self.assertEqual(len(stream.getvalue().splitlines()), 1)
+        self.assertEqual(waits[0], 60)
+        self.assertEqual(wakeup.call_args_list, [mock.call(72, warn_on_full_buffer=False), mock.call(-1)])
+        self.assertEqual(close.call_args_list, [mock.call(71), mock.call(72)])
         monitor.close.assert_called_once()
 
     def test_missing_event_socket_uses_bounded_reconciliation_and_closes_partial_socket(self):
@@ -280,21 +288,27 @@ class BatteryWatchTests(unittest.TestCase):
         monitor = mock.Mock()
         monitor.bind.side_effect = OSError('inert fixture denial')
         def wait(readers, _write, _except, timeout):
-            self.assertEqual(readers, [])
-            self.assertLessEqual(timeout, 1)
+            self.assertEqual(readers, [71])
+            self.assertEqual(timeout, 60)
             passes[0] += 1
-            now[0] += 1
-            if passes[0] == 3:
+            now[0] += timeout
+            if passes[0] == 2:
                 handlers[signal.SIGHUP](signal.SIGHUP, None)
-            return [], [], []
+            return [71], [], []
         with mock.patch.object(self.module.signal, 'signal', side_effect=lambda sig, fn: handlers.update({sig: fn})), \
+             mock.patch.object(self.module.signal, 'set_wakeup_fd', return_value=-1) as wakeup, \
+             mock.patch.object(self.module.os, 'pipe2', return_value=(71, 72)), \
+             mock.patch.object(self.module.os, 'read', return_value=b'\0'), \
+             mock.patch.object(self.module.os, 'close') as close, \
              mock.patch.object(self.module.socket, 'socket', return_value=monitor), \
              mock.patch.object(self.module.select, 'select', side_effect=wait), \
              mock.patch.object(self.module.time, 'monotonic', side_effect=lambda: now[0]), \
              mock.patch.object(self.module, 'output', return_value={'text': '50%'}) as output, \
              redirect_stdout(io.StringIO()):
             self.assertEqual(self.module.watch(Path('/inert-fixture-only')), 0)
-        self.assertEqual(output.call_count, 1)
+        self.assertEqual(output.call_count, 2)
+        self.assertEqual(wakeup.call_args_list, [mock.call(72, warn_on_full_buffer=False), mock.call(-1)])
+        self.assertEqual(close.call_args_list, [mock.call(71), mock.call(72)])
         monitor.close.assert_called_once()
 
 

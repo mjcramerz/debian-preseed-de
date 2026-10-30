@@ -208,6 +208,47 @@ esac
                 self.assertIn('labwc-window-switcher', result.stderr)
 
 
+class WaybarDescriptorFixtures(unittest.TestCase):
+    """Mock the descriptor syscall; never close a fixture runner descriptor."""
+
+    def test_both_wrappers_use_a_valid_c_int_endpoint_without_procfs(self):
+        for name in ('labwc-waybar-run', 'labwc-waybar-exec'):
+            helper = load_helper(name)
+            def closerange(first, end):
+                # Model CPython's argument conversion, which rejects
+                # sys.maxsize on the 64-bit target before calling close_range.
+                if not -(2**31) <= end <= 2**31 - 1:
+                    raise OverflowError('Python int too large to convert to C int')
+                self.assertEqual(first, 3)
+                self.assertEqual(end, 2**31 - 1)
+            with self.subTest(helper=name), \
+                    mock.patch.object(helper.os, 'closerange', side_effect=closerange) as close, \
+                    mock.patch.object(helper.os, 'listdir', side_effect=AssertionError('procfs discovery')):
+                helper.close_inherited_fds()
+            close.assert_called_once()
+
+    def test_exec_wrapper_removes_loader_and_gui_injection_variables(self):
+        helper = load_helper('labwc-waybar-exec')
+        captured = {}
+        with mock.patch.object(helper, 'command', return_value=('/usr/local/libexec/labwc-waybar-battery',)), \
+                mock.patch.object(helper, 'close_inherited_fds'), \
+                mock.patch.object(helper.os, 'getuid', return_value=1000), \
+                mock.patch.object(helper.os, 'geteuid', return_value=1000), \
+                mock.patch.object(helper.os, 'execve', side_effect=lambda path, argv, env: captured.update(
+                    path=path, argv=argv, env=env)), \
+                mock.patch.dict(helper.os.environ, {
+                    'LD_PRELOAD': '/tmp/fixture.so', 'PYTHONPATH': '/tmp/fixture',
+                    'GTK_MODULES': 'fixture', 'DISPLAY': ':99', 'WAYLAND_DISPLAY': 'wayland-0',
+                }, clear=True):
+            helper.main(['labwc-waybar-battery'])
+        self.assertEqual(captured['argv'], ('/usr/local/libexec/labwc-waybar-battery',))
+        self.assertNotIn('LD_PRELOAD', captured['env'])
+        self.assertNotIn('PYTHONPATH', captured['env'])
+        self.assertNotIn('GTK_MODULES', captured['env'])
+        self.assertNotIn('DISPLAY', captured['env'])
+        self.assertEqual(captured['env']['WAYLAND_DISPLAY'], 'wayland-0')
+
+
 class WaybarSeparationFixtures(unittest.TestCase):
     """Source-only cases; native execution remains prohibited."""
 

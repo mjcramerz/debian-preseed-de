@@ -24,6 +24,11 @@ def dock_start() -> None:
 
 def refresh(components: set[str]) -> list[str]:
     warnings = []
+    # Icon selection changes taskbar JSON and menu CSS. Publish first, then
+    # reload the active panel once, including combined/reset-all selections.
+    components = set(components)
+    if 'icon' in components:
+        components.add('waybar')
     # systemd knows each exact unit/main PID. A failed liveness probe after
     # commit is a refresh warning, not an assertion that file publication failed.
     actions = (
@@ -41,6 +46,8 @@ def refresh(components: set[str]) -> list[str]:
             continue
         if component == 'taskview' and 'waybar' in components:
             continue
+        if component == 'pointer' and 'theme' in components:
+            continue  # Both settings use the same compositor SIGHUP.
         try:
             if active(unit):
                 if component == 'mako':

@@ -30,6 +30,10 @@ ALIASES = {
     "labwc-terminal": "/usr/local/bin/labwc-terminal",
     "pavucontrol": "/usr/bin/pavucontrol",
 }
+BLOCKED_ENVIRONMENT = (
+    "LD_PRELOAD", "LD_AUDIT", "LD_LIBRARY_PATH", "PYTHONPATH", "PYTHONHOME",
+    "GI_TYPELIB_PATH", "GIO_MODULE_DIR", "GTK_MODULES", "DISPLAY", "XAUTHORITY",
+)
 
 
 def normalize_command(arguments: list[str]) -> tuple[tuple[str, ...], str | None]:
@@ -139,7 +143,8 @@ def session_environment() -> dict[str, str]:
             or not stat.S_ISSOCK(bus_info.st_mode) or bus_info.st_uid != uid
             or bus_info.st_nlink != 1):
         raise ValueError("unsafe desktop runtime")
-    environment = dict(os.environ)
+    environment = {key: value for key, value in os.environ.items()
+                   if key not in BLOCKED_ENVIRONMENT}
     environment["XDG_RUNTIME_DIR"] = str(runtime)
     environment["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=" + str(bus)
     return environment
@@ -179,8 +184,10 @@ def close_inherited_fds() -> None:
     # denied by the wrapper's AppArmor profile, that race can observe the
     # directory descriptor used by listdir itself.  CPython implements
     # closerange with the kernel close_range/closefrom fast path where
-    # available, and sys.maxsize closes the complete descriptor range.
-    os.closerange(3, sys.maxsize)
+    # available. The endpoint is a C int, not Py_ssize_t: sys.maxsize would
+    # overflow on 64-bit Python before any descriptor could be closed.
+    # Linux file descriptors are below INT_MAX on every supported target.
+    os.closerange(3, 2147483647)
 
 
 def main(arguments: list[str]) -> None:

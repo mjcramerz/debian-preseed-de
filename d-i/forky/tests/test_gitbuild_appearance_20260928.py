@@ -757,6 +757,33 @@ class PaletteTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             engine.validate_state(previous)
 
+    def test_icon_change_reloads_waybar_once_without_mutating_the_selection(self):
+        for selected in ({'icon'}, {'icon', 'waybar', 'taskview'}):
+            before = set(selected)
+            with self.subTest(components=selected), \
+                    mock.patch.object(service, 'active', return_value=True) as active, \
+                    mock.patch.object(service, 'checked') as command:
+                self.assertEqual(service.refresh(selected), [])
+            self.assertEqual(selected, before)
+            active.assert_called_once_with('waybar.service')
+            command.assert_called_once_with(
+                ['/usr/bin/systemctl', '--user', 'reload', 'waybar.service'], timeout=45)
+
+    def test_theme_and_pointer_refresh_share_one_compositor_signal(self):
+        with mock.patch.object(service, 'active', return_value=True) as active, \
+                mock.patch.object(service, 'checked') as command:
+            self.assertEqual(service.refresh({'theme', 'pointer'}), [])
+        active.assert_called_once_with('labwc-compositor.service')
+        command.assert_called_once_with(
+            ['/usr/bin/systemctl', '--user', 'kill', '--kill-whom=main', '--signal=SIGHUP',
+             'labwc-compositor.service'], timeout=45)
+
+    def test_icon_refresh_failure_is_a_warning_and_does_not_retry(self):
+        with mock.patch.object(service, 'active', return_value=True), \
+                mock.patch.object(service, 'checked', side_effect=RuntimeError('fixture reload failure')) as command:
+            self.assertEqual(service.refresh({'icon', 'waybar'}), ['fixture reload failure'])
+        command.assert_called_once()
+
     def test_refresh_failure_after_commit_returns_warning(self):
         with mock.patch.object(service, 'active', side_effect=subprocess.TimeoutExpired('fixture-systemctl', 15)), \
                 mock.patch.object(service, 'checked') as command:
