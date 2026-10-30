@@ -2079,12 +2079,17 @@ for config in config_roots:
         launcher = bar["custom/launcher"]
         require(launcher.get("cursor") is True, "main menu launcher must expose an interaction cursor")
         launcher_command = shlex.split(launcher.get("on-click-release", ""))
-        require(launcher_command and launcher_command[0] == "/usr/bin/systemd-run" and "--" in launcher_command
+        require(launcher_command and launcher_command[0] == "/usr/local/libexec/labwc-waybar-run"
+                and "--" in launcher_command
+                and "--output-class=" + str(bar["name"]).upper() in launcher_command[:launcher_command.index("--")]
                 and launcher_command[launcher_command.index("--") + 1:] == ["/usr/local/bin/labwc-main-menu"],
-                "main menu launcher must use the fixed installed entrypoint")
+                "main menu launcher must use the bounded Waybar runner")
         click = bar["custom/window-switcher"].get("on-click-release", "")
-        require(click.endswith(" -- /usr/local/bin/labwc-window-switcher") and "--property=KillMode=control-group" in click
-                and "--property=PartOf=labwc-session.target" in click, "native switcher launch contract changed")
+        click_command = shlex.split(click)
+        require(click_command and click_command[0] == "/usr/local/libexec/labwc-waybar-run"
+                and "--" in click_command
+                and click_command[click_command.index("--") + 1:] == ["/usr/local/bin/labwc-window-switcher"],
+                "native switcher launch contract changed")
         selected = list(bar.get("modules-left", [])) + list(bar.get("modules-center", [])) + list(bar.get("modules-right", []))
         seen = set()
         while selected:
@@ -2531,11 +2536,7 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
         wayscriber = bar["custom/wayscriber"]
         require(wayscriber.get("cursor") is True, "Wayscriber has no explicit interaction cursor")
         toggle = shlex.split(wayscriber["on-click-release"])
-        require(toggle and toggle[0] == "/usr/bin/systemd-run" and "--" in toggle,
-                "Wayscriber toggle must use the user manager")
-        require({"--no-block", "--property=RuntimeMaxSec=30s", "--property=KillMode=control-group",
-                 "--property=TimeoutStopSec=2s", "--property=StandardInput=null"}
-                <= set(toggle[:toggle.index("--")])
+        require(toggle and toggle[0] == "/usr/local/libexec/labwc-waybar-run" and "--" in toggle
                 and toggle[toggle.index("--") + 1:] == ["/usr/local/bin/labwc-wayscriber-toggle"],
                 "Wayscriber toggle has an unbounded or incorrect backend")
         require("on-click" not in bar["custom/keyboard"]
@@ -2573,18 +2574,9 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
             if name in ("tomat", "audio", "notifications", "bluetooth"):
                 secondary_key = "on-click-right-release" if name == "bluetooth" else "on-click-right"
                 click = shlex.split(entry.get(secondary_key, ""))
-                require(click and click[0] == "/usr/bin/systemd-run" and "--" in click,
-                        "missing scoped secondary click: " + name)
-                required_click_options = {"--user", "--collect", "--service-type=exec",
-                    "--expand-environment=no", "--slice=app.slice",
-                    "--property=Requisite=labwc-session.target",
-                    "--property=After=labwc-session.target",
-                    "--property=PartOf=labwc-session.target",
-                    "--property=ExitType=cgroup", "--property=KillMode=control-group",
-                    "--property=TimeoutStopSec=20s"}
-                require(required_click_options <= set(click[1:click.index("--")])
+                require(click and click[0] == "/usr/local/libexec/labwc-waybar-run" and "--" in click
                         and "__INSTALLER_" not in entry[secondary_key],
-                        "unscoped secondary click: " + name)
+                        "missing scoped secondary click: " + name)
                 expected_click = {"tomat": ["/usr/local/libexec/labwc-tomat", "toggle"],
                                   "notifications": ["/usr/local/libexec/labwc-notifications", "dnd-dismiss"]}.get(name)
                 if name == "bluetooth":
@@ -2633,18 +2625,11 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
             ids = [item.get("id") for item in leaves]
             actions = entry.get("menu-actions", {})
             require(len(ids) == len(set(ids)) and set(ids) == set(actions), "menu/action IDs differ: " + name)
-            required_options = {
-                "--user", "--collect", "--no-block", "--service-type=exec", "--expand-environment=no",
-                "--slice=app.slice", "--property=Requisite=labwc-session.target",
-                "--property=After=labwc-session.target", "--property=PartOf=labwc-session.target",
-                "--property=ExitType=cgroup", "--property=KillMode=control-group",
-                "--property=TimeoutStartSec=10s", "--property=TimeoutStopSec=20s"}
             for action_id, action in actions.items():
                 argv = shlex.split(action)
-                require(argv and argv[0] == "/usr/bin/systemd-run" and "--" in argv,
-                        "native menu action must use the user manager")
-                require(required_options <= set(argv[1:argv.index("--")])
-                        and "__INSTALLER_" not in action, "blocking/unscoped/unresolved menu action")
+                require(argv and argv[0] == "/usr/local/libexec/labwc-waybar-run"
+                        and argv.count("--") == 1 and "__INSTALLER_" not in action,
+                        "native menu action must use the bounded Waybar runner")
                 if name == "system":
                     require(argv[argv.index("--") + 1:] ==
                             ["/usr/local/bin/labwc-system-menu-action", action_id],
@@ -2877,6 +2862,7 @@ require(re.match(r"systemd 262(?:\s|$)", version) is not None, "the target syste
 # is missing, writable by another identity, unresolved or staged with bad modes.
 for filename, mode in (
         ("/usr/local/libexec/labwc-waybar-exec", 0o755),
+        ("/usr/local/libexec/labwc-waybar-run", 0o755),
         ("/usr/local/libexec/labwc-waybar-battery", 0o755),
         ("/usr/local/libexec/labwc-waybar-events", 0o755),
         ("/usr/local/bin/labwc-capture", 0o755),

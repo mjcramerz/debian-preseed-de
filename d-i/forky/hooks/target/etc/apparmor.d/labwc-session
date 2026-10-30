@@ -119,6 +119,7 @@ profile waybar /usr/{bin/waybar,local/libexec/labwc-waybar-exec} flags=(attach_d
   # Click callbacks dispatch through this user manager, not panel-owned children.
   owner /run/user/[0-9]*/systemd/private rw,
   /usr/local/bin/labwc-system-menu-action rPx -> labwc-system-menu-action,
+  /usr/local/libexec/labwc-waybar-run rPx -> labwc-waybar-run,
   # Keep direct/future panel btop launches in the dedicated monitor domain;
   # the current click path still uses the transient terminal service.
   /usr/bin/btop rPx -> desktop-btop,
@@ -153,6 +154,21 @@ profile waybar /usr/{bin/waybar,local/libexec/labwc-waybar-exec} flags=(attach_d
   signal (receive) set=(rtmin+9) peer=unconfined,
   signal (send) set=(chld) peer=unconfined,
   include if exists <local/usr.bin.waybar>
+}
+
+profile labwc-waybar-run /usr/local/libexec/labwc-waybar-run flags=(attach_disconnected) {
+  # The action wrapper owns only fixed systemd-run policy. The transient
+  # service receives its own executable attachment after the user manager
+  # starts it; this profile never executes a caller-supplied program itself.
+  #include <abstractions/wrapper-python>
+  #include <abstractions/dbus-session-strict>
+  /usr/local/libexec/labwc-waybar-run rix,
+  /usr/local/lib/python3.14/dist-packages/ r,
+  /usr/bin/systemd-run rix,
+  owner /run/user/[0-9]*/{bus,systemd/private} rw,
+  signal (receive) set=(int, term, hup, kill) peer=unconfined,
+  signal (send) set=(chld) peer=waybar,
+  include if exists <local/usr.local.libexec.labwc-waybar-run>
 }
 
 profile labwc-waybar-events /usr/local/libexec/labwc-waybar-events flags=(attach_disconnected) {

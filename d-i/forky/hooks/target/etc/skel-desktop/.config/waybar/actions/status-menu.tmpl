@@ -5,7 +5,7 @@
     "format": "<span foreground='__THEME_WAYBAR_BUTTON_BACKLIGHT_AVAILABLE_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BACKLIGHT_AVAILABLE_ICON_GLYPH__</span> {percent}%",
     "tooltip-format": "Display brightness {percent}%\nScroll or use the brightness keys to adjust",
     "tooltip": true,
-    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --unit=labwc-brightness-menu --description=Labwc-brightness-menu --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ menu",
+    "on-click-release": "/usr/local/libexec/labwc-waybar-run -- __INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ menu",
     "on-scroll-up": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ up",
     "on-scroll-down": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ down"
   },

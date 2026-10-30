@@ -82,13 +82,6 @@ class MenuContractTests(unittest.TestCase):
                 self.assertEqual(taskbar['on-click-middle'], 'close')
 
     def test_all_82_actions_are_nonblocking_and_session_owned(self):
-        options = {'--user', '--collect', '--no-block', '--service-type=exec',
-                   '--expand-environment=no', '--slice=app.slice',
-                   '--property=Requisite=labwc-session.target',
-                   '--property=After=labwc-session.target',
-                   '--property=PartOf=labwc-session.target',
-                   '--property=ExitType=cgroup', '--property=KillMode=control-group',
-                   '--property=TimeoutStartSec=10s', '--property=TimeoutStopSec=20s'}
         count = 0
         for bar in bars():
             for module, name, event in MODULES:
@@ -109,12 +102,9 @@ class MenuContractTests(unittest.TestCase):
                 self.assertEqual({node.get('id') for node in leaves}, set(entry['menu-actions']))
                 for action in entry['menu-actions'].values():
                     argv = shlex.split(action)
-                    self.assertEqual(argv[0], '/usr/bin/systemd-run')
+                    self.assertEqual(argv[0], '/usr/local/libexec/labwc-waybar-run')
                     boundary = argv.index('--')
-                    self.assertTrue(options <= set(argv[1:boundary]))
-                    self.assertNotIn('--wait', argv)
-                    self.assertNotIn('--pipe', argv)
-                    self.assertNotIn('--scope', argv)
+                    self.assertEqual(argv[:boundary], ['/usr/local/libexec/labwc-waybar-run'])
                     self.assertGreater(len(argv[boundary + 1:]), 0)
                     count += 1
         self.assertEqual(count, 82)
@@ -126,12 +116,8 @@ class MenuContractTests(unittest.TestCase):
             self.assertEqual(set(entry['menu-actions']), set(CALENDAR))
             for key, action in CALENDAR.items():
                 argv = shlex.split(entry['menu-actions'][key])
+                self.assertEqual(argv[0], '/usr/local/libexec/labwc-waybar-run')
                 self.assertEqual(argv[argv.index('--') + 1:], action)
-                if action[0] == '/usr/local/libexec/labwc-calendar-actions':
-                    self.assertTrue(any(option.startswith('--property=SuccessExitStatus=2')
-                                        for option in argv[:argv.index('--')]))
-                else:
-                    self.assertNotIn('--property=SuccessExitStatus=2', argv[:argv.index('--')])
             self.assertEqual(shlex.split(entry['on-click-right-release']),
                              ['/usr/local/libexec/labwc-waycal-control', 'open'])
             self.assertNotIn('on-click-right', entry)
@@ -147,11 +133,11 @@ class MenuContractTests(unittest.TestCase):
     def test_secondary_clicks_preserve_previous_primary_actions(self):
         for bar in bars():
             tomat = shlex.split(bar['custom/tomat']['on-click-right'])
+            self.assertEqual(tomat[0], '/usr/local/libexec/labwc-waybar-run')
             self.assertEqual(tomat[tomat.index('--') + 1:], ['/usr/local/libexec/labwc-tomat', 'toggle'])
-            self.assertTrue(any(option.startswith('--unit=labwc-tomat-toggle') for option in tomat))
             audio = shlex.split(bar['pulseaudio']['on-click-right'])
+            self.assertEqual(audio[0], '/usr/local/libexec/labwc-waybar-run')
             self.assertEqual(audio[audio.index('--') + 1:], ['pavucontrol'])
-            self.assertTrue(any(option.startswith('--unit=labwc-audio-menu') for option in audio))
 
     def test_touchpad_keeps_a_physical_right_button_and_two_finger_right_tap(self):
         tree = ET.fromstring(payload_read_text(SKEL / 'labwc/rc.xml'))
@@ -222,7 +208,8 @@ class MenuContractTests(unittest.TestCase):
         function = source.split('desktop_verify_native_menus() {', 1)[1].split('\ndesktop_verify_target_staging()', 1)[0]
         for _, name, _ in MODULES:
             self.assertIn('"' + name + '"', function)
-        for text in ('menus=5', 'unwired native menu leaf', '--no-block', 'optional Whisper menu/service availability differs'):
+        for text in ('menus=5', 'unwired native menu leaf', 'bounded Waybar runner',
+                     'optional Whisper menu/service availability differs'):
             self.assertIn(text, function)
         self.assertIn('"format-alt" not in entry and "format-alt-click" not in entry', function)
         packages = payload_read_text(FORKY / 'classes/class-select/role/desktop.cfg').split()

@@ -243,9 +243,8 @@ class WaybarSeparationFixtures(unittest.TestCase):
                 self.assertEqual(set(ids), set(entry['menu-actions']))
                 for action in entry['menu-actions'].values():
                     argv = shlex.split(action)
-                    self.assertEqual(argv[0], '/usr/bin/systemd-run')
-                    self.assertIn('--property=KillMode=control-group', argv)
-                    self.assertIn('--property=PartOf=labwc-session.target', argv)
+                    self.assertEqual(argv[0], '/usr/local/libexec/labwc-waybar-run')
+                    self.assertEqual(argv[:argv.index('--')], ['/usr/local/libexec/labwc-waybar-run'])
                 count += 1
         self.assertEqual(count, 8)
 

@@ -277,16 +277,10 @@ class IntegrationContractTests(unittest.TestCase):
 
     def test_waybar_menu_keeps_transient_service_contract_and_search_keys_stay_search(self):
         text = render_theme_defaults(waybar_config_text(TARGET / 'etc/skel-desktop/.config/waybar'))
-        clicks = re.findall(r'"on-click-release": "([^"]* -- /usr/local/bin/labwc-main-menu)"', text)
+        clicks = re.findall(r'"on-click-release": "([^"]*labwc-waybar-run[^\"]* -- /usr/local/bin/labwc-main-menu)"', text)
         self.assertEqual(len(clicks), 2)
-        for click in clicks:
-            for argument in ('--user', '--collect', '--service-type=exec', '--expand-environment=no',
-                             '--property=Requisite=labwc-session.target', '--property=After=labwc-session.target',
-                             '--property=PartOf=labwc-session.target', '--property=ExitType=cgroup',
-                             '--property=KillMode=control-group', '--property=TimeoutStopSec=20s'):
-                self.assertIn(argument, click)
-        self.assertIn('--setenv=LABWC_FUZZEL_OUTPUT_CLASS=INTERNAL', clicks[0])
-        self.assertIn('--setenv=LABWC_FUZZEL_OUTPUT_CLASS=EXTERNAL', clicks[1])
+        self.assertIn('--output-class=INTERNAL', clicks[0])
+        self.assertIn('--output-class=EXTERNAL', clicks[1])
         rc = render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/labwc/rc.xml.tmpl'))
         self.assertIn('labwc-run', rc)
         import xml.etree.ElementTree as ET

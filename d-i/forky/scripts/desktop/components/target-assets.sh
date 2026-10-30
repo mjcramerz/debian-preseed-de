@@ -424,6 +424,7 @@ exec /opt/vivaldi/update-ffmpeg --system
   desktop_stage_role_asset usr/local/libexec/labwc-session-check /usr/local/libexec/labwc-session-check 0755
   desktop_stage_role_asset usr/local/libexec/labwc-primary-gpg /usr/local/libexec/labwc-primary-gpg 0755
   desktop_stage_role_asset usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-waybar-exec 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-waybar-run /usr/local/libexec/labwc-waybar-run 0755
   desktop_stage_role_asset usr/local/libexec/labwc-waybar-battery /usr/local/libexec/labwc-waybar-battery 0755
   desktop_stage_role_asset usr/local/libexec/labwc-waybar-events /usr/local/libexec/labwc-waybar-events 0755
   desktop_stage_role_asset usr/local/libexec/labwc-panel-run /usr/local/libexec/labwc-panel-run 0755

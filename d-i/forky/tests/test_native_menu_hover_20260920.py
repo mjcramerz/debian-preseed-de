@@ -114,11 +114,8 @@ class NativeMenuHoverTests(unittest.TestCase):
                         self.assertEqual(ids, set(entry['menu-actions']))
                         for command in entry['menu-actions'].values():
                             argv = shlex.split(command)
-                            self.assertEqual(argv[0], '/usr/bin/systemd-run')
-                            self.assertIn('--no-block', argv[:argv.index('--')])
-                            self.assertIn('--property=PartOf=labwc-session.target', argv)
-                            self.assertIn('--property=ExitType=cgroup', argv)
-                            self.assertIn('--property=KillMode=control-group', argv)
+                            self.assertEqual(argv[0], '/usr/local/libexec/labwc-waybar-run')
+                            self.assertEqual(argv[:argv.index('--')], ['/usr/local/libexec/labwc-waybar-run'])
                             self.assertNotIn('fixture', argv)
                             count += 1
         # The current five menus contain 41 leaf actions per bar. Keep this

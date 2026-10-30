@@ -276,12 +276,8 @@ class PanelAndWiringTests(unittest.TestCase):
                 self.assertFalse(command.startswith('/usr/bin/systemd-run'))
                 continue
             args = shlex.split(command)
-            self.assertEqual(args[:2], ['/usr/bin/systemd-run', '--user'])
-            for option in ('--collect', '--service-type=exec', '--expand-environment=no',
-                           '--property=ExitType=cgroup', '--property=KillMode=control-group',
-                           '--property=PartOf=labwc-session.target', '--property=Requisite=labwc-session.target'):
-                self.assertIn(option, args)
-            self.assertNotIn('--scope', args); self.assertNotIn('--pipe', args)
+            self.assertEqual(args[0], '/usr/local/libexec/labwc-waybar-run')
+            self.assertEqual(args[:args.index('--')], ['/usr/local/libexec/labwc-waybar-run'])
             count += 1
         # Clock right-clicks now toggle date/week formatting inside Waybar.
         # Retain exact coverage of ordinary callbacks, and require both native

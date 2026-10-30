@@ -11,7 +11,7 @@
     "align": 0.5,
     "tooltip": true,
     "tooltip-format": "Windows (F13) - select a window; Escape cancels. Alt+Tab: thumbnails",
-    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-window-switcher --description=Labwc-window-switcher --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=3s --property=RuntimeMaxSec=3s --property=TimeoutStopSec=1s --property=StandardInput=null --property=StandardOutput=null --property=StandardError=journal -- /usr/local/bin/labwc-window-switcher"
+    "on-click-release": "/usr/local/libexec/labwc-waybar-run -- /usr/local/bin/labwc-window-switcher"
   },
   "custom/wayscriber": {
     "format": " ",
@@ -20,7 +20,7 @@
     "cursor": true,
     "tooltip": true,
     "tooltip-format": "Wayscriber",
-    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=5s --property=RuntimeMaxSec=30s --property=TimeoutStopSec=2s --property=StandardInput=null --property=StandardOutput=null --property=StandardError=journal --unit=labwc-wayscriber-toggle --description=Labwc-wayscriber-toggle -- /usr/local/bin/labwc-wayscriber-toggle"
+    "on-click-release": "/usr/local/libexec/labwc-waybar-run -- /usr/local/bin/labwc-wayscriber-toggle"
   },
   "custom/apps": {
     "format": " ",

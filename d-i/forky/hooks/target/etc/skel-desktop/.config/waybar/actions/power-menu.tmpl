@@ -24,12 +24,12 @@
       "critical": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_CRITICAL_ICON_GLYPH__</span>"
     },
     "tooltip": true,
-    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --unit=labwc-power-menu --description=Labwc-power-menu --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_POWER_SETTINGS_COMMAND__"
+    "on-click-release": "/usr/local/libexec/labwc-waybar-run -- __INSTALLER_LABWC_POWER_SETTINGS_COMMAND__"
   },
   "custom/lock": {
     "format": "__THEME_WAYBAR_BUTTON_LOCK_NORMAL_ICON_GLYPH__",
     "tooltip": false,
-    "on-click": "/usr/bin/systemd-run --user --quiet --collect --unit=labwc-lock --description=Labwc-lock --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings lock"
+    "on-click": "/usr/local/libexec/labwc-waybar-run -- /usr/local/bin/labwc-power-settings lock"
   },
   "custom/power": {
     "format": "__THEME_WAYBAR_BUTTON_POWER_NORMAL_ICON_GLYPH__",
@@ -37,11 +37,11 @@
     "menu": "on-click",
     "menu-file": "~/.config/waybar/menus/power-menu.xml",
     "menu-actions": {
-      "power_lock": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-power-lock --description=Labwc-power-lock --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings lock",
-      "power_suspend": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-power-suspend --description=Labwc-power-suspend --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings suspend",
-      "power_reboot": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-power-reboot --description=Labwc-power-reboot --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings reboot",
-      "power_logout": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-power-logout --description=Labwc-power-logout --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings logout",
-      "power_shutdown": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-power-shutdown --description=Labwc-power-shutdown --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings poweroff"
+      "power_lock": "/usr/local/libexec/labwc-waybar-run -- /usr/local/bin/labwc-power-settings lock",
+      "power_suspend": "/usr/local/libexec/labwc-waybar-run -- /usr/local/bin/labwc-power-settings suspend",
+      "power_reboot": "/usr/local/libexec/labwc-waybar-run -- /usr/local/bin/labwc-power-settings reboot",
+      "power_logout": "/usr/local/libexec/labwc-waybar-run -- /usr/local/bin/labwc-power-settings logout",
+      "power_shutdown": "/usr/local/libexec/labwc-waybar-run -- /usr/local/bin/labwc-power-settings poweroff"
     }
   }
 }

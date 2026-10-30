@@ -1,0 +1,200 @@
+#!/usr/bin/python3 -IB
+"""Run one fixed Waybar action in a transient user service.
+
+Waybar configuration contains only the command after ``--``.  This helper
+owns the systemd-run policy and accepts a bounded command vocabulary, so a
+malformed menu value cannot turn into an arbitrary user-manager request.
+"""
+from __future__ import annotations
+
+import os
+from pathlib import Path
+import re
+import stat
+import sys
+import errno
+
+
+SYSTEMD_RUN = "/usr/bin/systemd-run"
+RUNTIME_ROOT = Path("/run/user")
+ACTION_NAME = re.compile(r"[a-z0-9_]+\Z")
+
+# These aliases are the only bare command names rendered by the desktop
+# profile values used in Waybar.  All other command names must be absolute.
+ALIASES = {
+    "labwc-bluetooth": "/usr/local/bin/labwc-bluetooth",
+    "labwc-brightness-control": "/usr/local/bin/labwc-brightness-control",
+    "labwc-capture": "/usr/local/bin/labwc-capture",
+    "labwc-keyboard-layout": "/usr/local/bin/labwc-keyboard-layout",
+    "labwc-network-control-menu": "/usr/local/bin/labwc-network-control-menu",
+    "labwc-power-settings": "/usr/local/bin/labwc-power-settings",
+    "labwc-terminal": "/usr/local/bin/labwc-terminal",
+    "pavucontrol": "/usr/bin/pavucontrol",
+}
+
+
+def normalize_command(arguments: list[str]) -> tuple[tuple[str, ...], str | None]:
+    if "--" not in arguments:
+        raise ValueError("usage: labwc-waybar-run [--output-class=CLASS] -- COMMAND [ARGUMENT ...]")
+    separator = arguments.index("--")
+    options, raw = arguments[:separator], arguments[separator + 1:]
+    if not raw or len(raw) > 8:
+        raise ValueError("invalid Waybar action command")
+    output_class = None
+    for option in options:
+        if option.startswith("--output-class="):
+            value = option.removeprefix("--output-class=")
+            if value not in {"INTERNAL", "EXTERNAL"} or output_class is not None:
+                raise ValueError("invalid Waybar output class")
+            output_class = value
+        else:
+            raise ValueError("unsupported Waybar wrapper option")
+
+    executable = ALIASES.get(raw[0], raw[0])
+    command = (executable, *raw[1:])
+    if any(not isinstance(value, str) or not value or len(value) > 256 for value in command):
+        raise ValueError("invalid Waybar action argument")
+    if not allowed(command):
+        raise ValueError("unapproved Waybar action command")
+    if output_class is not None and executable != "/usr/local/bin/labwc-main-menu":
+        raise ValueError("output class is only valid for the main menu")
+    if executable == "/usr/local/bin/labwc-main-menu" and output_class is None:
+        raise ValueError("main menu requires an output class")
+    return command, output_class
+
+
+def allowed(command: tuple[str, ...]) -> bool:
+    executable, *arguments = command
+    if executable == "/usr/local/bin/labwc-system-menu-action":
+        # The dispatcher has its own exact action table.  The wrapper accepts
+        # only its identifier-shaped argument and never forwards extra words.
+        return len(arguments) == 1 and ACTION_NAME.fullmatch(arguments[0]) is not None
+    if executable == "/usr/local/bin/labwc-main-menu":
+        return not arguments
+    if executable in {
+        "/usr/local/bin/labwc-calendar",
+        "/usr/local/bin/labwc-agenda",
+        "/usr/local/bin/labwc-window-switcher",
+        "/usr/local/bin/labwc-wayscriber-toggle",
+        "/usr/local/bin/labwc-network-control-menu",
+        "/usr/bin/pavucontrol",
+    }:
+        return not arguments
+    if executable == "/usr/local/bin/labwc-terminal":
+        return arguments == ["-e", "nmtui"]
+    if executable == "/usr/local/bin/labwc-keyboard-layout":
+        return arguments == ["waybar-toggle"]
+    if executable == "/usr/local/bin/labwc-brightness-control":
+        return arguments == ["menu"]
+    if executable == "/usr/local/bin/labwc-power-settings":
+        return not arguments or (len(arguments) == 1 and arguments[0] in {
+            "lock", "suspend", "reboot", "logout", "poweroff",
+        })
+    if executable == "/usr/local/bin/labwc-bluetooth":
+        return len(arguments) == 1 and arguments[0] in {
+            "open", "scan", "pair-menu", "connect", "disconnect", "manage",
+            "adapter", "power-toggle",
+        }
+    if executable == "/usr/local/bin/labwc-capture":
+        return len(arguments) == 1 and arguments[0] in {
+            "annotate-full", "screenshot-full", "screenshot-box", "record-full",
+            "record-box", "stop",
+        }
+    if executable == "/usr/local/libexec/labwc-calendar-actions":
+        return len(arguments) == 1 and arguments[0] in {
+            "event-create", "event-manage", "tasks-pending", "tasks-all", "task-create",
+            "task-edit", "task-details", "task-complete", "task-delete",
+        }
+    if executable == "/usr/local/libexec/labwc-notifications":
+        return len(arguments) == 1 and arguments[0] in {
+            "dnd-dismiss", "dnd", "center", "restore", "dnd-on", "dnd-off", "dismiss", "clear",
+        }
+    if executable == "/usr/local/libexec/labwc-tomat":
+        return arguments in [
+            ["toggle"], ["skip"], ["stop"], ["config"],
+            ["start", "default"], ["start", "25"], ["start", "50"], ["start", "90"],
+            ["settings", "notifications"], ["settings", "sounds"], ["settings", "overlays"],
+        ]
+    if executable == "/usr/local/libexec/whisper-record-toggle":
+        return arguments in (["start"], ["stop"])
+    if executable == "/usr/bin/systemctl":
+        return arguments in (
+            ["--user", "--no-block", "start", "whisper-transcribe.service"],
+            ["--user", "stop", "whisper-transcribe.service"],
+        )
+    if executable == "/usr/bin/wpctl":
+        return arguments == ["set-volume", "@DEFAULT_AUDIO_SINK@", "40%", "--limit", "1.2"]
+    return False
+
+
+def session_environment() -> dict[str, str]:
+    uid = os.getuid()
+    if uid == 0 or os.geteuid() != uid or os.environ.get("LABWC_SESSION_OWNER") != "desktop":
+        raise ValueError("Waybar actions require the ordinary desktop account")
+    runtime = RUNTIME_ROOT / str(uid)
+    runtime_info = runtime.lstat()
+    bus = runtime / "bus"
+    bus_info = bus.lstat()
+    if (not stat.S_ISDIR(runtime_info.st_mode) or runtime_info.st_uid != uid
+            or stat.S_IMODE(runtime_info.st_mode) != 0o700
+            or not stat.S_ISSOCK(bus_info.st_mode) or bus_info.st_uid != uid
+            or bus_info.st_nlink != 1):
+        raise ValueError("unsafe desktop runtime")
+    environment = dict(os.environ)
+    environment["XDG_RUNTIME_DIR"] = str(runtime)
+    environment["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=" + str(bus)
+    return environment
+
+
+def systemd_command(command: tuple[str, ...], output_class: str | None) -> list[str]:
+    options = [
+        SYSTEMD_RUN, "--user", "--quiet", "--collect", "--no-block",
+        "--service-type=exec", "--expand-environment=no", "--slice=app.slice",
+        "--property=Requisite=labwc-session.target",
+        "--property=After=labwc-session.target",
+        "--property=PartOf=labwc-session.target",
+        "--property=ExitType=cgroup", "--property=KillMode=control-group",
+        "--property=TimeoutStartSec=10s", "--property=TimeoutStopSec=20s",
+    ]
+    executable = command[0]
+    if executable == "/usr/local/bin/labwc-main-menu":
+        options.append("--property=SuccessExitStatus=3")
+        options.append("--setenv=LABWC_FUZZEL_OUTPUT_CLASS=" + str(output_class))
+    elif executable == "/usr/local/bin/labwc-window-switcher":
+        options[options.index("--property=TimeoutStartSec=10s")] = "--property=TimeoutStartSec=3s"
+        options[options.index("--property=TimeoutStopSec=20s")] = "--property=TimeoutStopSec=1s"
+        options.extend(("--property=RuntimeMaxSec=3s", "--property=StandardInput=null",
+                        "--property=StandardOutput=null", "--property=StandardError=journal"))
+    elif executable == "/usr/local/bin/labwc-wayscriber-toggle":
+        options[options.index("--property=TimeoutStartSec=10s")] = "--property=TimeoutStartSec=5s"
+        options[options.index("--property=TimeoutStopSec=20s")] = "--property=TimeoutStopSec=2s"
+        options.extend(("--property=RuntimeMaxSec=30s", "--property=StandardInput=null",
+                        "--property=StandardOutput=null", "--property=StandardError=journal"))
+    elif executable == "/usr/local/libexec/labwc-calendar-actions":
+        options.append("--property=SuccessExitStatus=2 3")
+    return [*options, "--", *command]
+
+
+def close_inherited_fds() -> None:
+    for text in os.listdir("/proc/self/fd"):
+        if text.isdecimal() and int(text) >= 3:
+            try:
+                os.close(int(text))
+            except OSError as error:
+                if error.errno != errno.EBADF:
+                    raise
+
+
+def main(arguments: list[str]) -> None:
+    command, output_class = normalize_command(arguments)
+    environment = session_environment()
+    close_inherited_fds()
+    os.execve(SYSTEMD_RUN, systemd_command(command, output_class), environment)
+
+
+if __name__ == "__main__":
+    try:
+        main(sys.argv[1:])
+    except (OSError, ValueError) as error:
+        print(f"labwc-waybar-run: {error}", file=sys.stderr)
+        raise SystemExit(1)
