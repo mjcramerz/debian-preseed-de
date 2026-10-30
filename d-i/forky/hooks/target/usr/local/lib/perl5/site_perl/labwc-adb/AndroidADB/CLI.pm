@@ -38,6 +38,13 @@ sub run {
     my $action_name = $requested_action;
     my $ok = eval {
         my $config = AndroidADB::Config->from_environment;
+        # The launcher may receive a stale or hostile HOME/DBus value from the
+        # caller. Config derives these identities from passwd and the owned
+        # runtime directory; keep every child and notification on those paths.
+        local $ENV{HOME} = $config->home;
+        local $ENV{XDG_RUNTIME_DIR} = $config->runtime_dir;
+        local $ENV{DBUS_SESSION_BUS_ADDRESS} =
+            'unix:path=' . $config->runtime_dir . '/bus';
         $runtime = AndroidADB::Runtime->new(config => $config);
         local $SIG{HUP}  = sub { $runtime->cleanup; exit 129 };
         local $SIG{INT}  = sub { $runtime->cleanup; exit 130 };

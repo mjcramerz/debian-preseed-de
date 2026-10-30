@@ -1,6 +1,11 @@
 #!/bin/sh
 set -eu
 
+# Menu callbacks use fixed installed helpers; do not let a caller-controlled
+# PATH select a different fuzzel, action dispatcher, or text utility.
+PATH=/usr/local/bin:/usr/bin:/bin
+export PATH
+
 # Keep this menu behind its independently managed action terminal.
 export LABWC_MENU_ACTION_WAIT=1
 

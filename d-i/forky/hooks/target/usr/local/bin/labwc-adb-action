@@ -1,9 +1,35 @@
-#!/usr/bin/perl
-use strict;
-use warnings;
+#!/bin/sh
+set -eu
 
-use lib '/usr/local/lib/perl5/site_perl/labwc-adb';
+# Compile the managed Perl entry point with a fixed module search path.  The
+# desktop environment is untrusted input: PERL5OPT/PERL5LIB and loader/plugin
+# variables must not reach the interpreter or a terminal-launched action.
+: "${HOME:?HOME must be set}"
 
-use AndroidADB::CLI;
+[ "$(/usr/bin/id -u)" -ne 0 ] || {
+  printf '%s\n' 'labwc-adb-action: must run as the logged-in desktop user' >&2
+  exit 1
+}
 
-exit AndroidADB::CLI->new()->run(@ARGV);
+terminal_type=${TERM:-dumb}
+case "$terminal_type" in
+  ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._+-]*)
+    terminal_type=dumb
+    ;;
+esac
+
+exec /usr/bin/env -i \
+  HOME="$HOME" \
+  XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
+  WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
+  XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-wayland}" \
+  DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-}" \
+  LANG=C.UTF-8 \
+  LC_ALL=C.UTF-8 \
+  TERM="$terminal_type" \
+  PATH=/usr/local/bin:/usr/bin:/bin \
+  /usr/bin/perl \
+    -I/usr/local/lib/perl5/site_perl/labwc-adb \
+    -MAndroidADB::CLI \
+    -e 'exit AndroidADB::CLI->new()->run(@ARGV)' \
+    -- "$@"

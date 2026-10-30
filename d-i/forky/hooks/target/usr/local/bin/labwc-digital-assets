@@ -115,16 +115,12 @@ def write_private(runtime: Path, prefix: str, content: str = "") -> Path:
     return path
 
 
-def choose_file(kind: str, prompt: str, runtime: Path) -> str | None:
+def choose_file(kind: str, prompt: str) -> str | None:
     candidates = candidate_files(kind)
     if not candidates:
         picker([f"No {kind.upper()} files detected in Downloads, Documents, or Desktop"], prompt)
         return None
-    path = write_private(runtime, "labwc-digital-assets-list.", "\n".join(candidates) + "\n")
-    try:
-        return picker(candidates, prompt)
-    finally:
-        path.unlink(missing_ok=True)
+    return picker(candidates, prompt)
 
 
 def choose_multiple_files(kind: str, prompt: str, runtime: Path) -> Path | None:
@@ -157,10 +153,9 @@ def load_catalog() -> dict[str, dict[str, tuple[str, str, str]]]:
         raise DigitalAssetsError("unable to load the Digital Assets action catalog") from error
     if result.returncode or len(result.stdout) > MAX_CATALOG_BYTES:
         raise DigitalAssetsError("unable to load the Digital Assets action catalog")
-    try:
-        text = result.stdout.decode("utf-8")
-    except UnicodeDecodeError as error:
-        raise DigitalAssetsError("Digital Assets action catalog is not UTF-8") from error
+    text = result.stdout
+    if not isinstance(text, str):
+        raise DigitalAssetsError("Digital Assets action catalog is not decoded text")
     catalog: dict[str, dict[str, tuple[str, str, str]]] = {"docx": {}, "pdf": {}, "image": {}}
     seen_actions: set[str] = set()
     seen_labels: set[tuple[str, str]] = set()
@@ -205,7 +200,7 @@ def category_menu(category: str, prompt: str, catalog: dict[str, dict[str, tuple
             continue
         action, selector, action_prompt = entry
         if selector in {"docx", "pdf", "image", "markdown"}:
-            path = choose_file(selector, action_prompt, runtime)
+            path = choose_file(selector, action_prompt)
             if path:
                 run_action(action, path)
         elif selector in {"pdf-list", "image-list"}:

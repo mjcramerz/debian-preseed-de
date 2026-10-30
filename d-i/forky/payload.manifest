@@ -1115,8 +1115,8 @@ dcb0ac24d9364f6e1a7997aef06ec913390db80fee031358eb24cc790872676c  hooks/target/u
 ac7825f75edd9118c891f03574f46c173281c28b772f16ba922b23977f73a349  hooks/target/usr/local/bin/gitops
 f1e5dff7adf32bc9a260c7fc56d81e5a9023ed99e5d6e178d0aa7b75bf496016  hooks/target/usr/local/bin/key-manager
 49bf2e1a7a106808035280f4e2aa21d9fe5c52817a0b6c2ef1470157489175d9  hooks/target/usr/local/bin/labmgmt
-b1532a7f2a444afeb22d63cd3d4aeb5b511f379e48195b28e466b0455461e709  hooks/target/usr/local/bin/labwc-adb-action
-50cdddb68791dae4517d39e930f3685f435bf69db66cb14a4e7014ebda18eeeb  hooks/target/usr/local/bin/labwc-adb-menu
+74bc9b5c8798112e7338c653c2c2e460634e8ab4f73c64e45fe1c0b198a9be15  hooks/target/usr/local/bin/labwc-adb-action
+df546c4e7047e0137eaeffb066fb420f11fa169d5338d5d8ec44e7cb6772e1a0  hooks/target/usr/local/bin/labwc-adb-menu
 3c5f12f90b02b921741f32fa9a06b31d2c2a1c14e6e00d3084c9381703ac48d1  hooks/target/usr/local/bin/labwc-admin-action
 0c3ea8dbc86e18b4f8f26b4e4430379453fdfaa2819f815fab4b4d477efab727  hooks/target/usr/local/bin/labwc-ai-copilots
 a70519451b427a250152c76ba5ca5cfec9e1044a4a78a676e19da6def019f5db  hooks/target/usr/local/bin/labwc-ai-copilots-action
@@ -1127,7 +1127,7 @@ a70519451b427a250152c76ba5ca5cfec9e1044a4a78a676e19da6def019f5db  hooks/target/u
 1151dd0e2926c73131cfcbe65f8059006e0d20ef29a6e8cefb97afaa762c9dea  hooks/target/usr/local/bin/labwc-capture.tmpl
 f282ea7d7935e9c2798e22803adf541c59de5147b38b1e91fb15b6aa498746ab  hooks/target/usr/local/bin/labwc-computer-management
 402f71560272b6967c7f8eb66b7d0bc3a104eb9a241523e73eb8850a5280cb97  hooks/target/usr/local/bin/labwc-desktop-appearance
-6c571dd11943629c115b5594047aaebf6848293fa56175be1dbd2fbae385fe7c  hooks/target/usr/local/bin/labwc-digital-assets
+f36c6c0a74ce6f159316308959286859cb6fa8114b73ce4b6f3689974ae9ceb4  hooks/target/usr/local/bin/labwc-digital-assets
 76620d2901333bd5da723ad648fcecc3597c7c662c10d0c03c912e40c3ea1d04  hooks/target/usr/local/bin/labwc-digital-assets-action
 d60b78c9b3254883392ac6aa9f18f0b99af5ed468f4e8401bd5a302b8cd1b1e1  hooks/target/usr/local/bin/labwc-display-configuration
 e489f78fba98deddef74a7d75b97072ce425f4893b7715e360a3625ef9f07cc5  hooks/target/usr/local/bin/labwc-electron-app
@@ -1253,9 +1253,9 @@ d6fbbbe59628c892ba73795024d7e87074586913159be92bec2b06a7e052dfab  hooks/target/u
 3b5d4d9aa8df2d53b7a444d7863f45198febca1188ce07807c9927f6336f8c13  hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/ADB/Permissions.pm
 e567ab79dc45e94a63b6badcff966013f3f0301b3ba3437b935605eb49b3cd35  hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/ADB/Server.pm
 eff6e866fc2c48fe37578cc1134f7c871209e5fb6310b83b250a91938fdf72c6  hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/ADB/Transfer.pm
-992e1af6b22f0a304ce3b3c08da713159d7644844183ff02ff2c749b46dc98cf  hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/CLI.pm
+43e05ddb07f9084394ccaf00adb6181d65810854b1e59c39c6577ff2b4e48534  hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/CLI.pm
 cdeb42fbdf9fcacd973ba81ff3703da93db04d4bbe98237cba76fc0d72e7f162  hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Command.pm
-018f88a0b7528e05e650d340eb85673eb60ad2ed2bb336e575a21eecbefbe5ba  hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Config.pm
+2556c31729022931f4f3f48471bedee849412c5cebe909cde00b0ae794ca65c1  hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Config.pm
 e1d22207610372319d8d1a8150da7b3e7dd55b8cfe44ddc09f2d66eccf62abdd  hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Firmware/Archive.pm
 020ccd97234bf6e583d9be8b1eaf4a08bea9735e9f91e26298749fb934a6f222  hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Firmware/Manifest.pm
 345f9c8ca02b4d68db4cd189386e8c0f3ffc8a9433ccfc1cae0da1c7c8a21ee1  hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Firmware/Storage.pm
@@ -1264,7 +1264,7 @@ ba9878d78e9ccc8982da381e140013e811d1cac8ba3551e4f0d58f7e63f76266  hooks/target/u
 f4a9a6ef93ef8eb8b7f7966ab0f2604f53b381df7c2a141b56825ea1e4fb8482  hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Logger.pm
 80438a5fb623f040c6a3d92b266449b24db9707d6c9162708b5736d069c5fb6a  hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Notification.pm.tmpl
 7438bb1ab2200dfcc9d1fe116f74c240d7ac977cacdb325503c268dcd53b3adc  hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Runtime.pm
-c07497ab59d0a80b3e731e51cee631bc7b5527e962281a35cbef5b7578b045ed  hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Validation.pm
+c159545c7a8a408133f17acd2d5f86d45c230b1f583a49888e2197dafcc77c7b  hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Validation.pm
 dc135d5fc8815c50080c2017fadf4884ad36d51893d22f1eead583f60d49b981  hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Vendor/GooglePixel.pm
 8a8f82e8ff991bd09a5b923a473deda00ebb6e72b6f622c7ab905950eb9ec2de  hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Vendor/Samsung.pm
 e034db14d6108a9b1bcbbe88687211e586b14ad788965f44a53bbeb28c31e54e  hooks/target/usr/local/lib/perl5/site_perl/labwc-compz/CompzArchives/Pipeline.pm

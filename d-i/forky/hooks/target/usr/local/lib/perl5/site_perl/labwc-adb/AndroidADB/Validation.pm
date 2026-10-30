@@ -225,6 +225,14 @@ sub validate_local_file {
         "unable to resolve local file: $requested_path",
     );
     require_value(-f $resolved_path, "local file does not exist: $resolved_path");
+    my @metadata = lstat($resolved_path);
+    require_value(
+        @metadata
+            && $metadata[4] == $<
+            && ($metadata[2] & 0022) == 0
+            && $metadata[3] == 1,
+        'local file ownership or permissions are unsafe',
+    );
 
     my $size = -s $resolved_path;
     require_value(

@@ -193,6 +193,15 @@ sub from_environment {
     );
     my $runtime_dir = File::Spec->catdir('/run/user', $<);
     _validate_runtime_dir($runtime_dir, $<);
+    my $bus_path = File::Spec->catfile($runtime_dir, 'bus');
+    my @bus_metadata = lstat($bus_path);
+    require_value(
+        @bus_metadata
+            && (($bus_metadata[2] & 0170000) == 0140000)
+            && $bus_metadata[4] == $<
+            && $bus_metadata[3] == 1,
+        'ADB user bus socket is unavailable or unsafe',
+    );
     _validate_home($account_home, $<);
 
     my %tool_paths;
