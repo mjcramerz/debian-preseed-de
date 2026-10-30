@@ -469,7 +469,7 @@ def install(root: Path, uid: int, gid: int, environment: dict, vendors: list[str
     # indentation and line boundary, invalidates appearance registry anchors,
     # and creates needless churn in the installed user's configuration.
     for relative in (
-            "etc/skel-desktop/.config/waybar/actions/power-menu",
+            "etc/skel-desktop/.config/waybar/modules/battery",
     ):
         put(relative, patch_waybar_battery_actions(root, relative))
     # Publish provider selection only after all of its units and activation

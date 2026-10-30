@@ -205,7 +205,7 @@ with tempfile.TemporaryDirectory() as temporary:
     staged_audio = {}
     for enabled in (False, True):
         path = Path(temporary) / ('audio-' + str(int(enabled)) + '.xml')
-        path.write_bytes((assets / 'menus/audio-menu.xml').read_bytes())
+        path.write_bytes((assets / 'gtk/audio-menu.xml').read_bytes())
         with mock.patch('pathlib.Path', return_value=path), mock.patch.object(sys, 'argv', ['fixture', str(int(enabled))]):
             exec(compile(staging, 'actual-native-audio-staging', 'exec'), {})
         staged_audio[enabled] = path

@@ -49,7 +49,7 @@ O.g_object_unref.argtypes = [C.c_void_p]
 
 with tempfile.TemporaryDirectory() as work:
     path = Path(work) / 'audio-menu.xml'
-    path.write_text(render_theme_defaults(payload_read_text(FORKY / 'hooks/target/etc/skel-desktop/.config/waybar/menus/audio-menu.xml')))
+    path.write_text(render_theme_defaults(payload_read_text(FORKY / 'hooks/target/etc/skel-desktop/.config/waybar/gtk/audio-menu.xml')))
     for enabled in ('0', '1', '0'):
         with mock.patch('pathlib.Path', return_value=path), mock.patch.object(sys, 'argv', ['fixture', enabled]):
             exec(compile(code, 'actual-audio-staging', 'exec'), {})

@@ -264,7 +264,7 @@ class NativeLayoutTests(unittest.TestCase):
                          {'config.tmpl','style.css.tmpl','style-common.css.tmpl'})
         self.assertEqual({p.name for p in (root/'waybar').iterdir() if p.is_dir()},
                          {'actions','buttons','menus','icons'})
-        self.assertEqual({p.name for p in (root/'waybar/menus').iterdir()},
+        self.assertEqual({p.name for p in (root/'waybar/gtk').iterdir()},
                          {'menu.css.tmpl', *(name+'-menu.xml.tmpl' for name in
                            ('audio','bluetooth','calendar','notifications','power','screenshot','system','tomat'))})
         self.assertEqual({p.name for p in (root/'fuzzel').iterdir()},

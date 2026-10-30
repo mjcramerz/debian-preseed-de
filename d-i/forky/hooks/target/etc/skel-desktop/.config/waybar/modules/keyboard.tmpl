@@ -1,0 +1,10 @@
+{
+  "custom/keyboard": {
+    "exec": "/usr/local/libexec/labwc-waybar-exec labwc-keyboard-layout status",
+    "return-type": "json",
+    "signal": 7,
+    "tooltip": true,
+    "exec-on-event": false,
+    "on-click-release": "/usr/local/libexec/labwc-waybar-run -- labwc-keyboard-layout waybar-toggle"
+  }
+}

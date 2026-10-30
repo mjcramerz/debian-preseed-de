@@ -12,7 +12,6 @@ from pathlib import Path
 import re
 import stat
 import sys
-import errno
 
 
 SYSTEMD_RUN = "/usr/bin/systemd-run"
@@ -176,13 +175,12 @@ def systemd_command(command: tuple[str, ...], output_class: str | None) -> list[
 
 
 def close_inherited_fds() -> None:
-    for text in os.listdir("/proc/self/fd"):
-        if text.isdecimal() and int(text) >= 3:
-            try:
-                os.close(int(text))
-            except OSError as error:
-                if error.errno != errno.EBADF:
-                    raise
+    # Do not inspect procfs to discover inherited descriptors.  Besides being
+    # denied by the wrapper's AppArmor profile, that race can observe the
+    # directory descriptor used by listdir itself.  CPython implements
+    # closerange with the kernel close_range/closefrom fast path where
+    # available, and sys.maxsize closes the complete descriptor range.
+    os.closerange(3, sys.maxsize)
 
 
 def main(arguments: list[str]) -> None:

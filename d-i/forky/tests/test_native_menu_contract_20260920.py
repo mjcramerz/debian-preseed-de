@@ -112,7 +112,7 @@ class MenuContractTests(unittest.TestCase):
     def test_calendar_mapping_and_secondary_clicks(self):
         for bar in bars():
             entry = bar['clock']
-            self.assertEqual(entry['menu-file'], '~/.config/waybar/menus/calendar-menu.xml')
+            self.assertEqual(entry['menu-file'], '~/.config/waybar/gtk/calendar-menu.xml')
             self.assertEqual(set(entry['menu-actions']), set(CALENDAR))
             for key, action in CALENDAR.items():
                 argv = shlex.split(entry['menu-actions'][key])
@@ -163,7 +163,7 @@ class MenuContractTests(unittest.TestCase):
         start = source.index('desktop_stage_waybar_native_menus() {')
         function = source[start:source.index('\n}\n', start) + 3]
         with tempfile.TemporaryDirectory() as work:
-            script = ('desktop_render_waybar_asset() { printf "etc/skel-desktop/.config/waybar/menus/%s\\t/etc/skel-desktop/.config/waybar/menus/%s\\t0644\\n" "$1" "$1"; }\n'
+            script = ('desktop_render_waybar_asset() { printf "etc/skel-desktop/.config/waybar/gtk/%s\\t/etc/skel-desktop/.config/waybar/gtk/%s\\t0644\\n" "$1" "$1"; }\n'
                       'desktop_stage_role_asset() { printf "%s\\t%s\\t%s\\n" "$1" "$2" "$3"; }\n'
                       'desktop_whisper_addon_selected() { return 1; }\n'
                       'run_in_target() { :; }\n' + function + '\ndesktop_stage_waybar_native_menus\n')
@@ -171,7 +171,7 @@ class MenuContractTests(unittest.TestCase):
                                     capture_output=True, timeout=5, cwd=work, check=True)
         staged = [line.split('\t') for line in result.stdout.splitlines()]
         for _, name, _ in MODULES:
-            path = f'etc/skel-desktop/.config/waybar/menus/{name}-menu.xml'
+            path = f'etc/skel-desktop/.config/waybar/gtk/{name}-menu.xml'
             self.assertIn([path, '/' + path, '0644'], staged)
             self.assertTrue(payload_source_is_file(TARGET / path))
 
@@ -180,7 +180,7 @@ class MenuContractTests(unittest.TestCase):
         code = source.split('run_in_target "configure optional native audio menu" /usr/bin/python3 -I -c \'\n', 1)[1].split("\n' \"$native_menu_whisper\"", 1)[0]
         with tempfile.TemporaryDirectory() as work:
             path = Path(work) / 'audio-menu.xml'
-            path.write_bytes(payload_read_bytes(SKEL / 'waybar/menus/audio-menu.xml'))
+            path.write_bytes(payload_read_bytes(SKEL / 'waybar/gtk/audio-menu.xml'))
             original_ids = {obj.get('id') for obj in ET.parse(path).iter('object') if obj.get('id')}
             for enabled in ('0', '1', '0'):
                 with mock.patch('pathlib.Path', return_value=path), mock.patch.object(sys, 'argv', ['fixture', enabled]):
@@ -646,7 +646,7 @@ class WaycalControlTests(unittest.TestCase):
         style = payload_read_text(SKEL / 'waycal/style.css')
         self.assertIn('rgba(30, 23, 46, 0.94)', style)
         self.assertIn('window.waycal .waycal-root.rounded', style)
-        menu = ET.fromstring(payload_read_text(SKEL / 'waybar/menus/calendar-menu.xml'))
+        menu = ET.fromstring(payload_read_text(SKEL / 'waybar/gtk/calendar-menu.xml'))
         for key, label in (('calendar_new_task_label', 'Create task...'),
                            ('calendar_edit_task_label', 'Edit task...'),
                            ('calendar_delete_task_label', 'Delete task...'),

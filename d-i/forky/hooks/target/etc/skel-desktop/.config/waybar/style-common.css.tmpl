@@ -55,3 +55,208 @@ tooltip label {
   font-family: "__THEME_WAYBAR_MONOSPACE_FONT_FAMILY__", "__THEME_WAYBAR_EMOJI_FONT_FAMILY__", "__THEME_WAYBAR_SYMBOL_FONT_FAMILY__";
   font-size: __INSTALLER_LABWC_WAYBAR_SHARED_TOOLTIP_FONT_SIZE__px;
 }
+
+/* Every interactive module gets one output-class geometry contract. The
+ * selectors use Waybar's actual module ids, including the escaped group ids.
+ * The four session controls deliberately share one hit target. */
+window#waybar.internal #custom-launcher,
+window#waybar.internal #workspaces,
+window#waybar.internal #taskbar,
+window#waybar.internal #group\/apps,
+window#waybar.internal #group\/quick-controls,
+window#waybar.internal #custom-tomat,
+window#waybar.internal #custom-wayscriber,
+window#waybar.internal #custom-window-switcher,
+window#waybar.internal #custom-apps,
+window#waybar.internal #custom-app-terminal,
+window#waybar.internal #custom-app-files,
+window#waybar.internal #custom-app-tuta,
+window#waybar.internal #custom-app-notes,
+window#waybar.internal #custom-app-sleek,
+window#waybar.internal #clock,
+window#waybar.internal #pulseaudio,
+window#waybar.internal #backlight,
+window#waybar.internal #custom-battery,
+window#waybar.internal #disk,
+window#waybar.internal #cpu,
+window#waybar.internal #memory,
+window#waybar.internal #tray,
+window#waybar.internal #custom-system,
+window#waybar.internal #network,
+window#waybar.internal #bluetooth,
+window#waybar.internal #custom-keyboard,
+window#waybar.internal #custom-screenshot,
+window#waybar.internal #custom-notifications,
+window#waybar.internal #custom-lock,
+window#waybar.internal #custom-power {
+  border-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_BORDER_WIDTH__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_RADIUS__px;
+  margin: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_MARGIN_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_MARGIN_X__px;
+}
+
+window#waybar.external #custom-launcher,
+window#waybar.external #workspaces,
+window#waybar.external #taskbar,
+window#waybar.external #group\/apps,
+window#waybar.external #group\/quick-controls,
+window#waybar.external #custom-tomat,
+window#waybar.external #custom-wayscriber,
+window#waybar.external #custom-window-switcher,
+window#waybar.external #custom-apps,
+window#waybar.external #custom-app-terminal,
+window#waybar.external #custom-app-files,
+window#waybar.external #custom-app-tuta,
+window#waybar.external #custom-app-notes,
+window#waybar.external #custom-app-sleek,
+window#waybar.external #clock,
+window#waybar.external #pulseaudio,
+window#waybar.external #backlight,
+window#waybar.external #custom-battery,
+window#waybar.external #disk,
+window#waybar.external #cpu,
+window#waybar.external #memory,
+window#waybar.external #tray,
+window#waybar.external #custom-system,
+window#waybar.external #network,
+window#waybar.external #bluetooth,
+window#waybar.external #custom-keyboard,
+window#waybar.external #custom-screenshot,
+window#waybar.external #custom-notifications,
+window#waybar.external #custom-lock,
+window#waybar.external #custom-power {
+  border-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_BORDER_WIDTH__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_RADIUS__px;
+  margin: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_MARGIN_Y__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_MARGIN_X__px;
+}
+
+window#waybar.internal #custom-launcher {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_BUTTON_PADDING_X__px;
+}
+window#waybar.external #custom-launcher {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_MENU_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_MENU_BUTTON_PADDING_X__px;
+}
+
+window#waybar.internal #workspaces button {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_WORKSPACE_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_WORKSPACE_BUTTON_PADDING_X__px;
+  border-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_BORDER_WIDTH__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_RADIUS__px;
+}
+window#waybar.external #workspaces button {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_WORKSPACE_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_WORKSPACE_BUTTON_PADDING_X__px;
+  border-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_BORDER_WIDTH__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_RADIUS__px;
+}
+
+window#waybar.internal #taskbar button {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_BUTTON_PADDING_X__px;
+  border-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_BORDER_WIDTH__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_RADIUS__px;
+}
+window#waybar.external #taskbar button {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_TASKBAR_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_TASKBAR_BUTTON_PADDING_X__px;
+  border-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_BORDER_WIDTH__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_RADIUS__px;
+}
+
+/* Tomat, Wayscriber, taskview, Apps, and every Apps drawer child are one
+ * visual class and therefore use the same width and horizontal padding. */
+window#waybar.internal #custom-tomat,
+window#waybar.internal #custom-wayscriber,
+window#waybar.internal #custom-window-switcher,
+window#waybar.internal #custom-apps,
+window#waybar.internal #custom-app-terminal,
+window#waybar.internal #custom-app-files,
+window#waybar.internal #custom-app-tuta,
+window#waybar.internal #custom-app-notes,
+window#waybar.internal #custom-app-sleek {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_PADDING_X__px;
+}
+window#waybar.external #custom-tomat,
+window#waybar.external #custom-wayscriber,
+window#waybar.external #custom-window-switcher,
+window#waybar.external #custom-apps,
+window#waybar.external #custom-app-terminal,
+window#waybar.external #custom-app-files,
+window#waybar.external #custom-app-tuta,
+window#waybar.external #custom-app-notes,
+window#waybar.external #custom-app-sleek {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_BUTTON_PADDING_X__px;
+}
+
+window#waybar.internal #clock,
+window#waybar.internal #pulseaudio,
+window#waybar.internal #backlight,
+window#waybar.internal #custom-battery,
+window#waybar.internal #disk,
+window#waybar.internal #cpu,
+window#waybar.internal #memory,
+window#waybar.internal #tray {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_STATUS_MODULE_MIN_WIDTH__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_STATUS_MODULE_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_STATUS_MODULE_PADDING_X__px;
+}
+window#waybar.external #clock,
+window#waybar.external #pulseaudio,
+window#waybar.external #backlight,
+window#waybar.external #custom-battery,
+window#waybar.external #disk,
+window#waybar.external #cpu,
+window#waybar.external #memory,
+window#waybar.external #tray {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_STATUS_MODULE_MIN_WIDTH__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_EXTERNAL_STATUS_MODULE_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_EXTERNAL_STATUS_MODULE_PADDING_X__px;
+}
+
+/* The quick drawer's non-system children share one compact control size. */
+window#waybar.internal #group\/quick-controls {
+  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_GROUP_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_GROUP_PADDING_X__px;
+}
+window#waybar.external #group\/quick-controls {
+  padding-left: __INSTALLER_LABWC_WAYBAR_EXTERNAL_QUICK_CONTROL_GROUP_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_EXTERNAL_QUICK_CONTROL_GROUP_PADDING_X__px;
+}
+window#waybar.internal #group\/quick-controls #network,
+window#waybar.internal #group\/quick-controls #bluetooth,
+window#waybar.internal #group\/quick-controls #custom-keyboard,
+window#waybar.internal #group\/quick-controls #custom-screenshot {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_BUTTON_MIN_WIDTH__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_BUTTON_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_BUTTON_PADDING_X__px;
+}
+window#waybar.external #group\/quick-controls #network,
+window#waybar.external #group\/quick-controls #bluetooth,
+window#waybar.external #group\/quick-controls #custom-keyboard,
+window#waybar.external #group\/quick-controls #custom-screenshot {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_QUICK_CONTROL_BUTTON_MIN_WIDTH__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_EXTERNAL_QUICK_CONTROL_BUTTON_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_EXTERNAL_QUICK_CONTROL_BUTTON_PADDING_X__px;
+}
+
+/* System controls, notifications, lock, and power are one session-control
+ * class even though the system module lives inside the quick drawer. */
+window#waybar.internal #custom-system,
+window#waybar.internal #custom-notifications,
+window#waybar.internal #custom-lock,
+window#waybar.internal #custom-power {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_SESSION_BUTTON_MIN_WIDTH__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_SESSION_BUTTON_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_SESSION_BUTTON_PADDING_X__px;
+}
+window#waybar.external #custom-system,
+window#waybar.external #custom-notifications,
+window#waybar.external #custom-lock,
+window#waybar.external #custom-power {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_SESSION_BUTTON_MIN_WIDTH__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_EXTERNAL_SESSION_BUTTON_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_EXTERNAL_SESSION_BUTTON_PADDING_X__px;
+}

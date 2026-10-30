@@ -167,7 +167,7 @@ class NativeMenuHoverTests(unittest.TestCase):
                     self.assertEqual(argv[argv.index('--') + 1:], args)
 
     def test_notifications_center_menu_and_secondary_click_dnd_dismiss(self):
-        xml = ET.parse(payload_source_path(SKEL / 'waybar/menus/notifications-menu.xml'))
+        xml = ET.parse(payload_source_path(SKEL / 'waybar/gtk/notifications-menu.xml'))
         item = xml.find('.//object[@id="notifications_center"]')
         self.assertEqual(item.findtext('./child/object[@class="GtkBox"]/child/object[@class="GtkLabel"]/property[@name="label"]'), 'Open notifications center')
         for bars in self.profiles.values():

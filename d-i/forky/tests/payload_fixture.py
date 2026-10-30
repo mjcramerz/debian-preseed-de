@@ -269,7 +269,7 @@ def waybar_style_text(directory):
             raise ValueError('recursive Waybar stylesheet import')
         def include(match):
             name = match[1]
-            if not re.fullmatch(r'(?:style-common|(?:buttons|menus)/[a-z-]+)\.css', name):
+            if not re.fullmatch(r'(?:style-common|(?:buttons|gtk)/[a-z-]+)\.css', name):
                 raise ValueError('unsafe Waybar stylesheet import')
             return read(name, (*active, relative))
         return expression.sub(include, read_text(directory / relative))

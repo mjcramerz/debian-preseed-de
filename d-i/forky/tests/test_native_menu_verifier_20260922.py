@@ -106,10 +106,10 @@ class TargetFixture:
             (config / 'waybar').mkdir(parents=True)
             (config / 'tomat').mkdir()
             for name in MENUS:
-                destination = config / 'waybar' / 'menus' / (name + '-menu.xml')
+                destination = config / 'waybar' / 'gtk' / (name + '-menu.xml')
                 from waybar_fixture import rendered_assets
                 destination.parent.mkdir(parents=True, exist_ok=True)
-                destination.write_text(rendered_assets(FORKY/'hosts/profiles/btrfs-de.env')['menus/' + destination.name])
+                destination.write_text(rendered_assets(FORKY/'hosts/profiles/btrfs-de.env')['gtk/' + destination.name])
                 destination.chmod(0o644)
                 self.owners[destination] = uid
             toml = config / 'tomat/config.toml'
@@ -133,7 +133,7 @@ class TargetFixture:
             code = source.split('run_in_target "configure optional native audio menu" '
                                 '/usr/bin/python3 -I -c \'\n', 1)[1].split(
                                     '\n\' "$native_menu_whisper"', 1)[0]
-            with mock.patch('pathlib.Path', return_value=config / 'waybar/menus/audio-menu.xml'), \
+            with mock.patch('pathlib.Path', return_value=config / 'waybar/gtk/audio-menu.xml'), \
                     mock.patch.object(sys, 'argv', ['-c', str(int(whisper))]):
                 exec(compile(code, 'actual-native-audio-staging', 'exec'), {})
         for relative in ('/etc/systemd/system/tomat.service', '/etc/systemd/user/tomat.service'):
@@ -334,8 +334,8 @@ desktop_verify_native_menus
             ('/usr/local/libexec/labwc-tomat-hook', None, 1000, 'unsafe or missing native menu helper'),
             (HOME + '/.config/tomat/config.toml', 0o644, None, 'unsafe Tomat configuration'),
             (HOME + '/.config/tomat/config.toml', None, 0, 'unsafe Tomat configuration'),
-            (HOME + '/.config/waybar/menus/tomat-menu.xml', 0o666, None, 'unsafe menu file'),
-            (HOME + '/.config/waybar/menus/audio-menu.xml', None, 0, 'unsafe menu file'),
+            (HOME + '/.config/waybar/gtk/tomat-menu.xml', 0o666, None, 'unsafe menu file'),
+            (HOME + '/.config/waybar/gtk/audio-menu.xml', None, 0, 'unsafe menu file'),
         )
         for name, mode, uid, message in cases:
             with self.subTest(path=name, mode=mode, uid=uid), tempfile.TemporaryDirectory() as work:
@@ -349,7 +349,7 @@ desktop_verify_native_menus
                     target.verify()
         with tempfile.TemporaryDirectory() as work:
             target = self.fixture(Path(work))
-            path = target.path(HOME + '/.config/waybar/menus/tomat-menu.xml')
+            path = target.path(HOME + '/.config/waybar/gtk/tomat-menu.xml')
             path.unlink()
             path.symlink_to('audio-menu.xml')
             with self.assertRaisesRegex(SystemExit, 'unsafe menu file'):

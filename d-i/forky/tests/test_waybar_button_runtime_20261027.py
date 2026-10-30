@@ -226,7 +226,7 @@ class WaybarSeparationFixtures(unittest.TestCase):
         import xml.etree.ElementTree as ET
         root = SOURCE.parents[3] / 'etc/skel-desktop/.config/waybar'
         count = 0
-        for path in sorted((root / 'actions').glob('*-menu.tmpl')):
+        for path in sorted((root / 'modules').glob('*.tmpl')):
             # Only a brightness/format scalar can be unquoted here. No
             # installer renderer or repository module is executed.
             text = re.sub(r'__[A-Z0-9_]+__(?=\s*[,}\]])', '0', path.read_text())
@@ -234,7 +234,7 @@ class WaybarSeparationFixtures(unittest.TestCase):
                 if 'menu-file' not in entry:
                     continue
                 relative = entry['menu-file'].removeprefix('~/.config/waybar/')
-                self.assertRegex(relative, r'^menus/[a-z-]+\.xml$')
+                self.assertRegex(relative, r'^gtk/[a-z-]+\.xml$')
                 tree = ET.fromstring((root / (relative + '.tmpl')).read_text())
                 ids = [item.get('id') for item in tree.iter('object')
                        if item.get('class') == 'GtkMenuItem'
@@ -271,7 +271,7 @@ class WaybarSeparationFixtures(unittest.TestCase):
                             ('capture_open_folder', 'open-folder'), ('capture_copy_last_path', 'copy-last-path')):
             self.assertEqual(helper.COMMANDS[key], ('/usr/local/bin/labwc-capture', action))
         root = SOURCE.parents[3] / 'etc/skel-desktop/.config/waybar'
-        entry = json.loads((root / 'actions/system-menu.tmpl').read_text())['custom/system']
+        entry = json.loads((root / 'modules/system.tmpl').read_text())['custom/system']
         command = shlex.split(entry['menu-actions']['capture_copy_last_path'])
         self.assertFalse(any(arg.startswith('--unit=') for arg in command))
         self.assertIn('--property=ExitType=cgroup', command)

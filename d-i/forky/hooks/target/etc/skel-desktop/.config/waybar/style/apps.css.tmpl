@@ -1,0 +1,235 @@
+/* Waybar apps button rules. Native theme values remain editable per mapping. */
+
+#custom-apps {
+  background: __THEME_WAYBAR_BUTTON_APPS_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_APPS_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_APPS_NORMAL_ICON_COLOR__;
+  background-image: -gtk-recolor(url("__THEME_WAYBAR_BUTTON_APPS_NORMAL_ICON_PATH__"));
+}
+
+#custom-app-terminal {
+  background: __THEME_WAYBAR_BUTTON_TERMINAL_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_TERMINAL_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_TERMINAL_NORMAL_TEXT_COLOR__;
+  background-image: url("__THEME_WAYBAR_BUTTON_TERMINAL_NORMAL_ICON_PATH__");
+}
+
+#custom-app-files {
+  background: __THEME_WAYBAR_BUTTON_FILES_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_FILES_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_FILES_NORMAL_TEXT_COLOR__;
+  background-image: url("__THEME_WAYBAR_BUTTON_FILES_NORMAL_ICON_PATH__");
+}
+
+#custom-app-tuta {
+  background: __THEME_WAYBAR_BUTTON_TUTANOTA_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_TUTANOTA_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_TUTANOTA_NORMAL_TEXT_COLOR__;
+  background-image: url("__THEME_WAYBAR_BUTTON_TUTANOTA_NORMAL_ICON_PATH__");
+}
+
+#custom-app-notes {
+  background: __THEME_WAYBAR_BUTTON_NOTES_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_NOTES_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_NOTES_NORMAL_TEXT_COLOR__;
+  background-image: url("__THEME_WAYBAR_BUTTON_NOTES_NORMAL_ICON_PATH__");
+}
+
+#custom-app-sleek {
+  background: __THEME_WAYBAR_BUTTON_SLEEK_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_SLEEK_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_SLEEK_NORMAL_TEXT_COLOR__;
+  background-image: url("__THEME_WAYBAR_BUTTON_SLEEK_NORMAL_ICON_PATH__");
+}
+
+#taskbar button {
+  background: __THEME_WAYBAR_BUTTON_TASKBAR_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_TASKBAR_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_TASKBAR_NORMAL_TEXT_COLOR__;
+}
+
+window#waybar.internal #taskbar button {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_BUTTON_PADDING_X__px;
+}
+
+window#waybar.external #taskbar button {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_TASKBAR_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_TASKBAR_BUTTON_PADDING_X__px;
+}
+
+#taskbar button.active {
+  background: linear-gradient(__THEME_WAYBAR_GRADIENT_ANGLE__deg, __THEME_WAYBAR_BUTTON_TASKBAR_ACTIVE_BACKGROUND_START_COLOR__, __THEME_WAYBAR_BUTTON_TASKBAR_ACTIVE_BACKGROUND_END_COLOR__);
+  border-color: __THEME_WAYBAR_BUTTON_TASKBAR_ACTIVE_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_TASKBAR_ACTIVE_TEXT_COLOR__;
+}
+
+window#waybar.internal #taskbar button.active {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_TASKBAR_ACTIVE_SHADOW_COLOR__;
+}
+
+window#waybar.external #taskbar button.active {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_TASKBAR_ACTIVE_SHADOW_COLOR__;
+}
+
+#taskbar button:hover {
+  background: linear-gradient(__THEME_WAYBAR_GRADIENT_ANGLE__deg, __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_BACKGROUND_START_COLOR__, __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_BACKGROUND_END_COLOR__);
+  border-color: __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_TEXT_COLOR__;
+}
+
+window#waybar.internal #taskbar button:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #taskbar button:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_SHADOW_COLOR__;
+}
+
+#group\/apps {
+  background: __THEME_WAYBAR_APPS_CONTAINER_NORMAL_BACKGROUND_COLOR__;
+}
+
+#group\/apps.expanded #custom-apps {
+  color: __THEME_WAYBAR_BUTTON_APPS_HOVER_ICON_COLOR__;
+  background-color: __THEME_WAYBAR_BUTTON_APPS_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_APPS_HOVER_OUTLINE_COLOR__;
+  box-shadow: 0 0 8px 1px __THEME_WAYBAR_BUTTON_APPS_HOVER_SHADOW_COLOR__;
+}
+
+#custom-apps:hover {
+  color: __THEME_WAYBAR_BUTTON_APPS_HOVER_ICON_COLOR__;
+  background-color: __THEME_WAYBAR_BUTTON_APPS_HOVER_BACKGROUND_COLOR__;
+  background-image: -gtk-recolor(url("__THEME_WAYBAR_BUTTON_APPS_HOVER_ICON_PATH__"));
+  border-color: __THEME_WAYBAR_BUTTON_APPS_HOVER_OUTLINE_COLOR__;
+  box-shadow: inset 0 0 6px 1px __THEME_WAYBAR_BUTTON_APPS_HOVER_SHADOW_COLOR__;
+}
+
+#custom-app-sleek:hover {
+  -gtk-icon-theme: "__THEME_WAYBAR_GTK_ICON_THEME__";
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: __THEME_WAYBAR_BUTTON_SLEEK_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_SLEEK_HOVER_OUTLINE_COLOR__;
+}
+
+window#waybar.internal #custom-app-sleek:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_SLEEK_HOVER_SHADOW_COLOR__;
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_PADDING_X__px;
+  background-size: __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_ICON_SIZE__px __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_ICON_SIZE__px, __INSTALLER_LABWC_WAYBAR_INTERNAL_BACKGROUND_FILL_PERCENT__% __INSTALLER_LABWC_WAYBAR_INTERNAL_BACKGROUND_FILL_PERCENT__%;
+}
+
+window#waybar.external #custom-app-sleek:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_SLEEK_HOVER_SHADOW_COLOR__;
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_BUTTON_PADDING_X__px;
+  background-size: __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_ICON_SIZE__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_ICON_SIZE__px, __INSTALLER_LABWC_WAYBAR_EXTERNAL_BACKGROUND_FILL_PERCENT__% __INSTALLER_LABWC_WAYBAR_EXTERNAL_BACKGROUND_FILL_PERCENT__%;
+}
+
+#custom-app-terminal:hover {
+  background-color: __THEME_WAYBAR_BUTTON_TERMINAL_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_TERMINAL_HOVER_OUTLINE_COLOR__;
+}
+
+window#waybar.internal #custom-app-terminal:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TERMINAL_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #custom-app-terminal:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TERMINAL_HOVER_SHADOW_COLOR__;
+}
+
+#custom-app-files:hover {
+  background-color: __THEME_WAYBAR_BUTTON_FILES_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_FILES_HOVER_OUTLINE_COLOR__;
+}
+
+window#waybar.internal #custom-app-files:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_FILES_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #custom-app-files:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_FILES_HOVER_SHADOW_COLOR__;
+}
+
+#custom-app-tuta:hover {
+  background-color: __THEME_WAYBAR_BUTTON_TUTANOTA_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_TUTANOTA_HOVER_OUTLINE_COLOR__;
+}
+
+window#waybar.internal #custom-app-tuta:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TUTANOTA_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #custom-app-tuta:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TUTANOTA_HOVER_SHADOW_COLOR__;
+}
+
+#custom-app-notes:hover {
+  background-color: __THEME_WAYBAR_BUTTON_NOTES_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_NOTES_HOVER_OUTLINE_COLOR__;
+}
+
+window#waybar.internal #custom-app-notes:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_NOTES_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #custom-app-notes:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_NOTES_HOVER_SHADOW_COLOR__;
+}
+
+#taskbar button.minimized {
+  color: __THEME_WAYBAR_BUTTON_TASKBAR_MINIMIZED_TEXT_COLOR__;
+}
+
+window#waybar.internal #taskbar {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_RESET_SIZE__px;
+}
+
+window#waybar.external #taskbar {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_RESET_SIZE__px;
+}
+
+window#waybar.internal #taskbar button image {
+  margin: __INSTALLER_LABWC_WAYBAR_INTERNAL_RESET_SIZE__px;
+}
+
+window#waybar.external #taskbar button image {
+  margin: __INSTALLER_LABWC_WAYBAR_EXTERNAL_RESET_SIZE__px;
+}
+
+/* Blank custom modules have no intrinsic width. Give every drawer control a
+ * stable hit target and preserve its package artwork in both output layouts. */
+window#waybar.internal #custom-apps,
+window#waybar.internal #custom-app-terminal,
+window#waybar.internal #custom-app-files,
+window#waybar.internal #custom-app-tuta,
+window#waybar.internal #custom-app-notes,
+window#waybar.internal #custom-app-sleek {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_PADDING_X__px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_ICON_SIZE__px __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_ICON_SIZE__px, __INSTALLER_LABWC_WAYBAR_INTERNAL_BACKGROUND_FILL_PERCENT__% __INSTALLER_LABWC_WAYBAR_INTERNAL_BACKGROUND_FILL_PERCENT__%;
+}
+
+window#waybar.external #custom-apps,
+window#waybar.external #custom-app-terminal,
+window#waybar.external #custom-app-files,
+window#waybar.external #custom-app-tuta,
+window#waybar.external #custom-app-notes,
+window#waybar.external #custom-app-sleek {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_BUTTON_PADDING_X__px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_ICON_SIZE__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_ICON_SIZE__px, __INSTALLER_LABWC_WAYBAR_EXTERNAL_BACKGROUND_FILL_PERCENT__% __INSTALLER_LABWC_WAYBAR_EXTERNAL_BACKGROUND_FILL_PERCENT__%;
+}

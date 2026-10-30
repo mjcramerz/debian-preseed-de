@@ -5,14 +5,20 @@ chroot, sandbox image or other disposable execution environment for work in
 this repository. This prohibition is permanent repository guidance and applies
 to tests, validation, audits, benchmarks, smoke checks and native integration.**
 
-Its allowed to run tests that do NOT affect the current host. But mostly, you should consider a task complete instead of running hundreds of tests...
-
 Do not propose or request a disposable environment as a next step. Existing
 isolation guards, fixture code, image entrypoints and historical validation
 documents do not authorize their execution. Keep the guards intact; never
 disable them or substitute host execution. Tests and validation runners remain
 unexecuted. Use static inspection and the explicitly permitted generation
 commands below, and report the resulting verification limits accurately.
+
+Source-level checks that do not contact the host are allowed, including Python,
+shell, JSON, YAML, TOML, XML, AppArmor and CSS syntax checks, deterministic
+template rendering, placeholder rendering, and data-only fixture checks. These
+checks must not import or execute managed repository modules, start services,
+contact host sockets, load policy, or use a disposable environment. Native
+desktop, installer, service, network, hardware and host-integration tests remain
+outside this boundary.
 
 ## Absolute prohibition on host access and host changes
 
@@ -107,12 +113,14 @@ helpers before editing. Keep fixes narrow and deterministic. Do not build
 software from source or change the existing private Xwayland policy for Zoom
 and Discord.
 
-Following a host-impact report, do not run any test or validation runner until
-its complete execution path and isolation boundary have been reviewed. Static
-inspection must parse source as data without importing or executing repository
-modules, helpers, shell snippets, or Makefile recipes. Read-only investigation
-of a reported host failure is separate from testing; it does not authorize a
-host repair, service restart, or configuration change.
+Following a host-impact report, do not run a host-impact or native validation
+runner until its complete execution path and isolation boundary have been
+reviewed. Source-level syntax, rendering and placeholder checks remain allowed
+when they satisfy the isolation rules above. Static inspection must parse source
+as data without importing or executing repository modules, helpers, shell
+snippets, or Makefile recipes. Read-only investigation of a reported host
+failure is separate from testing; it does not authorize a host repair, service
+restart, or configuration change.
 
 Report exact changed paths and checks. Distinguish static inspection, mocks,
 isolated integration, and live host execution. Never claim a test passed when
@@ -190,9 +198,11 @@ it was not run. Report any interrupted validation and stale generated artifacts.
   Historical remediation reports describe their recorded snapshots; they do
   not establish acceptance of a later working tree.
 - Review `docs/test-isolation.md` for the static-only execution boundary.
-  Never use a disposable environment or host fallback, including native syntax
-  checks or test discovery imports, except for the explicitly permitted offline
-  AppArmor parser above. Do not ask for an environment to run them.
+  Never use a disposable environment or host fallback, including native
+  integration checks or test discovery imports. Data-only syntax, rendering and
+  placeholder checks are permitted under the source-level boundary above. The
+  explicitly permitted offline AppArmor parser remains separate from all other
+  validation. Do not ask for an environment to run native checks.
 - Author and inspect unexecuted failure-injection fixtures for changed contracts:
   exact previous-state recovery or retained evidence, concurrent writer/cleanup
   ownership, identity replacement, bounded termination and correct result propagation. Target
@@ -211,10 +221,10 @@ it was not run. Report any interrupted validation and stale generated artifacts.
   regression invariants. Preserve exactly the existing two-app eligibility
   boundary without changing Xwayland implementation or configuration.
 
-## Mandatory post-change static audit
+## Completion static audit
 
-After every source or configuration edit, run the changed-file-only audit before
-reporting the work complete:
+When the current goal or task is complete, run the changed-file-only audit before
+reporting completion:
 
 ```text
 python3 -B tools/post_change_check.py
@@ -234,8 +244,22 @@ structure. Language-specific parsers that would execute repository code (such
 as managed Perl BEGIN blocks or live policy loaders) remain outside this
 static command and must not be substituted with host execution.
 
-When a payload input changes, run the permitted pure `make build` command and
-run the audit again so the generated payload, manifest, and preseed changes are
+When a payload input changes, run the permitted pure `make build` command, then
+run the audit so the generated payload, manifest, and preseed changes are
 included in the changed-file set. Do not replace this audit with host-facing
 tests, installer execution, policy loading, service access, or a disposable
 environment.
+
+## Expected external and installer state
+
+CrowdSec pending enrollment, Tailscale pending enrollment, and any other
+pending-enrollment state recorded in task logs are expected until the user
+approves enrollment in the respective external service. Treat those records as
+informational and do not classify them as installer or desktop failures.
+
+An offline target package maintainer script may report an AppArmor reload
+failure while the installer kernel is unavailable. Preserve the deferred target
+activation path and verify the staged policy contract instead of loading policy
+into the development host. Hardware or compositor diagnostics such as a DRM
+`Device or resource busy` event require target evidence before any source change;
+do not add speculative global workarounds.

@@ -26,7 +26,7 @@ TARGET = FORKY / 'hooks/target'
 
 class PolicyAlignmentTests(unittest.TestCase):
     def test_switcher_rgb_matches_waybar_without_losing_alpha(self):
-        css = render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/waybar/buttons/taskview.css.tmpl'))
+        css = render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/waybar/style/taskview.css.tmpl'))
         rgb = theme_values()['WAYBAR_BUTTON_TASKVIEW_NORMAL_ICON_COLOR']
         self.assertEqual(rgb.upper(), '#50C878')
         block = ''.join(re.findall(r'^#custom-window-switcher \{([^}]+)\}', css, re.M))

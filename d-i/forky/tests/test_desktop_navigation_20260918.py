@@ -207,7 +207,7 @@ class DesktopIntegrationTests(unittest.TestCase):
         self.assertEqual(config.count('"modules-left": [__INSTALLER_LABWC_WAYBAR_MODULES_LEFT__]'), 2)
 
     def test_button_icon_green_and_transient_lifecycle_preserved(self):
-        css=render_theme_defaults(payload_read_text(TARGET/'etc/skel-desktop/.config/waybar/buttons/taskview.css.tmpl'))
+        css=render_theme_defaults(payload_read_text(TARGET/'etc/skel-desktop/.config/waybar/style/taskview.css.tmpl'))
         blocks=re.findall(r'(?:^|\n)#custom-window-switcher\s*\{([^}]*)\}', css)
         block='\n'.join(blocks)
         self.assertIn('color: ' + theme_values()['WAYBAR_BUTTON_TASKVIEW_NORMAL_ICON_COLOR'] + ';',block)

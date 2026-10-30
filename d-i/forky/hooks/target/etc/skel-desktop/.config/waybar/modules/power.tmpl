@@ -1,0 +1,15 @@
+{
+  "custom/power": {
+    "format": "__THEME_WAYBAR_BUTTON_POWER_NORMAL_ICON_GLYPH__",
+    "tooltip": false,
+    "menu": "on-click",
+    "menu-file": "~/.config/waybar/gtk/power-menu.xml",
+    "menu-actions": {
+      "power_lock": "/usr/local/libexec/labwc-waybar-run -- /usr/local/bin/labwc-power-settings lock",
+      "power_suspend": "/usr/local/libexec/labwc-waybar-run -- /usr/local/bin/labwc-power-settings suspend",
+      "power_reboot": "/usr/local/libexec/labwc-waybar-run -- /usr/local/bin/labwc-power-settings reboot",
+      "power_logout": "/usr/local/libexec/labwc-waybar-run -- /usr/local/bin/labwc-power-settings logout",
+      "power_shutdown": "/usr/local/libexec/labwc-waybar-run -- /usr/local/bin/labwc-power-settings poweroff"
+    }
+  }
+}

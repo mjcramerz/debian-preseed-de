@@ -54,17 +54,48 @@ APPEARANCE_GRAMMARS = frozenset({
 APPEARANCE_PATHS = frozenset({
     'fuzzel/base.ini', 'fuzzel/fuzzel.ini', 'fuzzel/menu.ini',
     'fuzzel/computer-management.ini', 'waybar/style.css', 'waybar/style-common.css', 'waybar/config',
-    'waybar/actions/config-core', 'waybar/actions/status-menu',
-    'waybar/actions/audio-menu', 'waybar/actions/bluetooth-menu', 'waybar/actions/calendar-menu',
-    'waybar/actions/notifications-menu', 'waybar/actions/power-menu', 'waybar/actions/screenshot-menu',
-    'waybar/actions/system-menu', 'waybar/actions/tomat-menu', 'waybar/actions/layout-internal',
-    'waybar/actions/layout-external', 'waybar/menus/menu.css',
-    'waybar/buttons/menu.css', 'waybar/buttons/workspaces.css', 'waybar/buttons/tomat.css',
-    'waybar/buttons/wayscriber.css', 'waybar/buttons/taskview.css', 'waybar/buttons/apps.css',
-    'waybar/buttons/clock.css', 'waybar/buttons/audio.css', 'waybar/buttons/brightness.css',
-    'waybar/buttons/battery.css', 'waybar/buttons/storage.css', 'waybar/buttons/cpu.css',
-    'waybar/buttons/memory.css', 'waybar/buttons/tray.css', 'waybar/buttons/system.css',
-    'waybar/buttons/notifications.css', 'waybar/buttons/lock.css', 'waybar/buttons/power.css',
+    'waybar/modules/app-files',
+    'waybar/modules/app-notes',
+    'waybar/modules/app-sleek',
+    'waybar/modules/app-terminal',
+    'waybar/modules/app-tuta',
+    'waybar/modules/apps',
+    'waybar/modules/backlight',
+    'waybar/modules/battery',
+    'waybar/modules/bluetooth',
+    'waybar/modules/clock',
+    'waybar/modules/cpu',
+    'waybar/modules/disk',
+    'waybar/modules/external-apps-drawer',
+    'waybar/modules/external-launcher',
+    'waybar/modules/external-quick-controls',
+    'waybar/modules/external-taskbar',
+    'waybar/modules/external-tray',
+    'waybar/modules/internal-apps-drawer',
+    'waybar/modules/internal-launcher',
+    'waybar/modules/internal-quick-controls',
+    'waybar/modules/internal-taskbar',
+    'waybar/modules/internal-tray',
+    'waybar/modules/keyboard',
+    'waybar/modules/lock',
+    'waybar/modules/memory',
+    'waybar/modules/network',
+    'waybar/modules/notifications',
+    'waybar/modules/power',
+    'waybar/modules/pulseaudio',
+    'waybar/modules/screenshot',
+    'waybar/modules/system',
+    'waybar/modules/tomat',
+    'waybar/modules/wayscriber',
+    'waybar/modules/window-switcher',
+    'waybar/modules/workspaces',
+    'waybar/style/dropdown.css',
+    'waybar/style/menu.css', 'waybar/style/workspaces.css', 'waybar/style/tomat.css',
+    'waybar/style/wayscriber.css', 'waybar/style/taskview.css', 'waybar/style/apps.css',
+    'waybar/style/clock.css', 'waybar/style/audio.css', 'waybar/style/brightness.css',
+    'waybar/style/battery.css', 'waybar/style/storage.css', 'waybar/style/cpu.css',
+    'waybar/style/memory.css', 'waybar/style/tray.css', 'waybar/style/system.css',
+    'waybar/style/notifications.css', 'waybar/style/lock.css', 'waybar/style/power.css',
     'waybar/icons/apps-symbolic.svg',
     'waybar/icons/wayscriber-symbolic.svg', 'waycal/style.css',
     'crystal-dock/labwc/appearance.conf',
@@ -587,14 +618,21 @@ def check_waybar_render_contract(paths: list[Path], errors: list[str],
             errors.append(f'{renderer.relative_to(ROOT)}: config.tmpl is rendered once without its placeholder map')
         if 'desktop_render_waybar_config_asset "$wb_config_asset"' not in renderer_text:
             errors.append(f'{renderer.relative_to(ROOT)}: Waybar config asset loop is missing')
-        button_root = waybar_root / 'buttons'
-        button_assets = {path.name.removesuffix('.tmpl') for path in changed_waybar
-                         if path.parent == button_root}
-        for asset in sorted(button_assets):
-            loop_name = 'button-menu.css' if asset == 'menu.css' else asset
+        module_root = waybar_root / 'modules'
+        module_assets = {path.name.removesuffix('.tmpl') for path in changed_waybar
+                         if path.parent == module_root}
+        for asset in sorted(module_assets):
+            if asset not in renderer_text:
+                errors.append(f'{renderer.relative_to(ROOT)}: module template {asset} is not in the config renderer loop')
+        counts['waybar_module_templates'] = len(module_assets)
+        style_root = waybar_root / 'style'
+        style_assets = {path.name.removesuffix('.tmpl') for path in changed_waybar
+                        if path.parent == style_root}
+        for asset in sorted(style_assets):
+            loop_name = asset
             if loop_name not in renderer_text:
-                errors.append(f'{renderer.relative_to(ROOT)}: button template {asset} is not in the style renderer loop')
-        counts['waybar_button_templates'] = len(button_assets)
+                errors.append(f'{renderer.relative_to(ROOT)}: style template {asset} is not in the style renderer loop')
+        counts['waybar_style_templates'] = len(style_assets)
         map_match = re.search(
             r'desktop_render_waybar_config_asset\(\) \{(.*?)\n  \}\n  desktop_render_waybar_config_asset config',
             renderer_text, re.DOTALL,
@@ -683,7 +721,7 @@ def check_structured(paths: list[Path], errors: list[str], counts: dict[str, int
             text = _read_text(path)
             waybar_root = TARGET_ROOT / 'etc/skel-desktop/.config/waybar'
             if path.is_relative_to(waybar_root) and (
-                    path.name == 'config.tmpl' or path.parent == waybar_root / 'actions'):
+                    path.name == 'config.tmpl' or path.parent == waybar_root / 'modules'):
                 # Numeric/list installer slots are the only unquoted tokens
                 # in these JSON templates. Parse as data without executing a
                 # renderer, and preserve quoted strings and action arguments.

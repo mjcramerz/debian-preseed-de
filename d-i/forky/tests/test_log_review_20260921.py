@@ -78,7 +78,7 @@ class NativeMenuGeometry(unittest.TestCase):
         from waybar_fixture import rendered_assets
         assets = rendered_assets(FORKY/'hosts/profiles/btrfs-de.env')
         for name, text in assets.items():
-            if name not in {'menus/' + menu + '-menu.xml' for menu in ('tomat', 'audio', 'notifications', 'power', 'calendar')}: continue
+            if name not in {'gtk/' + menu + '-menu.xml' for menu in ('tomat', 'audio', 'notifications', 'power', 'calendar')}: continue
             for obj in ET.fromstring(text).iter('object'):
                 props={p.get('name'):p.text for p in obj.findall('property')}
                 if obj.get('class')=='GtkMenu':

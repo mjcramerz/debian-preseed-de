@@ -65,7 +65,7 @@ done
         if '__INSTALLER_' in text or '__THEME_' in text:
             raise AssertionError('unresolved source '+source)
         relative = Path(dest).relative_to('/etc/skel-desktop/.config/waybar').as_posix()
-        if relative == 'config' or relative.startswith('actions/'):
+        if relative == 'config' or relative.startswith('modules/'):
             def unique_keys(pairs):
                 values = {}
                 for key, value in pairs:
@@ -98,7 +98,7 @@ def resolved_config(assets):
             if not include.startswith(prefix):
                 raise AssertionError('unexpected Waybar include root')
             relative = include[len(prefix):]
-            if not re.fullmatch(r'actions/[a-z-]+', relative):
+            if not re.fullmatch(r'modules/[a-z-]+', relative):
                 raise AssertionError('unsafe Waybar include')
             merge(bar, json.loads(assets[relative]))
     return bars
@@ -115,7 +115,7 @@ def rendered_assets(profile, count=None, theme_items=()):
             raise AssertionError('recursive Waybar stylesheet import')
         def include(match):
             name = match[1]
-            if not re.fullmatch(r'(?:style-common|(?:buttons|menus)/[a-z-]+)\.css', name):
+            if not re.fullmatch(r'(?:style-common|(?:style|gtk)/[a-z-]+)\.css', name):
                 raise AssertionError('unsafe Waybar stylesheet import')
             return stylesheet(name, (*active, relative))
         return expression.sub(include, assets[relative])

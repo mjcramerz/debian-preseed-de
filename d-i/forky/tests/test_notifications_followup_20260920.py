@@ -110,7 +110,7 @@ class NotificationsFollowupTests(unittest.TestCase):
         from waybar_fixture import profiles, rendered_assets
         for profile in profiles():
             assets = rendered_assets(profile)
-            menu = ET.fromstring(assets['menus/notifications-menu.xml'])
+            menu = ET.fromstring(assets['gtk/notifications-menu.xml'])
             self.assertIsNotNone(menu.find('./object[@class="GtkMenu"][@id="menu"]'))
             actions = {item.get('id') for item in menu.iter('object')
                        if item.get('class') == 'GtkMenuItem' and item.get('id')}
@@ -121,7 +121,7 @@ class NotificationsFollowupTests(unittest.TestCase):
                     self.assertNotIn('on-click', entry)
                     self.assertNotIn('on-click-release', entry)
                     self.assertNotIn('on-click', entry.get('actions', {}))
-                    self.assertEqual(entry['menu-file'], '~/.config/waybar/menus/notifications-menu.xml')
+                    self.assertEqual(entry['menu-file'], '~/.config/waybar/gtk/notifications-menu.xml')
                     self.assertEqual(set(entry['menu-actions']), actions)
 
     def test_native_left_click_menu_has_no_competing_left_click_command(self):
@@ -135,7 +135,7 @@ class NotificationsFollowupTests(unittest.TestCase):
             self.assertEqual(entry['format'], '{}')
             self.assertTrue(entry['escape'])
             self.assertEqual(entry['return-type'], 'json')
-            self.assertEqual(entry['menu-file'], '~/.config/waybar/menus/notifications-menu.xml')
+            self.assertEqual(entry['menu-file'], '~/.config/waybar/gtk/notifications-menu.xml')
             self.assertEqual(set(entry['menu-actions']), {
                 'notifications_dnd', 'notifications_clear', 'notifications_center',
                 'notifications_dnd_on', 'notifications_dnd_off', 'notifications_restore', 'notifications_dismiss'})

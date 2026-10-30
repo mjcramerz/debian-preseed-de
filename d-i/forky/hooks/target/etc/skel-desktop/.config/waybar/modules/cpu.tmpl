@@ -1,0 +1,13 @@
+{
+  "cpu": {
+    "interval": 10,
+    "format": "<span foreground='__THEME_WAYBAR_BUTTON_CPU_NORMAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_CPU_NORMAL_ICON_GLYPH__</span> {usage}%",
+    "format-warning": "<span foreground='__THEME_WAYBAR_BUTTON_CPU_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_CPU_WARNING_ICON_GLYPH__</span> {usage}%",
+    "format-critical": "<span foreground='__THEME_WAYBAR_BUTTON_CPU_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_CPU_CRITICAL_ICON_GLYPH__</span> {usage}%",
+    "on-click": "/usr/local/bin/labwc-terminal -e btop",
+    "states": {
+      "warning": 70,
+      "critical": 90
+    }
+  }
+}

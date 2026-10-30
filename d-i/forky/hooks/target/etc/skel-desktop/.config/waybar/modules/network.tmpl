@@ -1,0 +1,15 @@
+{
+  "network": {
+    "interval": 10,
+    "family": "ipv4",
+    "format-wifi": "__THEME_WAYBAR_BUTTON_NETWORK_WIFI_ICON_GLYPH__",
+    "format-ethernet": "__THEME_WAYBAR_BUTTON_NETWORK_ETHERNET_ICON_GLYPH__",
+    "format-linked": "__THEME_WAYBAR_BUTTON_NETWORK_LINKED_ICON_GLYPH__",
+    "format-disconnected": "__THEME_WAYBAR_BUTTON_NETWORK_DISCONNECTED_ICON_GLYPH__",
+    "format-disabled": "__THEME_WAYBAR_BUTTON_NETWORK_DISABLED_ICON_GLYPH__",
+    "tooltip-format-wifi": "{essid}\n{signalStrength}%  {ipaddr}\nUp {bandwidthUpBytes}  Down {bandwidthDownBytes}",
+    "tooltip-format-ethernet": "{ifname}\n{ipaddr}\nUp {bandwidthUpBytes}  Down {bandwidthDownBytes}",
+    "on-click": "/usr/local/libexec/labwc-waybar-run -- labwc-terminal -e nmtui",
+    "on-click-right-release": "/usr/local/libexec/labwc-waybar-run -- labwc-network-control-menu"
+  }
+}

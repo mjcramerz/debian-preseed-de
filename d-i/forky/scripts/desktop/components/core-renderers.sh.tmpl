@@ -334,14 +334,12 @@ desktop_render_waybar_asset() (
   shift
   case "$wb_asset" in
     config|style.css|style-common.css) wb_asset_rel=$wb_asset ;;
-    taskview.css|workspaces.css|tomat.css|wayscriber.css|apps.css|clock.css|audio.css|brightness.css|battery.css|storage.css|cpu.css|memory.css|tray.css|system.css|notifications.css|lock.css|power.css)
-      wb_asset_rel="buttons/${wb_asset}" ;;
-    button-menu.css) wb_asset_rel="buttons/menu.css" ;;
-    config-core|status-menu|audio-menu|bluetooth-menu|calendar-menu|notifications-menu|power-menu|screenshot-menu|system-menu|tomat-menu|layout-internal|layout-external)
-      wb_asset_rel="actions/${wb_asset}" ;;
-    audio-menu.xml|bluetooth-menu.xml|calendar-menu.xml|notifications-menu.xml|power-menu.xml|screenshot-menu.xml|system-menu.xml|tomat-menu.xml|\
-    menu.css)
-      wb_asset_rel="menus/${wb_asset}" ;;
+    menu.css|dropdown.css|taskview.css|workspaces.css|tomat.css|wayscriber.css|apps.css|clock.css|audio.css|brightness.css|battery.css|storage.css|cpu.css|memory.css|tray.css|system.css|notifications.css|lock.css|power.css)
+      wb_asset_rel="style/${wb_asset}" ;;
+    app-files|app-notes|app-sleek|app-terminal|app-tuta|apps|backlight|battery|bluetooth|clock|cpu|disk|external-apps-drawer|external-launcher|external-quick-controls|external-taskbar|external-tray|internal-apps-drawer|internal-launcher|internal-quick-controls|internal-taskbar|internal-tray|keyboard|lock|memory|network|notifications|power|pulseaudio|screenshot|system|tomat|wayscriber|window-switcher|workspaces)
+      wb_asset_rel="modules/${wb_asset}" ;;
+    audio-menu.xml|bluetooth-menu.xml|calendar-menu.xml|notifications-menu.xml|power-menu.xml|screenshot-menu.xml|system-menu.xml|tomat-menu.xml)
+      wb_asset_rel="gtk/${wb_asset}" ;;
     *) desktop_fatal "unsupported Waybar asset: $wb_asset" ;;
   esac
   desktop_waybar_geometry_validate
@@ -400,9 +398,12 @@ desktop_render_waybar_config() (
   }
   desktop_render_waybar_config_asset config
   for wb_config_asset in \
-    config-core status-menu audio-menu bluetooth-menu calendar-menu \
-    notifications-menu power-menu screenshot-menu system-menu tomat-menu \
-    layout-internal layout-external
+    app-files app-notes app-sleek app-terminal app-tuta apps backlight battery \
+    bluetooth clock cpu disk external-apps-drawer external-launcher \
+    external-quick-controls external-taskbar external-tray internal-apps-drawer \
+    internal-launcher internal-quick-controls internal-taskbar internal-tray \
+    keyboard lock memory network notifications power pulseaudio screenshot \
+    system tomat wayscriber window-switcher workspaces
   do
     desktop_render_waybar_config_asset "$wb_config_asset"
   done
@@ -412,13 +413,13 @@ desktop_render_waybar_config() (
 desktop_render_waybar_style() {
   desktop_render_waybar_asset style-common.css
   for wb_style_asset in \
-    button-menu.css workspaces.css tomat.css wayscriber.css taskview.css apps.css \
+    menu.css workspaces.css tomat.css wayscriber.css taskview.css apps.css \
     clock.css audio.css brightness.css battery.css storage.css cpu.css memory.css \
     tray.css system.css notifications.css lock.css power.css
   do
     desktop_render_waybar_asset "$wb_style_asset"
   done
-  desktop_render_waybar_asset menu.css
+  desktop_render_waybar_asset dropdown.css
   desktop_render_waybar_asset style.css
 }
 

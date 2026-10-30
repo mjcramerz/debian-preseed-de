@@ -51,7 +51,7 @@ desktop_stage_waybar_native_menus() {
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
-path = Path("/etc/skel-desktop/.config/waybar/menus/audio-menu.xml")
+path = Path("/etc/skel-desktop/.config/waybar/gtk/audio-menu.xml")
 tree = ET.parse(path)
 items = [item for item in tree.iter("object") if item.get("class") == "GtkMenuItem"
          and item.find(".//object[@id=\"whisper_record\"]") is not None]

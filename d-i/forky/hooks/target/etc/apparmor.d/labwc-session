@@ -166,6 +166,9 @@ profile labwc-waybar-run /usr/local/libexec/labwc-waybar-run flags=(attach_disco
   /usr/local/lib/python3.14/dist-packages/ r,
   /usr/bin/systemd-run rix,
   owner /run/user/[0-9]*/{bus,systemd/private} rw,
+  # Waybar can inherit the compositor's read-only Bluetooth descriptor before
+  # this wrapper closes all non-standard descriptors with close_range(2).
+  /dev/rfkill r,
   signal (receive) set=(int, term, hup, kill) peer=unconfined,
   signal (send) set=(chld) peer=waybar,
   include if exists <local/usr.local.libexec.labwc-waybar-run>

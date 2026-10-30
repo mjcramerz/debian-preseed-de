@@ -6,10 +6,12 @@ other disposable execution environments for work in this repository. Do not
 propose an environment as a next step. Earlier image/VM instructions are
 superseded by that prohibition.
 
-Tests and validation commands must also never run on the development host.
-This includes unittest discovery, importing a test or fixture, `make test`,
-`make check`, `make validate`, audit tools, native syntax checks, AppArmor or
-systemd validators, benchmarks and container smoke probes. No environment flag,
+Tests and host-facing validation commands must also never run on the development
+host. This includes unittest discovery, importing a test or fixture, `make test`,
+`make check`, `make validate`, AppArmor or systemd host validators, benchmarks,
+and container smoke probes. Source-level syntax, rendering, placeholder, and
+changed-file audit commands remain allowed when they do not import repository
+modules, contact host state, or execute managed helpers. No environment flag,
 root/sudo fallback, namespace wrapper or alternate tool may bypass this rule.
 
 The user-authorized offline AppArmor parser exception in `AGENTS.override.md`
@@ -23,10 +25,11 @@ and test/fixture execution remain prohibited.
 
 ## Permitted work
 
-Inspect source and supplied reports as data. Static AST parsing, source/diff
-inspection and archive/hash comparison must not import or execute repository
-modules, source shell snippets or invoke installed management helpers. Fixture
-cases may be authored and reviewed as source, but remain unexecuted.
+Inspect source and supplied reports as data. Static AST parsing, source/diff,
+CSS/JSON/XML/TOML/YAML parsing, deterministic rendering, placeholder checks,
+and archive/hash comparison must not import or execute repository modules,
+source shell snippets or invoke installed management helpers. Fixture cases may
+be authored and reviewed as source, but remain unexecuted.
 
 The permitted generation and static-audit paths remain separate:
 

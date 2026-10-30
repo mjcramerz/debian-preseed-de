@@ -1,0 +1,20 @@
+{
+  "custom/screenshot": {
+    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-waybar-events capture",
+    "return-type": "json",
+    "restart-interval": 30,
+    "exec-on-event": false,
+    "tooltip": true,
+    "menu": "on-click",
+    "menu-file": "~/.config/waybar/gtk/screenshot-menu.xml",
+    "menu-actions": {
+      "screenshot_annotation": "/usr/local/libexec/labwc-waybar-run -- __INSTALLER_LABWC_CAPTURE_COMMAND__ annotate-full",
+      "screenshot_full": "/usr/local/libexec/labwc-waybar-run -- __INSTALLER_LABWC_CAPTURE_COMMAND__ screenshot-full",
+      "screenshot_selection": "/usr/local/libexec/labwc-waybar-run -- __INSTALLER_LABWC_CAPTURE_COMMAND__ screenshot-box",
+      "screen_record_full": "/usr/local/libexec/labwc-waybar-run -- __INSTALLER_LABWC_CAPTURE_COMMAND__ record-full",
+      "screen_record_selection": "/usr/local/libexec/labwc-waybar-run -- __INSTALLER_LABWC_CAPTURE_COMMAND__ record-box"
+    },
+    "on-click-middle": "/usr/local/libexec/labwc-waybar-run -- __INSTALLER_LABWC_CAPTURE_COMMAND__ stop",
+    "on-click-right-release": "/usr/local/libexec/labwc-waybar-run -- __INSTALLER_LABWC_CAPTURE_COMMAND__ stop"
+  }
+}

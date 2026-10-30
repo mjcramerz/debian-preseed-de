@@ -577,7 +577,7 @@ class ThemeRuntimeContractTests(unittest.TestCase):
             source = TARGET / 'etc/skel-desktop/.config/waybar'
             assets = rendered_assets(profiles()[0], theme_items=tuple(sorted(values.items())))
             (root / 'style.css').write_text(assets['style.css'])
-            (root / 'menu.xml').write_text(assets['menus/tomat-menu.xml'])
+            (root / 'menu.xml').write_text(assets['gtk/tomat-menu.xml'])
             code = r'''
 import ctypes as C, ctypes.util, sys, json
 G = C.CDLL(ctypes.util.find_library('gtk-3'))

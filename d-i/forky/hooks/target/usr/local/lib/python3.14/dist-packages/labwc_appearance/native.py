@@ -8,25 +8,37 @@ from .themes import variant as desktop_theme
 
 FILES = {
     'fuzzel': ('fuzzel/base.ini', 'fuzzel/fuzzel.ini', 'fuzzel/menu.ini', 'fuzzel/computer-management.ini'),
-    'waybar': ('waybar/style.css', 'waybar/style-common.css',
-               'waybar/config', 'waybar/actions/config-core', 'waybar/actions/status-menu',
-               'waybar/actions/audio-menu', 'waybar/actions/bluetooth-menu',
-               'waybar/actions/calendar-menu', 'waybar/actions/notifications-menu',
-               'waybar/actions/power-menu', 'waybar/actions/screenshot-menu',
-               'waybar/actions/system-menu', 'waybar/actions/tomat-menu',
-               'waybar/actions/layout-internal', 'waybar/actions/layout-external',
-               'waybar/menus/menu.css',
-               'waybar/buttons/menu.css', 'waybar/buttons/workspaces.css',
-               'waybar/buttons/tomat.css', 'waybar/buttons/wayscriber.css',
-               'waybar/buttons/apps.css',
-               'waybar/buttons/clock.css', 'waybar/buttons/audio.css',
-               'waybar/buttons/brightness.css', 'waybar/buttons/battery.css',
-               'waybar/buttons/storage.css', 'waybar/buttons/cpu.css',
-               'waybar/buttons/memory.css', 'waybar/buttons/tray.css',
-               'waybar/buttons/system.css', 'waybar/buttons/notifications.css',
-               'waybar/buttons/lock.css', 'waybar/buttons/power.css',
+    'waybar': ('waybar/style.css', 'waybar/style-common.css', 'waybar/config',
+               'waybar/modules/app-files', 'waybar/modules/app-notes',
+               'waybar/modules/app-sleek', 'waybar/modules/app-terminal',
+               'waybar/modules/app-tuta', 'waybar/modules/apps',
+               'waybar/modules/backlight', 'waybar/modules/battery',
+               'waybar/modules/bluetooth', 'waybar/modules/clock',
+               'waybar/modules/cpu', 'waybar/modules/disk',
+               'waybar/modules/external-apps-drawer', 'waybar/modules/external-launcher',
+               'waybar/modules/external-quick-controls', 'waybar/modules/external-taskbar',
+               'waybar/modules/external-tray', 'waybar/modules/internal-apps-drawer',
+               'waybar/modules/internal-launcher', 'waybar/modules/internal-quick-controls',
+               'waybar/modules/internal-taskbar', 'waybar/modules/internal-tray',
+               'waybar/modules/keyboard', 'waybar/modules/lock',
+               'waybar/modules/memory', 'waybar/modules/network',
+               'waybar/modules/notifications', 'waybar/modules/power',
+               'waybar/modules/pulseaudio', 'waybar/modules/screenshot',
+               'waybar/modules/system', 'waybar/modules/tomat',
+               'waybar/modules/wayscriber', 'waybar/modules/window-switcher',
+               'waybar/modules/workspaces',
+               'waybar/style/dropdown.css', 'waybar/style/menu.css',
+               'waybar/style/workspaces.css', 'waybar/style/tomat.css',
+               'waybar/style/wayscriber.css', 'waybar/style/taskview.css',
+               'waybar/style/apps.css', 'waybar/style/clock.css',
+               'waybar/style/audio.css', 'waybar/style/brightness.css',
+               'waybar/style/battery.css', 'waybar/style/storage.css',
+               'waybar/style/cpu.css', 'waybar/style/memory.css',
+               'waybar/style/tray.css', 'waybar/style/system.css',
+               'waybar/style/notifications.css', 'waybar/style/lock.css',
+               'waybar/style/power.css',
                'waybar/icons/apps-symbolic.svg', 'waybar/icons/wayscriber-symbolic.svg'),
-    'taskview': ('waybar/buttons/taskview.css',),
+    'taskview': ('waybar/style/taskview.css',),
     'waycal': ('waycal/style.css',),
     'dock': ('crystal-dock/labwc/appearance.conf',),
     'terminal': ('foot/foot.ini', 'kitty/kitty.conf'),
@@ -45,8 +57,8 @@ OPTIONAL_FILES = frozenset((OPTIONAL, 'qt5ct/colors/labwc-appearance.conf',
 ICON_MANAGED_FILES = frozenset({
     'fuzzel/base.ini', 'gtk-3.0/settings.ini', 'gtk-4.0/settings.ini',
     'qt5ct/qt5ct.conf', 'qt6ct/qt6ct.conf',
-    'waybar/actions/layout-internal', 'waybar/actions/layout-external',
-    'waybar/menus/menu.css', 'waybar/buttons/apps.css',
+    'waybar/modules/internal-taskbar', 'waybar/modules/external-taskbar',
+    'waybar/style/dropdown.css', 'waybar/style/apps.css',
 })
 POINTER_MANAGED_FILES = frozenset({
     'gtk-3.0/settings.ini', 'gtk-4.0/settings.ini', 'labwc/environment',
@@ -98,7 +110,8 @@ def render_asset(path: str, text: str, baseline: str | None, kind: str, name: st
             return _replace_setting(text, 'icon_theme', name)
         if path == 'fuzzel/base.ini':
             return _replace_setting(text, 'icon-theme', name)
-        if path == 'waybar/config' or path.startswith('waybar/actions/layout-'):
+        if path == 'waybar/config' or path in ('waybar/modules/internal-taskbar',
+                                               'waybar/modules/external-taskbar'):
             result, count = re.subn(r'("icon-theme"\s*:\s*")[^"]*(")', r'\1' + name + r'\2', text)
             if count < 1:
                 raise ValueError('Waybar icon-theme setting is missing')
@@ -233,7 +246,7 @@ def render(path: str, text: str, baseline: str | None, profile: str | None,
     if base == 'gtk-4.0/gtk.css':
         return gtk4_import(text, baseline, theme)
     if (base in ('waybar/config', 'waybar/style.css')
-            or (base.startswith('waybar/actions/') and not base.endswith('.css'))
+            or (base.startswith('waybar/modules/') and not base.endswith('.css'))
             or base == 'labwc/environment'):
         return baseline if reset else text
     if base in ('waybar/icons/apps-symbolic.svg', 'waybar/icons/wayscriber-symbolic.svg'):
