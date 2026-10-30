@@ -213,7 +213,7 @@ allowed_field_paths = {
     "waybar/modules/wayscriber",
     "waybar/modules/window-switcher",
     "waybar/modules/workspaces",
-    "waybar/style/dropdown.css",
+    "waybar/style/gtk.css",
     "waybar/style/menu.css", "waybar/style/workspaces.css", "waybar/style/tomat.css",
     "waybar/style/wayscriber.css", "waybar/style/taskview.css", "waybar/style/apps.css",
     "waybar/style/clock.css", "waybar/style/audio.css", "waybar/style/brightness.css",
@@ -222,6 +222,7 @@ allowed_field_paths = {
     "waybar/style/notifications.css", "waybar/style/lock.css", "waybar/style/power.css",
     "waybar/icons/apps-symbolic.svg", "waybar/icons/wayscriber-symbolic.svg",
     "waycal/style.css",
+    "swaylock/config",
     "crystal-dock/labwc/appearance.conf", "foot/foot.ini", "kitty/kitty.conf", "mako/config",
     "gtk-3.0/settings.ini", "gtk-4.0/settings.ini", "gtk-4.0/gtk.css",
     "qt5ct/qt5ct.conf", "qt6ct/qt6ct.conf", "qt5ct/colors/labwc-appearance.conf",
@@ -240,8 +241,8 @@ for field in fields["fields"]:
             and isinstance(field.get("key"), str)
             and re.fullmatch(r"[A-Z][A-Z0-9_]{2,127}", field["key"]) is not None
             and field["key"] not in field_keys
-            and field.get("component") in ("DOCK", "FUZZEL", "WAYBAR", "TASKVIEW", "WAYCAL", "MAKO", "TERMINAL", "GTKGREET")
-            and field.get("type") in ("hash6", "hash8", "hex6", "hex8", "rgba", "alpha", "decimal", "text-color", "mako-progress")
+            and field.get("component") in ("DOCK", "FUZZEL", "WAYBAR", "TASKVIEW", "WAYCAL", "MAKO", "TERMINAL", "SWAYLOCK", "GTKGREET")
+            and field.get("type") in ("hash6", "hash8", "hex6", "hex8", "swaylock-rgb", "swaylock-rgba", "rgba", "alpha", "decimal", "text-color", "mako-progress")
             and isinstance(field.get("default"), str)
             and isinstance(field.get("mappings"), list) and field["mappings"],
             "invalid native appearance field")
@@ -261,7 +262,7 @@ for field in fields["fields"]:
                 and 0 <= mapping["target_index"] < len(mapping["tokens"])
                 and mapping["tokens"][mapping["target_index"]] == "__THEME_" + field["key"] + "__"
                 and mapping.get("grammar") in ("gtk3-css-color", "gtk4-css-color", "pango-color",
-                                                "qt-color", "mako-color", "mako-progress",
+                                                "qt-color", "mako-color", "mako-progress", "swaylock-rgb", "swaylock-rgba",
                                                 "fuzzel-rgba", "foot-rgb", "kitty-color", "alpha",
                                                 "decimal"),
                 "invalid native appearance field mapping")

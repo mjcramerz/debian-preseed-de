@@ -27,7 +27,7 @@ FILES = {
                'waybar/modules/system', 'waybar/modules/tomat',
                'waybar/modules/wayscriber', 'waybar/modules/window-switcher',
                'waybar/modules/workspaces',
-               'waybar/style/dropdown.css', 'waybar/style/menu.css',
+               'waybar/style/gtk.css', 'waybar/style/menu.css',
                'waybar/style/workspaces.css', 'waybar/style/tomat.css',
                'waybar/style/wayscriber.css', 'waybar/style/taskview.css',
                'waybar/style/apps.css', 'waybar/style/clock.css',
@@ -42,6 +42,7 @@ FILES = {
     'waycal': ('waycal/style.css',),
     'dock': ('crystal-dock/labwc/appearance.conf',),
     'terminal': ('foot/foot.ini', 'kitty/kitty.conf'),
+    'swaylock': ('swaylock/config',),
     'mako': ('mako/config',),
     'theme': ('gtk-3.0/settings.ini', 'gtk-4.0/settings.ini', 'gtk-4.0/gtk.css',
               'qt5ct/qt5ct.conf', 'qt6ct/qt6ct.conf',
@@ -58,7 +59,7 @@ ICON_MANAGED_FILES = frozenset({
     'fuzzel/base.ini', 'gtk-3.0/settings.ini', 'gtk-4.0/settings.ini',
     'qt5ct/qt5ct.conf', 'qt6ct/qt6ct.conf',
     'waybar/modules/internal-taskbar', 'waybar/modules/external-taskbar',
-    'waybar/style/dropdown.css', 'waybar/style/apps.css',
+    'waybar/style/gtk.css', 'waybar/style/apps.css',
 })
 POINTER_MANAGED_FILES = frozenset({
     'gtk-3.0/settings.ini', 'gtk-4.0/settings.ini', 'labwc/environment',
@@ -75,6 +76,10 @@ KITTY_STATE_KEYS = ('active_border_color', 'inactive_border_color', 'bell_border
                     'active_tab_foreground', 'active_tab_background',
                     'inactive_tab_foreground', 'inactive_tab_background',
                     'tab_bar_background', 'tab_bar_margin_color')
+SWAYLOCK_KEYS = ('color', 'inside-color', 'inside-clear-color', 'inside-ver-color',
+                 'inside-wrong-color', 'ring-color', 'ring-clear-color', 'ring-ver-color',
+                 'ring-wrong-color', 'key-hl-color', 'bs-hl-color', 'separator-color',
+                 'text-color', 'text-clear-color', 'text-ver-color', 'text-wrong-color')
 DOCK_KEYS = ('backgroundColor', 'backgroundColor2D', 'backgroundColorMetal2D', 'borderColor',
              'borderColorMetal2D', 'activeIndicatorColor', 'activeIndicatorColor2D',
              'activeIndicatorColorMetal2D', 'inactiveIndicatorColor',
@@ -317,6 +322,46 @@ def render(path: str, text: str, baseline: str | None, profile: str | None,
             old = flat_values(original, ' ')
             values = {key: old.get(key) for key in values}
         return edit_flat(text, values)
+    if base == 'swaylock/config':
+        if reset:
+            original_values = {
+                match[1]: match[2]
+                for line in original.splitlines()
+                if (match := re.match(r'^\s*([^#\s=]+)=(.*?)\s*$', line))
+            }
+            values = {key: original_values[key] for key in SWAYLOCK_KEYS}
+        else:
+            values = {
+                'color': p.background[1:],
+                'inside-color': p.background[1:] + 'cc',
+                'inside-clear-color': p.surface[1:] + 'cc',
+                'inside-ver-color': p.accent[1:] + 'cc',
+                'inside-wrong-color': p.error[1:] + 'cc',
+                'ring-color': p.foreground[1:] + 'aa',
+                'ring-clear-color': p.accent_hover[1:] + 'ff',
+                'ring-ver-color': p.accent[1:] + 'ff',
+                'ring-wrong-color': p.error[1:] + 'ff',
+                'key-hl-color': p.warning[1:] + 'ff',
+                'bs-hl-color': p.error[1:] + 'ff',
+                'separator-color': '00000000',
+                'text-color': p.foreground[1:] + 'ff',
+                'text-clear-color': p.foreground[1:] + 'ff',
+                'text-ver-color': p.selection_text[1:] + 'ff',
+                'text-wrong-color': p.foreground[1:] + 'ff',
+            }
+        output = []
+        remaining = dict(values)
+        for line in text.splitlines(keepends=True):
+            match = re.match(r'^(\s*)([^#\s=]+)=(.*?)(\r?\n)?$', line)
+            key = match[2] if match else None
+            if key in remaining:
+                value = remaining.pop(key)
+                output.append(match[1] + key + '=' + value + (match[4] or '\n'))
+            else:
+                output.append(line if line.endswith(('\n', '\r')) else line + '\n')
+        if remaining:
+            raise ValueError('swaylock configuration is missing managed keys: ' + ', '.join(remaining))
+        return ''.join(output)
     if base.startswith('gtk-'):
         values = {('Settings', 'gtk-theme-name'): theme.gtk if theme is not None else 'Adwaita',
                   ('Settings', 'gtk-application-prefer-dark-theme'): '1' if mode == 'dark' else '0'}

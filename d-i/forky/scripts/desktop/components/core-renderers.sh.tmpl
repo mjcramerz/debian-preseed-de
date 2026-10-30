@@ -334,7 +334,7 @@ desktop_render_waybar_asset() (
   shift
   case "$wb_asset" in
     config|style.css|style-common.css) wb_asset_rel=$wb_asset ;;
-    menu.css|dropdown.css|taskview.css|workspaces.css|tomat.css|wayscriber.css|apps.css|clock.css|audio.css|brightness.css|battery.css|storage.css|cpu.css|memory.css|tray.css|system.css|notifications.css|lock.css|power.css)
+    menu.css|gtk.css|taskview.css|workspaces.css|tomat.css|wayscriber.css|apps.css|clock.css|audio.css|brightness.css|battery.css|storage.css|cpu.css|memory.css|tray.css|system.css|notifications.css|lock.css|power.css)
       wb_asset_rel="style/${wb_asset}" ;;
     app-files|app-notes|app-sleek|app-terminal|app-tuta|apps|backlight|battery|bluetooth|clock|cpu|disk|external-apps-drawer|external-launcher|external-quick-controls|external-taskbar|external-tray|internal-apps-drawer|internal-launcher|internal-quick-controls|internal-taskbar|internal-tray|keyboard|lock|memory|network|notifications|power|pulseaudio|screenshot|system|tomat|wayscriber|window-switcher|workspaces)
       wb_asset_rel="modules/${wb_asset}" ;;
@@ -419,7 +419,7 @@ desktop_render_waybar_style() {
   do
     desktop_render_waybar_asset "$wb_style_asset"
   done
-  desktop_render_waybar_asset dropdown.css
+  desktop_render_waybar_asset gtk.css
   desktop_render_waybar_asset style.css
 }
 

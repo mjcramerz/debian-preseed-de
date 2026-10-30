@@ -578,7 +578,7 @@ sub _run_clamav_scan {
             or die "ClamAV scan file exceeds the managed " . $self->clamav_max_file_bytes() . "-byte limit: $path\n";
         ($recursive, $timeout) = ('no', '15m');
     }
-    elsif ($kind eq '__THEME_MAKO_SECURITY_ACTION_FOLDER_ICON_NAME__') {
+    elsif ($kind eq 'folder') {
         $path = $self->_validate_directory('ClamAV scan folder', $requested);
         $self->_validate_clamav_folder_limits($path);
         ($recursive, $timeout) = ('yes', '45m');
@@ -625,7 +625,7 @@ sub _run_terminal_action {
         return $self->_run_clamav_scan($action, 'file', $args[0]);
     }
     if ($action eq 'scan-folder-clamav') {
-        return $self->_run_clamav_scan($action, '__THEME_MAKO_SECURITY_ACTION_FOLDER_ICON_NAME__', $args[0]);
+        return $self->_run_clamav_scan($action, 'folder', $args[0]);
     }
     if ($action eq 'retrieve-file-hashes') {
         return $self->_run_file_hashes($action, $args[0]);

@@ -8,6 +8,8 @@ MAX_SECRET_LENGTH = 4096
 
 
 def clean_prompt(arguments: list[str]) -> str:
+    if len(arguments) > 32 or sum(len(argument.encode("utf-8")) + 1 for argument in arguments) > MAX_PROMPT_LENGTH * 4:
+        return "Remote Desktop password"
     prompt = " ".join(arguments).strip() or "Remote Desktop password"
     prompt = "".join(character for character in prompt if character >= " " and character != "\x7f")
     return prompt[:MAX_PROMPT_LENGTH]
@@ -55,9 +57,8 @@ def main() -> int:
 
     if response != Gtk.ResponseType.OK:
         return 2
-    if not secret or len(secret) > MAX_SECRET_LENGTH or any(
-        character in secret for character in ("\n", "\r", "\0")
-    ):
+    if (not secret or len(secret.encode("utf-8")) > MAX_SECRET_LENGTH
+            or any(ord(character) < 32 or ord(character) == 127 for character in secret)):
         print("fatal: invalid Remote Desktop password input", file=sys.stderr)
         return 1
     sys.stdout.write(secret + "\n")

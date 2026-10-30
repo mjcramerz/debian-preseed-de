@@ -1041,7 +1041,7 @@ for path in \
   /etc/skel-desktop/.config/waybar/modules/wayscriber \
   /etc/skel-desktop/.config/waybar/modules/window-switcher \
   /etc/skel-desktop/.config/waybar/modules/workspaces \
-  /etc/skel-desktop/.config/waybar/style/dropdown.css \
+  /etc/skel-desktop/.config/waybar/style/gtk.css \
   /etc/skel-desktop/.config/waybar/gtk/audio-menu.xml \
   /etc/skel-desktop/.config/waybar/gtk/bluetooth-menu.xml \
   /etc/skel-desktop/.config/waybar/gtk/calendar-menu.xml \
@@ -1069,6 +1069,9 @@ for path in \
   /etc/skel-desktop/.config/waybar/style/lock.css \
   /etc/skel-desktop/.config/waybar/style/power.css \
   /etc/skel-desktop/.config/waycal/style.css \
+  /etc/skel-desktop/.config/swaylock/config \
+  /etc/skel-desktop/.config/gtk-3.0/gtk.css \
+  /etc/skel-desktop/.config/l3afpad/style.css \
   /etc/skel-desktop/.config/l3afpad/l3afpadrc \
   /etc/skel-desktop/.config/foot/foot.ini \
   /etc/skel-desktop/.config/gnote/addins/global.ini \
@@ -1124,7 +1127,6 @@ for path in \
   /etc/skel-desktop/.config/systemd/user/labwc-health-notify.service \
   /etc/skel-desktop/.config/systemd/user/labwc-health-notify.path \
   /etc/skel-desktop/.config/systemd/user/labwc-health-notify.timer \
-  /etc/skel-desktop/.config/swaylock/config \
   /etc/skel-desktop/.config/gtk-3.0/settings.ini \
   /etc/skel-desktop/.config/gtk-4.0/settings.ini \
   /etc/xdg/gtk-3.0/settings.ini \
@@ -1724,7 +1726,7 @@ for path in \
   "$account_home/.config/waybar/modules/wayscriber" \
   "$account_home/.config/waybar/modules/window-switcher" \
   "$account_home/.config/waybar/modules/workspaces" \
-  "$account_home/.config/waybar/style/dropdown.css" \
+  "$account_home/.config/waybar/style/gtk.css" \
   "$account_home/.config/waybar/gtk/audio-menu.xml" \
   "$account_home/.config/waybar/gtk/bluetooth-menu.xml" \
   "$account_home/.config/waybar/gtk/calendar-menu.xml" \
@@ -1752,6 +1754,9 @@ for path in \
   "$account_home/.config/waybar/style/lock.css" \
   "$account_home/.config/waybar/style/power.css" \
   "$account_home/.config/waycal/style.css" \
+  "$account_home/.config/swaylock/config" \
+  "$account_home/.config/gtk-3.0/gtk.css" \
+  "$account_home/.config/l3afpad/style.css" \
   "$account_home/.config/l3afpad/l3afpadrc" \
   "$account_home/.config/foot/foot.ini" \
   "$account_home/.config/gnote/addins/global.ini" \
@@ -1783,7 +1788,6 @@ for path in \
   "$account_home/.config/crystal-dock/labwc/appearance.conf" \
   "$account_home/.config/crystal-dock/labwc/panel_1.conf" \
   "$account_home/.config/mako/config" \
-  "$account_home/.config/swaylock/config" \
   "$account_home/.profile" \
   "$account_home/.profile.d" \
   "$account_home/.bash_profile" \
@@ -2045,7 +2049,7 @@ for config in config_roots:
         "waybar/gtk/system-menu.xml",
         "waybar/gtk/tomat-menu.xml",
         "waybar/style/menu.css",
-        "waybar/style/dropdown.css",
+        "waybar/style/gtk.css",
         "waybar/style/workspaces.css",
         "waybar/style/tomat.css",
         "waybar/style/wayscriber.css",
@@ -2075,7 +2079,7 @@ for config in config_roots:
                      "style/brightness.css", "style/battery.css", "style/storage.css",
                      "style/cpu.css", "style/memory.css", "style/tray.css",
                      "style/system.css", "style/notifications.css", "style/lock.css",
-                     "style/power.css", "style/dropdown.css"):
+                     "style/power.css", "style/gtk.css"):
         require("@import url(" + chr(34) + imported + chr(34) + ");" in stylesheet,
                 "Waybar stylesheet is missing import: " + imported)
     for relative in ("systemd/user/labwc-workspace-broker.service",

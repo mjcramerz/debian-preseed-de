@@ -25,15 +25,15 @@ MAX_FIELDS = 1024
 MAX_VALUE_BYTES = 2048
 MAX_LINE_PART_CANDIDATES = 4096
 VARIANTS = ('', '.internal', '.external')
-COMPONENTS = frozenset(('DOCK', 'FUZZEL', 'WAYBAR', 'TASKVIEW', 'WAYCAL', 'MAKO', 'TERMINAL', 'GTKGREET'))
-COLOR_TYPES = frozenset(('hash6', 'hash8', 'hex6', 'hex8', 'rgba', 'alpha', 'decimal',
+COMPONENTS = frozenset(('DOCK', 'FUZZEL', 'WAYBAR', 'TASKVIEW', 'WAYCAL', 'MAKO', 'TERMINAL', 'SWAYLOCK', 'GTKGREET'))
+COLOR_TYPES = frozenset(('hash6', 'hash8', 'hex6', 'hex8', 'swaylock-rgb', 'swaylock-rgba', 'rgba', 'alpha', 'decimal',
                          'text-color', 'mako-progress'))
 # These identifiers mirror the parsers used by the installed consumers:
 # GTK3/GdkRGBA, GTK4/GdkRGBA, Pango markup, Qt QColor, Mako, Fuzzel, Foot,
 # and Kitty.  Installer theme types are intentionally absent from this set.
 NATIVE_GRAMMARS = frozenset(('gtk3-css-color', 'gtk4-css-color', 'pango-color', 'qt-color',
                              'mako-color', 'mako-progress', 'fuzzel-rgba', 'foot-rgb',
-                             'kitty-color', 'alpha', 'decimal'))
+                             'kitty-color', 'swaylock-rgb', 'swaylock-rgba', 'alpha', 'decimal'))
 
 _HEX = {
     'hash6': re.compile(r'#[0-9A-Fa-f]{6}\Z'),
@@ -52,6 +52,8 @@ _QT_HEX = re.compile(r'#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8}|'
                      r'[0-9A-Fa-f]{9}|[0-9A-Fa-f]{12})\Z')
 _FUZZEL_RGBA = re.compile(r'[0-9A-Fa-f]{8}\Z')
 _FOOT_RGB = re.compile(r'[0-9A-Fa-f]{6}\Z')
+_SWAYLOCK_RGB = re.compile(r'[0-9A-Fa-f]{6}\Z')
+_SWAYLOCK_RGBA = re.compile(r'[0-9A-Fa-f]{8}\Z')
 _KITTY_HEX = re.compile(r'#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{9}|'
                         r'[0-9A-Fa-f]{12})(?:@(?:0|1|0\.[0-9]+|1\.0+))?\Z')
 _COLOR_NAME = re.compile(r'(?:transparent|currentColor|[A-Za-z][A-Za-z0-9_-]{0,63})\Z')
@@ -237,6 +239,10 @@ def validate_value(field: dict, value: str, mapping: dict | None = None) -> str:
     if value_type == 'fuzzel-rgba' and _FUZZEL_RGBA.fullmatch(value):
         return value
     if value_type == 'foot-rgb' and _FOOT_RGB.fullmatch(value):
+        return value
+    if value_type == 'swaylock-rgb' and _SWAYLOCK_RGB.fullmatch(value):
+        return value
+    if value_type == 'swaylock-rgba' and _SWAYLOCK_RGBA.fullmatch(value):
         return value
     if value_type == 'kitty-color' and (
             _KITTY_HEX.fullmatch(value) or _KITTY_RGB.fullmatch(value)
@@ -679,6 +685,8 @@ def color_to_rgba(value: str, value_type: str, grammars: Iterable[str] = ()):
         text = '#' + text
     elif value_type == 'hex8':
         text = '#' + text
+    elif value_type in ('swaylock-rgb', 'swaylock-rgba'):
+        text = '#' + value
     elif value_type == 'hash8' and ('qt-color' in grammars or not tuple(grammars)):
         # Qt QColor's eight-digit form is #AARRGGBB, while Gdk uses #RRGGBBAA.
         text = '#' + value[3:] + value[1:3]
@@ -704,6 +712,10 @@ def rgba_to_value(rgba, value_type: str, grammars: Iterable[str] = ()) -> str:
     if value_type == 'hash8' and ('qt-color' in grammars or not tuple(grammars)):
         return f'#{alpha:02x}{red:02x}{green:02x}{blue:02x}'
     if value_type == 'hex8':
+        return f'{red:02x}{green:02x}{blue:02x}{alpha:02x}'
+    if value_type == 'swaylock-rgb':
+        return f'{red:02x}{green:02x}{blue:02x}'
+    if value_type == 'swaylock-rgba':
         return f'{red:02x}{green:02x}{blue:02x}{alpha:02x}'
     if value_type == 'rgba':
         return f'rgba({red}, {green}, {blue}, {rgba.alpha:.3f}'.rstrip('0').rstrip('.') + ')'

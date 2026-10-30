@@ -39,6 +39,11 @@
       "field_count": 41
     },
     {
+      "id": "SWAYLOCK",
+      "label": "Swaylock",
+      "field_count": 16
+    },
+    {
       "id": "MAKO",
       "label": "Mako",
       "field_count": 64
@@ -11701,8 +11706,8 @@
       "default": "transparent",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 73,
           "template": "  background: __THEME_WAYBAR_DROPDOWN_MENU_DISABLED_BACKGROUND_COLOR__;",
           "tokens": [
@@ -11723,8 +11728,8 @@
       "default": "#7f8999",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 83,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_MENU_DISABLED_ICON_COLOR__;",
           "tokens": [
@@ -11745,8 +11750,8 @@
       "default": "#7f8999",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 74,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_MENU_DISABLED_TEXT_COLOR__;",
           "tokens": [
@@ -11756,8 +11761,8 @@
           "grammar": "gtk3-css-color"
         },
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 74,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_MENU_DISABLED_TEXT_COLOR__;",
           "tokens": [
@@ -11778,8 +11783,8 @@
       "default": "rgba(65, 102, 245, 0.18)",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 40,
           "template": "  background: __THEME_WAYBAR_DROPDOWN_MENU_HOVER_BACKGROUND_COLOR__;",
           "tokens": [
@@ -11800,8 +11805,8 @@
       "default": "#6dc4ed",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 50,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_MENU_HOVER_ICON_COLOR__;",
           "tokens": [
@@ -11822,8 +11827,8 @@
       "default": "rgba(99, 135, 255, 0.32)",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 42,
           "template": "  box-shadow: inset __INSTALLER_LABWC_WAYBAR_SHARED_MENU_HOVER_SHADOW__ __THEME_WAYBAR_DROPDOWN_MENU_HOVER_SHADOW_COLOR__;",
           "tokens": [
@@ -11845,8 +11850,8 @@
       "default": "#fff7e9",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 41,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_MENU_HOVER_TEXT_COLOR__;",
           "tokens": [
@@ -11856,8 +11861,8 @@
           "grammar": "gtk3-css-color"
         },
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 41,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_MENU_HOVER_TEXT_COLOR__;",
           "tokens": [
@@ -11878,8 +11883,8 @@
       "default": "rgba(15, 17, 28, 0.985)",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 11,
           "template": "  background: __THEME_WAYBAR_DROPDOWN_MENU_NORMAL_BACKGROUND_COLOR__;",
           "tokens": [
@@ -11900,8 +11905,8 @@
       "default": "#dfe6ef",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 34,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_MENU_NORMAL_ICON_COLOR__;",
           "tokens": [
@@ -11922,8 +11927,8 @@
       "default": "rgba(99, 135, 255, 0.34)",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 14,
           "template": "  border-color: __THEME_WAYBAR_DROPDOWN_MENU_NORMAL_OUTLINE_COLOR__;",
           "tokens": [
@@ -11944,8 +11949,8 @@
       "default": "rgba(0, 0, 0, 0.42)",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 18,
           "template": "  box-shadow: __INSTALLER_LABWC_WAYBAR_SHARED_MENU_SHADOW__ __THEME_WAYBAR_DROPDOWN_MENU_NORMAL_SHADOW_COLOR__;",
           "tokens": [
@@ -11967,8 +11972,8 @@
       "default": "#f5efe3",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 12,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_MENU_NORMAL_TEXT_COLOR__;",
           "tokens": [
@@ -11978,8 +11983,8 @@
           "grammar": "gtk3-css-color"
         },
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 12,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_MENU_NORMAL_TEXT_COLOR__;",
           "tokens": [
@@ -12000,8 +12005,8 @@
       "default": "rgba(99, 135, 255, 0.16)",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 91,
           "template": "  background: __THEME_WAYBAR_DROPDOWN_MENU_SEPARATOR_NORMAL_BACKGROUND_COLOR__;",
           "tokens": [
@@ -12022,8 +12027,8 @@
       "default": "#7f8999",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 87,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ARROW_DISABLED_ICON_COLOR__;",
           "tokens": [
@@ -12044,8 +12049,8 @@
       "default": "#6dc4ed",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 69,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ARROW_HOVER_ICON_COLOR__;",
           "tokens": [
@@ -12066,8 +12071,8 @@
       "default": "#c4a4ef",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 54,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ARROW_NORMAL_ICON_COLOR__;",
           "tokens": [
@@ -12088,8 +12093,8 @@
       "default": "transparent",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 139,
           "template": "  background: __THEME_WAYBAR_DROPDOWN_SUBMENU_DISABLED_BACKGROUND_COLOR__;",
           "tokens": [
@@ -12110,8 +12115,8 @@
       "default": "#7f8999",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 140,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_DISABLED_TEXT_COLOR__;",
           "tokens": [
@@ -12121,8 +12126,8 @@
           "grammar": "gtk3-css-color"
         },
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 140,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_DISABLED_TEXT_COLOR__;",
           "tokens": [
@@ -12143,8 +12148,8 @@
       "default": "rgba(196, 164, 239, 0.16)",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 112,
           "template": "  background: __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_BACKGROUND_COLOR__;",
           "tokens": [
@@ -12154,8 +12159,8 @@
           "grammar": "gtk3-css-color"
         },
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 112,
           "template": "  background: __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_BACKGROUND_COLOR__;",
           "tokens": [
@@ -12176,8 +12181,8 @@
       "default": "rgba(196, 164, 239, 0.30)",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 127,
           "template": "  box-shadow: inset __INSTALLER_LABWC_WAYBAR_SHARED_MENU_HOVER_SHADOW__ __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_SHADOW_COLOR__;",
           "tokens": [
@@ -12199,8 +12204,8 @@
       "default": "#fff7e9",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 113,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_TEXT_COLOR__;",
           "tokens": [
@@ -12210,8 +12215,8 @@
           "grammar": "gtk3-css-color"
         },
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 113,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_TEXT_COLOR__;",
           "tokens": [
@@ -12221,8 +12226,8 @@
           "grammar": "gtk3-css-color"
         },
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 113,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_TEXT_COLOR__;",
           "tokens": [
@@ -12232,8 +12237,8 @@
           "grammar": "gtk3-css-color"
         },
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 113,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_TEXT_COLOR__;",
           "tokens": [
@@ -12254,8 +12259,8 @@
       "default": "#7f8999",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 148,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ITEM_DISABLED_ICON_COLOR__;",
           "tokens": [
@@ -12276,8 +12281,8 @@
       "default": "#6dc4ed",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 121,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ITEM_HOVER_ICON_COLOR__;",
           "tokens": [
@@ -12287,8 +12292,8 @@
           "grammar": "gtk3-css-color"
         },
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 121,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ITEM_HOVER_ICON_COLOR__;",
           "tokens": [
@@ -12309,8 +12314,8 @@
       "default": "#dfe6ef",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 108,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ITEM_NORMAL_ICON_COLOR__;",
           "tokens": [
@@ -12331,8 +12336,8 @@
       "default": "rgba(19, 21, 34, 0.990)",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 97,
           "template": "  background: __THEME_WAYBAR_DROPDOWN_SUBMENU_NORMAL_BACKGROUND_COLOR__;",
           "tokens": [
@@ -12353,8 +12358,8 @@
       "default": "rgba(196, 164, 239, 0.30)",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 99,
           "template": "  border-color: __THEME_WAYBAR_DROPDOWN_SUBMENU_NORMAL_OUTLINE_COLOR__;",
           "tokens": [
@@ -12375,8 +12380,8 @@
       "default": "rgba(0, 0, 0, 0.42)",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 100,
           "template": "  box-shadow: __INSTALLER_LABWC_WAYBAR_SHARED_MENU_SHADOW__ __THEME_WAYBAR_DROPDOWN_SUBMENU_NORMAL_SHADOW_COLOR__;",
           "tokens": [
@@ -12398,8 +12403,8 @@
       "default": "#f5efe3",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 98,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_NORMAL_TEXT_COLOR__;",
           "tokens": [
@@ -12409,8 +12414,8 @@
           "grammar": "gtk3-css-color"
         },
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 98,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_NORMAL_TEXT_COLOR__;",
           "tokens": [
@@ -12431,8 +12436,8 @@
       "default": "rgba(196, 164, 239, 0.14)",
       "mappings": [
         {
-          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/dropdown.css.tmpl",
-          "path": "waybar/style/dropdown.css",
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
+          "path": "waybar/style/gtk.css",
           "line": 152,
           "template": "  background: __THEME_WAYBAR_DROPDOWN_SUBMENU_SEPARATOR_NORMAL_BACKGROUND_COLOR__;",
           "tokens": [
@@ -12937,6 +12942,358 @@
           ],
           "target_index": 0,
           "grammar": "gtk4-css-color"
+        }
+      ]
+    },
+    {
+      "key": "SWAYLOCK_BACKGROUND_COLOR",
+      "component": "SWAYLOCK",
+      "component_label": "Swaylock",
+      "category": "Background",
+      "label": "Background Color",
+      "type": "swaylock-rgb",
+      "default": "111318",
+      "mappings": [
+        {
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/swaylock/config.tmpl",
+          "path": "swaylock/config",
+          "line": 5,
+          "template": "color=__THEME_SWAYLOCK_BACKGROUND_COLOR__",
+          "tokens": [
+            "__THEME_SWAYLOCK_BACKGROUND_COLOR__"
+          ],
+          "target_index": 0,
+          "grammar": "swaylock-rgb"
+        }
+      ]
+    },
+    {
+      "key": "SWAYLOCK_INDICATOR_NORMAL_FILL_COLOR",
+      "component": "SWAYLOCK",
+      "component_label": "Swaylock",
+      "category": "Normal Indicator",
+      "label": "Normal Indicator Fill",
+      "type": "swaylock-rgba",
+      "default": "111318cc",
+      "mappings": [
+        {
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/swaylock/config.tmpl",
+          "path": "swaylock/config",
+          "line": 10,
+          "template": "inside-color=__THEME_SWAYLOCK_INDICATOR_NORMAL_FILL_COLOR__",
+          "tokens": [
+            "__THEME_SWAYLOCK_INDICATOR_NORMAL_FILL_COLOR__"
+          ],
+          "target_index": 0,
+          "grammar": "swaylock-rgba"
+        }
+      ]
+    },
+    {
+      "key": "SWAYLOCK_INDICATOR_CLEARED_FILL_COLOR",
+      "component": "SWAYLOCK",
+      "component_label": "Swaylock",
+      "category": "Cleared Indicator",
+      "label": "Cleared Indicator Fill",
+      "type": "swaylock-rgba",
+      "default": "6f8fb5cc",
+      "mappings": [
+        {
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/swaylock/config.tmpl",
+          "path": "swaylock/config",
+          "line": 11,
+          "template": "inside-clear-color=__THEME_SWAYLOCK_INDICATOR_CLEARED_FILL_COLOR__",
+          "tokens": [
+            "__THEME_SWAYLOCK_INDICATOR_CLEARED_FILL_COLOR__"
+          ],
+          "target_index": 0,
+          "grammar": "swaylock-rgba"
+        }
+      ]
+    },
+    {
+      "key": "SWAYLOCK_INDICATOR_VERIFYING_FILL_COLOR",
+      "component": "SWAYLOCK",
+      "component_label": "Swaylock",
+      "category": "Verifying Indicator",
+      "label": "Verifying Indicator Fill",
+      "type": "swaylock-rgba",
+      "default": "ecb860cc",
+      "mappings": [
+        {
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/swaylock/config.tmpl",
+          "path": "swaylock/config",
+          "line": 12,
+          "template": "inside-ver-color=__THEME_SWAYLOCK_INDICATOR_VERIFYING_FILL_COLOR__",
+          "tokens": [
+            "__THEME_SWAYLOCK_INDICATOR_VERIFYING_FILL_COLOR__"
+          ],
+          "target_index": 0,
+          "grammar": "swaylock-rgba"
+        }
+      ]
+    },
+    {
+      "key": "SWAYLOCK_INDICATOR_WRONG_PASSWORD_FILL_COLOR",
+      "component": "SWAYLOCK",
+      "component_label": "Swaylock",
+      "category": "Wrong Password Indicator",
+      "label": "Wrong Password Indicator Fill",
+      "type": "swaylock-rgba",
+      "default": "ca5252cc",
+      "mappings": [
+        {
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/swaylock/config.tmpl",
+          "path": "swaylock/config",
+          "line": 13,
+          "template": "inside-wrong-color=__THEME_SWAYLOCK_INDICATOR_WRONG_PASSWORD_FILL_COLOR__",
+          "tokens": [
+            "__THEME_SWAYLOCK_INDICATOR_WRONG_PASSWORD_FILL_COLOR__"
+          ],
+          "target_index": 0,
+          "grammar": "swaylock-rgba"
+        }
+      ]
+    },
+    {
+      "key": "SWAYLOCK_INDICATOR_NORMAL_RING_COLOR",
+      "component": "SWAYLOCK",
+      "component_label": "Swaylock",
+      "category": "Normal Indicator",
+      "label": "Normal Indicator Ring",
+      "type": "swaylock-rgba",
+      "default": "e5ddcaaa",
+      "mappings": [
+        {
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/swaylock/config.tmpl",
+          "path": "swaylock/config",
+          "line": 14,
+          "template": "ring-color=__THEME_SWAYLOCK_INDICATOR_NORMAL_RING_COLOR__",
+          "tokens": [
+            "__THEME_SWAYLOCK_INDICATOR_NORMAL_RING_COLOR__"
+          ],
+          "target_index": 0,
+          "grammar": "swaylock-rgba"
+        }
+      ]
+    },
+    {
+      "key": "SWAYLOCK_INDICATOR_CLEARED_RING_COLOR",
+      "component": "SWAYLOCK",
+      "component_label": "Swaylock",
+      "category": "Cleared Indicator",
+      "label": "Cleared Indicator Ring",
+      "type": "swaylock-rgba",
+      "default": "6f8fb5ff",
+      "mappings": [
+        {
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/swaylock/config.tmpl",
+          "path": "swaylock/config",
+          "line": 15,
+          "template": "ring-clear-color=__THEME_SWAYLOCK_INDICATOR_CLEARED_RING_COLOR__",
+          "tokens": [
+            "__THEME_SWAYLOCK_INDICATOR_CLEARED_RING_COLOR__"
+          ],
+          "target_index": 0,
+          "grammar": "swaylock-rgba"
+        }
+      ]
+    },
+    {
+      "key": "SWAYLOCK_INDICATOR_VERIFYING_RING_COLOR",
+      "component": "SWAYLOCK",
+      "component_label": "Swaylock",
+      "category": "Verifying Indicator",
+      "label": "Verifying Indicator Ring",
+      "type": "swaylock-rgba",
+      "default": "ecb860ff",
+      "mappings": [
+        {
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/swaylock/config.tmpl",
+          "path": "swaylock/config",
+          "line": 16,
+          "template": "ring-ver-color=__THEME_SWAYLOCK_INDICATOR_VERIFYING_RING_COLOR__",
+          "tokens": [
+            "__THEME_SWAYLOCK_INDICATOR_VERIFYING_RING_COLOR__"
+          ],
+          "target_index": 0,
+          "grammar": "swaylock-rgba"
+        }
+      ]
+    },
+    {
+      "key": "SWAYLOCK_INDICATOR_WRONG_PASSWORD_RING_COLOR",
+      "component": "SWAYLOCK",
+      "component_label": "Swaylock",
+      "category": "Wrong Password Indicator",
+      "label": "Wrong Password Indicator Ring",
+      "type": "swaylock-rgba",
+      "default": "ca5252ff",
+      "mappings": [
+        {
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/swaylock/config.tmpl",
+          "path": "swaylock/config",
+          "line": 17,
+          "template": "ring-wrong-color=__THEME_SWAYLOCK_INDICATOR_WRONG_PASSWORD_RING_COLOR__",
+          "tokens": [
+            "__THEME_SWAYLOCK_INDICATOR_WRONG_PASSWORD_RING_COLOR__"
+          ],
+          "target_index": 0,
+          "grammar": "swaylock-rgba"
+        }
+      ]
+    },
+    {
+      "key": "SWAYLOCK_INDICATOR_KEYPRESS_HIGHLIGHT_COLOR",
+      "component": "SWAYLOCK",
+      "component_label": "Swaylock",
+      "category": "Highlights",
+      "label": "Keypress Highlight",
+      "type": "swaylock-rgba",
+      "default": "ecb860ff",
+      "mappings": [
+        {
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/swaylock/config.tmpl",
+          "path": "swaylock/config",
+          "line": 18,
+          "template": "key-hl-color=__THEME_SWAYLOCK_INDICATOR_KEYPRESS_HIGHLIGHT_COLOR__",
+          "tokens": [
+            "__THEME_SWAYLOCK_INDICATOR_KEYPRESS_HIGHLIGHT_COLOR__"
+          ],
+          "target_index": 0,
+          "grammar": "swaylock-rgba"
+        }
+      ]
+    },
+    {
+      "key": "SWAYLOCK_INDICATOR_BACKSPACE_HIGHLIGHT_COLOR",
+      "component": "SWAYLOCK",
+      "component_label": "Swaylock",
+      "category": "Highlights",
+      "label": "Backspace Highlight",
+      "type": "swaylock-rgba",
+      "default": "ca5252ff",
+      "mappings": [
+        {
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/swaylock/config.tmpl",
+          "path": "swaylock/config",
+          "line": 19,
+          "template": "bs-hl-color=__THEME_SWAYLOCK_INDICATOR_BACKSPACE_HIGHLIGHT_COLOR__",
+          "tokens": [
+            "__THEME_SWAYLOCK_INDICATOR_BACKSPACE_HIGHLIGHT_COLOR__"
+          ],
+          "target_index": 0,
+          "grammar": "swaylock-rgba"
+        }
+      ]
+    },
+    {
+      "key": "SWAYLOCK_INDICATOR_SEPARATOR_COLOR",
+      "component": "SWAYLOCK",
+      "component_label": "Swaylock",
+      "category": "Highlights",
+      "label": "Indicator Separator",
+      "type": "swaylock-rgba",
+      "default": "00000000",
+      "mappings": [
+        {
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/swaylock/config.tmpl",
+          "path": "swaylock/config",
+          "line": 20,
+          "template": "separator-color=__THEME_SWAYLOCK_INDICATOR_SEPARATOR_COLOR__",
+          "tokens": [
+            "__THEME_SWAYLOCK_INDICATOR_SEPARATOR_COLOR__"
+          ],
+          "target_index": 0,
+          "grammar": "swaylock-rgba"
+        }
+      ]
+    },
+    {
+      "key": "SWAYLOCK_INDICATOR_NORMAL_TEXT_COLOR",
+      "component": "SWAYLOCK",
+      "component_label": "Swaylock",
+      "category": "Normal Indicator",
+      "label": "Normal Indicator Text",
+      "type": "swaylock-rgba",
+      "default": "f3ead7ff",
+      "mappings": [
+        {
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/swaylock/config.tmpl",
+          "path": "swaylock/config",
+          "line": 21,
+          "template": "text-color=__THEME_SWAYLOCK_INDICATOR_NORMAL_TEXT_COLOR__",
+          "tokens": [
+            "__THEME_SWAYLOCK_INDICATOR_NORMAL_TEXT_COLOR__"
+          ],
+          "target_index": 0,
+          "grammar": "swaylock-rgba"
+        }
+      ]
+    },
+    {
+      "key": "SWAYLOCK_INDICATOR_CLEARED_TEXT_COLOR",
+      "component": "SWAYLOCK",
+      "component_label": "Swaylock",
+      "category": "Cleared Indicator",
+      "label": "Cleared Indicator Text",
+      "type": "swaylock-rgba",
+      "default": "f3ead7ff",
+      "mappings": [
+        {
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/swaylock/config.tmpl",
+          "path": "swaylock/config",
+          "line": 22,
+          "template": "text-clear-color=__THEME_SWAYLOCK_INDICATOR_CLEARED_TEXT_COLOR__",
+          "tokens": [
+            "__THEME_SWAYLOCK_INDICATOR_CLEARED_TEXT_COLOR__"
+          ],
+          "target_index": 0,
+          "grammar": "swaylock-rgba"
+        }
+      ]
+    },
+    {
+      "key": "SWAYLOCK_INDICATOR_VERIFYING_TEXT_COLOR",
+      "component": "SWAYLOCK",
+      "component_label": "Swaylock",
+      "category": "Verifying Indicator",
+      "label": "Verifying Indicator Text",
+      "type": "swaylock-rgba",
+      "default": "111318ff",
+      "mappings": [
+        {
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/swaylock/config.tmpl",
+          "path": "swaylock/config",
+          "line": 23,
+          "template": "text-ver-color=__THEME_SWAYLOCK_INDICATOR_VERIFYING_TEXT_COLOR__",
+          "tokens": [
+            "__THEME_SWAYLOCK_INDICATOR_VERIFYING_TEXT_COLOR__"
+          ],
+          "target_index": 0,
+          "grammar": "swaylock-rgba"
+        }
+      ]
+    },
+    {
+      "key": "SWAYLOCK_INDICATOR_WRONG_PASSWORD_TEXT_COLOR",
+      "component": "SWAYLOCK",
+      "component_label": "Swaylock",
+      "category": "Wrong Password Indicator",
+      "label": "Wrong Password Indicator Text",
+      "type": "swaylock-rgba",
+      "default": "f3ead7ff",
+      "mappings": [
+        {
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/swaylock/config.tmpl",
+          "path": "swaylock/config",
+          "line": 24,
+          "template": "text-wrong-color=__THEME_SWAYLOCK_INDICATOR_WRONG_PASSWORD_TEXT_COLOR__",
+          "tokens": [
+            "__THEME_SWAYLOCK_INDICATOR_WRONG_PASSWORD_TEXT_COLOR__"
+          ],
+          "target_index": 0,
+          "grammar": "swaylock-rgba"
         }
       ]
     }

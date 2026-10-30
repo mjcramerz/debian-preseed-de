@@ -265,7 +265,7 @@ COMPONENTS = {'fuzzel': 'Fuzzel Themes', 'waybar': 'Waybar Themes',
               'taskview': 'Taskview Themes',
               'waycal': 'Waycal Themes',
               'dock': 'Crystal-Dock Themes', 'greeter': 'GtkGreet Themes',
-              'terminal': 'Terminal Themes',
+              'terminal': 'Terminal Themes', 'swaylock': 'Swaylock Themes',
               'mako': 'Mako Themes'}
 
 

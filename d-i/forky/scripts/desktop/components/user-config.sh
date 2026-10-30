@@ -194,7 +194,7 @@ do
   chown "$uid:$gid" "$private_dir"
 done
 rm -f "$account_home/.config/labwc/xinitrc"
-  for rel_file in .profile .bash_profile .bashrc .bash_aliases .zshenv .zprofile .zshrc .zlogout .zsh_aliases .dircolors .vimrc .config/kdiff3rc .config/kwalletrc .config/starship.toml .config/xdg-terminals.list .config/mimeapps.list .config/user-dirs.dirs Syncthing/.stignore; do
+  for rel_file in .profile .bash_profile .bashrc .bash_aliases .zshenv .zprofile .zshrc .zlogout .zsh_aliases .dircolors .vimrc .config/kdiff3rc .config/kwalletrc .config/starship.toml .config/l3afpad/style.css .config/xdg-terminals.list .config/mimeapps.list .config/user-dirs.dirs Syncthing/.stignore; do
   src="/etc/skel-desktop/${rel_file}"
   dst="${account_home}/${rel_file}"
   [ -r "$src" ] || { printf "fatal: missing skel source: %s\n" "$src" >&2; exit 1; }

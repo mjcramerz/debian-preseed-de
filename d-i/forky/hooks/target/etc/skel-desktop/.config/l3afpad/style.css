@@ -1,0 +1,42 @@
+/* L3afpad is a GTK3 text editor. Keep its editing surface dark and readable
+ * without changing the appearance of unrelated GTK applications. */
+window#l3afpad textview.view,
+window.l3afpad textview.view {
+  background-color: #151b24;
+  color: #e5edf8;
+  caret-color: #7cb8ff;
+}
+
+window#l3afpad textview.view text,
+window.l3afpad textview.view text {
+  background-color: #151b24;
+  color: #e5edf8;
+  caret-color: #7cb8ff;
+}
+
+window#l3afpad textview.view selection,
+window.l3afpad textview.view selection {
+  background-color: #3f5878;
+  color: #ffffff;
+}
+
+window#l3afpad entry,
+window.l3afpad entry {
+  background-color: #202938;
+  color: #e5edf8;
+  border-color: #4f75a4;
+  caret-color: #7cb8ff;
+}
+
+window#l3afpad button,
+window.l3afpad button {
+  background-color: #212b3b;
+  color: #e5edf8;
+  border-color: #4f75a4;
+}
+
+window#l3afpad button:hover,
+window.l3afpad button:hover {
+  background-color: #2c405d;
+  color: #ffffff;
+}

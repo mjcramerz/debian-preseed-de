@@ -102,7 +102,7 @@ def selection(previous: dict, argv: list[str], defaults: dict) -> tuple[dict, se
             return selection(previous, ['theme', 'reset'], defaults)
         if argv[1] == 'all':
             state = initial(defaults)
-            affected = {'theme', 'icon', 'pointer', 'fuzzel', 'waybar', 'taskview', 'waycal', 'dock', 'terminal', 'mako'}
+            affected = {'theme', 'icon', 'pointer', 'fuzzel', 'waybar', 'taskview', 'waycal', 'dock', 'terminal', 'swaylock', 'mako'}
             greeter = True
         elif argv[1] == 'icon':
             state['icon_theme'] = defaults.get('icon_theme')

@@ -1,0 +1,3 @@
+/* GTK3 application overrides. The imported sheet scopes the editor styling
+ * to L3afpad's application window. */
+@import url("../l3afpad/style.css");

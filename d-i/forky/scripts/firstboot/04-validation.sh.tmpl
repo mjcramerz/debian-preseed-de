@@ -564,6 +564,9 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     /etc/skel-desktop/.config/mpv/mpv.conf \
     /etc/skel-desktop/.config/mpv/input.conf \
     /etc/skel-desktop/.config/gtk-4.0/gtk.css \
+    /etc/skel-desktop/.config/gtk-3.0/gtk.css \
+    /etc/skel-desktop/.config/l3afpad/style.css \
+    /etc/skel-desktop/.config/swaylock/config \
     /etc/skel-desktop/.config/waycal/style.css \
     /etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.service \
     /etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.path \
@@ -952,6 +955,9 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     done
     for desktop_account_config_path in \
       .config/gtk-4.0/gtk.css \
+      .config/gtk-3.0/gtk.css \
+      .config/l3afpad/style.css \
+      .config/swaylock/config \
       .config/waycal/style.css \
       .config/btop/btop.conf \
       .config/wayscriber/config.toml \

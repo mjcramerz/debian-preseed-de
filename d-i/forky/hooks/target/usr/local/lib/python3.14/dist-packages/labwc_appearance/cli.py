@@ -22,6 +22,7 @@ MENU_ICONS = {
     'Crystal-Dock Themes': 'view-refresh',
     'GtkGreet Themes': 'system-users',
     'Terminal Themes': 'utilities-terminal',
+    'Swaylock Themes': 'system-lock-screen',
     'Mako Themes': 'preferences-desktop-notification',
     'Icon Themes': 'preferences-desktop-icons',
     'Pointer Themes': 'input-mouse',

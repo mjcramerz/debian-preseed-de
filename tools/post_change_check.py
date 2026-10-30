@@ -41,15 +41,15 @@ THEME_TOKEN = re.compile(rb'__THEME_([A-Z0-9_]+)__')
 THEME_PREFIX = b'__THEME_'
 REGISTRY_TOKEN = re.compile(r'__(?:THEME|INSTALLER)_[A-Z0-9_]+__')
 APPEARANCE_COMPONENTS = frozenset({
-    'DOCK', 'FUZZEL', 'WAYBAR', 'TASKVIEW', 'WAYCAL', 'MAKO', 'TERMINAL', 'GTKGREET',
+    'DOCK', 'FUZZEL', 'WAYBAR', 'TASKVIEW', 'WAYCAL', 'MAKO', 'TERMINAL', 'SWAYLOCK', 'GTKGREET',
 })
 APPEARANCE_TYPES = frozenset({
-    'hash6', 'hash8', 'hex6', 'hex8', 'rgba', 'alpha', 'decimal', 'text-color',
+    'hash6', 'hash8', 'hex6', 'hex8', 'swaylock-rgb', 'swaylock-rgba', 'rgba', 'alpha', 'decimal', 'text-color',
     'mako-progress',
 })
 APPEARANCE_GRAMMARS = frozenset({
     'gtk3-css-color', 'gtk4-css-color', 'pango-color', 'qt-color', 'mako-color',
-    'mako-progress', 'fuzzel-rgba', 'foot-rgb', 'kitty-color', 'alpha', 'decimal',
+    'mako-progress', 'fuzzel-rgba', 'foot-rgb', 'kitty-color', 'swaylock-rgb', 'swaylock-rgba', 'alpha', 'decimal',
 })
 APPEARANCE_PATHS = frozenset({
     'fuzzel/base.ini', 'fuzzel/fuzzel.ini', 'fuzzel/menu.ini',
@@ -89,7 +89,7 @@ APPEARANCE_PATHS = frozenset({
     'waybar/modules/wayscriber',
     'waybar/modules/window-switcher',
     'waybar/modules/workspaces',
-    'waybar/style/dropdown.css',
+    'waybar/style/gtk.css',
     'waybar/style/menu.css', 'waybar/style/workspaces.css', 'waybar/style/tomat.css',
     'waybar/style/wayscriber.css', 'waybar/style/taskview.css', 'waybar/style/apps.css',
     'waybar/style/clock.css', 'waybar/style/audio.css', 'waybar/style/brightness.css',
@@ -100,7 +100,7 @@ APPEARANCE_PATHS = frozenset({
     'waybar/icons/wayscriber-symbolic.svg', 'waycal/style.css',
     'crystal-dock/labwc/appearance.conf',
     'foot/foot.ini', 'kitty/kitty.conf', 'mako/config', 'gtk-3.0/settings.ini',
-    'gtk-4.0/settings.ini', 'gtk-4.0/gtk.css', 'qt5ct/qt5ct.conf', 'qt6ct/qt6ct.conf',
+    'gtk-4.0/settings.ini', 'gtk-4.0/gtk.css', 'swaylock/config', 'qt5ct/qt5ct.conf', 'qt6ct/qt6ct.conf',
     'qt5ct/colors/labwc-appearance.conf', 'qt6ct/colors/labwc-appearance.conf',
     'Kvantum/kvantum.kvconfig', 'labwc/themerc-override', 'labwc/environment',
     '/etc/greetd/gtkgreet.css', '/etc/greetd/gtkgreet-power.css',

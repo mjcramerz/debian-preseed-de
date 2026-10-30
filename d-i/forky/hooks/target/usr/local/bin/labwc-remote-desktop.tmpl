@@ -424,7 +424,14 @@ def profile_store_path() -> pathlib.Path:
     )
     if not config_home.is_absolute():
         fail(f"XDG_CONFIG_HOME must be absolute: {config_home}")
-    return config_home / "labwc" / "remote-desktop" / "connections.json"
+    try:
+        resolved_home = desktop_home()
+        resolved_config = config_home.resolve(strict=False)
+    except (OSError, RuntimeError) as exc:
+        fail(f"XDG_CONFIG_HOME is unavailable: {exc}")
+    if not resolved_config.is_relative_to(resolved_home):
+        fail("XDG_CONFIG_HOME must remain inside the desktop account home")
+    return resolved_config / "labwc" / "remote-desktop" / "connections.json"
 
 
 def ensure_profile_directory(path: pathlib.Path) -> None:
@@ -843,7 +850,8 @@ def run_freerdp_command(command: list[str], log_path: pathlib.Path) -> int:
         process = subprocess.Popen(command, env=environment, stdin=subprocess.DEVNULL,
                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         try:
-            assert process.stdout is not None
+            if process.stdout is None:
+                fail("FreeRDP did not provide a diagnostic stream")
             size = 0
             while True:
                 block = os.read(process.stdout.fileno(), 65_536)

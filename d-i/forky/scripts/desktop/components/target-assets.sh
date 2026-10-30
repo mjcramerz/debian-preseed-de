@@ -192,6 +192,8 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/libexec/labwc-waycal-control /usr/local/libexec/labwc-waycal-control 0755
   desktop_stage_role_asset usr/local/libexec/labwc-waycal-popup /usr/local/libexec/labwc-waycal-popup 0755
   desktop_stage_role_asset etc/skel-desktop/.config/gtk-4.0/gtk.css /etc/skel-desktop/.config/gtk-4.0/gtk.css 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/gtk-3.0/gtk.css /etc/skel-desktop/.config/gtk-3.0/gtk.css 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/l3afpad/style.css /etc/skel-desktop/.config/l3afpad/style.css 0644
   desktop_stage_role_asset etc/skel-desktop/.config/waycal/style.css /etc/skel-desktop/.config/waycal/style.css 0644
   desktop_stage_role_asset usr/local/share/applications/com.ianswope.Calix.desktop /usr/local/share/applications/com.ianswope.Calix.desktop 0644
   desktop_stage_role_asset usr/local/share/applications/labwc-calendar-actions.desktop /usr/local/share/applications/labwc-calendar-actions.desktop 0644
