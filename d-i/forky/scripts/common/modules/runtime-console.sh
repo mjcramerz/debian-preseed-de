@@ -394,5 +394,3 @@ installer_error() {
 installer_trim_whitespace() {
   printf '%s' "$1" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
 }
-
-# shellcheck disable=SC2034 # Exposes INSTALLER_MOUNT_* fields for callers.

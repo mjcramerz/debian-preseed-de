@@ -5,9 +5,9 @@ window.waycal {
 
 window.waycal .waycal-root,
 window.waycal .waycal-root.rounded {
-  background-color: rgba(30, 23, 46, 0.94);
-  color: #eee7fa;
-  border: 1px solid rgba(187, 154, 247, 0.80);
+  background-color: __THEME_WAYCAL_ROOT_BACKGROUND_COLOR__;
+  color: __THEME_WAYCAL_ROOT_TEXT_COLOR__;
+  border: 1px solid __THEME_WAYCAL_ROOT_BORDER_COLOR__;
   font-family: "JetBrains Mono", monospace;
 }
 
@@ -20,16 +20,16 @@ window.waycal .waycal-root.rounded {
 }
 
 window.waycal .waycal-header {
-  color: #eee7fa;
+  color: __THEME_WAYCAL_HEADER_TEXT_COLOR__;
 }
 
 window.waycal .waycal-weekday {
-  color: #c4a7e7;
+  color: __THEME_WAYCAL_WEEKDAY_TEXT_COLOR__;
 }
 
 window.waycal .waycal-day.today {
-  background-color: #bb9af7;
-  color: #21182f;
+  background-color: __THEME_WAYCAL_TODAY_BACKGROUND_COLOR__;
+  color: __THEME_WAYCAL_TODAY_TEXT_COLOR__;
   border-radius: 0;
 }
 
@@ -38,10 +38,10 @@ window.waycal .waycal-root.rounded .waycal-day.today {
 }
 
 window.waycal .waycal-day.dim {
-  opacity: 0.45;
+  opacity: __THEME_WAYCAL_DIM_OPACITY__;
 }
 
 window.waycal .waycal-footer {
-  color: #b3a3c9;
-  border-top-color: rgba(187, 154, 247, 0.25);
+  color: __THEME_WAYCAL_FOOTER_TEXT_COLOR__;
+  border-top-color: __THEME_WAYCAL_FOOTER_BORDER_COLOR__;
 }

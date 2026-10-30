@@ -6,6 +6,7 @@ profile labwc-network-sharing /usr/local/bin/{labwc-network-sharing,nfsmnt,filen
   #include <abstractions/wrapper-python>
   #include <abstractions/wrapper-desktop>
   #include <abstractions/wrapper-terminal>
+  #include <abstractions/dbus-session-strict>
   /usr/local/bin/nfsmnt r,
   /usr/local/bin/filenmnt r,
   /usr/local/bin/labwc-network-sharing rix,
@@ -23,6 +24,8 @@ profile labwc-network-sharing /usr/local/bin/{labwc-network-sharing,nfsmnt,filen
   /run/network-sharing/report.json r,
   owner /run/user/[0-9]*/.sharing-toggle.lock rwk,
   /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
+  /usr/bin/{notify-send,timeout} rix,
+  dbus (send) bus=session peer=(name=org.freedesktop.Notifications),
   /usr/bin/systemctl rCx -> systemctl,
   /usr/bin/journalctl rCx -> journalctl,
 

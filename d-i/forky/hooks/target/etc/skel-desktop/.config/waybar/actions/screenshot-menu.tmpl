@@ -1,0 +1,20 @@
+{
+  "custom/screenshot": {
+    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-waybar-events capture",
+    "return-type": "json",
+    "restart-interval": 30,
+    "exec-on-event": false,
+    "tooltip": true,
+    "menu": "on-click",
+    "menu-file": "~/.config/waybar/menus/screenshot-menu.xml",
+    "menu-actions": {
+      "screenshot_annotation": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-satty-annotation --description=Labwc-satty-annotation --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ annotate-full",
+      "screenshot_full": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-satty-screenshot-full --description=Labwc-satty-screenshot-full --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ screenshot-full",
+      "screenshot_selection": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-satty-screenshot-selection --description=Labwc-satty-screenshot-selection --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ screenshot-box",
+      "screen_record_full": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-satty-record-full --description=Labwc-satty-record-full --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ record-full",
+      "screen_record_selection": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-satty-record-selection --description=Labwc-satty-record-selection --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ record-box"
+    },
+    "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --unit=labwc-satty-stop-recording --description=Labwc-satty-stop-recording -- __INSTALLER_LABWC_CAPTURE_COMMAND__ stop",
+    "on-click-right-release": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --unit=labwc-satty-stop-recording --description=Labwc-satty-stop-recording -- __INSTALLER_LABWC_CAPTURE_COMMAND__ stop"
+  }
+}

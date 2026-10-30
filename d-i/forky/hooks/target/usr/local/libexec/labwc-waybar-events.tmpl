@@ -39,7 +39,7 @@ def status(mode: str, value=None) -> dict[str, str]:
     return {"text": "__THEME_WAYBAR_BUTTON_SCREENSHOT_RECORDING_ICON_GLYPH__" if active else "__THEME_WAYBAR_BUTTON_SCREENSHOT_IDLE_ICON_GLYPH__",
             "class": "recording" if active else "idle",
             "tooltip": ("Screen recording is active\n" if active else "")
-            + "Left-click: select an area and annotate\nMiddle-click: stop recording\nRight-click: capture actions"}
+            + "Left-click: capture and recording menu\nMiddle or right-click: stop recording"}
 
 
 class Reader:

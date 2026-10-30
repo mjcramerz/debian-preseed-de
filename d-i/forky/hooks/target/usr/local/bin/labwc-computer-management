@@ -35,7 +35,7 @@ MENUS = {
         'Users & Groups': ('labwc-users-groups-menu',),
     },
     'Devices & Desktop': {
-        'Desktop Appearance': ('labwc-desktop-appearance',),
+        'Desktop Appearance': ('labwc-desktop-appearance', '--gtk'),
         'Displays & Layout': ('labwc-display-configuration',),
         'Refresh Display Layout': ('/usr/local/libexec/labwc-output-watch', '--refresh'),
         'Power Profile': ('labwc-power-settings',),

@@ -5,12 +5,14 @@ from pathlib import Path
 import pwd
 import re
 import subprocess
+import sys
+import json
 from managed_workflows.fs import Tree
 from .catalog import LABELS, palette
 from .defaults import load
 from .editors import css
 from .native import GREETER_FILES
-from . import transaction
+from . import fields, transaction
 
 STATE = Path('/var/lib/labwc-appearance')
 
@@ -26,9 +28,26 @@ def caller() -> int:
 
 def main(argv: list[str]) -> int:
     uid = caller()
-    if not argv or argv[0] not in ('apply', 'commit', 'rollback', 'cache-icons'):
+    if not argv or argv[0] not in ('apply', 'commit', 'rollback', 'cache-icons', 'fields'):
         raise ValueError('invalid greeter transaction operation')
     action = argv[0]
+    if action == 'fields':
+        if len(argv) != 1:
+            raise ValueError('invalid greeter field operation arguments')
+        payload = sys.stdin.buffer.read(fields.MAX_INPUT_BYTES + 1)
+        if len(payload) > fields.MAX_INPUT_BYTES:
+            raise ValueError('greeter appearance update is too large')
+        try:
+            request = json.loads(payload.decode('utf-8'))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ValueError('invalid greeter appearance update') from error
+        updates = request.get('updates') if isinstance(request, dict) else None
+        if (not isinstance(updates, dict) or not updates or len(updates) > fields.MAX_FIELDS
+                or any(not isinstance(key, str) or not isinstance(value, str)
+                       for key, value in updates.items())):
+            raise ValueError('invalid greeter appearance update fields')
+        fields.apply_root_greeter(updates)
+        return 0
     if action == 'cache-icons':
         if len(argv) != 3 or not re.fullmatch(r'[0-9a-f]{32}', argv[2]):
             raise ValueError('invalid icon cache transaction arguments')
@@ -48,6 +67,8 @@ def main(argv: list[str]) -> int:
         raise ValueError('invalid greeter transaction token')
     STATE.mkdir(mode=0o700, exist_ok=True)
     with Tree(STATE, uid=0, private=True) as state, state.lock('greeter.lock'), Tree(Path('/etc/greetd'), uid=0) as config:
+        if state.json('fields-pending.json') is not None:
+            raise RuntimeError('a greeter color transaction needs recovery in the GTK appearance editor')
         pending = state.json('pending.json')
         if pending is not None:
             transaction.validate(pending, set(GREETER_FILES))

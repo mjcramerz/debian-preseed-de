@@ -241,5 +241,36 @@ def shell_directory(path):
     return destination
 
 def waybar_config_text(directory):
-    """Read the single installed native config, including both bar definitions."""
-    return read_text(Path(directory) / 'config.tmpl')
+    """Resolve source includes without executing renderers or losing tokens."""
+    import json
+    from waybar_fixture import resolved_config
+    directory = Path(directory)
+    assets = {'config': read_text(directory / 'config.tmpl')}
+    assets.update({'actions/' + path.name.removesuffix('.tmpl'): read_text(path)
+                   for path in sorted((directory / 'actions').glob('*.tmpl'))})
+    bare_tokens = set()
+    def quote_token(match):
+        bare_tokens.add(match[0])
+        return json.dumps(match[0])
+    assets = {name: re.sub(r'__[A-Z0-9_]+__(?=\s*[,}\]])', quote_token, text)
+              for name, text in assets.items()}
+    text = json.dumps(resolved_config(assets), ensure_ascii=False, indent=2)
+    for token in bare_tokens:
+        text = text.replace(json.dumps(token), token)
+    return text
+
+
+def waybar_style_text(directory):
+    """Read CSS imports as source data for existing aggregate style fixtures."""
+    directory = Path(directory)
+    expression = re.compile(r'@import url\("([^"\n]+)"\);')
+    def read(relative, active=()):
+        if relative in active or len(active) > 8:
+            raise ValueError('recursive Waybar stylesheet import')
+        def include(match):
+            name = match[1]
+            if not re.fullmatch(r'(?:style-common|(?:buttons|menus)/[a-z-]+)\.css', name):
+                raise ValueError('unsafe Waybar stylesheet import')
+            return read(name, (*active, relative))
+        return expression.sub(include, read_text(directory / relative))
+    return read('style.css')

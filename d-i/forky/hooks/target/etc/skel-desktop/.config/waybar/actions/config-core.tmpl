@@ -1,0 +1,67 @@
+{
+  "ext/workspaces": {
+    "format": "{name}",
+    "sort-by-name": true,
+    "on-click": "activate",
+    "active-only": false,
+    "all-outputs": true
+  },
+  "custom/window-switcher": {
+    "format": "__THEME_WAYBAR_BUTTON_TASKVIEW_NORMAL_ICON_GLYPH__",
+    "align": 0.5,
+    "tooltip": true,
+    "tooltip-format": "Windows (F13) - select a window; Escape cancels. Alt+Tab: thumbnails",
+    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-window-switcher --description=Labwc-window-switcher --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=3s --property=RuntimeMaxSec=3s --property=TimeoutStopSec=1s --property=StandardInput=null --property=StandardOutput=null --property=StandardError=journal -- /usr/local/bin/labwc-window-switcher"
+  },
+  "custom/wayscriber": {
+    "format": " ",
+    "align": 0.5,
+    "justify": "center",
+    "cursor": true,
+    "tooltip": true,
+    "tooltip-format": "Wayscriber",
+    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=5s --property=RuntimeMaxSec=30s --property=TimeoutStopSec=2s --property=StandardInput=null --property=StandardOutput=null --property=StandardError=journal --unit=labwc-wayscriber-toggle --description=Labwc-wayscriber-toggle -- /usr/local/bin/labwc-wayscriber-toggle"
+  },
+  "custom/apps": {
+    "format": " ",
+    "align": 0.5,
+    "justify": "center",
+    "tooltip": true,
+    "tooltip-format": "Applications"
+  },
+  "custom/app-terminal": {
+    "format": " ",
+    "align": 0.5,
+    "tooltip": true,
+    "tooltip-format": "Foot",
+    "on-click": "/usr/local/bin/labwc-terminal"
+  },
+  "custom/app-files": {
+    "format": " ",
+    "align": 0.5,
+    "tooltip": true,
+    "tooltip-format": "Thunar",
+    "on-click": "/usr/local/bin/labwc-wayland-app auto -- __INSTALLER_LABWC_FILE_MANAGER_COMMAND__"
+  },
+  "custom/app-tuta": {
+    "format": " ",
+    "align": 0.5,
+    "tooltip": true,
+    "tooltip-format": "Tuta Mail",
+    "on-click": "__INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ tutanota"
+  },
+  "custom/app-notes": {
+    "format": " ",
+    "align": 0.5,
+    "tooltip": true,
+    "tooltip-format": "L3afpad",
+    "on-click": "/usr/local/bin/labwc-wayland-app auto -- /usr/bin/l3afpad"
+  },
+  "custom/app-sleek": {
+    "format": " ",
+    "align": 0.5,
+    "tooltip": true,
+    "tooltip-format": "Sleek",
+    "on-click": "__INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ sleek"
+  }
+}

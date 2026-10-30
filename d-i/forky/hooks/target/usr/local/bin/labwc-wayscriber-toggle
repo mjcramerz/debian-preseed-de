@@ -20,6 +20,8 @@ import time
 
 SYSTEMCTL = "/usr/bin/systemctl"
 WAYSCRIBER = "/usr/bin/wayscriber"
+NOTIFY_SEND = "/usr/bin/notify-send"
+TIMEOUT = "/usr/bin/timeout"
 RUNTIME_BASE = Path("/run/user")
 SERVICE = "wayscriber.service"
 START_TIMEOUT = 5.0
@@ -32,6 +34,23 @@ WAYLAND_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
 def fail(message: str, status: int = 1) -> int:
     print(f"fatal: {message}", file=sys.stderr)
     return status
+
+
+def notify() -> None:
+    """Report a confirmed toggle without changing the daemon result."""
+    if (not os.access(NOTIFY_SEND, os.X_OK) or not os.access(TIMEOUT, os.X_OK)
+            or not os.environ.get("DBUS_SESSION_BUS_ADDRESS")):
+        return
+    try:
+        subprocess.run(
+            [TIMEOUT, "--kill-after=1s", "3s", NOTIFY_SEND,
+             "--app-name=Wayscriber", "--urgency=low", "--category=desktop.toggle", "--",
+             "Wayscriber overlay toggled", "The Wayscriber overlay toggle completed."],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, check=False, timeout=5, close_fds=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        pass
 
 
 def terminate_process(process: subprocess.Popen[bytes]) -> None:
@@ -151,6 +170,7 @@ def main(argv: list[str]) -> int:
     except OSError:
         result = 127
     if result == 0:
+        notify()
         return 0
     print(
         "outcome-unknown: Wayscriber toggle completion was not confirmed; no retry was sent",

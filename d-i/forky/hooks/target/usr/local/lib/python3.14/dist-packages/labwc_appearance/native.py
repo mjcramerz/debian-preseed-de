@@ -8,8 +8,25 @@ from .themes import variant as desktop_theme
 
 FILES = {
     'fuzzel': ('fuzzel/base.ini', 'fuzzel/fuzzel.ini', 'fuzzel/menu.ini', 'fuzzel/computer-management.ini'),
-    'waybar': ('waybar/style.css', 'waybar/config'),
-    'taskview': ('waybar/taskview.css',),
+    'waybar': ('waybar/style.css', 'waybar/style-common.css',
+               'waybar/config', 'waybar/actions/config-core', 'waybar/actions/status-menu',
+               'waybar/actions/audio-menu', 'waybar/actions/bluetooth-menu',
+               'waybar/actions/calendar-menu', 'waybar/actions/notifications-menu',
+               'waybar/actions/power-menu', 'waybar/actions/screenshot-menu',
+               'waybar/actions/system-menu', 'waybar/actions/tomat-menu',
+               'waybar/actions/layout-internal', 'waybar/actions/layout-external',
+               'waybar/menus/menu.css',
+               'waybar/buttons/menu.css', 'waybar/buttons/workspaces.css',
+               'waybar/buttons/tomat.css', 'waybar/buttons/wayscriber.css',
+               'waybar/buttons/apps.css',
+               'waybar/buttons/clock.css', 'waybar/buttons/audio.css',
+               'waybar/buttons/brightness.css', 'waybar/buttons/battery.css',
+               'waybar/buttons/storage.css', 'waybar/buttons/cpu.css',
+               'waybar/buttons/memory.css', 'waybar/buttons/tray.css',
+               'waybar/buttons/system.css', 'waybar/buttons/notifications.css',
+               'waybar/buttons/lock.css', 'waybar/buttons/power.css',
+               'waybar/icons/apps-symbolic.svg', 'waybar/icons/wayscriber-symbolic.svg'),
+    'taskview': ('waybar/buttons/taskview.css',),
     'waycal': ('waycal/style.css',),
     'dock': ('crystal-dock/labwc/appearance.conf',),
     'terminal': ('foot/foot.ini', 'kitty/kitty.conf'),
@@ -27,7 +44,9 @@ OPTIONAL_FILES = frozenset((OPTIONAL, 'qt5ct/colors/labwc-appearance.conf',
                             'qt5ct/qt5ct.conf', 'labwc/environment'))
 ICON_MANAGED_FILES = frozenset({
     'fuzzel/base.ini', 'gtk-3.0/settings.ini', 'gtk-4.0/settings.ini',
-    'qt5ct/qt5ct.conf', 'qt6ct/qt6ct.conf', 'waybar/config', 'waybar/style.css',
+    'qt5ct/qt5ct.conf', 'qt6ct/qt6ct.conf',
+    'waybar/actions/layout-internal', 'waybar/actions/layout-external',
+    'waybar/menus/menu.css', 'waybar/buttons/apps.css',
 })
 POINTER_MANAGED_FILES = frozenset({
     'gtk-3.0/settings.ini', 'gtk-4.0/settings.ini', 'labwc/environment',
@@ -79,12 +98,12 @@ def render_asset(path: str, text: str, baseline: str | None, kind: str, name: st
             return _replace_setting(text, 'icon_theme', name)
         if path == 'fuzzel/base.ini':
             return _replace_setting(text, 'icon-theme', name)
-        if path == 'waybar/config':
+        if path == 'waybar/config' or path.startswith('waybar/actions/layout-'):
             result, count = re.subn(r'("icon-theme"\s*:\s*")[^"]*(")', r'\1' + name + r'\2', text)
             if count < 1:
                 raise ValueError('Waybar icon-theme setting is missing')
             return result
-        if path == 'waybar/style.css':
+        if path.startswith('waybar/') and path.endswith('.css'):
             result, count = re.subn(r'(-gtk-icon-theme\s*:\s*")[^"]*(")', r'\1' + name + r'\2', text)
             if count < 1:
                 raise ValueError('Waybar GTK icon theme setting is missing')
@@ -213,8 +232,22 @@ def render(path: str, text: str, baseline: str | None, profile: str | None,
         return mako(text, baseline, profile, p)
     if base == 'gtk-4.0/gtk.css':
         return gtk4_import(text, baseline, theme)
-    if base in ('waybar/config', 'labwc/environment'):
+    if (base in ('waybar/config', 'waybar/style.css')
+            or (base.startswith('waybar/actions/') and not base.endswith('.css'))
+            or base == 'labwc/environment'):
         return baseline if reset else text
+    if base in ('waybar/icons/apps-symbolic.svg', 'waybar/icons/wayscriber-symbolic.svg'):
+        if reset:
+            return baseline if baseline is not None else text
+        result, count = re.subn(
+            r'(?m)^([ \t]*<(?:g|path)[ \t]+fill=")[^"]*(")',
+            lambda match: match.group(1) + p.foreground + match.group(2),
+            text,
+            count=1,
+        )
+        if count != 1:
+            raise ValueError('Waybar symbolic icon fill is missing or duplicated')
+        return result
     if base.endswith('.css'):
         return css(text, original, None if reset else p, glow=True)
     if component == 'fuzzel':

@@ -11,6 +11,7 @@ from isolation import require_test_isolation as _require_test_isolation
 _isolation_sys.path.pop(0)
 _require_test_isolation()
 
+from payload_fixture import waybar_style_text
 from payload_fixture import installed_argv as payload_installed_argv
 from payload_fixture import read_text as payload_read_text
 from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
@@ -80,7 +81,7 @@ class NativeDrawerTests(unittest.TestCase):
                         self.assertEqual(sizes[-1], '18px 18px, 100% 100%')
 
     def test_native_artwork_is_retained_above_violet_hover_color(self):
-        css=render_theme_defaults(payload_read_text(SKEL/'waybar/style.css.tmpl'))
+        css=render_theme_defaults(waybar_style_text(SKEL/'waybar'))
         rules=re.findall(r'([^{}]+)\{([^{}]*)\}', re.sub(r'/\*.*?\*/','',css,flags=re.S))
         for module,(icon,_,_) in ICONS.items():
             selector='#'+module.replace('/','-')
@@ -115,7 +116,7 @@ class NativeDrawerTests(unittest.TestCase):
         self.assertIn('installer_selected_class_reference_is_selected addon/software',function)
 
     def test_notification_lock_and_power_palette_is_explicit(self):
-        css=render_theme_defaults(payload_read_text(SKEL/'waybar/style.css.tmpl'))
+        css=render_theme_defaults(waybar_style_text(SKEL/'waybar'))
         for selector,rgba in (('notifications','236, 184, 96, 0.14'),('lock','203, 213, 225, 0.14'),('power','248, 113, 113, 0.16')):
             self.assertIn('#custom-'+selector+' {\n  background: rgba('+rgba+');',css)
         self.assertIn('#custom-notifications:hover {\n  background: ' + theme_values()['WAYBAR_BUTTON_NOTIFICATIONS_HOVER_BACKGROUND_COLOR'] + ';',css)
@@ -173,6 +174,7 @@ class InstalledDrawerVerifierTests(unittest.TestCase):
             from waybar_fixture import rendered_assets
             assets = rendered_assets(FORKY / 'hosts/profiles/btrfs-de.env')
             for name, content in assets.items():
+                (config / name).parent.mkdir(parents=True, exist_ok=True)
                 (config / name).write_text(content)
             self.configs.append(config)
         for icon in ICON_PATHS.values():

@@ -139,6 +139,7 @@ apparmor_log_delivery() {
     # may already have moved boot records into its bounded archive set.
     if [ -z "$apparmor_sample" ]; then
       audit_index=0
+      # shellcheck disable=SC2170 # Installer renders this placeholder as a decimal count.
       while [ "$audit_index" -lt __INSTALLER_LOG_AUDIT_FILE_COUNT__ ]; do
         audit_candidate=$audit_file
         [ "$audit_index" -eq 0 ] || audit_candidate=${audit_file}.${audit_index}
@@ -153,6 +154,7 @@ apparmor_log_delivery() {
     fi
     if [ -n "$apparmor_sample" ]; then
       apparmor_index=0
+      # shellcheck disable=SC2170 # Installer renders this placeholder as a decimal count.
       while [ "$apparmor_index" -le __INSTALLER_LOG_ROTATE_COUNT__ ]; do
         apparmor_candidate=$apparmor_file
         [ "$apparmor_index" -eq 0 ] || apparmor_candidate=${apparmor_file}.${apparmor_index}

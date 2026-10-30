@@ -1,0 +1,31 @@
+/* Waybar tray button rules. Native theme values remain editable per mapping. */
+
+#tray {
+  background: __THEME_WAYBAR_BUTTON_TRAY_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_TRAY_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_TRAY_NORMAL_TEXT_COLOR__;
+}
+
+window#waybar.internal #tray {
+  margin-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_STATUS_MODULE_MARGIN_X__px;
+  margin-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_STATUS_MODULE_MARGIN_X__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_STATUS_MODULE_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_STATUS_MODULE_PADDING_X__px;
+}
+
+window#waybar.external #tray {
+  margin-left: __INSTALLER_LABWC_WAYBAR_EXTERNAL_STATUS_MODULE_MARGIN_X__px;
+  margin-right: __INSTALLER_LABWC_WAYBAR_EXTERNAL_STATUS_MODULE_MARGIN_X__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_EXTERNAL_STATUS_MODULE_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_EXTERNAL_STATUS_MODULE_PADDING_X__px;
+}
+
+#tray:hover {
+  background: __THEME_WAYBAR_BUTTON_TRAY_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_TRAY_HOVER_OUTLINE_COLOR__;
+}
+
+#tray > widget {
+  color: __THEME_WAYBAR_BUTTON_TRAY_NORMAL_ICON_COLOR__;
+}

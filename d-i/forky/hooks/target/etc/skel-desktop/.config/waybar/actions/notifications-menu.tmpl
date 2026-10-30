@@ -1,0 +1,24 @@
+{
+  "custom/notifications": {
+    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-waybar-events notifications",
+    "return-type": "json",
+    "format": "{}",
+    "escape": true,
+    "restart-interval": 30,
+    "exec-on-event": false,
+    "tooltip": true,
+    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --unit=labwc-notifications-dnd-dismiss --description=Labwc-notifications-dnd-dismiss --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd-dismiss",
+    "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --unit=labwc-notifications-dnd --description=Labwc-notifications-dnd --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd",
+    "menu": "on-click",
+    "menu-file": "~/.config/waybar/menus/notifications-menu.xml",
+    "menu-actions": {
+      "notifications_center": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-notifications-center --description=Labwc-notifications-center --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications center",
+      "notifications_restore": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-notifications-restore --description=Labwc-notifications-restore --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications restore",
+      "notifications_dnd_on": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-notifications-dnd-on --description=Labwc-notifications-dnd-on --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd-on",
+      "notifications_dnd_off": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-notifications-dnd-off --description=Labwc-notifications-dnd-off --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd-off",
+      "notifications_dnd": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-notifications-dnd --description=Labwc-notifications-dnd --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd",
+      "notifications_dismiss": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-notifications-dismiss --description=Labwc-notifications-dismiss --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dismiss",
+      "notifications_clear": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-notifications-clear --description=Labwc-notifications-clear --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications clear"
+    }
+  }
+}

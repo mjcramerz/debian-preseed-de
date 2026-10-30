@@ -1,0 +1,47 @@
+{
+  "custom/battery": {
+    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-waybar-battery --watch",
+    "cursor": true,
+    "return-type": "json",
+    "restart-interval": 30,
+    "exec-on-event": false,
+    "format": "{icon} {text}",
+    "format-icons": {
+      "default": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_NORMAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_NORMAL_ICON_GLYPH__</span>",
+      "charging": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_CHARGING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_CHARGING_ICON_GLYPH__</span>",
+      "full": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_FULL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_FULL_ICON_GLYPH__</span>",
+      "plugged": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_PLUGGED_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_PLUGGED_ICON_GLYPH__</span>",
+      "not-charging": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_NOT_CHARGING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_NOT_CHARGING_ICON_GLYPH__</span>",
+      "charging-warning": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_CHARGING_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_CHARGING_ICON_GLYPH__</span>",
+      "charging-critical": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_CHARGING_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_CHARGING_ICON_GLYPH__</span>",
+      "full-warning": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_FULL_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_FULL_ICON_GLYPH__</span>",
+      "full-critical": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_FULL_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_FULL_ICON_GLYPH__</span>",
+      "plugged-warning": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_PLUGGED_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_PLUGGED_ICON_GLYPH__</span>",
+      "plugged-critical": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_PLUGGED_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_PLUGGED_ICON_GLYPH__</span>",
+      "not-charging-warning": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_NOT_CHARGING_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_NOT_CHARGING_ICON_GLYPH__</span>",
+      "not-charging-critical": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_NOT_CHARGING_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_NOT_CHARGING_ICON_GLYPH__</span>",
+      "warning": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_WARNING_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_WARNING_ICON_GLYPH__</span>",
+      "critical": "<span foreground='__THEME_WAYBAR_BUTTON_BATTERY_CRITICAL_ICON_COLOR__'>__THEME_WAYBAR_BUTTON_BATTERY_CRITICAL_ICON_GLYPH__</span>"
+    },
+    "tooltip": true,
+    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --unit=labwc-power-menu --description=Labwc-power-menu --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_POWER_SETTINGS_COMMAND__"
+  },
+  "custom/lock": {
+    "format": "__THEME_WAYBAR_BUTTON_LOCK_NORMAL_ICON_GLYPH__",
+    "tooltip": false,
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --unit=labwc-lock --description=Labwc-lock --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings lock"
+  },
+  "custom/power": {
+    "format": "__THEME_WAYBAR_BUTTON_POWER_NORMAL_ICON_GLYPH__",
+    "tooltip": false,
+    "menu": "on-click",
+    "menu-file": "~/.config/waybar/menus/power-menu.xml",
+    "menu-actions": {
+      "power_lock": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-power-lock --description=Labwc-power-lock --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings lock",
+      "power_suspend": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-power-suspend --description=Labwc-power-suspend --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings suspend",
+      "power_reboot": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-power-reboot --description=Labwc-power-reboot --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings reboot",
+      "power_logout": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-power-logout --description=Labwc-power-logout --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings logout",
+      "power_shutdown": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-power-shutdown --description=Labwc-power-shutdown --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings poweroff"
+    }
+  }
+}

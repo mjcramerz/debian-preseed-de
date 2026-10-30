@@ -1,7 +1,7 @@
 PYTHON ?= python3
 .DEFAULT_GOAL := build
 
-.PHONY: build inventory check test test-bootstrap test-debconf test-cuda audit validate themes test-isolation
+.PHONY: build inventory check test test-bootstrap test-debconf test-cuda audit validate themes test-isolation post-change-check static-check
 
 # Check before unittest discovery, including newly added test modules.
 test-isolation:
@@ -30,3 +30,6 @@ validate:
 
 themes:
 	$(PYTHON) -I -B tools/themes.py
+
+post-change-check static-check:
+	$(PYTHON) -B tools/post_change_check.py

@@ -12,6 +12,7 @@ desktop_stage_appearance() (
     /usr/local/libexec \
     /usr/local/share \
     /usr/local/share/labwc-appearance \
+    /var/lib/labwc-appearance \
     /usr/share/polkit-1/actions
   do
     ensure_target_asset_parent "${directory}/.installer-directory"
@@ -21,6 +22,8 @@ desktop_stage_appearance() (
     chown root:root "$directory_host"
     chmod 0755 "$directory_host"
   done
+  state_host=$(target_asset_host_path /var/lib/labwc-appearance)
+  chmod 0700 "$state_host"
   desktop_stage_role_asset usr/local/bin/labwc-desktop-appearance /usr/local/bin/labwc-desktop-appearance 0755
   for helper in labwc-appearance-defaults labwc-appearance-greeter labwc-appearance-themes; do
     desktop_stage_role_asset "usr/local/libexec/$helper" "/usr/local/libexec/$helper" 0755
@@ -33,6 +36,12 @@ desktop_stage_appearance() (
     path="usr/local/lib/python3.14/dist-packages/labwc_appearance/$module.py"
     desktop_stage_role_asset "$path" "/$path" 0644
   done
+  for module in fields editor; do
+    path="usr/local/lib/python3.14/dist-packages/labwc_appearance/$module.py"
+    desktop_stage_role_asset "$path" "/$path" 0644
+  done
+  desktop_stage_role_asset usr/local/share/labwc-appearance/fields.json \
+    /usr/local/share/labwc-appearance/fields.json 0644
   desktop_stage_role_asset usr/share/polkit-1/actions/org.labwc.desktop-appearance.policy \
     /usr/share/polkit-1/actions/org.labwc.desktop-appearance.policy 0644
 )
@@ -143,14 +152,15 @@ def read(path, mode, limit):
     return data
 
 package = Path("/usr/local/lib/python3.14/dist-packages/labwc_appearance")
-modules = ("__init__", "catalog", "cli", "defaults", "editors", "engine", "greeter", "icon_catalog", "native",
+modules = ("__init__", "catalog", "cli", "defaults", "editors", "editor", "engine", "fields", "greeter", "icon_catalog", "native",
            "service", "theme_archive", "theme_assets", "theme_install",
            "theme_resources", "themes", "transaction")
 brands = set()
 for module in modules:
     path = package / (module + ".py")
     text = read(path, 0o644, 256 * 1024).decode("utf-8")
-    require(re.search(r"__[A-Z][A-Z0-9_]{2,}__", text) is None, "unresolved appearance token")
+    if module not in ("editor", "fields"):
+        require(re.search(r"__[A-Z][A-Z0-9_]{2,}__", text) is None, "unresolved appearance token")
     tree = ast.parse(text, filename=str(path))
     if module == "themes":
         brands = {node.args[0].value for node in ast.walk(tree)
@@ -164,6 +174,66 @@ for helper in ("labwc-appearance-defaults", "labwc-appearance-greeter", "labwc-a
 registry = Path("/usr/local/share/labwc-appearance")
 pending = registry / "themes-install-pending.json"
 require(not pending.exists() and not pending.is_symlink(), "theme publication needs recovery")
+fields = json.loads(read(registry / "fields.json", 0o644, 8 * 1024**2))
+allowed_field_paths = {
+    "fuzzel/base.ini", "fuzzel/fuzzel.ini", "fuzzel/menu.ini", "fuzzel/computer-management.ini",
+    "waybar/style.css", "waybar/style-common.css", "waybar/config",
+    "waybar/actions/config-core", "waybar/actions/status-menu",
+    "waybar/actions/audio-menu", "waybar/actions/bluetooth-menu", "waybar/actions/calendar-menu",
+    "waybar/actions/notifications-menu", "waybar/actions/power-menu", "waybar/actions/screenshot-menu",
+    "waybar/actions/system-menu", "waybar/actions/tomat-menu", "waybar/actions/layout-internal",
+    "waybar/actions/layout-external", "waybar/menus/menu.css",
+    "waybar/buttons/menu.css", "waybar/buttons/workspaces.css", "waybar/buttons/tomat.css",
+    "waybar/buttons/wayscriber.css", "waybar/buttons/taskview.css", "waybar/buttons/apps.css",
+    "waybar/buttons/clock.css", "waybar/buttons/audio.css", "waybar/buttons/brightness.css",
+    "waybar/buttons/battery.css", "waybar/buttons/storage.css", "waybar/buttons/cpu.css",
+    "waybar/buttons/memory.css", "waybar/buttons/tray.css", "waybar/buttons/system.css",
+    "waybar/buttons/notifications.css", "waybar/buttons/lock.css", "waybar/buttons/power.css",
+    "waybar/icons/apps-symbolic.svg", "waybar/icons/wayscriber-symbolic.svg",
+    "waycal/style.css",
+    "crystal-dock/labwc/appearance.conf", "foot/foot.ini", "kitty/kitty.conf", "mako/config",
+    "gtk-3.0/settings.ini", "gtk-4.0/settings.ini", "gtk-4.0/gtk.css",
+    "qt5ct/qt5ct.conf", "qt6ct/qt6ct.conf", "qt5ct/colors/labwc-appearance.conf",
+    "qt6ct/colors/labwc-appearance.conf", "Kvantum/kvantum.kvconfig",
+    "labwc/themerc-override", "labwc/environment", "/etc/greetd/gtkgreet.css",
+    "/etc/greetd/gtkgreet-power.css",
+}
+require(isinstance(fields, dict) and fields.get("schema") == 3
+        and fields.get("captured") is True
+        and isinstance(fields.get("components"), list) and fields["components"]
+        and isinstance(fields.get("fields"), list) and 0 < len(fields["fields"] ) <= 1024,
+        "incomplete native appearance field registry")
+field_keys = set()
+for field in fields["fields"]:
+    require(isinstance(field, dict)
+            and isinstance(field.get("key"), str)
+            and re.fullmatch(r"[A-Z][A-Z0-9_]{2,127}", field["key"]) is not None
+            and field["key"] not in field_keys
+            and field.get("component") in ("DOCK", "FUZZEL", "WAYBAR", "TASKVIEW", "WAYCAL", "MAKO", "TERMINAL", "GTKGREET")
+            and field.get("type") in ("hash6", "hash8", "hex6", "hex8", "rgba", "alpha", "decimal", "text-color", "mako-progress")
+            and isinstance(field.get("default"), str)
+            and isinstance(field.get("mappings"), list) and field["mappings"],
+            "invalid native appearance field")
+    field_keys.add(field["key"])
+    for mapping in field["mappings"]:
+        require(isinstance(mapping, dict)
+                and isinstance(mapping.get("path"), str)
+                and mapping["path"] in allowed_field_paths
+                and type(mapping.get("line")) is int and 1 <= mapping["line"] <= 100000
+                and isinstance(mapping.get("template"), str)
+                and isinstance(mapping.get("tokens"), list) and mapping["tokens"]
+                and all(isinstance(token, str)
+                        and (token.startswith("__THEME_") or token.startswith("__INSTALLER_"))
+                        and token.endswith("__") for token in mapping["tokens"])
+                and mapping["tokens"] == re.findall(r"__(?:THEME|INSTALLER)_[A-Z0-9_]+__", mapping["template"])
+                and type(mapping.get("target_index")) is int
+                and 0 <= mapping["target_index"] < len(mapping["tokens"])
+                and mapping["tokens"][mapping["target_index"]] == "__THEME_" + field["key"] + "__"
+                and mapping.get("grammar") in ("gtk3-css-color", "gtk4-css-color", "pango-color",
+                                                "qt-color", "mako-color", "mako-progress",
+                                                "fuzzel-rgba", "foot-rgb", "kitty-color", "alpha",
+                                                "decimal"),
+                "invalid native appearance field mapping")
 manifest = json.loads(read(registry / "themes.json", 0o644, 6 * 1024**2))
 require(isinstance(manifest, dict) and manifest.get("schema") == 1
         and isinstance(manifest.get("variants"), dict) and len(manifest["variants"]) == 50

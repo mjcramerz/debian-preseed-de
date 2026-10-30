@@ -1,0 +1,60 @@
+{
+  "wlr/taskbar": {
+    "format": "{icon}",
+    "all-outputs": false,
+    "sort-by-app-id": false,
+    "expand": true,
+    "icon-size": __INSTALLER_LABWC_WAYBAR_EXTERNAL_TASKBAR_ICON_SIZE__,
+    "icon-theme": "__THEME_WAYBAR_TASKBAR_ICON_THEME__",
+    "tooltip": true,
+    "tooltip-format": "{title}",
+    "on-click": "minimize-raise",
+    "on-click-middle": "close",
+    "on-click-right": "minimize-raise",
+    "app_ids-mapping": {
+      "footclient": "foot",
+      "org.xfce.Thunar": "thunar"
+    }
+  },
+  "custom/launcher": {
+    "format": "Menu",
+    "cursor": true,
+    "tooltip": false,
+    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-main-menu --description=Labwc-main-menu --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --property=SuccessExitStatus=3 --setenv=LABWC_FUZZEL_OUTPUT_CLASS=EXTERNAL -- /usr/local/bin/labwc-main-menu"
+  },
+  "group/apps": {
+    "orientation": "inherit",
+    "drawer": {
+      "transition-duration": __INSTALLER_LABWC_WAYBAR_EXTERNAL_DRAWER_TRANSITION_DURATION_MS__,
+      "transition-left-to-right": true,
+      "click-to-reveal": true
+    },
+    "modules": [
+      "custom/apps",
+      "custom/app-terminal",
+      "custom/app-files",
+      "custom/app-tuta",
+      "custom/app-notes",
+      "custom/app-sleek"
+    ]
+  },
+  "tray": {
+    "icon-size": __INSTALLER_LABWC_WAYBAR_EXTERNAL_TRAY_ICON_SIZE__,
+    "spacing": __INSTALLER_LABWC_WAYBAR_EXTERNAL_TRAY_SPACING__
+  },
+  "group/quick-controls": {
+    "orientation": "inherit",
+    "drawer": {
+      "transition-duration": __INSTALLER_LABWC_WAYBAR_EXTERNAL_QUICK_CONTROL_TRANSITION_DURATION_MS__,
+      "transition-left-to-right": false,
+      "click-to-reveal": true
+    },
+    "modules": [
+      "custom/system",
+      "network",
+      "bluetooth",
+      "custom/keyboard",
+      "custom/screenshot"
+    ]
+  }
+}

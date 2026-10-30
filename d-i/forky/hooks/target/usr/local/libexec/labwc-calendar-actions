@@ -23,6 +23,7 @@ import time
 import uuid
 
 from labwc_calendar_reminders import RECURRENCE_OPTIONS
+import labwc_local_reminders as local_reminders
 
 ACTIONS = {'event-create', 'event-manage', 'tasks-pending', 'tasks-all',
            'task-create', 'task-edit', 'task-details', 'task-complete', 'task-delete'}
@@ -378,7 +379,7 @@ def run(action: str, env: dict) -> int:
         recurrence.set_active_id(defaults['recurrence'])
         recurrence.set_sensitive(not (entry and entry.get('recurring')))
         grid.attach(recurrence, 1, row, 1, 1)
-        phone = Gtk.CheckButton(label='Send Reminder to Phone')
+        phone = Gtk.CheckButton(label='Send Reminder')
         phone.set_active(reminder['enabled'])
         grid.attach(phone, 0, row + 1, 2, 1)
         first = Gtk.ComboBoxText()
@@ -429,7 +430,13 @@ def run(action: str, env: dict) -> int:
                         + clean(entry['summary']))
                 request['series'] = True
             try:
-                return call(request)
+                result = call(request)
+                # Keep the form values local to this controller response. The
+                # worker only receives the calendar/phone payload; the local
+                # store is updated after Fruux acknowledges the write.
+                result['_local_fields'] = dict(request.get('fields', {}))
+                result['_local_reminder'] = dict(request.get('reminder', {}))
+                return result
             except Error as error:
                 # These worker codes occur before any write. Keep the form
                 # values and require another explicit Save after correction.
@@ -529,6 +536,31 @@ def run(action: str, env: dict) -> int:
                 else:
                     confirm('Delete from Fruux?' if operation == 'delete' else 'Mark task completed on Fruux?', clean(entry['summary']))
                 result = call(request)
+                result['_local_fields'] = {
+                    'summary': entry.get('summary', ''),
+                    'description': entry.get('description', ''),
+                    'start': entry.get('start', ''),
+                    'due': entry.get('due', ''),
+                    'timezone': entry.get('timezone', 'Europe/Stockholm'),
+                    'recurrence': 'none',
+                }
+                result['_local_reminder'] = {'enabled': False}
+        try:
+            link = {key: result[key] for key in ('uid', 'url', 'kind')}
+            if result.get('result') in {'deleted', 'completed'}:
+                local_reminders.Store().remove_link(link)
+            else:
+                local_reminders.Store().sync_remote(
+                    link, result.get('_local_fields', {}),
+                    result.get('_local_reminder', {'enabled': False}),
+                )
+        except (OSError, ValueError, local_reminders.ReminderError) as error:
+            message('Fruux acknowledged; local reminder pending',
+                    'The calendar change was acknowledged by Fruux, but its linked local reminder could not be saved. '
+                    'The write record is retained for review; do not repeat the remote change.', error=True)
+            print('calendar-action status=remote-acknowledged local-reminder=pending action=' + action
+                  + ' request_id=' + result['request_id'], file=sys.stderr)
+            return 4 if isinstance(error, local_reminders.OutcomeUnknown) else 1
         # The durable intent is removed only after the GTK controller received
         # the worker's server acknowledgement. A lost IPC reply retains evidence.
         try:

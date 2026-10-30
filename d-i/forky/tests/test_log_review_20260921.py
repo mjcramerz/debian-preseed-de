@@ -11,6 +11,7 @@ from isolation import require_test_isolation as _require_test_isolation
 _isolation_sys.path.pop(0)
 _require_test_isolation()
 
+from payload_fixture import waybar_style_text
 from payload_fixture import read_text as payload_read_text
 from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
 import re
@@ -77,7 +78,7 @@ class NativeMenuGeometry(unittest.TestCase):
         from waybar_fixture import rendered_assets
         assets = rendered_assets(FORKY/'hosts/profiles/btrfs-de.env')
         for name, text in assets.items():
-            if not name.endswith('-menu.xml'): continue
+            if name not in {'menus/' + menu + '-menu.xml' for menu in ('tomat', 'audio', 'notifications', 'power', 'calendar')}: continue
             for obj in ET.fromstring(text).iter('object'):
                 props={p.get('name'):p.text for p in obj.findall('property')}
                 if obj.get('class')=='GtkMenu':
@@ -110,7 +111,7 @@ class NativeMenuGeometry(unittest.TestCase):
             self.assertIn('"'+key+'"',verify)
 
     def test_workspaces_have_distinct_idle_hover_and_active_rules(self):
-        source=render_theme_defaults(payload_read_text(TARGET/'etc/skel-desktop/.config/waybar/style.css.tmpl'))
+        source=render_theme_defaults(waybar_style_text(TARGET/'etc/skel-desktop/.config/waybar'))
         hover=re.search(r'#workspaces button:hover:not\(\.active\):not\(\.urgent\) \{([^}]+)',source).group(1)
         self.assertIn('background: ' + theme_values()['WAYBAR_BUTTON_WORKSPACES_HOVER_BACKGROUND_COLOR'] + ';',hover)
         self.assertNotIn('linear-gradient',hover)

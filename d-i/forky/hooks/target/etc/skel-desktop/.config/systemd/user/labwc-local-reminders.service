@@ -1,0 +1,26 @@
+[Unit]
+Description=Deliver local Labwc reminders
+Requisite=labwc-session.target
+After=labwc-session.target mako.service
+PartOf=labwc-session.target
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+ConditionEnvironment=WAYLAND_DISPLAY
+StartLimitIntervalSec=60s
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/usr/local/libexec/labwc-local-reminder-worker --worker
+Restart=on-failure
+RestartPreventExitStatus=4
+RestartSec=5s
+TimeoutStopSec=10s
+KillMode=control-group
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+LockPersonality=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX
+UMask=0077

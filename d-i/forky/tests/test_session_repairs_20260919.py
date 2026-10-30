@@ -14,6 +14,7 @@ from isolation import require_test_isolation as _require_test_isolation
 _isolation_sys.path.pop(0)
 _require_test_isolation()
 
+from payload_fixture import waybar_style_text
 from payload_fixture import waybar_config_text
 from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists
 from payload_fixture import read_text as payload_read_text
@@ -149,8 +150,7 @@ class ProfileRenderingTests(unittest.TestCase):
                 self.assertIn('"align": 0.5', block)
         self.assertEqual(source.count("font_family='Font Awesome 6 Free' weight='700'"), 4)
         self.assertEqual(source.count('</span>' + theme_values()['WAYBAR_BUTTON_AUDIO_MICROPHONE_NORMAL_SEPARATOR_ICON_GLYPH'] + '{volume}%'), 4)
-        css = ''.join(render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/waybar' / name))
-                      for name in ('style.css.tmpl', 'taskview.css.tmpl'))
+        css = render_theme_defaults(waybar_style_text(TARGET / 'etc/skel-desktop/.config/waybar'))
         for name in ('wayscriber', 'apps', 'window-switcher', 'lock', 'power', 'backlight'):
             self.assertIn('#custom-' + name + ':hover', css)
         self.assertIn('#pulseaudio:hover', css)

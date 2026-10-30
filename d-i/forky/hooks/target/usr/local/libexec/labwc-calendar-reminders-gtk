@@ -1,0 +1,20 @@
+#!/usr/bin/python3 -IB
+"""Managed GTK4 local reminder entrypoint."""
+import os
+import sys
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, '/usr/local/lib/python3.14/dist-packages')
+from labwc_calendar_reminders_gtk import main
+
+if __name__ == '__main__':
+    os.umask(0o077)
+    try:
+        if len(sys.argv) != 2 or sys.argv[1] not in {'--new', '--manager'}:
+            raise ValueError('usage: labwc-calendar-reminders-gtk [--new|--manager]')
+        raise SystemExit(main(sys.argv[1]))
+    except KeyboardInterrupt:
+        raise SystemExit(130)
+    except Exception as error:
+        print('labwc-calendar-reminders-gtk: ' + str(error), file=sys.stderr)
+        raise SystemExit(1)

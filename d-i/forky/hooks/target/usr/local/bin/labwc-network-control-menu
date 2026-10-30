@@ -222,14 +222,18 @@ def confirm(prompt: str) -> bool:
     return picker(["Cancel", "Continue with network change"], prompt) == "Continue with network change"
 
 
-def network_action(*args: str) -> None:
+def network_action(*args: str) -> int:
     try:
         result = run([ACTION, *args], timeout=120)
-    except (OSError, subprocess.TimeoutExpired):
+    except subprocess.TimeoutExpired:
+        print('warning: network control action timed out; its outcome is unknown', file=sys.stderr)
+        return 4
+    except OSError:
         print(f"warning: network control action unavailable: {args[0] if args else 'unknown'}", file=sys.stderr)
-        return
+        return 1
     if result.returncode:
         print(f"warning: network control action returned status {result.returncode}: {args[0] if args else 'unknown'}", file=sys.stderr)
+    return result.returncode
 
 
 def action_menu(prompt: str, labels: list[str]) -> str | None:
@@ -322,6 +326,39 @@ def main_menu() -> None:
          "⮞ WireGuard Connections": wireguard_menu, "⮞ DNS Configuration": dns_menu}[action]()
 
 
+SINGLE_ACTIONS = frozenset({'wireguard-activate', 'wireguard-deactivate', 'wireguard-import',
+                            'dns-status', 'dns-restore', 'dns-custom', 'dns-flush'})
+
+
+def single_action(action: str) -> int:
+    """Enter the requested native-menu workflow directly, retaining its result."""
+    if action in {'wireguard-activate', 'wireguard-deactivate'}:
+        activate = action == 'wireguard-activate'
+        uuid = selected_uuid(choose_connection('wireguard', 'saved' if activate else 'active'))
+        return (network_action('activate-wireguard' if activate else 'deactivate-wireguard', uuid)
+                if uuid else 0)
+    if action == 'wireguard-import':
+        path = choose_import_file('wireguard')
+        return (network_action('import-wireguard', path, 'confirmed-network-action')
+                if path and confirm('Import selected WireGuard profile') else 0)
+    if action == 'dns-status':
+        return network_action('show-dns-status')
+    if action == 'dns-flush':
+        return (network_action('flush-dns-cache', 'confirmed-network-action')
+                if confirm('Flush managed DNS caches') else 0)
+    if action in {'dns-restore', 'dns-custom'}:
+        uuid = selected_uuid(choose_connection('all', 'saved'))
+        if uuid is None:
+            return 0
+        if action == 'dns-restore':
+            return (network_action('restore-automatic-dns', uuid, 'confirmed-network-action')
+                    if confirm('Restore automatic DNS for selected connection') else 0)
+        servers = picker([], 'DNS IPs separated by spaces or commas', text_input=True)
+        return (network_action('set-custom-dns', uuid, servers, 'confirmed-network-action')
+                if servers and confirm('Apply custom DNS to selected connection') else 0)
+    raise NetworkMenuError('unsupported network action')
+
+
 def main(argv: list[str]) -> int:
     if not os.access(PICKER, os.X_OK):
         raise NetworkMenuError("labwc-fuzzel is not installed")
@@ -331,8 +368,10 @@ def main(argv: list[str]) -> int:
         raise NetworkMenuError("NetworkManager nmcli is not installed")
     if os.getuid() == 0:
         raise NetworkMenuError("labwc-network-control-menu must run as the logged-in desktop user")
-    if len(argv) > 1 or (argv and argv[0] not in {"main", "connections", "vpn", "wireguard", "dns"}):
+    if len(argv) > 1 or (argv and argv[0] not in {"main", "connections", "vpn", "wireguard", "dns"} | SINGLE_ACTIONS):
         raise NetworkMenuError(f"unsupported network menu: {argv[0] if argv else ''}")
+    if argv and argv[0] in SINGLE_ACTIONS:
+        return single_action(argv[0])
     {"main": main_menu, "connections": connections_menu, "vpn": vpn_menu,
      "wireguard": wireguard_menu, "dns": dns_menu}[argv[0] if argv else "main"]()
     return 0

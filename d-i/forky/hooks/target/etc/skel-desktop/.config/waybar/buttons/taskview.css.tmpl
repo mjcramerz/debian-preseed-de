@@ -1,4 +1,5 @@
-/* Taskview-only colors and state glow. Geometry remains in style.css. */
+/* Waybar taskview button rules. Native theme values remain editable per mapping. */
+
 #custom-window-switcher {
   background: __THEME_WAYBAR_BUTTON_TASKVIEW_NORMAL_BACKGROUND_COLOR__;
   border-style: __THEME_WAYBAR_BORDER_STYLE__;
@@ -8,10 +9,20 @@
   font-weight: __THEME_WAYBAR_FONT_WEIGHT_EMPHASIS__;
 }
 
+window#waybar.internal #custom-window-switcher {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_PADDING_X__px;
+}
+
+window#waybar.external #custom-window-switcher {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_BUTTON_PADDING_X__px;
+}
+
 #custom-window-switcher:hover {
   background: __THEME_WAYBAR_BUTTON_TASKVIEW_HOVER_BACKGROUND_COLOR__;
   border-color: __THEME_WAYBAR_BUTTON_TASKVIEW_HOVER_OUTLINE_COLOR__;
-  color: __THEME_WAYBAR_BUTTON_APPS_HOVER_ICON_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_TASKVIEW_NORMAL_ICON_COLOR__;
 }
 
 window#waybar.internal #custom-window-switcher:hover {

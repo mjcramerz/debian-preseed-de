@@ -40,7 +40,7 @@ desktop_stage_wlsunset() {
 }
 
 desktop_stage_waybar_native_menus() {
-  for menu_name in tomat audio notifications power calendar screenshot bluetooth; do
+  for menu_name in tomat audio notifications power calendar screenshot bluetooth system; do
     desktop_render_waybar_asset "${menu_name}-menu.xml"
   done
   # Keep optional voice actions visible but disabled when their services are
@@ -51,7 +51,7 @@ desktop_stage_waybar_native_menus() {
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
-path = Path("/etc/skel-desktop/.config/waybar/audio-menu.xml")
+path = Path("/etc/skel-desktop/.config/waybar/menus/audio-menu.xml")
 tree = ET.parse(path)
 items = [item for item in tree.iter("object") if item.get("class") == "GtkMenuItem"
          and item.find(".//object[@id=\"whisper_record\"]") is not None]
@@ -204,7 +204,15 @@ desktop_stage_target_assets() {
   unset calendar_alias calendar_alias_host
   desktop_stage_role_asset usr/local/libexec/labwc-calendar-actions /usr/local/libexec/labwc-calendar-actions 0755
   desktop_stage_role_asset usr/local/libexec/labwc-calendar-worker /usr/local/libexec/labwc-calendar-worker 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-calendar-reminders-gtk /usr/local/libexec/labwc-calendar-reminders-gtk 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-local-reminder-worker /usr/local/libexec/labwc-local-reminder-worker 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-new-local-reminder /usr/local/libexec/labwc-new-local-reminder 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-reminder-manager /usr/local/libexec/labwc-reminder-manager 0755
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-local-reminders.service \
+    /etc/skel-desktop/.config/systemd/user/labwc-local-reminders.service 0644
   desktop_stage_role_asset usr/local/lib/python3.14/dist-packages/labwc_calendar_reminders.py /usr/local/lib/python3.14/dist-packages/labwc_calendar_reminders.py 0644
+  desktop_stage_role_asset usr/local/lib/python3.14/dist-packages/labwc_local_reminders.py /usr/local/lib/python3.14/dist-packages/labwc_local_reminders.py 0644
+  desktop_stage_role_asset usr/local/lib/python3.14/dist-packages/labwc_calendar_reminders_gtk.py /usr/local/lib/python3.14/dist-packages/labwc_calendar_reminders_gtk.py 0644
   desktop_stage_role_asset usr/local/lib/python3.14/dist-packages/labwc_desktop_runtime.py /usr/local/lib/python3.14/dist-packages/labwc_desktop_runtime.py 0644
   desktop_stage_role_asset usr/local/share/applications/com.github.dahenson.agenda.desktop /usr/local/share/applications/com.github.dahenson.agenda.desktop 0644
   desktop_stage_role_asset usr/local/share/agenda/schemas/90-desktop-agenda.gschema.override /usr/local/share/agenda/schemas/90-desktop-agenda.gschema.override 0644
@@ -253,6 +261,7 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/llama-server.service /etc/skel-desktop/.config/systemd/user/llama-server.service 0644
   desktop_stage_role_asset usr/local/libexec/labwc-samsung-firmware-extract /usr/local/libexec/labwc-samsung-firmware-extract 0755
   desktop_stage_role_asset usr/local/bin/labwc-maintenance-menu /usr/local/bin/labwc-maintenance-menu 0755
+  desktop_stage_role_asset usr/local/bin/labwc-system-menu-action /usr/local/bin/labwc-system-menu-action 0755
   desktop_stage_role_asset usr/local/bin/labwc-podman-menu /usr/local/bin/labwc-podman-menu 0755
   desktop_stage_role_asset usr/local/bin/labwc-external-drives /usr/local/bin/labwc-external-drives 0755
   desktop_stage_role_asset usr/local/libexec/labwc-gvfs-volume-monitor /usr/local/libexec/labwc-gvfs-volume-monitor 0755
@@ -635,7 +644,6 @@ if len(source) > 16384 or re.search(rb"__[A-Z][A-Z0-9_]{2,}__", source):
     ACCOUNT_HOME "$ACCOUNT_HOME"
   desktop_render_waybar_config
   desktop_render_waybar_style
-  desktop_render_waybar_asset taskview.css
   desktop_render_kanshi_config
   desktop_render_terminal_configs
   desktop_stage_role_asset etc/skel-desktop/.config/mpv/mpv.conf /etc/skel-desktop/.config/mpv/mpv.conf 0644

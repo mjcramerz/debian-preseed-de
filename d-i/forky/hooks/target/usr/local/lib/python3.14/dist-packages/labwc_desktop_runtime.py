@@ -52,23 +52,25 @@ def runtime_root():
 def _cancel(child):
     """The unreaped session leader pins the numeric process-group identity."""
     deadline = time.monotonic() + 2
-    for signum, budget in ((signal.SIGTERM, 0.5), (signal.SIGKILL, 1.5)):
-        try:
-            os.killpg(child.pid, signum)
-        except ProcessLookupError:
-            pass
-        if signum == signal.SIGTERM:
-            # Do not reap the leader before signalling remaining group members.
-            end = min(deadline, time.monotonic() + budget)
-            while time.monotonic() < end:
-                if os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT):
-                    break
-                time.sleep(0.02)
-        else:
+    try:
+        for signum, budget in ((signal.SIGTERM, 0.5), (signal.SIGKILL, 1.5)):
             try:
+                os.killpg(child.pid, signum)
+            except ProcessLookupError:
+                pass
+            if signum == signal.SIGTERM:
+                # Do not reap the leader before signalling remaining group members.
+                end = min(deadline, time.monotonic() + budget)
+                while time.monotonic() < end:
+                    if os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT):
+                        break
+                    time.sleep(0.02)
+            else:
                 child.wait(timeout=max(0.001, deadline - time.monotonic()))
-            except subprocess.TimeoutExpired:
-                raise HelperError('foreground helper termination is outcome-unknown; retain owned state') from None
+    except (OSError, subprocess.SubprocessError) as error:
+        # Callers retain private inputs on this result. A denied signal or
+        # missing wait identity cannot establish that the worker has stopped.
+        raise HelperError('foreground helper termination is outcome-unknown; retain owned state') from error
 
 
 def run(argv, *, input_text=None, capture=False, timeout=30, env=None,

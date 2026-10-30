@@ -22,6 +22,16 @@ ROOT = Path(__file__).resolve().parents[1]
 MAX_SOURCE = 2 * 1024 * 1024
 ASSIGNMENT = re.compile(r'([A-Z][A-Z0-9_]*)="([^"\r\n]*)"(\n|\Z)')
 RGBA = re.compile(r'rgba\(\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*,\s*([0-9]*\.?[0-9]+)\s*\)')
+NATIVE_HEX = {
+    'gtk3-css-color': re.compile(r'#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{9}|[0-9A-Fa-f]{12})'),
+    'gtk4-css-color': re.compile(r'#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8}|[0-9A-Fa-f]{9}|[0-9A-Fa-f]{12}|[0-9A-Fa-f]{16})'),
+    'pango-color': re.compile(r'#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{9}|[0-9A-Fa-f]{12})'),
+    'qt-color': re.compile(r'#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8}|[0-9A-Fa-f]{9}|[0-9A-Fa-f]{12})'),
+}
+NATIVE_NAME = re.compile(r'(?:transparent|currentColor|[A-Za-z][A-Za-z0-9_-]{0,63})')
+NATIVE_FUNCTION = re.compile(r'(?i)(?:rgb|rgba|hsl|hsla)\([A-Za-z0-9.,%+\-/ ]+\)')
+NATIVE_SYMBOLIC = re.compile(r'@[A-Za-z][A-Za-z0-9_-]{0,63}')
+NATIVE_EXPRESSION = re.compile(r'(?i)(?:alpha|mix|shade|lighter|darker)\([A-Za-z0-9#@(),.%+\-/ ]+\)')
 FORMATS = {
     'rgba': 'rgba(R, G, B, A), RGB 0..255 and alpha 0..1',
     'hash6': '#RRGGBB (six hexadecimal digits)',
@@ -29,6 +39,15 @@ FORMATS = {
     'hex8': '#RRGGBBAA (Fuzzel: alpha last; stored without #)',
     'text': 'rgba(R, G, B, A) or #RRGGBB',
     'alpha': 'opacity from 0 to 1',
+    'gtk3-color': 'GTK3 CSS color (hex, name or rgb/rgba function)',
+    'gtk3-css-color': 'GTK3 CSS color (hex, name or rgb/rgba function)',
+    'gtk4-css-color': 'GTK4 CSS color (hex, name or rgb/rgba/hsl/hsla function)',
+    'pango-color': 'Pango color (#RGB/#RRGGBB/#RRRGGGBBB/#RRRRGGGGBBBB or name)',
+    'qt-color': 'Qt color (#RGB/#RRGGBB/#AARRGGBB or name)',
+    'fuzzel-rgba': 'Fuzzel RRGGBBAA (eight hexadecimal digits, no #)',
+    'foot-rgb': 'Foot RRGGBB (six hexadecimal digits, no #)',
+    'mako-color': 'Mako #RRGGBB or #RRGGBBAA',
+    'mako-progress': 'Mako over #RRGGBB or over #RRGGBBAA',
 }
 
 
@@ -62,6 +81,35 @@ def normalize(value: str, kind: str) -> str:
         if not re.fullmatch(pattern, value):
             raise ThemeError('expected ' + FORMATS[kind])
         return value.lower().removeprefix('#') if kind == 'hex8' else value.lower()
+    if kind in ('fuzzel-rgba', 'foot-rgb'):
+        digits = 8 if kind == 'fuzzel-rgba' else 6
+        if not re.fullmatch(rf'[0-9A-Fa-f]{{{digits}}}', value):
+            raise ThemeError('expected ' + FORMATS[kind])
+        return value.lower()
+    if kind in ('mako-color', 'mako-progress'):
+        pattern = r'(?:over )?#(?:[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?)'
+        if kind == 'mako-progress':
+            pattern = r'over #[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?'
+        if not re.fullmatch(pattern, value):
+            raise ThemeError('expected ' + FORMATS[kind])
+        return value.lower()
+    if kind in ('gtk3-color', 'gtk3-css-color', 'gtk4-css-color'):
+        hex_pattern = NATIVE_HEX['gtk3-css-color'] if kind != 'gtk4-css-color' else NATIVE_HEX[kind]
+        if (hex_pattern.fullmatch(value) or NATIVE_NAME.fullmatch(value)
+                or NATIVE_FUNCTION.fullmatch(value) or NATIVE_SYMBOLIC.fullmatch(value)
+                or NATIVE_EXPRESSION.fullmatch(value)):
+            return value
+        raise ThemeError('expected ' + FORMATS[kind])
+    if kind == 'pango-color':
+        if (NATIVE_HEX[kind].fullmatch(value)
+                or re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]{0,63}', value)):
+            return value
+        raise ThemeError('expected ' + FORMATS[kind])
+    if kind == 'qt-color':
+        if NATIVE_HEX[kind].fullmatch(value) or re.fullmatch(
+                r'(?:transparent|(?!currentColor\Z)[A-Za-z][A-Za-z0-9_-]{0,63})', value):
+            return value
+        raise ThemeError('expected ' + FORMATS[kind])
     if kind == 'alpha':
         if not re.fullmatch(r'(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)', value):
             raise ThemeError('expected opacity from 0 to 1')

@@ -704,16 +704,24 @@ profile labwc-capture /usr/local/bin/labwc-capture flags=(attach_disconnected) {
   #include <abstractions/wrapper-wayland>
   #include <abstractions/wrapper-python>
 
-  # GNU find saves the working directory while checking runtime ownership.
-  # Permit the user's home directory itself, without recursive file access.
-  owner @{HOME}/ r,
+  # Create only the named private capture directories through owned parents.
+  owner @{HOME}/ rw,
+  owner @{HOME}/{Pictures,Videos}/ rw,
   /usr/local/bin/labwc-capture rix,
+  /usr/local/lib/python3.14/dist-packages/ r,
   /usr/local/lib/python3.14/dist-packages/labwc_desktop_runtime.py r,
+  /usr/local/lib/python3.14/dist-packages/managed_workflows/ r,
+  /usr/local/lib/python3.14/dist-packages/managed_workflows/{__init__,fs}.py r,
   /usr/local/libexec/rsyslog-app-run rix,
   __INSTALLER_LOG_APPS_SOCKET__ w,
   /usr/bin/ffprobe rix,
   /usr/bin/{grim,notify-send,slurp,systemctl,systemd-run,wf-recorder,wlr-randr} pux,
   /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
+  /usr/local/bin/labwc-ocr rPx -> labwc-ocr,
+  /usr/local/bin/labwc-wayland-app rPx -> labwc-generic-app,
+  signal (send) set=(term kill) peer=labwc-ocr,
+  signal (receive) set=(chld) peer=labwc-ocr,
+  /usr/bin/wl-copy rix,
   /usr/local/bin/satty rPx -> satty,
   /dev/rfkill r,
   # Waybar can pass its battery-status descriptor to this action.
@@ -777,6 +785,69 @@ profile labwc-computer-management /usr/local/bin/labwc-computer-management flags
   include if exists <local/usr.local.bin.labwc-computer-management>
   /usr/local/bin/labwc-wayland-app rPx -> labwc-generic-app,
 
+}
+
+profile labwc-system-menu-action /usr/local/bin/labwc-system-menu-action flags=(attach_disconnected) {
+  # Every menu callback is already inside a transient user service. Keep the
+  # dispatcher allowlisted and transition reviewed helpers into their own
+  # domains; no shell or user-supplied command string is permitted.
+  #include <abstractions/wrapper-python>
+  #include <abstractions/wrapper-desktop>
+  /usr/local/bin/labwc-system-menu-action rix,
+  /usr/local/bin/labwc-bluetooth rPx,
+  /usr/local/bin/labwc-capture rPx,
+  /usr/local/bin/labwc-computer-management rPx,
+  /usr/local/bin/labwc-desktop-appearance rPx,
+  /usr/local/bin/labwc-display-configuration rPx,
+  /usr/local/bin/labwc-external-drives rPx,
+  /usr/local/bin/labwc-idle-toggle rPx,
+  /usr/local/bin/labwc-keyboard-layout rPx,
+  /usr/local/bin/labwc-lock rPx,
+  /usr/local/bin/labwc-logout rPx,
+  /usr/local/bin/labwc-main-menu rPx,
+  /usr/local/bin/labwc-maintenance-menu rPx,
+  /usr/local/bin/labwc-network-control-menu rPx,
+  /usr/local/bin/labwc-network-scan-menu rPx,
+  /usr/local/bin/labwc-network-sharing rPx,
+  /usr/local/bin/labwc-ocr rPx,
+  /usr/local/bin/labwc-power-settings rPx,
+  /usr/local/bin/labwc-terminal rPx,
+  /usr/local/bin/labwc-wlsunset rPx,
+  /usr/local/bin/labwc-wayland-app rPx,
+  /usr/local/bin/labwc-calendar rPx,
+  /usr/local/bin/labwc-agenda rPx,
+  /usr/local/bin/filenmnt rPx,
+  /usr/local/bin/nfsmnt rPx,
+  /usr/local/bin/labwc-system-action rPx,
+  /usr/local/bin/labwc-wallpaper-save rPx,
+  /usr/local/libexec/labwc-calendar-actions rPx,
+  /usr/local/libexec/labwc-calendar-reminders-gtk rPx,
+  /usr/local/libexec/labwc-local-reminder-worker rPx,
+  /usr/local/libexec/labwc-new-local-reminder rPx,
+  /usr/local/libexec/labwc-reminder-manager rPx,
+  /usr/local/libexec/labwc-notifications rPx,
+  /usr/local/libexec/labwc-output-watch rPx,
+  /usr/local/libexec/labwc-wallpaper-control rPx,
+  /usr/bin/{hyprpicker,labwc,man,systemctl,systemd-run,wpctl} pux,
+  /usr/bin/makoctl rPx -> session-controls,
+  /usr/bin/{notify-send,timeout} rix,
+  /usr/bin/pavucontrol rPx,
+  owner @{HOME}/ r,
+  owner @{HOME}/.config/ r,
+  owner @{HOME}/.config/** r,
+  owner @{HOME}/.local/ r,
+  owner @{HOME}/.local/** r,
+  owner /run/user/[0-9]*/{bus,systemd/private,wayland-[0-9]*} rw,
+  /etc/{passwd,localtime,timezone} r,
+  /usr/share/** r,
+  /usr/lib/** mr,
+  network inet stream,
+  network inet6 stream,
+  unix,
+  signal (receive) peer=unconfined,
+  include if exists <abstractions/dbus-session-strict>
+  dbus (send) bus=session peer=(name=org.freedesktop.Notifications),
+  include if exists <local/usr.local.bin.labwc-system-menu-action>
 }
 
 profile labwc-ai-copilots /usr/local/bin/labwc-ai-copilots flags=(attach_disconnected) {
@@ -1687,6 +1758,8 @@ profile labwc-health-notify /usr/local/bin/labwc-health-notify flags=(attach_dis
   /sys/class/power_supply/ r,
   /sys/class/power_supply/** r,
   /sys/devices/**/power_supply/ r,
+  /sys/devices/**/power_supply/** r,
+  /sys/devices/**/power_supply/ r,
   /sys/devices/**/power_supply/*/ r,
   /sys/devices/**/power_supply/*/{capacity,status,type} r,
   /run/reboot-required r,
@@ -1729,7 +1802,9 @@ profile labwc-plans /usr/local/libexec/labwc-plans.pl flags=(attach_disconnected
   owner @{HOME}/.config/calix/.fruux-actions.lock rwk,
   owner @{HOME}/.config/calix/fruux-pending.json rw,
   owner @{HOME}/.config/calix/phone-{reminders,deliveries}.json rw,
+  owner @{HOME}/.config/calix/phone-reminders-control.json rw,
   owner @{HOME}/.config/calix/.phone-{reminders,deliveries}.json.*.tmp rw,
+  owner @{HOME}/.config/calix/.phone-reminders-control.json.*.tmp rw,
   /etc/labwc/plans.conf r,
   owner /run/user/[0-9]*/{,bus} rw,
   unix,
@@ -1779,7 +1854,9 @@ profile labwc-keyboard-layout /usr/local/bin/labwc-keyboard-layout flags=(attach
 
   /usr/local/bin/labwc-keyboard-layout rix,
   /usr/local/bin/labwc-system-action rPx -> labwc-system-action,
-  /usr/bin/{flock,install,mv,rm,sleep,stat} rix,
+  /usr/bin/{flock,install,mv,notify-send,rm,sleep,stat,timeout} rix,
+  include if exists <abstractions/dbus-session-strict>
+  dbus (send) bus=session peer=(name=org.freedesktop.Notifications),
   /usr/bin/labwc pux,
   /etc/labwc/desktop.conf r,
   /dev/rfkill r,
@@ -2357,6 +2434,8 @@ profile labwc-app /usr/local/bin/{labwc-app,labwc-agenda,labwc-calendar} flags=(
   /etc/{alternatives,ca-certificates,chromium,chromium.d,fonts,ld.so.conf.d,pki,ssl,xdg}/ r,
   /etc/{group,hostname,hosts,ld.so.cache,ld.so.conf,localtime,machine-id,mime.types,nsswitch.conf,passwd,resolv.conf,timezone} r,
   /etc/resolv.conf r,
+  /etc/app-veth.json r,
+  /run/reboot-required r,
   /run/systemd/resolve/stub-resolv.conf r,
   /run/dbus/system_bus_socket rw,
   owner /run/user/[0-9]*/ r,
@@ -2930,7 +3009,13 @@ profile labwc-ocr /usr/local/bin/labwc-ocr flags=(attach_disconnected) {
 
   /usr/local/bin/labwc-ocr rix,
   /usr/bin/{cat,head,install,mktemp,rm} rix,
-  /usr/bin/{grim,notify-send,slurp,tesseract,xdg-open} pux,
+  /usr/bin/{grim,notify-send,slurp,xdg-open} pux,
+  # Keep the OCR decoder in its owning helper domain so capture cancellation
+  # can terminate the whole foreground group, including the decoder.
+  /usr/bin/tesseract rix,
+  /usr/share/tesseract-ocr/{,**} r,
+  signal (receive) set=(term kill) peer=labwc-capture,
+  signal (send) set=(chld) peer=labwc-capture,
   owner @{HOME}/ r,
   owner @{HOME}/** r,
   owner @{HOME}/.config/tesseract/ r,
@@ -3473,6 +3558,9 @@ profile labwc-wayscriber-toggle /usr/local/bin/labwc-wayscriber-toggle flags=(at
 
   /usr/local/bin/labwc-wayscriber-toggle rix,
   /usr/bin/{systemctl,wayscriber} pux,
+  /usr/bin/{notify-send,timeout} rix,
+  include if exists <abstractions/dbus-session-strict>
+  dbus (send) bus=session peer=(name=org.freedesktop.Notifications),
   # The user manager is the daemon readiness authority. Wayscriber itself
   # owns its private IPC/session state under the session-controls profile.
 
@@ -3557,6 +3645,9 @@ profile whisper-record-toggle /usr/local/libexec/whisper-record-{toggle,timed} f
   # denied exec even in complain mode.
   /usr/bin/systemctl ix,
   /usr/bin/wpctl ix,
+  /usr/bin/{notify-send,timeout} rix,
+  include if exists <abstractions/dbus-session-strict>
+  dbus (send) bus=session peer=(name=org.freedesktop.Notifications),
   /usr/bin/pw-cat rix,
   # NoNewPrivileges is already set by the recording unit. Keep PipeWire
   # children inside this profile instead of attempting an LSM transition.
@@ -4019,11 +4110,13 @@ profile labwc-system-action-root /usr/local/libexec/labwc-system-action-root fla
   /usr/local/libexec/labwc-system-action-root rix,
   /usr/local/libexec/labwc-storage-report rPx -> labwc-storage-report,
   signal (receive) set=(chld) peer=labwc-storage-report,
-  /usr/bin/{cat,getent,grep,head,id,mktemp,numfmt,readlink,rm,sed,sort,uname} rix,
+  /usr/bin/{cat,getent,grep,head,id,mktemp,nproc,numfmt,readlink,rm,sed,sort,uname} rix,
   /usr/bin/{apt,apt-get,btrfs,df,dpkg,findmnt,free,fwupdmgr,hostnamectl,journalctl,lsblk,nmcli,resolvectl,ss,systemctl,systemd-analyze,timedatectl,timeout,uptime} PUx,
   /usr/{bin,sbin}/ip PUx,
   /usr/sbin/{nvme,smartctl,swapon,zramctl} PUx,
   /etc/resolv.conf r,
+  /sys/class/power_supply/ r,
+  /sys/class/power_supply/** r,
   /dev/nvme* r,
   /home/ r,
   /home/** r,

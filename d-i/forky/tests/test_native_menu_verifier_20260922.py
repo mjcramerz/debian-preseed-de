@@ -41,8 +41,8 @@ from test_native_tomat_20260920 import FORKY, LIBEXEC, SKEL
 
 HOME = '/home/native-menu-fixture'
 USERNAME = 'native-menu-fixture'
-MENUS = ('tomat', 'audio', 'notifications', 'power', 'calendar')
-HELPERS = ('labwc-tomat', 'labwc-tomat-hook', 'labwc-notifications', 'labwc-calendar')
+MENUS = ('tomat', 'audio', 'notifications', 'power', 'calendar', 'bluetooth', 'screenshot', 'system')
+HELPERS = ('labwc-tomat', 'labwc-tomat-hook', 'labwc-tomat-overlay', 'labwc-notifications', 'labwc-calendar')
 
 
 def rendered_verifier(profile: Path, count: int | None = None):
@@ -96,14 +96,20 @@ class TargetFixture:
             payload_copyfile(LIBEXEC / name, destination)
             destination.chmod(0o755)
             self.owners[destination] = 0
+        dispatcher = self.path('/usr/local/bin/labwc-system-menu-action')
+        dispatcher.parent.mkdir(parents=True)
+        payload_copyfile(LIBEXEC.parent / 'bin/labwc-system-menu-action', dispatcher)
+        dispatcher.chmod(0o755)
+        self.owners[dispatcher] = 0
         for base, uid in (('/etc/skel-desktop', 0), (HOME, 1000)):
             config = self.path(base) / '.config'
             (config / 'waybar').mkdir(parents=True)
             (config / 'tomat').mkdir()
             for name in MENUS:
-                destination = config / 'waybar' / (name + '-menu.xml')
+                destination = config / 'waybar' / 'menus' / (name + '-menu.xml')
                 from waybar_fixture import rendered_assets
-                destination.write_text(rendered_assets(FORKY/'hosts/profiles/btrfs-de.env')[destination.name])
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_text(rendered_assets(FORKY/'hosts/profiles/btrfs-de.env')['menus/' + destination.name])
                 destination.chmod(0o644)
                 self.owners[destination] = uid
             toml = config / 'tomat/config.toml'
@@ -127,7 +133,7 @@ class TargetFixture:
             code = source.split('run_in_target "configure optional native audio menu" '
                                 '/usr/bin/python3 -I -c \'\n', 1)[1].split(
                                     '\n\' "$native_menu_whisper"', 1)[0]
-            with mock.patch('pathlib.Path', return_value=config / 'waybar/audio-menu.xml'), \
+            with mock.patch('pathlib.Path', return_value=config / 'waybar/menus/audio-menu.xml'), \
                     mock.patch.object(sys, 'argv', ['-c', str(int(whisper))]):
                 exec(compile(code, 'actual-native-audio-staging', 'exec'), {})
         for relative in ('/etc/systemd/system/tomat.service', '/etc/systemd/user/tomat.service'):
@@ -228,7 +234,7 @@ class NativeMenuVerifierTests(unittest.TestCase):
             for whisper in (False, True):
                 with self.subTest(profile=name, whisper=whisper), tempfile.TemporaryDirectory() as work:
                     target = self.fixture(Path(work), bars=bars, command=command, whisper=whisper)
-                    self.assertIn('menus=5 tomat=isolated power=native calendar=native', target.verify())
+                    self.assertIn('menus=8 tomat=isolated screenshot=native bluetooth=native system=native power=native calendar=native', target.verify())
                     self.assertIn(['/usr/bin/tomat', 'daemon', 'run', '--help'], target.probes)
                     self.assertIn(['/usr/bin/tomat', 'watch', '--help'], target.probes)
 
@@ -246,7 +252,7 @@ class NativeMenuVerifierTests(unittest.TestCase):
                 self.assertEqual(json.loads(command[7]), expected)
                 for bar in bars:
                     self.assertEqual(bar['modules-left'], expected)
-                self.assertIn('menus=5', self.fixture(Path(work), bars=bars, command=command).verify())
+                self.assertIn('menus=8', self.fixture(Path(work), bars=bars, command=command).verify())
 
     def test_generator_failure_stops_before_target_verification(self):
         script = r'''
@@ -328,8 +334,8 @@ desktop_verify_native_menus
             ('/usr/local/libexec/labwc-tomat-hook', None, 1000, 'unsafe or missing native menu helper'),
             (HOME + '/.config/tomat/config.toml', 0o644, None, 'unsafe Tomat configuration'),
             (HOME + '/.config/tomat/config.toml', None, 0, 'unsafe Tomat configuration'),
-            (HOME + '/.config/waybar/tomat-menu.xml', 0o666, None, 'unsafe menu file'),
-            (HOME + '/.config/waybar/audio-menu.xml', None, 0, 'unsafe menu file'),
+            (HOME + '/.config/waybar/menus/tomat-menu.xml', 0o666, None, 'unsafe menu file'),
+            (HOME + '/.config/waybar/menus/audio-menu.xml', None, 0, 'unsafe menu file'),
         )
         for name, mode, uid, message in cases:
             with self.subTest(path=name, mode=mode, uid=uid), tempfile.TemporaryDirectory() as work:
@@ -343,7 +349,7 @@ desktop_verify_native_menus
                     target.verify()
         with tempfile.TemporaryDirectory() as work:
             target = self.fixture(Path(work))
-            path = target.path(HOME + '/.config/waybar/tomat-menu.xml')
+            path = target.path(HOME + '/.config/waybar/menus/tomat-menu.xml')
             path.unlink()
             path.symlink_to('audio-menu.xml')
             with self.assertRaisesRegex(SystemExit, 'unsafe menu file'):
@@ -374,7 +380,7 @@ desktop_verify_native_menus
             target = self.fixture(Path(work))
             target.arch = 'arm64'
             target.path('/usr/bin/tomat').unlink()
-            self.assertIn('menus=5', target.verify())
+            self.assertIn('menus=8', target.verify())
             self.assertFalse(any(argv[0] == '/usr/bin/tomat' for argv in target.probes))
 
 

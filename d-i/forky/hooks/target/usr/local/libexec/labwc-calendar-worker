@@ -671,7 +671,8 @@ def execute(request: dict, client: Client) -> dict:
                                        request['fields']['timezone'])
         client.write('PUT', url, kind, raw, {'If-None-Match': '*', 'Content-Type': 'text/calendar; charset=utf-8'},
                      reminder=candidate)
-        return {'result': 'created', 'write_request_id': client.request_id}
+        return {'result': 'created', 'write_request_id': client.request_id,
+                'uid': str(component['UID']), 'url': url, 'kind': kind}
     url = resource_url(text(request.get('url'), empty=False), collection)
     expected = strong_etag(request.get('etag'))
     status, headers, raw = client.request('GET', url)
@@ -692,7 +693,8 @@ def execute(request: dict, client: Client) -> dict:
         require(calendar_info['delete'], 'read-only')
         candidate = reminder_candidate(calendar, component, kind, url, reminders.DEFAULT, 'Europe/Stockholm')
         client.write('DELETE', url, kind, headers={'If-Match': expected}, reminder=candidate)
-        return {'result': 'deleted', 'write_request_id': client.request_id}
+        return {'result': 'deleted', 'write_request_id': client.request_id,
+                'uid': str(component['UID']), 'url': url, 'kind': kind}
     require(calendar_info['update'], 'read-only')
     if op == 'complete':
         require(kind == 'VTODO' and not entry['recurring'], 'unsupported-recurrence')
@@ -713,7 +715,9 @@ def execute(request: dict, client: Client) -> dict:
         request.get('fields', {}).get('timezone', 'Europe/Stockholm'))
     client.write('PUT', url, kind, raw, {'If-Match': expected, 'Content-Type': 'text/calendar; charset=utf-8'},
                  reminder=candidate)
-    return {'result': 'completed' if op == 'complete' else 'updated', 'write_request_id': client.request_id}
+    return {'result': 'completed' if op == 'complete' else 'updated',
+            'write_request_id': client.request_id, 'uid': str(component['UID']),
+            'url': url, 'kind': kind}
 
 
 def reminder_batches(entries):
@@ -751,10 +755,11 @@ def reminder_cycle(initial_policy, cursor):
     with reminder_store() as store:
         with store.locked():
             entries = store.read('phone-reminders.json')['items']
+            paused = store.read(reminders.PHONE_CONTROL)['paused']
             pending = pending_change()
             if pending:
                 entries = {key: entry for key, entry in entries.items() if entry['url'] != pending['url']}
-        if not entries:
+        if paused or not entries:
             return 0
         policy = reminders.read_policy()
         if not reminders.boolean(policy, 'ENABLED'):
@@ -793,6 +798,8 @@ def reminder_cycle(initial_policy, cursor):
                         with store.locked():
                             # Recheck the opt-in, any unresolved remote write
                             # and the root-owned channel policy at dispatch.
+                            if store.read(reminders.PHONE_CONTROL)['paused']:
+                                continue
                             pending = pending_change()
                             if pending and pending['url'] == entry['url']:
                                 continue

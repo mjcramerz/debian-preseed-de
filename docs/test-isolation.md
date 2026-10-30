@@ -12,6 +12,15 @@ This includes unittest discovery, importing a test or fixture, `make test`,
 systemd validators, benchmarks and container smoke probes. No environment flag,
 root/sudo fallback, namespace wrapper or alternate tool may bypass this rule.
 
+The user-authorized offline AppArmor parser exception in `AGENTS.override.md`
+permits `apparmor_parser -Q -K` with an explicit private configuration, staged
+include tree and package feature/ABI data, a bounded timeout and one compile
+job. It must not load kernel policy, read local host policy/configuration or
+kernel features, write caches, install packages, or execute package scripts.
+Staging policy support files as data is not an execution environment. Record
+parser/support versions and any relocated ABI path. All other native checks
+and test/fixture execution remain prohibited.
+
 ## Permitted work
 
 Inspect source and supplied reports as data. Static AST parsing, source/diff
@@ -19,21 +28,24 @@ inspection and archive/hash comparison must not import or execute repository
 modules, source shell snippets or invoke installed management helpers. Fixture
 cases may be authored and reviewed as source, but remain unexecuted.
 
-The two explicitly permitted generation commands remain separate:
+The permitted generation and static-audit paths remain separate:
 
 - `make build` only serializes `d-i/forky/payload.tar.gz`,
   `d-i/forky/payload.manifest` and `d-i/forky/preseed.cfg`. It must not execute
   tests, validators, shell snippets, policy parsers or management helpers, or
   rewrite source inputs.
-- `make inventory` checks both root JSON inventories against the payload hash.
-  When regeneration is needed, it reads archive members as data, acquires
-  public HTTPS APT metadata and generates only `inventory-apt.json` and
-  `inventory.json`. It must not use host package state or package-management
-  helpers. Direct invocation without `--refresh-apt` remains offline and writes
-  only `inventory.json`.
+- `python3 -B tools/post_change_check.py` is the required changed-file static
+  audit after edits and again after payload regeneration. It must not import
+  repository modules, execute fixtures or contact host services.
+
+`make inventory`, `tools/inventory.py` and `tools/inventory_apt.py` are manual
+developer utilities only. Coding agents must not execute or integrate them
+into builds, tests, installers, CI, hooks or runtime flows. The current manual
+inventory product is only root `inventory.json`; `inventory-apt.json` is a
+legacy artifact and must not be generated, read as a cache or required.
 
 Inspect the chosen recipe and its full execution path before generation.
-Neither generation target invokes the other.
+`make build` must not invoke inventory generation.
 
 ## Guards and evidence
 
@@ -42,6 +54,7 @@ Their presence is not authorization to prepare an image or execute a suite.
 Do not weaken a guard or run its discovery/import path on the host.
 
 Report exact static checks, changed paths and generated artifact hashes. State
-that fixtures and native checks were not run. Static inspection and serialization
+which permitted offline parser checks ran and that fixtures and other native
+checks were not run. Static inspection, offline compilation and serialization
 consistency do not prove runtime behavior, loaded policy, boot, networking,
 application launches, hardware performance, thermal stability or deployment.

@@ -1,0 +1,57 @@
+/* Waybar common rules. Native theme values remain editable per mapping.
+* Tooltip geometry is shared because Waybar emits tooltips as detached GTK
+* popup windows rather than descendants of an internal or external bar.
+*/
+
+* {
+  border-style: __THEME_WAYBAR_RESET_BORDER_STYLE__;
+  font-family: "__THEME_WAYBAR_TEXT_FONT_FAMILY__", "__THEME_WAYBAR_EMOJI_FONT_FAMILY__", "__THEME_WAYBAR_SYMBOL_FONT_FAMILY__", "__THEME_WAYBAR_ICON_FONT_FAMILY__";
+  font-feature-settings: "tnum";
+  font-weight: __THEME_WAYBAR_FONT_WEIGHT_NORMAL__;
+}
+
+window#waybar.internal * {
+  border-radius: __INSTALLER_LABWC_WAYBAR_INTERNAL_RESET_SIZE__px;
+  font-size: __INSTALLER_LABWC_WAYBAR_INTERNAL_FONT_SIZE__px;
+  min-height: __INSTALLER_LABWC_WAYBAR_INTERNAL_RESET_SIZE__px;
+}
+
+window#waybar.external * {
+  border-radius: __INSTALLER_LABWC_WAYBAR_EXTERNAL_RESET_SIZE__px;
+  font-size: __INSTALLER_LABWC_WAYBAR_EXTERNAL_FONT_SIZE__px;
+  min-height: __INSTALLER_LABWC_WAYBAR_EXTERNAL_RESET_SIZE__px;
+}
+
+window#waybar {
+  background: __THEME_WAYBAR_PANEL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_PANEL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_PANEL_TEXT_COLOR__;
+}
+
+window#waybar.internal {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_PANEL_SHADOW__ __THEME_WAYBAR_PANEL_SHADOW_COLOR__;
+  border-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_BORDER_WIDTH__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_INTERNAL_PANEL_RADIUS__px;
+}
+
+window#waybar.external {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_PANEL_SHADOW__ __THEME_WAYBAR_PANEL_SHADOW_COLOR__;
+  border-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_BORDER_WIDTH__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_EXTERNAL_PANEL_RADIUS__px;
+}
+
+tooltip {
+  background: __THEME_WAYBAR_TOOLTIP_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_TOOLTIP_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_TOOLTIP_NORMAL_TEXT_COLOR__;
+  border-width: __INSTALLER_LABWC_WAYBAR_SHARED_TOOLTIP_BORDER_WIDTH__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_SHARED_TOOLTIP_RADIUS__px;
+  padding: __INSTALLER_LABWC_WAYBAR_SHARED_TOOLTIP_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_SHARED_TOOLTIP_PADDING_X__px;
+}
+
+tooltip label {
+  font-family: "__THEME_WAYBAR_MONOSPACE_FONT_FAMILY__", "__THEME_WAYBAR_EMOJI_FONT_FAMILY__", "__THEME_WAYBAR_SYMBOL_FONT_FAMILY__";
+  font-size: __INSTALLER_LABWC_WAYBAR_SHARED_TOOLTIP_FONT_SIZE__px;
+}

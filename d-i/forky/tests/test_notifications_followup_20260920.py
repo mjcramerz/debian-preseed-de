@@ -110,7 +110,7 @@ class NotificationsFollowupTests(unittest.TestCase):
         from waybar_fixture import profiles, rendered_assets
         for profile in profiles():
             assets = rendered_assets(profile)
-            menu = ET.fromstring(assets['notifications-menu.xml'])
+            menu = ET.fromstring(assets['menus/notifications-menu.xml'])
             self.assertIsNotNone(menu.find('./object[@class="GtkMenu"][@id="menu"]'))
             actions = {item.get('id') for item in menu.iter('object')
                        if item.get('class') == 'GtkMenuItem' and item.get('id')}
@@ -121,7 +121,7 @@ class NotificationsFollowupTests(unittest.TestCase):
                     self.assertNotIn('on-click', entry)
                     self.assertNotIn('on-click-release', entry)
                     self.assertNotIn('on-click', entry.get('actions', {}))
-                    self.assertEqual(entry['menu-file'], '~/.config/waybar/notifications-menu.xml')
+                    self.assertEqual(entry['menu-file'], '~/.config/waybar/menus/notifications-menu.xml')
                     self.assertEqual(set(entry['menu-actions']), actions)
 
     def test_native_left_click_menu_has_no_competing_left_click_command(self):
@@ -135,7 +135,7 @@ class NotificationsFollowupTests(unittest.TestCase):
             self.assertEqual(entry['format'], '{}')
             self.assertTrue(entry['escape'])
             self.assertEqual(entry['return-type'], 'json')
-            self.assertEqual(entry['menu-file'], '~/.config/waybar/notifications-menu.xml')
+            self.assertEqual(entry['menu-file'], '~/.config/waybar/menus/notifications-menu.xml')
             self.assertEqual(set(entry['menu-actions']), {
                 'notifications_dnd', 'notifications_clear', 'notifications_center',
                 'notifications_dnd_on', 'notifications_dnd_off', 'notifications_restore', 'notifications_dismiss'})
@@ -164,6 +164,9 @@ class NotificationsFollowupTests(unittest.TestCase):
     def test_right_click_enables_dnd_before_dismissing_all_and_never_toggles(self):
         helper = load('labwc-notifications')
         with mock.patch.object(helper, 'environment', return_value={}), \
+                mock.patch.object(helper, 'dnd_store', return_value=contextlib.nullcontext(11)), \
+                mock.patch.object(helper, 'read_expiry', return_value=None), \
+                mock.patch.object(helper, 'write_expiry'), \
                 mock.patch.object(helper, 'mako', return_value='') as mako:
             for _ in range(2):
                 self.assertEqual(helper.main(['dnd-dismiss']), 0)
@@ -180,10 +183,13 @@ class NotificationsFollowupTests(unittest.TestCase):
             error = helper.Error('fixture request failed')
             with self.subTest(failure_index=failure_index), \
                     mock.patch.object(helper, 'environment', return_value={}), \
+                    mock.patch.object(helper, 'dnd_store', return_value=contextlib.nullcontext(11)), \
+                    mock.patch.object(helper, 'read_expiry', return_value=None), \
+                    mock.patch.object(helper, 'write_expiry'), \
                     mock.patch.object(helper, 'mako', side_effect=[''] * failure_index + [error]) as mako:
-                with self.assertRaises(helper.Error) as raised:
+                with self.assertRaises(helper.OutcomeUnknown) as raised:
                     helper.main(['dnd-dismiss'])
-                self.assertIs(raised.exception, error)
+                self.assertIs(raised.exception.__cause__, error)
                 self.assertEqual(mako.call_args_list, expected[:failure_index + 1])
 
     def test_every_desktop_profile_css_resolves_session_geometry(self):
@@ -221,6 +227,124 @@ class NotificationsFollowupTests(unittest.TestCase):
             for record in report['records']:
                 if record['hover']:
                     self.assertEqual(record['hover_rgb'], [236, 184, 96])
+
+
+class TimedDndFixtures(unittest.TestCase):
+    """Unexecuted: private runtime state, no real service or Mako operations."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix='timed-dnd-')
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.env = {'XDG_RUNTIME_DIR': str(self.root)}
+        self.helper = load('labwc-notifications')
+        for operation in ('run', 'Popen'):
+            patcher = mock.patch.object(self.helper.subprocess, operation,
+                side_effect=AssertionError('fixture attempted external execution'))
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        patcher = mock.patch.object(self.helper, 'mako', return_value='')
+        self.mako = patcher.start()
+        self.addCleanup(patcher.stop)
+        patcher = mock.patch.object(self.helper, 'start_expiry')
+        self.start = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def record(self):
+        with self.helper.dnd_store(self.env) as directory:
+            return self.helper.read_expiry(directory)
+
+    def test_newer_request_and_manual_actions_invalidate_old_expiry(self):
+        helper = self.helper
+        helper.control('dnd-15m', self.env)
+        old = self.record()['token']
+        helper.control('dnd-4h', self.env)
+        new = self.record()['token']
+        self.assertNotEqual(old, new)
+        self.mako.reset_mock()
+        self.assertIsNone(helper.expire_once(self.env, old))
+        self.mako.assert_not_called()
+        self.assertGreater(helper.expire_once(self.env, new), 0)
+        for action in ('dnd', 'dnd-on', 'dnd-off', 'dnd-dismiss'):
+            with self.subTest(action=action):
+                helper.control('dnd-1h', self.env)
+                token = self.record()['token']
+                helper.control(action, self.env)
+                self.mako.reset_mock()
+                self.assertIsNone(helper.expire_once(self.env, token))
+                self.mako.assert_not_called()
+
+    def test_failed_start_and_busy_writer_preserve_exact_previous_bytes(self):
+        helper = self.helper
+        helper.control('dnd-15m', self.env)
+        record = self.root / 'labwc-notifications/expiry.json'
+        before = record.read_bytes()
+        self.mako.reset_mock()
+        self.start.side_effect = helper.Error('fixture start failed')
+        with self.assertRaises(helper.Error):
+            helper.control('dnd-4h', self.env)
+        self.assertEqual(record.read_bytes(), before)
+        self.mako.assert_not_called()
+        with helper.dnd_store(self.env), self.assertRaises(helper.Busy):
+            helper.control('dnd-off', self.env)
+        self.assertEqual(record.read_bytes(), before)
+        self.mako.assert_not_called()
+
+    def test_expiry_failure_retains_evidence_without_automatic_retry(self):
+        helper = self.helper
+        helper.control('dnd-15m', self.env)
+        with helper.dnd_store(self.env) as directory:
+            record = helper.read_expiry(directory)
+            record['deadline'] = 0
+            helper.write_expiry(directory, record)
+        path = self.root / 'labwc-notifications/expiry.json'
+        before = path.read_bytes()
+        self.mako.reset_mock()
+        self.mako.side_effect = helper.Error('fixture Mako timeout')
+        with self.assertRaises(helper.OutcomeUnknown):
+            helper.expire(self.env, record['token'])
+        self.assertEqual(path.read_bytes(), before)
+        self.mako.assert_called_once_with(['mode', '-r', helper.DND_MODE], self.env)
+
+    def test_invalid_or_replaced_state_is_rejected_before_any_control(self):
+        helper = self.helper
+        with helper.dnd_store(self.env):
+            pass
+        record = self.root / 'labwc-notifications/expiry.json'
+        for content in ('[]', '{"schema":1,"token":[],"deadline":0}',
+                        '{"schema":1,"token":"' + 'a' * 32 + '","deadline":NaN}'):
+            record.write_text(content)
+            record.chmod(0o600)
+            with self.assertRaises(helper.Error):
+                helper.control('dnd-on', self.env)
+        record.unlink()
+        other = self.root / 'unchanged'
+        other.write_text('owned fixture data')
+        record.symlink_to(other)
+        with self.assertRaises(OSError):
+            helper.control('dnd-on', self.env)
+        self.assertEqual(other.read_text(), 'owned fixture data')
+        self.mako.assert_not_called()
+        self.start.assert_not_called()
+
+    def test_worker_start_has_session_cgroup_and_total_lifetime_limits(self):
+        helper = self.helper
+        # Use the real function with only the process boundary replaced.
+        with mock.patch.object(helper.subprocess, 'run',
+                               return_value=subprocess.CompletedProcess([], 0)) as run:
+            # The source loader gives a fresh function without calling main.
+            fresh = load('labwc-notifications')
+            fresh.start_expiry(self.env, 'a' * 32, 900)
+        command = run.call_args.args[0]
+        for value in ('--service-type=exec', '--expand-environment=no',
+                      '--property=PartOf=labwc-session.target',
+                      '--property=Requisite=labwc-session.target',
+                      '--property=ExitType=cgroup', '--property=KillMode=control-group',
+                      '--property=RuntimeMaxSec=930'):
+            self.assertIn(value, command)
+        self.assertNotIn('--no-block', command)
+        self.assertEqual(command[-3:], ['/usr/local/libexec/labwc-notifications', 'expire', 'a' * 32])
+        self.assertEqual(run.call_args.kwargs['timeout'], 12)
 
 
 class PerlNotificationArgumentTests(unittest.TestCase):

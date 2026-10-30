@@ -61,7 +61,7 @@ validate_request_shape() {
   shift
 
   case "$requested_action" in
-    system-overview|failed-services|boot-performance|recent-errors|kernel-warnings|storage-overview|memory-overview|network-overview|package-health|pending-upgrades|firmware-devices|refresh-firmware-metadata|firmware-updates|upgradeable-packages|btrfs-usage|btrfs-df|btrfs-scrub-status|journal-disk-usage|top-disk-root|top-disk-home|failed-system-units|failed-user-units|show-timers|pipewire-status|wireplumber-status|flush-dns-cache|reset-resolver-features|resolver-statistics|test-mako-notification|refresh-waybar-custom-module)
+    system-overview|session-diagnostics|failed-services|boot-performance|recent-errors|kernel-warnings|storage-overview|memory-overview|network-overview|cpu-load|battery-power|network-listening|network-namespace|network-policy|unattended-status|package-health|pending-upgrades|firmware-devices|refresh-firmware-metadata|firmware-updates|upgradeable-packages|btrfs-usage|btrfs-df|btrfs-scrub-status|journal-disk-usage|top-disk-root|top-disk-home|failed-system-units|failed-user-units|show-timers|pipewire-status|wireplumber-status|waybar-status|dock-status|idle-status|flush-dns-cache|reset-resolver-features|resolver-statistics|test-mako-notification|refresh-waybar-custom-module)
       [ "$#" -eq 0 ] || fatal "${requested_action} does not accept arguments"
       ;;
     inspect-service|nvme-smart-health|nvme-firmware-slots|nvme-identify-data|nvme-smartctl)
@@ -100,6 +100,18 @@ run_user_action() {
   action=$1
 
   case "$action" in
+    waybar-status|dock-status|idle-status)
+      case "$action" in
+        waybar-status) status_unit=waybar.service ;;
+        dock-status) status_unit=crystal-dock.service ;;
+        idle-status) status_unit=swayidle.service ;;
+      esac
+      /usr/bin/systemctl --user --no-pager --full status "$status_unit"
+      ;;
+    session-diagnostics)
+      /usr/bin/systemctl --user --no-pager --full status \
+        labwc-session.target labwc-compositor.service waybar.service crystal-dock.service
+      ;;
     storage-overview)
       [ -x /usr/local/libexec/labwc-storage-report ] || fatal "storage report is unavailable"
       /usr/local/libexec/labwc-storage-report
@@ -166,7 +178,7 @@ run_in_terminal() {
   printf '\n=== System Maintenance: %s ===\n\n' "$action"
   set +e
   case "$action" in
-    storage-overview|failed-user-units|show-timers|pipewire-status|wireplumber-status|restart-pipewire|restart-wireplumber|test-mako-notification|refresh-waybar-custom-module)
+    storage-overview|failed-user-units|show-timers|pipewire-status|wireplumber-status|waybar-status|dock-status|idle-status|session-diagnostics|restart-pipewire|restart-wireplumber|test-mako-notification|refresh-waybar-custom-module)
       run_user_action "$action"
       ;;
     *)

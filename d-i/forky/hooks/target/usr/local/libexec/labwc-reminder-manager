@@ -1,0 +1,19 @@
+#!/usr/bin/python3 -IB
+"""Open the GTK4 Reminder Manager dialog."""
+import os
+import sys
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, '/usr/local/lib/python3.14/dist-packages')
+from labwc_calendar_reminders_gtk import main
+
+if __name__ == '__main__':
+    os.umask(0o077)
+    allowed = {
+        '--pause-local', '--resume-local', '--pause-phone', '--resume-phone',
+        '--upcoming', '--overdue', '--complete-selected', '--edit-selected',
+        '--delete-selected', '--clear-expired'}
+    if len(sys.argv) > 2 or (len(sys.argv) == 2 and sys.argv[1] not in allowed):
+        raise SystemExit('usage: labwc-reminder-manager [--pause-local|--resume-local|--pause-phone|--resume-phone|--upcoming|--overdue|--complete-selected|--edit-selected|--delete-selected|--clear-expired]')
+    action = sys.argv[1][2:] if len(sys.argv) == 2 else None
+    raise SystemExit(main('--manager', action=action))

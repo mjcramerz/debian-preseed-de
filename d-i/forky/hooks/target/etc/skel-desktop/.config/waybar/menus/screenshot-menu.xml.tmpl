@@ -1,0 +1,53 @@
+<?xml version='1.0' encoding='utf-8'?>
+<interface>
+  <object class="GtkAccelGroup" id="menu_accel_group" />
+  <object class="GtkMenu" id="menu">
+    <property name="accel-group">menu_accel_group</property>
+    <property name="reserve-toggle-size">False</property>
+    <child>
+      <object class="GtkMenuItem" id="screenshot_annotation">
+        <property name="visible">True</property>
+        <child><object class="GtkBox"><property name="visible">True</property><property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property><property name="orientation">horizontal</property>
+          <child><object class="GtkImage" id="screenshot_annotation_icon"><property name="visible">True</property><property name="icon-name">__THEME_WAYBAR_DROPDOWN_SCREENSHOT_ANNOTATION_ICON_NAME__</property><property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property><property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property><property name="use-fallback">True</property></object></child>
+          <child><object class="GtkLabel" id="screenshot_annotation_label"><property name="visible">True</property><property name="label">Open annotation tool</property><property name="xalign">0</property><property name="hexpand">True</property></object></child>
+        </object></child>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="screenshot_full">
+        <property name="visible">True</property>
+        <child><object class="GtkBox"><property name="visible">True</property><property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property><property name="orientation">horizontal</property>
+          <child><object class="GtkImage" id="screenshot_full_icon"><property name="visible">True</property><property name="icon-name">__THEME_WAYBAR_DROPDOWN_SCREENSHOT_FULL_ICON_NAME__</property><property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property><property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property><property name="use-fallback">True</property></object></child>
+          <child><object class="GtkLabel" id="screenshot_full_label"><property name="visible">True</property><property name="label">Take Screenshot (Full)</property><property name="xalign">0</property><property name="hexpand">True</property></object></child>
+        </object></child>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="screenshot_selection">
+        <property name="visible">True</property>
+        <child><object class="GtkBox"><property name="visible">True</property><property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property><property name="orientation">horizontal</property>
+          <child><object class="GtkImage" id="screenshot_selection_icon"><property name="visible">True</property><property name="icon-name">__THEME_WAYBAR_DROPDOWN_SCREENSHOT_SELECTION_ICON_NAME__</property><property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property><property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property><property name="use-fallback">True</property></object></child>
+          <child><object class="GtkLabel" id="screenshot_selection_label"><property name="visible">True</property><property name="label">Take Screenshot (Selection)</property><property name="xalign">0</property><property name="hexpand">True</property></object></child>
+        </object></child>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="screen_record_full">
+        <property name="visible">True</property>
+        <child><object class="GtkBox"><property name="visible">True</property><property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property><property name="orientation">horizontal</property>
+          <child><object class="GtkImage" id="screen_record_full_icon"><property name="visible">True</property><property name="icon-name">__THEME_WAYBAR_DROPDOWN_SCREEN_RECORD_FULL_ICON_NAME__</property><property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property><property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property><property name="use-fallback">True</property></object></child>
+          <child><object class="GtkLabel" id="screen_record_full_label"><property name="visible">True</property><property name="label">Record Screen (Full)</property><property name="xalign">0</property><property name="hexpand">True</property></object></child>
+        </object></child>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="screen_record_selection">
+        <property name="visible">True</property>
+        <child><object class="GtkBox"><property name="visible">True</property><property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property><property name="orientation">horizontal</property>
+          <child><object class="GtkImage" id="screen_record_selection_icon"><property name="visible">True</property><property name="icon-name">__THEME_WAYBAR_DROPDOWN_SCREEN_RECORD_SELECTION_ICON_NAME__</property><property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property><property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property><property name="use-fallback">True</property></object></child>
+          <child><object class="GtkLabel" id="screen_record_selection_label"><property name="visible">True</property><property name="label">Record Screen (Selection)</property><property name="xalign">0</property><property name="hexpand">True</property></object></child>
+        </object></child>
+      </object>
+    </child>
+  </object>
+</interface>

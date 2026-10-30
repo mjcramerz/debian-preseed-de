@@ -27,6 +27,7 @@ import tempfile
 import types
 import unittest
 from unittest import mock
+from payload_fixture import waybar_style_text
 from payload_fixture import logging_text, read_text
 from waybar_fixture import FORKY, TARGET, profiles, rendered_assets, style
 
@@ -102,7 +103,7 @@ class OutputGeometry(unittest.TestCase):
             self.assertNotIn('__INSTALLER_',sheet)
             self.assertNotIn('__THEME_',sheet)
     def test_shared_css_contains_no_fixed_length_geometry(self):
-        common=(TARGET/'etc/skel-desktop/.config/waybar/style.css.tmpl').read_text()
+        common=waybar_style_text(TARGET/'etc/skel-desktop/.config/waybar')
         self.assertNotRegex(common,r'(?<![A-Za-z])\d+(?:\.\d+)?(?:px|pt|em|rem)\b')
         self.assertIn('LABWC_WAYBAR_INTERNAL_',common)
         self.assertIn('LABWC_WAYBAR_EXTERNAL_',common)

@@ -324,7 +324,7 @@ class MenuAndHookTests(unittest.TestCase):
                                        ('clock','calendar','on-click-release')]:
                 entry = bar[module]
                 self.assertEqual(entry['menu'], event); self.assertNotIn(event, entry)
-                tree = ET.parse(payload_source_path(SKEL / 'waybar' / (name + '-menu.xml')))
+                tree = ET.parse(payload_source_path(SKEL / 'waybar' / 'menus' / (name + '-menu.xml')))
                 ids = [node.get('id') for node in tree.iter('object') if node.get('class') == 'GtkMenuItem' and node.get('id')]
                 self.assertEqual(len(ids), len(set(ids)))
                 self.assertEqual(set(ids), set(entry['menu-actions']))
@@ -361,7 +361,8 @@ print("GTK3 native menu builders: 5 passed")
             menus = []
             for name, text in rendered_assets(FORKY/'hosts/profiles/btrfs-de.env').items():
                 if name.endswith('-menu.xml'):
-                    path = root/name; path.write_text(text); menus.append(str(path))
+                    path = root/name; path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text(text); menus.append(str(path))
             result = subprocess.run(payload_installed_argv(['xvfb-run', '-a', '/usr/bin/python3', '-I', '-c', code, *menus]),
                                     text=True, capture_output=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

@@ -1,0 +1,24 @@
+{
+  "bluetooth": {
+    "format": "__THEME_WAYBAR_BUTTON_BLUETOOTH_ENABLED_ICON_GLYPH__",
+    "format-on": "__THEME_WAYBAR_BUTTON_BLUETOOTH_ENABLED_ICON_GLYPH__",
+    "format-off": "__THEME_WAYBAR_BUTTON_BLUETOOTH_DISABLED_ICON_GLYPH__",
+    "format-disabled": "__THEME_WAYBAR_BUTTON_BLUETOOTH_DISABLED_ICON_GLYPH__",
+    "format-connected": "__THEME_WAYBAR_BUTTON_BLUETOOTH_CONNECTED_ICON_GLYPH__",
+    "format-no-controller": "__THEME_WAYBAR_BUTTON_BLUETOOTH_UNAVAILABLE_ICON_GLYPH__",
+    "tooltip-format": "Bluetooth {status}\nLeft-click: Bluetooth actions\nRight-click: power toggle",
+    "tooltip": true,
+    "menu": "on-click",
+    "menu-file": "~/.config/waybar/menus/bluetooth-menu.xml",
+    "menu-actions": {
+      "bluetooth_console": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-bluetooth-open --description=Labwc-bluetooth-open --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- labwc-bluetooth open",
+      "bluetooth_scan": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-bluetooth-scan --description=Labwc-bluetooth-scan --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- labwc-bluetooth scan",
+      "bluetooth_pair": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-bluetooth-pair-menu --description=Labwc-bluetooth-pair-menu --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s --property=ExitType=cgroup --property=KillMode=control-group -- labwc-bluetooth pair-menu",
+      "bluetooth_connect": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-bluetooth-connect --description=Labwc-bluetooth-connect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s --property=ExitType=cgroup --property=KillMode=control-group -- labwc-bluetooth connect",
+      "bluetooth_disconnect": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-bluetooth-disconnect --description=Labwc-bluetooth-disconnect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s --property=ExitType=cgroup --property=KillMode=control-group -- labwc-bluetooth disconnect",
+      "bluetooth_manage": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-bluetooth-manage --description=Labwc-bluetooth-manage --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s --property=ExitType=cgroup --property=KillMode=control-group -- labwc-bluetooth manage",
+      "bluetooth_adapter": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-bluetooth-adapter --description=Labwc-bluetooth-adapter --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s --property=ExitType=cgroup --property=KillMode=control-group -- labwc-bluetooth adapter"
+    },
+    "on-click-right-release": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --unit=labwc-bluetooth-power-toggle --description=Labwc-bluetooth-power-toggle -- labwc-bluetooth power-toggle"
+  }
+}

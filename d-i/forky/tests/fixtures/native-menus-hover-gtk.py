@@ -205,7 +205,7 @@ with tempfile.TemporaryDirectory() as temporary:
     staged_audio = {}
     for enabled in (False, True):
         path = Path(temporary) / ('audio-' + str(int(enabled)) + '.xml')
-        path.write_bytes((assets / 'audio-menu.xml').read_bytes())
+        path.write_bytes((assets / 'menus/audio-menu.xml').read_bytes())
         with mock.patch('pathlib.Path', return_value=path), mock.patch.object(sys, 'argv', ['fixture', str(int(enabled))]):
             exec(compile(staging, 'actual-native-audio-staging', 'exec'), {})
         staged_audio[enabled] = path
@@ -223,7 +223,7 @@ with tempfile.TemporaryDirectory() as temporary:
                     for module, menu_name in modules:
                         builder = builder_new()
                         error = C.POINTER(Error)()
-                        path = staged_audio[optional_enabled] if menu_name == 'audio' else assets / (menu_name + '-menu.xml')
+                        path = staged_audio[optional_enabled] if menu_name == 'audio' else assets / 'menus' / (menu_name + '-menu.xml')
                         assert build(builder, str(path).encode(), C.byref(error)) and not error
                         menu = get_object(builder, b'menu')
                         assert menu

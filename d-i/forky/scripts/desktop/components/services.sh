@@ -146,6 +146,7 @@ desktop_enable_target_services() {
     labwc-mute-default-microphone.service \
     labwc-kwallet-portal.service \
     labwc-calendar-credentials.service \
+    labwc-local-reminders.service \
     ssh-agent.socket \
     labwc-plans.service \
     foot-server.socket \

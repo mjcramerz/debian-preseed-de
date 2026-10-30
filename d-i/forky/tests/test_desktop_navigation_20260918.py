@@ -10,6 +10,7 @@ from isolation import require_test_isolation as _require_test_isolation
 _isolation_sys.path.pop(0)
 _require_test_isolation()
 
+from payload_fixture import waybar_style_text
 from payload_fixture import waybar_config_text
 from payload_fixture import installed_argv as payload_installed_argv, source_stat as payload_source_stat
 from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
@@ -206,12 +207,12 @@ class DesktopIntegrationTests(unittest.TestCase):
         self.assertEqual(config.count('"modules-left": [__INSTALLER_LABWC_WAYBAR_MODULES_LEFT__]'), 2)
 
     def test_button_icon_green_and_transient_lifecycle_preserved(self):
-        css=render_theme_defaults(payload_read_text(TARGET/'etc/skel-desktop/.config/waybar/taskview.css.tmpl'))
+        css=render_theme_defaults(payload_read_text(TARGET/'etc/skel-desktop/.config/waybar/buttons/taskview.css.tmpl'))
         blocks=re.findall(r'(?:^|\n)#custom-window-switcher\s*\{([^}]*)\}', css)
         block='\n'.join(blocks)
         self.assertIn('color: ' + theme_values()['WAYBAR_BUTTON_TASKVIEW_NORMAL_ICON_COLOR'] + ';',block)
         self.assertIn('Font Awesome 6 Free',block)
-        self.assertIn('#custom-wayscriber {', payload_read_text(FORKY/'hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl'))
+        self.assertIn('#custom-wayscriber {', waybar_style_text(FORKY/'hooks/target/etc/skel-desktop/.config/waybar'))
         config=render_theme_defaults(waybar_config_text(TARGET / 'etc/skel-desktop/.config/waybar'))
         clicks=re.findall(r'"on-click-release": "([^"\n]* -- /usr/local/bin/labwc-window-switcher)"',config)
         self.assertEqual(len(clicks),2)

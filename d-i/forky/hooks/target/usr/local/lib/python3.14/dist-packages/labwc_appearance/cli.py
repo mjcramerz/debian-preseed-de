@@ -116,6 +116,9 @@ def asset_themes(collections, component: str, prompt: str, reset_label: str) -> 
 
 
 def main(argv: list[str]) -> int:
+    if argv == ['--gtk']:
+        from .editor import main as editor_main
+        return editor_main()
     if argv == ['--catalog']:
         print(json.dumps({'themes': public_catalog(), 'assets': asset_catalog(),
                           'profiles': {key: LABELS for key in COMPONENTS},

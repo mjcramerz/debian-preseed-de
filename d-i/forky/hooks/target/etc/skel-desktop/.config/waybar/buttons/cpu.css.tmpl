@@ -1,0 +1,29 @@
+/* Waybar cpu button rules. Native theme values remain editable per mapping. */
+
+#cpu {
+  background: __THEME_WAYBAR_BUTTON_CPU_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_CPU_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_CPU_NORMAL_TEXT_COLOR__;
+}
+
+#cpu.critical {
+  color: __THEME_WAYBAR_BUTTON_CPU_CRITICAL_TEXT_COLOR__;
+}
+
+#cpu.warning {
+  color: __THEME_WAYBAR_BUTTON_CPU_WARNING_TEXT_COLOR__;
+}
+
+#cpu:hover {
+  background: __THEME_WAYBAR_BUTTON_CPU_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_CPU_HOVER_OUTLINE_COLOR__;
+}
+
+window#waybar.internal #cpu:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_CPU_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #cpu:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_CPU_HOVER_SHADOW_COLOR__;
+}

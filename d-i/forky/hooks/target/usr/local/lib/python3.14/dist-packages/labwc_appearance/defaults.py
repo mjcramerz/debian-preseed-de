@@ -51,6 +51,8 @@ def load():
 def main(argv):
     if argv != ['--capture'] or os.getuid() != 0:
         raise ValueError('installation-only usage: labwc-appearance-defaults --capture (root)')
+    from .fields import capture_registry
+    capture_registry()
     DIRECTORY.mkdir(mode=0o755, parents=True, exist_ok=True)
     with Tree(DIRECTORY, uid=0) as output:
         existing = output.json('defaults.json')

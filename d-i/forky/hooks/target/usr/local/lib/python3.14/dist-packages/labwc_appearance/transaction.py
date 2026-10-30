@@ -66,6 +66,13 @@ def check_current(tree: Tree, journal: dict, *, rollback: bool) -> None:
             raise RuntimeError('appearance file changed concurrently; journal retained: ' + name)
 
 
+def check_committed(tree: Tree, journal: dict) -> None:
+    """Prove a committed journal's new images are present before clearing it."""
+    for name in journal['new']:
+        if tree.read(name, missing=True) != decoded(journal['new'][name]):
+            raise RuntimeError('committed appearance journal does not match the file: ' + name)
+
+
 def apply(tree: Tree, journal: dict, *, mode: int = 0o600) -> None:
     check_current(tree, journal, rollback=False)
     for name, data in journal['new'].items():

@@ -1,0 +1,37 @@
+/* Waybar memory button rules. Native theme values remain editable per mapping. */
+
+#memory {
+  background: __THEME_WAYBAR_BUTTON_MEMORY_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_MEMORY_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_MEMORY_NORMAL_TEXT_COLOR__;
+}
+
+window#waybar.internal #memory {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_STATUS_MODULE_MIN_WIDTH__px;
+}
+
+window#waybar.external #memory {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_STATUS_MODULE_MIN_WIDTH__px;
+}
+
+#memory.critical {
+  color: __THEME_WAYBAR_BUTTON_MEMORY_CRITICAL_TEXT_COLOR__;
+}
+
+#memory.warning {
+  color: __THEME_WAYBAR_BUTTON_MEMORY_WARNING_TEXT_COLOR__;
+}
+
+#memory:hover {
+  background: __THEME_WAYBAR_BUTTON_MEMORY_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_MEMORY_HOVER_OUTLINE_COLOR__;
+}
+
+window#waybar.internal #memory:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_MEMORY_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #memory:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_MEMORY_HOVER_SHADOW_COLOR__;
+}

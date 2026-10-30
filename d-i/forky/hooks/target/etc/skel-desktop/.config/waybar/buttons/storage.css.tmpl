@@ -1,0 +1,29 @@
+/* Waybar storage button rules. Native theme values remain editable per mapping. */
+
+#disk {
+  background: __THEME_WAYBAR_BUTTON_DISK_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_DISK_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_DISK_NORMAL_TEXT_COLOR__;
+}
+
+#disk.critical {
+  color: __THEME_WAYBAR_BUTTON_DISK_CRITICAL_TEXT_COLOR__;
+}
+
+#disk.warning {
+  color: __THEME_WAYBAR_BUTTON_DISK_WARNING_TEXT_COLOR__;
+}
+
+#disk:hover {
+  background: __THEME_WAYBAR_BUTTON_DISK_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_DISK_HOVER_OUTLINE_COLOR__;
+}
+
+window#waybar.internal #disk:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_DISK_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #disk:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_DISK_HOVER_SHADOW_COLOR__;
+}

@@ -24,7 +24,8 @@ FORKY = Path(__file__).resolve().parents[1]
 TARGET = FORKY / 'hooks/target'
 
 @lru_cache(maxsize=32)
-def rendered_assets(profile, count=None, theme_items=()):
+def native_assets(profile, count=None, theme_items=()):
+    """Return the rendered files at their real paths relative to waybar/."""
     profile = Path(profile)
     script = r'''
 . "$1"
@@ -42,7 +43,7 @@ desktop_log() { :; }
 installer_warn() { :; }
 desktop_render_waybar_config
 desktop_render_waybar_style
-for menu in audio calendar notifications power tomat; do
+for menu in audio bluetooth calendar notifications power screenshot system tomat; do
     desktop_render_waybar_asset "${menu}-menu.xml"
 done
 '''
@@ -63,7 +64,8 @@ done
         text=re.sub(r'__INSTALLER_([A-Z0-9_]+)__',lambda m:values[m[1]],text)
         if '__INSTALLER_' in text or '__THEME_' in text:
             raise AssertionError('unresolved source '+source)
-        if Path(dest).name == 'config':
+        relative = Path(dest).relative_to('/etc/skel-desktop/.config/waybar').as_posix()
+        if relative == 'config' or relative.startswith('actions/'):
             def unique_keys(pairs):
                 values = {}
                 for key, value in pairs:
@@ -71,8 +73,55 @@ done
                     values[key] = value
                 return values
             json.loads(text, object_pairs_hook=unique_keys)
-        result[Path(dest).name]=text
+        if relative in result:
+            raise AssertionError('duplicate rendered Waybar destination: ' + relative)
+        result[relative]=text
     return result
+
+
+def resolved_config(assets):
+    """Apply Waybar's first-value-wins object merge to managed includes."""
+    bars = json.loads(assets['config'])
+
+    def merge(base, fragment):
+        if not isinstance(base, dict) or not isinstance(fragment, dict):
+            raise AssertionError('Waybar include must contain an object')
+        for key, value in fragment.items():
+            if key not in base:
+                base[key] = value
+            elif isinstance(base[key], dict) and isinstance(value, dict):
+                merge(base[key], value)
+
+    for bar in bars:
+        for include in bar.pop('include', []):
+            prefix = '~/.config/waybar/'
+            if not include.startswith(prefix):
+                raise AssertionError('unexpected Waybar include root')
+            relative = include[len(prefix):]
+            if not re.fullmatch(r'actions/[a-z-]+', relative):
+                raise AssertionError('unsafe Waybar include')
+            merge(bar, json.loads(assets[relative]))
+    return bars
+
+
+def rendered_assets(profile, count=None, theme_items=()):
+    """Resolved fixture view; native_assets retains the actual file boundary."""
+    assets = dict(native_assets(profile, count, theme_items))
+    assets['config'] = json.dumps(resolved_config(assets), ensure_ascii=False)
+    expression = re.compile(r'@import url\("([^"\n]+)"\);')
+
+    def stylesheet(relative, active=()):
+        if relative in active or len(active) > 8:
+            raise AssertionError('recursive Waybar stylesheet import')
+        def include(match):
+            name = match[1]
+            if not re.fullmatch(r'(?:style-common|(?:buttons|menus)/[a-z-]+)\.css', name):
+                raise AssertionError('unsafe Waybar stylesheet import')
+            return stylesheet(name, (*active, relative))
+        return expression.sub(include, assets[relative])
+
+    assets['style.css'] = stylesheet('style.css')
+    return assets
 
 def profiles():
     return [p for p in sorted((FORKY/'hosts/profiles').glob('*.env'))

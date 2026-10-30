@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import pwd
 import re
 import stat
 import time
@@ -26,6 +27,7 @@ from zoneinfo import ZoneInfo
 FIRST_MINUTES = (15, 30, 60, 120, 180, 240, 300, 360, 720, 1440)
 INTERVAL_MINUTES = (0, 5, 10, 15, 30, 45, 60)
 DEFAULT = {'enabled': False, 'first_minutes': 15, 'interval_minutes': 0}
+PHONE_CONTROL = 'phone-reminders-control.json'
 RECURRENCE_OPTIONS = (
     ('none', 'None', None),
     ('daily', 'Daily', {'FREQ': 'DAILY'}),
@@ -82,7 +84,9 @@ class Store:
 
     def __enter__(self):
         # No account state may redirect imports, file authority or parent paths.
-        require(self.directory.is_absolute() and self.directory.resolve(strict=True) == self.directory)
+        expected_home = Path(pwd.getpwuid(os.getuid()).pw_dir)
+        require(self.directory.is_absolute() and self.directory.parent.parent == expected_home
+                and self.directory.resolve(strict=True) == self.directory)
         for parent in (self.directory.parent.parent, self.directory.parent, self.directory):
             info = parent.lstat()
             require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid()
@@ -123,11 +127,12 @@ class Store:
             os.close(fd)
 
     def read(self, name):
-        require(name in {'phone-reminders.json', 'phone-deliveries.json'})
+        require(name in {'phone-reminders.json', 'phone-deliveries.json', PHONE_CONTROL})
         try:
             fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=self.fd)
         except FileNotFoundError:
-            return {'version': 1, 'items': {}}
+            return ({'version': 1, 'paused': False} if name == PHONE_CONTROL
+                    else {'version': 1, 'items': {}})
         with os.fdopen(fd, 'rb') as stream:
             before = os.fstat(stream.fileno())
             require(self.safe(before) and before.st_size <= MAX_BYTES)
@@ -140,6 +145,11 @@ class Store:
             data = json.loads(raw)
         except (ValueError, UnicodeError):
             raise ReminderError() from None
+        if name == PHONE_CONTROL:
+            require(isinstance(data, dict) and set(data) == {'version', 'paused'}
+                    and type(data['version']) is int and data['version'] == 1
+                    and type(data['paused']) is bool)
+            return data
         require(isinstance(data, dict) and set(data) == {'version', 'items'}
                 and type(data['version']) is int and data['version'] == 1
                 and isinstance(data['items'], dict))
@@ -172,7 +182,11 @@ class Store:
         return data
 
     def publish(self, name, data):
-        require(name in {'phone-reminders.json', 'phone-deliveries.json'})
+        require(name in {'phone-reminders.json', 'phone-deliveries.json', PHONE_CONTROL})
+        if name == PHONE_CONTROL:
+            require(isinstance(data, dict) and set(data) == {'version', 'paused'}
+                    and data['version'] == 1 and type(data['paused']) is bool,
+                    'invalid-reminder-control')
         raw = (json.dumps(data, sort_keys=True, ensure_ascii=True) + '\n').encode()
         require(len(raw) <= MAX_BYTES)
         try:
@@ -235,6 +249,14 @@ class Store:
         data = self.prepare(uid, url, kind, zone, settings)
         if data is not None:
             self.publish('phone-reminders.json', data)
+
+    def set_paused(self, paused: bool) -> None:
+        require(type(paused) is bool, 'invalid-reminder-control')
+        with self.locked():
+            self.publish(PHONE_CONTROL, {'version': 1, 'paused': paused})
+
+    def paused(self) -> bool:
+        return bool(self.read(PHONE_CONTROL)['paused'])
 
 
 def active(component, kind):

@@ -252,17 +252,21 @@ class NativeLayoutTests(unittest.TestCase):
         root = TARGET / 'etc/skel-desktop/.config/waybar'
         for name in ('audio', 'calendar', 'notifications', 'power', 'tomat'):
             with self.subTest(menu=name):
-                document = ET.fromstring((root / (name + '-menu.xml.tmpl')).read_text(encoding='utf-8'))
+                document = ET.fromstring((root / 'menus' / (name + '-menu.xml.tmpl')).read_text(encoding='utf-8'))
                 group = document.find("object[@class='GtkAccelGroup']")
                 self.assertIsNotNone(group)
                 for menu in document.findall(".//object[@class='GtkMenu']"):
                     self.assertEqual(menu.find("property[@name='accel-group']").text, group.get('id'))
 
-    def test_templates_are_exactly_the_requested_single_file_layouts(self):
+    def test_waybar_separates_entrypoints_actions_buttons_and_menus(self):
         root=TARGET/'etc/skel-desktop/.config'
         self.assertEqual({p.name for p in (root/'waybar').iterdir() if p.is_file()},
-                         {'config.tmpl','style.css.tmpl',*(name+'-menu.xml.tmpl' for name in
-                                                         ('audio','calendar','notifications','power','tomat'))})
+                         {'config.tmpl','style.css.tmpl','style-common.css.tmpl'})
+        self.assertEqual({p.name for p in (root/'waybar').iterdir() if p.is_dir()},
+                         {'actions','buttons','menus','icons'})
+        self.assertEqual({p.name for p in (root/'waybar/menus').iterdir()},
+                         {'menu.css.tmpl', *(name+'-menu.xml.tmpl' for name in
+                           ('audio','bluetooth','calendar','notifications','power','screenshot','system','tomat'))})
         self.assertEqual({p.name for p in (root/'fuzzel').iterdir()},
                          {'base.ini.tmpl','fuzzel.ini.tmpl','menu.ini.tmpl','computer-management.ini.tmpl'})
         base=(root/'fuzzel/base.ini.tmpl').read_text()

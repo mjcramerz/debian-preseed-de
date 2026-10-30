@@ -401,7 +401,12 @@ def redirect_native_from_private_users(
         return
     assert_launch_allowed()
     # Every native launch gets its own service, including terminal launches.
-    # Tuta additionally waits for the Secret Service provider below.
+    # Tuta requires the Secret Service provider because its GUI cannot open
+    # without it. Calix account provisioning and credential delivery are
+    # session-owned services; making either provider a launch-time Requires
+    # would serialize a calendar click behind KWallet startup and its prompt
+    # settle delay. Calix can open while those services converge and reports
+    # an unavailable account through its normal UI when delivery is pending.
     systemd_run = require_root_owned_executable("systemd-run", SYSTEMD_RUN_PATH)
     environment = managed_session_unit_environment(
         app_name, require_session_owner=False,
@@ -410,13 +415,11 @@ def redirect_native_from_private_users(
     wayland_display = native_session_wayland_display(environment)
     session_dependency = "labwc-session.target"
     provider_dependencies: list[str] = []
-    if app_name in {"tutanota", "calix"}:
+    if app_name == "tutanota":
         provider_dependencies.append("labwc-kwallet-portal.service")
-    if app_name == "calix":
-        provider_dependencies.append("labwc-calendar-credentials.service")
     startup_dependencies = " ".join([session_dependency, *provider_dependencies])
     provider_dependency_args = (
-        [f"--property=Requires={' '.join(provider_dependencies)}"]
+        [f"--property=Requisite={' '.join(provider_dependencies)}"]
         if provider_dependencies else []
     )
     # The generic entrypoint attaches the generic AppArmor profile when started
@@ -468,9 +471,8 @@ def redirect_native_from_private_users(
         "--unit=" + _session_unit(f"labwc-native-{app_name}"),
         f"--property=After={startup_dependencies}",
         # Never pull the desktop/compositor back up during teardown. The
-        # session target is a readiness gate; provider services are ordinary
-        # Requires dependencies so a menu click can start an inactive provider
-        # before the managed application is launched.
+        # session target is a readiness gate; provider services are Requisite
+        # gates so a menu click never pulls an inactive provider into startup.
         f"--property=Requisite={session_dependency}",
         *provider_dependency_args,
         f"--property=PartOf={startup_dependencies}",

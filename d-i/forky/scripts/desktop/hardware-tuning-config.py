@@ -28,6 +28,7 @@ APPLICATIONS = {
     "llama-server.service": "performance",
 }
 CLICK = "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-hardware-tuning menu"
+MAX_WAYBAR_CONFIG_BYTES = 2 * 1024 * 1024
 
 
 def parse_environment(text: str) -> dict[str, str]:
@@ -176,6 +177,213 @@ def require_power_profiles_activation(root: Path) -> None:
             raise ValueError("incompatible packaged Power Profiles activation: " + name)
 
 
+def _json_string(text: str, start: int) -> tuple[str, int]:
+    """Decode one JSON string at *start*, without parsing the containing file."""
+    try:
+        value, end = json.JSONDecoder().raw_decode(text, start)
+    except json.JSONDecodeError as exc:
+        raise ValueError("invalid Waybar JSON string") from exc
+    if not isinstance(value, str):
+        raise ValueError("Waybar JSON key or action is not a string")
+    return value, end
+
+
+def _matching_json_delimiter(text: str, start: int) -> int:
+    """Return the exclusive end of one bounded JSON object or array."""
+    opening = text[start]
+    closing = {"{": "}", "[": "]"}.get(opening)
+    if closing is None:
+        raise ValueError("Waybar JSON value is not an object or array")
+    stack = [closing]
+    cursor = start + 1
+    while cursor < len(text):
+        char = text[cursor]
+        if char == '"':
+            _, cursor = _json_string(text, cursor)
+            continue
+        if char in "{[":
+            stack.append("}" if char == "{" else "]")
+        elif char in "}]":
+            if not stack or char != stack[-1]:
+                raise ValueError("mismatched Waybar JSON delimiters")
+            stack.pop()
+            if not stack:
+                return cursor + 1
+        cursor += 1
+    raise ValueError("unterminated Waybar JSON value")
+
+
+def _skip_json_value(text: str, start: int, limit: int) -> int:
+    cursor = start
+    if cursor >= limit:
+        raise ValueError("missing Waybar JSON value")
+    if text[cursor] == '"':
+        _, cursor = _json_string(text, cursor)
+        return cursor
+    if text[cursor] in "{[":
+        cursor = _matching_json_delimiter(text, cursor)
+        if cursor > limit:
+            raise ValueError("Waybar JSON value escapes its object")
+        return cursor
+    while cursor < limit and text[cursor] not in ",}":
+        cursor += 1
+    if not text[start:cursor].strip():
+        raise ValueError("empty Waybar JSON value")
+    return cursor
+
+
+def _waybar_object_members(text: str, opening: int, closing: int) -> list[dict[str, int | str]]:
+    """Read only the top-level members of one already located JSON object."""
+    members: list[dict[str, int | str]] = []
+    cursor = opening + 1
+    while cursor < closing:
+        while cursor < closing and text[cursor].isspace():
+            cursor += 1
+        if cursor >= closing:
+            break
+        if text[cursor] == ',':
+            cursor += 1
+            continue
+        key_start = cursor
+        key, cursor = _json_string(text, cursor)
+        while cursor < closing and text[cursor].isspace():
+            cursor += 1
+        if cursor >= closing or text[cursor] != ':':
+            raise ValueError("invalid Waybar object member")
+        cursor += 1
+        while cursor < closing and text[cursor].isspace():
+            cursor += 1
+        value_start = cursor
+        value_end = _skip_json_value(text, value_start, closing)
+        members.append({"key": key, "key_start": key_start,
+                        "value_start": value_start, "value_end": value_end})
+        cursor = value_end
+        while cursor < closing and text[cursor].isspace():
+            cursor += 1
+        if cursor < closing and text[cursor] == ',':
+            cursor += 1
+            continue
+        if cursor != closing:
+            raise ValueError("invalid Waybar object separator")
+    return members
+
+
+def _waybar_battery_objects(text: str) -> list[tuple[int, int]]:
+    """Find the one native custom/battery object in one menu include file."""
+    objects: list[tuple[int, int]] = []
+    cursor = 0
+    while cursor < len(text):
+        if text[cursor] != '"':
+            cursor += 1
+            continue
+        key, end = _json_string(text, cursor)
+        cursor = end
+        if key != "custom/battery":
+            continue
+        while cursor < len(text) and text[cursor].isspace():
+            cursor += 1
+        if cursor >= len(text) or text[cursor] != ':':
+            raise ValueError("Waybar battery key is not a member")
+        cursor += 1
+        while cursor < len(text) and text[cursor].isspace():
+            cursor += 1
+        if cursor >= len(text) or text[cursor] != '{':
+            raise ValueError("Waybar battery member is not an object")
+        closing = _matching_json_delimiter(text, cursor)
+        objects.append((cursor, closing - 1))
+        cursor = closing
+    if len(objects) != 1:
+        raise ValueError("Waybar power menu must contain exactly one custom/battery object")
+    return objects
+
+
+def _waybar_remove_member(text: str, opening: int, closing: int,
+                          member: dict[str, int | str]) -> tuple[str, int]:
+    """Remove one action member while preserving all surrounding formatting."""
+    key_start = int(member["key_start"])
+    value_end = int(member["value_end"])
+    line_start = text.rfind("\n", opening + 1, key_start) + 1
+    if not text[line_start:key_start].strip():
+        line_end = text.find("\n", value_end, closing)
+        if line_end < 0:
+            line_end = closing
+        else:
+            line_end += 1
+        return text[:line_start] + text[line_end:], line_start
+    cursor = value_end
+    while cursor < closing and text[cursor].isspace():
+        cursor += 1
+    if cursor < closing and text[cursor] == ',':
+        return text[:key_start] + text[cursor + 1:], key_start
+    raise ValueError("inline Waybar battery action cannot be edited safely")
+
+
+def _waybar_patch_battery_object(text: str) -> str:
+    opening = 0
+    closing = len(text) - 1
+    members = _waybar_object_members(text, opening, closing)
+    by_key: dict[str, dict[str, int | str]] = {}
+    for member in members:
+        key = str(member["key"])
+        if key in ("on-click-right", "on-click-right-release"):
+            if key in by_key:
+                raise ValueError("duplicate Waybar battery action: " + key)
+            by_key[key] = member
+
+    for key, member in by_key.items():
+        value_start = int(member["value_start"])
+        value, value_end = _json_string(text, value_start)
+        if value_end != int(member["value_end"]) or value != CLICK:
+            raise ValueError("Waybar battery action conflicts with managed hardware menu: " + key)
+
+    if "on-click-right" in by_key:
+        text, _ = _waybar_remove_member(text, opening, closing, by_key["on-click-right"])
+        closing = len(text) - 1
+        members = _waybar_object_members(text, opening, closing)
+        by_key = {str(member["key"]): member for member in members
+                  if str(member["key"]) in ("on-click-right", "on-click-right-release")}
+
+    if "on-click-right-release" in by_key:
+        return text
+
+    members = _waybar_object_members(text, opening, closing)
+    if not members:
+        raise ValueError("Waybar battery object is empty")
+    last = members[-1]
+    last_key_start = int(last["key_start"])
+    previous = int(last["value_end"]) - 1
+    while previous >= opening and text[previous].isspace():
+        previous -= 1
+    if previous < opening:
+        raise ValueError("Waybar battery object has no final value")
+    close_line_start = text.rfind("\n", opening + 1, closing) + 1
+    close_indent = text[close_line_start:closing]
+    member_line_start = text.rfind("\n", opening + 1, last_key_start) + 1
+    member_indent = text[member_line_start:last_key_start]
+    if not member_indent or member_indent.strip():
+        member_indent = close_indent + "  "
+    action = json.dumps(CLICK, ensure_ascii=False)
+    return (text[:previous + 1] + "," + text[previous + 1:close_line_start]
+            + member_indent + '"on-click-right-release": ' + action + "\n"
+            + text[close_line_start:])
+
+
+def patch_waybar_battery_actions(root: Path, relative: str) -> str:
+    """Add the managed battery action without reparsing or reformatting Waybar."""
+    path = root / relative
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("rendered Waybar configuration is missing or unsafe")
+    if path.stat().st_size > MAX_WAYBAR_CONFIG_BYTES:
+        raise ValueError("rendered Waybar configuration is too large")
+    text = path.read_text(encoding="utf-8")
+    objects = _waybar_battery_objects(text)
+    for opening, closing in objects:
+        original = text[opening:closing + 1]
+        patched = _waybar_patch_battery_object(original)
+        text = text[:opening] + patched + text[closing + 1:]
+    return text
+
+
 def install(root: Path, uid: int, gid: int, environment: dict, vendors: list[str],
             templates: Path) -> list[str]:
     from broker import validate_config
@@ -256,27 +464,14 @@ def install(root: Path, uid: int, gid: int, environment: dict, vendors: list[str
     for application, profile in APPLICATIONS.items():
         put_template(f"etc/systemd/user/{application}.d/85-hardware-tuning.conf", {
             "HARDWARE_TARGETS": " ".join(f"{v}-{profile}.target" for v in vendors)})
-    # Modify only battery right-clicks. All left-click values remain identical.
-    relative = "etc/skel-desktop/.config/waybar/config"
-    waybar = root / relative
-    if waybar.is_symlink():
-        raise ValueError("rendered Waybar configuration is a symlink")
-    data = json.loads(waybar.read_text(encoding="utf-8"))
-    if (not isinstance(data, list) or len(data) != 2
-            or any(not isinstance(bar, dict) for bar in data)
-            or [bar.get("name") for bar in data] != ["internal", "external"]):
-        raise ValueError("Waybar configuration must contain the internal/external bars")
-    for bar in data:
-        key = "custom/battery"
-        if not isinstance(bar.get(key), dict):
-            raise ValueError("Waybar bar has no battery module")
-        entry = bar[key]
-        for event in ("on-click-right", "on-click-right-release"):
-            if event in entry and entry[event] != CLICK:
-                raise ValueError("Waybar battery right-click conflicts with managed hardware menu")
-        entry.pop("on-click-right", None)
-        entry["on-click-right-release"] = CLICK
-    put(relative, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    # Modify only the two battery action members. Do not deserialize and
+    # reserialize the complete Waybar configuration: doing so changes every
+    # indentation and line boundary, invalidates appearance registry anchors,
+    # and creates needless churn in the installed user's configuration.
+    for relative in (
+            "etc/skel-desktop/.config/waybar/actions/power-menu",
+    ):
+        put(relative, patch_waybar_battery_actions(root, relative))
     # Publish provider selection only after all of its units and activation
     # policy have been rendered. Offline staging never starts a consumer.
     put_template("etc/hardware-tuning/broker.json", {

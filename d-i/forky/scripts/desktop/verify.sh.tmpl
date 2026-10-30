@@ -951,7 +951,8 @@ if [ -r /usr/share/dbus-1/system-services/org.freedesktop.nm_dispatcher.service 
   require_readable /etc/systemd/system/NetworkManager-dispatcher.service.d/20-persistent.conf
   if [ -r /etc/network/host.conf ]; then
     managed_link_types=$(sed -n 's/^MANAGED_NETWORK_LINK_TYPES=//p' /etc/network/host.conf)
-    managed_link_types=$(printf '%s' "$managed_link_types" | sed "s/^['\"]//; s/['\"]$//")
+    managed_link_types=$(printf '%s' "$managed_link_types" |
+      sed -e 's/^"//' -e "s/^'//" -e 's/"$//' -e "s/'$//")
     case " $managed_link_types " in
       *" ethernet "*)
         case " $managed_link_types " in
@@ -1004,7 +1005,46 @@ for path in \
   /usr/share/backgrounds/other/wp2653774-black-and-blue-wallpaper-hd.png \
   /etc/skel-desktop/.config/waybar/config \
   /etc/skel-desktop/.config/waybar/style.css \
-  /etc/skel-desktop/.config/waybar/taskview.css \
+  /etc/skel-desktop/.config/waybar/style-common.css \
+  /etc/skel-desktop/.config/waybar/actions/config-core \
+  /etc/skel-desktop/.config/waybar/actions/status-menu \
+  /etc/skel-desktop/.config/waybar/actions/audio-menu \
+  /etc/skel-desktop/.config/waybar/actions/bluetooth-menu \
+  /etc/skel-desktop/.config/waybar/actions/calendar-menu \
+  /etc/skel-desktop/.config/waybar/actions/notifications-menu \
+  /etc/skel-desktop/.config/waybar/actions/power-menu \
+  /etc/skel-desktop/.config/waybar/actions/screenshot-menu \
+  /etc/skel-desktop/.config/waybar/actions/system-menu \
+  /etc/skel-desktop/.config/waybar/actions/tomat-menu \
+  /etc/skel-desktop/.config/waybar/actions/layout-internal \
+  /etc/skel-desktop/.config/waybar/actions/layout-external \
+  /etc/skel-desktop/.config/waybar/menus/menu.css \
+  /etc/skel-desktop/.config/waybar/menus/audio-menu.xml \
+  /etc/skel-desktop/.config/waybar/menus/bluetooth-menu.xml \
+  /etc/skel-desktop/.config/waybar/menus/calendar-menu.xml \
+  /etc/skel-desktop/.config/waybar/menus/notifications-menu.xml \
+  /etc/skel-desktop/.config/waybar/menus/power-menu.xml \
+  /etc/skel-desktop/.config/waybar/menus/screenshot-menu.xml \
+  /etc/skel-desktop/.config/waybar/menus/system-menu.xml \
+  /etc/skel-desktop/.config/waybar/menus/tomat-menu.xml \
+  /etc/skel-desktop/.config/waybar/buttons/menu.css \
+  /etc/skel-desktop/.config/waybar/buttons/workspaces.css \
+  /etc/skel-desktop/.config/waybar/buttons/tomat.css \
+  /etc/skel-desktop/.config/waybar/buttons/wayscriber.css \
+  /etc/skel-desktop/.config/waybar/buttons/taskview.css \
+  /etc/skel-desktop/.config/waybar/buttons/apps.css \
+  /etc/skel-desktop/.config/waybar/buttons/clock.css \
+  /etc/skel-desktop/.config/waybar/buttons/audio.css \
+  /etc/skel-desktop/.config/waybar/buttons/brightness.css \
+  /etc/skel-desktop/.config/waybar/buttons/battery.css \
+  /etc/skel-desktop/.config/waybar/buttons/storage.css \
+  /etc/skel-desktop/.config/waybar/buttons/cpu.css \
+  /etc/skel-desktop/.config/waybar/buttons/memory.css \
+  /etc/skel-desktop/.config/waybar/buttons/tray.css \
+  /etc/skel-desktop/.config/waybar/buttons/system.css \
+  /etc/skel-desktop/.config/waybar/buttons/notifications.css \
+  /etc/skel-desktop/.config/waybar/buttons/lock.css \
+  /etc/skel-desktop/.config/waybar/buttons/power.css \
   /etc/skel-desktop/.config/waycal/style.css \
   /etc/skel-desktop/.config/l3afpad/l3afpadrc \
   /etc/skel-desktop/.config/foot/foot.ini \
@@ -1624,7 +1664,47 @@ do
 done
 for path in \
   "$account_home/.config/waybar/config" \
-  "$account_home/.config/waybar/taskview.css" \
+  "$account_home/.config/waybar/style.css" \
+  "$account_home/.config/waybar/style-common.css" \
+  "$account_home/.config/waybar/actions/config-core" \
+  "$account_home/.config/waybar/actions/status-menu" \
+  "$account_home/.config/waybar/actions/audio-menu" \
+  "$account_home/.config/waybar/actions/bluetooth-menu" \
+  "$account_home/.config/waybar/actions/calendar-menu" \
+  "$account_home/.config/waybar/actions/notifications-menu" \
+  "$account_home/.config/waybar/actions/power-menu" \
+  "$account_home/.config/waybar/actions/screenshot-menu" \
+  "$account_home/.config/waybar/actions/system-menu" \
+  "$account_home/.config/waybar/actions/tomat-menu" \
+  "$account_home/.config/waybar/actions/layout-internal" \
+  "$account_home/.config/waybar/actions/layout-external" \
+  "$account_home/.config/waybar/menus/menu.css" \
+  "$account_home/.config/waybar/menus/audio-menu.xml" \
+  "$account_home/.config/waybar/menus/bluetooth-menu.xml" \
+  "$account_home/.config/waybar/menus/calendar-menu.xml" \
+  "$account_home/.config/waybar/menus/notifications-menu.xml" \
+  "$account_home/.config/waybar/menus/power-menu.xml" \
+  "$account_home/.config/waybar/menus/screenshot-menu.xml" \
+  "$account_home/.config/waybar/menus/system-menu.xml" \
+  "$account_home/.config/waybar/menus/tomat-menu.xml" \
+  "$account_home/.config/waybar/buttons/menu.css" \
+  "$account_home/.config/waybar/buttons/workspaces.css" \
+  "$account_home/.config/waybar/buttons/tomat.css" \
+  "$account_home/.config/waybar/buttons/wayscriber.css" \
+  "$account_home/.config/waybar/buttons/taskview.css" \
+  "$account_home/.config/waybar/buttons/apps.css" \
+  "$account_home/.config/waybar/buttons/clock.css" \
+  "$account_home/.config/waybar/buttons/audio.css" \
+  "$account_home/.config/waybar/buttons/brightness.css" \
+  "$account_home/.config/waybar/buttons/battery.css" \
+  "$account_home/.config/waybar/buttons/storage.css" \
+  "$account_home/.config/waybar/buttons/cpu.css" \
+  "$account_home/.config/waybar/buttons/memory.css" \
+  "$account_home/.config/waybar/buttons/tray.css" \
+  "$account_home/.config/waybar/buttons/system.css" \
+  "$account_home/.config/waybar/buttons/notifications.css" \
+  "$account_home/.config/waybar/buttons/lock.css" \
+  "$account_home/.config/waybar/buttons/power.css" \
   "$account_home/.config/waycal/style.css" \
   "$account_home/.config/l3afpad/l3afpadrc" \
   "$account_home/.config/foot/foot.ini" \
@@ -1803,6 +1883,7 @@ desktop_verify_native_workspace_config() {
 import configparser
 import json
 from pathlib import Path
+import re
 import shlex
 import subprocess
 import sys
@@ -1822,6 +1903,38 @@ for retired in ("usr/local/libexec/labwc-workspace-broker",
     path = root / retired
     require(not path.exists() and not path.is_symlink(), "retired taskbar executable remains: " + retired)
 config_roots = (root / "etc/skel-desktop/.config", root / sys.argv[1].lstrip("/") / ".config")
+def load_waybar_config(config):
+    """Resolve the native Waybar object includes for offline verification."""
+    root_config = json.loads((config / "waybar/config").read_text())
+    require(isinstance(root_config, list), "Waybar root configuration is not a bar list")
+
+    def merge(base, fragment):
+        require(isinstance(base, dict) and isinstance(fragment, dict),
+                "Waybar include must contain one object")
+        for key, value in fragment.items():
+            if key not in base:
+                base[key] = value
+            elif isinstance(base[key], dict) and isinstance(value, dict):
+                merge(base[key], value)
+
+    for bar in root_config:
+        require(isinstance(bar, dict), "Waybar bar must be an object")
+        includes = bar.pop("include", [])
+        require(isinstance(includes, list) and all(isinstance(item, str) for item in includes),
+                "Waybar include list is invalid")
+        for include in includes:
+            prefix = "~/.config/waybar/"
+            require(include.startswith(prefix), "Waybar include must name the managed configuration directory")
+            relative = include[len(prefix):]
+            require(re.fullmatch(r"actions/[a-z-]+", relative) is not None,
+                    "Waybar include has an unsafe path")
+            include_path = config / "waybar" / relative
+            require(include_path.is_file() and not include_path.is_symlink(),
+                    "Waybar include is missing: " + relative)
+            fragment = json.loads(include_path.read_text())
+            merge(bar, fragment)
+    return root_config
+
 counts = []
 for config in config_roots:
     # Inspect installed data only; never start a picker or a session manager.
@@ -1840,12 +1953,38 @@ for config in config_roots:
     require(base.get("main", "keyboard-focus") == "on-demand"
             and base.getboolean("main", "exit-on-keyboard-focus-loss"),
             "Fuzzel must dismiss when another application receives focus")
-    for name in ("labwc/rc.xml", "waybar/config", "waybar/style.css", "waybar/taskview.css"):
+    waybar_assets = (
+        "waybar/config", "waybar/style.css", "waybar/style-common.css",
+        "waybar/actions/config-core", "waybar/actions/status-menu",
+        "waybar/actions/audio-menu", "waybar/actions/bluetooth-menu", "waybar/actions/calendar-menu",
+        "waybar/actions/notifications-menu", "waybar/actions/power-menu", "waybar/actions/screenshot-menu",
+        "waybar/actions/system-menu", "waybar/actions/tomat-menu",
+        "waybar/actions/layout-internal", "waybar/actions/layout-external", "waybar/menus/menu.css",
+        "waybar/menus/audio-menu.xml", "waybar/menus/bluetooth-menu.xml",
+        "waybar/menus/calendar-menu.xml", "waybar/menus/notifications-menu.xml",
+        "waybar/menus/power-menu.xml", "waybar/menus/screenshot-menu.xml",
+        "waybar/menus/system-menu.xml", "waybar/menus/tomat-menu.xml",
+        "waybar/buttons/menu.css", "waybar/buttons/workspaces.css", "waybar/buttons/tomat.css",
+        "waybar/buttons/wayscriber.css", "waybar/buttons/taskview.css", "waybar/buttons/apps.css",
+        "waybar/buttons/clock.css", "waybar/buttons/audio.css", "waybar/buttons/brightness.css",
+        "waybar/buttons/battery.css", "waybar/buttons/storage.css", "waybar/buttons/cpu.css",
+        "waybar/buttons/memory.css", "waybar/buttons/tray.css", "waybar/buttons/system.css",
+        "waybar/buttons/notifications.css", "waybar/buttons/lock.css", "waybar/buttons/power.css",
+    )
+    for name in ("labwc/rc.xml", *waybar_assets):
         text = (config / name).read_text()
         require("__INSTALLER_" not in text, "unresolved workspace configuration: " + name)
         require("labwc-workspace-broker" not in text, "retired broker reference in " + name)
-    require('@import url("taskview.css");' in (config / "waybar/style.css").read_text(),
-            "Waybar stylesheet must import the dedicated Taskview profile")
+    stylesheet = (config / "waybar/style.css").read_text()
+    for imported in ("style-common.css", "buttons/menu.css", "buttons/workspaces.css",
+                     "buttons/tomat.css", "buttons/wayscriber.css", "buttons/taskview.css",
+                     "buttons/apps.css", "buttons/clock.css", "buttons/audio.css",
+                     "buttons/brightness.css", "buttons/battery.css", "buttons/storage.css",
+                     "buttons/cpu.css", "buttons/memory.css", "buttons/tray.css",
+                     "buttons/system.css", "buttons/notifications.css", "buttons/lock.css",
+                     "buttons/power.css", "menus/menu.css"):
+        require("@import url(" + chr(34) + imported + chr(34) + ");" in stylesheet,
+                "Waybar stylesheet is missing import: " + imported)
     for relative in ("systemd/user/labwc-workspace-broker.service",
                      "systemd/user/labwc-session.target.wants/labwc-workspace-broker.service"):
         path = config / relative
@@ -1927,7 +2066,7 @@ for config in config_roots:
         require(command and command[0] == "/usr/bin/systemd-run" and boundary > 0
                 and required <= set(command[1:boundary]) and command[boundary + 1:] == [executable],
                 "hotkey must use the bounded transient service for " + key)
-    bars = json.loads((config / "waybar/config").read_text())
+    bars = load_waybar_config(config)
     require(isinstance(bars, list) and len(bars) == 2
             and [bar.get("name") for bar in bars] == ["internal", "external"],
             "Waybar must contain exactly the internal/external bar definitions")
@@ -2186,7 +2325,11 @@ for base in (Path("/etc/skel-desktop"), Path(sys.argv[1])):
             and all(isinstance(bar, dict) for bar in bars)
             and [bar.get("name") for bar in bars] == ["internal", "external"],
             "native drawer requires both output-class layouts")
-    common = (config / "style.css").read_text()
+    def load_style(config):
+        root_style = (config / "style.css").read_text()
+        imports = re.findall(r"@import url\(\"([^\"\\n]+)\"\);", root_style)
+        return root_style + "\n" + "\n".join((config / relative).read_text() for relative in imports)
+    common = load_style(config)
     for output_class, size, fill in (("internal", sys.argv[4], sys.argv[5]),
                                      ("external", sys.argv[6], sys.argv[7])):
         require(re.fullmatch(r"[1-9][0-9]{0,2}", size) and 8 <= int(size) <= 128,
@@ -2284,6 +2427,10 @@ for name in ("labwc-tomat", "labwc-tomat-hook", "labwc-tomat-overlay", "labwc-no
     info = path.lstat()
     require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and stat.S_IMODE(info.st_mode) == 0o755,
             "unsafe or missing native menu helper: " + str(path))
+dispatcher = Path("/usr/local/bin/labwc-system-menu-action")
+info = dispatcher.lstat()
+require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and stat.S_IMODE(info.st_mode) == 0o755,
+        "unsafe or missing system menu dispatcher")
 # The native Current/History window requires the JSON API introduced in 1.11.
 mako_version = subprocess.check_output(
     ["/usr/bin/dpkg-query", "-W", "-f=${Version}", "mako-notifier"],
@@ -2292,6 +2439,39 @@ require(subprocess.run(["/usr/bin/dpkg", "--compare-versions", mako_version, "ge
                        timeout=10, check=False).returncode == 0,
         "native notification history requires mako-notifier >= 1.11")
 controller = runpy.run_path("/usr/local/libexec/labwc-tomat")
+
+def load_waybar_config(config):
+    """Resolve only the managed includes in this verification process."""
+    bars = json.loads((config / "waybar/config").read_text())
+    require(isinstance(bars, list), "Waybar root configuration is not a bar list")
+
+    def merge(base, fragment):
+        require(isinstance(base, dict) and isinstance(fragment, dict),
+                "Waybar include must contain one object")
+        for key, value in fragment.items():
+            if key not in base:
+                base[key] = value
+            elif isinstance(base[key], dict) and isinstance(value, dict):
+                merge(base[key], value)
+
+    for bar in bars:
+        require(isinstance(bar, dict), "Waybar bar must be an object")
+        includes = bar.pop("include", [])
+        require(isinstance(includes, list) and all(isinstance(item, str) for item in includes),
+                "Waybar include list is invalid")
+        for include in includes:
+            prefix = "~/.config/waybar/"
+            require(include.startswith(prefix), "Waybar include must name the managed configuration directory")
+            relative = include[len(prefix):]
+            require(re.fullmatch(r"actions/[a-z-]+", relative) is not None,
+                    "Waybar include has an unsafe path")
+            path = config / "waybar" / relative
+            info = path.lstat()
+            require(stat.S_ISREG(info.st_mode) and not info.st_mode & 0o022,
+                    "Waybar include has unsafe metadata: " + relative)
+            merge(bar, json.loads(path.read_text()))
+    return bars
+
 expected_left = json.loads(sys.argv[3])
 row_spacing, icon_size, icon_width = sys.argv[4:7]
 account = pwd.getpwnam(sys.argv[2])
@@ -2324,7 +2504,7 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
     require(stat.S_ISREG(info.st_mode) and info.st_uid == uid and stat.S_IMODE(info.st_mode) == 0o600,
             "unsafe Tomat configuration: " + str(toml))
     controller["validate_config"](toml.read_text())
-    bars = json.loads((config / "waybar/config").read_text())
+    bars = load_waybar_config(config)
     require(isinstance(bars, list) and len(bars) == 2
             and [bar.get("name") for bar in bars] == ["internal", "external"],
             "Waybar must contain exactly the internal/external bar definitions")
@@ -2366,6 +2546,7 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
                                     ("custom/notifications", "notifications", "on-click"),
                                     ("bluetooth", "bluetooth", "on-click"),
                                     ("custom/screenshot", "screenshot", "on-click"),
+                                    ("custom/system", "system", "on-click-right"),
                                     ("custom/power", "power", "on-click"),
                                     ("clock", "calendar", "on-click-release")):
             entry = bar[module]
@@ -2413,8 +2594,8 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
                     expected_click = open_action[open_action.index("--") + 1:]
                 require(click[click.index("--") + 1:] == expected_click,
                         "wrong secondary click action: " + name)
-            require(entry.get("menu-file") == "~/.config/waybar/" + name + "-menu.xml", "wrong menu path")
-            path = config / "waybar" / (name + "-menu.xml")
+            require(entry.get("menu-file") == "~/.config/waybar/menus/" + name + "-menu.xml", "wrong menu path")
+            path = config / "waybar" / "menus" / (name + "-menu.xml")
             info = path.lstat()
             require(stat.S_ISREG(info.st_mode) and info.st_uid == uid and not info.st_mode & 0o022,
                     "unsafe menu file: " + str(path))
@@ -2458,12 +2639,16 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
                 "--property=After=labwc-session.target", "--property=PartOf=labwc-session.target",
                 "--property=ExitType=cgroup", "--property=KillMode=control-group",
                 "--property=TimeoutStartSec=10s", "--property=TimeoutStopSec=20s"}
-            for action in actions.values():
+            for action_id, action in actions.items():
                 argv = shlex.split(action)
                 require(argv and argv[0] == "/usr/bin/systemd-run" and "--" in argv,
                         "native menu action must use the user manager")
                 require(required_options <= set(argv[1:argv.index("--")])
                         and "__INSTALLER_" not in action, "blocking/unscoped/unresolved menu action")
+                if name == "system":
+                    require(argv[argv.index("--") + 1:] ==
+                            ["/usr/local/bin/labwc-system-menu-action", action_id],
+                            "wrong system menu dispatcher action: " + action_id)
             if name == "notifications":
                 expected = {"notifications_center": "center", "notifications_restore": "restore",
                             "notifications_dnd_on": "dnd-on", "notifications_dnd_off": "dnd-off",
@@ -2499,7 +2684,7 @@ if arch == "amd64":
     for relative in ("etc/systemd/system/tomat.service", "etc/systemd/user/tomat.service"):
         path = Path("/") / relative
         require(path.is_symlink() and os.readlink(path) == "/dev/null", "stock Tomat service is not masked: " + relative)
-print("desktop_native_menu_verification menus=7 tomat=isolated screenshot=native bluetooth=native power=native calendar=native")
+print("desktop_native_menu_verification menus=8 tomat=isolated screenshot=native bluetooth=native system=native power=native calendar=native")
 ' "$ACCOUNT_HOME" "$ACCOUNT_USERNAME" "[${desktop_native_menu_modules_left}]" \
     "$LABWC_WAYBAR_INTERNAL_MENU_ROW_SPACING" "$LABWC_WAYBAR_INTERNAL_MENU_ICON_SIZE" \
     "$LABWC_WAYBAR_INTERNAL_MENU_ICON_WIDTH"
@@ -2694,6 +2879,9 @@ for filename, mode in (
         ("/usr/local/libexec/labwc-waybar-exec", 0o755),
         ("/usr/local/libexec/labwc-waybar-battery", 0o755),
         ("/usr/local/libexec/labwc-waybar-events", 0o755),
+        ("/usr/local/bin/labwc-capture", 0o755),
+        ("/usr/local/lib/python3.14/dist-packages/managed_workflows/__init__.py", 0o644),
+        ("/usr/local/lib/python3.14/dist-packages/managed_workflows/fs.py", 0o644),
         ("/usr/local/lib/python3.14/dist-packages/labwc_managed_app/gpu.py", 0o644),
         ("/etc/apparmor.d/abstractions/native-gpu-selection", 0o644)):
     path = Path(filename)

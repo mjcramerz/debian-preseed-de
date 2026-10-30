@@ -70,11 +70,18 @@ For example, `KITTY_ANSI_NORMAL_RED_COLOR` feeds Kitty's `color1`, and
 `FOOT_DARK_ANSI_NORMAL_RED_COLOR` and `FOOT_DARK_ANSI_BRIGHT_RED_COLOR` in its
 existing dark palette. VSCode uses `VSCODE_TERMINAL_ANSI_NORMAL_RED_COLOR` and
 `VSCODE_TERMINAL_ANSI_BRIGHT_RED_COLOR` for its native terminal ANSI settings.
-The native option names themselves are not renamed.
+The native option names themselves are not renamed. The third column in
+`theme-schema.tsv` identifies the grammar accepted by the consumer parser; it
+is used during installation validation and is not copied into the installed
+desktop. The installed Appearance app instead uses its captured native field
+registry and the mappings recorded for each rendered file.
 
-Kitty and VSCode retain `#rrggbb` values. Foot retains its native `rrggbb`
-values without a hash. The default values, palette order, opacity and selected
-application themes are unchanged.
+Kitty and VS Code use their native hash color forms, while Foot retains its
+native `rrggbb` values without a hash. Fuzzel uses bare `rrggbbaa` values,
+Xournal++ toolbar colors use eight bare hexadecimal digits, and Crystal Dock
+and FocusWriter use Qt color values. Zathura and Recoll use their CSS/GDK
+color forms, and fzf uses its ANSI or `#rrggbb` color form. The default values,
+palette order, opacity and selected application themes are unchanged.
 
 Obsidian's `NEUTRAL_PALETTE_SHADE_00` through `SHADE_100` names deliberately
 retain the native shared tonal scale. These shades can serve multiple widgets;
@@ -104,17 +111,43 @@ Fonts and line heights use points with `dpi-aware=yes`.
 Waybar uses one config, two named bars and one stylesheet. Bar geometry is
 independently scoped. Native GTK menus/tooltips are detached popup windows,
 so paired popup values must match; validation rejects unsupported divergence.
-The stylesheet does not pretend popup widgets have a bar ancestor.
+The renderer binds the validated pair to `LABWC_WAYBAR_SHARED_*` placeholders
+for popup assets, while `LABWC_WAYBAR_INTERNAL_*` and
+`LABWC_WAYBAR_EXTERNAL_*` remain the profile inputs. The stylesheet does not
+pretend popup widgets have a bar ancestor.
 
 ## Values and installation
 
 Keep the literal `NAME="value"` format, without shell interpolation, command
 substitution, inline comments, or multiline values. Follow each variable's
-existing native format and schema type: not every application accepts the same
+existing native format and schema grammar: not every application accepts the same
 hex notation, alpha format, style string or boolean spelling. Validation fails
 on unknown, duplicate, missing, misplaced or invalid values before publishing a
 partial map. A name accepted by the publishing naming lint must still pass this
 independent installation-time value validation.
+
+The schema grammar identifiers used by the current native consumers are:
+
+| Grammar | Native consumer | Accepted value forms |
+| --- | --- | --- |
+| `gtk3-css-color` | GTK3 CSS and GDK/Waybar styles | names, `transparent`, `currentColor`, `#rgb`, `#rrggbb`, `#rrrgggbbb`, `#rrrrggggbbbb`, and `rgb/rgba/hsl/hsla` functions |
+| `gtk4-css-color` | GTK4 CSS, including Waycal | the GTK3 forms plus `#rgba`, `#rrggbbaa`, `#rrrrggggbbbbaaaa`, and GTK4 color functions |
+| `pango-color` | Waybar JSON Pango markup | names and the four RGB hex widths accepted by Pango |
+| `qt-color` | Qt QColor consumers such as Crystal Dock and FocusWriter | names, `transparent`, `#rgb`, `#rrggbb`, `#aarrggbb`, `#rrrgggbbb`, and `#rrrrggggbbbb` |
+| `mako-color` / `mako-progress` | Mako notification config | `#rrggbb` or `#rrggbbaa`; progress values use the `over ` prefix |
+| `fuzzel-rgba` | Fuzzel | bare `rrggbbaa` (no leading `#`) |
+| `foot-rgb` | Foot | bare `rrggbb` (alpha is a separate Foot option) |
+| `kitty-color` | Kitty | Kitty hash, `rgb:`, `rgbi:`, name, and optional `@alpha` forms |
+| `vscode-color` | VS Code `workbench.colorCustomizations` | `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, or the supported `default` sentinel |
+| `fzf-color` | fzf `--color` values | ANSI names/numbers, `#rrggbb`, and optional foreground attributes |
+| `zsh-color` | zsh prompts and zsh syntax highlighting | named colors, indexes `0`–`255`, or six-digit `#rrggbb` truecolor |
+| `zathura-color` / `css-color` | Zathura/GDK and CSS based applications | HTML/CSS names and hex forms plus `rgb/rgba` (and CSS functions where the consumer supports them) |
+| `xournalpp-color` | Xournal++ page-template colors | `#rrggbb` or `#rrggbbaa` |
+| `xournalpp-hex` | Xournal++ toolbar color attributes | exactly eight bare hexadecimal digits |
+
+These identifiers describe the staged native consumer grammar. They are used
+to reject invalid installer inputs before rendering; they are not installed as
+a theme database and the installed Appearance app does not read this file.
 
 Wallpaper variables select repository-relative sources beginning with
 `hooks/target/usr/share/backgrounds/`. Installation derives the corresponding

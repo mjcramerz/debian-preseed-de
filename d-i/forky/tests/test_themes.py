@@ -17,6 +17,7 @@ _isolation_sys.path.pop(0)
 _require_test_isolation()
 
 from waybar_fixture import profiles, rendered_assets
+from payload_fixture import waybar_style_text
 from payload_fixture import read_text as payload_read_text, copyfile as payload_copyfile, installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
 import configparser
 import ctypes.util
@@ -72,7 +73,7 @@ class ThemeValidationTests(unittest.TestCase):
 
     def test_dock_and_waybar_render_dark_navy_surfaces(self):
         dock = CHECKER['render_text']((TARGET / 'etc/skel-desktop/.config/crystal-dock/labwc/appearance.conf.tmpl').read_text(), VALUES)
-        css = CHECKER['render_text']((TARGET / 'etc/skel-desktop/.config/waybar/style.css.tmpl').read_text(), VALUES)
+        css = CHECKER['render_text'](waybar_style_text(TARGET / 'etc/skel-desktop/.config/waybar'), VALUES)
         for key in ('DOCK_BACKGROUND_COLOR', 'DOCK_BACKGROUND_2D_COLOR',
                     'DOCK_BACKGROUND_METAL_2D_COLOR'):
             self.assertEqual(VALUES[key], '#FF100417')
@@ -105,8 +106,7 @@ class ThemeValidationTests(unittest.TestCase):
                 self.assertEqual(VALUES[f'WAYBAR_BUTTON_{button}_HOVER_{property_name}_COLOR'],
                                  VALUES[f'WAYBAR_BUTTON_APPS_HOVER_{property_name}_COLOR'])
         for output in ('internal', 'external'):
-            css = ''.join((TARGET / 'etc/skel-desktop/.config/waybar' / name).read_text()
-                          for name in ('style.css.tmpl', 'taskview.css.tmpl'))
+            css = waybar_style_text(TARGET / 'etc/skel-desktop/.config/waybar')
             for button in ('custom-apps', 'custom-wayscriber', 'custom-tomat', 'custom-window-switcher'):
                 rules = re.findall(rf'window#waybar\.{output} #{button}:hover \{{([^}}]*)\}}', css)
                 self.assertTrue(any('box-shadow: inset ' in rule for rule in rules))
@@ -577,7 +577,7 @@ class ThemeRuntimeContractTests(unittest.TestCase):
             source = TARGET / 'etc/skel-desktop/.config/waybar'
             assets = rendered_assets(profiles()[0], theme_items=tuple(sorted(values.items())))
             (root / 'style.css').write_text(assets['style.css'])
-            (root / 'menu.xml').write_text(assets['tomat-menu.xml'])
+            (root / 'menu.xml').write_text(assets['menus/tomat-menu.xml'])
             code = r'''
 import ctypes as C, ctypes.util, sys, json
 G = C.CDLL(ctypes.util.find_library('gtk-3'))

@@ -1,0 +1,37 @@
+/* Waybar battery button rules. Native theme values remain editable per mapping. */
+
+#custom-battery {
+  background: __THEME_WAYBAR_BUTTON_BATTERY_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_BATTERY_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_BATTERY_NORMAL_TEXT_COLOR__;
+}
+
+#custom-battery.charging {
+  color: __THEME_WAYBAR_BUTTON_BATTERY_CHARGING_TEXT_COLOR__;
+}
+
+#custom-battery.full {
+  color: __THEME_WAYBAR_BUTTON_BATTERY_FULL_TEXT_COLOR__;
+}
+
+#custom-battery.warning {
+  color: __THEME_WAYBAR_BUTTON_BATTERY_WARNING_TEXT_COLOR__;
+}
+
+#custom-battery.critical {
+  color: __THEME_WAYBAR_BUTTON_BATTERY_CRITICAL_TEXT_COLOR__;
+}
+
+#custom-battery:hover {
+  background: __THEME_WAYBAR_BUTTON_BATTERY_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_BATTERY_HOVER_OUTLINE_COLOR__;
+}
+
+window#waybar.internal #custom-battery:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_BATTERY_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #custom-battery:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_BATTERY_HOVER_SHADOW_COLOR__;
+}

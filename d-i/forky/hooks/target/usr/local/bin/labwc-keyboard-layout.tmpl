@@ -92,6 +92,16 @@ reconfigure_labwc() {
   /usr/bin/labwc --reconfigure 9>&- >/dev/null 2>&1
 }
 
+notify_layout() {
+  [ -x /usr/bin/notify-send ] || return 0
+  [ -x /usr/bin/timeout ] || return 0
+  [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || return 0
+  /usr/bin/timeout --kill-after=1s 3s /usr/bin/notify-send \
+    --app-name='Keyboard Layout' --urgency=low --category=input.layout -- \
+    'Keyboard layout changed' "Keyboard layout is now $(layout_label "$1")." \
+    >/dev/null 2>&1 || :
+}
+
 lock_layout() {
   umask 077
   install -d -m 0700 "$state_dir"
@@ -123,6 +133,7 @@ complete_layout_change() {
     /usr/local/bin/labwc-system-action refresh-waybar-custom-module >/dev/null ||
       printf 'keyboard layout: layout changed, but Waybar refresh failed\n' >&2
   fi
+  notify_layout "$1"
 }
 
 toggle_layout() {

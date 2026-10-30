@@ -7,12 +7,17 @@ notification-supplied command execution, shell parsing or history files are used
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+from datetime import datetime, timedelta
+import fcntl
 import json
+import math
 import os
 from pathlib import Path
 import pwd
 import re
 import select
+import secrets
 import stat
 import subprocess
 import sys
@@ -24,6 +29,8 @@ APP_ID = "org.labwc.NotificationCenter"
 REQUEST_TIMEOUT = 4.0
 MAX_VISIBLE = 100
 DND_MODE = "do-not-disturb"
+DND_DURATIONS = {"dnd-15m": 900, "dnd-1h": 3600, "dnd-4h": 14400, "dnd-tomorrow": None}
+DND_RECORD = "expiry.json"
 MOUSE_HINT = "Left: menu | Middle: DND | Right: DND on + dismiss all"
 # Only fixed Mako control operations; never notification-provided commands.
 ACTIONS = {
@@ -38,6 +45,14 @@ REQUESTS = {("mode",), ("list", "-j"), ("history", "-j"), *ACTIONS.values()}
 
 
 class Error(RuntimeError):
+    pass
+
+
+class Busy(Error):
+    pass
+
+
+class OutcomeUnknown(Error):
     pass
 
 
@@ -79,8 +94,9 @@ def mako(args: list[str], env: dict[str, str], *, cancel: Event | None = None) -
         raise Error("Mako request cancelled")
     # Bound BOTH streams during capture. stderr must never corrupt JSON or
     # leak notification content into the journal or a GTK error message.
-    with subprocess.Popen(["/usr/bin/makoctl", *args], env=env, stdin=subprocess.DEVNULL,
-                          stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
+    process = subprocess.Popen(["/usr/bin/makoctl", *args], env=env, stdin=subprocess.DEVNULL,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
         buffers = {process.stdout: bytearray(), process.stderr: bytearray()}
         streams = list(buffers)
         received = 0
@@ -121,9 +137,192 @@ def mako(args: list[str], env: dict[str, str], *, cancel: Event | None = None) -
             except UnicodeDecodeError as exc:
                 raise Error("Mako returned invalid UTF-8") from exc
         finally:
-            if process.poll() is None:
-                process.kill()
-            process.wait()
+            try:
+                if process.poll() is None:
+                    process.kill()
+                process.wait(timeout=2)
+            except (OSError, subprocess.SubprocessError) as error:
+                raise OutcomeUnknown("Mako helper termination is outcome-unknown") from error
+    finally:
+        process.stdout.close()
+        process.stderr.close()
+
+
+@contextmanager
+def dnd_store(env: dict[str, str]):
+    """Manual controls, replacement requests and expiry share one owned lock."""
+    runtime = os.open(env["XDG_RUNTIME_DIR"], os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    directory = lock = None
+    try:
+        info = os.fstat(runtime)
+        if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
+            raise Error("unsafe notification runtime directory")
+        try:
+            os.mkdir("labwc-notifications", 0o700, dir_fd=runtime)
+        except FileExistsError:
+            pass
+        directory = os.open("labwc-notifications", os.O_RDONLY | os.O_DIRECTORY |
+                            os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=runtime)
+        info = os.fstat(directory)
+        if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
+            raise Error("unsafe DND state directory")
+        lock = os.open("control.lock", os.O_RDWR | os.O_CREAT | os.O_NONBLOCK |
+                       os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=directory)
+        info = os.fstat(lock)
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != 0o600):
+            raise Error("unsafe DND lock")
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise Busy("another notification control is in progress") from None
+        current = os.stat("control.lock", dir_fd=directory, follow_symlinks=False)
+        if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
+            raise Error("DND lock identity changed")
+        yield directory
+    finally:
+        if lock is not None:
+            os.close(lock)
+        if directory is not None:
+            os.close(directory)
+        os.close(runtime)
+
+
+def read_expiry(directory: int) -> dict | None:
+    try:
+        fd = os.open(DND_RECORD, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW |
+                     os.O_CLOEXEC, dir_fd=directory)
+    except FileNotFoundError:
+        return None
+    try:
+        before = os.fstat(fd)
+        if (not stat.S_ISREG(before.st_mode) or before.st_uid != os.getuid()
+                or before.st_nlink != 1 or stat.S_IMODE(before.st_mode) != 0o600
+                or not 0 < before.st_size <= 1024):
+            raise Error("unsafe DND expiry record")
+        data = os.read(fd, 1025)
+        after = os.fstat(fd)
+        if (len(data) != before.st_size or
+                (before.st_size, before.st_mtime_ns, before.st_ctime_ns) !=
+                (after.st_size, after.st_mtime_ns, after.st_ctime_ns)):
+            raise Error("DND expiry record changed during read")
+    finally:
+        os.close(fd)
+    try:
+        record = json.loads(data)
+    except (ValueError, RecursionError):
+        raise Error("invalid DND expiry record") from None
+    if (not isinstance(record, dict) or set(record) != {"schema", "token", "deadline"}
+            or type(record["schema"]) is not int or record["schema"] != 1
+            or not isinstance(record["token"], str) or not re.fullmatch(r"[a-f0-9]{32}", record["token"])
+            or type(record["deadline"]) not in (int, float) or not math.isfinite(record["deadline"])
+            or not 0 <= record["deadline"] <= time.monotonic() + 172800):
+        raise Error("invalid DND expiry record")
+    return record
+
+
+def write_expiry(directory: int, record: dict | None) -> None:
+    # Runtime UI state needs atomic replacement, without durable disk writes.
+    if record is None:
+        try:
+            os.unlink(DND_RECORD, dir_fd=directory)
+        except FileNotFoundError:
+            pass
+        return
+    name = ".expiry-" + secrets.token_hex(16)
+    fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW |
+                 os.O_CLOEXEC, 0o600, dir_fd=directory)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(json.dumps(record, separators=(",", ":")).encode("ascii"))
+        os.replace(name, DND_RECORD, src_dir_fd=directory, dst_dir_fd=directory)
+    finally:
+        try:
+            os.unlink(name, dir_fd=directory)
+        except FileNotFoundError:
+            pass
+
+
+def start_expiry(env: dict[str, str], token: str, seconds: float) -> None:
+    command = ["/usr/bin/systemd-run", "--user", "--quiet", "--collect",
+               "--unit=labwc-dnd-expiry-" + token, "--description=Labwc timed do not disturb",
+               "--service-type=exec", "--expand-environment=no", "--slice=app.slice",
+               "--property=Requisite=labwc-session.target", "--property=After=labwc-session.target",
+               "--property=PartOf=labwc-session.target", "--property=ExitType=cgroup",
+               "--property=KillMode=control-group", "--property=TimeoutStopSec=5s",
+               "--property=TimeoutStartSec=10s", "--property=RuntimeMaxSec=" + str(math.ceil(seconds) + 30),
+               "--", "/usr/local/libexec/labwc-notifications", "expire", token]
+    try:
+        result = subprocess.run(command, env=env, stdin=subprocess.DEVNULL,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                check=False, timeout=12)
+    except subprocess.TimeoutExpired:
+        # An uncommitted worker has no authority to change Mako. Do not retry
+        # an uncertain unit creation or publish its token.
+        raise OutcomeUnknown("DND worker startup is outcome-unknown; DND was not changed") from None
+    if result.returncode:
+        raise Error("DND expiry worker could not be started; DND was not changed")
+
+
+def control(action: str, env: dict[str, str], *, cancel: Event | None = None) -> None:
+    options = {"cancel": cancel} if cancel is not None else {}
+    if action not in {"dnd", "dnd-on", "dnd-off", "dnd-dismiss", *DND_DURATIONS}:
+        mako(list(ACTIONS[action]), env, **options)
+        return
+    with dnd_store(env) as directory:
+        read_expiry(directory)  # Reject unsafe state before any mutation.
+        if action in DND_DURATIONS:
+            seconds = DND_DURATIONS[action]
+            if seconds is None:
+                midnight = datetime.combine(datetime.now().date() + timedelta(days=1), datetime.min.time()).astimezone()
+                seconds = max(1.0, (midnight - datetime.now().astimezone()).total_seconds())
+            token = secrets.token_hex(16)
+            deadline = time.monotonic() + seconds
+            # Type=exec startup completes while this lock is held. The worker
+            # cannot consume the new token until it has been committed here.
+            start_expiry(env, token, seconds)
+            write_expiry(directory, {"schema": 1, "token": token, "deadline": deadline})
+            command = "dnd-on"
+        else:
+            # Every explicit manual control invalidates a previous expiry.
+            write_expiry(directory, None)
+            command = "dnd-on" if action == "dnd-dismiss" else action
+        try:
+            mako(list(ACTIONS[command]), env, **options)
+            if action == "dnd-dismiss":
+                mako(list(ACTIONS["dismiss"]), env, **options)
+        except (Error, OSError, subprocess.SubprocessError) as error:
+            raise OutcomeUnknown("notification control failed; Mako state is outcome-unknown") from error
+
+
+def expire_once(env: dict[str, str], token: str) -> float | None:
+    with dnd_store(env) as directory:
+        record = read_expiry(directory)
+        if record is None or record["token"] != token:
+            return None  # A newer or manual request owns the state now.
+        remaining = record["deadline"] - time.monotonic()
+        if remaining > 0:
+            return min(30.0, remaining)
+        try:
+            mako(list(ACTIONS["dnd-off"]), env)
+        except (Error, OSError, subprocess.SubprocessError) as error:
+            # Keep the record as evidence; never retry an uncertain mutation.
+            raise OutcomeUnknown("DND expiry failed; retained expiry.json and Mako state is outcome-unknown") from error
+        write_expiry(directory, None)
+        return None
+
+
+def expire(env: dict[str, str], token: str) -> int:
+    deadline = time.monotonic() + 172830
+    while time.monotonic() < deadline:
+        try:
+            delay = expire_once(env, token)
+        except Busy:
+            delay = 0.2
+        if delay is None:
+            return 0
+        time.sleep(delay)
+    raise Error("DND expiry exceeded its lifetime; retained expiry.json")
 
 
 def notification_text(value, default: str, limit: int) -> str:
@@ -162,7 +361,7 @@ def snapshot(env: dict[str, str], action: str | None = None, *, cancel: Event | 
         raise Error("unsupported notification action")
     if action is not None:
         try:
-            mako(list(ACTIONS[action]), env, cancel=cancel)
+            control(action, env, cancel=cancel)
         except (Error, OSError, subprocess.SubprocessError) as exc:
             result["errors"].append("Action: " + str(exc))
     for name, command in (("active", ["list", "-j"]), ("history", ["history", "-j"]),
@@ -333,21 +532,18 @@ def show_center(env: dict[str, str]) -> int:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 1 or argv[0] not in {"status", "center", "dnd-dismiss", *ACTIONS}:
-        raise Error("usage: labwc-notifications status|center|dnd|dnd-on|dnd-off|dnd-dismiss|dismiss|clear|restore")
+    if len(argv) == 2 and argv[0] == "expire" and re.fullmatch(r"[a-f0-9]{32}", argv[1]):
+        return expire(environment(), argv[1])
+    if len(argv) != 1 or argv[0] not in {"status", "center", "dnd-dismiss", *ACTIONS, *DND_DURATIONS}:
+        raise Error("usage: labwc-notifications status|center|dnd|dnd-on|dnd-off|dnd-dismiss|dnd-15m|dnd-1h|dnd-4h|dnd-tomorrow|dismiss|clear|restore")
     env = environment()
     action = argv[0]
     if action == "status":
         dnd = "do-not-disturb" in mako(["mode"], env).splitlines()
         print(json.dumps({"text": "__THEME_WAYBAR_BUTTON_NOTIFICATIONS_DND_ICON_GLYPH__" if dnd else "__THEME_WAYBAR_BUTTON_NOTIFICATIONS_NORMAL_ICON_GLYPH__", "class": "dnd" if dnd else "normal",
                           "tooltip": "Do not disturb: " + ("on" if dnd else "off") + "\n" + MOUSE_HINT}))
-    elif action == "dnd-dismiss":
-        # Mute before clearing the queue; repeated clicks must never unmute it.
-        # A failed request propagates without reporting the whole action done.
-        mako(list(ACTIONS["dnd-on"]), env)
-        mako(list(ACTIONS["dismiss"]), env)
-    elif action in ACTIONS:
-        mako(list(ACTIONS[action]), env)
+    elif action in {"dnd-dismiss", *ACTIONS, *DND_DURATIONS}:
+        control(action, env)
     else:
         return show_center(env)
     return 0
@@ -365,4 +561,4 @@ if __name__ == "__main__":
             print(json.dumps({"text": "__THEME_WAYBAR_BUTTON_NOTIFICATIONS_ERROR_ICON_GLYPH__", "class": "error",
                               "tooltip": "Notifications unavailable: " + str(exc)[:1024] + "\n" + MOUSE_HINT}))
             raise SystemExit(0)
-        raise SystemExit(1)
+        raise SystemExit(4 if isinstance(exc, OutcomeUnknown) else 3 if isinstance(exc, Busy) else 1)

@@ -7,10 +7,15 @@ bounded actions; it does not open display or audio devices itself.
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
+import fcntl
 import json
 import os
 from pathlib import Path
+import pwd
 import re
+import secrets
+import shutil
 import signal
 import stat
 import subprocess
@@ -19,6 +24,7 @@ import tempfile
 import time
 
 import labwc_desktop_runtime as desktop_runtime
+from managed_workflows.fs import Tree
 
 APP_NAME = "Screen Capture"
 RECORDING_UNIT = "labwc-screen-recording.service"
@@ -32,6 +38,13 @@ SATTY = "/usr/local/bin/satty"
 WLR_RANDR = "/usr/bin/wlr-randr"
 WF_RECORDER = "/usr/bin/wf-recorder"
 FFPROBE = "/usr/bin/ffprobe"
+OCR = "/usr/local/bin/labwc-ocr"
+WAYLAND_APP = "/usr/local/bin/labwc-wayland-app"
+WL_COPY = "/usr/bin/wl-copy"
+HISTORY_NAME = "last-capture.json"
+HISTORY_LOCK = "last-capture.lock"
+MAX_IMAGE_BYTES = 64 * 1024 * 1024
+PNG_HEADER = b"\x89PNG\r\n\x1a\n"
 ERROR_ICON = "__THEME_MAKO_SCREEN_CAPTURE_ERROR_ICON_NAME__"
 RECORDING_LOG = "__INSTALLER_LOG_APPLICATIONS_FILE__"
 
@@ -49,6 +62,10 @@ DESKTOP_UID: int
 
 
 class CaptureError(RuntimeError):
+    pass
+
+
+class CaptureOutcomeUnknown(CaptureError):
     pass
 
 
@@ -111,12 +128,14 @@ def ensure_desktop_user() -> None:
     if os.environ.get("LABWC_SESSION_OWNER") != "desktop":
         raise CaptureError("labwc-capture must run in the managed desktop session")
     DESKTOP_UID = os.getuid()
-    if DESKTOP_UID == 0:
+    if DESKTOP_UID == 0 or os.geteuid() != DESKTOP_UID:
         raise CaptureError("labwc-capture requires a non-root desktop runtime directory")
     RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR", ""))
     if RUNTIME != Path("/run/user") / str(DESKTOP_UID):
         raise CaptureError("labwc-capture requires the current desktop runtime directory")
     HOME = safe_path("HOME", os.environ.get("HOME", ""))
+    if HOME != Path(pwd.getpwuid(DESKTOP_UID).pw_dir):
+        raise CaptureError("HOME does not match the desktop account")
 
 
 def initialize_paths() -> None:
@@ -136,12 +155,16 @@ def initialize_paths() -> None:
     SCREENSHOT_DIR = HOME / "Pictures/Screenshots"
     RECORDING_DIR = HOME / "Videos/Recordings"
     SATTY_CONFIG = config_home / "satty/config.toml"
+    # Create below pinned, owned roots, rejecting symlink parents before a
+    # capture or snapshot can write through them.
+    with Tree(HOME, uid=DESKTOP_UID, private=True) as home, \
+            Tree(RUNTIME, uid=DESKTOP_UID, private=True) as runtime:
+        home.mkdir("Pictures/Screenshots")
+        home.mkdir("Videos/Recordings")
+        runtime.mkdir("labwc-capture")
     for directory in (STATE_DIR, SCREENSHOT_DIR, RECORDING_DIR):
-        directory.mkdir(mode=0o700, parents=True, exist_ok=True)
-        metadata = directory.stat(follow_symlinks=False)
-        if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != DESKTOP_UID
-                or stat.S_IMODE(metadata.st_mode) != 0o700):
-            raise CaptureError(f"capture directory has unsafe metadata: {directory}")
+        with Tree(directory, uid=DESKTOP_UID, private=True):
+            pass
     # Keep state-home validation part of the contract even though state is in
     # the runtime directory; the configured path is passed to the worker.
     safe_path("XDG_STATE_HOME", str(state_home))
@@ -158,8 +181,10 @@ def require_wayland() -> None:
         notify("critical", ERROR_ICON, "x-labwc.screen-capture", "Screen capture unavailable",
                "The active Wayland socket could not be found.")
         raise CaptureError("active Wayland socket is unavailable") from error
-    if not stat.S_ISSOCK(metadata.st_mode) or metadata.st_uid != DESKTOP_UID or metadata.st_nlink != 1 or stat.S_IMODE(metadata.st_mode) not in {0o600, 0o660, 0o700}:
-        raise CaptureError("active Wayland socket has unsafe ownership or mode")
+    # initialize_paths already pins the same-UID mode-0700 runtime directory.
+    # Socket mode bits inside it are compositor policy, not cross-UID access.
+    if not stat.S_ISSOCK(metadata.st_mode) or metadata.st_uid != DESKTOP_UID or metadata.st_nlink != 1:
+        raise CaptureError("active Wayland socket has unsafe ownership or identity")
 
 
 def recording_active() -> bool:
@@ -171,9 +196,9 @@ def recording_active() -> bool:
 
 def print_status() -> None:
     if recording_active():
-        value = {"text": "__THEME_WAYBAR_BUTTON_SCREENSHOT_RECORDING_ICON_GLYPH__", "tooltip": "Screen recording is active\nLeft-click: select an area and annotate\nMiddle-click: stop and save recording\nRight-click: capture and recording actions", "class": "recording"}
+        value = {"text": "__THEME_WAYBAR_BUTTON_SCREENSHOT_RECORDING_ICON_GLYPH__", "tooltip": "Screen recording is active\nLeft-click: capture and recording menu\nMiddle or right-click: stop recording", "class": "recording"}
     else:
-        value = {"text": "__THEME_WAYBAR_BUTTON_SCREENSHOT_IDLE_ICON_GLYPH__", "tooltip": "Left-click: select an area and annotate\nMiddle-click: stop an active recording\nRight-click: screenshots and recordings", "class": "idle"}
+        value = {"text": "__THEME_WAYBAR_BUTTON_SCREENSHOT_IDLE_ICON_GLYPH__", "tooltip": "Left-click: capture and recording menu\nMiddle or right-click: stop recording", "class": "idle"}
     print(json.dumps(value, ensure_ascii=False))
 
 
@@ -189,6 +214,226 @@ def next_output_path(directory: Path, prefix: str, extension: str) -> Path:
         os.close(descriptor)
         return candidate
     raise CaptureError("unable to allocate a unique output filename")
+
+
+def artifact_relative(kind: str, name: str) -> str:
+    if kind == "image" and re.fullmatch(r"Screenshot_[0-9_-]+\.png", name):
+        return "Pictures/Screenshots/" + name
+    if kind == "recording" and re.fullmatch(r"Recording_[0-9_-]+\.(?:mkv|mp4|webm)", name):
+        return "Videos/Recordings/" + name
+    raise CaptureError("invalid saved capture identity")
+
+
+def artifact_identity(info: os.stat_result) -> dict[str, int]:
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != DESKTOP_UID
+            or info.st_nlink != 1 or info.st_mode & 0o077 or info.st_size < 1):
+        raise CaptureError("saved capture has unsafe metadata or is empty")
+    return {key: getattr(info, "st_" + key) for key in
+            ("dev", "ino", "size", "mtime_ns", "ctime_ns")}
+
+
+@contextmanager
+def history_lock(tree: Tree):
+    with tree.parent(HISTORY_LOCK) as (parent, name):
+        fd = os.open(name, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW |
+                     os.O_NONBLOCK | os.O_CLOEXEC, 0o600, dir_fd=parent)
+        try:
+            pinned = os.fstat(fd)
+            if (not stat.S_ISREG(pinned.st_mode) or pinned.st_uid != DESKTOP_UID
+                    or pinned.st_nlink != 1 or stat.S_IMODE(pinned.st_mode) != 0o600):
+                raise CaptureError("unsafe capture history lock")
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise CaptureError("capture history is busy") from None
+            current = os.stat(name, dir_fd=parent, follow_symlinks=False)
+            if (current.st_dev, current.st_ino) != (pinned.st_dev, pinned.st_ino):
+                raise CaptureError("capture history lock was replaced")
+            yield
+        finally:
+            os.close(fd)
+
+
+def read_history(tree: Tree) -> dict:
+    raw = tree.read(HISTORY_NAME, limit=4096, missing=True)
+    if raw is None:
+        return {"schema": 1, "last": None, "items": {}}
+    try:
+        value = json.loads(raw)
+    except (ValueError, UnicodeError):
+        raise CaptureError("capture history is damaged") from None
+    if (not isinstance(value, dict) or set(value) != {"schema", "last", "items"}
+            or type(value["schema"]) is not int or value["schema"] != 1
+            or not isinstance(value["items"], dict)
+            or set(value["items"]) - {"image", "recording"}
+            or not isinstance(value["last"], str)
+            or value["last"] not in value["items"]):
+        raise CaptureError("capture history is invalid")
+    for kind, item in value["items"].items():
+        if (not isinstance(item, dict) or set(item) != {"name", "identity"}
+                or not isinstance(item["name"], str) or len(item["name"]) > 128
+                or not isinstance(item["identity"], dict)
+                or set(item["identity"]) != {"dev", "ino", "size", "mtime_ns", "ctime_ns"}
+                or any(type(number) is not int or not 0 <= number < 2 ** 63
+                       for number in item["identity"].values())):
+            raise CaptureError("capture history has an invalid artifact")
+        artifact_relative(kind, item["name"])
+    return value
+
+
+def remember_capture(path: Path, kind: str) -> None:
+    """Publish a small session-only record after the producer validates output."""
+    relative = artifact_relative(kind, path.name)
+    if HOME / relative != path:
+        raise CaptureError("capture output is outside its owned directory")
+    with Tree(HOME, uid=DESKTOP_UID) as home, Tree(STATE_DIR, uid=DESKTOP_UID, private=True) as history:
+        with history_lock(history), home.open_read(relative, limit=2 ** 63 - 1) as (stream, info):
+            identity = artifact_identity(info)
+            if kind == "image" and stream.read(len(PNG_HEADER)) != PNG_HEADER:
+                raise CaptureError("saved screenshot is not a PNG image")
+            value = read_history(history)
+            value["items"][kind] = {"name": path.name, "identity": identity}
+            value["last"] = kind
+            # Transient UI state needs atomic replacement, not durable writes.
+            with history.parent(HISTORY_NAME) as (parent, name):
+                temporary = ".last-capture." + secrets.token_hex(12)
+                fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL |
+                             os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=parent)
+                try:
+                    with os.fdopen(fd, "wb", closefd=False) as out:
+                        out.write((json.dumps(value, sort_keys=True) + "\n").encode("utf-8"))
+                    os.replace(temporary, name, src_dir_fd=parent, dst_dir_fd=parent)
+                finally:
+                    os.close(fd)
+                    try:
+                        os.unlink(temporary, dir_fd=parent)
+                    except FileNotFoundError:
+                        pass
+
+
+def validate_saved_artifact(path: Path, kind: str) -> dict[str, int]:
+    relative = artifact_relative(kind, path.name)
+    if HOME / relative != path:
+        raise CaptureError("capture output is outside its owned directory")
+    with Tree(HOME, uid=DESKTOP_UID) as home:
+        with home.open_read(relative, limit=2 ** 63 - 1) as (stream, info):
+            identity = artifact_identity(info)
+            if kind == "image" and stream.read(len(PNG_HEADER)) != PNG_HEADER:
+                raise CaptureError("saved screenshot is not a PNG image")
+            return identity
+
+
+def track_saved_capture(path: Path, kind: str) -> bool:
+    try:
+        remember_capture(path, kind)
+        return True
+    except (OSError, ValueError, RuntimeError):
+        notify("normal", "dialog-warning", "x-labwc.screen-capture", "Capture saved",
+               "The output was saved, but its last-capture record could not be updated.")
+        return False
+
+
+@contextmanager
+def saved_capture(kind: str | None = None):
+    with Tree(STATE_DIR, uid=DESKTOP_UID, private=True) as history:
+        value = read_history(history)
+    selected = kind or value["last"]
+    if selected not in value["items"]:
+        raise CaptureError("no successful capture of this kind is recorded for this login")
+    item = value["items"][selected]
+    relative = artifact_relative(selected, item["name"])
+    with Tree(HOME, uid=DESKTOP_UID) as home:
+        with home.open_read(relative, limit=2 ** 63 - 1) as (stream, info):
+            if artifact_identity(info) != item["identity"]:
+                raise CaptureError("the saved capture was replaced or changed")
+            # Bind the current pathname as well as the opened file identity.
+            with home.parent(relative) as (parent, name):
+                current = os.stat(name, dir_fd=parent, follow_symlinks=False)
+                if artifact_identity(current) != item["identity"]:
+                    raise CaptureError("the saved capture pathname was replaced")
+            yield HOME / relative, stream, info
+
+
+def copy_last_path() -> int:
+    require_wayland()
+    require_command(WL_COPY, "wl-copy")
+    with saved_capture() as (path, _stream, _info):
+        try:
+            result = run([WL_COPY, "--type", "text/plain;charset=utf-8"],
+                         input_text=str(path), timeout=5)
+        except subprocess.TimeoutExpired:
+            return fatal("clipboard ownership could not be confirmed; outcome unknown", 4)
+    if result.returncode == 0:
+        notify("normal", "edit-copy", "x-labwc.screen-capture", "Capture path copied",
+               "The path of the last completed capture is on the clipboard.")
+    return result.returncode
+
+
+@contextmanager
+def ocr_workspace():
+    directory = Path(tempfile.mkdtemp(prefix="ocr-source.", dir=STATE_DIR))
+    retained = False
+    try:
+        yield directory
+    except desktop_runtime.HelperError:
+        # These fixed, non-streaming commands cannot hit input/output limits.
+        # A helper cancellation failure cannot prove its decoder is gone.
+        retained = True
+        raise CaptureOutcomeUnknown("OCR helper termination is unconfirmed; retained input at " + str(directory)) from None
+    finally:
+        if not retained:
+            shutil.rmtree(directory)
+
+
+def recognize_capture(*, last: bool) -> int:
+    require_command(OCR, "labwc-ocr")
+    with ocr_workspace() as temporary:
+        snapshot = temporary / "Screenshot.png"
+        deadline = time.monotonic() + 120 if last else None
+        if last:
+            with saved_capture("image") as (_path, stream, info):
+                if info.st_size > MAX_IMAGE_BYTES or stream.read(len(PNG_HEADER)) != PNG_HEADER:
+                    raise CaptureError("saved screenshot exceeds the OCR input contract")
+                stream.seek(0)
+                remaining = info.st_size
+                copy_deadline = min(deadline, time.monotonic() + 5)
+                fd = os.open(snapshot, os.O_WRONLY | os.O_CREAT | os.O_EXCL |
+                             os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+                with os.fdopen(fd, "wb") as output:
+                    while remaining:
+                        if time.monotonic() >= copy_deadline:
+                            raise CaptureError("OCR snapshot exceeded its copy deadline")
+                        chunk = stream.read(min(remaining, 1024 * 1024))
+                        if not chunk:
+                            raise CaptureError("saved screenshot changed while copying")
+                        output.write(chunk)
+                        remaining -= len(chunk)
+                    if stream.read(1):
+                        raise CaptureError("saved screenshot grew while copying")
+        else:
+            require_wayland()
+            require_command(GRIM, "grim")
+            geometry = select_geometry()
+            if geometry is None:
+                return 0
+            # Selection is interactive; the operation budget starts after it.
+            deadline = time.monotonic() + 120
+            fd = os.open(snapshot, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC, 0o600)
+            os.close(fd)
+            result = run([GRIM, "-g", geometry, str(snapshot)], timeout=min(30, deadline - time.monotonic()))
+            if result.returncode:
+                return result.returncode
+            with Tree(temporary, uid=DESKTOP_UID, private=True) as source:
+                with source.open_read(snapshot.name, limit=MAX_IMAGE_BYTES) as (stream, info):
+                    if (info.st_size > MAX_IMAGE_BYTES or
+                            stream.read(len(PNG_HEADER)) != PNG_HEADER):
+                        raise CaptureError("OCR source capture is invalid")
+        # The decoder consumes only the private snapshot, never a raced name
+        # in Pictures. The existing OCR helper owns output and notifications.
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise CaptureError("OCR operation deadline expired before decoding")
+        return run([OCR, str(snapshot)], timeout=remaining).returncode
 
 
 def select_geometry() -> str | None:
@@ -215,7 +460,9 @@ def capture_full() -> int:
     except (OSError, subprocess.TimeoutExpired):
         result = None
     if result is not None and result.returncode == 0:
-        notify("normal", "camera-photo", "x-labwc.screen-capture", "Screenshot saved", str(path))
+        validate_saved_artifact(path, "image")
+        if track_saved_capture(path, "image"):
+            notify("normal", "camera-photo", "x-labwc.screen-capture", "Screenshot saved", str(path))
         return 0
     path.unlink(missing_ok=True)
     notify("critical", ERROR_ICON, "x-labwc.screen-capture", "Screenshot failed", "The full-screen capture could not be created.")
@@ -267,7 +514,9 @@ def annotate_capture(scope: str) -> int:
             result = None
         if result is not None and result.returncode == 0:
             if output.is_file() and output.stat().st_size > 0:
-                notify("normal", "camera-photo", "x-labwc.screen-capture", "Annotated screenshot saved", str(output))
+                validate_saved_artifact(output, "image")
+                if track_saved_capture(output, "image"):
+                    notify("normal", "camera-photo", "x-labwc.screen-capture", "Annotated screenshot saved", str(output))
             else:
                 notify("normal", "camera-photo", "x-labwc.screen-capture", "Annotation closed", "No annotated screenshot was saved.")
             return 0
@@ -413,7 +662,9 @@ def recording_worker(scope: str, fmt: str, path_text: str, output: str, geometry
             duration_text = ""
     valid = status == 0 and bool(re.search(r"^codec_type=video$", duration_text, re.MULTILINE)) and bool(re.search(r"^duration=[0-9]+(?:\.[0-9]+)?$", duration_text, re.MULTILINE))
     if valid:
-        notify("normal", "video-x-generic", "x-labwc.screen-recording", "Screen recording saved", str(path))
+        validate_saved_artifact(path, "recording")
+        if track_saved_capture(path, "recording"):
+            notify("normal", "video-x-generic", "x-labwc.screen-recording", "Screen recording saved", str(path))
         return 0
     if not path.is_file() or path.stat().st_size == 0:
         path.unlink(missing_ok=True)
@@ -423,12 +674,24 @@ def recording_worker(scope: str, fmt: str, path_text: str, output: str, geometry
 
 
 def main(argv: list[str]) -> int:
+    if (len(argv) > 1 and argv[0] != "record-worker") or (argv and argv[0] not in {
+            "status", "primary", "screenshot-box", "annotate-full", "screenshot-full",
+            "record-full", "record-box", "stop", "record-worker", "open-folder",
+            "copy-last-path", "ocr-capture", "ocr-last"}):
+        return fatal("unsupported capture action or argument count", 2)
     ensure_desktop_user()
     action = argv[0] if argv else "status"
     if action == "status":
         print_status()
         return 0
     initialize_paths()
+    if action == "open-folder":
+        require_command(WAYLAND_APP, "labwc-wayland-app")
+        return run([WAYLAND_APP, "auto", "--", "/usr/bin/thunar", str(SCREENSHOT_DIR)], timeout=15).returncode
+    if action == "copy-last-path":
+        return copy_last_path()
+    if action in {"ocr-capture", "ocr-last"}:
+        return recognize_capture(last=action == "ocr-last")
     if action in {"primary", "screenshot-box"}:
         return annotate_capture("box")
     if action == "annotate-full":
@@ -443,7 +706,7 @@ def main(argv: list[str]) -> int:
         if len(argv) != 6:
             return fatal("record-worker requires scope, format, path, output, and geometry", 2)
         return recording_worker(*argv[1:])
-    return fatal("usage: labwc-capture [status|primary|annotate-full|screenshot-full|screenshot-box|record-full|record-box|stop]", 2)
+    return fatal("usage: labwc-capture [status|primary|annotate-full|screenshot-full|screenshot-box|record-full|record-box|stop|open-folder|copy-last-path|ocr-capture|ocr-last]", 2)
 
 
 if __name__ == "__main__":
@@ -451,5 +714,7 @@ if __name__ == "__main__":
         raise SystemExit(main(sys.argv[1:]))
     except SystemExit:
         raise
-    except (CaptureError, OSError, subprocess.TimeoutExpired) as error:
+    except CaptureOutcomeUnknown as error:
+        raise SystemExit(fatal(str(error), 4))
+    except (RuntimeError, ValueError, OSError, subprocess.TimeoutExpired) as error:
         raise SystemExit(fatal(str(error)))

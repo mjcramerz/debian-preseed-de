@@ -15,6 +15,7 @@ from isolation import require_test_isolation as _require_test_isolation
 _isolation_sys.path.pop(0)
 _require_test_isolation()
 
+from payload_fixture import waybar_style_text
 from payload_fixture import waybar_config_text
 from waybar_fixture import profiles, rendered_assets
 from payload_fixture import copyfile as payload_copyfile, installed_argv as payload_installed_argv
@@ -98,7 +99,7 @@ class IconContractTests(unittest.TestCase):
     def test_no_inoperative_taskbar_tint_is_advertised(self):
         self.assertFalse(any(name.startswith('WAYBAR_BUTTON_TASKBAR_') and
                              name.endswith('_ICON_COLOR') for name in VALUES))
-        css = payload_read_text(SKEL / 'waybar/style.css.tmpl')
+        css = waybar_style_text(SKEL / 'waybar')
         self.assertRegex(css, r'#tray > widget\s*\{\s*color:\s*__THEME_WAYBAR_BUTTON_TRAY_NORMAL_ICON_COLOR__;\s*\}')
         self.assertNotIn('#tray image { color:', css)
 
@@ -242,7 +243,7 @@ class WaybarIconTests(unittest.TestCase):
     def test_native_gtk_state_colors_symbolic_painting_and_tray_context(self):
         if not shutil.which('xvfb-run') or not ctypes.util.find_library('gtk-3'):
             self.skipTest('native GTK3/Xvfb unavailable')
-        template = payload_read_text(SKEL / 'waybar/style.css.tmpl')
+        template = waybar_style_text(SKEL / 'waybar')
         with tempfile.TemporaryDirectory() as work:
             work = Path(work); (work/'icons').mkdir()
             for path in (SKEL/'waybar/icons').glob('*.svg*'):

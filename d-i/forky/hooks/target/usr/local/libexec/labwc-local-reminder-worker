@@ -1,0 +1,24 @@
+#!/usr/bin/python3 -IB
+"""Managed local reminder notifier worker."""
+import os
+import json
+import sys
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, '/usr/local/lib/python3.14/dist-packages')
+from labwc_local_reminders import OutcomeUnknown, ReminderError, run_worker
+
+if __name__ == '__main__':
+    os.umask(0o077)
+    if sys.argv[1:] != ['--worker']:
+        raise SystemExit('usage: labwc-local-reminder-worker --worker')
+    try:
+        raise SystemExit(run_worker())
+    except OutcomeUnknown as error:
+        print('local-reminder status=outcome-unknown recovery_path='
+              + json.dumps(str(error.recovery_path)), file=sys.stderr)
+        raise SystemExit(4)
+    except (OSError, ReminderError) as error:
+        print('local-reminder status=failed error='
+              + json.dumps(str(error)[:240]), file=sys.stderr)
+        raise SystemExit(1)

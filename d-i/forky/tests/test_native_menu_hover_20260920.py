@@ -61,6 +61,7 @@ def gtk_menu_report():
         render_theme_tree(source)
         from waybar_fixture import rendered_assets
         for name, content in rendered_assets(FORKY/'hosts/profiles/btrfs-de.env').items():
+            (source/name).parent.mkdir(parents=True, exist_ok=True)
             (source/name).write_text(content)
         helpers = installed / 'hooks/target/usr/local/libexec'
         shutil.copytree(FORKY / 'hooks/target/usr/local/libexec', helpers)
@@ -106,7 +107,7 @@ class NativeMenuHoverTests(unittest.TestCase):
                         self.assertEqual(entry['menu'], event)
                         self.assertNotIn(event, entry)
                         self.assertNotIn(event + '-release', entry)
-                        tree = ET.parse(payload_source_path(SKEL / 'waybar' / (menu + '-menu.xml')))
+                        tree = ET.parse(payload_source_path(SKEL / 'waybar' / 'menus' / (menu + '-menu.xml')))
                         ids = {item.get('id') for item in tree.iter('object')
                                if item.get('class') == 'GtkMenuItem'
                                and item.find('./child[@type="submenu"]') is None}
@@ -169,7 +170,7 @@ class NativeMenuHoverTests(unittest.TestCase):
                     self.assertEqual(argv[argv.index('--') + 1:], args)
 
     def test_notifications_center_menu_and_secondary_click_dnd_dismiss(self):
-        xml = ET.parse(payload_source_path(SKEL / 'waybar/notifications-menu.xml'))
+        xml = ET.parse(payload_source_path(SKEL / 'waybar/menus/notifications-menu.xml'))
         item = xml.find('.//object[@id="notifications_center"]')
         self.assertEqual(item.findtext('./child/object[@class="GtkBox"]/child/object[@class="GtkLabel"]/property[@name="label"]'), 'Open notifications center')
         for bars in self.profiles.values():

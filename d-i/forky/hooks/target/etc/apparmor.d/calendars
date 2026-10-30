@@ -53,6 +53,7 @@ profile labwc-calendar-actions /usr/local/libexec/labwc-calendar-actions flags=(
   #include <abstractions/desktop-runtime>
   /usr/local/libexec/labwc-calendar-actions r,
   /usr/local/lib/python3.14/dist-packages/labwc_calendar_reminders.py r,
+  /usr/local/lib/python3.14/dist-packages/labwc_local_reminders.py r,
   /usr/bin/systemctl pux,
   /usr/bin/notify-send rix,
   /usr/bin/bwrap rPx -> session-glycin-bwrap,
@@ -65,6 +66,8 @@ profile labwc-calendar-actions /usr/local/libexec/labwc-calendar-actions flags=(
   owner @{HOME}/.cache/{,fontconfig/,fontconfig/**,mesa_shader_cache/,mesa_shader_cache/**,mesa_shader_cache_db/,mesa_shader_cache_db/**} rwkl,
   owner /run/user/[0-9]*/{,bus,wayland-[0-9]*} rw,
   owner /run/user/[0-9]*/labwc-calendar-actions.lock rwk,
+  owner @{HOME}/.config/calix/local-reminders.json rw,
+  owner @{HOME}/.config/calix/.local-reminders.json.*.tmp rw,
   owner /dev/shm/** rwkl,
   unix,
   dbus (send) bus=session path=/org/freedesktop/Notifications
@@ -96,8 +99,10 @@ profile labwc-calendar-worker /usr/local/libexec/labwc-calendar-worker flags=(at
   owner @{HOME}/.config/calix/fruux-account.json r,
   owner @{HOME}/.config/calix/.fruux-actions.lock rwk,
   owner @{HOME}/.config/calix/fruux-pending.json rw,
-  owner @{HOME}/.config/calix/phone-{reminders,deliveries}.json rw,
+  owner @{HOME}/.config/calix/{phone-reminders,phone-deliveries}.json rw,
+  owner @{HOME}/.config/calix/phone-reminders-control.json rw,
   owner @{HOME}/.config/calix/.phone-{reminders,deliveries}.json.*.tmp rw,
+  owner @{HOME}/.config/calix/.phone-reminders-control.json.*.tmp rw,
   /etc/labwc/plans.conf r,
   owner /run/user/[0-9]*/{,bus} rw,
   unix,
@@ -171,6 +176,7 @@ profile calix-fruux-bootstrap /usr/local/libexec/calix-fruux-bootstrap flags=(at
   /usr/local/libexec/calix-fruux-bootstrap r,
   /usr/lib/** mr,
   /usr/share/{glib-2.0,gir-1.0,locale}/{,**} r,
+  /usr/share/zoneinfo/{,**} r,
   /etc/passwd r,
   /home/ r,
   owner @{HOME}/ r,
@@ -208,6 +214,7 @@ profile labwc-waycal-control /usr/local/libexec/labwc-waycal-control flags=(atta
   /dev/rfkill r,
   /usr/lib/** mr,
   /usr/share/{glib-2.0,gir-1.0,locale}/{,**} r,
+  /usr/share/zoneinfo/{,**} r,
   owner /run/user/[0-9]*/{,bus,systemd/private} rw,
   # AppArmor requires a literal hyphen first in a character class.
   owner /run/user/[0-9]*/wayland-[-A-Za-z0-9_]* r,
@@ -240,4 +247,54 @@ profile labwc-waycal-popup /usr/local/libexec/labwc-waycal-popup flags=(attach_d
   deny network inet6,
   deny /dev/input/** rw,
   include if exists <local/labwc-waycal-popup>
+}
+
+profile labwc-calendar-reminders-gtk /usr/local/libexec/{labwc-calendar-reminders-gtk,labwc-new-local-reminder,labwc-reminder-manager} flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/desktop-runtime>
+  /usr/local/libexec/{labwc-calendar-reminders-gtk,labwc-new-local-reminder,labwc-reminder-manager} rix,
+  /usr/local/lib/python3.14/dist-packages/{labwc_calendar_reminders,labwc_calendar_reminders_gtk,labwc_local_reminders}.py r,
+  /usr/bin/{makoctl,notify-send,paplay,timeout} rix,
+  /usr/share/sounds/{,**} r,
+  owner @{HOME}/ r,
+  owner @{HOME}/.config/ r,
+  owner @{HOME}/.config/calix/ r,
+  owner @{HOME}/.config/calix/{local-reminders.json,phone-reminders.json,phone-reminders-control.json,.fruux-actions.lock,.local-reminders.json.*.tmp,.phone-reminders-control.json.*.tmp} rwk,
+  owner @{HOME}/.config/calix/{local-reminder-deliveries.json,.local-reminder-deliveries.json.*.tmp} rwk,
+  owner /run/user/[0-9]*/{bus,wayland-[-A-Za-z0-9_]*} rw,
+  /usr/lib/** mr,
+  /usr/share/{glib-2.0,gir-1.0,locale}/{,**} r,
+  /usr/share/zoneinfo/{,**} r,
+  unix,
+  dbus (send) bus=session path=/org/freedesktop/Notifications
+    interface=org.freedesktop.Notifications member=Notify
+    peer=(name=org.freedesktop.Notifications),
+  signal (receive) peer=unconfined,
+  deny network inet,
+  deny network inet6,
+}
+
+profile labwc-local-reminder-worker /usr/local/libexec/labwc-local-reminder-worker flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/desktop-runtime>
+  /usr/local/libexec/labwc-local-reminder-worker r,
+  /usr/local/lib/python3.14/dist-packages/labwc_local_reminders.py r,
+  /usr/bin/{makoctl,notify-send,paplay,timeout} rix,
+  /usr/share/sounds/{,**} r,
+  owner @{HOME}/ r,
+  owner @{HOME}/.config/ r,
+  owner @{HOME}/.config/calix/ r,
+  owner @{HOME}/.config/calix/{local-reminders.json,.fruux-actions.lock,.local-reminders.json.*.tmp} rwk,
+  owner @{HOME}/.config/calix/{local-reminder-deliveries.json,.local-reminder-deliveries.json.*.tmp} rwk,
+  owner /run/user/[0-9]*/{bus,wayland-[-A-Za-z0-9_]*} rw,
+  /usr/lib/** mr,
+  /usr/share/{glib-2.0,gir-1.0,locale}/{,**} r,
+  /usr/share/zoneinfo/{,**} r,
+  unix,
+  dbus (send) bus=session path=/org/freedesktop/Notifications
+    interface=org.freedesktop.Notifications member=Notify
+    peer=(name=org.freedesktop.Notifications),
+  signal (receive) peer=unconfined,
+  deny network inet,
+  deny network inet6,
 }

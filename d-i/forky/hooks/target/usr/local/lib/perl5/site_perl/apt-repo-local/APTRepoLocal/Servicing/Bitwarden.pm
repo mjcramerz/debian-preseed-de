@@ -56,7 +56,6 @@ sub policy_valid {
             [
                 'def bitwarden_session_unit_argv(',
                 '"--property=After=labwc-session.target labwc-kwallet-portal.service"',
-                '"--property=Requires=labwc-session.target labwc-kwallet-portal.service"',
                 '"--property=Requisite=labwc-session.target labwc-kwallet-portal.service"',
                 '"--property=PartOf=labwc-session.target labwc-kwallet-portal.service"',
             ],

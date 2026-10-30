@@ -162,6 +162,8 @@ def apply_choice(argv: list[str]) -> list[str]:
     with Tree(Path(account.pw_dir)) as home:
         home.mkdir(STATE)
         with home.lock(STATE + '/appearance.lock'):
+            if home.json('.config/labwc/appearance-fields.pending.json') is not None:
+                raise RuntimeError('a color transaction needs recovery in the GTK appearance editor')
             recover(home)
             previous = validate_state(home.json(CONFIG, initial(defaults)))
             current, affected, greeter = selection(previous, argv, defaults)

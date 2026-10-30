@@ -234,6 +234,79 @@ show_memory_overview() {
   fi
 }
 
+show_cpu_load() {
+  require_command uptime
+  require_command nproc
+
+  print_heading "Load averages"
+  uptime
+  print_heading "Logical CPUs"
+  nproc
+  if [ -r /proc/loadavg ]; then
+    print_heading "Kernel load sample"
+    cat /proc/loadavg
+  fi
+}
+
+show_battery_power() {
+  print_heading "Power supplies"
+  found=0
+  for supply in /sys/class/power_supply/*; do
+    [ -d "$supply" ] || continue
+    supply_type=$(cat "$supply/type" 2>/dev/null || true)
+    case "$supply_type" in
+      Battery|UPS)
+        found=1
+        supply_name=${supply##*/}
+        printf '%s\n' "[$supply_name]"
+        for field in type status capacity energy_now energy_full power_now; do
+          if [ -r "$supply/$field" ]; then
+            printf '%s: ' "$field"
+            cat "$supply/$field"
+          fi
+        done
+        ;;
+    esac
+  done
+  [ "$found" -eq 1 ] || printf '%s\n' 'No Battery or UPS power supply was reported.'
+}
+
+show_network_listening() {
+  require_command ss
+  print_heading "Listening TCP and UDP sockets"
+  ss --listening --numeric --processes --tcp --udp
+}
+
+show_network_namespace() {
+  require_command ip
+  require_command systemctl
+  print_heading "Managed app-veth service"
+  systemctl status --no-pager --full app-veth.service || true
+  print_heading "Managed veth links"
+  ip -brief link show type veth || true
+}
+
+show_network_policy() {
+  require_command cat
+  require_command systemctl
+  print_heading "Managed app-veth policy"
+  cat /etc/app-veth.json
+  print_heading "Managed app-veth service"
+  systemctl status --no-pager --full app-veth.service || true
+}
+
+show_unattended_status() {
+  require_command journalctl
+  require_command systemctl
+  print_heading "Unattended upgrade units"
+  systemctl status --no-pager --full apt-daily-upgrade.service apt-daily-upgrade.timer || true
+  print_heading "Recent unattended upgrade journal"
+  journalctl --unit apt-daily-upgrade.service --boot --no-pager --lines 100 || true
+  if [ -r /run/reboot-required ]; then
+    printf '%s\n' 'A reboot is required by the package manager.'
+  fi
+}
+
 show_network_overview() {
   require_command ip
   require_command ss
@@ -311,6 +384,30 @@ case "$action" in
   memory-overview)
     [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
     show_memory_overview
+    ;;
+  cpu-load)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    show_cpu_load
+    ;;
+  battery-power)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    show_battery_power
+    ;;
+  network-listening)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    show_network_listening
+    ;;
+  network-namespace)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    show_network_namespace
+    ;;
+  network-policy)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    show_network_policy
+    ;;
+  unattended-status)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    show_unattended_status
     ;;
   network-overview)
     [ "$#" -eq 0 ] || fatal "$action does not accept arguments"

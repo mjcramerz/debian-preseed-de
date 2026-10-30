@@ -49,6 +49,23 @@ proof that it is isolated.
   outside that tree. Cleanup must name only resources owned by that fixture.
   These source requirements do not authorize fixture execution.
 
+### Explicit exception: offline AppArmor parser
+
+The user explicitly permits `apparmor_parser` for offline policy validation.
+Run it with `--skip-kernel-load` (`-Q`) and `--skip-cache` (`-K`), a bounded
+timeout, and one compile job. Use an explicit private parser configuration,
+include tree and package feature/ABI data so parsing does not consume local
+host policy, parser configuration, caches or kernel feature state. Checkout
+policy and declared public Debian package support files may be staged as data
+in a private directory; do not install packages or execute package scripts.
+Absolute package ABI paths may be relocated in the private validation copy.
+Record the parser version, package support version and any such relocation.
+
+This exception permits parsing and compilation only. It does not permit
+loading, replacing or removing kernel policy, changing host security state,
+using a disposable execution environment, or running tests or other validators.
+It remains separate from the pure `make build` serialization path.
+
 ## Work in this checkout
 
 `make build` is generation only. It may write exactly `d-i/forky/payload.tar.gz`,
@@ -174,7 +191,8 @@ it was not run. Report any interrupted validation and stale generated artifacts.
   not establish acceptance of a later working tree.
 - Review `docs/test-isolation.md` for the static-only execution boundary.
   Never use a disposable environment or host fallback, including native syntax
-  checks or test discovery imports. Do not ask for an environment to run them.
+  checks or test discovery imports, except for the explicitly permitted offline
+  AppArmor parser above. Do not ask for an environment to run them.
 - Author and inspect unexecuted failure-injection fixtures for changed contracts:
   exact previous-state recovery or retained evidence, concurrent writer/cleanup
   ownership, identity replacement, bounded termination and correct result propagation. Target
@@ -192,3 +210,32 @@ it was not run. Report any interrupted validation and stale generated artifacts.
 - Keep native application launch and private Zoom/Discord launch/shutdown as
   regression invariants. Preserve exactly the existing two-app eligibility
   boundary without changing Xwayland implementation or configuration.
+
+## Mandatory post-change static audit
+
+After every source or configuration edit, run the changed-file-only audit before
+reporting the work complete:
+
+```text
+python3 -B tools/post_change_check.py
+```
+
+The equivalent Make target is `make post-change-check`. The audit enumerates
+tracked staged changes, tracked unstaged changes, and untracked files, then
+checks only the existing regular files in that set. It must fail on Python
+syntax errors, shell syntax errors, ShellCheck error diagnostics, changed-shell
+unbound variables (`SC2154`), malformed changed JSON/YAML/TOML/XML/INI-like
+data, malformed environment/TSV data, malformed theme markers in changed target
+assets, changed AppArmor structural hazards, unreadable changed tar archives,
+or `git diff --check` failures. It must not recurse through untouched files.
+Every other changed regular text file is still checked for valid UTF-8 and NUL
+content, while changed binary archives are checked for readable archive
+structure. Language-specific parsers that would execute repository code (such
+as managed Perl BEGIN blocks or live policy loaders) remain outside this
+static command and must not be substituted with host execution.
+
+When a payload input changes, run the permitted pure `make build` command and
+run the audit again so the generated payload, manifest, and preseed changes are
+included in the changed-file set. Do not replace this audit with host-facing
+tests, installer execution, policy loading, service access, or a disposable
+environment.

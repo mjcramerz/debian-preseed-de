@@ -261,12 +261,12 @@ sub _notify {
     my ($self, $summary, $body) = @_;
     return if !defined($ENV{DBUS_SESSION_BUS_ADDRESS})
         || !length($ENV{DBUS_SESSION_BUS_ADDRESS});
-    return if !-x '/usr/bin/notify-send';
+    return if !-x '/usr/bin/notify-send' || !-x '/usr/bin/timeout';
     $summary = substr($summary, 0, 128);
     $body = substr($body, 0, 512);
     system {
-        '/usr/bin/notify-send'
-    } '/usr/bin/notify-send',
+        '/usr/bin/timeout'
+    } '/usr/bin/timeout', '--kill-after=1s', '3s', '/usr/bin/notify-send',
         '-a', 'AI & Copilots',
         '-u', 'normal',
         '-i', '__THEME_MAKO_AI_COPILOTS_ICON_NAME__',
@@ -1388,12 +1388,19 @@ sub _whisper_action {
         );
         exists($value{$mode})
             or _fatal('unsupported Whisper audio action');
-        return $self->_run(
+        my $status = $self->_run(
             '/usr/bin/wpctl',
             'set-mute',
             '@DEFAULT_AUDIO_SOURCE@',
             $value{$mode},
         );
+        my ($summary, $body) = $mode eq 'mute'
+            ? ('Microphone muted', 'The Whisper microphone is now muted.')
+            : $mode eq 'unmute'
+            ? ('Microphone unmuted', 'The Whisper microphone is now unmuted.')
+            : ('Microphone mute toggled', 'The Whisper microphone mute state changed.');
+        $self->_notify($summary, $body);
+        return $status;
     }
     if ($action eq 'whisper-diagnostic') {
         return $self->_whisper_diagnostic($arguments[0]);

@@ -1,0 +1,38 @@
+/* Waybar clock button rules. Native theme values remain editable per mapping. */
+
+#clock {
+  background: __THEME_WAYBAR_BUTTON_CLOCK_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_CLOCK_NORMAL_OUTLINE_COLOR__;
+  font-weight: __THEME_WAYBAR_FONT_WEIGHT_EMPHASIS__;
+  color: __THEME_WAYBAR_BUTTON_CLOCK_NORMAL_TEXT_COLOR__;
+}
+
+#clock:hover {
+  background: __THEME_WAYBAR_BUTTON_CLOCK_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_CLOCK_HOVER_OUTLINE_COLOR__;
+}
+
+window#waybar.internal #clock:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_CLOCK_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #clock:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_CLOCK_HOVER_SHADOW_COLOR__;
+}
+
+calendar.header label {
+  color: __THEME_WAYBAR_CLOCK_CALENDAR_MONTHS_TEXT_COLOR__;
+}
+
+calendar.day-name {
+  color: __THEME_WAYBAR_CLOCK_CALENDAR_WEEKDAYS_TEXT_COLOR__;
+}
+
+calendar.week-number {
+  color: __THEME_WAYBAR_CLOCK_CALENDAR_WEEKS_TEXT_COLOR__;
+}
+
+calendar.highlight {
+  color: __THEME_WAYBAR_CLOCK_CALENDAR_TODAY_TEXT_COLOR__;
+}

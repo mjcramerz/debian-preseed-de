@@ -34,6 +34,28 @@ ACTIONS = (
 )
 
 
+def notify(summary: str, body: str) -> None:
+    """Best-effort feedback after a confirmed sharing state transition."""
+    if (not os.access('/usr/bin/notify-send', os.X_OK)
+            or not os.access('/usr/bin/timeout', os.X_OK)
+            or not os.environ.get('DBUS_SESSION_BUS_ADDRESS')):
+        return
+    environment = {key: os.environ[key] for key in (
+        'HOME', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'XDG_RUNTIME_DIR',
+        'DBUS_SESSION_BUS_ADDRESS', 'WAYLAND_DISPLAY') if key in os.environ}
+    try:
+        subprocess.run(
+            ['/usr/bin/timeout', '--kill-after=1s', '3s', '/usr/bin/notify-send',
+             '--app-name=Network Sharing', '--urgency=low',
+             '--category=network.state', '--', summary, clean(body, 512)],
+            env=environment, stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            check=False, timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
 def clean(text: str, limit: int = 800) -> str:
     return ''.join(c if c.isprintable() else ' ' for c in str(text))[:limit]
 
@@ -287,6 +309,7 @@ def connect_terminal(config: dict) -> int:
         check_mount(config, mount, active=True)
     print('nfsmnt: Mounted ' + ' and '.join(mount[2] for mount in mounts) + '.')
     print('nfsmnt: The shared home view receives this mount automatically.')
+    notify('NFS share connected', 'The configured NFS share is now mounted.')
     return 0
 
 
@@ -303,6 +326,7 @@ def toggle_terminal(config: dict) -> int:
                            + '. Close files and applications using the share, then retry.')
     check_mount(config, mount, inactive=True)
     print('nfsmnt: Unmounted ' + mount[2] + '. The shared home view follows automatically.')
+    notify('NFS share disconnected', 'The configured NFS share is now unmounted.')
     return 0
 
 
@@ -365,6 +389,11 @@ def toggle_filen(config: dict, selected: str | None = None) -> int:
             raise RuntimeError('Filen service did not reach the requested state: ' + account)
         print('filenmnt: filen-' + account + (' synchronization stopped; local files remain available.'
               if running else ' synchronization started; initialization and authentication continue in the service.'))
+        notify(
+            'Filen synchronization stopped' if running else 'Filen synchronization started',
+            'Filen-' + account + (' synchronization is now disabled.'
+                                  if running else ' synchronization is now enabled.'),
+        )
     return 0
 
 

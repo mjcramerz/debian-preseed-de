@@ -1,0 +1,25 @@
+/* Waybar audio button rules. Native theme values remain editable per mapping. */
+
+#pulseaudio {
+  background: __THEME_WAYBAR_BUTTON_AUDIO_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_AUDIO_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_AUDIO_NORMAL_TEXT_COLOR__;
+}
+
+#pulseaudio.muted {
+  color: __THEME_WAYBAR_BUTTON_AUDIO_MUTED_TEXT_COLOR__;
+}
+
+#pulseaudio:hover {
+  background: __THEME_WAYBAR_BUTTON_AUDIO_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_AUDIO_HOVER_OUTLINE_COLOR__;
+}
+
+window#waybar.internal #pulseaudio:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_AUDIO_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #pulseaudio:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_AUDIO_HOVER_SHADOW_COLOR__;
+}

@@ -75,6 +75,17 @@ fetch_hook() {
     *.png|*.jpg|*.jpeg|*.webp|*.gif|*.ico|*.ttf|*.otf|*.woff|*.woff2|*.gz|*.xz|*.bz2|*.zip|*.deb)
       return 0 ;;
   esac
+  # fields.json is a registry template, not a themed consumer asset.  Its
+  # __THEME_*__ tokens are required by labwc-appearance-defaults --capture to
+  # validate and bind each mapping after the native configs are staged.  Keep
+  # the authenticated registry bytes intact while rendering other target files.
+  case "$1" in
+    */usr/local/share/labwc-appearance/fields.json) return 0 ;;
+    # Appearance Python modules are code, not themed consumer assets.  Keep
+    # their bytes literal even if a diagnostic, grammar, or future test embeds
+    # a token-shaped string.
+    */usr/local/lib/python3.14/dist-packages/labwc_appearance/*.py) return 0 ;;
+  esac
   case "$1" in
     "${DIR_HOOKS_TARGET:-hooks/target}/"*|"${DIR_SCRIPTS_DESKTOP:-scripts/desktop}/"*|"${DIR_SCRIPTS_FIRSTBOOT:-scripts/firstboot}/"*)
       if LC_ALL=C grep -q '__THEME_' "$2"; then

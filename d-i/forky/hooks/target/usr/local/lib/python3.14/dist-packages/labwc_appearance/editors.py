@@ -123,13 +123,7 @@ def _css_rules(text):
         raise ValueError('invalid native CSS')
     for rule in rules:
         if rule.type == 'at-rule':
-            # The main Waybar stylesheet imports one adjacent, installer-owned
-            # Taskview stylesheet. Keep that import relative and closed; refuse
-            # every other at-rule so a profile cannot follow arbitrary files.
-            imported = tinycss2.serialize(rule.prelude).strip()
-            if (rule.lower_at_keyword != 'import' or imported not in
-                    ('url("taskview.css")', 'url(taskview.css)')):
-                raise ValueError('appearance requires self-contained stylesheets')
+            raise ValueError('appearance component stylesheets must be self-contained')
     return rules
 
 
