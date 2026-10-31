@@ -123,7 +123,7 @@ def main(argv: list[str]) -> int:
     if argv == ['--catalog']:
         print(json.dumps({'themes': public_catalog(), 'assets': asset_catalog(),
                           'profiles': {key: LABELS for key in COMPONENTS},
-                          'reset': [*COMPONENTS, 'theme', 'icon', 'pointer', 'all']}, indent=2))
+                          'reset': [*COMPONENTS, 'theme', 'icon', 'pointer', 'desktop', 'all']}, indent=2))
         return 0
     if argv:
         for note in apply_choice(argv):

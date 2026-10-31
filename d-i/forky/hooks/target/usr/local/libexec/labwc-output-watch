@@ -21,6 +21,12 @@ has skip_initial_refresh => (
     default => sub { 0 },
 );
 
+has notify_ready => (
+    is      => 'ro',
+    isa     => Bool,
+    default => sub { 0 },
+);
+
 package Labwc::Output::Watcher;
 
 use Errno qw(EINTR);
@@ -235,6 +241,7 @@ use Time::HiRes qw(clock_gettime sleep usleep CLOCK_MONOTONIC);
 my %defaults;
 my $dock_restore_requested = 0;
 my $output_transaction_sequence = 0;
+my $initial_refresh_context = 0;
 
 sub refresh_outputs {
     my ($mode) = @_;
@@ -336,7 +343,8 @@ sub refresh_outputs {
         save_topology($state_before);
         return topology_changed($previous_topology, $state_before) ? $restart_delay_us : 0;
     }
-    return 0 if !prepare_dock_for_output_change(1);
+    die "dock is not ready for output reconciliation; transaction deferred\n"
+        if !prepare_dock_for_output_change(1);
 
     # Stopping chrome can take time. A connector/compositor change in that
     # interval invalidates this plan; do not replay it over a newer topology.
@@ -361,7 +369,8 @@ sub refresh_outputs {
         output_name_safe($name) or die "unsafe output name\n";
         push @transaction, '--output', $name, '--off';
     }
-    return 0 if @transaction && !apply_output_transaction($wlr_randr, @transaction);
+    die "output transaction rejected; reconciliation requires a fresh snapshot\n"
+        if @transaction && !apply_output_transaction($wlr_randr, @transaction);
 
     return 0 if !session_is_active();
     usleep(250_000);
@@ -423,29 +432,20 @@ sub apply_output_transaction {
     my $command = substr(join(' ', $wlr_randr, @args), 0, 1024);
     $command =~ s/[^\x20-\x7e]/?/g;
     my $diagnostic = q{};
-    # A compositor can reject a complete topology transaction while a DRM
-    # connector is settling. Retry only the known transient errors, with a
-    # short total budget, and keep a real failure visible to the caller.
-    for my $attempt (1 .. 3) {
-        return 0 if !session_is_active();
-        my $transaction = $$ . '-' . ++$output_transaction_sequence;
-        my $started = clock_gettime(CLOCK_MONOTONIC);
-        # Journal only real mutations. These paired records identify our
-        # command window without pretending a Wayland acknowledgement is a
-        # DRM flip event.
-        printf STDERR "labwc-output-watch: transaction=%s attempt=%d phase=begin monotonic=%.6f command=%s\n",
-            $transaction, $attempt, $started, $command;
-        my ($ok, $attempt_diagnostic) = run_command_capture_stderr($wlr_randr, @args);
-        $diagnostic = $attempt_diagnostic;
-        printf STDERR "labwc-output-watch: transaction=%s attempt=%d phase=end monotonic=%.6f result=%s\n",
-            $transaction, $attempt, clock_gettime(CLOCK_MONOTONIC), $ok ? 'accepted' : 'rejected';
-        return 1 if $ok;
-        last if $attempt == 3 || !output_change_is_transient($attempt_diagnostic);
-        last if !transaction_targets_present($wlr_randr, @args);
-        usleep($attempt == 1 ? 100_000 : 250_000);
-    }
+    # Submit once under the refresh lock. Retrying an uncertain modeset with
+    # the same argv can replay an obsolete layout after connector replacement.
+    # The next DRM event/manual request must build a fresh selection plan.
+    my $transaction = $$ . '-' . ++$output_transaction_sequence;
+    my $started = clock_gettime(CLOCK_MONOTONIC);
+    printf STDERR "labwc-output-watch: transaction=%s phase=begin monotonic=%.6f command=%s\n",
+        $transaction, $started, $command;
+    my ($ok, $attempt_diagnostic) = run_command_capture_stderr($wlr_randr, @args);
+    $diagnostic = $attempt_diagnostic;
+    printf STDERR "labwc-output-watch: transaction=%s phase=end monotonic=%.6f result=%s\n",
+        $transaction, clock_gettime(CLOCK_MONOTONIC), $ok ? 'accepted' : 'rejected';
+    return 1 if $ok;
     $diagnostic =~ s/[\x00-\x1f\x7f]+/ /g;
-    warn "warning: output transaction rejected after bounded transient retries; next reconciliation will take a fresh snapshot: $diagnostic\n";
+    warn "warning: output transaction rejected; next reconciliation will take a fresh snapshot: $diagnostic\n";
     return 0;
 }
 
@@ -1533,6 +1533,9 @@ sub prepare_dock_for_output_change {
     # restart issued while ExecStartPre is still activating would terminate
     # that control process and can leave the unit with result=signal.
     if ($dock_state eq 'activating') {
+        # At session startup the dock's start job is ordered after our READY.
+        # Joining that job here would wait for our own readiness notification.
+        return 0 if $initial_refresh_context;
         run_quiet_command(
             $systemctl,
             '--user', 'start', 'crystal-dock.service',
@@ -1626,7 +1629,11 @@ sub run_refresh_action {
 sub apply_output_policy {
     # Idle gating/restoration belongs to refresh_outputs under ONE lock, not a
     # probe followed by a second independently locked action.
-    run_refresh_action(q{});
+    # A rejected policy transaction leaves the subscribed owner alive. Wait
+    # for a later event/request with a fresh snapshot; restarting the watcher
+    # here would turn a persistent DRM rejection into automatic retry churn.
+    my $ok = eval { run_refresh_action(q{}); 1 };
+    warn "warning: output reconciliation failed; waiting for a new event: $@" if !$ok;
     return;
 }
 
@@ -1723,7 +1730,7 @@ sub debounce_seconds {
 
 sub usage {
     print STDERR <<'USAGE';
-usage: labwc-output-watch [--skip-initial-refresh|--refresh|--dpms-off|--dpms-on|--idle-topology-active|--restore-idle-topology|--wait-for-output|--wait-for-current-output|--menu-output]
+usage: labwc-output-watch [--session-watch|--skip-initial-refresh|--refresh|--dpms-off|--dpms-on|--idle-topology-active|--restore-idle-topology|--wait-for-output|--wait-for-current-output|--menu-output]
 USAGE
     return 64;
 }
@@ -1748,6 +1755,9 @@ sub parse_invocation {
             action               => 'watch',
             skip_initial_refresh => 1,
         );
+    }
+    if ($args[0] eq '--session-watch') {
+        return Labwc::Output::Invocation->new(action => 'watch', notify_ready => 1);
     }
     return undef if !exists $actions{$args[0]};
     return Labwc::Output::Invocation->new(action => $actions{$args[0]});
@@ -1798,8 +1808,28 @@ sub main {
     return wait_for_wayland_output(0) if $action eq 'wait-for-current-output';
 
     my $udevadm = find_command('udevadm');
+    my $notify_pending = $invocation->notify_ready();
     return Labwc::Output::Watcher->new(
-        apply_policy         => sub { apply_output_policy() },
+        apply_policy         => sub {
+            if ($notify_pending) {
+                # Watcher::run has subscribed before entering this callback.
+                # Keep the same event owner through initial reconciliation and
+                # readiness, so queued hotplug events cannot slip between them.
+                $initial_refresh_context = 1;
+                my $ok = eval {
+                    run_refresh_action(q{}) if wait_for_wayland_output(0) == 0;
+                    1;
+                };
+                warn "warning: initial output reconciliation deferred: $@" if !$ok;
+                $initial_refresh_context = 0;
+                my $notify = find_command('systemd-notify');
+                defined($notify) && run_quiet_command($notify, '--ready')
+                    or die "cannot notify output watcher readiness\n";
+                $notify_pending = 0;
+                return;
+            }
+            apply_output_policy();
+        },
         debounce_seconds     => debounce_seconds(),
         settle               => sub {
             run_quiet_command($udevadm, 'settle', '--timeout=5')

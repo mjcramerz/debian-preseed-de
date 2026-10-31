@@ -552,8 +552,8 @@ desktop_validate_policy_env() {
   desktop_validate_optional_uint_range LABWC_GREETER_BUTTON_MIN_WIDTH "${LABWC_GREETER_BUTTON_MIN_WIDTH:-}" 80 1024
   desktop_validate_wlsunset_policy
   desktop_validate_fuzzel_geometry
-  desktop_validate_uint_range LABWC_CRYSTAL_DOCK_MINIMUM_ICON_SIZE "${LABWC_CRYSTAL_DOCK_MINIMUM_ICON_SIZE:-50}" 16 256
-  desktop_validate_uint_range LABWC_CRYSTAL_DOCK_MAXIMUM_ICON_SIZE "${LABWC_CRYSTAL_DOCK_MAXIMUM_ICON_SIZE:-80}" 16 256
+  desktop_validate_uint_range LABWC_CRYSTAL_DOCK_MINIMUM_ICON_SIZE "${LABWC_CRYSTAL_DOCK_MINIMUM_ICON_SIZE:-54}" 16 256
+  desktop_validate_uint_range LABWC_CRYSTAL_DOCK_MAXIMUM_ICON_SIZE "${LABWC_CRYSTAL_DOCK_MAXIMUM_ICON_SIZE:-84}" 16 256
   desktop_validate_uint_range LABWC_CRYSTAL_DOCK_TOOLTIP_FONT_SIZE "${LABWC_CRYSTAL_DOCK_TOOLTIP_FONT_SIZE:-13}" 8 32
   desktop_validate_uint_range LABWC_CRYSTAL_DOCK_APP_MENU_ICON_SIZE "${LABWC_CRYSTAL_DOCK_APP_MENU_ICON_SIZE:-40}" 8 128
   desktop_validate_uint_range LABWC_CRYSTAL_DOCK_APP_MENU_FONT_SIZE "${LABWC_CRYSTAL_DOCK_APP_MENU_FONT_SIZE:-15}" 8 32
@@ -605,7 +605,7 @@ desktop_validate_policy_env() {
       fi
       ;;
   esac
-  [ "${LABWC_CRYSTAL_DOCK_MAXIMUM_ICON_SIZE:-80}" -ge "${LABWC_CRYSTAL_DOCK_MINIMUM_ICON_SIZE:-50}" ] || \
+  [ "${LABWC_CRYSTAL_DOCK_MAXIMUM_ICON_SIZE:-84}" -ge "${LABWC_CRYSTAL_DOCK_MINIMUM_ICON_SIZE:-54}" ] || \
     desktop_fatal "LABWC_CRYSTAL_DOCK_MAXIMUM_ICON_SIZE must be >= LABWC_CRYSTAL_DOCK_MINIMUM_ICON_SIZE"
   desktop_validate_apparmor_state \
     DESKTOP_APPARMOR_STATE \
@@ -663,6 +663,10 @@ desktop_validate_policy_env() {
 # shares geometry across launcher, Waybar and management menus; external
 # displays may use larger dimensions. Only fixed keys reach eval.
 desktop_validate_fuzzel_geometry() (
+  # These names are populated by the bounded, fixed-key evals below. Initialize
+  # them explicitly so static shell analysis sees the safe data flow.
+  fz_value=
+  fz_reference=
   for fz_class in INTERNAL EXTERNAL DEFAULT; do
     for fz_spec in FONT_SIZE:8:32 HORIZONTAL_PADDING:0:64 VERTICAL_PADDING:0:64 \
         INNER_PADDING:0:64 LINE_HEIGHT:8:64 BORDER_WIDTH:0:32 BORDER_RADIUS:0:128 \

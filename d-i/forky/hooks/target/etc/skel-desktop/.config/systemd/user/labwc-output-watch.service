@@ -10,16 +10,17 @@ Requisite=labwc-session.target
 PartOf=labwc-session.target
 
 [Service]
-TimeoutStartSec=30s
+TimeoutStartSec=60s
 KillMode=control-group
-Type=exec
+Type=notify
+NotifyAccess=all
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 EnvironmentFile=-/etc/labwc/desktop.conf
 ExecCondition=/usr/local/libexec/labwc-session-check session-ready
-# Labwc establishes the initial scanout.  Session autostart performs the first
-# serialized refresh after a client-visible current output exists; this
-# persistent owner handles settled DRM hotplug events after that point.
-ExecStart=/usr/local/libexec/labwc-output-watch --skip-initial-refresh
+# Keep the start job open until initial reconciliation finishes. Clients with
+# After=labwc-output-watch.service then connect after the bounded initial
+# reconciliation attempt; slow or rejected outputs remain event driven.
+ExecStart=/usr/local/libexec/labwc-output-watch --session-watch
 Restart=always
 RestartSec=2s
 TimeoutStopSec=10s

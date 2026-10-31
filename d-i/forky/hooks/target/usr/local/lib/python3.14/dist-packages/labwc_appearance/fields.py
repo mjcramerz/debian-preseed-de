@@ -641,6 +641,55 @@ def apply(selected: dict[str, str]) -> list[str]:
     return warnings
 
 
+def preset_values(registry: dict, component: str, profile: str | None,
+                  defaults: dict | None = None) -> dict[str, str]:
+    """Preview captured defaults or a palette entirely in memory.
+
+    Use the same native renderer and mapping parser as publication. No user
+    files, settings backend, service or privileged helper is changed here.
+    """
+    from .catalog import LABELS, palette
+    from .defaults import load
+    from .editors import css
+    from .native import render
+
+    selected = [field for field in registry['fields'] if field['component'] == component]
+    if not selected or (profile is not None and profile not in LABELS):
+        raise ValueError('unknown appearance component or preset')
+    if profile is None:
+        return {field['key']: field['default'] for field in selected}
+    defaults = load() if defaults is None else defaults
+    texts = {}
+    validator = _registry_token_validator(registry)
+    result = {}
+    for field in selected:
+        for mapping in field['mappings']:
+            path = mapping['path']
+            if path not in texts:
+                if path.startswith('/etc/greetd/'):
+                    baseline = defaults['greeter'][path[len('/etc/greetd/'):]]
+                    text = css(baseline, baseline, palette(profile, defaults['mode']), glow=True)
+                else:
+                    native_path = '.config/' + path
+                    baseline = defaults['files'].get(native_path)
+                    if baseline is None:
+                        texts[path] = None
+                        continue
+                    text = render(native_path, baseline, baseline, profile, defaults['mode'], _account_home())
+                texts[path] = None if text is None else text.splitlines()
+            lines = texts[path]
+            if lines is None:
+                continue
+            located = _locate_line_parts(lines, mapping, validator)
+            if located is not None:
+                value = located[1][1][mapping['target_index']]
+                result[field['key']] = validate_value(field, value, mapping)
+                break
+        if field['key'] not in result:
+            raise ValueError('preset field is not readable: ' + field['key'])
+    return result
+
+
 def current_values(registry: dict | None = None) -> dict[str, str]:
     """Read values from the installed files, using registry defaults only as a guard."""
     registry = load_registry() if registry is None else registry

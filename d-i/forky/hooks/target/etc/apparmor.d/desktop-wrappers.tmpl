@@ -3044,7 +3044,12 @@ profile labwc-output-watch /usr/local/libexec/labwc-output-watch flags=(attach_d
 
   network netlink raw,
   /usr/local/libexec/labwc-output-watch rix,
-  /usr/bin/{systemctl,timeout,udevadm,wlopm,wlr-randr} rix,
+  /usr/bin/{systemctl,systemd-notify,timeout,udevadm,wlopm,wlr-randr} rix,
+  # The pathname socket is mediated by the file rule above. AppArmor unix
+  # addr= conditions describe abstract/anonymous addresses, not filesystem
+  # paths, so no peer addr condition belongs here.
+  owner /run/user/[0-9]*/systemd/notify w,
+  unix (create) type=dgram,
   /usr/bin/wayland-info rix,
   /etc/udev/udev.conf r,
   /etc/udev/udev.conf.d/ r,

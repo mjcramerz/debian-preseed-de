@@ -15,7 +15,6 @@ readonly labwc_x11_environment_names
 unset $labwc_x11_environment_names
 
 systemctl_cmd=$(command -v systemctl 2>/dev/null || true)
-output_waiter=/usr/local/libexec/labwc-output-watch
 # Never wait synchronously for this compositor's stop from its autostart
 # child: the child is itself in that cgroup. Queue a transaction and return.
 activation_complete=false
@@ -142,23 +141,6 @@ sync_user_activation_environment() {
   exit 1
 }
 
-wait_for_wayland_output() {
-  [ -x "$output_waiter" ] || {
-    printf 'warning: the managed Labwc output readiness helper is unavailable; continuing with Labwc output auto-enable\n' >&2
-    return 0
-  }
-
-  # Labwc owns initial output activation through core.autoEnableOutputs. Wait
-  # for a client-visible current output before the first managed refresh so the
-  # watcher cannot race the compositor's startup modeset. A slow or absent
-  # output remains a best-effort warning; it must not tear down the session.
-  if ! "$output_waiter" --wait-for-current-output; then
-    printf 'warning: Labwc has not exposed a current output yet; the persistent output watcher will continue convergence\n' >&2
-    return 0
-  fi
-  "$output_waiter" --refresh ||
-    printf 'warning: the initial managed output refresh was deferred; the persistent output watcher will retry after DRM events\n' >&2
-}
 
 start_session_target() {
   session_systemctl --no-block start labwc-session.target >/dev/null 2>&1 || {
@@ -210,7 +192,6 @@ activation_complete=true
 printf 'Labwc core session activated; starting desktop clients\n' >&2
 start_waybar_if_enabled
 start_health_notifier_if_enabled
-wait_for_wayland_output
 # This controller submits a single long-running transient user service. It does
 # not daemonize or parent wlsunset in the compositor cgroup. Failure is visible
 # in the journal but optional colour adjustment must not destroy the session.

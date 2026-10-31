@@ -6,11 +6,12 @@ import subprocess
 import sys
 
 from . import fields
-from .catalog import COMPONENTS, LABELS
+from .catalog import LABELS
 from .engine import apply_choice
 from .icon_catalog import (ICON_COLLECTIONS, POINTER_COLLECTIONS,
                            available_collections)
 from .themes import FAMILIES
+from .defaults import load
 
 
 WAYBAR_CATEGORY_ORDER = (
@@ -60,18 +61,19 @@ def main() -> int:
             self.set_default_size(1120, 760)
             self.set_size_request(780, 520)
             self._registry = registry
+            self._defaults = load()
             self._field_by_key = fields.field_map(registry)
             self._initial = fields.current_values(registry)
             self._draft = dict(self._initial)
             self._rows = []
             self._categories = []
-            self._preset_targets = [
-                ('Desktop theme', 'theme'),
-                *[(label, key) for key, label in COMPONENTS.items()],
-                ('Icon theme', 'icon'),
-                ('Pointer theme', 'pointer'),
-            ]
-            self._preset_options = []
+            self._preset_cache = {}
+            self._preset_states = {}
+            self._building = False
+            self._updating_color = False
+            self._component_ids = ['DESKTOP', *[item['id'] for item in registry['components']]]
+            self._preset_options = [('Default', None), ('Custom', 'custom'),
+                                    *[(label, identity) for identity, label in LABELS.items()]]
             self._entry_sizes = Gtk.SizeGroup.new(Gtk.SizeGroupMode.HORIZONTAL)
             self._color_button_sizes = Gtk.SizeGroup.new(Gtk.SizeGroupMode.HORIZONTAL)
             self._reset_button_sizes = Gtk.SizeGroup.new(Gtk.SizeGroupMode.HORIZONTAL)
@@ -85,7 +87,7 @@ def main() -> int:
 
             header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
             root.append(header)
-            heading = Gtk.Label(label='Appearance colors')
+            heading = Gtk.Label(label='Desktop Appearance')
             heading.set_xalign(0)
             heading.set_hexpand(True)
             heading.add_css_class('title-2')
@@ -99,48 +101,23 @@ def main() -> int:
             selector_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
             root.append(selector_row)
             selector_row.append(Gtk.Label(label='Component'))
-            labels = [component['label'] for component in registry['components']]
+            labels = ['Desktop Themes', *[component['label'] for component in registry['components']]]
             self._components = Gtk.StringList.new(labels)
             self._selector = Gtk.DropDown.new(self._components, None)
             self._selector.set_hexpand(True)
             self._selector.connect('notify::selected', self._component_changed)
             selector_row.append(self._selector)
-            self._target_label = Gtk.Label()
-            self._target_label.set_xalign(1)
-            self._target_label.add_css_class('dim-label')
-            selector_row.append(self._target_label)
-
-            preset_frame = Gtk.Frame(label='Theme presets')
-            root.append(preset_frame)
-            preset_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-            preset_box.set_margin_top(10)
-            preset_box.set_margin_bottom(10)
-            preset_box.set_margin_start(10)
-            preset_box.set_margin_end(10)
-            preset_frame.set_child(preset_box)
-            preset_help = Gtk.Label(
-                label='Apply a coordinated preset to one component, or choose a desktop theme family and variant.')
-            preset_help.set_xalign(0)
-            preset_help.set_wrap(True)
-            preset_help.add_css_class('dim-label')
-            preset_box.append(preset_help)
-            preset_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-            preset_box.append(preset_row)
-            preset_row.append(Gtk.Label(label='Component'))
-            preset_labels = Gtk.StringList.new([label for label, _key in self._preset_targets])
-            self._preset_component = Gtk.DropDown.new(preset_labels, None)
-            self._preset_component.set_hexpand(True)
-            self._preset_component.connect('notify::selected', self._preset_component_changed)
-            preset_row.append(self._preset_component)
-            preset_row.append(Gtk.Label(label='Preset'))
-            self._preset_variants = Gtk.StringList.new([])
-            self._preset_variant = Gtk.DropDown.new(self._preset_variants, None)
+            self._preset_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            root.append(self._preset_row)
+            self._preset_row.append(Gtk.Label(label='Preset'))
+            self._preset_variant = Gtk.DropDown.new(
+                Gtk.StringList.new([label for label, _identity in self._preset_options]), None)
             self._preset_variant.set_hexpand(True)
-            preset_row.append(self._preset_variant)
-            self._preset_apply = Gtk.Button(label='Apply preset')
-            self._preset_apply.add_css_class('suggested-action')
-            self._preset_apply.connect('clicked', self._apply_preset)
-            preset_row.append(self._preset_apply)
+            self._preset_variant.connect('notify::selected', self._preset_changed)
+            self._preset_row.append(self._preset_variant)
+            reset = Gtk.Button(label='Reset component')
+            reset.connect('clicked', self._reset_component)
+            self._preset_row.append(reset)
 
             scroll = Gtk.ScrolledWindow()
             scroll.set_vexpand(True)
@@ -165,7 +142,6 @@ def main() -> int:
             footer.append(save)
 
             self._component_changed()
-            self._preset_component_changed()
 
         @staticmethod
         def _theme_options():
@@ -178,45 +154,123 @@ def main() -> int:
                     for collection in available_collections(collections, pointer=pointer)
                     for variant in collection.variants]
 
-        def _preset_component_changed(self, *_args):
-            selected = self._preset_component.get_selected()
-            if selected >= len(self._preset_targets):
-                self._preset_options = []
-            else:
-                _label, target = self._preset_targets[selected]
-                if target == 'theme':
-                    self._preset_options = self._theme_options()
-                elif target == 'icon':
-                    self._preset_options = self._asset_options(ICON_COLLECTIONS)
-                elif target == 'pointer':
-                    self._preset_options = self._asset_options(POINTER_COLLECTIONS, pointer=True)
-                else:
-                    self._preset_options = [(label, identity) for identity, label in LABELS.items()]
-            labels = [label for label, _identity in self._preset_options]
-            self._preset_variants.splice(0, self._preset_variants.get_n_items(), labels)
-            self._preset_variant.set_selected(0 if labels else Gtk.INVALID_LIST_POSITION)
-            self._preset_apply.set_sensitive(bool(labels))
+        def _component(self):
+            index = self._selector.get_selected()
+            return self._component_ids[index] if index < len(self._component_ids) else None
 
-        def _apply_preset(self, *_args):
-            selected = self._preset_component.get_selected()
-            variant = self._preset_variant.get_selected()
-            if selected >= len(self._preset_targets) or variant >= len(self._preset_options):
+        def _preset_values(self, component, identity):
+            key = (component, identity)
+            if key not in self._preset_cache:
+                self._preset_cache[key] = fields.preset_values(self._registry, component, identity,
+                                                             self._defaults)
+            return self._preset_cache[key]
+
+        def _selected_preset(self, component):
+            if component in self._preset_states:
+                return self._preset_states[component]
+            # Compare native values, so a stale selection record cannot label
+            # manually edited colors as a preset. Compute once per component.
+            current = {field['key']: self._draft[field['key']].strip()
+                       for field in self._registry['fields'] if field['component'] == component}
+            for _label, identity in self._preset_options:
+                if identity == 'custom':
+                    continue
+                try:
+                    expected = self._preset_values(component, identity)
+                except (OSError, ValueError, RuntimeError, KeyError):
+                    continue
+                if current == expected:
+                    self._preset_states[component] = identity
+                    return identity
+            self._preset_states[component] = 'custom'
+            return 'custom'
+
+        def _preset_changed(self, *_args):
+            if self._building or self._component() in (None, 'DESKTOP'):
                 return
-            _label, target = self._preset_targets[selected]
-            variant_label, identity = self._preset_options[variant]
-            argv = (['theme', identity] if target == 'theme'
-                    else ['apply', 'icon', identity] if target == 'icon'
-                    else ['apply', 'pointer', identity] if target == 'pointer'
-                    else ['apply', target, identity])
+            index = self._preset_variant.get_selected()
+            if index >= len(self._preset_options):
+                return
+            identity = self._preset_options[index][1]
+            component = self._component()
+            if identity == 'custom':
+                self._preset_states[component] = identity
+                return
+            self._remember_rows()
+            try:
+                values = self._preset_values(component, identity)
+                self._draft.update(values)
+                self._preset_states[component] = identity
+                self._component_changed(remember=False)
+                self._status.set_text('Preset preview updated. Save to apply these colors.')
+            except (OSError, ValueError, RuntimeError, KeyError) as error:
+                self._component_changed(remember=False)
+                self._show_error('Preset preview is unavailable: ', error)
+
+        def _reset_component(self, *_args):
+            if self._component() == 'DESKTOP':
+                self._apply_desktop(['reset', 'desktop'])
+            else:
+                if self._preset_variant.get_selected() == 0:
+                    self._preset_changed()
+                else:
+                    self._preset_variant.set_selected(0)
+
+        def _desktop_controls(self):
+            from .engine import CONFIG, initial, validate_state
+            from managed_workflows.fs import Tree
+            defaults = self._defaults
+            with Tree(fields._account_home()) as home:
+                state = validate_state(home.json(CONFIG, initial(defaults)))
+            rows = (
+                ('Desktop theme', 'theme', self._theme_options(), state['theme'], None),
+                ('Cursor theme', 'pointer', self._asset_options(POINTER_COLLECTIONS, pointer=True),
+                 state['pointer_theme'], defaults['pointer_theme']),
+                ('Icon theme', 'icon', self._asset_options(ICON_COLLECTIONS),
+                 state['icon_theme'], defaults['icon_theme']),
+            )
+            for label, target, variants, current, installed in rows:
+                options = [('Default', None), *variants]
+                identities = [identity for _label, identity in options]
+                selected = 0 if current == installed else (
+                    identities.index(current) if current in identities else Gtk.INVALID_LIST_POSITION)
+                row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+                name = Gtk.Label(label=label)
+                name.set_xalign(0)
+                name.set_width_chars(16)
+                row.append(name)
+                selector = Gtk.DropDown.new(Gtk.StringList.new([name for name, _ in options]), None)
+                selector.set_hexpand(True)
+                selector.set_selected(selected)
+                row.append(selector)
+                apply_button = Gtk.Button(label='Apply')
+                apply_button.connect('clicked', self._desktop_apply_clicked, target, selector, options)
+                row.append(apply_button)
+                reset = Gtk.Button(label='Reset')
+                reset.connect('clicked', lambda _button, kind=target: self._apply_desktop(['reset', kind]))
+                row.append(reset)
+                self._content.append(row)
+            reset = Gtk.Button(label='Reset desktop themes')
+            reset.connect('clicked', lambda *_: self._apply_desktop(['reset', 'desktop']))
+            self._content.append(reset)
+
+        def _desktop_apply_clicked(self, _button, target, selector, options):
+            index = selector.get_selected()
+            if index >= len(options):
+                return
+            identity = options[index][1]
+            argv = (['reset', target] if identity is None else ['theme', identity]
+                    if target == 'theme' else ['apply', target, identity])
+            self._apply_desktop(argv)
+
+        def _apply_desktop(self, argv):
             try:
                 warnings = apply_choice(argv)
-                self._initial = fields.current_values(self._registry)
-                self._draft = dict(self._initial)
                 self._component_changed(remember=False)
-                self._status.set_text('Applied preset: ' + variant_label
+                self._status.set_text('Desktop themes updated.'
                                       + (('\n' + '\n'.join(warnings)) if warnings else ''))
             except (OSError, ValueError, RuntimeError, KeyError, subprocess.SubprocessError) as error:
-                self._show_error('Preset was not applied: ', error)
+                self._show_error('Desktop theme update did not finish: ', error)
 
         def _remember_rows(self):
             for row in self._rows:
@@ -225,20 +279,31 @@ def main() -> int:
         def _component_changed(self, *_args, remember=True):
             if remember:
                 self._remember_rows()
-            selected = self._selector.get_selected()
-            if selected >= len(self._registry['components']):
+            component = self._component()
+            if component is None:
                 return
-            component = self._registry['components'][selected]['id']
+            self._building = True
             while child := self._content.get_first_child():
                 self._content.remove(child)
             self._rows = []
             self._categories = []
+            self._preset_row.set_visible(component != 'DESKTOP')
+            self._search.set_visible(component != 'DESKTOP')
+            if component == 'DESKTOP':
+                try:
+                    self._desktop_controls()
+                except (OSError, ValueError, RuntimeError, KeyError) as error:
+                    self._show_error('Desktop themes could not be read: ', error)
+                finally:
+                    self._building = False
+                return
+            identity = self._selected_preset(component)
+            self._preset_variant.set_selected(next(
+                index for index, (_label, value) in enumerate(self._preset_options) if value == identity))
             grouped = defaultdict(list)
             for field in self._registry['fields']:
                 if field['component'] == component:
                     grouped[field['category']].append(field)
-            total = sum(len(values) for values in grouped.values())
-            self._target_label.set_text(f'{total} installed fields')
             categories = (WAYBAR_CATEGORY_ORDER if component == 'WAYBAR'
                           else tuple(sorted(grouped)))
             for category in categories:
@@ -262,6 +327,7 @@ def main() -> int:
                     row['category'] = category_record
                     self._rows.append(row)
                     category_record['rows'].append(row)
+            self._building = False
             self._filter_rows()
 
         def _field_row(self, field):
@@ -308,14 +374,31 @@ def main() -> int:
             self._reset_button_sizes.add_widget(reset)
             reset.connect('clicked', lambda *_: entry.set_text(field['default']))
             heading.append(reset)
-            hint = Gtk.Label(label=f"{target_text.capitalize()} color · {grammar_hint}")
-            hint.set_xalign(0)
-            hint.add_css_class('dim-label')
-            frame.append(hint)
+            entry.connect('changed', self._entry_changed, field, button if field['type'] not in ('alpha', 'decimal') else None)
             return {'widget': frame, 'field': field, 'entry': entry}
 
-        @staticmethod
-        def _color_changed(button, _param, entry, field):
+        def _entry_changed(self, entry, field, button):
+            if self._building:
+                return
+            self._draft[field['key']] = entry.get_text()
+            self._preset_states[field['component']] = 'custom'
+            self._building = True
+            self._preset_variant.set_selected(1)
+            self._building = False
+            if button is not None:
+                try:
+                    grammars = tuple(dict.fromkeys(mapping['grammar'] for mapping in field['mappings']))
+                    color = fields.color_to_rgba(entry.get_text(), field['type'], grammars)
+                    self._updating_color = True
+                    button.set_rgba(color)
+                except (ValueError, TypeError):
+                    pass
+                finally:
+                    self._updating_color = False
+
+        def _color_changed(self, button, _param, entry, field):
+            if self._updating_color:
+                return
             try:
                 grammars = tuple(dict.fromkeys(mapping['grammar'] for mapping in field['mappings']))
                 entry.set_text(fields.rgba_to_value(button.get_rgba(), field['type'], grammars))

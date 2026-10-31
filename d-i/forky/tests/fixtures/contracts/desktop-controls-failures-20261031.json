@@ -1,0 +1,76 @@
+{
+  "schema": 1,
+  "execution": "Unexecuted failure-injection cases; source review only. No host, service, bus, policy or desktop access is authorized.",
+  "cases": [
+    {
+      "name": "forward-dispatch-alias",
+      "inject": "Alias reads a COMMANDS key first declared in the same update mapping.",
+      "expected": "Installation verification rejects it before menu activation; no dispatcher execution is used for the check."
+    },
+    {
+      "name": "output-startup-dock-dependency",
+      "inject": "Dock is activating while ordered After the notifying output watcher.",
+      "expected": "Initial reconciliation defers the modeset, sends readiness after subscribing, and never joins the pending dock start job."
+    },
+    {
+      "name": "output-connector-replaced",
+      "inject": "Topology changes after dock shutdown and before submitting the prepared plan.",
+      "expected": "No stale transaction is submitted; dock/authority cleanup retains the existing ownership lock."
+    },
+    {
+      "name": "output-commit-rejected",
+      "inject": "A transaction returns Device or resource busy or times out after submission.",
+      "expected": "Return failure, issue no replay using the same argv, retain paired transaction diagnostics and require a new snapshot for later reconciliation."
+    },
+    {
+      "name": "transient-concurrent-actions",
+      "inject": "Two recording/menu actions start concurrently.",
+      "expected": "Distinct readable unit names retain each cgroup until its descendants exit; no shared deterministic unit silently replaces another action."
+    },
+    {
+      "name": "session-closing-action",
+      "inject": "Session closing marker appears before a queued transient action starts.",
+      "expected": "Service condition rejects execution; no host helper or native application starts."
+    },
+    {
+      "name": "credential-prompt-cancel-or-deadline",
+      "inject": "User cancels KWallet creation/unlock, or the bounded first-publication window expires.",
+      "expected": "No automatic prompt restart; private bootstrap remains; no credentials-ready receipt is published before successful readback; explicit retry is available."
+    },
+    {
+      "name": "credential-input-replaced",
+      "inject": "Bootstrap inode or recorded metadata changes during Secret Service publication.",
+      "expected": "Do not unlink replacement input or publish readiness; retain recovery input and report failure."
+    },
+    {
+      "name": "preset-partial-preview",
+      "inject": "One native field cannot be extracted from the rendered preset.",
+      "expected": "No partial draft update, publication, refresh or authentication; preserve other component drafts."
+    },
+    {
+      "name": "preset-save-failure",
+      "inject": "Existing transactional publication fails or its final readback cannot be completed.",
+      "expected": "Retain drafts and existing recovery journal; distinguish incomplete update from saved-but-unreadable state; do not retry an uncertain mutation."
+    },
+    {
+      "name": "apps-open-pointer-leaves",
+      "inject": "Open the native Apps click drawer, then move the pointer away from its leader and the group.",
+      "expected": "The group PRELIGHT state remains set and the Apps leader retains its bright icon, background, outline and shadow in both output layouts."
+    },
+    {
+      "name": "apps-close-pointer-remains",
+      "inject": "Click the Apps leader again while its drawer is open; keep the pointer over the button.",
+      "expected": "The group PRELIGHT state clears and every Apps leader color returns to normal immediately; no independent leader-hover color keeps it bright."
+    },
+    {
+      "name": "apps-leader-event-conflict",
+      "inject": "Add a native GTK menu or click handler to the Apps leader.",
+      "expected": "Installation verification rejects the event conflict before activation, preserving native drawer ownership."
+    },
+    {
+      "name": "apparmor-pathname-unix-address",
+      "inject": "Add a unix peer addr condition containing /run/user/[0-9]*/systemd/notify.",
+      "expected": "The changed-file checker rejects the parser-invalid filesystem address; the pathname remains covered by an ordinary file rule."
+    }
+  ]
+}

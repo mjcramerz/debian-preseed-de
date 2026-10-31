@@ -313,11 +313,21 @@ class WaybarSeparationFixtures(unittest.TestCase):
             self.assertEqual(helper.COMMANDS[key], ('/usr/local/bin/labwc-capture', action))
         root = SOURCE.parents[3] / 'etc/skel-desktop/.config/waybar'
         entry = json.loads((root / 'modules/system.tmpl').read_text())['custom/system']
-        command = shlex.split(entry['menu-actions']['capture_copy_last_path'])
-        self.assertFalse(any(arg.startswith('--unit=') for arg in command))
-        self.assertIn('--property=ExitType=cgroup', command)
-        self.assertIn('--property=KillMode=control-group', command)
-        self.assertIn('--property=PartOf=labwc-session.target', command)
+        self.assertNotIn('capture_copy_last_path', entry['menu-actions'])
+        self.assertIn('capture_screenshot_full', entry['menu-actions'])
+        launcher = load_helper('labwc-waybar-run')
+        identifiers = [SimpleNamespace(hex='a' * 32), SimpleNamespace(hex='b' * 32)]
+        with mock.patch.object(launcher.uuid, 'uuid4', side_effect=identifiers):
+            first = launcher.systemd_command(('/usr/local/bin/labwc-capture', 'record-full'), None)
+            second = launcher.systemd_command(('/usr/local/bin/labwc-capture', 'record-full'), None)
+        self.assertNotEqual(next(x for x in first if x.startswith('--unit=')),
+                            next(x for x in second if x.startswith('--unit=')))
+        for command in (first, second):
+            self.assertIn('--property=ExitType=cgroup', command)
+            self.assertIn('--property=KillMode=control-group', command)
+            self.assertIn('--property=PartOf=labwc-session.target', command)
+            self.assertIn('--property=ConditionPathExists=!%t/labwc-session-closing', command)
+            self.assertNotIn('--no-block', command)
 
     def test_system_and_reminder_labels_use_matching_reviewed_workflows(self):
         helper = self.dispatcher()
@@ -362,7 +372,7 @@ class WaybarSeparationFixtures(unittest.TestCase):
     def test_interactive_delegate_replaces_dispatcher_without_foreground_timer(self):
         helper = self.dispatcher()
         env = {'HOME': '/fixture/home', 'PATH': '/usr/bin:/bin'}
-        for action in ('reminder_manager', 'display_appearance', 'quick_search_applications'):
+        for action in ('reminder_manager', 'display_appearance', 'help_main_menu'):
             with self.subTest(action=action), \
                     mock.patch.object(helper, 'desktop_environment', return_value=env), \
                     mock.patch.object(helper.os, 'chdir') as chdir, \

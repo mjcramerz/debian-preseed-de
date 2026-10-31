@@ -961,6 +961,14 @@ def check_apparmor(paths: list[Path], errors: list[str], counts: dict[str, int])
                 errors.append(f'{path.relative_to(ROOT)}:{line_number}: multiline path/owner brace rule')
             if stripped.startswith('profile ') and not stripped.endswith('{'):
                 errors.append(f'{path.relative_to(ROOT)}:{line_number}: profile declaration lacks opening brace')
+            # AppArmor's unix addr= conditional describes abstract or anonymous
+            # socket addresses. Filesystem pathname sockets are mediated by
+            # ordinary file rules; reject the parser-invalid form early,
+            # including when it appears inside peer=(addr=...).
+            if (re.match(r'^\s*(?:deny\s+)?unix\b', line)
+                    and re.search(r"\baddr\s*=\s*(?:\(\s*)?[\"']?/", line)):
+                errors.append(f'{path.relative_to(ROOT)}:{line_number}: '
+                              'AppArmor unix addr= cannot be a filesystem path; use a file rule')
         if depth:
             errors.append(f'{path.relative_to(ROOT)}:EOF: unclosed brace depth {depth}')
         if not text.endswith('\n'):

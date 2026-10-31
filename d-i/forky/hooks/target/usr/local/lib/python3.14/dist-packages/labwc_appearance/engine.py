@@ -97,10 +97,14 @@ def selection(previous: dict, argv: list[str], defaults: dict) -> tuple[dict, se
             greeter = True
         else:
             affected.add(name)
-    elif len(argv) == 2 and argv[0] == 'reset' and argv[1] in (*COMPONENTS, 'theme', 'icon', 'pointer', 'all'):
+    elif len(argv) == 2 and argv[0] == 'reset' and argv[1] in (*COMPONENTS, 'theme', 'icon', 'pointer', 'desktop', 'all'):
         if argv[1] == 'theme':
             return selection(previous, ['theme', 'reset'], defaults)
-        if argv[1] == 'all':
+        if argv[1] == 'desktop':
+            state.update(mode=defaults['mode'], theme=None,
+                         icon_theme=defaults['icon_theme'], pointer_theme=defaults['pointer_theme'])
+            affected = {'theme', 'icon', 'pointer'}
+        elif argv[1] == 'all':
             state = initial(defaults)
             affected = {'theme', 'icon', 'pointer', 'fuzzel', 'waybar', 'taskview', 'waycal', 'dock', 'terminal', 'swaylock', 'mako'}
             greeter = True
@@ -117,7 +121,7 @@ def selection(previous: dict, argv: list[str], defaults: dict) -> tuple[dict, se
             state['profiles'][argv[1]] = None
             affected.add(argv[1])
     else:
-        raise ValueError('usage: labwc-desktop-appearance [theme THEME_VARIANT|reset | apply COMPONENT PROFILE | apply icon NAME | apply pointer NAME | reset COMPONENT|theme|icon|pointer|all]')
+        raise ValueError('usage: labwc-desktop-appearance [theme THEME_VARIANT|reset | apply COMPONENT PROFILE | apply icon NAME | apply pointer NAME | reset COMPONENT|theme|icon|pointer|desktop|all]')
     return state, affected, greeter
 
 

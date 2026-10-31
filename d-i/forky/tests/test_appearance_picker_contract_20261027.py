@@ -124,12 +124,13 @@ class AppearanceDraftFixtures(unittest.TestCase):
         window = next(node for node in main.body if isinstance(node, ast.ClassDef)
                       and node.name == 'AppearanceWindow')
         methods = [node for node in window.body if isinstance(node, ast.FunctionDef)
-                   and node.name in {'_remember_rows', '_component_changed', '_save', '_show_error'}]
+                   and node.name in {'_remember_rows', '_component_changed', '_save', '_show_error', '_preset_changed', '_preset_values', '_entry_changed'}]
         fixture = ast.ClassDef(name='DraftWindow', bases=[], keywords=[], body=methods,
                                decorator_list=[], type_params=[])
         ast.fix_missing_locations(fixture)
         fields = SimpleNamespace(validate_value=mock.Mock(side_effect=lambda field, value: value),
-                                 apply=mock.Mock(return_value=[]), current_values=mock.Mock())
+                                 apply=mock.Mock(return_value=[]), current_values=mock.Mock(),
+                                 preset_values=mock.Mock(return_value={'A': '#111111'}))
         namespace = {'fields': fields, 'subprocess': subprocess, 'defaultdict': defaultdict,
                      'WAYBAR_CATEGORY_ORDER': ()}
         exec(compile(ast.Module(body=[fixture], type_ignores=[]), str(path), 'exec'), namespace)
@@ -140,6 +141,17 @@ class AppearanceDraftFixtures(unittest.TestCase):
         result._registry = {'components': [{'id': 'FOOT'}], 'fields': []}
         result._rows = []
         result._status = mock.Mock()
+        result._building = False
+        result._preset_cache = {}
+        result._defaults = {}
+        result._preset_states = {}
+        result._preset_options = [('Default', None), ('Custom', 'custom')]
+        result._component = mock.Mock(return_value='FOOT')
+        result._selected_preset = mock.Mock(return_value=None)
+        result._preset_variant = mock.Mock()
+        result._preset_variant.get_selected.return_value = 0
+        result._preset_row = mock.Mock()
+        result._search = mock.Mock()
         fields.current_values.return_value = dict(result._initial)
         return result, fields
 
@@ -175,6 +187,34 @@ class AppearanceDraftFixtures(unittest.TestCase):
         fields.apply.assert_called_once_with({'A': '#aaaaaa', 'B': '#bbbbbb'})
         self.assertEqual(window._draft, fields.current_values.return_value)
         window._component_changed.assert_called_once_with(remember=False)
+
+    def test_preset_preview_preserves_other_component_drafts_without_publication(self):
+        window, fields = self.window()
+        window._draft['B'] = '#bbbbbb'
+        window._component_changed = mock.Mock()
+        fields.preset_values.return_value = {'A': '#aaaaaa'}
+        window._preset_changed()
+        self.assertEqual(window._draft, {'A': '#aaaaaa', 'B': '#bbbbbb', 'C': '#333333'})
+        fields.apply.assert_not_called()
+
+    def test_failed_preset_render_keeps_drafts_and_never_applies_partial_colors(self):
+        window, fields = self.window()
+        window._draft['B'] = '#bbbbbb'
+        before = dict(window._draft)
+        window._component_changed = mock.Mock()
+        fields.preset_values.side_effect = ValueError('injected unreadable native field')
+        window._preset_changed()
+        self.assertEqual(window._draft, before)
+        fields.apply.assert_not_called()
+        self.assertIn('unavailable', window._status.set_text.call_args.args[0])
+
+    def test_manual_color_edit_marks_default_custom(self):
+        window, _fields = self.window()
+        window._entry_changed(SimpleNamespace(get_text=lambda: '#abcdef'),
+                              {'key': 'A', 'component': 'FOOT'}, None)
+        self.assertEqual(window._draft['A'], '#abcdef')
+        self.assertEqual(window._preset_states['FOOT'], 'custom')
+        window._preset_variant.set_selected.assert_called_with(1)
 
     def test_invalid_hidden_draft_prevents_every_write_and_retains_edits(self):
         window, fields = self.window()
