@@ -326,7 +326,9 @@ class WaybarSeparationFixtures(unittest.TestCase):
             self.assertIn('--property=ExitType=cgroup', command)
             self.assertIn('--property=KillMode=control-group', command)
             self.assertIn('--property=PartOf=labwc-session.target', command)
-            self.assertIn('--property=ConditionPathExists=!%t/labwc-session-closing', command)
+            self.assertIn(
+                '--property=ConditionPathExists=!/run/user/' + str(os.getuid())
+                + '/labwc-session-closing', command)
             self.assertNotIn('--no-block', command)
 
     def test_system_and_reminder_labels_use_matching_reviewed_workflows(self):

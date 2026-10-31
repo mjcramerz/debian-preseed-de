@@ -154,6 +154,7 @@ def session_environment() -> dict[str, str]:
 def systemd_command(command: tuple[str, ...], output_class: str | None) -> list[str]:
     # Only approved argv reach here. A readable family/action plus a random
     # suffix identifies concurrent invocations without coalescing mutations.
+    session_closing = RUNTIME_ROOT / str(os.getuid()) / "labwc-session-closing"
     family = Path(command[0]).name.removeprefix('labwc-')
     action = command[1] if command[0] == '/usr/local/bin/labwc-system-menu-action' else family
     label = re.sub(r'[^a-z0-9-]', '-', action.lower())[:64]
@@ -167,7 +168,11 @@ def systemd_command(command: tuple[str, ...], output_class: str | None) -> list[
         "--property=PartOf=labwc-session.target",
         "--property=ExitType=cgroup", "--property=KillMode=control-group",
         "--property=TimeoutStartSec=10s", "--property=TimeoutStopSec=20s",
-        "--property=ConditionPathExists=!%t/labwc-session-closing",
+        # systemd-run receives this as a transient unit property.  Unlike a
+        # unit-file ConditionPathExists= entry, this property is not expanded
+        # from the %t specifier and rejects the value as non-absolute.  The
+        # runtime directory was already validated in session_environment().
+        "--property=ConditionPathExists=!" + str(session_closing),
         "--property=UnsetEnvironment=" + " ".join(BLOCKED_ENVIRONMENT),
         "--property=StandardInput=null", "--property=StandardError=journal",
         "--property=SyslogIdentifier=labwc-waybar-" + label,

@@ -26,7 +26,7 @@ GRAMMAR_LABELS = {
     'pango-color': 'Pango color',
     'qt-color': 'Qt color',
     'mako-color': 'Mako color',
-    'mako-progress': 'Mako progress color',
+    'mako-progress': 'Mako progress color (over #RRGGBBAA)',
     'fuzzel-rgba': 'Fuzzel RGBA',
     'foot-rgb': 'Foot RGB',
     'kitty-color': 'Kitty color',

@@ -686,7 +686,7 @@ a1ed2a675aa15446e1e97a7b42ac432efba25ecebdce95c816db1f30cb330d83  hooks/target/e
 bb2926ddc5f4f8f43cbebb3bef5d1e1aeff41c869a39b31c8ee3dd89b48d9c08  hooks/target/etc/skel-desktop/.config/waybar/modules/app-sleek.tmpl
 52a1a8bb86f63f1c7c1047748a4e528291f4579c451d8b1515eb387d68b0f575  hooks/target/etc/skel-desktop/.config/waybar/modules/app-terminal.tmpl
 65f71386f82317de51c08f49b1230d25f5d324e6268b977166ba276de19e3d47  hooks/target/etc/skel-desktop/.config/waybar/modules/app-tuta.tmpl
-5d08c068c453e6a32f25cb20220c3ea012a9d1815f02bee56a97115ea028f2e0  hooks/target/etc/skel-desktop/.config/waybar/modules/apps.tmpl
+8926fb8be1e8787fd4f44495f95e34cb5cdc7ed468331a51c39289a2717f7d3a  hooks/target/etc/skel-desktop/.config/waybar/modules/apps.tmpl
 5aab5f88be907e50c70d6b4c3d086cfe6a7d1ab2a394e81d37e1a1e1f1e2cdc9  hooks/target/etc/skel-desktop/.config/waybar/modules/backlight.tmpl
 363d9fb4b0f6b0ca42abc6611ee12e8d7ea2e291971ee36f3ea34fcdd694e533  hooks/target/etc/skel-desktop/.config/waybar/modules/battery.tmpl
 2ad34407a5f37c40978d36f8dd1ceb656f1bf91f2c13334f654bd37a29640342  hooks/target/etc/skel-desktop/.config/waybar/modules/bluetooth.tmpl
@@ -714,7 +714,7 @@ babac9008f068c408ddd168c5720450a07e618449c8456c9e82df15e2c4f8981  hooks/target/e
 ec016487aa6967ea8044c9825b6a960520aa059c9f50f2d9d3bf3aa5dbcde99b  hooks/target/etc/skel-desktop/.config/waybar/modules/system.tmpl
 065bf839be587c0a560a982f975ce01438ed2c857c74ac2db637403863ab748a  hooks/target/etc/skel-desktop/.config/waybar/modules/tomat.tmpl
 2457d5dde301538b0eeef2ac23b7b74f53783615297c95937ff8da8da556fcb7  hooks/target/etc/skel-desktop/.config/waybar/modules/wayscriber.tmpl
-9f8c875be13ed7a467a14ef2ba5f3a47e91f8ff9049d8157d3a682620aebcc18  hooks/target/etc/skel-desktop/.config/waybar/modules/window-switcher.tmpl
+954da1570aabf8d762f8156b9bb0b1d26c07ec69847ce0a099e97458a142c8cb  hooks/target/etc/skel-desktop/.config/waybar/modules/window-switcher.tmpl
 b4b09a6ae3017b99809dd0e1d1a8291fa703085c8f5dae4b7809cf841ba46b61  hooks/target/etc/skel-desktop/.config/waybar/modules/workspaces.tmpl
 f6eeaeb4cd416dbdd014f79ca3cf3297eebf257781292c22a37b41b9c75334b3  hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl
 29e9e530e4f115b6bc39350e609563a8560b958db58ec1c973dda702fb216481  hooks/target/etc/skel-desktop/.config/waybar/style/audio.css.tmpl
@@ -1382,7 +1382,7 @@ ba218e705e4a01002555f3620e389f5229e93b9ba46961e3ebf0d1b54bc68c64  hooks/target/u
 1bee2e680754465d07189e346ade691fd1950c86d7d91984e7593a279f1b3d00  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/catalog.py
 c15570d246219c0fe04d683330897f9ef2fd70ce057a31436bbf7b26e327979a  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/cli.py
 6fa6ead54e34a4fc9d2ba38223f94f551644c99a9c393ac02790c8f4a4f591f7  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/defaults.py
-f5c707bb8b65542a1837cd4640edb4f22717d8b9f5d4c8e1802bac20ca6d0753  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/editor.py
+f4589a38a7c884d55c2e97f2b567c1ee3c80af7eb8afc740c2073ff10e2e6633  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/editor.py
 10f6c0c94de3f043db11c233dfa18a2b2fbd49ba1be14fb4a7244cfa43234fcd  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/editors.py
 b0ad33ce6df21588acd46d8b0e269e9eaf4adf2e697d7793ce9b385a70d7bc4c  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/engine.py
 d68f7583e445d6f2b1baa6e2e3e5ebcba8747642c4496ff4675fee4c604f7986  hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/fields.py
@@ -1547,7 +1547,7 @@ f773e2ffcbddb7addfbe4fa0d53de1e8a60855ca1401811b79d34244d936c269  hooks/target/u
 a3b18d42068a120bf5ede107a9a585b3bd065713be0c703ddce929fb7952514b  hooks/target/usr/local/libexec/labwc-waybar-battery
 93716c56c0bf645db4db9d828a8a8b235944d6f1112f5ebd34fa9e0eb98a6bc4  hooks/target/usr/local/libexec/labwc-waybar-events.tmpl
 e92c92b6eef960ca8a8e7b94460469ca9272fb46fbee92e075a5cb4a4ed34eaf  hooks/target/usr/local/libexec/labwc-waybar-exec
-5ed1b75eabf30c8d8aff797e40f3cdb28cbf68a8a0e6ec38f9b6253c8abfb95e  hooks/target/usr/local/libexec/labwc-waybar-run
+dce8d51915a40d665c47a137351cb86f067774939114742118e2c6b7420a90f4  hooks/target/usr/local/libexec/labwc-waybar-run
 6cc2c759ae91f92e71325e9a73cb649896a600254de2910b3470179b09e0bbf7  hooks/target/usr/local/libexec/labwc-waycal-control
 5e1cca02c1dde74be5cadbe4593fa62c854c62ce44a49af2fb54d3b348510b39  hooks/target/usr/local/libexec/labwc-waycal-popup
 00dce566c75aed78c5bb89914df51677f5e49f5b374bce8a40703f66ccf5317b  hooks/target/usr/local/libexec/labwc-wrap-desktop-files
@@ -1709,7 +1709,7 @@ a2430fe67efdd603294e41fd97e72a7b5d9d58cad3d984e138d1d44b60863e29  hosts/profiles
 5c5dd54da244c43db24c8a0d5eab625ba91ecf6762a8e0b37e83aad1f963df8e  hosts/profiles/f2fs-de-x360.env
 a34626493be57db13c7dc2b39aa20fa26d43dbad5bcd46c66842e1c81983d3ed  hosts/themes/README.md
 2deca95c38119282ae89bff726e31a4c7f4ecb595ebda34c99ddce2b9c4c6956  hosts/themes/apps.env
-bd90769081fd55bb2264c6ef21a78f7d241a166cec0a8de9d947c58b388143cb  hosts/themes/base.env
+ce6cd8615d78795bc1c6a2fc805d4ef78c0c676eec14c406eed77a98a79d32d7  hosts/themes/base.env
 5240c1e3e6a5915148728a55803d5cf0a4bf6e2b23c849cb9611117d8ad4297d  hosts/themes/office.env
 1bd533f11609ad0f574a323580be8545747e5f136e00262689b3c790062fcafd  hosts/themes/theme-schema.tsv
 34b025528d5f3271e58cd80b2e97a00b10c014df460da65fce4a2dc01d0343f1  repo.env
