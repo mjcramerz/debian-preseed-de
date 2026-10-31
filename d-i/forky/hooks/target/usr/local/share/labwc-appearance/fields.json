@@ -5342,7 +5342,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 102,
+          "line": 112,
           "template": "  background-color: __THEME_WAYBAR_BUTTON_APPS_HOVER_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_APPS_HOVER_BACKGROUND_COLOR__"
@@ -5353,7 +5353,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 109,
+          "line": 120,
           "template": "  background-color: __THEME_WAYBAR_BUTTON_APPS_HOVER_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_APPS_HOVER_BACKGROUND_COLOR__"
@@ -5375,7 +5375,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 101,
+          "line": 111,
           "template": "  color: __THEME_WAYBAR_BUTTON_APPS_HOVER_ICON_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_APPS_HOVER_ICON_COLOR__"
@@ -5386,7 +5386,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 108,
+          "line": 119,
           "template": "  color: __THEME_WAYBAR_BUTTON_APPS_HOVER_ICON_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_APPS_HOVER_ICON_COLOR__"
@@ -5419,7 +5419,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 103,
+          "line": 114,
           "template": "  border-color: __THEME_WAYBAR_BUTTON_APPS_HOVER_OUTLINE_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_APPS_HOVER_OUTLINE_COLOR__"
@@ -5430,7 +5430,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 111,
+          "line": 122,
           "template": "  border-color: __THEME_WAYBAR_BUTTON_APPS_HOVER_OUTLINE_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_APPS_HOVER_OUTLINE_COLOR__"
@@ -5452,7 +5452,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 104,
+          "line": 115,
           "template": "  box-shadow: 0 0 8px 1px __THEME_WAYBAR_BUTTON_APPS_HOVER_SHADOW_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_APPS_HOVER_SHADOW_COLOR__"
@@ -5463,7 +5463,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 112,
+          "line": 123,
           "template": "  box-shadow: inset 0 0 6px 1px __THEME_WAYBAR_BUTTON_APPS_HOVER_SHADOW_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_APPS_HOVER_SHADOW_COLOR__"
@@ -7731,7 +7731,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 151,
+          "line": 162,
           "template": "  background-color: __THEME_WAYBAR_BUTTON_FILES_HOVER_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_FILES_HOVER_BACKGROUND_COLOR__"
@@ -7753,7 +7753,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 152,
+          "line": 163,
           "template": "  border-color: __THEME_WAYBAR_BUTTON_FILES_HOVER_OUTLINE_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_FILES_HOVER_OUTLINE_COLOR__"
@@ -7775,7 +7775,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 156,
+          "line": 167,
           "template": "  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_FILES_HOVER_SHADOW_COLOR__;",
           "tokens": [
             "__INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__",
@@ -7787,7 +7787,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 160,
+          "line": 171,
           "template": "  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_FILES_HOVER_SHADOW_COLOR__;",
           "tokens": [
             "__INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__",
@@ -7876,7 +7876,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",
           "path": "waybar/style/system.css",
-          "line": 101,
+          "line": 117,
           "template": "  background: __THEME_WAYBAR_BUTTON_KEYBOARD_HOVER_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_KEYBOARD_HOVER_BACKGROUND_COLOR__"
@@ -7898,7 +7898,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",
           "path": "waybar/style/system.css",
-          "line": 102,
+          "line": 118,
           "template": "  border-color: __THEME_WAYBAR_BUTTON_KEYBOARD_HOVER_OUTLINE_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_KEYBOARD_HOVER_OUTLINE_COLOR__"
@@ -7920,7 +7920,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",
           "path": "waybar/style/system.css",
-          "line": 87,
+          "line": 97,
           "template": "  background: __THEME_WAYBAR_BUTTON_KEYBOARD_NORMAL_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_KEYBOARD_NORMAL_BACKGROUND_COLOR__"
@@ -7942,7 +7942,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",
           "path": "waybar/style/system.css",
-          "line": 86,
+          "line": 96,
           "template": "  border-color: __THEME_WAYBAR_BUTTON_KEYBOARD_NORMAL_OUTLINE_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_KEYBOARD_NORMAL_OUTLINE_COLOR__"
@@ -7964,7 +7964,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",
           "path": "waybar/style/system.css",
-          "line": 111,
+          "line": 127,
           "template": "  color: __THEME_WAYBAR_BUTTON_KEYBOARD_SWEDISH_ICON_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_KEYBOARD_SWEDISH_ICON_COLOR__"
@@ -7986,7 +7986,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",
           "path": "waybar/style/system.css",
-          "line": 106,
+          "line": 122,
           "template": "  color: __THEME_WAYBAR_BUTTON_KEYBOARD_US_ENGLISH_ICON_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_KEYBOARD_US_ENGLISH_ICON_COLOR__"
@@ -8616,7 +8616,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",
           "path": "waybar/style/system.css",
-          "line": 119,
+          "line": 135,
           "template": "  color: __THEME_WAYBAR_BUTTON_NETWORK_DISABLED_ICON_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_NETWORK_DISABLED_ICON_COLOR__"
@@ -8638,7 +8638,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",
           "path": "waybar/style/system.css",
-          "line": 115,
+          "line": 131,
           "template": "  color: __THEME_WAYBAR_BUTTON_NETWORK_DISCONNECTED_ICON_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_NETWORK_DISCONNECTED_ICON_COLOR__"
@@ -8660,7 +8660,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",
           "path": "waybar/style/system.css",
-          "line": 127,
+          "line": 143,
           "template": "  color: __THEME_WAYBAR_BUTTON_NETWORK_ETHERNET_ICON_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_NETWORK_ETHERNET_ICON_COLOR__"
@@ -8682,7 +8682,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",
           "path": "waybar/style/system.css",
-          "line": 96,
+          "line": 112,
           "template": "  background: __THEME_WAYBAR_BUTTON_NETWORK_HOVER_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_NETWORK_HOVER_BACKGROUND_COLOR__"
@@ -8704,7 +8704,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",
           "path": "waybar/style/system.css",
-          "line": 97,
+          "line": 113,
           "template": "  border-color: __THEME_WAYBAR_BUTTON_NETWORK_HOVER_OUTLINE_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_NETWORK_HOVER_OUTLINE_COLOR__"
@@ -8726,7 +8726,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",
           "path": "waybar/style/system.css",
-          "line": 131,
+          "line": 147,
           "template": "  color: __THEME_WAYBAR_BUTTON_NETWORK_LINKED_ICON_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_NETWORK_LINKED_ICON_COLOR__"
@@ -8748,7 +8748,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",
           "path": "waybar/style/system.css",
-          "line": 81,
+          "line": 91,
           "template": "  background: __THEME_WAYBAR_BUTTON_NETWORK_NORMAL_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_NETWORK_NORMAL_BACKGROUND_COLOR__"
@@ -8770,7 +8770,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",
           "path": "waybar/style/system.css",
-          "line": 80,
+          "line": 90,
           "template": "  border-color: __THEME_WAYBAR_BUTTON_NETWORK_NORMAL_OUTLINE_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_NETWORK_NORMAL_OUTLINE_COLOR__"
@@ -8792,7 +8792,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",
           "path": "waybar/style/system.css",
-          "line": 123,
+          "line": 139,
           "template": "  color: __THEME_WAYBAR_BUTTON_NETWORK_WIFI_ICON_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_NETWORK_WIFI_ICON_COLOR__"
@@ -8814,7 +8814,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 177,
+          "line": 188,
           "template": "  background-color: __THEME_WAYBAR_BUTTON_NOTES_HOVER_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_NOTES_HOVER_BACKGROUND_COLOR__"
@@ -8836,7 +8836,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 178,
+          "line": 189,
           "template": "  border-color: __THEME_WAYBAR_BUTTON_NOTES_HOVER_OUTLINE_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_NOTES_HOVER_OUTLINE_COLOR__"
@@ -8858,7 +8858,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 182,
+          "line": 193,
           "template": "  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_NOTES_HOVER_SHADOW_COLOR__;",
           "tokens": [
             "__INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__",
@@ -8870,7 +8870,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 186,
+          "line": 197,
           "template": "  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_NOTES_HOVER_SHADOW_COLOR__;",
           "tokens": [
             "__INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__",
@@ -9566,7 +9566,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 119,
+          "line": 130,
           "template": "  background-color: __THEME_WAYBAR_BUTTON_SLEEK_HOVER_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_SLEEK_HOVER_BACKGROUND_COLOR__"
@@ -9588,7 +9588,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 120,
+          "line": 131,
           "template": "  border-color: __THEME_WAYBAR_BUTTON_SLEEK_HOVER_OUTLINE_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_SLEEK_HOVER_OUTLINE_COLOR__"
@@ -9610,7 +9610,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 124,
+          "line": 135,
           "template": "  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_SLEEK_HOVER_SHADOW_COLOR__;",
           "tokens": [
             "__INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__",
@@ -9622,7 +9622,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 131,
+          "line": 142,
           "template": "  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_SLEEK_HOVER_SHADOW_COLOR__;",
           "tokens": [
             "__INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__",
@@ -9711,7 +9711,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",
           "path": "waybar/style/system.css",
-          "line": 91,
+          "line": 101,
           "template": "  background: __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_SYSTEM_HOVER_BACKGROUND_COLOR__"
@@ -9733,7 +9733,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",
           "path": "waybar/style/system.css",
-          "line": 92,
+          "line": 102,
           "template": "  border-color: __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_OUTLINE_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_SYSTEM_HOVER_OUTLINE_COLOR__"
@@ -9755,7 +9755,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",
           "path": "waybar/style/system.css",
-          "line": 75,
+          "line": 85,
           "template": "  background: __THEME_WAYBAR_BUTTON_SYSTEM_NORMAL_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_SYSTEM_NORMAL_BACKGROUND_COLOR__"
@@ -9799,7 +9799,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",
           "path": "waybar/style/system.css",
-          "line": 74,
+          "line": 84,
           "template": "  border-color: __THEME_WAYBAR_BUTTON_SYSTEM_NORMAL_OUTLINE_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_SYSTEM_NORMAL_OUTLINE_COLOR__"
@@ -10075,7 +10075,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 190,
+          "line": 201,
           "template": "  color: __THEME_WAYBAR_BUTTON_TASKBAR_MINIMIZED_TEXT_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_TASKBAR_MINIMIZED_TEXT_COLOR__"
@@ -10319,7 +10319,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 138,
+          "line": 149,
           "template": "  background-color: __THEME_WAYBAR_BUTTON_TERMINAL_HOVER_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_TERMINAL_HOVER_BACKGROUND_COLOR__"
@@ -10341,7 +10341,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 139,
+          "line": 150,
           "template": "  border-color: __THEME_WAYBAR_BUTTON_TERMINAL_HOVER_OUTLINE_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_TERMINAL_HOVER_OUTLINE_COLOR__"
@@ -10363,7 +10363,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 143,
+          "line": 154,
           "template": "  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TERMINAL_HOVER_SHADOW_COLOR__;",
           "tokens": [
             "__INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__",
@@ -10375,7 +10375,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 147,
+          "line": 158,
           "template": "  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TERMINAL_HOVER_SHADOW_COLOR__;",
           "tokens": [
             "__INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__",
@@ -10860,7 +10860,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 164,
+          "line": 175,
           "template": "  background-color: __THEME_WAYBAR_BUTTON_TUTANOTA_HOVER_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_TUTANOTA_HOVER_BACKGROUND_COLOR__"
@@ -10882,7 +10882,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 165,
+          "line": 176,
           "template": "  border-color: __THEME_WAYBAR_BUTTON_TUTANOTA_HOVER_OUTLINE_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_BUTTON_TUTANOTA_HOVER_OUTLINE_COLOR__"
@@ -10904,7 +10904,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 169,
+          "line": 180,
           "template": "  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TUTANOTA_HOVER_SHADOW_COLOR__;",
           "tokens": [
             "__INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__",
@@ -10916,7 +10916,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/apps.css.tmpl",
           "path": "waybar/style/apps.css",
-          "line": 173,
+          "line": 184,
           "template": "  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TUTANOTA_HOVER_SHADOW_COLOR__;",
           "tokens": [
             "__INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__",
@@ -11708,7 +11708,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 73,
+          "line": 77,
           "template": "  background: __THEME_WAYBAR_DROPDOWN_MENU_DISABLED_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_MENU_DISABLED_BACKGROUND_COLOR__"
@@ -11730,7 +11730,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 83,
+          "line": 87,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_MENU_DISABLED_ICON_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_MENU_DISABLED_ICON_COLOR__"
@@ -11752,7 +11752,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 74,
+          "line": 78,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_MENU_DISABLED_TEXT_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_MENU_DISABLED_TEXT_COLOR__"
@@ -11763,7 +11763,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 74,
+          "line": 78,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_MENU_DISABLED_TEXT_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_MENU_DISABLED_TEXT_COLOR__"
@@ -11785,7 +11785,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 40,
+          "line": 41,
           "template": "  background: __THEME_WAYBAR_DROPDOWN_MENU_HOVER_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_MENU_HOVER_BACKGROUND_COLOR__"
@@ -11807,7 +11807,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 50,
+          "line": 53,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_MENU_HOVER_ICON_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_MENU_HOVER_ICON_COLOR__"
@@ -11829,7 +11829,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 42,
+          "line": 43,
           "template": "  box-shadow: inset __INSTALLER_LABWC_WAYBAR_SHARED_MENU_HOVER_SHADOW__ __THEME_WAYBAR_DROPDOWN_MENU_HOVER_SHADOW_COLOR__;",
           "tokens": [
             "__INSTALLER_LABWC_WAYBAR_SHARED_MENU_HOVER_SHADOW__",
@@ -11852,7 +11852,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 41,
+          "line": 42,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_MENU_HOVER_TEXT_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_MENU_HOVER_TEXT_COLOR__"
@@ -11863,7 +11863,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 41,
+          "line": 42,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_MENU_HOVER_TEXT_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_MENU_HOVER_TEXT_COLOR__"
@@ -12007,7 +12007,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 91,
+          "line": 95,
           "template": "  background: __THEME_WAYBAR_DROPDOWN_MENU_SEPARATOR_NORMAL_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_MENU_SEPARATOR_NORMAL_BACKGROUND_COLOR__"
@@ -12029,7 +12029,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 87,
+          "line": 91,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ARROW_DISABLED_ICON_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_ARROW_DISABLED_ICON_COLOR__"
@@ -12051,7 +12051,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 69,
+          "line": 73,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ARROW_HOVER_ICON_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_ARROW_HOVER_ICON_COLOR__"
@@ -12073,7 +12073,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 54,
+          "line": 57,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ARROW_NORMAL_ICON_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_ARROW_NORMAL_ICON_COLOR__"
@@ -12095,7 +12095,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 139,
+          "line": 143,
           "template": "  background: __THEME_WAYBAR_DROPDOWN_SUBMENU_DISABLED_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_DISABLED_BACKGROUND_COLOR__"
@@ -12117,7 +12117,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 140,
+          "line": 144,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_DISABLED_TEXT_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_DISABLED_TEXT_COLOR__"
@@ -12128,7 +12128,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 140,
+          "line": 144,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_DISABLED_TEXT_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_DISABLED_TEXT_COLOR__"
@@ -12150,7 +12150,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 112,
+          "line": 116,
           "template": "  background: __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_BACKGROUND_COLOR__"
@@ -12161,7 +12161,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 112,
+          "line": 116,
           "template": "  background: __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_BACKGROUND_COLOR__"
@@ -12183,7 +12183,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 127,
+          "line": 131,
           "template": "  box-shadow: inset __INSTALLER_LABWC_WAYBAR_SHARED_MENU_HOVER_SHADOW__ __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_SHADOW_COLOR__;",
           "tokens": [
             "__INSTALLER_LABWC_WAYBAR_SHARED_MENU_HOVER_SHADOW__",
@@ -12206,7 +12206,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 113,
+          "line": 117,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_TEXT_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_TEXT_COLOR__"
@@ -12217,7 +12217,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 113,
+          "line": 117,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_TEXT_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_TEXT_COLOR__"
@@ -12228,7 +12228,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 113,
+          "line": 117,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_TEXT_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_TEXT_COLOR__"
@@ -12239,7 +12239,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 113,
+          "line": 117,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_TEXT_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_TEXT_COLOR__"
@@ -12261,7 +12261,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 148,
+          "line": 152,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ITEM_DISABLED_ICON_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_ITEM_DISABLED_ICON_COLOR__"
@@ -12283,7 +12283,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 121,
+          "line": 125,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ITEM_HOVER_ICON_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_ITEM_HOVER_ICON_COLOR__"
@@ -12294,7 +12294,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 121,
+          "line": 125,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ITEM_HOVER_ICON_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_ITEM_HOVER_ICON_COLOR__"
@@ -12316,7 +12316,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 108,
+          "line": 112,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ITEM_NORMAL_ICON_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_ITEM_NORMAL_ICON_COLOR__"
@@ -12338,7 +12338,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 97,
+          "line": 101,
           "template": "  background: __THEME_WAYBAR_DROPDOWN_SUBMENU_NORMAL_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_NORMAL_BACKGROUND_COLOR__"
@@ -12360,7 +12360,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 99,
+          "line": 103,
           "template": "  border-color: __THEME_WAYBAR_DROPDOWN_SUBMENU_NORMAL_OUTLINE_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_NORMAL_OUTLINE_COLOR__"
@@ -12382,7 +12382,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 100,
+          "line": 104,
           "template": "  box-shadow: __INSTALLER_LABWC_WAYBAR_SHARED_MENU_SHADOW__ __THEME_WAYBAR_DROPDOWN_SUBMENU_NORMAL_SHADOW_COLOR__;",
           "tokens": [
             "__INSTALLER_LABWC_WAYBAR_SHARED_MENU_SHADOW__",
@@ -12405,7 +12405,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 98,
+          "line": 102,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_NORMAL_TEXT_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_NORMAL_TEXT_COLOR__"
@@ -12416,7 +12416,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 98,
+          "line": 102,
           "template": "  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_NORMAL_TEXT_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_NORMAL_TEXT_COLOR__"
@@ -12438,7 +12438,7 @@
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/gtk.css.tmpl",
           "path": "waybar/style/gtk.css",
-          "line": 152,
+          "line": 156,
           "template": "  background: __THEME_WAYBAR_DROPDOWN_SUBMENU_SEPARATOR_NORMAL_BACKGROUND_COLOR__;",
           "tokens": [
             "__THEME_WAYBAR_DROPDOWN_SUBMENU_SEPARATOR_NORMAL_BACKGROUND_COLOR__"

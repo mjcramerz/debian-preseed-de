@@ -1,6 +1,10 @@
 {
   "custom/launcher": {
-    "format": "Menu",
+    "exec": "/usr/local/libexec/labwc-waybar-exec menu-state",
+    "return-type": "json",
+    "format": "{}",
+    "signal": 8,
+    "exec-on-event": false,
     "cursor": true,
     "tooltip": false,
     "on-click-release": "/usr/local/libexec/labwc-waybar-run --output-class=EXTERNAL -- /usr/local/bin/labwc-main-menu"

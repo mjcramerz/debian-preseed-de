@@ -6,13 +6,13 @@
   font-weight: __THEME_WAYBAR_FONT_WEIGHT_HEAVY__;
 }
 
-#group\/quick-controls #bluetooth {
+#quick-controls #bluetooth {
   border-style: __THEME_WAYBAR_BORDER_STYLE__;
   border-color: __THEME_WAYBAR_BUTTON_BLUETOOTH_NORMAL_OUTLINE_COLOR__;
   background: __THEME_WAYBAR_BUTTON_BLUETOOTH_NORMAL_BACKGROUND_COLOR__;
 }
 
-#group\/quick-controls #bluetooth:hover {
+#quick-controls #bluetooth:hover {
   background: __THEME_WAYBAR_BUTTON_BLUETOOTH_HOVER_BACKGROUND_COLOR__;
   border-color: __THEME_WAYBAR_BUTTON_BLUETOOTH_HOVER_OUTLINE_COLOR__;
 }
@@ -34,13 +34,13 @@
   color: __THEME_WAYBAR_BUTTON_BLUETOOTH_CONNECTED_ICON_COLOR__;
 }
 
-#group\/quick-controls #custom-screenshot {
+#quick-controls #custom-screenshot {
   border-style: __THEME_WAYBAR_BORDER_STYLE__;
   border-color: __THEME_WAYBAR_BUTTON_SCREENSHOT_NORMAL_OUTLINE_COLOR__;
   background: __THEME_WAYBAR_BUTTON_SCREENSHOT_NORMAL_BACKGROUND_COLOR__;
 }
 
-#group\/quick-controls #custom-screenshot:hover {
+#quick-controls #custom-screenshot:hover {
   background: __THEME_WAYBAR_BUTTON_SCREENSHOT_HOVER_BACKGROUND_COLOR__;
   border-color: __THEME_WAYBAR_BUTTON_SCREENSHOT_HOVER_OUTLINE_COLOR__;
 }
@@ -62,42 +62,58 @@
   color: __THEME_WAYBAR_BUTTON_SCREENSHOT_RECORDING_HOVER_ICON_COLOR__;
 }
 
-#group\/quick-controls {
+#quick-controls {
   background: __THEME_WAYBAR_QUICK_CONTROLS_CONTAINER_NORMAL_BACKGROUND_COLOR__;
   border-style: __THEME_WAYBAR_BORDER_STYLE__;
   border-color: __THEME_WAYBAR_QUICK_CONTROLS_CONTAINER_NORMAL_OUTLINE_COLOR__;
   color: __THEME_WAYBAR_QUICK_CONTROLS_CONTAINER_NORMAL_TEXT_COLOR__;
 }
 
-#group\/quick-controls #custom-system {
+/* The drawer is one wide control; child hit targets remain separate but do
+ * not draw seams between their normal states. */
+#quick-controls .drawer-child {
+  margin-left: 0;
+  margin-right: 0;
+  border-radius: 0;
+  border-color: __THEME_WAYBAR_QUICK_CONTROLS_CONTAINER_NORMAL_BACKGROUND_COLOR__;
+}
+
+#quick-controls #custom-system {
   border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-width: 0;
   border-color: __THEME_WAYBAR_BUTTON_SYSTEM_NORMAL_OUTLINE_COLOR__;
   background: __THEME_WAYBAR_BUTTON_SYSTEM_NORMAL_BACKGROUND_COLOR__;
 }
 
-#group\/quick-controls #network {
+#quick-controls #network {
   border-style: __THEME_WAYBAR_BORDER_STYLE__;
   border-color: __THEME_WAYBAR_BUTTON_NETWORK_NORMAL_OUTLINE_COLOR__;
   background: __THEME_WAYBAR_BUTTON_NETWORK_NORMAL_BACKGROUND_COLOR__;
 }
 
-#group\/quick-controls #custom-keyboard {
+#quick-controls #custom-keyboard {
   border-style: __THEME_WAYBAR_BORDER_STYLE__;
   border-color: __THEME_WAYBAR_BUTTON_KEYBOARD_NORMAL_OUTLINE_COLOR__;
   background: __THEME_WAYBAR_BUTTON_KEYBOARD_NORMAL_BACKGROUND_COLOR__;
 }
 
-#group\/quick-controls #custom-system:hover {
+#quick-controls #custom-system:hover {
   background: __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_BACKGROUND_COLOR__;
   border-color: __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_OUTLINE_COLOR__;
 }
 
-#group\/quick-controls #network:hover {
+#quick-controls.expanded #custom-system {
+  background: __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_OUTLINE_COLOR__;
+  box-shadow: none;
+}
+
+#quick-controls #network:hover {
   background: __THEME_WAYBAR_BUTTON_NETWORK_HOVER_BACKGROUND_COLOR__;
   border-color: __THEME_WAYBAR_BUTTON_NETWORK_HOVER_OUTLINE_COLOR__;
 }
 
-#group\/quick-controls #custom-keyboard:hover {
+#quick-controls #custom-keyboard:hover {
   background: __THEME_WAYBAR_BUTTON_KEYBOARD_HOVER_BACKGROUND_COLOR__;
   border-color: __THEME_WAYBAR_BUTTON_KEYBOARD_HOVER_OUTLINE_COLOR__;
 }

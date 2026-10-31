@@ -1,4 +1,4 @@
-"""GTK4 editor for the colors present in installed native appearance files."""
+"""GTK4 editor for appearance colors and coordinated theme presets."""
 from __future__ import annotations
 
 from collections import defaultdict
@@ -6,6 +6,11 @@ import subprocess
 import sys
 
 from . import fields
+from .catalog import COMPONENTS, LABELS
+from .engine import apply_choice
+from .icon_catalog import (ICON_COLLECTIONS, POINTER_COLLECTIONS,
+                           available_collections)
+from .themes import FAMILIES
 
 
 WAYBAR_CATEGORY_ORDER = (
@@ -13,6 +18,28 @@ WAYBAR_CATEGORY_ORDER = (
     'Taskview / Apps', 'Expanded / Revealed Apps', 'Clock', 'Monitor Buttons',
     'Tray', 'System', 'Expanded / Revealed System', 'Notifications', 'Lock', 'Power',
 )
+
+GRAMMAR_LABELS = {
+    'gtk3-css-color': 'GTK3 color',
+    'gtk4-css-color': 'GTK4 color',
+    'pango-color': 'Pango color',
+    'qt-color': 'Qt color',
+    'mako-color': 'Mako color',
+    'mako-progress': 'Mako progress color',
+    'fuzzel-rgba': 'Fuzzel RGBA',
+    'foot-rgb': 'Foot RGB',
+    'kitty-color': 'Kitty color',
+    'swaylock-rgb': 'Swaylock RGB',
+    'swaylock-rgba': 'Swaylock RGBA',
+    'alpha': 'opacity',
+    'decimal': 'number',
+}
+
+
+def grammar_description(grammars):
+    """Return consumer formats without exposing registry identifiers."""
+    labels = [GRAMMAR_LABELS.get(grammar, 'color value') for grammar in grammars]
+    return ', '.join(dict.fromkeys(labels))
 
 
 def main() -> int:
@@ -38,6 +65,16 @@ def main() -> int:
             self._draft = dict(self._initial)
             self._rows = []
             self._categories = []
+            self._preset_targets = [
+                ('Desktop theme', 'theme'),
+                *[(label, key) for key, label in COMPONENTS.items()],
+                ('Icon theme', 'icon'),
+                ('Pointer theme', 'pointer'),
+            ]
+            self._preset_options = []
+            self._entry_sizes = Gtk.SizeGroup.new(Gtk.SizeGroupMode.HORIZONTAL)
+            self._color_button_sizes = Gtk.SizeGroup.new(Gtk.SizeGroupMode.HORIZONTAL)
+            self._reset_button_sizes = Gtk.SizeGroup.new(Gtk.SizeGroupMode.HORIZONTAL)
 
             root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
             root.set_margin_top(16)
@@ -48,7 +85,7 @@ def main() -> int:
 
             header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
             root.append(header)
-            heading = Gtk.Label(label='Installed native colors')
+            heading = Gtk.Label(label='Appearance colors')
             heading.set_xalign(0)
             heading.set_hexpand(True)
             heading.add_css_class('title-2')
@@ -73,6 +110,38 @@ def main() -> int:
             self._target_label.add_css_class('dim-label')
             selector_row.append(self._target_label)
 
+            preset_frame = Gtk.Frame(label='Theme presets')
+            root.append(preset_frame)
+            preset_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            preset_box.set_margin_top(10)
+            preset_box.set_margin_bottom(10)
+            preset_box.set_margin_start(10)
+            preset_box.set_margin_end(10)
+            preset_frame.set_child(preset_box)
+            preset_help = Gtk.Label(
+                label='Apply a coordinated preset to one component, or choose a desktop theme family and variant.')
+            preset_help.set_xalign(0)
+            preset_help.set_wrap(True)
+            preset_help.add_css_class('dim-label')
+            preset_box.append(preset_help)
+            preset_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            preset_box.append(preset_row)
+            preset_row.append(Gtk.Label(label='Component'))
+            preset_labels = Gtk.StringList.new([label for label, _key in self._preset_targets])
+            self._preset_component = Gtk.DropDown.new(preset_labels, None)
+            self._preset_component.set_hexpand(True)
+            self._preset_component.connect('notify::selected', self._preset_component_changed)
+            preset_row.append(self._preset_component)
+            preset_row.append(Gtk.Label(label='Preset'))
+            self._preset_variants = Gtk.StringList.new([])
+            self._preset_variant = Gtk.DropDown.new(self._preset_variants, None)
+            self._preset_variant.set_hexpand(True)
+            preset_row.append(self._preset_variant)
+            self._preset_apply = Gtk.Button(label='Apply preset')
+            self._preset_apply.add_css_class('suggested-action')
+            self._preset_apply.connect('clicked', self._apply_preset)
+            preset_row.append(self._preset_apply)
+
             scroll = Gtk.ScrolledWindow()
             scroll.set_vexpand(True)
             scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
@@ -96,6 +165,58 @@ def main() -> int:
             footer.append(save)
 
             self._component_changed()
+            self._preset_component_changed()
+
+        @staticmethod
+        def _theme_options():
+            return [(f'{family.label} · {theme.label}', theme.identity)
+                    for family in FAMILIES for theme in family.variants]
+
+        @staticmethod
+        def _asset_options(collections, *, pointer=False):
+            return [(f'{collection.label} · {variant}', variant)
+                    for collection in available_collections(collections, pointer=pointer)
+                    for variant in collection.variants]
+
+        def _preset_component_changed(self, *_args):
+            selected = self._preset_component.get_selected()
+            if selected >= len(self._preset_targets):
+                self._preset_options = []
+            else:
+                _label, target = self._preset_targets[selected]
+                if target == 'theme':
+                    self._preset_options = self._theme_options()
+                elif target == 'icon':
+                    self._preset_options = self._asset_options(ICON_COLLECTIONS)
+                elif target == 'pointer':
+                    self._preset_options = self._asset_options(POINTER_COLLECTIONS, pointer=True)
+                else:
+                    self._preset_options = [(label, identity) for identity, label in LABELS.items()]
+            labels = [label for label, _identity in self._preset_options]
+            self._preset_variants.splice(0, self._preset_variants.get_n_items(), labels)
+            self._preset_variant.set_selected(0 if labels else Gtk.INVALID_LIST_POSITION)
+            self._preset_apply.set_sensitive(bool(labels))
+
+        def _apply_preset(self, *_args):
+            selected = self._preset_component.get_selected()
+            variant = self._preset_variant.get_selected()
+            if selected >= len(self._preset_targets) or variant >= len(self._preset_options):
+                return
+            _label, target = self._preset_targets[selected]
+            variant_label, identity = self._preset_options[variant]
+            argv = (['theme', identity] if target == 'theme'
+                    else ['apply', 'icon', identity] if target == 'icon'
+                    else ['apply', 'pointer', identity] if target == 'pointer'
+                    else ['apply', target, identity])
+            try:
+                warnings = apply_choice(argv)
+                self._initial = fields.current_values(self._registry)
+                self._draft = dict(self._initial)
+                self._component_changed(remember=False)
+                self._status.set_text('Applied preset: ' + variant_label
+                                      + (('\n' + '\n'.join(warnings)) if warnings else ''))
+            except (OSError, ValueError, RuntimeError, KeyError, subprocess.SubprocessError) as error:
+                self._show_error('Preset was not applied: ', error)
 
         def _remember_rows(self):
             for row in self._rows:
@@ -152,37 +273,42 @@ def main() -> int:
             label = Gtk.Label(label=field['label'])
             label.set_xalign(0)
             label.set_hexpand(True)
-            label.set_tooltip_text(field['key'])
+            label.set_tooltip_text('Editable color: ' + field['label'])
             heading.append(label)
             targets = sum(1 for mapping in field['mappings'] if mapping['path'].startswith('/'))
-            target_text = ('greeter + native' if targets and targets < len(field['mappings'])
-                           else 'greeter' if targets else 'native')
+            target_text = ('greeter + desktop' if targets and targets < len(field['mappings'])
+                           else 'greeter' if targets else 'desktop')
             target = Gtk.Label(label=target_text)
             target.add_css_class('dim-label')
             heading.append(target)
             entry = Gtk.Entry()
             entry.set_text(self._draft[field['key']])
-            entry.set_hexpand(True)
+            entry.set_width_chars(20)
+            entry.set_max_width_chars(20)
             grammars = tuple(dict.fromkeys(mapping['grammar'] for mapping in field['mappings']))
-            grammar_hint = ', '.join(grammars)
-            entry.set_tooltip_text(field['key'] + ' — native format: ' + grammar_hint)
+            grammar_hint = grammar_description(grammars)
+            entry.set_tooltip_text('Format: ' + grammar_hint)
+            self._entry_sizes.add_widget(entry)
             heading.append(entry)
             if field['type'] not in ('alpha', 'decimal'):
+                button = Gtk.ColorDialogButton.new(Gtk.ColorDialog())
+                button.set_tooltip_text('Choose a color; the text value remains editable')
                 try:
-                    button = Gtk.ColorDialogButton.new(Gtk.ColorDialog())
-                    button.set_tooltip_text('Choose a color; the text value remains editable')
-                    button.set_rgba(fields.color_to_rgba(entry.get_text(), field['type'], grammars))
-                    button.connect('notify::rgba', self._color_changed, entry, field)
-                    heading.append(button)
+                    preview = fields.color_to_rgba(entry.get_text(), field['type'], grammars)
                 except (ValueError, TypeError):
-                    # The entry remains the authoritative editor for formats
-                    # that GTK cannot preview, such as Crystal-Dock ARGB.
-                    pass
+                    preview = fields.fallback_rgba()
+                button.set_rgba(preview)
+                button.set_size_request(38, -1)
+                self._color_button_sizes.add_widget(button)
+                button.connect('notify::rgba', self._color_changed, entry, field)
+                heading.append(button)
             reset = Gtk.Button(label='Reset')
             reset.set_tooltip_text('Restore the installed base theme value')
+            reset.set_size_request(72, -1)
+            self._reset_button_sizes.add_widget(reset)
             reset.connect('clicked', lambda *_: entry.set_text(field['default']))
             heading.append(reset)
-            hint = Gtk.Label(label=f"{field['key']}  ·  native: {grammar_hint}")
+            hint = Gtk.Label(label=f"{target_text.capitalize()} color · {grammar_hint}")
             hint.set_xalign(0)
             hint.add_css_class('dim-label')
             frame.append(hint)
@@ -202,8 +328,7 @@ def main() -> int:
                 visible = False
                 for row in category['rows']:
                     field = row['field']
-                    match = (not needle or needle in field['key'].casefold()
-                             or needle in field['label'].casefold()
+                    match = (not needle or needle in field['label'].casefold()
                              or needle in field['category'].casefold())
                     row['widget'].set_visible(match)
                     visible = visible or match
@@ -240,6 +365,10 @@ def main() -> int:
 
         def _show_error(self, prefix, error):
             message = ''.join(char if char.isprintable() else '?' for char in str(error))
+            for key in self._field_by_key:
+                message = message.replace(key, 'selected color')
+            for grammar, label in GRAMMAR_LABELS.items():
+                message = message.replace(grammar, label)
             self._status.set_text(prefix + message[:300])
 
     class AppearanceApplication(Gtk.Application):

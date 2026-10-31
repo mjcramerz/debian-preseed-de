@@ -1,0 +1,70 @@
+{
+  "schema": 1,
+  "execution": "unexecuted source fixtures; do not run on the development host",
+  "baseline": "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env",
+  "cases": [
+    {
+      "name": "target-python-boundary",
+      "mutation": "d-i has no python3; target pkgsel includes python3",
+      "expected": "invoke target /usr/bin/python3 through run_in_target with a private /tmp staging directory; never execute Python directly in d-i"
+    },
+    {
+      "name": "tooltip-size-mismatch",
+      "replace": {"LABWC_WAYBAR_INTERNAL_TOOLTIP_FONT_SIZE": "12", "LABWC_WAYBAR_EXTERNAL_TOOLTIP_FONT_SIZE": "14"},
+      "expected_status": 1,
+      "expected_error": "native Waybar GTK popup geometry must match INTERNAL/EXTERNAL: TOOLTIP_FONT_SIZE",
+      "output": "absent"
+    },
+    {
+      "name": "independent-bar-sizes",
+      "replace": {"LABWC_WAYBAR_INTERNAL_HEIGHT": "42", "LABWC_WAYBAR_EXTERNAL_HEIGHT": "46"},
+      "expected_status": 0,
+      "expected": "preserve distinct INTERNAL and EXTERNAL bar dimensions in the render map"
+    },
+    {
+      "name": "missing-value",
+      "remove": ["LABWC_WAYBAR_INTERNAL_APP_ICON_SIZE"],
+      "expected_status": 1,
+      "output": "absent"
+    },
+    {
+      "name": "duplicate-value",
+      "duplicate": "LABWC_WAYBAR_INTERNAL_HEIGHT",
+      "expected_status": 1,
+      "output": "absent"
+    },
+    {
+      "name": "noncanonical-integer",
+      "replace": {"LABWC_WAYBAR_EXTERNAL_HEIGHT": "046"},
+      "expected_status": 1,
+      "output": "absent"
+    },
+    {
+      "name": "unsafe-css-value",
+      "replace": {"LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_X": "12; color: red"},
+      "expected_status": 1,
+      "output": "absent"
+    },
+    {
+      "name": "exclusive-map-publication",
+      "mutation": "map.tsv exists before the validator opens it",
+      "expected_status": 1,
+      "expected": "keep the existing bytes and refuse replacement"
+    },
+    {
+      "name": "retry-with-new-values",
+      "mutation": "a prior validated map exists but the current literal geometry snapshot differs",
+      "expected": "validate the current snapshot and replace the cache only after target Python succeeds"
+    },
+    {
+      "name": "validator-timeout",
+      "mutation": "target validator does not terminate within 10 seconds",
+      "expected": "timeout sends TERM and then KILL after 2 seconds; no consumer receives a partial render map"
+    },
+    {
+      "name": "native-menu-directory",
+      "mutation": "native menus are staged in waybar/gtk and waybar/menus is absent",
+      "expected": "the installation verifier reads waybar/gtk and does not use the obsolete menus path"
+    }
+  ]
+}

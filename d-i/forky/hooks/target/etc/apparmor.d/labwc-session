@@ -118,6 +118,8 @@ profile waybar /usr/{bin/waybar,local/libexec/labwc-waybar-exec} flags=(attach_d
   /usr/local/lib/python3.14/dist-packages/ r,
   # Click callbacks dispatch through this user manager, not panel-owned children.
   owner /run/user/[0-9]*/systemd/private rw,
+  owner /run/user/[0-9]*/labwc-fuzzel.pid r,
+  owner /run/user/[0-9]*/labwc-main-menu.pid r,
   /usr/local/bin/labwc-system-menu-action rPx -> labwc-system-menu-action,
   /usr/local/libexec/labwc-waybar-run rPx -> labwc-waybar-run,
   # Keep direct/future panel btop launches in the dedicated monitor domain;
@@ -152,6 +154,8 @@ profile waybar /usr/{bin/waybar,local/libexec/labwc-waybar-exec} flags=(attach_d
   signal (receive) set=(int, term, hup, usr1, usr2, kill) peer=unconfined,
   # Keyboard refresh: glibc RTMIN+7 (41); AppArmor's RTMIN base is 32.
   signal (receive) set=(rtmin+9) peer=unconfined,
+  # Main-menu marker refresh: Waybar signal 8 maps to AppArmor rtmin+10.
+  signal (receive) set=(rtmin+10) peer=unconfined,
   signal (send) set=(chld) peer=unconfined,
   include if exists <local/usr.bin.waybar>
 }

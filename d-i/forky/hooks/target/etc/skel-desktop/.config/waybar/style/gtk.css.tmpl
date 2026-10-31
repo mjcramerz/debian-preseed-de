@@ -36,16 +36,19 @@ menuitem image {
   min-height: __INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_HEIGHT__px;
 }
 
+menuitem:hover:not(:disabled),
 menuitem:selected:not(:disabled) {
   background: __THEME_WAYBAR_DROPDOWN_MENU_HOVER_BACKGROUND_COLOR__;
   color: __THEME_WAYBAR_DROPDOWN_MENU_HOVER_TEXT_COLOR__;
   box-shadow: inset __INSTALLER_LABWC_WAYBAR_SHARED_MENU_HOVER_SHADOW__ __THEME_WAYBAR_DROPDOWN_MENU_HOVER_SHADOW_COLOR__;
 }
 
+menuitem:hover:not(:disabled) label,
 menuitem:selected:not(:disabled) label {
   color: __THEME_WAYBAR_DROPDOWN_MENU_HOVER_TEXT_COLOR__;
 }
 
+menuitem:hover:not(:disabled) image,
 menuitem:selected:not(:disabled) image {
   color: __THEME_WAYBAR_DROPDOWN_MENU_HOVER_ICON_COLOR__;
 }
@@ -65,6 +68,7 @@ menuitem arrow.left {
   -gtk-icon-source: -gtk-icontheme("__THEME_WAYBAR_DROPDOWN_SUBMENU_LEFT_ICON_NAME__");
 }
 
+menuitem:hover:not(:disabled) arrow,
 menuitem:selected:not(:disabled) arrow {
   color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ARROW_HOVER_ICON_COLOR__;
 }
@@ -153,7 +157,5 @@ menu.submenu separator {
 }
 
 menu * {
-  border-radius: __INSTALLER_LABWC_WAYBAR_SHARED_POPUP_RESET_SIZE__px;
-  min-height: __INSTALLER_LABWC_WAYBAR_SHARED_POPUP_RESET_SIZE__px;
   font-size: __INSTALLER_LABWC_WAYBAR_SHARED_MENU_FONT_SIZE__px;
 }

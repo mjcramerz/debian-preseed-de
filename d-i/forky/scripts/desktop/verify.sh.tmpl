@@ -2684,7 +2684,7 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
                 require(click[click.index("--") + 1:] == expected_click,
                         "wrong secondary click action: " + name)
             require(entry.get("menu-file") == "~/.config/waybar/gtk/" + name + "-menu.xml", "wrong menu path")
-            path = config / "waybar" / "menus" / (name + "-menu.xml")
+            path = config / "waybar" / "gtk" / (name + "-menu.xml")
             info = path.lstat()
             require(stat.S_ISREG(info.st_mode) and info.st_uid == uid and not info.st_mode & 0o022,
                     "unsafe menu file: " + str(path))

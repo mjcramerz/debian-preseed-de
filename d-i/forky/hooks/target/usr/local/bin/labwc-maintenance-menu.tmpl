@@ -69,14 +69,17 @@ def call_helper(path: str, args: list[str], label: str, *, propagate_close: bool
         raise MaintenanceError(f"{label} is not installed")
     try:
         result = run([path, *args])
-    except (OSError, subprocess.TimeoutExpired):
+    except subprocess.TimeoutExpired:
+        print(f"warning: {label} timed out: {args[0] if args else 'unknown'}", file=sys.stderr)
+        return 124
+    except OSError:
         print(f"warning: {label} was unavailable: {args[0] if args else 'unknown'}", file=sys.stderr)
-        return 0
+        return 1
     if result.returncode:
         if propagate_close and result.returncode == 3:
             raise SystemExit(3)
         print(f"warning: {label} returned status {result.returncode}: {args[0] if args else 'unknown'}", file=sys.stderr)
-    return 0
+    return result.returncode
 
 
 def system_action(*args: str) -> int:
@@ -407,12 +410,28 @@ def recovery_menu() -> None:
             else: recovery_action(command)
 
 
+def requested_action(category: str, action: str) -> int:
+    """Open the specific reviewed workflow selected in the native system menu."""
+    if category == "system" and action in {
+        "nvme-smart-health", "nvme-firmware-slots", "nvme-identify-data",
+    }:
+        device = choose_nvme()
+        if device is not None:
+            return system_action(action, device)
+        return 0
+    if category == "recovery" and action == "create-timeshift-snapshot":
+        return confirmed_recovery(action, "Create Timeshift recovery snapshot")
+    raise MaintenanceError("unsupported maintenance action")
+
+
 def main(argv: list[str]) -> int:
     if not os.access(PICKER, os.X_OK): raise MaintenanceError("labwc-fuzzel is not installed")
     if not os.access(SYSTEMCTL, os.X_OK): raise MaintenanceError("systemctl is not installed")
     if not os.access(IP, os.X_OK): raise MaintenanceError("ip is not installed")
     if os.getuid() == 0: raise MaintenanceError("labwc-maintenance-menu must run as the logged-in desktop user")
     os.environ["LABWC_MENU_ACTION_WAIT"] = "1"
+    if len(argv) == 2:
+        return requested_action(argv[0], argv[1])
     if len(argv) > 1 or (argv and argv[0] not in {"security", "system", "recovery"}):
         raise MaintenanceError(f"unsupported maintenance category: {argv[0] if argv else ''}")
     requested = argv[0] if argv else None

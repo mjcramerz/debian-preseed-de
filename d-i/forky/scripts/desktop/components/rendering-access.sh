@@ -79,7 +79,13 @@ desktop_render_target_template_impl() {
     desktop_assert_no_unresolved_template_placeholders "$tmp_rendered" "desktop template ${source_path}"
   fi
   ensure_target_asset_parent "$target_path"
-  install -m "$mode" "$tmp_rendered" "$(target_asset_host_path "$target_path")"
+  rendered_target=$(target_asset_host_path "$target_path")
+  install -m "$mode" "$tmp_rendered" "$rendered_target"
+  # Rendering is performed in several installer execution contexts. Make the
+  # ownership contract explicit so a copied or fakeroot-backed target cannot
+  # leave root-owned native configuration attached to an unmapped UID.
+  chown root:root "$rendered_target"
+  chmod "$mode" "$rendered_target"
   rm -f "$tmp_source" "$tmp_rendered"
   desktop_log "rendered_template source=${source_path} target=${target_path} mode=${mode}"
 }
@@ -415,4 +421,3 @@ done
     "desktop man-db cache directory"
   desktop_log "staged_desktop_var_cache policy=/etc/tmpfiles.d/50-desktop-var-cache.conf man_policy=/etc/tmpfiles.d/man-db.conf"
 }
-

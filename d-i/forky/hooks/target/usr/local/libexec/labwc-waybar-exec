@@ -6,7 +6,10 @@ widen the destination helper profiles to accept inherited rfkill, procfs or
 menu-file descriptors. Only the fixed read-only status calls exist.
 """
 from __future__ import annotations
+import json
 import os
+from pathlib import Path
+import stat
 import sys
 
 COMMANDS = {
@@ -46,10 +49,45 @@ def close_inherited_fds() -> None:
     os.closerange(3, 2147483647)
 
 
+def menu_state() -> None:
+    """Emit the state of the private Fuzzel PID marker for the launcher CSS."""
+    uid = os.getuid()
+    runtime = Path('/run/user') / str(uid)
+    active = False
+    try:
+        runtime_info = runtime.lstat()
+        if (stat.S_ISDIR(runtime_info.st_mode) and runtime_info.st_uid == uid
+                and stat.S_IMODE(runtime_info.st_mode) == 0o700):
+            for name in ('labwc-fuzzel.pid', 'labwc-main-menu.pid'):
+                marker = runtime / name
+                try:
+                    descriptor = os.open(marker, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+                    with os.fdopen(descriptor, 'rb') as stream:
+                        marker_info = os.fstat(stream.fileno())
+                        if (not stat.S_ISREG(marker_info.st_mode) or marker_info.st_uid != uid
+                                or marker_info.st_nlink != 1
+                                or stat.S_IMODE(marker_info.st_mode) != 0o600):
+                            continue
+                        value = stream.read(32)
+                    if value.endswith(b'\n') and value[:-1].isdigit() and int(value[:-1]) > 0:
+                        active = True
+                        break
+                except (FileNotFoundError, OSError, ValueError):
+                    continue
+    except (OSError, ValueError):
+        active = False
+    print(json.dumps({'text': 'Menu', 'class': 'active' if active else 'idle',
+                      'tooltip': 'Main menu is open' if active else 'Main menu'}), flush=True)
+
+
 def main(arguments: list[str]) -> None:
-    argv = command(arguments)
     if os.getuid() == 0 or os.geteuid() != os.getuid():
         raise ValueError("status helpers require an unprivileged desktop user")
+    if arguments == ['menu-state']:
+        close_inherited_fds()
+        menu_state()
+        return
+    argv = command(arguments)
     close_inherited_fds()
     # Fixed argv, no shell expansion, no eval, no command or profile override.
     environment = {key: value for key, value in os.environ.items()

@@ -11,6 +11,7 @@ validation artifacts.
 from __future__ import annotations
 
 import ast
+from concurrent.futures import ThreadPoolExecutor
 import configparser
 import json
 import re
@@ -37,6 +38,8 @@ APPEARANCE_REGISTRY = TARGET_ROOT / 'usr/local/share/labwc-appearance/fields.jso
 APPEARANCE_FIELDS = TARGET_ROOT / 'usr/local/lib/python3.14/dist-packages/labwc_appearance/fields.py'
 APPEARANCE_NATIVE = TARGET_ROOT / 'usr/local/lib/python3.14/dist-packages/labwc_appearance/native.py'
 THEME_FETCH_CORE = ROOT / 'd-i/forky/scripts/late/core.sh'
+WAYBAR_GEOMETRY_SCHEMA = ROOT / 'd-i/forky/scripts/desktop/waybar-geometry.tsv'
+WAYBAR_PROFILE_ROOT = ROOT / 'd-i/forky/hosts/profiles'
 THEME_TOKEN = re.compile(rb'__THEME_([A-Z0-9_]+)__')
 THEME_PREFIX = b'__THEME_'
 REGISTRY_TOKEN = re.compile(r'__(?:THEME|INSTALLER)_[A-Z0-9_]+__')
@@ -112,12 +115,14 @@ BINARY_SUFFIXES = frozenset({
 })
 
 
-def _run(command: list[str], *, timeout: int = 15) -> subprocess.CompletedProcess[str]:
+def _run(command: list[str], *, timeout: int = 15,
+         input_text: str | None = None) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
             command,
             cwd=ROOT,
             capture_output=True,
+            input=input_text,
             text=True,
             encoding='utf-8',
             errors='replace',
@@ -221,25 +226,78 @@ def _shellcheck_batch(errors: list[str], executable: str, kind: str,
                       paths: list[Path], *, unbound: bool) -> None:
     if not paths:
         return
-    command = [executable, '--shell=' + kind, '--format=json']
-    command.extend(['--severity=warning', '--include=SC2154'] if unbound else ['--severity=error'])
-    command.extend(str(path) for path in paths)
-    result = _run(command, timeout=60)
-    if result.returncode not in (0, 1):
-        _report_command(errors, f'ShellCheck {kind}', result)
-        return
-    if not result.stdout.strip():
-        return
-    try:
-        messages = json.loads(result.stdout)
-    except json.JSONDecodeError as error:
-        errors.append(f'ShellCheck {kind} returned malformed JSON: {error}')
-        return
-    for message in messages:
-        errors.append(
-            f"{message.get('file', '<unknown>')}:{message.get('line', '?')}: "
-            f"ShellCheck SC{message.get('code', '?')}: {message.get('message', 'error')}"
-        )
+
+    def check_one(path: Path) -> tuple[Path, list[subprocess.CompletedProcess[str]]]:
+        input_text = None
+        shellcheck_path = str(path)
+        if _logical_suffix(path) == '.env':
+            # Host profiles are assignment-only data with a handful of
+            # intentional cross-file expansions. ShellCheck's data-flow graph
+            # becomes superlinear on the full 1,600-line files. Syntax is still
+            # checked against the complete source above; feed ShellCheck only
+            # expansion lines, preserving their original line numbers, for the
+            # error and SC2154 contracts.
+            source_lines = _read_text(path).splitlines()
+            data_only = all(
+                not line.strip()
+                or line.lstrip().startswith('#')
+                or re.fullmatch(r'(?:export\s+)?[A-Z][A-Z0-9_]*=.*', line)
+                for line in source_lines
+            )
+            if data_only:
+                compact: list[str] = []
+                for line_number, line in enumerate(source_lines, 1):
+                    if '$' not in line:
+                        continue
+                    compact.extend([''] * (line_number - 1 - len(compact)))
+                    compact.append(line)
+                input_text = '\n'.join(compact) + '\n' if compact else '\n'
+                shellcheck_path = '-'
+        commands = [[
+            executable,
+            '--norc',
+            '--shell=' + kind,
+            '--format=json',
+            '--severity=error',
+            shellcheck_path,
+        ]]
+        if unbound:
+            commands.append([
+                executable,
+                '--norc',
+                '--shell=' + kind,
+                '--format=json',
+                '--severity=warning',
+                '--include=SC2154',
+                shellcheck_path,
+            ])
+        return path, [_run(command, timeout=30, input_text=input_text) for command in commands]
+
+    # Analyze each source independently. A bounded worker pool keeps the total
+    # audit time proportional to the slowest changed source while limiting
+    # process and memory pressure on the installer checkout.
+    worker_count = min(2, len(paths))
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        results = list(executor.map(check_one, paths))
+    for path, command_results in results:
+        for result in command_results:
+            if result.returncode not in (0, 1):
+                _report_command(errors, f'ShellCheck {kind} {path.relative_to(ROOT)}', result)
+                continue
+            if not result.stdout.strip():
+                continue
+            try:
+                messages = json.loads(result.stdout)
+            except json.JSONDecodeError as error:
+                errors.append(
+                    f'ShellCheck {kind} {path.relative_to(ROOT)} returned malformed JSON: {error}'
+                )
+                continue
+            for message in messages:
+                errors.append(
+                    f"{path.relative_to(ROOT)}:{message.get('line', '?')}: "
+                    f"ShellCheck SC{message.get('code', '?')}: {message.get('message', 'error')}"
+                )
 
 
 def check_shell(paths: list[Path], errors: list[str], counts: dict[str, int]) -> None:
@@ -269,17 +327,12 @@ def check_shell(paths: list[Path], errors: list[str], counts: dict[str, int]) ->
             if result.returncode:
                 _report_command(errors, f'{path.relative_to(ROOT)}: shell syntax', result)
 
-    for kind in ('sh', 'bash'):
-        _shellcheck_batch(
-            errors, shellcheck, kind,
-            [path for path, source_kind in sources if source_kind == kind],
-            unbound=False,
-        )
     counts['shell_unbound_sources'] = len(sources)
     for kind in ('sh', 'bash'):
         _shellcheck_batch(
             errors, shellcheck, kind,
             [path for path, source_kind in sources if source_kind == kind],
+            # The per-file warning pass above retains SC2154 and all errors.
             unbound=True,
         )
 
@@ -614,6 +667,10 @@ def check_waybar_render_contract(paths: list[Path], errors: list[str],
         return
     try:
         renderer_text = _read_text(renderer)
+        if 'run_in_target "validate Waybar geometry with target Python"' not in renderer_text:
+            errors.append(f'{renderer.relative_to(ROOT)}: geometry validator must run through target run_in_target')
+        if re.search(r'/usr/bin/python3\s+-I\s+-B\s+"\$TMP_ENV_DIR/waybar_geometry\.py"', renderer_text):
+            errors.append(f'{renderer.relative_to(ROOT)}: geometry validator is being executed in d-i')
         if re.search(r'(?m)^\s*desktop_render_waybar_asset\s+config\s*$', renderer_text):
             errors.append(f'{renderer.relative_to(ROOT)}: config.tmpl is rendered once without its placeholder map')
         if 'desktop_render_waybar_config_asset "$wb_config_asset"' not in renderer_text:
@@ -665,6 +722,99 @@ def check_waybar_render_contract(paths: list[Path], errors: list[str],
     except (OSError, UnicodeError) as error:
         errors.append(f'{renderer.relative_to(ROOT)}: Waybar render contract: {error}')
     counts['waybar_render_contract'] = 1
+
+
+def check_waybar_geometry_contract(paths: list[Path], errors: list[str],
+                                   counts: dict[str, int]) -> None:
+    """Validate profile geometry before the installer reaches target Python."""
+    changed_profiles = [
+        path for path in paths
+        if path.is_relative_to(WAYBAR_PROFILE_ROOT) and path.suffix == '.env'
+    ]
+    geometry_inputs_changed = (
+        WAYBAR_GEOMETRY_SCHEMA in paths
+        or ROOT / 'd-i/forky/scripts/desktop/waybar_geometry.py' in paths
+        or ROOT / 'd-i/forky/scripts/desktop/components/core-renderers.sh.tmpl' in paths
+    )
+    if not changed_profiles and not geometry_inputs_changed:
+        counts['waybar_geometry_profiles'] = 0
+        return
+    profiles = changed_profiles or sorted(WAYBAR_PROFILE_ROOT.glob('*.env'))
+    try:
+        specs: list[tuple[str, str, int, int]] = []
+        for line_number, raw in enumerate(_read_text(WAYBAR_GEOMETRY_SCHEMA).splitlines(), 1):
+            if not raw or raw.startswith('#'):
+                continue
+            fields = raw.split('\t')
+            if len(fields) != 4:
+                raise ValueError(f'{WAYBAR_GEOMETRY_SCHEMA}:{line_number}: malformed schema row')
+            key, kind, minimum, maximum = fields
+            if re.fullmatch(r'[A-Z][A-Z0-9_]*', key) is None or kind not in {'uint', 'px-tuple'}:
+                raise ValueError(f'{WAYBAR_GEOMETRY_SCHEMA}:{line_number}: invalid geometry schema key')
+            specs.append((key, kind, int(minimum), int(maximum)))
+        expected = {
+            f'LABWC_WAYBAR_{output_class}_{key}'
+            for output_class in ('INTERNAL', 'EXTERNAL')
+            for key, _kind, _minimum, _maximum in specs
+        }
+        assignment = re.compile(
+            r'(?:export\s+)?(LABWC_WAYBAR_(?:INTERNAL|EXTERNAL)_[A-Z][A-Z0-9_]*)="([^"\r\n]*)"$'
+        )
+        for profile in profiles:
+            values: dict[str, str] = {}
+            for line_number, raw in enumerate(_read_text(profile).splitlines(), 1):
+                if not raw.startswith((
+                    'LABWC_WAYBAR_INTERNAL_', 'LABWC_WAYBAR_EXTERNAL_',
+                    'export LABWC_WAYBAR_INTERNAL_', 'export LABWC_WAYBAR_EXTERNAL_',
+                )):
+                    continue
+                match = assignment.fullmatch(raw)
+                if match is None:
+                    raise ValueError(f'{profile.relative_to(ROOT)}:{line_number}: malformed Waybar geometry assignment')
+                key, value = match.groups()
+                if key in values:
+                    raise ValueError(f'{profile.relative_to(ROOT)}:{line_number}: duplicate {key}')
+                values[key] = value
+            if set(values) != expected:
+                missing = sorted(expected - set(values))
+                extra = sorted(set(values) - expected)
+                raise ValueError(
+                    f'{profile.relative_to(ROOT)}: geometry key set mismatch '
+                    f'missing={missing[:3]} extra={extra[:3]}'
+                )
+            for output_class in ('INTERNAL', 'EXTERNAL'):
+                for key, kind, minimum, maximum in specs:
+                    name = f'LABWC_WAYBAR_{output_class}_{key}'
+                    value = values[name]
+                    if kind == 'uint':
+                        if re.fullmatch(r'(?:0|[1-9][0-9]*)', value) is None:
+                            raise ValueError(f'{profile.relative_to(ROOT)}: non-canonical {name}')
+                        number = int(value)
+                        if not minimum <= number <= maximum:
+                            raise ValueError(f'{profile.relative_to(ROOT)}: out-of-range {name}')
+                    else:
+                        parts = value.split()
+                        if len(parts) != minimum or any(
+                            re.fullmatch(r'(?:0|[1-9][0-9]*)px', part) is None
+                            or int(part[:-2]) > maximum for part in parts
+                        ):
+                            raise ValueError(f'{profile.relative_to(ROOT)}: invalid {name}')
+            for key, _kind, _minimum, _maximum in specs:
+                if key.startswith('MENU_BUTTON_'):
+                    continue
+                if key.startswith(('MENU_', 'POPUP_', 'TOOLTIP_')):
+                    internal = values[f'LABWC_WAYBAR_INTERNAL_{key}']
+                    external = values[f'LABWC_WAYBAR_EXTERNAL_{key}']
+                    if internal != external:
+                        raise ValueError(
+                            f'{profile.relative_to(ROOT)}: native Waybar GTK popup geometry must match '
+                            f'INTERNAL/EXTERNAL: {key}'
+                        )
+            if int(values['LABWC_WAYBAR_INTERNAL_HEIGHT']) >= int(values['LABWC_WAYBAR_EXTERNAL_HEIGHT']):
+                raise ValueError(f'{profile.relative_to(ROOT)}: internal Waybar height must be smaller than external')
+    except (OSError, UnicodeError, TypeError, ValueError) as error:
+        errors.append(f'{WAYBAR_GEOMETRY_SCHEMA.relative_to(ROOT)}: geometry contract: {error}')
+    counts['waybar_geometry_profiles'] = len(profiles)
 
 
 def check_payload_archive(paths: list[Path], errors: list[str], counts: dict[str, int]) -> None:
@@ -839,6 +989,7 @@ def main() -> int:
         check_appearance_registry(paths, errors, counts)
         check_appearance_render_preservation(paths, errors, counts)
         check_waybar_render_contract(paths, errors, counts)
+        check_waybar_geometry_contract(paths, errors, counts)
         check_apparmor(paths, errors, counts)
         check_payload_archive(paths, errors, counts)
         check_diff(errors)

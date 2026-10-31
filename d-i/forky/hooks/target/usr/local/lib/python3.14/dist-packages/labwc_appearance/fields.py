@@ -676,25 +676,46 @@ def current_values(registry: dict | None = None) -> dict[str, str]:
     return result
 
 
+def fallback_rgba():
+    """Return a stable preview color when a native consumer accepts a value GTK cannot parse."""
+    from gi.repository import Gdk
+    rgba = Gdk.RGBA()
+    if not rgba.parse('#9b72e8'):
+        raise ValueError('GTK cannot parse the appearance preview fallback')
+    return rgba
+
+
 def color_to_rgba(value: str, value_type: str, grammars: Iterable[str] = ()):
     """Convert a native value to a Gdk.RGBA preview using its mapping grammar."""
     from gi.repository import Gdk
     grammars = tuple(grammars)
-    text = value
+    text = value.strip()
+    if ('fuzzel-rgba' in grammars or 'foot-rgb' in grammars
+            or 'swaylock-rgb' in grammars or 'swaylock-rgba' in grammars):
+        text = '#' + text.removeprefix('#')
     if value_type == 'hex6':
-        text = '#' + text
+        text = '#' + text.removeprefix('#')
     elif value_type == 'hex8':
-        text = '#' + text
+        text = '#' + text.removeprefix('#')
     elif value_type in ('swaylock-rgb', 'swaylock-rgba'):
-        text = '#' + value
+        text = '#' + value.removeprefix('#')
     elif value_type == 'hash8' and ('qt-color' in grammars or not tuple(grammars)):
         # Qt QColor's eight-digit form is #AARRGGBB, while Gdk uses #RRGGBBAA.
-        text = '#' + value[3:] + value[1:3]
+        text = '#' + value.removeprefix('#')[2:] + value.removeprefix('#')[:2]
     elif value_type == 'mako-progress':
         text = value.removeprefix('over ')
+    if 'kitty-color' in grammars and '@' in text:
+        text, _, alpha_text = text.partition('@')
+    else:
+        alpha_text = ''
     rgba = Gdk.RGBA()
     if not rgba.parse(text):
         raise ValueError('value is not a previewable color')
+    if alpha_text:
+        try:
+            rgba.alpha = max(0.0, min(1.0, float(alpha_text)))
+        except ValueError as error:
+            raise ValueError('value has an invalid Kitty opacity') from error
     return rgba
 
 
@@ -711,6 +732,8 @@ def rgba_to_value(rgba, value_type: str, grammars: Iterable[str] = ()) -> str:
         return f'{red:02x}{green:02x}{blue:02x}'
     if value_type == 'hash8' and ('qt-color' in grammars or not tuple(grammars)):
         return f'#{alpha:02x}{red:02x}{green:02x}{blue:02x}'
+    if value_type == 'hash8':
+        return f'#{red:02x}{green:02x}{blue:02x}{alpha:02x}'
     if value_type == 'hex8':
         return f'{red:02x}{green:02x}{blue:02x}{alpha:02x}'
     if value_type == 'swaylock-rgb':
@@ -722,5 +745,12 @@ def rgba_to_value(rgba, value_type: str, grammars: Iterable[str] = ()) -> str:
     if value_type == 'mako-progress':
         return 'over ' + f'#{red:02x}{green:02x}{blue:02x}{alpha:02x}'
     if value_type == 'text-color':
+        if 'kitty-color' in grammars:
+            result = f'#{red:02x}{green:02x}{blue:02x}'
+            return result if alpha == 255 else f'{result}@{rgba.alpha:.3f}'.rstrip('0').rstrip('.')
+        if any(grammar in grammars for grammar in ('gtk3-css-color', 'gtk4-css-color')):
+            if alpha != 255:
+                return f'rgba({red}, {green}, {blue}, {rgba.alpha:.3f}'.rstrip('0').rstrip('.') + ')'
+            return f'#{red:02x}{green:02x}{blue:02x}'
         return f'#{red:02x}{green:02x}{blue:02x}{alpha:02x}'
     raise ValueError('not a color field')
