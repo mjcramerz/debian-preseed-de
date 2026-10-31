@@ -23,6 +23,11 @@
       "expected": "Return failure, issue no replay using the same argv, retain paired transaction diagnostics and require a new snapshot for later reconciliation."
     },
     {
+      "name": "system-controls-click-drawer",
+      "inject": "Click the system leader, then click the settings child while the quick-controls drawer is open.",
+      "expected": "The drawer opens and closes only from the system leader click; the settings child owns the left-click GTK menu; no right-click handler or independent hover reveal remains."
+    },
+    {
       "name": "transient-concurrent-actions",
       "inject": "Two recording/menu actions start concurrently.",
       "expected": "Distinct readable unit names retain each cgroup until its descendants exit; no shared deterministic unit silently replaces another action."
@@ -66,6 +71,21 @@
       "name": "apps-leader-event-conflict",
       "inject": "Add a native GTK menu or click handler to the Apps leader.",
       "expected": "Installation verification rejects the event conflict before activation, preserving native drawer ownership."
+    },
+    {
+      "name": "fuzzel-dismisses-waybar-menu",
+      "inject": "Open a Waybar GTK menu, then invoke a managed Fuzzel launcher from that menu or a hotkey.",
+      "expected": "The launcher requests the Waybar service ExecReload before spawning Fuzzel, waits only for a bounded menu teardown turn without replacing the bar process, and still launches when Waybar is stopped or the request fails."
+    },
+    {
+      "name": "greeter-output-idempotent-modeset",
+      "inject": "Labwc has already auto-enabled the selected greeter connector before the greeter output controller runs.",
+      "expected": "The controller compares the live connector state and skips a redundant atomic modeset when Enabled, Position, Scale, and the requested current mode already match."
+    },
+    {
+      "name": "greeter-output-single-atomic-transaction",
+      "inject": "The greeter has one selected connector and one already-enabled non-selected connector while a page flip is pending.",
+      "expected": "The controller sends one complete output transaction, omits already-disabled connectors, and does not replay per-output commits that can queue behind the pending i915 page flip; a busy or timed-out preferred-mode commit is not immediately retried with a fallback mode."
     },
     {
       "name": "apparmor-pathname-unix-address",

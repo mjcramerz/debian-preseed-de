@@ -278,7 +278,7 @@ window#waybar.internal #quick-controls #network,
 window#waybar.internal #quick-controls #bluetooth,
 window#waybar.internal #quick-controls #custom-system,
 window#waybar.internal #quick-controls #custom-keyboard,
-window#waybar.internal #quick-controls #custom-screenshot {
+window#waybar.internal #quick-controls #custom-screenshot, window#waybar.internal #quick-controls #custom-settings {
   min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_BUTTON_MIN_WIDTH__px;
   margin: 0;
   padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_BUTTON_PADDING_X__px;
@@ -290,7 +290,7 @@ window#waybar.external #quick-controls #network,
 window#waybar.external #quick-controls #bluetooth,
 window#waybar.external #quick-controls #custom-system,
 window#waybar.external #quick-controls #custom-keyboard,
-window#waybar.external #quick-controls #custom-screenshot {
+window#waybar.external #quick-controls #custom-screenshot, window#waybar.external #quick-controls #custom-settings {
   min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_QUICK_CONTROL_BUTTON_MIN_WIDTH__px;
   margin: 0;
   padding-left: __INSTALLER_LABWC_WAYBAR_EXTERNAL_QUICK_CONTROL_BUTTON_PADDING_X__px;
@@ -301,7 +301,7 @@ window#waybar.external #quick-controls #custom-screenshot {
 
 /* System controls, notifications, lock, and power are one session-control
  * class even though the system module lives inside the quick drawer. */
-window#waybar.internal #custom-system,
+window#waybar.internal #custom-system, window#waybar.internal #custom-settings,
 window#waybar.internal #custom-notifications,
 window#waybar.internal #custom-lock,
 window#waybar.internal #custom-power {
@@ -335,7 +335,7 @@ window#waybar.external #clock {
   padding-left: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_X__px;
   padding-right: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_X__px;
 }
-window#waybar.external #custom-system,
+window#waybar.external #custom-system, window#waybar.external #custom-settings,
 window#waybar.external #custom-notifications,
 window#waybar.external #custom-lock,
 window#waybar.external #custom-power {

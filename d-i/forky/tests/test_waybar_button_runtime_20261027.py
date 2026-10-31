@@ -312,7 +312,7 @@ class WaybarSeparationFixtures(unittest.TestCase):
                             ('capture_open_folder', 'open-folder'), ('capture_copy_last_path', 'copy-last-path')):
             self.assertEqual(helper.COMMANDS[key], ('/usr/local/bin/labwc-capture', action))
         root = SOURCE.parents[3] / 'etc/skel-desktop/.config/waybar'
-        entry = json.loads((root / 'modules/system.tmpl').read_text())['custom/system']
+        entry = json.loads((root / 'modules/system.tmpl').read_text())['custom/settings']
         self.assertNotIn('capture_copy_last_path', entry['menu-actions'])
         self.assertIn('capture_screenshot_full', entry['menu-actions'])
         launcher = load_helper('labwc-waybar-run')

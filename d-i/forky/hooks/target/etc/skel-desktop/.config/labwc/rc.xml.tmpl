@@ -3,6 +3,9 @@
   <core>
     <decoration>server</decoration>
     <gap>6</gap>
+    <!-- Keep variable-refresh and tearing paths out of atomic page flips. -->
+    <adaptiveSync>no</adaptiveSync>
+    <allowTearing>no</allowTearing>
     <!-- Labwc must always establish the first usable scanout itself.  The
          managed watcher converges the topology after the Wayland output is
          visible; disabling this makes login depend on a racy helper call and

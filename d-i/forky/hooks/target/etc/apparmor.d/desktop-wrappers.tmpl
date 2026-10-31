@@ -1607,6 +1607,13 @@ profile labwc-fuzzel /usr/local/bin/labwc-fuzzel flags=(attach_disconnected) {
   include if exists <abstractions/hardware-tuning-fuzzel-parent>
   #include <abstractions/wrapper-desktop>
   #include <abstractions/wrapper-python>
+  # The Waybar ExecReload request tears down a mapped GTK menu before Fuzzel
+  # receives focus without replacing the bar process. It uses the current
+  # user's manager only.
+  /usr/bin/systemctl rix,
+  #include <abstractions/dbus-session-strict>
+  network unix stream,
+  owner /run/user/[0-9]*/{bus,systemd/private} rw,
 
   /usr/local/bin/labwc-fuzzel rix,
   /usr/local/libexec/labwc-output-watch rPx -> labwc-output-watch,

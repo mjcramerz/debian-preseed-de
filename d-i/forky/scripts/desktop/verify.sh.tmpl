@@ -2089,6 +2089,10 @@ for config in config_roots:
     for relative in ("systemd/user/waybar.service",):
         require("labwc-workspace-broker" not in (config / relative).read_text(), "retired dependency in " + relative)
     rc = ET.parse(config / "labwc/rc.xml").getroot()
+    require(rc.findtext("core/adaptiveSync") == "no",
+            "Labwc adaptive sync must stay disabled for atomic page-flip stability")
+    require(rc.findtext("core/allowTearing") == "no",
+            "Labwc tearing must stay disabled for atomic page-flip stability")
     count = int(rc.findtext("desktops/number", "0"))
     counts.append(count)
     require(1 <= count <= 12, "unsupported workspace count")
@@ -2647,9 +2651,14 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
         controls = "group/quick-controls"
         require(right[-4:] == [controls, "custom/notifications", "custom/lock", "custom/power"]
                 and right.count("custom/notifications") == 1, "wrong notification button order")
-        require(bar[controls].get("drawer", {}).get("click-to-reveal") is False
-                and bar[controls].get("modules", [None])[0] == "custom/system",
-                "system controls must reveal on hover with the native menu on the leader")
+        require(bar[controls].get("drawer", {}).get("click-to-reveal") is True
+                and bar[controls].get("modules", [None])[0] == "custom/system"
+                and bar[controls].get("modules", [None])[-1:] == ["custom/settings"],
+                "system controls must reveal on click with settings as the menu leader")
+        system_leader = bar["custom/system"]
+        require(not any(key.startswith("on-click") or key in {"menu", "actions"}
+                        for key in system_leader),
+                "system leader must leave the drawer click to Waybar")
         apps = bar["group/apps"]
         require(apps.get("drawer", {}).get("click-to-reveal") is True
                 and apps.get("modules", [None])[0] == "custom/apps",
@@ -2659,8 +2668,9 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
                 "Apps leader must leave button events to its click drawer")
         apps_style = (config / "waybar/style/apps.css").read_text()
         require("#apps:hover #custom-apps" in apps_style
+                and "#apps.expanded #custom-apps" in apps_style
                 and "#custom-apps:hover" not in apps_style,
-                "Apps active styling must follow drawer state, not pointer hover")
+                "Apps active styling must follow drawer state, not a standalone leader hover")
         release_bindings = (
             ("custom/launcher", "on-click-release", "on-click"),
             ("custom/wayscriber", "on-click-release", "on-click"),
@@ -2686,7 +2696,7 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
                                     ("custom/notifications", "notifications", "on-click"),
                                     ("bluetooth", "bluetooth", "on-click"),
                                     ("custom/screenshot", "screenshot", "on-click"),
-                                    ("custom/system", "system", "on-click-right"),
+                                    ("custom/settings", "system", "on-click"),
                                     ("custom/power", "power", "on-click"),
                                     ("clock", "calendar", "on-click-release")):
             entry = bar[module]

@@ -1340,15 +1340,15 @@ sub output_is_present {
 sub apply_output_change {
     my ($wlr_randr, $output_name, @args) = @_;
 
-    for my $attempt (1 .. 3) {
-        return 'stopping' if !session_is_active();
-        my ($ok, $diagnostic) = run_command_capture_stderr($wlr_randr, @args);
-        return 'applied' if $ok;
-        return 'gone' if !output_is_present($wlr_randr, $output_name);
-        return 'failed' if !output_change_is_transient($diagnostic);
-        usleep(100_000) if $attempt < 3;
-    }
+    return 'stopping' if !session_is_active();
+    my ($ok, $diagnostic) = run_command_capture_stderr($wlr_randr, @args);
+    return 'applied' if $ok;
+    return 'gone' if !output_is_present($wlr_randr, $output_name);
+    return 'failed' if !output_change_is_transient($diagnostic);
 
+    # EBUSY means the KMS page-flip state changed while this request was in
+    # flight. Replaying the same argv can queue another nonblocking commit
+    # behind the pending i915 flip; the next event must take a fresh snapshot.
     return 'transient';
 }
 

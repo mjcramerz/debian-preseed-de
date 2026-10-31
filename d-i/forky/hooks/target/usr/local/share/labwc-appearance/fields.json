@@ -11,7 +11,7 @@
     {
       "id": "WAYBAR",
       "label": "Waybar",
-      "field_count": 292
+      "field_count": 293
     },
     {
       "id": "TASKVIEW",
@@ -9511,6 +9511,28 @@
       ]
     },
     {
+      "key": "WAYBAR_BUTTON_SETTINGS_NORMAL_ICON_COLOR",
+      "component": "WAYBAR",
+      "component_label": "Waybar",
+      "category": "System",
+      "label": "Button Settings Normal Icon Color",
+      "type": "hash6",
+      "default": "#c8b6f5",
+      "mappings": [
+        {
+          "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",
+          "path": "waybar/style/system.css",
+          "line": 155,
+          "template": "  color: __THEME_WAYBAR_BUTTON_SETTINGS_NORMAL_ICON_COLOR__;",
+          "tokens": [
+            "__THEME_WAYBAR_BUTTON_SETTINGS_NORMAL_ICON_COLOR__"
+          ],
+          "target_index": 0,
+          "grammar": "gtk3-css-color"
+        }
+      ]
+    },
+    {
       "key": "WAYBAR_BUTTON_SLEEK_HOVER_BACKGROUND_COLOR",
       "component": "WAYBAR",
       "component_label": "Waybar",
@@ -9728,7 +9750,7 @@
       "category": "System",
       "label": "Button System Normal Icon Color",
       "type": "hash6",
-      "default": "#e1d5ff",
+      "default": "#f1bd6e",
       "mappings": [
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style/system.css.tmpl",

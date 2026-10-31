@@ -49,7 +49,7 @@ class ThemeValidationTests(unittest.TestCase):
         self.assertEqual(color, VALUES['WAYBAR_BUTTON_SYSTEM_HOVER_OUTLINE_COLOR'])
         self.assertNotEqual(color, VALUES['WAYBAR_PANEL_OUTLINE_COLOR'])
         expected = ['custom/system', 'network', 'bluetooth',
-                    'custom/keyboard', 'custom/screenshot']
+                    'custom/keyboard', 'custom/screenshot', 'custom/settings']
         for profile in profiles():
             with self.subTest(profile=profile.name):
                 assets = rendered_assets(profile)
@@ -65,7 +65,7 @@ class ThemeValidationTests(unittest.TestCase):
                     self.assertRegex(outer.group(1), r'border-width: [1-9][0-9]*px;')
                     inner = re.findall(
                         rf'window#waybar\.{output} #quick-controls #custom-system,.*?'
-                        rf'window#waybar\.{output} #quick-controls #custom-screenshot \{{([^}}]*)\}}',
+                        rf'window#waybar\.{output} #quick-controls #custom-settings \{{([^}}]*)\}}',
                         css, re.S)
                     geometry = [block for block in inner if 'border-width:' in block]
                     self.assertEqual(len(geometry), 1)

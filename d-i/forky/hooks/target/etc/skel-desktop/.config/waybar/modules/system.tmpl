@@ -2,8 +2,13 @@
   "custom/system": {
     "format": "__THEME_WAYBAR_BUTTON_SYSTEM_NORMAL_ICON_GLYPH__",
     "tooltip": true,
-    "tooltip-format": "Hover for quick controls · Right-click for system menu",
-    "menu": "on-click-right",
+    "tooltip-format": "Click for quick controls"
+  },
+  "custom/settings": {
+    "format": "__THEME_WAYBAR_BUTTON_SETTINGS_NORMAL_ICON_GLYPH__",
+    "tooltip": true,
+    "tooltip-format": "System settings",
+    "menu": "on-click",
     "menu-file": "~/.config/waybar/gtk/system-menu.xml",
     "menu-actions": {
       "display_appearance": "/usr/local/libexec/labwc-waybar-run -- /usr/local/bin/labwc-system-menu-action display_appearance",

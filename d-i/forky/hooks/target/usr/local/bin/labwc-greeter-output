@@ -86,26 +86,89 @@ sub configure_outputs {
 
     my @base_args =
       ('--output', $selected, '--on', '--scale', $scale, '--pos', '0,0');
-    my $status = 1;
-    if (defined $mode) {
-        $status = output_command($wlr_randr,
-          @base_args[0 .. 2],
-          '--mode', $mode,
-          @base_args[3 .. $#base_args])->{status};
-    }
-    if (!defined($mode) || $status != 0) {
-        $status = output_command($wlr_randr, @base_args)->{status};
-    }
-    die "failed to enable greeter output ${selected}\n" if $status != 0;
-
+    my $current_state = output_command($wlr_randr);
+    die "failed to query current greeter output state\n"
+      if $current_state->{status} != 0;
+    my %enabled = output_enabled_map($current_state->{stdout});
+    my $selected_current = output_matches_plan(
+        $current_state->{stdout}, $selected, $scale, $mode,
+    );
+    my @transaction = $selected_current
+      ? ()
+      : (@base_args[0 .. 2], (defined($mode) ? ('--mode', $mode) : ()),
+         @base_args[3 .. $#base_args]);
     for my $output_name (@outputs) {
-        next if $output_name eq $selected;
-        my $result = output_command($wlr_randr, '--output', $output_name, '--off');
-        die "failed to disable non-selected greeter output ${output_name}\n"
-          if $result->{status} != 0;
+        next if $output_name eq $selected || ($enabled{$output_name} // q{}) ne 'yes';
+        push @transaction, '--output', $output_name, '--off';
     }
+
+    # The initial greeter output and connector cleanup are one KMS transaction.
+    # Submitting them separately can put the next nonblocking page flip behind
+    # the first one, which is the EBUSY pattern reported for Intel i915.
+    my $status = 0;
+    if (@transaction) {
+        my $result = output_command($wlr_randr, @transaction);
+        $status = $result->{status};
+        my $safe_mode_fallback = ($result->{error} // q{}) eq q{}
+          && ($result->{stderr} // q{}) !~ /(?:busy|atomic[ ]+commit|page[ -]flip)/i;
+        if ($status != 0 && defined($mode) && !$selected_current && $safe_mode_fallback) {
+            # A preferred mode can be rejected by a connector even when the
+            # connector itself is usable. Rebuild only the same complete
+            # transaction without --mode; do not issue per-output retries.
+            my @fallback = (@base_args, map {
+                ('--output', $_, '--off')
+            } grep {
+                $_ ne $selected && ($enabled{$_} // q{}) eq 'yes'
+            } @outputs);
+            $status = output_command($wlr_randr, @fallback)->{status};
+        }
+    }
+    die "failed to configure greeter outputs\n" if $status != 0;
 
     return ($profile, $selected);
+}
+
+sub output_matches_plan {
+    my ($snapshot, $output_name, $scale, $mode) = @_;
+    my ($in_output, $enabled, $position, $current_scale, $current_mode);
+    for my $line (split /\n/, ($snapshot // q{})) {
+        if ($line =~ /^\Q$output_name\E(?:[[:space:]]|\z)/) {
+            $in_output = 1;
+            next;
+        }
+        last if $in_output && $line !~ /^[[:space:]]/;
+        next if !$in_output;
+        $enabled = $1 if $line =~ /^\s+Enabled:\s+(yes|no)\s*$/;
+        $position = "$1,$2" if $line =~ /^\s+Position:\s+(-?\d+),(-?\d+)\s*$/;
+        $current_scale = $1 if $line =~ /^\s+Scale:\s+([0-9]+(?:\.[0-9]+)?)\s*$/;
+        if ($line =~ /^\s+(\d+)x(\d+)\s+px,\s+([0-9.]+)\s+Hz\s+\(([^)]*)\)/) {
+            my ($width, $height, $refresh, $flags) = ($1, $2, $3, $4);
+            $current_mode = sprintf('%sx%s@%sHz', $width, $height, $refresh)
+              if $flags =~ /\bcurrent\b/;
+        }
+        $current_mode = $1
+          if $line =~ /^\s+Current mode:\s+(\d{1,5}x\d{1,5}\@[0-9]+(?:\.[0-9]+)?Hz)\s*$/;
+    }
+    return 0 if !$in_output || !defined $enabled || $enabled ne 'yes';
+    return 0 if !defined $position || $position ne '0,0';
+    return 0 if !defined $current_scale || ($current_scale + 0) != ($scale + 0);
+    return 0 if defined $mode && (!defined $current_mode || $current_mode ne $mode);
+    return 1;
+}
+
+sub output_enabled_map {
+    my ($snapshot) = @_;
+    my %enabled;
+    my $name;
+    for my $line (split /\n/, ($snapshot // q{})) {
+        if ($line =~ /^([^[:space:]].*?)(?:[[:space:]]|\z)/) {
+            $name = $1;
+            next;
+        }
+        next if !defined $name;
+        $enabled{$name} = $1 if $line =~ /^\s+Enabled:\s+(yes|no)\s*$/;
+    }
+    return %enabled;
 }
 
 sub watch_outputs {
