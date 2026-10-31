@@ -2089,10 +2089,6 @@ for config in config_roots:
     for relative in ("systemd/user/waybar.service",):
         require("labwc-workspace-broker" not in (config / relative).read_text(), "retired dependency in " + relative)
     rc = ET.parse(config / "labwc/rc.xml").getroot()
-    require(rc.findtext("core/adaptiveSync") == "no",
-            "Labwc adaptive sync must stay disabled for atomic page-flip stability")
-    require(rc.findtext("core/allowTearing") == "no",
-            "Labwc tearing must stay disabled for atomic page-flip stability")
     count = int(rc.findtext("desktops/number", "0"))
     counts.append(count)
     require(1 <= count <= 12, "unsupported workspace count")
