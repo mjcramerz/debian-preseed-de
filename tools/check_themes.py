@@ -143,17 +143,75 @@ def source_texts(seed: Path):
 
 
 def check_native_menu_icons(seed: Path, values: dict[str, str]) -> None:
-    """Check regular names, the shared Oxygen theme, and status text as data."""
+    """Check regular XML icon names and status text as data."""
     config = seed / 'hooks/target/etc/skel-desktop/.config'
-    if values.get('WAYBAR_DROPDOWN_GTK_ICON_THEME') != 'oxygen':
-        raise ValueError('all native Waybar GTK popups must use the packaged Oxygen icon theme')
+    removed_icon_css = (
+        'menu-icons.css.tmpl', 'clock-icons.css.tmpl', 'audio-icons.css.tmpl',
+        'system-icons.css.tmpl', 'notification-icons.css.tmpl', 'power-icons.css.tmpl',
+        'tomat-icons.css.tmpl', 'wayscriber-icons.css.tmpl', 'themes.css.tmpl',
+    )
+    icons = config / 'waybar/icons'
+    for filename in removed_icon_css:
+        if (icons / filename).exists():
+            raise ValueError(f'retired native icon stylesheet remains: {filename}')
     if 'WAYBAR_DROPDOWN_AUDIO_VOLUME_40_PERCENT_ICON_NAME' in values:
         raise ValueError('the obsolete Audio Volume 40% icon variable remains')
+    colored_menu_icons = {
+        'WAYBAR_DROPDOWN_AUDIO_MICROPHONE_MUTE_ICON_NAME': 'audio-recorder',
+        'WAYBAR_DROPDOWN_AUDIO_MIXER_ICON_NAME': 'multimedia-volume-control',
+        'WAYBAR_DROPDOWN_AUDIO_OUTPUT_MUTE_ICON_NAME': 'preferences-desktop-sound',
+        'WAYBAR_DROPDOWN_AUDIO_SUBMENU_VOLUME_PRESETS_ICON_NAME': 'multimedia-volume-control',
+        'WAYBAR_DROPDOWN_AUDIO_SUBMENU_WHISPER_ICON_NAME': 'audio-recorder',
+        'WAYBAR_DROPDOWN_SYSTEM_AUDIO_VOLUME_MUTED_ICON_NAME': 'preferences-desktop-sound',
+        'WAYBAR_DROPDOWN_SYSTEM_AUDIO_INPUT_MICROPHONE_ICON_NAME': 'audio-recorder',
+        'WAYBAR_DROPDOWN_NOTIFICATIONS_CENTER_ICON_NAME': 'preferences-system-notifications',
+        'WAYBAR_DROPDOWN_NOTIFICATIONS_CLEAR_ICON_NAME': 'trashindicator',
+        'WAYBAR_DROPDOWN_NOTIFICATIONS_DISMISS_ICON_NAME': 'preferences-desktop-notification-bell',
+        'WAYBAR_DROPDOWN_NOTIFICATIONS_DND_ICON_NAME': 'preferences-desktop-notification-bell',
+        'WAYBAR_DROPDOWN_NOTIFICATIONS_DND_OFF_ICON_NAME': 'preferences-desktop-notification-bell',
+        'WAYBAR_DROPDOWN_NOTIFICATIONS_DND_ON_ICON_NAME': 'preferences-desktop-notification-bell',
+        'WAYBAR_DROPDOWN_NOTIFICATIONS_RESTORE_ICON_NAME': 'preferences-system-notifications',
+        'WAYBAR_DROPDOWN_NOTIFICATIONS_SUBMENU_DO_NOT_DISTURB_ICON_NAME': 'preferences-desktop-notification-bell',
+        'WAYBAR_DROPDOWN_TOMAT_SESSION_25_MINUTES_ICON_NAME': 'alarm-timer',
+        'WAYBAR_DROPDOWN_TOMAT_SESSION_50_MINUTES_ICON_NAME': 'alarm-timer',
+        'WAYBAR_DROPDOWN_TOMAT_SESSION_90_MINUTES_ICON_NAME': 'alarm-timer',
+        'WAYBAR_DROPDOWN_TOMAT_SOUNDS_ICON_NAME': 'multimedia-volume-control',
+        'WAYBAR_DROPDOWN_WHISPER_CANCEL_ICON_NAME': 'sound-recorder',
+        'WAYBAR_DROPDOWN_WHISPER_RECORD_ICON_NAME': 'audio-recorder',
+        'WAYBAR_DROPDOWN_WHISPER_STOP_ICON_NAME': 'sound-recorder',
+        'WAYBAR_DROPDOWN_WHISPER_TRANSCRIBE_ICON_NAME': 'accessories-text-editor',
+    }
+    for key, expected in colored_menu_icons.items():
+        if values.get(key) != expected:
+            raise ValueError(f'{key} must use the reviewed regular Papirus-Dark icon {expected}')
     menus = sorted((config / 'waybar/gtk').glob('*.xml.tmpl'))
     if len(menus) != 10:
         raise ValueError('all ten native Waybar popup templates must be present')
+    gtk_css = (config / 'waybar/style/gtk.css.tmpl').read_text(encoding='utf-8')
+    if '-gtk-icon-style: regular;' not in gtk_css:
+        raise ValueError('waybar/style/gtk.css must request regular theme icons')
+    if '-gtk-icon-theme:' in gtk_css:
+        raise ValueError('native Waybar popups must inherit the desktop GTK icon theme')
+    waybar_css = (config / 'waybar/style.css.tmpl').read_text(encoding='utf-8')
+    for filename in removed_icon_css:
+        if f'icons/{filename.removesuffix(".tmpl")}' in waybar_css:
+            raise ValueError(f'style.css still imports retired native icon stylesheet: {filename}')
     for path in menus:
         tree = ET.fromstring(render_text(path.read_text(encoding='utf-8'), values))
+        ids = []
+        for image in tree.iter('object'):
+            if image.get('class') != 'GtkImage':
+                continue
+            image_id = image.get('id')
+            icon_name = image.findtext('./property[@name="icon-name"]')
+            if not image_id or not icon_name:
+                raise ValueError(f'{path.name}: every native GtkImage needs an id and icon-name')
+            if (not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._+-]{0,127}', icon_name)
+                    or icon_name.endswith('-symbolic')):
+                raise ValueError(f'{path.name}: GtkImage needs a regular theme icon: {image_id}')
+            ids.append(image_id)
+        if len(ids) != len(set(ids)):
+            raise ValueError(f'{path.name}: duplicate GtkImage ids prevent deterministic icon handling')
         for item in tree.iter('object'):
             if item.get('class') != 'GtkMenuItem':
                 continue

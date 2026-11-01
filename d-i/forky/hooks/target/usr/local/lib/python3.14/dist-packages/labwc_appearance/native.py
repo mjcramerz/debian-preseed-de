@@ -59,7 +59,7 @@ ICON_MANAGED_FILES = frozenset({
     'fuzzel/base.ini', 'gtk-3.0/settings.ini', 'gtk-4.0/settings.ini',
     'qt5ct/qt5ct.conf', 'qt6ct/qt6ct.conf',
     'waybar/modules/internal-taskbar', 'waybar/modules/external-taskbar',
-    'waybar/style/gtk.css', 'waybar/style/apps.css',
+    'waybar/style/apps.css',
 })
 POINTER_MANAGED_FILES = frozenset({
     'gtk-3.0/settings.ini', 'gtk-4.0/settings.ini', 'labwc/environment',

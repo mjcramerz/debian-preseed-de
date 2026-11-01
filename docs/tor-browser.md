@@ -3,7 +3,7 @@
 ## Authenticated installation
 
 The amd64 desktop Software class installs the requested official Tor Browser
-15.0.25 archive. It does not compile Tor or the browser. Each desktop host
+15.0.26 archive. It does not compile Tor or the browser. Each desktop host
 profile supplies `SOFTWARE_TOR_BROWSER_VERSION`, `SOFTWARE_TOR_BROWSER_URL`,
 `SOFTWARE_TOR_BROWSER_SHA256` and `SOFTWARE_TOR_BROWSER_KEY_SHA256`.
 

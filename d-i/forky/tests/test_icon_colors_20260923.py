@@ -92,7 +92,6 @@ class IconContractTests(unittest.TestCase):
         self.assertNotIn('WAYBAR_DROPDOWN_AUDIO_VOLUME_40_PERCENT_ICON_NAME', VALUES)
 
     def test_native_menu_icons_are_regular_and_status_glyphs_stay_separate(self):
-        self.assertEqual(VALUES['WAYBAR_DROPDOWN_GTK_ICON_THEME'], 'oxygen')
         CHECK['check_native_menu_icons'](SEED, VALUES)
         key = 'WAYBAR_DROPDOWN_WAYSCRIBER_OPEN_ICON_NAME'
         for value in ('wayscriber-symbolic', '🍅', '../icons/help.svg'):
