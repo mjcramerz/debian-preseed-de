@@ -20,6 +20,44 @@ software_install_tor_media_runtime() {
   fi
 }
 
+software_download_tor_browser_asset() {
+  tor_asset_label=$1
+  tor_primary_url=$2
+  tor_archive_url=$3
+  tor_asset_destination=$4
+  tor_asset_minimum_bytes=$5
+  tor_asset_maximum_bytes=$6
+  tor_asset_content_policy=$7
+
+  if software_download \
+    "$tor_asset_label" \
+    "$tor_primary_url" \
+    "$tor_asset_destination" \
+    "$tor_asset_minimum_bytes" \
+    "$tor_asset_maximum_bytes" \
+    "$tor_asset_content_policy" \
+    dist.torproject.org \
+    retry
+  then
+    return 0
+  fi
+
+  software_info "${tor_asset_label} primary URL failed; retrying the official Tor package archive"
+  if software_download \
+    "$tor_asset_label" \
+    "$tor_archive_url" \
+    "$tor_asset_destination" \
+    "$tor_asset_minimum_bytes" \
+    "$tor_asset_maximum_bytes" \
+    "$tor_asset_content_policy" \
+    archive.torproject.org \
+    retry
+  then
+    return 0
+  fi
+  software_fatal "${tor_asset_label} download failed from both the Tor distribution site and its official package archive"
+}
+
 software_install_tor_browser() (
   tor_version=${SOFTWARE_TOR_BROWSER_VERSION:?SOFTWARE_TOR_BROWSER_VERSION must be set}
   tor_url=${SOFTWARE_TOR_BROWSER_URL:?SOFTWARE_TOR_BROWSER_URL must be set}
@@ -30,6 +68,7 @@ software_install_tor_browser() (
   software_validate_sha256 SOFTWARE_TOR_BROWSER_KEY_SHA256 "$tor_key_sha"
   [ "$tor_url" = "https://dist.torproject.org/torbrowser/${tor_version}/tor-browser-linux-x86_64-${tor_version}.tar.xz" ] ||
     software_fatal "Tor Browser URL differs from the pinned release"
+  tor_archive_url="https://archive.torproject.org/tor-package-archive/torbrowser/${tor_version}/tor-browser-linux-x86_64-${tor_version}.tar.xz"
   software_install_tor_media_runtime
   tor_archive="${work_dir}/tor-browser.tar.xz"
   tor_signature="${work_dir}/tor-browser.tar.xz.asc"
@@ -40,8 +79,22 @@ software_install_tor_browser() (
   software_stage_seed_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/tor-browser-install)" \
     /usr/local/libexec/tor-browser-install 0755
-  software_download "Tor Browser" "$tor_url" "$tor_archive" 100000000 167772160 artifact dist.torproject.org
-  software_download "Tor Browser signature" "${tor_url}.asc" "$tor_signature" 100 16384 signature dist.torproject.org
+  software_download_tor_browser_asset \
+    "Tor Browser" \
+    "$tor_url" \
+    "$tor_archive_url" \
+    "$tor_archive" \
+    100000000 \
+    167772160 \
+    artifact
+  software_download_tor_browser_asset \
+    "Tor Browser signature" \
+    "${tor_url}.asc" \
+    "${tor_archive_url}.asc" \
+    "$tor_signature" \
+    100 \
+    16384 \
+    signature
   run_in_target "authenticate and install Tor Browser" /bin/sh -eu -c '
     umask 077
     archive=$1; signature=$2; key=$3; expected=$4; key_expected=$5

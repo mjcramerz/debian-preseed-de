@@ -914,7 +914,7 @@ software_download() {
     *) software_fatal "$label content policy is unsupported: $content_policy" ;;
   esac
   case "$transport_policy" in
-    fatal|defer) ;;
+    fatal|defer|retry) ;;
     *) software_fatal "$label transport policy is unsupported: $transport_policy" ;;
   esac
   if [ -n "$allowed_hosts" ]; then
@@ -956,11 +956,18 @@ software_download() {
         --url "$url"
   ); then
     rm -f -- "$partial_host_path"
-    if [ "$transport_policy" = defer ]; then
-      software_warn "$label download failed; deferring this application to the managed post-boot updater"
-      return 1
-    fi
-    software_fatal "$label download failed"
+    case "$transport_policy" in
+      defer)
+        software_warn "$label download failed; deferring this application to the managed post-boot updater"
+        return 1
+        ;;
+      retry)
+        return 1
+        ;;
+      fatal)
+        software_fatal "$label download failed"
+        ;;
+    esac
   fi
 
   http_status=$(printf '%s\n' "$transfer_metadata" | sed -n '1p')

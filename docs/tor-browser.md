@@ -7,10 +7,12 @@ The amd64 desktop Software class installs the requested official Tor Browser
 profile supplies `SOFTWARE_TOR_BROWSER_VERSION`, `SOFTWARE_TOR_BROWSER_URL`,
 `SOFTWARE_TOR_BROWSER_SHA256` and `SOFTWARE_TOR_BROWSER_KEY_SHA256`.
 
-The installer requires the exact HTTPS release path on `dist.torproject.org`,
-bounds the archive/signature downloads, checks both pins and verifies the
-OpenPGP signature in a private temporary keyring. It requires the Tor Browser
-Developers primary fingerprint
+The installer requires the exact HTTPS release path on `dist.torproject.org`.
+If that origin returns a transfer error, it retries the same pinned filename
+from Tor's official `archive.torproject.org/tor-package-archive` mirror. The
+archive and signature downloads remain bounded, both pins are checked, and the
+OpenPGP signature is verified in a private temporary keyring. It requires the
+Tor Browser Developers primary fingerprint
 `EF6E286DDA85EA2A4BA7DE684E2C6E8793298290`. Verification failure stops installation;
 no account keyring is modified. See the [official signature instructions](https://support.torproject.org/tor-browser/getting-started/verifying-tor-browser/).
 

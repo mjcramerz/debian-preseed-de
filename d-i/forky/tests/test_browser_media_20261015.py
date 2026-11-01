@@ -140,7 +140,9 @@ class BrowserGraphicsAndTorTests(unittest.TestCase):
         self.assertIn('/usr/bin/timeout', argv[:boundary])
         self.assertEqual(argv[-4:], ['install', 'libavcodec62', 'libavutil60', 'libswresample6'])
         caller = source.split('software_install_tor_browser() (', 1)[1]
-        self.assertLess(caller.index('  software_install_tor_media_runtime\n'), caller.index('  software_download '))
+        self.assertLess(caller.index('  software_install_tor_media_runtime\n'),
+                        caller.index('  software_download_tor_browser_asset '))
+        self.assertIn('archive.torproject.org/tor-package-archive/torbrowser/', source)
         packages = (SEED / 'classes/class-addon/software.cfg').read_text().split()
         for package in ('libavcodec62', 'libavutil60', 'libswresample6'):
             self.assertIn(package, packages)
