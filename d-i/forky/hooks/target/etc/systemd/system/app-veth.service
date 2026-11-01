@@ -9,6 +9,8 @@ Before=podman-devops.service greetd.service
 [Service]
 Type=notify
 NotifyAccess=main
+# app-veth converts the orderly SIGTERM cleanup path to exit status 143.
+SuccessExitStatus=143
 ExecStart=/usr/local/sbin/app-veth
 AppArmorProfile=app-veth
 RuntimeDirectory=app-veth

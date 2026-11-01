@@ -40,7 +40,7 @@ desktop_stage_appearance() (
     path="usr/local/lib/python3.14/dist-packages/labwc_appearance/$module.py"
     desktop_stage_role_asset "$path" "/$path" 0644
   done
-  desktop_stage_role_asset usr/local/share/labwc-appearance/fields.json \
+  desktop_stage_role_asset usr/local/share/labwc-appearance/fields.json.tmpl \
     /usr/local/share/labwc-appearance/fields.json 0644
   desktop_stage_role_asset usr/share/polkit-1/actions/org.labwc.desktop-appearance.policy \
     /usr/share/polkit-1/actions/org.labwc.desktop-appearance.policy 0644

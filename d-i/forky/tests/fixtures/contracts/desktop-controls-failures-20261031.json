@@ -75,7 +75,22 @@
     {
       "name": "fuzzel-dismisses-waybar-menu",
       "inject": "Open a Waybar GTK menu, then invoke a managed Fuzzel launcher from that menu or a hotkey.",
-      "expected": "The launcher requests the Waybar service ExecReload before spawning Fuzzel, waits only for a bounded menu teardown turn without replacing the bar process, and still launches when Waybar is stopped or the request fails."
+      "expected": "The launcher transfers focus directly to Fuzzel without requesting a Waybar service reload, so the existing bar process and surfaces remain in place without a refresh blink."
+    },
+    {
+      "name": "greeter-enabled-head-without-layout",
+      "inject": "The DRM head inherits Enabled: yes, Position: 0,0 and Scale: 1, but Labwc has not created its scene output. The output selector would skip a matching configuration.",
+      "expected": "The greeter starts Labwc with autoEnableOutputs=yes so the compositor initializes its output layout before launching the selector and gtkgreet. An enabled-head snapshot alone is not treated as proof that a login monitor exists."
+    },
+    {
+      "name": "greeter-selection-failure-fails-fast",
+      "inject": "After Labwc initializes the login output, the selector returns nonzero or its bounded capture times out.",
+      "expected": "The client keeps the selector failure fatal, emits its fixed diagnostic, and exits before starting the watcher or gtkgreet so an output-management failure cannot silently leave the login session on the wrong layout."
+    },
+    {
+      "name": "greeter-selection-before-login-surface",
+      "inject": "Both an HDMI monitor and an internal panel are connected and require different profile scales.",
+      "expected": "Labwc initializes usable outputs first; the existing selector applies HDMI preference and the configured scale before gtkgreet creates its layer surfaces. The watcher retains its existing parent ownership and bounded command/cleanup contracts."
     },
     {
       "name": "greeter-output-idempotent-modeset",
@@ -86,6 +101,21 @@
       "name": "greeter-output-single-atomic-transaction",
       "inject": "The greeter has one selected connector and one already-enabled non-selected connector while a page flip is pending.",
       "expected": "The controller sends one complete output transaction, omits already-disabled connectors, and does not replay per-output commits that can queue behind the pending i915 page flip; a busy or timed-out preferred-mode commit is not immediately retried with a fallback mode."
+    },
+    {
+      "name": "app-veth-orderly-stop",
+      "inject": "systemd stops app-veth.service and the broker's SIGTERM handler performs fail-closed lease cleanup before returning status 143.",
+      "expected": "The unit treats status 143 as a successful orderly stop, so normal shutdown does not leave app-veth.service failed."
+    },
+    {
+      "name": "waybar-supported-module-options",
+      "inject": "Waybar parses the custom-apps and custom-window-switcher modules.",
+      "expected": "Those custom module objects set cursor=true, the supported Waybar 0.15 pointer setting, and do not emit the unknown cursor option warning. The Apps drawer keeps its expanded active color and adds a separate hover highlight while the pointer is over the revealed control."
+    },
+    {
+      "name": "desktop-appearance-application-id",
+      "inject": "Crystal Dock receives a window with the GTK application ID org.labwc.DesktopAppearance.",
+      "expected": "The installed desktop entry has the matching org.labwc.DesktopAppearance desktop ID, so Crystal Dock can resolve the application icon and actions."
     },
     {
       "name": "apparmor-pathname-unix-address",

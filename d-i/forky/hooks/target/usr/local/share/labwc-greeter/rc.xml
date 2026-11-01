@@ -2,7 +2,10 @@
 <labwc_config>
   <core>
     <decoration>client</decoration>
-    <autoEnableOutputs>no</autoEnableOutputs>
+    <!-- Initialize Labwc's output layout before the selector checks for a
+         no-op. A DRM head can report Enabled: yes without a scene output
+         when autoEnableOutputs is disabled, leaving gtkgreet no monitor. -->
+    <autoEnableOutputs>yes</autoEnableOutputs>
     <primarySelection>no</primarySelection>
   </core>
   <keyboard>

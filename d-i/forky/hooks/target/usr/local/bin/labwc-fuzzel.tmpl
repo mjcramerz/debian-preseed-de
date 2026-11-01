@@ -34,7 +34,6 @@ MAX_DIAGNOSTICS = 65536
 FUZZEL = '/usr/bin/fuzzel'
 LOGGER = '/usr/local/bin/labwc-fuzzel-log'
 OUTPUT_RESOLVER = '/usr/local/libexec/labwc-output-watch'
-WAYBAR_RELOADER = '/usr/bin/systemctl'
 DESKTOP_CONFIG = Path('/etc/labwc/desktop.conf')
 FONT_FAMILIES = (
     "__THEME_FUZZEL_MENU_TEXT_FONT_FAMILY__",
@@ -85,30 +84,6 @@ def log_event(kind: str, event: str, scope: str, *fields: str) -> None:
                        stderr=subprocess.DEVNULL, timeout=2, check=False)
     except (OSError, subprocess.TimeoutExpired):
         pass
-
-
-def dismiss_waybar_menus() -> None:
-    """Close native Waybar menus before Fuzzel takes focus.
-
-    Waybar 0.15 can leave a GTK menu mapped while a launcher is opened from
-    that menu.  The service's ExecReload handler sends the pidfd-checked USR2
-    signal and destroys the menu owner without replacing the Waybar process.
-    The action is best-effort so a stopped or restarting bar never prevents a
-    launcher.
-    """
-    if not os.access(WAYBAR_RELOADER, os.X_OK):
-        return
-    try:
-        result = subprocess.run(
-            [WAYBAR_RELOADER, '--user', '--quiet', 'reload', 'waybar.service'],
-            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL, timeout=3, check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return
-    if result.returncode == 0:
-        # Give Waybar one bounded main-loop turn to tear down its GTK menu.
-        time.sleep(0.05)
 
 
 def installed_settings() -> dict[str, str]:
@@ -1076,7 +1051,8 @@ def cli() -> int:
             if root is None:
                 log_event('action', 'already-open', scope, 'mode=' + options.mode)
                 return MENU_DISMISSED_STATUS if options.picker else 0
-            dismiss_waybar_menus()
+            # Fuzzel takes focus directly. Do not reload Waybar here: its
+            # ExecReload path reconstructs every bar and causes a visible blink.
             return invoke(options, argv, root)
     except Interrupted as interrupted:
         return (MENU_DISMISSED_STATUS if options is not None and options.picker

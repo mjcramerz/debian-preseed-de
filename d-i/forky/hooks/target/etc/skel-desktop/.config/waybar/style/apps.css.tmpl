@@ -240,3 +240,10 @@ window#waybar.external #custom-app-sleek {
   background-repeat: no-repeat;
   background-size: __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_ICON_SIZE__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_ICON_SIZE__px, __INSTALLER_LABWC_WAYBAR_EXTERNAL_BACKGROUND_FILL_PERCENT__% __INSTALLER_LABWC_WAYBAR_EXTERNAL_BACKGROUND_FILL_PERCENT__%;
 }
+
+/* Keep the expanded Apps active colors and add a second hover highlight while
+ * the drawer is revealed. The inset edge adds feedback without changing the
+ * mapped active background, icon, or outline colors. */
+#apps.expanded:hover #custom-apps {
+  box-shadow: 0 0 8px 1px currentColor, inset 0 0 6px 1px currentColor;
+}

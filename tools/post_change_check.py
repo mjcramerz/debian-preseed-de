@@ -34,7 +34,7 @@ YAML_ERROR = yaml.YAMLError if yaml is not None else ValueError
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_ROOT = ROOT / 'd-i/forky/hooks/target'
 SCHEMA = ROOT / 'd-i/forky/hosts/themes/theme-schema.tsv'
-APPEARANCE_REGISTRY = TARGET_ROOT / 'usr/local/share/labwc-appearance/fields.json'
+APPEARANCE_REGISTRY = TARGET_ROOT / 'usr/local/share/labwc-appearance/fields.json.tmpl'
 APPEARANCE_FIELDS = TARGET_ROOT / 'usr/local/lib/python3.14/dist-packages/labwc_appearance/fields.py'
 APPEARANCE_NATIVE = TARGET_ROOT / 'usr/local/lib/python3.14/dist-packages/labwc_appearance/native.py'
 THEME_FETCH_CORE = ROOT / 'd-i/forky/scripts/late/core.sh'
@@ -641,15 +641,18 @@ def check_appearance_render_preservation(paths: list[Path], errors: list[str],
         return
     try:
         text = _read_text(THEME_FETCH_CORE)
-        markers = {
-            '*/usr/local/share/labwc-appearance/fields.json) return 0 ;;':
-                'missing raw fields.json theme-render exemption',
-            '*/usr/local/lib/python3.14/dist-packages/labwc_appearance/*.py) return 0 ;;':
-                'missing appearance Python code theme-render exemption',
-        }
-        for marker, description in markers.items():
-            if marker not in text:
-                errors.append(f'{THEME_FETCH_CORE.relative_to(ROOT)}: {description}')
+        if '*/usr/local/share/labwc-appearance/fields.json) return 0 ;;' in text:
+            errors.append(
+                f'{THEME_FETCH_CORE.relative_to(ROOT)}: fields.json must not bypass theme rendering'
+            )
+        if 'fields.json.tmpl' not in text:
+            errors.append(
+                f'{THEME_FETCH_CORE.relative_to(ROOT)}: missing fields.json.tmpl render contract'
+            )
+        if '*/usr/local/lib/python3.14/dist-packages/labwc_appearance/*.py) return 0 ;;' not in text:
+            errors.append(
+                f'{THEME_FETCH_CORE.relative_to(ROOT)}: missing appearance Python code theme-render exemption'
+            )
     except (OSError, UnicodeError) as error:
         errors.append(f'{THEME_FETCH_CORE.relative_to(ROOT)}: render contract: {error}')
     counts['appearance_render_contract'] = 1
@@ -845,7 +848,7 @@ def check_payload_archive(paths: list[Path], errors: list[str], counts: dict[str
          APPEARANCE_FIELDS),
         ('hooks/target/usr/local/lib/python3.14/dist-packages/labwc_appearance/native.py',
          APPEARANCE_NATIVE),
-        ('hooks/target/usr/local/share/labwc-appearance/fields.json', APPEARANCE_REGISTRY),
+        ('hooks/target/usr/local/share/labwc-appearance/fields.json.tmpl', APPEARANCE_REGISTRY),
         ('scripts/late/core.sh', ROOT / 'd-i/forky/scripts/late/core.sh'),
     )
     with tarfile.open(archive_path, 'r:*') as archive:

@@ -507,6 +507,7 @@ if len(source) > 16384 or re.search(rb"__[A-Z][A-Z0-9_]{2,}__", source):
   desktop_stage_role_asset usr/local/share/applications/remote-desktop-management.desktop /usr/local/share/applications/remote-desktop-management.desktop 0644
   desktop_stage_role_asset usr/local/share/applications/foot.desktop /usr/local/share/applications/foot.desktop 0644
   desktop_stage_role_asset usr/local/share/applications/code.desktop /usr/local/share/applications/code.desktop 0644
+  desktop_stage_role_asset usr/local/share/applications/org.labwc.DesktopAppearance.desktop /usr/local/share/applications/org.labwc.DesktopAppearance.desktop 0644
   desktop_stage_role_asset usr/local/share/applications/labwc-notifications.desktop /usr/local/share/applications/labwc-notifications.desktop 0644
   desktop_render_gtkgreet_css
   desktop_stage_role_asset etc/greetd/gtkgreet-power.css /etc/greetd/gtkgreet-power.css 0644

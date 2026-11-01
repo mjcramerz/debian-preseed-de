@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Desktop Appearance
+Comment=Configure the managed Labwc desktop appearance
+TryExec=/usr/local/bin/labwc-desktop-appearance
+Exec=/usr/local/bin/labwc-desktop-appearance --gtk
+Icon=preferences-desktop-display
+StartupWMClass=org.labwc.DesktopAppearance
+Terminal=false
+NoDisplay=true
+Categories=Settings;DesktopSettings;
+StartupNotify=true
