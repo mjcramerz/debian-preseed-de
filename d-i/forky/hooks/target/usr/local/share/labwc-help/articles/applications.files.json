@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Open Files from Waybar or the desktop menu. Thunar handles ordinary file operations, removable media and archive integration. Use the location bar to enter a path; hidden configuration files can be shown with Ctrl+H."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Shared and removable files"
+    },
+    {
+      "type": "paragraph",
+      "text": "The account's Sharing folder exposes only configured mounts. An empty disconnected mount directory is not permission to create a local replacement. Use Network Sharing or Drives & Backups to connect/disconnect the owned resource."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Recovery"
+    },
+    {
+      "type": "paragraph",
+      "text": "Check Trash before restoring from backup. Confirm source and destination for copy/move operations. Close open documents before ejecting storage. Do not start the file manager as root to bypass an ownership issue."
+    },
+    {
+      "type": "warning",
+      "text": "Deletion on remote filesystems, permanent deletion and overwriting may bypass Trash. Keep independent backups."
+    }
+  ]
+}

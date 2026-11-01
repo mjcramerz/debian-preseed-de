@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "The target uses systemd 262. System units manage machine services; systemctl --user addresses your session manager. The Labwc session target owns desktop service lifetime. Applications launched through managed wrappers get explicit service/cgroup ownership."
+    },
+    {
+      "type": "code",
+      "text": "systemctl --user --failed --no-pager\nsystemctl --failed --no-pager"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Inspecting a known service"
+    },
+    {
+      "type": "paragraph",
+      "text": "Use the appropriate status view for the named unit. Loaded, enabled and active mean different things: enabled concerns activation links, loaded concerns the definition, and active concerns current state. A missing unit should be reported as unavailable, not silently enabled."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Recovery"
+    },
+    {
+      "type": "paragraph",
+      "text": "Use the owning management action when you intend a restart. Save work first: stopping a service can stop its children or dependent applications. Do not kill arbitrary numeric PIDs or create competing unmanaged daemon copies."
+    }
+  ]
+}

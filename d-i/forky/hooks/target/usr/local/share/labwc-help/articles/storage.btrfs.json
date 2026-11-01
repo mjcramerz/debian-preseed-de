@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Btrfs profiles use the installer's managed filesystem and subvolume layout. Filesystem allocation, metadata usage and ordinary file sizes are different measurements. Use Computer Management → Maintenance → Storage & Filesystems for the configured views."
+    },
+    {
+      "type": "code",
+      "text": "findmnt -n -o FSTYPE /\ndf -h /"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Maintenance"
+    },
+    {
+      "type": "paragraph",
+      "text": "Use the managed Btrfs usage and scrub-status views. Scrub verifies readable data against checksums; it is not a backup and does not repair every kind of failure. Deleted files can remain referenced by snapshots."
+    },
+    {
+      "type": "warning",
+      "text": "Do not run balance, device removal, subvolume deletion or repair commands copied from another host. Preserve independent backups and get a recovery plan before operations that rewrite filesystem metadata."
+    }
+  ]
+}

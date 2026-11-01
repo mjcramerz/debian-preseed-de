@@ -17,6 +17,7 @@ import time
 import labwc_desktop_runtime as desktop_runtime
 
 PICKER = "/usr/local/bin/labwc-fuzzel"
+HELP = "/usr/local/bin/labwc-help"
 SYSTEM = "/usr/local/bin/labwc-system-action"
 RECOVERY = "/usr/local/bin/labwc-recovery-action"
 SECURITY = "/usr/local/bin/labwc-security-action"
@@ -84,6 +85,12 @@ def call_helper(path: str, args: list[str], label: str, *, propagate_close: bool
 
 def system_action(*args: str) -> int:
     return call_helper(SYSTEM, list(args), "system action")
+
+
+def open_help(topic: str) -> None:
+    if topic != "maintenance.management":
+        raise MaintenanceError("unsupported maintenance Help topic")
+    run([HELP, "--topic", topic], timeout=120)
 
 
 def recovery_action(*args: str) -> int:
@@ -353,6 +360,7 @@ SYSTEM_GROUPS = {
     "Storage & Filesystems": ["Show Storage Overview", "Manage External Drives", "Show NVMe SMART Health", "Show NVMe Firmware Slots", "Show NVMe Identify Data", "Show NVMe SMART via smartctl", "Show Btrfs Usage", "Show Btrfs DF Summary", "Show Last Btrfs Scrub Status", "Top Disk Usage in Root", "Top Disk Usage in Home"],
     "Audio & Desktop": ["Show PipeWire Status", "Show WirePlumber Status", "Restart PipeWire", "Restart WirePlumber", "Test Mako Notification", "Refresh Waybar Custom Module"],
     "Network & DNS": ["Show Network Overview", "Flush DNS Cache", "Reset Resolver Server Features", "Show Resolver Statistics"],
+    "Help": ["Open Maintenance Help"],
 }
 SYSTEM_ACTIONS = {
     "Show System Overview": "system-overview", "Show Memory and Swap": "memory-overview", "Show Boot Performance": "boot-performance", "Show Kernel Warnings": "kernel-warnings", "Show Failed Services": "failed-services", "Show Failed System Units": "failed-system-units", "Show Failed User Units": "failed-user-units", "Show Timers": "show-timers", "Show Recent System Errors": "recent-errors", "Show Journal Disk Usage": "journal-disk-usage", "Check Package Health": "package-health", "List Pending Upgrades": "pending-upgrades", "Show Upgradeable Packages": "upgradeable-packages", "List Firmware-Capable Devices": "firmware-devices", "Refresh Firmware Metadata": "refresh-firmware-metadata", "Check Firmware Updates": "firmware-updates", "Show Storage Overview": "storage-overview", "Show Network Overview": "network-overview", "Show Btrfs Usage": "btrfs-usage", "Show Btrfs DF Summary": "btrfs-df", "Show Last Btrfs Scrub Status": "btrfs-scrub-status", "Show PipeWire Status": "pipewire-status", "Show WirePlumber Status": "wireplumber-status", "Test Mako Notification": "test-mako-notification", "Refresh Waybar Custom Module": "refresh-waybar-custom-module", "Flush DNS Cache": "flush-dns-cache", "Reset Resolver Server Features": "reset-resolver-features", "Show Resolver Statistics": "resolver-statistics", "Top Disk Usage in Root": "top-disk-root", "Top Disk Usage in Home": "top-disk-home",
@@ -384,6 +392,7 @@ def system_menu() -> None:
                 device = choose_nvme()
                 if device:
                     system_action({"Show NVMe SMART Health": "nvme-smart-health", "Show NVMe Firmware Slots": "nvme-firmware-slots", "Show NVMe Identify Data": "nvme-identify-data", "Show NVMe SMART via smartctl": "nvme-smartctl"}[action], device)
+            elif action == "Open Maintenance Help": open_help("maintenance.management")
             elif action in SYSTEM_ACTIONS: system_action(SYSTEM_ACTIONS[action])
 
 

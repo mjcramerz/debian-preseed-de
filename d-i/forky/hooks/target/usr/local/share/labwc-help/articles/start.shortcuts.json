@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Super is usually the Windows/logo key. These are the managed defaults; locally changed Labwc bindings take precedence."
+    },
+    {
+      "type": "list",
+      "items": [
+        "Super+Return: terminal.",
+        "Super+D or Super+Space: application launcher.",
+        "Alt+Tab / Alt+Shift+Tab: next / previous window in the current workspace.",
+        "Super+L or Ctrl+L: lock the desktop.",
+        "Menu key: desktop menu.",
+        "Super+N: text editor."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Help shortcuts"
+    },
+    {
+      "type": "list",
+      "items": [
+        "Ctrl+K: global search; type a phrase, then press Enter.",
+        "Alt+Left / Alt+Right: back / forward. Alt+Home: home.",
+        "Ctrl+F: find in the current article; Enter advances; Escape closes finding.",
+        "Ctrl+D: bookmark a guide. Ctrl++ / Ctrl+-: adjust reading size.",
+        "Tab / Shift+Tab: move between controls and links. Enter or Space: activate.",
+        "Ctrl+C: copy selected article text or code. F1: shortcuts. Ctrl+Q: close Help."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Where bindings live"
+    },
+    {
+      "type": "paragraph",
+      "text": "Labwc reads ~/.config/labwc/rc.xml. Make a private backup before manual editing. Keep well-formed XML and use the existing Reconfigure menu action after a deliberate change. If a shortcut conflicts inside an application, use the desktop menu instead."
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Start with visible controls"
+    },
+    {
+      "type": "list",
+      "items": [
+        "Check the application volume and the default output in Audio Control.",
+        "Check speaker mute and microphone mute separately.",
+        "Select the intended Bluetooth or wired device.",
+        "Compare another ordinary application to distinguish device-wide failure from one app."
+      ]
+    },
+    {
+      "type": "code",
+      "text": "systemctl --user status pipewire.service wireplumber.service --no-pager"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Recovery"
+    },
+    {
+      "type": "paragraph",
+      "text": "Inspect service state and logs before restarting. The managed maintenance menu has explicit Restart PipeWire and Restart WirePlumber actions. Save work and expect existing streams to disconnect. Missing devices or access denials need investigation, not repeated restarts."
+    },
+    {
+      "type": "warning",
+      "text": "Do not grant raw audio/device access globally, run audio tools as root or disable profiles as a workaround."
+    }
+  ]
+}

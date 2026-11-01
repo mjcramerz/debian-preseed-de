@@ -1081,6 +1081,9 @@ def build_environment(app_name: str, mode: str) -> dict[str, str]:
     if session_bus_address:
         env["DBUS_SESSION_BUS_ADDRESS"] = session_bus_address
     env.update(app["env"])
+    if app_name == 'help':
+        # Help's native GTK4 widgets must remain available to screen readers.
+        env.pop('NO_AT_BRIDGE', None)
     database_state_root = managed_database_state_root(app_name, user_name)
     if database_state_root is not None:
         env.update(

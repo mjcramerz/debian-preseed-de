@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Computer Management → Network & Remote provides Connection Profiles and network status tools. NetworkManager manages the profile-controlled Ethernet/Wi-Fi policy. Prefer these tools to editing routes or restarting networking by hand."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Read-only status"
+    },
+    {
+      "type": "code",
+      "text": "nmcli -t -f STATE general\nnmcli -f DEVICE,TYPE,STATE device status"
+    },
+    {
+      "type": "paragraph",
+      "text": "These commands show local state only. Do not publish connection names, MAC addresses, addresses or routes without review. A connected link does not prove DNS or remote-service access."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Configuration and recovery"
+    },
+    {
+      "type": "paragraph",
+      "text": "Managed files live under /etc/NetworkManager/. Connection secrets require protected storage and administrator authority. If connectivity fails, follow [Network troubleshooting](help:troubleshooting.network) before changing interfaces or firewall rules."
+    }
+  ]
+}

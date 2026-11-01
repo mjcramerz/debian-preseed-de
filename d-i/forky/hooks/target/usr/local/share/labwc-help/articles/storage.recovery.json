@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Start by recording the failure and recent changes. If there are I/O errors or suspected storage damage, reduce writes and preserve important data before attempting repair. Recovery actions need the correct device, filesystem and encryption context."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Use the owned workflow"
+    },
+    {
+      "type": "paragraph",
+      "text": "Computer Management → System & Recovery → Recovery & Repair contains reviewed recovery actions. Read confirmations carefully. They may change storage, boot or security state; opening Help never performs them."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "What to collect"
+    },
+    {
+      "type": "list",
+      "items": [
+        "What failed: login, application, mount, update or boot.",
+        "The time and the relevant sanitized error.",
+        "Whether data is still readable and whether an independent backup is available.",
+        "The selected installation/storage profile, when known."
+      ]
+    },
+    {
+      "type": "warning",
+      "text": "Do not guess block-device names, run mkfs, change partitions, clear TPM keys or rewrite boot entries as a generic fix. A failed command does not prove rollback; retain any recovery path reported by the owning tool."
+    }
+  ]
+}

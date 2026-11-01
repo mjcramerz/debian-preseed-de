@@ -82,6 +82,7 @@ ACTIONS = {
     'Terminal': ('/usr/local/bin/labwc-terminal',),
     'Computer Management': ('/usr/local/bin/labwc-computer-management',),
     'Files': WAYLAND + ('/usr/bin/thunar',),
+    'Help': ('/usr/local/bin/labwc-help', '--topic', 'desktop.fuzzel'),
     # Keep the Fuzzel actions on the same public dispatcher used by Waybar.
     # The dispatcher retains the session checks and authenticated handoff for
     # every entry point; these vectors do not bypass it with direct helpers.
@@ -411,6 +412,7 @@ MENU_ICONS = {
     'Computer Management': '__THEME_FUZZEL_MENU_ACTION_COMPUTER_MANAGEMENT_ICON_NAME__',
     'Files': '__THEME_FUZZEL_MENU_ACTION_FILES_ICON_NAME__',
     'Desktop Settings': '__THEME_FUZZEL_MENU_ACTION_DESKTOP_SETTINGS_ICON_NAME__',
+    'Help': '__THEME_FUZZEL_MENU_ACTION_HELP_ICON_NAME__',
     'Lock': '__THEME_FUZZEL_MENU_ACTION_LOCK_ICON_NAME__',
     'Logout': '__THEME_FUZZEL_MENU_ACTION_LOGOUT_ICON_NAME__',
     'Power': '__THEME_FUZZEL_MENU_ACTION_POWER_ICON_NAME__',
@@ -531,7 +533,7 @@ def run_menu(initial: str | None = None, debug_mode: str | None = None) -> None:
 
 def _run_menu(initial: str | None = None, debug_mode: str | None = None) -> None:
     top = dict.fromkeys(('Search Applications', *DISPLAY_CATEGORIES, 'Terminal',
-                         'Files', 'Computer Management', 'Desktop Settings', 'Lock', 'Logout', 'Power'))
+                         'Files', 'Computer Management', 'Desktop Settings', 'Help', 'Lock', 'Logout', 'Power'))
     while True:
         selected = initial if initial is not None else choose(top, 'Main Menu')
         initial = None

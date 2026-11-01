@@ -16,6 +16,7 @@ SELF = '/usr/local/bin/labwc-computer-management'
 PICKER = '/usr/local/bin/labwc-fuzzel'
 LOG = '/usr/local/bin/labwc-fuzzel-log'
 HARDWARE = '/usr/local/bin/labwc-hardware-tuning'
+HELP = '/usr/local/bin/labwc-help'
 TOMAT_OVERLAY_MARKER_NAME = 'break-overlay.active'
 
 # Labels are presentation. Only these fixed argv vectors can be launched.
@@ -40,6 +41,7 @@ MENUS = {
     'Devices & Desktop': {
         'Desktop Appearance': ('labwc-desktop-appearance', '--gtk'),
         'Displays & Layout': ('labwc-display-configuration',),
+        'Display Help': (HELP, '--topic', 'hardware.monitors'),
         'Refresh Display Layout': ('/usr/local/libexec/labwc-output-watch', '--refresh'),
         'Power Profile': ('labwc-power-settings',),
         'Hardware Tuning': ('labwc-hardware-tuning', 'menu'),
@@ -144,11 +146,14 @@ def open_hardware_tuning() -> int:
 
 def run_menu() -> int:
     while True:
-        group = choose(['Hardware Tuning', *MENUS, 'Exit'], 'Computer Management')
+        group = choose(['Hardware Tuning', *MENUS, 'Help', 'Exit'], 'Computer Management')
         if group is None or group == 'Exit':
             return 0
         if group == 'Hardware Tuning':
             open_hardware_tuning()
+            continue
+        if group == 'Help':
+            run_action((HELP, '--topic', 'maintenance.management'))
             continue
         entries = MENUS[group]
         while True:

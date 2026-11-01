@@ -156,7 +156,7 @@ def set_power(state: str) -> int:
     if controller_command("power", state):
         summary = "Bluetooth turned on" if state == "on" else "Bluetooth turned off"
         body = "The Bluetooth controller is now powered on." if state == "on" else "The Bluetooth controller is now powered off."
-        notify("normal", "bluetooth", "device.changed", summary, body)
+        notify("normal", "__THEME_MAKO_BLUETOOTH_ICON_NAME__", "device.changed", summary, body)
         return 0
     notify("critical", ERROR_ICON, "device.error", "Bluetooth power change failed",
            f"The controller could not be powered {state}.")
@@ -174,7 +174,7 @@ def ensure_powered() -> bool:
 def scan_devices() -> int:
     if not ensure_powered():
         return 1
-    notify("normal", "bluetooth", "device.added", "Bluetooth scan started",
+    notify("normal", "__THEME_MAKO_BLUETOOTH_ICON_NAME__", "device.added", "Bluetooth scan started",
            f"Scanning for nearby devices for {SCAN_SECONDS} seconds.")
     process: subprocess.Popen[str] | None = None
     try:
@@ -213,7 +213,7 @@ def scan_devices() -> int:
                     process = None
         result = None
     if result is not None and result.returncode == 0:
-        notify("normal", "bluetooth", "device.added", "Bluetooth scan completed",
+        notify("normal", "__THEME_MAKO_BLUETOOTH_ICON_NAME__", "device.added", "Bluetooth scan completed",
                "Nearby devices are now available in the Bluetooth action menu.")
         return 0
     try:
@@ -230,11 +230,11 @@ def set_visibility(visibility: str) -> int:
         if not ensure_powered() or not controller_command("pairable", "on") or not controller_command("discoverable", "on"):
             pass
         else:
-            notify("normal", "bluetooth", "device.added", "Bluetooth is discoverable",
+            notify("normal", "__THEME_MAKO_BLUETOOTH_ICON_NAME__", "device.added", "Bluetooth is discoverable",
                    "Nearby devices can now find and pair with this computer.")
             return 0
     elif visibility == "hidden" and controller_command("discoverable", "off"):
-        notify("normal", "bluetooth", "device.changed", "Bluetooth discovery disabled",
+        notify("normal", "__THEME_MAKO_BLUETOOTH_ICON_NAME__", "device.changed", "Bluetooth discovery disabled",
                "This computer is no longer advertising itself to nearby devices.")
         return 0
     elif visibility not in {"discoverable", "hidden"}:
@@ -247,7 +247,7 @@ def set_visibility(visibility: str) -> int:
 def open_console(label: str) -> int:
     if not os.access(TERMINAL, os.X_OK):
         raise BluetoothError("labwc-terminal is not installed")
-    notify("normal", "bluetooth", "device.added", f"Bluetooth {label} controls opened",
+    notify("normal", "__THEME_MAKO_BLUETOOTH_ICON_NAME__", "device.added", f"Bluetooth {label} controls opened",
            "Use bluetoothctl in the interactive console to complete the selected action.")
     os.execv(TERMINAL, [TERMINAL, "-e", BLUETOOTHCTL, "--agent", "KeyboardDisplay"])
     return 0
@@ -267,7 +267,7 @@ def pair_in_terminal(address: str) -> int:
         return 1
     trusted = device_command("trust", address)
     connected = device_command("connect", address)
-    notify("normal", "bluetooth", "device.added", "Bluetooth device paired",
+    notify("normal", "__THEME_MAKO_BLUETOOTH_ICON_NAME__", "device.added", "Bluetooth device paired",
            f"Paired {address}. Trust: {'trusted' if trusted else 'failed'}. Connection: {'connected' if connected else 'failed'}.")
     time.sleep(2)
     return 0 if trusted and connected else 1

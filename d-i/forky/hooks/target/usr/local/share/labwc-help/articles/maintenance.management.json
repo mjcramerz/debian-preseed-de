@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Computer Management groups System & Recovery, Network & Remote, Security & Accounts, Devices & Desktop, Containers & AI, and Files & Documents. Menu choices delegate to the repository's existing fixed helpers."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Before authorizing an operation"
+    },
+    {
+      "type": "paragraph",
+      "text": "Read the prompt, identify what will change and save affected work. A read-only status view differs from restarting a service, updating packages or restoring storage. The authentication agent appears only where the selected administrative action requires it."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "If an action fails"
+    },
+    {
+      "type": "paragraph",
+      "text": "Record the action name and sanitized error. Inspect its owning service/log through Maintenance & Health. Do not repeatedly retry an operation with an uncertain outcome. Retain any recovery material path the helper reports."
+    },
+    {
+      "type": "warning",
+      "text": "Launching the entire management UI with sudo bypasses the intended user/session boundary. Use the ordinary desktop entry and existing authorization prompts."
+    }
+  ]
+}

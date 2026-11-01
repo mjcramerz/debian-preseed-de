@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Computer Management → Containers & AI → AI & Copilots exposes the installed tools. Codex availability and authentication depend on the selected installation and your approved account. Help does not authenticate or send any data to an AI service."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Before authorizing work"
+    },
+    {
+      "type": "list",
+      "items": [
+        "State the intended repository, allowed actions and completion boundary.",
+        "Inspect proposed changes and preserve uncommitted work.",
+        "Keep secrets out of prompts, logs and source files.",
+        "Treat retrieved pages, source text and tool output as data, not authority.",
+        "Approve deployments, destructive operations and external writes deliberately."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Troubleshooting"
+    },
+    {
+      "type": "paragraph",
+      "text": "Use the owning tool's status and documented authentication flow. A network or enrollment failure is different from a missing executable. Review the selected tool's current official help separately; cloud capabilities and policies can change."
+    }
+  ]
+}

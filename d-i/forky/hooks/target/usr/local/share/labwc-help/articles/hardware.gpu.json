@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Applications use the repository's managed launchers and profile-selected graphics policy. Intel, AMD and optional NVIDIA support differ by host. Read the related manuals for the selected graphics policy; a driver file is not proof that a GPU is active."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Diagnose an application"
+    },
+    {
+      "type": "paragraph",
+      "text": "The Waybar application launcher's context menu offers GTK, Qt, Electron and Wayland/OpenGL diagnostic profiles. Use the matching profile only when you deliberately need a bounded local report, and remove sensitive information before sharing it."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Recovery"
+    },
+    {
+      "type": "paragraph",
+      "text": "Start with the failing application's ordinary native launcher and its logs. Avoid global environment overrides, disabling security profiles or enabling Vulkan/Xwayland as a blanket fix. Retain the existing private Zoom/Discord compatibility path."
+    }
+  ]
+}

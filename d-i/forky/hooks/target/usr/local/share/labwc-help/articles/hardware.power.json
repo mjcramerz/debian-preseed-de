@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "The power menu provides locking, logout and power actions. Power Profile selects among the modes available on the installed hardware. Idle inhibition and screen locking have separate controls; confirm the current state in their menus."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Before suspend or shutdown"
+    },
+    {
+      "type": "list",
+      "items": [
+        "Save documents and stop long operations through their owning application.",
+        "Disconnect remote shares and removable media only after closing files.",
+        "Let package operations finish. The managed sleep guard protects active package work.",
+        "Use the normal Power action and wait for completion."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Recovery"
+    },
+    {
+      "type": "paragraph",
+      "text": "For repeated suspend/resume failures, record the selected profile, attached hardware and time, then inspect boot logs. Hardware tuning settings are host gated; do not copy tuning flags from another machine."
+    }
+  ]
+}

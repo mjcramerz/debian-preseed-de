@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Run graphical tools as your ordinary desktop account. Administrative changes use the existing Polkit authentication agent and fixed helpers. Help is informational and never asks for a password."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Recognize sensitive data"
+    },
+    {
+      "type": "list",
+      "items": [
+        "Keep passwords, private keys, recovery phrases, cookies, tokens and calendar credentials out of logs and screenshots.",
+        "Review terminal output before copying it to another person. Hostnames, IP addresses, SSIDs, usernames and device serials can be sensitive.",
+        "Lock the session before leaving it unattended.",
+        "Approve enrollment only for the intended external service and account."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Recovery"
+    },
+    {
+      "type": "paragraph",
+      "text": "If an authentication agent is unavailable, save work and inspect the session logs. Do not launch the entire GUI with sudo or broaden passwordless authorization. For exposed credentials, revoke or rotate them through their owning service."
+    }
+  ]
+}

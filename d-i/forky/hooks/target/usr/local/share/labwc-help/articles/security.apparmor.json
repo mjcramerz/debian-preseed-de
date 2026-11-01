@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "AppArmor confines application and system helper access. Endpoint Security → AppArmor provides status, events and deliberately authorized policy operations. Enforce mode denies disallowed operations; complain mode records events and has a different security meaning."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Policy locations"
+    },
+    {
+      "type": "paragraph",
+      "text": "Profiles are installed in /etc/apparmor.d/ and the managed mode policy is separate. Local includes supplement specific profiles. A source profile existing on disk does not prove it is loaded, attached to the application or enforcing."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Report a denial"
+    },
+    {
+      "type": "paragraph",
+      "text": "Record the time, exact application/menu action and the sanitized denial details through the existing status/events tools. Include which profile and requested operation were involved. Investigate the required narrow permission before authorizing any change."
+    },
+    {
+      "type": "warning",
+      "text": "Do not disable AppArmor globally, unload profiles or broadly allow execution to make an application launch. Help never changes policy, modes, cache or kernel security state."
+    }
+  ]
+}

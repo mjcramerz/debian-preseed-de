@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Timeshift is optional. Open it through its installed managed application entry when available. Choose the supported mode for the actual filesystem; do not assume Btrfs snapshot support on F2FS."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Before changing the system"
+    },
+    {
+      "type": "paragraph",
+      "text": "Review included paths, exclusions, snapshot destination and available space. Confirm the snapshot exists and keep a separate user-data backup. Snapshot existence does not prove that restore was tested."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Restoring"
+    },
+    {
+      "type": "paragraph",
+      "text": "Restore is an administrative operation that can replace system files and boot configuration. Save current work, preserve newer data, and review the selected snapshot and target before confirmation. If the system does not boot, use an administrator-approved recovery procedure appropriate to the installed storage and encryption."
+    },
+    {
+      "type": "warning",
+      "text": "Help does not create, prune, restore or validate snapshots. Do not delete the only known working recovery copy to free space."
+    }
+  ]
+}

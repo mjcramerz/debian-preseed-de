@@ -11,7 +11,7 @@ notify_failure() {
   "$notify_send_cmd" \
     -a "Desktop Power" \
     -u critical \
-    -i system-shutdown \
+    -i __THEME_LABWC_MENU_POWER_ICON_NAME__ \
     -c x-labwc.power \
     "Power request failed" \
     "$notification_message" >/dev/null 2>&1 || true

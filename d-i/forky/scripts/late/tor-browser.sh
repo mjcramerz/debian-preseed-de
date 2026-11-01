@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 # Sourced only by the Software installer after its class/architecture gates.
 
 software_install_tor_media_runtime() {
@@ -69,7 +70,7 @@ software_install_tor_browser() (
     "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/tor-browser-run)" \
     /usr/local/libexec/tor-browser-run 0755
   software_stage_seed_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/share/applications/tor-browser.desktop)" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/share/applications/tor-browser.desktop.tmpl)" \
     /usr/local/share/applications/tor-browser.desktop 0644
   # Firefox uses the distribution FFmpeg library for H.264/AAC. Check the
   # actual target ABI and decoders, not merely the ffmpeg command's presence.

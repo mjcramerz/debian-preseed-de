@@ -101,6 +101,7 @@ for cmd in \
   labwc-power-menu \
   wayland-info \
   labwc-app \
+  labwc-help \
   labwc-electron-app \
   labwc-wayland-app \
   labwc-qbittorrent \
@@ -564,6 +565,7 @@ for path in \
   /usr/local/share/labwc-greeter/autostart \
   /usr/share/wayland-sessions/labwc.desktop \
   /usr/local/share/applications/computer-management.desktop \
+  /usr/local/share/applications/labwc-help.desktop \
   /usr/local/share/applications/remote-desktop-management.desktop \
   /usr/local/share/applications/foot.desktop \
   /usr/local/share/applications/code.desktop \
@@ -1950,6 +1952,7 @@ metadata() {
 executable() { metadata "$1" 755; [ -x "$1" ] || { printf "fatal: runtime delegate is not executable: %s\\n" "$1" >&2; exit 1; }; }
 for path in \
   /usr/local/bin/labwc-app /usr/local/bin/labwc-fuzzel \
+  /usr/local/bin/labwc-help /usr/local/libexec/labwc-help-gtk \
   /usr/local/bin/labwc-wayscriber-config /usr/local/bin/labwc-wayscriber-toggle \
   /usr/local/bin/labwc-wallpaper-save /usr/local/libexec/labwc-waypaper \
   /usr/local/libexec/labwc-waybar-run /usr/local/libexec/labwc-waybar-exec \
@@ -1960,6 +1963,21 @@ for path in \
   /usr/local/lib/python3.14/dist-packages/managed_workflows/fs.py \
   /usr/local/lib/python3.14/dist-packages/labwc_appearance/wallpaper.py \
   /etc/apparmor.d/abstractions/native-gpu-selection; do metadata "$path" 644; done
+metadata /usr/local/share/labwc-appearance/menu-icons.json 644
+for path in \
+  /usr/local/share/labwc-help/catalog.json \
+  /usr/local/share/labwc-help/theme.json \
+  /usr/local/share/applications/labwc-help.desktop \
+  /usr/local/lib/python3.14/dist-packages/labwc_help/__init__.py \
+  /usr/local/lib/python3.14/dist-packages/labwc_help/catalog.py \
+  /usr/local/lib/python3.14/dist-packages/labwc_help/navigation.py \
+  /usr/local/lib/python3.14/dist-packages/labwc_help/render.py \
+  /usr/local/lib/python3.14/dist-packages/labwc_help/search.py \
+  /usr/local/lib/python3.14/dist-packages/labwc_help/state.py \
+  /usr/local/lib/python3.14/dist-packages/labwc_help/theme.py \
+  /usr/local/lib/python3.14/dist-packages/labwc_help/window.py \
+  /usr/local/lib/python3.14/dist-packages/labwc_help/app.py; do metadata "$path" 644; done
+for path in /usr/local/share/labwc-help/articles/*.json; do metadata "$path" 644; done
 for path in /usr/local/bin/labwc-agenda /usr/local/bin/labwc-calendar; do
   [ -L "$path" ] || { printf "fatal: managed calendar link is missing: %s\\n" "$path" >&2; exit 1; }
   target=$(readlink "$path")
@@ -1967,6 +1985,14 @@ for path in /usr/local/bin/labwc-agenda /usr/local/bin/labwc-calendar; do
 done
 printf "desktop_runtime_metadata_verification stage=%s\\n" "$stage"
 ' sh
+  run_in_target "verify Help GTK bindings and desktop metadata" /usr/bin/python3 -I -B -c '
+import gi
+gi.require_version("Gtk", "4.0")
+gi.require_version("Adw", "1")
+from gi.repository import Adw, Gtk
+assert Adw and Gtk
+'
+  run_in_target "verify Help desktop entry metadata" /usr/bin/desktop-file-validate /usr/local/share/applications/labwc-help.desktop
 }
 
 desktop_verify_target_staging() {

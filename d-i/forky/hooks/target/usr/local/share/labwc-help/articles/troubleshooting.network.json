@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Locate the failure"
+    },
+    {
+      "type": "list",
+      "items": [
+        "Check whether NetworkManager reports the intended device connected.",
+        "Check whether the problem affects all applications or only a managed application.",
+        "Review the configured VPN/tunnel status without changing routing.",
+        "For NFS, inspect Sharing Status and role enablement.",
+        "For pending external enrollment, complete only the user-approved account workflow."
+      ]
+    },
+    {
+      "type": "code",
+      "text": "nmcli -t -f STATE general"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Record and recover"
+    },
+    {
+      "type": "paragraph",
+      "text": "Keep the exact time and sanitized error. Use the owning connection utility to reconnect when intended. If DNS or a remote service is unavailable, changing firewall tables blindly will not establish the cause."
+    },
+    {
+      "type": "warning",
+      "text": "Do not publish raw connection profiles, packet captures or credentials. Do not flush rules, reset NetworkManager state or change namespace interfaces to make a diagnostic pass."
+    }
+  ]
+}

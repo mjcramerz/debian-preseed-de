@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Identify which part failed: login screen, Labwc, Waybar, dock, launcher or one application. Keep work saved. Use Help's optional system information view for bounded status evidence, then inspect the relevant guide."
+    },
+    {
+      "type": "code",
+      "text": "systemctl --user --failed --no-pager\nsystemctl --user status labwc-session.target waybar.service crystal-dock.service --no-pager"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Narrow recovery"
+    },
+    {
+      "type": "paragraph",
+      "text": "Read the owning service logs, then use the existing component-specific restart action once when appropriate. If the session itself is unhealthy, save work and sign out normally. A stale configuration, unavailable package and denied access require different fixes."
+    },
+    {
+      "type": "warning",
+      "text": "Do not disable security policy, start duplicate services, delete session directories or enable global Xwayland as a generic desktop repair."
+    }
+  ]
+}

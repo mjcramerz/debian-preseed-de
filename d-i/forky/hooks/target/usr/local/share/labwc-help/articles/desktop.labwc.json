@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Labwc is the Wayland compositor. Right-click an empty part of the desktop for its menu. Drag a titlebar to move a window and use the titlebar controls to minimize, maximize or close it. Alt+Tab cycles the current workspace; Waybar workspace buttons change workspace."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Configuration and session"
+    },
+    {
+      "type": "paragraph",
+      "text": "The primary files are ~/.config/labwc/rc.xml, menu.xml and environment. The managed session also uses labwc-session.target and user services. Prefer the existing graphical settings and refresh actions; changing environment normally requires signing out and back in."
+    },
+    {
+      "type": "code",
+      "text": "systemctl --user status labwc-session.target --no-pager"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Recovery"
+    },
+    {
+      "type": "paragraph",
+      "text": "If one application fails, close and reopen that application before restarting desktop components. Use [Logs](help:maintenance.logs) to inspect the owning user unit. Save your work before signing out."
+    },
+    {
+      "type": "warning",
+      "text": "The existing private Xwayland path is restricted to Zoom and Discord. Do not enable session-wide Xwayland or route other applications through those compatibility helpers."
+    }
+  ]
+}

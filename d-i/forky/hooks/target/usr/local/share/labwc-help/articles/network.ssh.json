@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "The desktop includes an SSH client. An SSH server is profile controlled and can use a nonstandard port and restricted source networks/users. Ask the administrator for the intended host, port and key fingerprint."
+    },
+    {
+      "type": "code",
+      "text": "ssh -p PORT USER@HOST"
+    },
+    {
+      "type": "paragraph",
+      "text": "Replace PORT, USER and HOST deliberately. Verify the first host-key fingerprint through a trusted channel. A changed key can mean a rebuilt host or an interception attempt; investigate before removing known_hosts entries."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Configuration and recovery"
+    },
+    {
+      "type": "paragraph",
+      "text": "Client preferences live in ~/.ssh/config and known hosts in ~/.ssh/known_hosts. Server policy is installed under /etc/ssh/. Keep private keys and configuration private. If access is refused, check the actual configured port and allowed network through the managed tools before changing firewall or server policy."
+    },
+    {
+      "type": "warning",
+      "text": "Never paste private keys, passwords, authentication codes or agent contents into diagnostics. Do not enable root/password SSH as a workaround."
+    }
+  ]
+}

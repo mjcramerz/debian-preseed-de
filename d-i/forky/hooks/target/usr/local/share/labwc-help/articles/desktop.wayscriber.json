@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Wayscriber is the managed Wayland annotation overlay. Its Waybar popup can open the overlay, use read-only or freeze modes, show or hide it, toggle light drawing, and display session information."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Overlay controls"
+    },
+    {
+      "type": "paragraph",
+      "text": "The daemon is owned by the user session. The toggle helper checks the Wayland socket and service identity before sending one bounded request. An uncertain response is reported without an automatic retry, so inspect the overlay before selecting the action again."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Configuration"
+    },
+    {
+      "type": "paragraph",
+      "text": "Open config from the Wayscriber menu to edit the user-owned configuration through the managed terminal. Keep the configuration under ~/.config/wayscriber and close the editor before changing overlay modes."
+    },
+    {
+      "type": "code",
+      "text": "systemctl --user status wayscriber.service --no-pager"
+    }
+  ]
+}

@@ -14,6 +14,7 @@ import labwc_desktop_runtime as desktop_runtime
 
 PICKER = "/usr/local/bin/labwc-fuzzel"
 ACTION = "/usr/local/bin/labwc-network-control-action"
+HELP = "/usr/local/bin/labwc-help"
 NMCLI = "/usr/bin/nmcli"
 UUID = re.compile(r"^[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}$")
 INTERFACE = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
@@ -236,6 +237,12 @@ def network_action(*args: str) -> int:
     return result.returncode
 
 
+def open_help(topic: str) -> None:
+    if topic != 'network.connections':
+        raise NetworkMenuError('unsupported network Help topic')
+    run([HELP, '--topic', topic], input_text=None, capture=False, timeout=120)
+
+
 def action_menu(prompt: str, labels: list[str]) -> str | None:
     return picker(labels + ["← Back"], prompt)
 
@@ -317,11 +324,14 @@ def dns_menu() -> None:
 
 
 def main_menu() -> None:
-    labels = ["⮞ Connection Profiles", "⮞ VPN Connections", "⮞ WireGuard Connections", "⮞ DNS Configuration"]
+    labels = ["⮞ Connection Profiles", "⮞ VPN Connections", "⮞ WireGuard Connections", "⮞ DNS Configuration", "Help"]
     while True:
         action = action_menu("Network Management", labels)
         if action in (None, "← Back"):
             return
+        if action == "Help":
+            open_help('network.connections')
+            continue
         {"⮞ Connection Profiles": connections_menu, "⮞ VPN Connections": vpn_menu,
          "⮞ WireGuard Connections": wireguard_menu, "⮞ DNS Configuration": dns_menu}[action]()
 

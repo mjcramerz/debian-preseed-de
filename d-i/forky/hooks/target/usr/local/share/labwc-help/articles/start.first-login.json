@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Sign in with your installed account in the greetd login screen. The desktop uses Labwc on Wayland, Waybar for status and menus, and Crystal Dock for application shortcuts. Help needs no administrator privileges or network connection."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Start with the essentials"
+    },
+    {
+      "type": "list",
+      "items": [
+        "Open Terminal, Files, and Applications from the desktop right-click menu.",
+        "Use the Waybar system settings button for desktop, network, storage and maintenance tools. Help is immediately below Files.",
+        "Open Computer Management for the categorized administration menu. Read each confirmation before authorizing a change."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "If the session is incomplete"
+    },
+    {
+      "type": "paragraph",
+      "text": "Open [Desktop troubleshooting](help:troubleshooting.desktop). A missing bar or dock is different from a failed login. Record what appears, the time, and whether the problem also occurs after signing out normally. Avoid repeatedly forcing the machine off."
+    },
+    {
+      "type": "warning",
+      "text": "Account setup, enrollment, remote access and optional software depend on the selected installation profile. A pending Tailscale or CrowdSec enrollment is expected until you approve it."
+    }
+  ]
+}

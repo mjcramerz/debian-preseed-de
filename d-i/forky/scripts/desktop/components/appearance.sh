@@ -25,6 +25,9 @@ desktop_stage_appearance() (
   state_host=$(target_asset_host_path /var/lib/labwc-appearance)
   chmod 0700 "$state_host"
   desktop_stage_role_asset usr/local/bin/labwc-desktop-appearance /usr/local/bin/labwc-desktop-appearance 0755
+  desktop_render_role_target_template \
+    usr/local/share/labwc-appearance/menu-icons.json.tmpl \
+    /usr/local/share/labwc-appearance/menu-icons.json 0644
   for helper in labwc-appearance-defaults labwc-appearance-greeter labwc-appearance-themes; do
     desktop_stage_role_asset "usr/local/libexec/$helper" "/usr/local/libexec/$helper" 0755
   done

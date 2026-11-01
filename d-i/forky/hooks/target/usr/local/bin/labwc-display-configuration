@@ -6,6 +6,10 @@ fatal() {
   exit 1
 }
 
+if [ "$#" -eq 1 ] && [ "$1" = --help ]; then
+  exec /usr/local/bin/labwc-help --topic hardware.monitors
+fi
+
 [ -n "${WAYLAND_DISPLAY:-}" ] ||
   fatal 'Display Configuration requires an active Wayland display'
 case "${XDG_SESSION_TYPE:-wayland}" in

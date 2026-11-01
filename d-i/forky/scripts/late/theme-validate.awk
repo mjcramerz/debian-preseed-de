@@ -161,6 +161,9 @@ function valid(value, type,    copy,hexlen,n,i,parts) {
         if (type == "absolute-icon-path" && value !~ /^\/usr\/share\//) return 0
         return value ~ /^(\/usr\/share\/|icons\/)[A-Za-z0-9_.\/+-]+[.](svg|png|jpg|jpeg|webp)$/
     }
+    if (type == "tor-icon-path") {
+        return value == "/opt/tor-browser/Browser/browser/chrome/icons/default/default128.png"
+    }
     if (type == "font-weight") return value ~ /^[1-9]00$/
     if (type == "border-style") return value ~ /^(none|solid|dashed|dotted|double|groove|ridge|inset|outset)$/
     if (type == "font") return value ~ /^[A-Za-z0-9][A-Za-z0-9 .,_-]*$/

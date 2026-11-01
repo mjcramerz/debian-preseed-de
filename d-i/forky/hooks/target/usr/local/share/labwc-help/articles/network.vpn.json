@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Use Computer Management → Network & Remote → VPN Connections or WireGuard Connections to select configured connections. Connection definitions and credentials are installation/profile dependent."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Check the intended route"
+    },
+    {
+      "type": "paragraph",
+      "text": "Confirm the expected connection is active in the managed status view. A tunnel being up does not prove that every application uses it. Managed applications may have their own network namespaces and proxy policy."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Recovery and privacy"
+    },
+    {
+      "type": "paragraph",
+      "text": "Disconnect using the same owning utility. Record whether the failure affects all applications or one managed application. Do not flush nftables, replace default routes or move interfaces between namespaces as a diagnostic shortcut."
+    },
+    {
+      "type": "warning",
+      "text": "VPN profiles, private keys and raw connection exports can contain secrets. Never paste them into Help reports or issue logs."
+    }
+  ]
+}

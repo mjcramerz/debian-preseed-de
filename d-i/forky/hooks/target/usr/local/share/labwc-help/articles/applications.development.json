@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "The desktop profile includes editors, Git, Python environments, Go, compilers and common formatters/linters. Optional add-ons provide additional tools. Prefer the project's documented versions, package manager and lockfiles."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Python projects"
+    },
+    {
+      "type": "code",
+      "text": "python3 -m venv .venv"
+    },
+    {
+      "type": "paragraph",
+      "text": "This command creates files in .venv in the current directory. Create it only inside an intended project, inspect dependencies before installing them, and avoid changing the system Python environment. Do not use sudo pip."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Troubleshooting"
+    },
+    {
+      "type": "paragraph",
+      "text": "Check the actual interpreter/tool selected by the project. A tool installed on the host is not necessarily present inside its development environment. Preserve unrelated changes and inspect scripts before running builds, hooks or test discovery."
+    },
+    {
+      "type": "warning",
+      "text": "Builds, package install scripts and test imports can execute arbitrary code. Trust the project and its inputs before execution."
+    }
+  ]
+}

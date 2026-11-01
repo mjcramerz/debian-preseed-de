@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "The clock menu opens the managed calendar and agenda and offers event, task and local reminder actions. Calendar credentials are obtained through the configured keyring flow. If credentials are not ready, use the menu's retry action after unlocking the session."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Local versus synchronized reminders"
+    },
+    {
+      "type": "paragraph",
+      "text": "Local phone-reminder preferences stay on this computer and are excluded from the Fruux calendar data. Calendar synchronization and notification delivery are separate: a visible event does not prove that its reminder worker delivered a notification."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Troubleshooting"
+    },
+    {
+      "type": "code",
+      "text": "systemctl --user status labwc-local-reminders.service --no-pager"
+    },
+    {
+      "type": "paragraph",
+      "text": "Check Do Not Disturb, time settings and account availability before recreating events. Never put calendar passwords or recovery codes in screenshots or copied logs."
+    }
+  ]
+}

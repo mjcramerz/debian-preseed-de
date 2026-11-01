@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Tailscale is installed only when selected. An installed client or running daemon can still await enrollment; pending enrollment is an expected state until you approve joining the intended account/network."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Service evidence"
+    },
+    {
+      "type": "code",
+      "text": "systemctl status tailscaled.service --no-pager"
+    },
+    {
+      "type": "paragraph",
+      "text": "Service status is not proof of authentication or peer reachability. Use the existing enrollment workflow and verify the intended account yourself. Help never enrolls, contacts a control server or collects Tailscale addresses."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Recovery"
+    },
+    {
+      "type": "paragraph",
+      "text": "Keep the repository's configured interface, DNS, route and netfilter policy. Do not run an arbitrary tailscale up command copied from another host: flags may change routing, DNS, SSH exposure or exit-node use."
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Open Terminal from the desktop menu or press Super+Return. Foot is a native Wayland terminal. Commands run as your account unless you explicitly authorize an administrative operation."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Configuration"
+    },
+    {
+      "type": "paragraph",
+      "text": "Foot settings live in ~/.config/foot/foot.ini. Desktop Appearance edits supported presentation fields. Keep a backup before manual edits. The managed launcher owns terminal service lifetime and environment."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Copying from Help"
+    },
+    {
+      "type": "paragraph",
+      "text": "Select text and press Ctrl+C, or use a code block's Copy button. Paste into the terminal with its paste shortcut/menu, inspect every argument, and press Enter only when you intend to run it. Words such as HOST, USER and PORT are placeholders you must replace."
+    },
+    {
+      "type": "warning",
+      "text": "Copied commands can modify the system when run. Never paste an unreviewed multiline command or an authentication secret into a terminal."
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "F2FS profiles target flash storage such as eMMC. The installer chooses the filesystem and mount policy. Btrfs subvolume and snapshot commands do not apply to F2FS."
+    },
+    {
+      "type": "code",
+      "text": "findmnt -n -o FSTYPE /\ndf -h /"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Keep space available"
+    },
+    {
+      "type": "paragraph",
+      "text": "Use the existing storage overview to identify pressure before deleting files. Close applications and back up user data before cleanup. Flash wear and power loss can affect reliability; keep external copies of irreplaceable files."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Recovery"
+    },
+    {
+      "type": "paragraph",
+      "text": "For suspected corruption stop unnecessary writes, preserve evidence, and arrange an administrator-led offline repair plan. Never run filesystem repair on a mounted filesystem or format a device as a troubleshooting step."
+    }
+  ]
+}

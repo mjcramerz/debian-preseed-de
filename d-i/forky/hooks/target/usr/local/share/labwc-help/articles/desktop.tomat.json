@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Tomat provides managed focus sessions, pauses, breaks and a Waybar status control. The popup menu starts a reviewed preset, pauses or resumes the current session, skips a break, stops the session, and opens Tomat settings."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Session lifecycle"
+    },
+    {
+      "type": "paragraph",
+      "text": "A session is owned by labwc-tomat.service in the user session and its break overlay is separate. Closing the menu does not stop an active session. Use Stop when you intend to end it; use Pause / Resume when you only need a temporary interruption."
+    },
+    {
+      "type": "code",
+      "text": "systemctl --user status labwc-tomat.service --no-pager"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Notifications and overlays"
+    },
+    {
+      "type": "paragraph",
+      "text": "Tomat notification, sound and overlay settings are session preferences. If a break is not visible, check the Waybar status and the notification quiet mode before starting another session. Do not run a second timer daemon to work around a missing notification."
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Open the application through its standard menu/desktop entry. Record whether a window appears, exits immediately, or stays blank. A subsequent single-instance launch may activate an existing process; it does not prove a fresh environment was applied."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Useful evidence"
+    },
+    {
+      "type": "paragraph",
+      "text": "The Waybar launcher offers diagnostic profiles for GTK, Qt, Electron and Wayland graphics. Use the matching profile and inspect its bounded local report. Help provides the related manuals and does not run diagnostic profiles or collect reports."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Recovery"
+    },
+    {
+      "type": "paragraph",
+      "text": "Close the failing application normally and retry once after inspecting evidence. Check package/delegate availability and sanitized AppArmor denials. Keep renderer, native Wayland and per-application network policy intact."
+    },
+    {
+      "type": "warning",
+      "text": "Private Xwayland is exclusively for the existing Zoom and Discord launchers. Do not route another application through that path or globally enable X11 compatibility."
+    }
+  ]
+}

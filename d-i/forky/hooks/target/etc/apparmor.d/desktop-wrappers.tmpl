@@ -757,6 +757,7 @@ profile labwc-computer-management /usr/local/bin/labwc-computer-management flags
   #include <abstractions/wrapper-python>
   /usr/local/bin/labwc-terminal rPx -> labwc-terminal,
   /usr/local/bin/labwc-computer-management rix,
+  /usr/local/bin/labwc-help rPx -> labwc-help,
   /usr/bin/{cat,id,stat} rix,
   /usr/bin/pavucontrol pux,
   /usr/bin/systemctl pux,
@@ -814,6 +815,7 @@ profile labwc-system-menu-action /usr/local/bin/labwc-system-menu-action flags=(
   /usr/local/bin/labwc-lock rPx,
   /usr/local/bin/labwc-logout rPx,
   /usr/local/bin/labwc-main-menu rPx,
+  /usr/local/bin/labwc-help rPx -> labwc-help,
   /usr/local/bin/labwc-maintenance-menu rPx,
   /usr/local/bin/labwc-network-control-menu rPx,
   /usr/local/bin/labwc-network-scan-menu rPx,
@@ -1062,6 +1064,7 @@ profile labwc-display-configuration /usr/local/bin/labwc-display-configuration f
   #include <abstractions/wrapper-wayland>
 
   /usr/local/bin/labwc-display-configuration rix,
+  /usr/local/bin/labwc-help rPx -> labwc-help,
   /usr/bin/wdisplays pux,
 
   include if exists <local/usr.local.bin.labwc-display-configuration>
@@ -1625,6 +1628,7 @@ profile labwc-fuzzel /usr/local/bin/labwc-fuzzel flags=(attach_disconnected) {
   owner /run/user/[0-9]*/{bus,systemd/private} rw,
 
   /usr/local/bin/labwc-fuzzel rix,
+  /usr/local/bin/labwc-help rPx -> labwc-help,
   /usr/local/libexec/labwc-output-watch rPx -> labwc-output-watch,
   /usr/bin/fuzzel rPx,
   /usr/local/bin/labwc-fuzzel-log rPx -> labwc-fuzzel-log,
@@ -1965,6 +1969,7 @@ profile labwc-maintenance-menu /usr/local/bin/labwc-maintenance-menu flags=(atta
   #include <abstractions/wrapper-python>
 
   /usr/local/bin/labwc-maintenance-menu rix,
+  /usr/local/bin/labwc-help rPx -> labwc-help,
   /usr/local/lib/python3.14/dist-packages/labwc_desktop_runtime.py r,
   /usr/bin/systemctl pux,
   /usr/{bin,sbin}/ip pux,
@@ -2417,6 +2422,8 @@ profile labwc-app /usr/local/bin/{labwc-app,labwc-agenda,labwc-calendar} flags=(
 
   /usr/local/bin/labwc-app rix,
   /usr/local/bin/{labwc-agenda,labwc-calendar} r,
+  /usr/local/libexec/labwc-help-gtk rPx -> labwc-help-ui,
+  /usr/local/share/labwc-help/{,catalog.json,theme.json} r,
   # Exact executable attachments in calendars select these confined profiles.
   # Avoid named entries here: labwc-app's named transition table is bounded.
   /usr/local/bin/com.github.dahenson.agenda rpx,
@@ -2932,6 +2939,42 @@ profile labwc-app /usr/local/bin/{labwc-app,labwc-agenda,labwc-calendar} flags=(
   include if exists <local/usr.local.bin.labwc-app>
 }
 
+profile labwc-help /usr/local/bin/labwc-help flags=(attach_disconnected) {
+  # Public command cannot execute the GUI directly; all launches use labwc-app.
+  #include <abstractions/wrapper-python>
+  /usr/local/bin/labwc-help r,
+  /usr/local/bin/labwc-app rPx -> labwc-app,
+}
+
+profile labwc-help-ui /usr/local/libexec/labwc-help-gtk flags=(attach_disconnected, mediate_deleted) {
+  # Help is a native, read-only Wayland application. Its service is still
+  # created by labwc-app, so the transient user cgroup owns its full lifetime.
+  #include <abstractions/wrapper-python>
+  #include <abstractions/wrapper-gui>
+  #include <abstractions/wrapper-wayland>
+  include if exists <abstractions/dbus-session-strict>
+  /usr/local/libexec/labwc-help-gtk r,
+  /usr/local/lib/python3.14/dist-packages/ r,
+  /usr/local/lib/python3.14/dist-packages/labwc_help/ r,
+  /usr/local/lib/python3.14/dist-packages/labwc_help/*.py r,
+  /usr/local/share/labwc-help/ r,
+  /usr/local/share/labwc-help/{catalog.json,theme.json,articles/} r,
+  /usr/local/share/labwc-help/articles/*.json r,
+  /usr/share/{glib-2.0,gir-1.0,icons,locale,themes}/{,**} r,
+  /usr/lib/** mr,
+  owner @{HOME}/ r,
+  owner @{HOME}/.local/ r,
+  owner @{HOME}/.local/state/ r,
+  owner @{HOME}/.local/state/labwc-help/ rw,
+  owner @{HOME}/.local/state/labwc-help/{state.json,state.lock,.state-*} rwk,
+  owner /run/user/[0-9]*/{bus,wayland-[0-9]*} rw,
+  /run/dbus/system_bus_socket rw,
+  dbus (send, receive) bus=session,
+  deny network inet,
+  deny network inet6,
+  include if exists <local/usr.local.bin.labwc-help>
+}
+
 profile labwc-zoom-command /usr/local/bin/zoom flags=(attach_disconnected) {
   # Launching from a terminal inherits the user's PTY until systemd handoff.
   owner /dev/pts/[0-9]* rw,
@@ -2979,6 +3022,7 @@ profile labwc-network-control-menu /usr/local/bin/labwc-network-control-menu fla
   #include <abstractions/wrapper-python>
 
   /usr/local/bin/labwc-network-control-menu rix,
+  /usr/local/bin/labwc-help rPx -> labwc-help,
   /usr/local/lib/python3.14/dist-packages/labwc_desktop_runtime.py r,
   /usr/bin/nmcli pux,
   /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
@@ -4767,12 +4811,14 @@ profile labwc-main-menu /usr/local/bin/labwc-main-menu flags=(attach_disconnecte
   /opt/*/resources/app.asar r,
   /usr/{lib,share}/*/resources/app.asar r,
   /usr/local/bin/labwc-computer-management rPx -> labwc-computer-management,
+  /usr/local/bin/labwc-help rPx -> labwc-help,
+  /usr/local/bin/labwc-app rPx -> labwc-app,
   /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
   /usr/local/bin/labwc-run rPx -> labwc-run,
   /usr/local/bin/labwc-wayland-app rPx -> labwc-generic-app,
   /usr/local/libexec/labwc-debug-session rPx -> labwc-debug-session,
   /usr/local/bin/labwc-terminal rPx -> labwc-terminal,
-  /usr/local/bin/labwc-{terminal,lock,logout,power-menu,power-settings} rPx,
+  /usr/local/bin/labwc-{lock,logout,power-menu,power-settings} rPx,
   /usr/local/libexec/labwc-output-watch rPx,
   /usr/bin/systemctl rix,
   /usr/lib/python3/dist-packages/gi/{,**} mr,

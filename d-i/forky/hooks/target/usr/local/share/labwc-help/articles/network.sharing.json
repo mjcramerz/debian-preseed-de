@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Open Computer Management → Network & Remote → Network Sharing. Sharing Status explains the installed roles. Connect to NFS Server and Disconnect from NFS Server operate only on the configured client share; disabled roles stay disabled."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Files and configuration"
+    },
+    {
+      "type": "paragraph",
+      "text": "/etc/network-sharing/config.json describes the installed policy. /etc/fstab contains the managed mount entries. The common sharing root is /data/sharing, with an account-level Sharing bind where configured. Paths and server roles depend on the selected host profile."
+    },
+    {
+      "type": "code",
+      "text": "nfsmnt --help"
+    },
+    {
+      "type": "paragraph",
+      "text": "Running nfsmnt without arguments toggles the configured client connection; it can mount or unmount and is not a read-only probe. Close applications using the share before disconnecting. Filen uses its separate filenmnt account workflow."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Troubleshooting"
+    },
+    {
+      "type": "paragraph",
+      "text": "Check Sharing Status, role enablement, the intended server and authorization agent. Server reachability is different from NFS export permission. A failed home bind can leave the source mounted; inspect status before retrying."
+    },
+    {
+      "type": "warning",
+      "text": "Do not mount arbitrary servers with sudo or edit exports to grant everyone access. Preserve numeric identity, firewall and profile ownership policy."
+    }
+  ]
+}

@@ -1,6 +1,10 @@
 """Arrow-navigable Computer Management appearance submenu."""
 from __future__ import annotations
 import json
+import os
+from pathlib import Path
+import re
+import stat
 import subprocess
 import sys
 from managed_workflows.process import environment
@@ -12,34 +16,45 @@ from .icon_catalog import (ICON_COLLECTIONS, POINTER_COLLECTIONS,
                            public_catalog as asset_catalog)
 
 
-MENU_ICONS = {
-    'Desktop Appearance': 'preferences-desktop-display',
-    'Desktop Themes': 'preferences-desktop-theme',
-    'Fuzzel Themes': 'system-search',
-    'Waybar Themes': 'preferences-system-windows',
-    'Taskview Themes': 'view-grid',
-    'Waycal Themes': 'x-office-calendar-symbolic',
-    'Crystal-Dock Themes': 'view-refresh',
-    'GtkGreet Themes': 'system-users',
-    'Terminal Themes': 'utilities-terminal',
-    'Swaylock Themes': 'system-lock-screen',
-    'Mako Themes': 'preferences-desktop-notification',
-    'Icon Themes': 'preferences-desktop-icons',
-    'Pointer Themes': 'input-mouse',
-    'Reset Icon Theme': 'view-refresh',
-    'Reset Mouse Theme': 'view-refresh',
-    'Reset Appearance (All)': 'view-refresh',
-    'Reset Appearance': 'view-refresh',
-    'Reset Theme': 'view-refresh',
-    'Back': 'go-previous',
-    'Cancel': 'window-close',
-    'Apply': 'dialog-ok',
-}
-DEFAULT_ICON = 'preferences-desktop-theme'
+MENU_ICON_REGISTRY = Path('/usr/local/share/labwc-appearance/menu-icons.json')
+ICON_NAME = re.compile(r'[A-Za-z0-9][A-Za-z0-9._+-]{0,127}\Z')
+MENU_ICON_KEYS = frozenset({
+    'Desktop Appearance', 'Desktop Themes', 'Fuzzel Themes', 'Waybar Themes',
+    'Taskview Themes', 'Waycal Themes', 'Crystal-Dock Themes', 'GtkGreet Themes',
+    'Terminal Themes', 'Swaylock Themes', 'Mako Themes', 'Icon Themes',
+    'Pointer Themes', 'Reset Icon Theme', 'Reset Mouse Theme',
+    'Reset Appearance (All)', 'Reset Appearance', 'Reset Theme', 'Help',
+    'Back', 'Cancel', 'Apply', 'default',
+})
+
+
+def _icon(value: object) -> str:
+    return value if isinstance(value, str) and ICON_NAME.fullmatch(value) else ''
+
+
+def load_menu_icons() -> dict[str, str]:
+    try:
+        info = MENU_ICON_REGISTRY.lstat()
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0
+                or stat.S_IMODE(info.st_mode) != 0o644 or info.st_nlink != 1
+                or info.st_size > 16384):
+            return {}
+        data = json.loads(MENU_ICON_REGISTRY.read_text(encoding='utf-8'))
+        icons = data.get('icons', {}) if isinstance(data, dict) else {}
+        if not isinstance(icons, dict):
+            return {}
+        return {key: _icon(icons.get(key)) for key in MENU_ICON_KEYS}
+    except (OSError, UnicodeError, TypeError, ValueError, json.JSONDecodeError):
+        return {}
+
+
+MENU_ICONS = load_menu_icons()
+DEFAULT_ICON = MENU_ICONS.get('default', '')
+HELP = '/usr/local/bin/labwc-help'
 
 
 def choose(labels: list[str], prompt: str) -> str | None:
-    rows = ''.join(label + '\0icon\x1f' + MENU_ICONS.get(label, DEFAULT_ICON) + '\n'
+    rows = ''.join(label + (('\0icon\x1f' + icon) if (icon := MENU_ICONS.get(label, DEFAULT_ICON)) else '') + '\n'
                    for label in labels)
     picker_environment = environment(desktop=True)
     # Appearance rows already use Fuzzel's native NUL/US icon metadata. Keep
@@ -61,6 +76,19 @@ def choose(labels: list[str], prompt: str) -> str | None:
     if selected not in labels:
         raise ValueError('menu returned an unknown action')
     return selected
+
+
+def open_help(topic: str) -> None:
+    if topic != 'desktop.appearance':
+        raise ValueError('unsupported appearance Help topic')
+    try:
+        result = subprocess.run([HELP, '--topic', topic], env=os.environ.copy(),
+                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL, check=False, timeout=120)
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError('Help launch timed out') from error
+    if result.returncode:
+        raise RuntimeError('Help launch failed')
 
 
 def perform(args: list[str]) -> None:
@@ -132,9 +160,12 @@ def main(argv: list[str]) -> int:
     groups = {'Desktop Themes': 'theme', 'Icon Themes': 'icon',
               'Pointer Themes': 'pointer', **{title: key for key, title in COMPONENTS.items()}}
     while True:
-        group = choose([*groups, 'Reset Appearance (All)', 'Back'], 'Desktop Appearance')
+        group = choose([*groups, 'Reset Appearance (All)', 'Help', 'Back'], 'Desktop Appearance')
         if group in (None, 'Back'):
             break
+        if group == 'Help':
+            open_help('desktop.appearance')
+            continue
         if group == 'Reset Appearance (All)':
             perform(['reset', 'all'])
             continue

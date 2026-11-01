@@ -73,6 +73,18 @@ WAYLAND_COMPAT_RUNTIME_ROOT = "/opt/xwayland"
 
 
 APPS = {
+    "help": {
+        "exec": "/usr/local/libexec/labwc-help-gtk",
+        "env": {"GDK_BACKEND": "wayland", "GTK_A11Y": "atspi", "NO_AT_BRIDGE": "0"},
+        "args": [],
+        "bind_workspace": False,
+        "pure_privacy": False,
+        "required_runtime_files": (
+            "/usr/local/share/labwc-help/catalog.json",
+            "/usr/local/share/labwc-help/theme.json",
+            "/usr/local/bin/labwc-help",
+        ),
+    },
     "calix": {
         "exec": "/opt/calix/calix",
         "env": {"GDK_BACKEND": "wayland",

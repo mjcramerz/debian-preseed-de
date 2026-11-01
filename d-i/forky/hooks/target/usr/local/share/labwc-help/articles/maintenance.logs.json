@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Start with the exact failing action and its time. Use Computer Management → Maintenance → Services & Logs to inspect relevant services. Application output may use managed rsyslog sinks separately from the journal; absence in journal is not proof of no error."
+    },
+    {
+      "type": "code",
+      "text": "journalctl --user -b -p warning -n 50 --no-pager"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Privacy"
+    },
+    {
+      "type": "paragraph",
+      "text": "Review logs locally before sharing them. Remove credentials, usernames, addresses, hostnames, document titles, private paths and raw network/device identifiers. Help displays documentation only and never reads or copies journal text."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Retention"
+    },
+    {
+      "type": "paragraph",
+      "text": "Some installed profiles use transient log/cache storage. Reboot can remove useful evidence. Preserve a private sanitized excerpt before reboot when practical. Journal vacuum and log deletion remove evidence and require deliberate authorization."
+    }
+  ]
+}

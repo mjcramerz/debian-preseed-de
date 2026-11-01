@@ -35,8 +35,11 @@ class AppearancePickerContractFixtures(unittest.TestCase):
             'labwc_appearance/cli.py'
         )
         tree = ast.parse(source)
-        self.assertIn("'Mako Themes': 'preferences-desktop-notification'", source)
-        self.assertIn("'Desktop Appearance': 'preferences-desktop-display'", source)
+        self.assertIn("MENU_ICON_REGISTRY", source)
+        self.assertIn("load_menu_icons", source)
+        registry = self._source('hooks/target/usr/local/share/labwc-appearance/menu-icons.json.tmpl')
+        self.assertIn('__THEME_LABWC_APPEARANCE_MENU_MAKO_THEMES_ICON_NAME__', registry)
+        self.assertIn('__THEME_FUZZEL_MENU_ACTION_HELP_ICON_NAME__', registry)
         self.assertIn("'LABWC_FUZZEL_MANAGED_ICONS': '0'", source)
         self.assertIn("'--dmenu'", source)
         self.assertNotIn("'--dmenu0'", source)

@@ -1,0 +1,23 @@
+#!/usr/bin/python3 -IB
+"""Public Help launcher: always delegate to the managed transient service."""
+import os
+import re
+import sys
+
+if __name__ == '__main__':
+    arguments = sys.argv[1:]
+    if arguments == ['--help']:
+        print('Usage: labwc-help [--topic CATEGORY.TOPIC]')
+        raise SystemExit(0)
+    if arguments == ['--version']:
+        print('Help 1.0')
+        raise SystemExit(0)
+    if arguments and not (len(arguments) == 2 and arguments[0] == '--topic'
+                          and len(arguments[1]) <= 100
+                          and re.fullmatch(r'[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*){1,3}', arguments[1])):
+        print('Usage: labwc-help [--topic CATEGORY.TOPIC]', file=sys.stderr)
+        raise SystemExit(2)
+    # Help is an independent informational window. Management workflows may
+    # wait for their own actions, but must never wait for Help to be closed.
+    os.environ.pop('LABWC_MENU_ACTION_WAIT', None)
+    os.execv('/usr/local/bin/labwc-app', ['labwc-app', 'auto', 'help', *arguments])

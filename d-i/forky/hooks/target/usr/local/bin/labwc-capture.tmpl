@@ -328,7 +328,7 @@ def track_saved_capture(path: Path, kind: str) -> bool:
         remember_capture(path, kind)
         return True
     except (OSError, ValueError, RuntimeError):
-        notify("normal", "dialog-warning", "x-labwc.screen-capture", "Capture saved",
+        notify("normal", "__THEME_MAKO_SCREEN_CAPTURE_CAPTURE_SAVED_ICON_NAME__", "x-labwc.screen-capture", "Capture saved",
                "The output was saved, but its last-capture record could not be updated.")
         return False
 
@@ -364,7 +364,7 @@ def copy_last_path() -> int:
         except subprocess.TimeoutExpired:
             return fatal("clipboard ownership could not be confirmed; outcome unknown", 4)
     if result.returncode == 0:
-        notify("normal", "edit-copy", "x-labwc.screen-capture", "Capture path copied",
+        notify("normal", "__THEME_MAKO_SCREEN_CAPTURE_COPY_ICON_NAME__", "x-labwc.screen-capture", "Capture path copied",
                "The path of the last completed capture is on the clipboard.")
     return result.returncode
 
@@ -462,7 +462,7 @@ def capture_full() -> int:
     if result is not None and result.returncode == 0:
         validate_saved_artifact(path, "image")
         if track_saved_capture(path, "image"):
-            notify("normal", "camera-photo", "x-labwc.screen-capture", "Screenshot saved", str(path))
+            notify("normal", "__THEME_MAKO_SCREEN_CAPTURE_SCREENSHOT_ICON_NAME__", "x-labwc.screen-capture", "Screenshot saved", str(path))
         return 0
     path.unlink(missing_ok=True)
     notify("critical", ERROR_ICON, "x-labwc.screen-capture", "Screenshot failed", "The full-screen capture could not be created.")
@@ -516,9 +516,9 @@ def annotate_capture(scope: str) -> int:
             if output.is_file() and output.stat().st_size > 0:
                 validate_saved_artifact(output, "image")
                 if track_saved_capture(output, "image"):
-                    notify("normal", "camera-photo", "x-labwc.screen-capture", "Annotated screenshot saved", str(output))
+                    notify("normal", "__THEME_MAKO_SCREEN_CAPTURE_SCREENSHOT_ICON_NAME__", "x-labwc.screen-capture", "Annotated screenshot saved", str(output))
             else:
-                notify("normal", "camera-photo", "x-labwc.screen-capture", "Annotation closed", "No annotated screenshot was saved.")
+                notify("normal", "__THEME_MAKO_SCREEN_CAPTURE_SCREENSHOT_ICON_NAME__", "x-labwc.screen-capture", "Annotation closed", "No annotated screenshot was saved.")
             return 0
         notify("critical", ERROR_ICON, "x-labwc.screen-capture", "Satty failed", "The annotation tool exited with an error.")
         return 1
@@ -562,7 +562,7 @@ def start_recording(scope: str) -> int:
     require_command(WF_RECORDER, "wf-recorder")
     require_pipewire_audio()
     if recording_active():
-        notify("normal", "media-record", "x-labwc.screen-recording", "Recording already active", "Stop the current recording before starting another.")
+        notify("normal", "__THEME_MAKO_SCREEN_CAPTURE_RECORDING_ICON_NAME__", "x-labwc.screen-recording", "Recording already active", "Stop the current recording before starting another.")
         return 0
     recording_format = select_recording_format()
     if not recording_format:
@@ -593,7 +593,7 @@ def start_recording(scope: str) -> int:
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
             if recording_active():
-                notify("normal", "media-record", "x-labwc.screen-recording", "Screen recording started", "Audio is enabled. Stop the recording from the screenshot menu.")
+                notify("normal", "__THEME_MAKO_SCREEN_CAPTURE_RECORDING_ICON_NAME__", "x-labwc.screen-recording", "Screen recording started", "Audio is enabled. Stop the recording from the screenshot menu.")
                 return 0
             time.sleep(1)
         notify("critical", ERROR_ICON, "x-labwc.screen-recording", "Recording failed to start", f"wf-recorder did not remain active. Details were written to {RECORDING_LOG}.")
@@ -605,9 +605,9 @@ def start_recording(scope: str) -> int:
 
 def stop_recording() -> int:
     if not recording_active():
-        notify("normal", "media-record", "x-labwc.screen-recording", "No active recording", "There is no screen recording to stop.")
+        notify("normal", "__THEME_MAKO_SCREEN_CAPTURE_RECORDING_ICON_NAME__", "x-labwc.screen-recording", "No active recording", "There is no screen recording to stop.")
         return 0
-    notify("normal", "media-record", "x-labwc.screen-recording", "Stopping screen recording", "The recording is being finalized.")
+    notify("normal", "__THEME_MAKO_SCREEN_CAPTURE_RECORDING_ICON_NAME__", "x-labwc.screen-recording", "Stopping screen recording", "The recording is being finalized.")
     try:
         result = run([SYSTEMCTL, "--user", "stop", RECORDING_UNIT], timeout=25)
     except (OSError, subprocess.TimeoutExpired):
@@ -664,7 +664,7 @@ def recording_worker(scope: str, fmt: str, path_text: str, output: str, geometry
     if valid:
         validate_saved_artifact(path, "recording")
         if track_saved_capture(path, "recording"):
-            notify("normal", "video-x-generic", "x-labwc.screen-recording", "Screen recording saved", str(path))
+            notify("normal", "__THEME_MAKO_SCREEN_CAPTURE_RECORDING_SAVED_ICON_NAME__", "x-labwc.screen-recording", "Screen recording saved", str(path))
         return 0
     if not path.is_file() or path.stat().st_size == 0:
         path.unlink(missing_ok=True)

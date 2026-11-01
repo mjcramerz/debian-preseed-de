@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Waybar shows workspaces, application shortcuts and status modules. Module tooltips explain their purpose. The system settings button opens native GTK menus; Help is the entry immediately below Files. Quick controls can reveal on hover according to the installed theme."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Configuration"
+    },
+    {
+      "type": "paragraph",
+      "text": "The managed configuration is ~/.config/waybar/config with module fragments under modules/ and styles under style/. Native popup definitions are in gtk/. Use Desktop Appearance for supported presentation changes. Syntax errors in JSON or CSS can prevent a bar from starting."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Troubleshooting"
+    },
+    {
+      "type": "code",
+      "text": "systemctl --user status waybar.service --no-pager\njournalctl --user -b -u waybar.service -n 60 --no-pager"
+    },
+    {
+      "type": "paragraph",
+      "text": "If a menu opens but an action fails, record the specific action and check its owning unit/log. After saving work, use the existing Restart Waybar menu action when you intend to restart the bar. Do not repeatedly launch unmanaged copies."
+    }
+  ]
+}

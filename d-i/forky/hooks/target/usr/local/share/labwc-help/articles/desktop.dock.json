@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Crystal Dock provides the desktop dock and running-application indicators. Launch applications through their managed desktop entries. Dock presentation depends on the selected host layout and theme."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Configuration"
+    },
+    {
+      "type": "paragraph",
+      "text": "Managed appearance lives under ~/.config/crystal-dock/labwc/appearance.conf. Use Desktop Appearance for supported sizing and style controls. Restart Dock in the desktop settings menu uses the owning user service."
+    },
+    {
+      "type": "code",
+      "text": "systemctl --user status crystal-dock.service --no-pager"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "If the dock disappears"
+    },
+    {
+      "type": "paragraph",
+      "text": "Save work, inspect the service status and recent user logs, then use the existing Restart Dock action once if appropriate. Avoid starting a second dock process manually; process ownership belongs to the session service."
+    }
+  ]
+}

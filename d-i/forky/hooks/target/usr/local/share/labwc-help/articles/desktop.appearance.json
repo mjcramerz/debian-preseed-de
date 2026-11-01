@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Open Desktop Appearance from Computer Management → Devices & Desktop or the system settings menu. The editor reads the current installed native configuration files and exposes supported fields. Search within the editor to locate settings."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Applying changes"
+    },
+    {
+      "type": "paragraph",
+      "text": "Review your selected values before applying. User configuration changes and any greeter/system changes have separate authority requirements. Administrative operations require the existing authentication flow; Help never requests that authority."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Defaults and recovery"
+    },
+    {
+      "type": "paragraph",
+      "text": "Reset and preset data comes from the installed managed catalog, not from a source checkout. User settings include ~/.config/labwc, waybar, fuzzel, mako and terminal configuration. If a component does not refresh immediately, save your work and follow its specific refresh/restart action."
+    },
+    {
+      "type": "warning",
+      "text": "Do not delete your entire ~/.config directory to reset appearance. Preserve a backup of the affected file and restore only that component."
+    }
+  ]
+}

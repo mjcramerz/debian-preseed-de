@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Open Applications with Super+D, Super+Space, or the desktop menu. Type an application name, move with the arrow keys and press Enter. Escape closes a picker. The managed launcher also groups applications by category and offers Search Applications."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Managed application discovery"
+    },
+    {
+      "type": "paragraph",
+      "text": "Desktop entries in the standard XDG application directories advertise applications. The managed launch model applies the configured Wayland, graphics, service and network policy. A .desktop file alone does not prove its executable is installed."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Settings and recovery"
+    },
+    {
+      "type": "paragraph",
+      "text": "Fuzzel configuration lives under ~/.config/fuzzel/. Desktop Appearance controls supported colors and icons. If a new application is absent, check its package installation and desktop metadata. Use the existing launcher refresh action after an intentional installation; do not replace Exec fields with shell strings."
+    }
+  ]
+}

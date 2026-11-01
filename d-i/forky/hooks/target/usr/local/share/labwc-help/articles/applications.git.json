@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Git records project history. Start by checking the repository and local changes before switching branches or applying someone else's patch. Managed git-ssh and key-manager workflows keep authentication separate from source content."
+    },
+    {
+      "type": "code",
+      "text": "git status --short --branch\ngit diff --stat\ngit log -5 --oneline"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Configuration"
+    },
+    {
+      "type": "paragraph",
+      "text": "User Git preferences live in ~/.gitconfig; repository settings live in .git/config. Repository hooks and build scripts can execute code. Inspect unfamiliar projects before running their commands."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Recovery"
+    },
+    {
+      "type": "paragraph",
+      "text": "Preserve a separate copy of uncommitted work before destructive operations. Inspect history/reflog locally when a commit seems missing. Do not use hard reset, clean or force push without understanding which work they discard."
+    },
+    {
+      "type": "warning",
+      "text": "Diffs and repository URLs can contain credentials or private content. Review them before sharing. Never commit secrets."
+    }
+  ]
+}

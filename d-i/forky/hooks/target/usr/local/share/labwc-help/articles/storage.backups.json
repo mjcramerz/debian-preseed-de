@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "A useful backup is a separate copy that you have checked you can restore. Include documents, relevant application data and private configuration. Protect encrypted backups and keep recovery keys separately."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Before copying"
+    },
+    {
+      "type": "list",
+      "items": [
+        "Identify the source and destination carefully. Check available space.",
+        "Close applications with databases or use their documented export/backup operation.",
+        "Keep at least one copy outside the computer.",
+        "Verify representative restored files in a safe destination.",
+        "Close files and use the owning unmount/eject action before unplugging media."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Snapshots and synchronization"
+    },
+    {
+      "type": "paragraph",
+      "text": "Timeshift snapshots focus on system recovery and do not replace a user-data backup. Two-way synchronization can propagate deletion or corruption. NFS/Filen access is not proof that a separate backup exists."
+    },
+    {
+      "type": "warning",
+      "text": "Restore operations can overwrite newer data. Preserve a copy of the current state and confirm the exact destination before restoring."
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Computer Management → Devices & Desktop offers Bluetooth, Audio Control, Keyboard Layout, Brightness and Android Devices. Pair only devices you recognize. Select the intended output/input in Audio Control before adjusting levels."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Audio stack"
+    },
+    {
+      "type": "paragraph",
+      "text": "PipeWire provides audio and WirePlumber manages routing/policy. The Waybar audio menu controls the default devices. Microphone mute is separate from speaker mute."
+    },
+    {
+      "type": "code",
+      "text": "systemctl --user status pipewire.service wireplumber.service --no-pager"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Storage and Android devices"
+    },
+    {
+      "type": "paragraph",
+      "text": "Use Thunar for ordinary removable media and the managed external-drive/ADB utilities for their supported actions. Close files before unmounting storage. Do not approve unknown USB debugging prompts or reformat a device just because it is not visible."
+    }
+  ]
+}

@@ -244,7 +244,9 @@ def main(
                 options.application, options.mode, options.args,
             )
 
-        require_primary_gpg()
+        # Offline Help has no keyring or credential dependency.
+        if options.application != 'help':
+            require_primary_gpg()
         acceleration_availability, default_mode = load_managed_launch_policy(
             MANAGED_DEFAULTS_PATH
         )

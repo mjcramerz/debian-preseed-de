@@ -355,7 +355,7 @@ def sync_volume(device: str, devnum: str, kind: str) -> int:
     mountpoint = current_mountpoint(device, devnum)
     if not mountpoint:
         return 0
-    notify("normal", "drive-removable-media", "Writing external-drive data", f"Please wait while pending writes to {device} are committed.")
+    notify("normal", "__THEME_MAKO_EXTERNAL_DRIVES_ACTIVITY_ICON_NAME__", "Writing external-drive data", f"Please wait while pending writes to {device} are committed.")
     status, output = run_bounded([SYNC, "--file-system", "--", mountpoint], SYNC_TIMEOUT + CLEANUP_TIMEOUT)
     if output:
         (print(output) if status == 0 else print(output, file=sys.stderr))
@@ -381,7 +381,7 @@ def wait_unmounted(device: str, devnum: str) -> int:
 def unmount_volume(device: str, devnum: str, kind: str) -> int:
     validate_external_target(device, devnum, kind)
     if not target_mounted(device, devnum):
-        notify("normal", "media-eject", "External volume already unmounted", f"{device} is not mounted.")
+        notify("normal", "__THEME_MAKO_EXTERNAL_DRIVES_EJECT_ICON_NAME__", "External volume already unmounted", f"{device} is not mounted.")
         return 0
     if sync_volume(device, devnum, kind):
         return 1
@@ -391,7 +391,7 @@ def unmount_volume(device: str, devnum: str, kind: str) -> int:
     if status or wait_unmounted(device, devnum):
         notify("critical", ERROR_ICON, "External volume is still mounted", f"{device} may be busy. Close files and applications, then try again.")
         return status or 1
-    notify("normal", "media-eject", "External volume unmounted", f"{device} was unmounted cleanly.")
+    notify("normal", "__THEME_MAKO_EXTERNAL_DRIVES_EJECT_ICON_NAME__", "External volume unmounted", f"{device} was unmounted cleanly.")
     return 0
 
 
@@ -403,7 +403,7 @@ def mount_volume(device: str, devnum: str, kind: str) -> int:
     if status:
         notify("critical", ERROR_ICON, "External volume mount failed", f"{device} could not be mounted.")
         return status
-    notify("normal", "drive-removable-media", "External volume mounted", f"{device} is ready to use.")
+    notify("normal", "__THEME_MAKO_EXTERNAL_DRIVES_ACTIVITY_ICON_NAME__", "External volume mounted", f"{device} is ready to use.")
     return 0
 
 
@@ -449,7 +449,7 @@ def power_off_drive_confirmed(disk: str, devnum: str) -> int:
     if status:
         notify("critical", ERROR_ICON, "External drive power-off failed", f"{disk} remains connected.")
         return status
-    notify("normal", "media-eject", "External drive powered off", f"{disk} can now be disconnected.")
+    notify("normal", "__THEME_MAKO_EXTERNAL_DRIVES_EJECT_ICON_NAME__", "External drive powered off", f"{disk} can now be disconnected.")
     return 0
 
 

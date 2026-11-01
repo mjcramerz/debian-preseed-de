@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Mako is the session notification daemon. The Waybar notification menu opens the notification center, changes Do Not Disturb, restores a notification or clears history. Clearing history removes the notification record; it does not undo the application action."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Preferences"
+    },
+    {
+      "type": "paragraph",
+      "text": "Supported notification colors and presentation are available in Desktop Appearance. The native configuration is ~/.config/mako/config. Keep one notification daemon; running another can replace the D-Bus notification owner."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Missing notifications"
+    },
+    {
+      "type": "code",
+      "text": "systemctl --user status mako.service --no-pager"
+    },
+    {
+      "type": "paragraph",
+      "text": "Check quiet mode, then use Computer Management → Maintenance → Audio & Desktop → Test Mako Notification. A test notification verifies display at that moment; it does not prove a reminder was scheduled."
+    }
+  ]
+}

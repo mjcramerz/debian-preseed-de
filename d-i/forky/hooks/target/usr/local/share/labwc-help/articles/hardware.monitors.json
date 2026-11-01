@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Open Displays & Layout in Computer Management or Display in desktop settings. The wdisplays interface controls arrangement, scale, rotation and modes advertised by the compositor. Keep a known working display enabled while making changes."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Managed output policy"
+    },
+    {
+      "type": "paragraph",
+      "text": "The session output watcher reconciles host display policy and hotplug state. Refresh Outputs requests its existing refresh route. GTK4 scales with the Wayland output; use Help's text-size controls for reading size rather than overriding global GTK scale variables."
+    },
+    {
+      "type": "code",
+      "text": "wlr-randr"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Recovery"
+    },
+    {
+      "type": "paragraph",
+      "text": "If a mode produces a black screen, use another working display or sign out normally where possible. Record connector and mode details before changing policy. A DRM 'Device or resource busy' message alone does not identify the cause; do not apply global graphics workarounds without target evidence."
+    }
+  ]
+}

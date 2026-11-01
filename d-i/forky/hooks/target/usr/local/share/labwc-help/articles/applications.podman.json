@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "This installation uses one managed rootless devops Podman engine and a shared Unix API. Docker CLI and Compose use that API. It is not a second rootful Docker daemon. Follow the installed /data/docs/podman-devops.md guide for the selected host."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Authority and storage"
+    },
+    {
+      "type": "paragraph",
+      "text": "Access to the shared socket grants authority over that engine. Service ownership, storage and namespace networking are managed together. Existing stores must not be reset as a troubleshooting shortcut."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Troubleshooting"
+    },
+    {
+      "type": "paragraph",
+      "text": "Use Computer Management → Containers & AI → Containers and the installed guide. Check whether the engine/socket is available before retrying a client operation. Preserve application volumes and any reported recovery directory."
+    },
+    {
+      "type": "warning",
+      "text": "Container prune, volume deletion, system reset and storage migration can destroy data. Help never runs containers or changes engine state."
+    }
+  ]
+}

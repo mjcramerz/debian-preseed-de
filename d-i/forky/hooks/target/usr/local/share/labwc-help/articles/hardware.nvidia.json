@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "NVIDIA is optional and selected by the installation profile/add-on policy. Driver branch, firmware and kernel-module requirements are managed by the installer. The presence of support files does not prove a module loaded or a monitor is attached to that GPU."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Read-only checks"
+    },
+    {
+      "type": "code",
+      "text": "lspci -nnk"
+    },
+    {
+      "type": "paragraph",
+      "text": "Inspect the display controller and its 'Kernel driver in use' line locally. The output can reveal hardware identifiers; redact them before sharing. Check the selected host profile and boot logs if the intended driver is unavailable."
+    },
+    {
+      "type": "warning",
+      "text": "Do not replace the managed driver branch with arbitrary vendor installers, rebuild drivers from source, or remove module-signature policy to bypass a failure. Driver changes and reboot recovery require an administrator and a known working recovery path."
+    }
+  ]
+}

@@ -76,6 +76,58 @@ tree.write(path, encoding="utf-8", xml_declaration=True)
   done
 }
 
+desktop_stage_help() (
+  set -eu
+  for directory in \
+    /usr/local/libexec \
+    /usr/local/lib/python3.14 \
+    /usr/local/lib/python3.14/dist-packages \
+    /usr/local/lib/python3.14/dist-packages/labwc_help \
+    /usr/local/share \
+    /usr/local/share/labwc-help \
+    /usr/local/share/labwc-help/articles \
+    /usr/local/share/applications
+  do
+    ensure_target_asset_parent "${directory}/.installer-directory"
+    help_directory_host=$(target_asset_host_path "$directory")
+    [ -d "$help_directory_host" ] && [ ! -L "$help_directory_host" ] ||
+      installer_fatal "Help asset directory is unsafe: ${directory}"
+    chown root:root "$help_directory_host"
+    chmod 0755 "$help_directory_host"
+  done
+
+  desktop_render_role_target_template \
+    usr/local/share/labwc-help/catalog.json.tmpl \
+    /usr/local/share/labwc-help/catalog.json 0644
+  desktop_render_role_target_template \
+    usr/local/share/labwc-help/theme.json.tmpl \
+    /usr/local/share/labwc-help/theme.json 0644
+  desktop_stage_role_asset usr/local/bin/labwc-help /usr/local/bin/labwc-help 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-help-gtk /usr/local/libexec/labwc-help-gtk 0755
+  desktop_render_role_target_template \
+    usr/local/share/applications/labwc-help.desktop.tmpl \
+    /usr/local/share/applications/labwc-help.desktop 0644
+  for module in __init__ catalog navigation render search state theme window app; do
+    path="usr/local/lib/python3.14/dist-packages/labwc_help/${module}.py"
+    desktop_stage_role_asset "$path" "/$path" 0644
+  done
+  for article in \
+    start.first-login start.shortcuts desktop.labwc desktop.waybar desktop.fuzzel \
+    desktop.mako desktop.dock desktop.appearance desktop.calendar desktop.tomat \
+    desktop.wayscriber hardware.monitors \
+    hardware.gpu hardware.nvidia hardware.peripherals hardware.power network.connections \
+    network.vpn network.tailscale network.sharing network.ssh security.apparmor \
+    security.firewall security.authentication storage.btrfs storage.f2fs storage.backups \
+    storage.timeshift storage.recovery applications.foot applications.files applications.git \
+    applications.podman applications.development applications.codex maintenance.management \
+    maintenance.updates maintenance.services maintenance.logs troubleshooting.desktop \
+    troubleshooting.network troubleshooting.audio troubleshooting.applications
+  do
+    article="${article}.json"
+    desktop_stage_role_asset "usr/local/share/labwc-help/articles/$article" "/usr/local/share/labwc-help/articles/$article" 0644
+  done
+)
+
 desktop_stage_key_manager() (
   set -eu
   for directory in /usr/local/bin /usr/local/lib /usr/local/lib/python3.14 \
@@ -142,6 +194,7 @@ desktop_stage_fangfrisch() (
 desktop_stage_target_assets() {
   desktop_stage_key_manager
   desktop_stage_appearance
+  desktop_stage_help
   desktop_stage_waybar_native_menus
   desktop_stage_session_repairs
   desktop_stage_wlsunset
@@ -176,7 +229,7 @@ desktop_stage_target_assets() {
   desktop_configure_local_mail_delivery
   desktop_stage_role_asset usr/local/bin/labwc-autostart /usr/local/bin/labwc-autostart 0755
   desktop_stage_role_asset usr/local/bin/labwc-wallpaper-save /usr/local/bin/labwc-wallpaper-save 0755
-  desktop_stage_role_asset usr/local/bin/labwc-admin-action /usr/local/bin/labwc-admin-action 0755
+  desktop_render_role_target_template usr/local/bin/labwc-admin-action.tmpl /usr/local/bin/labwc-admin-action 0755
   desktop_stage_role_asset usr/local/libexec/labwc-admin-action-root /usr/local/libexec/labwc-admin-action-root 0755
   desktop_stage_role_asset usr/local/libexec/labwc-admin-action-worker /usr/local/libexec/labwc-admin-action-worker 0755
   desktop_stage_role_asset usr/local/libexec/labwc-logout-root /usr/local/libexec/labwc-logout-root 0755
@@ -195,8 +248,8 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset etc/skel-desktop/.config/gtk-3.0/gtk.css /etc/skel-desktop/.config/gtk-3.0/gtk.css 0644
   desktop_stage_role_asset etc/skel-desktop/.config/l3afpad/style.css /etc/skel-desktop/.config/l3afpad/style.css 0644
   desktop_stage_role_asset etc/skel-desktop/.config/waycal/style.css /etc/skel-desktop/.config/waycal/style.css 0644
-  desktop_stage_role_asset usr/local/share/applications/com.ianswope.Calix.desktop /usr/local/share/applications/com.ianswope.Calix.desktop 0644
-  desktop_stage_role_asset usr/local/share/applications/labwc-calendar-actions.desktop /usr/local/share/applications/labwc-calendar-actions.desktop 0644
+  desktop_render_role_target_template usr/local/share/applications/com.ianswope.Calix.desktop.tmpl /usr/local/share/applications/com.ianswope.Calix.desktop 0644
+  desktop_render_role_target_template usr/local/share/applications/labwc-calendar-actions.desktop.tmpl /usr/local/share/applications/labwc-calendar-actions.desktop 0644
   # Public commands share the managed launcher, including terminal launches.
   for calendar_alias in labwc-agenda labwc-calendar; do
     ensure_target_asset_parent "/usr/local/bin/$calendar_alias"
@@ -216,7 +269,7 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/lib/python3.14/dist-packages/labwc_local_reminders.py /usr/local/lib/python3.14/dist-packages/labwc_local_reminders.py 0644
   desktop_stage_role_asset usr/local/lib/python3.14/dist-packages/labwc_calendar_reminders_gtk.py /usr/local/lib/python3.14/dist-packages/labwc_calendar_reminders_gtk.py 0644
   desktop_stage_role_asset usr/local/lib/python3.14/dist-packages/labwc_desktop_runtime.py /usr/local/lib/python3.14/dist-packages/labwc_desktop_runtime.py 0644
-  desktop_stage_role_asset usr/local/share/applications/com.github.dahenson.agenda.desktop /usr/local/share/applications/com.github.dahenson.agenda.desktop 0644
+  desktop_render_role_target_template usr/local/share/applications/com.github.dahenson.agenda.desktop.tmpl /usr/local/share/applications/com.github.dahenson.agenda.desktop 0644
   desktop_stage_role_asset usr/local/share/agenda/schemas/90-desktop-agenda.gschema.override /usr/local/share/agenda/schemas/90-desktop-agenda.gschema.override 0644
   desktop_render_role_target_template etc/systemd/system/fruux-firstboot.service.tmpl \
     /etc/systemd/system/fruux-firstboot.service 0644 \
@@ -409,7 +462,7 @@ exec /opt/vivaldi/update-ffmpeg --system
   desktop_stage_role_asset usr/local/bin/labwc-qbittorrent /usr/local/bin/labwc-qbittorrent 0755
   desktop_stage_role_asset usr/local/bin/zoom /usr/local/bin/zoom 0755
   desktop_render_role_target_template \
-    usr/local/bin/labwc-sync-application-launchers \
+    usr/local/bin/labwc-sync-application-launchers.tmpl \
     /usr/local/bin/labwc-sync-application-launchers \
     0755 \
     LABWC_MANAGED_APP_DEFAULT_EXEC "$LABWC_MANAGED_APP_DEFAULT_EXEC"
@@ -505,12 +558,12 @@ if len(source) > 16384 or re.search(rb"__[A-Z][A-Z0-9_]{2,}__", source):
   desktop_stage_role_asset usr/local/libexec/clamav-fangfrisch /usr/local/libexec/clamav-fangfrisch 0755
 
   desktop_stage_role_asset usr/share/wayland-sessions/labwc.desktop /usr/share/wayland-sessions/labwc.desktop 0644
-  desktop_stage_role_asset usr/local/share/applications/computer-management.desktop /usr/local/share/applications/computer-management.desktop 0644
-  desktop_stage_role_asset usr/local/share/applications/remote-desktop-management.desktop /usr/local/share/applications/remote-desktop-management.desktop 0644
-  desktop_stage_role_asset usr/local/share/applications/foot.desktop /usr/local/share/applications/foot.desktop 0644
-  desktop_stage_role_asset usr/local/share/applications/code.desktop /usr/local/share/applications/code.desktop 0644
-  desktop_stage_role_asset usr/local/share/applications/org.labwc.DesktopAppearance.desktop /usr/local/share/applications/org.labwc.DesktopAppearance.desktop 0644
-  desktop_stage_role_asset usr/local/share/applications/labwc-notifications.desktop /usr/local/share/applications/labwc-notifications.desktop 0644
+  desktop_stage_role_asset usr/local/share/applications/computer-management.desktop.tmpl /usr/local/share/applications/computer-management.desktop 0644
+  desktop_stage_role_asset usr/local/share/applications/remote-desktop-management.desktop.tmpl /usr/local/share/applications/remote-desktop-management.desktop 0644
+  desktop_stage_role_asset usr/local/share/applications/foot.desktop.tmpl /usr/local/share/applications/foot.desktop 0644
+  desktop_render_role_target_template usr/local/share/applications/code.desktop.tmpl /usr/local/share/applications/code.desktop 0644
+  desktop_render_role_target_template usr/local/share/applications/org.labwc.DesktopAppearance.desktop.tmpl /usr/local/share/applications/org.labwc.DesktopAppearance.desktop 0644
+  desktop_stage_role_asset usr/local/share/applications/labwc-notifications.desktop.tmpl /usr/local/share/applications/labwc-notifications.desktop 0644
   desktop_render_gtkgreet_css
   desktop_stage_role_asset etc/greetd/gtkgreet-power.css /etc/greetd/gtkgreet-power.css 0644
   desktop_render_greeter_power_rule
@@ -658,7 +711,7 @@ if len(source) > 16384 or re.search(rb"__[A-Z][A-Z0-9_]{2,}__", source):
   desktop_stage_role_asset etc/skel-desktop/.config/GottCode/FocusWriter.conf /etc/skel-desktop/.config/GottCode/FocusWriter.conf 0644
   desktop_stage_role_asset etc/skel-desktop/.config/zathura/zathurarc /etc/skel-desktop/.config/zathura/zathurarc 0644
   desktop_stage_role_asset usr/local/bin/labwc-focuswriter-import /usr/local/bin/labwc-focuswriter-import 0755
-  desktop_stage_role_asset usr/local/share/applications/labwc-focuswriter-import.desktop /usr/local/share/applications/labwc-focuswriter-import.desktop 0644
+  desktop_stage_role_asset usr/local/share/applications/labwc-focuswriter-import.desktop.tmpl /usr/local/share/applications/labwc-focuswriter-import.desktop 0644
   desktop_stage_role_asset etc/skel-desktop/.local/share/GottCode/FocusWriter/Themes/word.theme /etc/skel-desktop/.local/share/GottCode/FocusWriter/Themes/word.theme 0644
   desktop_stage_role_asset etc/skel-desktop/.config/Recoll.org/recoll.ini /etc/skel-desktop/.config/Recoll.org/recoll.ini 0600
   chmod 0700 /target/etc/skel-desktop/.config/Recoll.org
@@ -704,7 +757,7 @@ test -x /usr/bin/update-mime-database
     0600 \
     ACCOUNT_HOME "$ACCOUNT_HOME"
   desktop_stage_role_asset etc/skel-desktop/.config/sleek/userData/filters.json /etc/skel-desktop/.config/sleek/userData/filters.json 0600
-  desktop_stage_role_asset usr/share/xfce4/helpers/foot.desktop /usr/share/xfce4/helpers/foot.desktop 0644
+  desktop_stage_role_asset usr/share/xfce4/helpers/foot.desktop.tmpl /usr/share/xfce4/helpers/foot.desktop 0644
   desktop_stage_role_asset etc/skel-desktop/.config/fontconfig/conf.d/60-labwc-terminal-fonts.conf /etc/skel-desktop/.config/fontconfig/conf.d/60-labwc-terminal-fonts.conf 0644
   desktop_stage_role_asset etc/skel-desktop/.config/fontconfig/conf.d/61-microsoft-fonts.conf /etc/skel-desktop/.config/fontconfig/conf.d/61-microsoft-fonts.conf 0644
   desktop_stage_role_asset etc/skel-desktop/.profile /etc/skel-desktop/.profile 0644
@@ -763,10 +816,10 @@ test -x /usr/bin/update-mime-database
   desktop_stage_role_asset etc/skel-desktop/.config/crystal-dock/labwc/panel_1.conf /etc/xdg/crystal-dock/labwc/panel_1.conf 0644
   desktop_stage_role_asset usr/local/bin/labwc-show-desktop /usr/local/bin/labwc-show-desktop 0755
   desktop_stage_role_asset usr/local/bin/labwc-health-notify /usr/local/bin/labwc-health-notify 0755
-  desktop_stage_role_asset usr/local/share/applications/show-desktop.desktop /usr/local/share/applications/show-desktop.desktop 0644
+  desktop_stage_role_asset usr/local/share/applications/show-desktop.desktop.tmpl /usr/local/share/applications/show-desktop.desktop 0644
   desktop_normalize_public_desktop_directories
-  desktop_stage_role_asset usr/local/share/applications/labwc-tweaks.desktop /usr/local/share/applications/labwc-tweaks.desktop 0644
-  desktop_stage_role_asset usr/local/share/applications/hyprpolkitagent.desktop /usr/local/share/applications/hyprpolkitagent.desktop 0644
+  desktop_stage_role_asset usr/local/share/applications/labwc-tweaks.desktop.tmpl /usr/local/share/applications/labwc-tweaks.desktop 0644
+  desktop_stage_role_asset usr/local/share/applications/hyprpolkitagent.desktop.tmpl /usr/local/share/applications/hyprpolkitagent.desktop 0644
   desktop_stage_role_asset usr/local/share/icons/hicolor/64x64/apps/show-desktop.png /usr/local/share/icons/hicolor/64x64/apps/show-desktop.png 0644
   desktop_stage_role_asset etc/skel-desktop/.config/mako/config /etc/skel-desktop/.config/mako/config 0644
   desktop_stage_role_asset etc/skel-desktop/.config/satty/config.toml /etc/skel-desktop/.config/satty/config.toml 0644
