@@ -6,6 +6,21 @@
     "cursor": true,
     "tooltip": true,
     "tooltip-format": "Wayscriber",
-    "on-click-release": "/usr/local/libexec/labwc-waybar-run -- /usr/local/bin/labwc-wayscriber-toggle"
+    "on-click-right-release": "/usr/local/libexec/labwc-waybar-run -- /usr/local/bin/labwc-wayscriber-toggle",
+    "menu": "on-click",
+    "menu-file": "~/.config/waybar/gtk/wayscriber-menu.xml",
+    "menu-actions": {
+      "wayscriber_open": "/usr/local/libexec/labwc-waybar-run -- /usr/bin/wayscriber --active",
+      "wayscriber_read_only": "/usr/local/libexec/labwc-waybar-run -- /usr/bin/wayscriber --light-toggle",
+      "wayscriber_freeze": "/usr/local/libexec/labwc-waybar-run -- /usr/bin/wayscriber --freeze",
+      "wayscriber_toggle": "/usr/local/libexec/labwc-waybar-run -- /usr/bin/wayscriber --daemon-toggle",
+      "wayscriber_light_draw": "/usr/local/libexec/labwc-waybar-run -- /usr/bin/wayscriber --light-draw-toggle",
+      "wayscriber_session_info": "/usr/local/libexec/labwc-waybar-run -- /usr/bin/wayscriber --session-info",
+      "wayscriber_open_config": "/usr/local/libexec/labwc-waybar-run -- /usr/local/bin/labwc-wayscriber-config",
+      "wayscriber_about": "/usr/local/libexec/labwc-waybar-run -- /usr/bin/wayscriber --about",
+      "wayscriber_clear_session": "/usr/local/libexec/labwc-waybar-run -- /usr/bin/wayscriber --clear-session",
+      "wayscriber_clear_tool_state": "/usr/local/libexec/labwc-waybar-run -- /usr/bin/wayscriber --clear-tool-state",
+      "wayscriber_languages": "/usr/local/libexec/labwc-waybar-run -- /usr/bin/wayscriber --list-languages"
+    }
   }
 }

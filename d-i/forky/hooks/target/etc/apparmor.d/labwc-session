@@ -353,6 +353,7 @@ profile session-glycin-bwrap flags=(attach_disconnected, mediate_deleted) {
   /usr/{,local/}share/icons/** r,
   /usr/share/backgrounds/ r,
   /usr/share/backgrounds/** r,
+  owner @{HOME}/Pictures/{,**} r,
   # Preserve the same read bound when the icon is passed to an image loader.
   owner /run/user/[0-9]*/labwc-{chromium,microsoft-edge,vivaldi}-tmp/.*.scoped_dir.*/icon.png r,
   owner /tmp/gdk-pixbuf-glycin-tmp.* rwk,

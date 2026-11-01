@@ -87,6 +87,15 @@ def allowed(command: tuple[str, ...]) -> bool:
         "/usr/bin/pavucontrol",
     }:
         return not arguments
+    if executable == "/usr/bin/wayscriber":
+        return arguments in (
+            ["--active"], ["--light-toggle"], ["--freeze"],
+            ["--daemon-toggle"], ["--light-draw-toggle"],
+            ["--session-info"], ["--about"], ["--clear-session"],
+            ["--clear-tool-state"], ["--list-languages"],
+        )
+    if executable == "/usr/local/bin/labwc-wayscriber-config":
+        return not arguments
     if executable == "/usr/local/bin/labwc-terminal":
         return arguments == ["-e", "nmtui"]
     if executable == "/usr/local/bin/labwc-keyboard-layout":
@@ -194,6 +203,8 @@ def systemd_command(command: tuple[str, ...], output_class: str | None) -> list[
         options[options.index("--property=TimeoutStopSec=20s")] = "--property=TimeoutStopSec=2s"
         options.extend(("--property=RuntimeMaxSec=30s", "--property=StandardInput=null",
                         "--property=StandardOutput=null", "--property=StandardError=journal"))
+    elif executable == "/usr/bin/wayscriber":
+        options.append("--setenv=WAYSCRIBER_DISABLE_UPDATE_CHECK=1")
     elif executable == "/usr/local/libexec/labwc-calendar-actions":
         options.append("--property=SuccessExitStatus=2 3")
     return [*options, "--", *command]

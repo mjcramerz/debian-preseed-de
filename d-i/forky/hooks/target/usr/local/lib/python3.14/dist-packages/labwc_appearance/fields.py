@@ -579,6 +579,8 @@ def apply_root_greeter(selected: dict[str, str]) -> None:
         raise RuntimeError('unsafe greeter appearance state directory')
     with Tree(state_root, uid=0, private=True) as state, state.lock('greeter.lock'), \
             Tree(Path('/etc/greetd'), uid=0) as config:
+        if state.json('wallpaper-pending.json') is not None:
+            raise RuntimeError('a greeter wallpaper transaction needs recovery in Waypaper')
         if state.json('pending.json') is not None:
             raise RuntimeError('a greeter theme transaction needs recovery by its initiating account')
         pending = state.json('fields-pending.json')

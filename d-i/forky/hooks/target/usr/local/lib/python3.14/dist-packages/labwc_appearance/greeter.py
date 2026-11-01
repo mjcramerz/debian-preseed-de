@@ -28,9 +28,18 @@ def caller() -> int:
 
 def main(argv: list[str]) -> int:
     uid = caller()
-    if not argv or argv[0] not in ('apply', 'commit', 'rollback', 'cache-icons', 'fields'):
+    if not argv or argv[0] not in ('apply', 'commit', 'rollback', 'cache-icons', 'fields', 'wallpaper'):
         raise ValueError('invalid greeter transaction operation')
     action = argv[0]
+    if action == 'wallpaper':
+        if len(argv) != 1:
+            raise ValueError('invalid greeter wallpaper arguments')
+        from .wallpaper import publish, read_request
+        data = read_request()
+        STATE.mkdir(mode=0o700, exist_ok=True)
+        with Tree(STATE, uid=0, private=True) as state, state.lock('greeter.lock'), Tree(Path('/etc/greetd'), uid=0) as config:
+            publish(state, config, data)
+        return 0
     if action == 'fields':
         if len(argv) != 1:
             raise ValueError('invalid greeter field operation arguments')
@@ -67,6 +76,8 @@ def main(argv: list[str]) -> int:
         raise ValueError('invalid greeter transaction token')
     STATE.mkdir(mode=0o700, exist_ok=True)
     with Tree(STATE, uid=0, private=True) as state, state.lock('greeter.lock'), Tree(Path('/etc/greetd'), uid=0) as config:
+        if state.json('wallpaper-pending.json') is not None:
+            raise RuntimeError('a greeter wallpaper transaction needs recovery in Waypaper')
         if state.json('fields-pending.json') is not None:
             raise RuntimeError('a greeter color transaction needs recovery in the GTK appearance editor')
         pending = state.json('pending.json')

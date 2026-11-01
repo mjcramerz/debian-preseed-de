@@ -52,11 +52,12 @@ MODULES = (('custom/tomat', 'tomat', 'on-click'),
            ('pulseaudio', 'audio', 'on-click'),
            ('custom/notifications', 'notifications', 'on-click'),
            ('custom/power', 'power', 'on-click'),
-           ('clock', 'calendar', 'on-click-release'))
+           ('clock', 'calendar', 'on-click-release'),
+           ('custom/wayscriber', 'wayscriber', 'on-click'))
 
 RELEASE_BINDINGS = (
     ('custom/launcher', 'on-click-release', 'on-click'),
-    ('custom/wayscriber', 'on-click-release', 'on-click'),
+    ('custom/wayscriber', 'on-click-right-release', 'on-click-right'),
     ('network', 'on-click-right-release', 'on-click-right'),
     ('bluetooth', 'on-click-right-release', 'on-click-right'),
     ('custom/screenshot', 'on-click-release', 'on-click'),
@@ -90,7 +91,7 @@ class MenuContractTests(unittest.TestCase):
                 self.assertNotIn(event, entry)
                 self.assertNotIn(event + '-release', entry)
                 self.assertNotIn(event, entry.get('actions', {}))
-                tree = ET.parse(payload_source_path(SKEL / 'waybar' / 'menus' / (name + '-menu.xml')))
+                tree = ET.parse(payload_source_path(SKEL / 'waybar' / 'gtk' / (name + '-menu.xml')))
                 roots = tree.findall('./object[@class="GtkMenu"][@id="menu"]')
                 self.assertEqual(len(roots), 1)
                 ids = [node.get('id') for node in tree.iter('object') if node.get('id')]
@@ -107,7 +108,7 @@ class MenuContractTests(unittest.TestCase):
                     self.assertEqual(argv[:boundary], ['/usr/local/libexec/labwc-waybar-run'])
                     self.assertGreater(len(argv[boundary + 1:]), 0)
                     count += 1
-        self.assertEqual(count, 82)
+        self.assertEqual(count, 104)
 
     def test_calendar_mapping_and_secondary_clicks(self):
         for bar in bars():
@@ -158,7 +159,7 @@ class MenuContractTests(unittest.TestCase):
                 actual.add(target[1])
             self.assertEqual(actual, set(helper.ACTIONS) | {'center'})
 
-    def test_all_five_menu_assets_are_explicitly_staged(self):
+    def test_all_six_menu_assets_are_explicitly_staged(self):
         source = payload_read_text(FORKY / 'scripts/desktop/components.sh')
         start = source.index('desktop_stage_waybar_native_menus() {')
         function = source[start:source.index('\n}\n', start) + 3]
@@ -174,6 +175,17 @@ class MenuContractTests(unittest.TestCase):
             path = f'etc/skel-desktop/.config/waybar/gtk/{name}-menu.xml'
             self.assertIn([path, '/' + path, '0644'], staged)
             self.assertTrue(payload_source_is_file(TARGET / path))
+
+    def test_wayscriber_left_menu_keeps_right_click_toggle_and_light_passthrough(self):
+        for bar in bars():
+            entry = bar['custom/wayscriber']
+            self.assertEqual(entry['menu'], 'on-click')
+            self.assertEqual(shlex.split(entry['on-click-right-release']),
+                             ['/usr/local/libexec/labwc-waybar-run', '--',
+                              '/usr/local/bin/labwc-wayscriber-toggle'])
+            self.assertEqual(entry['menu-actions']['wayscriber_read_only'],
+                             '/usr/local/libexec/labwc-waybar-run -- /usr/bin/wayscriber --light-toggle')
+            self.assertEqual(entry['menu-file'], '~/.config/waybar/gtk/wayscriber-menu.xml')
 
     def test_optional_whisper_is_disabled_not_dangling_and_reversible(self):
         source = payload_read_text(FORKY / 'scripts/desktop/components.sh')

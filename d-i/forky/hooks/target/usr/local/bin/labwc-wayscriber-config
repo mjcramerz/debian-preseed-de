@@ -1,0 +1,60 @@
+#!/usr/bin/python3 -IB
+"""Open the user-owned Wayscriber config through the managed terminal."""
+from __future__ import annotations
+
+import os
+from pathlib import Path
+import pwd
+import stat
+import sys
+
+
+def main(argv: list[str]) -> int:
+    if argv or os.getuid() == 0 or os.geteuid() != os.getuid():
+        print("fatal: usage: labwc-wayscriber-config", file=sys.stderr)
+        return 64
+    if os.environ.get("LABWC_SESSION_OWNER") != "desktop":
+        print("fatal: Wayscriber config requires the managed desktop session", file=sys.stderr)
+        return 1
+    home = Path(pwd.getpwuid(os.getuid()).pw_dir)
+    config_dir = home / ".config" / "wayscriber"
+    config = config_dir / "config.toml"
+    try:
+        directory = config_dir.stat(follow_symlinks=False)
+        if (not stat.S_ISDIR(directory.st_mode) or directory.st_uid != os.getuid()
+                or stat.S_IMODE(directory.st_mode) & 0o022 or config.is_symlink()):
+            raise ValueError("unsafe Wayscriber config path")
+        if config.exists() or config.is_symlink():
+            metadata = config.stat(follow_symlinks=False)
+            if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
+                    or metadata.st_nlink != 1 or metadata.st_mode & 0o022):
+                raise ValueError("unsafe Wayscriber config file")
+    except OSError:
+        print("fatal: Wayscriber config is unavailable", file=sys.stderr)
+        return 1
+    except ValueError as error:
+        print("fatal: " + str(error), file=sys.stderr)
+        return 1
+    allowed_environment = {
+        "DBUS_SESSION_BUS_ADDRESS", "LANG", "LC_ALL", "LC_CTYPE",
+        "LABWC_SESSION_OWNER", "TERM", "WAYLAND_DISPLAY",
+        "XDG_CURRENT_DESKTOP", "XDG_RUNTIME_DIR", "XDG_SESSION_DESKTOP",
+        "XDG_SESSION_TYPE",
+    }
+    environment = {key: value for key, value in os.environ.items()
+                   if key in allowed_environment}
+    environment.update(HOME=str(home), PATH="/usr/local/bin:/usr/bin:/bin")
+    try:
+        os.execve(
+            "/usr/local/bin/labwc-terminal",
+            ["/usr/local/bin/labwc-terminal", "--micro", str(config)],
+            environment,
+        )
+    except OSError as error:
+        print(f"fatal: unable to open Wayscriber config: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

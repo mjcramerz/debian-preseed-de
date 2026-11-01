@@ -47,18 +47,16 @@ def load(path):
 class MenuUnitTests(unittest.TestCase):
     def setUp(self): self.menu = load(MENU)
 
-    def test_waypaper_passes_one_escaped_path_to_persistent_state_helper(self):
+    def test_waypaper_uses_argument_lists_and_keeps_the_session_background_alive(self):
         config = render_theme_defaults(payload_read_text(
             TARGET/'etc/skel-desktop/.config/waypaper/config.ini'))
-        command = next(line.split(' = ', 1)[1] for line in config.splitlines()
-                       if line.startswith('post_command = '))
-        wallpaper = "/usr/share/backgrounds/desktop/a's picture.png"
-        received = command.replace('/usr/local/bin/labwc-wallpaper-save', '/usr/bin/printf "%s\\n"')
-        result = subprocess.run(['/bin/sh', '-c', received.replace('$wallpaper', shlex.quote(wallpaper))],
-                                check=True, text=True, capture_output=True)
-        # Waypaper owns its native renderer until ExecStopPost restores swaybg.
-        # This hook only persists the selection; --apply would race that owner.
-        self.assertEqual(result.stdout, wallpaper + '\n')
+        self.assertIn('\npost_command =\n', config)
+        adapter = payload_read_text(TARGET/'usr/local/libexec/labwc-waypaper')
+        self.assertIn("[HELPER, '--component', COMPONENTS[backend], '--apply', '--', path]", adapter)
+        self.assertNotIn('shell=True', adapter)
+        launcher = payload_read_text(TARGET/'usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py')
+        self.assertNotIn('ExecStartPre=/usr/bin/systemctl --user stop swaybg.service', launcher)
+        self.assertNotIn('ExecStopPost=/usr/bin/systemctl --user start swaybg.service', launcher)
 
     def test_every_main_and_additional_category_has_one_destination(self):
         for label, main, additional in self.menu.CATEGORY_RULES:
@@ -328,8 +326,8 @@ class IntegrationContractTests(unittest.TestCase):
             self.assertIn('LABWC_WAYLAND_APP_DEFAULT_EXEC "$LABWC_WAYLAND_APP_DEFAULT_EXEC"',
                           render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop' / source)))
         config = render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/waypaper/config.ini'))
-        self.assertIn('\nbackend = swaybg\n', config)
-        self.assertIn('post_command = /usr/local/bin/labwc-wallpaper-save $wallpaper', config)
+        self.assertIn('\nbackend = Swaybg\n', config)
+        self.assertIn('\npost_command =\n', config)
         self.assertNotIn('labwc-wallpaper-save --apply', config)
         self.assertIn('labwc-wallpaper-control save', render_theme_defaults(payload_read_text(TARGET / 'usr/local/bin/labwc-wallpaper-save')))
         self.assertIn('swaybg.service', render_theme_defaults(payload_read_text(TARGET / 'usr/local/libexec/labwc-wallpaper-control')))

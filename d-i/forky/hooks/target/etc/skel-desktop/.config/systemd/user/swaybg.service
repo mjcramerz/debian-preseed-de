@@ -1,6 +1,5 @@
 [Unit]
-# Normal Waypaper handoffs stop and restart this unit; keep a finite limit
-# that also tolerates several quick open/close cycles within one minute.
+# Selections leave this supervisor running for the whole session.
 StartLimitBurst=20
 StartLimitIntervalSec=60s
 After=labwc-compositor.service labwc-session.target labwc-output-watch.service

@@ -215,19 +215,24 @@ unexecutable_file=$(
   exit 1
 }
 
+[ -f /usr/local/libexec/labwc-waypaper ] && [ ! -L /usr/local/libexec/labwc-waypaper ] &&
+  [ "$(/usr/bin/stat -c %u:%g:%a:%h /usr/local/libexec/labwc-waypaper)" = 0:0:755:1 ] || {
+    printf "%s\n" "Waypaper adapter has unsafe ownership or permissions" >&2
+    exit 1
+  }
 /usr/bin/install -d -o root -g root -m 0755 /usr/local/bin
 if [ -e "$system_binary" ] && [ ! -L "$system_binary" ]; then
   printf "%s\n" "refusing to replace non-symbolic Waypaper system entry point" >&2
   exit 1
 fi
 /usr/bin/rm -f -- "$system_binary"
-/usr/bin/ln -s -- "$binary" "$system_binary"
+/usr/bin/ln -s -- /usr/local/libexec/labwc-waypaper "$system_binary"
 /usr/bin/chown -h root:root "$system_binary"
 resolved_system_binary=$(/usr/bin/readlink -f -- "$system_binary") || exit 1
 case "$resolved_system_binary" in
-  "$root"/*) ;;
+  /usr/local/libexec/labwc-waypaper) ;;
   *)
-    printf "%s\n" "Waypaper system entry point resolves outside the managed runtime" >&2
+    printf "%s\n" "Waypaper system entry point does not resolve to the managed adapter" >&2
     exit 1
     ;;
 esac
@@ -345,6 +350,7 @@ desktop_install_waypaper() {
   desktop_transient_pipx_build_account_destroy \
     "$waypaper_build_account" \
     "$waypaper_build_home"
+  desktop_stage_role_asset usr/local/libexec/labwc-waypaper /usr/local/libexec/labwc-waypaper 0755
   desktop_waypaper_seal_runtime \
     "$waypaper_root" \
     "$waypaper_pipx_home" \

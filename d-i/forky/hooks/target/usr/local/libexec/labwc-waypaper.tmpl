@@ -1,0 +1,216 @@
+#!/opt/waypaper/pipx/venvs/waypaper/bin/python -IB
+"""Waypaper 2.9 image browser with three independently persisted destinations.
+
+Keep the packaged browser intact. Override its selection callbacks so it never
+launches/kills wallpaper backends or interprets a configured shell post-command.
+"""
+from __future__ import annotations
+
+import argparse
+from importlib.metadata import version
+import json
+import os
+from pathlib import Path
+import random
+import signal
+import subprocess
+import sys
+import threading
+
+sys.path.insert(0, '/usr/local/lib/python3.14/dist-packages')
+from labwc_appearance.wallpaper import current_greeter, snapshot
+
+if version('waypaper') != '2.9':
+    raise SystemExit('The managed Waypaper adapter requires the pinned Waypaper 2.9 runtime.')
+
+from waypaper.app import App, Gtk, GLib
+from waypaper.config import Config
+from waypaper.options import IMAGE_EXTENSIONS
+from waypaper.translations import load_language
+
+COMPONENTS = {'Swaybg': 'swaybg', 'Swaylock': 'swaylock', 'GtkGreet': 'gtkgreet'}
+DEFAULTS = {
+    'Swaybg': '__THEME_TARGET_PATH_LABWC_WALLPAPER_DESKTOP_SWAYBG__',
+    'Swaylock': '__THEME_TARGET_PATH_LABWC_WALLPAPER_LOCKSCREEN_SWAYLOCK__',
+    'GtkGreet': '__THEME_TARGET_PATH_LABWC_WALLPAPER_LOGIN_GTKGREET__',
+}
+HELPER = '/usr/local/bin/labwc-wallpaper-save'
+for name in COMPONENTS:
+    IMAGE_EXTENSIONS[name] = ['.png', '.jpg', '.jpeg']
+
+
+def current(backend: str) -> Path:
+    if backend == 'GtkGreet':
+        return current_greeter() or Path(DEFAULTS[backend])
+    result = subprocess.run([HELPER, '--quiet', '--current', '--component', COMPONENTS[backend]],
+                            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL, timeout=5, check=False)
+    if result.returncode == 0 and len(result.stdout) <= 4096:
+        return Path(result.stdout.decode('utf-8').removesuffix('\n'))
+    return Path(DEFAULTS[backend])
+
+
+def apply(backend: str, path: str) -> None:
+    if backend == 'GtkGreet':
+        # Validate/snapshot before authentication. Root receives image bytes only.
+        data = snapshot(path, Path.home())
+        result = subprocess.run(['/usr/bin/pkexec', '/usr/local/libexec/labwc-appearance-greeter', 'wallpaper'],
+                                input=data, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                                timeout=120, check=False)
+        if result.returncode in (126, 127):
+            raise ValueError('Administrator authentication was cancelled or unavailable; the greeter was not changed.')
+        if result.returncode:
+            reason = result.stderr.decode('utf-8', 'replace').strip()[:350]
+            raise ValueError('Greeter wallpaper update failed: ' + (reason or 'check the appearance recovery state before retrying'))
+        return
+    subprocess.run([HELPER, '--component', COMPONENTS[backend], '--apply', '--', path],
+                   stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                   check=True, timeout=5)
+
+
+class WallpaperApp(App):
+    busy = False
+
+    def __init__(self, text, config):
+        super().__init__(text, config)
+        self.disconnect_by_func(Gtk.main_quit)
+        self.connect('delete-event', self.close_requested)
+
+    def close_requested(self, *_):
+        if not self.busy:
+            Gtk.main_quit()
+        return True
+
+    def on_exit_clicked(self, _widget):
+        self.close_requested()
+
+    def on_key_pressed(self, widget, event):
+        if self.busy:
+            return True
+        return super().on_key_pressed(widget, event)
+
+    def monitor_option_display(self):
+        self.cf.selected_monitor = 'All'
+
+    def fill_option_display(self):
+        pass  # All three session consumers use their existing fill/cover mode.
+
+    def color_picker_display(self):
+        pass
+
+    def update_slideshow_button(self):
+        pass  # Do not probe, start or stop the upstream detached daemon.
+
+    def create_options_menu(self):
+        super().create_options_menu()
+        self.menu.remove(self.filter_gifs_checkbox)
+        self.menu.remove(self.show_slideshow_panel_checkbox)
+
+    def on_backend_option_changed(self, combo):
+        backend = combo.get_active_text()
+        if backend not in COMPONENTS or self.busy:
+            return
+        self.cf.backend = backend
+        self.cf.selected_wallpaper = current(backend)
+        self.cf.monitors = ['All']
+        self.cf.wallpapers = [self.cf.selected_wallpaper]
+        self.cf.save()
+        # Switching destinations changes selection only, never the live image.
+        self.selected_index = next((i for i, path in enumerate(self.image_paths)
+                                    if Path(path) == self.cf.selected_wallpaper), 0)
+        self.load_image_grid()
+
+    def set_selected_wallpaper(self, path: str):
+        if self.busy:
+            return
+        self.busy = True
+        self.main_box.set_sensitive(False)
+        backend = self.cf.backend
+        def work():
+            error = None
+            try:
+                apply(backend, path)
+            except subprocess.TimeoutExpired:
+                error = ('Wallpaper update timed out. Its outcome is unknown; '
+                         'check the selected component before retrying.')
+            except (OSError, ValueError, subprocess.SubprocessError) as failure:
+                error = str(failure)
+            GLib.idle_add(self.finished, path, error)
+        threading.Thread(target=work, daemon=False).start()
+
+    def finished(self, path: str, error: str | None):
+        self.busy = False
+        self.main_box.set_sensitive(True)
+        if error is not None:
+            self.show_message(''.join(c if c.isprintable() else '?' for c in error)[:500])
+        else:
+            self.cf.select_wallpaper(path)
+            self.cf.attribute_selected_wallpaper()
+            self.cf.save()
+        return False
+
+    def set_random_wallpaper(self):
+        if self.image_paths and not self.busy:
+            self.set_selected_wallpaper(random.choice(self.image_paths))
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--version', '-v', action='store_true')
+    parser.add_argument('--backend', choices=tuple(COMPONENTS) + tuple(COMPONENTS.values()))
+    parser.add_argument('--wallpaper')
+    parser.add_argument('--restore', action='store_true')
+    parser.add_argument('--random', action='store_true')
+    parser.add_argument('--list', action='store_true')
+    parser.add_argument('--folder', nargs='+')
+    args = parser.parse_args()
+    if args.version:
+        print('waypaper 2.9 (managed wallpaper destinations)')
+        return 0
+    config = Config()
+    config.read()
+    config.read_state()
+    requested_backend = args.backend or config.backend
+    backend = next((name for name, component in COMPONENTS.items()
+                    if requested_backend in (name, component)), 'Swaybg')
+    # Validate only the upstream scalar options, while keeping the adapter's
+    # three fixed destinations out of Waypaper's built-in backend probing.
+    config.installed_backends = list(COMPONENTS)
+    config.backend = 'swaybg'
+    config.check_validity()
+    config.backend = backend
+    config.post_command = ''
+    config.slideshow_enabled = config.show_slideshow_panel = config.show_gifs_only = False
+    config.monitors = ['All']
+    config.selected_monitor = 'All'
+    config.selected_wallpaper = current(config.backend)
+    config.wallpapers = [config.selected_wallpaper]
+    if args.folder:
+        config.image_folder_list = [Path(path).expanduser() for path in args.folder]
+    if args.list:
+        print(json.dumps([{'backend': name, 'wallpaper': str(current(name))} for name in COMPONENTS]))
+        return 0
+    if args.wallpaper or args.restore or args.random:
+        path = args.wallpaper or str(current(config.backend))
+        if args.random:
+            from waypaper.common import get_image_paths
+            paths = get_image_paths(config.backend, config.image_folder_list, config.include_subfolders,
+                                    config.include_all_subfolders, config.show_hidden)
+            if not paths:
+                raise ValueError('no PNG or JPEG wallpapers found')
+            path = random.choice(paths)
+        apply(config.backend, path)
+        return 0
+    app = WallpaperApp(load_language(config.lang), config)
+    signal.signal(signal.SIGUSR1, lambda *_: GLib.idle_add(app.reload_css))
+    app.run()
+    return 0
+
+
+if __name__ == '__main__':
+    os.umask(0o077)
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        print('Waypaper: ' + ''.join(c if c.isprintable() else '?' for c in str(error))[:500], file=sys.stderr)
+        raise SystemExit(1)

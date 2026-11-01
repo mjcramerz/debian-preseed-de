@@ -40,7 +40,7 @@ desktop_stage_wlsunset() {
 }
 
 desktop_stage_waybar_native_menus() {
-  for menu_name in tomat audio notifications power calendar screenshot bluetooth system launcher; do
+  for menu_name in tomat audio notifications power calendar screenshot bluetooth system launcher wayscriber; do
     desktop_render_waybar_asset "${menu_name}-menu.xml"
   done
   # Keep optional voice actions visible but disabled when their services are
@@ -456,6 +456,7 @@ exec /opt/vivaldi/update-ffmpeg --system
   desktop_stage_role_asset usr/local/bin/labwc-keyboard-layout /usr/local/bin/labwc-keyboard-layout 0755
   desktop_stage_role_asset usr/local/bin/labwc-capture /usr/local/bin/labwc-capture 0755
   desktop_stage_role_asset usr/local/bin/labwc-wayscriber-toggle /usr/local/bin/labwc-wayscriber-toggle 0755
+  desktop_stage_role_asset usr/local/bin/labwc-wayscriber-config /usr/local/bin/labwc-wayscriber-config 0755
   desktop_stage_role_asset usr/local/bin/satty /usr/local/bin/satty 0755
   desktop_stage_role_asset usr/local/libexec/apparmor-generate-rules /usr/local/libexec/apparmor-generate-rules 0755
   desktop_stage_role_asset usr/local/libexec/labwc-security-action-root /usr/local/libexec/labwc-security-action-root 0755

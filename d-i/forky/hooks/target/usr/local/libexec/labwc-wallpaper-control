@@ -82,7 +82,10 @@ def image_path(value: str, home: Path | None = None) -> str:
 
 class State:
     """Keep directory descriptors pinned; never follow state-file symlinks."""
-    def __init__(self, home: str):
+    def __init__(self, home: str, component: str = 'swaybg'):
+        if component not in ('swaybg', 'swaylock'):
+            raise ValueError('invalid wallpaper component')
+        self.name = 'wallpaper' if component == 'swaybg' else 'wallpaper-' + component
         p = Path(home)
         if not p.is_absolute() or p == Path('/') or any(c in home for c in '\x00\r\n'):
             raise ValueError('invalid HOME')
@@ -119,7 +122,7 @@ class State:
 
     def current(self) -> str | None:
         try:
-            fd = os.open('wallpaper', os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=self.fd)
+            fd = os.open(self.name, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=self.fd)
         except FileNotFoundError:
             return None
         try:
@@ -142,10 +145,13 @@ class State:
             if (not stat.S_ISREG(meta.st_mode) or meta.st_uid != os.getuid()
                     or meta.st_nlink != 1 or stat.S_IMODE(meta.st_mode) != 0o600):
                 raise ValueError('unsafe wallpaper request lock')
-            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise ValueError('another wallpaper request is being saved') from None
             # Reject hostile destination links even though replace would not follow them.
             try:
-                meta = os.stat('wallpaper', dir_fd=self.fd, follow_symlinks=False)
+                meta = os.stat(self.name, dir_fd=self.fd, follow_symlinks=False)
                 if not stat.S_ISREG(meta.st_mode) or meta.st_uid != os.getuid() or meta.st_nlink != 1:
                     raise ValueError('unsafe wallpaper destination')
             except FileNotFoundError:
@@ -156,7 +162,7 @@ class State:
                 stream.write((value + '\n').encode('utf-8'))
                 stream.flush()
                 os.fsync(stream.fileno())
-            os.replace(temporary, 'wallpaper', src_dir_fd=self.fd, dst_dir_fd=self.fd)
+            os.replace(temporary, self.name, src_dir_fd=self.fd, dst_dir_fd=self.fd)
             os.fsync(self.fd)
         finally:
             try:
@@ -169,16 +175,29 @@ class State:
 def stop(child: subprocess.Popen | None) -> None:
     if child is None:
         return
+    deadline = time.monotonic() + 2
     if child.poll() is None:
         try:
             child.terminate()
-            try:
-                child.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                child.kill()
         except ProcessLookupError:
-            pass  # It exited between poll and signal; always reap below.
-    child.wait()
+            try:
+                child.wait(timeout=max(0.0, deadline - time.monotonic()))
+            except subprocess.TimeoutExpired as error:
+                raise RuntimeError('wallpaper backend did not stop within the cleanup deadline') from error
+            return
+        try:
+            child.wait(timeout=max(0.0, deadline - time.monotonic()))
+            return
+        except subprocess.TimeoutExpired:
+            pass
+        try:
+            child.kill()
+        except ProcessLookupError:
+            return
+    try:
+        child.wait(timeout=max(0.0, deadline - time.monotonic()))
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError('wallpaper backend did not stop within the cleanup deadline') from error
 
 
 def changed(fd: int) -> bool:
@@ -291,13 +310,20 @@ def supervise_locked(state: State, default: str) -> int:
                     elif changed(watch):
                         due = time.monotonic() + DEBOUNCE
     finally:
-        stop(candidate)
-        stop(active)
+        cleanup_error = None
+        for child in (candidate, active):
+            try:
+                stop(child)
+            except BaseException as error:
+                if cleanup_error is None:
+                    cleanup_error = error
         signal.set_wakeup_fd(previous_wakeup)
         for sig, handler in old_handlers.items():
             signal.signal(sig, handler)
         for fd in (watch, wake_read, wake_write):
             os.close(fd)
+        if cleanup_error is not None:
+            raise cleanup_error
     return 0
 
 
@@ -307,13 +333,14 @@ def main() -> int:
     parser.add_argument('--quiet', action='store_true')
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--current', action='store_true')
+    parser.add_argument('--component', choices=('swaybg', 'swaylock'), default='swaybg')
     parser.add_argument('image', nargs='?')
     args = parser.parse_intermixed_args()
     state = None
     try:
-        state = State(os.environ['HOME'])
+        state = State(os.environ['HOME'], args.component)
         if args.mode == 'supervise':
-            if not args.image or args.apply or args.current:
+            if not args.image or args.apply or args.current or args.component != 'swaybg':
                 parser.error('supervise requires one default image')
             return supervise(state, args.image)
         if args.current:
@@ -327,7 +354,7 @@ def main() -> int:
             if not args.image:
                 parser.error('save requires one image')
             state.save(args.image)
-            if args.apply and os.environ.get('LABWC_SESSION_OWNER') == 'desktop':
+            if args.apply and args.component == 'swaybg' and os.environ.get('LABWC_SESSION_OWNER') == 'desktop':
                 # Idempotent start, never restart/reset-failed. This neither kills
                 # the current background nor consumes restart-rate-limit tokens.
                 subprocess.run(['/usr/bin/systemctl', '--user', '--no-block', 'start', 'swaybg.service'],

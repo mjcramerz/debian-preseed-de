@@ -445,7 +445,6 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         "/usr/bin/foot", "/usr/bin/kitty", "/usr/bin/terminal-emulator",
         "/usr/local/bin/labwc-terminal",
     }
-    is_waypaper = kind == "wayland" and arguments[0] == "/usr/local/bin/waypaper"
     is_compositor_settings = kind == "wayland" and arguments[0] in {
         "/usr/bin/labwc-tweaks", "/usr/bin/qt6ct",
     }
@@ -467,12 +466,6 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
            "--property=Requires=labwc-gvfs-volume-monitor.service",
            "--property=PrivateMounts=no"] if is_thunar else []),
         *(["--property=PrivateNetwork=no", "--property=PrivateMounts=no"] if is_capture else []),
-        # Waypaper temporarily owns swaybg while its GUI is open. Stop the
-        # supervisor before native backend startup, then restore the saved
-        # selection after the GUI and all its renderers have exited. This
-        # handoff is independent of AppArmor's enforce/complain setting.
-        *(["--property=ExecStartPre=/usr/bin/systemctl --user stop swaybg.service",
-           "--property=ExecStopPost=/usr/bin/systemctl --user start swaybg.service"] if is_waypaper else []),
         # The capture supervisor waits for the application's main process and
         # preserves its exit status. When the supervisor exits, systemd starts
         # bounded cleanup of remaining descendants in the service cgroup.

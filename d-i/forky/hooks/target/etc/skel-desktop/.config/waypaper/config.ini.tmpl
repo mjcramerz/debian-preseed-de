@@ -2,7 +2,7 @@
 language = en
 folder = /usr/share/backgrounds/desktop
 wallpaper = __THEME_TARGET_PATH_LABWC_WALLPAPER_DESKTOP_SWAYBG__
-backend = swaybg
+backend = Swaybg
 monitors = All
 fill = fill
 sort = name
@@ -22,10 +22,8 @@ swww_transition_duration = 2
 swww_transition_fps = 60
 mpvpaper_sound = False
 mpvpaper_options =
-# The native swaybg backend owns the image while Waypaper is open. Persist its
-# selection; the session supervisor restores it after the Waypaper unit exits.
-# Waypaper supplies a shell-escaped path; quoting it again passes literal quotes.
-post_command = /usr/local/bin/labwc-wallpaper-save $wallpaper
+# The managed adapter submits selections directly, without a shell command.
+post_command =
 stylesheet = ~/.config/waypaper/style.css
 keybindings = ~/.config/waypaper/keybindings.ini
 wallpaperengine_folder = ~/.steam/root/steamapps/workshop/content/431960

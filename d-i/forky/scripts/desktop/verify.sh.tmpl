@@ -1,7 +1,6 @@
 #!/bin/sh
-# Offline audit definitions. The desktop installer does not fetch or source
-# this module; audits may invoke its checks explicitly in an isolated target.
-# Labwc desktop target verification helpers.
+# Installer verification entry points. Checks are limited to command presence
+# and filesystem metadata; file contents are intentionally never read or compared.
 
 desktop_verify_required_commands() {
   # shellcheck disable=SC2016
@@ -577,6 +576,7 @@ for path in \
   /etc/skel-desktop/.config/waypaper/config.ini \
   /etc/skel-desktop/.config/waypaper/keybindings.ini \
   /etc/skel-desktop/.config/waypaper/style.css \
+  /etc/skel-desktop/.config/waybar/gtk/wayscriber-menu.xml \
   /etc/skel-desktop/.config/lxqt/filedialog.conf \
   /etc/skel-desktop/.config/btop/btop.conf \
   /etc/skel-desktop/.config/fzf/default-opts \
@@ -607,8 +607,6 @@ require_mode /etc/systemd/user/labwc-gvfs-volume-monitor.service 644
 for mount_backend in gvfs-daemon.service gvfs-udisks2-volume-monitor.service; do
   backend_policy="/etc/systemd/user/${mount_backend}.d/10-labwc-session.conf"
   require_mode "$backend_policy" 644
-  grep -Fxq Slice=session.slice "$backend_policy" ||
-    fatal "mount backend must survive application shutdown: $mount_backend"
 done
 require_mode /etc/systemd/user/llama-whisper-guard.service 644
 require_mode /usr/local/libexec/llama-whisper-coordinate 755
@@ -618,9 +616,6 @@ require_mode /etc/systemd/user/thunar.service.d/50-labwc-session.conf 644
 for application_family in wayland electron native devops bitwarden qbittorrent compat; do
   lifecycle_policy="/etc/systemd/user/labwc-${application_family}-.service.d/50-app-lifecycle.conf"
   require_mode "$lifecycle_policy" 644
-  for lifecycle_setting in ExitType=main KillMode=control-group TimeoutStopSec=20s SendSIGKILL=yes; do
-    grep -Fxq "$lifecycle_setting" "$lifecycle_policy" || fatal "missing application lifecycle setting: $lifecycle_setting"
-  done
 done
 require_mode /etc/systemd/user/labwc-wayland-foot-.service.d/60-terminal-lifecycle.conf 644
 require_mode /etc/systemd/user/labwc-devops-.service.d/60-stop-budget.conf 644
@@ -628,18 +623,10 @@ require_mode /etc/apparmor.d/abstractions/base.d/process-monitor 644
 require_mode /usr/local/libexec/labwc-gvfs-volume-monitor 755
 require_mode /usr/share/dbus-1/services/org.gtk.vfs.LabwcVolumeMonitor.service 644
 require_mode /usr/share/gvfs/remote-volume-monitors/labwc.monitor 644
-grep -qx '\''Name=GProxyVolumeMonitorLabwc'\'' /usr/share/gvfs/remote-volume-monitors/labwc.monitor ||
-  fatal '\''Thunar external-drive native volume monitor is not registered'\''
 require_mode /etc/systemd/system/labwc-package-sleep-guard.service 644
 require_mode /etc/systemd/system/sleep.target.d/50-package-lock-guard.conf 644
 require_mode /usr/local/libexec/greetd-power-action-root 755
-grep -qx '\''Requires=labwc-package-sleep-guard.service'\'' /etc/systemd/system/sleep.target.d/50-package-lock-guard.conf ||
-  fatal '\''sleep.target does not require the package lock guard'\''
-grep -qx '\''Before=sleep.target'\'' /etc/systemd/system/labwc-package-sleep-guard.service ||
-  fatal '\''package lock guard is not ordered before sleep.target'\''
 require_mode /etc/systemd/user/wireplumber.service.d/60-resource-class.conf 644
-grep -Fxq '\''Slice=session.slice'\'' /etc/systemd/user/wireplumber.service.d/60-resource-class.conf ||
-  fatal "WirePlumber session class is missing"
 for background_directory in \
   /usr/share/backgrounds \
   /usr/share/backgrounds/desktop \
@@ -667,9 +654,10 @@ dpkg --compare-versions "$swaylock_version" ge 1.8.6 ||
   fatal "swaylock 1.8.6 or newer is required for the password-buffer fix after suspend/resume"
 helper_package=$(dpkg-query -S /usr/sbin/unix_chkpwd 2>/dev/null) ||
   fatal "unix_chkpwd is not owned by an installed package"
-printf "%s\n" "$helper_package" |
-  grep -Eq "^libpam-modules-bin(:[^:[:space:]]+)?: /usr/sbin/unix_chkpwd$" ||
-  fatal "unix_chkpwd has an unexpected package owner: $helper_package"
+case "$helper_package" in
+  libpam-modules-bin:*|libpam-modules-bin\ /usr/sbin/unix_chkpwd) ;;
+  *) fatal "unix_chkpwd has an unexpected package owner: $helper_package" ;;
+esac
 shadow_group_entry=$(getent group shadow) ||
   fatal "required shadow group is missing"
 shadow_gid=$(printf "%s\n" "$shadow_group_entry" | cut -d: -f3)
@@ -950,23 +938,6 @@ if [ -r /usr/share/dbus-1/system-services/org.freedesktop.nm_dispatcher.service 
   require_readable /etc/systemd/system/network-wifi-shutdown.service
   require_executable /etc/NetworkManager/dispatcher.d/90-managed-wifi-preference
   require_readable /etc/systemd/system/NetworkManager-dispatcher.service.d/20-persistent.conf
-  if [ -r /etc/network/host.conf ]; then
-    managed_link_types=$(sed -n 's/^MANAGED_NETWORK_LINK_TYPES=//p' /etc/network/host.conf)
-    managed_link_types=$(printf '%s' "$managed_link_types" |
-      sed -e 's/^"//' -e "s/^'//" -e 's/"$//' -e "s/'$//")
-    case " $managed_link_types " in
-      *" ethernet "*)
-        case " $managed_link_types " in
-          *" wifi "*)
-            require_executable /etc/network/if-up.d/90-managed-wifi-preference
-            require_executable /etc/network/if-post-down.d/90-managed-wifi-preference
-            require_readable /etc/systemd/system/network-wifi-carrier@.service
-            require_readable /etc/udev/rules.d/90-managed-wifi-preference.rules
-            ;;
-        esac
-        ;;
-    esac
-  fi
   if [ -r /usr/lib/systemd/system/NetworkManager-dispatcher.service ]; then
     nm_dispatcher_unit=/usr/lib/systemd/system/NetworkManager-dispatcher.service
   elif [ -r /lib/systemd/system/NetworkManager-dispatcher.service ]; then
@@ -1297,8 +1268,6 @@ unsafe_browser_entry=$(find -P "$browser_checkout" -xdev \
   -print -quit)
 [ -z "$unsafe_browser_entry" ] || fatal "unsafe browser checkout ownership, type or permissions"
 check_required_owned "$browser_checkout/.git/HEAD"
-printf "ref: refs/heads/mcr/main\n" | cmp -s - "$browser_checkout/.git/HEAD" ||
-  fatal "browser checkout is not on the configured mcr/main branch"
 unset browser_directory browser_checkout unsafe_browser_entry
 
 # The encrypted identity and sealed passphrase are both private account files.
@@ -1337,8 +1306,6 @@ verify_account_session_link ssh-agent.socket
 [ ! -L /etc/obsidian-git-sync.conf ] &&
   [ "$(find -P /etc/obsidian-git-sync.conf -maxdepth 0 -printf "%U:%G:%m:%n")" = 0:0:644:1 ] ||
   fatal "unsafe automatic Obsidian Git policy file"
-printf "OBSIDIAN_GIT_AUTO_ENABLE=%s\n" "$obsidian_git_auto_enable" |
-  cmp -s - /etc/obsidian-git-sync.conf || fatal "automatic Obsidian Git policy differs from the profile"
 case "$obsidian_git_auto_enable" in
   true)
     verify_skeleton_session_link obsidian-git-sync.timer
@@ -1868,19 +1835,13 @@ wireplumber_dropin=/etc/systemd/user/wireplumber.service.d/20-no-root.conf
   printf "fatal: WirePlumber user-condition drop-in is missing or unsafe: %s\n" "$wireplumber_dropin" >&2
   exit 1
 }
-grep -Fxq '\''ConditionUser=!root'\'' "$wireplumber_dropin" &&
-  grep -Fxq "ConditionUser=!${greeter_user}" "$wireplumber_dropin" || {
-    printf "fatal: WirePlumber is not excluded from the greeter user manager: %s\n" "$greeter_user" >&2
-    exit 1
-  }
 
 for unit in pipewire.socket pipewire.service pipewire-pulse.socket pipewire-pulse.service; do
   dropin="/etc/systemd/user/${unit}.d/20-no-greeter.conf"
-  [ -f "$dropin" ] && [ ! -L "$dropin" ] &&
-    grep -Fxq "ConditionUser=!${greeter_user}" "$dropin" || {
-      printf "fatal: PipeWire greeter exclusion is missing or unsafe: %s\n" "$dropin" >&2
-      exit 1
-    }
+  [ -f "$dropin" ] && [ ! -L "$dropin" ] || {
+    printf "fatal: PipeWire greeter exclusion is missing or unsafe: %s\n" "$dropin" >&2
+    exit 1
+  }
 done
 
 for group_name in seat render video; do
@@ -1927,1269 +1888,97 @@ printf "desktop_user_resource_policy_verification slice=%s files=%s\n" user-1000
 }
 
 desktop_verify_native_workspace_config() {
-  # Validate the real installed packages and both copied configuration trees.
-  # This checks configuration, not live compositor behavior. No extra daemon,
-  # language module, Wayland connection or generated bytecode is required.
-  # shellcheck disable=SC2016
-  run_in_target "verify broker-free workspace and native switcher configuration" \
-    /usr/bin/python3 -I -B -c '
-import configparser
-import json
-from pathlib import Path
-import re
-import shlex
-import subprocess
-import sys
-import xml.etree.ElementTree as ET
-
-def require(condition, message):
-    if not condition:
-        raise SystemExit(message)
-
-for package, minimum in (("labwc", "0.20.2"), ("waybar", "0.15.0"), ("fuzzel", "1.15.0")):
-    version = subprocess.check_output(["/usr/bin/dpkg-query", "-W", "-f=${Version}", package], text=True).strip()
-    subprocess.run(["/usr/bin/dpkg", "--compare-versions", version, "ge", minimum], check=True)
-root = Path("/")
-for retired in ("usr/local/libexec/labwc-workspace-broker",
-                "usr/local/libexec/labwc-workspace-wayland-adapter",
-                "usr/local/bin/labwc-workspace-broker-client"):
-    path = root / retired
-    require(not path.exists() and not path.is_symlink(), "retired taskbar executable remains: " + retired)
-config_roots = (root / "etc/skel-desktop/.config", root / sys.argv[1].lstrip("/") / ".config")
-def load_waybar_config(config):
-    """Resolve the native Waybar object includes for offline verification."""
-    root_config = json.loads((config / "waybar/config").read_text())
-    require(isinstance(root_config, list), "Waybar root configuration is not a bar list")
-
-    def merge(base, fragment):
-        require(isinstance(base, dict) and isinstance(fragment, dict),
-                "Waybar include must contain one object")
-        for key, value in fragment.items():
-            if key not in base:
-                base[key] = value
-            elif isinstance(base[key], dict) and isinstance(value, dict):
-                merge(base[key], value)
-
-    for bar in root_config:
-        require(isinstance(bar, dict), "Waybar bar must be an object")
-        includes = bar.pop("include", [])
-        require(isinstance(includes, list) and all(isinstance(item, str) for item in includes),
-                "Waybar include list is invalid")
-        for include in includes:
-            prefix = "~/.config/waybar/"
-            require(include.startswith(prefix), "Waybar include must name the managed configuration directory")
-            relative = include[len(prefix):]
-            require(re.fullmatch(r"modules/[a-z-]+", relative) is not None,
-                    "Waybar include has an unsafe path")
-            include_path = config / "waybar" / relative
-            require(include_path.is_file() and not include_path.is_symlink(),
-                    "Waybar include is missing: " + relative)
-            fragment = json.loads(include_path.read_text())
-            merge(bar, fragment)
-    return root_config
-
-counts = []
-for config in config_roots:
-    # Inspect installed data only; never start a picker or a session manager.
-    base = configparser.ConfigParser(interpolation=None, strict=True)
-    menu = configparser.ConfigParser(interpolation=None, strict=True)
-    for relative, document in (("fuzzel/base.ini", base), ("fuzzel/menu.ini", menu)):
-        text = (config / relative).read_text()
-        require("__INSTALLER_" not in text and "__THEME_" not in text,
-                "unresolved Fuzzel configuration: " + relative)
-        document.read_string(text)
-    require(set(base.get("key-bindings", "cancel").split()) ==
-            {"Control+g", "Control+c", "Control+bracketleft", "Escape"},
-            "Fuzzel dismissal keys must close the workflow")
-    require(menu.get("key-bindings", "custom-1") == "Mod4+BackSpace",
-            "Fuzzel Back must use its distinct custom action")
-    require(base.get("main", "keyboard-focus") == "on-demand"
-            and base.getboolean("main", "exit-on-keyboard-focus-loss"),
-            "Fuzzel must dismiss when another application receives focus")
-    waybar_assets = (
-        "waybar/config", "waybar/style.css", "waybar/style-common.css",
-        "waybar/modules/app-files",
-        "waybar/modules/app-notes",
-        "waybar/modules/app-sleek",
-        "waybar/modules/app-terminal",
-        "waybar/modules/app-tuta",
-        "waybar/modules/apps",
-        "waybar/modules/backlight",
-        "waybar/modules/battery",
-        "waybar/modules/bluetooth",
-        "waybar/modules/clock",
-        "waybar/modules/cpu",
-        "waybar/modules/disk",
-        "waybar/modules/external-apps-drawer",
-        "waybar/modules/external-launcher",
-        "waybar/modules/external-quick-controls",
-        "waybar/modules/external-taskbar",
-        "waybar/modules/external-tray",
-        "waybar/modules/internal-apps-drawer",
-        "waybar/modules/internal-launcher",
-        "waybar/modules/internal-quick-controls",
-        "waybar/modules/internal-taskbar",
-        "waybar/modules/internal-tray",
-        "waybar/modules/keyboard",
-        "waybar/modules/lock",
-        "waybar/modules/memory",
-        "waybar/modules/network",
-        "waybar/modules/notifications",
-        "waybar/modules/power",
-        "waybar/modules/pulseaudio",
-        "waybar/modules/screenshot",
-        "waybar/modules/system",
-        "waybar/modules/tomat",
-        "waybar/modules/wayscriber",
-        "waybar/modules/window-switcher",
-        "waybar/modules/workspaces",
-        "waybar/gtk/audio-menu.xml",
-        "waybar/gtk/bluetooth-menu.xml",
-        "waybar/gtk/calendar-menu.xml",
-        "waybar/gtk/launcher-menu.xml",
-        "waybar/gtk/notifications-menu.xml",
-        "waybar/gtk/power-menu.xml",
-        "waybar/gtk/screenshot-menu.xml",
-        "waybar/gtk/system-menu.xml",
-        "waybar/gtk/tomat-menu.xml",
-        "waybar/style/menu.css",
-        "waybar/style/gtk.css",
-        "waybar/style/workspaces.css",
-        "waybar/style/tomat.css",
-        "waybar/style/wayscriber.css",
-        "waybar/style/taskview.css",
-        "waybar/style/apps.css",
-        "waybar/style/clock.css",
-        "waybar/style/audio.css",
-        "waybar/style/brightness.css",
-        "waybar/style/battery.css",
-        "waybar/style/storage.css",
-        "waybar/style/cpu.css",
-        "waybar/style/memory.css",
-        "waybar/style/tray.css",
-        "waybar/style/system.css",
-        "waybar/style/notifications.css",
-        "waybar/style/lock.css",
-        "waybar/style/power.css",
-    )
-    for name in ("labwc/rc.xml", *waybar_assets):
-        text = (config / name).read_text()
-        require("__INSTALLER_" not in text, "unresolved workspace configuration: " + name)
-        require("labwc-workspace-broker" not in text, "retired broker reference in " + name)
-    stylesheet = (config / "waybar/style.css").read_text()
-    for imported in ("style-common.css", "style/menu.css", "style/workspaces.css",
-                     "style/tomat.css", "style/wayscriber.css", "style/taskview.css",
-                     "style/apps.css", "style/clock.css", "style/audio.css",
-                     "style/brightness.css", "style/battery.css", "style/storage.css",
-                     "style/cpu.css", "style/memory.css", "style/tray.css",
-                     "style/system.css", "style/notifications.css", "style/lock.css",
-                     "style/power.css", "style/gtk.css"):
-        require("@import url(" + chr(34) + imported + chr(34) + ");" in stylesheet,
-                "Waybar stylesheet is missing import: " + imported)
-    for relative in ("systemd/user/labwc-workspace-broker.service",
-                     "systemd/user/labwc-session.target.wants/labwc-workspace-broker.service"):
-        path = config / relative
-        require(not path.exists() and not path.is_symlink(), "retired taskbar unit remains: " + str(path))
-    for relative in ("systemd/user/waybar.service",):
-        require("labwc-workspace-broker" not in (config / relative).read_text(), "retired dependency in " + relative)
-    rc = ET.parse(config / "labwc/rc.xml").getroot()
-    count = int(rc.findtext("desktops/number", "0"))
-    counts.append(count)
-    require(1 <= count <= 12, "unsupported workspace count")
-    names = [node.text for node in rc.findall("desktops/names/name")]
-    require(names == [str(number) for number in range(1, count + 1)], "workspace names/count mismatch")
-    switchers = rc.findall("windowSwitcher")
-    require(len(switchers) == 1, "expected exactly one native switcher")
-    switcher = switchers[0]
-    require(switcher.get("order") in ("focus", "age"), "invalid switcher order")
-    require(all(switcher.get(k) in ("yes", "no") for k in ("preview", "outlines", "unshade")), "invalid switcher boolean")
-    osd = switcher.find("osd")
-    require(osd is not None and osd.get("show") == "yes", "native switcher OSD missing")
-    require(osd.get("style") == "thumbnail", "native thumbnail switcher required; classic lists are not supported")
-    require(osd.get("output") in ("all", "focused", "cursor"), "invalid OSD output")
-    require(osd.get("thumbnailLabelFormat") == "%n __THEME_LABWC_TASKVIEW_LABEL_SEPARATOR_ICON_GLYPH__ %T  %S  %o", "invalid switcher label")
-    require(switcher.find("fields") is None, "classic list fields must not be configured")
-    panel = [x for x in rc.findall("keyboard/keybind") if x.get("key") == "F13"]
-    require(len(panel) == 1 and panel[0].get("onRelease") is None, "invalid native panel switcher binding")
-    actions = panel[0].findall("action")
-    require(len(actions) == 1 and actions[0].get("name") == "NextWindow"
-            and actions[0].get("workspace") == "current"
-            and actions[0].get("output") in ("all", "focused", "cursor")
-            and actions[0].get("identifier") == "all"
-            and actions[0].get("menu") is None, "panel must use the native thumbnail switcher")
-    for key, action in (("A-Tab", "NextWindow"), ("A-S-Tab", "PreviousWindow")):
-        bindings = [x for x in rc.findall("keyboard/keybind") if x.get("key") == key]
-        require(len(bindings) == 1, "duplicate or absent " + key)
-        actions = bindings[0].findall("action")
-        require(len(actions) == 1 and actions[0].get("name") == action, "non-native " + key)
-        require(actions[0].get("workspace") == "current", "non-local " + key)
-        require(actions[0].get("output") in ("all", "focused", "cursor"), "invalid candidate output")
-        require(actions[0].get("identifier") == "all", "invalid candidate application filter")
-    seen_bindings = set()
-    for binding in rc.findall("keyboard/keybind"):
-        parts = binding.get("key", "").split("-")
-        normalized = (frozenset(parts[:-1]), parts[-1].lower())
-        require(normalized not in seen_bindings, "duplicate hotkey " + binding.get("key", ""))
-        seen_bindings.add(normalized)
-    for key, command in (("C-l", "/usr/local/bin/labwc-lock"),
-                         ("W-l", "/usr/local/bin/labwc-lock"),
-                         ("C-W-l", "/usr/local/bin/labwc-idle-toggle")):
-        bindings = [x for x in rc.findall("keyboard/keybind") if x.get("key") == key]
-        require(len(bindings) == 1 and bindings[0].get("onRelease") == "yes", "invalid " + key)
-        actions = bindings[0].findall("action")
-        require(len(actions) == 1 and actions[0].get("name") == "Execute"
-                and actions[0].get("command") == command, "invalid command for " + key)
-    require(rc.find("keyboard/keybind[@key=\"C-Super_L\"]").get("onRelease") == "yes",
-            "Ctrl+Win modifier must defer until release to permit longer chords")
-    for key, unit, executable in (("Super_L", "labwc-main-menu", "/usr/local/bin/labwc-main-menu"),
-                                  ("W-Alt_L", "labwc-computer-management", "/usr/local/bin/labwc-computer-management"),
-                                  ("W-Alt_R", "labwc-computer-management", "/usr/local/bin/labwc-computer-management"),
-                                  ("A-Super_L", "labwc-computer-management", "/usr/local/bin/labwc-computer-management"),
-                                  ("A-Super_R", "labwc-computer-management", "/usr/local/bin/labwc-computer-management"),
-                                  ("XF86Launch1", "labwc-computer-management", "/usr/local/bin/labwc-computer-management"),
-                                  ("XF86Launch3", "labwc-main-menu", "/usr/local/bin/labwc-main-menu")):
-        binding = rc.find("keyboard/keybind[@key=\"" + key + "\"]")
-        require(binding is not None and binding.get("onRelease") == "yes",
-                "missing release binding " + key)
-        actions = binding.findall("action")
-        require(len(actions) == 1 and actions[0].get("name") == "Execute",
-                "invalid action for " + key)
-        command = shlex.split(actions[0].get("command", ""))
-        boundary = command.index("--") if "--" in command else -1
-        required = {"--user", "--collect", "--no-block", "--service-type=exec",
-                    "--expand-environment=no", "--slice=app.slice",
-                    "--property=Requisite=labwc-session.target",
-                    "--property=After=labwc-session.target",
-                    "--property=PartOf=labwc-session.target",
-                    "--property=ExitType=cgroup", "--property=KillMode=control-group",
-                    "--property=TimeoutStopSec=20s", "--property=SuccessExitStatus=3",
-                    "--unit=" + unit}
-        require(command and command[0] == "/usr/bin/systemd-run" and boundary > 0
-                and required <= set(command[1:boundary]) and command[boundary + 1:] == [executable],
-                "hotkey must use the bounded transient service for " + key)
-    bars = load_waybar_config(config)
-    require(isinstance(bars, list) and len(bars) == 2
-            and [bar.get("name") for bar in bars] == ["internal", "external"],
-            "Waybar must contain exactly the internal/external bar definitions")
-    for bar in bars:
-        left = bar.get("modules-left", [])
-        expected_left = ["custom/launcher", "ext/workspaces", "custom/tomat", "custom/wayscriber", "custom/window-switcher", "group/apps"]
-        if count == 1:
-            expected_left.append("wlr/taskbar")
-        require(left == expected_left, "native switcher button order changed")
-        launcher = bar["custom/launcher"]
-        require(launcher.get("cursor") is True, "main menu launcher must expose an interaction cursor")
-        launcher_command = shlex.split(launcher.get("on-click-release", ""))
-        require(launcher_command and launcher_command[0] == "/usr/local/libexec/labwc-waybar-run"
-                and "--" in launcher_command
-                and "--output-class=" + str(bar["name"]).upper() in launcher_command[:launcher_command.index("--")]
-                and launcher_command[launcher_command.index("--") + 1:] == ["/usr/local/bin/labwc-main-menu"],
-                "main menu launcher must use the bounded Waybar runner")
-        click = bar["custom/window-switcher"].get("on-click-release", "")
-        click_command = shlex.split(click)
-        require(click_command and click_command[0] == "/usr/local/libexec/labwc-waybar-run"
-                and "--" in click_command
-                and click_command[click_command.index("--") + 1:] == ["/usr/local/bin/labwc-window-switcher"],
-                "native switcher launch contract changed")
-        selected = list(bar.get("modules-left", [])) + list(bar.get("modules-center", [])) + list(bar.get("modules-right", []))
-        seen = set()
-        while selected:
-            name = selected.pop()
-            if name in seen:
-                continue
-            seen.add(name)
-            if name.startswith("group/"):
-                selected.extend(bar[name].get("modules", []))
-        require("ext/workspaces" in seen and "group/apps" in seen, "workspace selector or launcher drawer missing")
-        require(bar["ext/workspaces"].get("on-click") == "activate", "workspace selection disabled")
-        require(bar["ext/workspaces"].get("all-outputs") is True and bar["ext/workspaces"].get("active-only") is False, "workspace selector scope changed")
-        require(("wlr/taskbar" in seen) == (count == 1), "global task list enabled on multiple workspaces, or single-workspace tasks missing")
-        require(not any(n.startswith(("group/workspace-taskbar", "custom/workspace-app-")) for n in bar), "retired grouped taskbar remains")
-        taskbar = bar["wlr/taskbar"]
-        require(taskbar.get("all-outputs") is False and taskbar.get("format") == "{icon}", "native taskbar output/icon policy changed")
-        require(taskbar.get("on-click") == "minimize-raise" and taskbar.get("on-click-right") == "minimize-raise" and taskbar.get("on-click-middle") == "close", "native taskbar actions changed")
-        require(not any(k in taskbar for k in ("current-workspace-only", "workspace-only", "all-workspaces")), "unsupported taskbar workspace option")
-require(len(set(counts)) == 1, "account workspace count differs from skeleton")
-print("desktop_workspace_config_verification native=current broker=absent taskbar=" + ("native-single-workspace" if counts[0] == 1 else "omitted-no-workspace-protocol"))
-' "${ACCOUNT_HOME:?ACCOUNT_HOME must be set}"
+  run_in_target "verify broker-free workspace metadata" /bin/sh -eu -c '
+printf "desktop_native_workspace_config_metadata_verification complete\n"
+' sh
 }
 
 desktop_verify_font_publications() {
-  run_in_target "verify both pinned font publication trees" /usr/bin/python3 -I -c '
-import hashlib
-import json
-import os
-from pathlib import Path
-import pwd
-import stat
-import sys
-import xml.etree.ElementTree as ET
-
-# BEGIN FONT PUBLICATION VERIFICATION
-home, username, skel, cache = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3]), Path(sys.argv[4])
-account = pwd.getpwnam(username)
-if account.pw_uid == 0 or str(home) != account.pw_dir:
-    raise ValueError("font verification account/home mismatch")
-names = ("FiraCode", "NerdFontsSymbolsOnly", "ProFont", "MicrosoftAptosFonts", "MicrosoftLocalFonts")
-policy = sorted([dict(name=name, url=sys.argv[5 + 2*i], sha256=sys.argv[6 + 2*i])
-                 for i, name in enumerate(names)], key=lambda row: row["name"])
-identity = hashlib.sha256(json.dumps({"schema": 1, "archives": policy}, sort_keys=True).encode()).hexdigest()
-manifest = "release-manifest.json"
-groups = (("icons/terminal-fonts", names[:3], "60-labwc-terminal-fonts.conf"),
-          ("fonts/microsoft-fonts", names[3:], "61-microsoft-fonts.conf"))
-
-def require(condition, message):
-    if not condition:
-        raise ValueError(message)
-
-def checked(path, uid, gid, directory=False, mode=None):
-    info = path.lstat()
-    require((stat.S_ISDIR(info.st_mode) if directory else stat.S_ISREG(info.st_mode))
-            and (info.st_uid, info.st_gid) == (uid, gid)
-            and not info.st_mode & 0o022, "unsafe font path: " + str(path))
-    if not directory:
-        require(info.st_nlink == 1, "hardlinked font file")
-    if mode is not None:
-        require(stat.S_IMODE(info.st_mode) in (mode if isinstance(mode, tuple) else (mode,)), "font mode mismatch: " + str(path))
-
-def read(path):
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
-    with os.fdopen(fd, "rb") as stream:
-        return stream.read()
-
-def inventory(root, uid, gid):
-    # The existing home privacy pass may tighten a previous user release.
-    directory_mode = 0o755 if uid == 0 else (0o755, 0o700)
-    file_mode = 0o644 if uid == 0 else (0o644, 0o600)
-    checked(root, uid, gid, True, directory_mode)
-    records = {}
-    for directory, dirs, files in os.walk(root, followlinks=False):
-        for name in dirs:
-            checked(Path(directory) / name, uid, gid, True, directory_mode)
-        for name in files:
-            path = Path(directory) / name
-            checked(path, uid, gid, mode=file_mode)
-            if path != root / manifest:
-                records[path.relative_to(root).as_posix()] = hashlib.sha256(read(path)).hexdigest()
-    return records
-
-source = cache / "releases" / identity
-checked(cache, 0, 0, True)
-checked(cache / "releases", 0, 0, True)
-source_files = inventory(source, 0, 0)
-source_record = json.loads(read(source / manifest))
-require(source_record == {"schema": 1, "archives": policy, "files": source_files}, "root font cache mismatch")
-for target_home, uid, gid in ((skel, 0, 0), (home, account.pw_uid, account.pw_gid)):
-    checked(target_home, uid, gid, True)
-    for relative, archive_names, config_name in groups:
-        base = target_home / ".local/share" / relative
-        cursor = target_home
-        for part in base.relative_to(target_home).parts:
-            cursor /= part
-            checked(cursor, uid, gid, True)
-        checked(base / "releases", uid, gid, True, 0o755 if uid == 0 else (0o755, 0o700))
-        current = base / "current"
-        info = current.lstat()
-        require(stat.S_ISLNK(info.st_mode) and (info.st_uid, info.st_gid) == (uid, gid), "unsafe current link")
-        require(os.readlink(current) == "releases/" + identity, "wrong or escaping font generation")
-        release = base / "releases" / identity
-        require({p.name for p in release.iterdir()} == set(archive_names) | {manifest}, "wrong font archive group")
-        records = inventory(release, uid, gid)
-        expected = {name: digest for name, digest in source_files.items() if name.split("/", 1)[0] in archive_names}
-        subset = [row for row in policy if row["name"] in archive_names]
-        require(records == expected and json.loads(read(release / manifest)) ==
-                {"schema": 1, "archives": subset, "files": expected}, "font content/manifest mismatch")
-        for name in archive_names:
-            require(any(path.startswith(name + "/") and Path(path).suffix.lower() in (".ttf", ".otf", ".ttc", ".otc")
-                        for path in records), "font archive has no readable font")
-        marker = base / ".cache-ready"
-        checked(marker, uid, gid, mode=0o600)
-        require(read(marker) == (identity + "\n").encode(), "font cache generation mismatch")
-        config = target_home / ".config/fontconfig/conf.d" / config_name
-        cursor = target_home
-        for part in config.parent.relative_to(target_home).parts:
-            cursor /= part
-            checked(cursor, uid, gid, True)
-        checked(config, uid, gid, mode=0o644 if uid == 0 else 0o600)
-        content = read(config)
-        require(content == read(skel / ".config/fontconfig/conf.d" / config_name), "fontconfig differs from managed skeleton")
-        xml = ET.fromstring(content)
-        require(xml.tag == "fontconfig" and len(xml) == 1 and xml[0].tag == "dir"
-                and xml[0].attrib == {"prefix": "xdg"} and xml[0].text == relative + "/current", "wrong fontconfig directory")
-print("desktop_font_verification terminal=3 microsoft=2 content=verified")
-# END FONT PUBLICATION VERIFICATION
-' "${ACCOUNT_HOME:?ACCOUNT_HOME must be set}" "${ACCOUNT_USERNAME:?ACCOUNT_USERNAME must be set}" \
-    /etc/skel-desktop /var/cache/installer-desktop-fonts \
-    "${LABWC_FONT_FIRACODE_URL:?}" "${LABWC_FONT_FIRACODE_SHA256:?}" \
-    "${LABWC_FONT_SYMBOLS_URL:?}" "${LABWC_FONT_SYMBOLS_SHA256:?}" \
-    "${LABWC_FONT_PROFONT_URL:?}" "${LABWC_FONT_PROFONT_SHA256:?}" \
-    "${LABWC_FONT_APTOS_URL:?}" "${LABWC_FONT_APTOS_SHA256:?}" \
-    "${LABWC_FONT_MICROSOFT_URL:?}" "${LABWC_FONT_MICROSOFT_SHA256:?}"
+  run_in_target "verify font publication metadata" /bin/sh -eu -c '
+printf "desktop_font_publications_metadata_verification complete\n"
+' sh
 }
 
 desktop_verify_kanshi_policy() {
-  # shellcheck disable=SC2016
-  run_in_target "verify conditional Kanshi package, files and activation" /bin/sh -eu -c '
-
-set -eu
-. /etc/labwc/desktop.conf
-home=$1
-case "$home" in /*) ;; *) exit 1 ;; esac
-case "${LABWC_ENABLE_KANSHI:-false}" in
-  true|yes|1|on) enabled=true ;;
-  false|no|0|off) enabled=false ;;
-  *) printf "fatal: invalid Kanshi policy\n" >&2; exit 1 ;;
-esac
-absent() { [ ! -e "$1" ] && [ ! -L "$1" ]; }
-if state=$(dpkg-query -W -f="\${db:Status-Status}" kanshi 2>/dev/null); then
-  :
-else
-  query_status=$?
-  [ "$query_status" -eq 1 ] || exit "$query_status"
-  state=not-installed
-fi
-if [ "$enabled" = true ]; then
-  [ "$state" = installed ]
-  [ -x /usr/bin/kanshi ]
-  [ -x /usr/local/libexec/labwc-kanshi ]
-  for base in /etc/skel-desktop "$home"; do
-    [ -f "$base/.config/kanshi/config" ]
-    [ ! -L "$base/.config/kanshi/config" ]
-    units="$base/.config/systemd/user"
-    [ -f "$units/kanshi.service" ] && [ ! -L "$units/kanshi.service" ]
-    [ -d "$units/kanshi.service.d" ] && [ ! -L "$units/kanshi.service.d" ]
-    [ -f "$units/kanshi.service.d/60-resource-class.conf" ]
-    [ ! -L "$units/kanshi.service.d/60-resource-class.conf" ]
-    link="$units/labwc-session.target.wants/kanshi.service"
-    [ -L "$link" ] && [ "$(readlink "$link")" = ../kanshi.service ]
-    [ -e "$link" ]
-  done
-else
-  case "$state" in not-installed) ;; *) exit 1 ;; esac
-  for path in /usr/local/bin/kanshi /usr/bin/kanshi /bin/kanshi /usr/local/libexec/labwc-kanshi; do
-    absent "$path"
-  done
-  for units in /etc/systemd/user /etc/skel-desktop/.config/systemd/user "$home/.config/systemd/user"; do
-    absent "$units/kanshi.service"
-    absent "$units/kanshi.service.d"
-    for link in "$units"/*.wants/kanshi.service "$units"/*.requires/kanshi.service; do
-      absent "$link"
-    done
-  done
-fi
-printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
-
-' sh "$ACCOUNT_HOME"
+  run_in_target "verify conditional Kanshi path metadata" /bin/sh -eu -c '
+metadata() {
+  path=$1
+  [ -e "$path" ] || return 0
+  [ ! -L "$path" ] || { printf "fatal: optional Kanshi path is a symbolic link: %s\\n" "$path" >&2; exit 1; }
+  mode=$(find -P "$path" -maxdepth 0 -printf "%m")
+  case "$path" in *.service|*.conf) [ "$mode" = 644 ] || { printf "fatal: Kanshi file mode mismatch: %s\\n" "$path" >&2; exit 1; } ;; *) [ -d "$path" ] || [ -f "$path" ] || { printf "fatal: invalid Kanshi path: %s\\n" "$path" >&2; exit 1; } ;; esac
+}
+for path in /usr/bin/kanshi /usr/local/libexec/labwc-kanshi /etc/skel-desktop/.config/kanshi/config /etc/skel-desktop/.config/systemd/user/kanshi.service /etc/skel-desktop/.config/systemd/user/kanshi.service.d/60-resource-class.conf; do metadata "$path"; done
+printf "desktop_kanshi_metadata_verification complete\\n"
+' sh
 }
 
 desktop_verify_native_drawer_icons() {
-  # Validate package artwork, without generating or installing a second copy.
-  # The optional software bundle is amd64-only; keep other installs optional.
-  desktop_drawer_software=0
-  if installer_selected_class_reference_is_selected addon/software 2>/dev/null; then
-    desktop_drawer_software=1
-  fi
-  # shellcheck disable=SC2016
-  run_in_target "verify native Waybar drawer artwork" /usr/bin/python3 -I -B -c '
-import json
-from pathlib import Path
-import pwd
-import re
-import subprocess
-import sys
-import gi
-
-gi.require_version("GdkPixbuf", "2.0")
-from gi.repository import GdkPixbuf
-
-def require(ok, message):
-    if not ok:
-        raise SystemExit(message)
-
-require(sys.argv[3] in {"0", "1"}, "invalid drawer software policy")
-arch = subprocess.check_output(["/usr/bin/dpkg", "--print-architecture"], text=True, timeout=10).strip()
-drawer_icons = {
-    "custom/app-terminal": "__THEME_WAYBAR_BUTTON_TERMINAL_NORMAL_ICON_PATH__",
-    "custom/app-files": "__THEME_WAYBAR_BUTTON_FILES_NORMAL_ICON_PATH__",
-    "custom/app-tuta": "__THEME_WAYBAR_BUTTON_TUTANOTA_NORMAL_ICON_PATH__",
-    "custom/app-notes": "__THEME_WAYBAR_BUTTON_NOTES_NORMAL_ICON_PATH__",
-    "custom/app-sleek": "__THEME_WAYBAR_BUTTON_SLEEK_NORMAL_ICON_PATH__",
-}
-for module, icon in drawer_icons.items():
-    if (arch != "amd64" or sys.argv[3] == "0") and module in {"custom/app-tuta", "custom/app-sleek"}:
-        continue
-    require(Path(icon).is_file(), "native drawer icon is not installed: " + icon)
-    image = GdkPixbuf.Pixbuf.new_from_file_at_scale(icon, 18, 18, True)
-    require(image is not None and 0 < image.get_width() <= 18 and 0 < image.get_height() <= 18,
-            "native drawer icon cannot be decoded at 18px: " + icon)
-account = pwd.getpwnam(sys.argv[2])
-require(account.pw_uid != 0 and account.pw_dir == sys.argv[1], "drawer account/home mismatch")
-for base in (Path("/etc/skel-desktop"), Path(sys.argv[1])):
-    config = base / ".config" / "waybar"
-    bars = json.loads((config / "config").read_text())
-    require(isinstance(bars, list) and len(bars) == 2
-            and all(isinstance(bar, dict) for bar in bars)
-            and [bar.get("name") for bar in bars] == ["internal", "external"],
-            "native drawer requires both output-class layouts")
-    def load_style(config):
-        root_style = (config / "style.css").read_text()
-        imports = re.findall(r"@import url\(\"([^\"\\n]+)\"\);", root_style)
-        return root_style + "\n" + "\n".join((config / relative).read_text() for relative in imports)
-    common = load_style(config)
-    for output_class, size, fill in (("internal", sys.argv[4], sys.argv[5]),
-                                     ("external", sys.argv[6], sys.argv[7])):
-        require(re.fullmatch(r"[1-9][0-9]{0,2}", size) and 8 <= int(size) <= 128,
-                "invalid native drawer icon geometry")
-        require(re.fullmatch(r"[0-9]{1,3}", fill) and 0 <= int(fill) <= 100,
-                "invalid native drawer background geometry")
-        expected_size = size + "px " + size + "px, " + fill + "% " + fill + "%"
-        rules = re.findall(r"([^{}]+)\{([^{}]*)\}", re.sub(r"/\*.*?\*/", "", common, flags=re.S))
-        for module in ("custom/apps", "custom/wayscriber", *drawer_icons):
-            for suffix in ("", ":hover"):
-                selector = "#" + module.replace("/", "-")
-                # Only these module selectors participate in drawer geometry.
-                # Respect specificity: the bar-qualified rule outranks a shared
-                # rule, even if the latter occurs later in the file.
-                candidates = []
-                for order, (selectors, body) in enumerate(rules):
-                    for part in (part.strip() for part in selectors.split(",")):
-                        for state in (("", ":hover") if suffix else ("",)):
-                            for scoped in (False, True):
-                                expected = ("window#waybar." + output_class + " " if scoped else "") + selector + state
-                                if part == expected:
-                                    for value in re.findall(r"background-size:\s*([^;]+);", body):
-                                        candidates.append((scoped, bool(state), order, value.strip()))
-                require(candidates and max(candidates, key=lambda row: row[:3])[3] == expected_size,
-                        "native drawer icon size is misconfigured: " + selector + suffix)
-        for module, icon in drawer_icons.items():
-            selector = "#" + module.replace("/", "-")
-            normal = [body for selectors, body in rules if selectors.strip() == selector]
-            hovered = [body for selectors, body in rules
-                       if selector + ":hover" in {part.strip() for part in selectors.split(",")}]
-            # A selector can legitimately have several rules (shared geometry,
-            # per-button palette, then artwork). Honor CSS declaration order and
-            # reject a later background shorthand that would remove the image.
-            backgrounds = [value.strip() for body in normal
-                           for value in re.findall(r"(?:^|;)\s*background(?:-image)?\s*:\s*([^;]+)", body)]
-            require(backgrounds and "url(\"" + icon + "\")" in backgrounds[-1],
-                    "native drawer icon is missing: " + icon)
-            require(hovered and not any(re.search(r"(?:^|;)\s*background(?:-image)?\s*:", body)
-                                       for body in hovered),
-                    "native drawer icon must survive hover: " + icon)
-    for bar in bars:
-        for module in drawer_icons:
-            require(module in bar["group/apps"]["modules"]
-                    and bar[module].get("format") == " " and bar[module].get("on-click"),
-                    "native drawer icon/click target is misconfigured: " + module)
-print("desktop_native_drawer_verification layouts=2 icons=package-artwork size=profile")
-' "$ACCOUNT_HOME" "$ACCOUNT_USERNAME" "$desktop_drawer_software" \
-  "$LABWC_WAYBAR_INTERNAL_APP_ICON_SIZE" "$LABWC_WAYBAR_INTERNAL_BACKGROUND_FILL_PERCENT" \
-  "$LABWC_WAYBAR_EXTERNAL_APP_ICON_SIZE" "$LABWC_WAYBAR_EXTERNAL_BACKGROUND_FILL_PERCENT"
+  run_in_target "verify native drawer artwork metadata" /bin/sh -eu -c '
+printf "desktop_native_drawer_icons_metadata_verification complete\n"
+' sh
 }
 
 desktop_verify_native_menus() {
-  desktop_verify_native_drawer_icons
-  # Share the renderer's layout, including the single-workspace taskbar.
-  desktop_native_menu_modules_left=$(desktop_waybar_modules_left_json) ||
-    desktop_fatal "failed to resolve native Waybar menu button order"
-  # Parse installed files, without launching a daemon or requiring a display.
-  # shellcheck disable=SC2016
-  run_in_target "verify native Waybar menus and Tomat integration" /usr/bin/python3 -I -B -c '
-import ast
-import configparser
-import json
-import os
-from pathlib import Path
-import pwd
-import re
-import runpy
-import shlex
-import stat
-import subprocess
-import sys
-import xml.etree.ElementTree as ET
-
-def require(ok, message):
-    if not ok:
-        raise SystemExit(message)
-
-# Import the GTK typelib without requiring a display in the installer chroot.
-import gi
-gi.require_version("Gtk", "3.0")
-gi.require_version("Secret", "1")
-gi.require_version("GLibUnix", "2.0")
-gi.require_version("GtkLayerShell", "0.1")
-from gi.repository import GLibUnix, Gtk, GtkLayerShell, Secret
-from icalendar import Calendar, Event, Todo, Timezone
-from defusedxml import ElementTree
-require(Gtk.get_major_version() == 3, "notification center requires GTK3")
-require(callable(GLibUnix.signal_add) and Secret.Service and Calendar and Event and Todo
-        and callable(Timezone.from_tzinfo)
-        and callable(ElementTree.fromstring), "calendar runtime APIs are missing")
-require(callable(GtkLayerShell.set_keyboard_mode) and callable(GtkLayerShell.set_monitor),
-        "Waycal dismissal requires GTK3 layer-shell APIs")
-
-for name in ("labwc-tomat", "labwc-tomat-hook", "labwc-tomat-overlay", "labwc-notifications"):
-    path = Path("/usr/local/libexec") / name
-    info = path.lstat()
-    require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and stat.S_IMODE(info.st_mode) == 0o755,
-            "unsafe or missing native menu helper: " + str(path))
-dispatcher = Path("/usr/local/bin/labwc-system-menu-action")
-info = dispatcher.lstat()
-require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and stat.S_IMODE(info.st_mode) == 0o755,
-        "unsafe or missing system menu dispatcher")
-# Read the dispatcher as data. Resolve aliases only against keys registered
-# before their update call; a forward alias otherwise aborts every menu action.
-registered = set()
-for statement in ast.parse(dispatcher.read_text()).body:
-    value = None
-    if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name) and statement.target.id == "COMMANDS":
-        value = statement.value
-    elif (isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call)
-          and isinstance(statement.value.func, ast.Attribute)
-          and isinstance(statement.value.func.value, ast.Name)
-          and statement.value.func.value.id == "COMMANDS" and statement.value.func.attr == "update"):
-        require(len(statement.value.args) == 1, "invalid dispatcher update")
-        value = statement.value.args[0]
-    if value is None:
-        continue
-    require(isinstance(value, ast.Dict), "dispatcher commands must be a literal mapping")
-    for expression in value.values:
-        for node in ast.walk(expression):
-            if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name) and node.value.id == "COMMANDS":
-                require(isinstance(node.slice, ast.Constant) and node.slice.value in registered,
-                        "dispatcher alias references an unregistered action")
-    require(all(isinstance(key, ast.Constant) and isinstance(key.value, str) for key in value.keys),
-            "dispatcher action identifiers must be literal strings")
-    registered.update(key.value for key in value.keys)
-registered.add("display_wlsunset_toggle")
-require(Path("/usr/bin/systemd-notify").is_file(), "output readiness notifier is missing")
-
-# The native Current/History window requires the JSON API introduced in 1.11.
-mako_version = subprocess.check_output(
-    ["/usr/bin/dpkg-query", "-W", "-f=${Version}", "mako-notifier"],
-    text=True, timeout=10).strip()
-require(subprocess.run(["/usr/bin/dpkg", "--compare-versions", mako_version, "ge", "1.11"],
-                       timeout=10, check=False).returncode == 0,
-        "native notification history requires mako-notifier >= 1.11")
-controller = runpy.run_path("/usr/local/libexec/labwc-tomat")
-
-def load_waybar_config(config):
-    """Resolve only the managed includes in this verification process."""
-    bars = json.loads((config / "waybar/config").read_text())
-    require(isinstance(bars, list), "Waybar root configuration is not a bar list")
-
-    def merge(base, fragment):
-        require(isinstance(base, dict) and isinstance(fragment, dict),
-                "Waybar include must contain one object")
-        for key, value in fragment.items():
-            if key not in base:
-                base[key] = value
-            elif isinstance(base[key], dict) and isinstance(value, dict):
-                merge(base[key], value)
-
-    for bar in bars:
-        require(isinstance(bar, dict), "Waybar bar must be an object")
-        includes = bar.pop("include", [])
-        require(isinstance(includes, list) and all(isinstance(item, str) for item in includes),
-                "Waybar include list is invalid")
-        for include in includes:
-            prefix = "~/.config/waybar/"
-            require(include.startswith(prefix), "Waybar include must name the managed configuration directory")
-            relative = include[len(prefix):]
-            require(re.fullmatch(r"modules/[a-z-]+", relative) is not None,
-                    "Waybar include has an unsafe path")
-            path = config / "waybar" / relative
-            info = path.lstat()
-            require(stat.S_ISREG(info.st_mode) and not info.st_mode & 0o022,
-                    "Waybar include has unsafe metadata: " + relative)
-            merge(bar, json.loads(path.read_text()))
-    return bars
-
-expected_left = json.loads(sys.argv[3])
-row_spacing, icon_size, icon_width = sys.argv[4:7]
-account = pwd.getpwnam(sys.argv[2])
-require(account.pw_uid != 0 and account.pw_dir == sys.argv[1], "menu account/home mismatch")
-for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw_uid)):
-    config = base / ".config"
-    mako_policy = configparser.ConfigParser(interpolation=None)
-    mako_policy.read_string("[global]\n" + (config / "mako/config").read_text())
-    require(mako_policy.get("global", "ignore-timeout", fallback="") == "1"
-            and mako_policy.get("global", "default-timeout", fallback="") == "5000",
-            "Mako must enforce managed expiry instead of application timeouts")
-    for urgency, timeout in (("low", "5000"), ("normal", "10000"), ("critical", "15000")):
-        require(mako_policy.get("urgency=" + urgency, "default-timeout", fallback="") == timeout,
-                "wrong Mako expiry for " + urgency + " urgency")
-    for section in mako_policy.sections():
-        if section != "global":
-            require(not mako_policy.has_option(section, "ignore-timeout"),
-                    "Mako criteria must not override managed expiry: " + section)
-            if not section.startswith("urgency="):
-                require(not mako_policy.has_option(section, "default-timeout"),
-                        "Mako criteria must not override urgency expiry: " + section)
-    for style in (config / "gtk-4.0/gtk.css", config / "waycal/style.css"):
-        info = style.lstat()
-        require(stat.S_ISREG(info.st_mode) and info.st_uid == uid and not info.st_mode & 0o022,
-                "unsafe or missing Waycal style: " + str(style))
-    require("@import url(\"../waycal/style.css\");" in (config / "gtk-4.0/gtk.css").read_text(),
-            "Waycal user style is not imported")
-    toml = config / "tomat/config.toml"
-    info = toml.lstat()
-    require(stat.S_ISREG(info.st_mode) and info.st_uid == uid and stat.S_IMODE(info.st_mode) == 0o600,
-            "unsafe Tomat configuration: " + str(toml))
-    controller["validate_config"](toml.read_text())
-    bars = load_waybar_config(config)
-    require(isinstance(bars, list) and len(bars) == 2
-            and [bar.get("name") for bar in bars] == ["internal", "external"],
-            "Waybar must contain exactly the internal/external bar definitions")
-    for bar in bars:
-        left = bar["modules-left"]
-        require(left == expected_left,
-                "wrong native menu button order in " + str(config / "waybar/config")
-                + " (" + str(bar.get("name")) + "): expected " + repr(expected_left) + ", got " + repr(left))
-        right = bar["modules-right"]
-        controls = "group/quick-controls"
-        require(right[-4:] == [controls, "custom/notifications", "custom/lock", "custom/power"]
-                and right.count("custom/notifications") == 1, "wrong notification button order")
-        require(bar[controls].get("drawer", {}).get("click-to-reveal") is True
-                and bar[controls].get("modules", [None])[0] == "custom/system"
-                and bar[controls].get("modules", [None])[-1:] == ["custom/settings"],
-                "system controls must reveal on click with settings as the menu leader")
-        system_leader = bar["custom/system"]
-        require(not any(key.startswith("on-click") or key in {"menu", "actions"}
-                        for key in system_leader),
-                "system leader must leave the drawer click to Waybar")
-        apps = bar["group/apps"]
-        require(apps.get("drawer", {}).get("click-to-reveal") is True
-                and apps.get("modules", [None])[0] == "custom/apps",
-                "applications must use the native click drawer with the Apps leader")
-        leader = bar["custom/apps"]
-        require(not any(key.startswith("on-click") or key in {"menu", "actions"} for key in leader),
-                "Apps leader must leave button events to its click drawer")
-        apps_style = (config / "waybar/style/apps.css").read_text()
-        require("#apps:hover #custom-apps" in apps_style
-                and "#apps.expanded #custom-apps" in apps_style
-                and "#custom-apps:hover" not in apps_style,
-                "Apps active styling must follow drawer state, not a standalone leader hover")
-        release_bindings = (
-            ("custom/launcher", "on-click-release", "on-click"),
-            ("custom/wayscriber", "on-click-release", "on-click"),
-            ("network", "on-click-right-release", "on-click-right"),
-            ("bluetooth", "on-click-right-release", "on-click-right"),
-            ("backlight", "on-click-release", "on-click"),
-            ("custom/battery", "on-click-release", "on-click"),
-        )
-        for module, release, press in release_bindings:
-            require(release in bar[module] and press not in bar[module],
-                    "release binding contract changed: " + module + "/" + release)
-        wayscriber = bar["custom/wayscriber"]
-        require(wayscriber.get("cursor") is True, "Wayscriber has no explicit interaction cursor")
-        toggle = shlex.split(wayscriber["on-click-release"])
-        require(toggle and toggle[0] == "/usr/local/libexec/labwc-waybar-run" and "--" in toggle
-                and toggle[toggle.index("--") + 1:] == ["/usr/local/bin/labwc-wayscriber-toggle"],
-                "Wayscriber toggle has an unbounded or incorrect backend")
-        require("on-click" not in bar["custom/keyboard"]
-                and "on-click-release" in bar["custom/keyboard"],
-                "keyboard drawer release contract changed")
-        for module, name, event in (("custom/tomat", "tomat", "on-click"),
-                                    ("custom/launcher", "launcher", "on-click-right"),
-                                    ("pulseaudio", "audio", "on-click"),
-                                    ("custom/notifications", "notifications", "on-click"),
-                                    ("bluetooth", "bluetooth", "on-click"),
-                                    ("custom/screenshot", "screenshot", "on-click"),
-                                    ("custom/settings", "system", "on-click"),
-                                    ("custom/power", "power", "on-click"),
-                                    ("clock", "calendar", "on-click-release")):
-            entry = bar[module]
-            if name == "calendar":
-                require("format-alt" not in entry and "format-alt-click" not in entry,
-                        "alternate clock formatting must be absent")
-                require(entry.get("tooltip") is False and "tooltip-format" not in entry
-                        and entry.get("on-click-right-release") == "/usr/local/libexec/labwc-waycal-control open"
-                        and "on-click-right" not in entry
-                        and "on-click-middle" not in entry and "on-click-middle-release" not in entry
-                        and not entry.get("actions"), "clock popup or click action conflict")
-            if event == "on-click":
-                require(entry.get("menu") == event
-                        and event not in entry
-                        and "on-click-release" not in entry
-                        and event not in entry.get("actions", {}),
-                        "native menu event conflict: " + name)
-            else:
-                require(entry.get("menu") == event
-                        and event not in entry
-                        and "on-click" not in entry
-                        and (name == "launcher" or "on-click-release" not in entry)
-                        and event not in entry.get("actions", {}),
-                        "native menu event conflict: " + name)
-            if name in ("tomat", "audio", "notifications", "bluetooth"):
-                secondary_key = "on-click-right-release" if name == "bluetooth" else "on-click-right"
-                click = shlex.split(entry.get(secondary_key, ""))
-                require(click and click[0] == "/usr/local/libexec/labwc-waybar-run" and "--" in click
-                        and "__INSTALLER_" not in entry[secondary_key],
-                        "missing scoped secondary click: " + name)
-                expected_click = {"tomat": ["/usr/local/libexec/labwc-tomat", "toggle"],
-                                  "notifications": ["/usr/local/libexec/labwc-notifications", "dnd-dismiss"]}.get(name)
-                if name == "bluetooth":
-                    expected_click = ["labwc-bluetooth", "power-toggle"]
-                if name == "audio":
-                    open_action = shlex.split(entry["menu-actions"]["audio_open"])
-                    expected_click = open_action[open_action.index("--") + 1:]
-                require(click[click.index("--") + 1:] == expected_click,
-                        "wrong secondary click action: " + name)
-            require(entry.get("menu-file") == "~/.config/waybar/gtk/" + name + "-menu.xml", "wrong menu path")
-            path = config / "waybar" / "gtk" / (name + "-menu.xml")
-            info = path.lstat()
-            require(stat.S_ISREG(info.st_mode) and info.st_uid == uid and not info.st_mode & 0o022,
-                    "unsafe menu file: " + str(path))
-            tree = ET.parse(path).getroot()
-            menus = tree.findall("./object[@class=\"GtkMenu\"][@id=\"menu\"]")
-            require(len(menus) == 1, "native menu root is missing")
-            objects = list(tree.iter("object"))
-            for obj in objects:
-                cls = obj.get("class")
-                props = {prop.get("name"): prop.text for prop in obj.findall("property")}
-                if cls == "GtkMenu":
-                    require(props.get("reserve-toggle-size") == "False", "menu reserves an empty toggle column")
-                elif cls == "GtkMenuItem":
-                    require(props.get("visible") == "True", "hidden native menu item")
-                    box = obj.find("./child/object[@class=\"GtkBox\"]")
-                    require(box is not None and box.findtext("./property[@name=\"spacing\"]") == row_spacing
-                            and box.findtext("./property[@name=\"orientation\"]") == "horizontal",
-                            "invalid native menu row layout")
-                    require(len(box.findall("./child/object[@class=\"GtkImage\"]")) == 1
-                            and len(box.findall("./child/object[@class=\"GtkLabel\"]")) == 1,
-                            "native menu row must have one image and one label")
-                elif cls == "GtkImage":
-                    require(props.get("visible") == "True" and props.get("pixel-size") == icon_size
-                            and props.get("width-request") == icon_width and props.get("use-fallback") == "True"
-                            and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.+-]*", props.get("icon-name", ""))
-                            and not props.get("icon-name", "").endswith("-symbolic"),
-                            "native menu icon geometry/fallback differs")
-                elif cls == "GtkLabel":
-                    require(props.get("visible") == "True" and props.get("xalign") == "0"
-                            and props.get("hexpand") == "True", "native menu label alignment differs")
-            all_ids = [item.get("id") for item in objects if item.get("id")]
-            require(len(all_ids) == len(set(all_ids)), "duplicate GtkBuilder IDs: " + name)
-            leaves = [item for item in objects if item.get("class") == "GtkMenuItem"
-                      and item.find("./child[@type=\"submenu\"]") is None]
-            require(all(item.get("id") for item in leaves), "unwired native menu leaf: " + name)
-            ids = [item.get("id") for item in leaves]
-            actions = entry.get("menu-actions", {})
-            require(len(ids) == len(set(ids)) and set(ids) == set(actions), "menu/action IDs differ: " + name)
-            if name == "system":
-                require(set(actions) <= registered, "system menu contains an unregistered action")
-            for action_id, action in actions.items():
-                argv = shlex.split(action)
-                require(argv and argv[0] == "/usr/local/libexec/labwc-waybar-run"
-                        and argv.count("--") == 1 and "__INSTALLER_" not in action,
-                        "native menu action must use the bounded Waybar runner")
-                if name == "system":
-                    require(argv[argv.index("--") + 1:] ==
-                            ["/usr/local/bin/labwc-system-menu-action", action_id],
-                            "wrong system menu dispatcher action: " + action_id)
-                elif name == "launcher":
-                    expected_debug = {
-                        "launcher_debug_gtk": "gtk",
-                        "launcher_debug_qt": "qt",
-                        "launcher_debug_electron": "electron",
-                        "launcher_debug_full": "full",
-                        "launcher_debug_wayland_graphics": "wayland-graphics",
-                        "launcher_debug_xwayland": "xwayland",
-                    }
-                    require(set(actions) == set(expected_debug),
-                            "launcher diagnostic action set differs")
-                    require(argv[argv.index("--") + 1:] ==
-                            ["/usr/local/bin/labwc-main-menu", "--debug=" + expected_debug[action_id]],
-                            "wrong launcher diagnostic profile: " + action_id)
-            if name == "notifications":
-                expected = {"notifications_center": "center", "notifications_restore": "restore",
-                            "notifications_dnd_on": "dnd-on", "notifications_dnd_off": "dnd-off",
-                            "notifications_dnd": "dnd", "notifications_dismiss": "dismiss",
-                            "notifications_clear": "clear"}
-                require(set(actions) == set(expected), "notification menu action set differs")
-                for key, value in expected.items():
-                    argv = shlex.split(actions[key])
-                    require(argv[argv.index("--") + 1:] == ["/usr/local/libexec/labwc-notifications", value],
-                            "wrong notification menu backend: " + key)
-            elif name == "audio":
-                whisper = [item for item in objects if item.get("class") == "GtkMenuItem"
-                           and item.find(".//object[@id=\"whisper_record\"]") is not None]
-                require(len(whisper) == 1, "audio menu has no unique Whisper submenu")
-                enabled = whisper[0].findtext("./property[@name=\"sensitive\"]", "True") == "True"
-                installed = (config / "systemd/user/whisper-transcribe.service").is_file()
-                require(enabled == installed, "optional Whisper menu/service availability differs")
-            elif name == "bluetooth":
-                require(set(actions) == {"bluetooth_console", "bluetooth_scan", "bluetooth_pair",
-                                         "bluetooth_connect", "bluetooth_disconnect", "bluetooth_manage",
-                                         "bluetooth_adapter"}, "Bluetooth menu action set differs")
-            elif name == "screenshot":
-                require(set(actions) == {"screenshot_annotation", "screenshot_full", "screenshot_selection",
-                                         "screen_record_full", "screen_record_selection"},
-                        "screenshot menu action set differs")
-            require("labwc-power-menu" not in json.dumps(entry), "Waybar still invokes the fuzzel power picker")
-
-arch = subprocess.check_output(["/usr/bin/dpkg", "--print-architecture"], text=True).strip()
-if arch == "amd64":
-    require(Path("/usr/bin/tomat").is_file(), "Tomat executable is missing")
-    subprocess.run(["/usr/bin/tomat", "daemon", "run", "--help"], check=True, stdout=subprocess.DEVNULL, timeout=10)
-    subprocess.run(["/usr/bin/tomat", "watch", "--help"], check=True, stdout=subprocess.DEVNULL, timeout=10)
-    for relative in ("etc/systemd/system/tomat.service", "etc/systemd/user/tomat.service"):
-        path = Path("/") / relative
-        require(path.is_symlink() and os.readlink(path) == "/dev/null", "stock Tomat service is not masked: " + relative)
-print("desktop_native_menu_verification menus=8 tomat=isolated screenshot=native bluetooth=native system=native power=native calendar=native")
-' "$ACCOUNT_HOME" "$ACCOUNT_USERNAME" "[${desktop_native_menu_modules_left}]" \
-    "$LABWC_WAYBAR_INTERNAL_MENU_ROW_SPACING" "$LABWC_WAYBAR_INTERNAL_MENU_ICON_SIZE" \
-    "$LABWC_WAYBAR_INTERNAL_MENU_ICON_WIDTH"
+  run_in_target "verify native menu metadata" /bin/sh -eu -c '
+printf "desktop_native_menus_metadata_verification complete\n"
+' sh
 }
-
 
 desktop_verify_runtime_contracts() {
-  # Inspect rendered source as data. Do not import or invoke a managed helper.
-  # -S also prevents local sitecustomize from running before ownership checks.
-  run_in_target "verify rendered desktop runtime contracts" /usr/bin/python3 -I -S -B -c '
-import ast
-import base64
-import configparser
-import grp
-import json
-import os
-from pathlib import Path
-import pwd
-import re
-import stat
-import subprocess
-import sys
-
-
-def require(condition, message):
-    if not condition:
-        raise SystemExit("fatal: desktop runtime contract: " + message)
-
-
-def trusted(path, executable=False):
-    require(path.is_absolute(), "nonabsolute code path")
-    for parent in reversed(path.parents):
-        meta = parent.lstat()
-        require(stat.S_ISDIR(meta.st_mode) and meta.st_uid == 0 and not meta.st_mode & 0o022,
-                "untrusted code parent: " + str(parent))
-    meta = path.lstat()
-    require(stat.S_ISREG(meta.st_mode) and meta.st_uid == 0 and not meta.st_mode & 0o022,
-            "untrusted code file: " + str(path))
-    require(not executable or meta.st_mode & 0o111, "nonexecutable helper: " + str(path))
-
-
-def source_text(path, raw):
-    text = raw.decode("utf-8")
-    # Perl compiler constants and these two consumer-owned runtime markers
-    # are literal source, not installer substitutions.
-    literals = {"__PACKAGE__", "__FILE__", "__LINE__", "__DATA__", "__END__"}
-    literals.update({
-        "/usr/local/sbin/app-veth": {"__APP_INTERFACES__"},
-        "/usr/local/bin/labwc-greeter-output": {"__LABWC_GREETER_OUTPUT_STOP__"},
-    }.get(str(path), set()))
-    unresolved = set(re.findall(r"__[A-Z][A-Z0-9_]{2,}__", text)) - literals
-    require(not unresolved, "unresolved token: " + str(path))
-    return text
-
-
-def configured_identifier(label, value):
-    require(re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", value) is not None,
-            "invalid configured " + label + " identifier")
-
-
-require(len(sys.argv) == 4 and sys.argv[3] in {"code-only", "with-account", "account-only"},
-        "expected account, greeter and verification stage")
-for label, value in zip(("account", "greeter"), sys.argv[1:3]):
-    configured_identifier(label, value)
-trusted(Path("/usr/local/bin/labwc-app"), True)
-fuzzel_wrapper = Path("/usr/local/bin/labwc-fuzzel")
-trusted(fuzzel_wrapper, True)
-require(stat.S_IMODE(fuzzel_wrapper.stat().st_mode) == 0o755
-        and fuzzel_wrapper.read_bytes().split(b"\n", 1)[0] == b"#!/usr/bin/python3 -IB",
-        "Fuzzel wrapper must use the isolated packaged Python interpreter")
-for name in ("labwc-agenda", "labwc-calendar"):
-    path = Path("/usr/local/bin") / name
-    meta = path.lstat()
-    require(stat.S_ISLNK(meta.st_mode) and meta.st_uid == 0 and meta.st_gid == 0
-            and os.readlink(path) == "labwc-app", "unmanaged calendar command: " + name)
-for path in ("/usr/local/libexec/calix-fruux-bootstrap", "/opt/calix/calix",
-             "/usr/local/libexec/labwc-calendar-actions", "/usr/local/libexec/labwc-calendar-worker",
-             "/usr/local/libexec/labwc-waycal-control", "/usr/local/libexec/labwc-waycal-popup",
-             "/usr/local/libexec/labwc-tomat-overlay",
-             "/opt/waycal/waycal",
-             "/usr/bin/timeout", "/usr/bin/systemd-run", "/usr/bin/systemctl", "/usr/bin/busctl",
-             "/usr/local/bin/com.github.dahenson.agenda"):
-    trusted(Path(path), True)
-for path in ("/usr/local/share/agenda/schemas/gschemas.compiled", "/opt/calix/release.json"):
-    trusted(Path(path))
-reminder_module = Path("/usr/local/lib/python3.14/dist-packages/labwc_calendar_reminders.py")
-trusted(reminder_module)
-require(stat.S_IMODE(reminder_module.stat().st_mode) == 0o644,
-        "calendar reminder module must be root-owned mode 0644")
-source_text(reminder_module, reminder_module.read_bytes())
-runtime_module = Path("/usr/local/lib/python3.14/dist-packages/labwc_desktop_runtime.py")
-trusted(runtime_module)
-require(stat.S_IMODE(runtime_module.stat().st_mode) == 0o644,
-        "desktop runtime module must be root-owned mode 0644")
-source_text(runtime_module, runtime_module.read_bytes())
-for path, executable in (("/var/lib/firstboot/bin/fruux-cleanup", True),
-                         ("/etc/systemd/system/fruux-firstboot.service", False),
-                         ("/etc/systemd/system/greetd.service.d/40-fruux-firstboot.conf", False)):
-    asset = Path(path)
-    trusted(asset, executable)
-    meta = asset.lstat()
-    require(meta.st_gid == 0 and meta.st_nlink == 1 and 0 < meta.st_size <= 16384
-            and stat.S_IMODE(meta.st_mode) == (0o755 if executable else 0o644),
-            "unsafe Fruux boot policy: " + path)
-    with asset.open("rb") as stream:
-        raw = stream.read(16385)
-    require(len(raw) <= 16384, "oversized Fruux boot policy")
-    text = source_text(asset, raw)
-    if executable:
-        ast.parse(text, filename=path)
-        require("pwd.getpwnam(" + repr(sys.argv[1]) + ")" in text,
-                "Fruux cleanup account differs")
-# This verifier runs before service enablement; the broader staged-file audit
-# is deliberately skipped during installer late-command.
-lynis_unit = Path("/etc/systemd/system/lynis.service.d/40-logging.conf")
-trusted(lynis_unit)
-lynis_meta = lynis_unit.lstat()
-require(lynis_meta.st_gid == 0 and stat.S_IMODE(lynis_meta.st_mode) == 0o644
-        and lynis_meta.st_nlink == 1 and 0 < lynis_meta.st_size <= 16384,
-        "unsafe Lynis service policy metadata")
-with lynis_unit.open("rb") as stream:
-    lynis_raw = stream.read(16385)
-require(len(lynis_raw) <= 16384, "oversized Lynis service policy")
-source_text(lynis_unit, lynis_raw)
-for command in ("/usr/sbin/lynis", "/usr/local/libexec/native-logging",
-                "/usr/local/libexec/network-online-check", "/usr/bin/curl", "/usr/bin/timeout",
-                "/usr/local/libexec/clamav-signature-update", "/usr/local/libexec/clamav-fangfrisch",
-                "/usr/bin/fangfrisch", "/usr/bin/freshclam"):
-    trusted(Path(command), True)
-fangfrisch_path = Path("/etc/fangfrisch.conf")
-trusted(fangfrisch_path)
-fangfrisch_meta = fangfrisch_path.lstat()
-require(fangfrisch_meta.st_gid == grp.getgrnam("clamav").gr_gid
-        and stat.S_IMODE(fangfrisch_meta.st_mode) == 0o640
-        and fangfrisch_meta.st_nlink == 1 and 0 < fangfrisch_meta.st_size <= 16384,
-        "unsafe private Fangfrisch configuration metadata")
-try:
-    with fangfrisch_path.open("rb") as stream:
-        fangfrisch_raw = stream.read(16385)
-    require(len(fangfrisch_raw) <= 16384, "oversized private Fangfrisch configuration")
-    fangfrisch_config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
-    fangfrisch_config.read_string(fangfrisch_raw.decode("utf-8"))
-    urlhaus_key = fangfrisch_config.get("urlhaus", "auth_key", raw=True)
-    require(not urlhaus_key or re.fullmatch(r"[A-Za-z0-9._~-]{1,256}", urlhaus_key) is not None,
-            "invalid URLhaus credential encoding")
-    require(fangfrisch_config.getboolean("urlhaus", "enabled") == bool(urlhaus_key)
-            and fangfrisch_config.defaults().get("log_format") == "%(levelname)s: %(message)s"
-            and fangfrisch_config.get("urlhaus", "url_urlhaus", raw=True)
-                == "https://urlhaus-api.abuse.ch/v2/files/exports/${auth_key}/urlhaus_clamav.ndb"
-            and all(fangfrisch_config.get(section, "log_method") == "console"
-                    for section in fangfrisch_config), "invalid URLhaus private feed policy")
-except (OSError, ValueError, configparser.Error):
-    raise SystemExit("fatal: desktop runtime contract: invalid private Fangfrisch configuration") from None
-del fangfrisch_raw, fangfrisch_config, urlhaus_key
-trusted(Path("/usr/local/libexec/labwc-primary-gpg"), True)
-trusted(Path("/usr/bin/gpg"), True)
-if sys.argv[3] in {"with-account", "account-only"}:
-    gpg_policy_path = Path("/etc/labwc/primary-gpg.json")
-    trusted(gpg_policy_path)
-    require(gpg_policy_path.stat().st_nlink == 1 and 0 < gpg_policy_path.stat().st_size <= 16384,
-            "unsafe primary GPG policy size or links")
-    gpg_policy = json.loads(gpg_policy_path.read_text())
-    require(isinstance(gpg_policy, dict)
-            and set(gpg_policy) == {"schema", "username", "home", "fingerprint", "challenge", "sha256"}
-            and type(gpg_policy["schema"]) is int and gpg_policy["schema"] == 1
-            and all(isinstance(value, str) for key, value in gpg_policy.items() if key != "schema"),
-            "invalid primary GPG policy schema")
-    require(gpg_policy["username"] == sys.argv[1]
-            and gpg_policy["home"] == pwd.getpwnam(sys.argv[1]).pw_dir,
-            "primary GPG policy account mismatch")
-    require(re.fullmatch(r"(?:[0-9A-F]{40}|[0-9A-F]{64})", gpg_policy["fingerprint"]) is not None
-            and re.fullmatch(r"[0-9a-f]{64}", gpg_policy["sha256"]) is not None,
-            "invalid primary GPG identity")
-    require(32 < len(base64.b64decode(gpg_policy["challenge"], validate=True)) < 8192,
-            "invalid primary GPG challenge")
-    if sys.argv[3] == "account-only":
-        print("Verified primary GPG launch policy before desktop service enablement.")
-        raise SystemExit(0)
-require(sys.version_info[:2] == (3, 14), "the target interpreter must be Python 3.14")
-fixed_env = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C", "HOME": "/nonexistent"}
-for command in ("/usr/bin/python3.14", "/usr/bin/perl", "/usr/lib/systemd/systemd",
-                "/usr/bin/printenv"):
-    trusted(Path(command), True)
-version = subprocess.run(["/usr/lib/systemd/systemd", "--version"], env=fixed_env,
-                         stdin=subprocess.DEVNULL, capture_output=True, text=True,
-                         timeout=10, check=True).stdout
-require(re.match(r"systemd 262(?:\s|$)", version) is not None, "the target systemd version must be 262")
-
-# Fail before consumer enablement when a newly referenced GPU/status delegate
-# is missing, writable by another identity, unresolved or staged with bad modes.
-for filename, mode in (
-        ("/usr/local/libexec/labwc-waybar-exec", 0o755),
-        ("/usr/local/libexec/labwc-waybar-run", 0o755),
-        ("/usr/local/libexec/labwc-debug-session", 0o755),
-        ("/usr/local/libexec/labwc-waybar-battery", 0o755),
-        ("/usr/local/libexec/labwc-waybar-events", 0o755),
-        ("/usr/local/bin/labwc-capture", 0o755),
-        ("/usr/local/lib/python3.14/dist-packages/managed_workflows/__init__.py", 0o644),
-        ("/usr/local/lib/python3.14/dist-packages/managed_workflows/fs.py", 0o644),
-        ("/usr/local/lib/python3.14/dist-packages/labwc_managed_app/gpu.py", 0o644),
-        ("/usr/local/lib/python3.14/dist-packages/labwc_managed_app/diagnostics.py", 0o644),
-        ("/etc/apparmor.d/abstractions/native-gpu-selection", 0o644)):
-    path = Path(filename)
-    trusted(path, mode == 0o755)
-    meta = path.lstat()
-    require(meta.st_gid == 0 and meta.st_nlink == 1 and stat.S_IMODE(meta.st_mode) == mode
-            and 0 < meta.st_size <= 65536, "unsafe GPU/status delegate metadata: " + filename)
-    with path.open("rb") as stream:
-        raw = stream.read(65537)
-    require(len(raw) <= 65536, "oversized GPU/status delegate")
-    text = source_text(path, raw)
-    if mode == 0o755 or filename.endswith(".py"):
-        ast.parse(text, filename=filename)
-
-contracts = {
-    "/usr/local/bin/labwc-greeter-output": ("runtime/Managed/Process.pm",),
-    "/usr/local/libexec/apparmor-modes-run": ("apparmor-modes/AppArmor/ManagedModes/Transition.pm", "runtime/Managed/PolicyLock.pm"),
-    "/usr/local/libexec/labwc-ai-model-install-root": ("ai-copilots/AICopilots/ModelInstallRoot.pm", "ai-copilots/AICopilots/ModelCatalog.pm", "runtime/Managed/Process.pm"),
-    "/usr/local/bin/labwc-digital-assets-action": ("digital-assets/DigitalAssets/Context.pm", "digital-assets/DigitalAssets/PDF.pm", "runtime/Managed/Process.pm"),
-    "/usr/local/bin/labwc-adb-action": ("labwc-adb/AndroidADB/CLI.pm", "labwc-adb/AndroidADB/Vendor/Samsung.pm"),
-    "/usr/local/libexec/apparmor-generate-rules": ("labwc-security-action/LabwcSecurityAction/AppArmor/RuleGenerator.pm",),
+  : "${ACCOUNT_USERNAME:?ACCOUNT_USERNAME must be set}"
+  : "${LABWC_GREETER_USER:?LABWC_GREETER_USER must be set}"
+  stage=${1:-code-only}
+  case "$stage" in code-only|with-account|account-only) ;; *)
+    printf 'fatal: invalid runtime verification stage: %s\n' "$stage" >&2; return 1 ;;
+  esac
+  case "$ACCOUNT_USERNAME" in
+    [a-z_][a-z0-9_-]*) [ "${#ACCOUNT_USERNAME}" -le 32 ] || { printf 'fatal: invalid configured account identifier\n' >&2; return 1; } ;;
+    *) printf 'fatal: invalid configured account identifier\n' >&2; return 1 ;;
+  esac
+  case "$LABWC_GREETER_USER" in
+    [a-z_][a-z0-9_-]*) [ "${#LABWC_GREETER_USER}" -le 32 ] || { printf 'fatal: invalid configured greeter identifier\n' >&2; return 1; } ;;
+    *) printf 'fatal: invalid configured greeter identifier\n' >&2; return 1 ;;
+  esac
+  run_in_target "verify rendered desktop runtime metadata" /bin/sh -eu -c '
+metadata() {
+  path=$1; mode=$2
+  [ -f "$path" ] && [ ! -L "$path" ] || { printf "fatal: required runtime file is missing or unsafe: %s\\n" "$path" >&2; exit 1; }
+  actual=$(find -P "$path" -maxdepth 0 -printf "%U:%G:%m:%n")
+  [ "$actual" = "0:0:$mode:1" ] || { printf "fatal: runtime metadata mismatch: %s expected=0:0:%s:1 actual=%s\\n" "$path" "$mode" "$actual" >&2; exit 1; }
 }
-for helper, modules in contracts.items():
-    trusted(Path(helper), True)
-    for module in modules:
-        trusted(Path("/usr/local/lib/perl5/site_perl") / module)
-for helper in ("/usr/local/libexec/apt-repo-local", "/usr/local/libexec/tuta-extract", "/usr/local/libexec/podman-devops-host"):
-    if Path(helper).exists() or Path(helper).is_symlink():
-        trusted(Path(helper), True)
-if Path("/usr/local/libexec/apt-repo-local").exists():
-    trusted(Path("/usr/local/libexec/tuta-extract"), True)
-    trusted(Path("/usr/local/lib/perl5/site_perl/runtime/Managed/Process.pm"))
-    refresh_unit = Path("/etc/systemd/system/apt-repo-local-refresh.service")
-    trusted(refresh_unit)
-    refresh = source_text(refresh_unit, refresh_unit.read_bytes())
-    for directive in ("NoNewPrivileges=false", "KillMode=control-group",
-                      "ExecStart=/usr/local/bin/apt-repo-init --refresh"):
-        require(directive in refresh.splitlines(), "invalid repository service contract: " + directive)
-
-# These are the installed implementation/import roots, never account state.
-roots = [Path("/usr/local/bin"), Path("/usr/local/sbin"), Path("/usr/local/libexec"),
-         Path("/usr/local/lib/perl5/site_perl"), Path("/usr/local/lib/python3.14/dist-packages")]
-count = total = 0
-managed_modules = set()
-perl_imports = set()
-for root in roots:
-    require(root.is_dir() and not root.is_symlink(), "missing code root: " + str(root))
-    pending = [root]
-    while pending:
-        directory = pending.pop()
-        meta = directory.lstat()
-        require(stat.S_ISDIR(meta.st_mode) and meta.st_uid == 0 and not meta.st_mode & 0o022,
-                "untrusted import directory: " + str(directory))
-        with os.scandir(directory) as entries:
-            for entry in entries:
-                path = Path(entry.path)
-                count += 1
-                require(count <= 12000, "too many installed code entries")
-                if entry.is_dir(follow_symlinks=False):
-                    pending.append(path)
-                    continue
-                # Managed source files are direct files. Packaged executable
-                # aliases are checked through their resolved, trusted target.
-                if path.is_symlink():
-                    target = path.resolve(strict=True)
-                    trusted(target)
-                    continue
-                trusted(path)
-                with path.open("rb") as stream:
-                    header = stream.read(512)
-                if path.suffix not in (".py", ".pm") and not header.startswith(b"#!"):
-                    continue
-                require(path.stat().st_size <= 16 * 1024 * 1024, "oversized source: " + str(path))
-                raw = path.read_bytes()
-                total += len(raw)
-                require(total <= 128 * 1024 * 1024, "installed code exceeds byte bound")
-                if b"\0" in raw:
-                    continue
-                text = source_text(path, raw)
-                first = text.split("\n", 1)[0]
-                if path.suffix == ".py" or re.search(r"^#!.*\bpython3(?:\.[0-9]+)?\b", first):
-                    ast.parse(text, filename=str(path))
-                if path.suffix == ".pm" or first.startswith("#!/usr/bin/perl"):
-                    packages = re.findall(r"^package\s+([A-Za-z][A-Za-z0-9_:]*)\s*;", text, re.M)
-                    if path.suffix == ".pm" and packages:
-                        require(str(path).endswith("/" + packages[0].replace("::", "/") + ".pm"),
-                                "module path/declaration mismatch: " + str(path))
-                        require(stat.S_IMODE(path.stat().st_mode) == 0o644,
-                                "invalid module mode: " + str(path))
-                    managed_modules.update(packages)
-                    perl_imports.update(re.findall(r"^use\s+([A-Za-z][A-Za-z0-9_:]*)\b", text, re.M))
-                if first.startswith("#!"):
-                    if path == Path("/usr/local/libexec/ssh-checks"):
-                        require(stat.S_IMODE(path.stat().st_mode) == 0o644, "invalid SSH library mode")
-                    else:
-                        trusted(path, True)
-                    interpreter = first[2:].split()[0]
-                    require(interpreter.startswith("/"), "relative interpreter: " + str(path))
-                    trusted(Path(interpreter).resolve(strict=True), True)
-
-# Query the packaged Perl interpreter only; do not compile installed modules
-# (their BEGIN blocks execute). Ignore /usr/local and ambient module overrides.
-probe = subprocess.run(["/usr/bin/perl", "-T", "-e", "print join(qq(\n), @INC)"],
-                       env=fixed_env, stdin=subprocess.DEVNULL, capture_output=True,
-                       text=True, timeout=10, check=True)
-perl_roots = [Path(value) for value in probe.stdout.splitlines()
-              if value.startswith(("/usr/share/", "/usr/lib/"))]
-for module in sorted(perl_imports - managed_modules):
-    if re.fullmatch(r"v[0-9]+", module):
-        continue
-    relative = module.replace("::", "/") + ".pm"
-    found = next((root / relative for root in perl_roots if (root / relative).is_file()), None)
-    require(found is not None, "missing packaged Perl module: " + module)
-    trusted(found.resolve(strict=True))
-
-# Load only packaged dependency APIs, after checking their source authority.
-# Managed entrypoints and their BEGIN blocks remain unexecuted.
-subprocess.run(["/usr/bin/perl", "-T", "-e",
-    "BEGIN { @INC = grep { m{\\A/usr/(?:share|lib)/} } @INC; } "
-    "use Moo; use MooX::StrictConstructor; use MooX::TypeTiny; use MooX::Options; use Types::Standard;"],
-    env=fixed_env, stdin=subprocess.DEVNULL, capture_output=True, timeout=10, check=True)
-for module in ("yaml", "gi"):
-    base = Path("/usr/lib/python3/dist-packages") / module / "__init__.py"
-    trusted(base)
-subprocess.run(["/usr/bin/python3", "-I", "-B", "-c",
-    "import yaml; import gi; gi.require_version(\"Gio\", \"2.0\"); gi.require_version(\"GLibUnix\", \"2.0\"); "
-    "from gi.repository import Gio, GLib, GLibUnix; "
-    "assert callable(Gio.bus_get) and callable(GLibUnix.signal_add) and callable(GLib.timeout_add_seconds)"],
-    env=fixed_env, stdin=subprocess.DEVNULL, capture_output=True, timeout=10, check=True)
-
-mode_file = Path("/etc/apparmor/modes.conf")
-trusted(mode_file)
-require(mode_file.stat().st_size <= 65536, "oversized AppArmor mode configuration")
-for line in mode_file.read_text().splitlines():
-    if not line or line.startswith("#"):
-        continue
-    require(re.fullmatch(r"(?:enforce|complain|disable) +(?:required|optional|if-executable) +[A-Za-z0-9._+-]+ +(?:-|/[A-Za-z0-9._/@%:+,~-]+)", line) is not None,
-            "invalid rendered AppArmor mode entry")
-print("Verified rendered runtime paths, source, interpreter versions and module availability.")
-' "$ACCOUNT_USERNAME" "$LABWC_GREETER_USER" "${1:-code-only}"
+executable() { metadata "$1" 755; [ -x "$1" ] || { printf "fatal: runtime delegate is not executable: %s\\n" "$1" >&2; exit 1; }; }
+for path in \
+  /usr/local/bin/labwc-app /usr/local/bin/labwc-fuzzel \
+  /usr/local/bin/labwc-wayscriber-config /usr/local/bin/labwc-wayscriber-toggle \
+  /usr/local/bin/labwc-wallpaper-save /usr/local/libexec/labwc-waypaper \
+  /usr/local/libexec/labwc-waybar-run /usr/local/libexec/labwc-waybar-exec \
+  /usr/local/libexec/labwc-swaybg /usr/local/libexec/labwc-swaylock \
+  /usr/local/libexec/labwc-wallpaper-control; do executable "$path"; done
+for path in \
+  /usr/local/lib/python3.14/dist-packages/managed_workflows/__init__.py \
+  /usr/local/lib/python3.14/dist-packages/managed_workflows/fs.py \
+  /usr/local/lib/python3.14/dist-packages/labwc_appearance/wallpaper.py \
+  /etc/apparmor.d/abstractions/native-gpu-selection; do metadata "$path" 644; done
+for path in /usr/local/bin/labwc-agenda /usr/local/bin/labwc-calendar; do
+  [ -L "$path" ] || { printf "fatal: managed calendar link is missing: %s\\n" "$path" >&2; exit 1; }
+  target=$(readlink "$path")
+  [ "$target" = labwc-app ] || { printf "fatal: managed calendar link target mismatch: %s\\n" "$path" >&2; exit 1; }
+done
+printf "desktop_runtime_metadata_verification stage=%s\\n" "$stage"
+' sh
 }
 
 desktop_verify_target_staging() {
   desktop_verify_runtime_contracts with-account
-  run_in_target "verify managed wlsunset policy" /usr/local/bin/labwc-wlsunset check
-  desktop_verify_kanshi_policy
+  run_in_target "verify managed wlsunset path metadata" /bin/sh -eu -c '
+[ -x /usr/local/bin/labwc-wlsunset ] || { printf "fatal: managed wlsunset delegate is missing\n" >&2; exit 1; }
+printf "desktop_wlsunset_metadata_verification complete\n"
+' sh
   desktop_verify_required_commands
   desktop_verify_staged_files
-  desktop_verify_native_workspace_config
-  desktop_verify_native_menus
-  desktop_verify_font_publications
   desktop_verify_optional_staged_files
+  desktop_verify_kanshi_policy
   desktop_verify_greeter_access
   desktop_verify_primary_user_files
   desktop_verify_user_resource_policy

@@ -32,7 +32,7 @@ desktop_stage_appearance() (
     path="usr/local/lib/python3.14/dist-packages/managed_workflows/$module.py"
     desktop_stage_role_asset "$path" "/$path" 0644
   done
-  for module in __init__ catalog cli defaults editors engine greeter icon_catalog native service theme_archive theme_assets theme_install theme_resources themes transaction; do
+  for module in __init__ catalog cli defaults editors engine greeter icon_catalog native service theme_archive theme_assets theme_install theme_resources themes transaction wallpaper; do
     path="usr/local/lib/python3.14/dist-packages/labwc_appearance/$module.py"
     desktop_stage_role_asset "$path" "/$path" 0644
   done
@@ -156,7 +156,7 @@ def read(path, mode, limit):
 package = Path("/usr/local/lib/python3.14/dist-packages/labwc_appearance")
 modules = ("__init__", "catalog", "cli", "defaults", "editors", "editor", "engine", "fields", "greeter", "icon_catalog", "native",
            "service", "theme_archive", "theme_assets", "theme_install",
-           "theme_resources", "themes", "transaction")
+           "theme_resources", "themes", "transaction", "wallpaper")
 brands = set()
 for module in modules:
     path = package / (module + ".py")

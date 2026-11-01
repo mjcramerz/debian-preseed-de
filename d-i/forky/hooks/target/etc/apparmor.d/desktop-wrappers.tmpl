@@ -96,7 +96,7 @@ profile labwc-shutdown-hook /{etc/skel-desktop,home/*}/.config/labwc/shutdown fl
   include if exists <local/home.labwc.shutdown>
 }
 
-profile waypaper /{usr/local/bin/waypaper,opt/waypaper/bin/waypaper,opt/waypaper/pipx/venvs/waypaper/bin/waypaper} flags=(attach_disconnected) {
+profile waypaper /{usr/local/bin/waypaper,usr/local/libexec/labwc-waypaper,opt/waypaper/bin/waypaper,opt/waypaper/pipx/venvs/waypaper/bin/waypaper} flags=(attach_disconnected) {
   owner @{HOME}/.config/fontconfig/conf.d/{,*.conf} r,
   owner @{HOME}/.local/share/fonts/{,**} r,
   owner @{HOME}/.local/share/icons/{,terminal-fonts/releases/**} r,
@@ -111,6 +111,13 @@ profile waypaper /{usr/local/bin/waypaper,opt/waypaper/bin/waypaper,opt/waypaper
   network inet6 dgram,
 
   /usr/local/bin/waypaper rix,
+  /usr/local/libexec/labwc-waypaper rix,
+  /usr/local/lib/python3.14/dist-packages/{managed_workflows,labwc_appearance}/{,**} r,
+  /etc/greetd/{,gtkgreet.css,waypaper-wallpaper-[0-9a-f]*.png,waypaper-wallpaper-[0-9a-f]*.jpg} r,
+  /usr/bin/pkexec rPx -> labwc-appearance-auth,
+  signal (send, receive) peer=labwc-appearance-auth,
+  owner @{HOME}/.config/gtk-3.0/gtk.css r,
+  owner @{HOME}/.config/l3afpad/style.css r,
   /opt/waypaper/bin/waypaper rix,
   /opt/waypaper/pipx/venvs/waypaper/bin/waypaper rix,
   /opt/waypaper/pipx/venvs/waypaper/bin/python* rix,
@@ -1911,7 +1918,10 @@ profile labwc-swaylock /usr/local/libexec/labwc-swaylock flags=(attach_disconnec
   /usr/bin/{awk,gawk,mawk,nawk,flock,id,find} rix,
   owner @{PROC}/[0-9]*/{status,gid_map} r,
   /usr/bin/swaylock rPx -> session-controls,
+  /usr/local/bin/labwc-wallpaper-save rPx -> labwc-wallpaper-save,
   owner @{HOME}/.config/swaylock/config r,
+  /usr/share/backgrounds/desktop/{,**} r,
+  owner @{HOME}/Pictures/{,**} r,
   __THEME_TARGET_PATH_LABWC_WALLPAPER_LOCKSCREEN_SWAYLOCK__ r,
   owner /run/user/[0-9]*/labwc-swaylock{,.launch}.lock rwk,
   include if exists <local/usr.local.libexec.labwc-swaylock>
@@ -3567,7 +3577,7 @@ profile labwc-wallpaper-save /usr/local/bin/labwc-wallpaper-save flags=(attach_d
   owner @{HOME}/.local/ r,
   owner @{HOME}/.local/state/ r,
   owner @{HOME}/.local/state/labwc/ rw,
-  owner @{HOME}/.local/state/labwc/{wallpaper,.wallpaper.lock,.wallpaper.*,.swaybg.lock} rwk,
+  owner @{HOME}/.local/state/labwc/{wallpaper,wallpaper-swaylock,.wallpaper.lock,.wallpaper.*,.swaybg.lock} rwk,
   #include <abstractions/wrapper-desktop>
 
   /usr/local/bin/labwc-wallpaper-save rix,
@@ -3605,6 +3615,17 @@ profile labwc-wayscriber-toggle /usr/local/bin/labwc-wayscriber-toggle flags=(at
   # owns its private IPC/session state under the session-controls profile.
 
   include if exists <local/usr.local.bin.labwc-wayscriber-toggle>
+}
+
+profile labwc-wayscriber-config /usr/local/bin/labwc-wayscriber-config flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/wrapper-desktop>
+
+  /usr/local/bin/labwc-wayscriber-config rix,
+  /usr/local/bin/labwc-terminal rPx -> labwc-terminal,
+  owner @{HOME}/.config/wayscriber/ rw,
+  owner @{HOME}/.config/wayscriber/config.toml rwkl,
+  include if exists <local/usr.local.bin.labwc-wayscriber-config>
 }
 
 profile labwc-mute-default-microphone /usr/local/libexec/labwc-mute-default-microphone flags=(attach_disconnected) {

@@ -24,6 +24,9 @@ fi
 
 config_path=${XDG_CONFIG_HOME:-${HOME}/.config}/swaylock/config
 lock_background_path=${LABWC_LOCK_BACKGROUND_PATH:-__THEME_TARGET_PATH_LABWC_WALLPAPER_LOCKSCREEN_SWAYLOCK__}
+if selected_background=$(/usr/local/bin/labwc-wallpaper-save --quiet --current --component swaylock); then
+  lock_background_path=$selected_background
+fi
 
 run_swaylock() {
   if [ -r "$config_path" ] && [ -r "$lock_background_path" ]; then

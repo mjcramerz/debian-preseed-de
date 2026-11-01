@@ -85,6 +85,7 @@ profile labwc-appearance-auth flags=(attach_disconnected) {
   #include <abstractions/workflow-auth>
   /usr/local/libexec/labwc-appearance-greeter rPx -> labwc-appearance-greeter,
   signal (send, receive) peer=labwc-desktop-appearance,
+  signal (send, receive) peer=waypaper,
   signal (send, receive) peer=labwc-appearance-greeter,
 }
 
@@ -110,6 +111,7 @@ profile labwc-appearance-greeter /usr/local/libexec/labwc-appearance-greeter fla
   /usr/local/share/labwc-appearance/{,defaults.json,fields.json} r,
   /etc/greetd/ r,
   /etc/greetd/{gtkgreet.css,gtkgreet-power.css,.managed-*} rw,
+  /etc/greetd/waypaper-wallpaper-[0-9a-f]*.{png,jpg} rw,
   /usr/share/icons/{,*/,.*/} r,
   /usr/share/icons/{*/icon-theme.cache,.*/icon-theme.cache} rw,
   /usr/local/share/icons/{,*/,.*/} r,

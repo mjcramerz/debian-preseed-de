@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk+" version="3.22" />
+  <object class="GtkAccelGroup" id="menu_accel_group" />
+  <object class="GtkMenu" id="menu">
+    <property name="accel-group">menu_accel_group</property>
+    <property name="reserve-toggle-size">False</property>
+    <child>
+      <object class="GtkMenuItem" id="wayscriber_open">
+        <property name="label">Open Wayscriber</property>
+        <property name="visible">True</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="wayscriber_read_only">
+        <property name="label">Open Wayscriber (read-only)</property>
+        <property name="tooltip-text">Open the light passthrough overlay so input reaches the application below.</property>
+        <property name="visible">True</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="wayscriber_freeze">
+        <property name="label">Open Wayscriber (freeze)</property>
+        <property name="visible">True</property>
+      </object>
+    </child>
+    <child><object class="GtkSeparatorMenuItem"><property name="visible">True</property></object></child>
+    <child>
+      <object class="GtkMenuItem" id="wayscriber_toggle">
+        <property name="label">Show / hide overlay</property>
+        <property name="visible">True</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="wayscriber_light_draw">
+        <property name="label">Toggle light drawing</property>
+        <property name="visible">True</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="wayscriber_session_info">
+        <property name="label">Session information</property>
+        <property name="visible">True</property>
+      </object>
+    </child>
+    <child><object class="GtkSeparatorMenuItem"><property name="visible">True</property></object></child>
+    <child>
+      <object class="GtkMenuItem">
+        <property name="label">Settings</property>
+        <property name="visible">True</property>
+        <child type="submenu">
+          <object class="GtkMenu">
+            <property name="accel-group">menu_accel_group</property>
+            <property name="reserve-toggle-size">False</property>
+            <child>
+              <object class="GtkMenuItem" id="wayscriber_open_config">
+                <property name="label">Open config</property>
+                <property name="visible">True</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="wayscriber_about">
+                <property name="label">About Wayscriber</property>
+                <property name="visible">True</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="wayscriber_languages">
+                <property name="label">List languages</property>
+                <property name="visible">True</property>
+              </object>
+            </child>
+            <child><object class="GtkSeparatorMenuItem"><property name="visible">True</property></object></child>
+            <child>
+              <object class="GtkMenuItem" id="wayscriber_clear_tool_state">
+                <property name="label">Clear tool settings</property>
+                <property name="visible">True</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="wayscriber_clear_session">
+                <property name="label">Clear saved session</property>
+                <property name="visible">True</property>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>
