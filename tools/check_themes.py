@@ -157,11 +157,11 @@ def check_native_menu_icons(seed: Path, values: dict[str, str]) -> None:
     if 'WAYBAR_DROPDOWN_AUDIO_VOLUME_40_PERCENT_ICON_NAME' in values:
         raise ValueError('the obsolete Audio Volume 40% icon variable remains')
     colored_menu_icons = {
-        'WAYBAR_DROPDOWN_AUDIO_MICROPHONE_MUTE_ICON_NAME': 'audio-recorder',
+        'WAYBAR_DROPDOWN_AUDIO_MICROPHONE_MUTE_ICON_NAME': 'microphone-sensitivity-muted',
         'WAYBAR_DROPDOWN_AUDIO_MIXER_ICON_NAME': 'multimedia-volume-control',
         'WAYBAR_DROPDOWN_AUDIO_OUTPUT_MUTE_ICON_NAME': 'preferences-desktop-sound',
         'WAYBAR_DROPDOWN_AUDIO_SUBMENU_VOLUME_PRESETS_ICON_NAME': 'multimedia-volume-control',
-        'WAYBAR_DROPDOWN_AUDIO_SUBMENU_WHISPER_ICON_NAME': 'audio-recorder',
+        'WAYBAR_DROPDOWN_AUDIO_SUBMENU_WHISPER_ICON_NAME': 'audio-input-microphone',
         'WAYBAR_DROPDOWN_SYSTEM_AUDIO_VOLUME_MUTED_ICON_NAME': 'preferences-desktop-sound',
         'WAYBAR_DROPDOWN_SYSTEM_AUDIO_INPUT_MICROPHONE_ICON_NAME': 'audio-recorder',
         'WAYBAR_DROPDOWN_NOTIFICATIONS_CENTER_ICON_NAME': 'preferences-system-notifications',
@@ -176,10 +176,10 @@ def check_native_menu_icons(seed: Path, values: dict[str, str]) -> None:
         'WAYBAR_DROPDOWN_TOMAT_SESSION_50_MINUTES_ICON_NAME': 'alarm-timer',
         'WAYBAR_DROPDOWN_TOMAT_SESSION_90_MINUTES_ICON_NAME': 'alarm-timer',
         'WAYBAR_DROPDOWN_TOMAT_SOUNDS_ICON_NAME': 'multimedia-volume-control',
-        'WAYBAR_DROPDOWN_WHISPER_CANCEL_ICON_NAME': 'sound-recorder',
-        'WAYBAR_DROPDOWN_WHISPER_RECORD_ICON_NAME': 'audio-recorder',
-        'WAYBAR_DROPDOWN_WHISPER_STOP_ICON_NAME': 'sound-recorder',
-        'WAYBAR_DROPDOWN_WHISPER_TRANSCRIBE_ICON_NAME': 'accessories-text-editor',
+        'WAYBAR_DROPDOWN_WHISPER_CANCEL_ICON_NAME': 'process-stop',
+        'WAYBAR_DROPDOWN_WHISPER_RECORD_ICON_NAME': 'media-record',
+        'WAYBAR_DROPDOWN_WHISPER_STOP_ICON_NAME': 'media-playback-stop',
+        'WAYBAR_DROPDOWN_WHISPER_TRANSCRIBE_ICON_NAME': 'document-edit',
     }
     for key, expected in colored_menu_icons.items():
         if values.get(key) != expected:

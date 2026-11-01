@@ -8,6 +8,6 @@ from labwc_help.app import main
 if __name__ == '__main__':
     try:
         raise SystemExit(main())
-    except (OSError, ValueError, ImportError) as error:
+    except (OSError, ValueError, RuntimeError, ImportError) as error:
         print('Help could not start. Check the installed GTK4/libadwaita dependencies and managed Help assets.', file=sys.stderr)
         raise SystemExit(1)
