@@ -1,0 +1,98 @@
+<?xml version='1.0' encoding='utf-8'?>
+<interface>
+  <object class="GtkAccelGroup" id="menu_accel_group" />
+  <object class="GtkMenu" id="menu">
+    <property name="accel-group">menu_accel_group</property>
+    <property name="reserve-toggle-size">False</property>
+    <child>
+      <object class="GtkMenuItem">
+        <property name="visible">True</property>
+        <child>
+          <object class="GtkBox">
+            <property name="visible">True</property>
+            <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+            <property name="orientation">horizontal</property>
+            <child>
+              <object class="GtkImage" id="launcher_debug_submenu_icon">
+                <property name="visible">True</property>
+                <property name="icon-name">__THEME_FUZZEL_MENU_CATEGORY_DEVELOPMENT_ICON_NAME__</property>
+                <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                <property name="use-fallback">True</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel" id="launcher_debug_submenu_label">
+                <property name="visible">True</property>
+                <property name="label">Application diagnostics</property>
+                <property name="xalign">0</property>
+                <property name="hexpand">True</property>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child type="submenu">
+          <object class="GtkMenu">
+            <property name="accel-group">menu_accel_group</property>
+            <style><class name="submenu"/></style>
+            <property name="reserve-toggle-size">False</property>
+            <child>
+              <object class="GtkMenuItem" id="launcher_debug_gtk">
+                <property name="visible">True</property>
+                <child><object class="GtkBox"><property name="visible">True</property><property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property><property name="orientation">horizontal</property>
+                  <child><object class="GtkImage" id="launcher_debug_gtk_icon"><property name="visible">True</property><property name="icon-name">__THEME_FUZZEL_MENU_ACTION_SEARCH_APPLICATIONS_ICON_NAME__</property><property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property><property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property><property name="use-fallback">True</property></object></child>
+                  <child><object class="GtkLabel" id="launcher_debug_gtk_label"><property name="visible">True</property><property name="label">GTK Inspector + logs</property><property name="xalign">0</property><property name="hexpand">True</property></object></child>
+                </object></child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="launcher_debug_qt">
+                <property name="visible">True</property>
+                <child><object class="GtkBox"><property name="visible">True</property><property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property><property name="orientation">horizontal</property>
+                  <child><object class="GtkImage" id="launcher_debug_qt_icon"><property name="visible">True</property><property name="icon-name">__THEME_FUZZEL_MENU_CATEGORY_SETTINGS_ICON_NAME__</property><property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property><property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property><property name="use-fallback">True</property></object></child>
+                  <child><object class="GtkLabel" id="launcher_debug_qt_label"><property name="visible">True</property><property name="label">Qt / QtQuick diagnostics</property><property name="xalign">0</property><property name="hexpand">True</property></object></child>
+                </object></child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="launcher_debug_electron">
+                <property name="visible">True</property>
+                <child><object class="GtkBox"><property name="visible">True</property><property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property><property name="orientation">horizontal</property>
+                  <child><object class="GtkImage" id="launcher_debug_electron_icon"><property name="visible">True</property><property name="icon-name">__THEME_FUZZEL_MENU_CATEGORY_DEVELOPMENT_ICON_NAME__</property><property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property><property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property><property name="use-fallback">True</property></object></child>
+                  <child><object class="GtkLabel" id="launcher_debug_electron_label"><property name="visible">True</property><property name="label">Electron / Chromium diagnostics</property><property name="xalign">0</property><property name="hexpand">True</property></object></child>
+                </object></child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="launcher_debug_full">
+                <property name="visible">True</property>
+                <child><object class="GtkBox"><property name="visible">True</property><property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property><property name="orientation">horizontal</property>
+                  <child><object class="GtkImage" id="launcher_debug_full_icon"><property name="visible">True</property><property name="icon-name">__THEME_FUZZEL_MENU_CATEGORY_SYSTEM_ICON_NAME__</property><property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property><property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property><property name="use-fallback">True</property></object></child>
+                  <child><object class="GtkLabel" id="launcher_debug_full_label"><property name="visible">True</property><property name="label">Full application bundle</property><property name="xalign">0</property><property name="hexpand">True</property></object></child>
+                </object></child>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="launcher_debug_wayland_graphics">
+        <property name="visible">True</property>
+        <child><object class="GtkBox"><property name="visible">True</property><property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property><property name="orientation">horizontal</property>
+          <child><object class="GtkImage" id="launcher_debug_wayland_graphics_icon"><property name="visible">True</property><property name="icon-name">__THEME_FUZZEL_MENU_CATEGORY_SYSTEM_ICON_NAME__</property><property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property><property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property><property name="use-fallback">True</property></object></child>
+          <child><object class="GtkLabel" id="launcher_debug_wayland_graphics_label"><property name="visible">True</property><property name="label">Wayland / OpenGL / Mesa / Vulkan</property><property name="xalign">0</property><property name="hexpand">True</property></object></child>
+        </object></child>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="launcher_debug_xwayland">
+        <property name="visible">True</property>
+        <child><object class="GtkBox"><property name="visible">True</property><property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property><property name="orientation">horizontal</property>
+          <child><object class="GtkImage" id="launcher_debug_xwayland_icon"><property name="visible">True</property><property name="icon-name">__THEME_FUZZEL_MENU_CATEGORY_INTERNET_ICON_NAME__</property><property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property><property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property><property name="use-fallback">True</property></object></child>
+          <child><object class="GtkLabel" id="launcher_debug_xwayland_label"><property name="visible">True</property><property name="label">Private Xwayland (Zoom / Discord only)</property><property name="xalign">0</property><property name="hexpand">True</property></object></child>
+        </object></child>
+      </object>
+    </child>
+  </object>
+</interface>

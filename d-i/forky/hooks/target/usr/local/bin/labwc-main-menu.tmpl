@@ -16,6 +16,8 @@ from pathlib import Path
 import pwd
 import re
 import runpy
+import secrets
+import shlex
 import stat
 import subprocess
 import sys
@@ -30,6 +32,22 @@ MAX_MENU_BYTES = 1024 * 1024
 MENU_MARKER_NAME = 'labwc-main-menu.pid'
 TOMAT_OVERLAY_MARKER_NAME = 'break-overlay.active'
 MAX_DESKTOP_BYTES = 1024 * 1024
+DEBUG_MODES = {
+    'gtk': 'GTK Inspector and GTK/GDK logs',
+    'qt': 'Qt/QPA/QtQuick logs',
+    'electron': 'Electron/Chromium and Ozone logs',
+    'wayland-graphics': 'Wayland/OpenGL/Mesa/Vulkan diagnostics',
+    'full': 'Full application diagnostic bundle',
+    'xwayland': 'Private Xwayland diagnostics (Zoom/Discord only)',
+}
+DEBUG_CONTEXT_NAMES = (
+    'LABWC_DEBUG_PROFILE', 'LABWC_DEBUG_SESSION', 'LABWC_DEBUG_DESKTOP_ID',
+    'LABWC_DEBUG_EXECUTABLE', 'LABWC_DEBUG_LOG_IDENTIFIER',
+)
+XWAYLAND_EXECUTABLES = {
+    'zoom': frozenset({'/usr/local/bin/zoom', '/usr/bin/zoom', '/opt/zoom/zoom', '/opt/zoom/ZoomLauncher'}),
+    'discord': frozenset({'/usr/local/bin/discord', '/usr/bin/discord', '/usr/bin/Discord', '/opt/discord/Discord'}),
+}
 
 # Priority order, display label, main tokens, specific additional tokens.
 # Specific tokens refine broad main tokens; Settings always takes precedence.
@@ -224,6 +242,7 @@ def enumerate_apps() -> list[dict[str, str]]:
                      'name': app.get_display_name() or desktop_id,
                      'category': CATEGORY_OVERRIDES.get(desktop_id, category_for(app.get_categories())),
                      'icon': safe_icon(app.get_string('Icon')),
+                     'executable': app.get_executable() or '',
                      'filename': app.get_filename() or ''}
             action_ids = list(dict.fromkeys(app.list_actions()))
             # The existing catalog bound covers default launches and actions.
@@ -254,7 +273,33 @@ def desktop_policy() -> dict:
     return runpy.run_path(str(hook))
 
 
-def launch_desktop(desktop_id: str, action_id: str | None = None) -> None:
+def launch_debug_session(desktop_id: str, mode: str, executable: str) -> None:
+    """Start the filtered terminal and bounded collector for one app launch."""
+    if mode not in DEBUG_MODES:
+        raise ValueError('unsupported application debug mode')
+    if mode == 'xwayland' and not any(executable in paths for paths in XWAYLAND_EXECUTABLES.values()):
+        raise RuntimeError('Xwayland diagnostics are restricted to the managed Zoom and Discord entries')
+    session = secrets.token_hex(12)
+    # Correlation reaches the outer private compatibility output supervisor;
+    # its Cage/Xwayland environment remains owned by the existing runtime.
+    for name in DEBUG_CONTEXT_NAMES:
+        os.environ.pop(name, None)
+    os.environ.update({
+        'LABWC_DEBUG_PROFILE': mode,
+        'LABWC_DEBUG_SESSION': session,
+        'LABWC_DEBUG_DESKTOP_ID': desktop_id,
+        'LABWC_DEBUG_EXECUTABLE': executable,
+    })
+    # Prepare the request and baseline before the selected Exec is launched.
+    subprocess.run([
+        '/usr/local/libexec/labwc-debug-session', 'start', session, mode, desktop_id, executable,
+    ], stdin=subprocess.DEVNULL, close_fds=True, timeout=10, check=True)
+    print(f'desktop debug session mode={mode} application={desktop_id} correlation=labwc-debug-{session}',
+          flush=True)
+
+
+def launch_desktop(desktop_id: str, action_id: str | None = None,
+                   debug_mode: str | None = None) -> None:
     Gio, DesktopAppInfo = gio_api()
     app = DesktopAppInfo.new(desktop_id)
     if action_id is not None and (not visible(app) or action_id not in app.list_actions()):
@@ -283,9 +328,25 @@ def launch_desktop(desktop_id: str, action_id: str | None = None) -> None:
                         value = keyfile.get_string(group, 'Exec')
                         value = re.sub(r'%%|%k', lambda m: '%%' if m[0] == '%%' else quoted_source, value)
                         keyfile.set_string(group, 'Exec', value)
+            if debug_mode is not None:
+                # D-Bus activation delegates to an existing service which does
+                # not inherit this per-launch environment. Use the normalized
+                # managed Exec for diagnostic launches only.
+                keyfile.set_boolean('Desktop Entry', 'DBusActivatable', False)
             normalized = DesktopAppInfo.new_from_keyfile(keyfile)
             if normalized is None:
                 raise RuntimeError('normalized desktop entry is invalid')
+            if debug_mode is not None:
+                selected_group = 'Desktop Action ' + action_id if action_id else 'Desktop Entry'
+                selected_exec = keyfile.get_string(selected_group, 'Exec')
+                words = shlex.split(selected_exec)
+                executable_label = words[0] if words else (app.get_executable() or '')
+                compatibility = policy['compatibility_exec'](selected_exec)
+                if compatibility is not None:
+                    executable_label = shlex.split(compatibility)[0]
+                    if debug_mode != 'xwayland':
+                        raise RuntimeError('Zoom/Discord use the private Xwayland diagnostic entry')
+                launch_debug_session(desktop_id, debug_mode, executable_label)
             if action_id is None:
                 normalized.launch([], Gio.AppLaunchContext())
             else:
@@ -460,15 +521,15 @@ def signal_launcher_state(active: bool) -> None:
     )
 
 
-def run_menu(initial: str | None = None) -> None:
+def run_menu(initial: str | None = None, debug_mode: str | None = None) -> None:
     try:
         signal_launcher_state(True)
-        _run_menu(initial)
+        _run_menu(initial, debug_mode)
     finally:
         signal_launcher_state(False)
 
 
-def _run_menu(initial: str | None = None) -> None:
+def _run_menu(initial: str | None = None, debug_mode: str | None = None) -> None:
     top = dict.fromkeys(('Search Applications', *DISPLAY_CATEGORIES, 'Terminal',
                          'Files', 'Computer Management', 'Desktop Settings', 'Lock', 'Logout', 'Power'))
     while True:
@@ -489,11 +550,20 @@ def _run_menu(initial: str | None = None) -> None:
             result = subprocess.run([SELF, '--list'], check=True, text=True,
                                     stdout=subprocess.PIPE, timeout=10)
             apps = json.loads(result.stdout)
+            if debug_mode is not None:
+                compat_executables = {'zoom', 'discord', 'Discord'} | set().union(*XWAYLAND_EXECUTABLES.values())
+                if debug_mode == 'xwayland':
+                    # Only the two existing compatibility entrypoints belong
+                    # in this picker. Selected Exec is checked again at launch.
+                    apps = [app for app in apps if app.get('executable') in compat_executables
+                            and not app.get('action')]
+                else:
+                    apps = [app for app in apps if app.get('executable') not in compat_executables]
             choices = app_choices(apps, None if selected == 'Search Applications' else selected)
             by_id = {app['id']: safe_icon(app.get('icon')) for app in apps}
             icons = {label: by_id[desktop_id] for label, (desktop_id, _action_id) in choices.items()}
         choices[BACK] = None
-        item = choose(choices, selected, icons)
+        item = choose(choices, DEBUG_MODES[debug_mode] if debug_mode else selected, icons)
         if item is None or item == BACK:
             continue
         if selected == 'Desktop Settings':
@@ -503,6 +573,8 @@ def _run_menu(initial: str | None = None) -> None:
             command = [SELF, '--launch=' + desktop_id]
             if action_id:
                 command.append('--action=' + action_id)
+            if debug_mode is not None:
+                command.append('--debug=' + debug_mode)
             subprocess.run(command, check=True)
         return
 
@@ -514,9 +586,12 @@ def main(argv: list[str] | None = None) -> int:
     group.add_argument('--launch', metavar='DESKTOP_ID', help='launch an effective visible desktop ID')
     group.add_argument('--search', action='store_true', help='search all applications with navigation back to the main menu')
     parser.add_argument('--action', metavar='ACTION_ID', help='launch an advertised action of the selected desktop ID')
+    parser.add_argument('--debug', choices=tuple(DEBUG_MODES), help='launch the selected application with a complete managed diagnostic bundle')
     options = parser.parse_args(argv)
     if options.action is not None and options.launch is None:
         parser.error('--action requires --launch')
+    if options.debug is not None and options.launch is None and options.action is not None:
+        parser.error('--debug with --action requires --launch')
     if os.geteuid() == 0:
         raise RuntimeError('the application menu must run as the desktop user, not root')
     if tomat_overlay_active():
@@ -525,11 +600,11 @@ def main(argv: list[str] | None = None) -> int:
     if options.list:
         print(json.dumps(enumerate_apps(), ensure_ascii=False))
     elif options.launch is not None:
-        launch_desktop(options.launch, options.action)
-    elif options.search:
-        run_menu('Search Applications')
+        launch_desktop(options.launch, options.action, options.debug)
+    elif options.search or options.debug is not None:
+        run_menu('Search Applications', options.debug)
     else:
-        run_menu()
+        run_menu(debug_mode=options.debug)
     return 0
 
 

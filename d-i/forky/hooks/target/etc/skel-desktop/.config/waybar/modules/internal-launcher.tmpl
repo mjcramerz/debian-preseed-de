@@ -7,6 +7,16 @@
     "exec-on-event": false,
     "cursor": true,
     "tooltip": false,
-    "on-click-release": "/usr/local/libexec/labwc-waybar-run --output-class=INTERNAL -- /usr/local/bin/labwc-main-menu"
+    "on-click-release": "/usr/local/libexec/labwc-waybar-run --output-class=INTERNAL -- /usr/local/bin/labwc-main-menu",
+    "menu": "on-click-right",
+    "menu-file": "~/.config/waybar/gtk/launcher-menu.xml",
+    "menu-actions": {
+      "launcher_debug_gtk": "/usr/local/libexec/labwc-waybar-run --output-class=INTERNAL -- /usr/local/bin/labwc-main-menu --debug=gtk",
+      "launcher_debug_electron": "/usr/local/libexec/labwc-waybar-run --output-class=INTERNAL -- /usr/local/bin/labwc-main-menu --debug=electron",
+      "launcher_debug_qt": "/usr/local/libexec/labwc-waybar-run --output-class=INTERNAL -- /usr/local/bin/labwc-main-menu --debug=qt",
+      "launcher_debug_full": "/usr/local/libexec/labwc-waybar-run --output-class=INTERNAL -- /usr/local/bin/labwc-main-menu --debug=full",
+      "launcher_debug_wayland_graphics": "/usr/local/libexec/labwc-waybar-run --output-class=INTERNAL -- /usr/local/bin/labwc-main-menu --debug=wayland-graphics",
+      "launcher_debug_xwayland": "/usr/local/libexec/labwc-waybar-run --output-class=INTERNAL -- /usr/local/bin/labwc-main-menu --debug=xwayland"
+    }
   }
 }

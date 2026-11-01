@@ -118,19 +118,20 @@ class NativeMenuHoverTests(unittest.TestCase):
                             self.assertEqual(argv[:argv.index('--')], ['/usr/local/libexec/labwc-waybar-run'])
                             self.assertNotIn('fixture', argv)
                             count += 1
-        # The current five menus contain 41 leaf actions per bar. Keep this
+        # The current five menus contain 43 leaf actions per bar. Keep this
         # count aligned with test_native_menu_contract_20260920.py's 82 total
         # action contract.
-        self.assertEqual(count, len(self.profiles) * 2 * 41)
+        self.assertEqual(count, len(self.profiles) * 2 * 43)
 
     def test_every_action_has_the_intended_backend_not_just_an_existing_id(self):
         expected = {
             'custom/tomat': {
                 'tomat_default': ['start', 'default'], 'tomat_25': ['start', '25'],
                 'tomat_50': ['start', '50'], 'tomat_90': ['start', '90'],
+                'tomat_custom': ['config'],
                 'tomat_toggle': ['toggle'], 'tomat_skip': ['skip'], 'tomat_stop': ['stop'],
                 'tomat_config': ['config'], 'tomat_notifications': ['settings', 'notifications'],
-                'tomat_sounds': ['settings', 'sounds']},
+                'tomat_sounds': ['settings', 'sounds'], 'tomat_test': ['start', 'test']},
             'clock': {key: [value] for key, value in CALENDAR.items()},
             'custom/notifications': {
                 'notifications_center': ['center'], 'notifications_restore': ['restore'],

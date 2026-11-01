@@ -73,6 +73,10 @@ exec /usr/bin/env -i \
   LC_ALL="${LC_ALL:-}" \
   LC_CTYPE="${LC_CTYPE:-}" \
   TZ="${TZ:-}" \
+  LABWC_DEBUG_PROFILE="${LABWC_DEBUG_PROFILE:-}" \
+  LABWC_DEBUG_SESSION="${LABWC_DEBUG_SESSION:-}" \
+  LABWC_DEBUG_DESKTOP_ID="${LABWC_DEBUG_DESKTOP_ID:-}" \
+  LABWC_DEBUG_EXECUTABLE="${LABWC_DEBUG_EXECUTABLE:-}" \
   /usr/local/libexec/labwc-chatgpt-log-runner \
   "$mode" \
   "$@" \

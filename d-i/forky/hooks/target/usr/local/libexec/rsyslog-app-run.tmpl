@@ -8,11 +8,14 @@ It never logs command arguments or environment variables.
 from __future__ import annotations
 
 import argparse
+import fcntl
+import json
 import os
 import re
 import selectors
 import signal
 import socket
+import stat
 import subprocess
 import sys
 import time
@@ -21,6 +24,104 @@ SOCKET = '__INSTALLER_LOG_APPS_SOCKET__'
 LINE_LIMIT = 8192
 PACKET_TEXT_LIMIT = 1600
 SIGNALS = (signal.SIGHUP, signal.SIGINT, signal.SIGTERM, signal.SIGUSR1, signal.SIGUSR2)
+
+
+class DiagnosticCopy:
+    """Optional private copy; bounded independently of the normal log sink.
+
+    No directories are created here. Only a menu-prepared 0700 session with
+    a matching, unexpired request can admit at most four 256 KiB writers.
+    File descriptors pin every directory; refusal never changes app launch.
+    """
+    def __init__(self):
+        self.fd = None
+        self.remaining = 256 * 1024
+        self.deadline = 0.0
+        session = os.environ.get('LABWC_DEBUG_SESSION', '')
+        if not re.fullmatch(r'[0-9a-f]{24}', session):
+            return
+        descriptors = []
+        try:
+            runtime = f'/run/user/{os.getuid()}'
+            for part in (runtime, 'labwc-debug', session):
+                fd = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                             dir_fd=descriptors[-1] if descriptors else None)
+                descriptors.append(fd)
+                info = os.fstat(fd)
+                if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
+                    raise ValueError('unsafe diagnostic directory')
+            request_fd = os.open('request.json', os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC,
+                                 dir_fd=descriptors[-1])
+            with os.fdopen(request_fd, 'rb') as stream:
+                info = os.fstat(stream.fileno())
+                if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1
+                        or stat.S_IMODE(info.st_mode) != 0o600):
+                    raise ValueError('unsafe diagnostic request')
+                request = json.loads(stream.read(4097))
+            remaining_seconds = float(request['expires_at']) - time.time()
+            if request['session'] != session or not 0 < remaining_seconds <= 180:
+                return
+            lock = os.open('capture.lock', os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC,
+                           dir_fd=descriptors[-1])
+            with os.fdopen(lock, 'rb') as stream:
+                info = os.fstat(stream.fileno())
+                if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1
+                        or stat.S_IMODE(info.st_mode) != 0o600):
+                    return
+                fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                with os.scandir(descriptors[-1]) as entries:
+                    names = []
+                    for entry in entries:
+                        names.append(entry.name)
+                        if len(names) > 64:
+                            return
+                if sum(name.startswith('capture-') for name in names) >= 4:
+                    return
+                self.fd = os.open(f'capture-{os.getpid()}.jsonl',
+                                  os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                                  0o600, dir_fd=descriptors[-1])
+                self.deadline = time.monotonic() + remaining_seconds
+        except (OSError, ValueError, KeyError, TypeError):
+            self.close()
+        finally:
+            for fd in reversed(descriptors):
+                os.close(fd)
+
+    def write(self, record):
+        if self.fd is None:
+            return
+        if time.monotonic() >= self.deadline:
+            self.close()
+            return
+        if record.get('event') == 'output':
+            message = re.sub(r'(?i)\b(authorization|cookie|set-cookie)\s*[:=].*',
+                             r'\1=[REDACTED]', record['message'])
+            record['message'] = re.sub(
+                r'(?i)\b((?:access_token|refresh_token|id_token|token|password|passwd|secret|api[_-]?key)\s*[:=]\s*)[^\s&;"\']+',
+                r'\1[REDACTED]', message)
+        raw = (json.dumps(record, ensure_ascii=True) + '\n').encode('ascii')
+        if len(raw) > max(0, self.remaining - 1024):
+            marker = (json.dumps({'event': 'capture-limit', 'reason': 'byte-limit',
+                                  'maximum_bytes': 256 * 1024}) + '\n').encode('ascii')
+            try:
+                if len(marker) <= self.remaining:
+                    os.write(self.fd, marker)
+            except OSError:
+                pass
+            self.close()
+            return
+        try:
+            written = os.write(self.fd, raw)
+            self.remaining -= written
+            if written != len(raw):
+                self.close()
+        except OSError:
+            self.close()
+
+    def close(self):
+        if self.fd is not None:
+            os.close(self.fd)
+            self.fd = None
 
 
 class CaptureCleanupUnknown(RuntimeError):
@@ -77,6 +178,7 @@ def report_capture_failure(error: BaseException) -> None:
 
 
 def supervise(identifier: str, command: list[str]) -> int:
+    diagnostic = DiagnosticCopy()
     stopping = None
     exited = None
     child = None
@@ -100,6 +202,8 @@ def supervise(identifier: str, command: list[str]) -> int:
         nonlocal retry_at
         priority = severity(line, stream)
         text = escaped(line.rstrip(b'\r')) or '(empty line)'
+        diagnostic.write({'event': 'output', 'time': time.time(), 'identifier': identifier,
+                          'stream': stream, 'message': text})
         clock = time.localtime()
         month = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')[clock.tm_mon - 1]
         timestamp = f'{month} {clock.tm_mday:2d} {clock.tm_hour:02d}:{clock.tm_min:02d}:{clock.tm_sec:02d}'
@@ -130,6 +234,16 @@ def supervise(identifier: str, command: list[str]) -> int:
             transport.settimeout(0.05)
             child = subprocess.Popen(command, stdin=None, stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE, close_fds=True, bufsize=0)
+            try:
+                with open('/proc/self/stat', encoding='ascii') as source:
+                    start_ticks = source.read(4096).rsplit(')', 1)[1].split()[19]
+                with open('/proc/self/cgroup', encoding='ascii') as source:
+                    membership = source.read(4096)
+            except (OSError, IndexError):
+                start_ticks, membership = '', ''
+            diagnostic.write({'event': 'capture-start', 'time': time.time(),
+                              'pid': os.getpid(), 'child_pid': child.pid, 'start_ticks': start_ticks,
+                              'cgroup': membership, 'executable': command[0], 'identifier': identifier})
             child_fd = os.pidfd_open(child.pid)
             poll.register(child_fd, selectors.EVENT_READ)
             for number in pending_signals:
@@ -186,7 +300,9 @@ def supervise(identifier: str, command: list[str]) -> int:
                     if len(buffer) >= LINE_LIMIT:
                         deliver(transport, stream, bytes(buffer))
                         buffer.clear()
-            return child.wait()
+            result = child.wait()
+            diagnostic.write({'event': 'capture-exit', 'time': time.time(), 'status': result})
+            return result
     finally:
         try:
             if child is not None:
@@ -197,6 +313,7 @@ def supervise(identifier: str, command: list[str]) -> int:
                         if source is not None:
                             source.close()
         finally:
+            diagnostic.close()
             if child_fd is not None:
                 os.close(child_fd)
             for number, handler in previous.items():

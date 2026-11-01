@@ -773,6 +773,11 @@ def build_command(
     }
     if selected_gpu is not None:
         selected_gpu.apply_environment(environment)
+    if os.environ.get("LABWC_DEBUG_PROFILE"):
+        network_runtime()
+        from labwc_managed_app import diagnostics
+        diagnostics.apply(environment)
+        diagnostics.record_environment(environment)
     bus_path = session_bus_path(os.environ.get("DBUS_SESSION_BUS_ADDRESS", ""))
     if bus_path is not None:
         sandbox_bus = sandbox_runtime / "bus"
@@ -839,9 +844,15 @@ def redirect_to_user_service() -> None:
     }
     # No loader, shell, Python, or ambient service-loop variables cross the
     # lowercase AppArmor handoff to the host user manager.
+    unit = "labwc-qbittorrent-" + uuid.uuid4().hex + ".service"
+    if os.environ.get("LABWC_DEBUG_PROFILE"):
+        network_runtime()
+        from labwc_managed_app import diagnostics
+        environment.update(diagnostics.context())
+        diagnostics.register_unit(unit, "/usr/bin/qbittorrent")
     argv = ["/usr/bin/systemd-run", "--user", "--quiet", "--collect",
             "--service-type=exec", "--expand-environment=no", "--slice=app.slice",
-            "--unit=labwc-qbittorrent-" + uuid.uuid4().hex + ".service",
+            "--unit=" + unit,
             "--property=Requisite=labwc-session.target", "--property=After=labwc-session.target",
             "--property=PartOf=labwc-session.target", "--property=ExitType=main",
             f"--property=ConditionPathExists=!/run/user/{uid}/labwc-session-closing",

@@ -34,7 +34,11 @@ DESCRIPTION = "Managed Tomat session daemon"
 TOMAT = "/usr/bin/tomat"
 SYSTEMCTL = "/usr/bin/systemctl"
 MAX_CONFIG = 65_536
-PRESETS = {"default": (), "25": ("25", "5"), "50": ("50", "10"), "90": ("90", "15")}
+PRESETS = {
+    "default": (), "25": ("25", "5"), "50": ("50", "10"), "90": ("90", "15"),
+    # Tomat durations are minutes; 1/6 minute is exactly ten seconds.
+    "test": ("0.1666667", "0.1666667"),
+}
 PROPERTIES = (
     f"Description={DESCRIPTION}", f"Requisite={TARGET}", f"After={TARGET}",
     f"PartOf={TARGET}", "Slice=app.slice", "ExitType=cgroup", "KillMode=control-group",
@@ -522,7 +526,7 @@ class Context:
 
 def main(argv: list[str]) -> int:
     if not argv or argv[0] not in {"watch", "ensure", "start", "toggle", "skip", "stop", "settings", "config"}:
-        raise Error("usage: labwc-tomat watch|ensure|start [default|25|50|90]|toggle|skip|stop|settings notifications|sounds|overlays|config")
+        raise Error("usage: labwc-tomat watch|ensure|start [default|25|50|90|test]|toggle|skip|stop|settings notifications|sounds|overlays|config")
     action = argv[0]
     if action == "start":
         if len(argv) > 2 or (len(argv) == 2 and argv[1] not in PRESETS):

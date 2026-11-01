@@ -11,6 +11,7 @@ import tempfile
 import time
 import uuid
 
+from . import diagnostics
 from .recovery import assert_launch_allowed
 from .integrity import system_owner
 from .environment import (
@@ -57,7 +58,9 @@ def menu_action_wait_arguments() -> list[str]:
 def _session_unit(prefix: str) -> str:
     if re.fullmatch(r"labwc-[a-z0-9-]+", prefix) is None:
         fail("invalid managed session unit prefix")
-    return f"{prefix}-{uuid.uuid4().hex}.service"
+    unit = f"{prefix}-{uuid.uuid4().hex}.service"
+    diagnostics.register_unit(unit, prefix)
+    return unit
 
 
 def _consume_session_marker(name: str, prefix: str) -> bool:
@@ -112,7 +115,8 @@ def bitwarden_session_unit_argv(
         f"--property=ConditionPathExists=!/run/user/{os.getuid()}/labwc-session-closing",
         "--slice=app.slice",
         "--property=ExitType=main",
-        "--property=UnsetEnvironment=LABWC_MENU_ACTION_WAIT",
+        "--property=UnsetEnvironment=" + " ".join(("LABWC_MENU_ACTION_WAIT", *sorted(
+            name for name in diagnostics.DIAGNOSTIC_NAMES if name not in (environment or {})))),
         "--property=KillMode=control-group",
         "--setenv=LABWC_SESSION_APP=1",
         "--property=TimeoutStopSec=20s",
@@ -162,6 +166,7 @@ def managed_session_unit_environment(
             "LABWC_SESSION_OWNER": "desktop",
         }
     )
+    environment.update(diagnostics.context())
     return environment
 
 
@@ -263,7 +268,8 @@ def wayland_compat_session_unit_argv(
         f"--property=ConditionPathExists=!/run/user/{os.getuid()}/labwc-session-closing",
         "--slice=app.slice",
         "--property=ExitType=main",
-        "--property=UnsetEnvironment=LABWC_MENU_ACTION_WAIT",
+        "--property=UnsetEnvironment=" + " ".join(("LABWC_MENU_ACTION_WAIT", *sorted(
+            name for name in diagnostics.DIAGNOSTIC_NAMES if name not in (environment or {})))),
         "--property=KillMode=control-group",
         "--setenv=LABWC_SESSION_APP=1",
         "--property=TimeoutStopSec=20s",
@@ -478,7 +484,8 @@ def redirect_native_from_private_users(
         f"--property=PartOf={startup_dependencies}",
         f"--property=ConditionPathExists=!/run/user/{os.getuid()}/labwc-session-closing",
         "--property=ExitType=main",
-        "--property=UnsetEnvironment=LABWC_MENU_ACTION_WAIT",
+        "--property=UnsetEnvironment=" + " ".join(("LABWC_MENU_ACTION_WAIT", *sorted(
+            name for name in diagnostics.DIAGNOSTIC_NAMES if name not in (environment or {})))),
         "--property=KillMode=control-group", "--property=TimeoutStopSec=20s",
         "--property=SendSIGKILL=yes", "--property=Restart=no", "--property=UMask=0077",
         *(["--property=MemorySwapMax=0", "--property=MemoryZSwapMax=0",

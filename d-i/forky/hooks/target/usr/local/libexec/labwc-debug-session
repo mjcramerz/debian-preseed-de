@@ -1,0 +1,514 @@
+#!/usr/bin/python3 -IB
+"""Private, bounded diagnostics for one managed application launch."""
+from __future__ import annotations
+
+import argparse
+import fcntl
+import hashlib
+import io
+import json
+import os
+from pathlib import Path
+import re
+import selectors
+import signal
+import stat
+import subprocess
+import sys
+import tarfile
+import time
+
+SELF = '/usr/local/libexec/labwc-debug-session'
+PROFILES = ('gtk', 'qt', 'electron', 'full', 'wayland-graphics', 'xwayland')
+SESSION_RE = re.compile(r'[0-9a-f]{24}\Z')
+UNIT_RE = re.compile(r'labwc-[A-Za-z0-9_.-]{1,180}\.service\Z')
+MAX_FILE = 1024 * 1024
+MAX_BUNDLE = 4 * 1024 * 1024
+SECONDS = 120
+DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+
+
+def safe_meta(fd: int, *, directory: bool = False) -> None:
+    meta = os.fstat(fd)
+    if (meta.st_uid != os.getuid() or stat.S_IMODE(meta.st_mode) != (0o700 if directory else 0o600)
+            or not (stat.S_ISDIR(meta.st_mode) if directory else stat.S_ISREG(meta.st_mode))
+            or (not directory and meta.st_nlink != 1)):
+        raise ValueError('unsafe private diagnostic object')
+
+
+def open_root() -> int:
+    if os.getuid() == 0 or os.environ.get('XDG_RUNTIME_DIR') != f'/run/user/{os.getuid()}':
+        raise ValueError('diagnostics require the current desktop user runtime')
+    runtime = os.open(f'/run/user/{os.getuid()}', DIRECTORY_FLAGS)
+    try:
+        safe_meta(runtime, directory=True)
+        try:
+            os.mkdir('labwc-debug', mode=0o700, dir_fd=runtime)
+        except FileExistsError:
+            pass
+        root = os.open('labwc-debug', DIRECTORY_FLAGS, dir_fd=runtime)
+        try:
+            safe_meta(root, directory=True)
+        except BaseException:
+            os.close(root)
+            raise
+        return root
+    finally:
+        os.close(runtime)
+
+
+def open_session(session: str) -> int:
+    if not SESSION_RE.fullmatch(session):
+        raise ValueError('invalid diagnostic session')
+    root = open_root()
+    try:
+        fd = os.open(session, DIRECTORY_FLAGS, dir_fd=root)
+        try:
+            safe_meta(fd, directory=True)
+        except BaseException:
+            os.close(fd)
+            raise
+        return fd
+    finally:
+        os.close(root)
+
+
+def read_file(directory: int, name: str, limit: int = MAX_FILE) -> bytes:
+    if '/' in name or name in {'.', '..'}:
+        raise ValueError('invalid diagnostic filename')
+    fd = os.open(name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=directory)
+    with os.fdopen(fd, 'rb') as stream:
+        safe_meta(stream.fileno())
+        raw = stream.read(limit + 1)
+        if len(raw) > limit:
+            raise ValueError('diagnostic file exceeds limit')
+        return raw
+
+
+def write_file(directory: int, name: str, raw: bytes) -> None:
+    if '/' in name or name in {'.', '..'} or len(raw) > MAX_FILE:
+        raise ValueError('invalid diagnostic output')
+    # Exclusive private candidate, then same-dir atomic publication. No
+    # symlink following, in-place truncation, or caller-selected directory.
+    temporary = f'.write-{os.getpid()}-{time.monotonic_ns()}'
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW |
+                 os.O_CLOEXEC, 0o600, dir_fd=directory)
+    try:
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(raw)
+        os.replace(temporary, name, src_dir_fd=directory, dst_dir_fd=directory)
+    finally:
+        try:
+            os.unlink(temporary, dir_fd=directory)
+        except FileNotFoundError:
+            pass
+
+
+def write_json(directory: int, name: str, value: object) -> None:
+    write_file(directory, name, (json.dumps(value, ensure_ascii=True, indent=2) + '\n').encode('ascii'))
+
+
+def names(directory: int) -> list[str]:
+    result = []
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            result.append(entry.name)
+            if len(result) > 64:
+                raise ValueError('too many diagnostic files')
+    return sorted(result)
+
+
+def command(argv: list[str], *, seconds: float = 2, limit: int = 32768) -> dict:
+    """Stream with byte/deadline limits, then reap within a separate budget."""
+    raw = bytearray()
+    result = {'argv': argv, 'status': None, 'truncated': False, 'timed_out': False}
+    try:
+        child = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, close_fds=True, start_new_session=True)
+    except OSError as exc:
+        return dict(result, unavailable=type(exc).__name__, output='')
+    try:
+        with selectors.DefaultSelector() as poll:
+            os.set_blocking(child.stdout.fileno(), False)
+            poll.register(child.stdout, selectors.EVENT_READ)
+            deadline = time.monotonic() + seconds
+            eof = False
+            while not eof and time.monotonic() < deadline:
+                for key, _ in poll.select(max(0, deadline - time.monotonic())):
+                    data = os.read(key.fd, min(8192, limit + 1 - len(raw)))
+                    if not data:
+                        eof = True
+                        break
+                    raw.extend(data)
+                    if len(raw) > limit:
+                        result['truncated'] = True
+                        eof = True
+                        break
+            if not eof:
+                result['timed_out'] = True
+            if child.poll() is None:
+                try:
+                    child.wait(timeout=max(0, deadline - time.monotonic()))
+                except subprocess.TimeoutExpired:
+                    result['timed_out'] = True
+    finally:
+        if child.poll() is None:
+            # Only this owned, unreaped child process group is signalled.
+            try:
+                os.killpg(child.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        try:
+            result['status'] = child.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            result['cleanup'] = 'outcome-unknown; collector service owns remaining cgroup'
+        child.stdout.close()
+    result['output'] = bytes(raw[:limit]).decode('utf-8', 'replace')
+    return result
+
+
+def toplevels() -> dict:
+    report = command(['/usr/bin/wlrctl', 'toplevel', 'list'], limit=8192)
+    records = []
+    if report['status'] == 0:
+        # wlrctl 0.2.2 toplevel.c prints app_id, colon-space, title.
+        # find is an exit-status query and does NOT print missing identities.
+        for line in report['output'].splitlines()[:128]:
+            app_id, separator, title = line.partition(': ')
+            if separator:
+                records.append({'app_id': app_id[:256], 'title': title[:512]})
+    report['records'] = records
+    report['time'] = time.time()
+    return report
+
+
+def proc_read(pid: int, filename: str, limit: int) -> str:
+    with open(f'/proc/{pid}/{filename}', encoding='utf-8', errors='replace') as stream:
+        return stream.read(limit)
+
+
+def process_evidence(pid: int, cgroup: str) -> dict:
+    """Same-UID process identities in the selected service; never cmdline/env."""
+    try:
+        if Path(f'/proc/{pid}').stat().st_uid != os.getuid():
+            return {'pid': pid, 'unavailable': 'different-uid'}
+        before = proc_read(pid, 'stat', 4096).rsplit(')', 1)[1].split()[19]
+        membership = proc_read(pid, 'cgroup', 4096)
+        if f'0::{cgroup}\n' not in membership:
+            return {'pid': pid, 'unavailable': 'cgroup-changed'}
+        executable = os.readlink(f'/proc/{pid}/exe')
+        libraries = sorted({Path(line.split()[-1]).name for line in proc_read(pid, 'maps', 262144).splitlines()
+                            if '/' in line and '.so' in line})[:128]
+        after = proc_read(pid, 'stat', 4096).rsplit(')', 1)[1].split()[19]
+        if (before != after or Path(f'/proc/{pid}').stat().st_uid != os.getuid()
+                or os.readlink(f'/proc/{pid}/exe') != executable
+                or f'0::{cgroup}\n' not in proc_read(pid, 'cgroup', 4096)):
+            return {'pid': pid, 'unavailable': 'identity-replaced'}
+        toolkits = []
+        engine_evidence = []
+        for label, pattern in (
+            ('GTK 3', 'libgtk-3'), ('GTK 4', 'libgtk-4'), ('Qt 5', 'libQt5'), ('Qt 6', 'libQt6'),
+            ('QtQuick', 'Quick'), ('SDL', 'libSDL'), ('OpenGL/EGL', 'libEGL'),
+            ('OpenGL', 'libGL'), ('Vulkan loader', 'libvulkan'), ('Mesa', 'libgallium')):
+            if any(pattern in name for name in libraries):
+                toolkits.append(label)
+        # app.asar is the same packaged Electron evidence used by the desktop
+        # normalizer. Report it separately from actual mapped toolkit libraries.
+        try:
+            bundled = Path(executable).parent / 'resources/app.asar'
+            bundled_meta = bundled.lstat()
+            if stat.S_ISREG(bundled_meta.st_mode) and not bundled_meta.st_mode & 0o022:
+                engine_evidence.append('Electron resources/app.asar beside runtime executable')
+        except OSError:
+            pass
+        return {'pid': pid, 'start_ticks': before, 'executable': executable,
+                'mapped_libraries': libraries, 'detected_toolkits': toolkits,
+                'engine_evidence': engine_evidence}
+    except (OSError, IndexError, ValueError) as exc:
+        return {'pid': pid, 'unavailable': type(exc).__name__}
+
+
+def services(directory: int) -> list[dict]:
+    result = []
+    for name in names(directory):
+        if not name.startswith('unit-') or not name.endswith('.json'):
+            continue
+        unit = name[5:-5]
+        if not UNIT_RE.fullmatch(unit):
+            continue
+        properties = command(['/usr/bin/systemctl', '--user', '--no-pager', 'show', unit,
+                              '--property=Id,MainPID,ControlGroup,ActiveState,SubState,Result,ExecMainCode,ExecMainStatus'],
+                             seconds=1, limit=8192)
+        values = dict(line.split('=', 1) for line in properties['output'].splitlines() if '=' in line)
+        cgroup = values.get('ControlGroup', '')
+        processes = []
+        prefix = f'/user.slice/user-{os.getuid()}.slice/'
+        if cgroup.startswith(prefix) and '..' not in Path(cgroup).parts and '\0' not in cgroup:
+            try:
+                with open('/sys/fs/cgroup' + cgroup + '/cgroup.procs', encoding='ascii') as stream:
+                    pids = stream.read(8192).split()
+                processes = [process_evidence(int(pid), cgroup) for pid in pids[:32] if pid.isdecimal()]
+            except OSError as exc:
+                properties['process_unavailable'] = type(exc).__name__
+        result.append({'unit': unit, 'properties': properties, 'processes': processes})
+        if len(result) >= 8:
+            break
+    return result
+
+
+def captured_output(directory: int) -> tuple[list[dict], str]:
+    reports, text = [], []
+    for name in names(directory):
+        if not name.startswith('capture-') or not name.endswith('.jsonl'):
+            continue
+        try:
+            raw = read_file(directory, name, 256 * 1024)
+            # A concurrent writer may have one incomplete final line.
+            for line in raw.splitlines(keepends=True):
+                if not line.endswith(b'\n'):
+                    continue
+                record = json.loads(line)
+                if record.get('event') == 'output':
+                    text.append(str(record.get('message', '')))
+                elif len(reports) < 32:
+                    reports.append(record)
+        except (OSError, ValueError):
+            reports.append({'file': name, 'unavailable': 'capture-unreadable'})
+    return reports, '\n'.join(text)[:MAX_FILE]
+
+
+def build_bundle(directory: int) -> None:
+    members = {}
+    total = 0
+    for name in names(directory):
+        if not (name.endswith(('.json', '.jsonl', '.txt')) and not name.startswith('.')):
+            continue
+        raw = read_file(directory, name)
+        if total + len(raw) > MAX_BUNDLE - 16384:
+            raise ValueError('aggregate diagnostic bundle limit exceeded')
+        members[name] = raw
+        total += len(raw)
+    manifest = {'schema': 1, 'maximum_uncompressed_bytes': MAX_BUNDLE,
+                'members': {name: {'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}
+                            for name, raw in members.items()}}
+    members['bundle-manifest.json'] = json.dumps(manifest, indent=2).encode('utf-8')
+    output = io.BytesIO()
+    with tarfile.open(fileobj=output, mode='w:gz') as archive:
+        for name, raw in members.items():
+            info = tarfile.TarInfo(name)
+            info.size, info.mode = len(raw), 0o600
+            archive.addfile(info, io.BytesIO(raw))
+    # Compressed JSON/text stays within the same 4 MiB artifact limit.
+    raw = output.getvalue()
+    if len(raw) > MAX_FILE:
+        # Archive publication has its own larger bound than metadata files.
+        fd = os.open('diagnostic-bundle.tar.gz', os.O_WRONLY | os.O_CREAT | os.O_EXCL |
+                     os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=directory)
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(raw)
+    else:
+        write_file(directory, 'diagnostic-bundle.tar.gz', raw)
+
+
+def clean_environment() -> dict[str, str]:
+    # The observer/terminal must never inherit the app's inspector/trace flags.
+    allowed = ('HOME', 'USER', 'LOGNAME', 'XDG_RUNTIME_DIR', 'WAYLAND_DISPLAY',
+               'DBUS_SESSION_BUS_ADDRESS', 'XDG_SESSION_TYPE', 'XDG_CURRENT_DESKTOP', 'TERM')
+    env = {key: os.environ[key] for key in allowed if key in os.environ}
+    env.update(PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', LANG='C.UTF-8')
+    return env
+
+
+def start(options) -> None:
+    root = open_root()
+    try:
+        lock = os.open('admission.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC,
+                       0o600, dir_fd=root)
+        with os.fdopen(lock, 'rb') as stream:
+            safe_meta(stream.fileno())
+            fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if sum(bool(SESSION_RE.fullmatch(name)) for name in names(root)) >= 8:
+                raise ValueError('eight diagnostic bundles retained; remove a completed bundle before starting another')
+            os.mkdir(options.session, mode=0o700, dir_fd=root)
+    finally:
+        os.close(root)
+    directory = open_session(options.session)
+    try:
+        request = {'schema': 1, 'session': options.session, 'profile': options.profile,
+                   'desktop_id': options.desktop_id, 'exec_label': options.executable,
+                   'created_at': time.time(), 'expires_at': time.time() + SECONDS + 30,
+                   'collection_seconds': SECONDS, 'platform': 'Labwc/Wayland',
+                   'vulkan_policy': 'managed OpenGL policy preserved; loader diagnostics do not enable Vulkan'}
+        write_json(directory, 'request.json', request)
+        write_json(directory, 'baseline.json', toplevels())
+        write_file(directory, 'capture.lock', b'')
+        write_file(directory, 'collector.lock', b'')
+        write_json(directory, 'status.json', {'state': 'starting', 'session': options.session})
+        env = clean_environment()
+        argv = ['/usr/bin/systemd-run', '--user', '--quiet', '--collect', '--no-block',
+                '--service-type=exec', '--expand-environment=no', '--slice=app.slice',
+                '--unit=labwc-debug-collector-' + options.session,
+                '--property=Requisite=labwc-session.target', '--property=After=labwc-session.target',
+                '--property=PartOf=labwc-session.target', '--property=KillMode=control-group',
+                '--property=TimeoutStartSec=10s', '--property=TimeoutStopSec=3s',
+                '--property=RuntimeMaxSec=150s', '--property=UMask=0077',
+                '--property=StandardOutput=null', '--property=StandardError=null',
+                *(f'--setenv={key}' for key in sorted(env)), '--', SELF, 'collect', options.session]
+        subprocess.run(argv, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                       timeout=5, check=True)
+        subprocess.Popen(['/usr/local/bin/labwc-terminal', '-e', SELF, 'view', options.session],
+                         env=env, stdin=subprocess.DEVNULL, close_fds=True, start_new_session=True)
+    finally:
+        os.close(directory)
+
+
+def collect(session: str) -> None:
+    directory = open_session(session)
+    collector_lock = None
+    try:
+        collector_lock = os.open('collector.lock', os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC,
+                                 dir_fd=directory)
+        safe_meta(collector_lock)
+        fcntl.flock(collector_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BaseException:
+        if collector_lock is not None:
+            os.close(collector_lock)
+        os.close(directory)
+        raise
+    try:
+        request = json.loads(read_file(directory, 'request.json', 4096))
+        baseline = json.loads(read_file(directory, 'baseline.json', 32768))
+        snapshots, service_evidence = [], {}
+        deadline = time.monotonic() + SECONDS
+        while time.monotonic() < deadline:
+            snapshot = toplevels()
+            if len(snapshots) < 32:
+                snapshots.append(snapshot)
+            for service in services(directory):
+                previous = service_evidence.get(service['unit'])
+                # Retain mapped library evidence after a short-lived process
+                # exits and systemd collects its transient service.
+                if previous:
+                    known = {(p.get('pid'), p.get('start_ticks')): p for p in previous['processes']}
+                    known.update({(p.get('pid'), p.get('start_ticks')): p for p in service['processes']})
+                    service['processes'] = list(known.values())[:64]
+                service_evidence[service['unit']] = service
+            events, output = captured_output(directory)
+            protocol_ids = sorted(set(re.findall(r'\.set_app_id\("([^"\n]{1,256})"\)', output)))[:64]
+            baseline_records = baseline.get('records', [])
+            new_records = [r for r in snapshot['records'] if r not in baseline_records]
+            status = {'state': 'collecting', 'session': session, 'seconds_remaining': max(0, int(deadline-time.monotonic())),
+                      'observed_app_ids': protocol_ids, 'new_toplevels': new_records,
+                      'services': list(service_evidence), 'capture_events': events,
+                      'output_tail': output[-8192:]}
+            write_json(directory, 'status.json', status)
+            try:
+                read_file(directory, 'finish', 32)
+                break
+            except FileNotFoundError:
+                pass
+            time.sleep(min(4, max(0, deadline-time.monotonic())))
+        events, output = captured_output(directory)
+        write_json(directory, 'identity.json', {'baseline': baseline, 'snapshots': snapshots,
+                   'app_ids_from_selected_client_protocol_trace': protocol_ids,
+                   'correlation': 'protocol set_app_id is direct client evidence; new toplevels are temporal candidates',
+                   'private_xwayland': 'outer Cage identity only; private WM_CLASS is not exposed by the Wayland foreign-toplevel protocol'})
+        write_json(directory, 'processes.json', list(service_evidence.values()))
+        write_json(directory, 'toolkits.json', {'basis': 'same-UID processes in the recorded app service cgroup; loaded library names',
+                   'processes': [p for service in service_evidence.values() for p in service['processes']],
+                   'requested_profile': request['profile'], 'capture_events': events})
+        unit_journals = []
+        for unit in list(service_evidence)[:8]:
+            unit_journals.append(command(['/usr/bin/journalctl', '--user', '--boot', '--no-pager',
+                                         '--output=short-precise', '--lines=100', '--unit=' + unit], seconds=1))
+        write_json(directory, 'service-journal.json', unit_journals)
+        write_file(directory, 'README.txt', (
+            'Labwc application diagnostic bundle\n'
+            'Capture files contain real stdout/stderr copied by the existing private output supervisor.\n'
+            'The normal rsyslog sink and normal application/service lifetimes are preserved.\n'
+            'No full environments or command argument lists are collected.\n'
+            'Each capture is capped at 256 KiB; at most four output supervisors per session.\n'
+            'Mapped toolkit libraries are runtime evidence; an unavailable field is not inferred.\n'
+            'An existing single-instance app may accept activation without adopting new debug variables.\n'
+            'Close it normally and launch diagnostics again if no new process or inspector appears.\n'
+            'Vulkan remains subject to the existing OpenGL policy; loader tracing never enables it.\n'
+            'Private Xwayland diagnostics retain the Zoom/Discord boundary and outer Cage identity.\n'
+        ).encode('ascii'))
+        status['state'] = 'finalizing'
+        status['archive'] = f'/run/user/{os.getuid()}/labwc-debug/{session}/diagnostic-bundle.tar.gz'
+        status['output_capture'] = 'available' if output else 'no output captured; app may be silent or activated an existing instance'
+        write_json(directory, 'status.json', status)
+        build_bundle(directory)
+        status['state'] = 'complete'
+        write_json(directory, 'status.json', status)
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        write_json(directory, 'status.json', {'state': 'failed', 'cause': type(exc).__name__, 'detail': str(exc)[:512]})
+        raise
+    finally:
+        os.close(collector_lock)
+        os.close(directory)
+
+
+def view(session: str) -> None:
+    directory = open_session(session)
+    try:
+        print('Labwc diagnostics: ' + session + '\nCollecting for up to 120 seconds. Press Enter to finish the bundle.\n', flush=True)
+        last = b''
+        deadline = time.monotonic() + 180
+        with selectors.DefaultSelector() as poll:
+            try:
+                poll.register(sys.stdin, selectors.EVENT_READ)
+            except (OSError, ValueError):
+                pass
+            while True:
+                if time.monotonic() >= deadline:
+                    print('Collector did not publish completion; retained diagnostic files remain available.', flush=True)
+                    break
+                raw = read_file(directory, 'status.json')
+                status = json.loads(raw)
+                if raw != last:
+                    # JSON encoding escapes control sequences from app titles/logs.
+                    print(json.dumps(status, ensure_ascii=True, indent=2), flush=True)
+                    last = raw
+                if status['state'] in {'complete', 'failed'}:
+                    break
+                if poll.select(1):
+                    sys.stdin.readline()
+                    write_file(directory, 'finish', b'finish\n')
+        if sys.stdin.isatty():
+            input('\nPress Enter to close diagnostics. ')
+    finally:
+        os.close(directory)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('mode', choices=('start', 'collect', 'view'))
+    parser.add_argument('session')
+    parser.add_argument('profile', nargs='?', choices=PROFILES)
+    parser.add_argument('desktop_id', nargs='?')
+    parser.add_argument('executable', nargs='?')
+    options = parser.parse_args()
+    if not SESSION_RE.fullmatch(options.session):
+        parser.error('invalid diagnostic session')
+    if options.mode == 'start':
+        if not options.profile or not options.desktop_id or not options.executable:
+            parser.error('start requires a profile, desktop ID, and executable label')
+        for value in (options.desktop_id, options.executable):
+            if len(value.encode('utf-8')) > 1024 or any(ord(c)<32 or ord(c)==127 for c in value):
+                parser.error('invalid diagnostic label')
+        start(options)
+    elif options.profile or options.desktop_id or options.executable:
+        parser.error('collect/view accepts only the session identifier')
+    elif options.mode == 'collect':
+        collect(options.session)
+    else:
+        view(options.session)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        print(f'labwc diagnostics: {exc}', file=sys.stderr)
+        raise SystemExit(1)

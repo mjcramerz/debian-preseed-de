@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from . import diagnostics
+
 import grp
 import hashlib
 import json
@@ -1118,4 +1120,6 @@ def build_environment(app_name: str, mode: str) -> dict[str, str]:
     for name in tuple(env):
         if name.startswith(("VK_", "__VK_", "MESA_VK_")):
             env.pop(name)
+    diagnostics.apply(env, compatibility=app_name in {"zoom", "discord"})
+    diagnostics.record_environment(env)
     return env

@@ -30,6 +30,7 @@ CORE_MODULES = (
     "compat_instance.py",
     "compat_protocol.py",
     "dbus_proxy.py",
+    "diagnostics.py",
     "electron.py",
     "environment.py",
     "events.py",

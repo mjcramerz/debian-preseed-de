@@ -3,9 +3,10 @@ use strict;
 use warnings;
 
 use Errno qw(EINTR);
-use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK);
+use Fcntl qw(F_GETFL F_SETFL O_NONBLOCK O_RDONLY O_WRONLY O_CREAT O_EXCL O_NOFOLLOW O_DIRECTORY LOCK_EX LOCK_NB F_SETFD FD_CLOEXEC);
 use IO::Select;
 use IPC::Open3 qw(open3);
+use JSON::PP qw(encode_json decode_json);
 use POSIX qw(WNOHANG);
 use Socket qw(AF_UNIX SOCK_DGRAM sockaddr_un);
 use Symbol qw(gensym);
@@ -33,6 +34,88 @@ open STDOUT, '>', '/dev/null' or exit 70;
 open STDERR, '>', '/dev/null' or exit 70;
 
 my $log_socket;
+my $diagnostic_output;
+my $diagnostic_deadline = 0;
+my $diagnostic_remaining = 256 * 1024;
+
+sub _diagnostic_open {
+    my $session = $ENV{LABWC_DEBUG_SESSION} // q{};
+    return if $session !~ /\A[0-9a-f]{24}\z/ || $< == 0 || $< != $>;
+    # Optional user-owned output copy. Every parent is private, the final
+    # directory is pinned, and no diagnostic error may alter app lifetime.
+    eval {
+        my $root = '/run/user/' . $<;
+        for my $path ($root, "$root/labwc-debug", "$root/labwc-debug/$session") {
+            my @meta = lstat $path;
+            die "unsafe diagnostic directory\n" unless @meta && -d _ && !-l _
+                && $meta[4] == $< && ($meta[2] & 07777) == 0700;
+        }
+        sysopen my $directory, "$root/labwc-debug/$session", O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            or die "diagnostic directory unavailable\n";
+        my $pinned = '/proc/self/fd/' . fileno($directory);
+        sysopen my $request, "$pinned/request.json", O_RDONLY | O_NONBLOCK | O_NOFOLLOW
+            or die "diagnostic request unavailable\n";
+        my @meta = stat $request;
+        die "unsafe diagnostic request\n" unless @meta && -f $request && $meta[4] == $<
+            && $meta[3] == 1 && ($meta[2] & 07777) == 0600 && $meta[7] <= 4096;
+        my $raw = q{};
+        sysread($request, $raw, 4097);
+        close $request;
+        my $request_data = decode_json($raw);
+        my $seconds = $request_data->{expires_at} - time();
+        die "expired diagnostic request\n" unless $request_data->{session} eq $session
+            && $seconds > 0 && $seconds <= 180;
+        sysopen my $lock, "$pinned/capture.lock", O_RDONLY | O_NONBLOCK | O_NOFOLLOW
+            or die "diagnostic lock unavailable\n";
+        @meta = stat $lock;
+        die "unsafe diagnostic lock\n" unless @meta && -f $lock && $meta[4] == $<
+            && $meta[3] == 1 && ($meta[2] & 07777) == 0600;
+        flock($lock, LOCK_EX | LOCK_NB) or die "diagnostic capture busy\n";
+        opendir my $entries, $pinned or die "diagnostic inventory unavailable\n";
+        my ($count, $captures) = (0, 0);
+        while (defined(my $name = readdir $entries)) {
+            die "diagnostic inventory limit\n" if ++$count > 64;
+            ++$captures if $name =~ /\Acapture-/;
+        }
+        closedir $entries;
+        die "diagnostic capture limit\n" if $captures >= 4;
+        sysopen $diagnostic_output, "$pinned/capture-chatgpt-$$.jsonl",
+            O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600
+            or die "diagnostic output unavailable\n";
+        fcntl($diagnostic_output, F_SETFD, FD_CLOEXEC);
+        $diagnostic_deadline = _monotonic() + $seconds;
+        close $lock;
+        close $directory;
+        1;
+    } or do {
+        close $diagnostic_output if defined $diagnostic_output;
+        undef $diagnostic_output;
+    };
+}
+
+sub _diagnostic_record {
+    my ($stream, $message) = @_;
+    return if !defined $diagnostic_output;
+    $message =~ s/\b(authorization|cookie|set-cookie)\s*[:=].*/$1=[REDACTED]/ig;
+    $message =~ s/\b((?:access_token|refresh_token|id_token|token|password|passwd|secret|api[_-]?key)\s*[:=]\s*)[^\s&;"']+/$1 . '[REDACTED]'/ige;
+    my $raw = encode_json({event => 'output', time => time(), identifier => SYSLOG_TAG,
+                           stream => $stream, message => $message}) . "\n";
+    if (_monotonic() >= $diagnostic_deadline || length($raw) > $diagnostic_remaining - 1024) {
+        my $marker = encode_json({event => 'capture-limit', reason => 'time-or-byte-limit',
+                                  maximum_bytes => 256 * 1024}) . "\n";
+        syswrite($diagnostic_output, $marker) if length($marker) <= $diagnostic_remaining;
+        close $diagnostic_output;
+        undef $diagnostic_output;
+        return;
+    }
+    my $written = syswrite($diagnostic_output, $raw);
+    if (!defined $written || $written != length($raw)) {
+        close $diagnostic_output;
+        undef $diagnostic_output;
+        return;
+    }
+    $diagnostic_remaining -= $written;
+}
 
 sub _exit_status {
     my ($status) = @_;
@@ -112,6 +195,7 @@ sub _write_syslog_line {
     }
     $line = _sanitize_bytes($line);
     $line = '(empty line)' if $line eq q{};
+    _diagnostic_record($stream, $line);
 
     my $prefix = "stream=$stream message=";
     my $continuation = ' continued=true';
@@ -201,6 +285,7 @@ my $error = q{};
 
 eval {
     my ($mode, @extra_arguments) = _validate_arguments(@ARGV);
+    _diagnostic_open();
     _open_log_socket();
     $logger_ready = 1;
     _send_syslog(LOG_PRIORITY_INFO, "event=started mode=$mode");
@@ -344,6 +429,7 @@ if ($error ne q{} && $logger_ready) {
 }
 eval {
     close $log_socket if defined $log_socket;
+    close $diagnostic_output if defined $diagnostic_output;
     1;
 };
 

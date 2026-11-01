@@ -854,6 +854,7 @@ for path in \
   /usr/local/bin/labwc-sync-application-launchers \
   /usr/local/bin/labwc-run \
   /usr/local/bin/labwc-main-menu \
+  /usr/local/libexec/labwc-debug-session \
   /usr/local/bin/labwc-lock \
   /usr/local/bin/labwc-power-menu \
   /usr/local/bin/labwc-keyboard-layout \
@@ -1045,6 +1046,7 @@ for path in \
   /etc/skel-desktop/.config/waybar/gtk/audio-menu.xml \
   /etc/skel-desktop/.config/waybar/gtk/bluetooth-menu.xml \
   /etc/skel-desktop/.config/waybar/gtk/calendar-menu.xml \
+  /etc/skel-desktop/.config/waybar/gtk/launcher-menu.xml \
   /etc/skel-desktop/.config/waybar/gtk/notifications-menu.xml \
   /etc/skel-desktop/.config/waybar/gtk/power-menu.xml \
   /etc/skel-desktop/.config/waybar/gtk/screenshot-menu.xml \
@@ -1730,6 +1732,7 @@ for path in \
   "$account_home/.config/waybar/gtk/audio-menu.xml" \
   "$account_home/.config/waybar/gtk/bluetooth-menu.xml" \
   "$account_home/.config/waybar/gtk/calendar-menu.xml" \
+  "$account_home/.config/waybar/gtk/launcher-menu.xml" \
   "$account_home/.config/waybar/gtk/notifications-menu.xml" \
   "$account_home/.config/waybar/gtk/power-menu.xml" \
   "$account_home/.config/waybar/gtk/screenshot-menu.xml" \
@@ -2043,6 +2046,7 @@ for config in config_roots:
         "waybar/gtk/audio-menu.xml",
         "waybar/gtk/bluetooth-menu.xml",
         "waybar/gtk/calendar-menu.xml",
+        "waybar/gtk/launcher-menu.xml",
         "waybar/gtk/notifications-menu.xml",
         "waybar/gtk/power-menu.xml",
         "waybar/gtk/screenshot-menu.xml",
@@ -2688,6 +2692,7 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
                 and "on-click-release" in bar["custom/keyboard"],
                 "keyboard drawer release contract changed")
         for module, name, event in (("custom/tomat", "tomat", "on-click"),
+                                    ("custom/launcher", "launcher", "on-click-right"),
                                     ("pulseaudio", "audio", "on-click"),
                                     ("custom/notifications", "notifications", "on-click"),
                                     ("bluetooth", "bluetooth", "on-click"),
@@ -2712,8 +2717,9 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
                         "native menu event conflict: " + name)
             else:
                 require(entry.get("menu") == event
+                        and event not in entry
                         and "on-click" not in entry
-                        and "on-click-release" not in entry
+                        and (name == "launcher" or "on-click-release" not in entry)
                         and event not in entry.get("actions", {}),
                         "native menu event conflict: " + name)
             if name in ("tomat", "audio", "notifications", "bluetooth"):
@@ -2782,6 +2788,20 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
                     require(argv[argv.index("--") + 1:] ==
                             ["/usr/local/bin/labwc-system-menu-action", action_id],
                             "wrong system menu dispatcher action: " + action_id)
+                elif name == "launcher":
+                    expected_debug = {
+                        "launcher_debug_gtk": "gtk",
+                        "launcher_debug_qt": "qt",
+                        "launcher_debug_electron": "electron",
+                        "launcher_debug_full": "full",
+                        "launcher_debug_wayland_graphics": "wayland-graphics",
+                        "launcher_debug_xwayland": "xwayland",
+                    }
+                    require(set(actions) == set(expected_debug),
+                            "launcher diagnostic action set differs")
+                    require(argv[argv.index("--") + 1:] ==
+                            ["/usr/local/bin/labwc-main-menu", "--debug=" + expected_debug[action_id]],
+                            "wrong launcher diagnostic profile: " + action_id)
             if name == "notifications":
                 expected = {"notifications_center": "center", "notifications_restore": "restore",
                             "notifications_dnd_on": "dnd-on", "notifications_dnd_off": "dnd-off",
@@ -3011,12 +3031,14 @@ require(re.match(r"systemd 262(?:\s|$)", version) is not None, "the target syste
 for filename, mode in (
         ("/usr/local/libexec/labwc-waybar-exec", 0o755),
         ("/usr/local/libexec/labwc-waybar-run", 0o755),
+        ("/usr/local/libexec/labwc-debug-session", 0o755),
         ("/usr/local/libexec/labwc-waybar-battery", 0o755),
         ("/usr/local/libexec/labwc-waybar-events", 0o755),
         ("/usr/local/bin/labwc-capture", 0o755),
         ("/usr/local/lib/python3.14/dist-packages/managed_workflows/__init__.py", 0o644),
         ("/usr/local/lib/python3.14/dist-packages/managed_workflows/fs.py", 0o644),
         ("/usr/local/lib/python3.14/dist-packages/labwc_managed_app/gpu.py", 0o644),
+        ("/usr/local/lib/python3.14/dist-packages/labwc_managed_app/diagnostics.py", 0o644),
         ("/etc/apparmor.d/abstractions/native-gpu-selection", 0o644)):
     path = Path(filename)
     trusted(path, mode == 0o755)

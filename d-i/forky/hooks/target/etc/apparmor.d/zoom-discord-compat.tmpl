@@ -15,6 +15,12 @@ profile labwc-zoom-discord-compat-runtime /usr/local/libexec/labwc-zoom-discord-
 }
 
 profile labwc-wayland-compat-app /usr/local/bin/labwc-wayland-compat-app flags=(attach_disconnected) {
+  # Per-launch service identity publication; no application data is read.
+  owner /run/user/[0-9]*/labwc-debug/ r,
+  owner /run/user/[0-9]*/labwc-debug/*/ r,
+  owner /run/user/[0-9]*/labwc-debug/*/request.json r,
+  owner /run/user/[0-9]*/labwc-debug/*/capture.lock rwk,
+  owner /run/user/[0-9]*/labwc-debug/*/{unit-*,environment-*}.json rw,
   #include <abstractions/app-veth-client>
   # Launching from a terminal inherits the user's PTY until systemd handoff.
   owner /dev/pts/[0-9]* rw,
@@ -25,7 +31,7 @@ profile labwc-wayland-compat-app /usr/local/bin/labwc-wayland-compat-app flags=(
   /usr/local/bin/labwc-wayland-compat-app rix,
   /usr/local/lib/python3.14/dist-packages/ r,
   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
-  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,compat_gpu,compat_instance,compat_portal,compat_protocol,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_client,network_namespace,profiles,recovery,runtime,sandbox,session,user_state,wayland_compat,wayland_compat_runtime}.py r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,compat_gpu,compat_instance,compat_portal,compat_protocol,dbus_proxy,diagnostics,electron,environment,events,generic,identity,integrity,mounts,network_client,network_namespace,profiles,recovery,runtime,sandbox,session,user_state,wayland_compat,wayland_compat_runtime}.py r,
   /dev/log w,
   /run/systemd/journal/dev-log w,
   /usr/bin/bwrap rCx -> wayland-compat-app-bwrap,

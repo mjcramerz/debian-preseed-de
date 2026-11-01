@@ -14,6 +14,7 @@ compat_instance.py
 compat_portal.py
 compat_protocol.py
 dbus_proxy.py
+diagnostics.py
 electron.py
 environment.py
 events.py

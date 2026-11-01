@@ -12,3 +12,6 @@ ptrace (readby) peer=desktop-launcher//apparmor-status,
 signal (receive) peer=desktop-terminal,
 signal (send) set=(chld) peer=desktop-terminal,
 ptrace (readby) peer=desktop-terminal,
+
+# Opt-in same-UID application diagnostics reads mapped library identities only.
+ptrace (readby) peer=labwc-debug-session,

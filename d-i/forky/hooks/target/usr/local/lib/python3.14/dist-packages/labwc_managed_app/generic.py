@@ -27,7 +27,7 @@ from .environment import (
 )
 from .recovery import assert_launch_allowed
 from .integrity import system_owner
-from . import gpu
+from . import gpu, diagnostics
 from .session import menu_action_wait_arguments, native_session_wayland_display
 from .profiles import APPS, INTEL_ACCELERATION_ENV, NVIDIA_ACCELERATION_ENV, WAYLAND_COMPAT_APPS
 from .runtime import (
@@ -309,6 +309,9 @@ def run_configured_network(arguments: list[str]) -> int:
     require_root_owned_executable("configured application", executable)
     payload[0] = executable
     environment = session_environment()
+    # Configured network applications build a second private environment file;
+    # carry the same closed diagnostic context through that boundary as well.
+    diagnostics.apply(environment)
     defaults = load_managed_defaults(MANAGED_DEFAULTS_PATH, owner_uid=owner_uid)
     validate_acceleration_mode(options.mode, acceleration_availability_from_defaults(defaults))
     environment.update(INTEL_ACCELERATION_ENV if options.mode == "intel"
@@ -402,6 +405,8 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         unit = f"labwc-desktop-appearance-{uuid.uuid4().hex}.service"
     else:
         unit = f"labwc-{kind}-{label}-{uuid.uuid4().hex}.service"
+    diagnostics.register_unit(unit, application[0])
+    diagnostics.record_environment(environment)
     # These canonical administration launchers need host UID semantics.
     # User-manager filesystem/IPC namespaces implicitly enable PrivateUsers:
     # pkexec cannot become host root and Mullvad sees its root-owned daemon
@@ -480,7 +485,8 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         # Do not force NNP/seccomp before package AppArmor -> bwrap
         # transitions. Electron and Bubblewrap set NNP inside their sandboxes.
         "--property=StandardInput=null", "--property=StandardOutput=null",
-        "--property=StandardError=null", f"--property=SyslogIdentifier=labwc-{label}",
+        "--property=StandardError=null",
+        f"--property=SyslogIdentifier=labwc-{label}",
         "--property=LimitCORE=0", "--property=NoNewPrivileges=no",
         # Signal the supervisor first; it forwards the signal to Foot so Foot
         # can close/reap its PTY client. systemd owns final cgroup cleanup.
@@ -503,7 +509,8 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         ]),
         *(["--property=PrivateIPC=no"] if is_compositor_settings else []),
         *(["--property=ProtectProc=default", "--property=ProcSubset=all"] if is_terminal else []),
-        "--property=UnsetEnvironment=" + " ".join(name for name in UNSET_ENVIRONMENT if name not in environment),
+        "--property=UnsetEnvironment=" + " ".join(name for name in dict.fromkeys(
+            (*UNSET_ENVIRONMENT, *sorted(diagnostics.DIAGNOSTIC_NAMES))) if name not in environment),
         f"--working-directory={os.getcwd()}",
         # Passing only names keeps tokens and other values out of argv.
         *(f"--setenv={name}" for name in sorted(environment)),
@@ -522,6 +529,12 @@ def main(kind: str, argv: list[str] | None = None) -> int:
     if not arguments or os.geteuid() == 0:
         parser.error("a desktop-user command is required; root launches are forbidden")
     environment = session_environment()
+    # session_environment intentionally rebuilds a small, trusted environment;
+    # explicitly re-apply the closed diagnostic context after that boundary so
+    # GTK/Qt/Electron and graphics diagnostics reach the transient service.
+    # The compatibility runtime separately owns its closed observational
+    # Xwayland trace profile and all private backend selection.
+    diagnostics.apply(environment)
     # Defaults are in the trusted system tree. Compositor PrivateUsers maps
     # the system owner; use the same anchor as the entrypoint bootstrap.
     defaults = load_managed_defaults(MANAGED_DEFAULTS_PATH, owner_uid=system_owner()[0])
@@ -548,6 +561,8 @@ def main(kind: str, argv: list[str] | None = None) -> int:
         fail("recursive desktop wrapper command")
     arguments[0] = executable
     environment.update(MANAGED_WAYLAND_OPENGL_ENVIRONMENT)
+    # A vendor env prefix cannot replace the requested closed debug profile.
+    diagnostics.apply(environment)
     environment.update(INTEL_ACCELERATION_ENV if mode == "intel" else NVIDIA_ACCELERATION_ENV if mode == "nvidia" else {})
     network_command = managed_network_command(mode, arguments, kind=kind)
     application_arguments = list(arguments) if network_command is not None else None

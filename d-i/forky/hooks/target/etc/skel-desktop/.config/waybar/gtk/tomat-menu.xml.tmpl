@@ -152,6 +152,35 @@
                 </child>
               </object>
             </child>
+            <child>
+              <object class="GtkMenuItem" id="tomat_custom">
+                <property name="visible">True</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+                    <property name="orientation">horizontal</property>
+                    <child>
+                      <object class="GtkImage" id="tomat_custom_icon">
+                        <property name="visible">True</property>
+                        <property name="icon-name">__THEME_WAYBAR_DROPDOWN_TOMAT_CONFIG_ICON_NAME__</property>
+                        <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                        <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                        <property name="use-fallback">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="tomat_custom_label">
+                        <property name="visible">True</property>
+                        <property name="label">Custom</property>
+                        <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
           </object>
         </child>
       </object>
@@ -364,6 +393,35 @@
                       <object class="GtkLabel" id="tomat_overlays_label">
                         <property name="visible">True</property>
                         <property name="label">Overlays (toggle)</property>
+                        <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="tomat_test">
+                <property name="visible">True</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+                    <property name="orientation">horizontal</property>
+                    <child>
+                      <object class="GtkImage" id="tomat_test_icon">
+                        <property name="visible">True</property>
+                        <property name="icon-name">__THEME_WAYBAR_DROPDOWN_TOMAT_SESSION_25_MINUTES_ICON_NAME__</property>
+                        <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                        <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                        <property name="use-fallback">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="tomat_test_label">
+                        <property name="visible">True</property>
+                        <property name="label">Test (10s work / 10s break)</property>
                         <property name="xalign">0</property>
                         <property name="hexpand">True</property>
                       </object>
