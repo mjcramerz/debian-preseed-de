@@ -360,5 +360,18 @@ __INSTALLER_LABWC_WORKSPACE_KEYBIND_LINES__
 
   <windowRules>
     <windowRule identifier="*" serverDecoration="yes" />
+    <!-- During Tomat breaks, place the two managed surfaces beside each other
+         so the translucent layer-shell countdown cannot hide Agenda. -->
+    <windowRule identifier="com.ianswope.Calix">
+      <action name="SnapToRegion" region="tomat-calendar" />
+    </windowRule>
+    <windowRule identifier="com.github.dahenson.agenda">
+      <action name="SnapToRegion" region="tomat-agenda" />
+    </windowRule>
   </windowRules>
+
+  <regions>
+    <region name="tomat-calendar" x="0%" y="0%" width="50%" height="100%" />
+    <region name="tomat-agenda" x="50%" y="0%" width="50%" height="100%" />
+  </regions>
 </labwc_config>

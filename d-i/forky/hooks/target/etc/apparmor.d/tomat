@@ -119,7 +119,7 @@ profile labwc-tomat-overlay /usr/local/libexec/labwc-tomat-overlay flags=(attach
   owner @{HOME}/.config/ r,
   owner @{HOME}/.cache/{,fontconfig/,fontconfig/**,mesa_shader_cache/,mesa_shader_cache/**,mesa_shader_cache_db/,mesa_shader_cache_db/**} rwkl,
   owner /run/user/[0-9]*/{,bus,wayland-[0-9]*,systemd/private} rw,
-  owner /run/user/[0-9]*/labwc-tomat/{,break-apps.json,.break-apps.*} rwk,
+  owner /run/user/[0-9]*/labwc-tomat/{,break-apps.json,break-overlay.active,.break-apps.*,.break-overlay.*} rwk,
   owner /run/user/[0-9]*/labwc-tomat-control.lock rwk,
   owner @{PROC}/self/cgroup r,
   owner /dev/shm/** rwkl,

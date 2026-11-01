@@ -25,6 +25,7 @@ SYSTEMD_RUN = "/usr/bin/systemd-run"
 CALENDAR = "/usr/local/bin/labwc-calendar"
 AGENDA = "/usr/local/bin/labwc-agenda"
 APPS_STATE = "break-apps.json"
+ACTIVE_MARKER = "break-overlay.active"
 MAX_MONITORS = 32
 SECONDS = re.compile(r"[1-9][0-9]{0,4}\Z")
 KINDS = {"break": "Break", "long-break": "Long break"}
@@ -164,12 +165,49 @@ class Overlay:
         self.launches = []
         self.nonce = secrets.token_hex(6)
         self.runtime = Path(f"/run/user/{os.getuid()}")
+        self.marker = self.runtime / "labwc-tomat" / ACTIVE_MARKER
+
+    def publish_active_marker(self) -> None:
+        directory = self.runtime / "labwc-tomat"
+        temporary = directory / f".{ACTIVE_MARKER}.{secrets.token_hex(12)}"
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL
+                     | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+        try:
+            with os.fdopen(fd, "w", encoding="ascii") as stream:
+                stream.write(self.nonce + "\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, self.marker)
+            directory_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY
+                                    | os.O_NOFOLLOW | os.O_CLOEXEC)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+        finally:
+            with contextlib.suppress(FileNotFoundError):
+                temporary.unlink()
+
+    def clear_active_marker(self) -> None:
+        try:
+            fd = os.open(self.marker, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+            with os.fdopen(fd, "rb") as stream:
+                info = os.fstat(stream.fileno())
+                if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                        or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != 0o600):
+                    return
+                value = stream.read(64)
+            if value == (self.nonce + "\n").encode("ascii"):
+                self.marker.unlink()
+        except (FileNotFoundError, OSError, UnicodeError):
+            return
 
     def finish(self, status: int = 0) -> bool:
         if self.done:
             return False
         self.done = True
         self.status = status
+        self.clear_active_marker()
         for source in list(self.sources):
             self.GLib.source_remove(source)
         self.sources.clear()
@@ -290,6 +328,7 @@ class Overlay:
             self.labels.append(countdown)
         for window in self.windows:
             window.show_all()
+        self.publish_active_marker()
         self.tick()
         self.sources.append(self.GLib.timeout_add(250, self.tick))
         self.GLib.idle_add(self.launch_apps)
@@ -319,8 +358,11 @@ def main(argv: list[str]) -> int:
     overlay = Overlay((Gdk, Gio, GLib, GLibUnix, Gtk, GtkLayerShell), argv[0], seconds)
     for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
         GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signum, lambda: overlay.finish(0))
-    overlay.prepare(display)
-    Gtk.main()
+    try:
+        overlay.prepare(display)
+        Gtk.main()
+    finally:
+        overlay.finish(overlay.status)
     return overlay.status
 
 

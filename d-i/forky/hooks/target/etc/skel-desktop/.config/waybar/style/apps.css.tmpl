@@ -86,11 +86,13 @@ window#waybar.external #taskbar button.active {
 }
 
 window#waybar.internal #taskbar button:hover {
-  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_SHADOW_COLOR__;
+  box-shadow: inset 0 0 0 2px __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_OUTLINE_COLOR__,
+              inset 0 0 8px 1px __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_SHADOW_COLOR__;
 }
 
 window#waybar.external #taskbar button:hover {
-  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_SHADOW_COLOR__;
+  box-shadow: inset 0 0 0 2px __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_OUTLINE_COLOR__,
+              inset 0 0 8px 1px __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_SHADOW_COLOR__;
 }
 
 #apps {
@@ -108,15 +110,25 @@ window#waybar.external #taskbar button:hover {
 }
 
 /* Waybar 0.15 latches PRELIGHT (:hover) on the group while its click drawer is
- * open. Use that group state so leaving the button keeps it bright and closing
- * the drawer restores normal colors even while the pointer stays on it. */
+ * open. Keep that active state separate from the leader's direct pointer hover
+ * so leaving the group preserves the open indication while closing it removes
+ * only the latched active colors. */
 #apps:hover #custom-apps,
-#apps.expanded #custom-apps {
+#apps.expanded #custom-apps,
+#custom-apps:hover {
   color: __THEME_WAYBAR_BUTTON_APPS_HOVER_ICON_COLOR__;
   background-color: __THEME_WAYBAR_BUTTON_APPS_HOVER_BACKGROUND_COLOR__;
   background-image: -gtk-recolor(url("../__THEME_WAYBAR_BUTTON_APPS_HOVER_ICON_PATH__"));
   border-color: __THEME_WAYBAR_BUTTON_APPS_HOVER_OUTLINE_COLOR__;
-  box-shadow: 0 0 8px 1px __THEME_WAYBAR_BUTTON_APPS_HOVER_SHADOW_COLOR__;
+  box-shadow: none;
+}
+
+/* The leader's real pointer state outranks the drawer's latched PRELIGHT.
+ * Brighten its fill and draw both effects inside the existing outline. */
+#apps #custom-apps:hover {
+  background-color: shade(__THEME_WAYBAR_BUTTON_APPS_HOVER_BACKGROUND_COLOR__, 1.18);
+  box-shadow: inset 0 0 0 2px __THEME_WAYBAR_BUTTON_APPS_HOVER_OUTLINE_COLOR__,
+              inset 0 0 8px 1px __THEME_WAYBAR_BUTTON_APPS_HOVER_SHADOW_COLOR__;
 }
 
 #custom-app-sleek:hover {
@@ -128,14 +140,16 @@ window#waybar.external #taskbar button:hover {
 }
 
 window#waybar.internal #custom-app-sleek:hover {
-  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_SLEEK_HOVER_SHADOW_COLOR__;
+  box-shadow: inset 0 0 0 2px __THEME_WAYBAR_BUTTON_SLEEK_HOVER_OUTLINE_COLOR__,
+              inset 0 0 8px 1px __THEME_WAYBAR_BUTTON_SLEEK_HOVER_SHADOW_COLOR__;
   min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_MIN_WIDTH__px;
   padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_PADDING_X__px;
   background-size: __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_ICON_SIZE__px __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_ICON_SIZE__px, __INSTALLER_LABWC_WAYBAR_INTERNAL_BACKGROUND_FILL_PERCENT__% __INSTALLER_LABWC_WAYBAR_INTERNAL_BACKGROUND_FILL_PERCENT__%;
 }
 
 window#waybar.external #custom-app-sleek:hover {
-  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_SLEEK_HOVER_SHADOW_COLOR__;
+  box-shadow: inset 0 0 0 2px __THEME_WAYBAR_BUTTON_SLEEK_HOVER_OUTLINE_COLOR__,
+              inset 0 0 8px 1px __THEME_WAYBAR_BUTTON_SLEEK_HOVER_SHADOW_COLOR__;
   min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_BUTTON_MIN_WIDTH__px;
   padding: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_BUTTON_PADDING_X__px;
   background-size: __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_ICON_SIZE__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_ICON_SIZE__px, __INSTALLER_LABWC_WAYBAR_EXTERNAL_BACKGROUND_FILL_PERCENT__% __INSTALLER_LABWC_WAYBAR_EXTERNAL_BACKGROUND_FILL_PERCENT__%;
@@ -147,11 +161,13 @@ window#waybar.external #custom-app-sleek:hover {
 }
 
 window#waybar.internal #custom-app-terminal:hover {
-  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TERMINAL_HOVER_SHADOW_COLOR__;
+  box-shadow: inset 0 0 0 2px __THEME_WAYBAR_BUTTON_TERMINAL_HOVER_OUTLINE_COLOR__,
+              inset 0 0 8px 1px __THEME_WAYBAR_BUTTON_TERMINAL_HOVER_SHADOW_COLOR__;
 }
 
 window#waybar.external #custom-app-terminal:hover {
-  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TERMINAL_HOVER_SHADOW_COLOR__;
+  box-shadow: inset 0 0 0 2px __THEME_WAYBAR_BUTTON_TERMINAL_HOVER_OUTLINE_COLOR__,
+              inset 0 0 8px 1px __THEME_WAYBAR_BUTTON_TERMINAL_HOVER_SHADOW_COLOR__;
 }
 
 #custom-app-files:hover {
@@ -160,11 +176,13 @@ window#waybar.external #custom-app-terminal:hover {
 }
 
 window#waybar.internal #custom-app-files:hover {
-  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_FILES_HOVER_SHADOW_COLOR__;
+  box-shadow: inset 0 0 0 2px __THEME_WAYBAR_BUTTON_FILES_HOVER_OUTLINE_COLOR__,
+              inset 0 0 8px 1px __THEME_WAYBAR_BUTTON_FILES_HOVER_SHADOW_COLOR__;
 }
 
 window#waybar.external #custom-app-files:hover {
-  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_FILES_HOVER_SHADOW_COLOR__;
+  box-shadow: inset 0 0 0 2px __THEME_WAYBAR_BUTTON_FILES_HOVER_OUTLINE_COLOR__,
+              inset 0 0 8px 1px __THEME_WAYBAR_BUTTON_FILES_HOVER_SHADOW_COLOR__;
 }
 
 #custom-app-tuta:hover {
@@ -173,11 +191,13 @@ window#waybar.external #custom-app-files:hover {
 }
 
 window#waybar.internal #custom-app-tuta:hover {
-  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TUTANOTA_HOVER_SHADOW_COLOR__;
+  box-shadow: inset 0 0 0 2px __THEME_WAYBAR_BUTTON_TUTANOTA_HOVER_OUTLINE_COLOR__,
+              inset 0 0 8px 1px __THEME_WAYBAR_BUTTON_TUTANOTA_HOVER_SHADOW_COLOR__;
 }
 
 window#waybar.external #custom-app-tuta:hover {
-  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TUTANOTA_HOVER_SHADOW_COLOR__;
+  box-shadow: inset 0 0 0 2px __THEME_WAYBAR_BUTTON_TUTANOTA_HOVER_OUTLINE_COLOR__,
+              inset 0 0 8px 1px __THEME_WAYBAR_BUTTON_TUTANOTA_HOVER_SHADOW_COLOR__;
 }
 
 #custom-app-notes:hover {
@@ -186,11 +206,13 @@ window#waybar.external #custom-app-tuta:hover {
 }
 
 window#waybar.internal #custom-app-notes:hover {
-  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_NOTES_HOVER_SHADOW_COLOR__;
+  box-shadow: inset 0 0 0 2px __THEME_WAYBAR_BUTTON_NOTES_HOVER_OUTLINE_COLOR__,
+              inset 0 0 8px 1px __THEME_WAYBAR_BUTTON_NOTES_HOVER_SHADOW_COLOR__;
 }
 
 window#waybar.external #custom-app-notes:hover {
-  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_NOTES_HOVER_SHADOW_COLOR__;
+  box-shadow: inset 0 0 0 2px __THEME_WAYBAR_BUTTON_NOTES_HOVER_OUTLINE_COLOR__,
+              inset 0 0 8px 1px __THEME_WAYBAR_BUTTON_NOTES_HOVER_SHADOW_COLOR__;
 }
 
 #taskbar button.minimized {
@@ -239,11 +261,4 @@ window#waybar.external #custom-app-sleek {
   background-position: center;
   background-repeat: no-repeat;
   background-size: __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_ICON_SIZE__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_ICON_SIZE__px, __INSTALLER_LABWC_WAYBAR_EXTERNAL_BACKGROUND_FILL_PERCENT__% __INSTALLER_LABWC_WAYBAR_EXTERNAL_BACKGROUND_FILL_PERCENT__%;
-}
-
-/* Keep the expanded Apps active colors and add a second hover highlight while
- * the drawer is revealed. The inset edge adds feedback without changing the
- * mapped active background, icon, or outline colors. */
-#apps.expanded:hover #custom-apps {
-  box-shadow: 0 0 8px 1px currentColor, inset 0 0 6px 1px currentColor;
 }

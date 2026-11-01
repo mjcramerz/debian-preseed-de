@@ -65,7 +65,7 @@
     {
       "name": "apps-close-pointer-remains",
       "inject": "Click the Apps leader again while its drawer is open; keep the pointer over the button.",
-      "expected": "The group PRELIGHT state clears and every Apps leader color returns to normal immediately; no independent leader-hover color keeps it bright."
+      "expected": "The group PRELIGHT state clears, the latched active colors are removed, and the Apps leader keeps only its direct pointer-hover outline/fill until the pointer leaves."
     },
     {
       "name": "apps-leader-event-conflict",
@@ -76,6 +76,16 @@
       "name": "fuzzel-dismisses-waybar-menu",
       "inject": "Open a Waybar GTK menu, then invoke a managed Fuzzel launcher from that menu or a hotkey.",
       "expected": "The launcher transfers focus directly to Fuzzel without requesting a Waybar service reload, so the existing bar process and surfaces remain in place without a refresh blink."
+    },
+    {
+      "name": "tomat-overlay-blocks-launcher-hotkeys",
+      "inject": "The Tomat layer-shell overlay publishes its private active marker while W-d, W-space, C-A-space, W-s, Super_L, or XF86Launch1 is pressed.",
+      "expected": "labwc-run, labwc-main-menu, and labwc-computer-management validate the owned marker and exit before dispatching Fuzzel; the marker is atomically removed by the owning overlay instance or its stop hook after the transient service has stopped."
+    },
+    {
+      "name": "tomat-overlay-calendar-agenda-regions",
+      "inject": "The Tomat overlay starts Calix and Agenda as separate managed session services.",
+      "expected": "Labwc applies native app-id window rules to snap Calix to the left 50% region and Agenda to the right 50% region, so both surfaces remain visible behind the overlay."
     },
     {
       "name": "greeter-enabled-head-without-layout",

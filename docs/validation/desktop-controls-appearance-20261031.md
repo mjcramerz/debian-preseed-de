@@ -19,6 +19,42 @@ The ordered path/content digest is
 (SHA-256 over sorted path + NUL + binary SHA-256 of each file).
 Pending CrowdSec/Tailscale enrollment is informational.
 
+## Continuation update — 2026-11-01
+
+The final profile geometry keeps every external Waybar height and font value at
+its pre-change value. Internal font sizes remain one pixel larger, while the
+internal heights remain one pixel below their external counterparts because the
+checked-in geometry contract rejects equal heights. Existing internal control
+padding and button geometry remain in force.
+
+Waybar hover and active colors now use semantic blue-teal, green, amber, coral
+and blue families instead of a single purple palette. The panel outline is a
+more visible blue-teal line; no outer panel shadow was added. Quick-control
+hover states share the System/Settings blue-teal treatment, and Apps, Taskview,
+Tomat, Wayscriber, workspaces and taskbar active states have distinct accents.
+
+The Tomat overlay publishes an owner-checked, atomically replaced
+`break-overlay.active` marker. `labwc-run`, `labwc-main-menu` and
+`labwc-computer-management` stop before opening Fuzzel while that marker is
+present. The overlay removes its own marker on every normal cleanup path, and
+the Tomat stop hook clears an owned stale marker only after the transient unit
+has stopped. Labwc regions and app-id window rules place Calix on the left half
+and Agenda on the right half of each usable output.
+
+The pure serializer rebuilt 1,936 payload members. The required changed-file
+audit passed with four changed Python sources, twelve shell sources, ten
+geometry profiles and two AppArmor files. No services, D-Bus, GUI, hardware,
+network, host policy or disposable environment were used. Current generated
+hashes are:
+
+- `payload.tar.gz`: `4dd7186b7ebda2c86ddeb4108153f9948b278d9e4d202cc36ab91ab93122f14b`
+- `payload.manifest`: `d353e5d04f82395f646f2476e5d792123f51460642a55581ac5e84d5865d5bdf`
+- `preseed.cfg`: `acfcae37650d98952c18ccb01f6e0ec004a0c612d4c2fb0bc38c83aef1117fd1`
+
+Target runtime behavior, including live Fuzzel suppression, window placement,
+Waybar rendering and DRM stability, remains unverified under the repository's
+static-only boundary.
+
 ## Implemented contracts, in requested order
 
 1. Internal panel height increases by 2 px, base font and icon sizes by 1 px,
@@ -70,12 +106,13 @@ Pending CrowdSec/Tailscale enrollment is informational.
 The Apps drawer keeps `click-to-reveal=true` and the `custom/apps` module as
 its first member, so Waybar owns the left-click toggle. Waybar 0.15 latches
 the group CSS node's `PRELIGHT` state while the drawer is open; the Apps leader
-now uses the group-state selector `#apps:hover #custom-apps` (with the newer
-`.expanded` compatibility selector). The standalone `#custom-apps:hover`
-bright rule was removed, so closing the drawer clears the active appearance
-even when the pointer remains over the leader. The installer verifier checks
-the drawer leader, event ownership and stylesheet state selector in both
-rendered output layouts.
+uses the group-state selector `#apps:hover #custom-apps` (with the newer
+`.expanded` compatibility selector). A direct `#custom-apps:hover` rule adds
+the same visible hover treatment when the pointer is over the leader, while
+the drawer's latched active state remains separate. Closing the drawer clears
+the active appearance but leaves the direct pointer-hover outline/fill until
+the pointer leaves. The installer verifier checks the drawer leader, event
+ownership and stylesheet state selector in both rendered output layouts.
 
 Crystal Dock icon limits increased by four pixels at both ends in every profile:
 standard profiles are now `54/84` (minimum/maximum), compact HP14 profiles are

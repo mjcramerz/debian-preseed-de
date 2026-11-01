@@ -1,6 +1,17 @@
 #!/bin/sh
 set -eu
 
+# The Tomat break surface owns the keyboard while its private marker exists.
+# Check before dispatching the configured launcher so compositor hotkeys cannot
+# open Fuzzel through this compatibility entry point during a break.
+case "${XDG_RUNTIME_DIR:-}" in
+  /run/user/[0-9]*)
+    if [ -f "$XDG_RUNTIME_DIR/labwc-tomat/break-overlay.active" ]; then
+      exit 0
+    fi
+    ;;
+esac
+
 if [ -r /etc/labwc/desktop.conf ]; then
   # shellcheck disable=SC1091
   . /etc/labwc/desktop.conf

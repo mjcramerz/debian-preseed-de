@@ -30,6 +30,7 @@ WLRCTL = "/usr/bin/wlrctl"
 OVERLAY = "/usr/local/libexec/labwc-tomat-overlay"
 OVERLAY_UNIT = "labwc-tomat-break-overlay.service"
 APPS_STATE = "break-apps.json"
+ACTIVE_MARKER = "break-overlay.active"
 MAX_CONFIG = 65_536
 MAX_OUTPUT = 16_384
 MAX_PLAYERS = 64
@@ -171,6 +172,18 @@ def clear_apps_state(path: Path) -> None:
     path.unlink()
 
 
+def clear_active_marker(path: Path) -> None:
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+            or info.st_mode & 0o077 or info.st_nlink != 1
+            or stat.S_IMODE(info.st_mode) != 0o600):
+        raise Error("unsafe Tomat overlay marker")
+    path.unlink()
+
+
 def publish_state(path: Path, players: list[str]) -> None:
     temporary = path.parent / f".break-media.{secrets.token_hex(12)}"
     fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
@@ -269,6 +282,7 @@ def stop_overlay(env: dict[str, str]) -> None:
     # transient unit was never loaded; that is an expected cleanup state.
     if result.returncode not in (0, 5):
         raise Error(f"break overlay service failed to stop ({result.returncode})")
+    clear_active_marker(Path(env["XDG_RUNTIME_DIR"]) / "labwc-tomat" / ACTIVE_MARKER)
 
 
 def stop_break_apps(env: dict[str, str], path: Path) -> None:

@@ -6,6 +6,8 @@ opens its own terminal interface through its dedicated entry point.
 """
 import json
 import os
+import re
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -14,6 +16,7 @@ SELF = '/usr/local/bin/labwc-computer-management'
 PICKER = '/usr/local/bin/labwc-fuzzel'
 LOG = '/usr/local/bin/labwc-fuzzel-log'
 HARDWARE = '/usr/local/bin/labwc-hardware-tuning'
+TOMAT_OVERLAY_MARKER_NAME = 'break-overlay.active'
 
 # Labels are presentation. Only these fixed argv vectors can be launched.
 MENUS = {
@@ -56,6 +59,34 @@ MENUS = {
         'Drives & Backups': ('labwc-external-drives',),
     },
 }
+
+
+def tomat_overlay_active() -> bool:
+    runtime_name = os.environ.get('XDG_RUNTIME_DIR', '')
+    if not re.fullmatch(r'/run/user/[0-9]+', runtime_name):
+        return False
+    runtime = Path(runtime_name)
+    try:
+        runtime_info = runtime.lstat()
+        if (not stat.S_ISDIR(runtime_info.st_mode) or runtime_info.st_uid != os.getuid()
+                or stat.S_IMODE(runtime_info.st_mode) != 0o700):
+            return False
+        directory = runtime / 'labwc-tomat'
+        directory_info = directory.lstat()
+        if (not stat.S_ISDIR(directory_info.st_mode) or directory_info.st_uid != os.getuid()
+                or stat.S_IMODE(directory_info.st_mode) != 0o700):
+            return False
+        descriptor = os.open(directory / TOMAT_OVERLAY_MARKER_NAME,
+                             os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        with os.fdopen(descriptor, 'rb') as stream:
+            info = os.fstat(stream.fileno())
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                    or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != 0o600):
+                return False
+            value = stream.read(64)
+        return bool(re.fullmatch(rb'[0-9a-f]{12}\n', value))
+    except (FileNotFoundError, OSError, UnicodeError):
+        return False
 
 
 def choose(labels: list[str], prompt: str) -> str | None:
@@ -135,6 +166,8 @@ def main(argv: list[str]) -> int:
         return 0
     if os.geteuid() == 0:
         raise ValueError('Computer Management must run as the desktop user')
+    if tomat_overlay_active():
+        return 0
     if argv not in ([], ['--graphical']):
         raise ValueError('usage: labwc-computer-management [--graphical|--catalog]')
     # These exports belong only to this process tree, never the user manager.

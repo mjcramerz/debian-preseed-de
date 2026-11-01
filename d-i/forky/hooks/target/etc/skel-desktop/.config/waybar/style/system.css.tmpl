@@ -15,6 +15,8 @@
 #quick-controls #bluetooth:hover {
   background: __THEME_WAYBAR_BUTTON_BLUETOOTH_HOVER_BACKGROUND_COLOR__;
   border-color: __THEME_WAYBAR_BUTTON_BLUETOOTH_HOVER_OUTLINE_COLOR__;
+  box-shadow: inset 0 0 0 2px __THEME_WAYBAR_BUTTON_BLUETOOTH_HOVER_OUTLINE_COLOR__,
+              inset 0 0 8px 1px __THEME_WAYBAR_BUTTON_BLUETOOTH_HOVER_OUTLINE_COLOR__;
 }
 
 #bluetooth {
@@ -43,6 +45,8 @@
 #quick-controls #custom-screenshot:hover {
   background: __THEME_WAYBAR_BUTTON_SCREENSHOT_HOVER_BACKGROUND_COLOR__;
   border-color: __THEME_WAYBAR_BUTTON_SCREENSHOT_HOVER_OUTLINE_COLOR__;
+  box-shadow: inset 0 0 0 2px __THEME_WAYBAR_BUTTON_SCREENSHOT_HOVER_OUTLINE_COLOR__,
+              inset 0 0 8px 1px __THEME_WAYBAR_BUTTON_SCREENSHOT_HOVER_OUTLINE_COLOR__;
 }
 
 #custom-screenshot {
@@ -100,22 +104,27 @@
 #quick-controls #custom-system:hover {
   background: __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_BACKGROUND_COLOR__;
   border-color: __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_OUTLINE_COLOR__;
+  box-shadow: inset 0 0 0 2px __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_OUTLINE_COLOR__,
+              inset 0 0 8px 1px __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_OUTLINE_COLOR__;
 }
 
 #quick-controls.expanded #custom-system {
   background: __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_BACKGROUND_COLOR__;
   border-color: __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_OUTLINE_COLOR__;
-  box-shadow: none;
 }
 
 #quick-controls #network:hover {
   background: __THEME_WAYBAR_BUTTON_NETWORK_HOVER_BACKGROUND_COLOR__;
   border-color: __THEME_WAYBAR_BUTTON_NETWORK_HOVER_OUTLINE_COLOR__;
+  box-shadow: inset 0 0 0 2px __THEME_WAYBAR_BUTTON_NETWORK_HOVER_OUTLINE_COLOR__,
+              inset 0 0 8px 1px __THEME_WAYBAR_BUTTON_NETWORK_HOVER_OUTLINE_COLOR__;
 }
 
 #quick-controls #custom-keyboard:hover {
   background: __THEME_WAYBAR_BUTTON_KEYBOARD_HOVER_BACKGROUND_COLOR__;
   border-color: __THEME_WAYBAR_BUTTON_KEYBOARD_HOVER_OUTLINE_COLOR__;
+  box-shadow: inset 0 0 0 2px __THEME_WAYBAR_BUTTON_KEYBOARD_HOVER_OUTLINE_COLOR__,
+              inset 0 0 8px 1px __THEME_WAYBAR_BUTTON_KEYBOARD_HOVER_OUTLINE_COLOR__;
 }
 
 #custom-keyboard {
@@ -160,4 +169,22 @@
 #quick-controls #custom-settings:hover {
   background: __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_BACKGROUND_COLOR__;
   border-color: __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_OUTLINE_COLOR__;
+  box-shadow: inset 0 0 0 2px __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_OUTLINE_COLOR__,
+              inset 0 0 8px 1px __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_OUTLINE_COLOR__;
+}
+
+/* One palette owns every quick-control hover. The child-specific rules above
+ * preserve each module's native state classes; this later rule keeps their
+ * visible fill and outline identical to System and Settings. */
+#quick-controls #network:hover,
+#quick-controls #bluetooth:hover,
+#quick-controls #custom-keyboard:hover,
+#quick-controls #custom-screenshot:hover,
+#quick-controls #custom-system:hover,
+#quick-controls #custom-settings:hover,
+#quick-controls.expanded #custom-system {
+  background: __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_OUTLINE_COLOR__;
+  box-shadow: inset 0 0 0 2px __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_OUTLINE_COLOR__,
+              inset 0 0 8px 1px __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_OUTLINE_COLOR__;
 }
