@@ -16,7 +16,7 @@
     },
     {
       "type": "paragraph",
-      "text": "User Git preferences live in ~/.gitconfig; repository settings live in .git/config. Repository hooks and build scripts can execute code. Inspect unfamiliar projects before running their commands."
+      "text": "Managed user Git preferences live in ~/.config/git/config; Git also supports ~/.gitconfig. Repository settings live in .git/config. Repository hooks and build scripts can execute code. Inspect unfamiliar projects before running their commands."
     },
     {
       "type": "heading",

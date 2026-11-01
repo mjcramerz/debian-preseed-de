@@ -139,7 +139,10 @@ def allowed(command: tuple[str, ...]) -> bool:
             ["--user", "stop", "whisper-transcribe.service"],
         )
     if executable == "/usr/bin/wpctl":
-        return arguments == ["set-volume", "@DEFAULT_AUDIO_SINK@", "40%", "--limit", "1.2"]
+        return (len(arguments) == 5
+                and arguments[:2] == ["set-volume", "@DEFAULT_AUDIO_SINK@"]
+                and arguments[2] in {"25%", "45%", "65%", "85%", "100%"}
+                and arguments[3:] == ["--limit", "1.0"])
     return False
 
 

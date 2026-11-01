@@ -40,6 +40,47 @@ state = load_module("labwc_help.state")
 
 
 class HelpPureBehavior(unittest.TestCase):
+    def test_invalid_decorative_icon_is_removed_before_gtk_consumption(self):
+        item = {'title': 'Guide', 'icon': ['invalid'], 'order': 0}
+        catalog.Catalog._metadata(item)
+        self.assertEqual(item['icon'], '')
+
+    def test_removed_history_entries_preserve_the_selected_guide(self):
+        value = state.sanitize({
+            'version': 1,
+            'history': [['deleted.topic', 1], ['desktop.labwc', 2], ['desktop.waybar', 3]],
+            'history_position': 1,
+        }, {'desktop.labwc', 'desktop.waybar'})
+        self.assertEqual(value['history'], [['desktop.labwc', 2], ['desktop.waybar', 3]])
+        self.assertEqual(value['history_position'], 0)
+
+    def test_cleanup_failure_retains_private_evidence_and_closes_mock_descriptors(self):
+        # All syscalls are mocked. These numbers never name real descriptors,
+        # and this fixture never opens a directory, HOME or host state file.
+        store = state.StateStore.__new__(state.StateStore)
+        store.valid = {'desktop.labwc'}
+        store.directory = Path('/owned-fixture/state')
+        store.data = state.sanitize({'version': 1}, store.valid)
+        store.error = ''
+        stream = mock.MagicMock()
+        stream.__enter__.return_value.fileno.return_value = 12
+        with mock.patch.object(store, '_parents'), \
+                mock.patch.object(store, '_private'), \
+                mock.patch.object(state.secrets, 'token_hex', return_value='a' * 24), \
+                mock.patch.object(state.os, 'open', side_effect=[10, 11, 12]), \
+                mock.patch.object(state.os, 'fstat', return_value=object()), \
+                mock.patch.object(state.os, 'stat', side_effect=FileNotFoundError), \
+                mock.patch.object(state.os, 'fdopen', return_value=stream), \
+                mock.patch.object(state.os, 'fsync'), \
+                mock.patch.object(state.fcntl, 'flock'), \
+                mock.patch.object(state.os, 'replace', side_effect=OSError), \
+                mock.patch.object(state.os, 'unlink', side_effect=OSError) as unlink, \
+                mock.patch.object(state.os, 'close') as close:
+            self.assertFalse(store.save())
+        unlink.assert_called_once_with('.state-' + 'a' * 24, dir_fd=10)
+        self.assertEqual(close.call_args_list, [mock.call(11), mock.call(10)])
+        self.assertIn('Private recovery evidence was retained', store.error)
+
     def test_navigation_history_is_bounded_and_preserves_position(self):
         history = navigation.History()
         for index in range(140):
@@ -82,7 +123,11 @@ class HelpPureBehavior(unittest.TestCase):
     def test_state_sanitizes_deleted_topics_and_publishes_atomically(self):
         with TemporaryDirectory() as temporary:
             home = Path(temporary)
-            with mock.patch.object(state.Path, "home", return_value=home):
+            # Construct only the owned fixture directory; production parent
+            # checks must not walk the actual host's HOME or ancestors here.
+            with mock.patch.object(state.Path, "home", return_value=home), \
+                    mock.patch.object(state.StateStore, '_parents',
+                                      side_effect=lambda: (home / 'state').mkdir(mode=0o700, exist_ok=True)):
                 store = state.StateStore({"desktop.labwc"}, directory=home / "state")
                 store.data["bookmarks"] = ["desktop.labwc", "deleted.topic"]
                 store.data["recents"] = ["deleted.topic", "desktop.labwc"]

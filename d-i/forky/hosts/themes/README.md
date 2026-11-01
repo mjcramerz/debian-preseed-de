@@ -156,13 +156,15 @@ or treat it as shell syntax. The archive selection retains its bounded,
 traversal-safe extraction. GTK and Qt selections continue through their native
 settings rather than the `GTK_THEME` debugging override.
 
-From the repository root, run:
+From the repository root, permitted generation and the changed-file static audit are:
 
 ```sh
 make build
-make check
-make test
+python3 -B tools/post_change_check.py
 ```
+
+Tests and other validation runners remain unexecuted under the repository's
+static-only policy; see `../../../../docs/test-isolation.md`.
 
 `tools/check_themes.py` also checks naming, reference coverage and the complete
 profile geometry contract. The production AWK validator remains authoritative
@@ -183,9 +185,28 @@ its recording state has the corresponding `RECORDING` pair. Mixed labels keep
 their text outside the icon's foreground span. Native dropdown/submenu icon
 palettes remain distinct from their label palettes.
 
-The 56 management fzf glyph colors default to `inherit`, which preserves native
-normal, matching and selected-row colors. A literal `#rrggbb` overrides only
-the associated glyph. No other ANSI text or fzf action is accepted as a color.
+Management menus use the existing Fuzzel theme icon names. The obsolete fzf
+management glyph/color inputs have no consumers and are removed. The Help list
+marker is ordinary article text and inherits its foreground.
+
+Native Waybar GTK popup rows use regular theme icons; `regular-icon` rejects
+glyphs, paths and names ending in `-symbolic`. A regular icon name alone does
+not guarantee colored artwork: Papirus-Dark also has monochrome action and
+status icons. All native Waybar GTK popups select the already packaged Oxygen
+icon theme, including every submenu. Their defaults retain regular action names
+and use colored artwork from Debian Oxygen 6.30.0 at the 16/22 px lookup sizes
+around the shared 18 px menu size. Bar glyphs and the separate Wayscriber tray
+theme remain unchanged. When replacing an icon, inspect its pixels or painted
+paths at the requested size; unused color declarations in an SVG do not
+establish colored artwork.
+The Audio Volume Presets submenu provides 25%, 45%, 65%, 85% and 100%; its
+fixed commands retain the transient wrapper and an explicit 100% limit.
+The Tomat `[display.icons]` table
+feeds Waybar status text, so it retains the button glyphs; popup artwork lives in
+`waybar/gtk/tomat-menu.xml`. Wayscriber defaults to `colored` tray icons. Its
+`wayscriber-icon-style` grammar accepts only the native `auto`, `symbolic` and
+`colored` choices. TOML permits an inline `#` comment after a quoted value; theme
+`.env` files retain their stricter literal-only grammar.
 
 Theme artwork and app-supplied pixels are not universally recolorable. In
 particular, Waybar taskbar images do not support a CSS foreground tint. The

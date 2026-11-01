@@ -26,6 +26,19 @@
     {
       "type": "paragraph",
       "text": "Tomat notification, sound and overlay settings are session preferences. If a break is not visible, check the Waybar status and the notification quiet mode before starting another session. Do not run a second timer daemon to work around a missing notification."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Presets and break behavior"
+    },
+    {
+      "type": "paragraph",
+      "text": "Start session offers the configured default or a duration preset. Presets change work and short-break duration while retaining the configured long break and session count. Settings exposes notification, sound and break-overlay switches. Open config edits ~/.config/tomat/config.toml; keep valid TOML and the managed hook commands."
+    },
+    {
+      "type": "paragraph",
+      "text": "A managed break can cover the desktop, pause currently playing MPRIS media, and open the managed Calendar and Agenda for the break duration. Ending, stopping or skipping the break releases its overlay and break-owned windows. Media is not automatically resumed. Use the visible Stop action to end a session before troubleshooting its configuration."
     }
   ]
 }

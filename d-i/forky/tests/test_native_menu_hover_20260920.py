@@ -118,10 +118,10 @@ class NativeMenuHoverTests(unittest.TestCase):
                             self.assertEqual(argv[:argv.index('--')], ['/usr/local/libexec/labwc-waybar-run'])
                             self.assertNotIn('fixture', argv)
                             count += 1
-        # The current five menus contain 43 leaf actions per bar. Keep this
-        # count aligned with test_native_menu_contract_20260920.py's 82 total
+        # The current native menus contain 47 leaf actions per bar. Keep this
+        # count aligned with test_native_menu_contract_20260920.py's 108 total
         # action contract.
-        self.assertEqual(count, len(self.profiles) * 2 * 43)
+        self.assertEqual(count, len(self.profiles) * 2 * 47)
 
     def test_every_action_has_the_intended_backend_not_just_an_existing_id(self):
         expected = {
@@ -150,7 +150,9 @@ class NativeMenuHoverTests(unittest.TestCase):
             'audio_open': ['pavucontrol'],
             'audio_mute': ['/usr/bin/wpctl', 'set-mute', '@DEFAULT_AUDIO_SINK@', 'toggle'],
             'audio_mic': ['/usr/bin/wpctl', 'set-mute', '@DEFAULT_AUDIO_SOURCE@', 'toggle'],
-            'audio_40': ['/usr/bin/wpctl', 'set-volume', '@DEFAULT_AUDIO_SINK@', '40%', '--limit', '1.2'],
+            **{f'audio_{level}': ['/usr/bin/wpctl', 'set-volume', '@DEFAULT_AUDIO_SINK@',
+                                f'{level}%', '--limit', '1.0']
+               for level in (25, 45, 65, 85, 100)},
             'whisper_record': ['/usr/local/libexec/whisper-record-toggle', 'start'],
             'whisper_transcribe': ['/usr/bin/systemctl', '--user', '--no-block', 'start', 'whisper-transcribe.service'],
             'whisper_stop': ['/usr/local/libexec/whisper-record-toggle', 'stop'],

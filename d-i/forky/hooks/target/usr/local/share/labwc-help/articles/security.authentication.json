@@ -27,6 +27,19 @@
     {
       "type": "paragraph",
       "text": "If an authentication agent is unavailable, save work and inspect the session logs. Do not launch the entire GUI with sudo or broaden passwordless authorization. For exposed credentials, revoke or rotate them through their owning service."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Separate reading from administration"
+    },
+    {
+      "type": "paragraph",
+      "text": "Opening a Help guide, searching it and copying text do not authorize the documented operation. A command remains inert until you run it separately. Administrative prompts should identify the operation you deliberately selected in a management tool; cancel a prompt you did not request."
+    },
+    {
+      "type": "paragraph",
+      "text": "A copy button places text on the desktop clipboard. Other applications in the same session may be able to read clipboard content. Never use the manual or a diagnostic report to hold a private key, recovery phrase or password. Use the approved password/key manager and its own recovery workflow."
     }
   ]
 }

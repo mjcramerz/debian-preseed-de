@@ -3,7 +3,7 @@
   "blocks": [
     {
       "type": "paragraph",
-      "text": "The installer maintains nftables rules and application-specific network isolation. Computer Management provides Protection & Firewall. A normal application, a VPN and a managed browser namespace may follow different policies."
+      "text": "The installer maintains nftables rules and application-specific network isolation. Computer Management → Security & Accounts provides Protection & Firewall. A normal application, a VPN and a managed browser namespace may follow different policies."
     },
     {
       "type": "heading",

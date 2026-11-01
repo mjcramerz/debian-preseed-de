@@ -7,80 +7,368 @@
     <property name="reserve-toggle-size">False</property>
     <child>
       <object class="GtkMenuItem" id="wayscriber_open">
-        <property name="label">Open Wayscriber</property>
         <property name="visible">True</property>
+        <child>
+          <object class="GtkBox">
+            <property name="visible">True</property>
+            <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+            <property name="orientation">horizontal</property>
+            <child>
+              <object class="GtkImage">
+                <property name="visible">True</property>
+                <property name="icon-name">__THEME_WAYBAR_DROPDOWN_WAYSCRIBER_OPEN_ICON_NAME__</property>
+                <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                <property name="use-fallback">True</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="label">Open Wayscriber</property>
+                <property name="xalign">0</property>
+                <property name="hexpand">True</property>
+              </object>
+            </child>
+          </object>
+        </child>
       </object>
     </child>
     <child>
       <object class="GtkMenuItem" id="wayscriber_read_only">
-        <property name="label">Open Wayscriber (read-only)</property>
         <property name="tooltip-text">Open the light passthrough overlay so input reaches the application below.</property>
         <property name="visible">True</property>
+        <child>
+          <object class="GtkBox">
+            <property name="visible">True</property>
+            <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+            <property name="orientation">horizontal</property>
+            <child>
+              <object class="GtkImage">
+                <property name="visible">True</property>
+                <property name="icon-name">__THEME_WAYBAR_DROPDOWN_WAYSCRIBER_READ_ONLY_ICON_NAME__</property>
+                <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                <property name="use-fallback">True</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="label">Open Wayscriber (read-only)</property>
+                <property name="xalign">0</property>
+                <property name="hexpand">True</property>
+              </object>
+            </child>
+          </object>
+        </child>
       </object>
     </child>
     <child>
       <object class="GtkMenuItem" id="wayscriber_freeze">
-        <property name="label">Open Wayscriber (freeze)</property>
+        <property name="visible">True</property>
+        <child>
+          <object class="GtkBox">
+            <property name="visible">True</property>
+            <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+            <property name="orientation">horizontal</property>
+            <child>
+              <object class="GtkImage">
+                <property name="visible">True</property>
+                <property name="icon-name">__THEME_WAYBAR_DROPDOWN_WAYSCRIBER_FREEZE_ICON_NAME__</property>
+                <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                <property name="use-fallback">True</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="label">Open Wayscriber (freeze)</property>
+                <property name="xalign">0</property>
+                <property name="hexpand">True</property>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem">
         <property name="visible">True</property>
       </object>
     </child>
-    <child><object class="GtkSeparatorMenuItem"><property name="visible">True</property></object></child>
     <child>
       <object class="GtkMenuItem" id="wayscriber_toggle">
-        <property name="label">Show / hide overlay</property>
         <property name="visible">True</property>
+        <child>
+          <object class="GtkBox">
+            <property name="visible">True</property>
+            <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+            <property name="orientation">horizontal</property>
+            <child>
+              <object class="GtkImage">
+                <property name="visible">True</property>
+                <property name="icon-name">__THEME_WAYBAR_DROPDOWN_WAYSCRIBER_TOGGLE_ICON_NAME__</property>
+                <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                <property name="use-fallback">True</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="label">Show / hide overlay</property>
+                <property name="xalign">0</property>
+                <property name="hexpand">True</property>
+              </object>
+            </child>
+          </object>
+        </child>
       </object>
     </child>
     <child>
       <object class="GtkMenuItem" id="wayscriber_light_draw">
-        <property name="label">Toggle light drawing</property>
         <property name="visible">True</property>
+        <child>
+          <object class="GtkBox">
+            <property name="visible">True</property>
+            <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+            <property name="orientation">horizontal</property>
+            <child>
+              <object class="GtkImage">
+                <property name="visible">True</property>
+                <property name="icon-name">__THEME_WAYBAR_DROPDOWN_WAYSCRIBER_LIGHT_DRAW_ICON_NAME__</property>
+                <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                <property name="use-fallback">True</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="label">Toggle light drawing</property>
+                <property name="xalign">0</property>
+                <property name="hexpand">True</property>
+              </object>
+            </child>
+          </object>
+        </child>
       </object>
     </child>
     <child>
       <object class="GtkMenuItem" id="wayscriber_session_info">
-        <property name="label">Session information</property>
+        <property name="visible">True</property>
+        <child>
+          <object class="GtkBox">
+            <property name="visible">True</property>
+            <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+            <property name="orientation">horizontal</property>
+            <child>
+              <object class="GtkImage">
+                <property name="visible">True</property>
+                <property name="icon-name">__THEME_WAYBAR_DROPDOWN_WAYSCRIBER_SESSION_INFO_ICON_NAME__</property>
+                <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                <property name="use-fallback">True</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="label">Session information</property>
+                <property name="xalign">0</property>
+                <property name="hexpand">True</property>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem">
         <property name="visible">True</property>
       </object>
     </child>
-    <child><object class="GtkSeparatorMenuItem"><property name="visible">True</property></object></child>
     <child>
       <object class="GtkMenuItem">
-        <property name="label">Settings</property>
         <property name="visible">True</property>
+        <child>
+          <object class="GtkBox">
+            <property name="visible">True</property>
+            <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+            <property name="orientation">horizontal</property>
+            <child>
+              <object class="GtkImage">
+                <property name="visible">True</property>
+                <property name="icon-name">__THEME_WAYBAR_DROPDOWN_WAYSCRIBER_SETTINGS_ICON_NAME__</property>
+                <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                <property name="use-fallback">True</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="label">Settings</property>
+                <property name="xalign">0</property>
+                <property name="hexpand">True</property>
+              </object>
+            </child>
+          </object>
+        </child>
         <child type="submenu">
           <object class="GtkMenu">
             <property name="accel-group">menu_accel_group</property>
             <property name="reserve-toggle-size">False</property>
             <child>
               <object class="GtkMenuItem" id="wayscriber_open_config">
-                <property name="label">Open config</property>
                 <property name="visible">True</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+                    <property name="orientation">horizontal</property>
+                    <child>
+                      <object class="GtkImage">
+                        <property name="visible">True</property>
+                        <property name="icon-name">__THEME_WAYBAR_DROPDOWN_WAYSCRIBER_CONFIG_ICON_NAME__</property>
+                        <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                        <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                        <property name="use-fallback">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="label">Open config</property>
+                        <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
               </object>
             </child>
             <child>
               <object class="GtkMenuItem" id="wayscriber_about">
-                <property name="label">About Wayscriber</property>
                 <property name="visible">True</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+                    <property name="orientation">horizontal</property>
+                    <child>
+                      <object class="GtkImage">
+                        <property name="visible">True</property>
+                        <property name="icon-name">__THEME_WAYBAR_DROPDOWN_WAYSCRIBER_ABOUT_ICON_NAME__</property>
+                        <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                        <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                        <property name="use-fallback">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="label">About Wayscriber</property>
+                        <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
               </object>
             </child>
             <child>
               <object class="GtkMenuItem" id="wayscriber_languages">
-                <property name="label">List languages</property>
+                <property name="visible">True</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+                    <property name="orientation">horizontal</property>
+                    <child>
+                      <object class="GtkImage">
+                        <property name="visible">True</property>
+                        <property name="icon-name">__THEME_WAYBAR_DROPDOWN_WAYSCRIBER_LANGUAGES_ICON_NAME__</property>
+                        <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                        <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                        <property name="use-fallback">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="label">List languages</property>
+                        <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkSeparatorMenuItem">
                 <property name="visible">True</property>
               </object>
             </child>
-            <child><object class="GtkSeparatorMenuItem"><property name="visible">True</property></object></child>
             <child>
               <object class="GtkMenuItem" id="wayscriber_clear_tool_state">
-                <property name="label">Clear tool settings</property>
                 <property name="visible">True</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+                    <property name="orientation">horizontal</property>
+                    <child>
+                      <object class="GtkImage">
+                        <property name="visible">True</property>
+                        <property name="icon-name">__THEME_WAYBAR_DROPDOWN_WAYSCRIBER_CLEAR_TOOL_STATE_ICON_NAME__</property>
+                        <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                        <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                        <property name="use-fallback">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="label">Clear tool settings</property>
+                        <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
               </object>
             </child>
             <child>
               <object class="GtkMenuItem" id="wayscriber_clear_session">
-                <property name="label">Clear saved session</property>
                 <property name="visible">True</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="spacing">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ROW_SPACING__</property>
+                    <property name="orientation">horizontal</property>
+                    <child>
+                      <object class="GtkImage">
+                        <property name="visible">True</property>
+                        <property name="icon-name">__THEME_WAYBAR_DROPDOWN_WAYSCRIBER_CLEAR_SESSION_ICON_NAME__</property>
+                        <property name="pixel-size">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_SIZE__</property>
+                        <property name="width-request">__INSTALLER_LABWC_WAYBAR_SHARED_MENU_ICON_WIDTH__</property>
+                        <property name="use-fallback">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="label">Clear saved session</property>
+                        <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
               </object>
             </child>
           </object>

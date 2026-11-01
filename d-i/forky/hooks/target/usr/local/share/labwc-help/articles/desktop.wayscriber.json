@@ -26,6 +26,19 @@
     {
       "type": "code",
       "text": "systemctl --user status wayscriber.service --no-pager"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Choose the intended input mode"
+    },
+    {
+      "type": "paragraph",
+      "text": "Normal annotation receives drawing input. Read-only uses the light passthrough overlay so input reaches the application below; freeze is a separate mode. Show / hide and Toggle light drawing are distinct operations. Use Session information to review the current state before clearing saved session or tool settings."
+    },
+    {
+      "type": "paragraph",
+      "text": "Settings → Open config uses the managed terminal editor for ~/.config/wayscriber/config.toml. The [tray] icon_style value is colored in the shipped configuration. Inline # comments outside strings are valid TOML. Tray style changes take effect after restarting the daemon. Save annotations and close the editor before deliberately restarting the owning wayscriber.service user service; Help never restarts it for you."
     }
   ]
 }

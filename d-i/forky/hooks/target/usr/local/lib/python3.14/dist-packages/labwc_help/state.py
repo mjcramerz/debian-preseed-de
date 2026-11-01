@@ -44,16 +44,19 @@ def sanitize(data, valid: set[str]) -> dict:
     history = data.get('history', [])
     if not isinstance(history, list) or len(history) > 100:
         raise ValueError('Invalid Help history')
-    for item in history:
+    position = data.get('history_position', -1)
+    if type(position) is not int:
+        raise ValueError('Invalid Help history position')
+    retained_position = -1
+    for index, item in enumerate(history):
         if (not isinstance(item, list) or len(item) != 2 or not isinstance(item[0], str)
                 or type(item[1]) not in (int, float) or not math.isfinite(item[1]) or not 0 <= item[1] <= 1_000_000):
             raise ValueError('Invalid Help reading position')
         if item[0] == '' or item[0] in valid:
             result['history'].append(list(item))
-    position = data.get('history_position', -1)
-    if type(position) is not int:
-        raise ValueError('Invalid Help history position')
-    result['history_position'] = min(max(-1, position), len(result['history']) - 1)
+            if index <= position:
+                retained_position = len(result['history']) - 1
+    result['history_position'] = retained_position
     return result
 
 
@@ -138,7 +141,10 @@ class StateStore:
         finally:
             # Only this call's unpredictable, owned temporary name is removed.
             if created and directory_fd is not None:
-                os.unlink(temporary, dir_fd=directory_fd)
+                try:
+                    os.unlink(temporary, dir_fd=directory_fd)
+                except OSError:
+                    self.error = 'Preferences cleanup failed. Private recovery evidence was retained.'
             if lock is not None:
                 os.close(lock)
             if directory_fd is not None:

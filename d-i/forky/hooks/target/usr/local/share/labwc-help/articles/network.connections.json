@@ -26,6 +26,19 @@
     {
       "type": "paragraph",
       "text": "Managed files live under /etc/NetworkManager/. Connection secrets require protected storage and administrator authority. If connectivity fails, follow [Network troubleshooting](help:troubleshooting.network) before changing interfaces or firewall rules."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Connection profiles and passwords"
+    },
+    {
+      "type": "paragraph",
+      "text": "Connection Profiles lists the available NetworkManager profiles. Select the intended saved connection and verify its device before activating or disconnecting it. Wi-Fi credentials belong in the existing protected configuration workflow, never in an article, screenshot, copied command or public report."
+    },
+    {
+      "type": "paragraph",
+      "text": "Changing an active connection can interrupt remote sessions and mounted shares. Save network-dependent work first. If a link is connected but an application fails, compare the VPN, DNS and that application’s network policy using [Network troubleshooting](help:troubleshooting.network). Do not replace routes while another tool owns them."
     }
   ]
 }

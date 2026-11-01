@@ -330,8 +330,10 @@ class HelpWindow(Adw.ApplicationWindow):
             return
         if record_scroll:
             self.history.remember(self.article_scroll.get_vadjustment().get_value())
-        self.state.data['history'] = [[t, p] for t, p in self.history.entries if not t or t in self.catalog.articles]
-        self.state.data['history_position'] = min(self.history.position, len(self.state.data['history']) - 1)
+        # StateStore filters unavailable topics and remaps this original index
+        # together; filtering here would point the cursor at a different guide.
+        self.state.data['history'] = [[t, p] for t, p in self.history.entries]
+        self.state.data['history_position'] = self.history.position
         # The allocated size records user resizing; default_size remains the
         # construction request and does not describe the current window.
         width, height = ((self.get_width(), self.get_height()) if not self.is_maximized()
@@ -406,6 +408,8 @@ class HelpWindow(Adw.ApplicationWindow):
             self.state.data['recents'] = []
             self.state.data['last_topic'] = ''
             self.history = History()
+            self.back_button.set_sensitive(False)
+            self.forward_button.set_sensitive(False)
             self.persist()
             self.notify('Reading history cleared')
         clear_button.connect('clicked', clear_history)

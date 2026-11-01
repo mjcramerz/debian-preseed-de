@@ -26,6 +26,19 @@
     {
       "type": "paragraph",
       "text": "If a mode produces a black screen, use another working display or sign out normally where possible. Record connector and mode details before changing policy. A DRM 'Device or resource busy' message alone does not identify the cause; do not apply global graphics workarounds without target evidence."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Make one display change at a time"
+    },
+    {
+      "type": "paragraph",
+      "text": "Record the current connector, resolution, refresh rate and scale before changing them. Choose only modes advertised for that output; inspect the full width × height and refresh rate instead of assuming two similarly named modes are identical. Keep a working keyboard and display available."
+    },
+    {
+      "type": "paragraph",
+      "text": "A manual display adjustment and the managed output policy are separate. If an arrangement changes after reconnecting a monitor or signing in, record when it changes and inspect the selected host policy. Do not disable the output watcher or add global graphics flags before identifying the owning setting."
     }
   ]
 }

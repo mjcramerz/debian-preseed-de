@@ -203,6 +203,7 @@ run_desktop_late_command() {
   desktop_install_waypaper
   desktop_log "installed pinned Waypaper application for ${ACCOUNT_USERNAME}"
   desktop_verify_appearance_assets
+  desktop_verify_runtime_contracts with-account
   desktop_enable_target_services
   desktop_log "staged Labwc desktop service enablement"
   desktop_install_codex_standalone

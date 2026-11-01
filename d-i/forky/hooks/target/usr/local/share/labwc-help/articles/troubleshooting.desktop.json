@@ -3,7 +3,7 @@
   "blocks": [
     {
       "type": "paragraph",
-      "text": "Identify which part failed: login screen, Labwc, Waybar, dock, launcher or one application. Keep work saved. Use Help's optional system information view for bounded status evidence, then inspect the relevant guide."
+      "text": "Identify which part failed: login screen, Labwc, Waybar, dock, launcher or one application. Keep work saved. Help only displays the offline manual. Open the appropriate management status view separately, then inspect the related guide."
     },
     {
       "type": "code",

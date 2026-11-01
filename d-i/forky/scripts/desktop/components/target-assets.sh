@@ -112,7 +112,7 @@ desktop_stage_help() (
     desktop_stage_role_asset "$path" "/$path" 0644
   done
   for article in \
-    start.first-login start.shortcuts desktop.labwc desktop.waybar desktop.fuzzel \
+    start.help start.first-login start.shortcuts desktop.labwc desktop.waybar desktop.fuzzel \
     desktop.mako desktop.dock desktop.appearance desktop.calendar desktop.tomat \
     desktop.wayscriber hardware.monitors \
     hardware.gpu hardware.nvidia hardware.peripherals hardware.power network.connections \

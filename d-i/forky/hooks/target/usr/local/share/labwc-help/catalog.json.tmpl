@@ -48,21 +48,39 @@
       "title": "System Maintenance",
       "icon": "__THEME_LABWC_HELP_CATEGORY_MAINTENANCE_ICON_NAME__",
       "order": 7
-    },
-    {
-      "id": "troubleshooting",
-      "title": "Troubleshooting",
-      "icon": "__THEME_LABWC_HELP_CATEGORY_TROUBLESHOOTING_ICON_NAME__",
-      "order": 8
     }
   ],
   "featured": [
+    "start.help",
     "start.first-login",
     "start.shortcuts",
     "desktop.labwc",
     "maintenance.management"
   ],
   "articles": [
+    {
+      "id": "start.help",
+      "category": "getting-started",
+      "title": "Using the offline Help manual",
+      "summary": "Browse guides, search, copy safely, and manage private reading preferences.",
+      "related": [
+        "start.first-login",
+        "start.shortcuts",
+        "maintenance.logs"
+      ],
+      "keywords": [
+        "help",
+        "offline",
+        "manual",
+        "search",
+        "bookmarks",
+        "preferences"
+      ],
+      "order": 0,
+      "icon": "__THEME_LABWC_HELP_CATEGORY_GETTING_STARTED_ICON_NAME__",
+      "file": "articles/start.help.json",
+      "updated": "2026-11-01"
+    },
     {
       "id": "start.first-login",
       "category": "getting-started",
@@ -79,7 +97,7 @@
         "login",
         "getting-started"
       ],
-      "order": 0,
+      "order": 1,
       "icon": "__THEME_LABWC_HELP_CATEGORY_GETTING_STARTED_ICON_NAME__",
       "file": "articles/start.first-login.json",
       "updated": "2026-11-01"
@@ -98,7 +116,7 @@
         "shortcuts",
         "getting-started"
       ],
-      "order": 1,
+      "order": 2,
       "icon": "__THEME_LABWC_HELP_CATEGORY_GETTING_STARTED_ICON_NAME__",
       "file": "articles/start.shortcuts.json",
       "updated": "2026-11-01"
@@ -117,10 +135,9 @@
         "labwc",
         "and",
         "desktop",
-        "basics",
-        "desktop"
+        "basics"
       ],
-      "order": 2,
+      "order": 3,
       "icon": "__THEME_LABWC_HELP_CATEGORY_DESKTOP_ICON_NAME__",
       "file": "articles/desktop.labwc.json",
       "updated": "2026-11-01"
@@ -142,7 +159,7 @@
         "menus",
         "desktop"
       ],
-      "order": 3,
+      "order": 4,
       "icon": "__THEME_LABWC_HELP_CATEGORY_DESKTOP_ICON_NAME__",
       "file": "articles/desktop.waybar.json",
       "updated": "2026-11-01"
@@ -163,7 +180,7 @@
         "launcher",
         "desktop"
       ],
-      "order": 4,
+      "order": 5,
       "icon": "__THEME_LABWC_HELP_CATEGORY_DESKTOP_ICON_NAME__",
       "file": "articles/desktop.fuzzel.json",
       "updated": "2026-11-01"
@@ -183,7 +200,7 @@
         "notifications",
         "desktop"
       ],
-      "order": 5,
+      "order": 6,
       "icon": "__THEME_LABWC_HELP_CATEGORY_DESKTOP_ICON_NAME__",
       "file": "articles/desktop.mako.json",
       "updated": "2026-11-01"
@@ -202,7 +219,7 @@
         "dock",
         "desktop"
       ],
-      "order": 6,
+      "order": 7,
       "icon": "__THEME_LABWC_HELP_CATEGORY_DESKTOP_ICON_NAME__",
       "file": "articles/desktop.dock.json",
       "updated": "2026-11-01"
@@ -219,10 +236,9 @@
       ],
       "keywords": [
         "desktop",
-        "appearance",
-        "desktop"
+        "appearance"
       ],
-      "order": 7,
+      "order": 8,
       "icon": "__THEME_LABWC_HELP_CATEGORY_DESKTOP_ICON_NAME__",
       "file": "articles/desktop.appearance.json",
       "updated": "2026-11-01"
@@ -243,7 +259,7 @@
         "reminders",
         "desktop"
       ],
-      "order": 8,
+      "order": 9,
       "icon": "__THEME_LABWC_HELP_CATEGORY_DESKTOP_ICON_NAME__",
       "file": "articles/desktop.calendar.json",
       "updated": "2026-11-01"
@@ -266,7 +282,7 @@
         "overlay",
         "desktop"
       ],
-      "order": 9,
+      "order": 10,
       "icon": "__THEME_LABWC_HELP_CATEGORY_DESKTOP_ICON_NAME__",
       "file": "articles/desktop.tomat.json",
       "updated": "2026-11-01"
@@ -289,9 +305,29 @@
         "wayland",
         "desktop"
       ],
-      "order": 10,
+      "order": 11,
       "icon": "__THEME_LABWC_HELP_CATEGORY_DESKTOP_ICON_NAME__",
       "file": "articles/desktop.wayscriber.json",
+      "updated": "2026-11-01"
+    },
+    {
+      "id": "troubleshooting.desktop",
+      "category": "desktop",
+      "title": "Desktop session troubleshooting",
+      "summary": "Diagnose a missing bar, dock, or session component.",
+      "related": [
+        "desktop.labwc",
+        "desktop.waybar",
+        "maintenance.logs"
+      ],
+      "keywords": [
+        "desktop",
+        "session",
+        "troubleshooting"
+      ],
+      "order": 38,
+      "icon": "__THEME_LABWC_HELP_CATEGORY_DESKTOP_ICON_NAME__",
+      "file": "articles/troubleshooting.desktop.json",
       "updated": "2026-11-01"
     },
     {
@@ -311,7 +347,7 @@
         "layout",
         "hardware"
       ],
-      "order": 9,
+      "order": 10,
       "icon": "__THEME_LABWC_HELP_CATEGORY_HARDWARE_ICON_NAME__",
       "file": "articles/hardware.monitors.json",
       "updated": "2026-11-01"
@@ -333,7 +369,7 @@
         "selection",
         "hardware"
       ],
-      "order": 10,
+      "order": 11,
       "icon": "__THEME_LABWC_HELP_CATEGORY_HARDWARE_ICON_NAME__",
       "file": "articles/hardware.gpu.json",
       "updated": "2026-11-01"
@@ -353,7 +389,7 @@
         "support",
         "hardware"
       ],
-      "order": 11,
+      "order": 12,
       "icon": "__THEME_LABWC_HELP_CATEGORY_HARDWARE_ICON_NAME__",
       "file": "articles/hardware.nvidia.json",
       "updated": "2026-11-01"
@@ -375,7 +411,7 @@
         "audio",
         "hardware"
       ],
-      "order": 12,
+      "order": 13,
       "icon": "__THEME_LABWC_HELP_CATEGORY_HARDWARE_ICON_NAME__",
       "file": "articles/hardware.peripherals.json",
       "updated": "2026-11-01"
@@ -396,9 +432,28 @@
         "locking",
         "hardware"
       ],
-      "order": 13,
+      "order": 14,
       "icon": "__THEME_LABWC_HELP_CATEGORY_HARDWARE_ICON_NAME__",
       "file": "articles/hardware.power.json",
+      "updated": "2026-11-01"
+    },
+    {
+      "id": "troubleshooting.audio",
+      "category": "hardware",
+      "title": "Audio troubleshooting",
+      "summary": "Check mute, device routing and session services.",
+      "related": [
+        "hardware.peripherals",
+        "desktop.mako",
+        "maintenance.services"
+      ],
+      "keywords": [
+        "audio",
+        "troubleshooting"
+      ],
+      "order": 40,
+      "icon": "__THEME_LABWC_HELP_CATEGORY_HARDWARE_ICON_NAME__",
+      "file": "articles/troubleshooting.audio.json",
       "updated": "2026-11-01"
     },
     {
@@ -416,7 +471,7 @@
         "connections",
         "network"
       ],
-      "order": 14,
+      "order": 15,
       "icon": "__THEME_LABWC_HELP_CATEGORY_NETWORK_ICON_NAME__",
       "file": "articles/network.connections.json",
       "updated": "2026-11-01"
@@ -437,7 +492,7 @@
         "wireguard",
         "network"
       ],
-      "order": 15,
+      "order": 16,
       "icon": "__THEME_LABWC_HELP_CATEGORY_NETWORK_ICON_NAME__",
       "file": "articles/network.vpn.json",
       "updated": "2026-11-01"
@@ -456,7 +511,7 @@
         "tailscale",
         "network"
       ],
-      "order": 16,
+      "order": 17,
       "icon": "__THEME_LABWC_HELP_CATEGORY_NETWORK_ICON_NAME__",
       "file": "articles/network.tailscale.json",
       "updated": "2026-11-01"
@@ -475,10 +530,9 @@
         "network",
         "sharing",
         "and",
-        "nfs",
-        "network"
+        "nfs"
       ],
-      "order": 17,
+      "order": 18,
       "icon": "__THEME_LABWC_HELP_CATEGORY_NETWORK_ICON_NAME__",
       "file": "articles/network.sharing.json",
       "updated": "2026-11-01"
@@ -497,9 +551,28 @@
         "access",
         "network"
       ],
-      "order": 18,
+      "order": 19,
       "icon": "__THEME_LABWC_HELP_CATEGORY_NETWORK_ICON_NAME__",
       "file": "articles/network.ssh.json",
+      "updated": "2026-11-01"
+    },
+    {
+      "id": "troubleshooting.network",
+      "category": "network",
+      "title": "Network troubleshooting",
+      "summary": "Separate link, DNS, VPN and application-specific failures.",
+      "related": [
+        "network.connections",
+        "network.vpn",
+        "network.sharing"
+      ],
+      "keywords": [
+        "network",
+        "troubleshooting"
+      ],
+      "order": 39,
+      "icon": "__THEME_LABWC_HELP_CATEGORY_NETWORK_ICON_NAME__",
+      "file": "articles/troubleshooting.network.json",
       "updated": "2026-11-01"
     },
     {
@@ -517,7 +590,7 @@
         "confinement",
         "security"
       ],
-      "order": 19,
+      "order": 20,
       "icon": "__THEME_LABWC_HELP_CATEGORY_SECURITY_ICON_NAME__",
       "file": "articles/security.apparmor.json",
       "updated": "2026-11-01"
@@ -539,7 +612,7 @@
         "isolation",
         "security"
       ],
-      "order": 20,
+      "order": 21,
       "icon": "__THEME_LABWC_HELP_CATEGORY_SECURITY_ICON_NAME__",
       "file": "articles/security.firewall.json",
       "updated": "2026-11-01"
@@ -560,7 +633,7 @@
         "privacy",
         "security"
       ],
-      "order": 21,
+      "order": 22,
       "icon": "__THEME_LABWC_HELP_CATEGORY_SECURITY_ICON_NAME__",
       "file": "articles/security.authentication.json",
       "updated": "2026-11-01"
@@ -577,10 +650,9 @@
       ],
       "keywords": [
         "btrfs",
-        "storage",
         "storage"
       ],
-      "order": 22,
+      "order": 23,
       "icon": "__THEME_LABWC_HELP_CATEGORY_STORAGE_ICON_NAME__",
       "file": "articles/storage.btrfs.json",
       "updated": "2026-11-01"
@@ -598,10 +670,9 @@
       "keywords": [
         "f2fs",
         "storage",
-        "profiles",
-        "storage"
+        "profiles"
       ],
-      "order": 23,
+      "order": 24,
       "icon": "__THEME_LABWC_HELP_CATEGORY_STORAGE_ICON_NAME__",
       "file": "articles/storage.f2fs.json",
       "updated": "2026-11-01"
@@ -620,10 +691,9 @@
         "backups",
         "and",
         "removable",
-        "storage",
         "storage"
       ],
-      "order": 24,
+      "order": 25,
       "icon": "__THEME_LABWC_HELP_CATEGORY_STORAGE_ICON_NAME__",
       "file": "articles/storage.backups.json",
       "updated": "2026-11-01"
@@ -644,7 +714,7 @@
         "snapshots",
         "storage"
       ],
-      "order": 25,
+      "order": 26,
       "icon": "__THEME_LABWC_HELP_CATEGORY_STORAGE_ICON_NAME__",
       "file": "articles/storage.timeshift.json",
       "updated": "2026-11-01"
@@ -663,10 +733,9 @@
         "storage",
         "and",
         "boot",
-        "recovery",
-        "storage"
+        "recovery"
       ],
-      "order": 26,
+      "order": 27,
       "icon": "__THEME_LABWC_HELP_CATEGORY_STORAGE_ICON_NAME__",
       "file": "articles/storage.recovery.json",
       "updated": "2026-11-01"
@@ -686,7 +755,7 @@
         "terminal",
         "applications"
       ],
-      "order": 27,
+      "order": 28,
       "icon": "__THEME_LABWC_HELP_CATEGORY_APPLICATIONS_ICON_NAME__",
       "file": "articles/applications.foot.json",
       "updated": "2026-11-01"
@@ -708,7 +777,7 @@
         "management",
         "applications"
       ],
-      "order": 28,
+      "order": 29,
       "icon": "__THEME_LABWC_HELP_CATEGORY_APPLICATIONS_ICON_NAME__",
       "file": "articles/applications.files.json",
       "updated": "2026-11-01"
@@ -728,7 +797,7 @@
         "control",
         "applications"
       ],
-      "order": 29,
+      "order": 30,
       "icon": "__THEME_LABWC_HELP_CATEGORY_APPLICATIONS_ICON_NAME__",
       "file": "articles/applications.git.json",
       "updated": "2026-11-01"
@@ -751,7 +820,7 @@
         "containers",
         "applications"
       ],
-      "order": 30,
+      "order": 31,
       "icon": "__THEME_LABWC_HELP_CATEGORY_APPLICATIONS_ICON_NAME__",
       "file": "articles/applications.podman.json",
       "updated": "2026-11-01"
@@ -771,7 +840,7 @@
         "tools",
         "applications"
       ],
-      "order": 31,
+      "order": 32,
       "icon": "__THEME_LABWC_HELP_CATEGORY_APPLICATIONS_ICON_NAME__",
       "file": "articles/applications.development.json",
       "updated": "2026-11-01"
@@ -793,9 +862,29 @@
         "tools",
         "applications"
       ],
-      "order": 32,
+      "order": 33,
       "icon": "__THEME_LABWC_HELP_CATEGORY_APPLICATIONS_ICON_NAME__",
       "file": "articles/applications.codex.json",
+      "updated": "2026-11-01"
+    },
+    {
+      "id": "troubleshooting.applications",
+      "category": "applications",
+      "title": "Application launch troubleshooting",
+      "summary": "Follow the managed launch path and diagnose one failure.",
+      "related": [
+        "maintenance.logs",
+        "security.apparmor",
+        "hardware.gpu"
+      ],
+      "keywords": [
+        "application",
+        "launch",
+        "troubleshooting"
+      ],
+      "order": 41,
+      "icon": "__THEME_LABWC_HELP_CATEGORY_APPLICATIONS_ICON_NAME__",
+      "file": "articles/troubleshooting.applications.json",
       "updated": "2026-11-01"
     },
     {
@@ -813,7 +902,7 @@
         "management",
         "maintenance"
       ],
-      "order": 33,
+      "order": 34,
       "icon": "__THEME_LABWC_HELP_CATEGORY_MAINTENANCE_ICON_NAME__",
       "file": "articles/maintenance.management.json",
       "updated": "2026-11-01"
@@ -835,7 +924,7 @@
         "updates",
         "maintenance"
       ],
-      "order": 34,
+      "order": 35,
       "icon": "__THEME_LABWC_HELP_CATEGORY_MAINTENANCE_ICON_NAME__",
       "file": "articles/maintenance.updates.json",
       "updated": "2026-11-01"
@@ -855,7 +944,7 @@
         "services",
         "maintenance"
       ],
-      "order": 35,
+      "order": 36,
       "icon": "__THEME_LABWC_HELP_CATEGORY_MAINTENANCE_ICON_NAME__",
       "file": "articles/maintenance.services.json",
       "updated": "2026-11-01"
@@ -877,91 +966,9 @@
         "evidence",
         "maintenance"
       ],
-      "order": 36,
+      "order": 37,
       "icon": "__THEME_LABWC_HELP_CATEGORY_MAINTENANCE_ICON_NAME__",
       "file": "articles/maintenance.logs.json",
-      "updated": "2026-11-01"
-    },
-    {
-      "id": "troubleshooting.desktop",
-      "category": "troubleshooting",
-      "title": "Desktop session troubleshooting",
-      "summary": "Diagnose a missing bar, dock, or session component.",
-      "related": [
-        "desktop.labwc",
-        "desktop.waybar",
-        "maintenance.logs"
-      ],
-      "keywords": [
-        "desktop",
-        "session",
-        "troubleshooting",
-        "troubleshooting"
-      ],
-      "order": 37,
-      "icon": "__THEME_LABWC_HELP_CATEGORY_TROUBLESHOOTING_ICON_NAME__",
-      "file": "articles/troubleshooting.desktop.json",
-      "updated": "2026-11-01"
-    },
-    {
-      "id": "troubleshooting.network",
-      "category": "troubleshooting",
-      "title": "Network troubleshooting",
-      "summary": "Separate link, DNS, VPN and application-specific failures.",
-      "related": [
-        "network.connections",
-        "network.vpn",
-        "network.sharing"
-      ],
-      "keywords": [
-        "network",
-        "troubleshooting",
-        "troubleshooting"
-      ],
-      "order": 38,
-      "icon": "__THEME_LABWC_HELP_CATEGORY_TROUBLESHOOTING_ICON_NAME__",
-      "file": "articles/troubleshooting.network.json",
-      "updated": "2026-11-01"
-    },
-    {
-      "id": "troubleshooting.audio",
-      "category": "troubleshooting",
-      "title": "Audio troubleshooting",
-      "summary": "Check mute, device routing and session services.",
-      "related": [
-        "hardware.peripherals",
-        "desktop.mako",
-        "maintenance.services"
-      ],
-      "keywords": [
-        "audio",
-        "troubleshooting",
-        "troubleshooting"
-      ],
-      "order": 39,
-      "icon": "__THEME_LABWC_HELP_CATEGORY_TROUBLESHOOTING_ICON_NAME__",
-      "file": "articles/troubleshooting.audio.json",
-      "updated": "2026-11-01"
-    },
-    {
-      "id": "troubleshooting.applications",
-      "category": "troubleshooting",
-      "title": "Application launch troubleshooting",
-      "summary": "Follow the managed launch path and diagnose one failure.",
-      "related": [
-        "maintenance.logs",
-        "security.apparmor",
-        "hardware.gpu"
-      ],
-      "keywords": [
-        "application",
-        "launch",
-        "troubleshooting",
-        "troubleshooting"
-      ],
-      "order": 40,
-      "icon": "__THEME_LABWC_HELP_CATEGORY_TROUBLESHOOTING_ICON_NAME__",
-      "file": "articles/troubleshooting.applications.json",
       "updated": "2026-11-01"
     }
   ]

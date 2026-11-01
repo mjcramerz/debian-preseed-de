@@ -211,6 +211,26 @@ esac
 class WaybarDescriptorFixtures(unittest.TestCase):
     """Mock the descriptor syscall; never close a fixture runner descriptor."""
 
+    def test_volume_presets_accept_only_fixed_sink_levels_and_a_unity_limit(self):
+        helper = load_helper('labwc-waybar-run')
+        prefix = ['/usr/bin/wpctl', 'set-volume', '@DEFAULT_AUDIO_SINK@']
+        for level in ('25%', '45%', '65%', '85%', '100%'):
+            command = [*prefix, level, '--limit', '1.0']
+            self.assertEqual(helper.normalize_command(['--', *command]),
+                             (tuple(command), None))
+        rejected = [
+            [*prefix, level, '--limit', '1.0']
+            for level in ('0%', '40%', '101%', '25%+', '65%;id')
+        ] + [
+            [*prefix, '25%'],
+            [*prefix, '25%', '--limit', '1.2'],
+            [*prefix, '25%', '--limit', '1.0', '--mute'],
+            ['/usr/bin/wpctl', 'set-volume', '@DEFAULT_AUDIO_SOURCE@', '25%', '--limit', '1.0'],
+        ]
+        for command in rejected:
+            with self.subTest(command=command), self.assertRaises(ValueError):
+                helper.normalize_command(['--', *command])
+
     def test_both_wrappers_use_a_valid_c_int_endpoint_without_procfs(self):
         for name in ('labwc-waybar-run', 'labwc-waybar-exec'):
             helper = load_helper(name)

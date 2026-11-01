@@ -3,7 +3,7 @@
   "blocks": [
     {
       "type": "paragraph",
-      "text": "The installation uses Debian-managed packages and declared signed external repositories. Computer Management → Maintenance → Packages & Firmware provides package-health and pending-upgrade views and deliberately authorized update actions."
+      "text": "The installation uses Debian-managed packages and declared signed external repositories. Computer Management → System & Recovery → Maintenance & Health → Packages & Firmware provides package-health and pending-upgrade views and deliberately authorized update actions."
     },
     {
       "type": "heading",

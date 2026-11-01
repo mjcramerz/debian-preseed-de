@@ -26,6 +26,19 @@
     {
       "type": "paragraph",
       "text": "If a menu opens but an action fails, record the specific action and check its owning unit/log. After saving work, use the existing Restart Waybar menu action when you intend to restart the bar. Do not repeatedly launch unmanaged copies."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Buttons, popups and icons"
+    },
+    {
+      "type": "paragraph",
+      "text": "The clock, audio, Bluetooth, notification, capture, power, Tomat and Wayscriber controls have menus with named actions. Help in a popup opens its related guide. The system settings popup places Help directly below Files; that Help item opens the desktop guide."
+    },
+    {
+      "type": "paragraph",
+      "text": "Bar status text can contain font glyphs, including Tomat phase and playback indicators. Popup rows use regular theme artwork. These have different configuration inputs: replacing a timer status character with an icon filename will print the name as text. Wayscriber tray artwork uses its colored style; neither choice changes the annotation tools."
     }
   ]
 }

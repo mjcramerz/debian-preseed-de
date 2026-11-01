@@ -178,7 +178,7 @@ class Catalog:
     @staticmethod
     def _metadata(item: dict) -> None:
         text(item['title'], 160)
-        icon_name(item['icon'])
+        item['icon'] = icon_name(item['icon'])
         if type(item['order']) is not int or not 0 <= item['order'] <= 10000:
             raise ValueError('Invalid topic order')
 

@@ -26,6 +26,19 @@
     {
       "type": "warning",
       "text": "Launching the entire management UI with sudo bypasses the intended user/session boundary. Use the ordinary desktop entry and existing authorization prompts."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Find the matching workflow"
+    },
+    {
+      "type": "paragraph",
+      "text": "Under System & Recovery, Maintenance & Health contains Overview & Health, Services & Logs, Packages & Firmware, Storage & Filesystems, Audio & Desktop, and Network & DNS. These groups provide specific status and maintenance actions."
+    },
+    {
+      "type": "paragraph",
+      "text": "Recovery & Repair is separate and contains Desktop & Services, Packages & Boot, Snapshots & Storage, and Memory & Cleanup. For example, Restart Waybar belongs to Recovery & Repair → Desktop & Services. Recovery actions can modify persistent state; inspect the failure and save work before choosing one."
     }
   ]
 }

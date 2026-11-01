@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "blocks": [
+    {
+      "type": "paragraph",
+      "text": "Help is an offline manual for this managed Debian desktop. It opens documentation and stores reading preferences only. It never runs the displayed commands, collects system status, installs software, opens websites, or asks for administrator credentials."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Open and browse"
+    },
+    {
+      "type": "list",
+      "items": [
+        "Select Help immediately below Files in the Waybar system settings popup, choose Help in the desktop/application menu, or search Applications for Help. Each popup also offers context-specific Help.",
+        "Home shows featured and recently viewed guides. Choose one of the eight categories in the sidebar or Home, then select a topic. Related guides and previous/next links connect the manuals.",
+        "Alt+Left and Alt+Right follow reading history. Alt+Home returns Home. On a narrow window, use the navigation controls to switch between the guide list and the article."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Search and copy"
+    },
+    {
+      "type": "list",
+      "items": [
+        "Press Ctrl+K, type words or a component name, then press Enter to open the first result. All search terms must match; shorten the query if nothing appears. Empty the query to restore the category list.",
+        "Ctrl+F finds text in the current guide. Press Enter again for the next match and Escape to close the find field.",
+        "Select article text and press Ctrl+C, or use the Copy button above a code block. Help copies text to the desktop clipboard; it does not execute it. Review all lines before pasting into Terminal."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Reading and privacy"
+    },
+    {
+      "type": "paragraph",
+      "text": "Ctrl+D adds or removes a bookmark. The Help menu opens bookmarks, recent guides, reading preferences and shortcuts. Ctrl++ and Ctrl+- change article text size. Reading preferences choose light/dark/system appearance, set the recent-guide limit, or clear reading history while keeping bookmarks. Set the recent limit to 0 to stop the recent-guide list; last-topic and reading-position preferences are still saved."
+    },
+    {
+      "type": "paragraph",
+      "text": "Private reading state normally lives in ~/.local/state/labwc-help/state.json. Help requires a private state directory and preserves unsafe or unreadable existing state. If preferences cannot be saved, reading remains available with temporary settings. Documentation is root-owned under /usr/local/share/labwc-help and is updated with the managed installation assets."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Missing guides and external references"
+    },
+    {
+      "type": "paragraph",
+      "text": "A missing or invalid article shows Guide unavailable. Use Home or search another topic; report the exact guide title to the administrator. A missing library requires restoring the managed Help assets. HTTPS references are shown for review and copying only; Help never opens a browser or downloads their contents. The bundled articles remain available without a network connection."
+    },
+    {
+      "type": "paragraph",
+      "text": "For desktop shortcuts, see [Keyboard shortcuts](help:start.shortcuts). For a useful error report, see [Logs and useful evidence](help:maintenance.logs)."
+    }
+  ]
+}

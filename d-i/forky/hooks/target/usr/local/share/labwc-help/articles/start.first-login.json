@@ -30,6 +30,19 @@
     {
       "type": "warning",
       "text": "Account setup, enrollment, remote access and optional software depend on the selected installation profile. A pending Tailscale or CrowdSec enrollment is expected until you approve it."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "A short first-session checklist"
+    },
+    {
+      "type": "paragraph",
+      "text": "Open [Using the offline Help manual](help:start.help) to learn navigation and search. Confirm that Terminal, Files and your intended applications are available. Optional software and hardware controls may be absent on a profile that does not select them."
+    },
+    {
+      "type": "paragraph",
+      "text": "Use the network status menu to identify the intended connection, Audio Control to choose an output device, and Display to check arrangement and scale. Inspect one component at a time. Help displays these instructions without probing the machine or changing settings."
     }
   ]
 }

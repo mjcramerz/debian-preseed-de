@@ -3,7 +3,7 @@
   "blocks": [
     {
       "type": "paragraph",
-      "text": "AppArmor confines application and system helper access. Endpoint Security → AppArmor provides status, events and deliberately authorized policy operations. Enforce mode denies disallowed operations; complain mode records events and has a different security meaning."
+      "text": "AppArmor confines application and system helper access. Computer Management → Security & Accounts → Protection & Firewall → AppArmor provides status, events and deliberately authorized policy operations. Enforce mode denies disallowed operations; complain mode records events and has a different security meaning."
     },
     {
       "type": "heading",

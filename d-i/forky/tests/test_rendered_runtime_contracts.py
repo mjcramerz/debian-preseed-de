@@ -1,4 +1,8 @@
-"""Exercise verifier predicates in the mandatory disposable fixture environment."""
+"""Unexecuted source contracts for the metadata-only installer verifier.
+
+These fixtures inspect source data only. No target, helper, repository import,
+service manager or disposable execution environment is used by the cases.
+"""
 from __future__ import annotations
 
 from pathlib import Path as _IsolationPath
@@ -7,85 +11,55 @@ _isolation_sys.path.insert(0, str(_IsolationPath(__file__).resolve().parents[3] 
 from isolation import require_test_isolation as _require_test_isolation
 _require_test_isolation()
 
-import ast
-import os
 from pathlib import Path
 import re
-import stat
-import tempfile
 import unittest
-from unittest import mock
 
 SCRIPTS = Path(__file__).resolve().parents[1] / 'scripts/desktop'
 
 
 class RenderedRuntimeContractTests(unittest.TestCase):
     def setUp(self):
-        source = (SCRIPTS / 'verify.sh.tmpl').read_text()
-        begin = source.index('import ast\n', source.index('desktop_verify_runtime_contracts()'))
-        end = source.index("\n' \"$ACCOUNT_USERNAME\"", begin)
-        tree = ast.parse(source[begin:end])
-        functions = [node for node in tree.body if isinstance(node, ast.FunctionDef)]
-        self.contract = {'re': re, 'stat': stat}
-        # Select the real pure predicates; never execute the target probes or
-        # inspect the disposable image as if it were an installed target.
-        exec(compile(ast.Module(body=functions, type_ignores=[]), '<runtime predicates>', 'exec'), self.contract)
-        temporary = tempfile.TemporaryDirectory(prefix='runtime-contract-', dir=Path(__file__).resolve().parents[3])
-        self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
-        self.helper = self.root / 'helper'
-        self.helper.write_text('#!/usr/bin/python3\n')
-        self.helper.chmod(0o755)
+        self.source = (SCRIPTS / 'verify.sh.tmpl').read_text()
 
-    def test_literals_and_unresolved_installer_tokens(self):
-        validate = self.contract['source_text']
-        validate(self.helper, b'return __PACKAGE__->new();')
-        validate(Path('/usr/local/sbin/app-veth'), b'__APP_INTERFACES__')
-        for token in (b'__INSTALLER_FILE_TOOL__', b'__THEME_ICON__', b'__APP_INTERFACES__'):
-            with self.subTest(token=token), self.assertRaises(SystemExit):
-                validate(self.helper, token)
+    def test_verifier_has_no_content_or_installed_helper_execution(self):
+        for pattern in (
+                r'(?m)^\s*(?:/\S*/)?(?:python3|desktop-file-validate|dpkg-query|dpkg|git|cat|grep|awk|sed)\s',
+                r'/usr/local/libexec/labwc-hyprpolkit-agent --check',
+                r'obsidian_git\(', r'findmnt -', r'import gi',
+                r'read_(?:text|bytes)\(', r'open\('):
+            self.assertNotRegex(self.source, pattern)
+        self.assertIn('file contents are intentionally never read or compared', self.source)
 
-    def test_identifiers_are_rejected_before_target_probes(self):
-        validate = self.contract['configured_identifier']
-        validate('account', 'fixture-user')
-        validate('greeter', '_greetd')
-        for value in ('', '../root', 'bad name', 'x;id', '-option', 'Auser', 'x' * 33):
-            with self.subTest(value=value), self.assertRaises(SystemExit):
-                validate('account', value)
+    def test_stage_is_passed_to_the_independent_target_shell(self):
+        function = self.source.split('desktop_verify_runtime_contracts() {', 1)[1]
+        self.assertIn('stage=$1', function)
+        self.assertIn("' sh \"$stage\"", function)
+        self.assertIn('case "$stage" in code-only|with-account|account-only)', function)
 
-    def test_executable_owner_mode_parent_and_symlink_contract(self):
-        validate = self.contract['trusted']
-        validate(self.helper, True)
-        self.helper.chmod(0o644)
-        with self.assertRaises(SystemExit):
-            validate(self.helper, True)
-        self.helper.chmod(0o777)
-        with self.assertRaises(SystemExit):
-            validate(self.helper)
-        self.helper.chmod(0o755)
-        self.root.chmod(0o777)
-        with self.assertRaises(SystemExit):
-            validate(self.helper)
-        self.root.chmod(0o700)
-        alias = self.root / 'alias'
-        alias.symlink_to(self.helper)
-        with self.assertRaises(SystemExit):
-            validate(alias)
-        original = Path.lstat
-        def wrong_owner(path):
-            result = original(path)
-            if path == self.helper:
-                values = list(result)
-                values[4] = 12345
-                return os.stat_result(values)
-            return result
-        with mock.patch.object(Path, 'lstat', wrong_owner), self.assertRaises(SystemExit):
-            validate(self.helper)
+    def test_metadata_rejects_aliases_wrong_owner_mode_and_hardlinks(self):
+        function = self.source.split('desktop_verify_runtime_contracts() {', 1)[1]
+        self.assertIn('[ -f "$path" ] && [ ! -L "$path" ]', function)
+        self.assertIn('"0:0:$mode:1"', function)
+        self.assertIn('[ -d "$directory" ] && [ ! -L "$directory" ]', function)
+        self.assertIn('= 0:0:755', function)
+        self.assertIn('executable() { metadata "$1" 755;', function)
+        self.assertIn('""|*[!a-z0-9_-]*|[!a-z_]*)', function)
+        self.assertIn('[ "${#runtime_identifier}" -le 32 ]', function)
 
-    def test_installer_does_not_run_the_offline_audit_before_calix_installation(self):
+    def test_metadata_gate_is_after_staging_and_before_consumer_enablement(self):
         source = (SCRIPTS / 'labwc.sh').read_text()
-        self.assertNotIn('desktop_verify_', source)
-        self.assertLess(source.index('  desktop_install_user_config'), source.index('  desktop_enable_target_services'))
-        account = (SCRIPTS / 'components/user-config.sh').read_text()
-        self.assertLess(account.index('  desktop_install_primary_account_calendar_stack'),
-                        account.index('    /usr/local/bin/labwc-sync-application-launchers'))
+        gate = source.index('  desktop_verify_runtime_contracts with-account')
+        for step in ('desktop_stage_target_assets', 'desktop_install_user_config',
+                     'desktop_install_fonts', 'desktop_install_waypaper'):
+            self.assertLess(source.index('  ' + step), gate)
+        self.assertLess(gate, source.index('  desktop_enable_target_services'))
+        loader = (SCRIPTS.parent / 'late/desktop.sh').read_text()
+        self.assertIn('fonts verify labwc; do', loader)
+        self.assertIn('. "${desktop_module_dir}/verify.sh"', loader)
+        renderer = (SCRIPTS / 'components/rendering-access.sh').read_text()
+        self.assertIn('desktop_assert_no_unresolved_template_placeholders', renderer)
+
+
+if __name__ == '__main__':
+    unittest.main()

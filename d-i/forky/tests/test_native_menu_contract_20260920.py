@@ -82,7 +82,7 @@ class MenuContractTests(unittest.TestCase):
                 self.assertEqual(taskbar['on-click-right'], 'minimize-raise')
                 self.assertEqual(taskbar['on-click-middle'], 'close')
 
-    def test_all_82_actions_are_nonblocking_and_session_owned(self):
+    def test_all_native_menu_actions_are_nonblocking_and_session_owned(self):
         count = 0
         for bar in bars():
             for module, name, event in MODULES:
@@ -108,7 +108,7 @@ class MenuContractTests(unittest.TestCase):
                     self.assertEqual(argv[:boundary], ['/usr/local/libexec/labwc-waybar-run'])
                     self.assertGreater(len(argv[boundary + 1:]), 0)
                     count += 1
-        self.assertEqual(count, 104)
+        self.assertEqual(count, 108)
 
     def test_calendar_mapping_and_secondary_clicks(self):
         for bar in bars():

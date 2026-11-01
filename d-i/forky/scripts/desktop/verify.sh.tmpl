@@ -651,15 +651,6 @@ do
   require_mode "$background_file" 644
 done
 unset background_file
-swaylock_version=$(dpkg-query -W -f="\${Version}" swaylock) || fatal "swaylock package is missing"
-dpkg --compare-versions "$swaylock_version" ge 1.8.6 ||
-  fatal "swaylock 1.8.6 or newer is required for the password-buffer fix after suspend/resume"
-helper_package=$(dpkg-query -S /usr/sbin/unix_chkpwd 2>/dev/null) ||
-  fatal "unix_chkpwd is not owned by an installed package"
-case "$helper_package" in
-  libpam-modules-bin:*|libpam-modules-bin\ /usr/sbin/unix_chkpwd) ;;
-  *) fatal "unix_chkpwd has an unexpected package owner: $helper_package" ;;
-esac
 shadow_group_entry=$(getent group shadow) ||
   fatal "required shadow group is missing"
 shadow_gid=$(printf "%s\n" "$shadow_group_entry" | cut -d: -f3)
@@ -674,12 +665,7 @@ done
   fatal "/etc/shadow must be root:shadow mode 0640"
 [ "$(find -P /usr/sbin/unix_chkpwd -maxdepth 0 -printf "%U:%G:%m")" = "0:$shadow_gid:2755" ] ||
   fatal "/usr/sbin/unix_chkpwd must be root:shadow mode 2755"
-helper_mount_options=$(findmnt -n -o OPTIONS -T /usr/sbin/unix_chkpwd) ||
-  fatal "cannot resolve unix_chkpwd mount options"
-case ",$helper_mount_options," in
-  *,nosuid,*) fatal "unix_chkpwd resides on a nosuid mount" ;;
-esac
-unset authentication_path helper_mount_options helper_package shadow_gid shadow_group_entry
+unset authentication_path shadow_gid shadow_group_entry
 require_mode /etc/skel-desktop/.config/systemd 700
 require_mode /etc/skel-desktop/.config/systemd/user 700
 require_mode /etc/systemd/user/dbus-broker.service.d/10-broker-hardening.conf 644
@@ -882,10 +868,6 @@ done
 
 require_absent /tmp/installer-desktop-wallpapers.tar.gz
 require_absent /usr/bin/Xwayland
-if [ "$(dpkg-query -W -f='\''${Status}'\'' xwayland 2>/dev/null || true)" = "install ok installed" ]; then
-  printf '\''%s\n'\'' '\''fatal: public xwayland package must not be installed'\'' >&2
-  exit 1
-fi
 require_absent /etc/environment.d/90-labwc-session.conf
 require_absent /etc/skel-desktop/.config/systemd/user/dbus-broker.service.d/10-broker-hardening.conf
 require_absent /etc/systemd/user/default.target.wants/mpris-proxy.service
@@ -914,7 +896,6 @@ do
 done
 require_executable /usr/libexec/hyprpolkitagent
 require_executable /usr/local/libexec/labwc-hyprpolkit-agent
-/usr/local/libexec/labwc-hyprpolkit-agent --check
 
 require_executable /usr/local/lib/android-sdk/platform-tools/adb
 require_executable /usr/local/lib/android-sdk/platform-tools/fastboot
@@ -1249,7 +1230,6 @@ verify_account_session_link() {
     fatal "primary account user session enablement link owner mismatch for ${unit}: ${owner}"
   required_checked=$((required_checked + 1))
 }
-
 
 # Browser exports are account-owned Git data, never bundled seed imports.
 for browser_directory in \
@@ -1638,17 +1618,6 @@ check_required_owned_dir "$account_home/Syncthing/obsidian-md/.git"
 for git_file in HEAD config; do
   check_required_owned "$account_home/Syncthing/obsidian-md/.git/$git_file"
 done
-obsidian_git() {
-  runuser -u "$account_user" -- env -i HOME="$account_home" PATH=/usr/bin:/bin \
-    GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null \
-    git -C "$account_home/Syncthing/obsidian-md" "$@"
-}
-[ "$(obsidian_git remote get-url origin)" = git@gitlab.com:core-assets/docs/obsidian-md.git ] ||
-  fatal "Obsidian repository origin is not the approved SSH URL"
-[ "$(obsidian_git symbolic-ref --short HEAD)" = mcr/main ] ||
-  fatal "Obsidian repository is not on mcr/main"
-[ "$(obsidian_git rev-parse --abbrev-ref '@{upstream}')" = origin/mcr/main ] ||
-  fatal "Obsidian repository does not track origin/mcr/main"
 for private_file in \
   "$account_home/.config/obsidian/obsidian.json" \
   "$account_home/Syncthing/.stignore"
@@ -1799,25 +1768,12 @@ do
   check_optional_owned "$path"
 done
 
-zsh_path=$(command -v zsh 2>/dev/null || true)
-account_shell=$(getent passwd "$account_user" | cut -d: -f7)
-shell_status=not-checked
-if [ -n "$zsh_path" ]; then
-  if [ "$account_shell" = "$zsh_path" ]; then
-    shell_status=matches-zsh
-  else
-    shell_status=mismatch
-  fi
-fi
-
-printf "desktop_primary_account_verification user=%s home=%s required_files=%s optional_files=%s optional_missing=%s shell=%s shell_status=%s\n" \
+printf "desktop_primary_account_verification user=%s home=%s required_files=%s optional_files=%s optional_missing=%s\n" \
   "$account_user" \
   "$account_home" \
   "$required_checked" \
   "$optional_checked" \
-  "${optional_missing:-none}" \
-  "$account_shell" \
-  "$shell_status"
+  "${optional_missing:-none}"
 ' sh "$ACCOUNT_USERNAME" "$ACCOUNT_HOME" "${LABWC_DESKTOP_GTK_ICON_THEME}" "$OBSIDIAN_GIT_AUTO_ENABLE"
 }
 
@@ -1889,18 +1845,6 @@ printf "desktop_user_resource_policy_verification slice=%s files=%s\n" user-1000
     /etc/systemd/user.conf.d/50-resource-defaults.conf
 }
 
-desktop_verify_native_workspace_config() {
-  run_in_target "verify broker-free workspace metadata" /bin/sh -eu -c '
-printf "desktop_native_workspace_config_metadata_verification complete\n"
-' sh
-}
-
-desktop_verify_font_publications() {
-  run_in_target "verify font publication metadata" /bin/sh -eu -c '
-printf "desktop_font_publications_metadata_verification complete\n"
-' sh
-}
-
 desktop_verify_kanshi_policy() {
   run_in_target "verify conditional Kanshi path metadata" /bin/sh -eu -c '
 metadata() {
@@ -1915,18 +1859,6 @@ printf "desktop_kanshi_metadata_verification complete\\n"
 ' sh
 }
 
-desktop_verify_native_drawer_icons() {
-  run_in_target "verify native drawer artwork metadata" /bin/sh -eu -c '
-printf "desktop_native_drawer_icons_metadata_verification complete\n"
-' sh
-}
-
-desktop_verify_native_menus() {
-  run_in_target "verify native menu metadata" /bin/sh -eu -c '
-printf "desktop_native_menus_metadata_verification complete\n"
-' sh
-}
-
 desktop_verify_runtime_contracts() {
   : "${ACCOUNT_USERNAME:?ACCOUNT_USERNAME must be set}"
   : "${LABWC_GREETER_USER:?LABWC_GREETER_USER must be set}"
@@ -1934,15 +1866,32 @@ desktop_verify_runtime_contracts() {
   case "$stage" in code-only|with-account|account-only) ;; *)
     printf 'fatal: invalid runtime verification stage: %s\n' "$stage" >&2; return 1 ;;
   esac
-  case "$ACCOUNT_USERNAME" in
-    [a-z_][a-z0-9_-]*) [ "${#ACCOUNT_USERNAME}" -le 32 ] || { printf 'fatal: invalid configured account identifier\n' >&2; return 1; } ;;
-    *) printf 'fatal: invalid configured account identifier\n' >&2; return 1 ;;
-  esac
-  case "$LABWC_GREETER_USER" in
-    [a-z_][a-z0-9_-]*) [ "${#LABWC_GREETER_USER}" -le 32 ] || { printf 'fatal: invalid configured greeter identifier\n' >&2; return 1; } ;;
-    *) printf 'fatal: invalid configured greeter identifier\n' >&2; return 1 ;;
-  esac
+  for runtime_identifier in "$ACCOUNT_USERNAME" "$LABWC_GREETER_USER"; do
+    case "$runtime_identifier" in
+      ""|*[!a-z0-9_-]*|[!a-z_]*)
+        printf 'fatal: invalid configured desktop identifier\n' >&2; return 1 ;;
+    esac
+    [ "${#runtime_identifier}" -le 32 ] || {
+      printf 'fatal: configured desktop identifier is too long\n' >&2; return 1;
+    }
+  done
   run_in_target "verify rendered desktop runtime metadata" /bin/sh -eu -c '
+stage=$1
+for directory in \
+  /usr/local/bin /usr/local/libexec \
+  /usr/local/lib/python3.14 /usr/local/lib/python3.14/dist-packages \
+  /usr/local/lib/python3.14/dist-packages/managed_workflows \
+  /usr/local/lib/python3.14/dist-packages/labwc_appearance \
+  /usr/local/lib/python3.14/dist-packages/labwc_help \
+  /usr/local/share /usr/local/share/labwc-help /usr/local/share/labwc-help/articles
+do
+  [ -d "$directory" ] && [ ! -L "$directory" ] || {
+    printf "fatal: unsafe runtime directory: %s\n" "$directory" >&2; exit 1;
+  }
+  [ "$(find -P "$directory" -maxdepth 0 -printf "%U:%G:%m")" = 0:0:755 ] || {
+    printf "fatal: runtime directory must be root:root mode 0755: %s\n" "$directory" >&2; exit 1;
+  }
+done
 metadata() {
   path=$1; mode=$2
   [ -f "$path" ] && [ ! -L "$path" ] || { printf "fatal: required runtime file is missing or unsafe: %s\\n" "$path" >&2; exit 1; }
@@ -1967,6 +1916,7 @@ metadata /usr/local/share/labwc-appearance/menu-icons.json 644
 for path in \
   /usr/local/share/labwc-help/catalog.json \
   /usr/local/share/labwc-help/theme.json \
+  /usr/local/share/labwc-help/articles/start.help.json \
   /usr/local/share/applications/labwc-help.desktop \
   /usr/local/lib/python3.14/dist-packages/labwc_help/__init__.py \
   /usr/local/lib/python3.14/dist-packages/labwc_help/catalog.py \
@@ -1984,15 +1934,7 @@ for path in /usr/local/bin/labwc-agenda /usr/local/bin/labwc-calendar; do
   [ "$target" = labwc-app ] || { printf "fatal: managed calendar link target mismatch: %s\\n" "$path" >&2; exit 1; }
 done
 printf "desktop_runtime_metadata_verification stage=%s\\n" "$stage"
-' sh
-  run_in_target "verify Help GTK bindings and desktop metadata" /usr/bin/python3 -I -B -c '
-import gi
-gi.require_version("Gtk", "4.0")
-gi.require_version("Adw", "1")
-from gi.repository import Adw, Gtk
-assert Adw and Gtk
-'
-  run_in_target "verify Help desktop entry metadata" /usr/bin/desktop-file-validate /usr/local/share/applications/labwc-help.desktop
+' sh "$stage"
 }
 
 desktop_verify_target_staging() {

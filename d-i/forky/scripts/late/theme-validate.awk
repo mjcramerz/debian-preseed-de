@@ -104,7 +104,6 @@ function valid(value, type,    copy,hexlen,n,i,parts) {
         return 1
     }
     if (type == "wayscriber-color") return named_color(value) || hex_color(value, "3,6,9,12") || value ~ /^rgb\([0-9.,%+ -]+\)$/
-    if (type == "icon-color") return value == "inherit" || valid(value, "hash6")
     if (type == "hue") return value ~ /^[0-9]+([.][0-9]+)?$/ && value + 0 <= 360
     if (type == "percent") return value ~ /^[0-9]+([.][0-9]+)?%$/ && value + 0 <= 100
     if (type == "hsl") {
@@ -167,7 +166,10 @@ function valid(value, type,    copy,hexlen,n,i,parts) {
     if (type == "font-weight") return value ~ /^[1-9]00$/
     if (type == "border-style") return value ~ /^(none|solid|dashed|dotted|double|groove|ridge|inset|outset)$/
     if (type == "font") return value ~ /^[A-Za-z0-9][A-Za-z0-9 .,_-]*$/
-    if (type == "icon") return value ~ /^[A-Za-z0-9][A-Za-z0-9._+-]*$/
+    if (type == "icon" || type == "regular-icon")
+        return value ~ /^[A-Za-z0-9][A-Za-z0-9._+-]*$/ && length(value) <= 128 &&
+               (type != "regular-icon" || value !~ /-symbolic$/)
+    if (type == "wayscriber-icon-style") return value ~ /^(auto|symbolic|colored)$/
     if (type == "text") {
         # No shell, JSON, XML, CSS or language delimiters. Values are inserted
         # literally into pre-existing contexts, not evaluated as programs.

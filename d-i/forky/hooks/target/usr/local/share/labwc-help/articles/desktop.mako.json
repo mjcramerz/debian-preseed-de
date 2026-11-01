@@ -25,7 +25,7 @@
     },
     {
       "type": "paragraph",
-      "text": "Check quiet mode, then use Computer Management → Maintenance → Audio & Desktop → Test Mako Notification. A test notification verifies display at that moment; it does not prove a reminder was scheduled."
+      "text": "Check quiet mode, then use Computer Management → System & Recovery → Maintenance & Health → Audio & Desktop → Test Mako Notification. A test notification verifies display at that moment; it does not prove a reminder was scheduled."
     }
   ]
 }

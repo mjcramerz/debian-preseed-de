@@ -32,6 +32,19 @@
     {
       "type": "warning",
       "text": "Restore operations can overwrite newer data. Preserve a copy of the current state and confirm the exact destination before restoring."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Plan a restore before you need it"
+    },
+    {
+      "type": "paragraph",
+      "text": "Write down which data belongs in the backup, where the separate copy lives, and how you would unlock it from another trusted computer. Include application exports where ordinary file copies are not sufficient. A copy on the same failing disk is vulnerable to that disk’s loss."
+    },
+    {
+      "type": "paragraph",
+      "text": "Restore a representative document into a separate empty directory and open it with the intended application. Compare its contents and date locally before trusting the backup. This check is your deliberate operation; Help never reads files, mounts backup media or validates a backup automatically."
     }
   ]
 }

@@ -30,6 +30,19 @@
     {
       "type": "warning",
       "text": "Builds, package install scripts and test imports can execute arbitrary code. Trust the project and its inputs before execution."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Use a bounded project workflow"
+    },
+    {
+      "type": "paragraph",
+      "text": "Start with the project’s README and applicable repository instructions. Inspect the current branch, changed files, dependency manifests and selected interpreter. A build or test target can execute code while it is being parsed, so reading a command name is not enough to establish its behavior."
+    },
+    {
+      "type": "paragraph",
+      "text": "Keep project outputs and credentials in their intended locations. Review a diff before committing and run only the checks permitted by that project. Optional container tooling retains the managed rootless engine’s ownership and storage policy; a project environment does not grant permission to access unrelated data or services."
     }
   ]
 }

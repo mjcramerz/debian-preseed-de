@@ -73,6 +73,34 @@ def plain(text):
 
 
 class IconContractTests(unittest.TestCase):
+    def test_audio_volume_presets_are_nested_and_match_their_fixed_commands(self):
+        tree = ET.fromstring(RENDER(payload_read_text(SKEL / 'waybar/gtk/audio-menu.xml'), VALUES))
+        parent = next(item for item in tree.iter('object')
+                      if item.get('class') == 'GtkMenuItem'
+                      and item.findtext('./child/object[@class="GtkBox"]/child/object[@class="GtkLabel"]/property[@name="label"]') == 'Volume Presets')
+        rows = parent.findall('./child[@type="submenu"]/object/child/object[@class="GtkMenuItem"]')
+        levels = (25, 45, 65, 85, 100)
+        self.assertEqual([row.get('id') for row in rows], [f'audio_{level}' for level in levels])
+        actions = json.loads(RENDER(payload_read_text(SKEL / 'waybar/modules/pulseaudio'), VALUES))['pulseaudio']['menu-actions']
+        for row, level in zip(rows, levels):
+            self.assertEqual(row.findtext('.//property[@name="label"]'), f'Volume {level}%')
+            self.assertEqual(shlex.split(actions[row.get('id')]), [
+                '/usr/local/libexec/labwc-waybar-run', '--', '/usr/bin/wpctl',
+                'set-volume', '@DEFAULT_AUDIO_SINK@', f'{level}%', '--limit', '1.0'])
+        self.assertNotIn('audio_40', actions)
+        self.assertIsNone(tree.find('.//object[@id="audio_40"]'))
+        self.assertNotIn('WAYBAR_DROPDOWN_AUDIO_VOLUME_40_PERCENT_ICON_NAME', VALUES)
+
+    def test_native_menu_icons_are_regular_and_status_glyphs_stay_separate(self):
+        self.assertEqual(VALUES['WAYBAR_DROPDOWN_GTK_ICON_THEME'], 'oxygen')
+        CHECK['check_native_menu_icons'](SEED, VALUES)
+        key = 'WAYBAR_DROPDOWN_WAYSCRIBER_OPEN_ICON_NAME'
+        for value in ('wayscriber-symbolic', '🍅', '../icons/help.svg'):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                CHECK['check_native_menu_icons'](SEED, dict(VALUES, **{key: value}))
+        with self.assertRaisesRegex(ValueError, 'colored'):
+            CHECK['check_native_menu_icons'](SEED, dict(VALUES, WAYSCRIBER_UI_ICON_STYLE='auto'))
+
     def test_glyphs_have_color_owners_and_pair_lint_rejects_missing_color(self):
         CHECK['check_icon_pairs'](VALUES)
         for name in VALUES:
@@ -141,8 +169,8 @@ class IconContractTests(unittest.TestCase):
             for name in ('base.env', 'apps.env', 'office.env', 'theme-schema.tsv'):
                 payload_copyfile(THEMES / name, work / name)
             original = payload_read_text(work / 'base.env')
-            name = 'FZF_MANAGEMENT_BACK_ICON_COLOR'
-            for bad in ('red', '#123', '#12345678', 'inherit;id', '$(id)', '\x1b[31m', "#123abc' weight='bold", '\u202e'):
+            name = 'WAYBAR_BUTTON_TOMAT_WORK_ICON_COLOR'
+            for bad in ('#12', '#12345678', 'inherit;id', '$(id)', '\x1b[31m', "#123abc' weight='bold", '\u202e'):
                 with self.subTest(value=repr(bad)):
                     (work / 'base.env').write_text(re.sub(r'^' + name + r'=.*$',
                         lambda _: name + '="' + bad + '"', original, flags=re.M))

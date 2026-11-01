@@ -27,14 +27,21 @@ class HelpStaticContracts(unittest.TestCase):
         catalog = json.loads(CATALOG_TEMPLATE.read_text(encoding="utf-8"))
         categories = {item["id"] for item in catalog["categories"]}
         topics = {item["id"] for item in catalog["articles"]}
-        self.assertEqual(len(categories), 9)
+        self.assertEqual([item['title'] for item in catalog['categories']], [
+            'Getting Started', 'Desktop Environment', 'Displays & Hardware',
+            'Networking & Sharing', 'Security & Privacy', 'Storage & Recovery',
+            'Applications & Development', 'System Maintenance',
+        ])
+        self.assertEqual(len(categories), 8)
         self.assertGreaterEqual(len(topics), 42)
         self.assertEqual({item["category"] for item in catalog["articles"]}, categories)
         self.assertTrue(set(catalog["featured"]) <= topics)
         for article in catalog["articles"]:
+            self.assertEqual(len(article['keywords']), len(set(article['keywords'])))
             self.assertTrue(set(article["related"]) <= topics)
             self.assertTrue((HELP_ROOT / article["file"]).is_file())
             self.assertEqual(json.loads((HELP_ROOT / article["file"]).read_text(encoding="utf-8"))["version"], 1)
+        self.assertIn('start.help', topics)
 
     def test_malicious_content_contracts_are_source_enforced(self):
         catalog = (HELP_PACKAGE / "catalog.py").read_text(encoding="utf-8")
@@ -60,7 +67,7 @@ class HelpStaticContracts(unittest.TestCase):
         self.assertNotIn("application_icon='", window)
         self.assertIn("__THEME_FUZZEL_MENU_ACTION_HELP_ICON_NAME__", theme_template)
         self.assertIn("__THEME_FUZZEL_MENU_ACTION_HELP_ICON_NAME__", desktop_template)
-        self.assertIn("__THEME_LABWC_HELP_LIST_ITEM_ICON_GLYPH__", theme_template)
+        self.assertIn("__THEME_LABWC_HELP_LIST_MARKER__", theme_template)
         self.assertIn("StateWriter", (HELP_PACKAGE / "state.py").read_text(encoding="utf-8"))
         self.assertNotIn("diagnostic", window.lower())
         self.assertNotIn("systemctl", window)
@@ -191,8 +198,11 @@ class HelpStaticContracts(unittest.TestCase):
         self.assertIn("/usr/local/share/labwc-help/catalog.json", verify)
         self.assertIn("/usr/local/share/labwc-help/theme.json", verify)
         self.assertIn("/usr/local/bin/labwc-help", verify)
-        self.assertIn('gi.require_version("Gtk", "4.0")', verify)
-        self.assertIn('gi.require_version("Adw", "1")', verify)
+        self.assertNotIn('import gi', verify)
+        self.assertNotIn('/usr/bin/desktop-file-validate /usr/local/share/applications/labwc-help.desktop', verify)
+        dependencies = (ROOT / 'classes/class-select/role/desktop.cfg').read_text().split()
+        self.assertIn('gir1.2-gtk-4.0', dependencies)
+        self.assertIn('gir1.2-adw-1', dependencies)
         self.assertIn('/usr/local/share/labwc-help/articles/*.json', verify)
         self.assertIn('labwc_help/theme.py', verify)
         self.assertNotIn('/usr/local/share/labwc-help/installed.json', verify)

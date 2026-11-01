@@ -24,6 +24,8 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tomllib
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 SEED = ROOT / 'd-i/forky'
@@ -140,10 +142,49 @@ def source_texts(seed: Path):
                 continue
 
 
+def check_native_menu_icons(seed: Path, values: dict[str, str]) -> None:
+    """Check regular names, the shared Oxygen theme, and status text as data."""
+    config = seed / 'hooks/target/etc/skel-desktop/.config'
+    if values.get('WAYBAR_DROPDOWN_GTK_ICON_THEME') != 'oxygen':
+        raise ValueError('all native Waybar GTK popups must use the packaged Oxygen icon theme')
+    if 'WAYBAR_DROPDOWN_AUDIO_VOLUME_40_PERCENT_ICON_NAME' in values:
+        raise ValueError('the obsolete Audio Volume 40% icon variable remains')
+    menus = sorted((config / 'waybar/gtk').glob('*.xml.tmpl'))
+    if len(menus) != 10:
+        raise ValueError('all ten native Waybar popup templates must be present')
+    for path in menus:
+        tree = ET.fromstring(render_text(path.read_text(encoding='utf-8'), values))
+        for item in tree.iter('object'):
+            if item.get('class') != 'GtkMenuItem':
+                continue
+            image = item.find('./child/object[@class="GtkBox"]/child/object[@class="GtkImage"]')
+            name = image.findtext('./property[@name="icon-name"]') if image is not None else ''
+            if (not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._+-]{0,127}', name or '')
+                    or name.endswith('-symbolic')):
+                raise ValueError(f'{path.name}: menu row needs a regular theme icon: {item.get("id")}')
+    audio = ET.fromstring(render_text((config / 'waybar/gtk/audio-menu.xml.tmpl').read_text(encoding='utf-8'), values))
+    presets = next((item for item in audio.iter('object')
+                    if item.get('class') == 'GtkMenuItem'
+                    and item.findtext('./child/object[@class="GtkBox"]/child/object[@class="GtkLabel"]/property[@name="label"]') == 'Volume Presets'), None)
+    if presets is None:
+        raise ValueError('Audio menu is missing the Volume Presets submenu')
+    preset_rows = presets.findall('./child[@type="submenu"]/object/child/object[@class="GtkMenuItem"]')
+    if [row.get('id') for row in preset_rows] != ['audio_25', 'audio_45', 'audio_65', 'audio_85', 'audio_100']:
+        raise ValueError('Audio Volume Presets must contain exactly 25, 45, 65, 85 and 100 percent')
+    tomat = tomllib.loads(render_text((config / 'tomat/config.toml.tmpl').read_text(encoding='utf-8'), values))
+    for key in ('work', 'break', 'long_break', 'play', 'pause', 'stop'):
+        if tomat['display']['icons'][key] != values[f'WAYBAR_BUTTON_TOMAT_{key.upper()}_ICON_GLYPH']:
+            raise ValueError('Tomat status text must retain its configured button glyphs')
+    wayscriber = tomllib.loads(render_text((config / 'wayscriber/config.toml.tmpl').read_text(encoding='utf-8'), values))
+    if wayscriber['tray']['icon_style'] != 'colored':
+        raise ValueError('Wayscriber managed tray defaults must use colored artwork')
+
+
 def check(seed: Path = SEED) -> dict[str, int]:
     values = load_themes(seed)
     check_names(values)
     check_icon_pairs(values)
+    check_native_menu_icons(seed, values)
     references: Counter[str] = Counter()
     files = 0
     for path, text in source_texts(seed):
@@ -205,7 +246,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         result = check(args.seed.resolve())
-    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+    except (OSError, ValueError, KeyError, ET.ParseError, subprocess.SubprocessError) as exc:
         print(f'themes: {exc}', file=sys.stderr)
         return 1
     print('themes: {values} validated inputs, {templates} tokenized files, '
