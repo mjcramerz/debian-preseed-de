@@ -118,6 +118,21 @@
       "expected": "The installed desktop entry has the matching org.labwc.DesktopAppearance desktop ID, so Crystal Dock can resolve the application icon and actions."
     },
     {
+      "name": "appearance-registry-render-before-capture",
+      "inject": "Stage fields.json.tmpl through fetch_hook using its private payload destination before labwc-appearance-defaults --capture runs.",
+      "expected": "The source path selects appearance-defaults rendering. Every field default receives its theme value before publication as fields.json mode 0644; all other JSON values, including mapping templates, ordered token lists and target indices, remain unchanged. DOCK_ACTIVE_INDICATOR_2D_COLOR keeps its literal mapping marker and the captured registry retains every native mapping."
+    },
+    {
+      "name": "appearance-registry-render-invalid-default",
+      "inject": "Replace a default marker with an unknown theme key, a different field key, a malformed marker, or remove every default line.",
+      "expected": "Defaults-only rendering returns failure before atomic publication. Existing fields.json bytes remain intact or the file remains absent; defaults capture and subsequent activation do not run. Literal mapping markers are never substituted as a fallback."
+    },
+    {
+      "name": "appearance-registry-render-interrupted",
+      "inject": "Fail or interrupt the registry renderer after it has written a partial private candidate.",
+      "expected": "The existing publish_target_asset transaction removes only its private candidate and does not publish partial fields.json. The previous destination bytes or absence are preserved and the staging failure propagates before appearance capture."
+    },
+    {
       "name": "apparmor-pathname-unix-address",
       "inject": "Add a unix peer addr condition containing /run/user/[0-9]*/systemd/notify.",
       "expected": "The changed-file checker rejects the parser-invalid filesystem address; the pathname remains covered by an ordinary file rule."

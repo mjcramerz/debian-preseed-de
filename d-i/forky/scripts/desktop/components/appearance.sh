@@ -40,6 +40,8 @@ desktop_stage_appearance() (
     path="usr/local/lib/python3.14/dist-packages/labwc_appearance/$module.py"
     desktop_stage_role_asset "$path" "/$path" 0644
   done
+  # fetch_hook renders only field defaults before atomic publication. Keep
+  # the mapping markers literal for the later native-defaults capture.
   desktop_stage_role_asset usr/local/share/labwc-appearance/fields.json.tmpl \
     /usr/local/share/labwc-appearance/fields.json 0644
   desktop_stage_role_asset usr/share/polkit-1/actions/org.labwc.desktop-appearance.policy \

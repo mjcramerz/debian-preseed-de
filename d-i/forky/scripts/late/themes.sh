@@ -45,6 +45,11 @@ installer_theme_render_file() (
     *.png|*.jpg|*.jpeg|*.webp|*.gif|*.ico|*.ttf|*.otf|*.woff|*.woff2|*.gz|*.xz|*.bz2|*.zip|*.deb)
       exit 0 ;;
   esac
+  theme_render_scope=all
+  case "${2:-$theme_path}" in
+    */usr/local/share/labwc-appearance/fields.json.tmpl)
+      theme_render_scope=appearance-defaults ;;
+  esac
   if LC_ALL=C grep -q '__THEME_' "$theme_path"; then
     :
   else
@@ -62,7 +67,8 @@ installer_theme_render_file() (
   trap 'exit 130' INT
   trap 'exit 143' TERM
   cp -p "$theme_path" "$theme_work/rendered" || exit $?
-  if LC_ALL=C awk -f "$INSTALLER_THEME_DIR/render.awk" "$INSTALLER_THEME_MAP" "$theme_path" > "$theme_work/rendered"; then
+  if LC_ALL=C awk -v render_scope="$theme_render_scope" \
+      -f "$INSTALLER_THEME_DIR/render.awk" "$INSTALLER_THEME_MAP" "$theme_path" > "$theme_work/rendered"; then
     :
   else
     theme_render_status=$?

@@ -38,6 +38,11 @@ APPEARANCE_REGISTRY = TARGET_ROOT / 'usr/local/share/labwc-appearance/fields.jso
 APPEARANCE_FIELDS = TARGET_ROOT / 'usr/local/lib/python3.14/dist-packages/labwc_appearance/fields.py'
 APPEARANCE_NATIVE = TARGET_ROOT / 'usr/local/lib/python3.14/dist-packages/labwc_appearance/native.py'
 THEME_FETCH_CORE = ROOT / 'd-i/forky/scripts/late/core.sh'
+THEME_RENDER_SUPPORT = ROOT / 'd-i/forky/scripts/late/themes.sh'
+THEME_RENDER_AWK = ROOT / 'd-i/forky/scripts/late/theme-render.awk'
+THEME_VALIDATE_AWK = ROOT / 'd-i/forky/scripts/late/theme-validate.awk'
+APPEARANCE_STAGE = ROOT / 'd-i/forky/scripts/desktop/components/appearance.sh'
+DESKTOP_INSTALLER = ROOT / 'd-i/forky/scripts/desktop/labwc.sh'
 WAYBAR_GEOMETRY_SCHEMA = ROOT / 'd-i/forky/scripts/desktop/waybar-geometry.tsv'
 WAYBAR_PROFILE_ROOT = ROOT / 'd-i/forky/hosts/profiles'
 THEME_TOKEN = re.compile(rb'__THEME_([A-Z0-9_]+)__')
@@ -393,7 +398,9 @@ def check_appearance_registry(paths: list[Path], errors: list[str], counts: dict
         *(ROOT / 'd-i/forky/hosts/themes' / (group + '.env') for group in ('base', 'apps', 'office')),
     }
     appearance_source_changed = any(
-        path in {APPEARANCE_REGISTRY, APPEARANCE_FIELDS, APPEARANCE_NATIVE}
+        path in {APPEARANCE_REGISTRY, APPEARANCE_FIELDS, APPEARANCE_NATIVE,
+                 THEME_FETCH_CORE, THEME_RENDER_SUPPORT, THEME_RENDER_AWK,
+                 THEME_VALIDATE_AWK, APPEARANCE_STAGE, DESKTOP_INSTALLER}
         or path in theme_inputs
         or (path.is_relative_to(TARGET_ROOT)
             and path.relative_to(TARGET_ROOT).parts[:2] in {('etc', 'greetd'), ('etc', 'skel-desktop')})
@@ -635,8 +642,14 @@ def check_appearance_registry(paths: list[Path], errors: list[str], counts: dict
 
 def check_appearance_render_preservation(paths: list[Path], errors: list[str],
                                          counts: dict[str, int]) -> None:
-    """Require code and registry assets to bypass theme substitution."""
-    if THEME_FETCH_CORE not in paths:
+    """Render defaults as data, preserving all runtime mapping metadata."""
+    theme_paths = [ROOT / 'd-i/forky/hosts/themes' / (group + '.env')
+                   for group in ('base', 'apps', 'office')]
+    inputs = {THEME_FETCH_CORE, THEME_RENDER_SUPPORT, THEME_RENDER_AWK,
+              THEME_VALIDATE_AWK, APPEARANCE_REGISTRY, APPEARANCE_STAGE,
+              DESKTOP_INSTALLER, SCHEMA, *theme_paths}
+    counts['appearance_rendered_defaults'] = 0
+    if not inputs.intersection(paths):
         counts['appearance_render_contract'] = 0
         return
     try:
@@ -653,7 +666,51 @@ def check_appearance_render_preservation(paths: list[Path], errors: list[str],
             errors.append(
                 f'{THEME_FETCH_CORE.relative_to(ROOT)}: missing appearance Python code theme-render exemption'
             )
-    except (OSError, UnicodeError) as error:
+        support = _read_text(THEME_RENDER_SUPPORT)
+        if (re.search(r'\*/usr/local/share/labwc-appearance/fields\.json\.tmpl\)\s*'
+                      r'theme_render_scope=appearance-defaults\s*;;', support) is None
+                or 'awk -v render_scope="$theme_render_scope"' not in support):
+            raise ValueError('registry must select and pass defaults-only rendering before publication')
+        stage = _read_text(APPEARANCE_STAGE)
+        if re.search(r'desktop_stage_role_asset usr/local/share/labwc-appearance/fields\.json\.tmpl'
+                     r'\s*\\\s*/usr/local/share/labwc-appearance/fields\.json 0644', stage) is None:
+            raise ValueError('registry template must install as fields.json with mode 0644')
+        installer = _read_text(DESKTOP_INSTALLER)
+        calls = re.findall(r'^  (desktop_[a-z_]+)\s*$', installer, re.MULTILINE)
+        order = [calls.index(name) for name in (
+            'desktop_stage_target_assets', 'desktop_install_appearance_themes',
+            'desktop_install_user_config', 'desktop_capture_appearance_defaults',
+            'desktop_verify_appearance_assets', 'desktop_enable_target_services',
+        )]
+        if order != sorted(order):
+            raise ValueError('appearance registry must stage before capture/verification/activation')
+        target_assets = _read_text(ROOT / 'd-i/forky/scripts/desktop/components/target-assets.sh')
+        if re.search(r'^  desktop_stage_appearance\s*$', target_assets, re.MULTILINE) is None:
+            raise ValueError('target asset staging must include the appearance registry')
+
+        # Only pure AWK data validation/substitution runs here. No installer
+        # shell or managed Python module is sourced, imported, or executed.
+        validated = _run(['awk', '-f', str(THEME_VALIDATE_AWK), str(SCHEMA),
+                          *(str(path) for path in theme_paths)])
+        if validated.returncode:
+            raise ValueError('theme data validation failed: ' + validated.stderr[:300])
+        theme_values = dict(line.split('=', 1) for line in validated.stdout.splitlines())
+        rendered = _run(['awk', '-v', 'render_scope=appearance-defaults',
+                         '-f', str(THEME_RENDER_AWK), '-', str(APPEARANCE_REGISTRY)],
+                        input_text=validated.stdout)
+        if rendered.returncode:
+            raise ValueError('registry default rendering failed: ' + rendered.stderr[:300])
+        expected = json.loads(_read_text(APPEARANCE_REGISTRY))
+        for field in expected['fields']:
+            key = field['key']
+            if field.get('default') != '__THEME_' + key + '__':
+                raise ValueError('default template does not match appearance field ' + key)
+            field['default'] = theme_values[key]
+        actual = json.loads(rendered.stdout)
+        if actual != expected:
+            raise ValueError('rendering must replace every default and preserve all mapping metadata')
+        counts['appearance_rendered_defaults'] = len(actual['fields'])
+    except (OSError, UnicodeError, KeyError, TypeError, ValueError) as error:
         errors.append(f'{THEME_FETCH_CORE.relative_to(ROOT)}: render contract: {error}')
     counts['appearance_render_contract'] = 1
 
@@ -850,6 +907,9 @@ def check_payload_archive(paths: list[Path], errors: list[str], counts: dict[str
          APPEARANCE_NATIVE),
         ('hooks/target/usr/local/share/labwc-appearance/fields.json.tmpl', APPEARANCE_REGISTRY),
         ('scripts/late/core.sh', ROOT / 'd-i/forky/scripts/late/core.sh'),
+        ('scripts/late/themes.sh', THEME_RENDER_SUPPORT),
+        ('scripts/late/theme-render.awk', THEME_RENDER_AWK),
+        ('scripts/desktop/components/appearance.sh', APPEARANCE_STAGE),
     )
     with tarfile.open(archive_path, 'r:*') as archive:
         for member_name, source in sources:

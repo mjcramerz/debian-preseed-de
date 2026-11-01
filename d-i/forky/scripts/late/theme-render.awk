@@ -10,6 +10,25 @@ FILENAME == ARGV[1] {
     values[substr($0, 1, separator-1)] = substr($0, separator+1)
     next
 }
+render_scope == "appearance-defaults" {
+    # Mapping templates and token lists are runtime metadata. Only field
+    # defaults may consume theme values before the registry is published.
+    if ($0 ~ /^[[:space:]]*"key"[[:space:]]*:/) {
+        if ($0 !~ /^[[:space:]]*"key": "[A-Z][A-Z0-9_]*",$/)
+            die("invalid appearance field key")
+        field_key = $0
+        sub(/^[[:space:]]*"key": "/, "", field_key)
+        sub(/",$/, "", field_key)
+    }
+    if ($0 !~ /^[[:space:]]*"default"[[:space:]]*:/) {
+        print
+        next
+    }
+    if ($0 !~ /^[[:space:]]*"default": "__THEME_[A-Z0-9_]+__",$/ ||
+            !field_key || index($0, "__THEME_" field_key "__") == 0)
+        die("invalid appearance default template")
+    if (++appearance_defaults > 1024) die("too many appearance defaults")
+}
 {
     remaining = $0
     rendered = ""
@@ -34,4 +53,8 @@ FILENAME == ARGV[1] {
     }
     print rendered remaining
 }
-END { if (failed) exit 1 }
+END {
+    if (failed) exit 1
+    if (render_scope == "appearance-defaults" && !appearance_defaults)
+        die("missing appearance defaults")
+}

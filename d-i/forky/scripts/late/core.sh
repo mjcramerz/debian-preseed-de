@@ -78,8 +78,9 @@ fetch_hook() {
   # Appearance Python modules are code, not themed consumer assets.  Keep
   # their bytes literal even if a diagnostic, grammar, or future test embeds
   # a token-shaped string.  The fields registry is deliberately the
-  # fields.json.tmpl source asset and must render its __THEME_*__ defaults
-  # before it is installed as fields.json.
+  # fields.json.tmpl source asset: themes.sh selects defaults-only rendering
+  # before it is installed as fields.json. Its mapping templates and token
+  # lists must retain their literal markers for native value capture/editing.
   case "$1" in
     */usr/local/lib/python3.14/dist-packages/labwc_appearance/*.py) return 0 ;;
   esac
