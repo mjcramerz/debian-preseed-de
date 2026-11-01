@@ -575,7 +575,7 @@ b9dfe671082ad086b779862a6ef73410e24a4a840193c3c01d7db1b6649885fb  hooks/target/e
 73e27cb9d58dd5369e9d3089cf89b2914b237b32438f5122a136e93db48e7424  hooks/target/etc/skel-desktop/.config/labwc/environment.d/10-wayland.env.tmpl
 9474a63af5ca9f73ab4cdead93815fd2f89377d4aca413f299f8479df83f3704  hooks/target/etc/skel-desktop/.config/labwc/environment.tmpl
 908274266a9bf07e8d2e43425ff1fd4d6d3d9a7dce59bafe3bef9fa93e0945f8  hooks/target/etc/skel-desktop/.config/labwc/menu.xml.tmpl
-8878054ee4b4ad43c29d33477f6d5022c658bea27d20fa15fdbce707812f7c3b  hooks/target/etc/skel-desktop/.config/labwc/rc.xml.tmpl
+06476b079b0079dcc4f96183e6662733bedab4beb4cfd85806f8f22f6df95a01  hooks/target/etc/skel-desktop/.config/labwc/rc.xml.tmpl
 124722631f375e267a8f3abd344007810064e075a2499725a70d7e123ff2879e  hooks/target/etc/skel-desktop/.config/labwc/shutdown
 dae46c69bcdbd8abd4fa91eaef344e2545306f5719cf91dd66a56bbb27820054  hooks/target/etc/skel-desktop/.config/labwc/themerc-override.tmpl
 48ade967fc99d1e5a10e63bc15a9dc4acf84869def72d41e4aa93a304041b713  hooks/target/etc/skel-desktop/.config/lxqt/filedialog.conf
@@ -1779,7 +1779,7 @@ cfb13c1edd411d1b9cce5d39fd681f9a7d5c6b9ba76ba2c57e9cc94512411159  scripts/deskto
 8ef0d54e9fcf9516ad0df4724738464f00750f90279f3d60e3c360b660389425  scripts/desktop/templates/pam-wtmpdb.fragment
 b26b034b097f7057121554596475ff4f2c1b843b58d29900ad97f05024ab88b5  scripts/desktop/templates/recording-reconfigure.xml.fragment
 210bfd5bbed2ec0460e448db01eef51a5a067f0378a79e0c0f42ff1c23fbc6f7  scripts/desktop/templates/recording-whisper.xml.fragment
-d411bebdaca5e49dea04414f8cfc109c1067f06ed77d09bb22239141fc96d16a  scripts/desktop/verify.sh.tmpl
+a4c6b1e17887a738487befa584840f6d4e428e1e6f831f03effcf77501e0f723  scripts/desktop/verify.sh.tmpl
 6fd8d4b599c4d160c7738bbf4e03aae5e9a3db838d0123676bf33c0a10acb9b7  scripts/desktop/waybar-geometry.tsv
 97aa85e35af5a3720b0647e055f1a4a4ddc6fc8b4ca7ec06611a6a80ca4266a6  scripts/desktop/waybar_geometry.py
 760418df003765aace979cbb494ceea40b980e559a35daad4a0124f58f5fc802  scripts/desktop/waypaper.sh
