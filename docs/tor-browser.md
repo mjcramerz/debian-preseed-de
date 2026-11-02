@@ -8,13 +8,21 @@ profile supplies `SOFTWARE_TOR_BROWSER_VERSION`, `SOFTWARE_TOR_BROWSER_URL`,
 `SOFTWARE_TOR_BROWSER_SHA256` and `SOFTWARE_TOR_BROWSER_KEY_SHA256`.
 
 The installer requires the exact HTTPS release path on `dist.torproject.org`.
-If that origin returns a transfer error, it retries the same pinned filename
-from Tor's official `archive.torproject.org/tor-package-archive` mirror. The
-archive and signature downloads remain bounded, both pins are checked, and the
-OpenPGP signature is verified in a private temporary keyring. It requires the
-Tor Browser Developers primary fingerprint
+If that origin returns a transfer error, curl retries it three times and then
+the installer retries the same pinned filename from Tor's official
+`archive.torproject.org/tor-package-archive` mirror. If both origins exhaust
+their retry budgets, Tor Browser is skipped and the remaining managed apps
+continue. The archive and signature downloads remain bounded, both pins are
+checked, and the OpenPGP signature is verified in a private temporary keyring.
+Integrity or signature failures remain installation errors. It requires the Tor
+Browser Developers primary fingerprint
 `EF6E286DDA85EA2A4BA7DE684E2C6E8793298290`. Verification failure stops installation;
 no account keyring is modified. See the [official signature instructions](https://support.torproject.org/tor-browser/getting-started/verifying-tor-browser/).
+
+The managed software class applies the same three-retry transport boundary to
+its optional application downloads. A 404 or network transport failure skips
+that application after the retry budget and continues with the next app; an
+integrity, signature, archive, package, or installation failure remains fatal.
 
 The extraction helper accepts bounded regular files/directories under one
 archive root and rejects links, special nodes, traversal, duplicates and

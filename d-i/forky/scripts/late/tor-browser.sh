@@ -55,7 +55,8 @@ software_download_tor_browser_asset() {
   then
     return 0
   fi
-  software_fatal "${tor_asset_label} download failed from both the Tor distribution site and its official package archive"
+  software_warn "${tor_asset_label} failed at both official origins after the three-retry budget"
+  return 75
 }
 
 software_install_tor_browser() (
