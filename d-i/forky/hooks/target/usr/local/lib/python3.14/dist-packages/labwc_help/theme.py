@@ -10,10 +10,12 @@ ICON_KEYS = frozenset({
     'forward', 'home', 'menu', 'recents', 'search',
 })
 THEME_ICON = re.compile(r'[A-Za-z0-9][A-Za-z0-9._+-]{0,127}\Z')
+THEME_FONT = re.compile(r'[A-Za-z0-9][A-Za-z0-9 ._-]{0,127}\Z')
 
 
 def _empty() -> dict:
-    return {'version': 1, 'icons': {key: '' for key in ICON_KEYS}, 'list_marker': ''}
+    return {'version': 1, 'icons': {key: '' for key in ICON_KEYS},
+            'font_family': 'Noto Sans', 'list_marker': ''}
 
 
 def _icon(value: object) -> str:
@@ -30,6 +32,10 @@ def _marker(value: object) -> str:
     return ''
 
 
+def _font(value: object) -> str:
+    return value if isinstance(value, str) and THEME_FONT.fullmatch(value) else 'Noto Sans'
+
+
 def load() -> dict:
     result = _empty()
     try:
@@ -39,5 +45,6 @@ def load() -> dict:
     icons = data.get('icons', {}) if isinstance(data, dict) else {}
     if isinstance(icons, dict):
         result['icons'].update({key: _icon(icons.get(key)) for key in ICON_KEYS})
+    result['font_family'] = _font(data.get('font_family')) if isinstance(data, dict) else result['font_family']
     result['list_marker'] = _marker(data.get('list_marker')) if isinstance(data, dict) else ''
     return result

@@ -9,6 +9,7 @@ profile labwc-tomat /usr/local/libexec/labwc-tomat flags=(attach_disconnected, m
   #include <abstractions/dbus-session-strict>
   /usr/local/libexec/labwc-tomat rix,
   /usr/bin/{systemctl,systemd-run} rix,
+  /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
   /usr/bin/notify-send rix,
   /usr/bin/tomat rpx -> tomat,
   /usr/bin/l3afpad rpx -> desktop-editors,
@@ -39,6 +40,8 @@ profile labwc-tomat /usr/local/libexec/labwc-tomat flags=(attach_disconnected, m
   # Cleanup is addressed to the exact watch child, never a daemon PID lookup.
   signal (send) set=(term, kill) peer=tomat,
   signal (receive) set=(chld) peer=tomat,
+  signal (send) set=(term, kill) peer=labwc-fuzzel,
+  signal (receive) set=(chld) peer=labwc-fuzzel,
   signal (receive) peer={unconfined,waybar},
   signal (send) set=(chld) peer={unconfined,waybar},
   deny network inet,

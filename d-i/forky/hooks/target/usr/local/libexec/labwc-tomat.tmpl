@@ -32,12 +32,25 @@ UNIT = "labwc-tomat.service"
 TARGET = "labwc-session.target"
 DESCRIPTION = "Managed Tomat session daemon"
 TOMAT = "/usr/bin/tomat"
+FUZZEL = "/usr/local/bin/labwc-fuzzel"
 SYSTEMCTL = "/usr/bin/systemctl"
 MAX_CONFIG = 65_536
+MAX_CUSTOM_SELECTION = 4_096
 PRESETS = {
     "default": (), "25": ("25", "5"), "50": ("50", "10"), "90": ("90", "15"),
     # Tomat durations are minutes; 1/6 minute is exactly ten seconds.
     "test": ("0.1666667", "0.1666667"),
+}
+CUSTOM_CHOICES = {
+    "work": [("5 minutes", "5"), ("15 minutes", "15"), ("25 minutes", "25"),
+              ("45 minutes", "45"), ("60 minutes", "60"), ("90 minutes", "90"),
+              ("120 minutes", "120")],
+    "break": [("1 minute", "1"), ("5 minutes", "5"), ("10 minutes", "10"),
+              ("15 minutes", "15"), ("20 minutes", "20"), ("30 minutes", "30")],
+    "long_break": [("5 minutes", "5"), ("10 minutes", "10"), ("15 minutes", "15"),
+                   ("20 minutes", "20"), ("30 minutes", "30"), ("45 minutes", "45")],
+    "sessions": [(f"{count} session" + ("" if count == 1 else "s"), str(count))
+                 for count in range(1, 9)],
 }
 PROPERTIES = (
     f"Description={DESCRIPTION}", f"Requisite={TARGET}", f"After={TARGET}",
@@ -523,10 +536,44 @@ class Context:
                   "--category=tomat.settings", "Tomat", message], timeout=5, check=False)
         print(message)
 
+    def custom_start(self) -> None:
+        """Choose bounded per-session values; never edit the persistent config."""
+        display = os.environ.get("WAYLAND_DISPLAY", "")
+        if not re.fullmatch(r"wayland-[0-9]+", display):
+            raise Error("no managed Wayland display is available")
+        environment = dict(self.env, WAYLAND_DISPLAY=display,
+                           XDG_SESSION_TYPE="wayland", LABWC_SESSION_OWNER="desktop",
+                           LABWC_SESSION_APP="1", LABWC_MENU_INPUT_MODE="text")
+        selected = {}
+        for name, prompt in (("work", "Tomat Custom · work time"),
+                             ("break", "Tomat Custom · short break"),
+                             ("long_break", "Tomat Custom · long break"),
+                             ("sessions", "Tomat Custom · sessions before long break")):
+            rows = CUSTOM_CHOICES[name]
+            payload = ("\n".join(label for label, _value in rows) + "\n").encode("utf-8")
+            result = subprocess.run(
+                [FUZZEL, "action", "--dmenu", f"--prompt={prompt}"], input=payload,
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=environment,
+                timeout=20, check=False,
+            )
+            if result.returncode != 0:
+                raise Error("Tomat Custom selection was cancelled")
+            if len(result.stdout) > MAX_CUSTOM_SELECTION:
+                raise Error("Tomat Custom selection exceeded its output budget")
+            choice = result.stdout.decode("utf-8", "strict").strip()
+            values = dict(rows)
+            if choice not in values:
+                raise Error("Tomat Custom returned an invalid selection")
+            selected[name] = values[choice]
+        command = [TOMAT, "--quiet", "start", "--work", selected["work"],
+                   "--break", selected["break"], "--long-break", selected["long_break"],
+                   "--sessions", selected["sessions"]]
+        os.execve(TOMAT, command, self.env)
+
 
 def main(argv: list[str]) -> int:
-    if not argv or argv[0] not in {"watch", "ensure", "start", "toggle", "skip", "stop", "settings", "config"}:
-        raise Error("usage: labwc-tomat watch|ensure|start [default|25|50|90|test]|toggle|skip|stop|settings notifications|sounds|overlays|config")
+    if not argv or argv[0] not in {"watch", "ensure", "start", "toggle", "skip", "stop", "settings", "config", "custom"}:
+        raise Error("usage: labwc-tomat watch|ensure|start [default|25|50|90|test]|toggle|skip|stop|settings notifications|sounds|overlays|config|custom")
     action = argv[0]
     if action == "start":
         if len(argv) > 2 or (len(argv) == 2 and argv[1] not in PRESETS):
@@ -548,6 +595,9 @@ def main(argv: list[str]) -> int:
         environment["WAYLAND_DISPLAY"] = display
         environment["XDG_SESSION_TYPE"] = "wayland"
         os.execve("/usr/bin/l3afpad", ["/usr/bin/l3afpad", str(context.config)], environment)
+    if action == "custom":
+        context.ensure()
+        context.custom_start()
     with context.locked():
         context.ensure()
         if action == "settings":

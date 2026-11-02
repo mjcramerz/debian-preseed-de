@@ -6,7 +6,7 @@ import sys
 import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Adw, Gio, GLib
+from gi.repository import Adw, Gio, GLib, Gtk
 
 from . import APP_ID, VERSION
 from .catalog import TOPIC
@@ -31,6 +31,9 @@ class HelpApplication(Adw.Application):
 
     def do_startup(self):
         Adw.Application.do_startup(self)
+        settings = Gtk.Settings.get_default()
+        if settings is not None:
+            settings.set_property('gtk-font-name', self.theme['font_family'] + ' 11')
         for name in ('home', 'back', 'forward', 'search', 'find', 'bookmark', 'bookmarks', 'recents', 'zoom-in', 'zoom-out', 'preferences', 'copy', 'shortcuts', 'about', 'quit'):
             action = Gio.SimpleAction.new(name, None)
             action.connect('activate', lambda _a, _p, chosen=name: self.dispatch(chosen))
@@ -104,4 +107,5 @@ def main(argv=None):
         raise ValueError('Help must run as the desktop user')
     os.umask(0o077)
     GLib.set_application_name('Help')
-    return HelpApplication(load_theme()).run(['labwc-help', *arguments])
+    theme = load_theme()
+    return HelpApplication(theme).run(['labwc-help', *arguments])

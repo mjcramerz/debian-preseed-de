@@ -12449,24 +12449,26 @@
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style-common.css.tmpl",
           "path": "waybar/style-common.css",
           "line": 33,
-          "template": "  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_PANEL_SHADOW__ __THEME_WAYBAR_PANEL_SHADOW_COLOR__;",
+          "template": "  box-shadow: 0 0 0 1px __THEME_WAYBAR_PANEL_OUTLINE_COLOR__, __INSTALLER_LABWC_WAYBAR_INTERNAL_PANEL_SHADOW__ __THEME_WAYBAR_PANEL_SHADOW_COLOR__;",
           "tokens": [
+            "__THEME_WAYBAR_PANEL_OUTLINE_COLOR__",
             "__INSTALLER_LABWC_WAYBAR_INTERNAL_PANEL_SHADOW__",
             "__THEME_WAYBAR_PANEL_SHADOW_COLOR__"
           ],
-          "target_index": 1,
+          "target_index": 2,
           "grammar": "gtk3-css-color"
         },
         {
           "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style-common.css.tmpl",
           "path": "waybar/style-common.css",
           "line": 39,
-          "template": "  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_PANEL_SHADOW__ __THEME_WAYBAR_PANEL_SHADOW_COLOR__;",
+          "template": "  box-shadow: 0 0 0 1px __THEME_WAYBAR_PANEL_OUTLINE_COLOR__, __INSTALLER_LABWC_WAYBAR_EXTERNAL_PANEL_SHADOW__ __THEME_WAYBAR_PANEL_SHADOW_COLOR__;",
           "tokens": [
+            "__THEME_WAYBAR_PANEL_OUTLINE_COLOR__",
             "__INSTALLER_LABWC_WAYBAR_EXTERNAL_PANEL_SHADOW__",
             "__THEME_WAYBAR_PANEL_SHADOW_COLOR__"
           ],
-          "target_index": 1,
+          "target_index": 2,
           "grammar": "gtk3-css-color"
         }
       ]

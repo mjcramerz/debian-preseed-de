@@ -130,47 +130,56 @@ class HelpStaticContracts(unittest.TestCase):
             source = source_path.read_text(encoding="utf-8")
             self.assertNotRegex(source, r'notify\([^\n]*,\s*["\'][a-z][a-z0-9.-]*["\']')
 
-    def test_every_waybar_gtk_menu_has_the_same_managed_help_entry(self):
+    def test_only_system_settings_popup_has_managed_help_entry(self):
         gtk_root = TARGET / "etc/skel-desktop/.config/waybar/gtk"
         modules_root = TARGET / "etc/skel-desktop/.config/waybar/modules"
-        expected_actions = {
-            "audio-menu.xml": "help_audio",
-            "bluetooth-menu.xml": "help_bluetooth",
-            "calendar-menu.xml": "help_calendar",
-            "launcher-menu.xml": "help_launcher",
-            "notifications-menu.xml": "help_notifications",
-            "power-menu.xml": "help_power",
-            "screenshot-menu.xml": "help_screenshot",
-            "system-menu.xml": "help_help",
-            "tomat-menu.xml": "help_tomat",
-            "wayscriber-menu.xml": "help_wayscriber",
+        expected_action = "help_help"
+        removed_actions = {
+            "help_audio", "help_bluetooth", "help_calendar", "help_launcher",
+            "help_notifications", "help_power", "help_screenshot", "help_tomat",
+            "help_wayscriber",
         }
         menu_count = 0
         module_count = 0
         for menu in sorted(gtk_root.glob("*.xml.tmpl")):
             module_name = menu.name.removesuffix(".tmpl")
-            action = expected_actions[module_name]
             tree = ElementTree.parse(menu)
-            help_items = [item for item in tree.iter("object") if item.get("id") == action]
-            self.assertEqual(len(help_items), 1, menu)
-            icons = [node.text for node in help_items[0].iter("property")
-                     if node.get("name") == "icon-name"]
-            self.assertEqual(icons, ["__THEME_FUZZEL_MENU_ACTION_HELP_ICON_NAME__"], menu)
+            help_items = [item for item in tree.iter("object")
+                          if item.get("class") == "GtkMenuItem"
+                          and any(node.text == "Help" for node in item.iter("property")
+                                  if node.get("name") == "label")]
+            if module_name == "system-menu.xml":
+                self.assertEqual([item.get("id") for item in help_items], [expected_action], menu)
+                system_ids = {item.get("id") for item in tree.iter("object")
+                              if item.get("class") == "GtkMenuItem"}
+                self.assertNotIn("help_diagnostics", system_ids)
+                self.assertNotIn("help_computer_management", system_ids)
+                self.assertIn("system_diagnostics", system_ids)
+                self.assertIn("system_computer_management", system_ids)
+                icons = [node.text for node in help_items[0].iter("property")
+                         if node.get("name") == "icon-name"]
+                self.assertEqual(icons, ["__THEME_FUZZEL_MENU_ACTION_HELP_ICON_NAME__"], menu)
+            else:
+                self.assertEqual(help_items, [], menu)
             self.assertNotIn("symbolic", menu.read_text(encoding="utf-8"), menu)
-            self.assertIn(f'id="{action}"', menu.read_text(encoding="utf-8"), menu)
             owners = [module for module in modules_root.glob("*.tmpl")
                       if f"gtk/{module_name}" in module.read_text(encoding="utf-8")]
             self.assertTrue(owners, menu)
             for module in owners:
-                self.assertIn(
-                    f'"{action}": "/usr/local/libexec/labwc-waybar-run -- '
-                    f'/usr/local/bin/labwc-system-menu-action {action}"',
-                    module.read_text(encoding="utf-8"),
-                )
-                module_count += 1
+                module_text = module.read_text(encoding="utf-8")
+                if module_name == "system-menu.xml":
+                    self.assertIn(
+                        f'"{expected_action}": "/usr/local/libexec/labwc-waybar-run -- '
+                        f'/usr/local/bin/labwc-system-menu-action {expected_action}"',
+                        module_text,
+                    )
+                    module_count += 1
+                else:
+                    for action in removed_actions:
+                        self.assertNotIn(f'"{action}":', module_text)
             menu_count += 1
         self.assertEqual(menu_count, 10)
-        self.assertEqual(module_count, 11)
+        self.assertEqual(module_count, 1)
 
     def test_fuzzel_places_help_below_desktop_settings(self):
         menu = (TARGET / "usr/local/bin/labwc-main-menu.tmpl").read_text(encoding="utf-8")
@@ -244,20 +253,14 @@ class HelpStaticContracts(unittest.TestCase):
 
     def test_waybar_popup_help_actions_deep_link_to_their_topics(self):
         dispatcher = (TARGET / "usr/local/bin/labwc-system-menu-action").read_text(encoding="utf-8")
-        expected = {
-            "help_audio": "troubleshooting.audio",
-            "help_bluetooth": "hardware.peripherals",
-            "help_calendar": "desktop.calendar",
-            "help_launcher": "troubleshooting.applications",
-            "help_notifications": "desktop.mako",
-            "help_power": "hardware.power",
-            "help_screenshot": "desktop.waybar",
-            "help_help": "desktop.labwc",
-            "help_tomat": "desktop.tomat",
-            "help_wayscriber": "desktop.wayscriber",
-        }
+        expected = {"help_help": "desktop.labwc"}
         for action, topic in expected.items():
             self.assertIn(f"'{action}': (HELP, '--topic', '{topic}')", dispatcher)
+        for action in (
+                "help_audio", "help_bluetooth", "help_calendar", "help_launcher",
+                "help_notifications", "help_power", "help_screenshot", "help_tomat",
+                "help_wayscriber"):
+            self.assertNotIn(f"'{action}':", dispatcher)
         staging = (ROOT / "scripts/desktop/components/target-assets.sh").read_text(encoding="utf-8")
         self.assertIn("desktop.tomat", staging)
         self.assertIn("desktop.wayscriber", staging)

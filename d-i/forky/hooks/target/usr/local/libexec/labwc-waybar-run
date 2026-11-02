@@ -127,7 +127,7 @@ def allowed(command: tuple[str, ...]) -> bool:
         }
     if executable == "/usr/local/libexec/labwc-tomat":
         return arguments in [
-            ["toggle"], ["skip"], ["stop"], ["config"],
+            ["toggle"], ["skip"], ["stop"], ["config"], ["custom"],
             ["start", "default"], ["start", "25"], ["start", "50"], ["start", "90"], ["start", "test"],
             ["settings", "notifications"], ["settings", "sounds"], ["settings", "overlays"],
         ]

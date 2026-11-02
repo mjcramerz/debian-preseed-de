@@ -30,13 +30,13 @@ window#waybar {
 }
 
 window#waybar.internal {
-  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_PANEL_SHADOW__ __THEME_WAYBAR_PANEL_SHADOW_COLOR__;
+  box-shadow: 0 0 0 1px __THEME_WAYBAR_PANEL_OUTLINE_COLOR__, __INSTALLER_LABWC_WAYBAR_INTERNAL_PANEL_SHADOW__ __THEME_WAYBAR_PANEL_SHADOW_COLOR__;
   border-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_BORDER_WIDTH__px;
   border-radius: __INSTALLER_LABWC_WAYBAR_INTERNAL_PANEL_RADIUS__px;
 }
 
 window#waybar.external {
-  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_PANEL_SHADOW__ __THEME_WAYBAR_PANEL_SHADOW_COLOR__;
+  box-shadow: 0 0 0 1px __THEME_WAYBAR_PANEL_OUTLINE_COLOR__, __INSTALLER_LABWC_WAYBAR_EXTERNAL_PANEL_SHADOW__ __THEME_WAYBAR_PANEL_SHADOW_COLOR__;
   border-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_BORDER_WIDTH__px;
   border-radius: __INSTALLER_LABWC_WAYBAR_EXTERNAL_PANEL_RADIUS__px;
 }
@@ -346,4 +346,9 @@ window#waybar.external #custom-power {
   min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_SESSION_BUTTON_MIN_WIDTH__px;
   padding-left: __INSTALLER_LABWC_WAYBAR_EXTERNAL_SESSION_BUTTON_PADDING_X__px;
   padding-right: __INSTALLER_LABWC_WAYBAR_EXTERNAL_SESSION_BUTTON_PADDING_X__px;
+}
+
+/* Waybar/GTK animates state changes through this shared transition contract. */
+* {
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
 }
