@@ -101,7 +101,7 @@ configure_target_xanmod_regulatory_database() {
   # certificates, not Debian's separate database signing certificate. Keep
   # Debian's package and its paired signature under update-alternatives control.
   case " ${INSTALLER_PKGSEL_INCLUDE:-} " in
-    *" linux-xanmod-x64v2 "*|*" linux-xanmod-x64v3 "*) ;;
+    *" linux-image-7.3.1-x64v2-xanmod1 "*|*" linux-image-7.3.1-x64v3-xanmod1 "*) ;;
     *) return 0 ;;
   esac
   require_in_target "XanMod wireless regulatory database selection"

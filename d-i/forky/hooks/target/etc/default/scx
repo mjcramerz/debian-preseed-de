@@ -1,0 +1,4 @@
+# Managed SCX scheduler defaults. The service remains disabled unless the
+# selected desktop host profile opts into HARDWARE_CPU_SCHEDULER_SCX_ENABLE.
+SCX_SCHEDULER=scx_flash
+SCX_FLAGS=

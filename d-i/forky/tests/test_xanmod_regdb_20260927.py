@@ -74,7 +74,7 @@ run_in_target() { shift; "$@"; }
     def run_policy(self, *, selected=True, registered=True, status='installed', bad_signature=False):
         env = dict(os.environ)
         env.update(PATH=str(self.bin) + ':' + env.get('PATH', '/usr/bin:/bin'),
-                   INSTALLER_PKGSEL_INCLUDE='smartmontools linux-xanmod-x64v3' if selected else 'linux-image-amd64',
+                   INSTALLER_PKGSEL_INCLUDE='smartmontools linux-image-7.3.1-x64v3-xanmod1' if selected else 'linux-image-amd64',
                    FIXTURE_ALTERNATIVE=str(self.upstream if registered else self.firmware / 'unknown'),
                    FIXTURE_PACKAGE_STATUS=status,
                    FIXTURE_BAD_SIGNATURE='1' if bad_signature else '0',

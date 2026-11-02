@@ -1,0 +1,4 @@
+# Managed SCX loader defaults. The loader unit is opt-in, but manual starts
+# have a deterministic scheduler and mode once the unit is enabled.
+default_sched = "scx_flash"
+default_mode = "Auto"
