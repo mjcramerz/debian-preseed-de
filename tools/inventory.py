@@ -33,7 +33,9 @@ from urllib.parse import urlsplit, urlunsplit
 ROOT = Path(__file__).resolve().parents[1]
 PREFIX = 'd-i/forky/'
 SCHEMA = 4
-GENERATOR_VERSION = 3
+GENERATOR_VERSION = 4
+MANIFEST_SCHEMA = 1
+MANIFEST_RELATIVE_PATH = 'tools/inventory.manifest'
 MAX_FILE = 16 * 1024**2
 MAX_JSON = 128 * 1024**2
 MAX_TOTAL = 256 * 1024**2
@@ -55,6 +57,20 @@ NETWORK = re.compile(r'(?i)\b(?:curl|wget|urlopen|download_file|fetch_url|source
                      r'apt-get|anna-install|cscli\s+(?:hub|collections|parsers|scenarios|postoverflows|contexts|appsec-rules|appsec-configs)|'
                      r'cargo\s+install|rustup\s+(?:component|target|toolchain)|'
                      r'pipx?\s+install|npm\s+install|packer\s+init|podman\s+pull)\b')
+RELEVANT_SOURCE = re.compile(
+    r'(?is)(?:https?://|ftp://|ssh://|git://|git@[A-Za-z0-9.-]+:|'
+    r'\b(?:pkgsel/include|base-installer(?:/|\b)|apt-setup(?:/|\b)|mirror(?:/|\b)|anna/)|'
+    r'\b(?:apt(?:-get)?|anna-install|hook_(?:ensure|preload|try)_installer_(?:udeb|command)|'
+    r'ensure_installer_command(?:_logged)?|curl|wget|urlopen|download_file|fetch_url|'
+    r'git\s+(?:clone|fetch|checkout|switch)|source_transfer|source_bootstrap|fetch_hook_file|'
+    r'bootstrap_source_module|installer_fetch_seed_path|cscli\s+(?:hub|collections|'
+    r'parsers|scenarios|postoverflows|contexts|appsec-rules|appsec-configs)|'
+    r'cargo\s+install|rustup\s+(?:component|target|toolchain)|pipx?\s+install|'
+    r'npm\s+install|packer\s+init|podman\s+pull|modprobe|insmod)\b|module_udeb=|'
+    r'\b[A-Za-z_]\w*(?:_APT_DEPS|_PACKAGES|_UDEBS|_URL|_URI|_REPOSITORY|_BRANCH|'
+    r'_COMMIT|_REVISION|_SHA256|_SHA512|_FINGERPRINT|_VERSION|_RELEASE|_TAG|'
+    r'_ARCHITECTURE|_SOURCE_BUILD|_FILENAME|_MINIMUM_BYTES|_MAXIMUM_BYTES|'
+    r'_ENABLE|_APT_PREFERENCES|_SPECS|_HOSTS|_FIELDS|_DELTAS)\b)')
 INTEREST = re.compile(r'(?i)(?:url|uri|repository|branch|commit|revision|sha256|sha512|fingerprint|version|'
                       r'tag|architecture|target_triple|toolchain|kernel|packages|apt_deps|modules|apt_preferences|source_build|release|filename|minimum_bytes|maximum_bytes|_enable|'
                       r'wrangler_node_root|wrangler_node_requirement|wrangler_package_name|npm_integrity|node_[0-9]+_install_root)')
@@ -122,6 +138,10 @@ def reject_constant(_):
 
 EXCLUDED_DIRS = {'tests', 'backup', '__pycache__', '.git', '.pytest_cache'}
 GENERATED = {'payload.tar.gz', 'payload.manifest', 'preseed.cfg'}
+FACT_LIST_KEYS = ('variables', 'packages', 'settings', 'urls', 'operations', 'transfers',
+                  'pins', 'classes', 'sources', 'modules', 'plugins', 'collections',
+                  'diagnostics', 'manifest_files')
+FACT_KEYS = FACT_LIST_KEYS + ('constants', 'references')
 
 
 class DiscoveryBudget:
@@ -182,9 +202,88 @@ def checkout_paths(root: Path) -> list[Path]:
     return sorted(files)
 
 
-def scan_checkout(root: Path) -> tuple[dict, dict, dict]:
+def relevant_source(name: str, text: str) -> bool:
+    """Cheaply identify source that can contribute an inventory fact.
+
+    This predicate intentionally runs before the structured parser. It is a
+    conservative lexical gate: a false positive costs one bounded parse, while
+    a false negative would silently omit a package, repository, or download.
+    File formats with facts that are not represented by a URL or command are
+    included explicitly.
+    """
+    if name.endswith(('.pref', '.sources', '.sources.in.tmpl', '.pkr.hcl.tmpl')):
+        return True
+    if name == PREFIX + 'assets/desktop-themes/sources.json':
+        return True
+    if name == PREFIX + 'scripts/desktop/desktop-theme-assets.list':
+        return True
+    if '/classes/configs/' in name and name.endswith('.cfg'):
+        return bool(re.search(r'(?im)^\s*(?:Type|RequiresClasses|DebianAptPreferences)\s*:', text))
+    if RELEVANT_SOURCE.search(text) or NETWORK.search(text):
+        return True
+    for _, line in logical_lines(text):
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#'):
+            continue
+        shell_assignment = ASSIGN.match(line)
+        python_assignment = re.match(r'^\s*([A-Za-z_]\w*)\s*=\s*', line)
+        assignment = shell_assignment or python_assignment
+        if assignment and INTEREST.search(assignment[1]):
+            return True
+    return False
+
+
+def valid_cached_facts(value) -> bool:
+    """Validate a cached scan before allowing it to influence assembly."""
+    if not isinstance(value, dict) or set(value) != set(FACT_KEYS):
+        return False
+    for key in FACT_LIST_KEYS:
+        rows = value.get(key)
+        if not isinstance(rows, list) or len(rows) > MAX_FACTS or any(not isinstance(row, dict) for row in rows):
+            return False
+    constants, references = value.get('constants'), value.get('references')
+    if (not isinstance(constants, dict) or len(constants) > 10000
+            or not isinstance(references, dict) or len(references) > 10000
+            or any(not isinstance(key, str) or type(line) is not int or line < 1
+                   for key, line in references.items())):
+        return False
+    return True
+
+
+def cached_manifest(root: Path, generator: dict) -> dict:
+    """Read a scanner cache, treating malformed or stale data as a cache miss."""
+    path = root / MANIFEST_RELATIVE_PATH
+    try:
+        raw = read_file(path, MAX_JSON)
+    except FileNotFoundError:
+        return {}
+    try:
+        value = json.loads(raw, object_pairs_hook=json_pairs, parse_constant=reject_constant)
+    except (ValueError, UnicodeError, RecursionError):
+        return {}
+    if (not isinstance(value, dict) or value.get('schema') != MANIFEST_SCHEMA
+            or value.get('generator') != generator or value.get('source_root') != PREFIX.rstrip('/')
+            or not isinstance(value.get('files'), dict) or len(value['files']) > MAX_MEMBERS):
+        return {}
+    result = {}
+    for name, entry in value['files'].items():
+        if (not isinstance(name, str) or not name.startswith(PREFIX) or '..' in PurePosixPath(name).parts
+                or not isinstance(entry, dict) or set(entry) != {'bytes', 'sha256', 'facts'}
+                or type(entry['bytes']) is not int or not 0 <= entry['bytes'] <= MAX_FILE
+                or not re.fullmatch(r'[a-f0-9]{64}', entry['sha256'])
+                or not valid_cached_facts(entry['facts'])):
+            return {}
+        result[name] = entry
+    return result
+
+
+def scan_checkout(root: Path, generator: dict | None = None, *, return_manifest: bool = False):
     """Scan live installer inputs, without extracting, importing or sourcing."""
-    scans, identities, observed, total, fingerprint = {}, {}, {}, 0, hashlib.sha256()
+    generator = generator or generator_identity()
+    cached = cached_manifest(root, generator)
+    scans, identities, observed, manifest_files = {}, {}, {}, {}
+    total, scanned_files, reused_files = 0, 0, 0
+    fingerprint = hashlib.sha256()
     paths = checkout_paths(root)
     budget = DiscoveryBudget()
     for path in paths:
@@ -208,7 +307,19 @@ def scan_checkout(root: Path) -> tuple[dict, dict, dict]:
             source = data.decode('utf-8')
         except UnicodeDecodeError:
             continue
-        scans[name] = scan_file(name, source, budget)
+        if not relevant_source(name, source):
+            continue
+        checksum_hex = checksum.hexdigest()
+        cached_entry = cached.get(name)
+        if (cached_entry and cached_entry['bytes'] == len(data)
+                and cached_entry['sha256'] == checksum_hex):
+            facts = cached_entry['facts']
+            reused_files += 1
+        else:
+            facts = scan_file(name, source, budget)
+            scanned_files += 1
+        scans[name] = facts
+        manifest_files[name] = {'bytes': len(data), 'sha256': checksum_hex, 'facts': facts}
     if not scans:
         raise ValueError('installer source tree is empty')
     manifest = scans.get(PREFIX + 'assets/desktop-themes/sources.json', {}).get('manifest_files', [])
@@ -221,6 +332,17 @@ def scan_checkout(root: Path) -> tuple[dict, dict, dict]:
             if actual != {key: item[key] for key in ('bytes', 'sha256')}:
                 raise ValueError('staged desktop theme source differs from its pinned manifest')
     stamp = {'path': PREFIX.rstrip('/'), 'sha256': fingerprint.hexdigest(), 'files': len(paths)}
+    manifest = encode({'schema': MANIFEST_SCHEMA, 'source_root': PREFIX.rstrip('/'),
+                       'generator': generator, 'files': manifest_files})
+    if len(manifest) > MAX_JSON:
+        raise ValueError('inventory manifest exceeds byte limit')
+    scan_stats = {
+        'relevant_source_files': len(scans),
+        'text_files_scanned': scanned_files,
+        'text_files_reused': reused_files,
+    }
+    if return_manifest:
+        return scans, stamp, identities, manifest, scan_stats
     return scans, stamp, identities
 
 
@@ -526,7 +648,8 @@ def scan_file(name: str, text: str, budget=None) -> dict:
             if question.startswith(('mirror/', 'apt-setup/', 'pkgsel/', 'base-installer/', 'anna/')):
                 facts['settings'].append({'question': question, 'value': safe_text(value), 'line': number})
             package_type = 'udeb' if question == 'anna/choose_modules' else 'deb'
-            if question in {'pkgsel/include', 'base-installer/includes', 'base-installer/kernel/linux/extra-packages',
+            if question in {'pkgsel/include', 'base-installer/include', 'base-installer/includes',
+                            'base-installer/kernel/linux/extra-packages',
                             'base-installer/kernel/linux/initramfs-generators',
                             'base-installer/kernel/image', 'anna/choose_modules'}:
                 for item in re.split(r'[\s,]+', value):
@@ -2015,15 +2138,17 @@ def current_inventory(value: dict, stamp: dict, *, require_apt: bool, generator:
 def generate(root: Path = ROOT, *, refresh_apt: bool = False, force: bool = False) -> tuple[bytes, dict]:
     root = root.resolve(strict=True)
     generator = generator_identity()
-    scans, stamp, identities = scan_checkout(root)
+    scans, stamp, identities, manifest_data, scan_stats = scan_checkout(root, generator, return_manifest=True)
     old_raw, old = existing_document(root / 'inventory.json')
-    stats = {'text_files_scanned': len(scans), 'source_files': stamp['files']}
+    manifest_state = publication_state(root / MANIFEST_RELATIVE_PATH)
+    manifest_current = manifest_state is not None and manifest_state[:2] == (manifest_data, 0o644)
+    stats = {'source_files': stamp['files'], **scan_stats, 'manifest_current': manifest_current}
     # A requested metadata refresh must observe rolling APT archives and
     # indirect channels again even when checkout declarations are unchanged.
     if not force and not refresh_apt and current_inventory(old, stamp, require_apt=False, generator=generator):
         if not unchanged_checkout(root, identities) or generator_identity() != generator:
             raise ValueError('checkout changed during discovery; previous inventory retained')
-        return old_raw, dict(stats, current=True, written=False)
+        return old_raw, dict(stats, _manifest_data=manifest_data, current=True, written=False)
     metadata, recipes = {}, indirect_downloads(scans, Variables(scans))
     if refresh_apt:
         # Load precisely the sibling collector without adding checkout paths
@@ -2050,7 +2175,7 @@ def generate(root: Path = ROOT, *, refresh_apt: bool = False, force: bool = Fals
         raise ValueError('generated inventory exceeds byte limit')
     if not unchanged_checkout(root, identities) or generator_identity() != generator:
         raise ValueError('checkout changed during generation; previous inventory retained')
-    return data, dict(stats, current=False)
+    return data, dict(stats, _manifest_data=manifest_data, current=False)
 
 
 UNSPECIFIED = object()
@@ -2142,12 +2267,10 @@ def publication_state(path: Path):
     return data, stat.S_IMODE(info.st_mode), file_identity(info)
 
 
-def publish_products(root: Path, products: dict[str, bytes]) -> bool:
-    """Publish one product; restore only a pinned candidate or retain evidence."""
-    if (set(products) != {'inventory.json'} or type(products['inventory.json']) is not bytes
-            or len(products['inventory.json']) > MAX_JSON):
-        raise ValueError('publication requires only bounded inventory.json bytes')
-    data, path = products['inventory.json'], root / 'inventory.json'
+def publish_single(root: Path, path: Path, data: bytes) -> bool:
+    """Publish one bounded cache/product with exact-state recovery."""
+    if type(data) is not bytes or len(data) > MAX_JSON:
+        raise ValueError('publication requires bounded inventory bytes')
     previous = publication_state(path)
     if previous is not None and previous[:2] == (data, 0o644):
         return False
@@ -2177,6 +2300,7 @@ def publish_products(root: Path, products: dict[str, bytes]) -> bool:
                         if file_identity(path.lstat()) != current[2]:
                             raise ValueError('inventory candidate identity changed before restoration')
                         path.unlink()
+                        sync_directory(path.parent)
                         sync_directory(root)
                     else:
                         atomic_write(path, previous[0], previous[1], expected=current[2])
@@ -2199,12 +2323,28 @@ def publish_products(root: Path, products: dict[str, bytes]) -> bool:
     return True
 
 
+def publish_products(root: Path, products: dict[str, bytes]) -> bool:
+    """Publish the primary inventory product; legacy paired output is rejected."""
+    if (set(products) != {'inventory.json'} or type(products['inventory.json']) is not bytes
+            or len(products['inventory.json']) > MAX_JSON):
+        raise ValueError('publication requires only bounded inventory.json bytes')
+    return publish_single(root, root / 'inventory.json', products['inventory.json'])
+
+
+def publish_manifest(root: Path, data: bytes) -> bool:
+    """Publish the source cache below tools without exposing a second inventory."""
+    return publish_single(root, root / MANIFEST_RELATIVE_PATH, data)
+
+
 def publish(root: Path = ROOT, *, refresh_apt: bool = False, force: bool = False) -> dict:
     root = root.resolve(strict=True)
     with generation_lock(root):
         data, stats = generate(root, refresh_apt=refresh_apt, force=force)
+        manifest_data = stats.pop('_manifest_data')
         if not stats['current']:
             stats['written'] = publish_products(root, {'inventory.json': data})
+        if not stats['manifest_current']:
+            stats['manifest_written'] = publish_manifest(root, manifest_data)
         return stats
 
 
@@ -2215,10 +2355,13 @@ def main() -> int:
     args = parser.parse_args()
     try:
         stats = publish(refresh_apt=args.refresh_apt, force=args.force)
-        if stats['current']:
+        if stats['current'] and not stats.get('manifest_written'):
             print('inventory.json is already up to date')
+        elif stats['current']:
+            print('inventory.json is current; inventory.manifest refreshed')
         else:
-            print(f'inventory: inventory.json generated from {stats["text_files_scanned"]} installer source files')
+            print(f'inventory: inventory.json generated from {stats["relevant_source_files"]} relevant source files '
+                  f'({stats["text_files_scanned"]} parsed, {stats["text_files_reused"]} reused)')
         return 0
     except (OSError, ValueError, KeyError, TypeError, RecursionError, EOFError) as error:
         print('inventory failed: ' + str(error), file=sys.stderr)
