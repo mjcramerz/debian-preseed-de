@@ -2325,6 +2325,14 @@ if software_run_optional_app "Filen Desktop" software_install_filen_app; then
 fi
 
 software_install_discord_app() {
+# The Discord verifier publishes the runtime and then validates this desktop
+# entry as part of its postinstall transaction. Stage it before bootstrap so a
+# fresh install does not fail solely because the entry is created afterward.
+software_stage_seed_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/share/applications/discord.desktop)" \
+  "$discord_desktop_file" \
+  0644
+chroot "$target_root" /usr/bin/desktop-file-validate "$discord_desktop_file"
 discord_bootstrap_status=1
 discord_bootstrap_attempt=1
 while [ "$discord_bootstrap_attempt" -le 4 ]; do
@@ -2362,10 +2370,6 @@ chroot "$target_root" /usr/bin/test -x "${discord_install_dir}/Discord" &&
   chroot "$target_root" /usr/bin/test -x "${discord_install_dir}/chrome-sandbox" ||
   software_fatal "managed Discord runtime executables are invalid after bootstrap"
 software_stage_menu_icon "${discord_install_dir}/discord.png" discord
-software_stage_seed_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/share/applications/discord.desktop)" \
-  "$discord_desktop_file" \
-  0644
 chroot "$target_root" /usr/bin/desktop-file-validate "$discord_desktop_file"
 chroot "$target_root" /usr/bin/update-desktop-database /usr/local/share/applications
 }

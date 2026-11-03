@@ -1,11 +1,12 @@
 #!/usr/bin/python3
-"""Install checksum-pinned DotSlash and uv release archives as the desktop user.
+"""Install checksum-pinned Rust CLI release archives as the desktop user.
 
 This helper runs inside the target chroot under the managed desktop account. It
-downloads only the profile-selected official archives, validates their exact
-size and SHA-256 digest, rejects unsafe tar members, stages every selected
-binary on the destination filesystem, and publishes the complete set only
-after all selected archives have passed validation.
+downloads only the profile-selected official archives plus the pinned
+cargo-binstall release, validates their exact size and SHA-256 digest, rejects
+unsafe tar members, stages every selected binary on the destination filesystem,
+and publishes the complete set only after all selected archives have passed
+validation.
 """
 
 from __future__ import annotations
@@ -56,12 +57,13 @@ class InstallPolicy:
     max_extracted_bytes: int
     dotslash_source_build: bool
     uv_source_build: bool
+    binstall: Artifact
     dotslash: Artifact
     uv: Artifact
 
     @property
     def selected_artifacts(self) -> tuple[Artifact, ...]:
-        selected: list[Artifact] = []
+        selected: list[Artifact] = [self.binstall]
         if not self.dotslash_source_build:
             selected.append(self.dotslash)
         if not self.uv_source_build:
@@ -470,12 +472,14 @@ def install_selected_artifacts(policy: InstallPolicy) -> None:
 
 def parse_arguments(argv: Sequence[str]) -> InstallPolicy:
     parser = argparse.ArgumentParser(
-        description="Install profile-pinned prebuilt DotSlash and uv archives",
+        description="Install profile-pinned prebuilt Rust CLI archives",
     )
     parser.add_argument("--install-root", required=True)
     parser.add_argument("--download-timeout-seconds", required=True)
     parser.add_argument("--max-archive-members", required=True)
     parser.add_argument("--max-extracted-bytes", required=True)
+    for field in ("version", "url", "sha256", "bytes", "architecture", "archive-filename", "archive-files"):
+        parser.add_argument(f"--binstall-{field}", required=True)
     for tool in ("dotslash", "uv"):
         parser.add_argument(f"--{tool}-source-build", required=True)
         parser.add_argument(f"--{tool}-version", required=True)
@@ -526,6 +530,26 @@ def parse_arguments(argv: Sequence[str]) -> InstallPolicy:
         "uv URL",
         f"/astral-sh/uv/releases/download/{uv_version}/{uv_filename}",
     )
+    binstall_version = semantic_version(args.binstall_version, "cargo-binstall version")
+    binstall_filename = archive_token(
+        args.binstall_archive_filename,
+        "cargo-binstall archive filename",
+    )
+    if binstall_filename != f"cargo-binstall-x86_64-unknown-linux-musl.tgz":
+        fail("cargo-binstall archive filename does not match its architecture")
+    if args.binstall_architecture != "x86_64-unknown-linux-musl":
+        fail("cargo-binstall archive architecture must remain x86_64-unknown-linux-musl")
+    binstall_archive_files = archive_tokens(
+        args.binstall_archive_files,
+        "cargo-binstall archive files",
+    )
+    if binstall_archive_files != ("cargo-binstall",):
+        fail("cargo-binstall archive must contain only the cargo-binstall binary")
+    validate_https_url(
+        args.binstall_url,
+        "cargo-binstall URL",
+        f"/cargo-bins/cargo-binstall/releases/download/v{binstall_version}/{binstall_filename}",
+    )
 
     return InstallPolicy(
         install_root=managed_path(args.install_root, "Cargo install root"),
@@ -551,6 +575,21 @@ def parse_arguments(argv: Sequence[str]) -> InstallPolicy:
         uv_source_build=source_build_flag(
             args.uv_source_build,
             "DEVOPS_UV_SOURCE_BUILD",
+        ),
+        binstall=Artifact(
+            name="cargo-binstall",
+            version=binstall_version,
+            url=args.binstall_url,
+            sha256=lower_hex(args.binstall_sha256, "cargo-binstall SHA-256", 64),
+            minimum_bytes=positive_integer(
+                args.binstall_bytes,
+                "cargo-binstall archive bytes",
+                2**31,
+            ),
+            filename=binstall_filename,
+            architecture=args.binstall_architecture,
+            archive_members=binstall_archive_files,
+            binary_members=(("cargo-binstall", "cargo-binstall"),),
         ),
         dotslash=Artifact(
             name="DotSlash",

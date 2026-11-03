@@ -36,7 +36,6 @@ software_download_tor_browser_asset() {
     "$tor_asset_minimum_bytes" \
     "$tor_asset_maximum_bytes" \
     "$tor_asset_content_policy" \
-    dist.torproject.org \
     retry
   then
     return 0
@@ -50,7 +49,6 @@ software_download_tor_browser_asset() {
     "$tor_asset_minimum_bytes" \
     "$tor_asset_maximum_bytes" \
     "$tor_asset_content_policy" \
-    archive.torproject.org \
     retry
   then
     return 0

@@ -2,7 +2,8 @@
 # Configure the profile-pinned sched_ext userspace packages without building them.
 
 desktop_validate_scx_scheduler_policy() {
-  case "${HARDWARE_CPU_SCHEDULER_SCX_ENABLE:-false}" in
+  desktop_scx_enabled=${HARDWARE_CPU_SCHEDULER_SCX_ENABLE:-false}
+  case "$desktop_scx_enabled" in
     true|false) ;;
     *) installer_fatal "HARDWARE_CPU_SCHEDULER_SCX_ENABLE must be true or false" ;;
   esac
@@ -19,7 +20,7 @@ desktop_install_scx_scheduler() (
   set -eu
   desktop_validate_scx_scheduler_policy
 
-  if [ "${HARDWARE_CPU_SCHEDULER_SCX_ENABLE}" = false ]; then
+  if [ "$desktop_scx_enabled" = false ]; then
     desktop_log "scx-scheds disabled by host profile; package assets and units remain absent"
     return 0
   fi
@@ -37,7 +38,9 @@ desktop_install_scx_scheduler() (
     /usr/bin/scx_loader \
     /usr/bin/scxctl \
     /usr/share/dbus-1/system-services/org.scx.Loader.service \
-    /usr/share/dbus-1/system.d/org.scx.Loader.conf
+    /usr/share/dbus-1/system.d/org.scx.Loader.conf \
+    /usr/share/dbus-1/interfaces/org.scx.Loader.xml \
+    /usr/share/polkit-1/actions/org.scx.Loader.policy
   do
     desktop_require_scx_file "$scx_asset"
   done
@@ -55,8 +58,8 @@ desktop_install_scx_scheduler() (
   # Keeping both installed preserves the packaged manual fallback interfaces.
   desktop_disable_unit_if_available scx.service system
   desktop_disable_unit_if_available scx_loader.service system
-  if [ "${HARDWARE_CPU_SCHEDULER_SCX_ENABLE}" = true ]; then
+  if [ "$desktop_scx_enabled" = true ]; then
     desktop_enable_unit_if_available scx_loader.service system
   fi
-  desktop_log "configured scx-scheds scheduler=scx_flash loader=org.scx.Loader autostart=${HARDWARE_CPU_SCHEDULER_SCX_ENABLE}"
+  desktop_log "configured scx-scheds scheduler=scx_flash loader=org.scx.Loader autostart=${desktop_scx_enabled}"
 )

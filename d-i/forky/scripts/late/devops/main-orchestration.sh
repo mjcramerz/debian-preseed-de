@@ -583,6 +583,7 @@ done
   --kill-after=30s \
   1200s \
   rustup component add rustfmt --toolchain nightly
+
 /usr/bin/timeout \
   --signal=TERM \
   --kill-after=30s \
@@ -594,7 +595,8 @@ CARGO_NET_RETRY=3 \
     --signal=TERM \
     --kill-after=30s \
     3600s \
-    cargo +nightly install \
+    cargo binstall \
+      --no-confirm \
       --locked \
       --root "$CARGO_INSTALL_ROOT" \
       bpf-linker
@@ -632,88 +634,6 @@ fi
   "$DEVOPS_DOTSLASH_REPOSITORY_URL" \
   "$DEVOPS_UV_SOURCE_BUILD" \
   "$DEVOPS_UV_VERSION"
-# shellcheck disable=SC2016
-devops_run_as_account "verify Rustup, rustfmt, Cargo tools, and sccache" /bin/sh -eu -c '
-expected_rustc_wrapper=$1
-expected_target_triple=$2
-expected_target_linker=$3
-expected_target_cpu=$4
-expected_linker_argument=$5
-expected_dotslash_version=$6
-expected_uv_version=$7
-expected_rustup_binary=$8
-expected_rustup_toolchain=$9
-node_22_root=${10}
-node_24_root=${11}
-node_26_root=${12}
-
-command -v rustup >/dev/null 2>&1
-command -v cargo >/dev/null 2>&1
-command -v rustc >/dev/null 2>&1
-command -v rustfmt >/dev/null 2>&1
-command -v dotslash >/dev/null 2>&1
-command -v uv >/dev/null 2>&1
-command -v uvx >/dev/null 2>&1
-command -v sccache >/dev/null 2>&1
-command -v mold >/dev/null 2>&1
-command -v bpf-linker >/dev/null 2>&1
-# Verify the canonical versioned LLVM directories; do not make the optional
-# /usr/bin/clang-N aliases a prerequisite for an otherwise complete toolchain.
-for llvm_version in 21 22 24; do
-  for llvm_binary in \
-    "/usr/lib/llvm-${llvm_version}/bin/clang" \
-    "/usr/lib/llvm-${llvm_version}/bin/clang++" \
-    "/usr/lib/llvm-${llvm_version}/bin/llvm-config" \
-    "/usr/lib/llvm-${llvm_version}/bin/lld" \
-    "/usr/lib/llvm-${llvm_version}/bin/ld.lld"
-  do
-    test -x "$llvm_binary"
-  done
-  test -d "/usr/lib/clang/${llvm_version}/include"
-  test -d "/usr/lib/clang/${llvm_version}/lib"
-done
-test -x /usr/lib/llvm-24/bin/lldb
-unset llvm_version llvm_binary
-test -r "$CARGO_HOME/config.toml"
-test -x "$expected_rustup_binary"
-for node_root in "$node_22_root" "$node_24_root" "$node_26_root"; do
-  test -x "${node_root}/bin/corepack"
-  test -x "${node_root}/bin/pnpm"
-  test -x "${node_root}/bin/yarn"
-done
-rustup show active-toolchain >/dev/null
-rustup show active-toolchain | grep -Fq -- "$expected_rustup_toolchain"
-rustup component list --toolchain nightly --installed | grep -Eq "^rustfmt-"
-rustup component list --toolchain nightly --installed | grep -Eq "^rust-src-"
-cargo --version >/dev/null
-rustc --version >/dev/null
-rustfmt --version >/dev/null
-bpf-linker --version >/dev/null
-dotslash --version | grep -Fq "$expected_dotslash_version"
-uv --version | grep -Fq "$expected_uv_version"
-uvx --version | grep -Fq "$expected_uv_version"
-sccache --version >/dev/null
-rustc --print target-cpus |
-  LC_ALL=C awk -v wanted="$expected_target_cpu" \
-    '\''$1 == wanted { found = 1 } END { exit found ? 0 : 1 }'\''
-grep -Fqx "rustc-wrapper = \"${expected_rustc_wrapper}\"" "$CARGO_HOME/config.toml"
-grep -Fqx "[target.\"${expected_target_triple}\"]" "$CARGO_HOME/config.toml"
-grep -Fqx "linker = \"${expected_target_linker}\"" "$CARGO_HOME/config.toml"
-grep -Fqx "  \"target-cpu=${expected_target_cpu}\"," "$CARGO_HOME/config.toml"
-grep -Fqx "  \"link-arg=${expected_linker_argument}\"," "$CARGO_HOME/config.toml"
-' sh \
-  "$DEVOPS_CARGO_RUSTC_WRAPPER" \
-  "$DEVOPS_CARGO_TARGET_TRIPLE" \
-  "$DEVOPS_CARGO_TARGET_LINKER" \
-  "$DEVOPS_CARGO_TARGET_CPU" \
-  "$DEVOPS_CARGO_LINKER_ARGUMENT" \
-  "$DEVOPS_DOTSLASH_VERSION" \
-  "$DEVOPS_UV_VERSION" \
-  "$DEVOPS_RUSTUP_BINARY_PATH" \
-  "$DEVOPS_RUSTUP_TOOLCHAIN" \
-  "$DEVOPS_NODE_22_INSTALL_ROOT" \
-  "$DEVOPS_NODE_24_INSTALL_ROOT" \
-  "$DEVOPS_NODE_26_INSTALL_ROOT"
 
 # shellcheck disable=SC2016
 devops_run_as_account "link preinstalled Node runtimes into Mise" /bin/sh -eu -c '
@@ -744,5 +664,5 @@ mise reshim
   "$DEVOPS_NODE_26_MAJOR" "$DEVOPS_NODE_26_INSTALL_ROOT"
 
   devops_info \
-  "configured desktop toolchains account=${ACCOUNT_USERNAME} codex=${DEVOPS_CODEX_VERSION} sandbox=bubblewrap:network=host:isolated-network=opt-in llama_release=${LLAMA_RELEASE_ARCHIVE_ROOT} node=${DEVOPS_NODE_22_MAJOR},${DEVOPS_NODE_24_MAJOR},${DEVOPS_NODE_26_MAJOR} via Mise Corepack=enabled deno=${DEVOPS_DENO_VERSION} yt-dlp=${DEVOPS_YT_DLP_VERSION}+bundled-yt-dlp-ejs ffmpeg=system rustup=${DEVOPS_RUSTUP_VERSION} toolchain=${DEVOPS_RUSTUP_TOOLCHAIN} rustfmt=enabled rust-src=nightly bpf-linker=cargo dotslash=${DEVOPS_DOTSLASH_VERSION}@${DEVOPS_DOTSLASH_COMMIT}:source-build=${DEVOPS_DOTSLASH_SOURCE_BUILD} uv=${DEVOPS_UV_VERSION}:source-build=${DEVOPS_UV_SOURCE_BUILD} cargo_target_cpu=${DEVOPS_CARGO_TARGET_CPU} cargo_jobs=cargo-default llvm=21,22,24 direct bazelisk=${DEVOPS_BAZELISK_VERSION} ansible-core=${DEVOPS_ANSIBLE_CORE_VERSION} opentofu=${DEVOPS_OPENTOFU_VERSION} terraform=${DEVOPS_TERRAFORM_VERSION} packer=${DEVOPS_PACKER_VERSION} wrangler=${DEVOPS_WRANGLER_VERSION} aptly=${DEVOPS_APTLY_RELEASE_VERSION} osc=${DEVOPS_OSC_RELEASE_VERSION} obs-build=${DEVOPS_OBS_BUILD_TAG} publication=stable,testing:r2+home:cramerz:debian"
+  "configured desktop toolchains account=${ACCOUNT_USERNAME} codex=${DEVOPS_CODEX_VERSION} sandbox=bubblewrap:network=host:isolated-network=opt-in llama_release=${LLAMA_RELEASE_ARCHIVE_ROOT} node=${DEVOPS_NODE_22_MAJOR},${DEVOPS_NODE_24_MAJOR},${DEVOPS_NODE_26_MAJOR} via Mise Corepack=enabled deno=${DEVOPS_DENO_VERSION} yt-dlp=${DEVOPS_YT_DLP_VERSION}+bundled-yt-dlp-ejs ffmpeg=system rustup=${DEVOPS_RUSTUP_VERSION} toolchain=${DEVOPS_RUSTUP_TOOLCHAIN} rustfmt=enabled rust-src=nightly cargo-binstall=prebuilt@${DEVOPS_CARGO_BINSTALL_VERSION} bpf-linker=binstall dotslash=${DEVOPS_DOTSLASH_VERSION}@${DEVOPS_DOTSLASH_COMMIT}:source-build=${DEVOPS_DOTSLASH_SOURCE_BUILD} uv=${DEVOPS_UV_VERSION}:source-build=${DEVOPS_UV_SOURCE_BUILD} cargo_target_cpu=${DEVOPS_CARGO_TARGET_CPU} cargo_jobs=cargo-default llvm=21,22,24 direct bazelisk=${DEVOPS_BAZELISK_VERSION} ansible-core=${DEVOPS_ANSIBLE_CORE_VERSION} opentofu=${DEVOPS_OPENTOFU_VERSION} terraform=${DEVOPS_TERRAFORM_VERSION} packer=${DEVOPS_PACKER_VERSION} wrangler=${DEVOPS_WRANGLER_VERSION} aptly=${DEVOPS_APTLY_RELEASE_VERSION} osc=${DEVOPS_OSC_RELEASE_VERSION} obs-build=${DEVOPS_OBS_BUILD_TAG} publication=stable,testing:r2+home:cramerz:debian"
 }

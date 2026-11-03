@@ -67,6 +67,13 @@ devops_validate_upstream_tool_policy() {
   : "${DEVOPS_RUSTUP_INSTALL_ROOT:?DEVOPS_RUSTUP_INSTALL_ROOT must be set before DevOps provisioning}"
   : "${DEVOPS_RUSTUP_BINARY_PATH:?DEVOPS_RUSTUP_BINARY_PATH must be set before DevOps provisioning}"
   : "${DEVOPS_RUSTUP_TOOLCHAIN:?DEVOPS_RUSTUP_TOOLCHAIN must be set before DevOps provisioning}"
+  : "${DEVOPS_CARGO_BINSTALL_VERSION:?DEVOPS_CARGO_BINSTALL_VERSION must be set before DevOps provisioning}"
+  : "${DEVOPS_CARGO_BINSTALL_URL:?DEVOPS_CARGO_BINSTALL_URL must be set before DevOps provisioning}"
+  : "${DEVOPS_CARGO_BINSTALL_SHA256:?DEVOPS_CARGO_BINSTALL_SHA256 must be set before DevOps provisioning}"
+  : "${DEVOPS_CARGO_BINSTALL_MINIMUM_BYTES:?DEVOPS_CARGO_BINSTALL_MINIMUM_BYTES must be set before DevOps provisioning}"
+  : "${DEVOPS_CARGO_BINSTALL_ARCHITECTURE:?DEVOPS_CARGO_BINSTALL_ARCHITECTURE must be set before DevOps provisioning}"
+  : "${DEVOPS_CARGO_BINSTALL_ARCHIVE_FILENAME:?DEVOPS_CARGO_BINSTALL_ARCHIVE_FILENAME must be set before DevOps provisioning}"
+  : "${DEVOPS_CARGO_BINSTALL_ARCHIVE_FILES:?DEVOPS_CARGO_BINSTALL_ARCHIVE_FILES must be set before DevOps provisioning}"
   : "${DEVOPS_DOTSLASH_SOURCE_BUILD:?DEVOPS_DOTSLASH_SOURCE_BUILD must be set before DevOps provisioning}"
   : "${DEVOPS_DOTSLASH_VERSION:?DEVOPS_DOTSLASH_VERSION must be set before DevOps provisioning}"
   : "${DEVOPS_DOTSLASH_REPOSITORY_URL:?DEVOPS_DOTSLASH_REPOSITORY_URL must be set before DevOps provisioning}"
@@ -258,6 +265,17 @@ devops_validate_upstream_tool_policy() {
     devops_fatal "DEVOPS_RUSTUP_INSTALL_ROOT must remain /usr/local/lib/rustup"
   [ "$DEVOPS_RUSTUP_BINARY_PATH" = "${DEVOPS_RUSTUP_INSTALL_ROOT}/bin/rustup-init" ] ||
     devops_fatal "DEVOPS_RUSTUP_BINARY_PATH must remain ${DEVOPS_RUSTUP_INSTALL_ROOT}/bin/rustup-init"
+  devops_validate_semantic_version "DEVOPS_CARGO_BINSTALL_VERSION" "$DEVOPS_CARGO_BINSTALL_VERSION"
+  [ "$DEVOPS_CARGO_BINSTALL_ARCHITECTURE" = x86_64-unknown-linux-musl ] ||
+    devops_fatal "DEVOPS_CARGO_BINSTALL_ARCHITECTURE must remain x86_64-unknown-linux-musl"
+  [ "$DEVOPS_CARGO_BINSTALL_ARCHIVE_FILENAME" = cargo-binstall-x86_64-unknown-linux-musl.tgz ] ||
+    devops_fatal "DEVOPS_CARGO_BINSTALL_ARCHIVE_FILENAME must identify the cargo-binstall Linux musl x86-64 archive"
+  [ "$DEVOPS_CARGO_BINSTALL_URL" = "https://github.com/cargo-bins/cargo-binstall/releases/download/v${DEVOPS_CARGO_BINSTALL_VERSION}/${DEVOPS_CARGO_BINSTALL_ARCHIVE_FILENAME}" ] ||
+    devops_fatal "DEVOPS_CARGO_BINSTALL_URL must identify the versioned official cargo-binstall archive"
+  devops_validate_lower_hex "DEVOPS_CARGO_BINSTALL_SHA256" "$DEVOPS_CARGO_BINSTALL_SHA256" 64
+  devops_validate_positive_integer "DEVOPS_CARGO_BINSTALL_MINIMUM_BYTES" "$DEVOPS_CARGO_BINSTALL_MINIMUM_BYTES"
+  [ "$DEVOPS_CARGO_BINSTALL_ARCHIVE_FILES" = cargo-binstall ] ||
+    devops_fatal "DEVOPS_CARGO_BINSTALL_ARCHIVE_FILES must contain only cargo-binstall"
   devops_validate_source_build_flag "DEVOPS_DOTSLASH_SOURCE_BUILD" "$DEVOPS_DOTSLASH_SOURCE_BUILD"
   devops_validate_semantic_version "DEVOPS_DOTSLASH_VERSION" "$DEVOPS_DOTSLASH_VERSION"
   [ "$DEVOPS_DOTSLASH_REPOSITORY_URL" = https://github.com/facebook/dotslash ] ||
@@ -452,4 +470,3 @@ devops_validate_upstream_tool_policy() {
     devops_fatal "DEVOPS_OBS_BUILD_BINARY_PATH must remain ${DEVOPS_OBS_BUILD_INSTALL_ROOT}/bin/build"
   devops_validate_archive_file_list "DEVOPS_OBS_BUILD_ENTRYPOINTS" "$DEVOPS_OBS_BUILD_ENTRYPOINTS"
 }
-

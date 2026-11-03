@@ -10,7 +10,9 @@ profile supplies `SOFTWARE_TOR_BROWSER_VERSION`, `SOFTWARE_TOR_BROWSER_URL`,
 The installer requires the exact HTTPS release path on `dist.torproject.org`.
 If that origin returns a transfer error, curl retries it three times and then
 the installer retries the same pinned filename from Tor's official
-`archive.torproject.org/tor-package-archive` mirror. If both origins exhaust
+`archive.torproject.org/tor-package-archive` mirror. HTTPS redirects are accepted
+when the resulting content still passes the pinned size, digest, and signature
+checks. If both origins exhaust
 their retry budgets, Tor Browser is skipped and the remaining managed apps
 continue. The archive and signature downloads remain bounded, both pins are
 checked, and the OpenPGP signature is verified in a private temporary keyring.

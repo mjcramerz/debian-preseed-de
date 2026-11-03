@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 # Sourced installer module; edit this file directly.
 
 devops_install_upstream_tools() {
@@ -328,12 +329,6 @@ printf "installed Rustup %s bootstrap at %s\n" "$rustup_version" "$rustup_init_p
 }
 
 devops_install_pinned_rust_cli_binaries() {
-  if [ "$DEVOPS_DOTSLASH_SOURCE_BUILD" = 1 ] &&
-    [ "$DEVOPS_UV_SOURCE_BUILD" = 1 ]
-  then
-    return 0
-  fi
-
   helper_repo_path=$(installer_repo_join_var DIR_SCRIPTS_LATE devops-rust-tools.py)
   helper_target_path=/tmp/installer-devops-rust-tools.py
   helper_host_path="${target_root}${helper_target_path}"
@@ -355,6 +350,13 @@ devops_install_pinned_rust_cli_binaries() {
       --download-timeout-seconds "$DEVOPS_UPSTREAM_DOWNLOAD_TIMEOUT_SECONDS" \
       --max-archive-members "$DEVOPS_UPSTREAM_MAX_ARCHIVE_MEMBERS" \
       --max-extracted-bytes "$DEVOPS_UPSTREAM_MAX_EXTRACTED_BYTES" \
+      --binstall-version "$DEVOPS_CARGO_BINSTALL_VERSION" \
+      --binstall-url "$DEVOPS_CARGO_BINSTALL_URL" \
+      --binstall-sha256 "$DEVOPS_CARGO_BINSTALL_SHA256" \
+      --binstall-bytes "$DEVOPS_CARGO_BINSTALL_MINIMUM_BYTES" \
+      --binstall-architecture "$DEVOPS_CARGO_BINSTALL_ARCHITECTURE" \
+      --binstall-archive-filename "$DEVOPS_CARGO_BINSTALL_ARCHIVE_FILENAME" \
+      --binstall-archive-files "$DEVOPS_CARGO_BINSTALL_ARCHIVE_FILES" \
       --dotslash-source-build "$DEVOPS_DOTSLASH_SOURCE_BUILD" \
       --dotslash-version "$DEVOPS_DOTSLASH_VERSION" \
       --dotslash-url "$DEVOPS_DOTSLASH_URL" \
