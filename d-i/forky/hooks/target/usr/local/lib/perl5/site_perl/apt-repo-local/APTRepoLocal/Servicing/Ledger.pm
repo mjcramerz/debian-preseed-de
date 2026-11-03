@@ -231,7 +231,6 @@ sub fetch {
             destination => $metadata,
             minimum => 128,
             maximum => 65_536,
-            allowed_hosts => ['download.live.ledger.com'],
             content_policy => 'metadata',
         );
         $release = $self->_parse_metadata($metadata);
@@ -242,7 +241,6 @@ sub fetch {
             destination => $manifest,
             minimum => 128,
             maximum => 65_536,
-            allowed_hosts => ['resources.live.ledger.app'],
             content_policy => 'metadata',
         );
         $self->http()->download(
@@ -251,7 +249,6 @@ sub fetch {
             destination => $signature,
             minimum => 64,
             maximum => 4_096,
-            allowed_hosts => ['resources.live.ledger.app'],
             content_policy => 'artifact',
         );
         system('/usr/bin/openssl', 'dgst', '-sha256', '-verify', $key, '-signature', $signature, $manifest) == 0
@@ -262,7 +259,6 @@ sub fetch {
             destination => $image,
             minimum => 1_048_576,
             maximum => 536_870_912,
-            allowed_hosts => ['download.live.ledger.com'],
             content_policy => 'artifact',
         );
         1;

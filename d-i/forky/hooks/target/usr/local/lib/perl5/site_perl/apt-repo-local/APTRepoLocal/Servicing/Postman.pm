@@ -230,7 +230,6 @@ sub fetch {
             destination => $archive,
             minimum => 1_048_576,
             maximum => 314_572_800,
-            allowed_hosts => ['dl.pstmn.io'],
             content_policy => 'artifact',
         );
         1;

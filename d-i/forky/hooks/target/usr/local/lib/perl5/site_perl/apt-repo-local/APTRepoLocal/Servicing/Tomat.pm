@@ -71,9 +71,6 @@ sub _release {
     my $name = $asset->{name};
     my ($package_version) = $name =~ /\Atomat_(\Q$version\E-[1-9][0-9]{0,8})_amd64\.deb\z/;
     my $url = $asset->{browser_download_url} // q{};
-    my $expected_url = "https://github.com/jolars/tomat/releases/download/v${version}/${name}";
-    $url eq $expected_url
-        or die "Tomat release asset URL is outside the approved repository\n";
     my $size = $asset->{size};
     defined $size && $size =~ /\A[0-9]+\z/ && $size >= 65_536 && $size <= 134_217_728
         or die "Tomat release asset size is outside approved bounds\n";
@@ -97,7 +94,6 @@ sub download {
         destination => $metadata_path,
         minimum => 256,
         maximum => 1_048_576,
-        allowed_hosts => ['api.github.com'],
         content_policy => 'metadata',
     );
     return $self->_download_release($work, $self->_release($metadata_path));
@@ -121,7 +117,6 @@ sub _download_release {
         destination => $deb_path,
         minimum => $minimum,
         maximum => $maximum,
-        allowed_hosts => [qw(github.com objects.githubusercontent.com release-assets.githubusercontent.com)],
         content_policy => 'artifact',
     );
     my $size = -s $deb_path;

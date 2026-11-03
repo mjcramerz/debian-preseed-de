@@ -675,14 +675,18 @@ devops_de_apply_environment() {
     devops_de_prepend_path "${MISE_DATA_DIR}/shims" || return 1
   fi
 
-  if [ -x /usr/lib/llvm-24/bin/clang ] &&
-     [ -x /usr/lib/llvm-24/bin/clang++ ] &&
-     [ -x /usr/lib/llvm-24/bin/llvm-config ] &&
-     [ -x /usr/lib/llvm-24/bin/lld ] &&
-     [ -x /usr/lib/llvm-24/bin/ld.lld ] &&
-     [ -x /usr/lib/llvm-24/bin/lldb ]; then
-    devops_de_prepend_path /usr/lib/llvm-24/bin || return 1
-  fi
+  # Keep every packaged LLVM toolchain available. Iterate oldest first so the
+  # newest installed toolchain is first in PATH after each prepend.
+  for devops_de_llvm_version in 21 22 24; do
+    if [ -x "/usr/lib/llvm-${devops_de_llvm_version}/bin/clang" ] &&
+       [ -x "/usr/lib/llvm-${devops_de_llvm_version}/bin/clang++" ] &&
+       [ -x "/usr/lib/llvm-${devops_de_llvm_version}/bin/llvm-config" ] &&
+       [ -x "/usr/lib/llvm-${devops_de_llvm_version}/bin/lld" ] &&
+       [ -x "/usr/lib/llvm-${devops_de_llvm_version}/bin/ld.lld" ]; then
+      devops_de_prepend_path "/usr/lib/llvm-${devops_de_llvm_version}/bin" || return 1
+    fi
+  done
+  unset devops_de_llvm_version
 
   # The CUDA classes install versioned toolkits below /usr/local. Add only
   # installed toolkit paths, oldest first, because each successful prepend

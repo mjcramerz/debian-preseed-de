@@ -121,7 +121,7 @@ desktop_stage_help() (
     storage.timeshift storage.recovery applications.foot applications.files applications.git \
     applications.podman applications.development applications.codex maintenance.management \
     maintenance.updates maintenance.services maintenance.logs troubleshooting.desktop \
-    troubleshooting.network troubleshooting.audio troubleshooting.applications
+    troubleshooting.network troubleshooting.audio troubleshooting.applications desktop.scx
   do
     article="${article}.json"
     desktop_stage_role_asset "usr/local/share/labwc-help/articles/$article" "/usr/local/share/labwc-help/articles/$article" 0644

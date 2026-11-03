@@ -1,6 +1,6 @@
 # Managed by the installer apt-setup preferences generator.
-# Keep Debian Experimental available only for exact-version downloads such as
-# Satty's private GLIBC runtime.
+# Keep Debian Experimental at low priority; the DevOps addon explicitly names
+# the LLVM 24 packages it needs, while ordinary upgrades remain on Forky.
 
 Package: *
 Pin: release a=experimental,n=rc-buggy

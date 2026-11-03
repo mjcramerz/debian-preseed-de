@@ -23,10 +23,6 @@ MAX_HOST_MEMBER_BYTES = 768 * 1024 * 1024
 MAX_MODULE_MEMBERS = 5_000
 MAX_MODULE_BYTES = 512 * 1024 * 1024
 MAX_MODULE_MEMBER_BYTES = 256 * 1024 * 1024
-APPROVED_DISTRO_HOSTS = {
-    "dl.discordapp.net",
-    "stable.dl2.discordapp.net",
-}
 REQUIRED_MODULES = {
     "discord_desktop_core",
     "discord_erlpack",
@@ -155,12 +151,11 @@ def validate_distro_url_path(value: object, expected_path: str) -> str:
         parsed.scheme != "https"
         or parsed.username is not None
         or parsed.password is not None
-        or parsed.hostname not in APPROVED_DISTRO_HOSTS
         or parsed.port not in {None, 443}
         or parsed.query
         or parsed.fragment
     ):
-        fail("Discord distribution URL is outside the approved HTTPS boundary")
+        fail("Discord distribution URL is outside the HTTPS boundary")
     if parsed.path != expected_path:
         fail("Discord distribution URL does not match its manifest identity")
     return value

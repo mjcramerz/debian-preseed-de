@@ -104,7 +104,7 @@ if ($action eq 'probe') {
             label => 'Discord release metadata',
             url => APTRepoLocal::Servicing::Discord::MANIFEST_URL(),
             destination => $manifest, minimum => 256, maximum => 1_048_576,
-            allowed_hosts => ['updates.discord.com'], content_policy => 'metadata',
+            content_policy => 'metadata',
             user_agent => APTRepoLocal::Servicing::Discord::DISTRO_USER_AGENT(),
         );
         my $metadata = $vendor->_manifest($manifest);
@@ -121,7 +121,7 @@ if ($action eq 'probe') {
             label => 'Ledger release metadata',
             url => 'https://download.live.ledger.com/latest-linux.yml',
             destination => $metadata, minimum => 128, maximum => 65_536,
-            allowed_hosts => ['download.live.ledger.com'], content_policy => 'metadata',
+            content_policy => 'metadata',
         );
         my $release = $vendor->_parse_metadata($metadata);
         result({ source_id => unpack('H*', decode_base64($release->{sha512})),

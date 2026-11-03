@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 # Sourced installer module; edit this file directly.
 
 devops_run_as_account() {
@@ -21,7 +22,7 @@ devops_run_as_account() {
         HOME="$ACCOUNT_HOME" \
         USER="$ACCOUNT_USERNAME" \
         LOGNAME="$ACCOUNT_USERNAME" \
-        PATH="${CARGO_INSTALL_ROOT}/bin:${CARGO_HOME}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+        PATH="/usr/local/lib/rustup/bin:${CARGO_INSTALL_ROOT}/bin:${CARGO_HOME}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
         XDG_CONFIG_HOME="${ACCOUNT_HOME}/.config" \
         XDG_CACHE_HOME="${ACCOUNT_HOME}/.cache" \
         XDG_DATA_HOME="${ACCOUNT_HOME}/.local/share" \
@@ -57,4 +58,3 @@ devops_run_as_account() {
         TF_PLUGIN_CACHE_DIR="$TF_PLUGIN_CACHE_DIR" \
         "$@"
 }
-

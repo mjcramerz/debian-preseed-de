@@ -52,6 +52,8 @@ PUBLICATION_LOCK_TIMEOUT_SECONDS = 60
 PUBLICATION_OPERATION_TIMEOUT_SECONDS = 3000
 PUBLICATION_RECEIPT = ".publication.json"
 MAX_PUBLICATION_RECEIPT_BYTES = 16384
+RUSTUP_BIN = pathlib.Path("/usr/local/lib/rustup/bin")
+RUSTUP_BUILD_DEPENDENCIES = frozenset(("cargo", "rustc"))
 
 
 class PublishingError(RuntimeError):
@@ -624,40 +626,64 @@ def run_aptly(arguments: list[str]) -> None:
 
 
 def run_dpkg_buildpackage(arguments: list[str]) -> None:
-    signing_disabled = {
-        "-us",
-        "--unsigned-source",
-        "-uc",
-        "--unsigned-changes",
-        "-ui",
-        "--unsigned-buildinfo",
-        "--no-sign",
-    }
-    if any(argument in signing_disabled for argument in arguments):
-        fail("managed Debian package builds must not disable signing")
-    for argument in arguments:
-        if (
-            argument == "-k"
-            or (argument.startswith("-k") and len(argument) > 2)
-            or argument == "--sign-key"
-            or argument.startswith("--sign-key=")
-            or argument == "--sign-keyid"
-            or argument.startswith("--sign-keyid=")
-            or argument == "--sign-keyfile"
-            or argument.startswith("--sign-keyfile=")
-            or argument == "--sign-command"
-            or argument.startswith("--sign-command=")
-            or argument == "--sign-backend"
-            or argument.startswith("--sign-backend=")
-        ):
-            fail("managed Debian package builds do not accept signing overrides")
-    context = load_aptly_context()
-    require_aptly_signing_key(context)
+    # Older installations may still have the historical PATH symlink. Keep
+    # that stale entrypoint transparent: ordinary dpkg-buildpackage must not
+    # require Aptly, an Aptly config, remote credentials, or an Aptly key.
     environment = os.environ.copy()
+    path_entries = [str(RUSTUP_BIN)]
+    cargo_home = environment.get("CARGO_HOME", "")
+    if cargo_home.startswith("/"):
+        path_entries.append(str(pathlib.Path(cargo_home) / "bin"))
+    path_entries.extend(environment.get("PATH", "").split(os.pathsep))
+    seen: set[str] = set()
+    ordered_path: list[str] = []
+    for entry in path_entries:
+        if entry and entry not in seen:
+            seen.add(entry)
+            ordered_path.append(entry)
+    environment["PATH"] = os.pathsep.join(ordered_path)
+
+    def rustup_tool_present(name: str) -> bool:
+        for directory in path_entries[:2]:
+            candidate = pathlib.Path(directory) / name
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                return True
+        return False
+
+    def only_rustup_dependencies_are_missing() -> bool:
+        try:
+            result = subprocess.run(
+                ["/usr/bin/dpkg-checkbuilddeps"],
+                cwd=os.getcwd(),
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=30,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return False
+        if result.returncode == 0:
+            return False
+        output = (result.stdout + result.stderr).decode("utf-8", "replace")
+        match = re.search(r"unmet build dependencies:\s*(.+)", output, re.IGNORECASE)
+        if not match:
+            return False
+        missing = re.findall(r"[a-z0-9][a-z0-9+.-]*", match.group(1).lower())
+        return len(missing) == len(RUSTUP_BUILD_DEPENDENCIES) and set(missing) == RUSTUP_BUILD_DEPENDENCIES
+
+    check_disabled = any(argument in {"-d", "--no-check-builddeps"} for argument in arguments)
+    if (not check_disabled
+            and all(rustup_tool_present(name) for name in RUSTUP_BUILD_DEPENDENCIES)
+            and only_rustup_dependencies_are_missing()):
+        # dpkg-checkbuilddeps only knows Debian package records; it cannot
+        # recognise the account's Rustup toolchain. Keep all other dependency
+        # checks enforced and bypass only these two legacy package names.
+        arguments = [*arguments, "-d"]
     for variable in list(environment):
         if variable.startswith("DEB_SIGN_"):
             environment.pop(variable, None)
-    environment["DEB_SIGN_KEYID"] = context.signing_key
     try:
         os.execve(
             "/usr/bin/dpkg-buildpackage",

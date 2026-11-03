@@ -22,6 +22,7 @@ MENUS = {
         'Create upstream orig archive from working tree': 'orig',
         'Create source package (.dsc and .changes)': 'source',
         'Check host build dependencies': 'deps',
+        'Repackage existing .deb (edit Depends)': 'repackage',
     },
     'Build and test': {
         'Prepare / refresh Forky sbuild image': 'bootstrap',
@@ -251,6 +252,30 @@ def act(ctx: Context, action: str) -> None:
             print('\n'.join(str(p) for p in verified_artifacts(job)))
         elif action in {'lintian', 'autopkgtest', 'inspect'}:
             request_job(ctx, action, {'bundle': str(job)})
+        elif action == 'repackage':
+            files = [p for p in verified_artifacts(job) if p.suffix == '.deb']
+            if not files:
+                raise ValueError('bundle contains no .deb packages')
+            selected_name = choose([p.name for p in files], 'Package to repackage')
+            if selected_name is None:
+                return
+            selected = next(path for path in files if path.name == selected_name)
+            dependencies = checked(
+                ['/usr/bin/dpkg-deb', '--field', str(selected), 'Depends'],
+                capture=True,
+                timeout=30,
+            ).strip()
+            print('Current Depends: ' + (dependencies or '(none)'))
+            value = input('Comma-separated Depends entries to remove (blank to cancel): ').strip()
+            if not value:
+                return
+            if not re.fullmatch(r'[a-z0-9][a-z0-9+.-]*(,[a-z0-9][a-z0-9+.-]*)*', value):
+                raise ValueError('dependency list contains an invalid package name')
+            if confirm(f'Repackage {selected.name} and remove Depends entries: {value}? The original bundle remains unchanged; the revised package is published to the signed local APT repository.'):
+                checked([
+                    '/usr/bin/pkexec', '/usr/local/libexec/gitbuild-import-local',
+                    str(selected), '--remove-depends', value,
+                ], timeout=3600)
         elif action in {'sign', 'aptly', 'obs'}:
             extra = []
             if action == 'sign':

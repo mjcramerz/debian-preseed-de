@@ -65,19 +65,13 @@ mullvad_https_url_host() {
   printf '%s\n' "$mullvad_host"
 }
 
-mullvad_require_allowed_https_url() {
+mullvad_require_https_url() {
   mullvad_url_label=$1
   mullvad_url_value=$2
   mullvad_url_host=$(mullvad_https_url_host "$mullvad_url_value" 2>/dev/null || true)
 
   [ -n "$mullvad_url_host" ] ||
     installer_fatal "${mullvad_url_label} is not a supported HTTPS URL: ${mullvad_url_value:-unset}"
-  case "$mullvad_url_host" in
-    mullvad.net|*.mullvad.net|github.com|*.githubusercontent.com)
-      return 0
-      ;;
-  esac
-  installer_fatal "${mullvad_url_label} resolved to an unapproved host: $mullvad_url_host"
 }
 
 mullvad_download_target_file() {
@@ -90,7 +84,7 @@ mullvad_download_target_file() {
   mullvad_download_host_path="/target${mullvad_download_path}"
   mullvad_download_partial_host_path="/target${mullvad_download_partial}"
 
-  mullvad_require_allowed_https_url "$mullvad_download_label URL" "$mullvad_download_url"
+  mullvad_require_https_url "$mullvad_download_label URL" "$mullvad_download_url"
   mullvad_validate_target_path "$mullvad_download_label destination" "$mullvad_download_path"
   mullvad_validate_target_path "$mullvad_download_label partial destination" "$mullvad_download_partial"
   rm -f -- "$mullvad_download_host_path" "$mullvad_download_partial_host_path"
@@ -131,7 +125,7 @@ mullvad_download_target_file() {
       installer_fatal "${mullvad_download_label} returned unexpected HTTP status: ${mullvad_http_status:-unset}"
       ;;
   esac
-  mullvad_require_allowed_https_url "$mullvad_download_label effective URL" "$mullvad_effective_url"
+  mullvad_require_https_url "$mullvad_download_label effective URL" "$mullvad_effective_url"
 
   [ -f "$mullvad_download_partial_host_path" ] && [ ! -L "$mullvad_download_partial_host_path" ] ||
     installer_fatal "${mullvad_download_label} download is not a regular file"
@@ -450,6 +444,7 @@ install_target_mullvad_vpn_if_selected() (
     esac
     rm -f -- "$mullvad_resolver_host_path"
   }
+  mullvad_status=0
   trap 'mullvad_status=$?; trap - 0; mullvad_cleanup; exit "$mullvad_status"' 0
   trap 'exit 129' HUP
   trap 'exit 130' INT

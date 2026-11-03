@@ -1,5 +1,5 @@
 #!/bin/sh
-# Configure the packaged XanMod sched_ext userspace without building it.
+# Configure the profile-pinned sched_ext userspace packages without building them.
 
 desktop_validate_scx_scheduler_policy() {
   case "${HARDWARE_CPU_SCHEDULER_SCX_ENABLE:-false}" in
@@ -10,7 +10,7 @@ desktop_validate_scx_scheduler_policy() {
 
 desktop_require_scx_file() {
   scx_path=$1
-  scx_host_path="/target${scx_path}"
+  scx_host_path=$(target_asset_host_path "$scx_path") || exit 1
   [ -f "$scx_host_path" ] && [ ! -L "$scx_host_path" ] ||
     installer_fatal "scx-scheds package asset is missing or unsafe: ${scx_path}"
 }
@@ -19,17 +19,23 @@ desktop_install_scx_scheduler() (
   set -eu
   desktop_validate_scx_scheduler_policy
 
-  # The package is selected in the desktop role. Require its service, loader,
-  # D-Bus activation, and selected scheduler before publishing managed config.
+  if [ "${HARDWARE_CPU_SCHEDULER_SCX_ENABLE}" = false ]; then
+    desktop_log "scx-scheds disabled by host profile; package assets and units remain absent"
+    return 0
+  fi
+
+  # The profile-controlled packages are imported and installed by the software
+  # late helper. Require their service, loader, D-Bus activation, and selected
+  # scheduler before publishing managed config.
   for scx_unit in scx.service scx_loader.service; do
     scx_unit_path=$(target_systemd_unit_path "$scx_unit" system 2>/dev/null || true)
     [ -n "$scx_unit_path" ] ||
       installer_fatal "scx-scheds package unit is unavailable: ${scx_unit}"
   done
   for scx_asset in \
-    /usr/sbin/scx_flash \
-    /usr/sbin/scx_loader \
-    /usr/sbin/scxctl \
+    /usr/bin/scx_flash \
+    /usr/bin/scx_loader \
+    /usr/bin/scxctl \
     /usr/share/dbus-1/system-services/org.scx.Loader.service \
     /usr/share/dbus-1/system.d/org.scx.Loader.conf
   do

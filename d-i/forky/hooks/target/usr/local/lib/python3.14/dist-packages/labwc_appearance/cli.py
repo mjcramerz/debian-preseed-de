@@ -1,7 +1,6 @@
 """Arrow-navigable Computer Management appearance submenu."""
 from __future__ import annotations
 import json
-import os
 from pathlib import Path
 import re
 import stat
@@ -81,8 +80,14 @@ def choose(labels: list[str], prompt: str) -> str | None:
 def open_help(topic: str) -> None:
     if topic != 'desktop.appearance':
         raise ValueError('unsupported appearance Help topic')
+    help_environment = environment(desktop=True)
+    # A menu action may carry the transient wait flag used by Fuzzel. Help is
+    # informational and must not keep its caller blocked until the window
+    # closes. Keep the launcher environment to the approved desktop subset;
+    # never forward arbitrary session variables or credentials.
+    help_environment.pop('LABWC_MENU_ACTION_WAIT', None)
     try:
-        result = subprocess.run([HELP, '--topic', topic], env=os.environ.copy(),
+        result = subprocess.run([HELP, '--topic', topic], env=help_environment,
                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL, check=False, timeout=120)
     except subprocess.TimeoutExpired as error:

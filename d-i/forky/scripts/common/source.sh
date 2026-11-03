@@ -367,7 +367,6 @@ source_http_get() (
   set -eu;
   umask 077;
   url=$1; destination=$2; effective=${3:-}; redirect_scope=${4:-repository};
-  initial_url=$url;
   case "$redirect_scope" in repository|seed|external) ;; *) source_error 'invalid transport redirect scope'; exit 125 ;; esac;
   read_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_TIMEOUT:-45}") || {
     source_error 'INSTALLER_FETCH_TIMEOUT must be 1 through 900 integer seconds' || :; exit 125;
@@ -401,17 +400,14 @@ source_http_get() (
   else
     status=$?; [ "$status" -eq 1 ] || exit "$status";
   fi;
-  # Seed discovery follows the operator-selected shortener across authorities.
-  # Repository assets stay pinned to the resolved source authority. External
-  # GitHub release data may use its exact asset CDN hosts; other external
-  # downloads stay on their original authority. Validate each hop before
-  # contact in every scope; HTTPS cannot downgrade.
+  # Seed discovery, repository content and external downloads may follow
+  # redirects across authorities. Validate every hop before contact; URLs must
+  # remain syntactically valid and HTTPS is never downgraded.
   # One deadline covers every retry and validated redirect hop. The
   # native file-size limit also bounds chunked responses and header logs.
   ulimit -f 524288 || { source_error 'cannot enforce repository transfer size limit'; exit 125; };
   started=$(source_monotonic_seconds) || exit 125;
   deadline=$(expr "$started" + "$wall_timeout") || exit 125;
-  origin=${url#*://}; origin=${origin%%/*};
   hops=0; attempts=0;
   success=false; fetch_status=1;
   while :; do
@@ -428,23 +424,6 @@ source_http_get() (
     case "$response" in 301|302|303|307|308)
       resolved=$(source_effective_url "$url" "$headers") || { source_error 'unsafe redirect destination'; exit 1; };
       source_validate_url "$resolved" || exit 1;
-      authority=${resolved#*://}; authority=${authority%%/*};
-      if [ "$redirect_scope" = repository ] && [ "$authority" != "$origin" ]; then
-        source_error 'repository redirect leaves its approved authority'; exit 1;
-      fi;
-      if [ "$redirect_scope" = external ] && [ "$authority" != "$origin" ]; then
-        approved_external=false;
-        case "$initial_url" in
-          https://github.com/*/releases/download/*)
-            case "$authority" in
-              release-assets.githubusercontent.com|objects.githubusercontent.com|github-releases.githubusercontent.com) approved_external=true ;;
-            esac;
-            ;;
-        esac;
-        [ "$approved_external" = true ] || {
-          source_error 'external redirect leaves its approved authority'; exit 1;
-        };
-      fi;
       [ "$resolved" != "$url" ] && [ "$hops" -lt 10 ] || { source_error 'repository redirect loop or limit'; exit 1; };
       url=$resolved; hops=$(expr "$hops" + 1); redirected=true; break ;;
     esac;

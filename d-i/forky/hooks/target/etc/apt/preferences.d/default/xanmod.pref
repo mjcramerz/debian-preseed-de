@@ -4,8 +4,3 @@
 Package: linux-image-7.3.1-x64v2-xanmod1 linux-headers-7.3.1-x64v2-xanmod1 linux-image-7.3.1-x64v3-xanmod1 linux-headers-7.3.1-x64v3-xanmod1
 Pin: release o=xanmod
 Pin-Priority: 1001
-
-# scx-scheds is supplied by the same signed XanMod archive as the kernel.
-Package: scx-scheds
-Pin: release o=xanmod
-Pin-Priority: 1001

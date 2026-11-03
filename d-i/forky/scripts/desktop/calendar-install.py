@@ -90,9 +90,8 @@ def download_attempt(url: str, digest: str, maximum: int) -> bytes:
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
     for hop in range(5):
         parsed = urllib.parse.urlsplit(url)
-        if (parsed.scheme != 'https' or parsed.hostname not in {
-                'github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'}
-                or parsed.username or parsed.password or parsed.fragment or parsed.port not in (None, 443)):
+        if (parsed.scheme != 'https' or parsed.username or parsed.password
+                or parsed.fragment or parsed.port not in (None, 443)):
             raise Error('calendar release redirect rejected')
         try:
             response = opener.open(urllib.request.Request(url, headers={'User-Agent': 'preseed-calendar-installer'}),

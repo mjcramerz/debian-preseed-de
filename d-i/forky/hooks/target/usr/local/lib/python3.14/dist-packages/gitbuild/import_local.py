@@ -33,8 +33,14 @@ def caller_source(argument: str) -> tuple[Path, int]:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 1:
-        raise ValueError('exactly one .deb artifact is required')
+    if len(argv) not in (1, 3) or (len(argv) == 3 and argv[1] != '--remove-depends'):
+        raise ValueError('usage: gitbuild-import-local PACKAGE.deb [--remove-depends NAME,NAME]')
+    remove_depends = ''
+    if len(argv) == 3:
+        remove_depends = argv[2]
+        if (not re.fullmatch(r'[a-z0-9][a-z0-9+.-]*(,[a-z0-9][a-z0-9+.-]*)*', remove_depends)
+                or len(remove_depends) > 4096):
+            raise ValueError('dependency list contains an invalid package name')
     path, uid = caller_source(argv[0])
     # The caller can replace its own artifacts. Copy through descriptors into a
     # root-only directory before handing a pathname to privileged repository IO.
@@ -48,8 +54,10 @@ def main(argv: list[str]) -> int:
                 with incoming.open_read(name) as (stream, _):
                     if stream.read(8) != b'!<arch>\n':
                         raise ValueError('not a Debian ar package')
-                checked(['/usr/local/bin/apt-repo-init', '--add', str(incoming.root / name), '--yes'],
-                        cwd=incoming.root, env=environment(), timeout=3500)
+                command = ['/usr/local/bin/apt-repo-init', '--add', str(incoming.root / name), '--yes']
+                if remove_depends:
+                    command.extend(['--remove-depends', remove_depends])
+                checked(command, cwd=incoming.root, env=environment(), timeout=3500)
             finally:
                 incoming.write(name, None)
     return 0

@@ -81,7 +81,6 @@ sub fetch {
             destination => $image,
             minimum => 1_048_576,
             maximum => 536_870_912,
-            allowed_hosts => ['app.tuta.com'],
             content_policy => 'artifact',
         );
         $self->http()->download(
@@ -90,7 +89,6 @@ sub fetch {
             destination => $signature,
             minimum => 128,
             maximum => 16_384,
-            allowed_hosts => ['app.tuta.com'],
             content_policy => 'artifact',
         );
         system('/usr/bin/openssl', 'dgst', '-sha512', '-verify', $key, '-signature', $signature, $image) == 0

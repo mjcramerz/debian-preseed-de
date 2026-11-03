@@ -526,7 +526,6 @@ sub _download_release {
         destination    => $manifest_path,
         minimum        => 256,
         maximum        => 1_048_576,
-        allowed_hosts  => ['updates.discord.com'],
         content_policy => 'metadata',
         user_agent     => DISTRO_USER_AGENT,
     );
@@ -540,7 +539,6 @@ sub _download_release {
         destination    => $host_path,
         minimum        => HOST_MINIMUM_BYTES,
         maximum        => HOST_MAXIMUM_BYTES,
-        allowed_hosts  => [qw(dl.discordapp.net stable.dl2.discordapp.net)],
         content_policy => 'artifact',
         user_agent     => DISTRO_USER_AGENT,
     );
@@ -571,7 +569,6 @@ sub _download_release {
             destination    => $module_path,
             minimum        => MODULE_MINIMUM_BYTES,
             maximum        => MODULE_MAXIMUM_BYTES,
-            allowed_hosts  => [qw(dl.discordapp.net stable.dl2.discordapp.net)],
             content_policy => 'artifact',
             user_agent     => DISTRO_USER_AGENT,
         );

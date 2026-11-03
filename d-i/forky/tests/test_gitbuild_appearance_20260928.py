@@ -478,7 +478,7 @@ class BuildTests(Temporary):
         self.assertEqual(run.call_args.args[0][0], '/usr/bin/fzf')
         self.assertNotIn('shell', run.call_args.kwargs)
         actions = {value for group in build_cli.MENUS.values() for value in group.values()}
-        self.assertEqual(actions, worker.KINDS | {'orig', 'review', 'sign', 'aptly', 'obs', 'local-repo', 'artifacts', 'log', 'doctor'})
+        self.assertEqual(actions, worker.KINDS | {'orig', 'review', 'sign', 'aptly', 'obs', 'local-repo', 'repackage', 'artifacts', 'log', 'doctor'})
 
     def test_menu_distinguishes_cancel_failure_and_unknown_output(self):
         fixture_environment = {'PATH': '/usr/bin:/bin', 'HOME': str(self.root), 'LC_ALL': 'C.UTF-8'}

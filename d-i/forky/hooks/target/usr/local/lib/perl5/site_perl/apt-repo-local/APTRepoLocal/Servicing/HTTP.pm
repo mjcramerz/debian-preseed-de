@@ -14,23 +14,22 @@ sub _host {
     defined($url) && !ref($url) && length($url) <= 2048 && $url !~ /[\x00-\x20\x7f]/
         or die "URL contains unsupported syntax\n";
     $url =~ m{\Ahttps://([^/?#:]+)(?::443)?(?:/|\z)}
-        or die "URL is not an approved HTTPS URL\n";
+        or die "URL is not a valid HTTPS URL\n";
     my $host = lc $1;
     $host =~ /\A(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\z/
         or die "URL contains an invalid host\n";
     return $host;
 }
 
-sub _allow {
-    my ($self, $url, $allowed_hosts) = @_;
-    my %allowed = map { $_ => 1 } @{$allowed_hosts};
-    $allowed{$self->_host($url)} or die "URL resolved to an unapproved host\n";
+sub _validate_url {
+    my ($self, $url) = @_;
+    $self->_host($url);
 }
 
 sub download {
     my ($self, %args) = @_;
     require Managed::Process;
-    for my $key (qw(label url destination minimum maximum allowed_hosts content_policy)) {
+    for my $key (qw(label url destination minimum maximum content_policy)) {
         exists $args{$key} or die "missing HTTP download parameter $key\n";
     }
     $args{minimum} =~ /\A[0-9]+\z/ && $args{maximum} =~ /\A[0-9]+\z/
@@ -42,7 +41,7 @@ sub download {
     $user_agent =~ /\A[A-Za-z0-9][A-Za-z0-9 ._+\/-]{0,127}\z/
         or die "invalid HTTP user agent\n";
     APTRepoLocal::Servicing::Atomic->assert_absolute_path('download destination', $args{destination});
-    $self->_allow($args{url}, $args{allowed_hosts});
+    $self->_validate_url($args{url});
 
     my $partial = "$args{destination}.part";
     unlink $partial if -e $partial || -l $partial;
@@ -52,7 +51,7 @@ sub download {
         for my $hop (0 .. 8) {
             # curl never follows a redirect itself. Validate every resolved next
             # URL before contacting it, including intermediate and same-host hops.
-            $self->_allow($url, $args{allowed_hosts});
+            $self->_validate_url($url);
             my @command = (
                 '/usr/bin/curl', '--disable', '--fail', '--silent', '--show-error',
                 '--proto', '=https', '--proto-redir', '=https', '--connect-timeout', '15',
@@ -88,11 +87,11 @@ sub download {
             my $next;
             ($status, $effective, $content_type, $next) = split /\n/, $result->{stdout}, 4;
             defined($effective) or die "$args{label} effective URL is invalid\n";
-            $self->_allow($effective, $args{allowed_hosts});
+            $self->_validate_url($effective);
             if (defined($status) && $status =~ /\A(?:301|302|303|307|308)\z/) {
                 $hop < 8 && defined($next) && length($next)
                     or die "$args{label} redirect limit or invalid redirect\n";
-                $self->_allow($next, $args{allowed_hosts});
+                $self->_validate_url($next);
                 $url = $next;
                 next;
             }
@@ -100,7 +99,7 @@ sub download {
         }
         defined $status && $status =~ /\A(?:200|206)\z/ or die "$args{label} download returned an unexpected HTTP status\n";
         defined $effective && length($effective) <= 2048 or die "$args{label} effective URL is invalid\n";
-        $self->_allow($effective, $args{allowed_hosts});
+        $self->_validate_url($effective);
         $content_type //= q{};
         $content_type = lc((split /;/, $content_type, 2)[0]);
         if ($args{content_policy} eq 'artifact') {

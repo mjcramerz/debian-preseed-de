@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 # Sourced installer module; edit this file directly.
 
 devops_render_osc_config() {
@@ -251,4 +252,3 @@ done
     "$DEVOPS_APTLY_COMPONENT" \
     "$DEVOPS_APTLY_BINARY_PATH"
 }
-

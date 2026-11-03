@@ -43,8 +43,6 @@ sub _release {
     @assets == 1 or die "Obsidian release has no unique amd64 Debian asset\n";
     my $asset = $assets[0];
     my $url = $asset->{browser_download_url} // q{};
-    my $expected_url = "https://github.com/obsidianmd/obsidian-releases/releases/download/v${version}/${name}";
-    $url eq $expected_url or die "Obsidian release asset URL is outside the approved repository\n";
     my $size = $asset->{size};
     defined $size && $size =~ /\A[0-9]+\z/ && $size >= 67_108_864 && $size <= 209_715_200
         or die "Obsidian release asset size is outside approved bounds\n";
@@ -68,7 +66,6 @@ sub download {
         destination => $metadata_path,
         minimum => 256,
         maximum => 1_048_576,
-        allowed_hosts => ['api.github.com'],
         content_policy => 'metadata',
     );
     my $release = $self->_release($metadata_path);
@@ -78,7 +75,6 @@ sub download {
         destination => $deb_path,
         minimum => $release->{size},
         maximum => $release->{size},
-        allowed_hosts => [qw(github.com objects.githubusercontent.com release-assets.githubusercontent.com)],
         content_policy => 'artifact',
     );
     -s $deb_path == $release->{size}

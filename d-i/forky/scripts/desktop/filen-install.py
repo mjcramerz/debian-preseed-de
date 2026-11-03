@@ -144,10 +144,9 @@ def download(url: str, expected: str, maximum: int) -> bytes:
     deadline = time.monotonic() + 300
     for hop in range(5):
         parsed = urllib.parse.urlsplit(url)
-        if (parsed.scheme != 'https' or parsed.hostname not in {'github.com', 'release-assets.githubusercontent.com',
-                'objects.githubusercontent.com'} or parsed.username or parsed.password or parsed.fragment
+        if (parsed.scheme != 'https' or parsed.username or parsed.password or parsed.fragment
                 or parsed.port not in (None, 443)):
-            raise Error('download redirect violates the release URL policy')
+            raise Error('download redirect violates the HTTPS URL policy')
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise Error('release download deadline exceeded')

@@ -111,7 +111,6 @@ sub _generic_deb_specs {
             label      => 'Bitwarden Desktop',
             url        => 'https://bitwarden.com/download/?app=desktop&platform=linux&variant=deb',
             maximum    => 314_572_800,
-            hosts      => [qw(bitwarden.com github.com objects.githubusercontent.com release-assets.githubusercontent.com)],
             packages   => ['bitwarden'],
             executable => '/opt/Bitwarden/bitwarden',
             in_use_roots => ['/opt/Bitwarden'],
@@ -127,7 +126,6 @@ sub _generic_deb_specs {
             label      => 'Zoom Workplace',
             url        => 'https://zoom.us/client/latest/zoom_amd64.deb',
             maximum    => 536_870_912,
-            hosts      => [qw(zoom.us cdn.zoom.us)],
             packages   => ['zoom'],
             executable => '/usr/bin/zoom',
             in_use_roots => ['/opt/zoom'],
@@ -139,7 +137,6 @@ sub _generic_deb_specs {
             label      => 'Filen Desktop',
             url        => 'https://cdn.filen.io/@filen/desktop/release/latest/Filen_linux_amd64.deb',
             maximum    => 536_870_912,
-            hosts      => [qw(cdn.filen.io filen.io)],
             packages   => [qw(filen filen-desktop)],
             executable => '/opt/Filen/Filen',
             in_use_roots => ['/opt/Filen'],
@@ -248,7 +245,6 @@ sub _fetch_generic_deb {
             destination    => $path,
             minimum        => 1_048_576,
             maximum        => $app->{maximum},
-            allowed_hosts  => $app->{hosts},
             content_policy => 'artifact',
         );
         $stage = 'source-metadata';

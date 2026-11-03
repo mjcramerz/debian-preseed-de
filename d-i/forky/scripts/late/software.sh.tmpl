@@ -85,13 +85,8 @@ bootstrap_source_common_support_libs "$seed_base" "$tmp_env_dir" fetch hook targ
 }
 installer_ensure_context_loaded "$seed_base"
 
-installer_selected_class_reference_is_selected addon/software 2>/dev/null || exit 0
 [ "${INSTALLER_HOST_VARIANT:-}" = desktop ] ||
-  software_fatal "addon/software is restricted to the desktop role"
-chatgpt_enabled=false
-if installer_selected_class_reference_is_selected addon/devops 2>/dev/null; then
-  chatgpt_enabled=true
-fi
+  software_fatal "managed software provisioning is restricted to the desktop role"
 
 account_env=${INSTALLER_LATE_ACCOUNT_ENV:-/tmp/install-env-late/account.env}
 host_env=${INSTALLER_LATE_HOST_ENV:-/tmp/install-env-late/host.env}
@@ -108,6 +103,29 @@ account_runtime=/tmp/install-env-late/account-runtime.sh
 . "$account_env"
 # shellcheck disable=SC1090,SC1091
 . "$host_env"
+
+case "${HARDWARE_CPU_SCHEDULER_SCX_ENABLE:-false}" in
+  true|false) ;;
+  *) software_fatal "HARDWARE_CPU_SCHEDULER_SCX_ENABLE must be true or false" ;;
+esac
+software_addon_selected=false
+if installer_selected_class_reference_is_selected addon/software 2>/dev/null; then
+  software_addon_selected=true
+fi
+software_scx_only=false
+if [ "$software_addon_selected" = false ]; then
+  case "${HARDWARE_CPU_SCHEDULER_SCX_ENABLE:-false}" in
+    true) software_scx_only=true ;;
+    false) exit 0 ;;
+    *) software_fatal "HARDWARE_CPU_SCHEDULER_SCX_ENABLE must be true or false" ;;
+  esac
+fi
+chatgpt_enabled=false
+if [ "$software_addon_selected" = true ] &&
+  installer_selected_class_reference_is_selected addon/devops 2>/dev/null
+then
+  chatgpt_enabled=true
+fi
 desktop_detect="${tmp_env_dir}/desktop-detect.sh"
 [ -r "$desktop_detect" ] ||
   fetch_hook_file "$(installer_repo_join_var DIR_SCRIPTS_DESKTOP detect.sh)" "$desktop_detect"
@@ -914,18 +932,48 @@ software_https_url_host() {
   printf '%s\n' "$host"
 }
 
-software_require_allowed_https_url() {
+software_require_https_url() {
   label=$1
   url=$2
-  allowed_hosts=$3
 
   url_host=$(software_https_url_host "$url" 2>/dev/null || true)
   [ -n "$url_host" ] ||
     software_fatal "$label URL is not a supported HTTPS URL"
-  case " $allowed_hosts " in
-    *" $url_host "*) return 0 ;;
-  esac
-  software_fatal "$label URL resolved to an unapproved host: $url_host"
+}
+
+software_download_curl() {
+  maximum_bytes=$1
+  partial_destination=$2
+  url=$3
+
+  set -- \
+    --disable \
+    --fail \
+    --silent \
+    --show-error \
+    --location \
+    --proto '=https' \
+    --proto-redir '=https' \
+    --connect-timeout 15 \
+    --speed-limit 1 \
+    --speed-time 300 \
+    --max-redirs 8 \
+    --retry 3 \
+    --retry-all-errors \
+    --user-agent 'unattended-installer-software/1.0' \
+    --header 'Accept: application/octet-stream, application/vnd.debian.binary-package;q=0.9, */*;q=0.1' \
+    --output "$partial_destination" \
+    --write-out '%{http_code}\n%{url_effective}\n%{content_type}' \
+    --url "$url"
+  if [ -n "$maximum_bytes" ]; then
+    set -- --max-filesize "$maximum_bytes" "$@"
+  fi
+
+  chroot "$target_root" /usr/bin/env -i \
+    HOME=/root \
+    LC_ALL=C \
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    /usr/bin/curl "$@"
 }
 
 software_download() {
@@ -935,8 +983,7 @@ software_download() {
   minimum_bytes=$4
   maximum_bytes=$5
   content_policy=${6:-artifact}
-  allowed_hosts=${7:-}
-  transport_policy=${8:-fatal}
+  transport_policy=${7:-fatal}
   partial_destination="${destination}.part"
   destination_host_path="${target_root}${destination}"
   partial_host_path="${target_root}${partial_destination}"
@@ -951,43 +998,13 @@ software_download() {
     fatal|defer|retry|skip) ;;
     *) software_fatal "$label transport policy is unsupported: $transport_policy" ;;
   esac
-  if [ -n "$allowed_hosts" ]; then
-    software_require_allowed_https_url "$label" "$url" "$allowed_hosts"
-  else
-    case "$url" in
-      https://*) ;;
-      *) software_fatal "$label download URL must use HTTPS" ;;
-    esac
-  fi
+  software_require_https_url "$label" "$url"
   software_validate_abs_path "$label destination" "$destination"
   software_validate_abs_path "$label partial destination" "$partial_destination"
   rm -f -- "$destination_host_path" "$partial_host_path"
 
   if ! transfer_metadata=$(
-    chroot "$target_root" /usr/bin/env -i \
-      HOME=/root \
-      LC_ALL=C \
-      PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-      /usr/bin/curl \
-        --disable \
-        --fail \
-        --silent \
-        --show-error \
-        --location \
-        --proto '=https' \
-        --proto-redir '=https' \
-        --connect-timeout 15 \
-        --speed-limit 1 \
-        --speed-time 300 \
-        --max-redirs 8 \
-        --retry 3 \
-        --retry-all-errors \
-        --max-filesize "$maximum_bytes" \
-        --user-agent 'unattended-installer-software/1.0' \
-        --header 'Accept: application/octet-stream, application/vnd.debian.binary-package;q=0.9, */*;q=0.1' \
-        --output "$partial_destination" \
-        --write-out '%{http_code}\n%{url_effective}\n%{content_type}' \
-        --url "$url"
+    software_download_curl "$maximum_bytes" "$partial_destination" "$url"
   ); then
     rm -f -- "$partial_host_path"
     case "$transport_policy" in
@@ -1019,9 +1036,7 @@ software_download() {
     https://*) ;;
     *) software_fatal "$label download resolved to a non-HTTPS URL" ;;
   esac
-  if [ -n "$allowed_hosts" ]; then
-    software_require_allowed_https_url "$label effective" "$effective_url" "$allowed_hosts"
-  fi
+  software_require_https_url "$label effective" "$effective_url"
   normalized_content_type=$(printf '%s' "$content_type" | tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz')
   normalized_content_type=${normalized_content_type%%;*}
   case "$content_policy:$normalized_content_type" in
@@ -1046,10 +1061,14 @@ software_download() {
   case "$destination_size" in
     ''|*[!0-9]*) software_fatal "$label download size is invalid: ${destination_size:-unset}" ;;
   esac
-  [ "$destination_size" -ge "$minimum_bytes" ] ||
-    software_fatal "$label download is unexpectedly small: ${destination_size} bytes"
-  [ "$destination_size" -le "$maximum_bytes" ] ||
-    software_fatal "$label download is unexpectedly large: ${destination_size} bytes"
+  if [ -n "$minimum_bytes" ]; then
+    [ "$destination_size" -ge "$minimum_bytes" ] ||
+      software_fatal "$label download is unexpectedly small: ${destination_size} bytes"
+  fi
+  if [ -n "$maximum_bytes" ]; then
+    [ "$destination_size" -le "$maximum_bytes" ] ||
+      software_fatal "$label download is unexpectedly large: ${destination_size} bytes"
+  fi
   mv -f -- "$partial_host_path" "$destination_host_path"
   # Redirect queries may carry signed credentials. Report only the authority,
   # with any userinfo, query and fragment removed; preserve the transport URL.
@@ -1434,6 +1453,80 @@ software_install_deb() {
   software_info "installed ${label} package=${package_name} version=${package_version} architecture=${package_architecture} sha256=${package_sha256}"
 }
 
+software_install_scx_scheduler() {
+  case "${HARDWARE_CPU_SCHEDULER_SCX_ENABLE:-false}" in
+    false)
+      software_info "scx-scheds disabled by host profile; no scheduler packages downloaded or installed"
+      return 0
+      ;;
+    true) ;;
+    *)
+      software_fatal "HARDWARE_CPU_SCHEDULER_SCX_ENABLE must be true or false"
+      ;;
+  esac
+
+  scx_url=${HARDWARE_CPU_SCHEDULER_SCX_PACKAGE_URL:?HARDWARE_CPU_SCHEDULER_SCX_PACKAGE_URL must be set when scx-scheds is enabled}
+  scx_sha256=${HARDWARE_CPU_SCHEDULER_SCX_PACKAGE_SHA256:?HARDWARE_CPU_SCHEDULER_SCX_PACKAGE_SHA256 must be set when scx-scheds is enabled}
+  scx_loader_url=${HARDWARE_CPU_SCHEDULER_SCX_LOADER_PACKAGE_URL:?HARDWARE_CPU_SCHEDULER_SCX_LOADER_PACKAGE_URL must be set when scx-scheds is enabled}
+  scx_loader_sha256=${HARDWARE_CPU_SCHEDULER_SCX_LOADER_PACKAGE_SHA256:?HARDWARE_CPU_SCHEDULER_SCX_LOADER_PACKAGE_SHA256 must be set when scx-scheds is enabled}
+  software_validate_sha256 HARDWARE_CPU_SCHEDULER_SCX_PACKAGE_SHA256 "$scx_sha256"
+  software_validate_sha256 HARDWARE_CPU_SCHEDULER_SCX_LOADER_PACKAGE_SHA256 "$scx_loader_sha256"
+  software_https_url_host "$scx_url" >/dev/null 2>&1 ||
+    software_fatal "SCX package URL is not a supported HTTPS URL"
+  software_https_url_host "$scx_loader_url" >/dev/null 2>&1 ||
+    software_fatal "scx-loader package URL is not a supported HTTPS URL"
+
+  # Keep the destination names fixed and generic. The profile controls the
+  # release URL and digest; no URL basename or .deb filename is trusted.
+  scx_deb="${work_dir}/scx.deb"
+  scx_loader_deb="${work_dir}/scx-loader.deb"
+  software_download \
+    "scx scheduler" \
+    "$scx_url" \
+    "$scx_deb" \
+    "" \
+    "" \
+    artifact \
+    fatal
+  software_download \
+    "scx-loader" \
+    "$scx_loader_url" \
+    "$scx_loader_deb" \
+    "" \
+    "" \
+    artifact \
+    fatal
+
+  scx_actual_sha256=$(chroot "$target_root" /usr/bin/sha256sum "$scx_deb" | awk '{print $1}')
+  [ "$scx_actual_sha256" = "$scx_sha256" ] ||
+    software_fatal "scx scheduler package SHA-256 does not match the host profile"
+  scx_loader_actual_sha256=$(chroot "$target_root" /usr/bin/sha256sum "$scx_loader_deb" | awk '{print $1}')
+  [ "$scx_loader_actual_sha256" = "$scx_loader_sha256" ] ||
+    software_fatal "scx-loader package SHA-256 does not match the host profile"
+
+  # software_install_deb imports each verified archive into apt-repo-local.
+  # The publisher embeds a local dpkg-sig _gpgorigin signature in the retained
+  # package, rebuilds and verifies signed InRelease/Release.gpg metadata, then
+  # installs the retained pool path through APT. No update URL is registered
+  # for these profile-controlled packages, so the local repository will not
+  # autoupdate them while retaining both signatures.
+  software_install_deb \
+    "scx scheduler" \
+    "$scx_deb" \
+    scx \
+    amd64 \
+    /usr/bin/scx_flash \
+    ""
+  software_install_deb \
+    "scx-loader" \
+    "$scx_loader_deb" \
+    scx-loader \
+    amd64 \
+    /usr/bin/scx_loader \
+    ""
+  software_info "installed profile-controlled scx packages through signed local APT repository; automatic release tracking disabled"
+}
+
 software_configure_chromium_sandbox() {
   label=$1
   sandbox_path=$2
@@ -1705,7 +1798,6 @@ software_install_ledger() {
     128 \
     65536 \
     metadata \
-    "download.live.ledger.com" \
     skip
   software_parse_ledger_metadata
 
@@ -1716,7 +1808,6 @@ software_install_ledger() {
     128 \
     65536 \
     metadata \
-    "resources.live.ledger.app" \
     skip
   software_download \
     "Ledger SHA-512 manifest signature" \
@@ -1725,7 +1816,6 @@ software_install_ledger() {
     64 \
     4096 \
     artifact \
-    "resources.live.ledger.app" \
     skip
   software_download \
     "Ledger Live AppImage" \
@@ -1734,7 +1824,6 @@ software_install_ledger() {
     "$managed_application_minimum_bytes" \
     536870912 \
     artifact \
-    "download.live.ledger.com" \
     skip
 
   chroot "$target_root" /usr/bin/openssl dgst \
@@ -1906,6 +1995,22 @@ software_run_optional_app() {
   software_fatal "${optional_label} failed during installation (status=${optional_status})"
 }
 
+if [ "$software_scx_only" = true ]; then
+  install -d -m 0700 "${target_root}${work_dir}" "$tmp_env_dir"
+  trap software_cleanup_work_dir EXIT HUP INT TERM
+  software_ensure_temporary_unshare
+  software_stage_external_servicing_runtime
+  software_stage_seed_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apt/sources.list.d/apt-repo-local.sources)" \
+    "$software_deb_repository_source" \
+    0644
+  software_install_scx_scheduler
+  software_cleanup_work_dir
+  trap - EXIT HUP INT TERM
+  software_info "completed profile-controlled scx package installation without the optional software addon"
+  exit 0
+fi
+
 software_chatgpt_installed=false
 software_tor_browser_installed=false
 software_bitwarden_installed=false
@@ -1935,6 +2040,7 @@ software_stage_seed_asset \
   "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apt/sources.list.d/apt-repo-local.sources)" \
   "$software_deb_repository_source" \
   0644
+software_install_scx_scheduler
 if software_run_optional_app "ChatGPT/Codex desktop" software_enable_chatgpt_integration; then
   software_chatgpt_installed=true
 fi
@@ -1947,7 +2053,6 @@ software_install_bitwarden_app() {
     "$managed_application_minimum_bytes" \
     314572800 \
     artifact \
-    "bitwarden.com github.com objects.githubusercontent.com release-assets.githubusercontent.com" \
     skip
   # Install and retain the exact vendor download; never rewrite app.asar or
   # rebuild Bitwarden's Debian archive.
@@ -1976,7 +2081,6 @@ software_download \
   "$SOFTWARE_QOREDB_MINIMUM_BYTES" \
   536870912 \
   artifact \
-  "github.com objects.githubusercontent.com release-assets.githubusercontent.com" \
   skip
 qoredb_actual_sha256=$(
   chroot "$target_root" /usr/bin/sha256sum "$qoredb_deb" |
@@ -2017,7 +2121,6 @@ software_download \
   "$obsidian_size" \
   "$obsidian_maximum_size" \
   artifact \
-  "github.com objects.githubusercontent.com release-assets.githubusercontent.com" \
   skip
 obsidian_actual_sha256=$(
   chroot "$target_root" /usr/bin/sha256sum "$obsidian_deb" |
@@ -2107,7 +2210,6 @@ software_download \
   "$managed_application_minimum_bytes" \
   314572800 \
   artifact \
-  "dl.pstmn.io" \
   skip
 software_install_postman
 software_store_managed_artifact \
@@ -2130,7 +2232,6 @@ software_download \
   "$sleek_size" \
   "$sleek_maximum_size" \
   artifact \
-  "github.com objects.githubusercontent.com release-assets.githubusercontent.com" \
   skip
 sleek_actual_sha256=$(
   chroot "$target_root" /usr/bin/sha256sum "$sleek_deb" |
@@ -2184,7 +2285,6 @@ software_download \
   "$managed_application_minimum_bytes" \
   536870912 \
   artifact \
-  "zoom.us" \
   skip
 software_install_deb \
   "Zoom Workplace" \
@@ -2206,7 +2306,6 @@ software_download \
   "$managed_application_minimum_bytes" \
   536870912 \
   artifact \
-  "cdn.filen.io" \
   skip
 software_install_deb \
   "Filen Desktop" \
@@ -2305,7 +2404,6 @@ software_download \
   "$managed_application_minimum_bytes" \
   536870912 \
   artifact \
-  "app.tuta.com" \
   skip
 software_download \
   "Tuta Mail signature" \
@@ -2314,7 +2412,6 @@ software_download \
   128 \
   16384 \
   signature \
-  "app.tuta.com" \
   skip
 
 chroot "$target_root" /usr/bin/openssl dgst \

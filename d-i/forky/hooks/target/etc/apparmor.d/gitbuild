@@ -37,7 +37,7 @@ profile gitbuild /usr/local/bin/gitbuild flags=(attach_disconnected) {
   owner @{HOME}/Workspace/** r,
   owner @{HOME}/Workspace/{,**/}target/{,**} rwkl,
   /usr/local/bin/gitbuild rix,
-  /usr/bin/{git,fzf,dpkg} rix,
+  /usr/bin/{git,fzf,dpkg,dpkg-deb} rix,
   /usr/lib/git-core/{,**} r,
   /usr/share/{git-core,git,terminfo}/{,**} r,
   /{,usr/}lib/terminfo/{,**} r,

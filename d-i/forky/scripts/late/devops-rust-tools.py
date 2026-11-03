@@ -144,7 +144,6 @@ def validate_https_url(value: str, label: str, expected_path: str) -> None:
         fail(f"{label} contains an invalid port")
     if (
         parsed.scheme != "https"
-        or parsed.hostname != "github.com"
         or parsed.username is not None
         or parsed.password is not None
         or port is not None

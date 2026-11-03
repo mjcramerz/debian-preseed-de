@@ -35,6 +35,8 @@ profile labwc-desktop-appearance /usr/local/bin/labwc-desktop-appearance flags=(
   /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
   /usr/bin/gsettings rix,
   /usr/bin/pkexec rPx -> labwc-appearance-auth,
+  deny network inet,
+  deny network inet6,
   /usr/local/share/labwc-appearance/{,defaults.json,fields.json,menu-icons.json,themes.json,themes-install-pending.json} r,
   /etc/greetd/{,gtkgreet.css,gtkgreet-power.css} r,
   /usr/share/{,themes/,themes/Labwc-*/,themes/Labwc-*/**,Kvantum/,Kvantum/Labwc-*/,Kvantum/Labwc-*/**} r,
@@ -84,6 +86,8 @@ profile labwc-desktop-appearance /usr/local/bin/labwc-desktop-appearance flags=(
 
 profile labwc-appearance-auth flags=(attach_disconnected) {
   #include <abstractions/workflow-auth>
+  deny network inet,
+  deny network inet6,
   /usr/local/libexec/labwc-appearance-greeter rPx -> labwc-appearance-greeter,
   signal (send, receive) peer=labwc-desktop-appearance,
   signal (send, receive) peer=waypaper,
@@ -93,6 +97,8 @@ profile labwc-appearance-auth flags=(attach_disconnected) {
 profile labwc-appearance-greeter /usr/local/libexec/labwc-appearance-greeter flags=(attach_disconnected) {
   #include <abstractions/wrapper-python>
   #include <abstractions/wrapper-terminal>
+  deny network inet,
+  deny network inet6,
   / r,
   /home/ r,
   /etc/ r,

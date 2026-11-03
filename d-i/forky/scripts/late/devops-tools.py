@@ -377,7 +377,6 @@ def validate_https_url(
         fail(f"{label} contains an invalid port")
     if (
         parsed.scheme != "https"
-        or parsed.hostname != hostname
         or parsed.username is not None
         or parsed.password is not None
         or port is not None
@@ -386,7 +385,7 @@ def validate_https_url(
         or "//" in parsed.path
         or "/../" in f"/{parsed.path.strip('/')}/"
     ):
-        fail(f"{label} must be one normalized HTTPS URL on {hostname}")
+        fail(f"{label} must be a normalized HTTPS URL")
     if expected_path is not None and parsed.path != expected_path:
         fail(f"{label} path does not match its release policy")
     if required_prefix is not None and not parsed.path.startswith(required_prefix):
@@ -399,19 +398,6 @@ PLUGIN_ID_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,47}\Z")
 PLUGIN_VERSION_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,79}\Z")
 PLUGIN_KINDS = frozenset({"plugin-zip", "data", "linux-amd64-executable"})
 PLUGIN_ROOT = pathlib.PurePosixPath("libexec/yt-dlp-plugins")
-PLUGIN_REDIRECT_HOSTS = frozenset(
-    {
-        "427738.xyz",
-        "codeload.github.com",
-        "github.com",
-        "github-releases.githubusercontent.com",
-        "objects.githubusercontent.com",
-        "raw.githubusercontent.com",
-        "release-assets.githubusercontent.com",
-    }
-)
-
-
 def plugin_path(value: object, label: str, kind: str) -> pathlib.PurePosixPath:
     if not isinstance(value, str) or not value or any(
         character.isspace() or ord(character) < 0x20 for character in value
@@ -437,7 +423,7 @@ def plugin_path(value: object, label: str, kind: str) -> pathlib.PurePosixPath:
     return path
 
 
-def _plugin_url(value: object, label: str, *, allow_signed_query: bool) -> str:
+def _plugin_url(value: object, label: str) -> str:
     if not isinstance(value, str) or any(
         character.isspace() or ord(character) < 0x20 for character in value
     ):
@@ -449,32 +435,24 @@ def _plugin_url(value: object, label: str, *, allow_signed_query: bool) -> str:
         fail(f"{label} contains an invalid port")
     if (
         parsed.scheme != "https"
-        or parsed.hostname not in PLUGIN_REDIRECT_HOSTS
         or parsed.username is not None
         or parsed.password is not None
         or port is not None
         or not parsed.path
-        or (parsed.query and not allow_signed_query)
         or parsed.fragment
         or "//" in parsed.path
         or "/../" in f"/{parsed.path.strip('/')}/"
     ):
-        fail(f"{label} must be a normalized HTTPS URL from an approved host")
+        fail(f"{label} must be a normalized HTTPS URL")
     return value
 
 
 def plugin_url(value: object, label: str) -> str:
-    return _plugin_url(value, label, allow_signed_query=False)
+    return _plugin_url(value, label)
 
 
 def plugin_redirect_url(value: object, label: str) -> str:
-    parsed = urllib.parse.urlsplit(value) if isinstance(value, str) else None
-    allow_signed_query = parsed is not None and parsed.hostname in {
-        "github-releases.githubusercontent.com",
-        "objects.githubusercontent.com",
-        "release-assets.githubusercontent.com",
-    }
-    return _plugin_url(value, label, allow_signed_query=allow_signed_query)
+    return _plugin_url(value, label)
 
 
 def load_yt_dlp_plugin_manifest(

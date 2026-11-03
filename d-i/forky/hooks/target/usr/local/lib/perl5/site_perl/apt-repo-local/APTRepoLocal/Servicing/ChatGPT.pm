@@ -151,7 +151,6 @@ sub spec {
         label      => 'ChatGPT/Codex Desktop',
         url        => 'https://persistent.oaistatic.com/codex-app-prod/linux/deb/latest/chatgpt_amd64.deb',
         maximum    => MAX_DOWNLOAD_BYTES,
-        hosts      => ['persistent.oaistatic.com'],
         packages   => ['chatgpt'],
         validate_payload => 0,
         # The managed launcher uses native Wayland. Keep display-server and

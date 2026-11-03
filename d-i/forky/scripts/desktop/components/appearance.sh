@@ -31,16 +31,30 @@ desktop_stage_appearance() (
   for helper in labwc-appearance-defaults labwc-appearance-greeter labwc-appearance-themes; do
     desktop_stage_role_asset "usr/local/libexec/$helper" "/usr/local/libexec/$helper" 0755
   done
-  for module in __init__ fs process; do
-    path="usr/local/lib/python3.14/dist-packages/managed_workflows/$module.py"
-    desktop_stage_role_asset "$path" "/$path" 0644
-  done
-  for module in __init__ catalog cli defaults editors engine greeter icon_catalog native service theme_archive theme_assets theme_install theme_resources themes transaction wallpaper; do
-    path="usr/local/lib/python3.14/dist-packages/labwc_appearance/$module.py"
-    desktop_stage_role_asset "$path" "/$path" 0644
-  done
-  for module in fields editor; do
-    path="usr/local/lib/python3.14/dist-packages/labwc_appearance/$module.py"
+  for path in \
+    usr/local/lib/python3.14/dist-packages/managed_workflows/__init__.py \
+    usr/local/lib/python3.14/dist-packages/managed_workflows/fs.py \
+    usr/local/lib/python3.14/dist-packages/managed_workflows/process.py \
+    usr/local/lib/python3.14/dist-packages/labwc_appearance/__init__.py \
+    usr/local/lib/python3.14/dist-packages/labwc_appearance/catalog.py \
+    usr/local/lib/python3.14/dist-packages/labwc_appearance/cli.py \
+    usr/local/lib/python3.14/dist-packages/labwc_appearance/defaults.py \
+    usr/local/lib/python3.14/dist-packages/labwc_appearance/editor.py \
+    usr/local/lib/python3.14/dist-packages/labwc_appearance/editors.py \
+    usr/local/lib/python3.14/dist-packages/labwc_appearance/engine.py \
+    usr/local/lib/python3.14/dist-packages/labwc_appearance/fields.py \
+    usr/local/lib/python3.14/dist-packages/labwc_appearance/greeter.py \
+    usr/local/lib/python3.14/dist-packages/labwc_appearance/icon_catalog.py \
+    usr/local/lib/python3.14/dist-packages/labwc_appearance/native.py \
+    usr/local/lib/python3.14/dist-packages/labwc_appearance/service.py \
+    usr/local/lib/python3.14/dist-packages/labwc_appearance/theme_archive.py \
+    usr/local/lib/python3.14/dist-packages/labwc_appearance/theme_assets.py \
+    usr/local/lib/python3.14/dist-packages/labwc_appearance/theme_install.py \
+    usr/local/lib/python3.14/dist-packages/labwc_appearance/theme_resources.py \
+    usr/local/lib/python3.14/dist-packages/labwc_appearance/themes.py \
+    usr/local/lib/python3.14/dist-packages/labwc_appearance/transaction.py \
+    usr/local/lib/python3.14/dist-packages/labwc_appearance/wallpaper.py
+  do
     desktop_stage_role_asset "$path" "/$path" 0644
   done
   # fetch_hook renders only field defaults before atomic publication. Keep

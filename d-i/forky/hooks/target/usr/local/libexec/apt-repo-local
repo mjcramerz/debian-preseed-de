@@ -288,6 +288,163 @@ def ar_header(name: str, size: int) -> bytes:
     return f"{name:<16}{0:<12}{0:<6}{0:<6}{'100644':<8}{size:<10}`\n".encode("ascii")
 
 
+def deb_member_digests(path: Path) -> list[tuple[str, int, str, str]]:
+    """Return dpkg-sig v4 member records: name, size, SHA-1, MD5."""
+    records = []
+    seen = set()
+    with os.fdopen(checked_file(path, private=False), "rb") as stream:
+        for name, size, offset in ar_members(stream):
+            if name in seen:
+                raise Error("duplicate Debian archive member")
+            seen.add(name)
+            stream.seek(offset)
+            md5 = hashlib.md5()
+            sha1 = hashlib.sha1()
+            remaining = size
+            while remaining:
+                chunk = stream.read(min(1024 * 1024, remaining))
+                if not chunk:
+                    raise Error("truncated Debian archive member")
+                md5.update(chunk)
+                sha1.update(chunk)
+                remaining -= len(chunk)
+            records.append((name, size, sha1.hexdigest(), md5.hexdigest()))
+    return records
+
+
+def deb_signature_name(records: list[tuple[str, int, str, str]]) -> str:
+    existing = {name for name, _, _, _ in records}
+    for suffix in ("", *[str(number) for number in range(1000)]):
+        name = "_gpgorigin" + suffix
+        if name not in existing:
+            return name
+    raise Error("package already contains too many origin signatures")
+
+
+def dpkg_sig_metadata(records: list[tuple[str, int, str, str]], fingerprint: str) -> bytes:
+    lines = [
+        "Version: 4",
+        f"Signer: {fingerprint}",
+        "Date: " + email.utils.format_datetime(datetime.datetime.now(datetime.timezone.utc)),
+        "Role: origin",
+        "Files: ",
+    ]
+    lines.extend(f"\t{md5} {sha1} {size} {name}" for name, size, sha1, md5 in records)
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+def package_signature_record(fingerprint: str) -> dict[str, str]:
+    return {"format": "dpkg-sig-v4", "role": "origin", "fingerprint": fingerprint}
+
+
+def sign_deb_archive(source: Path, destination: Path, signing_home: Path,
+                     fingerprint: str) -> None:
+    """Add a standard dpkg-sig v4 _gpgorigin member to a Debian archive."""
+    records = deb_member_digests(source)
+    signature_name = deb_signature_name(records)
+    metadata = destination.with_name("." + destination.name + ".metadata")
+    signature = destination.with_name("." + destination.name + ".asc")
+    temporary = destination.with_name("." + destination.name + ".part")
+    try:
+        metadata.write_bytes(dpkg_sig_metadata(records, fingerprint))
+        os.chmod(metadata, 0o600)
+        run([
+            "/usr/bin/gpg", "--batch", "--no-options", "--no-tty",
+            "--homedir", str(signing_home), "--local-user", fingerprint,
+            "--digest-algo", "SHA256", "--output", str(signature),
+            "--clearsign", str(metadata),
+        ])
+        signature_blob = read_bytes(signature, MAX_CONTROL)
+        if not signature_blob.startswith(b"-----BEGIN PGP SIGNED MESSAGE-----"):
+            raise Error("local package signature is not an OpenPGP clear signature")
+        with os.fdopen(checked_file(source, private=False), "rb") as old, temporary.open("xb") as new:
+            shutil.copyfileobj(old, new, 1024 * 1024)
+            new.write(ar_header(signature_name, len(signature_blob)))
+            new.write(signature_blob)
+            if len(signature_blob) % 2:
+                new.write(bytes((10,)))
+            new.flush()
+            os.fsync(new.fileno())
+        os.chmod(temporary, 0o644)
+        os.replace(temporary, destination)
+    finally:
+        metadata.unlink(missing_ok=True)
+        signature.unlink(missing_ok=True)
+        temporary.unlink(missing_ok=True)
+
+
+def verify_deb_signature(path: Path, signing_home: Path, fingerprint: str) -> None:
+    """Verify the local _gpgorigin signature and every signed archive member."""
+    records = deb_member_digests(path)
+    candidates = [(name, size) for name, size, _, _ in records
+                  if re.fullmatch(r"_gpgorigin[0-9A-Z]*", name)]
+    if not candidates:
+        raise Error(f"package has no local _gpgorigin signature: {path.name}")
+    signature_name, _ = candidates[-1]
+    signature_blob = None
+    with os.fdopen(checked_file(path, private=False), "rb") as stream:
+        for name, size, offset in ar_members(stream):
+            if name == signature_name:
+                stream.seek(offset)
+                signature_blob = stream.read(size)
+                break
+    if signature_blob is None:
+        raise Error("local package signature member disappeared during verification")
+    signature = path.with_name("." + path.name + ".verify.asc")
+    plain = path.with_name("." + path.name + ".verify.plain")
+    try:
+        signature.write_bytes(signature_blob)
+        os.chmod(signature, 0o600)
+        status = run([
+            "/usr/bin/gpg", "--batch", "--no-options", "--no-tty",
+            "--homedir", str(signing_home), "--status-fd", "1",
+            "--output", str(plain), "--decrypt", str(signature),
+        ]).decode("utf-8", "replace")
+        os.chmod(plain, 0o600)
+        valid = [line.split() for line in status.splitlines()
+                 if line.startswith("[GNUPG:] VALIDSIG ")]
+        if not any(len(row) > 2 and row[2].upper() == fingerprint.upper() for row in valid):
+            raise Error(f"local package signature has an unexpected signer: {path.name}")
+        fields: dict[str, str] = {}
+        current = ""
+        for line in read_bytes(plain, MAX_CONTROL).decode("utf-8").splitlines():
+            if line.startswith((" ", "\t")) and current:
+                continuation = line.strip()
+                if not continuation:
+                    raise Error("local package signature metadata has an empty continuation")
+                previous = fields.get(current, "")
+                fields[current] = previous + ("\n" if previous else "") + continuation
+                continue
+            match = re.fullmatch(r"([A-Za-z][A-Za-z0-9-]*):[ ]*(.*)", line)
+            if not match:
+                raise Error("local package signature metadata is malformed")
+            current = match[1].lower()
+            fields[current] = match[2]
+        if (fields.get("version") != "4" or fields.get("role") != "origin"
+                or fields.get("signer", "").upper() != fingerprint.upper()):
+            raise Error("local package signature metadata has an unsupported version or role")
+        signed: dict[str, tuple[int, str, str]] = {}
+        for line in fields.get("files", "").split("\n"):
+            parts = line.split()
+            if len(parts) != 4:
+                raise Error("local package signature has malformed member digests")
+            md5, sha1, size, name = parts
+            if not re.fullmatch(r"[0-9a-f]{32}", md5) or not re.fullmatch(r"[0-9a-f]{40}", sha1):
+                raise Error("local package signature has invalid member digests")
+            if not size.isdigit():
+                raise Error("local package signature has an invalid member size")
+            signed[name] = (int(size), sha1, md5)
+        actual = {name: (size, sha1, md5) for name, size, sha1, md5 in records
+                  if name != signature_name}
+        if signed != actual:
+            raise Error(f"local package signature does not cover the published archive: {path.name}")
+        if "debian-binary" not in signed or not any(name.startswith("control.tar") for name in signed) or not any(name.startswith("data.tar") for name in signed):
+            raise Error("local package signature does not cover the Debian payload members")
+    finally:
+        signature.unlink(missing_ok=True)
+        plain.unlink(missing_ok=True)
+
+
 MAINTAINER_SCRIPTS = {"preinst", "postinst", "prerm", "postrm", "config"}
 EDIT_KEYS = {"remove_depends", "remove_depends_patterns", "remove_paths",
              "remove_vendor_apt", "drop_maintainer_scripts", "managed_assets"}
@@ -886,7 +1043,7 @@ class Discovery:
                     url = "https://" + url[len("http://"):]
                 parts = urllib.parse.urlsplit(url)
                 prefix = f"/projects/{source['project']}/files/"
-                if parts.hostname not in ("sourceforge.net", "www.sourceforge.net") or not parts.path.startswith(prefix):
+                if not parts.path.startswith(prefix):
                     continue
                 name = urllib.parse.unquote(parts.path.removesuffix("/download").rsplit("/", 1)[-1])
                 if not name.lower().endswith(".deb") or prerelease(urllib.parse.unquote(parts.path)):
@@ -1472,7 +1629,31 @@ class Repository:
         actual_policy = self.effective_policy(identity[0], actual_policy)
         upstream_version = fields["Version"]
         upstream_sha256 = digest_file(path)
+        signing_fingerprint = None
+        if (previous and previous.get("upstream_sha256") == upstream_sha256
+                and policy_digest(previous.get("policy", {})) == policy_digest(actual_policy)):
+            previous_filename = previous.get("filename", "")
+            previous_archive = self.repo / previous_filename if re.fullmatch(
+                r"pool/[a-z0-9][a-z0-9+.-]+/[0-9a-f]{64}/[A-Za-z0-9_.+:~\\-]+\\.deb",
+                previous_filename,
+            ) else Path("/")
+            try:
+                signing_fingerprint = self.signing_key()
+                if (previous_archive.is_file()
+                        and digest_file(previous_archive) == previous.get("sha256")
+                        and previous_archive.stat().st_size == previous.get("size")
+                        and (verify_deb_signature(previous_archive, self.signing,
+                                                   signing_fingerprint) is None)):
+                    signature_record = package_signature_record(signing_fingerprint)
+                    if previous.get("package_signature") != signature_record:
+                        previous["package_signature"] = signature_record
+                        self.changed = True
+                    self.pending.append(path)
+                    return previous
+            except (Error, OSError, ValueError):
+                pass
         revised = None
+        signed_path = None
         payload_path = path
         try:
             dependency_names = re.findall(r"(?:^|[,|])\s*([a-z0-9][a-z0-9+.-]+)", fields.get("Depends", "").replace("\n", " "))
@@ -1489,7 +1670,11 @@ class Repository:
                                 assets=self.policy_assets(actual_policy))
                 fields = inspect_deb(revised, self.architectures)
                 payload_path = revised
-            sha = digest_file(payload_path)
+            signed_path = self.inbox / (".signed-" + uuid.uuid4().hex + ".deb")
+            if signing_fingerprint is None:
+                signing_fingerprint = self.signing_key()
+            sign_deb_archive(payload_path, signed_path, self.signing, signing_fingerprint)
+            sha = digest_file(signed_path)
             if previous:
                 if newer(previous["version"], fields["Version"]):
                     raise Error(f"refusing downgrade for {key}")
@@ -1505,7 +1690,7 @@ class Repository:
             else:
                 temporary = directory / ("." + uuid.uuid4().hex)
                 try:
-                    shutil.copyfile(payload_path, temporary, follow_symlinks=False)
+                    shutil.copyfile(signed_path, temporary, follow_symlinks=False)
                     with temporary.open("rb") as stream:
                         os.fchmod(stream.fileno(), 0o644)
                         os.fsync(stream.fileno())
@@ -1521,7 +1706,8 @@ class Repository:
             record = {"package": identity[0], "architecture": identity[1], "version": fields["Version"],
                       "upstream_version": upstream_version, "upstream_sha256": upstream_sha256,
                       "upstream_filename": upstream_filename, "sha256": sha, "size": destination.stat().st_size,
-                      "filename": str(destination.relative_to(self.repo)), "control": fields, "policy": actual_policy}
+                      "filename": str(destination.relative_to(self.repo)), "control": fields, "policy": actual_policy,
+                      "package_signature": package_signature_record(signing_fingerprint)}
             if previous != record:
                 self.catalog["packages"][key] = record
                 self.changed = True
@@ -1531,6 +1717,8 @@ class Repository:
             if revised is not None:
                 revised.unlink(missing_ok=True)
                 revised.with_suffix(".data.tar.gz").unlink(missing_ok=True)
+            if signed_path is not None:
+                signed_path.unlink(missing_ok=True)
 
     def signing_key(self) -> str:
         safe_dir(self.keyring.parent)
@@ -1600,6 +1788,15 @@ class Repository:
                 archive = self.repo / filename
                 if digest_file(archive) != record["sha256"] or archive.stat().st_size != record["size"]:
                     raise Error(f"published package digest mismatch for {key}")
+                package_signature = record.get("package_signature")
+                if package_signature is not None:
+                    if (not isinstance(package_signature, dict)
+                            or set(package_signature) != {"format", "role", "fingerprint"}
+                            or package_signature.get("format") != "dpkg-sig-v4"
+                            or package_signature.get("role") != "origin"
+                            or package_signature.get("fingerprint") != fingerprint):
+                        raise Error(f"invalid package signature record for {key}")
+                    verify_deb_signature(archive, self.signing, fingerprint)
                 fields = {k: v for k, v in record["control"].items() if k.lower() not in INDEX_FIELDS}
                 fields.update({"Filename": "./" + filename, "Size": str(record["size"]), "SHA256": record["sha256"]})
                 stanzas.append(control_bytes(fields) + b"\n")
