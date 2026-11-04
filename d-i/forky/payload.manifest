@@ -1122,7 +1122,7 @@ ba56638aaa27a14e797df3d27f71c1e8966864a1eb2b5437074b18977d85edde  hooks/target/u
 dcb0ac24d9364f6e1a7997aef06ec913390db80fee031358eb24cc790872676c  hooks/target/usr/local/bin/filenmnt
 59214b89685b4692d0c1a5b785b178517b21cd7451a316b1a137f091ccf1df2a  hooks/target/usr/local/bin/git-ssh
 53186a133351c095d7f8ba053e682ad4dd59ec3971c618c93856ed803d67c1e3  hooks/target/usr/local/bin/gitbuild
-36451a6272d79fde642bc3db0c0cdebd6873c6f5c66384dcb3ed378c55e5908c  hooks/target/usr/local/bin/gitops
+e0c74db09e1b7eb510a8a7d3b1d9704646618b30b6ad6ab417b8b9ca3a75c31f  hooks/target/usr/local/bin/gitops
 f1e5dff7adf32bc9a260c7fc56d81e5a9023ed99e5d6e178d0aa7b75bf496016  hooks/target/usr/local/bin/key-manager
 49bf2e1a7a106808035280f4e2aa21d9fe5c52817a0b6c2ef1470157489175d9  hooks/target/usr/local/bin/labmgmt
 74bc9b5c8798112e7338c653c2c2e460634e8ab4f73c64e45fe1c0b198a9be15  hooks/target/usr/local/bin/labwc-adb-action
@@ -1654,7 +1654,7 @@ ee1430a7cf0a2a9b2db065dd209cba69d8b1c5fca59d375ad89f910791ada45a  hooks/target/u
 61b422431936c4296f6c54edbedf742517973cb67c468e1d5a05772a5994a8c1  hooks/target/usr/local/share/devops/templates/aptly.conf.tmpl
 0bf5d6a58cefbf856433ea67361f2b6274ca2755a921153b50c88e1d544543ad  hooks/target/usr/local/share/devops/templates/oscrc.json.tmpl
 cddb71a9faddde6e54955370b6fa031abbd7d38a47aaa5d5870f85458c1080fa  hooks/target/usr/local/share/devops/templates/oscrc.tmpl
-4e12a1b29c8db153c9d8b7d6a7979756577f23099f50f6eb5c6f43b601ac1fb8  hooks/target/usr/local/share/doc/git/README.md.tmpl
+5e38cc456bb1755dc42ce1660287e495660d569bf75951edd71e85399084186a  hooks/target/usr/local/share/doc/git/README.md.tmpl
 88b5315be18cd2b1f70fd79bd061e360a6b80e0e7f0f649129883605ef4f66b7  hooks/target/usr/local/share/doc/yt-dlp/CONFIGURATION.md
 73c1fc6dbe894108eb7b08f202bb8a7bb0a1c20ddb370996a4a72b5603992323  hooks/target/usr/local/share/gitbuild/sbuild.conf
 cf5b1830ee72a5c3c73cb6f8620333630a9c0c9e9fb7ba46ada283cfae4634fc  hooks/target/usr/local/share/grub-profiles/display-1.cfg.in.tmpl

@@ -319,15 +319,34 @@ replacement collisions are handled at the Git tree level. Protect every local
 customization that must survive this operation before using `--apply`.
 
 A temporary index constructs the proposed tree; the ordinary index is untouched
-during preview. Successful application records parent ancestry and a recovery
-ref under `refs/gitops/backups/`, then fast-forwards the checked-out branch.
-Protected synchronization never runs `reset --hard`, force-pushes origin, or
-executes repository hooks. The separately opted-in mirror role described below
-can rewrite mirror refs, but only with explicit object-ID leases and recovery refs.
-Only `mcr/*` branches are writable sync targets. Dirty/staged/untracked changes,
+during preview. Successful application records a recovery ref under
+`refs/gitops/promotion-backups/` when an existing promotion tip is replaced,
+then converges the managed promotion refs. Protected tree construction never
+runs `reset --hard` or executes repository hooks. The publication step may
+replace a divergent promotion ref only through an atomic, exact
+`--force-with-lease` expectation; a concurrent remote change fails.
+Only `mcr/*` branches are promotion targets; the explicit provider-mirror refresh
+updates its distinct `gitlab/mcr/main` source ref before promotion. Dirty/staged/untracked changes,
 ignored-path collisions, sparse/skip-worktree/assume-unchanged state and active
 Git operations are refused. When a protected sync records gitlinks, the managed
 workflow refreshes their worktrees after the commit.
+
+### Promotion commit identity
+
+`mcr/main`, `mcr/staging`, and `mcr/release` are one promotion set. A selected
+source tree is materialized once on `mcr/main` with a single parent: the prior
+`mcr/main` tip. The three promotion refs then point to that exact same commit
+object and therefore have the same commit SHA and tree. If the desired tree is
+already the `mcr/main` tree, the existing `mcr/main` commit is reused; no empty
+or duplicate commit is created. Divergent local and fetched origin tips are
+retained under `refs/gitops/promotion-backups/` before convergence. Publishing
+uses one atomic push with a separate exact lease for each origin ref.
+
+Provider mirror refs such as `gitlab/mcr/main` and `github/mcr/main` are separate
+source refs and are never forced to share the promotion commit. Fork workflows
+first refresh the local `gitlab/mcr/main` mirror from `origin/gitlab/mcr/main`,
+use that mirror as the protected source for the canonical `mcr/main` tree, and
+only then converge and publish the three `mcr/*` promotion refs.
 
 Only the explicit `mcr-fork-*` aliases load `GITOPS_FORKS_MERGE_PROTECTED`, and
 only the explicit `mcr-salsa-*` aliases load `GITOPS_SALSA_MERGE_PROTECTED`.
@@ -350,7 +369,7 @@ Managed aliases use this selection internally and never require a source argumen
 git mcr-branch-init          # repair local/remote mcr/* branches and tracking
 git switch mcr/main
 gitops config
-git mcr-fork-sync                                    # refresh origin/gitlab/mcr/main, sync protected mcr/main, push
+git mcr-fork-sync                                    # refresh fork mirror, converge all mcr/* refs to one commit, push
 # Salsa uses its own protected list and fetches origin automatically:
 git mcr-salsa-sync
 # Apply the protected mirror -> main -> staging -> release chain:
@@ -361,37 +380,40 @@ git mcr-fork-cicd
 
 | Aliases | Behavior |
 | --- | --- |
-| `mcr-branch-init` | Fetch origin, repair local and remote main/staging/release/feature-initial branches with no protected paths, configure upstreams, and leave `mcr/main` checked out |
-| `mcr-fork-init`, `mcr-salsa-init` | Fetch origin, repair local and remote main/staging/release/feature-initial branches, apply only the selected family policy while synchronizing its mirror, configure upstreams, and leave `mcr/main` checked out |
-| `mcr-branch-create NAME` | Fetch origin, create or reconcile a validated non-core `mcr/*` branch with no protected paths, configure tracking, publish it, and verify the remote |
+| `mcr-branch-init` | Fetch origin, repair local branches and tracking, then converge `mcr/main`, `mcr/staging`, and `mcr/release` on one no-policy commit and leave `mcr/main` checked out |
+| `mcr-fork-init`, `mcr-salsa-init` | Fetch origin, refresh the selected source mirror, apply only the selected family policy once, then converge all three `mcr/*` promotion refs on that exact commit and leave `mcr/main` checked out |
+| `mcr-branch-create NAME` | Fetch origin, create a validated non-core `mcr/*` branch, use its committed tree as the promotion source, converge all three promotion refs on one commit, publish the extra branch, and verify the remotes |
 | `mcr-branch-delete NAME` | Delete a merged non-core local branch only |
 | `mcr-branch-show`, `mcr-repo-status` | Status, branches and remotes |
 | `mcr-repo-clone SSH-URL [DEST]` or `mcr-repo-clone <gh|glab> NAMESPACE REPO` | Clone an existing GitHub/GitLab repository through SSH |
 | `mcr-repo-mirror <gh|glab> NAMESPACE [--apply]` | Preview or configure a private, push-only promotion mirror on the other provider |
 | `mcr-repo-mirror <gh|glab> del [--apply]` | Preview or remove the local mirror remote; never delete a provider repository |
-| `mcr-repo-sync` | Fetch origin, reconcile the current `mcr/*` branch with no protected paths, publish it without force, and verify the remote |
-| `mcr-branch-push` | Fetch origin, reconcile promotion branches with no protected paths, fast-forward through main/staging/release, then verify the atomic remote push |
+| `mcr-repo-sync` | Fetch origin, use the current `mcr/*` branch as the no-policy source, converge all three promotion refs on one commit, publish any extra current branch, and verify the remotes |
+| `mcr-branch-push` | Fetch origin, use the current `mcr/*` branch as the no-policy source, create at most one single-parent `mcr/main` commit, converge all three promotion refs to that exact SHA, and verify the atomic lease-protected push |
 | `mcr-tag-create TAG`, `mcr-tag-push TAG` | Create annotated local tag, or explicitly push that tag |
 | `mcr-tag-delete TAG`, `mcr-tag-show` | Local tag deletion, or listing; no remote deletion |
-| `mcr-fork-sync` | Fetch origin, refresh local `gitlab/mcr/main` from `origin/gitlab/mcr/main`, protected-sync it into `mcr/main`, and push the verified result to origin |
-| `mcr-salsa-sync` | Fetch origin and apply protected sync of the current `mcr/*` branch |
+| `mcr-fork-sync` | Fetch origin, refresh local `gitlab/mcr/main` from `origin/gitlab/mcr/main`, protected-sync that distinct mirror into the canonical `mcr/main` tree, converge all three promotion refs to one SHA, and push the verified result to origin |
+| `mcr-salsa-sync` | Fetch origin, select the Salsa upstream source, protected-sync it into the canonical `mcr/main` tree, converge all three promotion refs to one SHA, and push the verified result to origin |
 | `mcr-{fork,salsa}-verify-protected-sync` | Always preview; it is the only sync alias that does not mutate |
 | `mcr-{fork,salsa}-cicd` | Fetch origin and apply the protected mirror -> main -> staging -> release chain |
 | `mcr-{fork,salsa}-update` | Fetch origin, apply the chain and check an existing patch series on main |
 | `mcr-{fork,salsa}-push` | Fetch origin, apply the chain/check existing patches, then atomically push all three refs |
 | `mcr-{fork,salsa}-check`, `mcr-{fork,salsa}-test` | Check patch series applicability in a disposable index; no compilation/tests of application binaries |
 
-The chain preserves each branch's protected files and restores the initial
-checked-out branch. Promotion is NOT a multi-branch local rollback transaction:
-if a later step or remote push fails, earlier local commits can remain, with
-recovery refs and no force reset. Inspect status/history, resolve the specific
-problem, then rerun. The remote multi-ref push requests atomic behavior; a server
-that does not support it causes failure, not a non-atomic fallback.
+The chain refreshes the selected provider mirror first, builds one canonical
+protected tree on `mcr/main`, points all three promotion refs at the resulting
+single-parent commit, and restores the initial checked-out branch. If a later
+step or remote push fails, earlier local ref changes can remain; the replaced
+tips are retained under `refs/gitops/promotion-backups/` and no blind force
+reset is attempted. Inspect status/history, resolve the specific problem, then
+rerun. The remote multi-ref push uses exact per-ref leases and requests atomic
+behavior; a concurrent change or a server without atomic support causes failure,
+not a non-atomic fallback.
 
 ```sh
-git for-each-ref --format='%(refname) %(objectname)' refs/gitops/backups/
+git for-each-ref --format='%(refname) %(objectname)' refs/gitops/promotion-backups/
 # To inspect an earlier state without discarding work:
-git branch recovery-review refs/gitops/backups/REPLACE_WITH_RECORDED_REF
+git branch recovery-review refs/gitops/promotion-backups/REPLACE_WITH_RECORDED_REF
 ```
 
 Patch checking reads `debian/patches/series` preferentially, or the existing

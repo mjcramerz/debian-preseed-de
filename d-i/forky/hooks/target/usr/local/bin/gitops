@@ -1,14 +1,15 @@
 #!/usr/bin/python3 -IB
 """Managed Git workflows; run as the desktop user, never through sudo.
 
-Sync is an explicit upstream tree synchronization, not a merge strategy trick:
-unprotected files become the source tree; protected paths keep their local
-content AND absence. A two-parent commit records ancestry. Preview is default.
+Managed promotion is an explicit upstream tree synchronization:
+unprotected files become the selected source tree; protected paths keep their
+local content and absence. Promotion creates at most one single-parent commit
+on `mcr/main`, then points `mcr/main`, `mcr/staging`, and `mcr/release` at that
+same commit. Preview is default.
 """
 from __future__ import annotations
 import argparse
 import contextlib
-import datetime
 import fcntl
 import fnmatch
 import hashlib
@@ -242,8 +243,16 @@ def source_ref(root: Path, specified: str | None) -> str:
             return name
     raise GitOpsError('origin has no supported upstream mirror branch (gitlab/mcr/main, gitlab/main or gitlab/master)')
 
+
 def sync(root: Path, workflow: str | None, source: str | None, apply: bool,
          fetch: bool, config: Path, *, locked_common: Path | None = None) -> None:
+    """Apply one protected tree to the checked-out mcr/* branch.
+
+    Managed aliases use :func:`promote_same_tip` so all three promotion refs
+    converge on one commit. This retained primitive exists for focused callers
+    and diagnostics; it deliberately creates only a single-parent commit and
+    never performs a multi-parent merge.
+    """
     patterns = load_patterns(config, workflow)
     with (repository_lock(root) if locked_common is None else contextlib.nullcontext(locked_common)) as common:
         branch = current_branch(root)
@@ -252,24 +261,21 @@ def sync(root: Path, workflow: str | None, source: str | None, apply: bool,
         require_clean(root)
         if fetch:
             fetch_origin(root)
-        source = source_ref(root, source)
-        old, other = resolve('HEAD', root), resolve(source, root)
-        report_commit(root, old, f'{workflow_label(workflow).capitalize()} destination before sync')
-        report_commit(root, other, 'Source commit')
+        selected = source_ref(root, source)
+        old, other = resolve('HEAD', root), resolve(selected, root)
         local, upstream = tree(old, root), tree(other, root)
-        # A selected policy lets the destination retain protected paths. The
-        # unprotected workflow copies the complete source tree.
         desired = desired_tree(local, upstream, patterns)
-        has_submodules = any(value[0] == '160000' for value in (*local.values(), *desired.values()))
-        has_submodule_config = '.gitmodules' in local or '.gitmodules' in desired
-        changes = sorted(name for name in local.keys() | desired.keys() if local.get(name) != desired.get(name))
-        ignored = [os.fsdecode(x) for x in git('ls-files', '--others', '--ignored', '--exclude-standard', '-z', cwd=root).split(b'\0') if x]
+        changes = sorted(name for name in local.keys() | desired.keys()
+                         if local.get(name) != desired.get(name))
+        ignored = [os.fsdecode(x) for x in git('ls-files', '--others', '--ignored',
+                                                '--exclude-standard', '-z', cwd=root).split(b'\0') if x]
         for name in ignored:
-            if any(name == changed or name.startswith(changed+'/') or changed.startswith(name+'/') for changed in changes):
+            if any(name == changed or name.startswith(changed+'/') or changed.startswith(name+'/')
+                   for changed in changes):
                 raise GitOpsError('an ignored local path would be overwritten; move it before syncing')
         kept = sum(1 for name in local.keys() | upstream.keys()
                    if protected(name, patterns) and local.get(name) != upstream.get(name))
-        print(terminal_text(f'{workflow_label(workflow)}: {source} -> {branch}; '
+        print(terminal_text(f'{workflow_label(workflow)}: {selected} -> {branch}; '
                             f'{len(changes)} changed paths; {kept} protected differences'))
         for name in changes[:100]:
             action = 'A' if name not in local else 'D' if name not in desired else 'M'
@@ -279,38 +285,20 @@ def sync(root: Path, workflow: str | None, source: str | None, apply: bool,
         if not apply:
             print('Preview only; local branches, ordinary index and worktree are unchanged.')
             return
-        if old == other:
-            print('Already at source revision.'); return
-        ancestry = git('merge-base', other, old, cwd=root, check=False).decode().strip()
-        if not changes and ancestry == other:
-            print('Already synchronized, including ancestry.'); return
-        with tempfile.TemporaryDirectory(prefix='gitops-index-', dir=common) as temporary:
-            extra = {'GIT_INDEX_FILE': str(Path(temporary)/'index')}
-            git('read-tree', '--empty', cwd=root, extra=extra)
-            records = b''.join(f'{mode} {oid}\t'.encode()+os.fsencode(name)+b'\0'
-                               for name, (mode, oid) in sorted(desired.items()))
-            git('update-index', '-z', '--index-info', cwd=root, extra=extra, data=records)
-            new_tree = git('write-tree', cwd=root, extra=extra).decode().strip()
-            parents = ['-p', old] + ([] if ancestry == other else ['-p', other])
-            subject = (f'Protected {workflow} sync from {source}' if workflow is not None
-                       else f'Full tree sync from {source}')
-            policy = f'Policy: {config}' if workflow is not None else 'Policy: none'
-            commit = git('commit-tree', new_tree, *parents, cwd=root,
-                         data=f'{subject}\n\n{policy}\n'.encode()).decode().strip()
-        # Recheck after potentially slow construction. Never reset --hard or
-        # force-push. Git's ff-only merge handles worktree/index/ref locking.
+        if old == other or not changes:
+            print('Already at the selected tree; no duplicate commit created.')
+            return
+        new_tree = write_tree(root, desired, common)
+        subject = (f'Protected {workflow} sync from {selected}' if workflow is not None
+                   else f'Full tree sync from {selected}')
+        policy = f'Policy: {config}' if workflow is not None else 'Policy: none'
+        commit = git('commit-tree', new_tree, '-p', old, cwd=root,
+                     data=f'{subject}\n\n{policy}\n'.encode()).decode().strip()
         require_clean(root)
         if current_branch(root) != branch or resolve('HEAD', root) != old:
             raise GitOpsError('branch changed during sync; no branch update was applied')
-        stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-        backup = 'refs/gitops/backups/'+stamp+'-'+uuid.uuid4().hex[:12]
-        git('update-ref', backup, old, '0'*len(old), cwd=root)
-        print(f'Recovery ref: {backup}')
+        retain_ref(root, old)
         git('-c', 'merge.autoStash=false', 'merge', '--ff-only', '--no-edit', '--no-stat', commit, cwd=root)
-        if has_submodules and has_submodule_config:
-            # The protected-sync commit records gitlinks atomically; refresh
-            # their worktrees after publication so the checkout matches HEAD.
-            git('submodule', 'update', '--init', '--checkout', '--recursive', '--jobs=4', cwd=root)
         if tree('HEAD', root) != desired:
             raise GitOpsError('post-sync tree verification failed; recovery ref was retained')
         report_commit(root, 'HEAD', f'{workflow_label(workflow).capitalize()} sync result')
@@ -383,30 +371,122 @@ def refresh_local_mirror(root: Path, branch: str = 'gitlab/mcr/main') -> str:
     return remote_oid
 
 
-def ensure_managed_branches(root: Path, workflow: str | None, config: Path, common: Path) -> None:
-    """Create all four branches and reconcile each existing origin tip."""
-    load_patterns(config, workflow)  # Reject invalid policy before any branch mutation.
+def ensure_managed_branch_refs(root: Path) -> None:
+    """Create/configure promotion refs without synthesizing branch commits."""
     require_available_branches(root, MANAGED_BRANCHES)
     base = branch_oid(root, 'mcr/main') or branch_oid(root, 'mcr/main', remote=True) or resolve('HEAD', root)
     for branch in MANAGED_BRANCHES:
         if branch_oid(root, branch) is None:
             git('branch', '--', branch, branch_oid(root, branch, remote=True) or base, cwd=root)
         configure_tracking(root, branch)
-    for branch in MANAGED_BRANCHES:
-        reconcile_origin_branch(root, branch, workflow, config, common)
 
 
-def reconcile_origin_branch(root: Path, branch: str, workflow: str | None,
-                            config: Path, common: Path) -> None:
-    """Keep local descendants; reconcile a new/divergent origin tip by policy."""
-    remote = branch_oid(root, branch, remote=True)
-    local = branch_oid(root, branch)
-    if local is None:
-        raise GitOpsError(f'missing local branch during origin reconciliation: {branch}')
-    if remote is not None and local != remote and not ancestor(root, remote, local):
-        git('switch', '--no-overwrite-ignore', branch, cwd=root)
-        sync(root, workflow, remote, True, False, config, locked_common=common)
-    configure_tracking(root, branch)
+def write_tree(root: Path, entries: dict[str, tuple[str, str]], common: Path) -> str:
+    """Write a proposed tree through a private index without touching the checkout."""
+    with tempfile.TemporaryDirectory(prefix='gitops-index-', dir=common) as temporary:
+        extra = {'GIT_INDEX_FILE': str(Path(temporary)/'index')}
+        git('read-tree', '--empty', cwd=root, extra=extra)
+        records = b''.join(f'{mode} {oid}\t'.encode()+os.fsencode(name)+b'\0'
+                           for name, (mode, oid) in sorted(entries.items()))
+        git('update-index', '-z', '--index-info', cwd=root, extra=extra, data=records)
+        return git('write-tree', cwd=root, extra=extra).decode().strip()
+
+
+def canonical_promotion_commit(root: Path, source: str, workflow: str | None,
+                               config: Path, common: Path) -> tuple[str, dict[str, tuple[str, str]]]:
+    """Build one single-parent main commit for the selected source tree."""
+    main_tip = branch_oid(root, 'mcr/main')
+    if main_tip is None:
+        raise GitOpsError('mcr/main is missing during promotion')
+    source_tip = resolve(source, root)
+    patterns = load_patterns(config, workflow)
+    desired = desired_tree(tree(main_tip, root), tree(source_tip, root), patterns)
+    if desired == tree(main_tip, root):
+        return main_tip, desired
+    new_tree = write_tree(root, desired, common)
+    subject = f'Promote {source} to mcr/main, mcr/staging, and mcr/release'
+    policy = f'Policy: {config}' if workflow is not None else 'Policy: none'
+    commit = git('commit-tree', new_tree, '-p', main_tip, cwd=root,
+                 data=f'{subject}\n\n{policy}\n'.encode()).decode().strip()
+    print(f'Promotion commit: {commit}')
+    return commit, desired
+
+
+def retain_promotion_tips(root: Path, local: dict[str, str], remote: dict[str, str | None]) -> None:
+    """Keep every replaced promotion tip reachable before ref convergence."""
+    retained = set()
+    for tip in (*local.values(), *(value for value in remote.values() if value)):
+        if tip not in retained:
+            retain_ref(root, tip, 'promotion-backups')
+            retained.add(tip)
+
+
+def converge_local_promotion_refs(root: Path, commit: str, local_before: dict[str, str]) -> None:
+    """Point local main/staging/release at one commit with expected-old checks."""
+    if current_branch(root) != 'mcr/main':
+        git('switch', '--no-overwrite-ignore', 'mcr/main', cwd=root)
+    if resolve('HEAD', root) != local_before['mcr/main']:
+        raise GitOpsError('mcr/main changed before local promotion convergence')
+    if commit != local_before['mcr/main']:
+        git('-c', 'merge.autoStash=false', 'merge', '--ff-only', '--no-edit', '--no-stat', commit, cwd=root)
+    updates = []
+    for branch in ('mcr/staging', 'mcr/release'):
+        if local_before[branch] != commit:
+            updates.append(f'update refs/heads/{branch} {commit} {local_before[branch]}')
+    if updates:
+        git('update-ref', '--stdin', cwd=root,
+            data=('start\n'+'\n'.join(updates)+'\nprepare\ncommit\n').encode())
+    for branch in BRANCHES:
+        configure_tracking(root, branch)
+        if branch_oid(root, branch) != commit:
+            raise GitOpsError(f'{branch} did not converge on the promotion commit')
+
+
+def publish_same_promotion_tip(root: Path, commit: str,
+                               remote_before: dict[str, str | None]) -> None:
+    """Force-with-lease the three promotion refs to one exact commit."""
+    destination = remote_url(root, 'origin')
+    args = ['-c', 'push.followTags=false', 'push', '--atomic', '--recurse-submodules=no']
+    for branch in BRANCHES:
+        args.append(f'--force-with-lease=refs/heads/{branch}:{remote_before[branch] or ""}')
+    args += ['--', destination, *[f'{commit}:refs/heads/{branch}' for branch in BRANCHES]]
+    git(*args, cwd=root)
+    actual = remote_refs(root, destination)
+    for branch in BRANCHES:
+        ref = f'refs/heads/{branch}'
+        if actual.get(ref) != commit:
+            raise GitOpsError('origin promotion refs did not converge on one commit')
+        git('update-ref', f'refs/remotes/origin/{branch}', commit, cwd=root)
+        configure_tracking(root, branch)
+    print('Origin promotion refs verified at: ' + commit)
+
+
+def promote_same_tip(root: Path, workflow: str | None, source: str,
+                     config: Path, common: Path, original: str,
+                     *, publish: bool) -> str:
+    """Repair, converge, and optionally publish one commit for all promotion refs."""
+    local_before = {branch: branch_oid(root, branch) for branch in BRANCHES}
+    remote_before = {branch: branch_oid(root, branch, remote=True) for branch in BRANCHES}
+    if any(tip is None for tip in local_before.values()):
+        raise GitOpsError('promotion branch is missing after branch-ref preparation')
+    commit, desired = canonical_promotion_commit(root, source, workflow, config, common)
+    require_clean(root)
+    if current_branch(root) != original:
+        raise GitOpsError('working branch changed during promotion construction')
+    for branch in BRANCHES:
+        if branch_oid(root, branch) != local_before[branch]:
+            raise GitOpsError(f'{branch} changed during promotion construction')
+        if branch_oid(root, branch, remote=True) != remote_before[branch]:
+            raise GitOpsError(f'origin/{branch} changed during promotion construction')
+    if (any(tip != commit for tip in local_before.values())
+            or any(tip != commit for tip in remote_before.values() if tip)):
+        retain_promotion_tips(root, local_before, remote_before)
+    converge_local_promotion_refs(root, commit, local_before)
+    if tree('HEAD', root) != desired:
+        raise GitOpsError('promotion tree verification failed')
+    if publish:
+        publish_same_promotion_tip(root, commit, remote_before)
+    return commit
 
 
 def workflow_source(root: Path, workflow: str | None, *, refresh: bool) -> str:
@@ -444,36 +524,43 @@ def publish_branches(root: Path, branches: tuple[str, ...]) -> None:
 
 def initialize_managed_branches(root: Path, workflow: str | None, config: Path,
                                 *, synchronize_mirror: bool = False) -> None:
-    """Repair local/remote branches and tracking; finish on mcr/main."""
+    """Repair branches and publish one shared promotion commit; finish on mcr/main."""
     with repository_lock(root) as common:
         require_clean(root)
         load_patterns(config, workflow)
         fetch_origin(root)
-        ensure_managed_branches(root, workflow, config, common)
-        if synchronize_mirror:
-            source = workflow_source(root, workflow, refresh=True)
-            git('switch', '--no-overwrite-ignore', 'mcr/main', cwd=root)
-            sync(root, workflow, source, True, False, config, locked_common=common)
+        ensure_managed_branch_refs(root)
+        source = (workflow_source(root, workflow, refresh=True)
+                  if synchronize_mirror else 'refs/heads/mcr/main')
         git('switch', '--no-overwrite-ignore', 'mcr/main', cwd=root)
-        require_clean(root)
-        publish_branches(root, MANAGED_BRANCHES)
+        commit = promote_same_tip(root, workflow if synchronize_mirror else WORKFLOW_NONE,
+                                  source, config, common, 'mcr/main', publish=True)
+        extras = tuple(branch for branch in MANAGED_BRANCHES if branch not in BRANCHES)
+        if extras:
+            publish_branches(root, extras)
+        push_configured_mirrors(root)
+        print(f'Promotion complete at one commit: {commit}')
 
 
 def synchronize_main(root: Path, workflow: str | None, config: Path) -> None:
-    """Zero-argument origin -> local mirror -> selected mcr/main sync."""
+    """Zero-argument origin -> local mirror -> one shared promotion commit."""
     with repository_lock(root) as common:
         require_clean(root)
         load_patterns(config, workflow)
         fetch_origin(root)
-        ensure_managed_branches(root, workflow, config, common)
+        ensure_managed_branch_refs(root)
         source = workflow_source(root, workflow, refresh=True)
         git('switch', '--no-overwrite-ignore', 'mcr/main', cwd=root)
-        sync(root, workflow, source, True, False, config, locked_common=common)
-        publish_branches(root, MANAGED_BRANCHES)
+        commit = promote_same_tip(root, workflow, source, config, common, 'mcr/main', publish=True)
+        extras = tuple(branch for branch in MANAGED_BRANCHES if branch not in BRANCHES)
+        if extras:
+            publish_branches(root, extras)
+        push_configured_mirrors(root)
         if workflow is None:
             print('Synchronized local mcr/main; no protected paths were applied.')
         else:
             print('Synchronized local mcr/main; protected paths came only from mcr/main.')
+        print(f'Promotion complete at one commit: {commit}')
 
 
 def create_managed_branch(root: Path, name: str, config: Path,
@@ -483,34 +570,39 @@ def create_managed_branch(root: Path, name: str, config: Path,
     with repository_lock(root) as common:
         require_clean(root)
         fetch_origin(root)
-        ensure_managed_branches(root, workflow, config, common)
+        ensure_managed_branch_refs(root)
         require_available_branches(root, (name,))
         if branch_oid(root, name) is None:
             base = branch_oid(root, name, remote=True) or resolve('refs/heads/mcr/main', root)
             git('branch', '--', name, base, cwd=root)
-        reconcile_origin_branch(root, name, workflow, config, common)
         git('switch', '--no-overwrite-ignore', name, cwd=root)
-        publish_branches(root, tuple(dict.fromkeys((*MANAGED_BRANCHES, name))))
+        commit = promote_same_tip(root, workflow, f'refs/heads/{name}', config, common, name, publish=True)
+        extras = tuple(dict.fromkeys((*MANAGED_BRANCHES, name)))
+        extras = tuple(branch for branch in extras if branch not in BRANCHES)
+        if extras:
+            publish_branches(root, extras)
+        push_configured_mirrors(root)
+        print(f'Promotion complete at one commit: {commit}')
 
 
 def promote_managed_branches(root: Path, config: Path,
                              workflow: str | None = WORKFLOW_NONE) -> None:
-    """Repair origin inputs and promote the current source by protected sync."""
+    """Repair origin inputs and converge every promotion branch on one commit."""
     with repository_lock(root) as common:
         require_clean(root)
         original = current_branch(root)
         validate_branch(original, root)
         fetch_origin(root)
-        ensure_managed_branches(root, workflow, config, common)
-        reconcile_origin_branch(root, original, workflow, config, common)
+        ensure_managed_branch_refs(root)
         source = resolve('refs/heads/' + original, root)
         try:
-            for branch in BRANCHES:
-                git('switch', '--no-overwrite-ignore', branch, cwd=root)
-                sync(root, workflow, source, True, False, config, locked_common=common)
-                source = resolve('HEAD', root)
-            publish_branches(root, tuple(dict.fromkeys((*MANAGED_BRANCHES, original))))
+            commit = promote_same_tip(root, workflow, source, config, common, original, publish=True)
+            extras = tuple(dict.fromkeys((*MANAGED_BRANCHES, original)))
+            extras = tuple(branch for branch in extras if branch not in BRANCHES)
+            if extras:
+                publish_branches(root, extras)
             push_configured_mirrors(root)
+            print(f'Promotion complete at one commit: {commit}')
         finally:
             if current_branch(root) != original:
                 git('switch', '--no-overwrite-ignore', original, cwd=root)
@@ -523,11 +615,15 @@ def push_current_branch(root: Path, config: Path,
         original = current_branch(root)
         validate_branch(original, root)
         fetch_origin(root)
-        ensure_managed_branches(root, workflow, config, common)
-        reconcile_origin_branch(root, original, workflow, config, common)
+        ensure_managed_branch_refs(root)
         git('switch', '--no-overwrite-ignore', original, cwd=root)
-        publish_branches(root, tuple(dict.fromkeys((*MANAGED_BRANCHES, original))))
+        commit = promote_same_tip(root, workflow, f'refs/heads/{original}', config, common, original, publish=True)
+        extras = tuple(dict.fromkeys((*MANAGED_BRANCHES, original)))
+        extras = tuple(branch for branch in extras if branch not in BRANCHES)
+        if extras:
+            publish_branches(root, extras)
         push_configured_mirrors(root)
+        print(f'Promotion complete at one commit: {commit}')
 
 
 def patch_check(root: Path, *, locked_common: Path | None = None) -> None:
@@ -568,42 +664,51 @@ def sync_chain(root: Path, workflow: str | None, source: str | None, apply: bool
         if fetch:
             fetch_origin(root)
         if apply:
-            ensure_managed_branches(root, workflow, config, common)
+            ensure_managed_branch_refs(root)
         selected = resolve(source, root) if source else workflow_source(root, workflow, refresh=apply)
-        previous = selected
-        planned = tree(selected, root)
+        # Refreshing a checked-out provider mirror temporarily switches to
+        # mcr/main so its ref can be replaced safely. Restore the requested
+        # branch before promotion so the concurrency check covers the actual
+        # source checkout, and restore it again on exit.
+        if apply and original and current_branch(root) != original:
+            git('switch', '--no-overwrite-ignore', original, cwd=root)
+        promotion_original = current_branch(root)
+        planned = desired_tree(tree(branch_oid(root, 'mcr/main') or resolve('HEAD', root), root),
+                               tree(selected, root), patterns)
         tips = {}
         for branch in BRANCHES:
             tip = branch_oid(root, branch) or resolve('HEAD', root)
             tips[branch] = tip
             before = tree(tip, root)
-            after = desired_tree(before, planned, patterns)
-            changes = sum(before.get(name) != after.get(name) for name in before.keys() | after.keys())
-            print(terminal_text(f'{workflow_label(workflow)}: {previous} -> {branch}; '
+            changes = sum(before.get(name) != planned.get(name)
+                          for name in before.keys() | planned.keys())
+            print(terminal_text(f'{workflow_label(workflow)}: {selected} -> {branch}; '
                                 f'{changes} planned changed paths'))
-            planned, previous = after, branch
         if not apply:
             print('Preview only; local branches, ordinary index and worktree are unchanged.')
             return
         try:
-            previous = selected
             for branch in BRANCHES:
                 if branch_oid(root, branch) != tips[branch]:
                     raise GitOpsError('a promotion branch changed after preflight')
-                git('switch', '--no-overwrite-ignore', branch, cwd=root)
-                sync(root, workflow, previous, True, False, config, locked_common=common)
-                if patches and branch == 'mcr/main':
-                    queues = [root/'debian/patches/series', root/'patches/release/series']
-                    if any(path.exists() for path in queues):
-                        patch_check(root, locked_common=common)
-                    else:
-                        print('No patch series; no patch applicability check performed.')
-                previous = resolve('HEAD', root)
+            commit = promote_same_tip(root, workflow, selected, config, common,
+                                      promotion_original, publish=False)
+            if patches:
+                queues = [root/'debian/patches/series', root/'patches/release/series']
+                if any(path.exists() for path in queues):
+                    patch_check(root, locked_common=common)
+                else:
+                    print('No patch series; no patch applicability check performed.')
             if push:
-                publish_branches(root, MANAGED_BRANCHES)
+                publish_same_promotion_tip(root, commit,
+                                           {branch: branch_oid(root, branch, remote=True) for branch in BRANCHES})
+                extras = tuple(branch for branch in MANAGED_BRANCHES if branch not in BRANCHES)
+                if extras:
+                    publish_branches(root, extras)
                 push_configured_mirrors(root)
+            print(f'Promotion complete at one commit: {commit}')
         finally:
-            destination = original if original.startswith('mcr/') else 'mcr/main'
+            destination = original or 'mcr/main'
             if current_branch(root) != destination:
                 git('switch', '--no-overwrite-ignore', destination, cwd=root)
 

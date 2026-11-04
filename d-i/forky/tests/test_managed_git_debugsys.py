@@ -137,7 +137,7 @@ class RealGitTests(PatternTests):
         self.assertEqual(payload_read_text(self.repo/'ordinary'),'upstream')
         self.assertEqual(self.g('status','--porcelain'),'')
         parents=self.g('show','-s','--format=%P','HEAD').split()
-        self.assertEqual(parents,[self.old,self.upstream])
+        self.assertEqual(parents,[self.old])
         self.assertIn(self.old,self.g('for-each-ref','--format=%(objectname)','refs/gitops/backups'))
     def test_preview_leaves_tree_index_and_head_unchanged(self):
         before=payload_read_bytes(self.repo/'.git/index');self.sync(False)
@@ -193,6 +193,8 @@ class RealGitTests(PatternTests):
         for branch in gitops.BRANCHES:
             self.assertEqual(self.g('show',branch+':ordinary'),'upstream')
             self.assertEqual(self.g('show',branch+':lock/secret'),'local')
+        tips=[self.g('rev-parse',branch).strip() for branch in gitops.BRANCHES]
+        self.assertEqual(len(set(tips)),1)
     def test_quilt_patch_series_is_checked_without_worktree_change(self):
         self.write('debian/patches/change.patch','diff --git a/ordinary b/ordinary\n--- a/ordinary\n+++ b/ordinary\n@@ -1 +1 @@\n-base\n\\ No newline at end of file\n+patched\n\\ No newline at end of file\n')
         self.write('debian/patches/series','change.patch -p1 # fixture\n')
