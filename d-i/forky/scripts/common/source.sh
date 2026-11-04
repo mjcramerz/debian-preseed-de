@@ -453,7 +453,14 @@ source_http_get() (
   if [ -n "$effective" ]; then printf '%s\n' "$resolved" >"$effective"; chmod 0600 "$effective"; fi;
 );
 source_validate_relative() {
-  case "${1:-}" in ''|/*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@+-]*) source_error 'unsafe repository-relative path'; return 1 ;; esac;
+  # Chromium-family profiles use the literal filename "Local State". The
+  # payload builder has one matching allow-list entry for that canonical file;
+  # keep the runtime check aligned with it while rejecting spaces everywhere
+  # else.
+  case "${1:-}" in
+    'hooks/target/etc/skel-desktop/.config/vivaldi/Local State') ;;
+    ''|/*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@+-]*) source_error 'unsafe repository-relative path'; return 1 ;;
+  esac;
   case "/$1/" in */../*|*/./*|*//*) source_error 'repository path contains traversal or empty components'; return 1 ;; esac;
 };
 source_transfer() (
@@ -560,7 +567,9 @@ source_prepare_payload() (
   sort "$work/members" >"$work/members.sorted"
   sort -u "$work/members" >"$work/members.unique"
   cmp -s "$work/members.sorted" "$work/members.unique" || { source_error 'duplicate payload archive member'; exit 1; }
-  awk 'length($1)!=64 || $1 ~ /[^a-f0-9]/ || NF!=2 {exit 1} {print $2}' "$work/payload.manifest" >"$work/expected" || { source_error 'malformed payload manifest'; exit 1; }
+  # Keep the filename as the complete suffix after the fixed checksum field;
+  # a valid payload member may contain spaces (the Vivaldi Local State file).
+  awk 'length($0) < 67 || substr($0,65,2) != "  " || substr($0,1,64) ~ /[^a-f0-9]/ {exit 1} {print substr($0,67)}' "$work/payload.manifest" >"$work/expected" || { source_error 'malformed payload manifest'; exit 1; }
   while IFS= read -r path; do source_validate_relative "$path" || exit 1; done <"$work/expected"
   sort "$work/expected" >"$work/expected.sorted"
   cmp -s "$work/expected.sorted" "$work/members.sorted" || { source_error 'payload member set differs from manifest'; exit 1; }
